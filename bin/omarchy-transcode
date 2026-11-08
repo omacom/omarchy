@@ -146,6 +146,7 @@ decodable_audio_index() {
 # A default disposition outranks the other tracks. Among the tracks that
 # remain, the largest frame wins, and an earlier track wins a tie. An
 # attached picture is skipped while a real video track exists.
+# Returns 3 when the file has no video, and 1 when probing fails.
 video_stream_index() {
   local input="$1"
   local probe index width height is_default attached area
@@ -183,7 +184,7 @@ video_stream_index() {
   done <<<"$probe"
 
   if (( saw_video == 0 )); then
-    return 1
+    return 3
   fi
   if (( saw_default == 1 )); then
     printf '%s\n' "$default_index"
@@ -194,7 +195,7 @@ video_stream_index() {
 
 transcode_video() {
   local input="$1" format="$2" resolution="$3" output="$4"
-  local scale audio_index="" audio_status=0 video_index=""
+  local scale audio_index="" audio_status=0 video_index="" video_status=0
   local -a args
 
   case "$resolution" in
@@ -218,17 +219,29 @@ transcode_video() {
       return 1
     fi
 
-    video_index=$(video_stream_index "$input") || return 1
+    video_index=$(video_stream_index "$input") || video_status=$?
+    if (( video_status == 1 )); then
+      return 1
+    fi
+    if [[ -z $video_index && -z $audio_index ]]; then
+      echo "No video or decodable audio track: $input" >&2
+      return 1
+    fi
 
-    args=(ffmpeg -i "$input" -map "0:$video_index")
+    args=(ffmpeg -i "$input")
+    if [[ -n $video_index ]]; then
+      args+=(-map "0:$video_index")
+    fi
     if [[ -n $audio_index ]]; then
       args+=(-map "0:$audio_index")
     fi
-    args+=(-vf "$scale")
-    if [[ $resolution == "4k" ]]; then
-      args+=(-c:v libx265 -preset slow -crf 24)
-    else
-      args+=(-c:v libx264 -preset fast -crf 23)
+    if [[ -n $video_index ]]; then
+      args+=(-vf "$scale")
+      if [[ $resolution == "4k" ]]; then
+        args+=(-c:v libx265 -preset slow -crf 24)
+      else
+        args+=(-c:v libx264 -preset fast -crf 23)
+      fi
     fi
     if [[ -n $audio_index ]]; then
       args+=(-c:a aac -b:a 192k)

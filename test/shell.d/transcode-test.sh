@@ -95,6 +95,19 @@ codec=$(ffprobe -v error -select_streams a -show_entries stream=codec_name -of c
 [[ $codec == "aac" ]] || fail "transcode converts the DTS track to AAC" "$codec"
 pass "transcode keeps DTS audio when its decoder has another name"
 
+# The reviewer's file has DTS and no picture. file(1) still calls it a video,
+# and ffmpeg writes an AAC mp4 from it. The command has to do the same.
+ffmpeg -y -hide_banner -loglevel error \
+  -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1" \
+  -c:a dca -strict -2 \
+  "$test_tmp/dts-only.mkv"
+if ! PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-transcode" "$test_tmp/dts-only.mkv" mp4 720p >"$test_tmp/log" 2>&1; then
+  fail "transcode converts a DTS-only file to AAC" "$(cat "$test_tmp/log")"
+fi
+streams=$(ffprobe -v error -show_entries stream=codec_type,codec_name -of csv=p=0 "$test_tmp/dts-only-720p.mp4")
+[[ $streams == "aac,audio" ]] || fail "a DTS-only file becomes an AAC mp4 with no video track" "$streams"
+pass "a DTS-only file becomes an AAC mp4 with no video track"
+
 # No default disposition, so ffmpeg's own choice is the larger frame, even
 # though the small one comes first. scale=-2:720 turns 80x40 into 1440x720
 # and 16x16 into 720x720.
