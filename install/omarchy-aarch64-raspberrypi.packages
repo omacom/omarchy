@@ -1,2 +1,2 @@
-# Pi 4 Model B tooling. The package depends on its graphics and radio firmware.
-raspberrypi-4-support
+# Pi 4 tooling and compatibility requirements for installed desktops.
+raspberrypi-4-desktop

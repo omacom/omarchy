@@ -349,3 +349,9 @@ scripts.
 2. **Pacnew/pacsave handling is still missing**
    - Package-backed Omarchy should warn about or help process `.pacnew` and
      `.pacsave` files after updates.
+
+## Raspberry Pi 4 package compatibility
+
+The installed target package list selects `raspberrypi-4-desktop`; the live ISO selects `raspberrypi-4-support` so its checks do not pull in a desktop runtime. The desktop package retains `omarchy-pi-runtime=1` and an exact version of support, which requires `linux-omarchy-pi4=1`. These are pacman dependencies: an upgrade that drops a required capability fails dependency preparation before package files are replaced. Lifecycle `update-prepare` and `update-verify` checks remain necessary to check the ESP, installed kernel and UKI. Capability metadata does not certify peripherals or physical reboot success.
+
+The capability-bearing kernel, matching headers/NVIDIA packages, runtime/settings source pair and support/desktop packages must be published together through the existing upstream package channels. Keep temporary holds on older Pi installations until that complete set is available and qualified; this patch does not establish that public updates already work. Install the desktop contract explicitly during the coordinated transition, since changing a default package list does not add it to an existing installation. Retain the preceding compatible package set for rollback; older packages without the capabilities cannot satisfy the new dependencies. No separate permanent Pi update repository is required.
