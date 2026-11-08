@@ -76,3 +76,37 @@ fi
 codec=$(ffprobe -v error -select_streams a -show_entries stream=codec_name -of csv=p=0 "$output")
 [[ $codec == "aac" ]] || fail "transcode uses the AAC track when spatial audio is the default" "$codec"
 pass "transcode uses the AAC track when spatial audio is the default"
+
+# ffprobe calls this codec "dts". The decoder list names it "dca" and only
+# mentions dts in "(codec dts)", so a name-only check rejects a track ffmpeg
+# can convert.
+ffmpeg -y -hide_banner -loglevel error \
+  -f lavfi -i "color=c=black:s=32x32:r=30:d=1" \
+  -f lavfi -i "sine=frequency=440:sample_rate=48000:duration=1" \
+  -map 0:v:0 -map 1:a:0 \
+  -c:v libx264 -pix_fmt yuv420p -c:a dca -strict experimental \
+  "$test_tmp/dts.mkv"
+dts_codec=$(ffprobe -v error -select_streams a -show_entries stream=codec_name -of csv=p=0 "$test_tmp/dts.mkv")
+[[ $dts_codec == "dts" ]] || fail "fixture reports DTS under the name ffprobe uses" "$dts_codec"
+if ! PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-transcode" "$test_tmp/dts.mkv" mp4 720p >"$test_tmp/log" 2>&1; then
+  fail "transcode keeps DTS audio when its decoder has another name" "$(cat "$test_tmp/log")"
+fi
+codec=$(ffprobe -v error -select_streams a -show_entries stream=codec_name -of csv=p=0 "$test_tmp/dts-720p.mp4")
+[[ $codec == "aac" ]] || fail "transcode converts the DTS track to AAC" "$codec"
+pass "transcode keeps DTS audio when its decoder has another name"
+
+# No default disposition, so ffmpeg's own choice is the larger frame, even
+# though the small one comes first. scale=-2:720 turns 80x40 into 1440x720
+# and 16x16 into 720x720.
+ffmpeg -y -hide_banner -loglevel error \
+  -f lavfi -i "color=c=red:s=16x16:r=10:d=1" \
+  -f lavfi -i "color=c=blue:s=80x40:r=10:d=1" \
+  -map 0:v:0 -map 1:v:0 -disposition:v:0 0 -disposition:v:1 0 \
+  -c:v libx264 -pix_fmt yuv420p \
+  "$test_tmp/preview.mkv"
+if ! PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-transcode" "$test_tmp/preview.mkv" mp4 720p >"$test_tmp/log" 2>&1; then
+  fail "transcode keeps the larger video track" "$(cat "$test_tmp/log")"
+fi
+width=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$test_tmp/preview-720p.mp4")
+[[ $width == "1440" ]] || fail "transcode keeps the larger video track when it is not first" "$width"
+pass "transcode keeps the larger video track when it is not first"

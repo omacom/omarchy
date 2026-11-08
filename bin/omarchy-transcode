@@ -97,19 +97,25 @@ transcode_picture() {
 decodable_audio_index() {
   local input="$1"
   local -A decoders=()
-  local probe name index codec is_default chosen="" fallback=""
+  local probe flags name rest index codec is_default chosen="" fallback=""
   local saw_audio=0
 
   probe=$(ffprobe -v error -select_streams a \
     -show_entries stream=index,codec_name:stream_disposition=default \
     -of csv=p=0 -- "$input") || return 1
 
-  while read -r name; do
+  # ffprobe's codec name and ffmpeg's decoder name are not always the same.
+  # DTS is "dts" in the file and "dca" in the decoder list, which also says
+  # "(codec dts)". Record both. The flag field is six characters drawn from
+  # V, A, S, F, X, B, D and "."; AAC's line ends in D.
+  while read -r flags name rest; do
+    [[ $flags =~ ^[VASFXBD.]{6}$ ]] || continue
     [[ -n $name ]] || continue
     decoders[$name]=1
-  # The flag field is six characters: V, A, S, and F, X, B, D. AAC's line ends
-  # in D, so a class of only V, A, S and "." would treat it as undecodable.
-  done < <(ffmpeg -hide_banner -decoders | awk '$1 ~ /^[VASFXBD.]{6}$/ { print $2 }')
+    if [[ $rest =~ \(codec\ ([^\)]+)\) ]]; then
+      decoders[${BASH_REMATCH[1]}]=1
+    fi
+  done < <(ffmpeg -hide_banner -decoders)
 
   while IFS=',' read -r index codec is_default; do
     [[ -n $index ]] || continue
@@ -136,9 +142,59 @@ decodable_audio_index() {
   fi
 }
 
+# Prints the video stream ffmpeg chooses when no -map is given.
+# A default disposition outranks the other tracks. Among the tracks that
+# remain, the largest frame wins, and an earlier track wins a tie. An
+# attached picture is skipped while a real video track exists.
+video_stream_index() {
+  local input="$1"
+  local probe index width height is_default attached area
+  local best_index="" best_area=-1 default_index="" default_area=-1
+  local has_real=0 saw_video=0 saw_default=0
+
+  probe=$(ffprobe -v error -select_streams v \
+    -show_entries stream=index,width,height:stream_disposition=default,attached_pic \
+    -of csv=p=0 -- "$input") || return 1
+
+  while IFS=',' read -r index width height is_default attached; do
+    [[ -n $index ]] || continue
+    [[ $attached == "1" ]] && continue
+    has_real=1
+  done <<<"$probe"
+
+  while IFS=',' read -r index width height is_default attached; do
+    [[ -n $index ]] || continue
+    if (( has_real == 1 )) && [[ $attached == "1" ]]; then
+      continue
+    fi
+    saw_video=1
+    area=$(( ${width:-0} * ${height:-0} ))
+    if [[ $is_default == "1" ]]; then
+      saw_default=1
+      if (( area > default_area )); then
+        default_area=$area
+        default_index=$index
+      fi
+    fi
+    if (( area > best_area )); then
+      best_area=$area
+      best_index=$index
+    fi
+  done <<<"$probe"
+
+  if (( saw_video == 0 )); then
+    return 1
+  fi
+  if (( saw_default == 1 )); then
+    printf '%s\n' "$default_index"
+  else
+    printf '%s\n' "$best_index"
+  fi
+}
+
 transcode_video() {
   local input="$1" format="$2" resolution="$3" output="$4"
-  local scale audio_index="" audio_status=0
+  local scale audio_index="" audio_status=0 video_index=""
   local -a args
 
   case "$resolution" in
@@ -162,7 +218,9 @@ transcode_video() {
       return 1
     fi
 
-    args=(ffmpeg -i "$input" -map 0:v:0)
+    video_index=$(video_stream_index "$input") || return 1
+
+    args=(ffmpeg -i "$input" -map "0:$video_index")
     if [[ -n $audio_index ]]; then
       args+=(-map "0:$audio_index")
     fi
