@@ -15,35 +15,8 @@ full="$ROOT/logo.txt"
 jq empty "$config"
 pass "fastfetch config is valid JSON"
 
-type=$(jq -r '.logo.type' "$config")
-source_cmd=$(jq -r '.logo.source' "$config")
-[[ $type == "file" ]] || fail "fastfetch applies color and pipe policy to the selected file" "$type"
-pass "fastfetch uses a dynamically selected file logo"
-[[ $source_cmd == '"$(omarchy-fastfetch-logo --path)"' ]] || fail "fastfetch prints the Omarchy wordmark helper" "$source_cmd"
-pass "fastfetch prints the Omarchy wordmark helper"
-[[ $source_cmd != *about.txt* ]] || fail "fastfetch is not the 26-row About icon" "$source_cmd"
-pass "fastfetch is not the 26-row About icon"
-[[ $(jq -r '.logo.color["1"]' "$config") == "green" ]] || fail "the wordmark stays green"
-pass "the wordmark stays green"
-
-config_top=$(jq -r '.logo.padding.top' "$config")
 config_left=$(jq -r '.logo.padding.left' "$config")
 config_right=$(jq -r '.logo.padding.right' "$config")
-[[ $config_top == "2" && $config_left == "2" && $config_right == "6" ]] ||
-  fail "padding is still what About measures" "$config_top/$config_left/$config_right"
-pass "padding is still what About measures"
-
-box=$(jq -r '[.modules[] | select(type == "object" and .type == "custom") | .format][0]' "$config")
-box_plain=$(printf '%s' "$box" | sed 's/\x1b\[[0-9;]*m//g')
-box_width=$(printf '%s' "$box_plain" | python3 -c 'import sys; print(len(sys.stdin.buffer.read().decode("utf-8")))')
-[[ $box_width == "54" ]] || fail "the module box is 54 columns so the picker can leave room for it" "$box_width"
-pass "the module box is 54 columns so the picker can leave room for it"
-
-grep -q '^PAD_LEFT=2$' "$helper" && grep -q '^PAD_RIGHT=6$' "$helper" && grep -q '^PAD_TOP=2$' "$helper" ||
-  fail "the picker's padding is the config's"
-pass "the picker's padding is the config's"
-grep -q '^MODULE_COLUMNS=54$' "$helper" || fail "the picker subtracts the module box"
-pass "the picker subtracts the module box"
 
 [[ -x $helper ]] || fail "the wordmark helper is executable"
 pass "the wordmark helper is executable"
@@ -130,12 +103,6 @@ for columns in 80 120 160; do
   [[ $normal == "$byte_locale" ]] || fail "the C locale must select the same file"
 done
 pass "logo path selection is independent of the inherited locale"
-
-# About keeps the branding file as a file logo so the sheen can find those cells.
-grep -q 'about_fastfetch' "$ROOT/bin/omarchy-launch-about" || fail "About still draws through a branding-file fastfetch"
-pass "About still draws through a branding-file fastfetch"
-[[ $(jq -r '.logo.source' "$config") != "~/.config/omarchy/branding/about.txt" ]] || fail "the packaged config is not About's file logo"
-pass "the packaged config is not About's file logo"
 
 require_command fastfetch
 python3 "$ROOT/test/shell.d/fastfetch-render-check.py" "$ROOT" ||

@@ -19,7 +19,7 @@ PAD_RIGHT=6
 PAD_TOP=2
 MODULE_COLUMNS=54
 
-omarchy_path=${OMARCHY_PATH:-/usr/share/omarchy}
+omarchy_path=$OMARCHY_PATH
 omarchy_path=${omarchy_path%/}
 
 cols=${COLUMNS:-}
