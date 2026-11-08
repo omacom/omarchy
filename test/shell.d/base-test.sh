@@ -35,7 +35,7 @@ unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME OMARCHY_AGENT_CLAUDE_HOME OMARCHY_A
 
 # The session's boot splash colour would put a test shell's startup cover on
 # the boot splash, with the machine's own progress bar to fill.
-unset OMARCHY_SPLASH_BACKGROUND
+unset OMARCHY_SPLASH_BACKGROUND OMARCHY_HYPRLAND_SPLASH
 
 pass() {
   printf 'ok - %s\n' "$1"

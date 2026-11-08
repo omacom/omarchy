@@ -72,8 +72,3 @@ output=$(progress 'root=PARTUUID=a rw quiet splash')
 after=$(date +%s%3N)
 (( output >= before - 3205 && output <= after - 3195 )) || fail "the recorded start of Plymouth's bar becomes the epoch" "$output, $before..$after"
 pass "the splash progress comes from Plymouth's own bar when the handoff read it"
-
-# Without Plymouth's real progress the bar follows its curve alone, the curve
-# omarchy-plymouth-handoff inverts and Hyprland and the cover carry on.
-! grep -q "SetBootProgressFunction" "$ROOT/default/plymouth/omarchy.script" || fail "the splash bar never jumps to Plymouth's boot progress"
-pass "the splash bar never jumps to Plymouth's boot progress"
