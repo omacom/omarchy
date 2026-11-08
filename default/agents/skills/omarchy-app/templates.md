@@ -63,14 +63,89 @@ QT_QPA_PLATFORM=offscreen ./<name>_tests
 
 ## `bin/install`
 
+The everyday install. It needs no sudo, so the agent runs it itself and the
+app is in the launcher straight away.
+
 ```sh
 #!/bin/sh
+# Builds the app and installs it for this user under ~/.local, with no sudo.
+# The Omarchy launcher watches ~/.local/share/applications, so the app is
+# listed as soon as this finishes.
+set -eu
+
+NAME=<name>
+ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+BIN="$HOME/.local/bin"
+ENTRY="$ROOT/build/$NAME.desktop"
+
+# Omarchy hides these desktop ids from its launcher, so an app with one of
+# their names would install fine and never show up.
+if grep -qx "$NAME" "${OMARCHY_PATH:-/usr/share/omarchy}/default/omarchy/launcher.hides" 2>/dev/null; then
+  echo "Omarchy hides '$NAME' from its launcher; rename the app" >&2
+  exit 1
+fi
+
+"$ROOT/bin/build"
+
+# The launcher may not have ~/.local/bin on its PATH, so Exec names the
+# installed binary in full. Check the entry before installing it, so a broken
+# one never reaches the launcher.
+sed -E "s#^Exec=$NAME( |\$)#Exec=$BIN/$NAME\1#" "$ROOT/pkgbuild/$NAME.desktop" > "$ENTRY"
+if ! grep -Eq "^Exec=$BIN/$NAME( |\$)" "$ENTRY"; then
+  echo "pkgbuild/$NAME.desktop needs a line Exec=$NAME" >&2
+  exit 1
+fi
+if command -v desktop-file-validate >/dev/null; then
+  desktop-file-validate "$ENTRY"
+fi
+
+install -Dm755 "$ROOT/build/$NAME" "$BIN/$NAME"
+install -Dm644 "$ROOT/pkgbuild/$NAME.svg" "$DATA/icons/hicolor/scalable/apps/$NAME.svg"
+install -Dm644 "$ENTRY" "$DATA/applications/$NAME.desktop"
+if command -v update-desktop-database >/dev/null; then
+  update-desktop-database -q "$DATA/applications"
+fi
+
+echo "Installed $NAME: $BIN/$NAME and $DATA/applications/$NAME.desktop"
+```
+
+## `bin/uninstall`
+
+```sh
+#!/bin/sh
+# Removes what bin/install put under ~/.local.
+set -eu
+
+NAME=<name>
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}"
+rm -f "$HOME/.local/bin/$NAME" "$DATA/applications/$NAME.desktop" \
+      "$DATA/icons/hicolor/scalable/apps/$NAME.svg"
+if command -v update-desktop-database >/dev/null; then
+  update-desktop-database -q "$DATA/applications"
+fi
+echo "Uninstalled $NAME from ~/.local"
+```
+
+## `bin/package`
+
+The system-wide Arch package. `pacman` asks for sudo, which an agent's shell
+can't answer, so use it only when the user asks for it or for a release, and
+have the user run it in a terminal.
+
+```sh
+#!/bin/sh
+# Builds the Arch package and installs it system-wide with pacman, which asks
+# for sudo. bin/install is the everyday path and needs no password.
 set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-"$ROOT/bin/build"
 cd "$ROOT/pkgbuild"
-exec makepkg -fsi "$@"
+makepkg -fsi "$@"
+
+# A ~/.local install has the same desktop id, so it would shadow the package's
+# launcher entry and keep starting the old binary.
+"$ROOT/bin/uninstall"
 ```
 
 ## `src/main.cpp`
@@ -111,6 +186,7 @@ int main(int argc, char *argv[]) {
 
     QQmlApplicationEngine engine;
     QObject::connect(&translator, &Translator::changed, &engine, &QQmlEngine::retranslate);
+    QObject::connect(&translator, &Translator::changed, &backend, &Backend::retranslate);
     engine.rootContext()->setContextProperty("translator", &translator);
     engine.rootContext()->setContextProperty("theme", &theme);
     engine.rootContext()->setContextProperty("backend", &backend);
@@ -482,28 +558,43 @@ void Translator::reload() {
 ## `src/backend.h` and `src/backend.cpp`
 
 The C++ side of the app's one job, exposed to QML as `backend`. Start with
-the single action the Space shortcut runs, then grow it.
+the single action the Space shortcut runs, then grow it. Keep any translated
+status or error string in a `std::function<QString()>` builder so
+`Backend::retranslate()` updates visible banners live when the language
+switches.
 
 ```cpp
 #pragma once
 
 #include <QObject>
+#include <QString>
+#include <functional>
 
 class Backend : public QObject {
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
+    Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusChanged)
 
 public:
     explicit Backend(QObject *parent = nullptr) : QObject(parent) {}
 
     int count() const { return m_count; }
+    QString statusMessage() const { return m_statusMessage; }
+
     Q_INVOKABLE void primaryAction();
+    Q_INVOKABLE void clearStatus();
+    void retranslate();
 
 signals:
     void countChanged();
+    void statusChanged();
 
 private:
+    void setStatusBuilder(std::function<QString()> builder);
+
     int m_count = 0;
+    QString m_statusMessage;
+    std::function<QString()> m_statusBuilder;
 };
 ```
 
@@ -514,6 +605,34 @@ void Backend::primaryAction()
 {
     ++m_count;
     emit countChanged();
+}
+
+void Backend::clearStatus()
+{
+    setStatusBuilder({});
+}
+
+void Backend::retranslate()
+{
+    if (!m_statusBuilder)
+        return;
+    const QString updated = m_statusBuilder();
+    if (updated != m_statusMessage) {
+        m_statusMessage = updated;
+        emit statusChanged();
+    }
+}
+
+// Pass a lambda calling tr(…) so retranslate() updates visible banners live
+// when the Omarchy language switches.
+void Backend::setStatusBuilder(std::function<QString()> builder)
+{
+    m_statusBuilder = std::move(builder);
+    const QString next = m_statusBuilder ? m_statusBuilder() : QString();
+    if (next != m_statusMessage) {
+        m_statusMessage = next;
+        emit statusChanged();
+    }
 }
 ```
 
@@ -537,13 +656,58 @@ ApplicationWindow {
 
     Material.theme: Material.Dark
     Material.accent: theme.accent
-    Material.roundedScale: theme.radius
 
     property bool helpVisible: false
+    readonly property bool editingText: activeFocusItem instanceof TextInput || activeFocusItem instanceof TextEdit
 
-    Shortcut { sequence: "?"; context: Qt.ApplicationShortcut; onActivated: win.helpVisible = !win.helpVisible }
-    Shortcut { sequence: "Q"; context: Qt.ApplicationShortcut; onActivated: Qt.quit() }
-    Shortcut { sequence: "Space"; context: Qt.ApplicationShortcut; onActivated: backend.primaryAction() }
+    // Single-key shortcuts are disabled while typing in a TextField or TextArea.
+    Shortcut { sequence: "?"; context: Qt.ApplicationShortcut; enabled: !win.editingText; onActivated: win.helpVisible = !win.helpVisible }
+    Shortcut { sequence: "Q"; context: Qt.ApplicationShortcut; enabled: !win.editingText; onActivated: Qt.quit() }
+    Shortcut { sequence: "Space"; context: Qt.ApplicationShortcut; enabled: !win.editingText; onActivated: backend.primaryAction() }
+
+    // Consistent button matching Hyprland's window rounding (theme.radius) and
+    // readable on light accents like #FFD60A. TabFocus keeps mouse clicks from
+    // stealing the global Space shortcut.
+    component UiButton : Button {
+        id: btn
+        property bool primary: false
+        property bool active: false
+        focusPolicy: Qt.TabFocus
+        flat: true
+        topInset: 0
+        bottomInset: 0
+        leftPadding: 14
+        rightPadding: 14
+        implicitHeight: 34
+        background: Rectangle {
+            radius: theme.radius
+            color: btn.primary
+                   ? (btn.down ? Qt.darker(theme.accent, 1.15) : (btn.hovered ? Qt.lighter(theme.accent, 1.08) : theme.accent))
+                   : btn.active
+                     ? Qt.rgba(Qt.color(theme.accent).r, Qt.color(theme.accent).g, Qt.color(theme.accent).b, btn.hovered ? 0.24 : 0.16)
+                     : (btn.down ? "#232a35" : (btn.hovered ? "#1b212a" : "#141820"))
+            border.width: btn.primary ? 0 : 1
+            border.color: btn.active ? theme.accent : (btn.hovered ? "#38414f" : "#252b35")
+        }
+        contentItem: Text {
+            text: btn.text
+            font.pixelSize: 12
+            font.weight: (btn.primary || btn.active) ? Font.DemiBold : Font.Medium
+            color: btn.primary ? theme.accentForeground : (btn.enabled ? "#e5e7eb" : "#6b7280")
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+    }
+
+    // For TextArea / TextField with a custom background:
+    // - Set explicit padding (TextArea: leftPadding: 12; rightPadding: 12; topPadding: 10; bottomPadding: 10;
+    //   TextField: leftPadding: 10; rightPadding: 10; topPadding: 0; bottomPadding: 0; verticalAlignment: TextInput.AlignVCenter)
+    // - Draw placeholders as a child Label at x: parent.leftPadding; y: parent.topPadding (not Material's floating placeholderText)
+    // - On TextArea, forward Tab/Backtab with nextItemInFocusChain(true/false).forceActiveFocus(Qt.TabFocusReason)
+    // For scrollable views:
+    // - Use Flickable { clip: true; contentWidth: width; contentHeight: layout.implicitHeight + 36 }
+    //   and position layout with x/y (never anchors.top or anchors.horizontalCenter inside Flickable/ScrollView).
 
     // Right-to-left languages mirror the window; the Translator sets the
     // application's layout direction.
@@ -599,6 +763,8 @@ TARGET = <name>_tests
 TEMPLATE = app
 
 INCLUDEPATH += ../src
+# Lets the tests find src/ to check the QML's strings against the catalogs.
+DEFINES += SRCDIR=\\\"$$PWD\\\"
 
 HEADERS += ../src/backend.h ../src/theme.h ../src/translator.h
 SOURCES += <name>_tests.cpp ../src/backend.cpp ../src/theme.cpp ../src/translator.cpp
@@ -606,11 +772,18 @@ SOURCES += <name>_tests.cpp ../src/backend.cpp ../src/theme.cpp ../src/translato
 
 ## `tests/<name>_tests.cpp`
 
-One `private slots:` case per behavior. These cover the backend, the theme fallback, accent and rounding, and the translator's language file and fallbacks, so a broken theme or catalog shows up in `bin/test`.
+One `private slots:` case per behavior. These cover the backend, the theme
+fallback, accent and rounding, the translator's language file and fallbacks,
+and the catalogs themselves: each one must parse and hold every `qsTr()`
+string in the QML. So a broken theme, a broken catalog, or a string left in
+English shows up in `bin/test`.
 
 ```cpp
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -706,6 +879,53 @@ private slots:
         QCOMPARE(Translator::pluralCategory("ja", 1), QString("other"));
     }
 
+    // Every qsTr("…") string in QML and every tr("…") / translate("…", "…")
+    // string in C++ is in every shipped catalog, so nothing stays in English
+    // after a language switch. English itself needs only the plural forms of
+    // counted strings, so en.json is only parsed.
+    void everyStringIsTranslated()
+    {
+        // Ordinary strings, not raw ones: moc reads this file, and a raw
+        // string containing )" stops it from generating anything.
+        const QRegularExpression qmlCall("\\bqsTr\\(\"((?:[^\"\\\\]|\\\\.)*)\"");
+        const QRegularExpression cppTrCall("\\btr\\(\"((?:[^\"\\\\]|\\\\.)*)\"");
+        const QRegularExpression cppTranslateCall("\\btranslate\\(\"[^\"]*\",\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
+        QCOMPARE(qmlCall.match("qsTr(\"Save\")").captured(1), QString("Save"));
+        QCOMPARE(cppTrCall.match("tr(\"Save\")").captured(1), QString("Save"));
+        QCOMPARE(cppTranslateCall.match("QCoreApplication::translate(\"Main\", \"Save\")").captured(1), QString("Save"));
+
+        const QDir src(QStringLiteral(SRCDIR "/../src"));
+        QStringList strings;
+        auto collect = [&](const QStringList &filters, const QRegularExpression &expr) {
+            for (const auto &name : src.entryList(filters)) {
+                QFile file(src.filePath(name));
+                QVERIFY(file.open(QIODevice::ReadOnly));
+                auto matches = expr.globalMatch(QString::fromUtf8(file.readAll()));
+                while (matches.hasNext()) {
+                    const QString s = matches.next().captured(1).replace(QStringLiteral("\\\""), QStringLiteral("\""));
+                    if (!strings.contains(s))
+                        strings.append(s);
+                }
+            }
+        };
+        collect({"*.qml"}, qmlCall);
+        collect({"*.cpp", "*.h"}, cppTrCall);
+        collect({"*.cpp", "*.h"}, cppTranslateCall);
+
+        const QDir i18n(src.filePath("i18n"));
+        for (const auto &name : i18n.entryList({"*.json"})) {
+            QFile file(i18n.filePath(name));
+            QVERIFY(file.open(QIODevice::ReadOnly));
+            QJsonParseError error;
+            const QJsonObject catalog = QJsonDocument::fromJson(file.readAll(), &error).object();
+            QVERIFY2(error.error == QJsonParseError::NoError, qPrintable(name + ": " + error.errorString()));
+            if (name == "en.json")
+                continue;
+            for (const auto &string : strings)
+                QVERIFY2(catalog.contains(string), qPrintable(name + " has no \"" + string + "\""));
+        }
+    }
+
 private:
     static void write(const QString &path, const QByteArray &contents)
     {
@@ -788,4 +1008,86 @@ and draw the app's mark on it.
 /pkgbuild/pkg/
 /pkgbuild/src/
 *.pkg.tar.*
+```
+
+## Scratchpad harness
+
+Not part of the project: build it in the scratchpad to see the real window
+without touching the user's desktop. `harness.pro` points at the project's
+`src/` by absolute path. Build it with `qmake6 && make`, then run
+`./harness da shot.png` and read the image.
+
+```qmake
+QT += core gui qml quick quickcontrols2 testlib
+CONFIG += c++17
+TARGET = harness
+SRC = /home/<user>/Work/<name>/src
+INCLUDEPATH += $$SRC
+HEADERS += $$SRC/backend.h $$SRC/theme.h $$SRC/translator.h
+SOURCES += harness.cpp $$SRC/backend.cpp $$SRC/theme.cpp $$SRC/translator.cpp
+RESOURCES += $$SRC/resources.qrc
+```
+
+```cpp
+// Drives the app's real QML offscreen and saves what the user would see.
+// Usage: harness [language] [output.png]
+#include <QFile>
+#include <QGuiApplication>
+#include <QQmlApplicationEngine>
+#include <QQmlContext>
+#include <QQuickStyle>
+#include <QQuickWindow>
+#include <QTemporaryDir>
+#include <QTest>
+
+#include "backend.h"
+#include "theme.h"
+#include "translator.h"
+
+int main(int argc, char *argv[]) {
+    // Offscreen, but drawn with OpenGL like the real window: Qt Quick's
+    // software renderer, the offscreen default, leaves out Material's button
+    // backgrounds. QML warnings go to the terminal, not the journal.
+    qputenv("QT_QPA_PLATFORM", "offscreen");
+    if (!qEnvironmentVariableIsSet("QT_QUICK_BACKEND")) {
+        qputenv("QT_QUICK_BACKEND", "rhi");
+        qputenv("QSG_RHI_BACKEND", "opengl");
+    }
+    qputenv("QT_FORCE_STDERR_LOGGING", "1");
+    QGuiApplication app(argc, argv);
+    QQuickStyle::setStyle("Material");
+
+    // A language file of its own and no Omarchy theme, so the picture has
+    // the default accent and sharp corners, and the user's settings neither
+    // change nor leak into it.
+    QTemporaryDir dir;
+    QFile language(dir.filePath("language"));
+    if (!language.open(QIODevice::WriteOnly))
+        return 1;
+    language.write(argc > 1 ? argv[1] : "en");
+    language.close();
+    Translator translator(dir.filePath("language"));
+    app.installTranslator(&translator);
+    Theme theme(dir.filePath("no-omarchy"));
+    Backend backend;
+
+    QQmlApplicationEngine engine;
+    QObject::connect(&translator, &Translator::changed, &engine, &QQmlEngine::retranslate);
+    QObject::connect(&translator, &Translator::changed, &backend, &Backend::retranslate);
+    engine.rootContext()->setContextProperty("translator", &translator);
+    engine.rootContext()->setContextProperty("theme", &theme);
+    engine.rootContext()->setContextProperty("backend", &backend);
+    engine.load(QUrl("qrc:/Main.qml"));
+    auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0));
+    if (!window || !QTest::qWaitForWindowExposed(window))
+        return 1;
+
+    // Use it the way the user would: keys, typed characters, clicks
+    // (QTest::mouseClick(window, Qt::LeftButton, {}, QPoint(x, y))).
+    QTest::keyClick(window, Qt::Key_Space);
+    QTest::qWait(400); // Let animations settle before the picture.
+
+    window->grabWindow().save(argc > 2 ? argv[2] : "shot.png");
+    return 0;
+}
 ```
