@@ -4,7 +4,7 @@
 # otherwise performs a minimal local seal: kill llama-server/hermes,
 # drop whonix-int route (best-effort), power off.
 set -u
-if [ -x /usr/local/bin/wazuh-vm-seal.sh ]; then
+if [[ -x /usr/local/bin/wazuh-vm-seal.sh ]]; then
     exec sudo -n /usr/local/bin/wazuh-vm-seal.sh -c 2
 fi
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

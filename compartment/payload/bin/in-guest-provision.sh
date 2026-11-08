@@ -55,7 +55,7 @@ passwd -l agent 2>/dev/null || true
 echo "PHASE:mount+hermes"
 bash /usr/local/bin/mount-models.sh || echo "FAIL:mount-models"
 mkdir -p /home/agent
-[ -f /opt/bootstrap/hermes-agent.tar.zst ] && tar -C /home/agent -xzf /opt/bootstrap/hermes-agent.tar.zst || true
+[[ -f /opt/bootstrap/hermes-agent.tar.zst ]] && tar -C /home/agent -xzf /opt/bootstrap/hermes-agent.tar.zst || true
 cp -n /opt/bootstrap/dlp/*.txt /etc/modsecurity/dlp/ 2>/dev/null || true
 chown -R agent:agent /home/agent/hermes-agent 2>/dev/null || true
 
@@ -63,14 +63,14 @@ systemctl enable models-mount llama-server context-firewall hermes-backend compa
 systemctl start models-mount llama-server context-firewall hermes-backend ssh 2>/dev/null || true
 # agent CLIs + hermes venv — offline pack first (reliable), npm-over-Tor fallback
 echo "PHASE:agents"
-if [ -f /var/lib/agent-pack.tar.gz ]; then
+if [[ -f /var/lib/agent-pack.tar.gz ]]; then
   mkdir -p /opt/agent-pack && tar -C /opt/agent-pack -xzf /var/lib/agent-pack.tar.gz \
     && for a in /opt/agent-pack/bin/*; do ln -sf "$a" "/usr/local/bin/$(basename "$a")"; done \
     && chown -R agent:agent /opt/agent-pack && echo "agent-pack installed" || echo "FAIL:agent-pack"
 else
   bash /usr/local/bin/provision-agents.sh || echo "FAIL:provision-agents"
 fi
-if [ -f /var/lib/hermes-pack.tar.gz ]; then
+if [[ -f /var/lib/hermes-pack.tar.gz ]]; then
   tar -C / -xzf /var/lib/hermes-pack.tar.gz \
     && chown -R agent:agent /home/agent/hermes-agent \
     && echo "hermes-pack installed" || echo "FAIL:hermes-pack"

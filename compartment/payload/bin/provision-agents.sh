@@ -22,7 +22,7 @@ fi
 
 # default agent marker for vm-exec 'agent'/'attach' intents — pick an
 # actually-installed agent (hermes only exists when the hermes pack landed)
-if [ ! -f /etc/compartment/default-agent ]; then
+if [[ ! -f /etc/compartment/default-agent ]]; then
   for a in opencode hermes codex claude devin; do
     if command -v "$a" >/dev/null 2>&1; then echo "$a" > /etc/compartment/default-agent; break; fi
   done

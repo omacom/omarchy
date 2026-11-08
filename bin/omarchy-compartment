@@ -19,6 +19,7 @@ REG="$HOME/.config/vmctl/vms"          # lines: name ip user keyfile
 LEDGER_DIR="${COMPARTMENT_LEDGER:-/var/lib/omarchy-compartment/ledger}"
 POLICY_DIR="${VMCTL_POLICY_DIR:-$COMP/payload/compartments}"
 TX_RELAY="$COMP/bin/tx-relay"
+mkdir -p "$(dirname "$REG")"
 [[ -f $REG ]] || touch "$REG"
 
 die() { echo "omarchy-compartment: $*" >&2; exit 2; }

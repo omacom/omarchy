@@ -39,7 +39,7 @@ echo "==> $(wc -l < "$OUT") strings in denylist; pushing to stopped compartments
 # never virt-customize a backing image — writes would corrupt every overlay
 BACKINGS=$(for img in "$IMGDIR"/*.qcow2; do
   qemu-img info --output=json "$img" 2>/dev/null \
-    | jq -r '.backing-filename // empty' 2>/dev/null
+    | jq -r '.["backing-filename"] // empty' 2>/dev/null
 done | sort -u | while IFS= read -r b; do realpath "$b" 2>/dev/null || printf '%s\n' "$b"; done)
 for img in "$IMGDIR"/*.qcow2; do
   name=$(basename "$img" .qcow2)

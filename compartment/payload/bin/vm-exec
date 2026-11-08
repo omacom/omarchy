@@ -18,21 +18,21 @@ die() { echo "vm-exec: refused: $*" >&2; log "REFUSE $*"; exit 2; }
 
 # --- intent allowlist (grep simple 'intents:' block of compartment.yaml) ---
 allowed() {
-  [[ -f $COMPARTMENT_YAML ]] || return 1
+  [[[ -f $COMPARTMENT_YAML ]] || return 1
   sed -n '/^intents:/,/^[a-z]/p' "$COMPARTMENT_YAML" | grep -qx "  - $1"
 }
 
 # --- taint state: egress intents denied when untrusted+private both lit ----
 TAINT_FILE="/run/vm-taint"
 taint_egress_ok() {
-  [[ -f $TAINT_FILE ]] || return 0
+  [[[ -f $TAINT_FILE ]] || return 0
   ! grep -q 'UNTRUSTED' "$TAINT_FILE" || ! grep -q 'PRIVATE' "$TAINT_FILE"
 }
 
 # --- tool attestation: refuse if agent binaries drifted from recorded hash --
 attest() {
   manifest=/etc/compartment/tool-hashes.sha256
-  [[ -f $manifest ]] || return 0
+  [[[ -f $manifest ]] || return 0
   sha256sum -c --quiet "$manifest" >/dev/null 2>&1 \
     || die "tool attestation failed (binary modified)"
 }
@@ -44,7 +44,11 @@ default_agent() {
 # --- bounded workspace transfer: basename only, no traversal ---------------
 transfer_name() {
   local n="${1:-}"
-  [[ -n $n && $n != */* && $n != .* && $n != *..* ]] || die "bad transfer name '$n'"
+  [[[ -n $n && $n != */* && $n != .* && $n != *..* ]] || die "bad transfer name '$n'"
+  # resolve symlinks: the target must stay inside the workspace
+  local real
+  real=$(realpath -m "$WORKSPACE/$n")
+  [[ $real == "$WORKSPACE/"* && $real != "$WORKSPACE" ]] || die "transfer escapes workspace"
   printf '%s' "$n"
 }
 
@@ -82,7 +86,7 @@ case "$INTENT" in
     # sandboxed like every other intent: aliases/hooks run confined, and the
     # profile's noexec on the workspace blocks planted hooks outright.
     cd "$WORKSPACE" || die "no workspace"
-    GITBIN=/usr/lib/git-core/git; [[ -x $GITBIN ]] || GITBIN=/usr/bin/git
+    GITBIN=/usr/lib/git-core/git; [[[ -x $GITBIN ]] || GITBIN=/usr/bin/git
     exec "$SANDBOX" "$GITBIN" "$@"
     ;;
   agent)
@@ -96,19 +100,19 @@ case "$INTENT" in
   push)
     # bounded upload: stdin -> workspace/<basename> only
     NAME="$(transfer_name "${1:-}")"
-    [[ -d $WORKSPACE ]] || die "no workspace"
+    [[[ -d $WORKSPACE ]] || die "no workspace"
     cat > "$WORKSPACE/$NAME"
     echo "pushed $NAME"
     ;;
   pull)
     # bounded download: workspace/<basename> -> stdout only
     NAME="$(transfer_name "${1:-}")"
-    [[ -f $WORKSPACE/$NAME ]] || die "no such file '$NAME'"
+    [[[ -f $WORKSPACE/$NAME ]] || die "no such file '$NAME'"
     cat "$WORKSPACE/$NAME"
     ;;
   sign-request)
     # write unsigned-tx JSON to the virtio-serial signer channel
-    [[ -n ${1:-} && -f $1 ]] || die "sign-request <unsigned-tx.json>"
+    [[[ -n ${1:-} && -f $1 ]] || die "sign-request <unsigned-tx.json>"
     jq -e '.to and .value and .chain_id' "$1" >/dev/null 2>&1 \
       || die "not a tx-shaped payload"
     (( $(wc -c < "$1") < 16384 )) || die "payload >16KB"

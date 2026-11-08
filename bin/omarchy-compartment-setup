@@ -26,7 +26,7 @@ install -m644 "$COMP/host/sysctl/99-hardening.conf" /etc/sysctl.d/99-hardening.c
 sysctl --system >/dev/null 2>&1 || true
 
 echo "[2/8] auditd watchpoints"
-pacman -Q audit >/dev/null 2>&1 || pacman -S --noconfirm audit
+omarchy-pkg-present audit || omarchy-pkg-add audit
 install -m640 "$COMP/host/audit/hardening.rules" /etc/audit/rules.d/hardening.rules
 sed -e "s|__HOME__|$REAL_HOME|g" -e "s|__COMPARTMENT__|$COMP|g" \
   "$COMP/host/audit/compartment-ai.rules" > /etc/audit/rules.d/compartment-ai.rules
@@ -35,7 +35,7 @@ systemctl enable --now auditd 2>/dev/null || true
 augenrules --load 2>/dev/null || true
 
 echo "[3/8] AIDE (file integrity) — init DB on first run"
-pacman -Q aide >/dev/null 2>&1 || pacman -S --noconfirm aide || echo "install aide manually"
+omarchy-pkg-present aide || omarchy-pkg-add aide || echo "install aide manually"
 if ! ls /var/lib/aide/aide.db* >/dev/null 2>&1; then
   echo "  initializing AIDE database (first run is slow)"
   aide --init >/dev/null 2>&1 || aideinit || true
@@ -43,7 +43,7 @@ if ! ls /var/lib/aide/aide.db* >/dev/null 2>&1; then
 fi
 
 echo "[4/8] usbguard — allow current devices, block new ones"
-pacman -Q usbguard >/dev/null 2>&1 || pacman -S --noconfirm usbguard || echo "install usbguard manually"
+omarchy-pkg-present usbguard || omarchy-pkg-add usbguard || echo "install usbguard manually"
 install -m644 "$COMP/host/usbguard/compartment-ai.conf" /etc/usbguard/rules.d/compartment-ai.conf 2>/dev/null || true
 if [[ ! -s /etc/usbguard/rules.conf ]]; then
   usbguard generate-policy > /etc/usbguard/rules.conf 2>/dev/null || true
@@ -66,7 +66,7 @@ else
 fi
 
 echo "[7/8] AppArmor"
-pacman -Q apparmor >/dev/null 2>&1 || pacman -S --noconfirm apparmor || true
+omarchy-pkg-present apparmor || omarchy-pkg-add apparmor || true
 if grep -qw apparmor /sys/kernel/security/lsm 2>/dev/null; then
   systemctl enable --now apparmor && aa-status | head -5 || true
 else

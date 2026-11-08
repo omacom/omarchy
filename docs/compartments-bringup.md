@@ -1,7 +1,6 @@
 # AI compartments — bring-up field notes
 
-Hard-won operational notes from live provisioning of the compartment stack.
-Command names below map to the Omarchy implementation: `omarchy compartment` →
+Hard-won operational notes from live provisioning of the compartment stack. Command names below map to the Omarchy implementation: `omarchy compartment` →
 `omarchy compartment`, `omarchy-compartment-mk` → `omarchy-compartment-mk`,
 `omarchy-compartment-up` → `omarchy-compartment-up`,
 `omarchy-compartment-weights` → `omarchy-compartment-weights`,
@@ -216,8 +215,7 @@ REMAINING: opencode/claude local-model wiring (OpenAI-compatible endpoint → 12
 
 ## SESSION 4b — INFERENCE + DLP PROVEN BIDIRECTIONALLY
 
-$ omarchy compartment hermes-coding prompt "reply with the word ok"  ->  ok
-$ omarchy compartment hermes-coding prompt "...-----BEGIN OPENSSH PRIVATE KEY-----"  ->  403 Forbidden (rule 8000003)
+$ omarchy compartment hermes-coding prompt "reply with the word ok"  ->  ok $ omarchy compartment hermes-coding prompt "...-----BEGIN OPENSSH PRIVATE KEY-----"  ->  403 Forbidden (rule 8000003)
 
 - `prompt` intent: curl -> context-firewall :8081 (apache+ModSec DLP) -> llama :8080 -> Ornith-9B
 - BIP39 rule fixed: single-word pmFromFile false-positived on "model" (a BIP39 word!) -> now 11+ consecutive lowercase words (seed-phrase FORMAT)
@@ -229,9 +227,7 @@ REMAINING: opencode provider offline bundling (or document TUI attach), hermes v
 
 ## SESSION 4c — VAULT-SIGNER LIVE
 
-$ tx-relay pubkey                    -> {"status":"pub","pub":"cfedea8c..."}
-$ tx-relay sign '{valid tx}'  -> approve? y -> {"status":"signed","sig":"2941..."}
-$ tx-relay sign '{bad tx}'    -> {"status":"error","reason":"schema"}
+$ tx-relay pubkey                    -> {"status":"pub","pub":"cfedea8c..."} $ tx-relay sign '{valid tx}'  -> approve? y -> {"status":"signed","sig":"2941..."} $ tx-relay sign '{bad tx}'    -> {"status":"error","reason":"schema"}
 
 - vault-signer VM: Debian cloud image, NO NIC, virtio-serial 'signer' channel at /var/lib/libvirt/channels/vault-signer.sock (qemu-bound; socat/scripts need sudo)
 - sign-daemon.py: Ed25519 key at /var/lib/vault/signing.key (0600, never leaves VM), schema validation (to/value/chain_id allowlist {1,8453,42161,10}), pending->approve->signed flow

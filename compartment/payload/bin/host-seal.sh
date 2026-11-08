@@ -5,7 +5,7 @@
 # Args (Wazuh AR convention): host-seal.sh - <vm-name>  or  host-seal.sh <vm-name>
 set -u
 VM="${2:-${1:-}}"
-[ -n "$VM" ] || exit 2
+[[ -n "$VM" ]] || exit 2
 # only ever act on our compartments
 case "$VM" in
   hermes-*|Whonix-Crypto|Whonix-Workstation) ;;
