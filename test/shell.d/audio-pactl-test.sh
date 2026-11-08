@@ -11,6 +11,14 @@ mkdir -p "$work/bin"
 cat >"$work/bin/wpctl" <<'SH'
 #!/bin/bash
 printf 'wpctl %s\n' "$*" >>"$CALLS"
+# No microphone: the default source does not resolve.
+[[ -n ${NO_SOURCE:-} && $* == *@DEFAULT_AUDIO_SOURCE@* ]] && exit 1
+exit 0
+SH
+
+cat >"$work/bin/omarchy-brightness-keyboard-mute" <<'SH'
+#!/bin/bash
+printf 'omarchy-brightness-keyboard-mute %s\n' "$*" >>"$CALLS"
 SH
 
 cat >"$work/bin/omarchy-osd" <<'SH'
@@ -225,3 +233,12 @@ OUT
 omarchy-audio-input-set-default 43 alsa_input.pci-0000_00_1f.3.analog-stereo
 [[ $(moved) == "12 13 14 " ]] || fail 'input set-default still moves every other recording' "$(moved)"
 pass 'input set-default still moves every other recording'
+
+# --- the mic-mute key on a machine without a microphone ---
+
+: >"$CALLS"
+NO_SOURCE=1 omarchy-audio-input-mute
+grep -qx 'omarchy-osd -i microphone-off -m No microphone' "$CALLS" ||
+  fail 'input-mute says there is no microphone' "$(calls)"
+grep -q 'set-mute' "$CALLS" && fail 'input-mute toggles nothing without a microphone' "$(calls)"
+pass 'input-mute says there is no microphone'
