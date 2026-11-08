@@ -36,11 +36,27 @@ After that first post-boot resume, a bounded `omarchy network speedtest down` ru
 
 The module's observed benefit was retaining the normal Thunderbolt driver and USB controller without the older hook, blacklist or D3cold guard. These results are separate from the module author's reported 28 successful cycles.
 
+## Lid-open wake: separate embedded-controller setting
+
+The three RTC-triggered tests above validated resume after an alarm. A later physical lid-close/open test exposed a separate problem: opening the lid left the machine suspended until a keypress. The user waited approximately 15 seconds with the lid open before pressing a key. A user-session observer received `PrepareForSleep=false` and produced post-resume samples only after that keypress. From the first sample, Hyprland reported the internal display enabled with DPMS on and the backlight reported normal power. Journal ordering alone had initially suggested that the lid caused wake; a queued lid-open event can be processed when another input wakes the machine.
+
+The lid device's wake flag was enabled and `acpi.ec_no_wakeup` was already `N`, but the embedded controller at `/sys/bus/acpi/devices/PNP0C09:00/physical_node/power/wakeup` was `disabled`. Enabling that EC device wake flag was the only change for the next physical test. The machine stayed asleep until lid opening, then woke the screen promptly without a keypress, as confirmed by the user. USB Ethernet remained at `5000M`. No lock-screen or Hyprland changes were needed.
+
+The local persistent rule was scoped to the tested model and embedded-controller driver:
+
+```udev
+ACTION=="add|bind", SUBSYSTEM=="platform", KERNEL=="PNP0C09:00", DRIVER=="acpi-ec", PROGRAM=="/usr/bin/cat /sys/class/dmi/id/product_name", RESULT=="MacBookPro14,1", ATTR{power/wakeup}="enabled"
+```
+
+It was installed as `/etc/udev/rules.d/71-macbook-lid-wakeup.rules`. `udevadm verify` passed. While awake, the flag was temporarily disabled and a targeted add event was emitted for this existing EC device; the installed rule restored `enabled` without rebinding the driver. Reboot persistence of this rule has not been separately exercised. The previous rule/flag were backed up so this setting can be reverted independently of the Thunderbolt module.
+
+This records two instrumented physical lid cycles, one before and one after the EC change, in addition to the three RTC comparison cycles. It does not establish the same requirement on other Macs or measure overnight battery behavior and other possible EC wake sources. The local EC rule is a separate configuration change; it is not part of the unchanged module/package tested above.
+
 ## Interpretation and limits
 
 The initial user-reported 30–60 second wake delay was not fully explained by the 5.5-second device trace. The confirmed results are the measured device timings and subsequent quick screen wake.
 
-Only one Mac and three module cycles were tested, including one first-suspend-after-cold-boot check. No Thunderbolt peripheral was attached, so driver binding and native USB retention do not establish dock, eGPU or tunneled-PCIe functionality. The kernel logged `device links to tunneled native ports are missing!` at normal Thunderbolt-driver initialization. Extended sleep, overnight battery consumption, hibernation, other models and runtime behavior on the second kernel remain untested. S2idle may use more battery than deep sleep. The module is out-of-tree and unsigned in this test environment.
+The timing comparison covers one Mac and three RTC-triggered module cycles, including one first-suspend-after-cold-boot check; physical lid wake was evaluated separately as described above. No Thunderbolt peripheral was attached, so driver binding and native USB retention do not establish dock, eGPU or tunneled-PCIe functionality. The kernel logged `device links to tunneled native ports are missing!` at normal Thunderbolt-driver initialization. Extended sleep, overnight battery consumption, hibernation, other models and runtime behavior on the second kernel remain untested. S2idle may use more battery than deep sleep. The module is out-of-tree and unsigned in this test environment.
 
 These tests do not establish that deep/S3 is safe with a device attached. They also do not validate combining the shim with another hook that removes its upstream bridge; the overlapping proposals need to be reconciled.
 

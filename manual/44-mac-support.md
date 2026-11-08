@@ -47,7 +47,9 @@ On `MacBookPro14,1`, deep sleep with a USB-C hub attached can leave the fast USB
 
 Check `lsusb -t` before and after sleep. A Gigabit USB adapter connected at `480M` cannot deliver full Gigabit throughput; its USB 3 connection normally appears at `5000M`. A fallback after sleep can indicate a controller resume failure, so check it after a cold power-on before replacing the hub or cable. The SSD suspend fix does not cover this Thunderbolt controller issue.
 
-See [the upstream investigation](https://github.com/omacom/omarchy/issues/10593) and [the proposed module fix](https://github.com/omacom/omarchy/pull/10758) for current status. Independent testing on one MacBookPro14,1 verified quick wake and over 900 Mbps after resume with the proposed module and s2idle; the package proposal remains unmerged as of November 8, 2026. Other models, Thunderbolt peripherals and overnight battery use need separate validation.
+See [the upstream investigation](https://github.com/omacom/omarchy/issues/10593) and [the proposed module fix](https://github.com/omacom/omarchy/pull/10758) for current status. Independent RTC-triggered testing on one MacBookPro14,1 verified quick wake and over 900 Mbps after resume with the proposed module and s2idle; the package proposal remains unmerged as of November 8, 2026. Other models, Thunderbolt peripherals and overnight battery use need separate validation.
+
+Test lid-open wake separately from an alarm or keyboard wake. On the tested machine, opening the lid still required a keypress because the embedded controller's wake setting was disabled, even though lid wake was enabled. Enabling EC wake restored lid-triggered resume. Check `/sys/bus/acpi/devices/PNP0C09:00/physical_node/power/wakeup` when diagnosing that symptom; this was a separate local configuration fix, and other models need their own validation.
 
 #### Devices with T1 Chip
 
