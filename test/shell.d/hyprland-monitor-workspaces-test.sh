@@ -9,7 +9,6 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
-require_command jq
 
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
@@ -709,6 +708,7 @@ check(o.bind_expressions[m.focus(4)] == "o.workspaces.focus(4)", "the menu still
 pass "Super + number keeps selecting global workspaces when that mode is on"
 
 run_lua global-rule '
+_G.omarchy_global_workspaces = true
 write_config("hypr/monitors.lua", "hl.workspace_rule({\n  workspace = \"4\",\n  monitor = \"desc:Dell Inc. DELL U2723QE\",\n})\n")
 write_config("hypr/hyprland.lua", "-- hl.workspace_rule({ workspace = \"9\", monitor = \"DP-9\" })\n")
 plug("eDP-1", 0, "Panel", 1)
@@ -734,10 +734,11 @@ local saved = assert(io.open(layout))
 check(saved:read("a"):find("workspace = \"4\"", 1, true) ~= nil, "the saved layout file is not rewritten")
 saved:close()
 check(global_flag() == "1\n", "a pinned global workspace tells the bar")
-' || fail "workspace rules that pin global numbers keep those shortcuts, indicators, and layouts"
-pass "workspace rules that pin global numbers keep those shortcuts, indicators, and layouts"
+' || fail "explicit global mode preserves pinned workspace numbers and layouts"
+pass "explicit global mode preserves pinned workspace numbers and layouts"
 
 run_lua global-keyword '
+_G.omarchy_global_workspaces = true
 write_config("hypr/hyprland.lua", "hl.keyword(\"workspace\", \"7, monitor:HDMI-A-1, default:true\")\n")
 plug("eDP-1", 0, "Panel", 1)
 plug("HDMI-A-1", 1, "Portrait", 7)
@@ -746,8 +747,8 @@ window("0xa", 7)
 local m = load_module()
 world.handlers["config.reloaded"]()
 check(world.windows["0xa"].workspace == 7 and on(7) == "HDMI-A-1", "a conf-style rule kept workspace 7, not " .. tostring(world.windows["0xa"].workspace))
-' || fail "a Hyprland workspace keyword that pins a global number is kept"
-pass "a Hyprland workspace keyword that pins a global number is kept"
+' || fail "explicit global mode preserves a keyword-pinned workspace number"
+pass "explicit global mode preserves a keyword-pinned workspace number"
 
 run_lua laptop-default '
 write_config("hypr/hyprland.lua", "hl.workspace_rule({ workspace = \"1\", monitor = \"eDP-1\", default = true })\n")
@@ -793,6 +794,7 @@ check(global_flag() == "0\n", "the bar is told per-monitor won")
 pass "omarchy_global_workspaces = false keeps per-monitor numbering"
 
 run_lua global-clone '
+_G.omarchy_global_workspaces = true
 write_config("omarchy/shell.json", [[{"version":1,"bar":{"layout":{"left":[{"id":"me.workspaces"}]}}}]])
 write_config("omarchy/plugins/me.workspaces/manifest.json", [[{"schemaVersion":1,"id":"me.workspaces","name":"Workspaces","version":"1.0.0","kinds":["bar-widget"],"entryPoints":{"barWidget":"Workspaces.qml"},"omarchy":{"clonedFrom":"omarchy.workspaces"}}]])
 write_config("omarchy/plugins/me.workspaces/Workspaces.qml", "readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData\ntext: focused ? glyph : (modelData === 10 ? \"0\" : String(modelData))\n")
@@ -806,8 +808,8 @@ world.handlers["hyprland.start"]()
 check(world.windows["0xa"].workspace == 4, "an older cloned indicator lost workspace 4, now " .. tostring(world.windows["0xa"].workspace))
 hl.dispatch(m.focus(4))
 check(world.focused == "DP-1" and shows("DP-1") == 4, "Super + 4 still matches the number the clone draws")
-' || fail "an older cloned workspace indicator keeps the workspace ids it compares"
-pass "an older cloned workspace indicator keeps the workspace ids it compares"
+' || fail "explicit global mode preserves IDs for an older cloned indicator"
+pass "explicit global mode preserves IDs for an older cloned indicator"
 
 run_lua updated-clone '
 write_config("omarchy/shell.json", [[{"version":1,"bar":{"layout":{"left":[{"id":"me.workspaces"}]}}}]])
@@ -841,66 +843,20 @@ check(world.windows["0xa"].workspace == 2 and on(2) == "DP-1", "moving to the mo
 ' || fail "moving a workspace to another monitor keeps its number in global mode"
 pass "moving a workspace to another monitor keeps its number in global mode"
 
-# Exercise the reusable detector directly, without running the migration.
-run_lua detector-comments '
-local rule = [[hl.workspace_rule({ workspace = "4", monitor = "DP-1" })]]
-local cases = {
-  { "-- " .. rule, false },
-  { "--[[\n" .. rule .. "\n]]", false },
-  { "--[==[\n" .. rule .. "\n]]\n]==]", false },
-  { "--[[" .. rule, false },
-  { "--[[ignored]] " .. rule, true },
-  { [[hl.workspace_rule({ workspace = "4", monitor = "desc:Dell -- Desk" })]], true },
-  { [[local label = "escaped \" -- marker"; ]] .. rule, true },
-  { [==[local label = [=[--[[not a comment]]=]; ]==] .. rule, true },
-  { [[hl.keyword("workspace", "7, monitor:HDMI-A-1") -- trailing]], true },
-}
-for index, case in ipairs(cases) do
-  write_config("hypr/hyprland.lua", case[1])
-  package.loaded["default.hypr.global-workspaces"] = nil
-  check(require("default.hypr.global-workspaces").detected() == case[2], "comment/quote case " .. index)
-end
-' || fail "disabled Lua rules are ignored while quoted comment markers stay intact"
-pass "disabled Lua rules are ignored while quoted comment markers stay intact"
-
-run_lua detector-clones '
-local legacy = [[Hyprland.focusedWorkspace.id === modelData; text: String(modelData)]]
-local manifest = [[{"schemaVersion":1,"id":"me.workspaces","name":"Workspaces","version":"1.0.0","kinds":["bar-widget"],"entryPoints":{"barWidget":"Workspaces.qml"},"omarchy":{"clonedFrom":"omarchy.workspaces"}}]]
-write_config("omarchy/plugins/me.workspaces/manifest.json", manifest)
-write_config("omarchy/plugins/me.workspaces/Workspaces.qml", legacy)
-write_config("omarchy/plugins/.me.workspaces.bak/manifest.json", [[{"schemaVersion":1,"id":"me.workspaces","name":"Workspaces","version":"1.0.0","kinds":["bar-widget"],"entryPoints":{"barWidget":"Workspaces.qml"},"omarchy":{"clonedFrom":"omarchy.workspaces"}}]])
-write_config("omarchy/plugins/.me.workspaces.bak/Workspaces.qml", legacy)
-write_config("omarchy/plugins/me.bar/manifest.json", [[{"schemaVersion":1,"id":"me.bar","name":"Bar","version":"1.0.0","kinds":["bar"],"entryPoints":{"bar":"Bar.qml"},"omarchy":{"clonedFrom":"omarchy.bar"}}]])
-write_config("omarchy/plugins/me.bar/widgets/Workspaces.qml", legacy)
-local cases = {
-  { [[{"version":1}]], false },
-  { [[{"version":1,"bar":{"layout":{"left":[{"id":"omarchy.workspaces"}]}}}]], false },
-  { [[{"version":1,"bar":{"layout":{"left":[{"id":"me.workspaces"}]}},"disabledPlugins":["me.workspaces"]}]], false },
-  { [[{"version":1,"bar":{"layout":{"left":[{"id":".me.workspaces.bak"}]}}}]], false },
-  { [[{"version":1,"bar":{"layout":{"left":[{"id":"me.workspaces"}]}}}]], true },
-  { [[{"version":1,"bar":{"layout":{"right":["me.workspaces"]}}}]], true },
-  { [[{"version":1,"bar":{"layout":{"tray":[{"id":"me.workspaces"}]}}}]], true },
-  { [[{"version":1,"bar":{"id":"me.bar","layout":{"left":[]}}}]], false },
-  { [[{"bar":{"layout":{"left":[{"id":"me.workspaces"}]}}}]], false },
-  { [[not json]], false },
-}
-for index, case in ipairs(cases) do
-  write_config("omarchy/shell.json", case[1])
-  package.loaded["default.hypr.global-workspaces"] = nil
-  check(require("default.hypr.global-workspaces").detected() == case[2], "active clone case " .. index)
-end
-write_config("omarchy/shell.json", [[{"version":1,"bar":{"layout":{"left":[{"id":"me.workspaces"}]}}}]])
-local invalid_manifests = {
-  (manifest:gsub([=[%["bar%-widget"%]]=], [=["bar-widget"]=])),
-  (manifest:gsub([=["barWidget":"Workspaces.qml"]=], [=["barWidget":"Workspaces.qml","service":"../unsafe.qml"]=])),
-}
-for index, invalid in ipairs(invalid_manifests) do
-  write_config("omarchy/plugins/me.workspaces/manifest.json", invalid)
-  package.loaded["default.hypr.global-workspaces"] = nil
-  check(not require("default.hypr.global-workspaces").detected(), "invalid manifest case " .. index)
-end
-' || fail "only selected, enabled workspace clone entrypoints can keep global ids"
-pass "only selected, enabled workspace clone entrypoints can keep global ids"
+# Source text and installed clones cannot make a persistent numbering choice.
+run_lua explicit-choice '
+write_config("hypr/hyprland.lua", [==[local documentation = [=[hl.workspace_rule({ workspace = "3", monitor = "DP-1" })]=]]==])
+write_config("hypr/unused.lua", [[hl.workspace_rule({ workspace = "4", monitor = "DP-1" })]])
+write_config("omarchy/shell.json", [[{"version":1,"bar":{"layout":{"left":["me.workspaces"]}}}]])
+write_config("omarchy/plugins/me.workspaces/Workspaces.qml", [[Hyprland.focusedWorkspace.id === modelData; String(modelData)]])
+local global = require("default.hypr.global-workspaces")
+check(not global.enabled(), "examples, unloaded config and clones do not opt into global numbering")
+_G.omarchy_global_workspaces = true
+check(global.enabled(), "explicit true enables global numbering")
+_G.omarchy_global_workspaces = false
+check(not global.enabled(), "explicit false restores per-monitor numbering")
+' || fail "global numbering requires an explicit choice"
+pass "global numbering requires an explicit choice"
 
 run_node_test <<'JS'
 // Execute the widget functions with detached Hyprland data and a command sink.

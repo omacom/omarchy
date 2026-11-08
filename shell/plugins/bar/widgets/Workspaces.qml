@@ -233,6 +233,7 @@ BarWidget {
 
   Component.onCompleted: refresh()
   onMonitorChanged: root.showActiveMode()
+  onGlobalWorkspacesChanged: root.showActiveMode()
 
   Connections {
     target: root.monitor
