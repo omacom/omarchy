@@ -61,7 +61,7 @@ chmod +x "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/pgrep" "$TMPDIR/bin/omarchy-shell"
 
 nightlight_cli() {
   HOME="$TMPDIR/home" \
-  PATH="$TMPDIR/bin:$PATH" \
+  PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
   HYPRSUNSET_STATE="$STATE" \
   OMARCHY_SHELL_LOG="$SHELL_LOG" \
     "$ROOT/bin/omarchy-toggle-nightlight" "$@"
@@ -121,6 +121,14 @@ printf '6500\n' >"$STATE"
 nightlight_cli >/dev/null
 [[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle ignores a temperature it would read back as off"
 pass "nightlight toggle ignores a temperature it would read back as off"
+
+for broken in '' '  \n' '{"version": 1, "nightlight": {"temperature": 4500}}\n{oops'; do
+  printf "$broken" >"$TMPDIR/home/.config/omarchy/shell.json"
+  printf '6500\n' >"$STATE"
+  nightlight_cli >/dev/null
+  [[ $(<"$STATE") == 4000 ]] || fail "nightlight toggle warms to 4000K from an unreadable shell.json: $(printf '%q' "$broken")" "$(<"$STATE")"
+done
+pass "nightlight toggle warms to 4000K when shell.json is empty, blank or has trailing junk"
 rm "$TMPDIR/home/.config/omarchy/shell.json"
 
 rg -F '(temp === dayTemperature ? " && hyprctl hyprsunset identity" : "")' "$ROOT/shell/plugins/services/nightlight/Service.qml" >/dev/null ||

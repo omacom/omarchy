@@ -13,11 +13,17 @@ IDENTITY_TEMP=6000
 # Keep in sync with NightlightModel.js: hyprsunset rejects anything below
 # 1000K, and a temperature at or above the identity point would read back as
 # off, so the toggle could never turn it off again.
+# Slurped so that only a file holding exactly one JSON document counts, as the
+# shell's JSON.parse requires; anything else yields the default, never nothing
+# or two lines.
 on_temp() {
-  jq -r --argjson identity "$IDENTITY_TEMP" --argjson fallback "$DEFAULT_ON_TEMP" '
-    (try .nightlight.temperature catch null)
-    | if type == "number" and . == floor and . >= 1000 and . < $identity then . else $fallback end
-  ' "$(source_file)" 2>/dev/null || echo "$DEFAULT_ON_TEMP"
+  local temp
+
+  temp=$(jq -rs --argjson identity "$IDENTITY_TEMP" --argjson fallback "$DEFAULT_ON_TEMP" '
+    (if length == 1 then (try .[0].nightlight.temperature catch null) else null end)
+    | if type == "number" and . == floor and . >= 1000 and . < $identity then floor else $fallback end
+  ' "$(source_file)" 2>/dev/null) || temp=$DEFAULT_ON_TEMP
+  echo "$temp"
 }
 
 current_temp() {
