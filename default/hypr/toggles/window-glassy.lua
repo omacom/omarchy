@@ -3,10 +3,11 @@
 -- background itself from omarchy-theme-set-glass, which keeps their text crisp.
 require("default.hypr.glass")()
 
--- Every other window opted in to transparency fades as a whole, since these
--- apps draw their backgrounds solid. GTK apps, such as Nautilus, get their blur
--- from the backdrop-filter Glassy adds to the user's gtk.css.
-o.window({ tag = "transparent-window" }, { opacity = "0.75 0.75" })
+-- Every other window fades as a whole, since most apps draw their backgrounds
+-- solid. GTK apps, such as Nautilus, get their blur from the backdrop-filter
+-- Glassy adds to the user's gtk.css. Fullscreen windows, such as video and
+-- games, stay solid, as do windows on a floating workspace, whose rule wins.
+o.window({ class = ".*", fullscreen = false }, { opacity = "0.75 0.75" })
 
 -- Terminals keep the standard opacity: their glass is the see-through
 -- background, and fading the whole window would fade their text with it.
