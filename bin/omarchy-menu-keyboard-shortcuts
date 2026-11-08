@@ -27,7 +27,7 @@ trim() {
 is_known() {
   local opt
   for opt in "${options[@]}"; do
-    [[ $opt == "$1" ]] && return 0
+    [[ $opt == $1 ]] && return 0
   done
   return 1
 }
@@ -36,7 +36,7 @@ mkdir -p "$(dirname "$CONFIG")"
 
 # First run (or an empty file): store the default so the Hyprland config always
 # has something to read.
-if [[ ! -s "$CONFIG" ]]; then
+if [[ ! -s $CONFIG ]]; then
   printf '%s\n' "$DEFAULT" > "$CONFIG"
 fi
 
@@ -63,7 +63,7 @@ is_known "$current" || current="$DEFAULT"
 # would show up as a menu row.
 labels=()
 for opt in "${options[@]}"; do
-  if [[ $opt == "$current" ]]; then
+  if [[ $opt == $current ]]; then
     labels+=("$opt $CHECK")
   else
     labels+=("$opt")
@@ -85,7 +85,7 @@ if ! is_known "$picked"; then
   exit 1
 fi
 
-if [[ $picked == "$stored" ]]; then
+if [[ $picked == $stored ]]; then
   printf 'Input language switcher is already %s\n' "$picked"
   exit 0
 fi
