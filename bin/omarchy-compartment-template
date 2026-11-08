@@ -61,6 +61,9 @@ UPLOADS=(
   --upload "$PAYLOAD/dlp/pii-denylist.example.txt:/etc/modsecurity/dlp"
   --upload "$PAYLOAD/compartments/hermes-coding.yaml:/etc/compartment/compartment.yaml"
   --upload "$PAYLOAD/ssh/sshd_config.d-agent.conf:/etc/compartment"
+  # uploads cannot create symlinks: this tmpfiles.d rule makes
+  # systemd-tmpfiles-setup (always enabled, sysinit) link the unit into
+  # multi-user.target.wants — the enable step virt-customize cannot do
   --upload "$PAYLOAD/tmpfiles/compartment-bringup.conf:/etc/tmpfiles.d"
   --upload "$IMGDIR/verity-manifest.json:/etc/compartment"
 )
