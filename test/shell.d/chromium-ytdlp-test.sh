@@ -301,3 +301,121 @@ YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fa
 grep -qF -- "No video found for download" "$notify_argv" && ! grep -q -- '--no-simulate' "$ytdlp_argv" ||
   fail "yt-dlp native host reports no video when there is neither a page nor a stream to download" "$(cat "$notify_argv")"
 pass "yt-dlp native host reports no video when there is neither a page nor a stream to download"
+
+# --- Extension: which stream it remembers and sends ---
+
+# Drive the extension's service worker under node with a fake chrome API. Storage
+# reads are slower than writes, as they can be in Chromium, so an update that ran
+# out of event order would show up as a stale stream.
+if command -v node >/dev/null; then
+  extension_results=$(node - "$ROOT/default/chromium/extensions/yt-dlp/background.js" <<'JS'
+const fs = require("fs")
+const vm = require("vm")
+const source = fs.readFileSync(process.argv[2], "utf8")
+const tick = ms => new Promise(resolve => setTimeout(resolve, ms))
+const settle = () => tick(60)
+
+function load() {
+  const store = {}
+  const listeners = {}
+  const sent = []
+  const tab = { id: 7, url: "https://course.test/lesson/1", title: "Lesson 1" }
+  let frameScores = null
+  const on = name => ({ addListener: fn => { listeners[name] = fn } })
+  const chrome = {
+    storage: { session: {
+      get: async key => { await tick(10); return key in store ? { [key]: JSON.parse(JSON.stringify(store[key])) } : {} },
+      set: async items => { Object.assign(store, JSON.parse(JSON.stringify(items))) },
+      remove: async key => { delete store[key] },
+    } },
+    tabs: { get: async () => ({ ...tab }), onUpdated: on("updated"), onRemoved: on("removed"), query: () => {} },
+    webRequest: { onBeforeRequest: on("request") },
+    commands: { onCommand: on("command") },
+    action: { onClicked: on("clicked") },
+    scripting: { executeScript: async () => { if (!frameScores) throw new Error("no access"); return frameScores } },
+    runtime: { lastError: undefined, sendNativeMessage: (host, message, callback) => { sent.push(message); callback() } },
+  }
+  vm.runInNewContext(source, { chrome, console, setTimeout })
+  const request = (url, frameId, documentId, type = "xmlhttprequest") =>
+    listeners.request({ tabId: tab.id, url, frameId, documentId, type, initiator: "https://player.test" })
+  const download = async () => { listeners.clicked({ ...tab }); await settle(); return sent.length ? sent[sent.length - 1].stream || "none" : "unsent" }
+  return { tab, store, listeners, request, download, setScores: scores => { frameScores = scores } }
+}
+
+const results = {}
+;(async () => {
+  // A lesson and an ad on one page: the playing lesson wins, and it is still the
+  // stream sent when the frames can't be asked which one is playing.
+  let ext = load()
+  ext.request("https://cdn.test/lesson1/master.m3u8", 1, "lesson-doc")
+  ext.request("https://cdn.test/lesson1/720p.m3u8", 1, "lesson-doc")
+  ext.request("https://ads.test/ad.m3u8", 2, "ad-doc")
+  await settle()
+  ext.setScores([{ frameId: 1, documentId: "lesson-doc", result: 1e9 + 4e5 }, { frameId: 2, documentId: "ad-doc", result: 2e4 }])
+  results.playing = await ext.download()
+  ext.setScores([{ frameId: 1, documentId: "lesson-doc", result: 0 }, { frameId: 2, documentId: "ad-doc", result: 1e9 }])
+  results.adPlaying = await ext.download()
+  ext.setScores(null)
+  results.unscriptable = await ext.download()
+
+  // The next lesson loading into the same iframe replaces that frame's stream.
+  ext.setScores(null)
+  ext.request("https://cdn.test/lesson2/master.m3u8", 1, "lesson2-doc")
+  await settle()
+  results.iframeReplaced = await ext.download()
+
+  // A late request from the old page, then a navigation: nothing of the old page survives.
+  ext = load()
+  ext.request("https://cdn.test/lesson1/master.m3u8", 1, "old-doc")
+  ext.listeners.request({ tabId: 7, url: "https://course.test/lesson/2", frameId: 0, type: "main_frame" })
+  ext.tab.url = "https://course.test/lesson/2"
+  await settle()
+  results.afterNavigation = Object.keys(ext.store).length ? "stale" : "cleared"
+  ext.request("https://cdn.test/lesson2/master.m3u8", 1, "new-doc")
+  await settle()
+  results.newPage = await ext.download()
+
+  // A History API lesson change retires the stream; a fragment change does not.
+  ext = load()
+  ext.request("https://cdn.test/lesson1/master.m3u8", 1, "doc")
+  await settle()
+  ext.listeners.updated(7, { url: "https://course.test/lesson/1#notes" })
+  await settle()
+  results.fragment = Object.keys(ext.store).length ? "kept" : "cleared"
+  ext.listeners.updated(7, { url: "https://course.test/lesson/2" })
+  ext.tab.url = "https://course.test/lesson/2"
+  await settle()
+  results.historyChange = await ext.download()
+
+  // A stream saved for another page is never sent for this one, and closing the tab forgets it.
+  ext = load()
+  ext.request("https://cdn.test/lesson1/master.m3u8", 1, "doc")
+  await settle()
+  ext.tab.url = "https://course.test/lesson/9"
+  results.otherPage = await ext.download()
+  ext.listeners.removed(7)
+  await settle()
+  results.closed = Object.keys(ext.store).length ? "kept" : "cleared"
+
+  process.stdout.write(Object.entries(results).map(([key, value]) => `${key}=${value}`).join("\n"))
+})()
+JS
+  )
+
+  expect_result() {
+    grep -qxF -- "$1=$2" <<<"$extension_results" || fail "$3" "$extension_results"
+    pass "$3"
+  }
+  expect_result playing "https://cdn.test/lesson1/master.m3u8" "yt-dlp extension sends the playing player's master playlist, not the ad beside it"
+  expect_result adPlaying "https://ads.test/ad.m3u8" "yt-dlp extension follows whichever player is playing"
+  expect_result unscriptable "https://cdn.test/lesson1/master.m3u8" "yt-dlp extension falls back to the page's first stream when it can't ask the frames"
+  expect_result iframeReplaced "https://cdn.test/lesson2/master.m3u8" "yt-dlp extension replaces a frame's stream when a new document loads in it"
+  expect_result afterNavigation cleared "yt-dlp extension drops a late request from the page it navigated away from"
+  expect_result newPage "https://cdn.test/lesson2/master.m3u8" "yt-dlp extension remembers the new page's stream after navigating"
+  expect_result fragment kept "yt-dlp extension keeps the stream across a fragment change"
+  expect_result historyChange none "yt-dlp extension retires the stream when a course changes lessons through the History API"
+  expect_result otherPage none "yt-dlp extension never sends a stream saved for another page"
+  expect_result closed cleared "yt-dlp extension forgets a tab's stream when the tab closes"
+else
+  skip "node is not installed; skipping the yt-dlp extension stream checks"
+fi
