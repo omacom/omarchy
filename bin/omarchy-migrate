@@ -89,7 +89,10 @@ mkdir -p "$STATE_DIR"
 # at once. Migrations don't inherit the lock, so a program one starts can't
 # keep it held.
 exec 9>"$STATE_DIR/.lock"
-flock 9
+if ! flock -n 9; then
+  echo "Waiting for another Omarchy migration run to finish..."
+  flock 9
+fi
 [[ -d $MIGRATIONS_DIR ]] || exit 0
 
 while IFS=$'\t' read -r name file marker <&3; do
