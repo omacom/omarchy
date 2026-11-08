@@ -1,18 +1,20 @@
 # Raspberry Pi 4 integration
 
-The Pi 4 Model B is `aarch64-raspberrypi`. The proposed integration uses the existing aarch64 USB installer, `linux-omarchy`, UEFI, Limine and unified kernel images. Pi 5 is outside this change.
+The Pi 4 Model B is `aarch64-raspberrypi`. This draft integration uses the existing aarch64 USB installer, `linux-omarchy`, UEFI, Limine and unified kernel images. Pi 5 is outside this change. Platform detection matches the board family rather than its RAM size; physical validation so far covers a 4GB board only.
 
 ## Boot prerequisites
 
-The Pi needs separately prepared UEFI firmware media, configured to pass a Pi 4 Device Tree with working VC4/V3D nodes. ACPI-only mode cannot provide the graphics path this desktop needs. The kernel package ships its mainline tree at `/boot/dtbs/linux-omarchy/broadcom/bcm2711-rpi-4-b.dtb`; how the firmware receives and fixes up that tree must be qualified on the board. The installer runs `omarchy-pi-check --live` before disk cleanup and refuses a missing UEFI interface, missing Pi 4 tree or missing V3D render device.
+The Pi needs separately prepared UEFI firmware media configured to pass a Pi 4 Device Tree with working VC4/V3D nodes. ACPI-only mode cannot provide the graphics path this desktop needs. The kernel package ships its mainline tree at `/boot/dtbs/linux-omarchy/broadcom/bcm2711-rpi-4-b.dtb`; the firmware must receive and fix up a compatible tree. The installer companion runs `omarchy-pi-check --live` before disk cleanup and refuses a missing UEFI interface, missing Pi 4 tree or missing V3D render device.
 
-The official ISO is not a native Pi EEPROM-bootable SD image. Neither Omarchy nor `raspberrypi-4-support` flashes the EEPROM or manages the separate firmware media. Keep that media separate from the target disk. A supported firmware release and its exact settings still need to be established before this path is advertised for installation.
+The privately tested firmware path is PFTF 1.53 in Device Tree mode with its 3GB RAM limit disabled and the required mainline-DMA overlay. Bluetooth additionally needs the AUX automatic RTS/CTS driver change paired with `uart-has-rtscts` on the AUX UART node. The tested private kernel/firmware combination establishes this pairing; it does not establish normal-channel delivery or a public firmware-management policy.
 
-## Package and updates
+The official ISO is not a native Pi EEPROM-bootable SD image. Neither Omarchy nor `raspberrypi-4-support` flashes the EEPROM or manages the separate firmware media. Keep that media separate from the target disk. Back up the matching firmware media, ESP, UKI, kernel modules and package set before boot changes. A root snapshot alone cannot restore all those components.
 
-`install/omarchy-aarch64-raspberrypi.packages` adds `raspberrypi-4-support` from the usual Omarchy aarch64 repository. Its recipe lives in `omacom/omarchy-pkgs`, alongside the `linux-omarchy-aarch64` recipe with Pi drivers and the Pi 4 device tree. The ISO carries this package in the live system and in its existing offline platform package set. The target keeps Omarchy's disk layout, encryption, provisioning and snapshot flows.
+## Packages and updates
 
-The package provides:
+`install/omarchy-aarch64-raspberrypi.packages` selects `raspberrypi-4-desktop`. The companion recipe produces this desktop package and `raspberrypi-4-support`: desktop requires matching support plus the compatible Omarchy runtime capability, while support requires the Pi-capable kernel capability. The installer live environment uses support without the desktop runtime dependency. These companion changes belong in `omacom/omarchy-pkgs` and the installer integration belongs in `omacom/omarchy-iso`; their normal-channel publication is pending. This source PR alone does not make a stock ISO Pi-ready.
+
+The support package provides:
 
 - `omarchy-pi-check` (also `omarchy hw pi-check`): boot prerequisites, temperature and kernel voltage-alarm diagnostics; `--json` emits the report. An absent voltage sensor is reported as unknown.
 - `omarchy-pi-run -- <command>` (also `omarchy cmd pi-run`): opt-in systemd scope and compiler job limits for memory-heavy builds. `--plan` prints the command. The scope may kill a workload that exceeds its memory limit.
@@ -21,8 +23,12 @@ The package provides:
 
 Setup verifies the installed kernel's drivers and device tree. Update preflight checks the current boot layout before packages change; final verification repeats the check after package hooks finish. Both require a mounted FAT ESP and a Limine menu UKI containing the installed Omarchy kernel. Failure stops the update, and final verification failure suppresses its reboot prompt. A missing Pi package fails rather than taking the compatibility warning used by older Mac installations. The package does not replace the existing kernel rebuild hooks or verify external UEFI firmware updates.
 
-## Scope and validation
+## Validation and remaining work
 
-The [community port](https://github.com/pkyanam/omarchy-4-pi) uses a different Pi firmware/U-Boot/ext4 image. Its boot report and image tests do not validate this kernel/UEFI/Limine path, and its installations must keep their own updater. This change does not migrate them.
+Private 4GB Pi 4 testing has demonstrated encrypted USB-root boot, VC4/V3D rendering, Bluetooth initialization, a working Jabra headset and one disconnect/reconnect, plus a same-version root snapshot restoration. The tested private kernel/header package is `7.3-32.11`, retaining kernel release `7.3.0-32.1-omarchy`, with a private paired firmware companion. This is not a complete normal-recipe kernel build or normal-channel installation.
 
-The upstream integration still requires a complete kernel/ISO build and physical boot, install and update/reboot testing. HDMI, audio, Wi-Fi, Bluetooth, power, media decoding, encryption and snapshot recovery must be checked on separate 4GB and 8GB Pi 4 boards. No performance-parity claim is made. User display, font and theme preferences, clocks, and desktop performance defaults are not changed.
+The ASUS VG248 displays a sharp 1920×1080 at 60 Hz and 1× when supplied its genuine EDID temporarily. Normal DDC discovery still returns no EDID on both ports with the tested adapter/cable. The override was removed after the diagnostic; no per-monitor timing or EDID database is part of this integration. Automatic discovery, 4K and broader monitor qualification remain open. Intermittent resets, Wi-Fi warnings, a VC4 warning and final UI/capture acceptance also require qualification.
+
+Before stable support, complete the matching normal kernel/package/installer builds, a fresh encrypted installation, ordinary update and warm/cold boot checks, and coherent cross-version recovery of the root, modules, UKI, ESP and external firmware. Test an 8GB Pi 4 separately before claiming that hardware qualified. Preserve full desktop functionality; experimental H264 ports, compiler tuning and GPU compute workloads are separate work and are not shipped by this PR. No performance parity with Raspberry Pi OS is claimed. Display, font and theme preferences, clocks, and desktop performance defaults are unchanged by this source integration.
+
+The [community port](https://github.com/pkyanam/omarchy-4-pi) uses a different Pi firmware/U-Boot/ext4 image. Its results do not validate this kernel/UEFI/Limine path, and its installations must keep their own updater. This change does not migrate them.
