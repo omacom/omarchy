@@ -9,6 +9,7 @@ import qs.Commons
 import qs.Commons as Commons
 
 import "plugins/bar"
+import "plugins/bar/BarModel.js" as BarModel
 import "services"
 import "services/AuthServiceStore.js" as AuthServiceStore
 
@@ -64,6 +65,13 @@ ShellRoot {
   property var shellConfig: builtinShellConfig
   // shell.json has text the shell could not use; persisting would replace it with defaults.
   property bool userConfigUnreadable: false
+  // True once a parsed user shell.json is the config in use. Defaults are not
+  // rewritten just to record a tray the bundled file already has.
+  property bool userConfigActive: false
+  // Plugin manifests name tray clones. Restoring before the first scan would
+  // miss a clone standing in for the tray and add a second host beside it.
+  property bool pluginScanFinished: false
+  property bool restoringTrayWidget: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
 
@@ -95,7 +103,44 @@ ShellRoot {
       }
     }
     userConfigUnreadable = !!userText.trim() && !user
+    userConfigActive = !!user
+    if (user) shell.repairTrayWidget(user)
     shellConfig = user || defaults
+  }
+
+  // A reload keeps a tray the layout already carries, and puts omarchy.tray
+  // back when a user layout lost the host. The rest of the layout stays.
+  function repairTrayWidget(config) {
+    if (shell.restoringTrayWidget || !shell.pluginScanFinished || shell.userConfigUnreadable) return
+    if (!shell.pluginRegistry || shell.pluginRegistry.scanning) return
+    if (!BarModel.ensureTrayWidget(config, {
+      managedBar: shell.barLayoutIsManaged(config),
+      trayIds: shell.trayHostIds()
+    })) return
+    shell.restoringTrayWidget = true
+    shell.persistShellConfig(config)
+    shell.restoringTrayWidget = false
+  }
+
+  // The built-in bar and clones of it read this layout. Another bar option
+  // keeps whatever layout it was given.
+  function barLayoutIsManaged(config) {
+    var bar = config && config.bar
+    var barId = Util.canonicalWidgetId(String(bar && bar.id || ""))
+    if (!barId || barId === "omarchy.bar") return true
+    var plugins = shell.pluginRegistry.installedPlugins || {}
+    var manifest = plugins[barId]
+    var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+    return !!metadata && Util.canonicalWidgetId(String(metadata.clonedFrom || "")) === "omarchy.bar"
+  }
+
+  function trayHostIds() {
+    var ids = ["omarchy.tray"]
+    var plugins = shell.pluginRegistry.installedPlugins || {}
+    for (var id in plugins) {
+      if (id !== "omarchy.tray" && shell.pluginRegistry.isTray(id)) ids.push(id)
+    }
+    return ids
   }
 
   function loadDefaults(raw) {
@@ -424,7 +469,23 @@ ShellRoot {
     shell.mutateShellConfig(function(config) {
       var scoped = { bar: JSON.parse(JSON.stringify(config.bar || {})) }
       mutator(scoped)
-      if (Util.isPlainObject(scoped.bar)) config.bar = JSON.parse(JSON.stringify(scoped.bar))
+      if (!Util.isPlainObject(scoped.bar)) return
+      var nextBar = JSON.parse(JSON.stringify(scoped.bar))
+      // Copied bar code only receives this facade, not the plugin registry.
+      // Record a removed tray on the host, in the same save as its layout
+      // removal. Ignore any non-bar fields the plugin's mutator wrote.
+      var previousLayout = config.bar && config.bar.layout || {}
+      for (var s = 0; s < Util.barSections.length; s++) {
+        var entries = previousLayout[Util.barSections[s]]
+        if (!Array.isArray(entries)) continue
+        for (var i = 0; i < entries.length; i++) {
+          var id = shell.pluginRegistry.barEntryId(entries[i])
+          if (shell.pluginRegistry.isTray(id)
+              && !shell.pluginRegistry.findBarLocation({ bar: nextBar }, id, "").found)
+            shell.pluginRegistry.addDisabled(config, id)
+        }
+      }
+      config.bar = nextBar
     })
     return true
   }
@@ -1551,9 +1612,11 @@ ShellRoot {
         return
       }
       shell.pluginReloading = false
+      shell.pluginScanFinished = true
       shell._syncServices()
       shell.syncPanelEntries()
       shell.syncPluginWidgets()
+      if (shell.userConfigActive) shell.repairTrayWidget(shell.shellConfig)
     }
   }
 

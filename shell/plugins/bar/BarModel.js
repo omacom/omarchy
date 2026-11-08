@@ -534,6 +534,84 @@ function removeEntry(config, from, normalizeEntry) {
 // origin, in pixels. Zero anywhere over the strip, so a drag along the bar
 // never arms removal; past it, the straight-line distance to the nearest
 // edge, so escaping by a corner takes the same pull as going straight off.
+function disabledPlugins(config) {
+  return Array.isArray(config.disabledPlugins) ? config.disabledPlugins : []
+}
+
+function dropDisabled(config, id) {
+  var list = disabledPlugins(config)
+  var next = []
+  var removed = false
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] === id) removed = true
+    else next.push(list[i])
+  }
+  if (!removed) return false
+  if (next.length) config.disabledPlugins = next
+  else delete config.disabledPlugins
+  return true
+}
+
+function trayIsOff(config, id) {
+  var list = disabledPlugins(config)
+  for (var i = 0; i < list.length; i++) if (list[i] === id) return true
+  return false
+}
+
+// Where a restored tray goes in the right section: just after the keyboard
+// layout when that leads the section, the way the defaults place it, and
+// otherwise at the inner edge. Nothing else in the section moves past it.
+function trayInsertIndex(entries) {
+  return entryId(entries[0]) === "omarchy.keyboard-layout" ? 1 : 0
+}
+
+// The tray widget is the StatusNotifier host. A layout with no tray on the
+// bar has nowhere for Discord, Telegram, or any other status icon to land,
+// and one parked in the drawer the tray itself draws never loads. Put the
+// host back on the right section without moving the rest of a custom layout.
+// A tray the user switched off (its id in disabledPlugins, including a clone
+// that stands in for it) stays off. A bar this shell does not lay out
+// (managedBar: false) is left untouched. Returns whether the config changed.
+function ensureTrayWidget(config, options) {
+  var opts = isPlainObject(options) ? options : {}
+  if (!isPlainObject(config) || opts.managedBar === false) return false
+  if (!isPlainObject(config.bar)) config.bar = {}
+  if (!isPlainObject(config.bar.layout)) config.bar.layout = {}
+  var layout = config.bar.layout
+  var hosts = Array.isArray(opts.trayIds) && opts.trayIds.length ? opts.trayIds : ["omarchy.tray"]
+  function isHost(id) { return hosts.indexOf(id) !== -1 }
+
+  var parked = null
+  for (var s = 0; s < sections.length; s++) {
+    var list = layout[sections[s]]
+    if (!Array.isArray(list)) continue
+    for (var i = 0; i < list.length; i++) {
+      var id = entryId(list[i])
+      if (!isHost(id)) continue
+      if (sections[s] === "tray") {
+        if (!parked) parked = { list: list, index: i, id: id }
+        continue
+      }
+      // Already on the bar. A stale disabled entry would keep the component
+      // from loading, so the layout wins.
+      return dropDisabled(config, id)
+    }
+  }
+
+  for (var h = 0; h < hosts.length; h++) if (trayIsOff(config, hosts[h])) return false
+
+  if (!Array.isArray(layout.right)) layout.right = []
+  var at = trayInsertIndex(layout.right)
+  if (parked) {
+    var entry = parked.list.splice(parked.index, 1)[0]
+    layout.right.splice(at, 0, entry)
+    dropDisabled(config, parked.id)
+    return true
+  }
+  layout.right.splice(at, 0, { id: "omarchy.tray" })
+  return true
+}
+
 function dragDistanceOutside(point, width, height) {
   var x = Number(point && point.x)
   var y = Number(point && point.y)
@@ -712,6 +790,7 @@ if (typeof module !== "undefined") {
     roomLengths: roomLengths,
     moveEntry: moveEntry,
     removeEntry: removeEntry,
+    ensureTrayWidget: ensureTrayWidget,
     dragDistanceOutside: dragDistanceOutside,
     navigationRegions: navigationRegions,
     slotEdge: slotEdge,
