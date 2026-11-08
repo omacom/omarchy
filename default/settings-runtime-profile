@@ -11,6 +11,8 @@
 #   machine's own devices and configuration.
 # etc/mkinitcpio.conf.d/thunderbolt_module.conf
 #   Adds thunderbolt to MODULES only where modinfo finds it as a loadable module.
+# etc/mkinitcpio.conf.d/zz-omarchy-t2-keyboard.conf
+#   Adds the T2 keyboard modules only where modinfo finds them, after the installer's zz-omarchy-kernel-modules.conf, so the linux-t2 image keeps t2bce_vhci.
 # etc/limine-entry-tool.d/, default/limine/
 #   Read only where Limine and its entry tool are installed.
 # etc/systemd/oomd.conf.d/, default/systemd/user/app.slice.d/10-oomd.conf
