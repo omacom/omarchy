@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # omarchy:summary=Turn Remote Control back on in Claude sessions whose login a switch moved
-# omarchy:args=<home>...
+# omarchy:args=<home>... | --check
 # omarchy:hidden=true
 """Reconnect Remote Control after an account switch moved running sessions.
 
@@ -19,6 +19,12 @@ Claude's own "Enable Remote Control" confirmation, and checks it says
 working, has a menu or a question open, or a draft in its prompt is waited
 for, and anything unexpected ends the attempt with a notification and no
 further keys.
+
+With --check, which every autoswitch check runs, it does the same for any
+session whose Remote Control dropped without a switch: one Claude's state
+file showed with a link (bridgeSessionId) that now has none, or whose pane
+says the link dropped. It is quick and silent when nothing has dropped, and
+only then starts a background run (--attached) to fix what did.
 """
 
 from __future__ import annotations
@@ -47,8 +53,15 @@ ANSWER_SECONDS = float(os.environ.get("OMARCHY_RECONNECT_ANSWER_SECONDS", "15"))
 # wait about 10 seconds, so a session is left this long after its disconnect.
 SETTLE_SECONDS = float(os.environ.get("OMARCHY_RECONNECT_SETTLE_SECONDS", "15"))
 
-DISCONNECTED = "signed-in claude.ai account or organization changed"
+# Claude's own lines, at the start of a line, so a conversation that only
+# talks about Remote Control never counts.
+DROPPED = re.compile(r"^\s*(●\s*)?Remote Control (disconnected|stopped|could not verify)", re.MULTILINE)
 ACTIVE = "/remote-control is active"
+ACTIVE_LINE = re.compile(r"^\s*/remote-control is active", re.MULTILINE)
+# How long a check may spend on sessions before the next tick takes over, and
+# how long it leaves one alone after it answered unexpectedly.
+CHECK_SECONDS = float(os.environ.get("OMARCHY_RECONNECT_CHECK_SECONDS", "240"))
+GIVE_UP_SECONDS = float(os.environ.get("OMARCHY_RECONNECT_GIVE_UP_SECONDS", "3600"))
 COMMAND = "/remote-control"
 PROMPTS = ("❯", ">")
 DECLINE = "Never mind"
@@ -141,15 +154,33 @@ def claude_pid(pane: str) -> int | None:
   return None
 
 
-def sessions(homes: set[Path]) -> list[dict[str, Any]]:
+# Every Claude session herdr knows, with the home it reads its login from.
+def claude_sessions() -> list[dict[str, Any]]:
   found = []
   for agent in (herdr("agent", "list") or {}).get("agents") or []:
     if agent.get("agent") != "claude" or not agent.get("pane_id"):
       continue
     pid = claude_pid(agent["pane_id"])
-    if pid is not None and session_home(pid) in homes:
-      found.append({"pane": agent["pane_id"], "title": agent.get("terminal_title_stripped") or agent["pane_id"]})
+    if pid is not None:
+      found.append({"pane": agent["pane_id"], "pid": pid, "home": session_home(pid), "title": agent.get("terminal_title_stripped") or agent["pane_id"]})
   return found
+
+
+def sessions(homes: set[Path]) -> list[dict[str, Any]]:
+  return [s for s in claude_sessions() if s["home"] in homes]
+
+
+# The state file Claude keeps for a running session, in its home's sessions
+# directory: its sessionId, and bridgeSessionId while Remote Control is on
+# (null once it's off).
+def session_state(session: dict[str, Any]) -> dict[str, Any]:
+  if session.get("home") is None:
+    return {}
+  try:
+    data = json.loads((session["home"] / "sessions" / f"{session['pid']}.json").read_text())
+  except (OSError, ValueError):
+    return {}
+  return data if isinstance(data, dict) else {}
 
 
 # ------------------------------------------------------------------ screen
@@ -165,9 +196,10 @@ def lines_of(text: str) -> list[str]:
   return [ANSI.sub("", line).replace("\xa0", " ").rstrip() for line in text.splitlines()]
 
 
+# A box rule, plain or with the session's name in it ("──── Zapfast ─").
 def is_rule(line: str) -> bool:
   stripped = line.strip()
-  return len(stripped) >= 10 and set(stripped) == {"─"}
+  return stripped.startswith("─" * 4) and stripped.endswith("─") and stripped.count("─") >= 10
 
 
 # The prompt box at the bottom of the screen: a rule, the input line, a rule,
@@ -198,12 +230,13 @@ def prompt_input(screen: str) -> str | None:
   return None
 
 
-# Whether the session's Remote Control is down because its account changed:
-# the last disconnect for that reason comes after the last time it said it
-# was active.
+# Whether the pane says its Remote Control is down: Claude's last line saying
+# it disconnected or stopped comes after its last line saying it was active.
 def disconnected(text: str) -> bool:
-  last_drop = text.rfind(DISCONNECTED)
-  return last_drop >= 0 and last_drop > text.rfind(ACTIVE)
+  text = "\n".join(lines_of(text))
+  drops = [m.start() for m in DROPPED.finditer(text)]
+  actives = [m.start() for m in ACTIVE_LINE.finditer(text)]
+  return bool(drops) and drops[-1] > (actives[-1] if actives else -1)
 
 
 # What Claude said after the /remote-control we sent: the text after the last
@@ -309,17 +342,19 @@ def pane_lock(pane: str):
   return handle
 
 
-def run(homes: set[Path]) -> int:
-  if not shutil.which("herdr"):
-    return 0
+# Sessions are reconnected while they stay off (`off`, read again right before
+# typing). After a switch, each is watched until it shows the disconnect;
+# a check passes only sessions already off.
+def run(found: list[dict[str, Any]], checking: bool = False) -> tuple[list, list]:
   started = time.monotonic()
-  pending = {s["pane"]: s | {"seen": None, "tries": 0} for s in sessions(homes)}
+  pending = {s["pane"]: s | {"seen": time.monotonic() if checking else None, "tries": 0} for s in found}
   done, failed = [], []
   while pending:
     elapsed = time.monotonic() - started
     for pane, session in list(pending.items()):
+      off = session.get("off") or (lambda: disconnected(read(pane)))
       if session["seen"] is None:
-        if disconnected(read(pane)):
+        if off():
           session["seen"] = time.monotonic()
         elif elapsed >= NOTICE_SECONDS:
           # No disconnect: this session had no Remote Control to restore.
@@ -327,8 +362,10 @@ def run(homes: set[Path]) -> int:
           continue
       if session["seen"] is None or time.monotonic() - session["seen"] < SETTLE_SECONDS:
         continue
-      if elapsed >= TIMEOUT_SECONDS:
-        failed.append((session, "busy"))
+      if elapsed >= (CHECK_SECONDS if checking else TIMEOUT_SECONDS):
+        # A check leaves a busy session to the next tick, without a word.
+        if not checking:
+          failed.append((session, "busy"))
         del pending[pane]
         continue
       if not idle(pane) or prompt_input(screen(pane)) != "":
@@ -340,7 +377,7 @@ def run(homes: set[Path]) -> int:
         continue
       with lock:
         # Check again under the lock, right before typing.
-        if not disconnected(read(pane)):
+        if not off():
           del pending[pane]
           continue
         if not idle(pane) or prompt_input(screen(pane)) != "":
@@ -365,14 +402,118 @@ def run(homes: set[Path]) -> int:
     else:
       body = tr("omarchy-i18n agents.remoteControlUnexpected", "%1 didn't answer as expected, so nothing more was typed. Check it and run /remote-control there.", session["title"])
     notify(tr("omarchy-i18n agents.remoteControlLost", "Remote Control didn't reconnect"), body)
+  return done, failed
+
+
+# ------------------------------------------------------------------- check
+
+
+def memory_path() -> Path:
+  return Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "omarchy" / "agents" / "remote-control.json"
+
+
+def load_memory() -> dict[str, Any]:
+  try:
+    data = json.loads(memory_path().read_text())
+  except (OSError, ValueError):
+    data = {}
+  data = data if isinstance(data, dict) else {}
+  return {"on": dict(data.get("on") or {}), "gaveUp": dict(data.get("gaveUp") or {})}
+
+
+def save_memory(memory: dict[str, Any]) -> None:
+  path = memory_path()
+  path.parent.mkdir(parents=True, exist_ok=True)
+  tmp = path.with_name(path.name + f".{os.getpid()}")
+  tmp.write_text(json.dumps(memory))
+  os.replace(tmp, path)
+
+
+# Sessions whose Remote Control was on and is off now. A session counts as
+# having had it on once a check has seen its bridgeSessionId, remembered by
+# its sessionId (which a resumed session keeps), or when its pane says the
+# link dropped. Off is a null bridgeSessionId for a remembered session, or a
+# pane whose last word on Remote Control is that it dropped. A session that
+# answered unexpectedly is left alone for GIVE_UP_SECONDS, so the same
+# notification doesn't come every tick.
+def own_homes() -> set[Path]:
+  root = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state") / "omarchy" / "agents" / "accounts" / "claude"
+  homes = {(Path.home() / ".claude").resolve()}
+  if root.is_dir():
+    homes |= {home.resolve() for home in root.iterdir() if home.is_dir() and not home.name.startswith(".")}
+  return homes
+
+
+def off_sessions(memory: dict[str, Any], now: float) -> list[dict[str, Any]]:
+  memory["on"] = {k: v for k, v in memory["on"].items() if now - v < 30 * 86400}
+  memory["gaveUp"] = {k: v for k, v in memory["gaveUp"].items() if now - v < GIVE_UP_SECONDS}
+  found = []
+  for session in claude_sessions():
+    # Only this user's own homes: ~/.claude and the account homes beside the
+    # registry. A session under another HOME (a test's, another user's) is
+    # never touched.
+    if session["home"] not in own_homes():
+      continue
+    state = session_state(session)
+    sid = str(state.get("sessionId") or "")
+    if state.get("bridgeSessionId"):
+      if sid:
+        memory["on"][sid] = now
+      continue
+    if sid and sid in memory["gaveUp"]:
+      continue
+
+    def off(session: dict[str, Any] = session, sid: str = sid) -> bool:
+      now_state = session_state(session)
+      if now_state.get("bridgeSessionId"):
+        return False
+      return (bool(sid) and sid in memory["on"] and bool(now_state)) or disconnected(read(session["pane"]))
+
+    if off():
+      found.append(session | {"sid": sid, "off": off})
+  return found
+
+
+# On every autoswitch tick: quick and quiet when every session that had
+# Remote Control still has it. Only when one doesn't does it start the fixing
+# run, as a unit of its own (see omarchy-agent-account-state), so the tick
+# returns at once.
+def check(attached: bool) -> int:
+  if not shutil.which("herdr"):
+    return 0
+  memory = load_memory()
+  now = time.time()
+  found = off_sessions(memory, now)
+  save_memory(memory)
+  if not found:
+    return 0
+  if not attached:
+    me = str(Path(__file__).resolve())
+    launch = ["systemd-run", "--user", "--quiet", "--collect", "--description=Reconnect Remote Control in Claude sessions", f"--setenv=PATH={os.environ.get('PATH', '')}", "--", me, "--check", "--attached"]
+    try:
+      if shutil.which("systemd-run") and subprocess.run(launch, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15).returncode == 0:
+        return 0
+    except (OSError, subprocess.SubprocessError):
+      pass
+  done, failed = run(found, checking=True)
+  memory = load_memory()
+  for session, _ in failed:
+    if session.get("sid"):
+      memory["gaveUp"][session["sid"]] = time.time()
+  save_memory(memory)
   return 0 if not failed else 1
 
 
 def main(argv: list[str]) -> int:
   if not argv:
-    print("Usage: omarchy-agent-account-reconnect <home>...", file=sys.stderr)
+    print("Usage: omarchy-agent-account-reconnect <home>... | --check [--attached]", file=sys.stderr)
     return 1
-  return run({Path(home).resolve() for home in argv})
+  if argv[0] == "--check":
+    return check("--attached" in argv[1:] or os.environ.get("OMARCHY_RECONNECT_ATTACHED") == "1")
+  if not shutil.which("herdr"):
+    return 0
+  _, failed = run(sessions({Path(home).resolve() for home in argv}))
+  return 0 if not failed else 1
 
 
 if __name__ == "__main__":

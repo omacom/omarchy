@@ -22,6 +22,7 @@ export XDG_RUNTIME_DIR="$test_tmp"
 export PATH="$test_tmp/bin:$ROOT/bin:$PATH"
 export OMARCHY_TEST_NOTIFICATIONS="$test_tmp/notifications"
 export OMARCHY_TEST_HERDR="$herdr_state"
+export XDG_STATE_HOME="$test_tmp/state" OMARCHY_RECONNECT_CHECK_SECONDS=3
 export OMARCHY_RECONNECT_NOTICE_SECONDS=1 OMARCHY_RECONNECT_TIMEOUT_SECONDS=3 OMARCHY_RECONNECT_POLL_SECONDS=0.1 OMARCHY_RECONNECT_ANSWER_SECONDS=1 OMARCHY_RECONNECT_SETTLE_SECONDS=0.2
 
 cat >"$test_tmp/bin/omarchy-notification-send" <<'SH'
@@ -138,6 +139,14 @@ reconnect
 grep -qx "keys s1 enter" "$herdr_state/log" || fail "a dim suggestion in the prompt counts as empty" "$(cat "$herdr_state/log")"
 pass "the prompt's dim suggestion isn't mistaken for a draft"
 
+# A named session carries its name in the box's top rule.
+reset_panes
+pane n2 "" idle dropped ""
+printf '%s\n' "──────────────────── Zapfast ─" "❯ " "────────────────────" "  ⏵⏵ bypass permissions on" >"$herdr_state/n2.visible"
+reconnect
+grep -qx "text n2 /remote-control" "$herdr_state/log" || fail "a prompt box with the session's name in its rule is still a prompt" "$(cat "$herdr_state/log")"
+pass "a named session's prompt box is recognized"
+
 # --------------------------------------------------------- never interrupting
 
 # Working, a question open, a draft in the prompt, a menu open: nothing is
@@ -226,3 +235,94 @@ pass "nothing is submitted unless the prompt shows exactly /remote-control"
 reset_panes
 PATH="$test_tmp/nobin:/usr/bin:/bin" python3 "$ROOT/bin/omarchy-agent-account-reconnect" "$HOME/.claude" || fail "no herdr, nothing to do"
 pass "without herdr the job does nothing"
+
+# ----------------------------------------------------- every tick, no switch
+
+# What Claude keeps for a running session: its id, and its Remote Control
+# link while one is up.
+claude_state() {
+  local id=$1 sid=$2 bridge=$3 pid
+  pid=$(cat "$herdr_state/$id.pid")
+  mkdir -p "$HOME/.claude/sessions"
+  if [[ -n $bridge ]]; then
+    jq -nc --arg sid "$sid" --arg b "$bridge" '{sessionId: $sid, bridgeSessionId: $b}' >"$HOME/.claude/sessions/$pid.json"
+  else
+    jq -nc --arg sid "$sid" '{sessionId: $sid, bridgeSessionId: null}' >"$HOME/.claude/sessions/$pid.json"
+  fi
+}
+check() {
+  omarchy-agent-account-reconnect --check --attached || true
+}
+
+# Nothing to do: no keys, no word, and no background run started.
+reset_panes
+rm -rf "$XDG_STATE_HOME" "$HOME/.claude/sessions"
+cat >"$test_tmp/bin/systemd-run" <<'SH'
+#!/bin/bash
+echo "systemd-run $*" >>"$OMARCHY_TEST_HERDR/log"
+SH
+chmod +x "$test_tmp/bin/systemd-run"
+pane c1 "" idle none ""
+claude_state c1 sid-1 session_abc
+pane c2 "" idle none ""
+claude_state c2 sid-2 ""
+omarchy-agent-account-reconnect --check
+[[ ! -s $herdr_state/log && ! -s $OMARCHY_TEST_NOTIFICATIONS ]] || fail "a check with nothing to do does nothing" "$(cat "$herdr_state/log" "$OMARCHY_TEST_NOTIFICATIONS")"
+pass "a check with nothing to do is quiet"
+
+# The link c1 had is gone, with nothing on its screen saying so.
+claude_state c1 sid-1 ""
+omarchy-agent-account-reconnect --check
+grep -q "^systemd-run --user .* --check --attached$" "$herdr_state/log" || fail "a check starts its fixing run as a unit of its own" "$(cat "$herdr_state/log")"
+: >"$herdr_state/log"
+check
+grep -qx "keys c1 enter" "$herdr_state/log" || fail "a session whose link vanished gets /remote-control" "$(cat "$herdr_state/log")"
+! grep -q " c2 " "$herdr_state/log" || fail "a session that never had Remote Control is left alone" "$(cat "$herdr_state/log")"
+grep -q "Remote Control reconnected Session c1" "$OMARCHY_TEST_NOTIFICATIONS" || fail "a check says what it reconnected" "$(cat "$OMARCHY_TEST_NOTIFICATIONS")"
+pass "a session that had Remote Control gets it back without any switch"
+
+# A resumed session keeps its sessionId, so it's known to have had it.
+reset_panes
+pane r1 "" idle none ""
+claude_state r1 sid-1 ""
+check
+grep -qx "keys r1 enter" "$herdr_state/log" || fail "a resumed session gets its Remote Control back" "$(cat "$herdr_state/log")"
+pass "a resumed session gets its Remote Control back"
+
+# A pane that says its link dropped counts, even unseen before; one that only
+# talks about Remote Control doesn't, and one under another HOME is never
+# touched.
+reset_panes
+pane d1 "" idle dropped ""
+claude_state d1 sid-d1 ""
+pane d2 "" idle none ""
+claude_state d2 sid-d2 ""
+printf '%s\n' "● Agreed. Remote Control disconnected earlier, so it gets checked every 5 minutes." >"$herdr_state/d2.recent"
+HOME="$test_tmp/other" sleep 300 &
+sleepers+=($!)
+echo $! >"$herdr_state/d3.pid"; echo idle >"$herdr_state/d3.status"; echo active >"$herdr_state/d3.answer"
+cp "$herdr_state/d1.recent" "$herdr_state/d3.recent"; cp "$herdr_state/d1.visible" "$herdr_state/d3.visible"
+jq '. + [{agent: "claude", pane_id: "d3", terminal_title_stripped: "Session d3"}]' "$herdr_state/agents.json" >"$herdr_state/agents.next" && mv "$herdr_state/agents.next" "$herdr_state/agents.json"
+check
+grep -qx "keys d1 enter" "$herdr_state/log" || fail "a pane showing the drop is reconnected" "$(cat "$herdr_state/log")"
+! grep -q " d2 \| d3 " "$herdr_state/log" || fail "talk about Remote Control and other users' sessions are left alone" "$(cat "$herdr_state/log")"
+pass "only Claude's own drop line, in this user's sessions, counts"
+
+# Busy at the prompt: left for the next tick, without a word.
+reset_panes
+pane b2 "" working dropped ""
+claude_state b2 sid-b2 ""
+check
+[[ ! -s $herdr_state/log && ! -s $OMARCHY_TEST_NOTIFICATIONS ]] || fail "a busy session is left for the next tick, quietly" "$(cat "$herdr_state/log" "$OMARCHY_TEST_NOTIFICATIONS")"
+pass "a check leaves a busy session for the next tick"
+
+# An unexpected answer is said once, then the session is left alone.
+reset_panes
+pane g1 "" idle dropped "" unknown
+claude_state g1 sid-g1 ""
+check
+grep -q "Session g1 didn't answer as expected" "$OMARCHY_TEST_NOTIFICATIONS" || fail "an unexpected answer is reported" "$(cat "$OMARCHY_TEST_NOTIFICATIONS")"
+: >"$herdr_state/log" >"$OMARCHY_TEST_NOTIFICATIONS"
+check
+[[ ! -s $herdr_state/log && ! -s $OMARCHY_TEST_NOTIFICATIONS ]] || fail "a session that answered unexpectedly isn't retried every tick" "$(cat "$herdr_state/log" "$OMARCHY_TEST_NOTIFICATIONS")"
+pass "an unexpected answer isn't repeated every tick"

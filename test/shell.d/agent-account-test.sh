@@ -101,7 +101,7 @@ export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_NOTIFICATIONS="$notifications"
 export OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser"
 # A trade starts the Remote Control reconnect job; this one only says where.
-printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"$OMARCHY_TEST_RECONNECTS"\n' >"$mock_bin/reconnect-stub"
+printf '#!/bin/bash\n[[ $1 == "--check" ]] && exit 0\nprintf "%%s\\n" "$*" >>"$OMARCHY_TEST_RECONNECTS"\n' >"$mock_bin/reconnect-stub"
 chmod +x "$mock_bin/reconnect-stub"
 export OMARCHY_AGENT_ACCOUNT_RECONNECT="$mock_bin/reconnect-stub" OMARCHY_TEST_RECONNECTS="$test_tmp/reconnects"
 # A session started by an account launch pins its home through these, and

@@ -287,6 +287,10 @@ pass "manual mode doesn't nag before the threshold"
 reconnects="$test_tmp/reconnects"
 cat >"$test_tmp/bin/reconnect-stub" <<'SH2'
 #!/bin/bash
+if [[ $1 == "--check" ]]; then
+  echo check >>"$OMARCHY_TEST_RECONNECTS.checks"
+  exit 0
+fi
 printf '%s\n' "$*" >>"$OMARCHY_TEST_RECONNECTS"
 SH2
 chmod +x "$test_tmp/bin/reconnect-stub"
@@ -308,6 +312,7 @@ autoswitch >/dev/null
 [[ $(active) == "side" && $(login "$HOME/.claude") == "side" && $(login "$accounts/claude/work") == "work" ]] ||
   fail "a target whose home is free goes before one a trade would strand" "$(active) $(login "$HOME/.claude")"
 waited_reconnect && grep -qx "$HOME/.claude $accounts/claude/side" "$reconnects" || fail "the moved homes' Remote Control is reconnected" "$(cat "$reconnects")"
+[[ -s $reconnects.checks ]] || fail "every autoswitch check also checks Remote Control"
 pass "a busy target's home is skipped for a free one"
 
 # Put Main's login back in ~/.claude for the next cases.
@@ -388,6 +393,8 @@ pass "with every account over, a busy home is still never handed a worse login"
 # Left to itself, the reconnect job runs as a systemd unit of its own, so a
 # oneshot service or the panel that ran the switch can't take it down.
 unset OMARCHY_AGENT_ACCOUNT_RECONNECT
+printf '#!/bin/bash\necho "{\\"result\\":{\\"agents\\":[]}}"\n' >"$test_tmp/bin/herdr"
+chmod +x "$test_tmp/bin/herdr"
 cat >"$test_tmp/bin/systemd-run" <<'SH2'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_RECONNECTS"
