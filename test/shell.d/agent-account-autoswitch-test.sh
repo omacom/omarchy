@@ -82,8 +82,10 @@ pass "manual mode doesn't repeat itself"
 # ------------------------------------------------------------------ auto mode
 
 registry main auto
-record 0.949 "$soon" 0.12 "$later"
+record 0.949 "$soon" 0.70 "$later"
 [[ -z $(autoswitch) && ! -s $notifications ]] || fail "an account under the threshold stays put"
+record 0.79 "$soon" 0.12 "$later"
+[[ -z $(autoswitch) && ! -s $notifications ]] || fail "an account more than 15 points under the threshold stays put"
 pass "an account under the threshold stays put"
 
 record 0.96 "$soon" 0.12 "$later"
@@ -200,3 +202,163 @@ jq -nc --arg later "$later" '{
 autoswitch >/dev/null
 [[ $(active) == "work" ]] || fail "a stale account with room wins over a fresh one near the limit" "$(active)"
 pass "a stale account with room wins over a fresh one near the limit"
+
+# ------------------------------------------------------- which account next
+
+# Three accounts with room: the one whose windows clear soonest is used first,
+# so allowance about to start over isn't lost; room still comes first, and an
+# account at or over the threshold is never picked however soon it clears.
+day=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)).isoformat())')
+week=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=6)).isoformat())')
+three() {
+  cat >"$accounts/claude.json" <<JSON
+{
+  "active": "$1",
+  "switch": "${2:-auto}",
+  "threshold": 95,
+  "alert": "",
+  "accounts": [
+    {"id": "main", "label": "Main", "home": "", "primary": true},
+    {"id": "work", "label": "Work", "home": "$accounts/claude/work", "primary": false},
+    {"id": "side", "label": "Side", "home": "$accounts/claude/side", "primary": false}
+  ]
+}
+JSON
+}
+# Weekly percent and reset per account; the 5-hour window resets within hours
+# for every account, so the week decides.
+weekly() {
+  jq -nc --argjson m "$1" --arg mr "$2" --argjson w "$3" --arg wr "$4" --argjson s "$5" --arg sr "$6" --arg soon "$soon" '{
+    id: "claude",
+    accounts: [
+      {id: "main", limits: [{label: "Session (5-hour)", percent: 0.1, resetsAt: $soon}, {label: "Weekly (7-day)", percent: $m, resetsAt: $mr}]},
+      {id: "work", limits: [{label: "Session (5-hour)", percent: 0.1, resetsAt: $soon}, {label: "Weekly (7-day)", percent: $w, resetsAt: $wr}]},
+      {id: "side", limits: [{label: "Session (5-hour)", percent: 0.1, resetsAt: $soon}, {label: "Weekly (7-day)", percent: $s, resetsAt: $sr}]}
+    ]
+  }' >"$usage/claude.json"
+}
+
+three main
+weekly 0.97 "$week" 0.20 "$week" 0.60 "$day"
+autoswitch >/dev/null
+[[ $(active) == "side" ]] || fail "the account that clears soonest is used first" "$(active)"
+pass "the account whose week ends soonest is used first"
+
+three main
+weekly 0.97 "$week" 0.20 "$week" 0.95 "$day"
+autoswitch >/dev/null
+[[ $(active) == "work" ]] || fail "an account at the threshold is never picked" "$(active)"
+three main
+weekly 0.97 "$week" 0.20 "$week" 0.85 "$day"
+autoswitch >/dev/null
+[[ $(active) == "work" ]] || fail "room comes before clearing soonest" "$(active)"
+pass "room comes before clearing soonest, and the threshold is never crossed"
+
+# One whose week hasn't started loses nothing by waiting.
+three main
+jq -nc --arg week "$week" '{
+  id: "claude",
+  accounts: [
+    {id: "main", limits: [{label: "Weekly (7-day)", percent: 0.97, resetsAt: $week}]},
+    {id: "work", limits: [{label: "Weekly (7-day)", percent: 0.0, resetsAt: ""}]},
+    {id: "side", limits: [{label: "Weekly (7-day)", percent: 0.30, resetsAt: $week}]}
+  ]
+}' >"$usage/claude.json"
+autoswitch >/dev/null
+[[ $(active) == "side" ]] || fail "an account with a running window goes before one that hasn't started" "$(active)"
+pass "an account with nothing running out waits"
+
+# ---------------------------------------------------------- leaving early
+
+# Within 15 points of the threshold, auto mode leaves for an account at least
+# 30 under it, one whose window has reset. The gap keeps it from flapping.
+registry main auto
+record 0.82 "$later" 0.20 "$later"
+[[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "auto mode leaves early for an account that has reset"
+record 0.82 "$later" 0.83 "$later"
+[[ -z $(autoswitch) && $(active) == "work" ]] || fail "leaving early never flaps back to an account that hasn't reset"
+record 0.82 "$later" 0.70 "$later"
+[[ -z $(autoswitch) && $(active) == "work" ]] || fail "an account not yet near its limit stays put"
+record 0.10 "$later" 0.84 "$later"
+[[ $(autoswitch) == "claude" && $(active) == "main" ]] || fail "auto mode goes back once the earlier account has reset"
+pass "auto mode leaves early for a reset account, without flapping"
+
+registry main manual
+record 0.85 "$later" 0.10 "$later"
+[[ -z $(autoswitch) && ! -s $notifications ]] || fail "manual mode only speaks at the threshold"
+pass "manual mode doesn't nag before the threshold"
+
+# ------------------------------------------- sessions running in a target home
+
+# A trade hands the target's home the login ~/.claude held. With logins in
+# every home and a session holding a home open.
+for home in "$HOME/.claude" "$accounts/claude/work" "$accounts/claude/side"; do
+  echo "{\"claudeAiOauth\":{\"refreshToken\":\"$(basename "$home")\"}}" >"$home/.credentials.json"
+done
+login() { jq -r .claudeAiOauth.refreshToken "$1/.credentials.json"; }
+CLAUDE_CONFIG_DIR="$accounts/claude/work" sleep 300 &
+sleeper=$!
+
+# Work has the most room but a session of its own, which a trade would move
+# onto Main's 97%. Side's home is free, so Side is taken and traded with.
+three main
+weekly 0.97 "$week" 0.10 "$day" 0.40 "$week"
+autoswitch >/dev/null
+[[ $(active) == "side" && $(login "$HOME/.claude") == "side" && $(login "$accounts/claude/work") == "work" ]] ||
+  fail "a target whose home is free goes before one a trade would strand" "$(active) $(login "$HOME/.claude")"
+pass "a busy target's home is skipped for a free one"
+
+# Put Main's login back in ~/.claude for the next cases.
+for home in "$HOME/.claude" "$accounts/claude/side"; do
+  echo "{\"claudeAiOauth\":{\"refreshToken\":\"$(basename "$home")\"}}" >"$home/.credentials.json"
+done
+
+# Only Work has room. New sessions go to it, ~/.claude stays where it is,
+# and nothing is traded onto Work's running session.
+three main
+weekly 0.97 "$week" 0.10 "$day" 0.98 "$week"
+autoswitch >/dev/null
+[[ $(active) == "work" && $(login "$HOME/.claude") == ".claude" && $(login "$accounts/claude/work") == "work" ]] ||
+  fail "a trade never moves a running session onto a login over the threshold"
+grep -q "Sessions in ~/.claude stay on Main until the ones already running as Work quit" "$notifications" ||
+  fail "the notice says why ~/.claude's sessions stayed" "$(cat "$notifications")"
+pass "a trade that would strand a running session waits"
+
+# Once Work's session quits, the next check makes the move it owed.
+kill "$sleeper"; wait "$sleeper" 2>/dev/null || true
+autoswitch >/dev/null
+[[ $(login "$HOME/.claude") == "work" && $(login "$accounts/claude/work") == ".claude" ]] ||
+  fail "the owed move happens once the target's home is free"
+[[ $(jq -r '.accounts[] | select(.primary) | .id' "$accounts/claude.json") == "work" ]] || fail "the registry follows the owed move"
+grep -q "Sessions running in ~/.claude move with it" "$notifications" || fail "the owed move is announced" "$(cat "$notifications")"
+pass "an owed move happens once the target's home is free"
+
+# Leaving early hands a busy home a login still under the threshold, so the
+# trade goes ahead.
+for home in "$HOME/.claude" "$accounts/claude/work"; do
+  echo "{\"claudeAiOauth\":{\"refreshToken\":\"$(basename "$home")\"}}" >"$home/.credentials.json"
+done
+CLAUDE_CONFIG_DIR="$accounts/claude/work" sleep 300 &
+sleeper=$!
+three main
+weekly 0.85 "$week" 0.10 "$day" 0.98 "$week"
+autoswitch >/dev/null
+[[ $(active) == "work" && $(login "$HOME/.claude") == "work" && $(login "$accounts/claude/work") == ".claude" ]] ||
+  fail "a busy home may take a login that is still under the threshold"
+kill "$sleeper"; wait "$sleeper" 2>/dev/null || true
+pass "a busy home takes a login that still has room"
+
+# While a sign-in holds its lock, nothing switches: switching without the
+# trade would start new sessions in the target's home and strand ~/.claude.
+for home in "$HOME/.claude" "$accounts/claude/side"; do
+  echo "{\"claudeAiOauth\":{\"refreshToken\":\"$(basename "$home")\"}}" >"$home/.credentials.json"
+done
+three main
+weekly 0.97 "$week" 0.98 "$week" 0.40 "$week"
+exec 7>"$accounts/.claude.signin.lock"
+flock 7
+[[ -z $(autoswitch) && $(active) == "main" && $(login "$HOME/.claude") == ".claude" ]] || fail "a sign-in in progress holds the switch back"
+flock -u 7
+exec 7>&-
+[[ $(autoswitch) == "claude" && $(active) == "side" && $(login "$HOME/.claude") == "side" ]] || fail "the switch happens on the next check"
+pass "a switch waits for a sign-in rather than leaving ~/.claude behind"

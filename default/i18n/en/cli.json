@@ -43,6 +43,7 @@
   "agents.stayingOnUntil": "Staying on %1. %2 resets in %3.",
   "agents.switchedBody": "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.",
   "agents.switchedBodyMoved": "%1 sessions now use %2 (%3%), including those running in ~/.claude.",
+  "agents.switchedBodyStranded": "New %1 sessions now use %2 (%3%).\nSessions in ~/.claude stay on %4 until the ones already running as %2 quit.",
   "animations.disabled": "Animations disabled",
   "animations.enabled": "Animations enabled",
   "animations.softwareRendering": "Animations off without a GPU",

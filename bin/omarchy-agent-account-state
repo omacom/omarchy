@@ -536,26 +536,55 @@ def refresh(provider: str) -> None:
 
 # Claude reads its login before every request, so a session follows whatever
 # its home holds. Trading logins with the primary home moves every session
-# there, and keeps each refresh token in one place. A home with a session of
-# its own keeps its login, so that session isn't moved somewhere unexpected,
-# and nothing is traded while omarchy-agent-account-add signs in to a home.
-def move_running_sessions(registry: dict[str, Any], account: dict[str, Any]) -> bool:
+# there, and keeps each refresh token in one place. Claude refuses a
+# credentials file that is a link, so two homes can never share one login: a
+# trade always gives the target's home the login the primary home held.
+#
+# That is the one thing a trade must never do to a running session: hand it a
+# login at or over the threshold. So a target home with a session of its own
+# is traded with only when the primary's login has room (its level is known
+# and under the threshold); otherwise its sessions would go from headroom to
+# the exhausted login, which is the move being avoided for ~/.claude. Choosing
+# a target (decide) prefers accounts this never blocks, so the primary home's
+# sessions move whenever any account with room has a free home.
+#
+# Nothing is traded while omarchy-agent-account-add signs in to a home.
+#
+# Returns the outcome and the homes whose sessions changed login:
+# "moved", "busy" (the target's home has a session the trade would strand),
+# "locked" (a sign-in holds the lock), or "none" (nothing to move).
+def move_running_sessions(registry: dict[str, Any], account: dict[str, Any], primary_level: float | None = None) -> tuple[str, list[Path]]:
   holder = next(a for a in registry["accounts"] if a.get("primary"))
   here, there = primary_home("claude"), account_home("claude", account)
   if holder is account or not all((h / ".credentials.json").is_file() for h in (here, there)):
-    return False
-  if home_in_use("claude", there):
-    return False
+    return "none", []
+  if home_in_use("claude", there) and not (primary_level is not None and primary_level < float(registry["threshold"])):
+    return "busy", []
   # Held for the whole trade, so a sign-in waits for it before choosing a home.
   lock = open(accounts_root() / ".claude.signin.lock", "w")
   try:
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
   except BlockingIOError:
     lock.close()
-    return False
+    return "locked", []
   with lock:
     trade_logins(registry, holder, account, here, there)
-  return True
+  return "moved", [here, there]
+
+
+# How spent the login in the primary home is, for move_running_sessions.
+def primary_level(registry: dict[str, Any], now: dt.datetime | None = None) -> float | None:
+  holder = next(a for a in registry["accounts"] if a.get("primary"))
+  usage, _ = usage_by_account("claude")
+  return peak(usage.get(holder["id"]), now or dt.datetime.now(dt.timezone.utc))
+
+
+# Homes in use by a running session, by account id, leaving out the primary
+# home: those are the targets a trade could strand.
+def busy_accounts(provider: str, registry: dict[str, Any]) -> frozenset[str]:
+  if provider != "claude":
+    return frozenset()
+  return frozenset(a["id"] for a in registry["accounts"] if not a.get("primary") and home_in_use(provider, account_home(provider, a)))
 
 
 def trade_logins(registry: dict[str, Any], holder: dict[str, Any], account: dict[str, Any], here: Path, there: Path) -> None:
@@ -596,7 +625,7 @@ def write_private(path: Path, text: str) -> None:
   os.replace(tmp, path)
 
 
-def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any], bool]:
+def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any], bool, list[Path]]:
   with Locked(provider) as registry:
     previous = active(registry)
     if target == "next":
@@ -607,10 +636,14 @@ def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any], boo
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
     registry["active"] = account["id"]
     registry["alert"] = ""
-    moved = provider == "claude" and move_running_sessions(registry, account)
+    homes: list[Path] = []
+    if provider == "claude":
+      # A switch asked for by name happens even when the trade can't; the next
+      # autoswitch check moves ~/.claude's sessions once it can.
+      _, homes = move_running_sessions(registry, account, primary_level(registry))
     if not account.get("primary"):
       link_shared(provider, account_home(provider, account))
-    return previous, account, moved
+    return previous, account, bool(homes), homes
 
 
 # Whether a running session was started in this home. Removing it would pull
@@ -693,20 +726,6 @@ def peak(limits: Any, now: dt.datetime) -> float | None:
   return max(open_windows) if open_windows else 0.0
 
 
-def next_reset(limits: Any, now: dt.datetime) -> dt.datetime | None:
-  times = []
-  for limit in limits if isinstance(limits, list) else []:
-    try:
-      when = dt.datetime.fromisoformat(str(limit.get("resetsAt") or "").replace("Z", "+00:00"))
-    except Exception:
-      continue
-    if when.tzinfo is None:
-      when = when.replace(tzinfo=dt.timezone.utc)
-    if when > now:
-      times.append(when)
-  return min(times) if times else None
-
-
 # When an account over the threshold drops back under it: once every window
 # holding it there has reset, which is the latest of those resets. A 10%
 # session resetting in an hour doesn't help an account whose weekly window is
@@ -739,46 +758,98 @@ def duration(delta: dt.timedelta) -> str:
   return tr("omarchy-i18n battery.durationMinutes", "%1m", minutes)
 
 
+# The latest reset among an account's open windows: when every window it is
+# counting in has started over, so it is clear again. A week that ends sooner
+# is allowance that goes unused sooner, which is why switching spends it
+# first. None when no window says when it resets (one that hasn't started).
+def clears_at(limits: Any, now: dt.datetime) -> dt.datetime | None:
+  latest = None
+  for limit in limits if isinstance(limits, list) else []:
+    if not isinstance(limit, dict) or not window_open(limit, now):
+      continue
+    try:
+      when = dt.datetime.fromisoformat(str(limit.get("resetsAt") or "").replace("Z", "+00:00"))
+    except Exception:
+      continue
+    if when.tzinfo is None:
+      when = when.replace(tzinfo=dt.timezone.utc)
+    latest = when if latest is None or when > latest else latest
+  return latest
+
+
+# Points under the threshold where an account counts as near its limit, and
+# where the panel starts checking it more often.
+NEAR = 15
+
+
 # The whole switching policy, with no I/O: given the registry and the per
 # account limits from the usage record, what should happen. Returns None when
-# nothing should, or {"action": "switch"|"notify"|"exhausted", ...}.
+# nothing should, or {"action": "switch"|"notify"|"exhausted"|"clear", ...}.
 #
-# Only the active account crossing the threshold starts anything, so auto
-# mode never flaps back to an account that just reset. `alert` remembers the
-# last thing said, so a shell restart or the next refresh doesn't repeat it.
+# The active account at or over the threshold starts a switch. Among the
+# accounts under it, the order is:
 #
-# Numbers kept from an earlier check may be out of date, but a parked account's
-# sign-in lapses within hours and can't be checked again until a session runs
-# in it. So a stale account is still a candidate: among accounts with room, one
-# checked just now wins, but room comes first. An account within 15 points of
-# the threshold (where the panel starts checking more often) is near its limit
-# however fresh its numbers are.
-def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, stale: frozenset[str] = frozenset()) -> dict[str, Any] | None:
+#   1. One whose move strands nobody (see move_running_sessions): a trade
+#      with a home that has a session of its own would hand that session the
+#      exhausted login, so such an account is taken only when no other has
+#      room, and then for new sessions only.
+#   2. Room: one within NEAR points of the threshold comes last.
+#   3. Fresh numbers: a parked account's sign-in lapses within hours and can't
+#      be checked again until a session runs in it, so its numbers may be out
+#      of date. It still counts, but one checked just now wins.
+#   4. The one that clears soonest (clears_at), so allowance that is about to
+#      start over is used before it's lost. One with no running window, which
+#      loses nothing by waiting, comes after any that does.
+#   5. The lowest level.
+#
+# In auto mode the active account also leaves early, once it is within NEAR
+# points of the threshold, for an account at least 2 * NEAR points under it:
+# one whose window has reset since it was left. That gap is the hysteresis.
+# The account left behind is at least threshold - NEAR, so it can't qualify
+# to come back until its own window resets, and the new one has to climb
+# NEAR points before it leaves early in turn: no ping-pong.
+#
+# `alert` remembers the last thing said, so a shell restart or the next
+# refresh doesn't repeat it.
+def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, stale: frozenset[str] = frozenset(), busy: frozenset[str] = frozenset()) -> dict[str, Any] | None:
   threshold = float(registry["threshold"])
   current = active(registry)
   current_peak = peak(usage.get(current["id"]), now)
-  if current_peak is None or current_peak < threshold:
+  if current_peak is None:
     return {"action": "clear"} if registry.get("alert") else None
+  early = current_peak < threshold
+  if early and (registry["switch"] != "auto" or current_peak < threshold - NEAR):
+    return {"action": "clear"} if registry.get("alert") else None
+  ceiling = threshold - 2 * NEAR if early else threshold
+
+  # A trade gives a busy target's home whatever the primary home holds now.
+  holder = next(a for a in registry["accounts"] if a.get("primary"))
+  holder_peak = peak(usage.get(holder["id"]), now)
+  holder_over = holder_peak is None or holder_peak >= threshold
+  never = dt.datetime.max.replace(tzinfo=dt.timezone.utc)
 
   candidates = []
   for account in registry["accounts"]:
     if account["id"] == current["id"]:
       continue
     level = peak(usage.get(account["id"]), now)
-    if level is None or level >= threshold:
+    if level is None or level >= ceiling:
       continue
-    reset = next_reset(usage.get(account["id"]), now) or dt.datetime.max.replace(tzinfo=dt.timezone.utc)
-    candidates.append((level >= threshold - 15, account["id"] in stale, level, reset, account))
-  candidates.sort(key=lambda c: c[:4])
+    strands = account["id"] in busy and not account.get("primary") and holder_over
+    clears = clears_at(usage.get(account["id"]), now) or never
+    candidates.append(((strands, level >= threshold - NEAR, account["id"] in stale, clears, level), account))
+  candidates.sort(key=lambda c: c[0])
 
   if candidates:
-    _, _, level, _, target = candidates[0]
+    (strands, _, _, _, level), target = candidates[0]
     action = "switch" if registry["switch"] == "auto" else "notify"
     alert = f"{action}:{current['id']}:{target['id']}"
     if registry.get("alert") == alert:
       return None
-    return {"action": action, "alert": alert, "from": current, "to": target, "fromPeak": current_peak, "toPeak": level}
+    return {"action": action, "alert": alert, "from": current, "to": target, "fromPeak": current_peak, "toPeak": level, "strands": strands}
 
+  if early:
+    return {"action": "clear"} if registry.get("alert") else None
   alert = f"exhausted:{current['id']}"
   if registry.get("alert") == alert or len(registry["accounts"]) < 2:
     return None
@@ -834,51 +905,75 @@ def notify(title: str, body: str, action: list[str] | None = None) -> None:
   subprocess.run(command, check=False)
 
 
-# Returns True when the active account changed.
-def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
+# Returns whether the active account or the primary home's login changed,
+# and the homes whose running sessions changed login.
+def autoswitch(provider: str, now: dt.datetime | None = None) -> tuple[bool, list[Path]]:
   now = now or dt.datetime.now(dt.timezone.utc)
   name = PROVIDERS[provider]["name"]
   with Locked(provider) as registry:
     if len(registry["accounts"]) < 2:
-      return False
+      return False, []
     usage, stale = usage_by_account(provider)
-    decision = decide(registry, usage, now, stale)
+    level = peak(usage.get(next(a for a in registry["accounts"] if a.get("primary"))["id"]), now)
+
+    # A Claude account made active without its trade (a sign-in held the
+    # lock, or a session in its home would have been stranded) still owes
+    # ~/.claude's sessions their move. Each check tries it again.
+    if provider == "claude" and not active(registry).get("primary"):
+      target = active(registry)
+      outcome, homes = move_running_sessions(registry, target, level)
+      if outcome == "moved":
+        notify(tr("omarchy-i18n agents.newSessionsUse", "New %1 sessions now use %2", name, target["label"]), tr("omarchy-i18n agents.runningMove", "Sessions running in ~/.claude move with it."))
+        return True, homes
+
+    decision = decide(registry, usage, now, stale, busy_accounts(provider, registry))
     if decision is None:
-      return False
+      return False, []
     if decision["action"] == "clear":
       registry["alert"] = ""
-      return False
+      return False, []
 
-    registry["alert"] = decision["alert"]
     source = decision["from"]
     threshold = registry["threshold"]
     if decision["action"] == "exhausted":
+      registry["alert"] = decision["alert"]
       soonest = decision["soonest"]
       if soonest:
         body = tr("omarchy-i18n agents.stayingOnUntil", "Staying on %1. %2 resets in %3.", source["label"], soonest[1]["label"], duration(soonest[0] - now))
       else:
         body = tr("omarchy-i18n agents.stayingOn", "Staying on %1.", source["label"])
       notify(tr("omarchy-i18n agents.allOver", "All %1 accounts are over %2%", name, threshold), body)
-      return False
+      return False, []
 
     target = decision["to"]
     headline = tr("omarchy-i18n agents.atLimit", "%1 is at %2% of a %3 limit", source["label"], round(decision["fromPeak"]), name)
     if decision["action"] == "switch":
+      homes: list[Path] = []
+      if provider == "claude" and not decision["strands"]:
+        outcome, homes = move_running_sessions(registry, target, level)
+        if outcome == "locked":
+          # A sign-in is writing a login. Switching now would start new
+          # sessions in the target's home and leave ~/.claude behind, so the
+          # whole switch waits for the next check instead.
+          return False, []
+      registry["alert"] = decision["alert"]
       registry["active"] = target["id"]
-      moved = provider == "claude" and move_running_sessions(registry, target)
       if not target.get("primary"):
         link_shared(provider, account_home(provider, target))
-      if moved:
+      if homes:
         notify(headline, tr("omarchy-i18n agents.switchedBodyMoved", "%1 sessions now use %2 (%3%), including those running in ~/.claude.", name, target["label"], round(decision["toPeak"])))
+      elif provider == "claude" and decision["strands"]:
+        notify(headline, tr("omarchy-i18n agents.switchedBodyStranded", "New %1 sessions now use %2 (%3%).\nSessions in ~/.claude stay on %4 until the ones already running as %2 quit.", name, target["label"], round(decision["toPeak"]), source["label"]))
       else:
         notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), source["label"]))
-      return True
+      return True, homes
+    registry["alert"] = decision["alert"]
     notify(
       headline,
       tr("omarchy-i18n agents.offerSwitch", "%1 is at %2%. Click to switch new sessions to it.", target["label"], round(decision["toPeak"])),
       ["omarchy-agent-account-use", provider, target["id"]],
     )
-    return False
+    return False, []
 
 
 # --------------------------------------------------------------------- CLI
@@ -953,7 +1048,7 @@ def main(argv: list[str]) -> int:
       print(json.dumps(register(provider, args[1], Path(args[2]))))
     elif command == "use":
       provider = provider_arg(args)
-      previous, account, moved = use(provider, args[1] if len(args) > 1 else "next")
+      previous, account, moved, _ = use(provider, args[1] if len(args) > 1 else "next")
       print(json.dumps({"previous": previous, "active": account, "moved": moved}))
     elif command == "remove":
       provider = provider_arg(args)
@@ -977,8 +1072,10 @@ def main(argv: list[str]) -> int:
       # Prints each provider whose active account changed, so the caller
       # knows which usage records to collect again.
       for provider in ([provider_arg(args)] if args else list(PROVIDERS)):
-        if registry_path(provider).exists() and autoswitch(provider):
-          print(provider)
+        if registry_path(provider).exists():
+          changed, _ = autoswitch(provider)
+          if changed:
+            print(provider)
     else:
       raise AccountError(f"Unknown command: {command}")
   except (AccountError, OSError) as error:
