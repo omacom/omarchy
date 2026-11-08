@@ -760,27 +760,6 @@ def account_login(account):
     if account.get("active"):
       curr = login()
       if curr and acc_email and curr.get("email") == acc_email:
-        saved_exp = parse_time(tok.get("expiry") or data.get("expiry"))
-        saved_ts = saved_exp.timestamp() if saved_exp else 0
-        if curr.get("expiresAt", 0) > saved_ts and token_file.is_file():
-          try:
-            raw_data = None
-            try:
-              raw = subprocess.check_output(
-                ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
-                text=True, stderr=subprocess.DEVNULL, timeout=3,
-              )
-              raw_data = raw.strip() if raw.strip() else None
-            except Exception:
-              pass
-            if not raw_data:
-              app_file = app_root() / "antigravity-oauth-token"
-              if app_file.is_file():
-                raw_data = app_file.read_text(encoding="utf-8")
-            if raw_data:
-              token_file.write_text(raw_data, encoding="utf-8")
-          except Exception:
-            pass
         return curr
   token = data.get("token") if isinstance(data.get("token"), dict) else {}
   expires = parse_time(token.get("expiry") or data.get("expiry"))
