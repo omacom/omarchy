@@ -60,6 +60,10 @@ A floating workspace also shows a dock, with your pinned apps, everything that's
 
 New workspaces, and any you haven't given a layout of their own with `Super + L`, use the default layout. Changing the default resets every workspace without windows to it, while one with windows on it keeps the layout it has. A window minimized to the dock still counts as a window on the workspace it left. Pick it under _Appearance > Workspace Layout_: Tiling, Scrolling, or Floating. `omarchy-hyprland-workspace-layout-default scrolling` sets it from a terminal.
 
+### Snapping windows
+
+On a floating workspace, windows snap into place the way they do on Windows and KDE. `Super + Arrow` puts the window in that half of the screen, and a second arrow the other way makes it a quarter: `Super + Left` and then `Super + Up` is the top-left corner. Pressing toward the edge the window is already against maximizes it: `Super + Up` on the top half, `Super + Left` on the left half, and an arrow on a maximized window gives that half again. `Super + Shift + Ctrl + Arrow` moves a window to another monitor. Dragging a window to a side edge snaps it to that half, near a corner to that quarter, and to the top edge maximizes it, with an outline showing where it will land before you let go. On an edge shared with another monitor, rest a moment before it snaps, so you can still drag across. Drag a snapped window away and it gets back the size it had before. A window too large for a half or quarter stays as it is.
+
 ### Grouping windows
 
 Windows can be grouped using `Super + G`. Once you're in a group, every window you start while that's active will belong to the group. You can move between these grouped windows using `Super + Ctrl + Arrow Left/Right` or `Super + Alt + 1/2/3/4` to go directly to grouped windows in order.
