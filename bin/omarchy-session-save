@@ -35,8 +35,10 @@ desktop_exec() {
   [[ -n $file ]] && sed -n 's/^Exec=//p' "$file" | head -n1 | sed -E 's/ +%[a-zA-Z]//g'
 }
 
-# A Chromium web app's class names its URL: brave-x.com__stevederico-Default
-# is https://x.com/stevederico, with each / in the path written as _.
+# Fallback when no .desktop launcher is found. A Chromium web app's class
+# names its URL: brave-x.com__stevederico-Default is https://x.com/stevederico,
+# with each / in the path written as _. The class drops ports, extra flags,
+# and the browser profile, so prefer desktop_exec first.
 webapp_launch() {
   if [[ $1 =~ ^(brave|chrome|chromium|google-chrome|microsoft-edge|vivaldi|helium|opera)-([^_]+)__(.*)-[^-]+$ ]]; then
     echo "omarchy-launch-webapp $(printf '%q' "https://${BASH_REMATCH[2]}/${BASH_REMATCH[3]//_//}")"
@@ -172,8 +174,8 @@ while read -r pid; do
     # One launch per class: a browser's web app windows share its process.
     while read -r class; do
       workspace=$(jq -r --arg class "$class" 'first(.[] | select(.class == $class)) | .workspace' <<<"$pid_windows")
-      command=$(webapp_launch "$class")
-      [[ -z $command ]] && command=$(desktop_exec "$class")
+      command=$(desktop_exec "$class")
+      [[ -z $command ]] && command=$(webapp_launch "$class")
       if [[ -z $command ]]; then
         mapfile -d '' -t argv <"/proc/$pid/cmdline" 2>/dev/null
         (( ${#argv[@]} > 0 )) && command=$(printf '%q ' "${argv[@]}")
