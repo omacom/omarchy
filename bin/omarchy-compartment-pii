@@ -10,14 +10,15 @@
 
 set -euo pipefail
 
-OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
-OMARCHY_PATH="${OMARCHY_PATH%/}"
+
+umask 077
 OUT="$HOME/.config/omarchy/compartment/pii-denylist.txt"
 IMGDIR="${COMPARTMENT_IMGDIR:-/var/lib/libvirt/images/whonix}"
 
 if (($# >= 1)); then
   [[ -f $1 ]] || { echo "no such file: $1" >&2; exit 1; }
   mkdir -p "$(dirname "$OUT")"
+  chmod 700 "$(dirname "$OUT")"
   cp "$1" "$OUT"
 else
   echo "Enter your literal PII strings, one per line. Blank line ends input."
@@ -25,16 +26,27 @@ else
   echo "employer, usernames, any string that must NEVER reach an LLM context."
   echo "(These stay local; the denylist lives only inside your VMs.)"
   mkdir -p "$(dirname "$OUT")"
+  chmod 700 "$(dirname "$OUT")"
   : > "$OUT"
   while IFS= read -r -p "> " line; do
     [[ -z $line ]] && break
     printf '%s\n' "$line" >> "$OUT"
   done
 fi
+chmod 600 "$OUT"
 
 echo "==> $(wc -l < "$OUT") strings in denylist; pushing to stopped compartments"
+# never virt-customize a backing image — writes would corrupt every overlay
+BACKINGS=$(for img in "$IMGDIR"/*.qcow2; do
+  qemu-img info --output=json "$img" 2>/dev/null \
+    | jq -r '.backing-filename // empty' 2>/dev/null
+done | sort -u | while IFS= read -r b; do realpath "$b" 2>/dev/null || printf '%s\n' "$b"; done)
 for img in "$IMGDIR"/*.qcow2; do
   name=$(basename "$img" .qcow2)
+  real=$(realpath "$img")
+  if grep -qxF "$real" <<<"$BACKINGS"; then
+    echo "  skip (backing file): $name"; continue
+  fi
   if sudo virsh -c qemu:///system domstate "$name" 2>/dev/null | grep -q running; then
     echo "  skip (running): $name"; continue
   fi

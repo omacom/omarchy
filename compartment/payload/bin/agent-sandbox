@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # agent-sandbox — Firejail wrapper for agent binaries (hermes, devin).
 # Thin shim: real isolation lives in /etc/firejail/agent.profile (declarative).
 set -u

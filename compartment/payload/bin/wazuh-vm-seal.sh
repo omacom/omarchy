@@ -110,9 +110,9 @@ fi
 # Only kill a process we positively recognise as malicious.  Patterns are an
 # allowlist; never run pkill -f on broad grep-ables — that would kill
 # unrelated processes.
-KNOWN_MALWARE_PATTERNS="${KNOWN_MALWARE_PATTERNS:-reptile|diamorphine|}"
+KNOWN_MALWARE_PATTERNS="${KNOWN_MALWARE_PATTERNS:-reptile|diamorphine}"
 PIDS="$(ps -eo pid,args 2>/dev/null | grep -E "$KNOWN_MALWARE_PATTERNS" \
-        | grep -v grep | awk '{print $1}' | tr '\n' ' ')"
+        | grep -v grep | grep -v "^ *$$ " | awk '{print $1}' | tr '\n' ' ')"
 
 if [ -n "$PIDS" ]; then
   log INFO "killing known-malware PIDs: ${PIDS}"

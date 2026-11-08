@@ -18,7 +18,7 @@ cp -a "$(find "$MISE/claude" -name claude -type f | head -1)" "$STAGE/bin/claude
 cp -a "$(find "$MISE/codex" -path '*/bin/codex' -type f | head -1)" "$STAGE/bin/codex"
 # native linux-x64 build (guest is glibc Debian; .exe is a node launcher)
 OPENCODE_BIN=$(find "$MISE/opencode" -path '*cli-linux-x64@*/bin/opencode' -type f | head -1)
-[ -n "$OPENCODE_BIN" ] || OPENCODE_BIN=$(find "$MISE/opencode" -path '*/bin/opencode' -type f | head -1)
+[[ -z $OPENCODE_BIN ]] && OPENCODE_BIN=$(find "$MISE/opencode" -path '*/bin/opencode' -type f | head -1)
 cp -a "$OPENCODE_BIN" "$STAGE/bin/opencode"
 chmod +x "$STAGE"/bin/*
 

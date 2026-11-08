@@ -8,8 +8,10 @@
 
 set -euo pipefail
 
+: "${OMARCHY_PATH:?OMARCHY_PATH is not set — run inside an Omarchy session}"
+
 if [[ ${EUID} -ne 0 ]]; then
-  exec sudo env OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}" bash "$0" "$@"
+  exec sudo env OMARCHY_PATH="$OMARCHY_PATH" bash "$0" "$@"
 fi
 
 IMGDIR="${COMPARTMENT_IMGDIR:-/var/lib/libvirt/images/whonix}"
@@ -18,7 +20,7 @@ OUT="$IMGDIR/vault-signer.qcow2"
 XML=/tmp/vault-signer.xml
 DEBIAN_QCOW2="https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
 
-if [ ! -f "$BASE" ]; then
+if [[ ! -f $BASE ]]; then
   echo "downloading Debian cloud image -> $BASE"
   curl -fL --retry 3 -o "$BASE" "$DEBIAN_QCOW2"
 fi

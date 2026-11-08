@@ -10,6 +10,8 @@ intents:
   - devin          # external agent allowed HERE ONLY
   - attach-devin
   - status
+  - push
+  - pull
   - git
   - prompt
   - prompt-resp

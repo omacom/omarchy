@@ -8,12 +8,13 @@
 
 set -euo pipefail
 
+: "${OMARCHY_PATH:?OMARCHY_PATH is not set — run inside an Omarchy session}"
+
 if [[ ${EUID} -ne 0 ]]; then
-  exec sudo env OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}" \
+  exec sudo env OMARCHY_PATH="$OMARCHY_PATH" \
     COMPARTMENT_HOME="$HOME" SUDO_USER_NAME="${SUDO_USER:-$USER}" bash "$0" "$@"
 fi
 
-OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 OMARCHY_PATH="${OMARCHY_PATH%/}"
 COMP="$OMARCHY_PATH/compartment"
 REAL_HOME="${COMPARTMENT_HOME:-/root}"
@@ -38,13 +39,13 @@ pacman -Q aide >/dev/null 2>&1 || pacman -S --noconfirm aide || echo "install ai
 if ! ls /var/lib/aide/aide.db* >/dev/null 2>&1; then
   echo "  initializing AIDE database (first run is slow)"
   aide --init >/dev/null 2>&1 || aideinit || true
-  for f in /var/lib/aide/aide.db.new*; do [ -e "$f" ] && mv "$f" "${f/new/db}"; done 2>/dev/null || true
+  for f in /var/lib/aide/aide.db.new*; do [[ -e $f ]] && mv "$f" "${f/new/db}"; done 2>/dev/null || true
 fi
 
 echo "[4/8] usbguard — allow current devices, block new ones"
 pacman -Q usbguard >/dev/null 2>&1 || pacman -S --noconfirm usbguard || echo "install usbguard manually"
 install -m644 "$COMP/host/usbguard/compartment-ai.conf" /etc/usbguard/rules.d/compartment-ai.conf 2>/dev/null || true
-if [ ! -s /etc/usbguard/rules.conf ]; then
+if [[ ! -s /etc/usbguard/rules.conf ]]; then
   usbguard generate-policy > /etc/usbguard/rules.conf 2>/dev/null || true
   echo "  generated /etc/usbguard/rules.conf — REVIEW before enabling"
 fi
@@ -58,7 +59,7 @@ ufw allow in on virbr-whx to any port 67 proto udp comment 'dhcp for whonix' 2>/
 echo "[6/8] host-seal.sh (Wazuh AR target) + ledger dir"
 install -m755 "$COMP/payload/bin/host-seal.sh" /usr/local/bin/host-seal.sh
 install -d -m755 /var/lib/omarchy-compartment
-if [ -n "${SUDO_USER_NAME:-}" ] && [ "$SUDO_USER_NAME" != "root" ]; then
+if [[ -n ${SUDO_USER_NAME:-} && $SUDO_USER_NAME != "root" ]]; then
   install -d -m755 -o "$SUDO_USER_NAME" -g "$SUDO_USER_NAME" "$LEDGER_DIR"
 else
   install -d -m755 "$LEDGER_DIR"

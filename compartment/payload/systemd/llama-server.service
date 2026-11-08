@@ -19,6 +19,7 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
+StateDirectory=llama
 ReadWritePaths=/var/lib/llama
 MemoryMax=9G
 

@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-[ $# -eq 1 ] || { echo "usage: omarchy-compartment-up <vm>" >&2; exit 2; }
+(( $# == 1 )) || { echo "usage: omarchy-compartment-up <vm>" >&2; exit 2; }
 VM="$1"
 REG="$HOME/.config/vmctl/vms"
 
@@ -22,9 +22,9 @@ echo "waiting for sshd on whonix-int..."
 IP=""
 for _ in $(seq 1 60); do
   IP=$(virsh_sys domifaddr "$VM" --source agent 2>/dev/null | awk 'NR==3{split($4,a,"/");print a[1]}')
-  [ -n "$IP" ] && break; sleep 2
+  [[ -n $IP ]] && break; sleep 2
 done
-if [ -f "$REG" ]; then
+if [[ -f $REG ]]; then
   sed -i "s|^$VM .*|$VM ${IP:-PENDING} agent $HOME/.ssh/vmctl/$VM|" "$REG"
 fi
 echo "starting inference stack"

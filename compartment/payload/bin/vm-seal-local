@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # vm-seal-local — agent-side seal helper invoked by vm-exec 'seal' intent.
 # Wraps the existing wazuh-vm-seal.sh containment script if present;
 # otherwise performs a minimal local seal: kill llama-server/hermes,

@@ -60,7 +60,7 @@ cp -n /opt/bootstrap/dlp/*.txt /etc/modsecurity/dlp/ 2>/dev/null || true
 chown -R agent:agent /home/agent/hermes-agent 2>/dev/null || true
 
 systemctl enable models-mount llama-server context-firewall hermes-backend compartment-ssh-fw ssh 2>/dev/null || true
-systemctl start ssh 2>/dev/null || true
+systemctl start models-mount llama-server context-firewall hermes-backend ssh 2>/dev/null || true
 # agent CLIs + hermes venv — offline pack first (reliable), npm-over-Tor fallback
 echo "PHASE:agents"
 if [ -f /var/lib/agent-pack.tar.gz ]; then
