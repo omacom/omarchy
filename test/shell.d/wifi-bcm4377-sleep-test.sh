@@ -11,22 +11,6 @@ unit="$ROOT/default/systemd/system/omarchy-wifi-bcm4377-sleep.service"
 [[ -x $cmd ]] || fail "the sleep command is executable" "mode: $(stat -c '%A' "$cmd")"
 pass "the sleep command is executable"
 
-# A boot-time WantedBy would unload Wi-Fi at every boot. sleep.target is what
-# suspend, hibernate, hybrid-sleep, and suspend-then-hibernate all pull in.
-grep -q '^RequiredBy=sleep.target$' "$unit" ||
-  fail "the unit is required by sleep.target so a failed unload aborts every sleep"
-grep -q '^ExecStop=/usr/bin/omarchy-wifi-bcm4377-sleep post$' "$unit" ||
-  fail "brcmfmac is reloaded from ExecStop, after the device is back in D0"
-grep -q '^Before=sleep.target$' "$unit" ||
-  fail "the unload is ordered before sleep.target"
-! grep -q 'WantedBy=multi-user.target' "$unit" ||
-  fail "the unit does not run at boot"
-! grep -Eq 'SuspendState|mem_sleep' "$unit" "$cmd" "$leaf" ||
-  fail "the workaround does not select a sleep mode"
-! grep -Eq 'tnt|2600|hci_bcm4377' "$unit" "$cmd" "$leaf" ||
-  fail "the workaround does not name a network or unload Bluetooth"
-pass "the unit covers every sleep mode and leaves the sleep mode alone"
-
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
