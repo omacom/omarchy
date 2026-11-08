@@ -65,10 +65,9 @@ pass "the splash progress follows the password the encrypt hook asked for"
 # The handoff read Plymouth's own bar as the compositor took the display: that
 # wins over the estimate.
 mkdir -p "$stage/run"
-start=$(python3 -c 'import time; print(round(time.clock_gettime(time.CLOCK_MONOTONIC) * 1000) - 3200)')
+# The bar started 3.2 s before this moment, on both clocks.
+read -r start expected < <(python3 -c 'import time; print(round(time.clock_gettime(time.CLOCK_MONOTONIC) * 1000) - 3200, round(time.time() * 1000) - 3200)')
 printf '%s\n' "$start" >"$stage/run/omarchy-boot-splash-bar"
-before=$(date +%s%3N)
 output=$(progress 'root=PARTUUID=a rw quiet splash')
-after=$(date +%s%3N)
-(( output >= before - 3205 && output <= after - 3195 )) || fail "the recorded start of Plymouth's bar becomes the epoch" "$output, $before..$after"
+(( output >= expected - 5 && output <= expected + 5 )) || fail "the recorded start of Plymouth's bar becomes the epoch" "$output, expected $expected"
 pass "the splash progress comes from Plymouth's own bar when the handoff read it"
