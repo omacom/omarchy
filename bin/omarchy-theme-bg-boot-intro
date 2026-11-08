@@ -144,5 +144,12 @@ done
 
 # A selection or setting changed while OWE was starting no longer permits this intro.
 if [[ ! -f $toggle && $intro == "$(resolve_intro || true)" ]] && ! animations_off; then
-  owe intro --start first-frame "$intro"
+  # The login cover lifts onto the intro's first frame and asks it to play
+  # (owe intro-play), so none of it plays hidden. An OWE without --hold plays it
+  # at once.
+  if owe help 2>&1 | grep -q -- "--hold"; then
+    owe intro --start first-frame --hold "$intro"
+  else
+    owe intro --start first-frame "$intro"
+  fi
 fi

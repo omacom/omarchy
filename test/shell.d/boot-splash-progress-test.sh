@@ -61,3 +61,19 @@ printf '1\n' >"$stage/sys/power/suspend_stats/success"
 output=$(progress 'cryptdevice=PARTUUID=a:root root=/dev/mapper/root quiet splash')
 [[ -z $output ]] || fail "a machine suspended since boot cannot place the splash progress" "$output"
 pass "the splash progress follows the password the encrypt hook asked for"
+
+# The handoff read Plymouth's own bar as the compositor took the display: that
+# wins over the estimate.
+mkdir -p "$stage/run"
+start=$(python3 -c 'import time; print(round(time.clock_gettime(time.CLOCK_MONOTONIC) * 1000) - 3200)')
+printf '%s\n' "$start" >"$stage/run/omarchy-boot-splash-bar"
+before=$(date +%s%3N)
+output=$(progress 'root=PARTUUID=a rw quiet splash')
+after=$(date +%s%3N)
+(( output >= before - 3205 && output <= after - 3195 )) || fail "the recorded start of Plymouth's bar becomes the epoch" "$output, $before..$after"
+pass "the splash progress comes from Plymouth's own bar when the handoff read it"
+
+# Without Plymouth's real progress the bar follows its curve alone, the curve
+# omarchy-plymouth-handoff inverts and Hyprland and the cover carry on.
+! grep -q "SetBootProgressFunction" "$ROOT/default/plymouth/omarchy.script" || fail "the splash bar never jumps to Plymouth's boot progress"
+pass "the splash bar never jumps to Plymouth's boot progress"

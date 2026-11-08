@@ -13,6 +13,18 @@ set -euo pipefail
 # drew no bar.
 root=${OMARCHY_SYSTEM_ROOT:-}
 
+# omarchy-plymouth-handoff reads the bar off Plymouth's last frame when the
+# compositor takes the display, and records when it started on the monotonic
+# clock, which this turns into the epoch.
+if [[ -s $root/run/omarchy-boot-splash-bar ]]; then
+  python3 -IS - "$root/run/omarchy-boot-splash-bar" <<'PY'
+import sys, time
+start = int(open(sys.argv[1]).read().split()[0])
+print(round(time.time() * 1000 - (time.clock_gettime(time.CLOCK_MONOTONIC) * 1000 - start)))
+PY
+  exit 0
+fi
+
 # The encrypt hook asks for the password unless a key file opens the disk:
 # one named on the kernel line, or the /crypto_keyfile.bin it tries on its own.
 # It runs before systemd, which keeps no record of it, so the disk opened just

@@ -66,6 +66,17 @@ Item {
     Quickshell.execDetached(["hyprctl", "eval", "if omarchy_startup_cursor_restore then omarchy_startup_cursor_restore() end"])
   }
 
+  // Hyprland draws the boot splash over everything from its first frame
+  // (default/hypr/boot-splash.lua), so the cover only times its end: Hyprland
+  // fills the bar and fades the splash out when asked.
+  readonly property bool hyprlandSplash: Quickshell.env("OMARCHY_HYPRLAND_SPLASH") === "1"
+
+  function finishHyprlandSplash() {
+    // Without animations the bar fills and the splash goes at once.
+    Quickshell.execDetached(["hyprctl", "eval", "hl.config({ misc = { startup_splash_fill_duration = " + splashBarFillDuration
+      + ", startup_splash_fade_duration = " + Style.duration(420) + ", startup_splash_finish = 1 } })"])
+  }
+
   function finishStartup() {
     if (!cover || !startupSettled) return
     var registry = host ? host.pluginRegistry : null
@@ -95,6 +106,12 @@ Item {
   // The splash's bar reaches full before the cover lifts, as a finished boot.
   function liftStartupCover() {
     if (startupFade.running || splashBarFilling) return
+    if (hyprlandSplash) {
+      splashBarFilling = true
+      finishHyprlandSplash()
+      hyprlandSplashFill.start()
+      return
+    }
     if (splashBarShown()) {
       splashBarFilling = true
       splashBarFillDeadline.start()
@@ -217,6 +234,25 @@ Item {
     themeShell = ""
   }
 
+  // Hyprland announces its fade as it starts, and the intro plays with it. A
+  // Hyprland that never says so must not hold the desktop.
+  Timer {
+    id: hyprlandSplashFill
+    interval: root.splashBarFillDuration + 1000
+    onTriggered: root.finishSplashBar()
+  }
+
+  Connections {
+    target: Hyprland
+    enabled: root.hyprlandSplash && root.splashBarFilling
+    function onRawEvent(event) {
+      if (event && String(event.name) === "startupsplash" && String(event.data) === "fade") {
+        hyprlandSplashFill.stop()
+        root.finishSplashBar()
+      }
+    }
+  }
+
   Timer {
     id: splashBarWait
     interval: 500
@@ -261,7 +297,11 @@ Item {
     to: 0
     duration: Style.duration(420)
     easing.type: Easing.OutCubic
-    onStarted: root.restoreStartupCursor()
+    onStarted: {
+      root.restoreStartupCursor()
+      // The login intro waits on its first frame for the cover to lift.
+      Quickshell.execDetached(["owe", "intro-play"])
+    }
     onFinished: root.startupPending = false
   }
 
@@ -342,7 +382,10 @@ Item {
       if (exitCode !== 0 || token !== root.themeToken || (!token && !root.cover)) return
       try {
         var status = JSON.parse(frameStatusOut.text)
-        if (status.kind === "video" && status.ready && !status.has_transition && status.time_pos > 0)
+        // A login intro held on its first frame (owe intro --hold) waits for
+        // the cover to lift before it plays.
+        var held = status.intro && status.paused
+        if (status.kind === "video" && status.ready && !status.has_transition && (status.time_pos > 0 || held))
           root.revealTheme()
       } catch (e) {}
     }
@@ -372,7 +415,13 @@ Item {
     checked = true
     if (sessionConsumed) restoreStartupCursor()
     if (!startupBackgroundPath && !startupPending) startupBackground.running = true
-    if (startupPending && splashBackground) {
+    if (startupPending && hyprlandSplash) {
+      splashKnown = true
+    } else if (hyprlandSplash) {
+      // A shell restarted during login has no cover to lift: the splash must
+      // not keep hiding the desktop until it times out.
+      finishHyprlandSplash()
+    } else if (startupPending && splashBackground) {
       Hyprland.refreshMonitors()
       splashProgress.running = true
     }
@@ -413,7 +462,8 @@ Item {
 
       Item {
         anchors.fill: parent
-        opacity: root.startupOpacity
+        // Hyprland draws the splash itself, over everything, when it can.
+        opacity: root.hyprlandSplash ? 0 : root.startupOpacity
 
         Rectangle {
           anchors.fill: parent

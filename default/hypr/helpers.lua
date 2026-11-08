@@ -313,7 +313,7 @@ function o.splash_background()
   end
 
   local function byte(channel)
-    return math.max(0, math.min(255, math.floor(tonumber(channel) * 255 + 0.5)))
+    return math.max(0, math.min(255, math.floor(tonumber(channel) * 255)))
   end
   return string.format("%02x%02x%02x", byte(r), byte(g), byte(b))
 end
