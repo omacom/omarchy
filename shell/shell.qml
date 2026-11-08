@@ -66,11 +66,19 @@ ShellRoot {
   property bool userConfigUnreadable: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
+  property bool localPluginNeedsReload: false
 
   Timer {
     id: localPluginReloadTimer
     interval: 150
-    onTriggered: shell.reloadPlugins()
+    onTriggered: {
+      if (shell.localPluginNeedsReload) {
+        shell.localPluginNeedsReload = false
+        shell.reloadPlugins()
+      } else {
+        shell.rescanPlugins()
+      }
+    }
   }
 
   onShellConfigChanged: {
@@ -1515,6 +1523,30 @@ ShellRoot {
     pluginWidgetComponents = ({})
   }
 
+  // Each installed plugin's manifest, as text, from before a rescan.
+  property var pluginFingerprints: null
+
+  function pluginFingerprintMap() {
+    var map = ({})
+    var installed = shell.pluginRegistry.installedPlugins || ({})
+    for (var id in installed) map[id] = JSON.stringify(installed[id])
+    return map
+  }
+
+  // Pick up plugins that appeared without closing anything: the syncs after
+  // the scan add them beside what is running. Only a plugin the shell already
+  // had changing or going away needs the full reload, which closes every panel
+  // and unloads every service. A first login linking a new plugin's panel
+  // (Superwhisper's setup) otherwise closed the menu and blanked the wallpaper.
+  function rescanPlugins() {
+    if (shell.pluginReloading || shell.pluginRegistry.scanning) {
+      shell.pluginReloadPending = true
+      return
+    }
+    shell.pluginFingerprints = shell.pluginFingerprintMap()
+    shell.pluginRegistry.rescan()
+  }
+
   function reloadPlugins() {
     if (shell.pluginReloading || shell.pluginRegistry.scanning) {
       shell.pluginReloadPending = true
@@ -1540,15 +1572,31 @@ ShellRoot {
   Connections {
     target: shell.pluginRegistry
     function onLocalPluginChanged(pluginId) {
-      console.log("Local plugin changed, reloading:", pluginId)
+      // An edit to a plugin the shell already runs needs its fresh code; a
+      // plugin that just appeared only needs adding.
+      if (shell.pluginRegistry.installedPlugins && shell.pluginRegistry.installedPlugins[pluginId])
+        shell.localPluginNeedsReload = true
+      console.log("Local plugin changed:", pluginId)
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
       if (shell.pluginReloadPending) {
         shell.pluginReloadPending = false
         shell.pluginReloading = false
+        shell.pluginFingerprints = null
         Qt.callLater(shell.reloadPlugins)
         return
+      }
+      if (shell.pluginFingerprints !== null) {
+        var before = shell.pluginFingerprints
+        shell.pluginFingerprints = null
+        var after = shell.pluginFingerprintMap()
+        for (var known in before) {
+          if (after[known] !== before[known]) {
+            Qt.callLater(shell.reloadPlugins)
+            return
+          }
+        }
       }
       shell.pluginReloading = false
       shell._syncServices()
@@ -1813,7 +1861,13 @@ ShellRoot {
       return Commons.InputMethodState.cycle(direction === "back") ? "ok" : "not running"
     }
 
+    // Adds new plugins in place; reloads everything only if a loaded one changed.
     function rescanPlugins(): void {
+      shell.rescanPlugins()
+    }
+
+    // Rebuilds every plugin from fresh code, for an update that kept its manifest.
+    function reloadPlugins(): void {
       shell.reloadPlugins()
     }
 
