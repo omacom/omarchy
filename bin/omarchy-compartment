@@ -5,6 +5,11 @@
 # omarchy:examples=omarchy compartment hermes-coding attach | omarchy compartment list | omarchy compartment hermes-coding agent "write hello.py"
 
 set -euo pipefail
-ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
-export PATH="$ROOT/scripts:$PATH"
+
+CAI="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/compartment-ai"
+if [[ ! -f $CAI/scripts/vmctl ]]; then
+  echo "compartment-ai not installed — run: omarchy install compartment-ai" >&2
+  exit 1
+fi
+export PATH="$CAI/scripts:$PATH"
 exec vmctl "$@"

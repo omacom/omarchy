@@ -68,6 +68,21 @@ else
   agent=$(omarchy-default-agent)
 fi
 
+# A default compartment routes agent launches through `omarchy compartment
+# <name>` — the agent runs inside the VM, not on the host. Explicit --agent
+# overrides stay host-side (the user picked the binary, not the compartment).
+compartment_file="$HOME/.config/omarchy/defaults/compartment"
+if [[ -z $agent_override && -f $compartment_file ]]; then
+  read -r compartment <"$compartment_file"
+  if [[ -n $compartment && $compartment != "none" ]]; then
+    if [[ $inline == "true" ]]; then
+      exec omarchy-compartment "$compartment" agent
+    else
+      exec omarchy-launch-tui --app-id=org.omarchy.agent omarchy-compartment "$compartment" attach
+    fi
+  fi
+fi
+
 # --prefer-local takes the local model when one is up and the usual agent when
 # not, so the Quake console opens on whatever the machine is running. The model
 # last started wins when it is running; any other running one will do. One

@@ -2,24 +2,43 @@
 
 # omarchy:summary=Set up private AI compartments on Omarchy (idempotent)
 # omarchy:args=
-# omarchy:examples=omarchy install compartment-ai
 
-# Mirrors omarchy-install-* convention: idempotent, explains each step.
+# Mirrors omarchy-install-* convention: installs the compartment-ai companion
+# (host scripts + guest payload) under XDG_DATA_HOME, then runs its setup.
 
 set -euo pipefail
-P="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+CAI="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/compartment-ai"
+REPO="https://github.com/TerexitariusStomp/compartment-ai.git"
+
+if [[ ! -d $CAI/.git ]]; then
+  echo "==> cloning compartment-ai -> $CAI"
+  mkdir -p "$(dirname "$CAI")"
+  git clone --depth 1 "$REPO" "$CAI"
+fi
+
+cd "$CAI"
+if git pull --ff-only 2>/dev/null; then :; else :; fi
+
 echo "==> compartment-ai setup"
 echo "    bases:    Whonix-CLI (verified) + Whonix-AI template"
 echo "    weights:  llm-weights-data/verity (dm-verity RO)"
 echo "    intents:  forced-command vm-exec + host policy gate"
 echo
 echo "==> [1/5] host hardening"
-sudo bash "$P/scripts/deploy-host-hardening.sh"
+sudo bash "$CAI/scripts/deploy-host-hardening.sh"
 echo "==> [2/5] weights disk (model + manifest + verity)"
-sudo bash "$P/scripts/mk-weights-disk.sh" || echo "weights disk exists"
+if [[ ! -f /var/lib/libvirt/images/whonix/llm-weights-data.qcow2 ]]; then
+  sudo bash "$CAI/scripts/mk-weights-disk.sh"
+else
+  echo "weights disk exists — skipping"
+fi
 echo "==> [3/5] AI template (Whonix-CLI base + payload)"
-sudo bash "$P/scripts/mk-ai-template-vc.sh"
+sudo bash "$CAI/scripts/mk-ai-template-vc.sh"
 echo "==> [4/5] first compartment (hermes-coding)"
-sudo bash "$P/scripts/mk-ai-vm.sh" coding || echo "hermes-coding exists"
+if ! sudo virsh -c qemu:///system dominfo hermes-coding >/dev/null 2>&1; then
+  sudo bash "$CAI/scripts/mk-ai-vm.sh" coding
+else
+  echo "hermes-coding exists — skipping"
+fi
 echo "==> [5/5] boot + register"
-bash "$P/scripts/vm-ai-up.sh" hermes-coding || true
+bash "$CAI/scripts/vm-ai-up.sh" hermes-coding

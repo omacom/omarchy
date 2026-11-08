@@ -6,5 +6,9 @@
 
 set -euo pipefail
 NAME="${1:?usage: omarchy compartment mk <name>}"
-ROOT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
-exec sudo bash "$ROOT/scripts/mk-ai-vm.sh" "$NAME"
+CAI="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/compartment-ai"
+if [[ ! -f $CAI/scripts/mk-ai-vm.sh ]]; then
+  echo "compartment-ai not installed — run: omarchy install compartment-ai" >&2
+  exit 1
+fi
+exec sudo bash "$CAI/scripts/mk-ai-vm.sh" "$NAME"

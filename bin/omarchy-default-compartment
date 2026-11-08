@@ -5,8 +5,17 @@
 # omarchy:examples=omarchy default compartment hermes-coding | omarchy default compartment
 
 set -euo pipefail
-CONF="${XDG_CONFIG_HOME:-$HOME/.config}/vmctl/default-compartment"
-if [ $# -eq 0 ]; then cat "$CONF" 2>/dev/null || echo "none"; exit 0; fi
-mkdir -p "$(dirname "$CONF")"; echo "$1" > "$CONF"
-echo "default compartment: $1"
-echo "wire it: omarchy-agent will route agent launches here via vmctl"
+compartment_file="$HOME/.config/omarchy/defaults/compartment"
+
+if (($# == 0)); then
+  if [[ -f $compartment_file ]]; then
+    read -r name <"$compartment_file"
+    echo "$name"
+  else
+    echo "none"
+  fi
+else
+  mkdir -p "$(dirname "$compartment_file")"
+  echo "$1" >"$compartment_file"
+  echo "default compartment: $1"
+fi
