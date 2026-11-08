@@ -656,12 +656,31 @@ def save_main_token(content: str) -> None:
   os.chmod(backup, 0o600)
 
 
+
+def token_expiry(raw: str) -> float:
+  if not raw:
+    return 0.0
+  try:
+    data = json.loads(raw)
+  except Exception:
+    return 0.0
+  if not isinstance(data, dict):
+    return 0.0
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  val = token.get("expiry") or data.get("expiry")
+  if val is None or val == "" or isinstance(val, bool):
+    return 0.0
+  try:
+    if isinstance(val, (int, float)) or str(val).isdigit():
+      stamp = float(val)
+      return stamp / 1000.0 if stamp > 1e12 else stamp
+    return dt.datetime.fromisoformat(str(val).replace("Z", "+00:00")).timestamp()
+  except Exception:
+    return 0.0
+
+
 def current_primary_token() -> str:
-  primary_file = primary_home("agy") / "antigravity-oauth-token"
-  if primary_file.is_file():
-    txt = primary_file.read_text(encoding="utf-8").strip()
-    if txt:
-      return txt
+  keyring_token = ""
   if shutil.which("secret-tool"):
     try:
       raw = subprocess.check_output(
@@ -669,10 +688,20 @@ def current_primary_token() -> str:
         text=True, stderr=subprocess.DEVNULL, timeout=3,
       ).strip()
       if raw:
-        return raw
+        keyring_token = raw
     except Exception:
       pass
-  return ""
+  primary_file = primary_home("agy") / "antigravity-oauth-token"
+  file_token = primary_file.read_text(encoding="utf-8").strip() if primary_file.is_file() else ""
+  if keyring_token and file_token:
+    k_ident = agy_token_identity(keyring_token)
+    f_ident = agy_token_identity(file_token)
+    k_id = k_ident.get("accountId") or k_ident.get("email")
+    f_id = f_ident.get("accountId") or f_ident.get("email")
+    if k_id and k_id == f_id:
+      return keyring_token if token_expiry(keyring_token) >= token_expiry(file_token) else file_token
+    return file_token
+  return file_token or keyring_token
 
 
 def load_main_token() -> str:
@@ -722,27 +751,6 @@ def agy_token_identity(raw: str) -> dict[str, str]:
     "email": email,
   }
 
-
-def token_expiry(raw: str) -> float:
-  if not raw:
-    return 0.0
-  try:
-    data = json.loads(raw)
-  except Exception:
-    return 0.0
-  if not isinstance(data, dict):
-    return 0.0
-  token = data.get("token") if isinstance(data.get("token"), dict) else {}
-  val = token.get("expiry") or data.get("expiry")
-  if val is None or val == "" or isinstance(val, bool):
-    return 0.0
-  try:
-    if isinstance(val, (int, float)) or str(val).isdigit():
-      stamp = float(val)
-      return stamp / 1000.0 if stamp > 1e12 else stamp
-    return dt.datetime.fromisoformat(str(val).replace("Z", "+00:00")).timestamp()
-  except Exception:
-    return 0.0
 
 
 def switch_credentials(

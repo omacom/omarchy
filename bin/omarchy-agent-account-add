@@ -110,7 +110,7 @@ cleanup() {
   if [[ -n $restore_token_target && -f $restore_token_bak ]]; then
     mv -f "$restore_token_bak" "$restore_token_target" 2>/dev/null || true
   fi
-  if [[ -n $restore_keyring ]] && command -v secret-tool >/dev/null 2>&1; then
+  if [[ -n $restore_keyring ]] && omarchy-cmd-present secret-tool; then
     printf '%s' "$restore_keyring" | secret-tool store --label=Antigravity service gemini username antigravity 2>/dev/null || true
   fi
 }
@@ -181,7 +181,7 @@ if [[ -n $reauth ]]; then
       restore_token_bak="$account_home/.antigravity-oauth-token.bak"
       cp "$restore_token_target" "$restore_token_bak" 2>/dev/null || true
       rm -f "$restore_token_target"
-      if command -v secret-tool >/dev/null 2>&1; then
+      if omarchy-cmd-present secret-tool; then
         restore_keyring=$(secret-tool lookup service gemini username antigravity 2>/dev/null || true)
         secret-tool clear service gemini username antigravity 2>/dev/null || true
       fi
