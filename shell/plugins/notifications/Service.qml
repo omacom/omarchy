@@ -589,6 +589,9 @@ Item {
 
     var row = Store.snapshot(notification, key, NotificationUrgency)
     row.duration = durationFor(notification.urgency, row.expireTimeout)
+    // Where a card stands is settled when it first arrives; a replacement,
+    // even one that lands before the card first shows, keeps that place.
+    if (liveKeys[key].queued === undefined) liveKeys[key].queued = row.queued
 
     var previous = refs[key]
     refs[key] = notification
@@ -702,7 +705,7 @@ Item {
         service.fresh[key] = true
         service.arriving = key
         // A queued card waits its turn behind the ones already showing.
-        toasts.insert(row.queued ? toasts.count : 0, row)
+        toasts.insert(pending.queued === true ? toasts.count : 0, row)
         service.arriving = ""
         // It drops in from just above where it lands, from under the bar for
         // the top card, and fades in on the way.
@@ -1186,7 +1189,7 @@ Item {
       storeDrop(row.key)
       return
     }
-    liveEntries = Store.putLive(liveEntries, Store.persistable(row), row.queued)
+    liveEntries = Store.putLive(liveEntries, Store.persistable(row), liveKeys[row.key] && liveKeys[row.key].queued === true)
     saveSoon("live")
   }
 
