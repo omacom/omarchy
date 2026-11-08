@@ -46,7 +46,8 @@ source = source.replace('  id: root', `  id: root
   readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
   property alias testPoll: connectivityPoll
   property alias testApPoll: activeApSignalPoll
-  property alias testBarButton: button`)
+  property alias testBarButton: button
+  property alias testActionTimeout: actionTimeout`)
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 JS
   printf '#!/bin/bash\nexit 0\n' >"$stage/bin/noop"
@@ -104,5 +105,6 @@ stage_panel first-run-card
 printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> "$NETWORK_TEST_CARD_LOG"\n' >"$stage/bin/omarchy-provision-first-run-card"
 chmod +x "$stage/bin/omarchy-provision-first-run-card"
 NETWORK_TEST_CARD_LOG="$stage/cards.log" run_panel "network first-run card"
-[[ $(<"$stage/cards.log") == "wifi" ]] || fail "only a panel the Wi-Fi card opened brings the card back when it closes offline" "$(cat "$stage/cards.log" 2>/dev/null)"
-pass "a panel the Wi-Fi card opened brings the card back when it closes offline"
+expected=$'plain\nidle\nwifi\nsuccess\nfailure\nwifi\ntimeout\nwifi\nreopened\nreopened-closing\nwifi'
+[[ $(<"$stage/cards.log") == "$expected" ]] || fail "only a panel the Wi-Fi card opened brings the card back, once its connection has failed" "$(cat "$stage/cards.log" 2>/dev/null)"
+pass "a panel the Wi-Fi card opened brings the card back when it closes offline or its connection fails"
