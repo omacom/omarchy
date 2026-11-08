@@ -2,4 +2,9 @@
 
 # omarchy:summary=Print the name of the built-in laptop display, including disabled outputs.
 
-hyprctl monitors all -j | jq -r '[.[] | select(.name | test("^(eDP|LVDS|DSI)-"))][0].name // ""' 
+# Names are interpolated into Lua by callers, so reject unsafe names here,
+# before command substitution can strip a trailing newline and make one look safe.
+hyprctl monitors all -j | jq -er '
+  ([.[] | select((.name | type) == "string" and (.name | test("^(eDP|LVDS|DSI)-")))][0].name // "")
+  | select(type == "string" and test("^[A-Za-z0-9._-]+$"))
+'

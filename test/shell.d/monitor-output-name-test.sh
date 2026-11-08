@@ -29,10 +29,10 @@ make_stub omarchy-hyprland-toggle ':'
 make_stub omarchy-hyprland-monitor-internal ':'
 make_stub omarchy-hyprland-monitor-internal-mirror ':'
 make_stub omarchy-hw-clamshell 'exit 0'
-make_stub omarchy-hyprland-monitor-laptop 'printf "%s\n" "$LAPTOP_NAME"'
+make_stub omarchy-hyprland-monitor-laptop 'printf "%s\\n" "$LAPTOP_NAME"'
 make_stub hyprctl 'case "$1" in
   monitors) cat "$MONITORS_JSON" ;;
-  eval) printf "%s\n" "$2" >>"$EVAL_LOG" ;;
+  eval) printf "%s\\n" "$2" >>"$EVAL_LOG" ;;
 esac'
 
 eval_log="$tmpdir/eval.log"
@@ -49,6 +49,31 @@ run_monitor() {
     PATH="$stub_dir:$ROOT/bin:$PATH" \
     "$ROOT/bin/$command" "$@"
 }
+
+run_real_laptop_helper() {
+  MONITORS_JSON="$monitors_json" PATH="$stub_dir:$ROOT/bin:$PATH" \
+    "$ROOT/bin/omarchy-hyprland-monitor-laptop"
+}
+
+printf '[{"name":"eDP-1"},{"name":"DP-3"}]\n' >"$monitors_json"
+
+# The real helper returns a valid connector unchanged.
+laptop_name=$(run_real_laptop_helper) || fail "laptop helper accepts a valid internal connector"
+[[ $laptop_name == eDP-1 ]] || fail "laptop helper returns the selected internal connector" "actual: $laptop_name"
+pass "laptop helper returns a valid internal connector"
+
+# Command substitution strips trailing newlines, so reject unsafe names in jq
+# before they can be mistaken for a different, safe connector.
+for unsafe_name in 'eDP-1\nHEAD' 'eDP-1\n'; do
+  printf '[{"name":"%s"}]\n' "$unsafe_name" >"$monitors_json"
+  set +e
+  laptop_name=$(run_real_laptop_helper 2>/dev/null)
+  status=$?
+  set -e
+  (( status != 0 )) && [[ -z $laptop_name ]] ||
+    fail "laptop helper rejects an internal name containing a newline" "status=$status name=$laptop_name"
+done
+pass "laptop helper rejects embedded and trailing newlines"
 
 printf '[{"name":"eDP-1"},{"name":"DP-3"}]\n' >"$monitors_json"
 
@@ -79,7 +104,7 @@ done
 pass "mirror on puts the internal display on every external one"
 
 rm -f "$mirror_flag"
-printf '[{"name":"eDP-1"},{"name":"HEAD\\" })os.execute(\\"calc\\")--"}]\n' >"$monitors_json"
+printf '[{"name":"eDP-1"},{"name":"HEAD\\\" })os.execute(\\\"calc\\\")--"}]\n' >"$monitors_json"
 set +e
 run_monitor omarchy-hyprland-monitor-internal-mirror on >/dev/null 2>&1
 status=$?
@@ -104,8 +129,8 @@ LAPTOP_NAME='eDP-1", disabled = true })os.execute("calc")--' \
 status=$?
 set -e
 (( status != 0 )) || fail "clamshell rejects a monitor name with Lua metacharacters"
-[[ ! -e $clamshell_flag ]] || fail "an unsafe internal monitor name is not written as clamshell Lua"
-pass "clamshell refuses an unsafe internal monitor name"
+[[ ! -e $clamshell_flag ]] || fail "an unsafe internal name is not written as clamshell Lua"
+pass "clamshell refuses an unsafe internal name"
 
 # The scaling command eval's the focused-monitor name into a Lua string.
 printf '[{"name":"eDP-1","focused":true,"scale":1.0,"width":1920,"height":1080,"refreshRate":60.0}]\n' \
@@ -115,7 +140,7 @@ grep -F 'hl.monitor({ output = "eDP-1"' "$eval_log" >/dev/null ||
   fail "scaling eval's the focused connector name"
 pass "scaling accepts a plain connector name"
 
-printf '[{"name":"eDP-1\\" })os.execute(\\"calc\\")--","focused":true,"scale":1.0,"width":1920,"height":1080,"refreshRate":60.0}]\n' \
+printf '[{"name":"eDP-1\\\" })os.execute(\\\"calc\\\")--","focused":true,"scale":1.0,"width":1920,"height":1080,"refreshRate":60.0}]\n' \
   >"$monitors_json"
 set +e
 run_monitor omarchy-hyprland-monitor-scaling 1.6 >/dev/null 2>&1
@@ -125,13 +150,16 @@ set -e
 [[ ! -s $eval_log ]] || fail "an unsafe focused monitor name is not eval'd as Lua"
 pass "scaling refuses an unsafe focused monitor name"
 
-# A name carrying a newline must not be split into two safe-looking monitors.
-printf '%s\n' '[{"name":"eDP-1"},{"name":"DP-3\nHEAD"}]' >"$monitors_json"
-rm -f "$mirror_flag"
-set +e
-run_monitor omarchy-hyprland-monitor-internal-mirror on >/dev/null 2>&1
-status=$?
-set -e
-(( status != 0 )) || fail "mirror on rejects an external name carrying a newline"
-[[ ! -e $mirror_flag ]] || fail "a name with a newline is not written as Lua"
-pass "mirror on refuses an external name that carries a newline"
+# Embedded and trailing newlines must remain part of the name, not become
+# separate safe-looking monitor entries or be stripped by command substitution.
+for unsafe_name in 'DP-3\nHEAD' 'DP-3\n'; do
+  printf '[{"name":"eDP-1"},{"name":"%s"}]\n' "$unsafe_name" >"$monitors_json"
+  rm -f "$mirror_flag"
+  set +e
+  run_monitor omarchy-hyprland-monitor-internal-mirror on >/dev/null 2>&1
+  status=$?
+  set -e
+  (( status != 0 )) || fail "mirror on rejects an external name containing a newline"
+  [[ ! -e $mirror_flag ]] || fail "an external name with a newline is not written as Lua"
+done
+pass "mirror on rejects embedded and trailing newlines in external names"
