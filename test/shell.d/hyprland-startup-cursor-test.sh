@@ -158,8 +158,13 @@ assert(command and command:match("setcursor 'my%-xcursor'") and omarchy_startup_
 assert(config.invisible, "a retried reveal must not show the pointer before it lands")
 local attempts = 1
 while omarchy_startup_cursor_pending and attempts < 10 do
+  local issued = #commands
   recovery()
   attempts = attempts + 1
+  if omarchy_startup_cursor_pending then
+    assert(#commands > issued and command:match("setcursor 'my%-xcursor'"), "every retry must ask for setcursor again, not only the first tick")
+    assert(config.invisible, "a retry must not show the pointer before the reveal lands")
+  end
 end
 assert(attempts > 2, "the fallback must keep retrying an unfinished reveal instead of giving up after one")
 assert(not omarchy_startup_cursor_pending and not config.invisible, "the last fallback must show the pointer rather than leave it hidden all session")
