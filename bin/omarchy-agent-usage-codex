@@ -33,6 +33,7 @@ from collectors import (  # noqa: E402
   account_entry,
   base_record,
   cached_scan,
+  codex_plan_name,
   codex_provider_urls,
   codex_rollout_cache,
   codex_rollouts,
@@ -419,36 +420,6 @@ def individual_spend_limit(buckets, rpc_result):
   return None
 
 
-# The plans as Codex's own /status names them (SubscriptionDisplay::Status in
-# Codex 0.163's TUI), keyed by the wire planType: "pro" is the 200 plan, and
-# a "team" workspace is what Codex sells as Business.
-PLAN_NAMES = {
-  "free": "Free",
-  "go": "Go",
-  "plus": "Plus",
-  "pro": "Pro 200",
-  "prolite": "Pro 100",
-  "promax": "Pro 500",
-  "team": "Business",
-  "self_serve_business_usage_based": "Business",
-  "self_serve_business_prolite": "Business Premium",
-  "business": "Enterprise",
-  "enterprise_cbp_automation": "Enterprise (Automation)",
-  "enterprise_cbp_usage_based": "Enterprise",
-  "ent26": "Enterprise",
-  "enterprise": "Enterprise",
-  "edu": "Edu",
-  "edu_plus": "Edu Plus",
-  "edu_pro": "Edu Pro",
-}
-
-
-def plan_name(plan):
-  # A plan newer than this table keeps its wire name, made readable.
-  plan = str(plan or "")
-  return PLAN_NAMES.get(plan, plan.replace("_", " "))
-
-
 def codex_rpc_help(proc, stderr_file, exc):
   """Explain an app-server RPC failure: a live server's stall, a dead one's own
   stderr, or the login hint when it died saying nothing."""
@@ -636,7 +607,7 @@ def fetch_codex_rpc(home=None, primary=True):
         plan = account.get("planType") or account.get("type") or ""
       except (TimeoutError, RuntimeError):
         pass
-    result["tierLabel"] = plan_name(plan)
+    result["tierLabel"] = codex_plan_name(plan)
 
     result["limits"] = bucket_limits(buckets)
     spend = individual_spend_limit(buckets, rpc_result)

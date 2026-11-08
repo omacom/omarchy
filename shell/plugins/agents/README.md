@@ -16,8 +16,9 @@ Every subscription on one page, limits first.
   most used model, the busiest day, and today's prompts and sessions. Its
   corner has + to add a subscription and >_ to start the default agent.
 - **One section per subscription** — an agent with limits, a balance, a plan,
-  or accounts to show gets one; local history alone only feeds the hero's
-  line. Its mark, name, and plan, then a compact line
+  or accounts to show gets one, and so does one in use whose check failed
+  with nothing kept, so the trouble shows (waiting for a first sign-in
+  doesn't count); local history alone only feeds the hero's line. Its mark, name, and plan, then a compact line
   per limit window: its meter and the time until it resets (the exact percentage
   on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
   limit) is a tick on that window's meter rather than a line of its own; the
@@ -34,7 +35,13 @@ Every subscription on one page, limits first.
   moves new sessions over on their own once the active account reaches its
   threshold; while it's on it stands in for Use, which shows only when you're
   on the line, and clicking it again goes back to notifying. Click a name to
-  rename the account in place.
+  rename the account in place. Hovering an account that isn't active also
+  offers Hide, which folds it into one line of hidden accounts under the
+  agent's section, with Show to bring them back (kept in the panel's
+  settings as `hiddenAccounts`), and Remove, which asks first and then runs
+  `omarchy agent account remove`; the CLI's own sign-in can be hidden but not
+  removed. Delete on a picked account removes it too. A [CLIProxyAPI](#cliproxyapi)'s
+  accounts offer Hide and Remove only.
 - **Balance** — prepaid agents show a credit ledger instead of limits: a
   fuel-gauge meter that drains toward empty, the remaining credit, and
   funded-versus-spent detail.
@@ -49,7 +56,9 @@ Every subscription on one page, limits first.
   status, the code Grok asks you to confirm in the browser, a field to paste
   Claude's code back if its page shows one instead of finishing, and a link to
   reopen the sign-in page. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
-  carries on and its result arrives as a notification.
+  carries on and its result arrives as a notification. With a
+  [CLIProxyAPI](#cliproxyapi) set up, picking Claude Code or Codex first asks
+  where to sign in: this machine, or the proxy.
 
 The icon is always in the bar. On a machine with no agent yet, the panel is
 the blank slate for setting one up: it opens on the same choice of Claude,
@@ -93,11 +102,12 @@ Adding an agent needs no QML changes: ship a collector that follows the contract
 | `deepseek` | Live prepaid balance from `GET https://api.deepseek.com/user/balance`, kept stale past a failed check, with the optional `fundedAmount` estimate for the funded-versus-spent line | pi/omp session files (profiles included) whose assistant messages ran on the deepseek provider, opencode sessions on a deepseek provider, DeepSeek Harness (`dsh`) session logs on its DeepSeek routes, and Claude Code turns sent to DeepSeek or answered by a `deepseek-*` model |
 | `fireworks` | Prepaid balance: the live ledger when the key can read it, else configured funding minus rated account costs; kept stale past a failed check | Fireworks billing API, grouped by day and model for the last 30 days, cached per key and account |
 | `synthetic` | Synthetic's `GET /v2/quotas`: rolling five-hour requests, weekly credits, hourly search, free tool calls | pi/omp sessions and opencode messages on the `synthetic` provider; Claude Code, MiniMax Code and Codex sent to `api.synthetic.new`, and Claude Code replies by `hf:`/`syn:` models with no override |
+| `cliproxy` | Each enabled Claude and Codex account behind a [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI): the session and weekly windows of the rate-limit headers the proxy keeps per account, read from its management API | none; limits only |
 | `local` | None (self-hosted work has no meter) | Codex rollouts, pi/omp sessions and opencode messages on a local runtime, a provider named in `local.json`, or a Codex provider whose `base_url` is on the LAN, never a provider id another collector counts, plus Claude Code turns while `ANTHROPIC_BASE_URL` is self-hosted (not Claude models or cloud-tagged ones), and Kimi Code, Qwen Code, Hermes and Mistral Vibe requests sent to a self-hosted base URL |
 
 Every collector follows the same rules, so the same situation reads the same for every agent: a recent answer is reused for 15 seconds unless refresh is pressed, each credential or account keeps its own last good answer, a failed check keeps it with its age on hover and windows that have since reset back at zero, an endpoint that can't be reached is retried soon, and an agent the machine doesn't use stays out of the panel. Tokens are counted once, under the provider that bills them: pi, omp, and opencode sessions are split by provider into the matching collector. A pi compaction's usage counts, but omp records only the context's size before and after one, not what its summary request used, so omp's compactions are missing from the tokens. pi and omp sessions are read from every profile, and from `PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`, and a `settings.json` `sessionDir` as well as the defaults when set, a forked session's copied messages once; opencode is read from both its `message` and V2 `session_message` stores in the database `OPENCODE_DB` names, a message migrated into both once and a fork's copied history not at all. A machine with none of an agent's home, CLI, or usage prints an empty record the panel skips; one that has them but no sign-in says it is waiting for one. The sections below cover where each agent's sign-in and data come from.
 
-When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json` registers more than one account, the `claude`, `codex`, and `grok` records also carry `accounts: [{ id, label, email, plan, active, primary, limits, stale, fetchedAt, retryAdvised, usageStatusText, authHelpText }]`, each account probed with its own sign-in (each account caches its own last limits; Codex runs one app-server per account home), and `accountSwitch: { mode, threshold }`. The record's top-level `limits` and `tierLabel` keep describing the active account, and local stats stay one set, since every account shares the primary home's history. After each run, `omarchy-agent-usage-update` hands the fresh limits to `omarchy-agent-account-state autoswitch`, which notifies or switches when the active account crosses its threshold, and re-collects the record if the active account changed.
+When `~/.local/state/omarchy/agents/accounts/<claude|codex|grok>.json` registers more than one account, the `claude`, `codex`, and `grok` records also carry `accounts: [{ id, label, email, plan, active, primary, limits, stale, fetchedAt, retryAdvised, usageStatusText, authHelpText }]`, each account probed with its own sign-in (each account caches its own last limits; Codex runs one app-server per account home), and `accountSwitch: { mode, threshold }`. The record's top-level `limits` and `tierLabel` keep describing the active account, and local stats stay one set, since every account shares the primary home's history. After each run, `omarchy-agent-usage-update` hands the fresh limits to `omarchy-agent-account-state autoswitch`, which notifies or switches when the active account crosses its threshold, and re-collects the record if the active account changed. The [`cliproxy`](#cliproxyapi) record lists the proxy's accounts in the same `accounts` shape, a lone one included, with no `accountSwitch` and none active, since the proxy picks the account for each request; the panel offers no Use, Autoswitch or rename for them.
 
 ### Claude Code
 
@@ -273,6 +283,18 @@ Each API key keeps its account's last good usage rows and balance; another key o
 ### Synthetic
 
 Synthetic reads `SYNTHETIC_API_KEY` first, then the key pi stores in `~/.pi/agent/auth.json` (honoring `PI_CODING_AGENT_DIR` and `$ENV_VAR` keys), then omp's `~/.omp/agent/auth.json`, then opencode's `auth.json`. The collector asks the documented `GET https://api.synthetic.new/v2/quotas`, which doesn't count against the quotas. The rolling five-hour request limit and the weekly credits regenerate a little at a time, so they show how much is used with no reset time; hourly search and free tool calls reset when Synthetic says they renew. An account without the credit system shows the documented subscription request bucket instead. Local stats count pi and omp sessions and opencode messages on the `synthetic` provider, and through `scan_routed()` the Claude Code, MiniMax Code and Codex usage sent to Synthetic's API at `api.synthetic.new` (its Anthropic-compatible `/anthropic` and OpenAI-compatible `/openai/v1`, as its guides set them up), plus Claude Code replies by an `hf:` or `syn:` model with no `ANTHROPIC_BASE_URL` override.
+
+### CLIProxyAPI
+
+[CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) signs in to Claude and Codex subscriptions itself and serves them to Claude Code, Codex and other clients, so those accounts' limits never reach the Claude and Codex sections, and the machine's own sign-ins go unused. The proxy keeps the rate-limit headers of the last response each account answered, and the collector reads them from its management API (`GET /v0/management/auth-files`), asked with the management key from `CLIPROXY_MANAGEMENT_KEY` or `~/.config/omarchy/agents/cliproxy.json`:
+
+```json
+{ "url": "https://proxy.example.ts.net:8317", "managementKey": "..." }
+```
+
+`url` (or `CLIPROXY_URL`) defaults to `http://127.0.0.1:8317`, the proxy's own default; the key is sent only over HTTPS, or plain HTTP to this machine. The management API is on once the proxy's `management.secret-key` is set, and a proxy on another machine also needs `management.allow-remote`. Without a key the section stays hidden; with one, a check that fails before any account was read still shows the section, saying why. Every enabled Claude account shows its shared five-hour and seven-day windows, and every enabled Codex account its primary and secondary windows and its plan, each listed by name, a lone account included. The numbers are those of each account's last response through the proxy, so an account no request has used since the proxy started shows no windows. Tokens count where the requests are made: a Claude model's reply through the proxy is already Claude's, by the [Claude Code](#claude-code) rule.
+
+The panel also manages the proxy's accounts through the same API. Adding one (`omarchy agent cliproxy add <claude|codex>`, or + in the panel, then the proxy as where to sign in) asks the proxy for the provider's sign-in page (`anthropic-auth-url` or `codex-auth-url`), opens it in a private window, and waits on `get-auth-status` until the proxy has saved the account. The provider sends the browser back to a localhost port: a proxy on this machine catches it itself (`is_webui=true`), while for one on another machine the panel asks for the address the browser landed on, which goes to the proxy's `oauth-callback`. Removing one (`omarchy agent cliproxy remove <account>`, or Remove on its line) deletes its auth file from the proxy (`DELETE /v0/management/auth-files`), so it comes back only by signing it in again.
 
 ### Local models
 
