@@ -575,7 +575,7 @@ def move_running_sessions(registry: dict[str, Any], account: dict[str, Any], pri
 # How spent the login in the primary home is, for move_running_sessions.
 def primary_level(registry: dict[str, Any], now: dt.datetime | None = None) -> float | None:
   holder = next(a for a in registry["accounts"] if a.get("primary"))
-  usage, _ = usage_by_account("claude")
+  usage = usage_by_account("claude")
   return peak(usage.get(holder["id"]), now or dt.datetime.now(dt.timezone.utc))
 
 
@@ -805,9 +805,6 @@ def clears_at(limits: Any, now: dt.datetime) -> dt.datetime | None:
   return latest
 
 
-# Points under the threshold where an account counts as near its limit, and
-# where the panel starts checking it more often.
-NEAR = 15
 # How much sooner another account must free up, when every account is over
 # the threshold, before switching to it.
 EARLIER = dt.timedelta(minutes=15)
@@ -817,44 +814,33 @@ EARLIER = dt.timedelta(minutes=15)
 # account limits from the usage record, what should happen. Returns None when
 # nothing should, or {"action": "switch"|"notify"|"exhausted"|"clear", ...}.
 #
-# The active account at or over the threshold starts a switch. Among the
-# accounts under it, the order is:
+# Only the active account reaching the threshold starts anything. It goes to
+# an account under the threshold, in this order:
 #
 #   1. One whose move strands nobody (see move_running_sessions): a trade
 #      with a home that has a session of its own would hand that session the
 #      exhausted login, so such an account is taken only when no other has
 #      room, and then for new sessions only.
-#   2. Room: one within NEAR points of the threshold comes last.
-#   3. Fresh numbers: a parked account's sign-in lapses within hours and can't
-#      be checked again until a session runs in it, so its numbers may be out
-#      of date. It still counts, but one checked just now wins.
-#   4. The one that clears soonest (clears_at), so allowance that is about to
-#      start over is used before it's lost. One with no running window, which
-#      loses nothing by waiting, comes after any that does.
-#   5. The lowest level.
+#   2. The one whose limits reset soonest (clears_at), so allowance that is
+#      about to start over is used before it's lost. One with no running
+#      window, which loses nothing by waiting, comes after any that does.
+#   3. The lowest level.
 #
-# In auto mode the active account also leaves early, once it is within NEAR
-# points of the threshold, for an account at least 2 * NEAR points under it:
-# one whose window has reset since it was left. That gap is the hysteresis.
-# The account left behind is at least threshold - NEAR, so it can't qualify
-# to come back until its own window resets, and the new one has to climb
-# NEAR points before it leaves early in turn: no ping-pong.
+# The account switched to is under the threshold and the one left is at it,
+# so the new one has to reach the threshold before anything moves again: no
+# ping-pong.
 #
 # With every account at or over the threshold, it goes to the one that frees
 # up first (available_at), so work resumes as early as it can; see below.
 #
 # `alert` remembers the last thing said, so a shell restart or the next
 # refresh doesn't repeat it.
-def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, stale: frozenset[str] = frozenset(), busy: frozenset[str] = frozenset()) -> dict[str, Any] | None:
+def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, busy: frozenset[str] = frozenset()) -> dict[str, Any] | None:
   threshold = float(registry["threshold"])
   current = active(registry)
   current_peak = peak(usage.get(current["id"]), now)
-  if current_peak is None:
+  if current_peak is None or current_peak < threshold:
     return {"action": "clear"} if registry.get("alert") else None
-  early = current_peak < threshold
-  if early and (registry["switch"] != "auto" or current_peak < threshold - NEAR):
-    return {"action": "clear"} if registry.get("alert") else None
-  ceiling = threshold - 2 * NEAR if early else threshold
 
   # A trade gives a busy target's home whatever the primary home holds now.
   holder = next(a for a in registry["accounts"] if a.get("primary"))
@@ -867,23 +853,21 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, st
     if account["id"] == current["id"]:
       continue
     level = peak(usage.get(account["id"]), now)
-    if level is None or level >= ceiling:
+    if level is None or level >= threshold:
       continue
     strands = account["id"] in busy and not account.get("primary") and holder_over
     clears = clears_at(usage.get(account["id"]), now) or never
-    candidates.append(((strands, level >= threshold - NEAR, account["id"] in stale, clears, level), account))
+    candidates.append(((strands, clears, level), account))
   candidates.sort(key=lambda c: c[0])
 
   if candidates:
-    (strands, _, _, _, level), target = candidates[0]
+    (strands, _, level), target = candidates[0]
     action = "switch" if registry["switch"] == "auto" else "notify"
     alert = f"{action}:{current['id']}:{target['id']}"
     if registry.get("alert") == alert:
       return None
     return {"action": action, "alert": alert, "from": current, "to": target, "fromPeak": current_peak, "toPeak": level, "strands": strands}
 
-  if early:
-    return {"action": "clear"} if registry.get("alert") else None
   alert = f"exhausted:{current['id']}"
   if len(registry["accounts"]) < 2:
     return None
@@ -927,16 +911,17 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, st
 # Limits per account id. An account nobody is signed in to is left out, so it
 # is never a candidate: its cached headroom is no use to a session that can't
 # start. One whose token merely expired stays in, since a session refreshes it.
-def usage_by_account(provider: str) -> tuple[dict[str, Any], frozenset[str]]:
+#
+# Numbers kept from an earlier check may be out of date, but a parked
+# account's sign-in lapses within hours and can't be checked again until a
+# session runs in it, so a stale account still counts.
+def usage_by_account(provider: str) -> dict[str, Any]:
   record = read_json(usage_record_path(provider)) or {}
-  accounts = [
-    a for a in record.get("accounts") or []
+  return {
+    str(a["id"]): a.get("limits")
+    for a in record.get("accounts") or []
     if isinstance(a, dict) and a.get("id") and a.get("usageStatusText") != "Waiting for auth"
-  ]
-  return (
-    {str(a["id"]): a.get("limits") for a in accounts},
-    frozenset(str(a["id"]) for a in accounts if a.get("stale") is True),
-  )
+  }
 
 
 # What a person reads, in the Omarchy language. Each lookup is written as
@@ -972,7 +957,7 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> tuple[bool, lis
   with Locked(provider) as registry:
     if len(registry["accounts"]) < 2:
       return False, []
-    usage, stale = usage_by_account(provider)
+    usage = usage_by_account(provider)
     level = peak(usage.get(next(a for a in registry["accounts"] if a.get("primary"))["id"]), now)
 
     # A Claude account made active without its trade (a sign-in held the
@@ -985,7 +970,7 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> tuple[bool, lis
         notify(tr("omarchy-i18n agents.newSessionsUse", "New %1 sessions now use %2", name, target["label"]), tr("omarchy-i18n agents.runningMove", "Sessions running in ~/.claude move with it."))
         return True, homes
 
-    decision = decide(registry, usage, now, stale, busy_accounts(provider, registry))
+    decision = decide(registry, usage, now, busy_accounts(provider, registry))
     if decision is None:
       return False, []
     if decision["action"] == "clear":

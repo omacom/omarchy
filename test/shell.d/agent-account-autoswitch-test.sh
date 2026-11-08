@@ -82,10 +82,8 @@ pass "manual mode doesn't repeat itself"
 # ------------------------------------------------------------------ auto mode
 
 registry main auto
-record 0.949 "$soon" 0.70 "$later"
-[[ -z $(autoswitch) && ! -s $notifications ]] || fail "an account under the threshold stays put"
-record 0.79 "$soon" 0.12 "$later"
-[[ -z $(autoswitch) && ! -s $notifications ]] || fail "an account more than 15 points under the threshold stays put"
+record 0.949 "$soon" 0.0 "$later"
+[[ -z $(autoswitch) && ! -s $notifications ]] || fail "an account under the threshold stays put, however much room another has"
 pass "an account under the threshold stays put"
 
 record 0.96 "$soon" 0.12 "$later"
@@ -180,50 +178,20 @@ autoswitch >/dev/null
 [[ ! -s $notifications ]] || fail "an unknown account keeps exhaustion unsaid" "$(cat "$notifications")"
 pass "exhaustion is only said when every account is known to be over"
 
-# Numbers kept from an earlier check may be out of date, so an account checked
-# just now wins over a stale one showing more room; a stale one still counts
-# when it's the only place left to go.
+# Numbers kept from an earlier check may be out of date, but a stale account
+# still counts: a parked account can't be checked until a session runs in it.
 mkdir -p "$accounts/claude/side"
-cat >"$accounts/claude.json" <<JSON
-{
-  "active": "main",
-  "switch": "auto",
-  "threshold": 95,
-  "alert": "",
-  "accounts": [
-    {"id": "main", "label": "Main", "home": "", "primary": true},
-    {"id": "work", "label": "Work", "home": "$accounts/claude/work", "primary": false},
-    {"id": "side", "label": "Side", "home": "$accounts/claude/side", "primary": false}
-  ]
-}
-JSON
-jq -nc --arg later "$later" '{
+registry main auto
+jq -nc --arg later "$later" --arg soon "$soon" '{
   id: "claude",
   accounts: [
     {id: "main", limits: [{label: "Session (5-hour)", percent: 0.97, resetsAt: $later}]},
-    {id: "work", stale: true, limits: [{label: "Session (5-hour)", percent: 0.10, resetsAt: $later}]},
-    {id: "side", stale: false, limits: [{label: "Session (5-hour)", percent: 0.40, resetsAt: $later}]}
+    {id: "work", stale: true, limits: [{label: "Session (5-hour)", percent: 0.40, resetsAt: $soon}]}
   ]
 }' >"$usage/claude.json"
 autoswitch >/dev/null
-[[ $(active) == "side" ]] || fail "an account checked just now wins over a stale one" "$(active)"
-pass "an account checked just now wins over a stale one"
-
-# Room comes first: a fresh account within 15 points of the threshold loses to
-# a stale one with plenty left.
-jq '.active = "main" | .alert = ""' "$accounts/claude.json" >"$test_tmp/registry.json"
-mv "$test_tmp/registry.json" "$accounts/claude.json"
-jq -nc --arg later "$later" '{
-  id: "claude",
-  accounts: [
-    {id: "main", limits: [{label: "Session (5-hour)", percent: 0.97, resetsAt: $later}]},
-    {id: "work", stale: true, limits: [{label: "Session (5-hour)", percent: 0.10, resetsAt: $later}]},
-    {id: "side", stale: false, limits: [{label: "Session (5-hour)", percent: 0.94, resetsAt: $later}]}
-  ]
-}' >"$usage/claude.json"
-autoswitch >/dev/null
-[[ $(active) == "work" ]] || fail "a stale account with room wins over a fresh one near the limit" "$(active)"
-pass "a stale account with room wins over a fresh one near the limit"
+[[ $(active) == "work" ]] || fail "a stale account with room is still switched to" "$(active)"
+pass "a stale account with room still counts"
 
 # ------------------------------------------------------- which account next
 
@@ -271,10 +239,10 @@ weekly 0.97 "$week" 0.20 "$week" 0.95 "$day"
 autoswitch >/dev/null
 [[ $(active) == "work" ]] || fail "an account at the threshold is never picked" "$(active)"
 three main
-weekly 0.97 "$week" 0.20 "$week" 0.85 "$day"
+weekly 0.97 "$week" 0.20 "$week" 0.90 "$day"
 autoswitch >/dev/null
-[[ $(active) == "work" ]] || fail "room comes before clearing soonest" "$(active)"
-pass "room comes before clearing soonest, and the threshold is never crossed"
+[[ $(active) == "side" ]] || fail "resetting soonest comes before having more room" "$(active)"
+pass "resetting soonest wins among accounts with room, and the threshold is never crossed"
 
 # One whose week hasn't started loses nothing by waiting.
 three main
@@ -290,20 +258,22 @@ autoswitch >/dev/null
 [[ $(active) == "side" ]] || fail "an account with a running window goes before one that hasn't started" "$(active)"
 pass "an account with nothing running out waits"
 
-# ---------------------------------------------------------- leaving early
+# ------------------------------------------------- only at the threshold
 
-# Within 15 points of the threshold, auto mode leaves for an account at least
-# 30 under it, one whose window has reset. The gap keeps it from flapping.
+# Nothing moves before the active account reaches the threshold, however
+# far under it another account is.
 registry main auto
-record 0.82 "$later" 0.20 "$later"
-[[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "auto mode leaves early for an account that has reset"
-record 0.82 "$later" 0.83 "$later"
-[[ -z $(autoswitch) && $(active) == "work" ]] || fail "leaving early never flaps back to an account that hasn't reset"
-record 0.82 "$later" 0.70 "$later"
-[[ -z $(autoswitch) && $(active) == "work" ]] || fail "an account not yet near its limit stays put"
-record 0.10 "$later" 0.84 "$later"
-[[ $(autoswitch) == "claude" && $(active) == "main" ]] || fail "auto mode goes back once the earlier account has reset"
-pass "auto mode leaves early for a reset account, without flapping"
+record 0.94 "$later" 0.0 "$later"
+[[ -z $(autoswitch) && $(active) == "main" ]] || fail "auto mode never leaves before the threshold"
+# Once switched, the account left behind is at the threshold, so it can't be
+# switched back to until its window resets.
+record 0.96 "$later" 0.20 "$later"
+[[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "auto mode switches at the threshold"
+record 0.96 "$later" 0.94 "$later"
+[[ -z $(autoswitch) && $(active) == "work" ]] || fail "a switch never bounces back to an account at the threshold"
+record 0.10 "$gone" 0.96 "$later"
+[[ $(autoswitch) == "claude" && $(active) == "main" ]] || fail "the earlier account is used again once its window has reset"
+pass "auto mode switches only at the threshold, without bouncing"
 
 registry main manual
 record 0.85 "$later" 0.10 "$later"
@@ -368,8 +338,8 @@ grep -q "Sessions running in ~/.claude move with it" "$notifications" || fail "t
 waited_reconnect || fail "the owed move reconnects Remote Control"
 pass "an owed move happens once the target's home is free"
 
-# Leaving early hands a busy home a login still under the threshold, so the
-# trade goes ahead.
+# Switching by hand while ~/.claude's login still has room hands a busy home a
+# login under the threshold, so the trade goes ahead.
 for home in "$HOME/.claude" "$accounts/claude/work"; do
   echo "{\"claudeAiOauth\":{\"refreshToken\":\"$(basename "$home")\"}}" >"$home/.credentials.json"
 done
@@ -377,7 +347,7 @@ CLAUDE_CONFIG_DIR="$accounts/claude/work" sleep 300 &
 sleeper=$!
 three main
 weekly 0.85 "$week" 0.10 "$day" 0.98 "$week"
-autoswitch >/dev/null
+omarchy-agent-account-state use claude work >/dev/null
 [[ $(active) == "work" && $(login "$HOME/.claude") == "work" && $(login "$accounts/claude/work") == ".claude" ]] ||
   fail "a busy home may take a login that is still under the threshold"
 kill "$sleeper"; wait "$sleeper" 2>/dev/null || true

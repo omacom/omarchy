@@ -24,7 +24,7 @@ fi
 
 omarchy-agent-account-state registry "$1" | jq -r '
   if .switch == "auto" then
-    "\(.name) switches at \(.threshold)% to the account under it whose limits reset soonest, and early, from \(.threshold - 15)%, to one at least 30 points under it."
+    "\(.name) switches at \(.threshold)% to the account under it whose limits reset soonest."
   else
     "\(.name) notifies at \(.threshold)% and switches when you say so."
   end'
