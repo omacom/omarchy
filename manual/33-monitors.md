@@ -66,3 +66,21 @@ If you're using an Apple display, the regular keyboard brightness keys will also
 Note that if you're using an Apple 6K XDR display, you may see a phantom screen in your `hyprctl monitors` listing. You can turn this off with something like `hl.monitor({ output = "DP-2", disabled = true })` in `~/.config/hypr/monitors.lua`.
 
 On Intel machines, you should be connecting to Apple displays using a regular Thunderbolt cable. On other machines without Thunderbolt, you'll typically have to use a [DP + USB-A -> USB-C cable](https://www.amazon.com/dp/B0BNX7MS6N) to make it work.
+
+### Color on Apple Silicon
+
+On an Apple Silicon Mac, a wide-gamut external display like a Studio Display or Pro Display XDR can show every color oversaturated: reds glow, oranges turn red, greens go neon. The built-in panel is fine. The Mac's display controller sends the display its native gamut, because macOS does the color matching itself, and the Linux driver has no way yet to tag the signal as sRGB.
+
+Omarchy handles this for you: on Apple Silicon, every monitor rule without a `cm` of its own gets `cm = "edid"`, so Hyprland converts sRGB into the gamut each display's EDID reports. That changes nothing on an sRGB display, and the built-in panel stays on sRGB. If you'd rather pick, set `cm` yourself on the rule in `~/.config/hypr/monitors.lua` and your choice wins.
+
+If an Apple display still looks too vivid after that, check which link the kernel negotiated with it:
+
+```
+sudo dmesg | grep 'set_digital_out_mode() color mode'
+```
+
+`colorimetry:16` is the display's own gamut, and `edid` is the right mapping. `colorimetry:9` is a BT.2020 link, which the display stretches to its full gamut on top of whatever Hyprland sends. That is what an M1 negotiates with a Studio Display XDR on current kernels; until the kernel prefers a plain RGB link, no Hyprland preset is quite right; `cm = "wide"` on that monitor's rule is the one to try, and a profile (below) is the way to an actual match.
+
+For an exact match against the built-in panel, Hyprland can take an ICC profile per monitor instead of a preset: `icc = "/home/you/.config/hypr/icc/xdr.icc"` on the rule. It overrides `cm`, builds a lookup table from the profile, and there is no HDR through it. If you have a colorimeter, use it. If you don't, a matrix profile with Display P3 primaries and the **sRGB** tone curve is the starting point; a gamma 2.2 curve lifts the shadows next to a monitor with no profile and reads as washed out. Tune hue by rotating a primary and saturation by sliding it toward or away from white, never along the line toward BT.2020, which adds green and reads as orange. A script that writes such a profile from explicit primaries, and a swatch page for comparing two screens, are at https://github.com/briantoll/omarchy-thunderbolt-display/tree/main/scripts.
+
+Keep `bitdepth` at 8 on an Apple Silicon Mac for now. 10-bit scanout on the Apple display driver shows a visibly wrong picture until a kernel fix lands.
