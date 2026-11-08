@@ -208,14 +208,18 @@ Item {
     return totals[full - 1] + root.rowSpacing + peek
   }
 
+  // Both row-height walks stop at the first row past the fold: the folded
+  // height depends only on the rows up to it, so a long list (the
+  // keybindings menu has hundreds) costs no more than the card can show.
   function rowListHeight(_serial, _count, _filter, _divider) {
     if (displayModel.count === 0) return root.baseRowHeight
 
+    var available = availableRowsHeight()
     var totals = []
     var total = 0
     var previousSection = ""
 
-    for (var i = 0; i < displayModel.count; i++) {
+    for (var i = 0; i < displayModel.count && total <= available; i++) {
       var row = displayModel.get(i)
       if (i > 0) total += root.rowSpacing
       if (row.section === "drilldown" && previousSection !== "drilldown") total += root.dividerHeight
@@ -224,7 +228,7 @@ Item {
       totals.push(total)
     }
 
-    return foldedListHeight(totals, availableRowsHeight())
+    return foldedListHeight(totals, available)
   }
 
   function dmenuRowListHeight(_serial, _count, _filter) {
@@ -236,7 +240,7 @@ Item {
 
     var totals = []
     var total = 0
-    for (var i = 0; i < displayModel.count; i++) {
+    for (var i = 0; i < displayModel.count && total <= available; i++) {
       if (i > 0) total += root.rowSpacing
       total += root.rowHeightForDetail(displayModel.get(i).detail)
       totals.push(total)
@@ -640,8 +644,12 @@ Item {
       return
     }
 
+    // Collected first and appended in one call: appending row by row signals
+    // the model once per row, and every count change reruns the row-height
+    // bindings over the rows so far, which made long lists open slowly.
+    var rows = []
     if (root.dmenuMultiple && root.dmenuOnChange.length === 0) {
-      displayModel.append({
+      rows.push({
         itemId: "dmenu.apply", disabled: false, kind: "dmenu", icon: "", iconFont: "",
         appIcon: "", appId: "", label: Commons.I18n.t("common.apply"), target: "",
         detail: Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)), path: "", childCount: 0,
@@ -660,7 +668,7 @@ Item {
       var detail = parts.join("\t")
       if (query && label.toLowerCase().indexOf(query) < 0
           && detail.toLowerCase().indexOf(query) < 0) continue
-      displayModel.append({
+      rows.push({
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
@@ -679,6 +687,7 @@ Item {
         section: ""
       })
     }
+    if (rows.length > 0) displayModel.append(rows)
 
     layoutSerial += 1
 
@@ -772,7 +781,8 @@ Item {
       }
     }
 
-    for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
+    // One append for the whole list, as in rebuildDmenuDisplay().
+    if (rows.length > 0) displayModel.append(rows)
     layoutSerial += 1
 
     root.settleCursor()

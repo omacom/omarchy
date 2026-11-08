@@ -34,9 +34,9 @@ scratch_ipc_quiet shell hide omarchy.menu >/dev/null 2>&1 || true
 wait_scratch_layer omarchy-menu absent || fail "menu hides after warm-up"
 
 open_ms() {
-  local start end
+  local payload=${1:-'{"menu":"root"}'} start end
   start=$EPOCHREALTIME
-  [[ $(scratch_ipc shell summon omarchy.menu '{"menu":"root"}') == "ok" ]] || return 1
+  [[ $(scratch_ipc shell summon omarchy.menu "$payload") == "ok" ]] || return 1
   wait_scratch_layer omarchy-menu mapped || return 1
   end=$EPOCHREALTIME
   echo $(( (${end/[.,]/} - ${start/[.,]/}) / 1000 ))
@@ -44,13 +44,32 @@ open_ms() {
   wait_scratch_layer omarchy-menu absent || return 1
 }
 
-best=""
-for _ in 1 2 3; do
-  elapsed=$(open_ms) || { sed -n '1,120p' "$SCRATCH_LOG" >&2; fail "menu opens and hides cleanly"; }
-  if [[ -z $best ]] || (( elapsed < best )); then
-    best=$elapsed
-  fi
-done
+fastest_open_ms() {
+  local best="" elapsed
+  for _ in 1 2 3; do
+    elapsed=$(open_ms "$@") || { sed -n '1,120p' "$SCRATCH_LOG" >&2; fail "menu opens and hides cleanly"; }
+    if [[ -z $best ]] || (( elapsed < best )); then
+      best=$elapsed
+    fi
+  done
+  echo "$best"
+}
 
+best=$(fastest_open_ms)
 (( best <= BUDGET_MS )) || fail "menu opens within ${BUDGET_MS}ms" "Fastest of three opens took ${best}ms."
 pass "menu opens within ${BUDGET_MS}ms (${best}ms)"
+
+# A select menu as long as the keybindings one, which lists a few hundred
+# rows, must open in time that grows with its rows, not with their square:
+# filling the list row by row reran the card's height over every row so far
+# and took a thousand rows from a few dozen milliseconds to most of a second.
+# Two lengths timed in the same run, so the machine's speed cancels out.
+select_payload() {
+  jq -nc --argjson count "$1" '{mode: "select", prompt: "Pick", options: [range($count) | "Option \(.)"], width: 800, maxHeight: 500}'
+}
+
+short=$(fastest_open_ms "$(select_payload 3)")
+long=$(fastest_open_ms "$(select_payload 1000)")
+(( long <= short * 5 )) ||
+  fail "a thousand-row select opens within five times a three-row one" "Three rows took ${short}ms, a thousand took ${long}ms."
+pass "a thousand-row select opens within five times a three-row one (${short}ms, ${long}ms)"
