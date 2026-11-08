@@ -59,20 +59,31 @@ locked() {
 # Both only write while the clock still shows what the check started from.
 learn_network() {
   local network=$1 zone=$2
+  local connected
+  connected=$(omarchy-timezone-detect --network) || connected=
+  [[ $connected == "$network" ]] || return 2
   [[ $(timedatectl show --property=Timezone --value 2>/dev/null) == "$zone" ]] || return 0
   [[ -f $STATE_DIR/networks/$network ]] || printf '%s\n' "$zone" >"$STATE_DIR/networks/$network"
 }
 
 hold_candidate() {
-  local zone=$1 current=$2
+  local candidate=$1 current=$2
   [[ $(timedatectl show --property=Timezone --value 2>/dev/null) == "$current" ]] || return 1
-  printf '%s\n' "$zone" >"$STATE_DIR/candidate"
+  printf '%s\n' "$candidate" >"$STATE_DIR/candidate"
+}
+
+# Preserve the setter's request for a retry when the network changes.
+set_detected() {
+  local status=0
+  omarchy-timezone-set --detected "$1" --expect "$2" --expect-network "$3" "$4" || status=$?
+  ((status == 2)) && return 2
+  return 1
 }
 
 # Returns 0 when a confirming check is due, 2 when the lookup failed and is
 # worth retrying, and 1 when there is nothing more to do.
 check() {
-  local current network known detected status zone source accuracy candidate
+  local current network connected known detected status zone source accuracy candidate
 
   mkdir -p "$STATE_DIR/networks"
   current=$(timedatectl show --property=Timezone --value 2>/dev/null)
@@ -81,8 +92,9 @@ check() {
     known=$(read_state "networks/$network")
     if [[ -n $known ]]; then
       rm -f "$STATE_DIR/candidate"
-      [[ $known == "$current" ]] || omarchy-timezone-set --detected network --expect "$current" "$known"
-      return 1
+      [[ $known == "$current" ]] && return 1
+      set_detected network "$current" "$network" "$known"
+      return $?
     fi
   fi
 
@@ -97,9 +109,14 @@ check() {
   fi
   read -r zone source accuracy <<<"$detected"
 
+  connected=$(omarchy-timezone-detect --network) || connected=
+  [[ $connected == "$network" ]] || return 2
+
   if [[ $zone == "$current" ]]; then
     rm -f "$STATE_DIR/candidate" "$STATE_DIR/declined"
-    [[ -n $network ]] && locked learn_network "$network" "$zone"
+    if [[ -n $network ]]; then
+      locked learn_network "$network" "$zone" || return $?
+    fi
     return 1
   fi
 
@@ -108,13 +125,13 @@ check() {
     return 1
   fi
 
-  candidate=$(read_state candidate)
-  if [[ $candidate == "$zone" ]]; then
-    omarchy-timezone-set --detected "$source" --expect "$current" "$zone"
-    return 1
+  candidate="$zone ${network:-none}"
+  if [[ $(read_state candidate) == "$candidate" ]]; then
+    set_detected "$source" "$current" "$network" "$zone"
+    return $?
   fi
 
-  locked hold_candidate "$zone" "$current"
+  locked hold_candidate "$candidate" "$current"
 }
 
 watch_events() {
