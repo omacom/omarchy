@@ -22,11 +22,15 @@ if omarchy-default-dictation >/dev/null 2>&1 && [[ -f $bindings ]]; then
 fi
 
 # Superwhisper needs a recording shortcut of its own; move it off Alt + Space,
-# which Omarchy now binds for every dictation backend. A user who never set
-# Superwhisper up has no preferences to move.
-if omarchy-cmd-present superwhisper && [[ -f $HOME/.config/superwhisper/preferences.json ]]; then
-  toggle=$(superwhisper shortcuts show | jq -r '.shortcuts.toggle // empty')
-  if [[ $toggle == "Alt+Space" ]]; then
-    superwhisper shortcuts set toggle "Ctrl+Alt+Space" >/dev/null
+# which Omarchy now binds for every dictation backend. Edit its files because
+# `superwhisper shortcuts set` rolls back on any Hyprland config error, and the
+# compositor this update just upgraded runs the old binary until the next login.
+# Restarting the service regenerates its bindings and reloads Hyprland.
+superwhisper_config="$HOME/.config/superwhisper"
+if omarchy-cmd-present superwhisper && [[ -f $superwhisper_config/preferences.json ]]; then
+  sed -i 's/"Alt+Space"/"Ctrl+Alt+Space"/' "$superwhisper_config/preferences.json"
+  if [[ -f $superwhisper_config/shortcuts.active.json ]]; then
+    sed -i 's/"Alt+Space"/"Ctrl+Alt+Space"/' "$superwhisper_config/shortcuts.active.json"
   fi
+  systemctl --user try-restart superwhisper.service
 fi
