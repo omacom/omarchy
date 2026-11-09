@@ -138,6 +138,10 @@ Panel {
       var choices = []
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
       rows.push(choices)
+      // A blank slate shows the recommended model's offer under the picker.
+      if (addStage === "")
+        for (var o = 0; o < providers.length; o++)
+          if (providers[o].localOffer) rows.push([{ kind: "localDownload", index: o }])
     } else if (addStage === "local") {
       for (var r = 0; r < localAddRecipes.length; r++) rows.push([{ kind: "localAdd", index: r }])
     } else if (addStage === "") {
@@ -249,7 +253,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader"].indexOf(target.kind) >= 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "localDownload"].indexOf(target.kind) >= 0) return target.index
     if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
@@ -1106,6 +1110,7 @@ Panel {
   function refreshLocalListing() {
     usage.refreshLocal()
   }
+  property bool localListed: false
 
   // Picking an agent to add starts on the first one, ready for Enter. The
   // rows follow the same stage change, so the cursor waits a tick for them.
@@ -1134,7 +1139,13 @@ Panel {
     // "Doesn't fit" was true when a model last started or stopped; memory an
     // app has since let go of only shows after a fresh look, once per open.
     if (localBlocked) Util.execArgv(["omarchy-agent-local", "status", "--write"])
-    if (picking) refreshLocalListing()
+    // The first page offers the recommended model from the same listing, so a
+    // machine with no local model reads it fresh once per shell run too; an
+    // update restarts the shell.
+    if (picking || (!localListed && !providers.some(function(p) { return !!p.localModel }))) {
+      localListed = true
+      refreshLocalListing()
+    }
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
