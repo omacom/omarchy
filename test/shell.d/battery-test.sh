@@ -60,6 +60,7 @@ const junk = history.parseHistory([
   line('rate', [[now - 10 * 24 * hour, 5, 2], [now + 24 * hour, 5, 2], ['<b>1</b>', 5, 2], [now - 60, -1, 2], [now - 30, 4.5, 9]])
 ].join('\n'), now)
 assertEqual(junk.charge.length + junk.rate.length, 0, 'battery history drops markup, out-of-range times, values and states')
+assertDeepEqual(history.parseHistory('charge\t' + JSON.stringify([[now - 60, 64, 2], [now - 60, 0, 0], [now - 30, 0, 2]]), now).charge.map(p => p.v), [64, 0], 'battery history drops the 0% unknown-state reading UPower logs when the battery goes away')
 assertEqual(history.parseHistory(line('rate', Array.from({ length: 6000 }, (_, i) => [now - i, 5, 2])), now).rate.length, 5000, 'battery history caps the points it keeps')
 
 // Unplugged at 100%, awake for an hour to 90%, asleep four hours (88% on

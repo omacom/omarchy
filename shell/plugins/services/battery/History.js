@@ -34,6 +34,9 @@ function parseSeries(json, nowSec, maxValue) {
     if (!isFinite(t) || Math.floor(t) !== t || t < oldest || t > nowSec + 300) continue
     if (!isFinite(v) || v < 0 || v > maxValue) continue
     if (!isFinite(s) || Math.floor(s) !== s || s < 0 || s > 6) continue
+    // UPower logs a 0% reading in the unknown state when the battery device
+    // goes away (at shutdown, say), beside the real level; it is no reading.
+    if (maxValue === 100 && v === 0 && s === UNKNOWN) continue
     out.push({ t: t, v: v, s: s })
   }
   out.sort(function(a, b) { return a.t - b.t })
