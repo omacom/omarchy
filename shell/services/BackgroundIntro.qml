@@ -169,9 +169,10 @@ Item {
 
   // Each screen's cover fades on the render thread, where the shell still
   // loading plugins cannot stall it, and the login is over once every one
-  // has, or a second after they all should have.
+  // has, or a second after they all should have. The desktop fades in from
+  // the black the boot splash faded out to, eased at both ends as that was.
   property bool startupFading: false
-  readonly property int startupFadeDuration: Style.duration(420)
+  readonly property int startupFadeDuration: Style.duration(500)
 
   function startStartupFade() {
     if (startupFading) return
@@ -371,7 +372,7 @@ Item {
           from: 1
           to: 0
           duration: root.startupFadeDuration
-          easing.type: Easing.OutCubic
+          easing.type: Easing.InOutQuad
           onFinished: {
             faded = true
             root.finishStartupFade()

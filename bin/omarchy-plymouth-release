@@ -1,0 +1,20 @@
+#!/usr/bin/python3 -IS
+# omarchy:summary=Ask the boot splash to let go of the display, right before the compositor takes it
+# omarchy:hidden=true
+"""Run as Omarchy's greeter or uwsm session starts Hyprland, before it opens the display.
+
+omarchy-plymouth-handoff lets SDDM start while the boot splash fades to black,
+so the compositor has to wait for Plymouth to let go: the handoff closes its
+socket once it has. Returns then, or at once when no handoff is waiting.
+"""
+
+import socket
+
+try:
+  with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as handoff:
+    handoff.settimeout(12)
+    handoff.connect("/run/omarchy-plymouth-handoff.sock")
+    handoff.sendall(b"release\n")
+    handoff.recv(64)
+except OSError:
+  pass

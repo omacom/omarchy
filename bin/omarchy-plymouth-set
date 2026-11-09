@@ -285,6 +285,9 @@ run_root_transaction() {
       sed -i \
         -e "s/^Window.SetBackgroundTopColor.*/Window.SetBackgroundTopColor($bg_r, $bg_g, $bg_b);/" \
         -e "s/^Window.SetBackgroundBottomColor.*/Window.SetBackgroundBottomColor($bg_r, $bg_g, $bg_b);/" \
+        -e "s/^global.background_red = .*/global.background_red = $bg_r;/" \
+        -e "s/^global.background_green = .*/global.background_green = $bg_g;/" \
+        -e "s/^global.background_blue = .*/global.background_blue = $bg_b;/" \
         "$plymouth_stage/omarchy.script"
 
       for asset in bullet.png entry.png lock.png progress_bar.png; do
