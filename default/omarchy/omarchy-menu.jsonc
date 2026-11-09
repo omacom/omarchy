@@ -99,6 +99,8 @@
   "appearance.windows.transparency.glassy": {"icon":"󰂵","label":"Glassy Windows","checked":"[[ $(omarchy-hyprland-window-transparency) == \"glassy\" ]]","action":"omarchy-hyprland-window-transparency glassy"},
   "appearance.windows.one-window-ratio-on": {"icon":"","label":"1-Window Ratio On","when":"! omarchy-hyprland-toggle-enabled single-window-aspect-ratio","action":"omarchy-hyprland-window-single-square-aspect-toggle"},
   "appearance.windows.one-window-ratio-off": {"icon":"","label":"1-Window Ratio Off","when":"omarchy-hyprland-toggle-enabled single-window-aspect-ratio","action":"omarchy-hyprland-window-single-square-aspect-toggle"},
+  "appearance.windows.snap-on": {"icon":"󰕰","label":"Window Snapping On","when":"! omarchy-hyprland-toggle-enabled window-snap","action":"omarchy-hyprland-window-snap-toggle"},
+  "appearance.windows.snap-off": {"icon":"󰕰","label":"Window Snapping Off","when":"omarchy-hyprland-toggle-enabled window-snap","action":"omarchy-hyprland-window-snap-toggle"},
   "appearance.branding": {"icon":"","iconFont":"omarchy","label":"Branding"},
   "appearance.branding.screensaver": {"icon":"󱄄","label":"Screensaver"},
   "appearance.branding.about": {"icon":"","label":"About"},

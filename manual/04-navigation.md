@@ -38,6 +38,8 @@ But you can also choose to turn a workspace into the scrolling layout where wind
 
 Pressing `Super + L` again turns the workspace floating, where windows overlap freely and you place them yourself, and a third press returns it to dwindle. `Super + Alt + L` goes through them the other way. A window that floats anyway — one you popped out with `Super + T`, or an app that always opens floating — keeps floating when the workspace goes back to tiling. The top bar marks the workspace you're on with its layout: a square for dwindle, a circle for scrolling, and a triangle for floating. Clicking that mark cycles the layout too.
 
+Turn on _Appearance > Windows > Window Snapping On_ to snap floating windows the way Windows does: drop one with the cursor against the left or right edge of the screen and it fills that half, against the top edge and it fills the screen, or in a corner and it fills that quarter. Drag a snapped window away and it gets its old size back. With `Super` + drag the window snaps as you let go; dragged by its title bar, it snaps as soon as the mouse moves after you let go.
+
  ![navigation-scrolling-layout](images/navigation-scrolling-layout.webp)
 
 The choice is per workspace, and it sticks. So you can keep workspace 1 on dwindle for browsing and workspace 2 on scrolling for code, and they'll come back that way after a restart.

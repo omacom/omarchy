@@ -385,6 +385,8 @@
   "window.restoreWidthHint": "Restore using Super + Home on this workspace.",
   "window.saveWidthHint": "Use Super + Alt + Home to save one for this workspace.",
   "window.savedWidth": "Saved width for %1 on workspace %2",
+  "window.snapOff": "Disable window snapping",
+  "window.snapOn": "Enable window snapping",
   "window.squareOff": "Disable single-window square aspect ratio",
   "window.squareOn": "Enable single-window square aspect ratio",
   "windowsVm.configuration": "Windows VM Configuration",
