@@ -29,6 +29,20 @@ function shortDnsName(name) {
   return clean.split(".")[0] || clean
 }
 
+// The name the tailscale CLI is given for a peer, by Taildrop and the exit node
+// picker. `tailscale file cp` finds a peer by its short name or by its full name
+// with the trailing dot, and hands any other name to the system resolver, which
+// knows no tailnet names when MagicDNS is off or this machine ignores tailnet DNS
+// (--accept-dns=false). So the full name keeps its dot.
+function peerAddress(peer) {
+  if (!peer) return ""
+  var dnsName = cleanDnsName(peer.DNSName)
+  if (dnsName) return dnsName + "."
+  if (peer.HostName) return String(peer.HostName)
+  var ips = filterIPv4(peer.TailscaleIPs || [])
+  return ips.length > 0 ? ips[0] : ""
+}
+
 function translator(tr) {
   return typeof tr === "function" ? tr : function(key, english) { return english }
 }
@@ -314,6 +328,7 @@ if (typeof module !== "undefined") {
     filterIPv6: filterIPv6,
     cleanDnsName: cleanDnsName,
     shortDnsName: shortDnsName,
+    peerAddress: peerAddress,
     displayHostName: displayHostName,
     osIcon: osIcon,
     accountLabel: accountLabel,
