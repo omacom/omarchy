@@ -66,26 +66,3 @@ function inResumeGrace(nowMs, resumedAtMs) {
 function isUnavailable(streak) {
   return streak >= UNAVAILABLE_AFTER
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    MATCH_RETRY_MS: MATCH_RETRY_MS,
-    FAST_ERROR_MS: FAST_ERROR_MS,
-    NUDGE_COOLDOWN_MS: NUDGE_COOLDOWN_MS,
-    IDLE_CLEAR_MS: IDLE_CLEAR_MS,
-    shouldNudge: shouldNudge,
-    ERROR_RETRY_BASE_MS: ERROR_RETRY_BASE_MS,
-    ERROR_RETRY_CAP_MS: ERROR_RETRY_CAP_MS,
-    FPRINTD_IDLE_EXIT_MS: FPRINTD_IDLE_EXIT_MS,
-    UNAVAILABLE_AFTER: UNAVAILABLE_AFTER,
-    REACH_TIMEOUT_MS: REACH_TIMEOUT_MS,
-    SLEEP_GAP_MS: SLEEP_GAP_MS,
-    RESUME_GRACE_MS: RESUME_GRACE_MS,
-    spannedSleep: spannedSleep,
-    classifyProbe: classifyProbe,
-    inResumeGrace: inResumeGrace,
-    retryDelayMs: retryDelayMs,
-    nextStreak: nextStreak,
-    isUnavailable: isUnavailable
-  }
-}

@@ -342,25 +342,3 @@ function parseDisplays(raw) {
     enabledDisplayCount: count
   }
 }
-
-if (typeof module !== "undefined") {
-  module.exports = {
-    clampBrightness: clampBrightness,
-    normalizeScale: normalizeScale,
-    cleanScale: cleanScale,
-    matchingScaleIndex: matchingScaleIndex,
-    availableScales: availableScales,
-    resolutionOptions: resolutionOptions,
-    resolutionLabel: resolutionLabel,
-    refreshOptions: refreshOptions,
-    displayTitle: displayTitle,
-    logicalRect: logicalRect,
-    copyRects: copyRects,
-    normalizeLayout: normalizeLayout,
-    dropDisplay: dropDisplay,
-    placeDisplay: placeDisplay,
-    sameLayout: sameLayout,
-    brightnessName: brightnessName,
-    parseDisplays: parseDisplays
-  }
-}
