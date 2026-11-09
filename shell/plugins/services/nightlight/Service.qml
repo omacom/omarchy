@@ -18,11 +18,21 @@ Item {
   property var temperature: null
   readonly property bool enabled: stateLoaded && NightlightModel.isNightlight(temperature)
 
+  property int stateRevision: 0
+  property int probeRevision: 0
+  property bool refreshPending: false
+
   property bool hasPendingTemperature: false
   property int pendingTemperature: 0
 
   function refresh() {
-    if (!statusProbe.running) statusProbe.running = true
+    if (applyProcess.running || statusProbe.running) {
+      root.refreshPending = true
+      return
+    }
+    root.refreshPending = false
+    root.probeRevision = root.stateRevision
+    statusProbe.running = true
   }
 
   function setNightlight(value) {
@@ -34,6 +44,7 @@ Item {
   }
 
   function applyTemperature(temp) {
+    root.stateRevision++
     root.temperature = temp
     root.stateLoaded = true
 
@@ -61,28 +72,31 @@ Item {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (root.probeRevision !== root.stateRevision) return
         root.temperature = NightlightModel.temperatureFromOutput(text)
         root.stateLoaded = true
       }
     }
     onExited: function(exitCode) {
-      if (exitCode !== 0) {
+      if (exitCode !== 0 && root.probeRevision === root.stateRevision) {
         root.temperature = null
         root.stateLoaded = true
       }
+      if (root.refreshPending) Qt.callLater(root.refresh)
     }
   }
 
   Process {
     id: applyProcess
-    onExited: function() {
+    onExited: function(exitCode, exitStatus) {
       if (root.hasPendingTemperature) {
         root.hasPendingTemperature = false
         root.runApply(root.pendingTemperature)
         return
       }
 
-      root.refresh()
+      // The requested state is already published; only reconcile an unsuccessful apply.
+      if (exitCode !== 0 || exitStatus !== 0 || root.refreshPending) Qt.callLater(root.refresh)
     }
   }
 
