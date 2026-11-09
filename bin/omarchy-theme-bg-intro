@@ -1,13 +1,42 @@
 #!/bin/bash
 
 # omarchy:summary=Enable or disable background intros
-# omarchy:args=<enable|disable|toggle|status>
-# omarchy:examples=omarchy theme bg intro toggle | omarchy theme bg intro disable
+# omarchy:args=<enable|disable|toggle|status> | select <enable|disable|toggle|status>
+# omarchy:examples=omarchy theme bg intro toggle | omarchy theme bg intro disable | omarchy theme bg intro select enable
 
 set -euo pipefail
 
 toggle="$HOME/.local/state/omarchy/toggles/background-intros-off"
+# Opt-in: also play a wallpaper's intro when it is selected within the theme.
+# Login and theme switches play intros regardless of this flag.
+on_select="background-intros-on-select"
 case ${1:-} in
+  select)
+    case ${2:-} in
+      enable)
+        omarchy-toggle "$on_select" on
+        omarchy-notification-send "$(omarchy-i18n theme.backgroundIntrosOnSelect)" "$(omarchy-i18n common.enabled)"
+        ;;
+      disable)
+        omarchy-toggle "$on_select" off
+        omarchy-notification-send "$(omarchy-i18n theme.backgroundIntrosOnSelect)" "$(omarchy-i18n common.disabled)"
+        ;;
+      toggle)
+        if omarchy-toggle-enabled "$on_select"; then
+          omarchy-theme-bg-intro select disable
+        else
+          omarchy-theme-bg-intro select enable
+        fi
+        ;;
+      status)
+        omarchy-toggle-enabled "$on_select"
+        ;;
+      *)
+        echo "Usage: omarchy-theme-bg-intro select <enable|disable|toggle|status>" >&2
+        exit 1
+        ;;
+    esac
+    ;;
   enable)
     rm -f "$toggle"
     omarchy-notification-send "$(omarchy-i18n theme.backgroundIntros)" "$(omarchy-i18n common.enabled)"
@@ -28,7 +57,7 @@ case ${1:-} in
     [[ ! -f $toggle ]]
     ;;
   *)
-    echo "Usage: omarchy-theme-bg-intro <enable|disable|toggle|status>" >&2
+    echo "Usage: omarchy-theme-bg-intro <enable|disable|toggle|status> | select <enable|disable|toggle|status>" >&2
     exit 1
     ;;
 esac

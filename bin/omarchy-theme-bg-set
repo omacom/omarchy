@@ -21,7 +21,10 @@ fi
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 flock 9
 
-INTRO=$(omarchy-theme-bg-boot-intro --resolve-enabled "$BACKGROUND")
+INTRO=""
+if omarchy-toggle-enabled background-intros-on-select; then
+  INTRO=$(omarchy-theme-bg-boot-intro --resolve-enabled "$BACKGROUND")
+fi
 
 # The shell sequences the change, with the intro or the ordinary transition,
 # and repoints the link itself once nothing on screen can flash.
