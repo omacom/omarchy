@@ -1,6 +1,6 @@
 # Agent Usage Collectors
 
-Every agent or provider in the agents panel is a collector: `bin/omarchy-agent-usage-<id>`, a Python script that prints one JSON record. `omarchy-agent-usage-update` finds collectors by globbing `bin/omarchy-agent-usage-*`, runs them, and the panel (`shell/plugins/agents/Main.qml`, `Panel.qml`) reads the records. This is the contract every collector follows, so that each agent behaves the same in the panel. `bin/omarchy-agent-usage-claude` is the reference implementation.
+Every agent or provider in the agents panel is a collector: `bin/omarchy-agent-usage-<id>`, a Python script that prints one JSON record. `omarchy-agent-usage-update` finds collectors by globbing `bin/omarchy-agent-usage-*`, runs them all at once through `shell/plugins/agents/runner.py`, and the panel (`shell/plugins/agents/Main.qml`, `Panel.qml`) reads the records. This is the contract every collector follows, so that each agent behaves the same in the panel. `bin/omarchy-agent-usage-claude` is the reference implementation.
 
 New collectors build on the shared module, [`shell/plugins/agents/collectors.py`](../shell/plugins/agents/collectors.py), which holds the parts of this contract every collector shares. A collector keeps only what is its own: its credentials, its endpoint and how to read it, its provider filter, and the specifics of its record.
 
@@ -12,6 +12,7 @@ New collectors build on the shared module, [`shell/plugins/agents/collectors.py`
   - `--limits-only` (the panel's near-limit refresh) reuses a local scan for `LIMITS_ONLY_REUSE_SECONDS = 900`, but asks for limits like a normal run.
   - `--force` (a person pressing refresh) reuses nothing.
 - The record is printed on stdout. Diagnostics go to stderr and never carry a credential.
+- A collector runs as `__main__` in a child the runner forks, not in a Python of its own: the runner imports `collectors.py` and the standard library once, calls `preload_shared()`, and forks one child per collector, which keeps its own argv, stdout and exit status. Every child shares the import of `collectors.py`, so that module computes nothing at import beyond constants, and a collector changes the environment only after importing it. A collector whose first line isn't `#!/usr/bin/python3` is executed as before.
 - A collector never writes to an agent's own files. Credentials are only read, and a token is refreshed only where the agent's own CLI does the same under its lock, never by rewriting another harness's store.
 
 ## The shared module

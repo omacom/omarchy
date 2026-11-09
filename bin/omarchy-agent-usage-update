@@ -39,16 +39,12 @@ wanted() {
   return 1
 }
 
+# Each collector prints its record; runner.py runs the collectors named as
+# agent=collector, in parallel, and writes each record that is valid JSON.
+# It imports what the collectors share once and forks one child per
+# collector, so a refresh doesn't start Python 23 times over.
 collect() {
-  local collector="$1" agent="$2"
-  local record tmp
-  if ! record=$("$collector" "${flags[@]}") || [[ -z $record ]] || ! jq -e . >/dev/null 2>&1 <<<"$record"; then
-    echo "omarchy-agent-usage-update: $agent collector failed" >&2
-    return 1
-  fi
-  tmp=$(mktemp "$USAGE_DIR/.$agent.XXXXXX")
-  printf '%s\n' "$record" >"$tmp"
-  mv "$tmp" "$USAGE_DIR/$agent.json"
+  /usr/bin/python3 "$OMARCHY_PATH/shell/plugins/agents/runner.py" "$USAGE_DIR" "${flags[@]}" -- "$@"
 }
 
 # Accounts can be signed in to someone else since they were added; the
@@ -63,20 +59,22 @@ fi
 # EPOCHREALTIME uses the locale's decimal separator, a comma in many.
 export OMARCHY_AGENT_USAGE_REFRESH_AT=${EPOCHREALTIME/,/.}
 
-pids=()
+runs=()
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
   [[ -x $collector ]] || continue
   agent="${collector##*/omarchy-agent-usage-}"
   [[ $agent == "update" ]] && continue
   wanted "$agent" || continue
-  collect "$collector" "$agent" &
-  pids+=($!)
+  runs+=("$agent=$collector")
 done
 
 status=0
-for pid in "${pids[@]}"; do
-  wait "$pid" || status=1
-done
+if (( ${#runs[@]} > 0 )); then
+  # As a background job, as each collect() ran before: stdin from /dev/null,
+  # SIGINT and SIGQUIT ignored.
+  collect "${runs[@]}" &
+  wait $! || status=1
+fi
 
 # Fresh limits are when switching accounts near a limit gets decided. A switch
 # changes which account the record's own limits describe, so that record is
@@ -86,7 +84,7 @@ for agent in claude codex grok; do
     switched=$("$OMARCHY_PATH/bin/omarchy-agent-account-state" autoswitch "$agent")
     if [[ -n $switched ]]; then
       flags=(--limits-only)
-      collect "$OMARCHY_PATH/bin/omarchy-agent-usage-$agent" "$agent" || status=1
+      collect "$agent=$OMARCHY_PATH/bin/omarchy-agent-usage-$agent" || status=1
     fi
   fi
 done

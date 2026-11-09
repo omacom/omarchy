@@ -87,6 +87,38 @@ run_all() {
   wait
 }
 
+# The shell refreshes through omarchy-agent-usage-update, whose runner forks
+# the collectors from one process that already read what they all share. A
+# refresh of the same home after run_all (the scan caches gone, the per-file
+# indexes kept, so the shared reads are what the collectors use) must write
+# each collector's own record, word for word but its time.
+check_update() {
+  local home="$1" results="$2" label="$3" id
+  shift 3
+  local usage="$home/.local/state/omarchy/agents/usage" differing=()
+  find "$home/.cache" -name '*-scan-*.json' -delete
+  mkdir -p "$WORK/update-bin"
+  for tool in python3 rg jq mkdir mktemp mv; do
+    [[ -e $WORK/update-bin/$tool ]] || ln -s "$(command -v "$tool")" "$WORK/update-bin/$tool"
+  done
+  rm -rf "$usage"
+  env -i HOME="$home" PATH="$WORK/update-bin" LANG=C.UTF-8 ${TZ+TZ="$TZ"} \
+    OMARCHY_PATH="$ROOT" OMARCHY_LANGUAGE_FILE="$OMARCHY_LANGUAGE_FILE" \
+    XDG_CONFIG_HOME="$home/.config" XDG_DATA_HOME="$home/.local/share" \
+    XDG_STATE_HOME="$home/.local/state" XDG_CACHE_HOME="$home/.cache" XDG_RUNTIME_DIR="$home/.run" \
+    http_proxy=http://127.0.0.1:9 https_proxy=http://127.0.0.1:9 HTTP_PROXY=http://127.0.0.1:9 HTTPS_PROXY=http://127.0.0.1:9 ALL_PROXY=http://127.0.0.1:9 \
+    "$@" \
+    "$TIMEOUT" --kill-after=5 "$COLLECTOR_TIMEOUT" "$ROOT/bin/omarchy-agent-usage-update" >/dev/null 2>"$WORK/update-$label.err"
+  for id in "${collectors[@]}"; do
+    [[ $(cat "$results/$id.status") == "0" ]] || continue
+    if [[ $(jq -S 'del(.updatedAt)' "$results/$id.json") != "$(jq -S 'del(.updatedAt)' "$usage/$id.json" 2>/dev/null)" ]]; then
+      differing+=("$id")
+    fi
+  done
+  (( ${#differing[@]} == 0 )) || fail "update writes each collector's own record on the $label machine (differs: ${differing[*]})"
+  pass "update writes each collector's own record on the $label machine"
+}
+
 # ------------------------------------------------------------------ fixture
 
 # One machine with usage on every provider id a collector claims, in every
@@ -488,6 +520,8 @@ TZ=$EMPTY_TZ run_all "$EMPTY_HOME" "$WORK/empty-results"
 TZ=$EMPTY_TZ date +%F >>"$WORK/empty-days"
 run_all "$FIXTURE_HOME" "$WORK/results" PI_CODING_AGENT_DIR="$FIXTURE_HOME/pi-moved"
 
+check_update "$FIXTURE_HOME" "$WORK/results" fixture PI_CODING_AGENT_DIR="$FIXTURE_HOME/pi-moved"
+
 # The same machine with opencode's database moved by OPENCODE_DB. A relative
 # name resolves beside the default one, as opencode itself resolves it.
 RELOCATED_HOME="$WORK/relocated"
@@ -585,6 +619,11 @@ for endpoint in "${!claude_endpoints[@]}"; do
     run_all "$CLAUDE_HOME" "$WORK/claude-results-$endpoint" ANTHROPIC_BASE_URL="$url"
   else
     run_all "$CLAUDE_HOME" "$WORK/claude-results-$endpoint"
+    # Claude Code's own endpoint: every collector reads the transcripts
+    # through the index the runs above left current.
+    compgen -G "$CLAUDE_HOME/.cache/omarchy/agent-usage/claude-index-*.json" >/dev/null ||
+      fail "the Claude Code runs leave an index for the update to share"
+    check_update "$CLAUDE_HOME" "$WORK/claude-results-$endpoint" claude-code
   fi
 done
 

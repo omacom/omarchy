@@ -63,7 +63,9 @@ mid-session shows up at the next refresh. Drop the widget with
 
 Each agent is one JSON record in `~/.local/state/omarchy/agents/usage/`,
 written by `omarchy-agent-usage-update`. That command runs one
-`omarchy-agent-usage-<agent>` collector per agent; the widget invokes it
+`omarchy-agent-usage-<agent>` collector per agent, all at once, forked by
+`runner.py` from one Python that has already imported what they share;
+the widget invokes it
 on its refresh timer and whenever you ask for a refresh, and picks up any
 record that lands in the directory regardless of who wrote it.
 
