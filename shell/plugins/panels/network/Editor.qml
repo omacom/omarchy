@@ -37,6 +37,15 @@ Column {
   signal cancel()
   signal choose(string uuid)
 
+  // The editor replaces the list while it is up, so it owns the keyboard. It
+  // takes active focus when shown and answers Escape itself: PanelKeyCatcher is
+  // blocked for the editor's duration (see Panel.qml) and forwards keys to
+  // descendants without accepting them, so the close key has to live here. Same
+  // grab-focus-on-show the inline passphrase fields use.
+  focus: true
+  onVisibleChanged: if (visible) Qt.callLater(forceActiveFocus)
+  Keys.onPressed: function(event) { root.handleKey(event) }
+
   spacing: Style.space(10)
 
   // All copy routed through the shell catalog. The network.* keys are shared
@@ -108,6 +117,15 @@ Column {
     save(form)
   }
 
+  // Escape returns to the network list without saving. One path both the Keys
+  // handler above and the fixture drive.
+  function handleKey(event) {
+    if (!event || event.key !== Qt.Key_Escape) return false
+    root.cancel()
+    event.accepted = true
+    return true
+  }
+
   // ---------- Profile picker ----------
   Column {
     id: picker
@@ -129,6 +147,7 @@ Column {
         width: picker.width
         leftAlign: true
         bordered: true
+        focusable: true
         active: !!modelData.active
         text: String(modelData.uuid || "").substring(0, 8)
         foreground: root.foreground
@@ -141,6 +160,7 @@ Column {
       width: picker.width
       text: Commons.I18n.t("network.back")
       bordered: true
+      focusable: true
       foreground: root.foreground
       fontFamily: root.fontFamily
       onClicked: root.cancel()
@@ -191,6 +211,7 @@ Column {
         Button {
           text: root.copy.cancel
           bordered: true
+          focusable: true
           enabled: !root.busy
           foreground: root.foreground
           fontFamily: root.fontFamily
@@ -200,6 +221,7 @@ Column {
         Button {
           text: root.copy.save
           active: root.canSave
+          focusable: true
           opacity: root.canSave ? 1 : 0.5
           foreground: root.foreground
           fontFamily: root.fontFamily
@@ -270,31 +292,20 @@ Column {
       }
     }
 
-    // Auto-connect
-    Item {
+    // Auto-connect. The labeled Toggle row is the kit's keyboard-activatable
+    // switch row: Tab reaches it and Return/Enter/Space flip it, so the switch
+    // needs no pointer. The row is disabled while a save is in flight, the same
+    // gate the switch's `busy` used to apply.
+    Toggle {
+      id: autoToggle
       width: parent.width
-      implicitHeight: Math.max(autoLabel.implicitHeight, autoSwitch.implicitHeight)
-
-      Text {
-        id: autoLabel
-        textFormat: Text.PlainText
-        text: root.copy.autoConnect
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.body
-        anchors.left: parent.left
-        anchors.verticalCenter: parent.verticalCenter
-      }
-
-      ToggleSwitch {
-        id: autoSwitch
-        checked: root.form.autoConnect
-        busy: root.busy
-        foreground: root.foreground
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        onToggled: root.update("autoConnect", !root.form.autoConnect)
-      }
+      label: root.copy.autoConnect
+      checked: root.form.autoConnect
+      enabled: !root.busy
+      titleSize: Style.font.body
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onClicked: root.update("autoConnect", !root.form.autoConnect)
     }
 
     // Priority

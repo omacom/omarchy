@@ -45,9 +45,15 @@ source = source.replace('  id: root', `  id: root
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 // Expose the passphrase field's id to the fixture so it can prove a typed
 // secret does not survive into the next edit session; production keeps it
-// private.
+// private. The form's Save/Cancel buttons, the auto-connect toggle and the
+// picker's choice buttons are tagged the same way so the fixture can read their
+// keyboard-reachability properties.
 let editorSource = fs.readFileSync(`${root}/shell/plugins/panels/network/Editor.qml`, 'utf8')
 editorSource = editorSource.replace('        id: pskField\n', '        id: pskField\n        objectName: "pskField"\n')
+editorSource = editorSource.replace('          text: root.copy.save\n', '          text: root.copy.save\n          objectName: "saveButton"\n')
+editorSource = editorSource.replace('          text: root.copy.cancel\n', '          text: root.copy.cancel\n          objectName: "cancelButton"\n')
+editorSource = editorSource.replace('      id: autoToggle\n', '      id: autoToggle\n      objectName: "autoToggle"\n')
+editorSource = editorSource.replace('        required property var modelData\n        width: picker.width\n', '        required property var modelData\n        width: picker.width\n        objectName: "pickerChoice"\n')
 fs.writeFileSync(`${stage}/network/Editor.qml`, editorSource)
 JS
   printf '#!/bin/bash\nexit 0\n' >"$stage/bin/noop"
@@ -116,4 +122,4 @@ run_panel() {
 
 stage_panel editor
 run_panel
-pass "network editor prefills a saved profile, saves only the changed key by uuid, sends a passphrase over stdin, reconnects the active profile, picks among duplicate profiles, and edits an EAP password over stdin"
+pass "network editor prefills a saved profile, saves only the changed key by uuid, sends a passphrase over stdin, reconnects the active profile, picks among duplicate profiles, edits an EAP password over stdin, and stays keyboard reachable (Save/Cancel/picker focusable, auto-connect activatable, Escape closes)"

@@ -21,6 +21,9 @@ import "network" as Network
 //      802-1x.password over stdin (never argv), alongside its 802-1x.identity.
 //   7. switching networks before Save does not reconnect the profile the editor
 //      opened on: Save re-reads the active connection and skips the reconnect.
+//   8. the editor is reachable without a pointer: Save, Cancel and the picker's
+//      choices are focusable, the auto-connect row is keyboard-activatable, and
+//      Escape returns to the list without saving.
 //
 // The nmcli stub logs every invocation and, for `connection edit`, the stdin it
 // read, to separate files; the fixture reads them back so the assertions are on
@@ -366,6 +369,8 @@ ShellRoot {
     check(editor.picking === true, "the editor switches to the picker view")
     check((editor.choices || []).length === 2, "the picker lists both saved profiles")
     check(panel.editingUuid === "", "the editor does not resolve a uuid until one is chosen")
+    var choice = test.findObject(editor, "pickerChoice")
+    check(!!choice && choice.focusable === true, "the picker's profile choices are keyboard focusable")
     if (failed) { finish(); return }
     editor.choose(test.ambigUuid)
     openWait.next = checkChosen
@@ -438,6 +443,39 @@ ShellRoot {
       "the EAP identity change uses the same interactive prompt")
     check(hasLine(stdinLines, test.eapIdentity),
       "the EAP identity is written verbatim on its own stdin line")
+    if (failed) { finish(); return }
+    openEditor("KEMENKEU", checkKeyboardReachable)
+  }
+
+  // ---------- Phase 7: the editor is reachable and dismissable without a pointer ----------
+
+  // The controls are the kit Button/Toggle, whose `focusable`/`activeFocusOnTab`
+  // put them in the Tab chain and wire Return/Enter/Space to the same click the
+  // fixture drives. QML key synthesis needs the C++ QTest harness these qml
+  // fixtures don't have, so this covers the reachable properties and drives the
+  // Escape path through the same handleKey the editor's Keys handler calls.
+  function checkKeyboardReachable() {
+    var editor = panel.testEditor
+    var save = test.findObject(editor, "saveButton")
+    var cancel = test.findObject(editor, "cancelButton")
+    var autoToggle = test.findObject(editor, "autoToggle")
+    check(!!save && save.focusable === true, "Save is keyboard focusable")
+    check(!!cancel && cancel.focusable === true, "Cancel is keyboard focusable")
+    check(!!autoToggle && autoToggle.activeFocusOnTab === true, "auto-connect is keyboard reachable")
+    check(editor.activeFocus === true, "the editor takes focus when shown")
+    if (failed) { finish(); return }
+
+    // Activating the row (what Return/Enter/Space emit) flips the form value.
+    var before = editor.form.autoConnect
+    autoToggle.clicked()
+    check(editor.form.autoConnect === !before, "activating auto-connect flips the form")
+
+    // Escape returns to the list without saving.
+    var escape = { key: Qt.Key_Escape, text: "", modifiers: 0, accepted: false }
+    check(editor.handleKey(escape) === true, "the editor handles Escape")
+    check(escape.accepted === true, "Escape is accepted")
+    check(panel.editorOpen === false, "Escape closes the editor")
+    check(panel.editingSsid === "", "Escape cancels without keeping the ssid")
     finish()
   }
 

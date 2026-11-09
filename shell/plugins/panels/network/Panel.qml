@@ -1505,7 +1505,10 @@ Panel {
       implicitHeight: root.editorOpen ? editor.implicitHeight : column.implicitHeight
       anchors.fill: parent
       // Freeze the cursor model while the inline password prompt is open, and
-      // while the editor owns the panel; the TextField inside owns input.
+      // while the editor owns the panel. `blocked` only stops this handler from
+      // acting: it still forwards every key to the focused descendant, so the
+      // editor's TextFields, its Tab chain, and its own Escape handler keep
+      // working (Editor.qml takes focus and handles Escape).
       blocked: root.passwordSsid !== "" || root.editorOpen
 
       // Opens the right-click ContextMenu beside the row at `index`. Called by
