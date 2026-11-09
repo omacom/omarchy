@@ -136,7 +136,7 @@ omarchy-update
   ├─ restart marked services and the shell
   ├─ run the post-update hook, then update mise tools (a failed tool update
   │  warns and the update continues)
-  ├─ update AUR packages
+  ├─ update AUR packages (a failed AUR update warns and the update continues)
   ├─ omarchy-update-boot, then stop the keepalive
   │    └─ the platform's boot package proves the boot files boot the updated system
   ├─ omarchy-update-stay-awake stop
