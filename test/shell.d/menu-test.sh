@@ -86,6 +86,15 @@ assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entrie
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
 
+// The main search pass can share normalization across matching and ranking.
+let queryReads = 0
+const preparedQuery = menu.prepareQuery({ toString() { queryReads++; return '  THEME  ' } })
+const themeRow = merged.items['style.theme']
+assert(menu.matchesPreparedQuery(themeRow, preparedQuery, true), 'prepared mixed-case query matches a real merged menu row')
+assert(!menu.matchesPreparedQuery(themeRow, preparedQuery, false), 'prepared query respects visibility')
+assertEqual(menu.preparedSearchScore(merged.items, themeRow, preparedQuery), menu.searchScore(merged.items, themeRow, 'theme'), 'prepared query preserves the existing ranking')
+assertEqual(queryReads, 1, 'query normalization is shared by matching and scoring')
+
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')

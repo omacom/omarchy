@@ -338,8 +338,17 @@ function termInSearchWords(term, text) {
   return false
 }
 
+function prepareQuery(query) {
+  var needle = String(query || "").toLowerCase().trim()
+  return { needle: needle, terms: needle.split(/\s+/) }
+}
+
 function descriptionTextMatches(query, text) {
-  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  return descriptionMatchesPrepared(prepareQuery(query), text)
+}
+
+function descriptionMatchesPrepared(prepared, text) {
+  var terms = prepared.terms
   for (var i = 0; i < terms.length; i++) {
     if (terms[i] && !termInSearchWords(terms[i], text)) return false
   }
@@ -347,17 +356,22 @@ function descriptionTextMatches(query, text) {
 }
 
 function matchesQuery(entry, query, visible) {
+  return matchesPreparedQuery(entry, prepareQuery(query), visible)
+}
+
+function matchesPreparedQuery(entry, prepared, visible) {
   if (!entry || entry.id === "root") return false
   if (!visible) return false
 
   var nameText = nameSearchText(entry)
-  var descriptionText = String(entry.description || "").toLowerCase()
-  var terms = String(query || "").toLowerCase().trim().split(/\s+/)
+  var descriptionWords = null
+  var terms = prepared.terms
 
   for (var i = 0; i < terms.length; i++) {
     if (!terms[i]) continue
     if (nameText.indexOf(terms[i]) >= 0) continue
-    if (termInSearchWords(terms[i], descriptionText)) continue
+    if (descriptionWords === null) descriptionWords = String(entry.description || "").toLowerCase().split(/\s+/)
+    if (descriptionWords.indexOf(terms[i]) >= 0) continue
     return false
   }
 
@@ -365,10 +379,12 @@ function matchesQuery(entry, query, visible) {
 }
 
 function searchScore(items, entry, query) {
-  var needle = String(query || "").toLowerCase().trim()
+  return preparedSearchScore(items, entry, prepareQuery(query))
+}
+
+function preparedSearchScore(items, entry, prepared) {
+  var needle = prepared.needle
   var label = entry.label.toLowerCase()
-  var nameText = nameSearchText(entry)
-  var descriptionText = String(entry.description || "").toLowerCase()
   var score = 80
 
   if (label === needle) score = entry.parent === "root" ? 2 : 0
@@ -377,8 +393,8 @@ function searchScore(items, entry, query) {
   else if (entry.kind === "app" && label.split(/\s+/).indexOf(needle) >= 0) score = 0
   else if (label.indexOf(needle) === 0) score = 10
   else if (label.indexOf(needle) >= 0) score = 30
-  else if (nameText.indexOf(needle) >= 0) score = 40
-  else if (descriptionTextMatches(needle, descriptionText)) score = 60
+  else if (nameSearchText(entry).indexOf(needle) >= 0) score = 40
+  else if (descriptionMatchesPrepared(prepared, entry.description)) score = 60
 
   if (entry.kind === "menu" || entry.kind === "link") score -= 2
   // App rows sort after all menu items, so they lose the tiebreak below to an
@@ -713,6 +729,9 @@ if (typeof module !== "undefined") {
     nameSearchText: nameSearchText,
     termInSearchWords: termInSearchWords,
     descriptionTextMatches: descriptionTextMatches,
+    prepareQuery: prepareQuery,
+    matchesPreparedQuery: matchesPreparedQuery,
+    preparedSearchScore: preparedSearchScore,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
     dmenuValue: dmenuValue,

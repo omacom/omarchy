@@ -720,6 +720,7 @@ Item {
     root.searchDivider = false
 
     if (query) {
+      var preparedQuery = MenuModel.prepareQuery(query)
       var currentRows = []
       var drilldownRows = []
 
@@ -727,10 +728,10 @@ Item {
         var entry = root.item(root.itemOrder[i])
         if (!entry || entry.id === "root") continue
         if (!root.isDescendantOf(entry.id, active)) continue
-        if (!root.matchesQuery(entry, query)) continue
+        if (!MenuModel.matchesPreparedQuery(entry, preparedQuery, root.isVisible(entry) && !root.isDisabled(entry))) continue
 
         var detail = root.parentPathFor(entry.id)
-        var row = root.displayRow(entry, detail, root.searchScore(entry, query))
+        var row = root.displayRow(entry, detail, MenuModel.preparedSearchScore(root.items, entry, preparedQuery))
         if (entry.parent === active) currentRows.push(row)
         else drilldownRows.push(row)
       }
