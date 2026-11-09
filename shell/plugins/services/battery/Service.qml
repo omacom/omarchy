@@ -4,6 +4,9 @@ import Quickshell.Io
 import Quickshell.Services.UPower
 import qs.Commons
 import "BatteryModel.js" as BatteryModel
+// The power panel draws the history; the service reads and keeps it, once
+// for every monitor's panel.
+import "../../panels/power/History.js" as History
 
 Item {
   id: root
@@ -21,6 +24,38 @@ Item {
   property bool powerProfileReadPending: false
   property int powerProfileSignals: 0
   property int powerProfileReadSignals: 0
+
+  // Battery history (omarchy-battery-history), read when a power panel asks
+  // for it: on opening and once a minute while one stays open. Nothing reads
+  // it while every panel is closed.
+  property var history: ({ charge: [], rate: [] })
+  property var historyTimeline: ({ segments: [], sleeps: [] })
+  property real historyNow: 0
+  property real historyReadAt: 0
+
+  function refreshHistory() {
+    // A second monitor's panel, or a reopen, within half a minute of the last
+    // read gets what is already here.
+    if (historyProcess.running || Date.now() - historyReadAt < 30000) return
+    historyProcess.running = true
+  }
+
+  function updateHistory(raw) {
+    historyReadAt = Date.now()
+    var now = Math.floor(historyReadAt / 1000)
+    var parsed = History.parseHistory(raw, now)
+    // Keep what we had if a read comes back empty.
+    if (parsed.charge.length === 0) return
+    historyNow = now
+    history = parsed
+    historyTimeline = History.timeline(parsed, now)
+  }
+
+  Process {
+    id: historyProcess
+    command: ["omarchy-battery-history"]
+    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateHistory(text) }
+  }
 
   PersistentProperties {
     id: persisted

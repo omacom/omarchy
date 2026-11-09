@@ -32,10 +32,12 @@ Panel {
   // icon-sized fraction of the slot the fallback assumes.
   readonly property real openPanelIndicatorWidth: showPercentage && !button.vertical ? button.glyphPaintedWidth : 0
   // ---------- Battery history ----------
-  // UPower's charge and rate history (omarchy-battery-history), drawn as a
-  // graph with the stretches on AC and asleep marked, plus the last charge,
-  // the last run on battery and the average drain. Read when the panel opens
-  // and once a minute while it stays open.
+  // UPower's charge and rate history, drawn as a graph with the stretches on
+  // AC and asleep marked, plus the last charge, the last run on battery and
+  // the average drain. The battery service reads and keeps it, once for every
+  // monitor; the panel asks it to refresh on opening and once a minute while
+  // open. Without the service (a clone gets none) there is no history section.
+  readonly property var batteryService: bar?.shell?.firstPartyServiceFor("omarchy.battery") ?? null
 
   readonly property var historyWindows: ({ "6h": 6 * 3600, "24h": 24 * 3600, "3d": 3 * 24 * 3600 })
   readonly property string historyWindow: {
@@ -43,9 +45,9 @@ Panel {
     return historyWindows[w] ? w : "24h"
   }
   readonly property real historySpan: historyWindows[historyWindow]
-  property var history: ({ charge: [], rate: [] })
-  property var historyTimeline: ({ segments: [], sleeps: [] })
-  property real historyNow: 0
+  readonly property var history: batteryService && batteryService.history ? batteryService.history : ({ charge: [], rate: [] })
+  readonly property var historyTimeline: batteryService && batteryService.historyTimeline ? batteryService.historyTimeline : ({ segments: [], sleeps: [] })
+  readonly property real historyNow: batteryService ? batteryService.historyNow : 0
   readonly property bool historyReady: history.charge.length > 0
   readonly property real historyStart: historyNow - historySpan
   readonly property var historyPoints: historyReady ? History.graphPoints(history.charge, historyStart, historyNow) : []
@@ -53,18 +55,8 @@ Panel {
   readonly property var lastBattery: historyReady ? History.lastSession(history, historyTimeline, "battery", historyNow) : null
   readonly property var drain: historyReady ? History.drainSince(history, historyTimeline, historyStart, historyNow) : null
 
-  function updateHistory(raw) {
-    var now = Math.floor(Date.now() / 1000)
-    var parsed = History.parseHistory(raw, now)
-    // Keep what we had if a read comes back empty.
-    if (parsed.charge.length === 0) return
-    historyNow = now
-    history = parsed
-    historyTimeline = History.timeline(parsed, now)
-  }
-
   function refreshHistory() {
-    if (!historyProc.running) historyProc.running = true
+    if (batteryService) batteryService.refreshHistory()
   }
 
   function setHistoryWindow(w) {
@@ -328,12 +320,6 @@ Panel {
     id: systemProc
     command: ["omarchy-system-stats"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateKeyValue(text, "system") }
-  }
-
-  Process {
-    id: historyProc
-    command: ["omarchy-battery-history"]
-    stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateHistory(text) }
   }
 
   Process {
