@@ -5,7 +5,16 @@
 # ssh (the real path); a local --listen server has none. Another account's
 # server captures its own desktop, not this one, so other users are skipped.
 
-for pid in $(pgrep -x -u "$(id -u)" gliff-server); do
-  peer=$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | sed -n 's/^SSH_CONNECTION=\([^ ]*\).*/\1/p')
+# Keep pgrep's user/name filtering, but parse procfs with shell builtins:
+# this probe also runs repeatedly while active, once per service (not monitor).
+for pid in $(pgrep -x -u "$UID" gliff-server); do
+  peer=""
+  while IFS= read -r -d '' entry; do
+    if [[ $entry == SSH_CONNECTION=* ]]; then
+      peer=${entry#SSH_CONNECTION=}
+      peer=${peer%% *}
+      break
+    fi
+  done 2>/dev/null <"/proc/$pid/environ"
   printf '%s %s\n' "$pid" "$peer"
 done
