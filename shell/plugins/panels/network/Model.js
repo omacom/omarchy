@@ -421,32 +421,70 @@ function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
   return reason === r.NoSecrets || reason === r.WifiAuthTimeout
 }
 
-// `nmcli -t` escapes a literal ':' inside a field as '\:'; split on the
-// unescaped separators and unescape each field afterwards.
+// `nmcli -t` escapes a literal '\' inside a field as '\\' and a literal ':' as
+// '\:'. Decoding '\\' before '\:' matters: a backslash that precedes a colon
+// must be read first, or the pair would look like the start of a colon escape.
+function decodeNmcliEscapes(value) {
+  var raw = String(value || "")
+  var out = ""
+  for (var i = 0; i < raw.length; i++) {
+    if (raw[i] === "\\") {
+      var next = raw[i + 1]
+      if (next === "\\") { out += "\\"; i++; continue }
+      if (next === ":") { out += ":"; i++; continue }
+    }
+    out += raw[i]
+  }
+  return out
+}
+
+// Splits one `nmcli -t` row on its unescaped ':' separators -- a colon preceded
+// by an even number of backslashes -- then decodes every field with
+// decodeNmcliEscapes, the same decoder the key/value parser uses.
 function splitNmcliFields(line) {
-  var fields = [], current = ""
+  var fields = [], current = "", backslashes = 0
   for (var i = 0; i < line.length; i++) {
     var ch = line[i]
-    if (ch === "\\" && line[i + 1] === ":") { current += ":"; i++; continue }
-    if (ch === ":") { fields.push(current); current = ""; continue }
+    if (ch === ":") {
+      if (backslashes % 2 === 0) {
+        fields.push(decodeNmcliEscapes(current))
+        current = ""
+      } else {
+        current += ch
+      }
+      backslashes = 0
+      continue
+    }
+    if (ch === "\\") { backslashes++; current += ch; continue }
+    backslashes = 0
     current += ch
   }
-  fields.push(current)
+  fields.push(decodeNmcliEscapes(current))
   return fields
 }
 
-// Reads `nmcli -t -f NAME,UUID,ACTIVE connection show`, one row per saved
-// profile. Names are user-controlled and can repeat, so the UUID is what the
-// callers key on, never the name.
+// Reads `nmcli -t -f NAME,UUID,ACTIVE,802-11-wireless.ssid connection show`,
+// one row per saved profile. Names are user-controlled and can repeat, so the
+// UUID is what the callers key on, never the name; the saved SSID is the field
+// that actually names the network a profile connects to.
 function parseNmcliConnections(output) {
   var lines = String(output || "").split("\n")
   var out = []
   for (var i = 0; i < lines.length; i++) {
     if (lines[i] === "") continue
     var f = splitNmcliFields(lines[i])
-    out.push({ name: f[0] || "", uuid: f[1] || "", active: (f[2] || "") === "yes" })
+    out.push({ name: f[0] || "", uuid: f[1] || "", active: (f[2] || "") === "yes", ssid: f[3] || "" })
   }
   return out
+}
+
+// A profile's network is its saved 802-11-wireless.ssid, not the user-editable
+// connection name. Match the SSID; a profile with none (legacy or non-Wi-Fi)
+// falls back to its name.
+function profileMatchesSsid(profile, ssid) {
+  if (!profile) return false
+  if (profile.ssid) return profile.ssid === ssid
+  return profile.name === ssid
 }
 
 // Several saved profiles can share one SSID (e.g. a WPA2 and a WPA3 copy), so a
@@ -456,7 +494,7 @@ function parseNmcliConnections(output) {
 function resolveProfile(profiles, ssid, connected) {
   var matches = []
   for (var i = 0; i < (profiles || []).length; i++) {
-    if (profiles[i] && profiles[i].name === ssid) matches.push(profiles[i])
+    if (profileMatchesSsid(profiles[i], ssid)) matches.push(profiles[i])
   }
   if (matches.length === 0) return { uuid: "", ambiguous: false }
   if (connected) {
@@ -466,6 +504,19 @@ function resolveProfile(profiles, ssid, connected) {
   }
   if (matches.length === 1) return { uuid: matches[0].uuid, ambiguous: false }
   return { uuid: matches[0].uuid, ambiguous: true }
+}
+
+// `nmcli -t -f UUID connection show --active` prints one bare UUID per line. The
+// save path re-reads it to confirm the profile it is about to cycle is still the
+// connection in use.
+function parseActiveUuids(output) {
+  var lines = String(output || "").split(/\r?\n/)
+  var out = []
+  for (var i = 0; i < lines.length; i++) {
+    var uuid = lines[i].trim()
+    if (uuid !== "") out.push(uuid)
+  }
+  return out
 }
 
 // The settings editor reads one saved profile back with
@@ -481,7 +532,7 @@ function parseNmcliProfile(output) {
     if (line === "") continue
     var idx = line.indexOf(":")
     if (idx === -1) continue
-    var value = line.substring(idx + 1)
+    var value = decodeNmcliEscapes(line.substring(idx + 1))
     out[line.substring(0, idx)] = value === "<hidden>" ? "" : value
   }
   return out
@@ -517,6 +568,29 @@ function editorDefaults(settings, security, securityEnum) {
   }
 }
 
+// Dotted-quad with every octet in 0-255. A shape-only test lets an impossible
+// address like 999.1.1.1 through to nmcli; this rejects each octet over 255.
+function isValidIPv4(value) {
+  var parts = String(value || "").split(".")
+  if (parts.length !== 4) return false
+  for (var i = 0; i < 4; i++) {
+    if (!/^\d{1,3}$/.test(parts[i])) return false
+    var octet = Number(parts[i])
+    if (octet < 0 || octet > 255) return false
+  }
+  return true
+}
+
+// CIDR host with a 0-32 prefix. The prefix bounded here is what keeps
+// 10.0.0.1/33 and 999.1.1.1/99 from writing a broken profile.
+function isValidCidr(value) {
+  var parts = String(value || "").split("/")
+  if (parts.length !== 2) return false
+  if (!/^\d{1,2}$/.test(parts[1])) return false
+  var prefix = Number(parts[1])
+  return isValidIPv4(parts[0]) && prefix >= 0 && prefix <= 32
+}
+
 // Manual IPv4 needs an address with a prefix, and a gateway only when one is
 // given. Priority has to be a whole number of 0 or more because nmcli rejects
 // anything else. `error` is the message the editor shows under the field;
@@ -530,10 +604,10 @@ function validateEditor(form, tr) {
     return { ok: false, error: t("network.priorityInvalid", "Priority must be a whole number of 0 or more.") }
   }
   if (f.ipv4Method === "manual") {
-    if (!/^\d+\.\d+\.\d+\.\d+\/\d+$/.test(String(f.address || ""))) {
+    if (!isValidCidr(f.address)) {
       return { ok: false, error: t("network.addressInvalid", "Enter an address with a prefix, like 10.0.0.5/24.") }
     }
-    if (f.gateway && !/^\d+\.\d+\.\d+\.\d+$/.test(String(f.gateway))) {
+    if (f.gateway && !isValidIPv4(f.gateway)) {
       return { ok: false, error: t("network.gatewayInvalid", "Enter a valid gateway address.") }
     }
   }
@@ -646,7 +720,9 @@ if (typeof module !== "undefined") {
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
     parseNmcliConnections: parseNmcliConnections,
+    profileMatchesSsid: profileMatchesSsid,
     resolveProfile: resolveProfile,
+    parseActiveUuids: parseActiveUuids,
     parseNmcliProfile: parseNmcliProfile,
     editorDefaults: editorDefaults,
     validateEditor: validateEditor,

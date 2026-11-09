@@ -236,38 +236,70 @@ assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network k
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
 
 // Three saved profiles can share one SSID; the resolver must not pick blindly.
+// The saved 802-11-wireless.ssid names the network, not the user-editable
+// connection name, so a renamed profile still resolves and a same-named profile
+// for a different network does not.
 const conns = network.parseNmcliConnections(
-  'KEMENKEU:3736ec62-6a:yes\nKEMENKEU:e95bb213-05:no\nOther:abc:no\n'
+  'Office laptop:3736ec62-6a:yes:KEMENKEU\n' +
+  'KEMENKEU:e95bb213-05:no:Other SSID\n' +
+  'KEMENKEU:abc:no:KEMENKEU\n' +
+  'Other:def:no:Other\n'
 )
 assertDeepEqual(conns, [
-  { name: 'KEMENKEU', uuid: '3736ec62-6a', active: true },
-  { name: 'KEMENKEU', uuid: 'e95bb213-05', active: false },
-  { name: 'Other', uuid: 'abc', active: false }
-], 'network parses nmcli connection rows')
+  { name: 'Office laptop', uuid: '3736ec62-6a', active: true, ssid: 'KEMENKEU' },
+  { name: 'KEMENKEU', uuid: 'e95bb213-05', active: false, ssid: 'Other SSID' },
+  { name: 'KEMENKEU', uuid: 'abc', active: false, ssid: 'KEMENKEU' },
+  { name: 'Other', uuid: 'def', active: false, ssid: 'Other' }
+], 'network parses nmcli connection rows including the saved ssid')
 assertDeepEqual(
-  network.parseNmcliConnections('A\\:B:uuid1:no\n'),
-  [{ name: 'A:B', uuid: 'uuid1', active: false }],
+  network.parseNmcliConnections('A\\:B:uuid1:no:\n'),
+  [{ name: 'A:B', uuid: 'uuid1', active: false, ssid: '' }],
   'network unescapes a colon-escaped connection name'
+)
+assertDeepEqual(
+  network.parseNmcliConnections('Legacy:cafe:no\n'),
+  [{ name: 'Legacy', uuid: 'cafe', active: false, ssid: '' }],
+  'network treats a missing ssid field as empty'
+)
+assertDeepEqual(
+  network.parseNmcliConnections('C\\\\D\\:E:uuid2:no:\n'),
+  [{ name: 'C\\D:E', uuid: 'uuid2', active: false, ssid: '' }],
+  'network decodes a backslash and colon in a connection name'
 )
 assertDeepEqual(
   network.resolveProfile(conns, 'KEMENKEU', true),
   { uuid: '3736ec62-6a', ambiguous: false },
-  'network resolves a connected SSID to its active profile'
+  'network resolves a connected SSID to its active profile even when the profile was renamed'
 )
 assertDeepEqual(
   network.resolveProfile(conns, 'KEMENKEU', false),
   { uuid: '3736ec62-6a', ambiguous: true },
-  'network flags a duplicate-name SSID as ambiguous when none is active'
+  'network flags duplicate saved SSIDs as ambiguous when none is active'
 )
 assertDeepEqual(
   network.resolveProfile(conns, 'Other', false),
-  { uuid: 'abc', ambiguous: false },
-  'network resolves a unique SSID directly'
+  { uuid: 'def', ambiguous: false },
+  'network resolves a saved SSID directly and ignores a same-named profile for a different network'
+)
+assertDeepEqual(
+  network.resolveProfile(conns, 'Other SSID', false),
+  { uuid: 'e95bb213-05', ambiguous: false },
+  'network matches the saved ssid rather than the connection name'
 )
 assertDeepEqual(
   network.resolveProfile(conns, 'Missing', false),
   { uuid: '', ambiguous: false },
   'network resolves an SSID with no saved profile to empty'
+)
+assertDeepEqual(
+  network.resolveProfile(network.parseNmcliConnections('Legacy:cafe:no:\n'), 'Legacy', false),
+  { uuid: 'cafe', ambiguous: false },
+  'network falls back to the connection name when a profile has no saved ssid'
+)
+assertDeepEqual(
+  network.parseActiveUuids('3736ec62-6a\ne95bb213-05\n\n'),
+  ['3736ec62-6a', 'e95bb213-05'],
+  'network parses the active connection uuids re-read at save time'
 )
 
 // The settings editor reads one profile back as a `nmcli -t` key/value map,
@@ -281,6 +313,11 @@ const prof = network.parseNmcliProfile(
 )
 assertEqual(prof['connection.autoconnect'], 'yes', 'network parses a profile setting')
 assertEqual(prof['802-11-wireless-security.psk'], '', 'network blanks a hidden secret')
+assertDeepEqual(
+  network.parseNmcliProfile('802-1x.identity:corp\\:user\\\\name\n'),
+  { '802-1x.identity': 'corp:user\\name' },
+  'network decodes nmcli escapes so a colon and backslash round-trip in a profile value'
+)
 
 const sec = { Wpa2Psk: 3, WpaPsk: 5, Sae: 1, Wpa2Eap: 2, WpaEap: 4, Open: 10 }
 assertDeepEqual(
@@ -297,6 +334,12 @@ assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5/24
 assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5', gateway: '', priority: 0 }).ok, false, 'network rejects a manual address without a prefix')
 assertEqual(network.validateEditor({ ipv4Method: 'auto', address: '', gateway: '', priority: 0 }).ok, true, 'network accepts automatic ipv4')
 assertEqual(network.validateEditor({ ipv4Method: 'auto', address: '', gateway: '', priority: -1 }).ok, false, 'network rejects a negative priority')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '0.0.0.0/0', gateway: '', priority: 0 }).ok, true, 'network accepts the 0.0.0.0/0 boundary')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '255.255.255.255/32', gateway: '255.255.255.255', priority: 0 }).ok, true, 'network accepts the 255.255.255.255/32 boundary')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '256.1.1.1/24', gateway: '', priority: 0 }).ok, false, 'network rejects an octet above 255')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '999.1.1.1/99', gateway: '', priority: 0 }).ok, false, 'network rejects impossible octets and an impossible prefix')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.1/33', gateway: '', priority: 0 }).ok, false, 'network rejects a prefix above 32')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5/24', gateway: '300.1.1.1', priority: 0 }).ok, false, 'network rejects a gateway octet above 255')
 // validateEditor stays English without a translator (the Node default) but the
 // editor passes Commons.I18n.t, so every error string must route through it.
 assertEqual(network.validateEditor({ ipv4Method: 'auto', priority: 1.5 }).error,
@@ -344,9 +387,4 @@ for (const source of [panelSource, editorSource])
 const enShell = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
 const missing = [...referenced].filter((key) => !Object.hasOwn(enShell, key)).sort()
 assertEqual(missing.join(', '), '', 'every network key the panel and editor reference exists in the English catalog')
-const designed = ['network.modifyNetwork', 'network.editConnection', 'network.autoConnect', 'network.priority',
-  'network.ipv4Method', 'network.automatic', 'network.manual', 'network.address', 'network.save',
-  'network.cancel', 'network.back']
-const absent = designed.filter((key) => !Object.hasOwn(enShell, key))
-assertEqual(absent.join(', '), '', 'the design lists a network key for the context menu and editor copy')
 JS

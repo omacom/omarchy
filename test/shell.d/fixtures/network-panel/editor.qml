@@ -19,6 +19,8 @@ import "network" as Network
 //      UUID opens the editor for that UUID.
 //   6. a WPA2-Enterprise profile shows an editable password field that writes
 //      802-1x.password over stdin (never argv), alongside its 802-1x.identity.
+//   7. switching networks before Save does not reconnect the profile the editor
+//      opened on: Save re-reads the active connection and skips the reconnect.
 //
 // The nmcli stub logs every invocation and, for `connection edit`, the stdin it
 // read, to separate files; the fixture reads them back so the assertions are on
@@ -28,7 +30,9 @@ ShellRoot {
   property bool failed: false
   readonly property string nmcliLog: Quickshell.env("NETWORK_TEST_NMCLI_LOG")
   readonly property string nmcliStdinLog: Quickshell.env("NETWORK_TEST_NMCLI_STDIN_LOG")
+  readonly property string activeFile: Quickshell.env("NETWORK_TEST_ACTIVE_FILE")
   readonly property string uuid: "11111111-1111-1111-1111-111111111111"
+  readonly property string otherUuid: "99999999-9999-9999-9999-999999999999"
   readonly property string ambigUuid: "44444444-4444-4444-4444-444444444444"
   readonly property string eapUuid: "55555555-5555-5555-5555-555555555555"
   readonly property string secret: "s3cr3t pass"
@@ -52,6 +56,14 @@ ShellRoot {
     var n = 0
     for (var i = 0; i < lines.length; i++) {
       if (lines[i].indexOf(prefix) === 0) n++
+    }
+    return n
+  }
+
+  function countContaining(lines, needle) {
+    var n = 0
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].indexOf(needle) !== -1) n++
     }
     return n
   }
@@ -306,6 +318,43 @@ ShellRoot {
       "the ipv4 modify carries only the changed keys")
     check(countPrefix(lines, "connection up") === 2, "an ipv4 change on the active profile reconnects")
     if (failed) { finish(); return }
+    openEditor("KEMENKEU", prepSwitch)
+  }
+
+  // ---------- Phase 3b: switching networks before Save skips the reconnect ----------
+
+  function prepSwitch() {
+    check(panel.editorActive === true, "the connected profile is captured as active when the editor opens")
+    if (failed) { finish(); return }
+    // Report a different active connection, then make an ipv4 change so a
+    // reconnect would otherwise be queued.
+    activeSwitchProc.running = true
+  }
+
+  Process {
+    id: activeSwitchProc
+    command: ["bash", "-c", "printf '%s\\n' \"$1\" > \"$2\"", "switch", test.otherUuid, test.activeFile]
+    onExited: test.continueSwitch()
+  }
+
+  function continueSwitch() {
+    var editor = panel.testEditor
+    editor.update("ipv4Method", "manual")
+    editor.update("address", "10.0.0.5/24")
+    if (failed) { finish(); return }
+    editor.submit()
+    afterSave(readSwitchLog)
+  }
+
+  function readSwitchLog() {
+    stage = "switch"
+    logProc.running = true
+  }
+
+  function checkSwitch(lines) {
+    check(countContaining(lines, "connection show --active") === 3, "Save re-reads the active connection before reconnecting")
+    check(countPrefix(lines, "connection up") === 2, "switching away before Save does not reconnect the edited profile")
+    if (failed) { finish(); return }
     openEditor("AMBIG", checkPicker)
   }
 
@@ -422,6 +471,7 @@ ShellRoot {
         else if (test.stage === "noop") test.checkNoop(lines)
         else if (test.stage === "passphrase") test.checkPassphrase(lines)
         else if (test.stage === "ipv4") test.checkIpv4(lines)
+        else if (test.stage === "switch") test.checkSwitch(lines)
         else if (test.stage === "eap") test.checkEapArgv(lines)
       }
     }

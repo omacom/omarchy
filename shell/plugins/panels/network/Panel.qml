@@ -1027,14 +1027,14 @@ Panel {
     editorChoices = []
     editorOpen = true
     editorBusy = true
-    connectionListProc.command = ["nmcli", "-t", "-f", "NAME,UUID,ACTIVE", "connection", "show"]
+    connectionListProc.command = ["nmcli", "-t", "-f", "NAME,UUID,ACTIVE,802-11-wireless.ssid", "connection", "show"]
     connectionListProc.running = true
   }
 
   function editorMatches(profiles) {
     var matches = []
     for (var i = 0; i < profiles.length; i++) {
-      if (profiles[i].name === editingSsid) matches.push(profiles[i])
+      if (Model.profileMatchesSsid(profiles[i], editingSsid)) matches.push(profiles[i])
     }
     return matches
   }
@@ -1159,10 +1159,16 @@ Panel {
     // A network-layer change only takes effect on the next activation, and a
     // changed passphrase is one: the secret is written into the profile by
     // `connection edit` without activating it, so the live link keeps running on
-    // the old key until it is cycled. Reapply the active profile for either.
+    // the old key until it is cycled. Reapply only if the edited profile was the
+    // active one when the editor opened; the reconnect step re-checks that at
+    // save time.
     var secretQueued = secretLines !== ""
     if ((Model.needsReapply(before, form) || secretQueued) && editorActive) {
-      steps.push({ command: ["nmcli", "connection", "up", "uuid", editingUuid], secret: "" })
+      // `editorActive` was captured when the editor opened. The user (or
+      // NetworkManager, after a drop) may have switched networks since, so queue
+      // a guard step that re-reads the active profile before any `connection up`;
+      // reconnecting the old profile would replace the current connection.
+      steps.push({ reconnect: true })
     }
 
     editorSteps = steps
@@ -1183,6 +1189,10 @@ Panel {
       return
     }
     var step = editorSteps.shift()
+    if (step.reconnect) {
+      activeProc.running = true
+      return
+    }
     if (step.secret !== "") {
       editorSecret.secret = step.secret
       editorSecret.command = step.command
@@ -1191,6 +1201,20 @@ Panel {
       editorProc.command = step.command
       editorProc.running = true
     }
+  }
+
+  // Confirms the edited profile is still the active connection before cycling
+  // it. A stale `editorActive` flag must never reconnect a profile the user
+  // switched away from.
+  function finishActiveCheck(exitCode, raw) {
+    if (!editorOpen) {
+      editorSteps = []
+      return
+    }
+    if (exitCode === 0 && Model.parseActiveUuids(raw).indexOf(editingUuid) !== -1) {
+      editorSteps.unshift({ command: ["nmcli", "connection", "up", "uuid", editingUuid], secret: "" })
+    }
+    runEditorStep()
   }
 
   function finishEditorStep(exitCode) {
@@ -1253,6 +1277,16 @@ Panel {
       secret = ""
     }
     onExited: function(exitCode) { root.finishEditorStep(exitCode) }
+  }
+
+  // Re-reads the active connection's UUID at save time, so a queued `connection
+  // up` only cycles the profile that is still in use.
+  Process {
+    id: activeProc
+    command: ["nmcli", "-t", "-f", "UUID", "connection", "show", "--active"]
+    stdout: StdioCollector { id: activeOut; waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) { root.finishActiveCheck(exitCode, activeOut.text) }
   }
 
   implicitWidth: button.implicitWidth
