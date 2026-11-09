@@ -390,15 +390,19 @@ class FireworksClient:
     return [round(cost, 4) for cost in days]
 
 
-# A Money object's amount; anything unreadable is nothing.
+# A Money object's amount. Proto3 JSON leaves out a zero part, so a missing
+# one is zero; anything else unreadable fails the check rather than costing 0.
 def money(value: Any) -> float:
-  if not isinstance(value, dict):
-    return 0.0
   try:
-    amount = float(value.get("units") or 0) + float(value.get("nanos") or 0) / 1e9
-  except (TypeError, ValueError):
-    return 0.0
-  return amount if math.isfinite(amount) and amount > 0 else 0.0
+    units, nanos = (value.get(part) or 0 for part in ("units", "nanos"))
+    if isinstance(units, bool) or isinstance(nanos, bool):
+      raise ValueError
+    amount = float(units) + float(nanos) / 1e9
+  except (AttributeError, TypeError, ValueError):
+    amount = math.nan
+  if not math.isfinite(amount):
+    raise FireworksError("Fireworks returned an unreadable cost")
+  return max(0.0, amount)
 
 
 def tier_label(account: dict[str, Any]) -> str:

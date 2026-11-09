@@ -937,8 +937,9 @@ Panel {
 
   // ------------------------------------------------------------------ spend
   //
-  // Pay-as-you-go agents report what the account spent this month, and the
-  // monthly cap when its tier sets one. A cap fills like a limit window.
+  // Pay-as-you-go agents report what the account spent over the last 30
+  // days, or this month against the cap when its tier sets one, which fills
+  // like a limit window.
 
   function spendAlarming(s) {
     return !!s && s.cap > 0 && s.amount / s.cap >= 0.9

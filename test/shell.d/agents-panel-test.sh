@@ -39,6 +39,7 @@ const historyOnly = { limits: [], accounts: [], balance: null, tierLabel: '', to
 assertEqual(subscribed(historyOnly), false, 'an agent with only local history gets no section')
 assertEqual(subscribed({ ...historyOnly, tierLabel: 'X Premium+' }), true, 'a plan earns a section before its limits arrive')
 assertEqual(subscribed({ ...historyOnly, limits: [{ label: 'Weekly', percent: 0.04 }] }), true, 'kept limits earn a section')
+assertEqual(subscribed({ ...historyOnly, spend: { amount: 1.25, days: [] } }), true, 'spend alone earns a section')
 
 // A reworded collector line would silently fall back to English, so every
 // fixed help line the collectors cache must still be one the panel maps.

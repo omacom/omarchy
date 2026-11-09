@@ -51,7 +51,6 @@ from collectors import (  # noqa: E402
   cached_scan,
   config_home,
   data_home,
-  dollars,
   SPEND_DAYS,
   dsh_home,
   emit,
@@ -213,7 +212,7 @@ def summarize_activity(items: list[Any], today: datetime) -> dict[str, Any]:
       continue
     day = activity_day(raw.get("date"))
     if day in spend_costs:
-      spend_costs[day] += dollars(raw.get("usage"))
+      spend_costs[day] += max(0.0, dollars(raw.get("usage")) or 0.0)
     model = model_name(str(raw.get("model_permaslug") or raw.get("model") or ""))
     prompt = number(raw.get("prompt_tokens"))
     # Reasoning is part of the completion count, as in OpenRouter's usage

@@ -399,8 +399,9 @@ Item {
     }
   }
 
-  // A pay-as-you-go agent's spend this month, against the monthly cap when
-  // the account has one. Per-account, like the balance.
+  // A pay-as-you-go agent's spend over the last 30 days, or this month's
+  // against the monthly cap when the account has one. Per-account, like
+  // the balance.
   function spendValue(raw) {
     if (!raw || typeof raw !== "object") return null
     var amount = Number(raw.amount)
