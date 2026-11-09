@@ -817,6 +817,33 @@ bar_config_after=$(scratch_ipc shell listShellConfig | jq -c '.bar')
 
 pass "replacement-bar service and configuration boundaries hold at runtime"
 
+# Going back to the stock bar must leave it as the shell's bar, so config
+# changes still reach it. The departing replacement bar must not clear it.
+scratch_bar() {
+  HOME="$SCRATCH_HOME" OMARCHY_PATH="$SCRATCH_ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-bar" "$@" >/dev/null
+}
+scratch_bar reset
+scratch_bar position left
+left='length > 0 and all(.[] | select(.visible); .x < 100)'
+geometry=""
+for _ in {1..80}; do
+  geometry=$(scratch_ipc shell debugBarGeometry 2>/dev/null || true)
+  jq -e "$left" <<<"$geometry" >/dev/null 2>&1 && break
+  sleep 0.1
+done
+jq -e "$left" <<<"$geometry" >/dev/null || {
+  printf 'Stock bar geometry after moving it left: %s\n' "$geometry" >&2
+  fail_with_log "the stock bar takes config changes after a replacement bar"
+}
+scratch_bar position top
+pass "the stock bar takes config changes after a replacement bar"
+
+scratch_bar use "$review_bar_id"
+for _ in {1..80}; do
+  jq -e . <<<"$(scratch_ipc acme-review-capability probe 2>/dev/null || true)" >/dev/null 2>&1 && break
+  sleep 0.1
+done
+
 capability_before=$(scratch_ipc acme-review-capability probe)
 jq -e '.currentAllowed == true and .retainedAllowed == true' \
   <<<"$capability_before" >/dev/null ||
