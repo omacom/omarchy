@@ -118,11 +118,14 @@ Column {
   }
 
   // Escape returns to the network list without saving. One path both the Keys
-  // handler above and the fixture drive.
+  // handler above and the fixture drive. While a save is walking its steps the
+  // Cancel button is disabled, and Escape mirrors that gate: it is swallowed
+  // rather than discarding the writes still in flight.
   function handleKey(event) {
     if (!event || event.key !== Qt.Key_Escape) return false
-    root.cancel()
     event.accepted = true
+    if (root.busy) return true
+    root.cancel()
     return true
   }
 

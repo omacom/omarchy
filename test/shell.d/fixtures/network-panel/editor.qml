@@ -24,6 +24,10 @@ import "network" as Network
 //   8. the editor is reachable without a pointer: Save, Cancel and the picker's
 //      choices are focusable, the auto-connect row is keyboard-activatable, and
 //      Escape returns to the list without saving.
+//   9. Escape during a busy save is swallowed like the disabled Cancel button,
+//      so a half-run save is never discarded from the keyboard.
+//  10. a write callback from a cancelled session is dropped, so it cannot close
+//      or mutate an editor opened afterwards.
 //
 // The nmcli stub logs every invocation and, for `connection edit`, the stdin it
 // read, to separate files; the fixture reads them back so the assertions are on
@@ -476,7 +480,70 @@ ShellRoot {
     check(escape.accepted === true, "Escape is accepted")
     check(panel.editorOpen === false, "Escape closes the editor")
     check(panel.editingSsid === "", "Escape cancels without keeping the ssid")
-    finish()
+    if (failed) { finish(); return }
+    openEditor("KEMENKEU", busyEscapeIgnored)
+  }
+
+  // ---------- Phase 8: Escape during a busy save is ignored ----------
+
+  function busyEscapeIgnored() {
+    var editor = panel.testEditor
+    check(editor.busy === false, "the editor is idle before Save")
+    if (failed) { finish(); return }
+    // submit() sets busy synchronously while the first write is still in flight,
+    // so Escape in the same turn must be swallowed, exactly as the disabled
+    // Cancel button is.
+    editor.update("autoConnect", false)
+    editor.submit()
+    check(editor.busy === true, "Save leaves the editor busy while its writes run")
+    var escape = { key: Qt.Key_Escape, text: "", modifiers: 0, accepted: false }
+    check(editor.handleKey(escape) === true, "a busy editor still consumes Escape")
+    check(panel.editorOpen === true, "Escape during a busy save does not close the editor")
+    check(panel.editorBusy === true, "the save is not discarded mid-flight")
+    if (failed) { finish(); return }
+    afterSave(checkBusyRecovered)
+  }
+
+  function checkBusyRecovered() {
+    check(panel.editorOpen === false, "the save still completes after the ignored Escape")
+    if (failed) { finish(); return }
+    openEditor("KEMENKEU", staleSessionSetup)
+  }
+
+  // ---------- Phase 9: a callback from a cancelled session is dropped ----------
+
+  function staleSessionSetup() {
+    var editor = panel.testEditor
+    // Start a save so a write is in flight, then cancel the editor directly --
+    // out of band, past the UI gate -- to reproduce the old bug: the still
+    // running write's callback must not be able to close or mutate an editor
+    // opened afterwards.
+    editor.update("autoConnect", false)
+    editor.submit()
+    check(panel.editorOpen === true, "the editor is open when the write starts")
+    panel.cancelEditor()
+    check(panel.editorOpen === false, "an out-of-band cancel closes the editor")
+    openEditor("AMBIG", staleSessionCheck)
+  }
+
+  function staleSessionCheck() {
+    check(panel.editorPicking === true, "a new editor opens while the old write is still pending")
+    check(panel.editorOpen === true, "the new editor stays open")
+    if (failed) { finish(); return }
+    // Give the stale callback its chance to run, then confirm it left the new
+    // editor untouched and usable.
+    staleWait.restart()
+  }
+
+  Timer {
+    id: staleWait
+    interval: 250
+    onTriggered: {
+      check(panel.editorOpen === true, "a stale callback does not close the newly opened editor")
+      check(panel.editorPicking === true, "a stale callback does not disturb the new editor's state")
+      check(panel.editingUuid === "", "a stale callback does not resolve the new editor's uuid")
+      finish()
+    }
   }
 
   // Locates the passphrase TextField by the objectName the staging adds, so the

@@ -65,33 +65,57 @@ JS
   # SSID and addresses never leak in.
   printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type\\twifi\\niface\\ttest-wifi\\nssid\\tGuest Wi-Fi\\nip\\t192.0.2.10\\ngateway\\t192.0.2.1\\n"\nfi\n' >"$stage/bin/omarchy-network-status"
   chmod +x "$stage/bin/omarchy-network-status"
-  # nmcli stub: a connection list with a connected KEMENKEU beside a duplicate,
-  # two same-named AMBIG profiles with neither active, the settings read back for
-  # a profile, and a log of every invocation. `connection show --active` reads
-  # the active UUID from a file the fixture rewrites to simulate a network switch
-  # before Save. `connection edit` writes its stdin to a separate log so a secret
-  # written over stdin can be told apart from argv; modify/edit only log, so no
-  # real NetworkManager is touched.
+  # nmcli stub shaped like the real tool: `connection show` (the list form)
+  # rejects setting fields, so it answers a list read only for the allowed
+  # NAME,UUID,TYPE,ACTIVE,DEVICE set and errors on anything containing a setting
+  # field like 802-11-wireless.ssid. The SSID is then read per profile with the
+  # selector form `connection show uuid <uuid>`. `connection show --active`
+  # reads the active UUID from a file the fixture rewrites to simulate a network
+  # switch before Save. `connection edit` writes its stdin to a separate log so
+  # a secret written over stdin can be told apart from argv; modify/edit only
+  # log, so no real NetworkManager is touched.
   cat >"$stage/bin/nmcli" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >> "$NETWORK_TEST_NMCLI_LOG"
 if [[ ${1:-} == "-t" ]]; then
-  if [[ $* == *"--active"* ]]; then
+  args="$*"
+  if [[ $args == *"--active"* ]]; then
     cat "$NETWORK_TEST_ACTIVE_FILE"
-  elif [[ $* == *"NAME,UUID,ACTIVE"* ]]; then
-    printf 'KEMENKEU:11111111-1111-1111-1111-111111111111:yes:KEMENKEU\n'
-    printf 'KEMENKEU:22222222-2222-2222-2222-222222222222:no:KEMENKEU\n'
-    printf 'AMBIG:33333333-3333-3333-3333-333333333333:no:AMBIG\n'
-    printf 'AMBIG:44444444-4444-4444-4444-444444444444:no:AMBIG\n'
-    printf 'CORP:55555555-5555-5555-5555-555555555555:no:CORP\n'
-  else
-    printf 'connection.autoconnect:yes\n'
-    printf 'connection.autoconnect-priority:0\n'
-    printf 'connection.metered:unknown\n'
-    printf 'ipv4.method:auto\n'
-    printf 'ipv4.addresses:\n'
-    printf 'ipv4.gateway:\n'
-    printf '802-1x.identity:\n'
+  elif [[ $args == *"connection show" && $args != *"connection show uuid "* ]]; then
+    # List form: only the connection-list fields are valid. A setting field such
+    # as 802-11-wireless.ssid is rejected the way the real tool rejects it, so a
+    # regression to the old single-step read fails loudly here.
+    if [[ $args == *"NAME,UUID,TYPE,ACTIVE,DEVICE"* ]]; then
+      printf 'KEMENKEU:11111111-1111-1111-1111-111111111111:802-11-wireless:yes:wlo1\n'
+      printf 'KEMENKEU:22222222-2222-2222-2222-222222222222:802-11-wireless:no:\n'
+      printf 'AMBIG:33333333-3333-3333-3333-333333333333:802-11-wireless:no:\n'
+      printf 'AMBIG:44444444-4444-4444-4444-444444444444:802-11-wireless:no:\n'
+      printf 'CORP:55555555-5555-5555-5555-555555555555:802-11-wireless:no:\n'
+    else
+      printf "Error: invalid field '802-11-wireless.ssid'; allowed fields: NAME,UUID,TYPE,TIMESTAMP,AUTOCONNECT,AUTOCONNECT-PRIORITY,READONLY,DBUS-PATH,ACTIVE,DEVICE,STATE,ACTIVE-PATH,PORT,FILENAME\n" >&2
+      exit 2
+    fi
+  elif [[ $args == *"connection show uuid "* ]]; then
+    uuid="${args##*uuid }"
+    if [[ $args == *"802-11-wireless.ssid"* ]]; then
+      # Selector form: answer with the requested profile's saved ssid.
+      case "$uuid" in
+        11111111-1111-1111-1111-111111111111) printf '802-11-wireless.ssid:KEMENKEU\n' ;;
+        22222222-2222-2222-2222-222222222222) printf '802-11-wireless.ssid:KEMENKEU\n' ;;
+        33333333-3333-3333-3333-333333333333) printf '802-11-wireless.ssid:AMBIG\n' ;;
+        44444444-4444-4444-4444-444444444444) printf '802-11-wireless.ssid:AMBIG\n' ;;
+        55555555-5555-5555-5555-555555555555) printf '802-11-wireless.ssid:CORP\n' ;;
+        *) printf '802-11-wireless.ssid:\n' ;;
+      esac
+    else
+      printf 'connection.autoconnect:yes\n'
+      printf 'connection.autoconnect-priority:0\n'
+      printf 'connection.metered:unknown\n'
+      printf 'ipv4.method:auto\n'
+      printf 'ipv4.addresses:\n'
+      printf 'ipv4.gateway:\n'
+      printf '802-1x.identity:\n'
+    fi
   fi
 fi
 if [[ ${2:-} == "edit" ]]; then
@@ -122,4 +146,18 @@ run_panel() {
 
 stage_panel editor
 run_panel
-pass "network editor prefills a saved profile, saves only the changed key by uuid, sends a passphrase over stdin, reconnects the active profile, picks among duplicate profiles, edits an EAP password over stdin, and stays keyboard reachable (Save/Cancel/picker focusable, auto-connect activatable, Escape closes)"
+
+# The connection list must use only the fields nmcli's list form allows (the
+# real tool and the stub both reject a setting field such as
+# 802-11-wireless.ssid), and each Wi-Fi profile's saved SSID must be read
+# separately with the selector form.
+nmcli_log=$(cat "$stage/nmcli.log")
+if rg -q -- '-f [^ ]*802-11-wireless\.ssid[^ ]* +connection +show$' <<<"$nmcli_log"; then
+  fail "editor never asks the nmcli connection list for a setting field" "$nmcli_log"
+fi
+rg -q -- '-t -f NAME,UUID,TYPE,ACTIVE,DEVICE connection show$' <<<"$nmcli_log" \
+  || fail "editor lists connections with only the nmcli list fields" "$nmcli_log"
+rg -q -- '-t -f 802-11-wireless.ssid connection show uuid ' <<<"$nmcli_log" \
+  || fail "editor reads each Wi-Fi profile's saved ssid with the selector form" "$nmcli_log"
+
+pass "network editor prefills a saved profile, saves only the changed key by uuid, sends a passphrase over stdin, reconnects the active profile, picks among duplicate profiles, edits an EAP password over stdin, lists connections with only valid list fields and reads each ssid by uuid, stays keyboard reachable (Save/Cancel/picker focusable, auto-connect activatable, Escape closes), ignores Escape during a busy save, and drops a callback from a cancelled session"

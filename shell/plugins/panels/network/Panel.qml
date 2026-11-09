@@ -158,6 +158,15 @@ Panel {
   property bool editorActive: false
   property bool editorEnterprise: false
   property var editorSteps: []
+  // Monotonic id for the current edit session. Every editor process records the
+  // session it started in and drops its result when the id no longer matches, so
+  // a slow read or a queued write from an editor the user left can never mutate
+  // or close one opened afterwards. openEditor() and cancelEditor() both bump it.
+  property int editorSession: 0
+  // The saved profiles being resolved, and the cursor into them while their
+  // SSIDs are read back one at a time (the list form cannot return the SSID).
+  property var editorProfiles: []
+  property int editorSsidIndex: -1
   // Profile picker (R1 case 3): more than one saved profile shares the SSID and
   // none is active, so the user chooses before the form is read.
   property bool editorPicking: false
@@ -1016,6 +1025,7 @@ Panel {
   // goes through the UUID (the SSID can name several profiles).
   function openEditor(ssid) {
     if (ssid === "" || editorBusy) return
+    editorSession++
     editingSsid = ssid
     editingUuid = ""
     editorFields = null
@@ -1023,11 +1033,14 @@ Panel {
     editorActive = false
     editorEnterprise = false
     editorSteps = []
+    editorProfiles = []
+    editorSsidIndex = -1
     editorPicking = false
     editorChoices = []
     editorOpen = true
     editorBusy = true
-    connectionListProc.command = ["nmcli", "-t", "-f", "NAME,UUID,ACTIVE,802-11-wireless.ssid", "connection", "show"]
+    connectionListProc.session = editorSession
+    connectionListProc.command = ["nmcli", "-t", "-f", "NAME,UUID,TYPE,ACTIVE,DEVICE", "connection", "show"]
     connectionListProc.running = true
   }
 
@@ -1041,7 +1054,50 @@ Panel {
 
   function finishConnectionList(raw) {
     if (!editorOpen) return
-    var profiles = Model.parseNmcliConnections(raw)
+    editorProfiles = Model.parseNmcliConnections(raw)
+    editorSsidIndex = 0
+    readNextEditorSsid()
+  }
+
+  // The connection list cannot carry the SSID (`connection show` rejects setting
+  // fields), so each Wi-Fi profile's saved SSID is read back by UUID, one at a
+  // time. A handful of profiles at most, so a small sequential walk is enough.
+  function readNextEditorSsid() {
+    if (!editorOpen) return
+    while (editorSsidIndex < editorProfiles.length
+        && editorProfiles[editorSsidIndex].type !== "802-11-wireless") {
+      editorSsidIndex++
+    }
+    if (editorSsidIndex >= editorProfiles.length) {
+      finishEditorResolution()
+      return
+    }
+    var profile = editorProfiles[editorSsidIndex]
+    if (profile.uuid === "") {
+      editorSsidIndex++
+      readNextEditorSsid()
+      return
+    }
+    ssidProc.session = editorSession
+    ssidProc.command = ["nmcli", "-t", "-f", "802-11-wireless.ssid", "connection", "show", "uuid", profile.uuid]
+    ssidProc.running = true
+  }
+
+  function finishEditorSsid(raw) {
+    if (!editorOpen) return
+    if (editorSsidIndex < editorProfiles.length) {
+      // A profile whose SSID cannot be read keeps it empty and falls back to its
+      // name, the same as a legacy profile that never had one.
+      editorProfiles[editorSsidIndex].ssid = Model.parseNmcliSsid(raw)
+    }
+    editorSsidIndex++
+    readNextEditorSsid()
+  }
+
+  // Resolves the profile the editor should open once every SSID is filled in.
+  function finishEditorResolution() {
+    if (!editorOpen) return
+    var profiles = editorProfiles
     var matches = editorMatches(profiles)
     var row = wifiRowForSsid(editingSsid)
     // An active saved profile means the network is in use; the row can be a
@@ -1077,6 +1133,7 @@ Panel {
     }
     editorActive = active
     editorBusy = true
+    profileProc.session = editorSession
     profileProc.command = ["nmcli", "-t", "-f",
       "connection.autoconnect,connection.autoconnect-priority,connection.metered,ipv4.method,ipv4.addresses,ipv4.gateway,802-1x.identity",
       "connection", "show", "uuid", uuid]
@@ -1103,8 +1160,11 @@ Panel {
     editorError = ""
   }
 
-  // Returns to the list and drops all editor state.
+  // Returns to the list and drops all editor state. Bumping the session id here
+  // means any read or write still in flight for this editor is dropped when its
+  // callback lands, so it cannot touch an editor opened afterwards.
   function cancelEditor() {
+    editorSession++
     editingUuid = ""
     editingSsid = ""
     editorPendingUuid = ""
@@ -1115,6 +1175,8 @@ Panel {
     editorActive = false
     editorEnterprise = false
     editorSteps = []
+    editorProfiles = []
+    editorSsidIndex = -1
     editorPicking = false
     editorChoices = []
     if (panel.loadedContent) Qt.callLater(function() { panel.loadedContent.forceActiveFocus() })
@@ -1190,14 +1252,17 @@ Panel {
     }
     var step = editorSteps.shift()
     if (step.reconnect) {
+      activeProc.session = editorSession
       activeProc.running = true
       return
     }
     if (step.secret !== "") {
+      editorSecret.session = editorSession
       editorSecret.secret = step.secret
       editorSecret.command = step.command
       editorSecret.running = true
     } else {
+      editorProc.session = editorSession
       editorProc.command = step.command
       editorProc.running = true
     }
@@ -1227,13 +1292,19 @@ Panel {
     runEditorStep()
   }
 
-  // Reads the connection list, then the resolved profile; both feed the same
-  // editor state, so a failure lands on the form's error line.
+  // Reads the connection list, then resolves the SSID of every Wi-Fi profile,
+  // then reads the resolved profile; all feed the same editor state, so a
+  // failure lands on the form's error line. Each process carries the session it
+  // was started in, so a late callback from an editor that was closed is
+  // dropped instead of writing another editor's state.
   Process {
     id: connectionListProc
+    // Session id this run belongs to; a mismatch means the editor was replaced.
+    property int session: -1
     stdout: StdioCollector { id: connectionListOut; waitForEnd: true }
     stderr: StdioCollector { waitForEnd: true }
     onExited: function(exitCode) {
+      if (session !== root.editorSession) return
       if (exitCode !== 0) {
         root.editorBusy = false
         root.editorError = Commons.I18n.t("network.readConnectionsFailed")
@@ -1243,11 +1314,29 @@ Panel {
     }
   }
 
+  // Reads one Wi-Fi profile's saved SSID by UUID. The list form of `connection
+  // show` rejects setting fields like 802-11-wireless.ssid, so the value is read
+  // per profile with the selector form.
+  Process {
+    id: ssidProc
+    property int session: -1
+    stdout: StdioCollector { id: ssidOut; waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      if (session !== root.editorSession) return
+      // A profile whose SSID cannot be read keeps it empty and falls back to its
+      // name downstream rather than aborting the whole editor.
+      root.finishEditorSsid(exitCode === 0 ? ssidOut.text : "")
+    }
+  }
+
   Process {
     id: profileProc
+    property int session: -1
     stdout: StdioCollector { id: profileOut; waitForEnd: true }
     stderr: StdioCollector { waitForEnd: true }
     onExited: function(exitCode) {
+      if (session !== root.editorSession) return
       if (exitCode !== 0) {
         root.editorBusy = false
         root.editorError = Commons.I18n.t("network.readProfileFailed")
@@ -1261,22 +1350,30 @@ Panel {
   // a separate command.
   Process {
     id: editorProc
+    property int session: -1
     stdout: StdioCollector { waitForEnd: true }
     stderr: StdioCollector { waitForEnd: true }
-    onExited: function(exitCode) { root.finishEditorStep(exitCode) }
+    onExited: function(exitCode) {
+      if (session !== root.editorSession) return
+      root.finishEditorStep(exitCode)
+    }
   }
 
   // Secret write: `nmcli connection edit` reads its commands from stdin, the
   // enterpriseConnect pattern, so a passphrase never appears in argv.
   Process {
     id: editorSecret
+    property int session: -1
     property string secret: ""
     stdinEnabled: true
     onStarted: {
       write(secret)
       secret = ""
     }
-    onExited: function(exitCode) { root.finishEditorStep(exitCode) }
+    onExited: function(exitCode) {
+      if (session !== root.editorSession) return
+      root.finishEditorStep(exitCode)
+    }
   }
 
   // Re-reads the active connection's UUID at save time, so a queued `connection
@@ -1284,9 +1381,13 @@ Panel {
   Process {
     id: activeProc
     command: ["nmcli", "-t", "-f", "UUID", "connection", "show", "--active"]
+    property int session: -1
     stdout: StdioCollector { id: activeOut; waitForEnd: true }
     stderr: StdioCollector { waitForEnd: true }
-    onExited: function(exitCode) { root.finishActiveCheck(exitCode, activeOut.text) }
+    onExited: function(exitCode) {
+      if (session !== root.editorSession) return
+      root.finishActiveCheck(exitCode, activeOut.text)
+    }
   }
 
   implicitWidth: button.implicitWidth

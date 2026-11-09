@@ -238,34 +238,50 @@ assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit',
 // Three saved profiles can share one SSID; the resolver must not pick blindly.
 // The saved 802-11-wireless.ssid names the network, not the user-editable
 // connection name, so a renamed profile still resolves and a same-named profile
-// for a different network does not.
-const conns = network.parseNmcliConnections(
-  'Office laptop:3736ec62-6a:yes:KEMENKEU\n' +
-  'KEMENKEU:e95bb213-05:no:Other SSID\n' +
-  'KEMENKEU:abc:no:KEMENKEU\n' +
-  'Other:def:no:Other\n'
+// for a different network does not. The connection list carries only the fields
+// nmcli's list form allows (type and device among them) and never the SSID, so
+// each Wi-Fi profile's ssid is filled from a per-uuid read of parseNmcliSsid.
+const listed = network.parseNmcliConnections(
+  'Office laptop:3736ec62-6a:802-11-wireless:yes:wlo1\n' +
+  'KEMENKEU:e95bb213-05:802-11-wireless:no:\n' +
+  'KEMENKEU:abc:802-11-wireless:no:\n' +
+  'Other:def:802-3-ethernet:no:enp0s3\n'
 )
-assertDeepEqual(conns, [
-  { name: 'Office laptop', uuid: '3736ec62-6a', active: true, ssid: 'KEMENKEU' },
-  { name: 'KEMENKEU', uuid: 'e95bb213-05', active: false, ssid: 'Other SSID' },
-  { name: 'KEMENKEU', uuid: 'abc', active: false, ssid: 'KEMENKEU' },
-  { name: 'Other', uuid: 'def', active: false, ssid: 'Other' }
-], 'network parses nmcli connection rows including the saved ssid')
+assertDeepEqual(listed, [
+  { name: 'Office laptop', uuid: '3736ec62-6a', type: '802-11-wireless', active: true, device: 'wlo1', ssid: '' },
+  { name: 'KEMENKEU', uuid: 'e95bb213-05', type: '802-11-wireless', active: false, device: '', ssid: '' },
+  { name: 'KEMENKEU', uuid: 'abc', type: '802-11-wireless', active: false, device: '', ssid: '' },
+  { name: 'Other', uuid: 'def', type: '802-3-ethernet', active: false, device: 'enp0s3', ssid: '' }
+], 'network parses nmcli connection rows with type and device, and no ssid from the list form')
+assertEqual(network.parseNmcliSsid('802-11-wireless.ssid:KEMENKEU\n'), 'KEMENKEU',
+  'network reads a saved ssid from the per-profile selector form')
+assertEqual(network.parseNmcliSsid('802-11-wireless.ssid:\n'), '',
+  'network treats an empty saved ssid read as none')
+assertEqual(network.parseNmcliSsid(''), '',
+  'network tolerates a missing ssid read')
+assertEqual(network.parseNmcliSsid('802-11-wireless.ssid:A\\:B\\\\C\n'), 'A:B\\C',
+  'network decodes nmcli escapes in a saved ssid')
 assertDeepEqual(
-  network.parseNmcliConnections('A\\:B:uuid1:no:\n'),
-  [{ name: 'A:B', uuid: 'uuid1', active: false, ssid: '' }],
+  network.parseNmcliConnections('A\\:B:uuid1:802-11-wireless:no:\n'),
+  [{ name: 'A:B', uuid: 'uuid1', type: '802-11-wireless', active: false, device: '', ssid: '' }],
   'network unescapes a colon-escaped connection name'
 )
 assertDeepEqual(
-  network.parseNmcliConnections('Legacy:cafe:no\n'),
-  [{ name: 'Legacy', uuid: 'cafe', active: false, ssid: '' }],
-  'network treats a missing ssid field as empty'
+  network.parseNmcliConnections('Legacy:cafe:802-11-wireless:no\n'),
+  [{ name: 'Legacy', uuid: 'cafe', type: '802-11-wireless', active: false, device: '', ssid: '' }],
+  'network treats a missing list field as empty'
 )
 assertDeepEqual(
-  network.parseNmcliConnections('C\\\\D\\:E:uuid2:no:\n'),
-  [{ name: 'C\\D:E', uuid: 'uuid2', active: false, ssid: '' }],
+  network.parseNmcliConnections('C\\\\D\\:E:uuid2:802-11-wireless:no:\n'),
+  [{ name: 'C\\D:E', uuid: 'uuid2', type: '802-11-wireless', active: false, device: '', ssid: '' }],
   'network decodes a backslash and colon in a connection name'
 )
+// Fill the SSIDs the panel would read for each Wi-Fi profile; the ethernet
+// profile keeps none and falls back to its name.
+const conns = listed
+conns[0].ssid = 'KEMENKEU'
+conns[1].ssid = 'Other SSID'
+conns[2].ssid = 'KEMENKEU'
 assertDeepEqual(
   network.resolveProfile(conns, 'KEMENKEU', true),
   { uuid: '3736ec62-6a', ambiguous: false },
@@ -292,7 +308,7 @@ assertDeepEqual(
   'network resolves an SSID with no saved profile to empty'
 )
 assertDeepEqual(
-  network.resolveProfile(network.parseNmcliConnections('Legacy:cafe:no:\n'), 'Legacy', false),
+  network.resolveProfile(network.parseNmcliConnections('Legacy:cafe:802-11-wireless:no:\n'), 'Legacy', false),
   { uuid: 'cafe', ambiguous: false },
   'network falls back to the connection name when a profile has no saved ssid'
 )

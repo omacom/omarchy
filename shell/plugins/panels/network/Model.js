@@ -463,19 +463,38 @@ function splitNmcliFields(line) {
   return fields
 }
 
-// Reads `nmcli -t -f NAME,UUID,ACTIVE,802-11-wireless.ssid connection show`,
-// one row per saved profile. Names are user-controlled and can repeat, so the
-// UUID is what the callers key on, never the name; the saved SSID is the field
-// that actually names the network a profile connects to.
+// Reads `nmcli -t -f NAME,UUID,TYPE,ACTIVE,DEVICE connection show`, one row per
+// saved profile. Names are user-controlled and can repeat, so the UUID is what
+// the callers key on, never the name. The list form rejects setting fields, so
+// the saved SSID (which actually names the network) is not among them: callers
+// fill `ssid` from parseNmcliSsid() with one selector-form read per profile.
 function parseNmcliConnections(output) {
   var lines = String(output || "").split("\n")
   var out = []
   for (var i = 0; i < lines.length; i++) {
     if (lines[i] === "") continue
     var f = splitNmcliFields(lines[i])
-    out.push({ name: f[0] || "", uuid: f[1] || "", active: (f[2] || "") === "yes", ssid: f[3] || "" })
+    out.push({
+      name: f[0] || "",
+      uuid: f[1] || "",
+      type: f[2] || "",
+      active: (f[3] || "") === "yes",
+      device: f[4] || "",
+      ssid: ""
+    })
   }
   return out
+}
+
+// Reads `nmcli -t -f 802-11-wireless.ssid connection show uuid <uuid>`, the
+// selector form the list form cannot replace. nmcli prints the setting name and
+// its value on one ':'-separated line; the value is escaped like any other -t
+// field.
+function parseNmcliSsid(output) {
+  var line = String(output || "").split(/\r?\n/)[0]
+  var idx = line.indexOf(":")
+  if (idx === -1) return ""
+  return decodeNmcliEscapes(line.substring(idx + 1))
 }
 
 // A profile's network is its saved 802-11-wireless.ssid, not the user-editable
@@ -720,6 +739,7 @@ if (typeof module !== "undefined") {
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
     parseNmcliConnections: parseNmcliConnections,
+    parseNmcliSsid: parseNmcliSsid,
     profileMatchesSsid: profileMatchesSsid,
     resolveProfile: resolveProfile,
     parseActiveUuids: parseActiveUuids,
