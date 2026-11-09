@@ -424,3 +424,35 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+# omarchy-menu-select hands the shell one JSON payload. Its options and
+# selections share one positional list, so an option that looks like a flag, a
+# glyph and subtext split by tabs, or a repeated --selected must each land on
+# the right side of that split, and text outside ASCII must arrive as written.
+select_tmp=$(mktemp -d)
+trap 'rm -rf "$select_tmp"' EXIT
+mkdir -p "$select_tmp/bin"
+cat >"$select_tmp/bin/omarchy-shell" <<'STUB'
+#!/bin/bash
+printf '%s' "$4" >"$SELECT_PAYLOAD"
+printf 'picked' >"$(jq -r .selectionFile <<<"$4")"
+touch "$(jq -r .doneFile <<<"$4")"
+STUB
+chmod +x "$select_tmp/bin/omarchy-shell"
+
+picked=$(SELECT_PAYLOAD="$select_tmp/payload.json" PATH="$select_tmp/bin:$PATH" \
+  "$ROOT/bin/omarchy-menu-select" "Wähle" $'\tÄpfel\tfrisch' "-n" "--help" "plain" -- \
+  --multiple --selected "-n" --selected "plain" --on-change '["echo","ok"]' --change-key "tür" --width 640 --maxheight 480) || true
+[[ $picked == "picked" ]] || fail "menu select prints the selection the menu wrote" "$picked"
+pass "menu select prints the selection the menu wrote"
+
+expected=$(jq -nc '{
+  mode: "select", prompt: "Wähle",
+  options: ["\tÄpfel\tfrisch", "-n", "--help", "plain"],
+  multiple: true, selected: ["-n", "plain"], onChange: ["echo", "ok"],
+  changeKey: "tür", width: 640, maxHeight: 480
+}')
+actual=$(jq -c 'del(.selectionFile, .doneFile)' "$select_tmp/payload.json")
+jq -e --argjson expected "$expected" '. == $expected' <<<"$actual" >/dev/null ||
+  fail "menu select passes options, selections and text outside ASCII through intact" "$actual"
+pass "menu select passes options, selections and text outside ASCII through intact"
