@@ -6,8 +6,8 @@
 browser=$(omarchy-cmd-default-browser)
 
 case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
+chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
+*) browser="google-chrome.desktop" ;;
 esac
 
 # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, as

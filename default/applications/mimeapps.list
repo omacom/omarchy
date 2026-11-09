@@ -10,8 +10,8 @@ image/tiff=imv.desktop
 
 application/pdf=org.gnome.Papers.desktop
 
-x-scheme-handler/http=chromium.desktop
-x-scheme-handler/https=chromium.desktop
+x-scheme-handler/http=google-chrome.desktop
+x-scheme-handler/https=google-chrome.desktop
 x-scheme-handler/mailto=HEY.desktop
 
 video/mp4=mpv.desktop

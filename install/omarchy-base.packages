@@ -14,7 +14,6 @@ bluez-utils
 bolt
 brightnessctl
 btop
-chromium
 cliamp
 cups
 cups-filters
@@ -49,6 +48,7 @@ git
 gliff
 gnome-keyring
 gnome-themes-extra
+google-chrome
 grim
 gpu-screen-recorder
 gum
