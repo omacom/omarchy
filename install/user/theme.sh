@@ -10,6 +10,7 @@ if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then
     omarchy-theme-set "Tokyo Night"
   fi
 fi
+omarchy-theme-set-cliamp
 omarchy-theme-set-pi --activate
 omarchy-theme-set-fcitx5 --activate
 
