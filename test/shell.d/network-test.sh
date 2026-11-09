@@ -269,4 +269,40 @@ assertDeepEqual(
   { uuid: '', ambiguous: false },
   'network resolves an SSID with no saved profile to empty'
 )
+
+// The settings editor reads one profile back as a `nmcli -t` key/value map,
+// seeds its form from it, and then turns only the edited non-secret keys into
+// an argv. Secrets never travel in argv, and a form that changes nothing must
+// produce an empty argv rather than a redundant modify.
+const prof = network.parseNmcliProfile(
+  'connection.autoconnect:yes\nconnection.autoconnect-priority:0\n' +
+  'connection.metered:unknown\nipv4.method:auto\nipv4.addresses:\nipv4.gateway:\n' +
+  '802-1x.identity:zulham.syafrawi\n802-11-wireless-security.psk:<hidden>\n'
+)
+assertEqual(prof['connection.autoconnect'], 'yes', 'network parses a profile setting')
+assertEqual(prof['802-11-wireless-security.psk'], '', 'network blanks a hidden secret')
+
+const sec = { Wpa2Psk: 3, WpaPsk: 5, Sae: 1, Wpa2Eap: 2, WpaEap: 4, Open: 10 }
+assertDeepEqual(
+  network.editorDefaults(prof, sec.Wpa2Eap, sec),
+  { autoConnect: true, priority: 0, metered: 'unknown', ipv4Method: 'auto', address: '', gateway: '', identity: 'zulham.syafrawi', hasPsk: false },
+  'network derives editor defaults from a profile'
+)
+
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5/24', gateway: '10.0.0.1', priority: 0 }).ok, true, 'network accepts a manual CIDR')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5', gateway: '', priority: 0 }).ok, false, 'network rejects a manual address without a prefix')
+assertEqual(network.validateEditor({ ipv4Method: 'auto', address: '', gateway: '', priority: 0 }).ok, true, 'network accepts automatic ipv4')
+assertEqual(network.validateEditor({ ipv4Method: 'auto', address: '', gateway: '', priority: -1 }).ok, false, 'network rejects a negative priority')
+
+const noop = network.changedModArgs('uuid-1', { autoConnect: true, priority: 0, metered: 'unknown', ipv4Method: 'auto', address: '', gateway: '' },
+  { autoConnect: true, priority: 0, metered: 'unknown', ipv4Method: 'auto', address: '', gateway: '' })
+assertDeepEqual(noop, [], 'network sends nothing for an unchanged form')
+const changed = network.changedModArgs('uuid-1', { autoConnect: true, priority: 0, metered: 'unknown', ipv4Method: 'auto', address: '', gateway: '' },
+  { autoConnect: false, priority: 5, metered: 'yes', ipv4Method: 'auto', address: '', gateway: '' })
+assertDeepEqual(changed, ['nmcli', 'connection', 'modify', 'uuid', 'uuid-1',
+  'connection.autoconnect', 'no', 'connection.autoconnect-priority', '5', 'connection.metered', 'yes'],
+  'network sends only changed non-secret keys, by uuid')
+assertEqual(changed.some(a => /psk/i.test(a)), false, 'network never puts a secret in argv')
+assertEqual(network.needsReapply({ ipv4Method: 'auto' }, { ipv4Method: 'manual' }), true, 'network reapplies after an ipv4 change')
+assertEqual(network.needsReapply({ autoConnect: true }, { autoConnect: false }), false, 'network does not reconnect for auto-connect alone')
 JS

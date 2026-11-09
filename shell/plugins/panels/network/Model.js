@@ -468,6 +468,129 @@ function resolveProfile(profiles, ssid, connected) {
   return { uuid: matches[0].uuid, ambiguous: true }
 }
 
+// The settings editor reads one saved profile back with
+// `nmcli -t -f <settings> connection show uuid <uuid>`. `-t` still puts a ':'
+// between the key and its value, and NetworkManager prints a stored secret as
+// the literal `<hidden>` rather than echoing it, so the editor never treats
+// that as a value it can keep.
+function parseNmcliProfile(output) {
+  var lines = String(output || "").split("\n")
+  var out = {}
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i]
+    if (line === "") continue
+    var idx = line.indexOf(":")
+    if (idx === -1) continue
+    var value = line.substring(idx + 1)
+    out[line.substring(0, idx)] = value === "<hidden>" ? "" : value
+  }
+  return out
+}
+
+// Which security types carry a pre-shared key. The editor offers a password
+// field with a "keep the saved one" affordance only for these; on EAP the same
+// `psk` setting is unused, so its `<hidden>` echo means nothing.
+function usesPsk(security, securityEnum) {
+  var e = securityEnum || {}
+  return security === e.Wpa2Psk || security === e.WpaPsk || security === e.Sae
+}
+
+// Seeds the editor from a parsed profile. Values a profile leaves unset read
+// back as "", and the caller supplies the security enum because only it knows
+// the constants, which keeps this pure and testable.
+function editorDefaults(settings, security, securityEnum) {
+  var s = settings || {}
+  var priority = parseInt(s["connection.autoconnect-priority"], 10)
+  return {
+    autoConnect: s["connection.autoconnect"] === "yes",
+    priority: isFinite(priority) ? priority : 0,
+    metered: s["connection.metered"] || "unknown",
+    ipv4Method: s["ipv4.method"] || "auto",
+    address: s["ipv4.addresses"] || "",
+    gateway: s["ipv4.gateway"] || "",
+    identity: s["802-1x.identity"] || "",
+    hasPsk: usesPsk(security, securityEnum) && !!s["802-11-wireless-security.psk"]
+  }
+}
+
+// Manual IPv4 needs an address with a prefix, and a gateway only when one is
+// given. Priority has to be a whole number of 0 or more because nmcli rejects
+// anything else. `error` is the message the editor shows under the field.
+function validateEditor(form) {
+  var f = form || {}
+  var priority = f.priority === undefined || f.priority === "" ? 0 : Number(f.priority)
+  if (!isFinite(priority) || priority < 0 || Math.floor(priority) !== priority) {
+    return { ok: false, error: "Priority must be a whole number of 0 or more." }
+  }
+  if (f.ipv4Method === "manual") {
+    if (!/^\d+\.\d+\.\d+\.\d+\/\d+$/.test(String(f.address || ""))) {
+      return { ok: false, error: "Enter an address with a prefix, like 10.0.0.5/24." }
+    }
+    if (f.gateway && !/^\d+\.\d+\.\d+\.\d+$/.test(String(f.gateway))) {
+      return { ok: false, error: "Enter a valid gateway address." }
+    }
+  }
+  return { ok: true, error: "" }
+}
+
+// The editable settings, in the order nmcli receives them. `kind` decides how a
+// form value becomes an argument: a boolean is nmcli's yes/no, an int prints as
+// a number. One list keeps the argv builder, the reapply check and any future
+// field agreed on the setting names.
+var MOD_KEYS = [
+  ["autoConnect", "connection.autoconnect", "bool"],
+  ["priority", "connection.autoconnect-priority", "int"],
+  ["metered", "connection.metered", "str"],
+  ["ipv4Method", "ipv4.method", "str"],
+  ["address", "ipv4.addresses", "str"],
+  ["gateway", "ipv4.gateway", "str"]
+]
+
+function modArgValue(kind, value) {
+  if (kind === "bool") return value ? "yes" : "no"
+  if (kind === "int") {
+    var n = parseInt(value, 10)
+    return String(isFinite(n) ? n : 0)
+  }
+  return value === undefined || value === null ? "" : String(value)
+}
+
+// Builds `nmcli connection modify uuid <uuid> ...` for the settings that
+// actually changed. Keying on the uuid (never the SSID, which can repeat) and
+// emitting only the edited fields keeps the command from rewriting untouched
+// settings; no secret is ever among them, so argv stays safe in /proc. An
+// unchanged form yields an empty array, which the caller runs as a no-op.
+function changedModArgs(uuid, before, after) {
+  var b = before || {}
+  var a = after || {}
+  var args = []
+  for (var i = 0; i < MOD_KEYS.length; i++) {
+    var field = MOD_KEYS[i][0]
+    var setting = MOD_KEYS[i][1]
+    var kind = MOD_KEYS[i][2]
+    var from = modArgValue(kind, b[field])
+    var to = modArgValue(kind, a[field])
+    if (from === to) continue
+    args.push(setting, to)
+  }
+  if (args.length === 0) return []
+  return ["nmcli", "connection", "modify", "uuid", String(uuid)].concat(args)
+}
+
+// An address, method or gateway change only takes effect on the next
+// activation, so the caller must cycle the connection; auto-connect, priority
+// and metered apply live and need no reconnect.
+function needsReapply(before, after) {
+  var b = before || {}
+  var a = after || {}
+  for (var i = 0; i < MOD_KEYS.length; i++) {
+    if (MOD_KEYS[i][1].indexOf("ipv4.") !== 0) continue
+    var field = MOD_KEYS[i][0]
+    if (modArgValue(MOD_KEYS[i][2], b[field]) !== modArgValue(MOD_KEYS[i][2], a[field])) return true
+  }
+  return false
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseNetworkStatus: parseNetworkStatus,
@@ -501,6 +624,11 @@ if (typeof module !== "undefined") {
     canForgetNetwork: canForgetNetwork,
     parseNmcliConnections: parseNmcliConnections,
     resolveProfile: resolveProfile,
+    parseNmcliProfile: parseNmcliProfile,
+    editorDefaults: editorDefaults,
+    validateEditor: validateEditor,
+    changedModArgs: changedModArgs,
+    needsReapply: needsReapply,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
     shouldRepromptPassphrase: shouldRepromptPassphrase
