@@ -12,13 +12,26 @@
 
 local M = {}
 
-local locked = {}
+-- A locked window carries this tag. It lives on the window, so it dies with it
+-- and survives a config reload, which starts this file over.
+local LOCKED_TAG = "omarchy-foreground-locked"
+
 local last_active = nil
 -- Whether the window last active held the screen at any point while it was.
 local last_active_held = false
 
-local function set_focus_on_activate(window, value)
-  hl.dispatch(hl.dsp.window.set_prop({ prop = "focus_on_activate", value = value, window = window }))
+local function set_locked(window, on)
+  hl.dispatch(hl.dsp.window.set_prop({ prop = "focus_on_activate", value = on and "0" or "unset", window = window }))
+  hl.dispatch(hl.dsp.window.tag({ tag = (on and "+" or "-") .. LOCKED_TAG, window = window }))
+end
+
+local function is_locked(window)
+  for _, tag in ipairs(window.tags or {}) do
+    if tag == LOCKED_TAG then
+      return true
+    end
+  end
+  return false
 end
 
 local function holds_screen(window)
@@ -50,15 +63,13 @@ hl.on("window.active", function(window)
   end
 
   -- Only the user brings a locked window back, as it can no longer ask.
-  if locked[window.address] then
-    locked[window.address] = nil
-    set_focus_on_activate(window, "unset")
+  if is_locked(window) then
+    set_locked(window, false)
   end
 
   local previous = last_active and hl.get_window("address:" .. last_active)
   if previous and previous.address ~= window.address and previous.pid ~= window.pid and (holds_screen(previous) or lost_screen_to(previous, window)) then
-    locked[previous.address] = true
-    set_focus_on_activate(previous, "0")
+    set_locked(previous, true)
   end
 
   if window.address ~= last_active then
@@ -71,12 +82,6 @@ end)
 hl.on("window.fullscreen", function(window)
   if window and window.address == last_active and holds_screen(window) then
     last_active_held = true
-  end
-end)
-
-hl.on("window.close", function(window)
-  if window then
-    locked[window.address] = nil
   end
 end)
 
