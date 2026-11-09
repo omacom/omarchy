@@ -121,6 +121,8 @@ omarchy-update
   │    └─ abort below the configured free-space threshold on /
   ├─ confirm unless -y
   ├─ authorize sudo once, then keep the timestamp fresh in the background
+  ├─ resolve lifecycle update-prepare
+  │    └─ run registered preflight; stop on detection, required-tool or check failure
   ├─ omarchy-update-pkg-prune
   │    └─ trim the pacman cache to two versions per package, deliberately
   │       before the snapshot since the cache lives on the snapshotted subvolume
@@ -160,7 +162,8 @@ Important behavior:
   `omarchy-migrate` after pacman finishes.
 - A failure should leave enough output in `/tmp/omarchy-update.log` and the
   terminal transcript to debug.
-- The boot check is the [lifecycle dispatch](lifecycle-dispatch.md) operation `update-verify`, a no-op on platforms whose boot chain needs no handling of its own, x86 included: nothing runs and nothing asks for root. It is the last sudo-capable step, after AUR packages, so it also covers the initramfs rebuilds they trigger. When it fails, the update finishes its remaining steps, then exits non-zero without the reboot prompt: the update is not finished. A machine without its platform's boot package at all predates it: the update warns that its boot files were not verified and finishes. There is no check before the packages change: where `omarchy-hw-platform` can't tell the platform, the update installs its packages, and the update then fails verification, without the reboot prompt.
+- Before pruning the package cache or changing packages, the update resolves the [lifecycle dispatch](lifecycle-dispatch.md) operation `update-prepare` and runs any registered preflight. Pi 4 requires this check; missing Pi tooling or a failed check stops the update. A platform-detection failure also stops resolution before packages change. Platforms with no registered preflight continue through the shared update path.
+- The final boot check is lifecycle `update-verify`, a no-op where no platform boot handling is registered, including x86. It is the last sudo-capable step, after AUR packages, so it covers their initramfs rebuilds. A failed check makes the update exit nonzero without a reboot prompt. The legacy missing-boot-package warning applies to older Apple Silicon installations; Pi tooling is required and fails closed.
 
 ## Path 2: direct `sudo pacman -Syu` attempt
 
