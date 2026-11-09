@@ -14,9 +14,7 @@ global.fake_progress_duration = 15.0;  # Duration in seconds to reach limit
 # Progress bar animation variables
 global.animation_frame = 0;
 global.fake_progress = 0.0;
-global.real_progress = 0.0;
 global.fake_progress_active = 0;
-global.fake_progress_start_time = 0.0;  # Track when fake progress started
 global.password_shown = 0;  # Track if password dialog has been shown
 global.max_progress = 0.0;  # Track the maximum progress reached to prevent backwards movement
 
@@ -103,7 +101,6 @@ fun start_fake_progress() {
   global.animation_frame = 0;
   global.max_progress = 0.0;
   global.fake_progress = 0.0;
-  global.fake_progress_start_time = 0.0;
 }
 
 fun stop_fake_progress() {
@@ -192,23 +189,9 @@ progress_bar.sprite = Sprite();
 progress_bar.image = progress_bar.original_image.Scale(1, progress_bar.original_image.GetHeight());
 progress_bar.sprite.SetOpacity(0);
 
-fun progress_callback(duration, progress) {
-  # Track when fake progress starts
-  # Needed because duration and progress freeze during drive decryption
-  if (global.fake_progress_start_time == 0.0) {
-    global.fake_progress_start_time = duration;
-  }
-
-  global.real_progress = progress;
-
-  # Use real progress once its unfrozen and exceeds fake progress
-  if (duration > global.fake_progress_start_time && progress > global.fake_progress) {
-    stop_fake_progress();
-    update_progress_bar(progress);
-  }
-}
-
-Plymouth.SetBootProgressFunction(progress_callback);
+# The bar follows its own curve alone. Plymouth's boot progress, an estimate
+# from the last boot's duration, would jump it ahead partway, and whatever draws
+# the splash after Plymouth carries the curve on from where the bar stands.
 
 #----------------------------------------- Layout --------------------------------
 

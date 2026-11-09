@@ -2,10 +2,12 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
+import "BootSplash.js" as BootSplash
 
 // Keep startup and theme covers alive across background service handoffs.
 Item {
@@ -23,6 +25,20 @@ Item {
   property string themeToken: ""
   property string transitionToken: ""
   readonly property string startupBackgroundPath: Quickshell.env("OMARCHY_STARTUP_BACKGROUND")
+  // Set by the compositor while Omarchy's Plymouth theme is active: the cover
+  // then continues the boot splash instead of starting from black.
+  readonly property string splashBackground: Quickshell.env("OMARCHY_SPLASH_BACKGROUND") || ""
+  readonly property string splashTheme: "/usr/share/plymouth/themes/omarchy/"
+  // The splash's progress bar, carried on from where Plymouth's would be now
+  // and filled before the cover lifts. Whether Plymouth showed one is known once
+  // the helper answers, and the logo waits for that to arrive with the bar.
+  property bool splashKnown: false
+  property bool splashBar: false
+  property bool splashBarFilling: false
+  property bool splashBarFull: false
+  property real splashBarStart: 0
+  property bool splashBarWaited: false
+  readonly property int splashBarFillDuration: Style.duration(350)
   property string themeBackground: sessionConsumed && !Util.isVideoPath(startupBackgroundPath) ? startupBackgroundPath : ""
   property var themeNativeSize: null
   property string themeColors: ""
@@ -50,6 +66,17 @@ Item {
     Quickshell.execDetached(["hyprctl", "eval", "if omarchy_startup_cursor_restore then omarchy_startup_cursor_restore() end"])
   }
 
+  // Hyprland draws the boot splash over everything from its first frame
+  // (default/hypr/boot-splash.lua), so the cover only times its end: Hyprland
+  // fills the bar and fades the splash out when asked.
+  readonly property bool hyprlandSplash: Quickshell.env("OMARCHY_HYPRLAND_SPLASH") === "1"
+
+  function finishHyprlandSplash() {
+    // Without animations the bar fills and the splash goes at once.
+    Quickshell.execDetached(["hyprctl", "eval", "hl.config({ misc = { startup_splash_fill_duration = " + splashBarFillDuration
+      + ", startup_splash_fade_duration = " + Style.duration(420) + ", startup_splash_finish = 1 } })"])
+  }
+
   function finishStartup() {
     if (!cover || !startupSettled) return
     var registry = host ? host.pluginRegistry : null
@@ -67,7 +94,50 @@ Item {
     if (!startupCovers.instances.length) return
     for (var panel of startupCovers.instances)
       if (panel.readyFrames < 2) return
+    if (splashBackground && !splashKnown) return
+    // A bar the helper just reported is drawn on the next frame; fill it then.
+    if (splashBar && !splashBarShown() && !splashBarWaited) {
+      splashBarWait.start()
+      return
+    }
+    liftStartupCover()
+  }
+
+  // The splash's bar reaches full before the cover lifts, as a finished boot.
+  function liftStartupCover() {
+    if (startupFade.running || splashBarFilling) return
+    if (hyprlandSplash) {
+      splashBarFilling = true
+      finishHyprlandSplash()
+      hyprlandSplashFill.start()
+      return
+    }
+    if (splashBarShown()) {
+      splashBarFilling = true
+      splashBarFillDeadline.start()
+    } else {
+      startupFade.start()
+    }
+  }
+
+  function splashBarShown() {
+    for (var panel of startupCovers.instances)
+      if (panel.splashBarShown) return true
+    return false
+  }
+
+  // The first cover whose bar is full lifts them all.
+  function finishSplashBar() {
+    if (!splashBarFilling || splashBarFull) return
+    splashBarFull = true
+    splashBarFillDeadline.stop()
     startupFade.start()
+  }
+
+  onSplashKnownChanged: revealStartup()
+
+  function splashBarElapsed() {
+    return (Date.now() - splashBarStart) / 1000
   }
 
   onDesktopReadyChanged: revealStartup()
@@ -164,6 +234,62 @@ Item {
     themeShell = ""
   }
 
+  // Hyprland announces its fade as it starts, and the intro plays with it. A
+  // Hyprland that never says so must not hold the desktop.
+  Timer {
+    id: hyprlandSplashFill
+    interval: root.splashBarFillDuration + 1000
+    onTriggered: root.finishSplashBar()
+  }
+
+  Connections {
+    target: Hyprland
+    enabled: root.hyprlandSplash && root.splashBarFilling
+    function onRawEvent(event) {
+      if (event && String(event.name) === "startupsplash" && String(event.data) === "fade") {
+        hyprlandSplashFill.stop()
+        root.finishSplashBar()
+      }
+    }
+  }
+
+  Timer {
+    id: splashBarWait
+    interval: 500
+    onTriggered: {
+      root.splashBarWaited = true
+      root.revealStartup()
+    }
+  }
+
+  // A cover that never gets to draw its fill must not hold the desktop.
+  Timer {
+    id: splashBarFillDeadline
+    interval: root.splashBarFillDuration + 1500
+    onTriggered: root.finishSplashBar()
+  }
+
+  Process {
+    id: splashProgress
+    command: ["omarchy-boot-splash-progress"]
+    stdout: StdioCollector { id: splashProgressOut }
+    onExited: function(exitCode) {
+      var start = parseFloat(splashProgressOut.text)
+      if (exitCode === 0 && isFinite(start) && root.startupPending && !root.splashKnown && !startupFade.running) {
+        root.splashBarStart = start
+        root.splashBar = true
+      }
+      root.splashKnown = true
+    }
+  }
+
+  // A helper stuck behind a busy systemd costs the bar, never the logo.
+  Timer {
+    interval: 500
+    running: root.startupPending && root.splashBackground !== "" && !root.splashKnown
+    onTriggered: root.splashKnown = true
+  }
+
   NumberAnimation {
     id: startupFade
     target: root
@@ -171,7 +297,11 @@ Item {
     to: 0
     duration: Style.duration(420)
     easing.type: Easing.OutCubic
-    onStarted: root.restoreStartupCursor()
+    onStarted: {
+      root.restoreStartupCursor()
+      // The login intro waits on its first frame for the cover to lift.
+      Quickshell.execDetached(["owe", "intro-play"])
+    }
     onFinished: root.startupPending = false
   }
 
@@ -183,7 +313,7 @@ Item {
       root.cover = false
       if (!root.themeToken) root.themeBackground = ""
       root.startupMediaReady = true
-      startupFade.start()
+      root.liftStartupCover()
     }
   }
 
@@ -252,7 +382,10 @@ Item {
       if (exitCode !== 0 || token !== root.themeToken || (!token && !root.cover)) return
       try {
         var status = JSON.parse(frameStatusOut.text)
-        if (status.kind === "video" && status.ready && !status.has_transition && status.time_pos > 0)
+        // A login intro held on its first frame (owe intro --hold) waits for
+        // the cover to lift before it plays.
+        var held = status.intro && status.paused
+        if (status.kind === "video" && status.ready && !status.has_transition && (status.time_pos > 0 || held))
           root.revealTheme()
       } catch (e) {}
     }
@@ -282,6 +415,16 @@ Item {
     checked = true
     if (sessionConsumed) restoreStartupCursor()
     if (!startupBackgroundPath && !startupPending) startupBackground.running = true
+    if (startupPending && hyprlandSplash) {
+      splashKnown = true
+    } else if (hyprlandSplash) {
+      // A shell restarted during login has no cover to lift: the splash must
+      // not keep hiding the desktop until it times out.
+      finishHyprlandSplash()
+    } else if (startupPending && splashBackground) {
+      Hyprland.refreshMonitors()
+      splashProgress.running = true
+    }
     introProc.running = true
   }
 
@@ -305,6 +448,8 @@ Item {
     PanelWindow {
       required property var modelData
       property int readyFrames: 0
+      readonly property bool splashBarShown: splash.barStarted
+      onSplashBarShownChanged: root.revealStartup()
       screen: modelData
       visible: root.startupPending
       color: "transparent"
@@ -315,10 +460,161 @@ Item {
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       WlrLayershell.namespace: "omarchy-background"
 
-      Rectangle {
+      Item {
         anchors.fill: parent
-        color: "black"
-        opacity: root.startupOpacity
+        // Hyprland draws the splash itself, over everything, when it can.
+        opacity: root.hyprlandSplash ? 0 : root.startupOpacity
+
+        Rectangle {
+          anchors.fill: parent
+          color: root.splashBackground || "black"
+        }
+
+        // Plymouth's layout(): the logo centred, and the bar centred on where
+        // the password field sat, 40 px below it, all at Plymouth's own scale.
+        Item {
+          id: splash
+          readonly property var monitor: Hyprland.monitorFor(modelData)
+          readonly property real unit: BootSplash.pixelUnit(monitor ? monitor.lastIpcObject : null)
+          readonly property real barTop: height / 2 + unit * (logo.implicitHeight / 2 + 40 + entry.implicitHeight / 2 - progressBox.implicitHeight / 2)
+          readonly property bool barLoaded: root.splashBar && entry.status === Image.Ready && progressBox.status === Image.Ready && progressBar.status === Image.Ready
+          // "run" or "fill", started on the next frame's tick: an animation
+          // started while the shell is busy would begin from a stale value.
+          property string barStart: ""
+          property bool barStarted: false
+          anchors.fill: parent
+          visible: root.splashBackground !== "" && root.splashKnown && unit > 0
+
+          Image {
+            id: logo
+            visible: !splash.barLoaded || splash.barStarted
+            x: (parent.width - width) / 2
+            y: (parent.height - height) / 2
+            source: root.splashBackground ? Util.fileUrl(root.splashTheme + "logo.png") : ""
+            width: implicitWidth * splash.unit
+            height: implicitHeight * splash.unit
+            smooth: true
+            cache: false
+          }
+
+          // Only its height places the bar.
+          Image {
+            id: entry
+            visible: false
+            source: root.splashBar ? Util.fileUrl(root.splashTheme + "entry.png") : ""
+            cache: false
+          }
+
+          Image {
+            id: progressBox
+            visible: splash.barStarted
+            x: (parent.width - width) / 2
+            y: splash.barTop
+            source: root.splashBar ? Util.fileUrl(root.splashTheme + "progress_box.png") : ""
+            width: implicitWidth * splash.unit
+            height: implicitHeight * splash.unit
+            smooth: true
+            cache: false
+          }
+
+          // Plymouth squeezes the bar image into the filled width. The image is
+          // one colour, so sliding it out of a clip draws the same, and lets the
+          // render thread move it while the shell is busy starting up.
+          Item {
+            visible: splash.barStarted
+            x: (parent.width - progressBar.width) / 2
+            y: splash.barTop + splash.unit * (progressBox.implicitHeight - progressBar.implicitHeight) / 2
+            width: progressBar.width
+            height: progressBar.height
+            clip: true
+
+            Image {
+              id: progressBar
+              source: root.splashBar ? Util.fileUrl(root.splashTheme + "progress_bar.png") : ""
+              width: implicitWidth * splash.unit
+              height: implicitHeight * splash.unit
+              smooth: true
+              cache: false
+            }
+          }
+
+          function barOffset(progress) {
+            return (progress - 1) * progressBar.width
+          }
+
+          function queueBar() {
+            if (splash.visible && barLoaded && progressBar.width > 0) barStart = root.splashBarFilling ? "fill" : "run"
+          }
+
+          // Plymouth's ease-out from the password onwards. What remains of a
+          // quadratic ease-out is itself one, so the bar picks it up mid-way.
+          function runBar() {
+            var elapsed = root.splashBarElapsed()
+            barFill.stop()
+            barRun.stop()
+            barRun.from = barOffset(BootSplash.progressAt(elapsed))
+            barRun.to = barOffset(BootSplash.progressLimit)
+            // With animations off the bar holds where Plymouth's stood.
+            barRun.to = Style.reduceMotion ? barRun.from : barRun.to
+            barRun.duration = Style.reduceMotion ? 0 : Math.max(0, (BootSplash.progressDuration - elapsed) * 1000)
+            progressBar.x = barRun.from
+            barRun.start()
+          }
+
+          function fillBar() {
+            barRun.stop()
+            barFill.stop()
+            barFill.from = barOffset(BootSplash.progressAt(root.splashBarElapsed()))
+            progressBar.x = barFill.from
+            barFill.start()
+          }
+
+          XAnimator {
+            id: barRun
+            target: progressBar
+            easing.type: Easing.OutQuad
+          }
+
+          XAnimator {
+            id: barFill
+            target: progressBar
+            to: 0
+            duration: root.splashBarFillDuration
+            easing.type: Easing.OutCubic
+            onFinished: root.finishSplashBar()
+          }
+
+          FrameAnimation {
+            running: splash.barStart !== ""
+            onTriggered: {
+              var start = splash.barStart
+              splash.barStart = ""
+              if (start === "fill") splash.fillBar()
+              else splash.runBar()
+              splash.barStarted = true
+            }
+          }
+
+          // A busy or software-rendered shell draws its frames late, and the
+          // render thread then steps the bar behind the clock.
+          Timer {
+            interval: 1000
+            repeat: true
+            running: splash.barStarted && !root.splashBarFilling && !Style.reduceMotion
+            onTriggered: splash.queueBar()
+          }
+
+          onVisibleChanged: queueBar()
+          onBarLoadedChanged: queueBar()
+          Connections {
+            target: root
+            function onSplashBarFillingChanged() { splash.queueBar() }
+          }
+          Connections {
+            target: progressBar
+            function onWidthChanged() { splash.queueBar() }
+          }
+        }
       }
 
       FrameAnimation {

@@ -3,6 +3,10 @@
 local active_border_color = { colors = { "rgba(33ccffee)", "rgba(00ff99ee)" }, angle = 45 }
 local inactive_border_color = "rgba(595959aa)"
 
+-- Login holds the boot splash's colour until the shell's cover is up, rather
+-- than black. Loaded on its own, without Omarchy's helpers, it keeps black.
+local splash_background = o and o.splash_background()
+
 hl.config({
   general = {
     gaps_in = 5,
@@ -108,7 +112,7 @@ hl.config({
   misc = {
     disable_hyprland_logo = true,
     disable_splash_rendering = true,
-    background_color = "rgb(000000)",
+    background_color = "rgb(" .. (splash_background or "000000") .. ")",
     disable_scale_notification = true,
     focus_on_activate = true,
     anr_missed_pings = 3,

@@ -132,16 +132,24 @@ if [[ -z $intro ]]; then
   exit 0
 fi
 
+# OWE accepts a probe as it starts and answers once it holds the background, so
+# a waiting probe hears the moment it is ready; only a missing socket retries.
 deadline=$((SECONDS + 5))
-while ! timeout 1 owe status >/dev/null 2>&1; do
+until remaining=$((deadline - SECONDS)); (( remaining > 0 )) && timeout "$remaining" owe status >/dev/null 2>&1; do
   if (( SECONDS >= deadline )); then
     exit 0
   fi
-  sleep 0.2
+  sleep 0.1
 done
-(( SECONDS < deadline )) || exit 0
 
 # A selection or setting changed while OWE was starting no longer permits this intro.
 if [[ ! -f $toggle && $intro == "$(resolve_intro || true)" ]] && ! animations_off; then
-  owe intro --start first-frame "$intro"
+  # The login cover lifts onto the intro's first frame and asks it to play
+  # (owe intro-play), so none of it plays hidden. An OWE without --hold plays it
+  # at once.
+  if owe help 2>&1 | grep -q -- "--hold"; then
+    owe intro --start first-frame --hold "$intro"
+  else
+    owe intro --start first-frame "$intro"
+  fi
 fi

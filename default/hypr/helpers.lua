@@ -286,6 +286,38 @@ function o.software_rendering_defaults()
     and not file_exists(paths.home .. "/.local/state/omarchy/toggles/animations-without-gpu")
 end
 
+-- The boot splash's background as rrggbb, while Omarchy's Plymouth theme is the
+-- active one, so login can hold that colour from the splash to the intro.
+function o.splash_background()
+  local config = io.open("/etc/plymouth/plymouthd.conf", "r")
+  if not config then
+    return nil
+  end
+  local theme
+  for line in config:lines() do
+    theme = line:match("^%s*Theme%s*=%s*([%w_-]+)") or theme
+  end
+  config:close()
+  if theme ~= "omarchy" then
+    return nil
+  end
+
+  local script = io.open("/usr/share/plymouth/themes/omarchy/omarchy.script", "r")
+  if not script then
+    return nil
+  end
+  local r, g, b = script:read("*a"):match("Window%.SetBackgroundTopColor%(%s*([%d.]+)%s*,%s*([%d.]+)%s*,%s*([%d.]+)%s*%)")
+  script:close()
+  if not r then
+    return nil
+  end
+
+  local function byte(channel)
+    return math.max(0, math.min(255, math.floor(tonumber(channel) * 255)))
+  end
+  return string.format("%02x%02x%02x", byte(r), byte(g), byte(b))
+end
+
 -- What makes apps float on their own account, so a floating workspace can
 -- leave their floating to them: the class and title patterns of rules that
 -- float them, the tags rules float, and the patterns of rules that tag them.

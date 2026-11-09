@@ -12,7 +12,7 @@ mkdir -p "$stage/services" "$stage/bin" "$stage/home/.local/state/omarchy/curren
 printf 'P6\n1 1\n255\n\377\000\377' >"$stage/still.ppm"
 ln -s "$stage/still.ppm" "$stage/home/.local/state/omarchy/current/background"
 ln -s "$ROOT/shell/Commons" "$stage/Commons"
-cp "$ROOT/shell/services/BackgroundIntro.qml" "$stage/services/"
+cp "$ROOT/shell/services/BackgroundIntro.qml" "$ROOT/shell/services/BootSplash.js" "$stage/services/"
 cp "$SHELL_TEST_DIR/fixtures/background-startup/shell.qml" "$stage/shell.qml"
 cat >"$stage/bin/omarchy-theme-bg-boot-intro" <<'SH'
 #!/bin/bash
@@ -36,3 +36,27 @@ if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding l
 fi
 pass "fresh startup hides the desktop until both the background and bar are ready"
 pass "the startup cursor stays hidden until the desktop begins fading in"
+
+# A boot whose splash showed a progress bar carries it on in the cover and
+# fills it before the desktop fades in, drawn from the installed theme.
+if [[ ! -f /usr/share/plymouth/themes/omarchy/progress_bar.png ]]; then
+  skip "the splash's progress bar carries on in the startup cover (Omarchy's Plymouth theme is not installed)"
+  exit 0
+fi
+cp "$SHELL_TEST_DIR/fixtures/background-startup/splash-bar.qml" "$stage/shell.qml"
+cat >"$stage/bin/omarchy-boot-splash-progress" <<'SH'
+#!/bin/bash
+echo $(( $(date +%s%3N) - 7500 ))
+SH
+# The fill and the fade need their length, so Hyprland's animations read as on.
+cat >"$stage/bin/hyprctl" <<'SH'
+#!/bin/bash
+echo '{"bool":true}'
+SH
+chmod +x "$stage/bin/omarchy-boot-splash-progress" "$stage/bin/hyprctl"
+output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" OMARCHY_SPLASH_BACKGROUND="#1a1b26" timeout 6 quickshell -p "$stage" --no-color 2>&1) || fail "splash bar fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "the splash bar fills before the cover lifts" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
+  fail "splash bar fixture has no QML errors" "$output"
+fi
+pass "the splash's progress bar carries on in the startup cover and fills before it lifts"

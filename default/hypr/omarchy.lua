@@ -35,3 +35,6 @@ require_optional.module("omarchy.current.theme.hyprland")
 
 -- Lighter defaults for a session that renders on the CPU, over the theme's.
 require("default.hypr.software-rendering")
+
+-- After the handoff has read Plymouth's bar.
+require("default.hypr.boot-splash")
