@@ -176,9 +176,10 @@ See [lifecycle-dispatch.md](lifecycle-dispatch.md#platform-files).
 
 - `backlight-skip <glob>`: a `/sys/class/backlight` name (a shell glob) that never drives the built-in panel, such as a Touch Bar's. It is never picked, not even when a later directive or the built-in order names it.
 - `backlight-prefer <name>`: the built-in panel's backlight, a literal name, tried after `gmux_backlight` and before the GPU and ACPI ones, in file order.
+- `panel <connector> <width>x<height> <key>=<value> ...`: monitor settings a built-in panel needs that Hyprland doesn't pick for it, for the panel on a connector whose name starts with `<connector>` (as in `display-cutouts.json`), running at that mode. Keys: `bitdepth` (8 or 10) and `cm` (`srgb`, `dp3`, `dcip3`, `adobe`, `wide` or `edid`); a key Omarchy doesn't know is skipped, and a line with a bad value is left out whole. `default/hypr/panel-defaults.lua` gives every monitor rule for that panel the settings, and gives the panel a copy of the catch-all rule of its own, so external monitors never get them. A setting made in `hypr/monitors.lua` for the port, the monitor's description or every monitor wins, key by key.
 - `ddc-require-connector-ddc`: the display driver registers no DDC channel, so a probe would only walk unrelated I2C buses. An external monitor (other than an Apple Studio or XDR Display, which `omarchy-brightness-display-apple` drives with asdcontrol) is probed only when its DRM connector has a `ddc` node (`/sys/class/drm/card*-<connector>/ddc`); otherwise it gets no DDC or backlight control, and the built-in panel is never dimmed in its place.
 
-No environment variable moves the file: these commands also run under `sudo` and from the brightness keys. Their tests (`test/shell.d/hw-display-test.sh`, `test/shell.d/brightness-display-test.sh`) run a copy rewritten to read a fixture in its place.
+No environment variable moves the file: these commands also run under `sudo` and from the brightness keys. Their tests (`test/shell.d/hw-display-test.sh`, `test/shell.d/brightness-display-test.sh`, `test/shell.d/panel-defaults-test.sh`) run a copy rewritten to read a fixture in its place.
 
 #### Fingerprint readers (`fingerprint-readers`)
 
@@ -396,9 +397,10 @@ A platform's default package set is the base list, then its architecture's addit
 
 - `backlight-skip <glob>`: a `/sys/class/backlight` name (a shell glob) that never drives the built-in panel, such as a Touch Bar's. It is never picked, not even when a later directive or the built-in order names it.
 - `backlight-prefer <name>`: the built-in panel's backlight, a literal name, tried after `gmux_backlight` and before the GPU and ACPI ones, in file order.
+- `panel <connector> <width>x<height> <key>=<value> ...`: monitor settings a built-in panel needs that Hyprland doesn't pick for it, for the panel on a connector whose name starts with `<connector>` (as in `display-cutouts.json`), running at that mode. Keys: `bitdepth` (8 or 10) and `cm` (`srgb`, `dp3`, `dcip3`, `adobe`, `wide` or `edid`); a key Omarchy doesn't know is skipped, and a line with a bad value is left out whole. `default/hypr/panel-defaults.lua` gives every monitor rule for that panel the settings, and gives the panel a copy of the catch-all rule of its own, so external monitors never get them. A setting made in `hypr/monitors.lua` for the port, the monitor's description or every monitor wins, key by key.
 - `ddc-require-connector-ddc`: the display driver registers no DDC channel, so a probe would only walk unrelated I2C buses. An external monitor (other than an Apple Studio or XDR Display, which `omarchy-brightness-display-apple` drives with asdcontrol) is probed only when its DRM connector has a `ddc` node (`/sys/class/drm/card*-<connector>/ddc`); otherwise it gets no DDC or backlight control, and the built-in panel is never dimmed in its place.
 
-No environment variable moves the file: these commands also run under `sudo` and from the brightness keys. Their tests (`test/shell.d/hw-display-test.sh`, `test/shell.d/brightness-display-test.sh`) run a copy rewritten to read a fixture in its place.
+No environment variable moves the file: these commands also run under `sudo` and from the brightness keys. Their tests (`test/shell.d/hw-display-test.sh`, `test/shell.d/brightness-display-test.sh`, `test/shell.d/panel-defaults-test.sh`) run a copy rewritten to read a fixture in its place.
 
 ## Explicit resync (`omarchy-reinstall-configs`)
 
