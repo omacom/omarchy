@@ -31,6 +31,21 @@ write_registry() {
 REG
 }
 
+section_logpixels() {
+  local wanted="$1" line in_section=0
+  while IFS= read -r line; do
+    if [[ $line == \[* ]]; then
+      if [[ $line == "$wanted" || $line == "$wanted "* ]]; then
+        in_section=1
+      else
+        in_section=0
+      fi
+    elif (( in_section )) && [[ $line == '"LogPixels"='* ]]; then
+      printf '%s\n' "${line#\"LogPixels\"=}"
+    fi
+  done <"$prefix/user.reg"
+}
+
 cat >"$tmp_dir/bin/hyprctl" <<SCRIPT
 #!/bin/bash
 printf '[{"name":"DP-1","focused":false,"scale":1},{"name":"HDMI-A-1","focused":true,"scale":%s}]\n' "\$(cat "$tmp_dir/scale")"
@@ -46,13 +61,71 @@ write_registry
 echo 1.6 >"$tmp_dir/scale"
 "$ROOT/bin/omarchy-launch-battlenet"
 
-[[ $(grep -c '^"LogPixels"=dword:0000009a$' "$prefix/user.reg") == "2" ]] ||
-  fail "Battle.net launch matches the DPI to the focused monitor's scale" "$(cat "$prefix/user.reg")"
+[[ $(section_logpixels '[Control Panel\\Desktop]') == "dword:0000009a" ]] ||
+  fail "Battle.net launch sets the DPI in Control Panel Desktop only" "$(cat "$prefix/user.reg")"
+[[ $(section_logpixels '[Software\\Wine\\Fonts]') == "dword:00000060" ]] ||
+  fail "Battle.net launch sets the DPI in Control Panel Desktop only" "the Fonts LogPixels changed"
 grep -q '^"MenuShowDelay"="400"$' "$prefix/user.reg" ||
-  fail "Battle.net launch matches the DPI to the focused monitor's scale" "other registry values changed"
+  fail "Battle.net launch sets the DPI in Control Panel Desktop only" "other registry values changed"
 grep -q '^umu-run:.*Battle.net Launcher.exe$' "$TEST_LOG" ||
-  fail "Battle.net launch matches the DPI to the focused monitor's scale" "launcher never started"
-pass "Battle.net launch matches the DPI to the focused monitor's scale"
+  fail "Battle.net launch sets the DPI in Control Panel Desktop only" "launcher never started"
+cp "$prefix/user.reg" "$tmp_dir/user.reg.once"
+"$ROOT/bin/omarchy-launch-battlenet"
+cmp -s "$prefix/user.reg" "$tmp_dir/user.reg.once" ||
+  fail "Battle.net launch sets the DPI in Control Panel Desktop only" "a second launch changed the registry again"
+pass "Battle.net launch sets the DPI in Control Panel Desktop only"
+
+# Fresh prefixes may have the Desktop key without a LogPixels value.
+cat >"$prefix/user.reg" <<'REG'
+WINE REGISTRY Version 2
+
+[Control Panel\\Desktop] 1793676771
+"MenuShowDelay"="400"
+
+[Control Panel\\DesktopExtra] 1793676771
+"LogPixels"=dword:00000060
+REG
+"$ROOT/bin/omarchy-launch-battlenet"
+[[ $(section_logpixels '[Control Panel\\Desktop]') == "dword:0000009a" ]] ||
+  fail "Battle.net launch adds missing Desktop LogPixels" "$(cat "$prefix/user.reg")"
+[[ $(section_logpixels '[Control Panel\\DesktopExtra]') == "dword:00000060" ]] ||
+  fail "Battle.net launch adds missing Desktop LogPixels" "a similarly named section changed"
+pass "Battle.net launch adds missing Desktop LogPixels"
+
+# Without a Control Panel\Desktop section there is no LogPixels to replace, so
+# the launch adds the section, and a second launch leaves it alone.
+cat >"$prefix/user.reg" <<'REG'
+[Software\\Wine\\Fonts] 1793677064
+"LogPixels"=dword:00000060
+
+[Software\\Wine\\Ports] 1793677064
+"foo"="bar"
+REG
+echo 1.25 >"$tmp_dir/scale"
+"$ROOT/bin/omarchy-launch-battlenet"
+
+[[ $(section_logpixels '[Control Panel\\Desktop]') == "dword:00000078" ]] ||
+  fail "Battle.net launch adds a missing Control Panel Desktop section" "$(cat "$prefix/user.reg")"
+[[ $(section_logpixels '[Software\\Wine\\Fonts]') == "dword:00000060" ]] ||
+  fail "Battle.net launch adds a missing Control Panel Desktop section" "the Fonts LogPixels changed"
+cp "$prefix/user.reg" "$tmp_dir/user.reg.added"
+"$ROOT/bin/omarchy-launch-battlenet"
+cmp -s "$prefix/user.reg" "$tmp_dir/user.reg.added" ||
+  fail "Battle.net launch adds a missing Control Panel Desktop section" "a second launch changed the registry again"
+pass "Battle.net launch adds a missing Control Panel Desktop section"
+
+# A prefix that has never written its registry has nothing to edit, and the
+# launch must not create one.
+rm -f "$prefix/user.reg"
+: >"$TEST_LOG"
+echo 2 >"$tmp_dir/scale"
+"$ROOT/bin/omarchy-launch-battlenet"
+
+[[ ! -e $prefix/user.reg ]] ||
+  fail "Battle.net launch skips a missing user.reg" "$(cat "$prefix/user.reg")"
+grep -q '^umu-run:.*Battle.net Launcher.exe$' "$TEST_LOG" ||
+  fail "Battle.net launch skips a missing user.reg" "launcher never started"
+pass "Battle.net launch skips a missing user.reg"
 
 # While the prefix's wineserver runs, the registry is its to write back on
 # exit, so the launch leaves it alone and still hands off to the launcher.
