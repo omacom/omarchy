@@ -119,6 +119,28 @@ Panel {
   property bool wifiActionFocused: false
   property bool cursorActive: false
 
+  // Right-click context menu target. `menuSsid`/`menuIndex` name the row the
+  // menu was opened from; openMenu() fills them and opens the popup beside it.
+  property string menuSsid: ""
+  property int menuIndex: -1
+  readonly property var menuRow: root.wifiRowForSsid(root.menuSsid)
+  // Items for the right-click menu on a Wi-Fi row: the primary connect/
+  // disconnect action always, Modify only for a known profile, and Forget only
+  // when the profile can be removed (never on the connected row).
+  readonly property var menuItems: {
+    var net = root.menuRow
+    var items = []
+    if (!net) return items
+    // "Disconnect"/"Modify Network…" have no catalog key yet (the profile
+    // editor and its strings land with Task 6), so they stay English literals
+    // rather than referencing a key the catalog does not carry.
+    if (net.connected) items.push({ key: "disconnect", label: "Disconnect" })
+    else items.push({ key: "connect", label: Commons.I18n.t("network.connect") })
+    if (net.known) items.push({ key: "modify", label: "Modify Network…" })
+    if (root.canForgetNetwork(net)) items.push({ key: "forget", label: Commons.I18n.t("network.forgetNetwork"), danger: true })
+    return items
+  }
+
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
   // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
   // within header actions, band pills, or DNS providers.
@@ -907,6 +929,55 @@ Panel {
     runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) { network.forget() })
   }
 
+  // Wi-Fi rows are primitive snapshots keyed by SSID, so the menu resolves the
+  // row it was opened from by ssid rather than holding a stale reference.
+  function wifiRowForSsid(ssid) {
+    for (var i = 0; i < wifiNetworks.length; i++) {
+      if (wifiNetworks[i] && wifiNetworks[i].ssid === ssid) return wifiNetworks[i]
+    }
+    return null
+  }
+
+  // One entry point for a row click so the mouse button decides between the
+  // context menu (right) and the existing connect/disconnect behaviour (left).
+  // Left-click semantics are unchanged: cursor resync, then disconnect a
+  // connected row, prompt an unknown credentials row, else connect.
+  function rowGesture(net, index, button) {
+    root.cursorActive = true
+    root.focusSection = "wifi"
+    root.selectedIndex = index
+    root.wifiActionFocused = false
+    if (button === Qt.RightButton) {
+      root.openMenu(net ? net.ssid : "", index)
+      return
+    }
+    if (!net) return
+    if (net.connected) { root.disconnectRow(net.ssid); return }
+    if (root.requiresCredentials(net.security) && !net.known) { root.openPasswordPrompt(net.ssid); return }
+    root.connectDirectly(net.ssid)
+  }
+
+  // Set the menu target (read by the menuItems binding) and ask the lazily
+  // built content to open its ContextMenu beside the row. The content owns the
+  // menu object, so it positions and opens it.
+  function openMenu(ssid, index) {
+    menuSsid = ssid
+    menuIndex = index
+    var content = panel.loadedContent
+    if (content && content.openMenu) content.openMenu(index)
+  }
+
+  function activateMenu(key) {
+    if (key === "disconnect") root.disconnectRow(root.menuSsid)
+    else if (key === "connect") root.connectDirectly(root.menuSsid)
+    else if (key === "modify") root.openEditor(root.menuSsid)
+    else if (key === "forget") root.forget(root.wifiRowForSsid(root.menuSsid))
+  }
+
+  // Task 6 replaces this stub with the profile editor; the menu call site is
+  // wired now so the row's "Modify Network…" item is live end to end.
+  function openEditor(ssid) {}
+
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -1125,6 +1196,19 @@ Panel {
       // Freeze the cursor model while the inline password prompt is open;
       // the TextField inside owns input until Esc/Enter/Cancel.
       blocked: root.passwordSsid !== ""
+
+      // Opens the right-click ContextMenu beside the row at `index`. Called by
+      // root.openMenu() so the menu object — private to this lazily built
+      // content — stays here while the menu target lives on the root.
+      function openMenu(index) {
+        var item = networkList.itemAtIndex(index)
+        if (item && contextMenu) {
+          var p = item.mapToItem(contextMenu.parent, 0, 0)
+          contextMenu.x = p.x + Style.space(10)
+          contextMenu.y = p.y + item.height
+        }
+        if (contextMenu) contextMenu.open()
+      }
 
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) {
@@ -1691,6 +1775,16 @@ Panel {
         }
       }
     }
+
+      // Right-click menu for a Wi-Fi row. Built with the content so it can sit
+      // beside the row it was opened from; root.openMenu() drives it.
+      ContextMenu {
+        id: contextMenu
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        items: root.menuItems
+        onActivated: function(key) { root.activateMenu(key) }
+      }
     }
   }
 
@@ -1844,7 +1938,7 @@ Panel {
       anchors.top: parent.top
       height: rowBody.implicitHeight
       hoverEnabled: true
-      acceptedButtons: Qt.LeftButton
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
       cursorShape: Qt.PointingHandCursor
       enabled: !root.busy
 
@@ -1853,23 +1947,9 @@ Panel {
       // subsequent j/k pick up from this row).
       onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = false }
 
-      onClicked: {
+      onClicked: function(mouse) {
         if (!row.net) return
-        // Resync cursor in case keyboard nav moved it away while the mouse
-        // stayed parked on this row — the click target is unambiguously here.
-        root.cursorActive = true
-        root.focusSection = "wifi"
-        root.selectedIndex = row.index
-        root.wifiActionFocused = false
-        if (row.isConnected) {
-          root.disconnectRow(row.net.ssid)
-          return
-        }
-        if (row.requiresCredentials && !row.isKnown) {
-          root.openPasswordPrompt(row.net.ssid)
-          return
-        }
-        root.connectDirectly(row.net.ssid)
+        root.rowGesture(row.net, row.index, mouse.button)
       }
     }
 
