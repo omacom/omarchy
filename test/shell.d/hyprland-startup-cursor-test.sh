@@ -6,7 +6,7 @@ require_command lua
 
 lua - <<'LUA' || fail "the first compositor frame starts blank and the reveal restores user cursor settings"
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
-local events, recovery, command, imported, commands = {}, nil, nil, false, {}
+local events, recovery, reveal, command, imported, commands = {}, nil, nil, nil, false, {}
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
 local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons", HYPRLAND_INSTANCE_SIGNATURE = "test-session", OMARCHY_PATH = os.getenv("ROOT") }
 local getenv = os.getenv
@@ -26,8 +26,13 @@ hl = {
     for name, value in pairs(values.cursor) do config[name] = value end
   end,
   timer = function(callback, options)
-    assert(options.timeout == 15000 and options.type == "oneshot")
-    recovery = callback
+    assert(options.type == "oneshot")
+    if options.timeout == 15000 then
+      recovery = callback
+    else
+      assert(options.timeout > 500, "outlast the compositor's 500ms cursor visibility check")
+      reveal = callback
+    end
   end,
   exec_cmd = function(value)
     if value == "dbus-update-activation-environment --systemd XCURSOR_PATH XCURSOR_THEME" then
@@ -68,7 +73,22 @@ recovery()
 assert(command:match("setcursor 'my%-xcursor'"), "restore the Xcursor fallback before revealing the pointer")
 assert(config.invisible, "wait for the normal theme before restoring visibility")
 omarchy_startup_cursor_restore(true)
+assert(config.invisible and not command:match("my%-hyprcursor"), "stay hidden until the compositor has applied the hide")
+assert(env.OMARCHY_STARTUP_CURSOR_SESSION == "test-session", "a reload before the cursor is shown must still find the reveal pending")
+-- The shell acknowledges the reveal once, so a reload inside the wait must resume it, with or without monitors.
+for _, present in ipairs({ {}, { {} } }) do
+  omarchy_startup_cursor_pending, omarchy_startup_cursor, reveal = nil, nil, nil
+  for name in pairs(config) do config[name] = true end
+  config.invisible = false
+  monitors = present
+  dofile(os.getenv("ROOT") .. "/default/hypr/startup-cursor.lua")
+  events["config.reloaded"]()
+  assert(config.invisible and reveal, "a reload during the reveal's wait must resume it rather than wait for recovery")
+  assert(env.XCURSOR_THEME == "my-xcursor" and env.XCURSOR_PATH == "/my/icons", "a resumed reveal must not bring back the blank theme")
+end
+reveal()
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme)
+assert(env.OMARCHY_STARTUP_CURSOR_SESSION == "" and env.OMARCHY_STARTUP_CURSOR_REVEALED == "", "a shown cursor ends the startup reveal")
 assert(command:match("xsetroot %-cursor_name left_ptr"), "restore the X11/XWayland root cursor")
 local hyprcursor_restored = false
 for _, c in ipairs(commands) do
@@ -125,12 +145,15 @@ assert(load(completion))()
 assert(omarchy_startup_cursor_pending, "a stale completion must not acknowledge a different cursor size")
 omarchy_startup_cursor.size = old_size
 omarchy_startup_cursor_restore(true)
+reveal()
 assert(not config.invisible and config.sync_gsettings_theme)
 assert(orphan(nil) == "custom-cursor", "recover a nonblank user GSettings theme when no snapshot survives")
 omarchy_startup_cursor_restore(true)
+reveal()
 gsettings = "'omarchy-startup'\n"
 assert(orphan(nil) == "default", "a destroyed user preference must fall back to the default alias, never the blank theme")
 omarchy_startup_cursor_restore(true)
+reveal()
 omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
 monitors = {}
 env.XCURSOR_THEME, env.XCURSOR_PATH = "next-theme", "/next/icons"
