@@ -126,12 +126,10 @@ assertEqual(state.localModel.models['model-a'].unit, 'installing', 'a setup in p
 JS
 
 # The recommended model is offered on the first page until a local model
-# exists or the offer is hidden; its button downloads it, or retries a failed
-# setup, and a download under way has no button.
+# exists or the offer is hidden.
 run_node_test <<'JS'
 const fs = require('fs')
 const main = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 const localOffer = new Function(main.match(/function localOffer\([^]*?\n  \}/)[0] + '\nreturn localOffer')()
 const recipes = [{ id: 'qwen', available: true }, { id: 'nemotron', best: true, available: true }]
 const everyone = () => true
@@ -139,11 +137,6 @@ assertEqual(localOffer(recipes, {}, everyone).id, 'nemotron', 'a machine without
 assertEqual(localOffer(recipes, { qwen: { unit: 'inactive' } }, everyone), null, 'a machine with a local model gets no offer')
 assertEqual(localOffer(recipes, {}, id => id !== 'local:nemotron'), null, 'a hidden offer stays hidden')
 assertEqual(localOffer([{ id: 'nemotron', best: true, available: false }], {}, everyone), null, 'a best recipe that does not fit is not offered')
-const downloadId = new Function(panel.match(/function localDownloadId\([^]*?\n  \}/)[0] + '\nreturn localDownloadId')()
-assertEqual(downloadId({ localOffer: { id: 'nemotron' } }), 'nemotron', 'an offer downloads its recipe')
-assertEqual(downloadId({ localModel: { recipe: 'nemotron', unit: 'installing', install: { phase: 'failed' } } }), 'nemotron', 'a failed setup can be downloaded again')
-assertEqual(downloadId({ localModel: { recipe: 'nemotron', unit: 'installing', install: { phase: 'downloading' } } }), '', 'a download under way has no download button')
-assertEqual(downloadId({ localModel: { recipe: 'nemotron', unit: 'active' } }), '', 'a set-up model has no download button')
 JS
 
 # The panel has no terminal for sudo: a detached setup missing its packages

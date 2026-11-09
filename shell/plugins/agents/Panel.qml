@@ -53,21 +53,10 @@ Panel {
     }
   }
 
-  // What a line's Download button sets up: the recommended model it offers,
-  // or a setup that failed and can be tried again. Empty when it has none.
-  function localDownloadId(provider) {
-    if (!provider) return ""
-    if (provider.localOffer) return String(provider.localOffer.id)
-    var model = provider.localModel
-    if (model && model.unit === "installing" && model.install && model.install.phase === "failed") return String(model.recipe)
-    return ""
-  }
-
-  // The setup runs on in the background and reports to status.json, so the
-  // panel stays open on its line and draws the download as it goes.
-  function downloadLocal(id) {
-    if (id === "") return
-    Util.execArgv(["omarchy-agent-local", "use", "--detach", id])
+  // The setup runs on in the background and reports to status.json, where it
+  // becomes the model's own line, which draws the download as it goes.
+  function downloadLocal(recipe) {
+    Util.execArgv(["omarchy-agent-local", "use", "--detach", String(recipe.id)])
   }
 
   function localStartBlocked(model) {
@@ -158,7 +147,7 @@ Panel {
       // fix is skipped.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
-        if (localDownloadId(providers[p]) !== "") {
+        if (providers[p].localOffer) {
           rows.push([{ kind: "localDownload", index: p }])
           continue
         }
@@ -225,7 +214,7 @@ Panel {
   function lineStop(p) {
     var provider = providers[p]
     if (!provider) return "provider"
-    if (localDownloadId(provider) !== "") return "localDownload"
+    if (provider.localOffer) return "localDownload"
     if (provider.localModel) {
       var actions = localActions(provider.localModel)
       if (actions.indexOf("launch") >= 0) return "modelLaunch"
@@ -608,7 +597,7 @@ Panel {
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "localAdd") setUpLocal(localAddRecipes[target.index])
     else if (target.kind === "modelToggle" || target.kind === "modelLaunch") runLocalAction(providers[target.index].localModel, target.kind === "modelToggle" ? "toggle" : "launch")
-    else if (target.kind === "localDownload") downloadLocal(localDownloadId(providers[target.index]))
+    else if (target.kind === "localDownload") downloadLocal(providers[target.index].localOffer)
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
@@ -1278,8 +1267,7 @@ Panel {
           event.accepted = true
         }
         message: !root.deleteTarget ? ""
-          : root.deleteTarget.localModel ? (root.deleteTarget.localModel.unit === "installing"
-              ? Commons.I18n.t("agents.localCancelConfirm") : Commons.I18n.t("agents.localRemoveConfirm")).arg(root.deleteTarget.localModel.name || root.deleteTarget.localModel.recipe)
+          : root.deleteTarget.localModel ? Commons.I18n.t("agents.localRemoveConfirm").arg(root.deleteTarget.localModel.name || root.deleteTarget.localModel.recipe)
           : root.deleteTarget.localOffer ? Commons.I18n.t("agents.localHideOfferConfirm").arg(root.deleteTarget.providerName)
           : Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName)
         foreground: root.foreground
@@ -1762,14 +1750,13 @@ Panel {
     readonly property var model: provider ? (provider.localModel || null) : null
     // The recommended model offered for download, before it has a line of its own.
     readonly property var offer: provider ? (provider.localOffer || null) : null
-    // A first setup: waiting its turn, downloading, or failed with its reason.
+    // A first setup: downloading, or failed with its reason.
     readonly property bool installing: !!model && model.unit === "installing"
     readonly property var install: installing && model.install ? model.install : ({})
     readonly property bool downloadShown: installing && install.phase !== "failed"
-    readonly property real totalBytes: Number(install.total_bytes) > 0 ? Number(install.total_bytes) : 0
-    readonly property real doneBytes: Math.min(Number(install.done_bytes) || 0, totalBytes)
+    readonly property real totalBytes: Number(install.total_bytes) || 0
+    readonly property real doneBytes: Number(install.done_bytes) || 0
     readonly property real rateBytes: Number(install.rate_bytes_s) || 0
-    readonly property string downloadId: root.localDownloadId(provider)
     readonly property bool loading: !!model && model.unit === "activating"
     readonly property bool running: !!model && model.unit === "active"
     readonly property bool stopping: !!model && model.unit === "deactivating"
@@ -1930,13 +1917,13 @@ Panel {
       }
 
       // Opens the coding agent made for this subscription: Codex for OpenAI,
-      // Claude Code for Anthropic. On a local model not set up yet, or whose
-      // setup failed, the same place downloads it.
+      // Claude Code for Anthropic. On an offered local model, the same place
+      // downloads it.
       PanelActionButton {
         id: sectionLaunch
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        readonly property bool download: section.downloadId !== ""
+        readonly property bool download: !!section.offer
         visible: download || (section.model ? section.running : root.harnessFor(section.provider) !== "")
         iconText: download ? "󰇚" : "󰞷"
         tooltipText: download ? Commons.I18n.t("agents.localDownload")
@@ -1944,7 +1931,7 @@ Panel {
         foreground: root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey(download ? "localDownload" : section.model ? "modelLaunch" : "providerLaunch", section.providerIndex)
-        onClicked: download ? root.downloadLocal(section.downloadId)
+        onClicked: download ? root.downloadLocal(section.offer)
           : section.model ? root.runLocalAction(section.model, "launch") : root.launchHarness(section.provider)
       }
     }
@@ -1974,7 +1961,7 @@ Panel {
         width: parent.width * 0.3
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: section.downloadShown ? (section.install.phase === "waiting" ? Commons.I18n.t("agents.localWaitingMeter") : Commons.I18n.t("agents.localDownloadingMeter"))
+        text: section.downloadShown ? Commons.I18n.t("agents.localDownloadingMeter")
           : section.removing ? Commons.I18n.t("agents.localRemovingMeter")
           : section.loadingShown ? Commons.I18n.t("agents.localLoadingMeter")
           : section.stoppingShown ? Commons.I18n.t("agents.localStoppingMeter")
