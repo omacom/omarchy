@@ -28,8 +28,9 @@ QtObject {
   readonly property string baseLanguage: language.split("-")[0]
   readonly property string directoryPath: String(directory).replace(/^file:\/\//, "").replace(/\/+$/, "")
 
-  // Read through FileView so blockLoading applies to the first lookup, and
-  // keep the maps bound to the watched files for subsequent updates.
+  // Read through FileView synchronously, on the first lookup and on every
+  // change (see the FileViews in I18n.qml for why no read runs in the
+  // background), and keep the maps bound to the watched files.
   readonly property var englishStrings: parseCatalog(englishFile.text())
   readonly property var baseStrings: parseCatalog(baseFile.text())
   readonly property var languageStrings: parseCatalog(languageFile.text())
@@ -77,7 +78,8 @@ QtObject {
     path: root.catalogPath("en")
     watchChanges: true
     printErrors: false
-    blockLoading: true
+    preload: false
+    blockAllReads: true
     onFileChanged: reload()
   }
 
@@ -86,7 +88,8 @@ QtObject {
     path: root.baseLanguage !== root.language && root.baseLanguage !== "en" ? root.catalogPath(root.baseLanguage) : ""
     watchChanges: true
     printErrors: false
-    blockLoading: true
+    preload: false
+    blockAllReads: true
     onFileChanged: reload()
   }
 
@@ -94,7 +97,8 @@ QtObject {
     path: root.language !== "en" ? root.catalogPath(root.language) : ""
     watchChanges: true
     printErrors: false
-    blockLoading: true
+    preload: false
+    blockAllReads: true
     onFileChanged: reload()
   }
 }

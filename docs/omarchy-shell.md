@@ -227,12 +227,21 @@ text/background palette, exposed to QML as `Commons.Color.foreground` and
 The shell exposes these tokens to QML via three singletons in
 `qs.Commons`:
 
-- `Color` — palette (`foreground`, `background`, `accent`, `urgent`) and per-surface roles (`Commons.Color.bar.*`, `Commons.Color.popups.*`, `Commons.Color.tooltip.*`, `Commons.Color.notifications.*`, `Commons.Color.menu.*`, `Commons.Color.polkit.*`, `Commons.Color.lock.*`, `Commons.Color.imagePicker.*`). `Commons.Color.menu.backgroundSpec` and `selectedBackgroundSpec` preserve gradient fill data while the corresponding color properties expose the first stop. Clipboard, emojis, and reminders share `Commons.Color.menu.*`; the `[launcher]` section is consumed by the launcher outside shell QML.
+- `Color` — palette (`foreground`, `background`, `accent`, `urgent`)
+  and per-surface roles (`Commons.Color.bar.*`, `Commons.Color.popups.*`,
+  `Commons.Color.tooltip.*`, `Commons.Color.notifications.*`, `Commons.Color.menu.*`,
+  `Commons.Color.polkit.*`, `Commons.Color.lock.*`, `Commons.Color.imagePicker.*`). Clipboard
+  and emojis share `Commons.Color.menu.*`; the `[launcher]` section is consumed
+  by the launcher outside shell QML.
 - `Style` — structural tokens (`cornerRadius`), shared interactive
   state tokens/helpers, spacing (`Style.spacing.*` / `Style.space(px)`),
-  the type scale (`Style.font.*`), and bar dimensions
-  (`Style.bar.sizeHorizontal` / `Style.bar.sizeVertical`).
-- `Border` — border-spec helpers for QML surfaces. Use with `BorderSurface` from `qs.Ui` when a border should honor shell theme gradients or per-side widths. `BorderSurface.fillSpec` similarly renders surface-fill specs such as the menu gradients, with `fillColor` providing the solid fallback. `Commons.Color.<section>.border` is only the flat-color fallback for code that cannot render a real border.
+  the type scale (`Style.font.*`), bar dimensions
+  (`Style.bar.sizeHorizontal` / `Style.bar.sizeVertical`), and motion:
+  `Style.duration(ms)`, which every animation length goes through and which returns 0 when `omarchy toggle animations` has turned Hyprland's animations off (`Style.reduceMotion`), and `Style.easeOut`, the strong ease-out curve (`cubic-bezier(0.23, 1, 0.32, 1)`) for movement and entrances, used as `easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut`. [`agents/skills/motion.md`](../agents/skills/motion.md) has the rules for using them.
+- `Border` — border-spec helpers for QML surfaces. Use with
+  `BorderSurface` from `qs.Ui` when a border should honor shell theme
+  gradients or per-side widths. `Commons.Color.<section>.border` is only the
+  flat-color fallback for code that cannot render a real border. `BorderSurface.fillSpec` similarly renders surface-fill specs such as `Commons.Color.menu.backgroundSpec` and `selectedBackgroundSpec`, with `fillColor` providing the solid fallback. Clipboard, emojis, and reminders share these menu fills.
 
 ### Interactive states
 
