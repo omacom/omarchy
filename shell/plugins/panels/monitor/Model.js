@@ -157,6 +157,33 @@ function refreshOptions(availableModes, width, height) {
   })
 }
 
+// The mode a display is running, as the WIDTHxHEIGHT@RATE that
+// omarchy-hyprland-monitor-resolution takes, or "" when the display doesn't
+// advertise it, so that command couldn't set it again.
+function currentMode(availableModes, width, height, refreshRate) {
+  if (!Array.isArray(availableModes)) return ""
+
+  var prefix = Number(width) + "x" + Number(height) + "@"
+  for (var i = 0; i < availableModes.length; i++) {
+    var mode = String(availableModes[i])
+    if (mode.indexOf(prefix) !== 0) continue
+    var rate = parseFloat(mode.slice(prefix.length))
+    if (Math.abs(rate - Number(refreshRate)) < 0.01) return prefix + rate
+  }
+  return ""
+}
+
+// What a state read means for a display mode on trial, given the display as
+// that read shows it: "end" when it's still on the mode it had, so the
+// command refused the new one or changed nothing; "ask" for anything else,
+// including a read that failed or doesn't list the display, which a mode it
+// can't take may drop for a moment; and "wait" once asking, since only an
+// answer or the countdown may end the trial then.
+function modeTrialStep(trial, display, asking) {
+  if (asking) return "wait"
+  return display && display.mode === trial.mode ? "end" : "ask"
+}
+
 // ---- Layout ----
 // Rects are { name, x, y, w, h } in Hyprland's layout space: logical pixels,
 // after each display's scale.
@@ -353,6 +380,8 @@ if (typeof module !== "undefined") {
     resolutionOptions: resolutionOptions,
     resolutionLabel: resolutionLabel,
     refreshOptions: refreshOptions,
+    currentMode: currentMode,
+    modeTrialStep: modeTrialStep,
     displayTitle: displayTitle,
     logicalRect: logicalRect,
     copyRects: copyRects,

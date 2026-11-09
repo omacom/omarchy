@@ -87,7 +87,9 @@ Panel {
         scaleIndex: Model.matchingScaleIndex(scales, display.scale, display.width, display.height),
         resolutions: resolutions.length > 1 ? resolutions : [],
         refreshes: Model.refreshOptions(display.availableModes, display.width, display.height),
-        refreshRate: Number(display.refreshRate) || 0
+        refreshRate: Number(display.refreshRate) || 0,
+        mode: Model.currentMode(display.availableModes, display.width, display.height, display.refreshRate),
+        scale: display.scale
       })
     }
     return list
@@ -527,7 +529,56 @@ Panel {
   }
 
   function setResolution(name, resolution) {
+    if (!modeTrial) {
+      var display = segmentNamed(name)
+      if (display && display.mode) modeTrial = { name: name, mode: display.mode, scale: display.scale }
+    } else if (modeTrial.name !== name) {
+      return
+    }
     runAction(["omarchy-hyprland-monitor-resolution", "--monitor", name, resolution])
+  }
+
+  function segmentNamed(name) {
+    for (var i = 0; i < segments.length; i++)
+      if (segments[i].name === name) return segments[i]
+    return null
+  }
+
+  // A resolution or refresh rate the display or its cable can't carry leaves
+  // the screen dark, while Hyprland reports the mode as set and it's saved for
+  // the next login. So a new mode goes back unless it's kept within
+  // keepSeconds. modeTrial holds the display with the mode and scale it had
+  // before the first pick; a second pick before the answer still goes back to
+  // there, and picks on another display are ignored until then. The first
+  // state read after the change starts the countdown, unless it shows the
+  // display still on its old mode; see Model.modeTrialStep.
+  readonly property int keepSeconds: 15
+  property var modeTrial: null
+  property int keepCountdown: 0
+  readonly property bool keepAsked: modeTrial !== null && keepCountdown > 0
+
+  // On a state read that started after every command had landed.
+  function settleModeTrial() {
+    var step = Model.modeTrialStep(modeTrial, segmentNamed(modeTrial.name), keepCountdown > 0)
+    if (step === "end") endModeTrial()
+    else if (step === "ask") keepCountdown = keepSeconds
+  }
+
+  function endModeTrial() {
+    modeTrial = null
+    keepCountdown = 0
+  }
+
+  // The scale goes back too: the new mode may have rounded it to one it takes,
+  // and the old mode would keep that one. Without a read to compare against,
+  // it's set again to be sure.
+  function revertMode() {
+    var trial = modeTrial
+    var display = segmentNamed(trial.name)
+    endModeTrial()
+    runAction(["omarchy-hyprland-monitor-resolution", "--monitor", trial.name, trial.mode])
+    if (!display || Model.normalizeScale(display.scale) !== Model.normalizeScale(trial.scale))
+      runAction(["omarchy-hyprland-monitor-scaling", "--monitor", trial.name, String(trial.scale)])
   }
 
   function setMirror(enabled) {
@@ -713,6 +764,8 @@ Panel {
           if (root.readAfterActions === root.actionsDone) root.placeQueuedLayout()
           else root.rereadState = true
         }
+        if (root.modeTrial && !root.actionBusy && root.readAfterActions === root.actionsDone)
+          root.settleModeTrial()
         // A mirror switch has landed once a read shows it; until then, look
         // again shortly instead of waiting for the next regular read.
         if (root.pendingMirror !== "" && !root.actionBusy) {
@@ -762,6 +815,17 @@ Panel {
     id: mirrorSettle
     interval: 6000
     onTriggered: root.pendingMirror = ""
+  }
+
+  // Counts on with the panel closed, so a mode nobody kept still goes back.
+  Timer {
+    interval: 1000
+    repeat: true
+    running: root.keepAsked
+    onTriggered: {
+      root.keepCountdown--
+      if (root.keepCountdown <= 0) root.revertMode()
+    }
   }
 
   Process {
@@ -827,7 +891,8 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
-    focusTarget: panel.loadedContent
+    // Reopened while it's asking, the keys go to the question.
+    focusTarget: root.keepAsked && panel.loadedContent ? panel.loadedContent.keepDialog : panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(860))
 
@@ -835,6 +900,8 @@ Panel {
       id: keyCatcher
       property alias scrollArea: scrollArea
       property alias layoutMap: layoutMap
+      property alias keepDialog: keepDialog
+      blocked: root.keepAsked
       reorderable: root.rotateMenuName === "" && root.cursorActive && root.focusSection === "layout"
       reorderableSideways: reorderable
       onReorderRequested: function(dy) { root.placeShown(dy < 0 ? "above" : "below") }
@@ -1435,6 +1502,33 @@ Panel {
             }
           }
         }
+      }
+
+      ConfirmDialog {
+        id: keepDialog
+        anchors.fill: parent
+        z: 20
+        opened: root.keepAsked
+        onOpenedChanged: {
+          // It starts on Revert: it can come up under an Enter still held from
+          // picking the mode, or pressed blind at a dark screen, and only Keep
+          // must never be an accident.
+          selectedIndex = 0
+          if (opened) forceActiveFocus()
+          else if (root.opened) keyCatcher.forceActiveFocus()
+        }
+        Keys.onPressed: function(event) {
+          handleKey(event)
+          event.accepted = true
+        }
+        message: Commons.I18n.t("monitor.keepMode").arg(Commons.I18n.formatNumber(root.keepCountdown))
+        cancelText: Commons.I18n.t("monitor.revert")
+        confirmText: Commons.I18n.t("monitor.keep")
+        foreground: root.bar.foreground
+        background: Commons.Color.popups.background
+        fontFamily: root.bar.fontFamily
+        onCanceled: root.revertMode()
+        onConfirmed: root.endModeTrial()
       }
     }
   }
