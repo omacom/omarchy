@@ -1054,7 +1054,7 @@ Panel {
       return
     }
     if (!resolved.uuid) {
-      editorError = "No saved profile found for this network."
+      editorError = Commons.I18n.t("network.noProfile")
       editorBusy = false
       return
     }
@@ -1192,7 +1192,7 @@ Panel {
     if (exitCode !== 0) {
       editorSteps = []
       editorBusy = false
-      editorError = "Saving the profile failed."
+      editorError = Commons.I18n.t("network.saveFailed")
       return
     }
     runEditorStep()
@@ -1207,7 +1207,7 @@ Panel {
     onExited: function(exitCode) {
       if (exitCode !== 0) {
         root.editorBusy = false
-        root.editorError = "Could not read saved connections."
+        root.editorError = Commons.I18n.t("network.readConnectionsFailed")
         return
       }
       root.finishConnectionList(connectionListOut.text)
@@ -1221,7 +1221,7 @@ Panel {
     onExited: function(exitCode) {
       if (exitCode !== 0) {
         root.editorBusy = false
-        root.editorError = "Could not read the saved profile."
+        root.editorError = Commons.I18n.t("network.readProfileFailed")
         return
       }
       root.finishEditorProfile(profileOut.text)
