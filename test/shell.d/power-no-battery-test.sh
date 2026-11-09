@@ -37,3 +37,4 @@ if rg -q 'Binding loop' <<< "$output"; then
 fi
 pass "power panel without a battery settles closed after open, with no binding loop"
 pass "power panel preserves the last good policy after a failed read and recovers after complete output"
+pass "power panel refreshes charge limits after the action's exit handlers finish"

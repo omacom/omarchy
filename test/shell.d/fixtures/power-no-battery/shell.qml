@@ -9,6 +9,8 @@ import "power"
 ShellRoot {
   id: test
   property bool failed: false
+  property bool writeExited: false
+  property int writeRefreshes: 0
 
   function check(ok, message) {
     if (!ok) {
@@ -19,6 +21,14 @@ ShellRoot {
 
   Panel {
     id: panel
+  }
+
+  Panel {
+    id: writePanel
+    function refreshChargeLimit() {
+      test.check(test.writeExited, "charge-limit refresh waits for the action's exit handlers")
+      test.writeRefreshes++
+    }
   }
 
   Timer {
@@ -52,6 +62,17 @@ ShellRoot {
       panel.finishChargeLimitRead()
       test.check(!panel.chargeLimitReadFailed && panel.chargeLimitInfo.state === "off" && panel.chargeLimitInfo.end === 80, "a complete successful read recovers the actual policy")
       panel.open()
+
+      // The dead system bus makes this real command fail without touching
+      // hardware. Refresh must follow the exit signal on failures too.
+      writePanel.chargeLimitInfo = { state: "off", policy: "firmware", start: 0, end: 0 }
+      writePanel.setChargeLimit(true)
+      for (var i = 0; i < writePanel.resources.length; i++) {
+        var process = writePanel.resources[i]
+        if (process.command && process.command[1] === "on") {
+          process.exited.connect(function() { test.writeExited = true })
+        }
+      }
     }
   }
 
@@ -60,6 +81,7 @@ ShellRoot {
     running: true
     onTriggered: {
       test.check(panel.opened === false, "panel without a battery settles closed after open")
+      test.check(test.writeExited && test.writeRefreshes === 1, "a completed charge-limit action schedules one refresh")
       console.log(test.failed ? "RESULT fail" : "RESULT pass")
       Qt.quit()
     }

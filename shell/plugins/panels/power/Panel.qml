@@ -300,7 +300,7 @@ Panel {
     onExited: function(exitCode) {
       root.chargeLimitFailed = exitCode !== 0
       root.refresh()
-      root.refreshChargeLimit()
+      Qt.callLater(root.refreshChargeLimit)
     }
   }
 
