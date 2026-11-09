@@ -419,6 +419,7 @@
   "network.passphrase": "Passphrase",
   "network.passphraseNote": "Leave blank to keep the saved passphrase",
   "network.passphraseRequired": "Passphrase required",
+  "network.password": "Password",
   "network.phrase1": "Wiring bits",
   "network.phrase2": "Handling packets",
   "network.phrase3": "Sorting frames",

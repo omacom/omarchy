@@ -220,15 +220,17 @@ Column {
       wrapMode: Text.WordWrap
     }
 
-    // Passphrase (PSK/SAE)
+    // Passphrase (PSK/SAE) or password (802.1X/EAP). A blank field means "keep
+    // the saved one" for both; the panel decides which nmcli property the typed
+    // value reaches (psk for PSK/SAE, 802-1x.password for EAP).
     Column {
       width: parent.width
-      visible: root.hasPsk
+      visible: root.hasPsk || root.enterprise
       spacing: Style.space(4)
 
       Text {
         textFormat: Text.PlainText
-        text: Commons.I18n.t("network.passphrase")
+        text: root.enterprise ? Commons.I18n.t("network.password") : Commons.I18n.t("network.passphrase")
         color: Qt.darker(root.foreground, 1.4)
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall

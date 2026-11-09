@@ -17,6 +17,8 @@ import "network" as Network
 //   4. an ipv4 change queues the modify and the same `connection up`;
 //   5. a duplicate SSID with no active profile shows the picker, and choosing a
 //      UUID opens the editor for that UUID.
+//   6. a WPA2-Enterprise profile shows an editable password field that writes
+//      802-1x.password over stdin (never argv), alongside its 802-1x.identity.
 //
 // The nmcli stub logs every invocation and, for `connection edit`, the stdin it
 // read, to separate files; the fixture reads them back so the assertions are on
@@ -28,7 +30,10 @@ ShellRoot {
   readonly property string nmcliStdinLog: Quickshell.env("NETWORK_TEST_NMCLI_STDIN_LOG")
   readonly property string uuid: "11111111-1111-1111-1111-111111111111"
   readonly property string ambigUuid: "44444444-4444-4444-4444-444444444444"
+  readonly property string eapUuid: "55555555-5555-5555-5555-555555555555"
   readonly property string secret: "s3cr3t pass"
+  readonly property string eapIdentity: "alice@corp.example"
+  readonly property string eapSecret: "eap s3cr3t"
   property string lastLog: ""
   property string stage: ""
 
@@ -83,6 +88,19 @@ ShellRoot {
     function forget() {}
   }
 
+  // A WPA2-Enterprise row whose saved profile carries an 802.1X identity and
+  // password the editor must let the user re-enter.
+  property QtObject corp: QtObject {
+    property string name: "CORP"
+    property bool connected: false
+    property bool known: true
+    property bool stateChanging: false
+    property real signalStrength: 0.7
+    property int security: WifiSecurityType.Wpa2Eap
+    signal connectionFailed(int reason)
+    function forget() {}
+  }
+
   Item {
     Network.Panel {
       id: panel
@@ -110,7 +128,7 @@ ShellRoot {
     interval: 250
     running: true
     onTriggered: {
-      NetworkMock.wifi.networks = ({ values: [test.kemenkeu, test.ambig] })
+      NetworkMock.wifi.networks = ({ values: [test.kemenkeu, test.ambig, test.corp] })
       panel.testEnsureContent()
       panel.open()
       Qt.callLater(test.start)
@@ -327,6 +345,50 @@ ShellRoot {
   function checkFieldCleared() {
     var field = test.passwordField()
     check(!!field && field.text === "", "reopening the editor clears the stale passphrase from the field")
+    if (failed) { finish(); return }
+    openEditor("CORP", eapOpened)
+  }
+
+  // ---------- Phase 6: an EAP profile offers an editable password ----------
+
+  function eapOpened() {
+    var editor = panel.testEditor
+    check(panel.editingUuid === test.eapUuid, "resolves the EAP profile to its uuid")
+    check(editor.enterprise === true, "a WPA2-Enterprise profile opens as enterprise")
+    var field = test.passwordField()
+    check(!!field && !!field.parent && field.parent.visible === true,
+      "the password field is visible for an enterprise profile")
+    check(editor.form && editor.form.identity === "", "the EAP identity starts blank")
+    if (failed) { finish(); return }
+    field.text = test.eapSecret
+    check(editor.form.password === test.eapSecret, "typing in the EAP password field reaches the form")
+    editor.update("identity", test.eapIdentity)
+    editor.submit()
+    afterSave(readEapArgv)
+  }
+
+  function readEapArgv() {
+    stage = "eap"
+    logProc.running = true
+  }
+
+  function checkEapArgv(lines) {
+    lastLog = lines.join("\n")
+    check(String(lastLog).indexOf(test.eapSecret) === -1, "the EAP password never appears in nmcli argv")
+    check(String(lastLog).indexOf(test.eapIdentity) === -1, "the EAP identity never appears in nmcli argv")
+    stdinEapProc.running = true
+  }
+
+  function checkEapStdin(text) {
+    var stdinLines = linesOf(text)
+    check(countPrefix(stdinLines, "set 802-1x.password") === 1,
+      "the EAP password is set through nmcli's interactive value prompt")
+    check(hasLine(stdinLines, test.eapSecret),
+      "the EAP password is written verbatim on its own stdin line")
+    check(countPrefix(stdinLines, "set 802-1x.identity") === 1,
+      "the EAP identity change uses the same interactive prompt")
+    check(hasLine(stdinLines, test.eapIdentity),
+      "the EAP identity is written verbatim on its own stdin line")
     finish()
   }
 
@@ -360,6 +422,7 @@ ShellRoot {
         else if (test.stage === "noop") test.checkNoop(lines)
         else if (test.stage === "passphrase") test.checkPassphrase(lines)
         else if (test.stage === "ipv4") test.checkIpv4(lines)
+        else if (test.stage === "eap") test.checkEapArgv(lines)
       }
     }
   }
@@ -370,6 +433,15 @@ ShellRoot {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: test.checkPassphraseStdin(text)
+    }
+  }
+
+  Process {
+    id: stdinEapProc
+    command: ["cat", test.nmcliStdinLog]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: test.checkEapStdin(text)
     }
   }
 

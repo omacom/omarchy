@@ -73,6 +73,7 @@ if [[ ${1:-} == "-t" ]]; then
     printf 'KEMENKEU:22222222-2222-2222-2222-222222222222:no\n'
     printf 'AMBIG:33333333-3333-3333-3333-333333333333:no\n'
     printf 'AMBIG:44444444-4444-4444-4444-444444444444:no\n'
+    printf 'CORP:55555555-5555-5555-5555-555555555555:no\n'
   else
     printf 'connection.autoconnect:yes\n'
     printf 'connection.autoconnect-priority:0\n'
@@ -109,4 +110,4 @@ run_panel() {
 
 stage_panel editor
 run_panel
-pass "network editor prefills a saved profile, saves only the changed key by uuid, sends a passphrase over stdin, reconnects the active profile, and picks among duplicate profiles"
+pass "network editor prefills a saved profile, saves only the changed key by uuid, sends a passphrase over stdin, reconnects the active profile, picks among duplicate profiles, and edits an EAP password over stdin"
