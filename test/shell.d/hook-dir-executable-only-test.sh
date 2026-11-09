@@ -30,6 +30,12 @@ make_hook "$hook_dir/20-second.hook" 755 "20"
 make_hook "$hook_dir/README.md" 644 "readme"
 # Executable but a sample: skipped for its own reason, every time.
 make_hook "$hook_dir/30-example.sample" 755 "sample"
+# A dotfile never matches the glob, so an editor swap file beside the hooks stays
+# invisible. Asserted so a later `shopt -s dotglob` cannot quietly start running
+# .swp files as shell scripts.
+make_hook "$hook_dir/.10-first.hook.swp" 755 "swp"
+# A directory is not a hook, whatever it is named.
+mkdir -p "$hook_dir/40-looks-like-a-hook.hook"
 
 HOME="$fake_home" "$ROOT/bin/omarchy-hook" post-update
 
