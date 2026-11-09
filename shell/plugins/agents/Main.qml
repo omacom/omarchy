@@ -69,6 +69,9 @@ Item {
   // network last surveyed them: running, stopped, or offline with the host
   // away. The survey runs while the panel is open; this only follows its file.
   property var networkModels: ({})
+  // Whether this machine can share its own models: Tailscale running with
+  // MagicDNS and HTTPS certificates, as the last survey found it.
+  property bool canShare: false
 
   FileView {
     id: networkFile
@@ -102,6 +105,7 @@ Item {
         models[id] = model
       }
       root.networkModels = models
+      root.canShare = parsed.can_share === true
     } catch (e) {
       // A missing or partially written survey keeps the last good one.
     }

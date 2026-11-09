@@ -33,13 +33,15 @@ Panel {
 
   // A model on another machine of the tailnet carries its host. Away, it
   // offers nothing; unpaired, only pairing, which is what fetches its key.
-  function localActions(model) {
+  // This machine's own models offer sharing only where Tailscale can serve
+  // them, or where one is shared already, so it can always be stopped.
+  function localActions(model, canShare) {
     var actions = []
     if (model.unit === "removing" || model.unit === "installing") return actions
     if (model.host) {
       if (model.offline) return actions
       if (!model.paired) return ["pair"]
-    } else {
+    } else if (canShare || model.shared === true) {
       actions.push("share")
     }
     if (model.unit !== "deactivating") actions.push("toggle")
@@ -195,7 +197,7 @@ Panel {
           continue
         }
         if (providers[p].localModel) {
-          var actions = localActions(providers[p].localModel)
+          var actions = localActions(providers[p].localModel, usage.canShare)
           rows.push(actions.length > 0 ? actions.map(function(action) { return { kind: actionKinds[action], index: p } }) : [{ kind: "modelHeader", index: p }])
           continue
         }
@@ -259,7 +261,7 @@ Panel {
     if (!provider) return "provider"
     if (provider.localOffer) return "localDownload"
     if (provider.localModel) {
-      var actions = localActions(provider.localModel)
+      var actions = localActions(provider.localModel, usage.canShare)
       if (actions.indexOf("launch") >= 0) return "modelLaunch"
       if (actions.indexOf("pair") >= 0) return "modelPair"
       return actions.indexOf("toggle") >= 0 ? "modelToggle" : "modelHeader"
@@ -1991,19 +1993,20 @@ Panel {
         record: section.provider
       }
 
-      // Shares this machine's model with the tailnet, or stops sharing it.
-      // Lit while shared; another machine pairs once to use it.
+      // Shares this machine's model with the tailnet, or stops sharing it:
+      // the Tailscale mark, lit while shared. Offered only where Tailscale
+      // can serve it, and kept on a shared model so sharing can always stop.
       PanelActionButton {
         id: localShare
         anchors.right: localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: !!section.model && !section.remote && !section.removing && !section.installing
         readonly property bool shared: !!section.model && section.model.shared === true
-        iconText: "󰒗"
+        visible: !!section.model && !section.remote && !section.removing && !section.installing && (usage.canShare || shared)
+        iconText: ""
         tooltipText: shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
         foreground: shared ? Commons.Color.accent : root.dim
-        fontFamily: root.fontFamily
+        fontFamily: "omarchy"
         hasCursor: root.hasKey("modelShare", section.providerIndex)
         onClicked: root.runLocalAction(section.model, "share")
       }
