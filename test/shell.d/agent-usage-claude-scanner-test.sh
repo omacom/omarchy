@@ -78,6 +78,34 @@ index = next(iter(cache_root().glob("claude-index-*.json")), None)
 check("Claude keeps one record per API message in the index",
       index and len(next(iter(json.loads(index.read_text())["files"].values()))["records"]) == 3, index and index.read_text())
 
+# The update's runner reads a current index once before it forks the
+# collectors, and each collector process takes that copy instead of parsing
+# the file again: once, and only while the file is still the one read.
+import collectors
+real_read_json = collectors.read_json
+reads = []
+collectors.read_json = lambda path, *args, **kwargs: (reads.append(Path(path).name), real_read_json(path, *args, **kwargs))[1]
+try:
+  collectors._PRELOADED_INDEXES.clear()
+  collectors.preload_shared()
+  preloaded = list(collectors._PRELOADED_INDEXES)
+  reads.clear()
+  first = collectors._claude_code_load_index(index)
+  first_reads = len(reads)
+  second = collectors._claude_code_load_index(index)
+  collectors.preload_shared()
+  stat = index.stat()
+  os.utime(index, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+  reads.clear()
+  changed = collectors._claude_code_load_index(index)
+  changed_reads = len(reads)
+finally:
+  collectors.read_json = real_read_json
+  collectors._PRELOADED_INDEXES.clear()
+expect("A collector takes the runner's preloaded Claude index once, then reads the file, and never a copy of one since replaced",
+       [preloaded == [str(index)], first_reads, first == second, changed_reads, changed == first],
+       [True, 0, True, 1, True])
+
 # An unchanged file is not opened again: its records come from the index.
 if os.geteuid() != 0:
   session.chmod(0)

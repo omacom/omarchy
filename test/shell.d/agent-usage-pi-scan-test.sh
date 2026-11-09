@@ -122,6 +122,86 @@ check("its own replies, prompts and compactions still count",
       == [("demo-model", 1000, 1), ("demo-model", 1001, 0), ("demo-model", 1002, 0), ("omp-model", 0, 1), ("omp-model", 700, 0)],
       json.dumps([row._asdict() for row in rows]))
 
+# The update's runner reads every root's model switches once before it forks
+# the collectors; a collector then runs no rg pass for them, and finds the
+# same rows, the omp file its switch alone names included. Once: a second
+# scan reads them again.
+demo_rows = rows
+real_popen = collectors.subprocess.Popen
+passes = []
+
+
+def counting_popen(args, *rest, **kwargs):
+  passes.append(" ".join(map(str, args)))
+  return real_popen(args, *rest, **kwargs)
+
+
+collectors.preload_shared()
+collectors.subprocess.Popen = counting_popen
+try:
+  preloaded_rows, preloaded_complete = scan("demo")
+  preloaded_passes = list(passes)
+  again_rows, _ = scan("demo")
+finally:
+  collectors.subprocess.Popen = real_popen
+# A pass for the switches alone: the switch pattern, not this scan's own.
+switch_passes = lambda calls: [args for args in calls if "model_change" in args and '"demo"' not in args]
+check("a scan after the runner's preload reads no session again for model switches, and finds the same rows",
+      preloaded_complete and preloaded_rows == demo_rows and again_rows == demo_rows
+      and not switch_passes(preloaded_passes) and switch_passes(passes[len(preloaded_passes):]),
+      json.dumps({"preloaded": preloaded_passes, "after": passes[len(preloaded_passes):]}))
+
+# A session that gains a switch after the preload (a new omp session, its
+# only usage a compaction on the switch's model) is found all the same.
+collectors.preload_shared()
+later = home / ".omp" / "agent" / "sessions" / "-" / "omp-later.jsonl"
+later_lines = json.dumps([
+  {"type": "session", "version": 3, "id": "o2", "timestamp": stamp, "cwd": "/proj"},
+  {"type": "model_change", "id": "omc2", "parentId": None, "timestamp": stamp, "runtime": runtime, "model": "demo/omp-model", "resolvedModelIsFallback": False},
+  {"type": "message", "id": "ou2", "timestamp": stamp, "runtime": runtime, "message": {"role": "user", "content": [{"type": "text", "text": "compact"}], "attribution": "user", "timestamp": 1}},
+  {"type": "compaction", "id": "ocp2", "timestamp": stamp, "runtime": runtime, "summary": "s", "firstKeptEntryId": "ou2", "tokensBefore": 900, "usage": usage(800)},
+])
+write(later, json.loads(later_lines))
+try:
+  later_rows, later_complete = scan("demo")
+finally:
+  later.unlink()
+check("a session switched to the provider after the preload still counts",
+      later_complete and ("omp-model", 800) in [(row.model, row.input_tokens) for row in later_rows],
+      json.dumps([row._asdict() for row in later_rows]))
+
+# Also where rg follows symlinks (RIPGREP_CONFIG_PATH may say --follow) and
+# the new session sits in a directory linked into the root.
+elsewhere = home / "elsewhere"
+write(elsewhere / "omp-linked.jsonl", [])
+(home / ".omp" / "agent" / "sessions" / "linked").symlink_to(elsewhere)
+(home / "rgrc").write_text("--follow\n")
+os.environ["RIPGREP_CONFIG_PATH"] = str(home / "rgrc")
+try:
+  collectors.preload_shared()
+  write(elsewhere / "omp-linked.jsonl", [{**line, "id": line["id"] + "3"} if "id" in line else line for line in json.loads(later_lines)])
+  linked_rows, linked_complete = scan("demo")
+finally:
+  del os.environ["RIPGREP_CONFIG_PATH"]
+  (home / ".omp" / "agent" / "sessions" / "linked").unlink()
+check("a session in a linked directory rg follows, switched after the preload, still counts",
+      linked_complete and ("omp-model", 800) in [(row.model, row.input_tokens) for row in linked_rows],
+      json.dumps([row._asdict() for row in linked_rows]))
+
+# And where rg's config starts following that link after the preload, the
+# session itself unchanged.
+(home / ".omp" / "agent" / "sessions" / "linked").symlink_to(elsewhere)
+try:
+  collectors.preload_shared()
+  os.environ["RIPGREP_CONFIG_PATH"] = str(home / "rgrc")
+  configured_rows, configured_complete = scan("demo")
+finally:
+  del os.environ["RIPGREP_CONFIG_PATH"]
+  (home / ".omp" / "agent" / "sessions" / "linked").unlink()
+check("a session rg's config starts following after the preload still counts",
+      configured_complete and ("omp-model", 800) in [(row.model, row.input_tokens) for row in configured_rows],
+      json.dumps([row._asdict() for row in configured_rows]))
+
 rows, complete = scan("other1")
 check("another provider's scan parses only its own ten files",
       complete and len(parsed["files"]) == 10 and all(name.startswith("other-") for name in parsed["files"]) and len(rows) == 30,

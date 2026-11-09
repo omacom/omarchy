@@ -913,7 +913,52 @@ def _pi_rows(path: str, lines: list[tuple[int, Any]], accept: Accept) -> Iterato
   yield from unanswered()
 
 
-def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None = None) -> tuple[list[UsageRow], bool]:
+# pi/omp model switches preload_shared() read before runner.py forked a
+# refresh's collectors, by root as rg was given it: (the root's session files
+# as they were, the files holding a switch, every switch line in them). Every
+# collector read them again for itself (17 full passes over the sessions at a
+# refresh); each now takes them once, while no session file changed.
+_PRELOADED_PI_SWITCHES: dict[bytes, tuple[Any, list[bytes], list[tuple[str, str, int, Any]]]] = {}
+
+
+def _pi_sessions_stamp(root: Path) -> tuple[Any, frozenset[tuple[str, int, int, int]]]:
+  """rg's config file as it is now, and every file under a root, symlinked
+  directories followed once each: more than rg searches whatever its config
+  says (RIPGREP_CONFIG_PATH may add --follow or another glob), so a change
+  to that config, or a file it would read that grows, is rewritten or
+  appears, changes the stamp."""
+  config = os.environ.get("RIPGREP_CONFIG_PATH")
+  try:
+    info = os.stat(config) if config else None
+    config_stamp = (config, info and (info.st_ino, info.st_size, info.st_mtime_ns))
+  except OSError:
+    config_stamp = (config, None)
+  stamp = set()
+  seen = set()
+  pending = [str(root)]
+  while pending:
+    directory = pending.pop()
+    try:
+      info = os.stat(directory)
+      if (info.st_dev, info.st_ino) in seen:
+        continue
+      seen.add((info.st_dev, info.st_ino))
+      entries = list(os.scandir(directory))
+    except OSError:
+      continue
+    for entry in entries:
+      try:
+        info = entry.stat()
+      except OSError:
+        continue
+      if stat.S_ISDIR(info.st_mode):
+        pending.append(entry.path)
+      else:
+        stamp.add((entry.path, info.st_ino, info.st_size, info.st_mtime_ns))
+  return config_stamp, frozenset(stamp)
+
+
+def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None = None, *, preload: bool = False) -> tuple[list[UsageRow], bool]:
   """Every pi/omp reply `accept` takes, each counted once, and whether every
   root was read in full.
 
@@ -928,6 +973,11 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
   omp's with another beside them). They are read as canonical_roots() gives
   them, so a message copied between any of them still counts once. A
   collector that passes roots keys its scan cache by those same roots.
+
+  `preload` only reads what is the same for every collector, the files of
+  each root holding a model switch and those switches, for preload_shared():
+  each collector process then takes them once instead of reading every
+  session file again for them.
   """
   roots = [root for root in canonical_roots(pi_session_roots() if roots is None else roots) if root.is_dir()]
   if not roots:
@@ -1031,6 +1081,16 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
     args = ["--files-with-matches", "--null", "--glob", "*.jsonl"] + [arg for pattern in patterns for arg in ("-e", pattern)]
     return [os.fsencode(os.path.realpath(os.fsdecode(name))) for name in b"".join(run_rg(args, targets)).split(b"\0") if name]
 
+  if preload:
+    switches = {}
+    for root in roots:
+      stamp = _pi_sessions_stamp(root)
+      files = matching_files([os.fsencode(root)], [switch])
+      switches[os.fsencode(root)] = (stamp, files, list(match_events(sorted(files), [switch])))
+    if complete:
+      _PRELOADED_PI_SWITCHES.update(switches)
+    return [], complete
+
   for index, root in enumerate(roots):
     # Only a file holding this collector's lines can hold its rows, so the
     # files are picked first: those with a line `pattern` matches, and those
@@ -1039,8 +1099,14 @@ def scan_pi_sessions(pattern: str, accept: Accept, roots: Iterable[Path] | None 
     # which `pattern` doesn't see). Every other file's prompts and summaries
     # belong to another collector, and are never parsed here.
     owned = matching_files([os.fsencode(root)], [pattern])
-    switched = set(matching_files([os.fsencode(root)], [switch])) - set(owned)
-    for _, path, _, entry in match_events(sorted(switched), [switch]):
+    preloaded = _PRELOADED_PI_SWITCHES.pop(os.fsencode(root), None)
+    if preloaded is None or preloaded[0] != _pi_sessions_stamp(root):
+      switched = set(matching_files([os.fsencode(root)], [switch])) - set(owned)
+      events = match_events(sorted(switched), [switch])
+    else:
+      switched = set(preloaded[1]) - set(owned)
+      events = (event for event in preloaded[2] if os.fsencode(event[1]) in switched)
+    for _, path, _, entry in events:
       line = _pi_line(entry)
       try:
         if line is not None and line[0] == "model" and accept(*line[1:4]):
@@ -1665,7 +1731,18 @@ def _claude_code_index_zone() -> list[Any]:
   return [os.environ.get("TZ"), list(time.tzname), time.timezone, time.altzone]
 
 
+# Claude Code indexes runner.py read before it forked a refresh's collectors,
+# by path: (stamp, files). Eleven collectors read the same index, about 0.1
+# CPU-seconds of JSON apiece at a gigabyte of transcripts. Each child takes
+# its copy once, and only while the file is still the one that was read;
+# anything else reads the file, as every collector did on its own.
+_PRELOADED_INDEXES: dict[str, tuple[Any, dict[str, Any]]] = {}
+
+
 def _claude_code_load_index(index_file: Path) -> dict[str, Any]:
+  preloaded = _PRELOADED_INDEXES.pop(str(index_file), None)
+  if preloaded is not None and preloaded[0] == _claude_code_index_stamp(index_file):
+    return preloaded[1]
   data = read_json(index_file)
   if data.get("version") == CLAUDE_CODE_INDEX_VERSION and data.get("zone") == _claude_code_index_zone() and isinstance(data.get("files"), dict):
     return data["files"]
@@ -2033,6 +2110,37 @@ def _claude_code_read_transcripts(files: list[Path], previous: dict[str, Any]) -
 
 
 _DEFAULT_INDEX = object()
+
+
+def preload_shared() -> None:
+  """Read once what every collector of a refresh reads the same way.
+
+  runner.py calls this before it forks the collectors, so each child starts
+  with it loaded: the Claude Code index, and pi's model switches. Nothing
+  here may fail a refresh.
+  """
+  for preload, preloaded in ((_preload_claude_code_index, _PRELOADED_INDEXES), (_preload_pi_switches, _PRELOADED_PI_SWITCHES)):
+    try:
+      preload()
+    except Exception:
+      preloaded.clear()
+
+
+def _preload_claude_code_index() -> None:
+  # Only an index that is there and current for every transcript is kept:
+  # building one stays with the collectors, under its lock, as before.
+  projects = claude_code_dir() / "projects"
+  index_file = claude_code_index_path(projects)
+  stamp = _claude_code_index_stamp(index_file)
+  if stamp is None or not projects.is_dir():
+    return
+  files = _claude_code_load_index(index_file)
+  if files and _claude_code_index_stamp(index_file) == stamp and _claude_code_index_fresh(files, list(projects.rglob("*.jsonl"))):
+    _PRELOADED_INDEXES[str(index_file)] = (stamp, files)
+
+
+def _preload_pi_switches() -> None:
+  scan_pi_sessions("", lambda *_: False, preload=True)
 
 
 def scan_claude_code(
