@@ -2,20 +2,20 @@
 
 # omarchy:summary=Control a Bluetooth device
 # omarchy:group=bluetooth
-# omarchy:args=[pair|connect|disconnect|forget] <address>
-# omarchy:examples=omarchy bluetooth device connect 00:11:22:33:44:55
+# omarchy:args=[pair|connect|disconnect|forget|music|headset] <address>
+# omarchy:examples=omarchy bluetooth device connect 00:11:22:33:44:55 | omarchy bluetooth device music 00:11:22:33:44:55
 
 set -e
 
 usage() {
-  echo "Usage: omarchy-bluetooth-device [pair|connect|disconnect|forget] <address>" >&2
+  echo "Usage: omarchy-bluetooth-device [pair|connect|disconnect|forget|music|headset] <address>" >&2
   exit 1
 }
 
 action=${1:-}
 address=${2:-}
 
-[[ $action == "pair" || $action == "connect" || $action == "disconnect" || $action == "forget" ]] || usage
+[[ $action =~ ^(pair|connect|disconnect|forget|music|headset)$ ]] || usage
 [[ $address =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] || usage
 
 power_on() {
@@ -27,6 +27,24 @@ power_on() {
 
 trust_device() {
   bluetoothctl trust "$address" >/dev/null 2>&1 || true
+}
+
+# Music is A2DP (high quality, no microphone); headset is HFP/HSP (mono, with
+# the microphone). Prefer the plain profile name, which PipeWire gives the best
+# codec, and fall back to the highest priority codec variant.
+set_audio_profile() {
+  local prefix=$1 card profile
+  card="bluez_card.${address//:/_}"
+  profile=$(pactl -f json list cards 2>/dev/null | jq -r --arg card "$card" --arg prefix "$prefix" '
+    .[] | select(.name == $card) | .profiles | to_entries
+    | map(select(.value.available and (.key == $prefix or (.key | startswith($prefix + "-")))))
+    | (map(select(.key == $prefix)) + sort_by(-.value.priority)) | first | .key // empty')
+
+  if [[ -z $profile ]]; then
+    echo "omarchy-bluetooth-device: $address has no $prefix profile" >&2
+    exit 1
+  fi
+  pactl set-card-profile "$card" "$profile"
 }
 
 case "$action" in
@@ -48,5 +66,11 @@ case "$action" in
     power_on
     timeout 10s bluetoothctl disconnect "$address" >/dev/null 2>&1 || true
     timeout 10s bluetoothctl remove "$address" >/dev/null 2>&1 || true
+    ;;
+  music)
+    set_audio_profile a2dp-sink
+    ;;
+  headset)
+    set_audio_profile headset-head-unit
     ;;
 esac

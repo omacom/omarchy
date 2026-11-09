@@ -204,6 +204,26 @@ Panel {
     return null
   }
 
+  // Bluetooth sinks report their card profile only once bound, so track them
+  // while the panel is open.
+  readonly property var bluetoothSinks: audioSinks().filter(function(node) {
+    return String(node.name || "").indexOf("bluez_output.") === 0
+  })
+
+  // "music" (A2DP) or "headset" (HFP/HSP) for a connected audio device, or ""
+  // when it has no audio sink or the profile is neither.
+  function audioMode(device) {
+    var sink = bluetoothAudioSink(device)
+    return Model.audioModeForProfile(Model.nodeProps(sink)["api.bluez5.profile"])
+  }
+
+  function toggleAudioMode(device) {
+    if (!device || !device.address) return
+    var mode = audioMode(device)
+    if (mode === "") return
+    Quickshell.execDetached(deviceCommand(mode === "headset" ? "music" : "headset", device.address))
+  }
+
   function setDefaultAudioSink(sink) {
     if (!sink) return
     Pipewire.preferredDefaultAudioSink = sink
@@ -397,6 +417,11 @@ Panel {
     }
   }
 
+  function toggleSelectedAudioMode() {
+    if (focusSection !== "connected") return
+    toggleAudioMode(deviceAt(focusSection, selectedIndex))
+  }
+
   // 'x' forgets remembered devices. For connected devices this first
   // disconnects, then removes the BlueZ pairing record via omarchy-bluetooth-device.
   function deleteSelected() {
@@ -501,6 +526,8 @@ Panel {
   visible: adapter !== null
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
+
+  PwObjectTracker { objects: root.opened ? root.bluetoothSinks : [] }
 
   // BlueZ rejects StartDiscovery while the adapter is still powering up, and
   // discovery can also time out on its own. While the panel is open, keep
@@ -686,6 +713,7 @@ Panel {
       onDeleteRequested: if (root.cursorActive) root.deleteSelected()
       onTextKey: function(t) {
         if (t === "b" || t === "B") root.toggleBluetooth()
+        else if (t === "m" || t === "M") root.toggleSelectedAudioMode()
       }
 
       Column {
@@ -896,6 +924,7 @@ Panel {
     readonly property bool isConnected: dev && dev.connected
     readonly property int devState: dev && dev.state !== undefined ? dev.state : -1
     readonly property string action: root.pendingAction(dev ? dev.address : "")
+    readonly property string audioMode: isConnected ? root.audioMode(dev) : ""
     readonly property string actionTooltip: {
       if (!dev) return ""
       if (isConnected) return Commons.I18n.t("bluetooth.disconnect")
@@ -918,7 +947,10 @@ Panel {
       if (action === "forgetting") return Commons.I18n.t("bluetooth.forgetting")
       if (action === "disconnecting" || devState === 2) return Commons.I18n.t("bluetooth.disconnecting")
       if (isConnected) {
-        if (dev.batteryAvailable) return Commons.I18n.formatNumber(Math.round(dev.battery * 100)) + "%"
+        var parts = []
+        if (dev.batteryAvailable) parts.push(Commons.I18n.formatNumber(Math.round(dev.battery * 100)) + "%")
+        if (audioMode === "headset") parts.push(Commons.I18n.t("bluetooth.headsetMode"))
+        if (parts.length > 0) return parts.join(" · ")
         return sectionName === "connected" ? "" : Commons.I18n.t("bluetooth.connectedStatus")
       }
       if (action === "connecting" || devState === 3 || dev.pairing === true) return Commons.I18n.t("bluetooth.connecting")
@@ -974,7 +1006,7 @@ Panel {
       anchors.verticalCenter: parent.verticalCenter
       anchors.leftMargin: Style.space(10)
       anchors.rightMargin: Style.space(10)
-      implicitHeight: Math.max(deviceIcon.implicitHeight, info.implicitHeight, forgetBtn.implicitHeight)
+      implicitHeight: Math.max(deviceIcon.implicitHeight, info.implicitHeight, forgetBtn.implicitHeight, modeBtn.implicitHeight)
 
       Text {
         id: deviceIcon
@@ -992,8 +1024,8 @@ Panel {
         spacing: Style.space(1)
         anchors.left: deviceIcon.right
         anchors.leftMargin: Style.space(10)
-        anchors.right: forgetBtn.visible ? forgetBtn.left : parent.right
-        anchors.rightMargin: forgetBtn.visible ? Style.space(8) : 0
+        anchors.right: modeBtn.visible ? modeBtn.left : forgetBtn.visible ? forgetBtn.left : parent.right
+        anchors.rightMargin: modeBtn.visible || forgetBtn.visible ? Style.space(8) : 0
         anchors.verticalCenter: parent.verticalCenter
 
         Text {
@@ -1015,6 +1047,28 @@ Panel {
           elide: Text.ElideRight
           width: parent.width
         }
+      }
+
+      // Shows the current audio mode; clicking switches to the other one.
+      PanelActionButton {
+        id: modeBtn
+        anchors.right: forgetBtn.visible ? forgetBtn.left : parent.right
+        anchors.rightMargin: forgetBtn.visible ? Style.space(4) : 0
+        anchors.verticalCenter: parent.verticalCenter
+        visible: row.audioMode !== ""
+        iconText: row.audioMode === "headset" ? "󰋎" : "󰝚"
+        tooltipText: row.audioMode === "headset" ? Commons.I18n.t("bluetooth.switchToMusicMode") : Commons.I18n.t("bluetooth.switchToHeadsetMode")
+        foreground: root.bar.foreground
+        hoverColor: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onHovered: function(isHovered) {
+          if (!isHovered) return
+          root.cursorActive = true
+          root.focusSection = row.sectionName
+          root.selectedIndex = row.rowIndex
+          root.actionFocused = false
+        }
+        onClicked: root.toggleAudioMode(root.deviceFor(row))
       }
 
       PanelActionButton {

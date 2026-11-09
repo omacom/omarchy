@@ -97,6 +97,12 @@ assert(
   !bluetooth.bluetoothSinkMatchesDevice({ isSink: false, isStream: false, ready: true, name: 'bluez_output.AA_BB_CC_DD_EE_FF.1', properties: {} }, { address: 'AA:BB:CC:DD:EE:FF', name: 'JBL Go 3' }),
   'bluetooth ignores non-sink nodes when matching audio outputs'
 )
+
+// The panel's mode toggle reads the profile off the sink. A phone's audio
+// gateway profile is neither mode, so it gets no toggle.
+assertEqual(bluetooth.audioModeForProfile('headset-head-unit-msbc'), 'headset', 'bluetooth reads a codec-suffixed HFP profile as headset mode')
+assertEqual(bluetooth.audioModeForProfile('a2dp-sink'), 'music', 'bluetooth reads A2DP as music mode')
+assertEqual(bluetooth.audioModeForProfile('audio-gateway'), '', 'bluetooth offers no mode for a phone audio gateway')
 JS
 
 # Turning Bluetooth off is an rfkill soft block, not a bluetoothctl power off,
@@ -231,3 +237,42 @@ rm -f "$POWERED_FILE.11:22:33:44:55:66"
 grep -qx "rfkill block bluetooth" "$multi_log" ||
   fail "bluetooth counts a secondary controller as on" "$(cat "$multi_log")"
 pass "bluetooth counts a secondary controller as on"
+
+# The panel's music/headset toggle. The plain profile name is the one PipeWire
+# gives the best codec, so it wins over a higher-priority variant; without it,
+# take the best variant the headset can actually use.
+cat >"$mock_bin/pactl" <<'SH'
+#!/bin/bash
+
+if [[ $1 == "-f" ]]; then
+  cat "$PACTL_CARDS"
+else
+  printf 'pactl %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+fi
+SH
+chmod +x "$mock_bin/pactl"
+
+export PACTL_CARDS="$device_tmp/cards.json"
+cat >"$PACTL_CARDS" <<'JSON'
+[{"name": "bluez_card.AA_BB_CC_DD_EE_FF", "profiles": {
+  "a2dp-sink-sbc": {"priority": 140, "available": true},
+  "a2dp-sink": {"priority": 134, "available": true},
+  "headset-head-unit-cvsd": {"priority": 5, "available": true},
+  "headset-head-unit-msbc": {"priority": 6, "available": false}
+}}]
+JSON
+
+music_log=$(bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" music AA:BB:CC:DD:EE:FF)
+grep -qx "pactl set-card-profile bluez_card.AA_BB_CC_DD_EE_FF a2dp-sink" "$music_log" ||
+  fail "bluetooth music mode prefers the plain A2DP profile" "$(cat "$music_log")"
+pass "bluetooth music mode prefers the plain A2DP profile"
+
+headset_log=$(bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" headset AA:BB:CC:DD:EE:FF)
+grep -qx "pactl set-card-profile bluez_card.AA_BB_CC_DD_EE_FF headset-head-unit-cvsd" "$headset_log" ||
+  fail "bluetooth headset mode falls back to the best available HFP codec" "$(cat "$headset_log")"
+pass "bluetooth headset mode falls back to the best available HFP codec"
+
+if PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG=/dev/null "$ROOT/bin/omarchy-bluetooth-device" music 11:22:33:44:55:66 2>/dev/null; then
+  fail "bluetooth audio mode fails for a device with no audio card"
+fi
+pass "bluetooth audio mode fails for a device with no audio card"
