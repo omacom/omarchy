@@ -316,8 +316,8 @@ rows_by_cols="$custom_fit_rows $custom_fit_cols"
 fit_window || fail "the fit sizes a custom config's window to its render"
 [[ -r $FIT_FILE ]] || fail "a fit measured from a custom config's render is remembered"
 pass "the fit sizes a custom config's window to its render"
-read -r key_w key_r fit_w fit_h <"$FIT_FILE"
-[[ $key_w == "$render_width" && $key_r == "$render_rows" && $fit_w == 800 && $fit_h == 600 ]] ||
+read -r fit_kind key_w key_r fit_w fit_h <"$FIT_FILE"
+[[ $key_w == $render_width && $key_r == $render_rows && $fit_w == 800 && $fit_h == 600 ]] ||
   fail "the remembered fit is keyed on the render it measured" "$FIT_FILE: $key_w $key_r $fit_w $fit_h"
 pass "the remembered fit is keyed on the render it measured"
 
@@ -352,3 +352,54 @@ presize_window
 [[ ${evals[-1]} != *'size ='* ]] ||
   fail "a stock-config launch is not presized by a custom config's fit" "${evals[-1]}"
 pass "a stock-config launch is not presized by a custom config's fit"
+
+# A custom render can measure the same as the stock logo does, and a size that
+# fits one layout clips the other, so the stock launch below has to refuse a
+# fit the custom path recorded even here: the logo file and the render are both
+# 8 columns wide and 2 rows tall.
+render_width=8
+render_rows=2
+fastfetch() {
+  case ${1:-} in
+    --list-config-paths) printf '%s\n' "${config_paths[@]}" ;;
+    --pipe)
+      printf '\e[1m\e[32m'
+      for (( i = 0; i < render_rows; i++ )); do printf '%0'"$render_width"'d\n' 0; done
+      printf '\e[m' ;;
+    *) return 1 ;;
+  esac
+}
+mkdir -p "${custom_config%/*}"
+printf '// a config of the user\x27s own\n' >"$custom_config"
+rows_by_cols="$(( render_rows + 1 + FIT_SPARE_ROWS )) $(( render_width + FIT_SPARE_COLUMNS ))"
+fit_window || fail "a fit for a render shaped like the stock logo is remembered"
+pass "a fit for a render shaped like the stock logo is remembered"
+
+# Back on the stock config, the logo file measures the same 8 by 2 the render
+# did. The landmark section above pointed LOGO_FILE at a file of its own, so
+# point it back before the fit is held against the logo the launcher reads. The
+# remembered fit still says which layout it came from, so this launch is not
+# presized by it and stays on the float rule.
+LOGO_FILE="$HOME/.config/omarchy/branding/about.txt"
+printf '%s\n' '████████' '████████' >"$LOGO_FILE"
+rm -r "${custom_config%/*}"
+presize_window
+[[ ${evals[-1]} != *'size ='* ]] ||
+  fail "a stock launch is not presized by a custom fit of the same dimensions" "${evals[-1]}"
+pass "a stock launch is not presized by a custom fit of the same dimensions"
+
+# A record written before the fit said which layout it came from names no
+# layout at all, so neither launch trusts it; the next measured fit overwrites
+# it.
+printf '8 2 800 600\n' >"$FIT_FILE"
+presize_window
+[[ ${evals[-1]} != *'size ='* ]] ||
+  fail "an unmarked record from an older build is left to the float rule" "${evals[-1]}"
+pass "an unmarked record from an older build is left to the float rule"
+
+mkdir -p "${custom_config%/*}"
+printf '// a config of the user\x27s own\n' >"$custom_config"
+presize_window
+[[ ${evals[-1]} != *'size ='* ]] ||
+  fail "a custom launch does not trust an unmarked record either" "${evals[-1]}"
+pass "a custom launch does not trust an unmarked record either"

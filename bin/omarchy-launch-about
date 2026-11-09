@@ -153,12 +153,15 @@ hypr_dispatch() {
   hyprctl dispatch "$lua" >/dev/null 2>&1 || hyprctl dispatch "$@" >/dev/null
 }
 
+# The record names the layout the fit came from — "logo" when the key is the
+# logo file's dimensions, "render" when it is a custom config's render —
+# because the same numbers can describe two different windows.
 remember_fit() {
   local directory tmp
   directory=$(dirname "$FIT_FILE")
   mkdir -p "$directory"
   tmp=$(mktemp "$directory/.about.fit.XXXXXX")
-  printf '%s %s %s %s\n' "$1" "$2" "$3" "$4" >"$tmp"
+  printf '%s %s %s %s %s\n' "$1" "$2" "$3" "$4" "$5" >"$tmp"
   mv "$tmp" "$FIT_FILE"
 }
 
@@ -174,15 +177,16 @@ apply_size_rule() {
 
 # Sized before the terminal is spawned, so the window maps at its final size.
 presize_window() {
-  local logo_w logo_h fit_logo_w fit_logo_h fit_w fit_h
+  local fit_kind logo_w logo_h fit_logo_w fit_logo_h fit_w fit_h
 
   if custom_fastfetch_config; then
     # A user config's fit is keyed on the size of its own render, so measure
-    # the render again and only reuse a fit recorded for the same size. Any
-    # other launch stays on the float rule while the fit measures the new size.
+    # the render again and only reuse a fit a custom launch recorded for the
+    # same size. Any other launch stays on the float rule while the fit
+    # measures the new size.
     if [[ -r $FIT_FILE ]] && read -r logo_w logo_h <<<"$(render_dimensions)" &&
-      read -r fit_logo_w fit_logo_h fit_w fit_h <"$FIT_FILE" &&
-      [[ $logo_w == "$fit_logo_w" && $logo_h == "$fit_logo_h" ]] &&
+      read -r fit_kind fit_logo_w fit_logo_h fit_w fit_h <"$FIT_FILE" &&
+      [[ $fit_kind == "render" && $logo_w == $fit_logo_w && $logo_h == $fit_logo_h ]] &&
       [[ $fit_w =~ ^[0-9]+$ && $fit_h =~ ^[0-9]+$ ]]; then
       apply_size_rule "$fit_w" "$fit_h"
       return
@@ -193,11 +197,13 @@ presize_window() {
 
   if [[ -r $FIT_FILE ]]; then
     read -r logo_w logo_h <<<"$(logo_dimensions)"
-    read -r fit_logo_w fit_logo_h fit_w fit_h <"$FIT_FILE"
+    read -r fit_kind fit_logo_w fit_logo_h fit_w fit_h <"$FIT_FILE"
 
-    # A different logo needs a different window, so leave that launch to the
-    # float rule and let the fit measure the new size.
-    if [[ -n ${logo_w:-} && $logo_w == "$fit_logo_w" && $logo_h == "$fit_logo_h" ]] &&
+    # A fit recorded for a custom render describes a different layout even when
+    # its numbers match this logo's, and a different logo needs a different
+    # window anyway, so leave that launch to the float rule and let the fit
+    # measure the new size.
+    if [[ -n ${logo_w:-} && $fit_kind == "logo" && $logo_w == "$fit_logo_w" && $logo_h == "$fit_logo_h" ]] &&
       [[ $fit_w =~ ^[0-9]+$ && $fit_h =~ ^[0-9]+$ ]]; then
       apply_size_rule "$fit_w" "$fit_h"
       return
@@ -225,7 +231,7 @@ settle_grid() {
 }
 
 fit_window() {
-  local logo_w logo_h target_c target_r fit_key_w fit_key_h
+  local logo_w logo_h target_c target_r fit_kind fit_key_w fit_key_h
 
   if custom_fastfetch_config; then
     # A user's own config lays the logo out its own way, so the logo-block
@@ -234,11 +240,13 @@ fit_window() {
     # its hands off — it alone has to know exactly where the logo sits.
     read -r fit_key_w fit_key_h <<<"$(render_dimensions)" || return 1
     [[ -n ${fit_key_w:-} ]] || return 1
+    fit_kind=render
     target_c=$(( fit_key_w + FIT_SPARE_COLUMNS ))
     target_r=$(( fit_key_h + 1 + FIT_SPARE_ROWS ))
   else
     read -r logo_w logo_h <<<"$(logo_dimensions)"
     [[ -n ${logo_w:-} ]] || return 1
+    fit_kind=logo
 
     # The guard character keeps command substitution from eating the trailing
     # break line, which provides the bottom padding row.
@@ -272,7 +280,7 @@ fit_window() {
     # A window has to land on the terminal's cell boundaries, so take a cell of
     # slack over chasing an exact grid, and remember where it came to rest.
     if (( cols >= target_c && cols <= target_c + 1 && rows >= target_r && rows <= target_r + 1 )); then
-      remember_fit "$fit_key_w" "$fit_key_h" "$width" "$height"
+      remember_fit "$fit_kind" "$fit_key_w" "$fit_key_h" "$width" "$height"
       return 0
     fi
 
