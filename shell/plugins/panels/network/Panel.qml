@@ -969,7 +969,13 @@ Panel {
 
   function activateMenu(key) {
     if (key === "disconnect") root.disconnectRow(root.menuSsid)
-    else if (key === "connect") root.connectDirectly(root.menuSsid)
+    else if (key === "connect") {
+      // Mirror the left-click branch: an unknown secured network needs the
+      // passphrase prompt, not a bare connect() that would fail silently.
+      var net = root.wifiRowForSsid(root.menuSsid)
+      if (net && root.requiresCredentials(net.security) && !net.known) root.openPasswordPrompt(root.menuSsid)
+      else root.connectDirectly(root.menuSsid)
+    }
     else if (key === "modify") root.openEditor(root.menuSsid)
     else if (key === "forget") root.forget(root.wifiRowForSsid(root.menuSsid))
   }

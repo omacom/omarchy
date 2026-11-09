@@ -15,6 +15,7 @@ ShellRoot {
   id: test
   property bool failed: false
   property string forgotSsid: ""
+  property string connectedSsid: ""
 
   function check(ok, message) {
     if (!ok) {
@@ -55,6 +56,20 @@ ShellRoot {
     function forget() { test.forgotSsid = "SVI" }
   }
 
+  // Unknown secured network: Connect must prompt for the passphrase rather than
+  // call a bare connect() that would fail without the PSK.
+  property QtObject cafe: QtObject {
+    property string name: "CAFE"
+    property bool connected: false
+    property bool known: false
+    property bool stateChanging: false
+    property real signalStrength: 0.7
+    property int security: WifiSecurityType.Wpa2Psk
+    signal connectionFailed(int reason)
+    function connect() { test.connectedSsid = "CAFE" }
+    function forget() { test.forgotSsid = "CAFE" }
+  }
+
   Item {
     Network.Panel {
       id: panel
@@ -82,7 +97,7 @@ ShellRoot {
     interval: 250
     running: true
     onTriggered: {
-      NetworkMock.wifi.networks = ({ values: [test.kemenkeu, test.svi] })
+      NetworkMock.wifi.networks = ({ values: [test.kemenkeu, test.svi, test.cafe] })
       panel.testEnsureContent()
       panel.open()
       Qt.callLater(test.startChecks)
@@ -91,9 +106,10 @@ ShellRoot {
 
   function startChecks() {
     check(panel.testContent !== null, "panel content builds")
-    check(panel.wifiNetworks.length === 2, "both rows are listed")
+    check(panel.wifiNetworks.length === 3, "all rows are listed")
     check(panel.wifiNetworks[0].ssid === "KEMENKEU" && panel.wifiNetworks[0].connected, "connected KEMENKEU sorts first")
-    check(panel.wifiNetworks[1].ssid === "SVI" && !panel.wifiNetworks[1].connected, "disconnected SVI sorts after")
+    check(panel.wifiNetworks[1].ssid === "SVI" && !panel.wifiNetworks[1].connected, "disconnected SVI sorts next")
+    check(panel.wifiNetworks[2].ssid === "CAFE" && !panel.wifiNetworks[2].known, "unknown secured CAFE sorts last")
     if (failed) { finish(); return }
     menuTimer.start()
   }
@@ -129,6 +145,14 @@ ShellRoot {
     menu.activateHighlighted()
     check(test.forgotSsid === "SVI", "Forget forgets the right-clicked profile")
     check(!menu.popupOpen, "activation closes the menu")
+
+    // --- unknown secured row: Connect prompts instead of a bare connect() ---
+    clickRow(2)
+    check(keysOf(menu) === "connect", "unknown secured row offers only connect")
+    menu.setHighlight(0)
+    menu.activateHighlighted()
+    check(panel.passwordSsid === "CAFE", "Connect on an unknown secured row opens the passphrase prompt")
+    check(test.connectedSsid === "", "Connect does not call connect() without the passphrase")
 
     finish()
   }
