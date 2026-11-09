@@ -57,6 +57,8 @@ grep -qx 'alpha=0.78' "$next_theme/foot.ini" || fail "Foot uses terminal opacity
 grep -qx 'blur=yes' "$next_theme/foot.ini" || fail "Foot enables terminal blur"
 grep -qx 'background-opacity = 0.78' "$next_theme/ghostty.conf" || fail "Ghostty uses terminal opacity"
 grep -qx 'background-blur = 32' "$next_theme/ghostty.conf" || fail "Ghostty uses terminal blur radius"
+grep -qx "gtk-custom-css = $ROOT/default/gtk/glass.css" "$next_theme/ghostty.conf" || fail "Ghostty theme blur works without Glassy"
+[[ ! -f $home/.config/gtk-4.0/gtk.css ]] || fail "Ghostty theme blur leaves other GTK apps alone"
 grep -qx 'background_opacity 0.78' "$next_theme/kitty.conf" || fail "Kitty uses terminal opacity"
 grep -qx 'background_blur 32' "$next_theme/kitty.conf" || fail "Kitty uses terminal blur radius"
 pass "terminal appearance settings reach every generated terminal config"

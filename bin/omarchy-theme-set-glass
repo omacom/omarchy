@@ -97,6 +97,7 @@ glass foot.ini '[colors-dark]' \
 # A no-blur stylesheet also overrides the shared GTK blur below, rather than
 # merely omitting the app stylesheet and leaving that inherited blur active.
 ghostty_css="$OMARCHY_PATH/default/gtk/glass.css"
+ghostty_blur=""
 if [[ -f $THEME_DIR/ghostty.conf ]]; then
   ghostty_blur=$(awk '
     /^[[:space:]]*background-blur[[:space:]]*=/ {
@@ -111,8 +112,13 @@ if [[ -f $THEME_DIR/ghostty.conf ]]; then
     ghostty_css="$OMARCHY_PATH/default/gtk/no-blur.css"
   fi
 fi
-glass ghostty.conf '' \
-  '' "gtk-custom-css = $ghostty_css" || status=1
+# An explicit theme blur also needs GTK CSS when Glassy is off. Limit that
+# request to Ghostty; it must not enable blur for other apps or the desktop.
+if [[ $ghostty_blur == "true" || $ghostty_blur =~ ^[1-9][0-9]*$ ]]; then
+  GLASSY=true glass ghostty.conf '' '' "gtk-custom-css = $ghostty_css" || status=1
+else
+  glass ghostty.conf '' '' "gtk-custom-css = $ghostty_css" || status=1
+fi
 
 # Glassy used to give these a see-through background of their own as well,
 # which doubled up with the window fade. Glassing them with no settings takes
