@@ -394,11 +394,11 @@ class FireworksClient:
 # one is zero; anything else unreadable fails the check rather than costing 0.
 def money(value: Any) -> float:
   try:
-    units, nanos = (value.get(part) or 0 for part in ("units", "nanos"))
-    if isinstance(units, bool) or isinstance(nanos, bool):
+    units, nanos = (0 if value.get(part) is None else value.get(part) for part in ("units", "nanos"))
+    if not all(isinstance(part, (int, float, str)) and not isinstance(part, bool) for part in (units, nanos)):
       raise ValueError
     amount = float(units) + float(nanos) / 1e9
-  except (AttributeError, TypeError, ValueError):
+  except (AttributeError, OverflowError, TypeError, ValueError):
     amount = math.nan
   if not math.isfinite(amount):
     raise FireworksError("Fireworks returned an unreadable cost")

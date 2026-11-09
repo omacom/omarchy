@@ -139,7 +139,7 @@ expect("an unreadable quota keeps the last spend, stale",
        [record["spend"], record["limitsStale"], record["usageStatusText"], "unreadable" in record["authHelpText"]],
        [{"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS}, True, "", True], record)
 # A day's cost that can't be read is no answer, not a day that cost nothing.
-for subtotal in ({"units": "bad"}, {"units": "NaN"}, {"units": True}, None):
+for subtotal in ({"units": "bad"}, {"units": "NaN"}, {"units": True}, {"units": False}, {"units": ""}, {"nanos": []}, {"units": 10 ** 400}, None):
   record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": dict(SPEND, value="9999999"),
                                             "/usageCosts:query": {"rows": [{"dimensions": {"startTime": TODAY + "T00:00:00Z"}, "subtotal": subtotal}]}}))
   expect(f"an unreadable day's cost ({subtotal}) keeps the last spend, stale",
