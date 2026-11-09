@@ -44,6 +44,8 @@
   "agents.switchedBody": "הפעלות %1 חדשות משתמשות כעת ב-%2 (%3%).\nהפעלות פעילות נשארות על %4.",
   "animations.disabled": "ההנפשות כבויות",
   "animations.enabled": "ההנפשות פעילות",
+  "animations.softwareRendering": "ההנפשות כבויות ללא GPU",
+  "animations.softwareRenderingBody": "אין GPU בשימוש, ולכן ההנפשות, הטשטוש והצללים כבויים. מראה > הפעלת ההנפשות תחזיר אותם.",
   "audio.micMuted": "המיקרופון מושתק",
   "audio.micOn": "המיקרופון פעיל",
   "audio.noDevices": "לא נמצאו התקני שמע",

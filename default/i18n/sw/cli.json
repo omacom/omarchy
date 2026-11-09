@@ -43,6 +43,8 @@
   "agents.switchedBody": "Vipindi vipya vya %1 sasa vinatumia %2 (%3%).\nVipindi vinavyoendelea hubaki kwenye %4.",
   "animations.disabled": "Uhuishaji umezimwa",
   "animations.enabled": "Uhuishaji umewashwa",
+  "animations.softwareRendering": "Uhuishaji umezimwa bila GPU",
+  "animations.softwareRenderingBody": "Hakuna GPU inayotumika, hivyo uhuishaji, ukungu na vivuli vimezimwa. Mwonekano > Washa Uhuishaji huvirudisha.",
   "audio.micMuted": "Maikrofoni imenyamazishwa",
   "audio.micOn": "Maikrofoni imewashwa",
   "audio.noDevices": "Hakuna vifaa vya sauti vilivyopatikana",

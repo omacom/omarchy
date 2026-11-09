@@ -45,6 +45,8 @@
   "agents.switchedBody": "Nove seje %1 zdaj uporabljajo %2 (%3 %).\nAktivne seje ostanejo na %4.",
   "animations.disabled": "Animacije onemogočene",
   "animations.enabled": "Animacije omogočene",
+  "animations.softwareRendering": "Animacije izklopljene brez GPU",
+  "animations.softwareRenderingBody": "GPU ni v uporabi, zato so animacije, zameglitev in sence izklopljene. Ponovno jih vklopite prek Videz > Animacije.",
   "audio.micMuted": "Mikrofon utišan",
   "audio.micOn": "Mikrofon vklopljen",
   "audio.noDevices": "Ni zvočnih naprav",
