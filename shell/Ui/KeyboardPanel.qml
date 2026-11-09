@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
@@ -176,15 +177,32 @@ PanelWindow {
     b: anchorItem
   }
 
-  // Anchor item's position within the bar's content surface. For a
-  // full-width top bar, the content x maps directly to screen x; the y
-  // returned here has the bar's internal padding baked in (e.g. ~13px
+  // Where the bar window starts on its screen, along the bar. Hyprland lays
+  // the bar out inside the space the monitor reserves (`reserved_area`, listed
+  // as left, top, right, bottom), while this overlay ignores that space and
+  // spans the whole screen. The bar window is as long as the room left for
+  // it, so the offset is capped by what the window leaves free: a bar that
+  // spans its screen gets none, whatever Hyprland reports.
+  readonly property var anchorMonitor: screen ? Hyprland.monitorFor(screen) : null
+  readonly property point anchorWindowOrigin: {
+    var ipc = anchorMonitor ? anchorMonitor.lastIpcObject : null
+    var reserved = ipc && ipc.reserved ? ipc.reserved : [0, 0, 0, 0]
+    if (!anchorWindow) return Qt.point(0, 0)
+    if (barPos === "left" || barPos === "right")
+      return Qt.point(0, Math.max(0, Math.min(Number(reserved[1]) || 0, screenH - barH)))
+    return Qt.point(Math.max(0, Math.min(Number(reserved[0]) || 0, screenW - barW)), 0)
+  }
+
+  // Anchor item's position on the screen along the bar: its position within
+  // the bar's content surface, moved by where that surface starts. Across
+  // the bar the value has the bar's internal padding baked in (e.g. ~13px
   // from vertical centering of the widget row), which is why `cardOrigin`
-  // below uses `barThickness` for the perpendicular axis instead of this y.
+  // below uses `barThickness` for the perpendicular axis instead.
   readonly property point anchorScreenPos: {
     anchorWatcher.transform  // reactive dependency
     if (!anchorItem || !anchorWindow) return Qt.point(0, 0)
-    return anchorItem.mapToItem(anchorWindow.contentItem, 0, 0)
+    var pos = anchorItem.mapToItem(anchorWindow.contentItem, 0, 0)
+    return Qt.point(pos.x + anchorWindowOrigin.x, pos.y + anchorWindowOrigin.y)
   }
   readonly property real anchorW: anchorItem ? anchorItem.width : 0
   readonly property real anchorH: anchorItem ? anchorItem.height : 0
@@ -402,9 +420,11 @@ PanelWindow {
     }
 
     function barPoint(px, py) {
-      if (root.barPos === "bottom") return Qt.point(px, py - (root.screenH - root.barH))
-      if (root.barPos === "right") return Qt.point(px - (root.screenW - root.barW), py)
-      return Qt.point(px, py)
+      var x = px - root.anchorWindowOrigin.x
+      var y = py - root.anchorWindowOrigin.y
+      if (root.barPos === "bottom") return Qt.point(x, y - (root.screenH - root.barH))
+      if (root.barPos === "right") return Qt.point(x - (root.screenW - root.barW), y)
+      return Qt.point(x, y)
     }
 
     function pressTargetAt(px, py) {
