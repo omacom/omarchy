@@ -139,6 +139,35 @@ assertEqual(localOffer(recipes, {}, id => id !== 'local:nemotron'), null, 'a hid
 assertEqual(localOffer([{ id: 'nemotron', best: true, available: false }], {}, everyone), null, 'a best recipe that does not fit is not offered')
 JS
 
+# The tailnet survey can be rewritten under the panel; models whose host is
+# away keep their lines, and only a well-formed survey replaces the last one.
+run_node_test <<'JS'
+const fs = require('fs')
+const main = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const state = { networkModels: {} }
+const parse = new Function('root', main.match(/function parseNetwork\([^]*?\n  \}/)[0] + '\nreturn parseNetwork')(state)
+const survey = { models: {
+  'box/big': { id: 'box/big', host: 'box', recipe: 'big', unit: 'active', paired: true, offline: '' },
+  'away/small': { id: 'away/small', host: 'away', recipe: 'small', unit: 'inactive', paired: true, offline: 'offline', last_seen_ms: 5 },
+} }
+parse(JSON.stringify(survey))
+assertDeepEqual(state.networkModels, survey.models, 'a survey loads its running and offline models')
+for (const raw of ['{', 'null', '[]', '{"models":[]}', '{"models":{"box/big":{"id":"box/other","host":"box","recipe":"big","unit":"active"}}}', '{"models":{"box/big":{"id":"box/big","host":"box","recipe":"big","unit":"rebooting"}}}']) {
+  parse(raw)
+  assertDeepEqual(state.networkModels, survey.models, 'an invalid survey keeps the last good one: ' + raw)
+}
+parse('{"models":{}}')
+assertDeepEqual(state.networkModels, {}, 'an empty survey clears the network lines')
+
+const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const localActions = new Function(panel.match(/function localActions\([^]*?\n  \}/)[0] + '\nreturn localActions')()
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }), ['share', 'toggle', 'launch'], 'a running local model can be shared, stopped and launched')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'installing' }), [], 'a model being set up offers nothing yet')
+assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' }), ['toggle', 'launch'], 'a paired network model starts, stops and launches')
+assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: false, offline: '' }), ['pair'], 'an unpaired network model offers pairing only')
+assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', paired: true, offline: 'offline' }), [], 'an offline network model offers nothing until its host is back')
+JS
+
 # The panel has no terminal for sudo: a detached setup missing its packages
 # installs them in one first, and otherwise starts at once.
 wrapper_dir=$(mktemp -d)
