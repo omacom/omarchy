@@ -191,8 +191,31 @@ set_background() {
     /bin/bash "$ROOT/bin/omarchy-theme-bg-set" "$1" </dev/null >"$test_tmp/stdout" 2>"$test_tmp/stderr" || fail "background selection completes" "$(cat "$test_tmp/stderr")"
 }
 set_background "$road"
-grep -Fxq "shell: shell switchBackground $road $clip" "$log" || fail "a background change is handed to the shell with its intro" "$(cat "$log")"
+grep -Fxq "shell: shell switchBackground $road " "$log" || fail "selection intros are off by default" "$(cat "$log")"
+intro_control() {
+  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" TEST_LOG="$log" \
+    "$ROOT/bin/omarchy-theme-bg-intro" "$@"
+}
+! intro_control select status || fail "selection opt-in defaults off"
+intro_control select enable
+intro_control select status || fail "enable persists the opt-in"
+set_background "$road"
+grep -Fxq "shell: shell switchBackground $road $clip" "$log" || fail "an opted-in background change is handed to the shell with its intro" "$(cat "$log")"
 ! grep -q '^shell: -q background set ' "$log" || fail "the shell, not the command, transitions the background"
+TEST_ANIMATIONS=false set_background "$road"
+grep -Fxq "shell: shell switchBackground $road " "$log" || fail "disabled animations suppress selection intros"
+touch "$home/.local/state/omarchy/toggles/background-intros-off"
+set_background "$road"
+grep -Fxq "shell: shell switchBackground $road " "$log" || fail "the master switch overrides the opt-in"
+rm "$home/.local/state/omarchy/toggles/background-intros-off"
+intro_control select toggle
+! intro_control select status || fail "toggle disables the opt-in"
+intro_control select toggle
+intro_control select status || fail "toggle enables the opt-in"
+intro_control select disable
+set_background "$road"
+grep -Fxq "shell: shell switchBackground $road " "$log" || fail "disable restores the ordinary handoff"
+pass "selection intro opt-in respects animations and the master switch"
 TEST_OLD_SHELL=true set_background "$sky"
 [[ $(readlink "$state/background") == "$sky" ]] || fail "without the shell's switch the command repoints the link"
 grep -Fxq "shell: -q background set $sky" "$log" || fail "without the shell's switch the background is set directly"
@@ -219,6 +242,7 @@ next_background() {
   HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" \
     /bin/bash "$ROOT/bin/omarchy-theme-bg-next" </dev/null >"$test_tmp/stdout" 2>"$test_tmp/stderr" || fail "background cycling completes" "$(cat "$test_tmp/stderr")"
 }
+intro_control select enable
 ln -nsf "$road" "$state/background"
 TEST_SELECTED="$sky" next_background
 grep -Fxq "shell: shell switchBackground $road $clip" "$log" || fail "cycling moves on from the shell's pending selection" "$(cat "$log")"
