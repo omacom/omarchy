@@ -361,7 +361,7 @@ local function restore_maximized(window)
   end
 
   for _, other in ipairs(hl.get_workspace_windows(tostring(id))) do
-    if (other.fullscreen or 0) == 2 then
+    if (other.fullscreen or 0) >= 2 then
       return
     end
   end
