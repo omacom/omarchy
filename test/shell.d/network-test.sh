@@ -234,4 +234,39 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+
+// Three saved profiles can share one SSID; the resolver must not pick blindly.
+const conns = network.parseNmcliConnections(
+  'KEMENKEU:3736ec62-6a:yes\nKEMENKEU:e95bb213-05:no\nOther:abc:no\n'
+)
+assertDeepEqual(conns, [
+  { name: 'KEMENKEU', uuid: '3736ec62-6a', active: true },
+  { name: 'KEMENKEU', uuid: 'e95bb213-05', active: false },
+  { name: 'Other', uuid: 'abc', active: false }
+], 'network parses nmcli connection rows')
+assertDeepEqual(
+  network.parseNmcliConnections('A\\:B:uuid1:no\n'),
+  [{ name: 'A:B', uuid: 'uuid1', active: false }],
+  'network unescapes a colon-escaped connection name'
+)
+assertDeepEqual(
+  network.resolveProfile(conns, 'KEMENKEU', true),
+  { uuid: '3736ec62-6a', ambiguous: false },
+  'network resolves a connected SSID to its active profile'
+)
+assertDeepEqual(
+  network.resolveProfile(conns, 'KEMENKEU', false),
+  { uuid: '3736ec62-6a', ambiguous: true },
+  'network flags a duplicate-name SSID as ambiguous when none is active'
+)
+assertDeepEqual(
+  network.resolveProfile(conns, 'Other', false),
+  { uuid: 'abc', ambiguous: false },
+  'network resolves a unique SSID directly'
+)
+assertDeepEqual(
+  network.resolveProfile(conns, 'Missing', false),
+  { uuid: '', ambiguous: false },
+  'network resolves an SSID with no saved profile to empty'
+)
 JS

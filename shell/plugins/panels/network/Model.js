@@ -421,6 +421,53 @@ function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
   return reason === r.NoSecrets || reason === r.WifiAuthTimeout
 }
 
+// `nmcli -t` escapes a literal ':' inside a field as '\:'; split on the
+// unescaped separators and unescape each field afterwards.
+function splitNmcliFields(line) {
+  var fields = [], current = ""
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i]
+    if (ch === "\\" && line[i + 1] === ":") { current += ":"; i++; continue }
+    if (ch === ":") { fields.push(current); current = ""; continue }
+    current += ch
+  }
+  fields.push(current)
+  return fields
+}
+
+// Reads `nmcli -t -f NAME,UUID,ACTIVE connection show`, one row per saved
+// profile. Names are user-controlled and can repeat, so the UUID is what the
+// callers key on, never the name.
+function parseNmcliConnections(output) {
+  var lines = String(output || "").split("\n")
+  var out = []
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i] === "") continue
+    var f = splitNmcliFields(lines[i])
+    out.push({ name: f[0] || "", uuid: f[1] || "", active: (f[2] || "") === "yes" })
+  }
+  return out
+}
+
+// Several saved profiles can share one SSID (e.g. a WPA2 and a WPA3 copy), so a
+// name match is not enough to pick one. When the SSID is the connected network,
+// its active profile is the right one; otherwise a lone match stands and
+// duplicates are flagged so the caller can ask the user instead of guessing.
+function resolveProfile(profiles, ssid, connected) {
+  var matches = []
+  for (var i = 0; i < (profiles || []).length; i++) {
+    if (profiles[i] && profiles[i].name === ssid) matches.push(profiles[i])
+  }
+  if (matches.length === 0) return { uuid: "", ambiguous: false }
+  if (connected) {
+    for (var j = 0; j < matches.length; j++) {
+      if (matches[j].active) return { uuid: matches[j].uuid, ambiguous: false }
+    }
+  }
+  if (matches.length === 1) return { uuid: matches[0].uuid, ambiguous: false }
+  return { uuid: matches[0].uuid, ambiguous: true }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseNetworkStatus: parseNetworkStatus,
@@ -452,6 +499,8 @@ if (typeof module !== "undefined") {
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
+    parseNmcliConnections: parseNmcliConnections,
+    resolveProfile: resolveProfile,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
     shouldRepromptPassphrase: shouldRepromptPassphrase
