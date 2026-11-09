@@ -908,7 +908,7 @@ Item {
       applySerial = requestSerial
       opened = false
       filterText = ""
-      Util.execArgv(["wl-copy", answer])
+      Util.execArgv(["wl-copy", "--", answer])
     } else if (row.kind === "app") {
       var appId = row.appId
       var label = row.label

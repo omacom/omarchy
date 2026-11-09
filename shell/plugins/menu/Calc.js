@@ -63,28 +63,37 @@ function parse(tokens) {
     return left
   }
 
-  // term := power (('*' | '/' | 'of') power)*
+  // term := unary (('*' | '/' | 'of') unary)*
   function term() {
-    var left = power()
+    var left = unary()
     while (peek() && (peek().type === "*" || peek().type === "/" || peek().type === "of")) {
       var op = tokens[pos++].type
-      var right = power()
+      var right = unary()
       left = { value: op === "/" ? left.value / right.value : left.value * right.value }
     }
     return left
   }
 
-  // power := unary ('^' power)?, right-associative
+  // A sign applies after the power, as in math: -2^2 is -4.
+  // unary := ('-' | '+') unary | power
+  function unary() {
+    if (accept("-")) {
+      var negated = unary()
+      return { value: -negated.value, percent: negated.percent }
+    }
+    if (accept("+")) return unary()
+    return power()
+  }
+
+  // power := percent ('^' unary)?, right-associative, and 2^-2 still works
   function power() {
-    var base = unary()
-    if (accept("^")) return { value: Math.pow(base.value, power().value) }
+    var base = percent()
+    if (accept("^")) return { value: Math.pow(base.value, unary().value) }
     return base
   }
 
-  // unary := ('-' | '+') unary | primary '%'?
-  function unary() {
-    if (accept("-")) return { value: -unary().value }
-    if (accept("+")) return unary()
+  // percent := primary '%'?
+  function percent() {
     var value = primary()
     if (accept("%")) return { value: value.value / 100, percent: true }
     return value
