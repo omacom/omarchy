@@ -1395,15 +1395,23 @@ Item {
         spacing: root.contentSpacing
 
         Rectangle {
-          width: parent.width
+          // Select and input mode are search fields, not menu titles, so they
+          // wear the same inset, filled border as the app grid's search. A menu
+          // route keeps the bare header: there the line names the menu it is in
+          // and offers nothing to click.
+          readonly property bool asField: root.dmenuActive
+          x: asField ? Style.spacing.sm : 0
+          width: parent.width - x * 2
           height: root.headerHeight
           radius: root.cornerRadius
-          color: "transparent"
+          color: asField ? Util.alpha(Commons.Color.menu.text, 0.06) : "transparent"
 
           FilterInput {
             id: filterInput
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.leftMargin: parent.asField ? Style.spacing.controlPaddingX : 0
+            anchors.rightMargin: parent.asField ? Style.spacing.controlPaddingX : 0
             anchors.verticalCenter: parent.verticalCenter
             keyHandler: keyCatcher
             // Input-method commits bypass key handling, so the dialog has to refuse them here.
