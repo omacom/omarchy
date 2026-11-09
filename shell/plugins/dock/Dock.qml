@@ -243,7 +243,10 @@ Item {
       appGrid.toggle()
       return
     }
-    var payload = window ? window.launcherPayload() : {}
+    // Without a dock to hang from, the launcher still learns which screen to
+    // place itself on: the focused one.
+    var monitor = Hyprland.focusedMonitor
+    var payload = window ? window.launcherPayload() : { screen: monitor ? String(monitor.name || "") : "", position: root.position }
     root.appsScreen = window ? window.screen : null
     root.shell.toggle(root.launcher, JSON.stringify(payload))
   }
