@@ -74,4 +74,21 @@ assertEqual(acronymMatches[0], 'Google Contacts', 'short acronym matching still 
 
 const directMatches = search.sortedEntries(entries, 'obs').map(row => search.entryName(row.entry))
 assertEqual(directMatches[0], 'OBS Studio', 'direct app-name matching still works')
+// Metadata reads must not grow with the number of query terms.
+const reads = {}
+const counted = {}
+for (const [key, value] of Object.entries(entries[0])) {
+  Object.defineProperty(counted, key, { get() { reads[key] = (reads[key] || 0) + 1; return value } })
+}
+search.sortedEntries([counted], 'google contacts people')
+for (const key of ['name', 'genericName', 'comment', 'keywords', 'id']) {
+  assertEqual(reads[key], 1, key + ' is read once in a scoring pass')
+}
+// A subsequent call must observe changed metadata without invalidation.
+const mutable = { name: 'Before', keywords: ['old'] }
+search.sortedEntries([mutable], 'old')
+mutable.keywords = ['new']
+assertEqual(search.sortedEntries([mutable], 'new').length, 1, 'metadata refreshes each call')
+assertEqual(search.sortedEntries([mutable], 'old').length, 0, 'old metadata is discarded')
+
 JS
