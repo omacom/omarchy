@@ -470,8 +470,7 @@ Expected: all files pass, including the three new ones.
 
 - [ ] **Step 5: Secret-leak spot check**
 
-With the editor open on a PSK network, trigger a passphrase Save and in another terminal run:
-`for p in /proc/[0-9]*/cmdline; do tr '\0' ' ' < "$p"; echo; done | grep -i psk`
+With the editor open on a PSK network, trigger a passphrase Save and in another terminal run: `for p in /proc/[0-9]*/cmdline; do tr '\0' ' ' < "$p"; echo; done | grep -i psk`
 Expected: no match with the secret.
 
 - [ ] **Step 6: Commit**

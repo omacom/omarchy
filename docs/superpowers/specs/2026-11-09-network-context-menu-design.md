@@ -6,97 +6,59 @@ Target widget: `omarchy.network` — *"Wi-Fi list and connection state"*, the ba
 
 ## Intent
 
-The only way to act on a Wi-Fi network today is a left click on the row
-(connect / disconnect / passphrase prompt) plus a small trash affordance on the
-right edge for Forget. There is no menu, no edit path, and right click does
-nothing. We want a right-click context menu on a network row with two named
-actions: **Modify Network** (edit the saved connection in a native panel form)
-and **Forget Network** (delete it immediately, as today).
+The only way to act on a Wi-Fi network today is a left click on the row (connect / disconnect / passphrase prompt) plus a small trash affordance on the right edge for Forget. There is no menu, no edit path, and right click does nothing. We want a right-click context menu on a network row with two named actions: **Modify Network** (edit the saved connection in a native panel form) and **Forget Network** (delete it immediately, as today).
 
 ## Decisions (user, 2026-11-09)
 
-- **D1 — trigger:** right click on a **Wi-Fi row** (not the bar icon). The bar
-  icon's right click is unchanged.
-- **D2 — Modify:** a **native in-panel editor** (QML form). Writes go through
-  `nmcli` / the Quickshell networking API.
+- **D1 — trigger:** right click on a **Wi-Fi row** (not the bar icon). The bar icon's right click is unchanged.
+- **D2 — Modify:** a **native in-panel editor** (QML form). Writes go through `nmcli` / the Quickshell networking API.
 - **D3 — Forget:** **immediate delete**, no confirmation dialog.
 
 ## Current state (evidence)
 
 - Widget `omarchy.network`: `/usr/share/omarchy/shell/plugins/panels/network/Panel.qml`.
-- Row: `component NetworkRow` (`Panel.qml:1764`). Left click only:
-  `rowMouse` `acceptedButtons: Qt.LeftButton` (`Panel.qml:1840-1874`).
-- Forget: `rightMouse` (`Panel.qml:1930-1939`) → `root.forget(net)`
-  (`Panel.qml:906`) → `network.forget()`; guarded by `Model.canForgetNetwork`
-  (`Model.js:377-379`) = `known && !connected`.
-- Inline editor precedent: passphrase prompt inside a row (`passwordPanel`,
-  `Panel.qml:2000+`). Floating-terminal precedent: Custom DNS (`Panel.qml:775-778`).
-- Networking QML types (`/usr/lib/qt6/qml/Quickshell/Networking/quickshell-network.qmltypes`):
-  `Network` exposes `name, device, nmSettings, connected, known, state,
-  stateChanging, connect(), connectWithPsk(psk), disconnect(), forget()`.
-  **No UUID.** `NMSettings` is not a registered QML type — not constructible.
-- `nmcli` fields available per profile: `connection.id, connection.uuid,
-  connection.autoconnect, connection.autoconnect-priority, connection.metered,
-  ipv4.method, ipv4.addresses, ipv4.gateway, 802-11-wireless-security.psk,
-  802-1x.identity`.
-- No context-menu component in `qs.Ui` (`PopupCard.qml`, `Popup` available).
-  `ConfirmDialog.qml` not needed (D3).
+- Row: `component NetworkRow` (`Panel.qml:1764`). Left click only: `rowMouse` `acceptedButtons: Qt.LeftButton` (`Panel.qml:1840-1874`).
+- Forget: `rightMouse` (`Panel.qml:1930-1939`) → `root.forget(net)` (`Panel.qml:906`) → `network.forget()`; guarded by `Model.canForgetNetwork` (`Model.js:377-379`) = `known && !connected`.
+- Inline editor precedent: passphrase prompt inside a row (`passwordPanel`, `Panel.qml:2000+`). Floating-terminal precedent: Custom DNS (`Panel.qml:775-778`).
+- Networking QML types (`/usr/lib/qt6/qml/Quickshell/Networking/quickshell-network.qmltypes`): `Network` exposes `name, device, nmSettings, connected, known, state, stateChanging, connect(), connectWithPsk(psk), disconnect(), forget()`. **No UUID.** `NMSettings` is not a registered QML type — not constructible.
+- `nmcli` fields available per profile: `connection.id, connection.uuid, connection.autoconnect, connection.autoconnect-priority, connection.metered, ipv4.method, ipv4.addresses, ipv4.gateway, 802-11-wireless-security.psk, 802-1x.identity`.
+- No context-menu component in `qs.Ui` (`PopupCard.qml`, `Popup` available). `ConfirmDialog.qml` not needed (D3).
 
 ## Builder-check findings (verified, folded in)
 
-1. **SSID is not a safe profile key.** This machine has **three** saved profiles
-   named `KEMENKEU` (UUIDs `3736ec62` active, `e95bb213`, `573467b2`).
-   `nmcli connection modify KEMENKEU …` can hit the wrong one. QML `Network` has
-   no UUID, so the row cannot hand us one.
-2. **`connectWithPsk` is a connect path,** not a profile edit — it would switch
-   the live connection as a side effect of "edit passphrase".
-3. **`Model.enterpriseConnectScript` (`Model.js:385`) runs `nmcli connection
-   add`,** so the enterprise path creates a *new* profile instead of editing.
-4. **Forget is guarded by `known && !connected`** (`Model.js:377`), so the menu
-   must not offer to delete the live profile.
+1. **SSID is not a safe profile key.** This machine has **three** saved profiles named `KEMENKEU` (UUIDs `3736ec62` active, `e95bb213`, `573467b2`). `nmcli connection modify KEMENKEU …` can hit the wrong one. QML `Network` has no UUID, so the row cannot hand us one.
+2. **`connectWithPsk` is a connect path,** not a profile edit — it would switch the live connection as a side effect of "edit passphrase".
+3. **`Model.enterpriseConnectScript` (`Model.js:385`) runs `nmcli connection add`,** so the enterprise path creates a *new* profile instead of editing.
+4. **Forget is guarded by `known && !connected`** (`Model.js:377`), so the menu must not offer to delete the live profile.
 
 ## Resolutions
 
 ### R1 — Target profiles by UUID, with a resolver
 
-Resolve a row to an exact profile UUID through `nmcli -t -f NAME,UUID,ACTIVE con
-show`, by this order:
+Resolve a row to an exact profile UUID through `nmcli -t -f NAME,UUID,ACTIVE con show`, by this order:
 
 1. **Connected row** → the active profile's UUID (`con show --active`). Exact.
 2. **Not connected, exactly one saved profile matches the SSID** → that UUID.
-3. **Not connected, multiple matches** → the editor shows a small **profile
-   picker** at the top (label = UUID short + a `nmcli`-derived discriminator such
-   as the saved apn/priority), so duplicates are editable without guessing.
+3. **Not connected, multiple matches** → the editor shows a small **profile picker** at the top (label = UUID short + a `nmcli`-derived discriminator such as the saved apn/priority), so duplicates are editable without guessing.
 
-All reads and writes use the resolved UUID (`nmcli con show uuid …`,
-`nmcli con mod uuid …`), never the SSID.
+All reads and writes use the resolved UUID (`nmcli con show uuid …`, `nmcli con mod uuid …`), never the SSID.
 
 ### R2 — All secrets and edits go through one `nmcli` path (no argv leak, no forced reconnect)
 
-- A small resolver `Process` caches `SSID → [{uuid, active}]` while the panel is
-  open.
-- **Non-secret keys** (autoconnect, priority, metered, ipv4.*): one `Process`
-  with an **argv array**: `nmcli connection modify uuid <uuid> <key> <value> …`.
-- **Secrets** (PSK, 802-1x.password/identity): pipe commands to
-  `nmcli connection edit uuid <uuid>` over **stdin** (`printf 'set …\nsave\nquit\n'`),
-  the same technique as `enterpriseConnectScript:385`. This edits in place, keeps
-  the secret out of argv, and does **not** activate the connection.
-- **Enterprise identity/password:** edit the existing UUID via the stdin path;
-  do **not** reuse `enterpriseConnectScript` (it adds a profile).
-- If the edited profile is the **currently active** one and a network-layer key
-  changed (ipv4.*, psk), follow up with `nmcli connection up uuid <uuid>` so it
-  takes effect. A pure profile edit on an inactive profile does not reconnect.
+- A small resolver `Process` caches `SSID → [{uuid, active}]` while the panel is open.
+- **Non-secret keys** (autoconnect, priority, metered, ipv4.*): one `Process` with an **argv array**: `nmcli connection modify uuid <uuid> <key> <value> …`.
+- **Secrets** (PSK, 802-1x.password/identity): pipe commands to `nmcli connection edit uuid <uuid>` over **stdin** (`printf 'set …\nsave\nquit\n'`), the same technique as `enterpriseConnectScript:385`. This edits in place, keeps the secret out of argv, and does **not** activate the connection.
+- **Enterprise identity/password:** edit the existing UUID via the stdin path; do **not** reuse `enterpriseConnectScript` (it adds a profile).
+- If the edited profile is the **currently active** one and a network-layer key changed (ipv4.*, psk), follow up with `nmcli connection up uuid <uuid>` so it takes effect. A pure profile edit on an inactive profile does not reconnect.
 - Send **only changed keys** (diff against the prefilled values).
 
 ### R3 — Forget respects `known && !connected`
 
-Menu shows Forget only when `Model.canForgetNetwork(net)`; a connected row shows
-Connect/Disconnect and Modify only. This keeps today's safety behavior.
+Menu shows Forget only when `Model.canForgetNetwork(net)`; a connected row shows Connect/Disconnect and Modify only. This keeps today's safety behavior.
 
 ## Goals
 
-- Right-click a Wi-Fi row → themed menu: **Connect/Disconnect**, **Modify
-  Network…** (known rows only), **Forget Network** (known && !connected).
+- Right-click a Wi-Fi row → themed menu: **Connect/Disconnect**, **Modify Network…** (known rows only), **Forget Network** (known && !connected).
 - Modify opens a native editor for the resolved saved profile.
 - Keyboard reachable; Esc closes; single-cursor model preserved.
 - Never put a Wi-Fi secret in process argv.
@@ -119,17 +81,12 @@ Connect/Disconnect and Modify only. This keeps today's safety behavior.
 ## Context menu (D1)
 
 - Right click a row → anchored `Popup`; panel root holds `menuSsid`, `menuIndex`.
-- Items, filtered: Connect/Disconnect · Modify Network… (`known`) · Forget
-  Network (`known && !connected`).
-- New `qs.Ui/ContextMenu.qml`: themed `Popup`, shared hover-cursor chrome,
-  j/k/Up/Down walk items, Enter activates, Esc closes, emits `activated(key)`.
-  Reusable by other panels.
+- Items, filtered: Connect/Disconnect · Modify Network… (`known`) · Forget Network (`known && !connected`).
+- New `qs.Ui/ContextMenu.qml`: themed `Popup`, shared hover-cursor chrome, j/k/Up/Down walk items, Enter activates, Esc closes, emits `activated(key)`. Reusable by other panels.
 
 ## Native editor (D2)
 
-**Reachability.** Opened from the menu; the panel content switches to an editor
-view with a Back header keyed on `editingProfile` (uuid + name); the list hides
-while editing.
+**Reachability.** Opened from the menu; the panel content switches to an editor view with a Back header keyed on `editingProfile` (uuid + name); the list hides while editing.
 
 **Fields (v1), prefilled from `nmcli con show uuid <uuid>`:**
 
@@ -146,31 +103,23 @@ while editing.
 | Gateway | text `TextField` | `ipv4.gateway` | |
 | Metered | `Dropdown` Unknown/Yes/No | `connection.metered` | |
 
-Buttons: **Save** / **Cancel**. Validation: Manual IPv4 needs a valid CIDR;
-Save disabled otherwise. Priority is an integer.
+Buttons: **Save** / **Cancel**. Validation: Manual IPv4 needs a valid CIDR; Save disabled otherwise. Priority is an integer.
 
 ## i18n
 
-Add to `/usr/share/omarchy/default/i18n/<lang>/shell.json` (min `en`):
-`network.modifyNetwork`, `network.editConnection`, `network.autoConnect`,
-`network.priority`, `network.ipv4Method`, `network.automatic`, `network.manual`,
-`network.address`, `network.save`, `network.cancel`, `network.back`.
-Reuse `network.forgetNetwork, network.passphrase, network.identity, network.gateway`.
+Add to `/usr/share/omarchy/default/i18n/<lang>/shell.json` (min `en`): `network.modifyNetwork`, `network.editConnection`, `network.autoConnect`, `network.priority`, `network.ipv4Method`, `network.automatic`, `network.manual`, `network.address`, `network.save`, `network.cancel`, `network.back`. Reuse `network.forgetNetwork, network.passphrase, network.identity, network.gateway`.
 
 ## Left to the builder
 
 - `ContextMenu.qml` API/anchoring and placement (qs.Ui vs plugin).
-- Editor view mechanics in `KeyboardPanel` (stack vs conditional content) and the
-  Back transition.
+- Editor view mechanics in `KeyboardPanel` (stack vs conditional content) and the Back transition.
 - Whether priority/metered survive v1.
 - Per-locale translations beyond `en`.
 
 ## Verification plan
 
 - Right click a row opens the menu; left click unchanged.
-- Forget via menu deletes exactly the clicked profile — check
-  `nmcli con show` before/after (three `KEMENKEU` rows on this box make it a real
-  test).
+- Forget via menu deletes exactly the clicked profile — check `nmcli con show` before/after (three `KEMENKEU` rows on this box make it a real test).
 - Editor prefills real values; Save with no edits is a no-op.
 - Toggling auto-connect flips `connection.autoconnect` on the resolved UUID.
 - While saving a passphrase, `ps`/`/proc/*/cmdline` never contains the secret.
