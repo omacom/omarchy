@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether the computer has an AMD Strix Halo GPU (Ryzen AI Max)
+
+[[ -n $(lspci -d 1002:1586 2>/dev/null) ]]

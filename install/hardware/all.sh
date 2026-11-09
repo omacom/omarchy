@@ -50,6 +50,7 @@ run_logged "$OMARCHY_INSTALL/hardware/apple/fix-brcmfmac-supplicant.sh"
 # These write boot settings and build nothing, like n1x.sh: the installer's
 # final limine-update builds the UKIs, and an image's first boot rebuilds once
 # after its last step.
+run_logged "$OMARCHY_INSTALL/hardware/fix-strix-halo-gpu-memory.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/dtb-uki.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/kernel-params.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/initramfs.sh"

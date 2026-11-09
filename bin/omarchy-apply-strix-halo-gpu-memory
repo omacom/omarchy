@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# omarchy:summary=Let the AMD Strix Halo GPU borrow all but 8 GiB of RAM
+# omarchy:args=[--rebuild]
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Strix Halo's GPU runs from system memory it borrows through GTT, and the
+# kernel caps that at half of RAM: 94 GiB on a 192 GB machine, 62 GiB on a
+# 128 GB one. A local model like Qwen3.8 Flash Next needs 92 GiB of it, so the
+# cap, not the RAM, decides what runs. ttm.pages_limit raises the cap to all but
+# 8 GiB, the share omarchy-local-ai keeps for the desktop. It is a cap, not a
+# reservation: the CPU still uses whatever the GPU doesn't.
+#
+# The limit is sized from the RAM Linux sees now, so a change to the BIOS GPU
+# memory size needs a rerun. It takes effect from the next boot; --rebuild
+# rebuilds the boot images when the limit changed since they were last built.
+
+dropin="${OMARCHY_STRIX_HALO_GPU_MEMORY_CONF:-/etc/limine-entry-tool.d/omarchy-strix-halo-gpu-memory.conf}"
+limine_default="${OMARCHY_LIMINE_DEFAULT:-/etc/default/limine}"
+meminfo="${OMARCHY_MEMINFO:-/proc/meminfo}"
+built="${OMARCHY_STRIX_HALO_GPU_MEMORY_BUILT:-/var/lib/omarchy/strix-halo-gpu-memory}"
+reserve_kib=$(( 8 * 1024 * 1024 ))
+
+if [[ ${1:-} == "--rebuild" ]]; then
+  rebuild=true
+else
+  rebuild=false
+fi
+
+omarchy-hw-amd-strix-halo || exit 0
+
+# A limit set by hand wins.
+for file in "$limine_default" "$(dirname "$dropin")"/*.conf; do
+  if [[ $file != "$dropin" ]] && grep -qs 'ttm\.pages_limit=' "$file"; then
+    echo "Leaving the GPU memory limit set in $file"
+    exit 0
+  fi
+done
+
+total_kib=$(awk '/^MemTotal:/ { print $2 }' "$meminfo")
+pages=$(( (total_kib - reserve_kib) / 4 ))
+if (( pages <= 0 )); then
+  echo "Error: ${total_kib} KiB of RAM leaves nothing for the GPU after the desktop's 8 GiB" >&2
+  exit 1
+fi
+
+conf="# AMD Strix Halo: let the GPU borrow all but 8 GiB of RAM; see omarchy-apply-strix-halo-gpu-memory.
+KERNEL_CMDLINE[default]+=\" ttm.pages_limit=$pages\""
+if [[ $(cat "$dropin" 2>/dev/null) != "$conf" ]]; then
+  install -Dm644 /dev/stdin "$dropin" <<<"$conf"
+fi
+
+if [[ $rebuild == "true" && $(cat "$built" 2>/dev/null) != "$pages" ]]; then
+  limine-mkinitcpio
+  install -Dm644 /dev/stdin "$built" <<<"$pages"
+  echo "The GPU can borrow $(( pages / 262144 )) GiB from the next boot on"
+fi
