@@ -14,19 +14,25 @@ for file in "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" "$HOME"/.confi
   [[ -f $file ]] || continue
   grep -Eq "$legacy" "$file" || continue
 
-  # A shell quote right after the name has to close before the new argument,
-  # or the shell still reads "omarchy-system shutdown" as one command. Only
-  # quotes the shell sees count, not the quotes around a JSON or Lua string.
+  # When a shell quote wraps just the command, it has to close before the new
+  # argument, or the shell still reads "omarchy-system shutdown" as one
+  # command. A quoted script handed to bash -c or sh -c is different: the
+  # action has to stay inside it. Only quotes the shell sees count, not the
+  # quotes around a JSON or Lua string.
   case $file in
     *.jsonc) quote=\''|\\"' ;;
     *.lua) quote='\\["'\'']' ;;
     *) quote='["'\'']' ;;
   esac
 
+  path='([^[:space:]"'\''\\]*\/)?'
+  retired="($quote)${path}omarchy-system-(logout|reboot|shutdown)($quote)"
+
   # Repeat on each line: one match takes the character after it, which a
   # second call right behind it needs as its own boundary.
   sed -E -i --follow-symlinks \
-    -e ':quoted' -e "s/$name($quote)/\\1omarchy-system\\3 \\2/" -e 't quoted' \
+    -e ':wrapped' -e "s/(^|[[:space:]])(-[[:alpha:]]*c[[:space:]]+)$retired/\\1\\2\\3\\4omarchy-system \\5\\6/" -e 't wrapped' \
+    -e ':quoted' -e "s/$retired/\\1\\2omarchy-system\\4 \\3/" -e 't quoted' \
     -e ':bare' -e "s/$legacy/\\1omarchy-system \\2\\3/" -e 't bare' \
     "$file"
 done
