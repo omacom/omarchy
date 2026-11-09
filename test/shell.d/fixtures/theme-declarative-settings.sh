@@ -1,17 +1,8 @@
-#!/bin/bash
-
-set -euo pipefail
-
-# shellcheck source=test/shell.d/base-test.sh
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
-
+# Sourced by theme-staging-test.sh in a subshell, sharing its scratch lifecycle.
 require_command lua
 require_command python3
 
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
-
-home="$test_tmp/home"
+home="$test_tmp/declarative-home"
 next_theme="$home/.local/state/omarchy/current/next-theme"
 mkdir -p "$next_theme"
 

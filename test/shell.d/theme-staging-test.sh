@@ -267,3 +267,6 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
 done
 
 pass "every file Omarchy generates is classified as code or colour"
+
+# Schema/rendering checks extend this suite rather than duplicating its runner.
+(source "$ROOT/test/shell.d/fixtures/theme-declarative-settings.sh")
