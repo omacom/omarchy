@@ -437,13 +437,15 @@ Panel {
     return facts.join(" · ")
   }
 
-  // "12.3 of 24.1 GB · 290 MB/s", in the decimal units downloads are counted in.
-  // Nothing until the total is known; no speed while it's still zero.
-  function downloadValue(done, total, rate) {
-    if (!(total > 0)) return ""
-    var text = Commons.I18n.t("agents.localDownloadValue").arg(Commons.I18n.formatNumber(done / 1e9, 1)).arg(Commons.I18n.formatNumber(total / 1e9, 1))
-    if (rate > 0) text += " · " + Commons.I18n.t("agents.localDownloadRate").arg(Commons.I18n.formatNumber(Math.round(rate / 1e6), 0))
-    return text
+  // A download's speed beside its bar, and how much of it has arrived on the
+  // bar's tooltip, in the decimal units downloads are counted in. Nothing
+  // while the speed is still zero or the total unknown.
+  function downloadRate(rate) {
+    return rate > 0 ? Commons.I18n.t("agents.localDownloadRate").arg(Commons.I18n.formatNumber(Math.round(rate / 1e6), 0)) : ""
+  }
+
+  function downloadAmount(done, total) {
+    return total > 0 ? Commons.I18n.t("agents.localDownloadValue").arg(Commons.I18n.formatNumber(done / 1e9, 1)).arg(Commons.I18n.formatNumber(total / 1e9, 1)) : ""
   }
 
   function setUpLocal(recipe) {
@@ -1982,6 +1984,7 @@ Panel {
         font.pixelSize: Style.font.bodySmall
       }
       Meter {
+        id: localMeterBar
         anchors.left: localMeterTitle.right
         anchors.right: localMeterValue.left
         anchors.rightMargin: Style.space(20)
@@ -1990,13 +1993,27 @@ Panel {
           : section.finishing !== "" ? 1 : section.loading || section.stopping || section.removing ? root.phaseProgress(section.elapsed, section.phaseSeconds)
           : Number(usage.localModel.ram_total_gib) > 0 ? section.memory / Number(usage.localModel.ram_total_gib) : 0
       }
+      // How much of a download has arrived, over its bar. The bar is a few
+      // pixels tall, so the whole height of its row answers the pointer.
+      Item {
+        anchors.left: localMeterBar.left
+        anchors.right: localMeterBar.right
+        height: parent.height
+        visible: section.downloadShown
+        HoverHandler { id: downloadBarHover }
+        PanelToolTip {
+          visible: downloadBarHover.hovered && text !== ""
+          text: root.downloadAmount(section.doneBytes, section.totalBytes)
+          fontFamily: root.fontFamily
+        }
+      }
       Text {
         id: localMeterValue
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         horizontalAlignment: Text.AlignRight
-        text: section.downloadShown ? root.downloadValue(section.doneBytes, section.totalBytes, section.rateBytes)
+        text: section.downloadShown ? root.downloadRate(section.rateBytes)
           : section.loadingShown || section.stoppingShown || section.removing ? ""
           : Commons.I18n.t("agents.localMemoryValue").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
         color: root.dim
