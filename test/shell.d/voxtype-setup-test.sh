@@ -59,7 +59,14 @@ case $name in
     if [[ $* == *"is-active"* ]]; then exit 1; fi
     if [[ $* == "--user restart voxtype.service" && ${VOXTYPE_RESTART_FAILS:-0} == 1 ]]; then
       dropin="$HOME/.config/systemd/user/voxtype.service.d/40-omarchy-cohere.conf"
-      if [[ -f $dropin ]] && grep -q '^Wants=voxtype-cohere-vulkan.service$' "$dropin"; then exit 1; fi
+      [[ -f $dropin ]] && grep -q '^# previous drop-in$' "$dropin" || exit 1
+      if grep -q '^Wants=voxtype-cohere-vulkan.service$' "$dropin"; then
+        : >"$XDG_RUNTIME_DIR/test-backend-active"
+      fi
+      exit "${RESTORE_RESTART_FAILURE:-0}"
+    fi
+    if [[ $* == "--user stop voxtype-cohere-vulkan.service" ]]; then
+      rm -f "$XDG_RUNTIME_DIR/test-backend-active"
     fi
     if [[ $* == *"restart voxtype-cohere-vulkan.service"* ]]; then exit "${SERVICE_FAILURE:-0}"; fi
     ;;
@@ -83,7 +90,8 @@ reset_fixture() {
   rm -rf "$HOME/.config/voxtype" "$HOME/.config/systemd" "$HOME/.local/share/voxtype"
   : >"$VOXTYPE_TEST_LOG"
   printf 'idle\n' >"$XDG_RUNTIME_DIR/voxtype/state"
-  unset NO_VULKAN PACKAGE_FAILURE PROBE_FAILURE DOWNLOAD_FAILURE HASH_FAILURE SERVICE_FAILURE RECORD_DURING_PROBE VOXTYPE_INACTIVE VOXTYPE_RESTART_FAILS
+  rm -f "$XDG_RUNTIME_DIR/test-backend-active"
+  unset NO_VULKAN PACKAGE_FAILURE PROBE_FAILURE DOWNLOAD_FAILURE HASH_FAILURE SERVICE_FAILURE RECORD_DURING_PROBE VOXTYPE_INACTIVE VOXTYPE_RESTART_FAILS RESTORE_RESTART_FAILURE
 }
 
 reset_fixture
@@ -120,18 +128,28 @@ if omarchy-voxtype-cohere enable >/dev/null 2>&1; then fail "failed service reje
 [[ $(<"$dropin") == "previous drop-in" && $(<"$service") == "previous service" ]] || fail "failed activation restores existing unit"
 pass "failed activation preserves previous service and drop-in"
 
-reset_fixture
-mkdir -p "${dropin%/*}"
-printf 'previous drop-in\n' >"$dropin"
-printf 'previous service\n' >"$service"
-if VOXTYPE_INACTIVE=0 VOXTYPE_RESTART_FAILS=1 omarchy-voxtype-cohere enable >/dev/null 2>&1; then
-  fail "failed Voxtype restart rejects activation"
-fi
-[[ $(<"$dropin") == "previous drop-in" && $(<"$service") == "previous service" ]] ||
-  fail "failed Voxtype restart restores both previous files"
-[[ $(grep -Fxc 'systemctl --user restart voxtype.service' "$VOXTYPE_TEST_LOG") == 2 ]] ||
-  fail "Voxtype is restarted with the restored configuration"
-pass "failed Voxtype restart restores and restarts the previous configuration"
+for restore_status in 0 1; do
+  reset_fixture
+  mkdir -p "${dropin%/*}"
+  previous_dropin=$'# previous drop-in\n[Unit]\nWants=voxtype-cohere-vulkan.service'
+  printf '%s\n' "$previous_dropin" >"$dropin"
+  printf 'previous service\n' >"$service"
+  if output=$(VOXTYPE_INACTIVE=0 VOXTYPE_RESTART_FAILS=1 RESTORE_RESTART_FAILURE=$restore_status omarchy-voxtype-cohere enable 2>&1); then
+    fail "failed Voxtype restart rejects activation"
+  fi
+  [[ $(<"$dropin") == "$previous_dropin" && $(<"$service") == "previous service" ]] ||
+    fail "failed Voxtype restart restores both previous files"
+  [[ $(grep -Fxc 'systemctl --user restart voxtype.service' "$VOXTYPE_TEST_LOG") == 2 ]] ||
+    fail "Voxtype is restarted with the restored configuration"
+  [[ ! -e $XDG_RUNTIME_DIR/test-backend-active ]] ||
+    fail "Voxtype rollback leaves the previously inactive backend stopped"
+  if (( restore_status )); then
+    [[ $output == *"could not be fully restored"* ]] || fail "a failed rollback restart is reported"
+  else
+    [[ $output == *"the previous Voxtype setup was restored"* ]] || fail "a successful rollback restart is reported"
+  fi
+done
+pass "Voxtype rollback restores files, stops the previously inactive backend, and reports restart failures"
 
 reset_fixture
 printf 'recording\n' >"$XDG_RUNTIME_DIR/voxtype/state"

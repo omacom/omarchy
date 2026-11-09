@@ -91,11 +91,13 @@ if [[ $action == "enable" ]]; then
   systemctl --user daemon-reload || rollback_failed=1
   if (( backend_was_active )); then
     systemctl --user restart voxtype-cohere-vulkan.service || rollback_failed=1
-  else
-    systemctl --user stop voxtype-cohere-vulkan.service || rollback_failed=1
   fi
   if (( voxtype_was_active )); then
     systemctl --user restart voxtype.service || rollback_failed=1
+  fi
+  # The restored drop-in can start the backend as a dependency of Voxtype.
+  if (( ! backend_was_active )); then
+    systemctl --user stop voxtype-cohere-vulkan.service || rollback_failed=1
   fi
   if (( rollback_failed )); then
     echo "Cohere did not activate and the previous Voxtype setup could not be fully restored." >&2
