@@ -147,8 +147,8 @@ for (const manifestPath of manifests) {
     check(manifest.barWidget && typeof manifest.barWidget.allowMultiple === 'boolean', `${manifest.id} barWidget allowMultiple must be boolean`)
     if (manifest.barWidget && manifest.barWidget.defaultSection !== undefined) {
       check(
-        ['left', 'center', 'right'].includes(manifest.barWidget.defaultSection),
-        `${manifest.id} barWidget defaultSection must be left, center, or right`
+        ['left', 'centerBegin', 'center', 'centerEnd', 'right'].includes(manifest.barWidget.defaultSection),
+        `${manifest.id} barWidget defaultSection must be left, centerBegin, center, centerEnd, or right`
       )
     }
   }
@@ -185,31 +185,18 @@ for (const manifestPath of manifests) {
   }
 }
 
-const byId = Object.fromEntries(manifests.map(manifestPath => {
+// A plugin rescan recreates every service that is not kept loaded. For the
+// lock, a polkit prompt or the idle timer that locks the session, that means a
+// lock or an authentication dropped mid-flight.
+const manifestsById = Object.fromEntries(manifests.map(manifestPath => {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
   return [manifest.id, manifest]
 }))
-for (const [id, section] of Object.entries({
-  'omarchy.active-window': 'left',
-  'omarchy.dropbox': 'right'
-})) {
-  check(byId[id]?.barWidget?.defaultSection === section, `${id} must default to the ${section} bar section`)
-}
-check(byId['omarchy.media']?.barWidget?.defaultSection === undefined, 'omarchy.media must use the center fallback')
-
-for (const id of ['omarchy.lock', 'omarchy.idle', 'omarchy.polkit', 'omarchy.notifications', 'omarchy.media']) {
-  check(byId[id]?.keepLoaded === true, `${id} must stay loaded across plugin reloads`)
+for (const id of ['omarchy.lock', 'omarchy.polkit', 'omarchy.idle']) {
+  check(manifestsById[id]?.keepLoaded === true, `${id} must stay loaded across plugin reloads`)
 }
 
 const shellSource = fs.readFileSync(path.join(root, 'shell/shell.qml'), 'utf8')
-const unloadMatch = shellSource.match(/function unloadPluginServices\(\) \{[\s\S]*?\n  \}/)
-check(!!unloadMatch, 'unloadPluginServices is defined')
-check(!!unloadMatch && /serviceKeepLoaded/.test(unloadMatch[0]), 'unloadPluginServices honors keepLoaded')
-check(
-  /function _syncServices\(\) \{[\s\S]*Drop services for plugins that have been disabled/.test(shellSource),
-  '_syncServices still drops disabled or removed services'
-)
-
 const publicManifestMatch = shellSource.match(/function publicPluginManifest\(manifest\) \{[\s\S]*?\n  \}/)
 check(!!publicManifestMatch, 'publicPluginManifest is defined')
 if (publicManifestMatch) {

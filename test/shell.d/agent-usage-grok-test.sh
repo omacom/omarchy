@@ -1,180 +1,306 @@
 #!/bin/bash
 
+# The Grok collector's own sources: the sign-in and plan the Grok CLI keeps in
+# its home, xAI's credits answer, and the session summaries and usage ledgers
+# beside each session. The unused-machine record is held centrally by the
+# partition test, and the limits and scan caches by the contract checks.
+
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$SHELL_TEST_DIR/agent-usage-helpers.sh"
 
-require_command jq
-require_command python3
+agent_sandbox
 
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+python3 - <<'PY'
+from agent_usage_fixtures import *
 
-export HOME="$test_tmp/home"
-export XDG_STATE_HOME="$test_tmp/state"
-export XDG_CACHE_HOME="$test_tmp/cache"
+PERIOD_END = iso_in(9 * 86400)
+USED = {"token-main": 42.0, "token-side": 7.0, "token-fresh": 0}
+answer = {"percent": None, "end": None}
 
-future=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=6)).isoformat())')
-past=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1)).isoformat())')
-period_end=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=9)).isoformat())')
-
-# A home signed in the way the Grok CLI leaves it.
-signed_in() {
-  mkdir -p "$1"
-  jq -nc --arg token "$2" --arg user "$3" --arg expires "$4" \
-    '{"https://auth.x.ai::client": {key: $token, user_id: $user, email: ($user + "@example.com"), expires_at: $expires}}' >"$1/auth.json"
-  printf '{"payload":"{\\"settings\\":{\\"subscription_tier_display\\":\\"%s\\"}}"}\n' "$5" >"$1/settings_cache.json"
-}
-
-# xAI answers per token, so each home's probe is told apart by its sign-in.
-collect() {
-  COLLECTOR="$ROOT/bin/omarchy-agent-usage-grok" python3 - "$@" <<'PY'
-import importlib.machinery, importlib.util, io, json, os, sys
-
-loader = importlib.machinery.SourceFileLoader("collector", os.environ["COLLECTOR"])
-spec = importlib.util.spec_from_loader(loader.name, loader)
-collector = importlib.util.module_from_spec(spec)
-loader.exec_module(collector)
-
-used = {"token-main": 42.0, "token-side": 7.0, "token-fresh": 0}
-end = os.environ["PERIOD_END"]
 
 # Shaped like xAI's answer: protobuf JSON under config, which drops a
-# percentage of zero.
-def urlopen(request, timeout=None):
-  assert request.full_url == collector.CREDITS_URL
+# percentage of zero. A unified-billing account has no percentage there at
+# all; its monthly quota comes on the billing answer without the credits
+# format, its amounts money fields of {"val": n}.
+def credits(request):
   token = request.get_header("Authorization").split(" ", 1)[1]
-  config = {"currentPeriod": {"type": "USAGE_PERIOD_TYPE_WEEKLY", "end": end}, "billingPeriodEnd": end}
-  if used.get(token):
-    config["creditUsagePercent"] = used[token]
-  return io.BytesIO(json.dumps({"config": config}).encode())
+  config = {"currentPeriod": {"type": "USAGE_PERIOD_TYPE_WEEKLY", "end": answer["end"] or PERIOD_END}, "billingPeriodEnd": PERIOD_END}
+  if USED.get(token):
+    config["creditUsagePercent"] = USED[token]
+  if answer["percent"] is not None:
+    config["creditUsagePercent"] = answer["percent"]
+  if token == "token-unified":
+    config["isUnifiedBillingUser"] = True
+  return {"config": config}
 
-collector.urllib.request.urlopen = urlopen
-sys.argv = ["omarchy-agent-usage-grok"] + (os.environ.get("COLLECT_ARGS") or "--force").split()
-collector.main()
-PY
-}
-export PERIOD_END="$period_end"
 
-record=$(collect)
-[[ $(jq -c '{ready, tierLabel, limits}' <<<"$record") == '{"ready":false,"tierLabel":"","limits":[]}' ]] ||
-  fail "a machine nobody signed in to Grok on gives an empty record" "$record"
-pass "a machine nobody signed in to Grok on gives an empty record"
+def monthly(request):
+  return {"config": {"isUnifiedBillingUser": True, "billingPeriodStart": iso_in(-20 * 86400), "billingPeriodEnd": PERIOD_END,
+                     "monthlyLimit": {"val": 1000}, "used": {"val": 900}}}
+
+
+ROUTES = {"cli-chat-proxy.grok.com/v1/billing?format=credits": credits, "cli-chat-proxy.grok.com/v1/billing": monthly}
+
+
+# A home signed in the way the Grok CLI leaves it.
+def signed_in(grok_home, token="token-main", user="u-main", expires=None, tier="X Premium+", **extra):
+  login = {"key": token, "user_id": user, "email": user + "@example.com", "expires_at": expires or iso_in(6 * 3600), **extra}
+  write_json(Path(grok_home) / "auth.json", {"https://auth.x.ai::client": login})
+  write_json(Path(grok_home) / "settings_cache.json", {"payload": json.dumps({"settings": {"subscription_tier_display": tier}})})
+
+
+def summary(grok_home, name, active_at, prompts):
+  write_json(Path(grok_home) / "sessions" / "%2Fhome%2Fme" / name / "summary.json", {"last_active_at": active_at, "num_messages": prompts})
+
+
+def grok(*args):
+  with FakeHttp(ROUTES):
+    return collect("grok", *(args or ("--force",)))
+
+
+def grok_home():
+  return home() / ".grok"
+
+
+# ---------------------------------------------------------------- the home
+
+# The partition test holds the rest of the unused-machine record; whether a
+# record's stats are this machine's is each collector's to say.
+sandbox()
+record = grok()
+expect("a machine without Grok has no local Grok stats", [record["ready"], record["hasLocalStats"]], [False, False], record)
+
+# A Grok home with no sign-in in it has been set up, so the sign-in is what's
+# missing.
+(home() / "bare-grok").mkdir()
+os.environ["GROK_HOME"] = str(home() / "bare-grok")
+record = grok()
+expect("a signed-out Grok home waits for auth", [record["ready"], record["usageStatusText"]], [False, "Waiting for auth"], record)
+
+# Sessions on disk put Grok in use here even with no sign-in, which is then
+# what's missing.
+os.environ["GROK_HOME"] = str(home() / "orphan")
+summary(home() / "orphan", "one", "2026-01-02T10:00:00Z", 2)
+record = grok()
+expect("Grok sessions with no sign-in are in use, waiting for auth",
+       [record["ready"], record["totalSessions"], record["usageStatusText"]], [True, 1, "Waiting for auth"], record)
 
 # A home chosen with GROK_HOME is the one read, as the CLI itself does.
-signed_in "$test_tmp/custom-grok" token-main u-main "$future" "SuperGrok"
-record=$(GROK_HOME="$test_tmp/custom-grok" collect)
-[[ $(jq -c '{ready, tierLabel, percent: .limits[0].percent}' <<<"$record") == '{"ready":true,"tierLabel":"SuperGrok","percent":0.42}' ]] ||
-  fail "a single Grok account in GROK_HOME is read from there" "$record"
-pass "a single Grok account in GROK_HOME is read from there"
-rm -f "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json
+signed_in(home() / "custom-grok", tier="SuperGrok")
+os.environ["GROK_HOME"] = str(home() / "custom-grok")
+record = grok()
+expect("a single Grok account in GROK_HOME is read from there",
+       [record["ready"], record["tierLabel"], record["limits"][0]["percent"]], [True, "SuperGrok", 0.42], record)
+del os.environ["GROK_HOME"]
 
-signed_in "$HOME/.grok" token-main u-main "$future" "X Premium+"
-record=$(collect)
-[[ $(jq -c '{ready, tierLabel, stale: .limitsStale, label: .limits[0].label, percent: .limits[0].percent}' <<<"$record") == '{"ready":true,"tierLabel":"X Premium+","stale":false,"label":"Weekly","percent":0.42}' ]] ||
-  fail "Grok's plan and credits come from its own home" "$record"
-[[ -n $(jq -r '.limits[0].resetsAt' <<<"$record") ]] || fail "the credits window says when the period ends" "$record"
-[[ $(jq -r '.authHelpText' <<<"$record") == "" ]] || fail "a successful Grok probe drops the login hint" "$record"
-record=$(collect)
-[[ $(jq -c '{percent: .limits[0].percent, help: .authHelpText}' <<<"$record") == '{"percent":0.42,"help":""}' ]] ||
-  fail "reused Grok limits drop the login hint" "$record"
-pass "Grok's plan and credits come from its own home"
+# ---------------------------------------------------------------- contract
 
-signed_in "$HOME/.grok" token-main u-main "$past" "X Premium+"
-record=$(collect)
-[[ $(jq -c '{usageStatusText, first: .limits[0].percent, stale: .limitsStale}' <<<"$record") == '{"usageStatusText":"Sign-in expired","first":0.42,"stale":true}' ]] ||
-  fail "a lapsed sign-in keeps the last credits and says so" "$record"
-pass "a lapsed sign-in keeps the last credits and says so"
+sandbox()
+
+
+def add_session():
+  add_session.count = getattr(add_session, "count", 0) + 1
+  summary(grok_home(), f"grown-{add_session.count}", iso_in(0), 1)
+
+
+adapter = Adapter("grok", plant=lambda: signed_in(grok_home()), answer=ROUTES, grow=add_session)
+fresh = check_limits_contract(adapter)
+expect("Grok's plan and weekly credits come from its own home and xAI's answer",
+       [fresh["tierLabel"], fresh["limits"][0]["label"], fresh["limits"][0]["percent"], bool(fresh["limits"][0]["resetsAt"])],
+       ["X Premium+", "Weekly", 0.42, True], fresh)
+check_scan_cache(adapter)
+
+# ------------------------------------------------------------ the sign-in
+
+sandbox()
+signed_in(grok_home())
+grok()
+signed_in(grok_home(), expires=iso_in(-3600))
+record = grok()
+expect("a lapsed sign-in keeps the last credits and says so",
+       [record["usageStatusText"], record["limits"][0]["percent"], record["limitsStale"]], ["Sign-in expired", 0.42, True], record)
 
 # A lapsed access token with a refresh token is routine: Grok renews it when it
-# starts, and while it hasn't run nothing here has spent its allowance, so the
-# last numbers stand as current, with no sign-in asked for.
-jq '.[].refresh_token = "r"' "$HOME/.grok/auth.json" >"$test_tmp/auth.json"
-mv "$test_tmp/auth.json" "$HOME/.grok/auth.json"
-record=$(collect)
-[[ $(jq -c '{usageStatusText, first: .limits[0].percent, stale: .limitsStale}' <<<"$record") == '{"usageStatusText":"","first":0.42,"stale":false}' ]] ||
-  fail "a lapsed access token with a refresh token keeps showing the last numbers" "$record"
-pass "a lapsed access token with a refresh token keeps showing the last numbers"
+# starts, so the limits are paused, the last numbers kept as stale, with no
+# sign-in asked for.
+signed_in(grok_home(), expires=iso_in(-3600), refresh_token="r")
+record = grok()
+expect("a lapsed access token with a refresh token pauses the limits, keeping the last numbers stale",
+       [record["usageStatusText"], record["limits"][0]["percent"], record["limitsStale"], "Start Grok" in record["authHelpText"]],
+       ["Limits paused", 0.42, True, True], record)
 
-# A week that reset while Grok sat idle starts over at 0%, a week later.
-cache=$(ls "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json | head -1)
-reset_past=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1)).isoformat())')
-jq --arg at "$reset_past" '.limits[0].resetsAt = $at' "$cache" >"$test_tmp/cache.json"
-mv "$test_tmp/cache.json" "$cache"
-record=$(collect)
-next_reset=$(jq -r '.limits[0].resetsAt' <<<"$record")
-[[ $(jq -r '.limits[0].percent' <<<"$record") == 0.0 ]] &&
-  python3 -c 'import datetime as dt, sys; n = dt.datetime.fromisoformat(sys.argv[1]); d = n - dt.datetime.now(dt.timezone.utc); sys.exit(0 if dt.timedelta(days=6) < d < dt.timedelta(days=7) else 1)' "$next_reset" ||
-  fail "a week that reset while Grok was idle starts over a week later" "$record"
-pass "a week that reset while Grok was idle starts over a week later"
+# A week that reset while Grok sat idle starts over at 0%, its next reset
+# unknown until xAI says.
+edit_limits_cache("grok", resets_past=True)
+record = grok()
+expect("a week that reset while Grok was idle starts over at zero",
+       [record["limits"][0]["percent"], record["limits"][0]["resetsAt"], record["limitsStale"]], [0.0, "", True], record)
 
 # Without cached numbers there's nothing to show, so it says how to get them.
-rm -f "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json
-record=$(collect)
-[[ $(jq -c '{usageStatusText, limits}' <<<"$record") == '{"usageStatusText":"Limits paused","limits":[]}' ]] ||
-  fail "a lapsed token with nothing cached says to start Grok" "$record"
-pass "a lapsed token with nothing cached says to start Grok"
+for path in limits_cache_files("grok"):
+  path.unlink()
+record = grok()
+expect("a lapsed token with nothing cached says to start Grok, with no limits to call stale", [record["usageStatusText"], record["limits"], record["limitsStale"]], ["Limits paused", [], False], record)
 
 # A refresh token past Grok's 30-day sign-in can't renew anything: signed out.
-long_ago=$(python3 -c 'import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=31)).isoformat())')
-jq --arg at "$long_ago" '.[].expires_at = $at' "$HOME/.grok/auth.json" >"$test_tmp/auth.json"
-mv "$test_tmp/auth.json" "$HOME/.grok/auth.json"
-record=$(collect)
-[[ $(jq -r '.usageStatusText' <<<"$record") == "Sign-in expired" ]] ||
-  fail "a sign-in lapsed past Grok's 30 days asks for a sign-in" "$record"
-pass "a sign-in lapsed past Grok's 30 days asks for a sign-in"
+signed_in(grok_home(), expires=iso_in(-31 * 86400), refresh_token="r")
+record = grok()
+expect("a sign-in lapsed past Grok's 30 days asks for a sign-in", record["usageStatusText"], "Sign-in expired", record)
+
+# ------------------------------------------------------------- the answer
+
+# A percentage that isn't a number is no answer, not a full allowance.
+sandbox()
+signed_in(grok_home())
+answer["percent"] = float("nan")
+record = grok()
+answer["percent"] = None
+expect("a Grok percentage that isn't a number reads as unavailable",
+       [record["usageStatusText"], record["limits"]], ["Grok limits unavailable", []], record)
 
 # A period with nothing used yet comes without a percentage.
-signed_in "$HOME/.grok" token-fresh u-main "$future" "X Premium+"
-rm -f "$XDG_CACHE_HOME"/omarchy/agent-usage/grok-limits-*.json
-record=$(collect)
-[[ $(jq -c '.limits[0] | {label, percent}' <<<"$record") == '{"label":"Weekly","percent":0.0}' ]] ||
-  fail "an untouched period reads as 0% rather than nothing known" "$record"
-pass "an untouched period reads as 0% rather than nothing known"
+for path in limits_cache_files("grok"):
+  path.unlink()
+signed_in(grok_home(), token="token-fresh")
+record = grok()
+expect("an untouched period reads as 0% rather than nothing known",
+       [record["limits"][0]["label"], record["limits"][0]["percent"]], ["Weekly", 0.0], record)
 
-signed_in "$HOME/.grok" token-main u-main "$future" "X Premium+"
-side="$XDG_STATE_HOME/omarchy/agents/accounts/grok/side"
-signed_in "$side" token-side u-side "$future" "SuperGrok"
-jq -n --arg side "$side" '{active: "side", switch: "auto", threshold: 90, accounts: [
-  {id: "main", label: "Main", home: "", primary: true},
-  {id: "side", label: "Side", home: $side, primary: false}
-]}' >"$XDG_STATE_HOME/omarchy/agents/accounts/grok.json"
-record=$(collect)
-[[ $(jq -c '{tierLabel, first: .limits[0].percent, accounts: [.accounts[] | {id, active, plan, percent: .limits[0].percent}], switch: .accountSwitch}' <<<"$record") == '{"tierLabel":"SuperGrok","first":0.07,"accounts":[{"id":"main","active":false,"plan":"X Premium+","percent":0.42},{"id":"side","active":true,"plan":"SuperGrok","percent":0.07}],"switch":{"mode":"auto","threshold":90}}' ]] ||
-  fail "every Grok account reports its own plan and credits" "$record"
-pass "every Grok account reports its own plan and credits"
+# A period already over without a percentage says nothing about this one: no
+# answer, the last numbers kept as stale.
+answer["end"] = iso_in(-3600)
+record = grok()
+answer["end"] = None
+expect("an ended period without a percentage is no answer, keeping the last numbers",
+       [record["limits"][0]["percent"], record["limitsStale"]], [0.0, True], record)
 
-# Sessions come from each session's summary; tokens and today's prompts from
-# its usage.json, one entry per finished turn, with cached input kept apart.
-sessions="$HOME/.grok/sessions/%2Fhome%2Fme"
-now=$(python3 -c 'import datetime as dt; print(dt.datetime.now(dt.timezone.utc).isoformat())')
-mkdir -p "$sessions/today-1" "$sessions/today-2" "$sessions/old"
-jq -n --arg at "$now" '{last_active_at: $at, num_messages: 3}' >"$sessions/today-1/summary.json"
-jq -n --arg at "$now" '{last_active_at: $at, num_messages: 2}' >"$sessions/today-2/summary.json"
-jq -n '{last_active_at: "2026-01-02T10:00:00Z", num_messages: 5}' >"$sessions/old/summary.json"
-jq -n --arg at "$now" '{turns: [
-  {endedAt: $at, modelUsage: {"grok-4.7-build": {inputTokens: 1000, cachedReadTokens: 800, outputTokens: 50, cacheCreationTokens: 0, totalTokens: 1050}}},
-  {endedAt: $at, modelUsage: {"grok-4.7-build": {inputTokens: 200, cachedReadTokens: 100, outputTokens: 10, cacheCreationTokens: 5, totalTokens: 210}}}
-]}' >"$sessions/today-1/usage.json"
-jq -n '{turns: [{endedAt: "2026-01-02T10:00:00Z", modelUsage: {"grok-4.6": {inputTokens: 500, cachedReadTokens: 0, outputTokens: 20, cacheCreationTokens: 0, totalTokens: 520}}}]}' >"$sessions/old/usage.json"
-record=$(collect)
-[[ $(jq -c '{hasLocalStats, todayPrompts, todaySessions, totalPrompts, totalSessions, activeDays, todayTotalTokens, todayTokensByModel, today: .recentDays[6].messageCount}' <<<"$record") == '{"hasLocalStats":true,"todayPrompts":2,"todaySessions":2,"totalPrompts":10,"totalSessions":3,"activeDays":2,"todayTotalTokens":1265,"todayTokensByModel":{"grok-4.7-build":1265},"today":1265}' ]] ||
-  fail "Grok counts sessions, prompts, and tokens from its session files" "$record"
-[[ $(jq -cS '.modelUsage' <<<"$record") == '{"grok-4.6":{"cacheCreationInputTokens":0,"cacheReadInputTokens":0,"inputTokens":500,"outputTokens":20},"grok-4.7-build":{"cacheCreationInputTokens":5,"cacheReadInputTokens":900,"inputTokens":300,"outputTokens":60}}' ]] ||
-  fail "Grok's tokens by model keep cached input apart" "$record"
-pass "Grok counts sessions, prompts, and tokens from its session files"
+# A unified-billing account leaves the percentage out of the credits answer,
+# its usage counted against the monthly quota the plain billing answer gives.
+sandbox()
+signed_in(grok_home(), token="token-unified")
+record = grok()
+expect("a unified-billing account reads its monthly quota, not a confident 0%",
+       [record["limits"][0]["label"], record["limits"][0]["percent"], record["limitsStale"], bool(record["limits"][0]["resetsAt"])],
+       ["Monthly", 0.9, False, True], record)
 
-# A limits-only refresh reuses the last scan rather than reading every summary.
-mkdir -p "$sessions/later"
-jq -n --arg at "$now" '{last_active_at: $at, num_messages: 1}' >"$sessions/later/summary.json"
-record=$(COLLECT_ARGS="--limits-only" collect)
-[[ $(jq -r '.totalSessions' <<<"$record") == 3 ]] || fail "a limits-only refresh reuses the session scan" "$record"
-pass "a limits-only refresh reuses the session scan"
+# A unified-billing account can also carry a weekly percentage on the credits
+# answer; Grok's /usage then shows the monthly included quota beside it.
+sandbox()
+signed_in(grok_home(), token="token-unified")
+answer["percent"] = 30
+record = grok()
+answer["percent"] = None
+expect("a unified-billing account with weekly credits shows the monthly quota beside them",
+       [[limit["label"], limit["percent"]] for limit in record["limits"]], [["Weekly", 0.3], ["Monthly", 0.9]], record)
 
-# A scan from another day is never reused, so yesterday's sessions don't
-# count as today's after midnight.
-jq '.day = "2000-01-01"' "$XDG_CACHE_HOME/omarchy/agent-usage/grok-stats.json" >"$test_tmp/stats.json"
-mv "$test_tmp/stats.json" "$XDG_CACHE_HOME/omarchy/agent-usage/grok-stats.json"
-record=$(COLLECT_ARGS="--limits-only" collect)
-[[ $(jq -r '.totalSessions' <<<"$record") == 4 ]] || fail "a scan from another day is made again" "$record"
-pass "a scan from another day is made again"
+# ------------------------------------------------------------- accounts
+
+sandbox()
+signed_in(grok_home())
+side = state_home() / "omarchy" / "agents" / "accounts" / "grok" / "side"
+signed_in(side, token="token-side", user="u-side", tier="SuperGrok")
+registry("grok", [
+  {"id": "main", "label": "Main", "home": "", "primary": True},
+  {"id": "side", "label": "Side", "home": str(side), "primary": False},
+], active="side", switch="auto", threshold=90)
+record = grok()
+expect("every Grok account reports its own plan and credits", {
+  "tierLabel": record["tierLabel"],
+  "first": record["limits"][0]["percent"],
+  "accounts": [{"id": a["id"], "active": a["active"], "plan": a["plan"], "percent": a["limits"][0]["percent"]} for a in record["accounts"]],
+  "switch": record["accountSwitch"],
+}, {
+  "tierLabel": "SuperGrok",
+  "first": 0.07,
+  "accounts": [{"id": "main", "active": False, "plan": "X Premium+", "percent": 0.42}, {"id": "side", "active": True, "plan": "SuperGrok", "percent": 0.07}],
+  "switch": {"mode": "auto", "threshold": 90},
+}, record)
+
+# ------------------------------------------------------------ odd shapes
+
+# A ledger or settings cache of the wrong shape costs that field, never the
+# record.
+sandbox()
+signed_in(grok_home())
+write_json(grok_home() / "settings_cache.json", {"payload": json.dumps({"settings": "x"})})
+summary(grok_home(), "odd", iso_in(0), 1)
+write_json(grok_home() / "sessions" / "%2Fhome%2Fme" / "odd" / "usage.json", {"turns": [{"endedAt": iso_in(0), "modelUsage": ["grok-4.7-build"]}]})
+record = grok()
+expect("a list-shaped modelUsage and a non-object settings read as empty",
+       [record["ready"], record["tierLabel"], record["todayPrompts"], record["modelUsage"]], [True, "", 1, {}], record)
+
+# A session or turn time out of range (year 1, before 2000, past 2100) is an
+# untrusted stamp: it skips that session or turn, never the record.
+sandbox()
+signed_in(grok_home())
+summary(grok_home(), "good", iso_in(0), 2)
+write_json(grok_home() / "sessions" / "%2Fhome%2Fme" / "good" / "usage.json", {"turns": [
+  {"endedAt": iso_in(0), "modelUsage": {"grok-4.7-build": {"inputTokens": 10, "outputTokens": 1}}},
+  {"endedAt": "0001-01-01T00:00:00+00:00", "modelUsage": {"grok-4.7-build": {"inputTokens": 500}}},
+  {"endedAt": "9999-12-31T23:59:59+00:00", "modelUsage": {"grok-4.7-build": {"inputTokens": 500}}},
+]})
+for name, stamp in (("year1", "0001-01-01T00:00:00+00:00"), ("1970", "1970-01-01T00:00:00Z"), ("far", "2999-01-01T00:00:00Z")):
+  summary(grok_home(), name, stamp, 7)
+record = grok()
+expect("Grok skips sessions and turns with out-of-range times",
+       [record["totalSessions"], record["totalPrompts"], record["todayPrompts"], record["todayTotalTokens"], record["activeDates"]],
+       [1, 1, 1, 11, [datetime.now().date().isoformat()]], record)
+
+# ---------------------------------------------------------- local stats
+
+# Sessions come from each session's summary; tokens and prompts from its
+# usage.json, one entry per finished turn, with cached input kept apart. The
+# summary's num_messages counts the model's replies too, so it isn't read.
+sandbox()
+signed_in(grok_home())
+now = iso_in(0)
+sessions = grok_home() / "sessions" / "%2Fhome%2Fme"
+summary(grok_home(), "today-1", now, 3)
+summary(grok_home(), "today-2", now, 2)
+summary(grok_home(), "old", "2026-01-02T10:00:00Z", 5)
+write_json(sessions / "today-1" / "usage.json", {"turns": [
+  {"endedAt": now, "modelUsage": {"grok-4.7-build": {"inputTokens": 1000, "cachedReadTokens": 800, "outputTokens": 50, "cacheCreationTokens": 0, "totalTokens": 1050}}},
+  {"endedAt": now, "modelUsage": {"grok-4.7-build": {"inputTokens": 200, "cachedReadTokens": 100, "outputTokens": 10, "cacheCreationTokens": 5, "totalTokens": 210}}},
+]})
+write_json(sessions / "old" / "usage.json", {"turns": [
+  {"endedAt": "2026-01-02T10:00:00Z", "modelUsage": {"grok-4.6": {"inputTokens": 500, "cachedReadTokens": 0, "outputTokens": 20, "cacheCreationTokens": 0, "totalTokens": 520}}},
+]})
+record = grok()
+expect("Grok counts sessions, prompts, and tokens from its session files",
+       {key: record[key] for key in ("hasLocalStats", "todayPrompts", "todaySessions", "totalPrompts", "totalSessions", "activeDays", "todayTotalTokens", "todayTokensByModel")}
+       | {"today": record["recentDays"][6]["messageCount"]},
+       {"hasLocalStats": True, "todayPrompts": 2, "todaySessions": 2, "totalPrompts": 3, "totalSessions": 3, "activeDays": 2,
+        "todayTotalTokens": 1265, "todayTokensByModel": {"grok-4.7-build": 1265}, "today": 1265}, record)
+expect("Grok's tokens by model keep cached input apart", record["modelUsage"], {
+  "grok-4.6": {"inputTokens": 500, "outputTokens": 20, "cacheReadInputTokens": 0, "cacheCreationInputTokens": 0},
+  "grok-4.7-build": {"inputTokens": 300, "outputTokens": 60, "cacheReadInputTokens": 900, "cacheCreationInputTokens": 5},
+}, record)
+
+# A fork repeats its source's turns verbatim ahead of its own, as `grok -r
+# <id> --fork-session` leaves its usage.json; each turn counts once. A
+# subagent's turns are tokens spent, but no prompts typed.
+sandbox()
+signed_in(grok_home())
+sessions = grok_home() / "sessions" / "%2Fhome%2Fme"
+
+
+def turn(number, seconds_ago, tokens):
+  ended = (datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)).strftime("%Y-%m-%dT%H:%M:%S.620236893+00:00")
+  usage = {"inputTokens": tokens, "outputTokens": 10, "cachedReadTokens": 0, "cacheCreationTokens": 0, "reasoningTokens": 5, "totalTokens": tokens + 10, "modelCalls": 1}
+  return {"turnNumber": number, "endedAt": ended, **usage, "turnCount": 1, "primaryModelId": "grok-build", "modelUsage": {"grok-build": usage}}
+
+
+first, second = turn(1, 4, 100), turn(2, 3, 200)
+write_json(sessions / "source" / "summary.json", {"last_active_at": iso_in(-3), "num_messages": 7, "session_kind": "headless"})
+write_json(sessions / "source" / "usage.json", {"turns": [first, second]})
+write_json(sessions / "fork" / "summary.json", {"last_active_at": iso_in(-1), "num_messages": 11, "session_kind": "headless",
+                                                 "parent_session_id": "source", "forked_at": iso_in(-2)})
+write_json(sessions / "fork" / "usage.json", {"turns": [first, second, turn(3, 1, 400)]})
+write_json(sessions / "child" / "summary.json", {"last_active_at": iso_in(-2), "num_messages": 5, "session_kind": "subagent"})
+write_json(sessions / "child" / "usage.json", {"turns": [turn(1, 2, 800)]})
+record = grok()
+expect("a fork's copied turns count once, and a subagent's turns as tokens but no prompts",
+       [record["totalSessions"], record["totalPrompts"], record["todayPrompts"], record["todayTotalTokens"]], [3, 3, 3, 1540], record)
+PY

@@ -124,6 +124,13 @@ mkdir -p "$toggles"
 
 assert_opacity() {
   local opacity="$1" label="$2"
+  if [[ $opacity == "undeclared" ]]; then
+    ! grep -Eq '^opacity =' "$next_theme/alacritty.toml" || fail "$label Alacritty leaves opacity unset"
+    ! grep -Eq '^alpha=' "$next_theme/foot.ini" || fail "$label Foot leaves opacity unset"
+    ! grep -Eq '^background-opacity =' "$next_theme/ghostty.conf" || fail "$label Ghostty leaves opacity unset"
+    ! grep -Eq '^background_opacity ' "$next_theme/kitty.conf" || fail "$label Kitty leaves opacity unset"
+    return
+  fi
   grep -qx "opacity = $opacity" "$next_theme/alacritty.toml" || fail "$label Alacritty opacity"
   grep -qx "alpha=$opacity" "$next_theme/foot.ini" || fail "$label Foot opacity"
   grep -qx "background-opacity = $opacity" "$next_theme/ghostty.conf" || fail "$label Ghostty opacity"
@@ -166,7 +173,7 @@ for declaration in omitted invalid empty radius-only translucent opaque blurred;
   case "$declaration" in
     translucent | blurred) expected_opacity=0.45 ;;
     opaque) expected_opacity=1.0 ;;
-    *) expected_opacity=0.65 ;;
+    *) expected_opacity=undeclared ;;
   esac
   assert_opacity "$expected_opacity" "$declaration"
   if [[ $declaration == "translucent" || $declaration == "opaque" ]]; then
@@ -298,7 +305,7 @@ curve = "themeEase"
 style = "popin 87%"
 TOML
 render
-grep -Fq -- '-- Generated from declarative hyprland.toml' "$next_theme/hyprland.lua" || fail "valid Hyprland declaration is generated"
+grep -Fq -- '-- Generated from declarative hyprland.toml' "$next_theme/hyprland.lua" || fail "valid Hyprland declaration is generated" "$(cat "$test_tmp/stderr")"
 grep -Fq 'gaps_in = 4' "$next_theme/hyprland.lua" || fail "Hyprland general settings are generated"
 grep -Fq 'color = "rgb(1a1b26)"' "$next_theme/hyprland.lua" || fail "Hyprland color resolves a palette reference"
 grep -Fq 'color_inactive = "rgba(11223344)"' "$next_theme/hyprland.lua" || fail "Hyprland literal color is normalized"

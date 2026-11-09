@@ -111,7 +111,7 @@ for generated in hyprland.lua neovim.lua gum_env.lua kitty.conf alacritty.toml f
   assert_no_marker "$generated" "an installed theme cannot supply $generated"
 done
 assert_staged hyprland.toml "an installed theme keeps declarative Hyprland settings"
-grep -Fq 'rounding = 13' "$(staged hyprland.lua)" || fail "declarative Hyprland settings reach the generated Lua"
+grep -Fq 'rounding = 13' "$(staged hyprland.lua)" || fail "declarative Hyprland settings reach the generated Lua" "$(cat "$test_tmp/stderr")"
 
 # Colour is kept, including a file Omarchy would otherwise have generated.
 assert_staged shell.toml "shell.toml is staged"
@@ -248,7 +248,7 @@ pass "a theme name cannot climb out of the theme directories"
 # generates. Every generated theme file is either denied to an installed theme or
 # recorded here as carrying colour, so a new template fails until it is placed.
 denied=(alacritty.toml foot.ini ghostty.conf kitty.conf gum_env.lua hyprland.lua neovim.lua vscode.json)
-colour_only=(btop.theme chromium.theme claude.json helix.toml hermes.yaml hyprland-preview-share-picker.css keyboard.rgb obsidian.css pi.json shell.toml t3code.json vscode-theme.json)
+colour_only=(btop.theme chromium.theme claude.json fcitx5-theme.conf helix.toml herdr-app.json hermes.yaml hyprland-preview-share-picker.css keyboard.rgb obsidian.css pi.json shell.toml slack.json t3code.json vscode-theme.json)
 
 for tpl in "$ROOT"/default/themed/*.tpl; do
   generated=$(basename "$tpl" .tpl)

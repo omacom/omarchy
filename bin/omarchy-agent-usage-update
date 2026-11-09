@@ -54,9 +54,14 @@ collect() {
 # Accounts can be signed in to someone else since they were added; the
 # records name them from the registry, so bring it up to date first.
 accounts_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/accounts"
-if [[ -f $accounts_dir/claude.json || -f $accounts_dir/codex.json || -f $accounts_dir/grok.json ]]; then
+if [[ -d $accounts_dir ]]; then
   "$OMARCHY_PATH/bin/omarchy-agent-account-state" refresh
 fi
+
+# Collectors forced together read the Codex rollouts they share once between
+# them, whenever each gets to them, by knowing when this refresh began.
+# EPOCHREALTIME uses the locale's decimal separator, a comma in many.
+export OMARCHY_AGENT_USAGE_REFRESH_AT=${EPOCHREALTIME/,/.}
 
 pids=()
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
