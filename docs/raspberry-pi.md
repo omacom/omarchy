@@ -2,6 +2,12 @@
 
 The Pi 4 Model B is `aarch64-raspberrypi`. This draft integration uses the existing aarch64 USB installer, `linux-omarchy`, UEFI, Limine and unified kernel images. Pi 5 is outside this change. Platform detection matches the board family rather than its RAM size. Private testing covers a 4GB board and a separate 8GB transferred-media boot; neither is a completed shipping qualification.
 
+## Installation overview
+
+The proposed first-beta setup uses a microSD for Pi boot firmware, a separate USB installer stick and an external USB 3.0 SSD for the installed system. The [installer proposal](https://github.com/omacom/omarchy-iso/pull/417) includes the short image-writing and installation flow. It still requires tested firmware-card and installer artifacts with verification files before users can follow it; this PR does not publish an installable Pi image. The firmware microSD stays inserted after installation.
+
+UEFI boot files and Linux can share one 128GB microSD, while the Pi's initial EEPROM bootloader remains on the board. That layout is not implemented or qualified by this installer. An external USB 3.0 SSD is the recommended installation target for the initial Pi release.
+
 ## Boot prerequisites
 
 The Pi needs separately prepared UEFI firmware media configured to pass a Pi 4 Device Tree with working VC4/V3D nodes. ACPI-only mode cannot provide the graphics path this desktop needs. The kernel package ships its mainline tree at `/boot/dtbs/linux-omarchy/broadcom/bcm2711-rpi-4-b.dtb`; the firmware must receive and fix up a compatible tree. The installer companion runs `omarchy-pi-check --live` before disk cleanup and refuses a missing UEFI interface, missing Pi 4 tree or missing V3D render device.
