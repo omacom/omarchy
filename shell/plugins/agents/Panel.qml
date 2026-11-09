@@ -366,12 +366,13 @@ Panel {
   }
 
   // The bar icon lights up when any account new sessions use is nearly out,
-  // or a prepaid balance is down to its last 10%.
+  // a prepaid balance is down to its last 10%, or monthly spend is near its cap.
   readonly property bool alarming: {
     for (var i = 0; i < providers.length; i++) {
       var window = bindingWindow(providers[i])
       if (window && window.percent >= 0.9) return true
       if (balanceAlarming(providers[i].balance)) return true
+      if (spendAlarming(providers[i].spend)) return true
     }
     return false
   }
@@ -949,6 +950,34 @@ Panel {
     return b.estimated
       ? Commons.I18n.t("agents.balanceSpentEstimated").arg(spent).arg(funded)
       : Commons.I18n.t("agents.balanceSpent").arg(spent).arg(funded)
+  }
+
+  // A balance or spend row's amount is as wide as a limit row's time left
+  // ("19h 40m"), so every line ends where the limit meters do.
+  TextMetrics {
+    id: valueColumnMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.bodySmall
+    text: "00h 00m"
+  }
+  readonly property real valueColumnWidth: Math.ceil(valueColumnMetrics.advanceWidth)
+
+  // ------------------------------------------------------------------ spend
+  //
+  // Pay-as-you-go agents report what the account spent over the last 30
+  // days, or this month against the cap when its tier sets one, which fills
+  // like a limit window.
+
+  function spendAlarming(s) {
+    return !!s && s.cap > 0 && s.amount / s.cap >= 0.9
+  }
+
+  function spendValueText(s) {
+    if (!s) return ""
+    var amount = formatMoney(s.amount, s.currency)
+    // Added up from this machine's sessions, so only about what was billed.
+    if (s.estimated) return Commons.I18n.t("agents.spendEstimated").arg(amount)
+    return s.cap > 0 ? Commons.I18n.t("agents.spendOfCap").arg(amount).arg(formatMoney(s.cap, s.currency)) : amount
   }
 
   // ---------------------------------------------------------------- summary
@@ -1795,6 +1824,7 @@ Panel {
     readonly property bool multi: accounts.length > 1
     readonly property var windows: root.displayWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
+    readonly property var spend: provider ? (provider.spend || null) : null
     spacing: Style.space(16)
     readonly property bool dragged: root.dragIndex === providerIndex
     z: dragged ? 2 : 0
@@ -2090,29 +2120,31 @@ Panel {
           text: Commons.I18n.t("agents.balance")
           color: root.foreground
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.bodySmall
         }
 
+        // Without a funded figure there is nothing to drain from, so no meter.
         Meter {
+          visible: !!section.balance && section.balance.funded > 0
           anchors.left: balanceTitle.right
           anchors.right: balanceValue.left
-          anchors.rightMargin: Style.spacing.md
+          anchors.rightMargin: Style.space(20)
           anchors.verticalCenter: parent.verticalCenter
-          value: section.balance && section.balance.funded > 0 ? section.balance.remaining / section.balance.funded : -1
+          value: visible ? section.balance.remaining / section.balance.funded : -1
           alarming: root.balanceAlarming(section.balance)
         }
 
         Text {
           id: balanceValue
           textFormat: Text.PlainText
-          width: Style.space(96)
+          width: Math.max(root.valueColumnWidth, implicitWidth)
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
           horizontalAlignment: Text.AlignRight
           text: section.balance ? root.formatMoney(section.balance.remaining, section.balance.currency) : ""
           color: root.balanceAlarming(section.balance) ? root.urgent : root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.bodySmall
         }
       }
 
@@ -2124,6 +2156,82 @@ Panel {
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
+      }
+    }
+
+    // Against a real monthly cap the spend is this month's meter; without
+    // one, a bar for each of the last 30 days, scaled to the busiest, shows
+    // where it went.
+    Item {
+      visible: !!section.spend
+      width: parent.width
+      implicitHeight: spendTitle.implicitHeight
+
+      Text {
+        id: spendTitle
+        textFormat: Text.PlainText
+        width: parent.width * 0.3
+        anchors.verticalCenter: parent.verticalCenter
+        text: section.spend && section.spend.cap > 0 ? Commons.I18n.t("agents.spendThisMonth") : Commons.I18n.t("agents.spendLast30Days")
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        elide: Text.ElideRight
+      }
+
+      Meter {
+        visible: !!section.spend && section.spend.cap > 0
+        anchors.left: spendTitle.right
+        anchors.right: spendValue.left
+        anchors.rightMargin: Style.space(20)
+        anchors.verticalCenter: parent.verticalCenter
+        value: visible ? section.spend.amount / section.spend.cap : -1
+        alarming: root.spendAlarming(section.spend)
+      }
+
+      Item {
+        id: spendDays
+        visible: !!section.spend && section.spend.cap <= 0 && section.spend.days.length > 0
+        anchors.left: spendTitle.right
+        anchors.right: spendValue.left
+        anchors.rightMargin: Style.space(20)
+        anchors.verticalCenter: parent.verticalCenter
+        height: spendTitle.implicitHeight
+        readonly property var days: section.spend ? section.spend.days : []
+        readonly property real busiest: Math.max.apply(null, days.concat([0]))
+        readonly property real gap: Style.space(2)
+        readonly property real stub: Math.max(Style.space(2), Math.round(Style.spacing.controlHeight * 0.07))
+
+        Row {
+          anchors.fill: parent
+          spacing: spendDays.gap
+
+          Repeater {
+            model: spendDays.days.length
+
+            Rectangle {
+              readonly property real cost: spendDays.days[index]
+              width: (spendDays.width - spendDays.gap * (spendDays.days.length - 1)) / spendDays.days.length
+              height: cost > 0 && spendDays.busiest > 0 ? Math.max(spendDays.stub, spendDays.height * cost / spendDays.busiest) : spendDays.stub
+              anchors.bottom: parent ? parent.bottom : undefined
+              radius: Math.min(width, height) / 2
+              color: cost > 0 ? root.foreground : root.track
+            }
+          }
+        }
+      }
+
+      Text {
+        id: spendValue
+        textFormat: Text.PlainText
+        width: Math.max(root.valueColumnWidth, implicitWidth)
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        horizontalAlignment: Text.AlignRight
+        text: root.spendValueText(section.spend)
+        color: root.spendAlarming(section.spend) ? root.urgent : root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
       }
     }
 
