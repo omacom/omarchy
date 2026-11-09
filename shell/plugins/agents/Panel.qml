@@ -29,7 +29,10 @@ Panel {
 
   // Every subscription on one page, limits first: the question this panel
   // answers is how much room is left, and where.
-  readonly property var providers: dragProviders !== null ? dragProviders : usage.panelProviders
+  // One usage service per shell, not one per monitor: each bar builds its own
+  // panel, and a Main inside every panel polled the providers once per screen.
+  readonly property var usage: bar && bar.shell ? bar.shell.firstPartyServiceFor("omarchy.agents") : null
+  readonly property var providers: dragProviders !== null ? dragProviders : usage ? usage.panelProviders : []
 
   function localActions(model) {
     var actions = []
@@ -252,7 +255,7 @@ Panel {
     if (from < 0) return
     var to = clamp(from + dy, 0, providers.length - 1)
     if (to === from) return
-    usage.moveProvider(providers[from].providerId, to)
+    if (usage) usage.moveProvider(providers[from].providerId, to)
     Qt.callLater(function() { pointAt(lineStop(to), to) })
   }
 
@@ -305,7 +308,7 @@ Panel {
     var moved = dragIndex >= 0 && to !== dragIndex
     // Disable slot motion before replacing the model: it already matches the preview.
     dragIndex = -1
-    if (moved) usage.moveProvider(id, to)
+    if (moved && usage) usage.moveProvider(id, to)
     resetProviderDrag()
     if (moved) Qt.callLater(function() { pointAt(lineStop(to), to) })
   }
@@ -374,7 +377,7 @@ Panel {
   readonly property bool localBlocked: providers.some(function(p) { return p.localModel && p.localModel.fits === false })
 
   function refreshNow() {
-    usage.refreshAll(true)
+    if (usage) usage.refreshAll(true)
   }
 
   // ------------------------------------------------------------ adding
@@ -395,10 +398,10 @@ Panel {
   // Local AI offers the catalog's recipes that fit this machine and aren't
   // set up yet, recommended first. Each downloads tens of GB, so setting one
   // up runs in a terminal that shows its progress.
-  readonly property bool localFits: (usage.localRecipes || []).some(function(recipe) { return recipe && recipe.available })
+  readonly property bool localFits: ((usage && usage.localRecipes) || []).some(function(recipe) { return recipe && recipe.available })
   readonly property var localAddRecipes: {
-    var models = usage.localModel && usage.localModel.models ? usage.localModel.models : {}
-    var recipes = (usage.localRecipes || []).filter(function(recipe) {
+    var models = usage && usage.localModel && usage.localModel.models ? usage.localModel.models : {}
+    var recipes = ((usage && usage.localRecipes) || []).filter(function(recipe) {
       return recipe && recipe.available && !models[recipe.id]
     })
     recipes.sort(function(a, b) { return (b.best ? 1 : 0) - (a.best ? 1 : 0) })
@@ -502,10 +505,10 @@ Panel {
         addResult = tagged[2]
         addStage = tagged[1]
         if (tagged[1] === "done") {
-          usage.refreshLimits()
+          if (usage) usage.refreshLimits()
           addDoneTimer.restart()
           // Nothing to show yet means the sign-in is what counts as set up.
-          if (usage.enabledProviders.length === 0 && !checkProcess.running) {
+          if ((!usage || usage.enabledProviders.length === 0) && !checkProcess.running) {
             addChecks = ({})
             checkProcess.running = true
           }
@@ -930,14 +933,14 @@ Panel {
   // every agent, now that they no longer get charts of their own.
 
   readonly property var summaryPhrases: {
-    var rev = usage.dataRevision
+    var rev = usage ? usage.dataRevision : 0
     var week = 0
     var today = 0
     var prompts = 0
     var sessions = 0
     var byDay = {}
     var byModel = {}
-    var providers = usage.enabledProviders
+    var providers = usage ? usage.enabledProviders : []
     for (var i = 0; i < providers.length; i++) {
       var p = providers[i]
       var days = p.recentDays || []
@@ -1005,8 +1008,8 @@ Panel {
 
   // Only speaks up when the numbers cover more than this machine.
   function footerText() {
-    if (usage.syncStatusText !== "") return usage.syncStatusText
-    var providers = usage.enabledProviders
+    if (usage && usage.syncStatusText !== "") return usage.syncStatusText
+    var providers = usage ? usage.enabledProviders : []
     for (var i = 0; i < providers.length; i++) {
       var count = Number(providers[i].syncDeviceCount || 0)
       if (providers[i].syncEnabled && count > 0)
@@ -1051,7 +1054,7 @@ Panel {
   }
   // Local history counts as set up, so a machine with no subscription still
   // gets its summary rather than the picker.
-  readonly property bool blankSlate: usage.enabledProviders.length === 0 && !anySignedIn && !providers.some(function(p) { return !!p.localModel })
+  readonly property bool blankSlate: (!usage || usage.enabledProviders.length === 0) && !anySignedIn && !providers.some(function(p) { return !!p.localModel })
   // Choosing a provider: asked for with the +, or simply what the panel is
   // while nothing is set up. It's derived rather than switched into, so
   // records that load a moment after the panel opens take its place.
@@ -1081,7 +1084,7 @@ Panel {
   // offers from is rewritten whenever the picker shows, from + or as a blank
   // slate, including one the panel opens on.
   function refreshLocalListing() {
-    usage.refreshLocal()
+    if (usage) usage.refreshLocal()
   }
 
   // Picking an agent to add starts on the first one, ready for Enter. The
@@ -1104,10 +1107,10 @@ Panel {
     deleteTarget = null
     if (addStage !== "running") addStage = ""
     resetKeys()
-    if (usage.enabledProviders.length === 0 && !checkProcess.running) checkProcess.running = true
+    if ((!usage || usage.enabledProviders.length === 0) && !checkProcess.running) checkProcess.running = true
     nowMs = Date.now()
     if (panelFlick) panelFlick.contentY = 0
-    usage.refreshLimits()
+    if (usage) usage.refreshLimits()
     // "Doesn't fit" was true when a model last started or stopped; memory an
     // app has since let go of only shows after a fresh look, once per open.
     if (localBlocked) Util.execArgv(["omarchy-agent-local", "status", "--write"])
@@ -1115,10 +1118,20 @@ Panel {
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
-  Main {
-    id: usage
-    settings: root.settings
+  // A Binding to the service's settings would outlive this panel: Qt leaves
+  // the last value behind, and the shared poll kept running with no widget.
+  property var attachedUsage: null
+
+  function attachUsage(next) {
+    if (attachedUsage === next) return
+    if (attachedUsage) attachedUsage.detachPanel(root)
+    attachedUsage = next
+    if (next) next.attachPanel(root)
   }
+
+  onUsageChanged: attachUsage(usage)
+  Component.onCompleted: attachUsage(usage)
+  Component.onDestruction: attachUsage(null)
 
   Process {
     id: checkProcess
@@ -1921,7 +1934,7 @@ Panel {
         anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
         value: section.finishing !== "" ? 1 : section.loading || section.stopping || section.removing ? root.phaseProgress(section.elapsed, section.phaseSeconds)
-          : Number(usage.localModel.ram_total_gib) > 0 ? section.memory / Number(usage.localModel.ram_total_gib) : 0
+          : usage && Number(usage.localModel.ram_total_gib) > 0 ? section.memory / Number(usage.localModel.ram_total_gib) : 0
       }
       Text {
         id: localMeterValue
