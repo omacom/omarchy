@@ -1,5 +1,5 @@
-# Embed the machine's own Qualcomm device tree, or every one for systemd-stub
-# to select from SMBIOS data.
+# Embed every Qualcomm device tree for systemd-stub to select from SMBIOS data,
+# and the machine's own for it to fall back on.
 # DeviceTreeAuto requires literal paths, so the list is written here and
 # refreshed before every boot image build, when a kernel update can bring new
 # or renamed trees.
