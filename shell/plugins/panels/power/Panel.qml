@@ -622,7 +622,7 @@ Panel {
                 opacity: 0.75
                 width: Math.max(healthTrack.height, healthTrack.width * root.healthFraction)
 
-                Behavior on width { NumberAnimation { duration: Style.duration(320); easing.type: Easing.OutCubic } }
+                Behavior on width { NumberAnimation { duration: Style.duration(250); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
               }
             }
 
