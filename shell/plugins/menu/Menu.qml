@@ -1446,6 +1446,8 @@ Item {
             // Input-method commits bypass key handling, so the dialog has to refuse them here.
             readOnly: root.deleteConfirmOpen
             color: root.foreground
+            selectionColor: root.selectedBackground
+            selectedTextColor: root.selectedText
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             onTextChanged: if (text !== root.filterText) root.setFilter(text)
