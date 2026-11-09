@@ -154,7 +154,12 @@ OverlayWindow {
         height: window.laidOut.contentHeight
 
         Repeater {
-          model: window.switcher.entries
+          // A window that closes takes only its own thumbnail with it; the
+          // others keep their delegates and their captures.
+          model: ScriptModel {
+            objectProp: "address"
+            values: window.switcher.entries
+          }
 
           delegate: Item {
             id: item
