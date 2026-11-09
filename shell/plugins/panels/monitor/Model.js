@@ -308,8 +308,8 @@ function displayTitle(display, builtInLabel) {
   return String(display.make || "").trim() || name
 }
 
-// What the display is: its mode, its diagonal, and its refresh rate, as in
-// "1920×1200 · 14″ · 60 Hz". The diagonal comes from the physical size in mm
+// What the display is: its diagonal, its mode, and its refresh rate, as in
+// '14" · 1920×1200 · 60 Hz'. The diagonal comes from the physical size in mm
 // the display reports, rounded to a tenth of an inch, and is left out when it
 // reports none (projectors, VMs). fmt is an optional formatNumber(value,
 // decimals) from the QML side (I18n.formatNumber); without it plain digits stand.
@@ -318,16 +318,16 @@ function displaySpecs(display, fmt) {
   var parts = []
   if (!display) return ""
 
-  var width = Number(display.width)
-  var height = Number(display.height)
-  if (width > 0 && height > 0) parts.push(format(width) + "×" + format(height))
-
   var physicalWidth = Number(display.physicalWidth)
   var physicalHeight = Number(display.physicalHeight)
   if (physicalWidth > 0 && physicalHeight > 0) {
     var inches = Math.round(Math.sqrt(physicalWidth * physicalWidth + physicalHeight * physicalHeight) / 25.4 * 10) / 10
-    parts.push(format(inches, inches % 1 ? 1 : 0) + "″")
+    parts.push(format(inches, inches % 1 ? 1 : 0) + "\"")
   }
+
+  var width = Number(display.width)
+  var height = Number(display.height)
+  if (width > 0 && height > 0) parts.push(format(width) + "×" + format(height))
 
   var refresh = Math.round(Number(display.refreshRate))
   if (refresh > 0) parts.push(format(refresh) + " Hz")

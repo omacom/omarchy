@@ -123,12 +123,12 @@ assert(monitor.sameLayout(monitor.normalizeLayout(desk), desk), 'monitor sees an
 
 assertEqual(
   monitor.displaySpecs({ width: 1920, height: 1200, physicalWidth: 300, physicalHeight: 190, refreshRate: 60.0 }),
-  '1920×1200 · 14″ · 60 Hz',
+  '14" · 1920×1200 · 60 Hz',
   'monitor describes a display by resolution, diagonal, and refresh rate'
 )
 assertEqual(
   monitor.displaySpecs({ width: 2880, height: 1800, physicalWidth: 340, physicalHeight: 210, refreshRate: 119.94 }),
-  '2880×1800 · 15.7″ · 120 Hz',
+  '15.7" · 2880×1800 · 120 Hz',
   'monitor keeps a fractional diagonal and rounds the refresh rate'
 )
 assertEqual(
