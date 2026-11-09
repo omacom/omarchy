@@ -57,6 +57,40 @@ function defaultStatus() {
   }
 }
 
+// dropboxd reports sync as lines like "Syncing 20,413 files • 51 mins" and
+// "Downloading 20,413 files (57,853 KB/sec, 51 mins)", never as a fraction.
+// remaining is the first file count it names, or -1 when it names none
+// ("Syncing...", "Downloading file list..."); detail is the summary first line.
+var SYNC_PATTERN = /^(syncing|downloading|uploading|indexing)\b/i
+
+function parseSync(statusText) {
+  var lines = String(statusText || "").split("\n").map(function(line) { return line.trim() }).filter(function(line) { return line !== "" })
+  var syncing = lines.some(function(line) { return SYNC_PATTERN.test(line) && !/paused/i.test(line) })
+  if (!syncing) return { syncing: false, remaining: -1, detail: "" }
+  var remaining = -1
+  for (var i = 0; i < lines.length && remaining < 0; i++) {
+    var match = lines[i].match(/(\d[\d,.'\s\u00a0\u202f]*)\s+files?\b/i)
+    if (match) remaining = parseInt(match[1].replace(/\D/g, ""), 10)
+  }
+  return { syncing: true, remaining: isFinite(remaining) ? remaining : -1, detail: lines[0] }
+}
+
+// The largest backlog seen in this sync run is the denominator. A paused or
+// stopped daemon keeps it, so resuming picks up where the bar left off; only
+// a running daemon that has finished syncing starts the next run from zero.
+function nextSyncPeak(peak, sync, running) {
+  if (sync && sync.syncing) return Math.max(Number(peak || 0), Number(sync.remaining || 0))
+  return running ? 0 : Number(peak || 0)
+}
+
+// 0..1 done, or -1 when there is no file count to measure against.
+function syncProgress(remaining, peak) {
+  var left = Number(remaining)
+  var total = Number(peak)
+  if (!isFinite(left) || left < 0 || !isFinite(total) || total <= 0) return -1
+  return Math.max(0, Math.min(1, 1 - left / total))
+}
+
 function fileExtension(name) {
   var value = String(name || "").toLowerCase()
   var index = value.lastIndexOf(".")
@@ -139,6 +173,9 @@ if (typeof module !== "undefined") {
   module.exports = {
     parseStatus: parseStatus,
     defaultStatus: defaultStatus,
+    parseSync: parseSync,
+    nextSyncPeak: nextSyncPeak,
+    syncProgress: syncProgress,
     fileExtension: fileExtension,
     fileKind: fileKind,
     fileGlyph: fileGlyph,

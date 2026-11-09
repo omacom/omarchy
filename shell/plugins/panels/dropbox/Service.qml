@@ -29,9 +29,18 @@ Item {
   property double usagePercent: 0
   property bool quotaKnown: false
   property var files: []
+  // Set by the panel. The quick sync poll only runs while someone is watching.
+  property bool panelOpen: false
+  property bool syncing: false
+  property int syncRemaining: -1
+  property int syncPeak: 0
+  property string syncDetail: ""
+  // 0..1 done, or -1 while dropboxd gives no file count to measure against.
+  readonly property real syncProgress: Model.syncProgress(syncRemaining, syncPeak)
   property string actionStatus: ""
   property string lastError: ""
 
+  readonly property int syncPollIntervalMs: 2000
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 60, 10, 3600)
   readonly property bool busy: statusProcess.running || loginProcess.running || controlProcess.running
   readonly property string helperPath: (omarchyPath || "") + "/shell/plugins/panels/dropbox/status.py"
@@ -41,6 +50,7 @@ Item {
   property string _loginOutput: ""
   property string _loginError: ""
   property bool _loginUrlOpened: false
+  property string _syncOutput: ""
   property string _controlOutput: ""
   property string _controlError: ""
 
@@ -85,7 +95,25 @@ Item {
     usagePercent = Number(parsed.usagePercent || 0)
     quotaKnown = parsed.quotaKnown === true
     files = parsed.files || []
+    applySync(statusText)
     lastError = ""
+  }
+
+  function applySync(text) {
+    var sync = Model.parseSync(authenticated && running ? text : "")
+    syncPeak = Model.nextSyncPeak(syncPeak, sync, running)
+    syncRemaining = sync.remaining
+    syncDetail = sync.detail
+    syncing = sync.syncing
+  }
+
+  // Only `dropbox-cli status`, not the full status.py walk of the Dropbox
+  // folder, so the bar can follow a sync every couple of seconds.
+  function pollSync() {
+    if (syncProcess.running || statusProcess.running) return
+    _syncOutput = ""
+    syncProcess.command = ["dropbox-cli", "status"]
+    syncProcess.running = true
   }
 
   function elideStatus(text) {
@@ -192,6 +220,16 @@ Item {
   }
 
   Timer {
+    // dropboxd has no change signal, so follow a sync by polling, and only
+    // while the panel is open to show it.
+    id: syncPollTimer
+    interval: root.syncPollIntervalMs
+    repeat: true
+    running: root.panelOpen && root.authenticated && root.running && root.syncing
+    onTriggered: root.pollSync()
+  }
+
+  Timer {
     id: actionStatusTimer
     interval: 2200
     repeat: false
@@ -230,6 +268,22 @@ Item {
       var stderr = String(statusStderr.text || root._statusError || "")
       if (exitCode === 0) root.applyStatus(stdout)
       else root.lastError = root.elideStatus(stderr || stdout || I18n.t("dropbox.statusReadFailed"))
+    }
+  }
+
+  Process {
+    id: syncProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: syncStdout; waitForEnd: true; onStreamFinished: root._syncOutput = text }
+    onExited: function(exitCode) {
+      var stdout = String(syncStdout.text || root._syncOutput || "").trim()
+      if (exitCode !== 0 || stdout === "") return
+      var wasSyncing = root.syncing
+      root.statusText = stdout
+      root.applySync(stdout)
+      // The sync just landed: pick up the new recent files and storage use.
+      if (wasSyncing && !root.syncing) delayedRefresh.restart()
     }
   }
 

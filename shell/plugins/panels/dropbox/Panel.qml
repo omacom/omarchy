@@ -154,6 +154,7 @@ Panel {
     id: dropbox
     settings: root.settings
     omarchyPath: root.omarchyPath
+    panelOpen: root.opened
   }
 
   Connections {
@@ -293,6 +294,11 @@ Panel {
             }
           }
 
+          SyncProgress {
+            visible: dropbox.authenticated && dropbox.active && dropbox.syncing
+            width: parent.width
+          }
+
           Text {
             textFormat: Text.PlainText
             visible: dropbox.actionStatus !== "" || dropbox.lastError !== ""
@@ -391,6 +397,80 @@ Panel {
     PropertyAnimation {
       target: hero; property: "metaOpacity"
       to: 1.0; duration: Style.duration(200); easing.type: Easing.OutCubic
+    }
+  }
+
+  component SyncProgress: Column {
+    id: syncProgress
+    readonly property bool measured: dropbox.syncProgress >= 0
+    spacing: Style.spacing.labelGap
+
+    Item {
+      width: parent.width
+      implicitHeight: Math.max(syncDetail.implicitHeight, syncPercent.implicitHeight)
+
+      Text {
+        id: syncDetail
+        textFormat: Text.PlainText
+        anchors.left: parent.left
+        anchors.right: syncPercent.left
+        anchors.rightMargin: Style.space(8)
+        text: dropbox.syncDetail
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        elide: Text.ElideRight
+      }
+
+      Text {
+        id: syncPercent
+        textFormat: Text.PlainText
+        anchors.right: parent.right
+        visible: syncProgress.measured
+        text: Model.formatPercent(dropbox.syncProgress * 100, Commons.I18n.formatNumber)
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+      }
+    }
+
+    Rectangle {
+      id: syncTrack
+      width: parent.width
+      height: Style.space(6)
+      radius: height / 2
+      clip: true
+      color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
+
+      Rectangle {
+        visible: syncProgress.measured
+        height: parent.height
+        radius: parent.radius
+        color: root.foreground
+        width: Math.max(parent.height, parent.width * Math.max(0, dropbox.syncProgress))
+
+        Behavior on width { NumberAnimation { duration: Style.duration(250); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut } }
+      }
+
+      // No file count yet ("Syncing...", "Downloading file list..."), so a
+      // segment sweeps the track instead of claiming a fraction.
+      Rectangle {
+        id: syncSweep
+        visible: !syncProgress.measured && !Style.reduceMotion
+        width: parent.width * 0.3
+        height: parent.height
+        radius: parent.radius
+        color: root.foreground
+
+        NumberAnimation on x {
+          running: syncSweep.visible && syncProgress.visible && root.opened && !Style.reduceMotion
+          from: -syncSweep.width
+          to: syncTrack.width
+          duration: Style.duration(1400)
+          loops: Animation.Infinite
+          easing.type: Easing.Linear
+        }
+      }
     }
   }
 

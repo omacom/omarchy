@@ -37,6 +37,18 @@ assertEqual(dropbox.relativeTime(1, 1000 + 359 * day), '11mo ago', 'dropbox show
 assertEqual(dropbox.relativeTime(1, 1000 + 360 * day), '11mo ago', 'dropbox never shows zero years at 360 days')
 assertEqual(dropbox.relativeTime(1, 1000 + 364 * day), '11mo ago', 'dropbox never shows zero years at 364 days')
 assertEqual(dropbox.relativeTime(1, 1000 + 365 * day), '1y ago', 'dropbox shows one year at 365 days')
+
+const live = dropbox.parseSync('Syncing 20,413 files • 51 mins\nDownloading 20,413 files (57,853 KB/sec, 51 mins)')
+assert(live.syncing && live.remaining === 20413, 'dropbox reads the remaining file count from a sync status')
+assertEqual(live.detail, 'Syncing 20,413 files • 51 mins', 'dropbox shows the summary sync line')
+assertEqual(dropbox.parseSync('Syncing...').remaining, -1, 'dropbox leaves a sync without a file count unmeasured')
+assert(!dropbox.parseSync('Up to date').syncing, 'dropbox does not treat up to date as syncing')
+assert(!dropbox.parseSync('Syncing paused').syncing, 'dropbox does not treat paused as syncing')
+const peak = dropbox.nextSyncPeak(dropbox.nextSyncPeak(0, live, true), dropbox.parseSync('Syncing 5,000 files • 9 mins'), true)
+assertEqual(peak, 20413, 'dropbox keeps the largest backlog seen in a sync run')
+assertEqual(dropbox.syncProgress(5000, 20000), 0.75, 'dropbox measures progress against that backlog')
+assertEqual(dropbox.nextSyncPeak(peak, dropbox.parseSync(''), false), peak, 'dropbox keeps the backlog across a pause')
+assertEqual(dropbox.nextSyncPeak(peak, dropbox.parseSync('Up to date'), true), 0, 'dropbox starts the next sync run from zero')
 JS
 
 require_command jq
