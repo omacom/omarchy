@@ -193,16 +193,16 @@ expect("a unified-billing account reads its monthly quota, not a confident 0%",
        ["Monthly", 0.9, False, True], record)
 
 # One with no monthly quota (protobuf leaves out a zero) is metered on the
-# week alone, and an untouched week reads as 0%, not as no limit at all.
+# week alone, and a week under 1% reads as 0%, not as no limit at all.
 sandbox()
 signed_in(grok_home(), token="token-unified-idle")
 record = grok()
-expect("a unified-billing account without a monthly quota reads an untouched week as 0%",
+expect("a unified-billing account without a monthly quota reads a week under 1% as 0%",
        [[limit["label"], limit["percent"], bool(limit["resetsAt"])] for limit in record["limits"]] + [record["usageStatusText"]],
        [["Weekly", 0.0, True], ""], record)
 
 # A monthly answer with a quota but no readable usage is a failed check, not
-# an untouched week: it keeps the last numbers, stale.
+# a week under 1%: it keeps the last numbers, stale.
 monthly_answer["used"] = False
 record = grok()
 monthly_answer["used"] = True

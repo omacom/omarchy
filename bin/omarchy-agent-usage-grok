@@ -228,8 +228,7 @@ def credits_limit(data):
   }
 
 
-# A credits answer's running period with nothing used yet, or None once it
-# has ended.
+# A credits answer's running period at 0%, or None once it has ended.
 def idle_period_limit(data):
   period = data["config"]["currentPeriod"]
   ends = parse_time(period["end"])
@@ -312,8 +311,8 @@ def collect_limits(home, key, force):
     if weekly is None:
       monthly = open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8)
       # A unified-billing account whose monthly answer states no quota is
-      # metered on the week alone, and a week with nothing used yet leaves its
-      # percentage out like any other: 0% of a period still running. Any
+      # metered on the week alone. xAI sends whole percentages and leaves out a
+      # zero, so a week under 1% has none: 0% of a period still running. Any
       # other unreadable monthly answer stays a failed check.
       idle = idle_period_limit(credits) if no_monthly_quota(monthly) else None
       limits = [idle] if idle else [monthly_limit(monthly)]
