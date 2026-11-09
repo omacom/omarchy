@@ -8,7 +8,7 @@ image/webp=imv.desktop
 image/bmp=imv.desktop
 image/tiff=imv.desktop
 
-application/pdf=org.gnome.Evince.desktop
+application/pdf=org.gnome.Papers.desktop
 
 x-scheme-handler/http=chromium.desktop
 x-scheme-handler/https=chromium.desktop
