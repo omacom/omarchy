@@ -8,6 +8,11 @@ run_node_test <<'JS'
 const power = requireFromRoot('shell/plugins/panels/power/Model.js')
 const states = { Charging: 1, Discharging: 2, FullyCharged: 3, PendingCharge: 4 }
 
+assertEqual(power.parseChargeLimit('on\n'), 'on', 'power reads an enabled charge limit')
+assertEqual(power.parseChargeLimit('mixed'), 'mixed', 'power preserves differing limits across batteries')
+assertEqual(power.parseChargeLimit(''), 'unsupported', 'power hides charge controls without a reading')
+assertEqual(power.parseChargeLimit('error'), 'unsupported', 'power does not mistake an invalid charge-limit reading for off')
+
 assertEqual(power.selectProfileIndex(0, 1, ['balanced', 'performance']), 1, 'power advances profile selection')
 assertEqual(power.selectProfileIndex(1, 1, ['balanced', 'performance']), 1, 'power clamps profile selection')
 
@@ -45,65 +50,80 @@ assertEqual(
 )
 JS
 
-# Exercise the real conservation command against a sysfs fixture. Rewrite
-# only its fixed /sys paths; the production writer accepts no path override.
+# The command parses the real busctl JSON format and chooses devices from
+# capabilities, not their names, brands or numeric threshold properties.
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
-mkdir -p "$tmp_dir/bin" "$tmp_dir/sys/class/power_supply/BAT0/extensions" "$tmp_dir/sys/bus/platform/drivers/ideapad_acpi/VPC2004:01"
-sed "s|/sys/|$tmp_dir/sys/|g" "$ROOT/bin/omarchy-battery-conservation" >"$tmp_dir/conservation"
-chmod +x "$tmp_dir/conservation"
-export CONSERVATION_TEST_LOG="$tmp_dir/writes"
-cat >"$tmp_dir/bin/pkexec" <<'STUB'
+mkdir -p "$tmp_dir/bin"
+export OMARCHY_TEST_CHARGE_DEVICES="$tmp_dir/devices.json"
+export OMARCHY_TEST_CHARGE_WRITES="$tmp_dir/writes"
+cat >"$tmp_dir/bin/busctl" <<'STUB'
 #!/bin/bash
-[[ $1 == "/usr/bin/tee" && $# == 2 ]] || exit 1
-[[ ${CONSERVATION_TEST_DENY:-0} == 0 ]] || exit 126
-read -r value
-[[ ${CONSERVATION_TEST_IGNORE_WRITE:-0} == 0 ]] || exit 0
-printf '%s %s\n' "$2" "$value" >>"$CONSERVATION_TEST_LOG"
-if [[ $2 == */charge_types ]]; then
-  # sysfs echoes the available modes, bracketing the mode just selected.
-  case $value in
-    Long_Life) printf 'Fast Standard [Long_Life]\n' >"$2" ;;
-    Standard) printf 'Fast [Standard] Long_Life\n' >"$2" ;;
-    *) exit 1 ;;
-  esac
-else
-  printf '%s\n' "$value" >"$2"
-fi
+set -euo pipefail
+while [[ $1 == --* ]]; do shift; done
+[[ $1 == "call" && $2 == "org.freedesktop.UPower" ]] || exit 1
+device=$3
+case $5 in
+  EnumerateDevices)
+    [[ ${OMARCHY_TEST_CHARGE_SERVICE_FAIL:-0} == 0 ]] || exit 1
+    jq -c '{type: "ao", data: [keys]}' "$OMARCHY_TEST_CHARGE_DEVICES"
+    ;;
+  GetAll)
+    jq -c --arg device "$device" '{type: "a{sv}", data: [.[$device] | with_entries(.value = {type: (if (.value | type) == "boolean" then "b" else "u" end), data: .value})]}' "$OMARCHY_TEST_CHARGE_DEVICES"
+    ;;
+  EnableChargeThreshold)
+    [[ $4 == "org.freedesktop.UPower.Device" && $6 == "b" && ($7 == "true" || $7 == "false") ]] || exit 1
+    [[ $device != "${OMARCHY_TEST_CHARGE_DENY:-}" ]] || exit 1
+    printf '%s %s\n' "$device" "$7" >>"$OMARCHY_TEST_CHARGE_WRITES"
+    [[ ${OMARCHY_TEST_CHARGE_IGNORE_WRITE:-0} == 0 ]] || exit 0
+    jq --arg device "$device" --argjson enabled "$7" '.[$device].ChargeThresholdEnabled = $enabled' "$OMARCHY_TEST_CHARGE_DEVICES" >"$OMARCHY_TEST_CHARGE_DEVICES.next"
+    mv "$OMARCHY_TEST_CHARGE_DEVICES.next" "$OMARCHY_TEST_CHARGE_DEVICES"
+    ;;
+  *) exit 1 ;;
+esac
 STUB
-chmod +x "$tmp_dir/bin/pkexec"
-export PATH="$tmp_dir/bin:$PATH"
-conservation() { "$tmp_dir/conservation" "$@" </dev/null; }
-[[ $(conservation status) == "unsupported" ]] || fail "conservation is hidden without supported hardware"
-if conservation on 2>/dev/null; then fail "unsupported hardware rejects writes"; fi
-[[ ! -e $CONSERVATION_TEST_LOG ]] || fail "unsupported hardware never requests authentication"
+chmod +x "$tmp_dir/bin/busctl"
+charge_limit() { PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-charge-limit" "$@"; }
+main=/org/freedesktop/UPower/devices/battery_CMB0
+other=/org/freedesktop/UPower/devices/battery_auxiliary
 
-legacy="$tmp_dir/sys/bus/platform/drivers/ideapad_acpi/VPC2004:01/conservation_mode"
-printf '1\n' >"$legacy"
-[[ $(conservation) == "on" ]] || fail "legacy conservation is detected without a hard-coded device ID"
-conservation off
-[[ $(cat "$legacy") == 0 && $(conservation) == off ]] || fail "legacy conservation can be disabled"
-CONSERVATION_TEST_DENY=1 conservation on 2>/dev/null && fail "cancelled authentication fails the change"
-[[ $(cat "$legacy") == 0 ]] || fail "cancelled authentication leaves the setting unchanged"
-conservation on
-[[ $(cat "$legacy") == 1 ]] || fail "legacy conservation can be enabled"
-printf 'invalid\n' >"$legacy"
-[[ $(conservation) == unsupported ]] || fail "invalid readings are not reported as off"
+printf '{}\n' >"$OMARCHY_TEST_CHARGE_DEVICES"
+[[ $(charge_limit) == "unsupported" ]] || fail "no batteries means no charge control"
+if charge_limit on 2>/dev/null; then fail "an unsupported machine rejects charge-limit changes"; fi
+[[ ! -e $OMARCHY_TEST_CHARGE_WRITES ]] || fail "unsupported hardware receives no writes"
 
-modern="$tmp_dir/sys/class/power_supply/BAT0/charge_types"
-printf 'Fast [Standard] Long_Life\n' >"$modern"
-[[ $(conservation) == unsupported ]] || fail "a non-Lenovo charge_types control is not exposed"
-mkdir "$tmp_dir/sys/class/power_supply/BAT0/extensions/ideapad_laptop"
-[[ $(conservation) == off ]] || fail "Lenovo charge_types is detected"
-if CONSERVATION_TEST_IGNORE_WRITE=1 conservation on; then fail "a successful writer with unchanged hardware is not success"; fi
-conservation on
-[[ $(conservation) == on ]] || fail "modern conservation selects Long_Life"
-conservation off
-[[ $(conservation) == off && $(cat "$modern") == 'Fast [Standard] Long_Life' ]] || fail "modern conservation restores Standard"
-[[ $(cat "$legacy") == invalid ]] || fail "modern controls take precedence over deprecated controls"
-printf '[Fast] Standard Long_Life\n' >"$modern"
-conservation off
-[[ $(cat "$modern") == '[Fast] Standard Long_Life' ]] || fail "an already disabled limit preserves rapid charging"
-if conservation invalid 2>/dev/null; then fail "invalid conservation actions are rejected"; fi
-if conservation on extra 2>/dev/null; then fail "extra conservation arguments are rejected"; fi
-pass "Lenovo conservation detects both interfaces, verifies writes, and handles cancellation"
+jq -n --arg main "$main" '{
+  ($main): {Type: 2, PowerSupply: true, IsPresent: true, ChargeThresholdSupported: true, ChargeThresholdEnabled: false},
+  "/org/freedesktop/UPower/devices/battery_mouse": {Type: 2, PowerSupply: false, IsPresent: true, ChargeThresholdSupported: true, ChargeThresholdEnabled: true},
+  "/org/freedesktop/UPower/devices/ups": {Type: 3, PowerSupply: true, IsPresent: true, ChargeThresholdSupported: true, ChargeThresholdEnabled: true},
+  "/org/freedesktop/UPower/devices/battery_absent": {Type: 2, PowerSupply: true, IsPresent: false, ChargeThresholdSupported: true, ChargeThresholdEnabled: true},
+  "/org/freedesktop/UPower/devices/battery_unsupported": {Type: 2, PowerSupply: true, IsPresent: true, ChargeThresholdSupported: false, ChargeThresholdEnabled: true}
+}' >"$OMARCHY_TEST_CHARGE_DEVICES"
+[[ $(charge_limit status) == "off" ]] || fail "only supported present system batteries determine the charge limit"
+[[ $(charge_limit on) == "on" ]] || fail "charge limits work without percentage thresholds"
+[[ $(cat "$OMARCHY_TEST_CHARGE_WRITES") == "$main true" ]] || fail "only the capable system battery is changed"
+charge_limit on >/dev/null
+[[ $(wc -l <"$OMARCHY_TEST_CHARGE_WRITES") == 1 ]] || fail "setting the current state is idempotent"
+[[ $(charge_limit off) == "off" ]] || fail "a charge limit can be disabled"
+pass "charge limits use UPower capabilities and exclude peripherals, absent batteries and unsupported devices"
+
+jq --arg other "$other" --arg main "$main" '.[$other] = .[$main] | .[$other].ChargeThresholdEnabled = true | .[$other].ChargeStartThreshold = 75 | .[$other].ChargeEndThreshold = 80' "$OMARCHY_TEST_CHARGE_DEVICES" >"$tmp_dir/next"
+mv "$tmp_dir/next" "$OMARCHY_TEST_CHARGE_DEVICES"
+[[ $(charge_limit) == "mixed" ]] || fail "differing system battery settings are not reported as off"
+[[ $(charge_limit on) == "on" ]] || fail "enabling a mixed setting applies to all capable batteries"
+[[ $(charge_limit off) == "off" ]] || fail "disabling applies to every capable battery"
+grep -Fx "$other false" "$OMARCHY_TEST_CHARGE_WRITES" >/dev/null || fail "the second battery receives an explicit off request"
+pass "charge limits handle percentage thresholds and multiple system batteries"
+
+if OMARCHY_TEST_CHARGE_DENY="$main" charge_limit on 2>/dev/null; then fail "a refused change fails"; fi
+[[ $(charge_limit) == "off" ]] || fail "a refused change preserves the actual state"
+if OMARCHY_TEST_CHARGE_IGNORE_WRITE=1 charge_limit on 2>/dev/null; then fail "an ignored write is not reported as success"; fi
+if OMARCHY_TEST_CHARGE_DENY="$other" charge_limit on 2>/dev/null; then fail "a failure on the second battery fails the command"; fi
+[[ $(charge_limit) == "mixed" ]] || fail "a partial failure is reflected in the actual state"
+jq --arg main "$main" '.[$main].ChargeThresholdEnabled = "unknown"' "$OMARCHY_TEST_CHARGE_DEVICES" >"$tmp_dir/next"
+mv "$tmp_dir/next" "$OMARCHY_TEST_CHARGE_DEVICES"
+if charge_limit status 2>/dev/null; then fail "an invalid reading is not reported as off"; fi
+if OMARCHY_TEST_CHARGE_SERVICE_FAIL=1 charge_limit status 2>/dev/null; then fail "a failed UPower query is not reported as unsupported"; fi
+if charge_limit invalid 2>/dev/null; then fail "invalid charge-limit actions are rejected"; fi
+if charge_limit on extra 2>/dev/null; then fail "extra charge-limit arguments are rejected"; fi
+pass "charge limits verify readback and report refusals, partial failures and invalid readings"

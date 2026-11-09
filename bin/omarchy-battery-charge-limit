@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# omarchy:summary=Read or change battery charge limits through UPower
+# omarchy:args=[status|on|off]
+
+set -euo pipefail
+
+action=${1:-status}
+if (( $# > 1 )) || [[ $action != "status" && $action != "on" && $action != "off" ]]; then
+  echo "Usage: omarchy-battery-charge-limit [status|on|off]" >&2
+  exit 2
+fi
+
+service=org.freedesktop.UPower
+interface=org.freedesktop.UPower.Device
+
+# Read the capability and state together. UPower owns the hardware-specific
+# thresholds, charging modes, authorization and persistence.
+read_state() {
+  busctl --system --json=short call "$service" "$1" org.freedesktop.DBus.Properties GetAll s "$interface" |
+    jq -r '.data[0] | select(.Type.data == 2 and .PowerSupply.data == true and .IsPresent.data == true and .ChargeThresholdSupported.data == true)
+      | .ChargeThresholdEnabled.data
+      | if . == true then "on" elif . == false then "off" else error("Missing charge-limit state") end'
+}
+
+devices=$(busctl --system --json=short call "$service" /org/freedesktop/UPower "$service" EnumerateDevices |
+  jq -r '.data[0][]')
+
+batteries=()
+states=()
+while IFS= read -r device; do
+  [[ -n $device ]] || continue
+  state=$(read_state "$device")
+  [[ -n $state ]] || continue
+  batteries+=("$device")
+  states+=("$state")
+done <<<"$devices"
+
+if (( ${#batteries[@]} == 0 )); then
+  if [[ $action == "status" ]]; then
+    echo "unsupported"
+  else
+    echo "Battery charge limits are unavailable." >&2
+    exit 1
+  fi
+else
+  if [[ $action != "status" ]]; then
+    if [[ $action == "on" ]]; then
+      enabled=true
+    else
+      enabled=false
+    fi
+
+    for index in "${!batteries[@]}"; do
+      [[ ${states[index]} != "$action" ]] || continue
+      busctl --system call "$service" "${batteries[index]}" "$interface" EnableChargeThreshold b "$enabled"
+      states[index]=$(read_state "${batteries[index]}")
+      if [[ ${states[index]} != "$action" ]]; then
+        echo "Could not confirm the battery charge limit." >&2
+        exit 1
+      fi
+    done
+  fi
+
+  state=${states[0]}
+  for value in "${states[@]}"; do
+    [[ $value == "$state" ]] || state=mixed
+  done
+  echo "$state"
+fi

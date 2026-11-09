@@ -20,10 +20,11 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
-  property string conservationState: "unsupported"
-  property bool conservationFocused: false
-  property bool conservationFailed: false
-  readonly property bool conservationSupported: conservationState === "on" || conservationState === "off"
+  property string chargeLimitState: "unsupported"
+  property bool chargeLimitFocused: false
+  property bool chargeLimitFailed: false
+  property bool chargeLimitRefreshPending: false
+  readonly property bool chargeLimitSupported: chargeLimitState === "on" || chargeLimitState === "off" || chargeLimitState === "mixed"
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
@@ -149,7 +150,6 @@ Panel {
     if (!batteryProc.running) batteryProc.running = true
     if (!profilesProc.running) profilesProc.running = true
     if (!systemProc.running) systemProc.running = true
-    if (!conservationProc.running && !conservationAction.running) conservationProc.running = true
   }
 
   function updateKeyValue(raw, targetName) {
@@ -181,11 +181,17 @@ Panel {
     actionProc.running = true
   }
 
-  function toggleConservation() {
-    if (!conservationSupported || conservationAction.running || conservationProc.running) return
-    conservationFailed = false
-    conservationAction.command = [Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-battery-conservation", conservationState === "on" ? "off" : "on"]
-    conservationAction.running = true
+  function refreshChargeLimit() {
+    if (!opened || !batteryPresent || chargeLimitAction.running) return
+    if (chargeLimitProc.running) chargeLimitRefreshPending = true
+    else chargeLimitProc.running = true
+  }
+
+  function toggleChargeLimit() {
+    if (!chargeLimitSupported || chargeLimitAction.running || chargeLimitProc.running) return
+    chargeLimitFailed = false
+    chargeLimitAction.command = [Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-battery-charge-limit", chargeLimitState === "on" ? "off" : "on"]
+    chargeLimitAction.running = true
   }
 
   function togglePercentage() {
@@ -215,10 +221,11 @@ Panel {
       }
 
       refresh()
+      refreshChargeLimit()
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
       cursorActive = false
-      conservationFocused = false
+      chargeLimitFocused = false
     }
   }
 
@@ -247,25 +254,46 @@ Panel {
   }
 
   Process {
-    id: conservationProc
-    command: [Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-battery-conservation", "status"]
+    id: chargeLimitProc
+    command: [Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-battery-charge-limit", "status"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        root.conservationState = text.trim()
-        if (!root.conservationSupported) root.conservationFocused = false
+        root.chargeLimitState = Model.parseChargeLimit(text)
+        if (!root.chargeLimitSupported) root.chargeLimitFocused = false
       }
     }
     onExited: function(exitCode) {
-      if (exitCode !== 0) root.conservationState = "unsupported"
+      if (exitCode !== 0) {
+        root.chargeLimitState = "unsupported"
+        root.chargeLimitFocused = false
+      }
+      if (root.chargeLimitRefreshPending) {
+        root.chargeLimitRefreshPending = false
+        Qt.callLater(root.refreshChargeLimit)
+      }
     }
   }
 
   Process {
-    id: conservationAction
+    id: chargeLimitAction
     onExited: function(exitCode) {
-      root.conservationFailed = exitCode !== 0
+      root.chargeLimitFailed = exitCode !== 0
       root.refresh()
+      root.refreshChargeLimit()
+    }
+  }
+
+  // Quickshell's UPower binding does not expose charge-limit properties.
+  // Listen for those changes while open instead of adding a polling process.
+  Process {
+    running: root.opened && root.batteryPresent
+    command: ["gdbus", "monitor", "--system", "--dest", "org.freedesktop.UPower"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        if (line.indexOf("ChargeThreshold") !== -1 || line.indexOf(".DeviceAdded") !== -1 || line.indexOf(".DeviceRemoved") !== -1 || line.indexOf("owned by") !== -1)
+          root.refreshChargeLimit()
+      }
     }
   }
 
@@ -351,12 +379,12 @@ Panel {
       implicitHeight: column.implicitHeight
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dy !== 0 && root.conservationSupported) root.conservationFocused = dy > 0
-        else if (!root.conservationFocused) root.selectProfileByDelta(dx !== 0 ? dx : dy)
+        if (dy !== 0 && root.chargeLimitSupported) root.chargeLimitFocused = dy > 0
+        else if (!root.chargeLimitFocused) root.selectProfileByDelta(dx !== 0 ? dx : dy)
       }
       onActivateRequested: {
         if (!root.cursorActive) return
-        if (root.conservationFocused) root.toggleConservation()
+        if (root.chargeLimitFocused) root.toggleChargeLimit()
         else root.activateSelectedProfile()
       }
       onCloseRequested: root.close()
@@ -543,13 +571,13 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && !root.conservationFocused && root.profileIndex === index
+                hasCursor: root.cursorActive && !root.chargeLimitFocused && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
                     root.profileIndex = index
-                    root.conservationFocused = false
+                    root.chargeLimitFocused = false
                   }
                 }
               }
@@ -559,21 +587,22 @@ Panel {
 
         Toggle {
           width: parent.width
-          visible: root.conservationSupported
-          enabled: !conservationAction.running
-          checked: root.conservationState === "on"
-          label: Commons.I18n.t("power.conservationMode")
-          description: conservationAction.running ? Commons.I18n.t("power.conservationChanging")
-            : root.conservationFailed ? Commons.I18n.t("power.conservationFailed")
-            : Commons.I18n.t("power.conservationDescription")
+          visible: root.chargeLimitSupported
+          enabled: !chargeLimitAction.running && !chargeLimitProc.running
+          checked: root.chargeLimitState === "on"
+          label: Commons.I18n.t("power.preserveBatteryHealth")
+          description: chargeLimitAction.running ? Commons.I18n.t("power.chargeLimitChanging")
+            : root.chargeLimitFailed ? Commons.I18n.t("power.chargeLimitFailed")
+            : root.chargeLimitState === "mixed" ? Commons.I18n.t("power.chargeLimitMixed")
+            : Commons.I18n.t("power.chargeLimitDescription")
           foreground: root.bar.foreground
           fontFamily: root.bar.fontFamily
-          hasCursor: root.cursorActive && root.conservationFocused
-          onClicked: root.toggleConservation()
+          hasCursor: root.cursorActive && root.chargeLimitFocused
+          onClicked: root.toggleChargeLimit()
           onHovered: function(h) {
             if (h) {
               root.cursorActive = true
-              root.conservationFocused = true
+              root.chargeLimitFocused = true
             }
           }
         }

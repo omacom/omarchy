@@ -38,6 +38,11 @@ function parseProfiles(raw, previousIndex) {
   }
 }
 
+function parseChargeLimit(raw) {
+  var state = String(raw || "").trim()
+  return state === "on" || state === "off" || state === "mixed" ? state : "unsupported"
+}
+
 function profileIcon(name) {
   if (name === "power-saver") return "󰌪"
   if (name === "balanced") return "󰊚"
@@ -116,6 +121,7 @@ if (typeof module !== "undefined") {
     selectProfileIndex: selectProfileIndex,
     parseKeyValue: parseKeyValue,
     parseProfiles: parseProfiles,
+    parseChargeLimit: parseChargeLimit,
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
