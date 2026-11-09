@@ -49,45 +49,67 @@ if [[ $action == "enable" ]]; then
   check_idle
 
   mkdir -p "${dropin%/*}"
-  backup=""
-  was_active=0
+  service_backup=""
+  dropin_backup=""
+  backend_was_active=0
+  voxtype_was_active=0
   if systemctl --user is-active --quiet voxtype-cohere-vulkan.service; then
-    was_active=1
+    backend_was_active=1
+  fi
+  if systemctl --user is-active --quiet voxtype.service; then
+    voxtype_was_active=1
   fi
   if [[ -f $service ]]; then
-    backup="$service.bak.$(date +%s)"
-    cp "$service" "$backup"
-  fi
-  cp "$OMARCHY_PATH/default/voxtype/cohere-vulkan.service" "$service"
-  systemctl --user daemon-reload
-  if ! systemctl --user restart voxtype-cohere-vulkan.service; then
-    if [[ -n $backup ]]; then
-      cp "$backup" "$service"
-    else
-      rm -f "$service"
-    fi
-    systemctl --user daemon-reload
-    if (( was_active )); then
-      systemctl --user restart voxtype-cohere-vulkan.service || true
-    else
-      systemctl --user stop voxtype-cohere-vulkan.service
-    fi
-    echo "Cohere did not start; the configured Voxtype engine is unchanged." >&2
-    exit 1
+    service_backup=$(mktemp "$service.bak.XXXXXX")
+    cp -p "$service" "$service_backup"
   fi
   if [[ -f $dropin ]]; then
-    cp "$dropin" "$dropin.bak.$(date +%s)"
+    dropin_backup=$(mktemp "$dropin.bak.XXXXXX")
+    cp -p "$dropin" "$dropin_backup"
   fi
-  cp "$OMARCHY_PATH/default/voxtype/cohere-vulkan.conf" "$dropin"
-  systemctl --user daemon-reload
-else
-  rm -f "$dropin"
-  systemctl --user daemon-reload
+
+  restore_file() {
+    if [[ -n $2 ]]; then
+      cp -p "$2" "$1"
+    else
+      rm -f "$1"
+    fi
+  }
+
+  if cp "$OMARCHY_PATH/default/voxtype/cohere-vulkan.service" "$service" &&
+    systemctl --user daemon-reload &&
+    systemctl --user restart voxtype-cohere-vulkan.service &&
+    cp "$OMARCHY_PATH/default/voxtype/cohere-vulkan.conf" "$dropin" &&
+    systemctl --user daemon-reload &&
+    { (( ! voxtype_was_active )) || systemctl --user restart voxtype.service; }; then
+    exit 0
+  fi
+
+  rollback_failed=0
+  restore_file "$dropin" "$dropin_backup" || rollback_failed=1
+  restore_file "$service" "$service_backup" || rollback_failed=1
+  systemctl --user daemon-reload || rollback_failed=1
+  if (( backend_was_active )); then
+    systemctl --user restart voxtype-cohere-vulkan.service || rollback_failed=1
+  fi
+  if (( voxtype_was_active )); then
+    systemctl --user restart voxtype.service || rollback_failed=1
+  fi
+  # The restored drop-in can start the backend as a dependency of Voxtype.
+  if (( ! backend_was_active )); then
+    systemctl --user stop voxtype-cohere-vulkan.service || rollback_failed=1
+  fi
+  if (( rollback_failed )); then
+    echo "Cohere did not activate and the previous Voxtype setup could not be fully restored." >&2
+  else
+    echo "Cohere did not activate; the previous Voxtype setup was restored." >&2
+  fi
+  exit 1
 fi
 
+rm -f "$dropin"
+systemctl --user daemon-reload
 if systemctl --user is-active --quiet voxtype.service; then
   systemctl --user restart voxtype.service
 fi
-if [[ $action == "disable" ]]; then
-  systemctl --user stop voxtype-cohere-vulkan.service
-fi
+systemctl --user stop voxtype-cohere-vulkan.service
