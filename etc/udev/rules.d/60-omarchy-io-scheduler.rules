@@ -4,5 +4,11 @@
 # kernel's own pick (none or mq-deadline, depending on the device) does not
 # regulate latency once the queue fills. Whole disks only: partitions have no
 # scheduler of their own, and zram is memory with nothing to schedule. Zoned
-# btrfs disks are moved back to mq-deadline by 64-btrfs-zoned.rules.
-ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="nvme*|sd*|mmcblk*|vd*", ATTR{queue/scheduler}="kyber"
+# disks keep the kernel's pick, or 64-btrfs-zoned.rules' mq-deadline for btrfs.
+#
+# Disks on one tag set (the namespaces of an NVMe controller, such as the three
+# on every Apple Silicon Mac, or the LUNs of one card reader) switch schedulers
+# one at a time: since Linux 7.2 a concurrent switch fails with EBUSY instead
+# of waiting, and udev sets sibling disks in parallel without retrying. So the
+# write runs from RUN and retries for up to two seconds.
+ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="nvme*|sd*|mmcblk*|vd*", ATTR{queue/zoned}=="none", RUN+="/usr/bin/sh -c 'for try in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19; do echo kyber 2>/dev/null >/sys$devpath/queue/scheduler && exit 0; sleep 0.1; done; echo kyber >/sys$devpath/queue/scheduler'"
