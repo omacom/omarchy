@@ -121,8 +121,21 @@ assertDeepEqual(
 )
 assert(monitor.sameLayout(monitor.normalizeLayout(desk), desk), 'monitor sees an unmoved layout as the same')
 
-assertEqual(monitor.brightnessName(96), 'Sun blast', 'monitor names very bright displays')
-assertEqual(monitor.brightnessName(12), 'Candlelit', 'monitor names dim displays')
+assertEqual(
+  monitor.displaySpecs({ width: 1920, height: 1200, physicalWidth: 300, physicalHeight: 190, refreshRate: 60.0 }),
+  '1920×1200 · 14″ · 60 Hz',
+  'monitor describes a display by resolution, diagonal, and refresh rate'
+)
+assertEqual(
+  monitor.displaySpecs({ width: 2880, height: 1800, physicalWidth: 340, physicalHeight: 210, refreshRate: 119.94 }),
+  '2880×1800 · 15.7″ · 120 Hz',
+  'monitor keeps a fractional diagonal and rounds the refresh rate'
+)
+assertEqual(
+  monitor.displaySpecs({ width: 1280, height: 800, physicalWidth: 0, physicalHeight: 0, refreshRate: 60 }),
+  '1280×800 · 60 Hz',
+  'monitor leaves out the size of a display that reports none'
+)
 
 assertDeepEqual(
   monitor.parseDisplays(JSON.stringify([

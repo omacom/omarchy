@@ -308,19 +308,31 @@ function displayTitle(display, builtInLabel) {
   return String(display.make || "").trim() || name
 }
 
-// tr is an optional translate(key, english) from the QML side (I18n.t);
-// without it the English text stands, which is what the Node tests assert.
-function brightnessName(percent, tr) {
-  var t = typeof tr === "function" ? tr : function(key, english) { return english }
-  var p = Math.round(percent)
-  if (p >= 95) return t("monitor.level.sunBlast", "Sun blast")
-  if (p >= 80) return t("monitor.level.solarFlare", "Solar flare")
-  if (p >= 65) return t("monitor.level.goldenHour", "Golden hour")
-  if (p >= 45) return t("monitor.level.evenDay", "Even day")
-  if (p >= 30) return t("monitor.level.softGlow", "Soft glow")
-  if (p >= 20) return t("monitor.level.lampLight", "Lamp light")
-  if (p >= 10) return t("monitor.level.candlelit", "Candlelit")
-  return t("monitor.level.nightOwl", "Night owl")
+// What the display is: its mode, its diagonal, and its refresh rate, as in
+// "1920×1200 · 14″ · 60 Hz". The diagonal comes from the physical size in mm
+// the display reports, rounded to a tenth of an inch, and is left out when it
+// reports none (projectors, VMs). fmt is an optional formatNumber(value,
+// decimals) from the QML side (I18n.formatNumber); without it plain digits stand.
+function displaySpecs(display, fmt) {
+  var format = typeof fmt === "function" ? fmt : function(value) { return String(value) }
+  var parts = []
+  if (!display) return ""
+
+  var width = Number(display.width)
+  var height = Number(display.height)
+  if (width > 0 && height > 0) parts.push(format(width) + "×" + format(height))
+
+  var physicalWidth = Number(display.physicalWidth)
+  var physicalHeight = Number(display.physicalHeight)
+  if (physicalWidth > 0 && physicalHeight > 0) {
+    var inches = Math.round(Math.sqrt(physicalWidth * physicalWidth + physicalHeight * physicalHeight) / 25.4 * 10) / 10
+    parts.push(format(inches, inches % 1 ? 1 : 0) + "″")
+  }
+
+  var refresh = Math.round(Number(display.refreshRate))
+  if (refresh > 0) parts.push(format(refresh) + " Hz")
+
+  return parts.join(" · ")
 }
 
 function parseDisplays(raw) {
@@ -360,7 +372,7 @@ if (typeof module !== "undefined") {
     dropDisplay: dropDisplay,
     placeDisplay: placeDisplay,
     sameLayout: sameLayout,
-    brightnessName: brightnessName,
+    displaySpecs: displaySpecs,
     parseDisplays: parseDisplays
   }
 }
