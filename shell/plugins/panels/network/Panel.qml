@@ -1154,7 +1154,12 @@ Panel {
         secret: secretLines + "save\nquit\n"
       })
     }
-    if (Model.needsReapply(before, form) && editorActive) {
+    // A network-layer change only takes effect on the next activation, and a
+    // changed passphrase is one: the secret is written into the profile by
+    // `connection edit` without activating it, so the live link keeps running on
+    // the old key until it is cycled. Reapply the active profile for either.
+    var secretQueued = secretLines !== ""
+    if ((Model.needsReapply(before, form) || secretQueued) && editorActive) {
       steps.push({ command: ["nmcli", "connection", "up", "uuid", editingUuid], secret: "" })
     }
 

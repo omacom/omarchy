@@ -54,8 +54,10 @@ JS
   printf '#!/bin/bash\nif [[ -n ${NETWORK_TEST_PREVIEW:-} ]]; then\n  printf "type\\twifi\\niface\\ttest-wifi\\nssid\\tGuest Wi-Fi\\nip\\t192.0.2.10\\ngateway\\t192.0.2.1\\n"\nfi\n' >"$stage/bin/omarchy-network-status"
   chmod +x "$stage/bin/omarchy-network-status"
   # nmcli stub: a connection list with a connected KEMENKEU beside a duplicate,
-  # the KEMENKEU settings, and a log of every invocation. Reads are answered from
-  # fixtures; modify/edit only log, so no real NetworkManager is touched.
+  # two same-named AMBIG profiles with neither active, the settings read back for
+  # a profile, and a log of every invocation. `connection edit` writes its stdin
+  # to a separate log so a secret written over stdin can be told apart from argv;
+  # modify/edit only log, so no real NetworkManager is touched.
   cat >"$stage/bin/nmcli" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >> "$NETWORK_TEST_NMCLI_LOG"
@@ -63,6 +65,8 @@ if [[ ${1:-} == "-t" ]]; then
   if [[ $* == *"NAME,UUID,ACTIVE"* ]]; then
     printf 'KEMENKEU:11111111-1111-1111-1111-111111111111:yes\n'
     printf 'KEMENKEU:22222222-2222-2222-2222-222222222222:no\n'
+    printf 'AMBIG:33333333-3333-3333-3333-333333333333:no\n'
+    printf 'AMBIG:44444444-4444-4444-4444-444444444444:no\n'
   else
     printf 'connection.autoconnect:yes\n'
     printf 'connection.autoconnect-priority:0\n'
@@ -74,17 +78,22 @@ if [[ ${1:-} == "-t" ]]; then
   fi
 fi
 if [[ ${2:-} == "edit" ]]; then
-  cat >/dev/null
+  while IFS= read -r line; do
+    printf '%s\n' "$line" >> "$NETWORK_TEST_NMCLI_STDIN_LOG"
+    [[ $line == "quit" ]] && break
+  done
 fi
 SH
   chmod +x "$stage/bin/nmcli"
+  : >"$stage/nmcli.log"
+  : >"$stage/nmcli.stdin.log"
 }
 
 # run_panel: run the staged fixture to completion.
 run_panel() {
   local output
   output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
-    NETWORK_TEST_NMCLI_LOG="$stage/nmcli.log" \
+    NETWORK_TEST_NMCLI_LOG="$stage/nmcli.log" NETWORK_TEST_NMCLI_STDIN_LOG="$stage/nmcli.stdin.log" \
     timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "network editor fixture exits cleanly" "$output"
   [[ $output == *"RESULT pass"* ]] || fail "network editor runtime assertions pass" "$output"
   if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
@@ -94,4 +103,4 @@ run_panel() {
 
 stage_panel editor
 run_panel
-pass "network editor prefills a saved profile, saves only the changed key by uuid, and never puts a secret in argv"
+pass "network editor prefills a saved profile, saves only the changed key by uuid, sends a passphrase over stdin, reconnects the active profile, and picks among duplicate profiles"

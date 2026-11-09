@@ -7,26 +7,55 @@ import qs.Commons as Commons
 import "mocks"
 import "network" as Network
 
-// Drives the real network panel's Modify Network editor end to end: the menu's
-// Modify action is reached through openEditor(), the profile is read back with
-// nmcli against a stub, the form prefills from it, a Save of one changed field
-// runs exactly one `nmcli connection modify` with only that key, and a second,
-// untouched Save sends nothing.
+// Drives the real network panel's Modify Network editor end to end through the
+// paths the task binds on:
+//   1. prefill a connected profile, change one field, Save runs exactly one
+//      `nmcli connection modify` naming only that key for the resolved UUID;
+//   2. an untouched Save sends nothing and does not reconnect;
+//   3. a typed passphrase goes over `nmcli connection edit` stdin and never argv,
+//      and the active profile is cycled with `connection up` so it takes effect;
+//   4. an ipv4 change queues the modify and the same `connection up`;
+//   5. a duplicate SSID with no active profile shows the picker, and choosing a
+//      UUID opens the editor for that UUID.
 //
-// The nmcli stub logs every invocation to NETWORK_TEST_NMCLI_LOG; the fixture
-// reads it back so the assertions are on the real argv the panel ran, and checks
-// that no argument carries a secret.
+// The nmcli stub logs every invocation and, for `connection edit`, the stdin it
+// read, to separate files; the fixture reads them back so the assertions are on
+// the real argv/stdin the panel produced and that no secret reaches argv.
 ShellRoot {
   id: test
   property bool failed: false
   readonly property string nmcliLog: Quickshell.env("NETWORK_TEST_NMCLI_LOG")
+  readonly property string nmcliStdinLog: Quickshell.env("NETWORK_TEST_NMCLI_STDIN_LOG")
   readonly property string uuid: "11111111-1111-1111-1111-111111111111"
+  readonly property string ambigUuid: "44444444-4444-4444-4444-444444444444"
+  readonly property string secret: "s3cr3t-pass"
+  property string lastLog: ""
+  property string stage: ""
 
   function check(ok, message) {
     if (!ok) {
       failed = true
       console.log("RESULT fail " + message)
     }
+  }
+
+  function linesOf(raw) {
+    return String(raw || "").split("\n")
+  }
+
+  function countPrefix(lines, prefix) {
+    var n = 0
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].indexOf(prefix) === 0) n++
+    }
+    return n
+  }
+
+  function hasLine(lines, exact) {
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i] === exact) return true
+    }
+    return false
   }
 
   // The row Model.wifiRow() would build for the connected KEMENKEU profile.
@@ -36,6 +65,19 @@ ShellRoot {
     property bool known: true
     property bool stateChanging: false
     property real signalStrength: 0.9
+    property int security: WifiSecurityType.Wpa2Psk
+    signal connectionFailed(int reason)
+    function forget() {}
+  }
+
+  // A known profile with two saved entries and neither active, so the resolver
+  // reports it ambiguous and the editor must ask which one to edit.
+  property QtObject ambig: QtObject {
+    property string name: "AMBIG"
+    property bool connected: false
+    property bool known: true
+    property bool stateChanging: false
+    property real signalStrength: 0.5
     property int security: WifiSecurityType.Wpa2Psk
     signal connectionFailed(int reason)
     function forget() {}
@@ -68,7 +110,7 @@ ShellRoot {
     interval: 250
     running: true
     onTriggered: {
-      NetworkMock.wifi.networks = ({ values: [test.kemenkeu] })
+      NetworkMock.wifi.networks = ({ values: [test.kemenkeu, test.ambig] })
       panel.testEnsureContent()
       panel.open()
       Qt.callLater(test.start)
@@ -78,10 +120,10 @@ ShellRoot {
   // A stalled editor must fail loudly instead of hanging to the harness timeout.
   Timer {
     id: watchdog
-    interval: 8000
+    interval: 12000
     running: true
     onTriggered: {
-      check(false, "timed out waiting for the editor to open and save")
+      check(false, "timed out waiting for the editor to open, save, or pick")
       finish()
     }
   }
@@ -90,24 +132,53 @@ ShellRoot {
     check(panel.testContent !== null, "panel content builds")
     check(!!panel.testEditor, "editor builds with the content")
     if (failed) { finish(); return }
-    panel.openEditor("KEMENKEU")
-    waitTimer.start()
+    openEditor("KEMENKEU", waitPrefill)
   }
 
-  // ---------- Phase 1: change auto-connect, Save ----------
+  // Opens the editor and waits for the resolved profile read to land.
+  function openEditor(ssid, onReady) {
+    panel.openEditor(ssid)
+    openWait.next = onReady
+    openWait.restart()
+  }
 
   Timer {
-    id: waitTimer
+    id: openWait
     interval: 120
     repeat: true
+    property var next: null
     onTriggered: {
-      if (panel.editingUuid === "") return
-      waitTimer.stop()
-      Qt.callLater(test.checkPrefill)
+      if (panel.editingUuid === "" && !panel.editorPicking) return
+      stop()
+      var fn = next
+      next = null
+      Qt.callLater(fn)
     }
   }
 
-  function checkPrefill() {
+  // Waits for a Save to walk its process queue and close the editor.
+  function afterSave(onDone) {
+    saveWait.next = onDone
+    saveWait.restart()
+  }
+
+  Timer {
+    id: saveWait
+    interval: 120
+    repeat: true
+    property var next: null
+    onTriggered: {
+      if (panel.editorOpen) return
+      stop()
+      var fn = next
+      next = null
+      Qt.callLater(fn)
+    }
+  }
+
+  // ---------- Phase 0: change auto-connect, Save ----------
+
+  function waitPrefill() {
     check(panel.editingUuid === test.uuid, "resolves the connected profile to its active uuid")
     check(panel.editorOpen === true, "the editor view is open")
     check(panel.editingSsid === "KEMENKEU", "the editor remembers the ssid it edits")
@@ -120,54 +191,23 @@ ShellRoot {
     editor.update("autoConnect", false)
     check(editor.form.autoConnect === false, "the toggle flips the form value")
     editor.submit()
-    saveTimer.start()
+    afterSave(readChangedLog)
   }
 
-  Timer {
-    id: saveTimer
-    interval: 120
-    repeat: true
-    onTriggered: {
-      if (panel.editorOpen) return
-      saveTimer.stop()
-      readLog.running = true
-    }
+  function readChangedLog() {
+    stage = "changed"
+    logProc.running = true
   }
 
-  Process {
-    id: readLog
-    command: ["cat", test.nmcliLog]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: test.checkChangedSave(text)
-    }
-  }
+  // ---------- Phase 1: untouched form, Save sends nothing ----------
 
-  function checkChangedSave(raw) {
-    var lines = String(raw || "").split("\n")
-    var modify = []
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].indexOf("connection modify") === 0) modify.push(lines[i])
-    }
-    check(modify.length === 1, "exactly one nmcli connection modify runs")
-    check(modify[0] === "connection modify uuid " + test.uuid + " connection.autoconnect no",
-      "the modify argv carries only the changed key for the resolved uuid, got: " + modify[0])
+  function checkChanged(lines) {
+    check(countPrefix(lines, "connection modify") === 1, "exactly one nmcli connection modify runs")
+    check(hasLine(lines, "connection modify uuid " + test.uuid + " connection.autoconnect no"),
+      "the modify argv carries only the changed key for the resolved uuid")
+    check(countPrefix(lines, "connection up") === 0, "an auto-connect change alone does not reconnect")
     if (failed) { finish(); return }
-    panel.openEditor("KEMENKEU")
-    waitTimer2.start()
-  }
-
-  // ---------- Phase 2: untouched form, Save sends nothing ----------
-
-  Timer {
-    id: waitTimer2
-    interval: 120
-    repeat: true
-    onTriggered: {
-      if (panel.editingUuid === "") return
-      waitTimer2.stop()
-      Qt.callLater(test.noopSave)
-    }
+    openEditor("KEMENKEU", noopSave)
   }
 
   function noopSave() {
@@ -175,43 +215,124 @@ ShellRoot {
     check(editor.form.autoConnect === true, "the reopened form prefills the saved value")
     if (failed) { finish(); return }
     editor.submit()
-    saveTimer2.start()
+    afterSave(readNoopLog)
   }
 
-  Timer {
-    id: saveTimer2
-    interval: 120
-    repeat: true
-    onTriggered: {
-      if (panel.editorOpen) return
-      saveTimer2.stop()
-      readLog2.running = true
+  function readNoopLog() {
+    stage = "noop"
+    logProc.running = true
+  }
+
+  // ---------- Phase 2: passphrase over stdin, active profile cycles ----------
+
+  function checkNoop(lines) {
+    check(countPrefix(lines, "connection modify") === 1, "an untouched Save runs no additional modify")
+    check(countPrefix(lines, "connection up") === 0, "an untouched Save does not reconnect")
+    if (failed) { finish(); return }
+    openEditor("KEMENKEU", passphraseSave)
+  }
+
+  function passphraseSave() {
+    var editor = panel.testEditor
+    editor.update("password", test.secret)
+    editor.submit()
+    afterSave(readPassphraseLog)
+  }
+
+  function readPassphraseLog() {
+    stage = "passphrase"
+    logProc.running = true
+  }
+
+  function checkPassphrase(lines) {
+    lastLog = lines.join("\n")
+    stdinProc.running = true
+  }
+
+  function checkPassphraseStdin(text) {
+    var lines = linesOf(lastLog)
+    check(String(text).indexOf("set 802-11-wireless-security.psk " + test.secret) !== -1,
+      "the passphrase is written to nmcli connection edit over stdin")
+    check(String(lastLog).indexOf(test.secret) === -1, "the passphrase never appears in nmcli argv")
+    // A passphrase write edits the profile without activating it, so the live
+    // link keeps running on the old key unless the active profile is cycled.
+    check(countPrefix(lines, "connection up") === 1, "a passphrase change on the active profile reconnects")
+    check(hasLine(lines, "connection up uuid " + test.uuid), "the reconnect targets the edited uuid")
+    if (failed) { finish(); return }
+    openEditor("KEMENKEU", ipv4Save)
+  }
+
+  // ---------- Phase 3: ipv4 change queues modify + reconnect ----------
+
+  function ipv4Save() {
+    var editor = panel.testEditor
+    editor.update("ipv4Method", "manual")
+    editor.update("address", "10.0.0.5/24")
+    check(editor.validation.ok === true, "a manual CIDR is valid")
+    if (failed) { finish(); return }
+    editor.submit()
+    afterSave(readIpv4Log)
+  }
+
+  function readIpv4Log() {
+    stage = "ipv4"
+    logProc.running = true
+  }
+
+  function checkIpv4(lines) {
+    check(countPrefix(lines, "connection modify") === 2, "the ipv4 change queues another modify")
+    check(hasLine(lines, "connection modify uuid " + test.uuid + " ipv4.method manual ipv4.addresses 10.0.0.5/24"),
+      "the ipv4 modify carries only the changed keys")
+    check(countPrefix(lines, "connection up") === 2, "an ipv4 change on the active profile reconnects")
+    if (failed) { finish(); return }
+    openEditor("AMBIG", checkPicker)
+  }
+
+  // ---------- Phase 4: duplicate SSID → picker → chosen UUID ----------
+
+  function checkPicker() {
+    var editor = panel.testEditor
+    check(panel.editorPicking === true, "a duplicate SSID with no active profile shows the picker")
+    check(editor.picking === true, "the editor switches to the picker view")
+    check((editor.choices || []).length === 2, "the picker lists both saved profiles")
+    check(panel.editingUuid === "", "the editor does not resolve a uuid until one is chosen")
+    if (failed) { finish(); return }
+    editor.choose(test.ambigUuid)
+    openWait.next = checkChosen
+    openWait.restart()
+  }
+
+  function checkChosen() {
+    check(panel.editorPicking === false, "choosing a profile leaves the picker")
+    check(panel.editingUuid === test.ambigUuid, "the editor reads the chosen profile's uuid")
+    check(!!panel.testEditor.fields, "the chosen profile's settings prefill the form")
+    finish()
+  }
+
+  // ---------- Log readers ----------
+
+  Process {
+    id: logProc
+    command: ["cat", test.nmcliLog]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var lines = test.linesOf(text)
+        if (test.stage === "changed") test.checkChanged(lines)
+        else if (test.stage === "noop") test.checkNoop(lines)
+        else if (test.stage === "passphrase") test.checkPassphrase(lines)
+        else if (test.stage === "ipv4") test.checkIpv4(lines)
+      }
     }
   }
 
   Process {
-    id: readLog2
-    command: ["cat", test.nmcliLog]
+    id: stdinProc
+    command: ["cat", test.nmcliStdinLog]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: test.checkNoopSave(text)
+      onStreamFinished: test.checkPassphraseStdin(text)
     }
-  }
-
-  function checkNoopSave(raw) {
-    var lines = String(raw || "").split("\n")
-    var modify = 0
-    var up = 0
-    var secret = false
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].indexOf("connection modify") === 0) modify++
-      if (lines[i].indexOf("connection up") === 0) up++
-      if (/psk|password/i.test(lines[i])) secret = true
-    }
-    check(modify === 1, "an untouched Save runs no additional modify")
-    check(up === 0, "an untouched Save does not reconnect")
-    check(secret === false, "no nmcli argument carries a secret")
-    finish()
   }
 
   function finish() {
