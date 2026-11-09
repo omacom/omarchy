@@ -75,11 +75,46 @@ for _, c in ipairs(commands) do
   if c:match("setcursor 'my%-hyprcursor'") then hyprcursor_restored = true end
 end
 assert(hyprcursor_restored, "restore the user's Hyprcursor theme")
+local gsettings_restored = false
+for _, c in ipairs(commands) do
+  if c:match("cursor%-theme 'my%-xcursor' && .* cursor%-size 24$") then gsettings_restored = true end
+end
+assert(gsettings_restored, "GSettings names the Xcursor theme GTK can load, never the Hyprcursor one")
 local previous_command = command
 previous_recovery()
 assert(command == previous_command, "recovery must not change a revealed cursor")
 events["config.reloaded"]()
 assert(not config.invisible and env.XCURSOR_THEME == "my-xcursor", "ordinary config reloads must not hide the cursor")
+
+omarchy_startup_cursor_pending = true
+omarchy_startup_cursor = {
+  config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true },
+  hyprcursor = nil,
+  size = 24,
+  path = "/my/icons",
+  xcursor = "my-xcursor",
+}
+commands = {}
+omarchy_startup_cursor_restore(true)
+assert(not config.invisible and config.sync_gsettings_theme)
+local xcursor_restored = false
+gsettings_restored = false
+for _, c in ipairs(commands) do
+  if c:match("setcursor 'my%-xcursor'") then xcursor_restored = true end
+  if c:match("cursor%-theme 'my%-xcursor'") then gsettings_restored = true end
+end
+assert(xcursor_restored, "restore the Xcursor fallback when Hyprcursor theme is unset")
+assert(gsettings_restored, "Hyprland ignores setcursor for its current theme, so GSettings is written directly")
+
+omarchy_startup_cursor_pending = true
+omarchy_startup_cursor.config.sync_gsettings_theme = false
+commands = {}
+omarchy_startup_cursor_restore(true)
+gsettings_restored = false
+for _, c in ipairs(commands) do
+  if c:match("cursor%-theme") then gsettings_restored = true end
+end
+assert(not gsettings_restored, "leave GSettings alone when the user turned its sync off")
 
 omarchy_startup_cursor_pending = nil
 monitors = { {} }
