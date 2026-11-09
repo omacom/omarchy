@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Match the HP EliteBook X G2i and X Flip G2i (board 8E86).
+
+# Both models are board 8E86, one audio and camera design. The product names
+# differ ("X G2i", "X Flip G2i"), so match the board: it is also what the
+# kernel support, the amplifier firmware and the speaker tuning key on.
+
+board_vendor="${OMARCHY_DMI_BOARD_VENDOR:-/sys/class/dmi/id/board_vendor}"
+board_name="${OMARCHY_DMI_BOARD_NAME:-/sys/class/dmi/id/board_name}"
+
+grep -qix "HP" "$board_vendor" 2>/dev/null &&
+  grep -qix "8E86" "$board_name" 2>/dev/null
