@@ -33,9 +33,10 @@ function pinnedIds(dockConfig, defaultsConfig) {
 // Windows of the desktop itself that no desktop entry claims, so they name no
 // app: Omarchy's own terminal windows, such as the agent window, and the
 // classes its TUI apps share; Hyprland's own dialogs, such as its share picker
-// and its prompt for an app that stopped responding; and the preview share
-// picker Omarchy has the portal use instead.
-var DESKTOP_APP_ID_PREFIXES = ["org.omarchy.", "hyprland-"]
+// and its prompt for an app that stopped responding; the preview share
+// picker Omarchy has the portal use instead; and the webcam a screen
+// recording pins over every workspace (WebcamOverlay-small, -medium or -large).
+var DESKTOP_APP_ID_PREFIXES = ["org.omarchy.", "hyprland-", "WebcamOverlay-"]
 var DESKTOP_APP_IDS = ["TUI.float", "TUI.tile", "ch.wysbd.hyprland-preview-share-picker"]
 
 function isDesktopAppId(appId) {
