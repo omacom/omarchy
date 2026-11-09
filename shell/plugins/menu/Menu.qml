@@ -1687,8 +1687,8 @@ Item {
             Text {
               anchors.left: parent.left
               anchors.right: parent.right
-              anchors.leftMargin: 20
-              anchors.rightMargin: 20
+              anchors.leftMargin: Style.space(20)
+              anchors.rightMargin: Style.space(20)
               clip: true
               textFormat: Text.PlainText
               text: root.filterText ? Commons.I18n.t("common.noMatchesFor").arg(root.filterText) : Commons.I18n.t("menu.nothingHere")
