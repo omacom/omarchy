@@ -153,6 +153,12 @@ record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": 403}))
 expect("a key that can't read the quota shows the last 30 days with no cap",
        [record.get("spend"), record["limitsStale"], record["authHelpText"]],
        [{"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS}, False, ""], record)
+# A cap the account had is still its cap: a refused quota keeps it, stale.
+fireworks()
+record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": 403}))
+expect("a refused quota keeps a known cap, stale",
+       [record.get("spend"), record["limitsStale"], record["authHelpText"]],
+       [{"amount": 7.5, "cap": 50.0, "currency": "USD", "days": DAYS}, True, "The Fireworks API key cannot read billing data"], record)
 for path in limits_cache_files("fireworks"):
   path.unlink()
 record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": 403, "/usageCosts:query": 403}))

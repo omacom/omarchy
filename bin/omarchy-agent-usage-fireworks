@@ -355,14 +355,13 @@ class FireworksClient:
       query = dict(query, pageToken=token)
     return {"serverlessCosts": rows}
 
-  # A key refused the quota can still read its daily costs, so it reads as
-  # no cap rather than no spend.
-  def monthly_spend(self, account_id: str) -> dict[str, Any]:
+  # None when the key is refused the quota, which says nothing about a cap.
+  def monthly_spend(self, account_id: str) -> dict[str, Any] | None:
     quoted = urllib.parse.quote(normalize_account_id(account_id), safe="")
     try:
       return self.request(f"/v1/accounts/{quoted}/quotas/monthly-spend-usd")
     except FireworksDeniedError:
-      return {"usage": 0, "value": 0}
+      return None
 
   # The rated cost of each of the last 30 days, oldest first, today last.
   # The API buckets days in UTC only.
@@ -417,8 +416,10 @@ def tier_label(account: dict[str, Any]) -> str:
 
 # What each of the last 30 days cost and, against a monthly cap the tier
 # sets, what the account has spent this month; with no cap, the amount is
-# the 30 days' total.
-def current_spend(quota: dict[str, Any], days: list[float]) -> dict[str, Any]:
+# the 30 days' total. With no quota to read, the 30 days stand uncapped.
+def current_spend(quota: dict[str, Any] | None, days: list[float]) -> dict[str, Any]:
+  if quota is None:
+    quota = {"usage": 0, "value": 0}
   try:
     amount = float(quota["usage"])
     cap = float(quota.get("value") or 0)
@@ -512,7 +513,11 @@ def scan(api_base_url: str, auth_path: Path, force: bool = False, limits_only: b
       if not spend_fresh:
         try:
           now = datetime.now(timezone.utc)
-          spend = current_spend(client.monthly_spend(account_id), client.daily_costs(account_id, now))
+          quota = client.monthly_spend(account_id)
+          # A refused quota can't say a cap the account had is gone: keep it, stale.
+          if quota is None and spend_part and (spend_part.get("spend") or {}).get("cap"):
+            raise FireworksDeniedError("The Fireworks API key cannot read billing data")
+          spend = current_spend(quota, client.daily_costs(account_id, now))
           # The tier comes with the account, which a known account id skipped.
           tier = tier_label(account or client.account(account_id))
           spend_part = remember(spend_cache, accountId=account_id, spend=spend, tierLabel=tier)
