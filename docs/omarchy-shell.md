@@ -41,6 +41,7 @@ wait).
 | `bar-widget` | Component the active bar drops into a section |
 | `bar`        | Full bar option that can replace `omarchy.bar` |
 | `panel`      | Floating window (e.g. OSD)                     |
+| `panel-extension` | Inline content at a host-owned named point |
 | `overlay`    | Fullscreen overlay (e.g. background picker)    |
 | `menu`       | Summoned menu surface                          |
 | `service`    | Headless singleton, no UI                      |
@@ -54,6 +55,35 @@ Entry points are QML `Item`s. Panel, overlay, and menu entry points expose `open
 A third-party replacement bar can render registered widget components, but widgets it hosts receive a service-less entry facade. Allowing the bar to manufacture an own-service facade for an arbitrary widget would also let it retrieve that plugin's live service object. Service-backed third-party widgets therefore retain their full integration only under the trusted built-in bar; a replacement bar may still provide their target-scoped lifecycle and settings operations.
 
 Full schema: [`shell/services/PluginRegistry.qml`](../shell/services/PluginRegistry.qml).
+
+## Extending a panel
+
+A stock panel may opt into a named point using `Ui.PanelExtensions`. The power popup exposes `omarchy.power.sections` between battery statistics and power profiles. A third-party plugin can contribute there without copying or replacing the stock widget:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "acme.charging-limits",
+  "name": "Charging limits",
+  "version": "1.0.0",
+  "kinds": ["panel-extension"],
+  "entryPoints": { "panelExtension": "ChargingLimits.qml" },
+  "panelExtension": { "point": "omarchy.power.sections", "order": 100 }
+}
+```
+
+Install this like any other plugin and enable it with `omarchy plugin enable acme.charging-limits`. Its configuration lives in a top-level `plugins[]` entry, not the bar layout. An installed but disabled extension contributes nothing. Plugins targeting unknown points remain inert. Contributions sort by ascending integer `order` (default 0, range -10000 through 10000), then by plugin id. The point name is a nonempty identifier of at most 128 ASCII letters, digits, dots, underscores, or hyphens, beginning with a letter or digit.
+
+The entry point is a QML `Item`, usually a `Column`, with `implicitHeight` describing the space it needs. A height of zero collapses it. The host supplies its width. These optional properties are bound or injected after construction:
+
+- `panelOpen`: boolean; use its change signal to refresh local state, and suspend background work when it is false.
+- `settings`: a detached copy of the extension's own `plugins[]` settings, excluding `id`.
+- `shell`: the same self-scoped facade an ordinary third-party plugin receives, never the owning panel or its shell authority.
+- `manifest`: the extension's detached public manifest.
+
+Required injected properties are not supported. Keep initialization that depends on injected properties in their change handlers. Each open popup gets its own view; shared work belongs in a service. The content is created lazily with the stock popup and retained until its host is unloaded. Enable, disable, removal, rescan, and local code hot-reload use the existing plugin lifecycle. Loading errors are logged and occupy no space; other contributions remain available. An extension is trusted same-process QML, just like an ordinary plugin, not a security sandbox.
+
+Host authors add `PanelExtensions { shell: root.bar.shell; point: "omarchy.example.sections"; panelOpen: root.opened; width: parent.width }` inside their content column. Connect `closeRequested` to the popup's close method. A `PanelKeyCatcher` must set `blocked: extensions.activeFocus` for the host's id so extension editors keep their keys; Escape still propagates through the extension focus scope to close the popup. Hosts choose their own stable point names and placement. The initial integration is for stock widgets under the built-in bar; replacement bars and old widget clones without a host interface do not gain this point automatically.
 
 ## Installing a third-party plugin
 

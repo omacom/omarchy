@@ -310,6 +310,7 @@ Panel {
 
     content: PanelKeyCatcher {
       id: keyCatcher
+      blocked: extensions.activeFocus
       property alias heroStatus: heroStatus
       anchors.fill: parent
       implicitHeight: column.implicitHeight
@@ -461,6 +462,15 @@ Panel {
               value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
             }
           }
+        }
+
+        PanelExtensions {
+          id: extensions
+          width: parent.width
+          shell: root.bar ? root.bar.shell : null
+          point: "omarchy.power.sections"
+          panelOpen: root.opened
+          onCloseRequested: root.close()
         }
 
         // ---------- Power profile picker ----------
