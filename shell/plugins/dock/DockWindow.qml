@@ -427,7 +427,7 @@ PanelWindow {
       y: window.vertical ? along - Math.floor(thickness / 2) : Math.round((body.height - height) / 2)
       color: Util.alpha(Commons.Color.popups.text, 0.22)
 
-      Behavior on opacity { NumberAnimation { duration: 120 } }
+      Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
     }
   }
 
@@ -474,7 +474,7 @@ PanelWindow {
       radius: Style.cornerRadius
       color: appsSlot.pressed ? Style.pressedFill : appsSlot.hovered ? Style.hoverFill : "transparent"
 
-      Behavior on color { ColorAnimation { duration: 120 } }
+      Behavior on color { ColorAnimation { duration: Style.duration(120) } }
     }
 
     Behavior on displayedShift {
@@ -551,11 +551,15 @@ PanelWindow {
       }
       return false
     }
-    // Slides in when the app joins the dock, and bounces while it launches.
+    // Slides in when the app joins the dock, and pulses while it launches.
     property real appear: 0
-    property real bounce: 0
 
-    NumberAnimation on appear { from: 0; to: 1; duration: 220; easing.type: Easing.OutCubic }
+    // Launch pulse: scale multiplier applied to the icon while it launches.
+    // Kept as a plain property (not a Binding) so the SequentialAnimation can
+    // drive it; the icon's scale multiplies it into the base appearance scale.
+    property real launchScale: 1
+
+    NumberAnimation on appear { from: 0; to: 1; duration: Style.duration(220); easing.type: Easing.OutCubic }
 
     tip: window.dock ? window.dock.labelFor(modelData) : ""
     tipWindows: modelData ? modelData.windows : []
@@ -563,6 +567,7 @@ PanelWindow {
 
     // Slots between where the dragged app was and where it would land step
     // aside to make room; the dragged one follows the pointer.
+
     readonly property real shift: window.insertIndex >= 0 ? (index >= window.insertIndex ? 1 : -1) * window.slotSize / 2
       : !window.dragging ? 0
       : lifted ? window.dragOffset
@@ -657,7 +662,7 @@ PanelWindow {
         y: window.vertical ? appSlot.displayedShift : 0
       }
 
-      Behavior on color { ColorAnimation { duration: 120 } }
+      Behavior on color { ColorAnimation { duration: Style.duration(120) } }
     }
 
     // Running apps are drawn in full, apps whose windows are all minimized a
@@ -680,17 +685,12 @@ PanelWindow {
         Translate {
           x: window.vertical ? 0 : appSlot.displayedShift
           y: window.vertical ? appSlot.displayedShift : 0
-        },
-        Translate {
-          x: window.vertical ? appSlot.bounce * window.inward : 0
-          y: window.vertical ? 0 : appSlot.bounce * window.inward
         }
       ]
-      scale: (0.6 + 0.4 * appSlot.appear) * (appSlot.lifted || appSlot.hovered ? (appSlot.pressed && !appSlot.lifted ? 1.05 : 1.15) : 1)
+      scale: (0.6 + 0.4 * appSlot.appear) * appSlot.launchScale * (appSlot.lifted || appSlot.hovered ? (appSlot.pressed && !appSlot.lifted ? 1.05 : 1.15) : 1)
       transformOrigin: window.popOrigin
 
-      Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-      Behavior on opacity { NumberAnimation { duration: 150 } }
+      Behavior on opacity { NumberAnimation { duration: Style.duration(150) } }
     }
 
     // On the edge of the slot toward the screen edge: a dot for each window in
@@ -745,8 +745,8 @@ PanelWindow {
           border.width: ring ? Math.max(1, Math.round(dots.size * 0.25)) : 0
           border.color: dots.tone
 
-          Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-          Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+          Behavior on width { NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic } }
+          Behavior on height { NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic } }
         }
       }
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
@@ -757,11 +757,12 @@ PanelWindow {
     SequentialAnimation {
       running: appSlot.launching && !Style.reduceMotion
       loops: Animation.Infinite
-      onRunningChanged: if (!running) appSlot.bounce = 0
 
-      NumberAnimation { target: appSlot; property: "bounce"; to: Math.round(window.slotSize * 0.28); duration: 240; easing.type: Easing.OutQuad }
-      NumberAnimation { target: appSlot; property: "bounce"; to: 0; duration: 240; easing.type: Easing.InQuad }
-      PauseAnimation { duration: 300 }
+      // Launch feedback: a modest, smooth scale pulse that rises and settles
+      // without overshoot or bounce, and eases out on the way back.
+      NumberAnimation { target: appSlot; property: "launchScale"; from: 1.0; to: 1.08; duration: Style.duration(120); easing.type: Easing.OutCubic }
+      NumberAnimation { target: appSlot; property: "launchScale"; from: 1.08; to: 1.0; duration: Style.duration(120); easing.type: Easing.OutCubic }
+      PauseAnimation { duration: Style.duration(180) }
     }
   }
 
@@ -801,7 +802,7 @@ PanelWindow {
     color: Commons.Color.tooltip.background
     borderSpec: Border.surfaceSpec("tooltip", "border", Commons.Color.tooltip.border, Style.normalBorderWidth)
 
-    Behavior on opacity { NumberAnimation { duration: 110 } }
+    Behavior on opacity { NumberAnimation { duration: Style.duration(110) } }
 
     // The pointer on the previews keeps the label up, and keeps an auto-hidden
     // dock out.
@@ -935,7 +936,7 @@ PanelWindow {
         anchors.fill: parent
         color: pick.pressed ? Style.pressedFill : pick.containsMouse ? Style.hoverFill : "transparent"
 
-        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on color { ColorAnimation { duration: Style.duration(120) } }
       }
 
       Rectangle {
