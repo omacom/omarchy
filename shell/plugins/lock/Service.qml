@@ -223,7 +223,6 @@ Item {
     resetAuthenticationState()
     lockRequested = true
     idleBlankTimer.blanked = false
-    idleBlankTimer.graceDeadline = 0
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -246,29 +245,21 @@ Item {
     resetAuthenticationState()
     idleBlankTimer.stop()
     idleBlankTimer.blanked = false
-    idleBlankTimer.graceDeadline = 0
     sessionLock.locked = false
     logEvent("unlocked")
     runWake()
   }
 
   function armBlankTimer(delayMs) {
-    var now = Date.now()
-    // Bursts of wake input must not shorten the first-wake grace back to the
-    // idle interval before the user has had time to type.
-    if (!delayMs && idleBlankTimer.graceDeadline > now) {
-      if (now + idleBlankTimer.idleMs <= idleBlankTimer.graceDeadline) {
-        if (!idleBlankTimer.running) {
-          idleBlankTimer.interval = idleBlankTimer.graceDeadline - now
-          idleBlankTimer.armedAt = now
-          idleBlankTimer.restart()
-        }
-        return
-      }
-      idleBlankTimer.graceDeadline = 0
-    }
-    idleBlankTimer.interval = delayMs || idleBlankTimer.idleMs
-    idleBlankTimer.armedAt = now
+    var want = delayMs || idleBlankTimer.idleMs
+    // A longer pending countdown is never cut short: wake input right after
+    // a blank, and the output re-detection right after a resume, must not
+    // reset those longer graces to the idle run-up while more than the
+    // run-up is left. Once less of a grace remains than a run-up takes, an
+    // ordinary arm refreshes the countdown as before.
+    if (idleBlankTimer.running && idleBlankTimer.armedAt + idleBlankTimer.interval - Date.now() > want) return
+    idleBlankTimer.interval = want
+    idleBlankTimer.armedAt = Date.now()
     idleBlankTimer.restart()
   }
 
@@ -277,7 +268,6 @@ Item {
     if (lockRequested) {
       if (idleBlankTimer.blanked) {
         idleBlankTimer.blanked = false
-        idleBlankTimer.graceDeadline = Date.now() + idleBlankTimer.wakeMs
         armBlankTimer(idleBlankTimer.wakeMs)
       } else {
         armBlankTimer()
@@ -376,7 +366,6 @@ Item {
 
   function runBlank() {
     idleBlankTimer.blanked = true
-    idleBlankTimer.graceDeadline = 0
     pauseFingerprint()
     if (!blankProcess.running) blankProcess.running = true
   }
@@ -803,7 +792,6 @@ Item {
     // blank gets a longer grace before the idle countdown reblanks.
     readonly property int wakeMs: 15000
     property bool blanked: false
-    property double graceDeadline: 0
     interval: idleMs
     repeat: false
     property double armedAt: 0

@@ -239,17 +239,16 @@ ShellRoot {
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
 
       // First wake after blank grants a longer grace so the user can type
-      // before reblanking; bursts of wake input preserve that deadline. Move
-      // the armed grace back 7s so the burst reads as seconds after the first
-      // wake even though both run inside the same wall-clock millisecond: a
-      // burst that re-granted the grace would land the deadline 7s later and
-      // fail the exact match.
+      // before reblanking; bursts of wake input preserve that countdown. Move
+      // the armed countdown back 7s so the burst reads as seconds after the
+      // first wake even though both run inside the same wall-clock
+      // millisecond: a burst that reset or re-granted the countdown would
+      // move its deadline and fail the exact match.
       service.lockRequested = true
       service.runBlank()
       service.runWake()
       check(blankTimer.interval === 15000, "first wake after a blank arms the longer grace")
       blankTimer.armedAt -= 7000
-      blankTimer.graceDeadline -= 7000
       var initialDeadline = blankTimer.armedAt + blankTimer.interval
       blankTimer.stop()
 
@@ -259,9 +258,28 @@ ShellRoot {
       check(blankTimer.interval === 15000 && blankTimer.armedAt + blankTimer.interval === initialDeadline,
         "burst of wake inputs preserves the long grace deadline")
 
-      blankTimer.graceDeadline = Date.now() - 1000
+      blankTimer.armedAt = Date.now() - 11000
       service.runWake()
-      check(blankTimer.interval === 5000, "wake input after grace consumed re-arms normal 5s interval")
+      check(blankTimer.interval === 5000, "wake input once less than 5s of the grace remains re-arms the normal 5s interval")
+      blankTimer.stop()
+      service.runWake()
+      check(blankTimer.interval === 5000, "input ending a password check arms the normal 5s run-up even with grace left over")
+
+      // A resume arms the same longer countdown, through the blank timer's
+      // own suspend-gap check; the wake paths that fire within a second of
+      // the resume must not reset it to the idle run-up.
+      blankTimer.interval = 5000
+      blankTimer.armedAt = Date.now() - 60000
+      blankTimer.start()
+      blankTimer.triggered()
+      check(blankTimer.interval === 15000, "a countdown frozen by suspend re-arms the resume grace instead of blanking")
+      service.armBlankTimer()
+      check(blankTimer.interval === 15000, "an output re-detection right after a resume keeps the resume grace")
+      service.runWake()
+      check(blankTimer.interval === 15000, "a wake burst right after a resume keeps the resume grace")
+      blankTimer.armedAt = Date.now() - 11000
+      service.runWake()
+      check(blankTimer.interval === 5000, "input once the resume grace is mostly spent re-arms the normal 5s interval")
       blankTimer.stop()
 
       service.runBlank()
