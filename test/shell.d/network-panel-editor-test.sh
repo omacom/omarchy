@@ -43,6 +43,12 @@ source = source.replace('  id: root', `  id: root
   readonly property Item testContent: panel.loadedContent
   readonly property Item testEditor: panel.loadedContent ? panel.loadedContent.testEditor : null`)
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
+// Expose the passphrase field's id to the fixture so it can prove a typed
+// secret does not survive into the next edit session; production keeps it
+// private.
+let editorSource = fs.readFileSync(`${root}/shell/plugins/panels/network/Editor.qml`, 'utf8')
+editorSource = editorSource.replace('        id: pskField\n', '        id: pskField\n        objectName: "pskField"\n')
+fs.writeFileSync(`${stage}/network/Editor.qml`, editorSource)
 JS
   printf '#!/bin/bash\nexit 0\n' >"$stage/bin/noop"
   chmod +x "$stage/bin/noop"

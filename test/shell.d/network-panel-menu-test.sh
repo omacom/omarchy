@@ -53,6 +53,29 @@ source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
         var item = networkList.itemAtIndex(index)
         if (item && item.modelData) root.rowGesture(item.modelData, index, button)
       }
+      function testRowHasCursor(index) {
+        var item = networkList.itemAtIndex(index)
+        var row = testFindByProp(item, "hasCursor")
+        return row ? row.hasCursor : null
+      }
+      function testFindByProp(obj, prop) {
+        if (!obj) return null
+        if (obj[prop] !== undefined) return obj
+        var kids = obj.children || []
+        for (var i = 0; i < kids.length; i++) {
+          var found = testFindByProp(kids[i], prop)
+          if (found) return found
+        }
+        return null
+      }
+      function testMenuPopup() {
+        var data = contextMenu.data || []
+        for (var i = 0; i < data.length; i++) {
+          var c = data[i]
+          if (c && c.opened !== undefined && c.height !== undefined) return c
+        }
+        return null
+      }
 `)
 source = source.replace('      id: rowMouse\n', `      id: rowMouse
       objectName: "rowMouse"

@@ -394,7 +394,7 @@ var enterpriseConnectScript =
   " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
   " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
   " 802-1x.identity \"$2\" 802-1x.auth-timeout 8 >/dev/null" +
-  " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
+  " && printf 'set 802-1x.password\\n%s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
   " && nmcli connection up uuid \"$u\"" +
   " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
 
@@ -519,22 +519,41 @@ function editorDefaults(settings, security, securityEnum) {
 
 // Manual IPv4 needs an address with a prefix, and a gateway only when one is
 // given. Priority has to be a whole number of 0 or more because nmcli rejects
-// anything else. `error` is the message the editor shows under the field.
-function validateEditor(form) {
+// anything else. `error` is the message the editor shows under the field;
+// `tr` is the shell's I18n.t, so the copy translates like every other string
+// while the default keeps the Node tests in English.
+function validateEditor(form, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var f = form || {}
   var priority = f.priority === undefined || f.priority === "" ? 0 : Number(f.priority)
   if (!isFinite(priority) || priority < 0 || Math.floor(priority) !== priority) {
-    return { ok: false, error: "Priority must be a whole number of 0 or more." }
+    return { ok: false, error: t("network.priorityInvalid", "Priority must be a whole number of 0 or more.") }
   }
   if (f.ipv4Method === "manual") {
     if (!/^\d+\.\d+\.\d+\.\d+\/\d+$/.test(String(f.address || ""))) {
-      return { ok: false, error: "Enter an address with a prefix, like 10.0.0.5/24." }
+      return { ok: false, error: t("network.addressInvalid", "Enter an address with a prefix, like 10.0.0.5/24.") }
     }
     if (f.gateway && !/^\d+\.\d+\.\d+\.\d+$/.test(String(f.gateway))) {
-      return { ok: false, error: "Enter a valid gateway address." }
+      return { ok: false, error: t("network.gatewayInvalid", "Enter a valid gateway address.") }
     }
   }
   return { ok: true, error: "" }
+}
+
+// Builds the stdin `nmcli connection edit` needs to set one property. The
+// value is written on its own line under a bare `set <setting>.<property>`,
+// which takes nmcli's interactive "Enter '<prop>' value:" path. That path
+// reads the raw line and keeps every character. The one-line
+// `set <setting>.<property> <value>` form cannot: NetworkManager's
+// split_editor_main_cmd_args runs the whole line through g_strstrip and takes
+// the remainder verbatim, so leading/trailing spaces are lost, an empty value
+// is stripped away (making nmcli prompt and swallow the next command), and
+// quotes are never unescaped -- a quoted value stores the quote characters.
+// Verified against nmcli 1.58.1. The value stays off argv, and any embedded
+// newline is flattened so it cannot inject a second editor command.
+function nmcliEditSet(property, value) {
+  var text = value === undefined || value === null ? "" : String(value)
+  return "set " + property + "\n" + text.replace(/[\r\n]+/g, " ") + "\n"
 }
 
 // The editable settings, in the order nmcli receives them. `kind` decides how a
@@ -631,6 +650,7 @@ if (typeof module !== "undefined") {
     parseNmcliProfile: parseNmcliProfile,
     editorDefaults: editorDefaults,
     validateEditor: validateEditor,
+    nmcliEditSet: nmcliEditSet,
     changedModArgs: changedModArgs,
     needsReapply: needsReapply,
     enterpriseConnectScript: enterpriseConnectScript,

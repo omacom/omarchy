@@ -128,9 +128,12 @@ ShellRoot {
     // --- connected row: the profile is in use, so no Forget ---
     clickRow(0)
     check(menu.popupOpen, "right-click opens the menu")
+    check(panel.menuOpen === true, "the panel records that the menu is open")
+    check(panel.testContent.testRowHasCursor(0) === false, "the row cursor stands down while the menu is up")
     check(keysOf(menu) === "disconnect|modify", "connected row offers disconnect and modify, never forget")
     pressEscape(menu)
     check(!menu.popupOpen, "Escape closes the menu")
+    check(panel.menuOpen === false, "closing the menu clears the open flag")
 
     // --- known disconnected row: Forget is offered ---
     clickRow(1)
@@ -149,6 +152,12 @@ ShellRoot {
     // --- unknown secured row: Connect prompts instead of a bare connect() ---
     clickRow(2)
     check(keysOf(menu) === "connect", "unknown secured row offers only connect")
+    // The last row sits at the bottom of the panel, so its menu must be kept
+    // inside the content rect (flipped above) rather than fall out of reach.
+    var popup = panel.testContent.testMenuPopup()
+    check(!!popup, "the menu popup is reachable for its geometry")
+    check(!!popup && menu.y >= 0 && menu.y + popup.height <= menu.parent.height + 1,
+      "the bottom row's menu stays inside the panel")
     menu.setHighlight(0)
     menu.activateHighlighted()
     check(panel.passwordSsid === "CAFE", "Connect on an unknown secured row opens the passphrase prompt")

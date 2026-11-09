@@ -21,6 +21,7 @@ Panel {
   function close() {
     root.controller.hide()
     cancelPasswordPrompt()
+    menuOpen = false
   }
 
   function cancelPasswordPrompt() {
@@ -121,8 +122,12 @@ Panel {
 
   // Right-click context menu target. `menuSsid`/`menuIndex` name the row the
   // menu was opened from; openMenu() fills them and opens the popup beside it.
+  // `menuOpen` tracks the popup so the row cursor can stand down: the spec's
+  // anti-goal is two highlights at once (menu vs row cursor), so while the
+  // popup is up only its own highlight shows.
   property string menuSsid: ""
   property int menuIndex: -1
+  property bool menuOpen: false
   readonly property var menuRow: root.wifiRowForSsid(root.menuSsid)
   // Items for the right-click menu on a Wi-Fi row: the primary connect/
   // disconnect action always, Modify only for a known profile, and Forget only
@@ -1121,7 +1126,7 @@ Panel {
   // use. An untouched form queues nothing and never reconnects.
   function saveEditor(form) {
     if (editingUuid === "" || editorBusy) return
-    var check = Model.validateEditor(form)
+    var check = Model.validateEditor(form, Commons.I18n.t)
     if (!check.ok) {
       editorError = check.error
       return
@@ -1138,12 +1143,12 @@ Panel {
     var identity = form.identity || ""
     var secretLines = ""
     if (identity !== (before.identity || "")) {
-      secretLines += "set 802-1x.identity " + identity + "\n"
+      secretLines += Model.nmcliEditSet("802-1x.identity", identity)
     }
     if (password !== "") {
       // A blank field means "keep the saved passphrase" (the stored value is
       // never read back), so only a typed value is written.
-      secretLines += (before.hasPsk ? "set 802-11-wireless-security.psk " : "set 802-1x.password ") + password + "\n"
+      secretLines += Model.nmcliEditSet(before.hasPsk ? "802-11-wireless-security.psk" : "802-1x.password", password)
     }
     if (secretLines !== "") {
       steps.push({
@@ -1471,13 +1476,26 @@ Panel {
 
       // Opens the right-click ContextMenu beside the row at `index`. Called by
       // root.openMenu() so the menu object — private to this lazily built
-      // content — stays here while the menu target lives on the root.
+      // content — stays here while the menu target lives on the root. The menu
+      // is kept inside the panel content: a row near the bottom edge flips it
+      // above itself instead of letting the actions fall out of the window.
       function openMenu(index) {
         var item = networkList.itemAtIndex(index)
         if (item && contextMenu) {
-          var p = item.mapToItem(contextMenu.parent, 0, 0)
+          var content = contextMenu.parent
+          var p = item.mapToItem(content, 0, 0)
+          // Same geometry ContextMenu gives its Popup, from its public props, so
+          // the flip keeps the whole menu (not just its top) in view.
+          var pad = (Border.top(contextMenu.popupBorderSpec) + Style.spacing.hairline) * 2
+          var menuHeight = contextMenu.items.length * contextMenu.rowHeight
+            + Math.max(0, contextMenu.items.length - 1) * Style.spacing.labelGap
+            + pad
+          var y = p.y + item.height
+          if (content && content.height > 0 && y + menuHeight > content.height) {
+            y = Math.max(0, p.y - menuHeight)
+          }
           contextMenu.x = p.x + Style.space(10)
-          contextMenu.y = p.y + item.height
+          contextMenu.y = y
         }
         if (contextMenu) contextMenu.open()
       }
@@ -2072,12 +2090,15 @@ Panel {
       }
 
       // Right-click menu for a Wi-Fi row. Built with the content so it can sit
-      // beside the row it was opened from; root.openMenu() drives it.
+      // beside the row it was opened from; root.openMenu() drives it. Mirror
+      // its open state onto the panel so the row cursor yields to the menu's
+      // own highlight.
       ContextMenu {
         id: contextMenu
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
         items: root.menuItems
+        onPopupOpenChanged: root.menuOpen = popupOpen
         onActivated: function(key) { root.activateMenu(key) }
       }
     }
@@ -2166,7 +2187,7 @@ Panel {
     readonly property bool forgetFocused: isSelected && root.wifiActionFocused && canForget
     readonly property bool forgetVisible: canForget && (!requiresCredentials || forgetFocused || rightMouse.containsMouse)
 
-    hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused
+    hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused && !root.menuOpen
     current: isConnected
     foreground: root.bar.foreground
     fill: root.hoverFill

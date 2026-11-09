@@ -297,6 +297,29 @@ assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5/24
 assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5', gateway: '', priority: 0 }).ok, false, 'network rejects a manual address without a prefix')
 assertEqual(network.validateEditor({ ipv4Method: 'auto', address: '', gateway: '', priority: 0 }).ok, true, 'network accepts automatic ipv4')
 assertEqual(network.validateEditor({ ipv4Method: 'auto', address: '', gateway: '', priority: -1 }).ok, false, 'network rejects a negative priority')
+// validateEditor stays English without a translator (the Node default) but the
+// editor passes Commons.I18n.t, so every error string must route through it.
+assertEqual(network.validateEditor({ ipv4Method: 'auto', priority: 1.5 }).error,
+  'Priority must be a whole number of 0 or more.', 'network defaults the priority error to English')
+const tr = (key) => key
+assertEqual(network.validateEditor({ ipv4Method: 'auto', priority: 1.5 }, tr).error, 'network.priorityInvalid',
+  'network routes the priority error through tr')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: 'nope', priority: 0 }, tr).error, 'network.addressInvalid',
+  'network routes the address error through tr')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5/24', gateway: 'bad', priority: 0 }, tr).error, 'network.gatewayInvalid',
+  'network routes the gateway error through tr')
+
+// The secret goes through nmcli's interactive value prompt: the property alone
+// on one line and the raw value on the next. That is the only form nmcli keeps
+// verbatim -- the one-line `set <prop> <value>` strips the value and would
+// swallow the next command for an empty one -- so a passphrase's spaces (and
+// leading/trailing ones) survive, and a newline cannot inject a command.
+assertEqual(network.nmcliEditSet('802-11-wireless-security.psk', 'my pass phrase'),
+  'set 802-11-wireless-security.psk\nmy pass phrase\n', 'network writes a passphrase on its own prompt line')
+assertEqual(network.nmcliEditSet('802-1x.identity', ''),
+  'set 802-1x.identity\n\n', 'network keeps an empty value on its own line')
+assertEqual(network.nmcliEditSet('802-1x.password', 'two\nlines'),
+  'set 802-1x.password\ntwo lines\n', 'network flattens a newline so a value cannot inject an editor command')
 
 const noop = network.changedModArgs('uuid-1', { autoConnect: true, priority: 0, metered: 'unknown', ipv4Method: 'auto', address: '', gateway: '' },
   { autoConnect: true, priority: 0, metered: 'unknown', ipv4Method: 'auto', address: '', gateway: '' })

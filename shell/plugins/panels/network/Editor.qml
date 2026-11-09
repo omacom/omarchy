@@ -70,12 +70,17 @@ Column {
     password: ""
   })
 
-  readonly property var validation: Model.validateEditor(form)
+  readonly property var validation: Model.validateEditor(form, Commons.I18n.t)
   readonly property bool canSave: !!fields && validation.ok && !busy
   readonly property bool manual: form.ipv4Method === "manual"
   readonly property string message: error !== "" ? error : (validation.ok ? "" : validation.error)
 
   onFieldsChanged: {
+    // Clear the visible passphrase even when the fields go away (a cancel), so
+    // a secret typed for one network is never painted while another is edited
+    // or after the form is dismissed. The form's own password resets on the
+    // next prefill below.
+    if (pskField) pskField.text = ""
     if (!fields) return
     form = {
       autoConnect: fields.autoConnect,
@@ -230,6 +235,7 @@ Column {
       }
 
       TextField {
+        id: pskField
         width: parent.width
         password: true
         placeholderText: root.copy.passphraseNote

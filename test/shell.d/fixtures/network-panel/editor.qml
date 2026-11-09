@@ -28,7 +28,7 @@ ShellRoot {
   readonly property string nmcliStdinLog: Quickshell.env("NETWORK_TEST_NMCLI_STDIN_LOG")
   readonly property string uuid: "11111111-1111-1111-1111-111111111111"
   readonly property string ambigUuid: "44444444-4444-4444-4444-444444444444"
-  readonly property string secret: "s3cr3t-pass"
+  readonly property string secret: "s3cr3t pass"
   property string lastLog: ""
   property string stage: ""
 
@@ -251,8 +251,11 @@ ShellRoot {
 
   function checkPassphraseStdin(text) {
     var lines = linesOf(lastLog)
-    check(String(text).indexOf("set 802-11-wireless-security.psk " + test.secret) !== -1,
-      "the passphrase is written to nmcli connection edit over stdin")
+    var stdinLines = linesOf(text)
+    check(hasLine(stdinLines, "set 802-11-wireless-security.psk"),
+      "the passphrase is set through nmcli's interactive value prompt")
+    check(hasLine(stdinLines, test.secret),
+      "the passphrase value, spaces and all, is written verbatim on its own stdin line")
     check(String(lastLog).indexOf(test.secret) === -1, "the passphrase never appears in nmcli argv")
     // A passphrase write edits the profile without activating it, so the live
     // link keeps running on the old key unless the active profile is cycled.
@@ -306,7 +309,42 @@ ShellRoot {
     check(panel.editorPicking === false, "choosing a profile leaves the picker")
     check(panel.editingUuid === test.ambigUuid, "the editor reads the chosen profile's uuid")
     check(!!panel.testEditor.fields, "the chosen profile's settings prefill the form")
+    if (failed) { finish(); return }
+    openEditor("KEMENKEU", typePassphrase)
+  }
+
+  // ---------- Phase 5: a typed passphrase does not survive into the next edit ----------
+
+  function typePassphrase() {
+    var field = test.passwordField()
+    check(!!field, "the passphrase field is reachable")
+    if (field) field.text = test.secret
+    check(!!field && field.text === test.secret, "the passphrase field shows the typed value")
+    if (failed) { finish(); return }
+    openEditor("KEMENKEU", checkFieldCleared)
+  }
+
+  function checkFieldCleared() {
+    var field = test.passwordField()
+    check(!!field && field.text === "", "reopening the editor clears the stale passphrase from the field")
     finish()
+  }
+
+  // Locates the passphrase TextField by the objectName the staging adds, so the
+  // fixture can prove the visible field is emptied between edit sessions.
+  function passwordField() {
+    return test.findObject(panel.testEditor, "pskField")
+  }
+
+  function findObject(obj, name) {
+    if (!obj) return null
+    if (obj.objectName === name) return obj
+    var kids = obj.children || []
+    for (var i = 0; i < kids.length; i++) {
+      var found = test.findObject(kids[i], name)
+      if (found) return found
+    }
+    return null
   }
 
   // ---------- Log readers ----------
