@@ -75,17 +75,17 @@ Panel {
 
   function locale() { return Qt.locale(Commons.I18n.formatLocale) }
 
+  // The time alone for today, the short weekday and time before that: it has
+  // to fit beside its label in half the panel.
   function whenText(t) {
     if (!(t > 0)) return "—"
     var d = new Date(t * 1000)
     var time = d.toLocaleTimeString(locale(), Locale.ShortFormat)
     var today = new Date(); today.setHours(0, 0, 0, 0)
-    var day = new Date(d.getTime()); day.setHours(0, 0, 0, 0)
-    var days = Math.round((today - day) / 86400000)
-    if (days === 0) return Commons.I18n.t("power.historyToday").arg(time)
-    if (days === 1) return Commons.I18n.t("power.historyYesterday").arg(time)
+    if (d >= today) return time
     return d.toLocaleDateString(locale(), "ddd") + " " + time
   }
+
 
   function durationText(sec) {
     if (!(sec >= 0)) return "—"
@@ -619,9 +619,12 @@ Panel {
                 root.cursorRow = "history"
                 root.windowIndex = index
               }
-              options: root.historyWindowKeys.map(function(key) {
-                return { value: key, label: Commons.I18n.t("power.historyWindow" + key) }
-              })
+              // Same order as historyWindowKeys, which the keyboard cursor walks.
+              options: [
+                { value: "6h", label: Commons.I18n.t("power.historyWindow6h") },
+                { value: "24h", label: Commons.I18n.t("power.historyWindow24h") },
+                { value: "3d", label: Commons.I18n.t("power.historyWindow3d") }
+              ]
               value: root.historyWindow
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
