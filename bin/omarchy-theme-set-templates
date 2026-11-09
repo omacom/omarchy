@@ -467,3 +467,4 @@ fi
 
 apply_neovim_declaration
 apply_shell_section_overrides
+omarchy-theme-set-glass "$NEXT_THEME_DIR"

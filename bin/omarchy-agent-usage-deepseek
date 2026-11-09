@@ -1,0 +1,450 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the DeepSeek usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect DeepSeek usage into one display-ready JSON record.
+
+Local stats come from pi/omp session files whose assistant messages ran on the
+deepseek provider, from opencode sessions that ran on a deepseek provider, and
+from DeepSeek Harness (dsh) session logs on its DeepSeek routes. DeepSeek
+billing is prepaid, so the record carries the live credit balance from
+GET https://api.deepseek.com/user/balance when a key is available, plus the
+optional funded/spent detail derived from ~/.config/omarchy/agents/deepseek.json
+(the same shape the fireworks collector uses). The agents panel only ever reads
+the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import math
+import os
+import sys
+import urllib.request
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+from typing import Any
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  Stats,
+  base_record as shared_base_record,
+  cached_scan,
+  config_home,
+  data_home,
+  dsh_home,
+  emit,
+  limits_cache_path,
+  now_ms,
+  number,
+  obj,
+  open_json,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  routed_match,
+  routed_sources,
+  scan_dsh_sessions,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  scan_routed,
+  trusted_endpoint,
+  warn,
+)
+
+AGENT_ID = "deepseek"
+AGENT_NAME = "DeepSeek"
+API_BASE_URL = "https://api.deepseek.com"
+OUT_OF_CREDITS_HELP = "DeepSeek says the balance no longer covers API calls. Top up at platform.deepseek.com."
+
+# DeepSeek Harness bills DeepSeek through these provider routes: an API key
+# and a DeepSeek account sign-in (its DeepSeek adapter), and its pi-ai
+# adapter's route for pi-ai's own `deepseek` provider, the id pi and opencode
+# name too. Its other pi-ai routes belong to whoever bills them: OpenRouter's
+# to the openrouter collector, a hand-declared gateway's to nobody here.
+DSH_PROVIDERS = ("deepseek-official", "deepseek-account", "deepseek")
+
+
+class DeepSeekError(Exception):
+  def __init__(self, message: str, transport: bool = False, refused: bool = False) -> None:
+    super().__init__(message)
+    self.transport = transport
+    self.refused = refused
+
+
+def model_name(raw: Any) -> str:
+  value = str(raw or AGENT_ID)
+  return value if value else AGENT_ID
+
+
+# ---------------------------------------------------- pi, omp, and opencode
+
+# pi, omp, and opencode name the provider alike. Exact match: a custom
+# gateway named like DeepSeek is not this account.
+def billed_here(provider: str, model: str, entry: dict) -> bool:
+  return provider == "deepseek"
+
+
+def add_harness_rows(stats: Stats) -> bool:
+  """Add pi/omp and opencode messages on the deepseek provider. Returns
+  whether every source was read in full."""
+  pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"deepseek"', billed_here)
+  for row in pi_rows:
+    stats.add_row(row, model_name(row.model))
+  # The closing quote makes the database's prefilter match the whole id.
+  db_rows, db_complete = scan_opencode(['deepseek"'], billed_here)
+  for row in db_rows:
+    stats.add_row(row, model_name(row.model.rstrip("/").split("/")[-1]))
+  return pi_complete and db_complete
+
+
+# -------------------------------------------------------- DeepSeek Harness
+
+def dsh_billed_here(provider: str, model: str, request: dict) -> bool:
+  return provider in DSH_PROVIDERS
+
+
+def scan_dsh(stats: Stats) -> bool:
+  rows, complete = scan_dsh_sessions(dsh_billed_here)
+  for row in rows:
+    stats.add_row(row, model_name(row.model))
+  return complete
+
+
+# ------------------------------------------------------------- scan cache
+
+def run_local_scans(reuse: bool = True) -> tuple[dict[str, Any], bool]:
+  stats = Stats()
+  complete = add_harness_rows(stats)
+  complete = scan_dsh(stats) and complete
+  # Claude Code pointed at DeepSeek's Anthropic API, or answered by a
+  # DeepSeek model, and a MiniMax Code custom provider at DeepSeek's host.
+  routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
+  for row in routed_rows:
+    stats.add_row(row, model_name(row.model))
+  return stats.snapshot(), complete and routed_complete
+
+
+def cached_local_stats(max_age: float) -> dict[str, Any]:
+  # The digest covers every data path the scan reads.
+  sources = [opencode_db(), dsh_home(), *pi_session_roots(), *routed_sources()]
+  # A forced scan reads every Codex rollout again too.
+  return cached_scan(AGENT_ID, sources, max_age, lambda: run_local_scans(reuse=max_age > 0), match=routed_match())
+
+
+# -------------------------------------------------------------- credentials
+
+def read_key_from_dict(parsed: Any, provider: str) -> str:
+  if not isinstance(parsed, dict):
+    return ""
+  entry = parsed.get(provider)
+  if isinstance(entry, dict):
+    entry = entry.get("key") or entry.get("apiKey") or entry.get("api_key")
+  key = entry.strip() if isinstance(entry, str) else ""
+  # Only a literal key is taken: a pi `$VAR` or `!command` entry is resolved
+  # by pi alone, and sent as it stands it would read as a refused key.
+  return "" if key.startswith(("!", "$")) else key
+
+
+def pi_agent_dir() -> Path:
+  configured = os.environ.get("PI_CODING_AGENT_DIR", "").strip()
+  return Path(os.path.expanduser(configured)) if configured else Path.home() / ".pi" / "agent"
+
+
+def read_json_key(path: Path, provider: str) -> str:
+  return read_key_from_dict(read_json(path), provider)
+
+
+def unquote(value: str) -> str:
+  value = value.strip()
+  if value[:1] in ("'", '"'):
+    end = value.find(value[0], 1)
+    return value[1:end] if end > 0 else ""
+  # An unquoted scalar ends where a comment begins.
+  return value.split(" #", 1)[0].strip()
+
+
+def read_dsh_credentials_key(path: Path) -> str:
+  """DEEPSEEK_API_KEY from dsh's managed `.credentials.yaml`.
+
+  Only the one plain scalar is needed, so this reads the line rather than
+  pulling in a YAML parser: `refs:` holds it in the current layout, and the
+  pre-release layout kept it at the top level.
+  """
+  try:
+    text = path.read_text(encoding="utf-8")
+  except (OSError, UnicodeDecodeError):
+    return ""
+  section = ""
+  for line in text.splitlines():
+    if not line.strip() or line.lstrip().startswith("#"):
+      continue
+    if not line[0].isspace():
+      section = line.split(":", 1)[0].strip()
+      if section == "DEEPSEEK_API_KEY":
+        return unquote(line.split(":", 1)[1])
+      continue
+    if section == "refs":
+      name, _, value = line.strip().partition(":")
+      if name.strip() == "DEEPSEEK_API_KEY":
+        return unquote(value)
+  return ""
+
+
+def read_dotenv_key(path: Path) -> str:
+  try:
+    text = path.read_text(encoding="utf-8")
+  except (OSError, UnicodeDecodeError):
+    return ""
+  for line in text.splitlines():
+    line = line.strip()
+    if line.startswith("export "):
+      line = line[len("export "):].strip()
+    name, sep, value = line.partition("=")
+    if sep and name.strip() == "DEEPSEEK_API_KEY":
+      return unquote(value)
+  return ""
+
+
+def api_key() -> str:
+  # The environment first, then the agents that keep a DeepSeek key, read
+  # only: pi and omp, opencode, and dsh's managed store with its `.env`
+  # fallback.
+  env_key = str(os.environ.get("DEEPSEEK_API_KEY", "")).strip()
+  if env_key:
+    return env_key
+  for read in (
+    lambda: read_json_key(pi_agent_dir() / "auth.json", "deepseek"),
+    lambda: read_json_key(Path.home() / ".omp" / "agent" / "auth.json", "deepseek"),
+    lambda: read_json_key(data_home() / "opencode" / "auth.json", "deepseek"),
+    lambda: read_dsh_credentials_key(dsh_home() / ".credentials.yaml"),
+    lambda: read_dotenv_key(dsh_home() / ".env"),
+  ):
+    key = read()
+    if key:
+      return key
+  return ""
+
+
+def read_config() -> dict[str, Any]:
+  return read_json(config_home() / "omarchy" / "agents" / "deepseek.json")
+
+
+# ----------------------------------------------------------------- balance
+
+def representable(amount: Decimal) -> bool:
+  # Finite as a Decimal can still overflow the float the record prints.
+  return amount.is_finite() and math.isfinite(float(amount))
+
+
+def money(value: Any) -> Decimal:
+  if isinstance(value, bool):
+    return Decimal("0")
+  try:
+    amount = Decimal(str(value or "0"))
+  except InvalidOperation:
+    return Decimal("0")
+  return amount if representable(amount) else Decimal("0")
+
+
+def fetch_balance(api_base_url: str, key: str) -> dict[str, Any]:
+  """GET /user/balance: total_balance, granted_balance, topped_up_balance."""
+  url = api_base_url.rstrip("/") + "/user/balance"
+  # DEEPSEEK_API_BASE_URL moves the endpoint, never the key onto a
+  # connection anyone on the way can read.
+  if not trusted_endpoint(url):
+    raise DeepSeekError("DEEPSEEK_API_BASE_URL must use HTTPS (plain HTTP only for loopback).")
+  request = urllib.request.Request(
+    url,
+    headers={"Authorization": "Bearer " + key, "Accept": "application/json"},
+  )
+  try:
+    payload = open_json(request, timeout=15)
+  except HttpError as error:
+    if error.status in (401, 403):
+      raise DeepSeekError("DeepSeek rejected the saved API key. Set a current one in DEEPSEEK_API_KEY or the agent that holds it.", refused=True) from error
+    if error.status:
+      raise DeepSeekError(f"DeepSeek's balance endpoint returned HTTP {error.status}.") from error
+    if error.transport:
+      # No answer at all: no route, no DNS, a timeout. Worth a retry soon.
+      raise DeepSeekError("Couldn't reach the DeepSeek API. Retrying shortly.", transport=True) from error
+    raise DeepSeekError("DeepSeek returned an invalid balance response.") from error
+
+  if not isinstance(payload, dict):
+    raise DeepSeekError("DeepSeek returned an invalid balance response.")
+  infos = payload.get("balance_infos")
+  if not isinstance(infos, list) or not infos:
+    raise DeepSeekError("DeepSeek's balance response carried no balance_infos.")
+
+  # One entry per currency (CNY or USD). The one holding credit is the
+  # balance, so an empty CNY entry never hides a funded USD one; with none
+  # funded, the first. An entry without a readable total says nothing and is
+  # skipped, and an answer with none is a failed check that keeps the last
+  # good balance, never a balance of zero.
+  readable = []
+  for info in infos:
+    if not isinstance(info, dict):
+      continue
+    total = info.get("total_balance")
+    try:
+      remaining = None if isinstance(total, bool) or total is None else Decimal(str(total).strip())
+    except InvalidOperation:
+      remaining = None
+    if remaining is not None and representable(remaining):
+      readable.append((remaining, info))
+  if not readable:
+    raise DeepSeekError("DeepSeek's balance response carried no total_balance.")
+  remaining, info = next((entry for entry in readable if entry[0] > 0), readable[0])
+
+  return {
+    "remaining": remaining,
+    "granted": money(info.get("granted_balance")),
+    "toppedUp": money(info.get("topped_up_balance")),
+    "currency": str(info.get("currency") or "CNY"),
+    # DeepSeek's own word on whether the balance still covers API calls.
+    "available": payload.get("is_available") is not False and remaining > 0,
+  }
+
+
+def balance_record(remaining: Decimal, currency: str) -> dict[str, Any]:
+  config = read_config()
+  funded = money(config.get("fundedAmount"))
+  if funded < 0:
+    funded = Decimal("0")
+  spent = max(Decimal("0"), funded - remaining) if funded > 0 else Decimal("0")
+  return {
+    "remaining": float(max(Decimal("0"), remaining)),
+    "funded": float(funded),
+    "spent": float(spent),
+    "currency": str(currency or "CNY"),
+    # funded/spent derive from the configured fundedAmount, not DeepSeek's
+    # own ledger, so they are labelled estimates; remaining is live.
+    "estimated": funded > 0,
+  }
+
+
+# One cache per key and endpoint, so a machine signed in to another account
+# never shows the last one's balance.
+def balance_cache_path(key: str, api_base_url: str) -> Path:
+  return limits_cache_path(AGENT_ID, api_base_url.rstrip("/"), key)
+
+
+def out_of_credits(result: dict[str, Any], available: Any) -> None:
+  # With no funded figure the balance gauge can't raise this alarm itself,
+  # so the status does.
+  if available is False:
+    result.update(usageStatusText="Out of credits", authHelpText=OUT_OF_CREDITS_HELP)
+
+
+def collect_balance(key: str, api_base_url: str, force: bool) -> dict[str, Any]:
+  result: dict[str, Any] = {"balance": None, "stale": False, "fetchedAtMs": 0, "usageStatusText": "", "authHelpText": "", "retryAdvised": False}
+  cache = None
+  try:
+    cache = LimitsCache.at(balance_cache_path(key, api_base_url))
+  except OSError as exc:
+    warn(f"could not read the balance cache ({exc})")
+  kept = obj(cache.data.get("balance")) if cache else {}
+  fetched_at = cache.fetched_at if cache else 0
+
+  # A panel opened and closed repeatedly must not become one request per
+  # flick, so a recent answer is reused, though a balance has no limit
+  # windows; --force skips the wait.
+  if kept and cache.fresh(force, allow_empty=True):
+    result.update(balance=balance_record(money(kept.get("remaining")), str(kept.get("currency") or "")), fetchedAtMs=fetched_at)
+    out_of_credits(result, kept.get("available"))
+    return result
+
+  try:
+    live = fetch_balance(api_base_url, key)
+  except DeepSeekError as error:
+    result["retryAdvised"] = error.transport
+    result["authHelpText"] = str(error)
+    if kept:
+      # The last good balance, marked stale with when it was read, beats an
+      # empty section while DeepSeek can't be asked.
+      result.update(balance=balance_record(money(kept.get("remaining")), str(kept.get("currency") or "")), stale=True, fetchedAtMs=fetched_at)
+      out_of_credits(result, kept.get("available"))
+      result["authHelpText"] = str(error)
+    if error.refused:
+      result["usageStatusText"] = "Sign-in expired"
+    elif not kept:
+      result["usageStatusText"] = "Balance unavailable"
+    return result
+
+  balance = {"remaining": str(live["remaining"]), "currency": live["currency"], "available": live["available"]}
+  fetched_at = cache.save([], only_if_newer=True, balance=balance) if cache is not None else now_ms()
+  result.update(balance=balance_record(live["remaining"], live["currency"]), fetchedAtMs=fetched_at)
+  out_of_credits(result, live["available"])
+  return result
+
+
+# ------------------------------------------------------------------ record
+
+# Whether a scan found any DeepSeek usage on this machine: a session, or
+# tokens no session is known for.
+def has_local_stats(stats: dict[str, Any]) -> bool:
+  return number(stats.get("totalSessions")) > 0 or bool(stats.get("modelUsage"))
+
+
+def base_record(stats: dict[str, Any] | None = None) -> dict[str, Any]:
+  # Prompt and session counts are real: every pi session message carries
+  # them, so today's tooltip may show "N prompts · M sessions".
+  record = shared_base_record(AGENT_ID, AGENT_NAME)
+  if stats is not None:
+    record.update(stats, hasLocalStats=has_local_stats(stats))
+  return record
+
+
+def collect(api_base_url: str, max_age: float, force: bool) -> dict[str, Any]:
+  record = base_record(cached_local_stats(max_age))
+  record["ready"] = record["hasLocalStats"]
+
+  # Without a key the record carries local stats only, with no plan, so the
+  # panel leaves out the balance section, and skips the record altogether on
+  # a machine that has never used DeepSeek.
+  key = api_key()
+  if not key:
+    return record
+  record.update(ready=True, tierLabel="Prepaid")
+  balance = collect_balance(key, api_base_url, force)
+  if balance["balance"] is not None:
+    record["balance"] = balance["balance"]
+  record.update(
+    usageStatusText=balance["usageStatusText"],
+    authHelpText=balance["authHelpText"],
+    limitsStale=balance["stale"],
+    limitsFetchedAt=balance["fetchedAtMs"],
+  )
+  if balance["retryAdvised"]:
+    record["retryAdvised"] = True
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the DeepSeek usage record as JSON")
+  # --force rescans everything and asks DeepSeek past the reuse window.
+  # --limits-only (the panel's quick refresh) may reuse a scan for 15
+  # minutes, but asks for the balance like a normal run.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.add_argument("--api-base-url", default=os.environ.get("DEEPSEEK_API_BASE_URL", API_BASE_URL))
+  args = parser.parse_args()
+
+  try:
+    record = collect(args.api_base_url, scan_max_age(args.force, args.limits_only), args.force)
+  except Exception as error:
+    # A bug, not a state the panel should explain: an empty record keeps
+    # the panel steady, and stderr says what broke.
+    record = base_record()
+    warn(f"{type(error).__name__}: {error}")
+  emit(record)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

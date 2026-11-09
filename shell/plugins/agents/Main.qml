@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons
 
 // The display side of agent usage. All extraction lives behind
 // omarchy-agent-usage-update, which writes one JSON record per agent into
@@ -14,6 +15,71 @@ Item {
 
   readonly property string home: Quickshell.env("HOME") || ""
   readonly property string usageDir: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/usage"
+
+  // Server lifecycle is independent of the local usage collector. Keep the
+  // watch alive even before the panel's content has been built.
+  property var localModel: ({})
+
+  FileView {
+    id: localModelFile
+    path: root.home + "/.local/state/omarchy/agent-local/status.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.parseLocalModel(text())
+  }
+
+  // The catalog's recipes as this machine sees them (fits, best, installed),
+  // which Add another › Local AI offers from.
+  property var localRecipes: []
+
+  FileView {
+    id: localRecipesFile
+    path: root.home + "/.local/state/omarchy/agent-local/list.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      try {
+        var parsed = JSON.parse(text())
+        if (Array.isArray(parsed)) root.localRecipes = parsed
+      } catch (e) {
+        // A half-written listing keeps the last good one.
+      }
+    }
+  }
+
+  // Rewrites the listing and status, which a package upgrade may have
+  // changed. On a fresh account neither file exists until this first run, and
+  // a missing file can't be watched, so both are loaded once it finishes.
+  function refreshLocal() {
+    if (!localRefresh.running) localRefresh.running = true
+  }
+
+  Process {
+    id: localRefresh
+    command: ["omarchy-agent-local", "refresh", "--quiet"]
+    onExited: {
+      localRecipesFile.reload()
+      localModelFile.reload()
+    }
+  }
+
+  function parseLocalModel(content) {
+    try {
+      var parsed = JSON.parse(content)
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
+      if (!parsed.models || typeof parsed.models !== "object" || Array.isArray(parsed.models)) return
+      for (var id in parsed.models) {
+        var model = parsed.models[id]
+        if (!model || model.recipe !== id || id === "") return
+        if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
+      }
+      root.localModel = parsed
+    } catch (e) {
+      // A missing or partially written file leaves the last good state intact.
+    }
+  }
 
   // ------------------------------------------------------------- discovery
 
@@ -237,6 +303,16 @@ Item {
     return orderedProviders(result)
   }
 
+  // The panel gives a section only to an agent with a subscription to show:
+  // limits, a balance, a plan, or accounts. Local history alone still counts
+  // toward the summary, but would leave an empty section.
+  readonly property var subscribedProviders: enabledProviders.filter(providerHasSubscription)
+
+  function providerHasSubscription(p) {
+    return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
+      || !!p.balance || p.tierLabel !== ""
+  }
+
   // ----------------------------------------------------------------- order
   //
   // The panel's agents in the order someone dragged them into, kept beside the
@@ -244,6 +320,29 @@ Item {
   // the ones it does.
   readonly property string orderPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/order.json"
   property var providerOrder: []
+
+  readonly property var panelProviders: {
+    var list = subscribedProviders.slice()
+    var models = localModel.models || {}
+    for (var id in models)
+      list.push({ providerId: "local:" + id, localModel: models[id] })
+    var offer = localOffer(localRecipes, models, providerEnabled)
+    if (offer) list.push({ providerId: "local:" + offer.id, providerName: offer.name || offer.id, localOffer: offer })
+    return orderedProviders(list)
+  }
+
+  // A machine with no local model yet is offered the one the catalog
+  // recommends for it, ready to download from the first page. It shares its
+  // id with the model it becomes, so it keeps its place once set up, and
+  // hiding it hides the offer, not the model.
+  function localOffer(recipes, models, enabled) {
+    if (Object.keys(models || {}).length > 0) return null
+    for (var i = 0; i < (recipes || []).length; i++) {
+      var recipe = recipes[i]
+      if (recipe && recipe.best && recipe.available && !recipe.installed && enabled("local:" + recipe.id)) return recipe
+    }
+    return null
+  }
 
   function orderedProviders(list) {
     var order = providerOrder
@@ -256,7 +355,7 @@ Item {
 
   // Moves one agent to a position among the ones shown, and saves the result.
   function moveProvider(id, to) {
-    var ids = enabledProviders.map(function(p) { return p.providerId })
+    var ids = panelProviders.map(function(p) { return p.providerId })
     var from = ids.indexOf(id)
     if (from < 0) return
     to = Math.max(0, Math.min(ids.length - 1, to))
@@ -400,7 +499,7 @@ Item {
     onRunningChanged: root.updateSyncRunning()
     onExited: function(exitCode) {
       if (exitCode !== 0) {
-        if (root.syncConfigured()) root.syncStatusText = "Usage sync mkdir failed"
+        if (root.syncConfigured()) root.syncStatusText = I18n.t("agents.syncMkdirFailed")
         root.finishSyncRun()
         return
       }
@@ -413,7 +512,7 @@ Item {
     running: false
     onRunningChanged: root.updateSyncRunning()
     onExited: function(exitCode) {
-      if (exitCode !== 0 && root.syncConfigured()) root.syncStatusText = "Usage sync scan failed"
+      if (exitCode !== 0 && root.syncConfigured()) root.syncStatusText = I18n.t("agents.syncScanFailed")
       root.finishSyncRun()
     }
 
@@ -790,11 +889,11 @@ Item {
   // ---------------------------------------------------------------- format
 
   function formatTokenCount(n) {
-    if (n === undefined || n === null) return "0"
-    if (n >= 1e9) return (n / 1e9).toFixed(1) + "B"
-    if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"
-    if (n >= 1e3) return (n / 1e3).toFixed(1) + "K"
-    return String(n)
+    if (n === undefined || n === null) return I18n.formatNumber(0)
+    if (n >= 1e9) return I18n.formatNumber(n / 1e9, 1) + "B"
+    if (n >= 1e6) return I18n.formatNumber(n / 1e6, 1) + "M"
+    if (n >= 1e3) return I18n.formatNumber(n / 1e3, 1) + "K"
+    return I18n.formatNumber(n)
   }
 
   function modelWordCase(word) {
@@ -807,7 +906,7 @@ Item {
   // (`claude-opus-4-8`, `gpt-5.6-sol`). Rejoin the numeric run into one
   // version and title-case the words around it.
   function friendlyModelName(id) {
-    if (!id) return "Unknown"
+    if (!id) return I18n.t("agents.unknownModel")
     var name = String(id).replace(/^claude-/, "").replace(/-\d{8}$/, "")
     var parts = name.split("-")
     var words = []
@@ -826,6 +925,6 @@ Item {
       words.push(modelWordCase(part))
     }
     if (version.length > 0) words.push(version.join("."))
-    return words.length > 0 ? words.join(" ") : "Unknown"
+    return words.length > 0 ? words.join(" ") : I18n.t("agents.unknownModel")
   }
 }
