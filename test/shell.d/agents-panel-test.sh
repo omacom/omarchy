@@ -121,7 +121,50 @@ parse('{"models":{"model-a":{"recipe":"model-a","unit":"failed","result":"exit-c
 assertEqual(state.localModel.models['model-a'].result, 'exit-code', 'a server failure replaces the running state')
 parse('{"models":{}}')
 assertDeepEqual(state.localModel.models, {}, 'an empty models map clears the local lines')
+parse('{"models":{"model-a":{"recipe":"model-a","unit":"installing","install":{"phase":"downloading","done_bytes":5,"total_bytes":10}}}}')
+assertEqual(state.localModel.models['model-a'].unit, 'installing', 'a setup in progress loads, so its download shows')
 JS
+
+# The recommended model is offered on the first page until a local model
+# exists or the offer is hidden.
+run_node_test <<'JS'
+const fs = require('fs')
+const main = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const localOffer = new Function(main.match(/function localOffer\([^]*?\n  \}/)[0] + '\nreturn localOffer')()
+const recipes = [{ id: 'qwen', available: true }, { id: 'nemotron', best: true, available: true }]
+const everyone = () => true
+assertEqual(localOffer(recipes, {}, everyone).id, 'nemotron', 'a machine without local models is offered the best recipe')
+assertEqual(localOffer(recipes, { qwen: { unit: 'inactive' } }, everyone), null, 'a machine with a local model gets no offer')
+assertEqual(localOffer(recipes, {}, id => id !== 'local:nemotron'), null, 'a hidden offer stays hidden')
+assertEqual(localOffer([{ id: 'nemotron', best: true, available: false }], {}, everyone), null, 'a best recipe that does not fit is not offered')
+JS
+
+# The panel has no terminal for sudo: a detached setup missing its packages
+# installs them in one first, and otherwise starts at once.
+wrapper_dir=$(mktemp -d)
+trap 'rm -rf "$wrapper_dir"' EXIT
+for stub in omarchy-hw-nvidia omarchy-pkg-add omarchy-local-ai omarchy-launch-floating-terminal-with-presentation; do
+  printf '#!/bin/bash\nprintf "%%s\\n" "%s $*" >>"%s/calls"\n' "$stub" "$wrapper_dir" >"$wrapper_dir/$stub"
+done
+printf '#!/bin/bash\nexit 1\n' >"$wrapper_dir/omarchy-hw-nvidia"
+chmod +x "$wrapper_dir"/omarchy-*
+run_wrapper() {
+  rm -f "$wrapper_dir/calls"
+  printf '#!/bin/bash\nexit %s\n' "$1" >"$wrapper_dir/omarchy-pkg-missing"
+  chmod +x "$wrapper_dir/omarchy-pkg-missing"
+  shift
+  PATH="$wrapper_dir:$PATH" "$ROOT/bin/omarchy-agent-local" "$@"
+  cat "$wrapper_dir/calls"
+}
+calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
+[[ $calls == "omarchy-launch-floating-terminal-with-presentation omarchy-pkg-add podman crun && omarchy-local-ai 'use' '--detach' 'nemotron-3.5-bolt-tensorfold'" ]] || fail "a detached setup missing its packages installs them in a terminal first" "$calls"
+pass "a detached setup missing its packages installs them in a terminal first"
+calls=$(run_wrapper 1 use --detach nemotron-3.5-bolt-tensorfold)
+[[ $calls == "omarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold" ]] || fail "a detached setup with its packages starts without a terminal" "$calls"
+pass "a detached setup with its packages starts without a terminal"
+calls=$(run_wrapper 1 use nemotron-3.5-bolt-tensorfold)
+[[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold' ]] || fail "a setup in a terminal installs its packages there" "$calls"
+pass "a setup in a terminal installs its packages there"
 
 # Hosted and local rows share ordering, including positions saved while hidden.
 run_node_test <<'JS'

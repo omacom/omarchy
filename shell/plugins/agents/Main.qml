@@ -73,7 +73,7 @@ Item {
       for (var id in parsed.models) {
         var model = parsed.models[id]
         if (!model || model.recipe !== id || id === "") return
-        if (["active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
+        if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
       }
       root.localModel = parsed
     } catch (e) {
@@ -326,7 +326,22 @@ Item {
     var models = localModel.models || {}
     for (var id in models)
       list.push({ providerId: "local:" + id, localModel: models[id] })
+    var offer = localOffer(localRecipes, models, providerEnabled)
+    if (offer) list.push({ providerId: "local:" + offer.id, providerName: offer.name || offer.id, localOffer: offer })
     return orderedProviders(list)
+  }
+
+  // A machine with no local model yet is offered the one the catalog
+  // recommends for it, ready to download from the first page. It shares its
+  // id with the model it becomes, so it keeps its place once set up, and
+  // hiding it hides the offer, not the model.
+  function localOffer(recipes, models, enabled) {
+    if (Object.keys(models || {}).length > 0) return null
+    for (var i = 0; i < (recipes || []).length; i++) {
+      var recipe = recipes[i]
+      if (recipe && recipe.best && recipe.available && !recipe.installed && enabled("local:" + recipe.id)) return recipe
+    }
+    return null
   }
 
   function orderedProviders(list) {
