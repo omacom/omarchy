@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
@@ -44,6 +45,7 @@ Item {
     userMenuFile.reload()
     languageFile.reload()
     menuCatalogFile.reload()
+    shortcutRefresh.restart()
     return "ok"
   }
 
@@ -101,6 +103,65 @@ Item {
   property var providersLoaded: ({})
   property var providerQueue: []
   property int providerRevision: 0
+
+  // Refresh outside the open path. A cold menu renders without hints until
+  // this finishes; subsequent opens only read the in-memory index.
+  property var shortcutIndex: ({})
+  property bool shortcutsPending: false
+  readonly property var shortcutHints: MenuModel.shortcutHints(root.items, root.itemOrder, root.shortcutIndex)
+
+  function refreshShortcuts() {
+    if (shortcutProc.running) {
+      root.shortcutsPending = true
+      return
+    }
+    root.shortcutsPending = false
+    shortcutProc.collected = ""
+    shortcutProc.running = true
+  }
+
+  Timer {
+    id: shortcutRefresh
+    interval: 250
+    running: true
+    onTriggered: root.refreshShortcuts()
+  }
+
+  // Changing a default app changes the target of an existing binding without
+  // changing Hyprland's configuration. Refresh on those file events too.
+  Instantiator {
+    model: [Quickshell.env("HOME") + "/.config/mimeapps.list",
+      Quickshell.env("HOME") + "/.config/xdg-terminals.list",
+      Quickshell.env("HOME") + "/.local/state/omarchy/defaults/editor"]
+    delegate: FileView {
+      required property string modelData
+      path: modelData
+      watchChanges: true
+      printErrors: false
+      onFileChanged: shortcutRefresh.restart()
+    }
+  }
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (event && String(event.name) === "configreloaded") shortcutRefresh.restart()
+    }
+  }
+
+  Process {
+    id: shortcutProc
+    command: [root.omarchyPath + "/bin/omarchy-menu-keybindings", "--records"]
+    property string collected: ""
+    stdout: SplitParser {
+      onRead: function(data) { shortcutProc.collected += data + "\n" }
+    }
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode === 0 && exitStatus === 0)
+        root.shortcutIndex = MenuModel.shortcutIndex(shortcutProc.collected)
+      if (root.shortcutsPending) shortcutRefresh.restart()
+    }
+  }
 
   // Shared application engine (entries, hidden filters, icons, launch,
   // removal), owned by the shell and also used by the standalone launcher.
@@ -386,6 +447,7 @@ Item {
         icon: "",
         appIcon: String(entry.icon || ""),
         appId: appId,
+        appCommand: Array.prototype.slice.call(entry.command || []),
         label: root.appLibrary.entryName(entry),
         title: "",
         target: "",
@@ -1582,11 +1644,26 @@ Item {
 
               Row {
                 id: trail
-                width: Style.space(14)
+                width: Style.space(14) + shortcutText.width + (shortcutText.text ? Style.space(6) : 0)
                 anchors.right: parent.right
                 anchors.rightMargin: root.rowReservedBorderRight + Style.space(8)
                 y: contentColumn.y + labelText.y + (labelText.height - height) / 2
                 spacing: 0
+
+                Text {
+                  id: shortcutText
+                  textFormat: Text.PlainText
+                  text: root.dmenuActive ? "" : (root.shortcutHints[row.itemId] || "")
+                  width: text ? Math.min(implicitWidth, row.width * 0.42) : 0
+                  elide: Text.ElideRight
+                  anchors.verticalCenter: parent.verticalCenter
+                  font.family: "Adwaita Sans"
+                  font.pixelSize: Style.font.subtitle
+                  font.weight: Font.Medium
+                  font.letterSpacing: Style.space(0.6)
+                  color: row.hasCursor ? root.selectedText : root.foreground
+                  opacity: 0.7
+                }
 
                 Text {
                   textFormat: Text.PlainText

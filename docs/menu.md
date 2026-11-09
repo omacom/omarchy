@@ -184,3 +184,11 @@ Pass `-- --multiple` to `omarchy-menu-select` for a multi-select request. Repeat
 With `--on-change <JSON command array>`, each toggle runs that command with the proposed selection JSON appended as its final argument, and no Apply row is shown. The checkbox changes only after the command succeeds; a failed command retains the previous selection. Changes persist when the menu closes. The typing selectors use this mode.
 
 For immediate multi-select requests, `--change-key <key>` identifies the setting being changed across picker openings. The menu keeps queued selections for that key when reopened, so a new toggle cannot discard a change still being saved. Without a key, the command array identifies the setting.
+
+## Inline shortcuts
+
+Standard menu rows show one matching Hyprland shortcut, right aligned with compact modifier symbols (⌘ Super, ⌃ Control, ⇧ Shift, ⌥ Alt). Matching uses the action command or resolved menu route, never the displayed label. Unresolved Lua callbacks and shell commands requiring expansion are left without a hint. Submenu links share the destination's shortcut.
+
+The menu obtains dispatch records from `omarchy-menu-keybindings --records`, reusing the keybindings menu's Lua recovery. Records are scanned afresh because opaque Lua callback ids can stay the same when a command changes. The process runs asynchronously at startup and after Hyprland's `configreloaded` event. Successful results replace an in-memory index; a failed refresh keeps the previous hints. Menu opening performs no shortcut process, configuration scan, or binding lookup. A menu opened before the first result is ready displays normally and gains hints when the result arrives.
+
+Application rows match their desktop entry's command or desktop ID. Optional desktop file/URL placeholders are omitted for matching, while actual arguments and web-app URLs remain significant. The background collector resolves the configured browser, terminal, and editor; file watches refresh those results when defaults change. Common Omarchy app launchers and focus-or-launch wrappers are recognized without executing them. Arbitrary shell wrappers remain opaque.

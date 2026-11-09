@@ -684,8 +684,133 @@ function applyTranslations(items, catalog) {
   return out
 }
 
+// Only recognize literal commands. Shell expansion and compound commands are
+// intentionally opaque: a similar label or a command prefix is not identity.
+function shortcutCommand(command) {
+  var rest = String(command || "").trim()
+  var words = []
+  while (rest) {
+    var match = /^(?:'([^']*)'|"([^"\\$`]*?)"|([^\s'"\\$`;&|<>()]+))(?:\s+|$)/.exec(rest)
+    if (!match) return ""
+    words.push(match[1] !== undefined ? match[1] : (match[2] !== undefined ? match[2] : match[3]))
+    rest = rest.substring(match[0].length)
+  }
+  if (words[0] === "omarchy" && words.length > 1) {
+    // The CLI router and its legacy binary names run the same command.
+    words = ["omarchy-" + words[1]].concat(words.slice(2))
+  }
+  if (words[0] === "omarchy-shell" && words[1] === "shell"
+      && (words[2] === "toggle" || words[2] === "summon")) words[2] = "summon"
+  return words.length ? JSON.stringify(words) : ""
+}
+
+function shortcutChord(chord) {
+  var first = String(chord || "").split(" / ")[0].trim()
+  return first.replace(/SUPER/g, "⌘").replace(/CTRL/g, "⌃")
+    .replace(/SHIFT/g, "⇧").replace(/ALT/g, "⌥")
+    .replace(/\bRETURN\b/g, "↵").replace(/\bESCAPE\b/g, "Esc")
+    .replace(/\bCOMMA\b/g, ",").replace(/\bPERIOD\b/g, ".")
+    .replace(/\bBACKSPACE\b/g, "⌫").replace(/\bSPACE\b/g, "Space").replace(/ \+ /g, "").replace(/([⌘⌃⇧⌥]) +/g, "$1")
+}
+
+// Keep arguments when matching apps: private windows and distinct web apps
+// must not acquire the shortcut for the ordinary browser. Desktop field codes
+// describe optional files/URLs, not arguments to a plain app launch.
+function shortcutAppCommand(command) {
+  var words
+  if (typeof command === "string") {
+    var key = shortcutCommand(command)
+    if (!key) return ""
+    words = JSON.parse(key)
+  } else words = Array.prototype.slice.call(command || [])
+  words = words.filter(function(word) { return !/%[fFuUiIcCkK]/.test(String(word)) })
+  while (words.length && (words[0] === "uwsm-app" || words[0] === "setsid" || words[0] === "env")) {
+    var wrapper = words.shift()
+    if (wrapper === "env") while (words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0])) words.shift()
+    if (words[0] === "--") words.shift()
+  }
+  if (words[0] === "omarchy-launch-or-focus" && words.length === 3) return shortcutAppCommand(words[2])
+  if (words[0] === "omarchy-launch-or-focus-tui" || words[0] === "omarchy-launch-tui") words.shift()
+  if (!words.length) return ""
+  words[0] = words[0].substring(words[0].lastIndexOf("/") + 1)
+  var launchers = { "omarchy-launch-nautilus": ["nautilus", "--new-window"], "omarchy-launch-signal": ["signal-desktop"], "omarchy-launch-spotify": ["spotify"] }
+  if (launchers[words[0]] && words.length === 1) words = launchers[words[0]]
+  if (words[words.length - 1] === "--") words.pop()
+  if (words[0] === "omarchy-launch-webapp" && words.length >= 2)
+    words[1] = words[1].replace(/^(https?:\/\/[^/?#]+)$/, "$1/")
+  return JSON.stringify(words)
+}
+
+function shortcutIndex(records) {
+  var index = Object.create(null)
+  var lines = String(records || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var fields = lines[i].split("\t")
+    if (fields.length < 3) continue
+    var separator = fields[0].indexOf(" → ")
+    if (separator < 0) continue
+    var key = ""
+    var arg = fields.slice(2).join("\t")
+    if (fields[1] === "exec") key = shortcutCommand(arg)
+    else if (fields[1] === "lua") {
+      // The source scanner preserves the expression for global shortcuts.
+      var global = /^hl\.dsp\.global\(("(?:[^"\\]|\\.)*")\)$/.exec(arg)
+      if (global) {
+        try { key = "global:" + JSON.parse(global[1]) } catch (e) { }
+      }
+    } else if (fields[1] === "global") key = "global:" + arg
+    var chord = shortcutChord(fields[0].substring(0, separator))
+    if (key && !index[key]) index[key] = chord
+    var appKey = ""
+    if (fields[1] === "desktop") appKey = "desktop:" + arg.replace(/\.desktop$/, "")
+    else if (fields[1] === "exec" || fields[1] === "app-command") appKey = "app:" + shortcutAppCommand(arg)
+    if (appKey && appKey !== "app:" && !index[appKey]) index[appKey] = chord
+  }
+  return index
+}
+
+function shortcutHints(items, itemOrder, index) {
+  var hints = Object.create(null)
+  var routes = Object.create(null)
+  // Resolve aliases once per refresh, never once per row or menu open.
+  for (var key in index) {
+    var route = ""
+    if (key.indexOf("global:omarchy:menu.") === 0) route = key.substring(20)
+    else {
+      var words
+      try { words = JSON.parse(key) } catch (e) { continue }
+      if (words[0] === "omarchy-menu" && (words[1] === "toggle" || words[1] === "summon") && words.length <= 3)
+        route = words[2] || "root"
+    }
+    if (route) {
+      var id = resolveRoute(items, itemOrder, route)
+      if (!routes[id]) routes[id] = index[key]
+    }
+  }
+  for (var i = 0; i < itemOrder.length; i++) {
+    var entry = items[itemOrder[i]]
+    if (!entry) continue
+    if (entry.kind === "app") {
+      var appHint = index["desktop:" + String(entry.appId || "").replace(/\.desktop$/, "")]
+        || index["app:" + shortcutAppCommand(entry.appCommand)]
+      if (appHint) hints[entry.id] = appHint
+      continue
+    }
+    var hint = index[shortcutCommand(entry.action)] || routes[entry.target || entry.id]
+    var summon = summonAction(entry.action)
+    if (!hint && summon && summon.payload === "{}") hint = index["global:omarchy:panel." + summon.id]
+    if (hint) hints[entry.id] = hint
+  }
+  return hints
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    shortcutAppCommand: shortcutAppCommand,
+    shortcutCommand: shortcutCommand,
+    shortcutChord: shortcutChord,
+    shortcutIndex: shortcutIndex,
+    shortcutHints: shortcutHints,
     summonAction: summonAction,
     guardReaders: GUARD_READERS,
     guardScript: guardScript,

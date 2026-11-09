@@ -484,3 +484,39 @@ output=$(lua_scan) || fail "Lua bind scan ends an indexed walk over a stub colle
 [[ $output != *"lua bind scan failed"* ]] || fail "Lua bind scan does not abort on an indexed walk over a stub collection ($output)"
 grep -qF $'64\tKeybindings menu\tK\texec\tomarchy-menu keybindings' <<<"$output" || fail "Lua bind scan reports binds declared after an indexed walk (got: $output)"
 pass "Lua bind scan ends an indexed walk over a stub collection and keeps the binds after it"
+
+# Inline hints describe shortcuts available outside a submap. Keep the normal
+# cheatsheet complete, including local bindings, and isolate their disk caches.
+stub_hyprctl <<BINDS
+$(exec_bind 64 "K" "Global action" "global-action")
+$(exec_bind 64 "J" "Local action" "local-action" | sed 's/submap: $/submap: resize/')
+BINDS
+records=$(env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" XDG_CACHE_HOME="$tmpdir/records-cache" OMARCHY_PATH="$ROOT" bash "$menu" --records)
+grep -qP '→ Global action\texec\tglobal-action$' <<<"$records" || fail "records preserve dispatch metadata" "$records"
+[[ $records != *"Local action"* ]] || fail "inline hints exclude submap bindings" "$records"
+rendered=$(keybindings "$menu" "$tmpdir/records-cache")
+[[ $rendered == *"Local action"* ]] || fail "inline hint cache does not hide submap bindings from the cheatsheet" "$rendered"
+pass "inline hints include global dispatch records without changing the cheatsheet"
+
+# Resolve defaults from the real collector path, never by app display names.
+for resolver in omarchy-cmd-default-browser xdg-terminal-exec omarchy-default-editor; do
+  case "$resolver" in
+    omarchy-cmd-default-browser) answer="chromium.desktop" ;;
+    xdg-terminal-exec) answer="foot.desktop" ;;
+    omarchy-default-editor) answer="nvim" ;;
+  esac
+  printf '#!/bin/bash\nprintf "%%s\\n" "%s"\n' "$answer" >"$stub_bin/$resolver"
+  chmod +x "$stub_bin/$resolver"
+done
+stub_hyprctl <<BINDS
+$(exec_bind 64 "RETURN" "Terminal" "omarchy-launch-terminal")
+$(exec_bind 65 "B" "Browser" "omarchy-launch-browser")
+$(exec_bind 73 "B" "Private browser" "omarchy-launch-browser --private")
+$(exec_bind 65 "N" "Editor" "omarchy-launch-editor")
+BINDS
+records=$(env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" OMARCHY_PATH="$ROOT" bash "$menu" --records)
+grep -qP '→ Terminal\tdesktop\tfoot.desktop$' <<<"$records" || fail "terminal binding carries resolved desktop ID" "$records"
+grep -qP '→ Browser\tdesktop\tchromium.desktop$' <<<"$records" || fail "browser binding carries resolved desktop ID" "$records"
+grep -qP '→ Editor\tapp-command\tnvim$' <<<"$records" || fail "editor binding carries resolved command" "$records"
+! grep -qP '→ Private browser\tdesktop\t' <<<"$records" || fail "private browser binding is not used for ordinary launch" "$records"
+pass "application defaults resolve in the background shortcut records"
