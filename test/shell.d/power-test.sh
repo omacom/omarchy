@@ -96,4 +96,5 @@ assertDeepEqual(clipped[1][0], { t: 400, v: 50 }, 'battery history picks the lin
 const runs = history.graphRuns([{ t: 0, v: 50 }, { t: 1000, v: 40 }], [{ start: 100, end: 300 }, { start: 400, end: 900 }])
 assertDeepEqual(runs.map(run => [run[0].t, run[run.length - 1].t]), [[0, 100], [300, 400], [900, 1000]], 'battery history breaks the line at every sleep')
 assertDeepEqual([runs[1][0].v, runs[2][0].v], [50, 40], 'battery history holds the level through an earlier sleep and takes the reading on waking')
+assertDeepEqual(history.graphRuns([{ t: 0, v: 50 }, { t: 1000, v: 100 }, { t: 1060, v: 99 }], [{ start: 200, end: 1000 }])[1][0], { t: 1000, v: 100 }, 'battery history takes the reading made on waking, not the one after')
 JS

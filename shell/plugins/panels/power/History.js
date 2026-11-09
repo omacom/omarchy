@@ -254,12 +254,13 @@ function graphRuns(points, sleeps) {
     while (i < points.length && points[i].t <= cut.start) run.push(points[i++])
     if (!run.length || run[run.length - 1].t < cut.start) run.push({ t: cut.start, v: levelAt(cut.start) })
     runs.push(run)
-    while (i < points.length && points[i].t <= cut.end) i++
-    // A reading soon after waking is the change made while asleep; a later
-    // one changed while awake, so the level picks up where it was.
+    while (i < points.length && points[i].t < cut.end) i++
+    // A reading on or soon after waking is the change made while asleep; a
+    // later one changed while awake, so the level picks up where it was.
     var next = points[i]
     var wake = next && next.t - cut.end <= 120 ? next.v : levelAt(cut.end)
     run = [{ t: cut.end, v: wake }]
+    if (next && next.t === cut.end) i++
   }
   while (i < points.length) run.push(points[i++])
   runs.push(run)
