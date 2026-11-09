@@ -24,6 +24,17 @@ Panel {
   property string pendingBrightnessMonitor: ""
   property int pendingBrightnessPercent: 0
   property bool brightnessSetQueued: false
+  // Writes finished, and how many had finished when the running state read
+  // started. A read from before the latest write must not put the old percent back.
+  property int brightnessWritesDone: 0
+  property int brightnessReadAtWrites: 0
+  // A relative step on a display whose level isn't in sysfs, waiting on a read
+  // of the live percent before it applies the notch.
+  property bool brightnessProbeRunning: false
+  property string brightnessProbeMonitor: ""
+  property int brightnessProbeDelta: 0
+  property bool brightnessProbeShowOsd: false
+  property int brightnessProbeToken: 0
   property string internalMonitor: ""
   property string externalMonitor: ""
   property string focusedMonitor: ""
@@ -286,7 +297,7 @@ Panel {
   // walks its pills. The layout takes ctrl+h/l instead, like ctrl+j/k.
   function moveCursorH(delta) {
     if (focusSection === "brightness") {
-      if (current) adjustBrightness(current.name, delta * 5)
+      if (current) stepDisplayBrightness(current.name, delta * 5, false)
     } else if (focusSection === "textsize") {
       adjustTextSize(delta)
     } else if (focusSection === "displays") {
@@ -395,9 +406,16 @@ Panel {
   }
 
   function setDisplayBrightness(name, value) {
+    var monitor = Model.monitorName(name)
+    if (!monitor) return
+    // An absolute set wins over a relative step still waiting on its read.
+    if (brightnessProbeRunning) {
+      brightnessProbeToken++
+      brightnessProbeRunning = false
+    }
     var percent = Model.clampBrightness(value)
-    showBrightness(name, percent)
-    root.pendingBrightnessMonitor = name
+    showBrightness(monitor, percent)
+    root.pendingBrightnessMonitor = monitor
     root.pendingBrightnessPercent = percent
 
     if (setBrightnessProc.running) {
@@ -406,22 +424,98 @@ Panel {
     }
 
     root.brightnessSetQueued = false
-    setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", name, percent + "%"]
+    setBrightnessProc.command = ["omarchy-brightness-display", "--no-osd", "--monitor", monitor, percent + "%"]
     setBrightnessProc.running = true
   }
 
   function previewBrightness(name, value) {
+    var monitor = Model.monitorName(name)
+    if (!monitor) return
+    // Dragging the slider is an absolute choice. Drop a relative read so its
+    // result doesn't land on top of the drag.
+    if (brightnessProbeRunning) {
+      brightnessProbeToken++
+      brightnessProbeRunning = false
+    }
     var percent = Model.clampBrightness(value)
-    showBrightness(name, percent)
-    root.pendingBrightnessMonitor = name
+    showBrightness(monitor, percent)
+    root.pendingBrightnessMonitor = monitor
     root.pendingBrightnessPercent = percent
     brightnessDebounce.restart()
   }
 
-  function adjustBrightness(name, delta) {
-    var level = brightnessOf(name)
-    if (level < 0) return
-    setDisplayBrightness(name, level + delta)
+  // The built-in panel's percent from sysfs, or -1. External and Apple
+  // displays are not read here: that probe blocks, so it runs beside the UI.
+  function readInternalBrightness(name) {
+    var keys = bar && bar.shell ? bar.shell.brightnessKeys : null
+    if (!keys || !keys.percentForMonitor) return -1
+    return keys.percentForMonitor(name)
+  }
+
+  // A state read may replace the percents on screen only when nothing we
+  // asked for is still in flight, and the read started after the last write.
+  function stateReadMayApplyBrightness() {
+    return !setBrightnessProc.running && !brightnessSetQueued && !brightnessProbeRunning
+        && !brightnessDebounce.running && brightnessReadAtWrites === brightnessWritesDone
+  }
+
+  // h/l and the bar wheel. The notch is applied to a live reading, or to the
+  // percent a write we already issued will land on. The cached percent is
+  // used only when the live reading failed.
+  function stepDisplayBrightness(name, delta, showOsd) {
+    var monitor = Model.monitorName(name)
+    if (!monitor || !delta) return
+
+    var writePending = setBrightnessProc.running || brightnessSetQueued
+    if (writePending && pendingBrightnessMonitor === monitor) {
+      var queued = Model.brightnessStep(true, pendingBrightnessPercent, -1, -1, delta)
+      if (queued.target < 0) return
+      pendingBrightnessPercent = queued.target
+      brightnessSetQueued = true
+      showBrightness(monitor, queued.target)
+      if (showOsd) showBrightnessOsd(queued.target)
+      return
+    }
+
+    if (brightnessProbeRunning && brightnessProbeMonitor === monitor) {
+      brightnessProbeDelta += delta
+      if (showOsd) brightnessProbeShowOsd = true
+      return
+    }
+
+    var live = readInternalBrightness(monitor)
+    if (live >= 0) {
+      var stepped = Model.brightnessStep(false, null, live, -1, delta)
+      if (stepped.target < 0) return
+      setDisplayBrightness(monitor, stepped.target)
+      if (showOsd) showBrightnessOsd(stepped.target)
+      return
+    }
+
+    // Another display's read or write is in flight. Stepping this one from the
+    // cache, or cancelling that read, is the bug this avoids. Drop the notch.
+    if (brightnessProbeRunning || setBrightnessProc.running || brightnessSetQueued) return
+
+    brightnessProbeToken++
+    brightnessProbeMonitor = monitor
+    brightnessProbeDelta = delta
+    brightnessProbeShowOsd = !!showOsd
+    brightnessProbeRunning = true
+    brightnessProbe.command = ["omarchy-brightness-display", "--monitor", monitor]
+    brightnessProbe.running = true
+  }
+
+  function applyBrightnessProbe(text) {
+    if (!brightnessProbeRunning) return
+    brightnessProbeRunning = false
+    var monitor = brightnessProbeMonitor
+    var delta = brightnessProbeDelta
+    var showOsd = brightnessProbeShowOsd
+    var live = Model.parseBrightnessReading(text)
+    var stepped = Model.brightnessStep(false, null, live, brightnessOf(monitor), delta)
+    if (stepped.target < 0) return
+    setDisplayBrightness(monitor, stepped.target)
+    if (showOsd) showBrightnessOsd(stepped.target)
   }
 
   function showBrightnessOsd(percent) {
@@ -436,23 +530,27 @@ Panel {
     return Model.normalizeScale(scale)
   }
 
-  // Playful mood-name for a given brightness percent. Bands intentionally
-  // span ~10–20 points so casual tweaks change the label, while small
-  // nudges within one band don't.
-
-  // Brightness is taken from every poll, so a level set elsewhere replaces one
-  // shown here. The list itself is only taken when something besides
-  // brightness changed: a new one rebuilds the picker and the layout, which
-  // would drop a hover or a drag in progress on each poll.
-  function updateDisplays(displaysJson) {
+  // Brightness is taken from a state read that started after the last write
+  // we issued, so a level set elsewhere replaces one shown here, and a read
+  // already in flight cannot put the old one back. A display whose read came
+  // back without a number keeps the level it had. The list itself is only
+  // taken when something besides brightness changed: a new one rebuilds the
+  // picker and the layout, which would drop a hover or a drag in progress
+  // on each poll.
+  function updateDisplays(displaysJson, acceptBrightness) {
     var parsed = Model.parseDisplays(displaysJson)
-    var levels = {}
-    for (var i = 0; i < parsed.displays.length; i++) {
-      var display = parsed.displays[i]
-      if (display && display.enabled && typeof display.brightness === "number")
-        levels[display.name] = display.brightness
+    if (acceptBrightness) {
+      var levels = {}
+      for (var i = 0; i < parsed.displays.length; i++) {
+        var display = parsed.displays[i]
+        if (!display || !display.enabled || !display.name) continue
+        var reported = typeof display.brightness === "number" ? display.brightness : null
+        var previous = brightnessOf(display.name)
+        var merged = Model.mergeBrightnessLevel(previous < 0 ? null : previous, reported, true)
+        if (typeof merged === "number") levels[display.name] = merged
+      }
+      root.brightnessLevels = levels
     }
-    root.brightnessLevels = levels
 
     var shape = JSON.stringify(parsed.displays, function(key, value) { return key === "brightness" ? undefined : value })
     if (shape === root.displaysJson) return
@@ -687,6 +785,7 @@ Panel {
     onRunningChanged: {
       if (running) {
         root.readAfterActions = root.actionsDone
+        root.brightnessReadAtWrites = root.brightnessWritesDone
       } else if (root.rereadState) {
         root.rereadState = false
         Qt.callLater(root.refresh)
@@ -696,15 +795,20 @@ Panel {
       waitForEnd: true
       onStreamFinished: {
         var lines = String(text || "").split("\n")
-        var brightness = String(lines[0] || "").trim()
-        root.brightnessAvailable = brightness !== "unavailable" && brightness !== ""
-        root.brightnessPercent = root.brightnessAvailable ? Math.max(0, Math.min(100, parseInt(brightness, 10))) : 0
+        var acceptBrightness = root.stateReadMayApplyBrightness()
+        if (acceptBrightness) {
+          var focused = Model.focusedBrightness(lines[0])
+          if (!focused.keep) {
+            root.brightnessAvailable = focused.available
+            root.brightnessPercent = focused.available ? focused.percent : 0
+          }
+        }
         root.internalMonitor = String(lines[1] || "").trim()
         root.externalMonitor = String(lines[2] || "").trim()
         root.internalEnabled = String(lines[3] || "").trim() !== ""
         root.focusedMonitor = String(lines[5] || "").trim()
         root.monitorScale = root.normalizeScale(String(lines[6] || "").trim())
-        root.updateDisplays(String(lines[7] || "[]").trim())
+        root.updateDisplays(String(lines[7] || "[]").trim(), acceptBrightness)
         // A queued move waits for a read that started after the last command;
         // an older one reads again once this process has stopped.
         if (root.awaitingFreshState) {
@@ -737,14 +841,31 @@ Panel {
     // Do NOT call refresh() after a brightness set completes. The local
     // level we just wrote is authoritative; re-reading via
     // `omarchy-brightness-display` races the hardware/driver and can
-    // return an empty string, which the parser then coerces to 0 —
-    // visible as a "bounce to zero" after h/l keypresses. External
+    // return an empty string. A state read that started before this write
+    // finished is dropped instead of being parsed as zero. External
     // brightness changes are still picked up by the 5s periodic refresh,
     // the open-time refresh, and Component.onCompleted.
     onRunningChanged: {
       if (running) return
+      root.brightnessWritesDone++
       if (root.brightnessSetQueued) {
         root.setDisplayBrightness(root.pendingBrightnessMonitor, root.pendingBrightnessPercent)
+      }
+    }
+  }
+
+  // Reads the live percent for a relative step on a display that has no
+  // sysfs backlight. The notch is applied when the read returns, not from
+  // the cached percent. A slider move invalidates the token and this result
+  // is ignored.
+  Process {
+    id: brightnessProbe
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var token = root.brightnessProbeToken
+        if (!root.brightnessProbeRunning || token !== root.brightnessProbeToken) return
+        root.applyBrightnessProbe(text)
       }
     }
   }
@@ -814,8 +935,8 @@ Panel {
       var wheel = Util.wheelSteps(root.wheelAccumulator, delta)
       root.wheelAccumulator = wheel.remainder
       if (wheel.steps === 0) return
-      root.setBrightness(root.brightnessPercent + wheel.steps * 5)
-      root.showBrightnessOsd(root.brightnessPercent)
+      if (!root.focusedMonitor) return
+      root.stepDisplayBrightness(root.focusedMonitor, wheel.steps * 5, true)
     }
   }
 

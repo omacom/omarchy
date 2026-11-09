@@ -18,9 +18,23 @@ Item {
   // The shell host, for summoning the OSD.
   property var host: null
   // The backlight omarchy-hw-display picks. Devices do not come and go at
-  // runtime, but each press refreshes it for the next.
+  // runtime, but each press refreshes it for the next. The name is one path
+  // segment; anything else never becomes a sysfs path.
   property string device: ""
-  readonly property string devicePath: device ? "/sys/class/backlight/" + device : ""
+  readonly property string devicePath: BrightnessModel.backlightSysfsPath(device)
+
+  // The internal panel's percent right now, or -1 when this monitor is not
+  // that panel or the sysfs read failed. The monitor panel's relative steps
+  // use it so they don't apply a notch to a cached percent.
+  function percentForMonitor(monitorName) {
+    if (!/^(eDP|LVDS|DSI)-/.test(String(monitorName || ""))) return -1
+    if (!devicePath) return -1
+    var max = readNumber(maxFile)
+    if (!(max > 0)) return -1
+    var raw = readNumber(brightnessFile)
+    if (!isFinite(raw)) return -1
+    return Math.max(0, Math.min(100, Math.round(100 * raw / max)))
+  }
 
   // Returns false when the focused display is not one to handle here, so the
   // caller falls back to the script.
@@ -95,7 +109,7 @@ Item {
     running: true
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.device = String(text || "").trim()
+      onStreamFinished: root.device = BrightnessModel.backlightDeviceName(String(text || "").trim())
     }
   }
 }

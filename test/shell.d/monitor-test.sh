@@ -12,6 +12,37 @@ assertEqual(monitor.clampBrightness(101), 100, 'monitor clamps maximum brightnes
 assertEqual(monitor.clampBrightness(42.4), 42, 'monitor rounds brightness')
 assertEqual(monitor.clampBrightness('nope'), 1, 'monitor rejects invalid brightness')
 
+// The reported failure: hardware at 62, the panel still holding 72. One notch
+// down has to land on 57, and a write already in flight has to keep stepping
+// from the percent it will land on rather than from a new reading of the old one.
+assertEqual(monitor.brightnessStep(false, null, 62, 72, -5).target, 57, 'a downward step uses the live brightness, not the cached one')
+assertEqual(monitor.brightnessStep(true, 57, 62, 72, -5).target, 52, 'a step during a write follows the level already asked for')
+assertEqual(monitor.brightnessStep(false, null, -1, 72, -5).target, 67, 'a failed live read falls back to the cached level')
+assertEqual(monitor.brightnessStep(false, null, -1, -1, -5).target, -1, 'a step with no level does nothing')
+assertEqual(monitor.brightnessStep(false, null, 0, 72, 5).target, 5, 'a live reading of zero is a real level')
+
+assertEqual(monitor.monitorName('DP-1'), 'DP-1', 'a connector name is kept')
+assertEqual(monitor.monitorName('eDP-1'), 'eDP-1', 'a built-in connector name is kept')
+assertEqual(monitor.monitorName('../etc/passwd'), '', 'a monitor name with a slash is rejected')
+assertEqual(monitor.monitorName('DP-1;rm'), '', 'a monitor name with a metacharacter is rejected')
+assertEqual(monitor.monitorName(''), '', 'an empty monitor name is rejected')
+assertEqual(monitor.monitorName('..'), '', 'a monitor name of .. is rejected')
+
+assertEqual(monitor.parseBrightnessReading('62\n'), 62, 'a brightness read is the percent')
+assertEqual(monitor.parseBrightnessReading('unavailable'), -1, 'a failed brightness read is not a percent')
+assertEqual(monitor.parseBrightnessReading('62 extra'), -1, 'a brightness read with a trailing word is rejected')
+
+assertEqual(monitor.focusedBrightness('62').percent, 62, 'focused brightness parses a percent')
+assertEqual(monitor.focusedBrightness('62').keep, false, 'a numeric focused brightness is applied')
+assertEqual(monitor.focusedBrightness('').keep, true, 'an empty focused brightness keeps the level on screen')
+assertEqual(monitor.focusedBrightness('unavailable').available, false, 'unavailable focused brightness clears control')
+assertEqual(monitor.focusedBrightness('nope').keep, true, 'an unexpected focused brightness keeps the level on screen')
+
+assertEqual(monitor.mergeBrightnessLevel(57, 62, false), 57, 'a brightness read from before a write does not put the old level back')
+assertEqual(monitor.mergeBrightnessLevel(57, null, true), 57, 'a brightness read that returns nothing keeps the level')
+assertEqual(monitor.mergeBrightnessLevel(57, 40, true), 40, 'a current brightness read replaces the level')
+assertEqual(monitor.mergeBrightnessLevel(null, null, true), null, 'a display with no brightness stays without one')
+
 assertEqual(monitor.normalizeScale('1.250'), '1.25', 'monitor normalizes fractional scale')
 assertEqual(monitor.normalizeScale('nope'), '', 'monitor rejects invalid scale')
 assertEqual(monitor.cleanScale(3, 1280, 800), '3.2', 'monitor matches clean VM scale')
