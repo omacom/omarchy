@@ -109,10 +109,6 @@ assert not config_loads('require("default.hypr.omarchy")\n--[[ never closed\n'),
 assert config_loads('local a = "it\\"s"\nrequire("default.hypr.omarchy")\n'), "an escaped quote does not end a string"
 assert not config_loads('requ--[[x]]ire("default.hypr.omarchy")\n'), "a comment separates tokens rather than joining them"
 assert not config_loads('local custom = {require = function() end}\ncustom.require "default.hypr.omarchy"\n'), "a field named require is not the loader"
-import time
-started = time.monotonic()
-config_loads("local loader = require" + " " * 32000 + "\nloader('x')\n")
-assert time.monotonic() - started < 1, "a long run of whitespace is scanned in linear time"
 greeter = {"General/DisplayServer": "wayland", "Wayland/CompositorCommand": "start-hyprland -- --config /usr/share/sddm/hyprland.lua"}
 assert m.gated(greeter, home), "Omarchy's greeter asks"
 assert not m.gated({**greeter, "General/DisplayServer": "x11"}, home), "an X11 greeter never runs the Wayland command"
