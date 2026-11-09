@@ -47,7 +47,8 @@ Item {
   // Hyprland gives no window focus while the switcher's surface holds the
   // keyboard, so the window picked is brought forward once the surface is
   // gone. A pick made before the surface showed goes at once, and again
-  // should the surface turn up after all.
+  // should the surface turn up after all before the pick took. One that took,
+  // or that the user overtook by focusing another window, is left alone.
   readonly property string overlayNamespace: "omarchy-switcher"
   property bool overlayMapped: false
   property var pendingActivation: null
@@ -86,7 +87,7 @@ Item {
       var name = event ? String(event.name) : ""
       if (name === "openlayer" && String(event.data) === root.overlayNamespace) {
         root.overlayMapped = true
-        if (!root.active && root.lastActivation && Date.now() - root.lastActivation.at < 1000)
+        if (!root.active && root.lastActivation && !root.lastActivation.settled && Date.now() - root.lastActivation.at < 1000)
           root.pendingActivation = root.lastActivation
       } else if (name === "closelayer" && String(event.data) === root.overlayNamespace) {
         root.overlayMapped = false
