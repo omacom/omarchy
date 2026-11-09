@@ -223,35 +223,46 @@ function graphPoints(charge, start, nowSec) {
   return pts
 }
 
-// The graph points cut into runs at sleeps. UPower logs the charge only when
-// it changes, so between two readings the level held at the first one, and
-// any change while asleep shows up as the first reading after waking. The
-// line therefore stays flat up to the last sleep before a reading and breaks
-// there, rather than drawing a slope through time nothing was recorded.
+// The graph points cut into runs at every sleep that overlaps them, each
+// sleep clipped to the plotted span. UPower logs the charge only when it
+// changes, so the level holds at the last reading up to the sleep, and a
+// change made while asleep shows up as the first reading after waking. The
+// panel joins the runs with a dashed line, for time nothing was recorded.
 // [[{t, v}]].
 function graphRuns(points, sleeps) {
   if (!points.length) return []
-  var runs = [[points[0]]]
-  for (var i = 1; i < points.length; i++) {
-    var a = points[i - 1], b = points[i]
-    var last = null
-    for (var j = 0; j < sleeps.length; j++) {
-      var sl = sleeps[j]
-      if (sl.end <= sl.start || sl.start < a.t || sl.end > b.t) continue
-      if (!last || sl.end > last.end) last = sl
-    }
-    if (!last) {
-      runs[runs.length - 1].push(b)
-      continue
-    }
-    if (last.start > a.t) runs[runs.length - 1].push({ t: last.start, v: a.v })
-    var next = []
+  var first = points[0].t, last = points[points.length - 1].t
+  var cuts = []
+  for (var j = 0; j < sleeps.length; j++) {
+    var a = Math.max(sleeps[j].start, first), b = Math.min(sleeps[j].end, last)
+    if (b > a) cuts.push({ start: a, end: b })
+  }
+  cuts.sort(function(p, q) { return p.start - q.start })
+
+  function levelAt(t) {
+    var v = points[0].v
+    for (var k = 0; k < points.length && points[k].t <= t; k++) v = points[k].v
+    return v
+  }
+
+  var runs = []
+  var run = []
+  var i = 0
+  for (var c = 0; c < cuts.length; c++) {
+    var cut = cuts[c]
+    if (cut.start < (run.length ? run[run.length - 1].t : -Infinity)) continue
+    while (i < points.length && points[i].t <= cut.start) run.push(points[i++])
+    if (!run.length || run[run.length - 1].t < cut.start) run.push({ t: cut.start, v: levelAt(cut.start) })
+    runs.push(run)
+    while (i < points.length && points[i].t <= cut.end) i++
     // A reading soon after waking is the change made while asleep; a later
     // one changed while awake, so the level picks up where it was.
-    if (last.end < b.t) next.push({ t: last.end, v: b.t - last.end <= 120 ? b.v : a.v })
-    next.push(b)
-    runs.push(next)
+    var next = points[i]
+    var wake = next && next.t - cut.end <= 120 ? next.v : levelAt(cut.end)
+    run = [{ t: cut.end, v: wake }]
   }
+  while (i < points.length) run.push(points[i++])
+  runs.push(run)
   return runs
 }
 

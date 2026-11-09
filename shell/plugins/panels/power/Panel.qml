@@ -21,6 +21,11 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
+  // Which row the keyboard cursor is on: the history window chips above, or
+  // the power profiles below.
+  property string cursorRow: "profiles"
+  property int windowIndex: 0
+  readonly property var historyWindowKeys: ["6h", "24h", "3d"]
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
   // icon, so the open-panel mark takes the painted width instead of the
@@ -297,6 +302,7 @@ Panel {
       var idx = profiles.indexOf(activeProfile)
       profileIndex = idx >= 0 ? idx : 0
       cursorActive = false
+      cursorRow = "profiles"
     }
   }
 
@@ -413,10 +419,24 @@ Panel {
       implicitHeight: column.implicitHeight
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dx !== 0) root.selectProfileByDelta(dx)
-        else if (dy !== 0) root.selectProfileByDelta(dy)
+        if (dy !== 0 && root.historyReady) {
+          if (dy < 0 && root.cursorRow === "profiles") {
+            root.cursorRow = "history"
+            root.windowIndex = Math.max(0, root.historyWindowKeys.indexOf(root.historyWindow))
+          } else if (dy > 0 && root.cursorRow === "history") {
+            root.cursorRow = "profiles"
+          }
+          return
+        }
+        var delta = dx !== 0 ? dx : dy
+        if (root.cursorRow === "history") root.windowIndex = Math.max(0, Math.min(root.historyWindowKeys.length - 1, root.windowIndex + delta))
+        else root.selectProfileByDelta(delta)
       }
-      onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
+      onActivateRequested: {
+        if (!root.cursorActive) return
+        if (root.cursorRow === "history") root.setHistoryWindow(root.historyWindowKeys[root.windowIndex])
+        else root.activateSelectedProfile()
+      }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
@@ -592,11 +612,16 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
               spacing: Style.space(4)
               focusable: false
-              options: [
-                { value: "6h", label: Commons.I18n.t("power.historyWindow6h") },
-                { value: "24h", label: Commons.I18n.t("power.historyWindow24h") },
-                { value: "3d", label: Commons.I18n.t("power.historyWindow3d") }
-              ]
+              cursorIndex: root.cursorActive && root.cursorRow === "history" ? root.windowIndex : -1
+              onHovered: function(index, isHovered) {
+                if (!isHovered) return
+                root.cursorActive = true
+                root.cursorRow = "history"
+                root.windowIndex = index
+              }
+              options: root.historyWindowKeys.map(function(key) {
+                return { value: key, label: Commons.I18n.t("power.historyWindow" + key) }
+              })
               value: root.historyWindow
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
@@ -613,7 +638,10 @@ Panel {
             width: parent.width
             height: Style.space(96)
             property real hoverX: -1
-            readonly property real hoverT: hoverX < 0 ? -1 : root.historyStart + root.historySpan * hoverX / width
+            // Time runs with the reading direction: oldest at the start
+            // edge, now at the end, as the labels under the graph say.
+            readonly property bool mirrored: LayoutMirroring.enabled
+            readonly property real hoverT: hoverX < 0 ? -1 : root.historyStart + root.historySpan * (mirrored ? width - hoverX : hoverX) / width
 
             function rgba(c, a) {
               return "rgba(" + Math.round(c.r * 255) + "," + Math.round(c.g * 255) + "," + Math.round(c.b * 255) + "," + a + ")"
@@ -624,7 +652,7 @@ Panel {
               anchors.fill: parent
               antialiasing: true
 
-              readonly property var deps: [root.historyPoints, root.historyTimeline, root.bar.foreground, Commons.Color.accent, graphBox.hoverX, width, height]
+              readonly property var deps: [root.historyPoints, root.historyTimeline, root.bar.foreground, Commons.Color.accent, graphBox.hoverX, graphBox.mirrored, width, height]
               onDepsChanged: requestPaint()
 
               onPaint: {
@@ -638,7 +666,14 @@ Panel {
                 var fg = root.bar.foreground, accent = Commons.Color.accent
                 var t0 = root.historyStart, span = root.historySpan
                 var pad = 2
-                function x(t) { return Math.max(0, Math.min(w, (t - t0) / span * w)) }
+                function x(t) {
+                  var px = Math.max(0, Math.min(w, (t - t0) / span * w))
+                  return graphBox.mirrored ? w - px : px
+                }
+                function band(a, b) {
+                  var l = Math.min(x(a), x(b)), r = Math.max(x(a), x(b))
+                  ctx.fillRect(l, 0, Math.max(1, r - l), h)
+                }
                 function y(v) { return pad + (h - 2 * pad) * (1 - v / 100) }
 
                 // Grid at 0, 50 and 100%.
@@ -655,14 +690,14 @@ Panel {
                   if (segs[i].source !== "ac") continue
                   var end = i === segs.length - 1 ? root.historyNow : segs[i].end
                   if (end < t0) continue
-                  acRects.push([x(segs[i].start), x(end)])
+                  acRects.push([segs[i].start, end])
                 }
                 ctx.fillStyle = graphBox.rgba(accent, 0.14)
-                acRects.forEach(function(r) { ctx.fillRect(r[0], 0, Math.max(1, r[1] - r[0]), h) })
+                acRects.forEach(function(r) { band(r[0], r[1]) })
                 ctx.fillStyle = graphBox.rgba(fg, 0.06)
                 root.historyTimeline.sleeps.forEach(function(sl) {
                   if (sl.end < t0 || sl.charged) return
-                  ctx.fillRect(x(sl.start), 0, Math.max(1, x(sl.end) - x(sl.start)), h)
+                  band(sl.start, sl.end)
                 })
 
                 // Awake runs are drawn solid; across a sleep, when nothing
@@ -713,7 +748,8 @@ Panel {
                 strokeAll(graphBox.rgba(fg, 0.9))
                 acRects.forEach(function(r) {
                   ctx.save()
-                  ctx.beginPath(); ctx.rect(r[0], 0, Math.max(1, r[1] - r[0]), h); ctx.clip()
+                  var l = Math.min(x(r[0]), x(r[1])), rr = Math.max(x(r[0]), x(r[1]))
+                  ctx.beginPath(); ctx.rect(l, 0, Math.max(1, rr - l), h); ctx.clip()
                   strokeAll(graphBox.rgba(accent, 1))
                   ctx.restore()
                 })
@@ -876,11 +912,12 @@ Panel {
                 verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
                 bordered: true
                 active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
+                hasCursor: root.cursorActive && root.cursorRow === "profiles" && root.profileIndex === index
                 onClicked: root.setProfile(modelData)
                 onHovered: function(h) {
                   if (h) {
                     root.cursorActive = true
+                    root.cursorRow = "profiles"
                     root.profileIndex = index
                   }
                 }
@@ -901,7 +938,13 @@ Panel {
 
     InfoLabel { text: label }
     Item { width: Math.max(0, parent.width - parent.children[0].implicitWidth - parent.children[2].implicitWidth - parent.spacing * 2); height: 1 }
-    InfoValue { text: value }
+    // A value longer than the room beside its label (a long "Yesterday" in
+    // another language) elides rather than running past the panel's edge.
+    InfoValue {
+      text: value
+      width: Math.min(implicitWidth, Math.max(0, parent.width - parent.children[0].implicitWidth - parent.spacing * 2))
+      elide: Text.ElideRight
+    }
   }
 
   component LegendSwatch: Row {

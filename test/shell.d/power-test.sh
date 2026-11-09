@@ -83,3 +83,17 @@ const runs = history.graphRuns(history.graphPoints(data.charge, t(0), now), tl.s
 assertEqual(runs.length, 3, 'battery history splits the graph line at each sleep')
 assertDeepEqual(runs[1][0], { t: t(5), v: 88 }, 'battery history picks the line up at the level on waking')
 JS
+
+run_node_test <<'JS'
+const history = requireFromRoot('shell/plugins/panels/power/History.js')
+
+// A sleep that began before the window still breaks the line at its start.
+const clipped = history.graphRuns([{ t: 100, v: 60 }, { t: 400, v: 50 }, { t: 1000, v: 45 }], [{ start: 0, end: 400 }])
+assertDeepEqual(clipped[0], [{ t: 100, v: 60 }], 'battery history breaks the line at a sleep that began before the window')
+assertDeepEqual(clipped[1][0], { t: 400, v: 50 }, 'battery history picks the line up on waking inside the window')
+
+// Every sleep between two readings breaks the line, not only the last.
+const runs = history.graphRuns([{ t: 0, v: 50 }, { t: 1000, v: 40 }], [{ start: 100, end: 300 }, { start: 400, end: 900 }])
+assertDeepEqual(runs.map(run => [run[0].t, run[run.length - 1].t]), [[0, 100], [300, 400], [900, 1000]], 'battery history breaks the line at every sleep')
+assertDeepEqual([runs[1][0].v, runs[2][0].v], [50, 40], 'battery history holds the level through an earlier sleep and takes the reading on waking')
+JS
