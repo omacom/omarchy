@@ -26,13 +26,13 @@
 local paths = require("default.hypr.paths")
 
 local SLOTS = 10
-local STATE_DIR = paths.state_home .. "/omarchy"
-local STATE_FILE = STATE_DIR .. "/monitor-workspaces"
-local MERGED_FILE = STATE_DIR .. "/monitor-workspaces-merged"
+local STATE_DIR = paths.state_home .. "/omarchy/monitors"
+local STATE_FILE = STATE_DIR .. "/workspaces"
+local MERGED_FILE = STATE_DIR .. "/workspaces-merged"
 
 -- Enabled by default; opting out restores Hyprland's global workspace ids.
 -- Read at config load, before bindings are built and reload reconciliation runs.
-local disabled = io.open(STATE_DIR .. "/toggles/no-monitor-workspaces", "r")
+local disabled = io.open(paths.state_home .. "/omarchy/toggles/no-monitor-workspaces", "r")
 local M = { slots = SLOTS, enabled = disabled == nil }
 if disabled then disabled:close() end
 
@@ -224,6 +224,12 @@ local function identities_of(monitors)
   current = identities
 
   return identities
+end
+
+-- Each connected monitor's identity, keyed by connector, for settings that
+-- belong to the physical monitor rather than the port (see monitor-settings).
+function M.identities()
+  return identities_of(connected())
 end
 
 local function free_block()
@@ -714,8 +720,14 @@ hl.on("monitor.added", function(monitor)
   M.reconcile(monitor and monitor.name)
 end)
 
+-- Hyprland reports the removal from inside the monitor's teardown, where moving
+-- workspaces or focus onto a monitor that was mirroring it crashes Hyprland, so
+-- reconcile once the teardown has returned.
 hl.on("monitor.removed", function(monitor)
-  M.reconcile(nil, monitor and monitor.name)
+  local name = monitor and monitor.name
+  hl.timer(function()
+    M.reconcile(nil, name)
+  end, { type = "oneshot", timeout = 1 })
 end)
 
 o.workspaces = M
