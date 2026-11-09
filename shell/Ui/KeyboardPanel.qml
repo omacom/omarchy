@@ -29,8 +29,8 @@ import qs.Commons as Commons
 // axis (away-from-bar) because mapToItem on the anchor returns
 // bar-content-relative coords with internal layout offsets baked in
 // (e.g. ~13px from the bar's vertical centering of its widget row). The
-// parallel axis (along-the-bar) uses the anchor's content x/y since the
-// bar window spans the full screen on that axis.
+// parallel axis (along-the-bar) uses that position plus where the bar
+// surface starts on the screen (`anchorWindowOrigin`).
 //
 // Outside-click dismissal: an overlay MouseArea catches clicks, with the
 // QsWindow.mask subtracting the bar strip so clicks on the bar still
@@ -241,18 +241,15 @@ PanelWindow {
   // directly — not the anchor item's y/x — because mapToItem(barContent)
   // returns coordinates in the bar's content space, which can be offset
   // from the strip's screen-anchored corner by internal layout (centering
-  // wrappers, padding). The bar window spans its whole screen, so its
-  // dimensions say nothing about the strip; the painted strip hugs the
-  // bar's anchored screen edge at the bar's thickness for this screen
-  // (notch floor included), so `barThickness` gives the strip's inner edge
-  // regardless of how the bar's internal widgets are positioned. For the
-  // parallel axis (along the bar) the anchor item's reported position is
-  // still consistent with the bar content origin, so it's accurate for
-  // centering the card under the icon.
+  // wrappers, padding). The painted strip hugs the bar's anchored screen
+  // edge at the bar's thickness for this screen (notch floor included), so
+  // `barThickness` gives the strip's inner edge regardless of how the
+  // bar's internal widgets are positioned. Along the bar, `anchorScreenPos`
+  // is already that screen position, so it centers the card under the icon.
   readonly property real barThickness: !bar ? 0
     : (typeof bar.barSizeFor === "function" && screen ? bar.barSizeFor(screen.name) : bar.barSize)
-  // Bar window dimensions, only for mapping overlay coordinates into
-  // bar-window content coordinates in barPoint() below.
+  // Bar window size. Caps how far `anchorWindowOrigin` may shift the card,
+  // and maps overlay clicks back into the bar window in barPoint().
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
   readonly property point cardOrigin: {
