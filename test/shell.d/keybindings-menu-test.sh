@@ -38,7 +38,7 @@ stub_hyprctl() {
     cat
     echo 'BINDS'
     echo '  ;;'
-    echo '  devices) echo "active keymap: English (US)" ;;'
+    echo '  devices) cat "'"$stub_bin"'/devices" 2>/dev/null || echo "active keymap: English (US)" ;;'
     echo '  getoption) cat "'"$stub_bin"'/option-${2#input:}" 2>/dev/null ;;'
     echo '  -j) [[ $2 == getoption ]] && cat "'"$stub_bin"'/option-${3#input:}" 2>/dev/null ;;'
     echo '  --batch) IFS=";" read -ra requests <<<"$2"; for request in "${requests[@]}"; do "$0" $request; done ;;'
@@ -257,6 +257,34 @@ keybindings >/dev/null
 grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/keybindings-*.records ||
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
+
+# The cache key reads the device listing for each keyboard's active keymap and
+# nothing else: Caps Lock or a replugged mouse must reuse the cached menu, while
+# a keyboard switched to another layout must not.
+devices_listing() {
+  printf 'mice:\n\tMouse at %s:\n\t\tusb-mouse\n\t\t\tdefault speed: 0.00000\n\n' "$1"
+  printf 'Keyboards:\n\tKeyboard at 55aa00:\n\t\tusb-keyboard\n\t\t\tactive keymap: %s\n\t\t\tcapsLock: %s\n\t\t\tnumLock: yes\n\t\t\tmain: yes\n' "$2" "$3"
+}
+
+cache_records() {
+  local records=("$tmpdir"/cache/omarchy/keybindings-*.records)
+  printf '%s\n' "${records[@]##*/}"
+}
+
+rm -rf "$tmpdir/cache"
+devices_listing 55bb01 "English (US)" no >"$stub_bin/devices"
+keybindings >/dev/null
+first=$(cache_records)
+devices_listing 55bb02 "English (US)" yes >"$stub_bin/devices"
+keybindings >/dev/null
+[[ $(cache_records) == "$first" ]] ||
+  fail "Caps Lock and a replugged mouse keep the cached keybindings" "$first became $(cache_records)"
+devices_listing 55bb02 "German" yes >"$stub_bin/devices"
+keybindings >/dev/null
+[[ $(cache_records) != "$first" ]] ||
+  fail "another active keymap rebuilds the cached keybindings" "$first was reused"
+rm "$stub_bin/devices"
+pass "the keybindings cache follows the active keymap and ignores other device state"
 
 # A plugin that walks the window list while it loads must not wedge the scan,
 # and the binds after it must still be recovered from the Lua source.
