@@ -9,6 +9,7 @@ screensaver_in_focus() {
 exit_screensaver() {
   hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
   pkill -x ttfx 2>/dev/null
+  printf '\033[?1007h\033[?1049l'  # Restore wheel scrolling and the normal screen
   pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
   exit 0
 }
@@ -16,6 +17,8 @@ exit_screensaver() {
 # Exit the screensaver on signals and input from keyboard and mouse
 trap exit_screensaver SIGINT SIGTERM SIGHUP SIGQUIT
 
+printf '\033[?1049h'  # Draw on the alternate screen, which has no scrollback to scroll
+printf '\033[?1007l'  # Don't turn mouse wheel scrolls into arrow keys
 printf '\033]11;rgb:00/00/00\007'  # Set background color to black
 stty -echo 2>/dev/null  # Don't echo the key that stops the screensaver into the corner
 
