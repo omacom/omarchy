@@ -309,4 +309,21 @@ assertDeepEqual(changed, ['nmcli', 'connection', 'modify', 'uuid', 'uuid-1',
 assertEqual(changed.some(a => /psk/i.test(a)), false, 'network never puts a secret in argv')
 assertEqual(network.needsReapply({ ipv4Method: 'auto' }, { ipv4Method: 'manual' }), true, 'network reapplies after an ipv4 change')
 assertEqual(network.needsReapply({ autoConnect: true }, { autoConnect: false }), false, 'network does not reconnect for auto-connect alone')
+
+// Every network.* key the panel and the editor display must exist in the
+// English catalog, so a call site can never point at a key the copy never
+// added. The repo-wide i18n test checks the same relation across every area;
+// this keeps the network strings honest on their own as the editor grows.
+const editorSource = fs.readFileSync(root + '/shell/plugins/panels/network/Editor.qml', 'utf8')
+const referenced = new Set()
+for (const source of [panelSource, editorSource])
+  for (const match of source.matchAll(/Commons\.I18n\.t\("(network\.[A-Za-z0-9]+)"/g)) referenced.add(match[1])
+const enShell = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
+const missing = [...referenced].filter((key) => !Object.hasOwn(enShell, key)).sort()
+assertEqual(missing.join(', '), '', 'every network key the panel and editor reference exists in the English catalog')
+const designed = ['network.modifyNetwork', 'network.editConnection', 'network.autoConnect', 'network.priority',
+  'network.ipv4Method', 'network.automatic', 'network.manual', 'network.address', 'network.save',
+  'network.cancel', 'network.back']
+const absent = designed.filter((key) => !Object.hasOwn(enShell, key))
+assertEqual(absent.join(', '), '', 'the design lists a network key for the context menu and editor copy')
 JS

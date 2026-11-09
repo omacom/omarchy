@@ -39,24 +39,22 @@ Column {
 
   spacing: Style.space(10)
 
-  // English copy for the strings without a catalog key yet. Kept together so
-  // the i18n extraction pass and the follow-up swap each one for
-  // Commons.I18n.t("network.…"); the existing network.passphrase/identity/
-  // gateway/automatic keys are reused below.
+  // All copy routed through the shell catalog. The network.* keys are shared
+  // with the panel; passphrase/identity/gateway/automatic are reused below.
   readonly property var copy: ({
-    cancel: "Cancel",
-    save: "Save",
-    passphraseNote: "Leave blank to keep the saved passphrase",
-    autoConnect: "Connect automatically",
-    priority: "Auto-connect priority",
-    ipv4Method: "IPv4 method",
-    manual: "Manual",
-    address: "Address (CIDR)",
-    metered: "Metered",
-    meteredUnknown: "Unknown",
-    meteredYes: "Yes",
-    meteredNo: "No",
-    chooseProfile: "Choose a saved profile"
+    cancel: Commons.I18n.t("network.cancel"),
+    save: Commons.I18n.t("network.save"),
+    passphraseNote: Commons.I18n.t("network.passphraseNote"),
+    autoConnect: Commons.I18n.t("network.autoConnect"),
+    priority: Commons.I18n.t("network.priority"),
+    ipv4Method: Commons.I18n.t("network.ipv4Method"),
+    manual: Commons.I18n.t("network.manual"),
+    address: Commons.I18n.t("network.address"),
+    metered: Commons.I18n.t("network.metered"),
+    meteredUnknown: Commons.I18n.t("network.meteredUnknown"),
+    meteredYes: Commons.I18n.t("network.meteredYes"),
+    meteredNo: Commons.I18n.t("network.meteredNo"),
+    chooseProfile: Commons.I18n.t("network.chooseProfile")
   })
 
   // Editable values. Unknown/Yes/No and Automatic/Manual are stored as the
@@ -136,7 +134,7 @@ Column {
 
     Button {
       width: picker.width
-      text: root.copy.cancel
+      text: Commons.I18n.t("network.back")
       bordered: true
       foreground: root.foreground
       fontFamily: root.fontFamily
@@ -150,6 +148,14 @@ Column {
     visible: !root.picking
     width: parent.width
     spacing: root.spacing
+
+    // Names the view so the form reads as the Modify editor, with the profile
+    // it targets on the line below.
+    PanelSectionHeader {
+      text: Commons.I18n.t("network.editConnection")
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+    }
 
     // Header: profile name · Cancel · Save
     Item {

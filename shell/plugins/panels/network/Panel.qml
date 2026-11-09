@@ -131,12 +131,9 @@ Panel {
     var net = root.menuRow
     var items = []
     if (!net) return items
-    // "Disconnect"/"Modify Network…" have no catalog key yet (the profile
-    // editor and its strings land with Task 6), so they stay English literals
-    // rather than referencing a key the catalog does not carry.
-    if (net.connected) items.push({ key: "disconnect", label: "Disconnect" })
+    if (net.connected) items.push({ key: "disconnect", label: Commons.I18n.t("network.disconnect") })
     else items.push({ key: "connect", label: Commons.I18n.t("network.connect") })
-    if (net.known) items.push({ key: "modify", label: "Modify Network…" })
+    if (net.known) items.push({ key: "modify", label: Commons.I18n.t("network.modifyNetwork") })
     if (root.canForgetNetwork(net)) items.push({ key: "forget", label: Commons.I18n.t("network.forgetNetwork"), danger: true })
     return items
   }
