@@ -1174,6 +1174,13 @@ Item {
   // Persisted rows: on screen oldest first, history newest first.
   property var liveEntries: []
   property var historyEntries: []
+  // Cards on screen because showHistory replayed them, keyed by the card's
+  // key. The value names the history entry they came from (its key and the
+  // closed_ts of that closing). Sender ids are not an identity — they restart
+  // with every shell — so a fresh notification that reused an old id is not
+  // recorded here. A toast restored from live.json after a restart is not
+  // either: dismissing that one still moves it into history.
+  property var replayedFromHistory: Object.create(null)
   property var unsaved: ({})
 
   function storePut(row) {
@@ -1189,8 +1196,25 @@ Item {
     saveSoon("live")
   }
 
-  // A row that closes moves from live to history.
+  // A row that closes moves from live into history. A card brought back by
+  // showHistory is already that history entry: dismissing or clicking it
+  // takes the entry out instead of writing it back. Expiry leaves it, and so
+  // does every close of a card that was not replayed.
   function storeClose(key, reason) {
+    var replayed = replayedFromHistory[key]
+    if (replayed) delete replayedFromHistory[key]
+    if (replayed && (reason === "dismissed" || reason === "activated")) {
+      var next = Store.dropHistory(historyEntries, replayed)
+      if (next !== historyEntries) {
+        historyEntries = next
+        saveSoon("history")
+      }
+      // Not a live row. Drop a stale copy under this card's own key without
+      // recording it. A different notification that reused the sender id has
+      // its own key and stays.
+      storeDrop(key)
+      return
+    }
     var entry = Store.liveEntry(liveEntries, key)
     if (!entry) return
     storeDrop(key)
@@ -1335,8 +1359,14 @@ Item {
     // Restore is oldest first; history is newest first. Both insert at zero.
     for (var i = replay ? rows.length - 1 : 0;
          replay ? i >= 0 : i < rows.length; i += replay ? -1 : 1) {
-      var row = Store.restored(rows[i])
+      var source = rows[i]
+      var row = Store.restored(source)
       if (!row) continue
+      // Captured before a key rewrite. A second replay while this card is
+      // still up gets its own card key and still names this history entry.
+      var historyKey = row.key
+      var closedTs = source && typeof source.closed_ts === "number" && isFinite(source.closed_ts)
+        ? source.closed_ts : null
       if (liveKeys[row.key]) {
         // Startup must not overwrite a newer live arrival. Replaying the same
         // entry deliberately creates a separate card.
@@ -1345,6 +1375,11 @@ Item {
         row.groupKey = Markup.regroup(row)
       }
       if (!reserveLive(row.key)) break
+      if (replay) {
+        var marker = { key: historyKey }
+        if (closedTs !== null) marker.closed_ts = closedTs
+        replayedFromHistory[row.key] = marker
+      }
       showRow(row)
     }
   }
@@ -1365,6 +1400,8 @@ Item {
   // ------------------------------------------------------------- history replay
   //
   // The last few come back as restored rows: no live sender, a short grace.
+  // restoreRows marks them in replayedFromHistory. A restart restore uses the
+  // same function with replay false and is not marked.
   readonly property int replayCount: 6
 
   function replayHistory() {

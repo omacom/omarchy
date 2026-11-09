@@ -201,6 +201,25 @@ function addHistory(entries, entry, now) {
   return retain([entry].concat(entries), now)
 }
 
+// Drop the history entry a replayed card came from. The identity is that
+// entry's key plus the closed_ts of that closing: a sender id is reused
+// across server generations, and another row that only shares it stays.
+// With no closed_ts, every row of that key goes. The same array comes back
+// when nothing matched, so the caller can skip a write.
+function dropHistory(entries, marker) {
+  if (!entries || !marker || typeof marker.key !== "string" || !marker.key) return entries
+  var stamped = typeof marker.closed_ts === "number"
+  var matched = false
+  var out = []
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i]
+    var same = entry && entry.key === marker.key && (!stamped || entry.closed_ts === marker.closed_ts)
+    if (same) { matched = true; continue }
+    out.push(entry)
+  }
+  return matched ? out : entries
+}
+
 // A newer row for the same key replaces the old one in place; the oldest go
 // once there are more than the deck can hold.
 function putLive(entries, row) {
