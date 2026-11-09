@@ -180,6 +180,7 @@ def save_keyboard(selected):
   original = setup.read(path) if path.exists() else None
   group, old_layout, before = setup.live_group()
   group_changed = False
+  previous = keyboard_selection()
   previous_errors = setup.run(["hyprctl", "configerrors"])
   try:
     setup.atomic_write(path, f"XKBLAYOUT={layouts}\nXKBVARIANT={variants}\n")
@@ -207,6 +208,13 @@ def save_keyboard(selected):
     setup.live_set(group, group_layout, after)
     if setup.live_group() != (group, group_layout, after):
       raise RuntimeError("Fcitx did not retain the keyboard selection")
+    if previous != expected:
+      # Hyprland hands an input method's keyboard grab a keymap only when the
+      # typing keyboard changes, not when its layouts do. Fcitx would keep
+      # typing the old layouts through its virtual keyboard until it grabs
+      # afresh, and its group gives no sign of that.
+      setup.run(["omarchy-restart-xcompose"])
+      setup.wait_ready(keyboard)
   except BaseException:
     if original is None:
       path.resolve().unlink(missing_ok=True)
