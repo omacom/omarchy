@@ -121,6 +121,53 @@ assertEqual(
   weather.iconForCode(389, false),
   'weather picks hourly forecast icon nearest noon'
 )
+
+// #17630: the °C and the stats column share one row. These widths stand in
+// for the measured halves (a hero temperature, and stat labels as wide as
+// Russian ОЩУЩАЕТСЯ / ВЕТЕР / ВЛАЖНОСТЬ). The card opens up so the halves
+// and the gap still fit; short labels stay on the 480px floor. The screen
+// cap stays in KeyboardPanel.fittedContentWidth, which this width feeds.
+function heroOverlaps(contentWidth, spec) {
+  const inner = contentWidth - spec.chrome
+  const temperatureRight = spec.leftMargin + spec.temperatureWidth
+  const statsLeft = inner - spec.rightMargin - spec.statsWidth
+  return temperatureRight + spec.gap > statsLeft
+}
+
+const longStats = {
+  baseWidth: 480,
+  chrome: 32,
+  leftMargin: 16,
+  temperatureWidth: 200,
+  gap: 24,
+  statsWidth: 360,
+  rightMargin: 20
+}
+const longWidth = weather.heroContentWidth(
+  longStats.baseWidth,
+  weather.heroNeededWidth(longStats.leftMargin, longStats.temperatureWidth, longStats.gap, longStats.statsWidth, longStats.rightMargin),
+  longStats.chrome
+)
+assert(!heroOverlaps(longWidth, longStats), 'long language stats stay clear of the temperature unit')
+assert(longWidth > longStats.baseWidth, 'long language stats widen the weather panel past 480')
+
+const shortStats = Object.assign({}, longStats, { statsWidth: 120 })
+const shortWidth = weather.heroContentWidth(
+  shortStats.baseWidth,
+  weather.heroNeededWidth(shortStats.leftMargin, shortStats.temperatureWidth, shortStats.gap, shortStats.statsWidth, shortStats.rightMargin),
+  shortStats.chrome
+)
+assert(!heroOverlaps(shortWidth, shortStats), 'short language stats stay clear of the temperature unit')
+assertEqual(shortWidth, shortStats.baseWidth, 'short language stats keep the 480px weather panel')
+
+const statsColumn = 360
+const pinWidth = 14
+const locationSpacing = 6
+const locationRoom = statsColumn - pinWidth - locationSpacing
+const longLocation = weather.locationLabelWidth(900, statsColumn, pinWidth, locationSpacing)
+assert(longLocation <= locationRoom, 'long location names elide inside the stats column')
+assert(longLocation > 0, 'an elided location name still shows')
+assertEqual(weather.locationLabelWidth(40, statsColumn, pinWidth, locationSpacing), 40, 'short location names keep their own width')
 JS
 
 test_tmp=$(mktemp -d)
@@ -161,16 +208,3 @@ chmod +x "$test_tmp/bin/curl"
 [[ $(PATH="$test_tmp/bin:$PATH" weather_location) == "Amsterdam" ]] || fail "weather location names the place geo.omarchy.org detected"
 [[ $(cat "$test_tmp/curl-urls") == "https://geo.omarchy.org/" ]] || fail "weather location asks only geo.omarchy.org" "$(cat "$test_tmp/curl-urls")"
 pass "weather location names the place geo.omarchy.org detected when none is stored"
-
-# Layout wiring for #17630: long-language stats must widen the panel (or
-# elide the location), not collide with the temperature unit. Keep this
-# compatible with a later narrow-screen scale (#11238 / #6991): fittedContentWidth
-# still caps to the available card width.
-panel_qml="$ROOT/shell/plugins/panels/weather/Panel.qml"
-grep -q 'property real heroNeededWidth' "$panel_qml" || fail "weather panel tracks the hero width it needs"
-grep -q 'Math.max(Style.space(480), root.heroNeededWidth' "$panel_qml" || fail "weather panel grows past 480 when the hero needs it"
-grep -q 'elide: Text.ElideRight' "$panel_qml" || fail "weather location elides instead of spilling past the panel"
-# The hero halves stay opposite-anchored (narrow-screen scale can still shrink
-# them later); the Binding is what keeps them from overlapping today.
-grep -q 'heroLeft.implicitWidth' "$panel_qml" || fail "weather heroNeededWidth Binding reads heroLeft.implicitWidth"
-pass "weather panel grows for long language labels and elides the location (#17630)"

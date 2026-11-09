@@ -548,7 +548,7 @@ Panel {
     // popup follows wherever the widget is placed.
     centerOnBar: false
     focusTarget: panel.loadedContent
-    contentWidth: panel.fittedContentWidth(Math.max(Style.space(480), root.heroNeededWidth + panel.padding * 2 + Style.space(4)))
+    contentWidth: panel.fittedContentWidth(Model.heroContentWidth(Style.space(480), root.heroNeededWidth, panel.padding * 2 + Style.space(4)))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
 
     content: PanelKeyCatcher {
@@ -584,7 +584,7 @@ Panel {
         Binding {
           target: root
           property: "heroNeededWidth"
-          value: Style.space(16) + heroLeft.implicitWidth + Style.space(24) + heroRight.width + Style.space(20)
+          value: Model.heroNeededWidth(Style.space(16), heroLeft.implicitWidth, Style.space(24), heroRight.width, Style.space(20))
         }
 
         Row {
@@ -669,7 +669,7 @@ Panel {
               textFormat: Text.PlainText
               text: (root.reportLocation || "").toUpperCase()
               // Long place names are elided instead of spilling past the panel.
-              width: Math.min(implicitWidth, heroRight.width - locationPin.width - locationRow.spacing)
+              width: Model.locationLabelWidth(implicitWidth, heroRight.width, locationPin.width, locationRow.spacing)
               elide: Text.ElideRight
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
