@@ -35,9 +35,9 @@ The only way to act on a Wi-Fi network today is a left click on the row (connect
 
 ### R1 — Target profiles by UUID, with a resolver
 
-Resolve a row to an exact profile UUID through `nmcli -t -f NAME,UUID,ACTIVE con show`, by this order:
+Resolve a row to an exact profile UUID through `nmcli -t -f NAME,UUID,ACTIVE,802-11-wireless.ssid con show`. A row names a network by its **SSID**, and connection names are user-controlled and can repeat, so match each saved profile by its stored Wi-Fi **SSID** (`802-11-wireless.ssid`), not by connection name; a profile with no stored SSID (legacy or non-Wi-Fi) falls back to its name. Then pick by this order:
 
-1. **Connected row** → the active profile's UUID (`con show --active`). Exact.
+1. **Connected row** → among the SSID matches, the saved profile whose `ACTIVE` flag is set (the row itself can be a scan-churn snapshot, so the profile's own flag decides). Exact.
 2. **Not connected, exactly one saved profile matches the SSID** → that UUID.
 3. **Not connected, multiple matches** → the editor shows a small **profile picker** at the top (label = UUID short + a `nmcli`-derived discriminator such as the saved apn/priority), so duplicates are editable without guessing.
 
