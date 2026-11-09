@@ -4,6 +4,71 @@ function clampBrightness(value) {
   return Math.max(1, Math.min(100, Math.round(n)))
 }
 
+// A Hyprland connector name, safe to pass as an argument. Anything else,
+// including a slash or a glob, is refused.
+function monitorName(name) {
+  var monitor = String(name == null ? "" : name).trim()
+  if (!/^[A-Za-z0-9_.-]+$/.test(monitor)) return ""
+  if (monitor === "." || monitor === ".." || monitor.indexOf("..") !== -1) return ""
+  return monitor
+}
+
+// One relative step. A write we already issued steps from the percent it will
+// land on: the hardware still shows the previous level, and reading it again
+// would undo the notch. Otherwise a reading taken now wins over the cached
+// percent, which is only a fallback when that reading failed. `live` and
+// `cached` are -1 when there is no such number. The target is -1 when there
+// is nothing to step from.
+function brightnessStep(writePending, pending, live, cached, delta) {
+  var base = -1
+  if (writePending) {
+    var chosen = Number(pending)
+    if (isFinite(chosen)) base = Math.max(0, Math.min(100, Math.round(chosen)))
+  }
+  if (base < 0 && typeof live === "number" && isFinite(live) && live >= 0)
+    base = Math.max(0, Math.min(100, Math.round(live)))
+  if (base < 0) {
+    var known = Number(cached)
+    if (isFinite(known) && known >= 0) base = Math.max(0, Math.min(100, Math.round(known)))
+  }
+  if (base < 0) return { base: -1, target: -1 }
+  return { base: base, target: clampBrightness(base + delta) }
+}
+
+// The stdout of a brightness read: a single percent, or -1 when it is not.
+function parseBrightnessReading(text) {
+  var line = String(text == null ? "" : text).trim()
+  if (!/^[0-9]+$/.test(line)) return -1
+  var n = parseInt(line, 10)
+  if (!isFinite(n)) return -1
+  return Math.max(0, Math.min(100, n))
+}
+
+// The focused-display line from omarchy-monitor-state. An empty or unexpected
+// line keeps the level already shown, so a racy read cannot bounce it to zero.
+// "unavailable" is the command saying this display has no brightness control.
+function focusedBrightness(line) {
+  var text = String(line == null ? "" : line).trim()
+  if (text === "unavailable") return { available: false, percent: 0, keep: false }
+  if (!/^[0-9]+$/.test(text)) return { available: true, percent: 0, keep: true }
+  return {
+    available: true,
+    percent: Math.max(0, Math.min(100, parseInt(text, 10))),
+    keep: false
+  }
+}
+
+// Whether a state read may replace the percent on screen. A read that started
+// before the latest write finished, or that came back without a number, keeps
+// the previous one. `reported` is null when this display's read failed.
+function mergeBrightnessLevel(previous, reported, accept) {
+  var known = typeof previous === "number" && isFinite(previous) ? previous : null
+  if (!accept) return known
+  if (typeof reported === "number" && isFinite(reported))
+    return Math.max(0, Math.min(100, Math.round(reported)))
+  return known
+}
+
 function normalizeScale(scale) {
   var n = parseFloat(String(scale || ""))
   if (!isFinite(n)) return ""
@@ -366,6 +431,11 @@ function parseDisplays(raw) {
 if (typeof module !== "undefined") {
   module.exports = {
     clampBrightness: clampBrightness,
+    monitorName: monitorName,
+    brightnessStep: brightnessStep,
+    parseBrightnessReading: parseBrightnessReading,
+    focusedBrightness: focusedBrightness,
+    mergeBrightnessLevel: mergeBrightnessLevel,
     normalizeScale: normalizeScale,
     cleanScale: cleanScale,
     matchingScaleIndex: matchingScaleIndex,

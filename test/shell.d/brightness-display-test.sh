@@ -5,7 +5,23 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+# The /tmp decoys below have to sit at the fixed paths the old commands used.
+# Remove one only when this run created it.
+created_tmp_lock=0
+created_tmp_ddc=0
+tmp_lock="/tmp/omarchy-brightness-display.lock"
+tmp_ddc_dir="/tmp/omarchy-brightness-display-ddc"
+tmp_ddc_fifo="$tmp_ddc_dir/DP-1.bus"
+cleanup() {
+  rm -rf "$test_tmp"
+  if (( created_tmp_lock )); then
+    rm -f "$tmp_lock"
+  fi
+  if (( created_tmp_ddc )); then
+    rm -rf "$tmp_ddc_dir"
+  fi
+}
+trap cleanup EXIT
 
 mock_bin="$test_tmp/bin"
 call_log="$test_tmp/calls"
@@ -220,3 +236,58 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+: >"$call_log"
+if run_brightness --monitor '../eDP-1' >/dev/null 2>&1; then
+  fail "a monitor name with a slash is rejected"
+fi
+if run_brightness --monitor '..' >/dev/null 2>&1; then
+  fail "a monitor name of .. is rejected"
+fi
+if run_brightness --monitor 'DP-1;touch' >/dev/null 2>&1; then
+  fail "a monitor name with a metacharacter is rejected"
+fi
+[[ ! -s $call_log ]] || fail "a rejected monitor name runs no brightness command" "$(<"$call_log")"
+pass "a monitor name that is not a connector name is rejected"
+
+# A set locks in the user runtime dir. With no runtime dir it must not open the
+# world-writable /tmp lock: a FIFO there blocks whoever opens it, so a command
+# that still falls back hangs and one that skips the lock exits.
+if mkfifo "$tmp_lock" 2>/dev/null; then
+  created_tmp_lock=1
+  : >"$call_log"
+  status=0
+  env -u XDG_RUNTIME_DIR CALL_LOG="$call_log" PATH="$mock_bin:$ROOT/bin:$PATH" \
+    timeout 5 "$brightness_display" --no-osd --monitor eDP-1 40% >/dev/null 2>&1 || status=$?
+  rm -f "$tmp_lock"
+  created_tmp_lock=0
+  (( status == 0 )) ||
+    fail "brightness set opened the world-writable /tmp lock or failed" \
+      "status $status; a FIFO decoy at $tmp_lock blocks a command that opens it"
+  grep -F 'brightnessctl -d mock_backlight set 40%' "$call_log" >/dev/null ||
+    fail "brightness set without a runtime dir did not reach brightnessctl"
+  pass "brightness set skips the /tmp lock when XDG_RUNTIME_DIR is unset"
+else
+  skip "$tmp_lock already present or not safely creatable; skipping the /tmp lock case"
+fi
+
+# Same decoy for the DDC cache file. Reading it blocks, so a command that still
+# caches under /tmp hangs inside the timeout.
+if [[ ! -e $tmp_ddc_dir ]] && mkdir "$tmp_ddc_dir"; then
+  created_tmp_ddc=1
+  if mkfifo "$tmp_ddc_fifo"; then
+    status=0
+    brightness=$(env -u XDG_RUNTIME_DIR CALL_LOG="$call_log" PATH="$mock_bin:$ROOT/bin:$PATH" \
+      timeout 5 "$brightness_display" --monitor DP-1 2>/dev/null) || status=$?
+    rm -rf "$tmp_ddc_dir"
+    created_tmp_ddc=0
+    (( status == 0 && brightness == 50 )) ||
+      fail "DDC brightness consulted the world-writable /tmp cache or failed" \
+        "status $status, brightness ${brightness-<none>}; a FIFO at $tmp_ddc_fifo blocks a command that reads it"
+    pass "DDC brightness ignores the /tmp cache when XDG_RUNTIME_DIR is unset"
+  else
+    skip "$tmp_ddc_fifo already present or not safely creatable; skipping the /tmp cache case"
+  fi
+else
+  skip "$tmp_ddc_dir already present or not safely creatable; skipping the /tmp cache case"
+fi
