@@ -94,6 +94,15 @@ if [[ -r $battery_path/charge_control_end_threshold ]]; then
   own_limit=true
   threshold_end=$(<"$battery_path/charge_control_end_threshold")
   [[ ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
+  # Where the driver offers a Custom charge type (Dell), the thresholds are the
+  # Custom mode's settings and hold no limit while another mode is active.
+  if [[ -r $battery_path/charge_types ]]; then
+    charge_types=$(<"$battery_path/charge_types")
+    if [[ $charge_types == *Custom* && $charge_types != *"[Custom]"* ]]; then
+      threshold_start=""
+      threshold_end=""
+    fi
+  fi
 elif grep -qE '^\s*charge-threshold-enabled:\s+yes' <<<"$battery_info"; then
   own_limit=true
   threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")

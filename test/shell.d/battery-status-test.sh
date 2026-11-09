@@ -138,6 +138,19 @@ sysfs_limit_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir
 grep -Fx $'time\t1h 15m' <<<"$sysfs_limit_output" >/dev/null || fail "time to full counts to the sysfs charge limit" "$sysfs_limit_output"
 grep -Fx $'threshold\t90%' <<<"$sysfs_limit_output" >/dev/null || fail "the sysfs charge limit is the one reported" "$sysfs_limit_output"
 
+# Dell's thresholds hold only in Custom mode; in Standard they aren't the limit.
+printf '50\n' >"$hold_dir/power/BAT0/charge_control_start_threshold"
+printf 'Trickle Fast [Standard] Adaptive Custom Long_Life\n' >"$hold_dir/power/BAT0/charge_types"
+standard_mode_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'time\t1h 30m' <<<"$standard_mode_output" >/dev/null || fail "Dell Standard mode counts up to a full battery" "$standard_mode_output"
+if grep -q '^threshold' <<<"$standard_mode_output"; then
+  fail "Dell Standard mode reports no threshold" "$standard_mode_output"
+fi
+printf 'Trickle Fast Standard Adaptive [Custom] Long_Life\n' >"$hold_dir/power/BAT0/charge_types"
+custom_mode_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'threshold\t50-90%' <<<"$custom_mode_output" >/dev/null || fail "Dell Custom mode reports its thresholds" "$custom_mode_output"
+rm "$hold_dir/power/BAT0/charge_types"
+
 # A start of 0 is no start, so an end-only ThinkPad limit doesn't read 0-80%.
 printf '0\n' >"$hold_dir/power/BAT0/charge_control_start_threshold"
 printf '80\n' >"$hold_dir/power/BAT0/charge_control_end_threshold"
