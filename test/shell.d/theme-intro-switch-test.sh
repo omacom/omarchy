@@ -32,7 +32,7 @@ STUB
 chmod +x "$commands/noop"
 # This fixture only exercises selection and presentation, so every retint is
 # a no-op except the compositor reload, whose timing it checks.
-for command in "$ROOT"/bin/omarchy-restart-* "$ROOT"/bin/omarchy-theme-set-* omarchy-hook omarchy-theme-bg-cache; do
+for command in "$ROOT"/bin/omarchy-restart-* "$ROOT"/bin/omarchy-theme-set-* omarchy-hook omarchy-theme-bg-cache omarchy-notification-send; do
   command=${command##*/}
   [[ $command == omarchy-restart-hyprctl ]] || ln -sf noop "$commands/$command"
 done
