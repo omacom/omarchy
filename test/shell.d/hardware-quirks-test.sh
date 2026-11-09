@@ -241,6 +241,10 @@ machine() {
     omnibook-ultra-14) dmi sys_vendor HP; dmi product_name "HP OmniBook Ultra Laptop 14-kg0xxx"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="hp,omnibook-ultra-kg0xxx qcom,glymur" ;;
     anduril-bluechip) dmi sys_vendor Anduril; dmi product_name "Qualcomm Glymur"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
     glymur-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
+    # A Mahua tree's root names qcom,mahua and never qcom,glymur.
+    t14s-gen7) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,thinkpad-t14s-gen7-lcd lenovo,thinkpad-t14s-gen7 qcom,mahua" ;;
+    zenbook-14-ux3480qa) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; dmi product_family "Zenbook 14"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    zenbook-14-ux3480qa-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; FAKE_PLATFORM=aarch64 ;;
     xps13-ptl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
     xps13-wcl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Wildcat Lake [Intel Graphics]" ;;
     xps13-dx13261) xps13 DX13261; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
@@ -282,6 +286,8 @@ run_leaf() {
     OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_QUALCOMM_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ZENBOOK_UX3480QA_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$hw/nvidia.conf" \
     bash -eE -c 'source "$1"' bash "$ROOT/install/$1" </dev/null >/dev/null 2>&1 || status=$?
   {
@@ -305,6 +311,8 @@ leaves=(
   hardware/asus/fix-asus-zenbook-a16-boot.sh
   hardware/qualcomm/glymur-display.sh
   hardware/qualcomm/oem-firmware.sh
+  hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh
+  hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh
   hardware/dell-xps13-ptl-speaker-firmware.sh
   hardware/dell-xps13-sidecar-amps.sh
   user/hardware/fix-nouveau-cursor.sh
@@ -366,7 +374,7 @@ hardware/qualcomm/oem-firmware.sh|surface-pro-11-from-windows|0|pkg-add microsof
 hardware/qualcomm/oem-firmware.sh|ideacentre-mini-x-no-firmware|0|pkg-add lenovo-ideacentre-mini-x-firmware
 hardware/qualcomm/oem-firmware.sh|snapdragon-unpackaged|0
 hardware/qualcomm/oem-firmware.sh|yoga-slim7x|0
-hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16|0|wrote etc/systemd/sleep.conf.d/zenbook-a16.conf|wrote etc/limine-entry-tool.d/zenbook-a16.conf|wrote etc/mkinitcpio.conf.d/zenbook-a16-initramfs.conf
+hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16|0|wrote etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf|wrote etc/limine-entry-tool.d/zenbook-a16.conf|wrote etc/mkinitcpio.conf.d/zenbook-a16-initramfs.conf
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|yoga-slim7x|0
@@ -374,8 +382,17 @@ hardware/qualcomm/glymur-display.sh|omnibook-ultra-14|0|wrote etc/mkinitcpio.con
 # The device tree names the chip, so unreadable DMI does not matter.
 hardware/qualcomm/glymur-display.sh|omnibook-ultra-14+unreadable|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
 hardware/qualcomm/glymur-display.sh|anduril-bluechip|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
+hardware/qualcomm/glymur-display.sh|t14s-gen7|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
 hardware/qualcomm/glymur-display.sh|glymur-not-qualcomm|0
 hardware/qualcomm/glymur-display.sh|yoga-slim7x|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa|0|wrote etc/systemd/sleep.conf.d/zenbook-14-ux3480qa.conf|wrote etc/mkinitcpio.conf.d/zenbook-14-ux3480qa-initramfs.conf
+hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa+unreadable|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa-not-qualcomm|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-a16|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-14-ux3480qa|0|pkg-add asus-zenbook-14-ux3480qa-audio
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-14-ux3480qa+unreadable|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-14-ux3480qa-not-qualcomm|0
+hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh|zenbook-a16|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl|0|pkg-add linux-firmware-cirrus-dx13260
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-ptl+unreadable|0
 hardware/dell-xps13-ptl-speaker-firmware.sh|xps13-wcl|0
