@@ -706,6 +706,16 @@ assert(index_of(maximized) < index_of(browser) and index_of(browser) < index_of(
   "putting the windows drawn over the maximized one back above it reordered them")
 table.remove(stack, index_of(editor))
 
+-- A window maximized before its workspace turned floating is still tiled, and
+-- a click on the browser drawn over it reaches the browser all the same.
+maximized.floating = false
+move(browser, true)
+move(maximized, true)
+browser.allowed_over_fullscreen = true
+active = maximized
+assert(click() == browser, "a click on a window drawn over a tiled maximized one went through it")
+maximized.floating = true
+
 -- A true fullscreen window clicked keeps the browser over it as it is.
 maximized.fullscreen = 2
 click(maximized)
