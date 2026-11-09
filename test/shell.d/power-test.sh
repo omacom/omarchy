@@ -44,3 +44,16 @@ assertEqual(
   'power shows battery icon when unplugged before battery state refreshes'
 )
 JS
+
+# The actual popup content must remain usable after its host caps the height.
+if [[ ${QT_QPA_PLATFORM:-} == "offscreen" ]]; then
+  require_command quickshell
+  require_command jq
+else
+  require_quickshell "power popup scrolling"
+fi
+qml_fixture_scratch
+mkdir -p "$QML_FIXTURE_TMP/power-scroll"
+sed 's/^  KeyboardPanel {/  OffscreenPanel {/' "$ROOT/shell/plugins/panels/power/Panel.qml" >"$QML_FIXTURE_TMP/power-scroll/PowerPanel.qml"
+cp "$ROOT/shell/plugins/panels/power/Model.js" "$QML_FIXTURE_TMP/power-scroll/Model.js"
+run_qml_fixture power-scroll "power popup scrolls tall extensions and reveals keyboard selection" Ui Commons
