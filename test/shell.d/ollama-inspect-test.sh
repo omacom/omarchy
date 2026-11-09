@@ -69,6 +69,22 @@ with HTTPServer(("127.0.0.1", 0), Ollama) as server:
     assert not report["loaded"] and report["active_context_tokens"] is None, report
     assert report["max_context_tokens"] == 131072, report
 
+    def inspect_text(model):
+      return subprocess.check_output(
+        [sys.executable, sys.argv[1], model, "--port", str(server.server_port)],
+        text=True, timeout=5,
+      )
+
+    unloaded_text = inspect_text("gemma4")
+    assert "Model maximum context: 131072" in unloaded_text, unloaded_text
+    assert "Active context: model is not loaded" in unloaded_text, unloaded_text
+
+    running[:] = [{"name": "gemma4", "context_length": None}]
+    report = inspect("gemma4")
+    assert report["loaded"] and report["active_context_tokens"] is None, report
+    unknown_text = inspect_text("gemma4")
+    assert "Active context: unavailable" in unknown_text, unknown_text
+
     invalid = subprocess.run(
       [sys.executable, sys.argv[1], "gemma4", "--port", "65536"],
       capture_output=True, timeout=5,
