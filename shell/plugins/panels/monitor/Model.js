@@ -308,22 +308,18 @@ function displayTitle(display, builtInLabel) {
   return String(display.make || "").trim() || name
 }
 
-// What the display is: its diagonal, its mode, and its refresh rate, as in
-// '14" · 1920×1200 · 60 Hz'. The diagonal comes from the physical size in mm
-// the display reports, rounded to a tenth of an inch, and is left out when it
-// reports none (projectors, VMs). fmt is an optional formatNumber(value,
-// decimals) from the QML side (I18n.formatNumber); without it plain digits stand.
+// What the display is: its mode, its refresh rate, and its pixel density, as in
+// "1920×1200 · 60 Hz · 161 ppi". The density comes from the physical size in mm
+// the display's EDID reports, and is left out when that size can't be trusted:
+// none at all (projectors, VMs, and EDIDs that only give an aspect ratio), a
+// size whose shape doesn't match the mode's (the two axes then disagree on the
+// density), or a TV's made-up figure (outside 50-600 ppi).
+// fmt is an optional formatNumber(value, decimals) from the QML side
+// (I18n.formatNumber); without it plain digits stand.
 function displaySpecs(display, fmt) {
   var format = typeof fmt === "function" ? fmt : function(value) { return String(value) }
   var parts = []
   if (!display) return ""
-
-  var physicalWidth = Number(display.physicalWidth)
-  var physicalHeight = Number(display.physicalHeight)
-  if (physicalWidth > 0 && physicalHeight > 0) {
-    var inches = Math.round(Math.sqrt(physicalWidth * physicalWidth + physicalHeight * physicalHeight) / 25.4 * 10) / 10
-    parts.push(format(inches, inches % 1 ? 1 : 0) + "\"")
-  }
 
   var width = Number(display.width)
   var height = Number(display.height)
@@ -332,7 +328,19 @@ function displaySpecs(display, fmt) {
   var refresh = Math.round(Number(display.refreshRate))
   if (refresh > 0) parts.push(format(refresh) + " Hz")
 
+  var ppi = pixelDensity(width, height, Number(display.physicalWidth), Number(display.physicalHeight))
+  if (ppi > 0) parts.push(format(ppi) + " ppi")
+
   return parts.join(" · ")
+}
+
+function pixelDensity(width, height, physicalWidth, physicalHeight) {
+  if (!(width > 0 && height > 0 && physicalWidth > 0 && physicalHeight > 0)) return 0
+  var across = width / (physicalWidth / 25.4)
+  var down = height / (physicalHeight / 25.4)
+  if (Math.abs(across - down) / Math.max(across, down) > 0.1) return 0
+  var ppi = Math.round((across + down) / 2)
+  return ppi >= 50 && ppi <= 600 ? ppi : 0
 }
 
 function parseDisplays(raw) {
