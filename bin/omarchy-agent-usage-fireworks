@@ -355,9 +355,14 @@ class FireworksClient:
       query = dict(query, pageToken=token)
     return {"serverlessCosts": rows}
 
+  # A key refused the quota can still read its daily costs, so it reads as
+  # no cap rather than no spend.
   def monthly_spend(self, account_id: str) -> dict[str, Any]:
     quoted = urllib.parse.quote(normalize_account_id(account_id), safe="")
-    return self.request(f"/v1/accounts/{quoted}/quotas/monthly-spend-usd")
+    try:
+      return self.request(f"/v1/accounts/{quoted}/quotas/monthly-spend-usd")
+    except FireworksDeniedError:
+      return {"usage": 0, "value": 0}
 
   # The rated cost of each of the last 30 days, oldest first, today last.
   # The API buckets days in UTC only.

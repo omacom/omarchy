@@ -147,8 +147,16 @@ for subtotal in ({"units": "bad"}, {"units": "NaN"}, {"units": True}, {"units": 
          [{"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS}, True, True], record)
 for path in limits_cache_files("fireworks"):
   path.unlink()
+# A key refused the quota still reads its daily costs, so it gets the 30
+# days' bars with no cap; one refused those too has no spend.
 record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": 403}))
-expect("a key that can't read the quota shows its tokens and no spend",
+expect("a key that can't read the quota shows the last 30 days with no cap",
+       [record.get("spend"), record["limitsStale"], record["authHelpText"]],
+       [{"amount": 1.25, "cap": 0.0, "currency": "USD", "days": DAYS}, False, ""], record)
+for path in limits_cache_files("fireworks"):
+  path.unlink()
+record = fireworks(routes=dict(ROUTES, **{"/quotas/monthly-spend-usd": 403, "/usageCosts:query": 403}))
+expect("a key that can't read billing at all shows its tokens and no spend",
        [record["ready"], "spend" in record, record["modelUsage"]["kimi-k2.5"]["outputTokens"], record["usageStatusText"], record["authHelpText"]],
        [True, False, 20, "", "The Fireworks API key cannot read billing data"], record)
 
