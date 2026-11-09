@@ -1,0 +1,340 @@
+#!/usr/bin/python3
+# omarchy:summary=Fade the boot splash to black and keep that black on screen until the session has drawn over it
+# omarchy:hidden=true
+"""Hand the display from Plymouth to whatever SDDM starts, through black.
+
+Run as root by omarchy-plymouth-handoff.service before SDDM starts. Omarchy's
+Plymouth theme fills its bar and fades to black when told the session is
+starting. Plymouth then stops drawing and gives up DRM master, but keeps that
+black frame on screen; the compositor SDDM starts takes master and replaces it.
+Once it has, Plymouth quits with --retain-splash, which leaves the console
+alone. GDM does the same with `plymouth deactivate` and
+`plymouth quit --retain-splash`.
+
+Omarchy's greeter and an autologin into Omarchy's uwsm session ask for the
+display just before Hyprland opens it (omarchy-plymouth-release), so SDDM
+starts while the splash fades and they wait until Plymouth has let go.
+Anything else waits for the fade before SDDM starts: a compositor that opens
+the display while Plymouth holds it fails to start.
+
+If the splash does not reach black in time, Plymouth lets go of the frame it
+has. If nothing draws within the timeout, Plymouth quits as plymouth-quit.service
+would, restoring the console, so a session that never starts can't leave a
+black screen behind.
+"""
+
+import array
+import fcntl
+import glob
+import mmap
+import os
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import time
+
+TIMEOUT = 10
+INTERVAL = 0.05
+# How long the theme's fill and fade take: 18 frames at Plymouth's 50 a
+# second, which a slow renderer stretches; waited out when no display can be
+# read, and allowed three times over when one can.
+FADE = 0.5
+FADE_TIMEOUT = 1.5
+FADE_INTERVAL = 0.02
+STATUS = "omarchy-session"
+# Where Omarchy's greeter and session ask for the display, right before Hyprland opens it.
+SOCKET = "/run/omarchy-plymouth-handoff.sock"
+
+
+def ioc_rw(nr, size):
+  return (3 << 30) | (size << 16) | (ord("d") << 8) | nr
+
+
+DRM_IOCTL_DROP_MASTER = (ord("d") << 8) | 0x1F
+DRM_IOCTL_MODE_GETRESOURCES = ioc_rw(0xA0, 64)
+DRM_IOCTL_MODE_GETCRTC = ioc_rw(0xA1, 104)
+DRM_IOCTL_MODE_MAP_DUMB = ioc_rw(0xB3, 16)
+DRM_IOCTL_MODE_GETFB2 = ioc_rw(0xCE, 104)
+DRM_IOCTL_GEM_CLOSE = (1 << 30) | (8 << 16) | (ord("d") << 8) | 0x09
+DRM_FORMAT_XRGB8888 = 0x34325258
+DRM_FORMAT_ARGB8888 = 0x34325241
+
+
+def log(message):
+  print(message, flush=True)
+
+
+def plymouth(*args):
+  # Short enough that a deactivate and a quit both fit in TimeoutStartSec.
+  try:
+    return subprocess.run(["plymouth", *args], timeout=5).returncode == 0
+  except subprocess.TimeoutExpired:
+    return False
+
+
+def open_cards():
+  cards = {}
+  for path in sorted(glob.glob("/dev/dri/card[0-9]*")):
+    try:
+      fd = os.open(path, os.O_RDWR | os.O_CLOEXEC)
+    except OSError:
+      continue
+    # The first opener of a device with no master becomes master, which would
+    # lock the compositor out. Plymouth holds master while this runs, but
+    # never keep it.
+    try:
+      fcntl.ioctl(fd, DRM_IOCTL_DROP_MASTER)
+    except OSError:
+      pass
+    cards[path] = fd
+  return cards
+
+
+def crtc_ids(fd):
+  resources = bytearray(64)
+  fcntl.ioctl(fd, DRM_IOCTL_MODE_GETRESOURCES, resources)
+  count = struct.unpack_from("I", resources, 36)[0]
+  ids = array.array("I", [0] * count)
+  resources = bytearray(64)
+  struct.pack_into("Q", resources, 8, ids.buffer_info()[0])
+  struct.pack_into("I", resources, 36, count)
+  fcntl.ioctl(fd, DRM_IOCTL_MODE_GETRESOURCES, resources)
+  return list(ids)
+
+
+def scanout(cards):
+  # Which framebuffer each CRTC is showing; 0 when it shows none.
+  shown = {}
+  for path, fd in cards.items():
+    try:
+      for crtc in crtc_ids(fd):
+        request = bytearray(104)
+        struct.pack_into("I", request, 12, crtc)
+        fcntl.ioctl(fd, DRM_IOCTL_MODE_GETCRTC, request)
+        shown[(path, crtc)] = struct.unpack_from("I", request, 16)[0]
+    except OSError:
+      continue
+  return shown
+
+
+def handoff(splash, shown):
+  # (drawn, done): drawn once a display shows a frame Plymouth didn't draw;
+  # done once, besides, no display still shows Plymouth's. A display that
+  # couldn't be read counts as unchanged, one turned off as no longer Plymouth's.
+  drawn = any(fb and fb != splash.get(crtc) for crtc, fb in shown.items())
+  done = all(shown.get(crtc, fb) != fb for crtc, fb in splash.items())
+  return drawn, drawn and done
+
+
+def dark(fd, crtc, fb):
+  # Whether a framebuffer shows black, from a grid of its pixels; None when it
+  # can't be read, as a format other than 32-bit RGB.
+  handle = 0
+  try:
+    request = bytearray(104)
+    struct.pack_into("I", request, 12, crtc)
+    fcntl.ioctl(fd, DRM_IOCTL_MODE_GETCRTC, request)
+    width, height = struct.unpack_from("H", request, 40)[0], struct.unpack_from("H", request, 50)[0]
+    info = bytearray(104)
+    struct.pack_into("I", info, 0, fb)
+    fcntl.ioctl(fd, DRM_IOCTL_MODE_GETFB2, info)
+    fmt, handle, pitch = struct.unpack_from("I", info, 12)[0], struct.unpack_from("I", info, 20)[0], struct.unpack_from("I", info, 36)[0]
+    if not handle or not width or not height or fmt not in (DRM_FORMAT_XRGB8888, DRM_FORMAT_ARGB8888) or pitch < width * 4:
+      return None
+    dumb = bytearray(16)
+    struct.pack_into("I", dumb, 0, handle)
+    fcntl.ioctl(fd, DRM_IOCTL_MODE_MAP_DUMB, dumb)
+    offset = struct.unpack_from("Q", dumb, 8)[0]
+    with mmap.mmap(fd, pitch * height, mmap.MAP_SHARED, mmap.PROT_READ, offset=offset) as pixels:
+      # Every 16th pixel of every 16th row, the logo and the bar included.
+      for y in range(0, height, 16):
+        row = pixels[y * pitch:y * pitch + width * 4]
+        if any(row[x] > 2 or row[x + 1] > 2 or row[x + 2] > 2 for x in range(0, width * 4, 64)):
+          return False
+    return True
+  except (OSError, ValueError, IndexError, struct.error):
+    return None
+  finally:
+    if handle:
+      try:
+        fcntl.ioctl(fd, DRM_IOCTL_GEM_CLOSE, struct.pack("II", handle, 0))
+      except OSError:
+        pass
+
+
+def start_fade():
+  # Asks the theme to fill its bar and fade to black. An older or other theme
+  # ignores the status.
+  return plymouth("update", f"--status={STATUS}")
+
+
+def wait_for_black(cards, started):
+  # Whether every display Plymouth lit shows black, waiting up to the fade's
+  # timeout from when it started. A frame that never darkens ends the wait at
+  # the timeout; a display that can't be read is not waited for.
+  while time.monotonic() - started < FADE_TIMEOUT:
+    states = [dark(cards[path], crtc, fb) for (path, crtc), fb in scanout(cards).items() if fb]
+    if not any(state is not None for state in states):
+      time.sleep(max(0, FADE - (time.monotonic() - started)))
+      return False
+    if all(state is not False for state in states):
+      return True
+    time.sleep(FADE_INTERVAL)
+  return False
+
+
+def fade_to_black(cards):
+  started = time.monotonic()
+  return start_fade() and wait_for_black(cards, started)
+
+
+def omarchy_theme():
+  try:
+    with open("/etc/plymouth/plymouthd.conf") as conf:
+      return any(line.strip().replace(" ", "") == "Theme=omarchy" for line in conf)
+  except OSError:
+    return False
+
+
+def sddm_settings():
+  settings = {}
+  files = sorted(glob.glob("/usr/lib/sddm/sddm.conf.d/*.conf")) + sorted(glob.glob("/etc/sddm.conf.d/*.conf")) + ["/etc/sddm.conf"]
+  for path in files:
+    section = ""
+    try:
+      with open(path) as conf:
+        for line in conf:
+          line = line.strip()
+          if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1]
+          elif "=" in line and not line.startswith("#"):
+            key, value = line.split("=", 1)
+            settings[f"{section}/{key.strip()}"] = value.strip()
+    except OSError:
+      continue
+  return settings
+
+
+def uwsm_hyprland(settings, session):
+  # Whether a session SDDM can start runs Hyprland under uwsm, whose unit asks
+  # for the display before Hyprland opens it. The session is the first of that
+  # name in SDDM's session directories, as SDDM picks it.
+  if not session or "/" in session:
+    return False
+  session = session if session.endswith(".desktop") else session + ".desktop"
+  for directory in settings.get("Wayland/SessionDir", "/usr/local/share/wayland-sessions,/usr/share/wayland-sessions").split(","):
+    try:
+      with open(f"{directory.strip()}/{session}") as entry:
+        execs = [line.split("=", 1)[1].split() for line in entry if line.startswith("Exec=")]
+    except OSError:
+      continue
+    return any(args[:2] == ["uwsm", "start"] and args[-1] == "hyprland.desktop" for args in execs if args)
+  return False
+
+
+def gated(settings=None):
+  # Whether whatever SDDM starts next asks for the display before opening it,
+  # so SDDM can start while the splash fades: Omarchy's greeter does, from its
+  # Hyprland config, and so does an autologin into Omarchy's uwsm session.
+  # An autologin that fails falls back to the greeter.
+  settings = sddm_settings() if settings is None else settings
+  greeter = settings.get("General/DisplayServer") == "wayland" and "/usr/share/sddm/hyprland.lua" in settings.get("Wayland/CompositorCommand", "")
+  if not greeter:
+    return False
+  if not settings.get("Autologin/User") and not settings.get("Autologin/Session"):
+    return True
+  return bool(settings.get("Autologin/User")) and uwsm_hyprland(settings, settings.get("Autologin/Session"))
+
+
+def listen():
+  # Whoever asks for the display waits on this socket until it closes, once
+  # Plymouth has let go of the display.
+  try:
+    os.unlink(SOCKET)
+  except FileNotFoundError:
+    pass
+  server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM | socket.SOCK_CLOEXEC)
+  server.bind(SOCKET)
+  os.chmod(SOCKET, 0o666)
+  server.listen(16)
+  return server
+
+
+def close(server):
+  if not server:
+    return
+  server.close()
+  try:
+    os.unlink(SOCKET)
+  except FileNotFoundError:
+    pass
+
+
+def notify_ready():
+  address = os.environ.get("NOTIFY_SOCKET")
+  if not address:
+    return
+  if address.startswith("@"):
+    address = "\0" + address[1:]
+  with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as notify:
+    notify.connect(address)
+    notify.sendall(b"READY=1")
+
+
+def main():
+  signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
+  cards = open_cards()
+  drawn = False
+  started = time.monotonic()
+  server = None
+  try:
+    fading = omarchy_theme() and start_fade()
+    if gated():
+      server = listen()
+      notify_ready()
+    if fading:
+      faded = wait_for_black(cards, started)
+      log(f"Splash faded to black in {time.monotonic() - started:.2f}s" if faded else f"Splash not black after {time.monotonic() - started:.2f}s")
+
+    if not plymouth("deactivate"):
+      # Still holding master, Plymouth would keep the compositor off the display.
+      log("Plymouth would not deactivate")
+      return
+    splash = {crtc: fb for crtc, fb in scanout(cards).items() if fb}
+    close(server)
+    server = None
+    log(f"Plymouth deactivated, its frame on {len(splash)} display(s)")
+    notify_ready()
+
+    # Polled: nothing signals a scanout change to anyone but the compositor
+    # that made it. Bounded by TIMEOUT, once per boot.
+    started = time.monotonic()
+    while time.monotonic() - started < TIMEOUT:
+      drawn, done = handoff(splash, scanout(cards))
+      if done:
+        break
+      time.sleep(INTERVAL)
+  finally:
+    waited = time.monotonic() - started
+    # Once a compositor has drawn it holds master, so the console can't come
+    # back on any display, and restoring tty1's text mode would only race it.
+    if drawn:
+      log(f"Display taken over after {waited:.2f}s, quitting Plymouth and keeping its frame")
+      quit = plymouth("quit", "--retain-splash")
+    else:
+      log(f"Nothing took over the display within {waited:.2f}s, quitting Plymouth to the console")
+      quit = plymouth("quit")
+    # Plymouth has let go one way or another: whoever still waits can go on.
+    close(server)
+    notify_ready()
+    # A quit that failed or hung, with Plymouth still up, fails the unit so its
+    # stop step tries again.
+    if not quit and plymouth("--ping"):
+      sys.exit(1)
+
+
+if __name__ == "__main__":
+  main()

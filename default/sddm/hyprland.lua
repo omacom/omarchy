@@ -67,6 +67,16 @@ if non_latin_layouts:find(" " .. kb_layout:match("^[^,]*") .. " ", 1, true) then
   kb_options = "grp:alts_toggle"
 end
 
+-- The boot splash may still be fading to black as SDDM starts the greeter;
+-- Hyprland can't open the display until Plymouth lets go of it
+-- (bin/omarchy-plymouth-handoff).
+do
+  local _, err = io.open("/run/omarchy-plymouth-handoff.sock", "r")
+  if err and not err:find("No such file", 1, true) then
+    os.execute("/usr/bin/omarchy-plymouth-release")
+  end
+end
+
 hl.config({
   input = {
     kb_layout = kb_layout,

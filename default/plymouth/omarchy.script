@@ -2,6 +2,10 @@
 
 Window.SetBackgroundTopColor(0.101, 0.105, 0.149);
 Window.SetBackgroundBottomColor(0.101, 0.105, 0.149);
+# The same colour, which the hand-off fades to black (omarchy-plymouth-set sets both).
+global.background_red = 0.101;
+global.background_green = 0.105;
+global.background_blue = 0.149;
 
 logo.image = Image("logo.png");
 logo.sprite = Sprite(logo.image);
@@ -19,6 +23,14 @@ global.fake_progress_active = 0;
 global.fake_progress_start_time = 0.0;  # Track when fake progress started
 global.password_shown = 0;  # Track if password dialog has been shown
 global.max_progress = 0.0;  # Track the maximum progress reached to prevent backwards movement
+
+# The hand-off to the session: frames since omarchy-plymouth-handoff said
+# the session is starting, -1 before. The bar fills over the first, then
+# everything fades to black, which stays on screen until the compositor draws.
+global.handoff_frame = -1;
+global.handoff_from = 0.0;
+global.handoff_fill_frames = 4;
+global.handoff_fade_frames = 14;
 
 # Window size the sprites were last laid out for
 global.layout_width = 0;
@@ -52,6 +64,26 @@ fun refresh_callback() {
 
     # Update progress bar with fake progress
     update_progress_bar(global.fake_progress);
+  }
+
+  if (global.handoff_frame >= 0) {
+    global.handoff_frame++;
+    fill = global.handoff_frame / global.handoff_fill_frames;
+    if (fill > 1) fill = 1;
+    update_progress_bar(global.handoff_from + (1 - global.handoff_from) * fill);
+
+    fade = (global.handoff_frame - global.handoff_fill_frames) / global.handoff_fade_frames;
+    if (fade < 0) fade = 0;
+    if (fade > 1) fade = 1;
+    # Eased at both ends, so the splash neither starts nor stops with a jolt.
+    shown = 1 - fade * fade * (3 - 2 * fade);
+    Window.SetBackgroundTopColor(global.background_red * shown, global.background_green * shown, global.background_blue * shown);
+    Window.SetBackgroundBottomColor(global.background_red * shown, global.background_green * shown, global.background_blue * shown);
+    logo.sprite.SetOpacity(shown);
+    if (global.password_shown == 1) {
+      progress_box.sprite.SetOpacity(shown);
+      progress_bar.sprite.SetOpacity(shown);
+    }
   }
 }
 
@@ -209,6 +241,19 @@ fun progress_callback(duration, progress) {
 }
 
 Plymouth.SetBootProgressFunction(progress_callback);
+
+#----------------------------------------- Hand-off --------------------------------
+
+fun update_status_callback(status) {
+  if (status == "omarchy-session" && global.handoff_frame < 0) {
+    stop_fake_progress();
+    hide_password_dialog();
+    global.handoff_from = global.max_progress;
+    global.handoff_frame = 0;
+  }
+}
+
+Plymouth.SetUpdateStatusFunction(update_status_callback);
 
 #----------------------------------------- Layout --------------------------------
 

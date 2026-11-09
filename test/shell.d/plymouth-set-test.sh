@@ -455,6 +455,8 @@ for requested_umask in 022 027 077; do
   cmp -s "$test_tmp/logo.png" "$sddm/logo.png" || fail "SDDM receives the selected logo under umask $requested_umask"
   grep -Fq '#1d2021' "$sddm/Main.qml" || fail "SDDM Main.qml receives the selected background under umask $requested_umask"
   grep -Fq 'Window.SetBackgroundTopColor(0.114, 0.125, 0.129);' "$theme/omarchy.script" || fail "Plymouth script receives the selected background under umask $requested_umask"
+  grep -Fq 'global.background_red = 0.114;' "$theme/omarchy.script" && grep -Fq 'global.background_blue = 0.129;' "$theme/omarchy.script" ||
+    fail "Plymouth script fades to black from the selected background under umask $requested_umask"
 
   cmp -s "$ROOT/default/plymouth/logos/oma.png" "$theme/logos/oma.png" || fail "theme set leaves the packaged nested logo unchanged"
   cmp -s "$ROOT/default/sddm/omarchy/metadata.desktop" "$sddm/metadata.desktop" || fail "theme set leaves packaged SDDM metadata unchanged"
