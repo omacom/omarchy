@@ -6,7 +6,7 @@ require_command lua
 
 lua - <<'LUA' || fail "the first compositor frame starts blank and the reveal restores user cursor settings"
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
-local events, recovery, command, imported, commands = {}, nil, nil, false, {}
+local events, recovery, command, imported, commands, armed = {}, nil, nil, false, {}, 0
 local config = { invisible = false, enable_hyprcursor = true, sync_gsettings_theme = true }
 local env = { XCURSOR_THEME = "my-xcursor", HYPRCURSOR_THEME = "my-hyprcursor", XCURSOR_PATH = "/my/icons", HYPRLAND_INSTANCE_SIGNATURE = "test-session", OMARCHY_PATH = os.getenv("ROOT") }
 local getenv = os.getenv
@@ -27,7 +27,7 @@ hl = {
   end,
   timer = function(callback, options)
     assert(options.timeout == 15000 and options.type == "oneshot")
-    recovery = callback
+    recovery, armed = callback, armed + 1
   end,
   exec_cmd = function(value)
     if value == "dbus-update-activation-environment --systemd XCURSOR_PATH XCURSOR_THEME" then
@@ -42,6 +42,16 @@ hl = {
   end,
 }
 o = { shell_quote = function(value) return "'" .. value .. "'" end, launch = function(value) return value end }
+-- Stands in for hyprctl: the eval chained after a setcursor runs only once that setcursor has returned.
+local function chained(theme, nth, stage)
+  local found = {}
+  for _, c in ipairs(commands) do
+    local eval = c:match("^hyprctl setcursor '" .. theme:gsub("%-", "%%-") .. "' %d+ && hyprctl eval '(.*)'$")
+    if eval and (not stage or eval:find(stage, 1, true)) then table.insert(found, eval) end
+  end
+  return assert(found[nth or #found], "no setcursor " .. theme .. " chains the reveal")
+end
+local function setcursor_returns(theme, nth, stage) return assert(load(chained(theme, nth, stage)))() end
 
 require("default.hypr.autostart")
 assert(not config.invisible, "loading the module must wait for user configuration")
@@ -68,6 +78,9 @@ recovery()
 assert(command:match("setcursor 'my%-xcursor'"), "restore the Xcursor fallback before revealing the pointer")
 assert(config.invisible, "wait for the normal theme before restoring visibility")
 omarchy_startup_cursor_restore(true)
+assert(config.invisible and config.enable_hyprcursor, "an unloaded Hyprcursor style must stay hidden until setcursor loads it")
+assert(omarchy_startup_cursor_pending, "the reveal stays pending, so a reload or the timer can still finish it")
+setcursor_returns("my-hyprcursor")
 assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme)
 assert(command:match("xsetroot %-cursor_name left_ptr"), "restore the X11/XWayland root cursor")
 local hyprcursor_restored = false
@@ -142,6 +155,56 @@ omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
 env.XCURSOR_THEME, env.OMARCHY_STARTUP_CURSOR_SESSION, gsettings = "", "old-session", "'custom-cursor'\n"
 events["config.reloaded"]()
 assert(omarchy_startup_cursor.xcursor == "default", "an ordinary boot without a cursor theme keeps the default alias instead of adopting GSettings")
+
+-- The startup window leaves Hyprcursor with no style loaded, which Hyprland 0.56 draws as a null
+-- surface, so with no HYPRCURSOR_THEME the reveal names the Xcursor theme and applies it hidden (#16941).
+omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
+env.HYPRCURSOR_THEME, env.XCURSOR_THEME, env.OMARCHY_STARTUP_CURSOR_THEME = nil, "my-xcursor", nil
+env.OMARCHY_STARTUP_CURSOR_SESSION, env.XCURSOR_PATH = "", "/my/icons"
+config.invisible, config.enable_hyprcursor, config.sync_gsettings_theme = false, true, true
+commands = {}
+events["config.reloaded"]()
+assert(omarchy_startup_cursor.hyprcursor == "my-xcursor", "an unset Hyprcursor theme follows the Xcursor theme")
+assert(env.HYPRCURSOR_THEME == nil, "a derived theme stays out of the environment applications inherit")
+-- A reload before applications start finds only the blank theme, and must derive the same one.
+omarchy_startup_cursor_pending, omarchy_startup_cursor, monitors = nil, nil, { {} }
+config.invisible, config.enable_hyprcursor, config.sync_gsettings_theme = false, true, true
+events["config.reloaded"]()
+assert(omarchy_startup_cursor.hyprcursor == "my-xcursor", "an interrupted reveal derives the same Hyprcursor theme")
+omarchy_startup_cursor_restore(true)
+assert(config.invisible, "the reveal must wait for the derived theme to load")
+-- A reload while that setcursor is in flight re-hides with Hyprcursor off, so its late completion must not
+-- reveal a style that setcursor may never have loaded; the reload's own retry starts over.
+local stale = chained("my-xcursor")
+omarchy_startup_cursor_pending, omarchy_startup_cursor, commands = nil, nil, {}
+config.invisible, config.enable_hyprcursor, config.sync_gsettings_theme = false, true, true
+events["config.reloaded"]()
+assert(omarchy_startup_cursor_pending and config.invisible and not config.enable_hyprcursor, "a reload mid-reveal keeps the pointer hidden")
+assert(load(stale))()
+assert(config.invisible and not config.enable_hyprcursor and #commands == 0, "a completion from before the reload is ignored")
+armed = 0
+recovery()
+assert(armed == 1, "a retry that has not revealed arms the next one")
+setcursor_returns("my-xcursor", 1, "restore(true)")
+assert(config.invisible and config.enable_hyprcursor, "the reload's retry loads the theme again, still hidden")
+assert(load(stale))()
+assert(config.invisible and omarchy_startup_cursor_pending, "a completion from before the reload is ignored once the new state has its own attempt")
+-- A retry while the Hyprcursor setcursor is in flight reissues it, never the Xcursor stage that would replace
+-- the theme, and a slow first completion still finishes the reveal.
+recovery()
+assert(armed == 2 and #commands == 4 and commands[4]:find('restore("hyprcursor")', 1, true), "the retry reissues the Hyprcursor setcursor")
+omarchy_startup_cursor_restore()
+assert(#commands == 4, "once the Hyprcursor stage has begun, the shell's restore must not rerun the Xcursor stage")
+setcursor_returns("my-xcursor", 1, '"hyprcursor"')
+assert(not config.invisible and config.enable_hyprcursor and config.sync_gsettings_theme, "the reveal must apply the Hyprcursor theme it derived, then the user's settings")
+monitors = {}
+-- With no theme at all the default alias serves both, and GSettings stays unread.
+omarchy_startup_cursor_pending, omarchy_startup_cursor = nil, nil
+env.HYPRCURSOR_THEME, env.XCURSOR_THEME = nil, ""
+io.popen = function() error("an ordinary boot must not consult GSettings for the Hyprcursor theme") end
+events["config.reloaded"]()
+assert(omarchy_startup_cursor.hyprcursor == "default", "an ordinary boot without a cursor theme keeps the default alias for Hyprcursor too")
+env.HYPRCURSOR_THEME, env.XCURSOR_THEME = "my-hyprcursor", "my-xcursor"
 io.popen = popen
 LUA
 pass "the first compositor frame starts blank and the reveal restores user cursor settings"
