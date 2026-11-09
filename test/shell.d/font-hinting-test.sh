@@ -12,7 +12,7 @@ fonts_conf="$test_home/.config/fontconfig/fonts.conf"
 calls="$test_dir/calls"
 mkdir -p "$test_home/.config/omarchy/hooks/font-hinting.d" "$test_dir/bin"
 
-for command in omarchy-restart-shell gsettings; do
+for command in omarchy-restart-shell gsettings pkill; do
   printf '#!/bin/bash\nprintf "%%s\\n" "%s $*" >>"%s"\n' "$command" "$calls" >"$test_dir/bin/$command"
 done
 # Run the real notification helper; only the D-Bus transport is a stub.
