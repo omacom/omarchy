@@ -497,7 +497,11 @@ function usesPsk(security, securityEnum) {
 
 // Seeds the editor from a parsed profile. Values a profile leaves unset read
 // back as "", and the caller supplies the security enum because only it knows
-// the constants, which keeps this pure and testable.
+// the constants, which keeps this pure and testable. `hasPsk` is decided by the
+// security type alone: nmcli prints the stored psk as `<hidden>` (parseNmcliProfile
+// blanks it), so it can never be read here. Offering the field by type, with a
+// blank meaning "keep the current one", is the only way to let a PSK/SAE network
+// be edited at all.
 function editorDefaults(settings, security, securityEnum) {
   var s = settings || {}
   var priority = parseInt(s["connection.autoconnect-priority"], 10)
@@ -509,7 +513,7 @@ function editorDefaults(settings, security, securityEnum) {
     address: s["ipv4.addresses"] || "",
     gateway: s["ipv4.gateway"] || "",
     identity: s["802-1x.identity"] || "",
-    hasPsk: usesPsk(security, securityEnum) && !!s["802-11-wireless-security.psk"]
+    hasPsk: usesPsk(security, securityEnum)
   }
 }
 

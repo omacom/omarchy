@@ -288,6 +288,10 @@ assertDeepEqual(
   { autoConnect: true, priority: 0, metered: 'unknown', ipv4Method: 'auto', address: '', gateway: '', identity: 'zulham.syafrawi', hasPsk: false },
   'network derives editor defaults from a profile'
 )
+// The stored psk is unreadable (`<hidden>` blanks to ""), so the field is
+// offered by security type; a PSK profile must still report it as present or
+// the editor could never edit the common WPA2 case.
+assertEqual(network.editorDefaults(prof, sec.Wpa2Psk, sec).hasPsk, true, 'network offers a passphrase field for a PSK profile')
 
 assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5/24', gateway: '10.0.0.1', priority: 0 }).ok, true, 'network accepts a manual CIDR')
 assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5', gateway: '', priority: 0 }).ok, false, 'network rejects a manual address without a prefix')
