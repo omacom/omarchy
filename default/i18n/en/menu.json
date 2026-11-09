@@ -456,23 +456,20 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk Speed Test"
   },
-  "setup.monitors": {
-    "label": "Monitors"
+  "setup.keyboard": {
+    "label": "Keyboard"
   },
-  "setup.keybindings": {
+  "setup.keyboard.keybindings": {
     "label": "Keybindings"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Keyboard Inputs"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Input Methods"
   },
   "setup.input": {
     "label": "Input"
-  },
-  "setup.typing": {
-    "label": "Typing"
-  },
-  "setup.typing.keyboard": {
-    "label": "Keyboard Layouts"
-  },
-  "setup.typing.input": {
-    "label": "Input Methods"
   },
   "setup.language": {
     "label": "Language"
@@ -508,11 +505,17 @@
   "setup.default.agent.agy": {
     "label": "Antigravity"
   },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
   "setup.default.agent.claude": {
     "label": "Claude"
   },
   "setup.default.agent.codex": {
     "label": "Codex"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
   },
   "setup.default.agent.copilot": {
     "label": "Copilot"
@@ -523,14 +526,32 @@
   "setup.default.agent.cursor-agent": {
     "label": "Cursor CLI"
   },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
   "setup.default.agent.grok": {
     "label": "Grok"
   },
   "setup.default.agent.hermes": {
     "label": "Hermes"
   },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
   "setup.default.agent.kimi": {
     "label": "Kimi"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
   },
   "setup.default.agent.muse": {
     "label": "Muse Code"
@@ -549,6 +570,9 @@
   },
   "setup.default.agent.pi": {
     "label": "Pi"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
   },
   "setup.default.browser": {
     "label": "Browser",
@@ -578,6 +602,9 @@
   "setup.default.dictation": {
     "label": "Dictation",
     "title": "Default Dictation"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
   },
   "setup.default.dictation.superwhisper": {
     "label": "Superwhisper"
@@ -670,6 +697,9 @@
   },
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
+  },
+  "setup.config.git": {
+    "label": "Git"
   },
   "setup.config.hyprland": {
     "label": "Hyprland"
@@ -794,6 +824,9 @@
   "install.service.nordvpn": {
     "label": "NordVPN"
   },
+  "install.service.notion": {
+    "label": "Notion"
+  },
   "install.service.once": {
     "label": "ONCE"
   },
@@ -839,6 +872,9 @@
   "install.terminal.kitty": {
     "label": "Kitty"
   },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
   "install.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
@@ -847,6 +883,9 @@
   },
   "install.ai.grok-bot": {
     "label": "Grok Bot"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
   },
   "install.ai.hermes": {
     "label": "Hermes Desktop"
@@ -1055,11 +1094,17 @@
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
   },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
   "remove.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
   "remove.ai.claude": {
     "label": "Claude Desktop"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
