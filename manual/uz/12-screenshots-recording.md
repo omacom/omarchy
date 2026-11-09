@@ -1,82 +1,83 @@
-# Skrinshotlar va yozuv
+# Skrinshotlar va yozib olish
 
-Ekrandan olishingiz mumkin boʻlgan hamma narsa Print Screen tugmasiga osilgan. Oʻzicha bitta tugma rasm oladi va modifikatorlar yozuv, rang yoki hudud ichidagi matnni oladi. Agar klaviaturangizda umuman Print Screen tugmasi boʻlmasa, `Super + Ctrl + C` xuddi shu toʻplamni menyu sifatida ochadi.
+Ekrandan olish mumkin bo‘lgan hamma narsa Print Screen tugmasiga bog‘langan. Tugmaning o‘zi rasm oladi, modifikatorlar esa yozuv, rang yoki hudud ichidagi matnni oladi. Agar klaviaturangizda umuman Print Screen tugmasi bo‘lmasa, `Super + Ctrl + Alt + C` xuddi shu skrinshotni oladi, `Super + Ctrl + C` esa butun to‘plamni menyu sifatida ochadi.
 
-| Hotkey | Funksiya |
+| Tugmalar birikmasi | Vazifasi |
 | ------ | -------- |
 | `Print Screen` | Skrinshot |
-| `Alt + Print Screen` | Ekran yozuvi (yoki ishlayotganini toʻxtatish) |
+| `Super + Ctrl + Alt + C` | Skrinshot |
+| `Alt + Print Screen` | Ekranni yozib olish (yoki ishlayotganini to‘xtatish) |
 | `Super + Print Screen` | Rang tanlagich |
-| `Super + Ctrl + Print Screen` | Hududdan matn ajratish |
-| `Super + Ctrl + C` | Yozib olish menyusi |
-| `Super + Ctrl + .` | Rasm yoki videoni qayta kodlash |
+| `Super + Ctrl + Print Screen` | Hududdan matn ajratib olish |
+| `Super + Ctrl + C` | Tasvirga olish menyusi |
+| `Super + Ctrl + .` | Rasm yoki videoni transkodlash |
 
 ## Skrinshotlar
 
-`Print Screen` ni bosing va Omasnap uning qoplamasi paydo boʻlishidan oldin fokuslangan monitorni oladi, shuning uchun nishan olayotganingizda hech narsa ostingizda siljimaydi. Erkin shakldagi hududni sudrab boring, uni olish uchun oynani bosing yoki butun monitorni olish uchun ochiq joyni bosing. Siljituvchi hududni olish uchun chizishdan oldin `S` ni bosing. Fikringiz oʻzgardimi? Omasnapni yopish uchun yana `Print Screen` ni bosing.
+`Print Screen` (yoki `Super + Ctrl + Alt + C`) ni bosing va Omasnap uning qoplamasi paydo bo‘lishidan oldin fokusdagi monitorni tasvirga oladi, shuning uchun nishan olayotganingizda hech narsa ostingizda siljib ketmaydi. Erkin shakldagi hududni tortib belgilang, oynani tasvirga olish uchun uni bosing yoki butun monitorni tasvirga olish uchun bo‘sh joyni bosing. Aylantiriladigan hududni tasvirga olish uchun chizishdan oldin `S` ni bosing. Fikringiz o‘zgardimi? Omasnap ni yopish uchun xuddi shu tugmani yana bosing.
 
-Hudud tanlaganingizdan keyin Omasnap olinganini saqlaydi, buferga nusxalaydi va 10 soniya davomida oldindan koʻrishni koʻrsatadi. Uni ekranda saqlash uchun oldindan koʻrishning mahkamlash tugmasi yoki `Ctrl + P` ni ishlating yoki unga izoh qoʻshish uchun Tahrirlashni tanlang.
+Hududni tanlaganingizdan keyin Omasnap tasvirni saqlaydi, uni buferga nusxalaydi va uning eskizi bilan bildirishnoma ko‘rsatadi, xuddi saqlangan ekran yozuvida bo‘lgani kabi. Saqlangan tasvirni rasm ko‘ruvchingizda ko‘rish uchun Open ni, unga izoh qo‘shish uchun Edit ni tanlang.
 
-Izoh editori oʻqlar, chiziqlar, shakllar, ajratib koʻrsatishlar, raqamlangan belgilar, matn va xavfsiz tahrirlarni chizishi; rasmning bir qismini qirqishi yoki kesib olishi; uning matnini OCR qilishi; va fon qoʻshishi mumkin. Editorda tayyor PNG ni nusxalash va saqlash uchun `Enter`, saqlamasdan nusxalash uchun `Ctrl + C` yoki nusxalamasdan saqlash uchun `Ctrl + S` ni bosing.
+Izoh muharriri o‘qlar, chiziqlar, shakllar, ajratib ko‘rsatishlar, raqamlangan belgilar, matn va xavfsiz tahrirlarni chizishi; tasvirning bir qismini kesib olishi yoki qirqishi; uning matnini OCR qilishi; va orqa fon qo‘shishi mumkin. Muharrirda tayyor PNG ni nusxalash va saqlash uchun `Enter` ni, saqlamasdan nusxalash uchun `Ctrl + C` ni yoki nusxalamasdan saqlash uchun `Ctrl + S` ni bosing.
 
-Saqlangan skrinshotlar standartda `~/Pictures/Screenshots` ga tushadi, `screenshot-2026-08-13_14-22-05-firefox.png` kabi nom bilan. Boshqa katalog ishlatish uchun `OMASNAP_SCREENSHOT_DIR` ni oʻrnating — sessiya muhiti oʻzgaruvchilarini qayerga qoʻyish haqida [FAQ](46-faq.md) ga qarang. Omasnap birinchi suratni saqlaganda katalogni yaratadi. Avtomatik saqlashni oʻchirish uchun `~/.config/omasnap/omasnap.conf` da `[output] autosave = false` ni oʻrnating.
+Saqlangan skrinshotlar sukut bo‘yicha `~/Pictures/Screenshots` ga tushadi va `screenshot-2026-08-13_14-22-05-firefox.png` kabi nomga ega bo‘ladi. Boshqa katalog ishlatish uchun `OMASNAP_SCREENSHOT_DIR` ni o‘rnating — sessiya muhit o‘zgaruvchilarini qayerga qo‘yishni bilish uchun [tez-tez beriladigan savollar](46-faq.md) ga qarang. Omasnap birinchi tasvirni saqlaganda katalogni yaratadi. Avtomatik saqlashni o‘chirish uchun `~/.config/omasnap/omasnap.conf` da `[output] autosave = false` ni o‘rnating; tasvirlar u holda faqat nusxalanadi va 10 soniya davomida oldindan ko‘rishda ko‘rsatiladi, uni pin tugmasi yoki `Ctrl + P` bilan ekranda ushlab qolishingiz mumkin.
 
-Terminaldan `omarchy screenshot` xuddi shu qoplamani ochadi va siz uning boshlangʻich rejimini tanlashingiz mumkin: `omarchy capture screenshot region`, `windows`, `fullscreen` yoki `scroll`. `copy` yoki `save` ikkinchi argumenti oldindan koʻrishni oʻtkazib yuboradi va suratni toʻgʻridan-toʻgʻri oʻsha manzilga yuboradi. Chiqarishdan oldin tahrirlash uchun toʻliq ekran editori uchun `omarchy screenshot --editor=overlay` yoki alohida oyna uchun `omarchy screenshot --editor=window` ishlating.
+Terminaldan `omarchy screenshot` xuddi shu qoplamani ochadi va siz uning boshlang‘ich rejimini tanlashingiz mumkin: `omarchy capture screenshot region`, `windows`, `fullscreen` yoki `scroll`. `copy` yoki `save` dan iborat ikkinchi argument tasvirni to‘g‘ridan-to‘g‘ri o‘sha manzilga yuboradi. Chiqarishdan oldin tahrirlash uchun to‘liq ekran muharriri uchun `omarchy screenshot --editor=overlay` dan yoki alohida oyna uchun `omarchy screenshot --editor=window` dan foydalaning.
 
-### Tanlovchini klaviaturadan boshqarish
+### Tanlagichni klaviaturadan boshqarish
 
-Tanlov ochiq boʻlganda, sichqonchani umuman ishlatishingiz shart emas:
+Tanlash ochiq bo‘lganda sichqonchani umuman ishlatishingiz shart emas:
 
-| Tugma | Funksiya |
+| Tugma | Vazifasi |
 | --- | -------- |
-| `S` | Siljituvchi hudud rejimini almashtirish |
-| `Super + Arrow keys` | Oyna rejimida oynalar orasida harakatlanish |
-| `Return` | Ajratilgan oynani olish |
-| `Ctrl + A` | Toʻliq fokuslangan monitorni olish |
+| `S` | Aylantiriladigan hudud rejimini yoqish/o‘chirish |
+| `Super + Arrow keys` | Window rejimida oynalar orasida harakatlanish |
+| `Return` | Ajratilgan oynani tasvirga olish |
+| `Ctrl + A` | To‘liq fokusdagi monitorni tasvirga olish |
 | `R` | Ushbu sessiyada chizilgan oxirgi hududni tiklash |
-| `Esc` | Omasnapni yopish |
+| `Esc` | Omasnap ni yopish |
 
-Bu bogʻlanishlar faqat Omasnap ochiq boʻlganda mavjud, shuning uchun ular oʻz konfiguratsiyangizdagi hech narsa bilan toʻqnasha olmaydi.
+Bu bog‘lamlar faqat Omasnap ochiq bo‘lganda mavjud, shuning uchun ular o‘z konfiguratsiyangizdagi hech narsa bilan to‘qnasha olmaydi.
 
-## Ekran yozuvi
+## Ekranni yozib olish
 
-`Alt + Print Screen` _Ishga tushirish > Yozib olish > Ekran yozuvi_ ni ochadi, u ovoz yozuvida nimani xohlashingizni soʻraydi: ovoz yoʻq, ish stoli ovozi, ish stoli plyus mikrofon yoki ish stoli plyus mikrofon plyus veb-kamera. Oxirgisi faqat haqiqatan kamera ulagan boʻlsangiz paydo boʻladi. Bittasini tanlang va Omarchyning yozuv tanlovchisi sizga hudud sudrab borish yoki oyna yoki monitorni bosish imkonini beradi.
+`Alt + Print Screen` _Trigger > Capture > Screenrecord_ ni ochadi, u ovoz yo‘liga nimani xohlashingizni so‘raydi: audiosiz, ish stoli audiosi, ish stoli plyus mikrofon yoki ish stoli plyus mikrofon plyus veb-kamera. Oxirgisi faqat kamerangiz haqiqatan ulangan bo‘lsa paydo bo‘ladi. Bittasini tanlang va Omarchy ning yozib olish tanlagichi hududni tortib belgilashga yoki oyna yoxud monitorni bosishga imkon beradi.
 
-Yozuv gpu-screen-recorderda ishlaydi, u GPUda 60fpsda kodlaydi va kerak boʻlsa CPUga qaytadi. Natija `~/Videos` dagi `screenrecording-2026-08-13_14-22-05.mp4` nomli MP4 dir. Uni oʻzgartirish uchun `OMARCHY_SCREENRECORD_DIR` ni oʻrnating — lekin esda tuting, skrinshot katalogidan farqli oʻlaroq, bu katalog allaqachon mavjud boʻlishi kerak, aks holda yozuv boshlanishni rad etadi.
+Yozib olish gpu-screen-recorder da ishlaydi, u GPU da 60fps da kodlaydi va zarur bo‘lsa CPU ga qaytadi. Natija `~/Videos` dagi MP4 bo‘ladi va `screenrecording-2026-08-13_14-22-05.mp4` deb nomlanadi. Buni o‘zgartirish uchun `OMARCHY_SCREENRECORD_DIR` ni o‘rnating — lekin shuni yodda tutingki, skrinshot katalogidan farqli o‘laroq, bu katalog allaqachon mavjud bo‘lishi kerak, aks holda yozib olish boshlanishdan bosh tortadi.
 
-Yozib olayotganingizda panelda kichik koʻrsatkich paydo boʻladi. Toʻxtatish uchun uni bosing. Yana `Alt + Print Screen` yoki _Ishga tushirish > Yozib olish > Ekran yozuvi_ ostidagi _Yozuvni toʻxtatish_ yozuvi bilan ham toʻxtatishingiz mumkin, u faqat nimadir haqiqatan yozib olinayotgan paytda paydo boʻladi.
+Yozib olayotganingizda panelda kichkina indikator paydo bo‘ladi. To‘xtatish uchun uni bosing. Shuningdek, `Alt + Print Screen` ni yana bosib to‘xtatishingiz mumkin yoki _Trigger > Capture > Screenrecord_ ostidagi _Stop Screenrecording_ yozuvi bilan to‘xtatishingiz mumkin, u faqat biror narsa haqiqatan yozib olinayotganda paydo bo‘ladi.
 
-Toʻxtatish sizga faylni berishdan oldin biroz tozalash qiladi: birinchi kadr kesiladi va agar ovoz boʻlsa u PipeWire olishi boshida oʻchirilgan holda -14 LUFS ga normallashtiriladi. Keyin yozuvdan eskizi bor bildirishnoma paydo boʻladi. Faylni mpvda oʻynatish uchun uni bosing.
+To‘xtatish faylni sizga berishdan oldin biroz tartibga soladi: birinchi kadr kesib tashlanadi va agar audio bo‘lsa, u -14 LUFS ga normallashtiriladi, eng boshidagi PipeWire tasvirga olish shovqini ovozsiz qilinadi. Keyin yozuvdan olingan eskiz bilan bildirishnoma paydo bo‘ladi. Faylni mpv da ijro etish uchun uni bosing.
 
 ### Veb-kamera qoplamasi
 
-Veb-kamera bilan yozib olganingizda, kamera yozib olayotgan narsangizning pastki oʻng burchagida mahkamlangan, qirqilgan portret oyna sifatida paydo boʻladi. Agar u sizga kerak boʻlgan narsaning ustida oʻtirgan boʻlsa, parvozda uning oʻlchamini oʻzgartiring:
+Veb-kamera bilan yozib olganingizda kamera yozib olayotgan narsangizning pastki o‘ng burchagida mahkamlangan, qirqilgan portret oynasi sifatida paydo bo‘ladi. Agar u kerakli narsaning ustida turgan bo‘lsa, uni shu zahoti o‘lchamini o‘zgartiring:
 
-| Hotkey | Funksiya |
+| Tugmalar birikmasi | Vazifasi |
 | ------ | -------- |
 | `Super + Alt + [` | Veb-kamera qoplamasini kichraytirish |
 | `Super + Alt + ]` | Veb-kamera qoplamasini kattalashtirish |
 
-Uchta oʻlcham bor — kichik, oʻrta va katta — va hotkeylar ular orasida qadam tashlaydi. Oʻrta standart hisoblanadi. Ular yozuvga mutanosib, shuning uchun kamera 1080p monitor yoki 6K monitor yozib olayotganingizdan qatʼi nazar kadrning bir xil ulushini egallaydi. Va agar butun displey emas, hudud yozib olgan boʻlsangiz, qoplama monitorning emas, oʻsha hudud burchagiga mahkamlanadi, shuning uchun u surat ichida qoladi.
+Uchta o‘lcham bor — kichik, o‘rta va katta — va tugmalar birikmalari ular orasida qadam tashlaydi. O‘rta sukut bo‘yicha hisoblanadi. Ular yozuvga mutanosib, shuning uchun 1080p monitorni yoki 6K monitorni yozib olishingizdan qat’i nazar, kamera kadrning bir xil ulushini egallaydi. Va agar siz butun displey o‘rniga hududni yozib olgan bo‘lsangiz, qoplama monitor burchagiga emas, o‘sha hududning burchagiga tayanadi, shuning uchun u tasvir ichida qoladi.
 
-Uni bevosita `omarchy-capture-webcam-resize small` bilan yoki oʻrtaga qaytish uchun `reset` bilan ham chaqirishingiz mumkin.
+Uni `omarchy-capture-webcam-resize small` bilan ham to‘g‘ridan-to‘g‘ri chaqirishingiz mumkin, yoki o‘rta holatga qaytish uchun `reset` bilan.
 
 ## Matn, QR kodlar va ranglar
 
-`Super + Ctrl + Print Screen` hudud tanlaydi va uni buferga OCR qiladi. Bu [Matn ajratish va diktovka](11-text-extraction-dictation.md) da toʻgʻri yoritilgan.
+`Super + Ctrl + Print Screen` hududni tanlaydi va uni buferga OCR qiladi. Bu [Matn ajratib olish va diktovka](11-text-extraction-dictation.md) da to‘g‘ri yoritilgan.
 
-_Ishga tushirish > Yozib olish > QR kod_ QR kodlar uchun xuddi shu hiylani qiladi. Kod bor hududni tanlang va dekodlangan qiymat buferga ketadi. U faqat QR kodlarni qidiradi — zich ekran kontenti aks holda shtrix-kod sifatida notoʻgʻri ijobiy boʻlish odatiga ega. Bilish muhim: dekodlangan qiymat buferga ketadi va boshqa hech qayerga. U chop etilmaydi, bildirishnomada yoʻq va u maxfiy deb belgilanadi, shuning uchun [bufer tarixida](08-unified-clipboard-history.md) qolib ketmaydi. QR kodlar muntazam ravishda sirlarni — masalan, 2FA sozlash kodi ortidagi `otpauth://` URI ni — tashiydi va siz buni jurnalda xohlamaysiz. Qoʻyish baribir yaxshi ishlaydi.
+_Trigger > Capture > QR Code_ QR kodlar uchun xuddi shu hiylani qiladi. Ichida kod bor hududni tanlang va dekodlangan qiymat buferga o‘tadi. U faqat QR kodlarni qidiradi — aks holda zich ekran mazmuni shtrix-kod sifatida noto‘g‘ri aniqlanish odatiga ega. Bilish arziydi: dekodlangan qiymat buferga o‘tadi va boshqa hech qayerga o‘tmaydi. U chop etilmaydi, bildirishnomada yo‘q va [bufer tarixi](08-unified-clipboard-history.md) da qolib ketmasligi uchun maxfiy deb belgilangan. QR kodlar odatda sirlarni tashiydi — masalan, 2FA o‘rnatish kodi ortidagi `otpauth://` URI — va siz buni jurnalda qolishini xohlamaysiz. Joylashtirish baribir yaxshi ishlaydi.
 
-`Super + Print Screen` (yoki _Ishga tushirish > Yozib olish > Rang_) kursorni tomizgʻichga aylantiradi. Ekrandagi istalgan narsani bosing va rang buferga tushadi. Tanlamasdan chiqish uchun hotkeyni yana bosing.
+`Super + Print Screen` (yoki _Trigger > Capture > Color_) kursorni tomizg‘ichga aylantiradi. Ekrandagi istalgan narsani bosing va rang buferga tushadi. Tanlamasdan chiqish uchun tugmalar birikmasini yana bosing.
 
-## Ulashishdan oldin qayta kodlash
+## Ulashishdan oldin transkodlash
 
-4K ekran yozuvi yoki telefoningizdan xom HEIC koʻpincha shunchaki yuborish uchun juda katta. `Super + Ctrl + .` (yoki _Ishga tushirish > Qayta kodlash_) buni tuzatadi. U sizga `~/Pictures` va `~/Videos` ustidan fuzzy fayl tanlovchi taklif qiladi, keyin format va oʻlcham soʻraydi.
+4K ekran yozuvi yoki telefoningizdan olingan xom HEIC ko‘pincha shunchaki yuborish uchun juda katta bo‘ladi. `Super + Ctrl + .` (yoki _Trigger > Transcode_) buni tuzatadi. U sizga `~/Pictures` va `~/Videos` ustidan noaniq fayl tanlagichni taklif qiladi, keyin format va o‘lcham so‘raydi.
 
-Rasmlar kengligi 3160, 2160 va 1080 piksel bilan chegaralanadigan yuqori, oʻrta yoki past sifatda jpg yoki png ga ketadi. Videolar 4k, 1080p yoki 720p da mp4 yoki animatsiyali gif ga ketadi. Oʻzgartirilgan fayl nomda oʻlcham bilan asl fayl yoniga yoziladi — `demo-1080p.mp4` — va yoʻl fayl URI si sifatida buferga nusxalanadi, shuning uchun uni fayl tashlashlarni oladigan ilovaga toʻgʻridan-toʻgʻri qoʻyishingiz mumkin.
+Rasmlar yuqori, o‘rta yoki past darajada jpg yoki png ga o‘tadi, ular kenglikni 3160, 2160 va 1080 pikselda cheklaydi. Videolar 4k, 1080p yoki 720p da mp4 yoki animatsiyalangan gif ga o‘tadi. O‘zgartirilgan fayl asl fayl yoniga nomi ichida o‘lchami bilan yoziladi — `demo-1080p.mp4` — va yo‘l fayl URI si sifatida buferga nusxalanadi, shuning uchun uni fayllarni tashlashni qabul qiladigan ilovaga to‘g‘ridan-to‘g‘ri joylashtirishingiz mumkin.
 
-Agar nimani xohlashingizni allaqachon bilsangiz, u terminaldan ham ishlaydi: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Yana `omarchy transcode ascii` bor, u rasmni ASCII sanʼatiga aylantiradi — bunisi asosan [brending](41-branding.md) uchun.
+Bu terminaldan ham ishlaydi, agar nimani xohlashingizni allaqachon bilsangiz: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Shuningdek, `omarchy transcode ascii` ham bor, u tasvirni ASCII art ga aylantiradi — u asosan [brending](41-branding.md) uchun.
 
 ## Uni biror joyga yuborish
 
-Fayl sizda boʻlgandan keyin, `Super + Ctrl + S` Ulashish menyusini ochadi va uni LocalSend orqali tarmogʻingizdagi boshqa qurilmaga yuboradi. Bu haqida [GUIlar](22-guis.md) ga qarang.
+Faylni olganingizdan keyin `Super + Ctrl + S` Share menyusini ochadi va uni LocalSend orqali tarmog‘ingizdagi boshqa qurilmaga yuboradi. Buning uchun [GUIs](22-guis.md) ga qarang.

@@ -63,6 +63,7 @@ run_internal_firmware_setup 0
 mkdir -p "$scratch/dtbs"
 : >"$scratch/dtbs/x1e80100-test.dtb"
 : >"$scratch/dtbs/x1e80100-test-el2.dtb"
+: >"$scratch/dtbs/mahua-test.dtb"
 cat >"$scratch/uki.conf" <<'CONF'
 [UKI]
 SecureBootPrivateKey=/secure/db.key
@@ -73,8 +74,10 @@ run_dtb_setup() (
   omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() { :; }
 
+  PATH="$ROOT/bin:$PATH"
   OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs"
   OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/uki.conf"
+  OMARCHY_QUALCOMM_BOOT_HOOKS_DIR="$scratch/boot-hooks"
   source "$dtb_setup"
 )
 
@@ -92,6 +95,8 @@ grep -Fq 'PCRPrivateKey=/secure/pcr.key' "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup keeps one managed UKI block"
 grep -Fq "DeviceTreeAuto=$scratch/dtbs/x1e80100-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the matching device tree"
+grep -Fq "$scratch/dtbs/mahua-test.dtb" "$scratch/uki.conf" ||
+  fail "Snapdragon DTB setup lists the Mahua device trees"
 if grep -Fq 'x1e80100-test-el2.dtb' "$scratch/uki.conf"; then
   fail "Snapdragon DTB setup excludes EL2-only device trees"
 fi
@@ -108,6 +113,34 @@ rm -f "$request"
 [[ ! -e $request ]] ||
   fail "an unchanged device tree list asks for no rebuild"
 
+# limine refreshes the list before every boot image build, so a tree a kernel
+# update brings reaches the image. A configuration without Omarchy's list, like
+# the Surface Pro 11's pinned tree, stays as it is, and no build stops on it.
+refresh="$ROOT/bin/omarchy-update-qualcomm-device-trees"
+[[ $(readlink "$scratch/boot-hooks/20-omarchy-qualcomm-device-trees") == "/usr/bin/omarchy-update-qualcomm-device-trees" ]] ||
+  fail "Snapdragon DTB setup refreshes the list before every boot image build"
+: >"$scratch/dtbs/glymur-update.dtb"
+OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/uki.conf" "$refresh" >/dev/null
+grep -Fq "$scratch/dtbs/glymur-update.dtb" "$scratch/uki.conf" ||
+  fail "a device tree a kernel update brings reaches the list"
+printf '[UKI]\nDeviceTree=/boot/dtbs/qcom/pinned.dtb\n' >"$scratch/pinned.conf"
+cp -p "$scratch/pinned.conf" "$scratch/pinned-before.conf"
+OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/pinned.conf" "$refresh" ||
+  fail "the device tree refresh never stops a boot image build"
+cmp -s "$scratch/pinned.conf" "$scratch/pinned-before.conf" ||
+  fail "the device tree refresh leaves a configuration without Omarchy's list alone"
+# A copy it can't finish writing never replaces the configuration (root reads
+# through the lock, so only an unprivileged run can stage the failure).
+if (( EUID != 0 )); then
+  cp -p "$scratch/uki.conf" "$scratch/locked.conf"
+  chmod 000 "$scratch/locked.conf"
+  OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/locked.conf" "$refresh" --install 2>/dev/null ||
+    fail "a failed device tree list write never stops a boot image build"
+  chmod 600 "$scratch/locked.conf"
+  cmp -s "$scratch/locked.conf" "$scratch/uki.conf" ||
+    fail "a failed device tree list write leaves the configuration as it was"
+fi
+
 # Omarchy's own kernel keeps its device trees under its package name. They come
 # before Arch Linux ARM's, so the trees match the kernel that boots.
 mkdir -p "$scratch/dtbroot/qcom" "$scratch/dtbroot/linux-omarchy/qcom"
@@ -117,8 +150,10 @@ run_dtb_root_setup() (
   omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() { :; }
 
+  PATH="$ROOT/bin:$PATH"
   OMARCHY_QUALCOMM_DTB_ROOT="$scratch/dtbroot"
   OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/uki-root.conf"
+  OMARCHY_QUALCOMM_BOOT_HOOKS_DIR="$scratch/boot-hooks"
   source "$dtb_setup"
 )
 run_dtb_root_setup
@@ -144,7 +179,8 @@ require_platform_fixtures "Snapdragon setup under the real detector"
 
 kernel_params_setup="$ROOT/install/hardware/qualcomm/kernel-params.sh"
 initramfs_setup="$ROOT/install/hardware/qualcomm/initramfs.sh"
-for script in "$kernel_params_setup" "$initramfs_setup"; do
+reboot_watchdog_setup="$ROOT/install/hardware/qualcomm/reboot-watchdog.sh"
+for script in "$kernel_params_setup" "$initramfs_setup" "$reboot_watchdog_setup"; do
   bash -n "$script" || fail "Snapdragon hardware scripts have valid syntax"
 done
 
@@ -167,11 +203,15 @@ run_leaves_on() (
   OMARCHY_QUALCOMM_MODPROBE_DIR="$out/modprobe.d"
   OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs"
   OMARCHY_QUALCOMM_UKI_CONFIG="$out/uki.conf"
+  OMARCHY_QUALCOMM_BOOT_HOOKS_DIR="$out/boot-hooks"
   OMARCHY_QUALCOMM_MKINITCPIO_DIR="$out/mkinitcpio.conf.d"
+  OMARCHY_QUALCOMM_INITCPIO_INSTALL_DIR="$out/initcpio-install"
+  OMARCHY_QUALCOMM_SYSTEM_CONF_DIR="$out/system.conf.d"
   source "$firmware_setup"
   source "$dtb_setup"
   source "$out/kernel-params.sh"
   source "$initramfs_setup"
+  source "$reboot_watchdog_setup"
 )
 
 run_leaves_on aarch64-qualcomm
@@ -180,6 +220,8 @@ snapdragon="$scratch/on/aarch64-qualcomm"
   fail "a Snapdragon device tree gets the firmware setup"
 grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
   fail "a Snapdragon device tree gets the device tree list"
+grep -Fqx "RebootWatchdogSec=off" "$snapdragon/system.conf.d/60-omarchy-qualcomm-reboot-watchdog.conf" ||
+  fail "a Snapdragon device tree stops asking its watchdog for ten minutes at shutdown"
 (
   declare -A KERNEL_CMDLINE=([default]="quiet splash")
   source "$snapdragon/limine-entry-tool.d/qualcomm-snapdragon.conf"
@@ -208,9 +250,29 @@ grep -Fq "DeviceTreeAuto=" "$snapdragon/uki.conf" ||
   done
 )
 
+(
+  # The hook quiets mkinitcpio's efivarfs mount, which fails on Snapdragon
+  # until the QSEECOM driver loads, in the image's copy of init_functions.
+  HOOKS=(base)
+  source "$snapdragon/mkinitcpio.conf.d/qualcomm-platform.conf"
+  [[ ${HOOKS[*]} == "base omarchy-quiet-efivars" ]] ||
+    fail "a Snapdragon device tree runs omarchy-quiet-efivars after base"
+
+  BUILDROOT="$scratch/buildroot"
+  mkdir -p "$BUILDROOT"
+  printf '%s\n' 'mount_setup() {' \
+    '    if [ -e /sys/firmware/efi ]; then' \
+    '        mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o nosuid,nodev,noexec' \
+    '    fi' '}' >"$BUILDROOT/init_functions"
+  source "$snapdragon/initcpio-install/omarchy-quiet-efivars"
+  build
+  grep -Fqx '        mount -t efivarfs efivarfs /sys/firmware/efi/efivars -o nosuid,nodev,noexec 2>/dev/null' "$BUILDROOT/init_functions" ||
+    fail "omarchy-quiet-efivars quiets mkinitcpio's efivarfs mount"
+)
+
 for platform in aarch64 aarch64-apple x86; do
   run_leaves_on "$platform"
-  for written in modprobe.d uki.conf limine-entry-tool.d mkinitcpio.conf.d; do
+  for written in modprobe.d uki.conf boot-hooks limine-entry-tool.d mkinitcpio.conf.d initcpio-install system.conf.d; do
     [[ ! -e $scratch/on/$platform/$written ]] ||
       fail "$platform gets no Snapdragon setup ($written)"
   done

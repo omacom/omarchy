@@ -1,36 +1,36 @@
 # Brändäys
 
-Omarchy antaa asettaa yrityksesi logon tai henkilökohtaisen kuvan sekä käynnistyksen lukituksen avaamiseen, näytönsäästäjään että tietoja-ruutuun.
+Omarchy antaa sinun asettaa yrityksesi logon tai henkilökohtaisen kuvan sekä käynnistyksen lukituksen avaukseen, näytönsäästäjään että Tietoja-näyttöön.
 
 ### Käynnistyksen lukituksen avaus
 
-Voit käyttää komentoa `omarchy plymouth preview` nähdäksesi, miltä mukautettu logosi ja värisi näyttäisivät. Se ottaa taustavärin, tekstin värin, logo-png:n ja polun esikatselukuvalle:
+Voit käyttää komentoa `omarchy plymouth preview` nähdäksesi, miltä mukautettu logosi ja värisi näyttäisivät. Se ottaa taustavärin, tekstivärin, logo-png:n ja polun esikatselukuvalle:
 
 ```
 omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
 ```
 
-Sovella sitten asetukset komennolla `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, mikä antaa myös SDDM-kirjautumisruudulle samat värit ja logon. Jos haluat palauttaa, voit käyttää komentoa `omarchy plymouth reset`.
+Ota sitten kokoonpano käyttöön komennolla `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png`, joka antaa myös SDDM-kirjautumisnäytölle samat värit ja logon. Jos haluat perua muutoksen, voit käyttää komentoa `omarchy plymouth reset`.
 
  ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
 
 ### Näytönsäästäjä
 
-Voit vaihtaa näytönsäästäjän logon kohdassa _Tyyli > Näytönsäästäjä_. Se on ASCII-logo, joten voit muokata tekstiä suoraan, mutta voit myös antaa sille png- tai svg-kuvan, ja me muunnamme sen ASCIIksi. Se näyttää aika hienolta.
+Voit vaihtaa näytönsäästäjässä käytettävän logon kohdassa _Ulkoasu > Brändäys > Näytönsäästäjä_. Se on ASCII-logo, joten voit muokata tekstiä suoraan, mutta voit myös antaa sille png- tai svg-kuvan, ja me muutamme sen ASCII-muotoon. Se näyttää aika siistiltä.
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
 Valikossa on kolme kohtaa:
 
-- **Muokkaa tekstiä** avaa tiedoston `~/.config/omarchy/branding/screensaver.txt` editorissasi. Kirjoita tai liitä mitä haluat — ASCII-taidetta, nimesi, kirosana. Tallenna ja lopeta, niin näytönsäästäjä käynnistyy heti, jotta voit nähdä sen.
-- **Aseta kuvasta** avaa tiedostonvalitsimen png- tai svg-tiedostolle, muuntaa sen ASCIIksi ja näyttää tuloksen. Logot, joilla on selkeä siluetti, toimivat paljon paremmin kuin valokuvat.
-- **Palauta oletus** palauttaa Omarchy-logon.
+- **Muokkaa tekstiä** avaa tiedoston `~/.config/omarchy/branding/screensaver.txt` editorissasi. Kirjoita tai liitä mitä haluat — ASCII-taidetta, nimesi, ruma sana. Tallenna ja lopeta, ja näytönsäästäjä käynnistyy heti, jotta näet sen.
+- **Aseta kuvasta** avaa tiedostonvalitsimen png- tai svg-kuvalle, muuttaa sen ASCII-muotoon ja näyttää tuloksen. Logot, joissa on selkeä siluetti, toimivat paljon paremmin kuin valokuvat.
+- **Palauta oletus** palauttaa Omarchy-logon takaisin.
 
-### Tietoja-ruutu
+### Tietoja-näyttö
 
-Samat kolme vaihtoehtoa ovat kohdassa _Tyyli > Tietoja_ Omarchy-valikosta saatavalle _Tietoja_-ruudulle, ja ne toimivat samoin — tiedosto on `~/.config/omarchy/branding/about.txt`, ja Tietoja-ikkuna ponnahtaa esiin jokaisen muutoksen jälkeen. Tietoja-taide muunnetaan pienempään kokoon kuin näytönsäästäjän, koska sen täytyy mahtua ikkunaan sen sijaan, että täyttäisi näytön.
+Samat kolme vaihtoehtoa ovat kohdassa _Ulkoasu > Brändäys > Tietoja_ Omarchy-valikosta avautuvalle _Tietoja_-näytölle, ja ne toimivat täsmälleen samalla tavalla — tiedosto on `~/.config/omarchy/branding/about.txt`, ja Tietoja-ikkuna ponnahtaa esiin jokaisen muutoksen jälkeen. Tietoja-taide muutetaan pienempään kokoon kuin näytönsäästäjän taide, koska sen on mahduttava ikkunaan sen sijaan, että se täyttäisi näyttösi.
 
-Kun ikkuna on auki, vihreä välähdys liukuu taiteen yli muutaman sekunnin välein ja jättää sen sitten taas paikalleen. Myös oma taiteesi saa sen, kunhan jokainen sen merkki on yhden sarakkeen leveä — kaikki _Aseta kuvasta_ -toiminnon tuottama on sellainen. Emojeista tai kaksileveistä merkeistä rakennettu taide pysyy sen sijaan paikallaan, ja niin pysyy ruutukin, jos säilytät oman fastfetch-määrityksesi: paikallaan pysyvä logo näissä tapauksissa on animaation tapa pysyä poissa tieltä eikä epäonnistua, koska välähdyksen liu'uttaminen niiden yli siirtäisi rivin loput väärään paikkaan.
+Kun ikkuna on auki, vihreä välähdys nojaa taiteen yli muutaman sekunnin välein ja jättää sen sitten taas paikalleen. Myös oma taiteesi saa sen, kunhan jokainen sen merkki on yhden sarakkeen levyinen — kaikki _Aseta kuvasta_ -toiminnon tuottama on. Emojeista tai kaksinkertaisen levyisistä merkeistä tehty taide pysyy sen sijaan paikallaan, ja niin pysyy näyttökin, jos sinulla on oma fastfetch-asetuksesi: liikkumaton logo on näissä tapauksissa animaatio, joka pysyy poissa tieltä, eikä merkki epäonnistumisesta, koska välähdyksen liu'uttaminen niiden yli saisi rivin loppuosan väärään paikkaan.
 
  ![branding-about](images/branding-about.webp)
 
@@ -42,14 +42,14 @@ Molemmat _Aseta kuvasta_ -vaihtoehdot vain kutsuvat komentoa `omarchy transcode 
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
 ```
 
-Se ottaa valinnat `--width` ja `--height` terminaalin sarakkeina ja riveinä, valinnan `--mode` arvoina `braille` (oletus ja paljon hienovaraisempi) tai `block`, valinnan `--threshold` prosentteina päättämään, mitkä pikselit kuuluvat logoon, sekä valinnan `--invert`, kun logosi on vaalea tummalla taustalla. Jos muunnos tulee ulos möykkynä, kynnysarvo on yleensä se nuppi, jota kääntää.
+Se ottaa valitsimet `--width` ja `--height` päätteen sarakkeina ja riveinä, valitsimen `--mode` arvolla joko `braille` (oletus ja paljon hienojakoisempi) tai `block`, prosenttiarvon valitsimelle `--threshold` päättämään, mitkä pikselit lasketaan osaksi logoa, ja valitsimen `--invert` tilanteisiin, joissa logosi on vaalea tummalla taustalla. Jos muunnoksesta tulee möykky, kynnysarvo on yleensä se säädin, jota kannattaa kääntää.
 
 ### Sanoja logon sijaan
 
-`omarchy ascii` piirtää tekstiä Delta Corps Priest 1 -fontilla, FIGlet-fontilla, jolla itse Omarchy-sanamerkki on piirretty, joten näytönsäästäjä voi sanoa jotakin sen sijaan, että näyttäisi kuvan:
+`omarchy ascii` piirtää tekstiä Delta Corps Priest 1 -fontilla, FIGlet-fontilla, jolla Omarchy-sanamerkki itse on piirretty, joten näytönsäästäjä voi sanoa jotain kuvan näyttämisen sijaan:
 
 ```
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt
 ```
 
-Se ottaa tekstin argumentteina tai lukee sen putkesta, kun argumentteja ei anneta. Fontti sisältää vain kirjaimia ja välilyöntejä — se piirrettiin ilman numeroita tai välimerkkejä — joten kaikki muu pudotetaan ja nimetään stderr:ssä sen sijaan, että se nieltäisiin hiljaa.
+Se ottaa tekstin argumentteina tai lukee sen putkesta, kun argumentteja ei anneta. Fontti sisältää vain kirjaimia ja välilyöntejä — se piirrettiin ilman numeroita tai välimerkkejä — joten kaikki muu pudotetaan pois ja nimetään stderrissä sen sijaan, että se nieltäisiin hiljaa.

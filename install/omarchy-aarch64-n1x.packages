@@ -6,7 +6,7 @@
 linux-omarchy
 linux-omarchy-headers
 # Release firmware (1.0 and later) drives the panel from the GPU.
-nvidia-open-dkms
+linux-omarchy-nvidia-open
 nvidia-utils
 libva-nvidia-driver
 # omarchy-n1x-probe uses lspci.
