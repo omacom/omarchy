@@ -207,11 +207,17 @@ Panel {
     }
   }
 
-  function toggleChargeLimit() {
+  function setChargeLimit(on) {
     if (!chargeLimitSupported || chargeLimitReadFailed || chargeLimitAction.running || chargeLimitReading) return
+    var wanted = on ? "on" : "off"
+    if (chargeLimitState === wanted) return
     chargeLimitFailed = false
-    chargeLimitAction.command = [Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-battery-charge-limit", chargeLimitState === "on" ? "off" : "on"]
+    chargeLimitAction.command = [Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-battery-charge-limit", wanted]
     chargeLimitAction.running = true
+  }
+
+  function toggleChargeLimit() {
+    setChargeLimit(chargeLimitState !== "on")
   }
 
   function togglePercentage() {
@@ -391,12 +397,17 @@ Panel {
       anchors.fill: parent
       implicitHeight: column.implicitHeight
       onMoveRequested: function(dx, dy) {
-        if (!root.cursorActive) { root.cursorActive = true; return }
+        var available = root.chargeLimitSupported && !root.chargeLimitReadFailed
+        if (!root.cursorActive) {
+          root.cursorActive = true
+          if (dy === 0 || !available) return
+        }
         var next = Model.movePowerCursor(
           { chargeFocused: root.chargeLimitFocused, profileIndex: root.profileIndex },
-          dx, dy, root.chargeLimitSupported && !root.chargeLimitReadFailed, root.profiles)
+          dx, dy, available, root.profiles)
         root.chargeLimitFocused = next.chargeFocused
         root.profileIndex = next.profileIndex
+        if (next.chargeAction !== "") root.setChargeLimit(next.chargeAction === "on")
       }
       onActivateRequested: {
         if (!root.cursorActive) return
@@ -601,20 +612,64 @@ Panel {
           }
         }
 
-        Toggle {
+        Item {
+          id: chargeControl
           width: parent.width
           visible: root.chargeLimitSupported
-          enabled: !chargeLimitAction.running && !root.chargeLimitReading && !root.chargeLimitReadFailed
-          checked: root.chargeLimitState === "on"
-          label: chargeLimitAction.running ? Commons.I18n.t("power.chargeLimitChanging") : Commons.I18n.t("power.preserveBatteryHealth")
-          description: root.chargeLimitReadFailed ? Commons.I18n.t("power.chargeLimitLastKnown")
-            : Model.chargeLimitDescription(root.chargeLimitInfo, Commons.I18n.t, Commons.I18n.formatNumber)
-          foreground: root.bar.foreground
-          fontFamily: root.bar.fontFamily
-          hasCursor: root.cursorActive && root.chargeLimitFocused
-          onClicked: root.toggleChargeLimit()
-          onHovered: function(h) {
-            if (h) {
+          enabled: !root.chargeLimitReadFailed
+          implicitHeight: Math.max(chargeLabels.implicitHeight, chargeSwitch.implicitHeight)
+
+          Row {
+            anchors.fill: parent
+            spacing: Style.space(12)
+
+            Column {
+              id: chargeLabels
+              width: parent.width - chargeSwitch.width - parent.spacing
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.spacing.xs
+
+              Text {
+                textFormat: Text.PlainText
+                text: Commons.I18n.t("power.chargeLimit")
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
+                width: parent.width
+                elide: Text.ElideRight
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                text: root.chargeLimitReadFailed ? Commons.I18n.t("power.chargeLimitLastKnown")
+                  : Model.chargeLimitDescription(root.chargeLimitInfo, Commons.I18n.t, Commons.I18n.formatNumber)
+                color: Qt.darker(root.bar.foreground, 1.5)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                width: parent.width
+                wrapMode: Text.WordWrap
+              }
+            }
+
+            ToggleSwitch {
+              id: chargeSwitch
+              anchors.verticalCenter: parent.verticalCenter
+              checked: root.chargeLimitState === "on"
+              busy: chargeLimitAction.running || root.chargeLimitReading || root.chargeLimitReadFailed
+              foreground: root.bar.foreground
+              interactive: false
+              cursorRing: true
+              hasCursor: root.cursorActive && root.chargeLimitFocused
+            }
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.toggleChargeLimit()
+            onEntered: {
               root.cursorActive = true
               root.chargeLimitFocused = true
             }
@@ -622,7 +677,7 @@ Panel {
         }
 
         Text {
-          visible: root.chargeLimitFailed || (root.chargeLimitReadFailed && !root.chargeLimitSupported)
+          visible: root.chargeLimitFailed || root.chargeLimitReadFailed
           width: parent.width
           textFormat: Text.PlainText
           text: root.chargeLimitReadFailed ? Commons.I18n.t("power.chargeLimitReadFailed") : Commons.I18n.t("power.chargeLimitFailed")

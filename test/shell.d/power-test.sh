@@ -17,13 +17,13 @@ assertEqual(power.parseChargeLimit('state\tunsupported\n').state, 'unsupported',
 assertEqual(power.parseChargeLimit('state\toff\npolicy\tend\nend\t100\n').policy, 'unknown', 'power never describes a full-charge threshold as battery protection')
 assertEqual(power.parseChargeLimit('state\ton\npolicy\trange\nstart\t90\nend\t80\n').policy, 'unknown', 'power rejects an inverted charging range')
 
-assertEqual(power.chargeLimitDescription(range), 'Starts charging below 75% and stops at 80%.', 'power distinguishes charging start and stop thresholds')
-assertEqual(power.chargeLimitDescription({ ...range, state: 'off' }), 'Charges to full. Turn on to start below 75% and stop at 80%.', 'power explains the available policy while protection is off')
-assertEqual(power.chargeLimitDescription({ state: 'on', policy: 'end', end: 60 }), 'Stops charging at 60%.', 'power uses the reported limit rather than a fixed percentage')
-assertEqual(power.chargeLimitDescription({ state: 'on', policy: 'firmware' }), 'Uses your laptop’s battery protection settings.', 'firmware-controlled protection makes no percentage promise')
-assertEqual(power.chargeLimitDescription({ state: 'on', policy: 'different' }), 'Each supported battery uses its own charging limit.', 'power does not apply the first battery limit to every battery')
-assert(power.chargeLimitDescription({ state: 'mixed' }).includes('different settings'), 'power explains partially applied battery protection')
-assertEqual(power.chargeLimitDescription(range, (key, english) => english, n => '[' + n + ']'), 'Starts charging below [75]% and stops at [80]%.', 'power localizes both charging thresholds')
+assertEqual(power.chargeLimitDescription(range), 'Start below 75% · stop at 80%', 'power distinguishes charging start and stop thresholds')
+assertEqual(power.chargeLimitDescription({ ...range, state: 'off' }), power.chargeLimitDescription(range), 'switching the limit keeps its policy label and layout stable')
+assertEqual(power.chargeLimitDescription({ state: 'on', policy: 'end', end: 60 }), 'Maximum 60%', 'power uses the reported limit rather than a fixed percentage')
+assertEqual(power.chargeLimitDescription({ state: 'on', policy: 'firmware' }), 'Device default', 'firmware-controlled protection makes no percentage promise')
+assertEqual(power.chargeLimitDescription({ state: 'on', policy: 'different' }), 'Separate limits per battery', 'power does not apply the first battery limit to every battery')
+assertEqual(power.chargeLimitDescription({ state: 'mixed' }), 'Enabled on some batteries', 'power explains partially applied battery protection')
+assertEqual(power.chargeLimitDescription(range, (key, english) => english, n => '[' + n + ']'), 'Start below [75]% · stop at [80]%', 'power localizes both charging thresholds')
 
 assertEqual(power.chargeLimitReadResult(null, 1), null, 'power waits for stdout completion when process exit arrives first')
 assertEqual(power.chargeLimitReadResult('', null), null, 'power waits for process exit when empty stdout arrives first')
@@ -33,10 +33,12 @@ assertDeepEqual(power.chargeLimitReadResult(rangeReading, 0), { failed: false, i
 
 const profiles = ['power-saver', 'balanced', 'performance']
 const cursor = { chargeFocused: false, profileIndex: 1 }
-assertDeepEqual(power.movePowerCursor(cursor, 0, 1, true, profiles), { chargeFocused: true, profileIndex: 1 }, 'Down reaches battery protection without changing the selected power profile')
-assertDeepEqual(power.movePowerCursor({ ...cursor, chargeFocused: true }, 0, -1, true, profiles), cursor, 'Up returns from battery protection to power profiles')
-assertDeepEqual(power.movePowerCursor(cursor, 0, 1, false, profiles), { chargeFocused: false, profileIndex: 2 }, 'Down walks profiles when battery protection is unavailable')
-assertDeepEqual(power.movePowerCursor({ ...cursor, chargeFocused: true }, 1, 0, false, profiles), { chargeFocused: false, profileIndex: 2 }, 'a vanished or unreadable charge control cannot trap keyboard focus')
+assertDeepEqual(power.movePowerCursor(cursor, 0, 1, true, profiles), { chargeFocused: true, profileIndex: 1, chargeAction: '' }, 'Down reaches battery protection without changing the selected power profile')
+assertDeepEqual(power.movePowerCursor({ ...cursor, chargeFocused: true }, 0, -1, true, profiles), { ...cursor, chargeAction: '' }, 'Up returns from battery protection to power profiles')
+assertDeepEqual(power.movePowerCursor(cursor, 0, 1, false, profiles), { chargeFocused: false, profileIndex: 2, chargeAction: '' }, 'Down walks profiles when battery protection is unavailable')
+assertDeepEqual(power.movePowerCursor({ ...cursor, chargeFocused: true }, 1, 0, false, profiles), { chargeFocused: false, profileIndex: 2, chargeAction: '' }, 'a vanished or unreadable charge control cannot trap keyboard focus')
+assertDeepEqual(power.movePowerCursor({ ...cursor, chargeFocused: true }, -1, 0, true, profiles), { chargeFocused: true, profileIndex: 1, chargeAction: 'off' }, 'Left explicitly disables the focused charge limit')
+assertDeepEqual(power.movePowerCursor({ ...cursor, chargeFocused: true }, 1, 0, true, profiles), { chargeFocused: true, profileIndex: 1, chargeAction: 'on' }, 'Right explicitly enables the focused charge limit')
 assert(power.chargeLimitEvent('PropertiesChanged: ChargeEndThreshold'), 'an external stopping-percentage change refreshes battery protection')
 assert(power.chargeLimitEvent('PropertiesChanged: ChargeStartThreshold'), 'an external starting-percentage change refreshes battery protection')
 assert(power.chargeLimitEvent('PropertiesChanged: IsPresent'), 'a removable battery becoming absent refreshes the supported battery set')
