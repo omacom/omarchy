@@ -439,6 +439,13 @@ def current_spend(quota: dict[str, Any] | None, days: list[float]) -> dict[str, 
 # ---------------------------------------------------------------- caches
 
 
+# Whether a kept spend answer, read back from disk, holds a real monthly cap.
+def known_cap(part: dict[str, Any] | None) -> bool:
+  spend = part.get("spend") if part else None
+  cap = spend.get("cap") if isinstance(spend, dict) else None
+  return isinstance(cap, (int, float)) and not isinstance(cap, bool) and math.isfinite(cap) and cap > 0
+
+
 # Both answers are keyed by the API key: the spend under the limits cache
 # name every collector shares, the usage rows beside it. Neither holds limit
 # windows, so either stands in for a probe on its stamp alone.
@@ -515,7 +522,7 @@ def scan(api_base_url: str, auth_path: Path, force: bool = False, limits_only: b
           now = datetime.now(timezone.utc)
           quota = client.monthly_spend(account_id)
           # A refused quota can't say a cap the account had is gone: keep it, stale.
-          if quota is None and spend_part and (spend_part.get("spend") or {}).get("cap"):
+          if quota is None and known_cap(spend_part):
             raise FireworksDeniedError("The Fireworks API key cannot read billing data")
           spend = current_spend(quota, client.daily_costs(account_id, now))
           # The tier comes with the account, which a known account id skipped.
