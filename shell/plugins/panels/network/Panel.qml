@@ -23,6 +23,20 @@ Panel {
     cancelPasswordPrompt()
   }
 
+  function showFirstRunCard() {
+    Quickshell.execDetached(["omarchy-provision-first-run-card", "wifi"])
+  }
+
+  // The connection a card-opened panel closed on has failed or timed out. A
+  // panel opened since shows the failure itself, so the card waits for it.
+  function settleCardRetry() {
+    if (!cardRetryPending) return
+    cardRetryPending = false
+    if (kind !== "disconnected") return
+    if (opened) cardOpened = true
+    else showFirstRunCard()
+  }
+
   function cancelPasswordPrompt() {
     passwordSsid = ""
     passwordText = ""
@@ -98,6 +112,11 @@ Panel {
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
+  // Opened by the first-run Wi-Fi card. Closing it still offline brings the
+  // card back; opened any other way, it never does. Closed mid-connect, the
+  // answer waits on the connection: cardRetryPending holds it until then.
+  property bool cardOpened: false
+  property bool cardRetryPending: false
 
   // ConnectionFailReason values as a plain object, so Model.js helpers stay
   // pure JS and Node-testable.
@@ -219,6 +238,8 @@ Panel {
     function hide() { root.close() }
     function toggle() { root.toggle() }
     function toggleNetwork() { root.toggleNetwork() }
+    // The first-run Wi-Fi card's click; see cardOpened.
+    function openFromCard() { root.cardOpened = true; root.open() }
     // Compat routes for configs that summon the centered cards through the
     // network target; both cards are their own plugins now.
     function showQr() { root.summonWifiQr(true) }
@@ -349,6 +370,11 @@ Panel {
       internetPingLatency = -1
       internetPingPacketLoss = 0
       setScannerEnabled(false)
+      if (cardOpened) {
+        cardOpened = false
+        if (kind === "disconnected" && actionKind === "connect") cardRetryPending = true
+        else if (kind === "disconnected") showFirstRunCard()
+      }
     }
   }
 
@@ -466,7 +492,10 @@ Panel {
   // an nmcli read still in flight from before cannot write a stale strength.
   property int activeApSignalGeneration: 0
   property int activeApSignalRequest: -1
-  onKindChanged: if (kind !== "wifi") resetActiveApSignal()
+  onKindChanged: {
+    if (kind !== "wifi") resetActiveApSignal()
+    if (kind !== "disconnected") cardRetryPending = false
+  }
 
   // Switching Wi-Fi networks always passes through a non-"wifi" kind (both the
   // device and the old network drop out of the connected state while the new
@@ -845,6 +874,7 @@ Panel {
     actionSsid = ""
     actionKind = ""
     refresh()
+    settleCardRetry()
   }
 
   function networkFailureReason(reason, needsCredentials) {
@@ -1076,6 +1106,7 @@ Panel {
       root.actionSsid = ""
       root.actionKind = ""
       root.refresh()
+      root.settleCardRetry()
     }
   }
 
@@ -1678,7 +1709,6 @@ Panel {
               text: sectionTitle
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
-              height: visible ? implicitHeight : 0
             }
 
             NetworkRow {
@@ -1972,7 +2002,6 @@ Panel {
           // so rows without status keep a tight one-line look.
           text: row.statusText
           visible: row.statusText !== ""
-          height: visible ? implicitHeight : 0
           color: row.statusColor
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption

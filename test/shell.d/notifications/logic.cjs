@@ -1022,6 +1022,38 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   assert.equal(s.liveEntries.length, 0)
 }
 
+{ // A queued card lines up behind the cards on screen instead of burying the
+  // first of a sequence, and a restart puts the stack back in that order.
+  const s = newCapacityScope()
+  const queued = (id, summary) => Object.assign(s.fakeNotification(id, summary, 2), { hints: { 'omarchy-queue': true } })
+  s.admit(s.fakeNotification(1, 'Keybindings', 2), queued(2, 'Git'), queued(3, 'Wi-Fi'))
+  eq(summaries(s.toasts.rows), ['Keybindings', 'Git', 'Wi-Fi'], 'queued cards line up behind the first')
+  s.admit(s.fakeNotification(4, 'Chat'))
+  eq(summaries(s.toasts.rows), ['Chat', 'Keybindings', 'Git', 'Wi-Fi'], 'an ordinary card still lands on top')
+  const restarted = newCapacityScope()
+  restarted.restoreRows(s.liveEntries, false)
+  restarted.drainCallLater()
+  eq(summaries(restarted.toasts.rows), ['Chat', 'Keybindings', 'Git', 'Wi-Fi'], 'a restart keeps the queued order')
+}
+
+{ // Where a card stands is settled when it first arrives: a replacement that
+  // lands before the card first shows, without the hint, keeps it queued, so
+  // the screen and a restart agree.
+  const s = newCapacityScope()
+  s.admit(s.fakeNotification(1, 'Keybindings', 2))
+  s.pointerHolding = true
+  s.admit(Object.assign(s.fakeNotification(2, 'Git', 2), { hints: { 'omarchy-queue': true } }))
+  s.admit(s.fakeNotification(2, 'Git again', 2))
+  s.pointerHolding = false
+  s.releaseHeld()
+  s.drainCallLater()
+  eq(summaries(s.toasts.rows), ['Keybindings', 'Git again'], 'a replaced queued card still shows behind')
+  const restarted = newCapacityScope()
+  restarted.restoreRows(s.liveEntries, false)
+  restarted.drainCallLater()
+  eq(summaries(restarted.toasts.rows), ['Keybindings', 'Git again'], 'a restart agrees with the screen')
+}
+
 { // A pending card silenced before it showed leaves nothing to restore.
   const s = newCapacityScope()
   s.pointerHolding = true

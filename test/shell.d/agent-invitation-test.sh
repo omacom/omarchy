@@ -37,7 +37,7 @@ run_invitation_hook
 [[ -f $test_home/.local/state/omarchy/done/agent-setup-invitation ]] || fail "agent invitation records completion"
 [[ -f $hook_path ]] || fail "agent invitation keeps its hook installed"
 [[ $(grep -c '^notification$' "$log_file") -eq 1 ]] || fail "agent invitation sends one notification"
-grep -qx 'exec:omarchy menu summon setup.default.agent' "$log_file" ||
+grep -qx 'exec:omarchy-provision-first-run-card agent --run' "$log_file" ||
   fail "agent invitation opens the agent defaults menu"
 
 run_invitation_hook

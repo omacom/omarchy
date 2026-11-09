@@ -46,7 +46,8 @@ source = source.replace('  id: root', `  id: root
   readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
   property alias testPoll: connectivityPoll
   property alias testApPoll: activeApSignalPoll
-  property alias testBarButton: button`)
+  property alias testBarButton: button
+  property alias testActionTimeout: actionTimeout`)
 fs.writeFileSync(`${stage}/network/Panel.qml`, source)
 JS
   printf '#!/bin/bash\nexit 0\n' >"$stage/bin/noop"
@@ -99,3 +100,11 @@ while IFS= read -r args; do
   [[ $args == "-t -f IN-USE,SIGNAL device wifi list ifname test-wifi --rescan no" ]] || fail "in-use access point read never rescans" "$args"
 done <"$stage/nmcli.log"
 pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use access point, and discards stale reads"
+
+stage_panel first-run-card
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> "$NETWORK_TEST_CARD_LOG"\n' >"$stage/bin/omarchy-provision-first-run-card"
+chmod +x "$stage/bin/omarchy-provision-first-run-card"
+NETWORK_TEST_CARD_LOG="$stage/cards.log" run_panel "network first-run card"
+expected=$'plain\nidle\nwifi\nsuccess\nfailure\nwifi\ntimeout\nwifi\nreopened\nreopened-closing\nwifi'
+[[ $(<"$stage/cards.log") == "$expected" ]] || fail "only a panel the Wi-Fi card opened brings the card back, once its connection has failed" "$(cat "$stage/cards.log" 2>/dev/null)"
+pass "a panel the Wi-Fi card opened brings the card back when it closes offline or its connection fails"

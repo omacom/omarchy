@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# omarchy:summary=Show a first-run onboarding card, or run the step its click starts
+# omarchy:args=<keybindings|git|wifi|agent|fingerprint|update> [--run|--step]
+# omarchy:hidden=true
+
+set -e
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-provision-first-run-card <keybindings|git|wifi|agent|fingerprint|update> [--run|--step]
+
+Without an option, shows the card. Its click runs --run, which starts the step.
+A step started from the card that ends undone shows the card again, so a
+failed, interrupted or abandoned step can be picked up where it was left.
+Saying no inside a step counts as done; dismissing the card is the way out.
+The same steps run from the menu or the command line never bring a card back.
+USAGE
+}
+
+card=${1:-}
+mode=${2:-}
+
+case $card in
+  keybindings) glyph=$'' ;;
+  git) glyph=$'' ;;
+  wifi) glyph=$'\U000f05a9' ;;
+  agent) glyph=$'\U000f06a9' ;;
+  fingerprint) glyph=$'\U000f0237' ;;
+  update) glyph=$'' ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac
+
+show_card() {
+  # Nothing is usable without the keybindings, so their card stays on top and
+  # every other one queues behind the cards already showing.
+  local queue=(--queue)
+  [[ $card == "keybindings" ]] && queue=()
+
+  omarchy-notification-send "${queue[@]}" -u critical -g "$glyph" \
+    "$(omarchy-i18n "firstRun.${card}Title")" "$(omarchy-i18n "firstRun.${card}Body")" \
+    --exec omarchy-provision-first-run-card "$card" --run
+}
+
+# The steps that run in a terminal.
+step_command() {
+  case $card in
+    git) echo omarchy-setup-git ;;
+    fingerprint) echo omarchy-setup-security-fingerprint ;;
+    update) echo omarchy-update ;;
+  esac
+}
+
+case $mode in
+  "")
+    show_card
+    ;;
+  --run)
+    case $card in
+      keybindings)
+        exec omarchy-menu-keybindings
+        ;;
+      wifi)
+        # The panel shows the card again if it closes with no connection.
+        exec omarchy-shell omarchy.network openFromCard
+        ;;
+      agent)
+        # The menu shows the card again if it closes without a choice.
+        exec omarchy-shell shell summon omarchy.menu "$(jq -nc '{ menu: "setup.default.agent", card: "agent" }')"
+        ;;
+      *)
+        exec omarchy-launch-floating-terminal-with-presentation omarchy-provision-first-run-card "$card" --step
+        ;;
+    esac
+    ;;
+  --step)
+    command=$(step_command)
+    [[ -n $command ]] || { usage >&2; exit 1; }
+
+    # Runs inside the step's terminal, so whatever ends the step ends here too.
+    # Closing the window hangs the step up, which leaves it as undone as a
+    # failure. Ctrl-C reaches the step itself; this only has to outlive it.
+    trap 'show_card >/dev/null 2>&1 || true; exit 129' HUP
+    trap : INT
+
+    status=0
+    "$command" || status=$?
+    if (( status != 0 )); then
+      show_card >/dev/null 2>&1 || true
+    fi
+    exit "$status"
+    ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac
