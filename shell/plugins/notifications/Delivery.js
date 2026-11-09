@@ -1,16 +1,35 @@
 // Whether a notification reaches the screen, and where the deck sits. Pure
 // functions over a snapshot row (Store.snapshot).
 .pragma library
+.import "Security.js" as Security
 
 var CRITICAL = 2
 
 // Omarchy's own action toasts and bare notify-send critical alerts get through
-// Do Not Disturb and every snooze. Critical alone is not enough: chat apps send
+// Do Not Disturb. Critical alone is not enough: chat apps send
 // critical to force visibility, under their own app name.
 function bypassesQuiet(row) {
   var app = String((row && row.app) || "")
   if (app === "omarchy-action") return true
   return app === "notify-send" && Number(row.urgency) === CRITICAL
+}
+
+// The buttons a card offers, in the order it draws them and the number keys
+// count them: copying each code it found, then an Omarchy sender's --action
+// buttons, then the sender's own actions. A code's label is left to the card,
+// which translates it.
+function deeds(row, senderActions) {
+  var out = []
+  var codes = String((row && (row.codes || row.code)) || "").split(" ")
+  for (var c = 0; c < codes.length; c++)
+    if (codes[c]) out.push({ kind: "code", value: codes[c], label: "" })
+  var exec = Security.parseExecActions(row && row.execActions) || []
+  for (var e = 0; e < exec.length; e++)
+    out.push({ kind: "exec", value: e, label: exec[e].label })
+  var actions = senderActions || []
+  for (var i = 0; i < actions.length; i++)
+    out.push({ kind: "action", value: String(actions[i].id), label: String(actions[i].text || "") })
+  return out
 }
 
 // Nobody looks back at these (the `transient` hint, or an unnamed sender), so
@@ -21,15 +40,13 @@ function isEphemeral(row) {
   return app === "notify-send" || app === "omarchy-action"
 }
 
-// "silenced", "snoozed", or "" when the row shows. A verification code may
-// pass either: it was asked for a moment ago and expires in minutes.
-function quietReason(row, state) {
-  var reason = state.doNotDisturb ? "silenced"
-             : (state.globalSnoozed || state.sourceSnoozed) ? "snoozed" : ""
-  if (!reason) return ""
+// "silenced", or "" when the row shows. A verification code always passes: it
+// was asked for a moment ago and expires in minutes.
+function quietReason(row, doNotDisturb) {
+  if (!doNotDisturb) return ""
   if (bypassesQuiet(row)) return ""
-  if (state.codesBypassQuiet && String((row && row.code) || "")) return ""
-  return reason
+  if (String((row && row.code) || "")) return ""
+  return "silenced"
 }
 
 // A summary that opens with its own glyph ("󰂚  Silenced": one code point, two

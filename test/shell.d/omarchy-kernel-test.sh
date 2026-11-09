@@ -5,6 +5,9 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 command="$ROOT/bin/omarchy-kernel"
+# The root half is the packaged copy wherever one is installed, else this one.
+root_half=/usr/bin/omarchy-kernel
+[[ -x $root_half ]] || root_half=$command
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin" "$scratch/root-bin" "$scratch/drop-ins" "$scratch/modules"
@@ -130,7 +133,7 @@ pass "set only accepts installed kernels"
 reset_fixture
 "$command" set linux-omarchy < /dev/null
 [[ $(grep -c '^pkexec ' "$CALL_LOG") == "1" ]] || fail "the menu path escalates through pkexec once" "$(<"$CALL_LOG")"
-grep -Fxq "pkexec $ROOT/bin/omarchy-kernel set linux-omarchy" "$CALL_LOG" || fail "pkexec runs this command's root half" "$(<"$CALL_LOG")"
+grep -Fxq "pkexec $root_half set linux-omarchy" "$CALL_LOG" || fail "pkexec runs this command's root half" "$(<"$CALL_LOG")"
 ! grep -q '^sudo ' "$CALL_LOG" || fail "the menu path has no terminal for sudo"
 grep -Fxq 'omarchy-state set reboot-required' "$CALL_LOG" || fail "a switch asks for a reboot"
 [[ $(grep -c '^omarchy-notification-send ' "$CALL_LOG") == "1" ]] || fail "only the finished switch is announced" "$(<"$CALL_LOG")"
