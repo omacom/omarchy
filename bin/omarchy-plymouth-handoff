@@ -21,6 +21,7 @@ import glob
 import mmap
 import os
 import pwd
+import re
 import signal
 import socket
 import struct
@@ -314,14 +315,74 @@ def sddm_settings():
   return settings
 
 
+LONG_BRACKET = re.compile(r"\[(=*)\[")
+# A string literal is replaced by \0<index>\0, so only a whole literal can be the argument.
+REQUIRE_CALL = re.compile(r"(?<![\w.:])require(?:\s*\(\s*\0(\d+)\0\s*\)|\s*\0(\d+)\0)")
+
+
+def lua_code(text):
+  # The code without comments, and the contents of each string literal, which
+  # the code refers to by index; a "--" inside a string is not a comment. None
+  # when Lua would refuse the file, which then runs nothing that could ask.
+  if "\0" in text:
+    return None
+  code, strings, i = [], [], 0
+  while i < len(text):
+    if text.startswith("--", i):
+      block = LONG_BRACKET.match(text, i + 2)
+      if block:
+        end = text.find("]" + block.group(1) + "]", block.end())
+        if end < 0:
+          return None
+        i = end + len(block.group(1)) + 2
+      else:
+        end = text.find("\n", i)
+        i = len(text) if end < 0 else end
+      code.append(" ")
+      continue
+    long_string = LONG_BRACKET.match(text, i)
+    if long_string:
+      end = text.find("]" + long_string.group(1) + "]", long_string.end())
+      if end < 0:
+        return None
+      strings.append(text[long_string.end():end])
+      stop = end + len(long_string.group(1)) + 2
+    elif text[i] in "\"'":
+      stop = i + 1
+      while stop < len(text) and text[stop] != text[i]:
+        if text[stop] == "\n":
+          return None
+        if text.startswith("\\z", stop):
+          stop += 2
+          while stop < len(text) and text[stop].isspace():
+            stop += 1
+        else:
+          stop += 2 if text[stop] == "\\" else 1
+      if stop >= len(text):
+        return None
+      strings.append(text[i + 1:stop])
+      stop += 1
+    else:
+      code.append(text[i])
+      i += 1
+      continue
+    code.append(f"\0{len(strings) - 1}\0")
+    i = stop
+  return "".join(code), strings
+
+
 def runs_omarchy_config(user, home=None):
   # Whether this user's Hyprland config still loads Omarchy's defaults, whose
   # default/hypr/plymouth-release.lua asks for the display.
   try:
     home = home or pwd.getpwnam(user).pw_dir
     with open(f"{home}/.config/hypr/hyprland.lua") as config:
-      return any('require("default.hypr.omarchy")' in line.split("--", 1)[0] for line in config)
-  except (KeyError, OSError):
+      parsed = lua_code(config.read())
+    if parsed is None:
+      return False
+    code, strings = parsed
+    return any(strings[int(call.group(1) or call.group(2))] == "default.hypr.omarchy" for call in REQUIRE_CALL.finditer(code))
+  except (KeyError, OSError, UnicodeDecodeError):
     return False
 
 

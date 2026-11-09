@@ -87,6 +87,32 @@ assert not m.gated(auto, home), "a Hyprland config without Omarchy's defaults ne
 with open(f"{home}/.config/hypr/hyprland.lua", "w") as f:
   f.write('-- require("default.hypr.omarchy")\n')
 assert not m.gated(auto, home), "commented out, Omarchy's defaults never load"
+def config_loads(text):
+  with open(f"{home}/.config/hypr/hyprland.lua", "w") as f:
+    f.write(text)
+  return m.gated(auto, home)
+assert not config_loads('--[[\nrequire("default.hypr.omarchy")\n]]\n'), "a block comment hides the require"
+assert not config_loads('--[==[\n]]\nrequire("default.hypr.omarchy")\n]==]\n'), "a block comment with a level ends only at its own bracket"
+assert config_loads('--[[ my own setup ]]\nrequire("default.hypr.omarchy")\n'), "code after a closed block comment still loads"
+assert config_loads("require 'default.hypr.omarchy'\n"), "single quotes without parentheses are a require too"
+assert config_loads('local url = "http://x--y"; require("default.hypr.omarchy")\n'), "a -- inside a string is not a comment"
+assert not config_loads("local example = [[require 'default.hypr.omarchy']]\n"), "a require inside a long string is text"
+assert not config_loads("local example = \"require 'default.hypr.omarchy'\"\n"), "a require inside a quoted string is text"
+assert not config_loads('require("default.hypr.omarchy" .. ".custom")\n'), "a concatenated name is another module"
+assert not config_loads('require("\0" .. "\0")\n'), "stray NUL bytes in a config cannot pose as strings"
+assert not config_loads('require("default.hypr.oma\0rchy")\n'), "a NUL byte is never dropped to make a match"
+assert not config_loads('local example = "example\\z\n   require \'default.hypr.omarchy\'"\n'), "a \\z escape carries the string onto the next line"
+assert not config_loads('local example = "example\\\nrequire \'default.hypr.omarchy\'"\n'), "an escaped newline carries the string on"
+assert not config_loads('require "default.hypr.omarchy\n'), "an unclosed string is a file Lua refuses"
+assert not config_loads('require [[default.hypr.omarchy\n'), "an unclosed long string is a file Lua refuses"
+assert not config_loads('require("default.hypr.omarchy")\n--[[ never closed\n'), "an unclosed block comment is a file Lua refuses"
+assert config_loads('local a = "it\\"s"\nrequire("default.hypr.omarchy")\n'), "an escaped quote does not end a string"
+assert not config_loads('requ--[[x]]ire("default.hypr.omarchy")\n'), "a comment separates tokens rather than joining them"
+assert not config_loads('local custom = {require = function() end}\ncustom.require "default.hypr.omarchy"\n'), "a field named require is not the loader"
+import time
+started = time.monotonic()
+config_loads("local loader = require" + " " * 32000 + "\nloader('x')\n")
+assert time.monotonic() - started < 1, "a long run of whitespace is scanned in linear time"
 greeter = {"General/DisplayServer": "wayland", "Wayland/CompositorCommand": "start-hyprland -- --config /usr/share/sddm/hyprland.lua"}
 assert m.gated(greeter, home), "Omarchy's greeter asks"
 assert not m.gated({**greeter, "General/DisplayServer": "x11"}, home), "an X11 greeter never runs the Wayland command"
