@@ -276,7 +276,7 @@ ShellRoot {
     source: shell.activeBarId !== shell.defaultBarId ? shell.activeBarSourceUrl : ""
     asynchronous: true
     onLoaded: shell.configureBar(item, shell.activeBarManifest)
-    onActiveChanged: if (!active) shell.bar = null
+    onActiveChanged: if (!active && shell.activeBarId !== shell.defaultBarId) shell.bar = null
     onStatusChanged: {
       if (status === Loader.Error) {
         console.warn("bar option " + shell.activeBarId + " failed to load, falling back to " + shell.defaultBarId)
