@@ -141,6 +141,35 @@ Panel {
     return items
   }
 
+  // Modify editor. `editorOpen` swaps the list out for the native form built by
+  // Editor.qml; `editingUuid` is the resolved profile every write targets (never
+  // the SSID, which repeats). `editorFields` is the read-back prefill and the
+  // "before" side of the changed-keys diff; `editorSteps` is the queue of
+  // nmcli runs the save walks one process at a time.
+  property string editingUuid: ""
+  property string editingSsid: ""
+  property string editorPendingUuid: ""
+  property bool editorOpen: false
+  property bool editorBusy: false
+  property string editorError: ""
+  property var editorFields: null
+  property bool editorActive: false
+  property bool editorEnterprise: false
+  property var editorSteps: []
+  // Profile picker (R1 case 3): more than one saved profile shares the SSID and
+  // none is active, so the user chooses before the form is read.
+  property bool editorPicking: false
+  property var editorChoices: []
+  // Security enum values as a plain object, so Model's pure helpers stay
+  // Node-testable; only the panel knows the WifiSecurityType constants.
+  readonly property var editorSecurityEnum: ({
+    Wpa2Psk: WifiSecurityType.Wpa2Psk,
+    WpaPsk: WifiSecurityType.WpaPsk,
+    Sae: WifiSecurityType.Sae,
+    Wpa2Eap: WifiSecurityType.Wpa2Eap,
+    WpaEap: WifiSecurityType.WpaEap
+  })
+
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
   // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
   // within header actions, band pills, or DNS providers.
@@ -980,9 +1009,244 @@ Panel {
     else if (key === "forget") root.forget(root.wifiRowForSsid(root.menuSsid))
   }
 
-  // Task 6 replaces this stub with the profile editor; the menu call site is
-  // wired now so the row's "Modify Network…" item is live end to end.
-  function openEditor(ssid) {}
+  // Opens the editor for a row's SSID: resolve the saved profile by UUID, read
+  // its settings back, then hand the prefill to Editor.qml. Every read and write
+  // goes through the UUID (the SSID can name several profiles).
+  function openEditor(ssid) {
+    if (ssid === "" || editorBusy) return
+    editingSsid = ssid
+    editingUuid = ""
+    editorFields = null
+    editorError = ""
+    editorActive = false
+    editorEnterprise = false
+    editorSteps = []
+    editorPicking = false
+    editorChoices = []
+    editorOpen = true
+    editorBusy = true
+    connectionListProc.command = ["nmcli", "-t", "-f", "NAME,UUID,ACTIVE", "connection", "show"]
+    connectionListProc.running = true
+  }
+
+  function editorMatches(profiles) {
+    var matches = []
+    for (var i = 0; i < profiles.length; i++) {
+      if (profiles[i].name === editingSsid) matches.push(profiles[i])
+    }
+    return matches
+  }
+
+  function finishConnectionList(raw) {
+    if (!editorOpen) return
+    var profiles = Model.parseNmcliConnections(raw)
+    var matches = editorMatches(profiles)
+    var row = wifiRowForSsid(editingSsid)
+    // An active saved profile means the network is in use; the row can be a
+    // scan-churn snapshot, so trust the profile's own flag too.
+    var connected = !!(row && row.connected)
+    for (var i = 0; i < matches.length; i++) {
+      if (matches[i].active) connected = true
+    }
+    var resolved = Model.resolveProfile(profiles, editingSsid, connected)
+
+    if (resolved.ambiguous) {
+      editorChoices = matches
+      editorPicking = true
+      editorBusy = false
+      return
+    }
+    if (!resolved.uuid) {
+      editorError = "No saved profile found for this network."
+      editorBusy = false
+      return
+    }
+    readEditorProfile(resolved.uuid, matches)
+  }
+
+  // Reads one profile back and seeds the form. `matches` carries the active
+  // flags so a reapply is only attempted for the profile in use.
+  function readEditorProfile(uuid, matches) {
+    editorPicking = false
+    editorPendingUuid = uuid
+    var active = false
+    for (var i = 0; i < (matches || []).length; i++) {
+      if (matches[i].uuid === uuid) active = !!matches[i].active
+    }
+    editorActive = active
+    editorBusy = true
+    profileProc.command = ["nmcli", "-t", "-f",
+      "connection.autoconnect,connection.autoconnect-priority,connection.metered,ipv4.method,ipv4.addresses,ipv4.gateway,802-1x.identity",
+      "connection", "show", "uuid", uuid]
+    profileProc.running = true
+  }
+
+  function chooseEditorProfile(uuid) {
+    readEditorProfile(uuid, editorChoices)
+  }
+
+  function isEnterpriseSecurity(security) {
+    return security === WifiSecurityType.Wpa2Eap || security === WifiSecurityType.WpaEap
+  }
+
+  function finishEditorProfile(raw) {
+    if (!editorOpen) return
+    var settings = Model.parseNmcliProfile(raw)
+    var row = wifiRowForSsid(editingSsid)
+    var security = row ? row.security : -1
+    editorEnterprise = isEnterpriseSecurity(security)
+    editorFields = Model.editorDefaults(settings, security, editorSecurityEnum)
+    editingUuid = editorPendingUuid
+    editorBusy = false
+    editorError = ""
+  }
+
+  // Returns to the list and drops all editor state.
+  function cancelEditor() {
+    editingUuid = ""
+    editingSsid = ""
+    editorPendingUuid = ""
+    editorOpen = false
+    editorBusy = false
+    editorError = ""
+    editorFields = null
+    editorActive = false
+    editorEnterprise = false
+    editorSteps = []
+    editorPicking = false
+    editorChoices = []
+    if (panel.loadedContent) Qt.callLater(function() { panel.loadedContent.forceActiveFocus() })
+  }
+
+  // Diffs the form against the read-back prefill and queues only the writes that
+  // are needed: the non-secret keys as one argv, a changed passphrase/identity
+  // over stdin, and a reconnect only when an ipv4 key changed on the profile in
+  // use. An untouched form queues nothing and never reconnects.
+  function saveEditor(form) {
+    if (editingUuid === "" || editorBusy) return
+    var check = Model.validateEditor(form)
+    if (!check.ok) {
+      editorError = check.error
+      return
+    }
+    editorError = ""
+    editorBusy = true
+
+    var before = editorFields || {}
+    var steps = []
+    var args = Model.changedModArgs(editingUuid, before, form)
+    if (args.length > 0) steps.push({ command: args, secret: "" })
+
+    var password = form.password || ""
+    var identity = form.identity || ""
+    var secretLines = ""
+    if (identity !== (before.identity || "")) {
+      secretLines += "set 802-1x.identity " + identity + "\n"
+    }
+    if (password !== "") {
+      // A blank field means "keep the saved passphrase" (the stored value is
+      // never read back), so only a typed value is written.
+      secretLines += (before.hasPsk ? "set 802-11-wireless-security.psk " : "set 802-1x.password ") + password + "\n"
+    }
+    if (secretLines !== "") {
+      steps.push({
+        command: ["nmcli", "connection", "edit", "uuid", editingUuid],
+        secret: secretLines + "save\nquit\n"
+      })
+    }
+    if (Model.needsReapply(before, form) && editorActive) {
+      steps.push({ command: ["nmcli", "connection", "up", "uuid", editingUuid], secret: "" })
+    }
+
+    editorSteps = steps
+    runEditorStep()
+  }
+
+  function runEditorStep() {
+    // The editor may have been cancelled while a write was in flight; drop the
+    // rest of the queue rather than writing to a profile the user walked away
+    // from.
+    if (!editorOpen) {
+      editorSteps = []
+      return
+    }
+    if (editorSteps.length === 0) {
+      cancelEditor()
+      refresh()
+      return
+    }
+    var step = editorSteps.shift()
+    if (step.secret !== "") {
+      editorSecret.secret = step.secret
+      editorSecret.command = step.command
+      editorSecret.running = true
+    } else {
+      editorProc.command = step.command
+      editorProc.running = true
+    }
+  }
+
+  function finishEditorStep(exitCode) {
+    if (exitCode !== 0) {
+      editorSteps = []
+      editorBusy = false
+      editorError = "Saving the profile failed."
+      return
+    }
+    runEditorStep()
+  }
+
+  // Reads the connection list, then the resolved profile; both feed the same
+  // editor state, so a failure lands on the form's error line.
+  Process {
+    id: connectionListProc
+    stdout: StdioCollector { id: connectionListOut; waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        root.editorBusy = false
+        root.editorError = "Could not read saved connections."
+        return
+      }
+      root.finishConnectionList(connectionListOut.text)
+    }
+  }
+
+  Process {
+    id: profileProc
+    stdout: StdioCollector { id: profileOut; waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        root.editorBusy = false
+        root.editorError = "Could not read the saved profile."
+        return
+      }
+      root.finishEditorProfile(profileOut.text)
+    }
+  }
+
+  // Non-secret write: one argv array, no shell, so a value can never be read as
+  // a separate command.
+  Process {
+    id: editorProc
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) { root.finishEditorStep(exitCode) }
+  }
+
+  // Secret write: `nmcli connection edit` reads its commands from stdin, the
+  // enterpriseConnect pattern, so a passphrase never appears in argv.
+  Process {
+    id: editorSecret
+    property string secret: ""
+    stdinEnabled: true
+    onStarted: {
+      write(secret)
+      secret = ""
+    }
+    onExited: function(exitCode) { root.finishEditorStep(exitCode) }
+  }
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -1197,11 +1461,11 @@ Panel {
     content: PanelKeyCatcher {
       id: keyCatcher
       property alias heroMeta: heroMeta
-      implicitHeight: column.implicitHeight
+      implicitHeight: root.editorOpen ? editor.implicitHeight : column.implicitHeight
       anchors.fill: parent
-      // Freeze the cursor model while the inline password prompt is open;
-      // the TextField inside owns input until Esc/Enter/Cancel.
-      blocked: root.passwordSsid !== ""
+      // Freeze the cursor model while the inline password prompt is open, and
+      // while the editor owns the panel; the TextField inside owns input.
+      blocked: root.passwordSsid !== "" || root.editorOpen
 
       // Opens the right-click ContextMenu beside the row at `index`. Called by
       // root.openMenu() so the menu object — private to this lazily built
@@ -1312,6 +1576,7 @@ Panel {
 
     Column {
       id: column
+      visible: !root.editorOpen
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.top: parent.top
@@ -1781,6 +2046,28 @@ Panel {
         }
       }
     }
+
+      // Native Modify editor. Built with the rest of the content so its form
+      // state survives the read-back and the card can size to it; the list above
+      // hides while it is up. It also carries the duplicate-profile picker.
+      Editor {
+        id: editor
+        visible: root.editorOpen
+        width: parent.width
+        title: root.editingSsid
+        fields: root.editorFields
+        busy: root.editorBusy
+        error: root.editorError
+        hasPsk: !!(root.editorFields && root.editorFields.hasPsk)
+        enterprise: root.editorEnterprise
+        picking: root.editorPicking
+        choices: root.editorChoices
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onSave: function(form) { root.saveEditor(form) }
+        onCancel: root.cancelEditor()
+        onChoose: function(uuid) { root.chooseEditorProfile(uuid) }
+      }
 
       // Right-click menu for a Wi-Fi row. Built with the content so it can sit
       // beside the row it was opened from; root.openMenu() drives it.

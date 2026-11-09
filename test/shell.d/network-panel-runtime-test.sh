@@ -23,6 +23,7 @@ stage_panel() {
   cp -r "$fixtures/mocks" "$stage/mocks"
   cp "$fixtures/$1.qml" "$stage/shell.qml"
   cp "$ROOT/shell/plugins/panels/network/Model.js" "$stage/network/Model.js"
+  cp "$ROOT/shell/plugins/panels/network/Editor.qml" "$stage/network/Editor.qml"
   node - "$ROOT" "$stage" <<'JS'
 const fs = require('fs')
 const [root, stage] = process.argv.slice(2)
