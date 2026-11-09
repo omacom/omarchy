@@ -44,3 +44,66 @@ assertEqual(
   'power shows battery icon when unplugged before battery state refreshes'
 )
 JS
+
+# Exercise the real conservation command against a sysfs fixture. Rewrite
+# only its fixed /sys paths; the production writer accepts no path override.
+tmp_dir=$(mktemp -d)
+trap 'rm -rf "$tmp_dir"' EXIT
+mkdir -p "$tmp_dir/bin" "$tmp_dir/sys/class/power_supply/BAT0/extensions" "$tmp_dir/sys/bus/platform/drivers/ideapad_acpi/VPC2004:01"
+sed "s|/sys/|$tmp_dir/sys/|g" "$ROOT/bin/omarchy-battery-conservation" >"$tmp_dir/conservation"
+chmod +x "$tmp_dir/conservation"
+export CONSERVATION_TEST_LOG="$tmp_dir/writes"
+cat >"$tmp_dir/bin/pkexec" <<'STUB'
+#!/bin/bash
+[[ $1 == "/usr/bin/tee" && $# == 2 ]] || exit 1
+[[ ${CONSERVATION_TEST_DENY:-0} == 0 ]] || exit 126
+read -r value
+[[ ${CONSERVATION_TEST_IGNORE_WRITE:-0} == 0 ]] || exit 0
+printf '%s %s\n' "$2" "$value" >>"$CONSERVATION_TEST_LOG"
+if [[ $2 == */charge_types ]]; then
+  # sysfs echoes the available modes, bracketing the mode just selected.
+  case $value in
+    Long_Life) printf 'Fast Standard [Long_Life]\n' >"$2" ;;
+    Standard) printf 'Fast [Standard] Long_Life\n' >"$2" ;;
+    *) exit 1 ;;
+  esac
+else
+  printf '%s\n' "$value" >"$2"
+fi
+STUB
+chmod +x "$tmp_dir/bin/pkexec"
+export PATH="$tmp_dir/bin:$PATH"
+conservation() { "$tmp_dir/conservation" "$@" </dev/null; }
+[[ $(conservation status) == "unsupported" ]] || fail "conservation is hidden without supported hardware"
+if conservation on 2>/dev/null; then fail "unsupported hardware rejects writes"; fi
+[[ ! -e $CONSERVATION_TEST_LOG ]] || fail "unsupported hardware never requests authentication"
+
+legacy="$tmp_dir/sys/bus/platform/drivers/ideapad_acpi/VPC2004:01/conservation_mode"
+printf '1\n' >"$legacy"
+[[ $(conservation) == "on" ]] || fail "legacy conservation is detected without a hard-coded device ID"
+conservation off
+[[ $(cat "$legacy") == 0 && $(conservation) == off ]] || fail "legacy conservation can be disabled"
+CONSERVATION_TEST_DENY=1 conservation on 2>/dev/null && fail "cancelled authentication fails the change"
+[[ $(cat "$legacy") == 0 ]] || fail "cancelled authentication leaves the setting unchanged"
+conservation on
+[[ $(cat "$legacy") == 1 ]] || fail "legacy conservation can be enabled"
+printf 'invalid\n' >"$legacy"
+[[ $(conservation) == unsupported ]] || fail "invalid readings are not reported as off"
+
+modern="$tmp_dir/sys/class/power_supply/BAT0/charge_types"
+printf 'Fast [Standard] Long_Life\n' >"$modern"
+[[ $(conservation) == unsupported ]] || fail "a non-Lenovo charge_types control is not exposed"
+mkdir "$tmp_dir/sys/class/power_supply/BAT0/extensions/ideapad_laptop"
+[[ $(conservation) == off ]] || fail "Lenovo charge_types is detected"
+if CONSERVATION_TEST_IGNORE_WRITE=1 conservation on; then fail "a successful writer with unchanged hardware is not success"; fi
+conservation on
+[[ $(conservation) == on ]] || fail "modern conservation selects Long_Life"
+conservation off
+[[ $(conservation) == off && $(cat "$modern") == 'Fast [Standard] Long_Life' ]] || fail "modern conservation restores Standard"
+[[ $(cat "$legacy") == invalid ]] || fail "modern controls take precedence over deprecated controls"
+printf '[Fast] Standard Long_Life\n' >"$modern"
+conservation off
+[[ $(cat "$modern") == '[Fast] Standard Long_Life' ]] || fail "an already disabled limit preserves rapid charging"
+if conservation invalid 2>/dev/null; then fail "invalid conservation actions are rejected"; fi
+if conservation on extra 2>/dev/null; then fail "extra conservation arguments are rejected"; fi
+pass "Lenovo conservation detects both interfaces, verifies writes, and handles cancellation"
