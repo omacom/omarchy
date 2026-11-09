@@ -24,6 +24,15 @@ QtObject {
   property var installedPlugins: ({})
   property int registryRevision: 0
   property bool scanning: false
+  property bool scanned: false
+  // Set while a login is waiting on the shell: the rescan that catches plugin
+  // changes made before the watcher started waits until it is clear.
+  property bool holdRescan: false
+  property bool rescanHeld: false
+  onHoldRescanChanged: if (!holdRescan && rescanHeld) {
+    rescanHeld = false
+    rescan()
+  }
   property string lastEnableError: ""
 
   signal pluginsChanged()
@@ -677,6 +686,7 @@ QtObject {
   property Process scanProcess: Process {
     onExited: function(exitCode) {
       var output = scanStdout.text || ""
+      if (exitCode === 0) registry.scanned = true
       registry.parseScanOutput(output)
     }
     stdout: StdioCollector {
@@ -697,10 +707,14 @@ QtObject {
   // any plugin watcher whose parent is no longer a shell; a live shell's
   // watcher — parented to it — is left alone. The [i] keeps this script's
   // own command line from matching its search.
+  // A plugin changed between the startup scan and the watcher starting is
+  // only seen by scanning again, which resyncs every plugin, so a login still
+  // waiting on the shell has it after its reveal.
   property Process watcherReaper: Process {
     onExited: {
       localPluginWatcher.running = true
-      registry.rescan()
+      if (registry.scanned && registry.holdRescan) registry.rescanHeld = true
+      else registry.rescan()
     }
   }
 

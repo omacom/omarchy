@@ -17,8 +17,10 @@ Item {
   property bool startupSettled: sessionConsumed
   property bool startupPending: !sessionConsumed
   property bool startupMediaReady: false
-  property real startupOpacity: startupPending ? 1 : 0
-  readonly property bool desktopReady: !host || (!host.pluginReloading && (!host.pluginRegistry || !host.pluginRegistry.scanning) && (!("bar" in host) || !!host.bar))
+  readonly property bool desktopReady: !host || (!host.pluginReloading && (!host.pluginRegistry || !host.pluginRegistry.scanning) && (!("bar" in host) || !!host.bar) && host.pluginWidgetsLoaded !== false)
+  // The launcher reports the intro's first frame on screen, so the login
+  // reveals on it rather than polling OWE for it.
+  property bool introReported: false
   property bool checked: false
   property string themeToken: ""
   property string transitionToken: ""
@@ -39,7 +41,7 @@ Item {
   // animation started in that frame begins already advanced by its length,
   // about 40% of the fade. The reveal starts two frames later instead.
   property int revealDelayFrames: 0
-  readonly property bool revealing: revealDelayFrames > 0 || themeFade.running || themeCutReveal.running || startupFade.running
+  readonly property bool revealing: revealDelayFrames > 0 || themeFade.running || themeCutReveal.running || startupFading
   // The outgoing frame reached, or failed to reach, the screen.
   signal coverPresented()
   readonly property var backgroundService: host && host.services ? host.firstPartyServiceFor("omarchy.background") : null
@@ -59,14 +61,19 @@ Item {
   }
 
   function revealStartup() {
-    if (!startupPending || startupFade.running || !startupMediaReady || !desktopReady) return
+    if (!startupPending || startupFading || !startupMediaReady || !desktopReady) return
     if (!startupCovers.instances.length) return
     for (var panel of startupCovers.instances)
       if (panel.readyFrames < 2) return
-    startupFade.start()
+    startStartupFade()
   }
 
-  onDesktopReadyChanged: revealStartup()
+  // The two frames the reveal waits for are counted from the desktop last
+  // becoming ready, so a reload that briefly reads ready reveals nothing.
+  onDesktopReadyChanged: {
+    for (var panel of startupCovers.instances) panel.readyFrames = 0
+    revealStartup()
+  }
   onBackgroundReadyChanged: {
     finishStartup()
     if (themeFinishing && backgroundReady) revealTheme()
@@ -160,14 +167,39 @@ Item {
     themeShell = ""
   }
 
-  NumberAnimation {
-    id: startupFade
-    target: root
-    property: "startupOpacity"
-    to: 0
-    duration: Style.duration(420)
-    easing.type: Easing.OutCubic
-    onFinished: root.startupPending = false
+  // Each screen's cover fades on the render thread, where the shell still
+  // loading plugins cannot stall it, and the login is over once every one
+  // has, or a second after they all should have.
+  property bool startupFading: false
+  readonly property int startupFadeDuration: Style.duration(420)
+
+  function startStartupFade() {
+    if (startupFading) return
+    startupFading = true
+    if (introReported) introPlay.running = true
+    startupFadeDeadline.restart()
+    finishStartupFade()
+  }
+
+  function finishStartupFade() {
+    if (!startupFading) return
+    for (var panel of startupCovers.instances)
+      if (!panel.faded && startupFadeDeadline.running && startupFadeDuration > 0) return
+    startupFadeDeadline.stop()
+    startupFading = false
+    startupPending = false
+  }
+
+  Timer {
+    id: startupFadeDeadline
+    interval: root.startupFadeDuration + 1000
+    onTriggered: root.finishStartupFade()
+  }
+
+  // The launcher's intro holds its first frame until the reveal starts.
+  Process {
+    id: introPlay
+    command: ["owe", "intro-play"]
   }
 
   // A missing wallpaper or failed plugin must not leave applications hidden.
@@ -178,7 +210,7 @@ Item {
       root.cover = false
       if (!root.themeToken) root.themeBackground = ""
       root.startupMediaReady = true
-      startupFade.start()
+      root.startStartupFade()
     }
   }
 
@@ -281,10 +313,30 @@ Item {
 
   onBackgroundActiveChanged: {
     if (!backgroundActive && checked) {
-      if (cover || themeToken) {
+      if (introReported && !themeToken) shownFallback.restart()
+      else if (cover || themeToken) {
         framePoll.start()
         if (!frameStatus.running) frameStatus.running = true
       }
+    }
+  }
+
+  // The launcher's word can arrive after OWE has already taken the background.
+  onIntroReportedChanged: {
+    if (!introReported || backgroundActive || !checked || themeToken) return
+    framePoll.stop()
+    shownFallback.restart()
+  }
+
+  // OWE answers well within this once it has taken the background; an OWE
+  // that never reports the first frame is polled for it as before.
+  Timer {
+    id: shownFallback
+    interval: 1500
+    onTriggered: {
+      if (!root.cover || root.themeToken) return
+      framePoll.start()
+      if (!frameStatus.running) frameStatus.running = true
     }
   }
 
@@ -297,6 +349,7 @@ Item {
     PanelWindow {
       required property var modelData
       property int readyFrames: 0
+      property bool faded: false
       screen: modelData
       visible: root.startupPending
       color: "transparent"
@@ -308,9 +361,22 @@ Item {
       WlrLayershell.namespace: "omarchy-background"
 
       Rectangle {
+        id: startupShade
         anchors.fill: parent
         color: "black"
-        opacity: root.startupOpacity
+
+        OpacityAnimator {
+          target: startupShade
+          running: root.startupFading
+          from: 1
+          to: 0
+          duration: root.startupFadeDuration
+          easing.type: Easing.OutCubic
+          onFinished: {
+            faded = true
+            root.finishStartupFade()
+          }
+        }
       }
 
       FrameAnimation {
@@ -420,6 +486,12 @@ Item {
   Process {
     id: introProc
     command: ["omarchy-theme-bg-boot-intro"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        if (line === "intro") root.introReported = true
+        else if (line === "shown" && root.cover && !root.themeToken) root.revealTheme()
+      }
+    }
     onExited: {
       root.startupSettled = true
       root.finishStartup()

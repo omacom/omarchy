@@ -33,7 +33,7 @@ ShellRoot {
     running: true
     onTriggered: {
       test.check(!background.ready, "the missing wallpaper never becomes ready")
-      test.check(!intro.startupPending && !intro.cover && intro.startupOpacity === 0, "the deadline fades the cover away despite the failed wallpaper")
+      test.check(!intro.startupPending && !intro.cover, "the deadline fades the cover away despite the failed wallpaper")
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()
     }

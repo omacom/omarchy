@@ -143,5 +143,13 @@ done
 
 # A selection or setting changed while OWE was starting no longer permits this intro.
 if [[ ! -f $toggle && $intro == "$(resolve_intro || true)" ]] && ! animations_off; then
-  owe intro --start first-frame "$intro"
+  # The clip holds its first frame until the shell's reveal plays it. The
+  # shell reveals on "shown", once that frame is on screen; "intro" tells it
+  # to wait for that rather than poll OWE.
+  if owe help 2>&1 | grep -q -- --print-shown; then
+    echo intro
+    owe intro --start first-frame --hold --print-shown "$intro"
+  else
+    owe intro --start first-frame "$intro"
+  fi
 fi
