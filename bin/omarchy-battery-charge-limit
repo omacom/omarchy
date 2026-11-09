@@ -1,26 +1,56 @@
 #!/bin/bash
 
 # omarchy:summary=Read or change battery charge limits through UPower
-# omarchy:args=[status|on|off]
+# omarchy:args=[status|on|off|toggle] [--shell]
 
 set -euo pipefail
 
-action=${1:-status}
-if (( $# > 1 )) || [[ $action != "status" && $action != "on" && $action != "off" ]]; then
-  echo "Usage: omarchy-battery-charge-limit [status|on|off]" >&2
-  exit 2
-fi
+action=status
+action_seen=false
+shell_output=false
+for argument in "$@"; do
+  case $argument in
+    --shell) shell_output=true ;;
+    status | on | off | toggle)
+      if [[ $action_seen == "true" ]]; then
+        echo "Specify only one charge-limit action." >&2
+        exit 2
+      fi
+      action=$argument
+      action_seen=true
+      ;;
+    *)
+      echo "Usage: omarchy-battery-charge-limit [status|on|off|toggle] [--shell]" >&2
+      exit 2
+      ;;
+  esac
+done
 
 service=org.freedesktop.UPower
 interface=org.freedesktop.UPower.Device
 
 # Read the capability and state together. UPower owns the hardware-specific
 # thresholds, charging modes, authorization and persistence.
-read_state() {
+read_battery() {
+  # Settings mask: 1 = start threshold, 2 = end threshold, 4 = firmware policy.
+  # A numeric property alone is not evidence that the hardware uses it.
   busctl --system --json=short call "$service" "$1" org.freedesktop.DBus.Properties GetAll s "$interface" |
-    jq -r '.data[0] | select(.Type.data == 2 and .PowerSupply.data == true and .IsPresent.data == true and .ChargeThresholdSupported.data == true)
-      | .ChargeThresholdEnabled.data
-      | if . == true then "on" elif . == false then "off" else error("Missing charge-limit state") end'
+    jq -r '
+      def percent: type == "number" and . > 0 and . < 100 and floor == .;
+      .data[0] | select(.Type.data == 2 and .PowerSupply.data == true and .IsPresent.data == true and .ChargeThresholdSupported.data == true)
+      | (if .ChargeThresholdEnabled.data == true then "on"
+         elif .ChargeThresholdEnabled.data == false then "off"
+         else error("Missing charge-limit state") end) as $state
+      | (.ChargeThresholdSettingsSupported.data // 0) as $raw_settings
+      | (if ($raw_settings | type) == "number" and $raw_settings >= 0 then $raw_settings else 0 end) as $settings
+      | (.ChargeStartThreshold.data // 0) as $start
+      | (.ChargeEndThreshold.data // 0) as $end
+      | (if (($settings / 2 | floor) % 2 == 1) and ($end | percent) then
+           if ($settings % 2 == 1) and ($start | percent) and $start < $end then "range" else "end" end
+         elif ($settings / 4 | floor) % 2 == 1 then "firmware"
+         else "unknown" end) as $policy
+      | [$state, $policy, (if $policy == "range" then $start else 0 end),
+         (if $policy == "end" or $policy == "range" then $end else 0 end)] | @tsv'
 }
 
 devices=$(busctl --system --json=short call "$service" /org/freedesktop/UPower "$service" EnumerateDevices |
@@ -28,22 +58,39 @@ devices=$(busctl --system --json=short call "$service" /org/freedesktop/UPower "
 
 batteries=()
 states=()
+policies=()
 while IFS= read -r device; do
   [[ -n $device ]] || continue
-  state=$(read_state "$device")
-  [[ -n $state ]] || continue
+  reading=$(read_battery "$device")
+  [[ -n $reading ]] || continue
+  read -r state policy start end <<<"$reading"
   batteries+=("$device")
   states+=("$state")
+  policies+=("$policy $start $end")
 done <<<"$devices"
 
+state=unsupported
+policy=unknown
+start=0
+end=0
 if (( ${#batteries[@]} == 0 )); then
-  if [[ $action == "status" ]]; then
-    echo "unsupported"
-  else
+  if [[ $action != "status" ]]; then
     echo "Battery charge limits are unavailable." >&2
     exit 1
   fi
 else
+  state=${states[0]}
+  for value in "${states[@]}"; do
+    [[ $value == "$state" ]] || state=mixed
+  done
+  if [[ $action == "toggle" ]]; then
+    if [[ $state == "on" ]]; then
+      action=off
+    else
+      action=on
+    fi
+  fi
+
   if [[ $action != "status" ]]; then
     if [[ $action == "on" ]]; then
       enabled=true
@@ -54,17 +101,30 @@ else
     for index in "${!batteries[@]}"; do
       [[ ${states[index]} != "$action" ]] || continue
       busctl --system call "$service" "${batteries[index]}" "$interface" EnableChargeThreshold b "$enabled"
-      states[index]=$(read_state "${batteries[index]}")
-      if [[ ${states[index]} != "$action" ]]; then
+      reading=$(read_battery "${batteries[index]}")
+      read -r actual policy start end <<<"$reading"
+      if [[ $actual != "$action" ]]; then
         echo "Could not confirm the battery charge limit." >&2
         exit 1
       fi
+      policies[index]="$policy $start $end"
     done
+    state=$action
   fi
 
-  state=${states[0]}
-  for value in "${states[@]}"; do
-    [[ $value == "$state" ]] || state=mixed
+  read -r policy start end <<<"${policies[0]}"
+  for value in "${policies[@]}"; do
+    if [[ $value != "${policies[0]}" ]]; then
+      policy=different
+      start=0
+      end=0
+      break
+    fi
   done
+fi
+
+if [[ $shell_output == "true" ]]; then
+  printf 'state\t%s\npolicy\t%s\nstart\t%s\nend\t%s\n' "$state" "$policy" "$start" "$end"
+else
   echo "$state"
 fi

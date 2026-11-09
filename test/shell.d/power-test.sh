@@ -8,10 +8,39 @@ run_node_test <<'JS'
 const power = requireFromRoot('shell/plugins/panels/power/Model.js')
 const states = { Charging: 1, Discharging: 2, FullyCharged: 3, PendingCharge: 4 }
 
-assertEqual(power.parseChargeLimit('on\n'), 'on', 'power reads an enabled charge limit')
-assertEqual(power.parseChargeLimit('mixed'), 'mixed', 'power preserves differing limits across batteries')
-assertEqual(power.parseChargeLimit(''), 'unsupported', 'power hides charge controls without a reading')
-assertEqual(power.parseChargeLimit('error'), 'unsupported', 'power does not mistake an invalid charge-limit reading for off')
+const rangeReading = 'state\ton\npolicy\trange\nstart\t75\nend\t80\n'
+const range = power.parseChargeLimit(rangeReading)
+assertDeepEqual(range, { state: 'on', policy: 'range', start: 75, end: 80 }, 'power reads the actual charging range')
+assertEqual(power.parseChargeLimit(''), null, 'an empty read is unavailable, not a confirmed unsupported battery')
+assertEqual(power.parseChargeLimit('error'), null, 'an invalid charge-limit reading is not reported as off')
+assertEqual(power.parseChargeLimit('state\tunsupported\n').state, 'unsupported', 'power recognizes a confirmed unsupported machine')
+assertEqual(power.parseChargeLimit('state\toff\npolicy\tend\nend\t100\n').policy, 'unknown', 'power never describes a full-charge threshold as battery protection')
+assertEqual(power.parseChargeLimit('state\ton\npolicy\trange\nstart\t90\nend\t80\n').policy, 'unknown', 'power rejects an inverted charging range')
+
+assertEqual(power.chargeLimitDescription(range), 'Starts charging below 75% and stops at 80%.', 'power distinguishes charging start and stop thresholds')
+assertEqual(power.chargeLimitDescription({ ...range, state: 'off' }), 'Charges to full. Turn on to start below 75% and stop at 80%.', 'power explains the available policy while protection is off')
+assertEqual(power.chargeLimitDescription({ state: 'on', policy: 'end', end: 60 }), 'Stops charging at 60%.', 'power uses the reported limit rather than a fixed percentage')
+assertEqual(power.chargeLimitDescription({ state: 'on', policy: 'firmware' }), 'Uses your laptop’s battery protection settings.', 'firmware-controlled protection makes no percentage promise')
+assertEqual(power.chargeLimitDescription({ state: 'on', policy: 'different' }), 'Each supported battery uses its own charging limit.', 'power does not apply the first battery limit to every battery')
+assert(power.chargeLimitDescription({ state: 'mixed' }).includes('different settings'), 'power explains partially applied battery protection')
+assertEqual(power.chargeLimitDescription(range, (key, english) => english, n => '[' + n + ']'), 'Starts charging below [75]% and stops at [80]%.', 'power localizes both charging thresholds')
+
+assertEqual(power.chargeLimitReadResult(null, 1), null, 'power waits for stdout completion when process exit arrives first')
+assertEqual(power.chargeLimitReadResult('', null), null, 'power waits for process exit when empty stdout arrives first')
+assertDeepEqual(power.chargeLimitReadResult('', 1), { failed: true, info: null }, 'a completed failed read preserves the previous state instead of hiding the control')
+assertDeepEqual(power.chargeLimitReadResult(rangeReading, 1), { failed: true, info: null }, 'partial stdout from a failed command is not published as a good reading')
+assertDeepEqual(power.chargeLimitReadResult(rangeReading, 0), { failed: false, info: range }, 'a completed successful read can update the panel')
+
+const profiles = ['power-saver', 'balanced', 'performance']
+const cursor = { chargeFocused: false, profileIndex: 1 }
+assertDeepEqual(power.movePowerCursor(cursor, 0, 1, true, profiles), { chargeFocused: true, profileIndex: 1 }, 'Down reaches battery protection without changing the selected power profile')
+assertDeepEqual(power.movePowerCursor({ ...cursor, chargeFocused: true }, 0, -1, true, profiles), cursor, 'Up returns from battery protection to power profiles')
+assertDeepEqual(power.movePowerCursor(cursor, 0, 1, false, profiles), { chargeFocused: false, profileIndex: 2 }, 'Down walks profiles when battery protection is unavailable')
+assertDeepEqual(power.movePowerCursor({ ...cursor, chargeFocused: true }, 1, 0, false, profiles), { chargeFocused: false, profileIndex: 2 }, 'a vanished or unreadable charge control cannot trap keyboard focus')
+assert(power.chargeLimitEvent('PropertiesChanged: ChargeEndThreshold'), 'an external stopping-percentage change refreshes battery protection')
+assert(power.chargeLimitEvent('PropertiesChanged: ChargeStartThreshold'), 'an external starting-percentage change refreshes battery protection')
+assert(power.chargeLimitEvent('PropertiesChanged: IsPresent'), 'a removable battery becoming absent refreshes the supported battery set')
+assert(!power.chargeLimitEvent('PropertiesChanged: EnergyRate'), 'ordinary battery telemetry does not trigger extra charge-limit reads')
 
 assertEqual(power.selectProfileIndex(0, 1, ['balanced', 'performance']), 1, 'power advances profile selection')
 assertEqual(power.selectProfileIndex(1, 1, ['balanced', 'performance']), 1, 'power clamps profile selection')
@@ -89,6 +118,7 @@ other=/org/freedesktop/UPower/devices/battery_auxiliary
 
 printf '{}\n' >"$OMARCHY_TEST_CHARGE_DEVICES"
 [[ $(charge_limit) == "unsupported" ]] || fail "no batteries means no charge control"
+[[ $(charge_limit --shell) == $'state\tunsupported\npolicy\tunknown\nstart\t0\nend\t0' ]] || fail "unsupported hardware has an explicit status rather than an empty failed reading"
 if charge_limit on 2>/dev/null; then fail "an unsupported machine rejects charge-limit changes"; fi
 [[ ! -e $OMARCHY_TEST_CHARGE_WRITES ]] || fail "unsupported hardware receives no writes"
 
@@ -107,12 +137,27 @@ charge_limit on >/dev/null
 [[ $(charge_limit off) == "off" ]] || fail "a charge limit can be disabled"
 pass "charge limits use UPower capabilities and exclude peripherals, absent batteries and unsupported devices"
 
-jq --arg other "$other" --arg main "$main" '.[$other] = .[$main] | .[$other].ChargeThresholdEnabled = true | .[$other].ChargeStartThreshold = 75 | .[$other].ChargeEndThreshold = 80' "$OMARCHY_TEST_CHARGE_DEVICES" >"$tmp_dir/next"
-mv "$tmp_dir/next" "$OMARCHY_TEST_CHARGE_DEVICES"
+update_devices() {
+  jq --arg main "$main" --arg other "$other" "$1" "$OMARCHY_TEST_CHARGE_DEVICES" >"$tmp_dir/next"
+  mv "$tmp_dir/next" "$OMARCHY_TEST_CHARGE_DEVICES"
+}
+update_devices '.[$main] += {ChargeThresholdSettingsSupported: 4, ChargeStartThreshold: 75, ChargeEndThreshold: 80}'
+[[ $(charge_limit --shell) == $'state\toff\npolicy\tfirmware\nstart\t0\nend\t0' ]] || fail "firmware mode does not expose stale percentage properties as its policy"
+update_devices '.[$main].ChargeThresholdSettingsSupported = 3'
+[[ $(charge_limit status --shell) == $'state\toff\npolicy\trange\nstart\t75\nend\t80' ]] || fail "the supported start and stop thresholds are reported separately"
+update_devices '.[$main] += {ChargeThresholdSettingsSupported: 2, ChargeEndThreshold: 60}'
+[[ $(charge_limit --shell) == $'state\toff\npolicy\tend\nstart\t0\nend\t60' ]] || fail "an end-only limit does not invent a restart threshold"
+update_devices '.[$main].ChargeEndThreshold = 4294967295'
+[[ $(charge_limit --shell) == $'state\toff\npolicy\tunknown\nstart\t0\nend\t0' ]] || fail "an unavailable threshold sentinel is never displayed as a percentage"
+pass "charge-limit policy follows the supported settings and validates numeric limits"
+
+update_devices '.[$main] += {ChargeThresholdSettingsSupported: 3, ChargeStartThreshold: 75, ChargeEndThreshold: 80} | .[$other] = .[$main] | .[$other].ChargeThresholdEnabled = true'
 [[ $(charge_limit) == "mixed" ]] || fail "differing system battery settings are not reported as off"
-[[ $(charge_limit on) == "on" ]] || fail "enabling a mixed setting applies to all capable batteries"
-[[ $(charge_limit off) == "off" ]] || fail "disabling applies to every capable battery"
+[[ $(charge_limit toggle) == "on" ]] || fail "toggling a mixed setting protects every capable battery"
+[[ $(charge_limit toggle) == "off" ]] || fail "toggling an enabled limit disables it on every capable battery"
 grep -Fx "$other false" "$OMARCHY_TEST_CHARGE_WRITES" >/dev/null || fail "the second battery receives an explicit off request"
+update_devices '.[$other] += {ChargeStartThreshold: 40, ChargeEndThreshold: 60}'
+[[ $(charge_limit --shell) == $'state\toff\npolicy\tdifferent\nstart\t0\nend\t0' ]] || fail "different battery limits do not borrow the first battery percentage"
 pass "charge limits handle percentage thresholds and multiple system batteries"
 
 if OMARCHY_TEST_CHARGE_DENY="$main" charge_limit on 2>/dev/null; then fail "a refused change fails"; fi
@@ -120,10 +165,11 @@ if OMARCHY_TEST_CHARGE_DENY="$main" charge_limit on 2>/dev/null; then fail "a re
 if OMARCHY_TEST_CHARGE_IGNORE_WRITE=1 charge_limit on 2>/dev/null; then fail "an ignored write is not reported as success"; fi
 if OMARCHY_TEST_CHARGE_DENY="$other" charge_limit on 2>/dev/null; then fail "a failure on the second battery fails the command"; fi
 [[ $(charge_limit) == "mixed" ]] || fail "a partial failure is reflected in the actual state"
+if charge_limit invalid 2>/dev/null; then fail "invalid charge-limit actions are rejected"; fi
+if charge_limit on extra 2>/dev/null; then fail "extra charge-limit arguments are rejected"; fi
+if charge_limit on off 2>/dev/null; then fail "multiple charge-limit actions are rejected"; fi
 jq --arg main "$main" '.[$main].ChargeThresholdEnabled = "unknown"' "$OMARCHY_TEST_CHARGE_DEVICES" >"$tmp_dir/next"
 mv "$tmp_dir/next" "$OMARCHY_TEST_CHARGE_DEVICES"
 if charge_limit status 2>/dev/null; then fail "an invalid reading is not reported as off"; fi
 if OMARCHY_TEST_CHARGE_SERVICE_FAIL=1 charge_limit status 2>/dev/null; then fail "a failed UPower query is not reported as unsupported"; fi
-if charge_limit invalid 2>/dev/null; then fail "invalid charge-limit actions are rejected"; fi
-if charge_limit on extra 2>/dev/null; then fail "extra charge-limit arguments are rejected"; fi
 pass "charge limits verify readback and report refusals, partial failures and invalid readings"

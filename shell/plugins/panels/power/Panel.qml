@@ -20,10 +20,15 @@ Panel {
   property string activeProfile: ""
   property int profileIndex: 0
   property bool cursorActive: false
-  property string chargeLimitState: "unsupported"
+  property var chargeLimitInfo: ({ state: "unsupported", policy: "unknown", start: 0, end: 0 })
+  readonly property string chargeLimitState: chargeLimitInfo.state
   property bool chargeLimitFocused: false
   property bool chargeLimitFailed: false
   property bool chargeLimitRefreshPending: false
+  property bool chargeLimitReading: false
+  property bool chargeLimitReadFailed: false
+  property var chargeLimitReadOutput: null
+  property var chargeLimitReadExitCode: null
   readonly property bool chargeLimitSupported: chargeLimitState === "on" || chargeLimitState === "off" || chargeLimitState === "mixed"
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
@@ -42,10 +47,6 @@ Panel {
       FullyCharged: UPowerDeviceState.FullyCharged,
       PendingCharge: UPowerDeviceState.PendingCharge
     }
-  }
-
-  function selectProfileByDelta(delta) {
-    profileIndex = Model.selectProfileIndex(profileIndex, delta, profiles)
   }
 
   function activateSelectedProfile() {
@@ -183,12 +184,31 @@ Panel {
 
   function refreshChargeLimit() {
     if (!opened || !batteryPresent || chargeLimitAction.running) return
-    if (chargeLimitProc.running) chargeLimitRefreshPending = true
-    else chargeLimitProc.running = true
+    if (chargeLimitReading) {
+      chargeLimitRefreshPending = true
+      return
+    }
+    chargeLimitReading = true
+    chargeLimitReadOutput = null
+    chargeLimitReadExitCode = null
+    chargeLimitProc.running = true
+  }
+
+  function finishChargeLimitRead() {
+    var result = Model.chargeLimitReadResult(chargeLimitReadOutput, chargeLimitReadExitCode)
+    if (!chargeLimitReading || result === null) return
+    chargeLimitReadFailed = result.failed
+    if (!result.failed) chargeLimitInfo = result.info
+    if (!chargeLimitSupported || chargeLimitReadFailed) chargeLimitFocused = false
+    chargeLimitReading = false
+    if (chargeLimitRefreshPending) {
+      chargeLimitRefreshPending = false
+      Qt.callLater(root.refreshChargeLimit)
+    }
   }
 
   function toggleChargeLimit() {
-    if (!chargeLimitSupported || chargeLimitAction.running || chargeLimitProc.running) return
+    if (!chargeLimitSupported || chargeLimitReadFailed || chargeLimitAction.running || chargeLimitReading) return
     chargeLimitFailed = false
     chargeLimitAction.command = [Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-battery-charge-limit", chargeLimitState === "on" ? "off" : "on"]
     chargeLimitAction.running = true
@@ -255,23 +275,17 @@ Panel {
 
   Process {
     id: chargeLimitProc
-    command: [Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-battery-charge-limit", "status"]
+    command: [Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-battery-charge-limit", "status", "--shell"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        root.chargeLimitState = Model.parseChargeLimit(text)
-        if (!root.chargeLimitSupported) root.chargeLimitFocused = false
+        root.chargeLimitReadOutput = text
+        root.finishChargeLimitRead()
       }
     }
     onExited: function(exitCode) {
-      if (exitCode !== 0) {
-        root.chargeLimitState = "unsupported"
-        root.chargeLimitFocused = false
-      }
-      if (root.chargeLimitRefreshPending) {
-        root.chargeLimitRefreshPending = false
-        Qt.callLater(root.refreshChargeLimit)
-      }
+      root.chargeLimitReadExitCode = exitCode
+      root.finishChargeLimitRead()
     }
   }
 
@@ -291,8 +305,7 @@ Panel {
     command: ["gdbus", "monitor", "--system", "--dest", "org.freedesktop.UPower"]
     stdout: SplitParser {
       onRead: function(line) {
-        if (line.indexOf("ChargeThreshold") !== -1 || line.indexOf(".DeviceAdded") !== -1 || line.indexOf(".DeviceRemoved") !== -1 || line.indexOf("owned by") !== -1)
-          root.refreshChargeLimit()
+        if (Model.chargeLimitEvent(line)) root.refreshChargeLimit()
       }
     }
   }
@@ -379,8 +392,11 @@ Panel {
       implicitHeight: column.implicitHeight
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dy !== 0 && root.chargeLimitSupported) root.chargeLimitFocused = dy > 0
-        else if (!root.chargeLimitFocused) root.selectProfileByDelta(dx !== 0 ? dx : dy)
+        var next = Model.movePowerCursor(
+          { chargeFocused: root.chargeLimitFocused, profileIndex: root.profileIndex },
+          dx, dy, root.chargeLimitSupported && !root.chargeLimitReadFailed, root.profiles)
+        root.chargeLimitFocused = next.chargeFocused
+        root.profileIndex = next.profileIndex
       }
       onActivateRequested: {
         if (!root.cursorActive) return
@@ -588,13 +604,11 @@ Panel {
         Toggle {
           width: parent.width
           visible: root.chargeLimitSupported
-          enabled: !chargeLimitAction.running && !chargeLimitProc.running
+          enabled: !chargeLimitAction.running && !root.chargeLimitReading && !root.chargeLimitReadFailed
           checked: root.chargeLimitState === "on"
-          label: Commons.I18n.t("power.preserveBatteryHealth")
-          description: chargeLimitAction.running ? Commons.I18n.t("power.chargeLimitChanging")
-            : root.chargeLimitFailed ? Commons.I18n.t("power.chargeLimitFailed")
-            : root.chargeLimitState === "mixed" ? Commons.I18n.t("power.chargeLimitMixed")
-            : Commons.I18n.t("power.chargeLimitDescription")
+          label: chargeLimitAction.running ? Commons.I18n.t("power.chargeLimitChanging") : Commons.I18n.t("power.preserveBatteryHealth")
+          description: root.chargeLimitReadFailed ? Commons.I18n.t("power.chargeLimitLastKnown")
+            : Model.chargeLimitDescription(root.chargeLimitInfo, Commons.I18n.t, Commons.I18n.formatNumber)
           foreground: root.bar.foreground
           fontFamily: root.bar.fontFamily
           hasCursor: root.cursorActive && root.chargeLimitFocused
@@ -605,6 +619,17 @@ Panel {
               root.chargeLimitFocused = true
             }
           }
+        }
+
+        Text {
+          visible: root.chargeLimitFailed || (root.chargeLimitReadFailed && !root.chargeLimitSupported)
+          width: parent.width
+          textFormat: Text.PlainText
+          text: root.chargeLimitReadFailed ? Commons.I18n.t("power.chargeLimitReadFailed") : Commons.I18n.t("power.chargeLimitFailed")
+          color: root.bar.urgent
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          wrapMode: Text.WordWrap
         }
       }
     }
