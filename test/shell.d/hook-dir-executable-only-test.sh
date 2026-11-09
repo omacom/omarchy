@@ -20,7 +20,12 @@ mkdir -p "$hook_dir"
 
 make_hook() {
   local path=$1 mode=$2 label=$3
-  printf 'printf "%%s\\n" %q >> "$HOME/order"\n' "$label" >"$path"
+  # Unquoted heredoc: $label expands here, \$HOME stays literal so it is the
+  # hook's own home when the hook runs. A single-quoted body would make the whole
+  # thing literal and shellcheck flags that as a probable mistake (SC2016).
+  cat >"$path" <<SH
+printf '%s\n' "$label" >> "\$HOME/order"
+SH
   chmod "$mode" "$path"
 }
 
