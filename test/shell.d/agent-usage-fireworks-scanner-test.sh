@@ -162,8 +162,8 @@ expect("a refused quota keeps a known cap, stale",
 # A kept answer is read back from disk: one whose cap is no positive number
 # is no cap, and never fails the record.
 module = load_collector("fireworks")
-for spend in ({"cap": "50"}, {"cap": True}, {"cap": -5}, "capped", [50]):
-  expect(f"a kept spend of {spend!r} holds no cap", module.known_cap({"spend": spend}), False)
+for spend in ({"cap": "50"}, {"cap": True}, {"cap": -5}, {"cap": 10 ** 400}, {"cap": float("inf")}, {"cap": float("nan")}, "capped", [50]):
+  expect(f"a kept spend of {str(spend)[:24]} holds no cap", module.known_cap({"spend": spend}), False)
 expect("a kept spend capped at 50 holds a cap", module.known_cap({"spend": {"cap": 50.0}}), True)
 for path in limits_cache_files("fireworks"):
   path.unlink()

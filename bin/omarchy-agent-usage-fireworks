@@ -443,7 +443,8 @@ def current_spend(quota: dict[str, Any] | None, days: list[float]) -> dict[str, 
 def known_cap(part: dict[str, Any] | None) -> bool:
   spend = part.get("spend") if part else None
   cap = spend.get("cap") if isinstance(spend, dict) else None
-  return isinstance(cap, (int, float)) and not isinstance(cap, bool) and math.isfinite(cap) and cap > 0
+  # Compared, never converted: an int too large for a float is no cap either.
+  return isinstance(cap, (int, float)) and not isinstance(cap, bool) and 0 < cap < UNCAPPED_SPEND
 
 
 # Both answers are keyed by the API key: the spend under the limits cache
