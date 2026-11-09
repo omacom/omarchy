@@ -13,6 +13,14 @@ function backlightSysfsPath(device) {
   return "/sys/class/backlight/" + name
 }
 
+// The integer in a sysfs brightness file. Empty text is a failed read, not
+// zero: Number("") is 0, and a step would then treat the panel as off.
+function backlightReading(text) {
+  var trimmed = String(text == null ? "" : text).trim()
+  if (!/^[0-9]+$/.test(trimmed)) return NaN
+  return parseInt(trimmed, 10)
+}
+
 // omarchy-brightness-display's steps for the brightness keys: 1% at or below
 // 5%, otherwise 5%, kept between 1% and 100%.
 function brightnessKeyTarget(action, current) {
@@ -24,6 +32,7 @@ if (typeof module !== "undefined") {
   module.exports = {
     backlightDeviceName: backlightDeviceName,
     backlightSysfsPath: backlightSysfsPath,
+    backlightReading: backlightReading,
     brightnessKeyTarget: brightnessKeyTarget
   }
 }

@@ -34,7 +34,16 @@ Panel {
   property string brightnessProbeMonitor: ""
   property int brightnessProbeDelta: 0
   property bool brightnessProbeShowOsd: false
+  // Advanced when a read is canceled. The process keeps the token it started
+  // with, so a late result cannot match the token of a newer request.
   property int brightnessProbeToken: 0
+  // True once the probe process's stdout callback has run. A new command waits
+  // until then and until the process has exited, so the two cannot share it.
+  property bool brightnessProbeSettled: true
+  property bool brightnessProbeRestart: false
+  property string brightnessProbeRestartMonitor: ""
+  property int brightnessProbeRestartDelta: 0
+  property bool brightnessProbeRestartShowOsd: false
   property string internalMonitor: ""
   property string externalMonitor: ""
   property string focusedMonitor: ""
@@ -409,10 +418,7 @@ Panel {
     var monitor = Model.monitorName(name)
     if (!monitor) return
     // An absolute set wins over a relative step still waiting on its read.
-    if (brightnessProbeRunning) {
-      brightnessProbeToken++
-      brightnessProbeRunning = false
-    }
+    abandonBrightnessProbe()
     var percent = Model.clampBrightness(value)
     showBrightness(monitor, percent)
     root.pendingBrightnessMonitor = monitor
@@ -433,10 +439,7 @@ Panel {
     if (!monitor) return
     // Dragging the slider is an absolute choice. Drop a relative read so its
     // result doesn't land on top of the drag.
-    if (brightnessProbeRunning) {
-      brightnessProbeToken++
-      brightnessProbeRunning = false
-    }
+    abandonBrightnessProbe()
     var percent = Model.clampBrightness(value)
     showBrightness(monitor, percent)
     root.pendingBrightnessMonitor = monitor
@@ -477,12 +480,6 @@ Panel {
       return
     }
 
-    if (brightnessProbeRunning && brightnessProbeMonitor === monitor) {
-      brightnessProbeDelta += delta
-      if (showOsd) brightnessProbeShowOsd = true
-      return
-    }
-
     var live = readInternalBrightness(monitor)
     if (live >= 0) {
       var stepped = Model.brightnessStep(false, null, live, -1, delta)
@@ -492,17 +489,83 @@ Panel {
       return
     }
 
-    // Another display's read or write is in flight. Stepping this one from the
-    // cache, or cancelling that read, is the bug this avoids. Drop the notch.
-    if (brightnessProbeRunning || setBrightnessProc.running || brightnessSetQueued) return
+    // A write for another display is in flight. Stepping this one from the
+    // cache, or cancelling that write, is the bug this avoids. Drop the notch.
+    if (setBrightnessProc.running || brightnessSetQueued) return
 
-    brightnessProbeToken++
+    var action = Model.brightnessProbeAction({
+      running: brightnessProbe.running,
+      settled: brightnessProbeSettled,
+      accepted: brightnessProbeRunning,
+      sameMonitor: brightnessProbeRunning && brightnessProbeMonitor === monitor,
+      holding: brightnessProbeRestart,
+      heldSame: brightnessProbeRestart && brightnessProbeRestartMonitor === monitor
+    })
+    if (action === "accumulate") {
+      if (brightnessProbeRunning && brightnessProbeMonitor === monitor) {
+        brightnessProbeDelta += delta
+        if (showOsd) brightnessProbeShowOsd = true
+      } else {
+        brightnessProbeRestartDelta += delta
+        if (showOsd) brightnessProbeRestartShowOsd = true
+      }
+      return
+    }
+    if (action === "drop") return
+    if (action === "hold") {
+      brightnessProbeRestart = true
+      brightnessProbeRestartMonitor = monitor
+      brightnessProbeRestartDelta = delta
+      brightnessProbeRestartShowOsd = !!showOsd
+      return
+    }
+
+    if (brightnessProbeRestart && brightnessProbeRestartMonitor === monitor) {
+      delta += brightnessProbeRestartDelta
+      if (brightnessProbeRestartShowOsd) showOsd = true
+    }
+    startBrightnessProbe(monitor, delta, showOsd)
+  }
+
+  // Forget a relative read. The process keeps the token it was started with
+  // and is stopped, so its result cannot be applied and the process can be
+  // used again only after it has exited.
+  function abandonBrightnessProbe() {
+    brightnessProbeRestart = false
+    var finishing = brightnessProbeSettled && !brightnessProbeRunning
+    if (!brightnessProbeRunning && finishing && !brightnessProbe.running) return
+    brightnessProbeRunning = false
+    if (!finishing) brightnessProbeToken++
+    if (brightnessProbe.running && !finishing)
+      brightnessProbe.running = false
+  }
+
+  function startBrightnessProbe(monitor, delta, showOsd) {
+    brightnessProbeRestart = false
+    brightnessProbe.issuedToken = brightnessProbeToken
     brightnessProbeMonitor = monitor
     brightnessProbeDelta = delta
     brightnessProbeShowOsd = !!showOsd
     brightnessProbeRunning = true
+    brightnessProbeSettled = false
     brightnessProbe.command = ["omarchy-brightness-display", "--monitor", monitor]
     brightnessProbe.running = true
+  }
+
+  function finishBrightnessProbe(issuedToken, text) {
+    brightnessProbeSettled = true
+    if (Model.brightnessProbeCurrent(issuedToken, brightnessProbeToken, brightnessProbeRunning))
+      applyBrightnessProbe(text)
+    maybeStartHeldBrightnessProbe()
+  }
+
+  function maybeStartHeldBrightnessProbe() {
+    if (!brightnessProbeRestart || brightnessProbe.running || !brightnessProbeSettled) return
+    var monitor = brightnessProbeRestartMonitor
+    var delta = brightnessProbeRestartDelta
+    var showOsd = brightnessProbeRestartShowOsd
+    brightnessProbeRestart = false
+    startBrightnessProbe(monitor, delta, showOsd)
   }
 
   function applyBrightnessProbe(text) {
@@ -795,9 +858,10 @@ Panel {
       waitForEnd: true
       onStreamFinished: {
         var lines = String(text || "").split("\n")
+        var nextFocused = String(lines[5] || "").trim()
         var acceptBrightness = root.stateReadMayApplyBrightness()
         if (acceptBrightness) {
-          var focused = Model.focusedBrightness(lines[0])
+          var focused = Model.focusedBrightness(lines[0], nextFocused === root.focusedMonitor)
           if (!focused.keep) {
             root.brightnessAvailable = focused.available
             root.brightnessPercent = focused.available ? focused.percent : 0
@@ -806,7 +870,7 @@ Panel {
         root.internalMonitor = String(lines[1] || "").trim()
         root.externalMonitor = String(lines[2] || "").trim()
         root.internalEnabled = String(lines[3] || "").trim() !== ""
-        root.focusedMonitor = String(lines[5] || "").trim()
+        root.focusedMonitor = nextFocused
         root.monitorScale = root.normalizeScale(String(lines[6] || "").trim())
         root.updateDisplays(String(lines[7] || "[]").trim(), acceptBrightness)
         // A queued move waits for a read that started after the last command;
@@ -856,17 +920,21 @@ Panel {
 
   // Reads the live percent for a relative step on a display that has no
   // sysfs backlight. The notch is applied when the read returns, not from
-  // the cached percent. A slider move invalidates the token and this result
-  // is ignored.
+  // the cached percent. Canceling advances the panel token and stops this
+  // process; the result is applied only when the token it started with still
+  // matches. The next read waits until this one has exited.
   Process {
     id: brightnessProbe
+    property int issuedToken: 0
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        var token = root.brightnessProbeToken
-        if (!root.brightnessProbeRunning || token !== root.brightnessProbeToken) return
-        root.applyBrightnessProbe(text)
+        root.finishBrightnessProbe(brightnessProbe.issuedToken, text)
       }
+    }
+    onRunningChanged: {
+      if (running) return
+      root.maybeStartHeldBrightnessProbe()
     }
   }
 
