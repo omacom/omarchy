@@ -69,11 +69,12 @@ OverlayWindow {
         event.accepted = true
         return
       }
-      var forward = window.mirrored ? Qt.Key_Left : Qt.Key_Right
-      var back = window.mirrored ? Qt.Key_Right : Qt.Key_Left
-      if (event.key === forward || event.key === Qt.Key_Tab) {
+      // Left and Right follow the reading direction, so Left moves forward
+      // along a right-to-left row.
+      var along = Util.readingKey(event)
+      if (along === Qt.Key_Right || event.key === Qt.Key_Tab) {
         switcher.step(1)
-      } else if (event.key === back || event.key === Qt.Key_Backtab) {
+      } else if (along === Qt.Key_Left || event.key === Qt.Key_Backtab) {
         switcher.step(-1)
       } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Up) {
         switcher.select(SwitcherModel.rowNeighbor(window.laidOut, switcher.selected, event.key === Qt.Key_Down ? 1 : -1))
