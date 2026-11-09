@@ -1,6 +1,7 @@
-// Battery history for the power panel: parses omarchy-battery-history and
-// turns it into graph points, charge sessions and drain figures. Times are
-// unix seconds.
+// Battery history for the battery service: parses omarchy-battery-history
+// and turns it into what the power panel shows (graph points, charge
+// sessions, drain figures), so the panel needs no script of its own. Times
+// are unix seconds.
 
 // UPower history states.
 var UNKNOWN = 0, CHARGING = 1, DISCHARGING = 2, EMPTY = 3, FULL = 4, PENDING_CHARGE = 5, PENDING_DISCHARGE = 6
@@ -273,6 +274,31 @@ function splitDuration(sec) {
   return { h: Math.floor(m / 60), m: m % 60 }
 }
 
+// The graph windows the power panel offers, in seconds.
+var WINDOWS = { "6h": 6 * 3600, "24h": 24 * 3600, "3d": 3 * 24 * 3600 }
+
+// Everything the power panel shows, from one read:
+// { lastCharge, lastBattery, windows: { "6h": { start, span, points, runs, drain }, ... } }.
+function views(history, tl, nowSec) {
+  var out = {
+    lastCharge: lastSession(history, tl, "ac", nowSec),
+    lastBattery: lastSession(history, tl, "battery", nowSec),
+    windows: {}
+  }
+  for (var key in WINDOWS) {
+    var start = nowSec - WINDOWS[key]
+    var points = graphPoints(history.charge, start, nowSec)
+    out.windows[key] = {
+      start: start,
+      span: WINDOWS[key],
+      points: points,
+      runs: graphRuns(points, tl.sleeps),
+      drain: drainSince(history, tl, start, nowSec)
+    }
+  }
+  return out
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     SPAN: SPAN,
@@ -285,6 +311,8 @@ if (typeof module !== "undefined") {
     drainSince: drainSince,
     graphPoints: graphPoints,
     graphRuns: graphRuns,
+    WINDOWS: WINDOWS,
+    views: views,
     carve: carve,
     splitDuration: splitDuration
   }

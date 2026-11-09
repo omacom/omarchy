@@ -13,7 +13,9 @@ QtObject {
   property var sourcePlayers: []
   property bool active: false
   property var peers: []
-  property var history: ({ charge: [], rate: [] })
+  property var historyLastCharge: null
+  property var historyLastBattery: null
+  property var historyWindows: ({})
   property var historyTimeline: ({ segments: [], sleeps: [] })
   property real historyNow: 0
 

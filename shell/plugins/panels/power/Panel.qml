@@ -6,7 +6,6 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
-import "History.js" as History
 
 Panel {
   id: root
@@ -39,28 +38,38 @@ Panel {
   // open. Without the service (a clone gets none) there is no history section.
   readonly property var batteryService: bar?.shell?.firstPartyServiceFor("omarchy.battery") ?? null
 
-  readonly property var historyWindows: ({ "6h": 6 * 3600, "24h": 24 * 3600, "3d": 3 * 24 * 3600 })
   readonly property string historyWindow: {
     var w = String(setting("historyWindow", "24h"))
-    return historyWindows[w] ? w : "24h"
+    return historyWindowKeys.indexOf(w) >= 0 ? w : "24h"
   }
-  readonly property real historySpan: historyWindows[historyWindow]
-  readonly property var history: batteryService && batteryService.history ? batteryService.history : ({ charge: [], rate: [] })
+  // The service's figures for the chosen window: { start, span, points, runs, drain }.
+  readonly property var historyView: batteryService && batteryService.historyWindows ? (batteryService.historyWindows[historyWindow] || null) : null
   readonly property var historyTimeline: batteryService && batteryService.historyTimeline ? batteryService.historyTimeline : ({ segments: [], sleeps: [] })
   readonly property real historyNow: batteryService ? batteryService.historyNow : 0
-  readonly property bool historyReady: history.charge.length > 0
-  readonly property real historyStart: historyNow - historySpan
-  readonly property var historyPoints: historyReady ? History.graphPoints(history.charge, historyStart, historyNow) : []
-  readonly property var lastCharge: historyReady ? History.lastSession(history, historyTimeline, "ac", historyNow) : null
-  readonly property var lastBattery: historyReady ? History.lastSession(history, historyTimeline, "battery", historyNow) : null
-  readonly property var drain: historyReady ? History.drainSince(history, historyTimeline, historyStart, historyNow) : null
+  readonly property bool historyReady: !!historyView && Array.isArray(historyView.points) && historyView.points.length > 0
+  readonly property real historySpan: historyReady ? historyView.span : 0
+  readonly property real historyStart: historyReady ? historyView.start : 0
+  readonly property var historyPoints: historyReady ? historyView.points : []
+  readonly property var historyRuns: historyReady && Array.isArray(historyView.runs) ? historyView.runs : []
+  readonly property var lastCharge: historyReady && batteryService ? batteryService.historyLastCharge : null
+  readonly property var lastBattery: historyReady && batteryService ? batteryService.historyLastBattery : null
+  readonly property var drain: historyReady ? historyView.drain : null
+
+  // The charge at time t on the graph: the last point at or before it.
+  function chargeAt(t) {
+    var pts = historyPoints
+    if (!pts.length) return -1
+    var v = pts[0].v
+    for (var i = 0; i < pts.length && pts[i].t <= t; i++) v = pts[i].v
+    return v
+  }
 
   function refreshHistory() {
     if (batteryService) batteryService.refreshHistory()
   }
 
   function setHistoryWindow(w) {
-    if (!historyWindows[w] || w === historyWindow) return
+    if (historyWindowKeys.indexOf(w) < 0 || w === historyWindow) return
     root.settings = Object.assign({}, root.settings, { historyWindow: w })
     if (root.bar && root.bar.shell) root.bar.shell.updateEntryInline(root.moduleName, root.settings)
   }
@@ -81,9 +90,10 @@ Panel {
 
   function durationText(sec) {
     if (!(sec >= 0)) return "—"
-    var p = History.splitDuration(sec)
-    if (p.h === 0) return Commons.I18n.t("power.historyMinutes").arg(Commons.I18n.formatNumber(p.m))
-    return Commons.I18n.t("power.historyHoursMinutes").arg(Commons.I18n.formatNumber(p.h)).arg(Commons.I18n.formatNumber(p.m))
+    var minutes = Math.round(sec / 60)
+    var h = Math.floor(minutes / 60), m = minutes % 60
+    if (h === 0) return Commons.I18n.t("power.historyMinutes").arg(Commons.I18n.formatNumber(m))
+    return Commons.I18n.t("power.historyHoursMinutes").arg(Commons.I18n.formatNumber(h)).arg(Commons.I18n.formatNumber(m))
   }
 
   function pct(v) { return v >= 0 ? Commons.I18n.t("power.historyPercent").arg(Commons.I18n.formatNumber(Math.round(v))) : "—" }
@@ -641,7 +651,7 @@ Panel {
               anchors.fill: parent
               antialiasing: true
 
-              readonly property var deps: [root.historyPoints, root.historyTimeline, root.bar.foreground, Commons.Color.accent, graphBox.hoverX, graphBox.mirrored, width, height]
+              readonly property var deps: [root.historyPoints, root.historyRuns, root.historyTimeline, root.bar.foreground, Commons.Color.accent, graphBox.hoverX, graphBox.mirrored, width, height]
               onDepsChanged: requestPaint()
 
               onPaint: {
@@ -692,7 +702,7 @@ Panel {
                 // Awake runs are drawn solid; across a sleep, when nothing
                 // was recorded, a dashed line joins the level going to sleep
                 // to the level on waking.
-                var runs = History.graphRuns(pts, root.historyTimeline.sleeps)
+                var runs = root.historyRuns
                 function linePath() {
                   ctx.beginPath()
                   runs.forEach(function(run) {
@@ -745,7 +755,7 @@ Panel {
 
                 // Hover crosshair and dot.
                 if (graphBox.hoverX >= 0) {
-                  var hv = History.chargeAt(root.history.charge, graphBox.hoverT)
+                  var hv = root.chargeAt(graphBox.hoverT)
                   ctx.strokeStyle = graphBox.rgba(fg, 0.35)
                   ctx.lineWidth = 1
                   ctx.beginPath(); ctx.moveTo(Math.round(graphBox.hoverX) + 0.5, 0); ctx.lineTo(Math.round(graphBox.hoverX) + 0.5, h); ctx.stroke()
@@ -791,7 +801,7 @@ Panel {
               opacity: 0.85
               text: graphBox.hoverX < 0 ? "" : Commons.I18n.t("power.historyHover")
                 .arg(root.whenText(graphBox.hoverT))
-                .arg(root.pct(History.chargeAt(root.history.charge, graphBox.hoverT)))
+                .arg(root.pct(root.chargeAt(graphBox.hoverT)))
                 .arg(root.stateLabel(root.stateAt(graphBox.hoverT)))
             }
           }

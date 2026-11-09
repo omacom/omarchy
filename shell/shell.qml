@@ -561,9 +561,17 @@ ShellRoot {
       var target = service()
       return target && Array.isArray(target.peers) ? target.peers : []
     })
-    api.history = Qt.binding(function() {
+    api.historyLastCharge = Qt.binding(function() {
       var target = service()
-      return target && target.history ? target.history : ({ charge: [], rate: [] })
+      return target && target.historyLastCharge ? target.historyLastCharge : null
+    })
+    api.historyLastBattery = Qt.binding(function() {
+      var target = service()
+      return target && target.historyLastBattery ? target.historyLastBattery : null
+    })
+    api.historyWindows = Qt.binding(function() {
+      var target = service()
+      return target && target.historyWindows ? target.historyWindows : ({})
     })
     api.historyTimeline = Qt.binding(function() {
       var target = service()

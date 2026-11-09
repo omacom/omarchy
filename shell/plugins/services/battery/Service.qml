@@ -4,9 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.UPower
 import qs.Commons
 import "BatteryModel.js" as BatteryModel
-// The power panel draws the history; the service reads and keeps it, once
-// for every monitor's panel.
-import "../../panels/power/History.js" as History
+import "History.js" as History
 
 Item {
   id: root
@@ -27,10 +25,15 @@ Item {
 
   // Battery history (omarchy-battery-history), read when a power panel asks
   // for it: on opening and once a minute while one stays open. Nothing reads
-  // it while every panel is closed.
-  property var history: ({ charge: [], rate: [] })
+  // it while every panel is closed. The service works out everything the
+  // panel shows, once for every monitor's panel, and the panel only draws it.
   property var historyTimeline: ({ segments: [], sleeps: [] })
   property real historyNow: 0
+  property var historyLastCharge: null
+  property var historyLastBattery: null
+  // { "6h" | "24h" | "3d": { start, span, points, runs, drain } }, or {} before
+  // the first read.
+  property var historyWindows: ({})
   property real historyReadAt: 0
 
   function refreshHistory() {
@@ -46,9 +49,13 @@ Item {
     var parsed = History.parseHistory(raw, now)
     // Keep what we had if a read comes back empty.
     if (parsed.charge.length === 0) return
+    var tl = History.timeline(parsed, now)
+    var views = History.views(parsed, tl, now)
     historyNow = now
-    history = parsed
-    historyTimeline = History.timeline(parsed, now)
+    historyTimeline = tl
+    historyLastCharge = views.lastCharge
+    historyLastBattery = views.lastBattery
+    historyWindows = views.windows
   }
 
   Process {
