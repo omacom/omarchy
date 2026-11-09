@@ -15,7 +15,7 @@ stage=$(mktemp -d)
 trap 'rm -rf -- "$stage"' EXIT
 mkdir -p "$stage/power" "$stage/home"
 cp "$SHELL_TEST_DIR/fixtures/power-no-battery/shell.qml" "$stage/shell.qml"
-cp "$ROOT/shell/plugins/panels/power/Panel.qml" "$ROOT/shell/plugins/panels/power/Model.js" "$stage/power/"
+cp "$ROOT/shell/plugins/panels/power/Panel.qml" "$ROOT/shell/plugins/panels/power/Model.js" "$ROOT/shell/plugins/panels/power/History.js" "$stage/power/"
 ln -s "$ROOT/shell/Ui" "$stage/Ui"
 ln -s "$ROOT/shell/Commons" "$stage/Commons"
 

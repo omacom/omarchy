@@ -44,3 +44,42 @@ assertEqual(
   'power shows battery icon when unplugged before battery state refreshes'
 )
 JS
+
+run_node_test <<'JS'
+const history = requireFromRoot('shell/plugins/panels/power/History.js')
+const now = 1800000000
+const hour = 3600
+const line = (kind, rows) => kind + '\t' + JSON.stringify(rows)
+
+const junk = history.parseHistory([
+  'charge\t<img src="https://example.invalid/x">',
+  line('rate', [[now - 10 * 24 * hour, 5, 2], [now + 24 * hour, 5, 2], ['<b>1</b>', 5, 2], [now - 60, -1, 2], [now - 30, 4.5, 9]])
+].join('\n'), now)
+assertEqual(junk.charge.length + junk.rate.length, 0, 'battery history drops markup, out-of-range times, values and states')
+assertEqual(history.parseHistory(line('rate', Array.from({ length: 6000 }, (_, i) => [now - i, 5, 2])), now).rate.length, 5000, 'battery history caps the points it keeps')
+
+// Unplugged at 100%, awake for an hour to 90%, asleep four hours (88% on
+// waking), awake to 80%, asleep three hours on the charger (100% on waking),
+// awake for an hour to 95%.
+const t = h => now - 10 * hour + h * hour
+const rate = []
+for (let s = t(0); s <= t(1); s += 30) rate.push([s, 5, 2])
+for (let s = t(5); s <= t(6); s += 30) rate.push([s, 6, 2])
+for (let s = t(9); s <= t(10); s += 30) rate.push([s, 5, 2])
+const charge = [[t(0), 100, 2], [t(1), 90, 2], [t(5), 88, 2], [t(6), 80, 2], [t(9), 100, 2], [t(10), 95, 2]]
+const data = history.parseHistory(line('charge', charge) + '\n' + line('rate', rate), now)
+const tl = history.timeline(data, now)
+
+assertDeepEqual(tl.sleeps.map(s => [s.start, s.end, s.charged]), [[t(1), t(5), false], [t(6), t(9), true]], 'battery history finds sleeps from gaps in the samples')
+assertDeepEqual(tl.segments.map(s => s.source), ['battery', 'ac', 'battery'], 'battery history counts a sleep that woke up charged as time on AC')
+
+const lastCharge = history.lastSession(data, tl, 'ac', now)
+assertDeepEqual([lastCharge.fromPct, lastCharge.toPct, lastCharge.ongoing], [80, 100, false], 'battery history reports a charge made while asleep')
+
+const drain = history.drainSince(data, tl, t(0), now)
+assertDeepEqual([drain.awakeSec, drain.usedPct, drain.sleepPct], [3 * hour, 23, 2], 'battery history keeps sleep out of the awake drain')
+
+const runs = history.graphRuns(history.graphPoints(data.charge, t(0), now), tl.sleeps)
+assertEqual(runs.length, 3, 'battery history splits the graph line at each sleep')
+assertDeepEqual(runs[1][0], { t: t(5), v: 88 }, 'battery history picks the line up at the level on waking')
+JS
