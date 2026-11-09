@@ -229,12 +229,14 @@ OverlayWindow {
               width: parent.width - window.itemPadding * 2
               height: parent.height - window.itemPadding * 2 - window.headerHeight
 
+              // Capture starts only once the card shows, so a quick Alt + Tab
+              // captures nothing.
               ScreencopyView {
                 id: preview
                 anchors.centerIn: parent
                 width: Math.min(parent.width, parent.height * item.aspect)
                 height: Math.min(parent.height, parent.width / item.aspect)
-                captureSource: item.toplevel ? item.toplevel.wayland : null
+                captureSource: window.switcher.revealed && item.toplevel ? item.toplevel.wayland : null
                 live: true
               }
 
