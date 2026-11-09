@@ -98,6 +98,9 @@ o.bind("SUPER + ALT + SHIFT + TAB", "Previous window in group", hl.dsp.group.pre
 o.bind("SUPER + CTRL + LEFT", "Move grouped window focus left", hl.dsp.group.prev())
 o.bind("SUPER + CTRL + RIGHT", "Move grouped window focus right", hl.dsp.group.next())
 
+o.bind("SUPER + CTRL + ALT + LEFT", "Move window backward in the group order", hl.dsp.group.move_window({ forward = false }))
+o.bind("SUPER + CTRL + ALT + RIGHT", "Move window forward in the group order", hl.dsp.group.move_window())
+
 o.bind("SUPER + ALT + mouse_down", "Next window in group", hl.dsp.group.next())
 o.bind("SUPER + ALT + mouse_up", "Previous window in group", hl.dsp.group.prev())
 
