@@ -10,7 +10,14 @@ if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then
     omarchy-theme-set "Tokyo Night"
   fi
 fi
-omarchy-theme-set-pi --activate
+
+# Terminal applications follow Omarchy by default while remaining free to use
+# a different theme after installation.
+for app in codex grok pi claude; do
+  if ! omarchy-done check "theme-activate-$app"; then
+    "omarchy-theme-set-$app" --activate
+  fi
+done
 omarchy-theme-set-fcitx5 --activate
 
 mkdir -p ~/.config/btop/themes
