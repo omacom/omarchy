@@ -12,7 +12,9 @@ TextInput {
   focus: true
   clip: true
   Keys.priority: Keys.BeforeItem
-  Keys.forwardTo: keyHandler ? [keyHandler] : []
+  // The selection is only ever the whole query (Ctrl+A), and erasing it is the
+  // line's job: the panel would take Backspace one character at a time.
+  Keys.forwardTo: keyHandler ? [selectionEraser, keyHandler] : [selectionEraser]
   // Alt and Super chords are shortcuts, never text.
   Keys.onPressed: function(event) {
     if (event.modifiers & (Qt.AltModifier | Qt.MetaModifier)) event.accepted = true
@@ -20,7 +22,19 @@ TextInput {
 
   // Append-only: the panel owns Left and Right, so the caret stays hidden at
   // the end. An empty delegate holds it hidden; cursorVisible returns on focus.
+  // Ctrl+A may select the whole query, so typing replaces it; nothing less.
   cursorDelegate: Item {}
   onCursorPositionChanged: if (cursorPosition !== length) cursorPosition = length
-  onSelectedTextChanged: if (selectedText) deselect()
+  onSelectedTextChanged: if (selectedText && selectedText !== text) deselect()
+
+  Item {
+    id: selectionEraser
+    Keys.onPressed: function(event) {
+      if (event.key === Qt.Key_Backspace && root.selectedText && !root.readOnly
+          && !(event.modifiers & (Qt.AltModifier | Qt.MetaModifier))) {
+        root.remove(root.selectionStart, root.selectionEnd)
+        event.accepted = true
+      }
+    }
+  }
 }
