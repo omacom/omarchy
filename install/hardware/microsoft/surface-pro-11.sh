@@ -95,10 +95,10 @@ done
 unset firmware directory suffix
 CONF
 
-  # surface-pro-11-support carries Wi-Fi board data, audio and camera routing,
-  # iptsd turns the digitizer's reports into pen and touch input, and the
-  # sensor package serves the ADSP the light sensor's configuration.
-  omarchy-pkg-add surface-pro-11-support iptsd surface-pro-11-sensors
+  # microsoft-surface-pro-11-support carries Wi-Fi board data, audio and camera
+  # routing, iptsd turns the digitizer's reports into pen and touch input, and
+  # the sensor package serves the ADSP the light sensor's configuration.
+  omarchy-pkg-add microsoft-surface-pro-11-support iptsd microsoft-surface-pro-11-sensors
 
   # The light sensor configuration is copied from the Windows installation,
   # which a full-disk install has already erased; it can be rerun later.

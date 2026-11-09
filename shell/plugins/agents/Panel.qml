@@ -33,7 +33,7 @@ Panel {
 
   function localActions(model) {
     var actions = []
-    if (model.unit === "removing") return actions
+    if (model.unit === "removing" || model.unit === "installing") return actions
     if (model.unit !== "deactivating") actions.push("toggle")
     if (model.unit === "active") actions.push("launch")
     return actions
@@ -51,6 +51,12 @@ Panel {
       // which the model's line shows.
       Util.execArgv(["omarchy-agent-local", running ? "stop" : "start", model.recipe])
     }
+  }
+
+  // The setup runs on in the background and reports to status.json, where it
+  // becomes the model's own line, which draws the download as it goes.
+  function downloadLocal(recipe) {
+    Util.execArgv(["omarchy-agent-local", "use", "--detach", String(recipe.id)])
   }
 
   function localStartBlocked(model) {
@@ -78,7 +84,7 @@ Panel {
   property var deleteTarget: null
   function deleteSelected() {
     var target = keyTarget
-    if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader"].indexOf(target.kind) < 0) return
+    if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "localDownload"].indexOf(target.kind) < 0) return
     deleteTarget = providers[target.index]
   }
 
@@ -132,6 +138,10 @@ Panel {
       var choices = []
       for (var k = 0; k < addProviders.length; k++) choices.push({ kind: "choice", index: k })
       rows.push(choices)
+      // A blank slate shows the recommended model's offer under the picker.
+      if (addStage === "")
+        for (var o = 0; o < providers.length; o++)
+          if (providers[o].localOffer) rows.push([{ kind: "localDownload", index: o }])
     } else if (addStage === "local") {
       for (var r = 0; r < localAddRecipes.length; r++) rows.push([{ kind: "localAdd", index: r }])
     } else if (addStage === "") {
@@ -141,6 +151,10 @@ Panel {
       // fix is skipped.
       var entry = 0
       for (var p = 0; p < providers.length; p++) {
+        if (providers[p].localOffer) {
+          rows.push([{ kind: "localDownload", index: p }])
+          continue
+        }
         if (providers[p].localModel) {
           var actions = localActions(providers[p].localModel)
           rows.push(actions.length > 0 ? actions.map(function(action) { return { kind: action === "toggle" ? "modelToggle" : "modelLaunch", index: p } }) : [{ kind: "modelHeader", index: p }])
@@ -204,6 +218,7 @@ Panel {
   function lineStop(p) {
     var provider = providers[p]
     if (!provider) return "provider"
+    if (provider.localOffer) return "localDownload"
     if (provider.localModel) {
       var actions = localActions(provider.localModel)
       if (actions.indexOf("launch") >= 0) return "modelLaunch"
@@ -227,7 +242,7 @@ Panel {
       var row = keyRows[keyRow]
       var use = -1
       for (var c = 0; c < row.length; c++) if (row[c].kind === "account") use = c
-      var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader"].indexOf(row[0].kind) >= 0
+      var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "localDownload"].indexOf(row[0].kind) >= 0
       keyColumn = use >= 0 ? use : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       keyColumn = clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
@@ -238,7 +253,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader"].indexOf(target.kind) >= 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "localDownload"].indexOf(target.kind) >= 0) return target.index
     if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
@@ -351,12 +366,13 @@ Panel {
   }
 
   // The bar icon lights up when any account new sessions use is nearly out,
-  // or a prepaid balance is down to its last 10%.
+  // a prepaid balance is down to its last 10%, or monthly spend is near its cap.
   readonly property bool alarming: {
     for (var i = 0; i < providers.length; i++) {
       var window = bindingWindow(providers[i])
       if (window && window.percent >= 0.9) return true
       if (balanceAlarming(providers[i].balance)) return true
+      if (spendAlarming(providers[i].spend)) return true
     }
     return false
   }
@@ -413,6 +429,17 @@ Panel {
     if (recipe.context != null) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(recipe.context / 1024), 0)))
     if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Commons.I18n.formatNumber(Math.round(recipe.decode_tok_s), 0)))
     return facts.join(" · ")
+  }
+
+  // A download's speed beside its bar, and how much of it has arrived on the
+  // bar's tooltip, in the decimal units downloads are counted in. Nothing
+  // while the speed is still zero or the total unknown.
+  function downloadRate(rate) {
+    return rate > 0 ? Commons.I18n.t("agents.localDownloadRate").arg(Commons.I18n.formatNumber(Math.round(rate / 1e6), 0)) : ""
+  }
+
+  function downloadAmount(done, total) {
+    return total > 0 ? Commons.I18n.t("agents.localDownloadValue").arg(Commons.I18n.formatNumber(done / 1e9, 1)).arg(Commons.I18n.formatNumber(total / 1e9, 1)) : ""
   }
 
   function setUpLocal(recipe) {
@@ -575,6 +602,7 @@ Panel {
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "localAdd") setUpLocal(localAddRecipes[target.index])
     else if (target.kind === "modelToggle" || target.kind === "modelLaunch") runLocalAction(providers[target.index].localModel, target.kind === "modelToggle" ? "toggle" : "launch")
+    else if (target.kind === "localDownload") downloadLocal(providers[target.index].localOffer)
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
@@ -924,6 +952,34 @@ Panel {
       : Commons.I18n.t("agents.balanceSpent").arg(spent).arg(funded)
   }
 
+  // A balance or spend row's amount is as wide as a limit row's time left
+  // ("19h 40m"), so every line ends where the limit meters do.
+  TextMetrics {
+    id: valueColumnMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.bodySmall
+    text: "00h 00m"
+  }
+  readonly property real valueColumnWidth: Math.ceil(valueColumnMetrics.advanceWidth)
+
+  // ------------------------------------------------------------------ spend
+  //
+  // Pay-as-you-go agents report what the account spent over the last 30
+  // days, or this month against the cap when its tier sets one, which fills
+  // like a limit window.
+
+  function spendAlarming(s) {
+    return !!s && s.cap > 0 && s.amount / s.cap >= 0.9
+  }
+
+  function spendValueText(s) {
+    if (!s) return ""
+    var amount = formatMoney(s.amount, s.currency)
+    // Added up from this machine's sessions, so only about what was billed.
+    if (s.estimated) return Commons.I18n.t("agents.spendEstimated").arg(amount)
+    return s.cap > 0 ? Commons.I18n.t("agents.spendOfCap").arg(amount).arg(formatMoney(s.cap, s.currency)) : amount
+  }
+
   // ---------------------------------------------------------------- summary
   //
   // The hero's line rotates through what the token counts add up to across
@@ -1083,6 +1139,7 @@ Panel {
   function refreshLocalListing() {
     usage.refreshLocal()
   }
+  property bool localListed: false
 
   // Picking an agent to add starts on the first one, ready for Enter. The
   // rows follow the same stage change, so the cursor waits a tick for them.
@@ -1111,7 +1168,13 @@ Panel {
     // "Doesn't fit" was true when a model last started or stopped; memory an
     // app has since let go of only shows after a fresh look, once per open.
     if (localBlocked) Util.execArgv(["omarchy-agent-local", "status", "--write"])
-    if (picking) refreshLocalListing()
+    // The first page offers the recommended model from the same listing, so a
+    // machine with no local model reads it fresh once per shell run too; an
+    // update restarts the shell.
+    if (picking || (!localListed && !providers.some(function(p) { return !!p.localModel }))) {
+      localListed = true
+      refreshLocalListing()
+    }
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
   }
 
@@ -1243,8 +1306,9 @@ Panel {
           handleKey(event)
           event.accepted = true
         }
-        message: !root.deleteTarget ? "" : root.deleteTarget.localModel
-          ? Commons.I18n.t("agents.localRemoveConfirm").arg(root.deleteTarget.localModel.name || root.deleteTarget.localModel.recipe)
+        message: !root.deleteTarget ? ""
+          : root.deleteTarget.localModel ? Commons.I18n.t("agents.localRemoveConfirm").arg(root.deleteTarget.localModel.name || root.deleteTarget.localModel.recipe)
+          : root.deleteTarget.localOffer ? Commons.I18n.t("agents.localHideOfferConfirm").arg(root.deleteTarget.providerName)
           : Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName)
         foreground: root.foreground
         background: root.surface
@@ -1724,6 +1788,15 @@ Panel {
     property var provider: null
     property int providerIndex: -1
     readonly property var model: provider ? (provider.localModel || null) : null
+    // The recommended model offered for download, before it has a line of its own.
+    readonly property var offer: provider ? (provider.localOffer || null) : null
+    // A first setup: downloading, or failed with its reason.
+    readonly property bool installing: !!model && model.unit === "installing"
+    readonly property var install: installing && model.install ? model.install : ({})
+    readonly property bool downloadShown: installing && install.phase !== "failed"
+    readonly property real totalBytes: Number(install.total_bytes) || 0
+    readonly property real doneBytes: Number(install.done_bytes) || 0
+    readonly property real rateBytes: Number(install.rate_bytes_s) || 0
     readonly property bool loading: !!model && model.unit === "activating"
     readonly property bool running: !!model && model.unit === "active"
     readonly property bool stopping: !!model && model.unit === "deactivating"
@@ -1751,6 +1824,7 @@ Panel {
     readonly property bool multi: accounts.length > 1
     readonly property var windows: root.displayWindows(provider)
     readonly property var balance: provider ? (provider.balance || null) : null
+    readonly property var spend: provider ? (provider.spend || null) : null
     spacing: Style.space(16)
     readonly property bool dragged: root.dragIndex === providerIndex
     z: dragged ? 2 : 0
@@ -1791,7 +1865,8 @@ Panel {
         id: sectionMark
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        provider: section.model ? ({ providerId: section.model.vendor || "ollama" }) : section.provider
+        provider: section.model ? ({ providerId: section.model.vendor || "ollama" })
+          : section.offer ? ({ providerId: section.offer.vendor || "ollama" }) : section.provider
 
         // The mark is the handle for dragging the agent up or down the page.
         MouseArea {
@@ -1817,12 +1892,15 @@ Panel {
         anchors.leftMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        width: section.model ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(40))) : implicitWidth
+        width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(40))) : implicitWidth
         elide: Text.ElideRight
-        text: section.model ? (section.model.name || section.model.recipe) : section.provider ? section.provider.providerName : ""
+        text: section.model ? (section.model.name || section.model.recipe)
+          : section.offer ? (section.offer.name || section.offer.id)
+          : section.provider ? section.provider.providerName : ""
         HoverHandler { id: localNameHover }
         PanelToolTip {
-          visible: !!section.model && localNameHover.hovered
+          // A setup has no endpoint until its model first starts.
+          visible: !!section.model && !section.installing && localNameHover.hovered
           text: section.model ? Commons.I18n.t("agents.localEndpoint").arg(section.model.endpoint || "").arg(section.model.recipe) : ""
         }
         color: root.foreground
@@ -1839,7 +1917,7 @@ Panel {
         anchors.baseline: sectionName.baseline
         visible: !section.multi && text !== ""
         textFormat: Text.PlainText
-        text: section.model ? "" : root.planLabel(section.provider)
+        text: section.model || section.offer ? "" : root.planLabel(section.provider)
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -1858,7 +1936,7 @@ Panel {
         anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: !!section.model && !section.stopping && !section.removing
+        visible: !!section.model && !section.stopping && !section.removing && !section.installing
         // Greyed out, not disabled, so the reason still shows on hover.
         readonly property bool blocked: root.localStartBlocked(section.model)
         iconText: section.running || section.loading ? "󰏤" : "󰐊"
@@ -1880,25 +1958,42 @@ Panel {
       }
 
       // Opens the coding agent made for this subscription: Codex for OpenAI,
-      // Claude Code for Anthropic.
+      // Claude Code for Anthropic. On an offered local model, the same place
+      // downloads it.
       PanelActionButton {
         id: sectionLaunch
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        visible: section.model ? section.running : root.harnessFor(section.provider) !== ""
-        iconText: "󰞷"
-        tooltipText: section.model ? Commons.I18n.t("agents.localLaunch") : Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
+        readonly property bool download: !!section.offer
+        visible: download || (section.model ? section.running : root.harnessFor(section.provider) !== "")
+        iconText: download ? "󰇚" : "󰞷"
+        tooltipText: download ? Commons.I18n.t("agents.localDownload")
+          : section.model ? Commons.I18n.t("agents.localLaunch") : Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
         foreground: root.foreground
         fontFamily: root.fontFamily
-        hasCursor: root.hasKey(section.model ? "modelLaunch" : "providerLaunch", section.providerIndex)
-        onClicked: section.model ? root.runLocalAction(section.model, "launch") : root.launchHarness(section.provider)
+        hasCursor: root.hasKey(download ? "localDownload" : section.model ? "modelLaunch" : "providerLaunch", section.providerIndex)
+        onClicked: download ? root.downloadLocal(section.offer)
+          : section.model ? root.runLocalAction(section.model, "launch") : root.launchHarness(section.provider)
       }
     }
 
-    // Under a local model: memory while it runs, progress while it loads or
-    // stops (against how long that took last time), or why it couldn't start.
+    // Under an offered model: what it needs and how fast it runs here.
+    Text {
+      visible: !!section.offer && text !== ""
+      width: parent.width
+      textFormat: Text.PlainText
+      text: section.offer ? root.recipeFacts(section.offer) : ""
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      elide: Text.ElideRight
+    }
+
+    // Under a local model: its download while it's set up, memory while it
+    // runs, progress while it loads or stops (against how long that took last
+    // time), or why it couldn't start.
     Item {
-      visible: section.running || section.loadingShown || section.stoppingShown || section.removing
+      visible: section.downloadShown || section.running || section.loadingShown || section.stoppingShown || section.removing
       width: parent.width
       implicitHeight: Math.max(localMeterTitle.implicitHeight, localMeterValue.implicitHeight)
 
@@ -1907,7 +2002,8 @@ Panel {
         width: parent.width * 0.3
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: section.removing ? Commons.I18n.t("agents.localRemovingMeter")
+        text: section.downloadShown ? Commons.I18n.t("agents.localDownloadingMeter")
+          : section.removing ? Commons.I18n.t("agents.localRemovingMeter")
           : section.loadingShown ? Commons.I18n.t("agents.localLoadingMeter")
           : section.stoppingShown ? Commons.I18n.t("agents.localStoppingMeter")
           : Commons.I18n.t("agents.localMemory")
@@ -1916,12 +2012,28 @@ Panel {
         font.pixelSize: Style.font.bodySmall
       }
       Meter {
+        id: localMeterBar
         anchors.left: localMeterTitle.right
         anchors.right: localMeterValue.left
         anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
-        value: section.finishing !== "" ? 1 : section.loading || section.stopping || section.removing ? root.phaseProgress(section.elapsed, section.phaseSeconds)
+        value: section.downloadShown ? (section.totalBytes > 0 ? section.doneBytes / section.totalBytes : 0)
+          : section.finishing !== "" ? 1 : section.loading || section.stopping || section.removing ? root.phaseProgress(section.elapsed, section.phaseSeconds)
           : Number(usage.localModel.ram_total_gib) > 0 ? section.memory / Number(usage.localModel.ram_total_gib) : 0
+      }
+      // How much of a download has arrived, over its bar. The bar is a few
+      // pixels tall, so the whole height of its row answers the pointer.
+      Item {
+        anchors.left: localMeterBar.left
+        anchors.right: localMeterBar.right
+        height: parent.height
+        visible: section.downloadShown
+        HoverHandler { id: downloadBarHover }
+        PanelToolTip {
+          visible: downloadBarHover.hovered && text !== ""
+          text: root.downloadAmount(section.doneBytes, section.totalBytes)
+          fontFamily: root.fontFamily
+        }
       }
       Text {
         id: localMeterValue
@@ -1929,7 +2041,8 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
         horizontalAlignment: Text.AlignRight
-        text: section.loadingShown || section.stoppingShown || section.removing ? ""
+        text: section.downloadShown ? root.downloadRate(section.rateBytes)
+          : section.loadingShown || section.stoppingShown || section.removing ? ""
           : Commons.I18n.t("agents.localMemoryValue").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
         color: root.dim
         font.family: root.fontFamily
@@ -2007,29 +2120,31 @@ Panel {
           text: Commons.I18n.t("agents.balance")
           color: root.foreground
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.bodySmall
         }
 
+        // Without a funded figure there is nothing to drain from, so no meter.
         Meter {
+          visible: !!section.balance && section.balance.funded > 0
           anchors.left: balanceTitle.right
           anchors.right: balanceValue.left
-          anchors.rightMargin: Style.spacing.md
+          anchors.rightMargin: Style.space(20)
           anchors.verticalCenter: parent.verticalCenter
-          value: section.balance && section.balance.funded > 0 ? section.balance.remaining / section.balance.funded : -1
+          value: visible ? section.balance.remaining / section.balance.funded : -1
           alarming: root.balanceAlarming(section.balance)
         }
 
         Text {
           id: balanceValue
           textFormat: Text.PlainText
-          width: Style.space(96)
+          width: Math.max(root.valueColumnWidth, implicitWidth)
           anchors.right: parent.right
           anchors.verticalCenter: parent.verticalCenter
           horizontalAlignment: Text.AlignRight
           text: section.balance ? root.formatMoney(section.balance.remaining, section.balance.currency) : ""
           color: root.balanceAlarming(section.balance) ? root.urgent : root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.bodySmall
         }
       }
 
@@ -2041,6 +2156,82 @@ Panel {
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
+      }
+    }
+
+    // Against a real monthly cap the spend is this month's meter; without
+    // one, a bar for each of the last 30 days, scaled to the busiest, shows
+    // where it went.
+    Item {
+      visible: !!section.spend
+      width: parent.width
+      implicitHeight: spendTitle.implicitHeight
+
+      Text {
+        id: spendTitle
+        textFormat: Text.PlainText
+        width: parent.width * 0.3
+        anchors.verticalCenter: parent.verticalCenter
+        text: section.spend && section.spend.cap > 0 ? Commons.I18n.t("agents.spendThisMonth") : Commons.I18n.t("agents.spendLast30Days")
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        elide: Text.ElideRight
+      }
+
+      Meter {
+        visible: !!section.spend && section.spend.cap > 0
+        anchors.left: spendTitle.right
+        anchors.right: spendValue.left
+        anchors.rightMargin: Style.space(20)
+        anchors.verticalCenter: parent.verticalCenter
+        value: visible ? section.spend.amount / section.spend.cap : -1
+        alarming: root.spendAlarming(section.spend)
+      }
+
+      Item {
+        id: spendDays
+        visible: !!section.spend && section.spend.cap <= 0 && section.spend.days.length > 0
+        anchors.left: spendTitle.right
+        anchors.right: spendValue.left
+        anchors.rightMargin: Style.space(20)
+        anchors.verticalCenter: parent.verticalCenter
+        height: spendTitle.implicitHeight
+        readonly property var days: section.spend ? section.spend.days : []
+        readonly property real busiest: Math.max.apply(null, days.concat([0]))
+        readonly property real gap: Style.space(2)
+        readonly property real stub: Math.max(Style.space(2), Math.round(Style.spacing.controlHeight * 0.07))
+
+        Row {
+          anchors.fill: parent
+          spacing: spendDays.gap
+
+          Repeater {
+            model: spendDays.days.length
+
+            Rectangle {
+              readonly property real cost: spendDays.days[index]
+              width: (spendDays.width - spendDays.gap * (spendDays.days.length - 1)) / spendDays.days.length
+              height: cost > 0 && spendDays.busiest > 0 ? Math.max(spendDays.stub, spendDays.height * cost / spendDays.busiest) : spendDays.stub
+              anchors.bottom: parent ? parent.bottom : undefined
+              radius: Math.min(width, height) / 2
+              color: cost > 0 ? root.foreground : root.track
+            }
+          }
+        }
+      }
+
+      Text {
+        id: spendValue
+        textFormat: Text.PlainText
+        width: Math.max(root.valueColumnWidth, implicitWidth)
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        horizontalAlignment: Text.AlignRight
+        text: root.spendValueText(section.spend)
+        color: root.spendAlarming(section.spend) ? root.urgent : root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
       }
     }
 
