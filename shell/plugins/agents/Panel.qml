@@ -33,15 +33,15 @@ Panel {
 
   // A model on another machine of the tailnet carries its host. Away, it
   // offers nothing; unpaired, only pairing, which is what fetches its key.
-  // This machine's own models offer sharing only where Tailscale can serve
-  // them, or where one is shared already, so it can always be stopped.
+  // This machine's own models offer sharing once running, where Tailscale can
+  // serve them, or where one is shared already, so it can always be stopped.
   function localActions(model, canShare) {
     var actions = []
     if (model.unit === "removing" || model.unit === "installing") return actions
     if (model.host) {
       if (model.offline) return actions
       if (!model.paired) return ["pair"]
-    } else if (canShare || model.shared === true) {
+    } else if ((canShare && model.unit === "active") || model.shared === true) {
       actions.push("share")
     }
     if (model.unit !== "deactivating") actions.push("toggle")
@@ -461,6 +461,18 @@ Panel {
     return hidden
   }
   readonly property var addRows: addStage === "network" ? networkAddModels : localAddRecipes
+
+  // What a running network model is, in place of the memory meter its host
+  // measures: its architecture, its measured speeds there, and its context.
+  function remoteStats(model) {
+    var facts = []
+    if (model.architecture === "moe") facts.push(Commons.I18n.t("agents.localMoe"))
+    else if (model.architecture === "dense") facts.push(Commons.I18n.t("agents.localDense"))
+    if (Number(model.decode_tok_s) > 0) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.decode_tok_s)), 0)))
+    if (Number(model.prefill_tok_s) > 0) facts.push(Commons.I18n.t("agents.localPrefillFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.prefill_tok_s)), 0)))
+    if (Number(model.ctx) > 0) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.ctx) / 1024), 0)))
+    return facts.join(" · ")
+  }
 
   function networkFacts(model) {
     var facts = [Commons.I18n.t("agents.networkOnHost").arg(model.host)]
@@ -1880,8 +1892,7 @@ Panel {
     readonly property real phaseSeconds: removing ? removeSeconds : stopping ? stopSeconds : loadSeconds
     readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
     readonly property real memory: model && model.observed ? Number(model.observed.ram_used_gib || 0) : 0
-    // A network model's memory is measured against its own host's.
-    readonly property real ramTotal: Number(remote ? model.ram_total_gib : usage.localModel.ram_total_gib) || 0
+    readonly property real ramTotal: Number(usage.localModel.ram_total_gib) || 0
     readonly property var accounts: root.providerAccounts(provider)
     readonly property bool multi: accounts.length > 1
     readonly property var windows: root.displayWindows(provider)
@@ -1993,20 +2004,20 @@ Panel {
         record: section.provider
       }
 
-      // Shares this machine's model with the tailnet, or stops sharing it:
-      // the word Share, dim while private and blue while shared. Offered only
-      // where Tailscale can serve it, and kept on a shared model so sharing
-      // can always stop.
+      // Shares this machine's running model with the tailnet, or stops
+      // sharing it: Share while private, Shared while shared, in the icons'
+      // color. Offered only where Tailscale can serve it, and kept on a shared
+      // model, running or not, so sharing can always stop.
       TextLink {
         id: localShare
         anchors.right: localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(8) : 0
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool shared: !!section.model && section.model.shared === true
-        visible: !!section.model && !section.remote && !section.removing && !section.installing && (usage.canShare || shared)
-        text: Commons.I18n.t("agents.networkShareLabel")
+        visible: !!section.model && !section.remote && !section.removing && !section.installing && (shared || (usage.canShare && section.running))
+        text: shared ? Commons.I18n.t("agents.networkSharedLabel") : Commons.I18n.t("agents.networkShareLabel")
         tooltip: shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
-        current: shared
+        idleColor: root.foreground
         picked: root.hasKey("modelShare", section.providerIndex)
         onClicked: root.runLocalAction(section.model, "share")
       }
@@ -2085,9 +2096,10 @@ Panel {
 
     // Under a local model: its download while it's set up, memory while it
     // runs, progress while it loads or stops (against how long that took last
-    // time), or why it couldn't start.
+    // time), or why it couldn't start. A network model shows its stats while
+    // it runs instead: its memory is its host's business.
     Item {
-      visible: section.downloadShown || section.running || section.loadingShown || section.stoppingShown || section.removing
+      visible: section.downloadShown || (section.running && !section.remote) || section.loadingShown || section.stoppingShown || section.removing
       width: parent.width
       implicitHeight: Math.max(localMeterTitle.implicitHeight, localMeterValue.implicitHeight)
 
@@ -2142,6 +2154,17 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
       }
+    }
+
+    Text {
+      visible: section.remote && section.running && !section.loadingShown && !section.stoppingShown && text !== ""
+      width: parent.width
+      textFormat: Text.PlainText
+      text: section.remote ? root.remoteStats(section.model) : ""
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      elide: Text.ElideRight
     }
 
     // A network model whose host is away keeps its line, saying so.

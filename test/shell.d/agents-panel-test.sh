@@ -166,10 +166,20 @@ const localActions = new Function(panel.match(/function localActions\([^]*?\n  \
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle', 'launch'], 'a running local model can be shared, stopped and launched')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, false), ['toggle', 'launch'], 'without Tailscale set up, sharing is not offered')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', shared: true }, false), ['share', 'toggle'], 'a shared model can always stop sharing')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive' }, true), ['toggle'], 'a local model that has not been started is not offered for sharing')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'installing' }, true), [], 'a model being set up offers nothing yet')
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' }), ['toggle', 'launch'], 'a paired network model starts, stops and launches')
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: false, offline: '' }), ['pair'], 'an unpaired network model offers pairing only')
 assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', paired: true, offline: 'offline' }), [], 'an offline network model offers nothing until its host is back')
+
+// A running network model shows what it is and how fast its host runs it,
+// not that host's memory.
+const i18n = { t: key => ({ text: key, arg(value) { this.text += '(' + value + ')'; return this }, toString() { return this.text } }), formatNumber: value => String(value) }
+const remoteStats = new Function('Commons', panel.match(/function remoteStats\([^]*?\n  \}/)[0] + '\nreturn remoteStats')({ I18n: i18n })
+assertEqual(remoteStats({ architecture: 'moe', decode_tok_s: 41.6, prefill_tok_s: 812.2, ctx: 262144 }),
+  'agents.localMoe · agents.localSpeedFact(42) · agents.localPrefillFact(812) · agents.localContextFact(256)', 'a network model lists its architecture, speeds and context')
+assertEqual(remoteStats({ architecture: 'dense', decode_tok_s: null, prefill_tok_s: null, ctx: 0 }), 'agents.localDense', 'unmeasured speeds and an unknown context are left out')
+assertEqual(remoteStats({}), '', 'a host that reports nothing gives no stats line')
 JS
 
 # The panel has no terminal for sudo: a detached setup missing its packages
