@@ -27,10 +27,10 @@ ssh() {
   # Retry in a subshell: Ctrl-C reaches the whole foreground process group,
   # so it cancels both the in-flight attempt and the loop itself. Keep
   # retrying fast failures, since a rebooting server refuses connections too,
-  # but back off: servers commonly rate-limit new SSH connections (ufw limit
-  # allows 6 per 30 seconds, and rejected attempts count), and a fixed 2-second
-  # retry would keep such a block armed forever. A session that lasted starts
-  # the backoff over.
+  # but back off: a server may rate-limit new SSH connections (ufw limit
+  # allows 6 per 30 seconds, and rejected attempts count), and once other
+  # traffic from the same address arms such a block, a fixed 2-second retry
+  # keeps it armed forever. A session that lasted starts the backoff over.
   (
     local delay=2
 
