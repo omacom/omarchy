@@ -50,7 +50,9 @@ Item {
 
     var max = readNumber(maxFile)
     if (!(max > 0)) return false
-    var current = Math.round(100 * readNumber(brightnessFile) / max)
+    var raw = readNumber(brightnessFile)
+    if (!isFinite(raw)) return false
+    var current = Math.round(100 * raw / max)
 
     setProc.command = ["brightnessctl", "-q", "-d", device, "set", BrightnessModel.brightnessKeyTarget(action, current) + "%"]
     setProc.running = true
@@ -63,14 +65,16 @@ Item {
   function readNumber(file) {
     file.reload()
     file.waitForJob()
-    return Number(String(file.text() || "").trim())
+    return BrightnessModel.backlightReading(file.text())
   }
 
   // The payload omarchy-osd builds, from the level read back after the write.
   function showOsd() {
     var max = readNumber(maxFile)
     if (!host || !(max > 0)) return
-    var percent = Math.round(100 * readNumber(brightnessFile) / max)
+    var raw = readNumber(brightnessFile)
+    if (!isFinite(raw)) return
+    var percent = Math.round(100 * raw / max)
     host.summon("omarchy.osd", JSON.stringify({
       icon: "brightness",
       message: "",

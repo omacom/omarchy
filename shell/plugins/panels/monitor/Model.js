@@ -45,17 +45,46 @@ function parseBrightnessReading(text) {
 }
 
 // The focused-display line from omarchy-monitor-state. An empty or unexpected
-// line keeps the level already shown, so a racy read cannot bounce it to zero.
-// "unavailable" is the command saying this display has no brightness control.
-function focusedBrightness(line) {
+// line keeps the level already shown for this same display, so a racy read
+// cannot bounce it to zero. A different display does not inherit that level:
+// the command prints a blank line when a display has no brightness control,
+// and it never prints "unavailable". "unavailable" still means no control.
+function focusedBrightness(line, sameDisplay) {
   var text = String(line == null ? "" : line).trim()
   if (text === "unavailable") return { available: false, percent: 0, keep: false }
-  if (!/^[0-9]+$/.test(text)) return { available: true, percent: 0, keep: true }
+  if (!/^[0-9]+$/.test(text)) {
+    if (sameDisplay === false) return { available: false, percent: 0, keep: false }
+    return { available: true, percent: 0, keep: true }
+  }
   return {
     available: true,
     percent: Math.max(0, Math.min(100, parseInt(text, 10))),
     keep: false
   }
+}
+
+// How a relative step uses the external brightness read already under way.
+// `running` is that process, and `settled` means its stdout callback has run.
+// `accepted` means the read is still the one a result may apply. A canceled
+// read stays `running` until it exits; the next step waits (`hold`) instead
+// of starting another command on that same process. A second notch for the
+// display already being read is `accumulate`. A notch for some other display
+// during a live read is `drop`.
+function brightnessProbeAction(state) {
+  var running = !!(state && state.running)
+  var settled = !!(state && state.settled)
+  if (!running && settled) return "start"
+  if (state && state.accepted && state.sameMonitor) return "accumulate"
+  if (state && state.accepted) return "drop"
+  if (state && state.holding && state.heldSame) return "accumulate"
+  return "hold"
+}
+
+// Stdout from one read applies only while that read is still the one in
+// flight. `issued` is the token stored on the process when it started.
+// Canceling advances `current` and does not rewrite `issued`.
+function brightnessProbeCurrent(issued, current, accepted) {
+  return !!accepted && issued === current
 }
 
 // Whether a state read may replace the percent on screen. A read that started
@@ -435,6 +464,8 @@ if (typeof module !== "undefined") {
     brightnessStep: brightnessStep,
     parseBrightnessReading: parseBrightnessReading,
     focusedBrightness: focusedBrightness,
+    brightnessProbeAction: brightnessProbeAction,
+    brightnessProbeCurrent: brightnessProbeCurrent,
     mergeBrightnessLevel: mergeBrightnessLevel,
     normalizeScale: normalizeScale,
     cleanScale: cleanScale,

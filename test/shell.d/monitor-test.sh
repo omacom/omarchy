@@ -37,6 +37,17 @@ assertEqual(monitor.focusedBrightness('62').keep, false, 'a numeric focused brig
 assertEqual(monitor.focusedBrightness('').keep, true, 'an empty focused brightness keeps the level on screen')
 assertEqual(monitor.focusedBrightness('unavailable').available, false, 'unavailable focused brightness clears control')
 assertEqual(monitor.focusedBrightness('nope').keep, true, 'an unexpected focused brightness keeps the level on screen')
+assertEqual(monitor.focusedBrightness('', false).keep, false, 'an empty reading for a newly focused display does not keep the previous level')
+assertEqual(monitor.focusedBrightness('', false).available, false, 'a newly focused display with no reading is not controllable')
+assertEqual(monitor.focusedBrightness('40', false).percent, 40, 'a newly focused display applies its own reading')
+
+assertEqual(monitor.brightnessProbeCurrent(1, 2, true), false, 'a brightness read canceled before it returns does not apply')
+assertEqual(monitor.brightnessProbeCurrent(2, 2, true), true, 'the brightness read still in flight applies')
+assertEqual(monitor.brightnessProbeCurrent(2, 2, false), false, 'a brightness read that was dropped does not apply')
+assertEqual(monitor.brightnessProbeAction({ running: true, settled: false, accepted: false }), 'hold', 'a canceled brightness read is drained before another starts')
+assertEqual(monitor.brightnessProbeAction({ running: true, settled: false, accepted: true, sameMonitor: true }), 'accumulate', 'a second notch joins the brightness read already in flight')
+assertEqual(monitor.brightnessProbeAction({ running: true, settled: false, accepted: true, sameMonitor: false }), 'drop', 'a step for another display leaves the brightness read alone')
+assertEqual(monitor.brightnessProbeAction({ running: false, settled: true, accepted: false }), 'start', 'a finished brightness read leaves the next step free to start')
 
 assertEqual(monitor.mergeBrightnessLevel(57, 62, false), 57, 'a brightness read from before a write does not put the old level back')
 assertEqual(monitor.mergeBrightnessLevel(57, null, true), 57, 'a brightness read that returns nothing keeps the level')

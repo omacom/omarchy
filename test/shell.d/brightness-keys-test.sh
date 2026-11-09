@@ -23,4 +23,8 @@ assertEqual(model.backlightDeviceName('../intel_backlight'), '', 'a backlight na
 assertEqual(model.backlightDeviceName('..'), '', 'a backlight name of .. is rejected')
 assertEqual(model.backlightDeviceName('intel backlight'), '', 'a backlight name with a space is rejected')
 assertEqual(model.backlightSysfsPath('../etc/passwd'), '', 'a rejected backlight name builds no path')
+assertEqual(model.backlightReading('62\n'), 62, 'a backlight read is the raw value')
+assertEqual(model.backlightReading('0'), 0, 'a backlight value of zero stays zero')
+assertEqual(Number.isNaN(model.backlightReading('')), true, 'an empty backlight read is not zero')
+assertEqual(Number.isNaN(model.backlightReading('   ')), true, 'a blank backlight read is not zero')
 JS
