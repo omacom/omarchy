@@ -1,17 +1,6 @@
-#!/bin/bash
-
-set -euo pipefail
-
-# neovim.toml restores editor-specific appearance for repository themes without
-# allowing them to choose plugins or ship Lua. Omarchy validates the declaration
-# and generates the fixed Aether v3 integration itself.
-
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
-
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
-
-home="$test_tmp/home"
+# Sourced by theme-staging-test.sh in a subshell; reuse its scratch lifecycle,
+# set_theme and staged helpers while keeping declaration-specific fixtures apart.
+home="$test_tmp/neovim-home"
 state="$home/.local/state/omarchy/current"
 themes="$home/.config/omarchy/themes"
 mkdir -p "$state" "$themes"
@@ -78,17 +67,6 @@ blend = 20
 [highlights."@keyword.function"]
 link = "Function"
 TOML
-}
-
-set_theme() {
-  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
-    OMARCHY_THEME_HEADLESS=1 OMARCHY_THEME_SKIP_BACKGROUND=1 \
-    XDG_RUNTIME_DIR="$test_tmp" \
-    bash "$ROOT/bin/omarchy-theme-set" "$1" 2>"$test_tmp/stderr"
-}
-
-staged() {
-  printf '%s' "$state/theme/$1"
 }
 
 render() {
