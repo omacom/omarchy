@@ -1,8 +1,9 @@
-# Disk unlock on the Snapdragon X2 (Glymur) machines.
+# Disk unlock on the Snapdragon X2 machines: Glymur, and Mahua, whose trees
+# name their own SoC but carry Glymur's display, USB-C and GPU blocks.
 
 mkinitcpio_dir=${OMARCHY_QUALCOMM_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 
-if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree qcom,glymur; then
+if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree qcom,glymur qcom,mahua; then
   # Glymur's display driver resets the panel's output when it loads from the
   # initramfs, and draws again only once its USB-C outputs have bound, which
   # waits for pmic_glink_altmode. Without it here the unlock prompt stays

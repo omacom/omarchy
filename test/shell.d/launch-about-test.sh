@@ -18,6 +18,10 @@ sed '/^presize_window$/,$d' "$about" >"$tmp_dir/about.bash"
 
 export HOME="$tmp_dir/home"
 export PATH="$ROOT/bin:$PATH"
+# The launcher keeps its translated config in the runtime directory, and once
+# About has been opened for real, the fastfetch stand-ins below would be asked
+# about that file instead of answering for themselves.
+export XDG_RUNTIME_DIR="$tmp_dir/runtime"
 mkdir -p "$HOME/.config/omarchy/branding"
 printf '%s\n' '████████' '████████' >"$HOME/.config/omarchy/branding/about.txt"
 
@@ -257,3 +261,24 @@ if measure_layout; then
 else
   pass "a render without the logo in it is not measured"
 fi
+
+# The CPU row splits in two only when the whole line would overrun the box, and
+# the continuation row prints nothing otherwise, which fastfetch hides.
+mkdir -p "$tmp_dir/cpu-bin"
+cat >"$tmp_dir/cpu-bin/fastfetch" <<'STUB'
+#!/bin/bash
+printf '[{"result":{"cpu":"%s","cores":{"online":16},"coreTypes":%s,"frequency":{"base":0,"max":4032}}}]\n' "$CPU_NAME" "${CPU_CORE_TYPES:-[]}"
+STUB
+chmod +x "$tmp_dir/cpu-bin/fastfetch"
+about_cpu() { PATH="$tmp_dir/cpu-bin:$PATH" omarchy-branding-about-cpu "$1"; }
+
+# "(16) @ 4.03 GHz" is 15 columns, so a 31-column name makes the line exactly 47.
+export CPU_NAME="AMD Ryzen 7 7840U w/ Radeon 780"
+[[ $(about_cpu name) == "$CPU_NAME (16) @ 4.03 GHz" && -z $(about_cpu details) ]] ||
+  fail "a CPU line that fits the box stays on one row" "name: $(about_cpu name) details: $(about_cpu details)"
+pass "a CPU line that fits the box stays on one row"
+
+export CPU_NAME="Qualcomm Snapdragon X2 Elite X2E-88/90-100" CPU_CORE_TYPES='[{"count":12},{"count":6}]'
+[[ $(about_cpu name) == "$CPU_NAME" && $(about_cpu details) == "(12+6) @ 4.03 GHz" ]] ||
+  fail "a CPU line that overruns the box splits under its name" "name: $(about_cpu name) details: $(about_cpu details)"
+pass "a CPU line that overruns the box splits under its name"
