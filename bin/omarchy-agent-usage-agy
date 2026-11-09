@@ -15,8 +15,10 @@ limits come from the Google Cloud Code API (v1internal:loadCodeAssist and
 v1internal:retrieveUserQuotaSummary), asked with the sign-in agy keeps in the
 Secret Service keyring (or its antigravity-oauth-token file), or with the
 Antigravity sign-in omp, pi, or opencode's Antigravity plugin keeps; a lapsed
-omp sign-in is asked through `omp usage`, which renews it. Those stores are
-only ever read. The agents panel only ever reads the JSON this prints.
+omp sign-in is asked through `omp usage`, which renews it, and the plan's own
+Gemini windows come from that report whenever the quota summary answers with
+the shared Claude and GPT group alone. Those stores are only ever read, and
+the agents panel only ever reads the JSON this prints.
 """
 
 import argparse
@@ -288,13 +290,22 @@ def listed(data, key):
   return data.get(key) is None or isinstance(data[key], list)
 
 
+# What a quota group calls itself and the models it covers, so the plan's
+# own Gemini group can be told from the shared Claude and GPT one.
+def group_text(group):
+  return f"{group.get('displayName') or ''} {group.get('description') or ''}"
+
+
 # The Gemini group's 5-hour and weekly buckets are the plan's own limits; the
 # other groups (Claude and GPT models) are scoped allowances, shown once
 # they have been touched. An answer that lists its buckets without groups
-# lists the Gemini ones. An answer of another shape (not an object, an error,
-# groups or the Gemini buckets that aren't a list) is None, a failed check
-# rather than a plan without quotas; another group's buckets of the wrong
-# shape skip that group.
+# lists the Gemini ones. A summary can name no Gemini group at all (Google
+# answering with the shared allowance alone), which leaves the plan's own
+# windows to wherever else they are reported rather than reading another
+# group's buckets as the plan's. An answer of another shape (not an object,
+# an error, groups or the Gemini buckets that aren't a list) is None, a
+# failed check rather than a plan without quotas; another group's buckets of
+# the wrong shape skip that group.
 def extract_limits(data):
   if not isinstance(data, dict) or "error" in data or not listed(data, "groups") or not listed(data, "buckets"):
     return None
@@ -303,13 +314,13 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
-  if not listed(gemini, "buckets"):
+  gemini = next((g for g in groups if "gemini" in group_text(g).lower()), None)
+  if gemini is not None and not listed(gemini, "buckets"):
     return None
 
   limits = []
   session = weekly = None
-  for bucket in gemini.get("buckets") or []:
+  for bucket in (gemini.get("buckets") if gemini else None) or []:
     if not isinstance(bucket, dict) or used(bucket) is None:
       continue
     window = str(bucket.get("window") or "").lower()
@@ -438,7 +449,7 @@ def collect_limits(entries, force):
       else:
         failure = entry, "Google's quota service sent an answer that couldn't be read.", False
       break
-    return answered(entry, tier, limits)
+    return answered(entry, tier, with_omp_plan(limits, omp, omp_entries))
 
   if failure:
     entry, help_text, transport = failure
@@ -503,6 +514,21 @@ def omp_usage(omp):
   metadata = reports[0].get("metadata") if isinstance(reports[0].get("metadata"), dict) else {}
   quota = {"groups": [{"displayName": name, "buckets": buckets} for name, buckets in groups.items()]}
   return quota, str(metadata.get("email") or "")
+
+
+# A summary that answers with the shared Claude and GPT group alone leaves the
+# plan's own Gemini windows unsaid; `omp usage` asks Google for them (and
+# renews a lapsed omp sign-in while it does), so those windows stand in beside
+# whatever the summary did report. A window Google did name is never replaced.
+PLAN_LABELS = ("Session (5-hour)", "Weekly (7-day)")
+
+
+def with_omp_plan(limits, omp, entries):
+  if any(str(limit.get("label") or "") in PLAN_LABELS for limit in limits):
+    return limits
+  answer = omp_usage(omp) if omp and entries else None
+  plan = [limit for limit in (extract_limits(answer[0]) if answer else None) or [] if limit.get("label") in PLAN_LABELS]
+  return plan + limits
 
 
 # The sign-in `omp usage` answered for, its plan when the token omp just

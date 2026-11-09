@@ -369,16 +369,30 @@ def oauth_login(claude_dir: Path) -> tuple[str, int, int, str]:
   login = read_json(claude_dir / ".credentials.json").get("claudeAiOauth")
   if not isinstance(login, dict):
     return "", 0, 0, ""
+  expires_at_ms = number(login.get("expiresAt"))
+  # The credentials state the plan their token was minted for, and the CLI
+  # rewrites the file whenever it refreshes that token. A lapsed token means
+  # the file went unrewritten long enough for the account to change plan, so
+  # what it says is only shown while the profile -- refreshed against the
+  # account -- still confirms a paid subscription; a profile that denies one
+  # keeps any plan off the record, and one that names an upgraded plan leads
+  # the label.
+  state, profile_name = profile_subscription(claude_dir)
+  fresh = expires_at_ms <= 0 or expires_at_ms > time.time() * 1000
+  trusted = state == "confirmed" or (state == "silent" and fresh)
   # The profile's tier is asked first, but only one that names a multiplier
   # outranks the credentials'. The subscription still leads the label, so a
   # Team seat keeps reading Team.
   tier = profile_tier(claude_dir)
-  if not re.search(r"max_(\d+x)", tier, re.IGNORECASE):
-    tier = str(login.get("rateLimitTier") or "")
-  plan = plan_label(tier, str(login.get("subscriptionType") or ""))
+  if state == "denied":
+    tier = ""
+  elif not re.search(r"max_(\d+x)", tier, re.IGNORECASE):
+    tier = str(login.get("rateLimitTier") or "") if trusted else ""
+  subscription = (profile_name or str(login.get("subscriptionType") or "")) if trusted else ""
+  plan = plan_label(tier, subscription)
   return (
     str(login.get("accessToken") or ""),
-    number(login.get("expiresAt")),
+    expires_at_ms,
     number(login.get("refreshTokenExpiresAt")),
     plan,
   )
@@ -399,6 +413,27 @@ def profile_tier(claude_dir: Path) -> str:
     if tier:
       return tier
   return ""
+
+
+# What the CLI's profile says about the subscription: whether the account
+# still pays for one, and the plan it names. The credentials keep the plan
+# their token was minted with, and a lapsed token leaves that file untouched
+# for as long as nobody runs the CLI -- long enough for an account to drop to
+# the free plan while the file still says "pro". The profile is refreshed
+# against the account, so it answers for the plan: "confirmed" when it states
+# an active subscription, "denied" when it states there is none, and "silent"
+# when it says nothing either way.
+def profile_subscription(claude_dir: Path) -> tuple[str, str]:
+  account = read_json(profile_path(claude_dir)).get("oauthAccount")
+  if not isinstance(account, dict):
+    return "silent", ""
+  name = str(account.get("subscriptionType") or "").strip()
+  active = account.get("hasActiveSubscription")
+  if active is False:
+    return "denied", name
+  if active is True or name:
+    return "confirmed", name
+  return "silent", ""
 
 
 # The CLI's profile for a config home: a legacy .config.json inside it, else

@@ -17,8 +17,10 @@ formats or endpoints.
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
+import sqlite3
 import sys
 import urllib.request
 from datetime import datetime
@@ -55,10 +57,10 @@ AGENT_NAME = "Ollama Cloud"
 PROVIDER = "ollama-cloud"
 BALANCE_ENDPOINT = "https://ollama.com/api/balance"
 ME_ENDPOINT = "https://ollama.com/api/me"
-AUTH_HELP_NO_KEY = "Set OLLAMA_API_KEY, or sign in to pi with an Ollama Cloud key, to show the account limits."
+AUTH_HELP_NO_KEY = "Set OLLAMA_API_KEY, or sign in to pi or omp with an Ollama Cloud key, to show the account limits."
 AUTH_HELP_BAD_KEY = (
   "Ollama Cloud rejected the API key. Update OLLAMA_API_KEY or ~/.config/omarchy/agents/ollama.json,"
-  " or sign in to pi again. Local stats are still shown."
+  " or sign in to pi or omp again. Local stats are still shown."
 )
 # GET /api/balance (docs.ollama.com/api/balance) answers a legacy plan with
 # `included.session` / `included.weekly` ({remaining_percent 0..100,
@@ -80,6 +82,57 @@ def pi_agent_dir() -> Path:
   return Path(os.path.expanduser(configured)) if configured else Path.home() / ".pi" / "agent"
 
 
+def omp_agent_dirs() -> list[Path]:
+  """omp's agent trees: the default one and each `--profile` beside it."""
+  base = Path.home() / ".omp"
+  dirs = [base / "agent"]
+  try:
+    dirs.extend(sorted(child / "agent" for child in (base / "profiles").iterdir() if child.is_dir()))
+  except OSError:
+    # No profiles directory, or it is unreadable: the default tree stands.
+    pass
+  return dirs
+
+
+# omp keeps the keys it signed in with in agent.db's auth_credentials table,
+# one row per provider and credential kind, `data` a JSON object. A row whose
+# disabled_cause is set was signed out of (or disabled), so it proves nothing
+# and the newest live row is the key to use.
+def omp_credential_key(db_path: Path) -> str:
+  if not db_path.is_file():
+    return ""
+  try:
+    # Read-only: omp may be writing its database right now, and a live WAL
+    # still reads without immutable=1.
+    conn = sqlite3.connect(db_path.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return ""
+  try:
+    conn.execute("PRAGMA query_only = ON")
+    row = conn.execute(
+      "SELECT data FROM auth_credentials"
+      " WHERE provider IN ('" + PROVIDER + "', 'ollama-deepseek')"
+      " AND credential_type = 'api_key'"
+      " AND (disabled_cause IS NULL OR disabled_cause = '')"
+      " ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+  except sqlite3.Error:
+    return ""
+  finally:
+    conn.close()
+  raw = row[0] if row else None
+  if isinstance(raw, bytes):
+    raw = raw.decode("utf-8", errors="replace")
+  try:
+    data = json.loads(raw) if isinstance(raw, str) and raw.strip() else None
+  except ValueError:
+    return ""
+  if not isinstance(data, dict):
+    return ""
+  key = str(data.get("key") or data.get("apiKey") or "").strip()
+  return "" if key.startswith(("!", "$")) else key
+
+
 def api_key() -> str:
   env = os.environ.get("OLLAMA_API_KEY", "").strip()
   if env:
@@ -87,8 +140,14 @@ def api_key() -> str:
   configured = str(read_config().get("apiKey") or "").strip()
   if configured:
     return configured
-  # pi and omp store the Ollama Cloud key they signed in with; either one
-  # proves the account, and the balance endpoint accepts the same key. Only a
+  # omp stores the key it signed in with in agent.db, newest live row first;
+  # it is the freshest evidence of the account and the balance endpoint
+  # accepts the same key.
+  for agent_dir in omp_agent_dirs():
+    key = omp_credential_key(agent_dir / "agent.db")
+    if key:
+      return key
+  # pi and omp also keep it in auth.json; either one proves the account. Only a
   # literal key is taken: a `$VAR` or `!command` entry is resolved by pi alone.
   for auth_path in (pi_agent_dir() / "auth.json", Path.home() / ".omp" / "agent" / "auth.json"):
     entry = read_json(auth_path).get(PROVIDER)
@@ -113,6 +172,9 @@ def api_key() -> str:
 
 
 def billed_by_ollama_cloud(provider: str, model: str, entry: Any = None) -> bool:
+  # ollama-deepseek is omp's custom provider for the same Ollama Cloud account
+  if provider == "ollama-deepseek":
+    return True
   return provider == PROVIDER or (provider == "ollama" and cloud_model(model))
 
 
@@ -124,7 +186,10 @@ def model_name(raw: str) -> str:
 
 def scan_sessions(model_prefix: str, reuse: bool = True) -> tuple[dict[str, Any], bool]:
   stats = Stats()
-  pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"ollama(-cloud)?"', billed_by_ollama_cloud)
+  # The prefilter keeps every provider id this account is billed under in the
+  # parse: `ollama-cloud` and omp's `ollama-deepseek`, both of which
+  # billed_by_ollama_cloud() takes.
+  pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"ollama(-cloud|-deepseek)?"', billed_by_ollama_cloud)
   # The database's prefilter matches both provider ids.
   db_rows, db_complete = scan_opencode(["ollama"], billed_by_ollama_cloud)
   # Codex rollouts come with them, by codex_route_owner(): the `--oss`
@@ -359,6 +424,12 @@ def main() -> int:
       record["balance"] = limits["balance"]
     if limits.get("retryAdvised"):
       record["retryAdvised"] = True
+  # The panel gives a section only to an agent with limits, a balance, a plan, or
+  # accounts; local history alone leaves an empty section and is hidden. Without
+  # an Ollama key no limits come back, so name the plan from what the collector
+  # actually reports: the Ollama Cloud account this provider bills to.
+  if not record.get("tierLabel") and record.get("hasLocalStats"):
+    record["tierLabel"] = "Ollama Cloud"
   emit(record, sort_keys=True)
   return 0
 
