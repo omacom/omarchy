@@ -25,10 +25,12 @@ uki_config=${OMARCHY_QUALCOMM_UKI_CONFIG:-/etc/kernel/uki.conf}
 
 # Arch Linux ARM's kernel keeps every board's device trees in /boot/dtbs.
 # Omarchy's own kernel keeps its Snapdragon ones under its package name, and
-# those come first, so the trees match the kernel that boots.
+# those come first, so the trees match the kernel that boots. linux-omarchy
+# itself is named ahead of the pattern, which sorts another kernel's
+# linux-omarchy-<name>/qcom before linux-omarchy/qcom.
 dtb_root=${OMARCHY_QUALCOMM_DTB_ROOT:-/boot/dtbs}
 dtb_dir=$dtb_root/qcom
-for kernel_dtb_dir in "$dtb_root"/linux-omarchy*/qcom; do
+for kernel_dtb_dir in "$dtb_root"/linux-omarchy/qcom "$dtb_root"/linux-omarchy*/qcom; do
   if [[ -d $kernel_dtb_dir ]]; then
     dtb_dir=$kernel_dtb_dir
     break

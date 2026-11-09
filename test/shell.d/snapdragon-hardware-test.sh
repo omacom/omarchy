@@ -161,7 +161,17 @@ run_dtb_root_setup() (
 run_dtb_root_setup
 grep -Fq "DeviceTreeAuto=$scratch/dtbroot/linux-omarchy/qcom/x1e80100-own.dtb" "$scratch/uki-root.conf" ||
   fail "Snapdragon DTB setup takes the device trees of Omarchy's own kernel first"
+# A second kernel named after it, as a test build is, sorts ahead of it.
+mkdir -p "$scratch/dtbroot/linux-omarchy-test/qcom"
+: >"$scratch/dtbroot/linux-omarchy-test/qcom/x1e80100-test-kernel.dtb"
+run_dtb_root_setup
+grep -Fq "DeviceTreeAuto=$scratch/dtbroot/linux-omarchy/qcom/x1e80100-own.dtb" "$scratch/uki-root.conf" ||
+  fail "Snapdragon DTB setup takes linux-omarchy's device trees before another linux-omarchy kernel's"
 rm -r "$scratch/dtbroot/linux-omarchy"
+run_dtb_root_setup
+grep -Fq "DeviceTreeAuto=$scratch/dtbroot/linux-omarchy-test/qcom/x1e80100-test-kernel.dtb" "$scratch/uki-root.conf" ||
+  fail "Snapdragon DTB setup takes another linux-omarchy kernel's device trees when linux-omarchy has none"
+rm -r "$scratch/dtbroot/linux-omarchy-test"
 run_dtb_root_setup
 grep -Fq "DeviceTreeAuto=$scratch/dtbroot/qcom/x1e80100-stock.dtb" "$scratch/uki-root.conf" ||
   fail "Snapdragon DTB setup falls back to Arch Linux ARM's device trees"
