@@ -1,36 +1,36 @@
 # Instalacje nienadzorowane
 
-Obraz ISO Omarchy potrafi zainstalować się sam, gdy nikogo nie ma przy klawiaturze. Jeśli instalator znajdzie drugi dysk o etykiecie `cidata` niosący jego pliki konfiguracyjne, kopiuje je stamtąd, całkowicie pomija kreatora konfiguracji i sam restartuje się do gotowego systemu. Żadnej specjalnej kompilacji ISO, żadnej dodatkowej pozycji w menu rozruchowym — gdy taki dysk nie jest podłączony, nic się nie zmienia i dostajesz zwykłego kreatora.
+Obraz ISO Omarchy może zainstalować się sam, bez nikogo przy klawiaturze. Jeśli instalator znajdzie drugi dysk o etykiecie `cidata` zawierający jego pliki konfiguracyjne, skopiuje je, całkowicie pominie kreator konfiguracji i samodzielnie zrestartuje się do gotowego systemu. Nie potrzeba żadnego specjalnego obrazu ISO ani dodatkowej pozycji w menu rozruchowym — bez takiego dysku nic się nie zmienia i dostajesz normalny kreator.
 
-Dzięki temu Omarchy świetnie nadaje się na obraz bazowy dla jednorazowych środowisk programistycznych: utwórz maszynę wirtualną w Proxmoksie albo Packerem, uruchom ją, odejdź, zaloguj się przez SSH. `cidata` to etykieta `NoCloud` z cloud-init, więc wszystkie popularne narzędzia do wirtualizacji już wiedzą, jak podłączyć taki dysk.
+Dzięki temu Omarchy świetnie sprawdza się jako obraz bazowy dla jednorazowych środowisk deweloperskich: tworzysz VM w Proxmox albo za pomocą Packer, uruchamiasz ją, odchodzisz, logujesz się przez SSH. `cidata` to etykieta `NoCloud` z cloud-init, więc wszystkie popularne narzędzia do wirtualizacji już wiedzą, jak podłączyć taki dysk.
 
 ## Pliki konfiguracyjne
 
-Te pliki są dokładnie tym, co zapisuje własny kreator instalatora, więc najłatwiejszym sposobem zdobycia zestawu startowego jest uruchomienie jednej instalacji interaktywnej (powiedzmy w maszynie wirtualnej) i skopiowanie tego, co zapisała w `/root`:
+Te pliki to dokładnie to, co zapisuje własny kreator instalatora, więc najłatwiej zdobyć zestaw startowy, przeprowadzając jedną instalację interaktywną (na przykład w VM) i kopiując to, co zapisał w `/root`:
 
 | Plik | Wymagany | Przeznaczenie |
 |------|----------|---------|
 | `user_configuration.json` | Tak | Dysk, nazwa hosta, strefa czasowa, klawiatura |
-| `user_credentials.json` | Tak | Nazwa użytkownika i skrót hasła |
-| `user_full_name.txt` | Nie | Pełne imię i nazwisko dla Gita |
-| `user_email_address.txt` | Nie | Adres e-mail dla Gita |
+| `user_credentials.json` | Tak | Nazwa użytkownika i hash hasła |
 | `user_encrypt_installation.txt` | Nie | `true`, gdy konfiguracja zawiera blok `disk_encryption` |
-| `authorized_keys` | Nie | Klucze publiczne SSH, po jednym w wierszu |
-| `tailscale_authkey` | Nie | Klucz autoryzacji Tailscale do dołączenia do twojego tailnetu przy pierwszym rozruchu |
+| `authorized_keys` | Nie | Klucze publiczne SSH, jeden w wierszu |
+| `tailscale_authkey` | Nie | Klucz uwierzytelniający Tailscale do dołączenia do Twojej sieci tailnet przy pierwszym uruchomieniu |
 
-Skrót hasła dla `user_credentials.json` wygeneruj poleceniem `openssl passwd -6 "yourpassword"`.
+Hash hasła do `user_credentials.json` wygeneruj poleceniem `openssl passwd -6 "yourpassword"`.
 
-Zamiast `user_credentials.json` możesz też umieścić pusty plik o nazwie `defer-provisioning`. Uruchamia to tę samą [instalację przygotowaną dla innego właściciela](02-getting-started.md), którą możesz wywołać interaktywnie: komputer instaluje się bez żadnych danych osobistych, a kto uruchomi go pierwszy, wybiera swoją klawiaturę i tworzy swojego użytkownika. To tryb dla stanowisk do obrazowania dysków, gdzie dysk nie powinien zawierać niczyich danych uwierzytelniających.
+Nazwa i adres e-mail do commitów w git nie są częścią instalacji. Ustaw je, gdy maszyna już działa, na przykład przez SSH, poleceniem `omarchy setup git --name "Jane Doe" --email jane@example.com`.
 
-## Dostęp przez SSH
+Możesz też zamiast `user_credentials.json` umieścić pusty plik o nazwie `defer-provisioning`. Uruchamia to tę samą [instalację z przygotowaniem dla innego właściciela](02-getting-started.md), którą możesz wywołać interaktywnie: maszyna instaluje się bez żadnych danych osobowych, a osoba, która uruchomi ją jako pierwsza, wybiera swoją klawiaturę i tworzy swoje konto. To tryb dla stanowisk do tworzenia obrazów, w których dysk nie powinien zawierać niczyich danych logowania.
 
-Gdy `authorized_keys` jest obecny, instalacja ustawia te klucze jako `~/.ssh/authorized_keys` użytkownika, włącza `sshd` i otwiera dla niego zaporę. (Standardowa instalacja Omarchy dostarcza openssh z wyłączoną usługą i zamkniętym portem, więc nienadzorowany komputer byłby w przeciwnym razie nieosiągalny). Instalacja tylko dodaje twoje klucze — nie osłabia żadnych innych ustawień uwierzytelniania demona SSH.
+## Dostęp SSH
 
-Gdy `tailscale_authkey` jest obecny, komputer przy pierwszym rozruchu dołącza za to do twojego tailnetu: Tailscale jest instalowany z pakietów dołączonych do ISO, zapora przepuszcza interfejs tailnetu, a zadanie w tle uruchamia dołączanie, gdy tylko komputer faktycznie ma sieć, ponawiając próby, aż się uda. Używaj klucza wielokrotnego użytku i wstępnie autoryzowanego, aby jeden obraz dysku mógł obsłużyć wiele komputerów.
+Gdy obecny jest plik `authorized_keys`, instalator ustawia te klucze jako `~/.ssh/authorized_keys` użytkownika, włącza `sshd` i otwiera dla niego zaporę. (Standardowa instalacja Omarchy dostarcza openssh z wyłączoną usługą i zamkniętym portem, więc maszyna instalowana bez nadzoru byłaby w przeciwnym razie nieosiągalna.) Instalator tylko dodaje Twoje klucze — nie poluzowuje żadnych innych ustawień uwierzytelniania demona SSH.
 
-## Budowanie dysku cidata
+Gdy obecny jest plik `tailscale_authkey`, maszyna przy pierwszym uruchomieniu dołącza zamiast tego do Twojej sieci tailnet: Tailscale jest instalowany z pakietów dołączonych do obrazu ISO, zapora dopuszcza interfejs tailnet, a zadanie w tle wykonuje dołączenie, gdy tylko maszyna faktycznie uzyska dostęp do sieci, ponawiając próby aż do skutku. Użyj klucza wielokrotnego użytku, wstępnie autoryzowanego, aby jeden obraz dysku mógł obsłużyć wiele maszyn.
 
-Działa każdy system plików z właściwą etykietą. Malutkie ISO to łatwy sposób:
+## Tworzenie dysku cidata
+
+Zadziała dowolny system plików z właściwą etykietą. Mały obraz ISO to najprostszy sposób:
 
 ```bash
 mkdir cidata
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Potem podłącz je do maszyny wirtualnej obok obrazu ISO Omarchy. Oto pełny przykład dla Proxmoxa:
+Następnie podłącz go do VM obok obrazu ISO Omarchy. Oto pełny przykład dla Proxmox:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Kolejność rozruchu celowo wymienia dysk jako pierwszy: pusty dysk przy pierwszym rozruchu przechodzi dalej do ISO, a zainstalowany system od tej pory uruchamia się z dysku.
+Kolejność rozruchu celowo stawia dysk na pierwszym miejscu: pusty dysk przy pierwszym uruchomieniu przechodzi dalej do obrazu ISO, a zainstalowany system już zawsze uruchamia się z dysku.
 
 ## Dwa zastrzeżenia
 
-Szyfrowane instalacje nienadzorowane nie są w pełni nienadzorowane — ktoś przy pierwszym rozruchu nadal musi wpisać frazę LUKS. A blok `disk_encryption` w `user_configuration.json` zawiera tę frazę w postaci jawnego tekstu, więc traktuj dysk cidata zbudowany z zaszyfrowanej instalacji jak sekret, którym jest.
+Zaszyfrowane instalacje nienadzorowane nie są w pełni nienadzorowane — ktoś nadal musi wpisać hasło LUKS przy pierwszym uruchomieniu. A blok `disk_encryption` w `user_configuration.json` przechowuje to hasło w postaci zwykłego tekstu, więc dysk cidata zbudowany na podstawie zaszyfrowanej instalacji traktuj jak sekret, którym jest.
