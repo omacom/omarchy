@@ -26,15 +26,28 @@ ssh() {
 
   # Retry in a subshell: Ctrl-C reaches the whole foreground process group,
   # so it cancels both the in-flight attempt and the loop itself. Keep
-  # retrying fast failures, since a rebooting server refuses connections too.
+  # retrying fast failures, since a rebooting server refuses connections too,
+  # but back off: servers commonly rate-limit new SSH connections (ufw limit
+  # allows 6 per 30 seconds, and rejected attempts count), and a fixed 2-second
+  # retry would keep such a block armed forever. A session that lasted starts
+  # the backoff over.
   (
+    local delay=2
+
     while true; do
-      echo "Connection lost. Reconnecting (Ctrl-C to stop)..."
-      sleep 2
+      echo "Connection lost. Reconnecting in ${delay}s (Ctrl-C to stop)..."
+      sleep $delay
+      started=$SECONDS
       command ssh "$@"
       rc=$?
       _ssh_disarm
       (( rc != 255 )) && exit $rc
+
+      if (( SECONDS - started < 30 )); then
+        delay=$(( delay * 2 > 30 ? 30 : delay * 2 ))
+      else
+        delay=2
+      fi
     done
   )
 }
