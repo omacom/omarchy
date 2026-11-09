@@ -1953,7 +1953,7 @@ Panel {
         anchors.leftMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localShare.visible ? localShare.width : 0) - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(44))) : implicitWidth
+        width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localShare.visible ? localShare.width : 0) - (remotePair.visible ? remotePair.width : 0) - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(44))) : implicitWidth
         elide: Text.ElideRight
         text: section.model ? (section.model.name || section.model.recipe)
           : section.offer ? (section.offer.name || section.offer.id)
@@ -1994,21 +1994,35 @@ Panel {
       }
 
       // Shares this machine's model with the tailnet, or stops sharing it:
-      // the Tailscale mark, lit while shared. Offered only where Tailscale
-      // can serve it, and kept on a shared model so sharing can always stop.
-      PanelActionButton {
+      // the word Share, dim while private and blue while shared. Offered only
+      // where Tailscale can serve it, and kept on a shared model so sharing
+      // can always stop.
+      TextLink {
         id: localShare
         anchors.right: localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
-        anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(4) : 0
+        anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(8) : 0
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool shared: !!section.model && section.model.shared === true
         visible: !!section.model && !section.remote && !section.removing && !section.installing && (usage.canShare || shared)
-        iconText: ""
-        tooltipText: shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
-        foreground: shared ? Commons.Color.accent : root.dim
-        fontFamily: "omarchy"
-        hasCursor: root.hasKey("modelShare", section.providerIndex)
+        text: Commons.I18n.t("agents.networkShareLabel")
+        tooltip: shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
+        current: shared
+        picked: root.hasKey("modelShare", section.providerIndex)
         onClicked: root.runLocalAction(section.model, "share")
+      }
+
+      // A network model this machine isn't paired with yet: the word Pair,
+      // which opens a terminal to pair over SSH.
+      TextLink {
+        id: remotePair
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        visible: section.remote && !section.paired && !section.offline
+        text: Commons.I18n.t("agents.networkPairLabel")
+        tooltip: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
+        idleColor: root.foreground
+        picked: root.hasKey("modelPair", section.providerIndex)
+        onClicked: root.runLocalAction(section.model, "pair")
       }
 
       PanelActionButton {
@@ -2045,18 +2059,14 @@ Panel {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool download: !!section.offer
-        // An unpaired network model offers pairing in the launch spot.
-        readonly property bool pair: section.remote && !section.paired && !section.offline
-        visible: download || pair || (section.model ? section.running && (!section.remote || (section.paired && !section.offline)) : root.harnessFor(section.provider) !== "")
-        iconText: download ? "󰇚" : pair ? "󰌷" : "󰞷"
+        visible: download || (section.model ? section.running && (!section.remote || (section.paired && !section.offline)) : root.harnessFor(section.provider) !== "")
+        iconText: download ? "󰇚" : "󰞷"
         tooltipText: download ? Commons.I18n.t("agents.localDownload")
-          : pair ? Commons.I18n.t("agents.networkPair").arg(section.model.host)
           : section.model ? Commons.I18n.t("agents.localLaunch") : Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
         foreground: root.foreground
         fontFamily: root.fontFamily
-        hasCursor: root.hasKey(download ? "localDownload" : pair ? "modelPair" : section.model ? "modelLaunch" : "providerLaunch", section.providerIndex)
+        hasCursor: root.hasKey(download ? "localDownload" : section.model ? "modelLaunch" : "providerLaunch", section.providerIndex)
         onClicked: download ? root.downloadLocal(section.offer)
-          : pair ? root.runLocalAction(section.model, "pair")
           : section.model ? root.runLocalAction(section.model, "launch") : root.launchHarness(section.provider)
       }
     }

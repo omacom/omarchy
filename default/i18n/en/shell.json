@@ -100,6 +100,8 @@
   "agents.localEndpoint": "%1 · model %2",
   "agents.networkModels": "Network models",
   "agents.networkShare": "Share on your tailnet",
+  "agents.networkShareLabel": "Share",
+  "agents.networkPairLabel": "Pair",
   "agents.networkStopSharing": "Shared on your tailnet · stop sharing",
   "agents.networkPair": "Pair with %1 to use it",
   "agents.networkHostOffline": "%1 is offline",
