@@ -21,13 +21,14 @@ const windows = [
   { address: '0xf', parent: '0xa' },
   { address: '0xg', parent: '', shown: false, focusHistory: 2 },
   { address: '0xq', parent: '', workspace: 'special:qconsole' },
-  { address: '0xs', parent: '', appId: 'org.omarchy.screensaver' }
+  { address: '0xs', parent: '', appId: 'org.omarchy.screensaver' },
+  { address: '0xw', parent: '', appId: 'WebcamOverlay-small' }
 ]
 const addresses = list => list.map(window => window.address)
 assertDeepEqual(
   addresses(switcher.orderWindows(['b', 'f', 'a'], windows)),
   ['0xb', '0xa', '0xe', '0xd'],
-  'windows list in the order last used, those not used since the shell started after them by focus history, dialogs, helpers and windows never shown left out'
+  'windows list in the order last used, those not used since the shell started after them by focus history, dialogs, helpers such as the webcam overlay and windows never shown left out'
 )
 assertDeepEqual(addresses(switcher.orderWindows(['f', 'b'], windows)).slice(0, 2), ['0xa', '0xb'], 'a window whose dialog was used last comes first')
 

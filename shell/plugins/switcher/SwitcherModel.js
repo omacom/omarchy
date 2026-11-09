@@ -39,13 +39,18 @@ function rankOf(order) {
 }
 
 // Omarchy's own helpers stay out of the switcher, as they do out of the dock:
-// the Quake console, which Super + grave brings up, and the screensaver.
+// the Quake console, which Super + grave brings up, the screensaver, and the
+// webcam a screen recording pins over every workspace (WebcamOverlay-small,
+// -medium or -large).
 var HELPER_WORKSPACES = ["special:qconsole", "special:screensaver"]
 var HELPER_APP_IDS = ["org.omarchy.screensaver"]
+var HELPER_APP_ID_PREFIXES = ["WebcamOverlay-"]
 
 function isHelper(window) {
+  var appId = String(window.appId || "")
   return HELPER_WORKSPACES.indexOf(String(window.workspace || "")) >= 0
-    || HELPER_APP_IDS.indexOf(String(window.appId || "")) >= 0
+    || HELPER_APP_IDS.indexOf(appId) >= 0
+    || HELPER_APP_ID_PREFIXES.some(function(prefix) { return appId.indexOf(prefix) === 0 })
 }
 
 // Each window's owner, keyed by address, for the windows whose owner is open.
