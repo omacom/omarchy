@@ -146,3 +146,9 @@ diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
   fail "a failed mise update skips later update steps" "$(cat "$test_tmp/order")"
 grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
 pass "a mise failure still finishes the update, offers a reboot and explains how to retry"
+
+FAILING_STEP=omarchy-update-aur-pkgs run_update -y || fail "a failed AUR update prevents system update completion"
+diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
+  fail "a failed AUR update skips later update steps" "$(cat "$test_tmp/order")"
+grep -q "omarchy update aur pkgs" "$test_tmp/err" || fail "the AUR update failure has no retry guidance"
+pass "an AUR failure still finishes the update, offers a reboot and explains how to retry"
