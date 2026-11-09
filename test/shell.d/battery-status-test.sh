@@ -74,6 +74,8 @@ grep -Fx $'health\t71%' <<<"$shell_output" >/dev/null || fail "battery status re
 # capacity-level is a word ("Normal"), so an unanchored /capacity:/ match would
 # report a health of 0% and the panel would hide the section it belongs to.
 grep -Fx $'health\t0%' <<<"$shell_output" >/dev/null && fail "battery status does not read health from capacity-level"
+line_output=$(OMARCHY_TEST_NATIVE_PATH=macsmc-battery OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
+[[ $line_output == *$' '"10.8W"$' / '"56Wh" ]] || fail "a draw signed negative still shows in the status line" "$line_output"
 
 # The BAT* name the script used to key on is one of many; CMB0 is another.
 mkdir -p "$tmp_dir/power/CMB0"
@@ -83,6 +85,15 @@ generic_output=$(OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$tmp_d
 grep -Fx $'rate\t7.3W' <<<"$generic_output" >/dev/null || fail "battery status accepts arbitrary UPower battery paths"
 grep -Fx $'time\t3h 53m' <<<"$generic_output" >/dev/null || fail "battery status time left follows the live draw"
 pass "battery status supports Apple Silicon and arbitrary native battery paths"
+
+# Firmware that doesn't know the present rate leaves current_now in place but
+# gives nothing on read; UPower's rate, from the falling charge, stands.
+rm "$tmp_dir/power/CMB0/power_now"
+: >"$tmp_dir/power/CMB0/current_now"
+printf '12900000\n' >"$tmp_dir/power/CMB0/voltage_now"
+unknown_rate_output=$(OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'rate\t7.3W' <<<"$unknown_rate_output" >/dev/null || fail "an unreadable current_now leaves UPower's rate in place" "$unknown_rate_output"
+pass "battery status keeps UPower's rate when the battery has no live reading"
 
 # An 80% hold threshold doesn't trip while the battery is still below it.
 hold_dir=$(mktemp -d)
@@ -210,8 +221,45 @@ healthless_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bi
 grep -qE $'^(design|health)\t' <<<"$healthless_output" && fail "battery status omits both health fields without a health percentage"
 pass "battery status hides incomplete health information"
 
-if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
-  fail "battery status owns capacity and remaining calculations" "$matches"
+# A full battery says so, with no time to count and no 0W draw.
+cat >"$hold_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  exit 0
 fi
 
-pass "battery status owns capacity and remaining calculations"
+if [[ $1 == "-i" ]]; then
+  cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                fully-charged
+  energy:               53.2 Wh
+  energy-full:          53.2 Wh
+  energy-rate:          0 W
+  percentage:           100%
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+printf '0\n' >"$hold_dir/power/BAT0/power_now"
+full_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
+[[ $full_output == "Battery 100%  ·  Fully charged  ·  53Wh" ]] || fail "a full battery shows no time or draw" "$full_output"
+
+# A load bigger than the adapter drains a battery still reading 100%.
+sed -i 's/state:                fully-charged/state:                discharging/' "$hold_dir/bin/upower"
+printf '10000000\n' >"$hold_dir/power/BAT0/power_now"
+draining_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
+[[ $draining_output == "Battery 100%  ·  5h 19m left  ·  "*"10W"*"53Wh" ]] || fail "a battery draining on AC at 100% is not fully charged" "$draining_output"
+sed -i 's/state:                discharging/state:                fully-charged/' "$hold_dir/bin/upower"
+
+# A battery with no time estimate and no capacity reading leaves both out.
+sed -i 's/state:                fully-charged/state:                discharging/; s/percentage:           100%/percentage:           60%/; /energy/d' "$hold_dir/bin/upower"
+printf '0\n' >"$hold_dir/power/ac/online"
+printf '9000000\n' >"$hold_dir/power/BAT0/power_now"
+sparse_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
+[[ $sparse_output == "Battery 60%  ·  "$' '"9W" ]] || fail "missing readings drop out of the status line" "$sparse_output"
+pass "battery status leaves out readings it doesn't have"

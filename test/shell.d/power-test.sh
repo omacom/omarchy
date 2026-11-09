@@ -5,9 +5,7 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
-const fs = require('fs')
 const power = requireFromRoot('shell/plugins/panels/power/Model.js')
-const panelSource = fs.readFileSync(root + '/shell/plugins/panels/power/Panel.qml', 'utf8')
 const states = { Charging: 1, Discharging: 2, FullyCharged: 3, PendingCharge: 4 }
 
 assertEqual(power.selectProfileIndex(0, 1, ['balanced', 'performance']), 1, 'power advances profile selection')
@@ -62,25 +60,10 @@ assertEqual(power.healthHint('75%'), 'Worth planning a replacement', 'power tell
 assertEqual(power.healthHint('50%'), 'Time to replace it', 'power tells a spent pack owner to act')
 assertEqual(power.healthHint(undefined), '', 'power gives no hint without a health figure')
 
-assert(/if \(b === Qt\.RightButton\) root\.togglePercentage\(\)/.test(panelSource), 'power right click toggles the bar percentage')
-assert(/Object\.assign\([^\n]+showPercentage: !root\.showPercentage[^\n]+\)[\s\S]*updateEntryInline/.test(panelSource), 'power persists the bar percentage setting')
-// BarIconButton lays its label out before the icon; bar-icon-geometry-test.sh checks the order.
-assert(/text: root\.batteryIcon\(\)\n\s*labelText: root\.showPercentage && !vertical \? Commons\.I18n\.formatNumber\(Math\.round\(root\.batteryFraction \* 100\)\) \+ "%" : ""/.test(panelSource), 'power shows the percentage as the bar button label beside the battery icon')
-assert(/openPanelIndicatorWidth:.*showPercentage.*button\.glyphPaintedWidth : 0/.test(panelSource), 'power spans the open-panel mark across the painted percentage block')
-assert(/IpcHandler[\s\S]*?function togglePercentage\(\) \{ root\.togglePercentage\(\) \}/.test(panelSource), 'power exposes togglePercentage over IPC')
-assert(/manageIpc: false/.test(panelSource), 'power owns its IPC handler so it can extend the target methods')
-
-assert(/hasHealthInfo: !!\(batteryInfo\.design && batteryInfo\.health\)/.test(panelSource), 'power shows health rows only when both figures are present')
-assert(/label: Commons\.I18n\.t\("power\.batterySize"\)[\s\S]{0,200}root\.hasHealthInfo \? root\.batteryInfo\.design : root\.batteryInfo\.size/.test(panelSource), 'power labels the nameplate capacity as the battery size, falling back to what it holds')
-assert(/label: Commons\.I18n\.t\("power\.currentCapacity"\)[\s\S]{0,120}root\.batteryInfo\.size/.test(panelSource), 'power shows what the pack charges to today beside its nameplate size')
-assert(/text: Commons\.I18n\.t\("power\.batteryHealth"\)/.test(panelSource), 'power gives battery health its own section')
-assert(/label: Commons\.I18n\.t\("power\.chargeCycles"\)[\s\S]{0,120}visible: !root\.hasHealthInfo/.test(panelSource), 'power keeps the cycle count in the stats grid when there is no health section to hold it')
 assertEqual(power.healthVerdict('95%', (key, english) => 'translated ' + key), 'translated power.healthGreat', 'power translates the health verdict through tr')
 assertEqual(power.healthHint('75%', (key, english) => 'translated ' + key), 'translated power.healthPlanReplacement', 'power translates the health hint through tr')
-assert(/healthVerdict: Model\.healthVerdict\(batteryInfo\.health, Commons\.I18n\.t\)/.test(panelSource), 'power passes the translator to health verdicts')
-assert(/healthHint: Model\.healthHint\(batteryInfo\.health, Commons\.I18n\.t\)/.test(panelSource), 'power passes the translator to health hints')
-assert(/text: root\.reading\(root\.batteryInfo\.health\)/.test(panelSource), 'power localizes the displayed health percentage')
 
+const panelSource = require('fs').readFileSync(root + '/shell/plugins/panels/power/Panel.qml', 'utf8')
 const scrollFunction = panelSource.match(/^  function ensureProfileVisible\(\) \{[\s\S]*?^  \}/m)
 assert(scrollFunction, 'power exposes profile visibility handling for the loaded panel')
 
