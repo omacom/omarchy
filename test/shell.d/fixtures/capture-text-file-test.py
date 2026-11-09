@@ -42,6 +42,17 @@ class ImageTextTest(unittest.TestCase):
     self.assertEqual(argv[argv.index("-l") + 1], "eng+hin")
     self.assertEqual(self.calls[1][1]["input"], "Recognized words\n")
 
+  def test_clipboard_failure_preserves_recognized_text(self):
+    def run(argv, **kwargs):
+      if argv[0] == "wl-copy":
+        raise subprocess.CalledProcessError(1, argv)
+      return subprocess.CompletedProcess(argv, 0, stdout="Recognized words\n")
+
+    with patch("sys.argv", ["ocr", str(self.image), "--copy"]), patch("subprocess.run", side_effect=run), contextlib.redirect_stdout(io.StringIO()) as output:
+      with self.assertRaises(subprocess.CalledProcessError):
+        APP["main"]()
+      self.assertEqual(output.getvalue(), "Recognized words\n")
+
   def test_no_copy_when_ocr_empty_or_fails(self):
     for text, failure in ((" ", False), ("ignored", True)):
       self.calls.clear()

@@ -28,9 +28,9 @@ def main():
     "-l", args.language], check=True, stdout=subprocess.PIPE, text=True)
   if not result.stdout.strip():
     raise ValueError("No text found; try another layout or language. The clipboard was kept.")
+  print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
   if args.copy:
     subprocess.run(["wl-copy"], input=result.stdout, text=True, check=True)
-  print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
   return 0
 
 
