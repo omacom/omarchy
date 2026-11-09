@@ -1,4 +1,4 @@
--- Drag-to-snap for floating windows, loaded by the window-snap toggle.
+-- Drag-to-snap for floating windows, switched on by the window-snap toggle.
 --
 -- Dropping a floating window with the cursor against a monitor edge snaps it:
 -- the left or right edge to that half, the top edge to the whole screen, and a
@@ -10,7 +10,9 @@
 -- * SUPER + drag: watcher binds on the same chord fire on press and release,
 --   and the window that moved with the cursor in between is the one dropped.
 --   They have to come before the drag bind, which would otherwise swallow the
---   click, so the drag bind is put back after them.
+--   click, so the default tiling bindings install them right before it, ahead
+--   of any personal override of the chord. They do nothing until the toggle
+--   enables snapping. Without them, SUPER drops are found like titlebar drops.
 -- * Titlebar drag: the titlebars plugin takes the press and the release itself,
 --   so no bind ever sees one. While the focused window is floating, a watcher
 --   checks whether it moves in lockstep with the cursor; once the cursor moves
@@ -24,10 +26,16 @@ local CORNER = 160
 local MIN_DRAG = 8
 local POLL_MS = 40
 
+-- A snapped window's size from before the snap lives in a tag on the window,
+-- which survives a config reload and dies with the window.
+local RESTORE_TAG = "omarchy-snap-restore-"
+
+local M = {}
+
+local enabled = false
 local press = nil
 local watch = nil
 local watching = false
-local restore = {}
 
 local function monitor_box(monitor)
   local width, height = monitor.width / monitor.scale, monitor.height / monitor.scale
@@ -98,6 +106,24 @@ local function snap(window, monitor, zone)
   place(window, x + border, y + border, width - 2 * border, height - 2 * border)
 end
 
+local function saved_size(window)
+  for _, tag in ipairs(window.tags or {}) do
+    local width, height = tag:match("^" .. RESTORE_TAG:gsub("%-", "%%-") .. "(%d+)x(%d+)$")
+    if width then
+      return { tag = tag, width = tonumber(width), height = tonumber(height) }
+    end
+  end
+end
+
+local function forget_size(window, saved)
+  hl.dispatch(hl.dsp.window.tag({ tag = "-" .. saved.tag, window = window }))
+end
+
+local function save_size(window)
+  local tag = string.format("%s%dx%d", RESTORE_TAG, math.floor(window.size.x), math.floor(window.size.y))
+  hl.dispatch(hl.dsp.window.tag({ tag = "+" .. tag, window = window }))
+end
+
 -- A drag of the window ended with the cursor at (x, y) and the window at (wx, wy).
 local function dropped(window, x, y, wx, wy)
   local monitor = monitor_at(x, y)
@@ -106,13 +132,15 @@ local function dropped(window, x, y, wx, wy)
   end
 
   local zone = zone_at(monitor, x, y)
+  local old = saved_size(window)
   if zone then
-    restore[window.address] = restore[window.address] or { width = window.size.x, height = window.size.y }
+    if not old then
+      save_size(window)
+    end
     snap(window, monitor, zone)
-  elseif restore[window.address] then
+  elseif old then
     -- Unsnapped: the old size, with the point it was grabbed by still under the cursor.
-    local old = restore[window.address]
-    restore[window.address] = nil
+    forget_size(window, old)
     local grab_x = (x - wx) / math.max(window.size.x, 1)
     local grab_y = math.min(y - wy, old.height - 1)
     place(window, x - grab_x * old.width, y - grab_y, old.width, old.height)
@@ -171,7 +199,11 @@ local function start_watching()
   end
 end
 
-local function on_press()
+function M.on_press()
+  if not enabled then
+    return
+  end
+
   local cursor = hl.get_cursor_pos()
   local windows = {}
   for _, window in ipairs(hl.get_windows()) do
@@ -182,7 +214,7 @@ local function on_press()
   press = { x = cursor.x, y = cursor.y, windows = windows }
 end
 
-local function on_release()
+function M.on_release()
   local started = press
   press, watch = nil, nil
   if not started then
@@ -211,21 +243,15 @@ local function on_release()
   end
 end
 
--- Without Omarchy's bindings there is no SUPER drag of ours to reorder, so a
--- user's own drag bind is left alone and its drops are found by the watcher.
-if _G.omarchy_default_bindings ~= false then
-  hl.unbind("SUPER + mouse:272")
-  hl.bind("SUPER + mouse:272", on_press, { transparent = true, non_consuming = true })
-  hl.bind("SUPER + mouse:272", on_release, { transparent = true, ignore_mods = true, non_consuming = true, release = true })
-  o.bind("SUPER + mouse:272", "Move window", hl.dsp.window.drag(), { mouse = true })
+function M.enable()
+  if enabled then
+    return
+  end
+  enabled = true
+
+  hl.on("window.active", start_watching)
+  hl.on("window.update_rules", start_watching)
+  start_watching()
 end
 
-hl.on("window.active", start_watching)
-hl.on("window.update_rules", start_watching)
-hl.on("window.destroy", function(window)
-  if window and window.address then
-    restore[window.address] = nil
-  end
-end)
-
-start_watching()
+return M

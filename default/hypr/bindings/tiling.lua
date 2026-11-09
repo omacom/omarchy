@@ -81,6 +81,11 @@ o.bind("SUPER + CTRL + SHIFT + code:21", "Expand window down a lot", hl.dsp.wind
 o.bind("SUPER + mouse_down", "Scroll active workspace forward", hl.dsp.focus({ workspace = "m+1" }))
 o.bind("SUPER + mouse_up", "Scroll active workspace backward", hl.dsp.focus({ workspace = "m-1" }))
 
+-- Window snapping watches the drag's press and release; these must precede the
+-- drag bind, which swallows the click. They do nothing until snapping is on.
+local window_snap = require("default.hypr.window-snap")
+hl.bind("SUPER + mouse:272", window_snap.on_press, { transparent = true, non_consuming = true })
+hl.bind("SUPER + mouse:272", window_snap.on_release, { transparent = true, ignore_mods = true, non_consuming = true, release = true })
 o.bind("SUPER + mouse:272", "Move window", hl.dsp.window.drag(), { mouse = true })
 o.bind("SUPER + mouse:273", "Resize window", hl.dsp.window.resize(), { mouse = true })
 
