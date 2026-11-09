@@ -241,6 +241,8 @@ machine() {
     omnibook-ultra-14) dmi sys_vendor HP; dmi product_name "HP OmniBook Ultra Laptop 14-kg0xxx"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="hp,omnibook-ultra-kg0xxx qcom,glymur" ;;
     anduril-bluechip) dmi sys_vendor Anduril; dmi product_name "Qualcomm Glymur"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
     glymur-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
+    # A Mahua tree's root names qcom,mahua and never qcom,glymur.
+    t14s-gen7) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,thinkpad-t14s-gen7-lcd lenovo,thinkpad-t14s-gen7 qcom,mahua" ;;
     zenbook-14-ux3480qa) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; dmi product_family "Zenbook 14"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-14-ux3480qa-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; FAKE_PLATFORM=aarch64 ;;
     xps13-ptl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
@@ -380,6 +382,7 @@ hardware/qualcomm/glymur-display.sh|omnibook-ultra-14|0|wrote etc/mkinitcpio.con
 # The device tree names the chip, so unreadable DMI does not matter.
 hardware/qualcomm/glymur-display.sh|omnibook-ultra-14+unreadable|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
 hardware/qualcomm/glymur-display.sh|anduril-bluechip|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
+hardware/qualcomm/glymur-display.sh|t14s-gen7|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
 hardware/qualcomm/glymur-display.sh|glymur-not-qualcomm|0
 hardware/qualcomm/glymur-display.sh|yoga-slim7x|0
 hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa|0|wrote etc/systemd/sleep.conf.d/zenbook-14-ux3480qa.conf|wrote etc/mkinitcpio.conf.d/zenbook-14-ux3480qa-initramfs.conf
