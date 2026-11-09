@@ -17,6 +17,14 @@ COLORS_FILE="$THEME_DIR/colors.toml"
 # legacy light.mode marker beside it, or background luminance for user themes.
 mode=$(omarchy-theme-color --file "$COLORS_FILE" mode)
 
+# Prime the Settings portal so it forwards the change to running clients. Bounded by
+# timeout, as gdbus's --timeout leaves out the introspection it does first.
+timeout 2 gdbus call --session \
+  --dest org.freedesktop.portal.Desktop \
+  --object-path /org/freedesktop/portal/desktop \
+  --method org.freedesktop.portal.Settings.ReadOne \
+  org.freedesktop.appearance color-scheme >/dev/null 2>&1 || true
+
 if [[ $mode == "light" ]]; then
   gsettings set org.gnome.desktop.interface color-scheme "prefer-light"
   gsettings set org.gnome.desktop.interface gtk-theme "Adwaita"
