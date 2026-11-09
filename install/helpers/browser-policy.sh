@@ -87,6 +87,12 @@ browser_policy_install_defaults() {
   local policies=${2:-$OMARCHY_PATH/default/chromium/policies/omarchy.json}
 
   as_root install -m 644 -o root -g root -T "$policies" "$policy_dir/omarchy.json"
+
+  # Google Chrome ignores --load-extension, so its policy installs the bundled
+  # extensions from the CRXs Omarchy ships instead.
+  if [[ $policy_dir == "/etc/opt/chrome/policies/managed" ]]; then
+    as_root install -m 644 -o root -g root -T "$OMARCHY_PATH/default/chromium/policies/chrome-extensions.json" "$policy_dir/omarchy-extensions.json"
+  fi
 }
 
 browser_policy_setup_dir() {
