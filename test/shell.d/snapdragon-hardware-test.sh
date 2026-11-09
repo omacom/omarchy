@@ -176,8 +176,9 @@ run_dtb_root_setup
 grep -Fq "DeviceTreeAuto=$scratch/dtbroot/qcom/x1e80100-stock.dtb" "$scratch/uki-root.conf" ||
   fail "Snapdragon DTB setup falls back to Arch Linux ARM's device trees"
 
-# An installed machine embeds only its own tree, the one whose root compatible
-# is the running device tree's byte for byte. The Acer tree also names the
+# An installed machine embeds its own tree beside the list, the one whose root
+# compatible is the running device tree's byte for byte, for systemd-stub to
+# fall back on when no hardware ID matches. The Acer tree also names the
 # ThinkPad T14s, as a fallback, so the T14s's list must not match inside it.
 own="$scratch/own"
 mkdir -p "$own/proc/device-tree" "$own/dtbs"
@@ -204,10 +205,9 @@ run_own_dtb_setup() (
 printf "$acer" >"$own/proc/device-tree/compatible"
 run_own_dtb_setup
 grep -qx "DeviceTree=$own/dtbs/x1p42100-acer-swift-go14-01.dtb" "$own/uki.conf" ||
-  fail "an installed Snapdragon machine embeds only its own device tree"
-if grep -q '^DeviceTreeAuto=' "$own/uki.conf"; then
-  fail "a machine with its own device tree gets no list to choose from"
-fi
+  fail "an installed Snapdragon machine embeds its own device tree"
+grep -qx "DeviceTreeAuto=$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb $own/dtbs/x1p42100-acer-swift-go14-01.dtb" "$own/uki.conf" ||
+  fail "a machine with its own device tree keeps the list, so its hardware IDs still choose"
 # The refresh before every boot image build follows a kernel update that
 # renames the machine's tree.
 mv "$own/dtbs/x1p42100-acer-swift-go14-01.dtb" "$own/dtbs/x1p42100-acer-swift-go14.dtb"
@@ -221,17 +221,17 @@ grep -qx "DeviceTree=$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb" "$own/uki.conf
   fail "a compatible another tree names as a fallback still finds its own tree"
 cp "$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb" "$own/dtbs/x1e78100-lenovo-thinkpad-t14s-copy.dtb"
 run_own_dtb_setup
-grep -q '^DeviceTreeAuto=' "$own/uki.conf" ||
+grep -q '^DeviceTreeAuto=' "$own/uki.conf" && ! grep -q '^DeviceTree=' "$own/uki.conf" ||
   fail "two trees with the machine's compatible leave the choice to systemd-stub"
 rm "$own/dtbs/x1e78100-lenovo-thinkpad-t14s-copy.dtb"
 fake_dtb "$own/dtbs/x1e80100-microsoft-denali-oled.dtb" 'microsoft,denali-oled\0microsoft,denali\0qcom,x1e80100\0'
 printf 'microsoft,denali\0qcom,x1e80100\0' >"$own/proc/device-tree/compatible"
 run_own_dtb_setup
-grep -q '^DeviceTreeAuto=' "$own/uki.conf" ||
+grep -q '^DeviceTreeAuto=' "$own/uki.conf" && ! grep -q '^DeviceTree=' "$own/uki.conf" ||
   fail "a machine without its own tree does not take one whose longer list ends with its own"
 rm "$own/proc/device-tree/compatible"
 run_own_dtb_setup
-grep -q '^DeviceTreeAuto=' "$own/uki.conf" ||
+grep -q '^DeviceTreeAuto=' "$own/uki.conf" && ! grep -q '^DeviceTree=' "$own/uki.conf" ||
   fail "a machine with no running device tree keeps every tree"
 
 pass "Snapdragon setup tolerates missing firmware and preserves UKI settings"
