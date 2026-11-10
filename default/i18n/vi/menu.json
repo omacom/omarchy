@@ -1306,5 +1306,8 @@
   },
   "remove.gaming.moonlight": {
     "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Đơn giản"
   }
 }
