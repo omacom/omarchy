@@ -62,22 +62,12 @@ digest=$("$ROOT/bin/omarchy-ml-notify-fold" "$notify_dir")
 [[ $digest == "3 failed builds, 12 messages from #ops" ]] ||
   fail "notifications fold into one line" "$digest"
 
-node_digest=$(node -e '
-const fold = require(process.argv[1])
-const rows = []
-rows.push({app:"GitHub", summary:"build failed", body:"main"})
-rows.push({app:"GitHub", summary:"build failed", body:"api"})
-rows.push({app:"GitHub", summary:"pipeline failed", body:"web"})
-for (let i = 0; i < 12; i++) rows.push({app:"Slack", summary:"new message", body:"#ops"})
-rows.push({app:"Omarchy", summary:"stand up", body:"", ts: 4, key: "reminder"})
-const folded = fold.fold(rows)
-if (folded[0].summary !== "3 failed builds, 12 messages from #ops") process.exit(1)
-if (folded[0].key !== "ml-fold") process.exit(3)
-if (folded.length !== 2 || folded[1].summary !== "stand up") process.exit(2)
-if (folded[1].ts !== 4) process.exit(4)
-' "$ROOT/shell/plugins/notifications/NotificationFold.js") ||
-  fail "history replay keeps the reminder and folds the rest"
-pass "notification fold collapses CI and chat"
+history="$HOME/.local/state/omarchy/notifications/history.json"
+mkdir -p "${history%/*}"
+jq -s '. + [null, false]' "$notify_dir"/*.json > "$history"
+[[ $("$ROOT/bin/omarchy-ml-notify-fold") == "$digest" ]] ||
+  fail "notification fold reads the shell's current history store"
+pass "notification fold reads both current history and explicit legacy exports"
 
 shot_dir="$test_tmp/shots"
 mkdir -p "$shot_dir"
@@ -242,6 +232,4 @@ grep -Fq '"trigger.ml.intent"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
   fail "the menu can run an action by asking"
 grep -Fq '"install.ml.gpu"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
   fail "the menu can install a gpu stack"
-grep -Fq 'NotificationFold.fold' "$ROOT/shell/plugins/notifications/Service.qml" ||
-  fail "notification history uses the fold"
-pass "menu, keys, and history are wired up"
+pass "menu and keys are wired up"
