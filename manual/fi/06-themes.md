@@ -1,12 +1,12 @@
 # Teemat
 
-Omarchyssa on kaksikymmentäkaksi kaunista teemaa. Voit valita niiden välillä Omarchy-valikon kohdasta _Tyyli > Teema_ (`Super + Space`) tai hypätä suoraan teeman valitsimeen yhdistelmällä `Super + Ctrl + Shift + Space`.
+Omarchyn mukana tulee kaksikymmentäkaksi kaunista teemaa. Voit valita niiden välillä Omarchy-valikon kohdasta _Ulkoasu > Teema_ (`Super + Space`) tai siirtyä suoraan teemanvalitsimeen näppäinyhdistelmällä `Super + Ctrl + T`.
 
-Jokainen teema tyylittelee työpöydän, päätteen, neovimin, aktiivisuusnäytön (btop), Chromiumin ja koko Omarchyn kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusruudun. (Obsidianissa sinun on valittava Omarchy-teema manuaalisesti sovelluksen kohdasta _Ulkoasu > Teemat_.)
+Jokainen teema tyylittää työpöydän, terminaalin, neovimin, aktiivisuusnäytön (btop), Chromiumin ja koko Omarchy-kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusnäytön. (Obsidianissa sinun täytyy valita Omarchy-teema manuaalisesti sovelluksen sisältä kohdasta _Ulkoasu > Teemat_). 
 
-Teemoissa on joukko taustakuvia, joista voit valita yhdistelmällä `Super + Ctrl + Space`.
+Teemoissa on joukko taustakuvia, joista voit valita näppäinyhdistelmällä `Super + Ctrl + W`.
 
-Löydät vielä enemmän teemoja [lisäteemasivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
+Lisää teemoja löydät [lisäteemojen sivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Salauksenpurku
+### Lukituksen avaukset
 
-Teemoissa voi olla myös mukautettu salauksenpurun malli, jota käytetään käynnistysajan salauksenpurkuprosessissa. Voit valita yhden näistä kohdasta _Tyyli > Salauksenpurku_. Ne näyttävät tältä:
+Teemoissa voi olla myös mukautettu lukituksen avauksen ulkoasu, jota käytetään käynnistyksen salauksenpurkuprosessissa. Voit valita sellaisen kohdasta _Ulkoasu > Lukituksen avaus_. Ne näyttävät tältä:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

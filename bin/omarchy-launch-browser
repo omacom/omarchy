@@ -11,18 +11,22 @@ if [[ $default_browser != *.desktop || $default_browser == */* || $default_brows
   default_browser=chromium.desktop
 fi
 
+# Read Exec= from the same data dirs omarchy-cmd-default-browser searched, in
+# the same order, so the command always comes from the entry that was checked.
+IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 browser_exec=""
-for desktop in \
-  "$HOME/.local/share/applications/$default_browser" \
-  "$HOME/.nix-profile/share/applications/$default_browser" \
-  "/usr/share/applications/$default_browser"; do
-  [[ -f $desktop ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$desktop" | head -1)
-  [[ -n $browser_exec ]] && break
+for data_dir in "${data_dirs[@]}"; do
+  entry="$data_dir/applications/$default_browser"
+  [[ -f $entry ]] || continue
+  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
+  break
 done
 
+# Handing an empty command to uwsm-app surfaces as "Command not found: \"\"",
+# which fails a keybinding silently. Say what is missing and how to fix it.
 if [[ -z $browser_exec ]]; then
-  echo "Error: no default web browser is installed." >&2
+  echo "omarchy-launch-browser: no default browser found; set one with 'omarchy default browser <browser>'" >&2
+  omarchy-notification-send -u critical -g 󰖟 "$(omarchy-i18n browser.notFound)" "$(omarchy-i18n browser.notFoundHint)"
   exit 1
 fi
 
