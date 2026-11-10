@@ -2268,6 +2268,13 @@ for desktop in \
   rm -f "$HOME/.local/share/applications/$desktop"
 done
 
+if [[ -d $root/applications ]]; then
+  find "$root/applications" -maxdepth 1 -type f -name '*.desktop' -exec cp -f {} "$HOME/.local/share/applications/" \;
+fi
+if [[ -f $root/default/alacritty/Alacritty.desktop && ! -f $HOME/.local/share/applications/Alacritty.desktop ]]; then
+  cp "$root/default/alacritty/Alacritty.desktop" "$HOME/.local/share/applications/"
+fi
+
 legacy_icons_dir="$HOME/.local/share/applications/icons"
 legacy_icons_backup="$HOME/.local/share/applications/icons.omarchy-upgrade-to-quattro.$BACKUP_SUFFIX.bak"
 if [[ -d $legacy_icons_dir ]]; then
@@ -2293,19 +2300,16 @@ if [[ -d $legacy_icons_dir ]]; then
     X.png \
     YouTube.png \
     Zoom.png; do
-    if [[ -e $legacy_icons_dir/$icon ]]; then
+    # Omarchy 4 replaces only some of these launchers, so an icon a launcher
+    # left on disk still names (a web app such as ChatGPT or GitHub, or the
+    # Windows VM) stays put rather than leaving that launcher without one.
+    if [[ -e $legacy_icons_dir/$icon ]] &&
+      ! grep -qsFx "Icon=$legacy_icons_dir/$icon" "$HOME"/.local/share/applications/*.desktop; then
       mv -f "$legacy_icons_dir/$icon" "$legacy_icons_backup/"
     fi
   done
   rmdir "$legacy_icons_dir" 2>/dev/null || true
   rmdir "$legacy_icons_backup" 2>/dev/null || true
-fi
-
-if [[ -d $root/applications ]]; then
-  find "$root/applications" -maxdepth 1 -type f -name '*.desktop' -exec cp -f {} "$HOME/.local/share/applications/" \;
-fi
-if [[ -f $root/default/alacritty/Alacritty.desktop && ! -f $HOME/.local/share/applications/Alacritty.desktop ]]; then
-  cp "$root/default/alacritty/Alacritty.desktop" "$HOME/.local/share/applications/"
 fi
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
