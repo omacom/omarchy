@@ -523,18 +523,22 @@ Item {
   // The deck as it would stand with this deck open; the keyboard asks before
   // it moves.
   function layoutWith(isExpanded, deckKey) {
-    var rows = []
-    for (var i = 0; i < toasts.count; i++) {
-      var row = toasts.get(i)
-      if (!leaving[row.key]) rows.push(row)   // a card on its way out takes no space
-    }
-    return Layout.compute(rows, {
+    return Layout.compute(liveRows(), {
       expanded: isExpanded,
       openDeck: deckKey,
       gap: gap,
       deckGap: Style.space(11),
       heightOf: function(key) { return service.heights[key] || Style.space(58) }
     })
+  }
+
+  function liveRows() {
+    var rows = []
+    for (var i = 0; i < toasts.count; i++) {
+      var row = toasts.get(i)
+      if (!leaving[row.key]) rows.push(row)   // a card on its way out takes no space
+    }
+    return rows
   }
 
   // A leaving card takes no room in the layout but keeps a placement of its
@@ -547,6 +551,23 @@ Item {
     var base = layout.placements
     for (var k in base) out[k] = base[k]
     for (var key in leaving) if (departures[key]) out[key] = departures[key]
+    return out
+  }
+
+  // Which card leads each deck, the same cards `placements` marks front, but
+  // without reading heights or layoutRevision.
+  readonly property var fronts: {
+    var out = Layout.fronts(liveRows())
+    for (var key in leaving) if (departures[key]) out[key] = !!departures[key].front
+    return out
+  }
+
+  // Which card in each deck shows its buttons: an active (hovered or selected)
+  // card takes them for its deck; otherwise the deck's front card keeps them.
+  readonly property var deedHolders: {
+    var active = keyboardMode ? keyboardKey : hoverKey
+    var out = Layout.deedHolders(liveRows(), active)
+    for (var key in leaving) if (departures[key] && departures[key].front && !active) out[key] = true
     return out
   }
 
@@ -1583,15 +1604,16 @@ Item {
 
             // The cards cannot see hover under this region, so they are told.
             function hoverAt(x, y) {
-              service.hoverX = x
-              service.hoverY = y
+              var pt = hoverArea.mapToItem(deck, x, y)
+              service.hoverX = pt.x
+              service.hoverY = pt.y
               var places = service.placements
               var found = ""
               for (var key in places) {
                 var pl = places[key]
                 if (pl.hidden || pl.leaving) continue
                 var h = pl.height || Style.space(58)
-                if (y >= pl.y && y <= pl.y + h) { found = key; break }
+                if (pt.y >= pl.y && pt.y <= pl.y + h) { found = key; break }
               }
               service.hoverKey = found
             }
@@ -1629,7 +1651,7 @@ Item {
                 if (!place) continue
                 var top = place.y
                 var bottom = top + (service.heights[first.key] || Style.space(58))
-                if (mouse.y >= top - Style.space(6) && mouse.y <= bottom + Style.space(6)) {
+                if (service.hoverY >= top - Style.space(6) && service.hoverY <= bottom + Style.space(6)) {
                   // Opening another deck would hide the keyboard's card.
                   if (service.keyboardMode && decks[i].key !== service.openDeck) service.stopKeyboard()
                   service.pointerEntered(decks[i].key)
@@ -1649,6 +1671,8 @@ Item {
               cardWidth: deck.width
               place: service.placements[model.key]
                      || ({ y: 0, scale: 1, opacity: 0, z: 1, front: false, hidden: true })
+              front: service.fronts[model.key] === true
+              deedsHeld: service.deedHolders[model.key] === true
               hovered: service.keyboardMode ? service.keyboardKey === model.key : service.hoverKey === model.key
               selected: service.keyboardMode && service.keyboardKey === model.key
               actions: service.actionsOf(model.key, service.refsRevision)

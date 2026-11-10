@@ -297,6 +297,25 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
     assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
 }
 
+// -------------------------------------------------------------------- layout
+{ // Cards read fronts() to show their buttons; it must agree with compute().
+  const rows = [['a1', 'A'], ['b1', 'B'], ['a2', 'A'], ['c1', 'C'], ['b2', 'B'], ['a3', 'A']]
+    .map(([key, app]) => ({ key, app }))
+  for (const opts of [{}, { expanded: true }, { expanded: true, openDeck: 'B' }]) {
+    const placed = Layout.compute(rows, opts).placements
+    const front = Object.keys(placed).filter(key => placed[key].front)
+    assert.deepEqual(Object.keys(Layout.fronts(rows)), front, JSON.stringify(opts))
+  }
+
+  // deedHolders() defaults to fronts when unhovered, and delegates deeds to an
+  // active card only within that card's own deck.
+  assert.deepEqual({ ...Layout.deedHolders(rows, '') }, { a1: true, b1: true, c1: true })
+  assert.deepEqual({ ...Layout.deedHolders(rows, 'b2') }, { a1: true, b2: true, c1: true })
+  assert.deepEqual({ ...Layout.deedHolders(rows, 'a3') }, { a3: true, b1: true, c1: true })
+  assert.deepEqual({ ...Layout.deedHolders(rows, 'c1') }, { a1: true, b1: true, c1: true })
+  assert.deepEqual({ ...Layout.deedHolders(rows, 'nonexistent') }, { a1: true, b1: true, c1: true })
+}
+
 // --------------------------------------------------- Service.qml functions
 const source = fs.readFileSync(load.dir + '/Service.qml', 'utf8')
 // One function from Service.qml by name: its own line when that balances,
@@ -571,7 +590,7 @@ const summaries = rows => Array.from(rows, row => row.summary)
   s.admit(other, ...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
   Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10 }),
     Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] }, keyboardMode: true, keyboardRejected: {} })
-  runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
+  runIn(s, 'layoutWith', 'liveRows', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
   for (const row of s.toasts.rows) s.heights[row.key] = 100
   Object.defineProperty(s, 'layout', { get: () => s.layoutWith(true, s.openDeck) })
   s.selectCard = key => { s.keyboardKey = key; s.openDeck = Layout.groupKeyFor(s.toasts.get(s.rowIndexFor(key))) }
