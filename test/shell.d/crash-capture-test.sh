@@ -54,11 +54,16 @@ watch_bin="$TMPDIR/watch-bin"
 watch_home="$TMPDIR/watch-home"
 NOTIFY_LOG="$TMPDIR/notify-log"
 JOURNAL_ENTRIES="$TMPDIR/journal-entries"
+JOURNAL_ARGS="$TMPDIR/journal-args"
+WATCH_ERRORS="$TMPDIR/watch-errors"
+CURRENT_BOOT_ID=$(tr -d '-' </proc/sys/kernel/random/boot_id)
+REAL_TR=$(command -v tr)
 
 mkdir -p "$watch_bin" "$watch_home"
 
 cat >"$watch_bin/journalctl" <<'SH'
 #!/bin/bash
+printf '%s\n' "$*" >"$JOURNAL_ARGS"
 cat "$JOURNAL_ENTRIES"
 SH
 
@@ -80,6 +85,18 @@ SH
 chmod +x "$watch_bin/journalctl" "$watch_bin/omarchy-default-agent" \
   "$watch_bin/omarchy-notification-wait" "$watch_bin/omarchy-notification-send"
 
+# Fail the boot-ID reader without changing the host's procfs. The watcher
+# must retain journalctl's boot filter and still deliver notifications.
+cat >"$watch_bin/tr" <<'SH'
+#!/bin/bash
+case ${BOOT_ID_READER:-normal} in
+  missing) exit 1 ;;
+  malformed) echo invalid ;;
+  *) exec "$REAL_TR" "$@" ;;
+esac
+SH
+chmod +x "$watch_bin/tr"
+
 reset_entries() {
   : >"$JOURNAL_ENTRIES"
 }
@@ -87,10 +104,10 @@ reset_entries() {
 # One core dump as systemd-coredump journals it. The UID must be this user's, or
 # the watcher discards it as somebody else's crash before anything under test.
 crash_entry() {
-  local comm="$1" exe="$2"
+  local comm="$1" exe="$2" boot_id="${3:-$CURRENT_BOOT_ID}"
 
-  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
-    '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
+  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" --arg boot "$boot_id" \
+    '{_BOOT_ID: $boot, _UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
       COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
 }
 
@@ -105,9 +122,12 @@ run_watch() {
 
   PATH="$watch_bin:$ROOT/bin:$PATH" \
   JOURNAL_ENTRIES="$JOURNAL_ENTRIES" \
+  JOURNAL_ARGS="$JOURNAL_ARGS" \
+  REAL_TR="$REAL_TR" \
+  BOOT_ID_READER="${BOOT_ID_READER:-normal}" \
   NOTIFY_LOG="$NOTIFY_LOG" \
   HOME="$watch_home" \
-    "$ROOT/bin/omarchy-crash-watch" || status=$?
+    "$ROOT/bin/omarchy-crash-watch" 2>"$WATCH_ERRORS" || status=$?
 
   (( status == 0 )) ||
     fail "the watcher exited $status rather than carrying on, so a mute takes the service down with it"
@@ -124,6 +144,25 @@ mute() {
 announced() {
   grep -Fq "Process crashed: $1" "$NOTIFY_LOG"
 }
+
+reset_entries
+crash_entry old-boot /usr/bin/old-boot 00000000000000000000000000000000
+crash_entry current-boot /usr/bin/current-boot
+run_watch
+! announced old-boot || fail "a foreign-boot crash is not announced"
+announced current-boot || fail "a foreign boot does not stop current-boot notifications"
+grep -Fq -- '--boot=0' "$JOURNAL_ARGS" || fail "journal follow stays scoped to the current boot"
+pass "foreign-boot crashes are rejected while current-boot crashes are delivered"
+
+for reader in missing malformed; do
+  reset_entries
+  crash_entry fallback /usr/bin/fallback
+  BOOT_ID_READER=$reader run_watch
+  announced fallback || fail "an unreadable or invalid boot ID must not silence every crash"
+  grep -Fq 'relying on journalctl --boot=0' "$WATCH_ERRORS" || fail "the boot-ID fallback is reported"
+  grep -Fq -- '--boot=0' "$JOURNAL_ARGS" || fail "the fallback retains journalctl boot filtering"
+done
+pass "unavailable boot IDs fall back visibly to journalctl boot filtering"
 
 reset_entries
 crash_entry hyprland /usr/bin/hyprland

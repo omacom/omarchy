@@ -48,11 +48,20 @@ announce() {
 # Restrict the journal to this boot. Early RTC correction can leave overlapping
 # realtime ranges across journal files; -n 0 alone is not a boot boundary.
 # There is no persistent seen ledger: last_notified only limits this process.
-readonly boot_id=$(tr -d "-" </proc/sys/kernel/random/boot_id)
+boot_id=$(tr -d "-" 2>/dev/null </proc/sys/kernel/random/boot_id) || boot_id=""
+if [[ ! $boot_id =~ ^[[:xdigit:]]{32}$ ]]; then
+  # Keep delivering current-boot crashes through journalctl's boot filter if
+  # procfs is unavailable; an empty ID must not reject every journal entry.
+  echo "omarchy-crash-watch: cannot read boot ID; relying on journalctl --boot=0" >&2
+  boot_id=""
+fi
+readonly boot_id
 journalctl --boot=0 -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
   while IFS= read -r entry; do
     # Also reject a mismatched boot if input is replayed or the journal rotates.
-    [[ $(jq -r '._BOOT_ID // ""' <<<"$entry" 2>/dev/null) == "$boot_id" ]] || continue
+    if [[ -n $boot_id ]]; then
+      [[ $(jq -r '._BOOT_ID // ""' <<<"$entry" 2>/dev/null) == "$boot_id" ]] || continue
+    fi
     # A dash for a field that is empty as well as one that is missing: tab is
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
