@@ -1,5 +1,4 @@
-// What a notification offers: verification codes, links, meetings and phone
-// numbers. Every detector guesses at someone else's prose, so a false positive
+// What a notification offers: verification codes and links. Every detector guesses at someone else's prose, so a false positive
 // (offering "412" from "412 passed") is worse than a miss.
 .pragma library
 .import "Security.js" as Security
@@ -89,45 +88,15 @@ function links(text) {
   return out.slice(0, Security.MAX_CODES)
 }
 
-var MEETING = /(zoom\.us|meet\.google\.com|teams\.microsoft\.com|teams\.live\.com|whereby\.com|meet\.jit\.si)/i
-
-// Only shapes a bare number does not have: a leading +, a bracketed area code,
-// or a leading 0 with separators.
-var PHONE_SHAPES = [
-  /(\+\d[\d\s().-]{7,16}\d)/g,             // +44 7911 123456
-  /(\(\d{2,4}\)\s?\d{3,4}[\s-]?\d{3,4})/g, // (020) 7946 0958
-  /(\b0\d{1,4}[\s-]\d{3,4}[\s-]?\d{3,4}\b)/g // 07911 123 456
-]
-
-function phones(text) {
-  var t = Security.bounded(text, Security.MAX_BODY)
-  var out = [], seen = {}
-  for (var i = 0; i < PHONE_SHAPES.length; i++) {
-    var re = PHONE_SHAPES[i], m
-    re.lastIndex = 0
-    while ((m = re.exec(t)) !== null) {
-      var raw = String(m[1]).trim()
-      var digits = raw.replace(/\D/g, "")
-      if (digits.length < 9 || digits.length > 15 || seen[digits]) continue
-      seen[digits] = true
-      out.push(raw)
-    }
-  }
-  return out.slice(0, Security.MAX_CODES)
-}
-
 // Everything a card might offer. The body must already have the browser's
 // origin anchor lifted off, or every Chrome card offers to open its own site.
 function scan(summary, body) {
   var text = String(summary || "") + "\n" + String(body || "")
   var code = codes(text)
   var link = links(text)
-  var phone = phones(text)
   return {
     code: code.length ? code[0] : "",
     codes: code.join(" "),
-    link: link.length ? link[0] : "",
-    meeting: link.length ? MEETING.test(link[0]) : false,
-    phone: phone.length ? phone[0] : ""
+    link: link.length ? link[0] : ""
   }
 }
