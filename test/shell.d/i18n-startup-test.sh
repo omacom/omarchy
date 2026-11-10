@@ -66,7 +66,7 @@ def write_json(path, data):
 
 
 class Probe:
-    def __init__(self, language=None, malformed=False, malformed_english=False):
+    def __init__(self, language=None, malformed=False, malformed_english=False, replace_on_language=False):
         self.tmp = tempfile.TemporaryDirectory(prefix='omarchy-i18n-startup-')
         self.path = Path(self.tmp.name)
         self.config = self.path / 'config'
@@ -103,6 +103,7 @@ class Probe:
         env.update({
             'OMARCHY_PATH': str(self.path / 'install'), 'OMARCHY_LANGUAGE_FILE': str(self.language),
             'OMARCHY_TEST_PLUGIN_DIRECTORY': str(self.directory), 'OMARCHY_TEST_RESULT': str(self.result),
+            'OMARCHY_TEST_REPLACE_ON_LANGUAGE': '1' if replace_on_language else '',
             'XDG_RUNTIME_DIR': str(self.path / 'runtime'), 'HOME': str(self.path / 'home'),
             'XDG_CONFIG_HOME': str(self.path / 'home/.config'), 'XDG_CACHE_HOME': str(self.path / 'cache'),
             'XDG_STATE_HOME': str(self.path / 'state'), 'QT_QPA_PLATFORM': 'offscreen',
@@ -163,6 +164,16 @@ try:
     startup('a malformed English catalog does not hide valid selected translations',
             dict(danish, shellFallback='missing English'), language='da\n', malformed_english=True)
 
+    probe = Probe(language='fr', replace_on_language=True)
+    try:
+        probe.wait(french_fallback)
+        write_text(probe.language, 'da')
+        probe.wait(english)
+        assert probe.language.read_text() == 'en'
+        print('ok - replacement during a language notification reaches existing bindings', flush=True)
+    finally:
+        probe.close()
+
     probe = Probe()
     try:
         probe.wait(english)
@@ -170,6 +181,12 @@ try:
             write_text(probe.language, language)
             probe.wait(expected)
         print('ok - live language changes update shell, plugin, and locale bindings', flush=True)
+
+        probe.language.write_text('da')
+        probe.wait(danish)
+        probe.language.write_text('en')
+        probe.wait(english)
+        print('ok - in-place language edits refresh existing bindings', flush=True)
 
         write_json(probe.catalogs / 'en/shell.json', dict(en_catalog, **{'test.hello': 'Welcome %1'}))
         changed = dict(english, shellText='Welcome Ada')
