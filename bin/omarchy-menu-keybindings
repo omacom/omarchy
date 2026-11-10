@@ -93,11 +93,11 @@ parse_keycodes() {
         symbol = mouse_symbol[code]
         if (symbol == "") symbol = "mouse:" code
         sub("mouse:" code, symbol)
-      } else if ((first = index($0, ",")) > 0) {
+      } else if ((first = index($0, "\x1f")) > 0) {
         # Only the key (the second field) is renamed: the description, the
         # dispatcher and its argument are left as they are.
         rest = substr($0, first + 1)
-        second = index(rest, ",")
+        second = index(rest, "\x1f")
         key = second > 0 ? substr(rest, 1, second - 1) : rest
         if (key in key_name) $0 = substr($0, 1, first) key_name[key] (second > 0 ? substr(rest, second) : "")
       }
@@ -442,14 +442,14 @@ dynamic_bindings() {
       modifiers=$(modmask_to_text "$modmask")
       arg="${arg//~\/.local\/share\/omarchy\/bin\//}"
 
-      printf '%s,%s,%s,%s,%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$arg"
+      printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$arg"
     done
 }
 
 # Hardcoded bindings, like the copy-url extension and such
 static_bindings() {
-  echo "SHIFT ALT,L,Copy URL from Web App,sendshortcut,SHIFT ALT,L,"
-  echo "SHIFT ALT,D,Download Video from Web App,sendshortcut,SHIFT ALT,D,"
+  printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "SHIFT ALT" "L" "Copy URL from Web App" "sendshortcut" "SHIFT ALT,L,"
+  printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "SHIFT ALT" "D" "Download Video from Web App" "sendshortcut" "SHIFT ALT,D,"
 }
 
 # Actions Omarchy binds to a second chord meant as an alternative, named one at
@@ -467,13 +467,13 @@ ACTIONS
 # Parse and format keybindings
 #
 # `awk` does the heavy lifting:
-# - Set the field separator to a comma ','.
+# - Set the field separator to the unit separator, so commas stay in descriptions.
 # - Joins the key combination (e.g., "SUPER + Q").
 # - Joins the command that the key executes.
 # - Puts an action's alternative chord on the row with the first one.
 # - Prints display text and dispatch metadata as tab-separated fields.
 parse_binding_records() {
-  awk -F, -v alternatives="$(alternative_chord_actions)" '
+  awk -F $'\x1f' -v alternatives="$(alternative_chord_actions)" '
 BEGIN {
     # The column every row pads its chords to. Nothing is allowed past it: the
     # menu renders in monospace, and a row that overruns pushes its arrow out
@@ -682,7 +682,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v19\n'
+    printf 'v20\n'
     leading_keyboard
     omarchy-language 2>/dev/null
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null

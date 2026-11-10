@@ -63,6 +63,7 @@ $(lua_bind 64 "SUPER + F" "Full screen")
 $(lua_bind 64 "SUPER + I" "Switch input language")
 $(lua_bind 64 "SUPER + S" "Toggle scratchpad")
 $(lua_bind 64 "SUPER + grave" "Toggle Quake console")
+$(exec_bind 64 "SUPER + comma" "Dismiss, invoke, or focus" "omarchy-notification-act")
 $(exec_bind 73 "SUPER SHIFT ALT + 0" "Move window silently to workspace 10" "true")
 BINDS
 
@@ -105,6 +106,12 @@ grep -q 'SUPER + ~  *→ Toggle Quake console' <<<"$rendered" ||
 ! grep -q 'grave' <<<"$rendered" ||
   fail "no entry still says grave" "$rendered"
 pass "the grave key reads as the symbol printed on it"
+
+# A comma in a description is part of the text, not a field break that cuts the
+# description short and shifts the dispatcher and arg after it.
+grep -q 'SUPER + COMMA  *→ Dismiss, invoke, or focus$' <<<"$rendered" ||
+  fail "a description keeps its commas" "$rendered"
+pass "a description keeps its commas"
 
 # Monospace menu: every arrow sits in one column, and nothing is allowed past
 # it. A row that overruns pushes its own arrow out of line.
