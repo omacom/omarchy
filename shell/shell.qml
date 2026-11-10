@@ -245,6 +245,10 @@ ShellRoot {
     if ("barWidgetRegistry" in target) target.barWidgetRegistry = shell.pluginBarWidgetRegistryFor(manifest)
     if ("pluginRegistry" in target) target.pluginRegistry = shell.pluginRegistryFor(manifest)
     if ("barConfig" in target) target.barConfig = shell.barConfigFor(manifest)
+    if ("startupRevealed" in target && "startupRevealDuration" in target) {
+      target.startupRevealed = Qt.binding(function() { return shell.bootIntro.barRevealed })
+      target.startupRevealDuration = Qt.binding(function() { return shell.bootIntro.barRevealDuration })
+    }
     shell.bar = target
   }
 
@@ -257,6 +261,8 @@ ShellRoot {
       barConfig: shell.barConfig
       shell: shell
       manifest: shell.barManifestFor(shell.defaultBarId)
+      startupRevealed: shell.bootIntro.barRevealed
+      startupRevealDuration: shell.bootIntro.barRevealDuration
     }
   }
 
@@ -1351,12 +1357,12 @@ ShellRoot {
   // the model in unloadPanels, so panels still rebuild from fresh code then.
   ListModel { id: panelEntryModel }
 
-  // A login waits for the bar before it reveals, so the menus and overlays
-  // kept loaded, which open only when summoned, load once the cover has
-  // lifted, or after three seconds without a reveal. Summoning one loads it
-  // at once. Panels such as the OSD answer IPC of their own and load as before.
+  // The bar builds its widgets while a login reveals, so the menus and
+  // overlays kept loaded, which open only when summoned, load once the bar has
+  // faded in, or after three seconds. Summoning one loads it at once. Panels
+  // such as the OSD answer IPC of their own and load as before.
   property bool startupDeferralOver: false
-  readonly property bool startupDeferring: bootIntro.startupPending && !startupDeferralOver
+  readonly property bool startupDeferring: bootIntro.startupSettling && !startupDeferralOver
 
   Timer {
     interval: 3000
@@ -1537,6 +1543,10 @@ ShellRoot {
         pluginWidgetComponents = next
       }
     }
+
+    // And loads still in flight for them.
+    for (var pending in pluginWidgetComponents)
+      if (!seen[pending] && !pluginWidgetComponents[pending].component) setPluginWidgetComponent(pending, null)
   }
 
   function unloadPluginWidgets() {
@@ -1630,16 +1640,34 @@ ShellRoot {
     pluginWidgetComponents = next
   }
 
+  // Building a widget blocks the GUI thread, so widgets ready while the login
+  // reveals wait until the desktop has faded in (BackgroundIntro).
+  property var heldWidgetLoads: []
+  Connections {
+    target: shell.bootIntro
+    function onHoldingWidgetBuildsChanged() {
+      if (shell.bootIntro.holdingWidgetBuilds) return
+      var held = shell.heldWidgetLoads
+      shell.heldWidgetLoads = []
+      for (var i = 0; i < held.length; i++) held[i]()
+    }
+  }
+
   function loadPluginWidget(registryKey, url, meta) {
     // Claim the key before the component exists. Qt.createComponent is
     // asynchronous and syncPluginWidgets runs several times while the shell
     // starts, so without a marker the later passes cannot tell a load in
     // flight from one that never happened.
-    setPluginWidgetComponent(registryKey, { url: url, component: null })
+    var claim = { url: url, component: null }
+    setPluginWidgetComponent(registryKey, claim)
 
     var comp = Qt.createComponent(url, Component.Asynchronous)
     function finalize() {
-      if (comp.status === Component.Ready) {
+      // A widget unloaded, disabled or reloaded while it loaded is not registered.
+      if (shell.pluginWidgetComponents[registryKey] !== claim) return
+      if (comp.status === Component.Ready && shell.bootIntro.holdingWidgetBuilds) {
+        shell.heldWidgetLoads.push(finalize)
+      } else if (comp.status === Component.Ready) {
         shell.barWidgetRegistry.register(registryKey, comp, meta)
         shell.setPluginWidgetComponent(registryKey, { url: url, component: comp })
       } else if (comp.status === Component.Error) {

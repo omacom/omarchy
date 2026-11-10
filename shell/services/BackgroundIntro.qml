@@ -17,7 +17,23 @@ Item {
   property bool startupSettled: sessionConsumed
   property bool startupPending: !sessionConsumed
   property bool startupMediaReady: false
-  readonly property bool desktopReady: !host || (!host.pluginReloading && (!host.pluginRegistry || !host.pluginRegistry.scanning) && (!("bar" in host) || !!host.bar) && host.pluginWidgetsLoaded !== false)
+  readonly property bool shellReady: !host || (!host.pluginReloading && (!host.pluginRegistry || !host.pluginRegistry.scanning))
+  readonly property bool barReady: !host || ((!("bar" in host) || !!host.bar) && host.pluginWidgetsLoaded !== false)
+  // A bar that can fade itself in does so once its widgets are built, so the
+  // desktop reveals without it; any other bar is waited for.
+  readonly property bool barFadesItself: !!host && !!host.bar && ("startupRevealed" in host.bar) && ("startupRevealDuration" in host.bar)
+  readonly property bool desktopReady: shellReady && (barReady || barFadesItself)
+  // The bar shows only once the desktop has started fading in. Built by then,
+  // it is uncovered with the desktop; built later, it fades in on its own.
+  property bool barRevealed: sessionConsumed
+  property int barRevealDuration: 0
+  property int barReadyFrames: 0
+  property bool barSettled: false
+  // Startup work that would compete with the bar for the GUI thread waits for this.
+  readonly property bool startupSettling: startupPending || !barRevealed
+  // From OWE taking the background until the desktop has faded in, a widget
+  // built on the GUI thread would hold up the reveal or stall its fade.
+  readonly property bool holdingWidgetBuilds: startupFading || (startupPending && !!backgroundService && !backgroundActive)
   // The launcher reports the intro's first frame on screen, so the login
   // reveals on it rather than polling OWE for it.
   property bool introReported: false
@@ -73,6 +89,69 @@ Item {
   onDesktopReadyChanged: {
     for (var panel of startupCovers.instances) panel.readyFrames = 0
     revealStartup()
+  }
+  onBarReadyChanged: {
+    barReadyFrames = 0
+    barSettled = false
+    barSettle.stop()
+    barSettleLimit.stop()
+  }
+
+  function revealBar(duration) {
+    if (barRevealed) return
+    barRevealDuration = duration
+    barRevealed = true
+  }
+
+  // Built widgets still fill in, as an update check or the weather returns,
+  // so the bar shows once its layout has held still a moment, or a second on.
+  function settleBar() {
+    barSettle.stop()
+    barSettleLimit.stop()
+    barSettled = true
+    if (startupFading || !startupPending) revealBar(barFadeDuration)
+  }
+
+  FrameAnimation {
+    running: !root.barRevealed && root.barReady && root.barReadyFrames < 2
+    onTriggered: {
+      root.barReadyFrames += 1
+      if (root.barReadyFrames < 2) return
+      barSettle.restart()
+      barSettleLimit.restart()
+    }
+  }
+
+  Timer {
+    id: barSettle
+    interval: 200
+    onTriggered: root.settleBar()
+  }
+
+  Timer {
+    id: barSettleLimit
+    interval: 1000
+    onTriggered: root.settleBar()
+  }
+
+  Connections {
+    target: root.host && root.host.bar && ("layoutRevision" in root.host.bar) ? root.host.bar : null
+    function onLayoutRevisionChanged() {
+      if (root.barRevealed || root.barReadyFrames < 2) return
+      // A bar that changes after settling, while the login still waits, settles again.
+      if (root.barSettled) {
+        root.barSettled = false
+        barSettleLimit.restart()
+      }
+      barSettle.restart()
+    }
+  }
+
+  // A bar whose widgets never all build still shows, as the desktop does.
+  Timer {
+    interval: 10000
+    running: !root.barRevealed && (root.startupFading || !root.startupPending)
+    onTriggered: root.revealBar(root.barFadeDuration)
   }
   onBackgroundReadyChanged: {
     finishStartup()
@@ -173,10 +252,14 @@ Item {
   // the black the boot splash faded out to, eased at both ends as that was.
   property bool startupFading: false
   readonly property int startupFadeDuration: Style.duration(500)
+  // An entrance, as the motion guide times one.
+  readonly property int barFadeDuration: Style.duration(250)
 
   function startStartupFade() {
     if (startupFading) return
     startupFading = true
+    // Under the still opaque cover a settled bar needs no fade of its own.
+    if (barSettled) revealBar(0)
     if (introReported) introPlay.running = true
     startupFadeDeadline.restart()
     finishStartupFade()

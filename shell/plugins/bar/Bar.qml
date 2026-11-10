@@ -42,6 +42,12 @@ Item {
   // killing the entire shell. Hidden panels stay mapped but park off-screen
   // without an exclusion zone; updated by the FileView watcher further down.
   property bool barHidden: false
+  // At login the shell holds the bar back until the desktop is fading in and
+  // every widget is built, then fades it in over this long (0: at once).
+  property bool startupRevealed: true
+  property int startupRevealDuration: 0
+  // Counts changes in the room widgets take, which the login waits to settle.
+  property int layoutRevision: 0
   property string home: Quickshell.env("HOME")
   property string stateHome: home + "/.local/state"
   property string omarchyConfigDir: home + "/.config/omarchy"
@@ -1808,7 +1814,7 @@ Item {
     // every layer on the monitor back above whenever a window on any other
     // workspace leaves fullscreen, or the layer remaps. The invisible strip
     // would then take the clicks meant for the top of the fullscreen window.
-    mask: dragActive ? null : (underFullscreen ? noInputRegion : stripInputRegion)
+    mask: dragActive ? null : (underFullscreen || !root.startupRevealed ? noInputRegion : stripInputRegion)
 
     Region {
       id: stripInputRegion
@@ -1827,6 +1833,12 @@ Item {
       y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
       width: root.vertical ? barWindow.thickness : parent.width
       height: root.vertical ? parent.height : barWindow.thickness
+      opacity: root.startupRevealed ? 1 : 0
+
+      Behavior on opacity {
+        enabled: root.startupRevealDuration > 0
+        OpacityAnimator { duration: root.startupRevealDuration; easing.type: Easing.OutCubic }
+      }
 
       Rectangle {
         anchors.fill: parent
@@ -2940,6 +2952,7 @@ Item {
     // leaving a hole where a widget hid itself.
     implicitWidth: root.vertical ? widgetWidth : alongLength
     implicitHeight: root.vertical ? alongLength : widgetHeight
+    onAlongLengthChanged: root.layoutRevision += 1
     Layout.preferredWidth: implicitWidth
     Layout.preferredHeight: implicitHeight
     Layout.alignment: Qt.AlignLeft | Qt.AlignTop
