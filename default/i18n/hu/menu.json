@@ -491,6 +491,9 @@
     "label": "Szerkesztő",
     "title": "Alapértelmezett szerkesztő"
   },
+  "setup.default.editor.plain": {
+    "label": "Plain"
+  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },

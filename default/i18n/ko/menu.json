@@ -491,6 +491,9 @@
     "label": "편집기",
     "title": "기본 편집기"
   },
+  "setup.default.editor.plain": {
+    "label": "Plain"
+  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },

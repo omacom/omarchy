@@ -491,6 +491,9 @@
     "label": "Editor",
     "title": "Standardeditor"
   },
+  "setup.default.editor.plain": {
+    "label": "Plain"
+  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },

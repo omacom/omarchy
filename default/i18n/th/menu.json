@@ -491,6 +491,9 @@
     "label": "ตัวแก้ไข",
     "title": "ตัวแก้ไขเริ่มต้น"
   },
+  "setup.default.editor.plain": {
+    "label": "Plain"
+  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },

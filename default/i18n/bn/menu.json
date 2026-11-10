@@ -491,6 +491,9 @@
     "label": "এডিটর",
     "title": "ডিফল্ট এডিটর"
   },
+  "setup.default.editor.plain": {
+    "label": "Plain"
+  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },

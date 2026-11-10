@@ -491,6 +491,9 @@
     "label": "Trình soạn thảo",
     "title": "Trình soạn thảo mặc định"
   },
+  "setup.default.editor.plain": {
+    "label": "Plain"
+  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },

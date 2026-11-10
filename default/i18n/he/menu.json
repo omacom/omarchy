@@ -491,6 +491,9 @@
     "label": "עורך",
     "title": "עורך ברירת מחדל"
   },
+  "setup.default.editor.plain": {
+    "label": "Plain"
+  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },
