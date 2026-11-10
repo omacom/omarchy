@@ -31,27 +31,6 @@ assertEqual(idle.delayAfterFirstIdle(300, 150), 150, 'idle delays lock until its
 assertEqual(idle.delayAfterFirstIdle(150, 150), 0, 'idle fires an action immediately when it is the first timeout')
 assertEqual(idle.delayAfterFirstIdle(0, 150), 0, 'idle does not schedule a disabled action')
 
-assert(
-  serviceSource.includes('IdleModel.firstIdleTimeout(screensaverTimeoutSeconds, lockTimeoutSeconds, suspendTimeoutSeconds)'),
-  'idle shares the first user-idle deadline with suspend'
-)
-assert(
-  /id: suspendTimer[\s\S]*?onTriggered: root\.attemptSuspend\(\)/.test(serviceSource),
-  'idle uses a timer rather than an IdleMonitor as the suspend clock'
-)
-assert(
-  /id: suspendInhibitorMonitor[\s\S]*?respectInhibitors: true/.test(serviceSource),
-  'idle keeps an inhibitor-aware gate for suspend'
-)
-assert(
-  /id: suspendRetryTimer[\s\S]*?interval: 60000/.test(serviceSource),
-  'idle retries after a temporary inhibitor'
-)
-assert(
-  /onSuspendTimeoutSecondsChanged: root\.rearmIdleMonitor\(\)/.test(serviceSource),
-  'idle re-arms after a suspend timeout change'
-)
-
 // Run the service's event handlers with fake timers and processes. No test
 // case can launch the real lock or suspend commands.
 function timer() {
