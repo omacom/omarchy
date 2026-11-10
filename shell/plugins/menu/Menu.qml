@@ -135,7 +135,13 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  // A menu is as wide as its widest row, between its usual width and the wide
+  // width, so a label longer than the usual width is not cut off. Menus whose
+  // labels fit keep their size; past the wide width a label still elides.
+  property int baseCardWidth: (root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)
+  property real widestRowWidth: 0
+  property int fittedCardWidth: Math.max(root.baseCardWidth, Math.min(Style.space(520), Math.ceil(root.widestRowWidth + card.contentLeftInset + card.contentRightInset)))
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : root.fittedCardWidth, panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
@@ -703,6 +709,28 @@ Item {
     }
   }
 
+  // The rows' label plus the space the row delegate keeps around it: the icon
+  // column (or the indent without one) on the leading side, the trailing marker
+  // on the other. Mirrors the anchors in the row delegate below.
+  function widestRow(rows) {
+    var trailing = Style.space(6) + Style.space(14) + Style.space(8) + root.rowReservedBorderRight
+    var widest = 0
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i]
+      var hasIcon = String(row.icon || "").length > 0 || row.kind === "app"
+      var leading = root.rowReservedBorderLeft + (hasIcon ? Style.space(8) + Style.space(36) + Style.space(6) : Style.space(18))
+      widest = Math.max(widest, leading + rowLabelMetrics.advanceWidth(String(row.label || "")) + trailing)
+    }
+    return widest
+  }
+
+  FontMetrics {
+    id: rowLabelMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.heading
+    font.weight: Font.Medium
+  }
+
   function rebuildDisplay() {
     if (root.dmenuActive) {
       root.rebuildDmenuDisplay()
@@ -772,6 +800,9 @@ Item {
       }
     }
 
+    // Measured from the menu's own rows, not search results, so the width holds
+    // still while typing.
+    if (!query) root.widestRowWidth = root.widestRow(rows)
     for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
     layoutSerial += 1
 
