@@ -32,7 +32,72 @@ desktop_exec() {
     fi
   done
   [[ -z $file ]] && file=$(grep -lsx "StartupWMClass=$class" "$HOME"/.local/share/applications/*.desktop /usr/share/applications/*.desktop | head -n1)
-  [[ -n $file ]] && sed -n 's/^Exec=//p' "$file" | head -n1 | sed -E 's/ +%[a-zA-Z]//g'
+  [[ -n $file ]] && desktop_exec_command "$(sed -n 's/^Exec=//p' "$file" | head -n1)"
+}
+
+# A desktop entry's Exec value as a shell command, decoded per the Desktop
+# Entry Spec: string escapes (\s \n \t \r \\) first, then the Exec quoting
+# (double quotes, inside which \ escapes " ` $ \), then field codes: %% is a
+# literal %, and %f %U and the like are dropped. omarchy-webapp-install writes
+# a % in a web app's URL as %%, so copying the text as is would change the URL.
+desktop_exec_command() {
+  local raw=$1 value="" arg="" c i quoted=0 started=0
+  local -a args=() argv=()
+
+  for (( i = 0; i < ${#raw}; i++ )); do
+    c=${raw:i:1}
+    if [[ $c == "\\" ]] && (( i + 1 < ${#raw} )); then
+      (( i++ ))
+      case ${raw:i:1} in
+        s) c=" " ;;
+        n) c=$'\n' ;;
+        t) c=$'\t' ;;
+        r) c=$'\r' ;;
+        "\\") c="\\" ;;
+        *) c="\\${raw:i:1}" ;;
+      esac
+    fi
+    value+=$c
+  done
+
+  for (( i = 0; i < ${#value}; i++ )); do
+    c=${value:i:1}
+    if (( quoted )); then
+      if [[ $c == "\\" && ${value:i+1:1} == [\"\`\$\\] ]]; then
+        (( i++ ))
+        arg+=${value:i:1}
+      elif [[ $c == '"' ]]; then
+        quoted=0
+      else
+        arg+=$c
+      fi
+    elif [[ $c == '"' ]]; then
+      quoted=1 started=1
+    elif [[ $c == [[:blank:]] ]]; then
+      (( started )) && args+=("$arg")
+      arg="" started=0
+    else
+      arg+=$c started=1
+    fi
+  done
+  (( started )) && args+=("$arg")
+
+  for arg in "${args[@]}"; do
+    [[ $arg =~ ^%[fFuUdDnNickvm]$ ]] && continue
+    value=""
+    for (( i = 0; i < ${#arg}; i++ )); do
+      c=${arg:i:1}
+      if [[ $c == "%" ]]; then
+        (( i++ ))
+        [[ ${arg:i:1} == "%" ]] && value+="%"
+      else
+        value+=$c
+      fi
+    done
+    argv+=("$value")
+  done
+
+  (( ${#argv[@]} > 0 )) && printf '%q ' "${argv[@]}" | sed 's/ $//'
 }
 
 # Fallback when no .desktop launcher is found. A Chromium web app's class
