@@ -226,6 +226,7 @@ local buttons = {}
 local config = { ["input.follow_mouse"] = 1, ["decoration.shadow.enabled"] = false }
 local rules = {}
 local placed = {}
+local raised = {}
 local active = { id = 1 }
 local titlebars_installed = os.getenv("TITLEBARS_INSTALLED") == "1"
 
@@ -288,6 +289,8 @@ hl = {
     local target = action.window
     if action.kind == "place" then
       placed[target.address] = true
+    elseif action.kind == "zorder" then
+      table.insert(raised, target.address)
     elseif action.kind == "fullscreen" then
       if action.mode == "maximized" then
         target.fullscreen = action.action == "unset" and 0 or 1
@@ -318,6 +321,7 @@ hl = {
       center = function(spec) spec.kind = "place" return spec end,
       move = function(spec) spec.kind = "place" return spec end,
       fullscreen = function(spec) spec.kind = "fullscreen" return spec end,
+      alter_zorder = function(spec) spec.kind = "zorder" return spec end,
     },
   },
   on = function(event, callback)
@@ -365,6 +369,7 @@ function state()
     config = config,
     rules = rules,
     placed = placed,
+    raised = raised,
     subscriptions = subscriptions,
     active = active,
   }
@@ -539,6 +544,27 @@ assert(tiled_max.fullscreen == 1, "a maximized window on a tiled workspace was u
   fail "a new window on a floating workspace brings a maximized one back to size"
 fi
 pass "a new window on a floating workspace brings a maximized one back to size"
+
+# Focus from a keybinding or a script leaves a floating window under whatever
+# was over it, so a window focused on a floating workspace comes to the front.
+# One on a tiled workspace, and a maximized one, are left where they are.
+printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
+if ! run_lua '
+require("default.hypr.workspace-layouts")
+local behind = window("0x1", 1, { floating = true })
+local dialog = window("0x2", 2, { floating = true })
+local maximized = window("0x3", 1, { floating = true, fullscreen = 1 })
+local focus = state().subscriptions["window.active"][1]
+focus(behind)
+focus(dialog)
+focus(maximized)
+focus(nil)
+local raised = state().raised
+assert(#raised == 1 and raised[1] == "0x1", "focus raised " .. table.concat(raised, ",") .. " instead of only the window on the floating workspace")
+'; then
+  fail "a window focused on a floating workspace comes to the front"
+fi
+pass "a window focused on a floating workspace comes to the front"
 
 # Apps with float rules of their own keep them on a floating workspace: the
 # open rule passes them over, so they open at their own size and the mode never
