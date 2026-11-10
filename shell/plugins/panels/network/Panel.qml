@@ -69,6 +69,7 @@ Panel {
   readonly property bool networkManagerAvailable: Networking.backend === NetworkBackendType.NetworkManager
   readonly property var networkDevices: Networking.devices ? Networking.devices.values : []
   readonly property var wifiDevice: findDevice(DeviceType.Wifi)
+  readonly property var ethernetDevices: findDevices(DeviceType.Wired)
   readonly property var wifiNetworkObjects: wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : []
   readonly property var connectedWifiNetwork: findConnectedWifiNetwork()
   property var wifiNetworks: []
@@ -83,6 +84,8 @@ Panel {
   property string bandSelected: "auto"
   property var bandAvailable: []
   property string pendingBand: ""
+  property string ethernetPendingDevice: ""
+  property string ethernetActionError: ""
 
   // Per-row in-flight state. `actionSsid` flips on for the row whose action
   // is currently running so it can render "Connecting…" / "Disconnecting…" /
@@ -120,24 +123,25 @@ Panel {
   property bool cursorActive: false
 
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
-  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
-  // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  // header actions ⇄ portal ⇄ band ⇄ DNS ⇄ Wi-Fi switch/networks. h/l move
+  // within header actions, band pills, DNS providers, or Wi-Fi row actions.
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifiToggle" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
   readonly property bool canShareWifi: info.type === "wifi" && canShareNetwork(connectedWifiNetwork)
-  // The hero switch is the Wi-Fi radio, so it only exists when there is a
-  // radio to switch. On a wired box it would otherwise sit there reading
-  // "off" beside a perfectly live Ethernet connection.
+  // Keep the Wi-Fi radio control with its network list. Ethernet controls
+  // share the hero action row with the QR and speed-test buttons.
   readonly property bool canToggleWifi: networkManagerAvailable && wifiStationAvailable
+  readonly property bool wifiNetworksVisible: wifiStationAvailable && Networking.wifiEnabled
+  readonly property bool canToggleEthernet: networkManagerAvailable && ethernetDevices.length > 0
   readonly property int qrHeaderIndex: canShareWifi ? 0 : -1
   readonly property int speedHeaderIndex: canRunSpeedTest ? (canShareWifi ? 1 : 0) : -1
-  readonly property int toggleHeaderIndex: canToggleWifi ? (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) : -1
-  readonly property int headerActionCount: (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) + (canToggleWifi ? 1 : 0)
+  readonly property int ethernetHeaderStartIndex: (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0)
+  readonly property int headerActionCount: ethernetHeaderStartIndex + (canToggleEthernet ? ethernetDevices.length : 0)
   readonly property bool qrHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === qrHeaderIndex
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
-  readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
+  readonly property bool wifiToggleHasCursor: cursorActive && focusSection === "wifiToggle"
   readonly property string toggleHint: Networking.wifiEnabled ? Commons.I18n.t("network.turnWifiOff") : Commons.I18n.t("network.turnWifiOn")
   readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
   property int dnsIndex: 0
@@ -171,6 +175,14 @@ Panel {
   // The band section has up to two cursor rows: the Automatic switch on the
   // header line, then the pills. Same shape as wifiActionFocused.
   property bool bandAutoFocused: true
+
+  onWifiNetworksVisibleChanged: {
+    if (!wifiNetworksVisible && focusSection === "wifi") {
+      selectedIndex = -1
+      wifiActionFocused = false
+      focusSection = canToggleWifi ? "wifiToggle" : "dns"
+    }
+  }
 
   onHeaderActionCountChanged: clampHeaderIndex()
 
@@ -206,8 +218,27 @@ Panel {
 
   function toggleNetwork() {
     if (!networkManagerAvailable) return
-    Networking.wifiEnabled = !Networking.wifiEnabled
-    Qt.callLater(function() { root.refresh(true) })
+    var enabled = !Networking.wifiEnabled
+    Networking.wifiEnabled = enabled
+    if (!enabled) {
+      scanRestart.stop()
+      scanDone.stop()
+      setScannerEnabled(false)
+      scanning = false
+      wifiNetworks = []
+      selectedIndex = -1
+      wifiActionFocused = false
+      cancelPasswordPrompt()
+    }
+    Qt.callLater(function() { root.refresh(enabled) })
+  }
+
+  function toggleEthernet(device) {
+    if (!device || !device.name || !networkManagerAvailable || ethernetActionProc.running) return
+    ethernetPendingDevice = device.name
+    ethernetActionError = ""
+    ethernetActionProc.command = ["nmcli", "device", device.connected ? "disconnect" : "connect", device.name]
+    ethernetActionProc.running = true
   }
 
   ShellIpc {
@@ -230,7 +261,8 @@ Panel {
   function activateHeader() {
     if (headerIndex === qrHeaderIndex) summonWifiQr()
     else if (headerIndex === speedHeaderIndex) summonSpeedTest()
-    else if (headerIndex === toggleHeaderIndex) toggleNetwork()
+    else if (headerIndex >= ethernetHeaderStartIndex && headerIndex < headerActionCount)
+      toggleEthernet(ethernetDevices[headerIndex - ethernetHeaderStartIndex])
   }
 
   function setHeaderCursor(index) {
@@ -305,6 +337,7 @@ Panel {
   property var scannerDevice: null
 
   function setScannerEnabled(enabled) {
+    if (enabled && !Networking.wifiEnabled) enabled = false
     var nextDevice = opened ? wifiDevice : null
 
     if (scannerDevice && scannerDevice !== nextDevice)
@@ -327,7 +360,7 @@ Panel {
       refresh(true)
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
-      focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
+      focusSection = hasCaptivePortal ? "portal" : (canToggleWifi ? "wifiToggle" : (wifiNetworks.length > 0 ? "wifi" : "dns"))
       var idx = dnsProviders.indexOf(dnsProvider)
       dnsIndex = idx >= 0 ? idx : 0
       syncBandIndex()
@@ -363,14 +396,13 @@ Panel {
     }
   }
 
-  // Keep selectedIndex valid as scans refresh the network list.
-  // If the list empties (station gone, e.g. wifi off), bounce the cursor
-  // back to the DNS row so the panel doesn't end up with no cursor at all.
+  // Keep selectedIndex valid as scans refresh the network list. If the list
+  // empties, keep keyboard focus on the Wi-Fi switch when it is available.
   onWifiNetworksChanged: {
     if (wifiNetworks.length === 0) {
       selectedIndex = -1
       wifiActionFocused = false
-      if (focusSection === "wifi") focusSection = "dns"
+      if (focusSection === "wifi") focusSection = canToggleWifi ? "wifiToggle" : "dns"
     } else if (passwordSsid !== "") {
       var passwordIndex = wifiIndexForSsid(passwordSsid)
       if (passwordIndex >= 0) {
@@ -586,7 +618,7 @@ Panel {
     }
     // A closed panel has no nearby-network list to fill, and bare refresh()
     // reaches here from action completion, timeouts and construction.
-    if (opened && wifiDevice) {
+    if (opened && wifiDevice && Networking.wifiEnabled) {
       if (scanWifi) {
         scanning = true
         setScannerEnabled(false)
@@ -689,6 +721,16 @@ Panel {
     return fallback
   }
 
+  function findDevices(type) {
+    var devices = networkDevices || []
+    var found = []
+    for (var i = 0; i < devices.length; i++) {
+      var device = devices[i]
+      if (device && device.type === type && device.nmManaged) found.push(device)
+    }
+    return found
+  }
+
   function findConnectedWifiNetwork() {
     var networks = wifiNetworkObjects || []
     for (var i = 0; i < networks.length; i++) {
@@ -698,6 +740,13 @@ Panel {
   }
 
   function syncWifiNetworks() {
+    wifiStationAvailable = !!wifiDevice
+    if (!Networking.wifiEnabled) {
+      wifiNetworks = []
+      scanning = false
+      return
+    }
+
     var nets = []
     var networks = wifiNetworkObjects || []
 
@@ -709,7 +758,6 @@ Panel {
       if (row) nets.push(row)
     }
     wifiNetworks = Model.sortWifiRows(nets)
-    wifiStationAvailable = !!wifiDevice
     scanning = false
   }
 
@@ -1014,6 +1062,21 @@ Panel {
     }
   }
 
+  Process {
+    id: ethernetActionProc
+    stdout: StdioCollector { id: ethernetActionStdout; waitForEnd: true }
+    stderr: StdioCollector { id: ethernetActionStderr; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) {
+        var message = String(ethernetActionStderr.text || ethernetActionStdout.text || "").trim()
+        root.ethernetActionError = message !== ""
+          ? Commons.I18n.t("network.connectionFailed") + ": " + message
+          : Commons.I18n.t("network.connectionFailed")
+      }
+      root.ethernetPendingDevice = ""
+    }
+  }
+
   // Poll details while the panel is open so the IP/route header catches up
   // as soon as NetworkManager finishes activating a connection.
   Timer {
@@ -1170,9 +1233,8 @@ Panel {
               root.focusSection = "dns"
             }
           } else if (root.focusSection === "dns") {
-            // k from DNS moves up into the band section when it's on screen,
-            // then the disconnect button; otherwise stays put. j drops into the
-            // wifi list if there's anywhere to land.
+            // k from DNS moves up into the band section when it's on screen;
+            // j enters Wi-Fi at its switch, then continues into the scan list.
             if (dy < 0) {
               if (root.canSelectBand) {
                 root.focusSection = "band"
@@ -1183,15 +1245,24 @@ Panel {
                 root.focusSection = "header"
                 root.headerIndex = 0
               }
-            } else if (root.wifiNetworks.length > 0) {
+            } else if (root.canToggleWifi) {
+              root.focusSection = "wifiToggle"
+            } else if (root.wifiNetworksVisible && root.wifiNetworks.length > 0) {
+              root.focusSection = "wifi"
+              if (root.selectedIndex < 0) root.selectedIndex = 0
+            }
+          } else if (root.focusSection === "wifiToggle") {
+            if (dy < 0) {
+              root.focusSection = "dns"
+            } else if (root.wifiNetworksVisible && root.wifiNetworks.length > 0) {
               root.focusSection = "wifi"
               if (root.selectedIndex < 0) root.selectedIndex = 0
             }
           } else {  // wifi
-            // k from the top row escapes back up to the DNS row rather than
-            // wrapping around to the bottom of the list.
+            // k from the top network row returns to the Wi-Fi switch rather
+            // than skipping the section heading.
             if (dy < 0 && root.selectedIndex <= 0) {
-              root.focusSection = "dns"
+              root.focusSection = root.canToggleWifi ? "wifiToggle" : "dns"
               root.wifiActionFocused = false
             }
             else root.selectByDelta(dy)
@@ -1210,6 +1281,7 @@ Panel {
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
+          else if (root.focusSection === "wifiToggle") root.toggleNetwork()
           else root.activateSelected()
         }
       }
@@ -1246,7 +1318,7 @@ Panel {
         }
 
         // Sharing belongs to the connected-network hero rather than the scan
-        // result row. The radio switch remains beside it as the other hero action.
+        // result row. Ethernet toggles sit beside the speed-test action.
         RowLayout {
           id: heroActions
           spacing: Style.space(8)
@@ -1281,20 +1353,22 @@ Panel {
             onClicked: root.summonSpeedTest()
           }
 
-          ToggleSwitch {
-            id: powerSwitch
-            visible: root.canToggleWifi
-            checked: Networking.wifiEnabled
-            hasCursor: root.toggleHeaderHasCursor
-            foreground: root.bar.foreground
-            Layout.alignment: Qt.AlignVCenter
-            onHovered: function(on) { if (on) root.setHeaderCursor(root.toggleHeaderIndex) }
-            onToggled: root.toggleNetwork()
+          Repeater {
+            model: root.canToggleEthernet ? root.ethernetDevices : []
 
-            PanelToolTip {
-              visible: powerSwitch.containsMouse
-              text: root.toggleHint
-              fontFamily: root.bar.fontFamily
+            delegate: EthernetHeaderToggle {
+              required property var modelData
+              required property int index
+              device: modelData
+              hasCursor: root.cursorActive && root.focusSection === "header"
+                && root.headerIndex === root.ethernetHeaderStartIndex + index
+              busy: root.ethernetPendingDevice !== ""
+              Layout.alignment: Qt.AlignVCenter
+
+              onHovered: function(on) {
+                if (on) root.setHeaderCursor(root.ethernetHeaderStartIndex + index)
+              }
+              onToggled: root.toggleEthernet(device)
             }
           }
         }
@@ -1360,6 +1434,17 @@ Panel {
           }
         }
 
+      }
+
+      Text {
+        visible: root.ethernetActionError !== ""
+        width: parent.width
+        textFormat: Text.PlainText
+        text: root.ethernetActionError
+        color: root.bar.urgent
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.caption
+        wrapMode: Text.Wrap
       }
 
       Button {
@@ -1624,14 +1709,56 @@ Panel {
       }
 
 
-      // Wi-Fi networks (only if a Wi-Fi station is available).
+      // Keep the Wi-Fi switch visible while the radio is off, but hide stale
+      // scan results until it is enabled again.
       PanelSeparator {
-        visible: root.wifiStationAvailable
+        visible: root.canToggleWifi
         foreground: root.bar.foreground
       }
 
+      Item {
+        visible: root.canToggleWifi
+        width: parent.width
+        implicitHeight: Math.max(wifiHeader.implicitHeight, wifiControls.implicitHeight)
+
+        PanelSectionHeader {
+          id: wifiHeader
+          text: "Wi-Fi"
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+          anchors.left: parent.left
+          anchors.verticalCenter: parent.verticalCenter
+        }
+
+        RowLayout {
+          id: wifiControls
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: Style.space(6)
+
+          ToggleSwitch {
+            id: wifiPowerSwitch
+            checked: Networking.wifiEnabled
+            hasCursor: root.wifiToggleHasCursor
+            foreground: root.bar.foreground
+            onHovered: function(on) {
+              if (!on) return
+              root.cursorActive = true
+              root.focusSection = "wifiToggle"
+            }
+            onToggled: root.toggleNetwork()
+
+            PanelToolTip {
+              visible: wifiPowerSwitch.containsMouse
+              text: root.toggleHint
+              fontFamily: root.bar.fontFamily
+            }
+          }
+        }
+      }
+
       PanelSectionHeader {
-        visible: root.wifiStationAvailable && root.scanning
+        visible: root.wifiNetworksVisible && root.scanning
         text: Commons.I18n.t("network.scanningWifi")
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
@@ -1644,7 +1771,7 @@ Panel {
       // visible window.
       ListView {
         id: networkList
-        visible: root.wifiStationAvailable
+        visible: root.wifiNetworksVisible
         width: parent.width
         height: Math.min(contentHeight, Style.space(240))
         spacing: Style.space(4)
@@ -1654,7 +1781,7 @@ Panel {
 
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-        model: root.wifiStationAvailable ? root.wifiNetworks : []
+        model: root.wifiNetworksVisible ? root.wifiNetworks : []
         currentIndex: root.selectedIndex
         onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
 
@@ -1691,6 +1818,62 @@ Panel {
         }
       }
     }
+    }
+  }
+
+  component EthernetHeaderToggle: Item {
+    id: ethernetRow
+    required property var device
+    property bool hasCursor: false
+    property bool busy: false
+
+    signal hovered(bool on)
+    signal toggled()
+
+    implicitWidth: ethernetControl.implicitWidth
+    implicitHeight: ethernetControl.implicitHeight
+
+    RowLayout {
+      id: ethernetControl
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      spacing: Style.space(4)
+
+      Text {
+        Layout.maximumWidth: Style.space(88)
+        textFormat: Text.PlainText
+        text: ethernetRow.device
+          ? (root.ethernetDevices.length > 1
+            ? Commons.I18n.t("network.ethernet") + " " + ethernetRow.device.name
+            : Commons.I18n.t("network.ethernet"))
+          : Commons.I18n.t("network.ethernet")
+        color: root.bar.foreground
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.caption
+        elide: Text.ElideRight
+      }
+
+      ToggleSwitch {
+        id: ethernetSwitch
+        checked: ethernetRow.device ? ethernetRow.device.connected : false
+        busy: ethernetRow.busy
+        hasCursor: ethernetRow.hasCursor
+        foreground: root.bar.foreground
+        Layout.alignment: Qt.AlignVCenter
+        onHovered: function(on) { ethernetRow.hovered(on) }
+        onToggled: ethernetRow.toggled()
+
+        PanelToolTip {
+          visible: ethernetSwitch.containsMouse
+          text: ethernetRow.device
+            ? ethernetRow.device.name + ": " + (ethernetRow.device.connected
+              ? Commons.I18n.t("network.connected")
+              : Commons.I18n.t("network.disconnected"))
+            : Commons.I18n.t("network.ethernet")
+          fontFamily: root.bar.fontFamily
+        }
+      }
     }
   }
 
