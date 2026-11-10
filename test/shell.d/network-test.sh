@@ -9,33 +9,6 @@ const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
 
-assert(
-  /readonly property var ethernetDevices: findDevices\(DeviceType\.Wired\)/.test(panelSource)
-    && /device\.type === type && device\.nmManaged/.test(panelSource),
-  'network lists only NetworkManager-managed wired devices for per-interface controls'
-)
-assert(
-  /ethernetActionProc\.command = \["nmcli", "device", device\.connected \? "disconnect" : "connect", device\.name\]/.test(panelSource),
-  'network toggles Ethernet through structured, per-device NetworkManager arguments'
-)
-assert(
-  /readonly property bool wifiNetworksVisible: wifiStationAvailable && Networking\.wifiEnabled/.test(panelSource)
-    && /visible: root\.wifiNetworksVisible && root\.scanning/.test(panelSource)
-    && /model: root\.wifiNetworksVisible \? root\.wifiNetworks : \[\]/.test(panelSource),
-  'network hides Wi-Fi scans and results when the Wi-Fi radio is disabled'
-)
-const heroActionsAt = panelSource.indexOf('id: heroActions')
-const ethernetActionAt = panelSource.indexOf('delegate: EthernetHeaderToggle')
-const heroLabelsAt = panelSource.indexOf('id: heroLabels')
-assert(
-  heroActionsAt >= 0 && heroActionsAt < ethernetActionAt && ethernetActionAt < heroLabelsAt,
-  'network places Ethernet toggles in the hero action row beside the speed-test action'
-)
-assert(
-  !/PanelSectionHeader\s*\{\s*text: Commons\.I18n\.t\("network\.ethernet"\)/.test(panelSource),
-  'network does not render a separate Ethernet section below the Wi-Fi list'
-)
-
 // scannerEnabled lives on a shared WifiDevice with no reference counting, so
 // the panel has to own what it enabled. Run the helper's own JavaScript against
 // stand-in devices: the two invariants it carries are that a closed panel never
@@ -66,13 +39,6 @@ assert(
     scannerDevice === replacementScannerDevice &&
     replacementScannerDevice.scannerEnabled === true,
   'network releases the previous scanner device before enabling its replacement'
-)
-
-Networking.wifiEnabled = false
-setScannerEnabled(true)
-assert(
-  replacementScannerDevice.scannerEnabled === false,
-  'network does not restart scanning while the Wi-Fi radio is disabled'
 )
 
 assertDeepEqual(

@@ -1318,7 +1318,8 @@ Panel {
         }
 
         // Sharing belongs to the connected-network hero rather than the scan
-        // result row. Ethernet toggles sit beside the speed-test action.
+        // result row. Ethernet toggles get a separate bounded row below so
+        // several interfaces cannot crowd out the connection details.
         RowLayout {
           id: heroActions
           spacing: Style.space(8)
@@ -1353,24 +1354,6 @@ Panel {
             onClicked: root.summonSpeedTest()
           }
 
-          Repeater {
-            model: root.canToggleEthernet ? root.ethernetDevices : []
-
-            delegate: EthernetHeaderToggle {
-              required property var modelData
-              required property int index
-              device: modelData
-              hasCursor: root.cursorActive && root.focusSection === "header"
-                && root.headerIndex === root.ethernetHeaderStartIndex + index
-              busy: root.ethernetPendingDevice !== ""
-              Layout.alignment: Qt.AlignVCenter
-
-              onHovered: function(on) {
-                if (on) root.setHeaderCursor(root.ethernetHeaderStartIndex + index)
-              }
-              onToggled: root.toggleEthernet(device)
-            }
-          }
         }
 
         Column {
@@ -1434,6 +1417,34 @@ Panel {
           }
         }
 
+      }
+
+      Flow {
+        id: ethernetControls
+        visible: root.canToggleEthernet
+        width: parent.width
+        spacing: Style.space(8)
+
+        Repeater {
+          id: ethernetRepeater
+          model: root.canToggleEthernet ? root.ethernetDevices : []
+
+          delegate: EthernetHeaderToggle {
+            required property var modelData
+            required property int index
+            width: implicitWidth
+            height: implicitHeight
+            device: modelData
+            hasCursor: root.cursorActive && root.focusSection === "header"
+              && root.headerIndex === root.ethernetHeaderStartIndex + index
+            busy: root.ethernetPendingDevice !== ""
+
+            onHovered: function(on) {
+              if (on) root.setHeaderCursor(root.ethernetHeaderStartIndex + index)
+            }
+            onToggled: root.toggleEthernet(device)
+          }
+        }
       }
 
       Text {
@@ -1758,6 +1769,7 @@ Panel {
       }
 
       PanelSectionHeader {
+        id: wifiScanHeader
         visible: root.wifiNetworksVisible && root.scanning
         text: Commons.I18n.t("network.scanningWifi")
         foreground: root.bar.foreground
