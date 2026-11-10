@@ -45,9 +45,14 @@ announce() {
     --exec omarchy-agent-crash "$pid" "$comm" "$exe" "$signal"
 }
 
-# -n 0 so a restart does not re-announce crashes already dealt with.
-journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
+# Restrict the journal to this boot. Early RTC correction can leave overlapping
+# realtime ranges across journal files; -n 0 alone is not a boot boundary.
+# There is no persistent seen ledger: last_notified only limits this process.
+readonly boot_id=$(tr -d "-" </proc/sys/kernel/random/boot_id)
+journalctl --boot=0 -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
   while IFS= read -r entry; do
+    # Also reject a mismatched boot if input is replayed or the journal rotates.
+    [[ $(jq -r '._BOOT_ID // ""' <<<"$entry" 2>/dev/null) == "$boot_id" ]] || continue
     # A dash for a field that is empty as well as one that is missing: tab is
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
