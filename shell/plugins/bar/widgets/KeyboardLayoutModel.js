@@ -33,6 +33,30 @@ function layoutBriefs(text) {
   return briefs
 }
 
+// The same walk, keeping the variant each description belongs to instead of
+// its brief. A block always prints its variant line, even when the variant is
+// empty, so a description recorded against null means the walk never saw the
+// variant line rather than a variantless base layout.
+function layoutVariants(text) {
+  var variants = {}
+  var variant = null
+
+  String(text || "").split("\n").forEach(function (line) {
+    if (/^\s*- /.test(line)) variant = null
+
+    var field = line.match(/^  (variant|description): (.*)$/)
+    if (!field) return
+
+    if (field[1] === "variant") {
+      variant = field[2].replace(/^'|'$/g, "")
+    } else if (variant !== null) {
+      variants[field[2]] = variant
+    }
+  })
+
+  return variants
+}
+
 // The brief is a short language code rather than a country one, which keeps the
 // label sensible for the layouts named after a language: Esperanto reads EO and
 // Arabic reads AR. It is the same code GNOME shows in its own indicator.
@@ -52,6 +76,36 @@ function shortLabel(description, briefs) {
   var brief = (briefs || {})[description]
   var label = typeof brief === "string" && brief ? brief.split("-")[0] : description.split(/\s+/)[0]
   return label.substring(0, 3).toUpperCase()
+}
+
+// The label a seat holding variants of one layout reads. Every one of them
+// shares the brief, so the label names the variant instead: Dvorak reads DVO
+// where the language reads EN. The variant comes from the table rather than
+// the description, which parses "English (US, intl., with dead keys)" into a
+// country. A base variant carries no variant name and keeps the brief, as does
+// anything the table does not know.
+function variantLabel(description, variants) {
+  var variant = (variants || {})[description]
+  return typeof variant === "string" && variant ? variant.substring(0, 3).toUpperCase() : ""
+}
+
+// The label the widget shows: the variant when the seat holds variants of one
+// layout, the language brief otherwise.
+function displayLabel(description, briefs, variants, variantMode) {
+  if (variantMode) {
+    var label = variantLabel(description, variants)
+    if (label) return label
+  }
+
+  return shortLabel(description, briefs)
+}
+
+// Variants of one layout share its code, so a code the layout list holds twice
+// means two of its variants are enabled and the brief alone can no longer tell
+// them apart.
+function hasVariantDuplicates(layouts) {
+  var codes = String(layouts || "").split(",").map(function (code) { return code.trim() })
+  return codes.some(function (code, index) { return codes.indexOf(code) !== index })
 }
 
 // Hyprland's activelayout event pairs the keyboard that switched with the layout
@@ -137,8 +191,12 @@ if (typeof module !== "undefined") {
     eventKeyboardName: eventKeyboardName,
     isTypedKeyboard: isTypedKeyboard,
     layoutBriefs: layoutBriefs,
+    layoutVariants: layoutVariants,
     selectKeyboard: selectKeyboard,
     shortLabel: shortLabel,
+    variantLabel: variantLabel,
+    displayLabel: displayLabel,
+    hasVariantDuplicates: hasVariantDuplicates,
     inputLabel: inputLabel,
     inputTooltip: inputTooltip,
     showIndicator: showIndicator

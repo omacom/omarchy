@@ -46,6 +46,10 @@ const listing = [
   "  variant: 'intl'",
   "  brief: 'en'",
   '  description: English (US, intl., with dead keys)',
+  "- layout: 'us'",
+  "  variant: 'dvorak'",
+  "  brief: 'en'",
+  '  description: English (Dvorak)',
   "- layout: 'br'",
   "  variant: ''",
   "  brief: 'pt'",
@@ -80,7 +84,16 @@ assertEqual(briefs['English (US, intl., with dead keys)'], 'en', 'the table read
 assertEqual(briefs['Generic 105-key PC'], undefined, 'the table skips keyboard models')
 assertEqual(briefs['Switching to another layout'], undefined, 'the table skips option groups')
 assertEqual(briefs["'Right Alt (while pressed)'"], undefined, 'the table skips the options under a group')
-assertEqual(Object.keys(briefs).length, 6, 'the table holds nothing but the layouts')
+assertEqual(Object.keys(briefs).length, 7, 'the table holds nothing but the layouts')
+
+const variants = model.layoutVariants(listing)
+
+assertEqual(variants['English (US)'], '', 'the table reads an empty variant for a base layout')
+assertEqual(variants['English (Dvorak)'], 'dvorak', 'the table reads the variant a description belongs to')
+assertEqual(variants['Generic 105-key PC'], undefined, 'the table skips keyboard models')
+assertEqual(variants['Switching to another layout'], undefined, 'the table skips option groups')
+assertEqual(variants["'Right Alt (while pressed)'"], undefined, 'the table skips the options under a group')
+assertEqual(Object.keys(variants).length, 7, 'the variant table holds nothing but the layouts')
 
 assertEqual(model.shortLabel('English (US)', briefs), 'EN', 'the label is the language, not the country')
 assertEqual(model.shortLabel('Portuguese (Brazil)', briefs), 'PT', 'a country variant keeps its language')
@@ -101,10 +114,44 @@ const orphaned = model.layoutBriefs([
 
 assertEqual(orphaned['Greek'], undefined, 'a brief stops at the end of its block')
 
+// The same for a variant printed ahead of the description that must not
+// inherit it.
+const variantOrphans = model.layoutVariants([
+  'layouts:',
+  "- layout: 'us'",
+  "  variant: 'dvorak'",
+  "- layout: 'gr'",
+  '  description: Greek',
+].join('\n'))
+
+assertEqual(variantOrphans['Greek'], undefined, 'a variant stops at the end of its block')
+
 assertEqual(model.shortLabel('Elvish (Tengwar)', briefs), 'ELV', 'an unlisted layout falls back to its description')
 assertEqual(model.shortLabel('English (US)', {}), 'ENG', 'the label survives an empty table')
 assertEqual(model.shortLabel('constructor', {}), 'CON', 'a description naming a built-in still falls back')
 assertEqual(model.shortLabel('', briefs), '', 'no keymap means no label')
+
+// Hyprland reports the layout list as the codes it holds, so variants of one
+// layout arrive as that code twice.
+assertEqual(model.hasVariantDuplicates('us,us'), true, 'twice the same code means variants of one layout')
+assertEqual(model.hasVariantDuplicates('us,dk'), false, 'different codes are different layouts')
+assertEqual(model.hasVariantDuplicates('us'), false, 'one layout has no variant pairing')
+assertEqual(model.hasVariantDuplicates(''), false, 'no layout reads no variant')
+assertEqual(model.hasVariantDuplicates(undefined), false, 'an unread list reads no variant')
+
+assertEqual(model.variantLabel('English (Dvorak)', variants), 'DVO', 'a variant label names the variant')
+assertEqual(model.variantLabel('English (US, intl., with dead keys)', variants), 'INT', 'a variant label drops what the description tacks onto the variant')
+assertEqual(model.variantLabel('English (US)', variants), '', 'the base variant has no variant name')
+assertEqual(model.variantLabel('Elvish (Tengwar)', variants), '', 'an unlisted description has no variant name')
+assertEqual(model.variantLabel('', variants), '', 'no keymap means no variant label')
+
+assertEqual(model.displayLabel('English (US)', briefs, variants, true), 'EN', 'in variant mode the base variant keeps the brief')
+assertEqual(model.displayLabel('English (Dvorak)', briefs, variants, true), 'DVO', 'in variant mode the label names the variant')
+assertEqual(model.displayLabel('English (US, intl., with dead keys)', briefs, variants, true), 'INT', 'in variant mode a wordy variant is cut to size')
+assertEqual(model.displayLabel('English (US)', briefs, variants, false), 'EN', 'without variants the label stays the brief')
+assertEqual(model.displayLabel('English (Dvorak)', briefs, variants, false), 'EN', 'and a variant reads its brief like any other layout')
+assertEqual(model.displayLabel('Elvish (Tengwar)', briefs, variants, true), 'ELV', 'an unlisted layout falls back to its description in variant mode too')
+assertEqual(model.displayLabel('English (US)', {}, {}, true), 'ENG', 'variant mode survives tables not yet loaded')
 
 // The seat as hyprctl reports it, virtual keyboards already filtered out: the
 // buttons libinput calls keyboards sit beside the one being typed on, and the
@@ -194,5 +241,10 @@ assertEqual(model.eventKeyboardName(rawEvent('asus-wireless-radio-control,Englis
   const several = widgetState('us,dk')
   assert(needs(several.layoutsRead, several.multipleLayouts, false), 'a first reading of several layouts needs the table')
   assert(!needs(false, true, true), 'nothing is needed before the first reading')
+  const variants = widgetState('us,us')
+  assertEqual(variants.variantMode, true, 'twice the same layout code turns on variant labels')
+  assert(needs(variants.layoutsRead, variants.multipleLayouts, false), 'variants of one layout need the table too')
+  const distinct = widgetState('us,dk')
+  assertEqual(distinct.variantMode, false, 'different layout codes keep the brief labels')
 }
 JS

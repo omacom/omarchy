@@ -33,6 +33,13 @@ BarWidget {
   // Short language code per layout description ("English (US)": "en"), read from
   // xkb's own table rather than maintained by hand.
   property var layoutBriefs: ({})
+  // The variant each description belongs to ("English (Dvorak)": "dvorak"),
+  // from the same read of the table. Only variant mode looks it up: the brief
+  // alone can no longer tell variants of one layout apart.
+  property var layoutVariants: ({})
+  // Whether the layout list holds one layout more than once, which is how
+  // variants of it arrive ("us,us" for qwerty and Dvorak of us).
+  property bool variantMode: false
   // The table is only needed once the widget shows a label, which a seat with
   // one layout and one input method never does, so it's read on first need.
   property bool layoutsRead: false
@@ -45,7 +52,7 @@ BarWidget {
     briefsRequested = true
     briefsProc.running = true
   }
-  readonly property string layoutLabel: KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs)
+  readonly property string layoutLabel: KeyboardLayoutModel.displayLabel(layoutFull, layoutBriefs, layoutVariants, variantMode)
   readonly property var inputState: InputMethodState.state
   readonly property bool multipleInputs: (inputState.methods || []).length > 1
   readonly property string inputLabel: KeyboardLayoutModel.inputLabel(inputState, layoutLabel)
@@ -187,6 +194,7 @@ BarWidget {
         root.layoutsRead = true
         root.layoutIndex = kb.active_layout_index || 0
         root.layoutCount = kb.layout === undefined ? 0 : String(kb.layout).split(",").length
+        root.variantMode = KeyboardLayoutModel.hasVariantDuplicates(kb.layout)
         // Buttons and virtual keyboards are included on purpose: they hold the
         // same list, and leaving them behind is what lets a reading drift onto
         // one of them later.
@@ -208,7 +216,10 @@ BarWidget {
     command: ["xkbcli", "list", "--load-exotic"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.layoutBriefs = KeyboardLayoutModel.layoutBriefs(text)
+      onStreamFinished: {
+        root.layoutBriefs = KeyboardLayoutModel.layoutBriefs(text)
+        root.layoutVariants = KeyboardLayoutModel.layoutVariants(text)
+      }
     }
   }
 
