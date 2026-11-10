@@ -240,12 +240,22 @@ setsid_argv=$(<"$setsid_calls")
 [[ $setsid_argv == $'<uwsm-app>\n<-->\n<plain>\n<-->\n<-cquit>' ]] ||
   fail "launch-editor opens Plain as an app when not inline" "$setsid_argv"
 
+cat >"$mock_bin/vim" <<'STUB'
+#!/bin/bash
+
+: "${OMARCHY_TEST_EDITOR_CALLS:?}"
+printf '<vim>\n' >"$OMARCHY_TEST_EDITOR_CALLS"
+printf '<%s>\n' "$@" >>"$OMARCHY_TEST_EDITOR_CALLS"
+STUB
+chmod +x "$mock_bin/vim"
+
 env -u WAYLAND_DISPLAY HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
   "$ROOT/bin/omarchy-launch-editor" --inline -cquit
 editor_argv=$(<"$editor_calls")
-[[ $editor_argv == $'<-->\n<-cquit>' ]] ||
-  fail "launch-editor uses Neovim for Plain without a display" "$editor_argv"
-pass "launch-editor defaults to Plain, inline for \$EDITOR, and Neovim without a display"
+[[ $editor_argv == $'<vim>\n<-->\n<-cquit>' ]] ||
+  fail "launch-editor uses Vim for Plain without a display" "$editor_argv"
+rm -f "$mock_bin/vim"
+pass "launch-editor defaults to Plain, inline for \$EDITOR, and Vim without a display"
 
 hook_calls="$test_tmp/hook-calls"
 hook_home="$test_tmp/hook-home"
