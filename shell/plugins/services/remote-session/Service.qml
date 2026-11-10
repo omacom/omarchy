@@ -26,7 +26,8 @@ Item {
     var owner = JSON.stringify(root.captureOwner)
     var lua = "omarchy_closed_capture_owners = omarchy_closed_capture_owners or {}; "
     if (closing) lua += "omarchy_closed_capture_owners[" + owner + "] = true; "
-    lua += "if " + (closing ? "true" : "not omarchy_closed_capture_owners[" + owner + "]") + " then "
+    lua += "if " + (closing ? "omarchy_capture_owner == " + owner : "not omarchy_closed_capture_owners[" + owner + "]") + " then "
+    if (!closing) lua += "omarchy_capture_owner = " + owner + "; "
     lua += 'hl.window_rule({ name = "omarchy-remote-screen-share", match = { class = ".*" }, no_screen_share = false, enabled = ' + (active ? "true" : "false") + " }); end"
     Quickshell.execDetached(["hyprctl", "eval", lua])
   }
