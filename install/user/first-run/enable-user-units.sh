@@ -25,10 +25,11 @@ for unit in \
   omarchy-sleep-lock.service \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
-  omarchy-crash-watch.service \
-  omarchy-keyring-repair.service; do
+  omarchy-crash-watch.service; do
   systemctl --user enable --now "$unit" || failed=1
 done
+
+omarchy-keyring-repair --enable --now || failed=1
 
 omarchy-hook-install theme-set /usr/share/owe/10-owe-sync
 exit "$failed"

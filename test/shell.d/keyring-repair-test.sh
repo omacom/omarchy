@@ -105,7 +105,24 @@ grep -Fx 'ExecStart=/usr/bin/omarchy-keyring-repair' "$service" >/dev/null ||
   fail "keyring repair service must call omarchy-keyring-repair"
 grep -Fx 'WantedBy=graphical-session-pre.target' "$service" >/dev/null ||
   fail "keyring repair must run before graphical-session-pre"
-grep -F 'omarchy-keyring-repair.service' \
+grep -F 'omarchy-keyring-repair --enable --now' \
   "$ROOT/install/user/first-run/enable-user-units.sh" >/dev/null ||
   fail "first-run must enable the keyring repair service"
+unit_test=$(mktemp -d)
+mkdir -p "$unit_test/bin"
+export EXPECTED_UNIT="$unit_test/config/systemd/user/omarchy-keyring-repair.service"
+cat >"$unit_test/bin/systemctl" <<'SH'
+#!/bin/bash
+[[ -r $EXPECTED_UNIT && $* == '--user enable omarchy-keyring-repair.service' ]] ||
+  exit 1
+printf 'attempted\n' >"$EXPECTED_UNIT.log"
+exit 1
+SH
+chmod +x "$unit_test/bin/systemctl"
+OMARCHY_PATH="$ROOT" XDG_CONFIG_HOME="$unit_test/config" PATH="$unit_test/bin:$PATH" \
+  "$ROOT/bin/omarchy-keyring-repair" --enable
+cmp "$service" "$EXPECTED_UNIT" || fail "keyring repair installs the user unit"
+[[ -f $EXPECTED_UNIT.log ]] || fail "keyring repair installs the unit before asking systemd to enable it"
+[[ $(readlink "$unit_test/config/systemd/user/graphical-session-pre.target.wants/omarchy-keyring-repair.service") == "$EXPECTED_UNIT" ]] ||
+  fail "keyring repair enables the installed unit when the user manager is unavailable"
 pass "keyring repair service is wired into early session startup"

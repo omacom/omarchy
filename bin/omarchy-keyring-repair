@@ -20,6 +20,22 @@ set -euo pipefail
 # unlocks a normal gnome-keyring through pam, and resetting it here would
 # throw away a working default on every boot.
 
+if [[ ${1:-} == --enable ]]; then
+  shift
+  unit_source="${OMARCHY_PATH:-/usr/share/omarchy}/default/systemd/user/omarchy-keyring-repair.service"
+  unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+  unit="$unit_dir/omarchy-keyring-repair.service"
+  install -Dm644 "$unit_source" "$unit"
+  if ! systemctl --user enable "$@" omarchy-keyring-repair.service; then
+    # A migration may run from a TTY without a live user manager.
+    [[ $# == 0 ]] || exit 1
+    wants_dir="$unit_dir/graphical-session-pre.target.wants"
+    mkdir -p "$wants_dir"
+    ln -sfn "$unit" "$wants_dir/omarchy-keyring-repair.service"
+  fi
+  exit
+fi
+
 KEYRING_DIR="${OMARCHY_KEYRING_DIR:-$HOME/.local/share/keyrings}"
 AUTOLOGIN_CONF="${OMARCHY_AUTOLOGIN_CONF:-/etc/sddm.conf.d/autologin.conf}"
 CLEARTEXT_NAME="Default_keyring"
