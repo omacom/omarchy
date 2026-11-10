@@ -88,6 +88,34 @@ for (const name of ['claude', 'codex', 'grok', 'fireworks']) {
 }
 JS
 
+# Node cannot render Qt date patterns, but must pass the catalog's pattern
+# and the selected formatting locale through unchanged, including fallback.
+run_node_test <<'JS'
+const fs = require('fs')
+const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const i18n = fs.readFileSync(root + '/shell/Commons/I18n.qml', 'utf8')
+const english = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
+const state = { englishStrings: english, languageStrings: {} }
+const merge = new Function('root', i18n.match(/readonly property var strings: \{([^]*?)\n  \}/)[1])
+const translate = new Function('root', i18n.match(/function t\([^]*?\n  \}/)[0] + '\nreturn t')(state)
+const Commons = { I18n: { formatLocale: 'en-US', t: translate } }
+const Qt = { locale: code => ({ code }) }
+class CapturedDate extends Date {
+  toLocaleString(locale, pattern) { return { locale: locale.code, pattern } }
+}
+const format = new Function('Date', 'Qt', 'Commons', panel.match(/function formatResetAt\([^]*?\n  \}/)[0] + '\nreturn formatResetAt')(CapturedDate, Qt, Commons)
+const resetAt = '2030-01-02T15:04:05Z'
+state.strings = merge(state)
+assertDeepEqual(format(resetAt), { locale: 'en-US', pattern: 'ddd d MMM, HH:mm' }, 'English keeps the compact reset pattern without seconds, year or zone')
+Commons.I18n.formatLocale = 'ja-JP'
+state.languageStrings = { 'agents.resetDateFormat': 'M/d (ddd) HH:mm' }
+state.strings = merge(state)
+assertDeepEqual(format(resetAt), { locale: 'ja-JP', pattern: 'M/d (ddd) HH:mm' }, 'reset dates consume the translated pattern and selected formatting locale')
+state.languageStrings = {}
+state.strings = merge(state)
+assertDeepEqual(format(resetAt), { locale: 'ja-JP', pattern: 'ddd d MMM, HH:mm' }, 'a missing translated reset pattern falls back to English, retaining the selected locale')
+JS
+
 # The panel reads a window out of a label, and that guess cannot survive a
 # model name — "Opus 5 (1M context)" parses as a one-minute window. A collector
 # that states the title outright is taken at its word.
