@@ -177,6 +177,16 @@ log=$(<"$shown/log")
 grep -qx 'owe intro-play' <<<"$log" || fail "the reveal plays the held intro" "$log"
 pass "a login reveals on the launcher's reported first frame, without polling OWE, and plays the held intro"
 
+# A bar that fades itself in is not waited for: it shows once the desktop is fading in and its layout holds still.
+cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/bar-reveal.qml" "$shown/shell.qml"
+output=$(HOME="$shown/home" PATH="$shown/bin:$PATH" INTRO_TEST_SHOWN="$shown/bar-frame-shown" SHOWN_LOG="$shown/log" \
+  timeout 10 quickshell -p "$shown" --no-color 2>&1) || fail "bar reveal fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "bar reveal assertions pass" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
+  fail "bar reveal fixture has no QML errors" "$output"
+fi
+pass "a login reveals the desktop while the bar builds, then fades the bar in once its widgets hold still"
+
 # A launcher that never reports the first frame it announced: the cover falls back to the frame poll.
 cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/shown-missing.qml" "$shown/shell.qml"
 cat >"$shown/bin/omarchy-theme-bg-boot-intro" <<'SH'
