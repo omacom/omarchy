@@ -100,7 +100,6 @@
   "agents.spendThisMonth": "本月",
   "agents.startOnNew": "在新的 %1 上启动默认智能体",
   "agents.startLocalOnNew": "在新的 %1 上启动 %2",
-  "agents.shiftForDefault": "按 Shift 使用默认智能体",
   "agents.starting": "正在启动…",
   "agents.stopAutoSwitch": "停止自动切换",
   "agents.subscriptions": "订阅",

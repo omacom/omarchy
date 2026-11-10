@@ -19,6 +19,7 @@ Panel {
   readonly property Item hero: panel.loadedContent ? panel.loadedContent.hero : null
   readonly property Item column: panel.loadedContent ? panel.loadedContent.column : null
   readonly property Item providerSections: panel.loadedContent ? panel.loadedContent.providerSections : null
+  readonly property bool shiftHeld: panel.loadedContent ? panel.loadedContent.shiftHeld : false
 
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
@@ -2376,9 +2377,9 @@ Panel {
 
     PanelToolTip {
       visible: tileMouse.containsMouse
-      text: root.starterLocalModel
+      // Shift-click takes the default agent, so holding Shift says so.
+      text: root.starterLocalModel && !root.shiftHeld
         ? Commons.I18n.t("agents.startLocalOnNew").arg(tile.title.toLowerCase()).arg(root.starterLocalModel.name || root.starterLocalModel.recipe)
-          + "\n" + Commons.I18n.t("agents.shiftForDefault")
         : Commons.I18n.t("agents.startOnNew").arg(tile.title.toLowerCase())
     }
   }

@@ -100,7 +100,6 @@
   "agents.spendThisMonth": "本月",
   "agents.startOnNew": "在新的 %1 上啟動預設代理程式",
   "agents.startLocalOnNew": "在新的 %1 上啟動 %2",
-  "agents.shiftForDefault": "按 Shift 使用預設代理程式",
   "agents.starting": "啟動中…",
   "agents.stopAutoSwitch": "停止自動切換",
   "agents.subscriptions": "訂閱",

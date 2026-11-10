@@ -53,9 +53,19 @@ Item {
   // The held modifiers ride along, so a panel can tell Alt+T from T.
   signal textKey(string text, int modifiers)
 
+  // Whether Shift is down while the panel has the keyboard, so a tooltip can
+  // say what a Shift-click would do while it's held. Dropped with the focus,
+  // since a release elsewhere never arrives here.
+  property bool shiftHeld: false
+  onActiveFocusChanged: if (!activeFocus) shiftHeld = false
+
   focus: true
   Keys.priority: Keys.BeforeItem
+  Keys.onReleased: function(event) {
+    if (event.key === Qt.Key_Shift) shiftHeld = false
+  }
   Keys.onPressed: function(event) {
+    shiftHeld = event.key === Qt.Key_Shift || !!(event.modifiers & Qt.ShiftModifier)
     if (blocked) return
 
     if (event.key === Qt.Key_Escape) {

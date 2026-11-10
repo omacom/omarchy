@@ -105,7 +105,6 @@
   "agents.spendThisMonth": "E hónap",
   "agents.startOnNew": "Alapértelmezett ügynök indítása új %1 feladaton",
   "agents.startLocalOnNew": "%2 indítása új %1 feladaton",
-  "agents.shiftForDefault": "Shift az alapértelmezett ügynökhöz",
   "agents.starting": "Indítás…",
   "agents.stopAutoSwitch": "Automatikus váltás leállítása",
   "agents.subscriptions": "Előfizetések",
