@@ -1106,7 +1106,7 @@ Panel {
     for (var i = 0; i < matches.length; i++) {
       if (matches[i].active) connected = true
     }
-    var resolved = Model.resolveProfile(profiles, editingSsid, connected)
+    var resolved = Model.resolveProfile(profiles, editingSsid, connected, wifiDevice ? wifiDevice.name : "")
 
     if (resolved.ambiguous) {
       editorChoices = matches

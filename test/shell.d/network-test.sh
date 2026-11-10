@@ -276,8 +276,8 @@ assertDeepEqual(
   [{ name: 'C\\D:E', uuid: 'uuid2', type: '802-11-wireless', active: false, device: '', ssid: '' }],
   'network decodes a backslash and colon in a connection name'
 )
-// Fill the SSIDs the panel would read for each Wi-Fi profile; the ethernet
-// profile keeps none and falls back to its name.
+// Fill the SSIDs the panel would read for each Wi-Fi profile. The ethernet
+// profile keeps none and is named like a network, which must still not match.
 const conns = listed
 conns[0].ssid = 'KEMENKEU'
 conns[1].ssid = 'Other SSID'
@@ -294,8 +294,8 @@ assertDeepEqual(
 )
 assertDeepEqual(
   network.resolveProfile(conns, 'Other', false),
-  { uuid: 'def', ambiguous: false },
-  'network resolves a saved SSID directly and ignores a same-named profile for a different network'
+  { uuid: '', ambiguous: false },
+  'network never matches a non-Wi-Fi profile by its connection name'
 )
 assertDeepEqual(
   network.resolveProfile(conns, 'Other SSID', false),
@@ -310,7 +310,28 @@ assertDeepEqual(
 assertDeepEqual(
   network.resolveProfile(network.parseNmcliConnections('Legacy:cafe:802-11-wireless:no:\n'), 'Legacy', false),
   { uuid: 'cafe', ambiguous: false },
-  'network falls back to the connection name when a profile has no saved ssid'
+  'network falls back to the connection name when a Wi-Fi profile has no saved ssid'
+)
+// The same SSID can be active on two interfaces at once. The panel passes the
+// Wi-Fi device it is showing, so the device's own active profile wins.
+const dualDevice = [
+  { name: 'Home', uuid: 'devA', type: '802-11-wireless', active: true, device: 'wlan0', ssid: 'Home' },
+  { name: 'Home', uuid: 'devB', type: '802-11-wireless', active: true, device: 'wlan1', ssid: 'Home' }
+]
+assertDeepEqual(
+  network.resolveProfile(dualDevice, 'Home', true, 'wlan1'),
+  { uuid: 'devB', ambiguous: false },
+  'network prefers the active profile on the device the panel is showing'
+)
+assertDeepEqual(
+  network.resolveProfile(dualDevice, 'Home', true, 'wlan0'),
+  { uuid: 'devA', ambiguous: false },
+  'network resolves a given device to its own active profile'
+)
+assertDeepEqual(
+  network.resolveProfile(dualDevice, 'Home', true),
+  { uuid: 'devA', ambiguous: false },
+  'network still falls back to an active match when no device is given'
 )
 assertDeepEqual(
   network.parseActiveUuids('3736ec62-6a\ne95bb213-05\n\n'),

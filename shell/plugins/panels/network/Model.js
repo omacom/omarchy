@@ -498,25 +498,36 @@ function parseNmcliSsid(output) {
 }
 
 // A profile's network is its saved 802-11-wireless.ssid, not the user-editable
-// connection name. Match the SSID; a profile with none (legacy or non-Wi-Fi)
+// connection name. Only a Wi-Fi profile can name a Wi-Fi row: a VPN or ethernet
+// profile whose connection name happens to equal the SSID must never match.
+// Among Wi-Fi profiles, match the SSID; one with none (legacy or imported)
 // falls back to its name.
 function profileMatchesSsid(profile, ssid) {
   if (!profile) return false
+  if (profile.type !== "802-11-wireless") return false
   if (profile.ssid) return profile.ssid === ssid
   return profile.name === ssid
 }
 
 // Several saved profiles can share one SSID (e.g. a WPA2 and a WPA3 copy), so a
 // name match is not enough to pick one. When the SSID is the connected network,
-// its active profile is the right one; otherwise a lone match stands and
-// duplicates are flagged so the caller can ask the user instead of guessing.
-function resolveProfile(profiles, ssid, connected) {
+// its active profile is the right one; the caller passes the Wi-Fi device it is
+// showing so the device's own active profile wins over another interface's
+// active match on the same SSID. With no device given, any active match stands.
+// Otherwise a lone match stands and duplicates are flagged so the caller can
+// ask the user instead of guessing.
+function resolveProfile(profiles, ssid, connected, device) {
   var matches = []
   for (var i = 0; i < (profiles || []).length; i++) {
     if (profileMatchesSsid(profiles[i], ssid)) matches.push(profiles[i])
   }
   if (matches.length === 0) return { uuid: "", ambiguous: false }
   if (connected) {
+    if (device) {
+      for (var k = 0; k < matches.length; k++) {
+        if (matches[k].active && matches[k].device === device) return { uuid: matches[k].uuid, ambiguous: false }
+      }
+    }
     for (var j = 0; j < matches.length; j++) {
       if (matches[j].active) return { uuid: matches[j].uuid, ambiguous: false }
     }

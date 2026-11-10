@@ -197,8 +197,11 @@ if [[ ${1:-} == "-t" ]]; then
     # as 802-11-wireless.ssid is rejected the way the real tool rejects it, so a
     # regression to the old single-step read fails loudly here.
     if [[ $args == *"NAME,UUID,TYPE,ACTIVE,DEVICE"* ]]; then
-      printf 'KEMENKEU:11111111-1111-1111-1111-111111111111:802-11-wireless:yes:wlo1\n'
-      printf 'KEMENKEU:22222222-2222-2222-2222-222222222222:802-11-wireless:no:\n'
+      # The same SSID is active on two interfaces. The panel shows test-wifi, so
+      # the resolver must pick the profile active on test-wifi, not the first
+      # active match on another device.
+      printf 'KEMENKEU:22222222-2222-2222-2222-222222222222:802-11-wireless:yes:wlo1\n'
+      printf 'KEMENKEU:11111111-1111-1111-1111-111111111111:802-11-wireless:yes:test-wifi\n'
       printf 'AMBIG:33333333-3333-3333-3333-333333333333:802-11-wireless:no:\n'
       printf 'AMBIG:44444444-4444-4444-4444-444444444444:802-11-wireless:no:\n'
       printf 'CORP:55555555-5555-5555-5555-555555555555:802-11-wireless:no:\n'
