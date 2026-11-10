@@ -554,11 +554,12 @@ Panel {
   }
 
   // A few ways into making Omarchy your own, handed to the local model when one
-  // is running, and to the default agent otherwise or when Shift is held.
+  // is running, and to the default agent otherwise or when Shift is held. The
+  // prompts live in omarchy-agent-make, shared with the menu's Agent > Make something.
   readonly property var starterPrompts: [
-    { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), prompt: "Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the Omarchy skill's theming guide and switch to it." },
-    { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), prompt: "Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the Omarchy skill's plugin guide and enable it." },
-    { glyph: "󰣆", label: Commons.I18n.t("agents.app"), prompt: "Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-app skill and install it so it shows up in the app launcher." }
+    { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), kind: "theme" },
+    { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), kind: "plugin" },
+    { glyph: "󰣆", label: Commons.I18n.t("agents.app"), kind: "app" }
   ]
 
   // The local model a starter opens on, picked as omarchy-agent --prefer-local
@@ -575,10 +576,10 @@ Panel {
     return models[up.indexOf(local.last) >= 0 ? local.last : up[0]]
   }
 
-  function startPrompt(prompt, modifiers) {
+  function startPrompt(kind, modifiers) {
     root.close()
     var useDefault = !!(modifiers & Qt.ShiftModifier)
-    Util.execArgv(["omarchy-agent"].concat(useDefault ? [] : ["--prefer-local"], ["--prompt", prompt]))
+    Util.execArgv(["omarchy-agent-make"].concat(useDefault ? ["--default"] : [], [kind]))
   }
 
   function renameAccount(p, account, label) {
@@ -621,7 +622,7 @@ Panel {
     else if (target.kind === "modelToggle" || target.kind === "modelLaunch") runLocalAction(providers[target.index].localModel, target.kind === "modelToggle" ? "toggle" : "launch")
     else if (target.kind === "localDownload") downloadLocal(providers[target.index].localOffer)
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
-    else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt, modifiers)
+    else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind, modifiers)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
     else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
     else if (target.kind === "autoswitch") setSwitchMode(pickedEntry.provider, autoSwitchFor(pickedEntry.provider) ? "manual" : "auto")
@@ -1477,7 +1478,7 @@ Panel {
                   width: (tileRow.width - tileRow.spacing * 2) / 3
                   glyph: modelData.glyph
                   title: modelData.label
-                  onClicked: function(modifiers) { root.startPrompt(modelData.prompt, modifiers) }
+                  onClicked: function(modifiers) { root.startPrompt(modelData.kind, modifiers) }
                 }
               }
             }

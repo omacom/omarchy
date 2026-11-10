@@ -387,52 +387,52 @@
   "setup.default": {
     "label": "Predefiniti"
   },
-  "setup.agent": {
+  "agent": {
     "label": "Agente"
   },
-  "setup.agent.harness.agy": {
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.agent.harness.claude": {
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.agent.harness.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.agent.harness.copilot": {
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.agent.harness.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.agent.harness.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.agent.harness.grok": {
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.agent.harness.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.agent.harness.kimi": {
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.agent.harness.muse": {
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.agent.harness.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.agent.harness.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.agent.harness.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.agent.harness.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.agent.harness.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
   },
   "setup.default.browser": {
@@ -1177,31 +1177,31 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Disattiva touchscreen"
   },
-  "setup.agent.harness.amp": {
+  "agent.harness.amp": {
     "label": "Amp"
   },
-  "setup.agent.harness.commandcode": {
+  "agent.harness.commandcode": {
     "label": "Command Code"
   },
-  "setup.agent.harness.devin": {
+  "agent.harness.devin": {
     "label": "Devin CLI"
   },
-  "setup.agent.harness.dsh": {
+  "agent.harness.dsh": {
     "label": "DeepSeek Harness"
   },
-  "setup.agent.harness.freebuff": {
+  "agent.harness.freebuff": {
     "label": "Freebuff"
   },
-  "setup.agent.harness.kilo": {
+  "agent.harness.kilo": {
     "label": "Kilo"
   },
-  "setup.agent.harness.kiro-cli": {
+  "agent.harness.kiro-cli": {
     "label": "Kiro CLI"
   },
-  "setup.agent.harness.mcode": {
+  "agent.harness.mcode": {
     "label": "MiniMax Code"
   },
-  "setup.agent.harness.qwen": {
+  "agent.harness.qwen": {
     "label": "Qwen Code"
   },
   "setup.config.git": {
