@@ -70,6 +70,18 @@ Item {
   signal execInvoked(int index)
   signal linkOpened()
 
+  // Inline reply. The scene says which card is replying; the card
+  // owns the text field drawn where its buttons were.
+  property bool replying: false
+  property string replyPlaceholder: ""
+  signal replySubmitted(string text)
+  signal replyCancelled()
+  signal replyTyped()
+  onReplyingChanged: {
+    if (replying) Qt.callLater(function() { replyInput.forceActiveFocus() })
+    else replyInput.text = ""
+  }
+
   readonly property bool critical: row.urgency === 2
   readonly property color dimColor: Qt.darker(Commons.Color.notifications.text, 1.4)
   readonly property color bodyColor: Qt.darker(Commons.Color.notifications.text, 1.15)
@@ -529,7 +541,8 @@ Item {
                 leftMargin: plate.borderLeft; rightMargin: plate.borderRight
                 bottomMargin: plate.borderBottom }
 
-      readonly property bool shown: card.allDeeds.length > 0 && (card.expanded ? card.hovered : card.place.front)
+      readonly property bool shown: card.replying
+                                    || card.allDeeds.length > 0 && (card.expanded ? card.hovered : card.place.front)
       readonly property int columns: Math.max(1, Math.min(3, card.allDeeds.length))
       readonly property int rows: Math.ceil(card.allDeeds.length / columns)
       readonly property real rule: 1
@@ -538,7 +551,7 @@ Item {
       readonly property real barHeight: rows * (rule + segmentHeight)
       // What the state asks for; the drawn height is whatever slack the
       // scene has given the card so far.
-      readonly property real wanted: shown ? barHeight : 0
+      readonly property real wanted: card.replying ? rule + segmentHeight : (shown ? barHeight : 0)
       height: Math.max(0, card.drawnHeight - card.fixedHeight)
       visible: height > 0
       clip: true
@@ -548,7 +561,7 @@ Item {
         anchors.bottom: parent.bottom
         width: parent.width
         height: deedArea.barHeight
-        opacity: deedArea.shown ? 1 : 0
+        opacity: deedArea.shown && !card.replying ? 1 : 0
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
 
@@ -574,6 +587,59 @@ Item {
             x: card.LayoutMirroring.enabled ? deedRow.width - start - width : start
             y: line * (deedArea.rule + deedArea.segmentHeight)
             height: deedArea.rule + deedArea.segmentHeight
+          }
+        }
+      }
+
+      // The reply field, in the button bar's place while replying.
+      Item {
+        id: replyBar
+        anchors.bottom: parent.bottom
+        width: parent.width
+        height: deedArea.rule + deedArea.segmentHeight
+        visible: card.replying
+
+        Rectangle { width: parent.width; height: deedArea.rule; color: deedArea.ruleColor }
+
+        // Clicks beside the text land here, not on the card (which opens it).
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.IBeamCursor
+          onClicked: replyInput.forceActiveFocus()
+        }
+
+        TextInput {
+          id: replyInput
+          anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter
+                    verticalCenterOffset: deedArea.rule / 2
+                    leftMargin: Style.space(12); rightMargin: Style.space(12) }
+          clip: true
+          maximumLength: 4096
+          color: Commons.Color.notifications.text
+          selectionColor: Commons.Color.accent
+          selectedTextColor: Commons.Color.notifications.background
+          font.family: Style.font.family
+          font.pixelSize: Style.font.body
+          onTextEdited: card.replyTyped()
+          onAccepted: {
+            var message = text
+            text = ""
+            card.replySubmitted(message)
+          }
+          Keys.onEscapePressed: function(event) {
+            event.accepted = true
+            text = ""
+            card.replyCancelled()
+          }
+
+          Text {
+            anchors.fill: parent
+            visible: replyInput.text.length === 0
+            text: I18n.t("notifications.replyHint").arg(card.replyPlaceholder)
+            textFormat: Text.PlainText
+            elide: Text.ElideRight
+            color: card.dimColor
+            font: replyInput.font
           }
         }
       }

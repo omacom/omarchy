@@ -347,7 +347,8 @@ const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
   'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
   'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
-  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
+  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive',
+  'canReply', 'replyPlaceholder', 'startReply', 'stopReply', 'sendReply']
 
 function newCapacityScope() {
   const toasts = { rows: [],
@@ -362,6 +363,10 @@ function newCapacityScope() {
     maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
     arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
     held: [], doNotDisturb: false,
+    replyActionId: '__omarchy_inline_reply__', replyKey: '', pointerIn: false, hoverKey: '',
+    replyIdle: { restart() {}, stop() {} }, collapseGrace: { restart() {} },
+    stopKeyboard: () => {}, pointerEntered: () => {}, Layout,
+    I18n: { t: key => key },
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
     deckDisplayName: '',
@@ -654,6 +659,40 @@ for (const held of [true, false]) { // Capacity: at most 100 live senders, held 
   assert.equal(updated.tracked, false)
   assert.equal(s.actionsOf(key).length, 0)
   assert.equal(s.liveCount(), 99)
+}
+
+{ // A sender offering inline reply gets one Reply button; the text goes back once, trimmed,
+  // and a card closing mid-reply gives the keyboard back.
+  const s = newCapacityScope()
+  const chat = s.fakeNotification(1, 'Chat'), plain = s.fakeNotification(2, 'Plain')
+  const sent = []
+  Object.assign(chat, { hasInlineReply: true, sendInlineReply: text => sent.push(text),
+    actions: [{ identifier: 'inline-reply', text: 'Reply' }, { identifier: 'open', text: 'Open' }] })
+  s.admit(chat, plain)
+  const key = s.keyForOriginal(1), other = s.keyForOriginal(2)
+  assert.equal(s.actionsOf(key).map(a => a.id).join(' '), s.replyActionId + ' open')
+  assert.ok(s.actionsOf(other).every(a => a.id !== s.replyActionId))
+  s.invokeAction(other, s.replyActionId)
+  assert.equal(s.replyKey, '', 'a sender without inline reply cannot be replied to')
+  s.invokeAction(key, s.replyActionId)
+  assert.equal(s.replyKey, key)
+  assert.equal(chat.tracked, true, 'opening the reply field keeps the card')
+  s.sendReply(key, '   ')
+  assert.deepEqual(sent, [])
+  assert.equal(s.replyKey, '', 'an empty reply cancels')
+  s.invokeAction(key, s.replyActionId)
+  s.sendReply(key, '  on my way \n')
+  assert.deepEqual(sent, ['on my way'])
+  assert.equal(s.replyKey, '')
+  assert.equal(s.leaving[key], 'activated')
+  s.invokeAction(other, s.replyActionId)
+  plain.hasInlineReply = true
+  plain.sendInlineReply = text => sent.push(text)
+  s.invokeAction(other, s.replyActionId)
+  s.closeToast(other, 'dismissed')
+  assert.equal(s.replyKey, '', 'closing the replying card releases the keyboard')
+  s.sendReply(other, 'late')
+  assert.deepEqual(sent, ['on my way'], 'a closed reply sends nothing')
 }
 
 for (const held of [true, false]) { // A cancelled pending card frees exactly one slot.
