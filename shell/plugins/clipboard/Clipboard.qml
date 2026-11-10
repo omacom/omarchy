@@ -243,7 +243,7 @@ Item {
   function openSelected(row) {
     if (!row) return
     root.opened = false
-    Quickshell.execDetached([root.omarchyPath + "/bin/omarchy-clipboard-open", "--history-index", String(row.historyIndex)])
+    Util.execApp([root.omarchyPath + "/bin/omarchy-clipboard-open", "--history-index", String(row.historyIndex)])
   }
 
   Component.onCompleted: initProc.running = true

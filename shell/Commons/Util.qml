@@ -65,8 +65,19 @@ QtObject {
     return "'" + String(value || "").replace(/'/g, "'\\''") + "'"
   }
 
+  // The launcher disables runtime caching for the shell's QML engine. Do not
+  // pass that policy to external applications, including their descendants.
+  function execApp(argv) {
+    Quickshell.execDetached({ command: argv, environment: { QML_DISABLE_DISK_CACHE: null } })
+  }
+
+  function openUrl(url) {
+    execApp(["xdg-open", url])
+    return true
+  }
+
   function execDetached(command) {
-    Quickshell.execDetached(["bash", "-lc", command])
+    execApp(["bash", "-lc", command])
   }
 
   // Run an argv vector without a shell interpreting it: the constant `exec "$@"`
@@ -75,7 +86,7 @@ QtObject {
   // The login shell (-l) keeps the PATH/session env GUI targets (omasnap, mpv,
   // xdg-open) need. Prefer this over execDetached for anything built from input.
   function execArgv(argv) {
-    Quickshell.execDetached(["bash", "-lc", 'exec "$@"', "bash"].concat(argv))
+    execApp(["bash", "-lc", 'exec "$@"', "bash"].concat(argv))
   }
 
   function isPlainObject(value) {

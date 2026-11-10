@@ -513,7 +513,7 @@ Item {
           maximumLineCount: card.bodyLines
           elide: Text.ElideRight
           // Second gate: Markup already drops anchors it will not vouch for.
-          onLinkActivated: function(url) { card.linkOpened(); Security.openExternalUrl(url) }
+          onLinkActivated: function(url) { card.linkOpened(); Security.openExternalUrl(url, Util.openUrl) }
         }
       }
     }
