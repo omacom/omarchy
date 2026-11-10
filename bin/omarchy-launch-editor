@@ -21,6 +21,13 @@ fi
 # sublime-text-4 ships `subl` on PATH, not `sublime_text`.
 [[ $editor == sublime_text ]] && editor=subl
 
+# extra/zed ships `zeditor` while zed-bin (AUR) ships `zed`: resolve a
+# saved Zed default to whichever binary is actually present.
+if [[ $editor == zed || $editor == zeditor ]] && ! omarchy-cmd-present "$editor"; then
+  [[ $editor == zed ]] && other=zeditor || other=zed
+  omarchy-cmd-present "$other" && editor="$other"
+fi
+
 omarchy-cmd-present "$editor" || editor="nvim"
 
 case "${editor##*/}" in
