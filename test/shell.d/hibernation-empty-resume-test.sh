@@ -19,12 +19,25 @@ awk '
   }
 ' "$setup" || fail "resume.conf write is guarded by the empty device/offset check"
 
-grep -Fq 'resume=[[:space:]]+resume_offset=' "$setup" ||
-  fail "setup detects the empty-device drop-in pattern on re-entry"
-
 mig="$ROOT/migrations/1789972000.sh"
 [[ -f $mig ]] || fail "migration 1789972000.sh exists"
-grep -Fq 'resume=[[:space:]]+resume_offset=' "$mig" ||
-  fail "migration removes empty resume= drop-ins"
 
-pass "hibernation setup and migration refuse empty resume= device"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+export MIGRATION_LOG="$tmp/calls"
+cat >"$tmp/omarchy-hibernation-setup" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$MIGRATION_LOG"
+exit 23
+SH
+chmod +x "$tmp/omarchy-hibernation-setup"
+sed -e "s|/etc/limine-entry-tool.d/resume.conf|$tmp/resume.conf|" \
+    -e "s|/var/lib/omarchy/hibernation-resume-rebuild|$tmp/pending|" "$mig" >"$tmp/migration"
+
+line='KERNEL_CMDLINE[default]+=" resume= resume_offset=4242"'
+printf '%s\n' "$line" >"$tmp/resume.conf"
+status=0
+PATH="$tmp:$PATH" bash "$tmp/migration" || status=$?
+[[ $status == 23 && $(<"$MIGRATION_LOG") == --force && $(<"$tmp/resume.conf") == "$line" ]] ||
+  fail "migration delegates repair and preserves a failed repair for retry"
+pass "hibernation migration delegates repair and preserves an unsuccessful repair"

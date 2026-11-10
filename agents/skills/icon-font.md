@@ -49,8 +49,6 @@ Pick a source whose silhouette alone reads.
 The command prints these, and all of them matter:
 
 - Point the menu entry at the new codepoint with `"iconFont":"omarchy"`.
-- Bump the charset range asserted in `test/shell.d/menu-test.sh`; that test
-  pins the font's coverage and fails until it matches.
 - Check the README line the command added, and give it a proper display name
   with `--label` if the glyph name is not the brand's name.
 
@@ -70,10 +68,6 @@ magick -background white -fill black -font default/fonts/omarchy/omarchy.ttf \
   -pointsize 110 label:@/tmp/row.txt /tmp/font-row.png
 ```
 
-Then confirm it in the running menu per
-[`visual-verification.md`](visual-verification.md). Fontconfig prefers the
-packaged font over a copy in `~/.local/share/fonts` for the same family, so a
-preview needs either the real file replaced or a `<rejectfont>` rule in
-`~/.config/fontconfig/conf.d/` pointing fontconfig away from the packaged one.
-Restart the shell afterwards — Qt reads the font database at startup, so
-`omarchy menu refresh` alone will not pick up a changed font.
+Then confirm it in the running menu per [`visual-verification.md`](visual-verification.md). Avoid leaving two fonts with the `omarchy` family registered: Qt can use an old copy in `~/.local/share/fonts` even when `fc-match omarchy` reports the packaged font. For a preview, either replace the packaged file in the disposable VM or temporarily exclude it with a `<rejectfont>` rule in `~/.config/fontconfig/conf.d/` before loading the candidate.
+
+Refresh the font cache and restart the shell afterwards — Qt reads the font database at startup, so `omarchy menu refresh` alone will not pick up a changed font. Remove temporary fonts and rules after verification.

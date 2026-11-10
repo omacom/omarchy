@@ -158,7 +158,7 @@ if script -qec true /dev/null >/dev/null 2>&1; then
     fail "plugin add reached git clone for an option-shaped gum-prompt URL"
   pass "plugin add guard rejects an option-shaped URL from the interactive prompt"
 else
-  pass "script -qec unavailable; skipping the interactive gum-prompt guard case"
+  skip "script -qec unavailable; skipping the interactive gum-prompt guard case"
 fi
 
 # Legitimate URL forms pass the guard and reach git clone (stubbed, no network).
