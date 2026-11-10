@@ -388,6 +388,10 @@ Switching themes needs no retint for the palette. The first Qt process to start 
 
 The icon theme lives in the config rather than the theme, so `omarchy-theme-set-qt` copies the theme's `icons.theme` (default `Yaru-blue`, as for GTK) into `.theme.iconTheme` on each switch, leaving the rest of the file alone. That write also makes running apps reload their icons. Native file dialogs are delegated to the XDG desktop portal (`misc.dialogTheme`), and `config/xdg-desktop-portal/hyprland-portals.conf` falls through to the GTK backend for the file chooser, so Qt apps keep the GTK file chooser.
 
+## SolidCraft
+
+`default/themed/solidcraft.json.tpl` renders a `solidcraft-theme/1` file to `~/.local/state/omarchy/current/theme/solidcraft.json`. SolidCraft already follows a theme file: in the desktop app, Interface > Theme > Follow a theme file, or `solidcraft --theme-file` with that path, reloads it about a second after it changes and again when the window comes back to the front. Omarchy does not launch SolidCraft or change its preferences. `base` is the theme's `mode` (`dark` or `light`). A colour the template leaves out keeps that base palette, which is where sketch geometry and the colours SolidCraft draws translucent stay. Every colour the template sets is a name SolidCraft's importer accepts; an unknown name makes it refuse the file.
+
 ## Adding or overriding theme files
 
 - Add palette values to `themes/<name>/colors.toml`.
