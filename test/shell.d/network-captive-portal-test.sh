@@ -49,3 +49,14 @@ panel_uri=$(sed -n 's/^var captivePortalUrl = "\(.*\)"$/\1/p' "$ROOT/shell/plugi
 pass "NetworkManager probes the URL the panel opens"
 [[ $(sed -n 's/^response=\(.*\)$/[\1]/p' "$nm_conf") == "[]" ]] || fail "NetworkManager expects the endpoint's empty 204"
 pass "NetworkManager expects the endpoint's empty 204"
+
+# Chromium-family browsers upgrade the probe to HTTPS unless policy exempts its
+# host, so every managed policy directory must exempt the host NetworkManager
+# probes. A new browser directory or a new probe host without it fails here.
+source "$ROOT/install/helpers/browser-policy.sh"
+nm_host=$(sed -E 's|^[a-z]+://([^/:]+).*|\1|' <<<"$nm_uri")
+for dir in "${BROWSER_POLICY_MANAGED_DIRS[@]}"; do
+  allowlist=$(jq -c '.HttpAllowlist' "$ROOT$dir/omarchy-captive-portal.json" 2>/dev/null) || allowlist=""
+  [[ $allowlist == "[\"$nm_host\"]" ]] || fail "$dir exempts $nm_host from HTTPS upgrades (got ${allowlist:-nothing})"
+done
+pass "Every managed browser policy directory exempts the probed host from HTTPS upgrades"

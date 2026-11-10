@@ -87,8 +87,9 @@ cleanup() {
 trap cleanup EXIT
 
 for policy_dir in "${POLICY_DIRS[@]}"; do
-  # Only browsers Omarchy has installed have a policy directory. Creating one
-  # here would hand a browser a managed-policy root it does not otherwise have.
+  # omarchy-settings and omarchy-install-browser create the policy directories.
+  # Creating one here would hand a browser a managed-policy root it does not
+  # otherwise have.
   [[ -d $policy_dir && ! -L $policy_dir ]] || continue
 
   dest=$policy_dir/color.json
