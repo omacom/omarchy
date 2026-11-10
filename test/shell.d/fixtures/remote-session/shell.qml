@@ -15,19 +15,35 @@ ShellRoot {
   property var failures: []
   property var service: null
   property var afterRuleCheck: null
+  property int ruleCheckAttempts: 0
+  property string ruleCheckOutput: ""
 
-  function checkProtection(enabled, next) {
+  function checkCaptureOverride(enabled, next) {
     afterRuleCheck = next
-    ruleCheck.command = ["hyprctl", "eval", "assert(omarchy_test_password_rule:is_enabled() == " + (enabled ? "true" : "false") + ")"]
+    ruleCheckAttempts = 0
+    ruleCheck.command = ["hyprctl", "eval", "assert(omarchy_test_capture_rule:is_enabled() == " + (enabled ? "true" : "false") + ")"]
     ruleCheck.running = true
   }
 
   Process {
     id: ruleCheck
     stdout: StdioCollector {
-      onStreamFinished: root.assertTrue(text.trim() === "ok", "1Password capture protection: " + text)
+      onStreamFinished: root.ruleCheckOutput = text.trim()
     }
-    onExited: root.afterRuleCheck()
+    onExited: {
+      if (root.ruleCheckOutput !== "ok" && ++root.ruleCheckAttempts < 20) {
+        ruleCheckRetry.start()
+      } else {
+        root.assertTrue(root.ruleCheckOutput === "ok", "Remote capture override: " + root.ruleCheckOutput)
+        root.afterRuleCheck()
+      }
+    }
+  }
+
+  Timer {
+    id: ruleCheckRetry
+    interval: 100
+    onTriggered: ruleCheck.running = true
   }
 
   function fail(message) {
@@ -93,10 +109,17 @@ ShellRoot {
       // is up is what should flip the service, with no refresh() by hand.
       waitFor(function() { return service.active === true }, 4000, "a screencast event makes the service report the session while gliff-server runs", function() {
         root.assertTrue(JSON.stringify(service.peers) === JSON.stringify(["10.0.0.5"]), "service reports the ssh peer, got " + JSON.stringify(service.peers))
-        root.checkProtection(false, function() {
+        root.checkCaptureOverride(true, function() {
           Quickshell.execDetached(["bash", "-c", "kill \"$(cat " + root.shellQuote(root.stubPidFile) + ")\""])
           waitFor(function() { return service.active === false }, 5000, "service returns to idle once gliff-server exits", function() {
-            root.checkProtection(true, root.writeResult)
+            root.checkCaptureOverride(false, function() {
+              // Destroy immediately after queueing an enable: cleanup must win
+              // even if Hyprland receives that enable after the destruction.
+              root.service.applyProbe("1\n")
+              root.service.destroy()
+              root.service = null
+              root.checkCaptureOverride(false, root.writeResult)
+            })
           })
         })
       }, root.captureFrame)

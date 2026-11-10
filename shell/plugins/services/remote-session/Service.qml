@@ -18,6 +18,18 @@ Item {
   property var peers: []
 
   property bool refreshPending: false
+  readonly property string captureOwner: Date.now().toString() + "-" + Math.random().toString(36).slice(2)
+
+  function setCaptureOverride(active, closing) {
+    // Closing is recorded in Hyprland itself so an in-flight enable cannot
+    // turn the override back on after the service has been destroyed.
+    var owner = JSON.stringify(root.captureOwner)
+    var lua = "omarchy_closed_capture_owners = omarchy_closed_capture_owners or {}; "
+    if (closing) lua += "omarchy_closed_capture_owners[" + owner + "] = true; "
+    lua += "if " + (closing ? "true" : "not omarchy_closed_capture_owners[" + owner + "]") + " then "
+    lua += 'hl.window_rule({ name = "omarchy-remote-screen-share", match = { class = ".*" }, no_screen_share = false, enabled = ' + (active ? "true" : "false") + " }); end"
+    Quickshell.execDetached(["hyprctl", "eval", lua])
+  }
 
   function refresh() {
     if (statusProbe.running) {
@@ -31,8 +43,9 @@ Item {
   function applyProbe(text) {
     var state = RemoteSessionModel.stateFromOutput(text)
     if (!root.stateLoaded || root.active !== state.active) {
-      Quickshell.execDetached(["hyprctl", "eval",
-        'hl.window_rule({ name = "omarchy-1password-screen-share", enabled = ' + (!state.active ? "true" : "false") + ' })'])
+      // Override app protection rules for existing and future windows. Disabling
+      // this catch-all rule restores each app's own screen sharing policy.
+      root.setCaptureOverride(state.active, false)
     }
     root.peers = state.peers
     root.active = state.active
@@ -40,6 +53,7 @@ Item {
   }
 
   Component.onCompleted: refresh()
+  Component.onDestruction: root.setCaptureOverride(false, true)
 
   // gliff-server captures the screen through ext-image-copy-capture, so a
   // session start surfaces as a Hyprland screencast event. The probe decides
