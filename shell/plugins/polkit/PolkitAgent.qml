@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Services.Polkit
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "PolkitModel.js" as PolkitModel
 
@@ -11,14 +12,14 @@ Item {
   id: root
 
   property string fontFamily: Style.font.menuFamily
-  // Bound to the central [polkit] section in shell.toml via Color.qml.
-  property color accent: Color.polkit.accent
-  property color background: Color.polkit.background
-  property color foreground: Color.polkit.text
-  property color border: Color.polkit.border
-  property color borderError: Color.polkit.borderError
+  // Bound to the central [polkit] section in shell.toml via Commons.Color.qml.
+  property color accent: Commons.Color.polkit.accent
+  property color background: Commons.Color.polkit.background
+  property color foreground: Commons.Color.polkit.text
+  property color border: Commons.Color.polkit.border
+  property color borderError: Commons.Color.polkit.borderError
   property var borderSpec: Border.surfaceSpec("polkit", errorFlash ? "border-error" : "border", errorFlash ? borderError : border, Math.max(1, Style.space(2)), "border-alpha")
-  property color scrim: Color.polkit.scrim
+  property color scrim: Commons.Color.polkit.scrim
   readonly property int cornerRadius: Style.cornerRadius
   property int contentMargin: Style.spacing.panelPadding
   property int fieldHeight: Math.max(Style.space(42), Style.spacing.controlHeight)
@@ -51,7 +52,7 @@ Item {
   readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
 
   function authorizationLabel(message) {
-    return PolkitModel.authorizationLabel(message)
+    return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
   }
 
   function loadPamConfig(raw) {
@@ -78,7 +79,7 @@ Item {
     var flow = polkitAgent.flow
     if (!flow) return
 
-    currentMessage = String(flow.message || "Authentication is needed...")
+    currentMessage = String(flow.message || "")
     currentPrompt = String(flow.inputPrompt || "")
     currentSupplementary = String(flow.supplementaryMessage || "")
     responseRequired = !!flow.isResponseRequired
@@ -153,9 +154,9 @@ Item {
 
   SequentialAnimation {
     id: shakeAnimation
-    NumberAnimation { target: root; property: "shakeOffset"; to: -8; duration: 35; easing.type: Easing.OutQuad }
-    NumberAnimation { target: root; property: "shakeOffset"; to: 8; duration: 50; easing.type: Easing.InOutQuad }
-    NumberAnimation { target: root; property: "shakeOffset"; to: 0; duration: 55; easing.type: Easing.OutQuad }
+    NumberAnimation { target: root; property: "shakeOffset"; to: -8; duration: Style.duration(35); easing.type: Easing.OutQuad }
+    NumberAnimation { target: root; property: "shakeOffset"; to: 8; duration: Style.duration(50); easing.type: Easing.InOutQuad }
+    NumberAnimation { target: root; property: "shakeOffset"; to: 0; duration: Style.duration(55); easing.type: Easing.OutQuad }
   }
   FileView {
     path: "/etc/pam.d/polkit-1"
@@ -220,6 +221,10 @@ Item {
 
   PanelWindow {
     id: panel
+    // Right-to-left languages read this window mirrored.
+    Binding { target: panel.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
+    Binding { target: panel.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
+
     visible: root.dialogVisible
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
@@ -278,7 +283,7 @@ Item {
         text: "\udb80\ude37"
         fontFamily: root.fontFamily
         fontSize: Math.round(root.fieldHeight * 0.7)
-        color: root.errorFlash ? Color.polkit.textError : root.accent
+        color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
       }
 
       Row {
@@ -293,7 +298,7 @@ Item {
 
         Text {
           text: "\uf023"
-          color: root.errorFlash ? Color.polkit.textError : root.accent
+          color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
           font.family: root.fontFamily
           font.pixelSize: Style.font.iconLarge
           width: Style.space(26)
@@ -318,7 +323,7 @@ Item {
             font.pixelSize: Style.font.iconLarge
             echoMode: root.responseVisible ? TextInput.Normal : TextInput.Password
             passwordCharacter: "\u2022"
-            color: root.errorFlash ? Color.polkit.textError : root.foreground
+            color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
             cursorVisible: activeFocus && !root.submitted && !root.errorFlash
             readOnly: root.submitted || root.errorFlash
             enabled: root.dialogVisible
@@ -332,11 +337,12 @@ Item {
           }
 
           Text {
+            textFormat: Text.PlainText
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.errorFlash ? "Wrong" : (root.submitted ? "Checking..." : "Enter password")
-            color: root.errorFlash ? Color.polkit.textError : root.foreground
+            text: root.errorFlash ? I18n.t("polkit.wrong") : (root.submitted ? I18n.t("polkit.checking") : I18n.t("polkit.enterPassword"))
+            color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
             opacity: root.errorFlash ? 1 : 0.36
             font.family: root.fontFamily
             font.pixelSize: Style.font.iconLarge
@@ -349,7 +355,7 @@ Item {
             height: Style.space(24)
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            color: root.errorFlash ? Color.polkit.textError : root.foreground
+            color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
             visible: passwordInput.visible && passwordInput.activeFocus && passwordInput.text.length === 0 && !root.submitted && !root.errorFlash
           }
 
@@ -374,6 +380,7 @@ Item {
 
       Text {
         id: justificationText
+        textFormat: Text.PlainText
         anchors.fill: parent
         anchors.leftMargin: Style.space(12)
         anchors.rightMargin: Style.space(12)
