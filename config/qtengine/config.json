@@ -1,0 +1,20 @@
+{
+  "theme": {
+    "colorScheme": "~/.local/state/omarchy/current/theme/qtengine.colors",
+    "iconTheme": "Yaru-blue",
+    "style": "Fusion",
+    "quickStyle": "Fusion",
+    "font": {
+      "family": "Adwaita Sans",
+      "size": 11
+    },
+    "fontFixed": {
+      "family": "monospace",
+      "size": 11
+    }
+  },
+  "misc": {
+    "singleClickActivate": false,
+    "dialogTheme": "xdgdesktopportal"
+  }
+}

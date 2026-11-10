@@ -4,15 +4,13 @@ Notifications land in the top-right corner of the focused display. You can also 
 
 ## Notifications
 
-Notifications from the same app or site stack into a deck, so a chatty Slack channel doesn't push your build failure off the screen. Hover a deck to fan it out; nothing new slides in under your pointer while you're reading. Click a card to jump to where it came from, middle-click or hit the ✕ to dismiss it.
+Notifications from the same app or site stack into a deck, so a chatty Slack channel doesn't push your build failure off the screen. Hover a deck to fan it out; nothing new slides in under your pointer while you're reading. Click a card to jump to where it came from, right-click, middle-click, or hit the ✕ to dismiss it.
 
-Cards offer what they carry: _Copy code_ for verification codes (kept out of [clipboard history](08-unified-clipboard-history.md) and cleared after a minute), _Open link_, _Join_ for meetings, _Copy number_ for phone numbers, plus any buttons the app provides.
+Cards offer what they carry: _Copy code_ for verification codes (kept out of [clipboard history](08-unified-clipboard-history.md) and cleared after a minute), plus any buttons the app provides. Links in a notification's text open when clicked.
 
-Right-click a card to snooze its source or turn on Do Not Disturb. Snoozed notifications are held back, not thrown away.
+To use them without the mouse, press `Super + Ctrl + ,`. The newest notification is selected and its buttons numbered: press a number to use one, `Enter` to click the notification, `↑` and `↓` to move between notifications, `Delete` to dismiss one, and `Esc` to give the keyboard back. It also lets go on its own after a few idle seconds.
 
-Right-click the bell in the bar (hover the middle of the bar to reveal it) to open the notification panel: what's been held back, recent notifications, and the past day's history. From there you can snooze everything, wake a snoozed source, or choose whether verification codes get through while you're quiet (they do by default). The cog opens preferences for which display to use, stepping aside for fullscreen games, stacking by source, and a countdown bar. When you share your screen, the bell offers a timed snooze; nothing is muted until you pick one.
-
-More preferences live in the `notifications` section of `~/.config/omarchy/shell.json`, for example `"notifications": { "fontScale": 120, "historyHours": 168 }`. Set `historyHours` to `0` to keep no history on disk.
+Silencing notifications holds them back, except Omarchy's own confirmations, emergency alerts, and verification codes, which you asked for a moment ago. Put the last few back on screen, held back or not, with `Super + Shift + Alt + ,`. History is kept for a day.
 
 ## Hotkey notices
 
