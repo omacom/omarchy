@@ -178,18 +178,27 @@ def cleanup_transfers(parent: Path) -> None:
         path.unlink(missing_ok=True)
 
 
+def session_path(proc: Path, value: str) -> Path:
+  # A relative path is the session's own, read from its working directory.
+  path = Path(value)
+  return path if path.is_absolute() else Path(os.readlink(proc / "cwd")) / path
+
+
 def home_in_use(provider: str, home: Path) -> bool:
-  if accounts.home_in_use(provider, home):
-    return True
-  if home != accounts.primary_home(provider):
-    return False
+  # The receiver may run beside an older backend, whose own check reads a
+  # relative path from this process's directory, so it isn't asked here.
+  primary = home == accounts.primary_home(provider)
+  resolved = home.resolve()
   home_key = accounts.PROVIDERS[provider]["home_env"].encode() + b"="
   pinned_key = f"OMARCHY_AGENT_{provider.upper()}_HOME=".encode()
   for proc in Path("/proc").glob("[0-9]*"):
-    if proc.name == str(os.getpid()):
-      continue
     try:
       env = (proc / "environ").read_bytes().split(b"\0")
+      configured = next((v[len(home_key):].decode() for v in env if v.startswith(home_key)), "")
+      if configured and session_path(proc, configured).resolve() == resolved:
+        return True
+      if not primary or proc.name == str(os.getpid()):
+        continue
       pinned = any(v.startswith(pinned_key) for v in env)
       command = (proc / "comm").read_text().strip()
       argv = (proc / "cmdline").read_bytes().split(b"\0")
@@ -199,16 +208,11 @@ def home_in_use(provider: str, home: Path) -> bool:
       script = interpreter and any(provider in Path(v.decode()).parts for v in argv[1:2] if v)
       if not pinned and not native and not script:
         continue
-      configured = next((v[len(home_key):].decode() for v in env if v.startswith(home_key)), "")
       selected_pin = next((v[len(pinned_key):].decode() for v in env if v.startswith(pinned_key)), "")
       # Without a HOME, the CLI falls back to the account's home directory.
       process_home = next((v[5:].decode() for v in env if v.startswith(b"HOME=")), "") or pwd.getpwuid(proc.stat().st_uid).pw_dir
-      selected = Path(configured or selected_pin) if configured or selected_pin else Path(process_home) / f".{provider}"
-      # A relative path is the session's own, read from its working directory.
-      # The receiver may run beside an older backend, so this stays local.
-      if not selected.is_absolute():
-        selected = Path(os.readlink(proc / "cwd")) / selected
-      if selected.resolve() == home.resolve():
+      selected = configured or selected_pin or str(Path(process_home) / f".{provider}")
+      if session_path(proc, selected).resolve() == resolved:
         return True
     except (OSError, UnicodeError, KeyError):
       continue
