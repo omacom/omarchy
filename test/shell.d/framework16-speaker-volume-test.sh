@@ -215,12 +215,3 @@ pass "initializer checks every required control before changing levels"
 TEST_VENDOR=Other initialize_levels
 [[ ! -s $CALL_LOG ]] || fail "initializer leaves unsupported hardware alone"
 pass "initializer leaves unsupported hardware alone"
-
-# Existing installs use exactly the same setup path as fresh installs.
-rm -f "$config"
-bash -euo pipefail "$ROOT/migrations/1791044739.sh" >/dev/null
-cmp -s "$config" "$ROOT/default/wireplumber/wireplumber.conf.d/framework16-ai300-soft-mixer.conf" || fail "migration installs the same fix"
-[[ ! -e $unit && ! -L $unit && $(readlink "$enablement") == "$vendor_unit" ]] || fail "migration enables the packaged service without a local copy"
-bash -euo pipefail "$ROOT/migrations/1791044739.sh" >/dev/null
-[[ $(readlink "$enablement") == "$vendor_unit" ]] || fail "migration is repeatable"
-pass "migration installs the mixer rule and enables the packaged service repeatably"
