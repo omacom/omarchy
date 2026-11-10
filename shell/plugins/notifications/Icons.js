@@ -40,7 +40,7 @@ function candidates(row) {
   row = row || {}
   var site = String(row.groupKey || "").indexOf("web:") === 0 ? siteNames(row.source) : []
   var appIcon = String(row.appIcon || ""), source = String(row.source || ""), app = String(row.app || "")
-  if (app === "omarchy-action" || app === "notify-send") app = ""
+  if (app === "omarchy-action" || app === "notify-send") app = source = ""
   var own = [appIcon, source, app]
   var themed = site.length ? site : [appIcon]
   for (var i = 0; i < own.length; i++) themed = themed.concat([own[i], slug(own[i])])
