@@ -1307,6 +1307,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: "󱚣"
+    tooltipText: Commons.I18n.t("agents.title") + " | Super + Ctrl + U"
     active: root.alarming
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) root.launchAgent()
