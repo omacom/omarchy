@@ -20,7 +20,10 @@ Column {
   property double nowMs: Date.now()
   property color foreground: Commons.Color.foreground
   property string fontFamily: Style.font.family
+  // The range (7 or 30) the keyboard cursor is on, or 0 when it is elsewhere.
+  property int litRange: 0
   signal rangeRequested(int range)
+  signal rangeHovered(int range)
 
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property int maxSegments: 5
@@ -123,8 +126,16 @@ Column {
           width: pillText.implicitWidth + Style.space(14)
           height: pillText.implicitHeight + Style.space(6)
           radius: height / 2
-          color: picked ? block.alpha(block.foreground, 0.16)
-            : pillHover.containsMouse ? block.alpha(block.foreground, 0.07) : "transparent"
+          color: picked ? block.alpha(block.foreground, 0.16) : "transparent"
+
+          // The keyboard cursor, and the mouse through the panel's own cursor.
+          CursorSurface {
+            anchors.fill: parent
+            z: -1
+            radius: parent.radius
+            hasCursor: block.litRange === parent.modelData
+            foreground: block.foreground
+          }
 
           Text {
             id: pillText
@@ -142,6 +153,7 @@ Column {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
+            onEntered: block.rangeHovered(parent.modelData)
             onClicked: block.rangeRequested(parent.modelData)
           }
 
@@ -177,7 +189,9 @@ Column {
         id: col
         required property var modelData
         required property int index
-        x: index * (plot.colWidth + plot.gap)
+        x: LayoutMirroring.enabled
+          ? plot.width - plot.colWidth - index * (plot.colWidth + plot.gap)
+          : index * (plot.colWidth + plot.gap)
         width: plot.colWidth
         height: block.chartHeight
 
@@ -281,7 +295,8 @@ Column {
         Behavior on width {
           NumberAnimation {
             duration: Style.duration(160)
-            easing.type: Easing.OutCubic
+            easing.type: Easing.Bezier
+            easing.bezierCurve: Style.easeOut
           }
         }
       }

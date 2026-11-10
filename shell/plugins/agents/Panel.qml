@@ -182,17 +182,19 @@ Panel {
         var accounts = providerAccounts(providers[p])
         if (accounts.length < 2) {
           if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
-          continue
-        }
-        for (var a = 0; a < accounts.length; a++, entry++) {
-          var row = []
-          if (needsSignIn(accounts[a])) row.push({ kind: "signin", index: entry })
-          if (!accounts[a].active) {
-            row.push({ kind: "autoswitch", index: entry })
-            row.push({ kind: "account", index: entry })
+        } else {
+          for (var a = 0; a < accounts.length; a++, entry++) {
+            var row = []
+            if (needsSignIn(accounts[a])) row.push({ kind: "signin", index: entry })
+            if (!accounts[a].active) {
+              row.push({ kind: "autoswitch", index: entry })
+              row.push({ kind: "account", index: entry })
+            }
+            if (row.length > 0) rows.push(row)
           }
-          if (row.length > 0) rows.push(row)
         }
+        // The chart's 7d and 30d toggle, last in the agent's section.
+        if (hasHistory(providers[p])) rows.push([{ kind: "range7", index: p }, { kind: "range30", index: p }])
       }
       if (!blankSlate) {
         var tiles = []
@@ -208,6 +210,10 @@ Panel {
     if (!cursorActive || keyRow < 0 || keyRow >= keyRows.length) return null
     var row = keyRows[keyRow]
     return row[Math.min(keyColumn, row.length - 1)]
+  }
+
+  function hasHistory(provider) {
+    return !!provider && !!provider.history && Object.keys(provider.history).length > 0
   }
 
   function hasKey(kind, index) {
@@ -269,7 +275,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "modelLogs", "localDownload"].indexOf(target.kind) >= 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "modelLogs", "localDownload", "range7", "range30"].indexOf(target.kind) >= 0) return target.index
     if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
@@ -639,6 +645,7 @@ Panel {
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt, modifiers)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
     else if (target.kind === "modelLogs") showLocalLogs(providers[target.index].localModel)
+    else if (target.kind === "range7" || target.kind === "range30") historyRange = target.kind === "range7" ? 7 : 30
     else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
     else if (target.kind === "autoswitch") setSwitchMode(pickedEntry.provider, autoSwitchFor(pickedEntry.provider) ? "manual" : "auto")
     else if (pickedEntry && !pickedEntry.account.active) useAccount(pickedEntry.provider, pickedEntry.account)
@@ -2315,8 +2322,9 @@ Panel {
 
     // Tokens by day and model, for the agents whose collector keeps them.
     HistoryBlock {
+      id: historyBlock
       readonly property var agentDays: section.provider ? (section.provider.history || null) : null
-      visible: !!agentDays && Object.keys(agentDays).length > 0
+      visible: root.hasHistory(section.provider)
       width: parent.width
       source: root.usage
       days: agentDays || ({})
@@ -2324,6 +2332,9 @@ Panel {
       nowMs: root.nowMs
       foreground: root.foreground
       fontFamily: root.fontFamily
+      litRange: root.hasKey("range7", section.providerIndex) ? 7 : root.hasKey("range30", section.providerIndex) ? 30 : 0
+      onLitRangeChanged: if (litRange > 0 && root.dragProviderId === "") root.revealItem(historyBlock)
+      onRangeHovered: function(range) { root.pointAt(range === 7 ? "range7" : "range30", section.providerIndex) }
       onRangeRequested: function(range) { root.historyRange = range }
     }
   }
