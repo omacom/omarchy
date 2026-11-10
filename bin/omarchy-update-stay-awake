@@ -267,6 +267,20 @@ process_has_token() {
   return 1
 }
 
+process_is_legacy_inhibitor() {
+  local process_pid="$1"
+  local argument=""
+  local who=0
+  local why=0
+
+  [[ -r /proc/$process_pid/cmdline ]] || return 1
+  while IFS= read -r -d '' argument; do
+    [[ $argument == "--who=omarchy-update" ]] && who=1
+    [[ $argument == "--why=Omarchy update in progress" ]] && why=1
+  done <"/proc/$process_pid/cmdline"
+  (( who == 1 && why == 1 ))
+}
+
 process_identity() {
   local process_pid="$1"
   local token="$2"
@@ -412,7 +426,14 @@ stop_locked() {
       if [[ -e /proc/$inhibit_pid && $(process_state "$inhibit_pid" 2>/dev/null || true) != "Z" ]] &&
         ! process_matches "$inhibit_pid" "$recorded_start_time" "$recorded_owner" ""; then
         current_start=$(process_start_time "$inhibit_pid" 2>/dev/null || true)
-        if [[ -z $current_start || $current_start == "$recorded_start_time" ]]; then
+        if process_matches "$inhibit_pid" "$recorded_start_time" 0 "" &&
+          process_is_legacy_inhibitor "$inhibit_pid"; then
+          # The old helper ran it through sudo or pkexec, which leave it with
+          # root's real UID, so this account cannot signal it. That must not
+          # fail this update or block the next one.
+          echo "The previous update's sleep inhibitor runs as root and cannot be stopped here. Run 'sudo kill $inhibit_pid' or reboot to release it." >&2
+          inhibit_pid=""
+        elif [[ -z $current_start || $current_start == "$recorded_start_time" ]]; then
           echo "Cannot verify permission to stop the legacy update inhibitor; retained its state for recovery." >&2
           failed=1
           remove_inhibit_state=0
