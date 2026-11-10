@@ -845,7 +845,7 @@ Panel {
     if (typeof resetAt !== "string" || resetAt === "") return ""
     var date = new Date(resetAt)
     if (!isFinite(date.getTime())) return ""
-    return date.toLocaleString(Qt.locale(Commons.I18n.formatLocale), Locale.LongFormat)
+    return date.toLocaleString(Qt.locale(Commons.I18n.formatLocale), "ddd d MMM, HH:mm")
   }
 
   function formatDuration(ms) {

@@ -32,10 +32,14 @@ assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: '', limitsSta
 assertEqual(signIn.usageNote({usageStatusText: '', stale: true, authHelpText: 'Endpoint returned 500.'}),
   'Endpoint returned 500.', 'an account whose refresh failed still says why')
 
-// Qt's locale/format arguments are represented by their Intl counterparts in
-// Node; the timestamp parsing and tooltip composition are the panel's own.
+// Node covers timestamp guards and tooltip composition; custom date formats
+// need Qt. Adapt its date overload to Intl for these non-formatting checks.
 const Qt = { locale: code => code }
-const Locale = { LongFormat: { dateStyle: 'full', timeStyle: 'long' } }
+class LocaleDate extends Date {
+  toLocaleString(locale) {
+    return super.toLocaleString(locale, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  }
+}
 const catalog = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
 const translated = value => ({
   arg(arg) { return translated(value.replace(/%\d/, String(arg))) },
@@ -47,8 +51,8 @@ const Commons = { I18n: {
 } }
 const helpers = ['formatResetAt', 'formatDuration', 'windowDisplayTitle', 'scopedAllowanceText'].map(name =>
   panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
-const tooltipRoot = new Function('Qt', 'Locale', 'Commons', helpers + '\nreturn {formatResetAt, formatDuration, windowDisplayTitle, scopedAllowanceText}')(
-  Qt, Locale, Commons)
+const tooltipRoot = new Function('Qt', 'Date', 'Commons', helpers + '\nreturn {formatResetAt, formatDuration, windowDisplayTitle, scopedAllowanceText}')(
+  Qt, LocaleDate, Commons)
 for (const value of ['', undefined, null, false, 0, 'not-a-date', '<b>invalid</b>'])
   assertEqual(tooltipRoot.formatResetAt(value), '', 'no invented reset date for ' + value)
 const resetAt = '2030-01-02T15:04:05Z'
