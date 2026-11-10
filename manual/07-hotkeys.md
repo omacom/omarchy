@@ -2,6 +2,34 @@
 
 You can see all the main keyboard bindings with `Super + K` (Tmux bindings with `Super + Alt + K` and Herdr bindings with `Super + Ctrl + K`).
 
+## How hotkeys are laid out
+
+Every hotkey sits on a plane, set by its modifiers, and each plane has one job. That's what keeps the hotkeys from blurring together, and it means you can usually guess where something lives.
+
+| Plane | What lives there | Examples |
+| --- | --- | --- |
+| `Super + key` | The system: windows, workspaces, layouts, and core menus | `Super + Space` Omarchy menu, `Super + W` close window, `Super + F` full screen |
+| `Super + Shift + key` | Apps | `Super + Shift + B` browser, `Super + Shift + E` email, `Super + Shift + N` editor |
+| `Super + Ctrl + key` | Panels and system menus | `Super + Ctrl + A` audio, `Super + Ctrl + N` network, `Super + Ctrl + C` capture menu |
+| `Super + Ctrl + Alt + key` | Quick actions and notices | `Super + Ctrl + Alt + T` show time, `Super + Ctrl + Alt + B` battery, `Super + Ctrl + Alt + C` screenshot |
+
+Adding `Alt` to a hotkey gives you a variant of the same thing, never something unrelated:
+
+- `Super + Shift + B` opens the browser; `Super + Shift + Alt + B` opens a private window
+- `Super + Shift + E` opens email; `Super + Shift + Alt + E` starts a new one
+- `Super + F` goes full screen; `Super + Alt + F` goes full width
+- `Super + Ctrl + C` opens the capture menu; `Super + Ctrl + Alt + C` skips the menu and takes a screenshot
+
+When adding a hotkey:
+
+1. Pick the plane from what it does, then pick the key.
+2. Don't move an existing hotkey to make room. Find a free key on the right plane.
+3. Only use `Alt` for a variant of the hotkey without it.
+
+A few hotkeys break these rules because they're convenient. `Shift` with an arrow or `Tab` moves or reverses instead of opening an app, and `Print`, the media keys, `Alt + Tab`, and `Ctrl + Alt + Del` work the way they do everywhere else. They're exceptions, not patterns to copy.
+
+If a default doesn't suit you (say you want `Super + Shift + S` for screenshots like on Windows), rebind it in `~/.config/hypr/bindings.lua`.
+
 ## Navigating
 
 | Hotkey                  | Function              |
@@ -159,8 +187,8 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Super + Alt + ]` | Make webcam overlay larger while recording |
 | `Alt + Shift + L` | Copy current URL from webapp or Chromium |
 | `Alt + Shift + D` | Download the video on the current page to `~/Videos` |
-| `Super + Ctrl + X` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
-| `Right Alt` / `F9` | Push-to-talk dictation (requires Voxtype or Superwhisper) |
+| `Alt + Space` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
+| `Right Alt` | Hold to dictate (requires _Setup > Defaults > Dictation_) |
 
 With screenrecordings, the hotkey first asks which audio you want, then starts recording. Hit it again to stop. See [screenshots and recording](12-screenshots-recording.md) for the details.
 

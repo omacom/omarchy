@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# omarchy:summary=Run open models on this machine for your agents
+# omarchy:args=<use|list|status|start|stop|remove|logs> [args]
+# omarchy:examples=omarchy agent local use best | omarchy agent local use qwen3.8-27b-gufo | omarchy agent local stop | omarchy-agent-local use --help
+
+# The engine and its recipes come in omarchy-local-ai, on every machine so the
+# agents panel knows which models fit. Podman, which runs them, only comes when
+# a model is first set up, from the terminal that setup runs in. An NVIDIA GPU
+# reaches the containers through the CDI spec nvidia-container-toolkit writes
+# on install and again at every boot.
+run=(omarchy-local-ai "$@")
+
+if [[ ${1:-} == "use" ]]; then
+  packages=(podman crun)
+  if omarchy-hw-nvidia; then
+    packages+=(nvidia-container-toolkit)
+  fi
+
+  if [[ " $* " == *" --detach "* ]]; then
+    # The agents panel starts a setup in the background, with no terminal to
+    # ask for a password in. While the packages are missing, a terminal
+    # installs them and then hands the setup back to run detached.
+    if omarchy-pkg-missing "${packages[@]}"; then
+      run=(omarchy-launch-floating-terminal-with-presentation "omarchy-pkg-add ${packages[*]} && omarchy-local-ai ${*@Q}")
+    fi
+  else
+    omarchy-pkg-add "${packages[@]}" || exit 1
+  fi
+fi
+
+exec "${run[@]}"
