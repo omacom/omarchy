@@ -241,6 +241,9 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   // A hostname-looking app is not a site unless a browser lifted it.
   same(Icons.candidates({ app: 'example.com', source: 'example.com', groupKey: 'app:example-com' }).themed, ['example.com'])
   same(Icons.candidates({}), { themed: [], entries: [] })
+  // An anonymous sender names no app, so its glyph is not covered by the logo.
+  same(Icons.candidates(snap({ appName: 'omarchy-action', summary: 'Reminder', hints: { 'omarchy-glyph': '\u{f088c}' } })), { themed: [], entries: [] })
+  same(Icons.candidates(snap({ appName: 'notify-send', appIcon: 'dialog-information', summary: 'Hi' })).themed, ['dialog-information'])
   assert.equal(Icons.slug('  Google Chrome!! '), 'google-chrome')
   assert.equal(Icons.slug('../../etc/passwd'), 'etc-passwd')
   // One-colour icons go by their freedesktop name, as a theme name or a file.
