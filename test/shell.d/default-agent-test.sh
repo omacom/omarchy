@@ -168,6 +168,7 @@ amp_package="amp"
 commandcode_package="npm:command-code"
 cursor_agent_package="cursor-agent"
 muse_package="muse"
+droid_package="npm:droid"
 
 assert_lazy_stub() {
   local package=$1
@@ -242,12 +243,12 @@ for agent in "${!declared_option_bins[@]}"; do
       fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
   done
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 21 ]] || fail "only the agent CLIs update themselves"
+[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 22 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 31 ]] || fail "user setup declares every default mise tool as lazy"
+[[ $(grep -c 'lazy = true' "$lazy_config") == 32 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
@@ -378,6 +379,8 @@ declare -A expected_agents=(
   [kilo-code]="kilo"
   [devin]="devin"
   [devin-cli]="devin"
+  [droid]="droid"
+  [factory]="droid"
   [amp]="amp"
   [ampcode]="amp"
   [commandcode]="commandcode"
@@ -409,6 +412,7 @@ declare -A expected_packages=(
   [freebuff]="$freebuff_package"
   [kilo]="$kilo_package"
   [devin]="$devin_package"
+  [droid]="$droid_package"
   [amp]="$amp_package"
   [commandcode]="$commandcode_package"
   [cursor-agent]="$cursor_agent_package"
@@ -671,7 +675,7 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
 pass "Muse installs visibly through mise and opens directly"
 
 saved_agent=$(<"$agent_file")
-for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
+for agent in qwen dsh mcode kiro-cli freebuff kilo devin droid amp commandcode; do
   tool_var="${agent//-/_}_tool"
   package_var="${agent//-/_}_package"
   declared_tool=${!tool_var:-${!package_var}}
@@ -804,6 +808,7 @@ assert_launch kiro-cli kiro-cli chat --trust-all-tools -- "Review this project"
 assert_launch freebuff freebuff
 assert_launch kilo kilo --auto "--prompt=Review this project"
 assert_launch devin devin --permission-mode dangerous --respect-workspace-trust false -- "Review this project"
+assert_launch droid droid --auto high -- "Review this project"
 assert_launch amp bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "Review this project"
 assert_launch commandcode commandcode --yolo -- "Review this project"
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "Freebuff launcher puts the prompt on the clipboard"
@@ -847,6 +852,7 @@ assert_bypass kiro-cli kiro-cli chat --trust-all-tools
 assert_bypass freebuff freebuff
 assert_bypass kilo kilo --auto
 assert_bypass devin devin --permission-mode dangerous --respect-workspace-trust false
+assert_bypass droid droid --auto high
 assert_bypass amp amp --dangerously-allow-all
 assert_bypass commandcode commandcode --yolo
 [[ ! -s $clipboard_log && ! -s $notification_history ]] || fail "Freebuff launcher leaves the clipboard alone without a prompt"

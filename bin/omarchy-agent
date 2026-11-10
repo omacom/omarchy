@@ -246,6 +246,12 @@ devin)
   command=(devin --permission-mode dangerous --respect-workspace-trust false)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
+droid)
+  # --auto high is Droid's unattended mode; a positional prompt seeds the
+  # interactive session.
+  command=(droid --auto high)
+  [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
+  ;;
 amp)
   # Amp takes its first interactive message from piped input; a positional
   # message is for --execute, which exits after one turn. The binary rides in
