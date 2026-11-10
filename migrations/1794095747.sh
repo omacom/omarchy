@@ -25,7 +25,9 @@ for file in "$HOME/.config/omarchy/extensions/omarchy-menu.jsonc" "$HOME"/.confi
     *) quote='["'\'']' ;;
   esac
 
-  path='([^[:space:]"'\''\\]*\/)?'
+  # A path may hold spaces when it starts the quoted word with /, ~ or $,
+  # as in '/home/Jane Doe/...', but never shell operators.
+  path='([^[:space:]"'\''\\]*\/|[\/~$][^"'\''\\;&|<>()]*\/)?'
   retired="($quote)${path}omarchy-system-(logout|reboot|shutdown)($quote)"
 
   # Repeat on each line: one match takes the character after it, which a
