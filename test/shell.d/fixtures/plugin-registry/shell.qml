@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import "services"
 
 ShellRoot {
@@ -75,6 +76,62 @@ ShellRoot {
 
   function pluginIds() {
     return Object.keys(registry.installedPlugins).sort()
+  }
+
+  FileView {
+    id: shellSource
+    path: Quickshell.env("OMARCHY_PATH") + "/shell/shell.qml"
+    blockLoading: true
+  }
+
+  QtObject {
+    id: apiHost
+    property QtObject pluginRegistry: QtObject { signal pluginsChanged() }
+    property QtObject barWidgetRegistry: BarWidgetRegistry {}
+    property bool pluginReloading: false
+    property int apiUpdates: 0
+    property int serviceUpdates: 0
+    property var observedIds: []
+    function syncPluginApis() {
+      apiUpdates++
+      observedIds = barWidgetRegistry.availableIds()
+    }
+    function _syncServices() { serviceUpdates++ }
+  }
+
+  function runApiSyncChecks() {
+    // Exercise the shipped signal handlers with real Qt scheduling.
+    var connections = ["pluginRegistry", "barWidgetRegistry"].map(function(name) {
+      var match = shellSource.text().match(new RegExp(
+        "  Connections \\{\\n    target: shell\\." + name + "\\n[\\s\\S]*?\\n  \\}"))
+      if (!match) throw new Error("Missing shell connection for " + name)
+      return match[0]
+    }).join("\n")
+    var bridge = Qt.createQmlObject(
+      "import QtQuick\nItem { property var shell: apiHost\n" + connections + "\n}", root)
+
+    apiHost.barWidgetRegistry.register("first", null, {})
+    apiHost.barWidgetRegistry.register("second", null, {})
+    apiHost.barWidgetRegistry.unregister("first")
+    apiHost.pluginRegistry.pluginsChanged()
+    apiHost.pluginRegistry.pluginsChanged()
+    root.assertEqual(apiHost.apiUpdates, 0, "registration bursts do not synchronously rebuild plugin APIs")
+    root.assertEqual(apiHost.serviceUpdates, 2, "service lifecycle changes remain synchronous")
+
+    Qt.callLater(function() {
+      root.assertEqual(apiHost.apiUpdates, 1, "both registries share one API refresh per burst")
+      root.assertDeepEqual(apiHost.observedIds, ["second"], "the refresh reads the final widget catalogue")
+      apiHost.barWidgetRegistry.unregister("second")
+      apiHost.pluginReloading = true
+      apiHost.pluginRegistry.pluginsChanged()
+      Qt.callLater(function() {
+        root.assertEqual(apiHost.apiUpdates, 2, "later registry changes still refresh plugin APIs")
+        root.assertDeepEqual(apiHost.observedIds, [], "removed widgets disappear from the refreshed catalogue")
+        root.assertEqual(apiHost.serviceUpdates, 2, "plugin reloads still defer service synchronization")
+        bridge.destroy()
+        root.writeResult()
+      })
+    })
   }
 
   function runChecks() {
@@ -589,7 +646,7 @@ ShellRoot {
     root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "a widget named as bar.id and already on the bar is not placed twice")
 
     root.assertTrue(changeCount > 0, "registry emits change notifications")
-    writeResult()
+    runApiSyncChecks()
   }
 
   PluginRegistry {
