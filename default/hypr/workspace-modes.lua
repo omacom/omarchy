@@ -22,6 +22,7 @@ local FLOATED_TAG = "omarchy-mode-floated"
 local WORKSPACE_TAG = "omarchy-floating-workspace"
 local OPENED_TAG = "omarchy-mode-opened"
 local OPEN_RULE = "omarchy-floating-open-"
+local ZOOM_TAG = "omarchy-titlebar-zoom-"
 local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
 
@@ -89,11 +90,7 @@ local function anything_floats()
   return false
 end
 
--- A window the mode floats opens at a comfortable size in the middle of its
--- monitor, each one stepped from the last so a workspace floated all at once does
--- not leave every window stacked exactly on the one beneath it.
-local function place(window)
-  local monitor = window.monitor
+local function work_area(monitor)
   if not monitor or not monitor.width then
     return
   end
@@ -106,8 +103,18 @@ local function place(window)
   end
 
   local reserved = monitor.reserved or {}
-  width = width - (reserved.left or 0) - (reserved.right or 0)
-  height = height - (reserved.top or 0) - (reserved.bottom or 0)
+  local left, top = reserved.left or 0, reserved.top or 0
+  return width - left - (reserved.right or 0), height - top - (reserved.bottom or 0), left, top
+end
+
+-- A window the mode floats opens at a comfortable size in the middle of its
+-- monitor, each one stepped from the last so a workspace floated all at once does
+-- not leave every window stacked exactly on the one beneath it.
+local function place(window)
+  local width, height = work_area(window.monitor)
+  if not width then
+    return
+  end
 
   hl.dispatch(hl.dsp.window.resize({
     x = math.min(1100, math.floor(width * 0.64)),
@@ -146,6 +153,14 @@ local function float_for_mode(windows)
   end
 end
 
+local function zoom_tag(window)
+  for _, tag in ipairs(window.tags) do
+    if tag:sub(1, #ZOOM_TAG) == ZOOM_TAG then
+      return tag
+    end
+  end
+end
+
 -- A pinned window is one the user asked to keep above everything, and tiling it
 -- would unpin it as well, so the mode leaves it be.
 local function tile_for_mode(window, mine)
@@ -155,6 +170,10 @@ local function tile_for_mode(window, mine)
     return
   end
 
+  local tag = zoom_tag(window)
+  if tag then
+    hl.dispatch(hl.dsp.window.tag({ tag = "-" .. tag, window = window }))
+  end
   set_claimed(window, false)
   set_floating(window, false)
 end
@@ -455,6 +474,69 @@ local function titlebars_installed()
   return true
 end
 
+local function set_geometry(window, x, y, width, height)
+  hl.dispatch(hl.dsp.window.resize({ window = window, x = width, y = height }))
+  hl.dispatch(hl.dsp.window.move({ window = window, x = x, y = y }))
+end
+
+function M.zoom_titlebar(address)
+  local window = hl.get_window("address:" .. address)
+  if not window or not window.mapped or not window.floating
+      or not window.workspace or not floating_workspace(window.workspace.id) then
+    return
+  end
+
+  -- A double-click still restores a window maximized with the titlebar button.
+  if window.fullscreen == 1 then
+    hl.dispatch(hl.dsp.window.fullscreen({ window = window, mode = "maximized", action = "unset" }))
+    return
+  elseif window.fullscreen ~= 0 then
+    return
+  end
+
+  local monitor = window.monitor
+  local width, height, left, top = work_area(monitor)
+  local titlebar = hl.get_config("plugin.hyprbars.bar_height")
+  if not width or not titlebar then
+    return
+  end
+
+  -- The resize dispatcher takes the content size, excluding the decorations.
+  local border = hl.get_config("general.border_size")
+  local x = math.ceil(left + border)
+  local y = math.ceil(top + border + titlebar)
+  width = math.floor(left + width - border) - x
+  height = math.floor(top + height - border) - y
+  if width < 1 or height < 1 then
+    return
+  end
+
+  local tag = zoom_tag(window)
+  if tag then
+    local monitor_id, old_x, old_y, old_width, old_height =
+      tag:sub(#ZOOM_TAG + 1):match("^(%d+)_(-?%d+)_(-?%d+)_(%d+)_(%d+)$")
+    hl.dispatch(hl.dsp.window.tag({ tag = "-" .. tag, window = window }))
+    if monitor_id then
+      old_x, old_y = tonumber(old_x), tonumber(old_y)
+      old_width, old_height = tonumber(old_width), tonumber(old_height)
+      if tonumber(monitor_id) ~= monitor.id then
+        -- Keep the restored window reachable after a move to a smaller display.
+        old_width, old_height = math.min(old_width, width), math.min(old_height, height)
+        old_x = math.max(x, math.min(old_x, x + width - old_width))
+        old_y = math.max(y, math.min(old_y, y + height - old_height))
+      end
+      set_geometry(window, monitor.x + old_x, monitor.y + old_y, old_width, old_height)
+      return
+    end
+  end
+
+  -- Window tags survive config reloads and disappear when the window closes.
+  local at, size = window.at, window.size
+  tag = string.format("%s%d_%d_%d_%d_%d", ZOOM_TAG, monitor.id, at.x - monitor.x, at.y - monitor.y, size.x, size.y)
+  hl.dispatch(hl.dsp.window.tag({ tag = "+" .. tag, window = window }))
+  set_geometry(window, monitor.x + x, monitor.y + y, width, height)
+end
+
 local function titlebars()
   if not titlebars_installed() then
     return
@@ -489,7 +571,7 @@ local function titlebars()
         button_rounding = 0,
         icon_on_hover = false,
         inactive_button_color = colors.titlebar,
-        on_double_click = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'",
+        on_double_click = [[hyprctl eval 'require("default.hypr.workspace-modes").zoom_titlebar("%WINDOW%")']],
       },
     },
   })
