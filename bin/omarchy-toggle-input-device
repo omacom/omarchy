@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # omarchy:summary=Enable, disable, or toggle a Hyprland input device
-# omarchy:args=<touchpad|touchscreen> [on|off|toggle]
+# omarchy:args=<touchpad|touchscreen> [on|off|toggle|cycle]
 # omarchy:hidden=true
 
 KIND="${1:-}"
 ACTION="${2:-toggle}"
 
 usage() {
-  echo "Usage: omarchy-toggle-input-device <touchpad|touchscreen> [on|off|toggle]" >&2
+  echo "Usage: omarchy-toggle-input-device <touchpad|touchscreen> [on|off|toggle|cycle]" >&2
 }
 
 case "$KIND" in
@@ -73,9 +73,20 @@ disable() {
   fi
 }
 
+# Turning the device off and back on makes libinput release any button it
+# still holds, like a drag stuck down. A device the user disabled stays off.
+cycle() {
+  if [[ ! -f $NAME_FILE ]]; then
+    require_device
+    apply_device false
+    apply_device true
+  fi
+}
+
 case "$ACTION" in
   on) enable ;;
   off) disable ;;
+  cycle) cycle ;;
   toggle) if [[ -f $NAME_FILE ]]; then enable; else disable; fi ;;
   *)
     usage

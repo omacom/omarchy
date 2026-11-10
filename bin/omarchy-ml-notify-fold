@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Collapse repeated chat, mail, and CI notifications into one line
-# omarchy:args=[--notify] [history-dir]
+# omarchy:args=[--notify] [history-file-or-dir]
 
 set -euo pipefail
 
@@ -11,7 +11,7 @@ if [[ ${1:-} == "--notify" ]]; then
   shift
 fi
 
-dir="${1:-${OMARCHY_ML_NOTIFY_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/notifications/history}}"
+dir="${1:-${OMARCHY_ML_NOTIFY_DIR:-$HOME/.local/state/omarchy/notifications/history.json}}"
 
 line=$(python3 - "$dir" <<'PY'
 import json
@@ -39,17 +39,25 @@ def channels(text):
             found.append(name)
     return found
 
-directory = sys.argv[1]
-rows = []
-if os.path.isdir(directory):
-    for name in sorted(os.listdir(directory)):
-        if not name.endswith(".json"):
-            continue
-        with open(os.path.join(directory, name), encoding="utf-8") as handle:
-            try:
-                rows.append(json.loads(handle.read()))
-            except json.JSONDecodeError:
-                continue
+def read_json(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            raw = handle.read(2 * 1024 * 1024 + 1)
+        if len(raw) <= 2 * 1024 * 1024:
+            return json.loads(raw)
+    except (OSError, UnicodeError, ValueError):
+        pass
+    return None
+
+
+history = sys.argv[1]
+if os.path.isdir(history):
+    # Explicit legacy exports still contain one notification per file.
+    rows = [read_json(os.path.join(history, name)) for name in sorted(os.listdir(history)) if name.endswith(".json")]
+else:
+    data = read_json(history)
+    rows = data if isinstance(data, list) else []
+rows = [row for row in rows if isinstance(row, dict)]
 
 groups = {"ci": [], "mail": [], "chat": []}
 for row in rows:
