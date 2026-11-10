@@ -219,6 +219,10 @@ OMARCHY_TEST_REAL_BROWSER_INSTALL=true omarchy-default-browser --install chromiu
 [[ $(omarchy-default-browser) == "chromium" ]] || fail "Chromium becomes the default after its full installer succeeds"
 cmp -s "$ROOT/config/chromium-flags.conf" "$test_home/.config/chromium-flags.conf" ||
   fail "Chromium browser installer copies the default flags"
+# Chrome's installer copies these same flags, and /etc/skel seeds new installs
+# with Chrome's own copy from config/, so the two must not drift apart.
+cmp -s "$ROOT/config/chromium-flags.conf" "$ROOT/config/chrome-flags.conf" ||
+  fail "new installs seed Chrome with the flags Chromium ships"
 grep -Fxq 'sudo:install -d -m 0755 -o root -g root /etc/chromium' "$setup_log" ||
   fail "Chromium browser installer creates a root-owned Chromium policy parent"
 grep -Fxq 'sudo:install -d -m 0755 -o root -g root /etc/chromium/policies' "$setup_log" ||
