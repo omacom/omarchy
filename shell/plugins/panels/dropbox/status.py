@@ -56,11 +56,14 @@ def scan_dropbox(path, limit):
   total = 0
   counter = 0
   recent = []
+  internal_names = {".dropbox", ".dropbox.cache"}
   try:
     for root, dirs, files in os.walk(path):
-      # Dropbox stages downloads here; they are not account files or stored usage.
-      dirs[:] = [name for name in dirs if not (root == path and name == ".dropbox.cache") and not os.path.islink(os.path.join(root, name))]
+      # Internal metadata and staged downloads are not account files or stored usage.
+      dirs[:] = [name for name in dirs if not (root == path and name in internal_names) and not os.path.islink(os.path.join(root, name))]
       for name in files:
+        if root == path and name in internal_names:
+          continue
         file_path = os.path.join(root, name)
         if os.path.islink(file_path):
           continue

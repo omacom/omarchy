@@ -125,10 +125,11 @@ pass "dropbox status asks a linked daemon for its status"
 
 # Cache writes must not crowd real files out of the recent list or inflate storage.
 mkdir -p "$test_tmp/home/Dropbox/.dropbox.cache/new_files"
+printf 'metadata' >"$test_tmp/home/Dropbox/.dropbox"
 printf 'cache' >"$test_tmp/home/Dropbox/.dropbox.cache/new_files/staged"
 printf 'doc' >"$test_tmp/home/Dropbox/document.txt"
 printf 'hi' >"$test_tmp/home/Dropbox/.notes"
 status=$(dropbox_status)
 jq -e '.usedBytes == 5 and ([.files[].name] | sort) == [".notes", "document.txt"]' <<<"$status" >/dev/null ||
-  fail "dropbox excludes internal cache while retaining ordinary hidden files" "$status"
-pass "dropbox excludes internal cache while retaining ordinary hidden files"
+  fail "dropbox excludes internal metadata and cache while retaining ordinary hidden files" "$status"
+pass "dropbox excludes internal metadata and cache while retaining ordinary hidden files"
