@@ -37,22 +37,6 @@ WALLPAPER_XML = """
 </node>
 """
 
-REQUEST_XML = """
-<node>
-  <interface name="org.freedesktop.impl.portal.Request">
-    <method name="Close"/>
-    <signal name="Response">
-      <arg type="u" name="response"/>
-      <arg type="a{sv}" name="results"/>
-    </signal>
-  </interface>
-</node>
-"""
-
-request_node = Gio.DBusNodeInfo.new_for_xml(REQUEST_XML)
-request_registrations = {}
-
-
 def uri_to_path(uri):
     parsed = urlparse(uri or "")
     if parsed.scheme != "file":
@@ -80,25 +64,11 @@ def apply_wallpaper(uri, options):
     return RESPONSE_SUCCESS if result.returncode == 0 else RESPONSE_ERROR
 
 
-def on_request_close(connection, sender, path, interface, method, parameters, invocation):
-    registration = request_registrations.pop(path, None)
-    if registration is not None:
-        connection.unregister_object(registration)
-    invocation.return_value(None)
-
-
 def on_set_wallpaper_uri(connection, sender, path, interface, method, parameters, invocation):
-    handle, _app_id, _parent_window, uri, options = parameters.unpack()
-    response = apply_wallpaper(uri, options)
-
-    # The frontend reads the result from this method's return value, but the
-    # request object must exist so it can forward a client Close call.
-    registration = connection.register_object(
-        handle, request_node.interfaces[0], on_request_close, None, None
-    )
-    request_registrations[handle] = registration
-
-    invocation.return_value(GLib.Variant("(u)", (response,)))
+    _handle, _app_id, _parent_window, uri, options = parameters.unpack()
+    # The request finishes before this returns, so there is nothing for a
+    # client Close call to cancel and no request object is registered.
+    invocation.return_value(GLib.Variant("(u)", (apply_wallpaper(uri, options),)))
 
 
 def on_bus_acquired(connection, name):
