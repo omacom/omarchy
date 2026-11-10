@@ -15,18 +15,8 @@ omarchy_security_require_privileged_bash_startup || exit 126
 set -e
 omarchy_security_sanitize_bash_environment "$0" "$@"
 omarchy_security_require_source_root "$0"
-# omarchy update authorizes once and revokes when it is done. Revoking here
-# would throw that away and prompt again for the rest of the update.
-update_sudo_session=0
-if [[ ${OMARCHY_UPDATE_SUDO_SESSION:-} == "1" ]]; then
-  update_sudo_session=1
-  omarchy_security_revoke_sudo_timestamp() { :; }
-fi
-# Traps first, so a signal or failure during the entry revocation still
-# exits through the cleanup path.
-omarchy_security_install_sudo_cleanup_traps
-omarchy_security_revoke_sudo_timestamp || exit 1
-omarchy_security_enable_no_update_sudo
+omarchy_security_install_signal_exit_traps
+export PATH="$OMARCHY_PATH/bin:/usr/bin:/usr/sbin:/bin:/sbin"
 
 stay_awake_state="$HOME/.local/state/omarchy/indicators/stay-awake"
 caller_uid=""
@@ -231,8 +221,7 @@ cleanup_pending_launch() {
     echo "Failed to roll back the pending Omarchy update sleep inhibitor." >&2
     (( status != 0 )) || status=1
   fi
-  omarchy_security_exit_with_revoked_sudo "$status" \
-    "Failed to invalidate sudo credentials after the update sleep inhibitor."
+  exit "$status"
 }
 
 process_start_time() {
@@ -514,11 +503,11 @@ start_locked() {
       exec "${hold_command[@]}"
     ) &
     launcher_pid=$!
-  elif [[ -t 0 ]] || { (( update_sudo_session )) && /usr/bin/sudo -n -N /usr/bin/true 2>/dev/null; }; then
-    # Inside an update without a terminal, reuse its authorization
-    # non-interactively rather than asking again through polkit.
-    sudo_options=(-N -b)
-    [[ -t 0 ]] || sudo_options=(-n -N -b)
+  elif [[ -t 0 ]] || /usr/bin/sudo -n /usr/bin/true 2>/dev/null; then
+    # Without a terminal, reuse a cached authorization non-interactively
+    # rather than asking again through polkit.
+    sudo_options=(-b)
+    [[ -t 0 ]] || sudo_options=(-n -b)
     if ! (
       [[ -z ${OMARCHY_UPDATE_LOCK_FD:-} ]] || exec {OMARCHY_UPDATE_LOCK_FD}>&-
       exec {state_lock_fd}>&-
@@ -571,7 +560,7 @@ start_locked() {
     fi
   fi
   launch_pending=0
-  omarchy_security_install_sudo_cleanup_traps
+  trap - EXIT
 }
 
 case "${1:-}" in

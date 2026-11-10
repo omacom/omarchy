@@ -8,8 +8,16 @@ script="$ROOT/bin/omarchy-setup-early-thunderbolt"
 conf_src="$ROOT/etc/mkinitcpio.conf.d/thunderbolt_module.conf"
 
 [[ -x $script ]] || fail "setup-early-thunderbolt is executable"
-grep -qxF 'MODULES+=(thunderbolt)' "$conf_src" ||
-  fail "shipped conf still loads thunderbolt by default"
+(
+  modinfo() { printf '/kernel/drivers/thunderbolt.ko\n'; }
+  MODULES=()
+  source "$conf_src"
+  [[ ${MODULES[*]} == thunderbolt ]] || fail "shipped config loads Thunderbolt when the kernel has a module"
+  modinfo() { printf '(builtin)\n'; }
+  MODULES=()
+  source "$conf_src"
+  [[ ${#MODULES[@]} == 0 ]] || fail "shipped config leaves a built-in module alone"
+)
 grep -Fq 'omarchy-setup-early-thunderbolt disable' "$conf_src" ||
   fail "shipped conf points at the opt-out command"
 
@@ -57,8 +65,8 @@ PATH="$test_tmp/bin:$PATH" \
 
 [[ -f $test_tmp/etc/mkinitcpio.conf.d/thunderbolt_module.conf ]] ||
   fail "enable restores the mkinitcpio drop-in"
-grep -qxF 'MODULES+=(thunderbolt)' "$test_tmp/etc/mkinitcpio.conf.d/thunderbolt_module.conf" ||
-  fail "restored conf loads thunderbolt"
+cmp -s "$conf_src" "$test_tmp/etc/mkinitcpio.conf.d/thunderbolt_module.conf" ||
+  fail "enable restores the current hardware-aware drop-in"
 [[ -f $test_tmp/rebuilt ]] || fail "enable rebuilds the initramfs"
 
 pass "enable restores early thunderbolt and rebuilds"
