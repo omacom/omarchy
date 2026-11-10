@@ -9,12 +9,13 @@
 # Only the CPUs taken offline here come back, so a CPU someone turned off on
 # purpose stays off.
 
-state=/run/omarchy-apple-fast-resume
+cpus="${OMARCHY_CPU_SYSFS:-/sys/devices/system/cpu}"
+state="${OMARCHY_APPLE_FAST_RESUME_STATE:-/run/omarchy-apple-fast-resume}"
 
 case $1 in
   pre)
     : >"$state"
-    for online in /sys/devices/system/cpu/cpu[1-9]*/online; do
+    for online in "$cpus"/cpu[1-9]*/online; do
       if [[ $(<"$online") == "1" ]] && echo 0 >"$online"; then
         printf '%s\n' "$online" >>"$state"
       fi
