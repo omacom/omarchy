@@ -259,6 +259,8 @@ machine() {
     # The X Plus model shares the family name but has another device tree and is untested.
     vivobook-s15-x-plus) vivobook_s15 S5507QA; FAKE_PLATFORM=aarch64-qualcomm ;;
     vivobook-s15-not-qualcomm) vivobook_s15 S5507QAD; FAKE_PLATFORM=aarch64 ;;
+    proart-pz13) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; dmi product_family "ProArt PZ13"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    proart-pz13-not-qualcomm) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; FAKE_PLATFORM=aarch64 ;;
     omnibook-ultra-14) dmi sys_vendor HP; dmi product_name "HP OmniBook Ultra Laptop 14-kg0xxx"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="hp,omnibook-ultra-kg0xxx qcom,glymur" ;;
     anduril-bluechip) dmi sys_vendor Anduril; dmi product_name "Qualcomm Glymur"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
     glymur-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
@@ -336,6 +338,7 @@ leaves=(
   hardware/fix-surface-keyboard.sh
   hardware/lenovo/thinkpad-t14s-camera.sh
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
+  hardware/asus/fix-asus-proart-pz13-speakers.sh
   hardware/asus/fix-asus-zenbook-a16-firmware.sh
   hardware/asus/fix-asus-zenbook-a16-boot.sh
   hardware/asus/fix-asus-vivobook-s15-boot.sh
@@ -394,6 +397,10 @@ hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16|0|pkg-add asus-zenboo
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|yoga-slim7x|0
+hardware/asus/fix-asus-proart-pz13-speakers.sh|proart-pz13|0|pkg-add asus-proart-pz13-audio
+hardware/asus/fix-asus-proart-pz13-speakers.sh|proart-pz13+unreadable|0
+hardware/asus/fix-asus-proart-pz13-speakers.sh|proart-pz13-not-qualcomm|0
+hardware/asus/fix-asus-proart-pz13-speakers.sh|yoga-slim7x|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16|0|pkg-add asus-zenbook-a16-firmware
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16-not-qualcomm|0
