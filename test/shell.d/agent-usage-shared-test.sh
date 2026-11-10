@@ -219,6 +219,40 @@ check(
   json.dumps(snapshot),
 )
 
+stats = collectors.Stats(today="2020-03-01")
+stats.add("2020-03-01", "s1", "alpha", 1, 2, 3, 4)
+stats.add("2020-03-01", "s1", "alpha", 10, 0, 0, 0)
+stats.add("2020-03-01", "s1", "beta", 5, 0, 0, 0)
+stats.add("2019-01-15", "s2", "alpha", 0, 7, 0, 0)
+stats.add("2019-01-16", "s2", "beta", 0, 0, 0, 0)
+stats.add(None, None, "alpha", 100, 0, 0, 0, prompts=0)
+snapshot = stats.snapshot()
+check(
+  "history keeps tokens by model for every dated day, older than the recent week too",
+  snapshot["history"] == {"2020-03-01": {"alpha": 20, "beta": 5}, "2019-01-15": {"alpha": 7}},
+  json.dumps(snapshot["history"]),
+)
+check(
+  "history sums to the model totals except for undated rows",
+  sum(sum(models.values()) for models in snapshot["history"].values())
+  == sum(sum(bucket.values()) for bucket in snapshot["modelUsage"].values()) - 100,
+)
+check(
+  "the recent week and today's models are unchanged by history",
+  (snapshot["todayTokensByModel"], snapshot["recentDays"][-1]["messageCount"]) == ({"alpha": 20, "beta": 5}, 25),
+)
+check(
+  "history merges per day and model, and reads anything malformed as nothing",
+  collectors.merge_history(
+    {"2020-03-01": {"alpha": 20}, "2020-02-01": {"beta": 3}},
+    {"2020-03-01": {"alpha": 5, "beta": 1}},
+    {"2020-03-01": "oops", "2020-03-02": {"alpha": "x", "beta": -4}},
+    None,
+    "nope",
+  ) == {"2020-03-01": {"alpha": 25, "beta": 1}, "2020-02-01": {"beta": 3}},
+)
+check("an unused machine's record carries an empty history", collectors.base_record("demo", "Demo")["history"] == {})
+
 # ------------------------------------------------------------- scan cache
 
 calls = []
@@ -235,7 +269,7 @@ forced = collectors.cached_scan("demo", ["a"], 0, scan)
 check("a scan is reused within its window and rebuilt at zero", (first["totalPrompts"], again["totalPrompts"], forced["totalPrompts"]) == (1, 1, 2))
 cache_file, _ = collectors.scan_cache_paths("demo", ["a"])
 cached = json.loads(cache_file.read_text())
-check("the scan cache records its day", cached["scanDate"] == today and cached["schemaVersion"] == 2)
+check("the scan cache records its day", cached["scanDate"] == today and cached["schemaVersion"] == collectors.SCAN_CACHE_VERSION)
 cached["scanDate"] = "2000-01-01"
 cache_file.write_text(json.dumps(cached))
 check("a scan from another day is a miss", collectors.cached_scan("demo", ["a"], 900, scan)["totalPrompts"] == 3)

@@ -62,9 +62,12 @@ PROBE_MIN_INTERVAL_SECONDS = 15
 
 # The scan cache's envelope. A file of another version, or another shape, is
 # a miss: rescanned and rewritten, never a crash or a garbage record.
-SCAN_CACHE_VERSION = 2
+SCAN_CACHE_VERSION = 3
 # How many days, today last, a record's spend covers.
 SPEND_DAYS = 30
+# `history` is deliberately not required here: a record without it just has no
+# per-model chart, and every older scan of a collector that never prints it
+# would otherwise be rescanned on every run.
 STATS_KEYS = ("todayPrompts", "todayTotalTokens", "recentDays", "activeDates", "modelUsage")
 
 # Counts and times read from disk or the network are untrusted: a boolean,
@@ -358,6 +361,7 @@ def empty_stats() -> dict[str, Any]:
     "activeDays": 0,
     "activeDates": [],
     "modelUsage": {},
+    "history": {},
   }
 
 
@@ -434,6 +438,8 @@ class Stats:
     self.sessions: set[str] = set()
     self.active_dates: set[str] = set()
     self.model_usage: dict[str, dict[str, int]] = {}
+    # Tokens by model for every dated day, not just the recent week.
+    self.history: dict[str, dict[str, int]] = {}
     # What the store said each of the last 30 days cost, for spend().
     self.spend_days = [date_string(day - timedelta(days=offset)) for offset in range(SPEND_DAYS - 1, -1, -1)]
     self.spend_costs = {d: 0.0 for d in self.spend_days}
@@ -478,6 +484,9 @@ class Stats:
       bucket["outputTokens"] += output_tokens
       bucket["cacheReadInputTokens"] += cache_read
       bucket["cacheCreationInputTokens"] += cache_write
+    if day is not None and total > 0:
+      by_model = self.history.setdefault(day, {})
+      by_model[model] = by_model.get(model, 0) + total
     if day in self.recent:
       # recentDays' messageCount holds tokens, despite the name synced
       # snapshots share.
@@ -550,7 +559,27 @@ class Stats:
       "activeDays": len(self.active_dates),
       "activeDates": sorted(self.active_dates),
       "modelUsage": self.model_usage,
+      # {day: {model: tokens}} for every dated day, for the panel's charts.
+      "history": self.history,
     }
+
+
+def merge_history(*parts: Any) -> dict[str, dict[str, int]]:
+  """Several `history` maps added together per day and model; anything that
+  isn't a {day: {model: tokens}} map reads as empty."""
+  merged: dict[str, dict[str, int]] = {}
+  for part in parts:
+    if not isinstance(part, dict):
+      continue
+    for day, models in part.items():
+      if not isinstance(models, dict):
+        continue
+      target = merged.setdefault(str(day), {})
+      for model, tokens in models.items():
+        count = number(tokens)
+        if count > 0:
+          target[str(model)] = target.get(str(model), 0) + count
+  return {day: models for day, models in merged.items() if models}
 
 
 # -------------------------------------------------------------- scan cache

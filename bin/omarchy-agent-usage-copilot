@@ -936,6 +936,7 @@ def main() -> int:
   record["todayTokensByModel"] = stats.get("todayTokensByModel") or {}
   record["recentDays"] = stats.get("recentDays") or []
   record["modelUsage"] = stats.get("modelUsage") or {}
+  record["history"] = stats.get("history") or {}
   record["activeDates"] = stats.get("activeDates") or []
   emit(record)
   return 0

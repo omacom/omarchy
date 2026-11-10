@@ -212,6 +212,12 @@ def summarize_usage(days: list[tuple[str, dict[str, dict[str, int]]]]) -> dict[s
     "activeDays": len(active_dates),
     "activeDates": active_dates,
     "modelUsage": model_usage,
+    # Only the fetched week: Cursor's dashboard is asked for nothing older.
+    "history": {
+      day: {model: sum(bucket.values()) for model, bucket in usage.items() if sum(bucket.values()) > 0}
+      for day, usage in days
+      if any(sum(bucket.values()) > 0 for bucket in usage.values())
+    },
   }
 
 

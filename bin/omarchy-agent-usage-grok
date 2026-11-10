@@ -102,6 +102,7 @@ def local_stats(home):
   by_day = {day: 0 for day in week}
   today_by_model = {}
   models = {}
+  history = {}
   seen = set()
   for session in (Path(home) / "sessions").glob("*/*/"):
     summary = read_json(session / "summary.json")
@@ -145,6 +146,8 @@ def local_stats(home):
         totals["outputTokens"] += output
         totals["cacheReadInputTokens"] += cached
         totals["cacheCreationInputTokens"] += created
+        if tokens > 0:
+          history.setdefault(day, {})[model] = history.get(day, {}).get(model, 0) + tokens
         if day in by_day:
           by_day[day] += tokens
         if day == today:
@@ -163,6 +166,7 @@ def local_stats(home):
     "activeDays": len(days),
     "activeDates": sorted(days),
     "modelUsage": models,
+    "history": history,
   }
 
 

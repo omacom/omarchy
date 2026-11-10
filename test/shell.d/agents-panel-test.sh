@@ -230,3 +230,26 @@ assertEqual(progress(10, 10), 0.9, 'a start reaches 90% at the time the last one
 assert(progress(20, 10) > progress(15, 10) && progress(15, 10) > 0.9, 'a start that runs long keeps creeping')
 assert(progress(1000, 10) < 0.99, 'the bar never fills before the model is ready')
 JS
+
+# Synced snapshots add each day's tokens per model across devices, take the
+# widest for an account-scoped agent, and an older snapshot with no history
+# adds nothing.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const pick = name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]
+const aggregate = new Function('recentDateStrings', 'safeDeviceId',
+  ['numberValue', 'emptyTokenBucket', 'combineNumber', 'combineObjectNumbers', 'aggregateSnapshots'].map(pick).join('\n')
+  + '\nreturn aggregateSnapshots')(() => [], id => String(id))
+
+const out = aggregate([
+  { deviceId: 'a', providers: { demo: { history: { '2030-01-01': { alpha: 10, beta: 2 }, '2030-01-02': { alpha: 5 } } } } },
+  { deviceId: 'b', providers: { demo: { history: { '2030-01-01': { alpha: 7 } } } } },
+  { deviceId: 'c', providers: { demo: {} } },
+  { deviceId: 'a', providers: { shared: { scope: 'account', history: { '2030-01-01': { alpha: 9 } } } } },
+  { deviceId: 'b', providers: { shared: { scope: 'account', history: { '2030-01-01': { alpha: 9 } } } } }
+])
+assertDeepEqual(out.providers.demo.history, { '2030-01-01': { alpha: 17, beta: 2 }, '2030-01-02': { alpha: 5 } },
+  'device-scoped history adds per day and model, and a snapshot without any adds nothing')
+assertDeepEqual(out.providers.shared.history, { '2030-01-01': { alpha: 9 } }, 'account-scoped history is not counted once per device')
+JS
