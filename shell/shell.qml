@@ -55,6 +55,11 @@ ShellRoot {
     onTriggered: watchdog.write("\n")
   }
 
+  property ShellOutputRecovery outputRecovery: ShellOutputRecovery {
+    omarchyPath: shell.omarchyPath
+    enabled: Quickshell.env("OMARCHY_SHELL_WATCHDOG") === "1"
+  }
+
   // Bundled fallback so the shell can start even when the default shell.json is
   // missing or unreadable. The bar config here mirrors the on-disk defaults
   // closely enough to render a usable bar; not authoritative.

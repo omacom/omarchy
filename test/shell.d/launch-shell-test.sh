@@ -257,3 +257,89 @@ sleep 0.35 | PATH="$fake_bin:$PATH" "$watchdog_bin"
 grep -Fx -- "--user --collect --unit=omarchy-shell-watchdog-recovery $ROOT/bin/omarchy-restart-shell" \
   "$OMARCHY_TEST_RECOVERY_LOG" >/dev/null || fail "watchdog does not recover outside the shell's process tree"
 pass "missing heartbeats and failed IPC request one independent shell recovery"
+
+# A responsive shell can still lose its surfaces after every output vanishes.
+run_node_test <<'JS'
+const fs = require('fs')
+const vm = require('vm')
+const recovery = {}
+vm.createContext(recovery)
+vm.runInContext(fs.readFileSync(path.join(root, 'shell/services/OutputRecovery.js'), 'utf8'), recovery)
+
+let state = recovery.update(recovery.initialState(), [''])
+assert(!state.pending && !state.connected, 'a nameless startup screen does not arm recovery')
+state = recovery.update(state, ['DP-3'])
+assert(!state.pending && state.connected, 'the first real output does not need recovery')
+state = recovery.update(state, [''])
+assert(state.pending && !state.connected, 'a nameless placeholder arms recovery after real output loss')
+state = recovery.update(state, ['DP-3'])
+assert(state.pending && state.connected, 'a returned output retains the recovery request')
+state = recovery.update(state, [])
+assert(state.pending && !state.connected, 'another output loss postpones pending recovery')
+state = recovery.update(recovery.initialState(), ['DP-3', 'HDMI-A-1'])
+state = recovery.update(state, ['HDMI-A-1'])
+assert(!state.pending && state.connected, 'removing one of several outputs does not arm recovery')
+state = recovery.update(recovery.initialState(), ['DP-3'])
+for (let i = 0; i < 100; i++) state = recovery.update(state, ['DP-3'])
+assert(!state.pending, 'a healthy new shell does not enter a recovery loop')
+JS
+
+trap 'qml_fixture_cleanup; cleanup' EXIT
+mkdir -p "$test_tmp/bin"
+cat >"$test_tmp/bin/omarchy-hyprland-session-locked" <<'SH'
+#!/bin/bash
+exit "$OMARCHY_TEST_LOCK_STATUS"
+SH
+cat >"$test_tmp/bin/logger" <<'SH'
+#!/bin/bash
+exit 0
+SH
+cat >"$test_tmp/bin/systemd-run" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >"$OMARCHY_TEST_RECOVERY_QUEUE"
+exit "${OMARCHY_TEST_RECOVERY_STATUS:-0}"
+SH
+chmod +x "$test_tmp/bin/"*
+
+queue="$test_tmp/queue"
+recover_outputs() {
+  PATH="$test_tmp/bin:$PATH" OMARCHY_TEST_LOCK_STATUS="$1" \
+    OMARCHY_TEST_RECOVERY_QUEUE="$queue" OMARCHY_TEST_RECOVERY_STATUS="${2:-0}" \
+    "$ROOT/bin/omarchy-shell-recover-outputs"
+}
+
+for status in 0 2 124 127; do
+  rm -f "$queue"
+  if recover_outputs "$status"; then
+    fail "recovery defers when lock state is $status"
+  fi
+  [[ ! -e $queue ]] || fail "lock state $status never queues a restart"
+  pass "recovery defers when locked or undetermined (status $status)"
+done
+
+recover_outputs 1 || fail "an explicitly unlocked compositor queues recovery"
+[[ $(tail -n 1 "$queue") == "$ROOT/bin/omarchy-restart-shell" ]] || fail "recovery uses this checkout's restart helper"
+for option in --user --wait --collect --unit=omarchy-shell-watchdog-recovery; do
+  grep -Fx -- "$option" "$queue" >/dev/null || fail "recovery unit receives $option"
+done
+pass "unlocked recovery queues the independent user unit and waits for its result"
+if recover_outputs 1 1; then
+  fail "a failed restart remains retryable"
+fi
+pass "a failed restart remains retryable"
+
+require_quickshell "output recovery timer runtime"
+qml_fixture_scratch
+cp "$test_tmp/bin/systemd-run" "$QML_FIXTURE_TMP/bin/systemd-run"
+cp "$test_tmp/bin/logger" "$QML_FIXTURE_TMP/bin/logger"
+cat >"$QML_FIXTURE_TMP/bin/omarchy-hyprland-session-locked" <<'SH'
+#!/bin/bash
+exit 1
+SH
+chmod +x "$QML_FIXTURE_TMP/bin/"*
+
+rm -f "$queue"
+OMARCHY_TEST_RECOVERY_QUEUE="$queue" \
+  run_qml_fixture shell-output-recovery "real QML recovery timer waits for an output before queuing recovery" services
+[[ $(tail -n 1 "$queue") == "$ROOT/bin/omarchy-restart-shell" ]] || fail "the QML timer reaches this checkout's restart helper"
+pass "the real QML process boundary reaches only the recording recovery stub"

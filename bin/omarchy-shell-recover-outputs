@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Recover shell surfaces after all outputs reconnect
+# omarchy:hidden=true
+
+# A healthy IPC loop can still own stale windows after losing every output.
+# Wait for an explicitly unlocked compositor; never disrupt a live lock or
+# mistake an unavailable/undetermined compositor for an unlocked session.
+timeout --kill-after=1s 2s omarchy-hyprland-session-locked
+lock_status=$?
+
+if (( lock_status == 1 )); then
+  logger -t omarchy-shell "All shell outputs disappeared and returned; recovering stale surfaces."
+  # Wait for the independent unit so a refused/failed restart can be retried.
+  # Killing this child with Quickshell does not stop the systemd recovery unit.
+  systemd-run --user --wait --collect --unit=omarchy-shell-watchdog-recovery \
+    "$OMARCHY_PATH/bin/omarchy-restart-shell"
+else
+  exit 1
+fi
