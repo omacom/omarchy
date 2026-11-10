@@ -61,8 +61,10 @@ for extension_dir in "$ROOT"/default/chromium/extensions/*/; do
   mkdir -p "$(dirname "$expected")" "$shipped"
   cp -rL "$extension_dir" "$expected"
   jq 'del(.key)' "$extension_dir/manifest.json" >"$expected/manifest.json"
-  header_length=$(od -An -tu4 -j8 -N4 "$crx" | tr -d ' ')
-  tail -c +$((12 + header_length + 1)) "$crx" | bsdtar -xf - -C "$shipped"
+  # A CRX is a signed header and then a zip, which bsdtar finds from the
+  # central directory at its end. Streamed through a pipe, libarchive 3.8.10
+  # fails on the zip instead.
+  bsdtar -xf "$crx" -C "$shipped"
   diff -r "$expected" "$shipped" >/dev/null ||
     fail "$name.crx matches its source" "run omarchy-dev-pack-chrome-extensions after bumping the version in $name/manifest.json"
 

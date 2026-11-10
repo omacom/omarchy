@@ -23,14 +23,6 @@ install_root=/usr/share/omarchy/default/chromium/crx
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# A CRX3 file is "Cr24", a version, the header length, the header, then a zip.
-crx_extract() {
-  local header_length
-  header_length=$(od -An -tu4 -j8 -N4 "$1" | tr -d ' ')
-  mkdir -p "$2"
-  tail -c +$((12 + header_length + 1)) "$1" | bsdtar -xf - -C "$2"
-}
-
 extension_id() {
   openssl pkey -in "$1" -pubout -outform DER | sha256sum | cut -c1-32 | tr '0-9a-f' 'a-p'
 }
@@ -61,7 +53,9 @@ for source in "$extensions_dir"/*/; do
   version=$(jq -r .version "$stage/manifest.json")
 
   if [[ -f $crx ]]; then
-    crx_extract "$crx" "$work/$name.shipped"
+    # bsdtar reads the zip after the CRX header from its central directory.
+    mkdir -p "$work/$name.shipped"
+    bsdtar -xf "$crx" -C "$work/$name.shipped"
     if diff -r "$stage" "$work/$name.shipped" >/dev/null; then
       echo "$name.crx is current"
     elif [[ $(jq -r .version "$work/$name.shipped/manifest.json") == "$version" ]]; then
