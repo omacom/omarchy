@@ -24,7 +24,8 @@ Item {
     textFormat: Text.StyledText
     font: incoming.font
     color: root.color
-    opacity: 1 - root.progress
+    // Clear the outgoing sample halfway through the incoming fade.
+    opacity: Math.max(0, 1 - 2 * root.progress)
     x: -Style.space(16) * root.progress
     elide: Text.ElideRight
   }
