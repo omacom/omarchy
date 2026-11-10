@@ -36,15 +36,27 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
-validate_revision() (
-  local dir="$1" revision="$2" checkout
+validate_update() (
+  local dir="$1" current="$2" incoming="$3" checkout index shared_index
   checkout=$(mktemp -d) || return 1
   trap '
     status=$?
     git -C "$dir" worktree remove --force "$checkout" >/dev/null 2>&1 || rmdir "$checkout" 2>/dev/null || true
     exit "$status"
   ' EXIT
-  git -C "$dir" worktree add --quiet --detach "$checkout" "$revision" || return 1
+  git -C "$dir" worktree add --quiet --no-checkout --detach "$checkout" "$current" || return 1
+
+  # Give Git the installed index and files so its dry-run merge sees the
+  # staged, unstaged and untracked files the real fast-forward can retain.
+  index=$(git -C "$checkout" rev-parse --path-format=absolute --git-path index) || return 1
+  cp -- "$dir/.git/index" "$index" || return 1
+  shared_index=$(git -C "$dir" rev-parse --path-format=absolute --shared-index-path) || return 1
+  if [[ -n $shared_index ]]; then
+    cp -- "$shared_index" "${index%/*}/" || return 1
+  fi
+  tar -C "$dir" --exclude='./.git' -cf - . | tar -C "$checkout" -xf - || return 1
+
+  git -C "$checkout" -c core.hooksPath=/dev/null merge --quiet --ff-only --no-autostash "$incoming" || return 1
   omarchy-plugin-validate "$checkout"
 )
 
@@ -78,14 +90,13 @@ update_one() {
     }
   fi
 
-  # Validate the incoming files before changing the installed checkout. A
-  # fast-forward can keep local edits that a hard reset would then discard.
-  if ! validate_revision "$dir" "$incoming"; then
+  if ! validate_update "$dir" "$current" "$incoming"; then
     echo "omarchy-plugin-update: update of '$id' failed validation; keeping the installed version" >&2
     return 1
   fi
 
-  if ! git -C "$dir" merge --ff-only "$incoming" >/dev/null 2>&1; then
+  if [[ $(git -C "$dir" rev-parse HEAD) != "$current" ]] ||
+    ! git -C "$dir" merge --ff-only --no-autostash "$incoming" >/dev/null 2>&1; then
     echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
     return 1
   fi
