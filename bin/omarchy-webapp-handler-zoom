@@ -8,14 +8,17 @@ web_url="https://app.zoom.us/wc/home"
 
 if [[ $url =~ ^zoom(mtg|us):// ]]; then
   confno=$(echo "$url" | sed -n 's/.*[?&]confno=\([^&]*\).*/\1/p')
+  pwd=$(echo "$url" | sed -n 's/.*[?&]pwd=\([^&]*\).*/\1/p')
 
-  if [[ -n $confno ]]; then
-    pwd=$(echo "$url" | sed -n 's/.*[?&]pwd=\([^&]*\).*/\1/p')
+  # A meeting number is digits. Anything else would add path segments or query
+  # separators to the URL below, so refuse it and keep the home page.
+  if [[ $confno =~ ^[0-9]{1,20}$ ]]; then
+    web_url="https://app.zoom.us/wc/join/$confno"
 
-    if [[ -n $pwd ]]; then
-      web_url="https://app.zoom.us/wc/join/$confno?pwd=$pwd"
-    else
-      web_url="https://app.zoom.us/wc/join/$confno"
+    # Passwords are URL-safe: letters, digits, and the punctuation Zoom issues.
+    # Reject a value that could open a new query parameter.
+    if [[ $pwd =~ ^[A-Za-z0-9._@-]{1,64}$ ]]; then
+      web_url+="?pwd=$pwd"
     fi
   fi
 fi
