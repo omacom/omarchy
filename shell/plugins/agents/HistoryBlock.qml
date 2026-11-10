@@ -24,6 +24,8 @@ Column {
   property int litRange: 0
   signal rangeRequested(int range)
   signal rangeHovered(int range)
+  // The title and 7d/30d row, so the panel can scroll to just that.
+  readonly property Item toggleRow: header
 
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property int maxSegments: 5
@@ -96,6 +98,7 @@ Column {
 
   // Title and the 7 / 30 day toggle.
   Item {
+    id: header
     width: parent.width
     implicitHeight: Math.max(title.implicitHeight, toggle.height)
 

@@ -2333,7 +2333,7 @@ Panel {
       foreground: root.foreground
       fontFamily: root.fontFamily
       litRange: root.hasKey("range7", section.providerIndex) ? 7 : root.hasKey("range30", section.providerIndex) ? 30 : 0
-      onLitRangeChanged: if (litRange > 0 && root.dragProviderId === "") root.revealItem(historyBlock)
+      onLitRangeChanged: if (litRange > 0 && root.dragProviderId === "") root.revealItem(historyBlock.toggleRow)
       onRangeHovered: function(range) { root.pointAt(range === 7 ? "range7" : "range30", section.providerIndex) }
       onRangeRequested: function(range) { root.historyRange = range }
     }
