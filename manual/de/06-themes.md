@@ -1,12 +1,12 @@
-# Designs
+# Themes
 
-Omarchy kommt mit zweiundzwanzig wunderschönen Designs. Du kannst zwischen ihnen über _Stil > Design_ im Omarchy-Menü (`Super + Space`) wählen oder direkt mit `Super + Ctrl + Shift + Space` zur Design-Auswahl springen.
+Omarchy wird mit zweiundzwanzig wunderschönen Themes ausgeliefert. Du kannst zwischen ihnen über _Darstellung > Theme_ im Omarchy Menu (`Super + Space`) wählen oder mit `Super + Ctrl + T` direkt zur Theme-Auswahl springen.
 
-Jedes Design gestaltet den Desktop, das Terminal, Neovim, den Aktivitätsbildschirm (btop), Chromium und die gesamte Omarchy-Shell: Menüleiste, Menü, Benachrichtigungen, OSD und den Sperrbildschirm. (Für Obsidian musst du das Omarchy-Design manuell über _Appearance > Themes_ in der App auswählen.)
+Jedes Theme gestaltet den Desktop, das Terminal, neovim, die Aktivitätsanzeige (btop), Chromium und die gesamte Omarchy-Shell: obere Leiste, Menü, Benachrichtigungen, OSD und den Sperrbildschirm. (Für Obsidian musst du das Omarchy-Theme manuell über _Darstellung > Themes_ in der App auswählen).
 
-Designs haben eine Reihe von Hintergrundbildern, zwischen denen du mit `Super + Ctrl + Space` wählen kannst.
+Themes haben eine Reihe von Hintergrundbildern, zwischen denen du mit `Super + Ctrl + W` wählen kannst.
 
-Noch mehr Designs findest du auf [der Seite für zusätzliche Designs](https://omarchy.org/themes/) oder du kannst sogar [dein eigenes Design erstellen](43-making-your-own-theme.md).
+Noch mehr Themes findest du auf [der Seite mit zusätzlichen Themes](https://omarchy.org/themes/) oder du kannst sogar [dein eigenes Theme erstellen](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Entsperr-Designs
+### Unlock-Designs
 
-Designs können auch ein benutzerdefiniertes Entsperr-Design haben, das für den Boot-Entschlüsselungsprozess verwendet wird. Du kannst eines davon unter _Stil > Entsperren_ auswählen. Sie sehen so aus:
+Themes können auch ein eigenes Unlock-Design haben, das für die Entschlüsselung beim Booten verwendet wird. Du kannst eines davon unter _Darstellung > Unlock_ auswählen. Sie sehen so aus:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

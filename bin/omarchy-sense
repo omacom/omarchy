@@ -286,7 +286,7 @@ flow_sentence() {
 
 dnd_state() {
   local state
-  state=$(omarchy-shell notifications dndState 2>/dev/null || true)
+  state=$(omarchy-shell notifications isDnd 2>/dev/null || true)
   case "$state" in
     on | off) printf '%s\n' "$state" ;;
     *) printf '' ;;

@@ -1,36 +1,36 @@
 # Instalări nesupravegheate
 
-ISO-ul Omarchy se poate instala singur fără nimeni la tastatură. Dacă programul de instalare găsește o a doua unitate etichetată `cidata` care conține fișierele sale de configurare, le copiază, omite complet asistentul de configurare și repornește singur în sistemul terminat. Nicio construcție specială ISO, nicio intrare suplimentară în meniul de pornire — fără o astfel de unitate atașată, nimic nu se schimbă și primești asistentul normal.
+ISO-ul Omarchy se poate instala singur, fără nimeni la tastatură. Dacă programul de instalare găsește o a doua unitate etichetată `cidata` care conține fișierele sale de configurare, le copiază de pe ea, sare complet peste asistentul de configurare și repornește singur în sistemul finit. Fără o versiune specială de ISO, fără o intrare suplimentară în meniul de pornire — fără o astfel de unitate conectată, nu se schimbă nimic și primești asistentul normal.
 
-Asta face Omarchy grozav ca imagine de bază pentru medii de dezvoltare de unică folosință: creează o mașină virtuală în Proxmox sau cu Packer, pornește-o, pleacă, intră prin SSH. `cidata` este eticheta cloud-init `NoCloud`, așa că toate instrumentele obișnuite de virtualizare știu deja cum să atașeze o astfel de unitate.
+Asta face din Omarchy o imagine de bază excelentă pentru medii de dezvoltare de unică folosință: creezi un VM în Proxmox sau cu Packer, îl pornești, pleci de lângă el și intri prin SSH. `cidata` este eticheta cloud-init `NoCloud`, așa că toate instrumentele comune de virtualizare știu deja cum să atașeze o astfel de unitate.
 
 ## Fișierele de configurare
 
-Fișierele sunt exact ceea ce scrie propriul asistent al programului de instalare, așa că cel mai ușor mod de a obține un set de pornire este să rulezi o instalare interactivă (să zicem, într-o mașină virtuală) și să copiezi ce a scris în `/root`:
+Fișierele sunt exact cele pe care le scrie asistentul propriu al programului de instalare, așa că cel mai ușor mod de a obține un set de pornire este să rulezi o instalare interactivă (într-un VM, de exemplu) și să copiezi ce a scris în `/root`:
 
 | Fișier | Obligatoriu | Scop |
 |------|----------|---------|
 | `user_configuration.json` | Da | Disc, nume de gazdă, fus orar, tastatură |
-| `user_credentials.json` | Da | Nume de utilizator și hashul parolei |
-| `user_full_name.txt` | Nu | Numele complet Git |
-| `user_email_address.txt` | Nu | E-mail Git |
-| `user_encrypt_installation.txt` | Nu | `true` când configurația conține un bloc `disk_encryption` |
-| `authorized_keys` | Nu | Chei publice SSH, câte una pe rând |
-| `tailscale_authkey` | Nu | Cheie de autentificare Tailscale pentru alăturarea la tailnetul tău la prima pornire |
+| `user_credentials.json` | Da | Nume de utilizator și hash al parolei |
+| `user_encrypt_installation.txt` | Nu | `true` când configurarea conține un bloc `disk_encryption` |
+| `authorized_keys` | Nu | Chei publice SSH, câte una pe linie |
+| `tailscale_authkey` | Nu | Cheie de autentificare Tailscale pentru adăugarea în tailnet la prima pornire |
 
-Generează hashul parolei pentru `user_credentials.json` cu `openssl passwd -6 "yourpassword"`.
+Generează hash-ul parolei pentru `user_credentials.json` cu `openssl passwd -6 "yourpassword"`.
 
-Poți pune și un fișier gol numit `defer-provisioning` în locul `user_credentials.json`. Asta rulează aceeași [instalare de pregătire pentru alt proprietar](02-getting-started.md) pe care o poți declanșa interactiv: mașina se instalează fără detalii personale, iar oricine o pornește prima dată își alege tastatura și își creează utilizatorul. Acesta este modul pentru platformele de imagistică, unde unitatea nu ar trebui să conțină deloc acreditările cuiva.
+Numele și adresa de e-mail pentru commit-urile git nu fac parte din instalare. Setează-le după ce mașina este pornită, prin SSH de exemplu, cu `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+
+Poți pune și un fișier gol numit `defer-provisioning` în locul lui `user_credentials.json`. Asta rulează aceeași [instalare pentru pregătirea pentru alt proprietar](02-getting-started.md) pe care o poți declanșa interactiv: mașina se instalează fără date personale, iar cine o pornește primul își alege tastatura și își creează utilizatorul. Acesta este modul pentru stațiile de creare a imaginilor, unde unitatea nu ar trebui să conțină deloc datele de autentificare ale nimănui.
 
 ## Acces SSH
 
-Când `authorized_keys` este prezent, instalarea configurează cheile ca `~/.ssh/authorized_keys` al utilizatorului, activează `sshd` și deschide firewallul pentru acesta. (O instalare Omarchy standard livrează openssh cu serviciul dezactivat și portul închis, așa că o mașină nesupravegheată ar fi altfel de neatins.) Instalarea adaugă doar cheile tale — nu relaxează niciuna dintre celelalte setări de autentificare ale daemonului SSH.
+Când `authorized_keys` este prezent, instalarea configurează cheile ca `~/.ssh/authorized_keys` al utilizatorului, activează `sshd` și deschide firewall-ul pentru el. (O instalare Omarchy standard vine cu openssh cu serviciul dezactivat și portul închis, așa că o mașină nesupravegheată ar fi altfel inaccesibilă.) Instalarea adaugă doar cheile tale — nu slăbește niciuna dintre celelalte setări de autentificare ale demonului SSH.
 
-Când `tailscale_authkey` este prezent, mașina se alătură în schimb tailnetului tău la prima pornire: Tailscale este instalat din pachetele incluse în ISO, firewallul permite interfața tailnet, iar o sarcină în fundal rulează alăturarea imediat ce mașina are cu adevărat rețea, reîncercând până reușește. Folosește o cheie reutilizabilă, preautorizată, astfel încât o singură imagine de unitate să poată servi multe mașini.
+Când `tailscale_authkey` este prezent, mașina se alătură în schimb tailnet-ului tău la prima pornire: Tailscale este instalat din pachetele incluse în ISO, firewall-ul permite interfața tailnet, iar o sarcină în fundal rulează alăturarea imediat ce mașina are efectiv rețea, reîncercând până reușește. Folosește o cheie reutilizabilă, preautorizată, ca o singură imagine de unitate să poată servi multe mașini.
 
 ## Construirea unității cidata
 
-Funcționează orice sistem de fișiere cu eticheta potrivită. Un ISO mic este modul ușor:
+Orice sistem de fișiere cu eticheta corectă funcționează. Un ISO mic este calea ușoară:
 
 ```bash
 mkdir cidata
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Apoi atașează-l la mașina virtuală alături de ISO-ul Omarchy. Iată un exemplu complet Proxmox:
+Apoi atașează-l la VM alături de ISO-ul Omarchy. Iată un exemplu complet pentru Proxmox:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,7 +54,7 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Ordinea de pornire listează discul primul în mod intenționat: discul gol trece la ISO la prima pornire, iar sistemul instalat pornește de pe disc de atunci încolo.
+Ordinea de pornire listează intenționat discul primul: discul gol trece mai departe la ISO la prima pornire, iar sistemul instalat pornește de pe disc pentru totdeauna după aceea.
 
 ## Două avertismente
 

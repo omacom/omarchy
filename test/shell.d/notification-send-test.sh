@@ -78,6 +78,27 @@ load
 [[ ${args[9]} == "42" ]] || fail "notification wrapper sets replaces_id from -r" "${args[9]}"
 pass "notification wrapper supports -p (print id) and -r (replace id)"
 
+# --transient is a flag: it adds the hint and takes nothing after it.
+: >"$args_file"
+send --transient "Pending migrations" "Click to run 2" >/dev/null
+load
+[[ $(hint_value transient) == "true" ]] || fail "notification wrapper sets the transient hint from --transient" "$(hint_value transient)"
+[[ ${args[11]} == "Pending migrations" && ${args[12]} == "Click to run 2" ]] || fail "--transient takes no value" "${args[11]} / ${args[12]}"
+# A flag takes no value: --transient=false must not switch it on. A valued form
+# is not a flag, so it is text wherever it stands, like any unknown word.
+: >"$args_file"
+send --transient=false "Body" >/dev/null
+load
+! has_hint transient || fail "--transient=… before the headline does not set the hint"
+[[ ${args[11]} == "--transient=false" ]] || fail "--transient=… before the headline is the headline" "${args[11]}"
+: >"$args_file"
+send "Head" --transient=false -p >/dev/null
+load
+! has_hint transient || fail "--transient=… after the headline does not set the hint"
+[[ ${args[12]} == "--transient=false" ]] || fail "--transient=… after the headline is the description" "${args[12]}"
+[[ $(send --print-id=1 "Body") != "42" ]] || fail "--print-id=… does not print the id"
+pass "notification wrapper supports --transient"
+
 # Options may follow the headline and description (Taildrop appends -u critical
 # and -g after the two positionals); they still land on the call, and urgency
 # stays a single hint rather than doubling.
@@ -182,6 +203,31 @@ if send "Head" --exec "" 2>/dev/null; then
   fail "notification wrapper rejects --exec with an empty program"
 fi
 pass "notification wrapper rejects --exec with an empty program"
+
+# ---------------------------------------------------------------- --action
+# Each action's words are literals ending at the next --action or --with; the
+# data after --with takes the rest of the line and joins every action, so a
+# filename that reads like a flag stays part of the filename.
+: >"$args_file"
+send "Screenshot saved" "shot.png" --action Edit omasnap --file --action "Copy path" wl-copy -- \
+  --with "/tmp/a b --action x.png" >/dev/null
+load
+[[ $(hint_value omarchy-actions) == '[{"label":"Edit","argv":["omasnap","--file","/tmp/a b --action x.png"]},{"label":"Copy path","argv":["wl-copy","--","/tmp/a b --action x.png"]}]' ]] ||
+  fail "notification wrapper builds the actions hint" "$(hint_value omarchy-actions)"
+[[ $(hint_value omarchy-exec-argv) == '["omasnap","--file","/tmp/a b --action x.png"]' ]] ||
+  fail "the first action is the click command" "$(hint_value omarchy-exec-argv)"
+pass "notification wrapper builds --action buttons with --with data, the first as the click"
+
+if send "Head" --action One true --action Two true --action Three true --action Four true 2>/dev/null; then
+  fail "notification wrapper rejects a fourth action"
+fi
+if send "Head" --action Go true --exec mpv 2>/dev/null; then
+  fail "notification wrapper rejects --exec alongside --action"
+fi
+if send "Head" --with /tmp/x 2>/dev/null; then
+  fail "notification wrapper rejects --with without an action"
+fi
+pass "notification wrapper rejects too many actions, --exec with --action, and --with alone"
 
 # A description that begins with a dash is content, not options: a price, a
 # negative number, a diff line. It must reach the body, not error out.

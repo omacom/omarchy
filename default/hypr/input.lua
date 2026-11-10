@@ -6,6 +6,8 @@ local keyboard = require("default.hypr.keyboard")
 -- etc/mkinitcpio.conf.d/omarchy_hooks.conf.
 local non_latin_layouts =
   " af am ara bd bg by et ge gr il in iq ir kg kh kz la lk mk mm mn mv np rs ru sy th tj ua "
+-- us variants that can't type Latin letters either: Russian phonetic and Cherokee.
+local non_latin_us_variants = " chr rus "
 
 local vconsole = keyboard.selected()
 
@@ -20,8 +22,31 @@ local kb_options = "omarchy:shift_caps_compose"
 -- and friends) only fire when a Latin layout leads. Installing with a non-Latin
 -- one would otherwise leave the desktop unusable.
 if non_latin_layouts:find(" " .. kb_layout:match("^[^,]*") .. " ", 1, true) then
-  kb_layout = "us," .. kb_layout
-  kb_variant = "," .. kb_variant
+  -- Variants pair with layouts by position. A list that already names us (as in
+  -- "ru,us") moves that entry and its variant to the front rather than gaining a
+  -- second us, which would make the toggle cycle through a duplicate.
+  local layouts, variants = {}, {}
+  for layout in (kb_layout .. ","):gmatch("([^,]*),") do
+    layouts[#layouts + 1] = layout
+  end
+  for variant in (kb_variant .. ","):gmatch("([^,]*),") do
+    variants[#variants + 1] = variant
+  end
+
+  local us_variant = ""
+  for i, layout in ipairs(layouts) do
+    if layout == "us" and not non_latin_us_variants:find(" " .. (variants[i] or "") .. " ", 1, true) then
+      us_variant = variants[i] or ""
+      table.remove(layouts, i)
+      if variants[i] then table.remove(variants, i) end
+      break
+    end
+  end
+
+  table.insert(layouts, 1, "us")
+  table.insert(variants, 1, us_variant)
+  kb_layout = table.concat(layouts, ",")
+  kb_variant = table.concat(variants, ",")
   -- Reach the original layout with Left Alt + Right Alt.
   kb_options = kb_options .. ",grp:alts_toggle"
 end
