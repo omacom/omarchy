@@ -841,6 +841,13 @@ Panel {
     return isFinite(ms) ? ms - root.nowMs : -1
   }
 
+  function formatResetAt(resetAt) {
+    if (typeof resetAt !== "string" || resetAt === "") return ""
+    var date = new Date(resetAt)
+    if (!isFinite(date.getTime())) return ""
+    return date.toLocaleString(Qt.locale(Commons.I18n.formatLocale), Locale.LongFormat)
+  }
+
   function formatDuration(ms) {
     if (!(ms > 0)) return Commons.I18n.t("agents.durationNow")
     var minutes = Math.floor(ms / 60000)
@@ -2693,6 +2700,8 @@ Panel {
           lines.push(compact.resetMs > 0
             ? Commons.I18n.t("agents.windowUsedResets").arg(windowName).arg(used).arg(root.formatDuration(compact.resetMs))
             : Commons.I18n.t("agents.windowUsed").arg(windowName).arg(used))
+          var resetAt = root.formatResetAt(compact.window.resetAt)
+          if (resetAt !== "") lines.push(Commons.I18n.t("agents.resetsAt").arg(resetAt))
         }
         if (compact.stale)
           lines.push(compact.fetchedAt > 0 && root.nowMs - compact.fetchedAt > 60000

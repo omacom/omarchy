@@ -32,6 +32,40 @@ assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: '', limitsSta
 assertEqual(signIn.usageNote({usageStatusText: '', stale: true, authHelpText: 'Endpoint returned 500.'}),
   'Endpoint returned 500.', 'an account whose refresh failed still says why')
 
+// Qt's locale/format arguments are represented by their Intl counterparts in
+// Node; the timestamp parsing and tooltip composition are the panel's own.
+const Qt = { locale: code => code }
+const Locale = { LongFormat: { dateStyle: 'full', timeStyle: 'long' } }
+const catalog = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
+const translated = value => ({
+  arg(arg) { return translated(value.replace(/%\d/, String(arg))) },
+  toString() { return value }
+})
+const Commons = { I18n: {
+  formatLocale: 'en-US', formatNumber: String,
+  t: key => translated(catalog[key])
+} }
+const helpers = ['formatResetAt', 'formatDuration', 'windowDisplayTitle', 'scopedAllowanceText'].map(name =>
+  panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const tooltipRoot = new Function('Qt', 'Locale', 'Commons', helpers + '\nreturn {formatResetAt, formatDuration, windowDisplayTitle, scopedAllowanceText}')(
+  Qt, Locale, Commons)
+for (const value of ['', undefined, null, false, 0, 'not-a-date', '<b>invalid</b>'])
+  assertEqual(tooltipRoot.formatResetAt(value), '', 'no invented reset date for ' + value)
+const resetAt = '2030-01-02T15:04:05Z'
+const compact = { window: { title: 'Weekly', percent: 0.42, resetAt }, resetMs: 7200000, scoped: [], stale: false }
+const tooltipBody = panelSource.slice(panelSource.indexOf('component CompactLimit:')).match(/text: \{([^]*?)\n      \}/)[1]
+const tooltip = new Function('compact', 'root', 'Commons', tooltipBody).bind(null, compact, tooltipRoot, Commons)
+const exact = tooltipRoot.formatResetAt(resetAt)
+assertEqual(tooltip(), 'Weekly: 42% used · resets in 2h 0m\nResets at ' + exact, 'limit tooltip keeps the countdown and adds the exact reset')
+compact.window.resetAt = 'bad-date'
+assertEqual(tooltip(), 'Weekly: 42% used · resets in 2h 0m', 'invalid reset dates add no tooltip line')
+compact.window.resetAt = resetAt
+compact.stale = true
+compact.fetchedAt = 0
+compact.scoped = [{ title: '<b>Fable</b>', percent: 0.1 }]
+assertEqual(tooltip(), 'Weekly: 42% used · resets in 2h 0m\nResets at ' + exact + '\nLast updated time unavailable\n<b>Fable</b>: 10% of its weekly allowance',
+  'exact resets preserve stale and scoped notes as plain text')
+
 // Local history alone feeds the summary; a section needs a subscription to show.
 const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
 const subscribed = new Function(mainSource.match(/function providerHasSubscription\([^]*?\n  \}/)[0] + '\nreturn providerHasSubscription')()

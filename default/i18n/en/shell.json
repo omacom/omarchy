@@ -124,6 +124,7 @@
   "agents.unknownModel": "Unknown",
   "agents.use": "Use",
   "agents.waitingForAuth": "Waiting for auth",
+  "agents.resetsAt": "Resets at %1",
   "agents.windowLimit": "Limit",
   "agents.windowMonthly": "Monthly",
   "agents.windowSession": "Session",
