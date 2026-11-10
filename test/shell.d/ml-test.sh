@@ -136,7 +136,8 @@ SH
 cat >"$test_tmp/restore-bin/omarchy-hyprland-focus-app" <<'SH'
 #!/bin/bash
 [[ -e $OMARCHY_RESTORE_TEST/switched ]] || touch "$OMARCHY_RESTORE_TEST/too-early"
-exit 1
+printf '%s\n' "$1" >>"$OMARCHY_RESTORE_TEST/focus"
+[[ $1 == *channels_@me* ]]
 SH
 cat >"$test_tmp/restore-bin/uwsm-app" <<'SH'
 #!/bin/bash
@@ -151,7 +152,7 @@ chmod +x "$test_tmp/restore-bin/"*
   export XDG_STATE_HOME="$test_tmp/restore-state"
   mkdir -p "$XDG_STATE_HOME/omarchy/ml"
   jq -nc --arg hostile "firefox; touch $test_tmp/unexpected; #" \
-    '{workspace:2,apps:["firefox",$hostile]}' >"$XDG_STATE_HOME/omarchy/ml/sessions.jsonl"
+    '{workspace:2,apps:["firefox","chrome-discord.com__channels_@me-Default",$hostile]}' >"$XDG_STATE_HOME/omarchy/ml/sessions.jsonl"
   PATH="$test_tmp/restore-bin:$PATH" "$ROOT/bin/omarchy-ml-workspace" restore
 )
 for attempt in {1..20}; do
@@ -162,6 +163,8 @@ done
 [[ ! -e $test_tmp/too-early ]] || fail "restore waits for the workspace switch"
 [[ -f $test_tmp/launch && $(<"$test_tmp/launch") == $'--\ngtk-launch\nfirefox' ]] ||
   fail "restore launches a saved desktop entry by argument"
+grep -Fqx '^chrome\-discord\.com__channels_@me\-Default$' "$test_tmp/focus" ||
+  fail "restore can focus a running Discord web app by its exact class"
 pass "workspace restore dispatches before launching and treats saved classes as data"
 
 [[ $(OMARCHY_ML_GPU_STATUS="86% 14/24G 71°" "$ROOT/bin/omarchy-ml-gpu-status") == "86% 14/24G 71°" ]] ||

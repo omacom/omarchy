@@ -113,14 +113,18 @@ def restore(print_only):
         sys.exit(1)
     run([["hyprctl", "dispatch", "workspace", str(row.get("workspace") or 1)]], print_only)
     for name in row.get("apps") or []:
-        # A class identifies a desktop entry. It is never a launch command.
-        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9._-]*", name):
+        if not isinstance(name, str) or not name or "\0" in name:
             continue
         focus = ["omarchy-hyprland-focus-app", f"^{re.escape(name)}$"]
-        launch = launch_for(name)
+        # Web-app classes can contain punctuation. Apply desktop-ID rules
+        # only to the launch fallback, while focusing the exact saved class.
+        launch = launch_for(name) if re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9._-]*", name) else None
         if print_only:
-            print(f"{shlex.join(focus)} || {shlex.join(launch)}")
-        elif subprocess.run(focus).returncode != 0:
+            plan = shlex.join(focus)
+            if launch:
+                plan += f" || {shlex.join(launch)}"
+            print(plan)
+        elif subprocess.run(focus).returncode != 0 and launch:
             run([launch], False)
 
 def monitor():
