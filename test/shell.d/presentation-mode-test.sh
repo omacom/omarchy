@@ -17,7 +17,7 @@ printf '%s\n' "$*" >>"$SHELL_LOG"
 if [[ $1 == "-q" ]]; then
   shift
 fi
-if [[ $1 == "notifications" && $2 == "dndState" ]]; then
+if [[ $1 == "notifications" && $2 == "isDnd" ]]; then
   printf '%s\n' "${DND_STATE:-off}"
   exit 0
 fi
@@ -136,6 +136,9 @@ run off >/dev/null
   fail "presentation off after interrupted enable restores notifications" "$(cat "$tmpdir/dnd")"
 pass "presentation restore baseline survives a kill mid-enable"
 
-grep -Fq '"trigger.toggle.presentation"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-  fail "presentation mode is on the Toggle menu"
+for mode in on off; do
+  grep -F "\"trigger.toggle.presentation-$mode\"" "$ROOT/default/omarchy/omarchy-menu.jsonc" |
+    grep -Fq "\"action\":\"omarchy-toggle-presentation\"" ||
+    fail "presentation $mode is on the Toggle menu"
+done
 pass "presentation mode is on the Toggle menu"
