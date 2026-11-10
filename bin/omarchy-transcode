@@ -49,8 +49,8 @@ output_path() {
   local resolution="$3"
   local dir base stem
 
-  dir=$(dirname -- "$input")
-  base=$(basename -- "$input")
+  IFS= read -r -d '' dir < <(dirname -z -- "$input") || return 1
+  base=${input##*/}
   stem="${base%.*}"
 
   printf '%s/%s-%s.%s' "$dir" "$stem" "$resolution" "$format"
@@ -130,7 +130,7 @@ copy_to_clipboard() {
 
 main() {
   local input="" format="" resolution="" search_path=""
-  local type output positional=()
+  local type output decoder_input positional=()
 
   while (( $# > 0 )); do
     case "$1" in
@@ -173,10 +173,11 @@ main() {
   [[ -f $input ]] || { echo "File not found: $input" >&2; return 1; }
 
   # A relative filename can look like a decoder option or a network URL.
-  # Resolve it while it is still a filesystem path, before file/magick/ffmpeg.
-  input=$(realpath -e -- "$input") || return 1
+  IFS= read -r -d '' decoder_input < <(realpath -ze -- "$input") || return 1
+  # Output belongs beside the selected path, including when it is a symlink.
+  [[ $input == /* ]] || input=$PWD/$input
 
-  type=$(media_type "$input")
+  type=$(media_type "$decoder_input")
 
   if [[ -z $format ]]; then
     if [[ $type == "picture" ]]; then
@@ -206,7 +207,7 @@ main() {
     fi
   fi
 
-  output=$(output_path "$input" "$format" "$resolution")
+  output=$(output_path "$input" "$format" "$resolution") || return 1
 
   local resolution_label=$resolution
   case $resolution in
@@ -217,11 +218,11 @@ main() {
 
   if [[ $type == "video" ]]; then
     omarchy-notification-send -g  "$(omarchy-i18n transcode.working)" "$(omarchy-i18n transcode.workingBody "$(basename -- "$input")" "$format" "$resolution")"
-    transcode_video "$input" "$format" "$resolution" "$output"
+    transcode_video "$decoder_input" "$format" "$resolution" "$output"
     copy_to_clipboard "$output"
     omarchy-notification-send -g  "$(omarchy-i18n transcode.done "$resolution" "$format")" "$(omarchy-i18n transcode.saved)"
   else
-    transcode_picture "$input" "$format" "$resolution" "$output"
+    transcode_picture "$decoder_input" "$format" "$resolution" "$output"
     copy_to_clipboard "$output"
     omarchy-notification-send -g  "$(omarchy-i18n transcode.done "$resolution_label" "$format")" "$(omarchy-i18n transcode.saved)"
   fi
