@@ -63,6 +63,7 @@
   "battlenet.wipePartial": "Wipe the partial prefix and start fresh?",
   "branding.pickAboutImage": "Pick PNG or SVG for About",
   "branding.pickScreensaverImage": "Pick PNG or SVG for screensaver",
+  "brightness.dim": "Dim %1%",
   "browser.notFound": "No default browser found",
   "browser.notFoundHint": "Install a browser or set one with: omarchy default browser <browser>",
   "browser.webappNeedsChromium": "Web apps need a Chromium-based browser",

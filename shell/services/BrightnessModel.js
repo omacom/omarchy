@@ -5,8 +5,15 @@ function brightnessKeyTarget(action, current) {
   return Math.max(current <= 5 ? current - 1 : current - 5, 1)
 }
 
+// The backlight's floor is where omarchy-brightness-display takes over to dim
+// with hyprsunset gamma.
+function atBacklightFloor(current) {
+  return current <= 1
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
-    brightnessKeyTarget: brightnessKeyTarget
+    brightnessKeyTarget: brightnessKeyTarget,
+    atBacklightFloor: atBacklightFloor
   }
 }

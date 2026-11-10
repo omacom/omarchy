@@ -64,7 +64,7 @@ sed -i "s|/sys/class/drm|$test_tmp/drm|g" "$brightness_display"
 grep -qF "$test_tmp/drm/card" "$brightness_display" || fail "omarchy-brightness-display reads DRM connectors from the fixture"
 
 run_brightness() {
-  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" \
+  CALL_LOG="$call_log" XDG_RUNTIME_DIR="$runtime_dir" TEST_TMP="$test_tmp" \
     PATH="$mock_bin:$ROOT/bin:$PATH" "$brightness_display" "$@"
 }
 
@@ -220,3 +220,203 @@ for conf in "" "ddc-require-connector-ddc extra" "ddc-future"; do
 done
 rm -f "$platform_root/displays.conf"
 pass "every external monitor is probed without the directive"
+
+# --- Gamma dimming below the backlight floor ------------------------------
+
+# The mocks below keep the backlight and hyprsunset gamma in files, so a step
+# can be followed from one command to the next. hyprctl answers monitors and
+# the hyprsunset IPC; pgrep and uwsm-app model the daemon's life cycle.
+cat >"$mock_bin/brightnessctl" <<'SH'
+#!/bin/bash
+printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
+file="$TEST_TMP/backlight"
+[[ -r $file ]] || printf '40\n' >"$file"
+
+if [[ $* == *" -m"* ]]; then
+  value=$(cat "$file")
+  printf 'mock_backlight,backlight,%s,%s%%\n' "$value" "$value"
+  exit 0
+fi
+
+if [[ $* == *" set "* ]]; then
+  arg=${!#}
+  current=$(cat "$file")
+  if [[ $arg == +* ]]; then
+    amount=${arg#+}
+    amount=${amount%\%}
+    (( value = current + amount ))
+  elif [[ $arg == *- ]]; then
+    amount=${arg%-}
+    amount=${amount%\%}
+    (( value = current - amount ))
+  else
+    value=${arg%\%}
+  fi
+  (( value < 1 )) && value=1
+  (( value > 100 )) && value=100
+  printf '%s\n' "$value" >"$file"
+fi
+SH
+
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+printf 'hyprctl %s\n' "$*" >>"$CALL_LOG"
+
+if [[ $1 == monitors && $2 == -j ]]; then
+  cat "$TEST_TMP/monitors.json"
+elif [[ $1 == hyprsunset && $2 == gamma ]]; then
+  [[ -r $TEST_TMP/hyprsunset.pid ]] || exit 1
+  if [[ -n ${3:-} ]]; then
+    printf '%s\n' "$3" >"$TEST_TMP/gamma"
+  else
+    cat "$TEST_TMP/gamma"
+  fi
+else
+  exit 1
+fi
+SH
+
+cat >"$mock_bin/pgrep" <<'SH'
+#!/bin/bash
+[[ -r $TEST_TMP/hyprsunset.pid ]] || exit 1
+cat "$TEST_TMP/hyprsunset.pid"
+SH
+
+cat >"$mock_bin/uwsm-app" <<'SH'
+#!/bin/bash
+printf '4242\n' >"$TEST_TMP/hyprsunset.pid"
+[[ -r $TEST_TMP/gamma ]] || printf '100\n' >"$TEST_TMP/gamma"
+SH
+
+cat >"$mock_bin/omarchy-osd" <<'SH'
+#!/bin/bash
+printf 'osd %s\n' "$*" >>"$CALL_LOG"
+SH
+
+chmod +x "$mock_bin"/*
+
+write_monitors() {
+  if [[ $1 == "external" ]]; then
+    printf '%s\n' '[{"name":"eDP-1","disabled":false},{"name":"DP-1","disabled":false}]' >"$test_tmp/monitors.json"
+  else
+    printf '%s\n' '[{"name":"eDP-1","disabled":false}]' >"$test_tmp/monitors.json"
+  fi
+}
+
+gamma_state() {
+  cat "$runtime_dir/omarchy-brightness-display.gamma" 2>/dev/null
+}
+
+write_monitors internal
+printf '1\n' >"$test_tmp/backlight"
+printf '100\n' >"$test_tmp/gamma"
+printf '4242\n' >"$test_tmp/hyprsunset.pid"
+rm -f "$runtime_dir/omarchy-brightness-display.gamma"
+: >"$call_log"
+
+run_brightness --no-osd --monitor eDP-1 5%-
+[[ $(cat "$test_tmp/gamma") == 95 ]] || fail "the first step below the floor lowers gamma" "gamma: $(cat "$test_tmp/gamma")"
+[[ $(cat "$test_tmp/backlight") == 1 ]] || fail "gamma dimming keeps the backlight at its floor" "backlight: $(cat "$test_tmp/backlight")"
+[[ $(gamma_state) == "4242 100 95" ]] || fail "the script records the gamma it owns" "state: $(gamma_state)"
+pass "below the backlight floor, down steps gamma"
+
+run_brightness --no-osd --monitor eDP-1 5%-
+[[ $(cat "$test_tmp/gamma") == 90 ]] || fail "another down step keeps lowering gamma" "gamma: $(cat "$test_tmp/gamma")"
+pass "gamma keeps stepping down"
+
+run_brightness --no-osd --monitor eDP-1 1%-
+[[ $(cat "$test_tmp/gamma") == 89 ]] || fail "precise down uses one gamma point" "gamma: $(cat "$test_tmp/gamma")"
+pass "precise down uses one gamma point"
+
+run_brightness --no-osd --monitor eDP-1 +5%
+[[ $(cat "$test_tmp/gamma") == 94 ]] || fail "up retraces the gamma range first" "gamma: $(cat "$test_tmp/gamma")"
+pass "brightening retraces the gamma range first"
+
+run_brightness --no-osd --monitor eDP-1 +5%
+run_brightness --no-osd --monitor eDP-1 +5%
+[[ $(cat "$test_tmp/gamma") == 100 ]] || fail "gamma reaches neutral" "gamma: $(cat "$test_tmp/gamma")"
+[[ ! -e "$runtime_dir/omarchy-brightness-display.gamma" ]] || fail "the owned state clears at neutral gamma"
+run_brightness --no-osd --monitor eDP-1 +5%
+[[ $(cat "$test_tmp/backlight") == 2 ]] || fail "the backlight rises after gamma reaches 100" "backlight: $(cat "$test_tmp/backlight")"
+pass "the backlight rises after gamma reaches 100"
+
+printf '1\n' >"$test_tmp/backlight"
+printf '30\n' >"$test_tmp/gamma"
+printf '4242 100 30\n' >"$runtime_dir/omarchy-brightness-display.gamma"
+run_brightness --no-osd --monitor eDP-1 5%-
+[[ $(cat "$test_tmp/gamma") == 30 ]] || fail "gamma stops at its 30 percent floor" "gamma: $(cat "$test_tmp/gamma")"
+pass "gamma stops at its floor"
+
+write_monitors external
+printf '80\n' >"$test_tmp/gamma"
+rm -f "$runtime_dir/omarchy-brightness-display.gamma"
+: >"$call_log"
+run_brightness --no-osd --monitor eDP-1 5%-
+[[ $(cat "$test_tmp/gamma") == 80 ]] || fail "an external display keeps gamma dimming off" "gamma: $(cat "$test_tmp/gamma")"
+[[ $(cat "$test_tmp/backlight") == 1 ]] || fail "an external display leaves the backlight at its floor"
+grep -q 'hyprsunset gamma 80' "$call_log" && fail "an external display does not write gamma" "$(<"$call_log")"
+pass "an active external display keeps gamma dimming off"
+
+printf '1\n' >"$test_tmp/backlight"
+printf '80\n' >"$test_tmp/gamma"
+printf '4242 100 80\n' >"$runtime_dir/omarchy-brightness-display.gamma"
+run_brightness --no-osd --monitor eDP-1 5%-
+[[ $(cat "$test_tmp/gamma") == 100 ]] || fail "an external display lifts the script's own gamma" "gamma: $(cat "$test_tmp/gamma")"
+[[ ! -e "$runtime_dir/omarchy-brightness-display.gamma" ]] || fail "lifting the gamma clears the owned state"
+pass "an external display lifts the script's own gamma"
+
+write_monitors internal
+printf '1\n' >"$test_tmp/backlight"
+printf '90\n' >"$test_tmp/gamma"
+printf '4242 100 90\n' >"$runtime_dir/omarchy-brightness-display.gamma"
+run_brightness --no-osd --monitor eDP-1 50%
+[[ $(cat "$test_tmp/backlight") == 50 ]] || fail "an absolute level sets the backlight" "backlight: $(cat "$test_tmp/backlight")"
+[[ $(cat "$test_tmp/gamma") == 100 ]] || fail "an absolute level above the floor clears the script's gamma"
+[[ ! -e "$runtime_dir/omarchy-brightness-display.gamma" ]] || fail "an absolute level clears the owned state"
+pass "an absolute level above the floor clears the script's gamma"
+
+printf '50\n' >"$test_tmp/backlight"
+printf '80\n' >"$test_tmp/gamma"
+rm -f "$runtime_dir/omarchy-brightness-display.gamma"
+run_brightness --no-osd --monitor eDP-1 40%
+[[ $(cat "$test_tmp/gamma") == 80 ]] || fail "a user's gamma is not reset" "gamma: $(cat "$test_tmp/gamma")"
+pass "a user's gamma survives a brightness change"
+
+write_monitors internal
+printf '1\n' >"$test_tmp/backlight"
+printf '80\n' >"$test_tmp/gamma"
+rm -f "$runtime_dir/omarchy-brightness-display.gamma"
+run_brightness --no-osd --monitor eDP-1 5%-
+[[ $(cat "$test_tmp/gamma") == 75 ]] || fail "dimming below the floor adopts the user's gamma" "gamma: $(cat "$test_tmp/gamma")"
+[[ $(gamma_state) == "4242 80 75" ]] || fail "the state keeps the user's gamma as the baseline" "state: $(gamma_state)"
+run_brightness --no-osd --monitor eDP-1 +5%
+[[ $(cat "$test_tmp/gamma") == 80 ]] || fail "raising returns to the user's gamma" "gamma: $(cat "$test_tmp/gamma")"
+[[ ! -e "$runtime_dir/omarchy-brightness-display.gamma" ]] || fail "returning to the baseline hands the filter back"
+run_brightness --no-osd --monitor eDP-1 +5%
+[[ $(cat "$test_tmp/gamma") == 80 ]] || fail "the user's gamma survives the backlight rising" "gamma: $(cat "$test_tmp/gamma")"
+pass "returning to a user's gamma hands the filter back"
+
+printf '1\n' >"$test_tmp/backlight"
+printf '100\n' >"$test_tmp/gamma"
+rm -f "$test_tmp/hyprsunset.pid" "$runtime_dir/omarchy-brightness-display.gamma"
+run_brightness --no-osd --monitor eDP-1 5%-
+[[ -r "$test_tmp/hyprsunset.pid" ]] || fail "hyprsunset starts on demand"
+[[ $(cat "$test_tmp/gamma") == 95 ]] || fail "the started hyprsunset takes the first gamma step" "gamma: $(cat "$test_tmp/gamma")"
+pass "hyprsunset starts when the gamma range is first needed"
+
+printf '1\n' >"$test_tmp/backlight"
+printf '100\n' >"$test_tmp/gamma"
+printf '4242\n' >"$test_tmp/hyprsunset.pid"
+rm -f "$runtime_dir/omarchy-brightness-display.gamma"
+: >"$call_log"
+run_brightness --monitor eDP-1 5%-
+grep -F 'osd -i brightness -m Dim 95%' "$call_log" >/dev/null || fail "the OSD names the gamma level" "$(<"$call_log")"
+pass "the OSD shows the gamma level"
+
+write_monitors external
+printf '1\n' >"$test_tmp/backlight"
+printf '100\n' >"$test_tmp/gamma"
+rm -f "$runtime_dir/omarchy-brightness-display.gamma"
+run_brightness --no-osd --monitor eDP-1 1%-
+[[ $(cat "$test_tmp/backlight") == 1 ]] || fail "precise down keeps the backlight floor" "backlight: $(cat "$test_tmp/backlight")"
+pass "precise down does not blank the panel at the floor"

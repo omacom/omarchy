@@ -16,4 +16,9 @@ const steps = [
 for (const [action, current, target] of steps) {
   assertEqual(model.brightnessKeyTarget(action, current), target, `brightness ${action} from ${current}% lands on ${target}%`)
 }
+
+// The script owns the step at the backlight floor, where gamma takes over.
+for (const [current, floor] of [[0, true], [1, true], [2, false], [50, false]]) {
+  assertEqual(model.atBacklightFloor(current), floor, `backlight floor check at ${current}% is ${floor}`)
+}
 JS

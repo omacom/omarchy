@@ -59,6 +59,8 @@ You can also checkout [Hyprmon](https://github.com/erans/hyprmon/), if you'd lik
 
 Monitor brightness is controlled by the dedicated function keys for brightness up/down. If you hold down shift while pressing these, you'll go to maximum or minimum brightness. The keys control the display you're focused on, so external monitors that speak DDC/CI are adjusted the same way as the laptop screen.
 
+On a laptop panel, once the backlight reaches its 1% floor, pressing brightness down again keeps dimming the screen with a gamma filter, down to 30%. Pressing brightness up reverses it before the backlight rises. Because the filter applies to every output, an active external monitor turns this extra range off. It is perceived brightness only: it saves no power and slightly changes color accuracy.
+
 ### Apple Displays
 
 If you're using an Apple display, the regular keyboard brightness keys will also automatically work, if you're focused on the Apple display. This is done through the `asdcontrol` command.
