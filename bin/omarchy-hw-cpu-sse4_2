@@ -40,7 +40,7 @@ if [[ -r $cpuinfo ]]; then
   flags=$(awk -F: '/^flags[[:space:]]*:/{print $2; exit}' "$cpuinfo")
 fi
 
-if [[ -z $flags ]] && command -v lscpu >/dev/null; then
+if [[ -z $flags ]] && omarchy-cmd-present lscpu; then
   flags=$(lscpu 2>/dev/null | awk -F: '/^Flags:/{print $2; exit}')
 fi
 

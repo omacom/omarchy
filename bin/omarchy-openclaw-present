@@ -13,7 +13,7 @@ if omarchy-pkg-present openclaw 2>/dev/null; then
   exit 0
 fi
 
-if command -v openclaw >/dev/null 2>&1; then
+if omarchy-cmd-present openclaw; then
   exit 0
 fi
 
