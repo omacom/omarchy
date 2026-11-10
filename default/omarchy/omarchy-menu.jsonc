@@ -63,7 +63,7 @@
   "agent.harness.ori": {"icon":"","iconFont":"omarchy","label":"Ori","checked":"[[ \"$(omarchy-default-agent)\" == \"ori\" ]]","action":"omarchy-default-agent ori"},
   "agent.harness.pi": {"icon":"","iconFont":"omarchy","label":"Pi","checked":"[[ \"$(omarchy-default-agent)\" == \"pi\" ]]","action":"omarchy-default-agent pi"},
   "agent.harness.qwen": {"icon":"","iconFont":"omarchy","label":"Qwen Code","checked":"[[ \"$(omarchy-default-agent)\" == \"qwen\" ]]","action":"omarchy-default-agent qwen"},
-  "agent.agents-md": {"icon":"󰈙","label":"AGENTS.md","action":"omarchy-agent-instructions --edit"},
+  "agent.instructions": {"icon":"󰈙","label":"Instructions","action":"omarchy-agent-instructions --edit"},
 
   // System
   "system.screensaver": {"icon":"󱄄","label":"Screensaver","action":"omarchy-launch-screensaver force"},

@@ -27,6 +27,7 @@ if [[ ${1:-} == "--edit" ]]; then
 fi
 
 canonical="$HOME/.agents/AGENTS.md"
+header="<!-- Your instructions for every coding agent. Omarchy links this file into each agent harness (Claude Code, Codex, Pi, OpenCode, and the rest), so what you write here applies to all of them. -->"
 config="${XDG_CONFIG_HOME:-$HOME/.config}"
 
 # harness id -> link path. The directory holding the link must exist for an
@@ -51,6 +52,11 @@ declare -A links=(
 
 backups=()
 
+# Nothing but the explanatory header, or nothing at all, counts as no rules yet.
+blank() {
+  [[ -z $(tr -d '[:space:]' 2>/dev/null <"$canonical") || $(<"$canonical") == "$header" ]]
+}
+
 # A real file already there holds rules someone wrote. The first one found
 # becomes the shared file when there is none yet; one that matches it is
 # replaced by the link; any other is kept beside it as .bak.
@@ -59,7 +65,7 @@ link() {
   if [[ -L $target ]]; then
     [[ $(readlink -f "$target") == "$(readlink -f "$canonical")" ]] && return
   elif [[ -f $target ]]; then
-    if [[ ! -s $canonical ]]; then
+    if blank; then
       mv "$target" "$canonical"
     elif cmp -s "$target" "$canonical"; then
       rm "$target"
@@ -79,7 +85,7 @@ link() {
 }
 
 mkdir -p "$(dirname "$canonical")"
-[[ -e $canonical ]] || : >"$canonical"
+blank && printf '%s\n' "$header" >"$canonical"
 
 if (($#)); then
   for harness in "$@"; do

@@ -1304,8 +1304,8 @@
   "update.password.user": {
     "label": "User"
   },
-  "agent.agents-md": {
-    "label": "AGENTS.md"
+  "agent.instructions": {
+    "label": "Instructions"
   },
   "agent.make": {
     "label": "Make something"
