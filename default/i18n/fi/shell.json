@@ -105,6 +105,7 @@
   "agents.spendThisMonth": "Tämä kuukausi",
   "agents.startOnNew": "Käynnistä oletusagenttisi uudessa %1",
   "agents.startLocalOnNew": "Käynnistä %2 uudessa %1",
+  "agents.shiftForDefault": "Vaihto oletusagentillesi",
   "agents.starting": "Käynnistetään…",
   "agents.stopAutoSwitch": "Lopeta automaattinen vaihtaminen",
   "agents.subscriptions": "Tilaukset",

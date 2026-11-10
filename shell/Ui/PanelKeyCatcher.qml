@@ -44,7 +44,8 @@ Item {
   signal moveRequested(int dx, int dy)
   signal reorderRequested(int dy)
   signal reorderSidewaysRequested(int dx)
-  signal activateRequested()
+  // The held modifiers ride along, so Shift+Return can mean something else.
+  signal activateRequested(int modifiers)
   signal returnRequested()
   signal closeRequested()
   signal deleteRequested()
@@ -97,10 +98,10 @@ Item {
     }
     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
       returnRequested()
-      activateRequested(); event.accepted = true; return
+      activateRequested(event.modifiers); event.accepted = true; return
     }
     if (event.key === Qt.Key_Space) {
-      activateRequested(); event.accepted = true; return
+      activateRequested(event.modifiers); event.accepted = true; return
     }
     if (event.key === Qt.Key_Delete || event.text === "x" || event.text === "X") {
       deleteRequested(); event.accepted = true; return

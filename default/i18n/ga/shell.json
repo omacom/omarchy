@@ -120,6 +120,7 @@
   "agents.spendThisMonth": "An mhí seo",
   "agents.startOnNew": "Tosaigh do ghníomhaire réamhshocraithe ar %1 nua",
   "agents.startLocalOnNew": "Tosaigh %2 ar %1 nua",
+  "agents.shiftForDefault": "Shift do do ghníomhaire réamhshocraithe",
   "agents.starting": "Ag tosú…",
   "agents.stopAutoSwitch": "Stop ag athrú go huathoibríoch",
   "agents.subscriptions": "Síntiúis",

@@ -100,6 +100,7 @@
   "agents.spendThisMonth": "今月",
   "agents.startOnNew": "新しい%1で既定のエージェントを開始する",
   "agents.startLocalOnNew": "新しい%1で%2を開始する",
+  "agents.shiftForDefault": "Shift で既定のエージェント",
   "agents.starting": "開始中…",
   "agents.stopAutoSwitch": "自動切り替えを停止",
   "agents.subscriptions": "サブスクリプション",

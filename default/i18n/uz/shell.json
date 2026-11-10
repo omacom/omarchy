@@ -105,6 +105,7 @@
   "agents.spendThisMonth": "Bu oy",
   "agents.startOnNew": "Standart agentni yangi %1 da boshlash",
   "agents.startLocalOnNew": "%2 ni yangi %1 da boshlash",
+  "agents.shiftForDefault": "Standart agent uchun Shift",
   "agents.starting": "Boshlanmoqda…",
   "agents.stopAutoSwitch": "Avtomatik almashtirishni toʻxtatish",
   "agents.subscriptions": "Obunalar",

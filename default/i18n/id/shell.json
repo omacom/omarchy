@@ -100,6 +100,7 @@
   "agents.spendThisMonth": "Bulan ini",
   "agents.startOnNew": "Jalankan agen bawaan Anda pada %1 baru",
   "agents.startLocalOnNew": "Jalankan %2 pada %1 baru",
+  "agents.shiftForDefault": "Shift untuk agen bawaan Anda",
   "agents.starting": "Memulai…",
   "agents.stopAutoSwitch": "Berhenti beralih otomatis",
   "agents.subscriptions": "Langganan",

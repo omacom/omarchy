@@ -110,6 +110,7 @@
   "agents.spendThisMonth": "Este mês",
   "agents.startOnNew": "Iniciar seu agente padrão em um novo %1",
   "agents.startLocalOnNew": "Iniciar %2 em um novo %1",
+  "agents.shiftForDefault": "Shift para seu agente padrão",
   "agents.starting": "Iniciando…",
   "agents.stopAutoSwitch": "Parar de trocar automaticamente",
   "agents.subscriptions": "Assinaturas",

@@ -105,6 +105,7 @@
   "agents.spendThisMonth": "See kuu",
   "agents.startOnNew": "Käivita vaikeagent uuel %1",
   "agents.startLocalOnNew": "Käivita %2 uuel %1",
+  "agents.shiftForDefault": "Shift vaikeagendi jaoks",
   "agents.starting": "Käivitub…",
   "agents.stopAutoSwitch": "Lõpeta automaatne vahetamine",
   "agents.subscriptions": "Tellimused",

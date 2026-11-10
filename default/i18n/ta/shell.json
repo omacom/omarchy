@@ -105,6 +105,7 @@
   "agents.spendThisMonth": "இந்த மாதம்",
   "agents.startOnNew": "புதிய %1 இல் உங்கள் இயல்புநிலை Agent ஐத் தொடங்கவும்",
   "agents.startLocalOnNew": "புதிய %1 இல் %2 ஐத் தொடங்கவும்",
+  "agents.shiftForDefault": "இயல்புநிலை Agent க்கு Shift",
   "agents.starting": "தொடங்குகிறது…",
   "agents.stopAutoSwitch": "தானாக மாறுவதை நிறுத்தவும்",
   "agents.subscriptions": "சந்தாக்கள்",

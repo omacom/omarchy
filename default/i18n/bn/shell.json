@@ -105,6 +105,7 @@
   "agents.spendThisMonth": "এই মাস",
   "agents.startOnNew": "নতুন %1-এ ডিফল্ট এজেন্ট চালু করুন",
   "agents.startLocalOnNew": "নতুন %1-এ %2 চালু করুন",
+  "agents.shiftForDefault": "ডিফল্ট এজেন্টের জন্য Shift",
   "agents.starting": "চালু হচ্ছে…",
   "agents.stopAutoSwitch": "স্বয়ংক্রিয় সুইচ বন্ধ করুন",
   "agents.subscriptions": "সাবস্ক্রিপশনসমূহ",

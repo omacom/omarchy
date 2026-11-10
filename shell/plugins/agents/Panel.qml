@@ -553,7 +553,7 @@ Panel {
   }
 
   // A few ways into making Omarchy your own, handed to the local model when one
-  // is running, and to the default agent otherwise.
+  // is running, and to the default agent otherwise or when Shift is held.
   readonly property var starterPrompts: [
     { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), prompt: "Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the Omarchy skill's theming guide and switch to it." },
     { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), prompt: "Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the Omarchy skill's plugin guide and enable it." },
@@ -574,9 +574,10 @@ Panel {
     return models[up.indexOf(local.last) >= 0 ? local.last : up[0]]
   }
 
-  function startPrompt(prompt) {
+  function startPrompt(prompt, modifiers) {
     root.close()
-    Util.execArgv(["omarchy-agent", "--prefer-local", "--prompt", prompt])
+    var useDefault = !!(modifiers & Qt.ShiftModifier)
+    Util.execArgv(["omarchy-agent"].concat(useDefault ? [] : ["--prefer-local"], ["--prompt", prompt]))
   }
 
   function renameAccount(p, account, label) {
@@ -610,7 +611,7 @@ Panel {
     if (p) setSwitchMode(p, autoSwitchFor(p) ? "manual" : "auto")
   }
 
-  function activateSelection() {
+  function activateSelection(modifiers) {
     var target = keyTarget
     if (!target) refreshNow()
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
@@ -619,7 +620,7 @@ Panel {
     else if (target.kind === "modelToggle" || target.kind === "modelLaunch") runLocalAction(providers[target.index].localModel, target.kind === "modelToggle" ? "toggle" : "launch")
     else if (target.kind === "localDownload") downloadLocal(providers[target.index].localOffer)
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
-    else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt)
+    else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt, modifiers)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
     else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
     else if (target.kind === "autoswitch") setSwitchMode(pickedEntry.provider, autoSwitchFor(pickedEntry.provider) ? "manual" : "auto")
@@ -1345,7 +1346,7 @@ Panel {
       }
       onDeleteRequested: root.deleteSelected()
       blocked: root.renaming || root.deleteTarget !== null
-      onActivateRequested: root.activateSelection()
+      onActivateRequested: function(modifiers) { root.activateSelection(modifiers) }
       onCloseRequested: {
         if (root.dragIndex >= 0) root.settleProviderDrag(true)
         else if (root.addStage !== "") root.cancelAdd()
@@ -1475,7 +1476,7 @@ Panel {
                   width: (tileRow.width - tileRow.spacing * 2) / 3
                   glyph: modelData.glyph
                   title: modelData.label
-                  onClicked: root.startPrompt(modelData.prompt)
+                  onClicked: function(modifiers) { root.startPrompt(modelData.prompt, modifiers) }
                 }
               }
             }
@@ -2329,7 +2330,7 @@ Panel {
   // accent on hover.
   component StarterTile: Rectangle {
     id: tile
-    signal clicked()
+    signal clicked(int modifiers)
     signal hovered()
     property string glyph: ""
     property string title: ""
@@ -2370,13 +2371,14 @@ Panel {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onEntered: tile.hovered()
-      onClicked: tile.clicked()
+      onClicked: function(mouse) { tile.clicked(mouse.modifiers) }
     }
 
     PanelToolTip {
       visible: tileMouse.containsMouse
       text: root.starterLocalModel
         ? Commons.I18n.t("agents.startLocalOnNew").arg(tile.title.toLowerCase()).arg(root.starterLocalModel.name || root.starterLocalModel.recipe)
+          + "\n" + Commons.I18n.t("agents.shiftForDefault")
         : Commons.I18n.t("agents.startOnNew").arg(tile.title.toLowerCase())
     }
   }

@@ -100,6 +100,7 @@
   "agents.spendThisMonth": "이번 달",
   "agents.startOnNew": "새 %1에서 기본 에이전트 시작",
   "agents.startLocalOnNew": "새 %1에서 %2 시작",
+  "agents.shiftForDefault": "Shift: 기본 에이전트",
   "agents.starting": "시작 중…",
   "agents.stopAutoSwitch": "자동 전환 중지",
   "agents.subscriptions": "구독",

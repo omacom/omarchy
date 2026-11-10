@@ -105,6 +105,7 @@
   "agents.spendThisMonth": "Ngayong buwan",
   "agents.startOnNew": "Simulan ang iyong default na agent sa bagong %1",
   "agents.startLocalOnNew": "Simulan ang %2 sa bagong %1",
+  "agents.shiftForDefault": "Shift para sa iyong default na agent",
   "agents.starting": "Nagsisimula…",
   "agents.stopAutoSwitch": "Itigil ang awtomatikong paglipat",
   "agents.subscriptions": "Mga subscription",

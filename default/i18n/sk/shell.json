@@ -110,6 +110,7 @@
   "agents.spendThisMonth": "Tento mesiac",
   "agents.startOnNew": "Spustiť predvoleného agenta na novom %1",
   "agents.startLocalOnNew": "Spustiť %2 na novom %1",
+  "agents.shiftForDefault": "Shift pre predvoleného agenta",
   "agents.starting": "Spúšťa sa…",
   "agents.stopAutoSwitch": "Zastaviť automatické prepínanie",
   "agents.subscriptions": "Predplatné",

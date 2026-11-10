@@ -115,6 +115,7 @@
   "agents.spendThisMonth": "Цього місяця",
   "agents.startOnNew": "Запустити типового агента на новій %1",
   "agents.startLocalOnNew": "Запустити %2 на новій %1",
+  "agents.shiftForDefault": "Shift — типовий агент",
   "agents.starting": "Запуск…",
   "agents.stopAutoSwitch": "Припинити автоматичне перемикання",
   "agents.subscriptions": "Підписки",

@@ -100,6 +100,7 @@
   "agents.spendThisMonth": "เดือนนี้",
   "agents.startOnNew": "เริ่มเอเจนต์เริ่มต้นของคุณบน %1 ใหม่",
   "agents.startLocalOnNew": "เริ่ม %2 บน %1 ใหม่",
+  "agents.shiftForDefault": "Shift สำหรับเอเจนต์เริ่มต้น",
   "agents.starting": "กำลังเริ่ม…",
   "agents.stopAutoSwitch": "หยุดสลับอัตโนมัติ",
   "agents.subscriptions": "การสมัครสมาชิก",

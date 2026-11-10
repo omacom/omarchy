@@ -105,6 +105,7 @@
   "agents.spendThisMonth": "Този месец",
   "agents.startOnNew": "Стартирай агента по подразбиране на нова %1",
   "agents.startLocalOnNew": "Стартирай %2 на нова %1",
+  "agents.shiftForDefault": "Shift за агента по подразбиране",
   "agents.starting": "Стартиране…",
   "agents.stopAutoSwitch": "Спри автоматичното превключване",
   "agents.subscriptions": "Абонаменти",

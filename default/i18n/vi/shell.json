@@ -100,6 +100,7 @@
   "agents.spendThisMonth": "Tháng này",
   "agents.startOnNew": "Chạy agent mặc định trên %1 mới",
   "agents.startLocalOnNew": "Chạy %2 trên %1 mới",
+  "agents.shiftForDefault": "Shift để dùng agent mặc định",
   "agents.starting": "Đang khởi động…",
   "agents.stopAutoSwitch": "Dừng tự động chuyển đổi",
   "agents.subscriptions": "Gói đăng ký",

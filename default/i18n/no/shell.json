@@ -105,6 +105,7 @@
   "agents.spendThisMonth": "Denne måneden",
   "agents.startOnNew": "Start standardagenten din på en ny %1",
   "agents.startLocalOnNew": "Start %2 på en ny %1",
+  "agents.shiftForDefault": "Shift for standardagenten din",
   "agents.starting": "Starter…",
   "agents.stopAutoSwitch": "Slutt å bytte automatisk",
   "agents.subscriptions": "Abonnementer",
