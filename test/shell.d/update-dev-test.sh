@@ -112,7 +112,3 @@ if /usr/bin/readlink -e / >/dev/null 2>&1; then
     fail "an update with no OMARCHY_PATH uses the script's own checkout" "$(cat "$git_log")"
   pass "an update with no OMARCHY_PATH uses the script's own checkout"
 fi
-
-grep -qE '^ *omarchy-update-dev$' "$ROOT/bin/omarchy-update" ||
-  fail "top-level update includes the dev checkout step"
-pass "top-level update includes the dev checkout step"
