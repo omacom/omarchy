@@ -1,19 +1,24 @@
 #!/bin/bash
 
-# omarchy:summary=Show, set, or adjust focused Hyprland monitor scaling
-# omarchy:args=[up|down|SCALE]
-# omarchy:examples=omarchy hyprland monitor scaling | omarchy hyprland monitor scaling 1.6 | omarchy hyprland monitor scaling up | omarchy hyprland monitor scaling down
+# omarchy:summary=Show, set, or adjust a Hyprland monitor's scaling (the focused one by default)
+# omarchy:args=[--monitor NAME] [up|down|SCALE]
+# omarchy:examples=omarchy hyprland monitor scaling | omarchy hyprland monitor scaling 1.6 | omarchy hyprland monitor scaling up | omarchy hyprland monitor scaling --monitor DP-2 2
 
 SCALES=(1 1.25 1.6 2 3 4)
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
-SCALE_LOG="$STATE_DIR/monitor-scaling.log"
+SCALE_LOG="$STATE_DIR/monitors/scaling"
 
 usage() {
-  echo "Usage: omarchy-hyprland-monitor-scaling [up|down|SCALE]"
+  echo "Usage: omarchy-hyprland-monitor-scaling [--monitor NAME] [up|down|SCALE]"
 }
 
-focused_monitor_scale() {
-  hyprctl monitors -j | jq -er '.[] | select(.focused == true) | .scale'
+# The monitor named with --monitor, else the focused one.
+target_monitor_info() {
+  if [[ -n $MONITOR_NAME ]]; then
+    hyprctl monitors -j | jq -e -c --arg name "$MONITOR_NAME" '.[] | select(.name == $name)'
+  else
+    hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)'
+  fi
 }
 
 cmdline_for_pid() {
@@ -33,7 +38,7 @@ audit_scale_change() {
   local parent_cmd
   local grandparent_cmd
 
-  mkdir -p "$STATE_DIR" || return 0
+  mkdir -p "${SCALE_LOG%/*}" || return 0
 
   grandparent_pid=$(ps -o ppid= -p "$parent_pid" 2>/dev/null | tr -d ' ')
   parent_cmd=$(cmdline_for_pid "$parent_pid")
@@ -84,167 +89,10 @@ normalize_scale() {
   awk 'NR == 1 { printf "%g\n", $0 }'
 }
 
-persist_gdk_scale() {
-  local gdk_scale="$1"
-  local file="$2"
-
-  # --follow-symlinks: GNU sed -i otherwise replaces a symlink with a regular
-  # file (stow/dotfiles setups keep monitors.lua linked into a repo).
-  sed --follow-symlinks -i -E \
-    -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${gdk_scale}|" \
-    -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$gdk_scale"'")|' \
-    "$file"
-}
-
-# Rewrite `scale = ...` inside the hl.monitor entry naming this output,
-# whether that entry is one line or the multi-line form nwg-displays writes.
-# Returns 0 when updated, 1 when absent, and 2 on failure. The caller passes
-# a private staged file; commented-out examples and other outputs stay alone.
-update_named_monitor_scale() {
-  local monitor="$1"
-  local scale="$2"
-  local file="$3"
-  local target=$file
-  local tmp
-
-  # Write through a symlink rather than replacing it (stow/dotfiles setups).
-  if [[ -L $file ]]; then
-    target=$(readlink -f -- "$file") || return 2
-  fi
-  tmp=$(mktemp "${target}.omarchy-scale.XXXXXX") || return 2
-
-  if python3 - "$monitor" "$scale" "$file" >"$tmp" <<'PYTHON'
-import re, sys
-monitor, scale, filename = sys.argv[1:]
-text = open(filename).read()
-masked = list(text)
-# Keep source offsets intact while removing Lua comments. Quoted and long
-# strings protect embedded comment delimiters and braces from the scanner.
-strings = []
-i = 0
-while i < len(text):
-  start = i
-  if text.startswith("--", i):
-    long = re.match(r"--\[(=*)\[", text[i:])
-    if long:
-      end = text.find("]" + long[1] + "]", i + len(long[0]))
-      i = len(text) if end < 0 else end + len(long[1]) + 2
-    else:
-      end = text.find("\n", i)
-      i = len(text) if end < 0 else end
-    for pos in range(start, i):
-      if masked[pos] != "\n": masked[pos] = " "
-  elif text[i] in "\"'":
-    quote = text[i]
-    i += 1
-    while i < len(text):
-      if text[i] == "\\": i += 2
-      elif text[i] == quote:
-        i += 1
-        break
-      else: i += 1
-    strings.append((start, i))
-  elif long := re.match(r"\[(=*)\[", text[i:]):
-    end = text.find("]" + long[1] + "]", i + len(long[0]))
-    i = len(text) if end < 0 else end + len(long[1]) + 2
-    strings.append((start, i))
-  else: i += 1
-code = "".join(masked)
-structure = list(code)
-for start, end in strings:
-  structure[start:end] = " " * (end - start)
-structure = "".join(structure)
-edits = []
-for call in re.finditer(r"\bhl\.monitor\s*\(\s*\{", structure):
-  start = call.end() - 1
-  depth, end = 1, start + 1
-  while end < len(structure) and depth:
-    if structure[end] == "{": depth += 1
-    elif structure[end] == "}": depth -= 1
-    end += 1
-  if depth: continue
-  block = code[start:end]
-  output = re.search(r"\boutput\s*=\s*([\"'])(.*?)\1", block, re.S)
-  if not output or output[2] != monitor: continue
-  field = re.search(r"\bscale\s*=\s*(?:[\"'][^\"']*[\"']|[\w.+-]+)(?=\s*(?:[,;}]|$))", block)
-  if field:
-    edits.append((start + field.start(), start + field.end(), "scale = " + scale))
-  elif re.search(r"\bscale\s*=", block):
-    sys.exit(2) # An expression we cannot safely replace must not fall back.
-  else:
-    previous = start + len(block[:-1].rstrip())
-    if code[previous - 1] not in "{,;":
-      edits.append((previous, previous, ","))
-    edits.append((end - 1, end - 1, "\n  scale = " + scale + "\n"))
-if not edits: sys.exit(3)
-for start, end, replacement in sorted(edits, reverse=True):
-  text = text[:start] + replacement + text[end:]
-sys.stdout.write(text)
-PYTHON
-  then
-    if cat "$tmp" >"$file"; then
-      rm -f "$tmp"
-      return 0
-    else
-      rm -f "$tmp"
-      return 2
-    fi
-  else
-    local status=$?
-    rm -f "$tmp"
-    if (( status == 3 )); then
-      return 1
-    else
-      return 2
-    fi
-  fi
-}
-
-persist_monitor_scale() (
-  local monitor_lua="$1"
-  local active_monitor="$2"
-  local new_scale="$3"
-  local new_gdk_scale="$4"
-  local target stage status
-
-  target=$(readlink -f -- "$monitor_lua") || return 1
-  stage=$(mktemp "${target}.omarchy-scale.XXXXXX") || return 1
-  trap 'rm -f -- "$stage"' EXIT
-  cp -- "$target" "$stage" || return 1
-
-  if update_named_monitor_scale "$active_monitor" "$new_scale" "$stage"; then
-    persist_gdk_scale "$new_gdk_scale" "$stage" || return 1
-  else
-    status=$?
-    # Only an absent named rule permits fallback. Read/write errors are fatal.
-    (( status == 1 )) || return 1
-    if grep -q '^local omarchy_monitor_scale = ' "$stage"; then
-      sed -i -E \
-        -e "s|^local omarchy_monitor_scale = .*|local omarchy_monitor_scale = ${new_scale}|" \
-        -e "s|^local omarchy_gdk_scale = .*|local omarchy_gdk_scale = ${new_gdk_scale}|" \
-        "$stage" || return 1
-    elif grep -Eq '^hl\.monitor\(\{ output = "", mode = "preferred", position = "auto", scale = ("auto"|[0-9.]+) \}\)' "$stage"; then
-      sed -i -E \
-        -e "s|^(hl\.monitor\(\{ output = \"\", mode = \"preferred\", position = \"auto\", scale = )([^ ]+)( \}\))|\\1${new_scale}\\3|" \
-        -e 's|^hl\.env\("GDK_SCALE", ".*"\)|hl.env("GDK_SCALE", "'"$new_gdk_scale"'")|' \
-        "$stage" || return 1
-    else
-      printf '\nhl.monitor({ output = "%s", mode = "preferred", position = "auto", scale = %s })\n' \
-        "$active_monitor" "$new_scale" >>"$stage" || return 1
-      persist_gdk_scale "$new_gdk_scale" "$stage" || return 1
-    fi
-  fi
-
-  # Publish all edits together, following dotfile symlinks without replacing
-  # the link. Failed transforms or publication leave the original untouched.
-  cp --attributes-only --preserve=mode,ownership,xattr -- "$target" "$stage" || return 1
-  mv -f -- "$stage" "$target"
-)
-
 set_scale() {
   local requested_scale="$1"
   local requested="${2:-$requested_scale}"
-  local monitor_info="$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')"
+  local monitor_info="$(target_monitor_info)"
   local active_monitor="$(echo "$monitor_info" | jq -r '.name')"
   local current_scale="$(echo "$monitor_info" | jq -r '.scale')"
   local width="$(echo "$monitor_info" | jq -r '.width')"
@@ -263,20 +111,21 @@ set_scale() {
     echo "No scale near $requested_scale divides ${width}x${height} into whole pixels." >&2
     return 1
   }
-  # GTK only honors integer GDK_SCALE values, so persist the nearest whole
-  # factor even when the monitor scale itself is fractional.
-  local new_gdk_scale="$(awk -v scale="$new_scale" 'BEGIN { printf "%d", int(scale + 0.5) }')"
-  local monitor_lua="$HOME/.config/hypr/monitors.lua"
 
-  hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"${width}x${height}@${refresh_rate}\", position = \"auto\", scale = $new_scale })" >/dev/null
-  audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
+  local mode="${width}x${height}@${refresh_rate}"
 
-  [[ -f $monitor_lua ]] || return 0
+  omarchy-hyprland-monitor-persist "$active_monitor" "$new_scale" || return 1
 
-  if ! persist_monitor_scale "$monitor_lua" "$active_monitor" "$new_scale" "$new_gdk_scale"; then
-    echo "Monitor scaling changed live, but could not be saved to $monitor_lua." >&2
-    return 1
+  # Beside other monitors it keeps its place, and the layout applies the new
+  # scale in the same step as closing up around its new size, so the two never
+  # overlap. Alone, Hyprland places it.
+  local others="$(hyprctl monitors -j | jq --arg name "$active_monitor" '[.[] | select(.name != $name)] | length')"
+  if (( others > 0 )); then
+    omarchy-hyprland-monitor-layout --resized "$active_monitor" "${width}x${height}" "$current_scale" "${width}x${height}" "$new_scale" "$mode"
+  else
+    hyprctl eval "hl.monitor({ output = \"$active_monitor\", mode = \"$mode\", position = \"auto\", scale = $new_scale })" >/dev/null
   fi
+  audit_scale_change "$requested" "$active_monitor" "$current_scale" "$new_scale"
 }
 
 scale_from_current() {
@@ -348,22 +197,39 @@ scale_from_current() {
     }'
 }
 
+MONITOR_NAME=""
+if [[ ${1:-} == "--monitor" ]]; then
+  if [[ -z ${2:-} ]]; then
+    usage >&2
+    exit 1
+  fi
+  MONITOR_NAME="$2"
+  shift 2
+fi
+
+if [[ ${1:-} != "-h" && ${1:-} != "--help" ]] && ! target_monitor_info >/dev/null; then
+  echo "No such monitor: ${MONITOR_NAME:-focused}" >&2
+  exit 1
+fi
+
 case "${1:-}" in
 "")
-  focused_monitor_scale | normalize_scale
+  target_monitor_info | jq -r '.scale' | normalize_scale
   ;;
 -h | --help)
   usage
   ;;
 up)
-  monitor_info=$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')
-  set_scale "$(echo "$monitor_info" | jq -r '.scale' | scale_from_current next \
-    "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')")" "up"
+  monitor_info=$(target_monitor_info)
+  requested_scale=$(echo "$monitor_info" | jq -r '.scale' | scale_from_current next \
+    "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')") || exit 1
+  set_scale "$requested_scale" "up"
   ;;
 down)
-  monitor_info=$(hyprctl monitors -j | jq -e -c '.[] | select(.focused == true)')
-  set_scale "$(echo "$monitor_info" | jq -r '.scale' | scale_from_current previous \
-    "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')")" "down"
+  monitor_info=$(target_monitor_info)
+  requested_scale=$(echo "$monitor_info" | jq -r '.scale' | scale_from_current previous \
+    "$(echo "$monitor_info" | jq -r '.width')" "$(echo "$monitor_info" | jq -r '.height')") || exit 1
+  set_scale "$requested_scale" "down"
   ;;
 1 | 1.25 | 1.6 | 2 | 3 | 4)
   set_scale "$1" "$1"

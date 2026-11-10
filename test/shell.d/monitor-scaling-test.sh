@@ -10,94 +10,104 @@ trap 'rm -rf "$test_tmp"' EXIT
 stub_bin="$test_tmp/bin"
 eval_out="$test_tmp/hyprctl-eval"
 home_dir="$test_tmp/home"
+state_dir="$home_dir/.local/state/omarchy"
 monitor_lua="$home_dir/.config/hypr/monitors.lua"
-scale_log="$home_dir/.local/state/omarchy/monitor-scaling.log"
+settings_file="$state_dir/monitors/settings"
+scale_log="$state_dir/monitors/scaling"
 
 mkdir -p "$stub_bin" "$home_dir/.config/hypr"
 
 cat >"$stub_bin/hyprctl" <<'SH'
 #!/bin/bash
 
-if [[ $1 == "monitors" && $2 == "-j" ]]; then
-  printf '[{"name":"eDP-1","focused":true,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0}]' \
+if [[ $1 == "monitors" && $2 == "-j" && -n $OMARCHY_TEST_MONITORS_JSON ]]; then
+  printf '%s' "$OMARCHY_TEST_MONITORS_JSON"
+elif [[ $1 == "monitors" && $2 == "-j" ]]; then
+  printf '[{"name":"eDP-1","focused":true,"x":0,"y":0,"scale":%s,"width":%s,"height":%s,"refreshRate":120.0,"availableModes":["2880x1800@120.00Hz","2880x1800@60.00Hz","1920x1200@60.00Hz"]}' \
     "${OMARCHY_TEST_MONITOR_SCALE:-2}" "${OMARCHY_TEST_MONITOR_WIDTH:-2880}" "${OMARCHY_TEST_MONITOR_HEIGHT:-1800}"
+  if [[ -n $OMARCHY_TEST_OTHER_MONITOR_SCALE ]]; then
+    printf ',{"name":"DP-1","focused":false,"x":1440,"y":0,"scale":%s,"width":3840,"height":2160,"refreshRate":60.0,"availableModes":["3840x2160@60.00Hz","2560x1440@60.00Hz"]}' \
+      "$OMARCHY_TEST_OTHER_MONITOR_SCALE"
+  fi
+  printf ']'
 elif [[ $1 == "eval" ]]; then
-  printf '%s\n' "$2" >"$OMARCHY_TEST_HYPRCTL_EVAL_OUT"
+  printf '%s\n' "$2" >>"$OMARCHY_TEST_HYPRCTL_EVAL_OUT"
 else
   exit 1
 fi
 SH
 chmod +x "$stub_bin/hyprctl"
 
-# The command under test uses GNU `sed -i`; BSD sed wants `sed -i ''`.
-if ! sed --version >/dev/null 2>&1; then
-  real_sed=$(command -v sed)
-  cat >"$stub_bin/sed" <<SH
-#!/bin/bash
-if [[ \$1 == "-i" && \$2 == "-E" ]]; then
-  exec "$real_sed" -i "" -E "\${@:3}"
-fi
-exec "$real_sed" "\$@"
-SH
-  chmod +x "$stub_bin/sed"
-fi
+# Each block starts with nothing saved and no evals; a change can eval more
+# than once (a resize, then the layout closing up around it). monitors.lua is
+# the user's, and only there to show it is never written.
+fresh() {
+  rm -f "$eval_out" "$settings_file" "$state_dir/monitors/workspaces"
+  printf '%s\n' 'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })' >"$monitor_lua"
+}
 
-write_monitor_config() {
-  cat >"$monitor_lua" <<'LUA'
-local omarchy_gdk_scale = 2
-local omarchy_monitor_scale = 2
-LUA
+# A monitor's saved mode|position|scale, and its transform, by identity.
+setting() {
+  awk -F'\t' -v identity="$1" '$NF == identity { print $1 "|" $2 "|" $3 }' "$settings_file" 2>/dev/null
+}
+
+saved_transform() {
+  awk -F'\t' -v identity="$1" '$NF == identity && NF > 4 { print $4 }' "$settings_file" 2>/dev/null
 }
 
 run_scaling() {
   HOME="$home_dir" \
     XDG_STATE_HOME="$home_dir/.local/state" \
-    PATH="$stub_bin:$PATH" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" \
     OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
     OMARCHY_TEST_MONITOR_SCALE="${OMARCHY_TEST_MONITOR_SCALE:-2}" \
     "$ROOT/bin/omarchy-hyprland-monitor-scaling" "$@"
 }
 
-write_monitor_config
+run_resolution() {
+  HOME="$home_dir" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" \
+    OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
+    "$ROOT/bin/omarchy-hyprland-monitor-resolution" "$@"
+}
+
+run_layout() {
+  HOME="$home_dir" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" \
+    OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
+    "$ROOT/bin/omarchy-hyprland-monitor-layout" "$@"
+}
+
+fresh
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling up
 grep -F 'scale = 3' "$eval_out" >/dev/null || fail "monitor scaling up reaches 3x"
-grep -Fx 'local omarchy_monitor_scale = 3' "$monitor_lua" >/dev/null || fail "monitor scaling up persists 3x"
+[[ $(setting eDP-1) == "||3" ]] || fail "monitor scaling up saves 3x" "actual: $(setting eDP-1)"
 grep -F $'requested=up\tcurrent=2\tnew=3\tmonitor=eDP-1' "$scale_log" >/dev/null || fail "monitor scaling up writes audit log"
 pass "monitor scaling up reaches 3x"
 
-write_monitor_config
+fresh
 OMARCHY_TEST_MONITOR_SCALE=3 run_scaling down
 grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down recovers 3x to 2x"
-grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling down persists 2x from 3x"
+[[ $(setting eDP-1) == "||2" ]] || fail "monitor scaling down saves 2x from 3x"
 pass "monitor scaling down recovers 3x to 2x"
 
-write_monitor_config
+fresh
 OMARCHY_TEST_MONITOR_SCALE=3.0000000000000004 run_scaling down
 grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down snaps floating point 3x to 2x"
-grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling down persists 2x from floating point 3x"
+[[ $(setting eDP-1) == "||2" ]] || fail "monitor scaling down saves 2x from floating point 3x"
 pass "monitor scaling down snaps floating point 3x to 2x"
 
-write_monitor_config
+fresh
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
 grep -F 'scale = 3' "$eval_out" >/dev/null || fail "monitor scaling explicit 3x remains available"
-grep -Fx 'local omarchy_monitor_scale = 3' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 3x persists"
-grep -Fx 'local omarchy_gdk_scale = 3' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 3x persists GDK scale"
+[[ $(setting eDP-1) == "||3" ]] || fail "monitor scaling explicit 3x saves"
 pass "monitor scaling explicit 3x remains available"
 
-# GTK only honors integer GDK_SCALE, so fractional monitor scales persist a
-# rounded GDK scale.
-write_monitor_config
+fresh
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6
 grep -F 'scale = 1.6' "$eval_out" >/dev/null || fail "monitor scaling explicit 1.6x remains available"
-grep -Fx 'local omarchy_monitor_scale = 1.6' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 1.6x persists"
-grep -Fx 'local omarchy_gdk_scale = 2' "$monitor_lua" >/dev/null || fail "monitor scaling 1.6x persists integer GDK scale 2"
-pass "monitor scaling 1.6x persists integer GDK scale 2"
-
-write_monitor_config
-OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.25
-grep -Fx 'local omarchy_monitor_scale = 1.25' "$monitor_lua" >/dev/null || fail "monitor scaling explicit 1.25x persists"
-grep -Fx 'local omarchy_gdk_scale = 1' "$monitor_lua" >/dev/null || fail "monitor scaling 1.25x persists integer GDK scale 1"
-pass "monitor scaling 1.25x persists integer GDK scale 1"
+[[ $(setting eDP-1) == "||1.6" ]] || fail "monitor scaling explicit 1.6x saves"
+pass "monitor scaling explicit 1.6x remains available"
 
 scale=$(OMARCHY_TEST_MONITOR_SCALE=3 run_scaling)
 [[ $scale == "3" ]] || fail "monitor scaling reports explicit 3x scale" "actual: $scale"
@@ -108,242 +118,323 @@ scale=$(OMARCHY_TEST_MONITOR_SCALE=3.2 run_scaling)
 pass "monitor scaling reports the actual non-preset scale"
 
 # 1280x800 approximates the 3x preset as 3.2x.
-write_monitor_config
+fresh
 OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITOR_HEIGHT=800 run_scaling 3
 grep -F 'scale = 3.2' "$eval_out" >/dev/null || fail "monitor scaling approximates explicit 3x as 3.2x"
-grep -Fx 'local omarchy_monitor_scale = 3.2' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling persists approximated 3.2x"
+[[ $(setting eDP-1) == "||3.2" ]] || fail "monitor scaling saves approximated 3.2x"
 pass "monitor scaling approximates explicit 3x as 3.2x"
 
-write_monitor_config
+fresh
 OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITOR_HEIGHT=800 run_scaling up
 grep -F 'scale = 3.2' "$eval_out" >/dev/null || fail "monitor scaling up reaches approximated 3.2x"
 pass "monitor scaling up reaches approximated 3.2x"
 
-write_monitor_config
+fresh
 OMARCHY_TEST_MONITOR_SCALE=4 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITOR_HEIGHT=800 run_scaling down
 grep -F 'scale = 3.2' "$eval_out" >/dev/null || fail "monitor scaling down reaches approximated 3.2x"
 pass "monitor scaling down reaches approximated 3.2x"
 
-# 1.175 is the nearest clean scale to 1.25 on this mode, and it is below the
-# request. Rounding upward only sent 1.33333 instead -- a scale Hyprland would
-# not have chosen for itself.
-write_monitor_config
+fresh
 OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=6016 OMARCHY_TEST_MONITOR_HEIGHT=3384 run_scaling 1.25
 grep -F 'scale = 1.175' "$eval_out" >/dev/null || fail "monitor scaling approximates explicit 1.25x"
 pass "monitor scaling approximates explicit 1.25x"
 
-# What reaches hyprctl is what the panel labelled, so the two have to agree on
-# every preset. shell/plugins/panels/monitor/Model.js is the label; this is the
-# value applied.
-for mode in "1366 768 1.25 1" "2256 1504 1.25 1.175" "3024 1964 1.6 1.33333" "1920 1080 1.75 1.66667"; do
-  set -- $mode
-  write_monitor_config
-  : >"$eval_out"
-  OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=$1 OMARCHY_TEST_MONITOR_HEIGHT=$2 run_scaling "$3"
-  grep -F "scale = $4" "$eval_out" >/dev/null ||
-    fail "monitor scaling applies the scale Hyprland picks on ${1}x${2}" \
-      "requested $3, wanted $4, got $(cat "$eval_out")"
-done
-pass "monitor scaling applies the scale Hyprland picks, including below the request"
-
-# Hyprland gives up after 89 steps rather than reaching further, falling back to
-# the display default. Applying something unrelated to the request instead would
-# move the display somewhere nobody asked for.
-write_monitor_config
-: >"$eval_out"
-if OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=1366 OMARCHY_TEST_MONITOR_HEIGHT=768 \
-  run_scaling 3 2>/dev/null; then
-  fail "monitor scaling refuses a request this mode cannot reach"
-fi
-[[ ! -s $eval_out ]] || fail "monitor scaling applies nothing when it refuses" "$(cat "$eval_out")"
-grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling leaves the persisted scale alone when it refuses"
-pass "monitor scaling refuses a request no clean scale is near"
-
-write_monitor_config
+fresh
 OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITOR_HEIGHT=800 run_scaling 3.2
 grep -F 'scale = 3.2' "$eval_out" >/dev/null || fail "monitor scaling accepts displayed approximate values"
 pass "monitor scaling accepts displayed approximate values"
 
 # On a mode where both 3x and 4x resolve to 4x, the duplicate is one step.
-write_monitor_config
+fresh
 OMARCHY_TEST_MONITOR_SCALE=4 OMARCHY_TEST_MONITOR_WIDTH=1280 OMARCHY_TEST_MONITOR_HEIGHT=804 run_scaling down
 grep -F 'scale = 2' "$eval_out" >/dev/null || fail "monitor scaling down skips duplicate 4x approximation"
-grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling down persists 2x after skipping duplicate approximation"
+[[ $(setting eDP-1) == "||2" ]] || fail "monitor scaling down saves 2x after skipping duplicate approximation"
 pass "monitor scaling down skips duplicate approximation"
 
-# Named per-output rules override the catch-all. Persist to the focused
-# output's rule so the clamshell poller does not revert the live eval, and
-# leave every other output's scale alone.
-cat >"$monitor_lua" <<'LUA'
-local omarchy_gdk_scale = 2
-local omarchy_monitor_scale = 2
-hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 2 })
-hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto", scale = 1 })
-LUA
-OMARCHY_TEST_MONITOR_SCALE=2 run_scaling up
-grep -F 'scale = 3' "$eval_out" >/dev/null || fail "monitor scaling applies named-rule 3x via hyprctl eval"
-grep -Fx 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 3 })' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling persists 3x on the focused output's named rule"
-grep -Fx 'hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto", scale = 1 })' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling leaves an unrelated output's named rule unchanged"
-grep -Fx 'local omarchy_monitor_scale = 2' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling leaves the catch-all variable alone when a named rule is updated"
-grep -Fx 'local omarchy_gdk_scale = 3' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling persists GDK scale alongside a named rule"
-pass "monitor scaling persists to the focused output's named rule"
+fresh
+OMARCHY_TEST_MONITOR_WIDTH=1366 OMARCHY_TEST_MONITOR_HEIGHT=768 run_scaling 1.25
+[[ $(setting eDP-1) == "||1" ]] || fail "monitor scaling saves the nearest lower scale"
+pass "monitor scaling saves the nearest lower scale with the monitor identity"
 
-cat >"$monitor_lua" <<'LUA'
-hl.monitor({
-    output = "eDP-1",
-    mode = "2880x1800@120.0",
-    position = "0x0",
-    scale = 2
-})
-hl.monitor({
-    output = "HDMI-A-1",
-    mode = "2560x1440@144.0",
-    position = "2880x0",
-    scale = 1
-})
-LUA
+fresh
+if OMARCHY_TEST_MONITOR_WIDTH=1366 OMARCHY_TEST_MONITOR_HEIGHT=768 run_scaling 3 2>/dev/null; then
+  fail "monitor scaling refuses an unreachable request"
+fi
+[[ ! -e $eval_out && ! -e $settings_file ]] || fail "monitor scaling leaves unreachable settings untouched"
+pass "monitor scaling refuses an unreachable request before saving or applying it"
+
+# A second change updates the monitor's line rather than adding another, and
+# the user's monitors.lua is never written.
+fresh
+cp "$monitor_lua" "$test_tmp/expected.lua"
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6
-grep -F 'scale = 1.6' "$eval_out" >/dev/null || fail "monitor scaling applies multi-line 1.6x via hyprctl eval"
-grep -Fx '    scale = 1.6' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling persists 1.6x on a multi-line nwg-displays eDP-1 rule"
-grep -Fx '    scale = 1' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling leaves a multi-line HDMI-A-1 rule unchanged"
-grep -Fx '    output = "HDMI-A-1",' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling keeps the unrelated HDMI-A-1 block"
-pass "monitor scaling persists to a multi-line nwg-displays named rule"
+OMARCHY_TEST_MONITOR_SCALE=1.6 run_scaling 3
+(( $(wc -l <"$settings_file") == 1 )) || fail "monitor scaling keeps one line per monitor" "actual: $(<"$settings_file")"
+[[ $(setting eDP-1) == "||3" ]] || fail "monitor scaling updates the monitor's line"
+cmp -s "$monitor_lua" "$test_tmp/expected.lua" || fail "monitor scaling leaves monitors.lua alone"
+pass "monitor scaling saves one line per monitor, outside monitors.lua"
 
-# No named rule and no generic default: append one for this output rather
-# than silently leaving the live eval to be undone.
-cat >"$monitor_lua" <<'LUA'
-hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto", scale = 1 })
-LUA
+# Settings belong to the physical monitor, as monitor-workspaces names it, so
+# they follow it to whatever connector a dock gives it next.
+fresh
+mkdir -p "$state_dir/monitors"
+printf '0\teDP-1\tLG Display 0x0804\n' >"$state_dir/monitors/workspaces"
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
-grep -F 'scale = 3' "$eval_out" >/dev/null || fail "monitor scaling applies appended-rule 3x via hyprctl eval"
-grep -Fx 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "auto", scale = 3 })' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling appends a named rule when none matches the focused output"
-grep -Fx 'hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto", scale = 1 })' "$monitor_lua" >/dev/null ||
-  fail "monitor scaling leaves an existing unrelated rule in place when appending"
-pass "monitor scaling appends a named rule when none matches"
+[[ $(setting "LG Display 0x0804") == "||3" ]] || fail "monitor scaling saves by the monitor's identity" "actual: $(<"$settings_file")"
+[[ -z $(setting eDP-1) ]] || fail "monitor scaling doesn't save by connector when the identity is known"
+pass "monitor scaling saves by the monitor's identity"
 
-# Symlinked monitors.lua must stay a link to the same target after persist
-# (GNU sed -i without --follow-symlinks replaces the symlink with a file).
-dotfiles_lua="$test_tmp/dotfiles/monitors.lua"
-mkdir -p "$(dirname "$dotfiles_lua")"
-write_monitor_config
-mv "$monitor_lua" "$dotfiles_lua"
-ln -s "$dotfiles_lua" "$monitor_lua"
-[[ -L $monitor_lua ]] || fail "fixture monitors.lua should be a symlink"
-pre_target=$(readlink "$monitor_lua")
-OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 3
-[[ -L $monitor_lua ]] || fail "set_scale must leave monitors.lua as a symlink"
-[[ $(readlink "$monitor_lua") == "$pre_target" ]] ||
-  fail "set_scale must keep the same symlink target"
-grep -Fx 'local omarchy_monitor_scale = 3' "$dotfiles_lua" >/dev/null ||
-  fail "set_scale must update the symlink target content"
-pass "monitor scaling preserves symlinked monitors.lua"
+# A resolution without a rate takes the fastest one the monitor offers for it,
+# and saves the mode with the scale.
+fresh
+run_resolution 2880x1800
+grep -F 'mode = "2880x1800@120"' "$eval_out" >/dev/null || fail "monitor resolution picks the fastest rate"
+pass "monitor resolution picks the fastest rate"
 
-# Named-rule updates must also write through the symlink (not replace it).
-dotfiles_named="$test_tmp/dotfiles/named-monitors.lua"
-mkdir -p "$(dirname "$dotfiles_named")"
-cat >"$dotfiles_named" <<'LUA'
-hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 2 })
-LUA
-rm -f "$monitor_lua"
-ln -s "$dotfiles_named" "$monitor_lua"
-pre_target=$(readlink "$monitor_lua")
+fresh
+run_resolution 1920x1200
+[[ $(setting eDP-1) == "1920x1200@60||2" ]] || fail "monitor resolution saves the mode" "actual: $(setting eDP-1)"
+pass "monitor resolution saves the mode"
+
+# Changing the scale afterwards keeps the chosen resolution.
 OMARCHY_TEST_MONITOR_SCALE=2 run_scaling 1.6
-[[ -L $monitor_lua ]] || fail "named-rule persist must leave monitors.lua as a symlink"
-[[ $(readlink "$monitor_lua") == "$pre_target" ]] ||
-  fail "named-rule persist must keep the same symlink target"
-grep -Fx 'hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 1.6 })' "$dotfiles_named" >/dev/null ||
-  fail "named-rule persist must update the symlink target content"
-pass "monitor scaling preserves symlinked monitors.lua for named rules"
+[[ $(setting eDP-1) == "1920x1200@60||1.6" ]] || fail "monitor scaling keeps a saved resolution" "actual: $(setting eDP-1)"
+pass "monitor scaling keeps a saved resolution"
 
-# A failed transform/publication must not truncate the real dotfile, silently
-# fall back to appending a rule, or report success after the live change.
-real_python=$(command -v python3)
-real_cat=$(command -v cat)
-real_sed=$(command -v sed)
-real_mv=$(command -v mv)
-export OMARCHY_TEST_REAL_PYTHON="$real_python" OMARCHY_TEST_REAL_CAT="$real_cat"
-export OMARCHY_TEST_REAL_SED="$real_sed" OMARCHY_TEST_REAL_MV="$real_mv"
-cat >"$stub_bin/python3" <<'STUB'
-#!/bin/bash
-if [[ ${OMARCHY_TEST_FAIL:-} == python3 ]]; then
-  printf 'partial transform\n'
-  exit 2
-fi
-exec "$OMARCHY_TEST_REAL_PYTHON" "$@"
-STUB
-cat >"$stub_bin/cat" <<'STUB'
-#!/bin/bash
-if [[ ${OMARCHY_TEST_FAIL:-} == cat && ${1:-} == *.omarchy-scale.* ]]; then
-  printf 'partial write\n'
-  exit 1
-fi
-exec "$OMARCHY_TEST_REAL_CAT" "$@"
-STUB
-cat >"$stub_bin/sed" <<'STUB'
-#!/bin/bash
-if [[ ${OMARCHY_TEST_FAIL:-} == sed && $* == *GDK_SCALE* ]]; then
-  exit 1
-fi
-exec "$OMARCHY_TEST_REAL_SED" "$@"
-STUB
-cat >"$stub_bin/mv" <<'STUB'
-#!/bin/bash
-if [[ ${OMARCHY_TEST_FAIL:-} == mv ]]; then exit 1; fi
-exec "$OMARCHY_TEST_REAL_MV" "$@"
-STUB
-chmod +x "$stub_bin/"{python3,cat,sed,mv}
-for failure in python3 cat sed mv; do
-  cat >"$dotfiles_named" <<'LUA'
-local omarchy_gdk_scale = 2
-hl.env("GDK_SCALE", "2")
-hl.monitor({ output = "eDP-1", mode = "preferred", position = "0x0", scale = 2 })
-LUA
-  cp "$dotfiles_named" "$test_tmp/expected"
-  if OMARCHY_TEST_FAIL="$failure" run_scaling 3 >"$test_tmp/output" 2>&1; then
-    fail "monitor scaling reports $failure persistence failure"
-  fi
-  cmp "$dotfiles_named" "$test_tmp/expected" || fail "$failure leaves the original bytes intact"
-  [[ -L $monitor_lua && $(readlink "$monitor_lua") == "$pre_target" ]] || fail "$failure preserves symlink"
-  grep -F 'could not be saved' "$test_tmp/output" >/dev/null || fail "$failure reports live/persisted difference"
-  [[ -z $(find "$test_tmp" -name '*.omarchy-scale.*' -print) ]] || fail "$failure cleans temporary files"
-  pass "monitor scaling preserves the original and reports $failure failure"
-done
-chmod 640 "$dotfiles_named"
-run_scaling 3
-[[ $(stat -c %a "$dotfiles_named") == 640 ]] || fail "atomic monitor update preserves mode"
-grep -Fx 'hl.env("GDK_SCALE", "3")' "$dotfiles_named" >/dev/null || fail "atomic update includes GDK scale"
-pass "monitor scaling publishes both settings and preserves mode"
+fresh
+if run_resolution 1280x720 2>/dev/null; then fail "monitor resolution rejects a mode the monitor lacks"; fi
+[[ ! -e $eval_out ]] || fail "monitor resolution leaves an unsupported mode unapplied"
+pass "monitor resolution rejects a mode the monitor lacks"
 
-cat >"$monitor_lua" <<'LUA'
---[=[
-hl.monitor({ output = "eDP-1", scale = 1 })
-]=]
-hl.monitor({
-  output = "eDP-1",
-  scale = 2 -- internal panel
-})
-LUA
-run_scaling 3
-grep -F 'scale = 3 -- internal panel' "$monitor_lua" >/dev/null || fail "trailing comment must preserve the saved scale"
-grep -F 'output = "eDP-1", scale = 1' "$monitor_lua" >/dev/null || fail "long comments must remain unchanged"
-pass "monitor scaling preserves trailing comments and skips Lua long comments"
-cat >"$monitor_lua" <<'LUA'
-local omarchy_monitor_scale = 2
+# Each screen takes only the modes it advertises itself, whichever is focused.
+fresh
+OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_resolution --monitor DP-1 2560x1440
+grep -F 'output = "DP-1", mode = "2560x1440@60"' "$eval_out" >/dev/null || fail "monitor resolution sets an unfocused monitor"
+[[ $(setting DP-1) == "2560x1440@60|1440x0|1" ]] || fail "monitor resolution saves an unfocused monitor's mode" "actual: $(setting DP-1)"
+rm -f "$eval_out"
+if OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_resolution --monitor DP-1 2880x1800 2>/dev/null; then
+  fail "monitor resolution rejects another screen's mode"
+fi
+[[ ! -e $eval_out ]] || fail "monitor resolution leaves another screen's mode unapplied"
+pass "monitor resolution works per screen"
+
+# --monitor scales that screen, whichever is focused.
+fresh
+OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_scaling --monitor DP-1 2
+grep -F 'output = "DP-1", mode = "3840x2160@60.0", position = "1440x0", scale = 2' "$eval_out" >/dev/null ||
+  fail "monitor scaling sets an unfocused monitor"
+[[ $(setting DP-1) == "|1440x0|2" ]] || fail "monitor scaling saves an unfocused monitor's scale" "actual: $(setting DP-1)"
+scale=$(OMARCHY_TEST_OTHER_MONITOR_SCALE=1.5 run_scaling --monitor DP-1)
+[[ $scale == "1.5" ]] || fail "monitor scaling reports an unfocused monitor's scale" "actual: $scale"
+pass "monitor scaling works per screen"
+
+# A layout moves every monitor in one eval and saves each position, keeping a
+# chosen resolution.
+fresh
+run_resolution 1920x1200
+OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_layout eDP-1=0x0 DP-1=960x-200
+grep -Fx 'hl.monitor({ output = "eDP-1", position = "0x0" }) hl.monitor({ output = "DP-1", position = "960x-200" }) ' "$eval_out" >/dev/null ||
+  fail "monitor layout moves every monitor in one eval" "actual: $(<"$eval_out")"
+[[ $(setting eDP-1) == "1920x1200@60|0x0|2" ]] || fail "monitor layout saves a position and keeps the mode" "actual: $(setting eDP-1)"
+[[ $(setting DP-1) == "|960x-200|1" ]] || fail "monitor layout saves a monitor's position" "actual: $(setting DP-1)"
+rm -f "$eval_out"
+if OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_layout 'DP-1=0x0"' 2>/dev/null; then fail "monitor layout rejects a malformed position"; fi
+if run_layout HDMI-A-1=0x0 2>/dev/null; then fail "monitor layout rejects an unknown monitor"; fi
+[[ ! -e $eval_out ]] || fail "monitor layout applies nothing it rejects"
+pass "monitor layout moves and saves every monitor's position"
+
+# A smaller mode beside another monitor keeps its corner and pulls the monitor
+# on its right in, so no gap opens: 2880x1800 at 2x spans 1440, 1920x1200 960.
+fresh
+OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_resolution 1920x1200
+grep -F 'output = "eDP-1", mode = "1920x1200@60", position = "0x0", scale = 2' "$eval_out" >/dev/null ||
+  fail "monitor resolution keeps its place beside another monitor" "actual: $(<"$eval_out")"
+grep -F 'hl.monitor({ output = "DP-1", position = "960x0" })' "$eval_out" >/dev/null ||
+  fail "monitor resolution moves its neighbour up to its new edge" "actual: $(<"$eval_out")"
+[[ $(setting DP-1) == "|960x0|1" ]] || fail "monitor resolution saves its neighbour's new position" "actual: $(setting DP-1)"
+pass "monitor resolution closes the layout up around a smaller mode"
+
+# The resize and the moves around it are one eval, ordered so no step overlaps
+# and Hyprland has nothing to warn about: a shrinking monitor resizes before its
+# neighbour closes in, and a growing one waits for its neighbour to move away.
+grep -F 'hl.monitor({ output = "eDP-1", mode = "1920x1200@60", position = "0x0", scale = 2 }) hl.monitor({ output = "DP-1", position = "960x0" })' "$eval_out" >/dev/null ||
+  fail "monitor resolution shrinks before its neighbour closes in" "actual: $(<"$eval_out")"
+fresh
+OMARCHY_TEST_MONITOR_SCALE=2 OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_scaling 1.6
+grep -F 'hl.monitor({ output = "DP-1", position = "1800x0" }) hl.monitor({ output = "eDP-1", mode = "2880x1800@120.0", position = "0x0", scale = 1.6 })' "$eval_out" >/dev/null ||
+  fail "monitor scaling grows only after its neighbour moves away" "actual: $(<"$eval_out")"
+pass "monitor resizes and moves apply in one step without overlapping"
+
+# In a row of three, the far screen moves out of the way before the middle one
+# moves into its spot, and on the way back the middle one closes in first.
+fresh
+row='[{"name":"DP-1","x":0,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-2","x":100,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-3","x":200,"y":0,"width":100,"height":100,"scale":1}]'
+OMARCHY_TEST_MONITORS_JSON="$row" run_layout --resized DP-1 100x100 1 200x100 1 200x100@60
+grep -F 'hl.monitor({ output = "DP-3", position = "300x0" }) hl.monitor({ output = "DP-2", position = "200x0" }) hl.monitor({ output = "DP-1", mode = "200x100@60"' "$eval_out" >/dev/null ||
+  fail "monitor layout moves the farthest neighbour away first" "actual: $(<"$eval_out")"
+fresh
+row='[{"name":"DP-1","x":0,"y":0,"width":200,"height":100,"scale":1},{"name":"DP-2","x":200,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-3","x":300,"y":0,"width":100,"height":100,"scale":1}]'
+OMARCHY_TEST_MONITORS_JSON="$row" run_layout --resized DP-1 200x100 1 100x100 1 100x100@60
+grep -F 'position = "0x0", scale = 1 }) hl.monitor({ output = "DP-2", position = "100x0" }) hl.monitor({ output = "DP-3", position = "200x0" })' "$eval_out" >/dev/null ||
+  fail "monitor layout closes in the nearest neighbour first" "actual: $(<"$eval_out")"
+pass "monitor layout orders a row's moves so none overlaps"
+
+run_rotate() {
+  HOME="$home_dir" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" \
+    OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
+    "$ROOT/bin/omarchy-hyprland-monitor-rotate" "$@"
+}
+
+# A quarter turn stands the monitor on its side, and its neighbour closes in on
+# the narrower monitor in the same eval: 2880x1800 at 2x spans 1440 across,
+# turned it spans 900. The rotation is saved with the monitor's settings.
+fresh
+OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_rotate 90
+grep -F 'hl.monitor({ output = "eDP-1", mode = "2880x1800@120.0", position = "0x0", scale = 2, transform = 1 }) hl.monitor({ output = "DP-1", position = "900x0" })' "$eval_out" >/dev/null ||
+  fail "monitor rotate turns a monitor and closes up around it in one step" "actual: $(<"$eval_out")"
+[[ $(saved_transform eDP-1) == "1" ]] || fail "monitor rotate saves the rotation" "actual: $(<"$settings_file")"
+pass "monitor rotate turns a monitor beside another"
+
+fresh
+run_rotate 270
+grep -F 'output = "eDP-1", mode = "2880x1800@120.0", position = "auto", scale = 2, transform = 3' "$eval_out" >/dev/null ||
+  fail "monitor rotate turns a monitor on its own" "actual: $(<"$eval_out")"
+rm -f "$eval_out"
+if run_rotate 45 2>/dev/null; then fail "monitor rotate refuses an angle that isn't a quarter turn"; fi
+[[ ! -e $eval_out ]] || fail "monitor rotate applies nothing it refuses"
+pass "monitor rotate turns a lone monitor and refuses other angles"
+
+# A line saved before rotation was saved still reads, and keeps what it had
+# when a rotation is added to it.
+fresh
+mkdir -p "${settings_file%/*}"
+printf '%s\t%s\t%s\t%s\n' "1920x1200@60" "0x0" "2" "eDP-1" >"$settings_file"
+run_rotate 180
+[[ $(setting eDP-1) == "1920x1200@60|0x0|2" && $(saved_transform eDP-1) == "2" ]] ||
+  fail "monitor rotate keeps an older line's settings" "actual: $(<"$settings_file")"
+pass "monitor rotate adds a rotation to an older saved line"
+
+# Two screens stacked on the left of a tall one: shrinking the top-left one
+# would pull the tall one left and the lower one up onto each other, so the one
+# that can go back does, and nothing overlaps.
+fresh
+OMARCHY_TEST_MONITORS_JSON='[{"name":"DP-1","x":0,"y":0,"width":100,"height":100,"scale":1},{"name":"DP-2","x":100,"y":0,"width":100,"height":200,"scale":1},{"name":"DP-3","x":0,"y":100,"width":100,"height":100,"scale":1}]' \
+  run_layout --resized DP-1 100x100 1 100x100 2
+grep -F 'hl.monitor({ output = "DP-2", position = "100x0" }) hl.monitor({ output = "DP-3", position = "0x50" })' "$eval_out" >/dev/null ||
+  fail "monitor layout keeps neighbours from piling onto each other" "actual: $(<"$eval_out")"
+pass "monitor layout keeps neighbours from piling onto each other"
+
+# With a fourth screen beyond the tall one, neither overlapping screen can go
+# back until the far one, which overlaps nothing, frees the tall one's spot.
+fresh
+OMARCHY_TEST_MONITORS_JSON='[{"name":"DP-1","x":0,"y":0,"width":1000,"height":1000,"scale":1},{"name":"DP-2","x":1000,"y":0,"width":1000,"height":2000,"scale":1},{"name":"DP-3","x":0,"y":1000,"width":1000,"height":1000,"scale":1},{"name":"DP-4","x":2000,"y":0,"width":1000,"height":2000,"scale":1}]' \
+  run_layout --resized DP-1 1000x1000 1 1000x1000 2
+grep -F 'hl.monitor({ output = "DP-2", position = "1000x0" }) hl.monitor({ output = "DP-3", position = "0x500" }) hl.monitor({ output = "DP-4", position = "2000x0" })' "$eval_out" >/dev/null ||
+  fail "monitor layout untangles a pile-up a third screen blocks" "actual: $(<"$eval_out")"
+pass "monitor layout untangles a pile-up a third screen blocks"
+
+# The saved settings are read back on every config load, so a value out of
+# place (here a flag it doesn't know, shifting a connector into the scale)
+# saves nothing.
+fresh
+if HOME="$home_dir" PATH="$stub_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-hyprland-monitor-persist" --other eDP-1 2 2>/dev/null; then
+  fail "monitor persist refuses a setting with a value out of place"
+fi
+[[ ! -e $settings_file ]] || fail "monitor persist saves nothing when it refuses"
+pass "monitor persist refuses a setting that would misconfigure the monitor"
+
+# An older monitors.lua gets the new template on top and keeps everything that
+# isn't one of Omarchy's own lines, exactly as written: rules, changed values,
+# block comments, conditionals.
+template="$ROOT/config/hypr/monitors.lua"
+
+run_upgrade() {
+  HOME="$home_dir" PATH="$stub_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-hyprland-monitor-config-upgrade"
+}
+
+kept_lines() {
+  sed -n '/^-- Kept from your earlier monitors.lua/,$p' "$monitor_lua" | tail -n +2
+}
+
+backup_count() {
+  find "${monitor_lua%/*}" -name 'monitors.lua.bak.*' | wc -l
+}
+
+lua_loads() {
+  ! command -v luac >/dev/null || luac -p "$1"
+}
+
+old_monitor_lua() {
+  rm -f "${monitor_lua%/*}"/monitors.lua.bak.*
+  cat >"$monitor_lua"
+}
+
+old_monitor_lua <<'LUA'
+-- See https://wiki.hypr.land/Configuring/Basics/Monitors/
+-- List current monitors and supported resolutions with: hyprctl monitors all
+
+-- Monitor scale is Hyprland's scale for the output. It sizes everything
+-- Wayland-native, accepts fractions (1.6, 1.75), and applies immediately.
+-- "auto" lets Hyprland pick per display.
+local omarchy_monitor_scale = "auto"
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
+hl.monitor({ output = "DP-1", mode = "5120x2880@60", position = "0x0", scale = 2 })
+
+-- Configure a specific monitor.
+-- hl.monitor({ output = "DP-2", mode = "2560x1440@144", position = "0x0", scale = 1 })
 --[[
-hl.monitor({ output = "eDP-1", scale = 1 })
+hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto", scale = 1 })
 ]]
+if os.getenv("DOCKED") then
+  hl.monitor({ output = "DP-3", mode = "preferred", position = "auto", scale = 1.5 })
+end
+
+local omarchy_gdk_scale = 2
+hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))
+hl.config({ misc = { vrr = 0 } })
 LUA
-run_scaling 3
-grep -Fx 'local omarchy_monitor_scale = 3' "$monitor_lua" >/dev/null || fail "a disabled named rule must allow active catch-all persistence"
-pass "disabled named monitor rules do not prevent catch-all persistence"
+cp "$monitor_lua" "$test_tmp/old-monitors.lua"
+run_upgrade
+head -n "$(wc -l <"$template")" "$monitor_lua" | cmp -s - "$template" || fail "monitors upgrade puts the new template on top" "$(<"$monitor_lua")"
+expected='hl.monitor({ output = "DP-1", mode = "5120x2880@60", position = "0x0", scale = 2 })
+
+--[[
+hl.monitor({ output = "HDMI-A-1", mode = "preferred", position = "auto", scale = 1 })
+]]
+if os.getenv("DOCKED") then
+  hl.monitor({ output = "DP-3", mode = "preferred", position = "auto", scale = 1.5 })
+end
+
+hl.config({ misc = { vrr = 0 } })'
+[[ $(kept_lines) == "$expected" ]] || fail "monitors upgrade keeps everything but Omarchy's own lines, as written" "actual:"$'\n'"$(kept_lines)"
+lua_loads "$monitor_lua" || fail "monitors upgrade leaves a config Lua can load"
+(( $(backup_count) == 1 )) && cmp -s "${monitor_lua%/*}"/monitors.lua.bak.* "$test_tmp/old-monitors.lua" ||
+  fail "monitors upgrade keeps the old file as a backup"
+pass "monitors upgrade keeps an older monitors.lua's own lines under the new template"
+
+# A changed default stays as the user wrote it, and so does an unchanged one
+# another line still uses.
+old_monitor_lua <<'LUA'
+-- See https://wiki.hypr.land/Configuring/Basics/Monitors/
+local omarchy_monitor_scale = 1.6
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
+local omarchy_gdk_scale = 2
+hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))
+hl.env("QT_SCALE_FACTOR", tostring(omarchy_gdk_scale))
+LUA
+run_upgrade
+expected='local omarchy_monitor_scale = 1.6
+hl.monitor({ output = "", mode = "preferred", position = "auto", scale = omarchy_monitor_scale })
+local omarchy_gdk_scale = 2
+hl.env("GDK_SCALE", tostring(omarchy_gdk_scale))
+hl.env("QT_SCALE_FACTOR", tostring(omarchy_gdk_scale))'
+[[ $(kept_lines) == "$expected" ]] ||
+  fail "monitors upgrade keeps a changed default, and a default still in use" "actual:"$'\n'"$(kept_lines)"
+pass "monitors upgrade keeps changed defaults and ones still in use"
+
+# A file already in the new shape is left alone.
+old_monitor_lua <"$template"
+run_upgrade
+cmp -s "$monitor_lua" "$template" && (( $(backup_count) == 0 )) || fail "monitors upgrade leaves a new monitors.lua alone"
+pass "monitors upgrade leaves a new monitors.lua alone"

@@ -117,7 +117,7 @@ Item {
       }
 
       if (!root.expectedStop && exitCode !== 0) {
-        root.error = root.stderrText || "Disk speed test failed"
+        root.error = root.stderrText || I18n.t("diskSpeedtest.failed")
         root.phase = ""
         root.running = false
         return
@@ -133,10 +133,10 @@ Item {
     fontFamily: Style.font.family
     layerNamespace: "omarchy-disk-speedtest"
     title: root.diskName
-    leftLabel: "READ"
-    rightLabel: "WRITE"
+    leftLabel: I18n.t("diskSpeedtest.read")
+    rightLabel: I18n.t("diskSpeedtest.write")
     unit: "MB/s"
-    runAgainTooltip: "Measure again"
+    runAgainTooltip: I18n.t("speedtest.measureAgain")
     running: root.running
     leftValue: root.toRate(root.readMBps)
     rightValue: root.toRate(root.writeMBps)

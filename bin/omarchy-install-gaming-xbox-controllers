@@ -29,7 +29,7 @@ if lsmod | grep -q '^xpad '; then
 fi
 
 if $needs_reboot; then
-  gum confirm "Reboot needed to finish setup. Reboot now?" && sudo reboot now
+  gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n xbox.rebootNeeded)" && sudo reboot now
   exit 0
 fi
 

@@ -77,15 +77,44 @@ if notifications_ready; then
 fi
 
 # Each kill stops the oldest matching instance and only returns once it has
-# fully exited, so the no-duplicate launch below can't race a dying shell.
-while timeout 5 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
+# fully exited. A large bar can take longer than a few seconds to tear down,
+# so the client gets time to see that through, and the wait below covers a
+# client that timed out anyway: the fresh shell refuses to start next to a
+# still-dying instance (-n), which is how a restart used to end with no bar.
+#
+# Another checkout's shell goes too: a worktree's, left after a visual check.
+# omarchy-shell cannot reach it, and until it is gone it keeps the
+# notification server and polkit agent from the fresh shell. Only a config
+# inside an Omarchy tree counts, so someone's own Quickshell config stays.
+omarchy_shell_dirs() {
+  local dir
+
+  while IFS= read -r dir; do
+    [[ -x ${dir%/shell}/bin/omarchy-launch-shell ]] && printf '%s\n' "$dir"
+  done < <(quickshell list -a -j 2>/dev/null |
+    jq -r '.[].config_path | select(endswith("/shell/shell.qml")) | rtrimstr("/shell.qml")' 2>/dev/null)
+}
+
+while timeout 30 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
+while IFS= read -r dir; do
+  timeout 30 quickshell kill -p "$dir" --any-display >/dev/null 2>&1
+done < <(omarchy_shell_dirs)
+
+deadline=$((SECONDS + 30))
+while (( SECONDS < deadline )) && [[ -n $(omarchy_shell_dirs) ]]; do
+  sleep 0.1
+done
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
 hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
 
 shell_ready=0
-for (( attempt = 0; attempt < 20; attempt++ )); do
+# The shell answers once its plugins have loaded, which on a large bar is
+# well past ten seconds, so wait on a deadline rather than a fixed handful
+# of attempts.
+deadline=$((SECONDS + 60))
+while (( SECONDS < deadline )); do
   if OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell shell ping >/dev/null 2>&1; then
     shell_ready=1
     break

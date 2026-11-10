@@ -11,6 +11,10 @@ if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then
   fi
 fi
 omarchy-theme-set-pi --activate
+omarchy-theme-set-fcitx5 --activate
+# A headless theme set skips the retints, so the seeded config would keep its
+# default icon theme until the first switch.
+omarchy-theme-set-qt
 
 mkdir -p ~/.config/btop/themes
 ln -snf "$HOME/.local/state/omarchy/current/theme/btop.theme" ~/.config/btop/themes/current.theme

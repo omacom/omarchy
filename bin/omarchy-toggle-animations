@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle animations, blur and shadows, which are slow without a GPU
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy toggle animations | omarchy toggle animations off | omarchy toggle animations on
+
+case ${1:-toggle} in
+toggle)
+  if omarchy-hyprland-animations-off; then
+    animations=on
+  else
+    animations=off
+  fi
+  ;;
+on | off) animations=$1 ;;
+*)
+  echo "Usage: omarchy-toggle-animations [toggle|on|off]" >&2
+  exit 1
+  ;;
+esac
+
+# A session that renders on the CPU turns animations off by itself
+# (default/hypr/software-rendering.lua). Turning them on there is remembered for
+# later sessions too, and has to be in place before the toggle reloads Hyprland.
+without_gpu="$HOME/.local/state/omarchy/toggles/animations-without-gpu"
+
+# The flag records animations being off, so on and off swap on the way through.
+if [[ $animations == "on" ]]; then
+  if [[ -e $XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/omarchy-software-rendering ]]; then
+    mkdir -p "${without_gpu%/*}"
+    touch "$without_gpu"
+  fi
+  omarchy-hyprland-toggle no-animations off
+else
+  rm -f "$without_gpu"
+  omarchy-hyprland-toggle no-animations on
+fi
+
+if omarchy-hyprland-animations-off; then
+  omarchy-notification-send -g 󰗘 "$(omarchy-i18n animations.disabled)"
+else
+  omarchy-notification-send -g 󰗘 "$(omarchy-i18n animations.enabled)"
+fi
