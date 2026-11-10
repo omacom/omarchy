@@ -58,7 +58,7 @@ verify_defaults() {
   pass "a monospace font is configured"
 
   [[ $(xdg-mime query default x-scheme-handler/http) == "chromium.desktop" ]] || fail "HTTP MIME handling uses Chromium"
-  [[ $(xdg-mime query default inode/directory) == "org.gnome.Nautilus.desktop" ]] || fail "directory MIME handling uses Nautilus"
+  [[ $(xdg-mime query default inode/directory) == "folio.desktop" ]] || fail "directory MIME handling uses Files"
   pass "desktop MIME handlers are configured"
 }
 

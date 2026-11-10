@@ -27,6 +27,12 @@ o.window("org.omarchy.about", { float = true })
 o.window("org.omarchy.about", { center = true })
 o.window("org.omarchy.about", { size = { 920, 480 } })
 
+-- Files' Space preview floats over the file manager, larger than the
+-- standard float so pictures and PDFs have room.
+o.window("folio-preview", { float = true })
+o.window("folio-preview", { center = true })
+o.window("folio-preview", { size = { 1100, 760 } })
+
 o.window("omacalc", { float = true })
 
 -- Popped window rounding.

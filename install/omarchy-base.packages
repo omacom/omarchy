@@ -42,6 +42,7 @@ fcitx5-table-extra
 fd
 ffmpeg
 ffmpegthumbnailer
+folio
 fontconfig
 foot
 fzf
@@ -86,8 +87,6 @@ monologue
 moonlight-qt
 mpv
 mpv-mpris
-nautilus
-nautilus-python
 gnome-disk-utility
 noto-fonts
 noto-fonts-cjk
@@ -138,7 +137,6 @@ slurp
 socat
 starship
 superwhisper-bin
-sushi
 system-config-printer
 tesseract
 tesseract-data-eng
