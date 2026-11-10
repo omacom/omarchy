@@ -223,12 +223,28 @@ Item {
     Util.execDetached(command)
   }
 
+  // Line height of each preview font as its row renders it, keyed by the menu's
+  // previewFont. Reassigned whole so the card height, which sums row heights
+  // from the model rather than the delegates, re-evaluates.
+  property var previewLineHeights: ({})
+
+  function notePreviewLineHeight(previewFont, height) {
+    if (!previewFont || !(height > 0) || root.previewLineHeights[previewFont] === height) return
+    var next = Object.assign({}, root.previewLineHeights)
+    next[previewFont] = height
+    root.previewLineHeights = next
+  }
+
   // Menu rows only surface their detail while a search is narrowing them;
   // dmenu rows carry caller-supplied subtext that must always be visible.
   function rowHeightForDetail(detail, previewFont) {
     var showDetail = (root.filterText || root.dmenuActive) && detail
     if (previewFont) {
-      return Math.max(root.baseRowHeight, Math.ceil(terminalFontMetrics.height * 2 + Style.space(3) + Style.spacing.rowPaddingX * 2))
+      // Rows report the line height of the family they actually render (the
+      // loaded specimen, or the menu font while it is unavailable); until a
+      // row has, assume the menu font.
+      var lineHeight = root.previewLineHeights[previewFont] || terminalFontMetrics.height
+      return Math.max(root.baseRowHeight, Math.ceil(lineHeight * 2 + Style.space(3) + Style.spacing.rowPaddingX * 2))
         + (showDetail ? Style.font.caption + Style.space(3) : 0)
     }
     return showDetail ? root.detailRowHeight : root.baseRowHeight
@@ -1566,6 +1582,16 @@ Item {
                 id: previewLoader
                 source: row.previewFontFile ? root.omarchyPath + "/" + row.previewFontFile : ""
               }
+
+              FontMetrics {
+                id: previewMetrics
+                font.family: row.previewFamily
+                font.pointSize: root.terminalFontPointSize
+              }
+
+              readonly property real previewLineHeight: previewMetrics.height
+              onPreviewLineHeightChanged: if (row.hasPreview) root.notePreviewLineHeight(row.previewFont, row.previewLineHeight)
+              Component.onCompleted: if (row.hasPreview) root.notePreviewLineHeight(row.previewFont, row.previewLineHeight)
 
               width: ListView.view.width
               height: root.rowHeightForDetail(row.detail, row.previewFont)

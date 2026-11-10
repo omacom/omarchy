@@ -215,6 +215,33 @@ samples.forEach((sample, index) => {
   assertEqual(highlighted.replace(/<font color="#[0-9a-fA-F]{6}">|<\/font>/g, ''), syntax.escape(sample), `sample ${index} preserves all characters`)
   assert(index === 0 ? !highlighted.includes('<font') : highlighted.includes('<font'), `sample ${index} uses expected highlighting`)
 })
+// Rows are sized from the line height of the family they actually render, so
+// a specimen taller than the menu font must grow the row (and the card, which
+// sums these heights) rather than overflow it.
+const qmlFunction = name => {
+  const start = menuQml.indexOf(`function ${name}(`)
+  let depth = 0
+  for (let end = menuQml.indexOf('{', start); end < menuQml.length; end++) {
+    if (menuQml[end] === '{') depth++
+    if (menuQml[end] === '}' && --depth === 0) return menuQml.slice(start, end + 1)
+  }
+}
+const sizing = { root: { baseRowHeight: 50, filterText: '', dmenuActive: false, previewLineHeights: {} }, terminalFontMetrics: { height: 16 } }
+vm.createContext(sizing)
+vm.runInContext('var Style = { space: n => n, font: { caption: 10 }, spacing: { rowPaddingX: 8 } }', sizing)
+vm.runInContext(`${qmlFunction('notePreviewLineHeight')}\n${qmlFunction('rowHeightForDetail')}`, sizing)
+const rowHeight = (detail, font) => vm.runInContext(`rowHeightForDetail(${JSON.stringify(detail)}, ${JSON.stringify(font)})`, sizing)
+const menuFontRow = rowHeight('', 'Tall Mono')
+assert(typeof sizing.notePreviewLineHeight === 'function', 'rows can report the line height of their preview family')
+sizing.notePreviewLineHeight('Tall Mono', 40)
+assert(rowHeight('', 'Tall Mono') > menuFontRow, 'a row grows when its preview family is taller than the menu font')
+assertEqual(rowHeight('', 'Other Mono'), menuFontRow, 'a row whose family has not reported keeps the menu font height')
+sizing.root.filterText = 'mono'
+assertEqual(rowHeight('Install', 'Tall Mono') - rowHeight('', 'Tall Mono'), 10 + 3, 'a searched preview row adds its detail line on top of the measured height')
+const reported = sizing.root.previewLineHeights
+sizing.notePreviewLineHeight('Tall Mono', 40)
+assert(sizing.root.previewLineHeights === reported, 'reporting an unchanged height does not invalidate the layout')
+
 assert(!syntax.highlight('<img src="https://example.invalid">', true, colors).includes('<img'), 'escape markup-shaped preview text')
 assert(!syntax.highlight('const x', true, {magenta: '"><img src="bad">'}).includes('<img'), 'reject markup in palette values')
 assertEqual(syntax.highlight('const x < 3', true, {}), 'const x &lt; 3', 'missing palette preserves escaped foreground text')
