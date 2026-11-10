@@ -22,8 +22,9 @@ Item {
   property bool panelOpen: false
   readonly property bool syncing: authenticated && active && Model.isSyncing(statusText)
   property int syncFileTotal: 0
-  readonly property var syncDetails: Model.syncDetails(statusText, I18n.formatNumber)
+  readonly property var syncDetails: Model.syncDetails(statusText)
   readonly property real syncProgress: syncFileTotal > 0 ? Math.max(0, Math.min(1, 1 - syncDetails.remaining / syncFileTotal)) : 0
+  property bool _fullRefreshPending: false
   property bool refreshing: false
   // statusText answers the IPC status() call, so it stays English.
   property string statusText: "Checking…"  // i18n: ignore
@@ -63,7 +64,12 @@ Item {
   }
 
   function refresh(statusOnly) {
-    if (statusProcess.running || helperPath === "/shell/plugins/panels/dropbox/status.py") return
+    if (statusProcess.running) {
+      if (statusOnly !== true) _fullRefreshPending = true
+      return
+    }
+    if (helperPath === "/shell/plugins/panels/dropbox/status.py") return
+    if (statusOnly !== true) _fullRefreshPending = false
     _statusOutput = ""
     _statusError = ""
     refreshing = true
@@ -246,6 +252,7 @@ Item {
       var stderr = String(statusStderr.text || root._statusError || "")
       if (exitCode === 0) root.applyStatus(stdout)
       else root.lastError = root.elideStatus(stderr || stdout || I18n.t("dropbox.statusReadFailed"))
+      if (root._fullRefreshPending) root.refresh()
     }
   }
 

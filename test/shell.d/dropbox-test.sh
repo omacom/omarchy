@@ -22,13 +22,37 @@ assert(dropbox.isSyncing('Uploading 1 file (250 KB/sec)'), 'dropbox recognizes u
 assert(!dropbox.isSyncing('Up to date'), 'dropbox clears activity when finished')
 assert(!dropbox.isSyncing('Stopped'), 'dropbox clears activity when stopped')
 
-const transfer = dropbox.syncDetails('Syncing 7,697 files • 25 mins\nDownloading 7,697 files (101,984 KB/sec, 25 mins)')
+const transfer = dropbox.syncDetails('Syncing 7,697 files • 25 mins\nDownloading 7,697 files (101,984 KB/sec, 25 mins)', n => n.toLocaleString('en-US'))
 assertEqual(transfer.label, 'Downloading 7,697 files', 'dropbox avoids duplicate transfer counts')
 assertEqual(transfer.detail, '102 MB/s · 25 mins', 'dropbox condenses speed and ETA')
 assertEqual(transfer.remaining, 7697, 'dropbox parses remaining files for progress')
 assertEqual(dropbox.syncDetails('Syncing 4 files • 1 min\nUploading 1 file...\nDownloading 3 files (1,500 KB/sec, 1 min)').detail, '1.5 MB/s · 1 min', 'dropbox keeps the transfer rate during simultaneous uploads and downloads')
 assertEqual(dropbox.syncDetails('Syncing...').detail, '', 'dropbox handles startup without transfer data')
 assertEqual(dropbox.syncDetails('Uploading 1 file (250 KB/sec)').detail, '250 KB/s', 'dropbox formats upload speed without ETA')
+
+const mixed = dropbox.syncDetails('Syncing 4 files • 1 min\nUploading 1 file...\nDownloading 3 files (500 B/sec, 1 min)')
+assertEqual(mixed.remaining, 4, 'dropbox progress uses the overall count for mixed transfers')
+assertEqual(mixed.label, 'Syncing 4 files', 'dropbox labels mixed transfers with the total')
+assertEqual(mixed.detail, '500 B/s · 1 min', 'dropbox preserves byte-per-second rates')
+const translated = dropbox.syncDetails('Syncing 4 files • 2+ days\nDownloading 4 files (500 B/sec)', n => `[${n}]`, (key, english) => `translated:${english}`)
+assertEqual(translated.label, 'translated:Downloading [4] files', 'dropbox translates and formats transfer counts')
+assertEqual(translated.detail, '[500] B/s · translated:[2]+ days', 'dropbox translates and formats ETA with plus estimates')
+assertEqual(dropbox.syncDetails('Uploading 1 file (500 B/sec)').label, 'Uploading 1 file', 'dropbox uses singular transfer labels')
+
+// Exercise the real refresh method with a status poll already in flight.
+const fs = require('fs')
+const vm = require('vm')
+const service = fs.readFileSync(`${process.env.ROOT}/shell/plugins/panels/dropbox/Service.qml`, 'utf8')
+const refreshSource = service.match(/  function refresh\(statusOnly\) \{[\s\S]*?\n  \}/)[0]
+const state = { statusProcess: { running: true }, helperPath: '/checkout/status.py', _fullRefreshPending: false }
+vm.createContext(state)
+vm.runInContext(refreshSource, state)
+state.refresh()
+assert(state._fullRefreshPending, 'dropbox queues a full refresh when a status poll is running')
+state.statusProcess.running = false
+state.refresh()
+assertEqual(state.statusProcess.command.length, 3, 'dropbox queued refresh includes the full scan')
+assert(!state._fullRefreshPending, 'dropbox consumes the pending full refresh')
 
 const parsed = dropbox.parseStatus(JSON.stringify({
   installed: true,

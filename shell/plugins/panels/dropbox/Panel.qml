@@ -25,6 +25,7 @@ Panel {
   property int fileIndex: 0
   property bool cursorActive: false
   property int phraseIndex: 0
+  readonly property var syncDisplay: Model.syncDetails(dropbox.statusText, Commons.I18n.formatNumber, Commons.I18n.t)
 
   readonly property var activePhrases: [
     Commons.I18n.t("dropbox.phrase1"),
@@ -305,7 +306,7 @@ Panel {
 
               Text {
                 Layout.fillWidth: true
-                text: dropbox.syncDetails.label
+                text: root.syncDisplay.label
                 textFormat: Text.PlainText
                 color: root.foreground
                 font.family: root.fontFamily
@@ -314,7 +315,7 @@ Panel {
               }
 
               Text {
-                text: dropbox.syncDetails.detail
+                text: root.syncDisplay.detail
                 textFormat: Text.PlainText
                 color: root.dim
                 font.family: root.fontFamily
@@ -335,7 +336,7 @@ Panel {
                 color: root.foreground
 
                 Behavior on width {
-                  NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
+                  NumberAnimation { duration: Style.duration(160); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
                 }
               }
             }
