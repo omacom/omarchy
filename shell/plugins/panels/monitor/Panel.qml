@@ -87,7 +87,8 @@ Panel {
         scaleIndex: Model.matchingScaleIndex(scales, display.scale, display.width, display.height),
         resolutions: resolutions.length > 1 ? resolutions : [],
         refreshes: Model.refreshOptions(display.availableModes, display.width, display.height),
-        refreshRate: Number(display.refreshRate) || 0
+        refreshRate: Number(display.refreshRate) || 0,
+        specs: Model.displaySpecs(display, Commons.I18n.formatNumber)
       })
     }
     return list
@@ -438,9 +439,6 @@ Panel {
   // Playful mood-name for a given brightness percent. Bands intentionally
   // span ~10–20 points so casual tweaks change the label, while small
   // nudges within one band don't.
-  function brightnessName(percent) {
-    return Model.brightnessName(percent, Commons.I18n.t)
-  }
 
   // Brightness is taken from every poll, so a level set elsewhere replaces one
   // shown here. The list itself is only taken when something besides
@@ -924,13 +922,12 @@ Panel {
                 width: parent.width
               }
 
-              // The shown display's mood.
+              // The shown display's resolution, size, and refresh rate.
               Text {
                 id: heroLabel
+                visible: text !== ""
                 textFormat: Text.PlainText
-                text: root.currentBrightness >= 0
-                  ? root.brightnessName(root.currentBrightness).toUpperCase()
-                  : Commons.I18n.t("monitor.fixedBrightness")
+                text: root.current ? root.current.specs : ""
                 color: Qt.darker(root.bar.foreground, 1.4)
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption

@@ -61,8 +61,8 @@ linux-firmware-marvell
 
 # Surface Pro 11 (Snapdragon) support packages
 iptsd
-surface-pro-11-sensors
-surface-pro-11-support
+microsoft-surface-pro-11-sensors
+microsoft-surface-pro-11-support
 
 # Dell laptop support packages
 dell-xps-touchpad-haptics
@@ -70,9 +70,13 @@ dell-xps13-sidecar-amps
 linux-firmware-cirrus-dx13260
 
 # ASUS laptop support packages
-asus-proart-p14-speaker-firmware
+asus-proart-p14-audio
 asus-zenbook-a16-audio
+asus-zenbook-14-ux3480qa-audio
 asus-zenbook-a16-firmware
+
+# Qualcomm Wi-Fi board data for cards linux-firmware does not list
+ath12k-board-fallback
 
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2
