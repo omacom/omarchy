@@ -8,8 +8,8 @@
 # unconditionally. Device-initiated Just Works pairing (Xbox controllers, BLE
 # keyboards) therefore never bonds. This agent registers with NoInputNoOutput
 # and accepts RequestAuthorization / RequestConfirmation only while a BlueZ
-# adapter is Pairable (the Bluetooth panel turns Pairable on for the scan and
-# off when it closes). AuthorizeService stays permissive so known devices can
+# adapter has opened a pairing window (the panel changes Pairable for the
+# scan, then turns it off on close). BlueZ defaults alone never open a window. AuthorizeService stays permissive so known devices can
 # reconnect outside that window.
 
 from __future__ import annotations
@@ -58,10 +58,12 @@ AGENT_XML = """
 """
 
 BUS: Gio.DBusConnection | None = None
+bluez_owner = None
+pairable_adapters: set[str] = set()
 
 
-def any_adapter_pairable() -> bool:
-    """True if any BlueZ adapter currently has Pairable=true."""
+def device_adapter_pairable(device: str) -> bool:
+    """Check the pairing window of the adapter that owns this device."""
     if BUS is None:
         return False
     try:
@@ -80,35 +82,48 @@ def any_adapter_pairable() -> bool:
         return False
 
     objects = managed.unpack()[0]
-    for _path, interfaces in objects.items():
-        props = interfaces.get("org.bluez.Adapter1")
-        if not props:
-            continue
-        if props.get("Pairable") is True:
-            return True
-    return False
+    adapter = objects.get(device, {}).get("org.bluez.Device1", {}).get("Adapter")
+    if adapter not in pairable_adapters:
+        return False
+    props = objects.get(adapter, {}).get("org.bluez.Adapter1", {})
+    return props.get("Pairable") is True
+
+
+def adapter_properties_changed(_connection, sender, path, _interface, _signal, parameters, *_):
+    if sender != bluez_owner:
+        return
+    interface, changed, invalidated = parameters.unpack()
+    if interface != "org.bluez.Adapter1":
+        return
+    if "Pairable" in invalidated or changed.get("Pairable") is False:
+        pairable_adapters.discard(path)
+    elif changed.get("Pairable") is True:
+        pairable_adapters.add(path)
 
 
 def reject(invocation: Gio.DBusMethodInvocation) -> None:
     invocation.return_dbus_error(
         "org.bluez.Error.Rejected",
-        "Pairing is only accepted while an adapter is pairable",
+        "Pairing is only accepted during this adapter’s pairing window",
     )
 
 
 def on_method_call(connection, sender, object_path, interface_name, method_name, parameters, invocation):
+    if bluez_owner is None or sender != bluez_owner:
+        reject(invocation)
+        return
     if method_name == "RequestPinCode":
-        if not any_adapter_pairable():
+        if not device_adapter_pairable(parameters.unpack()[0]):
             reject(invocation)
             return
         invocation.return_value(GLib.Variant("(s)", ("0000",)))
     elif method_name == "RequestPasskey":
-        if not any_adapter_pairable():
+        if not device_adapter_pairable(parameters.unpack()[0]):
             reject(invocation)
             return
         invocation.return_value(GLib.Variant("(u)", (0,)))
     elif method_name in ("RequestConfirmation", "RequestAuthorization"):
-        if not any_adapter_pairable():
+        if not device_adapter_pairable(parameters.unpack()[0]):
             reject(invocation)
             return
         invocation.return_value(None)
@@ -129,7 +144,15 @@ def main() -> None:
     node_info = Gio.DBusNodeInfo.new_for_xml(AGENT_XML)
     BUS.register_object(AGENT_PATH, node_info.interfaces[0], on_method_call, None, None)
 
-    def register(_connection, _name, _name_owner):
+    BUS.signal_subscribe(
+        "org.bluez", "org.freedesktop.DBus.Properties", "PropertiesChanged",
+        None, "org.bluez.Adapter1", Gio.DBusSignalFlags.NONE, adapter_properties_changed,
+    )
+
+    def register(_connection, _name, name_owner):
+        global bluez_owner
+        bluez_owner = name_owner
+        pairable_adapters.clear()
         for method, args in (
             ("RegisterAgent", GLib.Variant("(os)", (AGENT_PATH, "NoInputNoOutput"))),
             ("RequestDefaultAgent", GLib.Variant("(o)", (AGENT_PATH,))),
@@ -146,12 +169,17 @@ def main() -> None:
                 None,
             )
 
+    def vanished(_connection, _name):
+        global bluez_owner
+        bluez_owner = None
+        pairable_adapters.clear()
+
     Gio.bus_watch_name_on_connection(
         BUS,
         "org.bluez",
         Gio.BusNameWatcherFlags.NONE,
         register,
-        None,
+        vanished,
     )
     GLib.MainLoop().run()
 
