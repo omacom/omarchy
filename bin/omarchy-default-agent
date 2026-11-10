@@ -38,7 +38,7 @@ hermes) agent="hermes"; name="Hermes"; agent_installer="omarchy-install-hermes-c
 copilot | github-copilot) agent="copilot"; name="GitHub Copilot" ;;
 muse | muse-code | musecode) agent="muse"; name="Muse Code" ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
-omo) agent="omo"; name="OmO" ;;
+omo) agent="omo"; name="OmO"; agent_package="npm:omo-ai" ;;
 kimi | kimi-code) agent="kimi"; name="Kimi"; agent_package="npm:@moonshot-ai/kimi-code" ;;
 qwen | qwen-code) agent="qwen"; name="Qwen Code" ;;
 dsh | deepseek | deepseek-harness)

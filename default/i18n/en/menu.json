@@ -890,9 +890,6 @@
   "install.ai.ollama": {
     "label": "Ollama"
   },
-  "install.ai.omo": {
-    "label": "OmO"
-  },
   "install.ai.openclaw": {
     "label": "OpenClaw"
   },

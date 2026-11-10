@@ -242,12 +242,12 @@ for agent in "${!declared_option_bins[@]}"; do
       fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
   done
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 21 ]] || fail "only the agent CLIs update themselves"
+[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 22 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 31 ]] || fail "user setup declares every default mise tool as lazy"
+[[ $(grep -c 'lazy = true' "$lazy_config") == 32 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
@@ -691,6 +691,14 @@ for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
 done
 printf '%s\n' "$saved_agent" >"$agent_file"
 pass "the added agents install through Omarchy's mise declarations"
+
+# OmO must install its real npm package rather than the unrelated mise name.
+: >"$mise_history"
+omarchy-default-agent --install omo >/dev/null
+grep -Fx "install node npm:omo-ai" "$mise_history" >/dev/null ||
+  fail "OmO installs its declared npm package with node"
+[[ $(omarchy-default-agent) == "omo" ]] || fail "OmO becomes the selected agent after installation"
+pass "OmO installs through its npm package"
 
 : >"$terminal_log"
 : >"$muse_login_log"
