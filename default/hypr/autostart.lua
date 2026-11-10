@@ -1,7 +1,11 @@
 hl.on("hyprland.start", function()
   -- Slow app launch fix -- set systemd and D-Bus activation vars before
-  -- starting session services.
-  hl.exec_cmd("dbus-update-activation-environment --systemd --all")
+  -- starting session services. OWE, which the login intro waits on, starts
+  -- on them once the session has queued it, rather than on uwsm's half-second
+  -- poll for graphical-session.target.
+  hl.exec_cmd("dbus-update-activation-environment --systemd --all && "
+    .. "if systemctl --user list-jobs --no-legend owed.service | grep -q ' start '; then "
+    .. "systemctl --user start --no-block --job-mode=ignore-dependencies owed.service; fi")
 
   hl.exec_cmd("omarchy-launch-shell")
   hl.exec_cmd("omarchy-provision-first-run")
