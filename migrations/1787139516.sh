@@ -4,13 +4,10 @@ echo "Enable the Omarchy wallpaper portal backend for this user"
 # paths so "Set as Background" in Files works without waiting for the
 # omarchy-settings package to place the system-wide copies.
 #
-# No portal routing config is shipped here: xdg-desktop-portal routes an
-# interface to whichever registered backend implements it when no config entry
-# exists, and writing the user's hyprland-portals.conf would wipe custom
-# settings (e.g. a custom file chooser). The packaged etc/xdg
-# hyprland-portals.conf gains the explicit
-# org.freedesktop.impl.portal.Wallpaper=omarchy line once omarchy-settings
-# carries it.
+# No portal routing config is shipped: xdg-desktop-portal routes an interface
+# to whichever registered backend implements it when no config entry exists,
+# and writing the user's hyprland-portals.conf would wipe custom settings (e.g.
+# a custom file chooser).
 
 portal="$OMARCHY_PATH/default/xdg-desktop-portal/portals/omarchy.portal"
 service="$OMARCHY_PATH/default/dbus-1/services/org.freedesktop.impl.portal.desktop.omarchy.service"
