@@ -345,7 +345,7 @@ function runIn(scope, ...names) {
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'keyForDuplicate', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
-  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'senderActions', 'dismissOne',
   'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
@@ -1051,6 +1051,8 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
     hints: { 'omarchy-exec-argv': JSON.stringify(['xdg-open', file]) } })
   s.admit(shot('/tmp/one.png'), shot('/tmp/two.png'))
   assert.equal(s.toasts.count, 4)
+  // Each of those unnamed toasts is its own deck, grouped by the key it ended up with.
+  eq(s.toasts.rows.slice(0, 2).map(r => r.groupKey), s.toasts.rows.slice(0, 2).map(r => 'toast:' + r.key))
   // The same words after the moment has passed are a second message, not a copy.
   s.toasts.get(s.rowIndexFor(key)).ts -= 10
   s.admit(reminder(13))
@@ -1060,6 +1062,13 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   s.closeToast(leavingKey, 'dismissed')
   s.admit(reminder(14))
   eq([s.toasts.count, s.rowIndexFor(leavingKey) >= 0, !!s.leaving[leavingKey]], [6, true, true])
+  // The same words offering different buttons are two cards, each keeping its own.
+  const call = (id, button) => Object.assign(s.fakeNotification(id, 'Standup'), { body: 'Starting now',
+    actions: [{ identifier: button.toLowerCase(), text: button }] })
+  const before = s.toasts.count
+  s.admit(call(20, 'Reply'), call(21, 'Join'), call(22, 'Join'))
+  assert.equal(s.toasts.count, before + 2)
+  eq(s.toasts.rows.slice(0, 2).map(r => [r.originalId, s.actionsOf(r.key).map(a => a.text)]), [[22, ['Join']], [20, ['Reply']]])
   // One card, one history entry.
   const t = newCapacityScope()
   t.admit(Object.assign(t.fakeNotification(1, 'Twice'), { body: 'Same' }), Object.assign(t.fakeNotification(2, 'Twice'), { body: 'Same' }))

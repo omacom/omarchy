@@ -575,13 +575,15 @@ Item {
   }
 
   // The card a new notification repeats word for word (Store.isDuplicate),
-  // shown or still waiting to be. One on its way out is left to go.
-  function keyForDuplicate(row) {
+  // shown or still waiting to be, offering the same buttons: Reply and Join
+  // under the same words are two cards. One on its way out is left to go.
+  function keyForDuplicate(row, notification) {
+    var buttons = JSON.stringify(senderActions(notification))
     for (var key in liveKeys) {
       if (leaving[key]) continue
       var at = rowIndexFor(key)
       var shown = liveKeys[key].row || (at >= 0 ? toasts.get(at) : null)
-      if (Store.isDuplicate(row, shown)) return key
+      if (Store.isDuplicate(row, shown) && JSON.stringify(actionsOf(key)) === buttons) return key
     }
     return ""
   }
@@ -593,8 +595,10 @@ Item {
     var row = Store.snapshot(notification, known, NotificationUrgency)
     // So does an identical copy under a new id: it takes over the card it
     // repeats, and the copy it supersedes is closed at its sender.
-    var key = known || keyForDuplicate(row) || nextKey()
+    var key = known || keyForDuplicate(row, notification) || nextKey()
     row.key = key
+    // An unnamed sender's toast is grouped by its own key, known only now.
+    row.groupKey = Markup.regroup(row)
 
     if (!reserveLive(key)) {
       notification.tracked = false
@@ -901,9 +905,10 @@ Item {
 
   // What the sender said can be done with this notification. A restored row
   // has no live sender, so it has none of these.
-  function actionsOf(key, revision) {
+  function actionsOf(key, revision) { return senderActions(refs[key]) }
+
+  function senderActions(ref) {
     var out = []
-    var ref = refs[key]
     if (!ref || !ref.actions) return out
     for (var i = 0; i < Math.min(ref.actions.length, Security.MAX_ACTIONS); i++) {
       var a = ref.actions[i]
