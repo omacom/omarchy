@@ -10,7 +10,7 @@ L'installatore chiede quanta RAM, quanti core CPU e quanto disco cedere (64GB o 
 
 ## Usarla
 
-Una volta installata, avvia _Windows_ dal launcher delle app. Questo avvia la VM se non è già in esecuzione e ti connette via RDP, a schermo intero. Al primo avvio concedigli 15-30 secondi.
+Una volta installata, avvia _Windows_ dal launcher delle app. Questo avvia la VM se non è già in esecuzione e ti connette via RDP, a schermo intero. A ogni avvio a freddo concedigli 15-30 secondi.
 
 La sessione RDP trasporta audio, il tuo microfono e appunti condivisi, quindi copiare testo tra Linux e Windows funziona e basta. La risoluzione segue la tua finestra e Omarchy passa il fattore di scala del display, così non è un pasticcio sfocato su uno schermo HiDPI.
 
