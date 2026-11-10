@@ -59,6 +59,8 @@
   "agents.localRecommended": "تجویز کردہ",
   "agents.localRemoveConfirm": "%1 روکیں اور اس کے ڈاؤن لوڈ شدہ ویٹس حذف کریں؟",
   "agents.localRemovingMeter": "ہٹایا جا رہا ہے",
+  "agents.localShowLogs": "لاگز دکھائیں",
+  "agents.localShowLogsTip": "اس ماڈل کے لاگز ٹرمینل میں کھولیں",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "شروع کریں",
   "agents.localStop": "روکیں",

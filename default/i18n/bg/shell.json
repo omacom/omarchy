@@ -59,6 +59,8 @@
   "agents.localRecommended": "препоръчан",
   "agents.localRemoveConfirm": "Спри %1 и изтрий изтеглените му тегла?",
   "agents.localRemovingMeter": "Премахване",
+  "agents.localShowLogs": "Покажи логовете",
+  "agents.localShowLogsTip": "Отвори логовете на този модел в терминал",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Стартирай",
   "agents.localStop": "Спри",

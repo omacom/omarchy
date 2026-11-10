@@ -59,6 +59,8 @@
   "agents.localRecommended": "inirerekomenda",
   "agents.localRemoveConfirm": "Itigil ang %1 at burahin ang na-download nitong weights?",
   "agents.localRemovingMeter": "Inaalis",
+  "agents.localShowLogs": "Ipakita ang mga log",
+  "agents.localShowLogsTip": "Buksan ang mga log ng modelong ito sa terminal",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Simulan",
   "agents.localStop": "Itigil",

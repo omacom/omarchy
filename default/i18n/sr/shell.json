@@ -61,6 +61,8 @@
   "agents.localRecommended": "препоручено",
   "agents.localRemoveConfirm": "Зауставити %1 и избрисати његове преузете тежине?",
   "agents.localRemovingMeter": "Уклањање",
+  "agents.localShowLogs": "Прикажи дневнике",
+  "agents.localShowLogsTip": "Отвори дневнике овог модела у терминалу",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Покрени",
   "agents.localStop": "Заустави",

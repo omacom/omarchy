@@ -59,6 +59,8 @@
   "agents.localRecommended": "aanbevolen",
   "agents.localRemoveConfirm": "%1 stoppen en de gedownloade gewichten verwijderen?",
   "agents.localRemovingMeter": "Verwijderen",
+  "agents.localShowLogs": "Logs weergeven",
+  "agents.localShowLogsTip": "Open de logs van dit model in een terminal",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Starten",
   "agents.localStop": "Stoppen",

@@ -61,6 +61,8 @@
   "agents.localRecommended": "preporučeno",
   "agents.localRemoveConfirm": "Zaustaviti %1 i izbrisati preuzete težine?",
   "agents.localRemovingMeter": "Uklanjanje",
+  "agents.localShowLogs": "Prikaži zapisnike",
+  "agents.localShowLogsTip": "Otvorite zapisnike ovog modela u terminalu",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Pokrenite",
   "agents.localStop": "Zaustavite",

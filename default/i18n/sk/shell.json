@@ -61,6 +61,8 @@
   "agents.localRecommended": "odporúčané",
   "agents.localRemoveConfirm": "Zastaviť %1 a odstrániť stiahnuté váhy?",
   "agents.localRemovingMeter": "Odstraňovanie",
+  "agents.localShowLogs": "Zobraziť logy",
+  "agents.localShowLogsTip": "Otvoriť logy tohto modelu v termináli",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Spustiť",
   "agents.localStop": "Zastaviť",

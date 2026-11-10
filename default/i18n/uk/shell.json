@@ -63,6 +63,8 @@
   "agents.localRecommended": "рекомендовано",
   "agents.localRemoveConfirm": "Зупинити %1 і видалити його завантажені ваги?",
   "agents.localRemovingMeter": "Видалення",
+  "agents.localShowLogs": "Показати журнали",
+  "agents.localShowLogsTip": "Відкрити журнали цієї моделі в терміналі",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Запустити",
   "agents.localStop": "Зупинити",

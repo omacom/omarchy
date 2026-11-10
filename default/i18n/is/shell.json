@@ -59,6 +59,8 @@
   "agents.localRecommended": "mælt með",
   "agents.localRemoveConfirm": "Stöðva %1 og eyða niðurhöluðum þyngdum þess?",
   "agents.localRemovingMeter": "Fjarlægir",
+  "agents.localShowLogs": "Sýna annála",
+  "agents.localShowLogsTip": "Opnaðu annála þessa líkans í útstöðinni",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Ræsa",
   "agents.localStop": "Stöðva",

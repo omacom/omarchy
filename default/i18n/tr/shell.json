@@ -59,6 +59,8 @@
   "agents.localRecommended": "önerilen",
   "agents.localRemoveConfirm": "%1 durdurulup indirilen ağırlıkları silinsin mi?",
   "agents.localRemovingMeter": "Kaldırılıyor",
+  "agents.localShowLogs": "Günlükleri göster",
+  "agents.localShowLogsTip": "Bu modelin günlüklerini terminalde aç",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Başlat",
   "agents.localStop": "Durdur",

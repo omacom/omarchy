@@ -61,6 +61,8 @@
   "agents.localRecommended": "recomanat",
   "agents.localRemoveConfirm": "Atura %1 i elimina els pesos descarregats?",
   "agents.localRemovingMeter": "Eliminant",
+  "agents.localShowLogs": "Mostra els registres",
+  "agents.localShowLogsTip": "Obre els registres d'aquest model en un terminal",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Inicia",
   "agents.localStop": "Atura",

@@ -61,6 +61,8 @@
   "agents.localRecommended": "rekomenduojamas",
   "agents.localRemoveConfirm": "Sustabdyti %1 ir ištrinti jo atsisiųstus svorius?",
   "agents.localRemovingMeter": "Šalinama",
+  "agents.localShowLogs": "Rodyti žurnalus",
+  "agents.localShowLogsTip": "Atidaryti šio modelio žurnalus terminale",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Paleisti",
   "agents.localStop": "Sustabdyti",
