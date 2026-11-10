@@ -104,6 +104,7 @@
   "agents.spendOfCap": "%2 dan %1",
   "agents.spendThisMonth": "Bu oy",
   "agents.startOnNew": "Standart agentni yangi %1 da boshlash",
+  "agents.startLocalOnNew": "%2 ni yangi %1 da boshlash",
   "agents.starting": "Boshlanmoqda…",
   "agents.stopAutoSwitch": "Avtomatik almashtirishni toʻxtatish",
   "agents.subscriptions": "Obunalar",

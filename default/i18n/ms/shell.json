@@ -99,6 +99,7 @@
   "agents.spendOfCap": "%1 daripada %2",
   "agents.spendThisMonth": "Bulan ini",
   "agents.startOnNew": "Mulakan ejen lalai anda pada %1 baharu",
+  "agents.startLocalOnNew": "Mulakan %2 pada %1 baharu",
   "agents.starting": "Memulakan…",
   "agents.stopAutoSwitch": "Hentikan pertukaran automatik",
   "agents.subscriptions": "Langganan",

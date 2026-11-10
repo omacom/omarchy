@@ -104,6 +104,7 @@
   "agents.spendOfCap": "%2 میں سے %1",
   "agents.spendThisMonth": "اس ماہ",
   "agents.startOnNew": "اپنے طے شدہ ایجنٹ کو نئے %1 پر شروع کریں",
+  "agents.startLocalOnNew": "%2 کو نئے %1 پر شروع کریں",
   "agents.starting": "شروع ہو رہا ہے…",
   "agents.stopAutoSwitch": "خودکار تبدیلی روکیں",
   "agents.subscriptions": "سبسکرپشنز",

@@ -109,6 +109,7 @@
   "agents.spendOfCap": "%1 מתוך %2",
   "agents.spendThisMonth": "החודש הזה",
   "agents.startOnNew": "התחילו את סוכן ברירת המחדל על %1 חדש",
+  "agents.startLocalOnNew": "התחילו את %2 על %1 חדש",
   "agents.starting": "מתחיל…",
   "agents.stopAutoSwitch": "הפסקת המעבר האוטומטי",
   "agents.subscriptions": "מנויים",

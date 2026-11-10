@@ -124,6 +124,7 @@
   "agents.spendOfCap": "%1 من %2",
   "agents.spendThisMonth": "هذا الشهر",
   "agents.startOnNew": "ابدأ وكيلك الافتراضي على %1 جديد",
+  "agents.startLocalOnNew": "ابدأ %2 على %1 جديد",
   "agents.starting": "جارٍ البدء…",
   "agents.stopAutoSwitch": "إيقاف التبديل التلقائي",
   "agents.subscriptions": "الاشتراكات",

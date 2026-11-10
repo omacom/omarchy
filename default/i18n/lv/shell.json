@@ -109,6 +109,7 @@
   "agents.spendOfCap": "%1 no %2",
   "agents.spendThisMonth": "Šomēnes",
   "agents.startOnNew": "Palaid savu noklusējuma aģentu jaunā %1",
+  "agents.startLocalOnNew": "Palaid %2 jaunā %1",
   "agents.starting": "Palaižas…",
   "agents.stopAutoSwitch": "Pārtraukt automātisko pārslēgšanos",
   "agents.subscriptions": "Abonementi",
