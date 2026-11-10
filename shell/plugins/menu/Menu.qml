@@ -139,6 +139,8 @@ Item {
   // width, so a label longer than the usual width is not cut off. Menus whose
   // labels fit keep their size; past the wide width a label still elides.
   property int baseCardWidth: (root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)
+  // The menu's own rows, kept so a font change re-measures them while it's open.
+  property var measuredRows: []
   property real widestRowWidth: 0
   property int fittedCardWidth: Math.max(root.baseCardWidth, Math.min(Style.space(520), Math.ceil(root.widestRowWidth + card.contentLeftInset + card.contentRightInset)))
   property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : root.fittedCardWidth, panel.width - Style.gapsOut * 2)
@@ -729,6 +731,7 @@ Item {
     font.family: root.fontFamily
     font.pixelSize: Style.font.heading
     font.weight: Font.Medium
+    onFontChanged: root.widestRowWidth = root.widestRow(root.measuredRows)
   }
 
   function rebuildDisplay() {
@@ -800,9 +803,11 @@ Item {
       }
     }
 
-    // Measured from the menu's own rows, not search results, so the width holds
-    // still while typing.
-    if (!query) root.widestRowWidth = root.widestRow(rows)
+    // Search results are not measured, so the width holds still while typing.
+    if (!query) {
+      root.measuredRows = rows
+      root.widestRowWidth = root.widestRow(rows)
+    }
     for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
     layoutSerial += 1
 
