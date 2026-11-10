@@ -71,6 +71,12 @@ done
 exit 1
 '
 
+# The setter notifies the desktop; record it instead of reaching the session.
+write_stub omarchy-notification-send '#!/bin/bash
+printf "notify\t%s\n" "$*" >>"$OMARCHY_AUR_TEST_LOG"
+exit 0
+'
+
 run_env() {
   : >"$log_file"
   OMARCHY_AUR_TEST_LOG="$log_file" HOME="$test_home" PATH="$stub_bin:$ROOT/bin:$PATH" "$@"
@@ -94,6 +100,7 @@ mv "$stub_bin/paru-hidden" "$stub_bin/paru"
 
 run_env "$ROOT/bin/omarchy-default-aur-helper" paru >/dev/null
 [[ $(cat "$test_home/.config/omarchy/defaults/aur-helper") == "paru" ]] || fail "default aur-helper records the chosen helper"
+grep -Fxq $'notify\tparu is now the default AUR helper' "$log_file" || fail "default aur-helper announces the change" "$(cat "$log_file")"
 pass "default aur-helper records the chosen helper"
 
 [[ $(run_env "$ROOT/bin/omarchy-default-aur-helper") == "paru" ]] || fail "default aur-helper reports the current helper"
