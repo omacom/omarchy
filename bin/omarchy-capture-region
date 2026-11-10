@@ -136,14 +136,14 @@ geo_at_cursor() {
 # --take-* modes flag the intent with a marker file and dismiss slurp.
 if [[ ${1:-} == "--take-fullscreen" ]]; then
   pgrep -x slurp >/dev/null || exit 0
-  touch "$FULLSCREEN_MARKER"
+  touch "$FULLSCREEN_MARKER" || exit 1
   pkill -x slurp
   exit 0
 fi
 
 if [[ ${1:-} == "--take-window" ]]; then
   pgrep -x slurp >/dev/null || exit 0
-  touch "$WINDOW_MARKER"
+  touch "$WINDOW_MARKER" || exit 1
   pkill -x slurp
   exit 0
 fi
