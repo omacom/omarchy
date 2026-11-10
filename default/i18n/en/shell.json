@@ -4,6 +4,8 @@
   "agents.addAnother": "Add another",
   "agents.localAi": "Local AI",
   "agents.localAllInstalled": "All eligible models are installed",
+  "agents.localShowLogs": "Show logs",
+  "agents.localShowLogsTip": "Open this model's logs in a terminal",
   "agents.localRecommended": "recommended",
   "agents.localDense": "Dense",
   "agents.localMoe": "MoE",
