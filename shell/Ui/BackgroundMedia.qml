@@ -18,6 +18,8 @@ Item {
   property size decodeSize: Qt.size(0, 0)
   readonly property var current: imageLoader.item
   readonly property bool ready: current ? current.ready : false
+  // The file behind path could not be loaded, as when it was deleted.
+  readonly property bool failed: current ? current.failed : false
   readonly property bool video: Util.isVideoPath(path)
   // Cache-bust images selected in a running lock session, so a theme switch
   // that replaces the file behind an unchanged path shows the new pixels.
@@ -35,6 +37,7 @@ Item {
 
     Image {
       readonly property bool ready: status === Image.Ready
+      readonly property bool failed: status === Image.Error
       source: !root.constrainDecode || root.decodeSize.width > 0 ? root.imageUrl : ""
       fillMode: Image.PreserveAspectCrop
       asynchronous: true

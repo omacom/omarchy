@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Match against the device tree's top-level compatible strings (whole string, case-insensitive).
+# omarchy:args=<compatibles...>
+
+# Bash folds case by the session's locale, and a Turkish one turns I into a
+# dotless i that no compatible string holds.
+LC_ALL=C
+
+# For models that omarchy-hw-match cannot tell apart because they share a DMI
+# name. Unprivileged tests fake the device tree with the fixture roots
+# omarchy-hw-platform reads; root reads only the live one.
+sources=(/proc/device-tree/compatible /sys/firmware/devicetree/base/compatible)
+if (( EUID != 0 )) && [[ -n ${OMARCHY_PROC_ROOT:-}${OMARCHY_SYS_ROOT:-}${OMARCHY_IMAGE_ROOT:-} ]]; then
+  sources=()
+  [[ -z ${OMARCHY_PROC_ROOT:-} ]] || sources+=("$OMARCHY_PROC_ROOT/device-tree/compatible")
+  [[ -z ${OMARCHY_SYS_ROOT:-} ]] || sources+=("$OMARCHY_SYS_ROOT/firmware/devicetree/base/compatible")
+fi
+
+# The first one that can be read answers, since both name the same tree.
+compatible=""
+for source in "${sources[@]}"; do
+  if [[ -z $compatible && -r $source ]]; then
+    compatible=$source
+  fi
+done
+
+found=0
+if [[ -n $compatible ]]; then
+  mapfile -d '' -t entries <"$compatible"
+  for wanted in "$@"; do
+    for entry in "${entries[@]}"; do
+      # Quoted so a string is compared as written, never as a pattern.
+      if [[ ${entry,,} == "${wanted,,}" ]]; then
+        found=1
+      fi
+    done
+  done
+fi
+
+(( found ))

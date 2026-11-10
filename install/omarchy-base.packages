@@ -15,7 +15,6 @@ bolt
 brightnessctl
 btop
 chromium
-clang
 cliamp
 cups
 cups-filters
@@ -27,15 +26,19 @@ docker-buildx
 docker-compose
 dosfstools
 dotnet-runtime
-evince
 exfatprogs
 expac
 eza
 fakeroot
 fastfetch
 fcitx5
+fcitx5-chewing
+fcitx5-chinese-addons
 fcitx5-gtk
+fcitx5-hangul
+fcitx5-mozc
 fcitx5-qt
+fcitx5-table-extra
 fd
 ffmpeg
 ffmpegthumbnailer
@@ -43,6 +46,7 @@ fontconfig
 foot
 fzf
 git
+gliff
 gnome-keyring
 gnome-themes-extra
 grim
@@ -65,7 +69,6 @@ inotify-tools
 inxi
 networkmanager
 jq
-kdenlive
 kernel-modules-hook
 lazygit
 less
@@ -73,7 +76,6 @@ libsecret
 libvips
 libyaml
 libreoffice-fresh
-llvm
 localsend
 lua51
 luarocks
@@ -92,23 +94,28 @@ noto-fonts-cjk
 noto-fonts-emoji
 nss-mdns
 nvim
-obs-studio
 obsidian
 omacalc
 omacut
 omawrite
 omarchy-nvim
+omarchy-hyprland-titlebars
+# Local model recipes and their engine; Podman comes when a model is set up.
+omarchy-local-ai
+# Stock power-profiles-daemon has no cppc_cpufreq driver, so profiles do nothing
+# on ARM laptops. Back to stock once upstream merges MR !236 and !239.
+omarchy-power-profiles-daemon
+omarchy-screensaver
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
-owe-lockfeed
 pacman-contrib
 pamixer
+papers
 pinta
 plocate
 plymouth
 postgresql-libs
-power-profiles-daemon
 python-gobject
 python-poetry-core
 qt6-base
@@ -116,17 +123,21 @@ qt6-declarative
 qt6-multimedia
 qt6-svg
 qt6-wayland
+qtengine
 ttfx
 qemu-user-static-binfmt
 qrencode
 qt6-imageformats
 quickshell
 ripgrep
+rtkit
 ruby
 sddm
+signed
 slurp
 socat
 starship
+superwhisper-bin
 sushi
 system-config-printer
 tesseract
@@ -154,7 +165,6 @@ woff2-font-awesome
 xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland
 xdg-terminal-exec
-xournalpp
 yaru-icon-theme
 yay
 yt-dlp
