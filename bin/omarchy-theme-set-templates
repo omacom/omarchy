@@ -545,12 +545,16 @@ try:
         if not {"name", "enabled"}.issubset(entry):
             invalid(f"animations[{index}] requires name and enabled")
         leaf = entry["name"]
-        if leaf not in animation_leaves:
+        if not isinstance(leaf, str) or leaf not in animation_leaves:
             invalid(f"animations[{index}].name is not allowlisted")
         enabled = boolean(entry["enabled"], f"animations[{index}].enabled")
+        if enabled and not {"speed", "curve"}.issubset(entry):
+            invalid(f"animations[{index}] requires speed and curve when enabled")
         parsed = {"leaf": leaf, "enabled": enabled}
         if "speed" in entry:
             parsed["speed"] = number(entry["speed"], f"animations[{index}].speed", 0, 100)
+            if parsed["speed"] == 0:
+                invalid(f"animations[{index}].speed must be greater than 0")
         if "curve" in entry:
             curve = short_name(entry["curve"], f"animations[{index}].curve")
             if curve not in curve_names:
@@ -558,8 +562,22 @@ try:
             parsed["bezier"] = curve
         if "style" in entry:
             style = entry["style"]
-            if not isinstance(style, str) or len(style) > 32 or not re.fullmatch(r"(?:fade|slide(?:fade|vert)?(?: (?:top|bottom|left|right))?|popin(?: [0-9]{1,3}%)?)", style):
-                invalid(f"animations[{index}].style is not allowlisted")
+            # Hyprland validates styles per leaf: a globally safe string can
+            # still break the generated config when paired with the wrong one.
+            slide = r"slide(?:fade|vert)?(?: (?:top|bottom|left|right))?"
+            popin = r"popin(?: [0-9]{1,3}%)?"
+            if leaf.startswith("windows"):
+                styles = f"(?:{slide}|{popin})"
+            elif leaf.startswith(("workspaces", "specialWorkspace")):
+                styles = f"(?:fade|{slide})"
+            elif leaf.endswith("angle"):
+                styles = r"(?:loop|once)"
+            elif leaf.startswith("layers"):
+                styles = f"(?:fade|{slide}|{popin})"
+            else:
+                invalid(f"animations[{index}].name does not support styles")
+            if not isinstance(style, str) or len(style) > 32 or not re.fullmatch(styles, style):
+                invalid(f"animations[{index}].style is not allowlisted for {leaf}")
             parsed["style"] = style
         parsed_animations.append(parsed)
 

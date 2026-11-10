@@ -296,6 +296,24 @@ enabled = true
 speed = 3.5
 curve = "themeEase"
 style = "popin 87%"
+
+[[animations]]
+name = "borderangle"
+enabled = true
+speed = 100
+curve = "linear"
+style = "loop"
+
+[[animations]]
+name = "shadowangle"
+enabled = true
+speed = 10
+curve = "linear"
+style = "once"
+
+[[animations]]
+name = "workspaces"
+enabled = false
 TOML
 render
 grep -Fq -- '-- Generated from declarative hyprland.toml' "$next_theme/hyprland.lua" || fail "valid Hyprland declaration is generated" "$(cat "$test_tmp/stderr")"
@@ -306,8 +324,13 @@ grep -Fq 'offset = { -2, 3 }' "$next_theme/hyprland.lua" || fail "Hyprland shado
 grep -Fq 'hl.curve("themeEase"' "$next_theme/hyprland.lua" || fail "Hyprland bezier is generated"
 grep -Fq 'leaf = "windows"' "$next_theme/hyprland.lua" || fail "Hyprland animation leaf is generated"
 lua - <<LUA
-hl = { config = function(_) end, curve = function(_, _) end, animation = function(_) end }
+local animations = {}
+hl = { config = function(_) end, curve = function(_, _) end, animation = function(spec) animations[spec.leaf] = spec end }
 dofile("$next_theme/hyprland.lua")
+assert(animations.windows.style == "popin 87%")
+assert(animations.borderangle.style == "loop" and animations.borderangle.speed == 100)
+assert(animations.shadowangle.style == "once")
+assert(animations.workspaces.enabled == false)
 LUA
 pass "valid hyprland.toml generates syntactically valid allowlisted Lua"
 
@@ -336,7 +359,7 @@ render
 pass "absent hyprland.toml retains the base Hyprland output"
 
 marker="$test_tmp/pwned"
-for invalid_case in unknown malicious malformed schema-type color-form bounds; do
+for invalid_case in unknown malicious malformed schema-type color-form bounds window-style workspace-style angle-style unstyled-leaf animation-name-type missing-speed missing-curve zero-speed; do
   reset_theme
   case "$invalid_case" in
     unknown)
@@ -363,10 +386,31 @@ TOML
     bounds)
       printf 'schema = 1\n[decoration]\nrounding = 21\n' >"$next_theme/hyprland.toml"
       ;;
+    window-style | workspace-style | angle-style | unstyled-leaf)
+      case "$invalid_case" in
+        window-style) leaf=windows; style=fade ;;
+        workspace-style) leaf=workspaces; style=popin ;;
+        angle-style) leaf=borderangle; style=slide ;;
+        unstyled-leaf) leaf=fade; style=fade ;;
+      esac
+      printf 'schema = 1\n[[animations]]\nname = "%s"\nenabled = true\nspeed = 2\ncurve = "linear"\nstyle = "%s"\n' "$leaf" "$style" >"$next_theme/hyprland.toml"
+      ;;
+    animation-name-type)
+      printf 'schema = 1\n[[animations]]\nname = ["windows"]\nenabled = true\n' >"$next_theme/hyprland.toml"
+      ;;
+    missing-speed | missing-curve | zero-speed)
+      printf 'schema = 1\n[[animations]]\nname = "windows"\nenabled = true\nspeed = 2\ncurve = "linear"\n' >"$next_theme/hyprland.toml"
+      case "$invalid_case" in
+        missing-speed) sed -i '/^speed =/d' "$next_theme/hyprland.toml" ;;
+        missing-curve) sed -i '/^curve =/d' "$next_theme/hyprland.toml" ;;
+        zero-speed) sed -i 's/^speed = .*/speed = 0/' "$next_theme/hyprland.toml" ;;
+      esac
+      ;;
   esac
   render
   ! grep -Fq 'Generated from declarative hyprland.toml' "$next_theme/hyprland.lua" || fail "$invalid_case Hyprland TOML emits no override"
   grep -q 'ignoring invalid hyprland.toml' "$test_tmp/stderr" || fail "$invalid_case Hyprland TOML warns"
+  ! grep -q 'Traceback' "$test_tmp/stderr" || fail "$invalid_case Hyprland TOML is rejected without a traceback"
 done
 [[ ! -e $marker ]] || fail "malicious Hyprland TOML executes nothing"
 pass "invalid and malicious hyprland.toml safely fall back to the base output"

@@ -249,6 +249,10 @@ Color fields accept a Hyprland `rgb(...)`/`rgba(...)` value, `#RRGGBB`/`#RRGGBBA
 | `beziers` | `name`, `x1`, `y1`, `x2`, `y2` |
 | `animations` | `name`, `enabled`, `speed`, `curve`, `style` |
 
+Enabled animations require a `speed` greater than `0` and at most `100`, plus a `curve`. A declaration that only disables an animation needs just `name` and `enabled = false`.
+
+Animation styles must match their leaf: windows accept `slide` and `popin` variants; workspaces accept `slide` variants and `fade`; layers accept all three. The angle leaves (`borderangle`, `glowangle`, and `shadowangle`) accept `loop` or `once`. Other leaves, such as `fade` and `border`, take no `style` field. For example, a looping border can declare `name = "borderangle"`, `enabled = true`, `speed = 100`, `curve = "linear"`, and `style = "loop"` in an `[[animations]]` entry.
+
 Unknown keys, invalid values, commands, rules, bindings, monitors, input, environment settings, layouts, and raw Lua are rejected. If the optional file is invalid, Omarchy reports it and keeps the normal generated Hyprland appearance.
 
 ## `shell.toml`
