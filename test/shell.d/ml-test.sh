@@ -108,7 +108,7 @@ suggestion=$(OMARCHY_ML_CLIENTS="$clients" "$ROOT/bin/omarchy-ml-workspace" sugg
 [[ $suggestion == $'1\tAlacritty,firefox,code' ]] ||
   fail "the usual window set wins" "$suggestion"
 restore=$("$ROOT/bin/omarchy-ml-workspace" restore --print)
-grep -Fq "omarchy-launch-or-focus firefox firefox" <<<"$restore" ||
+grep -Fq "uwsm-app -- gtk-launch firefox" <<<"$restore" ||
   fail "restore prints a launch for each app" "$restore"
 train=$("$ROOT/bin/omarchy-ml-workspace" train --print)
 grep -Fq "workspace 9" <<<"$train" ||
@@ -124,6 +124,45 @@ park=$(OMARCHY_ML_CLIENTS="$clients" "$ROOT/bin/omarchy-ml-workspace" park --pri
 [[ $park == *"special:mltrain,address:0xabc"* ]] ||
   fail "parking moves the training windows off the current workspace" "$park"
 pass "workspace restore learns the sets you reopen"
+
+# Restore waits for the workspace switch and treats app-controlled classes as data.
+mkdir -p "$test_tmp/restore-bin"
+export OMARCHY_RESTORE_TEST="$test_tmp"
+cat >"$test_tmp/restore-bin/hyprctl" <<'SH'
+#!/bin/bash
+sleep 0.1
+touch "$OMARCHY_RESTORE_TEST/switched"
+SH
+cat >"$test_tmp/restore-bin/omarchy-hyprland-focus-app" <<'SH'
+#!/bin/bash
+[[ -e $OMARCHY_RESTORE_TEST/switched ]] || touch "$OMARCHY_RESTORE_TEST/too-early"
+exit 1
+SH
+cat >"$test_tmp/restore-bin/uwsm-app" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >"$OMARCHY_RESTORE_TEST/launch"
+SH
+cat >"$test_tmp/restore-bin/omarchy-launch-or-focus" <<'SH'
+#!/bin/bash
+[[ -e $OMARCHY_RESTORE_TEST/switched ]] || touch "$OMARCHY_RESTORE_TEST/too-early"
+SH
+chmod +x "$test_tmp/restore-bin/"*
+(
+  export XDG_STATE_HOME="$test_tmp/restore-state"
+  mkdir -p "$XDG_STATE_HOME/omarchy/ml"
+  jq -nc --arg hostile "firefox; touch $test_tmp/unexpected; #" \
+    '{workspace:2,apps:["firefox",$hostile]}' >"$XDG_STATE_HOME/omarchy/ml/sessions.jsonl"
+  PATH="$test_tmp/restore-bin:$PATH" "$ROOT/bin/omarchy-ml-workspace" restore
+)
+for attempt in {1..20}; do
+  [[ -s $test_tmp/launch || -e $test_tmp/unexpected ]] && break
+  sleep 0.05
+done
+[[ ! -e $test_tmp/unexpected ]] || fail "a saved class cannot run a shell command"
+[[ ! -e $test_tmp/too-early ]] || fail "restore waits for the workspace switch"
+[[ -f $test_tmp/launch && $(<"$test_tmp/launch") == $'--\ngtk-launch\nfirefox' ]] ||
+  fail "restore launches a saved desktop entry by argument"
+pass "workspace restore dispatches before launching and treats saved classes as data"
 
 [[ $(OMARCHY_ML_GPU_STATUS="86% 14/24G 71°" "$ROOT/bin/omarchy-ml-gpu-status") == "86% 14/24G 71°" ]] ||
   fail "gpu status prints the bar line"
@@ -189,7 +228,7 @@ mkdir -p "$stub"
 cat > "$stub/pw-record" <<'SH'
 #!/bin/bash
 touch "${@: -1}"
-sleep 30
+exec sleep 30
 SH
 cat > "$stub/whisper-cli" <<'SH'
 #!/bin/bash

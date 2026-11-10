@@ -9,6 +9,8 @@ set -euo pipefail
 exec python3 - "$@" <<'PY'
 import json
 import os
+import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -91,38 +93,45 @@ def suggestion():
     return None
 
 def launch_for(name):
-    lowered = name.lower()
-    if lowered in {"alacritty", "foot", "ghostty", "kitty", "org.omarchy.terminal"}:
-        command = "xdg-terminal-exec"
-    else:
-        command = name
-    return f"omarchy-launch-or-focus {name} {command}"
+    if name.lower() in {"alacritty", "foot", "ghostty", "kitty", "org.omarchy.terminal"}:
+        return ["xdg-terminal-exec"]
+    return ["uwsm-app", "--", "gtk-launch", name]
 
-def run(lines, print_only):
-    if print_only:
-        print("\n".join(lines))
-        return
-    for line in lines:
-        subprocess.Popen(line, shell=True)
+def run(commands, print_only):
+    for command in commands:
+        if print_only:
+            print(shlex.join(command))
+        elif command[0] == "hyprctl":
+            subprocess.run(command, check=True)
+        else:
+            subprocess.Popen(command, start_new_session=True)
 
 def restore(print_only):
     row = suggestion()
     if not row:
         print("No workspace to restore yet.", file=sys.stderr)
         sys.exit(1)
-    lines = [f"hyprctl dispatch workspace {row.get('workspace') or 1}"]
-    lines.extend(launch_for(app) for app in row.get("apps") or [])
-    run(lines, print_only)
+    run([["hyprctl", "dispatch", "workspace", str(row.get("workspace") or 1)]], print_only)
+    for name in row.get("apps") or []:
+        # A class identifies a desktop entry. It is never a launch command.
+        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9._-]*", name):
+            continue
+        focus = ["omarchy-hyprland-focus-app", f"^{re.escape(name)}$"]
+        launch = launch_for(name)
+        if print_only:
+            print(f"{shlex.join(focus)} || {shlex.join(launch)}")
+        elif subprocess.run(focus).returncode != 0:
+            run([launch], False)
 
 def monitor():
     return "nvtop" if shutil.which("nvtop") else "btop"
 
 def train(print_only):
     lines = [
-        f"hyprctl dispatch workspace {TRAIN_WORKSPACE}",
-        "xdg-terminal-exec --app-id=org.omarchy.ml-train",
-        f"xdg-terminal-exec --app-id=org.omarchy.ml-gpu {monitor()}",
-        "xdg-open http://127.0.0.1:8888",
+        ["hyprctl", "dispatch", "workspace", TRAIN_WORKSPACE],
+        ["xdg-terminal-exec", "--app-id=org.omarchy.ml-train"],
+        ["xdg-terminal-exec", "--app-id=org.omarchy.ml-gpu", monitor()],
+        ["xdg-open", "http://127.0.0.1:8888"],
     ]
     run(lines, print_only)
 
@@ -141,9 +150,9 @@ def park(print_only):
             continue
         address = client.get("address")
         if address:
-            lines.append(f"hyprctl dispatch movetoworkspacesilent {destination},address:{address}")
+            lines.append(["hyprctl", "dispatch", "movetoworkspacesilent", f"{destination},address:{address}"])
         else:
-            lines.append(f"hyprctl dispatch movetoworkspacesilent {destination},class:{client.get('class')}")
+            lines.append(["hyprctl", "dispatch", "movetoworkspacesilent", f"{destination},class:{client.get('class')}"])
     if not lines:
         print("Nothing on the training workspace.", file=sys.stderr)
         sys.exit(1)
