@@ -7,9 +7,8 @@
 # has turned expensive. A slow guard alone barely moves the batch, since the
 # batch runs its guards side by side, but it holds up every menu evaluation.
 #
-# menu-guards-test.sh and menu-guards-parallel-test.sh pin down how the batch
-# is built; this catches what they can't see, such as a guard calling a
-# command that has become slow.
+# menu-guards-test.sh pins down how the batch is built; this catches what it
+# can't see, such as a guard calling a command that has become slow.
 
 set -euo pipefail
 

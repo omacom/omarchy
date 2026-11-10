@@ -14,9 +14,16 @@ function parseNetworkStatus(raw) {
   }
 }
 
+// NetworkManager turns dBm into its 0-100 strength with two formulas: scan
+// results map -100..-40 dBm linearly onto 0..100, and the connected access
+// point's station refresh uses dBm + 120 (floor 30 at -90 dBm). The same link
+// reads 83 after a scan and 70 between scans at -50 dBm. The two only meet at
+// -70 dBm, so every cut-off leaves a few dB where they disagree; these keep
+// those bands to about 4 dB: full from -60 dBm (-64 for scan results), three
+// from -70, two from -80 (-76), one down to about -90.
 function wifiIconFor(strength) {
   var icons = ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"]
-  var index = Math.max(0, Math.min(4, Math.ceil(strength / 20) - 1))
+  var index = strength >= 60 ? 4 : strength >= 50 ? 3 : strength >= 40 ? 2 : strength >= 15 ? 1 : 0
   return icons[index]
 }
 
@@ -44,7 +51,7 @@ function parseActiveApSignal(raw) {
 
 // A known plain-HTTP endpoint lets the network redirect the browser to its
 // login page. Never execute or automatically open an untrusted Location header.
-var captivePortalUrl = "http://ping.archlinux.org/nm-check.txt"
+var captivePortalUrl = "http://ping.omacom.io/nm-check.txt"
 
 function connectivityState(kind, connectivity, states, checksEnabled) {
   if (kind === "disconnected") return "none"
@@ -258,6 +265,15 @@ function pingPacketLossPercent(samples) {
   return Math.round((lost / values.length) * 100)
 }
 
+// Ping and loss only mean something once the internet is reachable. Behind a
+// portal, on a limited link or offline every probe is lost by design, so the
+// rows read "--" instead of a "Timeout" and "100%" that just restate that.
+function internetPingReadable(samples, connectivity) {
+  var values = Array.isArray(samples) ? samples : []
+  if (connectivity === "portal" || connectivity === "limited" || connectivity === "none") return false
+  return values.length > 0
+}
+
 function formatPacketLoss(percent, hasSamples, fmt) {
   var f = formatter(fmt)
   if (hasSamples === false) return "--"
@@ -426,6 +442,7 @@ if (typeof module !== "undefined") {
     throughputState: throughputState,
     pingLatencyState: pingLatencyState,
     pingPacketLossPercent: pingPacketLossPercent,
+    internetPingReadable: internetPingReadable,
     formatPacketLoss: formatPacketLoss,
     formatBytes: formatBytes,
     formatRate: formatRate,
