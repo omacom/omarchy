@@ -387,53 +387,52 @@
   "setup.default": {
     "label": "Predvolené"
   },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Predvolený agent"
+  "setup.agent": {
+    "label": "Agent"
   },
-  "setup.default.agent.agy": {
+  "setup.agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "setup.agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "setup.agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "setup.agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "setup.agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "setup.agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "setup.agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "setup.agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "setup.agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "setup.agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "setup.agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "setup.agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "setup.agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "setup.agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "setup.agent.harness.pi": {
     "label": "Pi"
   },
   "setup.default.browser": {
@@ -1244,31 +1243,31 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Vypnúť dotykovú obrazovku"
   },
-  "setup.default.agent.amp": {
+  "setup.agent.harness.amp": {
     "label": "Amp"
   },
-  "setup.default.agent.commandcode": {
+  "setup.agent.harness.commandcode": {
     "label": "Command Code"
   },
-  "setup.default.agent.devin": {
+  "setup.agent.harness.devin": {
     "label": "Devin CLI"
   },
-  "setup.default.agent.dsh": {
+  "setup.agent.harness.dsh": {
     "label": "DeepSeek Harness"
   },
-  "setup.default.agent.freebuff": {
+  "setup.agent.harness.freebuff": {
     "label": "Freebuff"
   },
-  "setup.default.agent.kilo": {
+  "setup.agent.harness.kilo": {
     "label": "Kilo"
   },
-  "setup.default.agent.kiro-cli": {
+  "setup.agent.harness.kiro-cli": {
     "label": "Kiro CLI"
   },
-  "setup.default.agent.mcode": {
+  "setup.agent.harness.mcode": {
     "label": "MiniMax Code"
   },
-  "setup.default.agent.qwen": {
+  "setup.agent.harness.qwen": {
     "label": "Qwen Code"
   },
   "setup.default.dictation.hex": {
