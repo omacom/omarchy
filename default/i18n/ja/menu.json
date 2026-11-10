@@ -491,9 +491,6 @@
     "label": "エディタ",
     "title": "既定のエディタ"
   },
-  "setup.default.editor.plain": {
-    "label": "Plain"
-  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },

@@ -491,9 +491,6 @@
     "label": "编辑器",
     "title": "默认编辑器"
   },
-  "setup.default.editor.plain": {
-    "label": "Plain"
-  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },

@@ -491,9 +491,6 @@
     "label": "Kihariri",
     "title": "Kihariri chaguomsingi"
   },
-  "setup.default.editor.plain": {
-    "label": "Plain"
-  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },

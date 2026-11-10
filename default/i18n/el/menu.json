@@ -491,9 +491,6 @@
     "label": "Επεξεργαστής",
     "title": "Προεπιλεγμένος επεξεργαστής"
   },
-  "setup.default.editor.plain": {
-    "label": "Plain"
-  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },

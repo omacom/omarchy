@@ -31,8 +31,11 @@ case "${editor##*/}" in
 plain)
   # Plain runs until its window closes, so $EDITOR (git commit, sudoedit)
   # waits for it inline.
-  [[ $inline == "true" ]] && exec "$editor" -- "$@"
-  exec setsid uwsm-app -- "$editor" -- "$@"
+  if [[ $inline == "true" ]]; then
+    exec "$editor" -- "$@"
+  else
+    exec setsid uwsm-app -- "$editor" -- "$@"
+  fi
   ;;
 nvim | vim | vi | nano | micro | hx | helix | fresh)
   if [[ $inline == "true" ]]; then

@@ -19,10 +19,14 @@ types=(
 )
 
 # Only [Default Applications] picks what opens a type; [Added Associations]
-# just offers more choices.
+# just offers more choices. A choice saved in the older ~/.local/share list
+# counts too, since a Neovim line in ~/.config would hide it.
 chosen=""
-[[ -f $user_mimeapps ]] &&
-  chosen=$(awk '/^\[/ { defaults = ($0 == "[Default Applications]") } defaults && /=/ { sub(/=.*/, ""); print }' "$user_mimeapps")
+for list in "$user_mimeapps" "$HOME/.local/share/applications/mimeapps.list"; do
+  if [[ -f $list ]]; then
+    chosen+=$(awk '/^\[/ { defaults = ($0 == "[Default Applications]") } defaults && /=/ { sub(/=.*/, ""); print }' "$list")$'\n'
+  fi
+done
 
 missing=()
 for type in "${types[@]}"; do

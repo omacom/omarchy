@@ -491,9 +491,6 @@
     "label": "Redaktors",
     "title": "Noklusējuma redaktors"
   },
-  "setup.default.editor.plain": {
-    "label": "Plain"
-  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },

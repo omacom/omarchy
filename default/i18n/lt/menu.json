@@ -491,9 +491,6 @@
     "label": "Redaktorius",
     "title": "Numatytasis redaktorius"
   },
-  "setup.default.editor.plain": {
-    "label": "Plain"
-  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },
