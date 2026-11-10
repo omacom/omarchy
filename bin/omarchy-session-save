@@ -31,7 +31,7 @@ desktop_exec() {
       break
     fi
   done
-  [[ -z $file ]] && file=$(grep -lsx "StartupWMClass=$class" "$HOME"/.local/share/applications/*.desktop /usr/share/applications/*.desktop | head -n1)
+  [[ -z $file ]] && file=$(grep -Flsx "StartupWMClass=$class" "$HOME"/.local/share/applications/*.desktop /usr/share/applications/*.desktop | head -n1)
   [[ -n $file ]] && desktop_exec_command "$(sed -n 's/^Exec=//p' "$file" | head -n1)"
 }
 
@@ -101,12 +101,21 @@ desktop_exec_command() {
 }
 
 # Fallback when no .desktop launcher is found. A Chromium web app's class
-# names its URL: brave-x.com__stevederico-Default is https://x.com/stevederico,
-# with each / in the path written as _. The class drops ports, extra flags,
-# and the browser profile, so prefer desktop_exec first.
+# names its URL, browser, and profile: brave-x.com__stevederico-Default is
+# https://x.com/stevederico in Brave's Default profile, with each / in the
+# path written as _. The class drops ports and extra flags, so prefer
+# desktop_exec first.
 webapp_launch() {
-  if [[ $1 =~ ^(brave|chrome|chromium|google-chrome|microsoft-edge|vivaldi|helium|opera)-([^_]+)__(.*)-[^-]+$ ]]; then
-    echo "omarchy-launch-webapp $(printf '%q' "https://${BASH_REMATCH[2]}/${BASH_REMATCH[3]//_//}")"
+  local class=$1 pid=${2:-} exe="" url profile
+  if [[ $class =~ ^(brave|chrome|chromium|google-chrome|microsoft-edge|vivaldi|helium|opera)-([^_]+)__(.*)-([^-]+)$ ]]; then
+    url="https://${BASH_REMATCH[2]}/${BASH_REMATCH[3]//_//}"
+    profile=${BASH_REMATCH[4]}
+    [[ -n $pid ]] && exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null)
+    if [[ -n $exe ]]; then
+      echo "$(printf '%q' "$exe") --profile-directory=$(printf '%q' "$profile") --app=$(printf '%q' "$url")"
+    else
+      echo "omarchy-launch-webapp $(printf '%q' "$url") --profile-directory=$(printf '%q' "$profile")"
+    fi
   fi
 }
 
@@ -240,7 +249,7 @@ while read -r pid; do
     while read -r class; do
       workspace=$(jq -r --arg class "$class" 'first(.[] | select(.class == $class)) | .workspace' <<<"$pid_windows")
       command=$(desktop_exec "$class")
-      [[ -z $command ]] && command=$(webapp_launch "$class")
+      [[ -z $command ]] && command=$(webapp_launch "$class" "$pid")
       if [[ -z $command ]]; then
         mapfile -d '' -t argv <"/proc/$pid/cmdline" 2>/dev/null
         (( ${#argv[@]} > 0 )) && command=$(printf '%q ' "${argv[@]}")
