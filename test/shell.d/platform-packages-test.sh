@@ -143,7 +143,7 @@ for platform in aarch64 x86; do
   : >"$STUB_LOG"
   OMARCHY_PROC_ROOT="$work/$platform/proc" PATH="$work/stubs:$work/$platform/bin:$ROOT/bin:$PATH" \
     omarchy-reinstall-pkgs
-  expected="-Syu --noconfirm --needed $(tr '\n' ' ' <"$work/$platform.packages")"
+  expected="-Syu --noconfirm --ask 4 --needed $(tr '\n' ' ' <"$work/$platform.packages")"
   [[ $(tail -n 1 "$STUB_LOG") == "${expected% }" ]] ||
     fail "$platform: reinstall installs the platform's default set" "$(tail -n 1 "$STUB_LOG")"
 done
@@ -162,7 +162,7 @@ for platform in x86 aarch64 aarch64-apple; do
   reinstall_on "$platform" || fail "$platform: reinstall completes" "$(cat "$work/channel.out")"
   if [[ $platform == "aarch64-apple" ]]; then expected_channel=edge; else expected_channel=stable; fi
   [[ $(head -n 1 "$STUB_LOG") == "refresh $expected_channel" ]] || fail "$platform: reinstall refreshes on $expected_channel" "$(cat "$STUB_LOG")"
-  expected="-Syu --noconfirm --needed $(tr '\n' ' ' <"$work/$platform.packages")"
+  expected="-Syu --noconfirm --ask 4 --needed $(tr '\n' ' ' <"$work/$platform.packages")"
   [[ $(tail -n 1 "$STUB_LOG") == "${expected% }" ]] || fail "$platform: reinstall installs the platform's set"
 done
 pass "omarchy-reinstall-pkgs explicitly refreshes the platform's default channel"

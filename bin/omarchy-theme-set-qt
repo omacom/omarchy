@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Apply the current theme's icon theme to Qt apps
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# qtengine follows the theme's qtengine.colors on its own, but takes the icon
+# theme from its config. Only that key is written, so the rest of the file stays
+# the user's, and the write is what makes running Qt apps reload their icons.
+CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/qtengine/config.json"
+ICONS_THEME="$HOME/.local/state/omarchy/current/theme/icons.theme"
+
+[[ -f $CONFIG ]] || exit 0
+
+# The same default omarchy-theme-set-gnome gives GTK.
+if [[ -f $ICONS_THEME ]]; then
+  icon_theme=$(<"$ICONS_THEME")
+else
+  icon_theme="Yaru-blue"
+fi
+
+if [[ $(jq -r '.theme.iconTheme // empty' "$CONFIG") == "$icon_theme" ]]; then
+  exit 0
+fi
+
+# Write through a dotfiles symlink rather than replacing it.
+config=$(realpath "$CONFIG")
+if ! jq --arg icon_theme "$icon_theme" '.theme.iconTheme = $icon_theme' "$config" >"$config.omarchy-tmp"; then
+  rm -f "$config.omarchy-tmp"
+  exit 1
+fi
+mv "$config.omarchy-tmp" "$config"
