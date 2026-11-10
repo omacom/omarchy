@@ -72,16 +72,13 @@ instructions >/dev/null 2>&1
 pass "a dangling instructions link is left alone"
 
 # An added Grok account's GROK_HOME doesn't move the link out of ~/.grok, and
-# the migration links the account's AGENTS.md back to it.
+# the account's own AGENTS.md links back to it.
 new_home grok
 account="$test_home/.local/state/omarchy/agents/accounts/grok/side"
-mkdir -p "$test_home/.grok" "$account" "$(dirname "$account")"
-printf '{"active":"side","accounts":[{"id":"main","primary":true},{"id":"side","home":"%s"}]}\n' "$account" \
-  >"$test_home/.local/state/omarchy/agents/accounts/grok.json"
+mkdir -p "$test_home/.grok" "$account"
 GROK_HOME=$account instructions grok >/dev/null
 [[ $test_home/.grok/AGENTS.md -ef $canonical && ! -e $account/AGENTS.md ]] ||
   fail "Grok is linked in its primary home" "$(ls -la "$test_home/.grok" "$account")"
-migration=$(grep -l "AGENTS.md with added Grok accounts" "$ROOT"/migrations/*.sh)
-HOME=$test_home PATH="$ROOT/bin:$PATH" bash -euo pipefail "$migration" >/dev/null
+HOME=$test_home PATH="$ROOT/bin:$PATH" omarchy-agent-account-state link grok "$account" >/dev/null
 [[ $account/AGENTS.md -ef $canonical ]] || fail "an added Grok account reads the shared rules" "$(ls -la "$account")"
 pass "an added Grok account reads the shared rules"
