@@ -251,8 +251,8 @@ function load_module()
   return require("default.hypr.monitor-workspaces")
 end
 
-function plug(name, id, description, active)
-  world.monitors[#world.monitors + 1] = { name = name, id = id, description = description, active = active }
+function plug(name, id, description, active, make)
+  world.monitors[#world.monitors + 1] = { name = name, id = id, description = description, active = active, make = make }
   if not workspace_numbered(active) then create(active, name) end
 end
 
@@ -327,6 +327,44 @@ check(shows("DP-7") == 21, "a monitor starts on its own first workspace, not on 
 check(state_file():find("0\t\tSamsung Panel\n", 1, true), "an unplugged monitor keeps its block: " .. state_file())
 ' || fail "a monitor keeps its block across sessions and connectors"
 pass "a monitor keeps its block across sessions and connectors"
+
+# --- Outputs the session makes -------------------------------------------------
+
+run_lua headless '
+plug("eDP-1", 0, "Panel", 1)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+
+-- A remote-desktop tool adds a headless output for a session and removes it
+-- after. It reports no description, so nothing about it outlives the session.
+plug("gliff-1", 1, "", 11)
+world.handlers["monitor.added"]({ name = "gliff-1" })
+check(m.workspace_id(hl.get_monitor("gliff-1"), 1) == 11, "the session output got block " .. m.workspace_id(hl.get_monitor("gliff-1"), 1))
+check(not state_file():find("gliff-1", 1, true), "the session output is saved: " .. state_file())
+
+-- The next session adds its own under another name, and takes the block back.
+unplug("gliff-1")
+world.handlers["monitor.removed"]({ name = "gliff-1" })
+fire_timers()
+plug("gliff-2", 1, "", 11)
+world.handlers["monitor.added"]({ name = "gliff-2" })
+check(m.workspace_id(hl.get_monitor("gliff-2"), 1) == 11, "the next session output got block " .. m.workspace_id(hl.get_monitor("gliff-2"), 1))
+check(not state_file():find("gliff", 1, true), "a session output is saved: " .. state_file())
+check(state_file():find("0\teDP-1\tPanel\n", 1, true), "the panel lost its block: " .. state_file())
+' || fail "a monitor the session made keeps a block only while it is there"
+pass "a monitor the session made keeps a block only while it is there"
+
+run_lua headless-make '
+plug("eDP-1", 0, "Panel", 1)
+plug("HEADLESS-1", 1, "headless", 11, "headless")
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(m.workspace_id(hl.get_monitor("HEADLESS-1"), 1) == 11, "the headless output got block " .. m.workspace_id(hl.get_monitor("HEADLESS-1"), 1))
+check(not state_file():find("HEADLESS-1", 1, true), "the headless output is saved: " .. state_file())
+' || fail "a monitor Hyprland makes is not saved even when it reports a description"
+pass "a monitor Hyprland makes is not saved even when it reports a description"
 
 # --- The keys ------------------------------------------------------------------
 
