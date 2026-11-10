@@ -18,4 +18,10 @@ if [[ -z $upstream ]]; then
 fi
 
 echo -e "\e[32m\nUpdate Omarchy dev checkout\e[0m"
+# A filtered fetch makes a full clone blobless once; git saves the filter, so
+# pulls then only fetch the file contents the new checkout needs.
+remote=$(git -C "$OMARCHY_PATH" for-each-ref --format='%(upstream:remotename)' "$(git -C "$OMARCHY_PATH" symbolic-ref -q HEAD)")
+if git -C "$OMARCHY_PATH" config "remote.$remote.url" >/dev/null && ! git -C "$OMARCHY_PATH" config "remote.$remote.promisor" >/dev/null; then
+  git -C "$OMARCHY_PATH" fetch --filter=blob:none "$remote"
+fi
 git -C "$OMARCHY_PATH" pull --ff-only

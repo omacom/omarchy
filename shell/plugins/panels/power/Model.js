@@ -117,20 +117,38 @@ function batteryIcon(device, onBattery, states, threshold) {
   return defaultIcons[index]
 }
 
-function modeLabel(device, onBattery, states, threshold) {
+function modeLabel(device, onBattery, states, threshold, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   var s = states || {}
   if (!d.isPresent) return ""
 
   var percentage = d.isPresent ? d.percentage : 0
-  if (chargeThresholdActive(d, onBattery, states, threshold)) return "Threshold"
-  if (onBattery) return "On battery"
-  // A worn pack reports FullyCharged short of 100%. The percentage alone
-  // cannot see that, and the icon already reads the state, so the label has
-  // to as well or the two disagree on the same battery.
-  if (d.state === s.FullyCharged || percentage >= 1) return "Fully charged"
-  if (d.state === s.PendingCharge) return "Not charging"
-  return "Charging"
+  if (chargeThresholdActive(d, onBattery, states, threshold)) return t("power.threshold", "Threshold")
+  if (onBattery) return t("power.onBattery", "On battery")
+  if (d.state === s.FullyCharged || percentage >= 1) return t("power.fullyCharged", "Fully charged")
+  if (d.state === s.PendingCharge) return t("power.notCharging", "Not charging")
+  return t("power.charging", "Charging")
+}
+
+// omarchy-battery-status --shell answers in plain digits with the unit
+// attached ("13.1W", "75-80%"); the panel writes each number in the
+// language's digits and decimal separator, keeping its decimals and unit.
+function localizeReading(raw, fmt) {
+  var f = typeof fmt === "function" ? fmt : function(v, d) { return d === undefined ? String(v) : Number(v).toFixed(d) }
+  return String(raw === undefined || raw === null ? "" : raw).replace(/\d+(?:\.\d+)?/g, function(number) {
+    var dot = number.indexOf(".")
+    return f(Number(number), dot < 0 ? undefined : number.length - dot - 1)
+  })
+}
+
+function profileLabel(name, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var value = String(name || "")
+  if (value === "power-saver") return t("power.profilePowerSaver", "Power-saver")
+  if (value === "balanced") return t("power.profileBalanced", "Balanced")
+  if (value === "performance") return t("power.profilePerformance", "Performance")
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 if (typeof module !== "undefined") {
@@ -145,6 +163,8 @@ if (typeof module !== "undefined") {
     chargeHoldFloor: chargeHoldFloor,
     chargeThresholdActive: chargeThresholdActive,
     batteryIcon: batteryIcon,
-    modeLabel: modeLabel
+    modeLabel: modeLabel,
+    profileLabel: profileLabel,
+    localizeReading: localizeReading
   }
 }
