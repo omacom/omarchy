@@ -12,6 +12,32 @@ export OMARCHY_PATH="$ROOT"
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
+const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
+
+// The shell call verb must reach bar-widget panels (network, etc.), which live
+// in the bar's module slots rather than a panel Loader. Run the shell's own
+// callIfLoaded against a bar holding the network widget and a Loader holding
+// a regular panel.
+const callIfLoadedSource = shellSource.match(/function callIfLoaded\(pluginId, method, arg\) \{[\s\S]*?\n  \}/)
+assert(callIfLoadedSource, 'shell has a call path for loaded plugins')
+if (callIfLoadedSource) {
+  const calls = []
+  const networkWidget = { openHotspotSetup: arg => { calls.push(['network', arg]); return 'opened' } }
+  const clipboardPanel = { refresh: () => { calls.push(['clipboard']) } }
+  const shell = {
+    pluginRegistry: { resolveEnabledId: id => id },
+    isBarWidgetPanelPlugin: id => id === 'omarchy.network',
+    bar: { findPanelWidget: id => (id === 'omarchy.network' ? networkWidget : null) },
+  }
+  const panelLoaders = { 'omarchy.clipboard': { item: clipboardPanel }, 'omarchy.network': { item: null } }
+  const callIfLoaded = new Function('shell', 'panelLoaders', 'console', callIfLoadedSource[0] + '\nreturn callIfLoaded')(shell, panelLoaders, console)
+  assertEqual(callIfLoaded('omarchy.network', 'openHotspotSetup', '{}'), 'opened', 'shell call reaches a bar-widget panel through the bar widget lookup')
+  assertEqual(callIfLoaded('omarchy.clipboard', 'refresh'), 'ok', 'shell call still reaches a panel through its Loader')
+  assertEqual(JSON.stringify(calls), JSON.stringify([['network', '{}'], ['clipboard']]), 'each call lands on the plugin it names')
+  assertEqual(callIfLoaded('omarchy.network', 'missingMethod'), 'unknown', 'shell call reports a method the widget lacks')
+  shell.bar = null
+  assertEqual(callIfLoaded('omarchy.network', 'openHotspotSetup', '{}'), 'unknown', 'shell call reports a bar-widget panel when no bar is up')
+}
 
 // A widget's slot can be on the bar without being drawn (hidden by the
 // widget, or folded away by a drag), so panel routing has to pick the one
