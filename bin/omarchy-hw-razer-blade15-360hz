@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Detect the Razer Blade 15 Advanced (Mid 2021) with the TMX TL156VDXP02 360Hz panel.
+
+# Matches only the exact factory EDID this fix was built from, or the corrected
+# EDID once it is loaded, so another panel revision is never overridden.
+factory_edid=87fcf7c964815011a07e394896f36af3f57bac08d10dcd991e4b7691db9dfbac
+fixed_edid=550de82f58f9ac3b781cbe94344fc6e390300dda15df9f8806521a21e4c6f31b
+
+drm_class=${OMARCHY_DRM_CLASS_PATH:-/sys/class/drm}
+
+omarchy-hw-match "RZ09-0409" || exit 1
+
+shopt -s nullglob
+for edid in "$drm_class"/card*-eDP-*/edid; do
+  sum=$(sha256sum "$edid" 2>/dev/null) || continue
+  sum=${sum%% *}
+  if [[ $sum == "$factory_edid" || $sum == "$fixed_edid" ]]; then
+    exit 0
+  fi
+done
+
+exit 1
