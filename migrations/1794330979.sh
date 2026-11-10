@@ -15,5 +15,6 @@ if [[ -f $shell_json ]] && grep -q '"org.gnome.Nautilus"' "$shell_json"; then
   sed --follow-symlinks -i 's/"org\.gnome\.Nautilus"/"folio"/' "$shell_json"
 fi
 
-# Nautilus stays installed for anyone who still wants it; new installs no
-# longer get it, nor the LocalSearch indexer it brings along.
+# Nautilus goes, with its extensions, its previewer and the LocalSearch
+# indexer it brings along. nautilus-dropbox depends on it, so it goes too.
+omarchy-pkg-drop nautilus nautilus-python nautilus-dropbox sushi
