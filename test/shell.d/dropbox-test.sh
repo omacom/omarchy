@@ -17,6 +17,19 @@ assertEqual(dropbox.formatPercent(7.25), '7.3%', 'dropbox formats small percenta
 assertEqual(dropbox.usageText(1000, 2000, true), '1 KB of 2 KB', 'dropbox formats known quota usage')
 assertEqual(dropbox.usageText(1000, 0, false), '1 KB', 'dropbox formats unknown quota usage')
 
+assert(dropbox.isSyncing('Syncing 9,007 files • 1 hour\nDownloading 9,007 files (34,839 KB/sec, 1 hour)'), 'dropbox recognizes live transfers')
+assert(dropbox.isSyncing('Uploading 1 file (250 KB/sec)'), 'dropbox recognizes uploads')
+assert(!dropbox.isSyncing('Up to date'), 'dropbox clears activity when finished')
+assert(!dropbox.isSyncing('Stopped'), 'dropbox clears activity when stopped')
+
+const transfer = dropbox.syncDetails('Syncing 7,697 files • 25 mins\nDownloading 7,697 files (101,984 KB/sec, 25 mins)')
+assertEqual(transfer.label, 'Downloading 7,697 files', 'dropbox avoids duplicate transfer counts')
+assertEqual(transfer.detail, '102 MB/s · 25 mins', 'dropbox condenses speed and ETA')
+assertEqual(transfer.remaining, 7697, 'dropbox parses remaining files for progress')
+assertEqual(dropbox.syncDetails('Syncing 4 files • 1 min\nUploading 1 file...\nDownloading 3 files (1,500 KB/sec, 1 min)').detail, '1.5 MB/s · 1 min', 'dropbox keeps the transfer rate during simultaneous uploads and downloads')
+assertEqual(dropbox.syncDetails('Syncing...').detail, '', 'dropbox handles startup without transfer data')
+assertEqual(dropbox.syncDetails('Uploading 1 file (250 KB/sec)').detail, '250 KB/s', 'dropbox formats upload speed without ETA')
+
 const parsed = dropbox.parseStatus(JSON.stringify({
   installed: true,
   running: true,

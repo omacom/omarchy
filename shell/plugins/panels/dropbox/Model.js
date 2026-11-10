@@ -40,6 +40,30 @@ function parseStatus(raw) {
   }
 }
 
+// Dropbox reports transfer details as separate status lines, including speed and ETA.
+function isSyncing(status) {
+  return /\b(syncing|uploading|downloading)\b/i.test(String(status || ""))
+}
+
+function syncDetails(status, fmt) {
+  var lines = String(status || "").trim().split(/\n/)
+  var transfers = lines.filter(function(line) { return /^(Downloading|Uploading)\b/i.test(line) })
+  var transfer = transfers.filter(function(line) { return /B\/(?:sec|s)\b/i.test(line) })[0] || transfers[0] || lines[0] || ""
+  var rate = transfer.match(/([\d,.]+)\s*([KMGT]?)B\/(?:sec|s)\b/i)
+  var speed = ""
+  if (rate) {
+    var unit = "KMGT".indexOf(rate[2].toUpperCase()) + 1
+    speed = formatBytes(Number(rate[1].replace(/,/g, "")) * Math.pow(1000, unit), fmt) + "/s"
+  }
+  var eta = (lines[0].split(/[•·]/)[1] || "").trim()
+  var count = transfer.match(/([\d,]+)\s+files?\b/i)
+  return {
+    label: transfer.replace(/\s*\(.*$/, "").split(/[•·]/)[0].trim(),
+    detail: [speed, eta].filter(function(value) { return value !== "" }).join(" · "),
+    remaining: count ? Number(count[1].replace(/,/g, "")) : 0
+  }
+}
+
 function defaultStatus() {
   return {
     ok: true,
@@ -138,6 +162,8 @@ function fileMeta(file, nowMs, tr, fmt) {
 if (typeof module !== "undefined") {
   module.exports = {
     parseStatus: parseStatus,
+    isSyncing: isSyncing,
+    syncDetails: syncDetails,
     defaultStatus: defaultStatus,
     fileExtension: fileExtension,
     fileKind: fileKind,

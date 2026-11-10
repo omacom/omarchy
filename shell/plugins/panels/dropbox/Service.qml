@@ -19,6 +19,11 @@ Item {
   // follow the real state, or 0/1 while a pause/resume is still catching up.
   property int _desired: -1
   readonly property bool active: _desired === -1 ? running : (_desired === 1)
+  property bool panelOpen: false
+  readonly property bool syncing: authenticated && active && Model.isSyncing(statusText)
+  property int syncFileTotal: 0
+  readonly property var syncDetails: Model.syncDetails(statusText, I18n.formatNumber)
+  readonly property real syncProgress: syncFileTotal > 0 ? Math.max(0, Math.min(1, 1 - syncDetails.remaining / syncFileTotal)) : 0
   property bool refreshing: false
   // statusText answers the IPC status() call, so it stays English.
   property string statusText: "Checking…"  // i18n: ignore
@@ -57,12 +62,12 @@ Item {
     return n
   }
 
-  function refresh() {
+  function refresh(statusOnly) {
     if (statusProcess.running || helperPath === "/shell/plugins/panels/dropbox/status.py") return
     _statusOutput = ""
     _statusError = ""
     refreshing = true
-    statusProcess.command = ["python3", helperPath, "25"]
+    statusProcess.command = statusOnly === true ? ["python3", helperPath, "25", "--status-only"] : ["python3", helperPath, "25"]
     statusProcess.running = true
   }
 
@@ -78,13 +83,17 @@ Item {
     // Reality caught up to the pending pause/resume — stop overriding.
     if (_desired !== -1 && running === (_desired === 1)) _desired = -1
     statusText = String(parsed.statusText || (installed ? "Stopped" : "Not installed"))
+    if (syncing) syncFileTotal = Math.max(syncFileTotal, syncDetails.remaining)
+    else syncFileTotal = 0
     accountPath = String(parsed.accountPath || "")
     plan = String(parsed.plan || "")
-    usedBytes = Number(parsed.usedBytes || 0)
-    quotaBytes = Number(parsed.quotaBytes || 0)
-    usagePercent = Number(parsed.usagePercent || 0)
-    quotaKnown = parsed.quotaKnown === true
-    files = parsed.files || []
+    if (parsed.statusOnly !== true) {
+      usedBytes = Number(parsed.usedBytes || 0)
+      quotaBytes = Number(parsed.quotaBytes || 0)
+      usagePercent = Number(parsed.usagePercent || 0)
+      quotaKnown = parsed.quotaKnown === true
+      files = parsed.files || []
+    }
     lastError = ""
   }
 
@@ -156,6 +165,13 @@ Item {
     if (isError) _loginError += text + "\n"
     else _loginOutput += text + "\n"
     openAuthUrlFrom(text)
+  }
+
+  Timer {
+    interval: 2000
+    repeat: true
+    running: root.panelOpen && root.authenticated && root.active
+    onTriggered: root.refresh(true)
   }
 
   Timer {

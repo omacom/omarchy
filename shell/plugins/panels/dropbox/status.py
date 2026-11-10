@@ -118,11 +118,13 @@ def main():
     stopped = "not running" in lowered or "isn't running" in lowered or lowered == "stopped"
     running = status_exit == 0 and status_output != "" and not stopped
 
-  used, files = scan_dropbox(account_path, limit) if authenticated else (0, [])
+  status_only = "--status-only" in sys.argv
+  used, files = scan_dropbox(account_path, limit) if authenticated and not status_only else (0, [])
   usage_percent = (used / quota * 100) if quota > 0 else 0
 
   print(json.dumps({
     "ok": True,
+    "statusOnly": status_only,
     "installed": dropbox_cli is not None,
     "running": running,
     "authenticated": authenticated,

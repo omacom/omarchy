@@ -152,6 +152,7 @@ Panel {
 
   Service {
     id: dropbox
+    panelOpen: root.opened
     settings: root.settings
     omarchyPath: root.omarchyPath
   }
@@ -288,6 +289,53 @@ Panel {
                     text: root.toggleHint
                     fontFamily: hero.fontFamily
                   }
+                }
+              }
+            }
+          }
+
+          Column {
+            visible: dropbox.syncing
+            width: parent.width
+            spacing: Style.space(8)
+
+            RowLayout {
+              width: parent.width
+              spacing: Style.space(12)
+
+              Text {
+                Layout.fillWidth: true
+                text: dropbox.syncDetails.label
+                textFormat: Text.PlainText
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                elide: Text.ElideRight
+              }
+
+              Text {
+                text: dropbox.syncDetails.detail
+                textFormat: Text.PlainText
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+            }
+
+            Rectangle {
+              width: parent.width
+              height: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
+              radius: height / 2
+              color: Qt.alpha(root.foreground, 0.15)
+
+              Rectangle {
+                width: Math.max(parent.height, parent.width * dropbox.syncProgress)
+                height: parent.height
+                radius: height / 2
+                color: root.foreground
+
+                Behavior on width {
+                  NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
                 }
               }
             }
