@@ -40,7 +40,9 @@ Item {
   property bool idledThisCycle: false
   property bool screensaverStartedThisCycle: false
   property bool suspendPending: false
-  property bool suspendLockObserved: false
+  property int suspendGeneration: 0
+  property bool sleepEventsAvailable: false
+  property bool preparingForSleep: false
   property string lastEvent: "starting"
   property string lastEventAt: ""
 
@@ -97,7 +99,6 @@ Item {
     screensaverLaunchGraceTimer.stop()
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
-    if (root.suspendPending) lockStatePollTimer.start()
     runProcess(lockProcess, "lock", "omarchy-system-lock")
   }
 
@@ -110,7 +111,6 @@ Item {
     logEvent("idle-cycle-start", "screensaver=" + root.screensaverTimeoutSeconds + " lock=" + root.lockTimeoutSeconds + " suspend=" + root.suspendTimeoutSeconds)
     root.idledThisCycle = true
     root.screensaverStartedThisCycle = false
-    root.suspendLockObserved = false
 
     // Set this cycle's deadlines once: a bound interval would restart a pending
     // timer from the moment shell.json changes, locking early or late.
@@ -130,14 +130,10 @@ Item {
       }
     }
 
-    if (root.suspendEnabled) {
+    if (root.suspendEnabled && !root.suspendPending) {
       root.suspendPending = true
-      if (!root.idledThisCycle) lockStatePollTimer.start()
-      if (root.suspendDelaySeconds === 0) Qt.callLater(root.attemptSuspend)
-      else {
-        suspendTimer.interval = root.suspendDelaySeconds * 1000
-        suspendTimer.restart()
-      }
+      suspendTimer.interval = root.suspendDelaySeconds * 1000
+      suspendTimer.restart()
     }
   }
 
@@ -157,33 +153,45 @@ Item {
   function cancelSuspendCountdown(reason) {
     suspendTimer.stop()
     suspendRetryTimer.stop()
-    lockStatePollTimer.stop()
     root.suspendPending = false
-    root.suspendLockObserved = false
+    root.suspendGeneration += 1
     if (reason) logEvent("suspend-cancel", reason)
   }
 
-  function rearmSuspendCountdown() {
-    if (!root.idleEnabled || !root.suspendEnabled) return
-
-    root.suspendPending = true
-    root.suspendLockObserved = false
-    lockStatePollTimer.stop()
-    suspendTimer.interval = root.suspendTimeoutSeconds * 1000
-    suspendTimer.restart()
-    logEvent("suspend-rearm", "after-resume=" + root.suspendTimeoutSeconds)
+  function handleSessionUnlocked() {
+    if (root.suspendEnabled && !root.preparingForSleep) root.rearmIdleMonitor()
   }
 
-  function finishIdleCycleForSuspend() {
+  function handlePrepareForSleep(sleeping) {
+    root.idleMonitorArmed = false
+    root.preparingForSleep = sleeping
     screensaverTimer.stop()
     lockTimer.stop()
     screensaverLaunchGraceTimer.stop()
     root.idledThisCycle = false
     root.screensaverStartedThisCycle = false
+    cancelSuspendCountdown(sleeping ? "sleep" : "resume")
+    if (!sleeping) rearmIdleMonitor()
+  }
+
+  function handleSleepEvent(line) {
+    if (line.startsWith("The name org.freedesktop.login1 is owned by ")) {
+      root.sleepEventsAvailable = true
+    } else if (line === "The name org.freedesktop.login1 does not have an owner") {
+      root.sleepEventsAvailable = false
+      if (root.preparingForSleep) handlePrepareForSleep(false)
+    } else if (line === "/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (true,)") {
+      handlePrepareForSleep(true)
+    } else if (line === "/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (false,)") {
+      handlePrepareForSleep(false)
+    }
   }
 
   function handleActiveSignal() {
-    if (!root.idledThisCycle) return
+    if (!root.idledThisCycle) {
+      if (root.suspendPending) cancelSuspendCountdown("activity")
+      return
+    }
 
     // Starting the screensaver can make the compositor report activity, so the
     // launch grace ignores it.
@@ -210,24 +218,46 @@ Item {
 
   function handleIdleChanged() {
     logEvent("idle-monitor", idleMonitor.isIdle ? "idle" : "active")
-    if (!root.idleEnabled || !root.idleTimersEnabled) return
+    if (!root.idleEnabled || !root.idleTimersEnabled || !root.idleMonitorArmed || root.preparingForSleep) return
 
     if (idleMonitor.isIdle) startIdleCycle()
     else handleActiveSignal()
   }
 
+  function suspendStillPending(generation) {
+    return generation === root.suspendGeneration && root.suspendPending
+      && root.idleEnabled && root.suspendEnabled && !root.preparingForSleep
+  }
+
+  function deferSuspend(reason) {
+    logEvent("suspend-deferred", reason)
+    suspendRetryTimer.restart()
+  }
+
   function attemptSuspend() {
-    if (!IdleModel.shouldSuspend(root.suspendPending, suspendInhibitorMonitor.isIdle, root.idleEnabled, root.suspendTimeoutSeconds)) {
-      if (root.suspendPending && root.idleEnabled && root.suspendEnabled) {
-        logEvent("suspend-deferred", "wayland-inhibitor")
-        suspendRetryTimer.restart()
-      }
+    if (!suspendStillPending(root.suspendGeneration)) return
+    if (suspendInhibitorCheck.running || suspendProcess.running) {
+      deferSuspend("previous-attempt-running")
+      return
+    }
+    if (!root.sleepEventsAvailable || !suspendInhibitorMonitor.isIdle) {
+      deferSuspend(root.sleepEventsAvailable ? "wayland-inhibitor" : "sleep-events-unavailable")
       return
     }
 
-    // A logind `idle` block is distinct from a `sleep` block: systemctl
-    // observes the latter, but not the former. Treat both as a reason to wait.
-    runProcess(suspendProcess, "suspend", "if command -v jq >/dev/null && systemd-inhibit --list --json=short 2>/dev/null | jq -e 'any(.[]; .mode == \"block\" and (.what | split(\":\") | index(\"idle\")))' >/dev/null; then exit 3; fi; systemctl suspend")
+    suspendInhibitorCheck.generation = root.suspendGeneration
+    suspendInhibitorCheck.running = true
+  }
+
+  function handleInhibitorCheck(generation, exitCode, exitStatus) {
+    if (!suspendStillPending(generation)) return
+    if (exitCode !== 0 || exitStatus !== 0 || !root.sleepEventsAvailable || !suspendInhibitorMonitor.isIdle || suspendProcess.running) {
+      deferSuspend("inhibitor-or-check-failed")
+      return
+    }
+
+    suspendProcess.generation = generation
+    suspendProcess.running = true
   }
 
   function statusJson() {
@@ -310,7 +340,7 @@ Item {
 
   IdleMonitor {
     id: idleMonitor
-    enabled: root.idleEnabled && root.idleTimersEnabled && root.idleMonitorArmed
+    enabled: root.idleEnabled && root.idleTimersEnabled && root.idleMonitorArmed && !root.preparingForSleep
     timeout: Math.max(1, root.firstIdleTimeoutSeconds)
     respectInhibitors: true
     onIsIdleChanged: root.handleIdleChanged()
@@ -318,7 +348,7 @@ Item {
 
   IdleMonitor {
     id: suspendInhibitorMonitor
-    enabled: root.idleEnabled && root.suspendEnabled
+    enabled: root.idleEnabled && root.suspendEnabled && !root.preparingForSleep
     // This is a gate only: the suspend clock is suspendTimer, which keeps its
     // original deadline through screensaver and lock window events.
     timeout: 1
@@ -342,13 +372,6 @@ Item {
     interval: 60000
     repeat: false
     onTriggered: root.attemptSuspend()
-  }
-
-  Timer {
-    id: lockStatePollTimer
-    interval: 1000
-    repeat: true
-    onTriggered: if (!lockStateProbe.running) lockStateProbe.running = true
   }
 
   Timer {
@@ -380,28 +403,33 @@ Item {
   }
   Process {
     id: suspendProcess
+    property int generation: 0
+    command: ["systemctl", "suspend"]
     onExited: function(exitCode, exitStatus) {
       root.logEvent("process-exit", "suspend exitCode=" + exitCode + " status=" + exitStatus)
-      if (exitCode === 0) {
-        // systemctl returns once the suspend request is accepted; the timer
-        // pauses while asleep and gives a fresh full interval after wake.
-        root.finishIdleCycleForSuspend()
-        root.rearmSuspendCountdown()
-      } else if (root.suspendPending) {
-        logEvent("suspend-deferred", exitCode === 3 ? "logind-idle-inhibitor" : "suspend-command-failed")
-        suspendRetryTimer.restart()
-      }
+      if (!root.suspendStillPending(generation)) return
+      if (exitCode === 0 && exitStatus === 0) root.cancelSuspendCountdown()
+      else root.deferSuspend("suspend-command-failed")
     }
   }
   Process {
-    id: lockStateProbe
-    command: ["bash", "-lc", "omarchy-shell lock isLocked 2>/dev/null"]
+    id: suspendInhibitorCheck
+    property int generation: 0
+    // systemctl handles sleep inhibitors. Check idle blocks separately and
+    // require a successful query and parse before asking logind to suspend.
+    command: ["bash", "-o", "pipefail", "-c", "systemd-inhibit --list --json=short | jq -es 'length == 1 and (.[0] | type == \"array\" and all(.[]; (.what | type) == \"string\" and (.mode | type) == \"string\") and (any(.[]; .mode == \"block\" and (.what | split(\":\") | index(\"idle\"))) | not))' >/dev/null"]
+    onExited: function(exitCode, exitStatus) { root.handleInhibitorCheck(generation, exitCode, exitStatus) }
+  }
+  Process {
+    id: sleepEventMonitor
+    running: root.suspendEnabled
+    command: ["env", "LC_ALL=C", "stdbuf", "-oL", "gdbus", "monitor", "--system", "--dest", "org.freedesktop.login1", "--object-path", "/org/freedesktop/login1"]
     stdout: SplitParser {
-      onRead: function(line) {
-        var locked = String(line).trim() === "true"
-        if (locked) root.suspendLockObserved = true
-        else if (root.suspendLockObserved) root.cancelSuspendCountdown("unlocked")
-      }
+      onRead: function(line) { root.handleSleepEvent(line) }
+    }
+    onExited: {
+      root.sleepEventsAvailable = false
+      if (root.preparingForSleep) root.handlePrepareForSleep(false)
     }
   }
   Process {

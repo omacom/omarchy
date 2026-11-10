@@ -63,6 +63,7 @@ Item {
   property bool strandedLockResolved: false
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
+  signal sessionUnlocked()
 
   // Decisions read the lock state afresh. A property binding that missed a change
   // notification once reported locked after an unlock, and a lock request before
@@ -245,6 +246,7 @@ Item {
     idleBlankTimer.stop()
     sessionLock.locked = false
     logEvent("unlocked")
+    sessionUnlocked()
     runWake()
   }
 

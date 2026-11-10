@@ -17,10 +17,6 @@ function optionalSecondsFromConfig(value) {
   return seconds > 0 ? Math.min(seconds, MAX_TIMEOUT_SECONDS) : -1
 }
 
-function shouldSuspend(suspendPending, inhibitorIdle, idleEnabled, timeoutSeconds) {
-  return !!suspendPending && !!inhibitorIdle && !!idleEnabled && timeoutSeconds > 0
-}
-
 // 0 means the action is disabled, not "fire immediately". min(0, 300) would
 // otherwise make IdleMonitor report idle as soon as an inhibitor is released.
 function firstIdleTimeout() {
@@ -47,7 +43,6 @@ if (typeof module !== "undefined") {
     MAX_TIMEOUT_SECONDS: MAX_TIMEOUT_SECONDS,
     secondsFromConfig: secondsFromConfig,
     optionalSecondsFromConfig: optionalSecondsFromConfig,
-    shouldSuspend: shouldSuspend,
     firstIdleTimeout: firstIdleTimeout,
     delayAfterFirstIdle: delayAfterFirstIdle
   }
