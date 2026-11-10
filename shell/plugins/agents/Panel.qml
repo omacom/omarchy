@@ -56,7 +56,18 @@ Panel {
   // The setup runs on in the background and reports to status.json, where it
   // becomes the model's own line, which draws the download as it goes.
   function downloadLocal(recipe) {
+    // A Spark cabled to this one: its setup asks for the other machine's password once, so it
+    // runs in a terminal.
+    if (recipe.link) {
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local link setup"])
+      root.close()
+      return
+    }
     Util.execArgv(["omarchy-agent-local", "use", "--detach", String(recipe.id)])
+  }
+
+  function linkTitle(link) {
+    return link.host ? Commons.I18n.t("agents.linkOffer").arg(link.host) : Commons.I18n.t("agents.linkOfferUnnamed")
   }
 
   function localStartBlocked(model) {
@@ -422,6 +433,7 @@ Panel {
   }
 
   function recipeFacts(recipe) {
+    if (recipe.link) return Commons.I18n.t("agents.linkSetUp")
     var facts = []
     if (recipe.architecture === "moe") facts.push(Commons.I18n.t("agents.localMoe"))
     else if (recipe.architecture === "dense") facts.push(Commons.I18n.t("agents.localDense"))
@@ -1308,6 +1320,7 @@ Panel {
         }
         message: !root.deleteTarget ? ""
           : root.deleteTarget.localModel ? Commons.I18n.t("agents.localRemoveConfirm").arg(root.deleteTarget.localModel.name || root.deleteTarget.localModel.recipe)
+          : root.deleteTarget.localOffer && root.deleteTarget.localOffer.link ? Commons.I18n.t("agents.linkHideConfirm").arg(root.deleteTarget.providerName)
           : root.deleteTarget.localOffer ? Commons.I18n.t("agents.localHideOfferConfirm").arg(root.deleteTarget.providerName)
           : Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName)
         foreground: root.foreground
@@ -1895,7 +1908,7 @@ Panel {
         width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(40))) : implicitWidth
         elide: Text.ElideRight
         text: section.model ? (section.model.name || section.model.recipe)
-          : section.offer ? (section.offer.name || section.offer.id)
+          : section.offer ? (section.offer.link ? root.linkTitle(section.offer.link) : (section.offer.name || section.offer.id))
           : section.provider ? section.provider.providerName : ""
         HoverHandler { id: localNameHover }
         PanelToolTip {
@@ -1966,8 +1979,8 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool download: !!section.offer
         visible: download || (section.model ? section.running : root.harnessFor(section.provider) !== "")
-        iconText: download ? "󰇚" : "󰞷"
-        tooltipText: download ? Commons.I18n.t("agents.localDownload")
+        iconText: download ? (section.offer.link ? "󰌘" : "󰇚") : "󰞷"
+        tooltipText: download ? (section.offer.link ? Commons.I18n.t("agents.linkSetUp") : Commons.I18n.t("agents.localDownload"))
           : section.model ? Commons.I18n.t("agents.localLaunch") : Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
         foreground: root.foreground
         fontFamily: root.fontFamily
