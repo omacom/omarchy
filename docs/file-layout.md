@@ -125,7 +125,6 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   │                                                       → /etc/skel/.bashrc (post_install cp -f)
   ├─ hypr/toggles/*.lua (flags,
   │    single-window-aspect-ratio, window-no-gaps)      /etc/skel/.local/state/omarchy/toggles/hypr/
-  ├─ nautilus-python/extensions/*.py                    /etc/skel/.local/share/nautilus-python/extensions/
   ├─ uwsm/env.d/10-omarchy                              /usr/share/uwsm/env.d/
   ├─ environment.d/*.conf                               /usr/lib/environment.d/
   ├─ fontconfig/conf.avail/50-omarchy.conf              /usr/share/fontconfig/conf.avail/
@@ -264,7 +263,7 @@ Factory reset is an exception: it always self-elevates through `/usr/bin/omarchy
 ## Runtime finalization (`omarchy-provision-user`)
 
 Runs once per user. It does **not** copy `~/.config/**`, `~/.bashrc`,
-`flags.lua`, or the nautilus extensions — `/etc/skel` already seeded those.
+or `flags.lua` — `/etc/skel` already seeded those.
 It only does the things `/etc/skel` can't:
 
 - Skill symlinks into `~/.agents/skills/<name>`, `~/.claude/skills/<name>`, `~/.codex/skills/<name>`, `~/.pi/agent/skills/<name>`, `~/.gemini/config/skills/<name>` (Antigravity), `~/.hermes/skills/<name>`, and each existing `~/.hermes/profiles/*/skills/<name>` → `$OMARCHY_PATH/default/agents/skills/<name>`, looping over every skill directory there (currently `omarchy` and `diagnose-crash`) so new skills need no edit. Symlinks (not copies) so `omarchy dev link` against a dev checkout repoints them correctly. Hermes profile dirs are only linked when they already exist — provision does not create Hermes profiles.
@@ -410,7 +409,7 @@ When an existing user wants to reset to shipped defaults:
 
 Replaying `/etc/skel` over `$HOME` is exactly what `useradd -m` does for a
 brand-new user, so this one copy resyncs `.bashrc`, `.config/**`,
-`.local/share/applications/`, the nautilus-python extensions, hypr toggles,
+`.local/share/applications/`, hypr toggles,
 branding files, and the shipped migration markers in a single pass.
 
 Then it runs `omarchy-refresh-limine`, `omarchy-refresh-plymouth`, and the

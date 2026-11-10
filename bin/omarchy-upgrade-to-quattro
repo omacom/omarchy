@@ -2070,13 +2070,6 @@ if [[ -f $HOME/.config/hypr/hyprland.conf ]]; then
   : >"$HOME/.local/state/omarchy/toggles/hypr/flags.conf"
 fi
 
-mkdir -p "$HOME/.local/share/nautilus-python/extensions"
-for extension in localsend.py transcode.py; do
-  if [[ -f $root/default/nautilus-python/extensions/$extension ]]; then
-    cp "$root/default/nautilus-python/extensions/$extension" "$HOME/.local/share/nautilus-python/extensions/"
-  fi
-done
-
 mkdir -p "$HOME/.config/omarchy/branding"
 [[ -f $root/icon.txt ]] && cp "$root/icon.txt" "$HOME/.config/omarchy/branding/about.txt"
 [[ -f $root/logo.txt ]] && cp "$root/logo.txt" "$HOME/.config/omarchy/branding/screensaver.txt"
