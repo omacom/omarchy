@@ -25,10 +25,13 @@ function fronts(rows) {
 }
 
 // Which card in each deck shows its buttons: the card under the pointer or
-// keyboard if one in that deck is active; otherwise the front card.
-function deedHolders(rows, activeKey) {
+// keyboard if one in that deck is active; otherwise the front card. A card
+// with nothing to put in the bar cannot take it: taking it would hide the
+// front card's buttons and shorten the deck while showing nothing.
+function deedHolders(rows, activeKey, hasDeeds) {
   var out = fronts(rows)
   if (!activeKey) return out
+  if (hasDeeds && !hasDeeds(activeKey)) return out
 
   var activeDeck = ""
   for (var i = 0; i < rows.length; i++) {

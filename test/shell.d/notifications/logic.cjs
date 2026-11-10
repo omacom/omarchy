@@ -314,6 +314,31 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   assert.deepEqual({ ...Layout.deedHolders(rows, 'a3') }, { a3: true, b1: true, c1: true })
   assert.deepEqual({ ...Layout.deedHolders(rows, 'c1') }, { a1: true, b1: true, c1: true })
   assert.deepEqual({ ...Layout.deedHolders(rows, 'nonexistent') }, { a1: true, b1: true, c1: true })
+
+  // A hovered card with an empty bar cannot take the buttons from the front
+  // card. Taking them hides the front's bar and shortens the deck while
+  // showing nothing, and the shorter deck no longer reaches the pointer that
+  // is holding it open: the hover drops, the bar returns, the deck grows back,
+  // and the pair repeat as a visible pulse.
+  const deck = [{ key: 'front', app: 'Chat' }, { key: 'plain', app: 'Chat' }]
+  const hasDeeds = key => key !== 'plain'
+  assert.deepEqual({ ...Layout.deedHolders(deck, 'plain', hasDeeds) }, { front: true })
+  // A card that does have buttons still takes them, and only for its own deck.
+  assert.deepEqual({ ...Layout.deedHolders(deck, 'front', hasDeeds) }, { front: true })
+
+  // Hovering the buttonless card must leave the deck's height alone, which is
+  // what keeps the region under the pointer. The bar is 44px, a card 56px.
+  const bar = 44
+  const heightWith = holders => key => 56 + (holders[key] ? bar : 0)
+  const resting = Layout.compute(deck, { expanded: true, heightOf: heightWith(Layout.deedHolders(deck, '')) })
+  const hovered = Layout.compute(deck, { expanded: true, heightOf: heightWith(Layout.deedHolders(deck, 'plain', hasDeeds)) })
+  assert.equal(hovered.height, resting.height)
+
+  // A lone card is its own deck's front card, so clearing the hover cannot
+  // take its buttons away: the pulse this branch started with.
+  const solo = [{ key: 'solo', app: 'Solo' }]
+  assert.deepEqual({ ...Layout.deedHolders(solo, '') }, { solo: true })
+  assert.deepEqual({ ...Layout.deedHolders(solo, 'solo') }, { solo: true })
 }
 
 // --------------------------------------------------- Service.qml functions

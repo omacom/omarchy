@@ -564,9 +564,13 @@ Item {
 
   // Which card in each deck shows its buttons: an active (hovered or selected)
   // card takes them for its deck; otherwise the deck's front card keeps them.
+  // A card with no buttons cannot take them: the bar would leave the front
+  // card and shorten the deck while showing nothing, which moves the deck out
+  // from under the pointer holding it open.
   readonly property var deedHolders: {
     var active = keyboardMode ? keyboardKey : hoverKey
-    var out = Layout.deedHolders(liveRows(), active)
+    var out = Layout.deedHolders(liveRows(), active,
+      function(key) { return deedsFor(key).length > 0 })
     for (var key in leaving) if (departures[key] && departures[key].front && !active) out[key] = true
     return out
   }
