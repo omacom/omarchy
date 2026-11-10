@@ -36,8 +36,9 @@ cat >"$stub_bin/gum" <<'STUB'
 touch "${GUM_CALLED:?}"
 exit "${GUM_ANSWER:-0}"
 STUB
-cat >"$stub_bin/omarchy-system-reboot" <<'STUB'
+cat >"$stub_bin/omarchy-system" <<'STUB'
 #!/bin/bash
+[[ $1 == "reboot" ]] || exit 2
 touch "${REBOOT_CALLED:?}"
 STUB
 chmod +x "$stub_bin"/*

@@ -1,6 +1,6 @@
 // weather.json holds {"name": ..., "latitude": ..., "longitude": ...} (see
 // omarchy-weather-location, which owns the format). Missing, blank, or
-// unparseable means the location is auto-detected from the IP address.
+// unparseable means the location is auto-detected (see isAutoLocation).
 function parseLocationFile(raw) {
   var unset = { name: "", latitude: null, longitude: null }
   try {
@@ -18,6 +18,20 @@ function parseLocationFile(raw) {
   } catch (e) {
     return unset
   }
+}
+
+// True when weather.json names no place: the panel then reports for wherever
+// geo.omarchy.org places this network.
+function isAutoLocation(state) {
+  var s = state || {}
+  return String(s.name || "") === "" && (s.latitude === null || s.latitude === undefined)
+}
+
+// The location to report for: the stored one, or with none stored, the one
+// geo.omarchy.org detected. geo.omarchy.org answers in weather.json's shape, so
+// both come from parseLocationFile.
+function effectiveLocation(configured, detected) {
+  return isAutoLocation(configured) && detected ? detected : configured
 }
 
 // wttr.in path segment for a configured location: exact coordinates when
@@ -86,9 +100,15 @@ function celsiusToFahrenheit(value) {
   return isNaN(n) ? "" : (n * 9 / 5) + 32
 }
 
-function formatTemp(value, useImperial) {
+// fmt writes the number for display (QML passes I18n.formatNumber, so a
+// Persian reading gets Persian digits); left out, it is written as it is.
+function displayNumber(fmt) {
+  return typeof fmt === "function" ? fmt : function(v, d) { return d === undefined ? String(v) : Number(v).toFixed(d) }
+}
+
+function formatTemp(value, useImperial, fmt) {
   if (value === undefined || value === null || value === "") return ""
-  return value + "°" + (useImperial ? "F" : "C")
+  return displayNumber(fmt)(value) + "°" + (useImperial ? "F" : "C")
 }
 
 function normalizedUnit(value) {
@@ -206,13 +226,13 @@ function buildForecastDays(report, dailyForecastReport, todayString) {
   return days.length > 0 ? days : wttrNextForecastDays(report, todayString)
 }
 
-function bareTempForDay(day, kind, useImperial) {
+function bareTempForDay(day, kind, useImperial, fmt) {
   if (!day) return ""
   var v = useImperial
     ? (kind === "max" ? day.maxtempF : day.mintempF)
     : (kind === "max" ? day.maxtempC : day.mintempC)
   if (v === undefined || v === null || v === "") return ""
-  return v + "°"
+  return displayNumber(fmt)(v) + "°"
 }
 
 function dayIcon(day) {
@@ -268,6 +288,8 @@ function iconForCode(code, night) {
 if (typeof module !== "undefined") {
   module.exports = {
     parseLocationFile: parseLocationFile,
+    isAutoLocation: isAutoLocation,
+    effectiveLocation: effectiveLocation,
     wttrLocationQuery: wttrLocationQuery,
     parseGeocodingResults: parseGeocodingResults,
     locationCommit: locationCommit,
