@@ -109,6 +109,7 @@
   "agents.spendOfCap": "%1 su %2",
   "agents.spendThisMonth": "Questo mese",
   "agents.startOnNew": "Avvia l'agente predefinito su un nuovo %1",
+  "agents.startLocalOnNew": "Avvia %2 su un nuovo %1",
   "agents.starting": "Avvio in corso…",
   "agents.stopAutoSwitch": "Smetti di cambiare automaticamente",
   "agents.subscriptions": "Abbonamenti",

@@ -114,6 +114,7 @@
   "agents.spendOfCap": "%1 od %2",
   "agents.spendThisMonth": "Ta mesec",
   "agents.startOnNew": "Zaženite privzetega agenta na novem: %1",
+  "agents.startLocalOnNew": "Zaženite %2 na novem: %1",
   "agents.starting": "Zaganjanje…",
   "agents.stopAutoSwitch": "Ustavite samodejno preklapljanje",
   "agents.subscriptions": "Naročnine",

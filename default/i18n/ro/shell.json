@@ -109,6 +109,7 @@
   "agents.spendOfCap": "%1 din %2",
   "agents.spendThisMonth": "Luna aceasta",
   "agents.startOnNew": "Pornește agentul implicit pe un nou %1",
+  "agents.startLocalOnNew": "Pornește %2 pe un nou %1",
   "agents.starting": "Se pornește…",
   "agents.stopAutoSwitch": "Oprește comutarea automată",
   "agents.subscriptions": "Abonamente",

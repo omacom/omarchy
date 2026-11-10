@@ -104,6 +104,7 @@
   "agents.spendOfCap": "%1 kati ya %2",
   "agents.spendThisMonth": "Mwezi huu",
   "agents.startOnNew": "Anzisha ajenti wako chaguomsingi kwenye %1 mpya",
+  "agents.startLocalOnNew": "Anzisha %2 kwenye %1 mpya",
   "agents.starting": "Inaanza…",
   "agents.stopAutoSwitch": "Acha kubadili kiotomatiki",
   "agents.subscriptions": "Usajili",

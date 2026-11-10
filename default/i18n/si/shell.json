@@ -104,6 +104,7 @@
   "agents.spendOfCap": "%2 න් %1",
   "agents.spendThisMonth": "මෙම මාසය",
   "agents.startOnNew": "අලුත් %1 එකක් මත ඔබේ පෙරනිමි නියෝජිතයා අරඹන්න",
+  "agents.startLocalOnNew": "අලුත් %1 එකක් මත %2 අරඹන්න",
   "agents.starting": "අරඹමින්…",
   "agents.stopAutoSwitch": "ස්වයංක්‍රීයව මාරු වීම නවත්වන්න",
   "agents.subscriptions": "දායකත්ව",
