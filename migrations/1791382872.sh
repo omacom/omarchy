@@ -4,6 +4,8 @@ legacy_wrapper_template() {
   local form=$1 package=$2 bin=$3
 
   case $form in
+  read-only)
+    printf '#!/bin/bash\n# omarchy:mise-managed=true\nexec mise x "%s" -- "%s" "$@"\n' "$package" "$bin" ;;
   quiet)
     printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "%s" "$@"\n' "$package" "$package" "$bin" ;;
   cooldown-export)
@@ -25,7 +27,7 @@ legacy_wrapper() {
 
   # Match complete shipped templates, including the binary name and final
   # newline. Matching only the mise lines would discard user customizations.
-  for form in quiet cooldown-export bail-on-failure mise-exec bare-exec; do
+  for form in read-only quiet cooldown-export bail-on-failure mise-exec bare-exec; do
     if cmp -s "$wrapper" <(legacy_wrapper_template "$form" "$package" "$command"); then
       return 0
     fi

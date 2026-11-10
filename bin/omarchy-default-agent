@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi]
+# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode]
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
@@ -39,13 +39,42 @@ copilot | github-copilot) agent="copilot"; name="GitHub Copilot" ;;
 muse | muse-code | musecode) agent="muse"; name="Muse Code" ;;
 cursor | cursor-agent) agent="cursor-agent"; name="Cursor CLI" ;;
 kimi | kimi-code) agent="kimi"; name="Kimi"; agent_package="npm:@moonshot-ai/kimi-code" ;;
+qwen | qwen-code) agent="qwen"; name="Qwen Code" ;;
+dsh | deepseek | deepseek-harness)
+  agent="dsh"; name="DeepSeek Harness"; agent_package="npm:@deepseek-ai/dsh"
+  # Every DSH release so far is a prerelease. A declared "latest" follows the
+  # npm latest tag, but `mise use` lists only stable versions unless told to
+  # include prereleases.
+  agent_prereleases=true
+  ;;
+mcode | minimax-code | minimax) agent="mcode"; name="MiniMax Code"; agent_tool="npm:@minimax-ai/code"; agent_package="$agent_tool[allow_builds=better-sqlite3]" ;;
+kiro-cli | kiro)
+  agent="kiro-cli"; name="Kiro CLI"
+  # Kiro publishes per-platform archives behind a manifest of the stable release.
+  agent_tool="http:kiro-cli"
+  agent_package="$agent_tool[platforms_linux_x64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-x86_64-linux.tar.gz,platforms_linux_arm64_url=https://prod.download.cli.kiro.dev/stable/{{version}}/kirocli-aarch64-linux.tar.gz,version_list_url=https://prod.download.cli.kiro.dev/stable/latest/manifest.json,version_json_path=.version]"
+  ;;
+freebuff) agent="freebuff"; name="Freebuff"; agent_package="npm:freebuff" ;;
+kilo | kilocode | kilo-code) agent="kilo"; name="Kilo"; agent_package="npm:@kilocode/cli" ;;
+devin | devin-cli)
+  agent="devin"; name="Devin CLI"
+  # Cognition publishes per-platform archives behind a manifest of the current release.
+  agent_tool="http:devin"
+  agent_package="$agent_tool[platforms_linux_x64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-x86_64-unknown-linux.tar.gz,platforms_linux_arm64_url=https://static.devin.ai/cli/{{ version }}/devin-{{ version }}-aarch64-unknown-linux.tar.gz,bin_path=bin,version_list_url=https://static.devin.ai/cli/current/manifest.json,version_json_path=.version]"
+  ;;
+amp | ampcode) agent="amp"; name="Amp" ;;
+commandcode | command-code | cmdc) agent="commandcode"; name="Command Code"; agent_package="npm:command-code" ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi>"
+  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode>"
   exit 1
   ;;
 esac
 
 agent_package=${agent_package:-$agent}
+# Omarchy declares a tool that takes backend options under its bare name, with
+# the options inside the declaration's table, because mise drops bracket options
+# from a table-valued key. The bracketed package is only for the user's config.
+agent_tool=${agent_tool:-$agent_package}
 
 if [[ $agent == claude || $agent == pi ]] && ! omarchy-hw-cpu-sse4_2; then
   echo "Cannot install $name: this CPU lacks SSE4.2/POPCNT, which Bun's linux-x64 builds need" >&2
@@ -70,32 +99,47 @@ else
   # only shadow it, since the mise shims precede ~/.local/bin on PATH.
   managed_wrapper() {
     local wrapper="$HOME/.local/bin/$agent"
-    grep -Eq '^mise use -g|^# omarchy:mise-managed=true$' "$wrapper" && return 0
-    # Recognize the exact old template only for this agent's own package and
-    # executable; a user's two-line wrapper can deliberately run another tool.
-    local package_arg bin_arg text
+    # Match generated wrappers by their complete contents. A user's wrapper
+    # may also run mise, and their own launcher should stay in control.
+    local package_arg bin_arg
     printf -v package_arg '%q' "$agent_package"
     printf -v bin_arg '%q' "$agent"
-    text=$(cat "$wrapper")
-    (( $(wc -l <"$wrapper") == 2 )) &&
-      { [[ $text == $'#!/bin/bash\nexec mise x '"\"$agent_package\" -- \"$agent\" \"\$@\"" ]] ||
-        [[ $text == $'#!/bin/bash\nexec mise x '"$package_arg -- $bin_arg \"\$@\"" ]]; }
-
+    cmp -s "$wrapper" <(printf '#!/bin/bash\n# omarchy:mise-managed=true\nexec mise x "%s" -- "%s" "$@"\n' "$agent_package" "$agent") ||
+      cmp -s "$wrapper" <(printf '#!/bin/bash\n# omarchy:mise-managed=true\nexec mise x %s -- %s "$@"\n' "$package_arg" "$bin_arg") ||
+      cmp -s "$wrapper" <(printf '#!/bin/bash\nexport MISE_MINIMUM_RELEASE_AGE=0\nmise use -g --quiet "%s" || exit 1\nexec mise x "%s" -- "%s" "$@"\n' "$agent_package" "$agent_package" "$agent") ||
+      cmp -s "$wrapper" <(printf '#!/bin/bash\nexec mise x "%s" -- "%s" "$@"\n' "$agent_package" "$agent") ||
+      cmp -s "$wrapper" <(printf '#!/bin/bash\nexec mise x %s -- %s "$@"\n' "$package_arg" "$bin_arg")
   }
   user_install() {
-    [[ -x $HOME/.local/bin/$agent ]] &&
+    [[ -f $HOME/.local/bin/$agent && -x $HOME/.local/bin/$agent ]] &&
       { [[ -L $HOME/.local/bin/$agent ]] || ! managed_wrapper; }
   }
-  agent_present() { user_install || mise where "$agent_package" &>/dev/null; }
+  agent_present() { user_install || mise where "$agent_tool" &>/dev/null; }
   # Omarchy declares the default agents as mise tools, so installing one is
   # enough and leaves the user's config alone. A user who removed the
   # preinstalls, like one without Omarchy's declarations, selects it instead.
+  # An npm-backed agent needs node, itself a lazy tool where Omarchy declares
+  # it, and mise won't install it as the agent's dependency while it's missing.
+  npm_backed() {
+    [[ $1 == npm:* || $(mise tool "${1%%\[*}" --backend 2>/dev/null) == npm:* ]]
+  }
   agent_install() {
     user_install && return
-    if omarchy-mise-default-tools declares "$agent_package"; then
-      mise install "$agent_package"
+    if omarchy-mise-default-tools declares "$agent_tool"; then
+      if npm_backed "$agent_tool"; then
+        mise install node "$agent_tool"
+      else
+        mise install "$agent_tool"
+      fi
     else
-      mise use -g "$agent_package"
+      if npm_backed "$agent_package" && ! mise where node &>/dev/null; then
+        mise install node || return 1
+      fi
+      if [[ ${agent_prereleases:-} == "true" ]]; then
+        MISE_PRERELEASES=true mise use -g "$agent_package"
+      else
+        mise use -g "$agent_package"
+      fi
     fi
   }
 fi
@@ -123,6 +167,40 @@ mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' "$agent" >"$agent_file"
 
 if [[ $installing == "true" ]]; then
+  # The installer's own window: the nearest ancestor Hyprland knows as a client.
+  installer=""
+  clients=$(hyprctl clients -j 2>/dev/null)
+  pid=$PPID
+  while [[ -n $clients && -z $installer ]] && (( pid > 1 )); do
+    installer=$(jq -r --argjson pid "$pid" '.[]? | select(.pid == $pid) | "\(.address) \(.workspace.name)"' <<<"$clients" 2>/dev/null)
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null)
+  done
+
+  # A terminal that serves every window from one process (foot's server, a
+  # single-instance Ghostty or Kitty) matches them all. A title only this
+  # window carries picks it out. Terminals apply a title on their next frame,
+  # so give it a moment; if it never shows, the installer stays unknown and the
+  # agent opens here as it would outside the console.
+  if [[ $installer == *$'\n'* ]]; then
+    title="omarchy-default-agent-$$"
+    printf '\033]2;%s\007' "$title"
+    installer=""
+    for _ in {1..20}; do
+      installer=$(hyprctl clients -j 2>/dev/null | jq -r --arg title "$title" '[.[]? | select(.title == $title)][0] // empty | "\(.address) \(.workspace.name)"' 2>/dev/null)
+      [[ -n $installer ]] && break
+      sleep 0.05
+    done
+    printf '\033]2;Omarchy\007'
+  fi
+fi
+
+# An install started from the Quake console floats only while it installs. The
+# agent then takes its place in the console as the tiled window the console is
+# shaped around, rather than running inline in a floating terminal over it.
+if [[ $installing == "true" && ${installer#* } == "special:qconsole" ]]; then
+  hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-agent --prefer-local", { workspace = "special:qconsole silent" })' >/dev/null
+  hyprctl dispatch "hl.dsp.window.close({ window = \"address:${installer%% *}\" })" >/dev/null
+elif [[ $installing == "true" ]]; then
   printf '\033[2J\033[3J\033[H'
   exec omarchy-agent --inline
 else

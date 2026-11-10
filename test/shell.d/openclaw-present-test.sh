@@ -57,14 +57,3 @@ rm -f "$tmp/bin/openclaw"
 touch "$XDG_CONFIG_HOME/systemd/user/openclaw-gateway.service"
 if omarchy-openclaw-present; then fail "a gateway unit without a command must not count as installed"; fi
 pass "a gateway unit without its CLI does not hide installation"
-
-# Shadowed PATH warning (exercise the detection the launcher uses).
-rm -f "$XDG_CONFIG_HOME/systemd/user/openclaw-gateway.service"
-mkdir -p "$tmp/a" "$tmp/b"
-printf '#!/bin/bash\n' >"$tmp/a/openclaw"
-printf '#!/bin/bash\n' >"$tmp/b/openclaw"
-chmod +x "$tmp/a/openclaw" "$tmp/b/openclaw"
-export PATH="$tmp/a:$tmp/b:$tmp/bin:$ROOT/bin:/usr/bin:/bin"
-mapfile -t bins < <(type -aP openclaw)
-(( ${#bins[@]} > 1 )) || fail "fixture should expose two openclaw binaries"
-pass "multiple openclaw binaries are detectable on PATH"

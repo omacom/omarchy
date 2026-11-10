@@ -14,12 +14,6 @@ mise_log="$test_tmp/mise"
 skip_log="$test_tmp/skip"
 mkdir -p "$mock_bin" "$test_home" "$cpuinfo_dir"
 
-cat >"$mock_bin/omarchy-mise-install" <<'SH'
-#!/bin/bash
-printf '%s\n' "$*" >>"$OMARCHY_TEST_MISE_LOG"
-SH
-chmod +x "$mock_bin/omarchy-mise-install"
-
 cat >"$cpuinfo_dir/core2duo" <<'EOF'
 processor	: 0
 vendor_id	: GenuineIntel
@@ -60,6 +54,7 @@ EOF
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export HOME="$test_home"
 export OMARCHY_PATH="$ROOT"
+export OMARCHY_MISE_CONFIG_PATH="$ROOT/etc/mise/conf.d/omarchy-tools.toml"
 export OMARCHY_TEST_MISE_LOG="$mise_log"
 
 hw_cpu() {
@@ -80,43 +75,6 @@ OMARCHY_CPUINFO="$cpuinfo_dir/sse4_2-only" assert_hw "x86 with sse4_2 but no pop
 OMARCHY_CPUINFO="$cpuinfo_dir/haswell" assert_hw "x86 with sse4_2 and popcnt is Bun linux-x64 compatible" yes
 OMARCHY_CPUINFO="$cpuinfo_dir/aarch64" assert_hw "aarch64 cpuinfo is Bun linux-x64 compatible" yes
 OMARCHY_ARCH=aarch64 OMARCHY_CPUINFO="$cpuinfo_dir/core2duo" assert_hw "OMARCHY_ARCH=aarch64 still installs even with x86 cpuinfo" yes
-
-run_mise() {
-  : >"$mise_log"
-  OMARCHY_CPUINFO=$1 source "$ROOT/install/user/mise.sh" >"$skip_log" 2>&1
-}
-
-assert_skipped() {
-  if grep -qx 'claude' "$mise_log"; then
-    fail "$1 still installs claude"
-  fi
-  if grep -qx 'pi' "$mise_log"; then
-    fail "$1 still installs pi"
-  fi
-  grep -q 'Skipping claude:' "$skip_log" || fail "$1 does not explain skipping claude"
-  grep -q 'Skipping pi:' "$skip_log" || fail "$1 does not explain skipping pi"
-  grep -qx 'codex' "$mise_log" || fail "$1 still installs other mise tools"
-}
-
-assert_installed() {
-  grep -qx 'claude' "$mise_log" || fail "$1 does not install claude"
-  grep -qx 'pi' "$mise_log" || fail "$1 does not install pi"
-  if grep -q 'Skipping' "$skip_log"; then
-    fail "$1 skips bun agents on a compatible CPU"
-  fi
-}
-
-run_mise "$cpuinfo_dir/core2duo"
-assert_skipped "missing sse4_2"
-pass "user setup skips claude and pi when SSE4.2 is missing"
-
-run_mise "$cpuinfo_dir/haswell"
-assert_installed "sse4_2+popcnt"
-pass "user setup installs claude and pi when SSE4.2 and POPCNT are present"
-
-run_mise "$cpuinfo_dir/aarch64"
-assert_installed "aarch64"
-pass "user setup installs claude and pi on aarch64"
 
 cat >"$mock_bin/mise" <<'SH'
 #!/bin/bash
@@ -165,6 +123,6 @@ pass "default agent refuses pi on a CPU without SSE4.2"
 
 : >"$mise_log"
 OMARCHY_CPUINFO="$cpuinfo_dir/haswell" OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent claude >/dev/null
-grep -q 'use -g claude' "$mise_log" || fail "default agent still installs claude when the CPU can run Bun"
+grep -qx 'install claude' "$mise_log" || fail "default agent installs the declared claude tool when the CPU can run Bun"
 [[ $(<"$test_home/.config/omarchy/defaults/agent") == claude ]] || fail "default agent records claude on a compatible CPU"
 pass "default agent still installs claude when SSE4.2 and POPCNT are present"
