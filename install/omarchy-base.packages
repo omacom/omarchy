@@ -123,6 +123,7 @@ qt6-declarative
 qt6-multimedia
 qt6-svg
 qt6-wayland
+qtengine
 ttfx
 qemu-user-static-binfmt
 qrencode
