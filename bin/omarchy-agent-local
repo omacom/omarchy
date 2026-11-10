@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Run open models on this machine for your agents
-# omarchy:args=<use|list|status|start|stop|remove> [args]
+# omarchy:args=<use|list|status|start|stop|remove|logs> [args]
 # omarchy:examples=omarchy agent local use best | omarchy agent local use qwen3.8-27b-gufo | omarchy agent local stop | omarchy-agent-local use --help
 
 # The engine and its recipes come in omarchy-local-ai, on every machine so the
