@@ -553,22 +553,22 @@ Panel {
   }
 
   // A few ways into making Omarchy your own, handed to the local model when one
-  // fit for agent work is running, and to the default agent otherwise.
+  // is running, and to the default agent otherwise.
   readonly property var starterPrompts: [
     { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), prompt: "Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the Omarchy skill's theming guide and switch to it." },
     { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), prompt: "Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the Omarchy skill's plugin guide and enable it." },
     { glyph: "󰣆", label: Commons.I18n.t("agents.app"), prompt: "Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-app skill and install it so it shows up in the app launcher." }
   ]
 
-  // The local model a starter opens on, picked as omarchy-agent
-  // --prefer-agentic-local picks it: the last one started when it's running,
-  // any other running one otherwise, never one the catalog marks agentic: false.
+  // The local model a starter opens on, picked as omarchy-agent --prefer-local
+  // picks it: the last one started when it's running, any other running one
+  // otherwise.
   readonly property var starterLocalModel: {
     var local = usage.localModel || {}
     var models = local.models || {}
     var up = Object.keys(models).filter(function(id) {
       var m = models[id]
-      return m && m.unit === "active" && m.sub_state === "running" && m.agentic !== false
+      return m && m.unit === "active" && m.sub_state === "running"
     })
     if (up.length === 0) return null
     return models[up.indexOf(local.last) >= 0 ? local.last : up[0]]
@@ -576,7 +576,7 @@ Panel {
 
   function startPrompt(prompt) {
     root.close()
-    Util.execArgv(["omarchy-agent", "--prefer-agentic-local", "--prompt", prompt])
+    Util.execArgv(["omarchy-agent", "--prefer-local", "--prompt", prompt])
   }
 
   function renameAccount(p, account, label) {

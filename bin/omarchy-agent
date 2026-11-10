@@ -1,14 +1,13 @@
 #!/bin/bash
 
 # omarchy:summary=Launch the default coding agent in a terminal
-# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--prefer-agentic-local] [--agent <id>]
+# omarchy:args=[--inline] [--pick] [--local] [--local-model <recipe>] [--prefer-local] [--agent <id>]
 # omarchy:examples=omarchy agent | omarchy agent --inline | omarchy agent --local | omarchy agent --agent codex
 
 inline=false
 pick=false
 use_local=false
 prefer_local=false
-agentic_only=false
 local_model=""
 agent_override=""
 
@@ -35,11 +34,6 @@ while (($#)); do
       ;;
     --prefer-local)
       prefer_local=true
-      shift
-      ;;
-    --prefer-agentic-local)
-      prefer_local=true
-      agentic_only=true
       shift
       ;;
     --agent)
@@ -78,15 +72,9 @@ fi
 # not, so the Quake console opens on whatever the machine is running. The model
 # last started wins when it is running; any other running one will do. One
 # still loading is not up yet, and opening an agent on it would only error.
-# --prefer-agentic-local is the same for the panel's starters, which are long
-# builds a small fast model would fail partway through: a recipe the catalog
-# marks agentic: false is passed over. One without the mark still counts.
 if [[ $prefer_local == "true" && $use_local != "true" ]]; then
-  local_model=$(omarchy-agent-local status --json 2>/dev/null | jq -r --argjson agentic_only "$agentic_only" '
-    [.models // {} | to_entries[]
-      | select(.value.unit == "active" and .value.sub_state == "running")
-      | select(($agentic_only | not) or .value.agentic != false)
-      | .key] as $up
+  local_model=$(omarchy-agent-local status --json 2>/dev/null | jq -r '
+    [.models // {} | to_entries[] | select(.value.unit == "active" and .value.sub_state == "running") | .key] as $up
     | if (.last as $last | $up | index($last)) != null then .last else ($up[0] // empty) end' 2>/dev/null)
   [[ -n $local_model ]] && use_local=true
 fi
