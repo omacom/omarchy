@@ -223,18 +223,19 @@ local subscriptions = {}
 local plugin_loads = 0
 local titlebar_config = nil
 local buttons = {}
-local config = { ["input.follow_mouse"] = 1, ["decoration.shadow.enabled"] = false }
+local config = { ["input.follow_mouse"] = 1, ["decoration.shadow.enabled"] = false, ["general.border_size"] = 3 }
 local rules = {}
 local placed = {}
 local active = { id = 1 }
 local titlebars_installed = os.getenv("TITLEBARS_INSTALLED") == "1"
 
-local monitor = { width = 2560, height = 1440, scale = 1, transform = 0, reserved = { left = 0, right = 0, top = 30, bottom = 0 } }
+local monitor = { id = 0, x = 0, y = 0, width = 2560, height = 1440, scale = 1, transform = 0, reserved = { left = 0, right = 0, top = 30, bottom = 0 } }
 
 function window(address, workspace, options)
   options = options or {}
   local created = {
     address = address,
+    mapped = true,
     floating = options.floating or false,
     fullscreen = options.fullscreen or 0,
     pinned = false,
@@ -275,6 +276,13 @@ hl = {
     end
     return found
   end,
+  get_window = function(selector)
+    for _, candidate in ipairs(all) do
+      if selector == "address:" .. candidate.address then
+        return candidate
+      end
+    end
+  end,
   get_windows = function(filter)
     local found = {}
     for _, candidate in ipairs(all) do
@@ -286,8 +294,13 @@ hl = {
   end,
   dispatch = function(action)
     local target = action.window
-    if action.kind == "place" then
+    if action.kind == "place" or action.kind == "resize" or action.kind == "move" then
       placed[target.address] = true
+      if action.kind == "resize" then
+        target.size = { x = action.x, y = action.y }
+      elseif action.kind == "move" and not action.relative then
+        target.at = { x = action.x, y = action.y }
+      end
     elseif action.kind == "fullscreen" then
       if action.mode == "maximized" then
         target.fullscreen = action.action == "unset" and 0 or 1
@@ -314,9 +327,9 @@ hl = {
     window = {
       float = function(spec) return spec end,
       tag = function(spec) return spec end,
-      resize = function(spec) spec.kind = "place" return spec end,
+      resize = function(spec) spec.kind = "resize" return spec end,
       center = function(spec) spec.kind = "place" return spec end,
-      move = function(spec) spec.kind = "place" return spec end,
+      move = function(spec) spec.kind = "move" return spec end,
       fullscreen = function(spec) spec.kind = "fullscreen" return spec end,
     },
   },
@@ -333,7 +346,6 @@ hl = {
   config = function(values)
     if values.plugin then
       titlebar_config = values.plugin.hyprbars
-      return
     end
     local function flatten(prefix, options)
       for key, value in pairs(options) do
@@ -733,6 +745,23 @@ assert(not s.titlebar_config, "titlebars were turned on with nothing floating")
 fi
 pass "a session that loaded titlebars keeps the plugin when nothing floats"
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
+
+if ! run_lua '
+local target = window("0x1", 1, { floating = true })
+target.at = { x = 1700, y = 500 }
+target.size = { x = 750, y = 850 }
+require("default.hypr.workspace-layouts")
+local modes = require("default.hypr.workspace-modes")
+modes.zoom_titlebar(target.address)
+assert(target.size.x > 750, "the window did not zoom")
+target.monitor.scale = 2
+modes.zoom_titlebar(target.address)
+assert(target.at.x == 527 and target.at.y == 63, "restored position is outside the smaller work area")
+assert(target.size.x == 750 and target.size.y == 654, "restored size did not fit the smaller work area")
+' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1; then
+  fail "restoring a zoomed window fits the same display after its scale changes"
+fi
+pass "restoring a zoomed window fits the same display after its scale changes"
 
 # A theme whose raised surface is its background would hide the titlebar again,
 # so it takes the selection color instead.

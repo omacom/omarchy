@@ -513,18 +513,16 @@ function M.zoom_titlebar(address)
 
   local tag = zoom_tag(window)
   if tag then
-    local monitor_id, old_x, old_y, old_width, old_height =
-      tag:sub(#ZOOM_TAG + 1):match("^(%d+)_(-?%d+)_(-?%d+)_(%d+)_(%d+)$")
+    local old_x, old_y, old_width, old_height =
+      tag:sub(#ZOOM_TAG + 1):match("(-?%d+)_(-?%d+)_(%d+)_(%d+)$")
     hl.dispatch(hl.dsp.window.tag({ tag = "-" .. tag, window = window }))
-    if monitor_id then
-      old_x, old_y = tonumber(old_x), tonumber(old_y)
-      old_width, old_height = tonumber(old_width), tonumber(old_height)
-      if tonumber(monitor_id) ~= monitor.id then
-        -- Keep the restored window reachable after a move to a smaller display.
-        old_width, old_height = math.min(old_width, width), math.min(old_height, height)
-        old_x = math.max(x, math.min(old_x, x + width - old_width))
-        old_y = math.max(y, math.min(old_y, y + height - old_height))
-      end
+    if old_x then
+      -- The work area can shrink even on the same display, for example after
+      -- changing its scale or resolution.
+      old_width = math.min(tonumber(old_width), width)
+      old_height = math.min(tonumber(old_height), height)
+      old_x = math.max(x, math.min(tonumber(old_x), x + width - old_width))
+      old_y = math.max(y, math.min(tonumber(old_y), y + height - old_height))
       set_geometry(window, monitor.x + old_x, monitor.y + old_y, old_width, old_height)
       return
     end
@@ -532,7 +530,7 @@ function M.zoom_titlebar(address)
 
   -- Window tags survive config reloads and disappear when the window closes.
   local at, size = window.at, window.size
-  tag = string.format("%s%d_%d_%d_%d_%d", ZOOM_TAG, monitor.id, at.x - monitor.x, at.y - monitor.y, size.x, size.y)
+  tag = string.format("%s%d_%d_%d_%d", ZOOM_TAG, at.x - monitor.x, at.y - monitor.y, size.x, size.y)
   hl.dispatch(hl.dsp.window.tag({ tag = "+" .. tag, window = window }))
   set_geometry(window, monitor.x + x, monitor.y + y, width, height)
 end
