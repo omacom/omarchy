@@ -180,6 +180,7 @@ Item {
     } else if (line === "The name org.freedesktop.login1 does not have an owner") {
       root.sleepEventsAvailable = false
       if (root.preparingForSleep) handlePrepareForSleep(false)
+      logEvent("sleep-event-monitor-unavailable", "logind has no D-Bus owner")
     } else if (line === "/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (true,)") {
       handlePrepareForSleep(true)
     } else if (line === "/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (false,)") {
@@ -427,9 +428,10 @@ Item {
     stdout: SplitParser {
       onRead: function(line) { root.handleSleepEvent(line) }
     }
-    onExited: {
+    onExited: function(exitCode, exitStatus) {
       root.sleepEventsAvailable = false
       if (root.preparingForSleep) root.handlePrepareForSleep(false)
+      if (root.suspendEnabled) root.logEvent("sleep-event-monitor-exit", "gdbus exitCode=" + exitCode + " status=" + exitStatus)
     }
   }
   Process {
