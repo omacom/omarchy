@@ -30,6 +30,8 @@ Panel {
   // Every subscription on one page, limits first: the question this panel
   // answers is how much room is left, and where.
   readonly property var providers: dragProviders !== null ? dragProviders : usage.panelProviders
+  // The cabled Spark's offer stays first: it can't be moved, and nothing moves above it.
+  readonly property int pinnedRows: providers.length > 0 && providers[0].providerId === "local:link" ? 1 : 0 // i18n: ignore
 
   function localActions(model) {
     var actions = []
@@ -275,8 +277,8 @@ Panel {
   function reorderProvider(dy) {
     if (dragIndex >= 0) return
     var from = providerIndexOfKey()
-    if (from < 0) return
-    var to = clamp(from + dy, 0, providers.length - 1)
+    if (from < pinnedRows) return
+    var to = clamp(from + dy, pinnedRows, providers.length - 1)
     if (to === from) return
     usage.moveProvider(providers[from].providerId, to)
     Qt.callLater(function() { pointAt(lineStop(to), to) })
@@ -294,7 +296,7 @@ Panel {
   property bool renaming: false
 
   function beginProviderDrag(index, y) {
-    if (dragIndex >= 0 || !providerSections) return
+    if (dragIndex >= 0 || !providerSections || index < pinnedRows) return
     var pitches = []
     for (var i = 0; i < providerSections.count; i++)
       pitches.push(providerSections.itemAt(i).height + column.spacing)
@@ -311,8 +313,8 @@ Panel {
   function dragProviderOver(y) {
     if (dragIndex < 0 || settling) return
     dragOffset = y - dragPressY
-    dragTarget = Reorder.dragTargetFor(dragIndex, dragOffset, rowPitches[dragIndex],
-                                      dragTarget, providers.length, rowPitches)
+    dragTarget = Math.max(pinnedRows, Reorder.dragTargetFor(dragIndex, dragOffset, rowPitches[dragIndex],
+                                                            dragTarget, providers.length, rowPitches))
   }
 
   function resetProviderDrag() {

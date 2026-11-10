@@ -193,7 +193,7 @@ vm.runInNewContext(fs.readFileSync(root + '/shell/plugins/panels/elsewhen/Model.
 const state = {
   dragIndex: 0, dragTarget: 0, dragOffset: 0, dragPressY: 100,
   rowPitches: [80, 140, 60], providers: [{providerId: 'codex'}, {providerId: 'local:a'}, {providerId: 'claude'}],
-  dragProviderId: 'codex', dragProviders: [], settling: false
+  dragProviderId: 'codex', dragProviders: [], settling: false, pinnedRows: 0
 }
 let writes = []
 const dropAnimation = {stop() {}, restart() {}}
@@ -219,6 +219,10 @@ assertDeepEqual([0, 1, 2].map(i => Reorder.rowShift(i, 2, 0, -200, 60)), [60, 60
 state.settleProviderDrag(true)
 assertEqual(writes.length, 1, 'cancel saves no order')
 assertDeepEqual([0, 1, 2].map(i => Reorder.rowShift(i, state.dragIndex, state.dragTarget, state.dragOffset, 60)), [0, 0, 0], 'cancel clears every offset')
+Object.assign(state, {providers: [{providerId: 'local:link'}, {providerId: 'local:a'}, {providerId: 'claude'}], pinnedRows: 1,
+  dragIndex: 2, dragTarget: 2, dragProviderId: 'claude', dragPressY: 300, dragOffset: 0, settling: false})
+state.dragProviderOver(0)
+assertEqual(state.dragTarget, 1, 'nothing drops above the pinned Spark offer')
 JS
 
 # A start that runs past its last duration must keep moving, never fill up.
