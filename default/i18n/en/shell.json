@@ -97,6 +97,20 @@
   "agents.localNotEnoughMemory": "Not enough memory",
   "agents.localRemoveConfirm": "Stop %1 and delete its downloaded weights?",
   "agents.hideProviderConfirm": "Hide %1 from the panel? Credentials and sign-in will be kept.",
+  "agents.historyAxisFormat": "d MMM",
+  "agents.historyDayFormat": "ddd d MMM",
+  "agents.historyDayTotal": {
+    "one": "%1 · %2 token",
+    "other": "%1 · %2 tokens"
+  },
+  "agents.historyPeak": "peak %1",
+  "agents.historyRange": "%1d",
+  "agents.historyRangeTip": {
+    "one": "Last %1 day",
+    "other": "Last %1 days"
+  },
+  "agents.historyTitle": "Tokens by model",
+  "agents.historyToday": "today",
   "agents.localMemory": "Memory",
   "agents.localMemoryValue": "%1 GiB",
   "agents.localEndpoint": "%1 · model %2",

@@ -115,6 +115,10 @@ Panel {
 
   property bool cursorActive: false
 
+  // How many days every section's token chart covers, 7 or 30. One choice
+  // for the whole panel, kept while it stays loaded.
+  property int historyRange: 7
+
   // Countdowns and "last updated" ages read this instead of Date.now() so the
   // panel keeps telling the truth while it sits open.
   property double nowMs: Date.now()
@@ -1012,7 +1016,7 @@ Panel {
   // ---------------------------------------------------------------- summary
   //
   // The hero's line rotates through what the token counts add up to across
-  // every agent, now that they no longer get charts of their own.
+  // every agent; each section charts its own agent's days.
 
   readonly property var summaryPhrases: {
     var rev = usage.dataRevision
@@ -1311,7 +1315,7 @@ Panel {
     open: root.opened
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
-    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(860))
+    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
 
     content: PanelKeyCatcher {
       id: keyCatcher
@@ -2307,6 +2311,20 @@ Panel {
           }
         }
       }
+    }
+
+    // Tokens by day and model, for the agents whose collector keeps them.
+    HistoryBlock {
+      readonly property var agentDays: section.provider ? (section.provider.history || null) : null
+      visible: !!agentDays && Object.keys(agentDays).length > 0
+      width: parent.width
+      source: root.usage
+      days: agentDays || ({})
+      range: root.historyRange
+      nowMs: root.nowMs
+      foreground: root.foreground
+      fontFamily: root.fontFamily
+      onRangeRequested: function(range) { root.historyRange = range }
     }
   }
 
