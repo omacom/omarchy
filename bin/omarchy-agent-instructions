@@ -32,15 +32,18 @@ config="${XDG_CONFIG_HOME:-$HOME/.config}"
 
 # harness id -> link path. The directory holding the link must exist for an
 # unnamed run to touch it; freebuff reads a dotfile straight from $HOME, so it
-# is linked only when named or already linked.
+# is linked only when named or already linked. Claude, Codex and Grok are
+# linked in their primary homes even when CLAUDE_CONFIG_DIR, CODEX_HOME or
+# GROK_HOME select an added account: each account home links that file back
+# to the primary one (omarchy-agent-account-state's shared_files).
 declare -A links=(
   [config]="$config/AGENTS.md"
-  [claude]="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/CLAUDE.md"
-  [codex]="${CODEX_HOME:-$HOME/.codex}/AGENTS.md"
+  [claude]="$HOME/.claude/CLAUDE.md"
+  [codex]="$HOME/.codex/AGENTS.md"
   [pi]="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/AGENTS.md"
   [opencode]="${OPENCODE_CONFIG_DIR:-$config/opencode}/AGENTS.md"
   [agy]="$HOME/.gemini/config/AGENTS.md"
-  [grok]="${GROK_HOME:-$HOME/.grok}/AGENTS.md"
+  [grok]="$HOME/.grok/AGENTS.md"
   [copilot]="${COPILOT_HOME:-$HOME/.copilot}/copilot-instructions.md"
   [qwen]="${QWEN_HOME:-$HOME/.qwen}/AGENTS.md"
   [mcode]="${MINIMAX_DATA_DIR:-$HOME/.minimax}/AGENTS.md"
@@ -57,25 +60,28 @@ blank() {
   [[ -z $(tr -d '[:space:]' 2>/dev/null <"$canonical") || $(<"$canonical") == "$header" ]]
 }
 
-# A real file already there holds rules someone wrote. The first one found
-# becomes the shared file when there is none yet; one that matches it is
+# A file already there, or a link to one such as a dotfiles checkout, holds
+# rules someone wrote. The first one found becomes the shared file when there
+# is none yet, a link staying pointed at its file; one that matches it is
 # replaced by the link; any other is kept beside it as .bak.
 link() {
   local target=$1
-  if [[ -L $target ]]; then
-    [[ $(readlink -f "$target") == "$(readlink -f "$canonical")" ]] && return
-  elif [[ -f $target ]]; then
+  [[ $target -ef $canonical ]] && return
+  if [[ -f $target ]]; then
     if blank; then
-      mv "$target" "$canonical"
-    elif cmp -s "$target" "$canonical"; then
-      rm "$target"
-    else
+      if [[ -L $target ]]; then
+        ln -sfn "$(readlink -f "$target")" "$canonical"
+      else
+        mv "$target" "$canonical"
+      fi
+    elif ! cmp -s "$target" "$canonical"; then
       local backup="$target.bak"
-      [[ -e $backup ]] && backup="$target.$(date +%Y%m%d%H%M%S).bak"
+      [[ -e $backup || -L $backup ]] && backup="$target.$(date +%Y%m%d%H%M%S).bak"
       mv "$target" "$backup"
       backups+=("$backup")
+      echo "Kept your previous instructions as $backup" >&2
     fi
-  elif [[ -e $target ]]; then
+  elif [[ -e $target || -L $target ]]; then
     echo "Skipping $target: not a file" >&2
     return
   fi
@@ -107,7 +113,7 @@ else
 fi
 
 if ((${#backups[@]})); then
-  omarchy-notification-send "$(omarchy-i18n agents.instructionsBackedUp)" "$(printf '%s\n' "${backups[@]/#$HOME/\~}")"
+  omarchy-notification-send "$(omarchy-i18n agents.instructionsBackedUp)" "$(printf '%s\n' "${backups[@]/#$HOME/\~}")" || true
 fi
 
 if [[ $edit == "true" ]]; then
