@@ -144,6 +144,18 @@ else
     fail "a Chromium flags file that can't be written fails the helper, even when the feature is already there"
   fi
   pass "a Chromium flags file that can't be written fails the helper, even when the feature is already there"
+
+  home=$(new_home chrome-beside-readonly)
+  printf '%s\n' '--ozone-platform=wayland' >"$home/.config/chromium-flags.conf"
+  chmod 0444 "$home/.config/chromium-flags.conf"
+  cp "$shipped" "$home/.config/chrome-flags.conf"
+  if run_helper "$home" 2>/dev/null; then
+    fail "a Chromium flags file that can't be written fails the helper beside Chrome's"
+  fi
+  conf=$home/.config/chrome-flags.conf
+  grep -Fxq -- '--use-angle=gles-egl' "$conf" && grep -Fxq -- "$features,AcceleratedVideoDecoder" "$conf" ||
+    fail "a Chromium flags file that can't be written doesn't hold back Chrome's" "$(cat "$conf")"
+  pass "a Chromium flags file that can't be written fails the helper but doesn't hold back Chrome's"
 fi
 
 home=$(new_home bare)
