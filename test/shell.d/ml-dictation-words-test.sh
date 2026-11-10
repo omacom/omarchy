@@ -18,7 +18,7 @@ mkdir -p "$stub"
 cat > "$stub/pw-record" <<'SH'
 #!/bin/bash
 touch "${@: -1}"
-sleep 30
+exec sleep 30
 SH
 cat > "$stub/whisper-cli" <<'SH'
 #!/bin/bash
@@ -74,6 +74,29 @@ export OMARCHY_ML_APP_CLASS=firefox
 if grep -q 'kubectl' "$WHISPER_ARGV"; then
   fail "another app does not inherit the words" "$(cat "$WHISPER_ARGV")"
 fi
+
+
+# A settings error must still stop the owned recording.
+printf '{\n' > "$XDG_CONFIG_HOME/omarchy/ml/dictation.json"
+rm -f "$WHISPER_ARGV" "$WHISPER_LOG"
+"$ROOT/bin/omarchy-dictation-whisper-cli" start
+recorder_pid=$(<"$XDG_RUNTIME_DIR/omarchy-whisper/record.pid")
+stop_status=0
+"$ROOT/bin/omarchy-dictation-whisper-cli" stop 2>"$test_tmp/settings.err" || stop_status=$?
+for attempt in {1..20}; do
+  kill -0 "$recorder_pid" 2>/dev/null || break
+  sleep 0.05
+done
+if kill -0 "$recorder_pid" 2>/dev/null; then
+  kill "$recorder_pid" 2>/dev/null || true
+  fail "invalid settings leave the recorder running"
+fi
+(( stop_status != 0 )) || fail "invalid settings are reported"
+[[ ! -e $XDG_RUNTIME_DIR/omarchy-whisper/record.pid && ! -e $WHISPER_ARGV && ! -e $WHISPER_LOG ]] ||
+  fail "invalid settings clear the recorder without transcribing or typing"
+grep -Fq "Cannot read dictation settings" "$test_tmp/settings.err" ||
+  fail "dictation names the settings error" "$(cat "$test_tmp/settings.err")"
+pass "dictation stops recording before reporting invalid settings"
 
 export CHAT_LOG="$test_tmp/chat.log"
 "$ROOT/bin/omarchy-ml-chat" model qwen2.5 >/dev/null

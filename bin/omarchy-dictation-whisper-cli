@@ -42,8 +42,11 @@ import json
 import os
 import sys
 
-with open(sys.argv[1], encoding="utf-8") as handle:
-    data = json.load(handle)
+try:
+    with open(sys.argv[1], encoding="utf-8") as handle:
+        data = json.load(handle)
+except (OSError, ValueError) as exc:
+    raise SystemExit(f"Cannot read dictation settings: {exc}") from None
 if not isinstance(data, dict):
     data = {}
 words = [str(word) for word in data.get("words") or [] if str(word).strip()]
@@ -81,7 +84,6 @@ start_recording() {
 }
 
 stop_recording() {
-  load_dictation
   if [[ -f $runtime/record.pid ]]; then
     local pid
     pid=$(<"$runtime/record.pid")
@@ -92,6 +94,7 @@ stop_recording() {
   if [[ ! -f $runtime/dictate.wav ]]; then
     exit 0
   fi
+  load_dictation
   if [[ ! -f $model ]]; then
     echo "Whisper model is missing. Install it from Setup > Defaults > Dictation." >&2
     exit 1
