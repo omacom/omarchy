@@ -1,16 +1,16 @@
 # Ritocchi comuni
 
-Questa è una raccolta di personalizzazioni comuni alla configurazione di Omarchy. Sappi che occasionalmente potrebbe essere necessario che gli aggiornamenti di sistema ripristinino certe configurazioni alla loro condizione originale. Se succede, le tue modifiche non andranno perse, ma finiranno in un file `.bak` nella stessa directory.
+Questa è una raccolta di personalizzazioni comuni della configurazione di Omarchy. Tieni presente che a volte gli aggiornamenti di sistema potrebbero dover riportare certe configurazioni allo stato originale. Se succede, le tue modifiche non andranno perse, ma finiranno in un file `.bak` nella stessa directory.
 
 Se combini qualche pasticcio, puoi ripristinare le singole configurazioni alla loro impostazione originale tramite _Aggiorna > Configurazione_ nel menu di Omarchy. Se combini _davvero_ un pasticcio completo, puoi reimpostare tutte le configurazioni con `omarchy-reinstall`.
 
-### Mostra sempre tutte le icone della barra di sistema
+### Mostra sempre tutte le icone del vassoio
 
-Per impostazione predefinita, le icone della barra di sistema, come Dropbox, 1Password o Steam, sono nascoste dietro la freccia di espansione della barra, che le rivela quando ci passi sopra. Se vuoi tenerle sempre visibili, fai clic con il tasto destro sulla freccia di espansione per aprire il gestore delle icone della barra, poi fissa le icone che vuoi mantenere visibili (puoi anche nascondere quelle che non vuoi mai vedere).
+Per impostazione predefinita, le icone del vassoio, come Dropbox, 1Password o Steam, sono nascoste dietro la freccia di espansione del vassoio, che le rivela quando ci passi sopra. Se vuoi tenerle sempre visibili, fai clic con il tasto destro sulla freccia di espansione per aprire il gestore delle icone del vassoio, poi fissa le icone che vuoi mantenere visibili (puoi anche nascondere quelle che non vuoi mai vedere).
 
 ### Angoli delle finestre arrotondati
 
-Il design predefinito di Omarchy è fatto di angoli squadrati, ma se vuoi ammorbidirlo un po', puoi modificare `~/.config/hypr/looknfeel.lua` in modo che l'arrotondamento non sia più commentato:
+Il design predefinito di Omarchy è fatto di angoli squadrati, ma se vuoi ammorbidirlo un po', puoi modificare `~/.config/hypr/looknfeel.lua` togliendo il commento all'arrotondamento:
 
 ```
 hl.config({
