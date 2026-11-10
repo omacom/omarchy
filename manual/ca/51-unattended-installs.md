@@ -1,34 +1,34 @@
 # Instal·lacions desateses
 
-La ISO d'Omarchy es pot instal·lar sola sense ningú al teclat. Si l'instal·lador troba una segona unitat etiquetada com a `cidata` que conté els seus fitxers de configuració, els copia, se salta completament l'assistent de configuració i reinicia cap al sistema acabat pel seu compte. No cal cap construcció especial de la ISO ni cap entrada extra al menú d'arrencada: sense una unitat com aquesta connectada, no canvia res i obtens l'assistent normal.
+La ISO d'Omarchy es pot instal·lar tota sola, sense ningú al teclat. Si l'instal·lador troba una segona unitat amb l'etiqueta `cidata` que contingui els seus fitxers de configuració, els copia, se salta completament l'assistent de configuració i es reinicia tot sol en el sistema acabat. Cap compilació especial de la ISO, cap entrada addicional al menú d'arrencada: sense una unitat així connectada, res no canvia i obtens l'assistent normal.
 
-Això fa que Omarchy sigui perfecte com a imatge base per a entorns de desenvolupament d'un sol ús: crea una màquina virtual a Proxmox o amb Packer, arrenca-la, marxa, entra-hi per SSH. `cidata` és l'etiqueta `NoCloud` de cloud-init, de manera que totes les eines habituals de virtualització ja saben com connectar una unitat com aquesta.
+Això fa que Omarchy sigui fantàstic com a imatge base per a entorns de desenvolupament d'un sol ús: crea una VM a Proxmox o amb Packer, arrenca-la, ves-te'n i entra-hi per SSH. `cidata` és l'etiqueta `NoCloud` de cloud-init, així que totes les eines de virtualització habituals ja saben com connectar una unitat així.
 
 ## Els fitxers de configuració
 
-Els fitxers són exactament el que escriu l'assistent del mateix instal·lador, de manera que la manera més fàcil d'aconseguir un conjunt inicial és executar una instal·lació interactiva (en una màquina virtual, posem per cas) i copiar el que ha escrit a `/root`:
+Els fitxers són exactament els que escriu el mateix assistent de l'instal·lador, així que la manera més fàcil d'obtenir un conjunt inicial és fer una instal·lació interactiva (en una VM, per exemple) i copiar el que ha escrit a `/root`:
 
 | Fitxer | Obligatori | Finalitat |
 |------|----------|---------|
 | `user_configuration.json` | Sí | Disc, nom d'amfitrió, zona horària, teclat |
-| `user_credentials.json` | Sí | Nom d'usuari i hash de la contrasenya |
-| `user_full_name.txt` | No | Nom complet de Git |
-| `user_email_address.txt` | No | Correu electrònic de Git |
+| `user_credentials.json` | Sí | Nom d'usuari i hash de contrasenya |
 | `user_encrypt_installation.txt` | No | `true` quan la configuració conté un bloc `disk_encryption` |
 | `authorized_keys` | No | Claus públiques SSH, una per línia |
 | `tailscale_authkey` | No | Clau d'autenticació de Tailscale per unir-se a la teva tailnet a la primera arrencada |
 
-Genera el hash de la contrasenya per a `user_credentials.json` amb `openssl passwd -6 "yourpassword"`.
+Genera el hash de contrasenya per a `user_credentials.json` amb `openssl passwd -6 "yourpassword"`.
 
-També pots deixar caure un fitxer buit anomenat `defer-provisioning` en comptes de `user_credentials.json`. Això executa la mateixa [instal·lació de preparació per a un altre propietari](02-getting-started.md) que pots activar interactivament: la màquina s'instal·la sense cap dada personal, i qui l'arrenca primer tria el seu teclat i crea el seu usuari. Aquest és el mode per als equips de creació d'imatges, on la unitat no hauria de contenir en absolut les credencials de ningú.
+El nom i el correu electrònic per als commits de git no formen part de la instal·lació. Configura'ls un cop la màquina estigui en marxa, per SSH per exemple, amb `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+
+També pots deixar-hi un fitxer buit anomenat `defer-provisioning` en lloc de `user_credentials.json`. Això executa la mateixa [instal·lació de preparació per a un altre propietari](02-getting-started.md) que pots activar interactivament: la màquina s'instal·la sense cap dada personal, i qui l'arrenqui primer tria el seu teclat i crea el seu usuari. Aquest és el mode per als equips de creació d'imatges, on la unitat no hauria de portar les credencials de ningú.
 
 ## Accés SSH
 
-Quan `authorized_keys` hi és present, la instal·lació configura les claus com el `~/.ssh/authorized_keys` de l'usuari, activa `sshd` i hi obre el tallafoc. (Una instal·lació d'Omarchy estàndard subministra openssh amb el servei desactivat i el port tancat, de manera que altrament una màquina desatesa seria inabastable.) La instal·lació només afegeix les teves claus: no afluixa cap de les altres opcions d'autenticació del dimoni SSH.
+Quan `authorized_keys` hi és present, la instal·lació configura les claus com a `~/.ssh/authorized_keys` de l'usuari, activa `sshd` i obre el tallafoc per a aquest servei. (Una instal·lació estàndard d'Omarchy inclou openssh amb el servei desactivat i el port tancat, així que una màquina desatesa seria altrament inabastable.) La instal·lació només afegeix les teves claus: no relaxa cap altra configuració d'autenticació del dimoni SSH.
 
-Quan `tailscale_authkey` hi és present, la màquina s'uneix en comptes d'això a la teva tailnet a la primera arrencada: Tailscale s'instal·la des dels paquets subministrats a la ISO, el tallafoc permet la interfície de la tailnet i un procés en segon pla executa la unió tan aviat com la màquina té xarxa de debò, reintentant-ho fins que ho aconsegueix. Fes servir una clau reutilitzable i preautoritzada perquè una imatge d'unitat pugui servir per a moltes màquines.
+Quan `tailscale_authkey` hi és present, la màquina s'uneix a la teva tailnet a la primera arrencada: Tailscale s'instal·la des dels paquets inclosos a la ISO, el tallafoc permet la interfície de la tailnet i una tasca en segon pla executa la unió tan bon punt la màquina té xarxa de debò, i ho reintenta fins que ho aconsegueix. Fes servir una clau reutilitzable i preautoritzada perquè una sola imatge d'unitat pugui servir per a moltes màquines.
 
-## Construir la unitat cidata
+## Creació de la unitat cidata
 
 Qualsevol sistema de fitxers amb l'etiqueta correcta funciona. Una ISO petita és la manera fàcil:
 
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Després connecta-la a la màquina virtual juntament amb la ISO d'Omarchy. Aquí hi ha un exemple complet amb Proxmox:
+Després connecta-la a la VM juntament amb la ISO d'Omarchy. Aquí tens un exemple complet de Proxmox:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-L'ordre d'arrencada posa el disc primer expressament: a la primera arrencada, el disc buit cau cap a la ISO, i el sistema instal·lat arrenca des del disc per sempre més.
+L'ordre d'arrencada posa el disc primer a propòsit: el disc buit passa de llarg cap a la ISO a la primera arrencada, i el sistema instal·lat arrenca des del disc per sempre més.
 
 ## Dues advertències
 
-Les instal·lacions desateses xifrades no són completament desateses: a la primera arrencada encara cal que algú escrigui la frase de pas de LUKS. I el bloc `disk_encryption` de `user_configuration.json` conté aquesta frase de pas en text pla, de manera que tracta una unitat cidata construïda a partir d'una instal·lació xifrada com el secret que és.
+Les instal·lacions desateses xifrades no són del tot desateses: algú encara ha d'escriure la frase de pas de LUKS a la primera arrencada. I el bloc `disk_encryption` de `user_configuration.json` conté aquesta frase de pas en text pla, així que tracta una unitat cidata creada a partir d'una instal·lació xifrada com el secret que és.

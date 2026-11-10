@@ -102,6 +102,6 @@ done
 pass "theme cycling ignores dangling links, hidden and unaddressable names"
 
 # Preserve the upstream instant image picker when adding sibling menu rows.
-grep -F '"style.theme":' "$ROOT/default/omarchy/omarchy-menu.jsonc" | grep -Fq 'omarchy-shell shell summon omarchy.image-picker' ||
+grep -F '"appearance.theme":' "$ROOT/default/omarchy/omarchy-menu.jsonc" | grep -Fq 'omarchy-shell shell summon omarchy.image-picker' ||
   fail "theme menu retains the upstream instant picker action"
 pass "theme menu retains instant picker alongside cycling actions"

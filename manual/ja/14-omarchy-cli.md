@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy は通常、ホットキーと Omarchy メニュー（`Super + Space`）から制御します。しかし `omarchy` CLI からも制御できます。これは、AI エージェントにカスタマイズや設定を一緒にやってもらうときに特に役立ちます。
+Omarchy は通常、ホットキーと Omarchy メニュー（`Super + Space`）で操作します。しかし、`omarchy` CLI からも操作できます。これは、AI エージェントにカスタマイズや設定を手伝ってもらうときに特に便利です。
 
-CLI は、メニュー経由やそれ以外で使われるすべての内部ツールにアクセスできます。ターミナルで `omarchy` を実行すると、利用可能なもののすべてが見えます。
+CLI からは、メニュー経由などで使われている内部ツールのすべてにアクセスできます。利用可能なものはすべて、ターミナルで `omarchy` を実行すれば確認できます。
 
-こんな感じです：
+だいたいこんな感じです：
 
 ```
 ~ ❯ omarchy
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-そしてすべてのグループをより深く掘り下げることもできます：
+さらに、各グループについても詳しく見られます：
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-すべてのコマンドは `--help` も受け付けます。グループ全体でも（`omarchy capture --help`）、単一のコマンドでも（`omarchy capture screenshot --help`）です。
+すべてのコマンドでも `--help` が使えます。グループ全体（`omarchy capture --help`）でも、個別のコマンド（`omarchy capture screenshot --help`）でも同様です。
 
 ### ターミナルからメニューを開く
 
-Omarchy メニューはスクリプト化もでき、自分のキーバインドに便利です。`omarchy menu` はルートで開き、名前を指定するとツリーの任意のポイントへ直接ジャンプできます：`omarchy menu summon style.theme` はテーマピッカーへ直接行き、`omarchy menu toggle system` はシステムメニューを開き、すでに開いていれば再び閉じ、`omarchy menu close` は片付けます。
+Omarchy メニューはスクリプトからも操作でき、独自のキーバインドを作るときに便利です。`omarchy menu` でルートから開きます。名前を指定すれば、ツリー内の任意の場所へ直接移動できます：`omarchy menu summon appearance.theme` はテーマピッカーへ直行し、`omarchy menu toggle system` はシステムメニューを開き、すでに開いている場合は閉じます。`omarchy menu close` で閉じます。
