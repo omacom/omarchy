@@ -11,6 +11,16 @@ fi
 
 direction="${1:-up}"
 
+# Anything else used to count as "down", so a typo or a query like "status"
+# dimmed the backlight without a word.
+case $direction in
+up | down | cycle | off | restore) ;;
+*)
+  echo "Usage: omarchy-brightness-keyboard [--no-osd] <up|down|cycle|off|restore>" >&2
+  exit 1
+  ;;
+esac
+
 # Find keyboard backlight device (look for *kbd_backlight* pattern in leds class).
 device=""
 for candidate in /sys/class/leds/*kbd_backlight*; do
