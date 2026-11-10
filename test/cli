@@ -256,6 +256,46 @@ pass "safe dispatch works for font list"
 "$CLI" font current >/dev/null
 pass "safe dispatch works for font current"
 
+make_tmpdir FONT_TMPDIR
+mkdir -p "$FONT_TMPDIR/.config/foot" "$FONT_TMPDIR/.config/kitty" \
+  "$FONT_TMPDIR/.config/alacritty" "$FONT_TMPDIR/.config/ghostty" \
+  "$FONT_TMPDIR/.config/fontconfig" "$FONT_TMPDIR/fake-bin"
+cat >"$FONT_TMPDIR/.config/foot/foot.ini" <<'EOF'
+font=JetBrainsMono Nerd Font:size=12, Noto Color Emoji:size=10
+EOF
+cat >"$FONT_TMPDIR/.config/kitty/kitty.conf" <<'EOF'
+font_family JetBrainsMono Nerd Font
+font_size 12.0
+EOF
+cat >"$FONT_TMPDIR/.config/alacritty/alacritty.toml" <<'EOF'
+size = 12
+EOF
+cat >"$FONT_TMPDIR/.config/ghostty/config" <<'EOF'
+font-size = 12
+EOF
+for shim in omarchy-restart-shell omarchy-hook omarchy-notification-send pkill; do
+  cat >"$FONT_TMPDIR/fake-bin/$shim" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+  chmod +x "$FONT_TMPDIR/fake-bin/$shim"
+done
+# omarchy-font-set validates the family through fc-list; answer for a fixed one.
+printf '#!/bin/bash\necho "Test Font"\n' >"$FONT_TMPDIR/fake-bin/fc-list"
+chmod +x "$FONT_TMPDIR/fake-bin/fc-list"
+
+PATH="$FONT_TMPDIR/fake-bin:$ROOT/bin:$PATH" HOME="$FONT_TMPDIR" \
+  "$ROOT/bin/omarchy-font-set" "Test Font" >/dev/null
+
+grep -qx 'font=Test Font:size=12' "$FONT_TMPDIR/.config/foot/foot.ini" || fail "font set preserves the Foot size set by omarchy display text size"
+pass "font set preserves the Foot size set by omarchy display text size"
+grep -qx 'font_size 12.0' "$FONT_TMPDIR/.config/kitty/kitty.conf" || fail "font set preserves kitty size"
+pass "font set preserves kitty size"
+grep -qx 'size = 12' "$FONT_TMPDIR/.config/alacritty/alacritty.toml" || fail "font set preserves alacritty size"
+pass "font set preserves alacritty size"
+grep -qx 'font-size = 12' "$FONT_TMPDIR/.config/ghostty/config" || fail "font set preserves ghostty size"
+pass "font set preserves ghostty size"
+
 make_tmpdir PI_TMPDIR
 NEXT_THEME="$PI_TMPDIR/.local/state/omarchy/current/next-theme"
 CURRENT_THEME="$PI_TMPDIR/.local/state/omarchy/current/theme"
@@ -377,7 +417,6 @@ pass "theme template semantic aliases expose legacy palette helpers"
 LEGACY_COLORS_FILE="$PI_TMPDIR/legacy-colors.toml"
 cat >"$LEGACY_COLORS_FILE" <<'EOF'
 mode = "dark"
-accent = "#336699"
 selection = "#292929"
 muted = "#404040"
 bg = "#101010"
@@ -391,7 +430,7 @@ bright_fg = "#ffffff"
 red = "#ff0000"
 green = "#00ff00"
 yellow = "#ffff00"
-blue = "#0000ff"
+color4 = "#0000ff"
 magenta = "#ff00ff"
 cyan = "#00ffff"
 bright_red = "#ff1111"
@@ -414,8 +453,9 @@ foreground #f0f0f0
 dark_foreground #d0d0d0
 light_foreground #e0e0e0
 bright_foreground #ffffff
+accent #0000ff
 EOF
-pass "legacy short palette resolves every canonical neutral color"
+pass "legacy palette resolves canonical colors and an ANSI accent fallback"
 
 LEGACY_THEME_HOME="$PI_TMPDIR/legacy-theme-home"
 LEGACY_NEXT_THEME="$LEGACY_THEME_HOME/.local/state/omarchy/current/next-theme"
@@ -503,7 +543,7 @@ HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-pi" --activate
 jq -e '.theme == "omarchy-system" and .model == "keep-me"' "$PI_TMPDIR/.pi/agent/settings.json" >/dev/null
 pass "pi theme activation preserves existing settings"
 
-jq -e '.name == "Omarchy" and .base == "light" and .overrides.text == "#ffffff"' "$NEXT_THEME/claude.json" >/dev/null
+jq -e '.name == "Omarchy" and .base == "light" and .overrides.text == "#ffffff" and .overrides.composerSidebarBackground == "#0d0d0d"' "$NEXT_THEME/claude.json" >/dev/null
 pass "claude theme template is generated from standard themed templates"
 cp "$NEXT_THEME/claude.json" "$CURRENT_THEME/claude.json"
 
@@ -607,6 +647,18 @@ chmod +x "$FAKE_BIN/gsettings"
 GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
 grep -q 'org.gnome.desktop.interface color-scheme prefer-light' "$PI_TMPDIR/gsettings.log" || fail "gnome sync reads mode from colors.toml"
 pass "gnome sync reads mode from colors.toml"
+
+qt_home="$PI_TMPDIR/qt-home"
+mkdir -p "$qt_home/.local/state/omarchy/current/theme" "$qt_home/dotfiles" "$qt_home/.config/qtengine"
+printf 'Yaru-sage\n' >"$qt_home/.local/state/omarchy/current/theme/icons.theme"
+jq '.theme.font.family = "Inter"' "$ROOT/config/qtengine/config.json" >"$qt_home/dotfiles/qtengine.json"
+ln -s "$qt_home/dotfiles/qtengine.json" "$qt_home/.config/qtengine/config.json"
+
+HOME="$qt_home" XDG_CONFIG_HOME="$qt_home/.config" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-qt"
+[[ -L $qt_home/.config/qtengine/config.json ]] || fail "qt sync writes through a symlinked config"
+jq -e '.theme.iconTheme == "Yaru-sage" and .theme.font.family == "Inter"' "$qt_home/dotfiles/qtengine.json" >/dev/null ||
+  fail "qt sync changes only the icon theme in the user's config"
+pass "qt sync changes only the icon theme in the user's config"
 
 cat >"$FAKE_BIN/omarchy-cmd-present" <<'EOF'
 #!/bin/bash

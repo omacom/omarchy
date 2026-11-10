@@ -26,7 +26,6 @@ docker-buildx
 docker-compose
 dosfstools
 dotnet-runtime
-evince
 exfatprogs
 expac
 eza
@@ -101,14 +100,18 @@ omacut
 omawrite
 omarchy-nvim
 omarchy-hyprland-titlebars
+# Local model recipes and their engine; Podman comes when a model is set up.
+omarchy-local-ai
 # Stock power-profiles-daemon has no cppc_cpufreq driver, so profiles do nothing
 # on ARM laptops. Back to stock once upstream merges MR !236 and !239.
 omarchy-power-profiles-daemon
+omarchy-screensaver
 omasnap
 # OWE owns desktop video backgrounds and feeds the lock screen its frames.
 owe
 pacman-contrib
 pamixer
+papers
 pinta
 plocate
 plymouth
@@ -120,12 +123,14 @@ qt6-declarative
 qt6-multimedia
 qt6-svg
 qt6-wayland
+qtengine
 ttfx
 qemu-user-static-binfmt
 qrencode
 qt6-imageformats
 quickshell
 ripgrep
+rtkit
 ruby
 sddm
 signed

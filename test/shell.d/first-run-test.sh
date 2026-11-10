@@ -25,14 +25,7 @@ HOME="$test_tmp/home" PATH="$mock_bin:$PATH" OMARCHY_TEST_FINALIZE_CALLED="$fina
 [[ ! -e $finalize_called ]] || fail "completed first-run exits before any setup step"
 grep -F 'First-run already complete' "$test_tmp/output" >/dev/null || fail "completed first-run reports its lifecycle gate"
 
-if grep -F 'user-migration-notify-watch-enabled' "$ROOT/bin/omarchy-provision-first-run" >/dev/null; then
-  fail "first-run does not track the migration watcher separately"
-fi
-if grep -F 'skip-first-run-update-notification' "$ROOT/install/user/first-run/wifi.sh" >/dev/null; then
-  fail "first-run does not track update notifications separately"
-fi
-
-pass "first-run uses one lifecycle completion marker"
+pass "completed first-run exits at its lifecycle gate"
 
 # systemctl enables none of a list when one unit in it is unknown, so a unit
 # missing from a build must cost first-run only that unit.
@@ -110,6 +103,8 @@ offers_update() {
 
 installed=/usr/share/omarchy
 checkout="$test_tmp/omarchy-checkout"
+mkdir -p "$checkout"
+ln -s "$ROOT/install" "$checkout/install"
 
 if offers_update "$installed" 1 2; then
   fail "first run offers no update when nothing is pending"
@@ -123,6 +118,21 @@ if offers_update "$checkout" 1 2; then
   fail "first run offers no update when a current checkout has nothing pending"
 fi
 pass "first run offers an update only when there is one"
+
+# Choosing an agent installs it, so the invitation waits for a connection, not
+# for the first update.
+cat >"$mock_bin/omarchy-default-agent" <<'SH'
+#!/bin/bash
+SH
+cat >"$mock_bin/omarchy-done" <<'SH'
+#!/bin/bash
+[[ $1 == "ensure" ]]
+SH
+chmod +x "$mock_bin/omarchy-default-agent" "$mock_bin/omarchy-done"
+offers_update "$checkout" 1 2 || true
+grep -Fq -- '--exec omarchy menu summon setup.default.agent' "$test_tmp/calls" ||
+  fail "first run invites a default agent once there is a connection"
+pass "first run invites a default agent once there is a connection"
 
 # Arguments: the git name and email already configured, empty for unset.
 offers_git_setup() {

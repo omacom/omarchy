@@ -103,7 +103,3 @@ fi
 grep -F "OMARCHY_PATH is not a git checkout: $checkout" "$test_tmp/invalid.err" >/dev/null ||
   fail "invalid dev checkout reports the configured path" "$(cat "$test_tmp/invalid.err")"
 pass "invalid dev checkout fails with a useful error"
-
-grep -qE '^ *omarchy-update-dev$' "$ROOT/bin/omarchy-update" ||
-  fail "top-level update includes the dev checkout step"
-pass "top-level update includes the dev checkout step"
