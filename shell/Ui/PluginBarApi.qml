@@ -22,6 +22,8 @@ QtObject {
   property bool transparent: false
   property bool foregroundAnimationEnabled: true
   property bool centerSectionRevealHeld: false
+  property bool traySectionDragActive: false
+  property bool traySectionPopoutOpen: false
   property bool _centerHoverRevealSuppressed: false
   readonly property bool centerHoverRevealSuppressed: _centerHoverRevealSuppressed
   property var activePopout: null
@@ -35,6 +37,8 @@ QtObject {
   property var _unregisterClickTarget: null
   property var _requestPopout: null
   property var _releasePopout: null
+  property var _notePopoutCard: null
+  property var _popoutCardFor: null
   property var _switchPanelFrom: null
   property var _targetBelongsToWindow: null
   property var _moduleWidgets: null
@@ -67,6 +71,15 @@ QtObject {
 
   function releasePopout(owner) {
     if (_releasePopout) _releasePopout(owner)
+  }
+
+  function notePopoutCard(card) {
+    if (_notePopoutCard) _notePopoutCard(card)
+  }
+
+  // Where the last panel's card stood, if it was in this owner's section.
+  function popoutCardFor(owner) {
+    return _popoutCardFor ? _popoutCardFor(owner) : null
   }
 
   function switchPanelFrom(owner, direction) {
