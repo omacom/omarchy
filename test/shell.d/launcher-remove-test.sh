@@ -94,3 +94,13 @@ pass "launcher remove deletes user-owned desktop files"
 
 (( ${#lines[@]} == 3 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
 pass "launcher remove does not notify for user-owned desktop files"
+
+cat >"$tmp_dir/data/applications/slack.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Slack
+Exec=omarchy-launch-slack --ozone-platform=wayland %U
+DESKTOP
+"$ROOT/bin/omarchy-remove-launcher-entry" slack.desktop Slack
+[[ $(tail -1 "$TEST_LOG") == "terminal::omarchy-remove-service-slack" ]] || fail "the themed Slack launcher opens its package removal flow"
+[[ -f $tmp_dir/data/applications/slack.desktop ]] || fail "the override remains until package removal succeeds"
+pass "the themed Slack override routes to package removal before any cleanup"
