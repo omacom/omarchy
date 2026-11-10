@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle showing the bar over a fullscreen window while the pointer touches its screen edge
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy toggle bar fullscreen reveal | omarchy toggle bar fullscreen reveal off | omarchy toggle bar fullscreen reveal on
+
+omarchy-toggle bar-fullscreen-reveal "${1:-toggle}"
+
+# The shell's watch on the toggles directory can miss flag changes that land in
+# quick succession. Nudge the bar to re-read the flag; quiet best-effort so the
+# toggle still works when the shell is not up.
+omarchy-shell -q omarchy.bar syncFullscreenReveal

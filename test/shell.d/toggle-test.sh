@@ -52,6 +52,20 @@ HOME="$test_home" omarchy-toggle-bar off
 [[ ! -f $bar_flag ]] || fail "bar off disables bar-off toggle"
 pass "bar off disables bar-off toggle"
 
+reveal_flag="$test_home/.local/state/omarchy/toggles/bar-fullscreen-reveal"
+
+HOME="$test_home" omarchy-toggle-bar-fullscreen-reveal on
+[[ -f $reveal_flag ]] || fail "bar fullscreen reveal on sets its flag"
+pass "bar fullscreen reveal on sets its flag"
+
+HOME="$test_home" omarchy-toggle-bar-fullscreen-reveal on
+[[ -f $reveal_flag ]] || fail "bar fullscreen reveal on is idempotent"
+pass "bar fullscreen reveal on is idempotent"
+
+HOME="$test_home" omarchy-toggle-bar-fullscreen-reveal off
+[[ ! -f $reveal_flag ]] || fail "bar fullscreen reveal off clears its flag"
+pass "bar fullscreen reveal off clears its flag"
+
 # The gaps half of full screen copies a flag file in and reloads Hyprland, so
 # give it this checkout to copy from and a hyprctl that answers without a
 # compositor.

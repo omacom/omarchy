@@ -42,6 +42,20 @@ Item {
   // killing the entire shell. Hidden panels stay mapped but park off-screen
   // without an exclusion zone; updated by the FileView watcher further down.
   property bool barHidden: false
+  // Mirrors the on-disk `bar-fullscreen-reveal` flag, set by
+  // `omarchy-toggle-bar-fullscreen-reveal`. A real fullscreen window makes
+  // Hyprland fade the bar, a top layer, and pass the pointer through it. With
+  // the reveal on, touching the bar's screen edge raises that screen's bar to
+  // the overlay layer, which Hyprland keeps above fullscreen, until the pointer
+  // leaves it; back on the top layer Hyprland fades it out again.
+  property bool fullscreenReveal: false
+  // The screen whose reveal edge the pointer is on, the screen whose bar strip
+  // it is on, and the screen whose bar is raised. There is one pointer, so one
+  // of each. barHovered cannot stand in for the strip: it follows the indicator
+  // peek, which the clock and everything after it leave shut.
+  property var fullscreenRevealEdgeScreen: null
+  property var fullscreenRevealStripScreen: null
+  property var fullscreenRevealScreen: null
   property string home: Quickshell.env("HOME")
   property string stateHome: home + "/.local/state"
   property string omarchyConfigDir: home + "/.config/omarchy"
@@ -433,7 +447,10 @@ Item {
     pluginBarApis = next
   }
 
-  onActivePopoutChanged: schedulePluginBarApiSync()
+  onActivePopoutChanged: {
+    schedulePluginBarApiSync()
+    updateFullscreenReveal()
+  }
   onClickTargetsChanged: schedulePluginBarApiSync()
   onLayoutConfigChanged: schedulePluginBarApiSync()
   // A layout written from elsewhere that moves widgets about mid-drag leaves
@@ -1033,6 +1050,64 @@ Item {
     interval: 120
     // A pointer that dips off the bar and straight back leaves the peek open.
     onTriggered: if (!root.barHovered) root.centerSectionRevealHeld = false
+  }
+
+  // Whether the active workspace on a screen holds a real fullscreen window,
+  // which fades the bar out.
+  function screenUnderFullscreen(screen) {
+    var monitor = Hyprland.monitorFor(screen)
+    var workspace = monitor ? monitor.activeWorkspace : null
+    return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
+  }
+
+  function fullscreenRevealArmed(screen) {
+    return !!screen && BarModel.fullscreenRevealArmed(fullscreenReveal, barHidden, screenUnderFullscreen(screen))
+  }
+
+  function setFullscreenRevealEdgeHovered(screen, hovered) {
+    if (hovered) fullscreenRevealEdgeScreen = screen
+    else if (fullscreenRevealEdgeScreen === screen) fullscreenRevealEdgeScreen = null
+    updateFullscreenReveal()
+  }
+
+  function setFullscreenRevealStripHovered(screen, hovered) {
+    if (hovered) fullscreenRevealStripScreen = screen
+    else if (fullscreenRevealStripScreen === screen) fullscreenRevealStripScreen = null
+    updateFullscreenReveal()
+  }
+
+  // Whether a raised bar should stay up: the pointer is still on its reveal
+  // edge or on the bar strip itself, or a panel opened from the bar is showing.
+  function fullscreenRevealHeld() {
+    var screen = fullscreenRevealScreen
+    return !!screen && BarModel.fullscreenRevealHeld(fullscreenRevealEdgeScreen === screen,
+      fullscreenRevealStripScreen === screen, activePopout !== null)
+  }
+
+  // Touching the edge raises the bar at once. Leaving waits a beat, so a
+  // pointer skimming the bar's inner border does not flicker it; the timer's
+  // check runs at its own moment, so a pointer that came back in between is
+  // never dropped.
+  function updateFullscreenReveal() {
+    if (fullscreenRevealScreen && !fullscreenRevealArmed(fullscreenRevealScreen)) fullscreenRevealScreen = null
+
+    if (fullscreenRevealEdgeScreen && fullscreenRevealArmed(fullscreenRevealEdgeScreen)) {
+      fullscreenRevealHideTimer.stop()
+      fullscreenRevealScreen = fullscreenRevealEdgeScreen
+    } else if (fullscreenRevealScreen && !fullscreenRevealHeld()) {
+      fullscreenRevealHideTimer.restart()
+    } else {
+      fullscreenRevealHideTimer.stop()
+    }
+  }
+
+  onBarHiddenChanged: updateFullscreenReveal()
+  onFullscreenRevealChanged: updateFullscreenReveal()
+
+  Timer {
+    id: fullscreenRevealHideTimer
+    interval: 350
+    onTriggered: if (!root.fullscreenRevealHeld()) root.fullscreenRevealScreen = null
   }
 
   function run(command) {
@@ -1638,11 +1713,20 @@ Item {
     command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/bar-off ]] && echo yes || echo no"]
     stdout: SplitParser { onRead: function(line) { root.barHidden = String(line).trim() === "yes" } }
   }
+  Process {
+    id: fullscreenRevealProbe
+    running: true
+    command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/bar-fullscreen-reveal ]] && echo yes || echo no"]
+    stdout: SplitParser { onRead: function(line) { root.fullscreenReveal = String(line).trim() === "yes" } }
+  }
   FileView {
     path: root.home + "/.local/state/omarchy/toggles"
     watchChanges: true
     printErrors: false
-    onFileChanged: barHiddenProbe.running = true
+    onFileChanged: {
+      barHiddenProbe.running = true
+      fullscreenRevealProbe.running = true
+    }
   }
 
   // The directory watch can permanently stop delivering events after flag
@@ -1657,6 +1741,10 @@ Item {
     // killing it here can swallow the result entirely.
     function syncHidden(): void {
       barHiddenProbe.running = true
+    }
+
+    function syncFullscreenReveal(): void {
+      fullscreenRevealProbe.running = true
     }
   }
 
@@ -1703,6 +1791,20 @@ Item {
 
         screen: modelData
         ghostScreen: modelData
+      }
+    }
+  }
+
+  Variants {
+    // Nothing is created while the reveal is off: an unmapped edge never
+    // shows, but an off feature should not even cost the objects.
+    model: root.fullscreenReveal ? Quickshell.screens : []
+
+    delegate: Component {
+      FullscreenRevealEdge {
+        required property var modelData
+
+        screen: modelData
       }
     }
   }
@@ -1791,15 +1893,16 @@ Item {
     color: "transparent"
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
-    WlrLayershell.layer: WlrLayer.Top
+    // Raised to the overlay layer while a fullscreen reveal has this screen's
+    // bar up. Quickshell moves the mapped surface between layers in place;
+    // nothing is rebuilt.
+    WlrLayershell.layer: fullscreenRevealed ? WlrLayer.Overlay : WlrLayer.Top
 
     // Whether the active workspace on this screen holds a real fullscreen
     // window, which fades the bar out.
-    readonly property bool underFullscreen: {
-      var monitor = Hyprland.monitorFor(screen)
-      var workspace = monitor ? monitor.activeWorkspace : null
-      return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
-    }
+    readonly property bool underFullscreen: root.screenUnderFullscreen(screen)
+    // Whether a fullscreen reveal has this screen's bar raised above that window.
+    readonly property bool fullscreenRevealed: root.fullscreenRevealScreen !== null && root.fullscreenRevealScreen === screen
 
     // Idle, only the strip takes input, so the clear expanse passes clicks
     // through to the windows and desktop below. Under a fullscreen window
@@ -1808,7 +1911,9 @@ Item {
     // every layer on the monitor back above whenever a window on any other
     // workspace leaves fullscreen, or the layer remaps. The invisible strip
     // would then take the clicks meant for the top of the fullscreen window.
-    mask: dragActive ? null : (underFullscreen ? noInputRegion : stripInputRegion)
+    // A raised bar is on the overlay layer, shown and clickable, so its strip
+    // takes input again while it is up.
+    mask: dragActive ? null : (underFullscreen && !fullscreenRevealed ? noInputRegion : stripInputRegion)
 
     Region {
       id: stripInputRegion
@@ -1843,9 +1948,15 @@ Item {
         HoverHandler {
           readonly property bool peeking: hovered && BarModel.peeksAt(point.position, barWindow.peekEdge, root.vertical)
           onPeekingChanged: root.setBarHovered(peeking)
+          // The whole strip, where the peek stops at the clock: a raised bar
+          // stays up while the pointer is anywhere on it.
+          onHoveredChanged: root.setFullscreenRevealStripHovered(barWindow.screen, hovered)
           // Unplugging a monitor destroys its bar without a leave event, which
           // would strand this surface's tally and hold the peek open for good.
-          Component.onDestruction: if (peeking) root.setBarHovered(false)
+          Component.onDestruction: {
+            if (peeking) root.setBarHovered(false)
+            root.setFullscreenRevealStripHovered(barWindow.screen, false)
+          }
         }
       }
     }
@@ -2010,6 +2121,45 @@ Item {
   }
 
   Component { id: emptyModuleComponent; Item { implicitWidth: 0; implicitHeight: 0; visible: false } }
+
+  // The hover target along the bar's screen edge, mapped only while a real
+  // fullscreen window is hiding that screen's bar and the reveal is on. It has
+  // to sit on the overlay layer: under fullscreen Hyprland passes the pointer
+  // through every top layer. While it is mapped it also keeps Hyprland from
+  // scanning the fullscreen window out directly (render:direct_scanout), one
+  // reason the reveal is opt-in.
+  component FullscreenRevealEdge: PanelWindow {
+    id: revealEdge
+
+    visible: root.fullscreenRevealArmed(screen)
+    exclusionMode: ExclusionMode.Ignore
+    color: "transparent"
+    implicitWidth: root.vertical ? 2 : 0
+    implicitHeight: root.vertical ? 0 : 2
+    WlrLayershell.namespace: "omarchy-bar-reveal"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+    anchors {
+      top: root.position !== "bottom"
+      bottom: root.position !== "top"
+      left: root.position !== "right"
+      right: root.position !== "left"
+    }
+
+    // Unmapping under a resting pointer may send no leave event, and a stale
+    // edge hover would raise the bar unasked the next time the edge arms.
+    onVisibleChanged: if (!visible) root.setFullscreenRevealEdgeHovered(screen, false)
+    Component.onDestruction: root.setFullscreenRevealEdgeHovered(screen, false)
+
+    Item {
+      anchors.fill: parent
+
+      HoverHandler {
+        onHoveredChanged: root.setFullscreenRevealEdgeHovered(revealEdge.screen, hovered)
+      }
+    }
+  }
 
   component DragGhostPanel: PanelWindow {
     id: ghostWindow
