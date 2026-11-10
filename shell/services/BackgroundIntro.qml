@@ -32,8 +32,9 @@ Item {
   // Startup work that would compete with the bar for the GUI thread waits for this.
   readonly property bool startupSettling: startupPending || !barRevealed
   // From OWE taking the background until the desktop has faded in, a widget
-  // built on the GUI thread would hold up the reveal or stall its fade.
-  readonly property bool holdingWidgetBuilds: startupFading || (startupPending && !!backgroundService && !backgroundActive)
+  // built on the GUI thread would hold up the reveal or stall its fade. A bar
+  // the reveal waits for needs its widgets built first.
+  readonly property bool holdingWidgetBuilds: barFadesItself && (startupFading || (startupPending && !!backgroundService && !backgroundActive))
   // The launcher reports the intro's first frame on screen, so the login
   // reveals on it rather than polling OWE for it.
   property bool introReported: false
