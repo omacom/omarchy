@@ -4,6 +4,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 export HOME="$test_tmp/home"
+export OMARCHY_MISE_CONFIG_PATH="$test_tmp/no-tools.toml"
 mkdir -p "$test_tmp/bin"
 export TEST_LOG="$test_tmp/log"
 export PATH="$test_tmp/bin:$ROOT/bin:$PATH"
@@ -45,6 +46,10 @@ printf '#!/bin/bash\nexec mise x "codex" -- "codex" "$@"\n' >"$HOME/.local/bin/c
 omarchy-default-agent --install codex
 grep -Fx 'use -g codex' "$TEST_LOG" >/dev/null || fail "managed agent selection must restore the package pin"
 [[ $(cat "$HOME/.config/omarchy/defaults/agent") == codex ]] || fail "successful installation must set the default"
+: >"$TEST_LOG"
+OMARCHY_MISE_CONFIG_PATH="$ROOT/etc/mise/conf.d/omarchy-tools.toml" omarchy-default-agent --install codex
+grep -Fx 'install codex' "$TEST_LOG" >/dev/null || fail "a declared agent is installed without rewriting the user pin"
+if grep -E '^use ' "$TEST_LOG" >/dev/null; then fail "installing a declared agent must leave the user pin alone"; fi
 TEST_MISE_FAIL=1 omarchy-update-mise >"$test_tmp/update" 2>&1 && fail "mise update failures must propagate"
 TEST_MISE_FAIL=0 omarchy-update-mise >/dev/null
 pass "managed wrappers restore missing mise packages and update failures propagate"

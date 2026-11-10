@@ -95,6 +95,10 @@ cat >"$mock_bin/omarchy-agent" <<'SH'
 #!/bin/bash
 exit 0
 SH
+cat >"$mock_bin/omarchy-install-chromium-claude" <<'SH'
+#!/bin/bash
+exit 0
+SH
 chmod +x "$mock_bin"/*
 
 terminal_log="$test_tmp/terminal"

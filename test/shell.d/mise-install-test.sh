@@ -21,6 +21,7 @@ for arg in "$@"; do
   printf '\t%s' "$arg" >>"$OMARCHY_MISE_TEST_LOG"
 done
 printf '\n' >>"$OMARCHY_MISE_TEST_LOG"
+[[ ${OMARCHY_MISE_TEST_OFFLINE:-0} != 1 ]]
 SH
 chmod +x "$stub_bin/mise"
 
@@ -30,14 +31,14 @@ install_wrapper() {
 }
 
 # The ordinary case still works, and every call site in install/user/mise.sh
-# passes names of this shape. Install pins once; the wrapper only execs.
+# passes names of this shape. Wrapper creation also has to work offline.
 install_log="$tmpdir/install-normal.log"
 : >"$install_log"
-install_wrapper "$install_log" npm:playwright playwright >/dev/null
+OMARCHY_MISE_TEST_OFFLINE=1 install_wrapper "$install_log" npm:playwright playwright >/dev/null ||
+  fail "writing an optional wrapper does not need a package download"
 [[ -x $home/.local/bin/playwright ]] ||
   fail "a normal install writes an executable wrapper"
-grep -Fqx $'mise\tuse\t-g\t--quiet\tnpm:playwright' "$install_log" ||
-  fail "install pins the package once" "$(cat "$install_log")"
+[[ ! -s $install_log ]] || fail "creating the wrapper does not call mise" "$(cat "$install_log")"
 
 run_log="$tmpdir/run-normal.log"
 : >"$run_log"
