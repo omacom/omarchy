@@ -211,8 +211,8 @@ chmod +x "$stub/pw-record" "$stub/whisper-cli" "$stub/wtype"
 export WHISPER_LOG="$test_tmp/whisper.log"
 export OMARCHY_WHISPER_MODEL="$test_tmp/model.bin"
 printf 'model\n' > "$OMARCHY_WHISPER_MODEL"
-PATH="$stub:$PATH" "$ROOT/bin/omarchy-dictation-whisper-cli" start
-PATH="$stub:$PATH" "$ROOT/bin/omarchy-dictation-whisper-cli" stop
+PATH="$stub:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-dictation-whisper-cli" start
+PATH="$stub:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-dictation-whisper-cli" stop
 [[ $(<"$WHISPER_LOG") == "-- hello from whisper" ]] ||
   fail "whisper.cpp types the transcript into the focused window" "$(cat "$WHISPER_LOG" 2>/dev/null)"
 pass "hold-to-talk types what whisper.cpp heard"
