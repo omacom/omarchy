@@ -328,7 +328,13 @@ Item {
       list.push({ providerId: "local:" + id, localModel: models[id] })
     var offer = localOffer(localRecipes, models, providerEnabled)
     if (offer) list.push({ providerId: "local:" + offer.id, providerName: offer.name || offer.id, localOffer: offer })
-    return orderedProviders(list)
+    var ordered = orderedProviders(list)
+    // Another DGX Spark cabled to this one and not set up yet (omarchy-agent-local's status.json
+    // `link`) is offered like a recommended model, always first: its line opens link setup.
+    var link = localModel.link
+    if (link && link.state === "available" && providerEnabled("local:link"))
+      ordered.unshift({ providerId: "local:link", providerName: link.host || "DGX Spark", localOffer: { id: "link", vendor: "nvidia", link: link } }) // i18n: ignore
+    return ordered
   }
 
   // A machine with no local model yet is offered the one the catalog
