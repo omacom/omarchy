@@ -85,8 +85,9 @@ omarchy-notification-wait || log_first_run "Timed out waiting for notification s
 # Superwhisper places its bar panel through the shell, so it waits for it too.
 run_first_run_step "configure Superwhisper dictation" \
   bash "$OMARCHY_PATH/install/user/first-run/superwhisper.sh"
-# Each send returns only once the server has taken the toast, so sending in
-# order is enough to stack them newest-on-top.
+# The keybindings toast goes first and stays on top: nothing else is usable
+# without them. Every later onboarding toast is sent with --queue, so it lines
+# up behind the ones already showing, including those that wait for a network.
 run_first_run_step "show welcome notification" \
   bash "$OMARCHY_PATH/install/user/first-run/welcome.sh"
 run_first_run_step "show git setup notification" \

@@ -102,6 +102,7 @@ flags map onto that call:
 | `-u` / `--urgency` | hint `urgency` (byte) | `low`/`normal`/`critical`; defaults to `low` |
 | `-t` / `--expire-time` | `expire_timeout` | milliseconds on screen; server default otherwise |
 | `--transient` | hint `transient` (boolean) | not restored after a restart or kept in history; for reminders that are sent again whenever they still apply |
+| `--queue` | hint `omarchy-queue` (boolean) | lines the card up behind the cards already showing instead of on top of them, and keeps it there across a restart; for the later cards of a sequence, so they do not bury the first (first-run onboarding) |
 
 Unknown flags are a hard error, not a silent pass-through: `--exec` and `--action` are the only doors to a command, and there is no generic option pass-through to smuggle one through.
 

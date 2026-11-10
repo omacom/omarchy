@@ -45,6 +45,7 @@ function snapshot(n, key, urgencyEnum) {
     execActions: actions ? JSON.stringify(actions) : "",
     glyph: hints["omarchy-glyph"],
     transient: hints["transient"] === true || hints["transient"] === 1,
+    queued: hints["omarchy-queue"] === true || hints["omarchy-queue"] === 1,
     app: raw.app,
     // Else the desktop-entry hint, which names the app's .desktop file and so,
     // usually, its icon. normalise() drops it when it is a path (Chrome's).
@@ -86,7 +87,7 @@ var RESTORE_GRACE = 20000
 // from the first row it sees and silently drops keys that row lacked, so every
 // row goes through normalise() and carries every field.
 var SHAPE = {
-  key: "", originalId: 0, senderPid: 0, execArgv: "", execActions: "", glyph: "", transient: false, app: "", appIcon: "", summary: "", body: "",
+  key: "", originalId: 0, senderPid: 0, execArgv: "", execActions: "", glyph: "", transient: false, queued: false, app: "", appIcon: "", summary: "", body: "",
   bodyRich: "", bodyLine: "", rawBody: "", source: "", groupKey: "", image: "",
   code: "", codes: "", link: "",
   urgency: 1, expireTimeout: 0, duration: 0, ts: 0,
@@ -203,13 +204,16 @@ function addHistory(entries, entry, now) {
 
 // A newer row for the same key replaces the old one in place; the oldest go
 // once there are more than the deck can hold.
-function putLive(entries, row) {
+// A queued row was placed behind the cards on screen, so it is stored as the
+// oldest: restore rebuilds the stack in this order.
+function putLive(entries, row, queued) {
   var out = [], replaced = false
   for (var i = 0; i < entries.length; i++) {
     if (entries[i].key === row.key) { out.push(row); replaced = true }
     else out.push(entries[i])
   }
-  if (!replaced) out.push(row)
+  if (!replaced && queued) out.unshift(row)
+  else if (!replaced) out.push(row)
   return out.slice(-LIVE_LIMIT)
 }
 
