@@ -45,6 +45,8 @@
   "agents.switchedBody": "Нові сеанси %1 тепер використовують %2 (%3%).\nАктивні сеанси залишаються на %4.",
   "animations.disabled": "Анімації вимкнено",
   "animations.enabled": "Анімації ввімкнено",
+  "animations.softwareRendering": "Анімації вимкнено без GPU",
+  "animations.softwareRenderingBody": "GPU не використовується, тому анімації, розмиття та тіні вимкнено. Вигляд > Анімації ввімкнено повертає їх.",
   "audio.micMuted": "Мікрофон вимкнено",
   "audio.micOn": "Мікрофон увімкнено",
   "audio.noDevices": "Аудіопристроїв не знайдено",

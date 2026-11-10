@@ -43,6 +43,8 @@
   "agents.switchedBody": "Nya %1-sessioner använder nu %2 (%3%).\nPågående sessioner stannar på %4.",
   "animations.disabled": "Animeringar inaktiverade",
   "animations.enabled": "Animeringar aktiverade",
+  "animations.softwareRendering": "Animationer avstängda utan GPU",
+  "animations.softwareRenderingBody": "Ingen GPU används, så animationer, oskärpa och skuggor är avstängda. Utseende > Animationer På aktiverar dem igen.",
   "audio.micMuted": "Mikrofon avstängd",
   "audio.micOn": "Mikrofon på",
   "audio.noDevices": "Inga ljudenheter hittades",

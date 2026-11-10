@@ -42,6 +42,8 @@
   "agents.switchedBody": "Phiên %1 mới giờ dùng %2 (%3%).\nPhiên đang chạy vẫn dùng %4.",
   "animations.disabled": "Đã tắt hiệu ứng",
   "animations.enabled": "Đã bật hiệu ứng",
+  "animations.softwareRendering": "Đã tắt hiệu ứng vì không có GPU",
+  "animations.softwareRenderingBody": "Không có GPU đang hoạt động, nên hiệu ứng, làm mờ và bóng đổ bị tắt. Vào Giao diện > Bật hiệu ứng để bật lại.",
   "audio.micMuted": "Đã tắt micrô",
   "audio.micOn": "Đã bật micrô",
   "audio.noDevices": "Không tìm thấy thiết bị âm thanh",

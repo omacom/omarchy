@@ -43,6 +43,8 @@
   "agents.switchedBody": "Yangi %1 sessiyalari endi %2 dan foydalanadi (%3%).\nIshlab turgan sessiyalar %4 da qoladi.",
   "animations.disabled": "Animatsiyalar oʻchirildi",
   "animations.enabled": "Animatsiyalar yoqildi",
+  "animations.softwareRendering": "GPU boʻlmasa, animatsiyalar oʻchiq",
+  "animations.softwareRenderingBody": "GPU ishlatilmayapti, shuning uchun animatsiyalar, xiralik va soyalar oʻchiq. Tashqi koʻrinish > Animatsiyalarni yoqish ularni qaytaradi.",
   "audio.micMuted": "Mikrofon ovozi oʻchirildi",
   "audio.micOn": "Mikrofon yoqildi",
   "audio.noDevices": "Audio qurilmalar topilmadi",

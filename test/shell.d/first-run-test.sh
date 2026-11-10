@@ -103,6 +103,8 @@ offers_update() {
 
 installed=/usr/share/omarchy
 checkout="$test_tmp/omarchy-checkout"
+mkdir -p "$checkout"
+ln -s "$ROOT/install" "$checkout/install"
 
 if offers_update "$installed" 1 2; then
   fail "first run offers no update when nothing is pending"
@@ -116,6 +118,21 @@ if offers_update "$checkout" 1 2; then
   fail "first run offers no update when a current checkout has nothing pending"
 fi
 pass "first run offers an update only when there is one"
+
+# Choosing an agent installs it, so the invitation waits for a connection, not
+# for the first update.
+cat >"$mock_bin/omarchy-default-agent" <<'SH'
+#!/bin/bash
+SH
+cat >"$mock_bin/omarchy-done" <<'SH'
+#!/bin/bash
+[[ $1 == "ensure" ]]
+SH
+chmod +x "$mock_bin/omarchy-default-agent" "$mock_bin/omarchy-done"
+offers_update "$checkout" 1 2 || true
+grep -Fq -- '--exec omarchy menu summon setup.default.agent' "$test_tmp/calls" ||
+  fail "first run invites a default agent once there is a connection"
+pass "first run invites a default agent once there is a connection"
 
 # Arguments: the git name and email already configured, empty for unset.
 offers_git_setup() {

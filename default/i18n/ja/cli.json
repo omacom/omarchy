@@ -42,6 +42,8 @@
   "agents.switchedBody": "新しい %1 セッションでは %2（%3%）が使用されます。\n実行中のセッションは %4 のままです。",
   "animations.disabled": "アニメーションを無効にしました",
   "animations.enabled": "アニメーションを有効にしました",
+  "animations.softwareRendering": "GPUなしでアニメーションをオフ",
+  "animations.softwareRenderingBody": "GPUを使用していないため、アニメーション、ぼかし、影はオフになっています。「外観 > アニメーションをオン」で元に戻せます。",
   "audio.micMuted": "マイク ミュート中",
   "audio.micOn": "マイク オン",
   "audio.noDevices": "オーディオデバイスが見つかりません",

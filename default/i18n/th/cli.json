@@ -42,6 +42,8 @@
   "agents.switchedBody": "เซสชัน %1 ใหม่ใช้ %2 (%3%) แล้ว\nเซสชันที่กำลังทำงานยังใช้ %4 ต่อไป",
   "animations.disabled": "ปิดแอนิเมชันแล้ว",
   "animations.enabled": "เปิดแอนิเมชันแล้ว",
+  "animations.softwareRendering": "ปิดแอนิเมชันเมื่อไม่มี GPU",
+  "animations.softwareRenderingBody": "ไม่ได้ใช้ GPU จึงปิดแอนิเมชัน เบลอ และเงาไว้ ไปที่รูปลักษณ์ > เปิดแอนิเมชันเพื่อเปิดกลับ",
   "audio.micMuted": "ปิดไมค์แล้ว",
   "audio.micOn": "เปิดไมค์แล้ว",
   "audio.noDevices": "ไม่พบอุปกรณ์เสียง",

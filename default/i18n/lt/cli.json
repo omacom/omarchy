@@ -44,6 +44,8 @@
   "agents.switchedBody": "Nauji %1 seansai dabar naudoja %2 (%3%).\nVeikiantys seansai lieka su %4.",
   "animations.disabled": "Animacijos išjungtos",
   "animations.enabled": "Animacijos įjungtos",
+  "animations.softwareRendering": "Animacijos išjungtos be GPU",
+  "animations.softwareRenderingBody": "GPU nenaudojamas, todėl animacijos, suliejimas ir šešėliai išjungti. Juos vėl įjungia Išvaizda > Animacijos įjungtos.",
   "audio.micMuted": "Mikrofonas nutildytas",
   "audio.micOn": "Mikrofonas įjungtas",
   "audio.noDevices": "Nerasta garso įrenginių",
