@@ -1,4 +1,5 @@
 run_logged "$OMARCHY_INSTALL/user/theme.sh"
+run_logged "$OMARCHY_INSTALL/user/yaru-grey-icons.sh"
 run_logged "$OMARCHY_INSTALL/user/chromium.sh"
 run_logged "$OMARCHY_INSTALL/user/xcompose.sh"
 run_logged "$OMARCHY_INSTALL/user/language.sh"

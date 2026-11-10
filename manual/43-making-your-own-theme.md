@@ -22,7 +22,7 @@ If you're making a light mode theme, set `mode = "light"` at the top of your `co
 
 ### Icon colors
 
-If you'd like to color-match the file manager icons to your theme, add a file called `icons.theme` with the name of the icon set you want to use. By default, the options are: `Yaru Yaru-blue Yaru-dark Yaru-magenta Yaru-olive Yaru-prussiangreen Yaru-purple Yaru-red Yaru-sage Yaru-wartybrown Yaru-yellow`.
+If you'd like to color-match the file manager icons to your theme, add a file called `icons.theme` with the name of the icon set you want to use. By default, the options are: `Yaru Yaru-blue Yaru-dark Yaru-magenta Yaru-olive Yaru-prussiangreen Yaru-purple Yaru-red Yaru-sage Yaru-wartybrown Yaru-yellow`, plus the monochrome `Yaru-grey` and `Yaru-gray` sets Omarchy installs for the White and Vantablack themes.
 
 ### Unlock image
 

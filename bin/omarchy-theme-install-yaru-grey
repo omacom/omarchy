@@ -1,0 +1,348 @@
+#!/bin/bash
+
+# omarchy:summary=Install the monochrome Yaru icons White and Vantablack use
+# omarchy:hidden=true
+# omarchy:args=[source-icons-dir] [dest-icons-dir]
+
+set -euo pipefail
+
+# White names Yaru-grey and Vantablack names Yaru-gray. Those themes are meant
+# to stay monochrome, and yaru-icon-theme ships neither directory, so GTK cannot
+# resolve a single icon. Build both accents from the installed blue variants the
+# same way those variants inherit the rest of Yaru: only the accent files change,
+# and the grey theme inherits Yaru while the gray theme inherits Yaru-grey.
+
+source_icons=${1:-/usr/share/icons}
+dest_icons=${2:-${XDG_DATA_HOME:-$HOME/.local/share}/icons}
+
+if [[ -z $dest_icons || $dest_icons == "/" ]]; then
+  echo "omarchy-theme-install-yaru-grey: refusing destination $dest_icons" >&2
+  exit 1
+fi
+
+for theme in Yaru-blue Yaru-blue-dark; do
+  if [[ ! -d $source_icons/$theme ]]; then
+    echo "omarchy-theme-install-yaru-grey: missing $source_icons/$theme" >&2
+    exit 1
+  fi
+done
+
+source_icons=$(readlink -f "$source_icons")
+
+# Both builds and the backups stay on the destination filesystem, so publication
+# only renames directories and never copies over a working theme.
+mkdir -p "$dest_icons"
+work=$(mktemp -d "$dest_icons/.omarchy-yaru-grey.XXXXXX")
+publishing=false
+cleanup() {
+  local status=$? theme
+  local rollback_failed=false
+  if [[ $publishing == "true" ]]; then
+    for theme in Yaru-grey Yaru-gray; do
+      if [[ -e $work/old-$theme || -L $work/old-$theme ]]; then
+        if ! { rm -rf "${dest_icons:?}/${theme:?}" && mv -T -- "$work/old-$theme" "$dest_icons/$theme"; }; then
+          rollback_failed=true
+        fi
+      elif [[ ! -e $work/$theme && ! -L $work/$theme ]]; then
+        # This replacement had no previous theme to restore.
+        rm -rf "${dest_icons:?}/${theme:?}" || rollback_failed=true
+      fi
+    done
+  fi
+  if [[ $rollback_failed == "true" ]]; then
+    echo "omarchy-theme-install-yaru-grey: recovery files retained in $work" >&2
+    return 1
+  fi
+  rm -rf "$work"
+  return "$status"
+}
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+
+# Copy one accent, point links that leave it at the installed original, then
+# drop the colour. Publishing waits until both themes have been built.
+build_variant() {
+  local from=$1
+  local to=$2
+  local brightness=$3
+  local source_theme="$source_icons/$from"
+  local dest_theme="$work/$to"
+  local link rel target
+
+  cp -a "$source_theme" "$dest_theme"
+  rm -f "$dest_theme/icon-theme.cache"
+
+  while IFS= read -r -d '' link; do
+    rel=${link#"$dest_theme/"}
+    if target=$(readlink -f "$source_theme/$rel"); then
+      if [[ $target != "$source_theme" && $target != "$source_theme"/* ]]; then
+        ln -sfn "$target" "$link"
+      elif [[ $(readlink "$link") == /* ]]; then
+        # Absolute aliases inside an accent must follow its recoloured copy.
+        ln -sfn "$(realpath -s --relative-to="${link%/*}" "$dest_theme${target#"$source_theme"}")" "$link"
+      fi
+    fi
+  done < <(find "$dest_theme" -type l -print0)
+
+  python3 - "$dest_theme" "$to" "$brightness" <<'PY'
+import os
+import pathlib
+import re
+import struct
+import sys
+import zlib
+
+root = pathlib.Path(sys.argv[1])
+name = sys.argv[2]
+factor = int(sys.argv[3]) / 100
+
+
+def grey_level(r, g, b):
+    # ImageMagick's -modulate <brightness>,0 keeps HSL lightness and scales it.
+    light = (max(r, g, b) + min(r, g, b)) / 2
+    return round(min(255.0, light * factor))
+
+
+def rewrite_index(text):
+    lines = []
+    for line in text.splitlines(keepends=True):
+        newline = "\n" if line.endswith("\n") else ""
+        body = line[:-1] if newline else line
+        key, sep, value = body.strip().partition("=")
+        if sep and key.strip() == "Name":
+            lines.append(f"Name={name}{newline}")
+        elif sep and key.strip() == "Inherits":
+            # Yaru-blue-dark inherits Yaru-blue. Replace that token only, so a
+            # longer name that merely starts with Yaru-blue is left alone.
+            inherited = value
+            replaced = []
+            while True:
+                start = inherited.find("Yaru-blue")
+                if start < 0:
+                    replaced.append(inherited)
+                    break
+                end = start + len("Yaru-blue")
+                before = inherited[start - 1] if start else ""
+                after = inherited[end] if end < len(inherited) else ""
+                if (before == "" or not (before.isalnum() or before == "-")) and (
+                    after == "" or not (after.isalnum() or after == "-")
+                ):
+                    replaced.append(inherited[:start] + "Yaru-grey")
+                else:
+                    replaced.append(inherited[:end])
+                inherited = inherited[end:]
+            lines.append(f"Inherits={''.join(replaced).strip()}{newline}")
+        else:
+            lines.append(line)
+    return "".join(lines)
+
+
+def png_chunk(tag, data):
+    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+
+def paeth(left, up, upper_left):
+    estimate = left + up - upper_left
+    left_distance = abs(estimate - left)
+    up_distance = abs(estimate - up)
+    upper_left_distance = abs(estimate - upper_left)
+    if left_distance <= up_distance and left_distance <= upper_left_distance:
+        return left
+    if up_distance <= upper_left_distance:
+        return up
+    return upper_left
+
+
+def read_png(path):
+    data = path.read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise SystemExit(f"omarchy-theme-install-yaru-grey: {path} is not a PNG")
+    pos = 8
+    ihdr = None
+    idat = b""
+    palette = None
+    transparency = None
+    while pos + 8 <= len(data):
+        length = struct.unpack(">I", data[pos:pos + 4])[0]
+        kind = data[pos + 4:pos + 8]
+        body = data[pos + 8:pos + 8 + length]
+        pos += 12 + length
+        if kind == b"IHDR":
+            ihdr = struct.unpack(">IIBBBBB", body)
+        elif kind == b"IDAT":
+            idat += body
+        elif kind == b"PLTE":
+            palette = body
+        elif kind == b"tRNS":
+            transparency = body
+        elif kind == b"IEND":
+            break
+    if ihdr is None:
+        raise SystemExit(f"omarchy-theme-install-yaru-grey: {path} has no IHDR")
+    width, height, depth, color_type, compression, png_filter, interlace = ihdr
+    if depth != 8 or compression != 0 or png_filter != 0 or interlace != 0:
+        raise SystemExit(f"omarchy-theme-install-yaru-grey: unsupported PNG {path}")
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(color_type)
+    if channels is None:
+        raise SystemExit(f"omarchy-theme-install-yaru-grey: unsupported PNG {path}")
+    raw = zlib.decompress(idat)
+    stride = width * channels
+    rows = []
+    previous = bytearray(stride)
+    index = 0
+    for _ in range(height):
+        filter_type = raw[index]
+        index += 1
+        row = bytearray(raw[index:index + stride])
+        index += stride
+        for column in range(stride):
+            left = row[column - channels] if column >= channels else 0
+            up = previous[column]
+            upper_left = previous[column - channels] if column >= channels else 0
+            if filter_type == 0:
+                pass
+            elif filter_type == 1:
+                row[column] = (row[column] + left) & 255
+            elif filter_type == 2:
+                row[column] = (row[column] + up) & 255
+            elif filter_type == 3:
+                row[column] = (row[column] + ((left + up) >> 1)) & 255
+            elif filter_type == 4:
+                row[column] = (row[column] + paeth(left, up, upper_left)) & 255
+            else:
+                raise SystemExit(f"omarchy-theme-install-yaru-grey: unsupported PNG {path}")
+        rows.append(row)
+        previous = row
+    pixels = []
+    if color_type == 6:
+        for row in rows:
+            for column in range(width):
+                pixels.append(tuple(row[4 * column:4 * column + 4]))
+    elif color_type == 2:
+        for row in rows:
+            for column in range(width):
+                red, green, blue = row[3 * column:3 * column + 3]
+                pixels.append((red, green, blue, 255))
+    elif color_type == 4:
+        for row in rows:
+            for column in range(width):
+                grey, alpha = row[2 * column], row[2 * column + 1]
+                pixels.append((grey, grey, grey, alpha))
+    elif color_type == 0:
+        transparent = None
+        if transparency is not None and len(transparency) >= 2:
+            transparent = transparency[1]
+        for row in rows:
+            for column in range(width):
+                grey = row[column]
+                alpha = 0 if transparent is not None and grey == transparent else 255
+                pixels.append((grey, grey, grey, alpha))
+    elif color_type == 3:
+        if palette is None:
+            raise SystemExit(f"omarchy-theme-install-yaru-grey: {path} has no palette")
+        colors = [tuple(palette[i:i + 3]) for i in range(0, len(palette), 3)]
+        alphas = [255] * len(colors)
+        if transparency is not None:
+            for slot, alpha in enumerate(transparency):
+                if slot < len(alphas):
+                    alphas[slot] = alpha
+        for row in rows:
+            for column in range(width):
+                slot = row[column]
+                red, green, blue = colors[slot]
+                pixels.append((red, green, blue, alphas[slot]))
+    return width, height, pixels
+
+
+def write_png(path, width, height, pixels):
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)
+        for x in range(width):
+            raw.extend(pixels[y * width + x])
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    png = b"\x89PNG\r\n\x1a\n" + png_chunk(b"IHDR", ihdr) + png_chunk(b"IDAT", zlib.compress(bytes(raw), 1)) + png_chunk(b"IEND", b"")
+    path.write_bytes(png)
+
+
+def desaturate_png(path):
+    width, height, pixels = read_png(path)
+    grey = []
+    for red, green, blue, alpha in pixels:
+        level = grey_level(red, green, blue)
+        grey.append((level, level, level, alpha))
+    write_png(path, width, height, grey)
+
+
+def hex_grey(digits):
+    if len(digits) in (3, 4):
+        digits = "".join(character * 2 for character in digits)
+    red, green, blue = (int(digits[i:i + 2], 16) for i in (0, 2, 4))
+    level = grey_level(red, green, blue)
+    alpha = digits[6:]
+    return f"#{level:02x}{level:02x}{level:02x}{alpha}"
+
+
+def desaturate_svg(path):
+    text = path.read_text()
+    # Longer names come first so stop-color is not treated as color. The
+    # lookbehind keeps a suffix of a longer attribute (bordercolor) intact.
+    prop = r"((?<![\w-])(?:fill|stroke|stop-color|flood-color|lighting-color|color)\s*[:=]\s*[\"']?\s*)"
+
+    def hex_sub(match):
+        return match.group(1) + hex_grey(match.group(2))
+
+    def channel(part):
+        if part.endswith("%"):
+            return float(part[:-1]) / 100 * 255
+        return float(part)
+
+    def rgb_sub(match):
+        parts = [part.strip() for part in match.group(3).split(",")]
+        if len(parts) < 3:
+            return match.group(0)
+        level = grey_level(*(channel(part) for part in parts[:3]))
+        inner = ",".join([str(level)] * 3 + parts[3:])
+        return f"{match.group(1)}{match.group(2)}({inner})"
+
+    text = re.sub(prop + r"#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})\b", hex_sub, text)
+    text = re.sub(prop + r"(rgba?)\(([^)]*)\)", rgb_sub, text)
+    path.write_text(text)
+
+
+index = root / "index.theme"
+if not index.exists():
+    raise SystemExit(f"omarchy-theme-install-yaru-grey: missing {index}")
+rewritten = rewrite_index(index.read_text())
+if index.is_symlink():
+    index.unlink()
+index.write_text(rewritten)
+
+for directory, dirnames, filenames in os.walk(root, followlinks=False):
+    for filename in filenames:
+        path = pathlib.Path(directory) / filename
+        if path.is_symlink():
+            continue
+        if filename.endswith(".png"):
+            desaturate_png(path)
+        elif filename.endswith(".svg"):
+            desaturate_svg(path)
+PY
+}
+
+build_variant Yaru-blue Yaru-grey 115
+build_variant Yaru-blue-dark Yaru-gray 100
+
+publishing=true
+for theme in Yaru-grey Yaru-gray; do
+  if [[ -e $dest_icons/$theme || -L $dest_icons/$theme ]]; then
+    mv -T -- "$dest_icons/$theme" "$work/old-$theme"
+  fi
+done
+for theme in Yaru-grey Yaru-gray; do
+  mv -T -- "$work/$theme" "$dest_icons/$theme"
+done
+publishing=false
+
+gtk-update-icon-cache -f -q "$dest_icons/Yaru-grey" >/dev/null 2>&1 || true
+gtk-update-icon-cache -f -q "$dest_icons/Yaru-gray" >/dev/null 2>&1 || true
