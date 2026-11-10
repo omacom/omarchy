@@ -204,3 +204,28 @@ assertDeepEqual(
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
 JS
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+mkdir -p "$test_tmp/bin" "$test_tmp/home"
+printf '#!/bin/bash\nexit 1\n' >"$test_tmp/bin/omarchy-pkg-add"
+for command in sudo systemctl tailscale omarchy-plugin-enable omarchy-webapp-install; do
+  printf '#!/bin/bash\nexit 0\n' >"$test_tmp/bin/$command"
+done
+chmod +x "$test_tmp/bin"/*
+
+if HOME="$test_tmp/home" PATH="$test_tmp/bin:$PATH" bash "$ROOT/bin/omarchy-install-service-tailscale" >/dev/null 2>&1; then
+  fail "omarchy-install-service-tailscale exits non-zero when its package step fails"
+fi
+pass "tailscale install reports a failed package step"
+
+# Over SSH or a TTY there is no desktop session, so enabling the bar plugin fails.
+printf '#!/bin/bash\nexit 0\n' >"$test_tmp/bin/omarchy-pkg-add"
+printf '#!/bin/bash\nexit 1\n' >"$test_tmp/bin/omarchy-plugin-enable"
+printf '#!/bin/bash\necho "$1" >>"$OMARCHY_TEST_WEBAPP_LOG"\n' >"$test_tmp/bin/omarchy-webapp-install"
+HOME="$test_tmp/home" OMARCHY_TEST_WEBAPP_LOG="$test_tmp/webapp.log" PATH="$test_tmp/bin:$PATH" \
+  bash "$ROOT/bin/omarchy-install-service-tailscale" >/dev/null 2>&1 ||
+  fail "tailscale install exits zero when the bar plugin cannot be enabled"
+[[ $(<"$test_tmp/webapp.log") == "Tailscale" ]] ||
+  fail "tailscale install adds the admin console web app when the bar plugin cannot be enabled"
+pass "tailscale install finishes without a desktop session"

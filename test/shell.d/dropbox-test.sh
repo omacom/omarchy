@@ -85,3 +85,43 @@ status=$(dropbox_status)
 [[ $(jq -r .running <<<"$status") == "true" && $(jq -r .statusText <<<"$status") == "Up to date" && $(<"$test_tmp/home/cli.log") == "status" ]] ||
   fail "dropbox status asks a linked daemon for its status" "$status"
 pass "dropbox status asks a linked daemon for its status"
+
+mkdir -p "$test_tmp/service-bin"
+for command in omarchy-pkg-add omarchy-pkg-drop; do
+  printf '#!/bin/bash\nexit 1\n' >"$test_tmp/service-bin/$command"
+done
+for command in omarchy-plugin-enable omarchy-plugin-disable uwsm-app pacman; do
+  printf '#!/bin/bash\nexit 0\n' >"$test_tmp/service-bin/$command"
+done
+chmod +x "$test_tmp/service-bin"/*
+
+for script in omarchy-install-service-dropbox omarchy-remove-service-dropbox; do
+  if HOME="$test_tmp/home" PATH="$test_tmp/service-bin:$test_tmp/bin:$PATH" bash "$ROOT/bin/$script" >/dev/null 2>&1; then
+    fail "$script exits non-zero when its package step fails"
+  fi
+done
+pass "dropbox install and removal report a failed package step"
+
+# Over SSH or a TTY there is no desktop session, so enabling or disabling the bar plugin fails.
+mkdir -p "$test_tmp/sessionless-bin"
+for command in omarchy-plugin-enable omarchy-plugin-disable pacman; do
+  printf '#!/bin/bash\nexit 1\n' >"$test_tmp/sessionless-bin/$command"
+done
+for command in omarchy-pkg-add uwsm-app; do
+  printf '#!/bin/bash\nexit 0\n' >"$test_tmp/sessionless-bin/$command"
+done
+printf '#!/bin/bash\necho "$*" >>"$OMARCHY_TEST_DROP_LOG"\n' >"$test_tmp/sessionless-bin/omarchy-pkg-drop"
+chmod +x "$test_tmp/sessionless-bin"/*
+
+output=$(HOME="$test_tmp/home" PATH="$test_tmp/sessionless-bin:$test_tmp/bin:$PATH" \
+  bash "$ROOT/bin/omarchy-install-service-dropbox" 2>&1) ||
+  fail "dropbox install exits zero when the bar plugin cannot be enabled" "$output"
+[[ $output == *"Starting Dropbox..."* ]] || fail "dropbox install starts Dropbox when the bar plugin cannot be enabled" "$output"
+pass "dropbox install starts Dropbox without a desktop session"
+
+HOME="$test_tmp/home" OMARCHY_TEST_DROP_LOG="$test_tmp/drop.log" PATH="$test_tmp/sessionless-bin:$test_tmp/bin:$PATH" \
+  bash "$ROOT/bin/omarchy-remove-service-dropbox" >/dev/null 2>&1 ||
+  fail "dropbox removal exits zero when the bar plugin cannot be disabled"
+[[ $(<"$test_tmp/drop.log") == "dropbox dropbox-cli python-gpgme nautilus-dropbox" ]] ||
+  fail "dropbox removal drops its packages when the bar plugin cannot be disabled"
+pass "dropbox removal drops its packages without a desktop session"
