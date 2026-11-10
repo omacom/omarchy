@@ -30,6 +30,10 @@ Item {
 
   function applyProbe(text) {
     var state = RemoteSessionModel.stateFromOutput(text)
+    if (!root.stateLoaded || root.active !== state.active) {
+      Quickshell.execDetached(["hyprctl", "eval",
+        'hl.window_rule({ name = "omarchy-1password-screen-share", enabled = ' + (!state.active ? "true" : "false") + ' })'])
+    }
     root.peers = state.peers
     root.active = state.active
     root.stateLoaded = true
@@ -44,6 +48,10 @@ Item {
   Connections {
     target: Hyprland
     function onRawEvent(event) {
+      if (event && event.name === "configreloaded") {
+        root.stateLoaded = false
+        root.refresh()
+      }
       if (RemoteSessionModel.isCaptureEvent(event ? event.name : "")) eventDebounce.restart()
     }
   }

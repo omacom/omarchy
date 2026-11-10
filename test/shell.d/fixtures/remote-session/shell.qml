@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 
 // Drives the real remote-session service against a stub gliff-server on PATH:
 // idle at start, active with the ssh peer once a server runs, idle again after
@@ -13,6 +14,21 @@ ShellRoot {
   property string stubPidFile: Quickshell.env("OMARCHY_QML_TEST_STUB_PID")
   property var failures: []
   property var service: null
+  property var afterRuleCheck: null
+
+  function checkProtection(enabled, next) {
+    afterRuleCheck = next
+    ruleCheck.command = ["hyprctl", "eval", "assert(omarchy_test_password_rule:is_enabled() == " + (enabled ? "true" : "false") + ")"]
+    ruleCheck.running = true
+  }
+
+  Process {
+    id: ruleCheck
+    stdout: StdioCollector {
+      onStreamFinished: root.assertTrue(text.trim() === "ok", "1Password capture protection: " + text)
+    }
+    onExited: root.afterRuleCheck()
+  }
 
   function fail(message) {
     failures.push(String(message))
@@ -77,9 +93,11 @@ ShellRoot {
       // is up is what should flip the service, with no refresh() by hand.
       waitFor(function() { return service.active === true }, 4000, "a screencast event makes the service report the session while gliff-server runs", function() {
         root.assertTrue(JSON.stringify(service.peers) === JSON.stringify(["10.0.0.5"]), "service reports the ssh peer, got " + JSON.stringify(service.peers))
-        Quickshell.execDetached(["bash", "-c", "kill \"$(cat " + root.shellQuote(root.stubPidFile) + ")\""])
-        waitFor(function() { return service.active === false }, 5000, "service returns to idle once gliff-server exits", function() {
-          root.writeResult()
+        root.checkProtection(false, function() {
+          Quickshell.execDetached(["bash", "-c", "kill \"$(cat " + root.shellQuote(root.stubPidFile) + ")\""])
+          waitFor(function() { return service.active === false }, 5000, "service returns to idle once gliff-server exits", function() {
+            root.checkProtection(true, root.writeResult)
+          })
         })
       }, root.captureFrame)
     })
