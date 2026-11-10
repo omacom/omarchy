@@ -914,6 +914,9 @@
   "install.gaming.xbox-controllers": {
     "label": "Xbox Controllers"
   },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
   "install.gaming.battlenet": {
     "label": "Battle.net"
   },
@@ -1138,6 +1141,9 @@
   },
   "remove.gaming.xbox-controllers": {
     "label": "Xbox Controllers (󰂯)"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
   },
   "remove.gaming.battlenet": {
     "label": "Battle.net"
