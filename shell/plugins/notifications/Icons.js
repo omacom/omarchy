@@ -1,10 +1,10 @@
 // The names a card's icon may go by, best first. Toast.qml looks them up in
-// your overrides, the icon theme and the desktop entries, in the shell like
+// the icon theme and the desktop entries, in the shell like
 // the dock does; nothing here touches a file.
 .pragma library
 .import "Security.js" as Security
 
-// Override files are named this way: ~/.config/omarchy/notifications/icons/<slug>.png
+// A name as an icon file would spell it: "Google Chrome" -> google-chrome.
 function slug(text) {
   return String(text || "").slice(0, 256).toLowerCase()
     .replace(/[^a-z0-9._-]+/g, "-").replace(/^[-.]+|[-.]+$/g, "").slice(0, 100)
@@ -42,28 +42,9 @@ function candidates(row) {
   var themed = site.length ? site : [appIcon]
   for (var i = 0; i < own.length; i++) themed = themed.concat([own[i], slug(own[i])])
   return {
-    overrides: unique(site.concat(own, [String(row.groupKey || source || app)]).map(slug)),
     themed: unique(themed.map(function(name) { return /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,255}$/.test(name) ? name : "" })),
     entries: unique(site.length ? [appIcon, app] : own)
   }
-}
-
-// The override folder's files as slug -> file name, PNG preferred when a name
-// comes in more than one format.
-var OVERRIDE_EXTENSIONS = ["png", "svg", "jpg", "jpeg", "webp", "ico"]
-function overrideMap(fileNames) {
-  var out = {}, rank = {}
-  for (var i = 0; i < (fileNames || []).length; i++) {
-    var m = String(fileNames[i]).match(/^(.+)\.([A-Za-z]+)$/)
-    if (!m) continue
-    var at = OVERRIDE_EXTENSIONS.indexOf(m[2].toLowerCase()), name = slug(m[1])
-    if (at < 0 || !name) continue
-    if (rank[name] === undefined || at < rank[name]) {
-      rank[name] = at
-      out[name] = fileNames[i]
-    }
-  }
-  return out
 }
 
 // A one-colour icon to tint with the theme's text colour, known by the

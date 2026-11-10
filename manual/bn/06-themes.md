@@ -1,12 +1,12 @@
 # থিম
 
-Omarchy বাইশটি সুন্দর থিম নিয়ে আসে। Omarchy মেনুতে (`Super + Space`) _স্টাইল > থিম_ দিয়ে আপনি এগুলোর মধ্যে বেছে নিতে পারেন, অথবা `Super + Ctrl + Shift + Space` ব্যবহার করে সরাসরি থিম বাছাইকারে চলে যেতে পারেন।
+Omarchy-র সঙ্গে বাইশটি সুন্দর থিম আসে। আপনি Omarchy Menu-তে (`Super + Space`) _Appearance > Theme_ দিয়ে এগুলোর মধ্য থেকে বেছে নিতে পারেন, অথবা `Super + Ctrl + T` ব্যবহার করে সরাসরি থিম নির্বাচকে চলে যেতে পারেন।
 
-প্রতিটি থিম ডেস্কটপ, টার্মিনাল, neovim, অ্যাক্টিভিটি স্ক্রিন (btop), Chromium এবং পুরো Omarchy শেলকে স্টাইল করে: উপরের বার, মেনু, বিজ্ঞপ্তি, OSD এবং লক স্ক্রিন। (Obsidian-এর ক্ষেত্রে আপনাকে অ্যাপের ভিতরে _Appearance > Themes_ দিয়ে হাতে করে Omarchy থিম বেছে নিতে হবে)।
+প্রতিটি থিম ডেস্কটপ, টার্মিনাল, neovim, অ্যাক্টিভিটি স্ক্রিন (btop), Chromium এবং পুরো Omarchy শেলকে স্টাইল করে: টপ বার, মেনু, বিজ্ঞপ্তি, OSD এবং লক স্ক্রিন। (Obsidian-এর জন্য, অ্যাপের ভিতরে _Appearance > Themes_ দিয়ে আপনাকে ম্যানুয়ালি Omarchy থিমটি নির্বাচন করতে হবে)।
 
-থিমগুলোর একগুচ্ছ পটভূমি ছবি থাকে, যেগুলোর মধ্যে আপনি `Super + Ctrl + Space` ব্যবহার করে বেছে নিতে পারেন।
+থিমগুলোতে ব্যাকগ্রাউন্ড ছবির একটি সেট থাকে, যা থেকে আপনি `Super + Ctrl + W` ব্যবহার করে বেছে নিতে পারেন।
 
-আপনি [অতিরিক্ত থিমের পৃষ্ঠায়](https://omarchy.org/themes/) আরও বেশি থিম পেতে পারেন, এমনকি [নিজের থিমও বানাতে পারেন](43-making-your-own-theme.md)।
+আপনি [অতিরিক্ত থিমের পেজে](https://omarchy.org/themes/) আরও থিম খুঁজে পেতে পারেন, এমনকি [নিজের থিমও তৈরি করতে পারেন](43-making-your-own-theme.md)।
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### আনলক
 
-থিমগুলোর একটি কাস্টম আনলক ডিজাইনও থাকতে পারে, যা বুট ডিক্রিপশন প্রক্রিয়ায় ব্যবহৃত হয়। আপনি _স্টাইল > আনলক_-এর অধীনে এগুলোর একটি বেছে নিতে পারেন। এগুলো দেখতে এমন:
+থিমগুলোর একটি কাস্টম আনলক ডিজাইনও থাকতে পারে, যা বুট ডিক্রিপশন প্রক্রিয়ার জন্য ব্যবহৃত হয়। _Appearance > Unlock_-এর অধীনে আপনি এগুলোর একটি নির্বাচন করতে পারেন। সেগুলো দেখতে এমন:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

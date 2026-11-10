@@ -1,106 +1,138 @@
-# Eochracha Gasta
+# Meareochracha
 
-Is féidir leat na príomhcheangail méarchláir uile a fheiceáil le `Super + K` (ceangail Tmux le `Super + Alt + K` agus ceangail Herdr le `Super + Ctrl + K`).
+Is féidir leat na príomhcheangail mhéarchláir go léir a fheiceáil le `Super + K` (ceangail Tmux le `Super + Alt + K` agus ceangail Herdr le `Super + Ctrl + K`).
+
+## Conas a leagtar amach meareochracha
+
+Suíonn gach meareochair ar phlána, arna shocrú ag a modhnóirí, agus tá post amháin ag gach plána. Sin a choinníonn na meareochracha ó bheith ag meascadh le chéile, agus ciallaíonn sé gur féidir leat a thomhas de ghnáth cá gcónaíonn rud éigin.
+
+| Plána | Cad atá ann | Samplaí |
+| --- | --- | --- |
+| `Super + key` | An córas: fuinneoga, spásanna oibre, leaganacha amach, agus croí-roghchláir | `Super + Space` roghchlár Omarchy, `Super + W` dún an fhuinneog, `Super + F` scáileán iomlán |
+| `Super + Shift + key` | Aipeanna | `Super + Shift + B` brabhsálaí, `Super + Shift + E` ríomhphost, `Super + Shift + N` eagarthóir |
+| `Super + Ctrl + key` | Painéil agus roghchláir an chórais | `Super + Ctrl + A` fuaim, `Super + Ctrl + N` líonra, `Super + Ctrl + C` roghchlár gabhála |
+| `Super + Ctrl + Alt + key` | Gníomhartha tapa agus fógraí | `Super + Ctrl + Alt + T` taispeáin an t-am, `Super + Ctrl + Alt + B` ceallra, `Super + Ctrl + Alt + C` gabháil scáileáin |
+
+Má chuirtear `Alt` le meareochair tugtar leagan den rud céanna duit, ní rud éigin nach mbaineann leis riamh:
+
+- Osclaíonn `Super + Shift + B` an brabhsálaí; osclaíonn `Super + Shift + Alt + B` fuinneog phríobháideach
+- Osclaíonn `Super + Shift + E` ríomhphost; tosaíonn `Super + Shift + Alt + E` ceann nua
+- Téann `Super + F` go scáileán iomlán; téann `Super + Alt + F` go leithead iomlán
+- Osclaíonn `Super + Ctrl + C` roghchlár na gabhála; scipeálann `Super + Ctrl + Alt + C` an roghchlár agus tógann sé gabháil scáileáin
+
+Nuair a chuirtear meareochair leis:
+
+1. Roghnaigh an plána óna ndéanann sé, ansin roghnaigh an eochair.
+2. Ná bog meareochair atá ann cheana chun spás a dhéanamh. Aimsigh eochair shaor ar an plána ceart.
+3. Ná húsáid `Alt` ach amháin le haghaidh leagan den mheareochair gan é.
+
+Briseann cúpla meareochair na rialacha seo mar go bhfuil siad áisiúil. Bogann nó aisiompaíonn `Shift` le saighead nó `Tab` in ionad aip a oscailt, agus oibríonn `Print`, na heochracha meán, `Alt + Tab`, agus `Ctrl + Alt + Del` mar a oibríonn siad i ngach áit eile. Eisceachtaí iad, ní patrúin le cóipeáil.
+
+Mura n-oireann réamhshocrú duit (abair gur mian leat `Super + Shift + S` le haghaidh gabhálacha scáileáin mar atá ar Windows), athcheangail é in `~/.config/hypr/bindings.lua`.
 
 ## Nascleanúint
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Roghchlár Omarchy (aipeanna agus gach rud eile)    |
 | `Super + Alt + Space` | Greille aipeanna |
-| `Super + Escape` | Roghchlár córais (cuir ar fionraí, atosaigh, srl)  |
-| `Super + Ctrl + L` | Glasáil ríomhaire |
-| `Super + W` or `Super + Q` | Dún fuinneog             |
+| `Super + Escape` | Roghchlár an chórais (cur ar fionraí, atosú, srl.)  |
+| `Super + Ctrl + L` | Glasáil an ríomhaire |
+| `Super + W` nó `Super + Q` | Dún an fhuinneog             |
 | `Ctrl + Alt + Del` | Dún gach fuinneog |
-| `Super + T`               | Scoránaigh fuinneog idir tíliú/foluain             |
-| `Super + J` | Scoránaigh suíomh fuinneoige (cothrománach/ingearach) |
-| `Super + O`               | Scoránaigh fuinneog a phreabadh isteach i sticky'n'floating |
-| `Super + L`               | Timthriall trí leaganacha amach dwindle, scrollaithe, agus foluaineacha |
-| `Super + Alt + L`         | Timthriall trí na leaganacha amach ar gcúl |
-| `Super + P`               | Scoránaigh stíl fuinneoige pseudo (nádúrtha vs stráice) |
-| `Super + F`                 | Téigh lánscáileán              |
-| `Super + Alt + F`                 | Téigh lánleithead              |
-| `Super + Ctrl + F`                 | Téigh lánscáileán taobh istigh d'fhuinneog              |
-| `Super + 1/2/3/4`         | Léim go spás oibre ar leith     |
-| `Super + Tab` | Léim go dtí an chéad spás oibre eile |
-| `Super + Shift + Tab` | Léim go dtí an spás oibre roimhe |
-| `Super + Ctrl + Tab` | Léim go dtí spás oibre roimhe |
-| `Super + Shift + 1/2/3/4` | Bog fuinneog go spás oibre |
-| `Super + Shift + Alt + 1/2/3/4` | Bog fuinneog go spás oibre gan leanúint |
-| `Super + S` / `Super + Grave` | Scoránaigh scratchpad |
-| `Super + Alt + S` / `Super + Shift + Grave` | Bog fuinneog go scratchpad |
-| `Super + Shift + Alt + Arrows` | Bog spásanna oibre go monatóir treo |
-| `Super + Arrow`  | Bog fócas go fuinneog i dtreo na saighead              |
-| `Super + Shift + Arrow`  | Malartaigh fuinneog le ceann eile i dtreo na saighead     |
-| `Super + Minus` | Leathnaigh fuinneog ar chlé |
-| `Super + Equal` | Craol fuinneog ar chlé |
-| `Super + Shift + Minus` | Craol fuinneog suas |
-| `Super + Shift + Equal` | Leathnaigh fuinneog síos |
-| `Super + Alt + Minus/Equal` | An t-athrú méid céanna i gcéimeanna níos lú |
-| `Super + Ctrl + Minus/Equal` | An t-athrú méid céanna i gcéimeanna níos mó |
-| `Super + Alt + Home` | Sábháil leithead fuinneoige |
-| `Super + Home` | Athchóirigh leithead fuinneoige sábháilte |
-| `Super + Left Mouse` | Tarraing fuinneog timpeall |
-| `Super + Right Mouse` | Athraigh méid fuinneoige |
-| `Super + Scroll Wheel` | Scrollaigh trí spásanna oibre |
-| `Super + G`               | Scoránaigh grúpáil fuinneoige      |
-| `Super + Alt + G`               | Bog fuinneog amach as grúpáil      |
-| `Super + Alt + Tab`               | Timthriall idir fhuinneoga i ngrúpáil      |
-| `Super + Alt + Shift + Tab`               | Timthriall ar gcúl idir fhuinneoga i ngrúpáil      |
-| `Super + Alt + 1/2/3/4/5`               | Léim go fuinneog ar leith i ngrúpáil      |
-| `Super + Alt + Arrow`  | Bog fuinneog isteach i ngrúpáil i dtreo na saighead  |
-| `Super + Ctrl + Left/Right`  | Bog idir fhuinneoga taobh istigh de ghrúpa tílithe |
-| `Super + Ctrl + Z` | Zúmáil isteach ar an scáileán (arís do níos mó zúmála) |
-| `Super + Ctrl + Alt + Z` | Zúmáil go hiomlán amach as an scáileán |
-| `Super + /` | Céim ar aghaidh trí roghanna scálaithe monatóra |
-| `Super + Alt + /` | Céim ar gcúl trí roghanna scálaithe monatóra |
-| `Alt + Tab` | Timthriall ar aghaidh trí fhuinneoga ar an spás oibre gníomhach |
-| `Alt + Shift + Tab` | Timthriall ar gcúl trí fhuinneoga ar an spás oibre gníomhach |
-| `Ctrl + Alt + Tab`| Timthriall fócas ar aghaidh trí mhonatóirí |
-| `Ctrl + Alt + Shift + Tab`| Timthriall fócas ar gcúl trí mhonatóirí |
+| `Super + T`               | Scoránaigh an fhuinneog idir tílíocht/snámhach             |
+| `Super + J` | Scoránaigh suíomh na fuinneoige (cothrománach/ingearach) |
+| `Super + O`               | Scoránaigh an fhuinneog a phreabadh isteach i mód greamaitheach agus snámhach |
+| `Super + L`               | Rothlaigh trí na leaganacha amach dwindle, scrollaithe, agus snámhacha |
+| `Super + Alt + L`         | Rothlaigh trí na leaganacha amach ar gcúl |
+| `Super + P`               | Scoránaigh stíl bhréagfhuinneoige (nádúrtha v síneadh) |
+| `Super + F`                 | Téigh go scáileán iomlán              |
+| `Super + Alt + F`                 | Téigh go leithead iomlán              |
+| `Super + Ctrl + F`                 | Téigh go scáileán iomlán taobh istigh den fhuinneog              |
+| `Super + 1/2/3/4`         | Léim go spás oibre sonrach ar an monatóir fócasaithe |
+| `Super + Tab` | Léim go dtí an chéad spás oibre eile ar an monatóir fócasaithe |
+| `Super + Shift + Tab` | Léim go dtí an spás oibre roimhe ar an monatóir fócasaithe |
+| `Super + Ctrl + Tab` | Léim go dtí an spás oibre a bhí ann roimhe ar an monatóir fócasaithe |
+| `Super + Shift + 1/2/3/4` | Bog an fhuinneog go spás oibre ar an monatóir fócasaithe |
+| `Super + Shift + Alt + 1/2/3/4` | Bog an fhuinneog go spás oibre ar an monatóir fócasaithe gan í a leanúint |
+| `Super + S` | Scoránaigh an scratchpad iomlán |
+| `Super + Alt + S` | Bog an fhuinneog go dtí an scratchpad iomlán |
+| `Super + Grave` | Scoránaigh consól Quake |
+| `Super + Shift + Grave` | Bog an fhuinneog go consól Quake |
+| `Super + Shift + Ctrl + Arrows` | Bog an fhuinneog go dtí an monatóir sa treo sin |
+| `Super + Shift + Alt + Arrows` | Bog an spás oibre go dtí an monatóir sa treo sin |
+| `Super + Arrow`  | Bog an fócas go fuinneog i dtreo na saighde, ag trasnú go dtí an monatóir ar an taobh sin ag imeall an scáileáin |
+| `Super + Shift + Arrow`  | Malartaigh fuinneog le ceann eile i dtreo na saighde, lena n-áirítear ceann ar an monatóir ar an taobh sin |
+| `Super + Minus` | Leathnaigh an fhuinneog ar chlé |
+| `Super + Equal` | Laghdaigh an fhuinneog ar chlé |
+| `Super + Shift + Minus` | Laghdaigh an fhuinneog suas |
+| `Super + Shift + Equal` | Leathnaigh an fhuinneog síos |
+| `Super + Alt + Minus/Equal` | An t-athrú méide céanna i gcéimeanna níos lú |
+| `Super + Ctrl + Minus/Equal` | An t-athrú méide céanna i gcéimeanna níos mó |
+| `Super + Alt + Home` | Sábháil leithead na fuinneoige |
+| `Super + Home` | Athchóirigh leithead sábháilte na fuinneoige |
+| `Super + Left Mouse` | Tarraing an fhuinneog thart |
+| `Super + Right Mouse` | Athraigh méid na fuinneoige |
+| `Super + Scroll Wheel` | Scrollaigh trí spásanna oibre ar an monatóir fócasaithe |
+| `Super + G`               | Scoránaigh grúpáil fuinneog      |
+| `Super + Alt + G`               | Bog an fhuinneog amach as an ngrúpáil      |
+| `Super + Alt + Tab`               | Rothlaigh idir fuinneoga sa ghrúpáil      |
+| `Super + Alt + Shift + Tab`               | Rothlaigh ar gcúl idir fuinneoga sa ghrúpáil      |
+| `Super + Alt + Scroll Wheel` | Rothlaigh idir fuinneoga sa ghrúpáil |
+| `Super + Alt + 1/2/3/4/5`               | Léim go fuinneog shonrach sa ghrúpáil      |
+| `Super + Alt + Arrow`  | Bog an fhuinneog isteach sa ghrúpáil i dtreo na saighde, lena n-áirítear ceann ar an monatóir ar an taobh sin |
+| `Super + Ctrl + Left/Right`  | Bog idir fuinneoga taobh istigh de ghrúpa tílíochta |
+| `Super + Ctrl + Z` | Súmáil isteach ar an scáileán (athdhéan le haghaidh tuilleadh súmála) |
+| `Super + Ctrl + Alt + Z` | Súmáil amach go hiomlán ón scáileán |
+| `Super + /` | Céim ar aghaidh trí roghanna scálaithe an mhonatóra |
+| `Super + Alt + /` | Céim ar gcúl trí roghanna scálaithe an mhonatóra |
+| `Alt + Tab` | Rothlaigh ar aghaidh trí fhuinneoga ar an spás oibre gníomhach |
+| `Alt + Shift + Tab` | Rothlaigh ar gcúl trí fhuinneoga ar an spás oibre gníomhach |
+| `Ctrl + Alt + Tab`| Rothlaigh an fócas ar aghaidh trí mhonatóirí |
+| `Ctrl + Alt + Shift + Tab`| Rothlaigh an fócas ar gcúl trí mhonatóirí |
 
-## Rialuithe córais
+Úsáideann aicearraí athraithe méide na heochracha fisiciúla `code:20` agus `code:21` (XKB `<AE11>` agus `<AE12>`), beag beann ar na carachtair atá priontáilte ar an méarchlár. Ar mhéarchláir US is `-` agus `=` iad na heochracha seo; ar mhéarchláir Seapánacha (JIS) is `-` agus `^` iad; ar mhéarchláir Spáinneacha is `'` agus `¡` iad. Ar JIS, is `Super + Equal` é `Super + ^`, agus is `Super + Shift + Minus` é `Super + Shift + -` (a chlóscríobhann `=`).
 
-| Eochair ghasta                  | Feidhm              |
+## Rialuithe an chórais
+
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Painéal fuaime    |
 | `Super + Ctrl + B`           | Painéal Bluetooth    |
-| `Super + Ctrl + W`           | Painéal wifi/líonra    |
+| `Super + Ctrl + N`           | Painéal Wi-Fi/líonra    |
 | `Super + Ctrl + D`           | Painéal taispeána    |
 | `Super + Ctrl + P`           | Painéal cumhachta    |
 | `Super + Ctrl + Alt + D`           | Painéal féilire    |
 | `Super + Ctrl + Alt + E`           | Painéal cloig dhomhanda    |
-| `Super + Ctrl + 1-9`           | Scoránaigh painéal barra de réir suímh    |
-| `Super + Ctrl + S` | Roghchlár roinnte (trí LocalSend) |
-| `Super + Ctrl + T`           | Gníomhaíocht (btop)    |
-| `Super + Ctrl + C` | Rialuithe gabhála (seat scáileáin/-taifeadadh/roghnóir) |
-| `Super + Ctrl + O` | Roghchlár scorán |
+| `Super + Ctrl + 1-9`           | Scoránaigh painéal an bharra de réir suímh    |
+| `Super + Ctrl + S` | Roghchlár comhroinnte (trí LocalSend) |
+| `Super + Ctrl + C` | Rialuithe gabhála (gabháil scáileáin/taifeadadh/roghnóir) |
+| `Super + Ctrl + O` | Scoránaigh an roghchlár |
 | `Super + Ctrl + H` | Roghchlár crua-earraí |
-| `Super + Ctrl + Q` | Áireamhán |
 | `Super + Ctrl + E` | Roghnóir emoji |
 | `Super + Ctrl + .` | Traschódáil meán |
 | `Super + Shift + Ctrl + A` | Roghnaigh gníomhaire AI |
 
 ## Coigeartuithe
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
-| `Shift + Brightness Up` | Gile scáileáin uasta |
-| `Shift + Brightness Down` | Gile scáileáin íosta |
-| `Alt + Brightness Up/Down` | Athruithe gile beacht 1% |
-| `Alt + Volume Up/Down` | Athruithe toirte beacht 1% |
-| `Keyboard Brightness Up/Down` | Cúlsoilsiú méarchláir níos gile/níos doiléire |
-| `Keyboard Backlight` | Timthriall leibhéil chúlsoilsiú an mhéarchláir |
+| `Shift + Brightness Up` | Gile uasta an scáileáin |
+| `Shift + Brightness Down` | Gile íosta an scáileáin |
+| `Alt + Brightness Up/Down` | Athruithe beachta gile 1% |
+| `Alt + Volume Up/Down` | Athruithe beachta toirte 1% |
+| `Keyboard Brightness Up/Down` | Solas cúlra an mhéarchláir níos gile/níos doiléire |
+| `Keyboard Backlight` | Rothlaigh trí leibhéil sholas cúlra an mhéarchláir |
 | `Alt + Play` | An chéad traic eile |
-| `Alt + Shift + Play` | An traic roimhe |
+| `Alt + Shift + Play` | Traic roimhe |
 
 ## Aipeanna a sheoladh
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Teirminéal    |
 | `Super + Alt + Return` | Teirminéal Tmux |
-| `Super + Ctrl + Return` | Herdr (bainisteoir gníomhaire) |
+| `Super + Ctrl + Return` | Herdr (bainisteoir gníomhairí) |
 | `Super + Shift + Return`           | Brabhsálaí    |
 | `Super + Shift + Alt + B`           | Brabhsálaí (príobháideach/incognito)    |
 | `Super + Shift + F`           | Bainisteoir comhad    |
@@ -108,6 +140,8 @@ Is féidir leat na príomhcheangail méarchláir uile a fheiceáil le `Super + K
 | `Super + Shift + M`           | Ceol (Spotify)    |
 | `Super + Shift + Alt + M`           | Ceol (cliamp)    |
 | `Super + Shift + /`           | Bainisteoir pasfhocal (1password)    |
+| `Super + Shift + Q`           | Áireamhán (Omacalc)    |
+| `Super + Shift + T`           | Gníomhaíocht (btop)    |
 | `Super + Shift + N`           | Eagarthóir (Neovim)  |
 | `Super + Shift + C`           | Féilire ([HEY](https://hey.com/))  |
 | `Super + Shift + E`           | Ríomhphost ([HEY](https://hey.com/))  |
@@ -125,251 +159,253 @@ Is féidir leat na príomhcheangail méarchláir uile a fheiceáil le `Super + K
 | `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
 
-Athraigh/cuir ceangail leis i `~/.config/hypr/bindings.lua`.
+Athraigh/cuir ceangail in `~/.config/hypr/bindings.lua`.
 
 ## Gearrthaisce uilíoch
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
+| `Super + A`           | Roghnaigh gach rud in aipeanna a thacaíonn le `Ctrl + A`    |
 | `Super + C`           | Cóipeáil    |
-| `Super + X`           | Gearr (ní sa teirminéal)    |
+| `Super + X`           | Gearr (ní sa teirminéal é)    |
 | `Super + V`           | Greamaigh    |
 | `Super + Ctrl + V`           | Bainisteoir gearrthaisce    |
 
-De ghnáth ar Linux, teastaíonn `Ctrl + Shift + C/V` uait chun cóipeáil is greamú a dhéanamh sa teirminéal agus `Ctrl + C/V` chun é a dhéanamh i ngach áit eile. Oibríonn na heochracha gasta gearrthaisce aontaithe Omarchy seo i ngach áit.
+De ghnáth ar Linux, teastaíonn `Ctrl + Shift + C/V` uait chun cóipeáil agus greamú a dhéanamh sa teirminéal agus `Ctrl + C/V` chun é a dhéanamh i ngach áit eile. Oibríonn na meareochracha aontaithe gearrthaisce Omarchy seo i ngach áit.
 
-## Gabh
+## Gabháil
 
-| Eochair ghasta              | Feidhm                       |
+| Meareochair              | Feidhm                       |
 | ------------------- | ------------------------------ |
-| `Super + Ctrl + C` | Roghchlár gabhála (do mhéarchláir gan cnaipe PrintScr) |
-| `Print Screen`            | Seat scáileáin                      |
-| `Alt + Print Screen`            | Taifead scáileáin                     |
-| `Super + Print Screen` | Roghnóir datha |
-| `Super + Ctrl + Print Screen` | Asbhaint téacs chuig an ngearrthaisce |
-| `Super + Alt + [` | Déan forleagan ceamara gréasáin níos lú fad is atá tú ag taifeadadh |
-| `Super + Alt + ]` | Déan forleagan ceamara gréasáin níos mó fad is atá tú ag taifeadadh |
-| `Alt + Shift + L` | Cóipeáil URL reatha ó webapp nó Chromium |
+| `Print Screen`            | Gabháil scáileáin                      |
+| `Super + Ctrl + Alt + C`            | Gabháil scáileáin (an seat céanna, do mhéarchláir gan eochair Print Screen) |
+| `Super + Ctrl + C` | Roghchlár gabhála |
+| `Alt + Print Screen`            | Taifeadadh scáileáin                     |
+| `Super + Print Screen` | Roghnóir dathanna |
+| `Super + Ctrl + Print Screen` | Eastóscadh téacs chuig an ngearrthaisce |
+| `Super + Alt + [` | Déan forleagan an cheamara gréasáin níos lú agus tú ag taifeadadh |
+| `Super + Alt + ]` | Déan forleagan an cheamara gréasáin níos mó agus tú ag taifeadadh |
+| `Alt + Shift + L` | Cóipeáil an URL reatha ó webapp nó ó Chromium |
 | `Alt + Shift + D` | Íoslódáil an físeán ar an leathanach reatha go `~/Videos` |
-| `Super + Ctrl + X` | Tosaigh/stad deachtú (teastaíonn _Socrú > Réamhshocruithe > Deachtú_) |
-| `Right Alt` / `F9` | Deachtú brú-le-labhairt (teastaíonn Voxtype nó Superwhisper) |
+| `Alt + Space` | Tosaigh/stop deachtú (teastaíonn _Setup > Defaults > Dictation_) |
+| `Right Alt` | Coinnigh síos chun deachtú a dhéanamh (teastaíonn _Setup > Defaults > Dictation_) |
 
-Le taifeadtaí scáileáin, fiafraíonn an eochair ghasta ar dtús cén fhuaim atá uait, ansin tosaíonn sí ag taifeadadh. Buail arís í chun stopadh. Féach [seatanna scáileáin agus taifeadadh](12-screenshots-recording.md) do na sonraí.
+Le taifeadtaí scáileáin, fiafraíonn an mheareochair ar dtús cén fhuaim atá uait, ansin tosaíonn sí ag taifeadadh. Brúigh arís í chun stopadh. Féach [gabhálacha scáileáin agus taifeadadh](12-screenshots-recording.md) le haghaidh na sonraí.
 
-Tá gach rogha gabhála ar fáil freisin faoi _Spreag > Gabh_ i roghchlár Omarchy (`Super + Space`).
+Tá gach rogha gabhála ar fáil freisin faoi _Trigger > Capture_ sa roghchlár Omarchy (`Super + Space`).
 
 ## Fógraí
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Díbhe an fógra is déanaí  |
-| `Super + Shift + ,` | Díbhe gach fógra |
-| `Super + Ctrl + ,` | Scoránaigh fógraí a chiúnú  |
-| `Super + Alt + ,` | Glaoigh ar an bhfógra is déanaí  |
-| `Super + Shift + Alt + ,` | Oscail stair fógraí  |
+| `Super + ,` | Gníomhaigh ar an bhfógra is déanaí: oscail é nó brúigh an t-aon chnaipe atá aige, roghnaigh óna roghanna, nó cuir ar ceal é nuair nach bhfuil aon cheann aige  |
+| `Super + Shift + ,` | Cuir gach fógra ar ceal |
+| `Super + Ctrl + ,` | Rialaigh fógraí leis an méarchlár  |
+| `Super + Alt + ,` | Cuir an fógra is déanaí ar ceal  |
+| `Super + Shift + Alt + ,` | Oscail stair na bhfógraí  |
+| `Super + Ctrl + Alt + ,` | Scoránaigh ciúnú fógraí  |
 
 ## Stíl
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Shift + Space` | Roghnaigh téama nua  |
-| `Super + Ctrl + Space` | Roghnaigh cúlra téama |
+| `Super + Ctrl + T` | Roghnaigh téama nua (freisin `Super + Ctrl + Shift + Space`) |
+| `Super + Ctrl + W` | Roghnaigh cúlra an téama (freisin `Super + Ctrl + Space`) |
 | `Super + Backspace` | Scoránaigh trédhearcacht ar fhuinneog |
-| `Super + Ctrl + Backspace` | Scoránaigh gné chearnógach aon-fhuinneoige |
+| `Super + Ctrl + Backspace` | Scoránaigh gné chearnógach aonfhuinneoige |
 
-Tá íomhánna cúlra breise i `~/.config/omarchy/backgrounds/<theme name>`. Ar fáil freisin trí _Suiteáil > Stíl > Cúlra_ i roghchlár Omarchy.
+Cónaíonn íomhánna cúlra breise in `~/.config/omarchy/backgrounds/<theme name>`. Ar fáil freisin trí _Install > Style > Background_ sa roghchlár Omarchy.
 
-Tá gach rogha stíle ar fáil freisin faoi _Stíl_ i roghchlár Omarchy (`Super + Space`).
+Tá gach rogha stíle ar fáil freisin faoi _Style_ sa roghchlár Omarchy (`Super + Space`).
 
 ## Scoráin
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Scoránaigh glasáil ar dhíomhaoin |
-| `Super + Ctrl + N` | Scoránaigh teocht taispeána solais oíche |
-| `Super + Ctrl + Delete` | Scoránaigh taispeáint ríomhaire glúine air/as |
-| `Super + Ctrl + Alt + Delete` | Scoránaigh scáthánú taispeána ríomhaire glúine |
-| `Super + Shift + Space` | Scoránaigh an barra barr  |
+| `Super + Ctrl + I` | Scoránaigh glasáil nuair atá díomhaoin |
+| `Super + Ctrl + Delete` | Scoránaigh taispeáint an ríomhaire glúine ar siúl/as |
+| `Super + Ctrl + Alt + Delete` | Scoránaigh scáthánú thaispeáint an ríomhaire glúine |
+| `Super + Shift + Space` | Scoránaigh an barra uachtair  |
 | `Shift + Mute` | Athraigh go dtí an chéad aschur fuaime eile |
 | `Shift + Play` | Athraigh go dtí an chéad fhoinse meán eile |
-| `Super + Shift + Backspace` | Scoránaigh bearnaí fuinneoige |
-| `Super + Ctrl + Alt + F` | Scoránaigh deasc lánscáileáin (barra barr + bearnaí fuinneoige) |
+| `Super + Shift + Backspace` | Scoránaigh bearnaí fuinneog |
+| `Super + Ctrl + Alt + F` | Scoránaigh deasc scáileáin iomláin (barra uachtair + bearnaí fuinneog) |
 
 ## Meabhrúcháin
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Socraigh meabhrúchán  |
 | `Super + Ctrl + Alt + R` | Féach gach meabhrúchán  |
 | `Super + Ctrl + Shift + R` | Glan gach meabhrúchán  |
 
-## Fógraí Faisnéise
+## Nótaí
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + Alt + T` | Taispeáin am mar fhógra  |
-| `Super + Ctrl + Alt + B` | Taispeáin ceallra mar fhógra  |
-| `Super + Ctrl + Alt + W` | Scoránaigh aimsir mar fhógra  |
+| `Super + Ctrl + Alt + T` | Taispeáin an t-am mar fhógra  |
+| `Super + Ctrl + Alt + B` | Taispeáin an ceallra mar fhógra  |
+| `Super + Ctrl + Alt + W` | Scoránaigh an aimsir mar fhógra  |
 
 ## Tmux
 
-Is í an eochair réimíre ná `Ctrl + Space` (`Ctrl + B` a oibríonn freisin). Is féidir leat na ceangail seo a athrú i `~/.config/tmux/tmux.conf`.
+Is í an eochair réimíre ná `Ctrl + Space` (oibríonn `Ctrl + B` freisin). Is féidir leat na ceangail seo a athrú in `~/.config/tmux/tmux.conf`.
 
-### Pánaí
+### Pannaí
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
-| `Prefix + v` | Scoilt pána in aice leis (ingearach) |
-| `Prefix + h` | Scoilt pána thíos (cothrománach) |
-| `Prefix + x` | Maraigh pána |
-| `Prefix + z` | Scoránaigh zúmáil pána (lánscáileán) |
-| `Alt + Enter` | Scoilt pána thíos (gan réimír) |
-| `Alt + Shift + Enter` | Scoilt pána in aice leis (gan réimír) |
-| `Alt + Escape` | Maraigh pána (gan réimír) |
-| `Ctrl + Alt + Arrows` | Bog idir phánaí |
-| `Ctrl + Alt + Shift + Arrows` | Athraigh méid pánaí |
+| `Prefix + v` | Scoilt panna in aice leis (ingearach) |
+| `Prefix + h` | Scoilt panna thíos (cothrománach) |
+| `Prefix + x` | Marbh panna |
+| `Prefix + z` | Scoránaigh súmáil panna (scáileán iomlán) |
+| `Alt + Enter` | Scoilt panna thíos (gan réimír) |
+| `Alt + Shift + Enter` | Scoilt panna in aice leis (gan réimír) |
+| `Alt + Escape` | Marbh panna (gan réimír) |
+| `Ctrl + Alt + Arrows` | Bog idir pannaí |
+| `Ctrl + Alt + Shift + Arrows` | Athraigh méid na bpannaí |
 
 ### Fuinneoga
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Fuinneog nua |
-| `Prefix + k` | Maraigh fuinneog |
+| `Prefix + k` | Marbh fuinneog |
 | `Prefix + r` | Athainmnigh fuinneog |
-| `Alt + 1-9` | Téigh go fuinneog ar leith |
-| `Alt + Arrow Left/Right` | Bog idir fhuinneoga |
-| `Alt + Shift + Arrow Left/Right` | Bog fuinneog ar chlé/ar dheis |
+| `Alt + 1-9` | Téigh go fuinneog shonrach |
+| `Alt + Arrow Left/Right` | Bog idir fuinneoga |
+| `Alt + Shift + Arrow Left/Right` | Bog an fhuinneog ar chlé/ar dheis |
 
 ### Seisiúin
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Seisiún nua |
-| `Prefix + K` | Maraigh seisiún |
+| `Prefix + K` | Marbh seisiún |
 | `Prefix + R` | Athainmnigh seisiún |
 | `Prefix + N` | An chéad seisiún eile |
-| `Prefix + P` | An seisiún roimhe |
-| `Alt + Arrow Up/Down` | Bog idir sheisiúin |
+| `Prefix + P` | Seisiún roimhe |
+| `Alt + Arrow Up/Down` | Bog idir seisiúin |
 | `Prefix + s` | Liostaigh seisiúin |
-| `Prefix + d` | Scar ó sheisiún |
+| `Prefix + d` | Scar ón seisiún |
 
-### Mód cóipeála (ar stíl vi)
+### Mód cóipeála (stíl vi)
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
-| `Prefix + [` | Iontráil mód cóipeála |
-| `v` | Tosaigh roghnú (i mód cóipeála) |
-| `y` | Cóipeáil roghnú (i mód cóipeála) |
+| `Prefix + [` | Téigh isteach sa mhód cóipeála |
+| `v` | Tosaigh roghnú (sa mhód cóipeála) |
+| `y` | Cóipeáil an roghnú (sa mhód cóipeála) |
 
 ### Ginearálta
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
-| `Prefix + q` | Athlódáil cumraíocht |
+| `Prefix + q` | Athlódáil an chumraíocht |
 | `Prefix + ?` | Taispeáin ceangail eochracha Tmux |
-| `Prefix + :` | Pras ordaithe |
+| `Prefix + :` | Leid ordaithe |
 
 ### Feidhmeanna leagan amach Tmux
 
-Caithfear na feidhmeanna seo a rith taobh istigh de sheisiún Tmux.
+Ní mór na feidhmeanna seo a rith taobh istigh de sheisiún Tmux.
 
 | Ordú | Feidhm |
 | ------- | -------- |
-| `tdl <ai> [<second_ai>]` | Cruthaigh leagan amach forbróra le heagarthóir, AI, agus teirminéal |
-| `tdlm <ai> [<second_ai>]` | Cruthaigh leagan amach forbróra in aghaidh an fhocheannlainn |
-| `tsl <count> <command>` | Cruthaigh leagan amach saith ilphána |
+| `tdl <ai> [<second_ai>]` | Cruthaigh leagan amach forbartha le heagarthóir, AI, agus teirminéal |
+| `tdlm <ai> [<second_ai>]` | Cruthaigh leagan amach forbartha de réir fochomhadlainne |
+| `tsl <count> <command>` | Cruthaigh leagan amach saithe ilphanna |
 
 ## Teirminéal Ghostty
 
-Suiteáiltear teirminéal Ghostty le _Suiteáil > Teirminéal_ trí roghchlár Omarchy.
+Suiteáiltear teirminéal Ghostty le _Install > Terminal_ tríd an roghchlár Omarchy.
 
-| Eochair ghasta                  | Feidhm              |
+| Meareochair                  | Feidhm              |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | Scoilt nua thíos |
 | `Ctrl + Shift + O` | Scoilt nua in aice leis |
 | `Ctrl + Alt + Arrows` | Bog idir scoilteanna |
-| `Super + Ctrl + Shift + Arrows` | Athraigh méid scoilte faoi 10 líne |
-| `Super + Ctrl + Shift + Alt + Arrows` | Athraigh méid scoilte faoi 100 líne |
+| `Super + Ctrl + Shift + Arrows` | Athraigh méid na scoilte faoi 10 líne |
+| `Super + Ctrl + Shift + Alt + Arrows` | Athraigh méid na scoilte faoi 100 líne |
 | `Ctrl + Shift + T` | Cluaisín nua  |
-| `Ctrl + Shift + Arrows` | Bog idir chluaisíní |
-| `Alt + Numbers` | Téigh go cluaisín ar leith |
+| `Ctrl + Shift + Arrows` | Bog idir cluaisíní |
+| `Alt + Numbers` | Téigh go cluaisín sonrach |
 | `Shift + Pg Up/Down` | Scrollaigh an stair |
 | `Ctrl + Left mouse` | Oscail nasc sa bhrabhsálaí |
 
 ## Bainisteoir Comhad
 
-| Eochair ghasta              | Feidhm                       |
+| Meareochair              | Feidhm                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Téigh go conair                     |
-| `Space`               | Réamhamharc comhad (nascleanann saigheada) |
-| `Backspace`      | Téigh ar ais fillteán amháin             |
+| `Space`               | Réamhamharc ar chomhad (déanann na saigheada nascleanúint) |
+| `Alt + Up`       | Téigh suas go dtí an fillteán tuismitheora        |
 
 ## Neovim (le lazyvim)
 
 ### Nascleanúint
 
-| Eochair ghasta                   | Feidhm                        |
+| Meareochair                   | Feidhm                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | Taispeáin roghanna ordaithe            |
 | `Space Space`              | Oscail comhad trí chuardach doiléir      |
-| `Space E`                  | Scoránaigh barra taoibh                  |
+| `Space E`                  | Scoránaigh an barra taoibh                  |
 | `Space G G`                | Taispeáin rialuithe git               |
 | `Space S G`                | Cuardaigh ábhar comhaid             |
-| `Ctrl + W W`               | Léim idir bharra taoibh agus eagarthóir |
+| `Ctrl + W W`               | Léim idir an barra taoibh agus an t-eagarthóir |
 | `Ctrl + Left/right arrow`  | Athraigh méid an bharra taoibh          |
-| `Shift + H`                      | Téigh go cluaisín comhaid ar chlé             |
-| `Shift + L`                      | Téigh go cluaisín comhaid ar dheis            |
-| `Space B D`                | Dún cluaisín comhaid                  |
+| `Shift + H`                      | Téigh go dtí an cluaisín comhaid ar chlé             |
+| `Shift + L`                      | Téigh go dtí an cluaisín comhaid ar dheis            |
+| `Space B D`                | Dún an cluaisín comhaid                  |
 
-### Fad is atá tú sa bharra taoibh
+### Agus tú sa bharra taoibh
 
-| Eochair ghasta                   | Feidhm                        |
+| Meareochair                   | Feidhm                        |
 | ------------------------ | ------------------------------- |
-| `A`                        | Cuir comhad nua leis san eolaire tuismitheora      |
-| `Shift + A`                | Cuir fo-eolaire nua leis san eolaire tuismitheora    |
-| `D`                        | Scrios comhad/eolaire aibhsithe     |
-| `M`                        | Bog comhad/eolaire aibhsithe       |
-| `R`                        | Athainmnigh comhad/eolaire aibhsithe     |
+| `A`                        | Cuir comhad nua sa chomhadlann tuismitheora      |
+| `Shift + A`                | Cuir fochomhadlann nua sa chomhadlann tuismitheora    |
+| `D`                        | Scrios an comhad/comhadlann aibhsithe     |
+| `M`                        | Bog an comhad/comhadlann aibhsithe       |
+| `R`                        | Athainmnigh an comhad/comhadlann aibhsithe     |
 | `?`                        | Taispeáin cabhair do gach ordú      |
 
-[Féach na heochracha gasta Neovim uile arna gcumrú ag LazyVim](https://www.lazyvim.org/keymaps).
+[Féach na meareochracha Neovim go léir arna gcumrú ag LazyVim](https://www.lazyvim.org/keymaps).
 
-## Emoji Tapa
+## Emojis Tapa
 
 Is féidir leat `Super + Ctrl + E` a úsáid chun roghnóir emoji iomlán a thaispeáint a chuirfidh an roghnú ar an ngearrthaisce nó is féidir leat na roghanna rochtana tapa seo a úsáid.
 
-| Eochair ghasta       | EM | Leid       |
+| Meareochair       | EM | Leid       |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | smile      |
-| `Shift + CapsLock M C` | 😂 | cry        |
-| `Shift + CapsLock M L` | 😍 | love       |
-| `Shift + CapsLock M V` | ✌️ | victory    |
-| `Shift + CapsLock M H` | ❤️ | heart      |
-| `Shift + CapsLock M Y` | 👍 | yes        |
-| `Shift + CapsLock M N` | 👎 | no         |
+| `Shift + CapsLock M S` | 😄 | gáire      |
+| `Shift + CapsLock M C` | 😂 | gol        |
+| `Shift + CapsLock M L` | 😍 | grá       |
+| `Shift + CapsLock M V` | ✌️ | bua    |
+| `Shift + CapsLock M H` | ❤️ | croí      |
+| `Shift + CapsLock M Y` | 👍 | sea        |
+| `Shift + CapsLock M N` | 👎 | níl         |
 | `Shift + CapsLock M F` | 🖕 | fuck       |
-| `Shift + CapsLock M W` | 🤞 | wish       |
-| `Shift + CapsLock M R` | 🤘 | rock       |
-| `Shift + CapsLock M K` | 😘 | kiss       |
-| `Shift + CapsLock M E` | 🙄 | eyeroll    |
-| `Shift + CapsLock M I` | 😉 | wink       |
-| `Shift + CapsLock M P` | 🙏 | pray |
-| `Shift + CapsLock M D` | 🤤 | drool      |
-| `Shift + CapsLock M M` | 💰 | money      |
-| `Shift + CapsLock M X` | 🎉 | xellebrate |
+| `Shift + CapsLock M W` | 🤞 | mian       |
+| `Shift + CapsLock M R` | 🤘 | rac       |
+| `Shift + CapsLock M K` | 😘 | póg       |
+| `Shift + CapsLock M E` | 🙄 | rolladh súl    |
+| `Shift + CapsLock M I` | 😉 | caochadh       |
+| `Shift + CapsLock M P` | 🙏 | guí |
+| `Shift + CapsLock M D` | 🤤 | ag sileadh seile      |
+| `Shift + CapsLock M M` | 💰 | airgead      |
+| `Shift + CapsLock M X` | 🎉 | ceiliúradh |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
-| `Shift + CapsLock M T` | 🥂 | toast      |
+| `Shift + CapsLock M T` | 🥂 | tósta      |
 | `Shift + CapsLock M O` |👌 | ok |
-| `Shift + CapsLock M G` |👋 | greeting |
-| `Shift + CapsLock M A` |💪 | arm |
-| `Shift + CapsLock M B` |🤯 | blowing |
+| `Shift + CapsLock M G` |👋 | beannacht |
+| `Shift + CapsLock M A` |💪 | géag |
+| `Shift + CapsLock M B` |🤯 | ag séideadh |
 
-## Comhlánuithe Tapa
+## Comhlánaithe Tapa
 
-| Eochair ghasta       | Comhlánú       |
+| Meareochair       | Comhlánú       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (mdash)   |
-| `Shift + CapsLock Space N` | D'ainm (mar a iontráladh ag an socrú)  |
-| `Shift + CapsLock Space E` | Do ríomhphost (mar a iontráladh ag an socrú)  |
+| `Shift + CapsLock Space N` | D'ainm (mar a cuireadh isteach é ag an socrú)  |
+| `Shift + CapsLock Space E` | Do ríomhphost (mar a cuireadh isteach é ag an socrú)  |
 
-Is féidir leat níos mó de do chuid féin a chur leis trí `~/.XCompose` a chur in eagar, ansin `omarchy-restart-xcompose` a rith sa teirminéal chun na hathruithe a thógáil suas.
+Is féidir leat tuilleadh dod' chuid féin a chur leis trí `~/.XCompose` a chur in eagar, ansin `omarchy-restart-xcompose` a rith sa teirminéal chun na hathruithe a phiocadh suas.

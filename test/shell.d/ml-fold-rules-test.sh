@@ -37,30 +37,16 @@ digest=$("$ROOT/bin/omarchy-ml-notify-fold" "$notify_dir")
 [[ $digest == "2 messages from #ops, 2 discord messages" ]] ||
   fail "a group you add is folded and a group you drop is not" "$digest"
 
-node -e '
-const fold = require(process.argv[1])
-const rules = {disabled:["mail"], groups:[{id:"discord", words:["discord"], label:"discord messages"}]}
-const rows = [
-  {app:"Discord", summary:"ping", body:"one", timestamp:1},
-  {app:"Discord", summary:"ping", body:"two", timestamp:2},
-  {app:"Slack", summary:"new message", body:"#ops", timestamp:3},
-  {app:"Slack", summary:"new message", body:"#ops", timestamp:4},
-  {app:"Mail", summary:"inbox", body:"a", timestamp:5},
-  {app:"Mail", summary:"inbox", body:"b", timestamp:6}
-]
-const folded = fold.fold(rows, rules)
-if (folded[0].summary !== "2 messages from #ops, 2 discord messages") process.exit(1)
-const kept = folded.slice(1).map(row => row.app).sort()
-if (kept.join(",") !== "Mail,Mail") process.exit(2)
-' "$ROOT/shell/plugins/notifications/NotificationFold.js" ||
-  fail "history replay uses the same fold groups"
+history="$HOME/.local/state/omarchy/notifications/history.json"
+mkdir -p "${history%/*}"
+jq -s '.' "$notify_dir"/*.json >"$history"
+[[ $("$ROOT/bin/omarchy-ml-notify-fold") == "$digest" ]] ||
+  fail "the current store uses the same custom fold groups"
 
 "$ROOT/bin/omarchy-ml-notify-fold" rule enable mail >/dev/null
 digest=$("$ROOT/bin/omarchy-ml-notify-fold" "$notify_dir")
 [[ $digest == "2 emails, 2 messages from #ops, 2 discord messages" ]] ||
   fail "enabling a built-in group folds it again" "$digest"
-grep -Fq 'service.foldRules' "$ROOT/shell/plugins/notifications/Service.qml" ||
-  fail "notification history reads the fold file"
 grep -Fq '"trigger.ml.fold-rule"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
   fail "the menu can change fold groups"
 pass "notification fold groups are yours to add and drop"
