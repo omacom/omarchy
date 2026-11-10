@@ -601,7 +601,9 @@ Panel {
   function startPrompt(prompt, modifiers) {
     root.close()
     var useDefault = !!(modifiers & Qt.ShiftModifier)
-    Util.execArgv(["omarchy-agent"].concat(useDefault ? [] : ["--prefer-local"], ["--prompt", prompt]))
+    // --pick offers the agent choice when none is set: this runs detached, so
+    // the error omarchy-agent prints otherwise goes nowhere.
+    Util.execArgv(["omarchy-agent", "--pick"].concat(useDefault ? [] : ["--prefer-local"], ["--prompt", prompt]))
   }
 
   function renameAccount(p, account, label) {
