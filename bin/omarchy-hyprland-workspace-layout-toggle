@@ -1,61 +1,144 @@
 #!/bin/bash
 
-# omarchy:summary=Toggle the layout on the current active workspace between dwindle and scrolling
+# omarchy:summary=Cycle the current active workspace through the dwindle, scrolling, and floating layouts
+# omarchy:args=[back]
 
-# One query: id, name and layout have to describe the same workspace, and a
-# second call can land after the user has already switched away.
-ACTIVE_WORKSPACE_JSON=$(hyprctl activeworkspace -j)
-ACTIVE_WORKSPACE_ID=$(jq -r '.id // empty' <<<"$ACTIVE_WORKSPACE_JSON")
-ACTIVE_WORKSPACE_NAME=$(jq -r '.name // empty' <<<"$ACTIVE_WORKSPACE_JSON")
-[[ $ACTIVE_WORKSPACE_ID =~ ^-?[0-9]+$ ]] || exit 1
-CURRENT_LAYOUT=$(jq -r '.tiledLayout // empty' <<<"$ACTIVE_WORKSPACE_JSON")
-
-# Hyprland gives named workspaces a negative id and reassigns it every session,
-# so a rule keyed by that id matches nothing — and `hyprctl eval` still answers
-# "ok", so the failure is silent. Address those by name instead, which is what
-# the user chose and what survives a reboot.
-if (( ACTIVE_WORKSPACE_ID < 0 )); then
-  [[ -n $ACTIVE_WORKSPACE_NAME ]] || exit 1
-  if [[ $ACTIVE_WORKSPACE_NAME == special:* ]]; then
-    WORKSPACE_SELECTOR="$ACTIVE_WORKSPACE_NAME"
-  else
-    WORKSPACE_SELECTOR="name:$ACTIVE_WORKSPACE_NAME"
+# Layout changes replace one notification instead of stacking a new one for
+# each press, so cycling through the layouts leaves a single, current one.
+notify_layout() {
+  local state="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layout-notification"
+  local last id
+  [[ -r $state ]] && read -r last <"$state"
+  if id=$(omarchy-notification-send -p -r "${last:-0}" -g 󱂬 "$1") && [[ $id =~ ^[0-9]+$ ]]; then
+    mkdir -p "$(dirname "$state")" && printf '%s\n' "$id" >"$state"
   fi
-  # The state filename becomes a Lua module name. Hex-encode the whole name so
-  # "dev.foo" and "dev_foo" cannot overwrite each other after tr-collapse.
-  STATE_KEY="name-$(printf '%s' "$ACTIVE_WORKSPACE_NAME" | od -An -tx1 | tr -d ' \n')"
-else
-  WORKSPACE_SELECTOR="$ACTIVE_WORKSPACE_ID"
-  STATE_KEY="$ACTIVE_WORKSPACE_ID"
-fi
+}
 
-case "$CURRENT_LAYOUT" in
-  dwindle) NEW_LAYOUT=scrolling ;;
-  *) NEW_LAYOUT=dwindle ;;
-esac
-
-# The selector is interpolated into a double-quoted Lua string.
-ESCAPED_SELECTOR=${WORKSPACE_SELECTOR//\\/\\\\}
-ESCAPED_SELECTOR=${ESCAPED_SELECTOR//\"/\\\"}
-
-LAYOUTS_DIR="$HOME/.local/state/omarchy/workspace-layouts"
-LAYOUT_FILE="$LAYOUTS_DIR/$STATE_KEY.lua"
-
-hyprctl eval "hl.workspace_rule({ workspace = \"$ESCAPED_SELECTOR\", layout = \"$NEW_LAYOUT\" })" >/dev/null 2>&1 ||
-  hyprctl keyword workspace "$WORKSPACE_SELECTOR, layout:$NEW_LAYOUT"
-
-# `hyprctl eval` reports ok for a rule that matched no workspace, so the only
-# honest confirmation is reading the layout back — from the workspace we
-# applied to, not whatever is active now. The user can switch away between
-# apply and this query.
-APPLIED_LAYOUT=$(hyprctl workspaces -j | jq -r --arg n "$ACTIVE_WORKSPACE_NAME" '.[] | select(.name==$n) | .tiledLayout // empty')
-if [[ $APPLIED_LAYOUT != "$NEW_LAYOUT" ]]; then
-  omarchy-notification-send -u critical -g 󱂬 "Could not set workspace layout to $NEW_LAYOUT"
+DIRECTION=${1:-next}
+if [[ $DIRECTION != "next" && $DIRECTION != "back" ]]; then
+  echo "Usage: omarchy-hyprland-workspace-layout-toggle [back]" >&2
   exit 1
 fi
 
-# Persist only a confirmed change. Leave other workspaces' legacy rules alone:
-# a reassigned negative ID cannot identify which saved choice belongs to us.
-mkdir -p "$LAYOUTS_DIR" || exit 1
-printf 'hl.workspace_rule({ workspace = "%s", layout = "%s" })\n' "$ESCAPED_SELECTOR" "$NEW_LAYOUT" >"$LAYOUT_FILE" || exit 1
-omarchy-notification-send -g 󱂬 "Workspace layout set to $NEW_LAYOUT"
+# The compositor can reassign negative IDs. Keep named and special workspaces
+# on their two tiled modes and persist their rules by name.
+toggle_named_layout() {
+  local name="$1" current="$2" selector key layout command applied
+  [[ -n $name ]] || return 1
+  if [[ $name == special:* ]]; then
+    selector=$name
+  else
+    selector="name:$name"
+  fi
+  key=$(printf '%s' "$name" | od -An -tx1 | tr -d ' \n')
+  selector=${selector//\\/\\\\}
+  selector=${selector//\"/\\\"}
+  selector=${selector//$'\n'/\\n}
+  selector=${selector//$'\r'/\\r}
+  selector=${selector//$'\t'/\\t}
+
+  local set_message unsaved_message
+  if [[ $current == dwindle ]]; then
+    layout=scrolling
+    set_message=$(omarchy-i18n layout.workspaceScrolling)
+    unsaved_message=$(omarchy-i18n layout.workspaceScrollingUnsaved)
+  else
+    layout=dwindle
+    set_message=$(omarchy-i18n layout.workspaceTiling)
+    unsaved_message=$(omarchy-i18n layout.workspaceTilingUnsaved)
+  fi
+  command="hl.workspace_rule({ workspace = \"$selector\", layout = \"$layout\" })"
+  applied=$(hyprctl eval "$command" >/dev/null 2>&1 && hyprctl workspaces -j |
+    jq -r --arg name "$name" 'first(.[] | select(.name == $name) | .tiledLayout) // empty')
+  if [[ $applied != "$layout" ]]; then
+    notify_layout "$(omarchy-i18n layout.needsReload)"
+    return 1
+  fi
+  local layouts_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts"
+  if ! mkdir -p "$layouts_dir" || ! printf '%s\n' "$command" >"$layouts_dir/name-$key.lua"; then
+    notify_layout "$unsaved_message"
+    return 1
+  fi
+  notify_layout "$set_message"
+  omarchy-shell -q omarchy.workspaces refresh
+}
+
+ACTIVE_INFO=$(hyprctl activeworkspace -j)
+ACTIVE_WORKSPACE=$(jq -r '.id // empty' <<<"$ACTIVE_INFO")
+if [[ $ACTIVE_WORKSPACE =~ ^-[0-9]+$ ]]; then
+  toggle_named_layout "$(jq -r '.name // empty' <<<"$ACTIVE_INFO")" \
+    "$(jq -r '.tiledLayout // empty' <<<"$ACTIVE_INFO")"
+  exit $?
+fi
+[[ $ACTIVE_WORKSPACE =~ ^[0-9]+$ ]] || exit 1
+MODES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts"
+MODE_FILE="$MODES_DIR/$ACTIVE_WORKSPACE.lua"
+
+CURRENT_MODE=$(omarchy-hyprland-workspace-layout-current)
+
+if [[ $DIRECTION == "back" ]]; then
+  case "$CURRENT_MODE" in
+    dwindle) NEW_MODE=floating ;;
+    floating) NEW_MODE=scrolling ;;
+    *) NEW_MODE=dwindle ;;
+  esac
+else
+  case "$CURRENT_MODE" in
+    dwindle) NEW_MODE=scrolling ;;
+    scrolling) NEW_MODE=floating ;;
+    *) NEW_MODE=dwindle ;;
+  esac
+fi
+
+APPLY="o.workspace_mode({ workspace = \"$ACTIVE_WORKSPACE\", mode = \"$NEW_MODE\" })"
+
+# Dwindle is Hyprland's name for it; the menu and the bar call it tiling.
+# Each layout has whole sentences of its own, so a translation can inflect it.
+case $NEW_MODE in
+  dwindle)
+    SET_MESSAGE=$(omarchy-i18n layout.workspaceTiling)
+    UNSAVED_MESSAGE=$(omarchy-i18n layout.workspaceTilingUnsaved)
+    ;;
+  scrolling)
+    SET_MESSAGE=$(omarchy-i18n layout.workspaceScrolling)
+    UNSAVED_MESSAGE=$(omarchy-i18n layout.workspaceScrollingUnsaved)
+    ;;
+  *)
+    SET_MESSAGE=$(omarchy-i18n layout.workspaceFloating)
+    UNSAVED_MESSAGE=$(omarchy-i18n layout.workspaceFloatingUnsaved)
+    ;;
+esac
+
+# Saving a mode that did not apply would leave the file naming one layout while
+# the screen shows another, and restore it at the next login.
+APPLIED=0
+if hyprctl eval "$APPLY" >/dev/null 2>&1; then
+  APPLIED=1
+fi
+
+if (( ! APPLIED )); then
+  notify_layout "$(omarchy-i18n layout.needsReload)"
+elif [[ $NEW_MODE == "$(omarchy-hyprland-workspace-layout-default)" ]] && rm -f "$MODE_FILE"; then
+  # Cycled onto the default, a workspace goes back to following it, so a later
+  # change of the default reaches it too.
+  notify_layout "$SET_MESSAGE"
+elif mkdir -p "$MODES_DIR" && printf '%s\n' "$APPLY" >"$MODE_FILE"; then
+  notify_layout "$SET_MESSAGE"
+else
+  # The mode is on screen but nothing will bring it back, and the next press
+  # reads the mode from this file, so say so rather than counting it as set.
+  notify_layout "$UNSAVED_MESSAGE"
+fi
+
+# The bar shows the focused workspace's layout, and the dock shows on floating ones.
+if (( APPLIED )); then
+  omarchy-shell -q omarchy.workspaces refresh
+  omarchy-shell -q omarchy.dock refresh
+fi
+
+# A workspace starting to float sets up its titlebars as the mode applies. The
+# titlebar plugin itself is only loaded while the config loads, so the first
+# floating workspace of a session still needs a reload to bring it in.
+if (( APPLIED )) && [[ $NEW_MODE == "floating" ]] && ! hyprctl plugin list -j 2>/dev/null | jq -e 'any(.[]?; .name == "hyprbars")' >/dev/null 2>&1; then
+  omarchy-restart-hyprctl
+fi
