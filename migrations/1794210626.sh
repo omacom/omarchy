@@ -10,3 +10,8 @@ dir=/etc/opt/chrome/policies/managed
 if browser_policy_dir_hardened "$dir" && browser_policy_parents_hardened "$dir"; then
   browser_policy_install_defaults "$dir"
 fi
+
+# The native hosts in Chrome's profile are copies that admit only the Chromium
+# ids, so rewrite them to admit the CRXs' ids as well.
+omarchy-install-chromium-copy-url
+omarchy-install-chromium-ytdlp
