@@ -59,6 +59,8 @@
   "agents.localRecommended": "tavsiya etiladi",
   "agents.localRemoveConfirm": "%1 ni toʻxtatib, yuklab olingan vaznlarini oʻchirasizmi?",
   "agents.localRemovingMeter": "Oʻchirilmoqda",
+  "agents.localShowLogs": "Jurnallarni koʻrsatish",
+  "agents.localShowLogsTip": "Ushbu model jurnallarini terminalda ochish",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Boshlash",
   "agents.localStop": "Toʻxtatish",

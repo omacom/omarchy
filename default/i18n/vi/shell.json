@@ -57,6 +57,8 @@
   "agents.localRecommended": "khuyến nghị",
   "agents.localRemoveConfirm": "Dừng %1 và xóa trọng số đã tải?",
   "agents.localRemovingMeter": "Đang xóa",
+  "agents.localShowLogs": "Xem nhật ký",
+  "agents.localShowLogsTip": "Mở nhật ký của mô hình này trong terminal",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Khởi động",
   "agents.localStop": "Dừng",

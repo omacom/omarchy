@@ -59,6 +59,8 @@
   "agents.localRecommended": "προτεινόμενο",
   "agents.localRemoveConfirm": "Διακοπή του %1 και διαγραφή των βαρών που κατεβάστηκαν;",
   "agents.localRemovingMeter": "Αφαίρεση",
+  "agents.localShowLogs": "Δείξε τις καταγραφές",
+  "agents.localShowLogsTip": "Άνοιξε τις καταγραφές αυτού του μοντέλου σε τερματικό",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Έναρξη",
   "agents.localStop": "Διακοπή",

@@ -59,6 +59,8 @@
   "agents.localRecommended": "නිර්දේශිතයි",
   "agents.localRemoveConfirm": "%1 නවත්වා බාගත කළ එහි බර මකා දමන්නද?",
   "agents.localRemovingMeter": "ඉවත් කරමින්",
+  "agents.localShowLogs": "ලොග් පෙන්වන්න",
+  "agents.localShowLogsTip": "මෙම මාදිලියේ ලොග් ටර්මිනලයක විවෘත කරන්න",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "ආරම්භ කරන්න",
   "agents.localStop": "නවත්වන්න",

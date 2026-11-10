@@ -63,6 +63,8 @@
   "agents.localRecommended": "zalecany",
   "agents.localRemoveConfirm": "Zatrzymać %1 i usunąć pobrane wagi?",
   "agents.localRemovingMeter": "Usuwanie",
+  "agents.localShowLogs": "Pokaż logi",
+  "agents.localShowLogsTip": "Otwórz logi tego modelu w terminalu",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Uruchom",
   "agents.localStop": "Zatrzymaj",

@@ -61,6 +61,8 @@
   "agents.localRecommended": "recomendado",
   "agents.localRemoveConfirm": "¿Detener %1 y eliminar sus pesos descargados?",
   "agents.localRemovingMeter": "Eliminando",
+  "agents.localShowLogs": "Mostrar registros",
+  "agents.localShowLogsTip": "Abrir los registros de este modelo en una terminal",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Iniciar",
   "agents.localStop": "Detener",
