@@ -174,12 +174,18 @@ if OMARCHY_ML_GPU_STATUS="" "$ROOT/bin/omarchy-ml-gpu-status" >/dev/null 2>&1; t
 fi
 pass "gpu status is one line for the bar"
 
-index_line=$(OMARCHY_ML_GPU=nvidia "$ROOT/bin/omarchy-install-ml-pytorch" --print-index | head -n 1)
+printed_torch_index() {
+  local output
+  output=$(OMARCHY_ML_GPU="$1" "$ROOT/bin/omarchy-install-ml-pytorch" --print-index) || return
+  printf '%s\n' "${output%%$'\n'*}"
+}
+
+index_line=$(printed_torch_index nvidia)
 [[ $index_line == "https://download.pytorch.org/whl/cu132" ]] ||
   fail "pytorch names the cuda wheel index" "$index_line"
-[[ $(OMARCHY_ML_GPU=rocm "$ROOT/bin/omarchy-install-ml-pytorch" --print-index | head -n 1) == "https://download.pytorch.org/whl/rocm7.1" ]] ||
+[[ $(printed_torch_index rocm) == "https://download.pytorch.org/whl/rocm7.1" ]] ||
   fail "pytorch names the rocm wheel index"
-[[ $(OMARCHY_ML_GPU=cpu "$ROOT/bin/omarchy-install-ml-pytorch" --print-index | head -n 1) == "https://download.pytorch.org/whl/cpu" ]] ||
+[[ $(printed_torch_index cpu) == "https://download.pytorch.org/whl/cpu" ]] ||
   fail "pytorch names the cpu wheel index"
 pass "pytorch tells you which wheel index it will use"
 

@@ -15,7 +15,7 @@ fi
 
 if omarchy-cmd-missing whisper-cli && omarchy-cmd-present whisper-cpp; then
   mkdir -p "$HOME/.local/bin"
-  ln -sfn "$(command -v whisper-cpp)" "$HOME/.local/bin/whisper-cli"
+  ln -sfn "$(type -P whisper-cpp)" "$HOME/.local/bin/whisper-cli"
 fi
 
 model_dir="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/whisper"
