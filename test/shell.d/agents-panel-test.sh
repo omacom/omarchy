@@ -165,6 +165,11 @@ pass "a detached setup with its packages starts without a terminal"
 calls=$(run_wrapper 1 use nemotron-3.5-bolt-tensorfold)
 [[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold' ]] || fail "a setup in a terminal installs its packages there" "$calls"
 pass "a setup in a terminal installs its packages there"
+for args in "use --help" "use -h" "use nemotron-3.5-bolt-tensorfold --help" "use --detach nemotron-3.5-bolt-tensorfold -h"; do
+  calls=$(run_wrapper 0 $args)
+  [[ $calls == "omarchy-local-ai $args" ]] || fail "$args shows help without installing anything" "$calls"
+done
+pass "use --help shows help without installing anything"
 
 # Hosted and local rows share ordering, including positions saved while hidden.
 run_node_test <<'JS'
