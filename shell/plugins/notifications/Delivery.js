@@ -4,6 +4,7 @@
 .import "Security.js" as Security
 
 var CRITICAL = 2
+var NORMAL = 1
 
 // Omarchy's own action toasts and bare notify-send critical alerts get through
 // Do Not Disturb. Critical alone is not enough: chat apps send
@@ -12,6 +13,20 @@ function bypassesQuiet(row) {
   var app = String((row && row.app) || "")
   if (app === "omarchy-action") return true
   return app === "notify-send" && Number(row.urgency) === CRITICAL
+}
+
+// The web pushes browsers relay arrive as critical under the browser's own
+// name (Chromium, Google Chrome, Firefox, Brave and the like): the site wanted
+// attention, and the urgency the page asked for never travels. That critical
+// asks to be seen, not to hold the screen, so for how long the card stays it
+// counts as normal. A sender's own critical still waits for you.
+var BROWSER_APPS = /\b(chrome|chromium|firefox|zen|brave|edge|vivaldi|helium)\b/
+
+// The urgency that decides a card's lifetime, not how it draws.
+function expiryUrgency(row, urgency) {
+  if (Number(urgency) !== CRITICAL) return urgency
+  var app = String((row && row.app) || "").toLowerCase()
+  return BROWSER_APPS.test(app) ? NORMAL : urgency
 }
 
 // The buttons a card offers, in the order it draws them and the number keys
