@@ -11,7 +11,7 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Toggle | Hotkey | Command |
 | ------ | ------ | ------- |
 | Night light | — | `omarchy toggle nightlight` |
-| Silence notifications | `Super + Ctrl + ,` | `omarchy toggle notification silencing` |
+| Silence notifications | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Crash capture | — | `omarchy toggle crash-capture` |
 | Screensaver | — | `omarchy toggle screensaver` |
@@ -25,6 +25,8 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardware_ (`Super + Ctrl + H`) rather than under Toggle, since they only show up when you actually have that hardware. The touchpad and touchscreen ones survive a Hyprland reload — the disabled device's name is saved to a small state file that Hyprland reads on startup to disable it again.
 
 _Appearance_ holds the menu bar and animations, plus a few things that aren't `omarchy toggle` commands but behave the same: battery percentage in the bar, the default workspace layout, and under _Windows_, window gaps (`Super + Shift + Backspace`) and the 1-window square aspect (`Super + Ctrl + Backspace`).
+
+When Hyprland has no GPU to draw with and renders on the CPU instead (llvmpipe), as on Macs whose GPU isn't supported yet, in most virtual machines, or when a graphics driver fails to load, Omarchy turns off animations, blur and shadows for that session and tells you so once with a notification. _Appearance > Animations On_ brings them back, and Omarchy remembers that for later sessions too.
 
 Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If you want to branch on one in a script, `omarchy-toggle-enabled` gives you an exit code instead of making you go looking:
 
@@ -57,9 +59,9 @@ Then start hyprsunset at login by adding `o.launch_on_start("hyprsunset")` to `~
 
 ### Do not disturb
 
-`Super + Ctrl + ,` silences notifications. No toasts pop up while it's on, and the crossed-out bell indicator sits in the bar to remind you why the desktop has gone quiet.
+`Super + Ctrl + Alt + ,` silences notifications. No toasts pop up while it's on, and the crossed-out bell indicator sits in the bar to remind you why the desktop has gone quiet.
 
-Nothing is lost, though. Silenced notifications are held back: right-click the bell to read what came in, or put the last few back on screen with `Super + Shift + Alt + ,`. See [notices](10-notices.md) for the rest.
+Nothing is lost, though. Silenced notifications are held back: put the last few back on screen with `Super + Shift + Alt + ,`. See [notices](10-notices.md) for the rest.
 
 Two kinds of message still get through: Omarchy's own confirmation toasts for something you just did ("Theme changed", "Screenshot saved"), and critical alerts sent from the command line. Chat apps that mark everything critical to force their way in front of you don't qualify.
 
@@ -91,7 +93,7 @@ Omarchy's screensaver is ASCII art running through random text effects, one inst
 
 You can start it on demand from _System > Screensaver_ (`Super + Esc`), which forces it up even if you've turned the idle screensaver off. There's no hotkey bound to it by default.
 
-`omarchy toggle screensaver` is what turns the idle one off, if you'd rather go straight from working to locked. It needs a terminal it knows how to configure — Alacritty, Foot, Ghostty, or Kitty — and will tell you so if your default terminal is something else.
+`omarchy toggle screensaver` is what turns the idle one off, if you'd rather go straight from working to locked. Any key, click, scroll or mouse movement closes it.
 
 The logo it draws is yours to change, under _Appearance > Branding > Screensaver_. Upload a png or svg and Omarchy converts it to ASCII. See [branding](41-branding.md).
 
