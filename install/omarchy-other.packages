@@ -70,9 +70,13 @@ linux-firmware-cirrus-dx13260
 
 # ASUS laptop support packages
 asus-proart-p14-audio
+asus-proart-pz13-audio
 asus-zenbook-a16-audio
 asus-zenbook-14-ux3480qa-audio
 asus-zenbook-a16-firmware
+
+# Qualcomm Wi-Fi board data for cards linux-firmware does not list
+ath12k-board-fallback
 
 # Speaker tunings (LV2 limiter every tuning ends in)
 lsp-plugins-lv2

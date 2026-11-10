@@ -158,6 +158,15 @@ run_setup "$renamed" >/dev/null
 grep -Fxq "DeviceTree=$renamed/dtbs/linux-omarchy-aarch64/qcom/x1e80100-microsoft-denali-oled.dtb" "$renamed/kernel/uki.conf" ||
   fail "the device tree is found under any linux-omarchy package directory, as dtb-uki.sh finds it"
 
+# A second kernel named after linux-omarchy, as a test build is, sorts ahead of it.
+second="$scratch/second"
+surface_pro11 "$second"
+mkdir -p "$second/dtbs/linux-omarchy-test/qcom"
+: >"$second/dtbs/linux-omarchy-test/qcom/x1e80100-microsoft-denali-oled.dtb"
+run_setup "$second" >/dev/null
+grep -Fxq "DeviceTree=$second/dtbs/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb" "$second/kernel/uki.conf" ||
+  fail "linux-omarchy's device tree comes before another linux-omarchy kernel's"
+
 for model in 'microsoft,denali\0qcom,x1p64100' 'lenovo,yoga-slim7x\0qcom,x1e80100'; do
   other="$scratch/other"
   rm -rf "$other"
