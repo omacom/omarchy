@@ -574,10 +574,27 @@ Item {
     return ""
   }
 
+  // The card a new notification repeats word for word (Store.isDuplicate),
+  // shown or still waiting to be. One on its way out is left to go.
+  function keyForDuplicate(row) {
+    for (var key in liveKeys) {
+      if (leaving[key]) continue
+      var at = rowIndexFor(key)
+      var shown = liveKeys[key].row || (at >= 0 ? toasts.get(at) : null)
+      if (Store.isDuplicate(row, shown)) return key
+    }
+    return ""
+  }
+
   // ------------------------------------------------------------- arrival
   function handleNotification(notification) {
     // Replacements reuse the same slot, including before its first insertion.
-    var key = keyForOriginal(notification.id) || nextKey()
+    var known = keyForOriginal(notification.id)
+    var row = Store.snapshot(notification, known, NotificationUrgency)
+    // So does an identical copy under a new id: it takes over the card it
+    // repeats, and the copy it supersedes is closed at its sender.
+    var key = known || keyForDuplicate(row) || nextKey()
+    row.key = key
 
     if (!reserveLive(key)) {
       notification.tracked = false
@@ -587,7 +604,6 @@ Item {
     // Otherwise the object is destroyed when this handler returns.
     notification.tracked = true
 
-    var row = Store.snapshot(notification, key, NotificationUrgency)
     row.duration = durationFor(notification.urgency, row.expireTimeout)
 
     var previous = refs[key]
