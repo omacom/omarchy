@@ -22,7 +22,8 @@ ShellRoot {
     afterRuleCheck = next
     ruleCheckAttempts = 0
     var closedCheck = closedOwner ? "assert(omarchy_closed_capture_owners[" + JSON.stringify(closedOwner) + "]); " : ""
-    ruleCheck.command = ["hyprctl", "eval", closedCheck + "assert(omarchy_test_capture_rule:is_enabled() == " + (enabled ? "true" : "false") + ")"]
+    var ownerCheck = enabled ? "assert(omarchy_capture_owner == " + JSON.stringify(root.service.captureOwner) + "); " : ""
+    ruleCheck.command = ["hyprctl", "eval", closedCheck + ownerCheck + "assert(omarchy_test_capture_rule:is_enabled() == " + (enabled ? "true" : "false") + ")"]
     root.startRuleCheck()
   }
 
