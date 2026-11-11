@@ -371,6 +371,17 @@ grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "picking 
 rm -f "$test_home/.local/share/applications/mimeapps.list"
 pass "the migration reads mimeapps.list the way GLib does"
 
+# A CRLF list with a spaced header: one defaults section, and the user's
+# choice in it kept.
+printf ' [Default Applications] \r\ntext/plain=code.desktop;\r\ntext/xml=nvim.desktop\r\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+[[ $(grep -c "Default Applications" "$mimeapps") == 1 ]] || fail "a CRLF list keeps one defaults section"
+grep -q "^text/plain=code.desktop;" "$mimeapps" || fail "a CRLF list keeps the user's choice"
+! grep -qx "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "a CRLF list gets no handler line over a choice"
+grep -qx "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "a CRLF list's old default moves to the handler"
+! grep -q "^text/xml=nvim.desktop" "$mimeapps" || fail "a CRLF list's old default line is replaced"
+pass "the migration reads CRLF lists and spaced headers"
+
 # New installs ship the same types pointed at the handler.
 shipped=$(sed -n 's/=omarchy-launch-editor\.desktop$//p' "$ROOT/default/applications/mimeapps.list" | sort)
 [[ $shipped == $(sort <<<"$handler_types") ]] || fail "the shipped mimeapps.list points the handler's types at it"

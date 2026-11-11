@@ -28,7 +28,9 @@ types=$(sed -n 's/^MimeType=//p' "$OMARCHY_PATH/applications/$handler" | tr ';' 
 list="${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list"
 mkdir -p "$(dirname "$list")"
 [[ -f $list ]] || printf '[Default Applications]\n' >"$list"
-grep -qxF "[Default Applications]" "$list" || printf '\n[Default Applications]\n' >>"$list"
+# GLib also reads a header with spaces around it, or a list with CRLF endings.
+tr -d '\r' <"$list" | grep -qE '^[[:space:]]*\[Default Applications\][[:space:]]*$' ||
+  printf '\n[Default Applications]\n' >>"$list"
 
 # The older ~/.local/share list counts too, for a type ~/.config doesn't set:
 # a line here would hide what the user chose there.
@@ -46,15 +48,16 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
     n = split(types, list, "\n")
     for (i = 1; i <= n; i++) wanted[list[i]] = 1
   }
+  function header(line) { sub(/\r$/, "", line); return trim(line) }
   FILENAME != current { current = FILENAME; file = (FILENAME == older ? 1 : 2); section = "" }
-  /^\[/ { section = $0 }
+  header($0) ~ /^\[/ { section = header($0) }
   section != "[Default Applications]" || !/=/ {
     if (file == 2) lines[FNR] = $0
     next
   }
   {
     type = $0; sub(/=.*/, "", type); type = trim(type)
-    app = $0; sub(/^[^=]*=/, "", app); sub(/;.*/, "", app); app = trim(app)
+    app = $0; sub(/\r$/, "", app); sub(/^[^=]*=/, "", app); sub(/;.*/, "", app); app = trim(app)
   }
   file == 1 {
     if (type in wanted && !ours(app)) older_choice[type] = 1
@@ -74,7 +77,7 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
     for (i = 1; i <= FNR; i++) {
       if (i in drop) continue
       print lines[i]
-      if (lines[i] == "[Default Applications]" && !added) {
+      if (header(lines[i]) == "[Default Applications]" && !added) {
         added = 1
         for (j = 1; j <= n; j++) if (!(list[j] in keep)) print list[j] "=" handler
       }
