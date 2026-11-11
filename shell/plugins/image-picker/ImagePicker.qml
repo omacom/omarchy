@@ -63,14 +63,14 @@ Item {
   }
 
   function toggleSelectedFavourite() {
-    if (!opened || !themeMode || !favouritesLoaded || !currentPath()) return
+    if (!opened || !themeMode || !favouritesLoaded || !layoutSettled || !currentPath()) return
     favouriteThemes = Favourites.toggle(favouriteThemes, selectedThemeName())
     saveFavourites()
     focusPicker()
   }
 
   function toggleFavouritesFilter() {
-    if (!opened || !themeMode || !favouritesLoaded) return
+    if (!opened || !themeMode || !favouritesLoaded || !layoutSettled) return
     favouritesOnly = !favouritesOnly
     saveFavourites()
     focusPicker()
@@ -472,7 +472,7 @@ Item {
     pendingDeleteTheme = ""
     if (!name || deleteThemeProc.running) return
     // Keep the user's place in the list once the deleted theme is gone.
-    if (name === selectedThemeName()) deleteSelectionPath = ImagePickerModel.replacementSelectionPath(imageArray, selectedIndex, filterText)
+    if (name === selectedThemeName()) deleteSelectionPath = ImagePickerModel.replacementSelectionPath(imageArray, selectedIndex, filterText, matchingImageIndices)
     deleteThemeProc.command = ["omarchy-theme-remove", name]
     deleteThemeProc.running = true
   }
@@ -933,7 +933,7 @@ Item {
         Row {
           id: favouriteControls
           visible: root.themeMode
-          enabled: root.favouritesLoaded
+          enabled: root.favouritesLoaded && root.layoutSettled
           spacing: Style.space(16)
           anchors.top: selectedLabel.bottom
           anchors.topMargin: Style.space(8)

@@ -209,6 +209,7 @@ function deleteContext(path, extras, inThemeMode) {
     deleteSelectionPath: '',
     deleteConfirmOpen: false,
     imageArray: [{ filePath: path }],
+    get matchingImageIndices() { return picker.matchingIndices(this.imageArray, this.filterText) },
     selectedIndex: 0,
     filterText: '',
     deleteThemeProc: { running: false, command: [] },
@@ -276,6 +277,19 @@ retention.currentPath = () => '/p/charlie.png'
 retention.confirmDeleteTheme()
 assertEqual(retention.deleteSelectionPath, '', 'no landing is remembered when the selection moved off the deleted theme')
 assertDeepEqual(retention.deleteThemeProc.command, ['omarchy-theme-remove', 'bravo'], 'the confirmed theme is still the one removed')
+
+const alternating = ['/p/alpha.png', '/p/bravo.png', '/p/charlie.png', '/p/delta.png', '/p/echo.png']
+retention = retentionContext(alternating, 4, '')
+Object.defineProperty(retention, 'matchingImageIndices', { value: [0, 2, 4] })
+retention.requestDeleteSelectedTheme()
+retention.confirmDeleteTheme()
+assertEqual(retention.deleteSelectionPath, '/p/charlie.png', 'deleting a favourite skips hidden non-favourites and preserves the previous visible theme')
+retention = retentionContext(alternating, 0, '')
+Object.defineProperty(retention, 'matchingImageIndices', { value: [0, 2, 4] })
+retention.requestDeleteSelectedTheme()
+retention.confirmDeleteTheme()
+assertEqual(retention.deleteSelectionPath, '/p/charlie.png', 'deleting the first favourite selects the next visible favourite')
+assertEqual(picker.replacementSelectionPath(alternating.map(filePath => ({ filePath })), 2, '', [2]), '', 'deleting the only visible favourite does not select a hidden theme')
 
 deletion = deleteContext('/cache/previews/nord.png', ['nord', 'fjord'], true)
 deletion.stockThemeNames = ['nord']
@@ -397,10 +411,10 @@ favouriteRefresh.favouritesOnly = false
 favouriteRefresh.ensureMatchingSelection()
 assertEqual(favouriteRefresh.selectedIndex, 0, 'turning the favourites filter off recovers from an empty list')
 
-const favouriteActions = { opened: true, themeMode: false, favouritesLoaded: true,
+const favouriteActions = { opened: true, themeMode: false, favouritesLoaded: true, layoutSettled: true,
   favouriteThemes: ['nord'], favouritesOnly: false, saves: 0,
   currentPath() { return '/p/nord.png' }, selectedThemeName() { return 'nord' },
-  saveFavourites() { this.saves++ }, focusPicker() {}, Favourites: favourites }
+  saveFavourites() { favouriteActions.saves++ }, focusPicker() {}, Favourites: favourites }
 for (const name of ['toggleSelectedFavourite', 'toggleFavouritesFilter']) {
   require('vm').runInNewContext(imagePickerQml.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], favouriteActions)
 }
@@ -408,4 +422,17 @@ favouriteActions.toggleSelectedFavourite()
 favouriteActions.toggleFavouritesFilter()
 assertEqual(favouriteActions.saves, 0, 'favourites shortcuts cannot modify state in the background picker')
 assertDeepEqual(favouriteActions.favouriteThemes, ['nord'], 'background shortcuts leave saved themes unchanged')
+favouriteActions.themeMode = true
+favouriteActions.layoutSettled = false
+favouriteActions.toggleSelectedFavourite()
+favouriteActions.toggleFavouritesFilter()
+assertEqual(favouriteActions.saves, 0, 'hidden opening controls cannot save favourites or their filter')
+assertDeepEqual(favouriteActions.favouriteThemes, ['nord'], 'opening clicks cannot toggle an unseen theme')
+assertEqual(favouriteActions.favouritesOnly, false, 'opening clicks cannot toggle the saved filter')
+favouriteActions.layoutSettled = true
+favouriteActions.toggleSelectedFavourite()
+favouriteActions.toggleFavouritesFilter()
+assertEqual(favouriteActions.saves, 2, 'favourites controls resume saving once the picker is visible')
+assertDeepEqual(favouriteActions.favouriteThemes, [], 'visible favourite control removes the selected favourite')
+assertEqual(favouriteActions.favouritesOnly, true, 'visible filter control toggles favourites mode')
 JS
