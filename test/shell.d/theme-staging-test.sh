@@ -203,6 +203,18 @@ done
 
 pass "a theme name cannot climb out of the theme directories"
 
+# omarchy-theme-list shows a folder's own name when it has capitals or spaces, and the picker passes folder names.
+for folder in "Walk Handmade Theme" "Gruvbox"; do
+  mkdir -p "$themes/$folder"
+  write_colors "$themes/$folder/colors.toml"
+  set_theme "$folder" >/dev/null || fail "omarchy-theme-set applies the hand-made theme '$folder'" "$(cat "$test_tmp/stderr")"
+  [[ $(cat "$state/theme.name") == "$folder" ]] || fail "omarchy-theme-set applies '$folder' rather than a theme spelled alike" "$(cat "$state/theme.name")"
+done
+set_theme "Tokyo Night" >/dev/null && [[ $(cat "$state/theme.name") == tokyo-night ]] || fail "omarchy-theme-set finds tokyo-night by its listed name"
+set_theme gruvbox >/dev/null && [[ $(cat "$state/theme.name") == gruvbox ]] || fail "omarchy-theme-set still applies the bundled gruvbox"
+
+pass "a theme is set by the name omarchy-theme-list shows"
+
 # A denylist is only correct while someone adding a template classifies what it
 # generates. Every generated theme file is either denied to an installed theme or
 # recorded here as carrying colour, so a new template fails until it is placed.
