@@ -15,6 +15,7 @@ if (($# == 0)); then
   case "$current_browser" in
   chromium.desktop) echo "chromium" ;;
   google-chrome.desktop) echo "chrome" ;;
+  com.google.Chrome.desktop) echo "chrome" ;;
   brave-browser.desktop) echo "brave" ;;
   brave-origin.desktop) echo "brave-origin" ;;
   microsoft-edge.desktop) echo "edge" ;;

@@ -323,3 +323,13 @@ if OMARCHY_TEST_INSTALL_FAIL=true omarchy-default-editor --install vim >"$test_t
 fi
 [[ $(omarchy-default-editor) == "$previous_editor" ]] || fail "failed installation preserves the default"
 pass "failed installation preserves the current default"
+
+# google-chrome 157 installs its entry as com.google.Chrome.desktop, and the
+# menu reads the browser's short name back out of the ID the resolver reports.
+mkdir -p "$test_home/.local/share/applications"
+printf '[Desktop Entry]\nExec=true %%U\n' >"$test_home/.local/share/applications/com.google.Chrome.desktop"
+printf 'com.google.Chrome.desktop\n' >"$browser_file"
+chrome_name=$(omarchy-default-browser)
+[[ $chrome_name == "chrome" ]] ||
+  fail "com.google.Chrome.desktop reads back as chrome" "$chrome_name"
+pass "Chrome's mixed-case desktop entry reads back as chrome"
