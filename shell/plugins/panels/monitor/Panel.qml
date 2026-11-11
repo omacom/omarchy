@@ -299,8 +299,7 @@ Panel {
   }
 
   function toggleDisplay(name, enabled) {
-    if (!name) return
-    if (enabled && root.enabledDisplayCount <= 1) return
+    if (!Model.canToggleDisplay(name, enabled, root.displays)) return
 
     // hyprctl keyword is rejected under the Lua config ("non-legacy parsers"),
     // so drive the monitor through the hl.monitor eval API instead.
@@ -874,7 +873,7 @@ Panel {
     required property int rowIndex
 
     readonly property bool isFocused: display && display.focused
-    readonly property bool canToggle: display && (!display.enabled || root.enabledDisplayCount > 1)
+    readonly property bool canToggle: display && Model.canToggleDisplay(display.name, display.enabled, root.displays)
 
     hasCursor: root.cursorActive && root.focusSection === "monitors" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(monitorRow)
