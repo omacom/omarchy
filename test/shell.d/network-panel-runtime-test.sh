@@ -81,10 +81,13 @@ run_panel "network portal"
 pass "network portal, recovery, disabled checks, outage, disconnect, keyboard navigation, and browser argv work in QML"
 
 stage_panel owe-transition
-# Answers in call order: 57, then a slow stale 11, then 33. Never touches the
-# host's NetworkManager.
+ln -s noop "$stage/bin/iw"
+# Answers the in-use access point read in call order: 57, then a slow stale
+# 11, then 33. Other reads (the hotspot check's profile and metering) get
+# nothing and stay out of the log. Never touches the host's NetworkManager.
 cat >"$stage/bin/nmcli" <<'SH'
 #!/bin/bash
+[[ $* == *"device wifi list"* ]] || exit 0
 printf '%s\n' "$*" >> "$NETWORK_TEST_NMCLI_LOG"
 count=$(wc -l < "$NETWORK_TEST_NMCLI_LOG")
 case $count in
