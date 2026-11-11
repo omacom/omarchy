@@ -59,8 +59,9 @@ FocusScope {
         source: entry ? entry.source : ""
         asynchronous: true
         height: status === Loader.Ready && item !== null ? item.implicitHeight : 0
-        // Positioners must be visible before their children can establish
-        // their natural height. The parent Column already skips zero height.
+        clip: true
+        // Keep positioners visible for natural sizing, but contain children
+        // when the extension reduces its requested height, including to zero.
 
         onLoaded: {
           if (!item) return

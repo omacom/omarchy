@@ -74,7 +74,7 @@ A stock panel may opt into a named point using `Ui.PanelExtensions`. The power p
 
 Install this like any other plugin and enable it with `omarchy plugin enable acme.charging-limits`. Its configuration lives in a top-level `plugins[]` entry, not the bar layout. An installed but disabled extension contributes nothing. Plugins targeting unknown points remain inert. Contributions sort by ascending integer `order` (default 0, range -10000 through 10000), then by plugin id. The point name is a nonempty identifier of at most 128 ASCII letters, digits, dots, underscores, or hyphens, beginning with a letter or digit.
 
-The entry point is a QML `Item`, usually a `Column`, with `implicitHeight` describing the space it needs. A height of zero collapses it. The host supplies its width. These optional properties are bound or injected after construction:
+The entry point is a QML `Item`, usually a `Column`, with `implicitHeight` describing the space it needs. A height of zero collapses it. Drawing is clipped to the allocated width and height, including while collapsed. The host supplies its width. These optional properties are bound or injected after construction:
 
 - `panelOpen`: boolean; use its change signal to refresh local state, and suspend background work when it is false.
 - `settings`: a detached copy of the extension's own `plugins[]` settings, excluding `id`.

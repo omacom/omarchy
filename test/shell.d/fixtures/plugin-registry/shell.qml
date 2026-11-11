@@ -10,6 +10,7 @@ ShellRoot {
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var failures: []
   property int changeCount: 0
+  property int paintSampleY: 10
   property var config: ({
     version: 1,
     bar: { layout: { left: [], center: [], right: [] } },
@@ -43,6 +44,7 @@ ShellRoot {
       ok: failures.length === 0,
       failures: failures,
       changeCount: changeCount,
+      paintSampleY: paintSampleY,
       config: config,
       ids: Object.keys(registry.installedPlugins).sort()
     })
@@ -662,6 +664,74 @@ ShellRoot {
     }
   }
 
+  QtObject {
+    id: paintShell
+    property bool partial: true
+    function panelExtensionsFor(point) {
+      return [
+        { id: "test.neighbour", source: Qt.resolvedUrl("PaintNeighbour.qml").toString(), settings: {} },
+        { id: "test.painted", source: Qt.resolvedUrl("PaintedExtension.qml").toString(), settings: { partial: partial } }
+      ]
+    }
+    function configurePanelExtension(item, id) {}
+  }
+
+  Window {
+    id: paintWindow
+    visible: true
+    width: 100
+    height: 200
+    Rectangle { anchors.fill: parent; color: "black" }
+    PanelExtensions {
+      id: paintHost
+      width: parent.width
+      point: "test.paint.sections"
+      shell: paintShell
+      panelOpen: true
+    }
+  }
+
+  function captureCollapsedExtension() {
+    var painted = root.loadedExtension(paintHost)
+    root.paintSampleY = Math.floor(painted.mapToItem(paintWindow.contentItem, 10, 20).y)
+    paintHost.panelOpen = false
+    collapsedCapture.start()
+  }
+
+  Timer {
+    id: collapsedCapture
+    interval: 50
+    onTriggered: paintWindow.contentItem.grabToImage(function(result) {
+      root.assertTrue(result.saveToFile(resultPath + ".collapsed.png"), "capture shrinking contribution")
+      paintShell.partial = false
+      zeroCapture.start()
+    })
+  }
+
+  Timer {
+    id: zeroCapture
+    interval: 50
+    onTriggered: paintWindow.contentItem.grabToImage(function(result) {
+      root.assertTrue(result.saveToFile(resultPath + ".zero.png"), "capture zero-height contribution")
+      paintHost.panelOpen = true
+      expandedCapture.start()
+    })
+  }
+
+  Timer {
+    id: expandedCapture
+    interval: 50
+    repeat: true
+    onTriggered: {
+      if (paintHost.implicitHeight <= 49) return
+      stop()
+      paintWindow.contentItem.grabToImage(function(result) {
+        root.assertTrue(result.saveToFile(resultPath + ".expanded.png"), "capture expanded contribution")
+        root.writeResult()
+      })
+    }
+  }
+
   function loadedExtension(item) {
     if (!item) return null
     if (item.extensionMarker === true) return item
@@ -732,7 +802,7 @@ ShellRoot {
         root.extensionCheckStage = 3
       } else if (root.extensionCheckStage === 3 && extension && extensionHost.implicitHeight === 37) {
         stop()
-        root.writeResult()
+        root.captureCollapsedExtension()
       }
     }
   }
