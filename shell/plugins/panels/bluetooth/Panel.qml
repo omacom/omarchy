@@ -35,6 +35,105 @@ Panel {
   property var pendingAudioOutputDevice: null
   property int pendingAudioOutputAttempts: 0
 
+  // Headset audio nodes, picked out by name, which is readable before a node
+  // is bound. They are bound only while the panel is open, the only time
+  // anything shows their codec.
+  readonly property var bluezNodes: {
+    var list = []
+    for (var i = 0; i < pipewireNodes.length; i++)
+      if (Model.isBluezAudioNode(pipewireNodes[i])) list.push(pipewireNodes[i])
+    return list
+  }
+
+  // Address -> { codec, headset, output }. Primitives only: a codec switch
+  // destroys the node and builds a new one, so rows never hold a PwNode. The
+  // binding follows each node's ready and properties signals, so it needs no
+  // timer to catch a codec change.
+  readonly property var codecsByAddress: opened ? Model.codecSnapshot(bluezNodes) : ({})
+
+  // Codec section state from omarchy-bluetooth-codec. `codecCurrent` is the
+  // codec playing now; `codecSelected` is the pinned one ("auto" when none).
+  // `pendingCodec` holds the asked-for codec while the transport is rebuilt.
+  property string codecStatusAddress: ""
+  property string codecMode: ""
+  property string codecCurrent: ""
+  property string codecSelected: "auto"
+  property var codecOptions: []
+  property string pendingCodec: ""
+  property int codecIndex: 0
+  // The section has up to two cursor rows: the Automatic switch on the header
+  // line, then the pills while a codec is pinned.
+  property bool codecAutoFocused: true
+  // Last connected device the cursor sat on, so the section stays with it
+  // while the cursor is inside the section itself.
+  property string codecFocusAddress: ""
+  // A switch tears the headset's audio node down and builds a new one, so for
+  // a moment PipeWire shows no codec for it at all. Holding the switched
+  // headset as the target keeps the section (and the cursor in it) on screen
+  // until the new node reports in.
+  property string codecHoldAddress: ""
+  // The codec the held headset should come back with. pactl returns before
+  // the old node is gone, so the hold ends only once this one reports in.
+  property string codecHoldCodec: ""
+
+  function releaseCodecHold() {
+    if (codecHoldAddress === "" || codecBusy) return
+    var entry = codecsByAddress[Model.normalizedAddress(codecHoldAddress)]
+    if (entry && (codecHoldCodec === "" || entry.codec === codecHoldCodec)) {
+      codecHoldAddress = ""
+      codecHoldTimeout.stop()
+    }
+  }
+
+  // The connected headset the codec section controls: the one the cursor last
+  // sat on, otherwise the first one playing through PipeWire.
+  readonly property string codecTarget: {
+    var focused = null
+    var first = null
+    for (var i = 0; i < connectedDevices.length; i++) {
+      var d = connectedDevices[i]
+      if (!d || !codecsByAddress[Model.normalizedAddress(d.address)]) continue
+      if (!first) first = d
+      if (d.address === codecFocusAddress) focused = d
+    }
+    if (codecHoldAddress !== "") return codecHoldAddress
+    var target = focused || first
+    return target ? (target.address || "") : ""
+  }
+  readonly property int codecDeviceCount: {
+    var count = 0
+    for (var i = 0; i < connectedDevices.length; i++)
+      if (connectedDevices[i] && codecsByAddress[Model.normalizedAddress(connectedDevices[i].address)]) count++
+    return count
+  }
+  readonly property bool codecBusy: pendingCodec !== ""
+  readonly property string codecEffective: pendingCodec !== "" ? pendingCodec : codecSelected
+  readonly property bool codecPinned: codecEffective !== "auto"
+  // Music mode only: a headset-mode codec follows the call profile, and a
+  // headset that offers one codec has nothing to choose -- unless one is
+  // pinned, which has to stay reachable to undo.
+  readonly property bool canSelectCodec: codecTarget !== "" && codecStatusAddress === codecTarget
+    && (codecMode === "music" || codecBusy) && (codecOptions.length > 1 || codecPinned)
+  readonly property bool codecPillsVisible: canSelectCodec && codecPinned
+  readonly property string codecSectionTitle: {
+    var title = Model.codecSectionTitle(codecEffective, codecCurrent, Commons.I18n.t)
+    if (codecDeviceCount < 2) return title
+    var dev = null
+    for (var i = 0; i < connectedDevices.length; i++)
+      if (connectedDevices[i] && connectedDevices[i].address === codecTarget) dev = connectedDevices[i]
+    return dev ? title + " · " + Model.deviceLabel(dev).toUpperCase() : title
+  }
+
+  onCodecTargetChanged: codecStatusSettle.restart()
+  onCodecsByAddressChanged: {
+    releaseCodecHold()
+    codecStatusSettle.restart()
+  }
+  onCodecPillsVisibleChanged: if (!codecPillsVisible) codecAutoFocused = true
+  onCodecOptionsChanged: {
+    if (codecIndex > codecOptions.length - 1) codecIndex = Math.max(0, codecOptions.length - 1)
+  }
+
   function deviceLabel(device) {
     return Model.deviceLabel(device)
   }
@@ -113,6 +212,7 @@ Panel {
 
   function sectionCount(section) {
     if (section === "connected") return connectedDevices.length
+    if (section === "codec") return canSelectCodec ? 1 : 0
     if (section === "known") return knownDevices.length
     if (section === "discovered") return discoveredDevices.length
     return 0
@@ -125,8 +225,12 @@ Panel {
     return false
   }
 
+  // The codec section sits between the connected headsets and the
+  // remembered devices, on screen and in the cursor order alike.
   readonly property var visibleSections: {
-    return Model.visibleSections(deviceGroups, adapter && adapter.discovering)
+    var sections = Model.visibleSections(deviceGroups, adapter && adapter.discovering)
+    if (canSelectCodec) sections.splice(sections.indexOf("connected") + 1, 0, "codec")
+    return sections
   }
 
   function devicesForSection(section) {
@@ -152,7 +256,7 @@ Panel {
   readonly property var connectedRows: {
     var rows = []
     for (var i = 0; i < connectedDevices.length; i++)
-      rows.push(Model.deviceRow(connectedDevices[i]))
+      rows.push(Model.deviceRow(connectedDevices[i], codecsByAddress))
     return rows
   }
 
@@ -202,6 +306,88 @@ Panel {
       if (Model.bluetoothSinkMatchesDevice(sinks[i], device)) return sinks[i]
     }
     return null
+  }
+
+  function refreshCodecStatus() {
+    if (!opened || codecTarget === "") return
+    if (codecStatusProc.running) {
+      codecStatusSettle.restart()
+      return
+    }
+    codecStatusProc.address = codecTarget
+    codecStatusProc.command = ["omarchy-bluetooth-codec", codecTarget]
+    codecStatusProc.running = true
+  }
+
+  function updateCodecStatus(address, raw) {
+    // A status for a headset the section has since moved off is stale.
+    if (address !== codecTarget) return
+    var status = Model.parseCodecStatus(raw)
+    // Mid-switch the card can briefly report no profile. Publishing that would
+    // unmount the section under the busy switch -- same guard as Wi-Fi band.
+    if (codecBusy && status.options.length === 0) return
+
+    codecStatusAddress = address
+    codecMode = status.mode
+    codecCurrent = status.codec
+    codecSelected = status.selected
+    codecOptions = status.options
+    if (!codecBusy) syncCodecIndex()
+  }
+
+  function codecLabel(codec) {
+    for (var i = 0; i < codecOptions.length; i++)
+      if (codecOptions[i].codec === codec) return codecOptions[i].label
+    return Model.codecLabel(codec)
+  }
+
+  function codecTooltip(codec) {
+    return Commons.I18n.t("bluetooth.stayOnCodec").arg(codecLabel(codec))
+  }
+
+  // Switching the codec rebuilds the transport -- a second or two of silence --
+  // and the panel stays open so the switch and the row's codec show it land.
+  function setCodec(codec) {
+    if (!codec || codecTarget === "" || codecActionProc.running) return
+    pendingCodec = codec
+    codecHoldAddress = codecTarget
+    // Automatic lands on the headset's best codec, which it lists first.
+    codecHoldCodec = codec !== "auto" ? codec : (codecOptions.length > 0 ? codecOptions[0].codec : "")
+    codecHoldTimeout.restart()
+    codecActionProc.command = ["omarchy-bluetooth-codec", codecTarget, codec]
+    codecActionProc.running = true
+  }
+
+  // Switching Automatic off has to commit to something, so it pins the codec
+  // the headset is already playing: nothing audible changes until a pill is
+  // picked.
+  function toggleCodecAuto() {
+    if (codecSelected !== "auto") {
+      setCodec("auto")
+      return
+    }
+    if (codecCurrent === "") return
+    setCodec(codecCurrent)
+  }
+
+  function syncCodecIndex() {
+    var idx = -1
+    for (var i = 0; i < codecOptions.length; i++)
+      if (codecOptions[i].codec === codecSelected) idx = i
+    codecIndex = idx >= 0 ? idx : 0
+  }
+
+  function selectCodecByDelta(delta) {
+    codecIndex = Math.max(0, Math.min(codecOptions.length - 1, codecIndex + delta))
+  }
+
+  function activateCodec() {
+    if (codecAutoFocused) {
+      toggleCodecAuto()
+      return
+    }
+    if (codecIndex < 0 || codecIndex >= codecOptions.length) return
+    setCodec(codecOptions[codecIndex].codec)
   }
 
   function setDefaultAudioSink(sink) {
@@ -329,9 +515,18 @@ Panel {
     if (focusSection === "header") {
       if (delta > 0 && sections && sections.length > 0) {
         focusSection = sections[0]; selectedIndex = 0; actionFocused = false
+        codecAutoFocused = true
       }
       return
     }
+    // Automatic on the header line, then the pills -- which collapse away
+    // under Automatic, leaving a single row to walk.
+    if (focusSection === "codec") {
+      if (delta > 0 && codecAutoFocused && codecPillsVisible) { codecAutoFocused = false; return }
+      if (delta < 0 && !codecAutoFocused) { codecAutoFocused = true; return }
+    }
+    var entering = delta > 0 ? sections[sections.indexOf(focusSection) + 1] : sections[sections.indexOf(focusSection) - 1]
+    if (entering === "codec") codecAutoFocused = delta > 0 || !codecPillsVisible
     if (!sections || sections.length === 0) { focusSection = "header"; actionFocused = false; return }
     var sIdx = sections.indexOf(focusSection)
     if (sIdx < 0) { focusSection = sections[0]; selectedIndex = 0; actionFocused = false; return }
@@ -366,6 +561,10 @@ Panel {
 
   function moveCursorH(delta) {
     if (!cursorActive) { cursorActive = true; return }
+    if (focusSection === "codec") {
+      if (!codecAutoFocused) selectCodecByDelta(delta)
+      return
+    }
     if (focusSection !== "known" && focusSection !== "connected") return
     var dev = deviceAt(focusSection, selectedIndex)
     if (!dev || !dev.address) return
@@ -376,6 +575,10 @@ Panel {
   function activateCursor() {
     if (focusSection === "header") {
       toggleBluetooth()
+      return
+    }
+    if (focusSection === "codec") {
+      activateCodec()
       return
     }
     if (actionFocused) {
@@ -418,6 +621,12 @@ Panel {
       else { focusSection = "header" }
       actionFocused = false
       cursorActive = false
+      codecAutoFocused = true
+      codecStatusSettle.restart()
+    } else {
+      // A closed panel shows no codec; drop the reading so a reopen never
+      // flashes a headset's stale state.
+      codecStatusAddress = ""
     }
   }
 
@@ -437,6 +646,7 @@ Panel {
   function updateFocusedAddress() {
     var d = deviceAt(focusSection, selectedIndex)
     focusedDeviceAddress = d ? (d.address || "") : ""
+    if (d && focusSection === "connected") codecFocusAddress = d.address || ""
   }
 
   function reselectFocusedDevice() {
@@ -478,6 +688,7 @@ Panel {
     // time it is used.
     if (focusSection === "header") return
     if (!sections || !sections.length) {
+      if (focusSection === "codec") focusSection = "header"
       selectedIndex = 0
       return
     }
@@ -497,6 +708,8 @@ Panel {
     if (selectedIndex > count - 1) selectedIndex = count - 1
     if (selectedIndex < 0) selectedIndex = 0
   }
+
+  PwObjectTracker { objects: root.opened ? root.bluezNodes : [] }
 
   visible: adapter !== null
   implicitWidth: button.implicitWidth
@@ -576,6 +789,46 @@ Panel {
       if (items[i] && items[i] !== root) { items[i].owesDiscoveryStop = true; return }
     }
     if (adapter !== null && adapter.discovering) adapter.discovering = false
+  }
+
+  // Coalesces the node churn of a codec or profile switch into one status read.
+  Timer {
+    id: codecStatusSettle
+    interval: 250
+    repeat: false
+    onTriggered: root.refreshCodecStatus()
+  }
+
+  // A headset that disconnects mid-switch never reports back; let go of it.
+  Timer {
+    id: codecHoldTimeout
+    interval: 8000
+    repeat: false
+    onTriggered: root.codecHoldAddress = ""
+  }
+
+  Process {
+    id: codecStatusProc
+    property string address: ""
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.updateCodecStatus(codecStatusProc.address, text)
+    }
+  }
+
+  Process {
+    id: codecActionProc
+    onExited: function(exitCode) {
+      // A refused or reverted pin leaves codecSelected alone, so the pills keep
+      // showing what is actually in force rather than what was asked.
+      if (exitCode === 0) root.codecSelected = root.pendingCodec
+      root.pendingCodec = ""
+      // A refused switch keeps the old node, so nothing is coming back to wait
+      // for. Otherwise the hold ends when the new codec reports in.
+      if (exitCode !== 0) root.codecHoldCodec = ""
+      root.releaseCodecHold()
+      root.refreshCodecStatus()
+    }
   }
 
   Timer {
@@ -799,6 +1052,126 @@ Panel {
         }
 
         PanelSeparator {
+          visible: root.canSelectCodec
+          foreground: root.bar.foreground
+        }
+
+        // Codec for the connected headset, laid out like the Wi-Fi band
+        // section: Automatic on the header line, the pinned choice as pills.
+        Column {
+          visible: root.canSelectCodec
+          width: parent.width
+          spacing: Style.space(10)
+
+          Item {
+            width: parent.width
+            implicitHeight: Math.max(codecHeader.implicitHeight, codecAutoRow.implicitHeight)
+
+            PanelSectionHeader {
+              id: codecHeader
+              text: root.codecSectionTitle
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+              anchors.left: parent.left
+              anchors.right: codecAutoRow.left
+              anchors.rightMargin: Style.space(8)
+              anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Row {
+              id: codecAutoRow
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(6)
+
+              PanelSectionHeader {
+                id: codecAutoLabel
+                text: Commons.I18n.t("bluetooth.automatic")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              // Sized and centred off the label's glyphs, as in the Wi-Fi band
+              // header, so it reads as part of the header line.
+              ToggleSwitch {
+                id: codecAutoSwitch
+                trackHeight: Math.round(codecAutoLabel.font.pixelSize * 1.2)
+                cursorPad: Style.space(3)
+                anchors.verticalCenter: codecAutoLabel.verticalCenter
+                anchors.verticalCenterOffset: Math.round(codecAutoLabel.topPadding / 2)
+                checked: !root.codecPinned
+                busy: root.codecBusy
+                hasCursor: root.cursorActive && root.focusSection === "codec" && root.codecAutoFocused
+                foreground: root.bar.foreground
+                onToggled: root.toggleCodecAuto()
+
+                onHovered: function(isHovered) {
+                  if (!isHovered) return
+                  root.cursorActive = true
+                  root.focusSection = "codec"
+                  root.selectedIndex = 0
+                  root.codecAutoFocused = true
+                }
+
+                PanelToolTip {
+                  visible: codecAutoSwitch.containsMouse
+                  text: root.codecPinned
+                    ? Commons.I18n.t("bluetooth.codecAutoTooltip")
+                    : root.codecTooltip(root.codecCurrent)
+                  fontFamily: root.bar.fontFamily
+                }
+              }
+            }
+          }
+
+          // Collapsing container, as in the Wi-Fi band section: toggling
+          // Automatic slides the list below into place instead of snapping.
+          Item {
+            width: parent.width
+            clip: true
+            visible: height > 0
+            height: root.codecPillsVisible ? codecRow.implicitHeight : 0
+            opacity: root.codecPillsVisible ? 1 : 0
+
+            Behavior on height {
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+            }
+            Behavior on opacity {
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+            }
+
+            Row {
+              id: codecRow
+              width: parent.width
+              spacing: Style.space(6)
+
+              readonly property int count: Math.max(1, root.codecOptions.length)
+              readonly property real cellWidth: (width - spacing * (count - 1)) / count
+
+              Repeater {
+                model: root.codecOptions
+
+                delegate: Item {
+                  required property var modelData
+                  required property int index
+                  width: codecRow.cellWidth
+                  height: codecPill.implicitHeight
+
+                  CodecPill {
+                    id: codecPill
+                    codec: modelData.codec
+                    label: modelData.label
+                    slot: index
+                    width: parent.width
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        PanelSeparator {
           visible: root.connectedDevices.length > 0 && root.scrollRows.length > 0
           foreground: root.bar.foreground
         }
@@ -884,6 +1257,40 @@ Panel {
     }
   }
 
+  // One codec choice. `active` marks the codec playing now and `selected` the
+  // pinned one, as the Wi-Fi band pills do; they meet once the switch lands.
+  component CodecPill: Button {
+    id: pill
+    required property string codec
+    required property string label
+    required property int slot
+
+    text: label
+    tooltipText: root.codecTooltip(codec)
+    fontSize: Style.font.bodySmall
+    foreground: root.bar.foreground
+    fontFamily: root.bar.fontFamily
+    horizontalPadding: Style.spacing.controlPaddingX
+    verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+    bordered: true
+
+    active: root.codecCurrent === codec
+    selected: root.codecEffective === codec
+    hasCursor: root.cursorActive && root.focusSection === "codec"
+      && !root.codecAutoFocused && root.codecIndex === slot
+
+    onClicked: root.setCodec(codec)
+
+    onHovered: function(isHovered) {
+      if (!isHovered) return
+      root.cursorActive = true
+      root.focusSection = "codec"
+      root.selectedIndex = 0
+      root.codecAutoFocused = false
+      root.codecIndex = pill.slot
+    }
+  }
+
   // Two-line device row showing name + live status. Pending state is owned
   // by the panel so it survives rows moving between sections.
   component DeviceRow: CursorSurface {
@@ -918,7 +1325,10 @@ Panel {
       if (action === "forgetting") return Commons.I18n.t("bluetooth.forgetting")
       if (action === "disconnecting" || devState === 2) return Commons.I18n.t("bluetooth.disconnecting")
       if (isConnected) {
-        if (dev.batteryAvailable) return Commons.I18n.formatNumber(Math.round(dev.battery * 100)) + "%"
+        var parts = []
+        if (dev.batteryAvailable) parts.push(Commons.I18n.formatNumber(Math.round(dev.battery * 100)) + "%")
+        if (dev.codec) parts.push(Model.codecLabel(dev.codec))
+        if (parts.length > 0) return parts.join(" · ")
         return sectionName === "connected" ? "" : Commons.I18n.t("bluetooth.connectedStatus")
       }
       if (action === "connecting" || devState === 3 || dev.pairing === true) return Commons.I18n.t("bluetooth.connecting")
