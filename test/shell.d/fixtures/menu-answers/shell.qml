@@ -17,6 +17,8 @@ ShellRoot {
   property int waited: 0
   property int serialBefore: 0
   property string copiedAfterSearch: "unset"
+  property var lookup: null
+  property string fetchingAfterSearch: "unset"
 
   function row(i) { return i < root.model.count ? root.model.get(i) : ({}) }
   function kinds() {
@@ -31,6 +33,11 @@ ShellRoot {
 
   readonly property var steps: [
     { name: "the rows have loaded", check: function() { return root.menu.rowsLoaded } },
+
+    // First, before anything has loaded the currency list, as "pounds" names a
+    // currency and would otherwise send for it.
+    { name: "pounds to kilograms is weight, and never reaches the network", act: function() { root.search("5 pounds to kg"); root.fetchingAfterSearch = root.lookup.fetching },
+      check: function() { return root.fetchingAfterSearch === "" && root.row(0).kind === "unit" && root.row(0).label === "2.26796185 kg" && root.kinds().indexOf("currency") === -1 } },
 
     // Calculator rows
     { name: "a sum is answered first, on the cursor", act: function() { root.search("2+3*4") },
@@ -77,11 +84,25 @@ ShellRoot {
     { name: "cancelling leaves the rows alone while the menu goes away", act: function() { root.search("1 usd to inr"); root.serialBefore = root.menu.layoutSerial; root.menu.cancel() },
       check: function() { return root.menu.filterText === "" && root.row(0).kind === "currency" && root.menu.layoutSerial === root.serialBefore } },
 
+    // Unit conversions, answered on the spot with no request
+    { name: "a unit conversion is answered first, on the cursor", act: function() { root.search("5 km to mi") },
+      check: function() { var r = root.row(0); return r.kind === "unit" && r.label === "3.106855961 mi" && r.detail === "5 km" && r.action === "wl-copy -- 3.106855961" && root.menu.selectedIndex === 0 && root.menu.cursorActive } },
+    { name: "a length in parts is shown as it was typed", act: function() { root.search("5 ft 11 in to cm") },
+      check: function() { var r = root.row(0); return r.kind === "unit" && r.label === "180.34 cm" && r.detail === "5 ft 11 in" } },
+    { name: "a tiny unit conversion is shown and copied in plain digits", act: function() { root.search("1 nm to ly") },
+      check: function() { var r = root.row(0); return r.label === "0.0000000000000000000000001057000834 ly" && r.action === "wl-copy -- 0.0000000000000000000000001057000834" } },
+    { name: "units of two kinds have no answer row", act: function() { root.search("5 kg to m") },
+      check: function() { return root.kinds().indexOf("unit") === -1 && root.kinds().indexOf("currency") === -1 } },
+    { name: "the copy button copies a unit answer", act: function() { root.search("1 mi to km"); root.menu.copyAnswer(root.row(0).action) },
+      check: function() { return root.menu.copiedAction === "wl-copy -- 1.609344" && root.row(0).kind === "unit" } },
+
     // Other modes
     { name: "a picker for another command never answers", act: function() { root.menu.mode = "select"; root.search("2+2") },
       check: function() { return root.kinds().indexOf("calc") === -1 } },
     { name: "a picker never converts", act: function() { root.search("1 usd to inr") },
       check: function() { return root.kinds().indexOf("currency") === -1 } },
+    { name: "a picker never converts units", act: function() { root.search("5 km to mi") },
+      check: function() { return root.kinds().indexOf("unit") === -1 } },
     { name: "back in the menu it answers again", act: function() { root.menu.mode = "menu"; root.search("2+2") },
       check: function() { return root.row(0).kind === "calc" && root.row(0).label === "4" } },
     { name: "clearing the search drops the answer", act: function() { root.search("") },
@@ -137,6 +158,7 @@ ShellRoot {
     for (var i = 0; i < root.menu.data.length; i++) {
       var item = root.menu.data[i]
       if (item && item.count !== undefined && typeof item.get === "function" && typeof item.append === "function") root.model = root.model || item
+      if (item && item.ratesLifetimeMs !== undefined) root.lookup = item
     }
     root.next()
   }

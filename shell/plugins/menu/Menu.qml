@@ -7,6 +7,7 @@ import qs.Commons as Commons
 import qs.Ui
 import "MenuModel.js" as MenuModel
 import "Calc.js" as Calc
+import "Units.js" as Units
 import "../../Commons/Numbers.js" as Numbers
 
 Item {
@@ -632,9 +633,25 @@ Item {
     onTriggered: root.copiedAction = ""
   }
 
+  // A unit conversion is answered here, so the currency lookup never sees it:
+  // "5 pounds to kg" is a weight, not sterling.
+  readonly property var unitAnswer: root.dmenuActive ? null : Units.convert(root.filterText)
+
+  // Sits above the search results like a sum's row. The action only ever holds
+  // plain digits, as that is all Numbers.plain writes.
+  function unitRow(answer) {
+    var parts = answer.parts.map(function(part) { return Commons.I18n.formatNumber(part.amount) + " " + part.unit })
+    return {
+      itemId: "unit.result", disabled: false, kind: "unit", icon: "\u{F046D}", iconFont: "",
+      appIcon: "", appId: "", target: "", path: "", childCount: 0, provider: "", score: -1, section: "",
+      label: Commons.I18n.formatNumber(answer.value) + " " + answer.to, detail: parts.join(" "),
+      action: "wl-copy -- " + Numbers.plain(answer.value)
+    }
+  }
+
   CurrencyLookup {
     id: currencyLookup
-    query: root.dmenuActive ? "" : root.filterText
+    query: root.dmenuActive || root.unitAnswer ? "" : root.filterText
     // With no search there is no row to change: the rows are going away with the
     // menu, or whatever cleared the search is rebuilding them itself.
     onAnswerChanged: if (root.filterText && !root.settingFilter) root.refreshCurrencyRow()
@@ -821,6 +838,7 @@ Item {
       }
       rows = currentRows.concat(drilldownRows)
       if (currencyLookup.status) rows.unshift(root.currencyRow())
+      if (root.unitAnswer) rows.unshift(root.unitRow(root.unitAnswer))
 
       var calculation = Calc.evaluate(query)
       if (calculation) rows.unshift(root.calculationRow(calculation, query))
@@ -1574,7 +1592,7 @@ Item {
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
-              readonly property bool isAnswer: (row.kind === "calc" || row.kind === "currency") && !row.disabled
+              readonly property bool isAnswer: (row.kind === "calc" || row.kind === "currency" || row.kind === "unit") && !row.disabled
 
               width: ListView.view.width
               height: root.rowHeightForDetail(row.detail)
@@ -1647,7 +1665,8 @@ Item {
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.heading
                   font.weight: Font.Medium
-                  elide: Text.ElideRight
+                  // An answer's digits that matter are at its end, as in 0.000…1057 ly.
+                  elide: row.isAnswer ? Text.ElideMiddle : Text.ElideRight
                 }
 
                 Text {

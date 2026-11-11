@@ -538,4 +538,136 @@ for (const text of [
 for (const [value, rounded] of [[1.0578803, 1.06], [1, 1], [0, 0], [1234567.891, 1234567.89], [473.9, 473.9], [0.0105788, 0.01058], [0.999999, 1], [1.1e-7, 1.1e-7], [1e21, 1e21]]) {
   assertEqual(currency.round(value), rounded, `a conversion rounds ${value} to ${rounded}`)
 }
+
+// Expected values are worked out from each unit's definition (an inch is 0.0254 m,
+// a pound 0.45359237 kg, a US gallon 231 cubic inches), not from Units.js, and
+// rounded to the ten significant digits an answer keeps.
+const units = requireFromRoot('shell/plugins/menu/Units.js')
+for (const [text, amount, from, value, to] of [
+  // Length
+  ['5 km to mi', 5, 'km', 3.106855961, 'mi'], ['1 mi to km', 1, 'mi', 1.609344, 'km'], ['6 ft to m', 6, 'ft', 1.8288, 'm'], ['12 in to cm', 12, 'in', 30.48, 'cm'],
+  ['1 yd to ft', 1, 'yd', 3, 'ft'], ['100 cm to m', 100, 'cm', 1, 'm'], ['1 m to mm', 1, 'm', 1000, 'mm'], ['1 m to ft', 1, 'm', 3.280839895, 'ft'],
+  ['1 nmi to km', 1, 'nmi', 1.852, 'km'], ['1 µm to nm', 1, 'µm', 1000, 'nm'], ['1 um to nm', 1, 'µm', 1000, 'nm'], ['1 micron to nm', 1, 'µm', 1000, 'nm'], ['1 Å to nm', 1, 'Å', 0.1, 'nm'],
+  ['1 ly to km', 1, 'ly', 9460730473000, 'km'], ['1 au to km', 1, 'au', 149597870.7, 'km'], ['1 pc to ly', 1, 'pc', 3.261563777, 'ly'], ['1 furlong to m', 1, 'fur', 201.168, 'm'], ['1000 thou to in', 1000, 'thou', 1, 'in'],
+  // Every spelling of a length
+  ['1 meter to cm', 1, 'm', 100, 'cm'], ['1 metre to cm', 1, 'm', 100, 'cm'], ['2 metres to cm', 2, 'm', 200, 'cm'], ['10 kilometers to miles', 10, 'km', 6.213711922, 'mi'], ['10 kilometres to mile', 10, 'km', 6.213711922, 'mi'],
+  ['1 foot to inches', 1, 'ft', 12, 'in'], ['3 feet to inch', 3, 'ft', 36, 'in'], ['1 yard to feet', 1, 'yd', 3, 'ft'], ['2 miles to yards', 2, 'mi', 3520, 'yd'], ['1 nautical mile to m', 1, 'nmi', 1852, 'm'], ['1 light year to km', 1, 'ly', 9460730473000, 'km'], ['1 lightyear to km', 1, 'ly', 9460730473000, 'km'],
+  // Feet and inches as marks, and lengths made of parts
+  ["5'11\" to cm", 5.9166666667, 'ft', 180.34, 'cm'], ["6' to cm", 6, 'ft', 182.88, 'cm'], ['10" to cm', 10, 'in', 25.4, 'cm'], ['5 ft 11 in to cm', 5.9166666667, 'ft', 180.34, 'cm'], ['5 feet 11 inches in cm', 5.9166666667, 'ft', 180.34, 'cm'], ['1 m 50 cm to ft', 1.5, 'm', 4.921259843, 'ft'],
+  // Mass
+  ['1 kg to lb', 1, 'kg', 2.204622622, 'lb'], ['1 lb to g', 1, 'lb', 453.59237, 'g'], ['16 oz to lb', 16, 'oz', 1, 'lb'], ['1 st to lb', 1, 'st', 14, 'lb'], ['1 stone to pounds', 1, 'st', 14, 'lb'],
+  ['1 t to kg', 1, 't', 1000, 'kg'], ['1 tonne to lb', 1, 't', 2204.622622, 'lb'], ['1 metric ton to kg', 1, 't', 1000, 'kg'], ['1 ton to kg', 1, 'ton', 907.18474, 'kg'], ['1 short ton to lb', 1, 'ton', 2000, 'lb'], ['1 long ton to kg', 1, 'long ton', 1016.046909, 'kg'],
+  ['1 ct to g', 1, 'ct', 0.2, 'g'], ['7000 gr to lb', 7000, 'gr', 1, 'lb'], ['1 g to mg', 1, 'g', 1000, 'mg'], ['1 mg to µg', 1, 'mg', 1000, 'µg'], ['1 mcg to mg', 1, 'µg', 0.001, 'mg'], ['5 pounds to kg', 5, 'lb', 2.26796185, 'kg'], ['5 lbs to kg', 5, 'lb', 2.26796185, 'kg'],
+  ['2 lb 3 oz to kg', 2.1875, 'lb', 0.9922333094, 'kg'], ['1 kg 200 g to lb', 1.2, 'kg', 2.645547146, 'lb'], ['1 kilo to grams', 1, 'kg', 1000, 'g'],
+  // Temperature, which has an offset and a floor
+  ['100 c to f', 100, '°C', 212, '°F'], ['32 f to c', 32, '°F', 0, '°C'], ['-40 c to f', -40, '°C', -40, '°F'], ['-40 f to c', -40, '°F', -40, '°C'], ['−40 c to f', -40, '°C', -40, '°F'],
+  ['0 k to c', 0, 'K', -273.15, '°C'], ['0 c to k', 0, '°C', 273.15, 'K'], ['300 K to C', 300, 'K', 26.85, '°C'], ['98.6 f to c', 98.6, '°F', 37, '°C'], ['491.67 °R to °C', 491.67, '°R', 0, '°C'], ['0 rankine to kelvin', 0, '°R', 0, 'K'],
+  ['20 °C to °F', 20, '°C', 68, '°F'], ['20°c to f', 20, '°C', 68, '°F'], ['20 ° C to ° F', 20, '°C', 68, '°F'], ['20 celsius to fahrenheit', 20, '°C', 68, '°F'], ['20 centigrade to fahrenheit', 20, '°C', 68, '°F'],
+  ['20 degrees celsius to fahrenheit', 20, '°C', 68, '°F'], ['68 deg f to c', 68, '°F', 20, '°C'], ['68 degf to degc', 68, '°F', 20, '°C'], ['-273.15 c to k', -273.15, '°C', 0, 'K'], ['-459.67 f to k', -459.67, '°F', 0, 'K'], ['1 c to c', 1, '°C', 1, '°C'],
+  // Volume, US unless it says otherwise
+  ['1 gal to l', 1, 'gal', 3.785411784, 'L'], ['1 l to ml', 1, 'L', 1000, 'mL'], ['1 L to mL', 1, 'L', 1000, 'mL'], ['1 cup to ml', 1, 'cup', 236.5882365, 'mL'], ['1 tbsp to tsp', 1, 'tbsp', 3, 'tsp'],
+  ['1 fl oz to ml', 1, 'fl oz', 29.57352956, 'mL'], ['8 fl oz to ml', 8, 'fl oz', 236.5882365, 'mL'], ['8 oz to g', 8, 'oz', 226.796185, 'g'], ['1 cup to fl oz', 1, 'cup', 8, 'fl oz'], ['1 qt to pt', 1, 'qt', 2, 'pt'], ['1 gal to qt', 1, 'gal', 4, 'qt'], ['1 gallon to cups', 1, 'gal', 16, 'cup'],
+  ['2 liters to gallons', 2, 'L', 0.5283441047, 'gal'], ['2 litres to gallons', 2, 'L', 0.5283441047, 'gal'], ['1 imp gal to l', 1, 'imp gal', 4.54609, 'L'], ['1 imperial gallon to l', 1, 'imp gal', 4.54609, 'L'], ['1 uk pint to ml', 1, 'imp pt', 568.26125, 'mL'],
+  ['1 m3 to l', 1, 'm³', 1000, 'L'], ['1 m³ to l', 1, 'm³', 1000, 'L'], ['1 cubic meter to liters', 1, 'm³', 1000, 'L'], ['1 cc to ml', 1, 'cm³', 1, 'mL'], ['1 cm³ to ml', 1, 'cm³', 1, 'mL'], ['1 ft3 to l', 1, 'ft³', 28.31684659, 'L'], ['1 cu ft to l', 1, 'ft³', 28.31684659, 'L'],
+  ['1 cl to ml', 1, 'cL', 10, 'mL'], ['1 dl to ml', 1, 'dL', 100, 'mL'], ['1 tablespoon to teaspoons', 1, 'tbsp', 3, 'tsp'],
+  // Fractions and mixed numbers, as recipes write them
+  ['3/4 cup to tbsp', 0.75, 'cup', 12, 'tbsp'], ['1/2 gal to qt', 0.5, 'gal', 2, 'qt'], ['1 1/2 cups to tbsp', 1.5, 'cup', 24, 'tbsp'], ['2 1/4 tsp to ml', 2.25, 'tsp', 11.09007359, 'mL'],
+  // Area
+  ['1 acre to m2', 1, 'ac', 4046.856422, 'm²'], ['1 ha to acres', 1, 'ha', 2.471053815, 'ac'], ['1 km2 to ha', 1, 'km²', 100, 'ha'], ['1 m² to ft²', 1, 'm²', 10.76391042, 'ft²'], ['1 sq ft to sq in', 1, 'ft²', 144, 'in²'],
+  ['1 square mile to acres', 1, 'mi²', 640, 'ac'], ['1 m^2 to cm^2', 1, 'm²', 10000, 'cm²'], ['100 square feet to square meters', 100, 'ft²', 9.290304, 'm²'], ['1 hectare to m2', 1, 'ha', 10000, 'm²'], ['1 sq yd to sq ft', 1, 'yd²', 9, 'ft²'],
+  // Speed
+  ['100 km/h to mph', 100, 'km/h', 62.13711922, 'mph'], ['60 mph to km/h', 60, 'mph', 96.56064, 'km/h'], ['1 m/s to km/h', 1, 'm/s', 3.6, 'km/h'], ['10 knots to km/h', 10, 'kn', 18.52, 'km/h'], ['1 kn to m/s', 1, 'kn', 0.5144444444, 'm/s'],
+  ['100 kph to mph', 100, 'km/h', 62.13711922, 'mph'], ['100 kmh to mph', 100, 'km/h', 62.13711922, 'mph'], ['60 miles per hour to kilometers per hour', 60, 'mph', 96.56064, 'km/h'], ['1 ft/s to m/s', 1, 'ft/s', 0.3048, 'm/s'], ['1 meter per second to km/h', 1, 'm/s', 3.6, 'km/h'],
+  // Time
+  ['1 h to min', 1, 'h', 60, 'min'], ['1 day to h', 1, 'd', 24, 'h'], ['1 week to days', 1, 'wk', 7, 'd'], ['90 min to h', 90, 'min', 1.5, 'h'], ['1 yr to days', 1, 'yr', 365.25, 'd'], ['1 month to days', 1, 'mo', 30.4375, 'd'], ['1 fortnight to days', 1, 'fortnight', 14, 'd'],
+  ['1 s to ms', 1, 's', 1000, 'ms'], ['1 ms to µs', 1, 'ms', 1000, 'µs'], ['1 us to ns', 1, 'µs', 1000, 'ns'], ['1 decade to yr', 1, 'decade', 10, 'yr'], ['1 century to years', 1, 'century', 100, 'yr'], ['3600 s to h', 3600, 's', 1, 'h'], ['2 hours to seconds', 2, 'h', 7200, 's'], ['1 h 30 min to min', 1.5, 'h', 90, 'min'],
+  // Data: SI prefixes are powers of ten, IEC ones powers of two; a capital-first "Mb" is bits, and all-lowercase means bytes
+  ['1 GB to MB', 1, 'GB', 1000, 'MB'], ['1 GiB to MiB', 1, 'GiB', 1024, 'MiB'], ['1 GiB to GB', 1, 'GiB', 1.073741824, 'GB'], ['1 TB to GiB', 1, 'TB', 931.3225746, 'GiB'], ['1 MB to Mb', 1, 'MB', 8, 'Mbit'], ['100 Mb to MB', 100, 'Mbit', 12.5, 'MB'],
+  ['1 byte to bits', 1, 'B', 8, 'bit'], ['8 bits to bytes', 8, 'bit', 1, 'B'], ['1 kB to B', 1, 'kB', 1000, 'B'], ['1 KB to B', 1, 'kB', 1000, 'B'], ['1 kib to bit', 1, 'KiB', 8192, 'bit'], ['1 gb to mb', 1, 'GB', 1000, 'MB'], ['1 Gb to Mb', 1, 'Gbit', 1000, 'Mbit'],
+  ['1 gigabit to megabytes', 1, 'Gbit', 125, 'MB'], ['1 PB to TB', 1, 'PB', 1000, 'TB'], ['1 PiB to TiB', 1, 'PiB', 1024, 'TiB'], ['1 gigabyte to megabytes', 1, 'GB', 1000, 'MB'], ['1 gibibyte to mebibytes', 1, 'GiB', 1024, 'MiB'],
+  // Data rates
+  ['100 Mbps to MB/s', 100, 'Mbit/s', 12.5, 'MB/s'], ['1 Gbps to Mbps', 1, 'Gbit/s', 1000, 'Mbit/s'], ['1 MB/s to kbps', 1, 'MB/s', 8000, 'kbit/s'], ['100 mbps to mb/s', 100, 'Mbit/s', 12.5, 'MB/s'],
+  // Pressure
+  ['1 atm to kPa', 1, 'atm', 101.325, 'kPa'], ['1 bar to psi', 1, 'bar', 14.50377377, 'psi'], ['1 atm to mmHg', 1, 'atm', 759.9998917, 'mmHg'], ['1 atm to torr', 1, 'atm', 760, 'Torr'], ['1 psi to kPa', 1, 'psi', 6.894757293, 'kPa'],
+  ['1013.25 hPa to atm', 1013.25, 'hPa', 1, 'atm'], ['1 bar to mbar', 1, 'bar', 1000, 'mbar'], ['1 MPa to bar', 1, 'MPa', 10, 'bar'], ['1 inHg to hPa', 1, 'inHg', 33.86389, 'hPa'], ['1 pascal to Pa', 1, 'Pa', 1, 'Pa'],
+  // Energy, where a capital "Cal" is a food calorie
+  ['1 kWh to MJ', 1, 'kWh', 3.6, 'MJ'], ['1 kcal to kJ', 1, 'kcal', 4.184, 'kJ'], ['1 Cal to kJ', 1, 'kcal', 4.184, 'kJ'], ['1 kcal to cal', 1, 'kcal', 1000, 'cal'], ['1 btu to J', 1, 'BTU', 1055.055853, 'J'], ['1 Wh to J', 1, 'Wh', 3600, 'J'],
+  ['1 eV to J', 1, 'eV', 1.602176634e-19, 'J'], ['1 therm to MJ', 1, 'therm', 105.4804, 'MJ'], ['1 GJ to kWh', 1, 'GJ', 277.7777778, 'kWh'], ['1 calorie to joules', 1, 'cal', 4.184, 'J'], ['1 MWh to kWh', 1, 'MWh', 1000, 'kWh'],
+  // Power, where milli and mega differ only by case
+  ['1 hp to W', 1, 'hp', 745.6998716, 'W'], ['1 kW to hp', 1, 'kW', 1.34102209, 'hp'], ['1 MW to kW', 1, 'MW', 1000, 'kW'], ['1000 mW to W', 1000, 'mW', 1, 'W'], ['1 GW to MW', 1, 'GW', 1000, 'MW'], ['1 PS to W', 1, 'PS', 735.49875, 'W'], ['1 W to btu/h', 1, 'W', 3.412141633, 'BTU/h'], ['1 horsepower to watts', 1, 'hp', 745.6998716, 'W'],
+  // Angle
+  ['180 deg to rad', 180, '°', 3.141592654, 'rad'], ['1 rad to °', 1, 'rad', 57.29577951, '°'], ['1 turn to deg', 1, 'turn', 360, '°'], ['90° to rad', 90, '°', 1.570796327, 'rad'], ['100 grad to deg', 100, 'grad', 90, '°'],
+  ['1 deg to arcmin', 1, '°', 60, 'arcmin'], ['1 arcmin to arcsec', 1, 'arcmin', 60, 'arcsec'], ['2 revolutions to degrees', 2, 'turn', 720, '°'], ['1 radian to degrees', 1, 'rad', 57.29577951, '°'],
+  // Frequency
+  ['1 GHz to MHz', 1, 'GHz', 1000, 'MHz'], ['1 kHz to Hz', 1, 'kHz', 1000, 'Hz'], ['60 rpm to Hz', 60, 'rpm', 1, 'Hz'], ['1 Hz to rpm', 1, 'Hz', 60, 'rpm'], ['1 mhz to khz', 1, 'MHz', 1000, 'kHz'], ['1 hertz to hz', 1, 'Hz', 1, 'Hz'],
+  // Force, where a capital "kN" is a kilonewton and "kn" a knot
+  ['1 kgf to N', 1, 'kgf', 9.80665, 'N'], ['1 lbf to N', 1, 'lbf', 4.448221615, 'N'], ['1 kN to N', 1, 'kN', 1000, 'N'], ['1 N to dyn', 1, 'N', 100000, 'dyn'], ['1 newton to dynes', 1, 'N', 100000, 'dyn'],
+  // Fuel economy, which is the other way up in litres per 100 km
+  ['10 l/100km to mpg', 10, 'L/100 km', 23.52145833, 'mpg'], ['30 mpg to l/100km', 30, 'mpg', 7.840486111, 'L/100 km'], ['10 km/l to l/100km', 10, 'km/L', 10, 'L/100 km'], ['30 mpg to km/l', 30, 'mpg', 12.75431122, 'km/L'],
+  ['1 mpg uk to mpg', 1, 'mpg (imp)', 0.8326741846, 'mpg'], ['5 L/100 km to km/L', 5, 'L/100 km', 20, 'km/L'], ['20 kmpl to l/100km', 20, 'km/L', 5, 'L/100 km'], ['0 mpg to km/l', 0, 'mpg', 0, 'km/L'],
+  // Amounts
+  ['1,000 m to km', 1000, 'm', 1, 'km'], ['1,00,000 cm to km', 100000, 'cm', 1, 'km'], ['1,000.5 m to km', 1000.5, 'm', 1.0005, 'km'], ['.5 km to m', 0.5, 'km', 500, 'm'], ['0 m to ft', 0, 'm', 0, 'ft'], ['-1 m to cm', -1, 'm', -100, 'cm'], ['5 m to m', 5, 'm', 5, 'm'],
+  // Spacing, case, punctuation and the ways of asking
+  ['5km to mi', 5, 'km', 3.106855961, 'mi'], ['5 KM TO MI', 5, 'km', 3.106855961, 'mi'], ['  5   km   to   mi  ', 5, 'km', 3.106855961, 'mi'], ['5 km to mi.', 5, 'km', 3.106855961, 'mi'], ['5 km to mi?', 5, 'km', 3.106855961, 'mi'],
+  ['5 km in mi', 5, 'km', 3.106855961, 'mi'], ['5 km into mi', 5, 'km', 3.106855961, 'mi'], ['5 km as mi', 5, 'km', 3.106855961, 'mi'], ['5 km = mi', 5, 'km', 3.106855961, 'mi'], ['5 km -> mi', 5, 'km', 3.106855961, 'mi'], ['5 km => mi', 5, 'km', 3.106855961, 'mi'], ['5 km → mi', 5, 'km', 3.106855961, 'mi'], ['5 km mi', 5, 'km', 3.106855961, 'mi'],
+  ['convert 5 km to mi', 5, 'km', 3.106855961, 'mi'], ['please convert 5 km to mi', 5, 'km', 3.106855961, 'mi'], ['what is 5 km in mi?', 5, 'km', 3.106855961, 'mi'], ["what's 5 km in mi", 5, 'km', 3.106855961, 'mi'], ['how much is 5 km in mi', 5, 'km', 3.106855961, 'mi'],
+  ['a mile in km', 1, 'mi', 1.609344, 'km'], ['an inch in mm', 1, 'in', 25.4, 'mm'], ['how many feet in a mile', 1, 'mi', 5280, 'ft'], ['how many feet in a mile?', 1, 'mi', 5280, 'ft'], ['how many cm in 2 inches', 2, 'in', 5.08, 'cm'], ['how many inches are in 3 ft', 3, 'ft', 36, 'in'], ['how many ml in one cup', 1, 'cup', 236.5882365, 'mL'], ['how many grams in a pound', 1, 'lb', 453.59237, 'g'],
+  // "in" as a unit as well as a connector
+  ['5 in to cm', 5, 'in', 12.7, 'cm'], ['5 ft in in', 5, 'ft', 60, 'in'], ['2 m in in', 2, 'm', 78.74015748, 'in'], ['5 in in cm', 5, 'in', 12.7, 'cm']
+]) {
+  const answer = units.convert(text)
+  const read = answer && { amount: Number(answer.amount.toFixed(10)), from: answer.from, value: answer.value, to: answer.to }
+  assertDeepEqual(read, { amount, from, value, to }, `the menu converts "${text}"`)
+}
+
+for (const [text, written] of [['1 nm to ly', '0.0000000000000000000000001057000834'], ['1 ly to nm', '9460730473000000000000000'], ['1 eV to J', '0.0000000000000000001602176634']]) {
+  assertEqual(numbers.plain(units.convert(text).value), written, `a conversion of "${text}" is written out in plain digits`)
+}
+assert(Object.is(units.convert('-0 m to ft').value, 0), 'a conversion never answers a negative zero')
+assert(Object.is(units.convert('-273.15 c to k').value, 0) && Object.is(units.convert('-459.67 f to r').value, 0), 'a temperature that lands on zero is a plain zero')
+
+// The symbol an answer shows can be typed back, and any unit converts to itself
+// and back again from every other unit it shares a kind with.
+for (const [kind, symbols] of Object.entries(units.kinds())) {
+  assert(symbols.length > 1, `${kind} has units to convert between`)
+  for (const a of symbols) {
+    const self = units.convert(`7 ${a} to ${a}`)
+    assertDeepEqual(self && [self.from, self.value, self.to], [a, 7, a], `"${a}" can be typed back as it is shown`)
+    for (const b of symbols) {
+      const there = units.convert(`7 ${a} to ${b}`)
+      const back = there && units.convert(`${numbers.plain(there.value)} ${b} to ${a}`)
+      assert(back && Math.abs(back.value - 7) < 7e-8, `7 ${a} survives a trip through ${b}`, JSON.stringify([there, back]))
+    }
+  }
+}
+
+for (const text of [
+  // Not a conversion at all
+  '', ' ', null, undefined, 'km', '5', '5 km', '5 km to', '5 km in', 'km to mi', 'to mi', '5 to mi', 'convert', 'how many feet', 'how many feet in', 'how many feet in a', 'a mile', 'a mile in',
+  // Two kinds of thing
+  '5 kg to m', '5 c to kg', '1 l/100km to km/h', '1 gb to gbit/s', '1 h to hz', '5 oz to ml', '5 m 5 kg to g', '1 km 3 l to m',
+  // Parts that can't be added up: temperatures, fuel economy, a negative part, a target with an amount
+  '5 c 3 f to k', '5 c 3 c to f', '10 mpg 5 km/l to l/100km', '5 ft -3 in to cm', '5 km to 3 mi', '5 m to ft 2 in',
+  // Units nobody can tell apart, or that don't exist
+  '5 mw to w', '5 zorks to m', '5 km to zorks', '5 m to ft to in', '5 m to', '5 b to kb', '5 kb to b',
+  // Below absolute zero
+  '-274 c to f', '-1 k to c', '-1 °R to K', '-460 f to c', '-273.16 c to k',
+  // No answer, or one the other way up from nothing
+  '0 mpg to l/100km', '0 l/100km to mpg', '-5 mpg to km/l', '-5 l/100km to mpg', '1/0 cup to ml', '0/0 cup to ml',
+  // Malformed amounts: a decimal comma could be off by a hundred times
+  '1,25 m to cm', '1,0000 m to cm', '1e3 m to km', '5. m to cm', '1.2.3 m to cm', '١ m to cm', '--5 m to cm', '+-5 m to cm', '1/2/3 cup to ml', '1 1/0 cup to ml', '1 / 2 cup to ml',
+  // Currencies and money words belong to the currency row
+  '5 usd to inr', '5 pounds to dollars', '100 rupees to kg', '$5 to m',
+  // Ordinary menu searches
+  'go to settings', 'save as pdf', 'back to main', 'log in vpn', 'move to trash', 'time to sleep', '7-zip', '2+2', '5 cats to dogs', '10 go home',
+  // Names on Object's prototype are not units
+  '5 constructor to m', '5 m to constructor', '5 __proto__ to m', '5 m to tostring', '5 hasownproperty to m', '5 valueof to m',
+  // Anything that could be a command
+  '$(id) m to ft', '5 m to $(id)', '5 m to `id`', '5 m; rm to ft', "5 m to 'ft",
+  // Too long to be typed by hand
+  '9'.repeat(100) + ' m to ft', '1' + ' 1 m'.repeat(40) + ' to ft'
+]) {
+  assertEqual(units.convert(text), null, `the menu leaves ${JSON.stringify(String(text).slice(0, 30))} to search`)
+}
+assertEqual(calc.evaluate('3/4 cup to tbsp'), '', 'a fraction of a unit is not a sum')
 JS

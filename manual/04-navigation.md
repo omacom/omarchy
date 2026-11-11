@@ -2,7 +2,7 @@
 
 Everything in Omarchy happens via the keyboard — _EVERYTHING!_ When the system first starts, you literally can't do a thing with the mouse alone. But you can hit `Super + Space` to reveal the Omarchy Menu and from here you can do just about everything.
 
-The menu's search also does quick sums and converts currencies. Type something like `2+3*4`, `INR 100 to USD` or `$5 to INR` and the answer appears above the matches, where Enter copies it, or the copy button does while keeping the menu open. Conversions need a connection, as the rates come from a free online source that updates daily.
+The menu's search also does quick sums and converts currencies and units. Type something like `2+3*4`, `INR 100 to USD`, `$5 to INR`, `5 km to mi` or `-40 c to f` and the answer appears above the matches, where Enter copies it, or the copy button does while keeping the menu open. Currency conversions need a connection, as the rates come from a free online source that updates daily. Unit conversions work offline.
 
 But the Omarchy menu is not even intended to be the main way to operate the system most of the time. We can get faster than that! All the most important applications are bound directly to individual hotkeys. You start the terminal with `Super + Return` and a browser with `Super + Shift + Return`. Try doing one after the other, and you'll see the magic of Hyprland's tiling in action:
 
