@@ -9,4 +9,73 @@ if [[ ${1:-} == --pid=* ]]; then
   shift
 fi
 
-exec setsid uwsm-app -- xdg-terminal-exec --dir="$(omarchy-cmd-terminal-cwd "$pid")" "$@"
+# xdg-terminal-exec takes the command after a `--`; keep the same call shape
+# working now that the command goes to the terminal itself.
+[[ ${1:-} == -- ]] && shift
+
+# uwsm-app plus xdg-terminal-exec cost about 30 ms before the emulator starts,
+# on every Super+Return. The terminals Omarchy installs take the same arguments
+# their desktop entries hand them, so they are started directly under an
+# app.slice unit, where systemd-oomd sees the terminal the same way uwsm-app
+# scoped it. An entry this script does not know, or one whose terminal is gone,
+# still goes through the wrappers, which is what picks the next valid entry of
+# the list.
+fast_terminal() {
+  local list=${XDG_CONFIG_HOME:-$HOME/.config}/xdg-terminals.list
+  local line terminal
+
+  if [[ -r $list ]]; then
+    while IFS= read -r line || [[ -n $line ]]; do
+      [[ -z $line || $line == \#* ]] && continue
+      case ${line%%:*} in
+      Alacritty.desktop) terminal=alacritty ;;
+      foot.desktop) terminal=foot ;;
+      com.mitchellh.ghostty.desktop) terminal=ghostty ;;
+      kitty.desktop) terminal=kitty ;;
+      *) return 1 ;;
+      esac
+      if ! omarchy-cmd-missing "$terminal"; then
+        echo "$terminal"
+        return
+      fi
+    done <"$list"
+  fi
+
+  terminal=$(omarchy-default-terminal 2>/dev/null) || return
+  case $terminal in
+  alacritty | foot | ghostty | kitty)
+    omarchy-cmd-missing "$terminal" || echo "$terminal"
+    ;;
+  esac
+}
+
+cwd=$(omarchy-cmd-terminal-cwd "$pid")
+
+case $(fast_terminal) in
+foot)
+  (($#)) && set -- -e "$@"
+  exec setsid systemd-run --user --quiet --collect \
+    --unit="omarchy-terminal-$(date +%s%N)" --slice=app.slice \
+    -- foot --working-directory="$cwd" "$@"
+  ;;
+alacritty)
+  (($#)) && set -- -e "$@"
+  exec setsid systemd-run --user --quiet --collect \
+    --unit="omarchy-terminal-$(date +%s%N)" --slice=app.slice \
+    -- alacritty --working-directory="$cwd" "$@"
+  ;;
+ghostty)
+  (($#)) && set -- -e "$@"
+  exec setsid systemd-run --user --quiet --collect \
+    --unit="omarchy-terminal-$(date +%s%N)" --slice=app.slice \
+    -- ghostty --gtk-single-instance=true --working-directory="$cwd" "$@"
+  ;;
+kitty)
+  exec setsid systemd-run --user --quiet --collect \
+    --unit="omarchy-terminal-$(date +%s%N)" --slice=app.slice \
+    -- kitty --working-directory="$cwd" "$@"
+  ;;
+*)
+  exec setsid uwsm-app -- xdg-terminal-exec --dir="$cwd" "$@"
+  ;;
+esac
