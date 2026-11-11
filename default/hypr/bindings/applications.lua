@@ -13,7 +13,7 @@ if o.preinstalled_bindings_enabled() then
   o.bind("SUPER + CTRL + RETURN", "Herdr", { omarchy = "terminal-herdr" })
   o.bind("SUPER + SHIFT + Q", "Calculator", "omacalc")
   o.bind("XF86Calculator", "Calculator", "omacalc")
-  o.bind("SUPER + SHIFT + M", "Spotify", { webapp = "https://open.spotify.com/", focus = true })
+  o.bind("SUPER + SHIFT + M", "Music", { omarchy = "spotify" })
   o.bind("SUPER + SHIFT + ALT + M", "Music TUI", { tui = "cliamp", focus = true })
   if o.cmd_present("lazydocker") then
     o.bind("SUPER + SHIFT + D", "Docker", { tui = "omarchy-launch-docker-tui" })
