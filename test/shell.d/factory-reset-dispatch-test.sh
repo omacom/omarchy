@@ -25,6 +25,8 @@ awk '
   copying { print }
   /^}/ { copying = 0 }
 ' "$ROOT/bin/omarchy-system-factory-reset" >"$tmp/functions"
+# The script sources the home drive helpers at its top, outside any function.
+printf 'source %q\n' "$ROOT/install/provisioning/home-drive.sh" >>"$tmp/functions"
 
 # The fake boot package: each entrypoint records its call, reset-commit its
 # standard input, and reset-verify fails on request.
