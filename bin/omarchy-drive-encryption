@@ -87,11 +87,17 @@ is_system_disk() {
   grep -qxF -- "$1" <<<"$system"
 }
 
+# Whether / is on an encrypted volume. The key file of another drive is only
+# safe there, so Encrypt Drive and Unlock Drive need it.
 root_is_encrypted() {
-  local source
-  source=$(findmnt -nro SOURCE /)
-  source=${source%%\[*}
-  lsblk -nsrpo TYPE "$source" | grep -qx crypt
+  local target source _
+  while read -r target source _; do
+    if [[ $target == "/" ]]; then
+      lsblk -nsrpo NAME,TYPE "${source%%\[*}" 2>/dev/null | awk '$2 == "crypt" { found = 1 } END { exit !found }'
+      return
+    fi
+  done < <(findmnt -nro TARGET,SOURCE,UUID)
+  return 1
 }
 
 fstype_of() {
@@ -178,9 +184,11 @@ pending_decryptions() {
 
 # The menu guards. Each prints the drives its row applies to and fails when
 # there are none. A drive with an interrupted run stays with the row that
-# started it, whatever its volumes read as meanwhile.
+# started it, whatever its volumes read as meanwhile. Encrypt Drive and Unlock
+# Drive list nothing on a system that is not encrypted itself.
 list_plain() {
   local extra pending encrypting disk volume found=1
+  root_is_encrypted || return 1
   extra=$(extra_drives)
   pending=$(pending_decryptions "$extra" | while read -r volume; do disks_of "$volume"; done)
   encrypting=$(encrypting_volumes | while read -r volume; do disks_of "$volume"; done)
@@ -212,6 +220,7 @@ list_encrypted() {
 
 list_locked() {
   local extra encrypting disk volume found=1
+  root_is_encrypted || return 1
   extra=$(extra_drives)
   encrypting=$(encrypting_volumes)
   while read -r disk; do
@@ -834,16 +843,42 @@ luks_intact() {
 
 # Whether the saved header still opens the volume's data: opened read-only
 # under a scratch name, it must show the filesystem recorded before the
-# decryption.
+# decryption. Fails with cryptsetup's status when the header does not open,
+# which is 2 for a key that does not fit.
 header_opens_data() {
   local volume=$1 header=$2 fs_uuid=$3 mapper="omarchy-recover-probe-$$" found
   shift 3
   [[ -n $fs_uuid ]] && (( $# )) || return 1
-  sudo cryptsetup open --readonly --header "$header" "$@" "$volume" "$mapper" 2>/dev/null || return 1
+  sudo cryptsetup open --readonly --header "$header" "$@" "$volume" "$mapper" 2>/dev/null || return
   sudo udevadm settle
   found=$(sudo blkid -p -s UUID -o value "/dev/mapper/$mapper") || true
   sudo cryptsetup close "$mapper"
   [[ $found == "$fs_uuid" ]]
+}
+
+# The same check with the key file given. A drive that has none here, as one
+# encrypted elsewhere, is checked with its password, asked for three times at
+# most. What the tries printed leaves the screen once one is right.
+saved_header_opens_data() {
+  local volume=$1 header=$2 fs_uuid=$3 password rc try
+  shift 3
+  if (( $# )); then
+    header_opens_data "$volume" "$header" "$fs_uuid" "$@"
+    return
+  fi
+  [[ -t 1 ]] && printf '\e7'
+  for try in 1 2 3; do
+    password=$(gum input --password --no-show-help --placeholder "" --padding "1 0 0 0" --header "$(omarchy-i18n driveEncryption.passwordOf "$volume")") || return 1
+    rc=0
+    printf '%s' "$password" | header_opens_data "$volume" "$header" "$fs_uuid" --key-file - || rc=$?
+    if (( rc == 0 )); then
+      [[ -t 1 ]] && printf '\e8\e[J'
+      return 0
+    elif (( rc != 2 || try == 3 )); then
+      return 1
+    fi
+    echo -e "\n\e[31m$(omarchy-i18n driveEncryption.passwordNotAccepted)\e[0m"
+  done
 }
 
 # A conversion cut off by a closed window or a power loss needs cryptsetup
@@ -899,7 +934,11 @@ shrink_for_encryption() {
       sudo mount -t btrfs "$volume" "$mnt" || { sudo rmdir "$mnt"; echo -e "\e[31mCould not mount $volume to shrink it. Nothing was changed.\e[0m"; return 1; }
       rc=0
       out=$(sudo btrfs filesystem resize $(( (bytes - REDUCE_BYTES) / 4096 * 4096 )) "$mnt" 2>&1) || rc=$?
-      sudo umount "$mnt" && sudo rmdir "$mnt"
+      if ! sudo umount "$mnt"; then
+        echo -e "\e[31mCould not unmount $volume from $mnt. Nothing was encrypted.\e[0m"
+        return 1
+      fi
+      sudo rmdir "$mnt"
       (( rc == 0 )) || { printf '%s\n' "$out"; echo -e "\e[31mCould not shrink $volume. Nothing was encrypted.\e[0m"; return 1; }
       ;;
     ntfs)
@@ -1281,7 +1320,7 @@ resume_decryption() {
       fi
       if ! luks_intact "$volume" "$uuid"; then
         if [[ $header_state != "none" ]] ||
-          ! header_opens_data "$volume" "$header" "$fs_uuid" "${key_args[@]}" ||
+          ! saved_header_opens_data "$volume" "$header" "$fs_uuid" "${key_args[@]}" ||
           ! sudo cryptsetup luksHeaderRestore --batch-mode --header-backup-file "$header" "$volume" ||
           ! luks_intact "$volume" "$uuid"; then
           comment_original_lines /etc/fstab "$originals"

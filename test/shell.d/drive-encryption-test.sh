@@ -110,6 +110,12 @@ expect "a machine with only its system drive shows no row" \
   "$(rows)" "plain=hidden encrypted=hidden locked=hidden"
 
 desktop
+sed -i '/^\/dev\/mapper\/root /d; s|^/dev/nvme0n1p2 .*|/dev/nvme0n1p2 part - /dev/nvme0n1 ext4 root-fs|' "$tmp/drives"
+sed -i 's|/dev/mapper/root\[[^]]*\]|/dev/nvme0n1p2|' "$tmp/mounts"
+expect "a system that is not encrypted itself shows Decrypt Drive alone" \
+  "$(rows)" "plain=hidden encrypted=/dev/sdb,/dev/sdc locked=hidden"
+
+desktop
 sed -i 's|^/home .*|/home /dev/sda1 plain-fs|' "$tmp/mounts"
 expect "a drive that holds /home is the system's" \
   "$(rows)" "plain=hidden encrypted=/dev/sdb,/dev/sdc locked=/dev/sdc"
