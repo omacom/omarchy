@@ -161,6 +161,23 @@ for mode in ("down", 429):
   expect(f"account B signed in to the same home never shows account A's limits ({mode})",
          [record["limits"], record["usageStatusText"]], [[], "Claude limits unavailable"], record)
 
+# Anthropic lists the account's limit resets only to a request naming the
+# Claude Code version that last ran; only grants usable now count, and the
+# first to lapse says when.
+sandbox()
+signed_in()
+write_json(home() / ".claude.json", {"lastReleaseNotesSeen": "2.1.322"})
+record, http = claude(routes={USAGE: {**ROUTES[USAGE], "cedar_ember": {"grants": [
+  {"resets_left": 1, "usable_now": True, "ends_at": "2026-12-16T04:59:00+00:00"},
+  {"resets_left": 2, "usable_now": True, "ends_at": "2026-12-10T22:00:00Z"},
+  {"resets_left": 1, "usable_now": False, "ends_at": "2026-11-20T00:00:00+00:00"},
+  "malformed",
+]}}})
+expect("Claude collector asks as Claude Code and counts the resets usable now",
+       [http.requests[0]["headers"].get("user-agent"), record.get("resetCredits"), labels(record)],
+       ["claude-cli/2.1.322 (external, cli)", {"available": 3, "nextExpiresAt": "2026-12-10T22:00:00+00:00"},
+        ["Session (5-hour)", "Weekly (7-day)"]], record)
+
 # ------------------------------------------------------------ the sign-in
 
 # An open window and one that already reset, cached long enough ago that a

@@ -63,7 +63,9 @@ from collectors import (  # noqa: E402
 AGENT_ID = "claude"
 AGENT_NAME = "Claude Code"
 AUTH_HELP = "Run `claude auth login` to restore authoritative usage."
-USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage"
+# `cedar_ember` asks the endpoint for the account's limit resets as well, the
+# way Claude Code's own /usage does.
+USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage?cedar_ember=1"
 # Anthropic rate-limits its usage endpoint readily. A refused re-check of
 # numbers this recent still describes the account; only older ones are
 # reported as stale.
@@ -530,15 +532,51 @@ def scoped_limits(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 
-def probe_limits(access_token: str) -> dict[str, Any]:
-  request = urllib.request.Request(
-    USAGE_ENDPOINT,
-    headers={
-      "Authorization": "Bearer " + access_token,
-      "anthropic-beta": "oauth-2025-04-20",
-      "Accept": "application/json",
-    },
-  )
+# The version of Claude Code that last ran in a config home, as its profile
+# records it. Anthropic only lists an account's limit resets to a request that
+# names a current Claude Code, and reading the profile spawns nothing.
+def claude_code_version(home: Path) -> str:
+  version = str(read_json(profile_path(home)).get("lastReleaseNotesSeen") or "")
+  return version if re.fullmatch(r"\d+\.\d+\.\d+", version) else ""
+
+
+# The limit resets an account holds and can use now, in the shape the panel
+# reads Codex's free resets in: how many, and when the first of them lapses.
+# Resets are an extra: a malformed field loses them, never the limits.
+def reset_credits(payload: dict[str, Any]) -> dict[str, Any] | None:
+  grants = obj(payload.get("cedar_ember")).get("grants")
+  if not isinstance(grants, list):
+    return None
+  usable = [
+    grant for grant in grants
+    if isinstance(grant, dict) and grant.get("usable_now") is True and number(grant.get("resets_left")) > 0
+  ]
+  if not usable:
+    return None
+  expiries = [moment for moment in (aware_time(grant.get("ends_at")) for grant in usable) if moment]
+  return {
+    "available": int(sum(number(grant.get("resets_left")) for grant in usable)),
+    "nextExpiresAt": min(expiries).isoformat() if expiries else "",
+  }
+
+
+def aware_time(value: Any) -> dt.datetime | None:
+  try:
+    moment = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+  except ValueError:
+    return None
+  return moment if moment.tzinfo else None
+
+
+def probe_limits(access_token: str, version: str = "") -> dict[str, Any]:
+  headers = {
+    "Authorization": "Bearer " + access_token,
+    "anthropic-beta": "oauth-2025-04-20",
+    "Accept": "application/json",
+  }
+  if version:
+    headers["User-Agent"] = f"claude-cli/{version} (external, cli)"
+  request = urllib.request.Request(USAGE_ENDPOINT, headers=headers)
   try:
     payload = open_json(request, timeout=10)
   except HttpError as error:
@@ -589,10 +627,10 @@ def probe_limits(access_token: str) -> dict[str, Any]:
 
   if not limits:
     return {"ok": False, "helpText": "Anthropic's usage endpoint returned no limits. Local Claude Code stats are still shown."}
-  return {"ok": True, "limits": limits}
+  return {"ok": True, "limits": limits, "resetCredits": reset_credits(payload)}
 
 
-def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms: int, force: bool, cache_name: str = "claude-limits.json") -> dict[str, Any]:
+def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms: int, force: bool, cache_name: str = "claude-limits.json", version: str = "") -> dict[str, Any]:
   # `live` says the numbers came from Anthropic just now (or within the reuse
   # window) rather than from a cache kept past a failed or impossible probe.
   # `fetchedAtMs` says when they were measured, so a stale account can say
@@ -648,14 +686,18 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
     result["limits"] = fallback
     result["live"] = True
     result["authHelpText"] = ""
+    if isinstance(cache.data.get("resetCredits"), dict):
+      result["resetCredits"] = cache.data["resetCredits"]
     return result
 
-  probe = probe_limits(access_token)
+  probe = probe_limits(access_token, version)
   if probe["ok"]:
     result["limits"] = probe["limits"]
     result["live"] = True
     result["authHelpText"] = ""
-    result["fetchedAtMs"] = cache.save(probe["limits"])
+    result["fetchedAtMs"] = cache.save(probe["limits"], resetCredits=probe["resetCredits"])
+    if probe["resetCredits"]:
+      result["resetCredits"] = probe["resetCredits"]
     return result
 
   # The first probe after login often fires before DHCP has handed out a
@@ -701,8 +743,8 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
     cache_name = "claude-limits.json"
   else:
     cache_name = f"claude-limits-{key}.json"
-  limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name)
-  return account_entry(account, limits, plan)
+  limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, force, cache_name, claude_code_version(home))
+  return account_entry(account, limits, plan, resetCredits=limits.get("resetCredits"))
 
 
 # -------------------------------------------------------------------- record
@@ -727,6 +769,7 @@ def main() -> int:
     # the bar icon and anything else reading one set of limits stays right.
     plan = current["plan"]
     limits = {key: current[key] for key in ("limits", "usageStatusText", "authHelpText", "retryAdvised")}
+    limits["resetCredits"] = current.get("resetCredits")
     stale, fetched_at = current["stale"], current["fetchedAt"]
   else:
     access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(claude_dir)
@@ -735,7 +778,7 @@ def main() -> int:
     # and registering the home later keeps its cache.
     identity = re.sub(r"[^A-Za-z0-9_-]", "", current_account_id(claude_dir))
     cache_name = f"claude-limits-{identity}.json" if identity else "claude-limits.json"
-    limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, args.force, cache_name)
+    limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, args.force, cache_name, claude_code_version(claude_dir))
     stale, fetched_at = not limits["live"] and bool(limits["limits"]), limits["fetchedAtMs"]
     # Asking for a sign-in only makes sense where Claude Code is in use: its
     # config home or profile exists, or there is local usage. A machine that
@@ -768,6 +811,8 @@ def main() -> int:
   )
   if limits.get("retryAdvised"):
     record["retryAdvised"] = True
+  if limits.get("resetCredits"):
+    record["resetCredits"] = limits["resetCredits"]
   if accounts:
     record["accountSwitch"] = registered[0]["switch"]
     record["accounts"] = accounts
