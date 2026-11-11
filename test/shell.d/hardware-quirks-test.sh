@@ -202,19 +202,24 @@ machine() {
   synaptics() { printf '%s\n' 'N: Name="SynPS/2 Synaptics TouchPad"' >"$hw/input-devices"; }
   surface() { dmi sys_vendor "Microsoft Corporation"; dmi product_name "$1"; }
   vivobook_s15() { dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_family "ASUS Vivobook S 15"; dmi product_name "ASUS Vivobook S 15 S5507QA_$1"; }
-  # A Qualcomm Wi-Fi card bound to ath12k; with "board-data", the board data the package installed for it.
+  # A Qualcomm Wi-Fi card bound to ath12k, or to ath11k for the WCN6855 (1103); with "board-data",
+  # the board data the package installed for it.
   ath12k() {
-    local device=$root/sys/bus/pci/devices/0004:01:00.0 driver=$root/sys/bus/pci/drivers/ath12k_wifi7_pci
+    local name=ath12k_wifi7_pci
+    [[ $1 == 1103 ]] && name=ath11k_pci
+    local device=$root/sys/bus/pci/devices/0004:01:00.0 driver=$root/sys/bus/pci/drivers/$name
     FAKE_LSPCI="0004:01:00.0 Network controller [0280]: Qualcomm Technologies, Inc Device [17cb:$1]"
     mkdir -p "$device" "$driver"
     printf '0x17cb\n' >"$device/vendor"
     printf '0x%s\n' "$1" >"$device/device"
     : >"$driver/bind"
     : >"$driver/unbind"
-    ln -s ../../drivers/ath12k_wifi7_pci "$device/driver"
+    ln -s "../../drivers/$name" "$device/driver"
     if [[ ${2:-} == "board-data" ]]; then
       mkdir -p "$root/var/lib/ath12k-board-fallback"
-      printf 'ath12k/QCC2072/hw1.0/board.bin 0\n' >"$root/var/lib/ath12k-board-fallback/installed"
+      local copy=ath12k/QCC2072/hw1.0/board.bin
+      [[ $1 == 1103 ]] && copy=ath11k/WCN6855/hw2.1/board.bin
+      printf '%s 0\n' "$copy" >"$root/var/lib/ath12k-board-fallback/installed"
     fi
   }
 
@@ -281,6 +286,8 @@ machine() {
     wcn7850-card-first-boot) ath12k 1107; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
     qcc2072-card) ath12k 1112 board-data ;;
     qcc2072-card-first-boot) ath12k 1112 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
+    wcn6855-card) ath12k 1103 ;;
+    wcn6855-card-first-boot) ath12k 1103 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
     qualcomm-no-wifi) FAKE_LSPCI="0004:00:00.0 PCI bridge [0604]: Qualcomm Technologies, Inc SC8380XP PCIe Root Complex [17cb:0111]" ;;
     nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau" ;;
     nouveau-proprietary) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; : >"$hw/nvidia.conf" ;;
@@ -453,11 +460,13 @@ hardware/dell-xps13-sidecar-amps.sh|xps13-pkg-add-fails|1|pkg-add dell-xps13-sid
 # The package itself decides whether the card needs board data.
 hardware/fix-ath12k-board-data.sh|wcn7850-card|0|pkg-add ath12k-board-fallback
 hardware/fix-ath12k-board-data.sh|qcc2072-card|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|wcn6855-card|0|pkg-add ath12k-board-fallback
 hardware/fix-ath12k-board-data.sh|qualcomm-no-wifi|0
 # ath12k probed the card before an image's first boot gave it board data, so
 # that boot rebinds it, but not for a card that needed none.
 hardware/fix-ath12k-board-data.sh|qcc2072-card-first-boot|0|pkg-add ath12k-board-fallback|wrote sys/bus/pci/drivers/ath12k_wifi7_pci/bind|wrote sys/bus/pci/drivers/ath12k_wifi7_pci/unbind
 hardware/fix-ath12k-board-data.sh|wcn7850-card-first-boot|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|wcn6855-card-first-boot|0|pkg-add ath12k-board-fallback|wrote sys/bus/pci/drivers/ath11k_pci/bind|wrote sys/bus/pci/drivers/ath11k_pci/unbind
 # Wildcat Lake's GPU is named only "[Intel Graphics]".
 hardware/intel/video-acceleration.sh|xps13-wcl|0|pkg-add intel-media-driver libvpl vpl-gpu-rt
 hardware/intel/video-acceleration.sh|nouveau|0
