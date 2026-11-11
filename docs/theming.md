@@ -39,6 +39,8 @@ The same convention works for additional user backgrounds. The lock screen and p
 
 Matching intros still use the top-level image's basename in `intros/`; image variants do not select separate intro videos. Intro playback and its outgoing cover use the shared/default artwork, then the desktop returns to each output's selected still variant. If a variant changes the composition, the handoff can visibly change framing.
 
+Video wallpapers and intros have no variants. OWE decodes one video for every output, so a video per output would cost a decode for each distinct variant, and choosing one is OWE's to do, not this plugin's. Video files inside a variant directory are ignored, which leaves the convention free to carry them if OWE gains per-output playback.
+
 ## Theme activation flow
 
 `omarchy-theme-set <name>` builds a clean staging directory at

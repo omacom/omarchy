@@ -32,6 +32,8 @@ Only the default appears in the background picker. Omarchy automatically chooses
 
 The default also supplies the picker preview and lock-screen background, and remains usable on older versions of Omarchy. Themes without alternatives work as before.
 
+Alternatives are for still images. A video background, and the intro video of a still, plays the same on every monitor.
+
 ### Light mode
 
 If you're making a light mode theme, set `mode = "light"` at the top of your `colors.toml`. Then it'll automatically be paired with light mode for all the apps. (The old way of dropping an empty file called `light.mode` in the root of your theme still works too.)
