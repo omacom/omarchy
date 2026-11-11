@@ -2269,11 +2269,13 @@ Panel {
       wrapMode: Text.Wrap
     }
 
+    // Why a model stopped. On this machine, the reason itself links to its
+    // logs; a tailnet model's logs live on its host, so there it's just text.
     Text {
-      visible: !!section.model && !section.offline && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
+      visible: section.remote && !section.offline && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
       width: parent.width
       textFormat: Text.PlainText
-      text: section.model ? String(section.model.error || "") : ""
+      text: section.remote ? String(section.model.error || "") : ""
       color: root.urgent
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
@@ -2282,8 +2284,13 @@ Panel {
 
     TextLink {
       visible: !!section.model && !section.remote && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
+      width: Math.min(implicitWidth, parent.width)
+      text: section.model ? String(section.model.error || "") : ""
+      idleColor: root.urgent
+      hotColor: root.urgent
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
       picked: root.hasKey("modelLogs", section.providerIndex)
-      text: Commons.I18n.t("agents.localShowLogs")
       tooltip: Commons.I18n.t("agents.localShowLogsTip")
       onClicked: root.showLocalLogs(section.model)
     }
@@ -2644,10 +2651,11 @@ Panel {
     property bool picked: false
     property string tooltip: ""
     property color idleColor: root.dim
+    property color hotColor: root.foreground
     readonly property bool hot: linkMouse.containsMouse || picked
     onPickedChanged: if (picked) root.revealItem(link)
     textFormat: Text.PlainText
-    color: current ? Commons.Color.accent : (hot ? root.foreground : idleColor)
+    color: current ? Commons.Color.accent : (hot ? hotColor : idleColor)
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
     font.bold: current
