@@ -52,8 +52,25 @@ PACKAGED_PATH=/usr/bin/omarchy-dns
 # nothing else. Listing runs nothing and, under -n, prompts for nothing, so a
 # machine whose omarchy-settings predates that file falls through to polkit
 # instead of dying on a password prompt it has no terminal to show.
+# Classic sudo includes those tags in a command-filtered listing. sudo-rs prints
+# them only for an unfiltered listing, so a filtered check has to fall through
+# to the full list and match this exact command under an !authenticate entry.
 sudo_grants_passwordless() {
-  sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null | grep -q '!authenticate'
+  local listing
+  if listing=$(sudo -n -l -l "$PACKAGED_PATH" "$@" 2>/dev/null) && grep -q '!authenticate' <<<"$listing"; then
+    return 0
+  fi
+  listing=$(sudo -n -l -l 2>/dev/null) || return 1
+  awk -v cmd="$PACKAGED_PATH $*" '
+    /^Sudoers entry:/ { granted = 0 }
+    /Options:.*!authenticate/ { granted = 1 }
+    granted {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      if (line == cmd) found = 1
+    }
+    END { exit !found }
+  ' <<<"$listing"
 }
 
 require_root() {
