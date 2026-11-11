@@ -202,3 +202,43 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
 grep -F "Web apps need a Chromium-based browser" "$notify_log" >/dev/null ||
   fail "web app launcher asks for a Chromium-based browser" "$(cat "$notify_log" 2>/dev/null)"
 pass "web app launcher fails visibly instead of handing uwsm-app an empty command"
+
+# google-chrome 157 installs its entry under this mixed-case ID, and the
+# resolver reports whatever the entry is called. Chromium is gone from this
+# fixture, so a launcher that drops Chrome for chromium.desktop has nothing
+# left to start.
+cat >"$XDG_DATA_HOME/applications/com.google.Chrome.desktop" <<'EOF'
+[Desktop Entry]
+Exec=google-chrome-stable %U
+EOF
+cat >"$mock_bin/google-chrome-stable" <<'SH'
+#!/bin/bash
+exit 0
+SH
+# No running browser to hand the URL to, so the launcher has to start one.
+cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
+#!/bin/bash
+exit 1
+SH
+cat >"$mock_bin/setsid" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+SH
+chmod +x "$mock_bin/google-chrome-stable" "$mock_bin/omarchy-cmd-browser-handoff" "$mock_bin/setsid"
+cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
+[Default Applications]
+x-scheme-handler/http=com.google.Chrome.desktop
+EOF
+rm -f "$launch_log" "$notify_log"
+
+status=0
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/chrome" 2>/dev/null || status=$?
+
+(( status == 0 )) || fail "web app launcher starts Chrome's mixed-case desktop entry" "status: $status"
+[[ ! -e $notify_log ]] ||
+  fail "web app launcher takes com.google.Chrome.desktop for Chromium-based" "$(cat "$notify_log" 2>/dev/null)"
+grep -F 'uwsm-app -- google-chrome-stable --app=https://example.test/chrome' "$launch_log" >/dev/null ||
+  fail "web app launcher starts com.google.Chrome.desktop's command, not Chromium" "$(cat "$launch_log" 2>/dev/null)"
+pass "web app launcher takes Chrome's mixed-case desktop entry for a Chromium-based browser"
