@@ -70,8 +70,12 @@ assert(
 // every reveal, which measured ~150ms against ~20ms to tear it down; parking it
 // past the screen edge keeps show and hide symmetric at ~12ms.
 assert(
-  /visible: !remapGuard\.remapping/.test(barSource),
+  /visible: true/.test(barSource.slice(barSource.indexOf('component BarPanel'), barSource.indexOf('component DragGhostPanel'))),
   'bar stays mapped while hidden so revealing it does not rebuild the surface'
+)
+assert(
+  !/\bScreenMoveRemap\s*\{|\bremapGuard\b/.test(barSource),
+  'bar clones load when the shared UI no longer provides ScreenMoveRemap'
 )
 assert(
   /exclusionMode: root\.barHidden \? ExclusionMode\.Ignore : ExclusionMode\.Auto/.test(barSource),

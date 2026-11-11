@@ -1518,13 +1518,10 @@ Item {
     // reveal has to rebuild them — new surface, re-shaped glyphs, re-uploaded
     // textures — which measures ~150ms against ~20ms to tear down. Parking
     // keeps the surface alive, so showing is only a margin change.
-    visible: !remapGuard.remapping
+    // ScreenMoveRemap was removed from Omarchy's shared UI. Like the current
+    // stock bar, keep this surface mapped without the obsolete remap guard.
+    visible: true
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Auto
-
-    ScreenMoveRemap {
-      id: remapGuard
-      window: barWindow
-    }
 
     margins {
       top: root.barHidden && root.position === "top" ? -root.barSize : 0
