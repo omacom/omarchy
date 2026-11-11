@@ -98,6 +98,12 @@ SH
 cat >"$fake_bin/limine-mkinitcpio" <<'SH'
 #!/bin/bash
 printf 'rebuild limine\n' >>"$TEST_LOG"
+# A fresh open of the lock file conflicts with the setter's lock while it holds it.
+if /usr/bin/flock -n "$TEST_LOCK_FILE" true; then
+  printf 'rebuild lock free\n' >>"$TEST_LOG"
+else
+  printf 'rebuild lock held\n' >>"$TEST_LOG"
+fi
 if [[ ${TEST_REBUILD_FAIL_ONCE:-0} == 1 && ! -e ${TEST_REBUILD_MARKER:?} ]]; then
   : >"$TEST_REBUILD_MARKER"
   exit 71
@@ -132,6 +138,11 @@ cat >"$fake_bin/omarchy-plymouth-effect-render" <<'SH'
 #!/bin/bash
 printf 'renderer called\n' >>"$TEST_LOG"
 exit 88
+SH
+cat >"$fake_bin/flock" <<'SH'
+#!/bin/bash
+[[ -z ${TEST_FLOCK_LOG:-} ]] || printf 'flock %s\n' "$*" >>"$TEST_FLOCK_LOG"
+exec /usr/bin/flock "$@"
 SH
 cat >"$fake_bin/magick" <<'SH'
 #!/bin/bash
@@ -259,10 +270,34 @@ for entry in 'BackgroundColor=1a1b26' 'TextColor=ffffff' 'MessageColor=b8bec9'; 
 done
 pass "effect setter synthesizes the packaged colors for legacy descriptors"
 
-source_text=$(<"$ROOT/bin/omarchy-plymouth-effect-set")
-[[ $source_text == *'/run/lock/omarchy-plymouth.lock'* && $source_text == *'flock -x 9'* ]] || fail "transaction uses common lock"
-[[ $source_text != *'effect-render'* && $source_text != *'frame-'* && $source_text != *'magick'* ]] || fail "setter contains no PNG publication path"
-pass "lock spans publication and rebuild with no PNG path"
+# Another Plymouth writer holds the shared machine lock: the setter must wait
+# for it before publishing, then keep it through the rebuild.
+lock_file="$tmp_dir/plymouth.lock"
+flock_log="$tmp_dir/flock.log"
+locked_out="$tmp_dir/locked.out"
+TEST_SEED=15 run_set sweep >/dev/null
+before=$(<"$theme_file")
+: >"$log"
+: >"$flock_log"
+exec 8>"$lock_file"
+flock -x 8
+TEST_FLOCK_LOG="$flock_log" TEST_SEED=16 run_set decrypt >"$locked_out" 2>&1 8>&- &
+setter=$!
+for _ in {1..250}; do
+  [[ -s $flock_log ]] && break
+  sleep 0.02
+done
+[[ -s $flock_log ]] || fail "setter asks for the machine lock" "$(<"$locked_out")"
+sleep 0.3
+kill -0 "$setter" 2>/dev/null || fail "setter waits while another writer holds the machine lock" "$(<"$locked_out")"
+[[ $(<"$theme_file") == "$before" ]] || fail "setter publishes nothing while the machine lock is held"
+[[ ! -s $log ]] || fail "setter rebuilds nothing while the machine lock is held" "$(<"$log")"
+exec 8>&-
+wait "$setter" || fail "setter completes once the machine lock is released" "$(<"$locked_out")"
+[[ $(run_set resolved) == $'mode=fixed\neffect=decrypt\nseed=16' ]] || fail "setter publishes after the machine lock is released"
+grep -Fxq 'rebuild lock held' "$log" || fail "rebuild runs under the machine lock" "$(<"$log")"
+if grep -Fxq 'rebuild lock free' "$log"; then fail "setter releases the machine lock before the rebuild" "$(<"$log")"; fi
+pass "publication waits for the shared machine lock and holds it through the rebuild"
 
 # Selecting a native effect must not make an unprovisioned stock boot unusable.
 mv -- "$native_module" "$native_module.retired"
