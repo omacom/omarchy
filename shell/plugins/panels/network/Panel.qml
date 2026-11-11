@@ -164,6 +164,16 @@ Panel {
   readonly property bool bandBusy: pendingBand !== ""
   // The DNS pills show a choice the moment it's made, and fall back if it fails.
   readonly property string dnsEffective: pendingDnsProvider !== "" ? pendingDnsProvider : dnsProvider
+  // A failed change used to clear the pending provider and leave the pill
+  // where it was, with the command's stderr discarded. The row under the
+  // pills says what exited non-zero. Detail can arrive before or after exit.
+  property bool dnsChangeFailed: false
+  property string dnsFailureDetail: ""
+  property string dnsFailureProvider: ""
+  property string actionProcKind: ""
+  readonly property string dnsFailureText: dnsChangeFailed
+    ? Model.dnsFailureMessage(dnsFailureDetail, dnsFailureProvider, Commons.I18n.t)
+    : ""
   // The speed test needs an interface to test, so its hero action only
   // appears once there is one.
   readonly property bool canRunSpeedTest: !!info.iface
@@ -746,6 +756,7 @@ Panel {
     if (!band || actionProc.running) return
 
     root.pendingBand = band
+    root.actionProcKind = "band"
     actionProc.command = ["omarchy-network-band", band]
     actionProc.running = true
   }
@@ -780,8 +791,13 @@ Panel {
     }
 
     // The panel stays open, so the choice can be seen taking hold and another
-    // tried without reopening it.
+    // tried without reopening it. Clear the previous failure first: a late
+    // stderr from that run must not satisfy the new attempt.
+    root.dnsChangeFailed = false
+    root.dnsFailureDetail = ""
+    root.dnsFailureProvider = provider
     root.pendingDnsProvider = provider
+    root.actionProcKind = "dns"
     actionProc.command = ["bash", "-c", root.dnsCommand(provider)]
     actionProc.running = true
   }
@@ -996,10 +1012,29 @@ Panel {
   Process {
     id: actionProc
     stdout: StdioCollector { id: actionStdout; waitForEnd: true }
-    stderr: StdioCollector { id: actionStderr; waitForEnd: true }
+    stderr: StdioCollector {
+      id: actionStderr
+      waitForEnd: true
+      // Exit and stream-finished have no guaranteed order. A band change
+      // shares this process, so ignore anything that is not the DNS attempt.
+      // pendingDnsProvider is already clear by the time a late stderr arrives,
+      // and dnsChangeFailed is what still wants that text.
+      onStreamFinished: {
+        if (root.actionProcKind !== "dns") return
+        if (root.pendingDnsProvider === "" && !root.dnsChangeFailed) return
+        root.dnsFailureDetail = String(text || "")
+      }
+    }
     onExited: function(exitCode) {
       if (root.pendingDnsProvider !== "") {
-        if (exitCode === 0) root.dnsProvider = root.pendingDnsProvider
+        if (exitCode === 0) {
+          root.dnsProvider = root.pendingDnsProvider
+          root.dnsChangeFailed = false
+          root.dnsFailureDetail = ""
+        } else if (root.actionProcKind === "dns") {
+          if (root.dnsFailureDetail === "") root.dnsFailureDetail = String(actionStderr.text || "")
+          root.dnsChangeFailed = true
+        }
         root.pendingDnsProvider = ""
       }
       if (root.pendingBand !== "") {
@@ -1620,6 +1655,18 @@ Panel {
             width: dnsRow.cellWidth
             onClicked: root.setDns(provider)
           }
+        }
+
+        Text {
+          width: parent.width
+          visible: text !== ""
+          height: visible ? implicitHeight : 0
+          wrapMode: Text.WordWrap
+          textFormat: Text.PlainText
+          text: root.dnsFailureText
+          color: root.bar.urgent
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.bodySmall
         }
       }
 

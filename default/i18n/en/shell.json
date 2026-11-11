@@ -418,6 +418,7 @@
   "network.copyToClipboard": "Copy to clipboard",
   "network.disconnected": "Disconnected",
   "network.disconnecting": "Disconnecting…",
+  "network.dnsChangeFailed": "Could not set DNS to %1. %2",
   "network.dnsCustom": "Custom",
   "network.dnsFromDhcp": "Use DNS from DHCP",
   "network.dnsProvider": "DNS PROVIDER",
