@@ -63,6 +63,23 @@ $actual_dispatches"
 
 pass "app focus reaches a window on another monitor"
 
+# A workspace name is not a word Hyprland chose, and it lands inside a quoted
+# Lua string.
+clients_json='[
+  {"address":"0xodd","class":"chromium","monitor":0,"workspace":{"id":5,"name":"Bob\"s \\desk"}}
+]'
+monitors_json='[{"id":0,"name":"eDP-1","focused":true}]'
+rm -f "$dispatch_log"
+PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
+  OMARCHY_TEST_MONITORS_JSON="$monitors_json" \
+  OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" \
+  bash "$ROOT/bin/omarchy-hyprland-focus-app" '^chromium$'
+
+grep -Fx 'hl.dsp.focus({ workspace = "Bob\"s \\desk" })' "$dispatch_log" >/dev/null || \
+  fail "app focus escapes a workspace name before dispatching it"
+
+pass "app focus escapes a workspace name before dispatching it"
+
 # Hyprland before 0.5 has no Lua dispatcher to fail into.
 clients_json='[{"address":"0xlegacy","class":"chromium"}]'
 rm -f "$dispatch_log"

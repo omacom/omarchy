@@ -34,12 +34,21 @@ if [[ -n $placement ]]; then
   fi
 fi
 
+# A workspace can be named anything, quotes and backslashes included, and the
+# name goes into a quoted Lua string.
+lua_string() {
+  local value=$1
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  printf '%s' "$value"
+}
+
 if [[ -n $monitor_name ]]; then
-  hyprctl dispatch "hl.dsp.focus({ monitor = \"$monitor_name\" })" >/dev/null 2>&1
+  hyprctl dispatch "hl.dsp.focus({ monitor = \"$(lua_string "$monitor_name")\" })" >/dev/null 2>&1
 fi
 
 if [[ -n $workspace ]]; then
-  hyprctl dispatch "hl.dsp.focus({ workspace = \"$workspace\" })" >/dev/null 2>&1
+  hyprctl dispatch "hl.dsp.focus({ workspace = \"$(lua_string "$workspace")\" })" >/dev/null 2>&1
 fi
 
 hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 ||
