@@ -21,6 +21,11 @@ Item {
   readonly property bool vertical: DockModel.isVertical(position)
   readonly property bool autohide: dockConfig.autohide === true
 
+  readonly property bool instances: dockConfig.instances === true
+
+  function appKey(key) { return String(key || "").split("::window::")[0] }
+  function workspaceNumber(workspace) { return workspace ? Number(workspace.id) : -1 }
+
   // The dock's order for the session, as desktop ids, set when the user moves
   // an app: a drag moves it, and keeping it in the dock puts it at the end. An
   // app the order does not know yet goes at the end. Pins are saved in this
@@ -70,13 +75,25 @@ Item {
         key: entry ? DockModel.standInKey(entry.id, entry.categories, pinned) : toplevel.appId,
         hasEntry: !!entry && !entry.noDisplay,
         workspaceId: workspace ? workspace.id : -1,
+        sortWorkspaceId: rememberedWorkspace(toplevels[i]),
         minimized: !!workspace && DockModel.isMinimizedWorkspace(workspace.name),
         address: toplevels[i].address,
         toplevel: toplevel
       })
     }
 
-    return DockModel.orderItems(DockModel.buildItems(pinned, windows), root.order)
+    return DockModel.orderItems(DockModel.buildItems(pinned, windows, root.instances), root.order, root.instances)
+  }
+
+  function rememberedWorkspace(toplevel) {
+    var workspace = toplevel.workspace
+    if (workspace && workspace.id > 0) return workspace.id
+    var tags = (toplevel.lastIpcObject || {}).tags || []
+    for (var i = 0; i < tags.length; i++) {
+      var match = /^omarchy-minimized-from-(\d+)$/.exec(String(tags[i]))
+      if (match) return Number(match[1])
+    }
+    return -1
   }
 
   readonly property var itemsByKey: {
@@ -96,7 +113,7 @@ Item {
 
   ListModel { id: itemModel }
 
-  onItemsChanged: syncItemModel()
+  onItemsChanged: Qt.callLater(root.syncItemModel)
 
   function shownKeys() {
     return root.items.map(function(item) { return item.key })
@@ -115,6 +132,7 @@ Item {
     }
     if (itemModel.count > keys.length) itemModel.remove(keys.length, itemModel.count - keys.length)
     root.settleLaunches()
+    if (root.instances && root.order.join("\n") !== keys.join("\n")) root.order = keys
   }
 
   // An app launched from the dock pulses its dot until a new window of it
@@ -133,7 +151,7 @@ Item {
     for (var key in root.launches) {
       var launch = root.launches[key]
       var item = root.itemsByKey[key]
-      var windows = item ? item.windows.length : 0
+      var windows = root.items.filter(function(other) { return (other.appKey || other.key) === key }).reduce(function(count, other) { return count + other.windows.length }, 0)
       if (windows > launch.windows || now - launch.at > root.launchTimeout) changed = true
       else next[key] = launch
     }
@@ -148,12 +166,12 @@ Item {
   }
 
   function entryFor(item) {
-    return item ? DesktopEntries.byId(item.key) : null
+    return item ? DesktopEntries.byId(item.appKey || item.key) : null
   }
 
   function iconFor(item) {
     var entry = entryFor(item)
-    var icon = entry && entry.icon ? entry.icon : (item ? item.key : "")
+    var icon = entry && entry.icon ? entry.icon : (item ? item.appKey || item.key : "")
     return root.appLibrary ? root.appLibrary.iconSource(icon) : Quickshell.iconPath(icon, true)
   }
 
@@ -161,7 +179,9 @@ Item {
     var entry = entryFor(item)
     if (!entry) return
     var next = Object.assign({}, root.launches)
-    next[item.key] = { at: Date.now(), windows: item.windows.length }
+    var key = item.appKey || item.key
+    var count = root.items.filter(function(other) { return (other.appKey || other.key) === key }).reduce(function(total, other) { return total + other.windows.length }, 0)
+    next[key] = { at: Date.now(), windows: count }
     root.launches = next
     root.launchEntry(entry)
   }
@@ -170,7 +190,14 @@ Item {
     if (entry && root.appLibrary) root.appLibrary.launch(entry.id, entry.name)
   }
 
-  function activate(item) {
+  function dispatchWindow(win, workspace, action) {
+    var address = String(win.address || "")
+    if (address.indexOf("0x") !== 0) address = "0x" + address
+    if (!/^0x[0-9a-fA-F]+$/.test(address) || !(workspace >= 1)) return
+    Util.execArgv(["hyprctl", "eval", "o.dock.activate(" + JSON.stringify(address) + ", " + Number(workspace) + ", " + JSON.stringify(action) + ")"])
+  }
+
+  function activateGrouped(item) {
     if (!item) return
     if (item.windows.length === 0) {
       root.launch(item)
@@ -181,12 +208,10 @@ Item {
     var index = DockModel.pickWindow(item.windows.map(function(window) {
       return { workspaceId: window.workspaceId, minimized: window.minimized, activated: window.toplevel.activated }
     }), workspaceId)
-    root.bringForward(item.windows[index])
+    root.bringForwardGrouped(item.windows[index])
   }
 
-  // A window the dock brings forward lands on top of the others, focused; a
-  // minimized one first comes back to the workspace in front of the user.
-  function bringForward(window) {
+  function bringForwardGrouped(window) {
     var address = String(window.address || "")
     if (!address) {
       window.toplevel.activate()
@@ -213,6 +238,28 @@ Item {
     Util.execDetached(command)
   }
 
+  function activate(item, clickedWorkspace) {
+    if (!root.instances) { root.activateGrouped(item); return }
+    if (!item) return
+    if (item.windows.length === 0) { root.launch(item); return }
+    var monitor = Hyprland.focusedMonitor
+    var workspace = clickedWorkspace > 0 ? clickedWorkspace : root.workspaceNumber(monitor ? monitor.activeWorkspace : null)
+    var index = root.instances ? 0 : DockModel.pickWindow(item.windows.map(function(win) {
+      return { workspaceId: win.workspaceId, minimized: win.minimized, activated: win.toplevel.activated }
+    }), workspace)
+    root.dispatchWindow(item.windows[index], workspace, "focus")
+  }
+
+  function bringForward(win) {
+    if (!root.instances) { root.bringForwardGrouped(win); return }
+    var monitor = Hyprland.focusedMonitor
+    root.dispatchWindow(win, root.workspaceNumber(monitor ? monitor.activeWorkspace : null), "focus")
+  }
+
+  function moveHere(item, workspace) {
+    if (item && item.windows.length) root.dispatchWindow(item.windows[0], workspace, "move")
+  }
+
   function quit(item) {
     if (!item) return
     var windows = item.windows.slice()
@@ -226,7 +273,7 @@ Item {
   readonly property var pinnedKeys: root.pendingPins || DockModel.pinnedIds(root.dockConfig, root.defaultDockConfig)
 
   function isPinned(key) {
-    return root.pinnedKeys.indexOf(key) >= 0
+    return root.pinnedKeys.indexOf(root.appKey(key)) >= 0
   }
 
   // Moves an app to a slot in the dock's order, pinning it there; the pins are
@@ -237,8 +284,9 @@ Item {
     root.order = DockModel.orderWithKeyAt(root.shownKeys(), key, index)
     var pinned = {}
     root.pinnedKeys.forEach(function(other) { pinned[other] = true })
-    pinned[key] = true
-    root.savePins(DockModel.pinsInOrder(root.order, pinned, root.pinnedKeys))
+    pinned[root.appKey(key)] = true
+    var appOrder = root.order.map(root.appKey).filter(function(key, index, keys) { return keys.indexOf(key) === index })
+    root.savePins(DockModel.pinsInOrder(appOrder, pinned, root.pinnedKeys))
   }
 
   // A reorder shows at once; the saved config catches up after.
@@ -248,6 +296,11 @@ Item {
   }
 
   function moveItem(fromIndex, toIndex) {
+    if (root.instances) {
+      var launchers = root.items.filter(function(item) { return item.windows.length === 0 })
+      if (fromIndex < 0 || fromIndex >= launchers.length) return
+      toIndex = Math.max(0, Math.min(launchers.length - 1, toIndex))
+    }
     if (fromIndex !== toIndex) root.placeAt(root.shownKeys()[fromIndex], toIndex)
   }
 
@@ -264,8 +317,8 @@ Item {
     if (pinned) {
       root.placeAt(key, root.shownKeys().length)
     } else {
-      root.pendingPins = root.pinnedKeys.filter(function(other) { return other !== key })
-      Util.execDetached("omarchy-dock unpin " + Util.shellQuote(key))
+      root.pendingPins = root.pinnedKeys.filter(function(other) { return other !== root.appKey(key) })
+      Util.execDetached("omarchy-dock unpin " + Util.shellQuote(root.appKey(key)))
     }
   }
 
@@ -340,10 +393,17 @@ Item {
     onExited: Qt.callLater(root.readNextMode)
   }
 
+  Timer {
+    id: windowRefresh
+    interval: 80
+    onTriggered: { Hyprland.refreshWorkspaces(); Hyprland.refreshToplevels() }
+  }
+
   Connections {
     target: Hyprland
     function onRawEvent(event) {
       var name = event ? String(event.name) : ""
+      if (name === "movewindow" || name === "movewindowv2") windowRefresh.restart()
       if (name === "configreloaded") root.refresh()
       // Hyprland's window and workspace lists do not follow fullscreen on
       // their own.

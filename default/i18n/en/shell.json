@@ -592,5 +592,6 @@
   "wifiqr.generating": "Generating QR code…",
   "wifiqr.passwordFailed": "Could not read the Wi-Fi password",
   "wifiqr.scanToJoin": "Scan to join this network",
-  "wifiqr.showPassword": "Show password"
+  "wifiqr.showPassword": "Show password",
+  "dock.moveHere": "Move Here"
 }

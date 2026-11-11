@@ -116,7 +116,54 @@ assertEqual(dock.pickWindow(foot, 3), 1, 'dock restores a minimized window befor
 assertEqual(dock.pickWindow(foot.map((w, i) => Object.assign({}, w, { activated: i === 2 })), 4), 1, 'dock cycles from the window here to the minimized one')
 assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app that is not running')
 
+const instances = dock.buildItems(['chromium'], [
+  app('chromium', 1, { address: 'a', workspaceId: 2 }),
+  app('chromium', 2, { address: 'b', workspaceId: 1 })
+], true)
+assertEqual(instances.length, 3, 'instances keep the pinned launcher and both window identities')
+assertDeepEqual(dock.orderItems(instances, [], true).map(i => i.windows.map(w => w.id)), [[], [2], [1]], 'instances sort by workspace')
+const minimized = instances[1]
+minimized.windows[0].minimized = true
+assertDeepEqual(dock.orderItems(instances, instances.map(i => i.key), true).map(i => i.key), instances.map(i => i.key), 'minimizing alone does not rearrange instances')
+
+assert(dock.isMinimizedWorkspace('special:minimized'), 'legacy minimized windows remain recognized')
+assert(!dock.isMinimizedWorkspace('special:scratchpad'), 'other special workspaces stay excluded')
+
 JS
+
+# Exercise the action decision against live-state shaped Lua objects. Dispatch
+# clicks focus existing windows and can restore windows minimized elsewhere.
+ROOT="$ROOT" lua - <<'LUA'
+local windows = {
+  ["address:0xa"] = { mapped = true, hidden = false, active = true, workspace = { id = 2, name = "2" }, tags = {} },
+  ["address:0xb"] = { mapped = true, hidden = false, active = false, workspace = { id = 3, name = "3" }, tags = {} },
+}
+local calls, timers = {}, {}
+local function dispatch(kind) return function(args) return { kind = kind, args = args } end end
+hl = {
+  get_window = function(target) return windows[target] end,
+  dispatch = function(call) table.insert(calls, call) end,
+  timer = function(callback) table.insert(timers, callback) end,
+  dsp = { workspace = { move = dispatch("workspace-move") }, focus = dispatch("focus"), window = { move = dispatch("move"), tag = dispatch("tag"), alter_zorder = dispatch("raise") } },
+}
+o = {}
+dofile(os.getenv("ROOT") .. "/default/hypr/dock.lua")
+o.dock.activate("0xa", 2, "focus")
+assert(calls[1].kind == "focus" and calls[2].kind == "raise", "active click keeps the window focused without minimizing")
+calls = {}
+o.dock.activate("0xb", 2, "focus")
+assert(calls[1].kind == "focus" and calls[1].args.workspace == "3", "remote click switches workspace before focusing")
+windows["address:0xa"].workspace = { id = -99, name = "special:minimized" }
+calls = {}
+o.dock.activate("0xa", 2, "focus")
+assert(calls[1].kind == "move" and calls[1].args.workspace == "2", "minimized click restores to the clicked workspace")
+o.dock.activate("0xb", 3, "focus")
+local count = #calls
+timers[1]()
+assert(#calls == count, "a stale restore callback cannot steal focus from a newer click")
+
+LUA
+pass "dock clicks use compositor state and discard stale focus callbacks"
 
 home="$TMPDIR/home"
 mkdir -p "$home/.config/omarchy"
@@ -165,6 +212,15 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
   fail "dock auto-hide takes only on, off, or toggle"
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
+
+omarchy_dock instances on >/dev/null
+[[ $(omarchy_dock instances) == on ]] || fail "instances preference persists"
+omarchy_dock position left >/dev/null
+omarchy_dock autohide on >/dev/null
+omarchy_dock reset >/dev/null
+[[ $(omarchy_dock instances) == off ]] || fail "instances reset restores grouping"
+[[ $(omarchy_dock position) == bottom && $(omarchy_dock autohide) == off ]] || fail "dock reset restores native position and auto-hide defaults"
+pass "instance preference persists and resets"
 
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
