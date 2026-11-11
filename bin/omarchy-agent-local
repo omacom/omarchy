@@ -29,4 +29,16 @@ if [[ ${1:-} == "use" ]]; then
   fi
 fi
 
+# Other machines pair with a shared model over SSH and start and stop it the
+# same way, so sharing first needs this machine's SSH server set up. The panel
+# has no terminal for its key prompts and sudo, so it gets one that sets the
+# server up and then shares; a share typed in a terminal sets it up in place.
+if [[ ${1:-} == "share" && -n ${2:-} && ${2:-} != -* && " $* " != *" --off "* ]] && ! systemctl is-active --quiet sshd.service; then
+  if [[ -t 0 ]]; then
+    omarchy-setup-security-sshd || exit 1
+  else
+    run=(omarchy-launch-floating-terminal-with-presentation "omarchy-setup-security-sshd && omarchy-local-ai ${*@Q}")
+  fi
+fi
+
 exec "${run[@]}"
