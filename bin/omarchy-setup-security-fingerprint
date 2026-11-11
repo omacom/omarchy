@@ -99,7 +99,13 @@ enroll_progress() {
       enroll-too-fast) echo "  Too fast. $again" ;;
       enroll-completed) echo "  ✓ Enrolled." ;;
       enroll-duplicate) echo "  ✗ That finger is already enrolled." ;;
-      enroll-data-full) echo "  ✗ The reader has no room for another fingerprint." ;;
+      enroll-data-full)
+        echo "  ✗ The reader has no room for another fingerprint."
+        # Readers that match on the chip keep prints in their own memory, where
+        # Windows Hello's prints fill it on a machine that also runs Windows.
+        echo "    If this computer also runs Windows, remove its fingerprints there (Settings > Accounts >"
+        echo "    Sign-in options > Fingerprint recognition > Remove), then run this again."
+        ;;
       enroll-disconnected) echo "  ✗ The reader was disconnected." ;;
       enroll-failed | enroll-unknown-error)
         echo "  ✗ Enrollment stopped. If you stopped before it said Enrolled, run this again and keep going." ;;
