@@ -58,22 +58,6 @@ set)
 esac
 SH
 
-mime_defaults_file="$test_tmp/mime-defaults"
-cat >"$mock_bin/xdg-mime" <<'SH'
-#!/bin/bash
-case "$1" in
-default)
-  shift
-  desktop_id=$1
-  shift
-  for mime in "$@"; do
-    printf '%s=%s\n' "$mime" "$desktop_id" >>"$OMARCHY_TEST_MIME_DEFAULTS_FILE"
-  done
-  ;;
-query) ;;
-esac
-SH
-
 cat >"$mock_bin/omarchy-test-installer" <<'SH'
 #!/bin/bash
 installer=${0##*/}
@@ -162,7 +146,6 @@ export OMARCHY_TEST_TERMINAL_LOG="$terminal_log"
 export OMARCHY_TEST_NOTIFICATION_LOG="$notification_log"
 export OMARCHY_TEST_SETUP_LOG="$setup_log"
 export OMARCHY_TEST_BROWSER_FILE="$browser_file"
-export OMARCHY_TEST_MIME_DEFAULTS_FILE="$mime_defaults_file"
 
 assert_missing_opens_installer() {
   local type=$1
@@ -333,18 +316,40 @@ omarchy-default-editor nvim
 [[ ! -s $install_log && ! -s $terminal_log ]] || fail "installed defaults skip installation"
 pass "installed defaults are selected immediately"
 
-# Setting the default editor must also update XDG MIME defaults so Nautilus
-# opens text files in the selected editor, not just the hardcoded nvim.desktop.
-: >"$mime_defaults_file"
+# Picking an editor points every text type at the editor handler in the
+# user's mimeapps.list, replacing what was there and keeping everything else.
+mimeapps="$test_home/.config/mimeapps.list"
+dotfiles_list="$test_tmp/dotfiles-mimeapps.list"
+printf '[Added Associations]\ntext/plain=nvim.desktop;\n\n[Default Applications]\nimage/png=imv.desktop\ntext/plain=nvim.desktop\ntext/x-tex=code.desktop\n' >"$dotfiles_list"
+ln -sf "$dotfiles_list" "$mimeapps"
 omarchy-default-editor vim
-[[ -s $mime_defaults_file ]] || fail "setting the default editor updates XDG MIME defaults"
-grep -Fxq "text/plain=omarchy-launch-editor.desktop" "$mime_defaults_file" ||
-  fail "default editor points text/plain at the omarchy-launch-editor handler"
-grep -Fxq "application/xml=omarchy-launch-editor.desktop" "$mime_defaults_file" ||
-  fail "default editor points application/xml at the omarchy-launch-editor handler"
-grep -Fxq "application/x-shellscript=omarchy-launch-editor.desktop" "$mime_defaults_file" ||
-  fail "default editor points application/x-shellscript at the omarchy-launch-editor handler"
-pass "setting the default editor updates XDG MIME defaults for text types"
+handler_types=$(sed -n 's/^MimeType=//p' "$ROOT/applications/omarchy-launch-editor.desktop" | tr ';' '\n' | sed '/^$/d')
+while read -r type; do
+  [[ $(grep -cxF "$type=omarchy-launch-editor.desktop" "$mimeapps") == 1 ]] || fail "picking an editor points $type at the editor handler once"
+done <<<"$handler_types"
+! grep -qxF "text/plain=nvim.desktop" "$mimeapps" || fail "picking an editor replaces the old text/plain default"
+! grep -qxF "text/x-tex=code.desktop" "$mimeapps" || fail "picking an editor replaces an app chosen for a text type"
+grep -qxF "image/png=imv.desktop" "$mimeapps" || fail "picking an editor keeps other types' defaults"
+grep -qxF "text/plain=nvim.desktop;" "$mimeapps" || fail "picking an editor leaves added associations alone"
+[[ -L $mimeapps ]] || fail "picking an editor keeps a symlinked mimeapps.list a symlink"
+[[ -f $test_home/.local/share/applications/omarchy-launch-editor.desktop ]] || fail "picking an editor installs the editor handler"
+pass "picking an editor opens text files in it from every app"
+
+# The migration keeps a type the user pointed elsewhere themselves, and
+# replaces Omarchy's own past defaults.
+rm -f "$mimeapps"
+printf '[Default Applications]\ntext/plain=nvim.desktop\ntext/xml=plain.desktop\ntext/x-tex=code.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Neovim, the old default"
+grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Plain, the newer default"
+grep -qxF "text/x-tex=code.desktop" "$mimeapps" || fail "the migration keeps a type the user chose"
+! grep -qxF "text/x-tex=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration doesn't add a second default for a chosen type"
+pass "the migration keeps the user's own choices"
+
+# New installs ship the same types pointed at the handler.
+shipped=$(sed -n 's/=omarchy-launch-editor\.desktop$//p' "$ROOT/default/applications/mimeapps.list" | sort)
+[[ $shipped == $(sort <<<"$handler_types") ]] || fail "the shipped mimeapps.list points the handler's types at it"
+pass "new installs open text files in the default editor"
 
 previous_editor=$(omarchy-default-editor)
 rm -f "$installed_dir/vim"
