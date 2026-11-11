@@ -782,6 +782,9 @@
   "install.preinstalls": {
     "label": "Preinstalls"
   },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
   "install.browser.chrome": {
     "label": "Chrome"
   },
@@ -832,9 +835,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium Account"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1060,6 +1060,9 @@
   },
   "remove.ai.hermes": {
     "label": "Hermes Desktop"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
   },
   "remove.browser.chrome": {
     "label": "Chrome"
