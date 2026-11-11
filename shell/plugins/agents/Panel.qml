@@ -2053,7 +2053,7 @@ Panel {
         anchors.leftMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localShare.visible ? localShare.width : 0) - (remotePair.visible ? remotePair.width : 0) - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(44))) : implicitWidth
+        width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localShare.visible ? localShare.width : 0) - (remotePair.visible ? remotePair.width : 0) - (remoteDisconnect.visible ? remoteDisconnect.width : 0) - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(44))) : implicitWidth
         elide: Text.ElideRight
         text: section.model ? (section.model.name || section.model.recipe)
           : section.offer ? (section.offer.link ? root.linkTitle(section.offer.link) : (section.offer.name || section.offer.id))
@@ -2114,20 +2114,34 @@ Panel {
         onClicked: root.runLocalAction(section.model, "share")
       }
 
-      // A network model this machine isn't paired with yet: the word Pair,
-      // which opens a terminal to pair over SSH. Once paired and running
-      // there: Disconnect, which stops using just this model here.
+      // A network model this machine isn't paired with yet: the word Use,
+      // which opens a terminal to pair over SSH.
       TextLink {
         id: remotePair
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        visible: section.remote && !section.offline && !section.paired
+        text: Commons.I18n.t("agents.use")
+        tooltip: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
+        idleColor: root.foreground
+        picked: root.hasKey("modelPair", section.providerIndex)
+        onClicked: root.runLocalAction(section.model, "pair")
+      }
+
+      // Once paired and running there: the pause a local model stops with,
+      // which stops using just this model here.
+      PanelActionButton {
+        id: remoteDisconnect
         anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: section.remote && !section.offline && (!section.paired || section.model.unit === "active")
-        text: section.paired ? Commons.I18n.t("agents.networkDisconnectLabel") : Commons.I18n.t("agents.networkPairLabel")
-        tooltip: !section.remote ? "" : section.paired ? Commons.I18n.t("agents.networkDisconnect").arg(section.model.host) : Commons.I18n.t("agents.networkPair").arg(section.model.host)
-        idleColor: root.foreground
-        picked: root.hasKey(section.paired ? "modelDisconnect" : "modelPair", section.providerIndex)
-        onClicked: root.runLocalAction(section.model, section.paired ? "disconnect" : "pair")
+        visible: section.remote && !section.offline && section.paired && section.model.unit === "active"
+        iconText: "󰏤"
+        tooltipText: section.remote ? Commons.I18n.t("agents.networkDisconnect").arg(section.model.host) : ""
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("modelDisconnect", section.providerIndex)
+        onClicked: root.runLocalAction(section.model, "disconnect")
       }
 
       PanelActionButton {
