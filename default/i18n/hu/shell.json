@@ -64,7 +64,6 @@
   "agents.localRecommended": "ajánlott",
   "agents.localRemoveConfirm": "Leállítod a(z) %1 modellt, és törlöd a letöltött súlyait?",
   "agents.localRemovingMeter": "Eltávolítás",
-  "agents.localShowLogs": "Naplók megjelenítése",
   "agents.localShowLogsTip": "A modell naplóinak megnyitása terminálban",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Indítás",

@@ -62,7 +62,6 @@
   "agents.localRecommended": "推荐",
   "agents.localRemoveConfirm": "停止 %1 并删除其已下载的权重？",
   "agents.localRemovingMeter": "移除中",
-  "agents.localShowLogs": "显示日志",
   "agents.localShowLogsTip": "在终端中打开此模型的日志",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "启动",
