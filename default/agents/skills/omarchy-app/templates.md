@@ -5,29 +5,39 @@ with the app's name and `<Name>` with its display name. These come from
 Omacut and Monologue (MIT, David Heinemeier Hansson); keep that attribution in
 the LICENSE of any app that copies them.
 
-## `<name>.pro`
+## `CMakeLists.txt`
 
-Add `multimedia`, `concurrent`, or other modules only when the app uses them.
+Add `Multimedia`, `Concurrent`, or other modules only when the app uses them,
+in both `find_package` and `target_link_libraries`.
 
-```qmake
-QT += core gui qml quick quickcontrols2 dbus
+```cmake
+cmake_minimum_required(VERSION 3.21)
+project(<name> LANGUAGES CXX)
 
-CONFIG += c++17 release
-TARGET = <name>
-TEMPLATE = app
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
 
-HEADERS += \
-    src/backend.h \
-    src/theme.h \
-    src/translator.h
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 DBus Test)
 
-SOURCES += \
-    src/main.cpp \
-    src/backend.cpp \
-    src/theme.cpp \
-    src/translator.cpp
+# Everything but main.cpp, shared by the app and the tests, so each source
+# compiles once and a new file in src/ needs no line here.
+file(GLOB <name>_sources CONFIGURE_DEPENDS src/*.cpp src/*.h)
+list(REMOVE_ITEM <name>_sources ${CMAKE_SOURCE_DIR}/src/main.cpp)
+add_library(<name>_core STATIC ${<name>_sources})
+target_include_directories(<name>_core PUBLIC src)
+target_link_libraries(<name>_core PUBLIC
+  Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::DBus)
 
-RESOURCES += src/resources.qrc
+add_executable(<name> src/main.cpp src/resources.qrc)
+target_link_libraries(<name> PRIVATE <name>_core)
+
+add_executable(<name>_tests tests/<name>_tests.cpp)
+target_link_libraries(<name>_tests PRIVATE <name>_core Qt6::Test)
 ```
 
 ## `bin/build`
@@ -37,11 +47,8 @@ RESOURCES += src/resources.qrc
 set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-mkdir -p "$ROOT/build"
-cd "$ROOT/build"
-
-qmake6 "$ROOT/<name>.pro"
-make -j"$(nproc)"
+cmake -S "$ROOT" -B "$ROOT/build" -DCMAKE_BUILD_TYPE=Release >/dev/null
+cmake --build "$ROOT/build" --target <name> -j"$(nproc)"
 
 echo "Built $ROOT/build/<name>"
 ```
@@ -53,11 +60,9 @@ echo "Built $ROOT/build/<name>"
 set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
-mkdir -p "$ROOT/build/tests"
-cd "$ROOT/build/tests"
-
-qmake6 "$ROOT/tests/<name>_tests.pro"
-make -j"$(nproc)"
+cmake -S "$ROOT" -B "$ROOT/build" -DCMAKE_BUILD_TYPE=Release >/dev/null
+cmake --build "$ROOT/build" --target <name>_tests -j"$(nproc)"
+cd "$ROOT/build"
 QT_QPA_PLATFORM=offscreen ./<name>_tests
 ```
 
@@ -590,20 +595,6 @@ Arabic six; Japanese only `other`; `Translator::pluralCategory` lists them).
 }
 ```
 
-## `tests/<name>_tests.pro`
-
-```qmake
-QT += core gui quick quickcontrols2 testlib dbus
-CONFIG += c++17 testcase
-TARGET = <name>_tests
-TEMPLATE = app
-
-INCLUDEPATH += ../src
-
-HEADERS += ../src/backend.h ../src/theme.h ../src/translator.h
-SOURCES += <name>_tests.cpp ../src/backend.cpp ../src/theme.cpp ../src/translator.cpp
-```
-
 ## `tests/<name>_tests.cpp`
 
 One `private slots:` case per behavior. These cover the backend, the theme fallback, accent and rounding, and the translator's language file and fallbacks, so a broken theme or catalog shows up in `bin/test`.
@@ -729,7 +720,7 @@ pkgdesc='One line on what it does'
 arch=('x86_64' 'aarch64')
 license=('MIT')
 depends=('qt6-base' 'qt6-declarative' 'qt6-wayland' 'xdg-desktop-portal')
-makedepends=('gcc' 'make')
+makedepends=('cmake' 'gcc' 'make')
 source=()
 sha256sums=()
 
