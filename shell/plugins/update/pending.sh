@@ -27,6 +27,19 @@ if pacman -Qem >/dev/null; then
   fi
 fi
 
+# A development checkout behind its upstream is an update too: the bar's icon
+# counts it, as omarchy-update-available does, so the preview lists it, with
+# the commit the update would move it to.
+if [[ $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
+  upstream=$(git -C "$OMARCHY_PATH" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)
+  if [[ -n $upstream ]]; then
+    GIT_TERMINAL_PROMPT=0 timeout 10 git -C "$OMARCHY_PATH" fetch --quiet 2>/dev/null || true
+    if (( $(git -C "$OMARCHY_PATH" rev-list --count "HEAD..$upstream" 2>/dev/null || echo 0) > 0 )); then
+      printf 'checkout\tomarchy-dev-checkout\t%s\t%s\n' "$(git -C "$OMARCHY_PATH" rev-parse --short=7 HEAD)" "$(git -C "$OMARCHY_PATH" rev-parse --short=7 "$upstream")" >>"$pending"
+    fi
+  fi
+fi
+
 declare -A desktop
 while IFS=$'\t' read -r pkg id; do
   desktop[$pkg]=$id

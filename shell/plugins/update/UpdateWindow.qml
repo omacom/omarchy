@@ -76,6 +76,7 @@ Item {
   // Packages worth a tile even without a desktop entry: [glyph, font].
   readonly property var landmarks: ({
     "omarchy": ["\ue900", "omarchy"],
+    "omarchy-dev-checkout": ["\ue900", "omarchy"],
     "linux": ["\uf17c", ""],
     "linux-lts": ["\uf17c", ""],
     "linux-zen": ["\uf17c", ""]
@@ -311,7 +312,11 @@ Item {
     }
     if (!names.length) return
     verifier.expected = expected
-    verifier.command = ["pacman", "-Q"].concat(names)
+    // A dev checkout is installed once HEAD has the listed commit: an upstream
+    // that moved on meanwhile pulls past it, not short of it.
+    verifier.command = ["sh", "-c",
+      "pacman -Q \"$@\" 2>/dev/null; if [ -n \"$0\" ] && git -C \"$OMARCHY_PATH\" merge-base --is-ancestor \"$0\" HEAD 2>/dev/null; then echo \"omarchy-dev-checkout $0\"; fi",
+      expected["omarchy-dev-checkout"] || ""].concat(names)
     verifier.running = true
   }
 
@@ -1140,7 +1145,7 @@ Item {
     readonly property bool waiting: root.phase === "running" && !active && !finished
     readonly property var entry: (DesktopEntries.applications.values, desktop ? DesktopEntries.byId(desktop) : null)
     readonly property string iconSource: entry && entry.icon ? Quickshell.iconPath(entry.icon, true) : ""
-    readonly property string label: entry ? entry.name : own ? (root.rev, root.st.subject) : name === "omarchy" ? "Omarchy" : /^linux/.test(name) ? I18n.t("update.kernel") : name // i18n: ignore
+    readonly property string label: entry ? entry.name : own ? (root.rev, root.st.subject) : /^omarchy(-dev-checkout)?$/.test(name) ? "Omarchy" : /^linux/.test(name) ? I18n.t("update.kernel") : name // i18n: ignore
 
     onActiveChanged: if (active) root.reveal(tile)
 
