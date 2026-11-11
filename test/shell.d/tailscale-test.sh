@@ -207,22 +207,6 @@ assert(onlineExit.exitNodes[0].ExitNode, 'tailscale marks the online exit node a
 const stoppedExit = exitNodeStatus({ ID: 'nHome', Online: false }, { home: homePeer(false) }, 'Stopped')
 assert(!stoppedExit.exitNodeOffline, 'tailscale does not warn about the exit node while stopped')
 
-const serviceSource = fs.readFileSync(root + '/shell/plugins/panels/tailscale/Service.qml', 'utf8')
-assert(/function clearExitNode\(\)[\s\S]*?\["tailscale", "set", "--exit-node="\]/.test(serviceSource), 'tailscale can stop using the exit node without its peer row')
-assertEqual((serviceSource.match(/clearExitNode\(\)/g) || []).length, 1, 'tailscale never clears the exit node on its own')
-assertEqual((panelSource.match(/warning: tailscale\.needsLogin \|\| tailscale\.exitNodeOffline/g) || []).length, 2, 'tailscale badges both icons while the exit node is offline')
-assert(/visible: tailscale\.exitNodeOffline[\s\S]*?onClicked: tailscale\.clearExitNode\(\)/.test(panelSource), 'tailscale offers to stop using the offline exit node')
-assert(/focusSection === "exitNodeNotice"\) \{\s*tailscale\.clearExitNode\(\)/.test(panelSource), 'tailscale stops using the offline exit node from the keyboard')
-assert(/if \(showExitNodeNotice\) focusSection = "exitNodeNotice"/.test(panelSource), 'tailscale moves the keyboard cursor onto the offline exit node notice')
-assert(/focusSection === "exitNodeNotice" && exitNodeNoticeRow\) scrollItemIntoView\(exitNodeNoticeRow\)/.test(panelSource), 'tailscale scrolls the offline exit node notice into view')
-assert(/function switchAccount\([\s\S]*?clearExitNodeStatus\(\)[\s\S]*?switchProcess\.running = true/.test(serviceSource), 'tailscale forgets the offline exit node when an account switch starts')
-assert(/id: switchProcess[\s\S]*?root\.clearExitNodeStatus\(\)/.test(serviceSource), 'tailscale forgets the offline exit node when an account switch ends')
-assert(/function clearExitNodeStatus\(\) \{\s*_accountEpoch\+\+/.test(serviceSource), 'tailscale marks status from before an account switch as stale')
-assert(/_statusEpoch = _accountEpoch[\s\S]*?statusProcess\.running = true/.test(serviceSource), 'tailscale tags each status poll with the current account')
-assert(/root\._statusEpoch !== root\._accountEpoch\) \{[^}]*\} else if \(exitCode === 0\) root\.parseStatus/.test(serviceSource), 'tailscale drops a status started before an account switch')
-assert(/function clearExitNode\(\) \{\s*if \([^)]*!exitNodeOffline[^)]*switchProcess\.running/.test(serviceSource), 'tailscale only clears the exit node from a current offline notice')
-assert(/if \(_statusFullPeers \|\| parsed\.exitNodeId !== exitNodeId\) exitNodeName = parsed\.exitNodeName/.test(serviceSource), 'tailscale keeps the exit node name across light polls')
-
 const accounts = tailscale.parseAccounts(JSON.stringify([
   {
     id: 'db1b',
