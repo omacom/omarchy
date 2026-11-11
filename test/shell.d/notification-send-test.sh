@@ -243,3 +243,25 @@ send "Timed" -t 3000 >/dev/null
 load
 [[ ${args[12]} == "" && ${args[-1]} == "3000" ]] || fail "notification wrapper still parses a flag after the headline" "body=${args[12]} timeout=${args[-1]}"
 pass "notification wrapper still treats a known flag after the headline as an option"
+
+# Text after -- is always shown as text, never used as a setting, even when it
+# is exactly one of the tool's settings, such as a reminder's message --exec.
+: >"$args_file"
+send -g K "Reminder" -- "--exec" >/dev/null
+load
+[[ ${args[12]} == "--exec" ]] || fail "notification wrapper keeps a description after -- as text" "${args[12]}"
+has_hint omarchy-exec-argv && fail "a description after -- must not set a click command"
+: >"$args_file"
+send "Reminder" -- "--transient" >/dev/null
+load
+[[ ${args[12]} == "--transient" ]] || fail "notification wrapper keeps a flag-like description after -- as text" "${args[12]}"
+! has_hint transient || fail "a description after -- must not set the transient hint"
+: >"$args_file"
+send -- "-p" -- "-t" >/dev/null
+load
+[[ ${args[11]} == "-p" && ${args[12]} == "-t" ]] || fail "notification wrapper keeps a headline and description after -- as text" "${args[11]} / ${args[12]}"
+: >"$args_file"
+send "Reminder" -- "Stretch" -u critical >/dev/null
+load
+[[ ${args[12]} == "Stretch" && $(hint_value urgency) == "2" ]] || fail "notification wrapper reads options after a description given with --" "${args[12]} / $(hint_value urgency)"
+pass "notification wrapper takes the argument after -- as text"
