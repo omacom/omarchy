@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "බෙදාගත්",
   "agents.networkStopSharing": "ඔබේ tailnet හි බෙදාගෙන ඇත · බෙදාගැනීම නවත්වන්න",
   "agents.networkStopped": "නැවතී ඇත",
+  "agents.networkUsers": {
+    "one": "%1 පරිශීලකයෙක්",
+    "other": "%1 පරිශීලකයින්"
+  },
   "agents.outOfCredits": "ක්‍රෙඩිට් අවසන් විය",
   "agents.pasteCode": "පිටුව අවසන් වෙනවා වෙනුවට කේතයක් පෙන්වයි නම්, එය මෙහි අලවන්න.",
   "agents.placeholderCode": "කේතය",

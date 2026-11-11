@@ -95,6 +95,9 @@
   "agents.networkSharedLabel": "Dibagikan",
   "agents.networkStopSharing": "Dibagikan di tailnet Anda · berhenti berbagi",
   "agents.networkStopped": "Berhenti",
+  "agents.networkUsers": {
+    "other": "%1 pengguna"
+  },
   "agents.outOfCredits": "Kredit habis",
   "agents.pasteCode": "Jika halaman menampilkan kode alih-alih selesai, tempelkan di sini.",
   "agents.placeholderCode": "Kode",

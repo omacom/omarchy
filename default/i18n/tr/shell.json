@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "Paylaşıldı",
   "agents.networkStopSharing": "Tailnet'inizde paylaşıldı · paylaşımı durdur",
   "agents.networkStopped": "Durduruldu",
+  "agents.networkUsers": {
+    "one": "%1 kullanıcı",
+    "other": "%1 kullanıcı"
+  },
   "agents.outOfCredits": "Krediler bitti",
   "agents.pasteCode": "Sayfa bitirmek yerine bir kod gösteriyorsa buraya yapıştırın.",
   "agents.placeholderCode": "Kod",

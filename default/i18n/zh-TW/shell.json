@@ -95,6 +95,9 @@
   "agents.networkSharedLabel": "已分享",
   "agents.networkStopSharing": "已透過 tailnet 分享 · 停止分享",
   "agents.networkStopped": "已停止",
+  "agents.networkUsers": {
+    "other": "%1 位使用者"
+  },
   "agents.outOfCredits": "額度已用完",
   "agents.pasteCode": "如果頁面顯示代碼而未完成，請貼在這裡。",
   "agents.placeholderCode": "代碼",

@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "Споделено",
   "agents.networkStopSharing": "Споделено в tailnet-а ти · спри споделянето",
   "agents.networkStopped": "Спрян",
+  "agents.networkUsers": {
+    "one": "%1 потребител",
+    "other": "%1 потребители"
+  },
   "agents.outOfCredits": "Без кредити",
   "agents.pasteCode": "Ако страницата покаже код вместо да завърши, постави го тук.",
   "agents.placeholderCode": "Код",

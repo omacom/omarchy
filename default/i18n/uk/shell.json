@@ -104,6 +104,12 @@
   "agents.networkSharedLabel": "Поширено",
   "agents.networkStopSharing": "Поширено у вашому tailnet · припинити поширення",
   "agents.networkStopped": "Зупинено",
+  "agents.networkUsers": {
+    "few": "%1 користувачі",
+    "many": "%1 користувачів",
+    "one": "%1 користувач",
+    "other": "%1 користувача"
+  },
   "agents.outOfCredits": "Кредити вичерпано",
   "agents.pasteCode": "Якщо на сторінці показано код замість завершення, вставте його сюди.",
   "agents.placeholderCode": "Код",

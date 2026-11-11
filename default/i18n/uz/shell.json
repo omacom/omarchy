@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "Ulashilgan",
   "agents.networkStopSharing": "Tailnetingizda ulashilgan · ulashishni toʻxtatish",
   "agents.networkStopped": "Toʻxtatilgan",
+  "agents.networkUsers": {
+    "one": "%1 ta foydalanuvchi",
+    "other": "%1 ta foydalanuvchi"
+  },
   "agents.outOfCredits": "Kredit tugadi",
   "agents.pasteCode": "Agar sahifa yakunlanish oʻrniga kod koʻrsatsa, uni shu yerga joylashtiring.",
   "agents.placeholderCode": "Kod",

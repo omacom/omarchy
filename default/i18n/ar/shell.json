@@ -110,6 +110,14 @@
   "agents.networkSharedLabel": "مُشارك",
   "agents.networkStopSharing": "مُشارك على tailnet · إيقاف المشاركة",
   "agents.networkStopped": "متوقف",
+  "agents.networkUsers": {
+    "few": "%1 مستخدمين",
+    "many": "%1 مستخدمًا",
+    "one": "مستخدم واحد",
+    "other": "%1 مستخدم",
+    "two": "مستخدمان",
+    "zero": "لا مستخدم"
+  },
   "agents.outOfCredits": "نفد الرصيد",
   "agents.pasteCode": "إذا أظهرت الصفحة رمزًا بدلًا من الإنهاء، الصقه هنا.",
   "agents.placeholderCode": "الرمز",

@@ -95,6 +95,9 @@
   "agents.networkSharedLabel": "共有済み",
   "agents.networkStopSharing": "tailnet で共有中 · 共有を停止",
   "agents.networkStopped": "停止中",
+  "agents.networkUsers": {
+    "other": "%1 ユーザー"
+  },
   "agents.outOfCredits": "クレジット不足",
   "agents.pasteCode": "完了せずにコードが表示された場合は、ここに貼り付けてください。",
   "agents.placeholderCode": "コード",

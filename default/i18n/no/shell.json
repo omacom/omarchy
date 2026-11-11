@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "Delt",
   "agents.networkStopSharing": "Delt på tailnettet ditt · stopp deling",
   "agents.networkStopped": "Stoppet",
+  "agents.networkUsers": {
+    "one": "%1 bruker",
+    "other": "%1 brukere"
+  },
   "agents.outOfCredits": "Tom for kreditt",
   "agents.pasteCode": "Hvis siden viser en kode i stedet for å fullføre, lim den inn her.",
   "agents.placeholderCode": "Kode",

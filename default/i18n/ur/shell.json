@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "شیئر شدہ",
   "agents.networkStopSharing": "آپ کے tailnet پر شیئر شدہ · شیئرنگ بند کریں",
   "agents.networkStopped": "رکا ہوا",
+  "agents.networkUsers": {
+    "one": "%1 صارف",
+    "other": "%1 صارفین"
+  },
   "agents.outOfCredits": "کریڈٹ ختم ہو گئے",
   "agents.pasteCode": "اگر صفحہ مکمل ہونے کے بجائے کوڈ دکھائے تو اسے یہاں لگائیں۔",
   "agents.placeholderCode": "کوڈ",

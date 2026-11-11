@@ -95,6 +95,9 @@
   "agents.networkSharedLabel": "แชร์แล้ว",
   "agents.networkStopSharing": "แชร์บน tailnet ของคุณแล้ว · หยุดแชร์",
   "agents.networkStopped": "หยุดแล้ว",
+  "agents.networkUsers": {
+    "other": "%1 ผู้ใช้"
+  },
   "agents.outOfCredits": "เครดิตหมด",
   "agents.pasteCode": "หากหน้าเว็บแสดงรหัสแทนที่จะเสร็จสิ้น ให้วางรหัสที่นี่",
   "agents.placeholderCode": "รหัส",

@@ -104,6 +104,12 @@
   "agents.networkSharedLabel": "Udostępnione",
   "agents.networkStopSharing": "Udostępnione w twoim tailnecie · przestań udostępniać",
   "agents.networkStopped": "Zatrzymane",
+  "agents.networkUsers": {
+    "few": "%1 użytkownicy",
+    "many": "%1 użytkowników",
+    "one": "%1 użytkownik",
+    "other": "%1 użytkownika"
+  },
   "agents.outOfCredits": "Brak kredytów",
   "agents.pasteCode": "Jeśli strona pokazuje kod zamiast zakończyć, wklej go tutaj.",
   "agents.placeholderCode": "Kod",

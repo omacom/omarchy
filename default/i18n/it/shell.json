@@ -101,6 +101,11 @@
   "agents.networkSharedLabel": "Condiviso",
   "agents.networkStopSharing": "Condiviso sulla tua tailnet · interrompi condivisione",
   "agents.networkStopped": "Fermato",
+  "agents.networkUsers": {
+    "many": "%1 utenti",
+    "one": "%1 utente",
+    "other": "%1 utenti"
+  },
   "agents.outOfCredits": "Crediti esauriti",
   "agents.pasteCode": "Se la pagina mostra un codice invece di finire, incollalo qui.",
   "agents.placeholderCode": "Codice",
