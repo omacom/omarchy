@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "../panels/elsewhen/Model.js" as Reorder
+import "../panels/tailscale" as Tailscale
 
 Panel {
   id: root
@@ -2090,37 +2091,48 @@ Panel {
       }
 
       // Shares this machine's running model with the tailnet, or stops
-      // sharing it: Share while private, Shared while shared, in the icons'
-      // color. Shown only while the model runs, where Tailscale can serve it
-      // or it's shared already; a stopped shared model is shared again on start.
-      TextLink {
+      // sharing it: the Tailscale mark, dim while private and in the icons'
+      // color while shared, when its tooltip counts the machines using it.
+      // Shown only while the model runs, where Tailscale can serve it or it's
+      // shared already; a stopped shared model is shared again on start.
+      PanelActionButton {
         id: localShare
         anchors.right: localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
-        anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(8) : 0
+        anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool shared: !!section.model && section.model.shared === true
         visible: !!section.model && !section.remote && !section.removing && !section.installing && section.running && (shared || usage.canShare)
-        // Shared reads as how many machines are using it, once any are.
         readonly property int users: shared ? (usage.shareClients[section.model.recipe] || 0) : 0
-        text: users > 0 ? Commons.I18n.tn("agents.networkUsers", users).arg(Commons.I18n.formatNumber(users))
-          : shared ? Commons.I18n.t("agents.networkSharedLabel") : Commons.I18n.t("agents.networkShareLabel")
-        tooltip: shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
-        idleColor: root.foreground
-        picked: root.hasKey("modelShare", section.providerIndex)
+        tooltipText: users > 0 ? Commons.I18n.tn("agents.networkSharedUsers", users).arg(Commons.I18n.formatNumber(users))
+          : shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("modelShare", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(localShare)
         onClicked: root.runLocalAction(section.model, "share")
+
+        Tailscale.TailscaleIcon {
+          anchors.centerIn: parent
+          // The mark fills its box where a font glyph leaves padding around
+          // its ink, so it's drawn smaller to sit no larger than the pause.
+          iconSize: Math.round(Style.font.icon * 0.7)
+          color: localShare.shared || localShare._hot ? root.foreground : root.dim
+        }
       }
 
-      // A network model this machine isn't paired with yet: the word Use,
-      // which opens a terminal to pair over SSH.
-      TextLink {
+      // A network model this machine isn't paired with yet: the play a local
+      // model starts with, which opens a terminal to pair over SSH.
+      PanelActionButton {
         id: remotePair
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         visible: section.remote && !section.offline && !section.paired
-        text: Commons.I18n.t("agents.use")
-        tooltip: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
-        idleColor: root.foreground
-        picked: root.hasKey("modelPair", section.providerIndex)
+        iconText: "󰐊"
+        tooltipText: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("modelPair", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(remotePair)
         onClicked: root.runLocalAction(section.model, "pair")
       }
 
@@ -2137,6 +2149,7 @@ Panel {
         foreground: root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("modelDisconnect", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(remoteDisconnect)
         onClicked: root.runLocalAction(section.model, "disconnect")
       }
 
