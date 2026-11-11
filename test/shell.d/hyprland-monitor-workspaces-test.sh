@@ -730,3 +730,22 @@ world.handlers["monitor.added"]({ name = "DP-3" })
 check(kept.at.x == 1300 and kept.at.y == 200, "a window in sight on another monitor was moved to " .. kept.at.x .. "," .. kept.at.y)
 ' || fail "floating windows left on no monitor by an unplug come back on screen"
 pass "floating windows left on no monitor by an unplug come back on screen"
+
+run_lua floating_offset '
+-- A panel beside a wider display, so it starts partway into its own width,
+-- and below the top of the layout.
+plug("eDP-1", 0, "Panel", 1, { x = 2560, y = 360 })
+plug("DP-1", 1, "LG", 11, { x = 0, width = 2560, height = 1440 })
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+-- Hyprland left what remains of each position once the panel size is taken out.
+local carried = floating("0xa", 11, 100, 50, 400, 300)
+world.focused = "eDP-1"
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(carried.at.x == 2660 and carried.at.y == 410, "the window is as far into the panel as it was into the display, not at " .. carried.at.x .. "," .. carried.at.y)
+' || fail "a window comes back at its own place on a monitor that starts anywhere"
+pass "a window comes back at its own place on a monitor that starts anywhere"

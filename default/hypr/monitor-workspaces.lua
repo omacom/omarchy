@@ -540,11 +540,12 @@ local function box(monitor)
 end
 
 -- Where a window goes along one axis of its monitor: as far into the screen as
--- it was into the one it came from, then pulled inside the bar and anything
--- else that reserves an edge. One longer than the room starts where the room
--- does, so its titlebar stays in reach.
+-- it was into the one it came from, which is what Hyprland left of its
+-- position, then pulled inside the bar and anything else that reserves an
+-- edge. One longer than the room starts where the room does, so its titlebar
+-- stays in reach.
 local function along(position, length, start, extent, before, after)
-  local place = start + (position - start) % extent
+  local place = start + position % extent
   return math.max(start + before, math.min(place, start + extent - after - length))
 end
 
