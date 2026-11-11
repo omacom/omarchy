@@ -52,7 +52,7 @@ The panels aren't read-outs. They're where you actually do the thing:
 
 - **Audio** has a master volume slider, an output-device picker, and a per-app mixer, so you can turn down that one browser tab without touching everything else.
 - **Network** scans for Wi-Fi, shows signal strength, connects, and lets you pick a DNS provider.
-- **Bluetooth** lists your devices with connect/disconnect and battery levels, and shows the codec a connected headset is playing (LDAC, AAC, SBC…). Turn its **Automatic** switch off to keep the headset on one codec; it stays pinned across reconnects. `omarchy bluetooth codec <address> [auto|<codec>]` does the same from a terminal.
+- **Bluetooth** lists your devices with connect/disconnect and battery levels, and shows the codec a connected headset is playing (LDAC, AAC, SBC…). Turn its **Automatic** switch off to keep the headset on one codec; it stays pinned across reconnects. `omarchy bluetooth codec <address> [auto|<codec>]` does the same from a terminal. On LDAC you can hold the bitrate at 990, 660 or 330 kbps instead of letting it adapt (this restarts audio for a moment), and **Stay in music mode** keeps a headset in stereo when an app opens the microphone, so calls use another mic (`omarchy toggle bluetooth headset switch`).
 - **Power** shows battery stats, switches power profiles (it remembers a separate choice for battery and AC), and prints some system info.
 - **Display** carries a brightness slider, text size, monitor scaling presets, and — when you have more than one screen — per-monitor controls. See [monitors](33-monitors.md) for the deeper story.
 - **Clock** opens a month grid with ISO week numbers and month stepping.

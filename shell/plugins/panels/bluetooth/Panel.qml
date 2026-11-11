@@ -61,9 +61,15 @@ Panel {
   property var codecOptions: []
   property string pendingCodec: ""
   property int codecIndex: 0
-  // The section has up to two cursor rows: the Automatic switch on the header
-  // line, then the pills while a codec is pinned.
-  property bool codecAutoFocused: true
+  // LDAC bitrate ("auto", "hq", "sq", "mq") and whether WirePlumber moves the
+  // headset to headset mode when an app opens a microphone ("on"/"off").
+  property string codecLdacQuality: "auto"
+  property string pendingLdacQuality: ""
+  property int ldacIndex: 0
+  property string codecHeadsetSwitch: "on"
+  property string pendingHeadsetSwitch: ""
+  // The cursor's row inside the section, one of codecRows.
+  property string codecRow: "auto"
   // Last connected device the cursor sat on, so the section stays with it
   // while the cursor is inside the section itself.
   property string codecFocusAddress: ""
@@ -77,7 +83,7 @@ Panel {
   property string codecHoldCodec: ""
 
   function releaseCodecHold() {
-    if (codecHoldAddress === "" || codecBusy) return
+    if (codecHoldAddress === "" || codecActionBusy) return
     var entry = codecsByAddress[Model.normalizedAddress(codecHoldAddress)]
     if (entry && (codecHoldCodec === "" || entry.codec === codecHoldCodec)) {
       codecHoldAddress = ""
@@ -107,16 +113,45 @@ Panel {
     return count
   }
   readonly property bool codecBusy: pendingCodec !== ""
+  readonly property bool ldacBusy: pendingLdacQuality !== ""
+  readonly property bool codecActionBusy: codecBusy || ldacBusy || pendingHeadsetSwitch !== ""
   readonly property string codecEffective: pendingCodec !== "" ? pendingCodec : codecSelected
   readonly property bool codecPinned: codecEffective !== "auto"
   // Music mode only: a headset-mode codec follows the call profile, and a
   // headset that offers one codec has nothing to choose -- unless one is
   // pinned, which has to stay reachable to undo.
-  readonly property bool canSelectCodec: codecTarget !== "" && codecStatusAddress === codecTarget
+  readonly property bool codecSectionVisible: codecTarget !== "" && codecStatusAddress === codecTarget
+    && (codecMode === "music" || codecMode === "headset" || codecActionBusy)
+  readonly property bool canSelectCodec: codecSectionVisible
     && (codecMode === "music" || codecBusy) && (codecOptions.length > 1 || codecPinned)
   readonly property bool codecPillsVisible: canSelectCodec && codecPinned
+  readonly property string codecLdacEffective: pendingLdacQuality !== "" ? pendingLdacQuality : codecLdacQuality
+  // While LDAC plays, or while a quality is pinned so it stays reachable to
+  // undo. Never in headset mode, where LDAC cannot play.
+  readonly property bool ldacQualityVisible: {
+    if (!codecSectionVisible || codecMode === "headset") return false
+    var offered = false
+    for (var i = 0; i < codecOptions.length; i++)
+      if (codecOptions[i].codec === "ldac") offered = true
+    return offered && (codecCurrent === "ldac" || codecLdacQuality !== "auto" || ldacBusy)
+  }
+  // Cursor rows inside the section, top to bottom.
+  readonly property var codecRows: {
+    var rows = []
+    if (canSelectCodec) rows.push("auto")
+    if (codecPillsVisible) rows.push("pills")
+    if (ldacQualityVisible) rows.push("ldac")
+    if (codecSectionVisible) rows.push("headsetSwitch")
+    return rows
+  }
+  // Headset mode reports no A2DP codec; the live node still names the call codec.
+  readonly property string codecLive: {
+    if (codecCurrent !== "") return codecCurrent
+    var entry = codecsByAddress[Model.normalizedAddress(codecTarget)]
+    return entry ? entry.codec : ""
+  }
   readonly property string codecSectionTitle: {
-    var title = Model.codecSectionTitle(codecEffective, codecCurrent, Commons.I18n.t)
+    var title = Model.codecSectionTitle(codecEffective, codecLive, Commons.I18n.t, codecMode === "headset")
     if (codecDeviceCount < 2) return title
     var dev = null
     for (var i = 0; i < connectedDevices.length; i++)
@@ -129,7 +164,7 @@ Panel {
     releaseCodecHold()
     codecStatusSettle.restart()
   }
-  onCodecPillsVisibleChanged: if (!codecPillsVisible) codecAutoFocused = true
+  onCodecRowsChanged: if (codecRows.indexOf(codecRow) === -1) codecRow = codecRows.length > 0 ? codecRows[0] : "auto"
   onCodecOptionsChanged: {
     if (codecIndex > codecOptions.length - 1) codecIndex = Math.max(0, codecOptions.length - 1)
   }
@@ -212,7 +247,7 @@ Panel {
 
   function sectionCount(section) {
     if (section === "connected") return connectedDevices.length
-    if (section === "codec") return canSelectCodec ? 1 : 0
+    if (section === "codec") return codecSectionVisible ? 1 : 0
     if (section === "known") return knownDevices.length
     if (section === "discovered") return discoveredDevices.length
     return 0
@@ -229,7 +264,7 @@ Panel {
   // remembered devices, on screen and in the cursor order alike.
   readonly property var visibleSections: {
     var sections = Model.visibleSections(deviceGroups, adapter && adapter.discovering)
-    if (canSelectCodec) sections.splice(sections.indexOf("connected") + 1, 0, "codec")
+    if (codecSectionVisible) sections.splice(sections.indexOf("connected") + 1, 0, "codec")
     return sections
   }
 
@@ -325,14 +360,17 @@ Panel {
     var status = Model.parseCodecStatus(raw)
     // Mid-switch the card can briefly report no profile. Publishing that would
     // unmount the section under the busy switch -- same guard as Wi-Fi band.
-    if (codecBusy && status.options.length === 0) return
+    if (codecActionBusy && status.options.length === 0) return
 
     codecStatusAddress = address
     codecMode = status.mode
     codecCurrent = status.codec
     codecSelected = status.selected
     codecOptions = status.options
+    if (!ldacBusy) codecLdacQuality = status.ldacQuality
+    if (pendingHeadsetSwitch === "") codecHeadsetSwitch = status.headsetSwitch
     if (!codecBusy) syncCodecIndex()
+    if (!ldacBusy) ldacIndex = Math.max(0, Model.LDAC_QUALITIES.indexOf(codecLdacQuality))
   }
 
   function codecLabel(codec) {
@@ -349,6 +387,7 @@ Panel {
   // and the panel stays open so the switch and the row's codec show it land.
   function setCodec(codec) {
     if (!codec || codecTarget === "" || codecActionProc.running) return
+    if (codec === codecEffective) return
     pendingCodec = codec
     codecHoldAddress = codecTarget
     // Automatic lands on the headset's best codec, which it lists first.
@@ -381,13 +420,48 @@ Panel {
     codecIndex = Math.max(0, Math.min(codecOptions.length - 1, codecIndex + delta))
   }
 
+  // A new LDAC bitrate takes a WirePlumber restart, so every stream -- not
+  // only the headset's -- drops for a moment; the pill tooltips say so. The
+  // headset's node goes away and comes back, so hold the section on it.
+  function setLdacQuality(quality) {
+    if (!quality || codecTarget === "" || codecActionProc.running) return
+    if (quality === codecLdacEffective) return
+    pendingLdacQuality = quality
+    codecHoldAddress = codecTarget
+    codecHoldCodec = codecLive
+    codecHoldTimeout.restart()
+    codecActionProc.command = ["omarchy-bluetooth-codec", codecTarget, "ldac-quality", quality]
+    codecActionProc.running = true
+  }
+
+  function ldacLabel(quality) {
+    if (quality === "auto") return Commons.I18n.t("bluetooth.ldacAuto")
+    return Commons.I18n.formatNumber(Model.ldacKbps(quality))
+  }
+
+  function ldacTooltip(quality) {
+    if (quality === "auto") return Commons.I18n.t("bluetooth.ldacAutoTooltip")
+    return Commons.I18n.t("bluetooth.ldacKbpsTooltip").arg(Commons.I18n.formatNumber(Model.ldacKbps(quality)))
+  }
+
+  // "Stay in music mode" is the headset switch turned off.
+  function toggleHeadsetSwitch() {
+    if (codecActionProc.running) return
+    pendingHeadsetSwitch = codecHeadsetSwitch === "on" ? "off" : "on"
+    codecActionProc.command = ["omarchy-toggle-bluetooth-headset-switch", pendingHeadsetSwitch]
+    codecActionProc.running = true
+  }
+
   function activateCodec() {
-    if (codecAutoFocused) {
+    if (codecRow === "auto") {
       toggleCodecAuto()
-      return
+    } else if (codecRow === "pills") {
+      if (codecIndex >= 0 && codecIndex < codecOptions.length) setCodec(codecOptions[codecIndex].codec)
+    } else if (codecRow === "ldac") {
+      setLdacQuality(Model.LDAC_QUALITIES[ldacIndex])
+    } else if (codecRow === "headsetSwitch") {
+      toggleHeadsetSwitch()
     }
-    if (codecIndex < 0 || codecIndex >= codecOptions.length) return
-    setCodec(codecOptions[codecIndex].codec)
   }
 
   function setDefaultAudioSink(sink) {
@@ -515,18 +589,19 @@ Panel {
     if (focusSection === "header") {
       if (delta > 0 && sections && sections.length > 0) {
         focusSection = sections[0]; selectedIndex = 0; actionFocused = false
-        codecAutoFocused = true
+        if (codecRows.length > 0) codecRow = codecRows[0]
       }
       return
     }
-    // Automatic on the header line, then the pills -- which collapse away
-    // under Automatic, leaving a single row to walk.
+    // Walk the section's rows -- Automatic, the pills (which collapse away
+    // under Automatic), LDAC quality, the headset switch -- before leaving it.
     if (focusSection === "codec") {
-      if (delta > 0 && codecAutoFocused && codecPillsVisible) { codecAutoFocused = false; return }
-      if (delta < 0 && !codecAutoFocused) { codecAutoFocused = true; return }
+      var row = codecRows.indexOf(codecRow)
+      if (delta > 0 && row < codecRows.length - 1) { codecRow = codecRows[row + 1]; return }
+      if (delta < 0 && row > 0) { codecRow = codecRows[row - 1]; return }
     }
     var entering = delta > 0 ? sections[sections.indexOf(focusSection) + 1] : sections[sections.indexOf(focusSection) - 1]
-    if (entering === "codec") codecAutoFocused = delta > 0 || !codecPillsVisible
+    if (entering === "codec" && codecRows.length > 0) codecRow = delta > 0 ? codecRows[0] : codecRows[codecRows.length - 1]
     if (!sections || sections.length === 0) { focusSection = "header"; actionFocused = false; return }
     var sIdx = sections.indexOf(focusSection)
     if (sIdx < 0) { focusSection = sections[0]; selectedIndex = 0; actionFocused = false; return }
@@ -562,7 +637,8 @@ Panel {
   function moveCursorH(delta) {
     if (!cursorActive) { cursorActive = true; return }
     if (focusSection === "codec") {
-      if (!codecAutoFocused) selectCodecByDelta(delta)
+      if (codecRow === "pills") selectCodecByDelta(delta)
+      else if (codecRow === "ldac") ldacIndex = Math.max(0, Math.min(Model.LDAC_QUALITIES.length - 1, ldacIndex + delta))
       return
     }
     if (focusSection !== "known" && focusSection !== "connected") return
@@ -621,7 +697,7 @@ Panel {
       else { focusSection = "header" }
       actionFocused = false
       cursorActive = false
-      codecAutoFocused = true
+      codecRow = codecRows.length > 0 ? codecRows[0] : "auto"
       codecStatusSettle.restart()
     } else {
       // A closed panel shows no codec; drop the reading so a reopen never
@@ -819,9 +895,17 @@ Panel {
   Process {
     id: codecActionProc
     onExited: function(exitCode) {
-      // A refused or reverted pin leaves codecSelected alone, so the pills keep
-      // showing what is actually in force rather than what was asked.
-      if (exitCode === 0) root.codecSelected = root.pendingCodec
+      // A refused or reverted change leaves the reading alone, so the pills
+      // keep showing what is actually in force rather than what was asked.
+      if (root.pendingLdacQuality !== "") {
+        if (exitCode === 0) root.codecLdacQuality = root.pendingLdacQuality
+        root.pendingLdacQuality = ""
+      }
+      if (root.pendingHeadsetSwitch !== "") {
+        if (exitCode === 0) root.codecHeadsetSwitch = root.pendingHeadsetSwitch
+        root.pendingHeadsetSwitch = ""
+      }
+      if (root.pendingCodec !== "" && exitCode === 0) root.codecSelected = root.pendingCodec
       root.pendingCodec = ""
       // A refused switch keeps the old node, so nothing is coming back to wait
       // for. Otherwise the hold ends when the new codec reports in.
@@ -1052,14 +1136,14 @@ Panel {
         }
 
         PanelSeparator {
-          visible: root.canSelectCodec
+          visible: root.codecSectionVisible
           foreground: root.bar.foreground
         }
 
         // Codec for the connected headset, laid out like the Wi-Fi band
         // section: Automatic on the header line, the pinned choice as pills.
         Column {
-          visible: root.canSelectCodec
+          visible: root.codecSectionVisible
           width: parent.width
           spacing: Style.space(10)
 
@@ -1073,7 +1157,7 @@ Panel {
               foreground: root.bar.foreground
               fontFamily: root.bar.fontFamily
               anchors.left: parent.left
-              anchors.right: codecAutoRow.left
+              anchors.right: codecAutoRow.visible ? codecAutoRow.left : parent.right
               anchors.rightMargin: Style.space(8)
               // The title names the headset when two are connected.
               elide: Text.ElideRight
@@ -1082,6 +1166,7 @@ Panel {
 
             Row {
               id: codecAutoRow
+              visible: root.canSelectCodec
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
               spacing: Style.space(6)
@@ -1104,7 +1189,7 @@ Panel {
                 anchors.verticalCenterOffset: Math.round(codecAutoLabel.topPadding / 2)
                 checked: !root.codecPinned
                 busy: root.codecBusy
-                hasCursor: root.cursorActive && root.focusSection === "codec" && root.codecAutoFocused
+                hasCursor: root.cursorActive && root.focusSection === "codec" && root.codecRow === "auto"
                 foreground: root.bar.foreground
                 onToggled: root.toggleCodecAuto()
 
@@ -1113,7 +1198,7 @@ Panel {
                   root.cursorActive = true
                   root.focusSection = "codec"
                   root.selectedIndex = 0
-                  root.codecAutoFocused = true
+                  root.codecRow = "auto"
                 }
 
                 PanelToolTip {
@@ -1169,6 +1254,89 @@ Panel {
                   }
                 }
               }
+            }
+          }
+        }
+
+        // LDAC bitrate: a pinned rate holds steady, Auto adapts to the signal.
+        Column {
+          visible: root.ldacQualityVisible
+          width: parent.width
+          spacing: Style.space(10)
+
+          PanelSectionHeader {
+            text: Commons.I18n.t("bluetooth.ldacQuality")
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+          }
+
+          Row {
+            id: ldacRow
+            width: parent.width
+            spacing: Style.space(6)
+
+            readonly property real cellWidth: (width - spacing * (Model.LDAC_QUALITIES.length - 1)) / Model.LDAC_QUALITIES.length
+
+            Repeater {
+              model: Model.LDAC_QUALITIES
+
+              delegate: Item {
+                required property var modelData
+                required property int index
+                width: ldacRow.cellWidth
+                height: ldacPill.implicitHeight
+
+                LdacPill {
+                  id: ldacPill
+                  quality: modelData
+                  slot: index
+                  width: parent.width
+                }
+              }
+            }
+          }
+        }
+
+        // "Stay in music mode": keep stereo audio when an app opens a mic.
+        Item {
+          visible: root.codecSectionVisible
+          width: parent.width
+          implicitHeight: Math.max(headsetSwitchLabel.implicitHeight, headsetSwitch.implicitHeight)
+
+          PanelSectionHeader {
+            id: headsetSwitchLabel
+            text: Commons.I18n.t("bluetooth.stayInMusicMode")
+            foreground: root.bar.foreground
+            fontFamily: root.bar.fontFamily
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          ToggleSwitch {
+            id: headsetSwitch
+            trackHeight: Math.round(headsetSwitchLabel.font.pixelSize * 1.2)
+            cursorPad: Style.space(3)
+            anchors.right: parent.right
+            anchors.verticalCenter: headsetSwitchLabel.verticalCenter
+            anchors.verticalCenterOffset: Math.round(headsetSwitchLabel.topPadding / 2)
+            checked: (root.pendingHeadsetSwitch !== "" ? root.pendingHeadsetSwitch : root.codecHeadsetSwitch) === "off"
+            busy: root.pendingHeadsetSwitch !== ""
+            hasCursor: root.cursorActive && root.focusSection === "codec" && root.codecRow === "headsetSwitch"
+            foreground: root.bar.foreground
+            onToggled: root.toggleHeadsetSwitch()
+
+            onHovered: function(isHovered) {
+              if (!isHovered) return
+              root.cursorActive = true
+              root.focusSection = "codec"
+              root.selectedIndex = 0
+              root.codecRow = "headsetSwitch"
+            }
+
+            PanelToolTip {
+              visible: headsetSwitch.containsMouse
+              text: Commons.I18n.t("bluetooth.stayInMusicModeTooltip")
+              fontFamily: root.bar.fontFamily
             }
           }
         }
@@ -1279,7 +1447,7 @@ Panel {
     active: root.codecCurrent === codec
     selected: root.codecEffective === codec
     hasCursor: root.cursorActive && root.focusSection === "codec"
-      && !root.codecAutoFocused && root.codecIndex === slot
+      && root.codecRow === "pills" && root.codecIndex === slot
 
     onClicked: root.setCodec(codec)
 
@@ -1288,8 +1456,41 @@ Panel {
       root.cursorActive = true
       root.focusSection = "codec"
       root.selectedIndex = 0
-      root.codecAutoFocused = false
+      root.codecRow = "pills"
       root.codecIndex = pill.slot
+    }
+  }
+
+  // One LDAC bitrate: `active` and `selected` both mark the setting in force,
+  // since a rate only applies once WirePlumber has restarted with it.
+  component LdacPill: Button {
+    id: ldacPill
+    required property string quality
+    required property int slot
+
+    text: root.ldacLabel(quality)
+    tooltipText: root.ldacTooltip(quality)
+    fontSize: Style.font.bodySmall
+    foreground: root.bar.foreground
+    fontFamily: root.bar.fontFamily
+    horizontalPadding: Style.spacing.controlPaddingX
+    verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+    bordered: true
+
+    active: root.codecLdacQuality === quality
+    selected: root.codecLdacEffective === quality
+    hasCursor: root.cursorActive && root.focusSection === "codec"
+      && root.codecRow === "ldac" && root.ldacIndex === slot
+
+    onClicked: root.setLdacQuality(quality)
+
+    onHovered: function(isHovered) {
+      if (!isHovered) return
+      root.cursorActive = true
+      root.focusSection = "codec"
+      root.selectedIndex = 0
+      root.codecRow = "ldac"
+      root.ldacIndex = ldacPill.slot
     }
   }
 

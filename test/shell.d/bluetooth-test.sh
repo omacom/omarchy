@@ -129,11 +129,16 @@ assertEqual(bluetooth.codecLabel('<b>new</b>'), 'BNEWB', 'bluetooth strips marku
 const codecStatus = bluetooth.parseCodecStatus('mode\tmusic\ncodec\tldac\nselected\tauto\noption\tldac\tLDAC\noption\taac\tAAC\noption\t<img>\tBad\n')
 assertDeepEqual(
   codecStatus,
-  { mode: 'music', codec: 'ldac', selected: 'auto', options: [{ codec: 'ldac', label: 'LDAC' }, { codec: 'aac', label: 'AAC' }] },
+  { mode: 'music', codec: 'ldac', selected: 'auto', options: [{ codec: 'ldac', label: 'LDAC' }, { codec: 'aac', label: 'AAC' }], ldacQuality: 'auto', headsetSwitch: 'on' },
   'bluetooth parses codec status and drops malformed options'
 )
 assertEqual(bluetooth.codecSectionTitle('auto', 'ldac'), 'CODEC: LDAC', 'bluetooth names the live codec under Automatic')
 assertEqual(bluetooth.codecSectionTitle('aac', 'aac'), 'CODEC', 'bluetooth leaves a pinned codec to the pills')
+assertEqual(bluetooth.codecSectionTitle('aac', 'msbc', null, true), 'CODEC: MSBC · HEADSET MODE', 'bluetooth names the call codec in headset mode')
+const extrasStatus = bluetooth.parseCodecStatus('ldac-quality\thq\nheadset-switch\toff\n')
+assertDeepEqual([extrasStatus.ldacQuality, extrasStatus.headsetSwitch], ['hq', 'off'], 'bluetooth parses LDAC quality and the headset switch')
+const badExtras = bluetooth.parseCodecStatus('ldac-quality\tultra\nheadset-switch\tmaybe\n')
+assertDeepEqual([badExtras.ldacQuality, badExtras.headsetSwitch], ['auto', 'on'], 'bluetooth falls back to defaults for unknown LDAC and switch values')
 JS
 
 # Turning Bluetooth off is an rfkill soft block, not a bluetoothctl power off,
@@ -358,3 +363,49 @@ codec_run aac 2>/dev/null &&
 [[ ! -s $CODEC_LOG && $(codec_run) == *$'selected\tauto'* ]] ||
   fail "bluetooth codec leaves headset mode and the pin alone" "$(cat "$CODEC_LOG")"
 pass "bluetooth codec refuses to choose a codec in headset mode"
+
+# LDAC quality is a WirePlumber rule per headset, applied by restarting it.
+cat >"$codec_tmp/bin/systemctl" <<'SH2'
+#!/bin/bash
+echo "systemctl $*" >>"$CODEC_LOG"
+SH2
+cat >"$codec_tmp/bin/wpctl" <<'SH2'
+#!/bin/bash
+echo "Value: true"
+SH2
+chmod +x "$codec_tmp/bin/systemctl" "$codec_tmp/bin/wpctl"
+ldac_rules="$codec_tmp/config/wireplumber/wireplumber.conf.d/90-omarchy-bluetooth-ldac.conf"
+
+ldac_run() {
+  XDG_CONFIG_HOME="$codec_tmp/config" codec_run ldac-quality "$1"
+}
+
+echo a2dp-sink >"$CODEC_ACTIVE"
+: >"$CODEC_LOG"
+ldac_run hq
+grep -q 'device.name = "bluez_card.80_99_E7_4A_EA_A2"' "$ldac_rules" && grep -q 'bluez5.a2dp.ldac.quality = "hq"' "$ldac_rules" ||
+  fail "bluetooth codec writes an LDAC quality rule for the headset" "$(cat "$ldac_rules" 2>&1)"
+grep -qx "systemctl --user restart wireplumber.service" "$CODEC_LOG" ||
+  fail "bluetooth codec restarts WirePlumber for a new LDAC quality" "$(cat "$CODEC_LOG")"
+[[ $(XDG_CONFIG_HOME="$codec_tmp/config" codec_run) == *$'ldac-quality\thq'* ]] ||
+  fail "bluetooth codec reports the pinned LDAC quality"
+pass "bluetooth codec pins LDAC quality with a WirePlumber rule"
+
+# A second headset's rule must not displace the first.
+echo sq >"$codec_tmp/state/omarchy/bluetooth-codec/11_22_33_44_55_66.ldac"
+ldac_run mq
+grep -q '"bluez_card.11_22_33_44_55_66"' "$ldac_rules" && grep -q 'quality = "mq"' "$ldac_rules" ||
+  fail "bluetooth codec keeps every headset's LDAC rule" "$(cat "$ldac_rules")"
+pass "bluetooth codec keeps every headset's LDAC rule"
+
+rm "$codec_tmp/state/omarchy/bluetooth-codec/11_22_33_44_55_66.ldac"
+ldac_run auto
+[[ ! -e $ldac_rules ]] ||
+  fail "bluetooth codec removes the LDAC rule file when no quality is pinned" "$(cat "$ldac_rules")"
+pass "bluetooth codec removes the LDAC rule file when no quality is pinned"
+
+: >"$CODEC_LOG"
+ldac_run auto
+[[ ! -s $CODEC_LOG ]] ||
+  fail "bluetooth codec leaves WirePlumber alone when the LDAC quality is unchanged" "$(cat "$CODEC_LOG")"
+pass "bluetooth codec leaves WirePlumber alone when the LDAC quality is unchanged"

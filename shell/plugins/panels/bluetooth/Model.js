@@ -135,7 +135,7 @@ function sameCodecs(a, b) {
 // `omarchy-bluetooth-codec <address>` prints mode, codec and selected lines,
 // then one option line per A2DP codec the headset offers, best first.
 function parseCodecStatus(raw) {
-  var status = { mode: "", codec: "", selected: "auto", options: [] }
+  var status = { mode: "", codec: "", selected: "auto", options: [], ldacQuality: "auto", headsetSwitch: "on" }
   var lines = String(raw || "").split("\n")
   for (var i = 0; i < lines.length && i < 64; i++) {
     var fields = lines[i].split("\t")
@@ -145,16 +145,30 @@ function parseCodecStatus(raw) {
     if (key === "mode") status.mode = value
     else if (key === "codec") status.codec = value
     else if (key === "selected" && value !== "") status.selected = value
+    else if (key === "ldac-quality" && LDAC_QUALITIES.indexOf(value) !== -1) status.ldacQuality = value
+    else if (key === "headset-switch" && (value === "on" || value === "off")) status.headsetSwitch = value
     else if (key === "option" && value !== "")
       status.options.push({ codec: value, label: String(fields[2] || "").trim().slice(0, 24) || codecLabel(value) })
   }
   return status
 }
 
+// LDAC's bitrate settings, as omarchy-bluetooth-codec names them, with the
+// bitrate each pins (auto adapts to the signal).
+var LDAC_QUALITIES = ["auto", "hq", "sq", "mq"]
+var LDAC_KBPS = { hq: 990, sq: 660, mq: 330 }
+
+function ldacKbps(quality) {
+  return LDAC_KBPS[quality] || 0
+}
+
 // Under Automatic the header carries the live codec -- "CODEC: LDAC" -- the
 // way the Wi-Fi band header does; once a codec is pinned the pills say it.
-function codecSectionTitle(selected, current, tr) {
+// In headset mode the codec follows the call profile, and the header says so.
+function codecSectionTitle(selected, current, tr, headset) {
   var t = typeof tr === "function" ? tr : function(key, fallback) { return fallback }
+  if (headset && current)
+    return t("bluetooth.codecHeadsetMode", "CODEC: %1 · HEADSET MODE").replace("%1", codecLabel(current).toUpperCase())
   if (selected !== "auto" || !current) return t("bluetooth.codec", "CODEC")
   return t("bluetooth.codecCurrent", "CODEC: %1").replace("%1", codecLabel(current).toUpperCase())
 }
@@ -260,6 +274,8 @@ if (typeof module !== "undefined") {
     sameCodecs: sameCodecs,
     parseCodecStatus: parseCodecStatus,
     codecSectionTitle: codecSectionTitle,
+    LDAC_QUALITIES: LDAC_QUALITIES,
+    ldacKbps: ldacKbps,
     sortedByLabel: sortedByLabel,
     deviceRow: deviceRow,
     deviceLists: deviceLists,
