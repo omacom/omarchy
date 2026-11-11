@@ -36,6 +36,7 @@ mkdir -p "$esp/efi/Microsoft/Boot"
 : >"$esp/efi/Microsoft/Boot/bootmgfw.efi"
 lsblk_esp="/dev/nvme0n1p1 c12a7328-f81f-11d2-ba4b-00a0c93ec93b 1111-aaaa $esp"
 windows_path='HD(1,GPT,1111-aaaa,0x800,0x32000)/\\\\EFI\\\\MICROSOFT\\\\BOOT\\\\BOOTMGFW.EFI'
+windows_entry_line="Boot0000* Windows Boot Manager\t$windows_path"
 limine='Boot0001* Limine\tHD(5,GPT,2222-bbbb,0x800,0x400000)/\\\\EFI\\\\limine\\\\limine_x64.efi'
 
 menu() {
@@ -100,3 +101,40 @@ grep -qi 'bootmgfw' "$conf" && fail "the chainload is removed" "$(cat "$conf")"
 grep -Fxq '    protocol: efi_boot_entry' "$conf" || fail "the firmware entry takes its place" "$(cat "$conf")"
 grep -Fxq '/+Omarchy' "$conf" || fail "Omarchy's own entry stays when Windows' is replaced" "$(cat "$conf")"
 pass "a chainloaded Windows moves to its firmware entry"
+
+# The firmware entry takes the chainload's place in the menu, so a
+# default_entry that counts past Windows still starts the same entry.
+conf=$(menu inplace)
+printf 'timeout: 5\ndefault_entry: 2\n\n%b\n\n/+Omarchy\n//linux\n    protocol: efi\n' "$scanned" >"$conf"
+output=$(run_setup "$conf" "BootOrder: 0000,0001\n$windows_entry_line\n$limine") || fail "dual-boot setup replaces Windows in place" "$output"
+[[ $(grep -m1 '^/' "$conf") == "/Windows" ]] || fail "Windows stays the first entry when it is replaced" "$(cat "$conf")"
+pass "a replaced Windows entry keeps its place in the menu"
+
+# A firmware entry that has left BootOrder (a firmware reset) can't be found by
+# Limine, so it gives way to a chainload.
+conf=$(menu stale '/Windows\n    protocol: efi_boot_entry\n    entry: Windows Boot Manager')
+output=$(run_setup "$conf" "BootOrder: 0001\n$limine") || fail "dual-boot setup replaces a stale firmware entry" "$output"
+grep -q 'efi_boot_entry' "$conf" && fail "a firmware entry missing from BootOrder is replaced" "$(cat "$conf")"
+grep -Fxq '    path: guid(1111-aaaa):/efi/Microsoft/Boot/bootmgfw.efi' "$conf" || fail "the stale entry becomes a chainload" "$(cat "$conf")"
+pass "a firmware entry Limine can't find gives way to a chainload"
+
+# With two Windows ESPs, a spelling fix stays on the one the entry names.
+second="$scratch/second-esp"
+mkdir -p "$second/EFI/MICROSOFT/BOOT"
+: >"$second/EFI/MICROSOFT/BOOT/BOOTMGFW.EFI"
+conf=$(menu second '/Windows\n    protocol: efi\n    path: guid(5555-eeee):/EFI/Microsoft/Boot/bootmgfw.efi')
+output=$(OMARCHY_LIMINE_CONF=$conf TEST_EFI_ENTRIES="BootOrder: 0001\n$limine" TEST_LSBLK="$lsblk_esp\n/dev/sda1 c12a7328-f81f-11d2-ba4b-00a0c93ec93b 5555-eeee $second" \
+  PATH="$scratch/bin:$ROOT/bin:$PATH" bash "$setup" 2>&1) || fail "dual-boot setup fixes a second Windows" "$output"
+grep -Fxq '    path: guid(5555-eeee):/EFI/MICROSOFT/BOOT/BOOTMGFW.EFI' "$conf" ||
+  fail "the fix keeps the entry on its own ESP" "$(cat "$conf")"
+pass "a spelling fix stays on the Windows the entry names"
+
+# A group whose child starts Windows is not a Windows entry: its other
+# children stay, and Windows gets an entry of its own.
+group='/Other systems\n//Arch\n    protocol: linux\n    path: guid(7777):/vmlinuz-linux\n//Windows\n    protocol: efi\n    path: guid(1111-aaaa):/EFI/MICROSOFT/BOOT/BOOTMGFW.EFI'
+conf=$(menu group "$group")
+output=$(run_setup "$conf" "BootOrder: 0000,0001\n$windows_entry_line\n$limine") || fail "dual-boot setup leaves groups alone" "$output"
+grep -Fxq '    path: guid(7777):/vmlinuz-linux' "$conf" && grep -Fxq '//Arch' "$conf" ||
+  fail "a group's other children stay" "$(cat "$conf")"
+grep -Fxq '    protocol: efi_boot_entry' "$conf" || fail "Windows gets an entry of its own next to the group" "$(cat "$conf")"
+pass "a group with a Windows child is left as it is"
