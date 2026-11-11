@@ -135,7 +135,23 @@ hyprctl keyword cursor:invisible true >/dev/null 2>&1 || true
   --ready-file "$ready" \
   --unhide-cursor-on-ready &
 renderer_pid=$!
-start_shell
+
+# omarchy-launch-shell supervises Quickshell for the whole session, so run it
+# alongside the readiness and cursor recovery below instead of ahead of them.
+shell_pid=
+if $launch_shell; then
+  launch_shell=false
+  omarchy-launch-shell >/dev/null 2>&1 &
+  shell_pid=$!
+fi
+
+# Keep parenting the shell supervisor, as the default login path does.
+finish() {
+  if [[ -n $shell_pid ]]; then
+    wait "$shell_pid" || true
+  fi
+  exit 0
+}
 
 # Stay alive as the renderer controller's parent (it intentionally uses
 # PDEATHSIG), while bounding only the visual-readiness wait. Never hold login.
@@ -143,7 +159,7 @@ for (( attempt = 0; attempt < 160; attempt++ )); do
   if [[ -e $ready ]]; then
     hyprctl keyword cursor:invisible false >/dev/null 2>&1 || true
     wait "$renderer_pid" || true
-    exit 0
+    finish
   fi
   if ! kill -0 "$renderer_pid" 2>/dev/null; then
     wait "$renderer_pid" 2>/dev/null || true
@@ -155,7 +171,7 @@ for (( attempt = 0; attempt < 160; attempt++ )); do
     "$launcher" &
     renderer_pid=$!
     wait "$renderer_pid" || true
-    exit 0
+    finish
   fi
   sleep 0.05
 done
@@ -164,3 +180,4 @@ done
 # hidden. Keep parenting it so a late recovery remains possible.
 hyprctl keyword cursor:invisible false >/dev/null 2>&1 || true
 wait "$renderer_pid" || true
+finish

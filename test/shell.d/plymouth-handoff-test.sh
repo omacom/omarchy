@@ -59,6 +59,14 @@ elif [[ ${HANDOFF_TEST_READY:-false} == true ]]; then
   touch "$XDG_RUNTIME_DIR/omarchy-plymouth-handoff.ready"
   sleep 0.15
 else
+  # The shell starts alongside the renderer; fail only after it has looked at
+  # the claim, as a renderer that dies during startup would.
+  if [[ ${HANDOFF_TEST_SHELL:-false} == true ]]; then
+    for _ in {1..100}; do
+      grep -q '^shell active=' "$HANDOFF_TEST_LOG" && break
+      sleep 0.02
+    done
+  fi
   exit 17
 fi
 EOF
@@ -68,6 +76,16 @@ if [[ -e $XDG_RUNTIME_DIR/omarchy-plymouth-handoff.active ]]; then
   printf 'shell active=yes\n' >>"$HANDOFF_TEST_LOG"
 else
   printf 'shell active=no\n' >>"$HANDOFF_TEST_LOG"
+fi
+# Supervise like the real launcher, which stays up for the whole session: keep
+# running until the helper has restored the cursor, bounded so a regression
+# fails instead of hanging.
+if [[ ${HANDOFF_TEST_SHELL:-false} == true ]]; then
+  for _ in {1..100}; do
+    grep -qx 'keyword cursor:invisible false' "$HANDOFF_TEST_LOG" && break
+    sleep 0.05
+  done
+  printf 'shell exit\n' >>"$HANDOFF_TEST_LOG"
 fi
 EOF
 chmod +x "$tmp/hyprctl" "$tmp/launcher" "$tmp/omarchy-launch-shell"
@@ -97,14 +115,24 @@ grep -Fx 'fallback active=no' "$tmp/log" >/dev/null || fail "fallback inherited 
 grep -Fx 'fallback parent=alive' "$tmp/log" >/dev/null || fail "helper did not wait for the ordinary controller"
 pass "renderer startup failure restores cursor and parents one ordinary fallback"
 
+cursor_restored_while_shell_runs() {
+  local restored exited
+  restored=$(grep -nx 'keyword cursor:invisible false' "$tmp/log" | head -n1 | cut -d: -f1)
+  exited=$(grep -nx 'shell exit' "$tmp/log" | head -n1 | cut -d: -f1)
+  [[ $restored =~ ^[0-9]+$ && $exited =~ ^[0-9]+$ ]] && (( restored < exited ))
+}
+
 : >"$tmp/log"
 HANDOFF_TEST_LOG="$tmp/log" \
+HANDOFF_TEST_SHELL=true \
 PATH="$tmp:/usr/bin:/bin" \
 XDG_RUNTIME_DIR="$tmp/runtime" \
 OMARCHY_PLYMOUTH_DESCRIPTOR="$tmp/descriptor" \
 OMARCHY_PLYMOUTH_EFFECT_CATALOG="$tmp/catalog" \
 OMARCHY_TTFX_BG_LAUNCHER="$tmp/launcher" \
-"$helper" --launch-shell
+timeout 10 "$helper" --launch-shell || fail "helper exits once the supervised shell does"
+cursor_restored_while_shell_runs ||
+  fail "cursor recovery waited for the session-long shell supervisor" "$(cat "$tmp/log")"
 grep -Fx 'shell active=yes' "$tmp/log" >/dev/null ||
   fail "Quickshell started before the handoff active claim"
 [[ ! -e $tmp/runtime/omarchy-plymouth-handoff.active ]] ||
@@ -112,11 +140,13 @@ grep -Fx 'shell active=yes' "$tmp/log" >/dev/null ||
 [[ $(grep -Fxc 'shell active=yes' "$tmp/log") == 1 ]] || fail "shell was relaunched during recovery"
 [[ $(grep -Fxc launcher "$tmp/log") == 1 ]] || fail "shell recovery did not start exactly one fallback"
 pass "Quickshell starts only after the seeded controller is claimed"
+pass "cursor recovery runs while the shell supervisor is still running"
 
 for scenario in fallback-failure ready; do
   : >"$tmp/log"
   HANDOFF_TEST_LOG="$tmp/log" \
   HANDOFF_TEST_FALLBACK_FAIL=true \
+  HANDOFF_TEST_SHELL=true \
   HANDOFF_TEST_READY="$([[ $scenario == ready ]] && printf true || printf false)" \
   PATH="$tmp:/usr/bin:/bin" \
   XDG_RUNTIME_DIR="$tmp/runtime" \
@@ -128,6 +158,7 @@ for scenario in fallback-failure ready; do
   [[ $(grep -Fxc 'shell active=yes' "$tmp/log") == 1 ]] || fail "$scenario changed normal shell launch"
   [[ $(grep -Fxc 'keyword cursor:invisible false' "$tmp/log") == 1 ]] || fail "$scenario did not restore cursor exactly once"
   [[ ! -e $tmp/runtime/omarchy-plymouth-handoff.active ]] || fail "$scenario leaked the active claim"
+  cursor_restored_while_shell_runs || fail "$scenario held cursor recovery behind the shell" "$(cat "$tmp/log")"
   if [[ $scenario == fallback-failure ]]; then
     [[ $(grep -Fxc launcher "$tmp/log") == 1 ]] || fail "failed fallback was retried or missing"
     grep -Fx 'fallback active=no' "$tmp/log" >/dev/null || fail "failed fallback inherited active claim"
