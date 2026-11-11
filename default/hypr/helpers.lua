@@ -156,18 +156,6 @@ function o.rebind(keys, description, dispatcher, options)
   o.bind(keys, description, dispatcher, options)
 end
 
--- Drop the Omarchy default on keys, once per config load, so personal bindings
--- added after it keep the key alone. Unlike o.rebind, a second call leaves the
--- personal bindings made since the first in place.
-o.unbound_defaults = {}
-
-function o.unbind_default(keys)
-  if not o.unbound_defaults[keys] then
-    o.unbound_defaults[keys] = true
-    hl.unbind(keys)
-  end
-end
-
 function o.launch(command)
   return "uwsm-app -- " .. command
 end

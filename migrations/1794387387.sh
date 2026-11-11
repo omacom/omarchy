@@ -1,29 +1,16 @@
-echo "Keep personal Super + Ctrl + X bindings ahead of the new agents panel hotkey"
+echo "Keep the legacy Super + Ctrl + X dictation toggle ahead of the new agents panel hotkey"
 
 # Super + Ctrl + X now opens the agents panel. Hyprland runs every bind on a key,
-# so a personal binding there would fire alongside the panel. o.unbind_default
-# drops the default once per config load and leaves personal bindings in place.
-#
-# The unbind only ever goes in as a statement on a line of its own, never inside
-# one of the user's expressions:
-# - The legacy dictation toggle 1793477875 wrote gets it just above, inside the
-#   same dictation-installed check, so the panel stays wherever that is false.
-# - Any other active personal binding on the key gets it once at the top of the
-#   file. A -- before the call means it's commented out.
+# so the legacy dictation toggle 1793477875 wrote would fire alongside the panel.
+# o.rebind replaces the default instead. That migration only added the toggle to
+# a file with no other Super + Ctrl + X binding, appended at the end, so the
+# rebind drops nothing personal, and it stays inside the dictation-installed
+# check, so the panel keeps the key wherever that is false. Only that exact line
+# is changed; bindings written by hand are left as written, like any personal
+# binding that shares a key with a new default.
 bindings="$HOME/.config/hypr/bindings.lua"
-[[ -f $bindings ]] || exit 0
-
-unbind='o.unbind_default("SUPER + CTRL + X")'
-grep -qF "$unbind" "$bindings" && exit 0
-
 legacy='  o.bind("SUPER + CTRL + X", "Toggle dictation", "omarchy-dictation toggle")'
-keys="[\"'][[:space:]]*(SUPER[[:space:]]*\+[[:space:]]*CTRL|CTRL[[:space:]]*\+[[:space:]]*SUPER)[[:space:]]*\+[[:space:]]*X[[:space:]]*[\"']"
-personal="^([^-]|-[^-])*(o\.bind(_hold)?|hl\.bind)[[:space:]]*\([[:space:]]*$keys"
 
-if grep -qxF "$legacy" "$bindings"; then
-  sed -i --follow-symlinks "\\|^  o\\.bind(\"SUPER + CTRL + X\", \"Toggle dictation\", \"omarchy-dictation toggle\")\$|i\\  $unbind" "$bindings"
-fi
-
-if grep -vxF "$legacy" "$bindings" | grep -qiE "$personal"; then
-  sed -i --follow-symlinks "1i\\$unbind" "$bindings"
+if [[ -f $bindings ]] && grep -qxF "$legacy" "$bindings"; then
+  sed -i --follow-symlinks 's/^  o\.bind("SUPER + CTRL + X", "Toggle dictation", "omarchy-dictation toggle")$/  o.rebind("SUPER + CTRL + X", "Toggle dictation", "omarchy-dictation toggle")/' "$bindings"
 fi
