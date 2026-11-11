@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether a DisplayLink docking station is attached.
+
+usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
+
+# 17e9 is DisplayLink's USB vendor id. The docks HP, Dell, Lenovo, Kensington,
+# Plugable, and others build around its chips all report it, whatever the brand
+# on the case says.
+grep -qsx "17e9" "$usb_devices_path"/*/idVendor
