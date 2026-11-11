@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Io
 import qs.Commons
@@ -357,9 +358,15 @@ Item {
         id: outgoingFrame
         anchors.fill: parent
         source: root.themeBackground ? Util.fileUrl(root.themeBackground) : ""
+        // At the output's fractional scale, as Hyprland reports it, so the
+        // cover is as sharp as the wallpaper under it. The screen's scale is
+        // a whole number on Wayland (2 at 1.5), and this window's passes
+        // through 2 and 1 each time it maps.
         sourceSize: {
-          var w = Math.ceil((parent.width || modelData.width) * modelData.devicePixelRatio)
-          var h = Math.ceil((parent.height || modelData.height) * modelData.devicePixelRatio)
+          var monitor = Hyprland.monitorFor(modelData)
+          var scale = monitor && monitor.scale > 0 ? monitor.scale : panel.devicePixelRatio
+          var w = Math.ceil((parent.width || modelData.width) * scale)
+          var h = Math.ceil((parent.height || modelData.height) * scale)
           var native = root.themeNativeSize
           return native && (native.width < w || native.height < h) ? Qt.size(native.width, native.height) : Qt.size(w, h)
         }
