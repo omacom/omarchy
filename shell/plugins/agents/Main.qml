@@ -301,7 +301,15 @@ Item {
     interval: root.nearLimit ? Math.min(180, root.refreshIntervalSec) * 1000 : root.refreshIntervalSec * 1000
     running: true
     repeat: true
-    triggeredOnStart: true
+    onTriggered: root.runUpdate(root.nearLimit ? "limits" : "normal")
+  }
+
+  // The records on disk are shown right away; the first collection waits out
+  // shell startup, where its scans would compete with the bar for the CPU and
+  // keep the shell unresponsive for several seconds.
+  Timer {
+    interval: 60000
+    running: true
     onTriggered: root.runUpdate(root.nearLimit ? "limits" : "normal")
   }
 
