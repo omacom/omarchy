@@ -23,9 +23,13 @@ assert_invalid_pane_count() {
 }
 
 assert_invalid_pane_count tsl not-a-number
+assert_invalid_pane_count tsl x
 assert_invalid_pane_count tsl 0
+assert_invalid_pane_count tsl -1
 assert_invalid_pane_count hsl not-a-number
+assert_invalid_pane_count hsl x
 assert_invalid_pane_count hsl 0
+assert_invalid_pane_count hsl -1
 
 test_dir=$(mktemp -d)
 trap 'rm -rf -- "$test_dir"' EXIT

@@ -108,11 +108,7 @@ hdlm() {
 # Create a multi-pane swarm layout with the same command started in each pane (great for AI)
 # Usage: hsl <pane_count> <command>
 hsl() {
-  [[ -z $1 || -z $2 ]] && { echo "Usage: hsl <pane_count> <command>"; return 1; }
-  if [[ ! $1 =~ ^[1-9][0-9]*$ ]]; then
-    echo "Usage: hsl <pane_count> <command>"
-    return 1
-  fi
+  [[ ! $1 =~ ^[1-9][0-9]*$ || -z $2 ]] && { echo "Usage: hsl <pane_count> <command>"; return 1; }
   [[ -z $HERDR_PANE_ID ]] && { echo "You must start herdr to use hsl."; return 1; }
 
   local count="$1"
