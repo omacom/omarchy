@@ -21,6 +21,7 @@
   "agents.homeFailed": "לא ניתן להגדיר תיקיית בית לחשבון החדש.",
   "agents.installCliFailed": "התקנת ה-CLI של %1 לא הסתיימה.",
   "agents.installingCli": "מתקין את ה-CLI של %1…",
+  "agents.instructionsBackedUp": "הנחיות הסוכן הישנות שלכם נשמרו כגיבויים",
   "agents.localUnsupported": "אף סוכן לא יכול להשתמש במודל המקומי",
   "agents.localUnsupportedBody": "התקינו את pi או את OpenCode כדי להשתמש במודל המקומי.",
   "agents.loginUnfinished": "ההתחברות לא הסתיימה, לכן לא נוסף חשבון.",

@@ -65,6 +65,52 @@ Item {
     }
   }
 
+  // Models other machines share on the tailnet, as omarchy-agent-local
+  // network last surveyed them: running, stopped, or offline with the host
+  // away. The survey runs while the panel is open; this only follows its file.
+  property var networkModels: ({})
+  // Whether this machine can share its own models: Tailscale running with
+  // MagicDNS and HTTPS certificates, as the last survey found it.
+  property bool canShare: false
+
+  FileView {
+    id: networkFile
+    path: root.home + "/.local/state/omarchy/agent-local/network.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.parseNetwork(text())
+  }
+
+  function refreshNetwork() {
+    if (!networkRefresh.running) networkRefresh.running = true
+  }
+
+  Process {
+    id: networkRefresh
+    command: ["omarchy-agent-local", "network", "--write"]
+    // A first survey creates the file, which can't be watched before it exists.
+    onExited: networkFile.reload()
+  }
+
+  function parseNetwork(content) {
+    try {
+      var parsed = JSON.parse(content)
+      if (!parsed || typeof parsed.models !== "object" || Array.isArray(parsed.models)) return
+      var models = {}
+      for (var id in parsed.models) {
+        var model = parsed.models[id]
+        if (!model || model.id !== id || id !== model.host + "/" + model.recipe) return
+        if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
+        models[id] = model
+      }
+      root.networkModels = models
+      root.canShare = parsed.can_share === true
+    } catch (e) {
+      // A missing or partially written survey keeps the last good one.
+    }
+  }
+
   function parseLocalModel(content) {
     try {
       var parsed = JSON.parse(content)
@@ -326,9 +372,19 @@ Item {
     var models = localModel.models || {}
     for (var id in models)
       list.push({ providerId: "local:" + id, localModel: models[id] })
+    // The tailnet's models line up with this machine's own, hidden ones aside.
+    var network = networkModels || {}
+    for (var nid in network)
+      if (providerEnabled("net:" + nid)) list.push({ providerId: "net:" + nid, localModel: network[nid] })
     var offer = localOffer(localRecipes, models, providerEnabled)
     if (offer) list.push({ providerId: "local:" + offer.id, providerName: offer.name || offer.id, localOffer: offer })
-    return orderedProviders(list)
+    var ordered = orderedProviders(list)
+    // Another DGX Spark cabled to this one and not set up yet (omarchy-agent-local's status.json
+    // `link`) is offered like a recommended model, always first: its line opens link setup.
+    var link = localModel.link
+    if (link && link.state === "available" && providerEnabled("local:link"))
+      ordered.unshift({ providerId: "local:link", providerName: link.host || "DGX Spark", localOffer: { id: "link", vendor: "nvidia", link: link } }) // i18n: ignore
+    return ordered
   }
 
   // A machine with no local model yet is offered the one the catalog

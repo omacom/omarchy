@@ -26,6 +26,7 @@ panel omarchy.clock
 panel omarchy.elsewhen
 panel omarchy.network
 panel omarchy.power
+panel omarchy.agents
 audio raise
 audio lower
 audio mute-toggle

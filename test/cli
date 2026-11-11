@@ -417,7 +417,6 @@ pass "theme template semantic aliases expose legacy palette helpers"
 LEGACY_COLORS_FILE="$PI_TMPDIR/legacy-colors.toml"
 cat >"$LEGACY_COLORS_FILE" <<'EOF'
 mode = "dark"
-accent = "#336699"
 selection = "#292929"
 muted = "#404040"
 bg = "#101010"
@@ -431,7 +430,7 @@ bright_fg = "#ffffff"
 red = "#ff0000"
 green = "#00ff00"
 yellow = "#ffff00"
-blue = "#0000ff"
+color4 = "#0000ff"
 magenta = "#ff00ff"
 cyan = "#00ffff"
 bright_red = "#ff1111"
@@ -454,8 +453,9 @@ foreground #f0f0f0
 dark_foreground #d0d0d0
 light_foreground #e0e0e0
 bright_foreground #ffffff
+accent #0000ff
 EOF
-pass "legacy short palette resolves every canonical neutral color"
+pass "legacy palette resolves canonical colors and an ANSI accent fallback"
 
 LEGACY_THEME_HOME="$PI_TMPDIR/legacy-theme-home"
 LEGACY_NEXT_THEME="$LEGACY_THEME_HOME/.local/state/omarchy/current/next-theme"
@@ -647,6 +647,18 @@ chmod +x "$FAKE_BIN/gsettings"
 GSETTINGS_LOG="$PI_TMPDIR/gsettings.log" DBUS_SESSION_BUS_ADDRESS="unix:path=$PI_TMPDIR/bus" PATH="$FAKE_BIN:$ROOT/bin:$PATH" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-gnome"
 grep -q 'org.gnome.desktop.interface color-scheme prefer-light' "$PI_TMPDIR/gsettings.log" || fail "gnome sync reads mode from colors.toml"
 pass "gnome sync reads mode from colors.toml"
+
+qt_home="$PI_TMPDIR/qt-home"
+mkdir -p "$qt_home/.local/state/omarchy/current/theme" "$qt_home/dotfiles" "$qt_home/.config/qtengine"
+printf 'Yaru-sage\n' >"$qt_home/.local/state/omarchy/current/theme/icons.theme"
+jq '.theme.font.family = "Inter"' "$ROOT/config/qtengine/config.json" >"$qt_home/dotfiles/qtengine.json"
+ln -s "$qt_home/dotfiles/qtengine.json" "$qt_home/.config/qtengine/config.json"
+
+HOME="$qt_home" XDG_CONFIG_HOME="$qt_home/.config" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-qt"
+[[ -L $qt_home/.config/qtengine/config.json ]] || fail "qt sync writes through a symlinked config"
+jq -e '.theme.iconTheme == "Yaru-sage" and .theme.font.family == "Inter"' "$qt_home/dotfiles/qtengine.json" >/dev/null ||
+  fail "qt sync changes only the icon theme in the user's config"
+pass "qt sync changes only the icon theme in the user's config"
 
 cat >"$FAKE_BIN/omarchy-cmd-present" <<'EOF'
 #!/bin/bash

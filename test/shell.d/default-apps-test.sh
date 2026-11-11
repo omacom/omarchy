@@ -78,6 +78,7 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   sublime-text-4) command=subl ;;
   vim) command=vim ;;
   neovim) command=nvim ;;
+  plain) command=plain ;;
   esac
   ;;
 omarchy-install-browser)
@@ -175,6 +176,7 @@ terminal_cases=(
 )
 
 editor_cases=(
+  'plain plain pkg:plain'
   'code code editor:vscode'
   'cursor cursor pkg:cursor-bin'
   'zed zeditor editor:zed'

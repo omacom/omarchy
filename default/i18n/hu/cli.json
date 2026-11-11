@@ -20,6 +20,7 @@
   "agents.homeFailed": "Nem sikerült kezdőmappát beállítani az új fióknak.",
   "agents.installCliFailed": "A(z) %1 CLI telepítése nem fejeződött be.",
   "agents.installingCli": "%1 CLI telepítése…",
+  "agents.instructionsBackedUp": "Régi ügynökutasításaid biztonsági mentésként megőrizve",
   "agents.localUnsupported": "Egyetlen ügynök sem használhatja a helyi modellt",
   "agents.localUnsupportedBody": "A helyi modell használatához telepítsd a pi vagy az OpenCode programot.",
   "agents.loginUnfinished": "A bejelentkezés nem fejeződött be, így nem lett fiók hozzáadva.",

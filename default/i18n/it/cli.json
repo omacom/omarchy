@@ -21,6 +21,7 @@
   "agents.homeFailed": "Impossibile creare la home per il nuovo account.",
   "agents.installCliFailed": "L'installazione della CLI di %1 non è terminata.",
   "agents.installingCli": "Installazione della CLI di %1…",
+  "agents.instructionsBackedUp": "Le vecchie istruzioni dell'agente sono state salvate come backup",
   "agents.localUnsupported": "Nessun agente può usare il modello locale",
   "agents.localUnsupportedBody": "Installa pi o OpenCode per usare il modello locale.",
   "agents.loginUnfinished": "L'accesso non è terminato, quindi nessun account è stato aggiunto.",
