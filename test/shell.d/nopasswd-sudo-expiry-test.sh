@@ -29,6 +29,7 @@ for status in 1 2 3; do
   TEST_STATUS=$status /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" 15 >"$test_tmp/public.log" 2>&1 || result=$?
   if (( status == 3 )); then
     (( result == 0 )) && grep -q '^gum confirm ' "$test_tmp/commands" || fail "inactive status must allow confirmation"
+    grep -q 'execute ANY command as root WITHOUT a password for 15 minutes' "$test_tmp/public.log" || fail "interactive enable must retain its security warning"
   else
     (( result != 0 )) && ! grep -q '^gum ' "$test_tmp/commands" || fail "inspection errors must not offer enablement"
   fi
@@ -49,6 +50,8 @@ for status in 0 3; do
     : >"$test_tmp/commands"
     TEST_STATUS=$status /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --yes "$minutes" >"$test_tmp/public.log" 2>&1
     ! grep -q '^gum ' "$test_tmp/commands" || fail "--yes offered confirmation or a picker"
+    ! grep -q 'WARNING\|Anyone or anything' "$test_tmp/public.log" || fail "--yes scrolled the caller pane with a verbose warning"
+    grep -q 'Passwordless sudo has been ENABLED' "$test_tmp/public.log" || fail "--yes omitted the enable result"
     [[ $(grep -c '^sudo -- ' "$test_tmp/commands") == 1 ]] || fail "--yes must retain one password-capable enable action"
     grep -q "^sudo -- .* __enable .* $minutes$" "$test_tmp/commands"
     grep -q '^omarchy-shell -q omarchy.indicators refresh$' "$test_tmp/commands"

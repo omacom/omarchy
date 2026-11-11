@@ -6,7 +6,7 @@ The menu bar's `PasswordlessSudo` indicator runs `--active` when the shell start
 
 ## Public command API
 
-`omarchy-sudo-passwordless --yes MINUTES` accepts an explicit numeric duration from 1 to 1440 minutes and skips only the gum confirmation. It still prints the security warning when enabling inactive access and uses the normal sudo authentication, grant validation, indicator refresh, and expiry lifecycle. Run it in a terminal where the user can enter their sudo password; `--yes` does not bypass authentication or make enabling noninteractive.
+`omarchy-sudo-passwordless --yes MINUTES` accepts an explicit numeric duration from 1 to 1440 minutes and skips the verbose security warning and gum confirmation. The caller must explain that any process running as the user's account will be able to execute any command as root without a password, show the reason and duration, and obtain the user's consent before invoking it. This keeps a caller's compact grant pane visible at the password prompt. The command still uses the normal sudo authentication, grant validation, indicator refresh, and expiry lifecycle, and reports successful enablement. Run it in a terminal where the user can enter their sudo password; `--yes` does not bypass authentication or make enabling noninteractive.
 
 `--yes` requires exactly one duration. It never accepts `permanent`, `--disable`, or `--active`, and cannot be combined with other arguments. Like a normal numeric duration, it renews an existing grant or replaces permanent access with a timed grant. Callers that want to leave existing access unchanged should check `omarchy-sudo-passwordless --active` first. Calls without `--yes` retain their existing picker, confirmation, toggle, and duration-change behavior.
 
