@@ -237,3 +237,87 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
+
+# In a browser window, SUPER + W closes the tab by sending CTRL + W. In any
+# other window, it closes the window directly. SUPER + Q always closes the window.
+test_close_binding() {
+  local tags="$1"
+  HOME="$fresh_home" XDG_CONFIG_HOME="$fresh_home/.config" OMARCHY_PATH="$ROOT" TEST_TAGS="$tags" lua - <<'LUA'
+package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+
+local function proxy()
+  local p
+  p = setmetatable({}, {
+    __index = function(self, key)
+      return p
+    end,
+    __call = function()
+      return "dummy"
+    end,
+  })
+  return p
+end
+
+local binds = {}
+local dispatched = {}
+local active_tags = {}
+for tag in os.getenv("TEST_TAGS"):gmatch("[^,]+") do
+  table.insert(active_tags, tag)
+end
+
+local dsp = proxy()
+dsp.send_key_state = function(spec)
+  return { kind = "send_key_state", mods = spec.mods, key = spec.key, state = spec.state }
+end
+dsp.window.close = function()
+  return { kind = "window_close" }
+end
+
+hl = {
+  dsp = dsp,
+  bind = function(keys, dispatcher, opts)
+    binds[keys] = dispatcher
+  end,
+  dispatch = function(action)
+    if action and action.kind then
+      table.insert(dispatched, action.kind .. (action.mods and (":" .. action.mods .. ":" .. action.key .. ":" .. action.state) or ""))
+    end
+  end,
+  timer = function(fn)
+    fn()
+  end,
+  get_active_window = function()
+    return { tags = active_tags }
+  end,
+  get_config = function() return nil end,
+}
+
+require("default.hypr.helpers")
+o.workspaces = proxy()
+require("default.hypr.bindings.tiling")
+
+local super_w = binds["SUPER + W"]
+if type(super_w) == "function" then
+  super_w()
+end
+print(table.concat(dispatched, ","))
+LUA
+}
+
+browser_action=$(test_close_binding "browser")
+[[ $browser_action == "send_key_state:CTRL:W:down,send_key_state:CTRL:W:up" ]] ||
+  fail "SUPER + W in a browser window sends CTRL + W to close the tab" "$browser_action"
+
+chromium_action=$(test_close_binding "chromium-based-browser")
+[[ $chromium_action == "send_key_state:CTRL:W:down,send_key_state:CTRL:W:up" ]] ||
+  fail "SUPER + W in a chromium-based browser sends CTRL + W" "$chromium_action"
+
+firefox_action=$(test_close_binding "firefox-based-browser")
+[[ $firefox_action == "send_key_state:CTRL:W:down,send_key_state:CTRL:W:up" ]] ||
+  fail "SUPER + W in a firefox-based browser sends CTRL + W" "$firefox_action"
+
+terminal_action=$(test_close_binding "terminal")
+[[ $terminal_action == "window_close" ]] ||
+  fail "SUPER + W in a non-browser window closes the window" "$terminal_action"
+
+pass "SUPER + W closes a tab in browser windows and closes the window otherwise"

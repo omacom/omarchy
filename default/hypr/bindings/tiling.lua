@@ -1,4 +1,43 @@
-o.bind("SUPER + W", "Close window", hl.dsp.window.close())
+-- Send synthetic keystrokes with explicit mods to the focused surface so
+-- physical modifier state doesn't interfere.
+local function send_shortcut_once(mods, key)
+  hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))
+
+  hl.timer(function()
+    hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "up" }))
+  end, { timeout = 50, type = "oneshot" })
+end
+
+-- Lean on the browser tag from default/hypr/apps/browser.lua so there's one
+-- definition of what counts as a browser. Dynamic tags carry a trailing "*".
+local function active_window_is_browser()
+  local window = hl.get_active_window()
+  if not window then
+    return false
+  end
+
+  for _, tag in ipairs(window.tags or {}) do
+    local normalized = tag:gsub("%*$", "")
+    if normalized == "browser" or normalized == "chromium-based-browser" or normalized == "firefox-based-browser" then
+      return true
+    end
+  end
+
+  return false
+end
+
+-- In a browser, Super + W closes the active tab (matching macOS Cmd + W). In
+-- other windows, it closes the window. Super + Q always closes the window.
+local function close_window_or_tab()
+  if active_window_is_browser() then
+    send_shortcut_once("CTRL", "W")
+  else
+    hl.dispatch(hl.dsp.window.close())
+  end
+end
+
+o.bind_expressions[close_window_or_tab] = "hl.dsp.window.close()"
+o.bind("SUPER + W", "Close window", close_window_or_tab)
 o.bind("SUPER + Q", "Close window", hl.dsp.window.close())
 o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-hyprland-window-close-all")
 
