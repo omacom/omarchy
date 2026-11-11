@@ -97,6 +97,22 @@ assertDeepEqual(
 assertEqual(weather.openMeteoCurrentCondition({}), null, 'weather returns no current conditions without open-meteo data')
 assertEqual(weather.openMeteoCurrentCondition({ current: {} }), null, 'weather requires a current temperature')
 
+const quarterTimes = Array.from({ length: 52 }, (_, i) => new Date(Date.UTC(2026, 10, 10, 15) + i * 900000).toISOString().slice(0, 16))
+const quarters = weather.upcomingPrecipitation({
+  current: { time: '2026-11-10T15:30' },
+  minutely_15: { time: quarterTimes, precipitation_probability: quarterTimes.map((_, i) => i === 3 ? null : 40), precipitation: quarterTimes.map(() => 0.2) }
+})
+assertEqual(quarters.length, 48, 'weather precipitation covers the next 12 hours of 15-minute slots')
+assertDeepEqual(quarters[0], { hour: 15, minute: 30, probability: 40, amountMm: 0.2 }, 'weather precipitation starts at the current slot, not the top of the hour')
+assertEqual(quarters[1].probability, 0, 'weather precipitation reads a missing chance as none')
+assertDeepEqual(weather.upcomingPrecipitation({ minutely_15: { time: quarterTimes } }), [], 'weather precipitation needs the forecast location current time')
+
+assertDeepEqual(weather.precipitationTotals([{ probability: 60, amountMm: 0.5 }, { probability: 20, amountMm: 1.25 }]), { maxChance: 60, totalMm: 1.75 }, 'weather precipitation totals the highest chance and the amount')
+assertEqual(weather.formatPrecipitation(1.25, false), '1.3 mm', 'weather formats metric precipitation')
+assertEqual(weather.formatPrecipitation(1.27, true), '0.05 in', 'weather formats imperial precipitation in inches')
+assertEqual(weather.formatPrecipitation(0.1, true), '< 0.01 in', 'weather marks rain too light to show in hundredths of an inch')
+assertEqual(weather.formatPrecipitation(0, true), '0.00 in', 'weather keeps a dry forecast at zero')
+
 const wttr = {
   weather: [
     { date: '2026-05-25', maxtempC: '20', mintempC: '12' },

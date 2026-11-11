@@ -156,6 +156,17 @@ Panel {
 
   readonly property string reportLocation:  configuredLocation || (autoLocation ? detectedLocationState.name : "") || (areaInfo && areaInfo.areaName && areaInfo.areaName[0] ? areaInfo.areaName[0].value : "")
   readonly property string reportTempNum:   current ? displayNumber(useImperial ? current.temp_F : current.temp_C) : ""
+  readonly property var precipSlots: Model.upcomingPrecipitation(dailyForecastReport)
+  readonly property var precipTotals: Model.precipitationTotals(precipSlots)
+
+  function precipAmount(mm) {
+    return Model.formatPrecipitation(mm, useImperial, Commons.I18n.formatNumber, Commons.I18n.t)
+  }
+
+  function precipTime(slot) {
+    return new Date(2000, 0, 1, slot.hour, slot.minute).toLocaleTimeString(Qt.locale(Commons.I18n.formatLocale), Locale.ShortFormat)
+  }
+
   readonly property string tempUnit:        "°" + (useImperial ? "F" : "C")
   readonly property string reportFeels:     current ? formatTemp(useImperial ? current.FeelsLikeF : current.FeelsLikeC) : ""
   readonly property string reportWind:      current ? (useImperial ? (displayNumber(current.windspeedMiles) + " mph") : (displayNumber(current.windspeedKmph) + " km/h")) : ""
@@ -208,6 +219,8 @@ Panel {
       + "&longitude=" + encodeURIComponent(String(lon))
       + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
       + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
+      + "&minutely_15=precipitation_probability,precipitation"
+      + "&forecast_minutely_15=52"
       + "&forecast_days=4"
       + "&timezone=auto"
     dailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", url]
@@ -865,6 +878,115 @@ Panel {
         font.family: root.bar.fontFamily
         font.pixelSize: Style.font.bodySmall
         font.italic: true
+      }
+
+      Column {
+        visible: root.precipSlots.length > 0
+        width: parent.width
+        spacing: Style.space(8)
+
+        PanelSeparator { foreground: root.bar.foreground }
+
+        Row {
+          width: parent.width
+          spacing: Style.space(10)
+          Text {
+            id: precipTitle
+            textFormat: Text.PlainText
+            text: Commons.I18n.t("weather.precipitation")
+            color: Qt.darker(root.bar.foreground, 1.5)
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            font.letterSpacing: 1
+          }
+          Text {
+            textFormat: Text.PlainText
+            text: {
+              var slot = root.precipSlots[precipBars.hoverIndex]
+              var totals = root.precipTotals
+              if (slot)
+                return Commons.I18n.t("weather.precipitationSlot").arg(root.precipTime(slot)).arg(Commons.I18n.formatNumber(slot.probability)).arg(root.precipAmount(slot.amountMm))
+              if (totals.maxChance === 0 && totals.totalMm === 0) return Commons.I18n.t("weather.precipitationNone")
+              return Commons.I18n.t("weather.precipitationSummary").arg(Commons.I18n.formatNumber(totals.maxChance)).arg(root.precipAmount(totals.totalMm))
+            }
+            width: parent.width - precipTitle.width - parent.spacing
+            elide: Text.ElideRight
+            color: root.bar.foreground
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+        }
+
+        Item {
+          id: precipBars
+          readonly property real pitch: (width + 1) / Math.max(1, root.precipSlots.length)
+          readonly property int hoverIndex: hoverArea.containsMouse ? Math.floor((LayoutMirroring.enabled ? width - hoverArea.mouseX : hoverArea.mouseX) / pitch) : -1
+          readonly property var labelIndexes: root.precipSlots.reduce(function(list, slot, i) { return slot.minute === 0 && slot.hour % 3 === 0 ? list.concat([i]) : list }, [])
+
+          function slotX(index, itemWidth) {
+            var x = LayoutMirroring.enabled ? width - index * pitch - itemWidth : index * pitch
+            return Math.max(0, Math.min(width - itemWidth, x))
+          }
+
+          width: parent.width
+          height: Style.space(36) + Style.space(3) + labelMetrics.height
+
+          FontMetrics {
+            id: labelMetrics
+            font.family: root.bar.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          Repeater {
+            model: root.precipSlots.length
+
+            Item {
+              required property int index
+              readonly property var slot: root.precipSlots[index]
+              readonly property bool hovered: precipBars.hoverIndex === index
+              x: precipBars.slotX(index, width)
+              width: precipBars.pitch - 1
+              height: Style.space(36)
+
+              Rectangle {
+                anchors.fill: parent
+                radius: 1
+                color: root.bar.foreground
+                opacity: parent.hovered ? 0.16 : 0.06
+              }
+              Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: parent.slot.probability > 0 ? Math.max(2, parent.height * parent.slot.probability / 100) : 0
+                radius: 1
+                color: Commons.Color.accent
+                opacity: parent.hovered ? 1 : 0.85
+              }
+            }
+          }
+
+          Repeater {
+            model: precipBars.labelIndexes
+
+            Text {
+              required property int modelData
+              textFormat: Text.PlainText
+              x: precipBars.slotX(modelData, implicitWidth)
+              y: Style.space(36) + Style.space(3)
+              text: root.precipTime(root.precipSlots[modelData])
+              color: Qt.darker(root.bar.foreground, 1.4)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+          }
+
+          MouseArea {
+            id: hoverArea
+            width: parent.width
+            height: Style.space(36)
+            hoverEnabled: true
+          }
+        }
       }
 
       // ---- Divider between current conditions and forecast.
