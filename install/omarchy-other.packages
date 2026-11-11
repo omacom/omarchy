@@ -71,6 +71,9 @@ dell-xps-touchpad-haptics
 dell-xps13-sidecar-amps
 linux-firmware-cirrus-dx13260
 
+# Acer laptop support packages
+acer-aspire-16-ai-audio
+
 # ASUS laptop support packages
 asus-proart-p14-audio
 asus-proart-pz13-audio
