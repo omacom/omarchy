@@ -1,0 +1,1521 @@
+#!/bin/bash
+
+# omarchy:summary=Encrypt, decrypt or unlock an additional (non-system) drive with LUKS
+# omarchy:args=<encrypt|decrypt|unlock|list-plain|list-encrypted|list-locked>
+# omarchy:requires-sudo=true
+
+# Encrypts or decrypts an additional drive where it stands, with cryptsetup
+# reencrypt, so the data on it stays. The drives the system runs from are never
+# offered, and neither is a USB drive, whose password udiskie asks for when it
+# is plugged in. An encrypted drive is opened at boot by a key file on the
+# encrypted system drive, through crypttab and fstab, so boot still asks for one
+# password; the password chosen here is a second key, for when that key file is
+# gone, and unlock then gives the drive a new one. A conversion that stops part
+# way is continued by the next run of the same command.
+
+set -e
+set -o pipefail
+
+KEY_DIR=/etc/cryptsetup-keys.d
+
+# A decryption keeps the LUKS header it took off the volume here, with what it
+# needs to finish; an encryption leaves a marker. The menu guards read the file
+# names and the decryption state without sudo. It is on the system drive, which
+# is never decrypted here: cryptsetup deadlocks on a header kept on the drive
+# being decrypted.
+STATE_DIR=/var/lib/omarchy/drive-encryption
+
+# Encrypting shifts the data by this much to make room for the LUKS2 header, and
+# the end of the volume is lost by as much, so the filesystem gives it up first.
+REDUCE_SIZE=32M
+REDUCE_BYTES=$((32 * 1024 * 1024))
+KEEP_DATA_FSTYPES=" btrfs ext4 ntfs "
+
+# The installer's LUKS2 and Btrfs settings.
+LUKS_FORMAT_OPTIONS=(--type luks2 --pbkdf argon2id --key-size 512 --iter-time 2000)
+LUKS_OPEN_OPTIONS=(--persistent --allow-discards --perf-no_read_workqueue)
+CRYPTTAB_OPTIONS="luks,discard,no-read-workqueue,nofail"
+BTRFS_MOUNT_OPTIONS="noatime,compress=zstd"
+
+# Internal drives. udiskie unlocks an encrypted USB drive when it is plugged in
+# and would race an unlock of the same drive at boot.
+all_drives() {
+  lsblk -dnrpo NAME,TYPE,TRAN | awk '$2 == "disk" && $3 != "usb" { print $1 }' | grep -E '^/dev/(sd|hd|vd|nvme|mmcblk|xv)' || true
+}
+
+disks_of() {
+  lsblk -nsrpo NAME,TYPE "$1" 2>/dev/null | awk '$2 == "disk" { print $1 }'
+}
+
+# The drives the system runs from: whatever holds /, /boot, /efi, /usr, /var or
+# /home, every other member of those filesystems (a Btrfs across drives shares
+# one UUID), and swap. Fails when / is not on a block device, and the callers
+# then offer no drive at all rather than risk offering the system's.
+system_disks() {
+  local target source uuid device root=""
+  local -a devices=() uuids=()
+
+  while read -r target source uuid; do
+    case $target in
+      / | /boot | /efi | /boot/efi | /usr | /var | /home) ;;
+      *) continue ;;
+    esac
+    source=${source%%\[*}
+    if [[ $source == /dev/* ]]; then
+      devices+=("$source")
+      [[ $target == "/" ]] && root=$source
+    fi
+    [[ -n $uuid ]] && uuids+=("$uuid")
+  done < <(findmnt -nro TARGET,SOURCE,UUID)
+  [[ -n $root ]] || return 1
+
+  while read -r device; do
+    [[ $device == /dev/* ]] && devices+=("$device")
+  done < <(swapon --noheadings --raw --show=NAME 2>/dev/null)
+
+  while read -r device uuid; do
+    [[ -n $uuid && " ${uuids[*]} " == *" $uuid "* ]] && devices+=("$device")
+  done < <(lsblk -nrpo NAME,UUID)
+
+  lsblk -nsrpo NAME,TYPE "${devices[@]}" 2>/dev/null | awk '$2 == "disk" { print $1 }' | sort -u
+}
+
+# True also when the system's drives cannot be told.
+is_system_disk() {
+  local system
+  system=$(system_disks) || return 0
+  grep -qxF -- "$1" <<<"$system"
+}
+
+root_is_encrypted() {
+  local source
+  source=$(findmnt -nro SOURCE /)
+  source=${source%%\[*}
+  lsblk -nsrpo TYPE "$source" | grep -qx crypt
+}
+
+fstype_of() {
+  lsblk -dnro FSTYPE "$1" 2>/dev/null
+}
+
+size_bytes() {
+  lsblk -bdnro SIZE "$1"
+}
+
+refresh_device() {
+  sudo udevadm trigger --action=change --settle "$1" 2>/dev/null || sudo udevadm settle
+}
+
+# The drive's partitions, or the drive itself when a filesystem sits on it
+# without a partition table.
+volumes_of() {
+  local disk=$1 parts
+  parts=$(lsblk -nrpo NAME,TYPE "$disk" | awk '$2 == "part" { print $1 }')
+  if [[ -n $parts ]]; then
+    printf '%s\n' "$parts"
+  elif [[ -n $(fstype_of "$disk") ]]; then
+    printf '%s\n' "$disk"
+  fi
+}
+
+plain_volumes_of() {
+  local volume fstype
+  while read -r volume; do
+    [[ -n $volume ]] || continue
+    fstype=$(fstype_of "$volume")
+    [[ -n $fstype && $fstype != "crypto_LUKS" ]] && printf '%s\n' "$volume"
+  done < <(volumes_of "$1")
+  return 0
+}
+
+luks_volumes_of() {
+  local volume
+  while read -r volume; do
+    [[ -n $volume ]] || continue
+    [[ $(fstype_of "$volume") == "crypto_LUKS" ]] && printf '%s\n' "$volume"
+  done < <(volumes_of "$1")
+  return 0
+}
+
+# The drives that may be offered: internal, and not the system's.
+extra_drives() {
+  local disk system
+  system=$(system_disks) || return 0
+  while read -r disk; do
+    [[ -n $disk ]] || continue
+    grep -qxF -- "$disk" <<<"$system" || printf '%s\n' "$disk"
+  done < <(all_drives)
+  return 0
+}
+
+# Volumes whose encryption has begun and not finished, by the markers
+# encrypt_keep leaves. Such a volume already reads as LUKS, and telling it from
+# a finished one takes luksDump, so root, which a menu guard does not have.
+encrypting_volumes() {
+  local marker uuid
+  for marker in "$STATE_DIR"/luks-*.encrypt; do
+    [[ -e $marker ]] || continue
+    uuid=${marker##*/luks-}
+    lsblk -nrpo NAME,UUID | awk -v uuid="${uuid%.encrypt}" '$2 == uuid { print $1 }'
+  done
+  return 0
+}
+
+# Volumes whose decryption stopped part way, by the state files decrypt_keep
+# leaves. The LUKS header is in a file by then, so the volume reads as blank and
+# nothing else says it holds half-decrypted data. Only volumes on the drives in
+# EXTRA (one per line) count.
+pending_decryptions() {
+  local extra=$1 state volume
+  for state in "$STATE_DIR"/luks-*.state; do
+    [[ -r $state && -e ${state%.state}.header ]] || continue
+    volume=$(readlink -f -- "$(head -n 1 "$state")")
+    [[ -b $volume ]] || continue
+    grep -qxF -- "$(disks_of "$volume" | head -1)" <<<"$extra" && printf '%s\n' "$volume"
+  done
+  return 0
+}
+
+# The menu guards. Each prints the drives its row applies to and fails when
+# there are none. A drive with an interrupted run stays with the row that
+# started it, whatever its volumes read as meanwhile.
+list_plain() {
+  local extra pending encrypting disk volume found=1
+  extra=$(extra_drives)
+  pending=$(pending_decryptions "$extra" | while read -r volume; do disks_of "$volume"; done)
+  encrypting=$(encrypting_volumes | while read -r volume; do disks_of "$volume"; done)
+  while read -r disk; do
+    [[ -n $disk ]] || continue
+    grep -qxF -- "$disk" <<<"$pending" && continue
+    if [[ -n $(plain_volumes_of "$disk") ]] || grep -qxF -- "$disk" <<<"$encrypting"; then
+      printf '%s\n' "$disk"
+      found=0
+    fi
+  done <<<"$extra"
+  return $found
+}
+
+list_encrypted() {
+  local extra pending encrypting disk volume found=1
+  extra=$(extra_drives)
+  pending=$(pending_decryptions "$extra" | while read -r volume; do disks_of "$volume"; done)
+  encrypting=$(encrypting_volumes)
+  while read -r disk; do
+    [[ -n $disk ]] || continue
+    if grep -qxF -- "$disk" <<<"$pending" || [[ -n $(luks_volumes_of "$disk" | grep -vxF -- "$encrypting") ]]; then
+      printf '%s\n' "$disk"
+      found=0
+    fi
+  done <<<"$extra"
+  return $found
+}
+
+list_locked() {
+  local extra encrypting disk volume found=1
+  extra=$(extra_drives)
+  encrypting=$(encrypting_volumes)
+  while read -r disk; do
+    [[ -n $disk ]] || continue
+    while read -r volume; do
+      [[ -n $volume ]] || continue
+      grep -qxF -- "$volume" <<<"$encrypting" && continue
+      if [[ -z $(lsblk -nrpo NAME,TYPE "$volume" | awk '$2 == "crypt"') ]]; then
+        printf '%s\n' "$disk"
+        found=0
+        break
+      fi
+    done < <(luks_volumes_of "$disk")
+  done <<<"$extra"
+  return $found
+}
+
+# A path to the device that survives a reboot.
+stable_path() {
+  local device=$1 value link
+  value=$(lsblk -dnro PARTUUID "$device")
+  if [[ -n $value ]]; then
+    printf '/dev/disk/by-partuuid/%s\n' "$value"
+    return
+  fi
+  for link in $(udevadm info -q symlink "$device" 2>/dev/null); do
+    [[ $link == disk/by-id/* ]] && { printf '/dev/%s\n' "$link"; return; }
+  done
+  printf '%s\n' "$device"
+}
+
+show_system_drives() {
+  local disk drives
+  drives=$(all_drives)
+  while read -r disk; do
+    [[ -n $disk ]] || continue
+    grep -qxF -- "$disk" <<<"$drives" || continue
+    echo -e "\e[90m$(omarchy-i18n driveEncryption.systemDrive "$(omarchy-drive-info "$disk")")\e[0m"
+  done < <(system_disks)
+  return 0
+}
+
+# The drives LIST prints that REASON_OF has no objection to. The others are
+# named on stderr with the reason, so they are seen but cannot be picked.
+supported_drives() {
+  local verb=$1 reason_of=$2 list=$3 disk reason
+  while read -r disk; do
+    [[ -n $disk ]] || continue
+    reason=$("$reason_of" "$disk")
+    if [[ -n $reason && $verb == "encrypted" ]]; then
+      echo -e "\e[90m$(omarchy-i18n driveEncryption.cannotEncrypt "$disk" "$reason")\e[0m" >&2
+    elif [[ -n $reason ]]; then
+      echo -e "\e[90m$(omarchy-i18n driveEncryption.cannotDecrypt "$disk" "$reason")\e[0m" >&2
+    else
+      printf '%s\n' "$disk"
+    fi
+  done < <("$list" || true)
+  return 0
+}
+
+# One drive needs no list. Either way the drive's line stays on screen. The
+# list's line of key hints exists in English only, so it is left out.
+pick_drive() {
+  local disk=$1
+  if [[ $disk == *$'\n'* ]]; then
+    disk=$(GUM_CHOOSE_SHOW_HELP=false omarchy-drive-select "$disk") || return 1
+  fi
+  omarchy-drive-info "$disk" >&2
+  printf '%s\n' "$disk"
+}
+
+show_drive_details() {
+  echo
+  lsblk -o NAME,SIZE,FSTYPE,LABEL,MOUNTPOINTS "$1"
+}
+
+format_duration() {
+  local seconds=$1
+  if (( seconds < 90 )); then
+    omarchy-i18n driveEncryption.durationMinutes 1
+  elif (( seconds < 5400 )); then
+    omarchy-i18n driveEncryption.durationMinutes "$(( (seconds + 30) / 60 ))"
+  else
+    omarchy-i18n driveEncryption.durationHours "$(awk -v s="$seconds" 'BEGIN { h = s / 3600; if (h < 10) printf "%.1f", h; else printf "%d", h + 0.5 }')"
+  fi
+}
+
+# The megabytes per second the drive reads, measured over 128 MiB, or a typical
+# figure for its kind when that cannot be measured. EPOCHREALTIME carries the
+# language's decimal separator, a comma in many, which awk would stop at.
+read_speed() {
+  local device=$1 disk start end mb=128 speed
+  disk=$(disks_of "$device" | head -1)
+
+  start=${EPOCHREALTIME/,/.}
+  if sudo timeout 10 dd if="$device" of=/dev/null bs=4M count=$((mb / 4)) iflag=direct status=none 2>/dev/null; then
+    end=${EPOCHREALTIME/,/.}
+    speed=$(awk -v mb="$mb" -v s="$start" -v e="$end" 'BEGIN { t = e - s; if (t > 0) printf "%d", mb / t; else print 0 }')
+    if (( speed > 0 )); then
+      echo "$speed"
+      return
+    fi
+  fi
+
+  if [[ $(lsblk -dnro TRAN "$disk") == "nvme" ]]; then
+    echo 1500
+  elif [[ $(lsblk -dnro ROTA "$disk") == "0" ]]; then
+    echo 450
+  else
+    echo 120
+  fi
+}
+
+# reencrypt reads and rewrites every block however full the drive is, at about
+# half its read speed.
+keep_data_duration() {
+  local volume bytes=0 speed
+  for volume in "$@"; do
+    bytes=$((bytes + $(size_bytes "$volume")))
+  done
+  speed=$(read_speed "$1")
+  format_duration "$(awk -v b="$bytes" -v s="$speed" 'BEGIN { printf "%d", b / (s * 1000000 / 2) }')"
+}
+
+# Unmounts and closes everything on the volume. Refuses while LVM, RAID or
+# active swap sits on it.
+release_volume() {
+  local volume=$1 name type
+
+  while read -r name type; do
+    case $type in
+      lvm | raid* | md)
+        echo -e "\e[31m$name is in use by $type. Deactivate it first.\e[0m"
+        exit 1
+        ;;
+    esac
+    if [[ $(fstype_of "$name") == "swap" ]] && swapon --noheadings --raw --show=NAME | grep -qxF -- "$name"; then
+      echo -e "\e[31m$name is in use as swap. Turn it off first.\e[0m"
+      exit 1
+    fi
+  done < <(lsblk -nrpo NAME,TYPE "$volume")
+
+  while read -r name; do
+    if findmnt -nro TARGET --source "$name" >/dev/null 2>&1; then
+      if ! sudo umount -A "$name"; then
+        echo -e "\e[31mCould not unmount $name. Close programs using it and try again.\e[0m"
+        exit 1
+      fi
+    fi
+  done < <(lsblk -nrpo NAME "$volume" | tac)
+
+  while read -r name type; do
+    [[ $type == "crypt" ]] && sudo cryptsetup close "$name"
+  done < <(lsblk -nrpo NAME,TYPE "$volume" | tac)
+  return 0
+}
+
+backed_up=""
+
+backup_etc_file() {
+  local file=$1
+  [[ -e $file ]] || return 0
+  [[ " $backed_up " == *" $file "* ]] && return 0
+  sudo cp -a "$file" "$file.bak.$(date +%Y%m%d-%H%M%S)"
+  backed_up+=" $file"
+}
+
+# Runs an awk program over a file under /etc into a temporary file beside it,
+# which then replaces it, so a crash leaves the old file or the new one. The
+# file is backed up before a run's first change.
+edit_etc_file() {
+  local file=$1 program=$2
+  shift 2
+  backup_etc_file "$file"
+  sudo env "$@" bash -c '
+    set -e
+    file=$1
+    program=$2
+    [[ -e $file ]] || install -m 600 /dev/null "$file"
+    tmp=$(mktemp "$file.XXXXXX")
+    trap "rm -f -- \"\$tmp\"" EXIT
+    awk "$program" "$file" >"$tmp"
+    chmod --reference="$file" "$tmp"
+    chown --reference="$file" "$tmp"
+    sync "$tmp"
+    mv -- "$tmp" "$file"
+    trap - EXIT
+  ' bash "$file" "$program"
+}
+
+LINE_SET='BEGIN { n = split(ENVIRON["HIT_LINES"], l, ","); for (i = 1; i <= n; i++) hit[l[i]] = 1 }'
+
+append_etc_line() {
+  edit_etc_file "$1" '{ print } END { print ENVIRON["LINE"] }' LINE="$2"
+}
+
+delete_etc_lines() {
+  [[ -n $2 ]] || return 0
+  edit_etc_file "$1" "$LINE_SET"' !(FNR in hit) { print }' HIT_LINES="$2"
+}
+
+comment_etc_lines() {
+  [[ -n $2 ]] || return 0
+  edit_etc_file "$1" "$LINE_SET"' (FNR in hit) { print "# " $0; next } { print }' HIT_LINES="$2"
+}
+
+comment_original_lines() {
+  local lines
+  [[ -n $2 ]] || return 0
+  lines=$(ORIGINALS=$2 awk '
+    BEGIN { n = split(ENVIRON["ORIGINALS"], o, "\n"); for (i = 1; i <= n; i++) if (o[i] != "") want[o[i]] = 1 }
+    ($0 in want) { printf "%s%d", sep, FNR; sep = "," }' "$1")
+  comment_etc_lines "$1" "$lines"
+}
+
+uncomment_etc_lines() {
+  [[ -n $2 ]] || return 0
+  edit_etc_file "$1" '
+    BEGIN { n = split(ENVIRON["ORIGINALS"], o, "\n"); for (i = 1; i <= n; i++) if (o[i] != "") want["# " o[i]] = o[i] }
+    ($0 in want) { print want[$0]; delete want[$0]; next }
+    { print }' ORIGINALS="$2"
+}
+
+replace_etc_spec() {
+  [[ -n $2 ]] || return 0
+  edit_etc_file "$1" "$LINE_SET"'
+    (FNR in hit) { match($0, /^[[:space:]]*[^[:space:]]+/); print substr($0, 1, RSTART - 1) ENVIRON["SPEC"] substr($0, RSTART + RLENGTH); next }
+    { print }' HIT_LINES="$2" SPEC="$3"
+}
+
+read_crypttab() {
+  sudo cat /etc/crypttab 2>/dev/null || true
+}
+
+# The numbers of the lines in CONTENT (an fstab or crypttab) whose FIELD names
+# one of the ids, comma-separated: a device path by what it resolves to, UUID
+# and PARTUUID in either case, anything else exactly.
+matching_lines() {
+  local content=$1 field=$2
+  shift 2
+  local n=0 line spec id resolved matches=""
+
+  while IFS= read -r line || [[ -n $line ]]; do
+    n=$((n + 1))
+    [[ $line =~ ^[[:space:]]*(#|$) ]] && continue
+    spec=$(awk -v f="$field" '{ print $f }' <<<"$line")
+    spec=${spec//\"/}
+    [[ -n $spec ]] || continue
+
+    for id in "$@"; do
+      [[ -n $id ]] || continue
+      if [[ $id == /dev/* ]]; then
+        [[ $spec == /dev/* ]] || continue
+        resolved=$(readlink -f -- "$spec" 2>/dev/null) || resolved=$spec
+        if [[ $resolved == "$(readlink -f -- "$id")" ]]; then
+          matches+="$n,"
+          break
+        fi
+      elif [[ $id == UUID=* || $id == PARTUUID=* ]]; then
+        if [[ ${spec,,} == "${id,,}" ]]; then
+          matches+="$n,"
+          break
+        fi
+      elif [[ $spec == "$id" ]]; then
+        matches+="$n,"
+        break
+      fi
+    done
+  done <<<"$content"
+
+  printf '%s' "${matches%,}"
+}
+
+field_of_lines() {
+  local content=$1 lines=$2 field=$3 n
+  [[ -n $lines ]] || return 0
+  for n in ${lines//,/ }; do
+    sed -n "${n}p" <<<"$content" | awk -v f="$field" '{ print $f }'
+  done
+}
+
+text_of_lines() {
+  local content=$1 lines=$2 n
+  [[ -n $lines ]] || return 0
+  for n in ${lines//,/ }; do
+    sed -n "${n}p" <<<"$content"
+  done
+}
+
+# Whether exactly one device carries the label. A label that repeats may be
+# another drive's, so only a unique one is used to find a drive's lines.
+unique_tag() {
+  local column=$1 value=$2 line count=0
+  while IFS= read -r line; do
+    [[ $(printf '%b' "$line") == "$column=\"$value\"" ]] && count=$((count + 1))
+  done < <(lsblk -nPo "$column")
+  (( count == 1 ))
+}
+
+# The names an fstab or crypttab line may use for the volume itself.
+volume_ids() {
+  local volume=$1 value
+  printf '%s\n' "$volume"
+  value=$(lsblk -dnro PARTUUID "$volume")
+  [[ -n $value ]] && printf 'PARTUUID=%s\n' "$value"
+  value=$(lsblk -dno PARTLABEL "$volume")
+  [[ -n $value ]] && unique_tag PARTLABEL "$value" && printf 'PARTLABEL=%s\n' "${value// /\\040}"
+  return 0
+}
+
+# The names an fstab line may use for the filesystem on the device.
+filesystem_ids() {
+  local device=$1 value
+  value=$(lsblk -dnro UUID "$device")
+  [[ -n $value ]] && printf 'UUID=%s\n' "$value"
+  value=$(lsblk -dno LABEL "$device")
+  [[ -n $value ]] && unique_tag LABEL "$value" && printf 'LABEL=%s\n' "${value// /\\040}"
+  return 0
+}
+
+# Mounts the fstab entries. Sets MOUNTED_POINTS to those that hold the expected
+# filesystem afterwards, so a success message names only what is really there.
+mount_fstab_entries() {
+  local mountpoint mounted wanted
+  MOUNTED_POINTS=()
+  sudo systemctl daemon-reload
+  for mountpoint in "$@"; do
+    [[ -n $mountpoint && $mountpoint != "none" ]] || continue
+    mountpoint=$(printf '%b' "$mountpoint")
+    if mountpoint -q "$mountpoint"; then
+      mounted=$(findmnt -nro SOURCE --mountpoint "$mountpoint" | head -1)
+      wanted=$(findmnt -nro SOURCE --fstab --evaluate --mountpoint "$mountpoint" | head -1)
+      if [[ ${mounted%%\[*} -ef $wanted ]]; then
+        MOUNTED_POINTS+=("$mountpoint")
+      else
+        echo -e "\e[31m$mountpoint is used by another drive.\e[0m"
+      fi
+      continue
+    fi
+    sudo mkdir -p "$mountpoint"
+    if sudo mount "$mountpoint"; then
+      MOUNTED_POINTS+=("$mountpoint")
+    else
+      echo -e "\e[31mCould not mount $mountpoint.\e[0m"
+    fi
+  done
+}
+
+fstab_entry() {
+  local uuid=$1 mountpoint=$2 fstype=$3
+  case $fstype in
+    ntfs) echo "UUID=$uuid $mountpoint ntfs3 uid=$(id -u),gid=$(id -g),nofail,x-gvfs-show 0 0" ;;
+    btrfs) echo "UUID=$uuid $mountpoint btrfs $BTRFS_MOUNT_OPTIONS,nofail,x-gvfs-show 0 0" ;;
+    *) echo "UUID=$uuid $mountpoint $fstype defaults,nofail,x-gvfs-show 0 2" ;;
+  esac
+}
+
+mountpoint_free() {
+  ! mountpoint -q "$1" && [[ -z $(ls -A "$1" 2>/dev/null) ]] && [[ -z $(matching_lines "$(cat /etc/fstab)" 2 "$1") ]]
+}
+
+# A free mountpoint under /mnt, named after the filesystem's label.
+auto_mountpoint() {
+  local label=$1 uuid=$2 name
+  name=$(tr -c 'A-Za-z0-9_\n-' '-' <<<"$label")
+  [[ -n $name ]] || name=${uuid:0:8}
+  if mountpoint_free "/mnt/$name"; then
+    printf '/mnt/%s\n' "$name"
+  elif mountpoint_free "/mnt/$name-${uuid:0:8}"; then
+    printf '/mnt/%s-%s\n' "$name" "${uuid:0:8}"
+  elif mountpoint_free "/mnt/$uuid"; then
+    printf '/mnt/%s\n' "$uuid"
+  else
+    echo -e "\e[31mNo free mountpoint under /mnt for $label.\e[0m" >&2
+    exit 1
+  fi
+}
+
+# Everything printed here brings its own blank line above it. gum draws a
+# question one column in from the rest and adds a line of key hints, which
+# exists in English only; the blank line above a question leaves the screen
+# with it. The answers are Yes and No unless others are given.
+confirm() {
+  local question=$1 yes=${2:-$(omarchy-i18n common.yes)} no=${3:-$(omarchy-i18n common.no)}
+  gum confirm --no-show-help --padding "1 0 0 0" --prompt.margin "0" --selected.margin "0 1 0 0" --unselected.margin "0" \
+    --affirmative "$yes" --negative "$no" "$question"
+}
+
+cancelled() {
+  echo -e "\n$(omarchy-i18n driveEncryption.cancelled)"
+  exit 0
+}
+
+# Prints a result, with where the data is when something got mounted.
+finished() {
+  local message=$1
+  shift
+  echo -e "\e[32m\n$message${*:+ $(omarchy-i18n driveEncryption.dataAt "$*")}\e[0m"
+}
+
+confirm_start() {
+  echo
+  echo -e "\e[33m$1\e[0m"
+  confirm "$(omarchy-i18n driveEncryption.startNow)" || cancelled
+}
+
+# A laptop must be on external power before a conversion starts.
+require_power() {
+  omarchy-battery-present || return 0
+  omarchy-power-present && return 0
+  echo
+  echo -e "\e[33m$(omarchy-i18n driveEncryption.onBattery)\e[0m"
+  until omarchy-power-present; do
+    confirm "$(omarchy-i18n driveEncryption.powerConnected)" "$(omarchy-i18n driveEncryption.checkAgain)" "$(omarchy-i18n driveEncryption.cancel)" || cancelled
+  done
+}
+
+needs_ntfsprogs() {
+  local volume
+  for volume in "$@"; do
+    if [[ $(fstype_of "$volume") == "ntfs" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+install_ntfsprogs() {
+  local out
+  omarchy-pkg-missing ntfsprogs || return 0
+  confirm "$(omarchy-i18n driveEncryption.installNtfsprogs)" || cancelled
+  echo -en "\n$(omarchy-i18n driveEncryption.installingNtfsprogs)"
+  if ! out=$(omarchy-pkg-add ntfsprogs 2>&1); then
+    echo
+    printf '%s\n' "$out"
+    echo -e "\e[31mCould not install ntfsprogs. Nothing was changed.\e[0m"
+    exit 1
+  fi
+  echo " $(omarchy-i18n driveEncryption.done)"
+}
+
+keep_open_text() {
+  if omarchy-battery-present; then
+    omarchy-i18n driveEncryption.keepOpenPluggedIn
+  else
+    omarchy-i18n driveEncryption.keepOpen
+  fi
+}
+
+running_notice() {
+  echo
+  echo -e "\e[33m$(keep_open_text)\e[0m"
+}
+
+interrupted_notice() {
+  echo
+  if [[ $1 == "decrypt" ]]; then
+    echo -e "\e[33m$(omarchy-i18n driveEncryption.interruptedDecryption)\e[0m"
+    echo -e "\e[33m$(omarchy-i18n driveEncryption.doNotOpen)\e[0m"
+  else
+    echo -e "\e[33m$(omarchy-i18n driveEncryption.interruptedEncryption)\e[0m"
+  fi
+}
+
+# Sets PASSPHRASE, the drive's recovery key: day to day the key file opens the
+# drive. A complaint about a mistyped pair leaves the screen once a pair
+# matches.
+ask_passphrase() {
+  local confirmation
+  [[ -t 1 ]] && printf '\e7'
+  while true; do
+    PASSPHRASE=$(gum input --password --no-show-help --placeholder "" --padding "1 0 0 0" --header "$(omarchy-i18n drive.newPassword)") || exit 0
+    confirmation=$(gum input --password --no-show-help --placeholder "" --padding "1 0 0 0" --header "$(omarchy-i18n drive.confirmNewPassword)") || exit 0
+    if [[ -n $PASSPHRASE && $PASSPHRASE == "$confirmation" ]]; then
+      [[ -t 1 ]] && printf '\e8\e[J'
+      return 0
+    elif [[ -z $PASSPHRASE ]]; then
+      echo -e "\n\e[31m$(omarchy-i18n driveEncryption.passwordEmpty)\e[0m"
+    else
+      echo -e "\n\e[31m$(omarchy-i18n driveEncryption.passwordsDiffer)\e[0m"
+    fi
+  done
+}
+
+add_recovery_passphrase() {
+  local volume=$1 keyfile=$2
+  printf '%s' "$PASSPHRASE" | sudo cryptsetup luksAddKey --batch-mode --key-file "$keyfile" "$volume" - && return 0
+  echo -e "\e[31mNo password set. The drive can only be unlocked with $keyfile. Run Encrypt Drive again to set one.\e[0m"
+  return 1
+}
+
+# Whether the volume has a key besides its key file. An encryption here makes
+# the key file the first key and the recovery password the second.
+has_recovery_passphrase() {
+  local slots
+  slots=$(sudo cryptsetup luksDump "$1" 2>/dev/null | grep -cE '^ +[0-9]+: luks2') || true
+  (( ${slots:-0} > 1 ))
+}
+
+# 4096 random bytes, written under a temporary name and renamed into place.
+create_keyfile() {
+  sudo install -d -m 700 "$KEY_DIR"
+  sudo bash -c 'set -e; umask 077; tmp=$(mktemp "$1.XXXXXX"); dd if=/dev/urandom of="$tmp" bs=512 count=8 status=none; sync "$tmp"; mv "$tmp" "$1"' bash "$1"
+}
+
+keyfile_for() {
+  local keyfile="$KEY_DIR/luks-$1.key"
+  if sudo test -f "$keyfile"; then
+    printf '%s\n' "$keyfile"
+  fi
+  return 0
+}
+
+# Opens the volume as luks-<uuid> unless it is open already. Sets OPEN_MAPPER.
+open_luks() {
+  local volume=$1 uuid=$2 persist=${3:-} keyfile
+  local -a options=()
+  OPEN_MAPPER=$(lsblk -nrpo NAME,TYPE "$volume" | awk '$2 == "crypt" { print $1; exit }')
+  [[ -n $OPEN_MAPPER ]] && return 0
+
+  [[ $persist == "persist" ]] && options=("${LUKS_OPEN_OPTIONS[@]}")
+  keyfile=$(keyfile_for "$uuid")
+  if [[ -n $keyfile ]]; then
+    sudo cryptsetup open "${options[@]}" --key-file "$keyfile" "$volume" "luks-$uuid"
+  else
+    sudo cryptsetup open "${options[@]}" "$volume" "luks-$uuid"
+  fi
+  sudo udevadm settle
+  OPEN_MAPPER=/dev/mapper/luks-$uuid
+}
+
+# Asks for the sudo password once and takes the prompt off the screen again.
+authorize() {
+  if ! sudo -n true 2>/dev/null; then
+    [[ -t 1 ]] && printf '\e7\n'
+    sudo true
+    [[ -t 1 ]] && printf '\e8\e[J'
+  fi
+  keep_sudo_alive
+}
+
+# A conversion runs for hours, and the steps after it would otherwise ask for
+# the sudo password again.
+keep_sudo_alive() {
+  local parent=$$
+  [[ -z ${SUDO_KEEPALIVE_PID:-} ]] || return 0
+  (
+    trap - EXIT INT
+    while sleep 60; do
+      kill -0 "$parent" 2>/dev/null || exit 0
+      sudo -n true 2>/dev/null || exit 0
+    done
+  ) >/dev/null 2>&1 &
+  SUDO_KEEPALIVE_PID=$!
+}
+
+# One run at a time: fstab and crypttab are edited by line number.
+lock_run() {
+  local lock=/run/lock/omarchy-drive-encryption.lock
+  [[ -z ${LOCK_FD:-} ]] || return 0
+  [[ -e $lock ]] || { sudo touch "$lock"; sudo chmod 644 "$lock"; }
+  exec {LOCK_FD}<"$lock"
+  if ! flock -n "$LOCK_FD"; then
+    echo -e "\n\e[31mAnother drive encryption run is active. Finish it first.\e[0m"
+    exit 1
+  fi
+}
+
+# A conversion is not paused: the terminal stops raising Ctrl+C until
+# unblock_interrupts. It also stops showing typed keys, which would break up
+# cryptsetup's progress line. stty goes through /dev/tty, so it works whatever
+# stdin is.
+block_interrupts() {
+  trap '' INT
+  if stty -isig -echo 2>/dev/null </dev/tty; then
+    trap 'stty isig echo 2>/dev/null </dev/tty' EXIT
+  fi
+}
+
+unblock_interrupts() {
+  stty isig echo 2>/dev/null </dev/tty || true
+  trap - EXIT INT
+}
+
+run_reencrypt() {
+  run_reencrypt_blocked "$@" || return 1
+  unblock_interrupts
+}
+
+# The same, but after a conversion that went through Ctrl+C stays blocked until
+# the caller calls unblock_interrupts.
+run_reencrypt_blocked() {
+  block_interrupts
+  sudo cryptsetup reencrypt "$@" && return 0
+  unblock_interrupts
+  return 1
+}
+
+# pending while the header holds an unfinished conversion, none when it holds
+# none, unreadable when it cannot be dumped. Takes a volume or a header file.
+reencryption_state() {
+  local dump
+  if ! dump=$(sudo cryptsetup luksDump "$1" 2>/dev/null); then
+    echo "unreadable"
+  elif [[ $dump == *online-reencrypt* ]]; then
+    echo "pending"
+  else
+    echo "none"
+  fi
+}
+
+reencryption_pending() {
+  [[ $(reencryption_state "$1") == "pending" ]]
+}
+
+# Whether the volume is still the LUKS volume with that UUID.
+luks_intact() {
+  sudo cryptsetup isLuks "$1" && [[ $(sudo blkid -p -s UUID -o value "$1" || true) == "$2" ]]
+}
+
+# Whether the saved header still opens the volume's data: opened read-only
+# under a scratch name, it must show the filesystem recorded before the
+# decryption.
+header_opens_data() {
+  local volume=$1 header=$2 fs_uuid=$3 mapper="omarchy-recover-probe-$$" found
+  shift 3
+  [[ -n $fs_uuid ]] && (( $# )) || return 1
+  sudo cryptsetup open --readonly --header "$header" "$@" "$volume" "$mapper" 2>/dev/null || return 1
+  sudo udevadm settle
+  found=$(sudo blkid -p -s UUID -o value "/dev/mapper/$mapper") || true
+  sudo cryptsetup close "$mapper"
+  [[ $found == "$fs_uuid" ]]
+}
+
+# A conversion cut off by a closed window or a power loss needs cryptsetup
+# repair before it continues, unless the volume is open, where opening it did
+# that. The header is copied first, as a way back should repair fail.
+recover_reencryption() {
+  local volume=$1 uuid=$2 header=""
+  shift 2
+  [[ -z $(lsblk -nrpo NAME,TYPE "$volume" | awk '$2 == "crypt"') ]] || return 0
+  [[ ${1:-} == "--header" ]] && header=$2
+  sudo install -d -m 755 "$STATE_DIR"
+  if [[ -n $header ]]; then
+    sudo cp -a "$header" "$header.bak.$(date +%Y%m%d-%H%M%S)"
+  else
+    sudo cryptsetup luksHeaderBackup --header-backup-file "$STATE_DIR/luks-$uuid.header-backup.$(date +%Y%m%d-%H%M%S)" "$volume"
+  fi
+  if ! sudo cryptsetup repair --batch-mode "$@" "$volume"; then
+    echo -e "\e[31mCould not recover the interrupted run on $volume. Nothing more was changed.\e[0m"
+    exit 1
+  fi
+}
+
+remove_header_backups() {
+  sudo bash -c 'rm -f "$1"/luks-"$2".header-backup.* "$1"/luks-"$2".header.bak.*' bash "$STATE_DIR" "$1"
+}
+
+# Shrinks the filesystem by the room LUKS needs, silently unless it fails.
+# ntfsresize marks the volume for a check that only Windows runs, and ntfs3
+# refuses to mount it so, hence ntfsfix.
+shrink_for_encryption() {
+  local volume=$1 fstype bytes target_kib block_size block_count rc mnt out
+  fstype=$(fstype_of "$volume")
+  bytes=$(size_bytes "$volume")
+
+  case $fstype in
+    ext4)
+      rc=0
+      out=$(sudo e2fsck -f -p "$volume" 2>&1) || rc=$?
+      (( rc <= 1 )) || { printf '%s\n' "$out"; echo -e "\e[31mFilesystem check of $volume failed. Nothing was changed.\e[0m"; return 1; }
+      block_size=$(sudo env LC_ALL=C dumpe2fs -h "$volume" 2>/dev/null | awk -F: '/^Block size/ { gsub(/ /, "", $2); print $2 }') || true
+      block_count=$(sudo env LC_ALL=C dumpe2fs -h "$volume" 2>/dev/null | awk -F: '/^Block count/ { gsub(/ /, "", $2); print $2 }') || true
+      if [[ ! $block_size =~ ^[0-9]+$ || ! $block_count =~ ^[0-9]+$ ]]; then
+        echo -e "\e[31mCould not read the size of $volume. Nothing was changed.\e[0m"
+        return 1
+      fi
+      if (( block_size * block_count > bytes - REDUCE_BYTES )); then
+        target_kib=$(( (bytes - REDUCE_BYTES) / block_size * block_size / 1024 ))
+        out=$(sudo resize2fs "$volume" "${target_kib}K" 2>&1) || { printf '%s\n' "$out"; echo -e "\e[31mCould not shrink $volume. Nothing was encrypted.\e[0m"; return 1; }
+      fi
+      ;;
+    btrfs)
+      mnt=$(sudo mktemp -d /run/omarchy-drive-encryption.XXXXXX) || return 1
+      sudo mount -t btrfs "$volume" "$mnt" || { sudo rmdir "$mnt"; echo -e "\e[31mCould not mount $volume to shrink it. Nothing was changed.\e[0m"; return 1; }
+      rc=0
+      out=$(sudo btrfs filesystem resize $(( (bytes - REDUCE_BYTES) / 4096 * 4096 )) "$mnt" 2>&1) || rc=$?
+      sudo umount "$mnt" && sudo rmdir "$mnt"
+      (( rc == 0 )) || { printf '%s\n' "$out"; echo -e "\e[31mCould not shrink $volume. Nothing was encrypted.\e[0m"; return 1; }
+      ;;
+    ntfs)
+      out=$(sudo ntfsresize --no-action --size $((bytes - REDUCE_BYTES)) "$volume" 2>&1) || { printf '%s\n' "$out"; echo -e "\e[31mCould not shrink $volume. Nothing was changed.\e[0m"; return 1; }
+      out=$(sudo ntfsresize --force --size $((bytes - REDUCE_BYTES)) "$volume" 2>&1) || { printf '%s\n' "$out"; echo -e "\e[31mCould not shrink $volume. Nothing was encrypted.\e[0m"; return 1; }
+      out=$(sudo ntfsfix --clear-dirty "$volume" 2>&1) || { printf '%s\n' "$out"; echo -e "\e[31mCould not clear the check flag on $volume. Nothing was encrypted.\e[0m"; return 1; }
+      ;;
+  esac
+  return 0
+}
+
+# Writes the crypttab entry that opens the volume at boot with its key file,
+# and makes sure fstab mounts the filesystem inside: the volume's existing
+# lines are pointed at the filesystem's UUID, which is the same inside LUKS as
+# it was outside, and a line under /mnt is added only when there is none. Sets
+# VOLUME_MOUNTPOINTS.
+configure_encrypted_volume() {
+  local volume=$1 uuid=$2 fs_uuid=$3 fs_type=$4 fs_label=$5
+  shift 5
+  local -a fs_ids=("$@") ids
+  local keyfile="$KEY_DIR/luks-$uuid.key" lines line crypttab mountpoint
+
+  mapfile -t ids < <(volume_ids "$volume")
+  line="luks-$uuid UUID=$uuid $keyfile $CRYPTTAB_OPTIONS"
+  crypttab=$(read_crypttab)
+  lines=$(matching_lines "$crypttab" 2 "UUID=$uuid" "${ids[@]}")
+  if [[ $(text_of_lines "$crypttab" "$lines") != "$line" ]]; then
+    delete_etc_lines /etc/crypttab "$lines"
+    append_etc_line /etc/crypttab "$line"
+  fi
+
+  VOLUME_MOUNTPOINTS=()
+  [[ -n $fs_uuid ]] || return 0
+
+  lines=$(matching_lines "$(cat /etc/fstab)" 1 "${ids[@]}")
+  replace_etc_spec /etc/fstab "$lines" "UUID=$fs_uuid"
+
+  lines=$(matching_lines "$(cat /etc/fstab)" 1 "UUID=$fs_uuid" "${fs_ids[@]}")
+  if [[ -n $lines ]]; then
+    mapfile -t VOLUME_MOUNTPOINTS < <(field_of_lines "$(cat /etc/fstab)" "$lines" 2)
+  else
+    mountpoint=$(auto_mountpoint "$fs_label" "$fs_uuid")
+    line=$(fstab_entry "$fs_uuid" "$mountpoint" "$fs_type")
+    append_etc_line /etc/fstab "$line"
+    VOLUME_MOUNTPOINTS=("$mountpoint")
+  fi
+}
+
+# Encrypts each volume in place. The key file and the marker exist before
+# cryptsetup touches the volume, so a run cut off at any point is found and
+# continued. crypttab and fstab are written once the volume is LUKS, before the
+# hours of conversion, so a boot in between still opens and mounts it. The
+# recovery password comes last: cryptsetup adds no key while a conversion is
+# pending. The marker goes only once that password is set, and Ctrl+C stays
+# blocked until then, so a run cut off before it is finished by the next one.
+encrypt_keep() {
+  local volume uuid keyfile marker fs_uuid fs_type fs_label fstab passphrase_ok=1
+  local -a volumes=("$@") ids fs_ids mounted=() mountpoints
+
+  sudo install -d -m 755 "$STATE_DIR"
+
+  for volume in "${volumes[@]}"; do
+    block_interrupts
+    echo -e "\n$(omarchy-i18n driveEncryption.encrypting "$volume")"
+    fs_uuid=$(lsblk -dnro UUID "$volume")
+    fs_type=$(fstype_of "$volume")
+    fs_label=$(lsblk -dno LABEL "$volume")
+    mapfile -t ids < <(volume_ids "$volume")
+    mapfile -t fs_ids < <(filesystem_ids "$volume")
+    fstab=$(cat /etc/fstab)
+    mapfile -t mountpoints < <(field_of_lines "$fstab" "$(matching_lines "$fstab" 1 "${ids[@]}" "${fs_ids[@]}")" 2)
+
+    release_volume "$volume"
+    if ! shrink_for_encryption "$volume"; then
+      mount_fstab_entries "${mountpoints[@]}"
+      exit 1
+    fi
+
+    uuid=$(uuidgen)
+    keyfile="$KEY_DIR/luks-$uuid.key"
+    marker="$STATE_DIR/luks-$uuid.encrypt"
+    create_keyfile "$keyfile"
+    sudo touch "$marker"
+    if ! sudo cryptsetup reencrypt --encrypt --init-only --batch-mode "${LUKS_FORMAT_OPTIONS[@]}" --reduce-device-size "$REDUCE_SIZE" \
+      --uuid "$uuid" --key-file "$keyfile" "$volume"; then
+      sudo rm -f "$keyfile" "$marker"
+      echo -e "\e[31mEncryption of $volume could not start. Nothing was encrypted.\e[0m"
+      mount_fstab_entries "${mountpoints[@]}"
+      exit 1
+    fi
+
+    configure_encrypted_volume "$volume" "$uuid" "$fs_uuid" "$fs_type" "$fs_label" "${fs_ids[@]}"
+
+    if ! run_reencrypt_blocked --resume-only --key-file "$keyfile" "$volume"; then
+      interrupted_notice encrypt
+      exit 1
+    fi
+
+    open_luks "$volume" "$uuid" persist
+    if add_recovery_passphrase "$volume" "$keyfile"; then
+      sudo rm -f "$marker"
+    else
+      passphrase_ok=0
+    fi
+    unblock_interrupts
+    mount_fstab_entries "${VOLUME_MOUNTPOINTS[@]}"
+    mounted+=("${MOUNTED_POINTS[@]}")
+  done
+
+  (( passphrase_ok )) || exit 1
+
+  finished "$(omarchy-i18n driveEncryption.encrypted)" "${mounted[@]}"
+}
+
+# Continues an encryption that stopped part way, then exits. A volume whose
+# conversion went through but that has no recovery password yet only gets that
+# password. The loops read descriptors 3 and 4: the prompts inside read stdin.
+resume_encryption() {
+  local disk volume uuid keyfile marker state passphrase_ok
+  local -a fs_ids
+  while read -r -u 4 disk; do
+    [[ -n $disk ]] || continue
+    while read -r -u 3 volume; do
+      [[ -n $volume ]] || continue
+      uuid=$(lsblk -dnro UUID "$volume")
+      marker="$STATE_DIR/luks-$uuid.encrypt"
+      keyfile=$(keyfile_for "$uuid")
+      state=$(reencryption_state "$volume")
+      if [[ $state == "pending" ]]; then
+        [[ -n $keyfile ]] || continue
+        confirm "$(omarchy-i18n driveEncryption.continueEncryption "$volume")" || exit 0
+        ask_passphrase
+        require_power
+        running_notice
+        echo -e "\n$(omarchy-i18n driveEncryption.encrypting "$volume")"
+        recover_reencryption "$volume" "$uuid" --key-file "$keyfile"
+        if ! run_reencrypt_blocked --resume-only --key-file "$keyfile" "$volume"; then
+          interrupted_notice encrypt
+          exit 1
+        fi
+      elif [[ $state == "none" && -e $marker && -n $keyfile ]] && ! has_recovery_passphrase "$volume"; then
+        confirm "$(omarchy-i18n driveEncryption.continueEncryption "$volume")" || exit 0
+        ask_passphrase
+        echo -e "\n$(omarchy-i18n driveEncryption.encrypting "$volume")"
+        block_interrupts
+      else
+        if [[ -e $marker ]]; then
+          sudo rm -f "$marker"
+        fi
+        continue
+      fi
+
+      open_luks "$volume" "$uuid" persist
+      refresh_device "$OPEN_MAPPER"
+      mapfile -t fs_ids < <(filesystem_ids "$OPEN_MAPPER")
+      configure_encrypted_volume "$volume" "$uuid" "$(lsblk -dnro UUID "$OPEN_MAPPER")" \
+        "$(fstype_of "$OPEN_MAPPER")" "$(lsblk -dno LABEL "$OPEN_MAPPER")" "${fs_ids[@]}"
+      remove_header_backups "$uuid"
+      passphrase_ok=1
+      if add_recovery_passphrase "$volume" "$keyfile"; then
+        sudo rm -f "$marker"
+      else
+        passphrase_ok=0
+      fi
+      unblock_interrupts
+      mount_fstab_entries "${VOLUME_MOUNTPOINTS[@]}"
+      (( passphrase_ok )) || exit 1
+      finished "$(omarchy-i18n driveEncryption.encryptionFinished "$volume")" "${MOUNTED_POINTS[@]}"
+      exit 0
+    done 3< <(luks_volumes_of "$disk")
+  done 4< <(extra_drives)
+}
+
+# Why the drive cannot be encrypted in place, or nothing when it can.
+keep_data_encrypt_reason() {
+  local volume fstype
+  [[ -n $(plain_volumes_of "$1") ]] || { omarchy-i18n driveEncryption.reasonNoFilesystem; return; }
+  while read -r volume; do
+    [[ -n $volume ]] || continue
+    fstype=$(fstype_of "$volume")
+    if [[ $KEEP_DATA_FSTYPES != *" $fstype "* ]]; then
+      omarchy-i18n driveEncryption.reasonFilesystem "$volume" "$fstype"
+      return
+    fi
+    if [[ $fstype == "btrfs" ]] && (( $(lsblk -nrpo UUID | grep -cxF -- "$(lsblk -dnro UUID "$volume")") > 1 )); then
+      omarchy-i18n driveEncryption.reasonBtrfsSpans "$volume"
+      return
+    fi
+  done < <(plain_volumes_of "$1")
+}
+
+cmd_encrypt() {
+  local candidates disk duration
+  local -a volumes
+
+  echo -e "\e[32m$(omarchy-i18n driveEncryption.encryptIntro)\e[0m"
+
+  if ! root_is_encrypted; then
+    echo -e "\n\e[31mThe system drive is not encrypted, so the key for another drive could not be stored safely.\e[0m"
+    exit 1
+  fi
+
+  authorize
+  lock_run
+  resume_encryption
+
+  echo
+  show_system_drives
+  candidates=$(supported_drives encrypted keep_data_encrypt_reason list_plain)
+  echo
+  [[ -n $candidates ]] || { echo -e "\e[31mNo drive can be encrypted.\e[0m"; exit 1; }
+  disk=$(pick_drive "$candidates") || exit 0
+  is_system_disk "$disk" && { echo "$disk holds the system and cannot be encrypted here."; exit 1; }
+  show_drive_details "$disk"
+
+  mapfile -t volumes < <(plain_volumes_of "$disk")
+  duration=$(keep_data_duration "${volumes[@]}")
+  confirm "$(omarchy-i18n driveEncryption.confirmEncrypt "$disk" "$duration")" || cancelled
+  if needs_ntfsprogs "${volumes[@]}"; then
+    install_ntfsprogs
+  fi
+  ask_passphrase
+  require_power
+  confirm_start "$(omarchy-i18n driveEncryption.nextStepEncrypts "$disk" "$duration") $(keep_open_text)"
+
+  encrypt_keep "${volumes[@]}"
+}
+
+# The volume is plain again: restore its fstab lines and mount it, and only
+# then drop what could still open or recover it (crypttab entry, key file,
+# saved header, state).
+finish_decryption() {
+  local volume=$1 uuid=$2 mapper_names=$3 fs_uuid=$4 originals=$5 lines name
+  local -a mountpoints=() fs_ids mappers=()
+
+  refresh_device "$volume"
+
+  uncomment_etc_lines /etc/fstab "$originals"
+
+  for name in $mapper_names; do
+    mappers+=("/dev/mapper/$name")
+  done
+  lines=$(matching_lines "$(cat /etc/fstab)" 1 "${mappers[@]}")
+  replace_etc_spec /etc/fstab "$lines" "UUID=$fs_uuid"
+
+  mapfile -t fs_ids < <(filesystem_ids "$volume")
+  lines=$(matching_lines "$(cat /etc/fstab)" 1 "UUID=$fs_uuid" "${fs_ids[@]}")
+  mapfile -t mountpoints < <(field_of_lines "$(cat /etc/fstab)" "$lines" 2)
+  mount_fstab_entries "${mountpoints[@]}"
+  DECRYPTED_MOUNTPOINTS=("${MOUNTED_POINTS[@]}")
+  remove_crypttab_entries "$volume" "$uuid"
+  sudo rm -f "$KEY_DIR/luks-$uuid.key" "$STATE_DIR/luks-$uuid.header" "$STATE_DIR/luks-$uuid.state"
+  remove_header_backups "$uuid"
+}
+
+# Decrypts each volume in place. Decrypting moves the LUKS header into a file,
+# so from its first step the volume no longer reads as LUKS and only that file
+# can finish the job. The state is therefore written before the decryption
+# starts, and once it has, the volume's fstab lines are commented out and its
+# crypttab entry removed: a boot in between must not open or mount a
+# half-decrypted volume.
+decrypt_keep() {
+  local volume uuid mapper_name name crypttab fs_uuid keyfile header state originals fstab lines
+  local -a volumes=("$@") key_args ids fs_ids mappers mounted=() mountpoints
+
+  sudo install -d -m 755 "$STATE_DIR"
+
+  for volume in "${volumes[@]}"; do
+    block_interrupts
+    echo -e "\n$(omarchy-i18n driveEncryption.decrypting "$volume")"
+    uuid=$(lsblk -dnro UUID "$volume")
+    open_luks "$volume" "$uuid"
+    mapper_name=${OPEN_MAPPER##*/}
+    refresh_device "$OPEN_MAPPER"
+    fs_uuid=$(lsblk -dnro UUID "$OPEN_MAPPER")
+    mapfile -t fs_ids < <(filesystem_ids "$OPEN_MAPPER")
+    mapfile -t ids < <(volume_ids "$volume")
+    crypttab=$(read_crypttab)
+    while read -r name; do
+      [[ -n $name && " $mapper_name " != *" $name "* ]] && mapper_name+=" $name"
+    done < <(field_of_lines "$crypttab" "$(matching_lines "$crypttab" 2 "UUID=$uuid" "${ids[@]}")" 1)
+    mappers=()
+    for name in $mapper_name; do
+      mappers+=("/dev/mapper/$name")
+    done
+
+    fstab=$(cat /etc/fstab)
+    lines=$(matching_lines "$fstab" 1 "${mappers[@]}" "${fs_ids[@]}")
+    originals=$(text_of_lines "$fstab" "$lines")
+    mapfile -t mountpoints < <(field_of_lines "$fstab" "$lines" 2)
+
+    release_volume "$volume"
+
+    header="$STATE_DIR/luks-$uuid.header"
+    state="$STATE_DIR/luks-$uuid.state"
+    keyfile=$(keyfile_for "$uuid")
+    key_args=()
+    [[ -n $keyfile ]] && key_args=(--key-file "$keyfile")
+
+    sudo bash -c 'set -e; tmp=$(mktemp "$1.XXXXXX"); printf "%s\n" "${@:2}" >"$tmp"; chmod 644 "$tmp"; sync "$tmp"; mv "$tmp" "$1"; sync "${1%/*}"' bash "$state" \
+      "$(stable_path "$volume")" "$mapper_name" "$fs_uuid" "$originals"
+    if ! sudo cryptsetup reencrypt --decrypt --init-only --batch-mode --header "$header" "${key_args[@]}" "$volume"; then
+      # A start that fails after taking the header off the volume has changed
+      # it: the next run decides from the saved header what to do.
+      if ! luks_intact "$volume" "$uuid"; then
+        echo -e "\e[31mDecryption of $volume could not start. Run \"Decrypt Drive\" again to repair it.\e[0m"
+        exit 1
+      fi
+      sudo rm -f "$state" "$header"
+      echo -e "\e[31mDecryption of $volume could not start. Nothing was changed.\e[0m"
+      open_luks "$volume" "$uuid"
+      mount_fstab_entries "${mountpoints[@]}"
+      exit 1
+    fi
+
+    comment_etc_lines /etc/fstab "$lines"
+    remove_crypttab_entries "$volume" "$uuid"
+
+    if ! run_reencrypt --resume-only --header "$header" "${key_args[@]}" "$volume"; then
+      interrupted_notice decrypt
+      exit 1
+    fi
+
+    finish_decryption "$volume" "$uuid" "$mapper_name" "$fs_uuid" "$originals"
+    mounted+=("${DECRYPTED_MOUNTPOINTS[@]}")
+  done
+
+  finished "$(omarchy-i18n driveEncryption.decrypted)" "${mounted[@]}"
+}
+
+remove_crypttab_entries() {
+  local volume=$1 uuid=$2 lines
+  local -a ids
+  mapfile -t ids < <(volume_ids "$volume")
+  lines=$(matching_lines "$(read_crypttab)" 2 "UUID=$uuid" "${ids[@]}")
+  delete_etc_lines /etc/crypttab "$lines"
+}
+
+# Continues a decryption from its state file, then exits. The saved header says
+# what happened: a conversion in it is continued; none, with the filesystem
+# back on the volume, leaves only the cleanup; none, with the volume still
+# LUKS, means nothing had started. The start can also stop after the signature
+# left the volume and before the header shows a conversion, and the header then
+# goes back onto the volume if it still opens the data. Anything else stops
+# with the header kept.
+resume_decryption() {
+  local state uuid volume disk mapper_name fs_uuid originals keyfile header header_state
+  local -a key_args
+
+  for state in $(sudo bash -c 'shopt -s nullglob; echo "$1"/luks-*.state' bash "$STATE_DIR"); do
+    uuid=$(basename "$state" .state)
+    uuid=${uuid#luks-}
+    {
+      read -r volume
+      read -r mapper_name
+      read -r fs_uuid
+      originals=$(cat)
+    } < <(sudo cat "$state")
+    volume=$(readlink -f -- "$volume")
+    [[ -b $volume ]] || continue
+    disk=$(disks_of "$volume" | head -1)
+    is_system_disk "$disk" && continue
+    [[ $(lsblk -dnro TRAN "$disk") == "usb" ]] && continue
+    header="$STATE_DIR/luks-$uuid.header"
+    if ! sudo test -f "$header"; then
+      sudo rm -f "$state"
+      continue
+    fi
+    keyfile=$(keyfile_for "$uuid")
+    key_args=()
+    [[ -n $keyfile ]] && key_args=(--key-file "$keyfile")
+
+    header_state=$(reencryption_state "$header")
+    if [[ $header_state != "pending" ]]; then
+      if [[ $header_state == "none" && -n $fs_uuid && $(sudo blkid -p -s UUID -o value "$volume" || true) == "$fs_uuid" ]]; then
+        finish_decryption "$volume" "$uuid" "$mapper_name" "$fs_uuid" "$originals"
+        finished "$(omarchy-i18n driveEncryption.decryptionFinished "$volume")" "${DECRYPTED_MOUNTPOINTS[@]}"
+        exit 0
+      fi
+      if ! luks_intact "$volume" "$uuid"; then
+        if [[ $header_state != "none" ]] ||
+          ! header_opens_data "$volume" "$header" "$fs_uuid" "${key_args[@]}" ||
+          ! sudo cryptsetup luksHeaderRestore --batch-mode --header-backup-file "$header" "$volume" ||
+          ! luks_intact "$volume" "$uuid"; then
+          comment_original_lines /etc/fstab "$originals"
+          remove_crypttab_entries "$volume" "$uuid"
+          echo -e "\n\e[31mCould not recover $volume. Its LUKS header is saved in $header. Keep that file.\e[0m"
+          exit 1
+        fi
+      fi
+      sudo rm -f "$header" "$state"
+      echo -e "\n\e[33mDecryption of $volume was interrupted before it started. Nothing was changed.\e[0m"
+      continue
+    fi
+
+    comment_original_lines /etc/fstab "$originals"
+    remove_crypttab_entries "$volume" "$uuid"
+    confirm "$(omarchy-i18n driveEncryption.continueDecryption "$volume")" || exit 0
+    require_power
+    running_notice
+    echo -e "\n$(omarchy-i18n driveEncryption.decrypting "$volume")"
+    recover_reencryption "$volume" "$uuid" --header "$header" "${key_args[@]}"
+    if ! run_reencrypt --resume-only --header "$header" "${key_args[@]}" "$volume"; then
+      interrupted_notice decrypt
+      exit 1
+    fi
+
+    finish_decryption "$volume" "$uuid" "$mapper_name" "$fs_uuid" "$originals"
+    finished "$(omarchy-i18n driveEncryption.decryptionFinished "$volume")" "${DECRYPTED_MOUNTPOINTS[@]}"
+    exit 0
+  done
+}
+
+# Why the drive cannot be decrypted in place, or nothing when it can.
+keep_data_decrypt_reason() {
+  local volume
+  while read -r volume; do
+    [[ -n $volume ]] || continue
+    if [[ $(lsblk -dnro FSVER "$volume") != "2" ]]; then
+      omarchy-i18n driveEncryption.reasonLuks1 "$volume"
+      return
+    fi
+    if reencryption_pending "$volume"; then
+      omarchy-i18n driveEncryption.reasonEncryptionInterrupted "$volume"
+      return
+    fi
+  done < <(luks_volumes_of "$1")
+}
+
+cmd_decrypt() {
+  local candidates disk duration
+  local -a volumes
+
+  echo -e "\e[32m$(omarchy-i18n driveEncryption.decryptIntro)\e[0m"
+
+  authorize
+  lock_run
+  resume_decryption
+
+  echo
+  show_system_drives
+  candidates=$(supported_drives decrypted keep_data_decrypt_reason list_encrypted)
+  echo
+  [[ -n $candidates ]] || { echo -e "\e[31mNo drive can be decrypted.\e[0m"; exit 1; }
+  disk=$(pick_drive "$candidates") || exit 0
+  is_system_disk "$disk" && { echo "$disk holds the system and cannot be decrypted here."; exit 1; }
+  show_drive_details "$disk"
+
+  mapfile -t volumes < <(luks_volumes_of "$disk")
+  duration=$(keep_data_duration "${volumes[@]}")
+  confirm "$(omarchy-i18n driveEncryption.confirmDecrypt "$disk" "$duration")" || cancelled
+  require_power
+  confirm_start "$(omarchy-i18n driveEncryption.nextStepDecrypts "$disk" "$duration") $(keep_open_text)"
+
+  decrypt_keep "${volumes[@]}"
+}
+
+# The drive's volumes that are locked or have no crypttab entry.
+volumes_to_unlock() {
+  local disk=$1 volume uuid crypttab
+  local -a ids
+  crypttab=$(read_crypttab)
+  while read -r volume; do
+    [[ -n $volume ]] || continue
+    reencryption_pending "$volume" && continue
+    uuid=$(lsblk -dnro UUID "$volume")
+    mapfile -t ids < <(volume_ids "$volume")
+    if [[ -z $(lsblk -nrpo NAME,TYPE "$volume" | awk '$2 == "crypt"') || -z $(matching_lines "$crypttab" 2 "UUID=$uuid" "${ids[@]}") ]]; then
+      printf '%s\n' "$volume"
+    fi
+  done < <(luks_volumes_of "$disk")
+  return 0
+}
+
+# Makes the key file a key of the volume, asking for the drive's password. A
+# key file that was already there may open the volume as it is, which is tried
+# first; trying one just made would only spend seconds of key derivation.
+# cryptsetup answers a wrong password with status 2, which gets two more tries;
+# anything else is shown and ends it. Checking a password takes seconds, so the
+# volume is named meanwhile. What the tries printed leaves the screen once one
+# is right.
+add_unlock_key() {
+  local volume=$1 keyfile=$2 created=$3 password out rc try
+  if [[ $created == "no" ]] && sudo cryptsetup open --test-passphrase --token-type passphrase-only --key-file "$keyfile" "$volume" 2>/dev/null; then
+    return 0
+  fi
+  [[ -t 1 ]] && printf '\e7'
+  for try in 1 2 3; do
+    password=$(gum input --password --no-show-help --placeholder "" --padding "1 0 0 0" --header "$(omarchy-i18n driveEncryption.passwordOf "$volume")") || break
+    echo -e "\n$(omarchy-i18n driveEncryption.unlocking "$volume")"
+    rc=0
+    out=$(printf '%s' "$password" | sudo cryptsetup luksAddKey --batch-mode --key-file - "$volume" "$keyfile" 2>&1) || rc=$?
+    if (( rc == 0 )); then
+      [[ -t 1 ]] && printf '\e8\e[J'
+      echo -e "\n$(omarchy-i18n driveEncryption.unlocking "$volume")"
+      return 0
+    elif (( rc != 2 )); then
+      printf '%s\n' "$out"
+      break
+    fi
+    if (( try < 3 )); then
+      echo -e "\e[31m$(omarchy-i18n driveEncryption.passwordNotAccepted)\e[0m"
+    fi
+  done
+  [[ $created == "yes" ]] && sudo rm -f "$keyfile"
+  return 1
+}
+
+unlock_key() {
+  local volume=$1 uuid keyfile created=no
+  uuid=$(lsblk -dnro UUID "$volume")
+  keyfile="$KEY_DIR/luks-$uuid.key"
+
+  if ! sudo test -f "$keyfile"; then
+    create_keyfile "$keyfile" || return 1
+    created=yes
+  fi
+  if ! add_unlock_key "$volume" "$keyfile" "$created"; then
+    echo -e "\n\e[31m$(omarchy-i18n driveEncryption.couldNotUnlock "$volume")\e[0m"
+    return 1
+  fi
+}
+
+# Opens the volume and writes its crypttab and fstab entries. Sets
+# VOLUME_MOUNTPOINTS to what got mounted.
+unlock_volume() {
+  local volume=$1 uuid crypttab lines name fs_uuid
+  local -a ids fs_ids old_mappers=()
+  uuid=$(lsblk -dnro UUID "$volume")
+
+  crypttab=$(read_crypttab)
+  mapfile -t ids < <(volume_ids "$volume")
+  lines=$(matching_lines "$crypttab" 2 "UUID=$uuid" "${ids[@]}")
+  while read -r name; do
+    [[ -n $name ]] && old_mappers+=("/dev/mapper/$name")
+  done < <(field_of_lines "$crypttab" "$lines" 1)
+
+  open_luks "$volume" "$uuid"
+  refresh_device "$OPEN_MAPPER"
+  old_mappers+=("$OPEN_MAPPER")
+  fs_uuid=$(lsblk -dnro UUID "$OPEN_MAPPER")
+
+  if [[ -n $fs_uuid ]]; then
+    lines=$(matching_lines "$(cat /etc/fstab)" 1 "${old_mappers[@]}")
+    replace_etc_spec /etc/fstab "$lines" "UUID=$fs_uuid"
+  fi
+
+  mapfile -t fs_ids < <(filesystem_ids "$OPEN_MAPPER")
+  configure_encrypted_volume "$volume" "$uuid" "$fs_uuid" "$(fstype_of "$OPEN_MAPPER")" \
+    "$(lsblk -dno LABEL "$OPEN_MAPPER")" "${fs_ids[@]}"
+  mount_fstab_entries "${VOLUME_MOUNTPOINTS[@]}"
+  VOLUME_MOUNTPOINTS=("${MOUNTED_POINTS[@]}")
+  [[ -n $fs_uuid ]] || echo "$volume has no filesystem to mount. It is unlocked at boot as $OPEN_MAPPER."
+  return 0
+}
+
+cmd_unlock() {
+  local candidates="" disk volume failed=0
+  local -a volumes mounted=()
+
+  echo -e "\e[32m$(omarchy-i18n driveEncryption.unlockIntro)\e[0m"
+
+  if ! root_is_encrypted; then
+    echo -e "\n\e[31mThe system drive is not encrypted, so the key for another drive could not be stored safely.\e[0m"
+    exit 1
+  fi
+
+  authorize
+  lock_run
+
+  while read -r disk; do
+    [[ -n $disk && -n $(volumes_to_unlock "$disk") ]] && candidates+="$disk"$'\n'
+  done < <(extra_drives)
+  if [[ -z $candidates ]]; then
+    while read -r disk; do
+      while read -r volume; do
+        [[ -n $volume ]] && reencryption_pending "$volume" &&
+          { echo -e "\n\e[31mEncryption of $volume was interrupted. Continue it with Encrypt Drive.\e[0m"; exit 1; }
+      done < <(luks_volumes_of "$disk")
+    done < <(extra_drives)
+    echo -e "\n\e[31mNo encrypted additional drive needs to be unlocked.\e[0m"
+    exit 1
+  fi
+
+  echo
+  show_system_drives
+  echo
+  disk=$(pick_drive "${candidates%$'\n'}") || exit 0
+  is_system_disk "$disk" && { echo "$disk holds the system and cannot be unlocked here."; exit 1; }
+  show_drive_details "$disk"
+
+  mapfile -t volumes < <(volumes_to_unlock "$disk")
+  confirm "$(omarchy-i18n driveEncryption.confirmUnlock "$disk")" || cancelled
+
+  for volume in "${volumes[@]}"; do
+    if ! unlock_key "$volume"; then
+      failed=1
+      continue
+    fi
+    unlock_volume "$volume"
+    mounted+=("${VOLUME_MOUNTPOINTS[@]}")
+  done
+
+  (( failed == 0 )) || exit 1
+  finished "$(omarchy-i18n driveEncryption.unlocked)" "${mounted[@]}"
+}
+
+case ${1:-} in
+  encrypt) cmd_encrypt ;;
+  decrypt) cmd_decrypt ;;
+  unlock) cmd_unlock ;;
+  list-plain) list_plain ;;
+  list-encrypted) list_encrypted ;;
+  list-locked) list_locked ;;
+  *)
+    echo "Usage: omarchy-drive-encryption <encrypt|decrypt|unlock|list-plain|list-encrypted|list-locked>"
+    exit 1
+    ;;
+esac

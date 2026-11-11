@@ -680,6 +680,15 @@
   "setup.security.fingerprint": {
     "label": "Fingerprint"
   },
+  "setup.security.encrypt-drive": {
+    "label": "Encrypt Drive"
+  },
+  "setup.security.decrypt-drive": {
+    "label": "Decrypt Drive"
+  },
+  "setup.security.unlock-drive": {
+    "label": "Unlock Drive"
+  },
   "setup.security.fido2": {
     "label": "Fido2"
   },
