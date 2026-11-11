@@ -138,6 +138,8 @@ printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-lifecycle-dispatch"
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
+# The user's own XDG dirs would win over HOME; keep every write in the test home.
+export XDG_CONFIG_HOME="$test_home/.config" XDG_DATA_HOME="$test_home/.local/share"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_INSTALLED_DIR="$installed_dir"
@@ -344,6 +346,13 @@ grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the mi
 grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Plain, the newer default"
 grep -qxF "text/x-tex=code.desktop" "$mimeapps" || fail "the migration keeps a type the user chose"
 ! grep -qxF "text/x-tex=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration doesn't add a second default for a chosen type"
+mkdir -p "$test_home/.local/share/applications"
+printf '[Default Applications]\ntext/x-java=code.desktop\ntext/x-tcl=nvim.desktop\n' >"$test_home/.local/share/applications/mimeapps.list"
+printf '[Default Applications]\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+! grep -q "^text/x-java=" "$mimeapps" || fail "the migration keeps a choice saved in the older list"
+grep -qxF "text/x-tcl=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Neovim saved in the older list"
+rm -f "$test_home/.local/share/applications/mimeapps.list"
 pass "the migration keeps the user's own choices"
 
 # New installs ship the same types pointed at the handler.

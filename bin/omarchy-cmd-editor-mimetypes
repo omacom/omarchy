@@ -30,12 +30,27 @@ mkdir -p "$(dirname "$list")"
 [[ -f $list ]] || printf '[Default Applications]\n' >"$list"
 grep -qxF "[Default Applications]" "$list" || printf '\n[Default Applications]\n' >>"$list"
 
+# A choice saved in the older ~/.local/share list counts too: a line here in
+# ~/.config would hide it.
+chosen_elsewhere=""
+older="${XDG_DATA_HOME:-$HOME/.local/share}/applications/mimeapps.list"
+if [[ $unless_chosen == true && -f $older ]]; then
+  chosen_elsewhere=$(awk -v handler="$handler" '
+    /^\[/ { defaults = ($0 == "[Default Applications]") }
+    defaults && /=/ {
+      type = $0; sub(/=.*/, "", type); app = $0; sub(/^[^=]*=/, "", app)
+      if (app != "nvim.desktop" && app != "plain.desktop" && app != handler) print type
+    }' "$older")
+fi
+
 # One pass: drop the lines this replaces from [Default Applications], then
 # add the handler's right under the section header.
-updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" '
+updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v elsewhere="$chosen_elsewhere" '
   BEGIN {
     n = split(types, list, "\n")
     for (i = 1; i <= n; i++) wanted[list[i]] = 1
+    m = split(elsewhere, chosen, "\n")
+    for (i = 1; i <= m; i++) if (chosen[i] != "") keep[chosen[i]] = 1
   }
   { lines[NR] = $0 }
   /^\[/ { section = $0 }
