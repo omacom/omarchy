@@ -67,8 +67,9 @@ sandbox()
 expect("Antigravity collector extracts the plan from paidTier, else currentTier", [
   tier({"currentTier": {"id": "free-tier", "name": "Antigravity"}, "paidTier": {"id": "g1-ultra-tier", "name": "Google AI Ultra"}}),
   tier({"currentTier": {"id": "free-tier", "name": "Antigravity"}, "paidTier": {"id": "g1-pro-tier", "name": "Google AI Pro"}}),
+  tier({"currentTier": {"id": "free-tier", "name": "Antigravity"}, "paidTier": {"id": "g1-plus-tier", "name": "Antigravity Starter Quota"}}),
   tier({"currentTier": {"id": "free-tier", "name": "Antigravity"}}),
-], ["Ultra", "Pro", "Free"])
+], ["Ultra", "Pro", "Plus", "Free"])
 
 # Gemini's windows first, the session before the week, then the Claude and
 # GPT allowance only where some of it is used.
