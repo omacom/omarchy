@@ -103,7 +103,6 @@
   "agents.networkShareLabel": "Deli",
   "agents.networkSharedLabel": "Deljeno",
   "agents.networkStopSharing": "Deljeno v tailnetu · prekini deljenje",
-  "agents.networkStopped": "Ustavljeno",
   "agents.networkUsers": {
     "few": "%1 uporabniki",
     "one": "%1 uporabnik",

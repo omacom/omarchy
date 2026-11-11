@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "साझा करें",
   "agents.networkSharedLabel": "साझा",
   "agents.networkStopSharing": "आपके tailnet पर साझा किया गया · साझा करना बंद करें",
-  "agents.networkStopped": "रुका हुआ",
   "agents.networkUsers": {
     "one": "%1 उपयोगकर्ता",
     "other": "%1 उपयोगकर्ता"

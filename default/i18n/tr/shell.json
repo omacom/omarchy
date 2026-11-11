@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Paylaş",
   "agents.networkSharedLabel": "Paylaşıldı",
   "agents.networkStopSharing": "Tailnet'inizde paylaşıldı · paylaşımı durdur",
-  "agents.networkStopped": "Durduruldu",
   "agents.networkUsers": {
     "one": "%1 kullanıcı",
     "other": "%1 kullanıcı"

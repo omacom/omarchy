@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "شیئر",
   "agents.networkSharedLabel": "شیئر شدہ",
   "agents.networkStopSharing": "آپ کے tailnet پر شیئر شدہ · شیئرنگ بند کریں",
-  "agents.networkStopped": "رکا ہوا",
   "agents.networkUsers": {
     "one": "%1 صارف",
     "other": "%1 صارفین"

@@ -100,7 +100,6 @@
   "agents.networkShareLabel": "Partilhar",
   "agents.networkSharedLabel": "Partilhado",
   "agents.networkStopSharing": "Partilhado na tua tailnet · deixar de partilhar",
-  "agents.networkStopped": "Parado",
   "agents.networkUsers": {
     "many": "%1 utilizadores",
     "one": "%1 utilizador",

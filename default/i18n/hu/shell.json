@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Megosztás",
   "agents.networkSharedLabel": "Megosztva",
   "agents.networkStopSharing": "Megosztva a tailneteden · megosztás leállítása",
-  "agents.networkStopped": "Leállítva",
   "agents.networkUsers": {
     "one": "%1 felhasználó",
     "other": "%1 felhasználó"

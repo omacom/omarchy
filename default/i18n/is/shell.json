@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Deila",
   "agents.networkSharedLabel": "Deilt",
   "agents.networkStopSharing": "Deilt á tailnetinu þínu · hætta að deila",
-  "agents.networkStopped": "Stöðvað",
   "agents.networkUsers": {
     "one": "%1 notandi",
     "other": "%1 notendur"

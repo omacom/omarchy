@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Сподели",
   "agents.networkSharedLabel": "Споделено",
   "agents.networkStopSharing": "Споделено в tailnet-а ти · спри споделянето",
-  "agents.networkStopped": "Спрян",
   "agents.networkUsers": {
     "one": "%1 потребител",
     "other": "%1 потребители"

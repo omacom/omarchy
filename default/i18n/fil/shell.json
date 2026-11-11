@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Ibahagi",
   "agents.networkSharedLabel": "Naibahagi",
   "agents.networkStopSharing": "Naibahagi sa iyong tailnet · itigil ang pagbabahagi",
-  "agents.networkStopped": "Nakahinto",
   "agents.networkUsers": {
     "one": "%1 gumagamit",
     "other": "%1 gumagamit"

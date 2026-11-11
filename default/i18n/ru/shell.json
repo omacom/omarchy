@@ -103,7 +103,6 @@
   "agents.networkShareLabel": "Поделиться",
   "agents.networkSharedLabel": "Общий доступ",
   "agents.networkStopSharing": "Доступ открыт в вашем tailnet · закрыть доступ",
-  "agents.networkStopped": "Остановлено",
   "agents.networkUsers": {
     "few": "%1 пользователя",
     "many": "%1 пользователей",

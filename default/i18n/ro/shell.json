@@ -100,7 +100,6 @@
   "agents.networkShareLabel": "Partajează",
   "agents.networkSharedLabel": "Partajat",
   "agents.networkStopSharing": "Partajat în tailnet-ul tău · oprește partajarea",
-  "agents.networkStopped": "Oprit",
   "agents.networkUsers": {
     "few": "%1 utilizatori",
     "one": "%1 utilizator",

@@ -94,7 +94,6 @@
   "agents.networkShareLabel": "공유",
   "agents.networkSharedLabel": "공유됨",
   "agents.networkStopSharing": "tailnet에서 공유 중 · 공유 중지",
-  "agents.networkStopped": "중지됨",
   "agents.networkUsers": {
     "other": "사용자 %1명"
   },

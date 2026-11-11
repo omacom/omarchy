@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Dela",
   "agents.networkSharedLabel": "Delad",
   "agents.networkStopSharing": "Delad på ditt tailnet · sluta dela",
-  "agents.networkStopped": "Stoppad",
   "agents.networkUsers": {
     "one": "%1 användare",
     "other": "%1 användare"

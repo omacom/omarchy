@@ -100,7 +100,6 @@
   "agents.networkShareLabel": "Zdieľať",
   "agents.networkSharedLabel": "Zdieľané",
   "agents.networkStopSharing": "Zdieľané v tailnete · zastaviť zdieľanie",
-  "agents.networkStopped": "Zastavené",
   "agents.networkUsers": {
     "few": "%1 používatelia",
     "one": "%1 používateľ",

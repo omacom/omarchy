@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "බෙදාගන්න",
   "agents.networkSharedLabel": "බෙදාගත්",
   "agents.networkStopSharing": "ඔබේ tailnet හි බෙදාගෙන ඇත · බෙදාගැනීම නවත්වන්න",
-  "agents.networkStopped": "නැවතී ඇත",
   "agents.networkUsers": {
     "one": "%1 පරිශීලකයෙක්",
     "other": "%1 පරිශීලකයින්"

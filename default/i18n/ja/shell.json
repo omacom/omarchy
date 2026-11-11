@@ -94,7 +94,6 @@
   "agents.networkShareLabel": "共有",
   "agents.networkSharedLabel": "共有済み",
   "agents.networkStopSharing": "tailnet で共有中 · 共有を停止",
-  "agents.networkStopped": "停止中",
   "agents.networkUsers": {
     "other": "%1 ユーザー"
   },
