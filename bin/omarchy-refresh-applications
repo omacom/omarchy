@@ -1,12 +1,14 @@
 #!/bin/bash
 
 # omarchy:summary=Ensure default application launchers are installed.
+# omarchy:args=[--restore]
 
 # Copy .desktop declarations
 mkdir -p ~/.local/share/applications
 for desktop in "$OMARCHY_PATH"/applications/*.desktop; do
-  # Defaults added after release reach new users through /etc/skel; a refresh only updates them.
-  if [[ ${desktop##*/} == Netflix.desktop && ! -f ~/.local/share/applications/Netflix.desktop ]]; then
+  # Defaults added after release reach new users through /etc/skel; a refresh only updates
+  # them, unless the user asked to --restore the preinstalls.
+  if [[ $1 != --restore && ${desktop##*/} == Netflix.desktop && ! -f ~/.local/share/applications/Netflix.desktop ]]; then
     continue
   fi
   cp "$desktop" ~/.local/share/applications/

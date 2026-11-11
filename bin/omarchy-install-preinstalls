@@ -7,7 +7,7 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
   echo -e "Restoring preinstalled Omarchy applications...\n"
 
   # Recreates the shipped .desktop launchers (web apps and TUIs).
-  omarchy-refresh-applications || exit 1
+  omarchy-refresh-applications --restore || exit 1
 
   # Re-enable Omarchy's default mise tools for this user and rebuild their shims.
   if ! omarchy-mise-default-tools enable; then
