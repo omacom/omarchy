@@ -106,8 +106,10 @@ BorderSurface {
     Border.left(_selectedBorderSpec),
     bordered ? Border.left(_normalBorderSpec) : 0)
   readonly property real _reservedContentLeftInset: _reservedBorderLeft + leftPadding
-  readonly property real _iconRoom: iconGlyph.visible ? iconGlyph.implicitWidth + (label.visible ? row.spacing : 0) : 0
-  readonly property real _contentNaturalWidth: _iconRoom + (label.visible ? label.implicitWidth : 0)
+  // Keyed on the text, not the Texts' visible: a hidden button (a width probe)
+  // reports its children invisible too, which would collapse it to padding.
+  readonly property real _iconRoom: root.iconText !== "" ? iconGlyph.implicitWidth + (root.text !== "" ? row.spacing : 0) : 0
+  readonly property real _contentNaturalWidth: _iconRoom + (root.text !== "" ? label.implicitWidth : 0)
   // A translated label can outgrow a button laid out at a fixed width (a
   // grid of equal pills): it first spends half the padding, then shrinks to
   // fit, and elides only when even the smallest size does not.

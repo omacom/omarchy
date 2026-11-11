@@ -51,20 +51,25 @@ Item {
     if (isVideo(displayedBackground)) return true
     // A scan clears busy before onResolved installs its dimensions and paths.
     // Keep startup covered until those candidates and every output settle.
-    if (variantCatalog.busy || resolvedVariantGeneration !== variantCatalog.generation || backgroundPanels.instances.length === 0) return false
-    for (var panel of backgroundPanels.instances) {
+    if (variantCatalog.busy || resolvedVariantGeneration !== variantCatalog.generation || backgrounds.instances.length === 0) return false
+    for (var panel of backgrounds.instances) {
       if (!panel.backgroundReady) return false
     }
     return true
   }
   property var displayedCandidates: []
+  // What the variant catalog scans. A video held behind the last still is
+  // OWE's to draw, so it must not replace the candidates of the stills this
+  // layer still shows or is revealing.
+  property string catalogBackground: ""
+  property int catalogVersion: 0
   property int resolvedVariantGeneration: -1
   signal captureBackground()
 
   BackgroundVariantCatalog {
     id: variantCatalog
-    path: root.currentBackground
-    revision: root.backgroundVersion
+    path: root.catalogBackground
+    revision: root.catalogVersion
     onResolved: {
       // Variant paths must have a native size before any frame can load them.
       var known = Object.assign({}, root.nativeSizes)
@@ -143,7 +148,16 @@ Item {
     failedBackground = ""
     revealStartedVersion = -1
 
+    // OWE draws a video background and fades the last still into it. That
+    // still stays on screen until OWE has the first frame and suspends this
+    // layer, so the desktop does not show an empty background meanwhile. A
+    // running reveal finishes on its incoming still, which OWE fades from.
+    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) return
+
+    catalogBackground = finalPath
+    catalogVersion = backgroundVersion
     revealAnimation.stop()
+    revealGraceTimer.stop()
     finishingTransition = false
 
     // Video frames are not fed through the image-only reveal stack. Switching
@@ -192,26 +206,49 @@ Item {
     if (!incomingBackground || revealProgress >= 1) applyPendingTheme()
   }
 
+  // Every screen slides together, so the reveal waits until each one has
+  // decoded its incoming frame. A screen that cannot decode in time, or at
+  // all, does not hold the others past a short grace; it joins the running
+  // reveal once its frame is ready.
   function startReveal(panel) {
     if (!incomingBackground) return
-    panel.maskReady = true
-    if (revealStartedVersion === backgroundVersion) return
+    if (revealStartedVersion === backgroundVersion) {
+      panel.maskReady = true
+      return
+    }
+    for (var other of backgrounds.instances) {
+      if (!other.incomingReady()) {
+        revealGraceTimer.start()
+        return
+      }
+    }
+    beginReveal()
+  }
+
+  function beginReveal() {
+    if (!incomingBackground || revealStartedVersion === backgroundVersion) return
+    revealGraceTimer.stop()
     revealStartedVersion = backgroundVersion
+    for (var panel of backgrounds.instances) {
+      if (panel.incomingReady()) panel.maskReady = true
+    }
     applyPendingTheme()
     revealAnimation.restart()
   }
 
-  function finishTransition() {
-    if (!finishingTransition) return
-    for (var i = 0; i < backgroundPanels.instances.length; i++) {
-      if (!backgroundPanels.instances[i].backgroundReady) return
-    }
+  // The incoming frame stays over the base until the base has drawn the new
+  // background on every screen. Ending it when the first screen is ready
+  // left a larger screen, still decoding, black for a moment.
+  function maybeFinishTransition() {
+    if (!finishingTransition || !ready) return
     incomingBackground = ""
     oldBackground = ""
     preparedBackground = ""
     finishingTransition = false
     pruneNativeSizes()
   }
+
+  onReadyChanged: maybeFinishTransition()
 
   function prepareBackground(path) {
     path = String(path || "").trim()
@@ -349,6 +386,13 @@ Item {
   }
 
   Timer {
+    id: revealGraceTimer
+    interval: 250
+    repeat: false
+    onTriggered: root.beginReveal()
+  }
+
+  Timer {
     id: pendingThemeFallbackTimer
     interval: 300
     repeat: false
@@ -367,33 +411,33 @@ Item {
       if (root.incomingBackground) {
         root.displayedCandidates = variantCatalog.candidates
         root.displayedVersion = root.backgroundVersion
-        root.displayedBackground = root.currentBackground || root.incomingBackground
+        // After a video was chosen during the reveal, the incoming still
+        // stays until OWE takes the background.
+        root.displayedBackground = root.currentBackground && !root.isVideo(root.currentBackground)
+          ? root.currentBackground : root.incomingBackground
         root.finishingTransition = true
       }
       root.revealProgress = 1
-      Qt.callLater(root.finishTransition)
+      // A base already holding the new background stays ready, so no
+      // change of ready would end the transition.
+      Qt.callLater(root.maybeFinishTransition)
     }
   }
 
   Component.onCompleted: refreshBackground()
 
   Variants {
-    id: backgroundPanels
+    id: backgrounds
     model: Quickshell.screens
-    onInstancesChanged: Qt.callLater(root.finishTransition)
 
     PanelWindow {
       id: panel
       required property var modelData
 
       screen: modelData
-      visible: !remapGuard.remapping && !root.suspended
+      visible: !root.suspended
       anchors { top: true; bottom: true; left: true; right: true }
 
-      ScreenMoveRemap {
-        id: remapGuard
-        window: panel
-      }
       color: "transparent"
       // Keep render updates enabled. The background layer has been observed to
       // lose its committed buffer while parked with updatesEnabled=false,
@@ -402,9 +446,13 @@ Item {
       updatesEnabled: true
 
       property bool maskReady: false
+      // A function, not a binding: onStatusChanged can run before a binding
+      // on the same status has caught up.
+      function incomingReady() {
+        return root.incomingBackground !== "" && !variantCatalog.busy && incomingFrame.status === Image.Ready
+      }
       property int readyFrames: 0
       readonly property bool backgroundReady: base.ready && readyFrames >= 2
-      onBackgroundReadyChanged: if (backgroundReady) Qt.callLater(root.finishTransition)
 
       FrameAnimation {
         running: base.ready && panel.readyFrames < 2
@@ -448,11 +496,9 @@ Item {
       }
 
       function maybeStartReveal() {
-        if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
-        if (variantCatalog.busy || incomingFrame.status !== Image.Ready) return
+        if (!incomingReady() || root.revealProgress >= 1 || maskReady) return
         Qt.callLater(function() {
-          if (!root.incomingBackground || root.revealProgress !== 0 || maskReady) return
-          if (variantCatalog.busy || incomingFrame.status !== Image.Ready) return
+          if (!incomingReady() || root.revealProgress >= 1 || maskReady) return
           root.startReveal(panel)
         })
       }
@@ -486,9 +532,7 @@ Item {
             else panel.rejectVariant(failedPath)
           })
         }
-        onReadyChanged: {
-          panel.readyFrames = 0
-        }
+        onReadyChanged: panel.readyFrames = 0
       }
 
       ShaderEffectSource {
@@ -506,7 +550,9 @@ Item {
         id: incomingLayer
         anchors.fill: parent
         visible: root.incomingBackground !== "" && incomingFrame.status === Image.Ready && (root.revealProgress >= 1 || panel.maskReady)
-        layer.enabled: root.incomingBackground !== "" && root.revealProgress < 1
+        // The mask stays on until the base takes over: turning the layer off
+        // as the reveal ends redraws the frame unmasked mid-transition.
+        layer.enabled: root.incomingBackground !== "" && panel.maskReady
         layer.smooth: true
         layer.effect: MultiEffect {
           maskEnabled: true

@@ -19,7 +19,8 @@ if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,denali-
   # and X Plus models share. Omarchy's kernel carries the tree, found the way
   # dtb-uki.sh finds it; without it the list stays and an earlier pin goes.
   surface_pro11_dtb=""
-  for dtb in "$dtb_root"/linux-omarchy*/qcom/x1e80100-microsoft-denali-oled.dtb; do
+  for dtb in "$dtb_root"/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb \
+    "$dtb_root"/linux-omarchy*/qcom/x1e80100-microsoft-denali-oled.dtb; do
     if [[ -f $dtb ]]; then
       surface_pro11_dtb=$dtb
       break
@@ -95,10 +96,10 @@ done
 unset firmware directory suffix
 CONF
 
-  # surface-pro-11-support carries Wi-Fi board data, audio and camera routing,
-  # iptsd turns the digitizer's reports into pen and touch input, and the
-  # sensor package serves the ADSP the light sensor's configuration.
-  omarchy-pkg-add surface-pro-11-support iptsd surface-pro-11-sensors
+  # microsoft-surface-pro-11-support carries Wi-Fi board data, audio and camera
+  # routing, iptsd turns the digitizer's reports into pen and touch input, and
+  # the sensor package serves the ADSP the light sensor's configuration.
+  omarchy-pkg-add microsoft-surface-pro-11-support iptsd microsoft-surface-pro-11-sensors
 
   # The light sensor configuration is copied from the Windows installation,
   # which a full-disk install has already erased; it can be rerun later.

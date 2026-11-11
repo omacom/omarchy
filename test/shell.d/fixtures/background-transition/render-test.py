@@ -1,7 +1,7 @@
 """Render production background logic on two isolated, differently shaped Items.
 
 Only desktop integration is replaced (screen surfaces, IPC, theme styling).
-The production catalog, selection, capture, mask, images, and finishTransition
+The production catalog, selection, capture, mask, images, and maybeFinishTransition
 run unchanged. A delayed HTTP image exercises real Image.Loading at handoff.
 """
 
@@ -84,7 +84,7 @@ port = server.server_port
 background = (root / "shell/plugins/background/Background.qml").read_text()
 background = replace_once(background, "import Quickshell.Wayland\n", "")
 background = replace_once(background, "  id: root\n", """  id: root
-  property alias testPanels: backgroundPanels
+  property alias testPanels: backgrounds
   function testPause() { revealAnimation.pause(); revealProgress = 0 }
   function testFinish() { revealAnimation.complete() }
 """)
