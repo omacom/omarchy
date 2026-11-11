@@ -1,0 +1,196 @@
+#!/bin/bash
+
+# omarchy:summary=Add Windows to the boot menu with an entry BitLocker keeps accepting
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# Windows starts in one of two ways from Limine:
+#
+#   efi_boot_entry  Limine sets BootNext to the firmware's Windows Boot Manager
+#                   entry and resets, so the firmware starts Windows itself.
+#                   Limine is not among the boot applications the TPM measures
+#                   for Windows (PCR 4), so updating Limine does not make
+#                   BitLocker ask for its recovery key.
+#   chainload       Limine loads bootmgfw.efi from the Windows ESP. This works
+#                   without a firmware entry, but every Limine update changes
+#                   what BitLocker measured and asks for the recovery key.
+#
+# The firmware entry is used when exactly one active Windows Boot Manager is in
+# BootOrder, since Limine matches the first entry by name and stops when there
+# is none. Otherwise the chainload is written with the loader path exactly as
+# it is spelled on the ESP: Limine reads FAT case-sensitively, and efibootmgr
+# reports Windows' path in capitals.
+
+WINDOWS_ENTRY_NAME="Windows Boot Manager"
+WINDOWS_LOADER="EFI/Microsoft/Boot/bootmgfw.efi"
+ESP_PARTTYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+
+if omarchy-hw-aarch64-apple; then
+  echo "Error: Apple Silicon starts macOS from its own Startup Options, not from Limine" >&2
+  exit 1
+fi
+
+limine_conf="${OMARCHY_LIMINE_CONF:-}"
+if [[ -z $limine_conf ]]; then
+  esp=""
+  if [[ -r /etc/default/limine ]]; then
+    esp=$(sed -n 's/^ESP_PATH=["'\'']\?\([^"'\'']*\).*/\1/p' /etc/default/limine | tail -n 1)
+  fi
+  limine_conf="${esp:-/boot}/limine.conf"
+fi
+
+if ! sudo test -f "$limine_conf"; then
+  echo "Error: No Limine configuration at $limine_conf" >&2
+  exit 1
+fi
+
+# efibootmgr 18 follows each label with a tab and the device path; only the
+# label matters here.
+if ! efi_list=$(efibootmgr); then
+  echo "Error: The firmware boot entries can't be read (is the system booted in UEFI mode?)" >&2
+  exit 1
+fi
+
+# Active firmware entries named Windows Boot Manager that are in BootOrder,
+# matched by their whole label ignoring case, as Limine matches them.
+windows_firmware_entries() {
+  local order
+  order=$(sed -n 's/^BootOrder:[[:space:]]*//p' <<<"$efi_list")
+  cut -f1 <<<"$efi_list" | sed -nE 's/^Boot([0-9A-Fa-f]{4})\*[[:space:]]+(.*[^[:space:]])[[:space:]]*$/\1 \2/p' |
+    while read -r number label; do
+      if [[ ${label,,} == "${WINDOWS_ENTRY_NAME,,}" && ,$order, == *",$number,"* ]]; then
+        echo "$number"
+      fi
+    done
+}
+
+# Prints the path below ROOT spelled as it is on disk, matching each component
+# without regard to case; fails when a component is missing.
+on_disk_path() {
+  local root=$1 relative=$2 current="" component match
+  local -a components
+  IFS=/ read -ra components <<<"$relative"
+  for component in "${components[@]}"; do
+    match=$(sudo find "$root${current:+/$current}" -mindepth 1 -maxdepth 1 -iname "$component" -printf '%f\n' 2>/dev/null | head -n 1)
+    [[ -n $match ]] || return 1
+    current=${current:+$current/}$match
+  done
+  printf '%s\n' "$current"
+}
+
+# A chainload line for every ESP that holds Windows' loader: "<partuuid> <path>".
+windows_loaders() {
+  local device parttype partuuid mountpoint root path
+  while read -r device parttype partuuid mountpoint; do
+    [[ ${parttype,,} == "$ESP_PARTTYPE" && -n $partuuid ]] || continue
+    root=$mountpoint
+    if [[ -z $root ]]; then
+      root=$(mktemp -d)
+      if ! sudo mount -o ro "$device" "$root" 2>/dev/null; then
+        rmdir "$root"
+        continue
+      fi
+    fi
+    if path=$(on_disk_path "$root" "$WINDOWS_LOADER"); then
+      printf '%s %s\n' "$partuuid" "$path"
+    fi
+    if [[ -z $mountpoint ]]; then
+      sudo umount "$root"
+      rmdir "$root"
+    fi
+  done < <(lsblk -rno PATH,PARTTYPE,PARTUUID,MOUNTPOINT)
+}
+
+# The existing top-level Windows entry, as "<first line> <last line> <kind> <path>":
+# kind is efi_boot_entry or chainload, and path is the chainload's loader path.
+existing_windows_entry() {
+  sudo cat "$limine_conf" | awk -v name="${WINDOWS_ENTRY_NAME,,}" '
+    function finish() {
+      if (start && kind == "") {
+        if (protocol == "efi_boot_entry" && entry == name) kind = "efi_boot_entry"
+        else if ((protocol == "efi" || protocol == "uefi" || protocol == "efi_chainload") && tolower(path) ~ /\/efi\/microsoft\/boot\/bootmgfw\.efi$/) kind = "chainload"
+        if (kind != "") { print start, last, kind, path; found = 1 }
+      }
+      kind = ""
+    }
+    /^[[:space:]]*\/[^\/]/ { if (!found) finish(); start = NR; protocol = entry = path = ""; last = NR; next }
+    /^[[:space:]]*\/\// { if (start) last = NR; next }
+    start && /^[[:space:]]*protocol:/ { protocol = tolower($2) }
+    start && /^[[:space:]]*entry:/ { sub(/^[[:space:]]*entry:[[:space:]]*/, ""); sub(/[[:space:]]+$/, ""); entry = tolower($0) }
+    start && /^[[:space:]]*(image_)?path:/ { path = $2 }
+    start && NF { last = NR }
+    END { if (!found) finish() }
+  '
+}
+
+# Writes CONTENT over the menu, keeping the previous one as limine.conf.bak.
+write_menu() {
+  sudo cp -p "$limine_conf" "$limine_conf.bak"
+  printf '%s\n' "$1" | sudo tee "$limine_conf" >/dev/null
+}
+
+confirm() {
+  gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$1"
+}
+
+firmware_entries=$(windows_firmware_entries)
+firmware_count=$(grep -c . <<<"$firmware_entries" || true)
+
+if (( firmware_count == 1 )); then
+  new_entry=$(printf '/Windows\n    protocol: efi_boot_entry\n    entry: %s' "$WINDOWS_ENTRY_NAME")
+  new_kind=efi_boot_entry
+else
+  loaders=$(windows_loaders)
+  if [[ -z $loaders ]]; then
+    echo "No Windows installation was found: there is no Windows Boot Manager firmware entry and no ESP holds $WINDOWS_LOADER."
+    echo "For other Linux installs, run limine-scan."
+    exit 1
+  fi
+  if (( $(grep -c . <<<"$loaders") > 1 )); then
+    echo "More than one ESP holds a Windows loader; using the first. Add the others with limine-scan."
+  fi
+  read -r partuuid loader <<<"$(head -n 1 <<<"$loaders")"
+  new_entry=$(printf '/Windows\n    protocol: efi\n    path: guid(%s):/%s' "$partuuid" "$loader")
+  new_kind=chainload
+fi
+
+current=$(sudo cat "$limine_conf")
+read -r entry_start entry_end entry_kind entry_path <<<"$(existing_windows_entry)" || true
+
+if [[ -z ${entry_start:-} ]]; then
+  if confirm "$(omarchy-i18n dualBoot.add)"; then
+    write_menu "$current"$'\n\n'"$new_entry"
+    echo "Added Windows to the boot menu."
+  fi
+elif [[ $entry_kind == "efi_boot_entry" ]]; then
+  echo "The boot menu already starts Windows through its firmware entry."
+elif [[ $new_kind == "efi_boot_entry" ]]; then
+  if confirm "$(omarchy-i18n dualBoot.replace)"; then
+    rest=$(awk -v a="$entry_start" -v b="$entry_end" 'NR < a || NR > b' <<<"$current")
+    write_menu "$rest"$'\n\n'"$new_entry"
+    echo "Windows now starts through its firmware entry."
+  fi
+elif [[ ${new_entry##*path: } != "$entry_path" ]]; then
+  # A chainload whose path differs from the loader as it is spelled on disk,
+  # such as the capitals limine-scan copies from efibootmgr.
+  if confirm "$(omarchy-i18n dualBoot.fixPath)"; then
+    fixed=$(awk -v a="$entry_start" -v b="$entry_end" -v path="${new_entry##*path: }" '
+      NR >= a && NR <= b && /^[[:space:]]*(image_)?path:/ { match($0, /^[[:space:]]*(image_)?path:[[:space:]]*/); $0 = substr($0, 1, RLENGTH) path }
+      { print }
+    ' <<<"$current")
+    write_menu "$fixed"
+    echo "Fixed the Windows loader path in the boot menu."
+  fi
+else
+  echo "The boot menu already has a working Windows entry."
+fi
+
+# Omarchy boots quietly: the menu shows only when a key is pressed in the
+# first second. With Windows in it, offer to show it on every boot instead.
+current=$(sudo cat "$limine_conf")
+if grep -Eqi '^[[:space:]]*quiet:[[:space:]]*yes' <<<"$current" && confirm "$(omarchy-i18n dualBoot.showMenu)"; then
+  shown=$(sed -E '/^[[:space:]]*quiet:[[:space:]]*yes/Id; s/^([[:space:]]*timeout:[[:space:]]*)1[[:space:]]*$/\15/I' <<<"$current")
+  write_menu "$shown"
+  echo "The boot menu now shows on every boot."
+fi
