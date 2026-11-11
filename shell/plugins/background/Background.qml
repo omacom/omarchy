@@ -142,15 +142,18 @@ Item {
     if (!path) return false
     // Reselecting what is already coming in withdraws a change queued behind it.
     if (!force && finalPath === currentBackground) {
-      dropQueuedTransition()
+      discardQueuedTransition()
       return false
     }
     if (!instant && !isVideo(path) && (revealAnimation.running || finishingTransition)) {
-      queuedTransition = { fromPath: fromPath, path: path, finalPath: finalPath, force: force, theme: null }
+      // The theme files are not watched, so a queued theme's palette passes
+      // on to the change that replaces it.
+      var theme = queuedTransition ? queuedTransition.theme : null
+      queuedTransition = { fromPath: fromPath, path: path, finalPath: finalPath, force: force, theme: theme }
       queuedTransitionTimer.restart()
       return true
     }
-    dropQueuedTransition()
+    discardQueuedTransition()
     // Capture each output's actual variant before theme paths are replaced.
     captureBackground()
     if (path !== preparedBackground) preparedBackground = ""
@@ -196,15 +199,23 @@ Item {
     return false
   }
 
-  function dropQueuedTransition() {
+  function takeQueuedTransition() {
+    var queued = queuedTransition
     queuedTransitionTimer.stop()
     queuedTransition = null
+    return queued
+  }
+
+  // A queued change that will not run still owes its theme's palette, which
+  // the next reveal or the pending-theme fallback then applies.
+  function discardQueuedTransition() {
+    var queued = takeQueuedTransition()
+    if (queued && queued.theme) setPendingTheme(queued.theme.colors, queued.theme.shell)
   }
 
   function runQueuedTransition() {
-    var queued = queuedTransition
+    var queued = takeQueuedTransition()
     if (!queued) return
-    dropQueuedTransition()
     if (queued.theme) transitionBackgroundWithTheme(queued.fromPath, queued.path, queued.finalPath, queued.theme.colors, queued.theme.shell)
     else transitionBackground(queued.fromPath, queued.path, queued.finalPath, false, queued.force)
   }

@@ -127,7 +127,7 @@ ShellRoot {
         test.capture("reveal", function() {
           // A change made mid-reveal must wait for it, not restart it from
           // the bases, which hold the decoy here.
-          background.setBackground(test.images + "old.png", false)
+          background.transitionBackgroundWithTheme("", test.images + "old.png", test.images + "old.png", "", "")
           test.step = 32
         })
       } else if (test.step === 32) {
@@ -140,6 +140,10 @@ ShellRoot {
           background.setBackground(test.images + "new.png", false)
           if (background.selectedBackground !== test.images + "new.png") {
             test.fail("reselecting the incoming background kept the queued change")
+            return
+          }
+          if (background.pendingThemeVersion < 0) {
+            test.fail("a withdrawn theme switch dropped its palette")
             return
           }
           background.testFinish()
