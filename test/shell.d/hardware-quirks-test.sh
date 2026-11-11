@@ -195,11 +195,28 @@ machine() {
   : >"$hw/input-devices"
   FAKE_PLATFORM=x86 FAKE_LSMOD="" FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Alder Lake\n\tKernel driver in use: i915"
   FAKE_MODPROBE_RESOLVES=0 FAKE_MODPROBE_STATUS=0 FAKE_PKG_ADD_STATUS=0 FAKE_APPLY_STATUS=0 FAKE_MISSING_FIRMWARE="" FAKE_COMPATIBLE=""
+  unset OMARCHY_IMAGE_DEFERRED_HARDWARE
 
   dmi() { printf '%s\n' "$2" >"$hw/dmi/$1"; }
   xps13() { dmi sys_vendor "Dell Inc."; dmi product_name "XPS 13 ${1:-DX13260}"; dmi product_sku "${2:-0E53}"; }
   synaptics() { printf '%s\n' 'N: Name="SynPS/2 Synaptics TouchPad"' >"$hw/input-devices"; }
   surface() { dmi sys_vendor "Microsoft Corporation"; dmi product_name "$1"; }
+  vivobook_s15() { dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_family "ASUS Vivobook S 15"; dmi product_name "ASUS Vivobook S 15 S5507QA_$1"; }
+  # A Qualcomm Wi-Fi card bound to ath12k; with "board-data", the board data the package installed for it.
+  ath12k() {
+    local device=$root/sys/bus/pci/devices/0004:01:00.0 driver=$root/sys/bus/pci/drivers/ath12k_wifi7_pci
+    FAKE_LSPCI="0004:01:00.0 Network controller [0280]: Qualcomm Technologies, Inc Device [17cb:$1]"
+    mkdir -p "$device" "$driver"
+    printf '0x17cb\n' >"$device/vendor"
+    printf '0x%s\n' "$1" >"$device/device"
+    : >"$driver/bind"
+    : >"$driver/unbind"
+    ln -s ../../drivers/ath12k_wifi7_pci "$device/driver"
+    if [[ ${2:-} == "board-data" ]]; then
+      mkdir -p "$root/var/lib/ath12k-board-fallback"
+      printf 'ath12k/QCC2072/hw1.0/board.bin 0\n' >"$root/var/lib/ath12k-board-fallback/installed"
+    fi
+  }
 
   case $name in
     plain) dmi sys_vendor LENOVO; dmi product_name 21HM0000US; dmi product_family "ThinkPad X1 Carbon Gen 11" ;;
@@ -238,6 +255,12 @@ machine() {
     yoga-slim7x) dmi product_name 83ED; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,yoga-slim7x qcom,x1e80100" ;;
     zenbook-a16) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-a16-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64 ;;
+    vivobook-s15) vivobook_s15 S5507QAD; FAKE_PLATFORM=aarch64-qualcomm ;;
+    # The X Plus model shares the family name but has another device tree and is untested.
+    vivobook-s15-x-plus) vivobook_s15 S5507QA; FAKE_PLATFORM=aarch64-qualcomm ;;
+    vivobook-s15-not-qualcomm) vivobook_s15 S5507QAD; FAKE_PLATFORM=aarch64 ;;
+    proart-pz13) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; dmi product_family "ProArt PZ13"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    proart-pz13-not-qualcomm) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; FAKE_PLATFORM=aarch64 ;;
     omnibook-ultra-14) dmi sys_vendor HP; dmi product_name "HP OmniBook Ultra Laptop 14-kg0xxx"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="hp,omnibook-ultra-kg0xxx qcom,glymur" ;;
     anduril-bluechip) dmi sys_vendor Anduril; dmi product_name "Qualcomm Glymur"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
     glymur-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
@@ -254,6 +277,11 @@ machine() {
     xps13-no-sku) xps13; rm "$hw/dmi/product_sku" ;;
     xps13-apply-fails) xps13; FAKE_APPLY_STATUS=1 ;;
     xps13-pkg-add-fails) xps13; FAKE_PKG_ADD_STATUS=1 ;;
+    wcn7850-card) ath12k 1107 ;;
+    wcn7850-card-first-boot) ath12k 1107; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
+    qcc2072-card) ath12k 1112 board-data ;;
+    qcc2072-card-first-boot) ath12k 1112 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
+    qualcomm-no-wifi) FAKE_LSPCI="0004:00:00.0 PCI bridge [0604]: Qualcomm Technologies, Inc SC8380XP PCIe Root Complex [17cb:0111]" ;;
     nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau" ;;
     nouveau-proprietary) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; : >"$hw/nvidia.conf" ;;
     *) fail "hardware-quirks-test knows the machine '$name'" ;;
@@ -285,10 +313,13 @@ run_leaf() {
     OMARCHY_ZENBOOK_A16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
+    OMARCHY_VIVOBOOK_S15_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_QUALCOMM_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$hw/nvidia.conf" \
+    OMARCHY_PCI_DEVICES="$root/sys/bus/pci/devices" \
+    OMARCHY_ATH12K_BOARD_STATE="$root/var/lib/ath12k-board-fallback/installed" \
     bash -eE -c 'source "$1"' bash "$ROOT/install/$1" </dev/null >/dev/null 2>&1 || status=$?
   {
     printf '%s\n' "$status"
@@ -307,13 +338,16 @@ leaves=(
   hardware/fix-surface-keyboard.sh
   hardware/lenovo/thinkpad-t14s-camera.sh
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
+  hardware/asus/fix-asus-proart-pz13-speakers.sh
   hardware/asus/fix-asus-zenbook-a16-firmware.sh
   hardware/asus/fix-asus-zenbook-a16-boot.sh
+  hardware/asus/fix-asus-vivobook-s15-boot.sh
   hardware/qualcomm/glymur-display.sh
   hardware/qualcomm/oem-firmware.sh
   hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh
   hardware/asus/fix-asus-zenbook-14-ux3480qa-audio.sh
   hardware/dell-xps13-ptl-speaker-firmware.sh
+  hardware/fix-ath12k-board-data.sh
   hardware/dell-xps13-sidecar-amps.sh
   user/hardware/fix-nouveau-cursor.sh
 )
@@ -363,6 +397,10 @@ hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16|0|pkg-add asus-zenboo
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|yoga-slim7x|0
+hardware/asus/fix-asus-proart-pz13-speakers.sh|proart-pz13|0|pkg-add asus-proart-pz13-audio
+hardware/asus/fix-asus-proart-pz13-speakers.sh|proart-pz13+unreadable|0
+hardware/asus/fix-asus-proart-pz13-speakers.sh|proart-pz13-not-qualcomm|0
+hardware/asus/fix-asus-proart-pz13-speakers.sh|yoga-slim7x|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16|0|pkg-add asus-zenbook-a16-firmware
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16-not-qualcomm|0
@@ -378,6 +416,11 @@ hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16|0|wrote etc/systemd/sleep
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|zenbook-a16-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-a16-boot.sh|yoga-slim7x|0
+hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15|0|wrote etc/mkinitcpio.conf.d/vivobook-s15-initramfs.conf
+hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15+unreadable|0
+hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15-x-plus|0
+hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15-not-qualcomm|0
+hardware/asus/fix-asus-vivobook-s15-boot.sh|zenbook-a16|0
 hardware/qualcomm/glymur-display.sh|omnibook-ultra-14|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
 # The device tree names the chip, so unreadable DMI does not matter.
 hardware/qualcomm/glymur-display.sh|omnibook-ultra-14+unreadable|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
@@ -407,6 +450,14 @@ hardware/dell-xps13-sidecar-amps.sh|xps13-ptl+unreadable|0
 # has to surface rather than be swallowed by a successful install.
 hardware/dell-xps13-sidecar-amps.sh|xps13-apply-fails|1|pkg-add dell-xps13-sidecar-amps|sudo dell-xps13-sidecar-amps-apply
 hardware/dell-xps13-sidecar-amps.sh|xps13-pkg-add-fails|1|pkg-add dell-xps13-sidecar-amps
+# The package itself decides whether the card needs board data.
+hardware/fix-ath12k-board-data.sh|wcn7850-card|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|qcc2072-card|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|qualcomm-no-wifi|0
+# ath12k probed the card before an image's first boot gave it board data, so
+# that boot rebinds it, but not for a card that needed none.
+hardware/fix-ath12k-board-data.sh|qcc2072-card-first-boot|0|pkg-add ath12k-board-fallback|wrote sys/bus/pci/drivers/ath12k_wifi7_pci/bind|wrote sys/bus/pci/drivers/ath12k_wifi7_pci/unbind
+hardware/fix-ath12k-board-data.sh|wcn7850-card-first-boot|0|pkg-add ath12k-board-fallback
 # Wildcat Lake's GPU is named only "[Intel Graphics]".
 hardware/intel/video-acceleration.sh|xps13-wcl|0|pkg-add intel-media-driver libvpl vpl-gpu-rt
 hardware/intel/video-acceleration.sh|nouveau|0

@@ -623,6 +623,9 @@
     "label": "Editor",
     "title": "Default Editor"
   },
+  "setup.default.editor.plain": {
+    "label": "Plain"
+  },
   "setup.default.editor.neovim": {
     "label": "Neovim"
   },
@@ -914,6 +917,9 @@
   "install.gaming.xbox-controllers": {
     "label": "Xbox Controllers"
   },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
   "install.gaming.battlenet": {
     "label": "Battle.net"
   },
@@ -1138,6 +1144,9 @@
   },
   "remove.gaming.xbox-controllers": {
     "label": "Xbox Controllers (󰂯)"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
   },
   "remove.gaming.battlenet": {
     "label": "Battle.net"

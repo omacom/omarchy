@@ -304,13 +304,13 @@ Item {
   }
 
   // The panel gives a section only to an agent with a subscription to show:
-  // limits, a balance, a plan, or accounts. Local history alone still counts
+  // limits, a balance, spend, a plan, or accounts. Local history alone still counts
   // toward the summary, but would leave an empty section.
   readonly property var subscribedProviders: enabledProviders.filter(providerHasSubscription)
 
   function providerHasSubscription(p) {
     return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
-      || !!p.balance || p.tierLabel !== ""
+      || !!p.balance || !!p.spend || p.tierLabel !== ""
   }
 
   // ----------------------------------------------------------------- order
@@ -328,7 +328,13 @@ Item {
       list.push({ providerId: "local:" + id, localModel: models[id] })
     var offer = localOffer(localRecipes, models, providerEnabled)
     if (offer) list.push({ providerId: "local:" + offer.id, providerName: offer.name || offer.id, localOffer: offer })
-    return orderedProviders(list)
+    var ordered = orderedProviders(list)
+    // Another DGX Spark cabled to this one and not set up yet (omarchy-agent-local's status.json
+    // `link`) is offered like a recommended model, always first: its line opens link setup.
+    var link = localModel.link
+    if (link && link.state === "available" && providerEnabled("local:link"))
+      ordered.unshift({ providerId: "local:link", providerName: link.host || "DGX Spark", localOffer: { id: "link", vendor: "nvidia", link: link } }) // i18n: ignore
+    return ordered
   }
 
   // A machine with no local model yet is offered the one the catalog
@@ -394,7 +400,7 @@ Item {
     return numberValue(p.totalPrompts) > 0 || numberValue(p.totalSessions) > 0
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
-      || (p.accounts && p.accounts.length > 0) || !!p.balance
+      || (p.accounts && p.accounts.length > 0) || !!p.balance || !!p.spend
       || (p.ready === true && p.tierLabel !== "")
   }
 
@@ -410,6 +416,25 @@ Item {
       funded: isFinite(funded) && funded > 0 ? funded : 0,
       spent: Math.max(0, Number(raw.spent) || 0),
       currency: String(raw.currency || "USD"),
+      estimated: raw.estimated === true
+    }
+  }
+
+  // A pay-as-you-go agent's spend over the last 30 days, or this month's
+  // against the monthly cap when the account has one. Per-account, like
+  // the balance.
+  function spendValue(raw) {
+    if (!raw || typeof raw !== "object") return null
+    var amount = Number(raw.amount)
+    var cap = Number(raw.cap)
+    if (!isFinite(amount) || amount < 0) return null
+    var days = Array.isArray(raw.days) ? raw.days.map(function(d) { return Math.max(0, Number(d) || 0) }) : []
+    return {
+      amount: amount,
+      cap: isFinite(cap) && cap > 0 ? cap : 0,
+      currency: String(raw.currency || "USD"),
+      days: days,
+      // Counted from this machine's sessions, not rated by the provider.
       estimated: raw.estimated === true
     }
   }
@@ -438,6 +463,7 @@ Item {
       // Codex's free full resets of its rate limits, when it has any.
       resetCredits: record.resetCredits || null,
       balance: balanceValue(record.balance),
+      spend: spendValue(record.spend),
 
       todayPrompts: synced ? numberValue(stats.todayPrompts) : numberValue(record.todayPrompts),
       todaySessions: synced ? numberValue(stats.todaySessions) : numberValue(record.todaySessions),
