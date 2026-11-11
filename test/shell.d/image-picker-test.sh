@@ -91,7 +91,8 @@ const refreshRoot = {
   requestSerial: 1,
   indexForSelectedImage(images) { return picker.indexForSelectedImage(images, this.selectedImage) },
   enableNeighborsWhenReady() {},
-  revealWhenSettled() {}
+  revealWhenSettled() {},
+  ensureMatchingSelection() {}
 }
 const refreshContext = {
   root: refreshRoot,
@@ -345,10 +346,66 @@ assert(application.applied === undefined && application.opened, 'Enter cannot ap
 application = applyContext(false)
 application.applySelected()
 assertDeepEqual(application.applied, ['omarchy-theme-set', 'fjord'], 'Enter applies the selected theme once no deletion is pending')
+application = applyContext(false)
+application.currentPath = () => ''
+application.applySelected()
+assert(application.applied === undefined && application.opened, 'Enter in an empty favourites list neither applies nor closes the picker')
 
 updateCtx.awaitingDeleteRefresh = true
 updateCtx.deleteSelectionPath = '/p/alpha.png'
 updateCtx.themeRows = 'new-rows'
 updateCtx.updateThemeRows('after-delete-rows')
 assertEqual(updateCtx.awaitingDeleteRefresh, false, 'the post-delete refresh loading rows releases the apply guard')
+
+const favourites = requireFromRoot('shell/plugins/image-picker/ThemeFavourites.js')
+assertDeepEqual(favourites.parseState('{bad json'), { themes: [], favouritesOnly: false }, 'malformed favourites state falls back safely')
+assertDeepEqual(favourites.parseState(JSON.stringify({ version: 1, themes: ['nord', 'nord', '../escape', '<img src=x>', 'gruvbox'], favouritesOnly: true })),
+  { themes: ['nord', 'gruvbox'], favouritesOnly: true }, 'favourites state validates and deduplicates theme identifiers')
+assertDeepEqual(favourites.parseState('x'.repeat(65537)), { themes: [], favouritesOnly: false }, 'oversized favourites state is ignored')
+assertDeepEqual(favourites.parseState(JSON.stringify({ version: 2, themes: ['nord'] })), { themes: [], favouritesOnly: false }, 'unknown favourites versions are ignored')
+let saved = favourites.toggle([], 'nord')
+assertDeepEqual(favourites.parseState(favourites.serializeState(saved, true)), { themes: ['nord'], favouritesOnly: true }, 'favourites and filter preference survive a storage round trip')
+assertDeepEqual(favourites.toggle(saved, 'nord'), [], 'toggling a favourite removes it')
+const favouriteImages = picker.loadRows('/p/nord.png\n/p/gruvbox.png\n/p/tokyo.png')
+assertDeepEqual(favourites.filterIndices(favouriteImages, [0, 1, 2], ['tokyo', 'nord', 'uninstalled'], true), [0, 2], 'favourites retain carousel order and ignore absent themes')
+assertDeepEqual(favourites.filterIndices(favouriteImages, [1], ['nord'], true), [], 'favourites intersect text search rather than replacing it')
+assertDeepEqual(favourites.filterIndices(favouriteImages, [0, 1, 2], ['nord'], false), [0, 1, 2], 'disabled favourite filtering leaves background and theme order unchanged')
+
+// Run the actual QML selection reconciliation after a filtered row refresh.
+const favouriteRefresh = { ...refreshRoot, themeMode: true, favouritesOnly: true, favouriteThemes: ['remaining-dark'] }
+Object.defineProperty(favouriteRefresh, 'matchingImageIndices', { get() {
+  return favourites.filterIndices(this.imageArray, picker.matchingIndices(this.imageArray, this.filterText), this.favouriteThemes, this.themeMode && this.favouritesOnly)
+} })
+const favouriteContext = { root: favouriteRefresh, ImagePickerModel: picker, Favourites: favourites, Qt: refreshContext.Qt }
+for (const name of ['itemMatches', 'firstMatchingIndex', 'ensureMatchingSelection']) {
+  const fn = imagePickerQml.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}`))[0]
+  require('vm').runInNewContext(fn, favouriteRefresh)
+}
+favouriteRefresh.root = favouriteRefresh
+favouriteRefresh.ImagePickerModel = picker
+favouriteRefresh.Favourites = favourites
+favouriteRefresh.nameForPath = picker.nameForPath
+require('vm').runInNewContext(`${refreshHandler}; loadRows`, favouriteContext)
+favouriteRefresh.filterText = ''
+favouriteRefresh.selectedImage = '/themes/light.png'
+favouriteContext.loadRows(refreshRows, false)
+assertEqual(favouriteRefresh.selectedIndex, 1, 'row refresh selects a favourite instead of an excluded first row')
+favouriteRefresh.favouriteThemes = []
+favouriteRefresh.ensureMatchingSelection()
+assertEqual(favouriteRefresh.selectedIndex, -1, 'removing the final favourite leaves no hidden selection to apply')
+favouriteRefresh.favouritesOnly = false
+favouriteRefresh.ensureMatchingSelection()
+assertEqual(favouriteRefresh.selectedIndex, 0, 'turning the favourites filter off recovers from an empty list')
+
+const favouriteActions = { opened: true, themeMode: false, favouritesLoaded: true,
+  favouriteThemes: ['nord'], favouritesOnly: false, saves: 0,
+  currentPath() { return '/p/nord.png' }, selectedThemeName() { return 'nord' },
+  saveFavourites() { this.saves++ }, focusPicker() {}, Favourites: favourites }
+for (const name of ['toggleSelectedFavourite', 'toggleFavouritesFilter']) {
+  require('vm').runInNewContext(imagePickerQml.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}`))[0], favouriteActions)
+}
+favouriteActions.toggleSelectedFavourite()
+favouriteActions.toggleFavouritesFilter()
+assertEqual(favouriteActions.saves, 0, 'favourites shortcuts cannot modify state in the background picker')
+assertDeepEqual(favouriteActions.favouriteThemes, ['nord'], 'background shortcuts leave saved themes unchanged')
 JS

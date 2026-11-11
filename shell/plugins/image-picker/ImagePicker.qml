@@ -8,6 +8,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "ImagePickerModel.js" as ImagePickerModel
+import "ThemeFavourites.js" as Favourites
 
 Item {
   id: root
@@ -40,6 +41,45 @@ Item {
   property string themeRows: ""
   property bool themeMode: false
   property bool themeOpenPending: false
+  property var favouriteThemes: []
+  property bool favouritesOnly: false
+  property bool favouritesLoaded: false
+  property bool favouritesSaveFailed: false
+  readonly property int favouriteCount: Favourites.filterIndices(imageArray, ImagePickerModel.matchingIndices(imageArray, ""), favouriteThemes, true).length
+  onFavouriteThemesChanged: ensureMatchingSelection()
+  onFavouritesOnlyChanged: ensureMatchingSelection()
+
+  function loadFavourites(raw) {
+    var state = Favourites.parseState(raw)
+    favouriteThemes = state.themes
+    favouritesOnly = state.favouritesOnly
+    favouritesLoaded = true
+    ensureMatchingSelection()
+  }
+
+  function saveFavourites() {
+    if (favouritesLoaded)
+      favouritesFile.setText(Favourites.serializeState(favouriteThemes, favouritesOnly))
+  }
+
+  function toggleSelectedFavourite() {
+    if (!opened || !themeMode || !favouritesLoaded || !currentPath()) return
+    favouriteThemes = Favourites.toggle(favouriteThemes, selectedThemeName())
+    saveFavourites()
+    focusPicker()
+  }
+
+  function toggleFavouritesFilter() {
+    if (!opened || !themeMode || !favouritesLoaded) return
+    favouritesOnly = !favouritesOnly
+    saveFavourites()
+    focusPicker()
+  }
+
+  function ensureMatchingSelection() {
+    if (!themeMode || !imagesLoaded || itemMatches(selectedIndex)) return
+    selectedIndex = firstMatchingIndex()
+  }
   property var extraThemeNames: []
   property var stockThemeNames: []
   property bool stockThemesKnown: false
@@ -61,7 +101,7 @@ Item {
   property int sliceHeight: 432
   property int sliceSpacing: -30
   property int skewOffset: 28
-  property int bottomChromeHeight: showLabels ? (filterable ? 104 : 74) : (filterable ? 60 : 30)
+  property int bottomChromeHeight: (showLabels ? (filterable ? 104 : 74) : (filterable ? 60 : 30)) + (themeMode ? Style.space(40) : 0)
   // Render only what fits on this display, plus one prefetch slice per side.
   readonly property int previewRadius: Math.max(1, Math.min(16, Math.ceil((panel.width - expandedWidth) / (2 * (sliceWidth + sliceSpacing))) + 1))
   onPreviewRadiusChanged: updateVisibleItems()
@@ -140,10 +180,11 @@ Item {
 
   function itemMatches(index) {
     return ImagePickerModel.itemMatches(imageArray, index, filterText)
+      && (!themeMode || !favouritesOnly || Favourites.contains(favouriteThemes, nameForPath(imageArray[index].filePath)))
   }
 
   function firstMatchingIndex() {
-    return ImagePickerModel.firstMatchingIndex(imageArray, filterText)
+    return matchingImageIndices.length ? matchingImageIndices[0] : -1
   }
 
   function select(index, immediate) {
@@ -174,7 +215,7 @@ Item {
     filterText = nextFilterText
 
     if (!itemMatches(selectedIndex)) {
-      var first = ImagePickerModel.nextSelectedIndexForFilter(imageArray, selectedIndex, filterText)
+      var first = firstMatchingIndex()
       if (first >= 0) selectedIndex = first
     }
   }
@@ -198,6 +239,7 @@ Item {
     var path = currentPath()
 
     if (themeMode) {
+      if (!path) return
       themeMode = false
       root.opened = false
       if (path) Util.execArgv(["omarchy-theme-set", nameForPath(path)])
@@ -258,6 +300,7 @@ Item {
     root.neighborImagesEnabled = false
     root.imageArray = newImages
     root.imagesLoaded = true
+    root.ensureMatchingSelection()
     Qt.callLater(root.enableNeighborsWhenReady)
 
     if (reveal !== false) {
@@ -319,13 +362,13 @@ Item {
   }
 
   property var imageArray: []
-  readonly property var matchingImageIndices: ImagePickerModel.matchingIndices(imageArray, filterText)
+  readonly property var matchingImageIndices: Favourites.filterIndices(imageArray, ImagePickerModel.matchingIndices(imageArray, filterText), favouriteThemes, themeMode && favouritesOnly)
   onMatchingImageIndicesChanged: updateVisibleItems()
   onSelectedIndexChanged: {
     updateVisibleItems()
     introPrepareTimer.restart()
   }
-  onThemeModeChanged: if (themeMode) introPrepareTimer.restart()
+  onThemeModeChanged: if (themeMode) { ensureMatchingSelection(); introPrepareTimer.restart() }
 
   Timer {
     id: introPrepareTimer
@@ -451,6 +494,18 @@ Item {
       imageRows = rows
       loadRows(rows, false)
     }
+  }
+
+  FileView {
+    id: favouritesFile
+    path: root.stateHome + "/omarchy/theme-favourites.json"
+    blockLoading: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.loadFavourites(text())
+    onLoadFailed: root.loadFavourites("")
+    onSaved: root.favouritesSaveFailed = false
+    onSaveFailed: root.favouritesSaveFailed = true
   }
 
   FileView {
@@ -705,6 +760,12 @@ Item {
                 root.cancel()
               }
               event.accepted = true
+            } else if (root.themeMode && event.modifiers === Qt.ControlModifier && event.key === Qt.Key_D) {
+              root.toggleSelectedFavourite()
+              event.accepted = true
+            } else if (root.themeMode && event.modifiers === Qt.ControlModifier && event.key === Qt.Key_F) {
+              root.toggleFavouritesFilter()
+              event.accepted = true
             } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
               root.applySelected()
               event.accepted = true
@@ -869,10 +930,53 @@ Item {
           elide: Text.ElideRight
         }
 
+        Row {
+          id: favouriteControls
+          visible: root.themeMode
+          enabled: root.favouritesLoaded
+          spacing: Style.space(16)
+          anchors.top: selectedLabel.bottom
+          anchors.topMargin: Style.space(8)
+          anchors.horizontalCenter: carousel.horizontalCenter
+
+          Button {
+            text: Favourites.contains(root.favouriteThemes, root.selectedThemeName()) ? "★" : "☆"
+            enabled: !!root.currentPath()
+            tooltipText: Commons.I18n.t("imagePicker.toggleFavourite")
+            selected: Favourites.contains(root.favouriteThemes, root.selectedThemeName())
+            foreground: root.foreground
+            background: root.dimColor
+            onClicked: root.toggleSelectedFavourite()
+          }
+
+          Button {
+            text: root.favouritesOnly ? Commons.I18n.t("imagePicker.favourites").arg(Commons.I18n.formatNumber(root.favouriteCount)) : Commons.I18n.t("imagePicker.allThemes")
+            tooltipText: Commons.I18n.t("imagePicker.toggleFavouritesFilter")
+            selected: root.favouritesOnly
+            foreground: root.foreground
+            background: root.dimColor
+            onClicked: root.toggleFavouritesFilter()
+          }
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          visible: root.themeMode && (root.favouritesSaveFailed || root.matchingImageIndices.length === 0)
+          anchors.centerIn: carousel
+          width: root.expandedWidth
+          horizontalAlignment: Text.AlignHCenter
+          wrapMode: Text.WordWrap
+          text: root.favouritesSaveFailed ? Commons.I18n.t("imagePicker.favouritesSaveFailed") : (root.favouritesOnly && root.favouriteCount === 0 ? Commons.I18n.t("imagePicker.noFavourites") : Commons.I18n.t("common.noMatches"))
+          color: root.foreground
+          style: Text.Outline
+          styleColor: Util.alpha(root.dimColor, 0.7)
+          font.pixelSize: Style.font.title
+        }
+
         Text {
           textFormat: Text.PlainText
           visible: root.filterable && root.filterText
-          anchors.top: selectedLabel.bottom
+          anchors.top: root.themeMode ? favouriteControls.bottom : selectedLabel.bottom
           anchors.topMargin: Style.space(8)
           anchors.horizontalCenter: carousel.horizontalCenter
           width: root.expandedWidth
