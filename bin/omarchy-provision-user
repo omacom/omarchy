@@ -103,6 +103,10 @@ for skill in "$OMARCHY_PATH"/default/agents/skills/*/; do
   fi
 done
 
+# Personal agent rules live in ~/.agents/AGENTS.md beside the skills, linked
+# into each harness that reads its own global instructions file.
+"$OMARCHY_PATH/bin/omarchy-agent-instructions" >/dev/null || true
+
 mkdir -p ~/Downloads ~/Pictures ~/Videos ~/.config/gtk-3.0
 xdg-user-dirs-update --set TEMPLATES "$HOME"
 xdg-user-dirs-update --set PUBLICSHARE "$HOME"

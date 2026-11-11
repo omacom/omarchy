@@ -1,5 +1,5 @@
 [Default Applications]
-inode/directory=org.gnome.Nautilus.desktop
+inode/directory=folio.desktop
 
 image/png=imv.desktop
 image/jpeg=imv.desktop
@@ -8,7 +8,7 @@ image/webp=imv.desktop
 image/bmp=imv.desktop
 image/tiff=imv.desktop
 
-application/pdf=org.gnome.Evince.desktop
+application/pdf=org.gnome.Papers.desktop
 
 x-scheme-handler/http=chromium.desktop
 x-scheme-handler/https=chromium.desktop
@@ -30,20 +30,20 @@ video/x-ogm+ogg=mpv.desktop
 video/x-theora+ogg=mpv.desktop
 application/ogg=mpv.desktop
 
-text/plain=nvim.desktop
-text/english=nvim.desktop
-text/x-makefile=nvim.desktop
-text/x-c++hdr=nvim.desktop
-text/x-c++src=nvim.desktop
-text/x-chdr=nvim.desktop
-text/x-csrc=nvim.desktop
-text/x-java=nvim.desktop
-text/x-moc=nvim.desktop
-text/x-pascal=nvim.desktop
-text/x-tcl=nvim.desktop
-text/x-tex=nvim.desktop
-application/x-shellscript=nvim.desktop
-text/x-c=nvim.desktop
-text/x-c++=nvim.desktop
-application/xml=nvim.desktop
-text/xml=nvim.desktop
+text/plain=plain.desktop
+text/english=plain.desktop
+text/x-makefile=plain.desktop
+text/x-c++hdr=plain.desktop
+text/x-c++src=plain.desktop
+text/x-chdr=plain.desktop
+text/x-csrc=plain.desktop
+text/x-java=plain.desktop
+text/x-moc=plain.desktop
+text/x-pascal=plain.desktop
+text/x-tcl=plain.desktop
+text/x-tex=plain.desktop
+application/x-shellscript=plain.desktop
+text/x-c=plain.desktop
+text/x-c++=plain.desktop
+application/xml=plain.desktop
+text/xml=plain.desktop

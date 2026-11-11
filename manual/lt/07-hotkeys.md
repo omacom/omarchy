@@ -1,10 +1,38 @@
 # Spartieji klavišai
 
-Visus pagrindinius klaviatūros susiejimus galite pamatyti paspaudę `Super + K` (Tmux susiejimus su `Super + Alt + K`, o Herdr susiejimus su `Super + Ctrl + K`).
+Visus pagrindinius klaviatūros susiejimus galite pamatyti paspaudę `Super + K` (Tmux susiejimus – `Super + Alt + K`, o Herdr susiejimus – `Super + Ctrl + K`).
+
+## Kaip išdėstyti spartieji klavišai
+
+Kiekvienas spartusis klavišas yra vienoje plokštumoje, kurią nustato jo modifikatoriai, ir kiekviena plokštuma turi vieną paskirtį. Būtent tai neleidžia spartiesiems klavišams susilieti tarpusavyje ir leidžia paprastai atspėti, kur kas yra.
+
+| Plokštuma | Kas joje yra | Pavyzdžiai |
+| --- | --- | --- |
+| `Super + key` | Sistema: langai, darbo sritys, išdėstymai ir pagrindiniai meniu | `Super + Space` Omarchy meniu, `Super + W` uždaryti langą, `Super + F` visas ekranas |
+| `Super + Shift + key` | Programos | `Super + Shift + B` naršyklė, `Super + Shift + E` el. paštas, `Super + Shift + N` redaktorius |
+| `Super + Ctrl + key` | Skydeliai ir sistemos meniu | `Super + Ctrl + A` garsas, `Super + Ctrl + N` tinklas, `Super + Ctrl + C` fiksavimo meniu |
+| `Super + Ctrl + Alt + key` | Greiti veiksmai ir pranešimai | `Super + Ctrl + Alt + T` rodyti laiką, `Super + Ctrl + Alt + B` akumuliatorius, `Super + Ctrl + Alt + C` ekrano kopija |
+
+Pridėjus `Alt` prie sparčiojo klavišo, gaunama to paties dalyko atmaina, niekada kažkas nesusijusio:
+
+- `Super + Shift + B` atidaro naršyklę; `Super + Shift + Alt + B` atidaro privatų langą
+- `Super + Shift + E` atidaro el. paštą; `Super + Shift + Alt + E` pradeda naują laišką
+- `Super + F` įjungia viso ekrano režimą; `Super + Alt + F` įjungia viso pločio režimą
+- `Super + Ctrl + C` atidaro fiksavimo meniu; `Super + Ctrl + Alt + C` praleidžia meniu ir padaro ekrano kopiją
+
+Pridėdami spartųjį klavišą:
+
+1. Pagal tai, ką jis daro, pasirinkite plokštumą, tada pasirinkite klavišą.
+2. Neperkeldinėkite esamo sparčiojo klavišo, kad atlaisvintumėte vietos. Raskite laisvą klavišą tinkamoje plokštumoje.
+3. `Alt` naudokite tik sparčiojo klavišo be jo atmainai.
+
+Kai kurie spartieji klavišai pažeidžia šias taisykles, nes taip patogiau. `Shift` su rodykle arba `Tab` perkelia arba apgręžia, o ne atidaro programą, o `Print`, medijos klavišai, `Alt + Tab` ir `Ctrl + Alt + Del` veikia taip, kaip visur kitur. Tai išimtys, o ne pavyzdžiai, kuriuos reikėtų kopijuoti.
+
+Jei numatytasis variantas jums netinka (tarkime, norite `Super + Shift + S` ekrano kopijoms, kaip Windows), perriškite jį faile `~/.config/hypr/bindings.lua`.
 
 ## Naršymas
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Omarchy meniu (programos ir visa kita)    |
 | `Super + Alt + Space` | Programų tinklelis |
@@ -12,23 +40,23 @@ Visus pagrindinius klaviatūros susiejimus galite pamatyti paspaudę `Super + K`
 | `Super + Ctrl + L` | Užrakinti kompiuterį |
 | `Super + W` or `Super + Q` | Uždaryti langą             |
 | `Ctrl + Alt + Del` | Uždaryti visus langus |
-| `Super + T`               | Perjungti langą tarp plytelių ir slankiojo režimo             |
+| `Super + T`               | Perjungti langą tarp išklotinio ir slankiojo režimo             |
 | `Super + J` | Perjungti lango padėtį (horizontali / vertikali) |
-| `Super + O`               | Perjungti lango iškėlimą į lipnų ir slankųjį režimą |
-| `Super + L`               | Ciklu pereiti per dwindle, slinkties ir slankųjį išdėstymus |
-| `Super + Alt + L`         | Ciklu pereiti per išdėstymus atvirkščia tvarka |
-| `Super + P`               | Perjungti pseudolango stilių (natūralus ar ištemptas) |
-| `Super + F`                 | Perjungti viso ekrano režimą              |
-| `Super + Alt + F`                 | Išplėsti per visą plotį              |
+| `Super + O`               | Perjungti lango pavertimą lipniu slankiuoju langu |
+| `Super + L`               | Cikliškai keisti dwindle, scrolling ir floating išdėstymus |
+| `Super + Alt + L`         | Cikliškai keisti išdėstymus atvirkštine tvarka |
+| `Super + P`               | Perjungti pseudo lango stilių (natūralus ar ištemptas) |
+| `Super + F`                 | Įjungti viso ekrano režimą              |
+| `Super + Alt + F`                 | Įjungti viso pločio režimą              |
 | `Super + Ctrl + F`                 | Įjungti viso ekrano režimą lango viduje              |
-| `Super + 1/2/3/4`         | Pereiti į konkrečią darbo sritį fokusuotame monitoriuje |
+| `Super + 1/2/3/4`         | Pereiti į nurodytą darbo sritį fokusuotame monitoriuje |
 | `Super + Tab` | Pereiti į kitą darbo sritį fokusuotame monitoriuje |
 | `Super + Shift + Tab` | Pereiti į ankstesnę darbo sritį fokusuotame monitoriuje |
 | `Super + Ctrl + Tab` | Pereiti į buvusią darbo sritį fokusuotame monitoriuje |
 | `Super + Shift + 1/2/3/4` | Perkelti langą į darbo sritį fokusuotame monitoriuje |
-| `Super + Shift + Alt + 1/2/3/4` | Perkelti langą į darbo sritį fokusuotame monitoriuje nesekant paskui |
-| `Super + S` | Perjungti pilną scratchpad |
-| `Super + Alt + S` | Perkelti langą į pilną scratchpad |
+| `Super + Shift + Alt + 1/2/3/4` | Perkelti langą į darbo sritį fokusuotame monitoriuje ir nepereiti paskui jį |
+| `Super + S` | Perjungti visą scratchpad |
+| `Super + Alt + S` | Perkelti langą į visą scratchpad |
 | `Super + Grave` | Perjungti Quake konsolę |
 | `Super + Shift + Grave` | Perkelti langą į Quake konsolę |
 | `Super + Shift + Ctrl + Arrows` | Perkelti langą į monitorių ta kryptimi |
@@ -36,71 +64,72 @@ Visus pagrindinius klaviatūros susiejimus galite pamatyti paspaudę `Super + K`
 | `Super + Arrow`  | Perkelti fokusą į langą rodyklės kryptimi, ekrano krašte pereinant į tos pusės monitorių |
 | `Super + Shift + Arrow`  | Sukeisti langą su kitu rodyklės kryptimi, įskaitant esantį tos pusės monitoriuje |
 | `Super + Minus` | Išplėsti langą į kairę |
-| `Super + Equal` | Sumažinti langą į kairę |
-| `Super + Shift + Minus` | Sumažinti langą į viršų |
-| `Super + Shift + Equal` | Išplėsti langą į apačią |
+| `Super + Equal` | Susiaurinti langą iš kairės |
+| `Super + Shift + Minus` | Susiaurinti langą iš viršaus |
+| `Super + Shift + Equal` | Išplėsti langą žemyn |
 | `Super + Alt + Minus/Equal` | Tas pats dydžio keitimas mažesniais žingsniais |
 | `Super + Ctrl + Minus/Equal` | Tas pats dydžio keitimas didesniais žingsniais |
-| `Super + Alt + Home` | Įrašyti lango plotį |
-| `Super + Home` | Atkurti įrašytą lango plotį |
+| `Super + Alt + Home` | Išsaugoti lango plotį |
+| `Super + Home` | Atkurti išsaugotą lango plotį |
 | `Super + Left Mouse` | Vilkti langą |
 | `Super + Right Mouse` | Keisti lango dydį |
 | `Super + Scroll Wheel` | Slinkti per darbo sritis fokusuotame monitoriuje |
 | `Super + G`               | Perjungti langų grupavimą      |
-| `Super + Alt + G`               | Perkelti langą iš grupavimo      |
-| `Super + Alt + Tab`               | Ciklu pereiti tarp langų grupėje      |
-| `Super + Alt + Shift + Tab`               | Ciklu pereiti atgal tarp langų grupėje      |
-| `Super + Alt + Scroll Wheel` | Ciklu pereiti tarp langų grupėje |
-| `Super + Alt + 1/2/3/4/5`               | Pereiti į konkretų langą grupėje      |
+| `Super + Alt + G`               | Iškelti langą iš grupės      |
+| `Super + Alt + Tab`               | Cikliškai keisti langus grupėje      |
+| `Super + Alt + Shift + Tab`               | Cikliškai keisti langus grupėje atgal      |
+| `Super + Alt + Scroll Wheel` | Cikliškai keisti langus grupėje |
+| `Super + Alt + 1/2/3/4/5`               | Pereiti į nurodytą langą grupėje      |
 | `Super + Alt + Arrow`  | Perkelti langą į grupę rodyklės kryptimi, įskaitant esantį tos pusės monitoriuje |
-| `Super + Ctrl + Left/Right`  | Judėti tarp langų plytelių grupės viduje |
-| `Super + Ctrl + Z` | Priartinti ekraną (kartoti, norint priartinti dar labiau) |
+| `Super + Ctrl + Left/Right`  | Judėti tarp langų išklotinio išdėstymo grupėje |
+| `Super + Ctrl + Z` | Priartinti ekraną (kartokite, kad priartintumėte dar labiau) |
 | `Super + Ctrl + Alt + Z` | Visiškai atitolinti ekraną |
 | `Super + /` | Pereiti į priekį per monitoriaus mastelio parinktis |
 | `Super + Alt + /` | Pereiti atgal per monitoriaus mastelio parinktis |
-| `Alt + Tab` | Ciklu pereiti į priekį per langus aktyvioje darbo srityje |
-| `Alt + Shift + Tab` | Ciklu pereiti atgal per langus aktyvioje darbo srityje |
-| `Ctrl + Alt + Tab`| Ciklu perkelti fokusą į priekį per monitorius |
-| `Ctrl + Alt + Shift + Tab`| Ciklu perkelti fokusą atgal per monitorius |
+| `Alt + Tab` | Cikliškai pereiti į priekį per langus aktyvioje darbo srityje |
+| `Alt + Shift + Tab` | Cikliškai pereiti atgal per langus aktyvioje darbo srityje |
+| `Ctrl + Alt + Tab`| Cikliškai perkelti fokusą į priekį per monitorius |
+| `Ctrl + Alt + Shift + Tab`| Cikliškai perkelti fokusą atgal per monitorius |
 
-Dydžio keitimo spartieji klavišai naudoja fizinius klavišus `code:20` ir `code:21` (XKB `<AE11>` ir `<AE12>`), nepriklausomai nuo ant klaviatūros atspausdintų simbolių. JAV klaviatūrose šie klavišai yra `-` ir `=`; japoniškose (JIS) klaviatūrose jie yra `-` ir `^`; ispaniškose klaviatūrose jie yra `'` ir `¡`. JIS klaviatūroje `Super + ^` yra `Super + Equal`, o `Super + Shift + -` (kuriuo įvedama `=`) yra `Super + Shift + Minus`.
+Dydžio keitimo spartieji klavišai naudoja fizinius klavišus `code:20` ir `code:21` (XKB `<AE11>` ir `<AE12>`), neatsižvelgiant į ant klaviatūros atspausdintus simbolius. JAV klaviatūrose šie klavišai yra `-` ir `=`; japoniškose (JIS) klaviatūrose jie yra `-` ir `^`; ispaniškose klaviatūrose jie yra `'` ir `¡`. JIS klaviatūroje `Super + ^` yra `Super + Equal`, o `Super + Shift + -` (kuriuo įvedama `=`) yra `Super + Shift + Minus`.
 
 ## Sistemos valdikliai
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | Garso skydelis    |
 | `Super + Ctrl + B`           | Bluetooth skydelis    |
-| `Super + Ctrl + N`           | Wifi / tinklo skydelis    |
+| `Super + Ctrl + N`           | Wi-Fi / tinklo skydelis    |
 | `Super + Ctrl + D`           | Ekrano skydelis    |
 | `Super + Ctrl + P`           | Maitinimo skydelis    |
+| `Super + Ctrl + X`           | Agentų skydelis    |
 | `Super + Ctrl + Alt + D`           | Kalendoriaus skydelis    |
 | `Super + Ctrl + Alt + E`           | Pasaulio laikrodžio skydelis    |
 | `Super + Ctrl + 1-9`           | Perjungti juostos skydelį pagal padėtį    |
 | `Super + Ctrl + S` | Bendrinimo meniu (per LocalSend) |
-| `Super + Ctrl + C` | Fiksavimo valdikliai (ekrano kopija / -įrašymas / parinkiklis) |
-| `Super + Ctrl + O` | Perjungti meniu |
+| `Super + Ctrl + C` | Fiksavimo valdikliai (ekrano kopija / įrašymas / rinkiklis) |
+| `Super + Ctrl + O` | Perjungimų meniu |
 | `Super + Ctrl + H` | Aparatinės įrangos meniu |
-| `Super + Ctrl + E` | Jaustukų parinkiklis |
-| `Super + Ctrl + .` | Perkonvertuoti mediją |
+| `Super + Ctrl + E` | Jaustukų rinkiklis |
+| `Super + Ctrl + .` | Perkuoduoti mediją |
 | `Super + Shift + Ctrl + A` | Pasirinkti AI agentą |
 
-## Reguliavimas
+## Koregavimai
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Shift + Brightness Up` | Didžiausias ekrano ryškumas |
 | `Shift + Brightness Down` | Mažiausias ekrano ryškumas |
-| `Alt + Brightness Up/Down` | Tikslūs 1% ryškumo pakeitimai |
-| `Alt + Volume Up/Down` | Tikslūs 1% garsumo pakeitimai |
-| `Keyboard Brightness Up/Down` | Klaviatūros apšvietimas ryškesnis / blankesnis |
-| `Keyboard Backlight` | Ciklu pereiti per klaviatūros apšvietimo lygius |
+| `Alt + Brightness Up/Down` | Tikslūs 1 % ryškumo pakeitimai |
+| `Alt + Volume Up/Down` | Tikslūs 1 % garsumo pakeitimai |
+| `Keyboard Brightness Up/Down` | Klaviatūros apšvietimas ryškiau / blankiau |
+| `Keyboard Backlight` | Cikliškai keisti klaviatūros apšvietimo lygius |
 | `Alt + Play` | Kitas takelis |
 | `Alt + Shift + Play` | Ankstesnis takelis |
 
 ## Programų paleidimas
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Return`           | Terminalas    |
 | `Super + Alt + Return` | Tmux terminalas |
@@ -108,7 +137,7 @@ Dydžio keitimo spartieji klavišai naudoja fizinius klavišus `code:20` ir `cod
 | `Super + Shift + Return`           | Naršyklė    |
 | `Super + Shift + Alt + B`           | Naršyklė (privatus / inkognito režimas)    |
 | `Super + Shift + F`           | Failų tvarkyklė    |
-| `Super + Shift + Alt + F`           | Failų tvarkyklė terminalo cwd kataloge    |
+| `Super + Shift + Alt + F`           | Failų tvarkyklė terminalo cwd    |
 | `Super + Shift + M`           | Muzika (Spotify)    |
 | `Super + Shift + Alt + M`           | Muzika (cliamp)    |
 | `Super + Shift + /`           | Slaptažodžių tvarkyklė (1password)    |
@@ -120,22 +149,22 @@ Dydžio keitimo spartieji klavišai naudoja fizinius klavišus `code:20` ir `cod
 | `Super + Shift + Alt + E`           | Naujas el. laiškas ([HEY](https://hey.com/))  |
 | `Super + Shift + A`           | AI (ChatGPT)  |
 | `Super + Shift + Alt + A`           | AI (Grok)  |
-| `Super + Shift + G`           | Susirašinėjimas (Signal)  |
+| `Super + Shift + G`           | Susirašinėjimo programa (Signal)  |
 | `Super + Shift + P`           | Google Photos  |
 | `Super + Shift + S`           | Google Maps  |
-| `Super + Shift + Alt + G`           | Susirašinėjimas (WhatsApp)  |
-| `Super + Shift + Ctrl + G`           | Susirašinėjimas (Google)  |
+| `Super + Shift + Alt + G`           | Susirašinėjimo programa (WhatsApp)  |
+| `Super + Shift + Ctrl + G`           | Susirašinėjimo programa (Google)  |
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | Rašymas (Omawrite)  |
 | `Super + Shift + X`           | X |
 | `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
 
-Pakeiskite / pridėkite susiejimų faile `~/.config/hypr/bindings.lua`.
+Keiskite / pridėkite susiejimus faile `~/.config/hypr/bindings.lua`.
 
 ## Universali iškarpinė
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + A`           | Pasirinkti viską programose, kurios palaiko `Ctrl + A`    |
 | `Super + C`           | Kopijuoti    |
@@ -143,77 +172,77 @@ Pakeiskite / pridėkite susiejimų faile `~/.config/hypr/bindings.lua`.
 | `Super + V`           | Įklijuoti    |
 | `Super + Ctrl + V`           | Iškarpinės tvarkyklė    |
 
-Paprastai Linux sistemoje terminale kopijuoti ir įklijuoti reikia `Ctrl + Shift + C/V`, o visur kitur – `Ctrl + C/V`. Šie Omarchy suvienodinti iškarpinės spartieji klavišai veikia visur.
+Paprastai Linux sistemoje terminale kopijuoti ir įklijuoti reikia `Ctrl + Shift + C/V`, o visur kitur – `Ctrl + C/V`. Šie suvienodinti Omarchy iškarpinės spartieji klavišai veikia visur.
 
 ## Fiksavimas
 
-| Hotkey              | Function                       |
+| Spartusis klavišas              | Funkcija                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Ekrano kopija                      |
-| `Super + Ctrl + Alt + C`            | Ekrano kopija (tas pats veiksmas klaviatūroms be Print Screen klavišo) |
+| `Super + Ctrl + Alt + C`            | Ekrano kopija (tas pats kadras, klaviatūroms be Print Screen klavišo) |
 | `Super + Ctrl + C` | Fiksavimo meniu |
 | `Alt + Print Screen`            | Ekrano įrašymas                     |
-| `Super + Print Screen` | Spalvų parinkiklis |
+| `Super + Print Screen` | Spalvų rinkiklis |
 | `Super + Ctrl + Print Screen` | Teksto išgavimas į iškarpinę |
-| `Super + Alt + [` | Sumažinti internetinės kameros perdangą įrašymo metu |
-| `Super + Alt + ]` | Padidinti internetinės kameros perdangą įrašymo metu |
+| `Super + Alt + [` | Sumažinti internetinės kameros perdangą įrašant |
+| `Super + Alt + ]` | Padidinti internetinės kameros perdangą įrašant |
 | `Alt + Shift + L` | Kopijuoti dabartinį URL iš žiniatinklio programos arba Chromium |
 | `Alt + Shift + D` | Atsisiųsti dabartinio puslapio vaizdo įrašą į `~/Videos` |
-| `Super + Ctrl + X` | Pradėti / sustabdyti diktavimą (reikia _Sąranka > Numatytieji > Diktavimas_) |
-| `Right Alt` / `F9` | Diktavimas paspaudus ir laikant (reikia Voxtype arba Superwhisper) |
+| `Alt + Space` | Pradėti / sustabdyti diktavimą (reikia _Sąranka > Numatytosios reikšmės > Diktavimas_) |
+| `Right Alt` | Laikykite, kad diktuotumėte (reikia _Sąranka > Numatytosios reikšmės > Diktavimas_) |
 
-Įrašant ekraną, spartusis klavišas pirmiausia paklausia, kokio garso norite, tada pradeda įrašyti. Paspauskite jį dar kartą, kad sustabdytumėte. Išsamesnės informacijos žr. [ekrano kopijos ir įrašymas](12-screenshots-recording.md).
+Įrašant ekraną, spartusis klavišas pirmiausia paklausia, kokio garso norite, tada pradeda įrašyti. Paspauskite jį dar kartą, kad sustabdytumėte. Išsamesnės informacijos rasite skyriuje [ekrano kopijos ir įrašymas](12-screenshots-recording.md).
 
-Visos fiksavimo parinktys taip pat pasiekiamos Omarchy meniu (`Super + Space`) skiltyje _Aktyviklis > Fiksavimas_.
+Visos fiksavimo parinktys taip pat pasiekiamos Omarchy meniu (`Super + Space`) skiltyje _Paleidiklis > Fiksavimas_.
 
 ## Pranešimai
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Veikti pagal naujausią pranešimą: atidaryti jį arba paspausti vienintelį jo mygtuką, pasirinkti iš jo parinkčių arba atmesti jį, kai jis jų neturi  |
+| `Super + ,` | Atlikti veiksmą su naujausiu pranešimu: atidaryti jį arba paspausti vienintelį jo mygtuką, pasirinkti iš jo parinkčių arba atmesti jį, kai jis jų neturi  |
 | `Super + Shift + ,` | Atmesti visus pranešimus |
 | `Super + Ctrl + ,` | Valdyti pranešimus klaviatūra  |
 | `Super + Alt + ,` | Atmesti naujausią pranešimą  |
 | `Super + Shift + Alt + ,` | Atidaryti pranešimų istoriją  |
-| `Super + Ctrl + Alt + ,` | Perjungti pranešimų nutildymą  |
+| `Super + Ctrl + Alt + ,` | Įjungti / išjungti pranešimų nutildymą  |
 
 ## Stilius
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + T` | Pasirinkti naują temą (taip pat `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Pasirinkti temos foną (taip pat `Super + Ctrl + Space`) |
 | `Super + Backspace` | Perjungti lango skaidrumą |
-| `Super + Ctrl + Backspace` | Perjungti vieno lango kvadratinį kraštinių santykį |
+| `Super + Ctrl + Backspace` | Perjungti vieno lango kvadrato kraštinių santykį |
 
-Papildomi fono paveikslėliai yra `~/.config/omarchy/backgrounds/<theme name>`. Taip pat pasiekiama Omarchy meniu per _Įdiegti > Stilius > Fonas_.
+Papildomi fono paveikslėliai yra `~/.config/omarchy/backgrounds/<theme name>`. Taip pat pasiekiama per Omarchy meniu _Įdiegti > Stilius > Fonas_.
 
 Visos stiliaus parinktys taip pat pasiekiamos Omarchy meniu (`Super + Space`) skiltyje _Stilius_.
 
-## Perjungikliai
+## Perjungimai
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Perjungti užrakinimą esant neaktyvumui |
+| `Super + Ctrl + I` | Perjungti užrakinimą esant neveiklai |
 | `Super + Ctrl + Delete` | Įjungti / išjungti nešiojamojo kompiuterio ekraną |
 | `Super + Ctrl + Alt + Delete` | Perjungti nešiojamojo kompiuterio ekrano veidrodinį atspindėjimą |
 | `Super + Shift + Space` | Perjungti viršutinę juostą  |
-| `Shift + Mute` | Perjungti į kitą garso išvestį |
-| `Shift + Play` | Perjungti į kitą medijos šaltinį |
-| `Super + Shift + Backspace` | Perjungti tarpus tarp langų |
-| `Super + Ctrl + Alt + F` | Perjungti viso ekrano darbalaukį (viršutinė juosta + tarpai tarp langų) |
+| `Shift + Mute` | Pereiti į kitą garso išvestį |
+| `Shift + Play` | Pereiti į kitą medijos šaltinį |
+| `Super + Shift + Backspace` | Perjungti langų tarpus |
+| `Super + Ctrl + Alt + F` | Perjungti viso ekrano darbalaukį (viršutinė juosta + langų tarpai) |
 
 ## Priminimai
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + R` | Nustatyti priminimą  |
 | `Super + Ctrl + Alt + R` | Žiūrėti visus priminimus  |
 | `Super + Ctrl + Shift + R` | Išvalyti visus priminimus  |
 
-## Trumpieji pranešimai
+## Informacija
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Alt + T` | Rodyti laiką kaip pranešimą  |
 | `Super + Ctrl + Alt + B` | Rodyti akumuliatorių kaip pranešimą  |
@@ -221,11 +250,11 @@ Visos stiliaus parinktys taip pat pasiekiamos Omarchy meniu (`Super + Space`) sk
 
 ## Tmux
 
-Prefikso klavišas yra `Ctrl + Space` (taip pat veikia `Ctrl + B`). Šiuos susiejimus galite pakeisti faile `~/.config/tmux/tmux.conf`.
+Prefikso klavišas yra `Ctrl + Space` (`Ctrl + B` taip pat veikia). Šiuos susiejimus galite keisti faile `~/.config/tmux/tmux.conf`.
 
 ### Sritys
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + v` | Padalyti sritį šalia (vertikaliai) |
 | `Prefix + h` | Padalyti sritį žemiau (horizontaliai) |
@@ -239,21 +268,21 @@ Prefikso klavišas yra `Ctrl + Space` (taip pat veikia `Ctrl + B`). Šiuos susie
 
 ### Langai
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + c` | Naujas langas |
 | `Prefix + k` | Uždaryti langą |
 | `Prefix + r` | Pervadinti langą |
-| `Alt + 1-9` | Pereiti į konkretų langą |
+| `Alt + 1-9` | Pereiti į nurodytą langą |
 | `Alt + Arrow Left/Right` | Judėti tarp langų |
 | `Alt + Shift + Arrow Left/Right` | Perkelti langą į kairę / dešinę |
 
 ### Seansai
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + C` | Naujas seansas |
-| `Prefix + K` | Uždaryti seansą |
+| `Prefix + K` | Užbaigti seansą |
 | `Prefix + R` | Pervadinti seansą |
 | `Prefix + N` | Kitas seansas |
 | `Prefix + P` | Ankstesnis seansas |
@@ -263,15 +292,15 @@ Prefikso klavišas yra `Ctrl + Space` (taip pat veikia `Ctrl + B`). Šiuos susie
 
 ### Kopijavimo režimas (vi stiliaus)
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + [` | Įjungti kopijavimo režimą |
-| `v` | Pradėti pasirinkimą (kopijavimo režime) |
-| `y` | Kopijuoti pasirinkimą (kopijavimo režime) |
+| `v` | Pradėti žymėjimą (kopijavimo režime) |
+| `y` | Kopijuoti pažymėtą sritį (kopijavimo režime) |
 
 ### Bendra
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Iš naujo įkelti konfigūraciją |
 | `Prefix + ?` | Rodyti Tmux klavišų susiejimus |
@@ -279,9 +308,9 @@ Prefikso klavišas yra `Ctrl + Space` (taip pat veikia `Ctrl + B`). Šiuos susie
 
 ### Tmux išdėstymo funkcijos
 
-Šios funkcijos turi būti vykdomos Tmux seanso viduje.
+Šias funkcijas reikia paleisti Tmux seanso viduje.
 
-| Command | Function |
+| Komanda | Funkcija |
 | ------- | -------- |
 | `tdl <ai> [<second_ai>]` | Sukurti kūrimo išdėstymą su redaktoriumi, AI ir terminalu |
 | `tdlm <ai> [<second_ai>]` | Sukurti kūrimo išdėstymą kiekvienam pakatalogiui |
@@ -289,49 +318,49 @@ Prefikso klavišas yra `Ctrl + Space` (taip pat veikia `Ctrl + B`). Šiuos susie
 
 ## Ghostty terminalas
 
-Ghostty terminalas įdiegiamas Omarchy meniu per _Įdiegti > Terminalas_.
+Ghostty terminalas įdiegiamas per Omarchy meniu naudojant _Įdiegti > Terminalas_.
 
-| Hotkey                  | Function              |
+| Spartusis klavišas                  | Funkcija              |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | Naujas padalijimas žemiau |
 | `Ctrl + Shift + O` | Naujas padalijimas šalia |
 | `Ctrl + Alt + Arrows` | Judėti tarp padalijimų |
 | `Super + Ctrl + Shift + Arrows` | Keisti padalijimo dydį 10 eilučių |
 | `Super + Ctrl + Shift + Alt + Arrows` | Keisti padalijimo dydį 100 eilučių |
-| `Ctrl + Shift + T` | Nauja kortelė  |
-| `Ctrl + Shift + Arrows` | Judėti tarp kortelių |
-| `Alt + Numbers` | Pereiti į konkrečią kortelę |
+| `Ctrl + Shift + T` | Naujas skirtukas  |
+| `Ctrl + Shift + Arrows` | Judėti tarp skirtukų |
+| `Alt + Numbers` | Pereiti į nurodytą skirtuką |
 | `Shift + Pg Up/Down` | Slinkti per istoriją |
 | `Ctrl + Left mouse` | Atidaryti nuorodą naršyklėje |
 
 ## Failų tvarkyklė
 
-| Hotkey              | Function                       |
+| Spartusis klavišas              | Funkcija                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Eiti į kelią                     |
 | `Space`               | Peržiūrėti failą (rodyklėmis naršoma) |
-| `Alt + Up`       | Eiti aukštyn į pirminį aplanką        |
+| `Alt + Up`       | Eiti į pirminį aplanką        |
 
 ## Neovim (su lazyvim)
 
 ### Naršymas
 
-| Hotkey                   | Function                        |
+| Spartusis klavišas                   | Funkcija                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | Rodyti komandų parinktis            |
-| `Space Space`              | Atidaryti failą naudojant neaiškiąją paiešką      |
+| `Space Space`              | Atidaryti failą per apytikslę paiešką      |
 | `Space E`                  | Perjungti šoninę juostą                  |
 | `Space G G`                | Rodyti git valdiklius               |
 | `Space S G`                | Ieškoti failo turinyje             |
-| `Ctrl + W W`               | Peršokti tarp šoninės juostos ir redaktoriaus |
+| `Ctrl + W W`               | Pereiti tarp šoninės juostos ir redaktoriaus |
 | `Ctrl + Left/right arrow`  | Keisti šoninės juostos dydį          |
-| `Shift + H`                      | Pereiti į kairę failo kortelę             |
-| `Shift + L`                      | Pereiti į dešinę failo kortelę            |
-| `Space B D`                | Uždaryti failo kortelę                  |
+| `Shift + H`                      | Eiti į kairįjį failo skirtuką             |
+| `Shift + L`                      | Eiti į dešinįjį failo skirtuką            |
+| `Space B D`                | Uždaryti failo skirtuką                  |
 
 ### Esant šoninėje juostoje
 
-| Hotkey                   | Function                        |
+| Spartusis klavišas                   | Funkcija                        |
 | ------------------------ | ------------------------------- |
 | `A`                        | Pridėti naują failą pirminiame kataloge      |
 | `Shift + A`                | Pridėti naują pakatalogį pirminiame kataloge    |
@@ -342,11 +371,11 @@ Ghostty terminalas įdiegiamas Omarchy meniu per _Įdiegti > Terminalas_.
 
 [Žiūrėti visus LazyVim sukonfigūruotus Neovim sparčiuosius klavišus](https://www.lazyvim.org/keymaps).
 
-## Greitieji jaustukai
+## Greiti jaustukai
 
-Galite naudoti `Super + Ctrl + E`, kad būtų parodytas išsamus jaustukų parinkiklis, kuris įdės pasirinkimą į iškarpinę, arba galite naudoti šias greitosios prieigos parinktis.
+Galite naudoti `Super + Ctrl + E`, kad būtų parodytas visas jaustukų rinkiklis, kuris įdės pasirinkimą į iškarpinę, arba galite naudoti šias greitosios prieigos parinktis.
 
-| Hotkey       | EM | Clue       |
+| Spartusis klavišas       | EM | Užuomina       |
 | ------------ | -- | ---------- |
 | `Shift + CapsLock M S` | 😄 | šypsena      |
 | `Shift + CapsLock M C` | 😂 | verksmas        |
@@ -355,8 +384,8 @@ Galite naudoti `Super + Ctrl + E`, kad būtų parodytas išsamus jaustukų parin
 | `Shift + CapsLock M H` | ❤️ | širdis      |
 | `Shift + CapsLock M Y` | 👍 | taip        |
 | `Shift + CapsLock M N` | 👎 | ne         |
-| `Shift + CapsLock M F` | 🖕 | fuck       |
-| `Shift + CapsLock M W` | 🤞 | noras       |
+| `Shift + CapsLock M F` | 🖕 | vidurinis pirštas       |
+| `Shift + CapsLock M W` | 🤞 | palinkėjimas       |
 | `Shift + CapsLock M R` | 🤘 | rokas       |
 | `Shift + CapsLock M K` | 😘 | bučinys       |
 | `Shift + CapsLock M E` | 🙄 | akių vartymas    |
@@ -370,14 +399,14 @@ Galite naudoti `Super + Ctrl + E`, kad būtų parodytas išsamus jaustukų parin
 | `Shift + CapsLock M O` |👌 | gerai |
 | `Shift + CapsLock M G` |👋 | pasisveikinimas |
 | `Shift + CapsLock M A` |💪 | ranka |
-| `Shift + CapsLock M B` |🤯 | sprogimas |
+| `Shift + CapsLock M B` |🤯 | sprogsta galva |
 
-## Greitieji užbaigimai
+## Greiti užbaigimai
 
-| Hotkey       | Completion       |
+| Spartusis klavišas       | Užbaigimas       |
 | ------------ |  ---------- |
 | `Shift + CapsLock Space Space` | — (ilgas brūkšnys)   |
-| `Shift + CapsLock Space N` | Jūsų vardas (kaip įvesta sąrankos metu)  |
-| `Shift + CapsLock Space E` | Jūsų el. paštas (kaip įvesta sąrankos metu)  |
+| `Shift + CapsLock Space N` | Jūsų vardas (kaip įvestas sąrankos metu)  |
+| `Shift + CapsLock Space E` | Jūsų el. paštas (kaip įvestas sąrankos metu)  |
 
-Galite pridėti daugiau savų redaguodami `~/.XCompose`, tada terminale paleiskite `omarchy-restart-xcompose`, kad pakeitimai būtų pritaikyti.
+Galite pridėti daugiau savų, redaguodami `~/.XCompose`, tada terminale paleidę `omarchy-restart-xcompose`, kad pakeitimai būtų pritaikyti.

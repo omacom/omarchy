@@ -26,7 +26,6 @@ docker-buildx
 docker-compose
 dosfstools
 dotnet-runtime
-evince
 exfatprogs
 expac
 eza
@@ -43,6 +42,7 @@ fcitx5-table-extra
 fd
 ffmpeg
 ffmpegthumbnailer
+folio
 fontconfig
 foot
 fzf
@@ -84,11 +84,8 @@ man-db
 mariadb-libs
 mise-bin
 monologue
-moonlight-qt
 mpv
 mpv-mpris
-nautilus
-nautilus-python
 gnome-disk-utility
 noto-fonts
 noto-fonts-cjk
@@ -101,6 +98,8 @@ omacut
 omawrite
 omarchy-nvim
 omarchy-hyprland-titlebars
+# Local model recipes and their engine; Podman comes when a model is set up.
+omarchy-local-ai
 # Stock power-profiles-daemon has no cppc_cpufreq driver, so profiles do nothing
 # on ARM laptops. Back to stock once upstream merges MR !236 and !239.
 omarchy-power-profiles-daemon
@@ -110,7 +109,9 @@ omasnap
 owe
 pacman-contrib
 pamixer
+papers
 pinta
+plain
 plocate
 plymouth
 postgresql-libs
@@ -121,6 +122,7 @@ qt6-declarative
 qt6-multimedia
 qt6-svg
 qt6-wayland
+qtengine
 ttfx
 qemu-user-static-binfmt
 qrencode
@@ -135,7 +137,6 @@ slurp
 socat
 starship
 superwhisper-bin
-sushi
 system-config-printer
 tesseract
 tesseract-data-eng
@@ -162,6 +163,7 @@ woff2-font-awesome
 xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland
 xdg-terminal-exec
+xdg-user-dirs
 yaru-icon-theme
 yay
 yt-dlp

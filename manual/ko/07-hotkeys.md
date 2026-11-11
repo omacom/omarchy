@@ -1,6 +1,34 @@
 # 단축키
 
-`Super + K`로 모든 주요 키보드 바인딩을 볼 수 있다(Tmux 바인딩은 `Super + Alt + K`, Herdr 바인딩은 `Super + Ctrl + K`).
+모든 주요 키보드 바인딩은 `Super + K`로 볼 수 있습니다(Tmux 바인딩은 `Super + Alt + K`, Herdr 바인딩은 `Super + Ctrl + K`).
+
+## 단축키가 배치되는 방식
+
+모든 단축키는 수정자 키로 정해지는 평면 위에 있고, 각 평면마다 하나의 역할이 있습니다. 덕분에 단축키가 서로 뒤섞이지 않고, 보통 어디에 있는지 짐작할 수 있습니다.
+
+| 평면 | 그곳에 있는 것 | 예시 |
+| --- | --- | --- |
+| `Super + key` | 시스템: 창, 워크스페이스, 레이아웃, 핵심 메뉴 | `Super + Space` Omarchy 메뉴, `Super + W` 창 닫기, `Super + F` 전체 화면 |
+| `Super + Shift + key` | 앱 | `Super + Shift + B` 브라우저, `Super + Shift + E` 이메일, `Super + Shift + N` 편집기 |
+| `Super + Ctrl + key` | 패널 및 시스템 메뉴 | `Super + Ctrl + A` 오디오, `Super + Ctrl + N` 네트워크, `Super + Ctrl + C` 캡처 메뉴 |
+| `Super + Ctrl + Alt + key` | 빠른 작업 및 공지 | `Super + Ctrl + Alt + T` 시간 표시, `Super + Ctrl + Alt + B` 배터리, `Super + Ctrl + Alt + C` 스크린샷 |
+
+단축키에 `Alt`를 추가하면 같은 것의 변형이 되지, 전혀 관련 없는 것이 되지 않습니다:
+
+- `Super + Shift + B`는 브라우저를 엽니다; `Super + Shift + Alt + B`는 프라이빗 창을 엽니다
+- `Super + Shift + E`는 이메일을 엽니다; `Super + Shift + Alt + E`는 새 이메일 작성을 시작합니다
+- `Super + F`는 전체 화면으로 전환합니다; `Super + Alt + F`는 전체 너비로 전환합니다
+- `Super + Ctrl + C`는 캡처 메뉴를 엽니다; `Super + Ctrl + Alt + C`는 메뉴를 건너뛰고 스크린샷을 찍습니다
+
+단축키를 추가할 때:
+
+1. 어떤 일을 하는지에 따라 평면을 고른 뒤, 키를 고르세요.
+2. 자리를 만들기 위해 기존 단축키를 옮기지 마세요. 올바른 평면에서 빈 키를 찾으세요.
+3. `Alt`는 그것이 없는 단축키의 변형에만 사용하세요.
+
+몇몇 단축키는 편리하기 때문에 이 규칙을 어깁니다. 화살표나 `Tab`과 함께 쓰는 `Shift`는 앱을 여는 대신 이동하거나 역방향으로 동작하고, `Print`, 미디어 키, `Alt + Tab`, `Ctrl + Alt + Del`은 다른 모든 곳에서처럼 작동합니다. 이는 예외이지, 따라 할 패턴이 아닙니다.
+
+기본값이 마음에 들지 않으면(예를 들어 Windows처럼 스크린샷에 `Super + Shift + S`를 쓰고 싶다면), `~/.config/hypr/bindings.lua`에서 다시 바인딩하세요.
 
 ## 탐색
 
@@ -14,27 +42,27 @@
 | `Ctrl + Alt + Del` | 모든 창 닫기 |
 | `Super + T`               | 창을 타일링/플로팅 간 전환             |
 | `Super + J` | 창 위치 전환(가로/세로) |
-| `Super + O`               | 창을 sticky'n'floating으로 튀어나오게 전환 |
+| `Super + O`               | 창을 sticky'n'floating으로 팝업 전환 |
 | `Super + L`               | dwindle, scrolling, floating 레이아웃 순환 |
 | `Super + Alt + L`         | 레이아웃을 역순으로 순환 |
 | `Super + P`               | pseudo 창 스타일 전환(natural 대 stretch) |
 | `Super + F`                 | 전체 화면으로 전환              |
 | `Super + Alt + F`                 | 전체 너비로 전환              |
-| `Super + Ctrl + F`                 | 창 안에서 전체 화면으로 전환              |
-| `Super + 1/2/3/4`         | 포커스된 모니터의 특정 워크스페이스로 이동 |
-| `Super + Tab` | 포커스된 모니터의 다음 워크스페이스로 이동 |
-| `Super + Shift + Tab` | 포커스된 모니터의 이전 워크스페이스로 이동 |
-| `Super + Ctrl + Tab` | 포커스된 모니터의 이전에 사용한 워크스페이스로 이동 |
-| `Super + Shift + 1/2/3/4` | 창을 포커스된 모니터의 워크스페이스로 이동 |
-| `Super + Shift + Alt + 1/2/3/4` | 따라가지 않고 창을 포커스된 모니터의 워크스페이스로 이동 |
-| `Super + S` | 전체 스크래치패드 전환 |
-| `Super + Alt + S` | 창을 전체 스크래치패드로 이동 |
+| `Super + Ctrl + F`                 | 창 내부 전체 화면으로 전환              |
+| `Super + 1/2/3/4`         | 포커스된 모니터에서 특정 워크스페이스로 이동 |
+| `Super + Tab` | 포커스된 모니터에서 다음 워크스페이스로 이동 |
+| `Super + Shift + Tab` | 포커스된 모니터에서 이전 워크스페이스로 이동 |
+| `Super + Ctrl + Tab` | 포커스된 모니터에서 이전에 있던 워크스페이스로 이동 |
+| `Super + Shift + 1/2/3/4` | 포커스된 모니터에서 창을 워크스페이스로 이동 |
+| `Super + Shift + Alt + 1/2/3/4` | 따라가지 않고 포커스된 모니터에서 창을 워크스페이스로 이동 |
+| `Super + S` | 전체 scratchpad 전환 |
+| `Super + Alt + S` | 창을 전체 scratchpad로 이동 |
 | `Super + Grave` | Quake 콘솔 전환 |
 | `Super + Shift + Grave` | 창을 Quake 콘솔로 이동 |
-| `Super + Shift + Ctrl + Arrows` | 창을 해당 방향의 모니터로 이동 |
-| `Super + Shift + Alt + Arrows` | 워크스페이스를 해당 방향의 모니터로 이동 |
+| `Super + Shift + Ctrl + Arrows` | 해당 방향의 모니터로 창 이동 |
+| `Super + Shift + Alt + Arrows` | 해당 방향의 모니터로 워크스페이스 이동 |
 | `Super + Arrow`  | 화살표 방향의 창으로 포커스 이동, 화면 가장자리에서는 그쪽 모니터로 넘어감 |
-| `Super + Shift + Arrow`  | 화살표 방향의 다른 창과 교체, 그쪽 모니터에 있는 창 포함 |
+| `Super + Shift + Arrow`  | 화살표 방향의 다른 창과 창 교체, 그쪽 모니터에 있는 창 포함 |
 | `Super + Minus` | 창을 왼쪽으로 확장 |
 | `Super + Equal` | 창을 왼쪽으로 축소 |
 | `Super + Shift + Minus` | 창을 위쪽으로 축소 |
@@ -42,28 +70,28 @@
 | `Super + Alt + Minus/Equal` | 더 작은 단계로 같은 크기 조정 |
 | `Super + Ctrl + Minus/Equal` | 더 큰 단계로 같은 크기 조정 |
 | `Super + Alt + Home` | 창 너비 저장 |
-| `Super + Home` | 저장한 창 너비 복원 |
-| `Super + Left Mouse` | 창 드래그 |
+| `Super + Home` | 저장된 창 너비 복원 |
+| `Super + Left Mouse` | 창 드래그 이동 |
 | `Super + Right Mouse` | 창 크기 조정 |
-| `Super + Scroll Wheel` | 포커스된 모니터의 워크스페이스 스크롤 |
-| `Super + G`               | 창 그룹화 전환      |
-| `Super + Alt + G`               | 창을 그룹에서 빼기      |
-| `Super + Alt + Tab`               | 그룹 내 창 순환      |
-| `Super + Alt + Shift + Tab`               | 그룹 내 창 역순 순환      |
-| `Super + Alt + Scroll Wheel` | 그룹 내 창 순환 |
-| `Super + Alt + 1/2/3/4/5`               | 그룹 내 특정 창으로 이동      |
-| `Super + Alt + Arrow`  | 화살표 방향으로 창을 그룹에 넣기, 그쪽 모니터에 있는 창 포함 |
-| `Super + Ctrl + Left/Right`  | 타일링 그룹 내 창 간 이동 |
-| `Super + Ctrl + Z` | 화면 확대(반복하면 더 확대) |
-| `Super + Ctrl + Alt + Z` | 화면 완전히 축소 |
-| `Super + /` | 모니터 배율 옵션을 앞으로 단계 이동 |
-| `Super + Alt + /` | 모니터 배율 옵션을 뒤로 단계 이동 |
+| `Super + Scroll Wheel` | 포커스된 모니터에서 워크스페이스 스크롤 |
+| `Super + G`               | 창 그룹핑 전환      |
+| `Super + Alt + G`               | 창을 그룹핑에서 빼기      |
+| `Super + Alt + Tab`               | 그룹핑 내 창 간 순환      |
+| `Super + Alt + Shift + Tab`               | 그룹핑 내 창 간 역순 순환      |
+| `Super + Alt + Scroll Wheel` | 그룹핑 내 창 간 순환 |
+| `Super + Alt + 1/2/3/4/5`               | 그룹핑에서 특정 창으로 이동      |
+| `Super + Alt + Arrow`  | 화살표 방향으로 창을 그룹핑에 넣기, 그쪽 모니터에 있는 창 포함 |
+| `Super + Ctrl + Left/Right`  | 타일링 그룹 내부 창 간 이동 |
+| `Super + Ctrl + Z` | 화면 확대(반복할수록 더 확대) |
+| `Super + Ctrl + Alt + Z` | 화면에서 완전히 축소 |
+| `Super + /` | 모니터 배율 옵션을 앞으로 이동 |
+| `Super + Alt + /` | 모니터 배율 옵션을 뒤로 이동 |
 | `Alt + Tab` | 활성 워크스페이스의 창을 앞으로 순환 |
 | `Alt + Shift + Tab` | 활성 워크스페이스의 창을 뒤로 순환 |
 | `Ctrl + Alt + Tab`| 모니터 간 포커스를 앞으로 순환 |
 | `Ctrl + Alt + Shift + Tab`| 모니터 간 포커스를 뒤로 순환 |
 
-크기 조정 단축키는 키보드에 인쇄된 문자와 관계없이 물리 키 `code:20`과 `code:21`(XKB `<AE11>` 및 `<AE12>`)을 사용한다. 미국 키보드에서 이 키는 `-`와 `=`이고, 일본어(JIS) 키보드에서는 `-`와 `^`이며, 스페인어 키보드에서는 `'`와 `¡`이다. JIS에서 `Super + ^`는 `Super + Equal`이고, `Super + Shift + -`(`=`를 입력함)는 `Super + Shift + Minus`이다.
+크기 조정 단축키는 키보드에 인쇄된 문자와 관계없이 물리 키 `code:20`과 `code:21`(XKB `<AE11>` 및 `<AE12>`)을 사용합니다. 미국 키보드에서 이 키는 `-`와 `=`이고, 일본어(JIS) 키보드에서는 `-`와 `^`이며, 스페인어 키보드에서는 `'`와 `¡`입니다. JIS에서 `Super + ^`는 `Super + Equal`이고, `Super + Shift + -`(`=`를 입력함)는 `Super + Shift + Minus`입니다.
 
 ## 시스템 제어
 
@@ -71,12 +99,13 @@
 | ----------------------- | --------------------- |
 | `Super + Ctrl + A`           | 오디오 패널    |
 | `Super + Ctrl + B`           | Bluetooth 패널    |
-| `Super + Ctrl + N`           | Wifi/네트워크 패널    |
+| `Super + Ctrl + N`           | Wifi/network 패널    |
 | `Super + Ctrl + D`           | 디스플레이 패널    |
 | `Super + Ctrl + P`           | 전원 패널    |
+| `Super + Ctrl + X`           | Agents 패널    |
 | `Super + Ctrl + Alt + D`           | 캘린더 패널    |
 | `Super + Ctrl + Alt + E`           | 세계 시계 패널    |
-| `Super + Ctrl + 1-9`           | 위치별로 바 패널 전환    |
+| `Super + Ctrl + 1-9`           | 위치별 바 패널 전환    |
 | `Super + Ctrl + S` | 공유 메뉴(LocalSend 경유) |
 | `Super + Ctrl + C` | 캡처 컨트롤(스크린샷/녹화/피커) |
 | `Super + Ctrl + O` | 메뉴 전환 |
@@ -128,12 +157,12 @@
 | `Super + Shift + O`           | Obsidian  |
 | `Super + Shift + W`           | 글쓰기(Omawrite)  |
 | `Super + Shift + X`           | X |
-| `Super + Shift + Alt + X`           | X 작성 |
+| `Super + Shift + Alt + X`           | X Compose |
 | `Super + Shift + Y`           | YouTube |
 
-바인딩은 `~/.config/hypr/bindings.lua`에서 변경/추가한다.
+바인딩 변경/추가는 `~/.config/hypr/bindings.lua`에서 하세요.
 
-## 통합 클립보드
+## 범용 클립보드
 
 | 단축키                  | 기능              |
 | ----------------------- | --------------------- |
@@ -143,34 +172,34 @@
 | `Super + V`           | 붙여넣기    |
 | `Super + Ctrl + V`           | 클립보드 관리자    |
 
-보통 Linux에서는 터미널에서 복사'n'붙여넣기를 하려면 `Ctrl + Shift + C/V`가 필요하고, 그 외 모든 곳에서는 `Ctrl + C/V`를 쓴다. 이 Omarchy 통합 클립보드 단축키는 어디에서나 작동한다.
+보통 Linux에서는 터미널에서 복사'n'붙여넣기를 하려면 `Ctrl + Shift + C/V`가 필요하고, 그 외 모든 곳에서는 `Ctrl + C/V`가 필요합니다. 이 Omarchy 통합 클립보드 단축키는 어디에서든 작동합니다.
 
 ## 캡처
 
 | 단축키              | 기능                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | 스크린샷                      |
-| `Super + Ctrl + Alt + C`            | 스크린샷(Print Screen 키가 없는 키보드용 동일한 단축키) |
+| `Super + Ctrl + Alt + C`            | 스크린샷(Print Screen 키가 없는 키보드용 동일한 촬영) |
 | `Super + Ctrl + C` | 캡처 메뉴 |
 | `Alt + Print Screen`            | 화면 녹화                     |
 | `Super + Print Screen` | 색상 피커 |
-| `Super + Ctrl + Print Screen` | 텍스트를 추출해 클립보드로 |
-| `Super + Alt + [` | 녹화 중 웹캠 오버레이 작게 |
-| `Super + Alt + ]` | 녹화 중 웹캠 오버레이 크게 |
+| `Super + Ctrl + Print Screen` | 클립보드로 텍스트 추출 |
+| `Super + Alt + [` | 녹화 중 웹캠 오버레이 작게 만들기 |
+| `Super + Alt + ]` | 녹화 중 웹캠 오버레이 크게 만들기 |
 | `Alt + Shift + L` | 웹앱 또는 Chromium에서 현재 URL 복사 |
-| `Alt + Shift + D` | 현재 페이지의 동영상을 `~/Videos`로 다운로드 |
-| `Super + Ctrl + X` | 받아쓰기 시작/중지(_설정 > 기본값 > 받아쓰기_ 필요) |
-| `Right Alt` / `F9` | Push-to-talk 받아쓰기(Voxtype 또는 Superwhisper 필요) |
+| `Alt + Shift + D` | 현재 페이지의 동영상을 `~/Videos`에 다운로드 |
+| `Alt + Space` | 받아쓰기 시작/중지(_Setup > Defaults > Dictation_ 필요) |
+| `Right Alt` | 길게 눌러 받아쓰기(_Setup > Defaults > Dictation_ 필요) |
 
-화면 녹화 시 단축키를 누르면 먼저 어떤 오디오를 쓸지 묻고, 그다음 녹화를 시작한다. 다시 누르면 중지한다. 자세한 내용은 [스크린샷 및 녹화](12-screenshots-recording.md)를 참조하라.
+화면 녹화 시 단축키를 누르면 먼저 원하는 오디오를 묻고, 그 다음 녹화를 시작합니다. 다시 누르면 중지됩니다. 자세한 내용은 [스크린샷 및 녹화](12-screenshots-recording.md)를 참고하세요.
 
-모든 캡처 옵션은 Omarchy 메뉴(`Super + Space`)의 _트리거 > 캡처_에서도 접근할 수 있다.
+모든 캡처 옵션은 Omarchy 메뉴(`Super + Space`)의 _Trigger > Capture_에서도 접근할 수 있습니다.
 
 ## 알림
 
 | 단축키                  | 기능              |
 | ----------------------- | --------------------- |
-| `Super + ,` | 최신 알림에 대해 동작: 열거나 유일한 버튼을 누르거나, 선택지 중에서 고르거나, 선택지가 없으면 닫기  |
+| `Super + ,` | 최신 알림에 대해 동작: 열거나 유일한 버튼 누르기, 선택지 중에서 고르기, 선택지가 없으면 닫기  |
 | `Super + Shift + ,` | 모든 알림 닫기 |
 | `Super + Ctrl + ,` | 키보드로 알림 제어  |
 | `Super + Alt + ,` | 최신 알림 닫기  |
@@ -186,9 +215,9 @@
 | `Super + Backspace` | 창의 투명도 전환 |
 | `Super + Ctrl + Backspace` | 단일 창 정사각형 비율 전환 |
 
-추가 배경 이미지는 `~/.config/omarchy/backgrounds/<theme name>`에 있다. Omarchy 메뉴의 _설치 > 스타일 > 배경_에서도 이용할 수 있다.
+추가 배경 이미지는 `~/.config/omarchy/backgrounds/<theme name>`에 있습니다. Omarchy 메뉴의 _Install > Style > Background_에서도 이용할 수 있습니다.
 
-모든 스타일 옵션은 Omarchy 메뉴(`Super + Space`)의 _스타일_에서도 접근할 수 있다.
+모든 스타일 옵션은 Omarchy 메뉴(`Super + Space`)의 _Style_에서도 접근할 수 있습니다.
 
 ## 토글
 
@@ -217,36 +246,36 @@
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Alt + T` | 시간을 알림으로 표시  |
 | `Super + Ctrl + Alt + B` | 배터리를 알림으로 표시  |
-| `Super + Ctrl + Alt + W` | 날씨 알림 표시 전환  |
+| `Super + Ctrl + Alt + W` | 날씨를 알림으로 표시 전환  |
 
 ## Tmux
 
-접두사 키는 `Ctrl + Space`이다(`Ctrl + B`도 작동한다). 이 바인딩은 `~/.config/tmux/tmux.conf`에서 변경할 수 있다.
+접두 키는 `Ctrl + Space`입니다(`Ctrl + B`도 작동합니다). 이 바인딩은 `~/.config/tmux/tmux.conf`에서 변경할 수 있습니다.
 
 ### 페인
 
 | 단축키                  | 기능              |
 | ----------------------- | --------------------- |
-| `Prefix + v` | 페인을 옆으로 분할(세로) |
-| `Prefix + h` | 페인을 아래로 분할(가로) |
+| `Prefix + v` | 옆으로 페인 분할(세로) |
+| `Prefix + h` | 아래로 페인 분할(가로) |
 | `Prefix + x` | 페인 종료 |
-| `Prefix + z` | 페인 확대 전환(전체 화면) |
-| `Alt + Enter` | 페인을 아래로 분할(접두사 없음) |
-| `Alt + Shift + Enter` | 페인을 옆으로 분할(접두사 없음) |
-| `Alt + Escape` | 페인 종료(접두사 없음) |
+| `Prefix + z` | 페인 줌 전환(전체 화면) |
+| `Alt + Enter` | 아래로 페인 분할(접두 키 없음) |
+| `Alt + Shift + Enter` | 옆으로 페인 분할(접두 키 없음) |
+| `Alt + Escape` | 페인 종료(접두 키 없음) |
 | `Ctrl + Alt + Arrows` | 페인 간 이동 |
 | `Ctrl + Alt + Shift + Arrows` | 페인 크기 조정 |
 
-### 윈도우
+### 창
 
 | 단축키                  | 기능              |
 | ----------------------- | --------------------- |
-| `Prefix + c` | 새 윈도우 |
-| `Prefix + k` | 윈도우 종료 |
-| `Prefix + r` | 윈도우 이름 변경 |
-| `Alt + 1-9` | 특정 윈도우로 이동 |
-| `Alt + Arrow Left/Right` | 윈도우 간 이동 |
-| `Alt + Shift + Arrow Left/Right` | 윈도우를 왼쪽/오른쪽으로 이동 |
+| `Prefix + c` | 새 창 |
+| `Prefix + k` | 창 종료 |
+| `Prefix + r` | 창 이름 변경 |
+| `Alt + 1-9` | 특정 창으로 이동 |
+| `Alt + Arrow Left/Right` | 창 간 이동 |
+| `Alt + Shift + Arrow Left/Right` | 창을 왼쪽/오른쪽으로 이동 |
 
 ### 세션
 
@@ -279,25 +308,25 @@
 
 ### Tmux 레이아웃 함수
 
-이 함수는 Tmux 세션 안에서 실행해야 한다.
+이 함수는 Tmux 세션 안에서 실행해야 합니다.
 
-| 명령어 | 기능 |
+| 명령 | 기능 |
 | ------- | -------- |
-| `tdl <ai> [<second_ai>]` | 편집기, AI, 터미널로 개발 레이아웃 만들기 |
+| `tdl <ai> [<second_ai>]` | 편집기, AI, 터미널이 있는 개발 레이아웃 만들기 |
 | `tdlm <ai> [<second_ai>]` | 하위 디렉터리별 개발 레이아웃 만들기 |
 | `tsl <count> <command>` | 다중 페인 swarm 레이아웃 만들기 |
 
 ## Ghostty 터미널
 
-Ghostty 터미널은 Omarchy 메뉴를 통해 _설치 > 터미널_로 설치한다.
+Ghostty 터미널은 Omarchy 메뉴를 통해 _Install > Terminal_을 사용해 설치합니다.
 
 | 단축키                  | 기능              |
 | ----------------------- | --------------------- |
 | `Ctrl + Shift + E` | 아래로 새 분할 |
 | `Ctrl + Shift + O` | 옆으로 새 분할 |
 | `Ctrl + Alt + Arrows` | 분할 간 이동 |
-| `Super + Ctrl + Shift + Arrows` | 분할 크기를 10줄 단위로 조정 |
-| `Super + Ctrl + Shift + Alt + Arrows` | 분할 크기를 100줄 단위로 조정 |
+| `Super + Ctrl + Shift + Arrows` | 분할을 10줄 단위로 크기 조정 |
+| `Super + Ctrl + Shift + Alt + Arrows` | 분할을 100줄 단위로 크기 조정 |
 | `Ctrl + Shift + T` | 새 탭  |
 | `Ctrl + Shift + Arrows` | 탭 간 이동 |
 | `Alt + Numbers` | 특정 탭으로 이동 |
@@ -340,22 +369,22 @@ Ghostty 터미널은 Omarchy 메뉴를 통해 _설치 > 터미널_로 설치한�
 | `R`                        | 강조 표시된 파일/디렉터리 이름 변경     |
 | `?`                        | 모든 명령에 대한 도움말 표시      |
 
-[LazyVim이 설정한 모든 Neovim 단축키 보기](https://www.lazyvim.org/keymaps).
+[LazyVim이 구성한 모든 Neovim 단축키 보기](https://www.lazyvim.org/keymaps).
 
 ## 빠른 이모지
 
-`Super + Ctrl + E`를 사용하면 선택 항목을 클립보드에 넣는 완전한 이모지 피커를 표시할 수 있고, 아래의 빠른 접근 옵션도 사용할 수 있다.
+`Super + Ctrl + E`를 사용하면 선택 항목을 클립보드에 넣는 완전한 이모지 피커를 표시할 수 있으며, 이 빠른 액세스 옵션들도 사용할 수 있습니다.
 
 | 단축키       | EM | 힌트       |
 | ------------ | -- | ---------- |
-| `Shift + CapsLock M S` | 😄 | 미소      |
+| `Shift + CapsLock M S` | 😄 | 웃음      |
 | `Shift + CapsLock M C` | 😂 | 울음        |
 | `Shift + CapsLock M L` | 😍 | 사랑       |
 | `Shift + CapsLock M V` | ✌️ | 승리    |
 | `Shift + CapsLock M H` | ❤️ | 하트      |
-| `Shift + CapsLock M Y` | 👍 | 예        |
+| `Shift + CapsLock M Y` | 👍 | 네        |
 | `Shift + CapsLock M N` | 👎 | 아니오         |
-| `Shift + CapsLock M F` | 🖕 | fuck       |
+| `Shift + CapsLock M F` | 🖕 | 씨발       |
 | `Shift + CapsLock M W` | 🤞 | 소원       |
 | `Shift + CapsLock M R` | 🤘 | 록       |
 | `Shift + CapsLock M K` | 😘 | 키스       |
@@ -367,12 +396,12 @@ Ghostty 터미널은 Omarchy 메뉴를 통해 _설치 > 터미널_로 설치한�
 | `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
 | `Shift + CapsLock M T` | 🥂 | 건배      |
-| `Shift + CapsLock M O` |👌 | ok |
+| `Shift + CapsLock M O` |👌 | 오케이 |
 | `Shift + CapsLock M G` |👋 | 인사 |
 | `Shift + CapsLock M A` |💪 | 팔 |
 | `Shift + CapsLock M B` |🤯 | 폭발 |
 
-## 빠른 자동 완성
+## 빠른 완성
 
 | 단축키       | 완성       |
 | ------------ |  ---------- |
@@ -380,4 +409,4 @@ Ghostty 터미널은 Omarchy 메뉴를 통해 _설치 > 터미널_로 설치한�
 | `Shift + CapsLock Space N` | 이름(설정 시 입력한 대로)  |
 | `Shift + CapsLock Space E` | 이메일(설정 시 입력한 대로)  |
 
-`~/.XCompose`를 편집해 직접 더 추가할 수 있으며, 그 후 터미널에서 `omarchy-restart-xcompose`를 실행하면 변경 사항이 반영된다.
+`~/.XCompose`를 편집해 직접 더 추가할 수 있으며, 그 다음 터미널에서 `omarchy-restart-xcompose`를 실행하면 변경 사항이 반영됩니다.

@@ -71,7 +71,7 @@
   "dock": {
     "position": "bottom",
     "pinned": [
-      "org.gnome.Nautilus",
+      "folio",
       "chromium",
       "foot",
       "omacalc",
