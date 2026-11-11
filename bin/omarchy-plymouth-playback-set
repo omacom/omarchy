@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Select native TTFX Plymouth playback behavior
+# omarchy:args=<full-animated|input-only|current>
+# omarchy:examples=omarchy plymouth playback set input-only | omarchy plymouth playback set current
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+(( $# == 1 )) || {
+  echo "Usage: omarchy-plymouth-playback-set <full-animated|input-only|current>" >&2
+  exit 1
+}
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+setter="$script_dir/omarchy-plymouth-effect-set"
+[[ -x $setter ]] || setter=omarchy-plymouth-effect-set
+exec "$setter" playback "$1"

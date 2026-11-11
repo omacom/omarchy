@@ -221,6 +221,40 @@ assert(
   'menu hides Remove rows rather than dimming them'
 )
 
+assertDeepEqual(
+  defaultItems.filter(item => item.parent === 'appearance.bootloader').map(item => item.label),
+  ['Full Animated', 'Input Only', 'Effect'],
+  'menu groups bootloader playback and effect controls under Appearance > Bootloader'
+)
+assert(
+  defaultById['appearance.bootloader.full-animated'].action.includes('omarchy-plymouth-playback-set full-animated')
+    && defaultById['appearance.bootloader.input-only'].action.includes('omarchy-plymouth-playback-set input-only'),
+  'menu maps bootloader playback choices to the persisted selector'
+)
+assertEqual(
+  defaultById['appearance.bootloader.full-animated'].checked,
+  '[[ "$(omarchy-plymouth-playback-set current)" == "full-animated" ]]',
+  'menu checks Full Animated when it is active'
+)
+assertEqual(
+  defaultById['appearance.bootloader.input-only'].checked,
+  '[[ "$(omarchy-plymouth-playback-set current)" == "input-only" ]]',
+  'menu checks Input Only when it is active'
+)
+assert(
+  defaultById['appearance.bootloader.full-animated'].action.startsWith('[[ "$(omarchy-plymouth-playback-set current)" == "full-animated" ]] ||')
+    && defaultById['appearance.bootloader.input-only'].action.startsWith('[[ "$(omarchy-plymouth-playback-set current)" == "input-only" ]] ||'),
+  'menu does not reopen the privileged playback dialog for the active mode'
+)
+assert(
+  defaultById['appearance.bootloader.effect'].action.includes('omarchy-plymouth-effect-switcher'),
+  'menu keeps the full TTFX effect list under Appearance > Bootloader > Effect'
+)
+assert(
+  defaultById['appearance.bootloader.effect'].action.includes('"$effect" == "$(omarchy-plymouth-effect-set current)"'),
+  'menu does not reopen the privileged effect dialog for the active effect'
+)
+
 // Exactly the bar's current background is checked. Ask bash, against a
 // shell.json in each state, which rows it checks.
 {
