@@ -455,8 +455,24 @@ local function titlebars_installed()
   return true
 end
 
+-- An update that upgraded Hyprland replaced the binary under the running
+-- compositor, and the plugin it brought along is built for the new one. Loading
+-- it into the old compositor fails with a version mismatch notification, so wait
+-- for the session to restart. The first mapping is the compositor's own binary.
+local function compositor_replaced()
+  local maps = io.open("/proc/self/maps", "r")
+  if not maps then
+    return false
+  end
+
+  local binary = maps:read("*l") or ""
+  maps:close()
+
+  return binary:sub(-#" (deleted)") == " (deleted)"
+end
+
 local function titlebars()
-  if not titlebars_installed() then
+  if not titlebars_installed() or compositor_replaced() then
     return
   end
 

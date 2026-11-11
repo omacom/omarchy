@@ -228,6 +228,7 @@ local rules = {}
 local placed = {}
 local active = { id = 1 }
 local titlebars_installed = os.getenv("TITLEBARS_INSTALLED") == "1"
+local compositor_replaced = os.getenv("COMPOSITOR_REPLACED") == "1"
 
 local monitor = { width = 2560, height = 1440, scale = 1, transform = 0, reserved = { left = 0, right = 0, top = 30, bottom = 0 } }
 
@@ -259,6 +260,10 @@ local real_open = io.open
 io.open = function(path, mode)
   if path == "/usr/lib/omarchy-hyprland-titlebars/titlebars.so" then
     return titlebars_installed and { close = function() end } or nil
+  end
+  if path == "/proc/self/maps" then
+    local binary = "/usr/bin/Hyprland" .. (compositor_replaced and " (deleted)" or "")
+    return { read = function() return "5d0000-5e0000 r-xp 00000000 00:22 7806 " .. binary end, close = function() end }
   end
   return real_open(path, mode)
 end
@@ -699,6 +704,15 @@ assert(bar.col.text == "rgb(ddeeff)", "titlebar text does not follow the theme f
   fail "titlebars load when a workspace floats and follow the theme"
 fi
 pass "titlebars load when a workspace floats and follow the theme"
+
+if ! run_lua '
+window("0x1", 1)
+require("default.hypr.workspace-layouts")
+assert(state().plugin_loads == 0, "titlebars built for an upgraded Hyprland were loaded into the old one")
+' TITLEBARS_INSTALLED=1 TITLEBARS_LOADED=1 COMPOSITOR_REPLACED=1; then
+  fail "titlebars wait for the session to restart after Hyprland was upgraded under it"
+fi
+pass "titlebars wait for the session to restart after Hyprland was upgraded under it"
 
 # A workspace that starts floating after the config loaded, with Super + L,
 # gets titlebars at once rather than on the next reload, and only once however
