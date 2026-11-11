@@ -102,10 +102,11 @@ flags map onto that call:
 | `-u` / `--urgency` | hint `urgency` (byte) | `low`/`normal`/`critical`; defaults to `low` |
 | `-t` / `--expire-time` | `expire_timeout` | milliseconds on screen; server default otherwise |
 | `--transient` | hint `transient` (boolean) | not restored after a restart or kept in history; for reminders that are sent again whenever they still apply |
+| `--description <text>` | `body` | the description, always shown as text even when it reads like a setting (`--exec`); for a description that comes from elsewhere |
 
 Unknown flags are a hard error, not a silent pass-through: `--exec` and `--action` are the only doors to a command, and there is no generic option pass-through to smuggle one through.
 
-A message that starts with a dash is shown as text (`"-50% off"`), but one that is exactly one of the tool's settings, such as `--exec`, is used as that setting instead of shown, since settings may also follow the title. When the title or message comes from elsewhere, such as a reminder's message, put `--` in front of it: text after `--` is always shown as text. `omarchy-notification-send -g 󰢌 "Reminder" -- "$message"`
+A description that starts with a dash is shown as text (`"-50% off"`), but one that is exactly one of the tool's settings, such as `--exec`, is used as that setting instead of shown, since settings may also follow the headline. When the description comes from elsewhere, such as a reminder's message, pass it with `--description`: text after `--description` is always shown as the description. `omarchy-notification-send -g 󰢌 "Reminder" --description "$message"`
 
 The defaults are the point: an unadorned `omarchy-notification-send "Done"`
 is a low-urgency user-action toast that pops through DND and is treated as
