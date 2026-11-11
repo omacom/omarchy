@@ -117,6 +117,9 @@ fi
 if [[ ${TEST_FAIL_MODULE_RESTORE:-0} == 1 && $* == *'--remove-destination'* && $* == *'/backup/module'* ]]; then
   exit 73
 fi
+if [[ ${TEST_FAIL_BOOT_BACKUP:-0} == 1 && $* == *'/backup/boot/'* ]]; then
+  exit 76
+fi
 exec /usr/bin/cp "$@"
 SH
 chmod +x "$tmp/bin/cp"
@@ -199,6 +202,18 @@ if compgen -G "$root/run/omarchy-plymouth-install.*" >/dev/null; then
 fi
 [[ $(<"$root/usr/lib/plymouth/ttfx-plymouth.so") == "old-module" ]] || fail "backup failure does not mutate the module"
 pass "backup failure cannot leak privileged transaction work"
+
+boot_image="$root/boot/EFI/Linux/omarchy_linux.efi"
+boot_image_before=$(sha256sum <"$boot_image")
+rm -f "$tmp/rebuild-count"
+if env "${env_common[@]}" TEST_FAIL_BOOT_BACKUP=1 "$installer" --module "$module_source" >"$tmp/out" 2>"$tmp/err"; then
+  fail "boot image backup failure aborts activation"
+fi
+grep -F 'unable to back up boot images' "$tmp/err" >/dev/null || fail "boot image backup failure is reported" "$(cat "$tmp/err")"
+[[ ! -e $tmp/rebuild-count ]] || fail "boot image backup failure does not rebuild"
+[[ $(sha256sum <"$boot_image") == "$boot_image_before" ]] || fail "boot image backup failure leaves the boot image untouched"
+[[ $(<"$root/usr/lib/plymouth/ttfx-plymouth.so") == "old-module" ]] || fail "boot image backup failure does not mutate the module"
+pass "boot image backup failure aborts before the transaction starts"
 
 rm -f "$tmp/rebuild-count"
 if env "${env_common[@]}" TEST_FAIL_THEME_QUERY=1 "$installer" --module "$module_source" >"$tmp/out" 2>"$tmp/err"; then

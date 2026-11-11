@@ -88,18 +88,20 @@ boot_artifacts() {
   find "$system_root/boot" -maxdepth 1 -type f -name 'initramfs-*.img' -print0 2>/dev/null | sort -z
 }
 
+# Writes the image list only after every image is copied, so the list means a
+# complete backup. Returns non-zero on any copy error; no images is success.
 snapshot_boot_artifacts() {
   local image relative
   local -a images
   mapfile -d '' -t images < <(boot_artifacts)
-  (( ${#images[@]} )) || return 1
-  : > "$backup/boot-artifacts.list"
+  (( ${#images[@]} )) || return 0
   for image in "${images[@]}"; do
-    printf '%s\0' "$image" >> "$backup/boot-artifacts.list"
     relative=${image#"$system_root/"}
-    install -d -m 0700 "$backup/boot/$(dirname "$relative")"
-    cp -a --no-dereference "$image" "$backup/boot/$relative"
+    install -d -m 0700 "$backup/boot/$(dirname "$relative")" || return 1
+    cp -a --no-dereference "$image" "$backup/boot/$relative" || return 1
   done
+  printf '%s\0' "${images[@]}" > "$backup/boot-artifacts.list.new" || return 1
+  mv -T "$backup/boot-artifacts.list.new" "$backup/boot-artifacts.list" || return 1
 }
 
 restore_boot_artifacts() {
@@ -542,7 +544,11 @@ install_module() {
   [[ ! -e $theme_dir/omarchy.plymouth && ! -L $theme_dir/omarchy.plymouth ]] || { cp -a --no-dereference "$theme_dir/omarchy.plymouth" "$backup/descriptor"; descriptor_present=true; }
   [[ ! -e $recovery_dir && ! -L $recovery_dir ]] || { cp -a --no-dereference "$recovery_dir" "$backup/recovery"; recovery_present=true; }
   [[ -d $uki_dir ]] && uki_dir_present=true
-  if snapshot_boot_artifacts; then
+  if ! snapshot_boot_artifacts; then
+    echo "omarchy-plymouth-ttfx-install: unable to back up boot images" >&2
+    return 1
+  fi
+  if [[ -f $backup/boot-artifacts.list ]]; then
     boot_artifacts_present=true
   fi
   previous_theme=$($theme_command)
