@@ -3,9 +3,10 @@ import Quickshell
 import Quickshell.Io
 import "services"
 
-// Closes the launch OSD the moment it opens, while the stubbed
-// `omarchy-shell osd show` is still running. The test then checks that the
-// close reached omarchy-shell after the show.
+// Shows the launch OSD and closes it in the same turn, while the stubbed
+// `omarchy-shell osd show` is still running. Nothing runs in between, so window
+// changes on the desktop cannot cancel the launch first. The test then checks
+// that the close reached omarchy-shell after the show.
 ShellRoot {
   id: root
 
@@ -18,31 +19,15 @@ ShellRoot {
   }
 
   Timer {
-    id: waitForOpen
-    interval: 20
-    repeat: true
-    onTriggered: {
-      if (!appLibrary.launchOsdOpen) return
-      stop()
-      appLibrary.closeLaunchFeedback(appLibrary.launchSerial)
-      settle.start()
-    }
-  }
-
-  Timer {
     id: settle
     interval: 1500
     onTriggered: resultFile.setText(JSON.stringify({ ok: true }))
   }
 
-  // Let the toplevel list finish loading first: a count that grows after the
-  // launch reads as the app's window appearing.
-  Timer {
-    running: true
-    interval: 1000
-    onTriggered: {
-      appLibrary.beginLaunchFeedback("Test")
-      waitForOpen.start()
-    }
+  Component.onCompleted: {
+    appLibrary.beginLaunchFeedback("Test")
+    appLibrary.showLaunchOsd()
+    appLibrary.closeLaunchFeedback(appLibrary.launchSerial)
+    settle.start()
   }
 }
