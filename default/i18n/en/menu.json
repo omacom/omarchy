@@ -650,6 +650,9 @@
   "setup.config.xcompose": {
     "label": "XCompose"
   },
+  "setup.dual-boot": {
+    "label": "Dual Boot"
+  },
   "remove.factory-reset": {
     "label": "Factory Reset"
   },
