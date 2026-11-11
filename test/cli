@@ -903,6 +903,14 @@ cp -a "$ROOT/bin/." "$ROUTER_BIN/"
   printf 'echo screenshot-stub-ran\n'
 } >"$ROUTER_BIN/omarchy-capture-screenshot"
 
+# Exercise the shipped sudo metadata without granting or revoking host access.
+{
+  awk 'NR == 1 || /^#/ || /^[[:space:]]*$/ { print; next } { exit }' "$ROOT/bin/omarchy-sudo-passwordless"
+  printf 'echo "sudo-stub-ran args=[$*]"\n'
+} >"$ROUTER_BIN/omarchy-sudo-passwordless"
+[[ $("$ROUTER_BIN/omarchy" sudo passwordless) == "sudo-stub-ran args=[]" ]] || fail "bare passwordless sudo reaches its interactive toggle"
+pass "bare passwordless sudo reaches its interactive toggle"
+
 fastest_ms() {
   local best="" start end elapsed
 
