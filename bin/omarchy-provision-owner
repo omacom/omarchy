@@ -16,7 +16,11 @@
 set -euo pipefail
 
 PROVISIONING_DIR=/var/lib/omarchy/provisioning
-OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+# Exported: the Home step's strings come from omarchy-i18n, a child process.
+export OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+# A service has no HOME for omarchy-i18n to find a language choice under; first
+# boot is in English until the owner picks a language after logging in.
+export OMARCHY_LANGUAGE_FILE="${OMARCHY_LANGUAGE_FILE:-/var/lib/omarchy/provisioning/language}"
 LOG_FILE=/var/log/omarchy-provision-owner.log
 
 if (( EUID != 0 )); then
@@ -43,6 +47,10 @@ source "$OMARCHY_PATH/install/provisioning/luks-rekey.sh"
 # runtime package it bundles, so an install and the first boot that finishes it
 # can never offer different layouts or accept different usernames.
 source "$OMARCHY_PATH/install/provisioning/setup-form.sh"
+# Where home lives when the machine has another drive, as the ISO asks.
+source "$OMARCHY_PATH/install/provisioning/home-drive.sh"
+home_row=""
+home_password=""
 
 # Unlike a fresh install target, this machine already has accounts; a pinned
 # resume (below) bypasses the prompt entirely.
@@ -651,6 +659,223 @@ user_form() {
   omarchy_prompt_timezone || return $?
 }
 
+# The Home step's menu, "label<TAB>value", in home_drive_choices' order: the
+# owner's existing homes, home on the system disk, drives to unlock. First boot
+# never erases a disk. Nothing when there is no home to adopt or unlock.
+home_step_rows() {
+  local scan=$1 user=$2 kind index row fstype size rows="" offered=false
+  while IFS=$'\t' read -r kind index; do
+    # Row 0 is the system disk, which has no scan row.
+    row=""
+    ((index > 0)) && row=$(sed -n "${index}p" <<<"$scan")
+    case $kind in
+      adopt)
+        fstype=$(cut -f4 <<<"$row")
+        [[ -n $(cut -f7 <<<"$row") ]] && fstype+=" $(cut -f7 <<<"$row")"
+        size=$(LC_ALL=C numfmt --to=iec "$(cut -f10 <<<"$row")")
+        # A home inside another system's root is told apart: adopting it
+        # mounts that folder, and the system around it stays as it is.
+        if [[ -n $(cut -f15 <<<"$row") ]]; then
+          rows+="$(omarchy-i18n homeDrive.existingInSystem "$user" "$(cut -f3 <<<"$row")" "$fstype" "$size")"$'\t'"adopt:$index"$'\n'
+        else
+          rows+="$(omarchy-i18n homeDrive.existing "$user" "$(cut -f3 <<<"$row")" "$fstype" "$size")"$'\t'"adopt:$index"$'\n'
+        fi
+        offered=true
+        ;;
+      locked)
+        rows+="$(omarchy-i18n homeDrive.locked "$(cut -f3 <<<"$row")")"$'\t'"locked:$index"$'\n'
+        offered=true
+        ;;
+      disk)
+        rows+="$(omarchy-i18n homeDrive.systemDisk)"$'\t'"disk"$'\n'
+        ;;
+    esac
+  done < <(home_drive_choices "$scan")
+  [[ $offered == "true" ]] || return 0
+  printf '%s' "$rows"
+}
+
+# Lines under the Home step's title: other homes left untouched beside the
+# owner's, and why a home of theirs cannot be used.
+home_step_hints() {
+  local scan=$1 user=$2 row why
+  while IFS= read -r row; do
+    if [[ $(cut -f1 <<<"$row") == "adoptable" && -n $(cut -f13 <<<"$row") ]]; then
+      omarchy-i18n homeDrive.others "$(cut -f13 <<<"$row" | sed 's/,/, /g')"
+      echo
+    elif [[ $(cut -f1 <<<"$row") == "refused" ]]; then
+      case $(cut -f14 <<<"$row") in
+        uid-below-1000) why=$(omarchy-i18n homeDrive.reasonSystemAccount) ;;
+        uid-taken) why=$(omarchy-i18n homeDrive.reasonUidTaken) ;;
+        gid-taken) why=$(omarchy-i18n homeDrive.reasonGidTaken) ;;
+        duplicate-uuid) why=$(omarchy-i18n homeDrive.reasonDuplicateUuid) ;;
+        *) why=$(omarchy-i18n homeDrive.reasonNotFolder) ;;
+      esac
+      omarchy-i18n homeDrive.refused "$user" "$(cut -f3 <<<"$row")" "$why"
+      echo
+    fi
+  done <<<"$scan"
+}
+
+# The scan, checking the ids against this system's own accounts, and never
+# opening a drive the last factory reset kept (the previous owner's home is
+# not the next owner's) or one it is still to erase (adopting it would have
+# the next boot erase the home just adopted).
+home_scan() {
+  local ignore="" marker=$PROVISIONING_DIR/erase-home-drive uuid device disk
+  [[ -f $PROVISIONING_DIR/ignored-home-drives ]] && ignore=$(tr '\n' ' ' <"$PROVISIONING_DIR/ignored-home-drives")
+  if [[ -f $marker ]]; then
+    uuid=$(sed -n 's/^UUID=//p' "$marker" | head -n1)
+    ignore+=" $uuid"
+    # A whole disk waiting to be erased takes every partition on it along.
+    if [[ -n $uuid ]] && grep -qx 'TARGET=disk' "$marker"; then
+      device=$(blkid -t "UUID=$uuid" -o device 2>/dev/null | head -n1 || true)
+      if [[ -n $device ]]; then
+        if [[ $(lsblk -ndo TYPE "$device" 2>/dev/null) == "disk" ]]; then
+          disk=$device
+        else
+          disk=$(lsblk -ndpo PKNAME "$device" 2>/dev/null || true)
+        fi
+        [[ -z $disk ]] || ignore+=" $(lsblk -nro UUID "$disk" 2>/dev/null | tr '\n' ' ' || true)"
+      fi
+    fi
+  fi
+  HOME_DRIVE_PASSWD=/etc/passwd HOME_DRIVE_GROUP=/etc/group HOME_DRIVE_IGNORE=$ignore home_drive_scan "$@"
+}
+
+# Offer an existing home of the owner's on another drive. Sets home_row to the
+# chosen scan row, or leaves it empty for home on the system disk.
+home_form() {
+  local scan rows choice status device typed
+  local -a menu system_disks
+  home_row=""
+  mapfile -t system_disks < <(home_drive_system_disks)
+  # Which disks the system is on cannot be told: no other disk is safe to
+  # call another drive, so home stays on the system disk.
+  if [[ " ${system_disks[*]} " == *" unknown "* ]]; then
+    return 0
+  fi
+
+  while true; do
+    scan=$(home_scan "$username" "$password"$'\n'"$home_password" "${system_disks[@]}")
+    rows=$(home_step_rows "$scan" "$username")
+    if [[ -z $rows ]]; then
+      # Nothing to choose, but a home of theirs that cannot be used is
+      # explained rather than passed over in silence.
+      while IFS= read -r device; do
+        [[ -n $device ]] && notice "$device" 4
+      done < <(home_step_hints "$scan" "$username")
+      return 0
+    fi
+
+    step "$(omarchy-i18n homeDrive.intro)"
+    while IFS= read -r device; do
+      [[ -n $device ]] && say --foreground 8 "$device"
+    done < <(home_step_hints "$scan" "$username")
+    mapfile -t menu <<<"$rows"
+    choice=$(gum choose --label-delimiter $'\t' --header "$(omarchy-i18n homeDrive.header)" "${menu[@]}") && status=0 || status=$?
+    ((status == 0)) || return "$status"
+
+    case $choice in
+      disk) return 0 ;;
+      adopt:*)
+        home_row=$(sed -n "${choice#adopt:}p" <<<"$scan")
+        return 0
+        ;;
+      locked:*)
+        device=$(sed -n "${choice#locked:}p" <<<"$scan" | cut -f3)
+        # Added to the ones typed before, so unlocking a second drive keeps
+        # the first one open to the scan.
+        typed=$(gum input --password --header "$(omarchy-i18n homeDrive.passphrase "$device")") || typed=""
+        [[ -z $typed ]] || home_password+=${home_password:+$'\n'}$typed
+        ;;
+    esac
+  done
+}
+
+# A retry after the account was created on an adopted home: the scan now
+# refuses the account's own uid, so the choice made the first time stands.
+home_choice_restore() {
+  [[ -s $PROVISIONING_DIR/setup-home ]] || return 1
+  home_row=$(<"$PROVISIONING_DIR/setup-home")
+}
+
+# A retry restores the home choice without the Home step, where a drive's own
+# passphrase was typed. Ask for it again (it is never saved) when the owner's
+# password does not open the drive and nothing has it open already.
+home_restore_passphrase() {
+  local device luks_uuid
+  luks_uuid=$(cut -f6 <<<"$home_row")
+  [[ -n $luks_uuid ]] || return 0
+  cryptsetup status "$HOME_DRIVE_MAPPER" >/dev/null 2>&1 && return 0
+  device=$(cut -f3 <<<"$home_row")
+  home_drive_luks_passphrase "/dev/disk/by-uuid/$luks_uuid" "$password" >/dev/null && return 0
+  home_password=$(gum input --password --header "$(omarchy-i18n homeDrive.passphrase "$device")") || home_password=""
+}
+
+# The Home step, or what an earlier attempt already settled: the home it
+# adopted, or, when it made the pinned account on the system disk, that home.
+home_step() {
+  if home_choice_restore; then
+    home_restore_passphrase
+  elif [[ -s $PROVISIONING_DIR/setup-user && $(<"$PROVISIONING_DIR/setup-user") == "$username" ]] &&
+    getent passwd "$username" >/dev/null; then
+    home_row=""
+  else
+    home_form
+  fi
+}
+
+# Mount the adopted home now and for every boot: fstab and crypttab through
+# the shared helper (a keyfile on an encrypted root), then open and mount it
+# so the account is created on it.
+adopt_home() {
+  local uuid fstype subvol dir luks_uuid device luks_device open_device="" passphrase="" root_encrypted=false
+  device=$(cut -f3 <<<"$home_row")
+  fstype=$(cut -f4 <<<"$home_row")
+  uuid=$(cut -f5 <<<"$home_row")
+  luks_uuid=$(cut -f6 <<<"$home_row")
+  subvol=$(cut -f7 <<<"$home_row")
+  # Empty in a row saved by a setup from before the field existed.
+  dir=$(cut -f15 <<<"$home_row")
+  encrypted_install && root_encrypted=true
+  if [[ -n $luks_uuid ]]; then
+    # By uuid: the device name the scan saw (a USB drive's) can change
+    # across a reboot before a retry.
+    luks_device=/dev/disk/by-uuid/$luks_uuid
+    # A retry after a failed attempt finds it open already; a mapping of any
+    # other drive by that name is never taken for the home.
+    open_device=$(cryptsetup status "$HOME_DRIVE_MAPPER" 2>/dev/null | awk '$1 == "device:" { print $2 }' || true)
+    if [[ -n $open_device && $(blkid -o value -s UUID "$open_device") != "$luks_uuid" ]]; then
+      echo "Error: $HOME_DRIVE_MAPPER is already open for $open_device, not the home drive" >&2
+      return 1
+    fi
+    # Whichever of the owner's password and a passphrase typed for the drive
+    # opens it. Open already, it needs none unless a key slot is still to be
+    # added for the keyfile.
+    passphrase=$(home_drive_luks_passphrase "$luks_device" "$password"$'\n'"$home_password") || passphrase=""
+    if [[ -z $open_device && -z $passphrase ]]; then
+      echo "Error: neither the password nor a passphrase typed for it opens the home drive" >&2
+      return 1
+    fi
+  fi
+
+  home_drive_mount_entries / "$uuid" "$fstype" "$subvol" "$luks_uuid" "$root_encrypted" "$dir" "$passphrase"
+  if [[ -n $luks_uuid && -z $open_device ]]; then
+    printf '%s' "$passphrase" | cryptsetup open --key-file=- "$luks_device" "$HOME_DRIVE_MAPPER"
+  fi
+  if [[ ! $device =~ ^/dev/(sd|hd|vd|nvme|mmcblk|xv) ]]; then
+    vgchange -ay >/dev/null
+  fi
+  systemctl daemon-reload
+  # Boot already mounted the image's own @home; the drive replaces it rather
+  # than stacking on top of it.
+  if mountpoint -q /home; then
+    umount /home
+  fi
+  mount /home
+}
+
 confirm_form() {
   clear_logo
   echo
@@ -724,12 +949,49 @@ create_user() {
   # account rather than creating a second privileged one.
   echo "$username" >"$PROVISIONING_DIR/setup-user"
 
+  # An existing home on another drive is mounted first, on every attempt:
+  # the account takes the ids that own it, and Omarchy's defaults are merged
+  # in as that owner, the user's own files winning. Mounting and merging are
+  # safe to repeat, so a retry finishes whatever the last attempt did not.
+  local uid gid group=users
+  if [[ -n $home_row ]]; then
+    uid=$(cut -f8 <<<"$home_row")
+    gid=$(cut -f9 <<<"$home_row")
+    adopt_home
+    if ((gid != 100)); then
+      getent group "$gid" >/dev/null || groupadd -g "$gid" "$username"
+      group=$gid
+    fi
+  fi
+
   if getent passwd "$username" >/dev/null; then
     # Resuming a partially-completed earlier attempt: refresh what the form
     # collected this time around.
     usermod -aG "$(user_groups)" "$username"
+  elif [[ -n $home_row ]]; then
+    useradd -M -u "$uid" -g "$group" -G "$(user_groups)" -s /bin/bash "$username"
   else
     useradd -m -G "$(user_groups)" -s /bin/bash "$username"
+  fi
+  # Remembered for a retry only now that the account is on the adopted home:
+  # from here a fresh scan refuses the home its own uid, but until here a
+  # failed attempt should offer the Home step again.
+  [[ -z $home_row ]] || printf '%s\n' "$home_row" >"$PROVISIONING_DIR/setup-home"
+
+  if [[ -n $home_row ]]; then
+    local merge_status=0
+    setpriv --reuid="$uid" --regid="$gid" --clear-groups bash -c 'source "$0"; home_drive_merge "$@"' \
+      "$OMARCHY_PATH/install/provisioning/home-drive.sh" /etc/skel "/home/$username" || merge_status=$?
+    # 3: merged, but some defaults could not be copied (the home's
+    # adopted-home record names them). The desktop still starts, so this is
+    # a warning at the end, like a failed user finalization; anything else
+    # stops setup.
+    if ((merge_status == 3)); then
+      log_step "some of Omarchy's defaults could not be copied into the adopted home (see ~/.local/state/omarchy/adopted-home)"
+      touch "$FINALIZE_WARNING_FLAG"
+    elif ((merge_status != 0)); then
+      return "$merge_status"
+    fi
   fi
 
   printf '%s:%s\n' "$username" "$password" | chpasswd
@@ -752,12 +1014,36 @@ create_user() {
 install_authorized_keys() {
   [[ -f $PROVISIONING_DIR/authorized_keys ]] || return 0
 
-  local ssh_dir="/home/$username/.ssh"
+  local ssh_dir=${HOME_ROOT:-/home}/$username/.ssh key
+  # A home adopted from another drive is the user's own: a link in it is
+  # never written through as root. Skipped rather than failed, so setup is
+  # not stuck retrying; the owner can add the keys after logging in.
+  if [[ -L $ssh_dir || -L $ssh_dir/authorized_keys ]]; then
+    echo "not installing the staged SSH keys: $ssh_dir holds a link" >&2
+    return 0
+  fi
+  # Something else in their place (a file, a folder, a FIFO that would hang
+  # the read below) is the user's too, and left as it is.
+  if [[ -e $ssh_dir && ! -d $ssh_dir ]] || [[ -e $ssh_dir/authorized_keys && ! -f $ssh_dir/authorized_keys ]]; then
+    echo "not installing the staged SSH keys: $ssh_dir or its authorized_keys is not what it should be" >&2
+    return 0
+  fi
   mkdir -p "$ssh_dir"
-  cp "$PROVISIONING_DIR/authorized_keys" "$ssh_dir/authorized_keys"
+  touch "$ssh_dir/authorized_keys"
+  # Added to the keys an adopted home already authorizes.
+  if [[ -s $ssh_dir/authorized_keys && $(tail -c1 "$ssh_dir/authorized_keys" | od -An -c | tr -d ' ') != '\n' ]]; then
+    echo >>"$ssh_dir/authorized_keys"
+  fi
+  # "|| [[ -n $key ]]": a last key without a newline is a key too.
+  while IFS= read -r key || [[ -n $key ]]; do
+    [[ -n $key ]] || continue
+    grep -qxF -- "$key" "$ssh_dir/authorized_keys" || printf '%s\n' "$key" >>"$ssh_dir/authorized_keys"
+  done <"$PROVISIONING_DIR/authorized_keys"
   chmod 700 "$ssh_dir"
   chmod 600 "$ssh_dir/authorized_keys"
-  chown -R "$username:$username" "$ssh_dir"
+  # The login group, whatever it is called: an adopted home may belong to the
+  # shared users group, with no group named after the user.
+  chown -R "$username:" "$ssh_dir"
 }
 
 configure_login() {
@@ -887,6 +1173,7 @@ finalize_user() {
     OMARCHY_PATH="$OMARCHY_PATH" \
     OMARCHY_INSTALL="$OMARCHY_PATH/install" \
     OMARCHY_SETUP_CONTEXT=provision-owner \
+    OMARCHY_ADOPTED_HOME="$([[ -n $home_row ]] && echo 1 || echo 0)" \
     OMARCHY_INSTALL_LOG_FILE="$LOG_FILE" \
     OMARCHY_LOG_TO_STDOUT=1 \
     "$OMARCHY_PATH/bin/omarchy-provision-user" --force --first-install
@@ -1099,7 +1386,8 @@ reset_limine_config() {
 }
 
 cleanup_oem_state() {
-  rm -f "$PROVISIONING_DIR/pending" "$PROVISIONING_DIR/authorized_keys" "$PROVISIONING_DIR/setup-user" "$REKEY_STATE"
+  rm -f "$PROVISIONING_DIR/pending" "$PROVISIONING_DIR/authorized_keys" "$PROVISIONING_DIR/setup-user" "$REKEY_STATE" \
+    "$PROVISIONING_DIR/ignored-home-drives" "$PROVISIONING_DIR/setup-home"
 
   rm -f /etc/systemd/system/multi-user.target.wants/omarchy-provision-owner.service
   systemctl daemon-reload 2>/dev/null || true
@@ -1180,6 +1468,9 @@ run_setup() {
   while true; do
     keyboard_form || return 1
     user_form && status=0 || status=$?
+    if ((status == 0)); then
+      home_step && status=0 || status=$?
+    fi
     if ((status != 0)); then
       # Esc unwinds to the keyboard step. Ctrl+C is the only other way out of a
       # prompt, and it offers the reboot instead of returning a value.
