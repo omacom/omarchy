@@ -66,7 +66,6 @@
   "agents.localRecommended": "ieteicams",
   "agents.localRemoveConfirm": "Apturēt %1 un dzēst tā lejupielādētos svarus?",
   "agents.localRemovingMeter": "Noņem",
-  "agents.localShowLogs": "Rādīt žurnālus",
   "agents.localShowLogsTip": "Atvērt šī modeļa žurnālus terminālī",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Palaist",

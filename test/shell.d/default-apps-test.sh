@@ -138,6 +138,8 @@ printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-lifecycle-dispatch"
 chmod +x "$mock_bin"/*
 
 export HOME="$test_home"
+# The user's own XDG dirs would win over HOME; keep every write in the test home.
+export XDG_CONFIG_HOME="$test_home/.config" XDG_DATA_HOME="$test_home/.local/share"
 export PATH="$mock_bin:$ROOT/bin:$PATH"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_INSTALLED_DIR="$installed_dir"
@@ -219,6 +221,10 @@ OMARCHY_TEST_REAL_BROWSER_INSTALL=true omarchy-default-browser --install chromiu
 [[ $(omarchy-default-browser) == "chromium" ]] || fail "Chromium becomes the default after its full installer succeeds"
 cmp -s "$ROOT/config/chromium-flags.conf" "$test_home/.config/chromium-flags.conf" ||
   fail "Chromium browser installer copies the default flags"
+# Chrome's installer copies these same flags, and /etc/skel seeds new installs
+# with Chrome's own copy from config/, so the two must not drift apart.
+cmp -s "$ROOT/config/chromium-flags.conf" "$ROOT/config/chrome-flags.conf" ||
+  fail "new installs seed Chrome with the flags Chromium ships"
 grep -Fxq 'sudo:install -d -m 0755 -o root -g root /etc/chromium' "$setup_log" ||
   fail "Chromium browser installer creates a root-owned Chromium policy parent"
 grep -Fxq 'sudo:install -d -m 0755 -o root -g root /etc/chromium/policies' "$setup_log" ||
@@ -315,6 +321,120 @@ omarchy-default-terminal kitty
 omarchy-default-editor nvim
 [[ ! -s $install_log && ! -s $terminal_log ]] || fail "installed defaults skip installation"
 pass "installed defaults are selected immediately"
+
+# Picking an editor points every text type at the editor handler in the
+# user's mimeapps.list, replacing what was there and keeping everything else.
+mimeapps="$test_home/.config/mimeapps.list"
+dotfiles_list="$test_tmp/dotfiles-mimeapps.list"
+printf '[Added Associations]\ntext/plain=nvim.desktop;\n\n[Default Applications]\nimage/png=imv.desktop\ntext/plain=nvim.desktop\ntext/x-tex=code.desktop\n' >"$dotfiles_list"
+ln -sf "$dotfiles_list" "$mimeapps"
+omarchy-default-editor vim
+handler_types=$(sed -n 's/^MimeType=//p' "$ROOT/applications/omarchy-launch-editor.desktop" | tr ';' '\n' | sed '/^$/d')
+while read -r type; do
+  [[ $(grep -cxF "$type=omarchy-launch-editor.desktop" "$mimeapps") == 1 ]] || fail "picking an editor points $type at the editor handler once"
+done <<<"$handler_types"
+! grep -qxF "text/plain=nvim.desktop" "$mimeapps" || fail "picking an editor replaces the old text/plain default"
+! grep -qxF "text/x-tex=code.desktop" "$mimeapps" || fail "picking an editor replaces an app chosen for a text type"
+grep -qxF "image/png=imv.desktop" "$mimeapps" || fail "picking an editor keeps other types' defaults"
+grep -qxF "text/plain=nvim.desktop;" "$mimeapps" || fail "picking an editor leaves added associations alone"
+[[ -L $mimeapps ]] || fail "picking an editor keeps a symlinked mimeapps.list a symlink"
+[[ -f $test_home/.local/share/applications/omarchy-launch-editor.desktop ]] || fail "picking an editor installs the editor handler"
+pass "picking an editor opens text files in it from every app"
+
+# The migration keeps a type the user pointed elsewhere themselves, and
+# replaces Omarchy's own past defaults.
+rm -f "$mimeapps"
+printf '[Default Applications]\ntext/plain=nvim.desktop\ntext/xml=plain.desktop\ntext/x-tex=code.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Neovim, the old default"
+grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Plain, the newer default"
+grep -qxF "text/x-tex=code.desktop" "$mimeapps" || fail "the migration keeps a type the user chose"
+! grep -qxF "text/x-tex=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration doesn't add a second default for a chosen type"
+mkdir -p "$test_home/.local/share/applications"
+printf '[Default Applications]\ntext/x-java=code.desktop\ntext/x-tcl=nvim.desktop\n' >"$test_home/.local/share/applications/mimeapps.list"
+printf '[Default Applications]\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+! grep -q "^text/x-java=" "$mimeapps" || fail "the migration keeps a choice saved in the older list"
+grep -qxF "text/x-tcl=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Neovim saved in the older list"
+rm -f "$test_home/.local/share/applications/mimeapps.list"
+pass "the migration keeps the user's own choices"
+
+# Values are ;-separated lists and keys may have spaces around "=", as GLib
+# writes and reads them; a choice in ~/.config outranks the older list's.
+printf '[Default Applications]\ntext/x-java=code.desktop\n' >"$test_home/.local/share/applications/mimeapps.list"
+printf '[Default Applications]\ntext/plain=nvim.desktop;\ntext/xml = code.desktop;\ntext/x-java=omarchy-launch-editor.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration reads a ;-ended old default as Omarchy's"
+! grep -qxF "text/plain=nvim.desktop;" "$mimeapps" || fail "the migration replaces a ;-ended old default"
+grep -qxF "text/xml = code.desktop;" "$mimeapps" || fail "the migration keeps a spaced choice"
+! grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration adds nothing above a spaced choice"
+grep -qxF "text/x-java=omarchy-launch-editor.desktop" "$mimeapps" || fail "a choice in ~/.config outranks the older list's"
+omarchy-default-editor vim
+grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "picking an editor replaces a spaced line"
+[[ $(grep -c "^text/xml *=" "$mimeapps") == 1 ]] || fail "picking an editor leaves one text/xml line"
+rm -f "$test_home/.local/share/applications/mimeapps.list"
+pass "the migration reads mimeapps.list the way GLib does"
+
+# A CRLF list with a spaced header: one defaults section, and the user's
+# choice in it kept.
+printf ' [Default Applications] \r\ntext/plain=code.desktop;\r\ntext/xml=nvim.desktop\r\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+[[ $(grep -c "Default Applications" "$mimeapps") == 1 ]] || fail "a CRLF list keeps one defaults section"
+grep -q "^text/plain=code.desktop;" "$mimeapps" || fail "a CRLF list keeps the user's choice"
+! grep -qx "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "a CRLF list gets no handler line over a choice"
+grep -qx "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "a CRLF list's old default moves to the handler"
+! grep -q "^text/xml=nvim.desktop" "$mimeapps" || fail "a CRLF list's old default line is replaced"
+pass "the migration reads CRLF lists and spaced headers"
+
+# A type set twice is whatever its last line says, as GLib reads it.
+printf '[Default Applications]\ntext/plain=code.desktop\ntext/plain=nvim.desktop\ntext/css=nvim.desktop\ntext/css=code.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "a type whose last line is the old default moves to the handler"
+! grep -q "^text/plain=code.desktop" "$mimeapps" || fail "an earlier line of a type doesn't count as a choice"
+grep -qxF "text/css=code.desktop" "$mimeapps" || fail "a type whose last line is a choice keeps it"
+! grep -qxF "text/css=omarchy-launch-editor.desktop" "$mimeapps" || fail "a chosen type gets no handler line"
+pass "the migration reads a repeated type by its last line"
+
+# A type and its alias are one type: a choice under either name holds both.
+printf '[Default Applications]\napplication/xml=code.desktop\napplication/yaml=nvim.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "application/xml=code.desktop" "$mimeapps" || fail "a choice for a type is kept"
+! grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "its alias gets no handler line over the choice"
+grep -qxF "application/x-yaml=omarchy-launch-editor.desktop" "$mimeapps" || fail "an old default under an alias moves to the handler"
+! grep -q "^application/yaml=nvim.desktop" "$mimeapps" || fail "the old default's alias line is replaced"
+pass "the migration treats a type and its aliases as one"
+
+# Among a type's names, the one listed first decides, as GLib reads it.
+printf '[Default Applications]\napplication/xml=code.desktop\ntext/xml=plain.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "application/xml=code.desktop" "$mimeapps" || fail "the first-listed name's choice is kept"
+! grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "no handler line over the first-listed choice"
+pass "the migration reads a type's names in the order GLib does"
+
+# The desktop's own list is read first: picking an editor clears its text
+# types and keeps the rest, while the migration leaves it alone.
+desktop_list="$test_home/.config/hyprland-mimeapps.list"
+printf '[Default Applications]\nx-scheme-handler/https=omarchy-browser.desktop\ntext/plain=code.desktop\n' >"$desktop_list"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=code.desktop" "$desktop_list" || fail "the migration leaves the desktop's own list alone"
+omarchy-default-editor vim
+! grep -q "^text/plain" "$desktop_list" || fail "picking an editor clears a text type from the desktop's own list"
+grep -qxF "x-scheme-handler/https=omarchy-browser.desktop" "$desktop_list" || fail "picking an editor keeps the desktop list's other lines"
+rm -f "$desktop_list"
+ln -s "$mimeapps" "$desktop_list"
+omarchy-default-editor vim
+grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "a desktop list linked to mimeapps.list keeps the handler"
+rm -f "$desktop_list"
+printf '[Default Applications]\ntext/x-sh=code.desktop\n' >"$desktop_list"
+omarchy-default-editor vim
+! grep -q "^text/x-sh" "$desktop_list" || fail "picking an editor clears an alias from the desktop's own list"
+rm -f "$desktop_list"
+pass "picking an editor wins over the desktop's own list"
+
+# New installs ship the same types pointed at the handler.
+shipped=$(sed -n 's/=omarchy-launch-editor\.desktop$//p' "$ROOT/default/applications/mimeapps.list" | sort)
+[[ $shipped == $(sort <<<"$handler_types") ]] || fail "the shipped mimeapps.list points the handler's types at it"
+pass "new installs open text files in the default editor"
 
 previous_editor=$(omarchy-default-editor)
 rm -f "$installed_dir/vim"

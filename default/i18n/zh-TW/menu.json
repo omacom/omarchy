@@ -688,9 +688,6 @@
   "install.service.microsoft": {
     "label": "Microsoft"
   },
-  "install.service.chromium-account": {
-    "label": "Chromium 帳號"
-  },
   "install.editor.vscode": {
     "label": "VSCode"
   },

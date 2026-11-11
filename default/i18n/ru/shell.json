@@ -68,7 +68,6 @@
   "agents.localRecommended": "рекомендуется",
   "agents.localRemoveConfirm": "Остановить %1 и удалить его загруженные веса?",
   "agents.localRemovingMeter": "Удаление",
-  "agents.localShowLogs": "Показать логи",
   "agents.localShowLogsTip": "Открыть логи этой модели в терминале",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Запустить",

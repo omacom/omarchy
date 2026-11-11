@@ -64,7 +64,6 @@
   "agents.localRecommended": "अनुशंसित",
   "agents.localRemoveConfirm": "%1 को रोककर उसके डाउनलोड किए गए वेट हटाएं?",
   "agents.localRemovingMeter": "हटा रहे हैं",
-  "agents.localShowLogs": "लॉग दिखाएं",
   "agents.localShowLogsTip": "इस मॉडल के लॉग टर्मिनल में खोलें",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "शुरू करें",

@@ -64,7 +64,6 @@
   "agents.localRecommended": "پیشنهادی",
   "agents.localRemoveConfirm": "%1 متوقف شود و وزن‌های دانلودشده‌اش حذف شود؟",
   "agents.localRemovingMeter": "در حال حذف",
-  "agents.localShowLogs": "نمایش لاگ‌ها",
   "agents.localShowLogsTip": "لاگ‌های این مدل را در ترمینال باز کنید",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "شروع",

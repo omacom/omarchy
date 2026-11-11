@@ -64,7 +64,6 @@
   "agents.localRecommended": "empfohlen",
   "agents.localRemoveConfirm": "%1 stoppen und die heruntergeladenen Gewichte löschen?",
   "agents.localRemovingMeter": "Wird entfernt",
-  "agents.localShowLogs": "Logs anzeigen",
   "agents.localShowLogsTip": "Logs dieses Modells in einem Terminal öffnen",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Starten",

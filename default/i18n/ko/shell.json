@@ -62,7 +62,6 @@
   "agents.localRecommended": "추천",
   "agents.localRemoveConfirm": "%1을 중지하고 다운로드한 가중치를 삭제할까요?",
   "agents.localRemovingMeter": "제거 중",
-  "agents.localShowLogs": "로그 보기",
   "agents.localShowLogsTip": "터미널에서 이 모델의 로그 열기",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "시작",

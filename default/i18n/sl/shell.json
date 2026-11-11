@@ -68,7 +68,6 @@
   "agents.localRecommended": "priporočeno",
   "agents.localRemoveConfirm": "Ustaviti %1 in izbrisati prenesene uteži?",
   "agents.localRemovingMeter": "Odstranjevanje",
-  "agents.localShowLogs": "Prikaži dnevnike",
   "agents.localShowLogsTip": "Odpri dnevnike tega modela v terminalu",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Zaženi",

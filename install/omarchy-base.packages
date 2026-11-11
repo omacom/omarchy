@@ -14,8 +14,8 @@ bluez-utils
 bolt
 brightnessctl
 btop
-chromium
 cliamp
+cmake
 cups
 cups-filters
 cups-pk-helper
@@ -50,6 +50,7 @@ git
 gliff
 gnome-keyring
 gnome-themes-extra
+google-chrome
 grim
 gpu-screen-recorder
 gum
@@ -164,7 +165,6 @@ xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland
 xdg-terminal-exec
 xdg-user-dirs
-yaru-icon-theme
 yay
 yt-dlp
 zbar
