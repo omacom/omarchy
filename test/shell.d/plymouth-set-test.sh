@@ -42,13 +42,6 @@ for entry in 'Enabled=true' 'Mode=fixed' 'Effect=decrypt' 'Seed=2232146610849596
 done
 pass "packaged Plymouth default matches ttfx --frame-rate 240 decrypt selection"
 
-plymouth_set_source=$(<"$ROOT/bin/omarchy-plymouth-set")
-[[ $plymouth_set_source == *'exec 9>/run/lock/omarchy-plymouth.lock'* &&
-  $plymouth_set_source == *'flock -x 9'* ]] || fail "all static Plymouth publications take the common machine lock"
-[[ $plymouth_set_source != *$'\n  sudo plymouth-set-default-theme omarchy'* ]] ||
-  fail "static Plymouth activation and UKI rebuild stay inside the locked root transaction"
-pass "static Plymouth publication and rebuild share the machine lock"
-
 # SDDM reset is also a fixed-file publication contract. New packaged files
 # must fail this test until their trust and reset behavior are reviewed.
 packaged_sddm_assets=$(find "$ROOT/default/sddm/omarchy" -type f -printf '%P\n' | LC_ALL=C sort)
@@ -353,6 +346,12 @@ if (( $# == 0 )); then
   exit 0
 fi
 printf 'command plymouth-set-default-theme %s\n' "$*" >>"$TEST_SUDO_LOG"
+# A fresh open of the lock file conflicts with the transaction's lock while it holds it.
+if /usr/bin/flock -n "$TEST_LOCK_FILE" true; then
+  printf '%s lock free\n' "${0##*/}" >>"$TEST_LOCK_LOG"
+else
+  printf '%s lock held\n' "${0##*/}" >>"$TEST_LOCK_LOG"
+fi
 printf '%s\n' "$1" >"$TEST_PLYMOUTH_THEME_STATE"
 if [[ -n ${TEST_SIGNAL_DURING_ACTIVATION:-} && ! -e $TEST_SIGNAL_DURING_ACTIVATION ]]; then
   : >"$TEST_SIGNAL_DURING_ACTIVATION"
@@ -363,6 +362,12 @@ SH
 cat >"$root_tools/mkinitcpio" <<'SH'
 #!/bin/bash
 printf 'command mkinitcpio %s\n' "$*" >>"$TEST_SUDO_LOG"
+# A fresh open of the lock file conflicts with the transaction's lock while it holds it.
+if /usr/bin/flock -n "$TEST_LOCK_FILE" true; then
+  printf '%s lock free\n' "${0##*/}" >>"$TEST_LOCK_LOG"
+else
+  printf '%s lock held\n' "${0##*/}" >>"$TEST_LOCK_LOG"
+fi
 if [[ -n ${TEST_FAIL_MKINITCPIO_ONCE:-} && ! -e $TEST_FAIL_MKINITCPIO_ONCE ]]; then
   : >"$TEST_FAIL_MKINITCPIO_ONCE"
   exit 71
@@ -371,6 +376,12 @@ if [[ -n ${TEST_SIGNAL_AFTER_REBUILD_ONCE:-} && ! -e $TEST_SIGNAL_AFTER_REBUILD_
   : >"$TEST_SIGNAL_AFTER_REBUILD_ONCE"
   kill -TERM "$PPID"
 fi
+SH
+
+cat >"$root_tools/flock" <<'SH'
+#!/bin/bash
+[[ -z ${TEST_FLOCK_LOG:-} ]] || printf 'flock %s\n' "$*" >>"$TEST_FLOCK_LOG"
+exec /usr/bin/flock "$@"
 SH
 
 cat >"$root_tools/rm" <<'SH'
@@ -475,6 +486,7 @@ run_in_fake_root() {
       TEST_LOCK_FILE="$run_dir/plymouth.lock" \
       TEST_PLYMOUTH_THEME_STATE="$plymouth_theme_state" \
       TEST_SUDO_LOG="$sudo_log" \
+      TEST_LOCK_LOG="$run_dir/lock.log" \
       TEST_LEAK_LOG="$leak_log" \
       "$@"
   )
@@ -563,6 +575,36 @@ for requested_umask in 022 027 077; do
 done
 
 pass "a fresh installation receives complete mode-0644 Plymouth and SDDM theme files across restrictive umasks"
+
+# Another Plymouth writer holds the shared machine lock: publication must wait
+# for it, and activation and the rebuild must run while it is still held.
+setup_fresh_run
+lock_log="$run_dir/lock.log"
+flock_log="$run_dir/flock.log"
+locked_out="$run_dir/locked.out"
+: >"$lock_log"
+: >"$flock_log"
+exec 8>"$run_dir/plymouth.lock"
+flock -x 8
+run_set 022 env TEST_FLOCK_LOG="$flock_log" >"$locked_out" 2>&1 8>&- &
+publisher=$!
+for _ in {1..250}; do
+  [[ -s $flock_log ]] && break
+  sleep 0.02
+done
+[[ -s $flock_log ]] || fail "Plymouth publisher asks for the machine lock" "$(<"$locked_out")"
+sleep 0.3
+kill -0 "$publisher" 2>/dev/null || fail "Plymouth publisher waits while another writer holds the machine lock" "$(<"$locked_out")"
+cmp -s "$ROOT/default/plymouth/logo.png" "$theme/logo.png" || fail "Plymouth publisher publishes nothing while the machine lock is held"
+if [[ -s $sudo_log ]] && grep -vFxq 'root transaction' "$sudo_log"; then
+  fail "Plymouth publisher activates and rebuilds nothing while the machine lock is held" "$(<"$sudo_log")"
+fi
+exec 8>&-
+wait "$publisher" || fail "Plymouth publisher completes once the machine lock is released" "$(<"$locked_out")"
+cmp -s "$test_tmp/logo.png" "$theme/logo.png" || fail "Plymouth publisher publishes after the machine lock is released"
+[[ $(<"$lock_log") == $'plymouth-set-default-theme lock held\nmkinitcpio lock held' ]] ||
+  fail "Plymouth activation and the UKI rebuild run inside the locked root transaction" "$(<"$lock_log")"
+pass "static Plymouth publication waits for the machine lock and holds it through the rebuild"
 
 # An upgraded machine may already contain restrictive modes, destination
 # symlinks, and the legacy SDDM logo. Setting a theme must replace only the
