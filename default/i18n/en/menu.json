@@ -710,6 +710,9 @@
   "setup.direct-boot": {
     "label": "Direct Boot"
   },
+  "setup.dual-boot": {
+    "label": "Dual Boot"
+  },
   "setup.reset": {
     "label": "Reset Computer"
   },
