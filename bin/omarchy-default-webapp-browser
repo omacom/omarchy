@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# omarchy:summary=Choose a web app browser independently of the default browser
+# omarchy:args=[auto|chromium|chrome|brave|brave-origin|edge|helium|opera|vivaldi]
+# omarchy:examples=omarchy default webapp-browser helium | omarchy default webapp-browser auto
+
+set -e
+config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/webapp-browser"
+
+if (( $# == 0 )); then
+  if [[ -f $config ]]; then
+    cat "$config"
+  else
+    echo auto
+  fi
+  exit 0
+fi
+
+case "$1" in
+auto) desktop_id=auto ;;
+chromium) command=chromium; desktop_id=chromium.desktop; name="Chromium" ;;
+chrome) command=google-chrome-stable; desktop_id=google-chrome.desktop; name="Chrome" ;;
+brave) command=brave; desktop_id=brave-browser.desktop; name="Brave" ;;
+brave-origin) command=brave-origin; desktop_id=brave-origin.desktop; name="Brave Origin" ;;
+edge) command=microsoft-edge-stable; desktop_id=microsoft-edge.desktop; name="Edge" ;;
+helium) command=helium-browser; desktop_id=helium.desktop; name="Helium" ;;
+opera) command=opera; desktop_id=opera.desktop; name="Opera" ;;
+vivaldi) command=vivaldi-stable; desktop_id=vivaldi-stable.desktop; name="Vivaldi" ;;
+*)
+  echo "Usage: omarchy-default-webapp-browser <auto|chromium|chrome|brave|brave-origin|edge|helium|opera|vivaldi>" >&2
+  exit 1
+  ;;
+esac
+
+if [[ $desktop_id != "auto" ]] && omarchy-cmd-missing "$command"; then
+  echo "Install $1 with 'omarchy install browser $1' before selecting it as the web app browser." >&2
+  exit 1
+fi
+
+mkdir -p "$(dirname "$config")"
+temporary=$(mktemp "${config}.XXXXXX")
+trap 'rm -f "$temporary"' EXIT
+printf '%s\n' "$desktop_id" > "$temporary"
+mv -f "$temporary" "$config"
+
+if [[ $desktop_id == "auto" ]]; then
+  omarchy-notification-send -g 󰖟 "$(omarchy-i18n default.webappBrowserAuto)"
+else
+  omarchy-notification-send -g 󰖟 "$(omarchy-i18n default.webappBrowserSet "$name")"
+fi

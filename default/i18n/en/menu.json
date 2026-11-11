@@ -590,6 +590,40 @@
   "setup.default.browser.zen": {
     "label": "Zen"
   },
+  "setup.default.browser.helium": {
+    "label": "Helium"
+  },
+  "setup.default.webapp-browser": {
+    "label": "Web App Browser",
+    "title": "Web App Browser"
+  },
+  "setup.default.webapp-browser.auto": {
+    "label": "Automatic"
+  },
+  "setup.default.webapp-browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.webapp-browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.webapp-browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.webapp-browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.webapp-browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.webapp-browser.helium": {
+    "label": "Helium"
+  },
+  "setup.default.webapp-browser.opera": {
+    "label": "Opera"
+  },
+  "setup.default.webapp-browser.vivaldi": {
+    "label": "Vivaldi"
+  },
   "setup.default.dictation": {
     "label": "Dictation",
     "title": "Default Dictation"
@@ -796,6 +830,9 @@
   },
   "install.browser.zen": {
     "label": "Zen"
+  },
+  "install.browser.helium": {
+    "label": "Helium"
   },
   "install.service.1password": {
     "label": "1Password"
@@ -1075,6 +1112,9 @@
   },
   "remove.browser.zen": {
     "label": "Zen"
+  },
+  "remove.browser.helium": {
+    "label": "Helium"
   },
   "remove.service.1password": {
     "label": "1Password"
