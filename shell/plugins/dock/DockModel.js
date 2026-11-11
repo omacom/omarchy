@@ -149,6 +149,13 @@ function orderWithKeyAt(order, key, index) {
 
 // Where a dragged icon lands: its own slot moved by however many slots the
 // pointer has travelled, kept within the dock.
+// Symmetric falloff keeps neighboring icons continuous as the pointer moves.
+function hoverInfluence(distance, reach) {
+  distance = Math.abs(distance)
+  if (!(reach > 0) || distance >= reach) return 0
+  return (1 + Math.cos(Math.PI * distance / reach)) / 2
+}
+
 function dropIndex(fromIndex, offset, slotSize, count) {
   if (count <= 0 || !(slotSize > 0)) return fromIndex
   var target = fromIndex + Math.round(offset / slotSize)
@@ -192,6 +199,7 @@ function pickWindow(windows, workspaceId) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    hoverInfluence: hoverInfluence,
     normalizePosition: normalizePosition,
     isVertical: isVertical,
     normalizeId: normalizeId,
