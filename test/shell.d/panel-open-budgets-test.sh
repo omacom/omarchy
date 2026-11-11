@@ -3,7 +3,7 @@
 # Bar panel first open and reopen: panels build their content lazily on
 # first open (#15044), so the first open is the one to watch, and a
 # reopen must stay instant because the content survives the close. Each
-# panel is timed from its IPC open until the compositor maps its panel
+# panel is timed from its IPC open until it is drawn on a mapped panel
 # surface; budgets scale with how fast this machine starts processes.
 
 set -euo pipefail
@@ -52,18 +52,36 @@ for panel in "${panels[@]}"; do
   [[ -n $ready ]] || { sed -n '1,120p' "$SCRATCH_LOG" >&2; fail "panel $panel IPC handler becomes available"; }
 done
 
+# Panels share one surface per output that stays mapped between opens, so
+# the shell says which panel is drawn and the compositor that the surface is
+# up.
+wait_panel() { # panel-id open|closed
+  local id="$1" want="$2" state
+  for _ in {1..300}; do
+    state=closed
+    if scratch_ipc panels probe 2>/dev/null | jq -e --arg id "$id" '.drawn | index($id)' >/dev/null 2>&1; then
+      state=open
+      [[ $(scratch_layer_state omarchy-keyboard-panel) == "mapped" ]] || state=mapping
+    fi
+    [[ $state == $want ]] && return 0
+    kill -0 "$SCRATCH_PID" 2>/dev/null || return 1
+    sleep 0.01
+  done
+  return 1
+}
+
 open_ms() { # panel-id -> ms on stdout, fails when it never maps
   local id="$1" start end
   start=$EPOCHREALTIME
   scratch_ipc_quiet "$id" open >/dev/null 2>&1 || true
-  wait_scratch_layer omarchy-keyboard-panel mapped || return 1
+  wait_panel "$id" open || return 1
   end=$EPOCHREALTIME
   echo $(( (${end/[.,]/} - ${start/[.,]/}) / 1000 ))
 }
 
 close_panel() {
   scratch_ipc_quiet "$1" close >/dev/null 2>&1 || true
-  wait_scratch_layer omarchy-keyboard-panel absent || return 1
+  wait_panel "$1" closed || return 1
 }
 
 for panel in "${panels[@]}"; do
