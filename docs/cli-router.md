@@ -76,6 +76,8 @@ none were given, the router shows help instead of executing — `omarchy theme
 set` prints usage rather than running an interactive setter. A bare group name
 with child commands shows the group help.
 
+A group parent whose `args` metadata lists only flag tokens, or nothing, refuses a leftover bare word as a mistyped subcommand and exits 127, so `omarchy update firmwre` reports an unknown command instead of starting an update; a flag with a separate value placeholder such as `[--agent <id>]` counts as an operand and turns the check off, and a `--` before the first bare word passes the words after it through to the command.
+
 Dispatch is `exec`: the router process is replaced, the binary sees only the
 leftover arguments, and the exit code is the binary's own. The router itself
 exits 127 for unknown routes or missing binaries.
