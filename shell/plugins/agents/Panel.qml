@@ -503,15 +503,11 @@ Panel {
   readonly property var addRows: addStage === "network" ? networkAddModels : localAddRecipes
 
   // What a running network model is, in place of the memory meter its host
-  // measures: its measured speeds there, and its context.
+  // measures: its output speed there, and its context.
   function remoteStats(model) {
     var facts = []
-    // One speed segment: generation, with prefill in parentheses when known.
     var decode = Math.round(Number(model.decode_tok_s))
-    var prefill = Math.round(Number(model.prefill_tok_s))
-    if (decode > 0) facts.push(prefill > 0
-      ? Commons.I18n.t("agents.localSpeedPrefillFact").arg(Commons.I18n.formatNumber(decode, 0)).arg(Commons.I18n.formatNumber(prefill, 0))
-      : Commons.I18n.t("agents.localSpeedFact").arg(Commons.I18n.formatNumber(decode, 0)))
+    if (decode > 0) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Commons.I18n.formatNumber(decode, 0)))
     if (Number(model.ctx) > 0) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.ctx) / 1024), 0)))
     return facts.join(" · ")
   }

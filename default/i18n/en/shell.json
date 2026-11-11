@@ -9,7 +9,6 @@
   "agents.localMemoryFact": "%1 GiB Memory",
   "agents.localContextFact": "%1K Context",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.addProviderAccount": "Add %1 account",
   "agents.app": "App",
   "agents.autoswitch": "Autoswitch",
