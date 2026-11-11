@@ -226,3 +226,6 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
 done
 
 pass "every file Omarchy generates is classified as code or colour"
+
+# Declarative editor appearance follows the same staging/trust boundary.
+(source "$ROOT/test/shell.d/fixtures/theme-neovim.sh")
