@@ -42,6 +42,20 @@ assertEqual(bar.fullscreenOn([toplevel(4, 1)], 4), false, 'a maximized window le
 assertEqual(bar.fullscreenOn([toplevel(9, 2)], 4), false, 'fullscreen on another workspace leaves the bar clickable')
 assertEqual(bar.fullscreenOn([{ workspace: null, lastIpcObject: null }], 4), false, 'a toplevel without a workspace is ignored')
 
+// The fullscreen reveal only arms where the user turned it on, the bar is not
+// switched off, and a real fullscreen window is hiding it.
+assertEqual(bar.fullscreenRevealArmed(true, false, true), true, 'the reveal arms over a hidden bar')
+assertEqual(bar.fullscreenRevealArmed(false, false, true), false, 'the reveal stays off unless turned on')
+assertEqual(bar.fullscreenRevealArmed(true, true, true), false, 'the reveal never fights the bar-off switch')
+assertEqual(bar.fullscreenRevealArmed(true, false, false), false, 'the reveal arms nowhere without a fullscreen window')
+
+// A raised bar stays up while the pointer is on its edge or strip, or a panel
+// opened from it is showing, and goes once none of those hold.
+assertEqual(bar.fullscreenRevealHeld(true, false, false), true, 'the reveal holds while the pointer is on the edge')
+assertEqual(bar.fullscreenRevealHeld(false, true, false), true, 'the reveal holds while the pointer is on the bar')
+assertEqual(bar.fullscreenRevealHeld(false, false, true), true, 'the reveal holds while a bar panel is open')
+assertEqual(bar.fullscreenRevealHeld(false, false, false), false, 'the reveal drops once nothing holds it')
+
 // Beside a display notch, indicators right of the clock pull its end toward
 // the start as they reveal. A stationary pointer between the two ends has to
 // keep the peek open rather than close it, slide the clock back and reopen it.

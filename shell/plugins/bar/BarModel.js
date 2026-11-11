@@ -686,12 +686,27 @@ function fullscreenOn(toplevels, workspaceId) {
   return false
 }
 
+// Whether touching the bar's screen edge may bring the bar back over a
+// fullscreen window: the user turned the reveal on, the bar is not switched
+// off, and a real fullscreen window is hiding it on that screen.
+function fullscreenRevealArmed(enabled, barHidden, underFullscreen) {
+  return !!enabled && !barHidden && !!underFullscreen
+}
+
+// Whether a raised bar stays up once the pointer is off its reveal edge: while
+// it is on the bar strip, or a panel opened from the bar is showing.
+function fullscreenRevealHeld(onEdge, onStrip, popoutOpen) {
+  return !!onEdge || !!onStrip || !!popoutOpen
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     barSizeFor: barSizeFor,
     nextPeekEdge: nextPeekEdge,
     peeksAt: peeksAt,
     fullscreenOn: fullscreenOn,
+    fullscreenRevealArmed: fullscreenRevealArmed,
+    fullscreenRevealHeld: fullscreenRevealHeld,
     centerBesideRight: centerBesideRight,
     cutoutPending: cutoutPending,
     cutoutTop: cutoutTop,
