@@ -6,11 +6,25 @@ import Quickshell.Io
 Singleton {
   id: root
   property var state: ({})
+  // The shortcut chosen under Setup > Typing > Keyboard Shortcuts, as
+  // omarchy-menu-keyboard-shortcuts writes it. Watched, so the bar's tooltip
+  // follows a change without a restart; a missing file reads as empty, which
+  // means the default.
+  readonly property string shortcutRaw: shortcutFile.text()
 
   function cycle(back) {
     if (!watcher.running) return false
     watcher.write(back ? "cycle back\n" : "cycle\n")
     return true
+  }
+
+  FileView {
+    id: shortcutFile
+    path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/omarchy/keyboard-shortcut"
+    watchChanges: true
+    printErrors: false
+    blockLoading: true
+    onFileChanged: reload()
   }
 
   // One reader and pending selection for every monitor's keyboard widget.

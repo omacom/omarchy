@@ -117,11 +117,21 @@ function inputLabel(state, fallback) {
   return labels[state.current] || shortLabel(state.language || state.name, {})
 }
 
-function inputTooltip(state, layout, multipleLayouts) {
+// The shortcut that cycles the input language, as the tooltip writes it. raw
+// is the file omarchy-menu-keyboard-shortcuts writes; its first line names the
+// shortcut, and anything it doesn't list is the default, as in input-method.lua.
+function shortcutLabel(raw) {
+  var labels = { "ALT + SHIFT": "Alt + Shift", "SUPER + I": "Super + I" }
+  var line = String(raw || "").split("\n")[0].trim()
+  return typeof labels[line] === "string" ? labels[line] : labels["SUPER + I"]
+}
+
+function inputTooltip(state, layout, multipleLayouts, shortcut) {
+  var hint = " · " + (shortcut || "Super + I")
   if (!state || !state.methods || state.methods.length < 2)
-    return layout + (multipleLayouts ? " · Super + I" : "")
+    return layout + (multipleLayouts ? hint : "")
   var name = state.current && state.current.indexOf("keyboard-") === 0 ? layout : (state.name || layout)
-  return name.replace(/^Keyboard - /, "") + " · Super + I"
+  return name.replace(/^Keyboard - /, "") + hint
 }
 
 function showIndicator(layoutLabel, multipleLayouts, multipleInputs) {
@@ -141,6 +151,7 @@ if (typeof module !== "undefined") {
     shortLabel: shortLabel,
     inputLabel: inputLabel,
     inputTooltip: inputTooltip,
+    shortcutLabel: shortcutLabel,
     showIndicator: showIndicator
   }
 }
