@@ -179,7 +179,7 @@ impl History {
             self.base = index;
         }
         let relative = index.wrapping_sub(self.base);
-        if index < self.base || relative % self.stride != 0 {
+        if index < self.base || !relative.is_multiple_of(self.stride) {
             return Ok(());
         }
         let keyframe = Keyframe {
@@ -195,7 +195,7 @@ impl History {
             let stride = self.stride * 2;
             let base = self.base;
             self.frames
-                .retain(|frame| (frame.index - base) % stride == 0);
+                .retain(|frame| (frame.index - base).is_multiple_of(stride));
             self.stride = stride;
             self.bytes = self.frames.iter().map(Keyframe::bytes).sum();
         }
