@@ -192,8 +192,7 @@ assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', pair
 const i18n = { t: key => ({ text: key, arg(value) { this.text += '(' + value + ')'; return this }, toString() { return this.text } }), formatNumber: value => String(value) }
 const remoteStats = new Function('Commons', panel.match(/function remoteStats\([^]*?\n  \}/)[0] + '\nreturn remoteStats')({ I18n: i18n })
 assertEqual(remoteStats({ architecture: 'moe', decode_tok_s: 41.6, prefill_tok_s: 812.2, ctx: 262144 }),
-  'agents.localSpeedPrefillFact(42)(812) · agents.localContextFact(256)', 'a network model lists its speed with prefill, and its context')
-assertEqual(remoteStats({ decode_tok_s: 53.4, prefill_tok_s: null }), 'agents.localSpeedFact(53)', 'without a prefill speed, only the generation speed shows')
+  'agents.localSpeedFact(42) · agents.localContextFact(256)', 'a network model lists its output speed and context, never prefill')
 assertEqual(remoteStats({ architecture: 'dense', decode_tok_s: null, prefill_tok_s: null, ctx: 0 }), '', 'unmeasured speeds and an unknown context are left out, and the architecture never shows')
 assertEqual(remoteStats({}), '', 'a host that reports nothing gives no stats line')
 JS
