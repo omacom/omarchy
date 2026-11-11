@@ -28,7 +28,26 @@ fi
 # Change gnome icon theme color
 GNOME_ICONS_THEME=$HOME/.local/state/omarchy/current/theme/icons.theme
 if [[ -f $GNOME_ICONS_THEME ]]; then
-  gsettings set org.gnome.desktop.interface icon-theme "$(<$GNOME_ICONS_THEME)"
+  icon_theme=$(<"$GNOME_ICONS_THEME")
 else
-  gsettings set org.gnome.desktop.interface icon-theme "Yaru-blue"
+  icon_theme="Yaru-blue"
 fi
+
+# GTK falls back to Adwaita when the named icon theme is missing, but Qt does
+# not, so the shell would draw no icon for an app without one of its own. Icon
+# themes are looked up where the icon theme spec puts them: ~/.icons, then the
+# icons folder of each XDG data directory.
+icon_theme_installed() {
+  local dir data_dirs
+  IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for dir in "$HOME/.icons" "${data_dirs[@]/%//icons}"; do
+    [[ -f $dir/$1/index.theme ]] && return 0
+  done
+  return 1
+}
+
+if [[ -z $icon_theme ]] || ! icon_theme_installed "$icon_theme"; then
+  icon_theme="Adwaita"
+fi
+
+gsettings set org.gnome.desktop.interface icon-theme "$icon_theme"
