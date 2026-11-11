@@ -63,6 +63,13 @@ pass "main help does not show group counts"
 output=$("$CLI" commands)
 assert_output_contains "commands lists documented commands" "$output" "omarchy theme set <theme-name>"
 
+row=$(grep -m1 '^  omarchy theme set <theme-name> ' <<<"$output")
+if [[ $row =~ ^("  omarchy theme set <theme-name>"[ ]+) ]] && (( ${#BASH_REMATCH[1]} <= 52 )); then
+  pass "commands pads the usage column to at most 48 characters"
+else
+  fail "commands pads the usage column to at most 48 characters"
+fi
+
 "$CLI" commands --json | jq -e '.ok == true and (.commands | length >= 200)' >/dev/null
 pass "commands --json is valid JSON with full bin coverage"
 
