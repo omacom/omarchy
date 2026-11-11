@@ -1327,5 +1327,11 @@
   },
   "agent.make.app": {
     "label": "Make an app"
+  },
+  "appearance.dock.shelf": {
+    "label": "Dock Shelf"
+  },
+  "appearance.dock.reset": {
+    "label": "Restore Defaults"
   }
 }

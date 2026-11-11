@@ -166,6 +166,16 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
 
+omarchy_dock shelf on >/dev/null
+[[ $(omarchy_dock shelf) == on ]] || fail "shelf preference persists"
+pins_before=$(omarchy_dock pinned)
+omarchy_dock position left >/dev/null
+omarchy_dock autohide on >/dev/null
+omarchy_dock reset >/dev/null
+[[ $(omarchy_dock shelf) == off && $(omarchy_dock pinned) == "$pins_before" ]] || fail "shelf reset preserves pins"
+[[ $(omarchy_dock position) == bottom && $(omarchy_dock autohide) == off ]] || fail "dock reset restores native position and auto-hide defaults"
+pass "shelf preference persists and resets independently"
+
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
 # not beside the minimized one.
