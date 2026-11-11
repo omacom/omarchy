@@ -64,9 +64,25 @@ function shownSpan(clipStart, clipLength, start, length) {
   return { start: from, length: to - from }
 }
 
+// The chevron shows while the drawer has something to reveal: an icon that is
+// neither pinned nor hidden, or a bar widget in the tray section. A hidden icon
+// keeps it too, since the chevron's manage popup is the way back. Once every
+// icon is pinned there is nothing behind it, so it shows only while the pointer
+// is over the tray, keeping the manage popup one right-click away. A widget
+// dragged along the bar, or the open manage popup, keeps it while they last.
+function showsChevron(state) {
+  return state.drawerCount > 0
+    || state.hiddenCount > 0
+    || state.sectionCount > 0
+    || state.dragging
+    || state.managing
+    || (state.hovered && state.itemCount > 0)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     shownSpan: shownSpan,
+    showsChevron: showsChevron,
     itemNamed: itemNamed,
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,

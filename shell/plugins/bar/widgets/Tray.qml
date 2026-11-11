@@ -23,6 +23,7 @@ BarWidget {
   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
   readonly property var pinnedItems: bucket("pinned")
   readonly property var drawerItems: bucket("drawer")
+  readonly property var hiddenItems: bucket("hidden")
   readonly property var allItems: bucket("all")
   readonly property int drawerCount: drawerItems.length
   readonly property int trayItemExtent: Style.bar.iconSlot
@@ -39,7 +40,17 @@ BarWidget {
   readonly property var sectionShown: trayContent.item ? trayContent.item.sectionShown : null
   readonly property int sectionCount: bar && bar.layoutConfig && Array.isArray(bar.layoutConfig.tray) ? bar.layoutConfig.tray.length : 0
   readonly property real sectionExtent: sectionHost ? (vertical ? sectionHost.implicitHeight : sectionHost.implicitWidth) : 0
-  readonly property bool hasDrawer: allItems.length > 0 || sectionCount > 0 || barDragging
+  // The pointer is anywhere over the tray: pinned icons, chevron or drawer.
+  property bool trayHovered: false
+  readonly property bool hasDrawer: TrayModel.showsChevron({
+    drawerCount: drawerItems.length,
+    hiddenCount: hiddenItems.length,
+    sectionCount: sectionCount,
+    dragging: barDragging,
+    managing: managePopupOpen,
+    hovered: trayHovered,
+    itemCount: allItems.length
+  })
   readonly property int drawerExtent: drawerCount * trayItemExtent + Math.max(0, drawerCount - 1) * trayItemGap + sectionExtent
   // A widget being dragged along the bar opens the drawer, to show where it
   // can go, and so does any panel open from the tray or the tray section.
@@ -255,6 +266,10 @@ BarWidget {
     return vertical
       ? { x: 0, y: span.start, width: barSize, height: span.length }
       : { x: span.start, y: 0, width: span.length, height: barSize }
+  }
+
+  HoverHandler {
+    onHoveredChanged: root.trayHovered = hovered
   }
 
   Loader {

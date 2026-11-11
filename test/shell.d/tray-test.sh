@@ -35,4 +35,16 @@ assertDeepEqual(tray.shownSpan(10, 100, 0, 30), { start: 10, length: 20 }, 'a se
 assertEqual(tray.shownSpan(0, 10, 50, 30), null, 'a section still outside the drawer shows nothing')
 assertDeepEqual(tray.shownSpan(0, 50, 50.5, 0), { start: 50, length: 0 }, 'an empty section shows on the drawer\'s edge once within a pixel of it')
 assertEqual(tray.shownSpan(0, 50, 52, 0), null, 'an empty section further out shows nothing')
+
+// The chevron hides when every tray icon is pinned, but not while the pointer
+// is over the tray, so the manage popup stays reachable.
+const allPinned = { drawerCount: 0, hiddenCount: 0, sectionCount: 0, dragging: false, managing: false, hovered: false, itemCount: 2 }
+assert(!tray.showsChevron(allPinned), 'no chevron when every icon is pinned')
+assert(tray.showsChevron({ ...allPinned, hovered: true }), 'the chevron shows while the pointer is over an all-pinned tray')
+assert(tray.showsChevron({ ...allPinned, managing: true }), 'the chevron stays while its manage popup is open')
+assert(tray.showsChevron({ ...allPinned, drawerCount: 1 }), 'an unpinned icon keeps the chevron')
+assert(tray.showsChevron({ ...allPinned, hiddenCount: 1 }), 'a hidden icon keeps the chevron, the way to unhide it')
+assert(tray.showsChevron({ ...allPinned, sectionCount: 1 }), 'a widget in the tray section keeps the chevron')
+assert(tray.showsChevron({ ...allPinned, dragging: true }), 'a widget dragged along the bar shows the chevron')
+assert(!tray.showsChevron({ ...allPinned, itemCount: 0, hovered: true }), 'an empty tray shows no chevron on hover')
 JS
