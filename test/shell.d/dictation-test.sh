@@ -287,9 +287,9 @@ o = {
     return not installed
   end,
   bind = function(...) table.insert(bindings, {...}) end,
-  bind_hold = function(keys, _, press, _, release)
-    table.insert(bindings, { keys, false, press })
-    table.insert(bindings, { keys, false, release })
+  bind_hold = function(keys, _, press, _, release, options)
+    table.insert(bindings, { keys, false, press, options })
+    table.insert(bindings, { keys, false, release, options })
   end,
 }
 dofile(root .. "/default/hypr/bindings/dictation.lua")
@@ -298,20 +298,26 @@ selected = "some-backend"
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 local function binds(keys, command)
   for _, binding in ipairs(bindings) do
-    if binding[1] == keys and binding[3] == command then return true end
+    if binding[1] == keys and binding[3] == command then return binding end
   end
 end
-assert(#bindings == 3, "any installed backend receives Alt + Space and Right Alt, and nothing else")
+local function holds(keys)
+  local start, stop = binds(keys, "omarchy-dictation start"), binds(keys, "omarchy-dictation stop")
+  return start and stop and start[4].ignore_mods and start[4]
+end
+assert(#bindings == 5, "any installed backend receives Alt + Space, Right Alt and AltGr, and nothing else")
 assert(binds("ALT + SPACE", "omarchy-dictation toggle"), "Alt + Space toggles dictation")
-assert(binds("ALT + Alt_R", "omarchy-dictation start") and binds("ALT + Alt_R", "omarchy-dictation stop"),
-  "Right Alt starts dictation on press and stops it on release")
+local right_alt, altgr = holds("ALT + Alt_R"), holds("ISO_Level3_Shift")
+assert(right_alt and not right_alt.long_press, "Right Alt starts dictation on press and stops it on release")
+assert(altgr and altgr.long_press and altgr.non_consuming,
+  "AltGr starts dictation once held alone, without taking the key it is typed with")
 assert(o.dictation_installed(), "personal dictation keys see the installed backend")
 bindings, installed = {}, false
 dofile(root .. "/default/hypr/bindings/dictation.lua")
 assert(#bindings == 0, "a selected backend that is not installed leaves application keys available")
 assert(not o.dictation_installed(), "personal dictation keys release their keys once the backend is gone")
 LUA
-pass "Alt + Space toggles dictation and Right Alt records while held, once a backend is installed"
+pass "Alt + Space toggles dictation and Right Alt or AltGr records while held, once a backend is installed"
 
 # Fresh users receive the backend choice through the settings package's skel.
 cp "$ROOT/config/omarchy/defaults/dictation" "$config"
