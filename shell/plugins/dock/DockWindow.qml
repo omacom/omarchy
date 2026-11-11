@@ -205,8 +205,8 @@ PanelWindow {
     right: window.position !== "left"
   }
 
-  implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom : 0
-  implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + window.popupRoom
+  implicitWidth: window.vertical ? window.gap + window.slotSize + Style.space(24) + window.popupRoom : 0
+  implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + Style.space(24) + window.popupRoom
 
   mask: Region {
     item: window.contentShown ? body : null
@@ -260,12 +260,17 @@ PanelWindow {
     LayoutMirroring.enabled: false
     LayoutMirroring.childrenInherit: true
 
-    width: slots.implicitWidth
-    height: slots.implicitHeight
+    property real panelPadding: window.dock && window.dock.shelf ? Style.space(12) : 0
+    Behavior on panelPadding {
+      enabled: window.shown
+      NumberAnimation { duration: Style.duration(240); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+    }
+    width: slots.implicitWidth + panelPadding * 2
+    height: slots.implicitHeight + panelPadding * 2
     // How far the dock is tucked past its edge. Auto-hide slides it, but only
     // while the dock is on screen: arriving on a floating workspace shows it
     // where it belongs at once.
-    property real tuck: window.tucked ? window.slotSize + window.gap : 0
+    property real tuck: window.tucked ? window.slotSize + panelPadding * 2 + window.gap : 0
 
     // Tucking away is quicker than coming back. A gentler curve than
     // Style.easeOut, which crosses the short slide in a frame or two.
@@ -289,6 +294,21 @@ PanelWindow {
     // visibility, so the icons keep their textures and are drawn on the first
     // frame back instead of being uploaded again.
     opacity: window.shown ? 1 : 0
+
+    Rectangle {
+      anchors.fill: parent
+      opacity: (window.dock && window.dock.shelf) ? 1 : 0
+      visible: opacity > 0
+      Behavior on opacity {
+        enabled: window.shown
+        NumberAnimation { duration: Style.duration(240); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+      }
+      radius: Style.cornerRadius
+      // Theme shelf, fixed at 15% transparency (85% opacity).
+      color: Qt.rgba(Commons.Color.background.r, Commons.Color.background.g, Commons.Color.background.b, 0.85)
+      border.width: Math.max(1, Style.space(1))
+      border.color: Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.18)
+    }
 
     HoverHandler {
       id: bodyHover
