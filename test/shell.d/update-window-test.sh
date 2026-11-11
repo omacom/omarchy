@@ -151,10 +151,29 @@ printf '#!/bin/bash\n[[ $1 == -Qem ]] && echo "foreign-pkg 1.0-1"\n' >"$mock/pac
 printf '#!/bin/bash\nexit 1\n' >"$mock/omarchy-pkg-aur-accessible"
 printf '#!/bin/bash\necho "foreign-pkg 1.0-1 -> 1.1-1"\n' >"$mock/yay"
 chmod +x "$mock"/*
-output=$(PATH="$mock:$PATH" "$ROOT/shell/plugins/update/pending.sh")
+output=$(OMARCHY_PATH=/usr/share/omarchy PATH="$mock:$PATH" "$ROOT/shell/plugins/update/pending.sh")
 [[ $output == "unknown" ]] || fail 'an unreachable AUR is no answer' "$output"
 printf '#!/bin/bash\nexit 0\n' >"$mock/omarchy-pkg-aur-accessible"
-output=$(PATH="$mock:$PATH" "$ROOT/shell/plugins/update/pending.sh")
+output=$(OMARCHY_PATH=/usr/share/omarchy PATH="$mock:$PATH" "$ROOT/shell/plugins/update/pending.sh")
 rm -rf "$mock"
 [[ $output == $'aur\tforeign-pkg\t1.0-1\t1.1-1\t' ]] || fail 'an unreachable AUR is no answer' "a reachable AUR lists its updates: $output"
 pass 'an unreachable AUR is no answer'
+
+# A development checkout behind its upstream is the update the bar's icon
+# announced, so the preview lists it instead of passing for up to date.
+mock=$(mktemp -d)
+printf '#!/bin/bash\nexit 2\n' >"$mock/checkupdates"
+printf '#!/bin/bash\nexit 1\n' >"$mock/pacman"
+chmod +x "$mock"/*
+git -c init.defaultBranch=main init -q "$mock/upstream"
+commit() { git -C "$1" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q --allow-empty -m "$2"; }
+commit "$mock/upstream" one
+git clone -q "$mock/upstream" "$mock/checkout"
+commit "$mock/upstream" two
+output=$(OMARCHY_PATH="$mock/checkout" PATH="$mock:$PATH" "$ROOT/shell/plugins/update/pending.sh")
+expected=$'checkout\tomarchy-dev-checkout\t'$(git -C "$mock/upstream" rev-parse --short=7 HEAD~1)$'\t'$(git -C "$mock/upstream" rev-parse --short=7 HEAD)$'\t'
+[[ $output == "$expected" ]] || fail 'a checkout behind its upstream is listed' "expected $expected, got $output"
+output=$(OMARCHY_PATH=/usr/share/omarchy PATH="$mock:$PATH" "$ROOT/shell/plugins/update/pending.sh")
+[[ -z $output ]] || fail 'a checkout behind its upstream is listed' "a packaged install has no checkout to list: $output"
+rm -rf "$mock"
+pass 'a checkout behind its upstream is listed'
