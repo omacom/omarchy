@@ -75,7 +75,7 @@ set -euo pipefail
 # Arguments go to ctest, so `bin/test -V` shows every Qt test function as it runs.
 root="$(cd "$(dirname "$0")/.." && pwd)"
 "$root/bin/build"
-QT_QPA_PLATFORM=offscreen ctest --test-dir "$root/build" --output-on-failure "$@"
+QT_QPA_PLATFORM=offscreen ctest --test-dir "$root/build" --output-on-failure --no-tests=error "$@"
 ```
 
 ## `.github/workflows/test.yml`
