@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Meestal %1",
   "agents.nameAccount": "Geef dit account een naam. Het meldt zich aan via een privévenster, dus het huidige account van je browser wordt niet overgenomen.",
   "agents.networkAgo": "%1 geleden",
+  "agents.networkDisconnect": "Stop met het gebruik van dit model vanaf %1 hier; het blijft daar draaien",
+  "agents.networkDisconnectLabel": "Loskoppelen",
   "agents.networkHideConfirm": "%1 op %2 uit het paneel verbergen? Nog een toevoegen › Netwerkmodellen toont het weer.",
   "agents.networkHostOffline": "%1 is offline",
   "agents.networkHostUnreachable": "%1 reageert niet",

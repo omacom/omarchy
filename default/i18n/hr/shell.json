@@ -83,6 +83,8 @@
   "agents.mostlyModel": "Uglavnom %1",
   "agents.nameAccount": "Imenujte ovaj račun. Prijavljuje se kroz privatni prozor, pa se trenutni račun preglednika ne preuzima.",
   "agents.networkAgo": "prije %1",
+  "agents.networkDisconnect": "Prestanite ovdje koristiti ovaj model s %1; ondje i dalje radi",
+  "agents.networkDisconnectLabel": "Odspoji",
   "agents.networkHideConfirm": "Sakriti %1 na %2 s ploče? Dodajte još › Mrežni modeli ponovno ga prikazuje.",
   "agents.networkHostOffline": "%1 je izvan mreže",
   "agents.networkHostUnreachable": "%1 ne odgovara",

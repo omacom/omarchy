@@ -77,6 +77,8 @@
   "agents.mostlyModel": "Kebanyakannya %1",
   "agents.nameAccount": "Namakan akaun ini. Ia log masuk melalui tetingkap peribadi, jadi akaun semasa pelayar anda tidak dipilih.",
   "agents.networkAgo": "%1 lalu",
+  "agents.networkDisconnect": "Berhenti menggunakan model ini daripada %1 di sini; ia tetap berjalan di sana",
+  "agents.networkDisconnectLabel": "Putuskan sambungan",
   "agents.networkHideConfirm": "Sembunyikan %1 pada %2 daripada panel? Tambah lagi › Model rangkaian akan memaparkannya semula.",
   "agents.networkHostOffline": "%1 luar talian",
   "agents.networkHostUnreachable": "%1 tidak menjawab",

@@ -77,6 +77,8 @@
   "agents.mostlyModel": "주로 %1",
   "agents.nameAccount": "이 계정의 이름을 지으세요. 비공개 창으로 로그인하므로 브라우저의 현재 계정이 선택되지 않습니다.",
   "agents.networkAgo": "%1 전",
+  "agents.networkDisconnect": "여기서 %1의 이 모델 사용을 중지합니다. 그쪽에서는 계속 실행됩니다.",
+  "agents.networkDisconnectLabel": "연결 해제",
   "agents.networkHideConfirm": "패널에서 %2의 %1을 숨길까요? 하나 더 추가 › 네트워크 모델에서 다시 표시할 수 있습니다.",
   "agents.networkHostOffline": "%1 오프라인",
   "agents.networkHostUnreachable": "%1이 응답하지 않음",

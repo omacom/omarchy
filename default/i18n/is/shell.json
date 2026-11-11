@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Mest %1",
   "agents.nameAccount": "Nefndu þennan reikning. Hann skráir inn í gegnum einkaglugga, svo núverandi reikningur vafrans er ekki tekinn yfir.",
   "agents.networkAgo": "%1 síðan",
+  "agents.networkDisconnect": "Hættu að nota þetta líkan frá %1 hér; það heldur áfram að keyra þar",
+  "agents.networkDisconnectLabel": "Aftengja",
   "agents.networkHideConfirm": "Fela %1 á %2 á spjaldinu? Það sést aftur undir Bæta við öðrum › Netlíkön.",
   "agents.networkHostOffline": "%1 er ótengt",
   "agents.networkHostUnreachable": "%1 svarar ekki",

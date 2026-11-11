@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Mest %1",
   "agents.nameAccount": "Navngiv denne konto. Den logger ind gennem et privat vindue, så din browsers nuværende konto ikke overtages.",
   "agents.networkAgo": "for %1 siden",
+  "agents.networkDisconnect": "Stop med at bruge denne model fra %1 her; den kører fortsat der",
+  "agents.networkDisconnectLabel": "Afbryd forbindelse",
   "agents.networkHideConfirm": "Skjul %1 på %2 fra panelet? Tilføj en mere › Netværksmodeller viser den igen.",
   "agents.networkHostOffline": "%1 er offline",
   "agents.networkHostUnreachable": "%1 svarer ikke",

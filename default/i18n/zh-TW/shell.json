@@ -77,6 +77,8 @@
   "agents.mostlyModel": "主要使用 %1",
   "agents.nameAccount": "為這個帳號命名。它透過私密視窗登入，不會使用瀏覽器目前的帳號。",
   "agents.networkAgo": "%1 前",
+  "agents.networkDisconnect": "停止在此使用 %1 上的此模型；模型仍會在該處繼續執行",
+  "agents.networkDisconnectLabel": "中斷連線",
   "agents.networkHideConfirm": "將 %2 上的 %1 從面板隱藏？從「再新增一個 › 網路模型」即可再次顯示。",
   "agents.networkHostOffline": "%1 已離線",
   "agents.networkHostUnreachable": "%1 無回應",

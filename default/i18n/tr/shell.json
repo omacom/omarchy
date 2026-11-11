@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Çoğunlukla %1",
   "agents.nameAccount": "Bu hesaba bir ad verin. Gizli bir pencereden giriş yaptığı için tarayıcınızın geçerli hesabı kullanılmaz.",
   "agents.networkAgo": "%1 önce",
+  "agents.networkDisconnect": "Bu modeli burada %1 üzerinden kullanmayı durdur; orada çalışmaya devam eder",
+  "agents.networkDisconnectLabel": "Bağlantıyı kes",
   "agents.networkHideConfirm": "%2 üzerindeki %1 panelden gizlensin mi? Bir tane daha ekleyin › Ağ modelleri üzerinden tekrar gösterilir.",
   "agents.networkHostOffline": "%1 çevrim dışı",
   "agents.networkHostUnreachable": "%1 yanıt vermiyor",

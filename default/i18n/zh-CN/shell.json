@@ -77,6 +77,8 @@
   "agents.mostlyModel": "主要使用 %1",
   "agents.nameAccount": "为此账户命名。它通过隐私窗口登录，因此不会使用浏览器当前的账户。",
   "agents.networkAgo": "%1前",
+  "agents.networkDisconnect": "停止在此处使用 %1 上的此模型；它仍会在那里继续运行",
+  "agents.networkDisconnectLabel": "断开连接",
   "agents.networkHideConfirm": "从面板中隐藏 %2 上的 %1？“再添加一个 › 网络模型”可将其重新显示。",
   "agents.networkHostOffline": "%1 已离线",
   "agents.networkHostUnreachable": "%1 无响应",

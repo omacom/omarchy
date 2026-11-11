@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Mestadels %1",
   "agents.nameAccount": "Namnge kontot. Det loggar in via ett privat fönster, så webbläsarens nuvarande konto inte hämtas.",
   "agents.networkAgo": "för %1 sedan",
+  "agents.networkDisconnect": "Sluta använda den här modellen från %1 här; den fortsätter att köras där",
+  "agents.networkDisconnectLabel": "Koppla från",
   "agents.networkHideConfirm": "Dölj %1 på %2 från panelen? Lägg till en till › Nätverksmodeller visar den igen.",
   "agents.networkHostOffline": "%1 är offline",
   "agents.networkHostUnreachable": "%1 svarar inte",

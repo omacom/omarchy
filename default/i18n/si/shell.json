@@ -80,6 +80,8 @@
   "agents.mostlyModel": "බොහෝවිට %1",
   "agents.nameAccount": "මෙම ගිණුම නම් කරන්න. එය පුද්ගලික කවුළුවකින් පුරන බැවින්, ඔබේ බ්‍රවුසරයේ වත්මන් ගිණුම නොගැනේ.",
   "agents.networkAgo": "%1කට පෙර",
+  "agents.networkDisconnect": "%1 වෙතින් මෙම මාදිලිය මෙහි භාවිතය නවත්වන්න; එය එහි දිගටම ධාවනය වේ",
+  "agents.networkDisconnectLabel": "විසන්ධි කරන්න",
   "agents.networkHideConfirm": "පැනලයෙන් %2 මත %1 සඟවන්නද? තවත් එකක් එක් කරන්න › ජාල මාදිලි මඟින් එය නැවත පෙන්වයි.",
   "agents.networkHostOffline": "%1 නොබැඳියි",
   "agents.networkHostUnreachable": "%1 පිළිතුරු දෙන්නේ නැත",

@@ -83,6 +83,8 @@
   "agents.mostlyModel": "Surtout %1",
   "agents.nameAccount": "Nommez ce compte. Il se connecte via une fenêtre privée, donc le compte actuel de votre navigateur n'est pas repris.",
   "agents.networkAgo": "il y a %1",
+  "agents.networkDisconnect": "Arrêter d'utiliser ce modèle depuis %1 ici ; il continue de fonctionner là-bas",
+  "agents.networkDisconnectLabel": "Déconnecter",
   "agents.networkHideConfirm": "Masquer %1 sur %2 du panneau ? Ajouter un autre › Modèles réseau permet de le réafficher.",
   "agents.networkHostOffline": "%1 est hors ligne",
   "agents.networkHostUnreachable": "%1 ne répond pas",

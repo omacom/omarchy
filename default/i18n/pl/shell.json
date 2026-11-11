@@ -86,6 +86,8 @@
   "agents.mostlyModel": "Głównie %1",
   "agents.nameAccount": "Nazwij to konto. Logowanie odbywa się przez prywatne okno, więc bieżące konto w przeglądarce nie zostanie przejęte.",
   "agents.networkAgo": "%1 temu",
+  "agents.networkDisconnect": "Przestań używać tego modelu z %1 tutaj; będzie nadal działać tam",
+  "agents.networkDisconnectLabel": "Rozłącz",
   "agents.networkHideConfirm": "Ukryć %1 na %2 z panelu? Dodaj kolejne › Modele sieciowe pokaże go ponownie.",
   "agents.networkHostOffline": "%1 jest offline",
   "agents.networkHostUnreachable": "%1 nie odpowiada",
