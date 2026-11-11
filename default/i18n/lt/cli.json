@@ -21,6 +21,7 @@
   "agents.homeFailed": "Nepavyko parengti namų katalogo naujai paskyrai.",
   "agents.installCliFailed": "Nepavyko baigti diegti %1 CLI.",
   "agents.installingCli": "Diegiama %1 CLI…",
+  "agents.instructionsBackedUp": "Jūsų senos agento instrukcijos išsaugotos kaip atsarginės kopijos",
   "agents.localUnsupported": "Joks agentas negali naudoti vietinio modelio",
   "agents.localUnsupportedBody": "Norėdami naudoti vietinį modelį, įdiekite pi arba OpenCode.",
   "agents.loginUnfinished": "Prisijungimas nebaigtas, todėl paskyra nepridėta.",

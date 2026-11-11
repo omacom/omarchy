@@ -39,7 +39,7 @@ done
 dtb_dir=${OMARCHY_QUALCOMM_DTB_DIR:-$dtb_dir}
 
 dtbs=()
-for dtb in "$dtb_dir"/x1*.dtb "$dtb_dir"/hamoa*.dtb \
+for dtb in "$dtb_dir"/x1*.dtb "$dtb_dir"/hamoa*.dtb "$dtb_dir"/purwa*.dtb \
   "$dtb_dir"/glymur*.dtb "$dtb_dir"/mahua*.dtb "$dtb_dir"/sc8280xp*.dtb; do
   if [[ -f $dtb && $dtb != *-el2.dtb ]]; then
     dtbs+=("$dtb")

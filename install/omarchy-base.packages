@@ -15,6 +15,7 @@ bolt
 brightnessctl
 btop
 cliamp
+cmake
 cups
 cups-filters
 cups-pk-helper
@@ -163,7 +164,7 @@ woff2-font-awesome
 xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland
 xdg-terminal-exec
-yaru-icon-theme
+xdg-user-dirs
 yay
 yt-dlp
 zbar

@@ -20,6 +20,7 @@
   "agents.homeFailed": "Не можа да се подготви домашна директория за новия профил.",
   "agents.installCliFailed": "Инсталирането на %1 CLI не завърши.",
   "agents.installingCli": "Инсталиране на %1 CLI…",
+  "agents.instructionsBackedUp": "Старите ви инструкции за агенти са запазени като резервни копия",
   "agents.localUnsupported": "Никой агент не може да използва локалния модел",
   "agents.localUnsupportedBody": "Инсталирайте pi или OpenCode, за да използвате локалния модел.",
   "agents.loginUnfinished": "Влизането не завърши, така че не беше добавен профил.",
