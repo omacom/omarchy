@@ -35,7 +35,9 @@ Confirm that everything looks good and wait for the install to finish like norma
 
 When you finish your Omarchy install, you'll notice that the Limine bootloader is the default now. With this, you can also add options to Limine for your other installs such as Windows.
 
-To add other operating systems, run `limine-scan` and follow the prompts to add the entries you want to your Limine config. The boot menu stays hidden by default and starts Omarchy after one second. To choose Windows or another entry, press any key as soon as Limine starts; when the menu appears, use the arrow keys to select an entry and press Enter. If Omarchy starts before you press a key, restart and try again. If you turned on _Setup > Direct Boot_, the firmware skips Limine entirely, so pick Limine from your BIOS boot menu or run _Setup > Direct Boot_ again to remove the entry.
+To add Windows, run _Setup > Dual Boot_. When your firmware has a Windows Boot Manager entry, the new menu entry asks the firmware to start it, so Windows starts the same way it does without Limine and BitLocker doesn't ask for its recovery key after Limine updates. Without that firmware entry, Limine starts Windows from its EFI partition instead; BitLocker may then ask for the recovery key after a Limine update, so have it at hand. Running it again fixes a Windows entry added earlier with `limine-scan`.
+
+To add other operating systems, run `limine-scan` and follow the prompts to add the entries you want to your Limine config. The boot menu stays hidden by default and starts Omarchy after one second, unless you chose to show it when running _Setup > Dual Boot_. To choose Windows or another entry, press any key as soon as Limine starts; when the menu appears, use the arrow keys to select an entry and press Enter. If Omarchy starts before you press a key, restart and try again. If you turned on _Setup > Direct Boot_, the firmware skips Limine entirely, so pick Limine from your BIOS boot menu or run _Setup > Direct Boot_ again to remove the entry.
 
 ## Bitlocker
 
