@@ -255,6 +255,12 @@ Windows Registry Editor Version 5.00
 "KeyLength"=dword:00000010
 "ERand"=hex(b):01,00,00,00,00,00,00,80
 "EDIV"=dword:00001234
+
+[\ControlSet001\Services\BTHPORT\Parameters\Keys\001a7dda7113\e8d03c1f2a3b]
+"LTK"=hex:cc,cc,cc,cc,cc,cc,cc,cc,cc,cc,cc,cc,cc,cc,cc,cc
+"KeyLength"=dword:00000010
+"ERand"=hex(b):00,00,00,00,00,00,00,00
+"EDIV"=dword:00000000
 REG
 for stub in "sudo:\"\$@\"" "gum:exit 0" "systemctl:echo \"systemctl \$*\" >>\"$import_tmp/log\"" \
   "hivexget:echo 1" "hivexregedit:cat \"$import_tmp/export.reg\"" "lsblk:cat \"$import_tmp/lsblk.json\""; do
@@ -277,6 +283,9 @@ le=$(cat "$adapter/C1:22:33:44:55:66/info")
 [[ $le == *$'[IdentityResolvingKey]\nKey=5555'* ]] || fail "an LE device keeps its own identity key" "$le"
 [[ $import_output == *"Skipping AA:BB:CC:DD:EE:FF: pair it in Omarchy first"* ]] ||
   fail "a device not paired in Omarchy is skipped with what to do" "$import_output"
-[[ -f "$adapter/E8:D0:3C:1F:2A:3B/info.bak" ]] || fail "the previous pairing is kept" "$(ls "$adapter/E8:D0:3C:1F:2A:3B")"
+[[ $classic == *$'[LongTermKey]\nKey=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC\nEncSize=16\nEDiv=0\nRand=0'* ]] ||
+  fail "a dual-mode device gets its LE key too" "$classic"
+grep -Fxq 'Key=00000000000000000000000000000000' "$adapter/E8:D0:3C:1F:2A:3B/info.bak" ||
+  fail "a dual-mode device's backup is the pairing as it was" "$(cat "$adapter/E8:D0:3C:1F:2A:3B/info.bak" 2>&1)"
 grep -qx "systemctl restart bluetooth" "$import_tmp/log" || fail "bluetooth restarts to load the copied keys"
 pass "bluetooth copies pairings from Windows into devices already paired in Omarchy"

@@ -100,19 +100,19 @@ copy_windows_hive() {
     esac
     root=$mountpoint
     if [[ $root == "-" ]]; then
-      root=$(mktemp -d)
+      root="$work/mnt-${#mounted[@]}"
+      mkdir "$root"
       if ! sudo mount -o ro -t ntfs3 "$device" "$root" 2>/dev/null; then
         rmdir "$root"
         continue
       fi
+      mounted+=("$root")
     fi
     hive=$(sudo find "$root" -mindepth 4 -maxdepth 4 -ipath "$root/windows/system32/config/system" -type f -print -quit 2>/dev/null)
-    [[ -n $hive ]] && sudo cat "$hive" >"$target"
-    if [[ $mountpoint == "-" ]]; then
-      sudo umount "$root"
-      rmdir "$root"
+    if [[ -n $hive ]]; then
+      sudo cat "$hive" >"$target"
+      return 0
     fi
-    [[ -n $hive ]] && return 0
   done < <(lsblk -J -o PATH,FSTYPE,MOUNTPOINT 2>/dev/null |
     jq -r '.blockdevices[] | recurse(.children[]?) | [.path, (.fstype // "-"), (.mountpoint // "-")] | @tsv')
   return 1
@@ -122,8 +122,19 @@ if omarchy-cmd-missing hivexregedit; then
   omarchy-pkg-add hivex
 fi
 
+# Only partitions this command mounted are unmounted, however it ends, and
+# before the scratch directory holding their mount points goes.
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+mounted=()
+cleanup() {
+  local root
+  for root in "${mounted[@]}"; do
+    sudo umount "$root" 2>/dev/null
+  done
+  rm -rf "$work"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 if ! copy_windows_hive "$work/SYSTEM"; then
   echo "No Windows installation with Bluetooth keys was found." >&2
@@ -159,10 +170,16 @@ if ! gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarch
   exit 0
 fi
 
+# A dual-mode device gets both a classic and an LE key: its info file is
+# backed up once, before either, so info.bak is the pairing as it was.
+declare -A backed_up=()
 for update in "${updates[@]}"; do
   read -r kind adapter_address device_address key keylength ediv erand <<<"$update"
   info="$BLUETOOTH_DIR/$adapter_address/$device_address/info"
-  sudo cp -p "$info" "$info.bak"
+  if [[ -z ${backed_up[$info]:-} ]]; then
+    sudo cp -p "$info" "$info.bak"
+    backed_up[$info]=1
+  fi
   if [[ $kind == "classic" ]]; then
     updated=$(set_section <(sudo cat "$info") LinkKey "Key=$key")
   else
