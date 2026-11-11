@@ -238,7 +238,7 @@ pass "chords whose dispatch is unknown stay apart"
 eval "$(sed -n '/^alternative_chord_actions()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"
 [[ -n $(alternative_chord_actions) ]] || fail "the menu names the actions it pairs up"
 while IFS= read -r action; do
-  (( $(grep -rhE '^[[:space:]]*o\.bind\(' "$ROOT/default/hypr/bindings" |
+  (( $(grep -rhE '^[[:space:]]*o\.bind(_preinstalled)?\(' "$ROOT/default/hypr/bindings" |
        grep -cF ", \"$action\",") >= 2 )) ||
     fail "every action named as having an alternative is bound twice" "$action"
 done < <(alternative_chord_actions)

@@ -174,3 +174,98 @@ touch "$mise_config"
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 [[ -f $mise_config ]] || fail "Remove Preinstalls leaves the package-owned mise declarations in place"
 pass "Remove Preinstalls leaves the package-owned mise declarations in place"
+
+# Exercise regional exclusions through the real setup, dock, refresh and Lua
+# bindings, with only desktop IPC and the desktop database update stubbed.
+require_command lua
+require_command node
+rm "$mock_bin/omarchy-refresh-applications"
+for command in omarchy-shell update-desktop-database; do
+  printf '#!/bin/bash\nexit 0\n' >"$mock_bin/$command"
+  chmod +x "$mock_bin/$command"
+done
+
+region_leaf="$test_tmp/region-preinstalls.sh"
+sed "s|/etc/omarchy/region|$test_tmp/region|g" "$ROOT/install/user/region-preinstalls.sh" >"$region_leaf"
+printf cn >"$test_tmp/region"
+restore_disabled=$(node -e '
+const fs = require("fs");
+const menu = require(process.env.ROOT + "/shell/plugins/menu/MenuModel.js");
+console.log(menu.parseMenuJsonc(fs.readFileSync(process.env.ROOT + "/default/omarchy/omarchy-menu.jsonc", "utf8")).find(item => item.id === "install.preinstalls").disabled);
+')
+
+regional_bindings() {
+  lua <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+hl = {
+  dsp = { exec_cmd = function(command) return command end },
+  bind = function(keys, dispatcher, options) print(keys .. "\t" .. options.description) end,
+}
+require("default.hypr.helpers")
+require("default.hypr.bindings.applications")
+o.bind("USER", "X", { webapp = "https://x.com/" })
+LUA
+}
+
+(
+  export HOME="$test_tmp/regional-home"
+  mkdir -p "$HOME/.local/share/applications"
+  "$ROOT/bin/omarchy-refresh-applications"
+  "$ROOT/bin/omarchy-region-preinstalls" us
+  [[ ! -e $HOME/.local/state/omarchy/preinstalls-skipped ]] || fail "a region without exclusions leaves no record"
+  [[ -f $HOME/.local/share/applications/YouTube.desktop ]] || fail "global launchers stay installed"
+  grep -qxF $'SUPER + SHIFT + X\tX' <<<"$(regional_bindings)" || fail "global preinstalled bindings stay enabled"
+  pass "a region without exclusions keeps launchers and bindings"
+
+  for state_home in "" "$test_tmp/custom-state"; do
+    export XDG_STATE_HOME="$state_home"
+    export HOME="$test_tmp/regional-home-${state_home:+custom}"
+    mkdir -p "$HOME/.local/share/applications"
+    "$ROOT/bin/omarchy-refresh-applications"
+    bash -eE "$region_leaf"
+    [[ ! -e $HOME/.local/share/applications/YouTube.desktop && ! -e $HOME/.local/share/applications/X.desktop ]] ||
+      fail "regional setup removes skipped launchers"
+    [[ -f $HOME/.local/share/applications/Basecamp.desktop ]] || fail "regional setup keeps unrelated launchers"
+    pins=$("$ROOT/bin/omarchy-dock" pinned)
+    ! grep -qxF YouTube <<<"$pins" && ! grep -qxF X <<<"$pins" || fail "regional setup unpins skipped apps"
+    grep -qxF org.gnome.Nautilus <<<"$pins" || fail "regional setup preserves unrelated pins"
+
+    bindings=$(regional_bindings)
+    for name in YouTube X ChatGPT Signal Music; do
+      ! grep -q $'\t'"$name"'$' <<<"${bindings%$'\n'USER*}" || fail "regional setup omits the $name preinstalled binding"
+    done
+    for name in Terminal Calendar Obsidian "Music TUI"; do
+      grep -q $'\t'"$name"'$' <<<"$bindings" || fail "regional setup keeps the $name binding"
+    done
+    grep -qxF $'USER\tX' <<<"$bindings" || fail "a personal binding can restore a skipped app"
+
+    # A region with no list and a later refresh must not undo the install.
+    printf 'user-installed launcher\n' >"$HOME/.local/share/applications/ChatGPT.desktop"
+    "$ROOT/bin/omarchy-region-preinstalls" us
+    "$ROOT/bin/omarchy-refresh-applications"
+    [[ ! -e $HOME/.local/share/applications/YouTube.desktop && -f $HOME/.local/share/applications/Basecamp.desktop ]] ||
+      fail "refresh preserves exclusions rather than reading the current region"
+    [[ $(<"$HOME/.local/share/applications/ChatGPT.desktop") == "user-installed launcher" ]] ||
+      fail "refresh does not delete a user's non-shipped launcher with a skipped binding's name"
+    printf 'user-installed launcher\n' >"$HOME/.local/share/applications/YouTube.desktop"
+    "$ROOT/bin/omarchy-refresh-applications"
+    [[ $(<"$HOME/.local/share/applications/YouTube.desktop") == "user-installed launcher" ]] ||
+      fail "refresh preserves an explicitly restored launcher even when its default was skipped"
+
+    bash -c "$restore_disabled" && fail "the menu offers Restore Preinstalls after regional exclusions"
+    OMARCHY_TEST_PKG_ADD_STATUS=1 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null && fail "failed restore reports success"
+    [[ -f ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-skipped ]] || fail "failed restore preserves regional exclusions"
+    "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
+    [[ ! -e ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-skipped ]] || fail "explicit restore clears regional exclusions"
+    cmp "$ROOT/applications/YouTube.desktop" "$HOME/.local/share/applications/YouTube.desktop" || fail "explicit restore brings back skipped default launchers"
+    grep -qxF $'SUPER + SHIFT + X\tX' <<<"$(regional_bindings)" || fail "explicit restore brings back skipped bindings"
+    bash -c "$restore_disabled" || fail "the menu disables Restore once nothing is excluded"
+
+    "$ROOT/bin/omarchy-done" mark finalize-user
+    printf 'user-installed launcher\n' >"$HOME/.local/share/applications/YouTube.desktop"
+    bash -eE "$region_leaf"
+    [[ ! -e ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-skipped ]] || fail "re-finalization does not undo an explicit restore"
+    [[ $(<"$HOME/.local/share/applications/YouTube.desktop") == "user-installed launcher" ]] || fail "re-finalization preserves a user's launcher"
+  done
+  pass "regional exclusions survive refresh and user overrides until an explicit successful restore"
+)
