@@ -87,7 +87,8 @@ Panel {
   property bool locationRefreshPending: false
 
   // Observe connection identity, not scan results or signal-strength changes.
-  readonly property string networkFingerprint: {
+  property string networkFingerprint: ""
+  readonly property string observedNetworkFingerprint: {
     var devices = Networking.devices ? Networking.devices.values : []
     var connections = []
     for (var i = 0; i < devices.length; i++) {
@@ -101,6 +102,23 @@ Panel {
       connections.push([device.name, names.sort()])
     }
     return connections.length ? JSON.stringify(connections.sort()) : ""
+  }
+  onObservedNetworkFingerprintChanged: {
+    var previous = JSON.parse(networkFingerprint || "[]")
+    var connections = JSON.parse(observedNetworkFingerprint || "[]")
+    for (var i = 0; i < connections.length; i++) {
+      if (connections[i][1].length) continue
+      // OWE networks can vanish from AvailableConnections between scans
+      // while the device stays connected. Keep its last identity until an
+      // actual disconnect or a different connected network is observed.
+      for (var j = 0; j < previous.length; j++) {
+        if (previous[j][0] === connections[i][0]) {
+          connections[i][1] = previous[j][1]
+          break
+        }
+      }
+    }
+    networkFingerprint = connections.length ? JSON.stringify(connections) : ""
   }
   onNetworkFingerprintChanged: {
     if (!autoLocation) return
@@ -408,6 +426,9 @@ Panel {
     id: forecastProc
     property string requestedQuery: ""
     onStarted: requestedQuery = root.locationQuery
+    // Cancellation is asynchronous: the first refresh may still find this
+    // process running. Start the new query once the old process has exited.
+    onExited: if (requestedQuery !== root.locationQuery) Qt.callLater(root.refreshWeather)
     command: ["curl", "-fsS", "--max-time", "10", "https://wttr.in/" + root.locationQuery + "?format=j1"]
     stdout: StdioCollector {
       waitForEnd: true
@@ -472,6 +493,9 @@ Panel {
     id: dailyForecastProc
     property string requestedQuery: ""
     onStarted: requestedQuery = root.locationQuery
+    // Cancellation is asynchronous: the first refresh may still find this
+    // process running. Start the new query once the old process has exited.
+    onExited: if (requestedQuery !== root.locationQuery) Qt.callLater(root.refreshWeather)
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {

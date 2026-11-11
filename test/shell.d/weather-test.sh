@@ -188,16 +188,39 @@ url=${@: -1}
 printf '%s\n' "$url" >>"$HOME/requests"
 case $url in
   https://geo.omarchy.org/)
-    if [[ $(<"$HOME/geo-response") == "FAIL" ]]; then exit 1; fi
-    cat "$HOME/geo-response" ;;
-  https://wttr.in/*) printf '%s\n' '{"current_condition":[{"temp_C":"22"}]}' ;;
-  https://api.open-meteo.com/*) printf '%s\n' '{"current":{"temperature_2m":22}}' ;;
+    response=$(<"$HOME/geo-response")
+    if [[ $response == "FAIL" ]]; then exit 1; fi
+    if [[ $response == HOLD:* ]]; then
+      while [[ ! -e "$HOME/release-geo" ]]; do sleep 0.05; done
+      response=${response#HOLD:}
+    fi
+    printf '%s\n' "$response" ;;
+  https://wttr.in/*)
+    if [[ -e $HOME/hold-forecast && $url == *"7.29,80.63"* ]]; then
+      stale_wttr() { printf '%s\n' '{"current_condition":[{"temp_C":"11"}]}'; exit 0; }
+      trap stale_wttr TERM
+      while :; do sleep 0.05; done
+    fi
+    temp=22
+    [[ $url == *"6.93,79.86"* ]] && temp=29
+    [[ $url == *"1,2"* ]] && temp=11
+    printf '{"current_condition":[{"temp_C":"%s"}]}\n' "$temp" ;;
+  https://api.open-meteo.com/*)
+    if [[ -e $HOME/hold-forecast && $url == *"latitude=7.29&longitude=80.63"* ]]; then
+      stale_meteo() { printf '%s\n' '{"current":{"temperature_2m":11}}'; exit 0; }
+      trap stale_meteo TERM
+      while :; do sleep 0.05; done
+    fi
+    temp=22
+    [[ $url == *"latitude=6.93&longitude=79.86"* ]] && temp=29
+    [[ $url == *"latitude=1&longitude=2"* ]] && temp=11
+    printf '{"current":{"temperature_2m":%s}}\n' "$temp" ;;
   *) exit 1 ;;
 esac
 SH
 chmod +x "$stage/bin/curl"
 printf '%s\n' '{"name":"Bukit Jalil","latitude":3.05,"longitude":101.69}' >"$stage/home/geo-response"
-output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" timeout 20 quickshell -p "$stage" --no-color 2>&1) || fail "weather runtime fixture exits cleanly" "$output"
+output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" timeout 25 quickshell -p "$stage" --no-color 2>&1) || fail "weather runtime fixture exits cleanly" "$output"
 [[ $output == *"RESULT pass"* ]] || fail "weather runtime assertions pass" "$output"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
   fail "weather runtime has no QML errors" "$output"
