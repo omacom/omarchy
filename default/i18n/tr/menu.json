@@ -387,53 +387,52 @@
   "setup.default": {
     "label": "Varsayılanlar"
   },
-  "setup.default.agent": {
-    "label": "Ajan",
-    "title": "Varsayılan Ajan"
+  "agent": {
+    "label": "Ajan"
   },
-  "setup.default.agent.agy": {
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
   },
   "setup.default.browser": {
@@ -1235,31 +1234,31 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Dokunmatik Ekranı Devre Dışı Bırak"
   },
-  "setup.default.agent.amp": {
+  "agent.harness.amp": {
     "label": "Amp"
   },
-  "setup.default.agent.commandcode": {
+  "agent.harness.commandcode": {
     "label": "Command Code"
   },
-  "setup.default.agent.devin": {
+  "agent.harness.devin": {
     "label": "Devin CLI"
   },
-  "setup.default.agent.dsh": {
+  "agent.harness.dsh": {
     "label": "DeepSeek Harness"
   },
-  "setup.default.agent.freebuff": {
+  "agent.harness.freebuff": {
     "label": "Freebuff"
   },
-  "setup.default.agent.kilo": {
+  "agent.harness.kilo": {
     "label": "Kilo"
   },
-  "setup.default.agent.kiro-cli": {
+  "agent.harness.kiro-cli": {
     "label": "Kiro CLI"
   },
-  "setup.default.agent.mcode": {
+  "agent.harness.mcode": {
     "label": "MiniMax Code"
   },
-  "setup.default.agent.qwen": {
+  "agent.harness.qwen": {
     "label": "Qwen Code"
   },
   "setup.config.git": {
@@ -1300,5 +1299,33 @@
   },
   "install.service.notion": {
     "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Sade"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Varsayılan Harness"
+  },
+  "agent.instructions": {
+    "label": "Talimatlar"
+  },
+  "agent.make": {
+    "label": "Bir şey oluştur"
+  },
+  "agent.make.theme": {
+    "label": "Tema oluştur"
+  },
+  "agent.make.plugin": {
+    "label": "Eklenti oluştur"
+  },
+  "agent.make.app": {
+    "label": "Uygulama oluştur"
   }
 }

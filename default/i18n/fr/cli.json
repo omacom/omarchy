@@ -21,6 +21,7 @@
   "agents.homeFailed": "Impossible de préparer le dossier personnel du nouveau compte.",
   "agents.installCliFailed": "L'installation de la CLI %1 ne s'est pas terminée.",
   "agents.installingCli": "Installation de la CLI %1…",
+  "agents.instructionsBackedUp": "Vos anciennes instructions d'agent ont été sauvegardées",
   "agents.localUnsupported": "Aucun agent ne peut utiliser le modèle local",
   "agents.localUnsupportedBody": "Installez pi ou OpenCode pour utiliser le modèle local.",
   "agents.loginUnfinished": "La connexion ne s'est pas terminée, aucun compte n'a donc été ajouté.",

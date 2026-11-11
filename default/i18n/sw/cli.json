@@ -20,6 +20,7 @@
   "agents.homeFailed": "Imeshindwa kusanidi makazi kwa akaunti mpya.",
   "agents.installCliFailed": "Kusakinisha %1 CLI hakukukamilika.",
   "agents.installingCli": "Inasakinisha %1 CLI…",
+  "agents.instructionsBackedUp": "Maagizo yako ya zamani ya wakala yamehifadhiwa kama nakala rudufu",
   "agents.localUnsupported": "Hakuna wakala anayeweza kutumia modeli ya ndani",
   "agents.localUnsupportedBody": "Sakinisha pi au OpenCode ili kutumia modeli ya ndani.",
   "agents.loginUnfinished": "Kuingia hakukukamilika, kwa hiyo hakuna akaunti iliyoongezwa.",

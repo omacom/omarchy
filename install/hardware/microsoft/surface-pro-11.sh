@@ -19,7 +19,8 @@ if omarchy-hw-aarch64-qualcomm && omarchy-hw-match-device-tree microsoft,denali-
   # and X Plus models share. Omarchy's kernel carries the tree, found the way
   # dtb-uki.sh finds it; without it the list stays and an earlier pin goes.
   surface_pro11_dtb=""
-  for dtb in "$dtb_root"/linux-omarchy*/qcom/x1e80100-microsoft-denali-oled.dtb; do
+  for dtb in "$dtb_root"/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb \
+    "$dtb_root"/linux-omarchy*/qcom/x1e80100-microsoft-denali-oled.dtb; do
     if [[ -f $dtb ]]; then
       surface_pro11_dtb=$dtb
       break

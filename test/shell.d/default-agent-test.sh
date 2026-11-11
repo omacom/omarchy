@@ -318,7 +318,7 @@ pass "agent launcher opens a local model without a default"
 : >"$menu_log"
 omarchy-agent --pick
 mapfile -d '' -t menu_args <"$menu_log"
-[[ ${menu_args[*]} == "summon setup.default.agent" ]] ||
+[[ ${menu_args[*]} == "summon agent.harness" ]] ||
   fail "--pick opens the agent defaults menu when none is set"
 [[ ! -s $launch_log ]] || fail "--pick starts nothing when no agent is set"
 pass "--pick opens the agent defaults menu when none is set"

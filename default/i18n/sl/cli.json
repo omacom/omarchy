@@ -22,6 +22,7 @@
   "agents.homeFailed": "Domačega imenika za novi račun ni bilo mogoče nastaviti.",
   "agents.installCliFailed": "Namestitev %1 CLI se ni končala.",
   "agents.installingCli": "Nameščanje %1 CLI…",
+  "agents.instructionsBackedUp": "Stara navodila agenta so ohranjena kot varnostne kopije",
   "agents.localUnsupported": "Noben agent ne more uporabljati lokalnega modela",
   "agents.localUnsupportedBody": "Za uporabo lokalnega modela namestite pi ali OpenCode.",
   "agents.loginUnfinished": "Prijava se ni končala, zato račun ni bil dodan.",

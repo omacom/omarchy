@@ -20,6 +20,7 @@
   "agents.homeFailed": "Kotihakemiston määritys uudelle tilille ei onnistunut.",
   "agents.installCliFailed": "%1 CLI:n asennus ei valmistunut.",
   "agents.installingCli": "Asennetaan %1 CLI:tä…",
+  "agents.instructionsBackedUp": "Vanhat agenttiohjeesi säilytetty varmuuskopioina",
   "agents.localUnsupported": "Yksikään agentti ei voi käyttää paikallista mallia",
   "agents.localUnsupportedBody": "Asenna pi tai OpenCode käyttääksesi paikallista mallia.",
   "agents.loginUnfinished": "Kirjautuminen ei valmistunut, joten tiliä ei lisätty.",
