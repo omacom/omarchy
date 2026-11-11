@@ -244,6 +244,18 @@ with contextlib.redirect_stderr(io.StringIO()):
 expect("a Unified Harness session on an alias config.toml dropped is billed to no one",
        [record["todayTokensByModel"], local["todayTokensByModel"]], [{}, {}], [record, local])
 
+# An entry /model persists names a bare alias and a thinking level, with no
+# provider: it is one of Vibe's own models, served on the default Mistral
+# backend, so its sessions are Mistral's.
+sandbox()
+(home() / ".vibe").mkdir(parents=True, exist_ok=True)
+(home() / ".vibe" / "config.toml").write_text('[[models]]\nalias = "mistral-medium-3.5"\nthinking = "high"\n')
+write_unified("ses_builtin", usage(500, 50), entries=[message("b1", "user", "turn_start")], alias="mistral-medium-3.5")
+with contextlib.redirect_stderr(io.StringIO()):
+  record = vibe("--force")
+expect("a model entry that names no provider runs on Vibe's default Mistral backend",
+       [record["todayTokensByModel"], record["todayPrompts"]], [{"mistral-medium-3.5": 550}, 1], record)
+
 # ------------------------------------------------------- model resolution
 
 sandbox()
