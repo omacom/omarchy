@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Choose whose desktop SDDM opens at this start
+# omarchy:args=[--clear]
+# omarchy:requires-sudo=true
+
+# Runs as root before every SDDM start (sddm.service.d/omarchy-login-select.conf).
+# Until Setup > Users first adds someone it leaves the installer's autologin
+# alone. After that, --clear runs first and must succeed for SDDM to start: it
+# removes the installer's autologin and writes the last-sorting drop-in with
+# no user, which outranks every other drop-in. The second run then names, in
+# that drop-in, the one account on an encrypted disk or, with more than one,
+# the account whose key slot unlocked the disk this boot, used once.
+
+set -uo pipefail
+
+: "${LOGIN_SELECT_USERS_DIR:=/etc/omarchy/users}"
+: "${LOGIN_SELECT_SDDM_DIR:=/etc/sddm.conf.d}"
+: "${LOGIN_SELECT_SDDM_CONF:=/etc/sddm.conf}"
+: "${LOGIN_SELECT_SLOT_RECORD:=/run/omarchy/luks-slot}"
+
+managed=$LOGIN_SELECT_SDDM_DIR/zz-omarchy-autologin.conf
+
+autologin() {
+  mkdir -p "$LOGIN_SELECT_SDDM_DIR" &&
+    printf '[Autologin]\nUser=%s\nSession=omarchy.desktop\nRelogin=false\n' "$1" >"$managed.tmp" &&
+    mv -f "$managed.tmp" "$managed"
+}
+
+[[ -d $LOGIN_SELECT_USERS_DIR ]] || exit 0
+
+if [[ ${1:-} == "--clear" ]]; then
+  rm -f "$LOGIN_SELECT_SDDM_DIR/autologin.conf" && autologin "" || exit 1
+  # /etc/sddm.conf outranks every drop-in; Setup > Users refuses to add a
+  # second person while it names someone, and a later one stops SDDM here.
+  if [[ -f $LOGIN_SELECT_SDDM_CONF ]] &&
+    awk '/^\[/ { section = $0 } section == "[Autologin]" && /^[ \t]*User[ \t]*=[ \t]*[^ \t]/ { found = 1 } END { exit !found }' "$LOGIN_SELECT_SDDM_CONF"; then
+    echo "$LOGIN_SELECT_SDDM_CONF logs someone in automatically on a computer with more than one person; remove its [Autologin] User=." >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+USERS_DIR=$LOGIN_SELECT_USERS_DIR
+entrypoint=$(readlink -e -- "${BASH_SOURCE[0]}") || exit 1
+source "${entrypoint%/*}/omarchy-user-functions" || exit 1
+
+# The record the unlock left, renamed so no later start this boot reuses it.
+consume_slot_record() {
+  local record=$LOGIN_SELECT_SLOT_RECORD.used
+  [[ -f $LOGIN_SELECT_SLOT_RECORD ]] || return 1
+  mv -f "$LOGIN_SELECT_SLOT_RECORD" "$record" || return 1
+  cat "$record"
+}
+
+users_load_drive || exit 1
+users_encrypted || exit 0
+mapfile -t accounts < <(users_accounts)
+
+if (( ${#accounts[@]} == 1 )); then
+  autologin "${accounts[0]}"
+elif (( ${#accounts[@]} > 1 )); then
+  read -r uuid slot < <(consume_slot_record) || exit 0
+  [[ $uuid == "$USERS_UUID" && $slot =~ ^[0-9]+$ ]] || exit 0
+  ! users_journal_pending || exit 0
+  users_map_valid || exit 0
+  user=$(users_map_user_for_slot "$uuid" "$slot")
+  [[ -n $user ]] && users_exists "$user" && users_in_sync "$user" || exit 0
+  autologin "$user"
+fi

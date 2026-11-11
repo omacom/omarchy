@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=List the people with an account on this computer
+# omarchy:args=[--json]
+
+set -euo pipefail
+
+# Adults are in wheel, children in omarchy-child, as omarchy-user-helper keeps
+# them; anyone else predates Setup > Users and is listed as limited.
+
+role_of() {
+  local groups
+  groups=" $(id -nG -- "$1") "
+  if [[ $groups == *" wheel "* ]]; then
+    echo adult
+  elif [[ $groups == *" omarchy-child "* ]]; then
+    echo child
+  else
+    echo limited
+  fi
+}
+
+json=0
+if [[ ${1:-} == "--json" ]]; then
+  json=1
+elif (( $# )); then
+  echo "Usage: omarchy-user-list [--json]" >&2
+  exit 1
+fi
+
+me=$(id -un)
+while IFS=: read -r name _ uid _ _ _ shell; do
+  (( uid >= 1000 && uid < 60000 )) || continue
+  [[ $shell != */nologin && $shell != */false ]] || continue
+  role=$(role_of "$name")
+  if (( json )); then
+    jq -nc --arg name "$name" --arg role "$role" --argjson me "$([[ $name == "$me" ]] && echo true || echo false)" '{name: $name, role: $role, me: $me}'
+  else
+    printf '%s %s%s\n' "$name" "$role" "$([[ $name == "$me" ]] && echo ' (you)')"
+  fi
+done < <(getent passwd) | if (( json )); then jq -sc .; else cat; fi

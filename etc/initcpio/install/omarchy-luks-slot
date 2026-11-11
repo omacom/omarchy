@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Puts etc/initcpio/omarchy-luks-slot/cryptsetup in front of the real
+# cryptsetup, so the unlock records which key slot opened the disk. Ordered
+# after encrypt, which adds the real one first. A wrapper that would not parse
+# is left out, so the unlock never depends on it.
+
+build() {
+  local wrapper=/etc/initcpio/omarchy-luks-slot/cryptsetup
+  if ! /usr/lib/initcpio/busybox ash -n "$wrapper"; then
+    warning "omarchy-luks-slot: '%s' does not parse; leaving cryptsetup as it is" "$wrapper"
+    return 0
+  fi
+  add_binary /usr/bin/cryptsetup /usr/bin/cryptsetup.real
+  add_file "$wrapper" /usr/bin/cryptsetup 755
+}
+
+help() {
+  cat <<HELPEOF
+Records which LUKS key slot unlocked the root disk in /run/omarchy/luks-slot,
+for omarchy-login-select. Add it after encrypt.
+HELPEOF
+}

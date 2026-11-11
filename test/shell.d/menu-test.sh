@@ -108,6 +108,13 @@ assert(!menu.isVisible(visibilityItems, visibilityOrder, { 'hardware.laptop': fa
 assert(menu.isVisible(visibilityItems, visibilityOrder, { 'hardware.laptop': true }, visibilityItems.hardware), 'menu shows a submenu with a visible child')
 assert(!menu.isVisible(visibilityItems, visibilityOrder, { 'nested.branch.leaf': false }, visibilityItems.nested), 'menu hides recursively empty submenus')
 assert(menu.isVisible(visibilityItems, visibilityOrder, {}, visibilityItems.dynamic), 'menu keeps provider-backed submenus visible')
+const guarded = {
+  install: menu.normalizeItem('install', { label: 'Install', when: 'not-a-child' }),
+  webapp: menu.normalizeItem('install.webapp', { label: 'Web App', action: 'install-webapp' })
+}
+assert(!menu.isVisible(guarded, Object.keys(guarded), { install: false }, guarded.webapp), 'menu hides a row under a submenu its guard hid, so search cannot reach it')
+assert(menu.isVisible(guarded, Object.keys(guarded), { install: true }, guarded.webapp), 'menu shows a row under a visible submenu')
+assert(menu.hiddenByGuard(guarded, { install: false }, guarded.webapp), 'a route under a hidden submenu is hidden')
 
 // `disabled:` is the softer guard: the row stays listed and only loses the
 // cursor, which is how an already-installed app keeps its place in Install.

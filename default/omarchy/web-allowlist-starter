@@ -1,0 +1,16 @@
+# The sites a child's web allowlist starts with when a grown-up first turns it
+# on from the screen time panel, one domain per line; each also allows its
+# subdomains. Sites load from other domains too (fonts, images, scripts), so
+# those are listed with the site that needs them.
+wikipedia.org
+wikimedia.org
+khanacademy.org
+kastatic.org
+kasandbox.org
+scratch.mit.edu
+code.org
+pbskids.org
+pbs.org
+nasa.gov
+britannica.com
+duolingo.com

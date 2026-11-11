@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Change a person's password or delete their account
+# omarchy:args=NAME
+
+set -euo pipefail
+
+# Setup > Users > NAME. Offers only what the helper would allow: a child may
+# change only their own password, and nobody deletes themselves.
+
+name=${1:-}
+[[ -n $name ]] || { echo "Usage: omarchy-user-manage NAME" >&2; exit 1; }
+
+me=$(id -un)
+adult=0
+[[ " $(id -nG) " == *" wheel "* ]] && adult=1
+
+if (( ! adult )) && [[ $name != "$me" ]]; then
+  omarchy-notification-send -u critical -g 󰀄 "$(omarchy-i18n users.onlyYourOwn)"
+  exit 1
+fi
+
+options=("$(omarchy-i18n users.changePassword)")
+if (( adult )) && [[ $name != "$me" ]]; then
+  options+=("$(omarchy-i18n users.apps)" "$(omarchy-i18n users.themes)" "$(omarchy-i18n users.delete)")
+fi
+
+choice=$(omarchy-menu-select "$name" "${options[@]}" -- --width 440) || exit 0
+case $choice in
+  "$(omarchy-i18n users.delete)") exec omarchy-user-delete "$name" ;;
+  "$(omarchy-i18n users.apps)") exec omarchy-user-apps "$name" ;;
+  "$(omarchy-i18n users.themes)") exec omarchy-user-themes "$name" ;;
+  *) exec omarchy-user-password "$name" ;;
+esac

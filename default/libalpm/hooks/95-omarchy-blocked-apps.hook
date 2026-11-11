@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/bin/*
+Target = usr/local/bin/*
+Target = opt/*
+
+[Action]
+Description = Keeping blocked apps blocked for the people they are blocked for...
+When = PostTransaction
+Exec = /usr/bin/omarchy-user-apps-apply

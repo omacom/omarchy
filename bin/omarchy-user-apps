@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# omarchy:summary=Choose the apps a person neither sees nor can run
+# omarchy:args=NAME
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+set +x
+
+source "$OMARCHY_PATH/install/helpers/user-prompts.sh"
+user_start
+
+name=${1:-}
+[[ -n $name ]] || { echo "Usage: omarchy-user-apps NAME" >&2; exit 1; }
+
+# Installed apps by desktop id and name, as the launcher lists them; the first
+# directory to hold an id wins, as in XDG lookup.
+declare -A names=() seen=()
+for dir in /usr/local/share/applications /usr/share/applications /usr/share/omarchy/applications; do
+  for file in "$dir"/*.desktop; do
+    [[ -f $file ]] || continue
+    id=${file##*/}
+    id=${id%.desktop}
+    [[ -n ${seen[$id]:-} ]] && continue
+    seen[$id]=1
+    entry=$(awk '/^\[/ { section = $0 } section == "[Desktop Entry]"' "$file")
+    grep -qiE '^(NoDisplay|Hidden)=true' <<<"$entry" && continue
+    label=$(awk -F= '$1 == "Name" { sub(/^Name=/, ""); print; exit }' <<<"$entry")
+    [[ -n $label ]] && names[$id]="$label"
+  done
+done
+
+# Two apps can share a name (two "Document Viewer"s); those say which is which.
+declare -A uses=()
+for id in "${!names[@]}"; do uses[${names[$id]}]=$(( ${uses[${names[$id]}]:-0} + 1 )); done
+for id in "${!names[@]}"; do
+  (( ${uses[${names[$id]}]} == 1 )) || names[$id]="${names[$id]} ($id)"
+done
+
+mapfile -t ids < <(for id in "${!names[@]}"; do printf '%s\t%s\n' "${names[$id]}" "$id"; done | sort -f | cut -f2)
+blocked=()
+if [[ -f /etc/omarchy/blocked-apps/$name ]]; then
+  while read -r id; do
+    [[ -n ${names[$id]:-} ]] && blocked+=("${names[$id]}")
+  done </etc/omarchy/blocked-apps/"$name"
+fi
+
+labels=()
+for id in "${ids[@]}"; do labels+=("${names[$id]}"); done
+chosen=$(user_choose_many "$(omarchy-i18n users.blockApps "$name")" "${labels[@]}" -- "${blocked[@]}") || exit 0
+
+choice_ids=()
+while IFS= read -r label; do
+  for id in "${ids[@]}"; do
+    [[ ${names[$id]} == "$label" ]] && choice_ids+=("$id")
+  done
+done < <([[ -n $chosen ]] && printf '%s\n' "$chosen")
+
+mine=$(user_prompt_own_password "$(omarchy-i18n users.yourPassword)") || exit 1
+{ printf '%s\n' "$mine"; if (( ${#choice_ids[@]} )); then printf '%s\n' "${choice_ids[@]}"; fi; } |
+  user_helper "$(omarchy-i18n --count "${#choice_ids[@]}" users.appsBlocked "$name" "${#choice_ids[@]}")" apps "$name"
