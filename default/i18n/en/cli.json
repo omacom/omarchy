@@ -231,6 +231,7 @@
   "print.failed": "Couldn't print %1",
   "print.job": "Job %1 on %2",
   "print.sending": "Printing %1",
+  "print.untracked": "Couldn't track %1",
   "reminder.cleared": "All reminders have been cleared",
   "reminder.count": {
     "one": "%1 reminder",

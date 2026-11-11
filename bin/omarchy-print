@@ -74,8 +74,12 @@ reason() {
     esac
   done
 
-  # Still queued: a printer that is off or out of paper keeps a job waiting.
+  # Still queued: a printer that is off or out of paper keeps a job waiting. A
+  # job in neither list (CUPS unreachable, history purged) can't be followed, so
+  # name the job to look for in the queue.
   if [[ -n $list ]]; then
     notify "$(omarchy-i18n print.sending "$name")" "$(reason)"
+  else
+    notify "$(omarchy-i18n print.untracked "$name")" "$(omarchy-i18n print.job "$job" "$printer")"
   fi
 ) &
