@@ -104,24 +104,50 @@ windows_loaders() {
 
 # The existing top-level Windows entry, as "<first line> <last line> <kind> <path>":
 # kind is efi_boot_entry or chainload, and path is the chainload's loader path.
+# The lines under a child heading (//) belong to that child, so a group whose
+# children start other systems is never taken for Windows.
 existing_windows_entry() {
   sudo cat "$limine_conf" | awk -v name="${WINDOWS_ENTRY_NAME,,}" '
     function finish() {
-      if (start && kind == "") {
+      if (start && !found) {
         if (protocol == "efi_boot_entry" && entry == name) kind = "efi_boot_entry"
         else if ((protocol == "efi" || protocol == "uefi" || protocol == "efi_chainload") && tolower(path) ~ /\/efi\/microsoft\/boot\/bootmgfw\.efi$/) kind = "chainload"
         if (kind != "") { print start, last, kind, path; found = 1 }
       }
       kind = ""
     }
-    /^[[:space:]]*\/[^\/]/ { if (!found) finish(); start = NR; protocol = entry = path = ""; last = NR; next }
-    /^[[:space:]]*\/\// { if (start) last = NR; next }
-    start && /^[[:space:]]*protocol:/ { protocol = tolower($2) }
-    start && /^[[:space:]]*entry:/ { sub(/^[[:space:]]*entry:[[:space:]]*/, ""); sub(/[[:space:]]+$/, ""); entry = tolower($0) }
-    start && /^[[:space:]]*(image_)?path:/ { path = $2 }
+    /^[[:space:]]*\/[^\/]/ { finish(); start = last = NR; child = 0; protocol = entry = path = ""; next }
+    /^[[:space:]]*\/\// { if (start) { last = NR; child = 1 }; next }
     start && NF { last = NR }
-    END { if (!found) finish() }
+    !start || child { next }
+    /^[[:space:]]*protocol:/ { protocol = tolower($2) }
+    /^[[:space:]]*entry:/ { sub(/^[[:space:]]*entry:[[:space:]]*/, ""); sub(/[[:space:]]+$/, ""); entry = tolower($0) }
+    /^[[:space:]]*(image_)?path:/ { path = $2 }
+    END { finish() }
   '
+}
+
+# A chainload entry for Windows' loader, on the ESP with PARTUUID when it holds
+# one, else on the first that does.
+chainload_entry() {
+  local preferred=${1:-} loaders line partuuid loader
+  loaders=$(windows_loaders)
+  [[ -n $loaders ]] || return 1
+  [[ -n $preferred ]] && line=$(grep -i "^$preferred " <<<"$loaders" | head -n 1 || true)
+  if [[ -z ${line:-} ]]; then
+    line=$(head -n 1 <<<"$loaders")
+    if (( $(grep -c . <<<"$loaders") > 1 )); then
+      echo "More than one ESP holds a Windows loader; using the first. Add the others with limine-scan." >&2
+    fi
+  fi
+  read -r partuuid loader <<<"$line"
+  printf '/Windows\n    protocol: efi\n    path: guid(%s):/%s' "$partuuid" "$loader"
+}
+
+no_windows() {
+  echo "No Windows installation was found: there is no Windows Boot Manager firmware entry and no ESP holds $WINDOWS_LOADER."
+  echo "For other Linux installs, run limine-scan."
+  exit 1
 }
 
 # Writes CONTENT over the menu, keeping the previous one as limine.conf.bak.
@@ -130,60 +156,69 @@ write_menu() {
   printf '%s\n' "$1" | sudo tee "$limine_conf" >/dev/null
 }
 
+# Puts ENTRY where the existing Windows entry is, so default_entry still
+# counts to the same entry.
+replace_entry() {
+  write_menu "$(ENTRY="$1" awk -v a="$entry_start" -v b="$entry_end" 'NR == a { print ENVIRON["ENTRY"] } NR < a || NR > b' <<<"$current")"
+}
+
 confirm() {
   gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$1"
 }
 
-firmware_entries=$(windows_firmware_entries)
-firmware_count=$(grep -c . <<<"$firmware_entries" || true)
-
-if (( firmware_count == 1 )); then
-  new_entry=$(printf '/Windows\n    protocol: efi_boot_entry\n    entry: %s' "$WINDOWS_ENTRY_NAME")
-  new_kind=efi_boot_entry
-else
-  loaders=$(windows_loaders)
-  if [[ -z $loaders ]]; then
-    echo "No Windows installation was found: there is no Windows Boot Manager firmware entry and no ESP holds $WINDOWS_LOADER."
-    echo "For other Linux installs, run limine-scan."
-    exit 1
-  fi
-  if (( $(grep -c . <<<"$loaders") > 1 )); then
-    echo "More than one ESP holds a Windows loader; using the first. Add the others with limine-scan."
-  fi
-  read -r partuuid loader <<<"$(head -n 1 <<<"$loaders")"
-  new_entry=$(printf '/Windows\n    protocol: efi\n    path: guid(%s):/%s' "$partuuid" "$loader")
-  new_kind=chainload
-fi
+firmware_count=$(windows_firmware_entries | grep -c . || true)
+firmware_entry=$(printf '/Windows\n    protocol: efi_boot_entry\n    entry: %s' "$WINDOWS_ENTRY_NAME")
 
 current=$(sudo cat "$limine_conf")
 read -r entry_start entry_end entry_kind entry_path <<<"$(existing_windows_entry)" || true
 
 if [[ -z ${entry_start:-} ]]; then
+  if (( firmware_count == 1 )); then
+    new_entry=$firmware_entry
+  else
+    new_entry=$(chainload_entry) || no_windows
+  fi
   if confirm "$(omarchy-i18n dualBoot.add)"; then
     write_menu "$current"$'\n\n'"$new_entry"
     echo "Added Windows to the boot menu."
   fi
 elif [[ $entry_kind == "efi_boot_entry" ]]; then
-  echo "The boot menu already starts Windows through its firmware entry."
-elif [[ $new_kind == "efi_boot_entry" ]]; then
+  if (( firmware_count == 1 )); then
+    echo "The boot menu already starts Windows through its firmware entry."
+  else
+    # Limine looks the entry up in BootOrder and stops when it isn't there
+    # once: a firmware reset can drop it, and a second Windows adds another.
+    if ! new_entry=$(chainload_entry); then
+      echo "The Windows entry names a firmware entry Limine can't find in the boot order, and no ESP holds $WINDOWS_LOADER to start it from instead."
+      exit 1
+    fi
+    if confirm "$(omarchy-i18n dualBoot.replaceStale)"; then
+      replace_entry "$new_entry"
+      echo "Windows now starts from its EFI partition."
+    fi
+  fi
+elif (( firmware_count == 1 )); then
   if confirm "$(omarchy-i18n dualBoot.replace)"; then
-    rest=$(awk -v a="$entry_start" -v b="$entry_end" 'NR < a || NR > b' <<<"$current")
-    write_menu "$rest"$'\n\n'"$new_entry"
+    replace_entry "$firmware_entry"
     echo "Windows now starts through its firmware entry."
   fi
-elif [[ ${new_entry##*path: } != "$entry_path" ]]; then
-  # A chainload whose path differs from the loader as it is spelled on disk,
-  # such as the capitals limine-scan copies from efibootmgr.
-  if confirm "$(omarchy-i18n dualBoot.fixPath)"; then
-    fixed=$(awk -v a="$entry_start" -v b="$entry_end" -v path="${new_entry##*path: }" '
-      NR >= a && NR <= b && /^[[:space:]]*(image_)?path:/ { match($0, /^[[:space:]]*(image_)?path:[[:space:]]*/); $0 = substr($0, 1, RLENGTH) path }
-      { print }
-    ' <<<"$current")
-    write_menu "$fixed"
-    echo "Fixed the Windows loader path in the boot menu."
-  fi
 else
-  echo "The boot menu already has a working Windows entry."
+  # A chainload is compared with the loader on its own ESP, so a spelling fix
+  # never moves it to another Windows.
+  new_entry=$(chainload_entry "$(sed -nE 's/^(guid|uuid)\(([^)]*)\):.*/\2/p' <<<"$entry_path")") || no_windows
+  new_path=${new_entry##*path: }
+  if [[ $new_path != "$entry_path" ]]; then
+    # Such as the capitals limine-scan copies from efibootmgr.
+    if confirm "$(omarchy-i18n dualBoot.fixPath)"; then
+      write_menu "$(awk -v a="$entry_start" -v b="$entry_end" -v path="$new_path" '
+        NR >= a && NR <= b && /^[[:space:]]*(image_)?path:/ { match($0, /^[[:space:]]*(image_)?path:[[:space:]]*/); $0 = substr($0, 1, RLENGTH) path }
+        { print }
+      ' <<<"$current")"
+      echo "Fixed the Windows loader path in the boot menu."
+    fi
+  else
+    echo "The boot menu already has a working Windows entry."
+  fi
 fi
 
 # Omarchy boots quietly: the menu shows only when a key is pressed in the

@@ -135,6 +135,7 @@
   "dualBoot.add": "Add Windows to the boot menu?",
   "dualBoot.fixPath": "The Windows entry in the boot menu points at a path that is spelled differently on disk, so it fails to start. Fix it?",
   "dualBoot.replace": "Start Windows through its firmware entry instead, so updating the boot menu no longer asks for the BitLocker recovery key?",
+  "dualBoot.replaceStale": "The Windows entry in the boot menu names a firmware entry Limine can't find in the boot order, so it may not start. Start Windows from its EFI partition instead?",
   "dualBoot.showMenu": "Show the boot menu on every boot, so Windows can be picked without pressing a key?",
   "files.selectFile": "Select file",
   "firstRun.agentBody": "Let your favorite agent help with Omarchy.",
