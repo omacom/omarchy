@@ -19,6 +19,7 @@
   "agents.homeFailed": "새 계정의 홈을 설정할 수 없습니다.",
   "agents.installCliFailed": "%1 CLI 설치가 완료되지 않았습니다.",
   "agents.installingCli": "%1 CLI 설치 중…",
+  "agents.instructionsBackedUp": "기존 에이전트 지침을 백업으로 보관했습니다",
   "agents.localUnsupported": "로컬 모델을 사용할 수 있는 에이전트가 없습니다",
   "agents.localUnsupportedBody": "로컬 모델을 사용하려면 pi 또는 OpenCode를 설치하세요.",
   "agents.loginUnfinished": "로그인이 완료되지 않아 계정이 추가되지 않았습니다.",

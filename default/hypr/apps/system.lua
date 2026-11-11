@@ -4,7 +4,7 @@ o.window({ tag = "floating-window" }, { center = true })
 o.window({ tag = "floating-window" }, { size = { 875, 600 } })
 
 o.window(
-  "(org.omarchy.btop|org.omarchy.terminal|org.omarchy.bash|org.codeberg.dnkl.foot|org.gnome.NautilusPreviewer|org.gnome.Evince|Omarchy|About|TUI.float|imv|mpv)",
+  "(org.omarchy.btop|org.omarchy.terminal|org.omarchy.bash|org.codeberg.dnkl.foot|org.gnome.NautilusPreviewer|org.gnome.Papers|Omarchy|About|TUI.float|imv|mpv)",
   {
     tag = "+floating-window",
   }
@@ -26,6 +26,12 @@ o.window({
 o.window("org.omarchy.about", { float = true })
 o.window("org.omarchy.about", { center = true })
 o.window("org.omarchy.about", { size = { 920, 480 } })
+
+-- Files' Space preview floats over the file manager, larger than the
+-- standard float so pictures and PDFs have room.
+o.window("folio-preview", { float = true })
+o.window("folio-preview", { center = true })
+o.window("folio-preview", { size = { 1100, 760 } })
 
 o.window("omacalc", { float = true })
 

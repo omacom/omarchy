@@ -565,7 +565,13 @@ set_up_floating = function()
     o.window({ tag = WORKSPACE_TAG }, { no_shadow = false })
   end
 
-  o.window({ tag = WORKSPACE_TAG }, { opacity = "1.0 override 1.0 override" })
+  -- Glassy windows are see-through everywhere, floating workspaces included.
+  local glassy = io.open(paths.state_home .. "/omarchy/toggles/hypr/window-glassy.lua", "r")
+  if glassy then
+    glassy:close()
+  else
+    o.window({ tag = WORKSPACE_TAG }, { opacity = "1.0 override 1.0 override" })
+  end
 
   titlebars()
 end

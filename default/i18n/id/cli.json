@@ -19,6 +19,7 @@
   "agents.homeFailed": "Tidak dapat menyiapkan home untuk akun baru.",
   "agents.installCliFailed": "Pemasangan CLI %1 tidak selesai.",
   "agents.installingCli": "Memasang CLI %1…",
+  "agents.instructionsBackedUp": "Instruksi agen lama Anda disimpan sebagai cadangan",
   "agents.localUnsupported": "Tidak ada agen yang dapat menggunakan model lokal",
   "agents.localUnsupportedBody": "Pasang pi atau OpenCode untuk menggunakan model lokal.",
   "agents.loginUnfinished": "Login tidak selesai, jadi tidak ada akun yang ditambahkan.",

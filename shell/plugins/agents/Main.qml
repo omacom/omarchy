@@ -65,6 +65,59 @@ Item {
     }
   }
 
+  // Models other machines share on the tailnet, as omarchy-agent-local
+  // network last surveyed them: running, stopped, or offline with the host
+  // away. The survey runs while the panel is open; this only follows its file.
+  property var networkModels: ({})
+  // The last survey's models, but for when each was last seen, which every
+  // survey moves on: an unchanged tailnet leaves the panel's lines alone.
+  property string networkKey: ""
+  // Whether this machine can share its own models: Tailscale running with
+  // MagicDNS and HTTPS certificates, as the last survey found it.
+  property bool canShare: false
+
+  FileView {
+    id: networkFile
+    path: root.home + "/.local/state/omarchy/agent-local/network.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.parseNetwork(text())
+  }
+
+  function refreshNetwork() {
+    if (!networkRefresh.running) networkRefresh.running = true
+  }
+
+  Process {
+    id: networkRefresh
+    command: ["omarchy-agent-local", "network", "--write"]
+    // A first survey creates the file, which can't be watched before it exists.
+    onExited: networkFile.reload()
+  }
+
+  function parseNetwork(content) {
+    try {
+      var parsed = JSON.parse(content)
+      if (!parsed || typeof parsed.models !== "object" || Array.isArray(parsed.models)) return
+      var models = {}
+      for (var id in parsed.models) {
+        var model = parsed.models[id]
+        if (!model || model.id !== id || id !== model.host + "/" + model.recipe) return
+        if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
+        models[id] = model
+      }
+      var key = JSON.stringify(models, function(field, value) { return field === "last_seen_ms" ? undefined : value })
+      if (key !== root.networkKey) {
+        root.networkKey = key
+        root.networkModels = models
+      }
+      root.canShare = parsed.can_share === true
+    } catch (e) {
+      // A missing or partially written survey keeps the last good one.
+    }
+  }
+
   function parseLocalModel(content) {
     try {
       var parsed = JSON.parse(content)
@@ -73,7 +126,7 @@ Item {
       for (var id in parsed.models) {
         var model = parsed.models[id]
         if (!model || model.recipe !== id || id === "") return
-        if (["active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
+        if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
       }
       root.localModel = parsed
     } catch (e) {
@@ -304,13 +357,13 @@ Item {
   }
 
   // The panel gives a section only to an agent with a subscription to show:
-  // limits, a balance, a plan, or accounts. Local history alone still counts
+  // limits, a balance, spend, a plan, or accounts. Local history alone still counts
   // toward the summary, but would leave an empty section.
   readonly property var subscribedProviders: enabledProviders.filter(providerHasSubscription)
 
   function providerHasSubscription(p) {
     return (p.limits && p.limits.length > 0) || (p.accounts && p.accounts.length > 0)
-      || !!p.balance || p.tierLabel !== ""
+      || !!p.balance || !!p.spend || p.tierLabel !== ""
   }
 
   // ----------------------------------------------------------------- order
@@ -326,7 +379,32 @@ Item {
     var models = localModel.models || {}
     for (var id in models)
       list.push({ providerId: "local:" + id, localModel: models[id] })
-    return orderedProviders(list)
+    // The tailnet's models line up with this machine's own, hidden ones aside.
+    var network = networkModels || {}
+    for (var nid in network)
+      if (providerEnabled("net:" + nid)) list.push({ providerId: "net:" + nid, localModel: network[nid] })
+    var offer = localOffer(localRecipes, models, providerEnabled)
+    if (offer) list.push({ providerId: "local:" + offer.id, providerName: offer.name || offer.id, localOffer: offer })
+    var ordered = orderedProviders(list)
+    // Another DGX Spark cabled to this one and not set up yet (omarchy-agent-local's status.json
+    // `link`) is offered like a recommended model, always first: its line opens link setup.
+    var link = localModel.link
+    if (link && link.state === "available" && providerEnabled("local:link"))
+      ordered.unshift({ providerId: "local:link", providerName: link.host || "DGX Spark", localOffer: { id: "link", vendor: "nvidia", link: link } }) // i18n: ignore
+    return ordered
+  }
+
+  // A machine with no local model yet is offered the one the catalog
+  // recommends for it, ready to download from the first page. It shares its
+  // id with the model it becomes, so it keeps its place once set up, and
+  // hiding it hides the offer, not the model.
+  function localOffer(recipes, models, enabled) {
+    if (Object.keys(models || {}).length > 0) return null
+    for (var i = 0; i < (recipes || []).length; i++) {
+      var recipe = recipes[i]
+      if (recipe && recipe.best && recipe.available && !recipe.installed && enabled("local:" + recipe.id)) return recipe
+    }
+    return null
   }
 
   function orderedProviders(list) {
@@ -379,7 +457,7 @@ Item {
     return numberValue(p.totalPrompts) > 0 || numberValue(p.totalSessions) > 0
       || numberValue(p.activeDays) > 0 || numberValue(p.todayPrompts) > 0
       || numberValue(p.todaySessions) > 0 || (p.limits && p.limits.length > 0)
-      || (p.accounts && p.accounts.length > 0) || !!p.balance
+      || (p.accounts && p.accounts.length > 0) || !!p.balance || !!p.spend
       || (p.ready === true && p.tierLabel !== "")
   }
 
@@ -395,6 +473,25 @@ Item {
       funded: isFinite(funded) && funded > 0 ? funded : 0,
       spent: Math.max(0, Number(raw.spent) || 0),
       currency: String(raw.currency || "USD"),
+      estimated: raw.estimated === true
+    }
+  }
+
+  // A pay-as-you-go agent's spend over the last 30 days, or this month's
+  // against the monthly cap when the account has one. Per-account, like
+  // the balance.
+  function spendValue(raw) {
+    if (!raw || typeof raw !== "object") return null
+    var amount = Number(raw.amount)
+    var cap = Number(raw.cap)
+    if (!isFinite(amount) || amount < 0) return null
+    var days = Array.isArray(raw.days) ? raw.days.map(function(d) { return Math.max(0, Number(d) || 0) }) : []
+    return {
+      amount: amount,
+      cap: isFinite(cap) && cap > 0 ? cap : 0,
+      currency: String(raw.currency || "USD"),
+      days: days,
+      // Counted from this machine's sessions, not rated by the provider.
       estimated: raw.estimated === true
     }
   }
@@ -423,6 +520,7 @@ Item {
       // Codex's free full resets of its rate limits, when it has any.
       resetCredits: record.resetCredits || null,
       balance: balanceValue(record.balance),
+      spend: spendValue(record.spend),
 
       todayPrompts: synced ? numberValue(stats.todayPrompts) : numberValue(record.todayPrompts),
       todaySessions: synced ? numberValue(stats.todaySessions) : numberValue(record.todaySessions),
