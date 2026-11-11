@@ -26,7 +26,12 @@ Item {
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
-    onLoaded: root.parseLocalModel(text())
+    onLoaded: {
+      root.parseLocalModel(text())
+      // Sharing starts and stops the share proxy, which makes and removes
+      // clients.json: a file that can't be watched before it exists.
+      clientsFile.reload()
+    }
   }
 
   // The catalog's recipes as this machine sees them (fits, best, installed),
@@ -83,6 +88,35 @@ Item {
     printErrors: false
     onFileChanged: reload()
     onLoaded: root.parseNetwork(text())
+  }
+
+  // How many machines use each shared model, as omarchy-agent-local's share
+  // proxy counts them: those whose request it served in the last five
+  // minutes. The proxy rewrites the file only when a count changes.
+  property var shareClients: ({})
+
+  FileView {
+    id: clientsFile
+    path: root.home + "/.local/state/omarchy/agent-local/clients.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.shareClients = root.parseClients(text())
+    // No proxy running, so nobody is using anything.
+    onLoadFailed: root.shareClients = ({})
+  }
+
+  function parseClients(content) {
+    try {
+      var models = JSON.parse(content).models
+      var counts = {}
+      if (models && typeof models === "object" && !Array.isArray(models))
+        for (var id in models)
+          if (Number.isInteger(models[id]) && models[id] > 0) counts[id] = models[id]
+      return counts
+    } catch (e) {
+      return {}
+    }
   }
 
   function refreshNetwork() {

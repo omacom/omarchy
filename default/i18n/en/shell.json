@@ -108,6 +108,10 @@
   "agents.networkShare": "Share on your tailnet",
   "agents.networkShareLabel": "Share",
   "agents.networkSharedLabel": "Shared",
+  "agents.networkUsers": {
+    "one": "%1 user",
+    "other": "%1 users"
+  },
   "agents.networkPairLabel": "Pair",
   "agents.networkStopSharing": "Shared on your tailnet · stop sharing",
   "agents.networkPair": "Pair with %1 to use it",

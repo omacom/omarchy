@@ -169,6 +169,11 @@ parse('{"models":{},"can_share":true}')
 assertDeepEqual(state.networkModels, {}, 'an empty survey clears the network lines')
 assertEqual(state.canShare, true, 'a survey that can share offers sharing')
 
+const parseClients = new Function(main.match(/function parseClients\([^]*?\n  \}/)[0] + '\nreturn parseClients')()
+assertDeepEqual(parseClients('{"models":{"m":2,"idle":0,"odd":"3","half":1.5}}'), { m: 2 }, 'only whole, positive machine counts are kept')
+for (const raw of ['{', 'null', '[]', '{"models":[]}'])
+  assertDeepEqual(parseClients(raw), {}, 'an unreadable count file counts nobody: ' + raw)
+
 const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 const localActions = new Function(panel.match(/function localActions\([^]*?\n  \}/)[0] + '\nreturn localActions')()
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle', 'launch'], 'a running local model can be shared, stopped and launched')
