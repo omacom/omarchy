@@ -30,5 +30,4 @@ address=$(
 
 [[ -n $address ]] || exit 1
 
-hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || \
-  hyprctl dispatch focuswindow "address:$address" >/dev/null
+omarchy-hyprland-focus-window "$address"
