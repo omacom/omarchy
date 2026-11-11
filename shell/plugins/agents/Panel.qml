@@ -2112,6 +2112,7 @@ Panel {
         foreground: root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("modelShare", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(localShare)
         onClicked: root.runLocalAction(section.model, "share")
 
         Tailscale.TailscaleIcon {
@@ -2135,6 +2136,7 @@ Panel {
         foreground: root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("modelPair", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(remotePair)
         onClicked: root.runLocalAction(section.model, "pair")
       }
 
@@ -2151,6 +2153,7 @@ Panel {
         foreground: root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("modelDisconnect", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(remoteDisconnect)
         onClicked: root.runLocalAction(section.model, "disconnect")
       }
 
