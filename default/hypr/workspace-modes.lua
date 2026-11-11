@@ -318,8 +318,10 @@ local function arrange(windows, workspace)
 end
 
 -- Overlapping windows are placed with the pointer, so a floating workspace
--- focuses on click rather than on hover. Every other workspace keeps the user's
--- own setting.
+-- focuses on click rather than on hover. The pointer still reaches the window
+-- under it (follow_mouse 2, where 0 would hold it on the focused window), so
+-- scrolling and hovering work on a window without focusing it. Every other
+-- workspace keeps the user's own setting.
 local input = {}
 
 local function update_input()
@@ -332,7 +334,7 @@ local function update_input()
 
   input.floating = active
 
-  hl.config({ input = { follow_mouse = active and 0 or input.follow_mouse } })
+  hl.config({ input = { follow_mouse = active and 2 or input.follow_mouse } })
 end
 
 -- Windows arrive by opening and by being carried in, and a window rule only ever
