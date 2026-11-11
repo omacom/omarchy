@@ -106,7 +106,7 @@ fi
 # picked. --pick offers the choice instead of the error, which is what the
 # keybinding wants: a keypress that opens nothing explains nothing.
 if [[ -z $agent ]]; then
-  [[ $pick == "true" ]] && exec omarchy-menu summon setup.default.agent
+  [[ $pick == "true" ]] && exec omarchy-menu summon agent.harness
   echo "Choose default agent with: omarchy default agent <name>" >&2
   exit 1
 fi
