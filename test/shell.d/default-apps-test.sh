@@ -355,6 +355,22 @@ grep -qxF "text/x-tcl=omarchy-launch-editor.desktop" "$mimeapps" || fail "the mi
 rm -f "$test_home/.local/share/applications/mimeapps.list"
 pass "the migration keeps the user's own choices"
 
+# Values are ;-separated lists and keys may have spaces around "=", as GLib
+# writes and reads them; a choice in ~/.config outranks the older list's.
+printf '[Default Applications]\ntext/x-java=code.desktop\n' >"$test_home/.local/share/applications/mimeapps.list"
+printf '[Default Applications]\ntext/plain=nvim.desktop;\ntext/xml = code.desktop;\ntext/x-java=omarchy-launch-editor.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration reads a ;-ended old default as Omarchy's"
+! grep -qxF "text/plain=nvim.desktop;" "$mimeapps" || fail "the migration replaces a ;-ended old default"
+grep -qxF "text/xml = code.desktop;" "$mimeapps" || fail "the migration keeps a spaced choice"
+! grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration adds nothing above a spaced choice"
+grep -qxF "text/x-java=omarchy-launch-editor.desktop" "$mimeapps" || fail "a choice in ~/.config outranks the older list's"
+omarchy-default-editor vim
+grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "picking an editor replaces a spaced line"
+[[ $(grep -c "^text/xml *=" "$mimeapps") == 1 ]] || fail "picking an editor leaves one text/xml line"
+rm -f "$test_home/.local/share/applications/mimeapps.list"
+pass "the migration reads mimeapps.list the way GLib does"
+
 # New installs ship the same types pointed at the handler.
 shipped=$(sed -n 's/=omarchy-launch-editor\.desktop$//p' "$ROOT/default/applications/mimeapps.list" | sort)
 [[ $shipped == $(sort <<<"$handler_types") ]] || fail "the shipped mimeapps.list points the handler's types at it"

@@ -30,43 +30,48 @@ mkdir -p "$(dirname "$list")"
 [[ -f $list ]] || printf '[Default Applications]\n' >"$list"
 grep -qxF "[Default Applications]" "$list" || printf '\n[Default Applications]\n' >>"$list"
 
-# A choice saved in the older ~/.local/share list counts too: a line here in
-# ~/.config would hide it.
-chosen_elsewhere=""
+# The older ~/.local/share list counts too, for a type ~/.config doesn't set:
+# a line here would hide what the user chose there.
 older="${XDG_DATA_HOME:-$HOME/.local/share}/applications/mimeapps.list"
-if [[ $unless_chosen == true && -f $older ]]; then
-  chosen_elsewhere=$(awk -v handler="$handler" '
-    /^\[/ { defaults = ($0 == "[Default Applications]") }
-    defaults && /=/ {
-      type = $0; sub(/=.*/, "", type); app = $0; sub(/^[^=]*=/, "", app)
-      if (app != "nvim.desktop" && app != "plain.desktop" && app != handler) print type
-    }' "$older")
-fi
+[[ -f $older ]] || older=/dev/null
 
-# One pass: drop the lines this replaces from [Default Applications], then
-# add the handler's right under the section header.
-updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v elsewhere="$chosen_elsewhere" '
+# One pass over both: drop the lines this replaces from ~/.config's
+# [Default Applications], then add the handler's right under its header.
+# Keys may have spaces around "=", and values are ;-separated lists whose
+# first entry is the default.
+updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v older="$older" '
+  function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+  function ours(app) { return app == "nvim.desktop" || app == "plain.desktop" || app == handler }
   BEGIN {
     n = split(types, list, "\n")
     for (i = 1; i <= n; i++) wanted[list[i]] = 1
-    m = split(elsewhere, chosen, "\n")
-    for (i = 1; i <= m; i++) if (chosen[i] != "") keep[chosen[i]] = 1
   }
-  { lines[NR] = $0 }
+  FILENAME != current { current = FILENAME; file = (FILENAME == older ? 1 : 2); section = "" }
   /^\[/ { section = $0 }
-  section == "[Default Applications]" && /=/ {
-    type = $0; sub(/=.*/, "", type)
-    app = $0; sub(/^[^=]*=/, "", app)
+  section != "[Default Applications]" || !/=/ {
+    if (file == 2) lines[FNR] = $0
+    next
+  }
+  {
+    type = $0; sub(/=.*/, "", type); type = trim(type)
+    app = $0; sub(/^[^=]*=/, "", app); sub(/;.*/, "", app); app = trim(app)
+  }
+  file == 1 {
+    if (type in wanted && !ours(app)) older_choice[type] = 1
+    next
+  }
+  {
+    lines[FNR] = $0
     if (type in wanted) {
-      if (unless_chosen == "true" && app != "nvim.desktop" && app != "plain.desktop" && app != handler) {
-        keep[type] = 1
-      } else {
-        drop[NR] = 1
-      }
+      set[type] = 1
+      if (unless_chosen == "true" && !ours(app)) keep[type] = 1
+      else drop[FNR] = 1
     }
   }
   END {
-    for (i = 1; i <= NR; i++) {
+    if (unless_chosen == "true")
+      for (type in older_choice) if (!(type in set)) keep[type] = 1
+    for (i = 1; i <= FNR; i++) {
       if (i in drop) continue
       print lines[i]
       if (lines[i] == "[Default Applications]" && !added) {
@@ -75,7 +80,7 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
       }
     }
   }
-' "$list")
+' "$older" "$list")
 
 # Written through, so a symlinked list (a dotfiles repo) stays a symlink.
 printf '%s\n' "$updated" >"$list"
