@@ -2,6 +2,8 @@
 
 # omarchy:summary=Refresh the ~/.config/chromium-flags.conf file from the Omarchy defaults.
 
+source "$OMARCHY_PATH/install/helpers/chromium-video-decode.sh"
+
 CONFIG_FILE="$HOME/.config/chromium-flags.conf"
 INSTALL_GOOGLE_ACCOUNTS=false
 
@@ -14,6 +16,9 @@ fi
 
 # Refresh the Chromium configuration
 omarchy-refresh-config chromium-flags.conf
+
+# The refreshed default decodes video in hardware, which is broken on NVIDIA
+chromium_force_software_video_decode "$CONFIG_FILE"
 
 # Install/refresh the native messaging hosts used by the bundled extensions
 omarchy-install-chromium-copy-url
