@@ -812,6 +812,9 @@
   "install.service.slack": {
     "label": "Slack"
   },
+  "install.service.caps2esc": {
+    "label": "Caps2Esc"
+  },
   "install.service.tailscale": {
     "label": "Tailscale"
   },
@@ -1087,6 +1090,9 @@
   },
   "remove.service.microsoft": {
     "label": "Microsoft"
+  },
+  "remove.service.caps2esc": {
+    "label": "Caps2Esc"
   },
   "remove.service.ssh-agent": {
     "label": "SSH Agent"

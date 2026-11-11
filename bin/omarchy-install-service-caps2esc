@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# omarchy:summary=Install interception-tools and caps2esc to map Caps Lock to Escape and Control.
+# omarchy:alias=omarchy install caps2esc
+# omarchy:requires-sudo=true
+
+set -e
+
+CONFIG_DIR="/etc/interception/udevmon.d"
+CONFIG_FILE="$CONFIG_DIR/caps2esc.yaml"
+
+echo "Installing interception-tools and caps2esc..."
+omarchy-pkg-add interception-tools interception-caps2esc
+
+echo "Configuring $CONFIG_FILE..."
+sudo mkdir -p "$CONFIG_DIR"
+sudo tee "$CONFIG_FILE" >/dev/null << 'EOF'
+- JOB: "intercept -g $DEVNODE | caps2esc -m 1 | uinput -d $DEVNODE"
+  DEVICE:
+    EVENTS:
+      EV_KEY: [KEY_CAPSLOCK, KEY_ESC]
+EOF
+
+echo "Starting and enabling udevmon..."
+sudo systemctl enable --now udevmon.service
+sudo systemctl restart udevmon.service
+
+echo ""
+echo "caps2esc has been installed and udevmon is running."
+echo "Caps Lock now acts as Escape when tapped and Control when held."
+echo "Shift + CapsLock no longer works as the compose key for quick emojis and other completions."
+echo "To move compose to Right Alt, set kb_options = \"compose:ralt\" in ~/.config/hypr/input.lua."
