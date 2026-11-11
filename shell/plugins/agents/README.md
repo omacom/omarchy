@@ -214,6 +214,14 @@ One record covers the OpenCode subscription, Zen and Go together: usage on the `
 
 The Go meters read `OPENCODE_API_KEY` or `OPENCODE_GO_API_KEY` first, then the keys opencode keeps in its database and `auth.json`, then pi's (under `PI_CODING_AGENT_DIR` when set), then omp's, and last the OpenCode Console session, which asks Console's own endpoint with its workspace id. A refused credential hands over to the next one, and when every one is refused the record asks for a new sign-in. A rate-limited window reads as full. A key without a Go plan (Zen pay-as-you-go) is no trouble: the panel shows local token usage alone, and that key isn't asked again for an hour. Without any key, local usage shows the same way.
 
+The meters name no plan: Go, Go Plus, and Go Teams all ask the same endpoint, which answers with percentages and reset times alone. The panel shows the plan the answer reports if it ever reports one, and otherwise no plan at all; say which plan you have in `~/.config/omarchy/agents/opencode.json`, and it names that instead:
+
+```json
+{
+  "plan": "Go Plus"
+}
+```
+
 ### Z.ai
 
 Z.ai limits need a key that carries a GLM Coding Plan. A pay-as-you-go key reports "no coding plan", which is no trouble: the panel shows local stats alone, and that key is asked again only hourly, a failed recheck staying quiet. The key comes from `~/.config/omarchy/agents/zai.json`, then `ZAI_API_KEY` / `ZHIPU_API_KEY` in the environment, then pi/omp's `.env`, then the key pi or omp saved in `auth.json`. Set `platform` to `"zhipu"` in the config for the China (`open.bigmodel.cn`) host. Local stats count pi, omp, and opencode sessions on Z.ai's and Zhipu's providers (`zai`, `zhipu`, `zai-coding-cn`, `zhipu-coding-plan`, `zhipuai`, `zai-coding-plan`, `zhipuai-coding-plan`), and Claude Code turns sent to `api.z.ai` or `open.bigmodel.cn`, or answered by a `glm-*` model with no `ANTHROPIC_BASE_URL`, by the [Claude Code](#claude-code) rule, and MiniMax Code replies on a custom provider (its Z.AI preset) at those hosts.
