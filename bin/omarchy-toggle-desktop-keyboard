@@ -14,6 +14,12 @@ Toggle is the default; show/hide are idempotent. Stop releases the process.
 Requires optional wvkbd 0.21 or newer and a Wayland desktop session.
 Install it through the optional ROG Ally keyboard setup after reviewing AUR.
 No automatic startup, input-device permissions or system service is needed.
+
+Open Desktop Keyboard from Apps; there is no swipe-up gesture or automatic
+text-field activation. Tap the bottom-left keyboard symbol to change layouts:
+full has Ctrl/Esc/arrows; special has Alt, Sup (Super) and AltGr. Abc returns
+to letters. The keyboard symbol changes layouts; it does not hide the keyboard.
+Open Desktop Keyboard again to toggle visibility, or run this command with hide.
 HELP
     exit 0
     ;;
