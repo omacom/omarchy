@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Peamiselt %1",
   "agents.nameAccount": "Pane sellele kontole nimi. See logib sisse privaatses aknas, et brauseri praegust kontot ei kasutataks.",
   "agents.networkAgo": "%1 tagasi",
+  "agents.networkDisconnect": "Lõpeta selle mudeli kasutamine siin %1 kaudu; see töötab seal edasi",
+  "agents.networkDisconnectLabel": "Katkesta ühendus",
   "agents.networkHideConfirm": "Peida %1 (%2 peal) paneelilt? Lisa veel üks › Võrgumudelid kuvab selle uuesti.",
   "agents.networkHostOffline": "%1 on võrguühenduseta",
   "agents.networkHostUnreachable": "%1 ei vasta",

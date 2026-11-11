@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Meist %1",
   "agents.nameAccount": "Benenne dieses Konto. Es meldet sich über ein privates Fenster an, sodass das aktuelle Konto deines Browsers nicht übernommen wird.",
   "agents.networkAgo": "vor %1",
+  "agents.networkDisconnect": "Dieses Modell von %1 hier nicht mehr verwenden; es läuft dort weiter",
+  "agents.networkDisconnectLabel": "Trennen",
   "agents.networkHideConfirm": "%1 auf %2 aus dem Panel ausblenden? „Weiteres hinzufügen › Netzwerkmodelle“ zeigt es wieder an.",
   "agents.networkHostOffline": "%1 ist offline",
   "agents.networkHostUnreachable": "%1 antwortet nicht",

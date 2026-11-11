@@ -83,6 +83,8 @@
   "agents.mostlyModel": "Soprattutto %1",
   "agents.nameAccount": "Dai un nome a questo account. Accede tramite una finestra privata, quindi l'account attuale del browser non viene rilevato.",
   "agents.networkAgo": "%1 fa",
+  "agents.networkDisconnect": "Smetti di usare questo modello da %1 qui; continuerà a funzionare lì",
+  "agents.networkDisconnectLabel": "Disconnetti",
   "agents.networkHideConfirm": "Nascondere %1 su %2 dal pannello? Aggiungi un altro › Modelli di rete lo mostra di nuovo.",
   "agents.networkHostOffline": "%1 è offline",
   "agents.networkHostUnreachable": "%1 non risponde",

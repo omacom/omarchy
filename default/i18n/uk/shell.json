@@ -86,6 +86,8 @@
   "agents.mostlyModel": "Переважно %1",
   "agents.nameAccount": "Назвіть цей обліковий запис. Вхід відбувається через приватне вікно, тому поточний обліковий запис браузера не підбиратиметься.",
   "agents.networkAgo": "%1 тому",
+  "agents.networkDisconnect": "Припинити використання цієї моделі з %1 тут; там вона й далі працюватиме",
+  "agents.networkDisconnectLabel": "Відключити",
   "agents.networkHideConfirm": "Сховати %1 на %2 з панелі? Через Додати ще › Мережеві моделі його можна знову показати.",
   "agents.networkHostOffline": "%1 офлайн",
   "agents.networkHostUnreachable": "%1 не відповідає",

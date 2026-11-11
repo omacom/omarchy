@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Főleg %1",
   "agents.nameAccount": "Nevezd el ezt a fiókot. Privát ablakban jelentkezik be, így a böngésző jelenlegi fiókja nem érvényesül.",
   "agents.networkAgo": "%1 ezelőtt",
+  "agents.networkDisconnect": "Itt ne használd tovább a(z) %1 modelljét; ott tovább fut",
+  "agents.networkDisconnectLabel": "Leválasztás",
   "agents.networkHideConfirm": "Elrejted a panelről a(z) %2 gépén lévő %1 modellt? A Még egy hozzáadása › Hálózati modellek újra megjeleníti.",
   "agents.networkHostOffline": "%1 offline",
   "agents.networkHostUnreachable": "%1 nem válaszol",

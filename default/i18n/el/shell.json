@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Κυρίως %1",
   "agents.nameAccount": "Δώσε όνομα σε αυτόν τον λογαριασμό. Συνδέεται μέσα από ιδιωτικό παράθυρο, οπότε δεν χρησιμοποιείται ο τρέχων λογαριασμός του περιηγητή σου.",
   "agents.networkAgo": "πριν από %1",
+  "agents.networkDisconnect": "Σταμάτα να χρησιμοποιείς αυτό το μοντέλο από το %1 εδώ· συνεχίζει να εκτελείται εκεί",
+  "agents.networkDisconnectLabel": "Αποσύνδεση",
   "agents.networkHideConfirm": "Απόκρυψη του %1 στο %2 από το πάνελ; Το Πρόσθεσε άλλο › Μοντέλα δικτύου το εμφανίζει ξανά.",
   "agents.networkHostOffline": "Το %1 είναι εκτός σύνδεσης",
   "agents.networkHostUnreachable": "Το %1 δεν αποκρίνεται",

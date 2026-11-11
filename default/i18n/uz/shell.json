@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Asosan %1",
   "agents.nameAccount": "Bu hisobga nom bering. U maxfiy oyna orqali kiradi, shuning uchun brauzeringizdagi joriy hisob tanlanmaydi.",
   "agents.networkAgo": "%1 oldin",
+  "agents.networkDisconnect": "%1 dagi bu modeldan bu yerda foydalanishni toʻxtatish; u oʻsha yerda ishlashda davom etadi",
+  "agents.networkDisconnectLabel": "Uzish",
   "agents.networkHideConfirm": "%2 dagi %1 paneldan yashirilsinmi? Yana qoʻshish › Tarmoq modellari uni yana koʻrsatadi.",
   "agents.networkHostOffline": "%1 oflayn",
   "agents.networkHostUnreachable": "%1 javob bermayapti",

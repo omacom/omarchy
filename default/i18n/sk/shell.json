@@ -83,6 +83,8 @@
   "agents.mostlyModel": "Prevažne %1",
   "agents.nameAccount": "Pomenujte tento účet. Prihlasuje sa cez súkromné okno, takže sa nenačíta aktuálny účet vášho prehliadača.",
   "agents.networkAgo": "pred %1",
+  "agents.networkDisconnect": "Prestaňte tu používať tento model z %1; tam pobeží ďalej",
+  "agents.networkDisconnectLabel": "Odpojiť",
   "agents.networkHideConfirm": "Skryť %1 na %2 z panela? Pridať ďalší › Sieťové modely ho znova zobrazí.",
   "agents.networkHostOffline": "%1 je offline",
   "agents.networkHostUnreachable": "%1 neodpovedá",

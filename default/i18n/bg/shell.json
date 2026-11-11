@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Предимно %1",
   "agents.nameAccount": "Назови този профил. Влиза чрез частен прозорец, така че текущият профил в браузъра не се използва.",
   "agents.networkAgo": "преди %1",
+  "agents.networkDisconnect": "Спри да използваш този модел от %1 тук; той продължава да работи там",
+  "agents.networkDisconnectLabel": "Прекъсни връзката",
   "agents.networkHideConfirm": "Скрий %1 на %2 от панела? Добави още един › Мрежови модели ще го покаже отново.",
   "agents.networkHostOffline": "%1 е офлайн",
   "agents.networkHostUnreachable": "%1 не отговаря",

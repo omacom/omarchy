@@ -86,6 +86,8 @@
   "agents.mostlyModel": "Večinoma %1",
   "agents.nameAccount": "Poimenujte ta račun. Prijavi se prek zasebnega okna, zato trenutni račun v brskalniku ne bo prevzet.",
   "agents.networkAgo": "pred %1",
+  "agents.networkDisconnect": "Prenehajte uporabljati ta model iz %1 tukaj; tam bo še naprej deloval",
+  "agents.networkDisconnectLabel": "Prekini povezavo",
   "agents.networkHideConfirm": "Skriti %1 na %2 s plošče? Dodajte še enega › Omrežni modeli ga znova prikaže.",
   "agents.networkHostOffline": "%1 je brez povezave",
   "agents.networkHostUnreachable": "%1 se ne odziva",

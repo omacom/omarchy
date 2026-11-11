@@ -83,6 +83,8 @@
   "agents.mostlyModel": "Sobretot %1",
   "agents.nameAccount": "Posa nom a aquest compte. Inicia sessió en una finestra privada, de manera que no s'agafa el compte actual del navegador.",
   "agents.networkAgo": "fa %1",
+  "agents.networkDisconnect": "Deixa d'utilitzar aquest model de %1 aquí; seguirà executant-se allà",
+  "agents.networkDisconnectLabel": "Desconnecta",
   "agents.networkHideConfirm": "Amaga %1 de %2 del panell? Afegeix-ne un altre › Models de xarxa el tornarà a mostrar.",
   "agents.networkHostOffline": "%1 està fora de línia",
   "agents.networkHostUnreachable": "%1 no respon",

@@ -92,6 +92,8 @@
   "agents.mostlyModel": "غالبًا %1",
   "agents.nameAccount": "سمِّ هذا الحساب. يسجّل الدخول عبر نافذة خاصة، لذا لا يُلتقط حساب متصفحك الحالي.",
   "agents.networkAgo": "قبل %1",
+  "agents.networkDisconnect": "إيقاف استخدام هذا النموذج من %1 هنا؛ سيبقى قيد التشغيل هناك",
+  "agents.networkDisconnectLabel": "قطع الاتصال",
   "agents.networkHideConfirm": "إخفاء %1 على %2 من اللوحة؟ «إضافة آخر › نماذج الشبكة» يُظهره مجددًا.",
   "agents.networkHostOffline": "%1 غير متصل",
   "agents.networkHostUnreachable": "%1 لا يستجيب",

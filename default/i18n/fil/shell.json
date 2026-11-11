@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Kadalasan %1",
   "agents.nameAccount": "Pangalanan ang account na ito. Mag-a-sign in ito sa pamamagitan ng pribadong window, kaya hindi makukuha ang kasalukuyang account ng iyong browser.",
   "agents.networkAgo": "%1 ang nakalipas",
+  "agents.networkDisconnect": "Itigil ang paggamit ng modelong ito mula sa %1 dito; patuloy itong tatakbo doon",
+  "agents.networkDisconnectLabel": "Idiskonekta",
   "agents.networkHideConfirm": "Itago ang %1 sa %2 mula sa panel? Ipinapakita itong muli ng Magdagdag pa › Mga modelo sa network.",
   "agents.networkHostOffline": "%1 ay offline",
   "agents.networkHostUnreachable": "%1 ay hindi sumasagot",

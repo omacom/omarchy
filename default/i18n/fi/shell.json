@@ -80,6 +80,8 @@
   "agents.mostlyModel": "Enimmäkseen %1",
   "agents.nameAccount": "Nimeä tämä tili. Se kirjautuu yksityisen ikkunan kautta, joten selaimesi nykyistä tiliä ei käytetä.",
   "agents.networkAgo": "%1 sitten",
+  "agents.networkDisconnect": "Lopeta tämän mallin käyttö %1:stä täällä; se jää käyntiin siellä",
+  "agents.networkDisconnectLabel": "Katkaise yhteys",
   "agents.networkHideConfirm": "Piilota %1 koneella %2 paneelista? Lisää toinen › Verkkomallit näyttää sen uudelleen.",
   "agents.networkHostOffline": "%1 ei ole verkossa",
   "agents.networkHostUnreachable": "%1 ei vastaa",

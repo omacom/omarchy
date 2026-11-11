@@ -83,6 +83,8 @@
   "agents.mostlyModel": "Principalmente %1",
   "agents.nameAccount": "Ponle un nombre a esta cuenta. Inicia sesión en una ventana privada, así no se usa la cuenta actual de tu navegador.",
   "agents.networkAgo": "hace %1",
+  "agents.networkDisconnect": "Dejar de usar este modelo de %1 aquí; seguirá ejecutándose allá",
+  "agents.networkDisconnectLabel": "Desconectar",
   "agents.networkHideConfirm": "¿Ocultar %1 en %2 del panel? Agregar otro › Modelos de red lo vuelve a mostrar.",
   "agents.networkHostOffline": "%1 está sin conexión",
   "agents.networkHostUnreachable": "%1 no responde",

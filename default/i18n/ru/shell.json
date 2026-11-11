@@ -86,6 +86,8 @@
   "agents.mostlyModel": "В основном %1",
   "agents.nameAccount": "Назовите этот аккаунт. Вход выполняется через приватное окно, поэтому текущий аккаунт браузера не подхватывается.",
   "agents.networkAgo": "%1 назад",
+  "agents.networkDisconnect": "Прекратить использование этой модели с %1 здесь; там она продолжит работу",
+  "agents.networkDisconnectLabel": "Отключить",
   "agents.networkHideConfirm": "Скрыть %1 на %2 из панели? «Добавить ещё › Сетевые модели» снова покажет его.",
   "agents.networkHostOffline": "%1 не в сети",
   "agents.networkHostUnreachable": "%1 не отвечает",
