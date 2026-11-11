@@ -85,7 +85,7 @@ OUT
 OUT
     ;;
   "get-default-sink")
-    echo "alsa_output.speakers"
+    if [[ ${SINK:-} == "none" ]]; then echo "@DEFAULT_SINK@"; else echo "alsa_output.speakers"; fi
     ;;
   "get-sink-volume "*)
     echo "Volume: front-left: 32768 /  50% / -18.06 dB"
@@ -182,6 +182,22 @@ grep -qx 'omarchy-brightness-keyboard-mute off' "$CALLS" &&
   grep -qx 'omarchy-osd -i microphone -m Microphone on' "$CALLS" ||
   fail 'input mute shows the microphone on after unmuting it' "$(calls)"
 pass 'input mute still toggles a microphone and shows what it became'
+
+# --- no default output ---
+
+# While WirePlumber is down nothing is the default, and pactl answers its own
+# placeholder for the sink rather than nothing.
+[[ -z $(SINK=none omarchy-audio-output-sink) ]] || fail 'no default output resolves to no sink' "$(SINK=none omarchy-audio-output-sink)"
+for action in raise mute-toggle; do
+  : >"$CALLS"
+  if SINK=none XDG_RUNTIME_DIR=$work omarchy-audio-output-volume "$action" 2>/dev/null; then
+    fail "the $action key with no default output fails" "$(calls)"
+  fi
+  grep -qx 'omarchy-osd -m No audio output selected' "$CALLS" ||
+    fail "the $action key with no default output says so" "$(calls)"
+  ! grep -q 'pactl set-sink' "$CALLS" || fail "the $action key with no default output changes nothing" "$(calls)"
+done
+pass 'the volume keys with no default output say so and change nothing'
 
 # --- omarchy-audio-sink-availability ---
 
