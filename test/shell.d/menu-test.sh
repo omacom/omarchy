@@ -226,38 +226,44 @@ assertDeepEqual(
   ['Full Animated', 'Input Only', 'Effect'],
   'menu groups bootloader playback and effect controls under Appearance > Bootloader'
 )
-assert(
-  defaultById['appearance.bootloader.full-animated'].action.includes('omarchy-plymouth-playback-set full-animated')
-    && defaultById['appearance.bootloader.input-only'].action.includes('omarchy-plymouth-playback-set input-only'),
-  'menu maps bootloader playback choices to the persisted selector'
-)
-assertEqual(
-  defaultById['appearance.bootloader.full-animated'].checked,
-  '[[ "$(omarchy-plymouth-playback-set current)" == "full-animated" ]]',
-  'menu checks Full Animated when it is active'
-)
-assertEqual(
-  defaultById['appearance.bootloader.input-only'].checked,
-  '[[ "$(omarchy-plymouth-playback-set current)" == "input-only" ]]',
-  'menu checks Input Only when it is active'
-)
-assert(
-  defaultById['appearance.bootloader.full-animated'].action.startsWith('[[ "$(omarchy-plymouth-playback-set current)" == "full-animated" ]] ||')
-    && defaultById['appearance.bootloader.input-only'].action.startsWith('[[ "$(omarchy-plymouth-playback-set current)" == "input-only" ]] ||'),
-  'menu does not reopen the privileged playback dialog for the active mode'
-)
-assert(
-  defaultById['appearance.bootloader.effect'].action.includes('omarchy-plymouth-effect-switcher'),
-  'menu keeps the full TTFX effect list under Appearance > Bootloader > Effect'
-)
-assert(
-  defaultById['appearance.bootloader.effect'].action.includes('"$effect" == "$(omarchy-plymouth-effect-set current)"'),
-  'menu does not reopen the privileged effect dialog for the active effect'
-)
-assert(
-  defaultById['appearance.bootloader.effect'].action.includes('$effect != "random" &&'),
-  'menu lets Random be reselected to pick another effect'
-)
+// Run the bootloader rows through bash against stubbed selectors, logging
+// which privileged setter each action would open.
+{
+  const os = require('os')
+  const { execFileSync } = require('child_process')
+  const stub = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-bootloader-'))
+  const log = path.join(stub, 'calls.log')
+  const script = (name, body) => fs.writeFileSync(path.join(stub, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 })
+  script('omarchy-plymouth-playback-set', '[[ $1 == current ]] && { echo "$MENU_TEST_PLAYBACK"; exit; }; echo "playback-set $*" >>"$MENU_TEST_LOG"')
+  script('omarchy-plymouth-effect-set', '[[ $1 == current ]] && { echo "$MENU_TEST_EFFECT"; exit; }; echo "effect-set $*" >>"$MENU_TEST_LOG"')
+  script('omarchy-plymouth-effect-switcher', 'printf "%s\\n" "$MENU_TEST_PICK"')
+  script('omarchy-launch-floating-terminal-with-presentation', 'bash -c "$*"')
+  const run = (code, env) => {
+    fs.writeFileSync(log, '')
+    let ok = true
+    try {
+      execFileSync('bash', ['-c', code], { env: { ...process.env, ...env, MENU_TEST_LOG: log, PATH: `${stub}:${process.env.PATH}` } })
+    } catch (e) {
+      ok = false
+    }
+    return { ok, calls: fs.readFileSync(log, 'utf8').trim() }
+  }
+  const playbackRows = ['full-animated', 'input-only']
+  const checkedPlayback = mode => playbackRows.filter(row => run(defaultById[`appearance.bootloader.${row}`].checked, { MENU_TEST_PLAYBACK: mode }).ok)
+  assertDeepEqual(checkedPlayback('full-animated'), ['full-animated'], 'menu checks Full Animated when it is active')
+  assertDeepEqual(checkedPlayback('input-only'), ['input-only'], 'menu checks Input Only when it is active')
+
+  const playback = (row, mode) => run(defaultById[`appearance.bootloader.${row}`].action, { MENU_TEST_PLAYBACK: mode }).calls
+  assertEqual(playback('full-animated', 'input-only'), 'playback-set full-animated', 'menu switches playback to Full Animated')
+  assertEqual(playback('input-only', 'full-animated'), 'playback-set input-only', 'menu switches playback to Input Only')
+  assertEqual(playback('full-animated', 'full-animated') + playback('input-only', 'input-only'), '', 'menu does not reopen the privileged playback dialog for the active mode')
+
+  const effect = (pick, current) => run(defaultById['appearance.bootloader.effect'].action, { MENU_TEST_PICK: pick, MENU_TEST_EFFECT: current }).calls
+  assertEqual(effect('sweep', 'decrypt'), 'effect-set sweep', 'menu applies the effect picked from the full TTFX list')
+  assertEqual(effect('decrypt', 'decrypt'), '', 'menu does not reopen the privileged effect dialog for the active effect')
+  assertEqual(effect('random', 'random'), 'effect-set random', 'menu lets Random be reselected to pick another effect')
+  assertEqual(effect('', 'decrypt'), '', 'menu does nothing when the effect picker is dismissed')
+}
 
 // Exactly the bar's current background is checked. Ask bash, against a
 // shell.json in each state, which rows it checks.
