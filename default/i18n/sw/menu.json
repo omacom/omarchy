@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Kawaida"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness Chaguomsingi"
+  },
+  "agent.instructions": {
+    "label": "Maagizo"
+  },
+  "agent.make": {
+    "label": "Unda kitu"
+  },
+  "agent.make.theme": {
+    "label": "Unda mandhari"
+  },
+  "agent.make.plugin": {
+    "label": "Unda programu-jalizi"
+  },
+  "agent.make.app": {
+    "label": "Unda programu"
   }
 }

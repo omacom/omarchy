@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Gnáth"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness Réamhshocraithe"
+  },
+  "agent.instructions": {
+    "label": "Treoracha"
+  },
+  "agent.make": {
+    "label": "Cruthaigh rud éigin"
+  },
+  "agent.make.theme": {
+    "label": "Cruthaigh téama"
+  },
+  "agent.make.plugin": {
+    "label": "Cruthaigh breiseán"
+  },
+  "agent.make.app": {
+    "label": "Cruthaigh aip"
   }
 }

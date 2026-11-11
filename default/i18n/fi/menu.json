@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Tavallinen"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Oletusharness"
+  },
+  "agent.instructions": {
+    "label": "Ohjeet"
+  },
+  "agent.make": {
+    "label": "Luo jotain"
+  },
+  "agent.make.theme": {
+    "label": "Luo teema"
+  },
+  "agent.make.plugin": {
+    "label": "Luo lisäosa"
+  },
+  "agent.make.app": {
+    "label": "Luo sovellus"
   }
 }

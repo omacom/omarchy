@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "सादा"
+  },
+  "agent.harness": {
+    "label": "हार्नेस",
+    "title": "डिफ़ॉल्ट हार्नेस"
+  },
+  "agent.instructions": {
+    "label": "निर्देश"
+  },
+  "agent.make": {
+    "label": "कुछ बनाएँ"
+  },
+  "agent.make.theme": {
+    "label": "थीम बनाएँ"
+  },
+  "agent.make.plugin": {
+    "label": "प्लगइन बनाएँ"
+  },
+  "agent.make.app": {
+    "label": "ऐप बनाएँ"
   }
 }

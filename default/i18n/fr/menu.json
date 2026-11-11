@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Simple"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness par défaut"
+  },
+  "agent.instructions": {
+    "label": "Instructions"
+  },
+  "agent.make": {
+    "label": "Créer quelque chose"
+  },
+  "agent.make.theme": {
+    "label": "Créer un thème"
+  },
+  "agent.make.plugin": {
+    "label": "Créer un plugin"
+  },
+  "agent.make.app": {
+    "label": "Créer une appli"
   }
 }

@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Simplu"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness implicit"
+  },
+  "agent.instructions": {
+    "label": "Instrucțiuni"
+  },
+  "agent.make": {
+    "label": "Creează ceva"
+  },
+  "agent.make.theme": {
+    "label": "Creează o temă"
+  },
+  "agent.make.plugin": {
+    "label": "Creează un plugin"
+  },
+  "agent.make.app": {
+    "label": "Creează o aplicație"
   }
 }

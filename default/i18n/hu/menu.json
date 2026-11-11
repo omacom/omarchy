@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Egyszerű"
+  },
+  "agent.harness": {
+    "label": "Keretrendszer",
+    "title": "Alapértelmezett keretrendszer"
+  },
+  "agent.instructions": {
+    "label": "Utasítások"
+  },
+  "agent.make": {
+    "label": "Készíts valamit"
+  },
+  "agent.make.theme": {
+    "label": "Készíts témát"
+  },
+  "agent.make.plugin": {
+    "label": "Készíts bővítményt"
+  },
+  "agent.make.app": {
+    "label": "Készíts alkalmazást"
   }
 }

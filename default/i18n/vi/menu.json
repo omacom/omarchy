@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Đơn giản"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness mặc định"
+  },
+  "agent.instructions": {
+    "label": "Hướng dẫn"
+  },
+  "agent.make": {
+    "label": "Tạo thứ gì đó"
+  },
+  "agent.make.theme": {
+    "label": "Tạo chủ đề"
+  },
+  "agent.make.plugin": {
+    "label": "Tạo plugin"
+  },
+  "agent.make.app": {
+    "label": "Tạo ứng dụng"
   }
 }

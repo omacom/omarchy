@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Απλό"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Προεπιλεγμένο Harness"
+  },
+  "agent.instructions": {
+    "label": "Οδηγίες"
+  },
+  "agent.make": {
+    "label": "Φτιάξε κάτι"
+  },
+  "agent.make.theme": {
+    "label": "Φτιάξε θέμα"
+  },
+  "agent.make.plugin": {
+    "label": "Φτιάξε πρόσθετο"
+  },
+  "agent.make.app": {
+    "label": "Φτιάξε εφαρμογή"
   }
 }

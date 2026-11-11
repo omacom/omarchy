@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "רגיל"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness ברירת המחדל"
+  },
+  "agent.instructions": {
+    "label": "הנחיות"
+  },
+  "agent.make": {
+    "label": "צרו משהו"
+  },
+  "agent.make.theme": {
+    "label": "צרו ערכת נושא"
+  },
+  "agent.make.plugin": {
+    "label": "צרו תוסף"
+  },
+  "agent.make.app": {
+    "label": "צרו אפליקציה"
   }
 }

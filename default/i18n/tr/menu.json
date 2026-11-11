@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Sade"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Varsayılan Harness"
+  },
+  "agent.instructions": {
+    "label": "Talimatlar"
+  },
+  "agent.make": {
+    "label": "Bir şey oluştur"
+  },
+  "agent.make.theme": {
+    "label": "Tema oluştur"
+  },
+  "agent.make.plugin": {
+    "label": "Eklenti oluştur"
+  },
+  "agent.make.app": {
+    "label": "Uygulama oluştur"
   }
 }

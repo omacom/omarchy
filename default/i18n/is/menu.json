@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Venjulegt"
+  },
+  "agent.harness": {
+    "label": "Umgerð",
+    "title": "Sjálfgefin umgerð"
+  },
+  "agent.instructions": {
+    "label": "Fyrirmæli"
+  },
+  "agent.make": {
+    "label": "Búa til eitthvað"
+  },
+  "agent.make.theme": {
+    "label": "Búa til þema"
+  },
+  "agent.make.plugin": {
+    "label": "Búa til viðbót"
+  },
+  "agent.make.app": {
+    "label": "Búa til forrit"
   }
 }

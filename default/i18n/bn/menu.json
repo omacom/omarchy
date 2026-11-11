@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "সাধারণ"
+  },
+  "agent.harness": {
+    "label": "হার্নেস",
+    "title": "ডিফল্ট হার্নেস"
+  },
+  "agent.instructions": {
+    "label": "নির্দেশাবলী"
+  },
+  "agent.make": {
+    "label": "কিছু বানান"
+  },
+  "agent.make.theme": {
+    "label": "থিম বানান"
+  },
+  "agent.make.plugin": {
+    "label": "প্লাগইন বানান"
+  },
+  "agent.make.app": {
+    "label": "অ্যাপ বানান"
   }
 }

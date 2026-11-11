@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "純文字"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "預設 Harness"
+  },
+  "agent.instructions": {
+    "label": "指令"
+  },
+  "agent.make": {
+    "label": "製作"
+  },
+  "agent.make.theme": {
+    "label": "製作主題"
+  },
+  "agent.make.plugin": {
+    "label": "製作外掛程式"
+  },
+  "agent.make.app": {
+    "label": "製作應用程式"
   }
 }

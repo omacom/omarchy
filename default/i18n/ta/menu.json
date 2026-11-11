@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "எளிய உரை"
+  },
+  "agent.harness": {
+    "label": "ஹார்னெஸ்",
+    "title": "இயல்புநிலை ஹார்னெஸ்"
+  },
+  "agent.instructions": {
+    "label": "வழிமுறைகள்"
+  },
+  "agent.make": {
+    "label": "ஏதாவது உருவாக்கு"
+  },
+  "agent.make.theme": {
+    "label": "தீம் உருவாக்கு"
+  },
+  "agent.make.plugin": {
+    "label": "பிளகின் உருவாக்கு"
+  },
+  "agent.make.app": {
+    "label": "செயலி உருவாக்கு"
   }
 }
