@@ -49,7 +49,10 @@ cat >"$mock_bin/codex" <<'SH'
 #!/bin/bash
 if [[ ${1:-} == "login" ]]; then
   "${BROWSER:-omarchy-test-default-browser}" "https://auth.openai.com/oauth/authorize"
-  claims=$(printf '{"email":"%s","https://api.openai.com/auth":{"chatgpt_plan_type":"pro"}}' "$OMARCHY_TEST_LOGIN_EMAIL" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+  # A Team workspace shares one account_id across members; the id token's
+  # chatgpt_user_id is what tells them apart.
+  user_claim=${OMARCHY_TEST_LOGIN_USER_ID:+",\"chatgpt_user_id\":\"$OMARCHY_TEST_LOGIN_USER_ID\""}
+  claims=$(printf '{"email":"%s","https://api.openai.com/auth":{"chatgpt_plan_type":"pro"%s}}' "$OMARCHY_TEST_LOGIN_EMAIL" "$user_claim" | base64 -w0 | tr '+/' '-_' | tr -d '=')
   printf '{"auth_mode":"chatgpt","tokens":{"account_id":"%s","id_token":"h.%s.s"}}\n' "$OMARCHY_TEST_LOGIN_UUID" "$claims" >"${CODEX_HOME:-$HOME/.codex}/auth.json"
   exit 0
 fi
@@ -218,6 +221,29 @@ OMARCHY_TEST_LOGIN_UUID=acct-2 OMARCHY_TEST_LOGIN_EMAIL=side@example.com \
 grep -qx -- "--private https://auth.openai.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" ||
   fail "a Codex login opens in a private window" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
 pass "Codex accounts are added the same way"
+
+# One ChatGPT Team workspace shares its account_id across members, so the id
+# token's per-user id is what tells two members of the same workspace apart.
+OMARCHY_TEST_LOGIN_UUID=ws-1 OMARCHY_TEST_LOGIN_USER_ID=user-alice OMARCHY_TEST_LOGIN_EMAIL=alice@example.com \
+  omarchy-agent-account-add codex Alice </dev/null >/dev/null
+OMARCHY_TEST_LOGIN_UUID=ws-1 OMARCHY_TEST_LOGIN_USER_ID=user-bob OMARCHY_TEST_LOGIN_EMAIL=bob@example.com \
+  omarchy-agent-account-add codex Bob </dev/null >/dev/null
+[[ $(omarchy-agent-account-list codex --json | jq -r '.[0].accounts[] | select(.id == "bob") | .email') == "bob@example.com" ]] ||
+  fail "a second member of the same workspace is added as its own account" "$(omarchy-agent-account-list codex --json)"
+if OMARCHY_TEST_LOGIN_UUID=ws-1 OMARCHY_TEST_LOGIN_USER_ID=user-alice OMARCHY_TEST_LOGIN_EMAIL=alice@example.com \
+  omarchy-agent-account-add codex Alice-Twin </dev/null >"$test_tmp/ws-dup" 2>&1; then
+  fail "the same workspace member signing in again is refused"
+fi
+grep -q "That's Alice" "$test_tmp/ws-dup" || fail "a duplicate workspace member names the account it already is" "$(cat "$test_tmp/ws-dup")"
+pass "workspace members are told apart by the id token's user id"
+
+# Entries added before the user id was recorded dedupe by workspace id alone.
+if OMARCHY_TEST_LOGIN_UUID=acct-2 OMARCHY_TEST_LOGIN_USER_ID=user-new OMARCHY_TEST_LOGIN_EMAIL=new@example.com \
+  omarchy-agent-account-add codex Newbie </dev/null >"$test_tmp/legacy-dup" 2>&1; then
+  fail "a workspace id matching a pre-user-id entry is still refused"
+fi
+grep -q "That's Side" "$test_tmp/legacy-dup" || fail "a legacy duplicate names the account it already is" "$(cat "$test_tmp/legacy-dup")"
+pass "logins added before user ids were recorded still dedupe by workspace id"
 
 OMARCHY_TEST_DEFAULT_AGENT="" omarchy-agent-account-add grok </dev/null >/dev/null
 [[ $(cat "$HOME/.config/omarchy/defaults/agent") == "grok" ]] ||
