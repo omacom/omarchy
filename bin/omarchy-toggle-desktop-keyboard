@@ -1,0 +1,94 @@
+#!/bin/bash
+# omarchy:summary=Toggle the optional touch desktop keyboard
+# omarchy:args=[toggle|show|hide|stop|--help]
+
+set -euo pipefail
+
+case "${1:-toggle}" in
+  -h | --help)
+    cat <<'HELP'
+Usage: omarchy-toggle-desktop-keyboard [toggle|show|hide|stop]
+
+Show a bottom overlay keyboard without resizing desktop windows.
+Toggle is the default; show/hide are idempotent. Stop releases the process.
+Requires optional wvkbd 0.21 or newer and a Wayland desktop session.
+Install it through the optional ROG Ally keyboard setup after reviewing AUR.
+No automatic startup, input-device permissions or system service is needed.
+HELP
+    exit 0
+    ;;
+  toggle | show | hide | stop) action=${1:-toggle} ;;
+  *) echo 'Unknown action; use --help.' >&2; exit 2 ;;
+esac
+(( $# <= 1 )) || { echo 'Too many arguments; use --help.' >&2; exit 2; }
+
+fail() { echo "Desktop keyboard: $*" >&2; exit 1; }
+[[ -n ${WAYLAND_DISPLAY:-} && -n ${XDG_RUNTIME_DIR:-} ]] || fail 'run inside your Wayland desktop session.'
+[[ -d $XDG_RUNTIME_DIR && -O $XDG_RUNTIME_DIR ]] || fail 'runtime directory is not owned by this user.'
+# Separate state for independent Wayland sessions; never signal by process name.
+session=${WAYLAND_DISPLAY##*/}
+[[ $session =~ ^[[:alnum:]_.-]+$ ]] || fail 'invalid Wayland display name.'
+state="$XDG_RUNTIME_DIR/omarchy-desktop-keyboard-$session"
+umask 077
+mkdir -p "$state"
+[[ -d $state && ! -L $state && -O $state ]] || fail 'unsafe state directory.'
+exec 9>"$state/lock"
+flock -x 9
+
+# Match both the process start time and executable before signalling a saved PID.
+# /proc/stat fields after the final ')' begin at field 3; starttime is field 22.
+identity() {
+  local stat executable
+  [[ $pid =~ ^[0-9]+$ && -r /proc/$pid/stat ]] || return 1
+  stat=$(cat "/proc/$pid/stat") || return 1
+  stat=${stat##*) }
+  read -ra fields <<< "$stat"
+  [[ ${fields[0]} != Z && ${fields[19]} == "$started" ]] || return 1
+  executable=$(readlink "/proc/$pid/exe") || return 1
+  # Linux retains the old executable inode across package replacement.
+  [[ ${executable%" (deleted)"} == "$binary" ]]
+}
+
+pid='' started='' binary=''
+alive=false
+if [[ -f $state/process ]]; then
+  read -r pid started binary < "$state/process" || true
+  if identity; then alive=true; else rm -f "$state/process"; fi
+fi
+
+if $alive; then
+  case "$action" in
+    toggle) kill -RTMIN "$pid" ;;
+    show) kill -USR2 "$pid" ;;
+    hide) kill -USR1 "$pid" ;;
+    stop)
+      # hide() releases held keys before removing the surface in wvkbd 0.21.
+      kill -USR1 "$pid"
+      sleep 0.1
+      if identity; then kill -TERM "$pid"; fi
+      rm -f "$state/process"
+      ;;
+  esac
+elif [[ $action == hide || $action == stop ]]; then
+  exit 0
+else
+  omarchy-cmd-present wvkbd-mobintl || fail 'wvkbd-mobintl is missing; use optional ROG Ally keyboard setup.'
+  binary=$(readlink -f "$(command -v wvkbd-mobintl)")
+  # Refuse older builds rather than starting an unexpectedly exclusive surface.
+  flags=$("$binary" --help 2>&1) || fail 'cannot read wvkbd options.'
+  [[ $flags == *--non-exclusive* && $flags == *--wayland-layer* ]] || fail 'wvkbd 0.21 or newer is required.'
+  # These dimensions are logical surface units: at scale 2, 180 becomes 360px.
+  # Both orientations are explicit. No auto input-method or focus stealing.
+  nohup "$binary" -H 180 -L 180 --non-exclusive --wayland-layer overlay \
+    -l full,special --landscape-layers full,special \
+    --no-popup >"$state/output.log" 2>&1 < /dev/null 9>&- &
+  pid=$!
+  sleep 0.2
+  [[ -r /proc/$pid/stat ]] || fail "startup failed; see $state/output.log"
+  stat=$(cat "/proc/$pid/stat")
+  stat=${stat##*) }
+  read -ra fields <<< "$stat"
+  started=${fields[19]}
+  identity || fail "startup failed; see $state/output.log"
+  printf '%s %s %s\n' "$pid" "$started" "$binary" > "$state/process"
+fi

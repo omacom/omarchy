@@ -1,0 +1,24 @@
+[Desktop Entry]
+Version=1.0
+Name=Desktop Keyboard
+Comment=Show or hide the touch keyboard over the desktop
+Exec=omarchy-toggle-desktop-keyboard
+Icon=input-keyboard
+Terminal=false
+Type=Application
+Categories=Utility;Accessibility;
+Keywords=Touch;Keyboard;Onscreen;Handheld;
+StartupNotify=false
+Actions=Show;Hide;Stop;
+
+[Desktop Action Show]
+Name=Show Keyboard
+Exec=omarchy-toggle-desktop-keyboard show
+
+[Desktop Action Hide]
+Name=Hide Keyboard
+Exec=omarchy-toggle-desktop-keyboard hide
+
+[Desktop Action Stop]
+Name=Stop Keyboard
+Exec=omarchy-toggle-desktop-keyboard stop

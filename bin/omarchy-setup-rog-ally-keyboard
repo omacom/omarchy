@@ -1,0 +1,60 @@
+#!/bin/bash
+# omarchy:summary=Install the optional ROG Ally desktop keyboard from reviewed AUR source
+# omarchy:args=[--help|--configure-reviewed-package|--install-reviewed-aur]
+
+set -euo pipefail
+case "${1:-}" in
+  -h | --help)
+    cat <<'HELP'
+Usage: omarchy-setup-rog-ally-keyboard --configure-reviewed-package
+       omarchy-setup-rog-ally-keyboard --install-reviewed-aur
+
+Optional ROG Ally RC71L desktop keyboard setup. Configure-reviewed-package
+requires the already installed, reviewed wvkbd 0.21-1 and never installs.
+Install-reviewed-aur installs wvkbd from AUR if it is missing
+(existing installations are not upgraded by this command) and adds Desktop Keyboard to this user's app launcher.
+Review the current AUR PKGBUILD before running: it builds third-party source.
+This flag confirms the AUR installation choice, not a pinned package version.
+Does not start the keyboard, change input permissions or enable a service.
+HELP
+    exit 0
+    ;;
+  --configure-reviewed-package | --install-reviewed-aur) action=$1 ;;
+  *) echo 'Review the AUR package first; use --help.' >&2; exit 2 ;;
+esac
+(( $# == 1 )) || exit 2
+if ! omarchy-hw-asus-rog || ! omarchy-hw-match 'ROG Ally.*RC71L'; then
+  echo 'This optional setup is for ASUS ROG Ally RC71L.' >&2
+  exit 1
+fi
+# Keep this an explicit optional setup, never a first-boot hardware leaf.
+if [[ $action == --configure-reviewed-package ]]; then
+  # Exact sprint approval uses the pinned artifact installed by the coordinator.
+  # This package-management setup boundary intentionally queries pacman directly.
+  installed=$(pacman -Q wvkbd 2>/dev/null) || {
+    echo 'Install the reviewed wvkbd 0.21-1 package first; no installation attempted.' >&2
+    exit 1
+  }
+  [[ $installed == 'wvkbd 0.21-1' ]] || {
+    echo 'Expected reviewed wvkbd 0.21-1; no installation attempted.' >&2
+    exit 1
+  }
+else
+  omarchy-pkg-aur-add wvkbd
+fi
+omarchy-cmd-present wvkbd-mobintl || { echo 'wvkbd-mobintl is unavailable.' >&2; exit 1; }
+flags=$(wvkbd-mobintl --help 2>&1) || { echo 'Cannot inspect the keyboard build.' >&2; exit 1; }
+[[ $flags == *--non-exclusive* && $flags == *--wayland-layer* ]] || {
+  echo 'A compatible wvkbd 0.21 or newer build is required; existing packages are not upgraded automatically.' >&2
+  exit 1
+}
+apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+mkdir -p "$apps"
+launcher="$apps/omarchy-desktop-keyboard.desktop"
+if [[ -e $launcher || -L $launcher ]]; then
+  echo 'An existing Desktop Keyboard entry was preserved.'
+else
+  install -m 644 "$OMARCHY_PATH/default/omarchy/applications/Desktop Keyboard.desktop" "$launcher"
+  update-desktop-database "$apps"
+fi
+echo 'Desktop Keyboard is available in the app launcher. Tap it to show or hide.'
