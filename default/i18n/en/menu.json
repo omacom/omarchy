@@ -653,6 +653,31 @@
   "setup.default.editor.emacs": {
     "label": "Emacs"
   },
+  "setup.default.file-manager": {
+    "label": "File Manager",
+    "title": "Default File Manager"
+  },
+  "setup.default.file-manager.files": {
+    "label": "Files"
+  },
+  "setup.default.file-manager.flea": {
+    "label": "Flea"
+  },
+  "setup.default.file-manager.dolphin": {
+    "label": "Dolphin"
+  },
+  "setup.default.file-manager.thunar": {
+    "label": "Thunar"
+  },
+  "setup.default.file-manager.nemo": {
+    "label": "Nemo"
+  },
+  "setup.default.file-manager.pcmanfm": {
+    "label": "PCManFM"
+  },
+  "setup.default.file-manager.nautilus": {
+    "label": "Nautilus"
+  },
   "setup.plugin": {
     "label": "Plugins"
   },
