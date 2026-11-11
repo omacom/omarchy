@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when running in a virtual machine.
+
+systemd-detect-virt --vm --quiet

@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=Verify the platform's boot chain after the update's package changes
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# Proves that the boot files the package steps left boot the updated system;
+# omarchy update neither finishes nor offers a reboot until this passes. It is
+# the update-verify lifecycle dispatch operation: a no-op where the platform
+# registers no boot package, x86 included, and the platform's own entrypoint
+# says what failed.
+
+set -e
+
+if (( $# )); then
+  echo "Usage: omarchy-update-boot" >&2
+  exit 2
+fi
+operation=update-verify
+
+# Resolving as the user keeps sudo, and its password prompt, out of updates
+# with nothing to run. Root resolves again from its own fixed paths before
+# anything runs.
+errors=$(mktemp)
+trap 'rm -f "$errors"' EXIT
+status=0
+resolved=$(omarchy-lifecycle-dispatch --resolve "$operation" 2>"$errors") || status=$?
+
+# 3: the platform's boot package is not installed at all. Such a machine
+# predates it and boots a chain the package does not manage, so verification
+# warns instead of failing every update until the package is installed.
+if (( status == 3 )); then
+  echo -e "\e[33m\n$(sed 's/^Error: //' "$errors")\nThe boot files were not verified. This machine predates its platform's boot package; updates verify them once it is installed.\e[0m" >&2
+elif (( status != 0 )); then
+  cat "$errors" >&2
+  exit "$status"
+elif [[ -n $resolved ]]; then
+  sudo omarchy-lifecycle-dispatch "$operation"
+fi

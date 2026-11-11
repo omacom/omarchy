@@ -21,6 +21,8 @@ const surfaceTimer = surface.match(/id: transparentForegroundTimer[\s\S]*?onTrig
 const surfaceProcess = surface.slice(surface.indexOf('    Process {\n      id: transparentForegroundProc'))
 const onSurfaceRunningChanged = surfaceProcess.match(/onRunningChanged: \{([\s\S]*?)\n      \}/)[1]
 const onSurfaceRead = surfaceProcess.match(/onRead: function\(line\) \{([\s\S]*?)\n        \}/)[1]
+const configStart = source.indexOf('  function applyBarConfig()')
+const applyConfig = source.slice(configStart, source.indexOf('  // Every widget on the bar,', configStart))
 
 function monitor(name, occupied) {
   return { name, activeWorkspace: { toplevels: { values: occupied ? [{}] : [] } } }
@@ -194,4 +196,41 @@ standard.state.syncTransparency()
 assertEqual(standard.state.transparent, false, 'ordinary transparency waits for the wallpaper helper')
 standard.state.receiveForeground('#101315')
 assertEqual(standard.state.transparent, true, 'ordinary transparency activates after a valid helper result')
+
+// Porting the feature must not bring back the retired transparent-only config
+// contract, or turn a glassy bar into a conditional clear one.
+const configured = scene()
+Object.assign(configured.state, {
+  barConfig: { background: 'none', transparentOnlyWhenWorkspaceEmpty: true, transparentForegroundPerMonitor: true, layout: {} },
+  fallbackBarConfig: {}, glassy: true, glassSyncedLook: 'none', barConfigSerial: 0,
+  normalizePosition: value => value || 'top', normalizeLayout: value => value,
+  Util: { isPlainObject: value => !!value && typeof value === 'object', execDetached() {} }
+})
+vm.runInContext(applyConfig, configured.state)
+configured.state.applyBarConfig()
+assertEqual(configured.state.requestedTransparent, true, 'background none enables conditional transparency')
+assertEqual(configured.state.glassy, false, 'occupied monitors become solid even when the previous background was glassy')
+assertEqual(configured.state.transparentForegroundPerMonitor, true, 'background configuration retains per-monitor foregrounds')
+configured.state.barConfig = { background: 'glassy', transparent: true, transparentOnlyWhenWorkspaceEmpty: true, layout: {} }
+configured.state.applyBarConfig()
+assertEqual(configured.state.requestedTransparent, false, 'explicit glassy background wins over a legacy transparent flag')
+assertEqual(configured.state.glassy, true, 'glassy background keeps its existing behavior')
+configured.state.barConfig = { background: 'opaque', transparent: true, layout: {} }
+configured.state.applyBarConfig()
+assertEqual(configured.state.requestedTransparent, false, 'explicit opaque background wins over a legacy transparent flag')
+configured.state.barConfig = { transparent: true, layout: {} }
+configured.state.applyBarConfig()
+assertEqual(configured.state.requestedTransparent, true, 'legacy transparent config still works without a background key')
+assertEqual(configured.state.transparentOnlyWhenWorkspaceEmpty, false, 'missing conditional flag retains ordinary transparency')
 JS
+
+require_quickshell "adaptive bar surface contracts"
+qml_fixture_scratch
+mkdir -p "$QML_FIXTURE_TMP/home/.local/state/omarchy/toggles"
+touch "$QML_FIXTURE_TMP/home/.local/state/omarchy/toggles/bar-off"
+# The fixture keeps its real bar surfaces parked and stubs commands, so it
+# cannot change the session's blur rules, wallpaper or configuration.
+printf '#!/bin/bash\nexit 0\n' >"$QML_FIXTURE_TMP/bin/omarchy-bar"
+printf '#!/bin/bash\necho "#101315"\n' >"$QML_FIXTURE_TMP/bin/omarchy-bar-text-color"
+chmod +x "$QML_FIXTURE_TMP/bin/omarchy-bar" "$QML_FIXTURE_TMP/bin/omarchy-bar-text-color"
+run_qml_fixture bar-transparency "adaptive bar surface and facade contracts pass" Ui Commons plugins

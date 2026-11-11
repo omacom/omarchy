@@ -19,8 +19,15 @@ Item {
   // follow the real state, or 0/1 while a pause/resume is still catching up.
   property int _desired: -1
   readonly property bool active: _desired === -1 ? running : (_desired === 1)
+  property bool panelOpen: false
+  readonly property bool syncing: authenticated && active && Model.isSyncing(statusText)
+  property int syncFileTotal: 0
+  readonly property var syncDetails: Model.syncDetails(statusText)
+  readonly property real syncProgress: syncFileTotal > 0 ? Math.max(0, Math.min(1, 1 - syncDetails.remaining / syncFileTotal)) : 0
+  property bool _fullRefreshPending: false
   property bool refreshing: false
-  property string statusText: "Checking…"
+  // statusText answers the IPC status() call, so it stays English.
+  property string statusText: "Checking…"  // i18n: ignore
   property string accountPath: ""
   property string plan: ""
   property double usedBytes: 0
@@ -56,19 +63,24 @@ Item {
     return n
   }
 
-  function refresh() {
-    if (statusProcess.running || helperPath === "/shell/plugins/panels/dropbox/status.py") return
+  function refresh(statusOnly) {
+    if (statusProcess.running) {
+      if (statusOnly !== true) _fullRefreshPending = true
+      return
+    }
+    if (helperPath === "/shell/plugins/panels/dropbox/status.py") return
+    if (statusOnly !== true) _fullRefreshPending = false
     _statusOutput = ""
     _statusError = ""
     refreshing = true
-    statusProcess.command = ["python3", helperPath, "25"]
+    statusProcess.command = statusOnly === true ? ["python3", helperPath, "25", "--status-only"] : ["python3", helperPath, "25"]
     statusProcess.running = true
   }
 
   function applyStatus(raw) {
     var parsed = Model.parseStatus(raw)
     if (!parsed.ok) {
-      lastError = parsed.lastError || "Failed to read Dropbox status"
+      lastError = I18n.t("dropbox.statusParseFailed")
       return
     }
     installed = parsed.installed === true
@@ -77,13 +89,17 @@ Item {
     // Reality caught up to the pending pause/resume — stop overriding.
     if (_desired !== -1 && running === (_desired === 1)) _desired = -1
     statusText = String(parsed.statusText || (installed ? "Stopped" : "Not installed"))
+    if (syncing) syncFileTotal = Math.max(syncFileTotal, syncDetails.remaining)
+    else syncFileTotal = 0
     accountPath = String(parsed.accountPath || "")
     plan = String(parsed.plan || "")
-    usedBytes = Number(parsed.usedBytes || 0)
-    quotaBytes = Number(parsed.quotaBytes || 0)
-    usagePercent = Number(parsed.usagePercent || 0)
-    quotaKnown = parsed.quotaKnown === true
-    files = parsed.files || []
+    if (parsed.statusOnly !== true) {
+      usedBytes = Number(parsed.usedBytes || 0)
+      quotaBytes = Number(parsed.quotaBytes || 0)
+      usagePercent = Number(parsed.usagePercent || 0)
+      quotaKnown = parsed.quotaKnown === true
+      files = parsed.files || []
+    }
     lastError = ""
   }
 
@@ -97,7 +113,7 @@ Item {
     _loginOutput = ""
     _loginError = ""
     _loginUrlOpened = false
-    actionStatus = "Starting Dropbox login…"
+    actionStatus = I18n.t("dropbox.startingLogin")
     loginProcess.command = ["dropbox-cli", "start"]
     loginProcess.running = true
   }
@@ -128,7 +144,8 @@ Item {
 
   function openFile(file) {
     if (!file || !file.path) return
-    Quickshell.execDetached(["uwsm-app", "--", "nautilus", "--select", fileUri(String(file.path))])
+    // Files opens a file's folder with the file selected.
+    Quickshell.execDetached(["uwsm-app", "--", "folio", String(file.path)])
   }
 
   function fileUri(path) {
@@ -143,7 +160,7 @@ Item {
     if (match && match[0]) {
       _loginUrlOpened = true
       Qt.openUrlExternally(match[0])
-      actionStatus = "Opened Dropbox login"
+      actionStatus = I18n.t("dropbox.openedLogin")
       actionStatusTimer.restart()
       return true
     }
@@ -155,6 +172,13 @@ Item {
     if (isError) _loginError += text + "\n"
     else _loginOutput += text + "\n"
     openAuthUrlFrom(text)
+  }
+
+  Timer {
+    interval: 2000
+    repeat: true
+    running: root.panelOpen && root.authenticated && root.active
+    onTriggered: root.refresh(true)
   }
 
   Timer {
@@ -228,7 +252,8 @@ Item {
       var stdout = String(statusStdout.text || root._statusOutput || "")
       var stderr = String(statusStderr.text || root._statusError || "")
       if (exitCode === 0) root.applyStatus(stdout)
-      else root.lastError = root.elideStatus(stderr || stdout || "Could not read Dropbox status")
+      else root.lastError = root.elideStatus(stderr || stdout || I18n.t("dropbox.statusReadFailed"))
+      if (root._fullRefreshPending) root.refresh()
     }
   }
 
@@ -242,7 +267,7 @@ Item {
       var combined = String(root._loginOutput || "") + "\n" + String(root._loginError || "")
       var opened = root.openAuthUrlFrom(combined)
       if (exitCode !== 0 && !opened) {
-        root.lastError = root.elideStatus(combined || "Dropbox login failed")
+        root.lastError = root.elideStatus(combined || I18n.t("dropbox.loginFailed"))
         root.actionStatus = root.lastError
       } else if (!opened) {
         root.actionStatus = ""
@@ -263,7 +288,7 @@ Item {
       var stderr = String(controlStderr.text || root._controlError || "")
       if (exitCode !== 0) {
         root._desired = -1
-        root.lastError = root.elideStatus(stderr || stdout || "Dropbox command failed")
+        root.lastError = root.elideStatus(stderr || stdout || I18n.t("dropbox.commandFailed"))
         root.actionStatus = root.lastError
       } else {
         root.lastError = ""
