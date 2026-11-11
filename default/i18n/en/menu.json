@@ -1327,5 +1327,14 @@
   },
   "agent.make.app": {
     "label": "Make an app"
+  },
+  "appearance.dock.icon-size": {
+    "label": "Icon Size"
+  },
+  "appearance.dock.magnification": {
+    "label": "Magnification"
+  },
+  "appearance.dock.reset": {
+    "label": "Restore Defaults"
   }
 }

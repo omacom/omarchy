@@ -2,7 +2,7 @@
 
 # omarchy:summary=Configure the dock shown on floating workspaces
 # omarchy:group=dock
-# omarchy:args=position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
+# omarchy:args=icon-size | magnification | reset | position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
 # omarchy:examples=omarchy dock position left | omarchy dock pin folio
 
 set -euo pipefail
@@ -18,6 +18,9 @@ Usage: omarchy dock <command> [args...]
   autohide [on|off|toggle]             Hide the dock until the pointer reaches
                                        its edge; prints on or off when given
                                        none
+  icon-size [24..66]  Icon height in pixels
+  magnification [0..50]  Hover growth as a percentage
+  reset  Restore dock defaults, preserving pins
   pinned [<desktop-id>...]             Pinned desktop ids in dock order; prints
                                        them one per line when given none
   pin <desktop-id>                     Keep an app in the dock
@@ -66,6 +69,25 @@ cmd_autohide() {
   echo "Dock auto-hide turned $value"
 }
 
+cmd_amount() {
+  local key="$1" minimum="$2" maximum="$3" fallback="$4"
+  shift 4
+  if (( $# == 0 )); then
+    jq -r --arg key "$key" --argjson fallback "$fallback" '.dock[$key] // $fallback' "$(source_file)"
+    return
+  fi
+  (( $# == 1 )) || fail "$key takes a single value"
+  [[ $1 =~ ^[0-9]{1,2}$ ]] || fail "$key must be a whole number"
+  local value=$((10#$1))
+  (( value >= minimum && value <= maximum )) || fail "$key must be between $minimum and $maximum"
+  commit "$NORMALIZE | .dock[\$key] = \$value" --arg key "$key" --argjson value "$value"
+}
+
+cmd_reset() {
+  (( $# == 0 )) || fail "reset takes no arguments"
+  commit "$NORMALIZE | .dock |= del(.position, .autohide, .iconSize, .magnification)"
+}
+
 cmd_pinned() {
   if (( $# == 0 )); then
     jq -r --slurpfile defaults "$DEFAULTS_FILE" "$PINNED | .[]" "$(source_file)"
@@ -110,6 +132,9 @@ command="${1:-}"
 case "$command" in
   position) cmd_position "$@" ;;
   autohide) cmd_autohide "$@" ;;
+  icon-size) cmd_amount iconSize 24 66 36 "$@" ;;
+  magnification) cmd_amount magnification 0 50 15 "$@" ;;
+  reset) cmd_reset "$@" ;;
   pinned) cmd_pinned "$@" ;;
   pin) cmd_pin "$@" ;;
   unpin) cmd_unpin "$@" ;;

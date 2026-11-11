@@ -21,6 +21,9 @@ Item {
   readonly property bool vertical: DockModel.isVertical(position)
   readonly property bool autohide: dockConfig.autohide === true
 
+  readonly property int iconSize: Math.max(24, Math.min(66, typeof dockConfig.iconSize === "number" ? Math.round(dockConfig.iconSize) : 36))
+  readonly property real magnification: Math.max(0, Math.min(50, typeof dockConfig.magnification === "number" ? dockConfig.magnification : 15)) / 100
+
   // The dock's order for the session, as desktop ids, set when the user moves
   // an app: a drag moves it, and keeping it in the dock puts it at the end. An
   // app the order does not know yet goes at the end. Pins are saved in this

@@ -166,6 +166,22 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
 
+omarchy_dock icon-size 24 >/dev/null
+omarchy_dock magnification 30 >/dev/null
+[[ $(omarchy_dock icon-size) == 24 && $(omarchy_dock magnification) == 30 ]] || fail "dock amounts persist"
+omarchy_dock icon-size 66 >/dev/null
+[[ $(omarchy_dock icon-size) == 66 ]] || fail "dock accepts the largest size choice"
+for value in 0 67 invalid; do
+  if omarchy_dock icon-size "$value" 2>/dev/null; then fail "icon size rejects invalid values"; fi
+done
+pins_before=$(omarchy_dock pinned)
+omarchy_dock position left >/dev/null
+omarchy_dock autohide on >/dev/null
+omarchy_dock reset >/dev/null
+[[ $(omarchy_dock icon-size) == 36 && $(omarchy_dock magnification) == 15 && $(omarchy_dock pinned) == "$pins_before" ]] || fail "dock amount reset preserves pins"
+[[ $(omarchy_dock position) == bottom && $(omarchy_dock autohide) == off ]] || fail "dock reset restores native position and auto-hide defaults"
+pass "dock amount controls validate and reset independently"
+
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
 # not beside the minimized one.
