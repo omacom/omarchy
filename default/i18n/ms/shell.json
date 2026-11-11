@@ -62,7 +62,6 @@
   "agents.localRecommended": "disyorkan",
   "agents.localRemoveConfirm": "Hentikan %1 dan padam pemberat yang dimuat turun?",
   "agents.localRemovingMeter": "Membuang",
-  "agents.localShowLogs": "Papar log",
   "agents.localShowLogsTip": "Buka log model ini dalam terminal",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Mulakan",

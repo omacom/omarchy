@@ -66,7 +66,6 @@
   "agents.localRecommended": "doporučeno",
   "agents.localRemoveConfirm": "Zastavit %1 a smazat jeho stažené váhy?",
   "agents.localRemovingMeter": "Odstraňování",
-  "agents.localShowLogs": "Zobrazit logy",
   "agents.localShowLogsTip": "Otevřít logy tohoto modelu v terminálu",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Spustit",

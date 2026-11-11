@@ -64,7 +64,6 @@
   "agents.localRecommended": "anbefalt",
   "agents.localRemoveConfirm": "Stoppe %1 og slette de nedlastede vektene?",
   "agents.localRemovingMeter": "Fjerner",
-  "agents.localShowLogs": "Vis logger",
   "agents.localShowLogsTip": "Åpne denne modellens logger i en terminal",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Start",

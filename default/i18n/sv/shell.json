@@ -64,7 +64,6 @@
   "agents.localRecommended": "rekommenderad",
   "agents.localRemoveConfirm": "Stoppa %1 och ta bort dess nedladdade vikter?",
   "agents.localRemovingMeter": "Tar bort",
-  "agents.localShowLogs": "Visa loggar",
   "agents.localShowLogsTip": "Öppna den här modellens loggar i en terminal",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Starta",

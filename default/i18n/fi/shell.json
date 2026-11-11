@@ -64,7 +64,6 @@
   "agents.localRecommended": "suositeltu",
   "agents.localRemoveConfirm": "Pysäytä %1 ja poista sen ladatut painot?",
   "agents.localRemovingMeter": "Poistetaan",
-  "agents.localShowLogs": "Näytä lokit",
   "agents.localShowLogsTip": "Avaa tämän mallin lokit terminaalissa",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Käynnistä",

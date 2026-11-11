@@ -66,7 +66,6 @@
   "agents.localRecommended": "consigliato",
   "agents.localRemoveConfirm": "Fermare %1 ed eliminare i pesi scaricati?",
   "agents.localRemovingMeter": "Rimozione",
-  "agents.localShowLogs": "Mostra log",
   "agents.localShowLogsTip": "Apri i log di questo modello in un terminale",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Avvia",

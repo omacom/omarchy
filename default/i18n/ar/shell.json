@@ -72,7 +72,6 @@
   "agents.localRecommended": "موصى به",
   "agents.localRemoveConfirm": "إيقاف %1 وحذف أوزانه المنزّلة؟",
   "agents.localRemovingMeter": "جارٍ الإزالة",
-  "agents.localShowLogs": "عرض السجلات",
   "agents.localShowLogsTip": "فتح سجلات هذا النموذج في طرفية",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "تشغيل",

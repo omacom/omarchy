@@ -64,7 +64,6 @@
   "agents.localRecommended": "soovitatav",
   "agents.localRemoveConfirm": "Peata %1 ja kustuta selle allalaaditud kaalud?",
   "agents.localRemovingMeter": "Eemaldamine",
-  "agents.localShowLogs": "Kuva logid",
   "agents.localShowLogsTip": "Ava selle mudeli logid terminalis",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Käivita",

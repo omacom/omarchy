@@ -66,7 +66,6 @@
   "agents.localRecommended": "recommandé",
   "agents.localRemoveConfirm": "Arrêter %1 et supprimer ses poids téléchargés ?",
   "agents.localRemovingMeter": "Suppression",
-  "agents.localShowLogs": "Afficher les journaux",
   "agents.localShowLogsTip": "Ouvrir les journaux de ce modèle dans un terminal",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Démarrer",
