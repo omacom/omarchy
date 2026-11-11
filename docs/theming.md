@@ -37,7 +37,7 @@ Each output independently chooses the least-cropped aspect ratio, then the small
 
 The same convention works for additional user backgrounds. The lock screen and picker previews continue to use the default image. Selecting an alternative file directly displays that file normally unless it also has a matching sibling directory.
 
-Matching intros still use the top-level image's basename in `intros/`; image variants do not select separate intro videos. Intro playback and its outgoing cover use the shared/default artwork, then the desktop returns to each output's selected still variant. If a variant changes the composition, the handoff can visibly change framing.
+Matching intros still use the top-level image's basename in `intros/`; image variants do not select separate intro videos. Intro playback and its outgoing cover use the shared/default artwork, then the desktop returns to each output's selected still variant. If a variant changes the composition, the handoff can visibly change framing. A change from a still to a video has the same seam the other way round: OWE loads the outgoing still from the default path to fade from it, so an output showing a variant returns to the default artwork for a moment before the video fades in.
 
 Video wallpapers and intros have no variants. OWE decodes one video for every output, so a video per output would cost a decode for each distinct variant, and choosing one is OWE's to do, not this plugin's. Video files inside a variant directory are ignored, which leaves the convention free to carry them if OWE gains per-output playback.
 
