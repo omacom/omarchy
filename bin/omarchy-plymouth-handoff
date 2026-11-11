@@ -1,0 +1,166 @@
+#!/bin/bash
+
+# omarchy:summary=Hand the native Plymouth boot animation over to the first desktop frame
+# omarchy:args=[--launch-shell]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Bridge the resolved native Plymouth animation into the first Wayland frame.
+# This runs unprivileged from hyprland.start and must never block login.
+launch_shell=false
+case $# in
+0) ;;
+1) [[ $1 == --launch-shell ]] || exit 0; launch_shell=true ;;
+*) exit 0 ;;
+esac
+
+descriptor=${OMARCHY_PLYMOUTH_DESCRIPTOR:-/usr/share/plymouth/themes/omarchy/omarchy.plymouth}
+catalog=${OMARCHY_PLYMOUTH_EFFECT_CATALOG:-/usr/share/omarchy/default/plymouth/ttfx-effects.txt}
+# A compatible desktop renderer may opt in through the session environment.
+# Without one, normal shell startup proceeds immediately.
+launcher=${OMARCHY_TTFX_BG_LAUNCHER:-}
+runtime=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+ready=$runtime/omarchy-plymouth-handoff.ready
+active=$runtime/omarchy-plymouth-handoff.active
+
+start_shell() {
+  if $launch_shell; then
+    launch_shell=false
+    omarchy-launch-shell >/dev/null 2>&1 || true
+  fi
+}
+
+without_handoff() {
+  rm -f -- "$active" 2>/dev/null || true
+  start_shell
+  exit 0
+}
+
+# Every early exit, including a marker collision or failed write, must retain
+# the default login path. Clear the flag before launching to make this one-shot.
+trap start_shell EXIT
+
+trusted_state_file() {
+  local path=$1 overridden=$2 expected_owner=0 owner mode component
+  [[ -f $path && ! -L $path ]] || return 1
+  if [[ $overridden == true ]]; then
+    expected_owner=$EUID
+  fi
+  owner=$(stat -Lc %u -- "$path") || return 1
+  mode=$(stat -Lc %a -- "$path") || return 1
+  (( owner == expected_owner && (8#$mode & 0022) == 0 )) || return 1
+  if [[ $overridden == false ]]; then
+    component=$(dirname -- "$(realpath -e -- "$path")")
+    while :; do
+      owner=$(stat -Lc %u -- "$component") || return 1
+      mode=$(stat -Lc %a -- "$component") || return 1
+      (( owner == 0 && (8#$mode & 0022) == 0 )) || return 1
+      [[ $component == / ]] && break
+      component=$(dirname -- "$component")
+    done
+  fi
+}
+
+valid_catalog() {
+  local line previous= count=0
+  while IFS= read -r line || [[ -n $line ]]; do
+    line=${line%$'\r'}
+    [[ $line =~ ^[a-z][a-z0-9-]{0,63}$ ]] || return 1
+    if [[ -n $previous && $line < "$previous" || $line == "$previous" ]]; then
+      return 1
+    fi
+    previous=$line
+    (( count += 1 ))
+  done <"$catalog"
+  (( count > 0 ))
+}
+
+[[ -r $descriptor && -r $catalog && -x $launcher && ! -L $launcher && -d $runtime ]] || without_handoff
+trusted_state_file "$descriptor" "$([[ -v OMARCHY_PLYMOUTH_DESCRIPTOR ]] && echo true || echo false)" || without_handoff
+trusted_state_file "$catalog" "$([[ -v OMARCHY_PLYMOUTH_EFFECT_CATALOG ]] && echo true || echo false)" || without_handoff
+valid_catalog || without_handoff
+
+mode=
+enabled=
+effect=
+seed=
+module=
+module_seen=0
+mode_seen=0
+enabled_seen=0
+effect_seen=0
+seed_seen=0
+section=
+invalid=false
+while IFS= read -r line || [[ -n $line ]]; do
+  line=${line%$'\r'}
+  case "$line" in
+    \[*\]) section=${line#\[}; section=${section%\]} ;;
+    *=*)
+      key=${line%%=*}
+      value=${line#*=}
+      case "$section:$key" in
+        'Plymouth Theme:ModuleName') (( module_seen += 1 )); (( module_seen == 1 )) && module=$value || invalid=true ;;
+        'ttfx:Mode') (( mode_seen += 1 )); (( mode_seen == 1 )) && mode=$value || invalid=true ;;
+        'ttfx:Enabled') (( enabled_seen += 1 )); (( enabled_seen == 1 )) && enabled=$value || invalid=true ;;
+        'ttfx:Effect') (( effect_seen += 1 )); (( effect_seen == 1 )) && effect=$value || invalid=true ;;
+        'ttfx:Seed') (( seed_seen += 1 )); (( seed_seen == 1 )) && seed=$value || invalid=true ;;
+      esac
+      ;;
+  esac
+done <"$descriptor"
+
+[[ $invalid == false && $module == ttfx-plymouth && $enabled == true ]] || without_handoff
+[[ $mode == fixed || $mode == random ]] || without_handoff
+[[ $effect =~ ^[a-z][a-z0-9-]{0,63}$ ]] || without_handoff
+[[ $seed =~ ^(0|[1-9][0-9]{0,19})$ ]] || without_handoff
+if (( ${#seed} > 20 )) || { (( ${#seed} == 20 )) && [[ $seed > 18446744073709551615 ]]; }; then
+  without_handoff
+fi
+grep -Fx -- "$effect" "$catalog" >/dev/null 2>&1 || without_handoff
+
+rm -f -- "$ready" "$active" "$runtime"/omarchy-wallpaper-ready.*
+umask 077
+: >"$active"
+cleanup_active() { rm -f -- "$active" "$runtime"/omarchy-wallpaper-ready.*; }
+trap cleanup_active EXIT
+
+# The active claim exists before Quickshell starts, so Service.qml cannot race
+# this seeded controller for its singleton lock.
+hyprctl keyword cursor:invisible true >/dev/null 2>&1 || true
+"$launcher" \
+  --boot-effect "$effect" \
+  --boot-seed "$seed" \
+  --ready-file "$ready" \
+  --unhide-cursor-on-ready &
+renderer_pid=$!
+start_shell
+
+# Stay alive as the renderer controller's parent (it intentionally uses
+# PDEATHSIG), while bounding only the visual-readiness wait. Never hold login.
+for (( attempt = 0; attempt < 160; attempt++ )); do
+  if [[ -e $ready ]]; then
+    hyprctl keyword cursor:invisible false >/dev/null 2>&1 || true
+    wait "$renderer_pid" || true
+    exit 0
+  fi
+  if ! kill -0 "$renderer_pid" 2>/dev/null; then
+    wait "$renderer_pid" 2>/dev/null || true
+    hyprctl keyword cursor:invisible false >/dev/null 2>&1 || true
+    # Quickshell skipped its normal controller while we held the claim.
+    # Replace the reaped seeded controller once, without handoff options.
+    # Keep parenting this controller too: it also uses PDEATHSIG.
+    cleanup_active
+    "$launcher" &
+    renderer_pid=$!
+    wait "$renderer_pid" || true
+    exit 0
+  fi
+  sleep 0.05
+done
+
+# A renderer that starts but never paints must not leave the session cursor
+# hidden. Keep parenting it so a late recovery remains possible.
+hyprctl keyword cursor:invisible false >/dev/null 2>&1 || true
+wait "$renderer_pid" || true
