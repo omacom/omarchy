@@ -202,6 +202,8 @@ machine() {
   synaptics() { printf '%s\n' 'N: Name="SynPS/2 Synaptics TouchPad"' >"$hw/input-devices"; }
   surface() { dmi sys_vendor "Microsoft Corporation"; dmi product_name "$1"; }
   vivobook_s15() { dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_family "ASUS Vivobook S 15"; dmi product_name "ASUS Vivobook S 15 S5507QA_$1"; }
+  # A Razer Blade 15 model whose eDP panel reports the EDID in file $2.
+  blade15() { dmi sys_vendor Razer; dmi product_name "Blade 15 $1 (Mid 2021) - RZ09-$1"; mkdir -p "$hw/drm/card2-eDP-1"; cp "$2" "$hw/drm/card2-eDP-1/edid"; }
   # A Qualcomm Wi-Fi card bound to ath12k; with "board-data", the board data the package installed for it.
   ath12k() {
     local device=$root/sys/bus/pci/devices/0004:01:00.0 driver=$root/sys/bus/pci/drivers/ath12k_wifi7_pci
@@ -268,6 +270,10 @@ machine() {
     t14s-gen7) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,thinkpad-t14s-gen7-lcd lenovo,thinkpad-t14s-gen7 qcom,mahua" ;;
     zenbook-14-ux3480qa) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; dmi product_family "Zenbook 14"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-14-ux3480qa-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; FAKE_PLATFORM=aarch64 ;;
+    # The corrected EDID is what the panel reports once the fix is loaded.
+    razer-blade15) blade15 0409 "$ROOT/default/firmware/edid/razer-blade15-tl156vdxp02.bin" ;;
+    razer-blade15-other-panel) blade15 0409 /dev/null ;;
+    razer-blade15-other-model) blade15 0410 "$ROOT/default/firmware/edid/razer-blade15-tl156vdxp02.bin" ;;
     xps13-ptl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
     xps13-wcl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Wildcat Lake [Intel Graphics]" ;;
     xps13-dx13261) xps13 DX13261; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
@@ -317,6 +323,10 @@ run_leaf() {
     OMARCHY_QUALCOMM_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
+    OMARCHY_DRM_CLASS_PATH="$hw/drm" \
+    OMARCHY_RAZER_BLADE15_FIRMWARE_DIR="$root/usr/lib/firmware" \
+    OMARCHY_RAZER_BLADE15_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_RAZER_BLADE15_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$hw/nvidia.conf" \
     OMARCHY_PCI_DEVICES="$root/sys/bus/pci/devices" \
     OMARCHY_ATH12K_BOARD_STATE="$root/var/lib/ath12k-board-fallback/installed" \
@@ -349,6 +359,7 @@ leaves=(
   hardware/dell-xps13-ptl-speaker-firmware.sh
   hardware/fix-ath12k-board-data.sh
   hardware/dell-xps13-sidecar-amps.sh
+  hardware/razer/fix-razer-blade15-360hz-edid.sh
   user/hardware/fix-nouveau-cursor.sh
 )
 
@@ -458,6 +469,11 @@ hardware/fix-ath12k-board-data.sh|qualcomm-no-wifi|0
 # that boot rebinds it, but not for a card that needed none.
 hardware/fix-ath12k-board-data.sh|qcc2072-card-first-boot|0|pkg-add ath12k-board-fallback|wrote sys/bus/pci/drivers/ath12k_wifi7_pci/bind|wrote sys/bus/pci/drivers/ath12k_wifi7_pci/unbind
 hardware/fix-ath12k-board-data.sh|wcn7850-card-first-boot|0|pkg-add ath12k-board-fallback
+hardware/razer/fix-razer-blade15-360hz-edid.sh|razer-blade15|0|wrote usr/lib/firmware/edid/razer-blade15-tl156vdxp02.bin|wrote etc/limine-entry-tool.d/razer-blade15-edid.conf|wrote etc/mkinitcpio.conf.d/razer-blade15-edid.conf
+hardware/razer/fix-razer-blade15-360hz-edid.sh|razer-blade15+unreadable|0
+# Only the panel whose EDID the fix was built from is overridden.
+hardware/razer/fix-razer-blade15-360hz-edid.sh|razer-blade15-other-panel|0
+hardware/razer/fix-razer-blade15-360hz-edid.sh|razer-blade15-other-model|0
 # Wildcat Lake's GPU is named only "[Intel Graphics]".
 hardware/intel/video-acceleration.sh|xps13-wcl|0|pkg-add intel-media-driver libvpl vpl-gpu-rt
 hardware/intel/video-acceleration.sh|nouveau|0
