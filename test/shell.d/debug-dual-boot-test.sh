@@ -95,6 +95,20 @@ output=$(TEST_LOCAL_RTC=yes TEST_EFI_ENTRIES="BootOrder: 0001\n$limine_entry" ru
 [[ $output == *"points at partition 9999-dead, which holds no Windows loader"* ]] || fail "a chainload to a missing partition is reported" "$output"
 pass "entries that name a missing firmware entry or partition are reported"
 
+# A chainload through boot() names the ESP Limine started from, and an NTFS
+# partition that can't be mounted is said to be unchecked, not left out.
+printf "${menu_head}/Windows\n    protocol: efi\n    path: boot():/EFI/Microsoft/Boot/bootmgfw.efi\n" >"$esp/limine.conf"
+cat >"$scratch/lsblk.json" <<JSON
+{"blockdevices": [
+  {"path": "/dev/nvme0n1p1", "fstype": "vfat", "parttype": "c12a7328-f81f-11d2-ba4b-00a0c93ec93b", "partuuid": "1111-aaaa", "mountpoint": "$esp"},
+  {"path": "/dev/omarchy-test-missing", "fstype": "ntfs", "parttype": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7", "partuuid": "3333-cccc", "mountpoint": null}
+]}
+JSON
+output=$(TEST_LOCAL_RTC=yes TEST_EFI_ENTRIES="BootOrder: 0001\n$limine_entry" run_check) || fail "the dual-boot check runs on a boot() entry" "$output"
+[[ $output != *"holds no Windows loader"* && $output != *"isn't spelled"* ]] || fail "a boot() chainload is checked on Limine's own ESP" "$output"
+[[ $output == *"/dev/omarchy-test-missing is NTFS but couldn't be mounted"* ]] || fail "an unmountable NTFS partition is said to be unchecked" "$output"
+pass "boot() chainloads and unmountable NTFS partitions are reported as they are"
+
 # An NTFS data drive on a machine with nothing but Omarchy isn't Windows.
 mkdir -p "$scratch/data" "$scratch/omarchy-only/EFI/limine"
 printf '{"blockdevices": [{"path": "/dev/sda1", "fstype": "vfat", "parttype": "c12a7328-f81f-11d2-ba4b-00a0c93ec93b", "partuuid": "4444", "mountpoint": "%s/omarchy-only"}, {"path": "/dev/sdb1", "fstype": "ntfs", "parttype": "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7", "partuuid": "5555", "mountpoint": "%s/data"}]}\n' "$scratch" "$scratch" >"$scratch/lsblk.json"

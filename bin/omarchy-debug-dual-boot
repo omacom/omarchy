@@ -133,12 +133,17 @@ efi_list=$(efibootmgr 2>/dev/null) || efi_readable=0
 windows_esps=()
 windows_partitions=()
 bitlocker_partitions=()
+unreadable_partitions=()
 while IFS=$'\t' read -r device fstype parttype partuuid mountpoint; do
   [[ -n $device ]] || continue
   if [[ ${fstype,,} == "bitlocker" ]]; then
     bitlocker_partitions+=("$device")
-  elif [[ ${fstype,,} == "ntfs" ]] && partition_root "$device" "$mountpoint" ntfs3 && has_path "$root" 2 windows/system32; then
-    windows_partitions+=("$device $root")
+  elif [[ ${fstype,,} == "ntfs" ]]; then
+    if ! partition_root "$device" "$mountpoint" ntfs3; then
+      unreadable_partitions+=("$device")
+    elif has_path "$root" 2 windows/system32; then
+      windows_partitions+=("$device $root")
+    fi
   elif [[ ${parttype,,} == "$ESP_PARTTYPE" ]] && partition_root "$device" "$mountpoint" vfat && has_path "$root" 2 efi/microsoft; then
     windows_esps+=("$device ${partuuid,,} $root")
   fi
@@ -218,6 +223,11 @@ else
       partuuid=$(sed -nE 's/^(guid|uuid)\(([^)]*)\):.*/\2/p' <<<"$path")
       loader=${path#*:/}
       loader_root=""
+      if [[ ${path,,} == "boot():/"* ]]; then
+        # boot() is the partition Limine itself started from.
+        loader_root=$esp_root
+        partuuid="boot()"
+      fi
       for candidate in "${windows_esps[@]}"; do
         read -r _ candidate_uuid candidate_root <<<"$candidate"
         [[ $candidate_uuid == "${partuuid,,}" ]] && loader_root=$candidate_root
@@ -260,6 +270,9 @@ fi
 section "Windows"
 for partition in "${bitlocker_partitions[@]}"; do
   note "BitLocker is on for $partition: keep its recovery key at hand before changing firmware settings."
+done
+for partition in "${unreadable_partitions[@]}"; do
+  note "$partition is NTFS but couldn't be mounted read-only, so whether it holds a hibernated Windows wasn't checked."
 done
 for partition in "${windows_partitions[@]}"; do
   read -r device root <<<"$partition"
