@@ -7,11 +7,24 @@ if pacman -Qttq yaru-icon-theme &>/dev/null; then
 fi
 
 # Setup linked Adwaita's back and forward arrows into Yaru for Nautilus, outside
-# the package, so removing it can leave that folder behind with those links and
-# a stale icon cache. Clear what's left once Yaru is gone and no package owns it.
+# the package, and built an icon cache for them. Once Yaru is gone and no
+# package owns the folder, clear exactly those and any folders left empty.
 yaru=/usr/share/icons/Yaru
 if [[ -d $yaru && ! -e $yaru/index.theme ]] && ! pacman -Qqo "$yaru" &>/dev/null; then
-  sudo rm -rf "$yaru"
+  for icon in go-previous-symbolic go-next-symbolic; do
+    link="$yaru/scalable/actions/$icon.svg"
+    if [[ -L $link && $(readlink "$link") == "/usr/share/icons/Adwaita/symbolic/actions/$icon.svg" ]]; then
+      sudo rm -f "$link"
+    fi
+  done
+
+  sudo rm -f "$yaru/icon-theme.cache"
+
+  for dir in "$yaru/scalable/actions" "$yaru/scalable" "$yaru"; do
+    if [[ -d $dir ]]; then
+      sudo rmdir --ignore-fail-on-non-empty "$dir"
+    fi
+  done
 fi
 
 # GTK and Qt apps that named a Yaru colour, Omarchy's old default, get the
