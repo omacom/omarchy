@@ -26,6 +26,5 @@ if [[ ! -e $rebuild_marker ]]; then
   fi
 
   sudo install -Dm644 /dev/null "$rebuild_marker"
+  omarchy-state set reboot-required
 fi
-
-omarchy-state set reboot-required
