@@ -92,14 +92,12 @@
   "agents.networkPair": "Asociază cu %1 pentru a-l folosi",
   "agents.networkRunning": "Rulează",
   "agents.networkShare": "Partajează în tailnet-ul tău",
-  "agents.networkShareLabel": "Partajează",
-  "agents.networkSharedLabel": "Partajat",
-  "agents.networkStopSharing": "Partajat în tailnet-ul tău · oprește partajarea",
-  "agents.networkUsers": {
-    "few": "%1 utilizatori",
-    "one": "%1 utilizator",
-    "other": "%1 de utilizatori"
+  "agents.networkSharedUsers": {
+    "few": "Partajat cu %1 utilizatori · oprește partajarea",
+    "one": "Partajat cu %1 utilizator · oprește partajarea",
+    "other": "Partajat cu %1 de utilizatori · oprește partajarea"
   },
+  "agents.networkStopSharing": "Partajat în tailnet-ul tău · oprește partajarea",
   "agents.outOfCredits": "Credite epuizate",
   "agents.pasteCode": "Dacă pagina arată un cod în loc să finalizeze, lipește-l aici.",
   "agents.placeholderCode": "Cod",

@@ -86,12 +86,10 @@
   "agents.networkPair": "Pasangkan dengan %1 untuk menggunakannya",
   "agents.networkRunning": "Berjalan",
   "agents.networkShare": "Bagikan di tailnet Anda",
-  "agents.networkShareLabel": "Bagikan",
-  "agents.networkSharedLabel": "Dibagikan",
-  "agents.networkStopSharing": "Dibagikan di tailnet Anda · berhenti berbagi",
-  "agents.networkUsers": {
-    "other": "%1 pengguna"
+  "agents.networkSharedUsers": {
+    "other": "Dibagikan ke %1 pengguna · hentikan berbagi"
   },
+  "agents.networkStopSharing": "Dibagikan di tailnet Anda · berhenti berbagi",
   "agents.outOfCredits": "Kredit habis",
   "agents.pasteCode": "Jika halaman menampilkan kode alih-alih selesai, tempelkan di sini.",
   "agents.placeholderCode": "Kode",

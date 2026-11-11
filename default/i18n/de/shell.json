@@ -89,13 +89,11 @@
   "agents.networkPair": "Mit %1 koppeln, um es zu nutzen",
   "agents.networkRunning": "Läuft",
   "agents.networkShare": "Im Tailnet freigeben",
-  "agents.networkShareLabel": "Freigeben",
-  "agents.networkSharedLabel": "Freigegeben",
-  "agents.networkStopSharing": "Im Tailnet freigegeben · Freigabe beenden",
-  "agents.networkUsers": {
-    "one": "%1 Benutzer",
-    "other": "%1 Benutzer"
+  "agents.networkSharedUsers": {
+    "one": "Mit %1 Nutzer geteilt · Teilen beenden",
+    "other": "Mit %1 Nutzern geteilt · Teilen beenden"
   },
+  "agents.networkStopSharing": "Im Tailnet freigegeben · Freigabe beenden",
   "agents.outOfCredits": "Keine Credits mehr",
   "agents.pasteCode": "Falls die Seite einen Code zeigt statt abzuschließen, füge ihn hier ein.",
   "agents.placeholderCode": "Code",

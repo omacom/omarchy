@@ -89,13 +89,11 @@
   "agents.networkPair": "பயன்படுத்த %1 உடன் இணைக்கவும்",
   "agents.networkRunning": "இயங்குகிறது",
   "agents.networkShare": "உங்கள் tailnet இல் பகிரவும்",
-  "agents.networkShareLabel": "பகிர்",
-  "agents.networkSharedLabel": "பகிரப்பட்டது",
-  "agents.networkStopSharing": "உங்கள் tailnet இல் பகிரப்பட்டது · பகிர்வை நிறுத்து",
-  "agents.networkUsers": {
-    "one": "%1 பயனர்",
-    "other": "%1 பயனர்கள்"
+  "agents.networkSharedUsers": {
+    "one": "%1 பயனருடன் பகிரப்பட்டது · பகிர்வதை நிறுத்து",
+    "other": "%1 பயனர்களுடன் பகிரப்பட்டது · பகிர்வதை நிறுத்து"
   },
+  "agents.networkStopSharing": "உங்கள் tailnet இல் பகிரப்பட்டது · பகிர்வை நிறுத்து",
   "agents.outOfCredits": "கிரெடிட் தீர்ந்தது",
   "agents.pasteCode": "பக்கம் முடிவதற்குப் பதிலாகக் குறியீட்டைக் காட்டினால், அதை இங்கே ஒட்டவும்.",
   "agents.placeholderCode": "குறியீடு",

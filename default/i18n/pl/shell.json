@@ -95,15 +95,13 @@
   "agents.networkPair": "Sparuj z %1, aby go używać",
   "agents.networkRunning": "Działa",
   "agents.networkShare": "Udostępnij w swoim tailnecie",
-  "agents.networkShareLabel": "Udostępnij",
-  "agents.networkSharedLabel": "Udostępnione",
-  "agents.networkStopSharing": "Udostępnione w twoim tailnecie · przestań udostępniać",
-  "agents.networkUsers": {
-    "few": "%1 użytkownicy",
-    "many": "%1 użytkowników",
-    "one": "%1 użytkownik",
-    "other": "%1 użytkownika"
+  "agents.networkSharedUsers": {
+    "few": "Udostępnione: %1 użytkownicy · przestań udostępniać",
+    "many": "Udostępnione: %1 użytkowników · przestań udostępniać",
+    "one": "Udostępnione: %1 użytkownik · przestań udostępniać",
+    "other": "Udostępnione: %1 użytkownika · przestań udostępniać"
   },
+  "agents.networkStopSharing": "Udostępnione w twoim tailnecie · przestań udostępniać",
   "agents.outOfCredits": "Brak kredytów",
   "agents.pasteCode": "Jeśli strona pokazuje kod zamiast zakończyć, wklej go tutaj.",
   "agents.placeholderCode": "Kod",

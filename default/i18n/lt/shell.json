@@ -92,14 +92,12 @@
   "agents.networkPair": "Susieti su %1, kad galėtumėte naudoti",
   "agents.networkRunning": "Veikiantis",
   "agents.networkShare": "Bendrinti savo tailnet",
-  "agents.networkShareLabel": "Bendrinti",
-  "agents.networkSharedLabel": "Bendrinamas",
-  "agents.networkStopSharing": "Bendrinamas jūsų tailnet · nebebendrinti",
-  "agents.networkUsers": {
-    "few": "%1 naudotojai",
-    "one": "%1 naudotojas",
-    "other": "%1 naudotojų"
+  "agents.networkSharedUsers": {
+    "few": "Bendrinama su %1 vartotojais · nebebendrinti",
+    "one": "Bendrinama su %1 vartotoju · nebebendrinti",
+    "other": "Bendrinama su %1 vartotojų · nebebendrinti"
   },
+  "agents.networkStopSharing": "Bendrinamas jūsų tailnet · nebebendrinti",
   "agents.outOfCredits": "Baigėsi kreditai",
   "agents.pasteCode": "Jei puslapis vietoj užbaigimo rodo kodą, įklijuokite jį čia.",
   "agents.placeholderCode": "Kodas",

@@ -92,14 +92,12 @@
   "agents.networkPair": "Vincula amb %1 per utilitzar-lo",
   "agents.networkRunning": "En execució",
   "agents.networkShare": "Comparteix a la teva tailnet",
-  "agents.networkShareLabel": "Comparteix",
-  "agents.networkSharedLabel": "Compartit",
-  "agents.networkStopSharing": "Compartit a la teva tailnet · deixa de compartir",
-  "agents.networkUsers": {
-    "many": "%1 usuaris",
-    "one": "%1 usuari",
-    "other": "%1 usuaris"
+  "agents.networkSharedUsers": {
+    "many": "Compartit amb %1 usuaris · deixa de compartir",
+    "one": "Compartit amb %1 usuari · deixa de compartir",
+    "other": "Compartit amb %1 usuaris · deixa de compartir"
   },
+  "agents.networkStopSharing": "Compartit a la teva tailnet · deixa de compartir",
   "agents.outOfCredits": "Sense crèdits",
   "agents.pasteCode": "Si la pàgina mostra un codi en comptes d'acabar, enganxa'l aquí.",
   "agents.placeholderCode": "Codi",

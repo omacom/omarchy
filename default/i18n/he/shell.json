@@ -92,14 +92,12 @@
   "agents.networkPair": "לצמד עם %1 כדי להשתמש בו",
   "agents.networkRunning": "פועל",
   "agents.networkShare": "שיתוף ב-tailnet שלך",
-  "agents.networkShareLabel": "שיתוף",
-  "agents.networkSharedLabel": "משותף",
-  "agents.networkStopSharing": "משותף ב-tailnet שלך · הפסקת שיתוף",
-  "agents.networkUsers": {
-    "one": "משתמש אחד",
-    "other": "%1 משתמשים",
-    "two": "שני משתמשים"
+  "agents.networkSharedUsers": {
+    "one": "משותף עם משתמש אחד · הפסקת שיתוף",
+    "other": "משותף עם %1 משתמשים · הפסקת שיתוף",
+    "two": "משותף עם שני משתמשים · הפסקת שיתוף"
   },
+  "agents.networkStopSharing": "משותף ב-tailnet שלך · הפסקת שיתוף",
   "agents.outOfCredits": "אזלו הקרדיטים",
   "agents.pasteCode": "אם הדף מציג קוד במקום לסיים, הדביקו אותו כאן.",
   "agents.placeholderCode": "קוד",

@@ -89,13 +89,11 @@
   "agents.networkPair": "Paraðu við %1 til að nota það",
   "agents.networkRunning": "Í gangi",
   "agents.networkShare": "Deila á tailnetinu þínu",
-  "agents.networkShareLabel": "Deila",
-  "agents.networkSharedLabel": "Deilt",
-  "agents.networkStopSharing": "Deilt á tailnetinu þínu · hætta að deila",
-  "agents.networkUsers": {
-    "one": "%1 notandi",
-    "other": "%1 notendur"
+  "agents.networkSharedUsers": {
+    "one": "Deilt með %1 notanda · hætta að deila",
+    "other": "Deilt með %1 notendum · hætta að deila"
   },
+  "agents.networkStopSharing": "Deilt á tailnetinu þínu · hætta að deila",
   "agents.outOfCredits": "Inneign búin",
   "agents.pasteCode": "Ef síðan sýnir kóða í stað þess að ljúka, límdu hann hér.",
   "agents.placeholderCode": "Kóði",

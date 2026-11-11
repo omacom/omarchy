@@ -89,13 +89,11 @@
   "agents.networkPair": "Párosítsd a(z) %1 eszközzel a használathoz",
   "agents.networkRunning": "Fut",
   "agents.networkShare": "Megosztás a tailneteden",
-  "agents.networkShareLabel": "Megosztás",
-  "agents.networkSharedLabel": "Megosztva",
-  "agents.networkStopSharing": "Megosztva a tailneteden · megosztás leállítása",
-  "agents.networkUsers": {
-    "one": "%1 felhasználó",
-    "other": "%1 felhasználó"
+  "agents.networkSharedUsers": {
+    "one": "Megosztva %1 felhasználóval · megosztás leállítása",
+    "other": "Megosztva %1 felhasználóval · megosztás leállítása"
   },
+  "agents.networkStopSharing": "Megosztva a tailneteden · megosztás leállítása",
   "agents.outOfCredits": "Elfogyott a kredit",
   "agents.pasteCode": "Ha az oldal befejezés helyett kódot mutat, illeszd be ide.",
   "agents.placeholderCode": "Kód",

@@ -98,16 +98,14 @@
   "agents.networkPair": "Péireáil le %1 chun é a úsáid",
   "agents.networkRunning": "Ag rith",
   "agents.networkShare": "Comhroinn ar do tailnet",
-  "agents.networkShareLabel": "Comhroinn",
-  "agents.networkSharedLabel": "Comhroinnte",
-  "agents.networkStopSharing": "Comhroinnte ar do tailnet · stop de chomhroinnt",
-  "agents.networkUsers": {
-    "few": "%1 úsáideoir",
-    "many": "%1 n-úsáideoir",
-    "one": "Úsáideoir amháin",
-    "other": "%1 úsáideoir",
-    "two": "Dhá úsáideoir"
+  "agents.networkSharedUsers": {
+    "few": "Roinnte le %1 úsáideoir · cuir stop leis an roinnt",
+    "many": "Roinnte le %1 n-úsáideoir · cuir stop leis an roinnt",
+    "one": "Roinnte le húsáideoir amháin · cuir stop leis an roinnt",
+    "other": "Roinnte le %1 úsáideoir · cuir stop leis an roinnt",
+    "two": "Roinnte le dhá úsáideoir · cuir stop leis an roinnt"
   },
+  "agents.networkStopSharing": "Comhroinnte ar do tailnet · stop de chomhroinnt",
   "agents.outOfCredits": "Creidiúintí ídithe",
   "agents.pasteCode": "Má thaispeánann an leathanach cód in ionad críochnaithe, greamaigh anseo é.",
   "agents.placeholderCode": "Cód",

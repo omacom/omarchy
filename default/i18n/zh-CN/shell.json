@@ -86,12 +86,10 @@
   "agents.networkPair": "与 %1 配对以使用",
   "agents.networkRunning": "运行中",
   "agents.networkShare": "在 tailnet 上共享",
-  "agents.networkShareLabel": "共享",
-  "agents.networkSharedLabel": "已共享",
-  "agents.networkStopSharing": "已在 tailnet 上共享 · 停止共享",
-  "agents.networkUsers": {
-    "other": "%1 位用户"
+  "agents.networkSharedUsers": {
+    "other": "已与 %1 位用户共享 · 停止共享"
   },
+  "agents.networkStopSharing": "已在 tailnet 上共享 · 停止共享",
   "agents.outOfCredits": "额度已用完",
   "agents.pasteCode": "如果页面显示代码而未完成，请将其粘贴到此处。",
   "agents.placeholderCode": "代码",

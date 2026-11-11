@@ -89,13 +89,11 @@
   "agents.networkPair": "Kullanmak için %1 ile eşleştirin",
   "agents.networkRunning": "Çalışıyor",
   "agents.networkShare": "Tailnet'inizde paylaşın",
-  "agents.networkShareLabel": "Paylaş",
-  "agents.networkSharedLabel": "Paylaşıldı",
-  "agents.networkStopSharing": "Tailnet'inizde paylaşıldı · paylaşımı durdur",
-  "agents.networkUsers": {
-    "one": "%1 kullanıcı",
-    "other": "%1 kullanıcı"
+  "agents.networkSharedUsers": {
+    "one": "%1 kullanıcıyla paylaşıldı · paylaşımı durdur",
+    "other": "%1 kullanıcıyla paylaşıldı · paylaşımı durdur"
   },
+  "agents.networkStopSharing": "Tailnet'inizde paylaşıldı · paylaşımı durdur",
   "agents.outOfCredits": "Krediler bitti",
   "agents.pasteCode": "Sayfa bitirmek yerine bir kod gösteriyorsa buraya yapıştırın.",
   "agents.placeholderCode": "Kod",

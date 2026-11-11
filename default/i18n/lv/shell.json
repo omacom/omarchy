@@ -92,14 +92,12 @@
   "agents.networkPair": "Savieno pārī ar %1, lai to izmantotu",
   "agents.networkRunning": "Darbojas",
   "agents.networkShare": "Kopīgot savā tailnet tīklā",
-  "agents.networkShareLabel": "Kopīgot",
-  "agents.networkSharedLabel": "Kopīgots",
-  "agents.networkStopSharing": "Kopīgots savā tailnet tīklā · pārtraukt kopīgošanu",
-  "agents.networkUsers": {
-    "one": "%1 lietotājs",
-    "other": "%1 lietotāji",
-    "zero": "%1 lietotāju"
+  "agents.networkSharedUsers": {
+    "one": "Koplietots ar %1 lietotāju · pārtraukt koplietošanu",
+    "other": "Koplietots ar %1 lietotājiem · pārtraukt koplietošanu",
+    "zero": "Koplietots ar %1 lietotājiem · pārtraukt koplietošanu"
   },
+  "agents.networkStopSharing": "Kopīgots savā tailnet tīklā · pārtraukt kopīgošanu",
   "agents.outOfCredits": "Nav kredītu",
   "agents.pasteCode": "Ja lapa pabeigšanas vietā parāda kodu, ielīmē to šeit.",
   "agents.placeholderCode": "Kods",
