@@ -272,6 +272,15 @@ record = local()
 expect("Local counts pi and opencode replies on self-hosted runtimes and configured providers",
        [record["todayTotalTokens"], models(record)], [815, ["gemma", "llama-70b", "qwen-cfg", "qwen-oc", "qwen3:30b", "qwen3:8b", "tf-box", "tf-here"]], record)
 
+# A paired machine's models alone, in a pi file and an opencode database
+# naming no other local provider, still count: its ids share only a prefix.
+use_home()
+write_pi_session(home() / ".pi" / "agent" / "sessions" / "--paired--" / "one.jsonl", [pi_reply("omarchy-local-box", 11, id="p1", model="tf-box")])
+opencode_db(message=[("m1", "ses_1", oc_v1("omarchy-local-lab", 22, model="tf-lab"))])
+record = local()
+expect("Local counts a paired machine's pi and opencode replies with no other local provider beside them",
+       [record["todayTotalTokens"], models(record)], [33, ["tf-box", "tf-lab"]], record)
+
 # A local.json naming ids the provider collectors claim leaves only their rows
 # out: opencode's google provider and Vertex only on antigravity- models, which
 # the agy collector counts, and pi's google rows, which agy never reads, stay
