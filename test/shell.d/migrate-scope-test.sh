@@ -18,6 +18,16 @@ printf '%s\n' "$1" >>"$TEST_DISMISSALS"
 SH
 chmod +x "$stub_bin/omarchy-notification-dismiss"
 
+# The login notifier runs for real as far as the D-Bus call: keep the summary
+# of its Notify call, the 12th argument omarchy-notification-send gives busctl,
+# and skip the wait for a notification server.
+cat >"$stub_bin/busctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "${12}" >"$TEST_TOAST_SUMMARY"
+SH
+printf '#!/bin/bash\nexit 0\n' >"$stub_bin/omarchy-notification-wait"
+chmod +x "$stub_bin/busctl" "$stub_bin/omarchy-notification-wait"
+
 cat >"$test_root/migrations/100-first.sh" <<'SH'
 [[ $OMARCHY_PATH == "$TEST_EXPECTED_OMARCHY_PATH" ]]
 echo first >>"$TEST_CALLS"
@@ -50,7 +60,16 @@ grep -q '^100-first\.sh$' "$test_tmp/pending.out" || fail "migration runner list
 grep -q '^200-second\.sh$' "$test_tmp/pending.out" || fail "migration runner lists second pending migration filename"
 pass "migration runner detects pending migrations"
 
-run_migrate "$test_home" "$test_root" >"$test_tmp/first-run.out"
+# The notifier titles the login toast in the user's language and the runner
+# clears it by title, so the two have to agree outside English too. Send it in
+# Danish, whose title does not contain the English words.
+ln -s "$ROOT/default" "$test_root/default"
+echo da >"$test_tmp/language"
+HOME="$test_home" OMARCHY_PATH="$test_root" OMARCHY_LANGUAGE_FILE="$test_tmp/language" \
+  PATH="$stub_bin:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_TOAST_SUMMARY="$test_tmp/toast-summary" \
+  "$ROOT/bin/omarchy-migrate-notify"
+
+OMARCHY_LANGUAGE_FILE="$test_tmp/language" run_migrate "$test_home" "$test_root" >"$test_tmp/first-run.out"
 [[ $(sed -n '1p' "$calls") == "first" ]] || fail "migration runner runs first migration"
 [[ $(sed -n '2p' "$calls") == "second" ]] || fail "migration runner runs second migration"
 [[ -f $test_home/.local/state/omarchy/migrations/100-first.sh ]] || fail "migration runner records first migration marker"
@@ -58,6 +77,10 @@ run_migrate "$test_home" "$test_root" >"$test_tmp/first-run.out"
 pass "migration runner runs all migrations"
 
 grep -Fx 'Omarchy Migrations' "$dismissals" >/dev/null || fail "migration runner dismisses migration notifications"
+# The shell matches a dismissal as a substring of the summary, and an empty one
+# matches nothing.
+grep -qFf <(grep . "$dismissals") "$test_tmp/toast-summary" ||
+  fail "migration runner dismisses the toast the notifier sent" "sent: $(cat "$test_tmp/toast-summary"); dismissed: $(paste -sd'|' "$dismissals")"
 pass "migration runner clears completed migration notifications"
 
 run_migrate "$test_home" "$test_root" >"$test_tmp/second-run.out"
