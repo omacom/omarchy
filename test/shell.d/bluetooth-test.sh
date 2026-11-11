@@ -343,10 +343,18 @@ codec_run sbc 2>/dev/null &&
   fail "bluetooth codec puts the previous codec back when a switch fails" "$(cat "$CODEC_LOG")"
 pass "bluetooth codec puts the previous codec back when a switch fails"
 
-# Mid-call, a pin is recorded but the microphone is left alone.
+# A failed switch from the plain profile must not leave its codec pinned.
+echo a2dp-sink >"$CODEC_ACTIVE"
+codec_run sbc 2>/dev/null || true
+[[ $(codec_run) == *$'selected\tauto'* ]] ||
+  fail "bluetooth codec records no pin for a switch that failed" "$(codec_run)"
+pass "bluetooth codec records no pin for a switch that failed"
+
+# Mid-call the microphone is left alone, and no pin is kept that nothing would apply.
 echo headset-head-unit >"$CODEC_ACTIVE"
 : >"$CODEC_LOG"
-codec_run aac
-[[ ! -s $CODEC_LOG && $(codec_run) == *$'mode\theadset'* && $(codec_run) == *$'selected\taac'* ]] ||
-  fail "bluetooth codec records a pin without leaving headset mode" "$(cat "$CODEC_LOG")"
-pass "bluetooth codec records a pin without leaving headset mode"
+codec_run aac 2>/dev/null &&
+  fail "bluetooth codec refuses to choose a codec in headset mode"
+[[ ! -s $CODEC_LOG && $(codec_run) == *$'selected\tauto'* ]] ||
+  fail "bluetooth codec leaves headset mode and the pin alone" "$(cat "$CODEC_LOG")"
+pass "bluetooth codec refuses to choose a codec in headset mode"

@@ -1075,6 +1075,8 @@ Panel {
               anchors.left: parent.left
               anchors.right: codecAutoRow.left
               anchors.rightMargin: Style.space(8)
+              // The title names the headset when two are connected.
+              elide: Text.ElideRight
               anchors.verticalCenter: parent.verticalCenter
             }
 
@@ -1135,7 +1137,7 @@ Panel {
             opacity: root.codecPillsVisible ? 1 : 0
 
             Behavior on height {
-              NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
+              NumberAnimation { duration: Style.duration(140); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
             }
             Behavior on opacity {
               NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }

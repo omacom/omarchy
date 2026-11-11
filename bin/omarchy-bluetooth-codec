@@ -147,12 +147,18 @@ set_codec() {
   options=$(codec_options "$json")
   active=$(jq -r '.active_profile // ""' <<<"$json")
 
+  # Codecs are A2DP profiles. Mid-call the headset is on a headset profile, and
+  # switching would take its microphone away; a pin recorded for later would
+  # only be undone by WirePlumber restoring the profile it saved. So refuse,
+  # and let the choice be made once the headset is back in music mode.
+  if [[ $(mode_for_profile "$active") != "music" ]]; then
+    echo "Error: $address is not in music mode; codecs can be chosen once it is." >&2
+    exit 1
+  fi
+
   if [[ $target == "auto" ]]; then
+    set_profile "$A2DP" "$active"
     rm -f "$pin_file"
-    # Leave headset mode alone: Automatic applies when music mode comes back.
-    if [[ $(mode_for_profile "$active") == "music" ]]; then
-      set_profile "$A2DP" "$active"
-    fi
     return 0
   fi
 
@@ -162,13 +168,11 @@ set_codec() {
     exit 1
   fi
 
+  # set_profile exits on a failed switch, so a pin is only ever recorded for
+  # the codec actually playing.
+  set_profile "$profile" "$active"
   mkdir -p "$PIN_DIR"
   echo "$target" >"$pin_file"
-  # Pinning while in headset mode only records the choice; switching to it
-  # would take the microphone away mid-call.
-  if [[ $(mode_for_profile "$active") != "headset" ]]; then
-    set_profile "$profile" "$active"
-  fi
 }
 
 if [[ -z $target ]]; then
