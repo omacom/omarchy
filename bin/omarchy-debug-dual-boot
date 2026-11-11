@@ -1,0 +1,243 @@
+#!/bin/bash
+
+# omarchy:summary=Check a dual-boot machine for what keeps Windows or Omarchy from starting cleanly
+# omarchy:requires-sudo=true
+
+set -uo pipefail
+
+# Reads only: every finding says what to do about it, and nothing here changes
+# the firmware, the boot menu or another system's partitions. Partitions that
+# aren't mounted are mounted read-only for the check and unmounted after.
+
+WINDOWS_ENTRY_NAME="Windows Boot Manager"
+ESP_PARTTYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+SECURE_BOOT_VAR="${OMARCHY_SECURE_BOOT_VAR:-/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c}"
+
+problems=0
+
+good() { printf '  ✓ %s\n' "$1"; }
+note() { printf '  · %s\n' "$1"; }
+problem() {
+  problems=$((problems + 1))
+  printf '  ✗ %s\n' "$1"
+  shift
+  local step
+  for step in "$@"; do
+    printf '      %s\n' "$step"
+  done
+}
+section() { printf '\n%s\n' "$1"; }
+
+# Every partition as "path fstype parttype partuuid mountpoint", "-" for an
+# empty field so the columns stay put.
+partitions() {
+  lsblk -J -o PATH,FSTYPE,PARTTYPE,PARTUUID,MOUNTPOINT 2>/dev/null |
+    jq -r '.blockdevices[] | recurse(.children[]?) | [.path, (.fstype // "-"), (.parttype // "-"), (.partuuid // "-"), (.mountpoint // "-")] | @tsv'
+}
+
+# Runs COMMAND with the partition's root as its last argument, mounting it
+# read-only first when it isn't mounted.
+with_partition() {
+  local device=$1 mountpoint=$2 type=$3 status
+  shift 3
+  if [[ $mountpoint != "-" ]]; then
+    "$@" "$mountpoint"
+    return
+  fi
+  local root
+  root=$(mktemp -d)
+  if ! sudo mount -o ro ${type:+-t "$type"} "$device" "$root" 2>/dev/null; then
+    rmdir "$root"
+    return 2
+  fi
+  "$@" "$root"
+  status=$?
+  sudo umount "$root"
+  rmdir "$root"
+  return "$status"
+}
+
+# Windows writes "hibr" (or "HIBR") at the start of hiberfil.sys when it
+# hibernates, which Fast Startup does at every shutdown.
+windows_hibernated() {
+  local signature
+  signature=$(sudo head -c 4 "$1/hiberfil.sys" 2>/dev/null | tr -d '\0')
+  [[ ${signature,,} == "hibr" ]]
+}
+
+has_windows_loader() { [[ -n $(sudo find "$1" -mindepth 2 -maxdepth 2 -ipath "$1/efi/microsoft" -print -quit 2>/dev/null) ]]; }
+has_file() { sudo test -f "$2/$1"; }
+
+# The labels of the firmware entries in BootOrder, first to last.
+boot_order_labels() {
+  local order number
+  order=$(sed -n 's/^BootOrder:[[:space:]]*//p' <<<"$efi_list")
+  IFS=, read -ra numbers <<<"$order"
+  for number in "${numbers[@]}"; do
+    cut -f1 <<<"$efi_list" | sed -nE "s/^Boot${number}\*?[[:space:]]+(.*[^[:space:]])[[:space:]]*\$/\1/p" | head -n 1
+  done
+}
+
+# The top-level Windows entry in the boot menu, as "<kind> <path>": kind is
+# efi_boot_entry or chainload, and path is the chainload's loader path.
+menu_windows_entry() {
+  sudo cat "$limine_conf" | awk -v name="${WINDOWS_ENTRY_NAME,,}" '
+    function finish() {
+      if (top && !found) {
+        if (protocol == "efi_boot_entry" && entry == name) { print "efi_boot_entry -"; found = 1 }
+        else if ((protocol == "efi" || protocol == "uefi" || protocol == "efi_chainload") && tolower(path) ~ /\/efi\/microsoft\/boot\/bootmgfw\.efi$/) { print "chainload", path; found = 1 }
+      }
+    }
+    /^[[:space:]]*\/[^\/]/ { finish(); top = 1; protocol = entry = path = ""; next }
+    top && /^[[:space:]]*protocol:/ { protocol = tolower($2) }
+    top && /^[[:space:]]*entry:/ { sub(/^[[:space:]]*entry:[[:space:]]*/, ""); sub(/[[:space:]]+$/, ""); entry = tolower($0) }
+    top && /^[[:space:]]*(image_)?path:/ { path = $2 }
+    END { finish() }
+  '
+}
+
+echo "Dual-boot check"
+
+partition_list=$(partitions)
+efi_list=""
+efi_readable=1
+efi_list=$(efibootmgr 2>/dev/null) || efi_readable=0
+
+windows_found=0
+windows_esps=()
+ntfs_partitions=()
+bitlocker_partitions=()
+while IFS=$'\t' read -r device fstype parttype partuuid mountpoint; do
+  [[ -n $device ]] || continue
+  case ${fstype,,} in
+    ntfs) ntfs_partitions+=("$device $mountpoint") ;;
+    bitlocker) bitlocker_partitions+=("$device") ;;
+  esac
+  if [[ ${parttype,,} == "$ESP_PARTTYPE" ]] && with_partition "$device" "$mountpoint" vfat has_windows_loader; then
+    windows_esps+=("$device $partuuid $mountpoint")
+  fi
+done <<<"$partition_list"
+
+windows_firmware_entries=0
+if (( efi_readable )); then
+  windows_firmware_entries=$(boot_order_labels | grep -ci "^${WINDOWS_ENTRY_NAME}\$" || true)
+fi
+(( ${#windows_esps[@]} + ${#ntfs_partitions[@]} + ${#bitlocker_partitions[@]} + windows_firmware_entries > 0 )) && windows_found=1
+
+section "Other systems"
+if (( ! windows_found )); then
+  good "No Windows installation found; nothing else to check."
+  exit 0
+fi
+(( ${#windows_esps[@]} )) && note "Windows loader on ${windows_esps[*]%% *}"
+(( ${#ntfs_partitions[@]} )) && note "NTFS partitions: ${ntfs_partitions[*]%% *}"
+(( ${#bitlocker_partitions[@]} )) && note "BitLocker partitions: ${bitlocker_partitions[*]}"
+
+section "Firmware"
+if (( ! efi_readable )); then
+  problem "The firmware boot entries can't be read." "Boot in UEFI mode: Windows and Omarchy both have to, or neither can start the other."
+else
+  first=$(boot_order_labels | head -n 1)
+  if [[ ${first,,} == "${WINDOWS_ENTRY_NAME,,}" ]]; then
+    problem "The firmware starts Windows first, so Omarchy's boot menu never shows (a Windows update can do this)." \
+      "Move Limine or Omarchy to the top of the boot order in the firmware setup, or with sudo efibootmgr --bootorder."
+  else
+    good "The firmware starts ${first:-an unnamed entry} first."
+  fi
+  if (( windows_firmware_entries > 1 )); then
+    problem "BootOrder has $windows_firmware_entries entries named $WINDOWS_ENTRY_NAME, so a menu entry that names it can start the wrong one." \
+      "Remove the stale one with sudo efibootmgr --bootnum <number> --delete-bootnum."
+  fi
+fi
+
+if [[ -r $SECURE_BOOT_VAR ]] && [[ $(od -An -tu1 -j4 -N1 "$SECURE_BOOT_VAR" 2>/dev/null | tr -d ' ') == 1 ]]; then
+  note "Secure Boot is on: Limine and every boot file must stay signed (sbctl), or the firmware refuses them."
+else
+  note "Secure Boot is off. Turning it on or off makes BitLocker ask for its recovery key at the next Windows start."
+fi
+
+section "Boot menu"
+limine_conf="${OMARCHY_LIMINE_CONF:-}"
+if [[ -z $limine_conf ]]; then
+  esp=""
+  if [[ -r /etc/default/limine ]]; then
+    esp=$(sed -n 's/^ESP_PATH=["'\'']\?\([^"'\'']*\).*/\1/p' /etc/default/limine | tail -n 1)
+  fi
+  limine_conf="${esp:-/boot}/limine.conf"
+fi
+esp_root=$(dirname "$limine_conf")
+
+if ! sudo test -f "$limine_conf"; then
+  note "No Limine configuration at $limine_conf; skipping the boot menu checks."
+else
+  if sudo grep -Eqi '^[[:space:]]*quiet:[[:space:]]*yes' "$limine_conf"; then
+    problem "The boot menu is hidden: it shows only when a key is pressed in the first moment of boot." \
+      "Run Setup > Dual Boot to show it on every boot."
+  else
+    good "The boot menu shows on every boot."
+  fi
+
+  read -r kind path <<<"$(menu_windows_entry)"
+  case ${kind:-} in
+    efi_boot_entry)
+      good "Windows starts through its firmware entry, which BitLocker accepts across Limine updates."
+      ;;
+    chainload)
+      partuuid=$(sed -nE 's/^(guid|uuid)\(([^)]*)\):.*/\2/p' <<<"$path")
+      loader=${path#*:/}
+      esp_line=""
+      for candidate in "${windows_esps[@]}"; do
+        [[ ${candidate,,} == *" ${partuuid,,} "* ]] && esp_line=$candidate
+      done
+      if [[ -n $esp_line ]]; then
+        read -r device _ mountpoint <<<"$esp_line"
+        if ! with_partition "$device" "$mountpoint" vfat has_file "$loader"; then
+          problem "The Windows entry points at /$loader, which isn't spelled that way on disk, so it fails to start." \
+            "Run Setup > Dual Boot to fix the path."
+        fi
+      fi
+      if (( windows_firmware_entries == 1 )); then
+        problem "Windows is chainloaded, so BitLocker asks for its recovery key after Limine updates." \
+          "Run Setup > Dual Boot to start it through its firmware entry instead."
+      else
+        note "Windows is chainloaded; BitLocker may ask for its recovery key after Limine updates."
+      fi
+      ;;
+    *)
+      problem "The boot menu has no Windows entry." "Run Setup > Dual Boot to add one."
+      ;;
+  esac
+
+  if sudo test -f "$esp_root/EFI/BOOT/BOOTX64.EFI" || sudo test -f "$esp_root/EFI/BOOT/BOOTAA64.EFI"; then
+    good "The ESP has a fallback loader, so Limine still starts after a firmware reset."
+  else
+    problem "The ESP has no fallback loader (EFI/BOOT/BOOTX64.EFI): a firmware reset or BIOS update can leave only Windows bootable." \
+      "Set ENABLE_LIMINE_FALLBACK=yes in /etc/default/limine and run sudo limine-update."
+  fi
+fi
+
+section "Windows"
+for partition in "${bitlocker_partitions[@]}"; do
+  note "BitLocker is on for $partition: keep its recovery key at hand before changing firmware settings."
+done
+for partition in "${ntfs_partitions[@]}"; do
+  read -r device mountpoint <<<"$partition"
+  with_partition "$device" "$mountpoint" ntfs3 windows_hibernated
+  case $? in
+    0) problem "Windows on $device is hibernated (Fast Startup): writing to it from Omarchy can lose data, and devices may come up in the state Windows left them." \
+      "In Windows, run powercfg /h off, or turn off Fast startup under Control Panel > Power Options." ;;
+    2) note "$device couldn't be mounted read-only to check for hibernation." ;;
+  esac
+done
+
+if [[ $(timedatectl show -p LocalRTC --value 2>/dev/null) != "yes" ]]; then
+  problem "Omarchy reads the hardware clock as UTC; Windows keeps it in local time unless told otherwise, so the clock jumps after every Windows session." \
+    "In an administrator prompt in Windows, run: reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\TimeZoneInformation /v RealTimeIsUniversal /t REG_DWORD /d 1 /f"
+fi
+
+echo
+if (( problems )); then
+  echo "$problems to look at."
+else
+  echo "Nothing to look at."
+fi
