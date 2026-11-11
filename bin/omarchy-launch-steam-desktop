@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# omarchy:summary=Leave Steam Big Picture without stopping Steam or games
+# omarchy:args=[--help]
+
+usage() {
+  cat <<'EOF'
+Usage: omarchy-launch-steam-desktop [--help]
+
+Ask an existing Steam client to leave Big Picture in this desktop session.
+Steam, downloads and games stay running. This is a manual request, not a logout
+or a switch to another session. A running game can remain in the foreground.
+
+If Steam is not running for this user, do nothing; never start it just to close
+Big Picture. Otherwise use: steam -ifrunning steam://close/bigpicture
+The -ifrunning flag also guards against Steam exiting after the process check.
+
+This submits a request, not confirmation that the UI has changed. If Steam is
+busy or the request has no effect, use Big Picture's Power menu and choose
+"Exit Big Picture Mode". Reopen it with the Steam Big Picture application.
+EOF
+}
+
+fail() {
+  echo "omarchy-launch-steam-desktop: $1" >&2
+  omarchy-notification-send -u critical "$(omarchy-i18n gaming.desktopMode)" "$1" >/dev/null 2>&1 || true
+  exit 1
+}
+
+if (( $# == 1 )) && [[ $1 == "--help" || $1 == "-h" ]]; then
+  usage
+  exit 0
+elif (( $# != 0 )); then
+  echo "omarchy-launch-steam-desktop: unexpected arguments; use --help" >&2
+  exit 2
+fi
+
+# A webhelper or another user's client is not this user's running Steam.
+# Return before dependency/session checks so an idle Desktop action is harmless.
+if ! pgrep -u "$UID" -x steam >/dev/null; then
+  exit 0
+fi
+
+omarchy-cmd-present steam ||
+  fail "Steam is not installed. Use Omarchy's Install > Gaming > Steam menu first."
+
+[[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} && -n ${WAYLAND_DISPLAY:-} ]] ||
+  fail "Run Desktop Mode inside the active Hyprland desktop session."
+
+# Match the Big Picture launcher's UWSM convention. Never stop Steam, hide game
+# windows, change workspace rules or infer game completion from Big Picture.
+if ! setsid uwsm-app -- steam -ifrunning steam://close/bigpicture; then
+  fail "Could not send the return request. Use Steam's Power > Exit Big Picture Mode; check that uwsm-app is available in the desktop session."
+fi

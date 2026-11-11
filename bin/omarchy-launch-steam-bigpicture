@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# omarchy:summary=Open Steam Big Picture in the current desktop session
+# omarchy:args=[--help]
+
+usage() {
+  cat <<'EOF'
+Usage: omarchy-launch-steam-bigpicture [--help]
+
+Open Steam's controller and touch interface inside the current Hyprland session.
+Steam must already be installed; use Omarchy's Install > Gaming > Steam menu.
+
+The exact Steam invocation is: steam steam://open/bigpicture
+No Steam flags are added. The URI opens Big Picture in a new or existing client;
+repeated launches forward the same request to Steam, without stopping it.
+
+To return to the desktop, open Big Picture's Power menu and choose
+"Exit Big Picture Mode". Steam stays running and games/downloads are not stopped
+by this launcher. Launch again to reopen Big Picture.
+
+This submits a launch request; success does not prove the UI is ready. Steam's
+first start may need updates and sign-in. No session, display, controller or
+Steam settings are changed, and Gamescope is not required.
+EOF
+}
+
+fail() {
+  echo "omarchy-launch-steam-bigpicture: $1" >&2
+  omarchy-notification-send -u critical "Steam Big Picture" "$1" >/dev/null 2>&1 || true
+  exit 1
+}
+
+if (( $# == 1 )) && [[ $1 == "--help" || $1 == "-h" ]]; then
+  usage
+  exit 0
+elif (( $# != 0 )); then
+  echo "omarchy-launch-steam-bigpicture: unexpected arguments; use --help" >&2
+  exit 2
+fi
+
+omarchy-cmd-present steam ||
+  fail "Steam is not installed. Use Omarchy's Install > Gaming > Steam menu first."
+
+[[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} && -n ${WAYLAND_DISPLAY:-} ]] ||
+  fail "Run this launcher inside the active Hyprland desktop session."
+
+# The optional desktop keyboard is an overlay; leave the gaming UI unobstructed.
+if omarchy-cmd-present omarchy-toggle-desktop-keyboard; then
+  omarchy-toggle-desktop-keyboard hide || fail "Could not hide the desktop keyboard. Stop it before opening Big Picture."
+fi
+
+# Use the URI instead of a startup-only flag so an already running client also
+# opens Big Picture. Steam owns single-instance forwarding and startup locking.
+# Do not kill Steam, force Deck mode, or change its environment/settings here.
+exec setsid uwsm-app -- steam steam://open/bigpicture

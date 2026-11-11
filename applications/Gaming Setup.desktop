@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Gaming Setup
+Comment=Steam first sign-in, controller checks and returning to the desktop
+Exec=omarchy-setup-gaming
+Icon=applications-games
+Terminal=false
+Type=Application
+Categories=Game;
+Keywords=Steam;Big Picture;Gaming;Handheld;Controller;Touch;Keyboard;
+StartupNotify=false

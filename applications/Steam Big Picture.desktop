@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Name=Steam Big Picture
+Comment=Play with controller or touch; exit Big Picture to return to the desktop
+Exec=omarchy-launch-steam-bigpicture
+TryExec=steam
+Icon=steam
+Terminal=false
+Type=Application
+Categories=Game;
+Keywords=Gaming;Handheld;Controller;Touch;
+StartupNotify=false

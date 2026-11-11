@@ -16,6 +16,16 @@ Note that Steam can take 10-20 seconds to start up, and it's not going to provid
 
  ![gaming-steam](images/gaming-steam.webp)
 
+### Big Picture
+
+Open **Setup > Gaming** or the **Gaming Setup** application for installation, first sign-in, controller checks and desktop-return guidance. For first sign-in, use the Steam mobile app’s QR scanner or keep a USB keyboard available. Steam’s on-screen keyboard works within Steam; it is not a desktop keyboard.
+
+The Steam installer also adds **Steam Big Picture** to the app launcher. Use it to open Steam’s controller and touch interface, including when Steam is already running. You can also run `omarchy launch steam bigpicture`. Steam may need to finish its first-run update and sign-in before the interface opens.
+
+To return to the desktop, choose **Power > Exit Big Picture Mode** in Steam. Your Omarchy session stays open, and Steam continues running. Launch **Steam Big Picture** again to re-enter it. The **Desktop Mode** application sends the return request without stopping Steam or games. If a game is still running, it can remain in the foreground; the action does not end the game.
+
+This uses your existing desktop and Steam installation. It does not configure controller mappings, handheld power controls, suspend behaviour or a separate gaming session.
+
 ## RetroArch
 
 Install [RetroArch](https://www.retroarch.com/) by selecting _Install > Gaming > RetroArch_ from the Omarchy menu (`Super + Space`). It comes with the full set of libretro cores, so all the classic systems are covered.

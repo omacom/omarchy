@@ -1309,5 +1309,9 @@
   },
   "update.password.user": {
     "label": "User"
+  },
+  "setup.gaming": {
+    "label": "Gaming",
+    "description": "Steam, first sign-in, controller and touch setup"
   }
 }
