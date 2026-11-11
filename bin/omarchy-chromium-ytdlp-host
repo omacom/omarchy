@@ -187,7 +187,7 @@ download_url() {
     # Omaview has no `--`, so the path it gets is always the absolute one
     # resolve_download_file returned, which can't pass for an option; it is one
     # discrete --with argument, so it never reaches a shell.
-    omarchy-notification-send -g 󰄬 "$(omarchy-i18n download.complete)" "$title" \
+    omarchy-notification-send -g 󰄬 "$(omarchy-i18n download.complete)" --description "$title" \
       -t 10000 --image "${preview:-$filepath}" \
       --action "$(omarchy-i18n download.open)" omaview open \
       --action "$(omarchy-i18n download.cut)" omacut \
