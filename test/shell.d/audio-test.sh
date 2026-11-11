@@ -28,6 +28,10 @@ assertEqual(audio.outputVolumeName(0, false), 'Silenced', 'audio labels silent o
 assertEqual(audio.outputVolumeName(0.9, false), 'Party mode', 'audio labels loud output')
 assertEqual(audio.outputVolumeName(0.5, true), 'Muted', 'audio labels muted output')
 
+assertEqual(audio.sectionCursorFloor(true, true), -2, 'audio cursor starts a section at its visible mute switch')
+assertEqual(audio.sectionCursorFloor(true, false), -1, 'audio cursor skips a hidden mute switch for the slider')
+assertEqual(audio.sectionCursorFloor(false, false), 0, 'audio cursor starts a sliderless section at its first row')
+
 assertDeepEqual(audio.parseSinkAvailability('alsa_output\t1\nhdmi_output\t0\n'), { alsa_output: true, hdmi_output: false }, 'audio parses sink availability')
 assertEqual(audio.friendlyDeviceLabel('Built-in Audio Speakers Output'), 'Speakers', 'audio cleans device labels')
 assertEqual(

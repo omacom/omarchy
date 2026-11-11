@@ -228,6 +228,9 @@ Panel {
 
   readonly property bool hasOutput: !!(volumeSink && volumeSink.audio)
   readonly property bool hasInput: !!(source && source.audio) || (inputViaWpctl && UntypedInput.known)
+  // A section switch hides with its channel; move a cursor off it at once.
+  onHasOutputChanged: clampCursor()
+  onHasInputChanged: clampCursor()
 
   readonly property color hoverFill: bar
     ? Style.hoverFillFor(bar.foreground, Commons.Color.accent)
@@ -256,6 +259,18 @@ Panel {
     return false  // stream rows carry their own sliders inline; not a section-level slider
   }
 
+  // Mirrors each section switch's visible binding, so keyboard navigation
+  // skips a switch that is hidden because its channel is gone.
+  function sectionHasSwitch(section) {
+    if (section === "output") return hasOutput
+    if (section === "input") return hasInput
+    return false
+  }
+
+  function sectionFloor(section) {
+    return Model.sectionCursorFloor(sectionHasSlider(section), sectionHasSwitch(section))
+  }
+
   // Order of visible sections, recomputed reactively so dropping a section
   // (e.g. no input devices) doesn't leave the cursor pointing at it.
   readonly property var visibleSections: {
@@ -270,19 +285,18 @@ Panel {
     var sections = visibleSections
     if (sections.length === 0) return
     var sIdx = sections.indexOf(focusSection)
-    if (sIdx < 0) { focusSection = sections[0]; selectedIndex = sectionHasSlider(focusSection) ? -2 : 0; return }
+    if (sIdx < 0) { focusSection = sections[0]; selectedIndex = sectionFloor(focusSection); return }
 
     var idx = selectedIndex
     var max = sectionCount(focusSection) - 1  // last device index
-    var hasSlider = sectionHasSlider(focusSection)
-    var floor = hasSlider ? -2 : 0  // switch, slider, then devices
+    var floor = sectionFloor(focusSection)  // switch, slider, then devices
 
     if (delta > 0) {
       if (idx < max) { selectedIndex = idx + 1; return }
       // Fall through to next section.
       if (sIdx < sections.length - 1) {
         focusSection = sections[sIdx + 1]
-        selectedIndex = sectionHasSlider(focusSection) ? -2 : 0
+        selectedIndex = sectionFloor(focusSection)
       }
     } else {
       if (idx > floor) { selectedIndex = idx - 1; return }
@@ -308,7 +322,7 @@ Panel {
     if (current < 0) current = delta > 0 ? -1 : 0
     var next = (current + delta + sections.length) % sections.length
     focusSection = sections[next]
-    selectedIndex = sectionHasSlider(focusSection) ? -2 : 0
+    selectedIndex = sectionFloor(focusSection)
     cursorActive = true
   }
 
@@ -444,12 +458,11 @@ Panel {
     if (!sections || !sections.length) return
     if (sections.indexOf(focusSection) < 0) {
       focusSection = visibleSections[0]
-      selectedIndex = sectionHasSlider(focusSection) ? -2 : 0
+      selectedIndex = sectionFloor(focusSection)
       return
     }
     var count = sectionCount(focusSection)
-    var hasSlider = sectionHasSlider(focusSection)
-    var floor = hasSlider ? -2 : 0
+    var floor = sectionFloor(focusSection)
     if (selectedIndex > count - 1) selectedIndex = Math.max(floor, count - 1)
     if (selectedIndex < floor) selectedIndex = floor
   }
