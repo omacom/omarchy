@@ -148,6 +148,9 @@ pass "browser launcher reads Exec= from the data dirs the resolver searched"
 # With nothing to launch, the failure has to be visible from a keybinding,
 # where stderr goes nowhere, and must never reach uwsm-app as an empty command.
 rm -f "$XDG_CONFIG_HOME/mimeapps.list" "$test_home/.local/share/applications/chromium.desktop" "$launch_log"
+# The Vivaldi entry from the data-dirs case is a Chromium-based browser here, so
+# "nothing to launch" has to mean every browser entry is gone.
+rm -f "$XDG_DATA_DIRS/applications/vivaldi-stable.desktop"
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
 echo omarchy-browser.desktop
@@ -202,3 +205,90 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
 grep -F "Web apps need a Chromium-based browser" "$notify_log" >/dev/null ||
   fail "web app launcher asks for a Chromium-based browser" "$(cat "$notify_log" 2>/dev/null)"
 pass "web app launcher fails visibly instead of handing uwsm-app an empty command"
+
+
+# A Chromium build Omarchy has no name for is kept as the default browser: the
+# entry it generated carries the MIME type only Chromium's installer template
+# writes. chromium.desktop is installed too, so the assertion proves the default
+# wins rather than the fallback being used.
+cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=chromium %U
+MimeType=text/html;application/xhtml+xml;application/xhtml_xml;x-scheme-handler/http;x-scheme-handler/https;
+EOF
+cat >"$XDG_DATA_DIRS/applications/kestrel.desktop" <<'EOF'
+[Desktop Entry]
+Exec=kestrel %U
+MimeType=text/html;application/xhtml+xml;application/xhtml_xml;x-scheme-handler/http;x-scheme-handler/https;
+EOF
+cat >"$mock_bin/kestrel" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$mock_bin/kestrel"
+cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
+[Default Applications]
+x-scheme-handler/http=kestrel.desktop
+EOF
+rm -f "$launch_log"
+status=0
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app" 2>/dev/null || status=$?
+
+(( status == 0 )) || fail "web app launcher runs a Chromium default it has no name for" "status: $status"
+grep -F -- '-- kestrel --app=https://example.test/app' "$launch_log" >/dev/null ||
+  fail "web app launcher keeps an unlisted Chromium default" "$(cat "$launch_log" 2>/dev/null)"
+! grep -F -- '-- chromium ' "$launch_log" >/dev/null ||
+  fail "web app launcher prefers the default browser over the fallback" "$(cat "$launch_log")"
+pass "web app launcher keeps a Chromium default browser it has no name for"
+
+# With a Firefox default the installed Chromium-based browser opens the app,
+# not chromium.desktop, which is the failure #7034 reported.
+rm -f "$test_home/.local/share/applications/chromium.desktop" "$launch_log"
+cat >"$XDG_DATA_DIRS/applications/helium.desktop" <<'EOF'
+[Desktop Entry]
+Exec=helium-browser %U
+MimeType=text/html;application/xhtml+xml;application/xhtml_xml;x-scheme-handler/http;x-scheme-handler/https;
+EOF
+cat >"$mock_bin/helium-browser" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$mock_bin/helium-browser"
+cat >"$XDG_CONFIG_HOME/mimeapps.list" <<'EOF'
+[Default Applications]
+x-scheme-handler/http=firefox.desktop
+EOF
+status=0
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/fallback" 2>/dev/null || status=$?
+
+(( status == 0 )) || fail "web app launcher falls back to an installed Chromium browser" "status: $status"
+grep -F -- '-- helium-browser --app=https://example.test/fallback' "$launch_log" >/dev/null ||
+  fail "web app launcher falls back to the installed Chromium browser" "$(cat "$launch_log" 2>/dev/null)"
+pass "web app launcher falls back to an installed Chromium-based browser"
+
+# Brave Origin is a browser Omarchy installs and can set as the default, so the
+# fallback has to cover it like the others.
+rm -f "$XDG_DATA_DIRS/applications/helium.desktop" "$launch_log"
+cat >"$XDG_DATA_DIRS/applications/brave-origin.desktop" <<'EOF'
+[Desktop Entry]
+Exec=brave-origin %U
+MimeType=text/html;application/xhtml+xml;application/xhtml_xml;x-scheme-handler/http;x-scheme-handler/https;
+EOF
+cat >"$mock_bin/brave-origin" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$mock_bin/brave-origin"
+status=0
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_NOTIFY="$notify_log" \
+  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/origin" 2>/dev/null || status=$?
+
+(( status == 0 )) || fail "web app launcher falls back to Brave Origin" "status: $status"
+grep -F -- '-- brave-origin --app=https://example.test/origin' "$launch_log" >/dev/null ||
+  fail "web app launcher falls back to Brave Origin" "$(cat "$launch_log" 2>/dev/null)"
+pass "web app launcher falls back to Brave Origin"
