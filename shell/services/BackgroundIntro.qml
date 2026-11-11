@@ -347,6 +347,11 @@ Item {
       WlrLayershell.layer: WlrLayer.Bottom
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       WlrLayershell.namespace: "omarchy-background"
+      // The cover reads the monitor's scale from Hyprland, and Quickshell only
+      // refreshes that on request. Ask again whenever the cover opens or its
+      // window changes scale, as OverlayWindow does.
+      onVisibleChanged: if (visible) Hyprland.refreshMonitors()
+      onDevicePixelRatioChanged: if (visible) Hyprland.refreshMonitors()
 
       Rectangle {
         anchors.fill: parent
