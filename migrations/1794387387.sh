@@ -13,8 +13,14 @@ bindings="$HOME/.config/hypr/bindings.lua"
 
 unbind='o.unbind_default("SUPER + CTRL + X")'
 keys="[\"'][[:space:]]*(SUPER[[:space:]]*\+[[:space:]]*CTRL|CTRL[[:space:]]*\+[[:space:]]*SUPER)[[:space:]]*\+[[:space:]]*X[[:space:]]*[\"']"
-personal="^([[:space:]]*)((o\.bind(_hold)?|hl\.bind)[[:space:]]*\([[:space:]]*$keys)"
+call="((o\.bind(_hold)?|hl\.bind)[[:space:]]*\([[:space:]]*$keys)"
 
-if grep -qiE "$personal" "$bindings" && ! grep -qF "$unbind" "$bindings"; then
-  sed -i --follow-symlinks -E "s/$personal/\1$unbind\n\1\2/I" "$bindings"
+# A call opening its line gets the unbind on a line of its own above it. One
+# later on a line (`if enabled then o.bind(...) end`) gets it just in front, so
+# it stays inside that condition. A -- before the call means it's commented out.
+own_line="^([[:space:]]*)$call"
+inline="^(([^-]|-[^-])*)$call"
+
+if grep -qiE "$inline" "$bindings" && ! grep -qF "$unbind" "$bindings"; then
+  sed -i --follow-symlinks -E "s/$own_line/\1$unbind\n\1\2/I; t; s/$inline/\1$unbind \3/I" "$bindings"
 fi
