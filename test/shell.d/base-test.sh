@@ -553,12 +553,12 @@ require_comparable_speed() {
 run_node_test() {
   require_command node
 
-  local script
-  script=$(mktemp)
-  trap 'rm -f "$script"' RETURN
+  (
+    script=$(mktemp)
+    trap 'rm -f "$script"' EXIT
 
-  {
-    cat <<'JS_PRELUDE'
+    {
+      cat <<'JS_PRELUDE'
 const path = require('path')
 const root = process.env.ROOT
 
@@ -600,7 +600,8 @@ function requireFromRoot(relativePath) {
 }
 
 JS_PRELUDE
-    cat
-  } >"$script"
-  node "$script"
+      cat
+    } >"$script"
+    node "$script"
+  )
 }
