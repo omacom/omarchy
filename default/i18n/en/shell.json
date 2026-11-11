@@ -125,7 +125,6 @@
   "agents.networkOnHost": "On %1",
   "agents.networkOffline": "Offline",
   "agents.networkRunning": "Running",
-  "agents.networkStopped": "Stopped",
   "agents.networkHideConfirm": "Hide %1 on %2 from the panel? Add another › Network models shows it again.",
   "agents.launchHarness": "Start %1",
   "agents.spendEstimated": "≈ %1",
