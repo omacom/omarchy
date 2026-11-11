@@ -100,9 +100,11 @@ Panel {
   }
 
   // The tailnet has no change signal, so the panel surveys it when it opens
-  // and again every 20 seconds while it stays open, never while closed.
+  // and again every 2 seconds while it stays open, never while closed: a
+  // model another machine starts or stops sharing shows up or goes at once.
+  // A survey is one fetch per online peer, half a second, and never overlaps.
   Timer {
-    interval: 20000
+    interval: 2000
     running: root.opened
     repeat: true
     onTriggered: usage.refreshNetwork()
