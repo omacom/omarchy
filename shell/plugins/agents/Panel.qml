@@ -34,8 +34,8 @@ Panel {
 
   // A model on another machine of the tailnet carries its host. Away, it
   // offers nothing; unpaired, only pairing, which is what fetches its key.
-  // Paired, it can be used or disconnected from, never started or stopped:
-  // it runs on its host's terms.
+  // Paired, it can be used or disconnected from while its host runs it, and
+  // offers nothing while it doesn't: it's never started or stopped from here.
   // This machine's own models offer sharing only while running: where
   // Tailscale can serve them, or where one is shared already, so it can
   // always be stopped. A stopped model stays shared and is served again when
@@ -46,7 +46,7 @@ Panel {
     if (model.host) {
       if (model.offline) return actions
       if (!model.paired) return ["pair"]
-      return model.unit === "active" ? ["disconnect", "launch"] : ["disconnect"]
+      return model.unit === "active" ? ["disconnect", "launch"] : []
     } else if (model.unit === "active" && (canShare || model.shared === true)) {
       actions.push("share")
     }
@@ -2112,14 +2112,14 @@ Panel {
       }
 
       // A network model this machine isn't paired with yet: the word Pair,
-      // which opens a terminal to pair over SSH. Once paired: Disconnect,
-      // which stops using just this model here and leaves it running there.
+      // which opens a terminal to pair over SSH. Once paired and running
+      // there: Disconnect, which stops using just this model here.
       TextLink {
         id: remotePair
         anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: section.remote && !section.offline
+        visible: section.remote && !section.offline && (!section.paired || section.model.unit === "active")
         text: section.paired ? Commons.I18n.t("agents.networkDisconnectLabel") : Commons.I18n.t("agents.networkPairLabel")
         tooltip: !section.remote ? "" : section.paired ? Commons.I18n.t("agents.networkDisconnect").arg(section.model.host) : Commons.I18n.t("agents.networkPair").arg(section.model.host)
         idleColor: root.foreground
