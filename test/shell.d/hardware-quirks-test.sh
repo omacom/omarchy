@@ -317,6 +317,7 @@ run_leaf() {
     OMARCHY_QUALCOMM_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
+    OMARCHY_ZENBOOK_UX3480QA_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$hw/nvidia.conf" \
     OMARCHY_PCI_DEVICES="$root/sys/bus/pci/devices" \
     OMARCHY_ATH12K_BOARD_STATE="$root/var/lib/ath12k-board-fallback/installed" \
@@ -428,7 +429,7 @@ hardware/qualcomm/glymur-display.sh|anduril-bluechip|0|wrote etc/mkinitcpio.conf
 hardware/qualcomm/glymur-display.sh|t14s-gen7|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
 hardware/qualcomm/glymur-display.sh|glymur-not-qualcomm|0
 hardware/qualcomm/glymur-display.sh|yoga-slim7x|0
-hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa|0|wrote etc/systemd/sleep.conf.d/zenbook-14-ux3480qa.conf|wrote etc/mkinitcpio.conf.d/zenbook-14-ux3480qa-initramfs.conf
+hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa|0|wrote etc/systemd/sleep.conf.d/zenbook-14-ux3480qa.conf|wrote etc/limine-entry-tool.d/zenbook-14-ux3480qa.conf|wrote etc/mkinitcpio.conf.d/zenbook-14-ux3480qa-initramfs.conf
 hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa+unreadable|0
 hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa-not-qualcomm|0
 hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-a16|0

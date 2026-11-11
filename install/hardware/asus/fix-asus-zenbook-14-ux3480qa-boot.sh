@@ -2,6 +2,7 @@
 # X1-26-100).
 
 mkinitcpio_dir=${OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
+limine_config_dir=${OMARCHY_ZENBOOK_UX3480QA_LIMINE_CONFIG_DIR:-/etc/limine-entry-tool.d}
 sleep_config_dir=${OMARCHY_ZENBOOK_UX3480QA_SLEEP_CONFIG_DIR:-/etc/systemd/sleep.conf.d}
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3480QA"; then
@@ -14,9 +15,11 @@ if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3480QA"; then
 MODULES+=(qrtr? pmic_glink_altmode? gpio_sbu_mux?)
 CONF
 
-  # The kernel defaults to deep sleep, PSCI system suspend, here. Suspend to
-  # idle is the mode the lid, keyboard and Wi-Fi are proven on, so sleep that
-  # way.
+  # The kernel defaults to deep sleep, PSCI system suspend, here. Deep is the
+  # only mode in which the SoC collapses its CX rail, but it wakes by itself
+  # about every five minutes, ignores the keyboard, and has reset the laptop
+  # instead of resuming. Suspend to idle draws more (qcom_stats cxsd stays at
+  # 0) and resumes every time, so sleep that way.
   mkdir -p "$sleep_config_dir"
   cat >"$sleep_config_dir/zenbook-14-ux3480qa.conf" <<'CONF'
 [Sleep]
@@ -24,5 +27,13 @@ MemorySleepMode=s2idle
 AllowHibernation=no
 AllowSuspendThenHibernate=no
 AllowHybridSleep=no
+CONF
+
+  # systemd picks the mode above only for its own suspend. Change the kernel's
+  # default too, so rtcwake or a write to /sys/power/state does not land in
+  # deep sleep.
+  mkdir -p "$limine_config_dir"
+  cat >"$limine_config_dir/zenbook-14-ux3480qa.conf" <<'CONF'
+KERNEL_CMDLINE[default]+=" mem_sleep_default=s2idle"
 CONF
 fi
