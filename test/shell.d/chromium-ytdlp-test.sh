@@ -117,7 +117,7 @@ dash_title=$(host_fn title_from_file "$download_dir/--include.mp4")
 [[ $dash_title == "Video" ]] || fail "yt-dlp native host does not pass a leading-dash title to the notifier" "$dash_title"
 pass "yt-dlp native host does not pass a leading-dash title to the notifier"
 
-# The click action passes the path as a discrete --exec argument (asserted
+# The actions pass the path as a discrete --with argument (asserted
 # end-to-end below against the real download); `--` keeps mpv from parsing a
 # leading-dash filename as an option.
 
@@ -216,9 +216,9 @@ grep -qF -- $'OMARCHY_FILE\t%(title)s' "$ytdlp_argv" &&
   fail "yt-dlp native host never prints the title into the file record" "$(cat "$ytdlp_argv")"
 pass "yt-dlp native host never prints the title into the file record"
 
-grep -q -- "--exec mpv -- " "$notify_argv" ||
-  fail "yt-dlp native host builds the click command as mpv -- <path>" "$(cat "$notify_argv")"
-pass "yt-dlp native host builds the click command as mpv -- <path>"
+grep -qF -- "--action Open mpv -- --action Cut omacut --with $fake_file" "$notify_argv" ||
+  fail "yt-dlp native host offers Open in mpv and Cut in Omacut for the download" "$(cat "$notify_argv")"
+pass "yt-dlp native host offers Open in mpv and Cut in Omacut for the download"
 
 grep -qF -- "Download complete My Great Clip" "$notify_argv" ||
   fail "yt-dlp native host toasts the page title, not the sanitised filename" "$(cat "$notify_argv")"

@@ -74,7 +74,7 @@ AGENT_NAME = "Local models"
 # Codex's built-in `--oss` providers have no config.toml entry.
 KNOWN_LOCAL_PROVIDERS = {
   "gpt4all", "jan", "koboldcpp", "llama-cpp", "llamacpp", "llamafile",
-  "lm-studio", "lmstudio", "local", "localai", "mlx", "ollama",
+  "lm-studio", "lmstudio", "local", "localai", "mlx", "ollama", "omarchy-local",
   "openai-local", "oss", "sglang", "tabby", "text-generation-webui", "vllm",
 }
 

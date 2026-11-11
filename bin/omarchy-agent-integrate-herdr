@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=Install herdr's status and session-restore integration for agents mise just installed
+# omarchy:hidden=true
+
+# mise runs this as a postinstall hook (etc/mise/conf.d/omarchy.toml), naming the
+# tools it just installed in MISE_INSTALLED_TOOLS. Omarchy's agents are lazy and
+# self-updating, so that is an agent's first use and every upgrade after it.
+# herdr only installs into a config directory the agent already made, and the
+# agent makes it on its first run, after this hook, so it is created here.
+# A failure only warns: the agent should still start.
+
+config=${XDG_CONFIG_HOME:-$HOME/.config}
+
+while IFS= read -r tool; do
+  case $tool in
+  pi) target=pi dir=$HOME/.pi/agent ;;
+  oh-my-pi) target=omp dir=$HOME/.omp/agent ;;
+  claude) target=claude dir=${CLAUDE_CONFIG_DIR:-$HOME/.claude} ;;
+  codex) target=codex dir=${CODEX_HOME:-$HOME/.codex} ;;
+  grok) target=grok dir=${GROK_HOME:-$HOME/.grok} ;;
+  copilot) target=copilot dir=$HOME/.copilot ;;
+  qwen) target=qwen dir=$HOME/.qwen ;;
+  opencode) target=opencode dir=$config/opencode ;;
+  antigravity-cli) target=antigravity-cli dir=$HOME/.gemini/config ;;
+  cursor-agent | http:cursor-agent) target=cursor dir=$HOME/.cursor ;;
+  http:devin) target=devin dir=$config/devin ;;
+  npm:@kilocode/cli) target=kilo dir=$config/kilo ;;
+  npm:@moonshot-ai/kimi-code) target=kimi dir=$HOME/.kimi-code ;;
+  *) continue ;;
+  esac
+
+  # herdr reports to stdout, which would land on the agent's first screen.
+  if ! mkdir -p "$dir" || ! herdr integration install "$target" >/dev/null; then
+    echo "Could not install the herdr integration for $target" >&2
+  fi
+done < <(jq -r '.[].name' <<<"${MISE_INSTALLED_TOOLS:-[]}" 2>/dev/null)
+
+exit 0
