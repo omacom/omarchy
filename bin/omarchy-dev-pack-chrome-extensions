@@ -11,24 +11,38 @@
 # The CRX keys are Chrome's alone. Chromium keeps loading the unpacked
 # extensions under the ids their manifest keys pin, so the key is stripped from
 # the packed manifest and Chrome derives each id from its CRX key instead. The
-# private keys stay out of the repository; losing one means a new id.
+# private keys live in 1Password, never in the repository or on disk past this
+# run; losing one means a new id.
 
 set -euo pipefail
 
 extensions_dir="$OMARCHY_PATH/default/chromium/extensions"
 crx_dir="$OMARCHY_PATH/default/chromium/crx"
-keys_dir=${OMARCHY_CHROME_EXTENSION_KEYS:-$HOME/.config/omarchy-dev/chrome-extension-keys}
+export OP_ACCOUNT=${OP_ACCOUNT:-omarchy.1password.com}
+vault=${OMARCHY_CHROME_EXTENSION_KEYS_VAULT:-Shared}
+item="Omarchy Chrome extension keys"
 install_root=/usr/share/omarchy/default/chromium/crx
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+keys_dir=$work/keys
+mkdir -m 700 "$keys_dir"
 
 extension_id() {
   openssl pkey -in "$1" -pubout -outform DER | sha256sum | cut -c1-32 | tr '0-9a-f' 'a-p'
 }
 
-mkdir -p "$crx_dir" "$keys_dir"
-chmod 700 "$keys_dir"
+# A new extension gets a key of its own, stored beside the others: 1Password
+# files "name.pem" as a pem file in a section named after the extension.
+store_key() {
+  if op item get "$item" --vault "$vault" >/dev/null 2>&1; then
+    op item edit "$item" --vault "$vault" "$1.pem[file]=$2" >/dev/null
+  else
+    op item create --category "Secure Note" --vault "$vault" --title "$item" "$1.pem[file]=$2" >/dev/null
+  fi
+}
+
+mkdir -p "$crx_dir"
 
 apps=""
 ids=()
@@ -38,13 +52,13 @@ for source in "$extensions_dir"/*/; do
   crx=$crx_dir/$name.crx
   stage=$work/$name
 
-  if [[ ! -f $key ]]; then
+  if ! op read --no-newline --out-file "$key" "op://$vault/$item/$name/pem" >/dev/null 2>&1; then
     if [[ -f $crx ]]; then
-      echo "Missing $key: $name.crx shipped with it, and a new key would give Chrome a new id." >&2
+      echo "The $name key is missing from \"$item\" in the $vault vault: $name.crx shipped with it, and a new key would give Chrome a new id." >&2
       exit 1
     fi
     openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$key" 2>/dev/null
-    chmod 600 "$key"
+    store_key "$name" "$key"
   fi
 
   # The icons are symlinks into the repository; a CRX carries the files.
