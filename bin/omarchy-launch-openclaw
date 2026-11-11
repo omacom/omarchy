@@ -99,6 +99,12 @@ if [[ $tui == "true" ]]; then
   exec openclaw tui "${message[@]}"
 fi
 
+# The handoff URL expires, so a launch waiting behind an install window's Done
+# prompt fetches its own when it runs.
+if [[ -n ${OMARCHY_LAUNCH_AFTER_DONE:-} && -w $OMARCHY_LAUNCH_AFTER_DONE ]]; then
+  exec omarchy-launch-after-done omarchy-launch-openclaw
+fi
+
 # The handoff URL rides in the browser's argv, which uwsm's app daemon echoes
 # into the user journal. Accepted: the token is single-use with a ten-minute
 # expiry against a loopback-only gateway, and journal access already implies
