@@ -159,7 +159,7 @@
   "appearance.bootloader": {"icon":"󰑣","label":"Bootloader"},
   "appearance.bootloader.full-animated": {"icon":"󰑐","label":"Full Animated","checked":"[[ \"$(omarchy-plymouth-playback-set current)\" == \"full-animated\" ]]","action":"[[ \"$(omarchy-plymouth-playback-set current)\" == \"full-animated\" ]] || omarchy-launch-floating-terminal-with-presentation 'omarchy-plymouth-playback-set full-animated'"},
   "appearance.bootloader.input-only": {"icon":"󰌌","label":"Input Only","checked":"[[ \"$(omarchy-plymouth-playback-set current)\" == \"input-only\" ]]","action":"[[ \"$(omarchy-plymouth-playback-set current)\" == \"input-only\" ]] || omarchy-launch-floating-terminal-with-presentation 'omarchy-plymouth-playback-set input-only'"},
-  "appearance.bootloader.effect": {"icon":"󰑣","label":"Effect","action":"effect=$(omarchy-plymouth-effect-switcher); [[ -z $effect || \"$effect\" == \"$(omarchy-plymouth-effect-set current)\" ]] || omarchy-launch-floating-terminal-with-presentation \"omarchy-plymouth-effect-set $(printf %q \"$effect\")\""},
+  "appearance.bootloader.effect": {"icon":"󰑣","label":"Effect","action":"effect=$(omarchy-plymouth-effect-switcher); [[ -z $effect ]] || [[ $effect != \"random\" && \"$effect\" == \"$(omarchy-plymouth-effect-set current)\" ]] || omarchy-launch-floating-terminal-with-presentation \"omarchy-plymouth-effect-set $(printf %q \"$effect\")\""},
 
   // Trigger
   "trigger.toggle": {"icon":"󰔎","label":"Toggle","aliases":["toggle","toggles"]},

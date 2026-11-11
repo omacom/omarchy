@@ -254,6 +254,10 @@ assert(
   defaultById['appearance.bootloader.effect'].action.includes('"$effect" == "$(omarchy-plymouth-effect-set current)"'),
   'menu does not reopen the privileged effect dialog for the active effect'
 )
+assert(
+  defaultById['appearance.bootloader.effect'].action.includes('$effect != "random" &&'),
+  'menu lets Random be reselected to pick another effect'
+)
 
 // Exactly the bar's current background is checked. Ask bash, against a
 // shell.json in each state, which rows it checks.
