@@ -664,6 +664,9 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
   "install.service.signal": {
     "label": "Signal"
   },
