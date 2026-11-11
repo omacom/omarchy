@@ -150,7 +150,9 @@ class Classifier:
     self.local_ids = {pid for pid in ids - CLAIMED_PROVIDERS if not pid.startswith(CLAIMED_PREFIXES)}
 
   def provider_is_local(self, provider):
-    return str(provider or "").strip().lower() in self.local_ids
+    # omarchy-local-<host> is a model a paired machine on the tailnet runs.
+    pid = str(provider or "").strip().lower()
+    return pid in self.local_ids or pid.startswith("omarchy-local-")
 
   def accepts(self, provider, model):
     return self.provider_is_local(provider) and not cloud_model(model)
