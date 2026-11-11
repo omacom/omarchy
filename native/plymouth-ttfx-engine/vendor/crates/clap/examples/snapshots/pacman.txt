@@ -1,0 +1,53 @@
+# pacman
+
+package manager utility
+
+Usage: pacman <COMMAND>
+
+Commands:
+  query, -Q, --query  Query the package database.
+  sync, -S, --sync    Synchronize packages.
+  help                Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help
+
+  -V, --version
+          Print version
+
+## pacman query
+
+Query the package database.
+
+Usage: pacman {query|--query|-Q} [OPTIONS]
+
+Options:
+  -s, --search <search>...
+          search locally installed packages for matching strings
+
+  -i, --info <info>...
+          view package information
+
+  -h, --help
+          Print help
+
+## pacman sync
+
+Synchronize packages.
+
+Usage: pacman {sync|--sync|-S} [OPTIONS] [package]...
+
+Arguments:
+  [package]...
+          packages
+
+Options:
+  -s, --search <search>...
+          search remote repositories for matching strings
+
+  -i, --info
+          view package information
+
+  -h, --help
+          Print help
