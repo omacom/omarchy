@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 
 // Hosts explicitly opt into a named point. Extensions receive their own shell
 // facade and settings, plus the panel's open state; never the owning panel.
@@ -9,6 +10,8 @@ FocusScope {
   property var shell: null
   property string point: ""
   property bool panelOpen: false
+  property color foreground: Commons.Color.foreground
+  property string fontFamily: Style.font.family
   signal closeRequested()
   Keys.onEscapePressed: closeRequested()
   readonly property var entries: shell && typeof shell.panelExtensionsFor === "function"
@@ -56,12 +59,15 @@ FocusScope {
         source: entry ? entry.source : ""
         asynchronous: true
         height: status === Loader.Ready && item !== null ? item.implicitHeight : 0
-        visible: height > 0
+        // Positioners must be visible before their children can establish
+        // their natural height. The parent Column already skips zero height.
 
         onLoaded: {
           if (!item) return
           item.width = Qt.binding(function() { return extensionLoader.width })
           if ("panelOpen" in item) item.panelOpen = Qt.binding(function() { return root.panelOpen })
+          if ("foreground" in item) item.foreground = Qt.binding(function() { return root.foreground })
+          if ("fontFamily" in item) item.fontFamily = Qt.binding(function() { return root.fontFamily })
           if ("settings" in item) item.settings = Qt.binding(function() { return extensionLoader.entry ? extensionLoader.entry.settings : ({}) })
           root.shell.configurePanelExtension(item, pluginId)
         }

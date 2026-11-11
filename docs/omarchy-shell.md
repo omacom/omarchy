@@ -78,12 +78,14 @@ The entry point is a QML `Item`, usually a `Column`, with `implicitHeight` descr
 
 - `panelOpen`: boolean; use its change signal to refresh local state, and suspend background work when it is false.
 - `settings`: a detached copy of the extension's own `plugins[]` settings, excluding `id`.
+- `foreground`: the host's foreground colour, updated when its theme changes.
+- `fontFamily`: the host's font family, also updated live.
 - `shell`: the same self-scoped facade an ordinary third-party plugin receives, never the owning panel or its shell authority.
 - `manifest`: the extension's detached public manifest.
 
 Required injected properties are not supported. Keep initialization that depends on injected properties in their change handlers. Each open popup gets its own view; shared work belongs in a service. The content is created lazily with the stock popup and retained until its host is unloaded. Enable, disable, removal, rescan, and local code hot-reload use the existing plugin lifecycle. Loading errors are logged and occupy no space; other contributions remain available. An extension is trusted same-process QML, just like an ordinary plugin, not a security sandbox.
 
-Host authors add `PanelExtensions { shell: root.bar.shell; point: "omarchy.example.sections"; panelOpen: root.opened; width: parent.width }` inside their content column. Connect `closeRequested` to the popup's close method. A `PanelKeyCatcher` must set `blocked: extensions.activeFocus` for the host's id so extension editors keep their keys; Escape still propagates through the extension focus scope to close the popup. Hosts choose their own stable point names and placement. The initial integration is for stock widgets under the built-in bar; replacement bars and old widget clones without a host interface do not gain this point automatically.
+Host authors add `PanelExtensions { shell: root.bar.shell; point: "omarchy.example.sections"; panelOpen: root.opened; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily; width: parent.width }` inside their content column. Connect `closeRequested` to the popup's close method. A `PanelKeyCatcher` must set `blocked: extensions.activeFocus` for the host's id so extension editors keep their keys; Escape still propagates through the extension focus scope to close the popup. Hosts choose their own stable point names and placement. The initial integration is for stock widgets under the built-in bar; replacement bars and old widget clones without a host interface do not gain this point automatically.
 
 ## Installing a third-party plugin
 

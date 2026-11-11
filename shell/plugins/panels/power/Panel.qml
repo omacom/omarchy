@@ -484,6 +484,8 @@ Panel {
             width: parent.width
             shell: root.bar ? root.bar.shell : null
             point: "omarchy.power.sections"
+            foreground: root.bar ? root.bar.foreground : Commons.Color.foreground
+            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
             panelOpen: root.opened
             onCloseRequested: root.close()
           }

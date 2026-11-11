@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import Quickshell
 import "services"
 import "Ui"
@@ -639,12 +640,26 @@ ShellRoot {
     function configurePanelExtension(item, id) { item.shell = { pluginId: id } }
   }
 
-  PanelExtensions {
-    id: extensionHost
-    width: 250
-    point: root.extensionCheckStage < 0 ? "" : "omarchy.power.sections"
-    shell: extensionShell
-    panelOpen: true
+  Window {
+    visible: true
+    width: 300
+    height: 300
+    PanelExtensions {
+      id: extensionHost
+      foreground: "#123456"
+      fontFamily: "serif"
+      width: 250
+      point: root.extensionCheckStage < 0 ? "" : "omarchy.power.sections"
+      shell: extensionShell
+      panelOpen: true
+    }
+    PanelExtensions {
+      id: columnHost
+      width: 250
+      point: "test.column.sections"
+      shell: extensionShell
+      panelOpen: true
+    }
   }
 
   function loadedExtension(item) {
@@ -662,8 +677,11 @@ ShellRoot {
     root.extensionCheckStage = 0
     var testExtension = manifest("third.hosted", ["panel-extension"], { panelExtension: "TestExtension.qml" })
     testExtension.panelExtension = { point: "omarchy.power.sections" }
-    registry.parseScanOutput(block("thirdparty", Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "").replace(/\/$/, ""), testExtension))
-    root.config = { version: 1, bar: { layout: {} }, plugins: [{ id: "third.hosted", height: 37 }] }
+    var columnExtension = manifest("third.column", ["panel-extension"], { panelExtension: "ColumnExtension.qml" })
+    columnExtension.panelExtension = { point: "test.column.sections" }
+    var sourceDir = Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "").replace(/\/$/, "")
+    registry.parseScanOutput(block("thirdparty", sourceDir, testExtension) + block("thirdparty", sourceDir, columnExtension))
+    root.config = { version: 1, bar: { layout: {} }, plugins: [{ id: "third.hosted", height: 37 }, { id: "third.column" }] }
     registry.registryRevision++
     extensionCheckTimer.start()
   }
@@ -677,19 +695,22 @@ ShellRoot {
       if (root.extensionCheckAttempts > 60) {
         root.fail("extension host did not settle at stage " + root.extensionCheckStage
           + " entries=" + JSON.stringify(extensionHost.entries)
-          + " height=" + extensionHost.implicitHeight
+          + " height=" + extensionHost.implicitHeight + " columnHeight=" + columnHost.implicitHeight
           + " loaded=" + String(root.loadedExtension(extensionHost)))
         stop()
         root.writeResult()
         return
       }
-      // This non-window fixture has no render loop to polish positioners.
-      extensionHost.children[0].forceLayout()
       var extension = root.loadedExtension(extensionHost)
-      if (root.extensionCheckStage === 0 && extension && extensionHost.implicitHeight === 37) {
+      if (root.extensionCheckStage === 0 && extension && extensionHost.implicitHeight === 37 && columnHost.implicitHeight === 49) {
+        root.assertTrue(root.loadedExtension(columnHost).initiallyVisible, "natural-height Column starts visible so its children can lay out")
         root.assertEqual(extension.width, 250, "host supplies available width")
         root.assertEqual(extension.shell.pluginId, "third.hosted", "host configures the contribution's own facade")
         root.assertEqual(extension.panelOpen, true, "host supplies panel open state")
+        root.assertEqual(String(extension.foreground), "#123456", "host supplies its foreground colour")
+        root.assertEqual(extension.fontFamily, "serif", "host supplies its font family")
+        extensionHost.foreground = "#654321"
+        extensionHost.fontFamily = "monospace"
         root.editedExtension = extension
         extension.draft = 73
         root.config = { version: 1, bar: { layout: {} }, plugins: [{ id: "third.hosted", height: 91 }] }
@@ -698,6 +719,8 @@ ShellRoot {
         root.assertEqual(extension, root.editedExtension, "settings changes keep the loaded extension instance")
         root.assertEqual(extension.settings.height, 91, "settings changes reach the loaded extension")
         root.assertEqual(extension.draft, 73, "settings changes preserve unapplied edits")
+        root.assertEqual(String(extension.foreground), "#654321", "foreground changes reach the retained extension")
+        root.assertEqual(extension.fontFamily, "monospace", "font changes reach the retained extension")
         extensionHost.panelOpen = false
         root.extensionCheckStage = 1
       } else if (root.extensionCheckStage === 1 && extension && !extension.panelOpen && extensionHost.implicitHeight === 0) {
