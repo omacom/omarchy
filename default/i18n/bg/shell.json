@@ -89,13 +89,11 @@
   "agents.networkPair": "Сдвои се с %1, за да го използваш",
   "agents.networkRunning": "Работи",
   "agents.networkShare": "Сподели в tailnet-а си",
-  "agents.networkShareLabel": "Сподели",
-  "agents.networkSharedLabel": "Споделено",
-  "agents.networkStopSharing": "Споделено в tailnet-а ти · спри споделянето",
-  "agents.networkUsers": {
-    "one": "%1 потребител",
-    "other": "%1 потребители"
+  "agents.networkSharedUsers": {
+    "one": "Споделено с %1 потребител · спри споделянето",
+    "other": "Споделено с %1 потребители · спри споделянето"
   },
+  "agents.networkStopSharing": "Споделено в tailnet-а ти · спри споделянето",
   "agents.outOfCredits": "Без кредити",
   "agents.pasteCode": "Ако страницата покаже код вместо да завърши, постави го тук.",
   "agents.placeholderCode": "Код",

@@ -89,13 +89,11 @@
   "agents.networkPair": "ব্যবহার করতে %1-এর সঙ্গে পেয়ার করুন",
   "agents.networkRunning": "চলছে",
   "agents.networkShare": "আপনার tailnet-এ শেয়ার করুন",
-  "agents.networkShareLabel": "শেয়ার করুন",
-  "agents.networkSharedLabel": "শেয়ার করা",
-  "agents.networkStopSharing": "আপনার tailnet-এ শেয়ার করা আছে · শেয়ার বন্ধ করুন",
-  "agents.networkUsers": {
-    "one": "%1 জন ব্যবহারকারী",
-    "other": "%1 জন ব্যবহারকারী"
+  "agents.networkSharedUsers": {
+    "one": "%1 জন ব্যবহারকারীর সঙ্গে শেয়ার করা · শেয়ার বন্ধ করুন",
+    "other": "%1 জন ব্যবহারকারীর সঙ্গে শেয়ার করা · শেয়ার বন্ধ করুন"
   },
+  "agents.networkStopSharing": "আপনার tailnet-এ শেয়ার করা আছে · শেয়ার বন্ধ করুন",
   "agents.outOfCredits": "ক্রেডিট শেষ",
   "agents.pasteCode": "পেজে শেষ হওয়ার বদলে কোড দেখালে এখানে পেস্ট করুন।",
   "agents.placeholderCode": "কোড",

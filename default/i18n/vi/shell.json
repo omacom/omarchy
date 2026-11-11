@@ -86,12 +86,10 @@
   "agents.networkPair": "Ghép nối với %1 để dùng",
   "agents.networkRunning": "Đang chạy",
   "agents.networkShare": "Chia sẻ trên tailnet",
-  "agents.networkShareLabel": "Chia sẻ",
-  "agents.networkSharedLabel": "Đã chia sẻ",
-  "agents.networkStopSharing": "Đã chia sẻ trên tailnet · dừng chia sẻ",
-  "agents.networkUsers": {
-    "other": "%1 người dùng"
+  "agents.networkSharedUsers": {
+    "other": "Đã chia sẻ với %1 người dùng · dừng chia sẻ"
   },
+  "agents.networkStopSharing": "Đã chia sẻ trên tailnet · dừng chia sẻ",
   "agents.outOfCredits": "Hết tín dụng",
   "agents.pasteCode": "Nếu trang hiện mã thay vì hoàn tất, hãy dán mã vào đây.",
   "agents.placeholderCode": "Mã",

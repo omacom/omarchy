@@ -92,14 +92,12 @@
   "agents.networkPair": "S'associer à %1 pour l'utiliser",
   "agents.networkRunning": "En cours",
   "agents.networkShare": "Partager sur votre tailnet",
-  "agents.networkShareLabel": "Partager",
-  "agents.networkSharedLabel": "Partagé",
-  "agents.networkStopSharing": "Partagé sur votre tailnet · arrêter le partage",
-  "agents.networkUsers": {
-    "many": "%1 d'utilisateurs",
-    "one": "%1 utilisateur",
-    "other": "%1 utilisateurs"
+  "agents.networkSharedUsers": {
+    "many": "Partagé avec %1 d'utilisateurs · arrêter le partage",
+    "one": "Partagé avec %1 utilisateur · arrêter le partage",
+    "other": "Partagé avec %1 utilisateurs · arrêter le partage"
   },
+  "agents.networkStopSharing": "Partagé sur votre tailnet · arrêter le partage",
   "agents.outOfCredits": "Crédits épuisés",
   "agents.pasteCode": "Si la page affiche un code au lieu de terminer, collez-le ici.",
   "agents.placeholderCode": "Code",

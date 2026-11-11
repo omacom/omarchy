@@ -95,15 +95,13 @@
   "agents.networkPair": "Выполните сопряжение с %1, чтобы использовать его",
   "agents.networkRunning": "Запущено",
   "agents.networkShare": "Открыть доступ в вашем tailnet",
-  "agents.networkShareLabel": "Поделиться",
-  "agents.networkSharedLabel": "Общий доступ",
-  "agents.networkStopSharing": "Доступ открыт в вашем tailnet · закрыть доступ",
-  "agents.networkUsers": {
-    "few": "%1 пользователя",
-    "many": "%1 пользователей",
-    "one": "%1 пользователь",
-    "other": "%1 пользователя"
+  "agents.networkSharedUsers": {
+    "few": "Общий доступ: %1 пользователя · прекратить доступ",
+    "many": "Общий доступ: %1 пользователей · прекратить доступ",
+    "one": "Общий доступ: %1 пользователь · прекратить доступ",
+    "other": "Общий доступ: %1 пользователя · прекратить доступ"
   },
+  "agents.networkStopSharing": "Доступ открыт в вашем tailnet · закрыть доступ",
   "agents.outOfCredits": "Кредиты закончились",
   "agents.pasteCode": "Если страница показывает код вместо завершения, вставьте его сюда.",
   "agents.placeholderCode": "Код",

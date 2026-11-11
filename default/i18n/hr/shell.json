@@ -92,14 +92,12 @@
   "agents.networkPair": "Upari s %1 za korištenje",
   "agents.networkRunning": "Pokrenuto",
   "agents.networkShare": "Podijeli na tailnetu",
-  "agents.networkShareLabel": "Podijeli",
-  "agents.networkSharedLabel": "Podijeljeno",
-  "agents.networkStopSharing": "Dijeljeno na tailnetu · prestani dijeliti",
-  "agents.networkUsers": {
-    "few": "%1 korisnika",
-    "one": "%1 korisnik",
-    "other": "%1 korisnika"
+  "agents.networkSharedUsers": {
+    "few": "Dijeljeno s %1 korisnika · prestanite dijeliti",
+    "one": "Dijeljeno s %1 korisnikom · prestanite dijeliti",
+    "other": "Dijeljeno s %1 korisnika · prestanite dijeliti"
   },
+  "agents.networkStopSharing": "Dijeljeno na tailnetu · prestani dijeliti",
   "agents.outOfCredits": "Nema kredita",
   "agents.pasteCode": "Ako stranica prikaže kod umjesto da završi, zalijepite ga ovdje.",
   "agents.placeholderCode": "Kod",

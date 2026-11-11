@@ -92,14 +92,12 @@
   "agents.networkPair": "Pro použití spárovat s %1",
   "agents.networkRunning": "Běží",
   "agents.networkShare": "Sdílet v tailnetu",
-  "agents.networkShareLabel": "Sdílet",
-  "agents.networkSharedLabel": "Sdíleno",
-  "agents.networkStopSharing": "Sdíleno v tailnetu · přestat sdílet",
-  "agents.networkUsers": {
-    "few": "%1 uživatelé",
-    "one": "%1 uživatel",
-    "other": "%1 uživatelů"
+  "agents.networkSharedUsers": {
+    "few": "Sdíleno s %1 uživateli · zastavit sdílení",
+    "one": "Sdíleno s %1 uživatelem · zastavit sdílení",
+    "other": "Sdíleno s %1 uživateli · zastavit sdílení"
   },
+  "agents.networkStopSharing": "Sdíleno v tailnetu · přestat sdílet",
   "agents.outOfCredits": "Kredity vyčerpány",
   "agents.pasteCode": "Pokud stránka místo dokončení ukáže kód, vložte ho sem.",
   "agents.placeholderCode": "Kód",

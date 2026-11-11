@@ -95,15 +95,13 @@
   "agents.networkPair": "Сполучіться з %1 для використання",
   "agents.networkRunning": "Працює",
   "agents.networkShare": "Поділитися у вашому tailnet",
-  "agents.networkShareLabel": "Поділитися",
-  "agents.networkSharedLabel": "Поширено",
-  "agents.networkStopSharing": "Поширено у вашому tailnet · припинити поширення",
-  "agents.networkUsers": {
-    "few": "%1 користувачі",
-    "many": "%1 користувачів",
-    "one": "%1 користувач",
-    "other": "%1 користувача"
+  "agents.networkSharedUsers": {
+    "few": "Спільний доступ: %1 користувачі · припинити спільний доступ",
+    "many": "Спільний доступ: %1 користувачів · припинити спільний доступ",
+    "one": "Спільний доступ: %1 користувач · припинити спільний доступ",
+    "other": "Спільний доступ: %1 користувача · припинити спільний доступ"
   },
+  "agents.networkStopSharing": "Поширено у вашому tailnet · припинити поширення",
   "agents.outOfCredits": "Кредити вичерпано",
   "agents.pasteCode": "Якщо на сторінці показано код замість завершення, вставте його сюди.",
   "agents.placeholderCode": "Код",

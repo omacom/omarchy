@@ -89,13 +89,11 @@
   "agents.networkPair": "Parita %1 käyttääksesi sitä",
   "agents.networkRunning": "Käynnissä",
   "agents.networkShare": "Jaa tailnetissäsi",
-  "agents.networkShareLabel": "Jaa",
-  "agents.networkSharedLabel": "Jaettu",
-  "agents.networkStopSharing": "Jaettu tailnetissäsi · lopeta jakaminen",
-  "agents.networkUsers": {
-    "one": "%1 käyttäjä",
-    "other": "%1 käyttäjää"
+  "agents.networkSharedUsers": {
+    "one": "Jaettu %1 käyttäjälle · lopeta jakaminen",
+    "other": "Jaettu %1 käyttäjälle · lopeta jakaminen"
   },
+  "agents.networkStopSharing": "Jaettu tailnetissäsi · lopeta jakaminen",
   "agents.outOfCredits": "Krediitit loppu",
   "agents.pasteCode": "Jos sivu näyttää koodin valmistumisen sijaan, liitä se tähän.",
   "agents.placeholderCode": "Koodi",

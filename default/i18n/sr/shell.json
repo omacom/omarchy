@@ -92,14 +92,12 @@
   "agents.networkPair": "Упари са %1 за коришћење",
   "agents.networkRunning": "Покренуто",
   "agents.networkShare": "Дели на tailnet-у",
-  "agents.networkShareLabel": "Дели",
-  "agents.networkSharedLabel": "Дељено",
-  "agents.networkStopSharing": "Дељено на tailnet-у · Заустави дељење",
-  "agents.networkUsers": {
-    "few": "%1 корисника",
-    "one": "%1 корисник",
-    "other": "%1 корисника"
+  "agents.networkSharedUsers": {
+    "few": "Дељено са %1 корисника · прекини дељење",
+    "one": "Дељено са %1 корисником · прекини дељење",
+    "other": "Дељено са %1 корисника · прекини дељење"
   },
+  "agents.networkStopSharing": "Дељено на tailnet-у · Заустави дељење",
   "agents.outOfCredits": "Нема кредита",
   "agents.pasteCode": "Ако страница прикаже код уместо да заврши, налепите га овде.",
   "agents.placeholderCode": "Код",

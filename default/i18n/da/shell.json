@@ -89,13 +89,11 @@
   "agents.networkPair": "Par med %1 for at bruge den",
   "agents.networkRunning": "Kører",
   "agents.networkShare": "Del på dit tailnet",
-  "agents.networkShareLabel": "Del",
-  "agents.networkSharedLabel": "Delt",
-  "agents.networkStopSharing": "Delt på dit tailnet · stop deling",
-  "agents.networkUsers": {
-    "one": "%1 bruger",
-    "other": "%1 brugere"
+  "agents.networkSharedUsers": {
+    "one": "Delt med %1 bruger · stop deling",
+    "other": "Delt med %1 brugere · stop deling"
   },
+  "agents.networkStopSharing": "Delt på dit tailnet · stop deling",
   "agents.outOfCredits": "Kreditter opbrugt",
   "agents.pasteCode": "Hvis siden viser en kode i stedet for at fuldføre, så indsæt den her.",
   "agents.placeholderCode": "Kode",

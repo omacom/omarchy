@@ -95,15 +95,13 @@
   "agents.networkPair": "Za uporabo se seznani z %1",
   "agents.networkRunning": "Deluje",
   "agents.networkShare": "Deli v tailnetu",
-  "agents.networkShareLabel": "Deli",
-  "agents.networkSharedLabel": "Deljeno",
-  "agents.networkStopSharing": "Deljeno v tailnetu · prekini deljenje",
-  "agents.networkUsers": {
-    "few": "%1 uporabniki",
-    "one": "%1 uporabnik",
-    "other": "%1 uporabnikov",
-    "two": "%1 uporabnika"
+  "agents.networkSharedUsers": {
+    "few": "Deljeno z %1 uporabniki · prenehaj deliti",
+    "one": "Deljeno z %1 uporabnikom · prenehaj deliti",
+    "other": "Deljeno z %1 uporabniki · prenehaj deliti",
+    "two": "Deljeno z %1 uporabnikoma · prenehaj deliti"
   },
+  "agents.networkStopSharing": "Deljeno v tailnetu · prekini deljenje",
   "agents.outOfCredits": "Zmanjkalo kreditov",
   "agents.pasteCode": "Če stran pokaže kodo, namesto da bi končala, jo prilepite tukaj.",
   "agents.placeholderCode": "Koda",

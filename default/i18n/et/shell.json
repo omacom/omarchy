@@ -89,13 +89,11 @@
   "agents.networkPair": "Kasutamiseks seo %1-ga",
   "agents.networkRunning": "Töötab",
   "agents.networkShare": "Jaga oma tailnetis",
-  "agents.networkShareLabel": "Jaga",
-  "agents.networkSharedLabel": "Jagatud",
-  "agents.networkStopSharing": "Jagatud oma tailnetis · lõpeta jagamine",
-  "agents.networkUsers": {
-    "one": "%1 kasutaja",
-    "other": "%1 kasutajat"
+  "agents.networkSharedUsers": {
+    "one": "Jagatud ühe kasutajaga · lõpeta jagamine",
+    "other": "Jagatud %1 kasutajaga · lõpeta jagamine"
   },
+  "agents.networkStopSharing": "Jagatud oma tailnetis · lõpeta jagamine",
   "agents.outOfCredits": "Krediit otsas",
   "agents.pasteCode": "Kui leht näitab lõpetamise asemel koodi, kleebi see siia.",
   "agents.placeholderCode": "Kood",

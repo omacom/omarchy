@@ -89,13 +89,11 @@
   "agents.networkPair": "Foydalanish uchun %1 bilan juftlang",
   "agents.networkRunning": "Ishlayapti",
   "agents.networkShare": "Tailnetingizda ulashish",
-  "agents.networkShareLabel": "Ulashish",
-  "agents.networkSharedLabel": "Ulashilgan",
-  "agents.networkStopSharing": "Tailnetingizda ulashilgan · ulashishni toʻxtatish",
-  "agents.networkUsers": {
-    "one": "%1 ta foydalanuvchi",
-    "other": "%1 ta foydalanuvchi"
+  "agents.networkSharedUsers": {
+    "one": "%1 foydalanuvchi bilan ulashilgan · ulashishni toʻxtatish",
+    "other": "%1 foydalanuvchi bilan ulashilgan · ulashishni toʻxtatish"
   },
+  "agents.networkStopSharing": "Tailnetingizda ulashilgan · ulashishni toʻxtatish",
   "agents.outOfCredits": "Kredit tugadi",
   "agents.pasteCode": "Agar sahifa yakunlanish oʻrniga kod koʻrsatsa, uni shu yerga joylashtiring.",
   "agents.placeholderCode": "Kod",

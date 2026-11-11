@@ -101,17 +101,15 @@
   "agents.networkPair": "إقران مع %1 لاستخدامه",
   "agents.networkRunning": "يعمل",
   "agents.networkShare": "المشاركة على tailnet",
-  "agents.networkShareLabel": "مشاركة",
-  "agents.networkSharedLabel": "مُشارك",
-  "agents.networkStopSharing": "مُشارك على tailnet · إيقاف المشاركة",
-  "agents.networkUsers": {
-    "few": "%1 مستخدمين",
-    "many": "%1 مستخدمًا",
-    "one": "مستخدم واحد",
-    "other": "%1 مستخدم",
-    "two": "مستخدمان",
-    "zero": "لا مستخدم"
+  "agents.networkSharedUsers": {
+    "few": "مُشارَك مع %1 مستخدمين · إيقاف المشاركة",
+    "many": "مُشارَك مع %1 مستخدمًا · إيقاف المشاركة",
+    "one": "مُشارَك مع مستخدم واحد · إيقاف المشاركة",
+    "other": "مُشارَك مع %1 مستخدم · إيقاف المشاركة",
+    "two": "مُشارَك مع مستخدمَين · إيقاف المشاركة",
+    "zero": "غير مُشارَك مع أي مستخدم · إيقاف المشاركة"
   },
+  "agents.networkStopSharing": "مُشارك على tailnet · إيقاف المشاركة",
   "agents.outOfCredits": "نفد الرصيد",
   "agents.pasteCode": "إذا أظهرت الصفحة رمزًا بدلًا من الإنهاء، الصقه هنا.",
   "agents.placeholderCode": "الرمز",
