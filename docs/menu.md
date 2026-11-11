@@ -178,6 +178,8 @@ renders under the label, filters with it, and comes back as
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
 
+An option may carry a fourth field, `glyph\tlabel\tsubtext\tsearch terms`, with the glyph and subtext left empty when it has neither. The search terms are never shown or returned: typing words from them finds the row, listed after the rows whose label or subtext say those words. The keybindings menu passes the command each bind runs, so typing an app's name finds the bind that opens it even when the label only says what the bind is for (`spotify` finds Music).
+
 
 Pass `-- --multiple` to `omarchy-menu-select` for a multi-select request. Repeat `--selected <value>` to preselect returned values (labels plus any subtext, without icons). Clicking or pressing Enter toggles an option without closing the menu; Apply returns a JSON array in option order, including `[]` when all choices are deselected. Cancellation still exits 1. Selections survive filtering.
 

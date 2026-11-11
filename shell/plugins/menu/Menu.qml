@@ -648,29 +648,21 @@ Item {
         action: "", provider: "", score: -1, section: ""
       })
     }
-    var query = root.filterText.trim().toLowerCase()
-    for (var i = 0; i < root.dmenuOptions.length; i++) {
-      // An option is "<label>", "<glyph>\t<label>", or
-      // "<glyph>\t<label>\t<subtext>". The glyph never comes back with the
-      // selection; the subtext renders under the label, filters alongside it,
-      // and returns with the selection as a stable key for same-named rows.
-      var parts = String(root.dmenuOptions[i] || "").split("\t")
-      var icon = parts.length > 1 ? parts.shift() : ""
-      var label = parts.shift() || ""
-      var detail = parts.join("\t")
-      if (query && label.toLowerCase().indexOf(query) < 0
-          && detail.toLowerCase().indexOf(query) < 0) continue
+    var matches = MenuModel.dmenuMatches(root.dmenuOptions, root.filterText)
+    for (var m = 0; m < matches.length; m++) {
+      var i = matches[m]
+      var option = MenuModel.dmenuOption(root.dmenuOptions[i])
       displayModel.append({
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
-        icon: root.dmenuMultiple ? (root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1 ? "✓" : "○") : icon,
+        icon: root.dmenuMultiple ? (root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1 ? "✓" : "○") : option.icon,
         iconFont: "",
         appIcon: "",
         appId: "",
-        label: label,
+        label: option.label,
         target: "",
-        detail: detail,
+        detail: option.detail,
         path: "",
         childCount: 0,
         action: "",
