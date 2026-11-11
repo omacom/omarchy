@@ -157,6 +157,13 @@ for (const raw of ['{', 'null', '[]', '{"models":[]}', '{"models":{"box/big":{"i
   parse(raw)
   assertDeepEqual(state.networkModels, survey.models, 'an invalid survey keeps the last good one: ' + raw)
 }
+const loaded = state.networkModels
+parse(JSON.stringify({ models: { ...survey.models, 'box/big': { ...survey.models['box/big'], last_seen_ms: 99 } } }))
+assert(state.networkModels === loaded, 'a survey that only moves last seen leaves the lines alone')
+parse(JSON.stringify({ models: { 'away/small': survey.models['away/small'] } }))
+assertDeepEqual(state.networkModels, { 'away/small': survey.models['away/small'] }, 'a model that stops being shared goes at the next survey')
+parse(JSON.stringify(survey))
+assertDeepEqual(state.networkModels, survey.models, 'a newly shared model appears at the next survey')
 assertEqual(state.canShare, false, 'a survey without can_share does not offer sharing')
 parse('{"models":{},"can_share":true}')
 assertDeepEqual(state.networkModels, {}, 'an empty survey clears the network lines')
