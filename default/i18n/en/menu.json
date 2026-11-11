@@ -86,6 +86,9 @@
   "appearance.background": {
     "label": "Background"
   },
+  "appearance.background-all": {
+    "label": "All Backgrounds"
+  },
   "appearance.font": {
     "label": "Font"
   },
