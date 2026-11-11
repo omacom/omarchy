@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Κοινή χρήση",
   "agents.networkSharedLabel": "Κοινόχρηστο",
   "agents.networkStopSharing": "Κοινόχρηστο στο tailnet σου · σταμάτα την κοινή χρήση",
-  "agents.networkStopped": "Σταματημένο",
   "agents.networkUsers": {
     "one": "%1 χρήστης",
     "other": "%1 χρήστες"

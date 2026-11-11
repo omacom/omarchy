@@ -103,7 +103,6 @@
   "agents.networkShareLabel": "Поділитися",
   "agents.networkSharedLabel": "Поширено",
   "agents.networkStopSharing": "Поширено у вашому tailnet · припинити поширення",
-  "agents.networkStopped": "Зупинено",
   "agents.networkUsers": {
     "few": "%1 користувачі",
     "many": "%1 користувачів",

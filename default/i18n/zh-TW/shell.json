@@ -94,7 +94,6 @@
   "agents.networkShareLabel": "分享",
   "agents.networkSharedLabel": "已分享",
   "agents.networkStopSharing": "已透過 tailnet 分享 · 停止分享",
-  "agents.networkStopped": "已停止",
   "agents.networkUsers": {
     "other": "%1 位使用者"
   },

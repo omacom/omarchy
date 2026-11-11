@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Del",
   "agents.networkSharedLabel": "Delt",
   "agents.networkStopSharing": "Delt på dit tailnet · stop deling",
-  "agents.networkStopped": "Stoppet",
   "agents.networkUsers": {
     "one": "%1 bruger",
     "other": "%1 brugere"

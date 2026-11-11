@@ -94,7 +94,6 @@
   "agents.networkShareLabel": "Chia sẻ",
   "agents.networkSharedLabel": "Đã chia sẻ",
   "agents.networkStopSharing": "Đã chia sẻ trên tailnet · dừng chia sẻ",
-  "agents.networkStopped": "Đã dừng",
   "agents.networkUsers": {
     "other": "%1 người dùng"
   },

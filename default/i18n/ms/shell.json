@@ -94,7 +94,6 @@
   "agents.networkShareLabel": "Kongsi",
   "agents.networkSharedLabel": "Dikongsi",
   "agents.networkStopSharing": "Dikongsi pada tailnet anda · berhenti berkongsi",
-  "agents.networkStopped": "Berhenti",
   "agents.networkUsers": {
     "other": "%1 pengguna"
   },

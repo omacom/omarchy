@@ -106,7 +106,6 @@
   "agents.networkShareLabel": "Comhroinn",
   "agents.networkSharedLabel": "Comhroinnte",
   "agents.networkStopSharing": "Comhroinnte ar do tailnet · stop de chomhroinnt",
-  "agents.networkStopped": "Stoptha",
   "agents.networkUsers": {
     "few": "%1 úsáideoir",
     "many": "%1 n-úsáideoir",

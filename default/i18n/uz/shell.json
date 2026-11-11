@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Ulashish",
   "agents.networkSharedLabel": "Ulashilgan",
   "agents.networkStopSharing": "Tailnetingizda ulashilgan · ulashishni toʻxtatish",
-  "agents.networkStopped": "Toʻxtatilgan",
   "agents.networkUsers": {
     "one": "%1 ta foydalanuvchi",
     "other": "%1 ta foydalanuvchi"

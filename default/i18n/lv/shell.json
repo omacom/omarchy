@@ -100,7 +100,6 @@
   "agents.networkShareLabel": "Kopīgot",
   "agents.networkSharedLabel": "Kopīgots",
   "agents.networkStopSharing": "Kopīgots savā tailnet tīklā · pārtraukt kopīgošanu",
-  "agents.networkStopped": "Apturēts",
   "agents.networkUsers": {
     "one": "%1 lietotājs",
     "other": "%1 lietotāji",

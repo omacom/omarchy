@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Freigeben",
   "agents.networkSharedLabel": "Freigegeben",
   "agents.networkStopSharing": "Im Tailnet freigegeben · Freigabe beenden",
-  "agents.networkStopped": "Gestoppt",
   "agents.networkUsers": {
     "one": "%1 Benutzer",
     "other": "%1 Benutzer"

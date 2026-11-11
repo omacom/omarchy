@@ -100,7 +100,6 @@
   "agents.networkShareLabel": "Comparteix",
   "agents.networkSharedLabel": "Compartit",
   "agents.networkStopSharing": "Compartit a la teva tailnet · deixa de compartir",
-  "agents.networkStopped": "Aturat",
   "agents.networkUsers": {
     "many": "%1 usuaris",
     "one": "%1 usuari",

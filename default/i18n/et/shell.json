@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Jaga",
   "agents.networkSharedLabel": "Jagatud",
   "agents.networkStopSharing": "Jagatud oma tailnetis · lõpeta jagamine",
-  "agents.networkStopped": "Peatatud",
   "agents.networkUsers": {
     "one": "%1 kasutaja",
     "other": "%1 kasutajat"

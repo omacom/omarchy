@@ -97,7 +97,6 @@
   "agents.networkShareLabel": "Delen",
   "agents.networkSharedLabel": "Gedeeld",
   "agents.networkStopSharing": "Gedeeld op je tailnet · stoppen met delen",
-  "agents.networkStopped": "Gestopt",
   "agents.networkUsers": {
     "one": "%1 gebruiker",
     "other": "%1 gebruikers"

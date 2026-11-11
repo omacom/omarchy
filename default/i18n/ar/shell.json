@@ -109,7 +109,6 @@
   "agents.networkShareLabel": "مشاركة",
   "agents.networkSharedLabel": "مُشارك",
   "agents.networkStopSharing": "مُشارك على tailnet · إيقاف المشاركة",
-  "agents.networkStopped": "متوقف",
   "agents.networkUsers": {
     "few": "%1 مستخدمين",
     "many": "%1 مستخدمًا",

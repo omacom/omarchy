@@ -100,7 +100,6 @@
   "agents.networkShareLabel": "Bendrinti",
   "agents.networkSharedLabel": "Bendrinamas",
   "agents.networkStopSharing": "Bendrinamas jūsų tailnet · nebebendrinti",
-  "agents.networkStopped": "Sustabdytas",
   "agents.networkUsers": {
     "few": "%1 naudotojai",
     "one": "%1 naudotojas",

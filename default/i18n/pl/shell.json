@@ -103,7 +103,6 @@
   "agents.networkShareLabel": "Udostępnij",
   "agents.networkSharedLabel": "Udostępnione",
   "agents.networkStopSharing": "Udostępnione w twoim tailnecie · przestań udostępniać",
-  "agents.networkStopped": "Zatrzymane",
   "agents.networkUsers": {
     "few": "%1 użytkownicy",
     "many": "%1 użytkowników",
