@@ -28,5 +28,9 @@ require("hypr.autostart")
 -- Toggle config flags dynamically.
 require("default.hypr.toggles")
 
+-- Keep a maximized window maximized when another window opens on its floating
+-- workspace, instead of bringing it back to its own size.
+-- omarchy_unmaximize_on_open = false
+
 -- Add any other personal Hyprland configuration below.
 -- o.window("qemu", { workspace = "5" })

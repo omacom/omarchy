@@ -540,6 +540,20 @@ assert(tiled_max.fullscreen == 1, "a maximized window on a tiled workspace was u
 fi
 pass "a new window on a floating workspace brings a maximized one back to size"
 
+# Setting omarchy_unmaximize_on_open = false keeps the maximized window as it is.
+printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
+if ! run_lua '
+omarchy_unmaximize_on_open = false
+require("default.hypr.workspace-layouts")
+local maximized = window("0x1", 1, { floating = true, fullscreen = 1 })
+local opening = window("0x3", 1, { floating = true })
+state().subscriptions["window.open"][1](opening)
+assert(maximized.fullscreen == 1, "a maximized window was unmaximized although omarchy_unmaximize_on_open is false")
+'; then
+  fail "omarchy_unmaximize_on_open = false keeps a maximized window maximized"
+fi
+pass "omarchy_unmaximize_on_open = false keeps a maximized window maximized"
+
 # Apps with float rules of their own keep them on a floating workspace: the
 # open rule passes them over, so they open at their own size and the mode never
 # claims them.

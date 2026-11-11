@@ -284,7 +284,13 @@ end
 
 -- A maximized window has a floating workspace to itself until another one
 -- opens there, which brings it back to its own size so the two can share it.
+-- Setting omarchy_unmaximize_on_open = false in hyprland.lua keeps it maximized,
+-- with the new window opening over it. Read here, so it can be set anywhere.
 local function unmaximize_others(window)
+  if _G.omarchy_unmaximize_on_open == false then
+    return
+  end
+
   local id = window.workspace and window.workspace.id
   if not floating_workspace(id) then
     return
