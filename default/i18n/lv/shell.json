@@ -65,7 +65,6 @@
   "agents.localRemovingMeter": "Noņem",
   "agents.localShowLogsTip": "Atvērt šī modeļa žurnālus terminālī",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Palaist",
   "agents.localStop": "Apturēt",
   "agents.localStoppingMeter": "Aptur",

@@ -63,7 +63,6 @@
   "agents.localRemovingMeter": "Eltávolítás",
   "agents.localShowLogsTip": "A modell naplóinak megnyitása terminálban",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Indítás",
   "agents.localStop": "Leállítás",
   "agents.localStoppingMeter": "Leállítás",

@@ -67,7 +67,6 @@
   "agents.localRemovingMeter": "Usuwanie",
   "agents.localShowLogsTip": "Otwórz logi tego modelu w terminalu",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Uruchom",
   "agents.localStop": "Zatrzymaj",
   "agents.localStoppingMeter": "Zatrzymywanie",

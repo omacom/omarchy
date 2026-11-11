@@ -61,7 +61,6 @@
   "agents.localRemovingMeter": "กำลังลบ",
   "agents.localShowLogsTip": "เปิดล็อกของโมเดลนี้ในเทอร์มินัล",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "เริ่ม",
   "agents.localStop": "หยุด",
   "agents.localStoppingMeter": "กำลังหยุด",

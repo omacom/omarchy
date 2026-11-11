@@ -63,7 +63,6 @@
   "agents.localRemovingMeter": "ඉවත් කරමින්",
   "agents.localShowLogsTip": "මෙම මාදිලියේ ලොග් ටර්මිනලයක විවෘත කරන්න",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "ආරම්භ කරන්න",
   "agents.localStop": "නවත්වන්න",
   "agents.localStoppingMeter": "නවත්වමින්",

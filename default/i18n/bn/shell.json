@@ -63,7 +63,6 @@
   "agents.localRemovingMeter": "সরানো হচ্ছে",
   "agents.localShowLogsTip": "টার্মিনালে এই মডেলের লগ খুলুন",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "চালু করুন",
   "agents.localStop": "বন্ধ করুন",
   "agents.localStoppingMeter": "বন্ধ হচ্ছে",

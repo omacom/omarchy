@@ -61,7 +61,6 @@
   "agents.localRemovingMeter": "Đang xóa",
   "agents.localShowLogsTip": "Mở nhật ký của mô hình này trong terminal",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Khởi động",
   "agents.localStop": "Dừng",
   "agents.localStoppingMeter": "Đang dừng",

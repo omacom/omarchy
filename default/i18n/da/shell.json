@@ -63,7 +63,6 @@
   "agents.localRemovingMeter": "Fjerner",
   "agents.localShowLogsTip": "Åbn denne models logfiler i en terminal",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Start",
   "agents.localStop": "Stop",
   "agents.localStoppingMeter": "Stopper",

@@ -65,7 +65,6 @@
   "agents.localRemovingMeter": "Eliminant",
   "agents.localShowLogsTip": "Obre els registres d'aquest model en un terminal",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Inicia",
   "agents.localStop": "Atura",
   "agents.localStoppingMeter": "Aturant",

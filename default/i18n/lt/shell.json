@@ -65,7 +65,6 @@
   "agents.localRemovingMeter": "Šalinama",
   "agents.localShowLogsTip": "Atidaryti šio modelio žurnalus terminale",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Paleisti",
   "agents.localStop": "Sustabdyti",
   "agents.localStoppingMeter": "Stabdoma",

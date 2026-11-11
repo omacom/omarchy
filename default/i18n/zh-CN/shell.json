@@ -61,7 +61,6 @@
   "agents.localRemovingMeter": "移除中",
   "agents.localShowLogsTip": "在终端中打开此模型的日志",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "启动",
   "agents.localStop": "停止",
   "agents.localStoppingMeter": "停止中",

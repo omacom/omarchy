@@ -61,7 +61,6 @@
   "agents.localRemovingMeter": "Menghapus",
   "agents.localShowLogsTip": "Buka log model ini di terminal",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Mulai",
   "agents.localStop": "Hentikan",
   "agents.localStoppingMeter": "Menghentikan",
