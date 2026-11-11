@@ -101,6 +101,11 @@
   "agents.networkSharedLabel": "Bendrinamas",
   "agents.networkStopSharing": "Bendrinamas jūsų tailnet · nebebendrinti",
   "agents.networkStopped": "Sustabdytas",
+  "agents.networkUsers": {
+    "few": "%1 naudotojai",
+    "one": "%1 naudotojas",
+    "other": "%1 naudotojų"
+  },
   "agents.outOfCredits": "Baigėsi kreditai",
   "agents.pasteCode": "Jei puslapis vietoj užbaigimo rodo kodą, įklijuokite jį čia.",
   "agents.placeholderCode": "Kodas",

@@ -104,6 +104,12 @@
   "agents.networkSharedLabel": "Deljeno",
   "agents.networkStopSharing": "Deljeno v tailnetu · prekini deljenje",
   "agents.networkStopped": "Ustavljeno",
+  "agents.networkUsers": {
+    "few": "%1 uporabniki",
+    "one": "%1 uporabnik",
+    "other": "%1 uporabnikov",
+    "two": "%1 uporabnika"
+  },
   "agents.outOfCredits": "Zmanjkalo kreditov",
   "agents.pasteCode": "Če stran pokaže kodo, namesto da bi končala, jo prilepite tukaj.",
   "agents.placeholderCode": "Koda",

@@ -101,6 +101,11 @@
   "agents.networkSharedLabel": "Kopīgots",
   "agents.networkStopSharing": "Kopīgots savā tailnet tīklā · pārtraukt kopīgošanu",
   "agents.networkStopped": "Apturēts",
+  "agents.networkUsers": {
+    "one": "%1 lietotājs",
+    "other": "%1 lietotāji",
+    "zero": "%1 lietotāju"
+  },
   "agents.outOfCredits": "Nav kredītu",
   "agents.pasteCode": "Ja lapa pabeigšanas vietā parāda kodu, ielīmē to šeit.",
   "agents.placeholderCode": "Kods",

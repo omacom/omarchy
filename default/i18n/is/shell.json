@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "Deilt",
   "agents.networkStopSharing": "Deilt á tailnetinu þínu · hætta að deila",
   "agents.networkStopped": "Stöðvað",
+  "agents.networkUsers": {
+    "one": "%1 notandi",
+    "other": "%1 notendur"
+  },
   "agents.outOfCredits": "Inneign búin",
   "agents.pasteCode": "Ef síðan sýnir kóða í stað þess að ljúka, límdu hann hér.",
   "agents.placeholderCode": "Kóði",

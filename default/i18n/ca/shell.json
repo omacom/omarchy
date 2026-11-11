@@ -101,6 +101,11 @@
   "agents.networkSharedLabel": "Compartit",
   "agents.networkStopSharing": "Compartit a la teva tailnet · deixa de compartir",
   "agents.networkStopped": "Aturat",
+  "agents.networkUsers": {
+    "many": "%1 usuaris",
+    "one": "%1 usuari",
+    "other": "%1 usuaris"
+  },
   "agents.outOfCredits": "Sense crèdits",
   "agents.pasteCode": "Si la pàgina mostra un codi en comptes d'acabar, enganxa'l aquí.",
   "agents.placeholderCode": "Codi",

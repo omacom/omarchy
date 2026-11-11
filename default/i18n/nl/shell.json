@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "Gedeeld",
   "agents.networkStopSharing": "Gedeeld op je tailnet · stoppen met delen",
   "agents.networkStopped": "Gestopt",
+  "agents.networkUsers": {
+    "one": "%1 gebruiker",
+    "other": "%1 gebruikers"
+  },
   "agents.outOfCredits": "Tegoed op",
   "agents.pasteCode": "Als de pagina een code toont in plaats van af te ronden, plak die hier.",
   "agents.placeholderCode": "Code",

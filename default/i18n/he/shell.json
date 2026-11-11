@@ -101,6 +101,11 @@
   "agents.networkSharedLabel": "משותף",
   "agents.networkStopSharing": "משותף ב-tailnet שלך · הפסקת שיתוף",
   "agents.networkStopped": "מופסק",
+  "agents.networkUsers": {
+    "one": "משתמש אחד",
+    "other": "%1 משתמשים",
+    "two": "שני משתמשים"
+  },
   "agents.outOfCredits": "אזלו הקרדיטים",
   "agents.pasteCode": "אם הדף מציג קוד במקום לסיים, הדביקו אותו כאן.",
   "agents.placeholderCode": "קוד",

@@ -101,6 +101,11 @@
   "agents.networkSharedLabel": "Zdieľané",
   "agents.networkStopSharing": "Zdieľané v tailnete · zastaviť zdieľanie",
   "agents.networkStopped": "Zastavené",
+  "agents.networkUsers": {
+    "few": "%1 používatelia",
+    "one": "%1 používateľ",
+    "other": "%1 používateľov"
+  },
   "agents.outOfCredits": "Bez kreditov",
   "agents.pasteCode": "Ak stránka namiesto dokončenia zobrazí kód, vložte ho sem.",
   "agents.placeholderCode": "Kód",

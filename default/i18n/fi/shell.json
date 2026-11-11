@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "Jaettu",
   "agents.networkStopSharing": "Jaettu tailnetissäsi · lopeta jakaminen",
   "agents.networkStopped": "Pysäytetty",
+  "agents.networkUsers": {
+    "one": "%1 käyttäjä",
+    "other": "%1 käyttäjää"
+  },
   "agents.outOfCredits": "Krediitit loppu",
   "agents.pasteCode": "Jos sivu näyttää koodin valmistumisen sijaan, liitä se tähän.",
   "agents.placeholderCode": "Koodi",

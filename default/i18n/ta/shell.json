@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "பகிரப்பட்டது",
   "agents.networkStopSharing": "உங்கள் tailnet இல் பகிரப்பட்டது · பகிர்வை நிறுத்து",
   "agents.networkStopped": "நிறுத்தப்பட்டது",
+  "agents.networkUsers": {
+    "one": "%1 பயனர்",
+    "other": "%1 பயனர்கள்"
+  },
   "agents.outOfCredits": "கிரெடிட் தீர்ந்தது",
   "agents.pasteCode": "பக்கம் முடிவதற்குப் பதிலாகக் குறியீட்டைக் காட்டினால், அதை இங்கே ஒட்டவும்.",
   "agents.placeholderCode": "குறியீடு",

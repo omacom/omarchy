@@ -101,6 +101,11 @@
   "agents.networkSharedLabel": "Podijeljeno",
   "agents.networkStopSharing": "Dijeljeno na tailnetu · prestani dijeliti",
   "agents.networkStopped": "Zaustavljeno",
+  "agents.networkUsers": {
+    "few": "%1 korisnika",
+    "one": "%1 korisnik",
+    "other": "%1 korisnika"
+  },
   "agents.outOfCredits": "Nema kredita",
   "agents.pasteCode": "Ako stranica prikaže kod umjesto da završi, zalijepite ga ovdje.",
   "agents.placeholderCode": "Kod",

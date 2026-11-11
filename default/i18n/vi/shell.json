@@ -95,6 +95,9 @@
   "agents.networkSharedLabel": "Đã chia sẻ",
   "agents.networkStopSharing": "Đã chia sẻ trên tailnet · dừng chia sẻ",
   "agents.networkStopped": "Đã dừng",
+  "agents.networkUsers": {
+    "other": "%1 người dùng"
+  },
   "agents.outOfCredits": "Hết tín dụng",
   "agents.pasteCode": "Nếu trang hiện mã thay vì hoàn tất, hãy dán mã vào đây.",
   "agents.placeholderCode": "Mã",

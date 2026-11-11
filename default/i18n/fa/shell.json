@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "اشتراکی",
   "agents.networkStopSharing": "در tailnet به اشتراک گذاشته شده · توقف اشتراک‌گذاری",
   "agents.networkStopped": "متوقف‌شده",
+  "agents.networkUsers": {
+    "one": "%1 کاربر",
+    "other": "%1 کاربر"
+  },
   "agents.outOfCredits": "اعتبار تمام شد",
   "agents.pasteCode": "اگر صفحه به‌جای اتمام کد نشان می‌دهد، آن را اینجا بچسبانید.",
   "agents.placeholderCode": "کد",

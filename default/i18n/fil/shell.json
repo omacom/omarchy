@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "Naibahagi",
   "agents.networkStopSharing": "Naibahagi sa iyong tailnet · itigil ang pagbabahagi",
   "agents.networkStopped": "Nakahinto",
+  "agents.networkUsers": {
+    "one": "%1 gumagamit",
+    "other": "%1 gumagamit"
+  },
   "agents.outOfCredits": "Wala nang credits",
   "agents.pasteCode": "Kung may ipapakitang code ang page sa halip na matapos, i-paste ito rito.",
   "agents.placeholderCode": "Code",

@@ -101,6 +101,11 @@
   "agents.networkSharedLabel": "Partilhado",
   "agents.networkStopSharing": "Partilhado na tua tailnet · deixar de partilhar",
   "agents.networkStopped": "Parado",
+  "agents.networkUsers": {
+    "many": "%1 utilizadores",
+    "one": "%1 utilizador",
+    "other": "%1 utilizadores"
+  },
   "agents.outOfCredits": "Sem créditos",
   "agents.pasteCode": "Se a página mostrar um código em vez de concluir, cola-o aqui.",
   "agents.placeholderCode": "Código",

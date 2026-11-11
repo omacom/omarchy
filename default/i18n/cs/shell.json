@@ -101,6 +101,11 @@
   "agents.networkSharedLabel": "Sdíleno",
   "agents.networkStopSharing": "Sdíleno v tailnetu · přestat sdílet",
   "agents.networkStopped": "Zastaveno",
+  "agents.networkUsers": {
+    "few": "%1 uživatelé",
+    "one": "%1 uživatel",
+    "other": "%1 uživatelů"
+  },
   "agents.outOfCredits": "Kredity vyčerpány",
   "agents.pasteCode": "Pokud stránka místo dokončení ukáže kód, vložte ho sem.",
   "agents.placeholderCode": "Kód",

@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "Freigegeben",
   "agents.networkStopSharing": "Im Tailnet freigegeben · Freigabe beenden",
   "agents.networkStopped": "Gestoppt",
+  "agents.networkUsers": {
+    "one": "%1 Benutzer",
+    "other": "%1 Benutzer"
+  },
   "agents.outOfCredits": "Keine Credits mehr",
   "agents.pasteCode": "Falls die Seite einen Code zeigt statt abzuschließen, füge ihn hier ein.",
   "agents.placeholderCode": "Code",

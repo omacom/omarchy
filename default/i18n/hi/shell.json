@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "साझा",
   "agents.networkStopSharing": "आपके tailnet पर साझा किया गया · साझा करना बंद करें",
   "agents.networkStopped": "रुका हुआ",
+  "agents.networkUsers": {
+    "one": "%1 उपयोगकर्ता",
+    "other": "%1 उपयोगकर्ता"
+  },
   "agents.outOfCredits": "क्रेडिट समाप्त",
   "agents.pasteCode": "यदि पृष्ठ पूरा होने के बजाय कोड दिखाए, तो उसे यहाँ पेस्ट करें।",
   "agents.placeholderCode": "कोड",

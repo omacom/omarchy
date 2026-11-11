@@ -101,6 +101,11 @@
   "agents.networkSharedLabel": "Partajat",
   "agents.networkStopSharing": "Partajat în tailnet-ul tău · oprește partajarea",
   "agents.networkStopped": "Oprit",
+  "agents.networkUsers": {
+    "few": "%1 utilizatori",
+    "one": "%1 utilizator",
+    "other": "%1 de utilizatori"
+  },
   "agents.outOfCredits": "Credite epuizate",
   "agents.pasteCode": "Dacă pagina arată un cod în loc să finalizeze, lipește-l aici.",
   "agents.placeholderCode": "Cod",

@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "শেয়ার করা",
   "agents.networkStopSharing": "আপনার tailnet-এ শেয়ার করা আছে · শেয়ার বন্ধ করুন",
   "agents.networkStopped": "বন্ধ",
+  "agents.networkUsers": {
+    "one": "%1 জন ব্যবহারকারী",
+    "other": "%1 জন ব্যবহারকারী"
+  },
   "agents.outOfCredits": "ক্রেডিট শেষ",
   "agents.pasteCode": "পেজে শেষ হওয়ার বদলে কোড দেখালে এখানে পেস্ট করুন।",
   "agents.placeholderCode": "কোড",

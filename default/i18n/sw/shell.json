@@ -98,6 +98,10 @@
   "agents.networkSharedLabel": "Imeshirikishwa",
   "agents.networkStopSharing": "Imeshirikishwa kwenye tailnet yako · acha kushirikisha",
   "agents.networkStopped": "Imesimama",
+  "agents.networkUsers": {
+    "one": "%1 mtumiaji",
+    "other": "%1 watumiaji"
+  },
   "agents.outOfCredits": "Salio limeisha",
   "agents.pasteCode": "Ikiwa ukurasa unaonyesha msimbo badala ya kukamilisha, ubandike hapa.",
   "agents.placeholderCode": "Msimbo",

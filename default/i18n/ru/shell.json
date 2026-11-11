@@ -104,6 +104,12 @@
   "agents.networkSharedLabel": "Общий доступ",
   "agents.networkStopSharing": "Доступ открыт в вашем tailnet · закрыть доступ",
   "agents.networkStopped": "Остановлено",
+  "agents.networkUsers": {
+    "few": "%1 пользователя",
+    "many": "%1 пользователей",
+    "one": "%1 пользователь",
+    "other": "%1 пользователя"
+  },
   "agents.outOfCredits": "Кредиты закончились",
   "agents.pasteCode": "Если страница показывает код вместо завершения, вставьте его сюда.",
   "agents.placeholderCode": "Код",
