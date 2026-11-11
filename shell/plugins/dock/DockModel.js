@@ -94,7 +94,17 @@ function standInKey(key, categories, pinned) {
 // that are not pinned follow in the order their first window appeared. Each
 // window is { key, hasEntry, workspaceId, ... } where key is the desktop id of
 // the entry that claims it.
-function buildItems(pinned, windows) {
+function buildItems(pinned, windows, instances) {
+  if (instances) {
+    var separate = (pinned || []).filter(Boolean).map(function(key) {
+      return { key: key, appKey: key, pinned: true, windows: [] }
+    })
+    for (var w = 0; w < (windows || []).length; w++) {
+      var win = windows[w]
+      if (isDockWindow(win)) separate.push({ key: win.key + "::window::" + win.address, appKey: win.key, pinned: false, windows: [win] })
+    }
+    return separate
+  }
   var items = []
   var byKey = {}
 
@@ -122,7 +132,7 @@ function buildItems(pinned, windows) {
 // session: an app keeps its slot while it stays in the dock, and an app that
 // joins goes at the end. Items the order does not know yet follow in the order
 // buildItems gave them.
-function orderItems(items, order) {
+function orderItems(items, order, instances) {
   var byKey = {}
   for (var i = 0; i < (items || []).length; i++) byKey[items[i].key] = items[i]
   var result = []
@@ -136,6 +146,24 @@ function orderItems(items, order) {
   }
   for (var k = 0; k < (items || []).length; k++) {
     if (!placed[items[k].key]) result.push(items[k])
+  }
+  if (instances) {
+    var launchers = result.filter(function(item) { return item.windows.length === 0 })
+    var windows = result.filter(function(item) { return item.windows.length > 0 })
+    // A minimized window has no workspace of its own. Keep it in its current
+    // slot; only windows assigned to regular workspaces drive insertion.
+    for (var w = 1; w < windows.length; w++) {
+      var moving = windows[w].windows[0]
+      if (moving.minimized) continue
+      for (var before = 0; before < w; before++) {
+        var other = windows[before].windows[0]
+        if (!other.minimized && other.workspaceId > moving.workspaceId) {
+          windows.splice(before, 0, windows.splice(w, 1)[0])
+          break
+        }
+      }
+    }
+    return launchers.concat(windows)
   }
   return result
 }

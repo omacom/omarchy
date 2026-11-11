@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
@@ -23,7 +24,7 @@ PanelWindow {
   readonly property bool vertical: dock ? dock.vertical : false
   readonly property var monitor: Hyprland.monitorFor(screen)
   readonly property var workspace: monitor ? monitor.activeWorkspace : null
-  readonly property int workspaceId: workspace ? workspace.id : -1
+  readonly property int workspaceId: dock ? dock.workspaceNumber(workspace) : -1
   // The most fullscreen window on the workspace, as Hyprland counts it: 1 is
   // maximized, and 2 or 3 fullscreen.
   readonly property int fullscreenMode: {
@@ -31,16 +32,14 @@ PanelWindow {
     var toplevels = Hyprland.toplevels.values
     for (var i = 0; i < toplevels.length; i++) {
       var toplevel = toplevels[i]
-      if (!toplevel.workspace || toplevel.workspace.id !== workspaceId) continue
+      if (!toplevel.workspace || window.dock.workspaceNumber(toplevel.workspace) !== workspaceId) continue
       var ipc = toplevel.lastIpcObject
       mode = Math.max(mode, ipc && ipc.fullscreen ? ipc.fullscreen : 0)
     }
     return mode
   }
   readonly property bool shown: !!dock && dock.isFloating(workspaceId) && fullscreenMode < 2
-  // With auto-hide on, the dock waits off screen until the pointer reaches its
-  // edge, and stays while the pointer, a menu, or a drag still needs it. A
-  // maximized window hides the dock the same way, so it can still be called up.
+  // Fullscreen hides the dock; maximized windows reveal it at the screen edge.
   readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1)
   property bool revealed: false
   readonly property bool menuOpen: menuItem !== null || settingsMenu
@@ -55,6 +54,7 @@ PanelWindow {
   readonly property int slotSize: iconSize + iconInset * 2
   // An app that is starting pulses down to this.
   readonly property real pulseOpacity: 0.7
+  readonly property real groupGap: Style.space(24)
   // Room inward of the dock for its menus: the tallest, the apps button's,
   // has five rows.
   readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
@@ -122,10 +122,16 @@ PanelWindow {
 
   // The slot a point along the dock falls before, counting from the first app.
   function slotIndexAt(point) {
-    var along = window.vertical ? point.y : point.x
-    var first = window.slotSize
-    var count = window.dock ? window.dock.itemModel.count : 0
-    return Math.max(0, Math.min(count, Math.round((along - first) / window.slotSize)))
+    var along = (window.vertical ? point.y : point.x)
+    var count = appRepeater.count
+    for (var i = 0; i < count; i++) {
+      var slot = appRepeater.itemAt(i)
+      if (!slot) continue
+      var start = (window.vertical ? slot.y : slot.x) + slot.sectionGap
+      var size = window.vertical ? slot.height : slot.width
+      if (along < start + size / 2) return i
+    }
+    return count
   }
   property var menuItem: null
   property Item menuSlot: null
@@ -208,6 +214,7 @@ PanelWindow {
   implicitWidth: window.vertical ? window.gap + window.slotSize + window.popupRoom : 0
   implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + window.popupRoom
 
+
   mask: Region {
     item: window.contentShown ? body : null
 
@@ -260,8 +267,9 @@ PanelWindow {
     LayoutMirroring.enabled: false
     LayoutMirroring.childrenInherit: true
 
-    width: slots.implicitWidth
-    height: slots.implicitHeight
+    readonly property bool hasWindowGroup: !!window.dock && window.dock.instances && window.dock.items.some(function(item) { return item.windows.length > 0 })
+    width: slots.implicitWidth + (!window.vertical && hasWindowGroup ? window.groupGap : 0)
+    height: slots.implicitHeight + (window.vertical && hasWindowGroup ? window.groupGap : 0)
     // How far the dock is tucked past its edge. Auto-hide slides it, but only
     // while the dock is on screen: arriving on a floating workspace shows it
     // where it belongs at once.
@@ -280,15 +288,19 @@ PanelWindow {
 
     x: window.position === "left" ? window.gap - tuck
       : window.position === "right" ? window.width - width - window.gap + tuck
-      : Math.round((window.width - width) / 2)
+      : (window.width - width) / 2
     y: window.position === "top" ? window.gap - tuck
       : window.position === "bottom" ? window.height - height - window.gap + tuck
-      : Math.round((window.height - height) / 2)
+      : (window.height - height) / 2
     // Switching between tiled and floating workspaces shows and hides the dock
     // at once, with nothing to watch in between. Hidden by opacity rather than
     // visibility, so the icons keep their textures and are drawn on the first
     // frame back instead of being uploaded again.
     opacity: window.shown ? 1 : 0
+
+
+
+
 
     HoverHandler {
       id: bodyHover
@@ -303,18 +315,57 @@ PanelWindow {
 
     Grid {
       id: slots
-      anchors.centerIn: parent
+      x: 0
+      y: 0
       columns: window.vertical ? 1 : appRepeater.count + 1
+      move: Transition {
+        enabled: !window.dragging && window.animateShifts
+        NumberAnimation {
+          properties: "x,y"
+          duration: Style.duration(250)
+          easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut
+        }
+      }
 
-      AppsSlot {}
+      AppsSlot { id: launcherSlot }
 
       Repeater {
         id: appRepeater
         model: window.dock ? window.dock.itemModel : null
 
-        delegate: AppSlot {}
+        delegate: Item {
+          id: slotContainer
+          required property int index
+          required property string key
+          readonly property var entry: window.dock ? window.dock.itemFor(key) : null
+          // Keep every moving slot the same size. The separator gap belongs
+          // to the whole window group, so it cannot stretch a moving group.
+          readonly property int sectionGap: (window.dock && window.dock.instances) && entry && entry.windows.length > 0 ? window.groupGap : 0
+          width: window.slotSize
+          height: window.slotSize
+          AppSlot {
+            index: slotContainer.index
+            key: slotContainer.key
+            x: window.vertical ? 0 : slotContainer.sectionGap
+            y: window.vertical ? slotContainer.sectionGap : 0
+          }
+        }
       }
     }
+  }
+
+  Rectangle {
+    readonly property int launcherCount: window.dock
+      ? window.dock.items.filter(function(item) { return item.windows.length === 0 }).length : 0
+    readonly property real boundary: (launcherCount + 1) * window.slotSize + window.groupGap / 2
+    visible: (window.dock && window.dock.instances) && window.contentShown && launcherCount > 0 && appRepeater.count > launcherCount
+    width: Style.space(5)
+    height: width
+    radius: width / 2
+    color: Commons.Color.foreground
+    opacity: 0.25 // 75% transparency
+    x: body.x + (window.vertical ? (body.width - width) / 2 : boundary - width / 2)
+    y: body.y + (window.vertical ? boundary - height / 2 : (body.height - height) / 2)
   }
 
   component Slot: Item {
@@ -407,10 +458,20 @@ PanelWindow {
     required property string key
     readonly property var modelData: window.dock ? window.dock.itemFor(key) : null
     readonly property bool launching: !!window.dock && window.dock.isLaunching(key)
+    property real pulse: 1
     readonly property bool lifted: window.dragIndex === index
     property point pressPoint
     property bool dragged: false
-    property real pulse: 1
+    readonly property int windowCount: modelData ? modelData.windows.length : 0
+    readonly property bool minimized: !!window.dock && window.dock.instances
+      && windowCount === 1 && modelData.windows[0].minimized
+    readonly property bool active: !minimized && !!modelData && modelData.windows.some(function(win) { return !!win.toplevel && win.toplevel.activated })
+    readonly property int otherWorkspace: {
+      if (!modelData || !modelData.windows.length) return -1
+      var win = modelData.windows[0]
+      var workspace = minimized ? win.sortWorkspaceId : win.workspaceId
+      return workspace > 0 ? workspace : -1
+    }
 
     // Slots between where the dragged app was and where it would land step
     // aside to make room; the dragged one follows the pointer.
@@ -447,6 +508,10 @@ PanelWindow {
       if (!(appSlot.mouse.pressedButtons & Qt.LeftButton)) return
       var point = appSlot.bodyPoint(event)
       var delta = window.vertical ? point.y - appSlot.pressPoint.y : point.x - appSlot.pressPoint.x
+      if (window.dock.instances && appSlot.windowCount > 0) {
+        if (Math.hypot(point.x - appSlot.pressPoint.x, point.y - appSlot.pressPoint.y) > Style.space(4)) appSlot.dragged = true
+        return
+      }
       // A press that wanders is a drag in the making, not a click.
       if (Math.hypot(point.x - appSlot.pressPoint.x, point.y - appSlot.pressPoint.y) > Style.space(4)) appSlot.dragged = true
       if (!window.dragging) {
@@ -460,7 +525,7 @@ PanelWindow {
       }
       if (!appSlot.lifted) return
       window.dragOffset = delta
-      window.dropIndex = DockModel.dropIndex(appSlot.index, delta, window.slotSize, appRepeater.count)
+      window.dropIndex = DockModel.dropIndex(appSlot.index, delta, window.slotSize, window.dock.instances ? window.dock.items.filter(function(item) { return item.windows.length === 0 }).length : appRepeater.count)
     }
 
     mouse.onReleased: function(event) {
@@ -482,22 +547,38 @@ PanelWindow {
         return
       }
       if (event.button === Qt.RightButton) {
-        window.openMenu(appSlot.modelData, appSlot)
+        window.openMenu(appSlot.modelData, appSlot, event.x, event.y)
         return
       }
       window.closeMenu()
-      if (event.button === Qt.MiddleButton) window.dock.launch(appSlot.modelData)
-      else window.dock.activate(appSlot.modelData)
+      if (event.button === Qt.MiddleButton) {
+        window.dock.launch(appSlot.modelData)
+      }
+      else {
+        window.dock.activate(appSlot.modelData, window.workspaceId)
+      }
     }
 
     // Apps are drawn in full, running or not, and one that is starting pulses.
     AppIcon {
-      x: window.iconInset
+      id: appIcon
+      x: (appSlot.width - width) / 2
       y: window.iconInset
       width: window.iconSize
       height: window.iconSize
       source: window.dock && appSlot.modelData ? window.dock.iconFor(appSlot.modelData) : ""
       opacity: appSlot.launching ? appSlot.pulse : 1
+      layer.enabled: !!window.dock && window.dock.instances
+      // Keep the grayscale effect sharp when the icon grows on hover.
+      layer.textureSize: Qt.size(256, 256)
+      layer.smooth: true
+      layer.effect: MultiEffect {
+        saturation: appSlot.minimized ? -1 : 0
+        Behavior on saturation {
+          enabled: window.shown
+          NumberAnimation { duration: Style.duration(180); easing.type: Easing.OutCubic }
+        }
+      }
       transform: Translate {
         x: window.vertical ? 0 : appSlot.displayedShift
         y: window.vertical ? appSlot.displayedShift : 0
@@ -505,11 +586,9 @@ PanelWindow {
       scale: appSlot.lifted || appSlot.hovered ? 1.15 : 1
       transformOrigin: window.popOrigin
 
-      Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
+      Behavior on scale { enabled: window.shown; NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
     }
 
-    // With animations off it holds still rather than spinning through
-    // zero-length steps.
     SequentialAnimation {
       running: appSlot.launching && !Style.reduceMotion
       loops: Animation.Infinite
@@ -518,6 +597,43 @@ PanelWindow {
       NumberAnimation { target: appSlot; property: "pulse"; from: 1; to: window.pulseOpacity; duration: Style.duration(500); easing.type: Easing.InOutSine }
       NumberAnimation { target: appSlot; property: "pulse"; to: 1; duration: Style.duration(500); easing.type: Easing.InOutSine }
     }
+
+    Item {
+      // Badge shares the icon's geometry and animated transform.
+      visible: (window.dock && window.dock.instances) && appSlot.otherWorkspace > 0 && window.contentShown
+      x: appIcon.x
+      y: appIcon.y
+      width: appIcon.width
+      height: appIcon.height
+      scale: appIcon.scale
+      transformOrigin: window.popOrigin
+      z: 1
+      transform: Translate {
+        x: window.vertical ? 0 : appSlot.displayedShift
+        y: window.vertical ? appSlot.displayedShift : 0
+      }
+      Rectangle {
+        anchors.left: parent.left
+        anchors.top: parent.top
+        width: workspaceText.implicitWidth + Style.space(7)
+        height: workspaceText.implicitHeight + Style.space(3)
+        radius: Math.min(Style.cornerRadius, Style.spacing.sm)
+        color: Qt.rgba(Commons.Color.background.r, Commons.Color.background.g, Commons.Color.background.b, 0.92)
+        border.width: Math.max(1, Style.space(1))
+        border.color: Qt.rgba(Commons.Color.foreground.r, Commons.Color.foreground.g, Commons.Color.foreground.b, 0.2)
+        Text {
+          id: workspaceText
+          anchors.centerIn: parent
+          text: String(appSlot.otherWorkspace)
+          textFormat: Text.PlainText
+          color: Commons.Color.foreground
+          font.family: Style.font.family
+          font.pixelSize: Style.font.bodySmall
+          font.bold: true
+        }
+      }
+    }
+
   }
 
   // A theme switch redraws Omarchy's app icons. The icon on screen stays until
@@ -632,6 +748,12 @@ PanelWindow {
           window.dock.launch(menu.item)
           window.closeMenu()
         }
+      }
+
+      PopupMenuRow {
+        visible: window.dock && window.dock.instances && menu.running && menu.item.windows.some(function(win) { return (win.minimized ? win.sortWorkspaceId : win.workspaceId) !== window.workspaceId })
+        text: Commons.I18n.t("dock.moveHere")
+        onTriggered: { window.dock.moveHere(menu.item, window.workspaceId); window.closeMenu() }
       }
 
       PopupMenuRow {
