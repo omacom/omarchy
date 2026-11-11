@@ -74,13 +74,16 @@ Item {
   // A prompt clears the unavailable notice before the attempt finishes.
   readonly property bool fingerprintUnavailable: FingerprintModel.isUnavailable(fingerprintProbeStreak) || (fingerprintConfigured && (!fingerprintAttemptReachedDevice || fingerprintAttemptFastError) && FingerprintModel.isUnavailable(fingerprintUnreachedStreak))
 
+  function isRealScreen(screen) {
+    return screen && screen.name && screen.name !== "" && screen.name !== "FALLBACK" && screen.width > 0 && screen.height > 0
+  }
+
   function realScreenCount() {
     var screens = Quickshell.screens || []
     var count = 0
 
     for (var i = 0; i < screens.length; i++) {
-      var screen = screens[i]
-      if (screen && screen.name && screen.width > 0 && screen.height > 0) count += 1
+      if (isRealScreen(screens[i])) count += 1
     }
 
     return count
@@ -620,8 +623,13 @@ Item {
 
     Image {
       required property var modelData
+      // Skip placeholder/dangling outputs (e.g. FALLBACK or QScreen(name=""))
+      // that appear during DPMS/monitor hotplug - they have no real size and
+      // decoding for them can trigger GDK/Wayland jemalloc faults (see
+      // coredump 2240185: libgdk-3 -> libwayland -> libjemalloc SIGSEGV).
       visible: false
-      source: root.lockWallpaperUrl
+      enabled: root.isRealScreen(modelData)
+      source: root.isRealScreen(modelData) ? root.lockWallpaperUrl : ""
       sourceSize.width: modelData.width
       sourceSize.height: modelData.height
       fillMode: Image.PreserveAspectCrop
