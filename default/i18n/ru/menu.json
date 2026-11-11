@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Обычный"
+  },
+  "agent.harness": {
+    "label": "Харнесс",
+    "title": "Харнесс по умолчанию"
+  },
+  "agent.instructions": {
+    "label": "Инструкции"
+  },
+  "agent.make": {
+    "label": "Создать что-то"
+  },
+  "agent.make.theme": {
+    "label": "Создать тему"
+  },
+  "agent.make.plugin": {
+    "label": "Создать плагин"
+  },
+  "agent.make.app": {
+    "label": "Создать приложение"
   }
 }

@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "プレーン"
+  },
+  "agent.harness": {
+    "label": "ハーネス",
+    "title": "デフォルトのハーネス"
+  },
+  "agent.instructions": {
+    "label": "指示"
+  },
+  "agent.make": {
+    "label": "何か作る"
+  },
+  "agent.make.theme": {
+    "label": "テーマを作る"
+  },
+  "agent.make.plugin": {
+    "label": "プラグインを作る"
+  },
+  "agent.make.app": {
+    "label": "アプリを作る"
   }
 }

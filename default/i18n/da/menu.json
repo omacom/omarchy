@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Almindelig"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Standardharness"
+  },
+  "agent.instructions": {
+    "label": "Instruktioner"
+  },
+  "agent.make": {
+    "label": "Lav noget"
+  },
+  "agent.make.theme": {
+    "label": "Lav et tema"
+  },
+  "agent.make.plugin": {
+    "label": "Lav et plugin"
+  },
+  "agent.make.app": {
+    "label": "Lav en app"
   }
 }

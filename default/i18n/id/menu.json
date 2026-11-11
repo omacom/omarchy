@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Biasa"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness Bawaan"
+  },
+  "agent.instructions": {
+    "label": "Instruksi"
+  },
+  "agent.make": {
+    "label": "Buat Sesuatu"
+  },
+  "agent.make.theme": {
+    "label": "Buat Tema"
+  },
+  "agent.make.plugin": {
+    "label": "Buat Plugin"
+  },
+  "agent.make.app": {
+    "label": "Buat Aplikasi"
   }
 }

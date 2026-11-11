@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "ธรรมดา"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness เริ่มต้น"
+  },
+  "agent.instructions": {
+    "label": "คำแนะนำ"
+  },
+  "agent.make": {
+    "label": "สร้างอะไรสักอย่าง"
+  },
+  "agent.make.theme": {
+    "label": "สร้างธีม"
+  },
+  "agent.make.plugin": {
+    "label": "สร้างปลั๊กอิน"
+  },
+  "agent.make.app": {
+    "label": "สร้างแอป"
   }
 }

@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "සරල"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "පෙරනිමි Harness"
+  },
+  "agent.instructions": {
+    "label": "උපදෙස්"
+  },
+  "agent.make": {
+    "label": "යමක් හදන්න"
+  },
+  "agent.make.theme": {
+    "label": "තේමාවක් හදන්න"
+  },
+  "agent.make.plugin": {
+    "label": "ප්ලගිනයක් හදන්න"
+  },
+  "agent.make.app": {
+    "label": "යෙදුමක් හදන්න"
   }
 }

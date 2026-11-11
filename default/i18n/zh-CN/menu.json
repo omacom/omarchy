@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "纯文本"
+  },
+  "agent.harness": {
+    "label": "框架",
+    "title": "默认框架"
+  },
+  "agent.instructions": {
+    "label": "指令"
+  },
+  "agent.make": {
+    "label": "创作"
+  },
+  "agent.make.theme": {
+    "label": "制作主题"
+  },
+  "agent.make.plugin": {
+    "label": "制作插件"
+  },
+  "agent.make.app": {
+    "label": "制作应用"
   }
 }

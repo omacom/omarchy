@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Tavaline"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Vaikeharness"
+  },
+  "agent.instructions": {
+    "label": "Juhised"
+  },
+  "agent.make": {
+    "label": "Loo midagi"
+  },
+  "agent.make.theme": {
+    "label": "Loo teema"
+  },
+  "agent.make.plugin": {
+    "label": "Loo plugin"
+  },
+  "agent.make.app": {
+    "label": "Loo rakendus"
   }
 }

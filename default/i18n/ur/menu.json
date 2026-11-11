@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "سادہ"
+  },
+  "agent.harness": {
+    "label": "ہارنس",
+    "title": "ڈیفالٹ ہارنس"
+  },
+  "agent.instructions": {
+    "label": "ہدایات"
+  },
+  "agent.make": {
+    "label": "کچھ بنائیں"
+  },
+  "agent.make.theme": {
+    "label": "تھیم بنائیں"
+  },
+  "agent.make.plugin": {
+    "label": "پلگ ان بنائیں"
+  },
+  "agent.make.app": {
+    "label": "ایپ بنائیں"
   }
 }

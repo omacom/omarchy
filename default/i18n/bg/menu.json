@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Обикновен"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness по подразбиране"
+  },
+  "agent.instructions": {
+    "label": "Инструкции"
+  },
+  "agent.make": {
+    "label": "Създай нещо"
+  },
+  "agent.make.theme": {
+    "label": "Създай тема"
+  },
+  "agent.make.plugin": {
+    "label": "Създай плъгин"
+  },
+  "agent.make.app": {
+    "label": "Създай приложение"
   }
 }

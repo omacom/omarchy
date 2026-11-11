@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Čistý text"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Predvolený Harness"
+  },
+  "agent.instructions": {
+    "label": "Pokyny"
+  },
+  "agent.make": {
+    "label": "Niečo vytvoriť"
+  },
+  "agent.make.theme": {
+    "label": "Vytvoriť tému"
+  },
+  "agent.make.plugin": {
+    "label": "Vytvoriť plugin"
+  },
+  "agent.make.app": {
+    "label": "Vytvoriť aplikáciu"
   }
 }

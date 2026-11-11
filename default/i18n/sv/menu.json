@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Enkel"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Standardharness"
+  },
+  "agent.instructions": {
+    "label": "Instruktioner"
+  },
+  "agent.make": {
+    "label": "Skapa något"
+  },
+  "agent.make.theme": {
+    "label": "Skapa ett tema"
+  },
+  "agent.make.plugin": {
+    "label": "Skapa ett plugin"
+  },
+  "agent.make.app": {
+    "label": "Skapa en app"
   }
 }

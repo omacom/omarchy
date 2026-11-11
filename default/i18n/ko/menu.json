@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "일반"
+  },
+  "agent.harness": {
+    "label": "하네스",
+    "title": "기본 하네스"
+  },
+  "agent.instructions": {
+    "label": "지침"
+  },
+  "agent.make": {
+    "label": "무언가 만들기"
+  },
+  "agent.make.theme": {
+    "label": "테마 만들기"
+  },
+  "agent.make.plugin": {
+    "label": "플러그인 만들기"
+  },
+  "agent.make.app": {
+    "label": "앱 만들기"
   }
 }

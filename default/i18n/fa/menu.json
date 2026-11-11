@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "ساده"
+  },
+  "agent.harness": {
+    "label": "هارنس",
+    "title": "هارنس پیش‌فرض"
+  },
+  "agent.instructions": {
+    "label": "دستورالعمل‌ها"
+  },
+  "agent.make": {
+    "label": "چیزی بساز"
+  },
+  "agent.make.theme": {
+    "label": "تم بساز"
+  },
+  "agent.make.plugin": {
+    "label": "افزونه بساز"
+  },
+  "agent.make.app": {
+    "label": "برنامه بساز"
   }
 }

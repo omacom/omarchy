@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Oddiy"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Standart harness"
+  },
+  "agent.instructions": {
+    "label": "Koʻrsatmalar"
+  },
+  "agent.make": {
+    "label": "Yaratish"
+  },
+  "agent.make.theme": {
+    "label": "Mavzu yaratish"
+  },
+  "agent.make.plugin": {
+    "label": "Plagin yaratish"
+  },
+  "agent.make.app": {
+    "label": "Ilova yaratish"
   }
 }

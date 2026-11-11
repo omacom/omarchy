@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Payak"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Default na Harness"
+  },
+  "agent.instructions": {
+    "label": "Mga Tagubilin"
+  },
+  "agent.make": {
+    "label": "Gumawa"
+  },
+  "agent.make.theme": {
+    "label": "Gumawa ng tema"
+  },
+  "agent.make.plugin": {
+    "label": "Gumawa ng plugin"
+  },
+  "agent.make.app": {
+    "label": "Gumawa ng app"
   }
 }

@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "عادي"
+  },
+  "agent.harness": {
+    "label": "إطار التشغيل",
+    "title": "إطار التشغيل الافتراضي"
+  },
+  "agent.instructions": {
+    "label": "التعليمات"
+  },
+  "agent.make": {
+    "label": "اصنع شيئًا"
+  },
+  "agent.make.theme": {
+    "label": "اصنع سمة"
+  },
+  "agent.make.plugin": {
+    "label": "اصنع إضافة"
+  },
+  "agent.make.app": {
+    "label": "اصنع تطبيقًا"
   }
 }

@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Text pla"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness per defecte"
+  },
+  "agent.instructions": {
+    "label": "Instruccions"
+  },
+  "agent.make": {
+    "label": "Crea alguna cosa"
+  },
+  "agent.make.theme": {
+    "label": "Crea un tema"
+  },
+  "agent.make.plugin": {
+    "label": "Crea un complement"
+  },
+  "agent.make.app": {
+    "label": "Crea una app"
   }
 }

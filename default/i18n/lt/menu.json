@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Paprastas"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Numatytasis Harness"
+  },
+  "agent.instructions": {
+    "label": "Instrukcijos"
+  },
+  "agent.make": {
+    "label": "Kurti kažką"
+  },
+  "agent.make.theme": {
+    "label": "Kurti temą"
+  },
+  "agent.make.plugin": {
+    "label": "Kurti įskiepį"
+  },
+  "agent.make.app": {
+    "label": "Kurti programėlę"
   }
 }

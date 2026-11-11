@@ -1308,5 +1308,24 @@
   },
   "setup.default.editor.plain": {
     "label": "Vienkāršs"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Noklusējuma Harness"
+  },
+  "agent.instructions": {
+    "label": "Instrukcijas"
+  },
+  "agent.make": {
+    "label": "Izveidot kaut ko"
+  },
+  "agent.make.theme": {
+    "label": "Izveidot motīvu"
+  },
+  "agent.make.plugin": {
+    "label": "Izveidot spraudni"
+  },
+  "agent.make.app": {
+    "label": "Izveidot lietotni"
   }
 }
