@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=List TTFX effects available for the Plymouth boot logo
+
+set -euo pipefail
+
+omarchy_path=${OMARCHY_PATH:-/usr/share/omarchy}
+catalog=${OMARCHY_PLYMOUTH_EFFECT_CATALOG:-$omarchy_path/default/plymouth/ttfx-effects.txt}
+[[ -f $catalog && ! -L $catalog ]] || {
+  echo "TTFX effect catalog not found: $catalog" >&2
+  exit 1
+}
+
+previous=
+while IFS= read -r effect; do
+  [[ $effect =~ ^[a-z][a-z0-9-]*$ && ${#effect} -le 127 ]] || {
+    echo "Invalid TTFX effect catalog entry: $effect" >&2
+    exit 1
+  }
+  [[ -z $previous || $previous < $effect ]] || {
+    echo "TTFX effect catalog is not unique and sorted." >&2
+    exit 1
+  }
+  printf '%s\n' "$effect"
+  previous=$effect
+done <"$catalog"
+[[ -n $previous ]] || {
+  echo "TTFX effect catalog is empty." >&2
+  exit 1
+}

@@ -26,6 +26,9 @@ elif (( $# == 1 )); then
   --refresh-sddm-default)
     mode=refresh-sddm
     ;;
+  --refresh-script)
+    mode=refresh-plymouth-script
+    ;;
   *)
     usage
     ;;
@@ -85,7 +88,11 @@ run_root_transaction() {
     set -eEuo pipefail
     PATH=/usr/bin:/bin
     export PATH
+    LC_ALL=C
+    export LC_ALL
     umask 077
+    exec 9>/run/lock/omarchy-plymouth.lock
+    flock -x 9
 
     # Every check below is a bare assertion that aborts under set -e. Name the
     # subject of each one so a refusal reaches the user instead of exiting mute.
@@ -108,7 +115,7 @@ run_root_transaction() {
     max_asset_size=$5
 
     failure_context="the arguments of the privileged transaction"
-    [[ $mode == "set" || $mode == "refresh-plymouth" || $mode == "refresh-sddm" ]]
+    [[ $mode == "set" || $mode == "refresh-plymouth" || $mode == "refresh-plymouth-script" || $mode == "refresh-sddm" ]]
     [[ $source_root == /* ]]
     [[ $max_asset_size =~ ^[0-9]+$ ]]
     (( max_asset_size > 0 ))
@@ -203,6 +210,7 @@ run_root_transaction() {
       preview-unlock.png
       progress_bar.png
       progress_box.png
+      ttfx-effects.txt
     )
     plymouth_default_assets=("${plymouth_theme_assets[@]}" logos/oma.png)
     sddm_theme_assets=(Main.qml bullet.png entry-failed.png entry.png lock-failed.png lock.png logo.png)
@@ -217,6 +225,9 @@ run_root_transaction() {
       ;;
     refresh-plymouth)
       plymouth_assets=("${plymouth_default_assets[@]}")
+      ;;
+    refresh-plymouth-script)
+      plymouth_assets=(omarchy.plymouth omarchy.script)
       ;;
     refresh-sddm)
       sddm_assets=("${sddm_default_assets[@]}")
@@ -249,13 +260,201 @@ run_root_transaction() {
       install -o 0 -g 0 -m 0600 -- "$source" "$destination"
     }
 
-    staging_dir=$(mktemp -d /tmp/omarchy-plymouth.XXXXXXXX)
+    preserved_top_color=
+    preserved_bottom_color=
+
+    preserved_module=script
+    native_module=/usr/lib/plymouth/ttfx-plymouth.so
+    preserved_playback=
+    preserved_enabled=
+    preserved_mode=
+    preserved_effect=
+    preserved_seed=
+    preserved_background=
+    preserved_text=
+    preserved_message=
+
+    keyfile_value() {
+      local file=$1 key=$2
+      awk -F= -v wanted="$key" '\''
+        /^\[ttfx\][[:space:]]*$/ { active=1; next }
+        /^\[/ { active=0 }
+        active && $1 == wanted { value=substr($0, index($0, "=") + 1) }
+        END { if (value != "") print value }
+      '\'' "$file"
+    }
+
+    current_keyfile=$theme_dir/omarchy.plymouth
+    if [[ -f $current_keyfile && ! -L $current_keyfile ]] &&
+      (( $(stat -c %u -- "$current_keyfile") == 0 )) &&
+      (( (8#$(stat -c %a -- "$current_keyfile") & 0022) == 0 )); then
+      if grep -Fxq "ModuleName=ttfx-plymouth" "$current_keyfile" &&
+        [[ -f $native_module && ! -L $native_module ]]; then
+        validate_trusted_file "$native_module"
+        validate_trusted_directory "${native_module%/*}"
+        (( $(stat -c %u -- "$native_module") == 0 ))
+        native_mode=$(stat -c %a -- "$native_module")
+        (( (8#$native_mode & 0022) == 0 ))
+        preserved_module=ttfx-plymouth
+      fi
+      preserved_playback=$(keyfile_value "$current_keyfile" PlaybackMode)
+      [[ $preserved_playback == "submit-to-finish" || $preserved_playback == "continuous" ]] || preserved_playback=
+      preserved_enabled=$(keyfile_value "$current_keyfile" Enabled)
+      preserved_mode=$(keyfile_value "$current_keyfile" Mode)
+      preserved_effect=$(keyfile_value "$current_keyfile" Effect)
+      preserved_seed=$(keyfile_value "$current_keyfile" Seed)
+      preserved_background=$(keyfile_value "$current_keyfile" BackgroundColor)
+      preserved_text=$(keyfile_value "$current_keyfile" TextColor)
+      preserved_message=$(keyfile_value "$current_keyfile" MessageColor)
+      if ! [[ $preserved_enabled == "true" || $preserved_enabled == "false" ]] ||
+        ! [[ $preserved_mode == "fixed" || $preserved_mode == "random" || $preserved_mode == "off" ]] ||
+        ! [[ $preserved_seed =~ ^(0|[1-9][0-9]{0,19})$ ]] ||
+        (( ${#preserved_seed} == 20 )) && [[ $preserved_seed > "18446744073709551615" ]]; then
+        preserved_mode=
+      elif [[ $preserved_mode == "off" ]]; then
+        [[ $preserved_enabled == "false" && $preserved_effect == "off" && $preserved_seed == "0" ]] || preserved_mode=
+      else
+        [[ $preserved_enabled == "true" && $preserved_effect =~ ^[a-z][a-z0-9-]*$ && ${#preserved_effect} -le 127 ]] || preserved_mode=
+      fi
+      [[ $preserved_background =~ ^[0-9a-fA-F]{6}$ ]] || preserved_background=
+      [[ $preserved_text =~ ^[0-9a-fA-F]{6}$ ]] || preserved_text=
+      [[ $preserved_message =~ ^[0-9a-fA-F]{6}$ ]] || preserved_message=
+    fi
+    if [[ $mode == "refresh-plymouth-script" ]]; then
+      validate_trusted_directory "$theme_dir"
+      current_script=$theme_dir/omarchy.script
+
+
+      if [[ -f $current_script && ! -L $current_script ]]; then
+        current_uid=$(stat -c %u -- "$current_script")
+        current_mode=$(stat -c %a -- "$current_script")
+        if (( current_uid == 0 && (8#$current_mode & 0022) == 0 )); then
+          preserved_top_color=$(grep -m1 -E "^Window[.]SetBackgroundTopColor[(](0|1|0[.][0-9]+|1[.]0+), (0|1|0[.][0-9]+|1[.]0+), (0|1|0[.][0-9]+|1[.]0+)[)];$" "$current_script" || true)
+          preserved_bottom_color=$(grep -m1 -E "^Window[.]SetBackgroundBottomColor[(](0|1|0[.][0-9]+|1[.]0+), (0|1|0[.][0-9]+|1[.]0+), (0|1|0[.][0-9]+|1[.]0+)[)];$" "$current_script" || true)
+
+          packaged_script=$source_root/default/plymouth/omarchy.script
+          validate_trusted_file "$packaged_script"
+          if cmp -s <(sed \
+              -e "s|^Window.SetBackgroundTopColor.*|$preserved_top_color|" \
+              -e "s|^Window.SetBackgroundBottomColor.*|$preserved_bottom_color|" \
+              "$packaged_script") "$current_script"; then
+            exit 10
+          fi
+        fi
+      fi
+    fi
+
+    staging_dir=$(mktemp -d /var/tmp/omarchy-plymouth.XXXXXXXX)
     temporary=
+    transaction_started=false
+    transaction_committed=false
+
+    previous_theme=
+    declare -A plymouth_backup_present=()
+    declare -A sddm_backup_present=()
+    sddm_transaction_assets=()
+    if (( ${#sddm_assets[@]} )); then
+      sddm_transaction_assets=("${sddm_assets[@]}" logo.svg)
+    fi
+
+    rebuild_boot_image() {
+      if [[ -x /usr/bin/limine-mkinitcpio ]]; then
+        /usr/bin/limine-mkinitcpio
+      else
+        /usr/bin/mkinitcpio -P
+      fi
+    }
+
+    rollback_branding() {
+      local rollback_failed=0 asset destination backup parent filename restore_temporary
+
+      trap - ERR
+      set +e
+      for asset in "${plymouth_assets[@]}"; do
+        destination=$theme_dir/$asset
+        backup=$backup_dir/$asset
+        parent=${destination%/*}
+        filename=${destination##*/}
+
+        if [[ ${plymouth_backup_present[$asset]:-false} == "true" ]]; then
+          restore_temporary=$(mktemp --tmpdir="$parent" ".$filename.omarchy-restore.XXXXXXXX") || {
+            rollback_failed=1
+            continue
+          }
+          rm -f -- "$restore_temporary"
+          cp -a --no-dereference -- "$backup" "$restore_temporary" || rollback_failed=1
+          if [[ -e $restore_temporary || -L $restore_temporary ]]; then
+            mv --no-copy -fT -- "$restore_temporary" "$destination" || rollback_failed=1
+          fi
+          rm -f -- "$restore_temporary"
+        else
+          rm -f -- "$destination" || rollback_failed=1
+        fi
+      done
+
+      for asset in "${sddm_transaction_assets[@]}"; do
+        destination=$sddm_dir/$asset
+        backup=$backup_dir/sddm/$asset
+        parent=${destination%/*}
+        filename=${destination##*/}
+
+        if [[ ${sddm_backup_present[$asset]:-false} == "true" ]]; then
+          restore_temporary=$(mktemp --tmpdir="$parent" ".$filename.omarchy-restore.XXXXXXXX") || {
+            rollback_failed=1
+            continue
+          }
+          rm -f -- "$restore_temporary"
+          cp -a --no-dereference -- "$backup" "$restore_temporary" || rollback_failed=1
+          if [[ -e $restore_temporary || -L $restore_temporary ]]; then
+            mv --no-copy -fT -- "$restore_temporary" "$destination" || rollback_failed=1
+          fi
+          rm -f -- "$restore_temporary"
+        else
+          rm -f -- "$destination" || rollback_failed=1
+        fi
+      done
+
+
+      if (( ${#plymouth_assets[@]} )); then
+        if [[ -n $previous_theme ]]; then
+          /usr/bin/plymouth-set-default-theme "$previous_theme" || rollback_failed=1
+        else
+          rollback_failed=1
+        fi
+        rebuild_boot_image || rollback_failed=1
+      fi
+      return "$rollback_failed"
+    }
+
     cleanup() {
+      local status=$? rollback_status=0
+
+      trap - HUP INT TERM
+      if $transaction_started && ! $transaction_committed; then
+        rollback_branding || rollback_status=$?
+        if (( rollback_status != 0 )); then
+          printf "omarchy-plymouth-set: branding rollback or restored-state UKI rebuild failed\n" >&2
+        fi
+        (( status != 0 )) || status=1
+      fi
       [[ -z $temporary ]] || rm -f -- "$temporary"
       rm -rf -- "$staging_dir"
+      trap - EXIT
+      exit "$status"
     }
-    trap cleanup EXIT HUP INT TERM
+    handle_signal() {
+      local signal=$1
+      trap - HUP INT TERM
+      case "$signal" in
+      HUP) exit 129 ;;
+      INT) exit 130 ;;
+      TERM) exit 143 ;;
+      esac
+    }
+    trap cleanup EXIT
+    trap '\''handle_signal HUP'\'' HUP
+    trap '\''handle_signal INT'\'' INT
+    trap '\''handle_signal TERM'\'' TERM
     chown 0:0 -- "$staging_dir"
     chmod 0700 -- "$staging_dir"
 
@@ -266,6 +465,36 @@ run_root_transaction() {
     for asset in "${plymouth_assets[@]}"; do
       copy_trusted_file "$source_root/default/plymouth/$asset" "$plymouth_stage/$asset"
     done
+
+    staged_keyfile=$plymouth_stage/omarchy.plymouth
+    if [[ -f $staged_keyfile ]]; then
+      sed -i "s/^ModuleName=.*/ModuleName=$preserved_module/" "$staged_keyfile"
+      [[ -z $preserved_playback ]] || sed -i "s/^PlaybackMode=.*/PlaybackMode=$preserved_playback/" "$staged_keyfile"
+      if [[ -n $preserved_mode ]]; then
+        sed -i \
+          -e "s/^Enabled=.*/Enabled=$preserved_enabled/" \
+          -e "s/^Mode=.*/Mode=$preserved_mode/" \
+          -e "s/^Effect=.*/Effect=$preserved_effect/" \
+          -e "s/^Seed=.*/Seed=$preserved_seed/" \
+          "$staged_keyfile"
+      fi
+      if [[ $mode == "set" ]]; then
+        sed -i \
+          -e "s/^BackgroundColor=.*/BackgroundColor=$bg_hex/" \
+          -e "s/^TextColor=.*/TextColor=$text_hex/" \
+          -e "s/^MessageColor=.*/MessageColor=$text_hex/" \
+          "$staged_keyfile"
+      else
+        [[ -z $preserved_background ]] || sed -i "s/^BackgroundColor=.*/BackgroundColor=$preserved_background/" "$staged_keyfile"
+        [[ -z $preserved_text ]] || sed -i "s/^TextColor=.*/TextColor=$preserved_text/" "$staged_keyfile"
+        [[ -z $preserved_message ]] || sed -i "s/^MessageColor=.*/MessageColor=$preserved_message/" "$staged_keyfile"
+      fi
+    fi
+
+    if [[ $mode == "refresh-plymouth-script" ]]; then
+      [[ -z $preserved_top_color ]] || sed -i "s/^Window.SetBackgroundTopColor.*/$preserved_top_color/" "$plymouth_stage/omarchy.script"
+      [[ -z $preserved_bottom_color ]] || sed -i "s/^Window.SetBackgroundBottomColor.*/$preserved_bottom_color/" "$plymouth_stage/omarchy.script"
+    fi
 
     if [[ $mode == "set" ]]; then
       # stdin was opened by the unprivileged caller. Read no more than the
@@ -323,6 +552,44 @@ run_root_transaction() {
       validate_trusted_directory "$sddm_dir"
     fi
 
+    backup_dir=$staging_dir/backup
+    if (( ${#plymouth_assets[@]} )); then
+      failure_context="the current Plymouth theme activation"
+      previous_theme=$(/usr/bin/plymouth-set-default-theme)
+      [[ $previous_theme =~ ^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$ ]]
+
+      for asset in "${plymouth_assets[@]}"; do
+        destination=$theme_dir/$asset
+        if [[ -e $destination || -L $destination ]]; then
+          backup_parent=$backup_dir
+          [[ $asset != */* ]] || backup_parent+=/${asset%/*}
+          mkdir -m 0700 -p -- "$backup_parent"
+          cp -a --no-dereference -- "$destination" "$backup_dir/$asset"
+          plymouth_backup_present["$asset"]=true
+        else
+          plymouth_backup_present["$asset"]=false
+        fi
+      done
+    fi
+
+    if (( ${#sddm_transaction_assets[@]} )); then
+      for asset in "${sddm_transaction_assets[@]}"; do
+        destination=$sddm_dir/$asset
+        if [[ -e $destination || -L $destination ]]; then
+          mkdir -m 0700 -p -- "$backup_dir/sddm"
+          cp -a --no-dereference -- "$destination" "$backup_dir/sddm/$asset"
+          sddm_backup_present["$asset"]=true
+        else
+          sddm_backup_present["$asset"]=false
+        fi
+      done
+    fi
+
+    if (( ${#plymouth_assets[@]} || ${#sddm_transaction_assets[@]} )); then
+      transaction_started=true
+    fi
+
+
     publish_asset() {
       local source=$1 destination=$2 parent filename source_size copied_size
 
@@ -352,6 +619,9 @@ run_root_transaction() {
       for asset in "${plymouth_assets[@]}"; do
         publish_asset "$plymouth_stage/$asset" "$theme_dir/$asset"
       done
+
+      # Legacy rendered frames are ignored by ModuleName=ttfx-plymouth. Their
+      # transactional removal belongs to the dedicated remove-PNG phase.
     fi
 
     if (( ${#sddm_assets[@]} )); then
@@ -361,21 +631,31 @@ run_root_transaction() {
       validate_trusted_directory "$sddm_dir"
       rm -f -- "$sddm_dir/logo.svg"
     fi
+
+    if [[ $mode != "refresh-sddm" ]]; then
+      /usr/bin/plymouth-set-default-theme omarchy
+      rebuild_boot_image
+    fi
+
+    # The successful rebuild is the commit point. Ignore cancellation while
+    # discarding rollback state and clearing both flags so no signal can expose
+    # a false-uncommitted transaction after the rebuilt state is authoritative.
+    trap ":" HUP INT TERM
+    rm -rf -- "$backup_dir"
+    transaction_committed=true
+    transaction_started=false
   ' bash "$mode" "$OMARCHY_PATH" "$bg_hex" "$text_hex" "$((64 * 1024 * 1024))"
 }
 
+transaction_status=0
 if [[ $mode == "set" ]]; then
-  run_root_transaction <&"$logo_fd"
+  run_root_transaction <&"$logo_fd" || transaction_status=$?
 else
-  run_root_transaction </dev/null
+  run_root_transaction </dev/null || transaction_status=$?
 fi
-
-if [[ $mode != "refresh-sddm" ]]; then
-  sudo plymouth-set-default-theme omarchy
-
-  if omarchy-cmd-present limine-mkinitcpio; then
-    sudo limine-mkinitcpio
-  else
-    sudo mkinitcpio -P
+if (( transaction_status != 0 )); then
+  if [[ $mode == "refresh-plymouth-script" && $transaction_status == 10 ]]; then
+    exit 0
   fi
+  exit "$transaction_status"
 fi

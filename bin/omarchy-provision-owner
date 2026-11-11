@@ -1143,6 +1143,23 @@ run_provisioning() {
     limine-update
   fi
 
+  # Normally target finalization activated this before the first boot. Deferred
+  # and factory-reset flows retry here if an older installer left the safe
+  # package-owned script descriptor in place.
+  local ttfx_payload=/usr/lib/omarchy/plymouth/ttfx-plymouth.so
+  local ttfx_module=/usr/lib/plymouth/ttfx-plymouth.so
+  local ttfx_descriptor=/usr/share/plymouth/themes/omarchy/omarchy.plymouth
+  if [[ -f $ttfx_payload ]] && ! {
+    cmp -s "$ttfx_payload" "$ttfx_module" &&
+      grep -Fxq 'ModuleName=ttfx-plymouth' "$ttfx_descriptor" 2>/dev/null &&
+      grep -Fxq '[ttfx]' "$ttfx_descriptor" 2>/dev/null &&
+      grep -Eq '^Mode=(fixed|random|off)$' "$ttfx_descriptor" 2>/dev/null
+  }; then
+    log_step "activating native TTFX Plymouth renderer"
+    echo boot >"$STATE_FILE"
+    omarchy-plymouth-ttfx-install --module "$ttfx_payload"
+  fi
+
   if luks_staged_unlock_remains; then
     log_step "refusing to finish setup while the staged LUKS key or its auto-unlock remains"
     return 1

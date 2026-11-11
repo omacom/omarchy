@@ -1,0 +1,642 @@
+#!/bin/bash
+
+# omarchy:summary=Install the ABI-matched native TTFX Plymouth module
+# omarchy:args=<--module FILE|--verify-initramfs IMAGE>
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+set -eEuo pipefail
+
+readonly supported_abi=26.134.222
+test_mode=false
+system_root=
+theme_command=/usr/bin/plymouth-set-default-theme
+rebuild_command=
+lsinitcpio_command=/usr/bin/lsinitcpio
+
+if (( EUID == 0 )); then
+  readonly -a forbidden_overrides=(
+    OMARCHY_PLYMOUTH_TEST_ROOT
+    OMARCHY_PLYMOUTH_THEME_COMMAND
+    OMARCHY_PLYMOUTH_REBUILD_COMMAND
+    OMARCHY_PLYMOUTH_TEST_DEPENDENCIES
+    OMARCHY_LSINITCPIO
+    OMARCHY_PLYMOUTH_TEST_SOURCE_ROOT
+    OMARCHY_PLYMOUTH_TEST_AFTER_OPEN_COMMAND
+  )
+  for override in "${forbidden_overrides[@]}"; do
+    if [[ -v $override ]]; then
+      printf 'omarchy-plymouth-ttfx-install: refusing privileged environment override: %s\n' "$override" >&2
+      exit 1
+    fi
+  done
+  export PATH=/usr/bin:/usr/sbin
+else
+  system_root=${OMARCHY_PLYMOUTH_TEST_ROOT:-}
+  [[ -n $system_root ]] || { echo "omarchy-plymouth-ttfx-install: root is required" >&2; exit 1; }
+  system_root=${system_root%/}
+  test_mode=true
+  theme_command=${OMARCHY_PLYMOUTH_THEME_COMMAND:-$theme_command}
+  rebuild_command=${OMARCHY_PLYMOUTH_REBUILD_COMMAND:-}
+  lsinitcpio_command=${OMARCHY_LSINITCPIO:-$lsinitcpio_command}
+fi
+
+module_path="$system_root/usr/lib/plymouth/ttfx-plymouth.so"
+theme_dir="$system_root/usr/share/plymouth/themes/omarchy"
+recovery_dir="$system_root/usr/share/plymouth/themes/omarchy-static"
+native_template="$system_root/usr/share/omarchy/default/plymouth/omarchy.plymouth"
+uki_dir="$system_root/boot/EFI/Linux"
+
+# The classic images mkinitcpio -P writes are the ones its presets name. A
+# kept copy beside them, such as a previous kernel's initramfs saved by hand,
+# is not rebuilt, so it is neither verified nor rolled back.
+preset_images() {
+  local preset
+  local -a presets
+  mapfile -d '' -t presets < <(find "$system_root/etc/mkinitcpio.d" -maxdepth 1 -type f -name '*.preset' -print0 2>/dev/null | sort -z)
+  for preset in "${presets[@]}"; do
+    (
+      set +eu
+      PRESETS=()
+      # shellcheck disable=SC1090
+      source "$preset" >/dev/null 2>&1
+      for name in "${PRESETS[@]}"; do
+        image_variable=${name}_image
+        image=${!image_variable:-}
+        if [[ $image == /* && -f $system_root$image ]]; then
+          printf '%s\0' "$system_root$image"
+        fi
+      done
+      exit 0
+    )
+  done | sort -zu
+}
+
+# Omarchy on Limine builds UKIs. GRUB/Asahi uses classic initramfs images.
+# Both are inspected by lsinitcpio and must be rolled back transactionally.
+boot_artifacts() {
+  local -a ukis
+  mapfile -d '' -t ukis < <(find "$uki_dir" -maxdepth 1 -type f -name 'omarchy_linux*.efi' -print0 2>/dev/null | sort -z)
+  if (( ${#ukis[@]} )); then
+    printf '%s\0' "${ukis[@]}"
+    return
+  fi
+  if compgen -G "$system_root/etc/mkinitcpio.d/*.preset" >/dev/null; then
+    preset_images
+    return
+  fi
+  find "$system_root/boot" -maxdepth 1 -type f -name 'initramfs-*.img' -print0 2>/dev/null | sort -z
+}
+
+snapshot_boot_artifacts() {
+  local image relative
+  local -a images
+  mapfile -d '' -t images < <(boot_artifacts)
+  (( ${#images[@]} )) || return 1
+  : > "$backup/boot-artifacts.list"
+  for image in "${images[@]}"; do
+    printf '%s\0' "$image" >> "$backup/boot-artifacts.list"
+    relative=${image#"$system_root/"}
+    install -d -m 0700 "$backup/boot/$(dirname "$relative")"
+    cp -a --no-dereference "$image" "$backup/boot/$relative"
+  done
+}
+
+restore_boot_artifacts() {
+  local image relative
+  local -a current
+  mapfile -d '' -t current < <(boot_artifacts)
+  for image in "${current[@]}"; do
+    rm -f -- "$image"
+  done
+  if [[ -f $backup/boot-artifacts.list ]]; then
+    while IFS= read -r -d '' image; do
+      relative=${image#"$system_root/"}
+      install -d -m 0755 "$(dirname "$image")"
+      cp -a --no-dereference "$backup/boot/$relative" "$image"
+    done < "$backup/boot-artifacts.list"
+  fi
+  # Classic initramfs lives directly in /boot; never remove that shared
+  # directory. A newly created empty Limine UKI directory is safe to remove.
+  if ! $uki_dir_present; then
+    rmdir "$uki_dir" 2>/dev/null || true
+  fi
+}
+
+check_abi() {
+  local package_version version versions
+  package_version=$(pacman -Q plymouth)
+  package_version=${package_version#plymouth }
+  if [[ $package_version != "$supported_abi" && $package_version != "$supported_abi-"* ]]; then
+    printf 'omarchy-plymouth-ttfx-install: unsupported Plymouth ABI %s (requires %s)\n' "$package_version" "$supported_abi" >&2
+    return 1
+  fi
+  versions=$(pkgconf --modversion ply-splash-core ply-splash-graphics)
+  while IFS= read -r version; do
+    [[ $version == "$supported_abi" ]] || {
+      printf 'omarchy-plymouth-ttfx-install: incompatible Plymouth headers/libraries %s\n' "$version" >&2
+      return 1
+    }
+  done <<<"$versions"
+  (( $(wc -l <<<"$versions") == 2 ))
+}
+
+rebuild() {
+  if [[ -n $rebuild_command ]]; then
+    "$rebuild_command"
+  elif [[ -x /usr/bin/limine-mkinitcpio ]]; then
+    /usr/bin/limine-mkinitcpio
+  else
+    /usr/bin/mkinitcpio -P
+  fi
+}
+
+path_is_within_anchor() {
+  local path=$1 anchor=$2
+  [[ $path == "${anchor%/}/"* ]]
+}
+
+resolve_secure_source() {
+  local source=$1 canonical lexical anchor component owner mode expected_owner
+  canonical=$(realpath -e -- "$source") || { printf 'invalid module artifact: %s\n' "$source" >&2; return 1; }
+  lexical=$(realpath -m -- "$source")
+  [[ $canonical == "$lexical" && ! -L $source ]] || { echo "module artifact path must not contain symlinks" >&2; return 1; }
+
+  if $test_mode; then
+    anchor=$(realpath -e -- "${OMARCHY_PLYMOUTH_TEST_SOURCE_ROOT:?}")
+    expected_owner=$EUID
+  else
+    anchor=/
+    expected_owner=0
+  fi
+  path_is_within_anchor "$canonical" "$anchor" || { echo "module artifact is outside its trusted source root" >&2; return 1; }
+
+  component=$canonical
+  while :; do
+    owner=$(stat -Lc %u -- "$component") || return 1
+    mode=$(stat -Lc %a -- "$component") || return 1
+    (( owner == expected_owner )) || { printf 'module artifact ancestry must be owned by uid %s: %s\n' "$expected_owner" "$component" >&2; return 1; }
+    (( (8#$mode & 0022) == 0 )) || { printf 'module artifact ancestry must not be group/world writable: %s\n' "$component" >&2; return 1; }
+    [[ $component != "$anchor" ]] || break
+    component=$(dirname -- "$component")
+  done
+  printf '%s\n' "$canonical"
+}
+
+validate_native_template() {
+  local canonical lexical anchor component owner mode expected_owner required
+  anchor=${system_root:-/}
+  canonical=$(realpath -e -- "$native_template") || { echo "native descriptor template is missing" >&2; return 1; }
+  lexical=$(realpath -m -- "$native_template")
+  [[ $canonical == "$lexical" && ! -L $native_template ]] || { echo "native descriptor template must not contain symlinks" >&2; return 1; }
+  path_is_within_anchor "$canonical" "$anchor" || { echo "native descriptor template is outside the system root" >&2; return 1; }
+  if $test_mode; then expected_owner=$EUID; else expected_owner=0; fi
+  component=$canonical
+  while :; do
+    owner=$(stat -Lc %u -- "$component") || return 1
+    mode=$(stat -Lc %a -- "$component") || return 1
+    (( owner == expected_owner && (8#$mode & 0022) == 0 )) || {
+      echo "native descriptor template ancestry is not trusted: $component" >&2
+      return 1
+    }
+    [[ $component == "$anchor" ]] && break
+    component=$(dirname -- "$component")
+  done
+  for required in '[ttfx]' 'Enabled=true' 'Mode=fixed' 'Effect=decrypt' 'Seed=22321466108495961' 'PlaybackMode=submit-to-finish'; do
+    grep -Fx -- "$required" "$canonical" >/dev/null || {
+      printf 'native descriptor template is incomplete: %s\n' "$required" >&2
+      return 1
+    }
+  done
+  printf '%s\n' "$canonical"
+}
+
+descriptor_value() {
+  local file=$1 key=$2
+  awk -v key="$key" '
+    $0 == "[ttfx]" { in_ttfx=1; next }
+    /^\[/ { in_ttfx=0 }
+    in_ttfx && index($0, key "=") == 1 { print substr($0, length(key) + 2); exit }
+  ' "$file"
+}
+
+valid_uint64() {
+  local value=$1 normalized
+  [[ $value =~ ^[0-9]+$ ]] || return 1
+  normalized=${value#"${value%%[!0]*}"}
+  [[ -n $normalized ]] || normalized=0
+  (( ${#normalized} < 20 )) ||
+    { (( ${#normalized} == 20 )) && [[ $normalized < 18446744073709551616 ]]; }
+}
+
+merge_valid_descriptor_state() {
+  local source=$1 destination=$2 mode enabled effect seed playback key value catalog owner permissions expected_owner
+  mode=$(descriptor_value "$source" Mode)
+  enabled=$(descriptor_value "$source" Enabled)
+  effect=$(descriptor_value "$source" Effect)
+  seed=$(descriptor_value "$source" Seed)
+  playback=$(descriptor_value "$source" PlaybackMode)
+  catalog="$theme_dir/ttfx-effects.txt"
+  if $test_mode; then expected_owner=$EUID; else expected_owner=0; fi
+
+  if [[ -z $mode && -z $enabled && -z $effect && -z $seed ]]; then
+    mode=$(descriptor_value "$destination" Mode)
+    enabled=$(descriptor_value "$destination" Enabled)
+    effect=$(descriptor_value "$destination" Effect)
+    seed=$(descriptor_value "$destination" Seed)
+  elif [[ $mode == off && $enabled == false && $effect == off && $seed == 0 ]]; then
+    :
+  elif [[ $mode == fixed || $mode == random ]] && [[ $enabled == true ]] &&
+    [[ $effect =~ ^[A-Za-z0-9_-]+$ ]] && valid_uint64 "$seed" &&
+    [[ -f $catalog && ! -L $catalog ]] &&
+    owner=$(stat -Lc %u -- "$catalog") && permissions=$(stat -Lc %a -- "$catalog") &&
+    (( owner == expected_owner && (8#$permissions & 0022) == 0 )) && grep -Fx -- "$effect" "$catalog" >/dev/null; then
+    :
+  else
+    mode=off enabled=false effect=off seed=0
+  fi
+
+  if [[ -z $playback ]]; then
+    playback=$(descriptor_value "$destination" PlaybackMode)
+  elif [[ $playback != submit-to-finish && $playback != continuous ]]; then
+    mode=off enabled=false effect=off seed=0
+    playback=submit-to-finish
+  fi
+
+  sed -i \
+    -e "s/^Enabled=.*/Enabled=$enabled/" \
+    -e "s/^Mode=.*/Mode=$mode/" \
+    -e "s/^Effect=.*/Effect=$effect/" \
+    -e "s/^Seed=.*/Seed=$seed/" \
+    -e "s/^PlaybackMode=.*/PlaybackMode=$playback/" \
+    "$destination"
+
+  for key in BackgroundColor TextColor MessageColor; do
+    value=$(descriptor_value "$source" "$key")
+    [[ $value =~ ^[0-9A-Fa-f]{6}$ ]] || continue
+    sed -i "s/^${key}=.*/${key}=$value/" "$destination"
+  done
+}
+
+module_dependencies() {
+  local module=$1 output unresolved dependency canonical
+  output=$(ldd "$module") || { echo "omarchy-plymouth-ttfx-install: unable to inspect module dependencies" >&2; return 1; }
+  unresolved=$(awk '$2 == "=>" && $3 == "not" && $4 == "found" { print $1 }' <<<"$output")
+  if [[ -n $unresolved ]]; then
+    while IFS= read -r dependency; do
+      printf 'omarchy-plymouth-ttfx-install: unresolved module dependency: %s\n' "$dependency" >&2
+    done <<<"$unresolved"
+    return 1
+  fi
+  while IFS= read -r dependency; do
+    [[ -n $dependency ]] || continue
+    canonical=$(realpath -e -- "$dependency") || {
+      printf 'omarchy-plymouth-ttfx-install: unable to resolve module dependency: %s\n' "$dependency" >&2
+      return 1
+    }
+    printf '%s\n' "$canonical"
+  done < <(awk '$3 ~ /^\// { print $3 } $1 ~ /^\// { print $1 }' <<<"$output") | sort -u
+}
+
+validate_module() {
+  local module=$1 exports
+  file "$module" | grep -q 'ELF .* shared object' || { echo "module artifact is not an ELF shared object" >&2; return 1; }
+  exports=$(nm -D --defined-only --format=posix "$module" | awk '{print $1}')
+  [[ $exports == "ply_boot_splash_plugin_get_interface" ]] || { echo "module artifact has unexpected exports" >&2; return 1; }
+  readelf -lW "$module" | grep -F GNU_RELRO >/dev/null || { echo "module artifact lacks RELRO" >&2; return 1; }
+  readelf -dW "$module" | grep -Eq 'BIND_NOW|FLAGS.*NOW' || { echo "module artifact lacks immediate binding" >&2; return 1; }
+  if readelf -SW "$module" | grep -q '\.debug'; then
+    echo "module artifact contains debug sections" >&2
+    return 1
+  fi
+  module_dependencies "$module" >/dev/null
+}
+
+verify_initramfs() {
+  local image=$1 listing dependency normalized dependencies_output
+  local -a dependencies required
+
+  listing=$("$lsinitcpio_command" -l "$image")
+  required=(
+    usr/lib/plymouth/ttfx-plymouth.so
+    usr/share/plymouth/themes/omarchy/omarchy.plymouth
+    usr/share/plymouth/themes/omarchy/omarchy.script
+    usr/share/plymouth/themes/omarchy/logo.png
+  )
+  # The firmware-hold mark is optional: a theme without it holds on the
+  # background alone. When the theme ships it, the image must carry it too.
+  if [[ -f $theme_dir/boot-mark.png ]]; then
+    required+=(usr/share/plymouth/themes/omarchy/boot-mark.png)
+  fi
+  if [[ -n ${OMARCHY_PLYMOUTH_TEST_DEPENDENCIES:-} ]]; then
+    read -r -a dependencies <<<"$OMARCHY_PLYMOUTH_TEST_DEPENDENCIES"
+  else
+    dependencies_output=$(module_dependencies "$module_path") || return 1
+    if [[ -n $dependencies_output ]]; then
+      mapfile -t dependencies <<<"$dependencies_output"
+    fi
+  fi
+  for dependency in "${dependencies[@]}"; do
+    normalized=${dependency#/}
+    required+=("$normalized")
+  done
+  for dependency in "${required[@]}"; do
+    grep -Fx -- "$dependency" <<<"$listing" >/dev/null || {
+      printf 'omarchy-plymouth-ttfx-install: initramfs is missing %s\n' "$dependency" >&2
+      return 1
+    }
+  done
+}
+
+# A higher-level root installer may already own this same lock across its
+# snapshot and publication. Reuse only a descriptor for the trusted lock inode
+# on which a nonblocking exclusive flock succeeds. A separately opened file
+# description cannot pass while another process owns the lock.
+acquire_plymouth_lock() {
+  local directory="$system_root/run/lock" lock_path component owner mode expected_owner inherited
+  local path_identity descriptor_identity
+  lock_path=$directory/omarchy-plymouth.lock
+  expected_owner=0
+  if $test_mode; then expected_owner=$EUID; fi
+
+  # Check the existing anchor before creating descendants, and never chmod or
+  # traverse an existing symlink while preparing the lock directory.
+  for component in "${system_root:-/}" "$system_root/run" "$directory"; do
+    if [[ ! -e $component && ! -L $component ]]; then
+      mkdir -m 0755 -- "$component"
+    fi
+    [[ -d $component && ! -L $component && $(realpath -e -- "$component") == "$component" ]] || {
+      echo "Plymouth lock ancestry is not canonical: $component" >&2
+      return 1
+    }
+    owner=$(stat -c %u -- "$component")
+    mode=$(stat -c %a -- "$component")
+    (( owner == expected_owner && (8#$mode & 0022) == 0 )) || {
+      echo "Plymouth lock ancestry is not trusted: $component" >&2
+      return 1
+    }
+  done
+
+  if [[ -e $lock_path || -L $lock_path ]]; then
+    [[ -f $lock_path && ! -L $lock_path ]] || {
+      echo "Plymouth lock must be a regular file: $lock_path" >&2
+      return 1
+    }
+    owner=$(stat -c %u -- "$lock_path")
+    mode=$(stat -c %a -- "$lock_path")
+    (( owner == expected_owner && (8#$mode & 0022) == 0 )) || {
+      echo "Plymouth lock file is not trusted: $lock_path" >&2
+      return 1
+    }
+  fi
+
+  inherited=${OMARCHY_PLYMOUTH_LOCK_FD:-}
+  if [[ $inherited =~ ^[1-9][0-9]{0,5}$ ]] && (( inherited >= 3 )) && [[ -f $lock_path ]]; then
+    path_identity=$(stat -Lc '%d:%i' -- "$lock_path")
+    descriptor_identity=$(stat -Lc '%d:%i' -- "/proc/self/fd/$inherited" 2>/dev/null) || descriptor_identity=
+    if [[ $descriptor_identity == "$path_identity" ]] && flock -xn "$inherited"; then
+      return 0
+    fi
+  fi
+
+  # A missing, unrelated, or separately opened descriptor never bypasses the
+  # shared lock. Open a fresh descriptor and take the ordinary exclusive lock.
+  local saved_umask
+  saved_umask=$(umask)
+  umask 077
+  exec {plymouth_lock_fd}>"$lock_path"
+  umask "$saved_umask"
+  flock -x "$plymouth_lock_fd"
+}
+
+install_module() {
+  local source=$1 canonical_source canonical_template image source_type source_owner source_mode expected_owner
+  local -a boot_images
+  work=
+  backup=
+  previous_theme=
+  module_stage=
+  recovery_stage=
+  descriptor_stage=
+  source_fd=
+  module_present=false
+  descriptor_present=false
+  recovery_present=false
+  recovery_published=false
+  descriptor_published=false
+  boot_artifacts_present=false
+  uki_dir_present=false
+  transaction_active=false
+  committed=false
+  rollback_failed=0
+
+  acquire_plymouth_lock
+
+  # Plymouth 26's setter cannot insert [Daemon] into a zero-byte file: sed's
+  # line-addressed insertion never runs when there are no input lines. Ensure
+  # the configuration is parseable before selecting recovery/native themes.
+  install -d -m 0755 "$system_root/etc/plymouth"
+  if [[ ! -s $system_root/etc/plymouth/plymouthd.conf ]]; then
+    printf '[Daemon]\n' >"$system_root/etc/plymouth/plymouthd.conf"
+    chmod 0644 "$system_root/etc/plymouth/plymouthd.conf"
+  fi
+
+  check_abi
+  [[ -f $theme_dir/omarchy.plymouth && -f $theme_dir/omarchy.script ]] || { echo "installed Omarchy theme is incomplete" >&2; return 1; }
+  canonical_template=$(validate_native_template)
+
+  work=$(mktemp -d "$system_root/run/omarchy-plymouth-install.XXXXXXXX")
+  backup="$work/backup"
+
+  rollback() {
+    local status=${1:-$?}
+    trap - ERR HUP INT TERM EXIT
+    set +e
+
+    if ! $committed && $transaction_active; then
+      if $module_present; then
+        cp -a --remove-destination "$backup/module" "$module_path" || rollback_failed=1
+      else
+        rm -f -- "$module_path" || rollback_failed=1
+      fi
+
+      if $descriptor_published; then
+        if $descriptor_present && [[ -n $descriptor_stage && -e $descriptor_stage && -e $theme_dir/omarchy.plymouth ]]; then
+          mv --exchange -T "$descriptor_stage" "$theme_dir/omarchy.plymouth" || rollback_failed=1
+        elif $descriptor_present; then
+          cp -a --remove-destination "$backup/descriptor" "$theme_dir/omarchy.plymouth" || rollback_failed=1
+        else
+          rm -f -- "$theme_dir/omarchy.plymouth" || rollback_failed=1
+        fi
+      fi
+
+      if $recovery_published; then
+        if $recovery_present && [[ -n $recovery_stage && -e $recovery_stage && -e $recovery_dir ]]; then
+          mv --exchange -T "$recovery_stage" "$recovery_dir" || rollback_failed=1
+        else
+          rm -rf -- "$recovery_dir" || rollback_failed=1
+          if $recovery_present; then
+            cp -a --no-dereference "$backup/recovery" "$recovery_dir" || rollback_failed=1
+          fi
+        fi
+      fi
+
+      restore_boot_artifacts || rollback_failed=1
+
+      if [[ -n $previous_theme ]]; then
+        "$theme_command" "$previous_theme" || rollback_failed=1
+      fi
+      if ! rebuild; then
+        rollback_failed=1
+        restore_boot_artifacts || rollback_failed=1
+      elif ! $boot_artifacts_present; then
+        # The restored-theme rebuild created images that did not exist before
+        # the transaction; remove only those newly created artifacts.
+        restore_boot_artifacts || rollback_failed=1
+      fi
+      (( status != 0 )) || status=1
+    fi
+
+    if [[ -n $source_fd ]]; then
+      exec {source_fd}<&- 2>/dev/null
+    fi
+    [[ -z $module_stage ]] || rm -f -- "$module_stage"
+    [[ -z $descriptor_stage ]] || rm -f -- "$descriptor_stage"
+    [[ -z $recovery_stage ]] || rm -rf -- "$recovery_stage"
+    rm -rf -- "$recovery_dir.new"
+    rm -rf -- "$work"
+    (( rollback_failed == 0 )) || echo "omarchy-plymouth-ttfx-install: rollback completed with errors" >&2
+    exit "$status"
+  }
+  trap rollback EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+
+  mkdir -p "$backup"
+  canonical_source=$(resolve_secure_source "$source")
+  if ! exec {source_fd}<"$canonical_source"; then
+    echo "omarchy-plymouth-ttfx-install: unable to open module artifact" >&2
+    return 1
+  fi
+  source_type=$(stat -Lc %f -- "/proc/self/fd/$source_fd")
+  source_owner=$(stat -Lc %u -- "/proc/self/fd/$source_fd")
+  source_mode=$(stat -Lc %a -- "/proc/self/fd/$source_fd")
+  if $test_mode; then expected_owner=$EUID; else expected_owner=0; fi
+  if (( (16#$source_type & 0170000) != 0100000 || source_owner != expected_owner || (8#$source_mode & 0022) != 0 )); then
+    printf 'omarchy-plymouth-ttfx-install: opened module artifact is not trusted (%s uid=%s mode=%s)\n' "$source_type" "$source_owner" "$source_mode" >&2
+    return 1
+  fi
+  if $test_mode && [[ -n ${OMARCHY_PLYMOUTH_TEST_AFTER_OPEN_COMMAND:-} ]]; then
+    "$OMARCHY_PLYMOUTH_TEST_AFTER_OPEN_COMMAND"
+  fi
+  install -m 0755 "/proc/self/fd/$source_fd" "$work/ttfx-plymouth.so"
+  exec {source_fd}<&-
+  source_fd=
+  if ! $test_mode; then
+    chown 0:0 "$work" "$work/ttfx-plymouth.so"
+  fi
+  validate_module "$work/ttfx-plymouth.so"
+
+  [[ ! -e $module_path && ! -L $module_path ]] || { cp -a --no-dereference "$module_path" "$backup/module"; module_present=true; }
+  [[ ! -e $theme_dir/omarchy.plymouth && ! -L $theme_dir/omarchy.plymouth ]] || { cp -a --no-dereference "$theme_dir/omarchy.plymouth" "$backup/descriptor"; descriptor_present=true; }
+  [[ ! -e $recovery_dir && ! -L $recovery_dir ]] || { cp -a --no-dereference "$recovery_dir" "$backup/recovery"; recovery_present=true; }
+  [[ -d $uki_dir ]] && uki_dir_present=true
+  if snapshot_boot_artifacts; then
+    boot_artifacts_present=true
+  fi
+  previous_theme=$($theme_command)
+  transaction_active=true
+
+  module_stage=$(mktemp --tmpdir="${module_path%/*}" '.ttfx-plymouth.so.XXXXXXXX')
+  install -m 0755 "$work/ttfx-plymouth.so" "$module_stage"
+  if ! $test_mode; then
+    chown 0:0 "$module_stage"
+  fi
+  validate_module "$module_stage"
+
+  recovery_stage=$(mktemp -d --tmpdir="${recovery_dir%/*}" '.omarchy-static.XXXXXXXX')
+  cp -a "$theme_dir/." "$recovery_stage/"
+  mv "$recovery_stage/omarchy.plymouth" "$recovery_stage/omarchy-static.plymouth"
+  sed -i \
+    -e 's/^ModuleName=.*/ModuleName=script/' \
+    -e "s|^ImageDir=.*|ImageDir=/usr/share/plymouth/themes/omarchy-static|" \
+    -e "s|^ScriptFile=.*|ScriptFile=/usr/share/plymouth/themes/omarchy-static/omarchy.script|" \
+    "$recovery_stage/omarchy-static.plymouth"
+
+  chown -R 0:0 "$recovery_stage" 2>/dev/null || $test_mode
+  find "$recovery_stage" -type d -exec chmod 0755 -- {} +
+  find "$recovery_stage" -type f -exec chmod 0644 -- {} +
+  grep -Fx 'ModuleName=script' "$recovery_stage/omarchy-static.plymouth" >/dev/null
+  grep -Fx 'ImageDir=/usr/share/plymouth/themes/omarchy-static' "$recovery_stage/omarchy-static.plymouth" >/dev/null
+  grep -Fx 'ScriptFile=/usr/share/plymouth/themes/omarchy-static/omarchy.script' "$recovery_stage/omarchy-static.plymouth" >/dev/null
+
+
+  if $recovery_present; then
+    mv --exchange -T "$recovery_stage" "$recovery_dir"
+  else
+    mv -T "$recovery_stage" "$recovery_dir"
+    recovery_stage=
+  fi
+  recovery_published=true
+
+  "$theme_command" omarchy-static
+
+  descriptor_stage=$(mktemp --tmpdir="$theme_dir" '.omarchy.plymouth.XXXXXXXX')
+  cp "$canonical_template" "$descriptor_stage"
+  merge_valid_descriptor_state "$theme_dir/omarchy.plymouth" "$descriptor_stage"
+  sed -i 's/^ModuleName=.*/ModuleName=ttfx-plymouth/' "$descriptor_stage"
+  chown 0:0 "$descriptor_stage" 2>/dev/null || $test_mode
+  chmod 0644 "$descriptor_stage"
+  grep -Fx 'ModuleName=ttfx-plymouth' "$descriptor_stage" >/dev/null
+  mv -fT "$module_stage" "$module_path"
+  module_stage=
+  if $descriptor_present; then
+    mv --exchange -T "$descriptor_stage" "$theme_dir/omarchy.plymouth"
+  else
+    mv -T "$descriptor_stage" "$theme_dir/omarchy.plymouth"
+    descriptor_stage=
+  fi
+  descriptor_published=true
+
+  "$theme_command" omarchy
+  if ! rebuild; then
+    rollback 1
+  fi
+  mapfile -d '' -t boot_images < <(boot_artifacts)
+  if (( ${#boot_images[@]} == 0 )); then
+    echo "omarchy-plymouth-ttfx-install: rebuild produced no boot image" >&2
+    rollback 1
+  fi
+  for image in "${boot_images[@]}"; do
+    if ! verify_initramfs "$image"; then
+      printf 'omarchy-plymouth-ttfx-install: boot image verification failed: %s\n' "$image" >&2
+      rollback 1
+    fi
+  done
+
+  trap ':' HUP INT TERM
+  committed=true
+  transaction_active=false
+  rm -rf -- "$backup" "$recovery_stage"
+  rm -f -- "$descriptor_stage"
+  recovery_stage=
+  descriptor_stage=
+  trap - EXIT
+  rm -rf -- "$work"
+}
+
+case ${1:-} in
+--module)
+  (( $# == 2 )) || exit 2
+  install_module "$2"
+  ;;
+--verify-initramfs)
+  (( $# == 2 )) || exit 2
+  verify_initramfs "$2"
+  ;;
+*)
+  echo "Usage: omarchy-plymouth-ttfx-install <--module FILE|--verify-initramfs IMAGE>" >&2
+  exit 2
+  ;;
+esac
