@@ -15,7 +15,7 @@ grep -Fxq 'run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-pro-11.sh"' "
 require_platform_fixtures "the Surface Pro 11 setup"
 
 # The installer is offline, so the ISO's mirror must carry what the setup adds.
-for package in surface-pro-11-support iptsd surface-pro-11-sensors; do
+for package in microsoft-surface-pro-11-support iptsd microsoft-surface-pro-11-sensors; do
   grep -Fxq "$package" "$ROOT/install/omarchy-other.packages" ||
     fail "the ISO can supply $package offline"
 done
@@ -58,7 +58,7 @@ CONF
 run_setup "$matching" >/dev/null
 run_setup "$matching" >/dev/null
 
-expected_packages=$'add surface-pro-11-support iptsd surface-pro-11-sensors\nextract\nsystemctl enable surface-pro-11-sensors.service'
+expected_packages=$'add microsoft-surface-pro-11-support iptsd microsoft-surface-pro-11-sensors\nextract\nsystemctl enable surface-pro-11-sensors.service'
 [[ $(head -n3 "$matching/packages.log") == "$expected_packages" ]] ||
   fail "Surface Pro 11 setup adds its hardware support and enables the light sensor even without Windows"
 [[ ! -e $matching/mkinitcpio.conf.d/surface_device_modules.conf ]] ||
@@ -137,7 +137,7 @@ cp -p "$no_dtb/kernel/uki.conf" "$scratch/no-dtb-uki.conf"
 run_setup "$no_dtb" >/dev/null
 cmp -s "$scratch/no-dtb-uki.conf" "$no_dtb/kernel/uki.conf" ||
   fail "without Omarchy's kernel the device-tree list is left as it is"
-grep -Fxq 'add surface-pro-11-support iptsd surface-pro-11-sensors' "$no_dtb/packages.log" ||
+grep -Fxq 'add microsoft-surface-pro-11-support iptsd microsoft-surface-pro-11-sensors' "$no_dtb/packages.log" ||
   fail "the hardware support is added even before Omarchy's kernel is installed"
 
 stale_pin="$scratch/stale-pin"
@@ -157,6 +157,15 @@ mv "$renamed/dtbs/linux-omarchy" "$renamed/dtbs/linux-omarchy-aarch64"
 run_setup "$renamed" >/dev/null
 grep -Fxq "DeviceTree=$renamed/dtbs/linux-omarchy-aarch64/qcom/x1e80100-microsoft-denali-oled.dtb" "$renamed/kernel/uki.conf" ||
   fail "the device tree is found under any linux-omarchy package directory, as dtb-uki.sh finds it"
+
+# A second kernel named after linux-omarchy, as a test build is, sorts ahead of it.
+second="$scratch/second"
+surface_pro11 "$second"
+mkdir -p "$second/dtbs/linux-omarchy-test/qcom"
+: >"$second/dtbs/linux-omarchy-test/qcom/x1e80100-microsoft-denali-oled.dtb"
+run_setup "$second" >/dev/null
+grep -Fxq "DeviceTree=$second/dtbs/linux-omarchy/qcom/x1e80100-microsoft-denali-oled.dtb" "$second/kernel/uki.conf" ||
+  fail "linux-omarchy's device tree comes before another linux-omarchy kernel's"
 
 for model in 'microsoft,denali\0qcom,x1p64100' 'lenovo,yoga-slim7x\0qcom,x1e80100'; do
   other="$scratch/other"
