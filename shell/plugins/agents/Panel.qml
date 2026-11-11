@@ -84,11 +84,18 @@ Panel {
     } else if (action === "share") {
       Util.execArgv(["omarchy-agent-local", "share", model.recipe].concat(model.shared ? ["--off"] : []))
     } else if (action === "pair") {
-      // SSH may ask for a password or a new host key, so pairing gets a terminal.
-      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local pair " + Util.shellQuote(String(model.dns || model.host))])
+      // A host with another model in use here has given its key already, so
+      // this one connects at once. Otherwise SSH may ask for a password or a
+      // new host key, so pairing gets a terminal.
+      var models = usage.networkModels || {}
+      if (Object.keys(models).some(function(id) { return models[id].host === model.host && models[id].paired })) {
+        Util.execArgv(["omarchy-agent-local", "pair", String(model.host), String(model.recipe)])
+        return
+      }
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local pair " + Util.shellQuote(String(model.dns || model.host)) + " " + Util.shellQuote(String(model.recipe))])
       root.close()
     } else if (action === "disconnect") {
-      Util.execArgv(["omarchy-agent-local", "forget", model.host])
+      Util.execArgv(["omarchy-agent-local", "forget", modelId(model)])
     }
   }
 
@@ -2102,7 +2109,7 @@ Panel {
 
       // A network model this machine isn't paired with yet: the word Pair,
       // which opens a terminal to pair over SSH. Once paired: Disconnect,
-      // which forgets the host here and leaves its model running there.
+      // which stops using just this model here and leaves it running there.
       TextLink {
         id: remotePair
         anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
