@@ -503,11 +503,9 @@ Panel {
   readonly property var addRows: addStage === "network" ? networkAddModels : localAddRecipes
 
   // What a running network model is, in place of the memory meter its host
-  // measures: its architecture, its measured speeds there, and its context.
+  // measures: its measured speeds there, and its context.
   function remoteStats(model) {
     var facts = []
-    if (model.architecture === "moe") facts.push(Commons.I18n.t("agents.localMoe"))
-    else if (model.architecture === "dense") facts.push(Commons.I18n.t("agents.localDense"))
     // One speed segment: generation, with prefill in parentheses when known.
     var decode = Math.round(Number(model.decode_tok_s))
     var prefill = Math.round(Number(model.prefill_tok_s))
@@ -556,8 +554,6 @@ Panel {
   function recipeFacts(recipe) {
     if (recipe.link) return Commons.I18n.t("agents.linkSetUp")
     var facts = []
-    if (recipe.architecture === "moe") facts.push(Commons.I18n.t("agents.localMoe"))
-    else if (recipe.architecture === "dense") facts.push(Commons.I18n.t("agents.localDense"))
     if (recipe.memory_gib != null) facts.push(Commons.I18n.t("agents.localMemoryFact").arg(Commons.I18n.formatNumber(recipe.memory_gib, 0)))
     if (recipe.context != null) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(recipe.context / 1024), 0)))
     if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Commons.I18n.formatNumber(Math.round(recipe.decode_tok_s), 0)))

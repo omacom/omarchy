@@ -6,8 +6,6 @@
   "agents.localAllInstalled": "All eligible models are installed",
   "agents.localShowLogsTip": "Open this model's logs in a terminal",
   "agents.localRecommended": "recommended",
-  "agents.localDense": "Dense",
-  "agents.localMoe": "MoE",
   "agents.localMemoryFact": "%1 GiB Memory",
   "agents.localContextFact": "%1K Context",
   "agents.localSpeedFact": "%1 TPS",
