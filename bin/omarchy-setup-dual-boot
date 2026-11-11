@@ -128,15 +128,23 @@ existing_windows_entry() {
 }
 
 # A chainload entry for Windows' loader, on the ESP with PARTUUID when it holds
-# one, else on the first that does.
+# one, else on the only one that does. Fails with 1 when no ESP holds it, and
+# with 2 when PARTUUID's doesn't and several others do: picking one of those
+# could start another Windows than the entry did.
 chainload_entry() {
-  local preferred=${1:-} loaders line partuuid loader
+  local preferred=${1:-} loaders line="" partuuid loader count
   loaders=$(windows_loaders)
   [[ -n $loaders ]] || return 1
-  [[ -n $preferred ]] && line=$(grep -i "^$preferred " <<<"$loaders" | head -n 1 || true)
-  if [[ -z ${line:-} ]]; then
+  count=$(grep -c . <<<"$loaders")
+  if [[ -n $preferred ]]; then
+    line=$(grep -i "^$preferred " <<<"$loaders" | head -n 1 || true)
+    if [[ -z $line ]] && (( count > 1 )); then
+      return 2
+    fi
+  fi
+  if [[ -z $line ]]; then
     line=$(head -n 1 <<<"$loaders")
-    if (( $(grep -c . <<<"$loaders") > 1 )); then
+    if (( count > 1 )); then
       echo "More than one ESP holds a Windows loader; using the first. Add the others with limine-scan." >&2
     fi
   fi
@@ -205,7 +213,18 @@ elif (( firmware_count == 1 )); then
 else
   # A chainload is compared with the loader on its own ESP, so a spelling fix
   # never moves it to another Windows.
-  new_entry=$(chainload_entry "$(sed -nE 's/^(guid|uuid)\(([^)]*)\):.*/\2/p' <<<"$entry_path")") || no_windows
+  entry_partition=$(sed -nE 's/^(guid|uuid)\(([^)]*)\):.*/\2/p' <<<"$entry_path")
+  status=0
+  new_entry=$(chainload_entry "$entry_partition") || status=$?
+  case $status in
+    0) ;;
+    2)
+      echo "The Windows entry points at partition $entry_partition, which holds no Windows loader, and more than one other ESP does."
+      echo "Pick the right one with limine-scan, or remove the entry and run this again."
+      exit 1
+      ;;
+    *) no_windows ;;
+  esac
   new_path=${new_entry##*path: }
   if [[ $new_path != "$entry_path" ]]; then
     # Such as the capitals limine-scan copies from efibootmgr.

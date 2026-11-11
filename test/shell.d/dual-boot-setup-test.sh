@@ -138,3 +138,13 @@ grep -Fxq '    path: guid(7777):/vmlinuz-linux' "$conf" && grep -Fxq '//Arch' "$
   fail "a group's other children stay" "$(cat "$conf")"
 grep -Fxq '    protocol: efi_boot_entry' "$conf" || fail "Windows gets an entry of its own next to the group" "$(cat "$conf")"
 pass "a group with a Windows child is left as it is"
+
+# When the entry's own ESP holds no Windows loader any more and two others
+# do, nothing is changed: either could be another Windows than the entry's.
+conf=$(menu gone '/Windows\n    protocol: efi\n    path: guid(9999-dead):/EFI/Microsoft/Boot/bootmgfw.efi')
+before=$(cat "$conf")
+output=$(OMARCHY_LIMINE_CONF=$conf TEST_EFI_ENTRIES="BootOrder: 0001\n$limine" TEST_LSBLK="$lsblk_esp\n/dev/sda1 c12a7328-f81f-11d2-ba4b-00a0c93ec93b 5555-eeee $second" \
+  PATH="$scratch/bin:$ROOT/bin:$PATH" bash "$setup" 2>&1) && fail "dual-boot setup stops when it can't tell which Windows the entry meant" "$output"
+[[ $output == *"more than one other ESP does"* ]] || fail "dual-boot setup says why it stops" "$output"
+[[ $(cat "$conf") == "$before" ]] || fail "an entry for a Windows that can't be told apart is left as it was" "$(cat "$conf")"
+pass "an entry whose Windows can't be told apart is left as it was"
