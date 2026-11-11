@@ -45,4 +45,6 @@ When an explicit backend has no registry binary metadata, declare the commands m
 "npm:cf" = { version = "latest", lazy = true, lazy_bins = ["cf"], minimum_release_age = "0s" }
 ```
 
+A registry shorthand whose first backend is `npm:` and whose registry entry lists its commands (`mise registry --json`) also goes in `auto_install_disable_tools` in the `[settings]` of `omarchy-tools.toml`. mise's shim installs such a tool on its own, without the lazy Node it needs, and fails; kept out of the shim's automatic install, its first command takes the lazy install, which brings Node with it. Explicit `npm:` keys and entries that list no command already take the lazy install. The list can go once mise takes the lazy install for these.
+
 After changing declarations, verify that `mise reshim --system` creates the expected commands in an isolated test environment. Test first-use installation as well as an already-installed tool; a declaration alone does not prove its shim works.
