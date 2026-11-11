@@ -518,7 +518,7 @@ Panel {
     var facts = [Commons.I18n.t("agents.networkOnHost").arg(model.host)]
     if (Number(model.ctx) > 0) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.ctx) / 1024), 0)))
     facts.push(model.offline ? Commons.I18n.t("agents.networkOffline")
-      : model.unit === "active" ? Commons.I18n.t("agents.networkRunning") : Commons.I18n.t("agents.networkStopped"))
+      : model.unit === "active" ? Commons.I18n.t("agents.networkRunning") : Commons.I18n.t("agents.localLoadingMeter"))
     return facts.join(" · ")
   }
 
@@ -2287,19 +2287,7 @@ Panel {
       wrapMode: Text.Wrap
     }
 
-    // Why a model stopped. On this machine, the reason itself links to its
-    // logs; a tailnet model's logs live on its host, so there it's just text.
-    Text {
-      visible: section.remote && !section.offline && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
-      width: parent.width
-      textFormat: Text.PlainText
-      text: section.remote ? String(section.model.error || "") : ""
-      color: root.urgent
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-      wrapMode: Text.Wrap
-    }
-
+    // Why a model on this machine stopped, which links to its logs.
     TextLink {
       visible: !!section.model && !section.remote && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
       width: Math.min(implicitWidth, parent.width)
