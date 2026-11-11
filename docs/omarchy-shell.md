@@ -117,7 +117,8 @@ or `omarchy.power`. There is no `bar` target.
 | `toggle <id> <payloadJson>`           | summon if closed, hide if open  |
 | `togglePanelAt <section> <index>`     | toggle the panel at a bar position; any center section counts `centerBegin`, `center` and `centerEnd` as one |
 | `call <id> <method> <arg>`            | call an already-loaded plugin   |
-| `rescanPlugins`                       | re-walk plugin dirs and hot-reload plugin code |
+| `rescanPlugins`                       | re-walk plugin dirs and add, update, or drop plugins in place; a running plugin keeps the code it loaded unless its manifest changes how it loads (entry point, kind, or `keepLoaded`) |
+| `reloadPlugins`                       | rebuild plugins from fresh code; closes open panels, unloads plugin widgets, and unloads every service except `keepLoaded` ones |
 | `reloadConfig`                        | reload shell.json               |
 | `applyTheme <colorsB64> <shellB64>`   | push theme colors + shell.toml  |
 | `toggleBarTransparency`               | cycle the bar background from clear to glassy to opaque |
