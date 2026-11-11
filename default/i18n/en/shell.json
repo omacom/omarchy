@@ -113,7 +113,7 @@
   "agents.networkStopSharing": "Shared on your tailnet · stop sharing",
   "agents.networkPair": "Pair with %1 to use it",
   "agents.networkDisconnectLabel": "Disconnect",
-  "agents.networkDisconnect": "Stop using %1's model here; it keeps running there",
+  "agents.networkDisconnect": "Stop using every model from %1 here; they keep running there",
   "agents.networkHostOffline": "%1 is offline",
   "agents.networkHostUnreachable": "%1 isn't answering",
   "agents.networkLastSeen": "last seen %1",
