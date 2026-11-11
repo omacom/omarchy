@@ -220,7 +220,7 @@ grep -qF -- "--action Open mpv -- --action Cut omacut --with $fake_file" "$notif
   fail "yt-dlp native host offers Open in mpv and Cut in Omacut for the download" "$(cat "$notify_argv")"
 pass "yt-dlp native host offers Open in mpv and Cut in Omacut for the download"
 
-grep -qF -- "Download complete My Great Clip" "$notify_argv" ||
+grep -qF -- "Download complete --description My Great Clip" "$notify_argv" ||
   fail "yt-dlp native host toasts the page title, not the sanitised filename" "$(cat "$notify_argv")"
 pass "yt-dlp native host toasts the page title, not the sanitised filename"
 
@@ -234,6 +234,6 @@ YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fa
     download_url "$2"
   ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://example.test/watch" >/dev/null 2>&1
 
-grep -qF -- "Download complete Real_Clip [id]" "$notify_argv" ||
+grep -qF -- "Download complete --description Real_Clip [id]" "$notify_argv" ||
   fail "yt-dlp native host falls back to the filename when no title record arrives" "$(cat "$notify_argv")"
 pass "yt-dlp native host falls back to the filename when no title record arrives"

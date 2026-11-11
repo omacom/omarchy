@@ -43,7 +43,7 @@ else
 fi
 
 if error=$(tailscale file cp --update-interval=0 -- "${files[@]}" "$machine:" 2>&1); then
-  omarchy-notification-send -g "󰒊" "$(omarchy-i18n tailscale.sent "$name")" "$what"
+  omarchy-notification-send -g "󰒊" "$(omarchy-i18n tailscale.sent "$name")" --description "$what"
 else
   omarchy-notification-send -g "󰒊" -u critical "$(omarchy-i18n tailscale.sendFailed "$name")" "${error:-$(omarchy-i18n tailscale.transferFailed)}"
   exit 1

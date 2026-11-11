@@ -204,3 +204,19 @@ assertDeepEqual(
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
 JS
+
+# A sent file's name is shown as text on the confirmation card, even when it is
+# exactly one of the notification settings, such as --exec.
+send_dir=$(mktemp -d)
+mkdir -p "$send_dir/bin" "$send_dir/files"
+printf 'x' >"$send_dir/files/--exec"
+printf '#!/bin/bash\nexit 0\n' >"$send_dir/bin/tailscale"
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >"$SEND_TEST_BUSCTL"\necho "u 1"\n' >"$send_dir/bin/busctl"
+chmod +x "$send_dir/bin"/*
+SEND_TEST_BUSCTL="$send_dir/busctl.args" OMARCHY_PATH="$ROOT" PATH="$send_dir/bin:$ROOT/bin:$PATH" \
+  XDG_CONFIG_HOME="$send_dir/config" "$ROOT/bin/omarchy-tailscale-send" zed "$send_dir/files/--exec" ||
+  fail "taildrop confirms a file named --exec"
+mapfile -t sent <"$send_dir/busctl.args"
+[[ ${sent[12]} == "--exec" ]] || fail "taildrop shows a file named --exec as text" "${sent[12]}"
+rm -rf "$send_dir"
+pass "taildrop shows a sent file's name as text, even --exec"
