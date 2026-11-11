@@ -646,6 +646,10 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
   # single-account claude-limits.json.
   cache = LimitsCache.at(cache_root() / cache_name)
   fallback, result["fetchedAtMs"] = cache.kept()
+  # The resets travel with the limits they were read beside: wherever the
+  # kept limits stand in, so do the kept resets.
+  if fallback and isinstance(cache.data.get("resetCredits"), dict):
+    result["resetCredits"] = cache.data["resetCredits"]
 
   # Probing needs a live token and only the Claude Code CLI can mint one: it
   # refreshes the credential file when it runs, so a machine left alone long
@@ -686,8 +690,6 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
     result["limits"] = fallback
     result["live"] = True
     result["authHelpText"] = ""
-    if isinstance(cache.data.get("resetCredits"), dict):
-      result["resetCredits"] = cache.data["resetCredits"]
     return result
 
   probe = probe_limits(access_token, version)
@@ -696,6 +698,7 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
     result["live"] = True
     result["authHelpText"] = ""
     result["fetchedAtMs"] = cache.save(probe["limits"], resetCredits=probe["resetCredits"])
+    result.pop("resetCredits", None)
     if probe["resetCredits"]:
       result["resetCredits"] = probe["resetCredits"]
     return result

@@ -178,6 +178,12 @@ expect("Claude collector asks as Claude Code and counts the resets usable now",
        ["claude-cli/2.1.322 (external, cli)", {"available": 3, "nextExpiresAt": "2026-12-10T22:00:00+00:00"},
         ["Session (5-hour)", "Weekly (7-day)"]], record)
 
+# A refused re-check keeps the resets beside the limits it keeps.
+record, _ = claude(mode=429)
+expect("a rate-limited re-check keeps the kept resets with the kept limits",
+       [labels(record), record.get("resetCredits")],
+       [["Session (5-hour)", "Weekly (7-day)"], {"available": 3, "nextExpiresAt": "2026-12-10T22:00:00+00:00"}], record)
+
 # ------------------------------------------------------------ the sign-in
 
 # An open window and one that already reset, cached long enough ago that a
