@@ -33,7 +33,7 @@ SCRIPT
 # One line per notification: the id it replaces, urgency, headline, body.
 cat >"$tmp_dir/bin/omarchy-notification-send" <<'SCRIPT'
 #!/bin/bash
-replaces=0 urgency=normal
+replaces=0 urgency=low
 while [[ $1 == -* ]]; do
   case $1 in
     -p) echo 7 ;;
@@ -72,7 +72,7 @@ expect_notification() {
 echo "printer HP_DeskJet_3700 is idle.  enabled since Tue 11 Nov 2026 09:00:00" >"$tmp_dir/printer"
 job 43 "" none >"$tmp_dir/not-completed"
 { job 41 "" job-completed-with-errors; job 42 "$quality" job-completed-successfully; } >"$tmp_dir/completed"
-expect_notification "a completed job reads as printed" "7|normal|Printed photo.jpg|"
+expect_notification "a completed job reads as printed" "7|low|Printed photo.jpg|"
 
 printf '\tgstoraster filter failed.\n' >>"$tmp_dir/printer"
 job 42 "$quality" job-completed-with-errors >"$tmp_dir/not-completed"
@@ -83,4 +83,4 @@ LP_ERROR="lp: Error - The printer or class does not exist." \
   expect_notification "an lp error fails with lp's message" "0|critical|Couldn't print photo.jpg|lp: Error - The printer or class does not exist."
 
 job 43 "" none >"$tmp_dir/not-completed"
-expect_notification "a job in neither list names the job to look for" "7|normal|Couldn't track photo.jpg|Job 42 on HP_DeskJet_3700"
+expect_notification "a job in neither list names the job to look for" "7|low|Couldn't track photo.jpg|Job 42 on HP_DeskJet_3700"
