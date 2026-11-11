@@ -45,12 +45,12 @@ printf '%s\n' "$*" >>"$REMINDER_TEST_NOTIFY_LOG"
 STUB
 printf '#!/bin/bash\n' >"$reminder_tmp/bin/omarchy-shell"
 
-# Lists REMINDER_TEST_COUNT timers, the first due in an hour, then one an hour
-# apart.
+# Lists REMINDER_TEST_COUNT timers, the first due an hour after
+# REMINDER_TEST_NOW, then one an hour apart.
 cat >"$reminder_tmp/bin/systemctl" <<'STUB'
 #!/bin/bash
 [[ " $* " == *" list-timers "* ]] || exit 0
-now=$(date +%s)
+now=$REMINDER_TEST_NOW
 printf '['
 for ((i = 1; i <= REMINDER_TEST_COUNT; i++)); do
   ((i > 1)) && printf ','
@@ -60,9 +60,13 @@ printf ']\n'
 STUB
 chmod +x "$reminder_tmp/bin"/*
 
+# One reading of the clock for the fake timers and the expected times, so a
+# minute passing in between can't make them disagree.
+test_now=$(date +%s)
+
 show_cards() {
   rm -f "$reminder_tmp/notifications"
-  REMINDER_TEST_COUNT=$1 OMARCHY_PATH="$ROOT" PATH="$reminder_tmp/bin:$ROOT/bin:$PATH" \
+  REMINDER_TEST_COUNT=$1 REMINDER_TEST_NOW=$test_now OMARCHY_PATH="$ROOT" PATH="$reminder_tmp/bin:$ROOT/bin:$PATH" \
     XDG_RUNTIME_DIR="$reminder_tmp/runtime" XDG_CONFIG_HOME="$reminder_tmp/config" \
     REMINDER_TEST_NOTIFY_LOG="$reminder_tmp/notifications" \
     "$ROOT/bin/omarchy-reminder" show
@@ -77,7 +81,7 @@ done
 cards=$(show_cards 3 | sed -E 's/In [0-9]+m( [0-9]+s)? · at/In <left> · at/')
 expected=$(for i in 3 2 1; do
   printf -- '-g 󰢌 --transient In <left> · at %s Thing %s, with a message long enough to need a card of its own\n' \
-    "$(date -d "@$(($(date +%s) + i * 3600 + 30))" +%-H:%M)" "$i"
+    "$(date -d "@$((test_now + i * 3600 + 30))" +%-H:%M)" "$i"
 done)
 [[ $cards == "$expected" ]] || fail "reminder list sends a card per reminder, soonest last" "$cards"
 pass "reminder list sends a card per reminder, soonest last"
