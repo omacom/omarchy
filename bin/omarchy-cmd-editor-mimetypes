@@ -41,12 +41,19 @@ older="${XDG_DATA_HOME:-$HOME/.local/share}/applications/mimeapps.list"
 # [Default Applications], then add the handler's right under its header.
 # Keys may have spaces around "=", and values are ;-separated lists whose
 # first entry is the default.
-updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v older="$older" '
+# GLib treats a type and its aliases (application/xml and text/xml) as one,
+# so choices are weighed per canonical type.
+aliases=/usr/share/mime/aliases
+[[ -f $aliases ]] || aliases=/dev/null
+
+updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v older="$older" -v aliases="$aliases" '
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
   function ours(app) { return app == "nvim.desktop" || app == "plain.desktop" || app == handler }
+  function canon(t) { return (t in alias) ? alias[t] : t }
   BEGIN {
+    while ((getline pair < aliases) > 0) { split(pair, part, " "); alias[part[1]] = part[2] }
     n = split(types, list, "\n")
-    for (i = 1; i <= n; i++) wanted[list[i]] = 1
+    for (i = 1; i <= n; i++) wanted[canon(list[i])] = 1
   }
   function header(line) { sub(/\r$/, "", line); return trim(line) }
   FILENAME != current { current = FILENAME; file = (FILENAME == older ? 1 : 2); section = "" }
@@ -61,14 +68,14 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
   }
   # GLib reads the last line for a type, so that line decides.
   file == 1 {
-    if (type in wanted) older_choice[type] = !ours(app)
+    if (canon(type) in wanted) older_choice[canon(type)] = !ours(app)
     next
   }
   {
     lines[FNR] = $0
-    if (type in wanted) {
-      line_type[FNR] = type
-      chosen[type] = !ours(app)
+    if (canon(type) in wanted) {
+      line_type[FNR] = canon(type)
+      chosen[canon(type)] = !ours(app)
     }
   }
   END {
@@ -81,7 +88,7 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
       print lines[i]
       if (header(lines[i]) == "[Default Applications]" && !added) {
         added = 1
-        for (j = 1; j <= n; j++) if (!(list[j] in keep)) print list[j] "=" handler
+        for (j = 1; j <= n; j++) if (!(canon(list[j]) in keep)) print list[j] "=" handler
       }
     }
   }

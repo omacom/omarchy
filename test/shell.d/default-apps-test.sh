@@ -391,6 +391,15 @@ grep -qxF "text/css=code.desktop" "$mimeapps" || fail "a type whose last line is
 ! grep -qxF "text/css=omarchy-launch-editor.desktop" "$mimeapps" || fail "a chosen type gets no handler line"
 pass "the migration reads a repeated type by its last line"
 
+# A type and its alias are one type: a choice under either name holds both.
+printf '[Default Applications]\napplication/xml=code.desktop\napplication/yaml=nvim.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "application/xml=code.desktop" "$mimeapps" || fail "a choice for a type is kept"
+! grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "its alias gets no handler line over the choice"
+grep -qxF "application/x-yaml=omarchy-launch-editor.desktop" "$mimeapps" || fail "an old default under an alias moves to the handler"
+! grep -q "^application/yaml=nvim.desktop" "$mimeapps" || fail "the old default's alias line is replaced"
+pass "the migration treats a type and its aliases as one"
+
 # The desktop's own list is read first: picking an editor clears its text
 # types and keeps the rest, while the migration leaves it alone.
 desktop_list="$test_home/.config/hyprland-mimeapps.list"
