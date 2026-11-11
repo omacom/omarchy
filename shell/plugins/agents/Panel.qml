@@ -1000,16 +1000,26 @@ Panel {
   // to an agent with one account; a second one ends them (Main.qml).
   function isParked(p, w) {
     if (!p || !w || w.resetAt === "" || providerAccounts(p).length >= 2) return false
-    var parked = usage.parkedLimits[p.providerId]
-    if (!parked) return false
-    var part = scopedPart(w.title)
-    var at = parked[w.title] !== undefined ? parked[w.title] : part ? parked[part.window] : undefined
-    return at !== undefined && sameReset(at, w.resetAt)
+    var key = parkKey(p, w)
+    if (key === "") return false
+    var at = usage.parkedLimits[p.providerId][key]
+    return new Date(String(at)).getTime() > root.nowMs && sameReset(at, w.resetAt)
   }
 
-  // Providers restate a reset with some drift between checks. An hour is
-  // well inside the shortest window, so the next one is never mistaken for
-  // the parked one, and a reset that moves further brings the alarm back.
+  // The saved park a window answers to: its own, or else the row's it is
+  // drawn on. Unpark removes that one, so an inherited park can be ended.
+  function parkKey(p, w) {
+    var parked = p ? usage.parkedLimits[p.providerId] : null
+    if (!parked || !w) return ""
+    if (parked[w.title] !== undefined) return w.title
+    var part = scopedPart(w.title)
+    return part && parked[part.window] !== undefined ? part.window : ""
+  }
+
+  // Providers restate a reset with some drift between checks. A park only
+  // holds until the reset it was made for, so the next window, however
+  // short, is never mistaken for the parked one, and a reset that moves
+  // further brings the alarm back.
   function sameReset(a, b) {
     var x = new Date(String(a)).getTime()
     var y = new Date(String(b)).getTime()
@@ -1080,7 +1090,7 @@ Panel {
     var spent = rowParkable(p, row)
     var windows = spent.length > 0 ? spent : rowWindows(row).filter(function(w) { return isParked(p, w) })
     for (var i = 0; i < windows.length; i++)
-      usage.setLimitParked(p.providerId, windows[i].title, windows[i].resetAt, spent.length > 0)
+      usage.setLimitParked(p.providerId, spent.length > 0 ? windows[i].title : parkKey(p, windows[i]), windows[i].resetAt, spent.length > 0)
   }
 
   function resetMsFor(w) {

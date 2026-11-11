@@ -115,7 +115,7 @@ const fn = name => source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\
 const panelRoot = { nowMs: Date.parse('2026-11-05T12:00:00Z') }
 const usage = { parkedLimits: {} }
 eval(['windowIsLong', 'windowSpanMs', 'windowTitle', 'limitWindow', 'limitWindows', 'scopedPart', 'displayWindows',
-  'providerAccounts', 'isParked', 'sameReset', 'canPark', 'alarmWindow', 'rowWindows', 'rowParkable', 'rowParked',
+  'providerAccounts', 'isParked', 'parkKey', 'sameReset', 'canPark', 'alarmWindow', 'rowWindows', 'rowParkable', 'rowParked',
   'toggleParked'].map(fn).join('\n').replaceAll('root.nowMs', 'panelRoot.nowMs'))
 
 const reset = '2026-12-01T01:00:00+01:00'
@@ -145,6 +145,13 @@ panelRoot.nowMs = Date.parse('2026-12-01T00:00:01Z')
 const [rolledOver] = limitWindows(copilot)
 assert(!isParked(copilot, rolledOver), 'a park lapses once its reset has passed')
 assertDeepEqual(alarmWindow(copilot), { title: 'Monthly', percent: 0, resetAt: '' }, 'the rolled-over window counts again')
+panelRoot.nowMs = Date.parse('2026-11-05T12:00:00Z')
+
+const short = { providerId: 'codex', limits: [{ label: '30m window', percent: 0.95, resetsAt: '2026-11-05T12:30:00Z' }] }
+usage.parkedLimits = { codex: { Session: '2026-11-05T12:00:00Z' } }
+panelRoot.nowMs = Date.parse('2026-11-05T12:01:00Z')
+assert(!isParked(short, limitWindows(short)[0]), 'a park on a short window does not carry into the next one')
+assertEqual(alarmWindow(short).title, 'Session', 'the next short window lights the bar again')
 panelRoot.nowMs = Date.parse('2026-11-05T12:00:00Z')
 
 const nearly = { providerId: 'claude', limits: [{ label: 'Session (5-hour)', percent: 0.95, resetsAt: '2026-11-05T14:00:00Z' }] }
@@ -181,6 +188,15 @@ const unparked = []
 usage.setLimitParked = (id, title, resetAt, parked) => unparked.push([title, parked])
 toggleParked(fable, displayWindows(fable)[0])
 assertDeepEqual(unparked, [['Fable Weekly', false]], "unparking the row ends the model's park")
+
+const moved = { providerId: 'claude', limits: [
+  { label: 'Weekly (7-day)', percent: 0.6, resetsAt: '2026-11-08T00:00:00Z' },
+  { label: 'Fable Weekly', title: 'Fable Weekly', percent: 1, resetsAt: '2026-11-10T00:00:00Z' }
+] }
+usage.parkedLimits = { claude: { Weekly: '2026-11-10T00:00:00Z' } }
+unparked.length = 0
+toggleParked(moved, displayWindows(moved)[0])
+assertDeepEqual(unparked, [['Weekly', false]], 'unparking a model removes the row park it inherited')
 JS
 
 # Parks are saved beside the usage records, and lapsed ones are dropped.
