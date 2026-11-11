@@ -382,6 +382,15 @@ grep -qx "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "a CRLF li
 ! grep -q "^text/xml=nvim.desktop" "$mimeapps" || fail "a CRLF list's old default line is replaced"
 pass "the migration reads CRLF lists and spaced headers"
 
+# A type set twice is whatever its last line says, as GLib reads it.
+printf '[Default Applications]\ntext/plain=code.desktop\ntext/plain=nvim.desktop\ntext/css=nvim.desktop\ntext/css=code.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "a type whose last line is the old default moves to the handler"
+! grep -q "^text/plain=code.desktop" "$mimeapps" || fail "an earlier line of a type doesn't count as a choice"
+grep -qxF "text/css=code.desktop" "$mimeapps" || fail "a type whose last line is a choice keeps it"
+! grep -qxF "text/css=omarchy-launch-editor.desktop" "$mimeapps" || fail "a chosen type gets no handler line"
+pass "the migration reads a repeated type by its last line"
+
 # The desktop's own list is read first: picking an editor clears its text
 # types and keeps the rest, while the migration leaves it alone.
 desktop_list="$test_home/.config/hyprland-mimeapps.list"

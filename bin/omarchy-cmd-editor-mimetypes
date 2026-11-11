@@ -59,23 +59,25 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
     type = $0; sub(/=.*/, "", type); type = trim(type)
     app = $0; sub(/\r$/, "", app); sub(/^[^=]*=/, "", app); sub(/;.*/, "", app); app = trim(app)
   }
+  # GLib reads the last line for a type, so that line decides.
   file == 1 {
-    if (type in wanted && !ours(app)) older_choice[type] = 1
+    if (type in wanted) older_choice[type] = !ours(app)
     next
   }
   {
     lines[FNR] = $0
     if (type in wanted) {
-      set[type] = 1
-      if (unless_chosen == "true" && !ours(app)) keep[type] = 1
-      else drop[FNR] = 1
+      line_type[FNR] = type
+      chosen[type] = !ours(app)
     }
   }
   END {
-    if (unless_chosen == "true")
-      for (type in older_choice) if (!(type in set)) keep[type] = 1
+    if (unless_chosen == "true") {
+      for (type in chosen) if (chosen[type]) keep[type] = 1
+      for (type in older_choice) if (older_choice[type] && !(type in chosen)) keep[type] = 1
+    }
     for (i = 1; i <= FNR; i++) {
-      if (i in drop) continue
+      if ((i in line_type) && !(line_type[i] in keep)) continue
       print lines[i]
       if (header(lines[i]) == "[Default Applications]" && !added) {
         added = 1
