@@ -24,6 +24,14 @@
   "agents.durationHoursMinutes": "%1h %2m",
   "agents.durationMinutes": "%1m",
   "agents.durationNow": "now",
+  "agents.fableResets": {
+    "one": "%1 Fable reset",
+    "other": "%1 Fable resets"
+  },
+  "agents.fableResetsExpires": {
+    "one": "%1 Fable reset · next expires in %2",
+    "other": "%1 Fable resets · next expires in %2"
+  },
   "agents.freeResets": {
     "one": "%1 free reset",
     "other": "%1 free resets"
@@ -31,6 +39,14 @@
   "agents.freeResetsExpires": {
     "one": "%1 free reset · next expires in %2",
     "other": "%1 free resets · next expires in %2"
+  },
+  "agents.fullResets": {
+    "one": "%1 full reset",
+    "other": "%1 full resets"
+  },
+  "agents.fullResetsExpires": {
+    "one": "%1 full reset · next expires in %2",
+    "other": "%1 full resets · next expires in %2"
   },
   "agents.helpFireworksSignIn": "Set %1, run %2, or sign in to Fireworks in pi or opencode.",
   "agents.helpNotInPath": "%1 not found in PATH",

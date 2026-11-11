@@ -825,14 +825,38 @@ Panel {
     addProcess.running = true
   }
 
+  // All of an account's free resets, and when the first of them lapses.
   function resetCreditsText(credits) {
     if (!credits || !(Number(credits.available) > 0)) return ""
-    var count = Number(credits.available)
     var expires = new Date(String(credits.nextExpiresAt || "")).getTime()
-    if (isFinite(expires) && expires > nowMs) {
-      return Commons.I18n.tn("agents.freeResetsExpires", count)
-        .arg(Commons.I18n.formatNumber(count)).arg(formatDuration(expires - nowMs))
+    return resetCreditLine("free", Number(credits.available), isFinite(expires) ? expires - nowMs : 0)
+  }
+
+  // The same resets one kind to a line, for the hover, when the collector
+  // splits them: Claude's full and Fable resets give back different windows.
+  function resetKindsText(credits) {
+    if (!credits || !(Number(credits.available) > 0) || !credits.kinds || credits.kinds.length === 0) return ""
+    var kinds = credits.kinds
+    var lines = []
+    for (var i = 0; i < kinds.length; i++) {
+      var count = Number(kinds[i].available)
+      if (!(count > 0)) continue
+      var expires = new Date(String(kinds[i].nextExpiresAt || "")).getTime()
+      lines.push(resetCreditLine(kinds[i].kind, count, isFinite(expires) ? expires - nowMs : 0))
     }
+    return lines.join("\n")
+  }
+
+  function resetCreditLine(kind, count, leftMs) {
+    var shown = Commons.I18n.formatNumber(count)
+    if (leftMs > 0) {
+      var left = formatDuration(leftMs)
+      if (kind === "full") return Commons.I18n.tn("agents.fullResetsExpires", count).arg(shown).arg(left)
+      if (kind === "fable") return Commons.I18n.tn("agents.fableResetsExpires", count).arg(shown).arg(left)
+      return Commons.I18n.tn("agents.freeResetsExpires", count).arg(shown).arg(left)
+    }
+    if (kind === "full") return Commons.I18n.tn("agents.fullResets", count).arg(shown)
+    if (kind === "fable") return Commons.I18n.tn("agents.fableResets", count).arg(shown)
     return freeResetsText(count)
   }
 
@@ -2361,6 +2385,12 @@ Panel {
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
+        HoverHandler { id: resetCreditsHover }
+        PanelToolTip {
+          visible: resetCreditsHover.hovered && text !== ""
+          text: root.resetKindsText(section.provider ? section.provider.resetCredits : null)
+          fontFamily: root.fontFamily
+        }
       }
     }
 

@@ -542,7 +542,21 @@ def claude_code_version(home: Path) -> str:
 
 # The limit resets an account holds and can use now, in the shape the panel
 # reads Codex's free resets in: how many, and when the first of them lapses.
-# Resets are an extra: a malformed field loses them, never the limits.
+# `kinds` splits them the way Claude Code's own reset command does: a Fable
+# reset gives back only the Fable week, a full reset every window, and any
+# other kind stays a plain free reset. Resets are an extra: a malformed field
+# loses them, never the limits.
+RESET_KINDS = ("full", "fable", "free")
+
+
+def reset_kind(grant: dict[str, Any]) -> str:
+  if grant.get("gives_back_weekly") is True:
+    return "fable"
+  if grant.get("type") == "full":
+    return "full"
+  return "free"
+
+
 def reset_credits(payload: dict[str, Any]) -> dict[str, Any] | None:
   grants = obj(payload.get("cedar_ember")).get("grants")
   if not isinstance(grants, list):
@@ -553,9 +567,19 @@ def reset_credits(payload: dict[str, Any]) -> dict[str, Any] | None:
   ]
   if not usable:
     return None
-  expiries = [moment for moment in (aware_time(grant.get("ends_at")) for grant in usable) if moment]
+  credits = reset_summary(usable)
+  credits["kinds"] = [
+    {"kind": kind, **reset_summary(of_kind)}
+    for kind in RESET_KINDS
+    if (of_kind := [grant for grant in usable if reset_kind(grant) == kind])
+  ]
+  return credits
+
+
+def reset_summary(grants: list[dict[str, Any]]) -> dict[str, Any]:
+  expiries = [moment for moment in (aware_time(grant.get("ends_at")) for grant in grants) if moment]
   return {
-    "available": int(sum(number(grant.get("resets_left")) for grant in usable)),
+    "available": int(sum(number(grant.get("resets_left")) for grant in grants)),
     "nextExpiresAt": min(expiries).isoformat() if expiries else "",
   }
 

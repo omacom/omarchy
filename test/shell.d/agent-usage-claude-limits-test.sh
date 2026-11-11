@@ -163,26 +163,31 @@ for mode in ("down", 429):
 
 # Anthropic lists the account's limit resets only to a request naming the
 # Claude Code version that last ran; only grants usable now count, and the
-# first to lapse says when.
+# first to lapse says when. Each kind is told apart as Claude Code tells it:
+# a Fable reset gives back only the Fable week, even when typed full.
 sandbox()
 signed_in()
 write_json(home() / ".claude.json", {"lastReleaseNotesSeen": "2.1.322"})
+RESETS = {"available": 3, "nextExpiresAt": "2026-12-10T22:00:00+00:00", "kinds": [
+  {"kind": "full", "available": 2, "nextExpiresAt": "2026-12-10T22:00:00+00:00"},
+  {"kind": "fable", "available": 1, "nextExpiresAt": "2027-03-09T07:59:00+00:00"},
+]}
 record, http = claude(routes={USAGE: {**ROUTES[USAGE], "cedar_ember": {"grants": [
-  {"resets_left": 1, "usable_now": True, "ends_at": "2026-12-16T04:59:00+00:00"},
-  {"resets_left": 2, "usable_now": True, "ends_at": "2026-12-10T22:00:00Z"},
+  {"resets_left": 1, "usable_now": True, "type": "full", "gives_back_weekly": True, "ends_at": "2027-03-09T07:59:00+00:00"},
+  {"resets_left": 2, "usable_now": True, "type": "full", "ends_at": "2026-12-10T22:00:00Z"},
   {"resets_left": 1, "usable_now": False, "ends_at": "2026-11-20T00:00:00+00:00"},
   "malformed",
 ]}}})
 expect("Claude collector asks as Claude Code and counts the resets usable now",
        [http.requests[0]["headers"].get("user-agent"), record.get("resetCredits"), labels(record)],
-       ["claude-cli/2.1.322 (external, cli)", {"available": 3, "nextExpiresAt": "2026-12-10T22:00:00+00:00"},
+       ["claude-cli/2.1.322 (external, cli)", RESETS,
         ["Session (5-hour)", "Weekly (7-day)"]], record)
 
 # A refused re-check keeps the resets beside the limits it keeps.
 record, _ = claude(mode=429)
 expect("a rate-limited re-check keeps the kept resets with the kept limits",
        [labels(record), record.get("resetCredits")],
-       [["Session (5-hour)", "Weekly (7-day)"], {"available": 3, "nextExpiresAt": "2026-12-10T22:00:00+00:00"}], record)
+       [["Session (5-hour)", "Weekly (7-day)"], RESETS], record)
 
 # ------------------------------------------------------------ the sign-in
 
