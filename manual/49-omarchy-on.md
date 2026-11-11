@@ -22,15 +22,13 @@ The Steam Deck runs on Arch, which means you can run Omarchy on your Steam Deck.
 
 ### ROG Ally (2023)
 
-The original ASUS ROG Ally from 2023 (board RC71L, the model sometimes called Ally Normal, both the Ryzen Z1 and the Z1 Extreme) runs the Omarchy desktop. Handheld support is experimental: [Steam Deck, Legion Go and ROG Ally](https://omarchylinux.org/hardware/steam-deck-and-handhelds/). The ROG Ally X (RC72LA) is a different machine, and Omarchy does not apply this setup to it.
+Omarchy recognises the original ASUS ROG Ally RC71L, including the Ryzen Z1 Extreme. The Ally X and Xbox Ally are separate models and are not covered by this setup. The RC71L remains an x86 machine; it does not need a separate platform or image.
 
-Omarchy recognizes the RC71L. The handheld has no lid, so docking and bringing the built-in screen back follow the laptop path. The 7-inch 1920x1080 panel advertises 120 Hz as its preferred mode. Scale and refresh are chosen in the display panel on the bar, the same way as on any other machine.
+The RC71L skips the ROG laptop asusctl installation and laptop audio mixer and microphone changes. This does not remove packages from an existing installation. Its tablet chassis already follows Omarchy's portable display handling. Display scale, refresh rate and orientation remain under your control in the display panel.
 
-`asusctl` is not installed on this model. That program is for ROG laptops. On the Ally it conflicts with the programs that drive the controller, gyro, fans, TDP and stick RGB.
+After networking is ready, first login offers optional gaming setup once. Dismissing the invitation does not install anything; Steam remains available under Install > Gaming. Its installer selects graphics drivers for the detected GPU. Steam offers Big Picture for a controller-oriented interface inside the desktop. This does not replace the desktop session or change idle and sleep settings.
 
-A gamescope Steam session is not part of Omarchy. [DeckShift](https://github.com/28allday/deckshift) is the current gaming mode for an Omarchy desktop: `Super + Shift + S` enters it, `Super + Shift + R` returns to Hyprland, and the bar panel opens with `Super + Shift + Alt + D`. Install it from that project. The older Super-Shift-S deck-mode scripts are retired.
-
-Controller, gyro, TDP, fan and RGB setup is left to one handheld stack, installed by you. [Handheld Daemon](https://github.com/hhd-dev/hhd) still supports this Ally, and it must not be installed beside `asusctl`. Current Bazzite handheld images and CachyOS Handheld use InputPlumber and OpenGamepadUI instead, and that stack conflicts with Handheld Daemon. Use one of them.
+Controller access through the kernel's xpad driver and touchscreen recognition have been checked on an RC71L. Game compatibility and advanced controls still need individual testing. No gyro, rear-button remapping, fan or TDP management daemon is installed by this hardware setup.
 
 ### NixOS
 

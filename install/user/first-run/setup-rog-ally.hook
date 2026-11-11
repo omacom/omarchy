@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -e
+
+# Offer setup after networking is ready, never during offline hardware setup.
+# Gaming Setup is an optional enhancement; the existing installer menu is usable
+# even when that enhancement has not shipped yet.
+if omarchy-hw-rog-ally && omarchy-done ensure rog-ally-gaming-invitation; then
+  if omarchy-cmd-present omarchy-setup-gaming; then
+    action=(omarchy-setup-gaming)
+  else
+    action=(omarchy-menu summon install.gaming)
+  fi
+  omarchy-notification-send -u critical -g  "$(omarchy-i18n firstRun.rogAllyTitle)" \
+    "$(omarchy-i18n firstRun.rogAllyBody)" \
+    --exec "${action[@]}"
+fi
