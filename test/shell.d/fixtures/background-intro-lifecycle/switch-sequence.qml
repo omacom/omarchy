@@ -26,6 +26,7 @@ ShellRoot {
     property bool suspended: false
     property bool ready: true
     property string currentBackground: test.stage + "/old.png"
+    readonly property string selectedBackground: currentBackground
     property string displayedBackground: test.stage + "/old.png"
     property var nativeSizes: ({})
     property var sets: []

@@ -64,6 +64,12 @@ Item {
   property string catalogBackground: ""
   property int catalogVersion: 0
   property int resolvedVariantGeneration: -1
+  // A change that arrives while a reveal is on screen waits for it to end.
+  // Starting over at once would capture each base, which still holds the
+  // image from before that reveal, and step the desktop back to it.
+  property var queuedTransition: null
+  // The latest selection, ahead of currentBackground while a change is queued.
+  readonly property string selectedBackground: queuedTransition ? queuedTransition.finalPath : currentBackground
   signal captureBackground()
 
   BackgroundVariantCatalog {
@@ -133,7 +139,18 @@ Item {
     path = String(path || "").trim()
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
-    if (!path || (!force && finalPath === currentBackground)) return
+    if (!path) return false
+    // Reselecting what is already coming in withdraws a change queued behind it.
+    if (!force && finalPath === currentBackground) {
+      dropQueuedTransition()
+      return false
+    }
+    if (!instant && !isVideo(path) && (revealAnimation.running || finishingTransition)) {
+      queuedTransition = { fromPath: fromPath, path: path, finalPath: finalPath, force: force, theme: null }
+      queuedTransitionTimer.restart()
+      return true
+    }
+    dropQueuedTransition()
     // Capture each output's actual variant before theme paths are replaced.
     captureBackground()
     if (path !== preparedBackground) preparedBackground = ""
@@ -152,7 +169,7 @@ Item {
     // still stays on screen until OWE has the first frame and suspends this
     // layer, so the desktop does not show an empty background meanwhile. A
     // running reveal finishes on its incoming still, which OWE fades from.
-    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) return
+    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) return false
 
     catalogBackground = finalPath
     catalogVersion = backgroundVersion
@@ -170,12 +187,26 @@ Item {
       displayedVersion = backgroundVersion
       displayedBackground = finalPath
       revealProgress = 1
-      return
+      return false
     }
 
     oldBackground = fromPath || displayedBackground
     incomingBackground = path
     revealProgress = 0
+    return false
+  }
+
+  function dropQueuedTransition() {
+    queuedTransitionTimer.stop()
+    queuedTransition = null
+  }
+
+  function runQueuedTransition() {
+    var queued = queuedTransition
+    if (!queued) return
+    dropQueuedTransition()
+    if (queued.theme) transitionBackgroundWithTheme(queued.fromPath, queued.path, queued.finalPath, queued.theme.colors, queued.theme.shell)
+    else transitionBackground(queued.fromPath, queued.path, queued.finalPath, false, queued.force)
   }
 
   function setPendingTheme(colorsB64, shellB64) {
@@ -201,7 +232,11 @@ Item {
   }
 
   function transitionBackgroundWithTheme(fromPath, path, finalPath, colorsB64, shellB64) {
-    transitionBackground(fromPath, path, finalPath, false, true)
+    // A queued switch keeps its palette, so the colors still turn with its reveal.
+    if (transitionBackground(fromPath, path, finalPath, false, true)) {
+      queuedTransition.theme = { colors: colorsB64, shell: shellB64 }
+      return
+    }
     setPendingTheme(colorsB64, shellB64)
     if (!incomingBackground || revealProgress >= 1) applyPendingTheme()
   }
@@ -246,6 +281,7 @@ Item {
     preparedBackground = ""
     finishingTransition = false
     pruneNativeSizes()
+    runQueuedTransition()
   }
 
   onReadyChanged: maybeFinishTransition()
@@ -390,6 +426,18 @@ Item {
     interval: 250
     repeat: false
     onTriggered: root.beginReveal()
+  }
+
+  // A reveal that an output never completes must not hold later changes back.
+  Timer {
+    id: queuedTransitionTimer
+    interval: 2000
+    repeat: false
+    onTriggered: {
+      revealAnimation.stop()
+      root.finishingTransition = false
+      root.runQueuedTransition()
+    }
   }
 
   Timer {

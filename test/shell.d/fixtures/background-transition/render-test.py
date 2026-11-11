@@ -180,12 +180,14 @@ try:
     print(f"ok - rendered {stage} pixels match both output variants")
 
   if scenario == "handoff":
-    for point, color in (("5,5", b"\xff\0\0"), ("80,45", b"\xff\xff\0"),
-                         ("155,85", b"\xff\0\0"), ("185,5", b"\0\0\xff"),
-                         ("225,80", b"\0\xff\xff"), ("265,155", b"\0\0\xff")):
-      actual = subprocess.check_output(["magick", str(work / "reveal.png"),
-        "-crop", "1x1+" + point.replace(",", "+"), "+repage", "-depth", "8", "rgb:-"])
-      assert actual == color, f"reveal at {point}: expected {color!r}, got {actual!r}"
-    print("ok - rendered reveal mask shows incoming centers and captured outgoing edges")
+    # A change made mid-reveal waits for it, so the frame stays as it was.
+    for stage in ("reveal", "interrupted"):
+      for point, color in (("5,5", b"\xff\0\0"), ("80,45", b"\xff\xff\0"),
+                           ("155,85", b"\xff\0\0"), ("185,5", b"\0\0\xff"),
+                           ("225,80", b"\0\xff\xff"), ("265,155", b"\0\0\xff")):
+        actual = subprocess.check_output(["magick", str(work / f"{stage}.png"),
+          "-crop", "1x1+" + point.replace(",", "+"), "+repage", "-depth", "8", "rgb:-"])
+        assert actual == color, f"{stage} at {point}: expected {color!r}, got {actual!r}"
+    print("ok - rendered reveal mask shows incoming centers and captured outgoing edges, also under a queued change")
 finally:
   server.shutdown()

@@ -52,7 +52,7 @@ Item {
   function selected() {
     if (queuedPath) return queuedPath
     if (token && intro && (snapshotProc.running || token === intro.themeToken)) return still
-    return backgroundService ? backgroundService.currentBackground : ""
+    return backgroundService ? backgroundService.selectedBackground : ""
   }
 
   function displayedStill() {
@@ -66,7 +66,7 @@ Item {
     if (!path || !intro || !backgroundService) return "unavailable"
     if (busy) {
       queuedPath = path
-    } else if (path !== backgroundService.currentBackground) {
+    } else if (path !== backgroundService.selectedBackground) {
       // A playing intro hides the shell's background, so even a still
       // without an intro of its own has to come in under the cover.
       if (clipPath || backgroundService.suspended) {

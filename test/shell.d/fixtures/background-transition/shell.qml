@@ -125,6 +125,23 @@ ShellRoot {
         })
       } else if (test.step === 31) {
         test.capture("reveal", function() {
+          // A change made mid-reveal must wait for it, not restart it from
+          // the bases, which hold the decoy here.
+          background.setBackground(test.images + "old.png", false)
+          test.step = 32
+        })
+      } else if (test.step === 32) {
+        if (background.selectedBackground !== test.images + "old.png" || background.incomingBackground !== test.images + "new.png") {
+          test.fail("a change during a reveal was not queued behind it")
+          return
+        }
+        test.capture("interrupted", function() {
+          // Reselecting the incoming background withdraws the queued change.
+          background.setBackground(test.images + "new.png", false)
+          if (background.selectedBackground !== test.images + "new.png") {
+            test.fail("reselecting the incoming background kept the queued change")
+            return
+          }
           background.testFinish()
           test.step = 4
         })
