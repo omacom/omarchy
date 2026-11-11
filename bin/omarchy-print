@@ -28,15 +28,26 @@ fi
 printer=${BASH_REMATCH[1]}
 job=${BASH_REMATCH[2]}
 
-# The job's Alerts and Status lines from one lpstat list, or a failure when the
-# job isn't in it. The C locale keeps the labels in English.
+# The lpstat list that holds the job, then its Alerts and Status lines. The
+# active list comes first: the completed one holds the whole job history. The C
+# locale keeps the labels in English.
 job_info() {
-  LC_ALL=C lpstat -W "$1" -l -o "$printer" | awk -v job="$printer-$job" '
-    $1 == job { found = 1; next }
-    found && !/^\t/ { exit }
-    found && sub(/^\tAlerts: /, "") { alerts = $0 }
-    found && sub(/^\tStatus: /, "") { status = $0 }
-    END { if (!found) exit 1; print alerts; print status }'
+  for list in not-completed completed; do
+    LC_ALL=C lpstat -W "$list" -l -o "$printer" | awk -v list="$list" -v job="$printer-$job" '
+      $1 == job { found = 1; next }
+      found && !/^\t/ { exit }
+      found && sub(/^\tAlerts: /, "") { alerts = $0 }
+      found && sub(/^\tStatus: /, "") { status = $0 }
+      END { if (!found) exit 1; print list; print alerts; print status }' && return
+  done
+}
+
+# The printer's message says what went wrong ("gstoraster filter failed."). The
+# job's Status can hold a filter warning that comes with every job instead.
+reason() {
+  local message
+  message=$(LC_ALL=C lpstat -p "$printer" | sed -n '2{s/^[[:space:]]*//;p}')
+  echo "${message:-${status:-$alerts}}"
 }
 
 # Follow the job in the background, so imv isn't held up: every two seconds,
@@ -46,26 +57,25 @@ job_info() {
 
   for _ in {1..150}; do
     sleep 2
-    # A finished job leaves the active list; only then read the completed one,
-    # which holds the whole job history.
-    { read -r alerts; read -r status; } < <(job_info not-completed || job_info completed)
+    { read -r list; read -r alerts; read -r status; } < <(job_info)
 
-    # A failed filter stops the job with job-completed-with-errors, so failures
-    # are matched before completion.
-    case $alerts in
-      *error* | *aborted* | *canceled* | *stopped*)
-        notify -u critical "$(omarchy-i18n print.failed "$name")" "${status:-$alerts}"
+    # A finished job either completed successfully or failed. An active one
+    # failed when a filter stopped it (job-completed-with-errors) or the printer
+    # holds it: neither prints on its own.
+    case "$list $alerts" in
+      "completed "*job-completed-successfully*)
+        notify "$(omarchy-i18n print.done "$name")"
         exit
         ;;
-      *job-completed-*)
-        notify "$(omarchy-i18n print.done "$name")"
+      "completed "* | *error* | *stopped*)
+        notify -u critical "$(omarchy-i18n print.failed "$name")" "$(reason)"
         exit
         ;;
     esac
   done
 
   # Still queued: a printer that is off or out of paper keeps a job waiting.
-  if [[ -n $status ]]; then
-    notify "$(omarchy-i18n print.sending "$name")" "$status"
+  if [[ -n $list ]]; then
+    notify "$(omarchy-i18n print.sending "$name")" "$(reason)"
   fi
 ) &
