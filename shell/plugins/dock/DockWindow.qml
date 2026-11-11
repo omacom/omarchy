@@ -19,8 +19,43 @@ PanelWindow {
 
   property var dock: null
 
-  readonly property string position: dock ? dock.position : "bottom"
-  readonly property bool vertical: dock ? dock.vertical : false
+  readonly property string requestedPosition: dock ? dock.position : "bottom"
+  property string position: "bottom"
+  readonly property bool vertical: position === "left" || position === "right"
+  property bool positionReady: false
+  property bool positionChanging: false
+  property real positionSlide: 0
+  // Travel only far enough to clear the edge, keeping the exit visible.
+  readonly property real positionTravel: window.gap + (window.vertical ? body.width : body.height)
+  readonly property real positionSlideX: positionSlide * (position === "left" ? -positionTravel : position === "right" ? positionTravel : 0)
+  readonly property real positionSlideY: positionSlide * (position === "top" ? -positionTravel : position === "bottom" ? positionTravel : 0)
+  onRequestedPositionChanged: {
+    if (!positionReady) { position = requestedPosition; return }
+    if (!shown) {
+      positionMove.stop(); positionChanging = false; positionSlide = 0
+      position = requestedPosition
+      return
+    }
+    if (requestedPosition === position && !positionChanging) return
+    closeMenu()
+    positionChanging = true
+    positionMove.restart()
+  }
+  SequentialAnimation {
+    id: positionMove
+    // Keep the short exit visible instead of front-loading most of its travel.
+    NumberAnimation { target: window; property: "positionSlide"; to: 1; duration: Style.duration(280); easing.type: Easing.OutSine }
+    ScriptAction { script: window.position = window.requestedPosition }
+    PauseAnimation { duration: Style.duration(80) }
+    NumberAnimation { target: window; property: "positionSlide"; to: 0; duration: Style.duration(280); easing.type: Easing.OutCubic }
+    ScriptAction {
+      script: {
+        window.hoverStale = true
+        window.dropPoint = bodyHover.point.position
+        window.positionChanging = false
+      }
+    }
+  }
   readonly property var monitor: Hyprland.monitorFor(screen)
   readonly property var workspace: monitor ? monitor.activeWorkspace : null
   readonly property int workspaceId: workspace ? workspace.id : -1
@@ -138,7 +173,11 @@ PanelWindow {
     closeMenu()
     window.revealed = false
   }
-  Component.onCompleted: if (dock) dock.readMode(workspaceId)
+  Component.onCompleted: {
+    position = requestedPosition
+    positionReady = true
+    if (dock) dock.readMode(workspaceId)
+  }
 
   function openMenu(item, slot) {
     window.settingsMenu = false
@@ -209,10 +248,18 @@ PanelWindow {
   implicitHeight: window.vertical ? 0 : window.gap + window.slotSize + window.popupRoom
 
   mask: Region {
-    item: window.contentShown ? body : null
+    item: window.contentShown && !window.positionChanging ? body : null
 
-    Region { item: window.shown && window.autohide ? edgeTrigger : null }
+    Region { item: window.contentShown && window.autohide && !window.positionChanging ? edgeTrigger : null }
     Region { item: menu.visible ? menu : null }
+    // Leave the fixed sensor exposed even after the dock's mask expands.
+    Region {
+      intersection: Intersection.Subtract
+      x: window.position === "right" ? window.width - edgeWindow.depth : 0
+      y: window.position === "bottom" ? window.height - edgeWindow.depth : 0
+      width: window.shown && window.autohide ? (window.vertical ? edgeWindow.depth : window.width) : 0
+      height: window.shown && window.autohide ? (window.vertical ? window.height : edgeWindow.depth) : 0
+    }
   }
 
   onAutohideChanged: window.revealed = false
@@ -222,27 +269,62 @@ PanelWindow {
     // Long enough to cross a gap between the edge and the icons, no longer.
     interval: 150
     onTriggered: {
-      if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging) window.revealed = false
+      if (!bodyHover.hovered && !edgeHover.containsMouse && !edgeSensor.containsMouse && !window.menuOpen && !window.dragging) window.revealed = false
     }
   }
 
-  // The strip along the screen edge that brings an auto-hidden dock back.
+  // Keep edge detection on its own mapped surface. The animated dock changes
+  // its input mask as it opens; the reveal target must stay stable throughout.
+  PanelWindow {
+    id: edgeWindow
+    readonly property int depth: 1
+    screen: window.screen
+    visible: true
+    color: "transparent"
+    WlrLayershell.namespace: "omarchy-dock-edge"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    exclusionMode: ExclusionMode.Normal
+    exclusiveZone: 0
+    anchors {
+      top: window.position !== "bottom"
+      bottom: window.position !== "top"
+      left: window.position !== "right"
+      right: window.position !== "left"
+    }
+    implicitWidth: window.vertical ? depth : window.screen.width
+    implicitHeight: window.vertical ? window.screen.height : depth
+    mask: Region { item: window.shown && window.autohide && !window.positionChanging ? edgeSensor : null }
+    MouseArea {
+      id: edgeSensor
+      anchors.fill: parent
+      hoverEnabled: true
+      acceptedButtons: Qt.NoButton
+      onEntered: window.revealed = true
+      onExited: hideTimer.restart()
+    }
+  }
+
+  // After edge entry reveals the dock, keep the path to its icons interactive.
   Item {
     id: edgeTrigger
 
-    readonly property int depth: window.gap + Style.spacing.xxs
+    readonly property real depth: window.gap + (window.vertical ? body.width : body.height)
+    readonly property int endPadding: Math.round(window.slotSize / 2)
 
-    x: window.position === "left" ? 0 : window.position === "right" ? window.width - depth : body.x
-    y: window.position === "top" ? 0 : window.position === "bottom" ? window.height - depth : body.y
-    width: window.vertical ? depth : body.width
-    height: window.vertical ? body.height : depth
+    x: window.position === "left" ? 0 : window.position === "right" ? window.width - depth : body.x - endPadding
+    y: window.position === "top" ? 0 : window.position === "bottom" ? window.height - depth : body.y - endPadding
+    width: window.vertical ? depth : body.width + endPadding * 2
+    height: window.vertical ? body.height + endPadding * 2 : depth
 
-    HoverHandler {
+    MouseArea {
       id: edgeHover
-      onHoveredChanged: {
-        if (hovered) window.revealed = true
-        else hideTimer.restart()
-      }
+      enabled: window.contentShown
+      anchors.fill: parent
+      hoverEnabled: true
+      acceptedButtons: Qt.NoButton
+      onEntered: window.revealed = true
+      onExited: hideTimer.restart()
     }
   }
 
@@ -254,6 +336,7 @@ PanelWindow {
 
   Item {
     id: body
+    transform: Translate { x: window.positionSlideX; y: window.positionSlideY }
 
     // The strip keeps its order in every language, like the bar: drags and
     // drops reckon slots along x from the first app. Only the menu mirrors.
@@ -271,9 +354,9 @@ PanelWindow {
     // Style.easeOut, which crosses the short slide in a frame or two.
     Behavior on tuck {
       id: tuckMotion
-      enabled: window.shown
+      enabled: window.shown && !window.positionChanging
       NumberAnimation {
-        duration: Style.duration(tuckMotion.targetValue > 0 ? 120 : 180)
+        duration: Style.duration(tuckMotion.targetValue > 0 ? 160 : 240)
         easing.type: Easing.OutCubic
       }
     }
