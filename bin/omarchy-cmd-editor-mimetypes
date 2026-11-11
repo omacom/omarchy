@@ -87,3 +87,22 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
 
 # Written through, so a symlinked list (a dotfiles repo) stays a symlink.
 printf '%s\n' "$updated" >"$list"
+
+# Apps read the desktop's own list before mimeapps.list, so a text type set
+# there would still win. Picking an editor clears those; the migration leaves
+# them, since a type set there is one the user chose.
+desktop_list="${XDG_CONFIG_HOME:-$HOME/.config}/hyprland-mimeapps.list"
+if [[ $unless_chosen == false && -f $desktop_list ]]; then
+  cleared=$(awk -v types="$types" '
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    BEGIN { n = split(types, list, "\n"); for (i = 1; i <= n; i++) wanted[list[i]] = 1 }
+    { line = $0; sub(/\r$/, "", line) }
+    trim(line) ~ /^\[/ { section = trim(line) }
+    section == "[Default Applications]" && line ~ /=/ {
+      type = line; sub(/=.*/, "", type)
+      if (trim(type) in wanted) next
+    }
+    { print }
+  ' "$desktop_list")
+  printf '%s\n' "$cleared" >"$desktop_list"
+fi

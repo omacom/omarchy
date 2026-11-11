@@ -382,6 +382,18 @@ grep -qx "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "a CRLF li
 ! grep -q "^text/xml=nvim.desktop" "$mimeapps" || fail "a CRLF list's old default line is replaced"
 pass "the migration reads CRLF lists and spaced headers"
 
+# The desktop's own list is read first: picking an editor clears its text
+# types and keeps the rest, while the migration leaves it alone.
+desktop_list="$test_home/.config/hyprland-mimeapps.list"
+printf '[Default Applications]\nx-scheme-handler/https=omarchy-browser.desktop\ntext/plain=code.desktop\n' >"$desktop_list"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=code.desktop" "$desktop_list" || fail "the migration leaves the desktop's own list alone"
+omarchy-default-editor vim
+! grep -q "^text/plain" "$desktop_list" || fail "picking an editor clears a text type from the desktop's own list"
+grep -qxF "x-scheme-handler/https=omarchy-browser.desktop" "$desktop_list" || fail "picking an editor keeps the desktop list's other lines"
+rm -f "$desktop_list"
+pass "picking an editor wins over the desktop's own list"
+
 # New installs ship the same types pointed at the handler.
 shipped=$(sed -n 's/=omarchy-launch-editor\.desktop$//p' "$ROOT/default/applications/mimeapps.list" | sort)
 [[ $shipped == $(sort <<<"$handler_types") ]] || fail "the shipped mimeapps.list points the handler's types at it"
