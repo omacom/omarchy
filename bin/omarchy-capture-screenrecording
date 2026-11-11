@@ -200,7 +200,8 @@ wf_audio_device() {
   local sink="" source="" m
   [[ $DESKTOP_AUDIO == "true" ]] && sink=$(pactl get-default-sink 2>/dev/null)
   [[ $MICROPHONE_AUDIO == "true" ]] && source=$(pactl get-default-source 2>/dev/null)
-  # With no default source pactl answers its own placeholder, never nothing.
+  # With no default device pactl answers its own placeholder, never nothing.
+  [[ $sink == "@DEFAULT_SINK@" ]] && sink=""
   [[ $source == "@DEFAULT_SOURCE@" ]] && source=""
 
   if [[ -n $sink && -n $source ]]; then
