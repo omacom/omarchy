@@ -966,7 +966,15 @@ QMap<QString, bool> translatables(const QString &folder, QStringList *problems) 
             for (; i < code.size() && code[i] != quote; ++i) {
                 if (code[i] == '\\' && i + 1 < code.size()) {
                     const QChar escaped = code[++i];
-                    *text += escaped == 'n' ? QChar('\n') : escaped == 't' ? QChar('\t') : escaped;
+                    const int digits = escaped == 'u' ? 4 : escaped == 'x' ? 2 : 0;
+                    bool hex = false;
+                    const ushort unit = code.mid(i + 1, digits).toUShort(&hex, 16);
+                    if (digits && hex) {
+                        *text += QChar(unit);
+                        i += digits;
+                    } else {
+                        *text += escaped == 'n' ? QChar('\n') : escaped == 't' ? QChar('\t') : escaped;
+                    }
                 } else {
                     *text += code[i];
                 }
@@ -1202,7 +1210,8 @@ private slots:
             const QJsonObject catalog = readCatalog(file.filePath());
             if (catalog.isEmpty())
                 problems << code + ": not a JSON object, or empty";
-            QSet<QString> categories{"other"};
+            // Some languages reach a form only at a million ("many" in French).
+            QSet<QString> categories{"other", Translator::pluralCategory(code, 1000000)};
             for (long long n = 0; n <= 1000; ++n)
                 categories << Translator::pluralCategory(code, n);
             for (auto it = catalog.begin(); it != catalog.end(); ++it) {
