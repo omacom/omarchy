@@ -25,4 +25,5 @@ else
   gsettings set org.gnome.desktop.interface gtk-theme "Adwaita-dark"
 fi
 
-gsettings set org.gnome.desktop.interface icon-theme "$(omarchy-theme-icons)"
+# Every theme uses the Adwaita icons, which GTK brings along.
+gsettings set org.gnome.desktop.interface icon-theme "Adwaita"

@@ -12,17 +12,13 @@ A theme you write yourself in `~/.config/omarchy/themes` can contain whatever yo
 
 A theme you install from someone else's repo with `omarchy theme install` keeps everything that's colour, and loses the handful of files that would run code on your machine: any `.lua` file, the terminal configs (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`), and `vscode.json`. A theme's `hyprland.lua` is Lua your compositor runs at login, a terminal config names the program your terminal starts, and `vscode.json` names a VSCode extension to install. Installing someone's theme should change what your desktop looks like, never what it runs.
 
-Everything else still works exactly as the theme author wrote it — `btop.theme`, `chromium.theme`, `helix.toml`, `icons.theme`, `shell.toml`, the backgrounds and the previews are all kept. Only what was dropped gets regenerated from `colors.toml` on your machine.
+Everything else still works exactly as the theme author wrote it — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, the backgrounds and the previews are all kept. Only what was dropped gets regenerated from `colors.toml` on your machine.
 
 Omarchy tells the two apart by whether the theme has its own git repo inside it, which is what `omarchy theme install` leaves behind when it clones. So a theme you wrote stays yours, and one you pulled off the internet stays colours.
 
 ### Light mode
 
 If you're making a light mode theme, set `mode = "light"` at the top of your `colors.toml`. Then it'll automatically be paired with light mode for all the apps. (The old way of dropping an empty file called `light.mode` in the root of your theme still works too.)
-
-### Icon theme
-
-Apps use the Adwaita icons by default. If you'd like your theme to use another icon theme, install it and add a file called `icons.theme` with its name, such as `Papirus-Dark`. When the named icon theme isn't installed, apps keep the Adwaita icons.
 
 ### Unlock image
 

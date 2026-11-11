@@ -12,8 +12,8 @@ CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/qtengine/config.json"
 
 [[ -f $CONFIG ]] || exit 0
 
-# The same icon theme omarchy-theme-set-gnome gives GTK.
-icon_theme=$(omarchy-theme-icons)
+# The same icons omarchy-theme-set-gnome gives GTK: Adwaita, for every theme.
+icon_theme="Adwaita"
 
 if [[ $(jq -r '.theme.iconTheme // empty' "$CONFIG") == "$icon_theme" ]]; then
   exit 0

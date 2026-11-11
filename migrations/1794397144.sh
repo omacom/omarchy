@@ -28,12 +28,12 @@ if [[ -d $yaru && ! -e $yaru/index.theme ]] && ! pacman -Qqo "$yaru" &>/dev/null
 fi
 
 # GTK and Qt apps that named a Yaru colour, Omarchy's old default, get the
-# current theme's icons again, which is Adwaita unless it names another
-# installed icon theme. An icon theme the user picked themselves stays, and so
+# Adwaita icons every theme uses now. An icon theme the user picked themselves
+# stays, and so
 # does the rest of their GTK appearance. Without a session bus the setting waits
 # for the next theme switch; GTK falls back to Adwaita for it meanwhile.
 if [[ -n ${DBUS_SESSION_BUS_ADDRESS:-} && $(gsettings get org.gnome.desktop.interface icon-theme) == "'Yaru"* ]]; then
-  gsettings set org.gnome.desktop.interface icon-theme "$(omarchy-theme-icons)"
+  gsettings set org.gnome.desktop.interface icon-theme "Adwaita"
 fi
 
 qt_config="${XDG_CONFIG_HOME:-$HOME/.config}/qtengine/config.json"
