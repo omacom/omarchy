@@ -20,9 +20,9 @@ Omarchy tells the two apart by whether the theme has its own git repo inside it,
 
 If you're making a light mode theme, set `mode = "light"` at the top of your `colors.toml`. Then it'll automatically be paired with light mode for all the apps. (The old way of dropping an empty file called `light.mode` in the root of your theme still works too.)
 
-### Icon colors
+### Icon theme
 
-If you'd like to color-match the file manager icons to your theme, add a file called `icons.theme` with the name of the icon set you want to use. By default, the options are: `Yaru Yaru-blue Yaru-dark Yaru-magenta Yaru-olive Yaru-prussiangreen Yaru-purple Yaru-red Yaru-sage Yaru-wartybrown Yaru-yellow`.
+Apps use the Adwaita icons by default. If you'd like your theme to use another icon theme, install it and add a file called `icons.theme` with its name, such as `Papirus-Dark`. When the named icon theme isn't installed, apps keep the Adwaita icons.
 
 ### Unlock image
 

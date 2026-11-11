@@ -1,0 +1,29 @@
+#!/bin/bash
+
+# omarchy:summary=Print the icon theme GTK and Qt apps should use
+# omarchy:hidden=true
+
+# Apps use Adwaita's icons unless the current theme names another icon theme in
+# icons.theme. That name is used only when the icon theme is installed, so one
+# naming an icon theme that isn't, such as the Yaru colours Omarchy themes used
+# to name, falls back to Adwaita rather than leaving apps without icons.
+ICONS_THEME="$HOME/.local/state/omarchy/current/theme/icons.theme"
+
+icon_theme="Adwaita"
+
+if [[ -f $ICONS_THEME ]]; then
+  name=$(<"$ICONS_THEME")
+
+  if [[ -n $name && $name != */* && $name != "." && $name != ".." ]]; then
+    IFS=: read -ra data_dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+
+    for dir in "$HOME/.icons" "${XDG_DATA_HOME:-$HOME/.local/share}/icons" "${data_dirs[@]/%//icons}"; do
+      if [[ -f $dir/$name/index.theme ]]; then
+        icon_theme=$name
+        break
+      fi
+    done
+  fi
+fi
+
+echo "$icon_theme"
