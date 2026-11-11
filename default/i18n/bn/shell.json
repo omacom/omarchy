@@ -64,7 +64,6 @@
   "agents.localRecommended": "প্রস্তাবিত",
   "agents.localRemoveConfirm": "%1 বন্ধ করে এর ডাউনলোড করা ওয়েট মুছে ফেলবেন?",
   "agents.localRemovingMeter": "সরানো হচ্ছে",
-  "agents.localShowLogs": "লগ দেখুন",
   "agents.localShowLogsTip": "টার্মিনালে এই মডেলের লগ খুলুন",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "চালু করুন",

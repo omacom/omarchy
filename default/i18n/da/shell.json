@@ -64,7 +64,6 @@
   "agents.localRecommended": "anbefalet",
   "agents.localRemoveConfirm": "Stop %1, og slet dens downloadede vægte?",
   "agents.localRemovingMeter": "Fjerner",
-  "agents.localShowLogs": "Vis logfiler",
   "agents.localShowLogsTip": "Åbn denne models logfiler i en terminal",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Start",

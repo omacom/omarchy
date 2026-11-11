@@ -62,7 +62,6 @@
   "agents.localRecommended": "disarankan",
   "agents.localRemoveConfirm": "Hentikan %1 dan hapus bobot unduhannya?",
   "agents.localRemovingMeter": "Menghapus",
-  "agents.localShowLogs": "Tampilkan log",
   "agents.localShowLogsTip": "Buka log model ini di terminal",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "Mulai",

@@ -36,8 +36,10 @@ Panel {
   // offers nothing; unpaired, only pairing, which is what fetches its key.
   // Paired, it can be used or disconnected from, never started or stopped:
   // it runs on its host's terms.
-  // This machine's own models offer sharing once running, where Tailscale can
-  // serve them, or where one is shared already, so it can always be stopped.
+  // This machine's own models offer sharing only while running: where
+  // Tailscale can serve them, or where one is shared already, so it can
+  // always be stopped. A stopped model stays shared and is served again when
+  // it starts, but says nothing about it until then.
   function localActions(model, canShare) {
     var actions = []
     if (model.unit === "removing" || model.unit === "installing") return actions
@@ -45,7 +47,7 @@ Panel {
       if (model.offline) return actions
       if (!model.paired) return ["pair"]
       return model.unit === "active" ? ["disconnect", "launch"] : ["disconnect"]
-    } else if ((canShare && model.unit === "active") || model.shared === true) {
+    } else if (model.unit === "active" && (canShare || model.shared === true)) {
       actions.push("share")
     }
     if (model.unit !== "deactivating") actions.push("toggle")
@@ -2091,15 +2093,15 @@ Panel {
 
       // Shares this machine's running model with the tailnet, or stops
       // sharing it: Share while private, Shared while shared, in the icons'
-      // color. Offered only where Tailscale can serve it, and kept on a shared
-      // model, running or not, so sharing can always stop.
+      // color. Shown only while the model runs, where Tailscale can serve it
+      // or it's shared already; a stopped shared model is shared again on start.
       TextLink {
         id: localShare
         anchors.right: localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(8) : 0
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool shared: !!section.model && section.model.shared === true
-        visible: !!section.model && !section.remote && !section.removing && !section.installing && (shared || (usage.canShare && section.running))
+        visible: !!section.model && !section.remote && !section.removing && !section.installing && section.running && (shared || usage.canShare)
         text: shared ? Commons.I18n.t("agents.networkSharedLabel") : Commons.I18n.t("agents.networkShareLabel")
         tooltip: shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
         idleColor: root.foreground
@@ -2280,11 +2282,13 @@ Panel {
       wrapMode: Text.Wrap
     }
 
+    // Why a model stopped. On this machine, the reason itself links to its
+    // logs; a tailnet model's logs live on its host, so there it's just text.
     Text {
-      visible: !!section.model && !section.offline && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
+      visible: section.remote && !section.offline && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
       width: parent.width
       textFormat: Text.PlainText
-      text: section.model ? String(section.model.error || "") : ""
+      text: section.remote ? String(section.model.error || "") : ""
       color: root.urgent
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
@@ -2293,8 +2297,13 @@ Panel {
 
     TextLink {
       visible: !!section.model && !section.remote && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
+      width: Math.min(implicitWidth, parent.width)
+      text: section.model ? String(section.model.error || "") : ""
+      idleColor: root.urgent
+      hotColor: root.urgent
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
       picked: root.hasKey("modelLogs", section.providerIndex)
-      text: Commons.I18n.t("agents.localShowLogs")
       tooltip: Commons.I18n.t("agents.localShowLogsTip")
       onClicked: root.showLocalLogs(section.model)
     }
@@ -2655,10 +2664,11 @@ Panel {
     property bool picked: false
     property string tooltip: ""
     property color idleColor: root.dim
+    property color hotColor: root.foreground
     readonly property bool hot: linkMouse.containsMouse || picked
     onPickedChanged: if (picked) root.revealItem(link)
     textFormat: Text.PlainText
-    color: current ? Commons.Color.accent : (hot ? root.foreground : idleColor)
+    color: current ? Commons.Color.accent : (hot ? hotColor : idleColor)
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
     font.bold: current

@@ -166,7 +166,8 @@ const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 const localActions = new Function(panel.match(/function localActions\([^]*?\n  \}/)[0] + '\nreturn localActions')()
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle', 'launch'], 'a running local model can be shared, stopped and launched')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, false), ['toggle', 'launch'], 'without Tailscale set up, sharing is not offered')
-assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', shared: true }, false), ['share', 'toggle'], 'a shared model can always stop sharing')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active', shared: true }, false), ['share', 'toggle', 'launch'], 'a running shared model can always stop sharing')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', shared: true }, true), ['toggle'], 'a stopped shared model does not say it is shared')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive' }, true), ['toggle'], 'a local model that has not been started is not offered for sharing')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'installing' }, true), [], 'a model being set up offers nothing yet')
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' }), ['disconnect', 'launch'], 'a paired network model launches or disconnects, never stops its host\'s model')
@@ -210,6 +211,21 @@ pass "a detached setup with its packages starts without a terminal"
 calls=$(run_wrapper 1 use nemotron-3.5-bolt-tensorfold)
 [[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold' ]] || fail "a setup in a terminal installs its packages there" "$calls"
 pass "a setup in a terminal installs its packages there"
+
+# Sharing needs the SSH server other machines pair over: the panel's Share
+# sets it up in a terminal first, until it runs.
+printf '#!/bin/bash\nexit %s\n' 3 >"$wrapper_dir/systemctl"
+chmod +x "$wrapper_dir/systemctl"
+calls=$(run_wrapper 1 share nemotron-3.5-bolt-tensorfold </dev/null)
+[[ $calls == "omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-sshd && omarchy-local-ai 'share' 'nemotron-3.5-bolt-tensorfold'" ]] || fail "sharing without an SSH server sets one up in a terminal first" "$calls"
+pass "sharing without an SSH server sets one up in a terminal first"
+calls=$(run_wrapper 1 share nemotron-3.5-bolt-tensorfold --off </dev/null)
+[[ $calls == "omarchy-local-ai share nemotron-3.5-bolt-tensorfold --off" ]] || fail "stopping a share never asks for an SSH server" "$calls"
+pass "stopping a share never asks for an SSH server"
+printf '#!/bin/bash\nexit 0\n' >"$wrapper_dir/systemctl"
+calls=$(run_wrapper 1 share nemotron-3.5-bolt-tensorfold </dev/null)
+[[ $calls == "omarchy-local-ai share nemotron-3.5-bolt-tensorfold" ]] || fail "sharing with the SSH server running shares at once" "$calls"
+pass "sharing with the SSH server running shares at once"
 
 # Hosted and local rows share ordering, including positions saved while hidden.
 run_node_test <<'JS'

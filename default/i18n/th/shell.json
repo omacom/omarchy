@@ -62,7 +62,6 @@
   "agents.localRecommended": "แนะนำ",
   "agents.localRemoveConfirm": "หยุด %1 และลบเวตที่ดาวน์โหลดไว้หรือไม่?",
   "agents.localRemovingMeter": "กำลังลบ",
-  "agents.localShowLogs": "แสดงล็อก",
   "agents.localShowLogsTip": "เปิดล็อกของโมเดลนี้ในเทอร์มินัล",
   "agents.localSpeedFact": "%1 TPS",
   "agents.localStart": "เริ่ม",
