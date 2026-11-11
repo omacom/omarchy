@@ -2295,7 +2295,7 @@ if [[ -d $legacy_icons_dir ]]; then
 fi
 
 if [[ -d $root/applications ]]; then
-  find "$root/applications" -maxdepth 1 -type f -name '*.desktop' -exec cp -f {} "$HOME/.local/share/applications/" \;
+  find "$root/applications" -maxdepth 1 -type f -name '*.desktop' ! -name Netflix.desktop -exec cp -f {} "$HOME/.local/share/applications/" \;
 fi
 if [[ -f $root/default/alacritty/Alacritty.desktop && ! -f $HOME/.local/share/applications/Alacritty.desktop ]]; then
   cp "$root/default/alacritty/Alacritty.desktop" "$HOME/.local/share/applications/"
