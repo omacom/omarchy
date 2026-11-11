@@ -15,6 +15,12 @@ cat >"$test_tmp/bin/omarchy-hw-aarch64-qualcomm" <<'STUB'
 [[ -e $OMARCHY_TEST_QUALCOMM ]]
 STUB
 chmod +x "$test_tmp/bin/omarchy-hw-aarch64-qualcomm"
+cat >"$test_tmp/bin/omarchy-hw-match" <<'STUB'
+#!/bin/bash
+[[ -f $OMARCHY_TEST_MODEL ]] && grep -qi -- "$1" "$OMARCHY_TEST_MODEL"
+STUB
+chmod +x "$test_tmp/bin/omarchy-hw-match"
+export OMARCHY_TEST_MODEL="$test_tmp/model"
 export OMARCHY_TEST_QUALCOMM="$test_tmp/qualcomm"
 export PATH="$test_tmp/bin:$ROOT/bin:$PATH"
 
@@ -181,3 +187,36 @@ run_helper "$home"
 grep -Fxq -- "$features,AcceleratedVideoDecoder" "$test_tmp/flags-target.conf" || fail "the target of a symlinked Chromium file gets the feature"
 grep -Fxq -- "$hwdec" "$test_tmp/mpv-target.conf" || fail "the target of a symlinked mpv config gets the fallback"
 pass "symlinked config files stay symlinks and their targets get the settings"
+
+rm "$OMARCHY_TEST_QUALCOMM"
+echo 'MacBookPro8,2' >"$OMARCHY_TEST_MODEL"
+home=$(new_home macbook)
+cp "$shipped" "$home/.config/chromium-flags.conf"
+mkdir -p "$home/.config/mpv"
+printf '%s\n' '[software]' 'hwdec=no' 'vo=gpu-next' >"$home/.config/mpv/mpv.conf"
+run_helper "$home"
+cp "$home/.config/mpv/mpv.conf" "$test_tmp/macbook-first.conf"
+run_helper "$home"
+cmp -s "$home/.config/mpv/mpv.conf" "$test_tmp/macbook-first.conf" || fail "MacBook decoding setup is idempotent"
+for option in hwdec=vaapi vo=gpu gpu-api=opengl; do
+  grep -Fxq "$option" "$home/.config/mpv/mpv.conf" || fail "MacBook decoding sets $option"
+done
+cmp -s "$shipped" "$home/.config/chromium-flags.conf" || fail "MacBook decoding keeps Chromium defaults"
+pass "MacBook decoding uses VA-API and OpenGL outside existing mpv profiles without browser flags"
+
+home=$(new_home macbook-choices)
+mkdir -p "$home/.config/mpv"
+printf '%s\n' 'hwdec=no' 'vo=gpu-next' 'gpu-api=vulkan' >"$home/.config/mpv/mpv.conf"
+cp "$home/.config/mpv/mpv.conf" "$test_tmp/macbook-choices.conf"
+run_helper "$home"
+cmp -s "$home/.config/mpv/mpv.conf" "$test_tmp/macbook-choices.conf" || fail "MacBook decoding preserves all global user choices"
+pass "MacBook decoding preserves all global user choices"
+
+home=$(new_home macbook-xdg)
+XDG_CONFIG_HOME="$home/custom-config" run_helper "$home"
+[[ -f $home/custom-config/mpv/mpv.conf && ! -e $home/.config/mpv ]] || fail "MacBook decoding honors XDG_CONFIG_HOME"
+echo 'MacBookPro8,1' >"$OMARCHY_TEST_MODEL"
+home=$(new_home untested-macbook)
+run_helper "$home"
+[[ ! -e $home/.config/mpv ]] || fail "untested MacBooks keep their video defaults"
+pass "MacBook decoding honors XDG_CONFIG_HOME and leaves untested models alone"

@@ -226,6 +226,24 @@ machine() {
   case $name in
     plain) dmi sys_vendor LENOVO; dmi product_name 21HM0000US; dmi product_family "ThinkPad X1 Carbon Gen 11" ;;
     no-dmi) rm -rf "$hw/dmi" ;;
+    macbookpro2011|macbookpro2011-dual|macbookpro2011-first-boot|macbookpro2011-pkg-fails|macbookpro2011-module-fails)
+      dmi sys_vendor "Apple Inc."; dmi product_name "MacBookPro8,2"
+      FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation 2nd Generation Core Processor Family Integrated Graphics Controller [8086:0126]"
+      pci="$root/sys/bus/pci/devices/0000:00:02.0"
+      mkdir -p "$pci"
+      printf '0x8086\n' >"$pci/vendor"; printf '0x030000\n' >"$pci/class"; printf '0x0126\n' >"$pci/device"
+      if [[ $name == "macbookpro2011-dual" ]]; then
+        pci="$root/sys/bus/pci/devices/0000:01:00.0"
+        mkdir -p "$pci"
+        printf '0x1002\n' >"$pci/vendor"; printf '0x030000\n' >"$pci/class"
+      elif [[ $name == "macbookpro2011-first-boot" || $name == "macbookpro2011-module-fails" ]]; then
+        export OMARCHY_IMAGE_DEFERRED_HARDWARE=1
+        [[ $name == "macbookpro2011-module-fails" ]] && FAKE_MODPROBE_STATUS=1
+      elif [[ $name == "macbookpro2011-pkg-fails" ]]; then
+        FAKE_PKG_ADD_STATUS=1
+      fi
+      ;;
+    macbookpro2011-no-pci) dmi product_name "MacBookPro8,2" ;;
     macbookpro13) dmi product_name "MacBookPro13,2" ;;
     macbook8) dmi product_name "MacBook8,1" ;;
     macbookpro15) dmi product_name "MacBookPro15,1" ;;
@@ -342,6 +360,7 @@ run_leaf() {
 # standing between it and any other machine.
 leaves=(
   hardware/apple/fix-spi-keyboard.sh
+  hardware/apple/fix-macbookpro-2011-backlight.sh
   hardware/n1x.sh
   hardware/fix-synaptic-touchpad.sh
   hardware/surface.sh
@@ -382,6 +401,14 @@ while IFS='|' read -r leaf name want; do
   got=$(run_leaf "$leaf")
   [[ $got == "$want" ]] || fail "install/$leaf on $name: $want" "got: $got"
 done <<'ROWS'
+hardware/apple/fix-macbookpro-2011-backlight.sh|macbookpro2011|0|pkg-add lp8545-backlight-dkms
+hardware/apple/fix-macbookpro-2011-backlight.sh|macbookpro2011-dual|0
+hardware/apple/fix-macbookpro-2011-backlight.sh|macbookpro2011-no-pci|0
+hardware/apple/fix-macbookpro-2011-backlight.sh|macbookpro2011+unreadable|0
+hardware/apple/fix-macbookpro-2011-backlight.sh|macbookpro2011-first-boot|0|pkg-add lp8545-backlight-dkms|modprobe lp8545_bl
+hardware/apple/fix-macbookpro-2011-backlight.sh|macbookpro2011-pkg-fails|1|pkg-add lp8545-backlight-dkms
+hardware/apple/fix-macbookpro-2011-backlight.sh|macbookpro2011-module-fails|1|pkg-add lp8545-backlight-dkms|modprobe lp8545_bl
+hardware/intel/video-acceleration.sh|macbookpro2011|0|pkg-add libva-intel-driver
 hardware/apple/fix-spi-keyboard.sh|macbookpro13|0|pkg-add macbook12-spi-driver-dkms|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
 hardware/apple/fix-spi-keyboard.sh|macbook8|0|pkg-add macbook12-spi-driver-dkms|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
 hardware/apple/fix-spi-keyboard.sh|macbookpro13+unreadable|0

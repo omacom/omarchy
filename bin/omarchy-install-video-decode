@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Let mpv and Chromium decode video on the video chip of Snapdragon laptops
+# omarchy:summary=Configure hardware video decoding on supported laptops
 
 set -euo pipefail
 
@@ -12,25 +12,24 @@ set -euo pipefail
 # mpv reads this after /etc/mpv/mpv.conf. A global hwdec the user set stays as
 # it is. One inside a profile only applies with that profile, so the fallback
 # still goes in, on top, where no [profile] section can catch it.
-setup_mpv() {
-  local conf=~/.config/mpv/mpv.conf
-  local comment="# Fall back to the Snapdragon video chip's decoder (Omarchy)"
-  local hwdec='hwdec=auto-safe,v4l2m2m-copy'
+setup_mpv_option() {
+  local conf="${XDG_CONFIG_HOME:-$HOME/.config}/mpv/mpv.conf"
+  local option=$1 value=$2 comment=$3
 
   if [[ ! -s $conf ]]; then
-    mkdir -p ~/.config/mpv || return
-    printf '%s\n' "$comment" "$hwdec" >"$conf"
-  elif ! has_global_hwdec "$conf"; then
-    sed -i --follow-symlinks "1i $comment\n$hwdec" "$conf"
+    mkdir -p "${conf%/*}" || return
+    printf '%s\n' "$comment" "$option=$value" >"$conf"
+  elif ! has_global_option "$conf" "$option"; then
+    sed -i --follow-symlinks "1i $comment\n$option=$value" "$conf"
   fi
 }
 
 # Options before the first [profile] and after a [default] line are global. A
 # profile line may end in a comment.
-has_global_hwdec() {
-  awk '
+has_global_option() {
+  awk -v option="$2" '
     /^[[:space:]]*\[[^]]*\][[:space:]]*(#.*)?$/ { global = ($0 ~ /^[[:space:]]*\[default\][[:space:]]*(#.*)?$/); next }
-    global && /^[[:space:]]*hwdec[[:space:]]*=/ { found = 1 }
+    global && $0 ~ "^[[:space:]]*" option "[[:space:]]*=" { found = 1 }
     END { exit !found }
   ' global=1 "$1"
 }
@@ -70,7 +69,15 @@ if omarchy-hw-aarch64-qualcomm; then
   # Running them under || turns set -e off inside, so each write returns its
   # own failure.
   status=0
-  setup_mpv || status=$?
+  setup_mpv_option hwdec auto-safe,v4l2m2m-copy "# Fall back to the Snapdragon video chip's decoder (Omarchy)" || status=$?
   setup_chromium || status=$?
+  exit "$status"
+elif omarchy-hw-match '^MacBookPro8,2$'; then
+  # Sandy Bridge has VA-API H.264 decoding but no usable Vulkan driver.
+  # Preserve each global option the user chose, including hwdec=no.
+  status=0
+  setup_mpv_option hwdec vaapi "# Use Sandy Bridge's VA-API decoder (Omarchy)" || status=$?
+  setup_mpv_option vo gpu "# Sandy Bridge uses the OpenGL video output (Omarchy)" || status=$?
+  setup_mpv_option gpu-api opengl "# Sandy Bridge has no Vulkan support (Omarchy)" || status=$?
   exit "$status"
 fi
