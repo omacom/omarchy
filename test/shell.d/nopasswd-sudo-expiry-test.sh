@@ -37,7 +37,7 @@ for status in 1 2 3; do
 done
 pass "public status distinguishes inactive from errors"
 
-for args in '--yes' '--yes permanent' '--yes 0' '--yes 1441' '--yes -1' '--yes 1m' '--yes 1.5' '--yes 18446744073709551617' '--yes --disable' '--yes --active' '--disable --yes' '--active --yes' '--yes 15 --disable' '--yes 15 --active' '15 --yes'; do
+for args in '--yes' '--yes permanent' '--yes 0' '--yes 1441' '--yes -1' '--yes 1m' '--yes 1.5' '--yes 18446744073709551617' '--yes --disable' '--yes --active' '--yes --status' '--disable --yes' '--active --yes' '--status --yes' '--yes 15 --disable' '--yes 15 --active' '--yes 15 --status' '--status 15' '15 --yes'; do
   read -r -a arguments <<<"$args"
   : >"$test_tmp/commands"
   assert_status 1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" "${arguments[@]}" >"$test_tmp/public.log" 2>&1
@@ -52,8 +52,12 @@ for status in 0 3; do
     ! grep -q '^gum ' "$test_tmp/commands" || fail "--yes offered confirmation or a picker"
     ! grep -q 'WARNING\|Anyone or anything' "$test_tmp/public.log" || fail "--yes scrolled the caller pane with a verbose warning"
     grep -q 'Passwordless sudo has been ENABLED' "$test_tmp/public.log" || fail "--yes omitted the enable result"
-    [[ $(grep -c '^sudo -- ' "$test_tmp/commands") == 1 ]] || fail "--yes must retain one password-capable enable action"
-    grep -q "^sudo -- .* __enable .* $minutes$" "$test_tmp/commands"
+    if (( status == 3 )); then
+      grep -q "^sudo -k -- .* __enable .* $minutes$" "$test_tmp/commands" || fail "inactive --yes must ignore cached authorization for this command"
+    else
+      grep -q "^sudo -- .* __enable .* $minutes$" "$test_tmp/commands" || fail "active --yes must preserve renewal semantics"
+    fi
+    [[ $(grep -c ' __enable ' "$test_tmp/commands") == 1 ]] || fail "--yes must retain one password-capable enable action"
     grep -q '^omarchy-shell -q omarchy.indicators refresh$' "$test_tmp/commands"
     grep -q '^systemd-run --user .*omarchy.indicators refresh$' "$test_tmp/commands"
   done
@@ -69,6 +73,14 @@ for failure in TEST_ENABLE_FAIL TEST_STATUS; do
   fi
 done
 pass "--yes propagates authentication and inspection failures without claiming success"
+
+for status in 0 1 2 3; do
+  : >"$test_tmp/commands"
+  assert_status "$status" env TEST_STATUS=$status /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --status
+  [[ $(wc -l <"$test_tmp/commands") == 1 ]] || fail "--status must only inspect the installed grant"
+  grep -q '^sudo -kn -- .* __status ' "$test_tmp/commands" || fail "--status must ignore cached authorization without prompting"
+done
+pass "transaction status preserves backend results and avoids policy-only probing or grant changes"
 
 printf ': >"$TEST_STARTUP_MARKER"\nset -o privileged\nunset BASH_ENV\n' >"$test_tmp/startup"
 : >"$test_tmp/commands"
