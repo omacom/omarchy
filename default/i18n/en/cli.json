@@ -388,6 +388,8 @@
   "window.savedWidth": "Saved width for %1 on workspace %2",
   "window.squareOff": "Disable single-window square aspect ratio",
   "window.squareOn": "Enable single-window square aspect ratio",
+  "windowsMru.disabled": "Windows tab switching off",
+  "windowsMru.enabled": "Windows tab switching on",
   "windowsVm.configuration": "Windows VM Configuration",
   "windowsVm.confirmRemove": "Remove Windows VM and delete all associated data?",
   "windowsVm.coresHeader": "How many CPU cores would you like to allocate to Windows VM?",

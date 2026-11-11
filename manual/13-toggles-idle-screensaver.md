@@ -21,6 +21,9 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Touchscreen | — | `omarchy toggle touchscreen` |
 | Suspend | — | `omarchy toggle suspend` |
 | Hybrid GPU | — | `omarchy toggle hybrid gpu` |
+| Windows-style Tab | — | `omarchy toggle windows mru` |
+
+Windows-style Tab leaves `Super + Tab` and `Alt + Tab` walking in order until you turn it on. Then a tap flips the two most recent workspaces or windows, more Tabs walk further back, and releasing Super or Alt keeps the one you landed on. The hotkeys chapter has the default chords.
 
 The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardware_ (`Super + Ctrl + H`) rather than under Toggle, since they only show up when you actually have that hardware. The touchpad and touchscreen ones survive a Hyprland reload — the disabled device's name is saved to a small state file that Hyprland reads on startup to disable it again.
 

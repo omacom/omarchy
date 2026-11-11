@@ -91,6 +91,8 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Ctrl + Alt + Tab`| Cycle focus forward through monitors |
 | `Ctrl + Alt + Shift + Tab`| Cycle focus backwards through monitors |
 
+`Super + Tab` and `Alt + Tab` walk in that fixed order. _Trigger > Toggle > Windows Tab On_ (`omarchy toggle windows mru`) switches both to Windows-style recent order: a tap flips the last two workspaces or windows, holding the modifier and tapping Tab walks further back, Shift+Tab reverses, and letting go leaves the one you landed on at the front. `Super + Ctrl + Tab` stays "former workspace" either way.
+
 Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<AE12>`), regardless of the characters printed on the keyboard. On US keyboards these keys are `-` and `=`; on Japanese (JIS) keyboards they are `-` and `^`; on Spanish keyboards they are `'` and `¡`. On JIS, `Super + ^` is `Super + Equal`, while `Super + Shift + -` (which types `=`) is `Super + Shift + Minus`.
 
 ## System controls

@@ -365,25 +365,31 @@ def lua_description(expression):
 
 def keybinding_descriptions(root):
     """Every description the shipped Hyprland bindings show in the
-    keybindings menu (Super+K), in English."""
+    keybindings menu (Super+K), in English. Toggle files count: turning
+    one on rebinds keys, and those descriptions replace the defaults."""
     found = set()
-    for path in sorted((root / "default/hypr/bindings").glob("*.lua")):
-        source = path.read_text(encoding="utf-8")
-        source = re.sub(r"--[^\n]*", "", source)
-        for match in BIND_CALL.finditer(source):
-            args = lua_call_args(source, match.end() - 1)
-            if match.group(1) == "hl.bind":
-                options = args[-1] if args else ""
-                described = re.search(r'description\s*=\s*("(?:[^"\\]|\\.)*"(?:\s*\.\.\s*[^,}]+)*)', options)
-                expressions = [described.group(1)] if described else []
-            elif match.group(1) == "o.bind_hold":
-                expressions = [args[i] for i in (1, 3) if i < len(args)]
-            else:
-                expressions = args[1:2]
-            for expression in expressions:
-                text = lua_description(expression)
-                if text:
-                    found.add(text)
+    directories = (
+        root / "default/hypr/bindings",
+        root / "default/hypr/toggles",
+    )
+    for directory in directories:
+        for path in sorted(directory.glob("*.lua")):
+            source = path.read_text(encoding="utf-8")
+            source = re.sub(r"--[^\n]*", "", source)
+            for match in BIND_CALL.finditer(source):
+                args = lua_call_args(source, match.end() - 1)
+                if match.group(1) == "hl.bind":
+                    options = args[-1] if args else ""
+                    described = re.search(r'description\s*=\s*("(?:[^"\\]|\\.)*"(?:\s*\.\.\s*[^,}]+)*)', options)
+                    expressions = [described.group(1)] if described else []
+                elif match.group(1) == "o.bind_hold":
+                    expressions = [args[i] for i in (1, 3) if i < len(args)]
+                else:
+                    expressions = args[1:2]
+                for expression in expressions:
+                    text = lua_description(expression)
+                    if text:
+                        found.add(text)
     return {text: text for text in sorted(found)}
 
 
