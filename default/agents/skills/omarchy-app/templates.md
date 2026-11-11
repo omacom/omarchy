@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
 
 ## `src/theme.h` and `src/theme.cpp`
 
-Follows the Omarchy theme live: the whole palette, light or dark, a readable color to put on the accent, and Hyprland's window rounding as `radius`, asked for again only when Hyprland reloads its config. Tests construct it with a temp directory, a fake `hyprctl`, and their own event socket.
+Follows the Omarchy theme live: the whole palette, light or dark, a readable color to put on the accent, and Hyprland's window rounding as `radius`, asked for on start and again only when Hyprland's event socket says its config reloaded, with no timer polling it. Tests construct it with a temp directory, a fake `hyprctl`, and their own event socket.
 
 ```cpp
 #pragma once
@@ -247,6 +247,7 @@ private:
     QProcess m_roundingProcess;
     QTimer m_roundingTimeout;
     QLocalSocket m_events;
+    QTimer m_reconnect;
 };
 ```
 
@@ -268,11 +269,25 @@ namespace {
 // Without Omarchy: a dark surface and Omarchy's fallback yellow.
 const QHash<QString, QColor> &fallbackColors() {
     static const QHash<QString, QColor> colors{
-        {"accent", QColor("#FFD60A")}, {"background", QColor("#0e0e10")}, {"foreground", QColor("#e6e6e9")},
-        {"selection", QColor("#3a3a40")}, {"muted", QColor("#5c5c66")}, {"red", QColor("#f7768e")},
-        {"green", QColor("#9ece6a")}, {"yellow", QColor("#e0af68")}, {"blue", QColor("#7aa2f7")},
+        {"accent", QColor("#FFD60A")},  {"background", QColor("#0e0e10")}, {"foreground", QColor("#e6e6e9")},
+        {"selection", QColor("#3a3a40")}, {"muted", QColor("#5c5c66")},    {"red", QColor("#f7768e")},
+        {"green", QColor("#9ece6a")},   {"yellow", QColor("#e0af68")},     {"orange", QColor("#ff9e64")},
+        {"blue", QColor("#7aa2f7")},    {"magenta", QColor("#bb9af7")},    {"cyan", QColor("#7dcfff")},
     };
     return colors;
+}
+
+// Older and hand-made themes name some colors differently. Each key takes the
+// first of its other names the theme has, in the order omarchy-theme-color
+// (Omarchy's full resolver) tries them.
+const QList<QStringList> &aliases() {
+    static const QList<QStringList> aliases{
+        {"background", "bg", "color0"}, {"foreground", "fg", "color7"}, {"red", "color1"},
+        {"green", "color2"}, {"yellow", "color3"}, {"blue", "color4"}, {"magenta", "color5", "purple"},
+        {"cyan", "color6"}, {"muted", "color8", "dark_foreground"},
+        {"selection", "selection_background", "color8", "background"}, {"orange", "yellow"},
+    };
+    return aliases;
 }
 
 double luminance(const QColor &c) {
@@ -326,12 +341,31 @@ Theme::Theme(const QString &directory, QObject *parent, const QString &hyprctl, 
             if (m_events.readLine().startsWith("configreloaded>>"))
                 refreshRounding();
     });
+    // Asked again on every connection, since a reload may have come between.
+    connect(&m_events, &QLocalSocket::connected, this, [this] {
+        m_reconnect.setInterval(1000);
+        refreshRounding();
+    });
+    // A socket that can't be reached or drops is tried again, less often each time.
+    m_reconnect.setSingleShot(true);
+    m_reconnect.setInterval(1000);
+    connect(&m_events, &QLocalSocket::disconnected, &m_reconnect, qOverload<>(&QTimer::start));
+    connect(&m_events, &QLocalSocket::errorOccurred, &m_reconnect, qOverload<>(&QTimer::start));
+    connect(&m_reconnect, &QTimer::timeout, this, [this, events] {
+        m_reconnect.setInterval(std::min(m_reconnect.interval() * 2, 60000));
+        m_events.abort();
+        m_events.connectToServer(events, QIODevice::ReadOnly);
+    });
     if (!events.isEmpty())
         m_events.connectToServer(events, QIODevice::ReadOnly);
+    refreshRounding();
     reload();
 }
 
 Theme::~Theme() {
+    // Nothing reconnects or asks again while the members go.
+    m_events.disconnect();
+    m_roundingProcess.disconnect();
     if (m_roundingProcess.state() != QProcess::NotRunning) {
         m_roundingProcess.kill();
         m_roundingProcess.waitForFinished(1000);
@@ -358,18 +392,24 @@ Theme::Palette Theme::readThemeColors(const QString &path) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return palette;
-    static const QRegularExpression entry(R"re(^\s*([a-z_]+)\s*=\s*(["']?)(#[0-9a-fA-F]{6}|light|dark)\2\s*(#.*)?$)re");
-    QString mode;
+    static const QRegularExpression entry(R"re(^\s*([a-z0-9_]+)\s*=\s*(["']?)(#[0-9a-fA-F]{6}|light|dark)\2\s*(#.*)?$)re");
+    QHash<QString, QString> modes;
     while (!file.atEnd()) {
         const auto match = entry.match(QString::fromUtf8(file.readLine()).trimmed());
         if (!match.hasMatch())
             continue;
         const QString key = match.captured(1), value = match.captured(3);
-        if (key == "mode" || key == "theme_type")
-            mode = value;
-        else if (value.startsWith('#'))
+        if (value.startsWith('#'))
             palette.colors.insert(key, QColor(value));
+        else
+            modes.insert(key, value);
     }
+    for (const QStringList &names : aliases())
+        for (const QString &name : names.mid(1))
+            if (!palette.colors.contains(names.first()) && palette.colors.contains(name))
+                palette.colors.insert(names.first(), palette.colors.value(name));
+
+    QString mode = modes.value("mode", modes.value("theme_type"));
     if (mode.isEmpty() && QFileInfo::exists(QFileInfo(path).absolutePath() + "/light.mode"))
         mode = "light";
     if (mode.isEmpty() && palette.colors.contains("background")) {
@@ -401,7 +441,6 @@ QColor Theme::accentForeground() const {
 }
 
 void Theme::reload() {
-    refreshRounding();
     const auto paths = m_watcher.files() + m_watcher.directories();
     if (!paths.isEmpty())
         m_watcher.removePaths(paths);
@@ -744,15 +783,25 @@ ApplicationWindow {
             }
 
             Button {
+                id: countButton
+                objectName: "countButton"
                 Layout.alignment: Qt.AlignHCenter
                 text: qsTr("Count")
                 highlighted: true
                 // Material.roundedScale isn't inherited, and takes a binding,
                 // not a literal number.
                 Material.roundedScale: theme.radius
-                Material.foreground: theme.accentForeground
                 focusPolicy: Qt.NoFocus
                 onClicked: backend.primaryAction()
+                // A highlighted button colors its caption by Material's own
+                // rule, not Material.foreground, so it can't read on every accent.
+                contentItem: Label {
+                    text: countButton.text
+                    font: countButton.font
+                    color: theme.accentForeground
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
             }
         }
     }
@@ -853,6 +902,7 @@ One `private slots:` case per behavior. These cover the backend, the theme's pal
 #include <QLocalSocket>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickItem>
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QRegularExpression>
@@ -870,18 +920,119 @@ bool write(const QString &path, const QByteArray &contents) {
     return file.open(QIODevice::WriteOnly) && file.write(contents) == contents.size();
 }
 
+int lines(const QString &path) {
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? file.readAll().count('\n') : 0;
+}
+
+// A hyprctl that answers with response.json beside it and counts its calls.
+QString fakeHyprctl(const QString &directory) {
+    const QString command = directory + "/hyprctl";
+    write(command, "#!/bin/bash\necho >> '" + directory.toUtf8() + "/calls'\ncat '" + directory.toUtf8()
+                       + "/response.json'\n");
+    QFile::setPermissions(command, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+    return command;
+}
+
 QJsonObject readCatalog(const QString &path) {
     QFile file(path);
     return file.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(file.readAll()).object() : QJsonObject();
 }
 
-// The placeholders in a text, sorted: %1 to %9, and the count (%n, %Ln).
+// The placeholders in a text, sorted: %1 to %99, and the count (%n, %Ln).
 QStringList placeholders(const QString &text) {
-    static const QRegularExpression placeholder("%L?[1-9n]");
+    static const QRegularExpression placeholder("%L?(?:[1-9][0-9]?|n)");
     QStringList found;
     for (auto it = placeholder.globalMatch(text); it.hasNext();)
         found << it.next().captured();
     found.sort();
+    return found;
+}
+
+// Every text the sources hand to qsTr() or tr(), and whether a call passes it
+// a count. It walks the code a token at a time, so a string never hides a
+// comment or the other way round, C++'s adjacent literals join, and QML's
+// single quotes count. A text that isn't a literal can't be in a catalog.
+QMap<QString, bool> translatables(const QString &folder, QStringList *problems) {
+    QMap<QString, bool> found;
+    for (const QFileInfo &info : QDir(folder).entryInfoList({"*.qml", "*.js", "*.cpp", "*.h"}, QDir::Files)) {
+        QFile file(info.filePath());
+        if (!file.open(QIODevice::ReadOnly))
+            continue;
+        const QString code = QString::fromUtf8(file.readAll());
+        qsizetype i = 0;
+        auto literal = [&](QString *text) {
+            const QChar quote = code[i++];
+            for (; i < code.size() && code[i] != quote; ++i) {
+                if (code[i] == '\\' && i + 1 < code.size()) {
+                    const QChar escaped = code[++i];
+                    *text += escaped == 'n' ? QChar('\n') : escaped == 't' ? QChar('\t') : escaped;
+                } else {
+                    *text += code[i];
+                }
+            }
+            ++i;
+        };
+        auto skipSpace = [&] {
+            while (i < code.size() && code[i].isSpace())
+                ++i;
+        };
+        while (i < code.size()) {
+            const QChar c = code[i];
+            if (code.mid(i, 2) == "//") {
+                i = code.indexOf('\n', i);
+                if (i < 0)
+                    break;
+            } else if (code.mid(i, 2) == "/*") {
+                i = code.indexOf("*/", i + 2);
+                if (i < 0)
+                    break;
+                i += 2;
+            } else if (c == '"' || c == '\'') {
+                QString skipped;
+                literal(&skipped);
+            } else if (c.isLetter() || c == '_') {
+                const qsizetype start = i;
+                while (i < code.size() && (code[i].isLetterOrNumber() || code[i] == '_'))
+                    ++i;
+                const QString word = code.mid(start, i - start);
+                skipSpace();
+                if ((word != "qsTr" && word != "tr") || i >= code.size() || code[i] != '(')
+                    continue;
+                ++i;
+                skipSpace();
+                if (i >= code.size() || (code[i] != '"' && code[i] != '\'')) {
+                    *problems << info.fileName() + ": not a literal: " + code.mid(start, 40);
+                    continue;
+                }
+                QString text;
+                do {
+                    literal(&text);
+                    skipSpace();
+                } while (i < code.size() && code[i] == '"');
+                // The arguments after the text, to the call's closing parenthesis.
+                int depth = 0, commas = 0;
+                while (i < code.size()) {
+                    const QChar d = code[i];
+                    if (d == '"' || d == '\'') {
+                        QString skipped;
+                        literal(&skipped);
+                        continue;
+                    }
+                    if (d == '(' || d == '[' || d == '{')
+                        ++depth;
+                    else if ((d == ')' || d == ']' || d == '}') && depth-- == 0)
+                        break;
+                    else if (d == ',' && depth == 0)
+                        ++commas;
+                    ++i;
+                }
+                found[text] = found.value(text) || commas >= 2;
+            } else {
+                ++i;
+            }
+        }
+    }
     return found;
 }
 
@@ -912,41 +1063,62 @@ private slots:
         QTemporaryDir dir;
         QVERIFY(QDir(dir.path()).mkpath("theme"));
         QVERIFY(write(dir.path() + "/theme/colors.toml", "mode = \"light\"\n"
+                                                         "theme_type = \"dark\"\n"
                                                          "accent = \"#112233\"\n"
-                                                         "background = #fafafa # paper\n"
-                                                         "foreground = '#202020'\n"));
+                                                         "bg = #fafafa # paper\n"
+                                                         "foreground = '#202020'\n"
+                                                         "color1 = \"#aa0000\"\n"));
 
         Theme theme(dir.path());
         QCOMPARE(theme.accent(), QColor("#112233"));
         QCOMPARE(theme.accentForeground(), QColor("white"));
         QCOMPARE(theme.background(), QColor("#fafafa"));
         QCOMPARE(theme.foreground(), QColor("#202020"));
+        QCOMPARE(theme.colors().value("red").value<QColor>(), QColor("#aa0000"));
         QVERIFY(theme.light());
-        QCOMPARE(theme.colors().value("accent").value<QColor>(), QColor("#112233"));
     }
 
-    void themeAsksHyprlandAgainWhenItReloads() {
+    void themeAsksHyprlandAgainOnlyWhenItReloads() {
         // The fake Hyprland lives outside the theme directory, whose changes
         // the Theme also follows.
         QTemporaryDir dir, hypr;
-        const QString response = hypr.filePath("response.json"), command = hypr.filePath("hyprctl");
-        QVERIFY(write(command, "#!/bin/bash\ncat '" + response.toUtf8() + "'\n"));
-        QVERIFY(QFile::setPermissions(command, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
-        QVERIFY(write(response, "{\"int\":4}"));
+        const QString command = fakeHyprctl(hypr.path());
+        QVERIFY(write(hypr.filePath("response.json"), "{\"int\":4}"));
         QLocalServer events;
         QVERIFY(events.listen(hypr.filePath("events.sock")));
 
+        // Once on start, and once more when the event socket connects.
         Theme theme(dir.path(), nullptr, command, events.fullServerName());
-        QTRY_COMPARE(theme.radius(), 4);
-        QVERIFY(events.waitForNewConnection(1000));
+        QTRY_VERIFY(events.hasPendingConnections());
         QLocalSocket *hyprland = events.nextPendingConnection();
+        QTRY_COMPARE(lines(hypr.filePath("calls")), 2);
+        QTRY_COMPARE(theme.radius(), 4);
 
-        // Nothing asks again until Hyprland says its config reloaded.
-        QVERIFY(write(response, "{\"int\":10}"));
+        QVERIFY(write(hypr.filePath("response.json"), "{\"int\":10}"));
         QTest::qWait(300);
-        QCOMPARE(theme.radius(), 4);
-        hyprland->write("activewindow>>kitty,~\nconfigreloaded>>\n");
+        QCOMPARE(lines(hypr.filePath("calls")), 2);
+        // Events arrive in pieces; only a whole configreloaded line counts.
+        hyprland->write("activewindow>>kitty,~\nconfigrel");
+        hyprland->flush();
+        QTest::qWait(100);
+        QCOMPARE(lines(hypr.filePath("calls")), 2);
+        hyprland->write("oaded>>\n");
         QTRY_COMPARE(theme.radius(), 10);
+        QCOMPARE(lines(hypr.filePath("calls")), 3);
+    }
+
+    void themeReachesHyprlandOnceItListens() {
+        QTemporaryDir dir, hypr;
+        const QString command = fakeHyprctl(hypr.path());
+        QVERIFY(write(hypr.filePath("response.json"), "{\"int\":4}"));
+        Theme theme(dir.path(), nullptr, command, hypr.filePath("events.sock"));
+        QTRY_COMPARE(theme.radius(), 4);
+
+        QVERIFY(write(hypr.filePath("response.json"), "{\"int\":8}"));
+        QLocalServer events;
+        QVERIFY(events.listen(hypr.filePath("events.sock")));
+        QTRY_VERIFY_WITH_TIMEOUT(events.hasPendingConnections(), 5000);
+        QTRY_COMPARE(theme.radius(), 8);
     }
 
     void translatorFallsBackToEnglish() {
@@ -995,25 +1167,33 @@ private slots:
     }
 
     void englishCatalogListsEveryString() {
-        // en.json is what translators work from: every text the sources pass
-        // to qsTr() or tr() is in it, and nothing else is. Comments are left
-        // out, since their examples aren't calls.
+        // en.json is what translators work from: every text the sources
+        // translate is in it, as itself or, when counted, as its English
+        // plural forms, and nothing else is.
         const QString sources = QFileInfo(QFINDTESTDATA("../src/Main.qml")).absolutePath();
-        static const QRegularExpression comment("(^|\\s)//[^\\n]*");
-        static const QRegularExpression call("\\b(?:qsTr|tr)\\(\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
-        QSet<QString> used;
-        for (const QFileInfo &file : QDir(sources).entryInfoList({"*.qml", "*.js", "*.cpp", "*.h"}, QDir::Files)) {
-            QFile source(file.filePath());
-            QVERIFY(source.open(QIODevice::ReadOnly));
-            const QString code = QString::fromUtf8(source.readAll()).replace(comment, "\\1");
-            for (auto it = call.globalMatch(code); it.hasNext();)
-                used << it.next().captured(1).replace("\\\"", "\"");
+        QStringList problems;
+        const QMap<QString, bool> used = translatables(sources, &problems);
+        const QJsonObject english = readCatalog(sources + "/i18n/en.json");
+        for (auto it = used.begin(); it != used.end(); ++it) {
+            const QJsonValue value = english.value(it.key());
+            if (value.isUndefined())
+                problems << "missing from en.json: " + it.key();
+            else if (it.value() && (value.toObject().keys() != QStringList{"one", "other"}
+                                    || value.toObject().value("other").toString() != it.key()))
+                problems << "counted, so needs its one and other forms: " + it.key();
+            else if (!it.value() && value.toString() != it.key())
+                problems << "should be itself: " + it.key();
         }
-        const QStringList keys = readCatalog(sources + "/i18n/en.json").keys();
-        QCOMPARE(QSet<QString>(keys.begin(), keys.end()), used);
+        for (const QString &key : english.keys())
+            if (!used.contains(key))
+                problems << "in en.json but no source translates it: " + key;
+        QVERIFY2(problems.isEmpty(), qPrintable(problems.join('\n')));
     }
 
     void catalogsMatchTheEnglishOne() {
+        // A catalog may lack a string (it shows in English meanwhile), but what
+        // it has translates something in en.json, with the same placeholders,
+        // and a counted string has every form its language uses.
         const QString folder = QFileInfo(QFINDTESTDATA("../src/i18n/en.json")).absolutePath();
         const QJsonObject english = readCatalog(folder + "/en.json");
         QStringList problems;
@@ -1021,17 +1201,36 @@ private slots:
             const QString code = file.completeBaseName();
             const QJsonObject catalog = readCatalog(file.filePath());
             if (catalog.isEmpty())
-                problems << code + ": not a JSON object";
+                problems << code + ": not a JSON object, or empty";
+            QSet<QString> categories{"other"};
+            for (long long n = 0; n <= 1000; ++n)
+                categories << Translator::pluralCategory(code, n);
             for (auto it = catalog.begin(); it != catalog.end(); ++it) {
                 const QString where = code + ": " + it.key() + ": ";
-                if (!english.contains(it.key()))
+                const QJsonValue source = english.value(it.key());
+                if (source.isUndefined()) {
                     problems << where + "not in en.json";
-                else if (it.value().isObject() != english.value(it.key()).isObject())
-                    problems << where + "plural forms where en.json has none, or the other way round";
-                else if (it.value().isString() && placeholders(it.value().toString()) != placeholders(it.key()))
-                    problems << where + "other placeholders than the English";
-                else if (it.value().isObject() && !it.value().toObject().contains("other"))
-                    problems << where + "no \"other\" form";
+                } else if (source.isString()) {
+                    if (!it.value().isString() || it.value().toString().isEmpty())
+                        problems << where + "needs a translation";
+                    else if (placeholders(it.value().toString()) != placeholders(it.key()))
+                        problems << where + "has other placeholders than the English";
+                } else {
+                    const QJsonObject forms = it.value().toObject();
+                    const QStringList wanted = placeholders(source.toObject().value("other").toString());
+                    for (const QString &category : categories)
+                        if (forms.value(category).toString().isEmpty())
+                            problems << where + "needs its " + category + " form";
+                    // A form other than "other" may say its number in words.
+                    for (auto form = forms.begin(); form != forms.end(); ++form) {
+                        const QStringList has = placeholders(form.value().toString());
+                        QStringList needed = wanted;
+                        if (form.key() != "other")
+                            needed.removeIf([&](const QString &p) { return p.endsWith('n') && !has.contains(p); });
+                        if (has != needed)
+                            problems << where + form.key() + " has other placeholders than the English";
+                    }
+                }
             }
         }
         QVERIFY2(problems.isEmpty(), qPrintable(problems.join('\n')));
@@ -1062,9 +1261,17 @@ private slots:
         window->requestActivate();
         QVERIFY(QTest::qWaitForWindowActive(window));
 
+        auto *count = window->findChild<QObject *>("count");
         QTest::keyClick(window, Qt::Key_Space);
-        QCOMPARE(backend.count(), 1);
-        QCOMPARE(window->findChild<QObject *>("count")->property("text").toString(), QString("1 press"));
+        QCOMPARE(count->property("text").toString(), QString("1 press"));
+        QTest::keyClick(window, Qt::Key_Space);
+        QCOMPARE(count->property("text").toString(), QString("2 presses"));
+        QCOMPARE(backend.count(), 2);
+
+        // The caption reads on the accent: black on the fallback yellow.
+        auto *button = window->findChild<QQuickItem *>("countButton");
+        QCOMPARE(button->property("contentItem").value<QQuickItem *>()->property("color").value<QColor>(),
+                 theme.accentForeground());
 
         auto *help = window->findChild<QObject *>("help");
         QTest::keyClick(window, '?');
@@ -1074,6 +1281,7 @@ private slots:
         QTRY_VERIFY(!help->property("visible").toBool());
 
         QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join('\n')));
+        QCoreApplication::removeTranslator(&translator);
     }
 };
 
