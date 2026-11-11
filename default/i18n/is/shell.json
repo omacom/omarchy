@@ -63,7 +63,6 @@
   "agents.localRemovingMeter": "Fjarlægir",
   "agents.localShowLogsTip": "Opnaðu annála þessa líkans í útstöðinni",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Ræsa",
   "agents.localStop": "Stöðva",
   "agents.localStoppingMeter": "Stöðvar",

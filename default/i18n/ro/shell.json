@@ -65,7 +65,6 @@
   "agents.localRemovingMeter": "Se elimină",
   "agents.localShowLogsTip": "Deschide jurnalele acestui model într-un terminal",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Pornește",
   "agents.localStop": "Oprește",
   "agents.localStoppingMeter": "Se oprește",

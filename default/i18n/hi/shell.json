@@ -63,7 +63,6 @@
   "agents.localRemovingMeter": "हटा रहे हैं",
   "agents.localShowLogsTip": "इस मॉडल के लॉग टर्मिनल में खोलें",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "शुरू करें",
   "agents.localStop": "रोकें",
   "agents.localStoppingMeter": "रोक रहे हैं",

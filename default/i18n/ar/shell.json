@@ -71,7 +71,6 @@
   "agents.localRemovingMeter": "جارٍ الإزالة",
   "agents.localShowLogsTip": "فتح سجلات هذا النموذج في طرفية",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "تشغيل",
   "agents.localStop": "إيقاف",
   "agents.localStoppingMeter": "جارٍ الإيقاف",

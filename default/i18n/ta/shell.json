@@ -63,7 +63,6 @@
   "agents.localRemovingMeter": "அகற்றுகிறது",
   "agents.localShowLogsTip": "இந்த மாடலின் பதிவுகளை முனையத்தில் திறக்கவும்",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "தொடங்கு",
   "agents.localStop": "நிறுத்து",
   "agents.localStoppingMeter": "நிறுத்துகிறது",

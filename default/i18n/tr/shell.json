@@ -63,7 +63,6 @@
   "agents.localRemovingMeter": "Kaldırılıyor",
   "agents.localShowLogsTip": "Bu modelin günlüklerini terminalde aç",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Başlat",
   "agents.localStop": "Durdur",
   "agents.localStoppingMeter": "Durduruluyor",

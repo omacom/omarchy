@@ -63,7 +63,6 @@
   "agents.localRemovingMeter": "Inaondoa",
   "agents.localShowLogsTip": "Fungua kumbukumbu za modeli hii kwenye terminal",
   "agents.localSpeedFact": "%1 TPS",
-  "agents.localSpeedPrefillFact": "%1 (%2) TPS",
   "agents.localStart": "Anzisha",
   "agents.localStop": "Simamisha",
   "agents.localStoppingMeter": "Inasimamisha",
