@@ -138,7 +138,8 @@ QtObject {
 (config / "Commons/Color.qml").write_text("""pragma Singleton
 import QtQuick
 QtObject {
-  function loadColors(raw) {}
+  property string loadedColors: ""
+  function loadColors(raw) { loadedColors = raw }
   function loadShell(raw) {}
 }
 """)

@@ -206,11 +206,13 @@ Item {
     return queued
   }
 
-  // A queued change that will not run still owes its theme's palette, which
-  // the next reveal or the pending-theme fallback then applies.
+  // A queued change that will not run still owes its theme's palette. It is
+  // applied at once: left pending, it could land after a newer theme's.
   function discardQueuedTransition() {
     var queued = takeQueuedTransition()
-    if (queued && queued.theme) setPendingTheme(queued.theme.colors, queued.theme.shell)
+    if (!queued || !queued.theme) return
+    setPendingTheme(queued.theme.colors, queued.theme.shell)
+    applyPendingTheme()
   }
 
   function runQueuedTransition() {

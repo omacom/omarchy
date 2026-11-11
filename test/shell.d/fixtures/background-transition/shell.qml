@@ -2,6 +2,7 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 import QtQuick.Window
+import qs.Commons as Commons
 
 ShellRoot {
   id: test
@@ -127,7 +128,7 @@ ShellRoot {
         test.capture("reveal", function() {
           // A change made mid-reveal must wait for it, not restart it from
           // the bases, which hold the decoy here.
-          background.transitionBackgroundWithTheme("", test.images + "old.png", test.images + "old.png", "", "")
+          background.transitionBackgroundWithTheme("", test.images + "old.png", test.images + "old.png", "cXVldWVk", "")
           test.step = 32
         })
       } else if (test.step === 32) {
@@ -142,8 +143,8 @@ ShellRoot {
             test.fail("reselecting the incoming background kept the queued change")
             return
           }
-          if (background.pendingThemeVersion < 0) {
-            test.fail("a withdrawn theme switch dropped its palette")
+          if (Commons.Color.loadedColors !== "queued" || background.pendingThemeVersion !== -1) {
+            test.fail("a withdrawn theme switch did not apply its palette at once")
             return
           }
           background.testFinish()
