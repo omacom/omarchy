@@ -29,9 +29,11 @@ case "${1:-}" in
   [[ -n ${2:-} ]] || { echo "Usage: omarchy-weather-location --set <name> [lat,lon]" >&2; exit 1; }
   if [[ -n ${3:-} ]]; then
     [[ ${3} =~ $COORDS_PATTERN ]] || { echo "Invalid coordinates: $3 (expected lat,lon)" >&2; exit 1; }
-    location=$(jq -n --arg name "$2" --argjson latitude "${3%,*}" --argjson longitude "${3#*,}" '{$name, $latitude, $longitude}')
+    location=$(jq -en --arg name "$2" --argjson latitude "${3%,*}" --argjson longitude "${3#*,}" \
+      '{$name, $latitude, $longitude} | select(-90 <= .latitude and .latitude <= 90 and -180 <= .longitude and .longitude <= 180)') ||
+      { echo "Invalid coordinates: $3 (latitude -90 to 90, longitude -180 to 180)" >&2; exit 1; }
   else
-    location=$(jq -n --arg name "$2" '{$name}')
+    location=$(jq -n --arg name "$2" '{$name}') || exit 1
   fi
   mkdir -p "$(dirname "$LOC_FILE")"
   echo "$location" >"$LOC_FILE"

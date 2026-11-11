@@ -9,7 +9,7 @@ function parseLocationFile(raw) {
 
     var latitude = parseFloat(data.latitude)
     var longitude = parseFloat(data.longitude)
-    var hasCoordinates = !isNaN(latitude) && !isNaN(longitude)
+    var hasCoordinates = Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
     return {
       name: typeof data.name === "string" ? data.name.replace(/^\s+|\s+$/g, "") : "",
       latitude: hasCoordinates ? latitude : null,
