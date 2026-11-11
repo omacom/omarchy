@@ -2,12 +2,12 @@
 name: omarchy-app
 description: >
   Build a new desktop app for Omarchy the way Omarchy's own apps are built
-  (Hype, Monologue, Omacut): C++ and Qt Quick, compiled with qmake6 and make
-  into a single binary, following the Omarchy theme live, and installed as an
+  (Hype, Monologue, Omacut): C++ and Qt Quick, compiled with CMake into a
+  single binary, following the Omarchy theme live, and installed as an
   Arch package so it shows up in the app launcher. Use when asked to make,
   build, or scaffold an app, tool, utility, or GUI program for the desktop.
   Triggers: new app, make me an app, desktop app, GUI, Qt, QML, Qt Quick, C++
-  app, qmake, app launcher entry, PKGBUILD for my app.
+  app, CMake, app launcher entry, PKGBUILD for my app.
 ---
 
 # Building an Omarchy App
@@ -29,16 +29,16 @@ Pick a short lowercase name (`tally`, `pomo`); it is the binary, the package,
 the `.desktop` file, the icon, and the Wayland app id all at once. Create the
 project in `~/Work/<name>` unless the user says otherwise, and `git init` it.
 
-Everything an app needs is part of Omarchy: `qmake6`, `make`, a C++
-compiler, Qt's base, declarative, multimedia, SVG, and Wayland modules, and
-`ffmpeg`. If `qmake6` is missing, install the set with `omarchy-pkg-add
-base-devel qt6-base qt6-declarative qt6-multimedia qt6-svg qt6-wayland ffmpeg`.
+Everything an app needs is part of Omarchy: `cmake`, `make`, a C++ compiler,
+Qt's base, declarative, multimedia, SVG, and Wayland modules, and `ffmpeg`. If
+`cmake` is missing, install the set with `omarchy-pkg-add base-devel cmake
+qt6-base qt6-declarative qt6-multimedia qt6-svg qt6-wayland ffmpeg`.
 
 ## Shape
 
 ```text
-<name>.pro              qmake project: Qt modules, sources, resources
-bin/build               qmake6 + make into build/<name>
+CMakeLists.txt          Qt modules; src/ as a library, the app, the tests
+bin/build               cmake into build/<name>
 bin/test                builds and runs the Qt Test binary offscreen
 bin/install             makepkg -fsi, so the app lands in the launcher
 src/main.cpp            app setup; hands C++ objects to QML
@@ -46,13 +46,14 @@ src/backend.{h,cpp}     the app's state and work, as a QObject
 src/theme.{h,cpp}       follows the Omarchy accent and Hyprland's rounding
 src/Main.qml            the window: layout, keys, nothing else
 src/resources.qrc       compiles the QML into the binary
-tests/<name>_tests.{pro,cpp}
+tests/<name>_tests.cpp
 pkgbuild/PKGBUILD  pkgbuild/<name>.desktop  pkgbuild/<name>.svg
 README.md  LICENSE  .gitignore
 ```
 
-`src/` stays flat. No CMake, no build directories checked in, no generated
-files committed.
+`src/` stays flat, and a new file there needs no change to
+`CMakeLists.txt`. No build directories checked in, no generated files
+committed.
 
 ## How the pieces split
 
@@ -130,9 +131,9 @@ files committed.
 
 1. `bin/build`, then run `build/<name>` to try it. Pass a file argument if
    the app opens files, so it's quick to test.
-2. `bin/test` after each change to the backend. Tests compile `../src/*.cpp`
-   straight in, run offscreen, and pass temp directories to anything that
-   reads the disk (the `Theme` takes the theme directory as an argument).
+2. `bin/test` after each change to the backend. Tests link the same `src/`
+   library as the app, run offscreen, and pass temp directories to anything
+   that reads the disk (the `Theme` takes the theme directory as an argument).
 3. Look at it. Take a screenshot with `omarchy capture screenshot fullscreen
    save` and check the window against the theme before calling it done.
    Switch the language once (`omarchy language da`) and look again: longer
