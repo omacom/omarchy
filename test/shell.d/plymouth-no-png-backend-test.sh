@@ -1,9 +1,8 @@
 #!/bin/bash
+
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-fail() { printf 'not ok - %s\n' "$1" >&2; exit 1; }
-pass() { printf 'ok - %s\n' "$1"; }
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 [[ ! -e $ROOT/bin/omarchy-plymouth-effect-render ]] ||
   fail "obsolete PNG renderer remains in the product tree"
