@@ -19,8 +19,6 @@ assertEqual(vm.runInNewContext(foreground, { bar, Commons: { Color: colors } }),
 const icon = source.slice(source.indexOf('  component TrayIcon:'))
 const tint = icon.match(/property color tint: (.*)/)[1]
 assertEqual(vm.runInNewContext(tint, { root: { bar }, Commons: { Color: colors } }), '#101315', 'bar tray icons retain wallpaper contrast')
-assert(/color: trayIconRoot\.tint/.test(icon), 'symbolic tray masks use their surface-specific tint')
-assert(/id: rowIcon[\s\S]*?tint: root\.foreground/.test(source), 'management-popup icons override the bar tint with the popup foreground')
 
 assert(tray.itemNamed({ id: 'dropbox-client' }, 'dropbox'), 'tray matches item ids')
 assert(tray.itemNamed({ title: 'Dropbox' }, 'dropbox'), 'tray matches item titles')

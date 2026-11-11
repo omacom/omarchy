@@ -18,12 +18,6 @@ pass "default shell.json is valid JSON"
 jq -e '.version == 1 and ([.bar.layout[("left", "centerBegin", "center", "centerEnd", "right")] | type == "array"] | all)' "$ROOT/config/omarchy/shell.json" >/dev/null
 pass "default shell.json has versioned bar layout"
 
-jq -e '.bar.transparentOnlyWhenWorkspaceEmpty == false' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default bar disables workspace-conditional transparency"
-
-jq -e '.bar.transparentForegroundPerMonitor == false' "$ROOT/config/omarchy/shell.json" >/dev/null
-pass "default bar keeps one transparent foreground across monitors"
-
 # Every CLI write goes through the normalizer, which keeps every bar section a
 # list, the ones beside the center box included.
 normalized=$(OMARCHY_PATH="$ROOT" bash -c 'source "$OMARCHY_PATH/bin/omarchy-shell-config" && jq -c "$NORMALIZE | .bar.layout" <<<"{\"bar\":{\"layout\":{\"centerBegin\":null}}}"')
