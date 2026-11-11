@@ -434,13 +434,21 @@ install_module() {
 
   acquire_plymouth_lock
 
-  # Plymouth 26's setter cannot insert [Daemon] into a zero-byte file: sed's
-  # line-addressed insertion never runs when there are no input lines. Ensure
-  # the configuration is parseable before selecting recovery/native themes.
+  # Plymouth 26's setter edits plymouthd.conf with line-addressed sed
+  # insertions, which never run past the last line: a zero-byte file gets no
+  # [Daemon], and a [Daemon] with no Theme= key after it gets no Theme=, so
+  # the selection is silently lost. Give it a Theme= line to replace.
   install -d -m 0755 "$system_root/etc/plymouth"
-  if [[ ! -s $system_root/etc/plymouth/plymouthd.conf ]]; then
-    printf '[Daemon]\n' >"$system_root/etc/plymouth/plymouthd.conf"
-    chmod 0644 "$system_root/etc/plymouth/plymouthd.conf"
+  plymouthd_conf=$system_root/etc/plymouth/plymouthd.conf
+  if ! grep -Eq '^[[:space:]]*Theme[[:space:]]*=' "$plymouthd_conf" 2>/dev/null; then
+    current_theme=$($theme_command)
+    if grep -Fxq '[Daemon]' "$plymouthd_conf" 2>/dev/null; then
+      sed -i "0,/^\[Daemon\]\$/s//[Daemon]\nTheme=$current_theme/" "$plymouthd_conf"
+    else
+      { printf '[Daemon]\nTheme=%s\n' "$current_theme"; cat -- "$plymouthd_conf" 2>/dev/null || true; } >"$plymouthd_conf.new"
+      mv -fT "$plymouthd_conf.new" "$plymouthd_conf"
+    fi
+    chmod 0644 "$plymouthd_conf"
   fi
 
   check_abi

@@ -331,6 +331,8 @@ ScriptFile=/usr/share/plymouth/themes/omarchy/omarchy.script
 EOF
 env "${env_common[@]}" "$installer" --module "$module_source" >"$tmp/out" 2>"$tmp/err" || fail "native install succeeds" "$(cat "$tmp/err")"
 grep -Fx '[Daemon]' "$root/etc/plymouth/plymouthd.conf" >/dev/null || fail "installer repairs an empty Plymouth configuration before theme activation"
+# Plymouth's setter only replaces an existing Theme= line under [Daemon].
+grep -Ex 'Theme=.+' "$root/etc/plymouth/plymouthd.conf" >/dev/null || fail "installer gives the theme setter a Theme= line to replace"
 grep -E "^$root/usr/lib/plymouth/[.]ttfx-plymouth[.]so[.]" "$tmp/file-log" >/dev/null || fail "module is validated on destination filesystem before atomic publication"
 cmp -s "$module_source" "$root/usr/lib/plymouth/ttfx-plymouth.so" || fail "successful install publishes new module"
 [[ $(stat -c %a "$root/usr/lib/plymouth/ttfx-plymouth.so") == "755" ]] || fail "installed module is executable for mkinitcpio add_binary"
