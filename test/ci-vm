@@ -34,14 +34,18 @@ pull_shell_logs() {
   ssh_vm 'mkdir -p ~/shell-logs && find /tmp -maxdepth 1 -name "omarchy-test-shell.*" -newer ~/started -exec cp -r {} ~/shell-logs/ \; && tar cf - -C ~ shell-logs' |
     tar xf - --no-same-owner -C "$out" || true
 }
+# The run's own log directory. Some tests run test/shell themselves, each with
+# a directory of its own, so take the one this run's test/shell announced in
+# run.log as it started.
+shell_log_dir() {
+  sed -n '/^==> test\/shell$/,$ s/^Logging every file to //p' "$1" | head -n 1
+}
 # test/shell prints each file's output only once every file has finished, so
 # meanwhile report from its log directory, where each file leaves a .code file
 # the moment it ends: how many are done, and which have failed so far.
 shell_progress() {
   ssh_vm 'total=$(( $(ls ~/src/omarchy/test/shell.d/*-test.sh | wc -l) - 1 ))
-    dir=$(for d in $(find /tmp -maxdepth 1 -name "omarchy-test-shell.*" -newer ~/started); do
-      echo "$(find "$d" -maxdepth 1 -name "*.code" | wc -l) $d"
-    done | sort -rn | head -n 1 | cut -d" " -f2)
+    dir=$(sed -n "/^==> test\/shell\$/,\$ s/^Logging every file to //p" ~/run.log | head -n 1)
     if [[ -n $dir ]]; then
       finished=$(find "$dir" -maxdepth 1 -name "*.code" | wc -l)
       failed=$(grep -Lx 0 "$dir"/*.code 2>/dev/null | xargs -r -n 1 basename | sed "s/\.code$//" | tr "\n" " " | sed "s/ $//")
@@ -54,6 +58,58 @@ pull_kernel_log() {
   ssh_vm 'journalctl -k -b --no-pager; journalctl -b -u systemd-oomd --no-pager' >"$out/kernel.txt" 2>&1 || true
   echo "test/ci-vm: kernel log, $(wc -l <"$out/kernel.txt") lines"
   grep -E 'invoked oom-killer|Out of memory: Killed process|systemd-oomd.*Killed' "$out/kernel.txt" | sed 's/^/test\/ci-vm: /' || true
+}
+# One log in a folded group of the job log, cut to its last 64 KiB. Workflow
+# commands stay off while it prints, so a test's output cannot fold, mask or
+# annotate anything.
+show_log() {
+  local title=$1 file=$2 size token
+  size=$(wc -c <"$file")
+  token=$(cat /proc/sys/kernel/random/uuid)
+  echo "::group::$title"
+  echo "::stop-commands::$token"
+  if (( size > 65536 )); then
+    echo "(the first $(( size - 65536 )) of $size bytes are cut; the artifact has them)"
+  fi
+  tail -c 65536 "$file"
+  echo
+  echo "::$token::"
+  echo "::endgroup::"
+}
+# A failed run's evidence in the job log itself, so it can be read even when
+# the artifact upload fails: the CLI suite's output, each shell test file that
+# failed or never finished, and the end of run.log. It reads only the files
+# already pulled into out_dir, and runs in a subshell under || true, so it
+# cannot change the verdict.
+print_failure_logs() {
+  local log=$out/run.log dir file code
+  if [[ ! -s $log ]]; then
+    echo "test/ci-vm: no run.log, so there is no test output to show"
+    return 0
+  fi
+
+  sed -n '/^==> test\/cli$/,/^==> test\/shell$/p' "$log" >"$out/cli.log"
+  show_log "test/cli" "$out/cli.log"
+
+  dir=$(shell_log_dir "$log")
+  if [[ -z $dir || ! -d $out/shell-logs/${dir##*/} ]]; then
+    echo "test/ci-vm: no log directory from test/shell, so no test file's log to show"
+  else
+    for file in "$out/shell-logs/${dir##*/}"/*.out; do
+      [[ -f $file ]] || continue
+      code=$(cat "${file%.out}.code" 2>/dev/null || true)
+      if [[ $code == "0" ]]; then
+        continue
+      elif [[ $code =~ ^[0-9]+$ ]]; then
+        show_log "test/shell.d/$(basename "$file" .out) failed (exit $code)" "$file"
+      else
+        show_log "test/shell.d/$(basename "$file" .out) did not finish" "$file"
+      fi
+    done
+  fi
+
+  tail -n 150 "$log" >"$out/run-tail.log"
+  show_log "end of run.log" "$out/run-tail.log"
 }
 cleanup() {
   ssh -o ControlPath="$state/ssh.sock" -O exit omarchy@127.0.0.1 2>/dev/null || true
@@ -133,6 +189,7 @@ until ssh_vm '[[ -s ~/rc ]]' 2>/dev/null; do
     echo "test/ci-vm: the tests did not finish in ${CI_VM_TIMEOUT:-1500} s" >&2
     ssh_vm 'cat ~/run.log' >"$out/run.log" || true
     pull_shell_logs
+    (print_failure_logs) || true
     pull_kernel_log
     exit 1
   else
@@ -152,9 +209,12 @@ echo "test/ci-vm: tests done after $(seconds) s"
 rc=$(ssh_vm 'cat ~/rc')
 ssh_vm 'cat ~/run.log' >"$out/run.log"
 echo "rc=$rc" >>"$out/run.log"
+pull_shell_logs
+if [[ $rc != "0" ]]; then
+  (print_failure_logs) || true
+fi
 ssh_vm 'systemd-analyze; systemd-analyze blame | head -25' >"$out/boot.txt" 2>&1 || true
 ssh_vm 'echo "source tree: $(cd ~/src/omarchy && git status --porcelain | wc -l) changed files"'
-pull_shell_logs
 pull_kernel_log
 
 sed -n '/^Skipped checks in/,$p' "$out/run.log"
