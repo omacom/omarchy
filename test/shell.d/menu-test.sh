@@ -320,6 +320,26 @@ const clockRowFormats = key => clockRows
   .map(item => require('child_process').execFileSync('bash', ['-c', item.action.replace(`omarchy-bar set omarchy.clock ${key} `, 'printf %s ')], { encoding: 'utf8' }))
 assertDeepEqual(clockRowFormats('format'), clockModel.clockFormats(false), 'menu spells out every horizontal clock format')
 assertDeepEqual(clockRowFormats('verticalFormat'), clockModel.clockFormats(true), 'menu spells out every vertical clock format')
+const styleIds = defaultItems.filter(item => item.parent === 'appearance').map(item => item.id)
+const themeAt = styleIds.indexOf('appearance.theme')
+assert(
+  styleIds[themeAt + 1] === 'appearance.theme-next' && styleIds[themeAt + 2] === 'appearance.theme-prev',
+  'menu offers next and previous theme under Appearance after Theme'
+)
+assertEqual(
+  defaultById['appearance.theme-next'].action,
+  'omarchy-theme-next',
+  'menu cycles to the next theme from Style'
+)
+assertEqual(
+  defaultById['appearance.theme-prev'].action,
+  'omarchy-theme-prev',
+  'menu cycles to the previous theme from Style'
+)
+assert(
+  defaultById['appearance.theme-next'].aliases.length === 0 && defaultById['appearance.theme-prev'].aliases.length === 0,
+  'menu does not alias the new Style theme cycle rows'
+)
 
 // A toggle is a pair of rows named for what picking them does: the -on row
 // shows while the feature is off and turns it on, the -off row the reverse.

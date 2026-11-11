@@ -7,8 +7,11 @@ Read this before changing themes, backgrounds, fonts, or theme colors.
 ```bash
 omarchy theme list              # Show available themes
 omarchy theme current           # Show current theme
+omarchy theme next              # Cycle to the next installed theme
+omarchy theme prev              # Cycle to the previous installed theme
 omarchy theme set <name>        # Apply theme ("Tokyo Night" and "tokyo-night" both work)
 omarchy theme bg next           # Cycle background
+omarchy theme bg prev           # Cycle background backwards
 omarchy theme install <url>     # Install from git repo
 ```
 
