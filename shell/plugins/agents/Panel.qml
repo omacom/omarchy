@@ -2102,7 +2102,10 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool shared: !!section.model && section.model.shared === true
         visible: !!section.model && !section.remote && !section.removing && !section.installing && section.running && (shared || usage.canShare)
-        text: shared ? Commons.I18n.t("agents.networkSharedLabel") : Commons.I18n.t("agents.networkShareLabel")
+        // Shared reads as how many machines are using it, once any are.
+        readonly property int users: shared ? (usage.shareClients[section.model.recipe] || 0) : 0
+        text: users > 0 ? Commons.I18n.tn("agents.networkUsers", users).arg(Commons.I18n.formatNumber(users))
+          : shared ? Commons.I18n.t("agents.networkSharedLabel") : Commons.I18n.t("agents.networkShareLabel")
         tooltip: shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
         idleColor: root.foreground
         picked: root.hasKey("modelShare", section.providerIndex)
