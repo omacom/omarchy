@@ -1324,5 +1324,11 @@
   },
   "agent.make.app": {
     "label": "制作应用"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
   }
 }

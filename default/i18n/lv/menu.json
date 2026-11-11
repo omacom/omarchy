@@ -1324,5 +1324,11 @@
   },
   "agent.make.app": {
     "label": "Izveidot lietotni"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
   }
 }
