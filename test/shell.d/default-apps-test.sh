@@ -392,6 +392,10 @@ omarchy-default-editor vim
 ! grep -q "^text/plain" "$desktop_list" || fail "picking an editor clears a text type from the desktop's own list"
 grep -qxF "x-scheme-handler/https=omarchy-browser.desktop" "$desktop_list" || fail "picking an editor keeps the desktop list's other lines"
 rm -f "$desktop_list"
+ln -s "$mimeapps" "$desktop_list"
+omarchy-default-editor vim
+grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "a desktop list linked to mimeapps.list keeps the handler"
+rm -f "$desktop_list"
 pass "picking an editor wins over the desktop's own list"
 
 # New installs ship the same types pointed at the handler.

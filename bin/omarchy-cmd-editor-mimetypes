@@ -90,9 +90,10 @@ printf '%s\n' "$updated" >"$list"
 
 # Apps read the desktop's own list before mimeapps.list, so a text type set
 # there would still win. Picking an editor clears those; the migration leaves
-# them, since a type set there is one the user chose.
+# them, since a type set there is one the user chose. A desktop list that is
+# mimeapps.list itself (both linked to one file) already has the handler.
 desktop_list="${XDG_CONFIG_HOME:-$HOME/.config}/hyprland-mimeapps.list"
-if [[ $unless_chosen == false && -f $desktop_list ]]; then
+if [[ $unless_chosen == false && -f $desktop_list && ! $desktop_list -ef $list ]]; then
   cleared=$(awk -v types="$types" '
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     BEGIN { n = split(types, list, "\n"); for (i = 1; i <= n; i++) wanted[list[i]] = 1 }
