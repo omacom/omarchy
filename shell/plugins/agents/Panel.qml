@@ -34,6 +34,8 @@ Panel {
 
   // A model on another machine of the tailnet carries its host. Away, it
   // offers nothing; unpaired, only pairing, which is what fetches its key.
+  // Paired, it can be used or disconnected from, never started or stopped:
+  // it runs on its host's terms.
   // This machine's own models offer sharing only while running: where
   // Tailscale can serve them, or where one is shared already, so it can
   // always be stopped. A stopped model stays shared and is served again when
@@ -44,6 +46,7 @@ Panel {
     if (model.host) {
       if (model.offline) return actions
       if (!model.paired) return ["pair"]
+      return model.unit === "active" ? ["disconnect", "launch"] : ["disconnect"]
     } else if (model.unit === "active" && (canShare || model.shared === true)) {
       actions.push("share")
     }
@@ -52,7 +55,7 @@ Panel {
     return actions
   }
 
-  readonly property var actionKinds: ({ toggle: "modelToggle", launch: "modelLaunch", pair: "modelPair", share: "modelShare" })
+  readonly property var actionKinds: ({ toggle: "modelToggle", launch: "modelLaunch", pair: "modelPair", disconnect: "modelDisconnect", share: "modelShare" })
 
   function modelId(model) {
     return model.host ? model.host + "/" + model.recipe : model.recipe
@@ -78,16 +81,23 @@ Panel {
       // Greyed out means not startable by any route: click, Return or Enter.
       if (!running && localStartBlocked(model)) return
       // The panel has no terminal: a start that fails records its reason,
-      // which the model's line shows. A paired host's model starts and stops
-      // over SSH, and its line follows the survey.
-      if (model.host) Util.execArgv(["omarchy-agent-local", "remote", running ? "stop" : "start", modelId(model)])
-      else Util.execArgv(["omarchy-agent-local", running ? "stop" : "start", model.recipe])
+      // which the model's line shows.
+      Util.execArgv(["omarchy-agent-local", running ? "stop" : "start", model.recipe])
     } else if (action === "share") {
       Util.execArgv(["omarchy-agent-local", "share", model.recipe].concat(model.shared ? ["--off"] : []))
     } else if (action === "pair") {
-      // SSH may ask for a password or a new host key, so pairing gets a terminal.
-      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local pair " + Util.shellQuote(String(model.dns || model.host))])
+      // A host with another model in use here has given its key already, so
+      // this one connects at once. Otherwise SSH may ask for a password or a
+      // new host key, so pairing gets a terminal.
+      var models = usage.networkModels || {}
+      if (Object.keys(models).some(function(id) { return models[id].host === model.host && models[id].paired })) {
+        Util.execArgv(["omarchy-agent-local", "pair", String(model.host), String(model.recipe)])
+        return
+      }
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local pair " + Util.shellQuote(String(model.dns || model.host)) + " " + Util.shellQuote(String(model.recipe))])
       root.close()
+    } else if (action === "disconnect") {
+      Util.execArgv(["omarchy-agent-local", "forget", modelId(model)])
     }
   }
 
@@ -150,7 +160,7 @@ Panel {
   property var deleteTarget: null
   function deleteSelected() {
     var target = keyTarget
-    if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelShare", "modelHeader", "localDownload"].indexOf(target.kind) < 0) return
+    if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "localDownload"].indexOf(target.kind) < 0) return
     deleteTarget = providers[target.index]
   }
 
@@ -290,6 +300,7 @@ Panel {
       var actions = localActions(provider.localModel, usage.canShare)
       if (actions.indexOf("launch") >= 0) return "modelLaunch"
       if (actions.indexOf("pair") >= 0) return "modelPair"
+      if (actions.indexOf("disconnect") >= 0) return "modelDisconnect"
       return actions.indexOf("toggle") >= 0 ? "modelToggle" : "modelHeader"
     }
     return harnessFor(provider) !== "" ? "providerLaunch" : "provider"
@@ -310,7 +321,7 @@ Panel {
       var row = keyRows[keyRow]
       var use = -1
       for (var c = 0; c < row.length; c++) if (row[c].kind === "account") use = c
-      var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "localDownload"].indexOf(row[0].kind) >= 0
+      var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "localDownload"].indexOf(row[0].kind) >= 0
       keyColumn = use >= 0 ? use : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       keyColumn = clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
@@ -321,7 +332,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "modelLogs", "localDownload"].indexOf(target.kind) >= 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "modelLogs", "localDownload"].indexOf(target.kind) >= 0) return target.index
     if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
@@ -738,8 +749,8 @@ Panel {
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "localAdd") chooseAddRow(target.index)
-    else if (["modelToggle", "modelLaunch", "modelPair", "modelShare"].indexOf(target.kind) >= 0)
-      runLocalAction(providers[target.index].localModel, { modelToggle: "toggle", modelLaunch: "launch", modelPair: "pair", modelShare: "share" }[target.kind])
+    else if (["modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare"].indexOf(target.kind) >= 0)
+      runLocalAction(providers[target.index].localModel, { modelToggle: "toggle", modelLaunch: "launch", modelPair: "pair", modelDisconnect: "disconnect", modelShare: "share" }[target.kind])
     else if (target.kind === "localDownload") downloadLocal(providers[target.index].localOffer)
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind, modifiers)
@@ -2099,17 +2110,19 @@ Panel {
       }
 
       // A network model this machine isn't paired with yet: the word Pair,
-      // which opens a terminal to pair over SSH.
+      // which opens a terminal to pair over SSH. Once paired: Disconnect,
+      // which stops using just this model here and leaves it running there.
       TextLink {
         id: remotePair
-        anchors.right: parent.right
+        anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
+        anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: section.remote && !section.paired && !section.offline
-        text: Commons.I18n.t("agents.networkPairLabel")
-        tooltip: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
+        visible: section.remote && !section.offline
+        text: section.paired ? Commons.I18n.t("agents.networkDisconnectLabel") : Commons.I18n.t("agents.networkPairLabel")
+        tooltip: !section.remote ? "" : section.paired ? Commons.I18n.t("agents.networkDisconnect").arg(section.model.host) : Commons.I18n.t("agents.networkPair").arg(section.model.host)
         idleColor: root.foreground
-        picked: root.hasKey("modelPair", section.providerIndex)
-        onClicked: root.runLocalAction(section.model, "pair")
+        picked: root.hasKey(section.paired ? "modelDisconnect" : "modelPair", section.providerIndex)
+        onClicked: root.runLocalAction(section.model, section.paired ? "disconnect" : "pair")
       }
 
       PanelActionButton {
@@ -2117,7 +2130,7 @@ Panel {
         anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: !!section.model && !section.stopping && !section.removing && !section.installing && (!section.remote || (section.paired && !section.offline))
+        visible: !!section.model && !section.remote && !section.stopping && !section.removing && !section.installing
         // Greyed out, not disabled, so the reason still shows on hover.
         readonly property bool blocked: root.localStartBlocked(section.model)
         iconText: section.running || section.loading ? "󰏤" : "󰐊"
