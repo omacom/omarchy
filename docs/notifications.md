@@ -105,6 +105,8 @@ flags map onto that call:
 
 Unknown flags are a hard error, not a silent pass-through: `--exec` and `--action` are the only doors to a command, and there is no generic option pass-through to smuggle one through.
 
+A message that starts with a dash is shown as text (`"-50% off"`), but one that is exactly one of the tool's settings, such as `--exec`, is used as that setting instead of shown, since settings may also follow the title. When the title or message comes from elsewhere, such as a reminder's message, put `--` in front of it: text after `--` is always shown as text. `omarchy-notification-send -g 󰢌 "Reminder" -- "$message"`
+
 The defaults are the point: an unadorned `omarchy-notification-send "Done"`
 is a low-urgency user-action toast that pops through DND and is treated as
 ephemeral noise when silenced.
