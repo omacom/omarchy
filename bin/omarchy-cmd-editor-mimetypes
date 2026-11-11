@@ -66,19 +66,26 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
     type = $0; sub(/=.*/, "", type); type = trim(type)
     app = $0; sub(/\r$/, "", app); sub(/^[^=]*=/, "", app); sub(/;.*/, "", app); app = trim(app)
   }
-  # GLib reads the last line for a type, so that line decides.
+  # GLib reads a key by its last line, and among the names of one type
+  # (aliases) the one listed first decides, so record both orders.
   file == 1 {
-    if (canon(type) in wanted) older_choice[canon(type)] = !ours(app)
+    if (canon(type) in wanted) {
+      if (!(type in older_last)) older_keys[++older_count] = type
+      older_last[type] = app
+    }
     next
   }
   {
     lines[FNR] = $0
     if (canon(type) in wanted) {
       line_type[FNR] = canon(type)
-      chosen[canon(type)] = !ours(app)
+      if (!(type in last)) keys[++key_count] = type
+      last[type] = app
     }
   }
   END {
+    for (k = 1; k <= key_count; k++) if (!(canon(keys[k]) in chosen)) chosen[canon(keys[k])] = !ours(last[keys[k]])
+    for (k = 1; k <= older_count; k++) if (!(canon(older_keys[k]) in older_choice)) older_choice[canon(older_keys[k])] = !ours(older_last[older_keys[k]])
     if (unless_chosen == "true") {
       for (type in chosen) if (chosen[type]) keep[type] = 1
       for (type in older_choice) if (older_choice[type] && !(type in chosen)) keep[type] = 1
@@ -103,14 +110,18 @@ printf '%s\n' "$updated" >"$list"
 # mimeapps.list itself (both linked to one file) already has the handler.
 desktop_list="${XDG_CONFIG_HOME:-$HOME/.config}/hyprland-mimeapps.list"
 if [[ $unless_chosen == false && -f $desktop_list && ! $desktop_list -ef $list ]]; then
-  cleared=$(awk -v types="$types" '
+  cleared=$(awk -v types="$types" -v aliases="$aliases" '
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
-    BEGIN { n = split(types, list, "\n"); for (i = 1; i <= n; i++) wanted[list[i]] = 1 }
+    function canon(t) { return (t in alias) ? alias[t] : t }
+    BEGIN {
+      while ((getline pair < aliases) > 0) { split(pair, part, " "); alias[part[1]] = part[2] }
+      n = split(types, list, "\n"); for (i = 1; i <= n; i++) wanted[canon(list[i])] = 1
+    }
     { line = $0; sub(/\r$/, "", line) }
     trim(line) ~ /^\[/ { section = trim(line) }
     section == "[Default Applications]" && line ~ /=/ {
       type = line; sub(/=.*/, "", type)
-      if (trim(type) in wanted) next
+      if (canon(trim(type)) in wanted) next
     }
     { print }
   ' "$desktop_list")

@@ -400,6 +400,13 @@ grep -qxF "application/x-yaml=omarchy-launch-editor.desktop" "$mimeapps" || fail
 ! grep -q "^application/yaml=nvim.desktop" "$mimeapps" || fail "the old default's alias line is replaced"
 pass "the migration treats a type and its aliases as one"
 
+# Among a type's names, the one listed first decides, as GLib reads it.
+printf '[Default Applications]\napplication/xml=code.desktop\ntext/xml=plain.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "application/xml=code.desktop" "$mimeapps" || fail "the first-listed name's choice is kept"
+! grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "no handler line over the first-listed choice"
+pass "the migration reads a type's names in the order GLib does"
+
 # The desktop's own list is read first: picking an editor clears its text
 # types and keeps the rest, while the migration leaves it alone.
 desktop_list="$test_home/.config/hyprland-mimeapps.list"
@@ -413,6 +420,10 @@ rm -f "$desktop_list"
 ln -s "$mimeapps" "$desktop_list"
 omarchy-default-editor vim
 grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "a desktop list linked to mimeapps.list keeps the handler"
+rm -f "$desktop_list"
+printf '[Default Applications]\ntext/x-sh=code.desktop\n' >"$desktop_list"
+omarchy-default-editor vim
+! grep -q "^text/x-sh" "$desktop_list" || fail "picking an editor clears an alias from the desktop's own list"
 rm -f "$desktop_list"
 pass "picking an editor wins over the desktop's own list"
 
