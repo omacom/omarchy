@@ -314,7 +314,6 @@
   "install.service.once": {"icon":"󰏖","label":"ONCE","disabled":"omarchy-pkg-present once-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-service-once"},
   "install.service.signal": {"icon":"󰭹","label":"Signal","disabled":"omarchy-pkg-present signal-desktop","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-service-signal"},
   "install.service.slack": {"icon":"󰒱","label":"Slack","disabled":"omarchy-pkg-present slack-desktop","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-service-slack"},
-  "install.service.spotify": {"icon":"󰓇","label":"Spotify","disabled":"omarchy-pkg-present spotify || [[ -f $HOME/.local/share/applications/Spotify.desktop ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-service-spotify"},
   "install.service.tailscale": {"icon":"","iconFont":"omarchy","label":"Tailscale","disabled":"omarchy-pkg-present tailscale","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-service-tailscale"},
   "install.editor.vscode": {"icon":"","label":"VSCode","disabled":"omarchy-pkg-present visual-studio-code-bin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-editor-vscode"},
   "install.editor.cursor": {"icon":"","iconFont":"omarchy","label":"Cursor","disabled":"omarchy-pkg-present cursor-bin","action":"omarchy-install-and-launch Cursor cursor-bin cursor"},
