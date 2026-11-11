@@ -23,9 +23,10 @@ while (( $# > 0 )); do
     if [[ -z ${2:-} ]]; then
       echo "--except needs an agent" >&2
       exit 1
+    else
+      excluded[$2]=1
+      shift
     fi
-    excluded[$2]=1
-    shift
     ;;
   *) only+=("$1") ;;
   esac
