@@ -36,6 +36,37 @@ for status in 1 2 3; do
 done
 pass "public status distinguishes inactive from errors"
 
+for args in '--yes' '--yes permanent' '--yes 0' '--yes 1441' '--yes -1' '--yes 1m' '--yes 1.5' '--yes 18446744073709551617' '--yes --disable' '--yes --active' '--disable --yes' '--active --yes' '--yes 15 --disable' '--yes 15 --active' '15 --yes'; do
+  read -r -a arguments <<<"$args"
+  : >"$test_tmp/commands"
+  assert_status 1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" "${arguments[@]}" >"$test_tmp/public.log" 2>&1
+  [[ ! -s $test_tmp/commands ]] || fail "invalid --yes arguments reached authorization: $args"
+done
+pass "--yes rejects unbounded, permanent, missing, and combined arguments before authorization"
+
+for status in 0 3; do
+  for minutes in 1 1440 00015; do
+    : >"$test_tmp/commands"
+    TEST_STATUS=$status /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --yes "$minutes" >"$test_tmp/public.log" 2>&1
+    ! grep -q '^gum ' "$test_tmp/commands" || fail "--yes offered confirmation or a picker"
+    [[ $(grep -c '^sudo -- ' "$test_tmp/commands") == 1 ]] || fail "--yes must retain one password-capable enable action"
+    grep -q "^sudo -- .* __enable .* $minutes$" "$test_tmp/commands"
+    grep -q '^omarchy-shell -q omarchy.indicators refresh$' "$test_tmp/commands"
+    grep -q '^systemd-run --user .*omarchy.indicators refresh$' "$test_tmp/commands"
+  done
+done
+pass "--yes enables or renews bounded timed access without gum while preserving sudo and indicator expiry"
+
+for failure in TEST_ENABLE_FAIL TEST_STATUS; do
+  : >"$test_tmp/commands"
+  assert_status 1 env "$failure=1" /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --yes 15 >"$test_tmp/public.log" 2>&1
+  ! grep -q '^systemd-run --user ' "$test_tmp/commands" || fail "failed --yes enable scheduled expiry refresh"
+  if [[ $failure == "TEST_STATUS" ]]; then
+    ! grep -q '__enable ' "$test_tmp/commands" || fail "--yes bypassed an inspection error"
+  fi
+done
+pass "--yes propagates authentication and inspection failures without claiming success"
+
 printf ': >"$TEST_STARTUP_MARKER"\nset -o privileged\nunset BASH_ENV\n' >"$test_tmp/startup"
 : >"$test_tmp/commands"
 if TEST_STARTUP_MARKER="$test_tmp/startup-ran" BASH_ENV="$test_tmp/startup" bash "$test_tmp/omarchy-sudo-passwordless" -p >/dev/null 2>&1; then
