@@ -26,7 +26,12 @@ Item {
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
-    onLoaded: root.parseLocalModel(text())
+    onLoaded: {
+      root.parseLocalModel(text())
+      // Sharing starts and stops the share proxy, which makes and removes
+      // clients.json: a file that can't be watched before it exists.
+      clientsFile.reload()
+    }
   }
 
   // The catalog's recipes as this machine sees them (fits, best, installed),
@@ -69,6 +74,9 @@ Item {
   // network last surveyed them: running, stopped, or offline with the host
   // away. The survey runs while the panel is open; this only follows its file.
   property var networkModels: ({})
+  // The last survey's models, but for when each was last seen, which every
+  // survey moves on: an unchanged tailnet leaves the panel's lines alone.
+  property string networkKey: ""
   // Whether this machine can share its own models: Tailscale running with
   // MagicDNS and HTTPS certificates, as the last survey found it.
   property bool canShare: false
@@ -80,6 +88,35 @@ Item {
     printErrors: false
     onFileChanged: reload()
     onLoaded: root.parseNetwork(text())
+  }
+
+  // How many machines use each shared model, as omarchy-agent-local's share
+  // proxy counts them: those whose request it served in the last five
+  // minutes. The proxy rewrites the file only when a count changes.
+  property var shareClients: ({})
+
+  FileView {
+    id: clientsFile
+    path: root.home + "/.local/state/omarchy/agent-local/clients.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.shareClients = root.parseClients(text())
+    // No proxy running, so nobody is using anything.
+    onLoadFailed: root.shareClients = ({})
+  }
+
+  function parseClients(content) {
+    try {
+      var models = JSON.parse(content).models
+      var counts = {}
+      if (models && typeof models === "object" && !Array.isArray(models))
+        for (var id in models)
+          if (Number.isInteger(models[id]) && models[id] > 0) counts[id] = models[id]
+      return counts
+    } catch (e) {
+      return {}
+    }
   }
 
   function refreshNetwork() {
@@ -104,7 +141,11 @@ Item {
         if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
         models[id] = model
       }
-      root.networkModels = models
+      var key = JSON.stringify(models, function(field, value) { return field === "last_seen_ms" ? undefined : value })
+      if (key !== root.networkKey) {
+        root.networkKey = key
+        root.networkModels = models
+      }
       root.canShare = parsed.can_share === true
     } catch (e) {
       // A missing or partially written survey keeps the last good one.

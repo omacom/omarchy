@@ -664,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -687,9 +684,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium Hesabı"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1327,5 +1321,11 @@
   },
   "agent.make.app": {
     "label": "Uygulama oluştur"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
   }
 }

@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "../panels/elsewhen/Model.js" as Reorder
+import "../panels/tailscale" as Tailscale
 
 Panel {
   id: root
@@ -34,6 +35,8 @@ Panel {
 
   // A model on another machine of the tailnet carries its host. Away, it
   // offers nothing; unpaired, only pairing, which is what fetches its key.
+  // Paired, it can be used or disconnected from while its host runs it, and
+  // offers nothing while it doesn't: it's never started or stopped from here.
   // This machine's own models offer sharing only while running: where
   // Tailscale can serve them, or where one is shared already, so it can
   // always be stopped. A stopped model stays shared and is served again when
@@ -44,6 +47,7 @@ Panel {
     if (model.host) {
       if (model.offline) return actions
       if (!model.paired) return ["pair"]
+      return model.unit === "active" ? ["disconnect", "launch"] : []
     } else if (model.unit === "active" && (canShare || model.shared === true)) {
       actions.push("share")
     }
@@ -52,7 +56,7 @@ Panel {
     return actions
   }
 
-  readonly property var actionKinds: ({ toggle: "modelToggle", launch: "modelLaunch", pair: "modelPair", share: "modelShare" })
+  readonly property var actionKinds: ({ toggle: "modelToggle", launch: "modelLaunch", pair: "modelPair", disconnect: "modelDisconnect", share: "modelShare" })
 
   function modelId(model) {
     return model.host ? model.host + "/" + model.recipe : model.recipe
@@ -78,16 +82,23 @@ Panel {
       // Greyed out means not startable by any route: click, Return or Enter.
       if (!running && localStartBlocked(model)) return
       // The panel has no terminal: a start that fails records its reason,
-      // which the model's line shows. A paired host's model starts and stops
-      // over SSH, and its line follows the survey.
-      if (model.host) Util.execArgv(["omarchy-agent-local", "remote", running ? "stop" : "start", modelId(model)])
-      else Util.execArgv(["omarchy-agent-local", running ? "stop" : "start", model.recipe])
+      // which the model's line shows.
+      Util.execArgv(["omarchy-agent-local", running ? "stop" : "start", model.recipe])
     } else if (action === "share") {
       Util.execArgv(["omarchy-agent-local", "share", model.recipe].concat(model.shared ? ["--off"] : []))
     } else if (action === "pair") {
-      // SSH may ask for a password or a new host key, so pairing gets a terminal.
-      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local pair " + Util.shellQuote(String(model.dns || model.host))])
+      // A host with another model in use here has given its key already, so
+      // this one connects at once. Otherwise SSH may ask for a password or a
+      // new host key, so pairing gets a terminal.
+      var models = usage.networkModels || {}
+      if (Object.keys(models).some(function(id) { return models[id].host === model.host && models[id].paired })) {
+        Util.execArgv(["omarchy-agent-local", "pair", String(model.host), String(model.recipe)])
+        return
+      }
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local pair " + Util.shellQuote(String(model.dns || model.host)) + " " + Util.shellQuote(String(model.recipe))])
       root.close()
+    } else if (action === "disconnect") {
+      Util.execArgv(["omarchy-agent-local", "forget", modelId(model)])
     }
   }
 
@@ -100,9 +111,11 @@ Panel {
   }
 
   // The tailnet has no change signal, so the panel surveys it when it opens
-  // and again every 20 seconds while it stays open, never while closed.
+  // and again every 2 seconds while it stays open, never while closed: a
+  // model another machine starts or stops sharing shows up or goes at once.
+  // A survey is one fetch per online peer, half a second, and never overlaps.
   Timer {
-    interval: 20000
+    interval: 2000
     running: root.opened
     repeat: true
     onTriggered: usage.refreshNetwork()
@@ -150,7 +163,7 @@ Panel {
   property var deleteTarget: null
   function deleteSelected() {
     var target = keyTarget
-    if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelShare", "modelHeader", "localDownload"].indexOf(target.kind) < 0) return
+    if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "localDownload"].indexOf(target.kind) < 0) return
     deleteTarget = providers[target.index]
   }
 
@@ -290,6 +303,7 @@ Panel {
       var actions = localActions(provider.localModel, usage.canShare)
       if (actions.indexOf("launch") >= 0) return "modelLaunch"
       if (actions.indexOf("pair") >= 0) return "modelPair"
+      if (actions.indexOf("disconnect") >= 0) return "modelDisconnect"
       return actions.indexOf("toggle") >= 0 ? "modelToggle" : "modelHeader"
     }
     return harnessFor(provider) !== "" ? "providerLaunch" : "provider"
@@ -310,7 +324,7 @@ Panel {
       var row = keyRows[keyRow]
       var use = -1
       for (var c = 0; c < row.length; c++) if (row[c].kind === "account") use = c
-      var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "localDownload"].indexOf(row[0].kind) >= 0
+      var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "localDownload"].indexOf(row[0].kind) >= 0
       keyColumn = use >= 0 ? use : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       keyColumn = clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
@@ -321,7 +335,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "modelLogs", "localDownload"].indexOf(target.kind) >= 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "modelLogs", "localDownload"].indexOf(target.kind) >= 0) return target.index
     if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
@@ -490,13 +504,11 @@ Panel {
   readonly property var addRows: addStage === "network" ? networkAddModels : localAddRecipes
 
   // What a running network model is, in place of the memory meter its host
-  // measures: its architecture, its measured speeds there, and its context.
+  // measures: its output speed there, and its context.
   function remoteStats(model) {
     var facts = []
-    if (model.architecture === "moe") facts.push(Commons.I18n.t("agents.localMoe"))
-    else if (model.architecture === "dense") facts.push(Commons.I18n.t("agents.localDense"))
-    if (Number(model.decode_tok_s) > 0) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.decode_tok_s)), 0)))
-    if (Number(model.prefill_tok_s) > 0) facts.push(Commons.I18n.t("agents.localPrefillFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.prefill_tok_s)), 0)))
+    var decode = Math.round(Number(model.decode_tok_s))
+    if (decode > 0) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Commons.I18n.formatNumber(decode, 0)))
     if (Number(model.ctx) > 0) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.ctx) / 1024), 0)))
     return facts.join(" · ")
   }
@@ -505,7 +517,7 @@ Panel {
     var facts = [Commons.I18n.t("agents.networkOnHost").arg(model.host)]
     if (Number(model.ctx) > 0) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.ctx) / 1024), 0)))
     facts.push(model.offline ? Commons.I18n.t("agents.networkOffline")
-      : model.unit === "active" ? Commons.I18n.t("agents.networkRunning") : Commons.I18n.t("agents.networkStopped"))
+      : model.unit === "active" ? Commons.I18n.t("agents.networkRunning") : Commons.I18n.t("agents.localLoadingMeter"))
     return facts.join(" · ")
   }
 
@@ -539,8 +551,6 @@ Panel {
   function recipeFacts(recipe) {
     if (recipe.link) return Commons.I18n.t("agents.linkSetUp")
     var facts = []
-    if (recipe.architecture === "moe") facts.push(Commons.I18n.t("agents.localMoe"))
-    else if (recipe.architecture === "dense") facts.push(Commons.I18n.t("agents.localDense"))
     if (recipe.memory_gib != null) facts.push(Commons.I18n.t("agents.localMemoryFact").arg(Commons.I18n.formatNumber(recipe.memory_gib, 0)))
     if (recipe.context != null) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(recipe.context / 1024), 0)))
     if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Commons.I18n.formatNumber(Math.round(recipe.decode_tok_s), 0)))
@@ -738,8 +748,8 @@ Panel {
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "localAdd") chooseAddRow(target.index)
-    else if (["modelToggle", "modelLaunch", "modelPair", "modelShare"].indexOf(target.kind) >= 0)
-      runLocalAction(providers[target.index].localModel, { modelToggle: "toggle", modelLaunch: "launch", modelPair: "pair", modelShare: "share" }[target.kind])
+    else if (["modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare"].indexOf(target.kind) >= 0)
+      runLocalAction(providers[target.index].localModel, { modelToggle: "toggle", modelLaunch: "launch", modelPair: "pair", modelDisconnect: "disconnect", modelShare: "share" }[target.kind])
     else if (target.kind === "localDownload") downloadLocal(providers[target.index].localOffer)
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind, modifiers)
@@ -2040,7 +2050,7 @@ Panel {
         anchors.leftMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localShare.visible ? localShare.width : 0) - (remotePair.visible ? remotePair.width : 0) - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(44))) : implicitWidth
+        width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localShare.visible ? localShare.width : 0) - (remotePair.visible ? remotePair.width : 0) - (remoteDisconnect.visible ? remoteDisconnect.width : 0) - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(44))) : implicitWidth
         elide: Text.ElideRight
         text: section.model ? (section.model.name || section.model.recipe)
           : section.offer ? (section.offer.link ? root.linkTitle(section.offer.link) : (section.offer.name || section.offer.id))
@@ -2081,35 +2091,66 @@ Panel {
       }
 
       // Shares this machine's running model with the tailnet, or stops
-      // sharing it: Share while private, Shared while shared, in the icons'
-      // color. Shown only while the model runs, where Tailscale can serve it
-      // or it's shared already; a stopped shared model is shared again on start.
-      TextLink {
+      // sharing it: the Tailscale mark, dim while private and in the icons'
+      // color while shared, when its tooltip counts the machines using it.
+      // Shown only while the model runs, where Tailscale can serve it or it's
+      // shared already; a stopped shared model is shared again on start.
+      PanelActionButton {
         id: localShare
         anchors.right: localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
-        anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(8) : 0
+        anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool shared: !!section.model && section.model.shared === true
         visible: !!section.model && !section.remote && !section.removing && !section.installing && section.running && (shared || usage.canShare)
-        text: shared ? Commons.I18n.t("agents.networkSharedLabel") : Commons.I18n.t("agents.networkShareLabel")
-        tooltip: shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
-        idleColor: root.foreground
-        picked: root.hasKey("modelShare", section.providerIndex)
+        readonly property int users: shared ? (usage.shareClients[section.model.recipe] || 0) : 0
+        tooltipText: users > 0 ? Commons.I18n.tn("agents.networkSharedUsers", users).arg(Commons.I18n.formatNumber(users))
+          : shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("modelShare", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(localShare)
         onClicked: root.runLocalAction(section.model, "share")
+
+        Tailscale.TailscaleIcon {
+          anchors.centerIn: parent
+          // The mark fills its box where a font glyph leaves padding around
+          // its ink, so it's drawn smaller to sit no larger than the pause.
+          iconSize: Math.round(Style.font.icon * 0.7)
+          color: localShare.shared || localShare._hot ? root.foreground : root.dim
+        }
       }
 
-      // A network model this machine isn't paired with yet: the word Pair,
-      // which opens a terminal to pair over SSH.
-      TextLink {
+      // A network model this machine isn't paired with yet: the play a local
+      // model starts with, which opens a terminal to pair over SSH.
+      PanelActionButton {
         id: remotePair
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        visible: section.remote && !section.paired && !section.offline
-        text: Commons.I18n.t("agents.networkPairLabel")
-        tooltip: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
-        idleColor: root.foreground
-        picked: root.hasKey("modelPair", section.providerIndex)
+        visible: section.remote && !section.offline && !section.paired
+        iconText: "󰐊"
+        tooltipText: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("modelPair", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(remotePair)
         onClicked: root.runLocalAction(section.model, "pair")
+      }
+
+      // Once paired and running there: the pause a local model stops with,
+      // which stops using just this model here.
+      PanelActionButton {
+        id: remoteDisconnect
+        anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
+        anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
+        anchors.verticalCenter: parent.verticalCenter
+        visible: section.remote && !section.offline && section.paired && section.model.unit === "active"
+        iconText: "󰏤"
+        tooltipText: section.remote ? Commons.I18n.t("agents.networkDisconnect").arg(section.model.host) : ""
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("modelDisconnect", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(remoteDisconnect)
+        onClicked: root.runLocalAction(section.model, "disconnect")
       }
 
       PanelActionButton {
@@ -2117,7 +2158,7 @@ Panel {
         anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: !!section.model && !section.stopping && !section.removing && !section.installing && (!section.remote || (section.paired && !section.offline))
+        visible: !!section.model && !section.remote && !section.stopping && !section.removing && !section.installing
         // Greyed out, not disabled, so the reason still shows on hover.
         readonly property bool blocked: root.localStartBlocked(section.model)
         iconText: section.running || section.loading ? "󰏤" : "󰐊"
@@ -2269,21 +2310,16 @@ Panel {
       wrapMode: Text.Wrap
     }
 
-    Text {
-      visible: !!section.model && !section.offline && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
-      width: parent.width
-      textFormat: Text.PlainText
-      text: section.model ? String(section.model.error || "") : ""
-      color: root.urgent
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-      wrapMode: Text.Wrap
-    }
-
+    // Why a model on this machine stopped, which links to its logs.
     TextLink {
       visible: !!section.model && !section.remote && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
+      width: Math.min(implicitWidth, parent.width)
+      text: section.model ? String(section.model.error || "") : ""
+      idleColor: root.urgent
+      hotColor: root.urgent
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
       picked: root.hasKey("modelLogs", section.providerIndex)
-      text: Commons.I18n.t("agents.localShowLogs")
       tooltip: Commons.I18n.t("agents.localShowLogsTip")
       onClicked: root.showLocalLogs(section.model)
     }
@@ -2644,10 +2680,11 @@ Panel {
     property bool picked: false
     property string tooltip: ""
     property color idleColor: root.dim
+    property color hotColor: root.foreground
     readonly property bool hot: linkMouse.containsMouse || picked
     onPickedChanged: if (picked) root.revealItem(link)
     textFormat: Text.PlainText
-    color: current ? Commons.Color.accent : (hot ? root.foreground : idleColor)
+    color: current ? Commons.Color.accent : (hot ? hotColor : idleColor)
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
     font.bold: current

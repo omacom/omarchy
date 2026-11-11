@@ -202,19 +202,24 @@ machine() {
   synaptics() { printf '%s\n' 'N: Name="SynPS/2 Synaptics TouchPad"' >"$hw/input-devices"; }
   surface() { dmi sys_vendor "Microsoft Corporation"; dmi product_name "$1"; }
   vivobook_s15() { dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_family "ASUS Vivobook S 15"; dmi product_name "ASUS Vivobook S 15 S5507QA_$1"; }
-  # A Qualcomm Wi-Fi card bound to ath12k; with "board-data", the board data the package installed for it.
+  # A Qualcomm Wi-Fi card bound to ath12k, or to ath11k for the WCN6855 (1103); with "board-data",
+  # the board data the package installed for it.
   ath12k() {
-    local device=$root/sys/bus/pci/devices/0004:01:00.0 driver=$root/sys/bus/pci/drivers/ath12k_wifi7_pci
+    local name=ath12k_wifi7_pci
+    [[ $1 == 1103 ]] && name=ath11k_pci
+    local device=$root/sys/bus/pci/devices/0004:01:00.0 driver=$root/sys/bus/pci/drivers/$name
     FAKE_LSPCI="0004:01:00.0 Network controller [0280]: Qualcomm Technologies, Inc Device [17cb:$1]"
     mkdir -p "$device" "$driver"
     printf '0x17cb\n' >"$device/vendor"
     printf '0x%s\n' "$1" >"$device/device"
     : >"$driver/bind"
     : >"$driver/unbind"
-    ln -s ../../drivers/ath12k_wifi7_pci "$device/driver"
+    ln -s "../../drivers/$name" "$device/driver"
     if [[ ${2:-} == "board-data" ]]; then
       mkdir -p "$root/var/lib/ath12k-board-fallback"
-      printf 'ath12k/QCC2072/hw1.0/board.bin 0\n' >"$root/var/lib/ath12k-board-fallback/installed"
+      local copy=ath12k/QCC2072/hw1.0/board.bin
+      [[ $1 == 1103 ]] && copy=ath11k/WCN6855/hw2.1/board.bin
+      printf '%s 0\n' "$copy" >"$root/var/lib/ath12k-board-fallback/installed"
     fi
   }
 
@@ -259,6 +264,8 @@ machine() {
     # The X Plus model shares the family name but has another device tree and is untested.
     vivobook-s15-x-plus) vivobook_s15 S5507QA; FAKE_PLATFORM=aarch64-qualcomm ;;
     vivobook-s15-not-qualcomm) vivobook_s15 S5507QAD; FAKE_PLATFORM=aarch64 ;;
+    omnibook-x14) dmi sys_vendor HP; dmi product_name "HP OmniBook X Laptop 14-fe0xxx"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    omnibook-x14-not-qualcomm) dmi sys_vendor HP; dmi product_name "HP OmniBook X Laptop 14-fe0xxx"; FAKE_PLATFORM=aarch64 ;;
     proart-pz13) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; dmi product_family "ProArt PZ13"; FAKE_PLATFORM=aarch64-qualcomm ;;
     proart-pz13-not-qualcomm) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; FAKE_PLATFORM=aarch64 ;;
     omnibook-ultra-14) dmi sys_vendor HP; dmi product_name "HP OmniBook Ultra Laptop 14-kg0xxx"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="hp,omnibook-ultra-kg0xxx qcom,glymur" ;;
@@ -281,6 +288,8 @@ machine() {
     wcn7850-card-first-boot) ath12k 1107; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
     qcc2072-card) ath12k 1112 board-data ;;
     qcc2072-card-first-boot) ath12k 1112 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
+    wcn6855-card) ath12k 1103 ;;
+    wcn6855-card-first-boot) ath12k 1103 board-data; export OMARCHY_IMAGE_DEFERRED_HARDWARE=1 ;;
     qualcomm-no-wifi) FAKE_LSPCI="0004:00:00.0 PCI bridge [0604]: Qualcomm Technologies, Inc SC8380XP PCIe Root Complex [17cb:0111]" ;;
     nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau" ;;
     nouveau-proprietary) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; : >"$hw/nvidia.conf" ;;
@@ -314,6 +323,7 @@ run_leaf() {
     OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_VIVOBOOK_S15_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_OMNIBOOK_X14_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_QUALCOMM_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
@@ -342,6 +352,7 @@ leaves=(
   hardware/asus/fix-asus-zenbook-a16-firmware.sh
   hardware/asus/fix-asus-zenbook-a16-boot.sh
   hardware/asus/fix-asus-vivobook-s15-boot.sh
+  hardware/hp/fix-hp-omnibook-x14-boot.sh
   hardware/qualcomm/glymur-display.sh
   hardware/qualcomm/oem-firmware.sh
   hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh
@@ -421,6 +432,10 @@ hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15+unreadable|0
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15-x-plus|0
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15-not-qualcomm|0
 hardware/asus/fix-asus-vivobook-s15-boot.sh|zenbook-a16|0
+hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14|0|wrote etc/mkinitcpio.conf.d/omnibook-x14-initramfs.conf
+hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14+unreadable|0
+hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14-not-qualcomm|0
+hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-ultra-14|0
 hardware/qualcomm/glymur-display.sh|omnibook-ultra-14|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
 # The device tree names the chip, so unreadable DMI does not matter.
 hardware/qualcomm/glymur-display.sh|omnibook-ultra-14+unreadable|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
@@ -453,11 +468,13 @@ hardware/dell-xps13-sidecar-amps.sh|xps13-pkg-add-fails|1|pkg-add dell-xps13-sid
 # The package itself decides whether the card needs board data.
 hardware/fix-ath12k-board-data.sh|wcn7850-card|0|pkg-add ath12k-board-fallback
 hardware/fix-ath12k-board-data.sh|qcc2072-card|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|wcn6855-card|0|pkg-add ath12k-board-fallback
 hardware/fix-ath12k-board-data.sh|qualcomm-no-wifi|0
 # ath12k probed the card before an image's first boot gave it board data, so
 # that boot rebinds it, but not for a card that needed none.
 hardware/fix-ath12k-board-data.sh|qcc2072-card-first-boot|0|pkg-add ath12k-board-fallback|wrote sys/bus/pci/drivers/ath12k_wifi7_pci/bind|wrote sys/bus/pci/drivers/ath12k_wifi7_pci/unbind
 hardware/fix-ath12k-board-data.sh|wcn7850-card-first-boot|0|pkg-add ath12k-board-fallback
+hardware/fix-ath12k-board-data.sh|wcn6855-card-first-boot|0|pkg-add ath12k-board-fallback|wrote sys/bus/pci/drivers/ath11k_pci/bind|wrote sys/bus/pci/drivers/ath11k_pci/unbind
 # Wildcat Lake's GPU is named only "[Intel Graphics]".
 hardware/intel/video-acceleration.sh|xps13-wcl|0|pkg-add intel-media-driver libvpl vpl-gpu-rt
 hardware/intel/video-acceleration.sh|nouveau|0

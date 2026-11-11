@@ -157,10 +157,22 @@ for (const raw of ['{', 'null', '[]', '{"models":[]}', '{"models":{"box/big":{"i
   parse(raw)
   assertDeepEqual(state.networkModels, survey.models, 'an invalid survey keeps the last good one: ' + raw)
 }
+const loaded = state.networkModels
+parse(JSON.stringify({ models: { ...survey.models, 'box/big': { ...survey.models['box/big'], last_seen_ms: 99 } } }))
+assert(state.networkModels === loaded, 'a survey that only moves last seen leaves the lines alone')
+parse(JSON.stringify({ models: { 'away/small': survey.models['away/small'] } }))
+assertDeepEqual(state.networkModels, { 'away/small': survey.models['away/small'] }, 'a model that stops being shared goes at the next survey')
+parse(JSON.stringify(survey))
+assertDeepEqual(state.networkModels, survey.models, 'a newly shared model appears at the next survey')
 assertEqual(state.canShare, false, 'a survey without can_share does not offer sharing')
 parse('{"models":{},"can_share":true}')
 assertDeepEqual(state.networkModels, {}, 'an empty survey clears the network lines')
 assertEqual(state.canShare, true, 'a survey that can share offers sharing')
+
+const parseClients = new Function(main.match(/function parseClients\([^]*?\n  \}/)[0] + '\nreturn parseClients')()
+assertDeepEqual(parseClients('{"models":{"m":2,"idle":0,"odd":"3","half":1.5}}'), { m: 2 }, 'only whole, positive machine counts are kept')
+for (const raw of ['{', 'null', '[]', '{"models":[]}'])
+  assertDeepEqual(parseClients(raw), {}, 'an unreadable count file counts nobody: ' + raw)
 
 const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 const localActions = new Function(panel.match(/function localActions\([^]*?\n  \}/)[0] + '\nreturn localActions')()
@@ -170,7 +182,8 @@ assertDeepEqual(localActions({ recipe: 'm', unit: 'active', shared: true }, fals
 assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', shared: true }, true), ['toggle'], 'a stopped shared model does not say it is shared')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive' }, true), ['toggle'], 'a local model that has not been started is not offered for sharing')
 assertDeepEqual(localActions({ recipe: 'm', unit: 'installing' }, true), [], 'a model being set up offers nothing yet')
-assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' }), ['toggle', 'launch'], 'a paired network model starts, stops and launches')
+assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' }), ['disconnect', 'launch'], 'a paired network model launches or disconnects, never stops its host\'s model')
+assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'inactive', paired: true, offline: '' }), [], 'a paired network model that is not running offers nothing, not even disconnecting')
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: false, offline: '' }), ['pair'], 'an unpaired network model offers pairing only')
 assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', paired: true, offline: 'offline' }), [], 'an offline network model offers nothing until its host is back')
 
@@ -179,8 +192,8 @@ assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', pair
 const i18n = { t: key => ({ text: key, arg(value) { this.text += '(' + value + ')'; return this }, toString() { return this.text } }), formatNumber: value => String(value) }
 const remoteStats = new Function('Commons', panel.match(/function remoteStats\([^]*?\n  \}/)[0] + '\nreturn remoteStats')({ I18n: i18n })
 assertEqual(remoteStats({ architecture: 'moe', decode_tok_s: 41.6, prefill_tok_s: 812.2, ctx: 262144 }),
-  'agents.localMoe · agents.localSpeedFact(42) · agents.localPrefillFact(812) · agents.localContextFact(256)', 'a network model lists its architecture, speeds and context')
-assertEqual(remoteStats({ architecture: 'dense', decode_tok_s: null, prefill_tok_s: null, ctx: 0 }), 'agents.localDense', 'unmeasured speeds and an unknown context are left out')
+  'agents.localSpeedFact(42) · agents.localContextFact(256)', 'a network model lists its output speed and context, never prefill')
+assertEqual(remoteStats({ architecture: 'dense', decode_tok_s: null, prefill_tok_s: null, ctx: 0 }), '', 'unmeasured speeds and an unknown context are left out, and the architecture never shows')
 assertEqual(remoteStats({}), '', 'a host that reports nothing gives no stats line')
 JS
 
