@@ -37,6 +37,8 @@ mkdir -p "$stub_bin" "$omarchy_path/install/helpers" "$omarchy_path/config"
 printf 'browser_policy_setup_dir() { :; }\nbrowser_policy_setup_firefox_distribution() { :; }\nas_root() { "$@"; }\n' \
   >"$omarchy_path/install/helpers/browser-policy.sh"
 cp "$ROOT/config/chromium-flags.conf" "$omarchy_path/config/"
+mkdir -p "$omarchy_path/applications"
+cp "$ROOT/applications/Steam Big Picture.desktop" "$ROOT/applications/Desktop Mode.desktop" "$omarchy_path/applications/"
 for command in omarchy-pkg-add omarchy-pkg-aur-add omarchy-pkg-drop omarchy-install-gaming-gpu-lib32; do
   printf '#!/bin/bash\nprintf "%%s %%s\\n" "%s" "$*" >>"%s"\n' "$command" "$tmp/calls" >"$stub_bin/$command"
 done

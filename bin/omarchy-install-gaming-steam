@@ -17,6 +17,15 @@ omarchy-install-gaming-gpu-lib32
 omarchy-pkg-add steam
 omarchy-lifecycle-dispatch post-install steam
 
+mkdir -p "$HOME/.local/share/applications"
+if [[ ! -e "$HOME/.local/share/applications/Steam Big Picture.desktop" && ! -L "$HOME/.local/share/applications/Steam Big Picture.desktop" ]]; then
+  cp "$OMARCHY_PATH/applications/Steam Big Picture.desktop" "$HOME/.local/share/applications/"
+fi
+if [[ ! -e "$HOME/.local/share/applications/Desktop Mode.desktop" && ! -L "$HOME/.local/share/applications/Desktop Mode.desktop" ]]; then
+  cp "$OMARCHY_PATH/applications/Desktop Mode.desktop" "$HOME/.local/share/applications/"
+fi
+update-desktop-database "$HOME/.local/share/applications"
+
 echo ""
 echo "Steam will start automatically now. This might take a while..."
 

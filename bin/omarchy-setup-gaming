@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# omarchy:summary=Set up Steam for controller and touch play in the desktop session
+# omarchy:args=[--help]
+
+set -euo pipefail
+
+if (( $# == 1 )) && [[ $1 == "--help" || $1 == "-h" ]]; then
+  echo "Usage: omarchy-setup-gaming"
+  echo "Open Steam installation, first sign-in, controller and desktop-return guidance."
+  exit 0
+elif (( $# != 0 )); then
+  echo "Usage: omarchy-setup-gaming [--help]" >&2
+  exit 2
+fi
+
+row() {
+  printf '%s\t%s\t%s' "$1" "$2" "$3"
+}
+
+# A cancelled picker is normal; an unavailable shell is an actual failure.
+# Match translated labels, without the menu's tab-separated subtext.
+choose() {
+  local status
+  if selection=$(omarchy-menu-select "$@" -- --width 540); then
+    selection=${selection%%$'\t'*}
+  else
+    status=$?
+    if (( status == 1 )); then
+      exit 0
+    else
+      exit "$status"
+    fi
+  fi
+}
+
+while true; do
+  if omarchy-cmd-present steam; then
+    play=$(row '' "$(omarchy-i18n gaming.openBigPicture)" "$(omarchy-i18n gaming.playInsideDesktop)")
+  else
+    play=$(row '' "$(omarchy-i18n gaming.installSteam)" "$(omarchy-i18n gaming.chooseSteamInstaller)")
+  fi
+  options=("$play" "$(row '󰍹' "$(omarchy-i18n gaming.desktopMode)" "$(omarchy-i18n gaming.preserveDownloads)")")
+  if omarchy-cmd-present omarchy-toggle-desktop-keyboard && omarchy-cmd-present wvkbd-mobintl; then
+    options+=("$(row '' "$(omarchy-i18n gaming.desktopKeyboard)" "$(omarchy-i18n gaming.keyboardToggle)")")
+  elif omarchy-cmd-present omarchy-setup-rog-ally-keyboard && omarchy-hw-asus-rog && omarchy-hw-match 'ROG Ally.*RC71L'; then
+    options+=("$(row '' "$(omarchy-i18n gaming.installKeyboard)" "$(omarchy-i18n gaming.keyboardAur)")")
+  fi
+  options+=("$(row '󰋖' "$(omarchy-i18n gaming.help)" "$(omarchy-i18n gaming.helpTopics)")" "$(row '󰅖' "$(omarchy-i18n gaming.close)" "$(omarchy-i18n gaming.closeHelp)")")
+  choose "$(omarchy-i18n gaming.title)" "${options[@]}"
+
+  if [[ $selection == "$(omarchy-i18n gaming.help)" ]]; then
+    choose "$(omarchy-i18n gaming.help)" \
+      "$(row '󰌾' "$(omarchy-i18n gaming.firstSignIn)" "$(omarchy-i18n gaming.firstSignInHint)")" \
+      "$(row '' "$(omarchy-i18n gaming.controllerTyping)" "$(omarchy-i18n gaming.controllerHint)")" \
+      "$(row '󰍹' "$(omarchy-i18n gaming.returnHelp)" "$(omarchy-i18n gaming.returnHint)")" \
+      "$(row '󰌑' "$(omarchy-i18n gaming.back)" "$(omarchy-i18n gaming.backHint)")"
+  fi
+
+  case "$selection" in
+    "$(omarchy-i18n gaming.openBigPicture)") omarchy-launch-steam-bigpicture; exit ;;
+    "$(omarchy-i18n gaming.desktopMode)") omarchy-launch-steam-desktop; exit ;;
+    "$(omarchy-i18n gaming.installSteam)") omarchy-menu summon install.gaming; exit ;;
+    "$(omarchy-i18n gaming.desktopKeyboard)") omarchy-toggle-desktop-keyboard; exit ;;
+    "$(omarchy-i18n gaming.installKeyboard)")
+      choose "$(omarchy-i18n gaming.aurReviewTitle)" \
+        "$(row '' "$(omarchy-i18n gaming.aurInstall)" "$(omarchy-i18n gaming.aurBuildHint)")" "$(row '󰅖' "$(omarchy-i18n gaming.cancel)" "$(omarchy-i18n gaming.cancelHint)")"
+      if [[ $selection == "$(omarchy-i18n gaming.aurInstall)" ]]; then
+        omarchy-launch-floating-terminal-with-presentation omarchy-setup-rog-ally-keyboard --install-reviewed-aur
+        exit
+      fi
+      ;;
+    "$(omarchy-i18n gaming.firstSignIn)")
+      choose "$(omarchy-i18n gaming.helpBackTitle)" \
+        "$(row '' "$(omarchy-i18n gaming.finishUpdating)" "$(omarchy-i18n gaming.updatingHint)")" \
+        "$(row '󰌾' "$(omarchy-i18n gaming.scanQr)" "$(omarchy-i18n gaming.qrHint)")" \
+        "$(row '' "$(omarchy-i18n gaming.usbKeyboard)" "$(omarchy-i18n gaming.usbHint)")" "$(row '󰌑' "$(omarchy-i18n gaming.back)" "$(omarchy-i18n gaming.backHint)")"
+      ;;
+    "$(omarchy-i18n gaming.controllerTyping)")
+      choose "$(omarchy-i18n gaming.helpBackTitle)" \
+        "$(row '' "$(omarchy-i18n gaming.controllerSettings)" "$(omarchy-i18n gaming.controllerSettingsHint)")" \
+        "$(row '' "$(omarchy-i18n gaming.touchFallback)" "$(omarchy-i18n gaming.touchFallbackHint)")" \
+        "$(row '' "$(omarchy-i18n gaming.steamKeyboard)" "$(omarchy-i18n gaming.steamKeyboardHint)")" "$(row '󰌑' "$(omarchy-i18n gaming.back)" "$(omarchy-i18n gaming.backHint)")"
+      ;;
+    "$(omarchy-i18n gaming.returnHelp)")
+      choose "$(omarchy-i18n gaming.helpBackTitle)" \
+        "$(row '󰍹' "$(omarchy-i18n gaming.powerMenu)" "$(omarchy-i18n gaming.powerMenuHint)")" \
+        "$(row '' "$(omarchy-i18n gaming.steamStaysOpen)" "$(omarchy-i18n gaming.downloadsHint)")" "$(row '󰌑' "$(omarchy-i18n gaming.back)" "$(omarchy-i18n gaming.backHint)")"
+      ;;
+    "$(omarchy-i18n gaming.close)") exit 0 ;;
+  esac
+done

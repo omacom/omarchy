@@ -179,6 +179,7 @@
   "trigger.tests.disk-speedtest": {"icon":"󰋊","label":"Disk Speed Test","action":"omarchy-shell shell summon omarchy.disk-speedtest"},
 
   // Setup
+  "setup.gaming": {"icon":"","label":"Gaming","description":"Steam, first sign-in, controller and touch setup","action":"omarchy-setup-gaming"},
   "setup.keyboard": {"icon":"","label":"Keyboard"},
   "setup.keyboard.keybindings": {"icon":"","label":"Keybindings","when":"[[ -f ~/.config/hypr/bindings.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/bindings.lua\""},
   "setup.keyboard.inputs": {"icon":"","label":"Keyboard Inputs","action":"omarchy-setup-keyboard"},
