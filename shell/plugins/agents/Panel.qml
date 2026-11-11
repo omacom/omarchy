@@ -34,15 +34,17 @@ Panel {
 
   // A model on another machine of the tailnet carries its host. Away, it
   // offers nothing; unpaired, only pairing, which is what fetches its key.
-  // This machine's own models offer sharing once running, where Tailscale can
-  // serve them, or where one is shared already, so it can always be stopped.
+  // This machine's own models offer sharing only while running: where
+  // Tailscale can serve them, or where one is shared already, so it can
+  // always be stopped. A stopped model stays shared and is served again when
+  // it starts, but says nothing about it until then.
   function localActions(model, canShare) {
     var actions = []
     if (model.unit === "removing" || model.unit === "installing") return actions
     if (model.host) {
       if (model.offline) return actions
       if (!model.paired) return ["pair"]
-    } else if ((canShare && model.unit === "active") || model.shared === true) {
+    } else if (model.unit === "active" && (canShare || model.shared === true)) {
       actions.push("share")
     }
     if (model.unit !== "deactivating") actions.push("toggle")
@@ -2080,15 +2082,15 @@ Panel {
 
       // Shares this machine's running model with the tailnet, or stops
       // sharing it: Share while private, Shared while shared, in the icons'
-      // color. Offered only where Tailscale can serve it, and kept on a shared
-      // model, running or not, so sharing can always stop.
+      // color. Shown only while the model runs, where Tailscale can serve it
+      // or it's shared already; a stopped shared model is shared again on start.
       TextLink {
         id: localShare
         anchors.right: localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(8) : 0
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool shared: !!section.model && section.model.shared === true
-        visible: !!section.model && !section.remote && !section.removing && !section.installing && (shared || (usage.canShare && section.running))
+        visible: !!section.model && !section.remote && !section.removing && !section.installing && section.running && (shared || usage.canShare)
         text: shared ? Commons.I18n.t("agents.networkSharedLabel") : Commons.I18n.t("agents.networkShareLabel")
         tooltip: shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
         idleColor: root.foreground
