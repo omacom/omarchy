@@ -103,7 +103,7 @@ default/applications/*.desktop
 applications/icons/*           ──►  omarchy-settings    /usr/share/icons/hicolor/{48,256,scalable}/apps/
 
 etc/**                         ──►  omarchy-settings    /etc/**           (drop-ins we own outright)
-  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_hooks,thunderbolt_module}.conf
+  ├─ mkinitcpio.conf.d/{00-omarchy-hooks,omarchy_compression,omarchy_hooks,thunderbolt_module}.conf
   ├─ limine-entry-tool.d/{omarchy-defaults,omarchy-uki}.conf
   ├─ mise/conf.d/{omarchy,omarchy-tools,omarchy-agent-accounts}.toml
   ├─ NetworkManager/, sudoers.d/, sysctl.d/, tmpfiles.d/,
@@ -134,6 +134,7 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   ├─ applications/mimeapps.list                         /usr/share/applications/mimeapps.list
   ├─ systemd/user/*.service                             /usr/lib/systemd/user/
   ├─ systemd/user/app.slice.d/10-oomd.conf              /usr/lib/systemd/user/app.slice.d/
+  ├─ systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf  /usr/lib/systemd/user/wireplumber.service.d/
   ├─ systemd/system-sleep/unmount-fuse                  /usr/lib/systemd/system-sleep/
   ├─ systemd/zram-generator.conf.d/90-omarchy.conf      /usr/lib/systemd/zram-generator.conf.d/
   ├─ systemd/timesyncd.conf.d/10-omarchy.conf          /usr/lib/systemd/timesyncd.conf.d/
@@ -329,8 +330,6 @@ first runs `omarchy-provision-user || true` so finalize catches up if it
 never ran, then handles the steps that need a running graphical session
 and/or a working user systemd instance:
 
-- `omarchy-hook-install post-update` for the two shipped hooks
-  (`setup-fingerprint.hook`, `setup-agent.hook`).
 - `install/user/first-run/enable-user-units.sh` — daemon-reload, then
   `systemctl --user enable --now` the shipped user units (`bt-agent`,
   `omarchy-sleep-lock`, `omarchy-recover-internal-monitor`,
@@ -350,8 +349,7 @@ and/or a working user systemd instance:
   first login and opens the cheatsheet when clicked. The caller runs
   `omarchy-notification-wait` once before this and the Wi-Fi step, so both
   toasts land on a live notification server.
-- `install/user/first-run/wifi.sh` — Wi-Fi/update toasts (waits detached on
-  `nm-online` so the update prompt only lands once there is a connection).
+- `install/user/first-run/wifi.sh` — Wi-Fi toast, then (waiting detached on `nm-online` for the first connection, however long that takes) the default-agent and fingerprint invitations (`setup-agent.hook`, `setup-fingerprint.hook`) and the update toast. Each invitation is sent only once.
 
 The entire sequence has one idempotency marker:
 `~/.local/state/omarchy/done/first-run-user`, managed by `omarchy-done`.

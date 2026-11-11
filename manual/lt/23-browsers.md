@@ -1,39 +1,39 @@
 # Naršyklės
 
-Omarchy pagal nutylėjimą pristatoma su [Chromium](https://www.chromium.org/) kaip numatytąja naršykle. Tai paprasta atviro kodo versija, pritaikyta prie likusios tavo sistemos, ir būtent ją atverčia `Super + Shift + Return` ir joje veikia kiekviena [žiniatinklio programa](25-web-apps.md).
+Omarchy pateikiama su [Google Chrome](https://www.google.com/chrome/) kaip numatytąja naršykle. Ji pritaikyta prie likusios jūsų sistemos temos, būtent ją atidaro `Super + Shift + Return` ir būtent joje veikia kiekviena [žiniatinklio programa](25-web-apps.md). Ji atsidaro tiesiai į naršyklės langą: nėra jokio pasveikinimo ekrano ar raginimo prisijungti, naudojimo statistika ir strigčių ataskaitos nesiunčiamos į Google, o reklamų privatumo raginimai išjungti. Vis tiek galite prisijungti prie savo Google paskyros profilio mygtuku, kai tik norėsite sinchronizavimo.
 
-Jei Chromium ne tavo skonio, nesi su ja susietas. Omarchy meniu skiltyje _Įdiegti > Browser_ rasi Chrome, Edge, Brave, Brave Origin, Firefox ir [Zen](https://zen-browser.app/). Pasirink vieną ir Omarchy ją įdiegs, paruoš jos strategijų katalogą ir pritaikys jai tavo esamą temą.
+Jei Chrome ne pagal jūsų skonį, nesate prie jos pririšti. Omarchy meniu dalyje _Install > Browser_ rasite [Chromium](https://www.chromium.org/) (paprastą atvirojo kodo versiją, iš kurios pagaminta Chrome), Edge, Brave, Brave Origin, Firefox ir [Zen](https://zen-browser.app/). Pasirinkite vieną, ir Omarchy ją įdiegs, nustatys jos politikos katalogą ir pritaikys jai jūsų dabartinę temą.
 
-## Nustatyti vieną numatytąja
+## Kaip vieną padaryti numatytąja
 
-Įdiegus naršyklę ji nepakylama. Kai ji jau kompiuteryje, eik į _Nuostatos > Defaults > Browser_ ir pasirink ją — meniu išvardija tik tas naršykles, kurias iš tikrųjų įdiegei, ir pažymi dabartinę numatytąją varnele.
+Naršyklės įdiegimas jos nepaverčia numatytąja. Kai ji jau yra kompiuteryje, eikite į _Setup > Defaults > Browser_ ir pasirinkite ją — meniu rodo tik tas naršykles, kurias iš tikrųjų esate įdiegę, o dabartinę numatytąją pažymi varnele.
 
-Iš terminalo tai:
+Iš terminalo tai daroma taip:
 
 ```bash
 omarchy default browser firefox
 ```
 
-Paleisk be argumento ir jis pasakys, kokia yra dabartinė numatytoji. Tai nustato XDG tvarkyklę, tad ne tik Omarchy spartieji klavišai paklūsta — viskas, kas atveria nuorodą, nuo pokalbių programos iki terminalo komandos, eina į tavo pasirinktą naršyklę.
+Paleiskite komandą be argumento, ir ji nurodys dabartinę numatytąją. Tai nustato XDG tvarkyklę, todėl prisitaiko ne tik Omarchy spartieji klavišai — viskas, kas atidaro nuorodą, nuo pokalbių programos iki terminalo komandos, nukreipiama į jūsų pasirinktą naršyklę.
 
 ## Copy URL ir Download Video
 
-Chromium šeimos naršyklės (pati Chromium, Chrome, Edge ir Brave) pristatomos su dviem Omarchy plėtiniais, kurie išsitiesia iš naršyklės į likusią tavo sistemos dalį.
+Chromium šeimos naršyklės (pati Chromium, Chrome, Edge ir Brave) pateikiamos su dviem Omarchy plėtiniais, kurie iš naršyklės pasiekia likusią jūsų sistemą.
 
-**Copy URL** su `Alt + Shift + L` įkelia dabartinio skirtuko adresą į tavo iškarpinę. Tai greičiau nei spustelėti adreso juostą ir kopijuoti, o kadangi tai eina per sistemos iškarpinę, o ne naršyklės, gauni Omarchy pranešimą, tai patvirtinantį, ir URL iškart prieinamas [iškarpinės istorijoje](08-unified-clipboard-history.md) ir kiekvienoje kitoje programoje. Taip pat yra įrankių juostos mygtukas, jei mėgsti spustelėti.
+**Copy URL** su `Alt + Shift + L` įdeda dabartinio skirtuko adresą į jūsų iškarpinę. Tai greičiau, nei spustelėti į adreso juostą ir kopijuoti, o kadangi tai vyksta per sistemos, o ne naršyklės iškarpinę, gaunate tai patvirtinantį Omarchy pranešimą, o URL iškart pasiekiamas [iškarpinės istorijoje](08-unified-clipboard-history.md) ir kiekvienoje kitoje programoje. Įrankių juostoje taip pat yra mygtukas, jei labiau mėgstate spustelėti.
 
-**Download Video** su `Alt + Shift + D` paima vaizdo įrašą, grojamą puslapyje, į kurį žvelgi. Jis perduoda URL [yt-dlp](https://github.com/yt-dlp/yt-dlp), tad veikia gerokai plačiau nei YouTube, o atsisiuntimas atsiduria `~/Videos`. Progresas pasirodo tame pačiame ekrano rodinyje, kurį naudoja garsumas ir ryškumas, atnaujinamas vietoje, o ne sukraunant pranešimus. Nustatyk `OMARCHY_YTDLP_DIR`, jei norėtum, kad failai eitų kur kitur — žr. [DUK](46-faq.md) apie tai, kur dėti aplinkos kintamuosius.
+**Download Video** su `Alt + Shift + D` paima vaizdo įrašą, leidžiamą jūsų žiūrimame puslapyje. Ji perduoda URL [yt-dlp](https://github.com/yt-dlp/yt-dlp), todėl veikia su kur kas daugiau nei vien YouTube, o atsisiuntimas atsiduria `~/Videos`. Eiga rodoma tame pačiame ekrano rodinyje, kurį naudoja garsumas ir ryškumas, ir atnaujinama vietoje, o ne kraunama pranešimais vienam ant kito. Nustatykite `OMARCHY_YTDLP_DIR`, jei norėtumėte, kad failai būtų dedami kitur — žr. [FAQ](46-faq.md), kur nurodyta, kur dėti aplinkos kintamuosius.
 
-Abu plėtiniai kalbasi su Omarchy per mažą nativežinių mainų šeimininką, kuris įdiegiamas tau kartu su naršykle. Tai ta dalis, kuri leidžia tinklalapio vaizdo įrašui atsidurti tavo namų kataloge, o URL — tavo iškarpinės tvarkytuvėje, ko įprastas plėtinys pats negali padaryti.
+Abu plėtiniai bendrauja su Omarchy per mažą native messaging host, kuris jums įdiegiamas kartu su naršykle. Būtent ši dalis leidžia tinklalapio vaizdo įrašui atsidurti jūsų namų kataloge, o URL — jūsų iškarpinės tvarkytuvėje, ko paprastas plėtinys pats savaime padaryti negali.
 
-Jie veikia tik Chromium šeimoje. Firefox ir Zen jų negauna.
+Tai skirta tik Chromium šeimai. Firefox ir Zen jų negauna.
 
 ## Firefox ir Zen
 
-Firefox ir Zen yra kita šeima, tad jos gauna kitokį požiūrį: Omarchy įdiegia strategijų failą protingiems numatytiesiems ir perjungia jas į native Wayland režimą, kurio nori trupmeniniam masteliui ir sklandžiam jutiklinio kilimėlio slinkimui.
+Firefox ir Zen yra kita šeima, todėl su jomis elgiamasi kitaip: Omarchy įdiegia politikos failą su protingais numatytaisiais nustatymais ir perjungia jas į savąjį Wayland režimą, kurio norite trupmeniniam mastelio keitimui ir sklandžiam slinkimui jutikliniu kilimėliu.
 
-Jos negauna aukščiau minėtų Chromium plėtinių ir nėra temiruojamos Omarchy, tad tas patirties dalis turi susitvarkyti pats.
+Jos negauna pirmiau minėtų Chromium plėtinių ir Omarchy joms netaiko temos, todėl tas naudojimo dalis turėsite susitvarkyti patys.
 
-## Vėl pašalinti vieną
+## Kaip ją vėl pašalinti
 
-Bet ką, ką čia įdiegei, gali vėl pašalinti skiltyje _Pašalinti > Browser_. Chromium tame sąraše nėra — tai bazinės sistemos dalis.
+Bet kurią iš šių naršyklių, įskaitant Chrome, galima vėl pašalinti dalyje _Remove > Browser_. Tada nuorodos nukreipiamos į Chrome arba Chromium, jei kita vis dar įdiegta.

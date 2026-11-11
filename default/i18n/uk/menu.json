@@ -357,23 +357,8 @@
   "trigger.tests.disk-speedtest": {
     "label": "Тест швидкості диска"
   },
-  "setup.monitors": {
-    "label": "Монітори"
-  },
-  "setup.keybindings": {
-    "label": "Сполучення клавіш"
-  },
   "setup.input": {
     "label": "Введення"
-  },
-  "setup.typing": {
-    "label": "Набір тексту"
-  },
-  "setup.typing.keyboard": {
-    "label": "Розкладки клавіатури"
-  },
-  "setup.typing.input": {
-    "label": "Методи введення"
   },
   "setup.language": {
     "label": "Мова"
@@ -402,53 +387,52 @@
   "setup.default": {
     "label": "Типові"
   },
-  "setup.default.agent": {
-    "label": "Агент",
-    "title": "Типовий агент"
+  "agent": {
+    "label": "Агент"
   },
-  "setup.default.agent.agy": {
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
   },
   "setup.default.browser": {
@@ -703,9 +687,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Обліковий запис Chromium"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1250,31 +1231,31 @@
   "trigger.hardware.touchscreen-off": {
     "label": "Вимкнути сенсорний екран"
   },
-  "setup.default.agent.amp": {
+  "agent.harness.amp": {
     "label": "Amp"
   },
-  "setup.default.agent.commandcode": {
+  "agent.harness.commandcode": {
     "label": "Command Code"
   },
-  "setup.default.agent.devin": {
+  "agent.harness.devin": {
     "label": "Devin CLI"
   },
-  "setup.default.agent.dsh": {
+  "agent.harness.dsh": {
     "label": "DeepSeek Harness"
   },
-  "setup.default.agent.freebuff": {
+  "agent.harness.freebuff": {
     "label": "Freebuff"
   },
-  "setup.default.agent.kilo": {
+  "agent.harness.kilo": {
     "label": "Kilo"
   },
-  "setup.default.agent.kiro-cli": {
+  "agent.harness.kiro-cli": {
     "label": "Kiro CLI"
   },
-  "setup.default.agent.mcode": {
+  "agent.harness.mcode": {
     "label": "MiniMax Code"
   },
-  "setup.default.agent.qwen": {
+  "agent.harness.qwen": {
     "label": "Qwen Code"
   },
   "setup.config.git": {
@@ -1285,5 +1266,69 @@
   },
   "update.kernel": {
     "label": "Ядро"
+  },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
+  },
+  "setup.keyboard": {
+    "label": "Клавіатура"
+  },
+  "setup.keyboard.keybindings": {
+    "label": "Комбінації клавіш"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Введення з клавіатури"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Методи введення"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
+  },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
+  "install.service.notion": {
+    "label": "Notion"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
+  },
+  "setup.default.editor.plain": {
+    "label": "Звичайний"
+  },
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Harness за замовчуванням"
+  },
+  "agent.instructions": {
+    "label": "Інструкції"
+  },
+  "agent.make": {
+    "label": "Створити щось"
+  },
+  "agent.make.theme": {
+    "label": "Створити тему"
+  },
+  "agent.make.plugin": {
+    "label": "Створити плагін"
+  },
+  "agent.make.app": {
+    "label": "Створити застосунок"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
   }
 }
