@@ -1,3 +1,4 @@
 {
-  "DefaultBrowserSettingEnabled": false
+  "DefaultBrowserSettingEnabled": false,
+  "HttpAllowlist": ["ping.omacom.io"]
 }
