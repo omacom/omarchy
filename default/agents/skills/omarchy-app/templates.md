@@ -90,6 +90,9 @@ on:
   push:
     branches: [main, master]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Build and test
@@ -568,9 +571,11 @@ bool Translator::isEmpty() const {
 }
 
 // Unregistered before the catalog and its lock go, since a worker thread can
-// still be translating through QCoreApplication while the app shuts down.
+// still be translating through QCoreApplication while the app shuts down;
+// one outliving the application (a test's) has nothing to unregister from.
 Translator::~Translator() {
-    QCoreApplication::removeTranslator(this);
+    if (QCoreApplication::instance())
+        QCoreApplication::removeTranslator(this);
 }
 
 // One registry code on the first line; anything else, or no file, is English.
