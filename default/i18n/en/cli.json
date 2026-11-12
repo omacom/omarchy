@@ -227,10 +227,13 @@
   "plugin.replacedByClone": "Original plugin has been replace by clone.",
   "preinstalls.confirmRemove": "Are you sure you want to remove all preinstalled web apps, TUI wrappers, and desktop applications?",
   "preinstalls.confirmRestore": "Are you sure you want to restore all preinstalled web apps, TUI wrappers, and desktop applications?",
+  "reminder.alreadyGone": "That reminder has already gone off",
   "reminder.andMore": {
     "one": "%1 more reminder",
     "other": "%1 more reminders"
   },
+  "reminder.cancel": "Cancel",
+  "reminder.cancelled": "Reminder cancelled",
   "reminder.cleared": "All reminders have been cleared",
   "reminder.count": {
     "one": "%1 reminder",
@@ -243,6 +246,7 @@
   "reminder.dueInAt": "In %1 · at %2",
   "reminder.durationMinutesSeconds": "%1m %2s",
   "reminder.durationSeconds": "%1s",
+  "reminder.keep": "Keep",
   "reminder.minuteLabel": "%1-min reminder",
   "reminder.minutesUp": {
     "one": "Your %1 minute is up",
