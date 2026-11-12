@@ -18,7 +18,13 @@ stub() {
 
 stub systemctl "echo \"systemctl \$*\" >>\"$calls\"; [[ ! -e $test_tmp/no-user-manager ]] || exit 1; [[ \$* != *is-active* || \$* == *default.target* ]]"
 # oo7-installed holds the installed oo7 version; pacman -T accepts 0.7.1 and up.
-stub sudo "echo \"sudo \$*\" >>\"$calls\"; [[ ! -e $test_tmp/pacman-fails ]] && echo 0.7.1 >$test_tmp/oo7-installed"
+# gnome-keyring-removed stands for its removal, shared by every user like the real one.
+stub sudo "echo \"sudo \$*\" >>\"$calls\"
+case \$* in
+'pacman -S '*) [[ ! -e $test_tmp/pacman-fails ]] && echo 0.7.1 >$test_tmp/oo7-installed ;;
+'pacman -R '*) [[ ! -e $test_tmp/remove-fails ]] && touch $test_tmp/gnome-keyring-removed ;;
+esac"
+stub omarchy-pkg-present "[[ \$1 == gnome-keyring && ! -e $test_tmp/gnome-keyring-removed ]]"
 stub pacman "[[ \$1 == -T && \$2 == 'oo7>=0.7.1' && -e $test_tmp/oo7-installed ]] && (( \$(vercmp \$(<$test_tmp/oo7-installed) 0.7.1) >= 0 ))"
 stub systemd-creds "echo \"systemd-creds \$*\" >>\"$calls\"; cat >\"\${@: -1}\""
 stub omarchy-keyring-repair "echo \"omarchy-keyring-repair\" >>\"$calls\"; [[ ! -e $test_tmp/repair-fails ]]"
@@ -59,12 +65,16 @@ grep -q 'Secret=oo7-portal' "$home/.config/xdg-desktop-portal/hyprland-portals.c
 pass "migration moves a stock keyring to oo7"
 
 # The swap is one conflict-resolving transaction, before the daemon starts with the credential.
-grep -qF 'sudo pacman -S --noconfirm --needed --ask 4 oo7>=0.7.1 gcr' "$calls" || fail "packages swap in one transaction"
+# oo7 goes in before gnome-keyring goes, so org.freedesktop.secrets stays provided.
+install_line=$(grep -nF 'sudo pacman -S --noconfirm --needed oo7>=0.7.1 gcr' "$calls" | cut -d: -f1)
+remove_line=$(grep -nF 'sudo pacman -R --noconfirm gnome-keyring' "$calls" | cut -d: -f1)
+[[ -n $install_line && -n $remove_line ]] || fail "oo7 is installed and gnome-keyring removed"
+(( install_line < remove_line )) || fail "oo7 is installed before gnome-keyring is removed"
 seal_line=$(grep -n 'systemd-creds encrypt' "$calls" | cut -d: -f1)
 grep -q 'enable oo7-daemon.service' "$calls" || fail "oo7 is enabled"
 start_line=$(grep -n 'start oo7-daemon.service' "$calls" | cut -d: -f1)
 (( seal_line < start_line )) || fail "the credential is sealed before the daemon starts"
-pass "migration seals the credential before starting oo7"
+pass "migration swaps the packages and seals the credential before starting oo7"
 
 # A second run changes nothing: no reinstall, no new credential.
 credential_before=$(sha256sum "$home/.config/credstore.encrypted/oo7.keyring-encryption-password")
@@ -152,7 +162,7 @@ seed_keyring "$home"
 : >"$calls"
 run_migration "$home" >/dev/null 2>&1 || fail "migration runs after a repair"
 repair_line=$(grep -n 'omarchy-keyring-repair' "$calls" | cut -d: -f1)
-swap_line=$(grep -n 'sudo pacman' "$calls" | cut -d: -f1)
+swap_line=$(grep -n 'sudo pacman' "$calls" | head -1 | cut -d: -f1)
 (( repair_line < swap_line )) || fail "the repair runs before the package swap"
 pass "migration repairs the keyring before the package swap"
 
@@ -162,12 +172,28 @@ home=$(new_home old-oo7)
 seed_keyring "$home"
 : >"$calls"
 run_migration "$home" >/dev/null 2>&1 || fail "migration runs with an older oo7"
-grep -qF 'sudo pacman -S --noconfirm --needed --ask 4 oo7>=0.7.1 gcr' "$calls" || fail "an older oo7 is upgraded"
+grep -qF 'sudo pacman -S --noconfirm --needed oo7>=0.7.1 gcr' "$calls" || fail "an older oo7 is upgraded"
 [[ $(<"$test_tmp/oo7-installed") == 0.7.1 ]] || fail "oo7 is at 0.7.1 after the swap"
 pass "migration upgrades an oo7 older than 0.7.1"
 
+# If gnome-keyring can't be removed (another package needs it by name), oo7 stays
+# installed but disabled, and gnome-keyring keeps serving until the next attempt.
+rm -f "$test_tmp/gnome-keyring-removed"
+touch "$test_tmp/remove-fails"
+home=$(new_home failed-removal)
+seed_keyring "$home"
+: >"$calls"
+if run_migration "$home" >/dev/null 2>&1; then
+  fail "a failed gnome-keyring removal fails the migration"
+fi
+grep -q 'enable --now gnome-keyring-daemon.socket' "$calls" || fail "a failed removal restores gnome-keyring"
+! grep -q 'oo7-daemon' "$calls" || fail "a failed removal leaves oo7-daemon alone"
+[[ -f $home/.local/share/keyrings/Default_keyring.keyring ]] || fail "a failed removal leaves the keyring alone"
+rm -f "$test_tmp/remove-fails"
+pass "migration leaves oo7 idle if gnome-keyring can't be removed"
+
 # If the package swap fails, the migration stays pending and the old keyring comes back.
-rm -f "$test_tmp/oo7-installed"
+rm -f "$test_tmp/oo7-installed" "$test_tmp/gnome-keyring-removed"
 touch "$test_tmp/pacman-fails"
 home=$(new_home failed-swap)
 seed_keyring "$home"
