@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Ports versiegeln",
   "tailscale.phrase8": "Tailnets sortieren",
   "tailscale.phrase9": "Schlüssel mischen",
+  "tailscale.renameConnection": "Verbindung umbenennen",
+  "tailscale.renameFailed": "Tailscale-Verbindung konnte nicht umbenannt werden",
   "tailscale.searchMachines": "Geräte suchen  ( / )",
   "tailscale.searchRegions": "Regionen suchen",
   "tailscale.sendFiles": "Dateien senden",

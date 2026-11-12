@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Запечатваме портове",
   "tailscale.phrase8": "Подреждаме tailnet мрежи",
   "tailscale.phrase9": "Разбъркваме ключове",
+  "tailscale.renameConnection": "Преименувай връзка",
+  "tailscale.renameFailed": "Връзката на Tailscale не можа да се преименува",
   "tailscale.searchMachines": "Търси машини  ( / )",
   "tailscale.searchRegions": "Търси региони",
   "tailscale.sendFiles": "Изпрати файлове",

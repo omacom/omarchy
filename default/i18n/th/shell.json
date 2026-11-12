@@ -546,6 +546,8 @@
   "tailscale.phrase7": "ผนึกพอร์ตแน่น",
   "tailscale.phrase8": "เรียง tailnet ใหม่",
   "tailscale.phrase9": "สับกุญแจเล่น",
+  "tailscale.renameConnection": "เปลี่ยนชื่อการเชื่อมต่อ",
+  "tailscale.renameFailed": "ไม่สามารถเปลี่ยนชื่อการเชื่อมต่อ Tailscale ได้",
   "tailscale.searchMachines": "ค้นหาเครื่อง  ( / )",
   "tailscale.searchRegions": "ค้นหาภูมิภาค",
   "tailscale.sendFiles": "ส่งไฟล์",

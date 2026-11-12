@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Forsegler porter",
   "tailscale.phrase8": "Sorterer tailnet",
   "tailscale.phrase9": "Stokker nøkler",
+  "tailscale.renameConnection": "Endre navn på tilkobling",
+  "tailscale.renameFailed": "Kunne ikke endre navn på Tailscale-tilkobling",
   "tailscale.searchMachines": "Søk i maskiner  ( / )",
   "tailscale.searchRegions": "Søk etter regioner",
   "tailscale.sendFiles": "Send filer",

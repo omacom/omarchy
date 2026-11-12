@@ -559,6 +559,8 @@
   "tailscale.phrase7": "පෝට් මුද්‍රා තබමින්",
   "tailscale.phrase8": "tailnet වර්ග කරමින්",
   "tailscale.phrase9": "යතුරු කලවං කරමින්",
+  "tailscale.renameConnection": "සම්බන්ධතාව නැවත නම් කරන්න",
+  "tailscale.renameFailed": "Tailscale සම්බන්ධතාව නැවත නම් කළ නොහැකි විය",
   "tailscale.searchMachines": "උපාංග සොයන්න  ( / )",
   "tailscale.searchRegions": "කලාප සොයන්න",
   "tailscale.sendFiles": "ගොනු යවන්න",

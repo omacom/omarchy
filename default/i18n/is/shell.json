@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Innsiglar gáttir",
   "tailscale.phrase8": "Raðar tailnetum",
   "tailscale.phrase9": "Stokkar lykla",
+  "tailscale.renameConnection": "Endurnefna tengingu",
+  "tailscale.renameFailed": "Ekki tókst að endurnefna Tailscale-tengingu",
   "tailscale.searchMachines": "Leita að vélum  ( / )",
   "tailscale.searchRegions": "Leita að svæðum",
   "tailscale.sendFiles": "Senda skrár",

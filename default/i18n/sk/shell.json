@@ -572,6 +572,8 @@
   "tailscale.phrase7": "Pečatím porty",
   "tailscale.phrase8": "Triedim tailnety",
   "tailscale.phrase9": "Miešam kľúče",
+  "tailscale.renameConnection": "Premenovať pripojenie",
+  "tailscale.renameFailed": "Nepodarilo sa premenovať pripojenie Tailscale",
   "tailscale.searchMachines": "Hľadať zariadenia  ( / )",
   "tailscale.searchRegions": "Hľadať regióny",
   "tailscale.sendFiles": "Poslať súbory",

@@ -564,6 +564,8 @@
   "tailscale.sendFiles": "Send files",
   "tailscale.startingLogin": "Starting Tailscale login…",
   "tailscale.statusParseFailed": "Failed to parse tailscale status",
+  "tailscale.renameConnection": "Rename connection",
+  "tailscale.renameFailed": "Could not rename Tailscale connection",
   "tailscale.switchFailed": "Account switch failed",
   "tailscale.turnOff": "Turn Tailscale off",
   "tailscale.turnOn": "Turn Tailscale on",

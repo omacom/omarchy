@@ -572,6 +572,8 @@
   "tailscale.phrase7": "Печатим портове",
   "tailscale.phrase8": "Разврставам tailnet-ове",
   "tailscale.phrase9": "Мешам кључеве",
+  "tailscale.renameConnection": "Преименуј везу",
+  "tailscale.renameFailed": "Није могуће преименовати Tailscale везу",
   "tailscale.searchMachines": "Претражи машине  ( / )",
   "tailscale.searchRegions": "Претражи регионе",
   "tailscale.sendFiles": "Пошаљи датотеке",

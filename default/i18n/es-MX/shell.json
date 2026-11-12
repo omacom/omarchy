@@ -572,6 +572,8 @@
   "tailscale.phrase7": "Sellando puertos",
   "tailscale.phrase8": "Ordenando tailnets",
   "tailscale.phrase9": "Barajando claves",
+  "tailscale.renameConnection": "Renombrar conexión",
+  "tailscale.renameFailed": "No se pudo renombrar la conexión de Tailscale",
   "tailscale.searchMachines": "Buscar máquinas  ( / )",
   "tailscale.searchRegions": "Buscar regiones",
   "tailscale.sendFiles": "Enviar archivos",

@@ -572,6 +572,8 @@
   "tailscale.phrase7": "Sandariname prievadus",
   "tailscale.phrase8": "Rūšiuojame tailnet tinklus",
   "tailscale.phrase9": "Maišome raktus",
+  "tailscale.renameConnection": "Pervadinti jungtį",
+  "tailscale.renameFailed": "Nepavyko pervadinti Tailscale jungties",
   "tailscale.searchMachines": "Ieškoti įrenginių  ( / )",
   "tailscale.searchRegions": "Ieškoti regionų",
   "tailscale.sendFiles": "Siųsti failus",
