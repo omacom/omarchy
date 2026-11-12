@@ -14,9 +14,10 @@ o.shell_quote = shell_quote
 o.chromium_browsers = "((google-)?[cC]hrom(e|ium)|[bB]rave-browser|[mM]icrosoft-edge|Vivaldi-stable|helium)"
 
 -- Apps that draw their own frame with maximize and close buttons: those
--- browsers, and GNOME apps with a header bar. Floating workspaces give them no
--- titlebar.
-o.self_framed_apps = "(" .. o.chromium_browsers .. "|^org\\.gnome\\.(DiskUtility|Papers))"
+-- browsers, their web apps (Chromium names an --app window chrome-<host>_<path>-<profile>),
+-- and GNOME apps with a header bar. Floating workspaces give them no titlebar.
+-- Rule classes match the whole name.
+o.self_framed_apps = "(" .. o.chromium_browsers .. "|chrome-.+|org\\.gnome\\.(DiskUtility|Papers))"
 
 local function file_exists(path)
   local file = io.open(path, "r")
