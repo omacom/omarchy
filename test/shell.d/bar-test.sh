@@ -237,6 +237,26 @@ const vclock = { slot: boxClock, region: 'center', x: 0, y: 400, width: 26, heig
 assertDeepEqual(bar.centerDropTarget([vclock], vbox, { x: 13, y: 440 }, true), { slot: boxClock, after: true }, 'vertical bars drop into the box along y')
 assertDeepEqual(bar.centerDropTarget([vclock], vbox, { x: 13, y: 380 }, true), { region: 'centerBegin', after: true }, 'vertical bars drop above the box into centerBegin')
 assertDeepEqual(bar.centerDropTarget([vclock], vbox, { x: 13, y: 470 }, true), { region: 'centerEnd', after: false }, 'vertical bars drop below the box into centerEnd')
+
+// A side section a drag has emptied keeps no slots, so its end of the bar
+// answers for it: a drop there starts the section instead of falling into
+// the center group. The end sits at the strip's edge along the drag axis,
+// where the bar draws the section's widgets when it has any.
+const barEnd = 1728
+const sideEdges = [
+  { region: 'left', axis: 0, after: true },
+  { region: 'right', axis: barEnd, after: false }
+]
+const sideClock = dropRow(boxClock, 'center', 340, 60)
+const sideBox = { x: 340, y: 0, width: 60, height: 26 }
+const sides = [sideClock, dropRow(weatherSlot, 'centerEnd', 400, 40)]
+assertDeepEqual(bar.centerDropTarget(sides, sideBox, { x: 61 }, false, null, sideEdges), { region: 'left', after: true }, 'a drop at the end of a bar with its left section empty starts the left section')
+assertDeepEqual(bar.centerDropTarget(sides, sideBox, { x: barEnd - 48 }, false, null, sideEdges), { region: 'right', after: false }, 'a drop at the end of a bar with its right section empty starts the right section')
+assertDeepEqual(bar.centerDropTarget([menu, ...sides], sideBox, { x: 61 }, false, null, sideEdges), { slot: menuSlot, after: true }, 'a section a candidate still holds stands its anchor down, and its widget answers')
+assertDeepEqual(bar.centerDropTarget(sides, sideBox, { x: 330 }, false, null, sideEdges), { region: 'centerBegin', after: true }, 'a drop nearer the box lands in centerBegin, not in an emptied side section')
+assertDeepEqual(bar.centerDropTarget([vclock], vbox, { x: 13, y: 20 }, true, null, sideEdges), { region: 'left', after: true }, 'a vertical bar starts an emptied side section at the strip edge too')
+assertDeepEqual(bar.nearestDropTarget([sideClock], { x: 61, y: 13 }, false, sideEdges), { region: 'left', after: true }, 'a bar without a center box starts an emptied side section at a drop at its end')
+assertDeepEqual(bar.centerDropTarget(sides, sideBox, { x: 61 }, false), { region: 'centerBegin', after: true }, 'without anchors a drop at the bar end falls to the center group as before')
 assertDeepEqual(bar.centerDropTarget(full, null, { x: 345 }, false), bar.nearestDropTarget(full, { x: 345 }, false), 'a bar without a center box resolves drops as before')
 assertEqual(bar.centerDropTarget(full, box, {}, false), null, 'an unreadable pointer resolves to no drop')
 
