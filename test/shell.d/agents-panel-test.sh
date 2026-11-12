@@ -174,6 +174,13 @@ assertDeepEqual(parseClients('{"models":{"m":2,"idle":0,"odd":"3","half":1.5}}')
 for (const raw of ['{', 'null', '[]', '{"models":[]}'])
   assertDeepEqual(parseClients(raw), {}, 'an unreadable count file counts nobody: ' + raw)
 
+// A failed pairing's line is the reason's first line, not ssh's noise above
+// it or the remedy below it.
+const pairFailureMessage = new Function(main.match(/function pairFailureMessage\([^]*?\n  \}/)[0] + '\nreturn pairFailureMessage')()
+assertEqual(pairFailureMessage("Pairing with box.tail.ts.net over SSH\nalice@box.tail.ts.net: Permission denied (publickey).\nError: box refused this machine's SSH keys\nStart the SSH agent that holds your key\n"),
+  "box refused this machine's SSH keys", 'a failed pairing shows the first line of its reason')
+assertEqual(pairFailureMessage('Traceback (most recent call last):\n  ...\n'), '', 'a pairing that gave no reason leaves the line to say it failed')
+
 const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 const localActions = new Function(panel.match(/function localActions\([^]*?\n  \}/)[0] + '\nreturn localActions')()
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle', 'launch'], 'a running local model can be shared, stopped and launched')

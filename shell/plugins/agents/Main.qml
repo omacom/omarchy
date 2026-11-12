@@ -130,6 +130,53 @@ Item {
     onExited: networkFile.reload()
   }
 
+  // Pairing with a model another machine shares runs here, not in a terminal,
+  // so the panel stays open on it: with no terminal, omarchy-agent-local pair
+  // trusts a host met for the first time and asks nothing, so it pairs or
+  // fails with a reason. One at a time; the model being paired, while it runs.
+  property string pairingId: ""
+  // A pairing that failed, by model: the reason's first line, which the
+  // model's line shows, and all that pair printed, which that line opens.
+  // Kept until the model is paired again or the shell restarts.
+  property var pairFailures: ({})
+
+  function pair(model) {
+    if (pairProcess.running) return
+    var id = model.host + "/" + model.recipe
+    var failures = Object.assign({}, pairFailures)
+    delete failures[id]
+    pairFailures = failures
+    pairingId = id
+    // A host already paired for another model is found by its tailnet name
+    // too, and connects this one with no SSH.
+    pairProcess.command = ["bash", "-c", "exec omarchy-agent-local pair \"$1\" \"$2\" 2>&1", "pair", String(model.dns || model.host), String(model.recipe)]
+    pairProcess.running = true
+  }
+
+  // The reason omarchy-agent-local gives, which it prints as "Error: " and
+  // a first line saying what went wrong; empty when it gave none.
+  function pairFailureMessage(output) {
+    var lines = String(output || "").split("\n")
+    for (var i = lines.length - 1; i >= 0; i--)
+      if (lines[i].indexOf("Error: ") === 0) return lines[i].slice(7).trim()
+    return ""
+  }
+
+  Process {
+    id: pairProcess
+    stdout: StdioCollector { id: pairOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      var id = root.pairingId
+      if (exitCode !== 0) {
+        var failures = Object.assign({}, root.pairFailures)
+        failures[id] = { message: root.pairFailureMessage(pairOutput.text), output: pairOutput.text }
+        root.pairFailures = failures
+      }
+      root.pairingId = ""
+      networkFile.reload()
+    }
+  }
+
   function parseNetwork(content) {
     try {
       var parsed = JSON.parse(content)

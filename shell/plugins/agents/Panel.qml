@@ -63,13 +63,28 @@ Panel {
   }
 
   // A stopped model with an error to explain, which links to its logs. Only
-  // this machine's own: a tailnet model's logs live on its host.
+  // this machine's own: a tailnet model's logs live on its host. A tailnet
+  // model can fail to pair instead, which links to what pairing printed.
   function localFailed(model) {
-    return !model.host && ["active", "activating", "deactivating", "removing"].indexOf(model.unit) < 0 && String(model.error || "") !== ""
+    if (model.host) return pairFailure(model) !== null
+    return ["active", "activating", "deactivating", "removing"].indexOf(model.unit) < 0 && String(model.error || "") !== ""
+  }
+
+  // A failed pairing still to explain: not once the model is paired, its host
+  // is away (its line says so instead), or it's being paired again.
+  function pairFailure(model) {
+    if (!model || !model.host || model.paired === true || String(model.offline || "") !== "") return null
+    var id = modelId(model)
+    return usage.pairingId === id ? null : (usage.pairFailures[id] || null)
   }
 
   function showLocalLogs(model) {
-    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local logs " + Util.shellQuote(String(model.recipe))])
+    var failure = pairFailure(model)
+    // A pairing's output is all there is of it, so the terminal shows that
+    // again and closes as failed, the way a pairing in a terminal ended.
+    var command = failure ? "printf %s " + Util.shellQuote(String(failure.output)) + "; false"
+      : "omarchy-agent-local logs " + Util.shellQuote(String(model.recipe))
+    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", command])
     root.close()
   }
 
@@ -87,16 +102,9 @@ Panel {
     } else if (action === "share") {
       Util.execArgv(["omarchy-agent-local", "share", model.recipe].concat(model.shared ? ["--off"] : []))
     } else if (action === "pair") {
-      // A host with another model in use here has given its key already, so
-      // this one connects at once. Otherwise SSH may ask for a password or a
-      // new host key, so pairing gets a terminal.
-      var models = usage.networkModels || {}
-      if (Object.keys(models).some(function(id) { return models[id].host === model.host && models[id].paired })) {
-        Util.execArgv(["omarchy-agent-local", "pair", String(model.host), String(model.recipe)])
-        return
-      }
-      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local pair " + Util.shellQuote(String(model.dns || model.host)) + " " + Util.shellQuote(String(model.recipe))])
-      root.close()
+      // Pairs in the background while the panel stays open; a failure shows
+      // on the model's line.
+      usage.pair(model)
     } else if (action === "disconnect") {
       Util.execArgv(["omarchy-agent-local", "forget", modelId(model)])
     }
@@ -2121,7 +2129,8 @@ Panel {
       }
 
       // A network model this machine isn't paired with yet: the play a local
-      // model starts with, which opens a terminal to pair over SSH.
+      // model starts with, which pairs over SSH. Greyed out while a pairing
+      // runs, as only one runs at a time.
       PanelActionButton {
         id: remotePair
         anchors.right: parent.right
@@ -2129,7 +2138,8 @@ Panel {
         visible: section.remote && !section.offline && !section.paired
         iconText: "󰐊"
         tooltipText: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
-        foreground: root.foreground
+        foreground: usage.pairingId !== "" ? root.dim : root.foreground
+        opacity: usage.pairingId !== "" ? 0.5 : 1
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("modelPair", section.providerIndex)
         onHasCursorChanged: if (hasCursor) root.revealItem(remotePair)
@@ -2296,6 +2306,34 @@ Panel {
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
       wrapMode: Text.Wrap
+    }
+
+    // A network model being paired, until it is or fails to be.
+    Text {
+      visible: section.remote && usage.pairingId === root.modelId(section.model)
+      width: parent.width
+      textFormat: Text.PlainText
+      text: section.remote ? Commons.I18n.t("agents.networkPairing").arg(section.model.host) : ""
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
+    }
+
+    // Why pairing with a network model failed, which links to all that
+    // pairing printed.
+    TextLink {
+      readonly property var failure: section.remote ? root.pairFailure(section.model) : null
+      visible: failure !== null
+      width: Math.min(implicitWidth, parent.width)
+      text: !failure ? "" : failure.message !== "" ? failure.message : Commons.I18n.t("agents.networkPairFailed").arg(section.model.host)
+      idleColor: root.urgent
+      hotColor: root.urgent
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
+      picked: root.hasKey("modelLogs", section.providerIndex)
+      tooltip: Commons.I18n.t("agents.networkPairOutputTip")
+      onClicked: root.showLocalLogs(section.model)
     }
 
     // Sharing that Tailscale refused, with the way to fix it.
