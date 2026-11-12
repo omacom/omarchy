@@ -15,7 +15,8 @@ export HOME="$tmp_dir/home"
 # the channel does not carry it. The machine's own Hyprland is TEST_HYPRLAND.
 # Every answer names the installed build where it is not a dependency, and a
 # later repository carries a plugin that does pin it: only the dependencies of
-# the first record are what pacman installs. Field names follow the locale.
+# the first record are what pacman installs. Field names follow the locale, and
+# an exported COLUMNS wraps the field, as pacman does even when its output is captured.
 cat >"$tmp_dir/bin/pacman" <<'SCRIPT'
 #!/bin/bash
 case "$1 $2" in
@@ -23,7 +24,8 @@ case "$1 $2" in
   "-Si cua-hyprland-plugin")
     [[ -n ${TEST_PLUGIN_PIN-} ]] || exit 1
     if [[ ${LC_ALL-} == C ]]; then depends="Depends On      "; else depends="Hängt ab von    "; fi
-    printf 'Repository      : omarchy\nName            : cua-hyprland-plugin\nDescription     : Cua plugin for hyprland=%s\nProvides        : cua-hyprland=%s\n%s: %s  aquamarine=0.16.0-1  hyprlang=0.6.8-5\n\n' "$TEST_HYPRLAND" "$TEST_HYPRLAND" "$depends" "$TEST_PLUGIN_PIN"
+    if [[ -n ${COLUMNS-} ]]; then wrap=$'\n                  '; else wrap="  "; fi
+    printf 'Repository      : omarchy\nName            : cua-hyprland-plugin\nDescription     : Cua plugin for hyprland=%s\nProvides        : cua-hyprland=%s\n%s: %s  hyprlang=0.6.8-5\n\n' "$TEST_HYPRLAND" "$TEST_HYPRLAND" "$depends" "${TEST_DEPENDS_BEFORE_PIN:+$TEST_DEPENDS_BEFORE_PIN$wrap}$TEST_PLUGIN_PIN"
     printf 'Repository      : extra\nName            : cua-hyprland-plugin\n%s: hyprland=%s\n' "$depends" "$TEST_HYPRLAND"
     ;;
   *)
@@ -50,16 +52,21 @@ done
 chmod +x "$tmp_dir/bin"/*
 
 export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
+export COLUMNS=80
 
 install_cua() {
   : >"$TEST_LOG"
+  : >"$TEST_ENV_LOG"
   OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-install-ai-cua" </dev/null 2>&1
 }
 
-output=$(TEST_HYPRLAND=0.57.2-2 TEST_PLUGIN_PIN=hyprland=0.57.2-2 install_cua)
-[[ $(cat "$TEST_LOG") == $'add:cua-driver-bin\nadd:cua-hyprland-plugin' ]] ||
-  fail "Cua install adds the plugin built for the installed Hyprland" "$(cat "$TEST_LOG")"
-pass "Cua install adds the plugin built for the installed Hyprland"
+# The pin is found wherever it sits among the dependencies: first, as the package lists it, or after others.
+for before in "" aquamarine=0.16.0-1; do
+  output=$(TEST_HYPRLAND=0.57.2-2 TEST_PLUGIN_PIN=hyprland=0.57.2-2 TEST_DEPENDS_BEFORE_PIN=$before install_cua)
+  [[ $(cat "$TEST_LOG") == $'add:cua-driver-bin\nadd:cua-hyprland-plugin' ]] ||
+    fail "Cua install adds the plugin built for the installed Hyprland (after '$before')" "$(cat "$TEST_LOG")"
+  pass "Cua install adds the plugin built for the installed Hyprland (after '$before')"
+done
 
 # The switch goes to Hyprland, whose environment a terminal opened from a
 # keybinding inherits, and nowhere that outlives the session: a variable set in
