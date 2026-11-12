@@ -39,8 +39,13 @@ printf 'add:%s\n' "$*" >>"$TEST_LOG"
 [[ " ${TEST_FAILING_PKGS-} " != *" $1 "* ]]
 SCRIPT
 
-for stub in systemctl dbus-update-activation-environment; do
-  printf '#!/bin/bash\n' >"$tmp_dir/bin/$stub"
+# Everything that could take the driver's Wayland switch for the running session, logged by receiver.
+export TEST_ENV_LOG="$tmp_dir/env-log"
+for stub in systemctl dbus-update-activation-environment hyprctl; do
+  cat >"$tmp_dir/bin/$stub" <<SCRIPT
+#!/bin/bash
+printf '$stub:%s\n' "\$*" >>"\$TEST_ENV_LOG"
+SCRIPT
 done
 chmod +x "$tmp_dir/bin"/*
 
@@ -55,6 +60,13 @@ output=$(TEST_HYPRLAND=0.57.2-2 TEST_PLUGIN_PIN=hyprland=0.57.2-2 install_cua)
 [[ $(cat "$TEST_LOG") == $'add:cua-driver-bin\nadd:cua-hyprland-plugin' ]] ||
   fail "Cua install adds the plugin built for the installed Hyprland" "$(cat "$TEST_LOG")"
 pass "Cua install adds the plugin built for the installed Hyprland"
+
+# The switch goes to Hyprland, whose environment a terminal opened from a
+# keybinding inherits, and nowhere that outlives the session: a variable set in
+# systemd's user manager survives the logout, and the driver's removal, whenever the manager does.
+[[ $(cat "$TEST_ENV_LOG") == 'hyprctl:eval hl.env("CUA_DRIVER_RS_ENABLE_WAYLAND", "1")' ]] ||
+  fail "Cua install sets the driver's Wayland switch in the running Hyprland and nowhere else" "$(cat "$TEST_ENV_LOG")"
+pass "Cua install sets the driver's Wayland switch in the running Hyprland and nowhere else"
 
 # pacman would meet either pin by replacing the installed Hyprland with a
 # build from another repository, which is never the plugin's call to make.
