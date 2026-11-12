@@ -242,7 +242,7 @@ Item {
 
   Process {
     id: versionScan
-    command: [root.omarchyPath + "/bin/omarchy-pkg-versions"]
+    command: [root.omarchyPath + "/bin/omarchy-launch-versions"]
     stdout: SplitParser {
       onRead: function(line) {
         var tab = line.indexOf("\t")
