@@ -661,16 +661,26 @@ Item {
       // app took, so a window under the pointer is the evidence instead.
       Drag.onDragFinished: function(dropAction) {
         if (dropAction !== Qt.IgnoreAction) { card.dragging = false; card.dismissed(); return }
+        // The deck in its surface's coordinates, so a drop back on the
+        // notifications is not mistaken for one on the window beneath them.
+        var deck = card.parent
+        var at = deck.mapToItem(null, 0, 0)
+        dropCheck.environment = ({ DECK: JSON.stringify([at.x, at.y, deck.width, deck.height]) })
         dropCheck.running = true
       }
     }
 
     // Prints true when the pointer sits on a mapped window on a visible
-    // workspace.
+    // workspace, and not on the notification deck above it.
     Process {
       id: dropCheck
       command: ["sh", "-c",
-        "c=$(hyprctl cursorpos -j) && ws=$(hyprctl monitors -j | jq -c '[.[] | .activeWorkspace.id, .specialWorkspace.id]') && " +
+        "c=$(hyprctl cursorpos -j) || exit; " +
+        "hyprctl layers -j | jq -e --argjson c \"$c\" --argjson d \"$DECK\" " +
+        "'any(.[] | .levels[] | .[]; .namespace == \"omarchy-notifications\" " +
+        "and $c.x >= .x + $d[0] and $c.x < .x + $d[0] + $d[2] and $c.y >= .y + $d[1] and $c.y < .y + $d[1] + $d[3])' " +
+        ">/dev/null && { echo false; exit; }; " +
+        "ws=$(hyprctl monitors -j | jq -c '[.[] | .activeWorkspace.id, .specialWorkspace.id]') && " +
         "hyprctl clients -j | jq --argjson c \"$c\" --argjson ws \"$ws\" " +
         "'any(.[]; .mapped and (.workspace.id as $w | $ws | index($w) != null) " +
         "and $c.x >= .at[0] and $c.x < .at[0] + .size[0] and $c.y >= .at[1] and $c.y < .at[1] + .size[1])'"]
