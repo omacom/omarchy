@@ -36,10 +36,15 @@ read -r service path <<<"$target"
 # Convert the pointer from Hyprland's layout to the Xwayland output it is on.
 x=0 y=0
 read -r cx cy < <(hyprctl cursorpos -j | jq -r '"\(.x) \(.y)"')
-monitor=$(hyprctl monitors -j | jq -c --argjson cx "$cx" --argjson cy "$cy" \
-  'first(.[] | select($cx >= .x and $cy >= .y and $cx < .x + .width / .scale and $cy < .y + .height / .scale))')
+# Hyprland reports a mode's size before rotation, so a quarter turn (an odd
+# transform) swaps the width and height on screen.
+monitor=$(hyprctl monitors -j | jq -c --argjson cx "$cx" --argjson cy "$cy" '
+  first(.[]
+    | (if .transform % 2 == 1 then [.height, .width] else [.width, .height] end) as [$w, $h]
+    | .w = $w / .scale | .h = $h / .scale
+    | select($cx >= .x and $cy >= .y and $cx < .x + .w and $cy < .y + .h))')
 if [[ -n $monitor ]]; then
-  read -r name mx my mw <<<"$(jq -r '"\(.name) \(.x) \(.y) \(.width / .scale)"' <<<"$monitor")"
+  read -r name mx my mw <<<"$(jq -r '"\(.name) \(.x) \(.y) \(.w)"' <<<"$monitor")"
   # xrandr lists outputs as "0: +NAME W/mmxH/mm+X+Y NAME".
   geometry=$(xrandr --listmonitors 2>/dev/null | awk -v n="$name" '$NF == n { print $3 }')
   if [[ $geometry =~ ^([0-9]+)/[0-9]+x([0-9]+)/[0-9]+\+([0-9]+)\+([0-9]+)$ ]]; then
