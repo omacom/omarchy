@@ -102,8 +102,11 @@ ShellRoot {
       NetworkMock.wifi.connected = true
     },
     function() {
+      panel.openPasswordPrompt("Cafe")
       panel.connectDirectly("Home")
       check(panel.actionKind === "" && home.calls === 0, "connecting a network that is already connected settles without asking again")
+      check(panel.passwordSsid === "Cafe", "settling it leaves another network's prompt open")
+      panel.cancelPasswordPrompt()
       panel.connectDirectly("Guest")
       check(panel.actionKind === "connect" && panel.actionSsid === "Guest", "a connect is tracked while it is in flight")
       home.connected = false
