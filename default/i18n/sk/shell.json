@@ -90,6 +90,9 @@
   "agents.networkOffline": "Offline",
   "agents.networkOnHost": "Na %1",
   "agents.networkPair": "Na použitie spárovať s %1",
+  "agents.networkPairFailed": "Nepodarilo sa spárovať s %1",
+  "agents.networkPairOutputTip": "Otvorte v termináli to, čo párovanie vypísalo",
+  "agents.networkPairing": "Párovanie s %1…",
   "agents.networkRunning": "Beží",
   "agents.networkShare": "Zdieľať v tailnete",
   "agents.networkSharedUsers": {

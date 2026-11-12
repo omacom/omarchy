@@ -90,6 +90,9 @@
   "agents.networkOffline": "Fora de línia",
   "agents.networkOnHost": "A %1",
   "agents.networkPair": "Vincula amb %1 per utilitzar-lo",
+  "agents.networkPairFailed": "No s'ha pogut emparellar amb %1",
+  "agents.networkPairOutputTip": "Obre en un terminal el que ha mostrat l'emparellament",
+  "agents.networkPairing": "Emparellant amb %1…",
   "agents.networkRunning": "En execució",
   "agents.networkShare": "Comparteix a la teva tailnet",
   "agents.networkSharedUsers": {

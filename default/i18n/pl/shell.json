@@ -93,6 +93,9 @@
   "agents.networkOffline": "Offline",
   "agents.networkOnHost": "Na %1",
   "agents.networkPair": "Sparuj z %1, aby go używać",
+  "agents.networkPairFailed": "Nie udało się sparować z %1",
+  "agents.networkPairOutputTip": "Otwórz wynik parowania w terminalu",
+  "agents.networkPairing": "Parowanie z %1…",
   "agents.networkRunning": "Działa",
   "agents.networkShare": "Udostępnij w swoim tailnecie",
   "agents.networkSharedUsers": {

@@ -90,6 +90,9 @@
   "agents.networkOffline": "Ван мреже",
   "agents.networkOnHost": "На %1",
   "agents.networkPair": "Упари са %1 за коришћење",
+  "agents.networkPairFailed": "Упаривање са %1 није успело",
+  "agents.networkPairOutputTip": "Отворите у терминалу оно што је упаривање исписало",
+  "agents.networkPairing": "Упаривање са %1…",
   "agents.networkRunning": "Покренуто",
   "agents.networkShare": "Дели на tailnet-у",
   "agents.networkSharedUsers": {

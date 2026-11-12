@@ -48,5 +48,4 @@ cat >~/.config/xdg-terminals.list <<EOF
 $desktop_id
 EOF
 
-omarchy-shell -q omarchy.dock refreshStandIns >/dev/null 2>&1 || true
 omarchy-notification-send -g $glyph "$(omarchy-i18n default.terminalSet "$name")"

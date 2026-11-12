@@ -87,6 +87,9 @@
   "agents.networkOffline": "Офлайн",
   "agents.networkOnHost": "На %1",
   "agents.networkPair": "Сдвои се с %1, за да го използваш",
+  "agents.networkPairFailed": "Сдвояването с %1 се провали",
+  "agents.networkPairOutputTip": "Отвори изхода от сдвояването в терминал",
+  "agents.networkPairing": "Сдвояване с %1…",
   "agents.networkRunning": "Работи",
   "agents.networkShare": "Сподели в tailnet-а си",
   "agents.networkSharedUsers": {

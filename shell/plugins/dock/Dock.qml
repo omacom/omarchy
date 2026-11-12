@@ -67,7 +67,7 @@ Item {
       var entry = root.entryForAppId(toplevel.appId)
       var workspace = toplevels[i].workspace
       windows.push({
-        key: entry ? DockModel.standInKey(entry.id, root.standIns, pinned) : toplevel.appId,
+        key: entry ? DockModel.standInKey(entry.id, entry.categories, pinned) : toplevel.appId,
         hasEntry: !!entry && !entry.noDisplay,
         workspaceId: workspace ? workspace.id : -1,
         minimized: !!workspace && DockModel.isMinimizedWorkspace(workspace.name),
@@ -77,41 +77,6 @@ Item {
     }
 
     return DockModel.orderItems(DockModel.buildItems(pinned, windows), root.order)
-  }
-
-  // The default terminal's and browser's desktop ids, mapped to the stand-ins
-  // that launch them. Read at startup and when a default changes, since the
-  // commands that set one ask the dock to refresh them.
-  property var standIns: ({})
-  property bool standInsQueued: false
-
-  // A request during a read queues one more, since the running read may have
-  // seen the old default.
-  function refreshStandIns() {
-    if (standInsProc.running) root.standInsQueued = true
-    else standInsProc.running = true
-  }
-
-  Process {
-    id: standInsProc
-    command: ["bash", "-c", "printf '%s\\n' \"$(xdg-terminal-exec --print-id)\" \"$(omarchy-cmd-default-browser)\""]
-    stdout: StdioCollector {
-      onStreamFinished: {
-        var lines = text.split("\n")
-        var next = {}
-        // The terminal may be named with an action, as in foot.desktop:New.
-        var terminal = DockModel.normalizeId(String(lines[0] || "").split(":")[0])
-        var browser = DockModel.normalizeId(lines[1])
-        if (terminal) next[terminal] = "omarchy-terminal"
-        if (browser) next[browser] = "omarchy-browser"
-        root.standIns = next
-      }
-    }
-    // Deferred: the process still reports running while it signals exit.
-    onExited: if (root.standInsQueued) {
-      root.standInsQueued = false
-      Qt.callLater(root.refreshStandIns)
-    }
   }
 
   readonly property var itemsByKey: {
@@ -346,7 +311,6 @@ Item {
 
   Component.onCompleted: {
     refresh()
-    refreshStandIns()
     syncItemModel()
   }
 
@@ -386,8 +350,6 @@ Item {
     // The layout commands call this after changing a workspace's mode.
     function refresh(): void { root.refresh() }
     function apps(): void { appGrid.toggle() }
-    // The default terminal and browser commands call this after a change.
-    function refreshStandIns(): void { root.refreshStandIns() }
   }
 
   // An app dragged out of the app grid: the grid holds the pointer and

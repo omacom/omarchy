@@ -84,6 +84,9 @@
   "agents.networkOffline": "Luar talian",
   "agents.networkOnHost": "Pada %1",
   "agents.networkPair": "Pasangkan dengan %1 untuk menggunakannya",
+  "agents.networkPairFailed": "Tidak dapat memasangkan dengan %1",
+  "agents.networkPairOutputTip": "Buka dalam terminal apa yang dicetak semasa pemasangan",
+  "agents.networkPairing": "Memasangkan dengan %1…",
   "agents.networkRunning": "Berjalan",
   "agents.networkShare": "Kongsi pada tailnet anda",
   "agents.networkSharedUsers": {

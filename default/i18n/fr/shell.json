@@ -90,6 +90,9 @@
   "agents.networkOffline": "Hors ligne",
   "agents.networkOnHost": "Sur %1",
   "agents.networkPair": "S'associer à %1 pour l'utiliser",
+  "agents.networkPairFailed": "Appairage impossible avec %1",
+  "agents.networkPairOutputTip": "Ouvrir la sortie de l'appairage dans un terminal",
+  "agents.networkPairing": "Appairage avec %1…",
   "agents.networkRunning": "En cours",
   "agents.networkShare": "Partager sur votre tailnet",
   "agents.networkSharedUsers": {

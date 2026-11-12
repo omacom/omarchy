@@ -87,6 +87,9 @@
   "agents.networkOffline": "Çevrim dışı",
   "agents.networkOnHost": "%1 üzerinde",
   "agents.networkPair": "Kullanmak için %1 ile eşleştirin",
+  "agents.networkPairFailed": "%1 ile eşleştirilemedi",
+  "agents.networkPairOutputTip": "Eşleştirme çıktısını bir terminalde açın",
+  "agents.networkPairing": "%1 ile eşleştiriliyor…",
   "agents.networkRunning": "Çalışıyor",
   "agents.networkShare": "Tailnet'inizde paylaşın",
   "agents.networkSharedUsers": {

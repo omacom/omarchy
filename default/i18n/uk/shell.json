@@ -93,6 +93,9 @@
   "agents.networkOffline": "Офлайн",
   "agents.networkOnHost": "На %1",
   "agents.networkPair": "Сполучіться з %1 для використання",
+  "agents.networkPairFailed": "Не вдалося створити пару з %1",
+  "agents.networkPairOutputTip": "Відкрийте в терміналі вивід спарювання",
+  "agents.networkPairing": "Спарювання з %1…",
   "agents.networkRunning": "Працює",
   "agents.networkShare": "Поділитися у вашому tailnet",
   "agents.networkSharedUsers": {

@@ -84,6 +84,9 @@
   "agents.networkOffline": "离线",
   "agents.networkOnHost": "在 %1 上",
   "agents.networkPair": "与 %1 配对以使用",
+  "agents.networkPairFailed": "无法与 %1 配对",
+  "agents.networkPairOutputTip": "在终端中打开配对输出",
+  "agents.networkPairing": "正在与 %1 配对…",
   "agents.networkRunning": "运行中",
   "agents.networkShare": "在 tailnet 上共享",
   "agents.networkSharedUsers": {

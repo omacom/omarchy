@@ -71,15 +71,23 @@ function claimingEntryId(appId, entries) {
   return ""
 }
 
-// Omarchy's Terminal and Browser entries launch the default terminal and
-// browser, whose windows carry that app's own id. While the stand-in is pinned
-// and the app itself is not, the stand-in claims those windows, so launching
-// from it settles its pulse instead of adding a second icon. standIns maps an
-// app's desktop id to the stand-in's.
-function standInKey(key, standIns, pinned) {
-  var standIn = (standIns || {})[key]
-  var list = pinned || []
-  return standIn && list.indexOf(standIn) >= 0 && list.indexOf(key) === -1 ? standIn : key
+// The launcher's Terminal and Browser open the default terminal and browser,
+// whose windows carry that app's own id. A pinned Terminal or Browser claims
+// the windows of any app in its category, unless that app is pinned itself.
+var STAND_INS = [
+  { id: "omarchy-terminal", category: "TerminalEmulator" },
+  { id: "omarchy-browser", category: "WebBrowser" }
+]
+
+function standInKey(key, categories, pinned) {
+  var pins = pinned || []
+  if (pins.indexOf(key) >= 0) return key
+  for (var i = 0; i < STAND_INS.length; i++) {
+    var standIn = STAND_INS[i]
+    if (key !== standIn.id && pins.indexOf(standIn.id) >= 0 && (categories || []).indexOf(standIn.category) >= 0)
+      return standIn.id
+  }
+  return key
 }
 
 // Pinned apps come first, in pin order, whether or not they run. Running apps

@@ -87,6 +87,9 @@
   "agents.networkOffline": "Offline",
   "agents.networkOnHost": "Auf %1",
   "agents.networkPair": "Mit %1 koppeln, um es zu nutzen",
+  "agents.networkPairFailed": "Kopplung mit %1 fehlgeschlagen",
+  "agents.networkPairOutputTip": "Öffne die Ausgabe der Kopplung in einem Terminal",
+  "agents.networkPairing": "Wird mit %1 gekoppelt…",
   "agents.networkRunning": "Läuft",
   "agents.networkShare": "Im Tailnet freigeben",
   "agents.networkSharedUsers": {

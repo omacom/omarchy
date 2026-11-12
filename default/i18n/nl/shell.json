@@ -87,6 +87,9 @@
   "agents.networkOffline": "Offline",
   "agents.networkOnHost": "Op %1",
   "agents.networkPair": "Koppel met %1 om het te gebruiken",
+  "agents.networkPairFailed": "Kon niet koppelen met %1",
+  "agents.networkPairOutputTip": "Open de uitvoer van het koppelen in een terminal",
+  "agents.networkPairing": "Koppelen met %1…",
   "agents.networkRunning": "Draait",
   "agents.networkShare": "Delen op je tailnet",
   "agents.networkSharedUsers": {
