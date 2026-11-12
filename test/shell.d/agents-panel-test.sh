@@ -174,6 +174,13 @@ assertDeepEqual(parseClients('{"models":{"m":2,"idle":0,"odd":"3","half":1.5}}')
 for (const raw of ['{', 'null', '[]', '{"models":[]}'])
   assertDeepEqual(parseClients(raw), {}, 'an unreadable count file counts nobody: ' + raw)
 
+// A failed pairing's line is the reason's first line, not ssh's noise above
+// it or the remedy below it.
+const pairFailureMessage = new Function(main.match(/function pairFailureMessage\([^]*?\n  \}/)[0] + '\nreturn pairFailureMessage')()
+assertEqual(pairFailureMessage("Pairing with box.tail.ts.net over SSH\nalice@box.tail.ts.net: Permission denied (publickey).\nError: box refused this machine's SSH keys\nStart the SSH agent that holds your key\n"),
+  "box refused this machine's SSH keys", 'a failed pairing shows the first line of its reason')
+assertEqual(pairFailureMessage('Traceback (most recent call last):\n  ...\n'), '', 'a pairing that gave no reason leaves the line to say it failed')
+
 const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 const localActions = new Function(panel.match(/function localActions\([^]*?\n  \}/)[0] + '\nreturn localActions')()
 assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle', 'launch'], 'a running local model can be shared, stopped and launched')
@@ -186,6 +193,20 @@ assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired:
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'inactive', paired: true, offline: '' }), [], 'a paired network model that is not running offers nothing, not even disconnecting')
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: false, offline: '' }), ['pair'], 'an unpaired network model offers pairing only')
 assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', paired: true, offline: 'offline' }), [], 'an offline network model offers nothing until its host is back')
+
+// A model paired from the panel that is still starting on its host has no
+// terminal yet: the cursor waits for one rather than giving up.
+const modelId = new Function(panel.match(/function modelId\([^]*?\n  \}/)[0] + '\nreturn modelId')()
+const landing = { landAfterPair: 'box/m', usage: { pairingId: '', pairFailures: {}, canShare: false }, root: { opened: true }, providers: [], localActions, modelId, pointed: null }
+landing.pointAt = (kind, index) => { landing.pointed = [kind, index] }
+const landOnPaired = new Function('scope', 'with (scope) { ' + panel.match(/function landOnPaired\([^]*?\n  \}/)[0] + '\nreturn landOnPaired }')(landing)
+landing.providers = [{ localModel: { host: 'box', recipe: 'm', unit: 'activating', paired: true, offline: '' } }]
+landOnPaired()
+assert(landing.pointed === null && landing.landAfterPair === 'box/m', 'a paired model still starting keeps the cursor waiting for its terminal')
+landing.providers = [{ localModel: { host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' } }]
+landOnPaired()
+assertDeepEqual(landing.pointed, ['modelLaunch', 0], 'the cursor lands on its terminal once it runs')
+assertEqual(landing.landAfterPair, '', 'and stops waiting')
 
 // A running network model shows what it is and how fast its host runs it,
 // not that host's memory.
