@@ -414,6 +414,21 @@
   "trigger.hardware.touchpad-haptics.high": {
     "label": "high"
   },
+  "trigger.hardware.keyboard-backlight-timeout": {
+    "label": "Keyboard Backlight Timeout"
+  },
+  "trigger.hardware.keyboard-backlight-timeout.10s": {
+    "label": "10 seconds"
+  },
+  "trigger.hardware.keyboard-backlight-timeout.1m": {
+    "label": "1 minute"
+  },
+  "trigger.hardware.keyboard-backlight-timeout.5m": {
+    "label": "5 minutes"
+  },
+  "trigger.hardware.keyboard-backlight-timeout.15m": {
+    "label": "15 minutes"
+  },
   "trigger.hardware.touchscreen-on": {
     "label": "Enable Touchscreen"
   },
