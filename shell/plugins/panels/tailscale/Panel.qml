@@ -1205,12 +1205,17 @@ Panel {
       PanelActionButton {
         id: renameButton
         visible: !accountRow.renaming && !accountRow.switchingAccount
-          && (accountMouse.containsMouse || accountRow.hasCursor)
-        iconText: "\uf03eb"
+        // Space is reserved even when hidden — revealing the pen on hover
+        // must not squeeze the connection name sideways.
+        readonly property bool hot: accountMouse.containsMouse || accountRow.hasCursor
+        opacity: hot ? 1.0 : 0.0
+        Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+        iconText: "󰏫"
         tooltipText: Commons.I18n.t("tailscale.renameConnection")
         foreground: root.foreground
         fontFamily: root.fontFamily
-        enabled: !tailscale.busy
+        // Disabled while invisible so clicks fall through to the row.
+        enabled: hot && !tailscale.busy
         Layout.alignment: Qt.AlignVCenter
         onClicked: accountRow.beginRename()
       }
