@@ -98,6 +98,7 @@ Panel {
   property string actionKind: ""  // "connect" | "disconnect" | "forget"
   property string failureSsid: ""
   property string failureReason: ""
+  property string failureKind: ""  // the actionKind that failed
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
@@ -864,6 +865,7 @@ Panel {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
     actionTimeout.stop()
     failureSsid = actionSsid
+    failureKind = actionKind
     failureReason = networkFailureReason(reason, requiresCredentials(network.security))
     actionSsid = ""
     actionKind = ""
@@ -879,7 +881,14 @@ Panel {
   }
 
   function checkActionCompletion(network) {
-    if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
+    if (!network) return
+    // NetworkManager can connect a network on its own after a panel connect to
+    // it failed; only a failed connect, since a timed-out disconnect stays connected.
+    if (network.connected && failureKind === "connect" && failureReason !== "" && failureSsid === (network.name || "")) {
+      failureSsid = ""
+      failureReason = ""
+    }
+    if (actionKind === "" || actionSsid !== (network.name || "")) return
     if (actionKind === "connect" && network.connected) clearNetworkAction()
     else if (actionKind === "disconnect" && !network.connected && !network.stateChanging) clearNetworkAction()
     else if (actionKind === "forget" && !network.known && !network.stateChanging) clearNetworkAction()
@@ -1095,6 +1104,7 @@ Panel {
       else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
       else reason = Commons.I18n.t("network.timedOutForgetting")
       root.failureSsid = root.actionSsid
+      root.failureKind = root.actionKind
       root.failureReason = reason
       root.actionSsid = ""
       root.actionKind = ""

@@ -120,6 +120,13 @@ ShellRoot {
     },
     function() {
       check(panel.actionKind === "", "a disconnect completes once NetworkManager settles")
+      panel.connectDirectly("Cafe")
+      panel.failNetworkAction(cafe, ConnectionFailReason.WifiNetworkLost)
+      check(panel.failureSsid === "Cafe" && panel.failureReason !== "", "a failed connect leaves its reason on the row")
+      cafe.connected = true
+    },
+    function() {
+      check(panel.failureReason === "", "the failure clears once NetworkManager connects that network on its own")
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()
     }
