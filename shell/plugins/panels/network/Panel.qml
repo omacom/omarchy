@@ -1263,7 +1263,9 @@ Panel {
             fontSize: Style.font.subtitle * 1.5
             hasCursor: root.qrHeaderHasCursor
             Layout.alignment: Qt.AlignVCenter
-            onHovered: function(on) { if (on) root.setHeaderCursor(root.qrHeaderIndex) }
+            onHovered: function(on) {
+              Cursor.applyHover(on, root.qrHeaderHasCursor, function() { root.setHeaderCursor(root.qrHeaderIndex) }, function() { root.cursorActive = false })
+            }
             onClicked: root.summonWifiQr()
           }
 
@@ -1277,7 +1279,9 @@ Panel {
             fontSize: Style.font.subtitle * 1.5
             hasCursor: root.speedHeaderHasCursor
             Layout.alignment: Qt.AlignVCenter
-            onHovered: function(on) { if (on) root.setHeaderCursor(root.speedHeaderIndex) }
+            onHovered: function(on) {
+              Cursor.applyHover(on, root.speedHeaderHasCursor, function() { root.setHeaderCursor(root.speedHeaderIndex) }, function() { root.cursorActive = false })
+            }
             onClicked: root.summonSpeedTest()
           }
 
@@ -1288,7 +1292,9 @@ Panel {
             hasCursor: root.toggleHeaderHasCursor
             foreground: root.bar.foreground
             Layout.alignment: Qt.AlignVCenter
-            onHovered: function(on) { if (on) root.setHeaderCursor(root.toggleHeaderIndex) }
+            onHovered: function(on) {
+              Cursor.applyHover(on, root.toggleHeaderHasCursor, function() { root.setHeaderCursor(root.toggleHeaderIndex) }, function() { root.cursorActive = false })
+            }
             onToggled: root.toggleNetwork()
 
             PanelToolTip {
@@ -1376,9 +1382,15 @@ Panel {
         active: true
         hasCursor: root.cursorActive && root.focusSection === "portal"
         onHovered: function(on) {
-          if (!on) return
-          root.cursorActive = true
-          root.focusSection = "portal"
+          Cursor.applyHover(
+            on,
+            root.cursorActive && root.focusSection === "portal",
+            function() {
+              root.cursorActive = true
+              root.focusSection = "portal"
+            },
+            function() { root.cursorActive = false }
+          )
         }
         onClicked: root.openCaptivePortal()
       }
@@ -1495,10 +1507,16 @@ Panel {
               onToggled: root.toggleBandAuto()
 
               onHovered: function(isHovered) {
-                if (!isHovered) return
-                root.cursorActive = true
-                root.focusSection = "band"
-                root.bandAutoFocused = true
+                Cursor.applyHover(
+                  isHovered,
+                  root.cursorActive && root.focusSection === "band" && root.bandAutoFocused,
+                  function() {
+                    root.cursorActive = true
+                    root.focusSection = "band"
+                    root.bandAutoFocused = true
+                  },
+                  function() { root.cursorActive = false }
+                )
               }
 
               PanelToolTip {
@@ -1720,10 +1738,17 @@ Panel {
     onClicked: root.setBand(band)
 
     onHovered: function(isHovered) {
-      if (!isHovered) return
-      root.cursorActive = true
-      root.focusSection = "band"
-      root.bandIndex = pill.slot
+      Cursor.applyHover(
+        isHovered,
+        root.cursorActive && root.focusSection === "band" && !root.bandAutoFocused && root.bandIndex === pill.slot,
+        function() {
+          root.cursorActive = true
+          root.focusSection = "band"
+          root.bandAutoFocused = false
+          root.bandIndex = pill.slot
+        },
+        function() { root.cursorActive = false }
+      )
     }
   }
 
@@ -1750,10 +1775,16 @@ Panel {
     hasCursor: root.cursorActive && root.focusSection === "dns" && root.dnsIndex === index
 
     onHovered: function(isHovered) {
-      if (!isHovered) return
-      root.cursorActive = true
-      root.focusSection = "dns"
-      root.dnsIndex = pill.index
+      Cursor.applyHover(
+        isHovered,
+        root.cursorActive && root.focusSection === "dns" && root.dnsIndex === pill.index,
+        function() {
+          root.cursorActive = true
+          root.focusSection = "dns"
+          root.dnsIndex = pill.index
+        },
+        function() { root.cursorActive = false }
+      )
     }
   }
 
@@ -1848,10 +1879,19 @@ Panel {
       cursorShape: Qt.PointingHandCursor
       enabled: !root.busy
 
-      // Move the cursor here when the mouse enters; mouse leaving doesn't
-      // clear it (so the cursor stays where the mouse last was and
-      // subsequent j/k pick up from this row).
-      onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = false }
+      // Pointer enter claims the cursor; leave releases it, including a
+      // keyboard selection. j/k after leave start from no cursor.
+      onContainsMouseChanged: Cursor.applyHover(
+        containsMouse,
+        root.cursorActive && root.focusSection === "wifi" && root.selectedIndex === row.index,
+        function() {
+          root.cursorActive = true
+          root.focusSection = "wifi"
+          root.selectedIndex = row.index
+          root.wifiActionFocused = false
+        },
+        function() { root.cursorActive = false }
+      )
 
       onClicked: {
         if (!row.net) return
@@ -1934,7 +1974,20 @@ Panel {
           acceptedButtons: Qt.LeftButton
           enabled: row.canForget && !root.busy
           cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-          onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = true }
+          onContainsMouseChanged: Cursor.applyHover(
+            containsMouse,
+            root.cursorActive && root.focusSection === "wifi" && root.selectedIndex === row.index && root.wifiActionFocused,
+            function() {
+              root.cursorActive = true
+              root.focusSection = "wifi"
+              root.selectedIndex = row.index
+              root.wifiActionFocused = true
+            },
+            function() {
+              root.wifiActionFocused = false
+              if (!rowMouse.containsMouse) root.cursorActive = false
+            }
+          )
           onClicked: if (row.net) root.forget(row.net)
         }
 
