@@ -203,8 +203,10 @@ pass "tray context menu opens while a native tray app doesn't answer"
 
 kill "$SILENT_PID" 2>/dev/null || true
 wait "$SILENT_PID" 2>/dev/null || true
+# Removing the copy once it runs is what a Wine update does to a running app.
 cp "$python_binary" "$TMPDIR/wine-preloader"
 start_silent_item "$TMPDIR/wine-preloader"
+rm "$TMPDIR/wine-preloader"
 rm -f "$context_menu_result"
 if PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-tray-context-menu" wine-omarchy-test-0 2>/dev/null ||
   [[ -e $context_menu_result ]]; then

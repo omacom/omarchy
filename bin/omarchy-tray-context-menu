@@ -55,6 +55,8 @@ for i in "${!items[@]}"; do
     if [[ -n $pid ]]; then
       exe=$(readlink "/proc/$pid/exe" 2>/dev/null)
     fi
+    # A binary replaced by an update since the app started reads "... (deleted)".
+    exe=${exe% (deleted)}
     case ${exe##*/} in
       "" | wine | wine64 | wine-preloader | wine64-preloader | FEX* | box64 | box86)
         silent_wine_apps=$(( silent_wine_apps + 1 ))
