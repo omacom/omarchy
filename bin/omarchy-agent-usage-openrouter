@@ -51,6 +51,7 @@ from collectors import (  # noqa: E402
   cached_scan,
   config_home,
   data_home,
+  SPEND_DAYS,
   dsh_home,
   emit,
   empty_bucket,
@@ -200,6 +201,8 @@ def summarize_activity(items: list[Any], today: datetime) -> dict[str, Any]:
   today_date = today.strftime("%Y-%m-%d")
   recent_dates = [(today - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(6, -1, -1)]
   recent = {day: 0 for day in recent_dates}
+  spend_dates = [(today - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in range(SPEND_DAYS - 1, -1, -1)]
+  spend_costs = {day: 0.0 for day in spend_dates}
   today_by_model: dict[str, int] = {}
   model_usage: dict[str, dict[str, int]] = {}
   active_dates: set[str] = set()
@@ -208,6 +211,8 @@ def summarize_activity(items: list[Any], today: datetime) -> dict[str, Any]:
     if not isinstance(raw, dict):
       continue
     day = activity_day(raw.get("date"))
+    if day in spend_costs:
+      spend_costs[day] += max(0.0, dollars(raw.get("usage")) or 0.0)
     model = model_name(str(raw.get("model_permaslug") or raw.get("model") or ""))
     prompt = number(raw.get("prompt_tokens"))
     # Reasoning is part of the completion count, as in OpenRouter's usage
@@ -227,7 +232,7 @@ def summarize_activity(items: list[Any], today: datetime) -> dict[str, Any]:
     if day == today_date:
       today_by_model[model] = today_by_model.get(model, 0) + total
 
-  return {
+  summary = {
     "todayTokensByModel": today_by_model,
     "todayTotalTokens": sum(today_by_model.values()),
     "recentDays": [{"date": day, "messageCount": recent[day]} for day in recent_dates],
@@ -235,6 +240,11 @@ def summarize_activity(items: list[Any], today: datetime) -> dict[str, Any]:
     "activeDates": sorted(active_dates),
     "modelUsage": model_usage,
   }
+  # The account's own rated spend for each of the last 30 days.
+  days = [round(spend_costs[day], 4) for day in spend_dates]
+  if any(days):
+    summary["spend"] = {"amount": round(sum(days), 4), "cap": 0.0, "currency": "USD", "days": days, "estimated": False}
+  return summary
 
 
 def activity_stats(key: str, today: datetime, max_age: float) -> tuple[dict[str, Any] | None, bool]:
@@ -354,7 +364,7 @@ def cached_local_stats(max_age: float) -> tuple[dict, bool]:
     stats = Stats()
     # A forced scan reads every Codex rollout again too.
     complete = scan_local(stats, reuse=max_age > 0)
-    return stats.snapshot(), complete
+    return stats.snapshot_with_spend(), complete
 
   return cached_scan(AGENT_ID, scan_sources(), max_age, scan, match=routed_match(), with_complete=True)
 

@@ -20,7 +20,7 @@ The JS modules also load in Node: `test/shell.d/notifications-test.sh` covers th
 
 ## Decks and the scene clock
 
-Each notification gets its own key (`n…`); the sender's id names a slot that `replaces_id` reuses, not an event. Cards group by source: per site for browser notifications (the leading `<a href>` Chromium adds is lifted off and becomes the source, but only from a browser and only for an http(s) href that passes the URL policy), per app name otherwise.
+Each notification gets its own key (`n…`); the sender's id names a slot that `replaces_id` reuses, not an event. A notification that repeats a live card word for word within two seconds takes over that card's slot the same way, and the copy it supersedes is closed at its sender: a web app open in several tabs sends one reminder once per tab. Same means the same app, source, headline, text and click command (`Store.isDuplicate`), offering the same buttons, the sender's own included; the picture is not compared, since Chromium hands each copy its own temporary file, and a card on its way out is left to go. Cards group by source: per site for browser notifications (the leading `<a href>` Chromium adds is lifted off and becomes the source, but only from a browser and only for an http(s) href that passes the URL policy), per app name otherwise.
 
 A collapsed deck draws its cards at the front card's height; hovering opens it. While the pointer is on an open deck, new cards are held back for at most 30 seconds. All positions, scales, opacities and heights come from one clock (`Service.at()`): a change snapshots the current state, recomputes the layout, and starts one move for every card. A leaving card keeps its model row until that move finishes.
 
