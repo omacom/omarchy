@@ -1773,8 +1773,8 @@ Item {
 
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
-    // Where the center box starts along the bar, set by the drawn center
-    // sections. Hovering past it, over the clock, its trailing widgets and the
+    // Where the center box starts along the bar, or beside a display notch
+    // where centerBegin ends, set by the drawn center sections. Hovering past it, over the clock, its trailing widgets and the
     // right section, leaves the indicator peek shut.
     property real peekEdge: 0
 
@@ -1954,22 +1954,26 @@ Item {
           pool: horizontalPool
           id: rightModules
           anchors.right: parent.right
-          anchors.rightMargin: Style.space(8)
+          anchors.rightMargin: Style.space(8) + (notchSections.active && notchSections.trailing > 0 ? notchSections.trailing + Style.space(4) : 0)
           anchors.verticalCenter: parent.verticalCenter
         }
 
         // Where a display notch covers the middle of the bar, the center
-        // sections run on just left of the right one. They keep their regions,
-        // so settings pushes, drag and drop, and panel routing still address
-        // them. The gap lets a drop at the seam land in the section the pointer
-        // is nearer to.
+        // sections move to the right of it: centerBegin just before the right
+        // section, and the center box and centerEnd after it, at the end of
+        // the bar, so the clock sits past the panel icons. They keep their
+        // regions, so settings pushes, drag and drop, and panel routing still
+        // address them. The gaps let a drop at a seam land in the section the
+        // pointer is nearer to.
         CenterSections {
+          id: notchSections
           window: barWindow
           pool: horizontalPool
           active: barWindow.centerBesideRight
           besideRight: true
-          anchors.right: rightModules.left
-          anchors.rightMargin: Style.space(4)
+          gap: rightModules.width + Style.space(4) + (trailing > 0 ? Style.space(4) : 0)
+          anchors.right: parent.right
+          anchors.rightMargin: Style.space(8)
           anchors.top: parent.top
           anchors.bottom: parent.bottom
         }
@@ -2295,8 +2299,9 @@ Item {
 
   // The center box and the two sections hanging off its edges. In the middle
   // of the bar the box is centered, and centerBegin and centerEnd grow away
-  // from it. Beside the right section the three run on as one, growing toward
-  // the start of the bar. Placed by hand rather than by a Row or Column, which
+  // from it. Beside the right section, centerBegin ends `gap` before the box,
+  // leaving room for the right section between them, and all three grow
+  // toward the start of the bar. Placed by hand rather than by a Row or Column, which
   // cannot center one child and hang the others off it.
   component CenterSections: Item {
     id: sections
@@ -2307,13 +2312,20 @@ Item {
     // shows nothing.
     property bool active: true
     property bool besideRight: false
+    // The room between centerBegin and the center box beside the right
+    // section, where the right section sits.
+    property real gap: 0
+    // The length of the center box and centerEnd, past the gap.
+    readonly property real trailing: centerBox.width + endList.width
 
-    implicitWidth: root.vertical ? root.barSize : beginList.width + centerBox.width + endList.width
+    implicitWidth: root.vertical ? root.barSize : beginList.width + gap + centerBox.width + endList.width
     implicitHeight: root.vertical ? beginList.height + centerBox.height + endList.height : root.barSize
 
     // Both placements sit at the bar surface's origin or anchor off its edge,
-    // so the box's start in the sections is its start on the surface.
-    readonly property real boxStart: root.vertical ? y + centerBox.y : x + centerBox.x
+    // so a start in the sections is that start on the surface. The peek stops
+    // at the center box, or beside the right section at the end of
+    // centerBegin, short of the panel icons.
+    readonly property real boxStart: root.vertical ? y + centerBox.y : x + (besideRight ? beginList.width : centerBox.x)
     onBoxStartChanged: syncPeekEdge()
     onActiveChanged: syncPeekEdge()
     onWindowChanged: syncPeekEdge()
@@ -2357,7 +2369,7 @@ Item {
       active: sections.active
       fixedEdge: sections.besideRight ? "end" : "center"
       crossSize: root.vertical ? sections.width : sections.height
-      x: root.vertical ? 0 : (sections.besideRight ? beginList.width : Math.round((sections.width - width) / 2))
+      x: root.vertical ? 0 : (sections.besideRight ? beginList.width + sections.gap : Math.round((sections.width - width) / 2))
       y: root.vertical ? Math.round((sections.height - height) / 2) : 0
     }
   }

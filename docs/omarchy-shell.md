@@ -404,7 +404,7 @@ size-vertical   = 28   # left/right bar width at base-size 12
 
 Set `scale-with-font = false` to keep those bar sizes as fixed pixels.
 
-A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the bar is never shorter than the cutout, and its three center sections sit beside the right one. Omarchy knows no panel's cutout itself; the platform's own package describes them in `/usr/share/omarchy-platform/display-cutouts.json`, a fixed path no environment variable moves (see [file-layout.md](file-layout.md#platform-root)):
+A panel with a camera cutout (a notch) at its top keeps a top bar out of it: the bar is never shorter than the cutout, and its center sections move to the right of it: `centerBegin` just before the right section, and the center box and `centerEnd` after it, so the clock ends the bar past the panel icons. Omarchy knows no panel's cutout itself; the platform's own package describes them in `/usr/share/omarchy-platform/display-cutouts.json`, a fixed path no environment variable moves (see [file-layout.md](file-layout.md#platform-root)):
 
 ```json
 { "panels": [ { "connector": "eDP", "width": 3024, "height": 1964, "top": 64 } ] }
@@ -443,7 +443,7 @@ elsewhere). The module is an `Item` and receives `bar`, `moduleName`,
 A module that declares `property string fixedEdge` also receives the edge of itself that stays put when it grows, set by how its section is anchored. Widgets that extend `BarWidget` from `qs.Ui` declare it already.
 
 - `"start"` (left, or top on a vertical bar): the left section and `centerEnd`, and the last widget in the center box when it holds more than one, which grows away from the middle as `centerEnd`'s do
-- `"end"`: the right section and `centerBegin`, the first widget in the center box when it holds more than one, and all three center sections where a display notch has moved them beside the right one
+- `"end"`: the right section and `centerBegin`, the first widget in the center box when it holds more than one, and all three center sections where a display notch has moved them to the right of the bar
 - `"center"`: the rest of the center box, and a widget alone in it, which grow both ways
 
 Widgets in the tray section grow from the edge the tray keeps its pinned icons against, beside which its drawer opens the section: `"start"` where the tray's own edge is `"start"`, and `"end"` otherwise.
