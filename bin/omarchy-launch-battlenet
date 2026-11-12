@@ -51,11 +51,27 @@ prefix_running() {
 }
 
 match_dpi_to_monitor_scale() {
-  local scale dpi
+  local scale dpi registry
   scale=$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true).scale')
   [[ $scale =~ ^[0-9]+(\.[0-9]+)?$ ]] || return 0
-  dpi=$(awk -v scale="$scale" 'BEGIN { printf "%d", scale * 96 + 0.5 }')
-  sed -i "s/^\"LogPixels\"=dword:[0-9a-f]\{8\}$/\"LogPixels\"=dword:$(printf '%08x' "$dpi")/" "$PREFIX/user.reg"
+  dpi=$(awk -v scale="$scale" 'BEGIN { printf "%08x", scale * 96 + 0.5 }')
+
+  # Wine reads the DPI from [Control Panel\\Desktop], but a fresh prefix leaves
+  # it unset there, so add it after the key's #time line when it's missing. Each
+  # launch writes its own temp file, so two quick launches can't share one.
+  registry=$(mktemp "$PREFIX/user.reg.XXXXXX")
+  chmod --reference="$PREFIX/user.reg" "$registry"
+  awk -v value="\"LogPixels\"=dword:$dpi" '
+    /^\[/ { desktop = ($0 ~ /^\[Control Panel\\\\Desktop\]/) }
+    NR == FNR { if (desktop && /^"LogPixels"=/) has_value = 1; next }
+    pending && !/^#time=/ { print value; pending = 0 }
+    /^"LogPixels"=dword:[0-9a-f]+$/ { print value; next }
+    { print }
+    pending { print value; pending = 0 }
+    desktop && /^\[/ && !has_value { pending = 1 }
+    END { if (pending) print value }
+  ' "$PREFIX/user.reg" "$PREFIX/user.reg" >"$registry"
+  mv "$registry" "$PREFIX/user.reg"
 }
 
 if ! prefix_running; then

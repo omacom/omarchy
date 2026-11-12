@@ -28,8 +28,8 @@ QtObject {
   readonly property string zeroDigit: localeSettings.zeroDigit || "0"
   readonly property bool rightToLeft: localeSettings.direction === "rtl"
 
-  // Reading text() makes blockLoading take effect on the first lookup.
-  // These bindings also rebuild the maps when a watched catalog changes.
+  // Reading text() loads the catalog on the first lookup. These bindings
+  // also rebuild the maps when a watched catalog changes.
   readonly property var englishStrings: parseCatalog(englishCatalogFile.text())
   readonly property var languageStrings: parseCatalog(languageCatalogFile.text())
   readonly property var strings: {
@@ -82,13 +82,18 @@ QtObject {
 
   // The catalogs are small local files, read synchronously so the first
   // binding to call t() already gets the string rather than the raw key.
+  // Every read is synchronous, not just the first (blockAllReads with no
+  // preload): FileView's reload() joins a background read already running
+  // for the same path, so a file deleted or replaced while that read is
+  // open would keep the old contents until the next change.
   property FileView languageFile: FileView {
     // OMARCHY_LANGUAGE_FILE overrides the location, as it does for
     // omarchy-i18n, so tests can pin a language whatever the machine uses.
     path: Quickshell.env("OMARCHY_LANGUAGE_FILE") || (root.configHome + "/omarchy/language")
     watchChanges: true
     printErrors: false
-    blockLoading: true
+    preload: false
+    blockAllReads: true
     onFileChanged: reload()
   }
 
@@ -96,7 +101,8 @@ QtObject {
     path: root.omarchyPath + "/default/i18n/en/shell.json"
     watchChanges: true
     printErrors: false
-    blockLoading: true
+    preload: false
+    blockAllReads: true
     onFileChanged: reload()
   }
 
@@ -104,7 +110,8 @@ QtObject {
     path: root.omarchyPath + "/default/i18n/" + root.language + "/shell.json"
     watchChanges: true
     printErrors: false
-    blockLoading: true
+    preload: false
+    blockAllReads: true
     onFileChanged: reload()
   }
 
@@ -112,7 +119,8 @@ QtObject {
     path: root.omarchyPath + "/default/i18n/locales.json"
     watchChanges: true
     printErrors: false
-    blockLoading: true
+    preload: false
+    blockAllReads: true
     onFileChanged: reload()
   }
 }

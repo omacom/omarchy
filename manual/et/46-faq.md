@@ -1,8 +1,8 @@
 # KKK
 
-### Kuidas ma klaviatuuripaigutuste vahel lülitun?
+### Kuidas vahetada klaviatuuripaigutusi?
 
-Muuda oma faili `~/.config/hypr/input.lua` ja lisa see, et paigutuste vahel lülituda klahvikombinatsiooniga `Left Alt + Right Alt`:
+Muuda oma faili `~/.config/hypr/input.lua` ja lisa see, et vahetada paigutusi klahvidega `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -14,72 +14,68 @@ hl.config({
 })
 ```
 
-Riba näitab automaatselt sinu praegust klaviatuuripaigutust, kui sul on mitu paigutust seadistatud (ja sa saad lülitumiseks ka sellel klõpsata).
+Riba näitab automaatselt sinu praegust klaviatuuripaigutust, kui sul on seadistatud mitu paigutust (ja saad sellele ka klõpsata, et vahetada).
 
-### Kuidas ma kellavormingu 12-tunniseks muudan?
+### Kuidas muuta kella vorming 12-tunniseks?
 
-Tee ribal kellal paremklõps, et levinud vormingute, sealhulgas 12-tunniste vahel liikuda. Vormingu saad seada ka otse:
+Paremklõpsa ribal kellal, et liikuda läbi levinud vormingute, sealhulgas 12-tunniste vormingute. Vormingu saab määrata ka otse:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-See kuvab Pühapäev 10:55 AM.
+See kuvab pühapäev 10:55 AM.
 
-### Kuidas ma oma ajavööndit muudan?
+### Kuidas muuta oma ajavööndit?
 
-Käivita Omarchy menüüs _Uuenda > Ajavöönd_ ja vali loendist. Kui ajavöönd on õige, aga kell ise on triivinud, taaskäivitab _Uuenda > Aeg_ sinu eest aja sünkroonimise.
+Käivita Omarchy menüüs _Uuenda > Ajavöönd_ ja vali loendist. Kui ajavöönd on õige, kuid kell ise on paigast nihkunud, käivitab _Uuenda > Kellaaeg_ sinu eest aja sünkroonimise uuesti.
 
-### Kuidas ma muudan oma DNS-i, jagan oma Wi-Fit või kontrollin ühenduse kiirust?
+### Kuidas muuta oma DNS-i, jagada oma Wi-Fi-t või kontrollida ühenduse kiirust?
 
-Need kõik elavad jaotises [võrk](35-networking.md).
+Need kõik asuvad jaotises [võrgundus](35-networking.md).
 
-### Kuidas ma kontrollin, kui kiire mu ketas on?
+### Kuidas kontrollida, kui kiire mu ketas on?
 
-_Käivita > Kiirustest > Kettakiiruse test_ mõõdab sinu ketta reaalajas lugemis- ja kirjutamiskiirust või terminalist `omarchy disk speedtest`.
+_Käivita > Kiirustest > Ketta kiirustest_ mõõdab sinu ketta reaalajas lugemis- ja kirjutamiskiirust, või terminalist `omarchy disk speedtest`.
 
-### Miks ma ei saa Chromiumis oma Google'i kontole sisse logida?
+### Kuidas lisada printerit?
 
-Lihtne avatud lähtekoodiga Chromiumi järk ei sisalda OAuth mandaate, mida Google kontole sisselogimiseks nõuab. Käivita Omarchy menüüs _Paigalda > Teenus > Chromiumi konto_, et need lisada, taaskäivita brauser ja sisselogimine õnnestub.
+Printimine on seadistatud ja töötab kohe karbist võttes ning iga printeri lisad ise rakenduste käivitajas (`Super + Space`) asuvast jaotisest _Prindiseaded_.
 
-### Kuidas ma printerit lisan?
+Vali _Lisa_ ja anna sellele otsimiseks hetk aega: USB kaudu ühendatud printer ja enamik võrguprintereid leitakse sinu eest üles. Kui sinu oma loendis pole, vali _Võrguprinter > Internet Printing Protocol (ipp)_ ja sisesta selle aadress — printeri enda ekraan või selle veebileht ütleb sulle, mis see on, tavaliselt midagi sellist nagu `192.168.1.50` koos järjekorraga `ipp/print`. Seejärel pakub _Edasi_ draiverit, kus tänapäevane printer töötab kõige paremini draiverivaba profiiliga _IPP Everywhere_ ja vanem tahab mudeli enda draiverit.
 
-Printimine on karbist võttes seadistatud ja töötab ning iga printeri lisad ise rakenduste käivitajast (`Super + Space`) jaotise _Prindiseaded_ kaudu.
+Paremklõpsa printeril ja vali _Määra vaikeprinteriks_, et määrata, kumba sinu rakendused esimesena kasutavad, ning _Omadused_, et määrata paberi suurus, kahepoolne printimine ja kvaliteet.
 
-Vali _Lisa_ ja anna sellele hetk otsida: USB kaudu ühendatud printer ja enamik võrguprintereid leitakse sinu eest. Kui sinu oma loendis pole, vali _Network Printer > Internet Printing Protocol (ipp)_ ja sisesta selle aadress — printeri oma ekraan või veebileht ütleb sulle, mis see on, tavaliselt midagi sellist nagu `192.168.1.50` järjekorraga `ipp/print`. _Edasi_ pakub seejärel draiverit, kus nüüdisaegne printer töötab kõige paremini draiverivaba _IPP Everywhere_ profiiliga ja vanem soovib mudeli oma draiverit.
+Automaatne tuvastamine, kus võrgus olevad printerid ilmuvad ilma neid lisamata, on ajutiselt välja lülitatud, kuni seda ümber tehakse, mistõttu on ülaltoodud esimene samm sinu teha, mitte automaatne. PDF-faili printimine töötab üldse ilma ühegi printerita.
 
-Tee printeril paremklõps ja vali _Sea vaikimisi_, et valida, kumma poole sinu rakendused esimesena pöörduvad, ja _Atribuudid_, et seada paberisuurus, kahepoolne printimine ja kvaliteet.
+### Kuidas muuta kohta, kuhu ekraanipildid või ekraanisalvestused salvestatakse?
 
-Automaatne avastamine, kus võrguprinterid ilmuvad ilma lisamata, on selle ümbertöötamise ajaks ajutiselt välja lülitatud ja seepärast on esimene samm ülal sinu teha, mitte automaatne. PDF-faili printimine töötab ilma ühegi printerita.
-
-### Kuidas ma muudan, kuhu ekraanitõmmised või ekraanisalvestused salvestatakse?
-
-Salvestatud ekraanitõmmised lähevad vaikimisi kausta `~/Pictures/Screenshots`. Teise kausta kasutamiseks lisa see faili kausta `~/.config/uwsm/env.d/` all (nagu `~/.config/uwsm/env.d/capture`):
+Salvestatud ekraanipildid lähevad vaikimisi kausta `~/Pictures/Screenshots`. Teise kausta kasutamiseks lisa see faili kaustas `~/.config/uwsm/env.d/` (näiteks `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Sama saad teha ekraanisalvestuste puhul, kasutades muutujat `OMARCHY_SCREENRECORD_DIR`.
+Sama saad teha ekraanisalvestuste jaoks, kasutades muutujat `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap loob oma ekraanitõmmiste kausta automaatselt. Loo ekraanisalvestuste kaust ise ja taaskäivita seejärel Omarchy, et kumbki keskkonnamuudatus jõustuks.
+Omasnap loob oma ekraanipiltide kausta automaatselt. Loo ekraanisalvestuste kaust ise ja seejärel taaskäivita Omarchy, et kumbki keskkonnamuudatus jõustuks.
 
-### Kuidas ma saan oma Apple Studio Displayl kõlarid + veebikaamera tööle?
+### Kuidas panna Apple Studio Display kõlarid ja veebikaamera tööle?
 
-Arvaks, et kõik peaks töötama lihtsalt USB C ühendamisega, aga kahjuks pole see nii. Lahendus, mille olen leidnud, et see usaldusväärselt töötaks, on [WJESOG DisplayPort + USB-A => USB-C kaabli](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/) kasutamine. Siis töötavad kõlarid ja veebikaamera nagu võluväel.
+Võiks arvata, et kõik peaks töötama lihtsalt USB C ühendamisega, kuid kahjuks see nii ei ole. Lahendus, mille leidsin selle usaldusväärseks toimimiseks, on kasutada [WJESOG DisplayPort + USB-A => USB-C kaablit](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Seejärel töötavad kõlarid ja veebikaamera nagu õlitatult.
 
-Pea meeles, et sul on Omarchys sisseehitatud heleduse juhtimine Apple'i ekraanidele (nii Studio kui ka XDR), kasutades tavalisi klaviatuuri heleduse nuppe.
+Pea meeles, et Omarchys on Apple'i ekraanide (nii Studio kui ka XDR) jaoks sisseehitatud heleduse juhtimine tavaliste klaviatuuri heledusklahvide abil.
 
-### Kuidas ma kõigest lisatarkvarast lahti saan?
+### Kuidas vabaneda kogu lisatarkvarast?
 
-Kui sa ei taha programme nagu Obsidian või LibreOffice või muud eelpaigaldatud kraami, saad selle väga lihtsalt eemaldada.
+Kui sa ei taha selliseid programme nagu Obsidian või LibreOffice ega muud eelinstallitud kraami, saad selle väga lihtsalt eemaldada.
 
-Käivita _Eemalda > Pakett_, et näha iga paigaldatud paketti. Seejärel saad tab-klahviga valida iga paketi, mida tahad eemaldada, ja alustada kõige valitu eemaldamist sisestusklahviga.
+Käivita _Eemalda > Pakett_, et näha iga installitud paketti. Seejärel saad klahviga tab valida iga paketi, mille soovid eemaldada, ja alustada kõige valitu eemaldamist klahviga return.
 
-Ja sa saad kasutada Omarchy menüüs jaotist _Eemalda > Veebirakendus_, et eemaldada kõik eelpaigaldatud veebirakendused, mida sa ei taha.
+Ja saad kasutada Omarchy menüüs valikut _Eemalda > Veebirakendus_, et eemaldada kõik eelinstallitud veebirakendused, mida sa ei taha.
 
-Või käivita _Eemalda > Eelpaigaldused_, et kõik eelpaigaldatud lisad — veebirakendused, TUI-d ja valikulised rakendused — ühe korraga välja pühkida. Kiirklahvid, mis neid käivitasid, kaovad koos nendega, nii et sulle jääb puhas leht klahviseoseid, mida failis `~/.config/hypr/bindings.lua` omadega täita.
+Või käivita _Eemalda > Eelinstallitud_, et pühkida kõik eelinstallitud lisad — veebirakendused, TUI-d ja valikulised rakendused — ühe korraga välja. Neid käivitanud kiirklahvid kaovad koos nendega, nii et sulle jääb puhas leht sidumisi, mille saad täita enda omadega failis `~/.config/hypr/bindings.lua`.
 
 ---
 
-Vigade ja katkiste tükkide kohta vaata [tõrkeotsingu jaotist](45-troubleshooting.md).
+Vigade ja katkiste asjade kohta vaata [tõrkeotsingu jaotist](45-troubleshooting.md).

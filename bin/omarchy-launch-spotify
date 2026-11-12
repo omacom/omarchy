@@ -1,17 +1,9 @@
 #!/bin/bash
 
-# omarchy:summary=Launch Spotify or start its installer when missing.
+# omarchy:summary=Launch or focus Spotify, preferring a natively installed client over the web app.
 
-set -e
-
-WINDOW_ADDRESS=$(hyprctl clients -j | jq -r '.[]|select((.class|test("\\bspotify\\b";"i")) or (.title|test("\\bspotify\\b";"i")))|.address' | head -n1)
-
-if [[ -n $WINDOW_ADDRESS ]]; then
-  hyprctl dispatch "hl.dsp.focus({ window = \"address:$WINDOW_ADDRESS\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$WINDOW_ADDRESS"
-elif [[ -x /usr/bin/spotify ]]; then
-  exec setsid uwsm-app -- /usr/bin/spotify
-elif [[ -f $HOME/.local/share/applications/Spotify.desktop ]]; then
-  exec omarchy-launch-webapp "https://open.spotify.com/"
+if [[ -x /usr/bin/spotify ]]; then
+  exec omarchy-launch-or-focus spotify "uwsm-app -- /usr/bin/spotify"
 else
-  exec omarchy-launch-floating-terminal-with-presentation omarchy-install-service-spotify
+  exec omarchy-launch-or-focus-webapp Spotify https://open.spotify.com/
 fi
