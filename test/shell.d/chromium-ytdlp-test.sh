@@ -167,6 +167,7 @@ notify_argv="$TMPDIR/notify-argv"
 cat >"$fake_root/bin/yt-dlp" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >>"$YTDLP_ARGV_LOG"
+[[ -z ${YTDLP_UNSUPPORTED:-} || ${*: -1} != "$YTDLP_UNSUPPORTED" ]] || exit 1
 for arg in "$@"; do
   if [[ $arg == "--no-simulate" ]]; then
     printf 'OMARCHY_FILE\t%s\n' "$YTDLP_FAKE_FILE"
@@ -237,3 +238,44 @@ YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fa
 grep -qF -- "Download complete Real_Clip [id]" "$notify_argv" ||
   fail "yt-dlp native host falls back to the filename when no title record arrives" "$(cat "$notify_argv")"
 pass "yt-dlp native host falls back to the filename when no title record arrives"
+
+# A page yt-dlp can't read falls back to the stream the page played, with the
+# headers the browser sent for it, and names the file and toast after the page.
+stream_dir="$TMPDIR/stream-config"
+mkdir -p "$stream_dir"
+stream_payload='{"url":"https://example.test/watch","title":"Live: 100%/night","stream":{"url":"https://user@CDN.example.test:8443/v/index.m3u8?t=1","headers":{"cookie":"sess=ok; t=a=b","referer":"https://example.test/it'"'"'s","authorization":"Bearer x\r\nX-Injected: 1","x-other":"dropped"}}}'
+host_fn write_stream_config "$stream_dir" "$stream_payload" "https://user@CDN.example.test:8443/v/index.m3u8?t=1" ||
+  fail "yt-dlp native host writes a config for the page's stream"
+
+[[ $(grep -v '^#' "$stream_dir/cookies") == $'cdn.example.test\tFALSE\t/\tTRUE\t0\tsess\tok\ncdn.example.test\tFALSE\t/\tTRUE\t0\tt\ta=b' ]] ||
+  fail "yt-dlp native host scopes the stream's cookies to its host" "$(cat "$stream_dir/cookies")"
+pass "yt-dlp native host scopes the stream's cookies to its host"
+
+[[ $(<"$stream_dir/config") == "--cookies '$stream_dir/cookies'"$'\n'"--add-headers 'referer:https://example.test/it'\"'\"'s'" ]] ||
+  fail "yt-dlp native host passes only known, single-line headers, quoted for yt-dlp" "$(cat "$stream_dir/config")"
+pass "yt-dlp native host passes only known, single-line headers, quoted for yt-dlp"
+
+[[ $(host_fn stream_name $'--.Live: 100%/night\n') == "Live: 100%_night" ]] ||
+  fail "yt-dlp native host names a stream's file after the page title" "$(host_fn stream_name $'--.Live: 100%/night\n')"
+pass "yt-dlp native host names a stream's file after the page title"
+
+: >"$notify_argv"
+: >"$ytdlp_argv"
+YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fake_file" \
+  YTDLP_UNSUPPORTED="https://example.test/watch" OMARCHY_PATH="$fake_root" OMARCHY_YTDLP_DIR="$fake_dir" \
+  bash -c '
+    source "$1"
+    download_url "$2" "$3"
+  ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://example.test/watch" "$stream_payload" >/dev/null 2>&1
+
+grep -qE -- "--no-simulate .*--config-locations [^ ]+/config -o Live: 100%%_night\.%\(ext\)s -- https://user@CDN\.example\.test:8443/v/index\.m3u8\?t=1$" "$ytdlp_argv" ||
+  fail "yt-dlp native host downloads the page's stream when yt-dlp can't read the page" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host downloads the page's stream when yt-dlp can't read the page"
+
+grep -qF -- "sess=ok" "$ytdlp_argv" &&
+  fail "yt-dlp native host keeps the page's cookies off the command line" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host keeps the page's cookies off the command line"
+
+grep -qF -- "Download complete Live: 100%_night" "$notify_argv" ||
+  fail "yt-dlp native host toasts the page title for a stream" "$(cat "$notify_argv")"
+pass "yt-dlp native host toasts the page title for a stream"
