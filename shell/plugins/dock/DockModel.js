@@ -71,6 +71,17 @@ function claimingEntryId(appId, entries) {
   return ""
 }
 
+// Omarchy's Terminal and Browser entries launch the default terminal and
+// browser, whose windows carry that app's own id. While the stand-in is pinned
+// and the app itself is not, the stand-in claims those windows, so launching
+// from it settles its pulse instead of adding a second icon. standIns maps an
+// app's desktop id to the stand-in's.
+function standInKey(key, standIns, pinned) {
+  var standIn = (standIns || {})[key]
+  var list = pinned || []
+  return standIn && list.indexOf(standIn) >= 0 && list.indexOf(key) === -1 ? standIn : key
+}
+
 // Pinned apps come first, in pin order, whether or not they run. Running apps
 // that are not pinned follow in the order their first window appeared. Each
 // window is { key, hasEntry, workspaceId, ... } where key is the desktop id of
@@ -180,6 +191,7 @@ if (typeof module !== "undefined") {
     isDockWindow: isDockWindow,
     isMinimizedWorkspace: isMinimizedWorkspace,
     claimingEntryId: claimingEntryId,
+    standInKey: standInKey,
     buildItems: buildItems,
     orderItems: orderItems,
     orderWithKeyAt: orderWithKeyAt,

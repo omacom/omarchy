@@ -94,6 +94,11 @@ assertEqual(dock.claimingEntryId('org.omarchy.hey', terminalEntries), 'HEY TUI',
 assertEqual(dock.claimingEntryId('org.omarchy.agent', terminalEntries), '', 'dock leaves an app id no entry claims unclaimed')
 assertEqual(dock.claimingEntryId('Alacritty', terminalEntries), '', 'dock leaves a terminal of its own to its own entry')
 
+const standIns = { foot: 'omarchy-terminal', 'google-chrome': 'omarchy-browser' }
+assertEqual(dock.standInKey('foot', standIns, ['omarchy-terminal']), 'omarchy-terminal', 'dock files the default terminal under the pinned Terminal')
+assertEqual(dock.standInKey('foot', standIns, ['omarchy-terminal', 'foot']), 'foot', 'dock leaves a pinned terminal its own windows')
+assertEqual(dock.standInKey('google-chrome', standIns, []), 'google-chrome', 'dock leaves the browser alone when Browser is not pinned')
+
 assertDeepEqual(
   dock.orderItems([{ key: 'chromium' }, { key: 'signal' }, { key: 'slack' }, { key: 'foot' }], ['slack', 'gone', 'chromium']).map(item => item.key),
   ['slack', 'chromium', 'signal', 'foot'],

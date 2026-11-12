@@ -67,7 +67,7 @@ Item {
       var entry = root.entryForAppId(toplevel.appId)
       var workspace = toplevels[i].workspace
       windows.push({
-        key: entry ? entry.id : toplevel.appId,
+        key: entry ? DockModel.standInKey(entry.id, root.standIns, pinned) : toplevel.appId,
         hasEntry: !!entry && !entry.noDisplay,
         workspaceId: workspace ? workspace.id : -1,
         minimized: !!workspace && DockModel.isMinimizedWorkspace(workspace.name),
@@ -77,6 +77,31 @@ Item {
     }
 
     return DockModel.orderItems(DockModel.buildItems(pinned, windows), root.order)
+  }
+
+  // The default terminal's and browser's desktop ids, mapped to the stand-ins
+  // that launch them. Read at startup and when a default changes, since the
+  // commands that set one ask the dock to refresh them.
+  property var standIns: ({})
+
+  function refreshStandIns() {
+    standInsProc.running = true
+  }
+
+  Process {
+    id: standInsProc
+    command: ["bash", "-c", "printf '%s\\n' \"$(xdg-terminal-exec --print-id)\" \"$(omarchy-cmd-default-browser)\""]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var lines = text.split("\n")
+        var next = {}
+        var terminal = DockModel.normalizeId(lines[0])
+        var browser = DockModel.normalizeId(lines[1])
+        if (terminal) next[terminal] = "omarchy-terminal"
+        if (browser) next[browser] = "omarchy-browser"
+        root.standIns = next
+      }
+    }
   }
 
   readonly property var itemsByKey: {
@@ -311,6 +336,7 @@ Item {
 
   Component.onCompleted: {
     refresh()
+    refreshStandIns()
     syncItemModel()
   }
 
@@ -350,6 +376,8 @@ Item {
     // The layout commands call this after changing a workspace's mode.
     function refresh(): void { root.refresh() }
     function apps(): void { appGrid.toggle() }
+    // The default terminal and browser commands call this after a change.
+    function refreshStandIns(): void { root.refreshStandIns() }
   }
 
   // An app dragged out of the app grid: the grid holds the pointer and
