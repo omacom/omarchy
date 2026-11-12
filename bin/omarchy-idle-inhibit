@@ -281,9 +281,39 @@ class Daemon:
       print(f"omarchy-idle-inhibit: final publish failed ({error})", file=sys.stderr)
 
 
+def pid_alive(pid: int) -> bool:
+  try:
+    os.kill(pid, 0)
+  except ProcessLookupError:
+    return False
+  except PermissionError:
+    return True
+  return True
+
+
+def clear_stale_state(state_file: str) -> int:
+  # A start that lost the name to another daemon must not erase that daemon's
+  # live state, so only a dead or unreadable owner's state is removed.
+  try:
+    with open(state_file, encoding="utf-8") as handle:
+      pid = json.load(handle).get("pid")
+  except FileNotFoundError:
+    return 0
+  except (OSError, ValueError, AttributeError):
+    pid = None
+  if type(pid) is int and pid > 0 and pid_alive(pid):
+    return 0
+  try:
+    os.unlink(state_file)
+  except FileNotFoundError:
+    pass
+  return 0
+
+
 def parse_args() -> argparse.Namespace:
   parser = argparse.ArgumentParser(description="Own D-Bus idle-inhibit names for Omarchy")
   parser.add_argument("--state-file", default="", help="JSON state path (default: $XDG_RUNTIME_DIR/omarchy/idle-inhibit/state)")
+  parser.add_argument("--clear-stale", action="store_true", help="remove the state file unless its serving pid is still alive, then exit")
   return parser.parse_args()
 
 
@@ -293,6 +323,9 @@ def main() -> int:
   if not state_file:
     print("omarchy-idle-inhibit: XDG_RUNTIME_DIR is not set; no session to serve", file=sys.stderr)
     return 1
+
+  if args.clear_stale:
+    return clear_stale_state(state_file)
 
   try:
     connection = Gio.bus_get_sync(Gio.BusType.SESSION, None)

@@ -13,8 +13,9 @@ ConditionEnvironment=WAYLAND_DISPLAY
 [Service]
 Type=simple
 ExecStart=/usr/bin/omarchy-idle-inhibit
-# A daemon killed before it can publish an empty state must not hold idle off.
-ExecStopPost=/usr/bin/rm -f %t/omarchy/idle-inhibit/state
+# A daemon killed before it can publish an empty state must not hold idle off,
+# but a start that lost the name must keep the live owner's state.
+ExecStopPost=/usr/bin/omarchy-idle-inhibit --clear-stale --state-file %t/omarchy/idle-inhibit/state
 Restart=on-failure
 RestartSec=2
 

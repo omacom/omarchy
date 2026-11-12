@@ -46,6 +46,13 @@ probe_dead="$("$ROOT/bin/omarchy-idle-inhibit-probe" "$test_tmp/dead-pid-state")
 [[ $probe_dead == "" ]] || fail "probe is silent for a dead pid" "$probe_dead"
 pass "probe is silent for a dead pid"
 
+printf '%s' "{\"pid\":$$,\"count\":1}" > "$test_tmp/live-pid-state"
+python3 "$ROOT/bin/omarchy-idle-inhibit" --clear-stale --state-file "$test_tmp/live-pid-state"
+[[ -f $test_tmp/live-pid-state ]] || fail "stop cleanup keeps a live owner's inhibitors"
+python3 "$ROOT/bin/omarchy-idle-inhibit" --clear-stale --state-file "$test_tmp/dead-pid-state"
+[[ ! -e $test_tmp/dead-pid-state ]] || fail "stop cleanup removes a dead owner's inhibitors"
+pass "stop cleanup removes only a dead owner's state"
+
 cat >"$test_tmp/hold.py" <<'PY'
 import sys, time
 import gi
