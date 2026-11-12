@@ -16,6 +16,8 @@
 #                  amber, else its most vivid other color, else a mid grey
 #   icon_paper, icon_body, icon_edge, icon_ink, icon_shadow
 #                  the neutral pieces, read the right way round in light themes
+#   icon_contrast  what stands out most on the paper: the shadow in a dark
+#                  theme, the foreground in a light one
 #   icon_red, icon_orange
 #                  the theme's own, or icon_mark when it has none in hex
 #
@@ -85,10 +87,12 @@ awk -F '\t' '
       paper = color["background"]
       body = color["lighter_background"]
       shadow = mix(color["dark_background"], color["foreground"], 0.35)
+      contrast = color["foreground"]
     } else {
       paper = color["bright_foreground"]
       body = color["background"]
       shadow = color["darker_background"]
+      contrast = shadow
     }
     if ("icon_paper" in color) paper = color["icon_paper"]
 
@@ -110,6 +114,7 @@ awk -F '\t' '
     role["icon_edge"] = color["muted"]
     role["icon_ink"] = color["dark_foreground"]
     role["icon_shadow"] = shadow
+    role["icon_contrast"] = contrast
     role["icon_red"] = is_hex(color["red"]) ? color["red"] : mark
     role["icon_orange"] = is_hex(color["orange"]) ? color["orange"] : mark
 
