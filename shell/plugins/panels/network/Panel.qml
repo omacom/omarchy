@@ -834,21 +834,22 @@ Panel {
     return -1
   }
 
-  function runNetworkAction(kind, network, callback, runsItsOwnWork) {
+  function runNetworkAction(kind, network, callback) {
     if (actionKind !== "" || !network) return
     var ssid = network.name || ""
     actionSsid = ssid
     actionKind = kind
     failureSsid = ""
     failureReason = ""
+    // Already in the asked-for state: Quickshell ignores such a call, so nothing
+    // would ever signal, and the enterprise script would reconnect a live link.
+    checkActionCompletion(network)
+    if (actionKind === "") return
     callback(network)
     // Safety net: if onExited never fires (process death, signal handler
     // throws, etc.), clear the busy state so the row doesn't get stuck on
     // "Connecting…" / "Disconnecting…" forever.
     actionTimeout.restart()
-    // Quickshell ignores connecting a connected network and disconnecting a
-    // disconnected one, so nothing would signal; the enterprise script really reconnects.
-    if (!runsItsOwnWork) checkActionCompletion(network)
   }
 
   function clearNetworkAction() {
@@ -884,7 +885,8 @@ Panel {
     if (!network) return
     // NetworkManager can connect a network on its own after a panel connect to
     // it failed; only a failed connect, since a timed-out disconnect stays connected.
-    if (network.connected && failureKind === "connect" && failureReason !== "" && failureSsid === (network.name || "")) {
+    if (network.connected && !network.stateChanging && failureKind === "connect" && failureReason !== "" && failureSsid === (network.name || "")) {
+      if (passwordSsid === failureSsid) passwordSsid = ""
       failureSsid = ""
       failureReason = ""
     }
@@ -907,7 +909,7 @@ Panel {
       enterpriseConnect.secret = passphrase
       enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
       enterpriseConnect.running = true
-    }, true)
+    })
   }
 
   // Creates and activates the 802.1X profile (see Model.enterpriseConnectScript).

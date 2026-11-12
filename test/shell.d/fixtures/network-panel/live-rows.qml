@@ -27,11 +27,12 @@ ShellRoot {
     property bool stateChanging: false
     property real signalStrength: 0.5
     property int security: WifiSecurityType.Wpa2Psk
+    property int calls: 0
     signal connectionFailed(int reason)
-    function connect() {}
-    function connectWithPsk(psk) {}
-    function disconnect() {}
-    function forget() {}
+    function connect() { calls++ }
+    function connectWithPsk(psk) { calls++ }
+    function disconnect() { calls++ }
+    function forget() { calls++ }
   }
 
   property Net home: Net { name: "Home"; known: true; signalStrength: 0.9 }
@@ -102,7 +103,7 @@ ShellRoot {
     },
     function() {
       panel.connectDirectly("Home")
-      check(panel.actionKind === "", "connecting a network that is already connected settles at once")
+      check(panel.actionKind === "" && home.calls === 0, "connecting a network that is already connected settles without asking again")
       panel.connectDirectly("Guest")
       check(panel.actionKind === "connect" && panel.actionSsid === "Guest", "a connect is tracked while it is in flight")
       home.connected = false
@@ -123,10 +124,17 @@ ShellRoot {
       panel.connectDirectly("Cafe")
       panel.failNetworkAction(cafe, ConnectionFailReason.WifiNetworkLost)
       check(panel.failureSsid === "Cafe" && panel.failureReason !== "", "a failed connect leaves its reason on the row")
+      panel.openPasswordPrompt("Cafe")
       cafe.connected = true
+      cafe.stateChanging = true
+    },
+    function() {
+      check(panel.failureReason !== "", "the failure stays while that network is still settling")
+      cafe.stateChanging = false
     },
     function() {
       check(panel.failureReason === "", "the failure clears once NetworkManager connects that network on its own")
+      check(panel.passwordSsid === "", "the reprompt for that network closes with it")
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()
     }
