@@ -887,6 +887,9 @@
   "install.ai.perplexity": {
     "label": "Perplexity"
   },
+  "install.ai.phux": {
+    "label": "phux"
+  },
   "install.ai.t3-code": {
     "label": "T3 Code"
   },
@@ -1108,6 +1111,9 @@
   },
   "remove.ai.perplexity": {
     "label": "Perplexity"
+  },
+  "remove.ai.phux": {
+    "label": "phux"
   },
   "remove.ai.t3-code": {
     "label": "T3 Code"

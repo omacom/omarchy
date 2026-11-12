@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Install phux, the terminal multiplexer for agents, and fit it to Omarchy
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+echo "Installing phux..."
+omarchy-pkg-add phux-bin
+
+# Tmux-matching keys, live theme, Super+Ctrl+Return and Super+Ctrl+K binds, and the
+# server started with the desktop session. Safe to run again.
+echo "Fitting phux to Omarchy..."
+phux omarchy setup
+
+echo ""
+echo "phux has been installed. Press Super+Ctrl+Return to open it, Super+Ctrl+K for its keys."
