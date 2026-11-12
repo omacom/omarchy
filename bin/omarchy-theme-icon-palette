@@ -100,6 +100,7 @@ awk -F '\t' '
     if (mark == "") mark = pick("yellow bright_yellow green orange", 30, 55)
     if (mark == "") mark = vivid()
     if (mark == "") mark = mix(color["foreground"], color["muted"], 0.5)
+    if ("icon_mark" in color) mark = color["icon_mark"]
 
     role["icon_main"] = main
     role["icon_main_end"] = mix(main, paper, 0.3)
