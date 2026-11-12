@@ -99,7 +99,7 @@ if (( ${#options[@]} == 0 )) && [[ ! -t 0 ]]; then
   mapfile -t options
 fi
 
-if (( ${#options[@]} == 0 )); then
+if (( ${#options[@]} == 0 )) && [[ -t 0 ]]; then
   echo "Usage: omarchy-menu-select <prompt> [option...] [-- menu args...]" >&2
   exit 1
 fi
