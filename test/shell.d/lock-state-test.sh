@@ -24,3 +24,20 @@ assert(
   'lock, isLocked and status decide from the current lock state'
 )
 JS
+
+# With Fcitx sharing one state across windows, an active engine followed focus
+# onto the lock and showed the password as preedit. Per-window state must be
+# left alone, or the app behind the lock comes back in direct input.
+run_node_test <<'JS'
+const fs = require('fs')
+const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/Service.qml'), 'utf8')
+const begin = serviceQml.match(/function beginLock\(\) \{[\s\S]*?\n  \}/)
+const unlock = serviceQml.match(/function finishUnlock\(\) \{[\s\S]*?\n  \}/)
+
+assert(begin && /inputMethodOffProcess\.running = true/.test(begin[0]), 'a lock starts in direct input')
+assert(
+  /grep -qx 'ShareInputState=All'.*&& \[\[ \$\(fcitx5-remote\) == 2 \]\] && fcitx5-remote -c && echo active/.test(serviceQml),
+  'only a shared, active engine is switched off'
+)
+assert(unlock && /if \(restoreInputMethod\) \{[\s\S]*?inputMethodOnProcess\.running = true/.test(unlock[0]), 'unlock hands the engine back')
+JS

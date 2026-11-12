@@ -214,6 +214,8 @@ Item {
     if (fingerprintPam.active) fingerprintPam.abort()
   }
 
+  property bool restoreInputMethod: false
+
   function beginLock() {
     if (!passwordPamConfigured) {
       logEvent("lock-denied: missing-pam")
@@ -222,6 +224,7 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
+    if (!inputMethodOffProcess.running) inputMethodOffProcess.running = true
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -246,6 +249,10 @@ Item {
     sessionLock.locked = false
     logEvent("unlocked")
     runWake()
+    if (restoreInputMethod) {
+      restoreInputMethod = false
+      inputMethodOnProcess.running = true
+    }
   }
 
   function armBlankTimer(delayMs) {
@@ -757,6 +764,25 @@ Item {
   Process {
     id: wakeProcess
     command: ["bash", "-c", "omarchy-system-wake"]
+  }
+
+  // With Fcitx sharing one state across all windows, an active engine follows
+  // focus onto the lock and composes the password in plain sight, then commits
+  // something other than what was typed. Start the lock in direct input and
+  // hand the engine back on unlock. Per-window state already gives the lock
+  // its own direct input, and switching it there would strand the app behind.
+  Process {
+    id: inputMethodOffProcess
+    command: ["bash", "-c", "grep -qx 'ShareInputState=All' \"${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5/config\" 2>/dev/null && [[ $(fcitx5-remote) == 2 ]] && fcitx5-remote -c && echo active || true"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: root.restoreInputMethod = String(text || "").trim() === "active"
+    }
+  }
+
+  Process {
+    id: inputMethodOnProcess
+    command: ["fcitx5-remote", "-o"]
   }
 
   Process {
