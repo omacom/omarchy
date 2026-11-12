@@ -87,6 +87,9 @@
   "agents.networkOffline": "آفلاین",
   "agents.networkOnHost": "روی %1",
   "agents.networkPair": "برای استفاده با %1 جفت شوید",
+  "agents.networkPairFailed": "جفت‌سازی با %1 ناموفق بود",
+  "agents.networkPairOutputTip": "خروجی جفت‌سازی را در ترمینال باز کنید",
+  "agents.networkPairing": "در حال جفت‌سازی با %1…",
   "agents.networkRunning": "در حال اجرا",
   "agents.networkShare": "اشتراک‌گذاری در tailnet شما",
   "agents.networkSharedUsers": {

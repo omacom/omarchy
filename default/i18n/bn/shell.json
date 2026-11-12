@@ -87,6 +87,9 @@
   "agents.networkOffline": "অফলাইন",
   "agents.networkOnHost": "%1-এ",
   "agents.networkPair": "ব্যবহার করতে %1-এর সঙ্গে পেয়ার করুন",
+  "agents.networkPairFailed": "%1-এর সঙ্গে পেয়ার করা যায়নি",
+  "agents.networkPairOutputTip": "পেয়ারিংয়ের আউটপুট টার্মিনালে খুলুন",
+  "agents.networkPairing": "%1-এর সঙ্গে পেয়ার করা হচ্ছে…",
   "agents.networkRunning": "চলছে",
   "agents.networkShare": "আপনার tailnet-এ শেয়ার করুন",
   "agents.networkSharedUsers": {

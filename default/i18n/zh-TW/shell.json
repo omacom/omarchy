@@ -84,6 +84,9 @@
   "agents.networkOffline": "離線",
   "agents.networkOnHost": "在 %1 上",
   "agents.networkPair": "與 %1 配對即可使用",
+  "agents.networkPairFailed": "無法與 %1 配對",
+  "agents.networkPairOutputTip": "在終端機開啟配對輸出",
+  "agents.networkPairing": "正在與 %1 配對…",
   "agents.networkRunning": "執行中",
   "agents.networkShare": "透過 tailnet 分享",
   "agents.networkSharedUsers": {

@@ -90,6 +90,9 @@
   "agents.networkOffline": "Offline",
   "agents.networkOnHost": "Pe %1",
   "agents.networkPair": "Asociază cu %1 pentru a-l folosi",
+  "agents.networkPairFailed": "Nu s-a putut asocia cu %1",
+  "agents.networkPairOutputTip": "Deschide în terminal ce a afișat asocierea",
+  "agents.networkPairing": "Se asociază cu %1…",
   "agents.networkRunning": "Rulează",
   "agents.networkShare": "Partajează în tailnet-ul tău",
   "agents.networkSharedUsers": {

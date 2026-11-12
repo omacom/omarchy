@@ -93,6 +93,9 @@
   "agents.networkOffline": "Не в сети",
   "agents.networkOnHost": "На %1",
   "agents.networkPair": "Выполните сопряжение с %1, чтобы использовать его",
+  "agents.networkPairFailed": "Не удалось выполнить сопряжение с %1",
+  "agents.networkPairOutputTip": "Откройте вывод сопряжения в терминале",
+  "agents.networkPairing": "Сопряжение с %1…",
   "agents.networkRunning": "Запущено",
   "agents.networkShare": "Открыть доступ в вашем tailnet",
   "agents.networkSharedUsers": {

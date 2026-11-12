@@ -87,6 +87,9 @@
   "agents.networkOffline": "නොබැඳි",
   "agents.networkOnHost": "%1 මත",
   "agents.networkPair": "භාවිත කිරීමට %1 සමඟ යුගල කරන්න",
+  "agents.networkPairFailed": "%1 සමඟ යුගල කිරීමට නොහැකි විය",
+  "agents.networkPairOutputTip": "යුගල කිරීමේදී මුද්‍රිත වූ දේ ටර්මිනලයක විවෘත කරන්න",
+  "agents.networkPairing": "%1 සමඟ යුගල කරමින්…",
   "agents.networkRunning": "ධාවනය වෙමින්",
   "agents.networkShare": "ඔබේ tailnet හි බෙදාගන්න",
   "agents.networkSharedUsers": {

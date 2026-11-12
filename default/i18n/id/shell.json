@@ -84,6 +84,9 @@
   "agents.networkOffline": "Luring",
   "agents.networkOnHost": "Di %1",
   "agents.networkPair": "Pasangkan dengan %1 untuk menggunakannya",
+  "agents.networkPairFailed": "Gagal memasangkan dengan %1",
+  "agents.networkPairOutputTip": "Buka output pemasangan di terminal",
+  "agents.networkPairing": "Memasangkan dengan %1…",
   "agents.networkRunning": "Berjalan",
   "agents.networkShare": "Bagikan di tailnet Anda",
   "agents.networkSharedUsers": {

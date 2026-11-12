@@ -87,6 +87,9 @@
   "agents.networkOffline": "Offline",
   "agents.networkOnHost": "På %1",
   "agents.networkPair": "Parkoppla med %1 för att använda den",
+  "agents.networkPairFailed": "Kunde inte parkoppla med %1",
+  "agents.networkPairOutputTip": "Öppna det parkopplingen skrev ut i en terminal",
+  "agents.networkPairing": "Parkopplar med %1…",
   "agents.networkRunning": "Körs",
   "agents.networkShare": "Dela på ditt tailnet",
   "agents.networkSharedUsers": {
