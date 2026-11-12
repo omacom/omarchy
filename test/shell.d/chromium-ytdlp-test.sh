@@ -272,3 +272,12 @@ shown=$(paste -sd' ' "$osd_log")
 [[ $shown == "0 45 90 95 100" ]] ||
   fail "yt-dlp native host shows video and audio as one bar that only moves forward" "$shown"
 pass "yt-dlp native host shows video and audio as one bar that only moves forward"
+
+# The stub replays progress records whatever it is asked for, so assert the requests.
+grep -qF -- $'video:OMARCHY_PARTS\t%(format_id)s' "$ytdlp_argv" ||
+  fail "yt-dlp native host asks which streams make up the download" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host asks which streams make up the download"
+
+grep -qF -- $'download:OMARCHY_PROG\t%(progress.status)s\t%(info.format_id)s\t%(progress._percent_str)s' "$ytdlp_argv" ||
+  fail "yt-dlp native host tags each progress report with its status and stream" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host tags each progress report with its status and stream"

@@ -106,6 +106,8 @@ download_url() {
   fi
 
   osd_progress 0
+  local er=$EPOCHREALTIME
+  local lastms=$((${er%[.,]*} * 1000 + 10#${er##*[.,]} / 1000))
 
   # Stream the download: OMARCHY_PARTS names the formats yt-dlp picked (616+251 is a
   # video and an audio stream), OMARCHY_PROG carries each stream's status and percent
@@ -114,7 +116,7 @@ download_url() {
   # metadata cannot forge a record, and the file is named after it: yt-dlp strips
   # control characters from a filename with or without --restrict-filenames, so a
   # record is still only ever one line.
-  local line status format pct intpct parts=1 part=0 current="" plus last=0 er nowms lastms=0 title="" filepath="" resolved
+  local line status format pct intpct parts=1 part=0 current="" plus last=0 nowms title="" filepath="" resolved
   while IFS= read -r line; do
     case $line in
     OMARCHY_PARTS*)
@@ -133,15 +135,20 @@ download_url() {
       # A chunked (HLS) stream's first report reads 100% before any chunk arrives.
       # A real finish always comes as its own "finished" report.
       [[ $status == downloading && $intpct == 100 ]] && continue
-      intpct=$(overall_percent "$part" "$parts" "$intpct")
-      ((intpct > last)) || continue # skip repeats, and never run the bar backwards
       # Throttle to ~4 redraws/sec so fast downloads don't spawn a flurry of processes.
       er=$EPOCHREALTIME
       nowms=$((${er%[.,]*} * 1000 + 10#${er##*[.,]} / 1000))
       ((nowms - lastms >= 250)) || continue
-      last=$intpct
+      intpct=$(overall_percent "$part" "$parts" "$intpct")
+      # Never run the bar backwards. A stretch that doesn't move it still redraws
+      # every few seconds, before the OSD's 8s timeout hides a slow download.
+      if ((intpct > last)); then
+        last=$intpct
+      elif ((nowms - lastms < 4000)); then
+        continue
+      fi
       lastms=$nowms
-      osd_progress "$intpct"
+      osd_progress "$last"
       ;;
     OMARCHY_FILE*)
       resolved=$(resolve_download_file "${line#OMARCHY_FILE$'\t'}") || continue
