@@ -45,13 +45,15 @@ tb_downstream_bridges() {
 # Removing a controller takes everything behind it off the bus at once, a
 # drive on its USB-C ports included, so a mounted filesystem or active swap
 # there would lose its device under it. Such a controller is left in place and
-# resumes the slow way.
+# resumes the slow way. A drive that cannot be read counts as in use: keeping
+# its controller costs a slow resume, removing it could cost the drive.
 has_mounted_storage() {
-  local bridge blk
+  local bridge blk mounts
   bridge=$(readlink -f "$1")
   for blk in /sys/block/*; do
     [[ $(readlink -f "$blk") == "$bridge"/* ]] || continue
-    [[ -n $(lsblk -nro MOUNTPOINTS "/dev/${blk##*/}" 2>/dev/null | tr -d '[:space:]') ]] && return 0
+    mounts=$(lsblk -nro MOUNTPOINTS "/dev/${blk##*/}" 2>/dev/null) || return 0
+    [[ -n $(tr -d '[:space:]' <<<"$mounts") ]] && return 0
   done
   return 1
 }
