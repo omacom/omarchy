@@ -54,12 +54,12 @@ plugin_loaded() {
 # A module that does not report these predates the installed package: it is still mapped from before an update.
 module_current() {
   hyprctl -j cua:status 2>/dev/null |
-    jq -e '.keyboard_layout_independent == true and .foreground_numlock_compatible == true and has("ime_popup_guard")' >/dev/null
+    jq -e '.keyboard_layout_independent == true and .foreground_numlock_compatible == true and has("ime_popup_guard")' >/dev/null 2>&1
 }
 
 # Without it, fcitx5 restarting while input is on can crash Hyprland 0.56.2.
 ime_guard_active() {
-  hyprctl -j cua:status 2>/dev/null | jq -e '.ime_popup_guard == true' >/dev/null
+  hyprctl -j cua:status 2>/dev/null | jq -e '.ime_popup_guard == true' >/dev/null 2>&1
 }
 
 package_current() {
@@ -70,7 +70,7 @@ package_current() {
 }
 
 input_ready() {
-  hyprctl -j cua:status 2>/dev/null | jq -e '.configured == true and .transport.ready == true' >/dev/null
+  hyprctl -j cua:status 2>/dev/null | jq -e '.configured == true and .transport.ready == true' >/dev/null 2>&1
 }
 
 # The package's consumer check: the installed module against the running
