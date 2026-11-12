@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import qs.Commons
 import qs.Ui
 
 // Drives the real KeyboardPanel through open, close and reopen. The panels
@@ -64,14 +65,19 @@ ShellRoot {
       test.check(lazy.mask.width > 0 && lazy.mask.height > 0, "the editor's card still receives pointer input")
       lazy.yielding = true
       test.check(lazy.WlrLayershell.keyboardFocus === WlrKeyboardFocus.None, "yielding also releases the keyboard during editing")
+      Desktop.clicked()
+      test.check(lazy.open, "a desktop click leaves a yielding editor open")
       lazy.yielding = false
-      lazy.open = false
+      Desktop.clicked()
+      test.check(!lazy.open, "a desktop click dismisses an editor")
       test.check(lazy.mask.width === 0 && lazy.mask.height === 0, "a closed editor releases pointer input before the fade")
       test.check(lazy.loadedContent === first, "closing keeps the content")
 
       lazy.editing = false
       lazy.open = true
       test.check(lazy.loadedContent === first && test.builds === 1, "reopening reuses the content")
+      Desktop.clicked()
+      test.check(lazy.open, "normal panels retain their own outside-click handling")
       lazy.open = false
 
       test.check(eager.loadedContent === null && eagerChild.parent !== null, "panels with direct children still build them eagerly")

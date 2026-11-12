@@ -89,8 +89,8 @@ PanelWindow {
     })
   }
 
-  // Keep the card open during inline editing and let outside clicks reach
-  // other windows. The editor can take the keyboard again with a click.
+  // Let other windows take input during inline editing. A click on the
+  // desktop dismisses the card, and a click in the editor takes focus back.
   property bool editing: false
   readonly property bool cardOnlyInput: yielding || editing
 
@@ -482,6 +482,15 @@ PanelWindow {
       // click on this output's bar.
       if (root.focusPrimed && inBarRegion(mouse.x, mouse.y) && forwardBarClick(mouse.x, mouse.y, mouse.button)) return
       root.close()
+    }
+  }
+
+  // The background receives clicks only where the compositor found no window
+  // above it, including on outputs other than the panel's.
+  Connections {
+    target: Commons.Desktop
+    function onClicked() {
+      if (root.open && root.editing && !root.yielding) root.close()
     }
   }
 
