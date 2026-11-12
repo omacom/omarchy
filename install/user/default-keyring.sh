@@ -2,6 +2,13 @@ KEYRING_DIR="$HOME/.local/share/keyrings"
 KEYRING_FILE="$KEYRING_DIR/Default_keyring.keyring"
 DEFAULT_FILE="$KEYRING_DIR/default"
 
+# A home adopted from another drive that already has keyrings keeps them as
+# they are: Omarchy's unencrypted keyring made the default would take new
+# secrets out of the user's password-protected one.
+if [[ ${OMARCHY_ADOPTED_HOME:-0} == "1" ]] && compgen -G "$KEYRING_DIR/*.keyring" >/dev/null; then
+  return 0
+fi
+
 mkdir -p "$KEYRING_DIR"
 
 if [[ ! -f $KEYRING_FILE ]]; then

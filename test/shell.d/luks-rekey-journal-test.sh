@@ -264,6 +264,7 @@ attempt() {
   setup_functions
   keyboard_form() { :; }
   user_form() { :; }
+  home_step() { :; }
   confirm_form() { :; }
   notice() {
     printf 'refused: %s\n' "$1" >>"$TMP/screen"

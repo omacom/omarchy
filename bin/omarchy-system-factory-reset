@@ -57,6 +57,9 @@ fi
 
 export PATH="$OMARCHY_PATH/bin:$PATH"
 
+# A home on another drive: its mount entries, keyfile and erasing.
+source "$OMARCHY_PATH/install/provisioning/home-drive.sh"
+
 # The questions read in the language of the person who asked for the reset.
 # Elevation left their HOME behind, so their language file is found from the
 # account sudo names, never from a path the caller passed in.
@@ -224,6 +227,334 @@ confirm_reset() {
   local typed
   typed=$(gum input --placeholder "$(omarchy-i18n reset.typeToContinue reset)" --prompt "> ") || exit 1
   [[ $typed == "reset" ]] || fail "Reset not confirmed."
+}
+
+# The disk a home on another drive lives on, or nothing when /home is the
+# image's own @home (or not mounted).
+separate_home_drive() {
+  local source root_source home_disk
+  source=$(findmnt -no SOURCE /home 2>/dev/null) || return 1
+  [[ -n $source ]] || return 1
+  root_source=$(findmnt -no SOURCE / | sed 's/\[.*//')
+  home_disk=$(lsblk -nsrpo NAME,TYPE "${source%%\[*}" 2>/dev/null | awk '$2 == "disk" { print $1; exit }')
+  [[ -n $home_disk ]] || return 1
+  if lsblk -nsrpo NAME,TYPE "$root_source" 2>/dev/null | awk '$2 == "disk" { print $1 }' | grep -qxF "$home_disk"; then
+    return 1
+  fi
+  echo "$home_disk"
+}
+
+# The home drive as the system at <root> names it, mounted or not: its
+# crypttab and fstab uuids ("UUID=..." lines). Nothing when /home is the
+# image's own @home on the root filesystem.
+home_drive_ids() {
+  local root=${1:-/} root_uuid ids id device system_disks
+  if [[ -f $root/etc/crypttab ]]; then
+    ids=$(awk -v name="$HOME_DRIVE_MAPPER" '!/^[[:space:]]*#/ && $1 == name { print $2; exit }' "$root/etc/crypttab")
+  fi
+  if [[ -f $root/etc/fstab ]]; then
+    root_uuid=$(awk '!/^[[:space:]]*#/ && $2 == "/" { print $1; exit }' "$root/etc/fstab")
+    ids+=${ids:+$'\n'}$(awk -v root="$root_uuid" '!/^[[:space:]]*#/ && $2 == "/home" && $1 != root && $1 ~ /^UUID=/ { print $1; exit }' "$root/etc/fstab")
+  fi
+  [[ -n $ids ]] || return 0
+  # A /home partition on a disk the system needs is not a home drive: erasing
+  # it would erase the system. With that disk unknown, none is.
+  system_disks=$(home_drive_system_disks)
+  grep -qx unknown <<<"$system_disks" && return 0
+  while IFS= read -r id; do
+    device=$(blkid -t "$id" -o device | head -n1)
+    [[ -n $device ]] || continue
+    if lsblk -nsrpo NAME,TYPE "$device" | awk '$2 == "disk" { print $1 }' | grep -qxF -f <(printf '%s\n' "$system_disks"); then
+      return 0
+    fi
+  done <<<"$ids"
+  printf '%s\n' "$ids"
+}
+
+# The partition a device sits on (through LUKS), or its disk when the
+# filesystem or LUKS is straight on the disk.
+home_part_of() {
+  local chain
+  chain=$(lsblk -nsrpo NAME,TYPE "$1" 2>/dev/null || true)
+  awk '$2 == "part" { print $1; found = 1; exit } END { exit !found }' <<<"$chain" ||
+    awk '$2 == "disk" { print $1; exit }' <<<"$chain"
+}
+
+# Whether the filesystem mounted at /home holds more than the home: erasing
+# the home's partition would take the rest too. Any other filesystem mounted
+# from a folder inside it (X-mount.subdir=home, a home inside another
+# system's root) does. On btrfs, subvolumes besides the home's own and those
+# nested in it do, told by subvolume ids and parents, since the paths btrfs
+# prints for nested subvolumes are relative to their parent. So does anything
+# else outside the home's subvolume: plain files and folders at the top level
+# never show under /home. A listing that
+# fails counts as shared. A folder of a btrfs subvolume is told by fstab
+# (home_fstab_subdir): FSROOT there is the subvolume's path as well.
+home_shares_filesystem() {
+  local home_id list fsroot source
+  if [[ $(findmnt -no FSTYPE /home 2>/dev/null) != "btrfs" ]]; then
+    fsroot=$(findmnt -no FSROOT /home 2>/dev/null) || fsroot=""
+    [[ -n $fsroot && $fsroot != "/" ]]
+    return
+  fi
+  home_id=$(btrfs inspect-internal rootid /home 2>/dev/null) || return 0
+  list=$(btrfs subvolume list -p /home 2>/dev/null) || return 0
+  # "ID <id> gen <gen> parent <parent> top level <parent> path <path>"
+  awk -v home="$home_id" '
+    $1 == "ID" { parent[$2] = $6; ids[++n] = $2 }
+    END {
+      if (home == 5) exit 1
+      for (i = 1; i <= n; i++) {
+        inside = 0
+        for (id = ids[i]; id != "" && id != 5; id = parent[id]) if (id == home) { inside = 1; break }
+        if (!inside) exit 0
+      }
+      exit 1
+    }' <<<"$list" && return 0
+  [[ $home_id != "5" ]] || return 1
+  source=$(findmnt -no SOURCE /home 2>/dev/null | sed 's/\[.*//') || return 0
+  fsroot=$(findmnt -no FSROOT /home 2>/dev/null) || return 0
+  ! home_subvolume_alone "$source" "${fsroot#/}"
+}
+
+# Whether the subvolume at <path> is all a btrfs filesystem holds: from the
+# top level down to it, every folder on the way holds the next step and
+# nothing else. A top level that cannot be looked at is not known to be.
+home_subvolume_alone() {
+  local source=$1 path=$2 top dir part alone=0
+  local -a parts
+  [[ -n $source && -n $path ]] || return 1
+  top=$(mktemp -d) || return 1
+  if ! mount -o ro,subvolid=5 "$source" "$top" 2>/dev/null; then
+    rmdir "$top"
+    return 1
+  fi
+  dir=$top
+  IFS=/ read -r -a parts <<<"$path"
+  for part in "${parts[@]}"; do
+    if [[ $(ls -A "$dir" 2>/dev/null) != "$part" ]]; then
+      alone=1
+      break
+    fi
+    dir=$dir/$part
+  done
+  umount "$top" && rmdir "$top"
+  return "$alone"
+}
+
+# Whether the system at <root> mounts /home from a btrfs subvolume other than
+# the top level: one whose neighbours cannot be checked while it is not
+# mounted.
+home_fstab_subvolume() {
+  awk '!/^[[:space:]]*#/ && $2 == "/home" && $3 == "btrfs" {
+    if ($4 ~ /(^|,)subvol=/ && $4 !~ /(^|,)subvol=\/?(,|$)/) found = 1
+    if ($4 ~ /(^|,)subvolid=/ && $4 !~ /(^|,)subvolid=5(,|$)/) found = 1
+  } END { exit !found }' "${1%/}/etc/fstab" 2>/dev/null
+}
+
+# Whether the system at <root> mounts /home from a folder inside its
+# filesystem (X-mount.subdir=, a home inside another system's root), mounted
+# now or not: the rest of that filesystem is the other system.
+home_fstab_subdir() {
+  awk '!/^[[:space:]]*#/ && $2 == "/home" && $4 ~ /(^|,)X-mount\.subdir=/ { found = 1 } END { exit !found }' "${1%/}/etc/fstab" 2>/dev/null
+}
+
+# What Erase would erase for the home on <device> (its partition, or its disk
+# when it sits straight on one), given whether its filesystem is shared
+# (no|shared|unchecked). Sets home_erase_target (disk|part, empty when Erase
+# is not offered), home_erase_device, home_erase_uuid, home_erase_ptuuid, and
+# home_erase_why when it is not offered.
+home_erase_scope() {
+  local device=$1 sharing=$2 disk system_disks parts
+  home_erase_device=$device
+  if [[ $(lsblk -ndo TYPE "$device" 2>/dev/null) == "disk" ]]; then
+    disk=$device
+  else
+    disk=$(lsblk -ndpo PKNAME "$device" 2>/dev/null || true)
+  fi
+  system_disks=$(home_drive_system_disks)
+  if [[ -z $disk ]] || grep -qx unknown <<<"$system_disks" || grep -qxF -- "$disk" <<<"$system_disks"; then
+    home_erase_why=protected
+    return 0
+  fi
+  if [[ $sharing != "no" ]]; then
+    home_erase_why=$sharing
+    return 0
+  fi
+  home_erase_uuid=$(blkid -o value -s UUID "$device" 2>/dev/null || true)
+  if [[ -z $home_erase_uuid ]]; then
+    home_erase_why=unchecked
+    return 0
+  fi
+  # A disk that holds only the home goes whole, so nothing of it is left; one
+  # with other partitions keeps them.
+  parts=$(lsblk -nrpo TYPE "$disk" 2>/dev/null | grep -cx part || true)
+  if ((parts <= 1)); then
+    home_erase_target=disk
+    home_erase_device=$disk
+    home_erase_ptuuid=$(blkid -o value -s PTUUID "$disk" 2>/dev/null || true)
+  else
+    home_erase_target=part
+  fi
+}
+
+# home_drive_describe [root]
+#
+# Everything the home drive question shows, decided before it is asked:
+# home_drive_name, and what Erase erases (home_erase_scope's variables and
+# home_erase_label), from the mounted home or, when /home is not mounted, from
+# the drive fstab and crypttab name if it is there.
+home_drive_describe() {
+  local root=${1:-/} source device="" sharing=no used size id
+  home_drive_name="" home_erase_label="" home_erase_why=""
+  home_erase_target="" home_erase_device="" home_erase_uuid="" home_erase_ptuuid=""
+  if [[ -n ${home_drive_disk:-} ]]; then
+    source=$(findmnt -no SOURCE /home | sed 's/\[.*//')
+    device=$(home_part_of "$source")
+    if home_shares_filesystem || home_fstab_subdir "$root"; then
+      sharing=shared
+    fi
+  else
+    # Locked, or its boot gave up waiting for it: there all the same.
+    while IFS= read -r id; do
+      [[ -n $id ]] || continue
+      device=$(blkid -t "$id" -o device 2>/dev/null | head -n1 || true)
+      [[ -n $device ]] && break
+    done <<<"${home_drive_ids:-}"
+    [[ -z $device ]] || device=$(home_part_of "$device")
+    if home_fstab_subdir "$root"; then
+      sharing=shared
+    elif home_fstab_subvolume "$root"; then
+      sharing=unchecked
+    fi
+  fi
+
+  if [[ -n $device ]]; then
+    home_erase_scope "$device" "$sharing"
+    home_drive_name=$home_erase_device
+    [[ -n $home_erase_target ]] || return 0
+    if [[ -n ${home_drive_disk:-} ]]; then
+      used=$(df --output=used -h /home 2>/dev/null | tail -n1 | tr -d ' ')
+      if [[ $home_erase_target == "disk" ]]; then
+        home_erase_label=$(omarchy-i18n reset.homeEraseDisk "$home_erase_device" "$used")
+      else
+        home_erase_label=$(omarchy-i18n reset.homeErasePartition "$home_erase_device" "$used")
+      fi
+    else
+      size=$(lsblk -ndo SIZE "$home_erase_device" 2>/dev/null | tr -d ' ')
+      if [[ $home_erase_target == "disk" ]]; then
+        home_erase_label=$(omarchy-i18n reset.homeEraseDiskNotMounted "$home_erase_device" "$size")
+      else
+        home_erase_label=$(omarchy-i18n reset.homeErasePartitionNotMounted "$home_erase_device" "$size")
+      fi
+    fi
+  else
+    # Not connected: erased by its uuid the next time it is. Only its
+    # partition, since what else its disk holds cannot be seen now.
+    home_drive_name=$(omarchy-i18n reset.homeNotConnected)
+    if [[ $sharing != "no" ]]; then
+      home_erase_why=$sharing
+      return 0
+    fi
+    home_erase_uuid=$(sed -n 's/^UUID=//p' <<<"${home_drive_ids:-}" | head -n1)
+    if [[ -z $home_erase_uuid ]]; then
+      home_erase_why=unchecked
+      return 0
+    fi
+    home_erase_target=part
+    home_erase_label=$(omarchy-i18n reset.homeEraseLater)
+  fi
+}
+
+# A reset makes the machine nobody's, so a home on another drive is erased
+# unless the owner keeps it. Sets home_drive_choice (erase|keep). A home that
+# cannot be erased on its own is only kept, and the question says why.
+confirm_home_drive() {
+  local choice typed
+  local -a choices=()
+  home_drive_describe /
+  echo
+  gum style --bold "$(omarchy-i18n reset.homeQuestion "$home_drive_name")"
+  if [[ -n $home_erase_target ]]; then
+    choices+=("$home_erase_label"$'\t'erase)
+  else
+    case $home_erase_why in
+      shared) gum style --foreground 3 "$(omarchy-i18n reset.homeShared "$home_drive_name")" ;;
+      protected) gum style --foreground 3 "$(omarchy-i18n reset.homeProtected "$home_drive_name")" ;;
+      *) gum style --foreground 3 "$(omarchy-i18n reset.homeUnchecked "$home_drive_name")" ;;
+    esac
+  fi
+  choices+=("$(omarchy-i18n reset.homeKeep)"$'\t'keep)
+  choice=$(gum choose --label-delimiter $'\t' "${choices[@]}") || exit 1
+  if [[ $choice == "erase" ]]; then
+    home_drive_erase_sources >/dev/null || fail "This system cannot erase the home drive after the reset; choose Keep or update Omarchy first."
+    typed=$(gum input --placeholder "$(omarchy-i18n reset.typeToContinue erase)" --prompt "> ") || exit 1
+    [[ $typed == "erase" ]] || fail "Erasing the home drive not confirmed."
+  fi
+  home_drive_choice=$choice
+}
+
+# The erase service, its worker and helpers, from the running system: the
+# reset system comes from a factory snapshot that may predate them. Without
+# them the reset refuses rather than promise an erase that never happens.
+home_drive_erase_sources() {
+  local dir=${OMARCHY_PATH:-/usr/share/omarchy}
+  local unit=$dir/install/provisioning/omarchy-factory-reset-erase-home.service
+  local worker=$dir/bin/omarchy-system-factory-reset-erase-home
+  local helper=$dir/install/provisioning/home-drive.sh
+  [[ -f $unit && -f $worker && -f $helper ]] || return 1
+  printf '%s\n' "$unit" "$worker" "$helper"
+}
+
+install_home_drive_erase() {
+  local next=$1 sources unit worker helper
+  if ! sources=$(home_drive_erase_sources); then
+    echo "Error: this system cannot carry out the home drive erase" >&2
+    return 1
+  fi
+  { read -r unit; read -r worker; read -r helper; } <<<"$sources"
+  install -Dm644 "$unit" "$next/etc/systemd/system/omarchy-factory-reset-erase-home.service"
+  install -Dm755 "$worker" "$next/usr/local/sbin/omarchy-factory-reset-erase-home"
+  install -Dm644 "$helper" "$next/usr/local/lib/omarchy/home-drive.sh"
+  install -d "$next/etc/systemd/system/multi-user.target.wants"
+  ln -sf /etc/systemd/system/omarchy-factory-reset-erase-home.service \
+    "$next/etc/systemd/system/multi-user.target.wants/omarchy-factory-reset-erase-home.service"
+}
+
+# Record the home drive choice in the next root: an erase for its first boot
+# (when nothing has the drive mounted), as the marker the erase worker reads,
+# or, kept, a note hiding it from the next owner's first-boot setup.
+stage_home_drive() {
+  local next=$1 dir=$1$PROVISIONING_DIR
+  mkdir -p "$dir"
+  if [[ $home_drive_choice == "erase" ]]; then
+    {
+      echo "TARGET=$home_erase_target"
+      echo "UUID=$home_erase_uuid"
+      [[ -z ${home_erase_ptuuid:-} ]] || echo "PTUUID=$home_erase_ptuuid"
+    } >"$dir/erase-home-drive"
+    # Done at boot, and again at every boot until the drive has shown up.
+    install_home_drive_erase "$next" || return 1
+  else
+    # Every uuid it is known by: its LUKS and filesystem, and its partition.
+    {
+      sed -n 's/^UUID=//p' <<<"${home_drive_ids:-}"
+      [[ -z ${home_erase_uuid:-} ]] || echo "$home_erase_uuid"
+    } | awk 'NF && !seen[$0]++' >>"$dir/ignored-home-drives"
+  fi
+}
+
+# A kept drive's keyfile key slot is taken back: the keyfile does not survive
+# the reset. Only once the reset is committed, since until then the old root,
+# which still has the keyfile in <root>, may be what boots again.
+release_home_drive_key() {
+  local root=${1:-/} luks_uuid
+  [[ ${home_drive_choice:-} == "keep" && -f $HOME_DRIVE_KEYFILE ]] || return 0
+  luks_uuid=$(awk -v name="$HOME_DRIVE_MAPPER" '!/^[[:space:]]*#/ && $1 == name { sub(/^UUID=/, "", $2); print $2; exit }' "${root%/}/etc/crypttab" 2>/dev/null || true)
+  [[ -n $luks_uuid ]] || return 0
+  if ! cryptsetup luksRemoveKey "/dev/disk/by-uuid/$luks_uuid" "$HOME_DRIVE_KEYFILE" >>"$LOG_FILE" 2>&1; then
+    log "Could not take the keyfile's key slot back from the kept home drive; its keyfile is gone with the old system"
+  fi
 }
 
 # The slot the reset's throwaway key opens, or nothing. Restricting cryptsetup
@@ -624,6 +955,12 @@ sanitize_factory_baseline() {
   rm -f "$factory/var/lib/sddm/state.conf" "$factory/etc/sddm.conf.d/autologin.conf"
   : >"$factory/etc/machine-id"
 
+  # The baseline was snapshotted after the installer pointed /home at another
+  # drive: drop that drive's fstab and crypttab lines and its keyfile, so no
+  # key to it survives a reset, and mount the image's own @home again.
+  home_drive_unmount_entries "$factory" >/dev/null
+  home_drive_restore_home_subvolume "$factory"
+
   btrfs property set -ts "$factory" ro true
 }
 
@@ -652,6 +989,12 @@ stage_full_reset() {
   log "Removing account credentials from the factory system"
   scrub_factory_accounts "$next" ||
     fail "could not remove account credentials from the factory system (see $LOG_FILE)"
+
+  # Installed with home on another drive: the factory system must not mount
+  # it or hold the key to it. It gets the image's own @home back.
+  home_drive_unmount_entries "$next" >/dev/null
+  home_drive_restore_home_subvolume "$next"
+  [[ -n ${home_drive_choice:-} ]] && stage_home_drive "$next"
 
   # @factory itself survives the wipe as the baseline for future resets. If it
   # came from a normal install it still holds the seller's account and
@@ -689,6 +1032,7 @@ stage_full_reset() {
   swap_done=1
   commit_next_boot
   sync
+  release_home_drive_key /
 
   # The boot package that prepared the reset gets the key on standard input,
   # never in arguments. A failure costs the first boot one prompt for the
@@ -736,6 +1080,13 @@ main() {
 
   confirm_reset
 
+  home_drive_disk=$(separate_home_drive) || home_drive_disk=""
+  home_drive_ids=$(home_drive_ids /)
+  home_drive_choice=""
+  if [[ -n $home_drive_disk || -n $home_drive_ids ]]; then
+    confirm_home_drive
+  fi
+
   # The running system's limine-snapper-sync must not rewrite the ESP's
   # limine.conf behind the staged rebuild (subvolume changes below can
   # trigger it). The runtime mask evaporates on the reboot that follows.
@@ -748,6 +1099,12 @@ main() {
 
   echo
   gum style --bold "$(omarchy-i18n reset.staged)"
+  if [[ $home_drive_choice == "keep" ]]; then
+    gum style "$(omarchy-i18n reset.homeKept "$home_drive_name")"
+    if [[ -n $home_drive_disk ]] && ! lsblk -nsrpo TYPE "$(findmnt -no SOURCE /home | sed 's/\[.*//')" 2>/dev/null | grep -qx crypt; then
+      gum style --foreground 3 "$(omarchy-i18n reset.homeKeptUnencrypted "$home_drive_disk")"
+    fi
+  fi
   if gum confirm --affirmative "$(omarchy-i18n reset.rebootNow)" --negative "$(omarchy-i18n reset.rebootLater)" "$(omarchy-i18n reset.rebootQuestion)"; then
     systemctl reboot
   else

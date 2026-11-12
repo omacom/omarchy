@@ -1,0 +1,19 @@
+# Erases the home drive a factory reset was told to erase, at every boot until
+# it has: first before the reset system's first-boot setup, so the drive is
+# gone before any account exists, and later once the drive is connected again.
+# Armed by /var/lib/omarchy/provisioning/erase-home-drive. Installed, with the
+# worker and its helpers, by omarchy-system-factory-reset from the running
+# system, since the reset system may come from a snapshot older than this.
+
+[Unit]
+Description=Omarchy factory reset home drive erase
+ConditionPathExists=/var/lib/omarchy/provisioning/erase-home-drive
+After=local-fs.target systemd-udev-trigger.service
+Before=omarchy-provision-owner.service display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/omarchy-factory-reset-erase-home
+
+[Install]
+WantedBy=multi-user.target

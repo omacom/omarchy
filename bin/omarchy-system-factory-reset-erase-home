@@ -1,0 +1,132 @@
+#!/bin/bash
+
+# omarchy:summary=Erase the home drive a factory reset was told to erase
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# Runs from omarchy-factory-reset-erase-home.service at every boot while
+# /var/lib/omarchy/provisioning/erase-home-drive exists: first before the reset
+# system's first-boot setup, so the drive is erased before any account exists,
+# and on later boots until the drive shows up. The marker names the drive by
+# its uuid, since device names change between boots, and says what goes:
+#
+#   TARGET=disk|part   the home's whole disk, or only its partition
+#   UUID=<uuid>        the home's partition (or the disk it sits straight on)
+#   PTUUID=<ptuuid>    with TARGET=disk, the partition table that disk had
+
+set -uo pipefail
+
+OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
+PROVISIONING_DIR=/var/lib/omarchy/provisioning
+
+if (( EUID != 0 )); then
+  echo "Error: omarchy-system-factory-reset-erase-home must run as root" >&2
+  exit 1
+fi
+
+# The reset installs this worker and its helpers into the reset system, which
+# may come from a factory snapshot older than this feature.
+HOME_DRIVE_HELPER=/usr/local/lib/omarchy/home-drive.sh
+[[ -r $HOME_DRIVE_HELPER ]] || HOME_DRIVE_HELPER=$OMARCHY_PATH/install/provisioning/home-drive.sh
+# shellcheck disable=SC1090 # one of two copies of install/provisioning/home-drive.sh
+source "$HOME_DRIVE_HELPER"
+
+# A marker that is wrong, not pending: nothing is erased and it is dropped,
+# so it is not tried again at every boot.
+refuse_erase() {
+  echo "Refusing to erase the home drive: $1. Nothing was erased, and the erase is dropped." >&2
+  rm -f "$PROVISIONING_DIR/erase-home-drive"
+}
+
+# Returns 0 when the drive was erased (or nothing was pending), 1 when the
+# erase is still pending (the drive is not there, the erase failed, or which
+# disks the system is on cannot be told), and 2 when it was refused.
+erase_pending_home_drive() {
+  local file=$PROVISIONING_DIR/erase-home-drive line target="" uuid="" ptuuid=""
+  local devices device type disk erase_target system_disks
+  [[ -f $file ]] || return 0
+  udevadm settle --timeout=30 || true
+  while IFS= read -r line; do
+    case $line in
+      TARGET=*) target=${line#TARGET=} ;;
+      UUID=*) uuid=${line#UUID=} ;;
+      PTUUID=*) ptuuid=${line#PTUUID=} ;;
+    esac
+  done <"$file"
+  if [[ -z $uuid || ( $target != "disk" && $target != "part" ) ]]; then
+    refuse_erase "the marker does not name a drive and what to erase on it"
+    return 2
+  fi
+
+  devices=$(blkid -t "UUID=$uuid" -o device 2>/dev/null || true)
+  if [[ -z $devices ]]; then
+    echo "The home drive ($uuid) is not connected; it is erased the next time it is." >&2
+    return 1
+  fi
+  # A cloned drive: which of them is the home cannot be told.
+  if [[ $devices == *$'\n'* ]]; then
+    refuse_erase "more than one device has the uuid $uuid ($(tr '\n' ' ' <<<"$devices"))"
+    return 2
+  fi
+  device=$devices
+  type=$(lsblk -ndo TYPE "$device" 2>/dev/null || true)
+  case $type in
+    disk) disk=$device ;;
+    part) disk=$(lsblk -ndpo PKNAME "$device" 2>/dev/null || true) ;;
+    *)
+      refuse_erase "$device is a ${type:-device of unknown type}, not a partition or a disk"
+      return 2
+      ;;
+  esac
+  if [[ -z $disk ]]; then
+    refuse_erase "the disk of $device cannot be found"
+    return 2
+  fi
+  if [[ $target == "disk" ]]; then
+    erase_target=$disk
+  else
+    erase_target=$device
+  fi
+  # The disk the reset saw, not another one that got the home's partition
+  # copied onto it since.
+  if [[ $target == "disk" && -n $ptuuid && $(blkid -o value -s PTUUID "$disk" 2>/dev/null || true) != "$ptuuid" ]]; then
+    refuse_erase "$disk does not have the partition table it had at the reset"
+    return 2
+  fi
+
+  system_disks=$(home_drive_system_disks)
+  if grep -qx unknown <<<"$system_disks"; then
+    echo "Cannot tell which disks this system is on, so nothing is erased; it is tried again at the next boot." >&2
+    return 1
+  fi
+  if grep -qxF -- "$disk" <<<"$system_disks"; then
+    refuse_erase "$disk holds this system"
+    return 2
+  fi
+  if home_drive_in_use "$erase_target"; then
+    refuse_erase "$erase_target is mounted or in use"
+    return 2
+  fi
+
+  if home_drive_erase "$erase_target"; then
+    rm -f "$file"
+    return 0
+  fi
+  # Kept for the next boot: an erase that did not happen is not done.
+  echo "Erasing $erase_target failed; it is tried again at the next boot." >&2
+  return 1
+}
+
+status=0
+erase_pending_home_drive || status=$?
+# Done or dropped: the service has nothing left to do at later boots.
+if [[ ! -f $PROVISIONING_DIR/erase-home-drive ]]; then
+  rm -f /etc/systemd/system/multi-user.target.wants/omarchy-factory-reset-erase-home.service \
+    /etc/systemd/system/omarchy-factory-reset-erase-home.service \
+    /usr/local/sbin/omarchy-factory-reset-erase-home /usr/local/lib/omarchy/home-drive.sh
+fi
+case $status in
+  0) echo "home drive erased" ;;
+  2) echo "home drive not erased: the erase was refused" ;;
+  *) echo "home drive not erased yet; it is tried again at the next boot" ;;
+esac

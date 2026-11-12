@@ -21,6 +21,8 @@ awk '
   copying { print }
   /^}/ { copying = 0 }
 ' "$ROOT/bin/omarchy-system-factory-reset" >"$test_tmp/functions"
+# The script sources the home drive helpers at its top, outside any function.
+printf 'source %q\n' "$ROOT/install/provisioning/home-drive.sh" >>"$test_tmp/functions"
 
 cat >"$test_tmp/reset" <<'SH'
 #!/bin/bash
@@ -105,6 +107,12 @@ EOF
   printf 'seller:100000:65536\n' >"$factory/etc/subuid"
   printf 'seller:100000:65536\n' >"$factory/etc/subgid"
   chmod 600 "$factory/etc/"{shadow,gshadow}
+  # Installed with home on another drive: the baseline holds its mount
+  # entries and the keyfile that unlocks it.
+  printf 'UUID=r / btrfs rw,noatime,subvol=/@ 0 0\nUUID=h /home xfs defaults,nofail 0 2\n' >"$factory/etc/fstab"
+  printf 'home UUID=l /etc/cryptsetup-keys.d/home.key luks,nofail\n' >"$factory/etc/crypttab"
+  mkdir -p "$factory/etc/cryptsetup-keys.d"
+  printf 'secret' >"$factory/etc/cryptsetup-keys.d/home.key"
   for file in passwd shadow group gshadow subuid subgid; do
     cp "$factory/etc/$file" "$factory/etc/$file-"
   done
@@ -119,6 +127,10 @@ assert_scrubbed() {
   [[ ! -e $root/home/seller ]] || fail "reset removes the seller's baseline home"
   grep -q '^daemon:\*:' "$root/etc/shadow" || fail "reset preserves service accounts"
   [[ $(stat -c '%a' "$root/etc/shadow") == "600" ]] || fail "shadow stays private"
+  [[ ! -e $root/etc/cryptsetup-keys.d/home.key ]] || fail "reset leaves no key to the old home drive"
+  ! grep -q '^home ' "$root/etc/crypttab" || fail "reset drops the old home drive from crypttab"
+  grep -qx 'UUID=r /home btrfs rw,noatime,subvol=/@home 0 0' "$root/etc/fstab" ||
+    fail "reset mounts the image's own @home again" "$(cat "$root/etc/fstab")"
   for file in passwd shadow group gshadow subuid subgid; do
     [[ ! -e $root/etc/$file- ]] || fail "reset removes the $file backup"
   done

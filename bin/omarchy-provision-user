@@ -81,6 +81,20 @@ else
   }
 fi
 
+# A home adopted from another drive (the installer sets OMARCHY_ADOPTED_HOME)
+# already has a life: provisioning adds what is missing and replaces nothing
+# its owner set up.
+adopted_home=${OMARCHY_ADOPTED_HOME:-0}
+
+# Link a skill, replacing an older link unless the home is adopted, where a
+# link the owner already has stays theirs.
+link_skill() {
+  if [[ $adopted_home == "1" && ( -e $2 || -L $2 ) ]]; then
+    return 0
+  fi
+  ln -sfn "$1" "$2"
+}
+
 # Dev-aware skill symlinks. Cannot live in /etc/skel because OMARCHY_PATH may
 # point at a dev checkout (omarchy dev link) where the target differs.
 # Loops every skill directory, so shipping a new one needs no edit here.
@@ -88,17 +102,17 @@ mkdir -p ~/.agents/skills ~/.claude/skills ~/.codex/skills ~/.pi/agent/skills ~/
 for skill in "$OMARCHY_PATH"/default/agents/skills/*/; do
   skill=${skill%/}
   name=${skill##*/}
-  ln -sfn "$skill" ~/.agents/skills/"$name"
-  ln -sfn "$skill" ~/.claude/skills/"$name"
-  ln -sfn "$skill" ~/.codex/skills/"$name"
-  ln -sfn "$skill" ~/.pi/agent/skills/"$name"
-  ln -sfn "$skill" ~/.gemini/config/skills/"$name"
-  ln -sfn "$skill" ~/.hermes/skills/"$name"
+  link_skill "$skill" ~/.agents/skills/"$name"
+  link_skill "$skill" ~/.claude/skills/"$name"
+  link_skill "$skill" ~/.codex/skills/"$name"
+  link_skill "$skill" ~/.pi/agent/skills/"$name"
+  link_skill "$skill" ~/.gemini/config/skills/"$name"
+  link_skill "$skill" ~/.hermes/skills/"$name"
   if [[ -d ~/.hermes/profiles ]]; then
     for profile in ~/.hermes/profiles/*/; do
       [[ -d $profile ]] || continue
       mkdir -p "$profile/skills"
-      ln -sfn "$skill" "$profile/skills/$name"
+      link_skill "$skill" "$profile/skills/$name"
     done
   fi
 done
@@ -108,9 +122,12 @@ done
 "$OMARCHY_PATH/bin/omarchy-agent-instructions" >/dev/null || true
 
 mkdir -p ~/Downloads ~/Pictures ~/Videos ~/.config/gtk-3.0
-xdg-user-dirs-update --set TEMPLATES "$HOME"
-xdg-user-dirs-update --set PUBLICSHARE "$HOME"
-xdg-user-dirs-update --set DESKTOP "$HOME"
+for dir in TEMPLATES PUBLICSHARE DESKTOP; do
+  if [[ $adopted_home == "1" ]] && grep -q "^XDG_${dir}_DIR=" "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" 2>/dev/null; then
+    continue
+  fi
+  xdg-user-dirs-update --set "$dir" "$HOME"
+done
 # Name the rest now, so a first login in another language does not create
 # translated folders beside the English ones Omarchy made and bookmarked. A
 # folder the user already named, in any language, stays theirs.
@@ -119,7 +136,9 @@ for dir in DOWNLOAD:Downloads PICTURES:Pictures VIDEOS:Videos DOCUMENTS:Document
   grep -q "^XDG_${dir%%:*}_DIR=" "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" 2>/dev/null ||
     { mkdir -p "$HOME/${dir#*:}" && xdg-user-dirs-update --set "${dir%%:*}" "$HOME/${dir#*:}"; }
 done
-rmdir ~/Templates ~/Public ~/Desktop 2>/dev/null || true
+if [[ $adopted_home != "1" ]]; then
+  rmdir ~/Templates ~/Public ~/Desktop 2>/dev/null || true
+fi
 touch ~/.config/gtk-3.0/bookmarks
 for dir in Downloads Projects Pictures Videos; do
   bookmark="file://$HOME/$dir $dir"
@@ -129,10 +148,16 @@ done
 source "$OMARCHY_INSTALL/user/all.sh"
 
 omarchy-refresh-applications
-env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser google-chrome.desktop
-xdg-mime default HEY.desktop x-scheme-handler/mailto
+if [[ $adopted_home != "1" || -z $(env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings get default-web-browser 2>/dev/null) ]]; then
+  env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser google-chrome.desktop
+fi
+if [[ $adopted_home != "1" || -z $(xdg-mime query default x-scheme-handler/mailto 2>/dev/null) ]]; then
+  xdg-mime default HEY.desktop x-scheme-handler/mailto
+fi
 
-if (( first_install )); then
+# A previous Omarchy home keeps its own migration history (the merge records
+# "markers kept"), so Omarchy's migrations bring it up to date.
+if (( first_install )) && ! grep -qx 'markers kept' "$state_dir/adopted-home" 2>/dev/null; then
   mkdir -p "$state_dir/migrations"
   for migration in "$OMARCHY_PATH"/migrations/*.sh; do
     [[ -f $migration ]] && touch "$state_dir/migrations/$(basename "$migration")"
