@@ -137,6 +137,7 @@ ShellRoot {
 
   function checkIndicatorTray() {
     idleService.setIdleEnabled(true)
+    remoteSessionService.active = false
 
     var component = Qt.createComponent("file://" + rootPath + "/shell/plugins/bar/widgets/Indicators.qml")
     if (component.status !== Component.Ready) {
@@ -147,7 +148,7 @@ ShellRoot {
 
     var tray = component.createObject(root, {
       bar: mockBar,
-      settings: { items: ["StayAwake"] }
+      settings: { items: ["StayAwake", "RemoteSession"] }
     })
     if (!tray) {
       fail("Indicators failed to instantiate: " + component.errorString())
@@ -161,6 +162,10 @@ ShellRoot {
 
       Qt.callLater(function() {
         root.assertTrue(tray.implicitWidth > 0, "inactive indicator tray expands on center hover")
+        remoteSessionService.active = true
+        root.assertTrue(tray.activeIndicatorIds.indexOf("RemoteSession") !== -1, "remote session appears immediately while controls are revealed")
+        remoteSessionService.active = false
+        root.assertTrue(tray.activeIndicatorIds.indexOf("RemoteSession") === -1, "remote session disappears immediately while controls are revealed")
         mockBar.centerSectionRevealHeld = false
 
         Qt.callLater(function() {
@@ -203,11 +208,102 @@ ShellRoot {
 
   function checkInactiveOrders(cases) {
     if (cases.length === 0) {
-      writeResult()
+      checkTogglePositions([["start", false, false], ["end", false, false], ["start", true, false], ["end", true, false], ["end", false, true]])
       return
     }
     checkInactiveOrder(cases[0], function() {
       root.checkInactiveOrders(cases.slice(1))
+    })
+  }
+
+  function checkTogglePositions(cases) {
+    if (cases.length === 0) {
+      writeResult()
+      return
+    }
+    var edge = cases[0][0], vertical = cases[0][1], alwaysShow = cases[0][2]
+    var label = "nightlight toggle " + edge + (vertical ? " vertical" : " horizontal") + (alwaysShow ? " always shown" : "")
+    nightlightService.setNightlight(false)
+    notificationService.doNotDisturb = false
+    idleService.setIdleEnabled(false)
+    mockBar.vertical = vertical
+    mockBar.centerSectionRevealHeld = false
+    var component = Qt.createComponent("file://" + rootPath + "/shell/plugins/bar/widgets/Indicators.qml")
+    var tray = component.createObject(root, {
+      fixedEdge: edge,
+      bar: mockBar,
+      settings: { items: ["Dnd", "NightLight", "StayAwake"], alwaysShow: alwaysShow }
+    })
+
+    function position(slot) {
+      var point = slot.mapToItem(tray, 0, 0)
+      var at = vertical ? point.y : point.x
+      return edge === "start" ? at : (vertical ? tray.height : tray.width) - at
+    }
+
+    function toggleTwice(block, done) {
+      root.layOut(tray)
+      var slot = root.indicatorSlot(tray, block, "NightLight")
+      function findButton(item) {
+        if (typeof item.triggerPress === "function") return item
+        var children = item.children || []
+        for (var i = 0; i < children.length; i++) {
+          var found = findButton(children[i])
+          if (found) return found
+        }
+        return null
+      }
+      var button = findButton(slot)
+      var before = position(slot)
+      var tooltip = button.tooltipText
+      var enabled = nightlightService.enabled
+      button.triggerPress(Qt.LeftButton)
+      Qt.callLater(function() {
+        root.layOut(tray)
+        root.assertTrue(nightlightService.enabled !== enabled, label + ": click changes the service state")
+        if (typeof button.triggerPress !== "function") {
+          root.fail(label + ": toggling destroys the clicked icon")
+          done()
+          return
+        }
+        root.assertTrue(slot.width > 0 && slot.height > 0 && position(slot) === before,
+          label + ": " + block + " icon keeps its click target after toggling")
+        root.assertTrue(button.tooltipText !== tooltip, label + ": tooltip follows the new state")
+        button.triggerPress(Qt.LeftButton)
+        Qt.callLater(function() {
+          root.layOut(tray)
+          root.assertTrue(nightlightService.enabled === enabled, label + ": same button toggles back")
+          root.assertTrue(position(slot) === before, label + ": toggling back keeps the icon in place")
+          done()
+        })
+      })
+    }
+
+    Qt.callLater(function() {
+      mockBar.centerSectionRevealHeld = true
+      Qt.callLater(function() {
+        toggleTwice("inactive", function() {
+          mockBar.centerSectionRevealHeld = false
+          tray.settings = { items: ["Dnd", "NightLight", "StayAwake"] }
+          nightlightService.setNightlight(true)
+          Qt.callLater(function() {
+            mockBar.centerSectionRevealHeld = true
+            Qt.callLater(function() {
+              toggleTwice("active", function() {
+                nightlightService.setNightlight(false)
+                mockBar.centerSectionRevealHeld = false
+                Qt.callLater(function() {
+                  root.assertTrue(tray.activeIndicatorIds.indexOf("NightLight") === -1,
+                    label + ": inactive icon leaves the collapsed active block")
+                  tray.destroy()
+                  mockBar.vertical = false
+                  root.checkTogglePositions(cases.slice(1))
+                })
+              })
+            })
+          })
+        })
+      })
     })
   }
 
