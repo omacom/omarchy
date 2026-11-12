@@ -57,7 +57,7 @@ user_bindings="$HOME/.config/hypr/bindings.lua"
 if [[ -f $user_bindings ]] &&
   grep -q -- '-- flea --default: begin' "$user_bindings" &&
   grep -q -- '-- flea --default: end' "$user_bindings"; then
-  sed -i '/-- flea --default: begin/,/-- flea --default: end/d' "$user_bindings"
+  sed -i --follow-symlinks '/-- flea --default: begin/,/-- flea --default: end/d' "$user_bindings"
   hyprctl reload >/dev/null 2>&1 || true
 fi
 
