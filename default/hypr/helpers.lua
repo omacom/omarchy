@@ -13,10 +13,15 @@ o.shell_quote = shell_quote
 -- Chromium-based browsers, web apps included.
 o.chromium_browsers = "((google-)?[cC]hrom(e|ium)|[bB]rave-browser|[mM]icrosoft-edge|Vivaldi-stable|helium)"
 
--- Apps that draw their own frame with maximize and close buttons: those
--- browsers, their web apps (Chromium names an --app window chrome-<host>_<path>-<profile>),
--- and GNOME apps with a header bar. Floating workspaces give them no titlebar.
--- Rule classes match the whole name.
+-- Apps that draw their own header with a close button: those browsers, their
+-- web apps (Chromium names an --app window chrome-<host>_<path>-<profile>), and
+-- GNOME apps with a header bar. Floating workspaces give them no titlebar. Rule
+-- classes match the whole name.
+--
+-- Their maximize button stays off (GNOME's default button layout) and their
+-- maximize requests stay suppressed: Hyprland reports every app as maximized and
+-- takes any maximize request as a toggle, so Chrome's request to return to
+-- "maximized" after leaving fullscreen would maximize a normal window.
 o.self_framed_apps = "(" .. o.chromium_browsers .. "|chrome-.+|org\\.gnome\\.(DiskUtility|Papers))"
 
 local function file_exists(path)
