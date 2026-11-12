@@ -1,4 +1,4 @@
-echo "Show the disk unlock prompt on the Lenovo IdeaCentre Mini 01Q8X10 (Snapdragon X Elite and X Plus)"
+echo "Show the disk unlock prompt on the Lenovo IdeaCentre Mini 01Q8X10 (Snapdragon X Plus and Snapdragon X)"
 
 # See install/hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh.
 rebuild_marker="${OMARCHY_LIMINE_REBUILD_MARKER:-/var/lib/omarchy/migrations/1794481999}"
