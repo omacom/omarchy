@@ -9,10 +9,12 @@ default_browser=$(omarchy-cmd-default-browser)
 # the same order, so the command always comes from the entry that was checked.
 IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 browser_exec=""
+browser_class=""
 for data_dir in "${data_dirs[@]}"; do
   entry="$data_dir/applications/$default_browser"
   [[ -f $entry ]] || continue
   browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
+  browser_class=$(sed -n 's/^StartupWMClass=//p' "$entry" | head -1)
   break
 done
 
@@ -53,5 +55,13 @@ for argument in "$@"; do
 done
 
 if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-  omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable).*$" || true
+  # The binary name is only a guess at the window class (Zen runs zen-bin as
+  # class zen), so prefer the class the desktop entry declares.
+  if [[ -n $browser_class ]]; then
+    focus_pattern="^$(sed 's/[][\.*^$+?(){}|]/\\&/g' <<<"$browser_class")$"
+  else
+    focus_pattern="^$(basename "$browser_exec" -stable).*$"
+  fi
+
+  omarchy-hyprland-focus-app "$focus_pattern" || true
 fi
