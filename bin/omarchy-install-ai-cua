@@ -15,9 +15,11 @@ omarchy-pkg-add cua-driver-bin
 
 # The driver takes its native Wayland backend only when this reaches the
 # process serving the calls. default/hypr/envs.lua exports it at login once the
-# driver is installed; this hands it to the session already running.
-systemctl --user set-environment CUA_DRIVER_RS_ENABLE_WAYLAND=1 2>/dev/null || true
-dbus-update-activation-environment CUA_DRIVER_RS_ENABLE_WAYLAND=1 2>/dev/null || true
+# driver is installed; this sets it in the Hyprland already running, which is
+# where a terminal opened from a keybinding gets its environment. Nothing is
+# written to systemd's user manager: a variable set there outlives the session
+# and the driver's removal whenever the manager does.
+hyprctl eval 'hl.env("CUA_DRIVER_RS_ENABLE_WAYLAND", "1")' &>/dev/null || true
 
 # The skill pack is what teaches an agent the driver's snapshot-then-act loop:
 # the driver fetches the release matching its own version and links it into
@@ -69,7 +71,8 @@ else
 fi
 
 echo ""
-echo "Cua Driver has been installed."
+echo "Cua Driver has been installed. A terminal opened with its keybinding carries the driver's"
+echo "Wayland setting from now on; everything else picks it up at the next login."
 if [[ $skills_installed == true ]]; then
   echo "Agents pick up the Cua skills in their next session."
 fi
