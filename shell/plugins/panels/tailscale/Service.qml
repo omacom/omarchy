@@ -428,7 +428,10 @@ Item {
   }
 
   function setExitNode(peer) {
-    if (!installed || !running || !peer || exitNodeProcess.running) return
+    // An exit-node command landing inside a rename's temporary profile
+    // switch would apply the exit node to the wrong profile, or have its own
+    // target swapped underneath it.
+    if (!installed || !running || !peer || exitNodeProcess.running || renameProcess.running || switchProcess.running) return
     var active = peer.ExitNode === true
     var target = active ? "" : exitNodeTarget(peer)
     if (!active && target === "") return
