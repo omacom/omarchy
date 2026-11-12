@@ -18,7 +18,12 @@ export PATH="$OMARCHY_PATH/bin:/usr/local/bin:/usr/bin:$PATH"
 DOWNLOAD_DIR="${OMARCHY_YTDLP_DIR:-$HOME/Videos}"
 
 parse_url() {
-  jq -r '.url // empty' 2>/dev/null <<<"$1" || true
+  parse_field "$1" url
+}
+
+# Read one string field from the extension's message; anything else reads as empty.
+parse_field() {
+  jq -r --arg field "$2" '.[$field] | strings' 2>/dev/null <<<"$1" || true
 }
 
 valid_url() {
@@ -59,6 +64,26 @@ decode_title() {
   printf '%s' "$decoded"
 }
 
+# A stream manifest is usually named master.m3u8 or similar, so a download from one
+# is named after the tab's title instead. Control characters and path separators
+# go, % is doubled because yt-dlp reads -o as a template, and a leading dash or dot
+# would make an option or a hidden file.
+output_template_from_title() {
+  local name=$1
+
+  name=${name//[[:cntrl:]]/}
+  name=${name//\//-}
+  while [[ $name == [-.\ ]* ]]; do
+    name=${name:1}
+  done
+  name=${name:0:120}
+  if [[ -z ${name//[[:space:]]/} ]]; then
+    printf '%s' '%(title)s.%(ext)s'
+  else
+    printf '%s.%%(ext)s' "${name//%/%%}"
+  fi
+}
+
 title_from_file() {
   local name=${1##*/}
   name=${name%.*}
@@ -81,14 +106,27 @@ osd_close() {
 }
 
 download_url() {
-  local url="$1"
+  local url=$1 stream=${2:-} referer=${3:-} page_title=${4:-}
+  local output='%(title)s.%(ext)s' extra=() toast_title=""
 
   mkdir -p "$DOWNLOAD_DIR"
 
   # Don't show anything until yt-dlp confirms there's actually a video to grab.
+  # When it can't read the page, fall back to the stream the page's own player
+  # fetched, which is how course and members-only sites serve their video.
   if ! yt-dlp --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download -- "$url" >/dev/null 2>&1; then
-    omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.none)" "$url"
-    exit 0
+    if [[ -n $stream ]] && valid_url "$stream"; then
+      url=$stream
+      output=$(output_template_from_title "$page_title")
+      # A bare stream's own title is its manifest's filename, so the toast uses the tab's.
+      toast_title=$(decode_title "$(jq -Rn --arg title "$page_title" '$title')") || toast_title=""
+      if [[ -n $referer ]] && valid_url "$referer"; then
+        extra=(--referer "$referer")
+      fi
+    else
+      omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.none)" "$url"
+      exit 0
+    fi
   fi
 
   osd_progress 0
@@ -125,7 +163,7 @@ download_url() {
   done < <(PYTHONUNBUFFERED=1 yt-dlp --no-playlist --no-simulate \
     --quiet --no-warnings --no-exec --no-exec-before-download --progress --newline \
     --progress-template $'download:OMARCHY_PROG\t%(progress._percent_str)s' \
-    --paths "$DOWNLOAD_DIR" -o '%(title)s.%(ext)s' \
+    --paths "$DOWNLOAD_DIR" -o "$output" "${extra[@]}" \
     --print $'after_move:OMARCHY_FILE\t%(filepath)s' \
     --print $'after_move:OMARCHY_TITLE\t%(title)j' \
     -- "$url" 2>&1)
@@ -134,6 +172,7 @@ download_url() {
 
   # after_move only prints on a successful download+move, so a captured path == success.
   if [[ -n $filepath ]]; then
+    [[ -n $toast_title ]] && title=$toast_title
     [[ -n $title ]] || title=$(title_from_file "$filepath")
     ((${#title} > 50)) && title="${title:0:50}…" # keep the toast compact
 
@@ -170,11 +209,11 @@ download_url() {
 }
 
 main() {
-  local length payload url
+  local length payload url stream referer title
 
   # Detached worker: this is what actually runs yt-dlp and fires notifications.
   if [[ ${1:-} == "--download" ]]; then
-    download_url "$2"
+    download_url "$2" "${3:-}" "${4:-}" "${5:-}"
   fi
 
   # Native messaging frame: 4-byte little-endian length prefix, then UTF-8 JSON.
@@ -190,8 +229,16 @@ main() {
   [[ -n $url ]] || exit 0
   valid_url "$url" || exit 0
 
+  # The extension also sends the stream manifest the page fetched, its referer and
+  # the tab title, for pages yt-dlp can't read. Anything malformed is dropped here.
+  stream=$(parse_field "$payload" stream)
+  valid_url "$stream" || stream=""
+  referer=$(parse_field "$payload" referer)
+  valid_url "$referer" || referer=""
+  title=$(parse_field "$payload" title)
+
   # Detach the download so this host exits promptly and frees the browser's port.
-  setsid -f "$SCRIPT_PATH" --download "$url" </dev/null >/dev/null 2>&1
+  setsid -f "$SCRIPT_PATH" --download "$url" "$stream" "$referer" "$title" </dev/null >/dev/null 2>&1
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
