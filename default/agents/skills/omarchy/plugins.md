@@ -64,6 +64,22 @@ Item {
 }
 ```
 
+## Plugin Scrolling
+
+Give every `ListView`, `GridView` and `Flickable` the kit's `WheelScroll`. On its own, a Qt Quick list drops part of the distance when wheel events arrive faster than it animates them, so a mouse with a high-resolution wheel, which sends one notch as several small events, scrolls a fraction of what it should.
+
+```qml
+import QtQuick
+import qs.Ui
+
+ListView {
+  id: list
+  WheelScroll { flickable: list }
+}
+```
+
+It leaves touchpad gestures alone, and anything inside the list that takes the wheel itself, such as a slider, still gets it first. Inside a `ScrollView`, pass `flickable: scrollView.contentItem` and set the `ScrollView`'s `contentWidth` and `contentHeight` yourself: `WheelScroll` joins the content, and a `ScrollView` only measures content that is a single item.
+
 ## Translations
 
 Omarchy runs in 50 languages, and a plugin should follow the one picked under Setup > Language the way the built-in plugins do: live, without a shell restart. Ship the plugin's strings as flat JSON catalogs in an `i18n/` directory beside its QML, one file per Omarchy language code (`en.json`, `da.json`, `pt-BR.json`; `$OMARCHY_PATH/default/i18n/locales.json` lists all 50), and read them through `Commons.Translations`:

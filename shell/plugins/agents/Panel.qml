@@ -1513,6 +1513,7 @@ Panel {
           id: panelScroll
           policy: ScrollBar.AsNeeded
         }
+        WheelScroll { flickable: panelFlick }
 
         Column {
           id: column

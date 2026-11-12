@@ -1653,6 +1653,7 @@ Panel {
         interactive: contentHeight > height
 
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        WheelScroll { flickable: networkList }
 
         model: root.wifiStationAvailable ? root.wifiNetworks : []
         currentIndex: root.selectedIndex
