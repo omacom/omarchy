@@ -227,6 +227,10 @@ Item {
     api.position = Qt.binding(function() { return root.position })
     api.vertical = Qt.binding(function() { return root.vertical })
     api.barSize = Qt.binding(function() { return root.barSize })
+    api.barSizes = Qt.binding(function() {
+      return root.shell && typeof root.shell.detachedBarSizes === "function"
+        ? root.shell.detachedBarSizes(root.screenBarSizes) : ({})
+    })
     api.transparent = Qt.binding(function() { return root.transparent })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
     api.traySectionDragActive = Qt.binding(function() { return root.traySectionDragActive })

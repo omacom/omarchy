@@ -1,4 +1,5 @@
 import QtQuick
+import "../plugins/bar/BarModel.js" as BarModel
 
 // Scalar-only view of the active bar for plugins that position independent
 // windows. The active Bar QObject is never retained here.
@@ -16,8 +17,6 @@ QtObject {
   // The bar's thickness on the screen with this name, to clear the bar by;
   // barSize for a screen the bar reports none for.
   function barSizeFor(screenName) {
-    var name = String(screenName || "")
-    var size = barSizes && Object.prototype.hasOwnProperty.call(barSizes, name) ? Number(barSizes[name]) : 0
-    return size > 0 ? size : barSize
+    return BarModel.barSizeFor(barSizes, screenName, barSize)
   }
 }
