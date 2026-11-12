@@ -125,7 +125,14 @@ BorderSurface {
     : hot                  ? Style.hoverFillFor(root.foreground, root.accent)
     : selected             ? Style.selectedFillFor(root.foreground, root.accent)
     : active               ? Style.selectedFillFor(root.foreground, root.accent)
-    : background
+    : _restingFill
+
+  // ColorAnimation blends RGBA channels without premultiplying, so fading
+  // from a tint to a different color (opaque, or transparent black) passes
+  // through a brighter or darker middle. A clear background rests on the
+  // state tint's own RGB at alpha 0, so only alpha animates.
+  readonly property color _restingFill: background.a > 0 ? background
+    : Qt.rgba(_selectedColor.r, _selectedColor.g, _selectedColor.b, 0)
 
   // Border follows the same state precedence as fill. Buttons stay
   // borderless at rest unless `bordered` is set, but hover-cursor/focus
