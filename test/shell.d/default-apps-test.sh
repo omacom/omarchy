@@ -322,8 +322,10 @@ omarchy-default-editor nvim
 [[ ! -s $install_log && ! -s $terminal_log ]] || fail "installed defaults skip installation"
 pass "installed defaults are selected immediately"
 
-# code.desktop stands for an app the user picked: one that's installed.
-mkdir -p "$test_home/.local/share/applications"
+# code.desktop stands for an app the user picked: one that's installed. The
+# system's own apps are left out, so what's installed here can't decide a case.
+export XDG_DATA_DIRS="$test_tmp/data"
+mkdir -p "$test_tmp/data" "$test_home/.local/share/applications"
 printf '[Desktop Entry]\nExec=true %%F\n' >"$test_home/.local/share/applications/code.desktop"
 
 # Picking an editor points every text type at the editor handler in the
@@ -358,6 +360,16 @@ printf '[Default Applications]\ntext/plain=vscodium-electron.desktop\n' >"$mimea
 omarchy-cmd-editor-mimetypes --unless-chosen
 grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces a choice whose app is gone"
 ! grep -q "^text/plain=vscodium-electron" "$mimeapps" || fail "the migration drops the line for an app that's gone"
+printf '[Default Applications]\ntext/plain=vscodium-electron.desktop;code.desktop;\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=vscodium-electron.desktop;code.desktop;" "$mimeapps" || fail "the migration keeps a choice whose next app is installed"
+mkdir -p "$test_tmp/linked"
+printf '[Desktop Entry]\nExec=true %%F\n' >"$test_tmp/linked/linked.desktop"
+ln -s "$test_tmp/linked" "$test_tmp/data/applications"
+printf '[Default Applications]\ntext/plain=linked.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=linked.desktop" "$mimeapps" || fail "the migration keeps a choice installed in a linked applications folder"
+rm "$test_tmp/data/applications"
 mkdir -p "$test_home/.local/share/applications"
 printf '[Default Applications]\ntext/x-java=code.desktop\ntext/x-tcl=nvim.desktop\n' >"$test_home/.local/share/applications/mimeapps.list"
 printf '[Default Applications]\n' >"$mimeapps"

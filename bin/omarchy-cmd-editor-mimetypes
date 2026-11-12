@@ -48,14 +48,15 @@ aliases=/usr/share/mime/aliases
 [[ -f $aliases ]] || aliases=/dev/null
 
 # The apps that are installed, by desktop ID (a subfolder's / read as -, as
-# GLib names them). A type pointed at one that's gone was a choice once, but
-# GLib skips it and opens the type in whatever it finds next, so it's
-# replaced like Omarchy's own past defaults.
+# GLib names them), following linked folders. A type's line opens the first
+# installed app it lists; one that lists none was a choice once, but GLib
+# skips it and opens the type in whatever it finds next, so it's replaced
+# like Omarchy's own past defaults.
 installed=$(
   IFS=:
   for dir in ${XDG_DATA_HOME:-$HOME/.local/share} ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
     if [[ -d $dir/applications ]]; then
-      find "$dir/applications" -name '*.desktop' -printf '%P\n' 2>/dev/null | tr / - || true
+      find -L "$dir/applications" -name '*.desktop' -printf '%P\n' 2>/dev/null | tr / - || true
     fi
   done
 )
@@ -64,6 +65,12 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
   function ours(app) { return app == "nvim.desktop" || app == "plain.desktop" || app == handler }
   function chose(app) { return !ours(app) && (app in present) }
+  # The app a line opens: the first one it lists that is installed.
+  function opens(value,   apps, count, i) {
+    count = split(value, apps, ";")
+    for (i = 1; i <= count; i++) if (trim(apps[i]) in present) return trim(apps[i])
+    return trim(apps[1])
+  }
   function canon(t) { return (t in alias) ? alias[t] : t }
   BEGIN {
     while ((getline pair < aliases) > 0) { split(pair, part, " "); alias[part[1]] = part[2] }
@@ -81,7 +88,7 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
   }
   {
     type = $0; sub(/=.*/, "", type); type = trim(type)
-    app = $0; sub(/\r$/, "", app); sub(/^[^=]*=/, "", app); sub(/;.*/, "", app); app = trim(app)
+    app = $0; sub(/\r$/, "", app); sub(/^[^=]*=/, "", app); app = opens(app)
   }
   # GLib reads a key by its last line, and among the names of one type
   # (aliases) the one listed first decides, so record both orders.
