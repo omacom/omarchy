@@ -46,6 +46,26 @@ update_one() {
   valid_plugin_id "$old_id" || return 1
   old_head=$(git -C "$dir" rev-parse HEAD) || return 1
 
+  # A prior update may have merged a rename before it saved references or
+  # moved the directory. Finish that transition before accepting another ID.
+  if [[ $folder_id != $old_id ]] && jq -e --arg old "$folder_id" '(.renamedFrom // []) | index($old) != null' "$dir/manifest.json" >/dev/null; then
+    if [[ -n $(git -C "$dir" status --porcelain) ]]; then
+      echo "omarchy-plugin-update: commit or discard local changes before recovering '$folder_id'" >&2
+      return 1
+    fi
+    omarchy-plugin-validate "$dir" || return 1
+    if migrated=$(omarchy-plugin-id migrate "$dir" "$folder_id"); then
+      echo "Recovered pending rename $folder_id to $migrated."
+      dir="$PLUGINS_DIR/$migrated"
+      folder_id="$migrated"
+      MIGRATED_ANY=1
+      UPDATED_ANY=1
+    else
+      echo "omarchy-plugin-update: recover '$folder_id' before updating '$old_id'" >&2
+      return 1
+    fi
+  fi
+
   if ! git -C "$dir" fetch --quiet origin HEAD; then
     echo "omarchy-plugin-update: fetch failed for '$old_id'" >&2
     return 1

@@ -278,6 +278,29 @@ run([str(root / "bin/omarchy-plugin-remove"), old, "--yes"], env)
 assert not (plugins / latest).exists()
 print("PASS: declared renames preserve settings, placement and state; old IDs support update, enable, disable, bar get and removal", flush=True)
 
+# Persist the Git merge an interrupted updater left before saving references.
+# A newer upstream rename must not skip the ID still in the user's config.
+case, plugins, config, original, env = fixture("interrupted-rename-chain")
+run(["git", "-C", str(plugins / old), "fetch", "-q", "origin", "HEAD"])
+run(["git", "-C", str(plugins / old), "merge", "--ff-only", "FETCH_HEAD"])
+upstream = case / "upstream"
+third = "acme.final-name"
+manifest = json.loads((upstream / "manifest.json").read_text())
+manifest.update(id=third, renamedFrom=[old, new])
+(upstream / "manifest.json").write_text(json.dumps(manifest))
+run(["git", "-C", str(upstream), "add", "."])
+run(["git", "-C", str(upstream), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "Later rename"])
+update(env)
+value = json.loads(config.read_text())
+assert value["plugins"] == [{"id": third, "custom": {"text": old}}], value
+assert value["bar"]["layout"]["right"][0] == {"id": third, "value": 42}
+assert value["bar"]["id"] == third
+assert value["disabledPlugins"] == value["cloneSourceRestores"] == [third]
+assert value["pluginIdAliases"] == {old: third, new: third}
+assert (plugins / third).is_dir() and not (plugins / old).exists() and not (plugins / new).exists()
+update(env, old)
+print("PASS: recovery finishes the saved ID migration before accepting another rename", flush=True)
+
 for kind in ("undeclared", "target-directory", "target-symlink", "duplicate-id", "saved-target", "dirty", "read-only", "move-failure"):
   case, plugins, config, original, env = fixture(kind, kind != "undeclared")
   if kind == "target-directory":
