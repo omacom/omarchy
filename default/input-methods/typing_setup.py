@@ -10,6 +10,16 @@ import sys
 import configure as setup
 
 
+def localized(command, fallback, *args):
+  try:
+    result = subprocess.run(command.split() + list(args), text=True, capture_output=True)
+    if result.returncode == 0 and (result.stdout or "").strip():
+      return result.stdout.strip()
+  except (OSError, subprocess.CalledProcessError):
+    pass
+  return fallback
+
+
 def keyboard_catalog():
   # Read the same choices as the ISO and first-boot form, then convert console
   # keymaps through systemd's mapping, just as localectl does during install.
@@ -113,7 +123,8 @@ def load_engines(names, catalog):
             if subprocess.run(["omarchy-pkg-present", package], capture_output=True).returncode]
   if absent or any(name not in setup.PRESETS for name in names):
     labels = ", ".join(catalog.get(name, name) for name in names)
-    raise RuntimeError(f"Install {' '.join(absent) or 'its engine'} to use {labels}")
+    missing = " ".join(absent) or "its engine"
+    raise RuntimeError(localized("omarchy-i18n input.installEngineToUse", f"Install {missing} to use {labels}", missing, labels))
   # Fcitx discovers engines only at startup, so one installed while it was
   # running (by an update, say) needs a restart before it can be selected.
   setup.run(["omarchy-restart-xcompose"])
@@ -163,7 +174,7 @@ def seed_language(method):
 
 def keyboard_values(selected):
   if not selected:
-    raise ValueError("Select at least one keyboard layout")
+    raise ValueError(localized("omarchy-i18n input.keyboardLayoutRequired", "Select at least one keyboard layout"))
   parts = [value.split(":", 1) for value in selected]
   # Preserve the installer's Latin-leading rule for desktop keybindings.
   if parts[0][0] in setup.NON_LATIN:
@@ -190,7 +201,7 @@ def save_keyboard(selected):
     expected = [layout + (":" + variant if variant else "")
                 for layout, variant in zip(layouts.split(","), variants.split(","))]
     if keyboard_selection() != expected:
-      raise RuntimeError("Your personal keyboard layout override takes precedence over this selection")
+      raise RuntimeError(localized("omarchy-i18n input.keyboardLayoutOverride", "Your personal keyboard layout override takes precedence over this selection"))
     first_layout = layouts.split(",")[0]
     first_variant = variants.split(",")[0]
     group_layout = first_layout + ("-" + first_variant if first_variant else "")
