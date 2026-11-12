@@ -399,7 +399,9 @@ Item {
     var accountId = String(id || "")
     // A switch racing an in-flight rename would move the daemon between the
     // rename's switch and its set --nickname, renaming the wrong profile.
-    if (!installed || accountId === "" || accountId === selectedAccountId || switchProcess.running || renameProcess.running) return
+    // Also wait out an in-flight exit-node change: its target profile is
+    // resolved from the same selectedAccountId this switch would move.
+    if (!installed || accountId === "" || accountId === selectedAccountId || switchProcess.running || renameProcess.running || exitNodeProcess.running) return
     _switchOutput = ""
     _switchError = ""
     switchingAccountId = accountId
@@ -408,7 +410,7 @@ Item {
   }
 
   function renameAccount(id, nickname) {
-    if (!installed || renameProcess.running || switchProcess.running) return
+    if (!installed || renameProcess.running || switchProcess.running || exitNodeProcess.running) return
     var plan = Model.renamePlan(id, selectedAccountId, nickname)
     if (!plan) return
     _renameOutput = ""

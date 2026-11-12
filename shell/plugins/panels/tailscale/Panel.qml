@@ -1148,7 +1148,10 @@ Panel {
     function beginRename() {
       if (!account || switchingAccount || renameInFlight) return
       root.editingAccountId = String(account.id || "")
-      root.editingDraft = ""
+      // Seed the draft with the current label: if the field already shows
+      // that text, no textChanged fires and a rebuilt row would otherwise
+      // restore an empty editor.
+      root.editingDraft = accountText
       renameField.text = accountText
       renameField.forceActiveFocus()
       renameField.selectAll()
@@ -1164,16 +1167,16 @@ Panel {
     }
 
     // A delegate rebuilt by an accounts refresh mid-edit comes back with an
-    // empty, unfocused editor; put the panel-level draft back into it.
+    // empty, unfocused editor; put the panel-level draft back into it, even
+    // when the user had cleared the field on purpose.
     Component.onCompleted: {
-      if (renaming && root.editingDraft !== "") {
-        renameField.text = root.editingDraft
-        Qt.callLater(function() {
-          if (!accountRow.renaming) return
-          renameField.forceActiveFocus()
-          renameField.selectAll()
-        })
-      }
+      if (!accountRow.renaming) return
+      renameField.text = root.editingDraft
+      Qt.callLater(function() {
+        if (!accountRow.renaming) return
+        renameField.forceActiveFocus()
+        renameField.selectAll()
+      })
     }
 
     // Declared before the row content so the pen button stacks above it and
