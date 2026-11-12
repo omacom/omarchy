@@ -611,6 +611,8 @@
   "tailscale.phrase7": "نختم المنافذ",
   "tailscale.phrase8": "نفرز شبكات tailnet",
   "tailscale.phrase9": "نخلط المفاتيح",
+  "tailscale.renameConnection": "إعادة تسمية الاتصال",
+  "tailscale.renameFailed": "تعذر إعادة تسمية اتصال Tailscale",
   "tailscale.searchMachines": "البحث عن الأجهزة  ( / )",
   "tailscale.searchRegions": "بحث عن مناطق",
   "tailscale.sendFiles": "إرسال الملفات",

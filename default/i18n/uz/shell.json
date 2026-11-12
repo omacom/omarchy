@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Portlar muhrlanyapti",
   "tailscale.phrase8": "Tailnetlar saralanyapti",
   "tailscale.phrase9": "Kalitlar aralashtirilyapti",
+  "tailscale.renameConnection": "Ulanishni qayta nomlash",
+  "tailscale.renameFailed": "Tailscale ulanishini qayta nomlash amalga oshmadi",
   "tailscale.searchMachines": "Qurilmalarni qidirish  ( / )",
   "tailscale.searchRegions": "Mintaqalarni qidirish",
   "tailscale.sendFiles": "Fayllarni yuborish",

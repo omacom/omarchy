@@ -572,6 +572,8 @@
   "tailscale.phrase7": "A selar portas",
   "tailscale.phrase8": "A ordenar tailnets",
   "tailscale.phrase9": "A baralhar chaves",
+  "tailscale.renameConnection": "Renomear ligação",
+  "tailscale.renameFailed": "Não foi possível renomear a ligação Tailscale",
   "tailscale.searchMachines": "Procurar máquinas  ( / )",
   "tailscale.searchRegions": "Procurar regiões",
   "tailscale.sendFiles": "Enviar ficheiros",

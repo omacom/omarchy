@@ -546,6 +546,8 @@
   "tailscale.phrase7": "Niêm phong cổng",
   "tailscale.phrase8": "Gỡ rối tailnet",
   "tailscale.phrase9": "Xáo trộn khóa",
+  "tailscale.renameConnection": "Đổi tên kết nối",
+  "tailscale.renameFailed": "Không thể đổi tên kết nối Tailscale",
   "tailscale.searchMachines": "Tìm thiết bị  ( / )",
   "tailscale.searchRegions": "Tìm khu vực",
   "tailscale.sendFiles": "Gửi tệp",

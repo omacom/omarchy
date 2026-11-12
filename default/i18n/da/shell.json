@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Forsegler porte",
   "tailscale.phrase8": "Sorterer tailnets",
   "tailscale.phrase9": "Blander nøgler",
+  "tailscale.renameConnection": "Omdøb forbindelse",
+  "tailscale.renameFailed": "Kunne ikke omdøbe Tailscale-forbindelse",
   "tailscale.searchMachines": "Søg maskiner  ( / )",
   "tailscale.searchRegions": "Søg regioner",
   "tailscale.sendFiles": "Send filer",

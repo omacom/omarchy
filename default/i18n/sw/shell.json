@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Inaziba milango",
   "tailscale.phrase8": "Inapanga tailnet",
   "tailscale.phrase9": "Inachanganya funguo",
+  "tailscale.renameConnection": "Badilisha jina la muunganiko",
+  "tailscale.renameFailed": "Imeshindwa kubadilisha jina la muunganiko wa Tailscale",
   "tailscale.searchMachines": "Tafuta mashine  ( / )",
   "tailscale.searchRegions": "Tafuta maeneo",
   "tailscale.sendFiles": "Tuma faili",

@@ -572,6 +572,8 @@
   "tailscale.phrase7": "אוטם פורטים",
   "tailscale.phrase8": "ממיין tailnets",
   "tailscale.phrase9": "מערבב מפתחות",
+  "tailscale.renameConnection": "שינוי שם חיבור",
+  "tailscale.renameFailed": "לא ניתן לשנות את שם חיבור Tailscale",
   "tailscale.searchMachines": "חיפוש מכונות  ( / )",
   "tailscale.searchRegions": "חיפוש אזורים",
   "tailscale.sendFiles": "שליחת קבצים",

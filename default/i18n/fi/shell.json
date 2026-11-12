@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Sinetöidään portteja",
   "tailscale.phrase8": "Järjestellään tailneteja",
   "tailscale.phrase9": "Sekoitetaan avaimia",
+  "tailscale.renameConnection": "Nimeä yhteys uudelleen",
+  "tailscale.renameFailed": "Tailscale-yhteyttä ei voitu nimetä uudelleen",
   "tailscale.searchMachines": "Hae koneita  ( / )",
   "tailscale.searchRegions": "Hae alueita",
   "tailscale.sendFiles": "Lähetä tiedostoja",

@@ -559,6 +559,8 @@
   "tailscale.phrase7": "போர்ட்டுகளை அடைத்தல்",
   "tailscale.phrase8": "tailnet-களை வரிசைப்படுத்துதல்",
   "tailscale.phrase9": "சாவிகளைக் கலக்குதல்",
+  "tailscale.renameConnection": "இணைப்பை மறுபெயரிடு",
+  "tailscale.renameFailed": "Tailscale இணைப்பை மறுபெயரிட முடியவில்லை",
   "tailscale.searchMachines": "சாதனங்களைத் தேடு  ( / )",
   "tailscale.searchRegions": "பகுதிகளைத் தேடு",
   "tailscale.sendFiles": "கோப்புகளை அனுப்பு",

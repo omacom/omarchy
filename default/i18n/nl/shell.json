@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Poorten verzegelen",
   "tailscale.phrase8": "Tailnets sorteren",
   "tailscale.phrase9": "Sleutels husselen",
+  "tailscale.renameConnection": "Verbinding hernoemen",
+  "tailscale.renameFailed": "Kon Tailscale-verbinding niet hernoemen",
   "tailscale.searchMachines": "Machines zoeken  ( / )",
   "tailscale.searchRegions": "Regio's zoeken",
   "tailscale.sendFiles": "Bestanden verzenden",

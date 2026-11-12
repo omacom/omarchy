@@ -572,6 +572,8 @@
   "tailscale.phrase7": "Sigillo porte",
   "tailscale.phrase8": "Ordino tailnet",
   "tailscale.phrase9": "Mescolo chiavi",
+  "tailscale.renameConnection": "Rinomina connessione",
+  "tailscale.renameFailed": "Impossibile rinominare la connessione Tailscale",
   "tailscale.searchMachines": "Cerca macchine  ( / )",
   "tailscale.searchRegions": "Cerca regioni",
   "tailscale.sendFiles": "Invia file",

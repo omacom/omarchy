@@ -546,6 +546,8 @@
   "tailscale.phrase7": "ポートを封印中",
   "tailscale.phrase8": "tailnetを整頓中",
   "tailscale.phrase9": "鍵をシャッフル中",
+  "tailscale.renameConnection": "接続名を変更",
+  "tailscale.renameFailed": "Tailscaleの接続名を変更できませんでした",
   "tailscale.searchMachines": "マシンを検索  ( / )",
   "tailscale.searchRegions": "地域を検索",
   "tailscale.sendFiles": "ファイルを送信",

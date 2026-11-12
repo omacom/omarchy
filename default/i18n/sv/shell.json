@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Förseglar portar",
   "tailscale.phrase8": "Sorterar tailnets",
   "tailscale.phrase9": "Blandar nycklar",
+  "tailscale.renameConnection": "Byt namn på anslutning",
+  "tailscale.renameFailed": "Kunde inte byta namn på Tailscale-anslutning",
   "tailscale.searchMachines": "Sök maskiner  ( / )",
   "tailscale.searchRegions": "Sök regioner",
   "tailscale.sendFiles": "Skicka filer",

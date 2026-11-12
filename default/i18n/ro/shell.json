@@ -572,6 +572,8 @@
   "tailscale.phrase7": "Sigilez porturi",
   "tailscale.phrase8": "Sortez tailneturi",
   "tailscale.phrase9": "Amestec chei",
+  "tailscale.renameConnection": "Redenumește conexiunea",
+  "tailscale.renameFailed": "Nu s-a putut redenumi conexiunea Tailscale",
   "tailscale.searchMachines": "Caută dispozitive  ( / )",
   "tailscale.searchRegions": "Caută regiuni",
   "tailscale.sendFiles": "Trimite fișiere",

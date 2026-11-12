@@ -585,6 +585,8 @@
   "tailscale.phrase7": "Uszczelniam porty",
   "tailscale.phrase8": "Sortuję tailnety",
   "tailscale.phrase9": "Tasuję klucze",
+  "tailscale.renameConnection": "Zmień nazwę połączenia",
+  "tailscale.renameFailed": "Nie udało się zmienić nazwy połączenia Tailscale",
   "tailscale.searchMachines": "Szukaj urządzeń  ( / )",
   "tailscale.searchRegions": "Szukaj regionów",
   "tailscale.sendFiles": "Wyślij pliki",

@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Pitserin porte",
   "tailscale.phrase8": "Sordin tailnete",
   "tailscale.phrase9": "Segan võtmeid",
+  "tailscale.renameConnection": "Nimeta ühendus ümber",
+  "tailscale.renameFailed": "Tailscale ühendust ei õnnestunud ümber nimetada",
   "tailscale.searchMachines": "Otsi masinaid  ( / )",
   "tailscale.searchRegions": "Otsi piirkondi",
   "tailscale.sendFiles": "Saada faile",
