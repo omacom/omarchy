@@ -5,8 +5,9 @@
 # Prints "<desktop-id>\t<version>" for every launcher entry a package owns. The
 # app grid uses it to show the version of the app in focus. The version drops the
 # epoch and package release ("1:2.4.0-3" -> "2.4.0"). Directories go in XDG
-# precedence order and only the entry that wins each id is asked about, so an
-# unowned override of a packaged app stays versionless.
+# precedence order and the first owned entry per id wins, so an unowned
+# override of a packaged app, like Omarchy's own for imv and mpv, still shows
+# the version of the package it launches.
 
 dirs=("${XDG_DATA_HOME:-$HOME/.local/share}/applications")
 IFS=":" read -ra data_dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
@@ -14,7 +15,7 @@ for dir in "${data_dirs[@]}"; do
   dirs+=("$dir/applications")
 done
 
-declare -A seen_ids file_ids
+declare -A file_ids seen_ids
 files=()
 for dir in "${dirs[@]}"; do
   [[ -d $dir ]] || continue
@@ -22,8 +23,6 @@ for dir in "${dirs[@]}"; do
     id="${file#"$dir"/}"
     id="${id%.desktop}"
     id="${id//\//-}"
-    [[ -n ${seen_ids[$id]-} ]] && continue
-    seen_ids[$id]=1
     file_ids[$file]="$id"
     files+=("$file")
   done < <(find -L "$dir" -name "*.desktop" -print0 2>/dev/null | sort -z)
@@ -36,5 +35,8 @@ LC_ALL=C pacman -Qo "${files[@]}" 2>/dev/null | while IFS= read -r line; do
   file="${BASH_REMATCH[1]}"
   version="${BASH_REMATCH[2]#*:}"
   version="${version%-*}"
-  printf '%s\t%s\n' "${file_ids[$file]}" "$version"
+  id="${file_ids[$file]}"
+  [[ -n ${seen_ids[$id]-} ]] && continue
+  seen_ids[$id]=1
+  printf '%s\t%s\n' "$id" "$version"
 done
