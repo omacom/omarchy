@@ -21,6 +21,14 @@ parse_url() {
   jq -r '.url // empty' 2>/dev/null <<<"$1" || true
 }
 
+parse_stream_url() {
+  jq -r '.stream.url // empty | strings' 2>/dev/null <<<"$1" || true
+}
+
+parse_title() {
+  jq -r '.title // empty | strings' 2>/dev/null <<<"$1" || true
+}
+
 valid_url() {
   [[ $1 =~ ^https?:// ]]
 }
@@ -70,6 +78,64 @@ title_from_file() {
   fi
 }
 
+# A stream the page played has no title of its own (a manifest is named
+# index.m3u8 or playlist.m3u8), so its file is named after the page instead.
+# The name lands in yt-dlp's output template, where % is the only markup.
+stream_name() {
+  local LC_ALL=C.UTF-8 name=$1
+
+  name=${name//[[:cntrl:]]/}
+  name=${name//\//_}
+  name=${name:0:60} # 60 characters stay under the 255-byte name limit in any script
+  name="${name#"${name%%[![:space:]]*}"}"
+  name="${name%"${name##*[![:space:]]}"}"
+  while [[ $name == [-.]* ]]; do
+    name=${name:1}
+  done
+  [[ -n $name ]] || name="Video"
+
+  printf '%s' "$name"
+}
+
+# Quote one argument for a yt-dlp config file, which yt-dlp splits like a shell.
+config_quote() {
+  printf "'%s'" "${1//\'/\'\"\'\"\'}"
+}
+
+# The headers the browser sent for the stream (its cookies among them) reach
+# yt-dlp through private files in $1, never the command line, where any process
+# could read them. Cookies go in a cookie file scoped to the stream's host, as
+# the browser scoped them; yt-dlp deprecates passing them as a header.
+write_stream_config() {
+  local dir=$1 payload=$2 stream_url=$3 config=$1/config cookies=$1/cookies
+  local name value host secure="FALSE" pair cookie_name
+
+  [[ $stream_url =~ ^(https?)://([^/?#@]*@)?([^/?#:]+) ]] || return 1
+  host=${BASH_REMATCH[3],,}
+  [[ ${BASH_REMATCH[1]} == "https" ]] && secure="TRUE"
+
+  : >"$config"
+  while IFS= read -r -d '' name && IFS= read -r -d '' value; do
+    [[ -n $value && $value != *[[:cntrl:]]* ]] || continue
+    case ${name,,} in
+    cookie)
+      printf '# Netscape HTTP Cookie File\n' >"$cookies"
+      while IFS= read -r -d ';' pair; do
+        pair="${pair#"${pair%%[![:space:]]*}"}"
+        [[ $pair == *=* ]] || continue
+        cookie_name=${pair%%=*}
+        [[ -n $cookie_name ]] || continue
+        printf '%s\tFALSE\t/\t%s\t0\t%s\t%s\n' "$host" "$secure" "$cookie_name" "${pair#*=}" >>"$cookies"
+      done <<<"$value;"
+      printf -- '--cookies %s\n' "$(config_quote "$cookies")" >>"$config"
+      ;;
+    authorization | referer | origin | user-agent)
+      printf -- '--add-headers %s\n' "$(config_quote "$name:$value")" >>"$config"
+      ;;
+    esac
+  done < <(jq -j '.stream.headers // {} | objects | to_entries[] | select(.value | type == "string") | .key, "\u0000", .value, "\u0000"' 2>/dev/null <<<"$payload")
+}
+
 # Drive the Quickshell OSD — a single overlay that updates in place (like the
 # volume/brightness bar), so download progress never stacks like notifications.
 osd_progress() {
@@ -80,15 +146,36 @@ osd_close() {
   omarchy-shell -q osd close >/dev/null 2>&1 || true
 }
 
+probe() {
+  yt-dlp --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download "$@" >/dev/null 2>&1
+}
+
+# $1 is the page URL; $2 is the extension's whole request, which may carry the
+# stream the page played and the page title for when yt-dlp can't read the page.
 download_url() {
-  local url="$1"
+  local url="$1" payload="${2:-}" stream_url page_title="" config=""
+  local -a source=(-- "$url")
 
   mkdir -p "$DOWNLOAD_DIR"
 
   # Don't show anything until yt-dlp confirms there's actually a video to grab.
-  if ! yt-dlp --no-playlist --simulate --quiet --no-warnings --no-exec --no-exec-before-download -- "$url" >/dev/null 2>&1; then
-    omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.none)" "$url"
-    exit 0
+  if ! probe "${source[@]}"; then
+    stream_url=$(parse_stream_url "$payload")
+    if [[ -n $stream_url && $stream_url != *[[:cntrl:]]* ]] && valid_url "$stream_url"; then
+      config=$(mktemp -d)
+      trap "rm -rf -- $(printf '%q' "$config")" EXIT
+      if write_stream_config "$config" "$payload" "$stream_url"; then
+        page_title=$(stream_name "$(parse_title "$payload")")
+        source=(--config-locations "$config/config" -o "${page_title//%/%%}.%(ext)s" -- "$stream_url")
+      else
+        config=""
+      fi
+    fi
+
+    if [[ -z $config ]] || ! probe "${source[@]}"; then
+      omarchy-notification-send -u critical -g 󰅖 "$(omarchy-i18n download.none)" "$url"
+      exit 0
+    fi
   fi
 
   osd_progress 0
@@ -128,9 +215,12 @@ download_url() {
     --paths "$DOWNLOAD_DIR" -o '%(title)s.%(ext)s' \
     --print $'after_move:OMARCHY_FILE\t%(filepath)s' \
     --print $'after_move:OMARCHY_TITLE\t%(title)j' \
-    -- "$url" 2>&1)
+    "${source[@]}" 2>&1)
 
   osd_close
+
+  # A stream's own title is its manifest's file name; the page's says what it is.
+  [[ -z $page_title ]] || title=$page_title
 
   # after_move only prints on a successful download+move, so a captured path == success.
   if [[ -n $filepath ]]; then
@@ -170,11 +260,14 @@ download_url() {
 }
 
 main() {
-  local length payload url
+  local length payload url request
 
   # Detached worker: this is what actually runs yt-dlp and fires notifications.
+  # It takes the request as a private file, since it may carry the page's cookies.
   if [[ ${1:-} == "--download" ]]; then
-    download_url "$2"
+    payload=$(<"$2")
+    rm -f "$2"
+    download_url "$(parse_url "$payload")" "$payload"
   fi
 
   # Native messaging frame: 4-byte little-endian length prefix, then UTF-8 JSON.
@@ -191,7 +284,9 @@ main() {
   valid_url "$url" || exit 0
 
   # Detach the download so this host exits promptly and frees the browser's port.
-  setsid -f "$SCRIPT_PATH" --download "$url" </dev/null >/dev/null 2>&1
+  request=$(mktemp)
+  printf '%s' "$payload" >"$request"
+  setsid -f "$SCRIPT_PATH" --download "$request" </dev/null >/dev/null 2>&1
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
