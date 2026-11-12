@@ -17,6 +17,8 @@ case "$*" in
   "-j plugin list")
     if [[ ${TEST_PLUGIN_LOADED:-0} == 1 ]]; then echo '[{"name":"cua-hyprland-plugin","handle":"1"}]'; else echo '[]'; fi ;;
   "-j cua:status")
+    # What Hyprland answers while no module is loaded to take the request.
+    if [[ ${TEST_CUA_UNLOADED:-0} == 1 ]]; then echo "unknown request"; exit 0; fi
     if [[ ${TEST_CUA_READY:-0} == 1 ]]; then ready=true; else ready=false; fi
     numlock_capability=""
     if [[ ${TEST_NUMLOCK_COMPATIBLE:-true} != missing ]]; then
@@ -281,6 +283,11 @@ pass "cua input off removes the flag"
 
 [[ $("$toggle" --status) == '{"enabled":false,"loaded":false,"ready":false}' ]] || fail "cua input reports status when off"
 pass "cua input reports status when off"
+
+# Before any module is loaded Hyprland has no cua:status to answer with, and a status meant to be parsed says only that.
+status_output=$(TEST_CUA_UNLOADED=1 "$toggle" --status 2>&1)
+[[ $status_output == '{"enabled":false,"loaded":false,"ready":false}' ]] || fail "cua input status stays parseable before the module is loaded" "$status_output"
+pass "cua input status stays parseable before the module is loaded"
 
 # toggle flips between the two.
 : >"$TEST_LOG"
