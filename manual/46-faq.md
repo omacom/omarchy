@@ -38,10 +38,6 @@ Those all live in [networking](35-networking.md).
 
 _Trigger > Speed Test > Disk Speed Test_ measures live read and write speed on your drive, or `omarchy disk speedtest` from the terminal.
 
-### Why can't I sign into my Google account in Chromium?
-
-The plain open source Chromium build doesn't ship with the OAuth credentials that Google requires for account sign-in. Run _Install > Service > Chromium Account_ in the Omarchy menu to add them, restart the browser, and the sign-in will go through.
-
 ### How do I add a printer?
 
 Printing is set up and running out of the box, and you add each printer yourself from _Print Settings_ in the app launcher (`Super + Space`).

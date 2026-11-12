@@ -13,6 +13,8 @@ QtObject {
   property var _sortedEntries: null
   property var _iconSource: null
   property var _refreshIcons: null
+  property var _refreshVersions: null
+  property var _version: null
   property var _launch: null
   property var _remove: null
 
@@ -34,6 +36,14 @@ QtObject {
 
   function refreshIcons() {
     if (_refreshIcons) _refreshIcons()
+  }
+
+  function refreshVersions() {
+    if (_refreshVersions) _refreshVersions()
+  }
+
+  function version(entry) {
+    return _version ? String(_version(entry)) : ""
   }
 
   function launch(desktopId, name) {

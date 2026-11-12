@@ -9,6 +9,7 @@ ShellRoot {
   property var apps: null
   property string launched: ""
   property string dockLaunched: ""
+  property int versionRefreshes: 0
 
   function check(condition, message) {
     if (!condition) failures = failures.concat([message])
@@ -18,6 +19,8 @@ ShellRoot {
     id: library
     signal appsChanged()
     function refreshIcons() {}
+    function refreshVersions() { root.versionRefreshes++ }
+    function version(entry) { return entry.id === "editor" ? "1.2.3" : "4.5.6" }
     function sortedEntries(filter) {
       return [{ id: "editor", name: "Editor", icon: "" }, { id: "terminal", name: "Terminal", icon: "" }]
         .filter(function(entry) { return entry.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0 })
@@ -42,6 +45,8 @@ ShellRoot {
     _sortedEntries: function(query) { return library.sortedEntries(query) }
     _iconSource: function(icon) { return library.iconSource(icon) }
     _refreshIcons: function() { library.refreshIcons() }
+    _refreshVersions: function() { library.refreshVersions() }
+    _version: function(entry) { return library.version(entry) }
     _launch: function(id, name) { library.launch(id, name) }
   }
 
@@ -98,7 +103,10 @@ ShellRoot {
       root.apps.launch(1)
       root.check(root.launched === "terminal", "grid still launches after the dock is disabled")
       host.appLibrary = scopedLibrary
+      var refreshes = root.versionRefreshes
       root.apps.open("{}")
+      root.check(root.versionRefreshes === refreshes + 1, "a clone refreshes app versions through its scoped library")
+      root.check(scopedLibrary.version({id: "editor"}) === "1.2.3", "a clone reads app versions through its scoped library")
       root.check(root.apps.apps.length === 2, "a clone lists apps through its scoped application library")
       root.apps.setFilter("edit")
       root.check(root.apps.apps.length === 1 && root.apps.apps[0].id === "editor", "a clone searches through its scoped application library")

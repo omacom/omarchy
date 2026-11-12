@@ -20,6 +20,7 @@
   "agents.homeFailed": "புதிய கணக்கிற்கு முகப்புக் கோப்பகத்தை அமைக்க முடியவில்லை.",
   "agents.installCliFailed": "%1 CLI ஐ நிறுவுவது முடியவில்லை.",
   "agents.installingCli": "%1 CLI ஐ நிறுவுகிறது…",
+  "agents.instructionsBackedUp": "உங்கள் பழைய ஏஜென்ட் வழிமுறைகள் காப்புப் பிரதிகளாக வைக்கப்பட்டன",
   "agents.localUnsupported": "எந்த ஏஜென்ட்டும் உள்ளூர் மாதிரியைப் பயன்படுத்த முடியாது",
   "agents.localUnsupportedBody": "உள்ளூர் மாதிரியைப் பயன்படுத்த pi அல்லது OpenCode ஐ நிறுவவும்.",
   "agents.loginUnfinished": "உள்நுழைவு முடியவில்லை, எனவே கணக்கு சேர்க்கப்படவில்லை.",

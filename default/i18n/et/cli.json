@@ -20,6 +20,7 @@
   "agents.homeFailed": "Uuele kontole ei õnnestunud kodu seadistada.",
   "agents.installCliFailed": "%1 CLI paigaldamine ei jõudnud lõpule.",
   "agents.installingCli": "%1 CLI paigaldamine…",
+  "agents.instructionsBackedUp": "Vanad agendijuhised säilitati varukoopiatena",
   "agents.localUnsupported": "Ükski agent ei saa kohalikku mudelit kasutada",
   "agents.localUnsupportedBody": "Kohaliku mudeli kasutamiseks paigalda pi või OpenCode.",
   "agents.loginUnfinished": "Sisselogimine ei jõudnud lõpule, nii et kontot ei lisatud.",

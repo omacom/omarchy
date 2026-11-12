@@ -19,6 +19,7 @@
   "agents.homeFailed": "Tidak dapat menyediakan direktori home untuk akaun baharu.",
   "agents.installCliFailed": "Pemasangan CLI %1 tidak selesai.",
   "agents.installingCli": "Memasang CLI %1…",
+  "agents.instructionsBackedUp": "Arahan ejen lama anda disimpan sebagai sandaran",
   "agents.localUnsupported": "Tiada ejen boleh menggunakan model tempatan",
   "agents.localUnsupportedBody": "Pasang pi atau OpenCode untuk menggunakan model tempatan.",
   "agents.loginUnfinished": "Log masuk tidak selesai, jadi tiada akaun ditambah.",
