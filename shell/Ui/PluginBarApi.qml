@@ -1,4 +1,5 @@
 import QtQuick
+import "../plugins/bar/BarModel.js" as BarModel
 
 // Bar surface exposed to an installed third-party widget. Scalar presentation
 // state is mirrored by Bar.qml and operations are delegated through scoped
@@ -18,7 +19,10 @@ QtObject {
   property string fontFamily: ""
   property string position: "top"
   property bool vertical: false
+  // The configured size. A notch floor can make a top bar thicker on one
+  // screen; barSizes holds each screen's thickness by screen name.
   property int barSize: 0
+  property var barSizes: ({})
   property bool transparent: false
   property bool foregroundAnimationEnabled: true
   property bool traySectionDragActive: false
@@ -40,6 +44,14 @@ QtObject {
   property var _targetBelongsToWindow: null
   property var _moduleWidgets: null
   property var _run: null
+
+  // The bar's thickness on the screen with this name, to clear the bar by;
+  // barSize for a screen the bar reports none for. KeyboardPanel and
+  // PopupCard hang their cards from this, so without it a third-party
+  // widget's panel opens over the notch floor instead of below it.
+  function barSizeFor(screenName) {
+    return BarModel.barSizeFor(barSizes, screenName, barSize)
+  }
 
   function showTooltip(target, text) {
     if (_showTooltip) _showTooltip(target, String(text || ""))

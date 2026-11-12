@@ -135,8 +135,16 @@ assert(copy !== live, 'the copy is detached from the bar\'s map')
 assertDeepEqual(detachedBarSizes.call(null, Util, undefined), {}, 'a bar without per-screen sizes gives an empty map')
 
 const apiFor = extract(stateApiSource, 'barSizeFor')
-const stateBarSizeFor = new Function('barSizes', 'barSize', apiFor[1], apiFor[2])
+const stateBarSizeFor = (sizes, size, name) => new Function('BarModel', 'barSizes', 'barSize', apiFor[1], apiFor[2])(bar, sizes, size, name)
 assertEqual(stateBarSizeFor(copy, 26, 'eDP-1'), 40, 'a plugin reads a notch screen\'s thickness')
 assertEqual(stateBarSizeFor(copy, 26, 'HDMI-A-1'), 26, 'a plugin falls back to barSize for a screen with none')
 assertEqual(stateBarSizeFor({}, 26, 'eDP-1'), 26, 'a plugin under a bar without per-screen sizes gets barSize')
+
+// A third-party bar widget's facade answers the same way, so its panels hang
+// below the notch floor like the built-in ones.
+const widgetApiSource = fs.readFileSync(root + '/shell/Ui/PluginBarApi.qml', 'utf8')
+const widgetApiFor = extract(widgetApiSource, 'barSizeFor')
+const widgetBarSizeFor = (sizes, size, name) => new Function('BarModel', 'barSizes', 'barSize', widgetApiFor[1], widgetApiFor[2])(bar, sizes, size, name)
+assertEqual(widgetBarSizeFor(copy, 26, 'eDP-1'), 40, 'a bar widget reads a notch screen\'s thickness')
+assertEqual(widgetBarSizeFor(copy, 26, 'HDMI-A-1'), 26, 'a bar widget falls back to barSize for a screen with none')
 JS
