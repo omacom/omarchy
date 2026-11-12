@@ -102,7 +102,8 @@ awk -F '\t' '
     if (has_raw) {
       n = split("red orange yellow green cyan blue magenta bright_red bright_yellow bright_green bright_cyan bright_blue bright_magenta", list, " ")
       for (i = 1; i <= n; i++) if (("raw_" list[i]) in color) return 0
-      for (i = 0; i <= 15; i++) if (("raw_color" i) in color) return 0
+      # ANSI slots 0, 7, 8 and 15 are the neutrals, not hues.
+      for (i = 1; i <= 14; i++) if (i != 7 && i != 8 && ("raw_color" i) in color) return 0
       return 1
     }
     if (is_hex(color["red"]) && dist(color["red"], color["foreground"]) > 0.05) return 0

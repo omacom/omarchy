@@ -109,6 +109,8 @@ printf 'accent = "#e06c75"\nbackground = "#1e2127"\nforeground = "#abb2bf"\n' >"
 [[ $(icon_role "$test_tmp/bare.toml" icon_red) != "#abb2bf" ]] || fail "a bare theme's app icons get a red"
 printf 'accent = "#e06c75"\nbackground = "#1e2127"\nforeground = "#abb2bf"\nred = "#abb2bf"\n' >"$test_tmp/grey.toml"
 [[ $(icon_role "$test_tmp/grey.toml" icon_red) == "#abb2bf" ]] || fail "a theme that names its red grey keeps it"
+printf 'accent = "#e06c75"\ncolor0 = "#1e2127"\ncolor7 = "#abb2bf"\n' >"$test_tmp/ansi.toml"
+[[ $(icon_role "$test_tmp/ansi.toml" icon_mark) == "$(icon_role "$test_tmp/bare.toml" icon_mark)" ]] || fail "a theme naming only its neutral ANSI slots gets the same highlight as a bare one"
 pass "app icon colors honor the theme and skip palettes they cannot draw"
 
 # App icons draw from the current theme after the switch, into a dir the links
