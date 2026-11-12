@@ -565,6 +565,7 @@
   "tailscale.startingLogin": "Starting Tailscale login…",
   "tailscale.statusParseFailed": "Failed to parse tailscale status",
   "tailscale.switchFailed": "Account switch failed",
+  "tailscale.thisMachine": "This machine",
   "tailscale.turnOff": "Turn Tailscale off",
   "tailscale.turnOn": "Turn Tailscale on",
   "tailscale.unknown": "Unknown",

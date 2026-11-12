@@ -94,11 +94,21 @@ function hasFileSharing(self) {
 // Tailscale grades every peer itself — offline, wrong owner, an OS without
 // Taildrop, no peer API — so take its word when the status carries one, and
 // fall back to same-owner for daemons too old to say.
+// Tailscale cannot send a file to the sender, so this machine is never one.
 function isTaildropTarget(peer, selfUserId) {
+  if (peer && peer.Self) return false
   var target = peer && peer.TaildropTarget
   if (typeof target === "number" && target !== 0) return target === 1
   var owner = String((peer && peer.UserID) || "")
   return owner !== "" && owner === String(selfUserId || "")
+}
+
+// The machines the panel lists: this machine leads unless the showSelf
+// setting hides it.
+function visiblePeers(peers, showSelf) {
+  var list = peers || []
+  if (showSelf !== false) return list
+  return list.filter(function(peer) { return !(peer && peer.Self) })
 }
 
 function peerFromStatus(id, peer, tr) {
@@ -116,7 +126,8 @@ function peerFromStatus(id, peer, tr) {
     Tags: peer.Tags || [],
     ExitNodeOption: peer.ExitNodeOption === true,
     ExitNode: peer.ExitNode === true,
-    Mullvad: isMullvadPeer(peer)
+    Mullvad: isMullvadPeer(peer),
+    Self: false
   }
 }
 
@@ -256,6 +267,15 @@ function parseStatus(raw, tr) {
       return String(a.HostName).localeCompare(String(b.HostName))
     })
 
+    // This machine heads the list so its own address is one copy away, like
+    // any other machine's. It never lists as an exit node for itself.
+    if (backendState === "Running" && (self.HostName || self.DNSName)) {
+      var me = peerFromStatus(String(self.ID || "self"), self, tr)
+      me.Self = true
+      me.Online = true
+      peers.unshift(me)
+    }
+
     return {
       ok: true,
       unavailable: false,
@@ -320,6 +340,7 @@ if (typeof module !== "undefined") {
     loginPlan: loginPlan,
     hasFileSharing: hasFileSharing,
     isTaildropTarget: isTaildropTarget,
+    visiblePeers: visiblePeers,
     isMullvadPeer: isMullvadPeer,
     peerFromStatus: peerFromStatus,
     parseExitNodeList: parseExitNodeList,
