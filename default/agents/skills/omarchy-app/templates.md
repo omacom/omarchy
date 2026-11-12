@@ -129,14 +129,17 @@ int main(int argc, char *argv[]) {
 
 ## `src/theme.h` and `src/theme.cpp`
 
-Follows the Omarchy accent live, hands QML a readable color to put on it, and
-tracks Hyprland's window rounding as `radius`. Tests construct it with a temp
+Follows the Omarchy theme live: the accent, a readable color to put on it, and
+the palette (`mode`, backgrounds, foreground, selection, red, green, yellow) so
+a light theme makes the app light. It also tracks Hyprland's window rounding as
+`radius`. Tests construct it with a temp
 directory and a fake `hyprctl`.
 
 ```cpp
 #pragma once
 
 #include <QFileSystemWatcher>
+#include <QMap>
 #include <QObject>
 #include <QProcess>
 #include <QTimer>
@@ -146,6 +149,16 @@ class Theme : public QObject {
     Q_PROPERTY(QString accent READ accent NOTIFY changed)
     Q_PROPERTY(QString accentForeground READ accentForeground NOTIFY changed)
     Q_PROPERTY(int radius READ radius NOTIFY changed)
+    // The rest of the palette, so light themes are light too. Names follow colors.toml.
+    Q_PROPERTY(bool dark READ dark NOTIFY changed)
+    Q_PROPERTY(QString background READ background NOTIFY changed)
+    Q_PROPERTY(QString darkBackground READ darkBackground NOTIFY changed)
+    Q_PROPERTY(QString lighterBackground READ lighterBackground NOTIFY changed)
+    Q_PROPERTY(QString selection READ selection NOTIFY changed)
+    Q_PROPERTY(QString foreground READ foreground NOTIFY changed)
+    Q_PROPERTY(QString red READ red NOTIFY changed)
+    Q_PROPERTY(QString green READ green NOTIFY changed)
+    Q_PROPERTY(QString yellow READ yellow NOTIFY changed)
 
 public:
     explicit Theme(const QString &currentDirectory = {}, QObject *parent = nullptr, const QString &hyprctl = {});
@@ -154,8 +167,19 @@ public:
     QString accent() const { return m_accent; }
     QString accentForeground() const;
     int radius() const { return m_radius; }
+    bool dark() const { return m_colors.value("mode") != "light"; }
+    QString background() const { return m_colors.value("background"); }
+    QString darkBackground() const { return m_colors.value("dark_background"); }
+    QString lighterBackground() const { return m_colors.value("lighter_background"); }
+    QString selection() const { return m_colors.value("selection"); }
+    QString foreground() const { return m_colors.value("foreground"); }
+    QString red() const { return m_colors.value("red"); }
+    QString green() const { return m_colors.value("green"); }
+    QString yellow() const { return m_colors.value("yellow"); }
 
     static QString readAccent(const QString &path);
+    // Every key the app uses, from colors.toml, with a dark palette for anything missing.
+    static QMap<QString, QString> readColors(const QString &path);
 
 signals:
     void changed();
@@ -166,6 +190,7 @@ private:
 
     QString m_directory;
     QString m_accent = "#FFD60A";
+    QMap<QString, QString> m_colors = readColors({});
     QFileSystemWatcher m_watcher;
     QTimer m_debounce;
     QString m_hyprctl;
@@ -251,6 +276,35 @@ QString Theme::readAccent(const QString &path) {
     return "#FFD60A";
 }
 
+// Every stock theme has these keys; a missing or invalid one keeps the dark default.
+QMap<QString, QString> Theme::readColors(const QString &path) {
+    QMap<QString, QString> colors{{"mode", "dark"},
+                                  {"background", "#0e0e10"},
+                                  {"dark_background", "#121214"},
+                                  {"lighter_background", "#18181b"},
+                                  {"selection", "#26262a"},
+                                  {"foreground", "#e8e8ea"},
+                                  {"red", "#ff453a"},
+                                  {"green", "#30d158"},
+                                  {"yellow", "#ffb340"}};
+    QFile file(path);
+    if (path.isEmpty() || !file.open(QIODevice::ReadOnly))
+        return colors;
+    const QString text = QString::fromUtf8(file.readAll());
+    for (auto it = colors.begin(); it != colors.end(); ++it) {
+        const QRegularExpression expression("^\\s*" + QRegularExpression::escape(it.key()) +
+                                                "\\s*=\\s*[\"']([^\"']+)[\"']",
+                                            QRegularExpression::MultilineOption);
+        const auto match = expression.match(text);
+        if (!match.hasMatch())
+            continue;
+        const QString value = match.captured(1).trimmed();
+        if (it.key() == "mode" ? (value == "light" || value == "dark") : QColor::isValidColorName(value))
+            it.value() = value;
+    }
+    return colors;
+}
+
 // Black or white, whichever reads on the accent (WCAG relative luminance).
 QString Theme::accentForeground() const {
     const QColor c(m_accent);
@@ -279,8 +333,10 @@ void Theme::reload() {
             m_watcher.addPath(path);
 
     const auto accent = readAccent(m_directory + "/theme/colors.toml");
-    if (accent != m_accent) {
+    const auto colors = readColors(m_directory + "/theme/colors.toml");
+    if (accent != m_accent || colors != m_colors) {
         m_accent = accent;
+        m_colors = colors;
         emit changed();
     }
 }
@@ -538,11 +594,30 @@ ApplicationWindow {
     minimumHeight: 460
     visible: true
     title: "<Name>"
-    color: "#0e0e10"
+    color: win.windowColor
 
-    Material.theme: Material.Dark
+    Material.theme: theme.dark ? Material.Dark : Material.Light
     Material.accent: theme.accent
+    Material.background: win.panelColor
+    Material.foreground: win.textColor
     Material.roundedScale: theme.radius
+
+    // Every color in the app comes from here, never a literal in a page file (video and photos are the exception:
+    // they keep a black backdrop). Secondary text is mixed from the theme's own foreground and background, so it
+    // reads on any theme; light themes' green and yellow get a shade darker to read as text.
+    readonly property color windowColor: theme.background
+    readonly property color sideColor: theme.darkBackground
+    readonly property color panelColor: theme.lighterBackground
+    readonly property color raisedColor: theme.selection
+    readonly property color textColor: theme.foreground
+    readonly property color secondaryColor: mix(textColor, windowColor, 0.22)
+    readonly property color mutedColor: mix(textColor, windowColor, 0.45)
+    readonly property color hoverColor: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.06)
+    readonly property color lineColor: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.12)
+    readonly property color okColor: theme.dark ? theme.green : Qt.darker(theme.green, 1.45)
+    readonly property color errorColor: theme.dark ? theme.red : Qt.darker(theme.red, 1.1)
+    readonly property color warnColor: theme.dark ? theme.yellow : Qt.darker(theme.yellow, 1.45)
+    function mix(a, b, t) { return Qt.rgba(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, 1); }
 
     property bool helpVisible: false
 
@@ -640,6 +715,25 @@ private slots:
         Theme theme(dir.path());
         QCOMPARE(theme.accent(), QString("#112233"));
         QCOMPARE(theme.accentForeground(), QString("white"));
+    }
+
+    void themeReadsALightPaletteLive()
+    {
+        QTemporaryDir dir;
+        QDir(dir.path()).mkpath("theme");
+        QFile colors(dir.path() + "/theme/colors.toml");
+        QVERIFY(colors.open(QIODevice::WriteOnly));
+        colors.write("mode = \"light\"\nbackground = \"#FFFCF0\"\nbright_red = \"#000001\"\nred = \"#D14D41\"\n");
+        colors.close();
+
+        Theme theme(dir.path());
+        QVERIFY(!theme.dark());
+        QCOMPARE(theme.background(), QString("#FFFCF0"));
+        QCOMPARE(theme.red(), QString("#D14D41"));
+        QVERIFY(colors.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        colors.write("mode = \"dark\"\n");
+        colors.close();
+        QTRY_VERIFY(theme.dark());
     }
 
     void themeFollowsHyprlandRounding()
