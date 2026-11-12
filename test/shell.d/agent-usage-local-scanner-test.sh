@@ -244,8 +244,9 @@ expect("Local counts a Codex turn with an untrusted time nowhere, and one with n
 
 # ------------------------------------------------------------- pi and opencode
 
-# Runtimes known by name, whatever their case, are local; Ollama's cloud
-# models and provider, another provider, and pi driving the Codex API are not.
+# Runtimes known by name, whatever their case, are local, as are Omarchy's own
+# models here and on paired machines; Ollama's cloud models and provider,
+# another provider, and pi driving the Codex API are not.
 use_home()
 codex_api = pi_reply("ollama", 999, id="x", model="gpt-5", api="openai-codex-responses")
 write_pi_session(home() / ".pi" / "agent" / "sessions" / "--work--" / "one.jsonl", [
@@ -253,6 +254,8 @@ write_pi_session(home() / ".pi" / "agent" / "sessions" / "--work--" / "one.jsonl
   pi_reply("LMStudio", 200, id="b", model="qwen3:8b"),
   pi_reply("vllm", 300, id="c", model="llama-70b"),
   pi_reply("llamacpp", 40, id="d", model="gemma"),
+  pi_reply("omarchy-local", 7, id="h", model="tf-here"),
+  pi_reply("omarchy-local-box", 3, id="i", model="tf-box"),
   pi_reply("ollama", 999, id="e", model="glm-4.6:cloud"),
   pi_reply("ollama-cloud", 999, id="f", model="qwen3:30b"),
   pi_reply("anthropic", 999, id="g", model="claude"),
@@ -267,7 +270,16 @@ opencode_db(message=[
 ])
 record = local()
 expect("Local counts pi and opencode replies on self-hosted runtimes and configured providers",
-       [record["todayTotalTokens"], models(record)], [805, ["gemma", "llama-70b", "qwen-cfg", "qwen-oc", "qwen3:30b", "qwen3:8b"]], record)
+       [record["todayTotalTokens"], models(record)], [815, ["gemma", "llama-70b", "qwen-cfg", "qwen-oc", "qwen3:30b", "qwen3:8b", "tf-box", "tf-here"]], record)
+
+# A paired machine's models alone, in a pi file and an opencode database
+# naming no other local provider, still count: its ids share only a prefix.
+use_home()
+write_pi_session(home() / ".pi" / "agent" / "sessions" / "--paired--" / "one.jsonl", [pi_reply("omarchy-local-box", 11, id="p1", model="tf-box")])
+opencode_db(message=[("m1", "ses_1", oc_v1("omarchy-local-lab", 22, model="tf-lab"))])
+record = local()
+expect("Local counts a paired machine's pi and opencode replies with no other local provider beside them",
+       [record["todayTotalTokens"], models(record)], [33, ["tf-box", "tf-lab"]], record)
 
 # A local.json naming ids the provider collectors claim leaves only their rows
 # out: opencode's google provider and Vertex only on antigravity- models, which
