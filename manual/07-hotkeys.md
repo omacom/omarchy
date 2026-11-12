@@ -36,6 +36,19 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | ----------------------- | --------------------- |
 | `Super + Space`           | Omarchy menu (apps and everything else)    |
 | `Super + Alt + Space` | App grid |
+
+### App grid (while open)
+
+| Hotkey                  | Function              |
+| ----------------------- | --------------------- |
+| `Ctrl + P` | Toggle pin (keep in dock / remove from dock) |
+| `Home` / `End` | Jump to first / last app |
+| `Page Up` / `Page Down` | Move by full page (visible rows × columns) |
+| `↑` / `↓` | Move up/down by column |
+| `←` / `→` | Move left/right by one app |
+| `Enter` | Launch selected app |
+| `Esc` | Close app grid (or clear filter, or dismiss menu) |
+| Type any character | Filter apps by name |
 | `Super + Escape` | System menu (suspend, restart, etc)  |
 | `Super + Ctrl + L` | Lock computer |
 | `Super + W` or `Super + Q` | Close window             |
