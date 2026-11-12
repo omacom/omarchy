@@ -1143,6 +1143,17 @@ Panel {
       if (save && value !== "" && value !== accountText) tailscale.renameAccount(account.id, value)
     }
 
+    // Declared before the row content so the pen button stacks above it and
+    // keeps its own clicks — a full-row MouseArea on top would swallow them.
+    MouseArea {
+      id: accountMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onEntered: root.setAccountCursor(accountRow.rowIndex)
+      onClicked: if (accountRow.account && !accountRow.renaming) tailscale.switchAccount(accountRow.account.id)
+    }
+
     RowLayout {
       id: accountInner
       anchors.left: parent.left
@@ -1219,15 +1230,6 @@ Panel {
         Layout.alignment: Qt.AlignVCenter
         onClicked: accountRow.beginRename()
       }
-    }
-
-    MouseArea {
-      id: accountMouse
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onEntered: root.setAccountCursor(accountRow.rowIndex)
-      onClicked: if (accountRow.account && !accountRow.renaming) tailscale.switchAccount(accountRow.account.id)
     }
   }
 
