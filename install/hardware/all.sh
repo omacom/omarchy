@@ -66,6 +66,7 @@ run_logged "$OMARCHY_INSTALL/hardware/qualcomm/camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/reboot-watchdog.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-yoga-pro7-bass-speakers.sh"
+run_logged "$OMARCHY_INSTALL/hardware/lenovo/fix-thinkpad-t480-trackpoint.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/yoga-slim7x.sh"
 run_logged "$OMARCHY_INSTALL/hardware/lenovo/thinkpad-t14s-camera.sh"
 run_logged "$OMARCHY_INSTALL/hardware/microsoft/surface-pro-11.sh"
