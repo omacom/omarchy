@@ -113,8 +113,9 @@ Panel {
 
   // The model being paired from the panel. Once it is, and running there, the
   // keyboard cursor lands on its terminal, so Return opens an agent on it.
-  // The survey that shows it paired can trail the pairing itself, so this
-  // waits for that rather than for the pairing to end.
+  // The survey that shows it paired can trail the pairing itself, and a model
+  // still starting on its host has no terminal yet, so this waits for the
+  // terminal rather than for the pairing to end, while the panel stays open.
   property string landAfterPair: ""
   function landOnPaired() {
     if (landAfterPair === "" || usage.pairingId !== "") return
@@ -125,8 +126,9 @@ Panel {
     for (var p = 0; p < providers.length; p++) {
       var model = providers[p].localModel
       if (!model || !model.host || modelId(model) !== landAfterPair || model.paired !== true) continue
+      if (localActions(model, usage.canShare).indexOf("launch") < 0) return
       landAfterPair = ""
-      if (localActions(model, usage.canShare).indexOf("launch") >= 0) pointAt("modelLaunch", p)
+      pointAt("modelLaunch", p)
       return
     }
   }
@@ -1340,6 +1342,9 @@ Panel {
 
   onOpenedChanged: if (!opened) {
     resetProviderDrag()
+    // A model paired here that starts after the panel closes doesn't move
+    // the cursor the next time it opens.
+    landAfterPair = ""
   } else {
     deleteTarget = null
     if (addStage !== "running") addStage = ""

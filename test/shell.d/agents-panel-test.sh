@@ -194,6 +194,20 @@ assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'inactive', paire
 assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: false, offline: '' }), ['pair'], 'an unpaired network model offers pairing only')
 assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', paired: true, offline: 'offline' }), [], 'an offline network model offers nothing until its host is back')
 
+// A model paired from the panel that is still starting on its host has no
+// terminal yet: the cursor waits for one rather than giving up.
+const modelId = new Function(panel.match(/function modelId\([^]*?\n  \}/)[0] + '\nreturn modelId')()
+const landing = { landAfterPair: 'box/m', usage: { pairingId: '', pairFailures: {}, canShare: false }, root: { opened: true }, providers: [], localActions, modelId, pointed: null }
+landing.pointAt = (kind, index) => { landing.pointed = [kind, index] }
+const landOnPaired = new Function('scope', 'with (scope) { ' + panel.match(/function landOnPaired\([^]*?\n  \}/)[0] + '\nreturn landOnPaired }')(landing)
+landing.providers = [{ localModel: { host: 'box', recipe: 'm', unit: 'activating', paired: true, offline: '' } }]
+landOnPaired()
+assert(landing.pointed === null && landing.landAfterPair === 'box/m', 'a paired model still starting keeps the cursor waiting for its terminal')
+landing.providers = [{ localModel: { host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' } }]
+landOnPaired()
+assertDeepEqual(landing.pointed, ['modelLaunch', 0], 'the cursor lands on its terminal once it runs')
+assertEqual(landing.landAfterPair, '', 'and stops waiting')
+
 // A running network model shows what it is and how fast its host runs it,
 // not that host's memory.
 const i18n = { t: key => ({ text: key, arg(value) { this.text += '(' + value + ')'; return this }, toString() { return this.text } }), formatNumber: value => String(value) }
