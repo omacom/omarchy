@@ -509,6 +509,9 @@ if [[ $THEME_HEADLESS == "1" ]]; then
   # real login still needs a current background symlink for omarchy-shell to
   # render.
   [[ $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]] || set_theme_background_link || true
+  # The app retints don't run headless, but the first login should already
+  # show Omarchy's app icons in the theme's colors.
+  omarchy-theme-set-icons || true
 elif [[ $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]]; then
   shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
 else
@@ -534,11 +537,12 @@ visible_theme_commands=(
 )
 
 # Configs other apps read on their next refresh or launch: GTK, the browser
-# policy, editors, agents and the keyboard backlight. Nothing on screen waits
+# policy, editors, agents, Omarchy's app icons and the keyboard backlight. Nothing on screen waits
 # for these.
 other_theme_commands=(
   omarchy-theme-set-gnome
   omarchy-theme-set-qt
+  omarchy-theme-set-icons
   omarchy-theme-set-pi
   omarchy-theme-set-claude
   omarchy-theme-set-hermes

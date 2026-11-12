@@ -84,6 +84,9 @@
   "agents.networkOffline": "ออฟไลน์",
   "agents.networkOnHost": "บน %1",
   "agents.networkPair": "จับคู่กับ %1 เพื่อใช้งาน",
+  "agents.networkPairFailed": "จับคู่กับ %1 ไม่สำเร็จ",
+  "agents.networkPairOutputTip": "เปิดผลลัพธ์การจับคู่ในเทอร์มินัล",
+  "agents.networkPairing": "กำลังจับคู่กับ %1…",
   "agents.networkRunning": "กำลังทำงาน",
   "agents.networkShare": "แชร์บน tailnet ของคุณ",
   "agents.networkSharedUsers": {

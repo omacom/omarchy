@@ -90,6 +90,9 @@
   "agents.networkOffline": "Bezsaistē",
   "agents.networkOnHost": "Uz %1",
   "agents.networkPair": "Savieno pārī ar %1, lai to izmantotu",
+  "agents.networkPairFailed": "Neizdevās savienot pārī ar %1",
+  "agents.networkPairOutputTip": "Atver terminālī to, ko izdrukāja savienošana pārī",
+  "agents.networkPairing": "Savieno pārī ar %1…",
   "agents.networkRunning": "Darbojas",
   "agents.networkShare": "Kopīgot savā tailnet tīklā",
   "agents.networkSharedUsers": {

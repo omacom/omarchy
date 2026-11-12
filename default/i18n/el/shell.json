@@ -87,6 +87,9 @@
   "agents.networkOffline": "Εκτός σύνδεσης",
   "agents.networkOnHost": "Στο %1",
   "agents.networkPair": "Κάνε σύζευξη με το %1 για να το χρησιμοποιήσεις",
+  "agents.networkPairFailed": "Δεν ήταν δυνατή η σύζευξη με %1",
+  "agents.networkPairOutputTip": "Άνοιξε σε τερματικό ό,τι εμφάνισε η σύζευξη",
+  "agents.networkPairing": "Σύζευξη με %1…",
   "agents.networkRunning": "Εκτελείται",
   "agents.networkShare": "Κοινή χρήση στο tailnet σου",
   "agents.networkSharedUsers": {

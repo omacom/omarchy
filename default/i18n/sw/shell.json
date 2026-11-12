@@ -87,6 +87,9 @@
   "agents.networkOffline": "Nje ya mtandao",
   "agents.networkOnHost": "Kwenye %1",
   "agents.networkPair": "Oanisha na %1 ili kuitumia",
+  "agents.networkPairFailed": "Imeshindwa kuoanisha na %1",
+  "agents.networkPairOutputTip": "Fungua matokeo ya kuoanisha kwenye terminali",
+  "agents.networkPairing": "Inaoanisha na %1…",
   "agents.networkRunning": "Inaendesha",
   "agents.networkShare": "Shirikisha kwenye tailnet yako",
   "agents.networkSharedUsers": {

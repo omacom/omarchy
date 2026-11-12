@@ -90,6 +90,9 @@
   "agents.networkOffline": "Offline",
   "agents.networkOnHost": "Su %1",
   "agents.networkPair": "Associa a %1 per usarlo",
+  "agents.networkPairFailed": "Abbinamento con %1 non riuscito",
+  "agents.networkPairOutputTip": "Apri in un terminale l'output dell'abbinamento",
+  "agents.networkPairing": "Abbinamento con %1…",
   "agents.networkRunning": "In esecuzione",
   "agents.networkShare": "Condividi sulla tua tailnet",
   "agents.networkSharedUsers": {

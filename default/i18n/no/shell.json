@@ -87,6 +87,9 @@
   "agents.networkOffline": "Frakoblet",
   "agents.networkOnHost": "På %1",
   "agents.networkPair": "Par med %1 for å bruke den",
+  "agents.networkPairFailed": "Kunne ikke pare med %1",
+  "agents.networkPairOutputTip": "Åpne det paringen skrev ut i en terminal",
+  "agents.networkPairing": "Parer med %1…",
   "agents.networkRunning": "Kjører",
   "agents.networkShare": "Del på tailnettet ditt",
   "agents.networkSharedUsers": {

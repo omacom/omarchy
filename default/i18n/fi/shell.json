@@ -87,6 +87,9 @@
   "agents.networkOffline": "Ei verkossa",
   "agents.networkOnHost": "Koneella %1",
   "agents.networkPair": "Parita %1 käyttääksesi sitä",
+  "agents.networkPairFailed": "Pariliitoksen muodostaminen %1:n kanssa epäonnistui",
+  "agents.networkPairOutputTip": "Avaa pariliitoksen tuloste päätteessä",
+  "agents.networkPairing": "Muodostetaan pariliitosta %1:n kanssa…",
   "agents.networkRunning": "Käynnissä",
   "agents.networkShare": "Jaa tailnetissäsi",
   "agents.networkSharedUsers": {

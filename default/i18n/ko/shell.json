@@ -84,6 +84,9 @@
   "agents.networkOffline": "오프라인",
   "agents.networkOnHost": "%1에서",
   "agents.networkPair": "사용하려면 %1과 페어링하세요",
+  "agents.networkPairFailed": "%1과 페어링할 수 없음",
+  "agents.networkPairOutputTip": "터미널에서 페어링 출력 열기",
+  "agents.networkPairing": "%1과 페어링 중…",
   "agents.networkRunning": "실행 중",
   "agents.networkShare": "tailnet에서 공유",
   "agents.networkSharedUsers": {

@@ -60,17 +60,6 @@ Item {
   // The look the blur behind the bar was last synced for. A background set by
   // editing shell.json skips the CLI, so the bar syncs Hyprland's blur itself.
   property string glassSyncedLook: ""
-  // One bar surface exists per monitor and each reports into this count, so a
-  // pointer crossing from one monitor's bar to another's stays counted however
-  // the enter and leave interleave. A single shared bool would be left false by
-  // whichever event landed last.
-  property int barHoverCount: 0
-  // True while the pointer is over any bar, widgets included.
-  readonly property bool barHovered: barHoverCount > 0
-  // The indicator peek, open while the pointer is on any bar. Plugins read it
-  // by this name through their bar API.
-  property bool centerSectionRevealHeld: false
-  property bool centerHoverRevealSuppressed: false
   property int barConfigSerial: 0
   property string position: "top"
   // Resolves through fontconfig at paint time (Style.font.family defaults
@@ -240,8 +229,6 @@ Item {
     api.barSize = Qt.binding(function() { return root.barSize })
     api.transparent = Qt.binding(function() { return root.transparent })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
-    api.centerSectionRevealHeld = Qt.binding(function() { return root.centerSectionRevealHeld })
-    api._centerHoverRevealSuppressed = Qt.binding(function() { return root.centerHoverRevealSuppressed })
     api.traySectionDragActive = Qt.binding(function() { return root.traySectionDragActive })
     api.traySectionPopoutOpen = Qt.binding(function() { return root.traySectionPopoutOpen })
     root.syncPluginBarApiObjects(api)
@@ -385,10 +372,7 @@ Item {
         return String(requestedId || "") === String(moduleName || "")
           ? root.moduleWidgets(moduleName) : []
       },
-      _run: function(command) { root.run(command) },
-      _setCenterHoverRevealSuppressed: function(value) {
-        root.centerHoverRevealSuppressed = !!value
-      }
+      _run: function(command) { root.run(command) }
     })
     if (!api) return null
     root.bindPluginBarApi(api)
@@ -1007,34 +991,6 @@ Item {
 
   Component.onCompleted: applyBarConfig()
 
-  // The indicator peek opens as the pointer comes onto the bar and holds until
-  // it leaves, or crosses onto the clock at the start of the center box
-  // (BarModel.peeksAt). Revealing the indicators widens their section, which
-  // can slide a widget under a stationary pointer, so nothing narrower than the
-  // stretch of bar up to that edge, held still while the peek is open
-  // (BarModel.nextPeekEdge), can hold it without opening and closing it in a
-  // loop.
-  function setBarHovered(hovered) {
-    barHoverCount = Math.max(0, barHoverCount + (hovered ? 1 : -1))
-    if (barHoverCount > 0) {
-      centerSectionRevealTimer.stop()
-      centerSectionRevealHeld = true
-    } else {
-      centerSectionRevealTimer.restart()
-    }
-  }
-
-  function setCenterHoverRevealSuppressed(value) {
-    centerHoverRevealSuppressed = !!value
-  }
-
-  Timer {
-    id: centerSectionRevealTimer
-    interval: 120
-    // A pointer that dips off the bar and straight back leaves the peek open.
-    onTriggered: if (!root.barHovered) root.centerSectionRevealHeld = false
-  }
-
   function run(command) {
     if (!command) return
 
@@ -1134,7 +1090,7 @@ Item {
   }
 
   // A dragged widget that changes size, as a clock ticking over or the
-  // indicator peek does, takes its room and its ghost with it. The ghost's
+  // indicators revealing do, takes its room and its ghost with it. The ghost's
   // copy of it is taken again once the size settles, rather than on every
   // frame of a widget animating its size.
   function resizeBarDrag() {
@@ -1773,10 +1729,6 @@ Item {
 
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
-    // Where the center box starts along the bar, set by the drawn center
-    // sections. Hovering past it, over the clock, its trailing widgets and the
-    // right section, leaves the indicator peek shut.
-    property real peekEdge: 0
 
     // The surface spans its screen at all times, transparent past the strip
     // it paints; a drag toggles only its input region. Growing the surface
@@ -1836,17 +1788,6 @@ Item {
       Loader {
         anchors.fill: parent
         sourceComponent: root.vertical ? verticalBar : horizontalBar
-
-        // A child of the loader, not a sibling of the sections: an ancestor stays
-        // hovered while the pointer is over a widget, where a sibling would lose
-        // hover to the section the pointer entered.
-        HoverHandler {
-          readonly property bool peeking: hovered && BarModel.peeksAt(point.position, barWindow.peekEdge, root.vertical)
-          onPeekingChanged: root.setBarHovered(peeking)
-          // Unplugging a monitor destroys its bar without a leave event, which
-          // would strand this surface's tally and hold the peek open for good.
-          Component.onDestruction: if (peeking) root.setBarHovered(false)
-        }
       }
     }
 
@@ -2311,23 +2252,6 @@ Item {
     implicitWidth: root.vertical ? root.barSize : beginList.width + centerBox.width + endList.width
     implicitHeight: root.vertical ? beginList.height + centerBox.height + endList.height : root.barSize
 
-    // Both placements sit at the bar surface's origin or anchor off its edge,
-    // so the box's start in the sections is its start on the surface.
-    readonly property real boxStart: root.vertical ? y + centerBox.y : x + centerBox.x
-    onBoxStartChanged: syncPeekEdge()
-    onActiveChanged: syncPeekEdge()
-    onWindowChanged: syncPeekEdge()
-    Component.onCompleted: syncPeekEdge()
-
-    function syncPeekEdge() {
-      if (active && window) window.peekEdge = BarModel.nextPeekEdge(window.peekEdge, boxStart, root.centerSectionRevealHeld)
-    }
-
-    Connections {
-      target: root
-      function onCenterSectionRevealHeldChanged() { sections.syncPeekEdge() }
-    }
-
     ModuleList {
       id: beginList
       keys: sections.active ? root.layoutWidgets.sections.centerBegin : []
@@ -2716,6 +2640,8 @@ Item {
     readonly property bool dragSource: !!owner && owner.dragSource
     // The edge it grows from, as the slot that last held it says.
     property string fixedEdge: "center"
+    // Whether that slot is in the tray's drawer.
+    property bool inTraySection: false
     readonly property string moduleName: root.entryId(entry)
     readonly property var moduleSettings: root.entrySettings(entry)
     readonly property string customType: root.customModuleType(entry)
@@ -2763,6 +2689,7 @@ Item {
         return
       }
       fixedEdge = owner.fixedEdge
+      inTraySection = owner.region === "tray"
       placed = true
     }
     // One no slot takes up again by the time the update is over, as one in
@@ -2821,6 +2748,7 @@ Item {
     onActiveItemChanged: Qt.callLater(injectProps)
     onModuleSettingsChanged: injectProps()
     onFixedEdgeChanged: injectProps()
+    onInTraySectionChanged: injectProps()
 
     function injectProps() {
       var target = activeItem
@@ -2828,6 +2756,7 @@ Item {
       // Ahead of bar: a widget can start laying itself out the moment it has
       // a bar, as the indicators do by reporting which are already active.
       if ("fixedEdge" in target) target.fixedEdge = fixedEdge
+      if ("inTraySection" in target) target.inTraySection = inTraySection
       if ("bar" in target) target.bar = firstParty
         ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
       if ("moduleName" in target) target.moduleName = moduleName

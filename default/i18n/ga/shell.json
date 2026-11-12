@@ -96,6 +96,9 @@
   "agents.networkOffline": "As líne",
   "agents.networkOnHost": "Ar %1",
   "agents.networkPair": "Péireáil le %1 chun é a úsáid",
+  "agents.networkPairFailed": "Theip ar phéireáil le %1",
+  "agents.networkPairOutputTip": "Oscail an méid a phriontáil an phéireáil i dteirminéal",
+  "agents.networkPairing": "Ag péireáil le %1…",
   "agents.networkRunning": "Ag rith",
   "agents.networkShare": "Comhroinn ar do tailnet",
   "agents.networkSharedUsers": {
