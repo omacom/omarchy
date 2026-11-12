@@ -11,6 +11,7 @@ y=${4:-}
 active=$(hyprctl activewindow -j)
 pinned=$(echo "$active" | jq ".pinned")
 addr=$(echo "$active" | jq -r ".address")
+fullscreen=$(echo "$active" | jq ".fullscreen // 0")
 window="address:$addr"
 
 hypr_dispatch() {
@@ -25,6 +26,13 @@ if [[ $pinned == "true" ]]; then
   hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
   hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })" tagwindow -pop "$window"
 elif [[ -n $addr ]]; then
+  # A maximized or fullscreen window keeps its screen size when floated, so
+  # leave both states first. Unset without a mode doesn't clear maximized.
+  if [[ $fullscreen != "0" ]]; then
+    hypr_dispatch "hl.dsp.window.fullscreen({ window = \"$window\", mode = \"maximized\", action = \"unset\" })" fullscreenstate 0 0 "$window"
+    hypr_dispatch "hl.dsp.window.fullscreen({ window = \"$window\", action = \"unset\" })" fullscreenstate 0 0 "$window"
+  fi
+
   hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
   hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $width, y = $height })" resizeactive exact "$width" "$height" "$window"
 
