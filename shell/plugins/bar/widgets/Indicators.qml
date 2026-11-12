@@ -18,7 +18,9 @@ BarWidget {
   // frame where the widget moves under a still pointer, doesn't flicker them.
   property bool hoverRevealHeld: false
   readonly property bool alwaysShowIndicators: setting("alwaysShow", false) === true
-  readonly property bool revealInactiveIndicators: alwaysShowIndicators || hoverRevealHeld
+  // The tray's drawer already hides them until hovered, and an empty widget
+  // there would leave no room to hover for a second reveal.
+  readonly property bool revealInactiveIndicators: alwaysShowIndicators || inTraySection || hoverRevealHeld
   // The active block sits against the widget's fixed edge, and everything that
   // grows the widget (revealed inactive icons, newly active ones) goes on its
   // far side, so the icons already showing keep their click targets. A

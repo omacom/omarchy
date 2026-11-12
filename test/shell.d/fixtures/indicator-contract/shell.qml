@@ -211,11 +211,40 @@ ShellRoot {
 
   function checkInactiveOrders(cases) {
     if (cases.length === 0) {
-      writeResult()
+      checkTraySection(writeResult)
       return
     }
     checkInactiveOrder(cases[0], function() {
       root.checkInactiveOrders(cases.slice(1))
+    })
+  }
+
+  // In the tray's drawer, an idle widget with its icons hidden takes no room,
+  // leaving nothing to hover, so there it shows them without one.
+  function checkTraySection(done) {
+    notificationService.doNotDisturb = false
+    remoteSessionService.active = false
+    nightlightService.setNightlight(false)
+    idleService.setIdleEnabled(true)
+
+    var component = Qt.createComponent("file://" + rootPath + "/shell/plugins/bar/widgets/Indicators.qml")
+    var tray = component.createObject(root)
+    if (!tray) {
+      fail("tray section: Indicators failed to instantiate: " + component.errorString())
+      done()
+      return
+    }
+    tray.fixedEdge = "start"
+    tray.inTraySection = true
+    tray.bar = mockBar
+    tray.moduleName = "omarchy.indicators"
+    tray.settings = { items: ["Dnd", "NightLight"] }
+
+    Qt.callLater(function() {
+      root.layOut(tray)
+      root.assertTrue(tray.implicitWidth > 0, "tray section: idle indicators show without a hover, got width " + tray.implicitWidth)
+      tray.destroy()
+      done()
     })
   }
 
