@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Io
 import qs.Commons
@@ -347,11 +346,22 @@ Item {
       WlrLayershell.layer: WlrLayer.Bottom
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       WlrLayershell.namespace: "omarchy-background"
-      // The cover reads the monitor's scale from Hyprland, and Quickshell only
-      // refreshes that on request. Ask again whenever the cover opens or its
-      // window changes scale, as OverlayWindow does.
-      onVisibleChanged: if (visible) Hyprland.refreshMonitors()
-      onDevicePixelRatioChanged: if (visible) Hyprland.refreshMonitors()
+      // This screen in device pixels. A window being mapped passes through a
+      // placeholder size and scale first, so it is measured only once the
+      // window fills its screen, and kept while the cover is hidden so the
+      // next one starts decoding before it maps. The size is set before the
+      // flag that lets the image load: the other way round, the image starts
+      // on the old size and decodes twice.
+      property size screenPixels: Qt.size(0, 0)
+      property bool measured: false
+      function measure() {
+        if (width <= 0 || height <= 0 || width !== modelData.width || height !== modelData.height) return
+        screenPixels = Qt.size(Util.devicePixels(width, devicePixelRatio), Util.devicePixels(height, devicePixelRatio))
+        measured = true
+      }
+      onWidthChanged: measure()
+      onHeightChanged: measure()
+      onDevicePixelRatioChanged: measure()
 
       Rectangle {
         anchors.fill: parent
@@ -362,18 +372,15 @@ Item {
       Image {
         id: outgoingFrame
         anchors.fill: parent
-        source: root.themeBackground ? Util.fileUrl(root.themeBackground) : ""
-        // At the output's fractional scale, as Hyprland reports it, so the
-        // cover is as sharp as the wallpaper under it. The screen's scale is
-        // a whole number on Wayland (2 at 1.5), and this window's passes
-        // through 2 and 1 each time it maps.
+        source: root.themeBackground && panel.measured ? Util.fileUrl(root.themeBackground) : ""
+        // At the window's own fractional scale, as the wallpaper under it is
+        // decoded, so the cover is exactly as sharp. The screen's scale is a
+        // whole number on Wayland (2 at 1.5).
         sourceSize: {
-          var monitor = Hyprland.monitorFor(modelData)
-          var scale = monitor && monitor.scale > 0 ? monitor.scale : panel.devicePixelRatio
-          var w = Math.ceil((parent.width || modelData.width) * scale)
-          var h = Math.ceil((parent.height || modelData.height) * scale)
+          var w = panel.screenPixels.width
+          var h = panel.screenPixels.height
           var native = root.themeNativeSize
-          return native && (native.width < w || native.height < h) ? Qt.size(native.width, native.height) : Qt.size(w, h)
+          return native && native.width > 0 && (native.width < w || native.height < h) ? Qt.size(native.width, native.height) : Qt.size(w, h)
         }
         fillMode: Image.PreserveAspectCrop
         opacity: root.themeOpacity

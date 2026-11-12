@@ -436,9 +436,11 @@ Item {
       // a whole-number scale (2 at 1.5), so a 1920x1080 panel at 1.5 decoded
       // the wallpaper at 2560x1440 and had the GPU shrink it again, softer and
       // with more memory. The window follows the output's fractional scale.
-      readonly property bool sized: width > 0 && height > 0
-      readonly property int decodeWidth: sized ? Math.ceil(width * devicePixelRatio) : 0
-      readonly property int decodeHeight: sized ? Math.ceil(height * devicePixelRatio) : 0
+      // A window being mapped passes through a placeholder size and scale
+      // first, so wait until it fills its screen.
+      readonly property bool sized: width > 0 && height > 0 && width === screen.width && height === screen.height
+      readonly property int decodeWidth: sized ? Util.devicePixels(width, devicePixelRatio) : 0
+      readonly property int decodeHeight: sized ? Util.devicePixels(height, devicePixelRatio) : 0
 
       function decodeSize(path) {
         if (!sized || !path) return Qt.size(0, 0)
