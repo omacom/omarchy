@@ -327,6 +327,47 @@ check(last_for("eDP-1").cm == "srgb" and last_for("eDP-1").bitdepth == 10, "keep
 ' || fail "a description rule for the panel keeps its settings and leaves external displays alone"
 pass "a description rule for the panel keeps its settings and leaves external displays alone"
 
+# Hyprland takes the latest rule naming a monitor, by port or by description,
+# with the prefix trimmed. A description rule after the panel's port rule takes
+# over, and the panel's own rule then follows it, also when the panel turns up
+# later.
+run_panel_lua "$panel"'
+load_module()
+hl.monitor({ output = "eDP-1", scale = 2 })
+hl.monitor({ output = "", scale = "auto" })
+hl.monitor({ output = "desc:Apple Computer Inc", scale = 1.5 })
+local own, after = nil, false
+for _, spec in ipairs(applied) do
+  if spec.output == "desc:Apple Computer Inc" then after = true end
+  if spec.output == "eDP-1" and after then own = spec end
+end
+check(own and own.bitdepth == 10 and own.cm == "dp3" and own.scale == 1.5, "gives the panel its own rule after the description rule, got " .. tostring(own and own.scale))
+' || fail "a description rule after the panel's port rule takes over"
+run_panel_lua '
+load_module()
+hl.monitor({ output = "eDP-1", scale = 2 })
+hl.monitor({ output = "desc:Apple Computer Inc", scale = 1.5 })
+plug("eDP-1", { width = 3024, height = 1964, description = "Apple Computer Inc J604" })
+handlers["monitor.added"]({ name = "eDP-1" })
+check(last_for("eDP-1").scale == 1.5 and last_for("eDP-1").bitdepth == 10, "follows the later description rule, got scale " .. tostring(last_for("eDP-1").scale))
+' || fail "a panel arriving later follows the latest rule naming it"
+run_panel_lua "$panel"'
+load_module()
+hl.monitor({ output = "desc: Apple Computer Inc ", scale = 2 })
+check(last_for("eDP-1") and last_for("eDP-1").bitdepth == 10 and last_for("eDP-1").scale == 2, "matches the trimmed prefix")
+' || fail "a description prefix is trimmed as Hyprland trims it"
+run_panel_lua "$panel"'
+load_module()
+local presets = { "srgb", "dp3", "dcip3", "adobe", "wide", "edid" }
+for i, cm in ipairs(presets) do
+  hl.monitor({ output = "desc:" .. ("Apple Computer Inc J604"):sub(1, 17 + i), cm = cm })
+end
+hl.monitor({ output = "desc:Apple Computer Inc J604", scale = 2 })
+hl.monitor({ output = "", scale = "auto" })
+check(last_for("eDP-1").cm == "edid", "keeps the preset chosen last, got " .. tostring(last_for("eDP-1").cm))
+' || fail "of several description rules choosing a preset, the latest wins"
+pass "the latest rule naming the panel, by port or description, is the one it follows"
+
 # The panel's own rule from monitors.lua isn't replaced by a later catch-all.
 run_panel_lua "$panel"'
 load_module()
