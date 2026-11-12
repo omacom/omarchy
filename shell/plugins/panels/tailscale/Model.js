@@ -104,8 +104,8 @@ function renamePlan(accountId, selectedId, nickname) {
   }
   if (target === "") return null
   var script = "r=0; s=0; tailscale switch " + shellQuote(id) + " || r=$?; "
-    + "if [ $r -eq 0 ]; then tailscale set --nickname=" + shellQuote(name) + " || r=$?; fi; "
-    + "tailscale switch " + shellQuote(target) + " || s=$?; [ $r -eq 0 ] && r=$s; exit $r"
+    + "if (( r == 0 )); then tailscale set --nickname=" + shellQuote(name) + " || r=$?; fi; "
+    + "tailscale switch " + shellQuote(target) + " || s=$?; (( r == 0 )) && r=$s; exit $r"
   return { command: ["bash", "-c", script] }
 }
 
