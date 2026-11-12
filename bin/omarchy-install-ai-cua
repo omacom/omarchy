@@ -14,8 +14,8 @@ echo "Installing Cua Driver..."
 omarchy-pkg-add cua-driver-bin
 
 # The driver takes its native Wayland backend only when this reaches the
-# process serving the calls. default/hypr/envs.lua exports it to every session
-# from the next login; this hands it to the one already running.
+# process serving the calls. default/hypr/envs.lua exports it at login once the
+# driver is installed; this hands it to the session already running.
 systemctl --user set-environment CUA_DRIVER_RS_ENABLE_WAYLAND=1 2>/dev/null || true
 dbus-update-activation-environment CUA_DRIVER_RS_ENABLE_WAYLAND=1 2>/dev/null || true
 
