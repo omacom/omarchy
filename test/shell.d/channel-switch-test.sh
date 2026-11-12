@@ -184,6 +184,66 @@ for command in omarchy-hook omarchy-update-mise; do
 done
 pass "channel switching preserves user tools for both hooks and mise"
 
+# Edge has Arch's OpenSSL 4 and its openssl-3 compatibility package; rc has
+# only openssl 3.6, which installs openssl-3's two libraries again (#18591).
+# pacman is a model of that downgrade.
+export SUDO_TEST_INSTALLED_FILE="$boundary_tmp/installed" SUDO_TEST_PKG_CACHE="$boundary_tmp/pkg"
+mkdir -p "$SUDO_TEST_PKG_CACHE"
+touch "$SUDO_TEST_PKG_CACHE/openssl-3-3.5.9-2-x86_64.pkg.tar.zst"{,.sig}
+rm "$SUDO_TEST_ROOT/bin/pacman"
+cat >"$SUDO_TEST_ROOT/bin/pacman" <<'STUB'
+#!/bin/bash
+printf 'step:pacman %s\n' "$*" >>"$SUDO_TEST_LOG"
+installed=$SUDO_TEST_INSTALLED_FILE
+case "$1" in
+  -Q) grep "^$2 " "$installed" ;;
+  -Qi) echo "Required By     : python" ;;
+  -Si) [[ $2 != "openssl-3" || $SUDO_TEST_CASE == "published" ]] ;;
+  -Rdd) sed -i "/^$3 /d" "$installed" ;;
+  -U) echo "openssl-3 3.5.9-2" >>"$installed" ;;
+  -Syyuu)
+    if grep -q '^openssl-3 ' "$installed"; then
+      printf '%s\n' 'error: failed to commit transaction (conflicting files)' \
+        'openssl: /usr/lib/libcrypto.so.3 exists in filesystem (owned by openssl-3)' \
+        'openssl: /usr/lib/libssl.so.3 exists in filesystem (owned by openssl-3)' >&2
+      exit 1
+    fi
+    [[ $SUDO_TEST_CASE != "retry-fails" ]] || exit 1
+    printf 'openssl 3.6.5-1\npython 3.14.8-1\n' >"$installed"
+    ;;
+esac
+STUB
+printf '#!/bin/bash\necho "$SUDO_TEST_PKG_CACHE"\n' >"$SUDO_TEST_ROOT/bin/pacman-conf"
+chmod +x "$SUDO_TEST_ROOT/bin/pacman" "$SUDO_TEST_ROOT/bin/pacman-conf"
+
+for case in retired retry-fails published; do
+  reset_boundary
+  printf 'openssl 4.1.0-1\nopenssl-3 3.5.9-2\npython 3.14.10-1\n' >"$SUDO_TEST_INSTALLED_FILE"
+  status=0
+  SUDO_TEST_CASE=$case run_channel rc || status=$?
+  steps=$(grep -oP '^step:pacman \K-(Syyuu|Rdd|U)(?= )' "$SUDO_TEST_LOG" | paste -sd' ' || true)
+  case $case in
+    retired)
+      (( status == 0 )) || fail "a package rc doesn't have is removed so the switch completes" "$(<"$boundary_tmp/output")"
+      [[ $steps == "-Syyuu -Rdd -Syyuu" ]] || fail "openssl-3 is removed before the retry, not after" "$(<"$SUDO_TEST_LOG")"
+      [[ $(<"$SUDO_TEST_INSTALLED_FILE") == $'openssl 3.6.5-1\npython 3.14.8-1' ]] || fail "the machine ends on rc's openssl" "$(<"$SUDO_TEST_INSTALLED_FILE")"
+      ;;
+    retry-fails)
+      (( status != 0 )) || fail "a failed retry stops the switch"
+      [[ $steps == "-Syyuu -Rdd -Syyuu -U" ]] || fail "a failed retry puts openssl-3 back" "$(<"$SUDO_TEST_LOG")"
+      grep -Fxq "step:pacman -U --noconfirm $SUDO_TEST_PKG_CACHE/openssl-3-3.5.9-2-x86_64.pkg.tar.zst" "$SUDO_TEST_LOG" ||
+        fail "openssl-3 comes back from its cached package" "$(<"$SUDO_TEST_LOG")"
+      ;;
+    published)
+      (( status != 0 )) || fail "a conflict with a package rc publishes stops the switch"
+      [[ $steps == "-Syyuu" ]] || fail "a package rc publishes is never removed" "$(<"$SUDO_TEST_LOG")"
+      ;;
+  esac
+done
+ln -sfn test-step "$SUDO_TEST_ROOT/bin/pacman"
+rm "$SUDO_TEST_ROOT/bin/pacman-conf"
+pass "leaving edge removes a package rc doesn't have whose files rc's packages install, before the retry, and puts it back if the retry fails"
+
 for step in pacman omarchy-update-system-pkgs omarchy-hook; do
   reset_boundary
   if SUDO_TEST_FAIL_STEP="$step" run_channel stable; then fail "$step failure was ignored"; fi

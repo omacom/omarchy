@@ -64,5 +64,77 @@ if [[ $channel == "stable" || $channel == "rc" ]]; then
   ignore=(--ignore omarchy-dev,omarchy-settings-dev)
 fi
 
-# Reset all package DBs and then update
-omarchy-update-pacman -Syyuu --noconfirm "${ignore[@]}"
+# A downgrade can bring back files that a package only the departing channel
+# has since taken over. Edge's OpenSSL 4 did: its openssl-3 compatibility
+# package owns libcrypto.so.3 and libssl.so.3, stable and rc's openssl 3.6
+# installs them again, and neither has an openssl-3 to replace it, so pacman
+# refuses the whole refresh (#18591).
+#
+# A package like that is retired by the switch: no repository on this channel
+# has it, and one of this channel's packages now installs its files. It has to
+# go before the retry. Removing it after one run with --overwrite would delete
+# the new copies too, since pacman removes a package's files even when another
+# package also owns them.
+retry_without_retired_packages() {
+  local package dependent version dir candidate found
+  local retired=() cached=()
+
+  mapfile -t retired < <(grep -oP '^\S+: /.+ exists in filesystem \(owned by \K\S+(?=\)$)' "$errors" | sort -u)
+  (( ${#retired[@]} )) || return 1
+
+  # All of them or none: a file nobody owns still stops the refresh as before.
+  (( $(grep -c ' exists in filesystem' "$errors") == $(grep -cP ' exists in filesystem \(owned by \S+\)$' "$errors") )) || return 1
+
+  for package in "${retired[@]}"; do
+    # A conflict between packages this channel publishes isn't the switch's to settle.
+    if pacman -Si "$package" &>/dev/null; then
+      return 1
+    fi
+
+    # -dd is safe only if this refresh replaces everything that needs it with
+    # a build from this channel, which can't need a package the channel lacks.
+    for dependent in $(LC_ALL=C pacman -Qi "$package" | sed -n 's/^Required By *: //p'); do
+      if [[ $dependent != "None" ]] && ! pacman -Si "$dependent" &>/dev/null; then
+        return 1
+      fi
+    done
+
+    # And a cached copy puts it back if the retry fails anyway.
+    read -r _ version < <(pacman -Q "$package")
+    found=""
+    while IFS= read -r dir; do
+      for candidate in "${dir%/}/$package-$version"-*.pkg.tar.*; do
+        if [[ -f $candidate && $candidate != *.sig ]]; then
+          found=$candidate
+        fi
+      done
+    done < <(pacman-conf CacheDir)
+    if [[ -z $found ]]; then
+      return 1
+    fi
+    cached+=("$found")
+  done
+
+  echo -e "\e[33m\nRemoving what $channel doesn't have, since its packages now install those files:\e[0m"
+  printf '  %s\n' "${retired[@]}"
+  omarchy-update-pacman -Rdd --noconfirm "${retired[@]}" || return 1
+
+  if omarchy-update-pacman -Syyuu --noconfirm "${ignore[@]}"; then
+    return 0
+  fi
+  echo -e "\e[33m\nThe refresh failed again. Putting back what it removed:\e[0m" >&2
+  omarchy-update-pacman -U --noconfirm "${cached[@]}"
+  return 1
+}
+
+# Reset all package DBs and then update. Errors are kept for the check above,
+# and LC_ALL=C keeps them parseable in any locale; progress stays on stdout.
+errors=$(mktemp)
+trap 'rm -f "$errors"' EXIT
+if LC_ALL=C omarchy-update-pacman -Syyuu --noconfirm "${ignore[@]}" 2>"$errors"; then
+  cat "$errors" >&2
+else
+  status=$?
+  cat "$errors" >&2
+  retry_without_retired_packages || exit "$status"
+fi
