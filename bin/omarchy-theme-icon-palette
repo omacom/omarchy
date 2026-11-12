@@ -16,6 +16,8 @@
 #                  amber, else its most vivid other color, else a mid grey
 #   icon_paper, icon_body, icon_edge, icon_ink, icon_shadow
 #                  the neutral pieces, read the right way round in light themes
+#   icon_red, icon_orange
+#                  the theme's own, or icon_mark when it has none in hex
 #
 # A theme sets any of these in its colors.toml to choose for itself, and its
 # value is printed as given. Prints every role or, when one would not be a
@@ -107,6 +109,8 @@ awk -F '\t' '
     role["icon_edge"] = color["muted"]
     role["icon_ink"] = color["dark_foreground"]
     role["icon_shadow"] = shadow
+    role["icon_red"] = is_hex(color["red"]) ? color["red"] : mark
+    role["icon_orange"] = is_hex(color["orange"]) ? color["orange"] : mark
 
     # Half a palette would draw broken icons, so print all of it or none.
     for (key in role) {

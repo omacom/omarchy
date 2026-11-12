@@ -28,7 +28,7 @@ Item {
   // URLs to make images reload instead of showing the cached previous theme, and
   // the rescan picks up links the switch created.
   readonly property string home: Quickshell.env("HOME")
-  readonly property string userIconsPath: home + "/.local/share/icons/"
+  readonly property string userIconsPath: (Quickshell.env("XDG_DATA_HOME") || home + "/.local/share") + "/icons/"
   property int themeRevision: 0
 
   property int launchSerial: 0
@@ -150,7 +150,7 @@ Item {
     // so the parser, which keeps the first hit per name, prefers scalable icons.
     // Within each icon dir, PNGs go largest size first, so a 256x256 beats a 32x32.
     return [
-      'dirs="$HOME/.icons $HOME/.local/share/icons";',
+      'dirs="$HOME/.icons ${XDG_DATA_HOME:-$HOME/.local/share}/icons";',
       'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
       '{',
       '  for base in $dirs; do',

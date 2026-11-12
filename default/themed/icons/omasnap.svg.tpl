@@ -21,6 +21,6 @@
     <path d="M172 228V200Q172 180 192 180H220M380 180H408Q428 180 428 200V228M428 356V384Q428 404 408 404H380M220 404H192Q172 404 172 384V356" fill="none" stroke="{{ icon_mark }}" stroke-width="14" stroke-linecap="round"/>
     <!-- Annotation arrow pointing into the snap. -->
     <path d="M112 236L262 300M262 300L210 302M262 300L236 256" fill="none" stroke="{{ icon_shadow }}" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 6)"/>
-    <path d="M112 236L262 300M262 300L210 302M262 300L236 256" fill="none" stroke="{{ orange }}" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M112 236L262 300M262 300L210 302M262 300L236 256" fill="none" stroke="{{ icon_orange }}" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>

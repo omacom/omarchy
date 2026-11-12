@@ -102,6 +102,8 @@ printf 'accent = "#7aa2f7"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\nicon
 [[ $(icon_role "$test_tmp/chosen.toml" icon_mark) == "#123456" ]] || fail "a theme chooses its own app icon color"
 printf 'accent = "rgba(122,162,247,1)"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$test_tmp/rgba.toml"
 [[ -z $("$ROOT/bin/omarchy-theme-color" --file "$test_tmp/rgba.toml" --all | "$ROOT/bin/omarchy-theme-icon-palette") ]] || fail "app icons are skipped when the palette is not plain hex"
+printf 'accent = "#7aa2f7"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\nred = "rgba(247,118,142,1)"\n' >"$test_tmp/rgba-red.toml"
+[[ $(icon_role "$test_tmp/rgba-red.toml" icon_red) == "$(icon_role "$test_tmp/rgba-red.toml" icon_mark)" ]] || fail "app icons stand in for a red that is not plain hex"
 pass "app icon colors honor the theme and skip palettes they cannot draw"
 
 # The icons are linked over the packaged ones; a user's own icon stays, a link

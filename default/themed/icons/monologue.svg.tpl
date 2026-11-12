@@ -3,8 +3,8 @@
   <desc>A record button seen from the front: a red button set in a dark puck, flanked by level bars, each piece with a hard shadow.</desc>
   <defs>
     <linearGradient id="rec" x1="0" y1="0" x2="1" y2="1">
-      <stop stop-color="{{ mix red icon_paper 25% }}"/>
-      <stop offset="1" stop-color="{{ red }}"/>
+      <stop stop-color="{{ mix icon_red icon_paper 25% }}"/>
+      <stop offset="1" stop-color="{{ icon_red }}"/>
     </linearGradient>
   </defs>
   <g transform="translate(256 256) scale(1.25) translate(-256 -256)">
