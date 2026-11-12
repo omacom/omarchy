@@ -10,7 +10,8 @@ set -euo pipefail
 # the user's ~/.config/mimeapps.list, so every app opens text files in the
 # editor picked under Setup > Default > Editor. --unless-chosen leaves a type
 # alone when the user picked an app for it themselves, keeping only Omarchy's
-# own past defaults (Neovim, then Plain) to replace.
+# own past defaults (Neovim, then Plain) and apps no longer installed to
+# replace.
 
 handler=omarchy-launch-editor.desktop
 unless_chosen=false
@@ -46,14 +47,30 @@ older="${XDG_DATA_HOME:-$HOME/.local/share}/applications/mimeapps.list"
 aliases=/usr/share/mime/aliases
 [[ -f $aliases ]] || aliases=/dev/null
 
-updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v older="$older" -v aliases="$aliases" '
+# The apps that are installed, by desktop ID (a subfolder's / read as -, as
+# GLib names them). A type pointed at one that's gone was a choice once, but
+# GLib skips it and opens the type in whatever it finds next, so it's
+# replaced like Omarchy's own past defaults.
+installed=$(
+  IFS=:
+  for dir in ${XDG_DATA_HOME:-$HOME/.local/share} ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do
+    if [[ -d $dir/applications ]]; then
+      find "$dir/applications" -name '*.desktop' -printf '%P\n' 2>/dev/null | tr / - || true
+    fi
+  done
+)
+
+updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v older="$older" -v aliases="$aliases" -v installed="$installed" '
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
   function ours(app) { return app == "nvim.desktop" || app == "plain.desktop" || app == handler }
+  function chose(app) { return !ours(app) && (app in present) }
   function canon(t) { return (t in alias) ? alias[t] : t }
   BEGIN {
     while ((getline pair < aliases) > 0) { split(pair, part, " "); alias[part[1]] = part[2] }
     n = split(types, list, "\n")
     for (i = 1; i <= n; i++) wanted[canon(list[i])] = 1
+    split(installed, apps, "\n")
+    for (i in apps) present[apps[i]] = 1
   }
   function header(line) { sub(/\r$/, "", line); return trim(line) }
   FILENAME != current { current = FILENAME; file = (FILENAME == older ? 1 : 2); section = "" }
@@ -84,8 +101,8 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
     }
   }
   END {
-    for (k = 1; k <= key_count; k++) if (!(canon(keys[k]) in chosen)) chosen[canon(keys[k])] = !ours(last[keys[k]])
-    for (k = 1; k <= older_count; k++) if (!(canon(older_keys[k]) in older_choice)) older_choice[canon(older_keys[k])] = !ours(older_last[older_keys[k]])
+    for (k = 1; k <= key_count; k++) if (!(canon(keys[k]) in chosen)) chosen[canon(keys[k])] = chose(last[keys[k]])
+    for (k = 1; k <= older_count; k++) if (!(canon(older_keys[k]) in older_choice)) older_choice[canon(older_keys[k])] = chose(older_last[older_keys[k]])
     if (unless_chosen == "true") {
       for (type in chosen) if (chosen[type]) keep[type] = 1
       for (type in older_choice) if (older_choice[type] && !(type in chosen)) keep[type] = 1

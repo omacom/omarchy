@@ -322,6 +322,10 @@ omarchy-default-editor nvim
 [[ ! -s $install_log && ! -s $terminal_log ]] || fail "installed defaults skip installation"
 pass "installed defaults are selected immediately"
 
+# code.desktop stands for an app the user picked: one that's installed.
+mkdir -p "$test_home/.local/share/applications"
+printf '[Desktop Entry]\nExec=true %%F\n' >"$test_home/.local/share/applications/code.desktop"
+
 # Picking an editor points every text type at the editor handler in the
 # user's mimeapps.list, replacing what was there and keeping everything else.
 mimeapps="$test_home/.config/mimeapps.list"
@@ -350,6 +354,10 @@ grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the mi
 grep -qxF "text/xml=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Plain, the newer default"
 grep -qxF "text/x-tex=code.desktop" "$mimeapps" || fail "the migration keeps a type the user chose"
 ! grep -qxF "text/x-tex=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration doesn't add a second default for a chosen type"
+printf '[Default Applications]\ntext/plain=vscodium-electron.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces a choice whose app is gone"
+! grep -q "^text/plain=vscodium-electron" "$mimeapps" || fail "the migration drops the line for an app that's gone"
 mkdir -p "$test_home/.local/share/applications"
 printf '[Default Applications]\ntext/x-java=code.desktop\ntext/x-tcl=nvim.desktop\n' >"$test_home/.local/share/applications/mimeapps.list"
 printf '[Default Applications]\n' >"$mimeapps"
@@ -357,7 +365,7 @@ omarchy-cmd-editor-mimetypes --unless-chosen
 ! grep -q "^text/x-java=" "$mimeapps" || fail "the migration keeps a choice saved in the older list"
 grep -qxF "text/x-tcl=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Neovim saved in the older list"
 rm -f "$test_home/.local/share/applications/mimeapps.list"
-pass "the migration keeps the user's own choices"
+pass "the migration keeps the user's own choices, while their apps are installed"
 
 # Values are ;-separated lists and keys may have spaces around "=", as GLib
 # writes and reads them; a choice in ~/.config outranks the older list's.
