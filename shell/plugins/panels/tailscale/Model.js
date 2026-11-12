@@ -90,9 +90,10 @@ function shellQuote(value) {
 
 // `tailscale set --nickname` only reaches the profile that is currently
 // selected, so renaming any other connection has to switch to it, rename,
-// and switch back to the profile that was active before. The switch back is
-// separated with `;` so a failed rename still returns the daemon to the
-// tailnet the user was on.
+// and switch back to the profile that was active before. The switch back
+// always runs, and the first failure — switch, rename, or the switch back
+// itself — is what the command reports, so a successful restoration never
+// masks a failed rename.
 function renamePlan(accountId, selectedId, nickname) {
   var id = String(accountId || "").trim()
   var name = String(nickname || "").trim()
@@ -102,9 +103,9 @@ function renamePlan(accountId, selectedId, nickname) {
     return { command: ["bash", "-c", "tailscale set --nickname=" + shellQuote(name)] }
   }
   if (target === "") return null
-  var script = "tailscale switch " + shellQuote(id)
-    + " && tailscale set --nickname=" + shellQuote(name)
-    + "; tailscale switch " + shellQuote(target)
+  var script = "r=0; tailscale switch " + shellQuote(id) + " || r=$?; "
+    + "if [ $r -eq 0 ]; then tailscale set --nickname=" + shellQuote(name) + " || r=$?; fi; "
+    + "tailscale switch " + shellQuote(target) + " || { [ $r -eq 0 ] && r=$?; }; exit $r"
   return { command: ["bash", "-c", script] }
 }
 

@@ -36,6 +36,16 @@ Panel {
   property string mullvadQuery: ""
   // The connection currently showing its inline rename field, by profile id.
   property string editingAccountId: ""
+  // The draft lives at panel level so a row rebuilt by an accounts refresh
+  // can put the same text back into its replacement's editor.
+  property string editingDraft: ""
+
+  function accountIdExists(id) {
+    for (var i = 0; i < tailscale.accounts.length; i++) {
+      if (String(tailscale.accounts[i].id || "") === String(id || "")) return true
+    }
+    return false
+  }
   property int phraseIndex: 0
   readonly property var activePhrases: [
     Commons.I18n.t("tailscale.phrase1"),
@@ -480,7 +490,15 @@ Panel {
     target: tailscale
     property string lastAccountId: ""
     function onPeersChanged() { root.ensureCursor() }
-    function onAccountsChanged() { root.ensureCursor() }
+    function onAccountsChanged() {
+      root.ensureCursor()
+      // A refresh that removed the connection being renamed closes the
+      // editor; one that kept it lets the rebuilt row restore the draft.
+      if (root.editingAccountId !== "" && !root.accountIdExists(root.editingAccountId)) {
+        root.editingAccountId = ""
+        root.editingDraft = ""
+      }
+    }
     function onAccountsAccessDeniedChanged() { root.ensureCursor() }
     function onSelectedAccountIdChanged() {
       // A remembered scroll position belongs to the tailnet it was scrolled
@@ -1130,6 +1148,7 @@ Panel {
     function beginRename() {
       if (!account || switchingAccount || renameInFlight) return
       root.editingAccountId = String(account.id || "")
+      root.editingDraft = ""
       renameField.text = accountText
       renameField.forceActiveFocus()
       renameField.selectAll()
@@ -1139,8 +1158,22 @@ Panel {
       if (!account || !renaming) return
       var value = renameField.text.trim()
       root.editingAccountId = ""
+      root.editingDraft = ""
       keyCatcher.forceActiveFocus()
       if (save && value !== "" && value !== accountText) tailscale.renameAccount(account.id, value)
+    }
+
+    // A delegate rebuilt by an accounts refresh mid-edit comes back with an
+    // empty, unfocused editor; put the panel-level draft back into it.
+    Component.onCompleted: {
+      if (renaming && root.editingDraft !== "") {
+        renameField.text = root.editingDraft
+        Qt.callLater(function() {
+          if (!accountRow.renaming) return
+          renameField.forceActiveFocus()
+          renameField.selectAll()
+        })
+      }
     }
 
     // Declared before the row content so the pen button stacks above it and
@@ -1151,7 +1184,7 @@ Panel {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       onEntered: root.setAccountCursor(accountRow.rowIndex)
-      onClicked: if (accountRow.account && !accountRow.renaming) tailscale.switchAccount(accountRow.account.id)
+      onClicked: if (accountRow.account && !accountRow.renaming && tailscale.switchingAccountId === "" && tailscale.renamingAccountId === "") tailscale.switchAccount(accountRow.account.id)
     }
 
     RowLayout {
@@ -1192,6 +1225,7 @@ Panel {
         horizontalPadding: Style.space(4)
         verticalPadding: Style.space(1)
         onAccepted: accountRow.finishRename(true)
+        onTextChanged: root.editingDraft = text
         onActiveFocusChanged: if (!activeFocus && accountRow.renaming) accountRow.finishRename(false)
         Keys.onEscapePressed: function(event) {
           accountRow.finishRename(false)

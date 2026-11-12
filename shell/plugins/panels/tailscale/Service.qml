@@ -74,6 +74,7 @@ Item {
   // reassigned unconditionally, so only publish an array whose content
   // actually changed.
   property string _peersSig: "[]"
+  property string _accountsSig: "[]"
   property string _tailnetExitNodesSig: "[]"
   property string _exitNodesSig: "[]"
   property string _mullvadRegionsSig: "[]"
@@ -268,6 +269,7 @@ Item {
     mullvadExitNodes = []
     mullvadRegions = []
     _mullvadRegionsSig = "[]"
+    _accountsSig = "[]"
     accounts = []
     selectedAccountId = ""
     selectedAccountLabel = ""
@@ -334,6 +336,12 @@ Item {
 
   function parseAccounts(raw) {
     var parsed = Model.parseAccounts(raw, I18n.t)
+    // Reassigning the array rebuilds every row — including one with an open
+    // rename editor whose draft would be lost — so only publish when the
+    // content really changed between polls.
+    var sig = JSON.stringify(parsed.accounts) + "\n" + parsed.selectedAccountId
+    if (sig === _accountsSig) return
+    _accountsSig = sig
     accounts = parsed.accounts
     selectedAccountId = parsed.selectedAccountId
     selectedAccountLabel = parsed.selectedAccountLabel
@@ -389,7 +397,9 @@ Item {
 
   function switchAccount(id) {
     var accountId = String(id || "")
-    if (!installed || accountId === "" || accountId === selectedAccountId || switchProcess.running) return
+    // A switch racing an in-flight rename would move the daemon between the
+    // rename's switch and its set --nickname, renaming the wrong profile.
+    if (!installed || accountId === "" || accountId === selectedAccountId || switchProcess.running || renameProcess.running) return
     _switchOutput = ""
     _switchError = ""
     switchingAccountId = accountId
@@ -398,7 +408,7 @@ Item {
   }
 
   function renameAccount(id, nickname) {
-    if (!installed || renameProcess.running) return
+    if (!installed || renameProcess.running || switchProcess.running) return
     var plan = Model.renamePlan(id, selectedAccountId, nickname)
     if (!plan) return
     _renameOutput = ""
@@ -671,6 +681,9 @@ Item {
         root.lastError = ""
         root.actionStatus = ""
         root._lastAccountsRefreshMs = 0
+        // Optimistic so a rename requested right after a switch takes the
+        // in-place path; the next accounts poll confirms it.
+        root.selectedAccountId = root.switchingAccountId
       }
       root.switchingAccountId = ""
       delayedRefresh.restart()
