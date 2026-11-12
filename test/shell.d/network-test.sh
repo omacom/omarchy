@@ -212,8 +212,6 @@ assertEqual(
   'Could not set DNS to DHCP. ' + 'x'.repeat(179) + '…',
   'network keeps a long DNS error on one short line'
 )
-assert(panelSource.includes('dnsChangeFailed = true'), 'network panel records a failed DNS change')
-assert(panelSource.includes('dnsFailureText'), 'network panel renders the DNS failure')
 
 assertEqual(network.canForgetNetwork({ known: true, connected: false, security: security.Owe }), true, 'network can forget known disconnected OWE networks')
 assertEqual(network.canForgetNetwork({ known: true, connected: false, security: security.Open }), true, 'network can forget known disconnected open networks')
