@@ -51,8 +51,9 @@ fi
 # it enables compositor input.
 plugin_installed=false
 installed="hyprland=$(pacman -Q hyprland | cut -d' ' -f2)"
-plugin_info=$(pacman -Si cua-hyprland-plugin 2>/dev/null || true)
-pinned=$(grep -o 'hyprland=[^ ]*' <<<"$plugin_info" | head -1 || true)
+# The first record is the repository pacman installs from, and C keeps the field name it is found by.
+plugin_info=$(LC_ALL=C pacman -Si cua-hyprland-plugin 2>/dev/null || true)
+pinned=$(awk '/^Depends On/ { for (i = 4; i <= NF; i++) if ($i ~ /^hyprland=/) print $i; exit }' <<<"$plugin_info")
 echo ""
 if [[ -z $plugin_info ]]; then
   echo "The Cua Hyprland plugin is not available in your package channel; Cua Driver works without it."
