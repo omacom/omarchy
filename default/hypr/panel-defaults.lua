@@ -175,15 +175,16 @@ end
 local monitor = hl.monitor
 local catch_all = nil -- the latest rule for every monitor, without the panel keys
 local rules = {} -- the latest rule naming each port, as given
-local desc_rules = {} -- the latest rule naming each description prefix, as given
+local desc_rules = {} -- the rules naming a description prefix, latest last, as given
 local given = {} -- ports whose panel got its settings
 
 -- The latest rule naming a monitor by its description, if any.
 local function desc_rule_for(found)
   local description = found and found.description or ""
-  for prefix, rule in pairs(desc_rules) do
+  for i = #desc_rules, 1, -1 do
+    local prefix = desc_rules[i].prefix
     if description:sub(1, #prefix) == prefix then
-      return rule
+      return desc_rules[i].rule
     end
   end
 end
@@ -237,18 +238,25 @@ hl.monitor = function(rule)
   end
 
   -- A rule naming the panel by its description replaces its settings in
-  -- Hyprland as a port rule does, so it gets them filled in the same way.
+  -- Hyprland as a port rule does. It may match external displays too, so it
+  -- goes on unchanged and the panel gets its own rule after it, as with the
+  -- catch-all.
   local prefix = output:match("^desc:(.+)$")
   if prefix then
-    desc_rules[prefix] = copy(rule)
-    for _, found in ipairs(hl.get_monitors()) do
-      local settings = panel_settings(found)
-      if settings and (found.description or ""):sub(1, #prefix) == prefix then
-        fill(rule, output, found, settings)
-        given[found.name] = true
+    for i = #desc_rules, 1, -1 do
+      if desc_rules[i].prefix == prefix then
+        table.remove(desc_rules, i)
       end
     end
-    return monitor(rule)
+    desc_rules[#desc_rules + 1] = { prefix = prefix, rule = copy(rule) }
+    local result = monitor(rule)
+    for _, found in ipairs(hl.get_monitors()) do
+      if not rules[found.name] and (found.description or ""):sub(1, #prefix) == prefix then
+        given[found.name] = nil
+        give(found)
+      end
+    end
+    return result
   end
 
   rules[output] = copy(rule)
