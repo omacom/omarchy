@@ -19,6 +19,7 @@
   "agents.homeFailed": "新しいアカウント用のホームを設定できませんでした。",
   "agents.installCliFailed": "%1 CLIのインストールが完了しませんでした。",
   "agents.installingCli": "%1 CLIをインストール中…",
+  "agents.instructionsBackedUp": "古いエージェントの指示をバックアップとして残しました",
   "agents.localUnsupported": "ローカルモデルを使用できるエージェントがありません",
   "agents.localUnsupportedBody": "ローカルモデルを使用するには pi または OpenCode をインストールしてください。",
   "agents.loginUnfinished": "ログインが完了しなかったため、アカウントは追加されませんでした。",

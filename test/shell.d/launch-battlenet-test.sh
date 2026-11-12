@@ -23,7 +23,20 @@ ln -s . "$prefix/pfx"
 write_registry() {
   cat >"$prefix/user.reg" <<'REG'
 [Control Panel\\Desktop] 1793676771
+#time=1dd5ff435e0edbe
 "LogPixels"=dword:00000060
+"MenuShowDelay"="400"
+
+[Software\\Wine\\Fonts] 1793677064
+"LogPixels"=dword:00000060
+REG
+}
+
+# A fresh prefix only has the Fonts copy, which Wine writes but never reads.
+write_fresh_registry() {
+  cat >"$prefix/user.reg" <<'REG'
+[Control Panel\\Desktop] 1793676771
+#time=1dd5ff435e0edbe
 "MenuShowDelay"="400"
 
 [Software\\Wine\\Fonts] 1793677064
@@ -53,6 +66,18 @@ grep -q '^"MenuShowDelay"="400"$' "$prefix/user.reg" ||
 grep -q '^umu-run:.*Battle.net Launcher.exe$' "$TEST_LOG" ||
   fail "Battle.net launch matches the DPI to the focused monitor's scale" "launcher never started"
 pass "Battle.net launch matches the DPI to the focused monitor's scale"
+
+# A fresh prefix has no DPI under [Control Panel\\Desktop] yet, so the launch
+# adds one after the key's #time line.
+write_fresh_registry
+echo 2 >"$tmp_dir/scale"
+"$ROOT/bin/omarchy-launch-battlenet"
+
+[[ $(sed -n '2,4p' "$prefix/user.reg") == $'#time=1dd5ff435e0edbe\n"LogPixels"=dword:000000c0\n"MenuShowDelay"="400"' ]] ||
+  fail "Battle.net launch adds the DPI to a fresh prefix" "$(cat "$prefix/user.reg")"
+[[ $(grep -c '^"LogPixels"=dword:000000c0$' "$prefix/user.reg") == "2" ]] ||
+  fail "Battle.net launch adds the DPI to a fresh prefix" "$(cat "$prefix/user.reg")"
+pass "Battle.net launch adds the DPI to a fresh prefix"
 
 # While the prefix's wineserver runs, the registry is its to write back on
 # exit, so the launch leaves it alone and still hands off to the launcher.

@@ -17,6 +17,12 @@ export EDITOR="omarchy-launch-editor --inline"
 # hyprwm/Hyprland#16648 is fixed. Set HYPRLAND_NO_RT=0 to opt back in.
 export HYPRLAND_NO_RT=1
 
+# Bitwarden keeps its key in memfd_secret memory, which turns hibernation off while it runs.
+# When every swap a hibernation image can go to is encrypted, let it use locked memory instead.
+if omarchy-hibernation-encrypted; then
+  export SECURE_KEY_CONTAINER_BACKEND=${SECURE_KEY_CONTAINER_BACKEND:-mlock}
+fi
+
 # Use a custom directory for screenshots
 # export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Screenshots"
 

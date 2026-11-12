@@ -76,6 +76,20 @@ osd_progress() {
   omarchy-osd -i 󰇚 -p "$1" -d 8000 >/dev/null 2>&1 || true
 }
 
+# yt-dlp downloads video and audio as separate streams, each running 0-100%, then
+# merges them. Fold them into one bar: the streams before the last share the first
+# 90%, and the last one, the audio and a fraction of the size, fills the rest.
+overall_percent() { # overall_percent <part> <parts> <percent>
+  local part=$1 parts=$2 pct=$3
+  if ((parts < 2)); then
+    echo "$pct"
+  elif ((part < parts)); then
+    echo $((((part - 1) * 100 + pct) * 90 / ((parts - 1) * 100)))
+  else
+    echo $((90 + pct / 10))
+  fi
+}
+
 osd_close() {
   omarchy-shell -q osd close >/dev/null 2>&1 || true
 }
@@ -92,27 +106,49 @@ download_url() {
   fi
 
   osd_progress 0
+  local er=$EPOCHREALTIME
+  local lastms=$((${er%[.,]*} * 1000 + 10#${er##*[.,]} / 1000))
 
-  # Stream the download: OMARCHY_PROG carries the percent (drives the OSD), and
-  # OMARCHY_FILE and OMARCHY_TITLE (printed only after a successful move) carry the
-  # path and the title. The title is JSON-encoded so metadata cannot forge a record,
-  # and the file is named after it: yt-dlp strips control characters from a filename
-  # with or without --restrict-filenames, so a record is still only ever one line.
-  local line pct intpct last="" er nowms lastms=0 title="" filepath="" resolved
+  # Stream the download: OMARCHY_PARTS names the formats yt-dlp picked (616+251 is a
+  # video and an audio stream), OMARCHY_PROG carries each stream's status and percent
+  # (drives the OSD), and OMARCHY_FILE and OMARCHY_TITLE (printed only after a
+  # successful move) carry the path and the title. The title is JSON-encoded so
+  # metadata cannot forge a record, and the file is named after it: yt-dlp strips
+  # control characters from a filename with or without --restrict-filenames, so a
+  # record is still only ever one line.
+  local line status format pct intpct parts=1 part=0 current="" plus last=0 nowms title="" filepath="" resolved
   while IFS= read -r line; do
     case $line in
+    OMARCHY_PARTS*)
+      plus=${line//[^+]/}
+      parts=$((${#plus} + 1))
+      ;;
     OMARCHY_PROG*)
-      pct=${line#OMARCHY_PROG$'\t'}
+      IFS=$'\t' read -r _ status format pct <<<"$line"
+      if [[ $format != "$current" ]]; then
+        current=$format
+        ((++part))
+      fi
       intpct=${pct%%.*}
       intpct=${intpct//[^0-9]/}
-      [[ -n $intpct && $intpct != "$last" ]] || continue # skip no-op repeats
+      [[ -n $intpct ]] || continue
+      # A chunked (HLS) stream's first report reads 100% before any chunk arrives.
+      # A real finish always comes as its own "finished" report.
+      [[ $status == downloading && $intpct == 100 ]] && continue
       # Throttle to ~4 redraws/sec so fast downloads don't spawn a flurry of processes.
       er=$EPOCHREALTIME
       nowms=$((${er%[.,]*} * 1000 + 10#${er##*[.,]} / 1000))
       ((nowms - lastms >= 250)) || continue
-      last=$intpct
+      intpct=$(overall_percent "$part" "$parts" "$intpct")
+      # Never run the bar backwards. A stretch that doesn't move it still redraws
+      # every few seconds, before the OSD's 8s timeout hides a slow download.
+      if ((intpct > last)); then
+        last=$intpct
+      elif ((nowms - lastms < 4000)); then
+        continue
+      fi
       lastms=$nowms
-      osd_progress "$intpct"
+      osd_progress "$last"
       ;;
     OMARCHY_FILE*)
       resolved=$(resolve_download_file "${line#OMARCHY_FILE$'\t'}") || continue
@@ -124,8 +160,9 @@ download_url() {
     esac
   done < <(PYTHONUNBUFFERED=1 yt-dlp --no-playlist --no-simulate \
     --quiet --no-warnings --no-exec --no-exec-before-download --progress --newline \
-    --progress-template $'download:OMARCHY_PROG\t%(progress._percent_str)s' \
+    --progress-template $'download:OMARCHY_PROG\t%(progress.status)s\t%(info.format_id)s\t%(progress._percent_str)s' \
     --paths "$DOWNLOAD_DIR" -o '%(title)s.%(ext)s' \
+    --print $'video:OMARCHY_PARTS\t%(format_id)s' \
     --print $'after_move:OMARCHY_FILE\t%(filepath)s' \
     --print $'after_move:OMARCHY_TITLE\t%(title)j' \
     -- "$url" 2>&1)
