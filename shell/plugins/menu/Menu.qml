@@ -1441,16 +1441,6 @@ Item {
             spacing: root.rowSpacing
             boundsBehavior: Flickable.StopAtBounds
 
-            WheelHandler {
-              target: null
-              onWheel: function(event) {
-                var delta = event.pixelDelta.y || event.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
-                var bottom = resultList.originY + Math.max(0, resultList.contentHeight - resultList.height)
-                resultList.contentY = Math.max(resultList.originY, Math.min(bottom, resultList.contentY - delta))
-                event.accepted = true
-              }
-            }
-
             section.property: "section"
             section.criteria: ViewSection.FullString
             section.delegate: Item {
@@ -1630,6 +1620,27 @@ Item {
                   root.activateIndex(row.index, true)
                 }
               }
+            }
+          }
+
+          // The wheel moves the list three rows a notch. A MouseArea over the
+          // list rather than a WheelHandler in it: Qt on Wayland reports the
+          // wheel as a touchpad's, which a WheelHandler turns away unless told
+          // to take touchpads, and then it cannot hand a gesture back.
+          MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.NoButton
+            onWheel: function(wheel) {
+              // A touchpad gesture carries a scroll phase and is the list's to
+              // follow. A wheel has none and is read by its angle: Hyprland
+              // puts a fixed 15 in pixelDelta, and only on some wheel events.
+              if (wheel.phase !== Qt.NoScrollPhase || wheel.angleDelta.y === 0) {
+                wheel.accepted = false
+                return
+              }
+              var delta = wheel.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
+              var bottom = resultList.originY + Math.max(0, resultList.contentHeight - resultList.height)
+              resultList.contentY = Math.max(resultList.originY, Math.min(bottom, resultList.contentY - delta))
             }
           }
 

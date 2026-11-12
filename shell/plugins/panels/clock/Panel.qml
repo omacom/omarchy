@@ -40,6 +40,7 @@ Panel {
   // a read-out, not a picker, so there is no per-day cursor to keep in sync.
   property int viewYear: today.getFullYear()
   property int viewMonth: today.getMonth()
+  property real wheelAccumulator: 0
 
   // Local noon, so a first of the month with no midnight (Havana, April 2012)
   // still names its own month; UTC would name the previous one west of Greenwich.
@@ -550,12 +551,19 @@ Panel {
             width: parent.width
             height: gridColumn.y + gridColumn.height
 
-            WheelHandler {
-              onWheel: function(event) {
-                // Horizontal wheels and touchpad side-scrolls report y === 0;
-                // without this they would every one read as "next month".
-                if (event.angleDelta.y === 0) return
-                root.moveMonth(event.angleDelta.y > 0 ? -1 : 1)
+            // Under the grid, where the wheel lands once the day cells have
+            // passed it on. A MouseArea rather than a WheelHandler: Qt on
+            // Wayland reports the wheel as a touchpad's, which a WheelHandler
+            // turns away by default.
+            MouseArea {
+              anchors.fill: parent
+              acceptedButtons: Qt.NoButton
+              onWheel: function(wheel) {
+                // One month a notch, however many events the notch arrives as.
+                // Horizontal wheels and touchpad side-scrolls report y === 0.
+                var turn = Util.wheelSteps(root.wheelAccumulator, wheel.angleDelta.y)
+                root.wheelAccumulator = turn.remainder
+                if (turn.steps !== 0) root.moveMonth(-turn.steps)
               }
             }
 
