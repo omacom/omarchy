@@ -34,6 +34,10 @@ class StatusNotifierItem(dbus.service.Object):
     if interface != "org.kde.StatusNotifierItem":
       return {}
 
+    # Set to act as an app that stopped answering.
+    if os.environ.get("OMARCHY_TRAY_MOCK_SILENT"):
+      time.sleep(5)
+
     props = {
       "Category": "ApplicationStatus",
       "Id": self.item_id,
@@ -173,7 +177,8 @@ def run():
   bus = dbus.SessionBus()
 
   if context_menu_path:
-    StatusNotifierItem(bus, "omarchy-test-tray-no-menu", context_menu_path)
+    # Wine names its items wine-<window>-<icon>.
+    StatusNotifierItem(bus, "wine-omarchy-test-0", context_menu_path)
   else:
     dbus.service.BusName("org.omarchy.TestStatusNotifier", bus)
     StatusNotifierItem(bus, "omarchy-test-tray")
