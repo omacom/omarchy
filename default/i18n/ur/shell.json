@@ -87,6 +87,9 @@
   "agents.networkOffline": "آف لائن",
   "agents.networkOnHost": "%1 پر",
   "agents.networkPair": "استعمال کے لیے %1 کے ساتھ جوڑیں",
+  "agents.networkPairFailed": "%1 کے ساتھ پیئرنگ نہیں ہو سکی",
+  "agents.networkPairOutputTip": "پیئرنگ نے جو پرنٹ کیا اسے ٹرمینل میں کھولیں",
+  "agents.networkPairing": "%1 کے ساتھ پیئرنگ ہو رہی ہے…",
   "agents.networkRunning": "چل رہا ہے",
   "agents.networkShare": "اپنے tailnet پر شیئر کریں",
   "agents.networkSharedUsers": {

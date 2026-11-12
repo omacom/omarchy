@@ -93,6 +93,9 @@
   "agents.networkOffline": "Brez povezave",
   "agents.networkOnHost": "Na %1",
   "agents.networkPair": "Za uporabo se seznani z %1",
+  "agents.networkPairFailed": "Ni se bilo mogoče seznaniti z %1",
+  "agents.networkPairOutputTip": "Izpis seznanjanja odprite v terminalu",
+  "agents.networkPairing": "Seznanjanje z %1…",
   "agents.networkRunning": "Deluje",
   "agents.networkShare": "Deli v tailnetu",
   "agents.networkSharedUsers": {

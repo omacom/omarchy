@@ -87,6 +87,9 @@
   "agents.networkOffline": "Oflayn",
   "agents.networkOnHost": "%1 da",
   "agents.networkPair": "Foydalanish uchun %1 bilan juftlang",
+  "agents.networkPairFailed": "%1 bilan juftlashtirib boʻlmadi",
+  "agents.networkPairOutputTip": "Juftlashtirish chiqarganini terminalda oching",
+  "agents.networkPairing": "%1 bilan juftlashtirilmoqda…",
   "agents.networkRunning": "Ishlayapti",
   "agents.networkShare": "Tailnetingizda ulashish",
   "agents.networkSharedUsers": {

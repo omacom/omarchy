@@ -84,6 +84,9 @@
   "agents.networkOffline": "オフライン",
   "agents.networkOnHost": "%1 上",
   "agents.networkPair": "使用するには %1 とペアリング",
+  "agents.networkPairFailed": "%1 とペアリングできませんでした",
+  "agents.networkPairOutputTip": "ペアリングの出力をターミナルで開く",
+  "agents.networkPairing": "%1 とペアリング中…",
   "agents.networkRunning": "実行中",
   "agents.networkShare": "tailnet で共有",
   "agents.networkSharedUsers": {

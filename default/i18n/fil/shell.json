@@ -87,6 +87,9 @@
   "agents.networkOffline": "Offline",
   "agents.networkOnHost": "Sa %1",
   "agents.networkPair": "Ipares sa %1 para gamitin ito",
+  "agents.networkPairFailed": "Hindi maipares sa %1",
+  "agents.networkPairOutputTip": "Buksan sa terminal ang inilabas ng pagpapares",
+  "agents.networkPairing": "Ipinapares sa %1…",
   "agents.networkRunning": "Tumatakbo",
   "agents.networkShare": "Ibahagi sa iyong tailnet",
   "agents.networkSharedUsers": {

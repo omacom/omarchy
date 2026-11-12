@@ -87,6 +87,9 @@
   "agents.networkOffline": "ऑफ़लाइन",
   "agents.networkOnHost": "%1 पर",
   "agents.networkPair": "उपयोग के लिए %1 से पेयर करें",
+  "agents.networkPairFailed": "%1 के साथ पेयर नहीं हो सका",
+  "agents.networkPairOutputTip": "पेयरिंग ने जो छापा है, उसे टर्मिनल में खोलें",
+  "agents.networkPairing": "%1 के साथ पेयर कर रहे हैं…",
   "agents.networkRunning": "चल रहा है",
   "agents.networkShare": "अपने tailnet पर साझा करें",
   "agents.networkSharedUsers": {

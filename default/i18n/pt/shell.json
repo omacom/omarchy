@@ -90,6 +90,9 @@
   "agents.networkOffline": "Offline",
   "agents.networkOnHost": "Em %1",
   "agents.networkPair": "Emparelhar com %1 para o usar",
+  "agents.networkPairFailed": "Não foi possível emparelhar com %1",
+  "agents.networkPairOutputTip": "Abre num terminal o que o emparelhamento imprimiu",
+  "agents.networkPairing": "A emparelhar com %1…",
   "agents.networkRunning": "Em execução",
   "agents.networkShare": "Partilhar na tua tailnet",
   "agents.networkSharedUsers": {

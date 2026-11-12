@@ -87,6 +87,9 @@
   "agents.networkOffline": "Võrguühenduseta",
   "agents.networkOnHost": "%1 peal",
   "agents.networkPair": "Kasutamiseks seo %1-ga",
+  "agents.networkPairFailed": "%1 sidumine ebaõnnestus",
+  "agents.networkPairOutputTip": "Ava terminalis see, mida sidumine väljastas",
+  "agents.networkPairing": "%1 sidumine…",
   "agents.networkRunning": "Töötab",
   "agents.networkShare": "Jaga oma tailnetis",
   "agents.networkSharedUsers": {

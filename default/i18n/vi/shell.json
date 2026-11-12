@@ -84,6 +84,9 @@
   "agents.networkOffline": "Ngoại tuyến",
   "agents.networkOnHost": "Trên %1",
   "agents.networkPair": "Ghép nối với %1 để dùng",
+  "agents.networkPairFailed": "Không ghép nối được với %1",
+  "agents.networkPairOutputTip": "Mở nội dung đã in khi ghép nối trong terminal",
+  "agents.networkPairing": "Đang ghép nối với %1…",
   "agents.networkRunning": "Đang chạy",
   "agents.networkShare": "Chia sẻ trên tailnet",
   "agents.networkSharedUsers": {

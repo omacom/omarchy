@@ -99,6 +99,9 @@
   "agents.networkOffline": "غير متصل",
   "agents.networkOnHost": "على %1",
   "agents.networkPair": "إقران مع %1 لاستخدامه",
+  "agents.networkPairFailed": "تعذّر الاقتران بـ %1",
+  "agents.networkPairOutputTip": "افتح مخرجات الاقتران في طرفية",
+  "agents.networkPairing": "جارٍ الاقتران بـ %1…",
   "agents.networkRunning": "يعمل",
   "agents.networkShare": "المشاركة على tailnet",
   "agents.networkSharedUsers": {
