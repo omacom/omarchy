@@ -41,7 +41,7 @@ while (($#)); do
       shift 2
       ;;
     --prompt)
-      prompt=${2:?--prompt needs a value}
+      prompt=${2?--prompt needs a value}
       shift 2
       ;;
     *)
