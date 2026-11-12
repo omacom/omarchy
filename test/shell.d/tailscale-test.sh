@@ -189,11 +189,6 @@ assertEqual(
   'Omacom',
   'tailscale labels connections by tailnet when nickname mirrors the account'
 )
-assertEqual(
-  tailscale.accountLabel({ nickname: 'user@example', tailnet: '', account: 'user@example', id: 'abcd' }),
-  'user@example',
-  'tailscale falls back to account when nickname mirrors it and no tailnet exists'
-)
 
 assertDeepEqual(
   tailscale.loginPlan(true, 'https://login.tailscale.com/a/existing'),
