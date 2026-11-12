@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="5120" height="1440" viewBox="0 0 5120 1440">
+  <defs>
+    <linearGradient id="source-edge-fade" x1="1280.35995501" y1="0" x2="3839.640045" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="white" stop-opacity="1" />
+      <stop offset="0.974992967651" stop-color="white" stop-opacity="1.0" />
+      <stop offset="0.976555907173" stop-color="white" stop-opacity="0.98876953125" />
+      <stop offset="0.978118846695" stop-color="white" stop-opacity="0.95703125" />
+      <stop offset="0.979681786217" stop-color="white" stop-opacity="0.90771484375" />
+      <stop offset="0.981244725738" stop-color="white" stop-opacity="0.84375" />
+      <stop offset="0.982807665260" stop-color="white" stop-opacity="0.76806640625" />
+      <stop offset="0.984370604782" stop-color="white" stop-opacity="0.68359375" />
+      <stop offset="0.985933544304" stop-color="white" stop-opacity="0.59326171875" />
+      <stop offset="0.987496483826" stop-color="white" stop-opacity="0.5" />
+      <stop offset="0.989059423347" stop-color="white" stop-opacity="0.40673828125" />
+      <stop offset="0.990622362869" stop-color="white" stop-opacity="0.31640625" />
+      <stop offset="0.992185302391" stop-color="white" stop-opacity="0.23193359375" />
+      <stop offset="0.993748241913" stop-color="white" stop-opacity="0.15625" />
+      <stop offset="0.995311181435" stop-color="white" stop-opacity="0.09228515625" />
+      <stop offset="0.996874120956" stop-color="white" stop-opacity="0.04296875" />
+      <stop offset="0.998437060478" stop-color="white" stop-opacity="0.01123046875" />
+      <stop offset="1.000000000000" stop-color="white" stop-opacity="0.0" />
+    </linearGradient>
+    <mask id="preserved-center" maskUnits="userSpaceOnUse" x="1280.35995501" y="0" width="2559.28008999" height="1440" style="mask-type:alpha">
+      <rect x="1280.35995501" y="0" width="2559.28008999" height="1440" fill="url(#source-edge-fade)" />
+    </mask>
+  </defs>
+  <image xlink:href="ultrawide/4-new-horizons-left.webp" width="1281.35995501" height="1440" preserveAspectRatio="none" />
+  <image xlink:href="ultrawide/4-new-horizons-right.webp" x="3773" width="1347" height="1440" preserveAspectRatio="none" />
+  <image xlink:href="4-new-horizons.jpg" x="1280.35995501" width="2559.28008999" height="1440" mask="url(#preserved-center)" />
+</svg>

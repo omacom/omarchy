@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="5120" height="1440" viewBox="0 0 5120 1440">
+  <defs>
+    <linearGradient id="source-edge-fade" gradientUnits="userSpaceOnUse" x1="1280.35995501" y1="0" x2="3839.640045" y2="0">
+      <stop offset="0.0" stop-color="white" stop-opacity="0.0" />
+      <stop offset="0.003125879043599038" stop-color="white" stop-opacity="0.00286865234375" />
+      <stop offset="0.006251758087198076" stop-color="white" stop-opacity="0.01123046875" />
+      <stop offset="0.009377637130797114" stop-color="white" stop-opacity="0.02471923828125" />
+      <stop offset="0.012503516174396151" stop-color="white" stop-opacity="0.04296875" />
+      <stop offset="0.01562939521799519" stop-color="white" stop-opacity="0.06561279296875" />
+      <stop offset="0.018755274261594228" stop-color="white" stop-opacity="0.09228515625" />
+      <stop offset="0.021881153305193263" stop-color="white" stop-opacity="0.12261962890625" />
+      <stop offset="0.025007032348792303" stop-color="white" stop-opacity="0.15625" />
+      <stop offset="0.028132911392391338" stop-color="white" stop-opacity="0.19281005859375" />
+      <stop offset="0.03125879043599038" stop-color="white" stop-opacity="0.23193359375" />
+      <stop offset="0.034384669479589416" stop-color="white" stop-opacity="0.27325439453125" />
+      <stop offset="0.037510548523188456" stop-color="white" stop-opacity="0.31640625" />
+      <stop offset="0.04063642756678749" stop-color="white" stop-opacity="0.36102294921875" />
+      <stop offset="0.04376230661038653" stop-color="white" stop-opacity="0.40673828125" />
+      <stop offset="0.046888185653985566" stop-color="white" stop-opacity="0.45318603515625" />
+      <stop offset="0.050014064697584605" stop-color="white" stop-opacity="0.5" />
+      <stop offset="0.053139943741183644" stop-color="white" stop-opacity="0.54681396484375" />
+      <stop offset="0.056265822784782676" stop-color="white" stop-opacity="0.59326171875" />
+      <stop offset="0.059391701828381716" stop-color="white" stop-opacity="0.63897705078125" />
+      <stop offset="0.06251758087198075" stop-color="white" stop-opacity="0.68359375" />
+      <stop offset="0.0656434599155798" stop-color="white" stop-opacity="0.72674560546875" />
+      <stop offset="0.06876933895917883" stop-color="white" stop-opacity="0.76806640625" />
+      <stop offset="0.07189521800277787" stop-color="white" stop-opacity="0.80718994140625" />
+      <stop offset="0.07502109704637691" stop-color="white" stop-opacity="0.84375" />
+      <stop offset="0.07814697608997595" stop-color="white" stop-opacity="0.87738037109375" />
+      <stop offset="0.08127285513357498" stop-color="white" stop-opacity="0.90771484375" />
+      <stop offset="0.08439873417717401" stop-color="white" stop-opacity="0.93438720703125" />
+      <stop offset="0.08752461322077305" stop-color="white" stop-opacity="0.95703125" />
+      <stop offset="0.09065049226437209" stop-color="white" stop-opacity="0.97528076171875" />
+      <stop offset="0.09377637130797113" stop-color="white" stop-opacity="0.98876953125" />
+      <stop offset="0.09690225035157017" stop-color="white" stop-opacity="0.99713134765625" />
+      <stop offset="0.10002812939516921" stop-color="white" stop-opacity="1.0" />
+      <stop offset="0.8999718706048307" stop-color="white" stop-opacity="1.0" />
+      <stop offset="0.9030977496484298" stop-color="white" stop-opacity="0.99713134765625" />
+      <stop offset="0.9062236286920289" stop-color="white" stop-opacity="0.98876953125" />
+      <stop offset="0.909349507735628" stop-color="white" stop-opacity="0.97528076171875" />
+      <stop offset="0.9124753867792269" stop-color="white" stop-opacity="0.95703125" />
+      <stop offset="0.915601265822826" stop-color="white" stop-opacity="0.93438720703125" />
+      <stop offset="0.918727144866425" stop-color="white" stop-opacity="0.90771484375" />
+      <stop offset="0.921853023910024" stop-color="white" stop-opacity="0.87738037109375" />
+      <stop offset="0.9249789029536231" stop-color="white" stop-opacity="0.84375" />
+      <stop offset="0.9281047819972221" stop-color="white" stop-opacity="0.80718994140625" />
+      <stop offset="0.9312306610408212" stop-color="white" stop-opacity="0.76806640625" />
+      <stop offset="0.9343565400844203" stop-color="white" stop-opacity="0.72674560546875" />
+      <stop offset="0.9374824191280192" stop-color="white" stop-opacity="0.68359375" />
+      <stop offset="0.9406082981716183" stop-color="white" stop-opacity="0.63897705078125" />
+      <stop offset="0.9437341772152174" stop-color="white" stop-opacity="0.59326171875" />
+      <stop offset="0.9468600562588163" stop-color="white" stop-opacity="0.54681396484375" />
+      <stop offset="0.9499859353024154" stop-color="white" stop-opacity="0.5" />
+      <stop offset="0.9531118143460144" stop-color="white" stop-opacity="0.45318603515625" />
+      <stop offset="0.9562376933896135" stop-color="white" stop-opacity="0.40673828125" />
+      <stop offset="0.9593635724332125" stop-color="white" stop-opacity="0.36102294921875" />
+      <stop offset="0.9624894514768115" stop-color="white" stop-opacity="0.31640625" />
+      <stop offset="0.9656153305204106" stop-color="white" stop-opacity="0.27325439453125" />
+      <stop offset="0.9687412095640097" stop-color="white" stop-opacity="0.23193359375" />
+      <stop offset="0.9718670886076086" stop-color="white" stop-opacity="0.19281005859375" />
+      <stop offset="0.9749929676512077" stop-color="white" stop-opacity="0.15625" />
+      <stop offset="0.9781188466948068" stop-color="white" stop-opacity="0.12261962890625" />
+      <stop offset="0.9812447257384058" stop-color="white" stop-opacity="0.09228515625" />
+      <stop offset="0.9843706047820048" stop-color="white" stop-opacity="0.06561279296875" />
+      <stop offset="0.9874964838256038" stop-color="white" stop-opacity="0.04296875" />
+      <stop offset="0.9906223628692029" stop-color="white" stop-opacity="0.02471923828125" />
+      <stop offset="0.993748241912802" stop-color="white" stop-opacity="0.01123046875" />
+      <stop offset="0.9968741209564009" stop-color="white" stop-opacity="0.00286865234375" />
+      <stop offset="1.0" stop-color="white" stop-opacity="0.0" />
+    </linearGradient>
+    <mask id="preserved-center" maskUnits="userSpaceOnUse" x="1280.35995501" y="0" width="2559.28008999" height="1440" style="mask-type:alpha">
+      <rect x="1280.35995501" y="0" width="2559.28008999" height="1440" fill="url(#source-edge-fade)" />
+    </mask>
+  </defs>
+  <image xlink:href="ultrawide/2-blink-left.webp" width="1539" height="1440" preserveAspectRatio="none" x="0" />
+  <image xlink:href="ultrawide/2-blink-right.webp" x="3581" width="1539" height="1440" preserveAspectRatio="none" />
+  <image xlink:href="2-blink.webp" x="1280.35995501" width="2559.28008999" height="1440" mask="url(#preserved-center)" />
+</svg>
