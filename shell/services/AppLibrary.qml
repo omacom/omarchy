@@ -23,6 +23,11 @@ Item {
   property var iconIndex: ({})
   property var pendingIconIndex: ({})
 
+  // Maps a desktop id to the version of the package that owns it. Rescanned
+  // each time the app grid opens, since upgrades leave desktop entries alone.
+  property var versions: ({})
+  property var pendingVersions: ({})
+
   property int launchSerial: 0
   property int launchToplevelCount: 0
   property var launchActiveToplevel: null
@@ -72,6 +77,14 @@ Item {
   // their icons; consumers call this when they open so icons appear live.
   function refreshIcons() {
     if (!iconIndexScan.running) iconIndexScan.running = true
+  }
+
+  function refreshVersions() {
+    if (!versionScan.running) versionScan.running = true
+  }
+
+  function version(entry) {
+    return String(root.versions[String((entry && entry.id) || "")] || "")
   }
 
   function launch(desktopId, name) {
@@ -225,6 +238,19 @@ Item {
     // Swapping the property re-evaluates every iconSource() binding, so
     // newly found icons appear without rebuilding the list.
     onExited: root.iconIndex = root.pendingIconIndex
+  }
+
+  Process {
+    id: versionScan
+    command: [root.omarchyPath + "/bin/omarchy-launch-versions"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var tab = line.indexOf("\t")
+        if (tab > 0) root.pendingVersions[line.slice(0, tab)] = line.slice(tab + 1)
+      }
+    }
+    onStarted: root.pendingVersions = ({})
+    onExited: root.versions = root.pendingVersions
   }
 
   // Coalesces bursts of app-list changes (a package install touches many
