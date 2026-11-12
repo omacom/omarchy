@@ -308,6 +308,22 @@ check(last_for("eDP-1").bitdepth == 8 and last_for("eDP-1").cm == "srgb", "keeps
 ' || fail "settings chosen for every monitor win"
 pass "settings chosen in monitors.lua win, each on its own"
 
+# A rule naming the panel by its description, with no port rule after it,
+# keeps the settings, and a preset chosen in it still wins.
+run_panel_lua "$panel"'
+load_module()
+hl.monitor({ output = "", scale = "auto" })
+hl.monitor({ output = "desc:Apple Computer Inc J604", scale = 2 })
+local own = applied[#applied]
+check(own.output == "desc:Apple Computer Inc J604" and own.scale == 2, "passes the description rule on")
+check(own.bitdepth == 10 and own.cm == "dp3", "gives the description rule 10 bits and Display P3, got " .. tostring(own.bitdepth) .. " " .. tostring(own.cm))
+hl.monitor({ output = "desc:Dell Inc. DELL U2723QE", scale = 1.5 })
+check(applied[#applied].bitdepth == nil and applied[#applied].cm == nil, "gives a rule for an external monitor by description neither")
+hl.monitor({ output = "desc:Apple Computer Inc J604", scale = 2, cm = "srgb" })
+check(applied[#applied].cm == "srgb" and applied[#applied].bitdepth == 10, "keeps srgb chosen in the description rule")
+' || fail "a description rule for the panel keeps its settings"
+pass "a description rule for the panel keeps its settings"
+
 # The panel's own rule from monitors.lua isn't replaced by a later catch-all.
 run_panel_lua "$panel"'
 load_module()

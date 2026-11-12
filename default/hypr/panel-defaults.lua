@@ -175,16 +175,28 @@ end
 local monitor = hl.monitor
 local catch_all = nil -- the latest rule for every monitor, without the panel keys
 local rules = {} -- the latest rule naming each port, as given
+local desc_rules = {} -- the latest rule naming each description prefix, as given
 local given = {} -- ports whose panel got its settings
 
--- The panel's own rule: its latest one, or else the catch-all, plus its settings.
+-- The latest rule naming a monitor by its description, if any.
+local function desc_rule_for(found)
+  local description = found and found.description or ""
+  for prefix, rule in pairs(desc_rules) do
+    if description:sub(1, #prefix) == prefix then
+      return rule
+    end
+  end
+end
+
+-- The panel's own rule: its latest one by port or description, or else the
+-- catch-all, plus its settings.
 local function give(found)
   local settings = panel_settings(found)
   if not settings or given[found.name] then
     return
   end
 
-  local base = rules[found.name] or catch_all
+  local base = rules[found.name] or desc_rule_for(found) or catch_all
   if not base then
     return
   end
@@ -224,7 +236,18 @@ hl.monitor = function(rule)
     return result
   end
 
-  if output:match("^desc:") then
+  -- A rule naming the panel by its description replaces its settings in
+  -- Hyprland as a port rule does, so it gets them filled in the same way.
+  local prefix = output:match("^desc:(.+)$")
+  if prefix then
+    desc_rules[prefix] = copy(rule)
+    for _, found in ipairs(hl.get_monitors()) do
+      local settings = panel_settings(found)
+      if settings and (found.description or ""):sub(1, #prefix) == prefix then
+        fill(rule, output, found, settings)
+        given[found.name] = true
+      end
+    end
     return monitor(rule)
   end
 
