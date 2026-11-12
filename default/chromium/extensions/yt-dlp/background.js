@@ -80,7 +80,11 @@ chrome.webRequest.onSendHeaders.addListener(
       const name = h.name.toLowerCase();
       if (FORWARDED_HEADERS.includes(name) && h.value) headers[name] = h.value;
     }
-    pendingHeaders.set(details.requestId, { headers, generation: generations.get(details.tabId) || 0 });
+    // A redirect keeps the generation its request started in: following it
+    // after a navigation doesn't make the previous video's stream current.
+    const earlier = pendingHeaders.get(details.requestId);
+    const generation = earlier ? earlier.generation : generations.get(details.tabId) || 0;
+    pendingHeaders.set(details.requestId, { headers, generation });
   },
   WATCHED,
   ['requestHeaders', 'extraHeaders'],
