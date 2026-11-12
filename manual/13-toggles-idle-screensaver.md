@@ -11,6 +11,7 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Toggle | Hotkey | Command |
 | ------ | ------ | ------- |
 | Night light | — | `omarchy toggle nightlight` |
+| Automatic night light | — | `omarchy toggle nightlight --schedule` |
 | Silence notifications | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
 | Crash capture | — | `omarchy toggle crash-capture` |
@@ -40,11 +41,15 @@ The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar
 
 When a mode is on, you get a small glyph in the middle of the top bar next to the clock. That's the indicators widget, and it carries dictation, screen recording, pending reminders, night light, do not disturb, and stay awake.
 
-Inactive indicators are hidden. Hover anywhere on the bar and they fade in dimmed, so you can click one to turn it on without knowing its hotkey. Clicking an active one turns it back off. If you'd rather see all of them all the time, set `alwaysShow` to `true` on the `omarchy.indicators` entry in `~/.config/omarchy/shell.json` — see [the top bar](05-the-top-bar.md) for how bar widgets are configured.
+The night light indicator stays visible in a fixed position. Other inactive indicators are hidden. Hover anywhere on the bar and they fade in dimmed, so you can click one to turn it on without knowing its hotkey. Clicking an active one turns it back off. If you'd rather see all of them all the time, set `alwaysShow` to `true` on the `omarchy.indicators` entry in `~/.config/omarchy/shell.json` — see [the top bar](05-the-top-bar.md) for how bar widgets are configured.
 
 ### Night light
 
-Night light warms the screen to 4000K, and toggling it again puts it back to 6500K. Flip it from the toggle menu (`Super + Ctrl + O`) or with `omarchy toggle nightlight`. It's driven by hyprsunset, which the toggle starts for you if it isn't already running.
+Night light warms the screen to 4000K, and toggling it again restores the untinted display. Flip it from the toggle menu (`Super + Ctrl + O`) or with `omarchy toggle nightlight`. It's driven by hyprsunset, which the toggle starts for you if it isn't already running.
+
+Right-click the night light indicator to open its mode panel, where **Daylight**, **Night Light**, and **Sunset** stay in a fixed order as you switch between them. Sunset mode turns night light on at sunset and off at sunrise. You can also choose **Sunset Nightlight** from _Trigger > Toggle_ or run `omarchy toggle nightlight --schedule`. Omarchy uses the representative location for your selected system timezone and follows daylight-saving changes automatically. Selecting a different timezone updates the schedule; using the regular night light toggle returns to manual control.
+
+Sunset mode rechecks the display temperature when the laptop wakes, so sleeping through sunset or sunrise does not leave the screen in the previous mode.
 
 By default hyprsunset does nothing to your screen at all. `~/.config/hypr/hyprsunset.conf` ships with an identity profile precisely so the display stays untouched until you ask for warmth. If you'd rather have it switch by the clock, replace that with a time profile:
 

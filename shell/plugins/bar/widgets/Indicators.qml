@@ -10,6 +10,11 @@ BarWidget {
 
   readonly property var defaultIndicatorEntries: [ "PasswordlessSudo", "ScreenRecording", "RemoteSession", "Reminder", "NightLight", "Dnd", "StayAwake" ]
   readonly property var indicatorEntries: indicatorEntriesFromSettings(settings)
+  property var nightlightPanel: null
+  // An absent panel must not become a bar navigation target.
+  readonly property var opened: nightlightPanel ? nightlightPanel.opened : undefined
+  readonly property bool popoutSwitchClosing: nightlightPanel ? nightlightPanel.popoutSwitchClosing === true : false
+  readonly property Item openPanelIndicatorItem: nightlightPanel
   property var activeIndicatorIds: []
   property var indicatorActiveStates: ({})
   property bool indicatorAreaHovered: false
@@ -24,7 +29,26 @@ BarWidget {
 
   signal refreshRequested()
 
+  function activateNightlightPanel(panel) {
+    if (nightlightPanel === panel) return
+    if (nightlightPanel && nightlightPanel.opened) nightlightPanel.close()
+    nightlightPanel = panel
+  }
+
+  function open() {
+    if (nightlightPanel) nightlightPanel.open()
+  }
+
+  function close() {
+    if (nightlightPanel) nightlightPanel.close()
+  }
+
+  function closeForPopoutSwitch() {
+    if (nightlightPanel) nightlightPanel.closeForPopoutSwitch()
+  }
+
   ListModel { id: activeIndicatorModel }
+  ListModel { id: fixedIndicatorModel }
 
   // The inactive indicators in the order they show. Facing the other way, the
   // widget mirrors them along with its blocks, so they read outward from the
@@ -51,6 +75,10 @@ BarWidget {
       copy[key] = entry[key]
     }
     return copy
+  }
+
+  function isFixedIndicatorId(id) {
+    return String(id || "") === "NightLight"
   }
 
   function indicatorEntriesFromSettings(settings) {
@@ -89,6 +117,7 @@ BarWidget {
   }
 
   function hasIndicatorId(id) {
+    if (isFixedIndicatorId(id)) return false
     for (var i = 0; i < indicatorEntries.length; i++) {
       if (entryId(indicatorEntries[i]) === id) return true
     }
@@ -175,9 +204,13 @@ BarWidget {
     if (json !== inactiveIndicatorJson) {
       inactiveIndicatorJson = json
       inactiveIndicatorModel.clear()
+      fixedIndicatorModel.clear()
       inactiveIndicatorsMirrored = false
-      for (var i = 0; i < indicatorEntries.length; i++)
-        inactiveIndicatorModel.append({ entryJson: JSON.stringify(indicatorEntries[i]) })
+      for (var i = 0; i < indicatorEntries.length; i++) {
+        var entry = indicatorEntries[i]
+        var model = isFixedIndicatorId(entryId(entry)) ? fixedIndicatorModel : inactiveIndicatorModel
+        model.append({ entryJson: JSON.stringify(entry) })
+      }
     }
     if (inactiveIndicatorsMirrored === fixedAtStart) return
     for (var j = 1; j < inactiveIndicatorModel.count; j++) inactiveIndicatorModel.move(j, 0, 1)
@@ -205,6 +238,7 @@ BarWidget {
     function refresh(): void {
       root.broadcast("refresh")
     }
+
   }
 
   Timer {
@@ -236,8 +270,8 @@ BarWidget {
     id: horizontalIndicatorsTree
 
     Item {
-      implicitWidth: activeHorizontalBlock.implicitWidth + inactiveHorizontalArea.implicitWidth
-      implicitHeight: Math.max(activeHorizontalBlock.implicitHeight, inactiveHorizontalArea.implicitHeight)
+      implicitWidth: fixedHorizontalBlock.implicitWidth + activeHorizontalBlock.implicitWidth + inactiveHorizontalArea.implicitWidth
+      implicitHeight: Math.max(fixedHorizontalBlock.implicitHeight, activeHorizontalBlock.implicitHeight, inactiveHorizontalArea.implicitHeight)
       width: implicitWidth
       height: implicitHeight
 
@@ -248,7 +282,7 @@ BarWidget {
       Item {
         id: inactiveHorizontalArea
 
-        x: root.fixedAtStart ? activeHorizontalBlock.width : 0
+        x: root.fixedAtStart ? fixedHorizontalBlock.width + activeHorizontalBlock.width : 0
         implicitWidth: root.revealInactiveIndicators ? inactiveHorizontalBlock.implicitWidth : 0
         implicitHeight: Math.max(inactiveHorizontalBlock.implicitHeight, root.barSize)
         width: implicitWidth
@@ -272,11 +306,21 @@ BarWidget {
 
       ActiveIndicatorBlock {
         id: activeHorizontalBlock
-        x: root.fixedAtStart ? 0 : inactiveHorizontalArea.width
+        x: root.fixedAtStart ? fixedHorizontalBlock.width : inactiveHorizontalArea.width
         indicatorsModule: root
         indicatorModel: activeIndicatorModel
         horizontal: true
         reportActiveState: !root.vertical
+      }
+
+      IndicatorBlock {
+        id: fixedHorizontalBlock
+        x: root.fixedAtStart ? 0 : inactiveHorizontalArea.width + activeHorizontalBlock.width
+        indicatorsModule: root
+        indicatorModel: fixedIndicatorModel
+        indicatorBlock: "single"
+        horizontal: true
+        reportActiveState: false
       }
     }
   }
@@ -285,8 +329,8 @@ BarWidget {
     id: verticalIndicatorsTree
 
     Item {
-      implicitWidth: Math.max(activeVerticalBlock.implicitWidth, inactiveVerticalArea.implicitWidth)
-      implicitHeight: activeVerticalBlock.implicitHeight + inactiveVerticalArea.implicitHeight
+      implicitWidth: Math.max(fixedVerticalBlock.implicitWidth, activeVerticalBlock.implicitWidth, inactiveVerticalArea.implicitWidth)
+      implicitHeight: fixedVerticalBlock.implicitHeight + activeVerticalBlock.implicitHeight + inactiveVerticalArea.implicitHeight
       width: implicitWidth
       height: implicitHeight
 
@@ -297,7 +341,7 @@ BarWidget {
       Item {
         id: inactiveVerticalArea
 
-        y: root.fixedAtStart ? activeVerticalBlock.height : 0
+        y: root.fixedAtStart ? fixedVerticalBlock.height + activeVerticalBlock.height : 0
         implicitWidth: Math.max(inactiveVerticalBlock.implicitWidth, root.barSize)
         implicitHeight: root.revealInactiveIndicators ? inactiveVerticalBlock.implicitHeight : 0
         width: implicitWidth
@@ -321,11 +365,21 @@ BarWidget {
 
       ActiveIndicatorBlock {
         id: activeVerticalBlock
-        y: root.fixedAtStart ? 0 : inactiveVerticalArea.height
+        y: root.fixedAtStart ? fixedVerticalBlock.height : inactiveVerticalArea.height
         indicatorsModule: root
         indicatorModel: activeIndicatorModel
         horizontal: false
         reportActiveState: root.vertical
+      }
+
+      IndicatorBlock {
+        id: fixedVerticalBlock
+        y: root.fixedAtStart ? 0 : inactiveVerticalArea.height + activeVerticalBlock.height
+        indicatorsModule: root
+        indicatorModel: fixedIndicatorModel
+        indicatorBlock: "single"
+        horizontal: false
+        reportActiveState: false
       }
     }
   }
@@ -495,6 +549,7 @@ BarWidget {
       onLoaded: {
         indicatorSlot.injectProps()
         indicatorSlot.syncActiveState()
+        if (indicatorSlot.indicatorId === "NightLight" && !root.nightlightPanel) root.nightlightPanel = item
       }
       onStatusChanged: if (status === Loader.Error) console.warn("Indicator loader error", indicatorSlot.indicatorId, source)
     }
@@ -526,6 +581,13 @@ BarWidget {
       }
 
       indicatorsModule.setIndicatorActive(entry, active)
+    }
+
+    Component.onDestruction: {
+      if (root.nightlightPanel === indicatorSource.item) {
+        root.close()
+        root.nightlightPanel = null
+      }
     }
   }
 }

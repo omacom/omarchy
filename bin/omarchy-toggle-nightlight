@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Toggle nightlight screen temperature
-# omarchy:args=[--status]
-# omarchy:examples=omarchy toggle nightlight
+# omarchy:args=[--status|--schedule|--manual]
+# omarchy:examples=omarchy toggle nightlight | omarchy toggle nightlight --schedule
 
 ON_TEMP=4000
 OFF_TEMP=6500
@@ -30,8 +30,42 @@ status_json() {
 }
 
 if [[ ${1:-} == "--status" ]]; then
-  status_json
+  schedule=false
+  omarchy-nightlight-schedule enabled && schedule=true
+  status_json | jq -c --argjson scheduled "$schedule" '. + {scheduled:$scheduled}'
   exit 0
+fi
+
+if [[ ${1:-} == "--schedule" ]]; then
+  schedule_result=$(omarchy-nightlight-schedule toggle) || {
+    omarchy-notification-send "$(omarchy-i18n nightlight.configureFailed)"
+    exit 1
+  }
+  if [[ $schedule_result == "enabled" ]]; then
+    timezone=$(timedatectl show -p Timezone --value 2>/dev/null)
+    if [[ -n $timezone ]]; then
+      omarchy-notification-send "$(omarchy-i18n nightlight.followTimezone "$timezone")"
+    else
+      omarchy-notification-send "$(omarchy-i18n nightlight.followSelectedTimezone)"
+    fi
+  else
+    omarchy-notification-send "$(omarchy-i18n nightlight.scheduleDisabled)"
+  fi
+  omarchy-shell -q nightlight refresh
+  exit 0
+fi
+
+if [[ ${1:-} == "--manual" ]]; then
+  if ! omarchy-nightlight-schedule disable >/dev/null; then
+    omarchy-notification-send "$(omarchy-i18n nightlight.disableFailed)"
+    exit 1
+  fi
+  omarchy-shell -q nightlight refresh
+  exit 0
+fi
+
+if ! omarchy-nightlight-schedule disable >/dev/null; then
+  omarchy-notification-send "$(omarchy-i18n nightlight.manualOverride)"
 fi
 
 # Ensure hyprsunset is running. One a few seconds old may still be booting,

@@ -12,4 +12,10 @@ if rg -q 'Indicators.qml.*Binding loop detected for property "implicitWidth"' "$
   sed -n '1,200p' "$QML_FIXTURE_LOG" >&2
   fail "indicator tray avoids implicit-width binding loops"
 fi
+if rg -q 'Plugin widget omarchy.indicators failed|Indicator loader error' "$QML_FIXTURE_LOG"; then
+  sed -n '1,200p' "$QML_FIXTURE_LOG" >&2
+  fail "indicator tray loads every configured indicator"
+fi
 pass "indicator tray avoids implicit-width binding loops"
+
+run_qml_fixture nightlight-tab "Night Light panel participates in bar navigation" Ui Commons
