@@ -180,7 +180,7 @@ The second argument is a fallback. For example,
 `hyprland_active_border` if the theme defines it; otherwise use `accent`.
 The helper does not choose the first color unless you use `gradient_start`.
 
-`hyprland_inactive_border` takes the same values and falls back to `rgba(595959aa)`, a grey tuned for dark backgrounds. On a light background that grey is about as dark as most accents, so light themes set it to their `selection` color. `test/shell.d/theme-border-contrast-test.sh` fails any theme whose active and inactive borders fall below 2:1 contrast.
+`hyprland_inactive_border` takes the same values and falls back to `rgba(595959aa)`, a grey tuned for dark backgrounds. On a light background that grey is about as dark as most accents, so light themes set it to their `selection` color.
 
 ## `shell.toml`
 
