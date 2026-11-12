@@ -533,9 +533,16 @@ for toggle_status in 0 1; do
   fresh_home
   mkdir -p "$HOME/.local/state/omarchy/toggles/hypr"
   touch "$HOME/.local/state/omarchy/toggles/hypr/cua-input.lua"
-  OMARCHY_PATH="$ROOT" TEST_TOGGLE_STATUS=$toggle_status "$ROOT/bin/omarchy-remove-ai-cua" >/dev/null
+  output=$(OMARCHY_PATH="$ROOT" TEST_TOGGLE_STATUS=$toggle_status "$ROOT/bin/omarchy-remove-ai-cua")
   grep -q '^cua-input:off$' "$TEST_LOG" || fail "Cua removal turns off a flag the plugin package left (toggle $toggle_status)" "$(cat "$TEST_LOG")"
   ! grep -q '^drop:cua-hyprland-plugin$' "$TEST_LOG" || fail "Cua removal turns off a flag the plugin package left (toggle $toggle_status)" "dropped an absent package"
   grep -q '^drop:cua-driver-bin$' "$TEST_LOG" || fail "Cua removal turns off a flag the plugin package left (toggle $toggle_status)" "driver kept"
   pass "Cua removal turns off a flag the plugin package left (toggle $toggle_status)"
+  [[ $output == *"Cua Driver has been removed."* ]] || fail "Cua removal says when it left input on (toggle $toggle_status)" "$output"
+  if (( toggle_status == 0 )); then
+    [[ $output != *"may still be on"* ]] || fail "Cua removal says when it left input on (toggle $toggle_status)" "$output"
+  else
+    [[ $output == *"Cua Input may still be on"* ]] || fail "Cua removal says when it left input on (toggle $toggle_status)" "$output"
+  fi
+  pass "Cua removal says when it left input on (toggle $toggle_status)"
 done

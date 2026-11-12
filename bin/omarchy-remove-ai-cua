@@ -16,9 +16,10 @@ fi
 omarchy-agent-skill-link "$OMARCHY_PATH/default/agents/optional-skills/cua-omarchy" --remove
 
 # The flag goes even when the plugin package went first: a mapped module keeps
-# reading it until logout. The toggle tells the user if Hyprland did not take it.
-if omarchy-hyprland-toggle-enabled cua-input; then
-  omarchy-toggle-cua-input off || true
+# reading it until logout. Removal carries on if Hyprland did not take the off, and ends by saying so.
+input_left_on=false
+if omarchy-hyprland-toggle-enabled cua-input && ! omarchy-toggle-cua-input off; then
+  input_left_on=true
 fi
 
 plugin_removed=false
@@ -41,4 +42,7 @@ echo ""
 echo "Cua Driver has been removed."
 if [[ $plugin_removed == true ]]; then
   echo "A loaded Hyprland plugin stays in memory until this session ends."
+fi
+if [[ $input_left_on == true ]]; then
+  echo "Cua Input may still be on: log out and back in to turn it off."
 fi
