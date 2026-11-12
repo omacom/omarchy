@@ -70,6 +70,9 @@ Panel {
   readonly property var networkDevices: Networking.devices ? Networking.devices.values : []
   readonly property var wifiDevice: findDevice(DeviceType.Wifi)
   readonly property var wifiNetworkObjects: wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : []
+  // Bound here rather than in a row, so it also sees networks with no delegate:
+  // scrolled out of view, or the panel closed.
+  readonly property string wifiStateKey: Model.wifiStateKey(wifiNetworkObjects)
   readonly property var connectedWifiNetwork: findConnectedWifiNetwork()
   property var wifiNetworks: []
   property bool scanning: false
@@ -116,6 +119,9 @@ Panel {
 
   // Index into `wifiNetworks` for keyboard navigation. -1 = no selection.
   property int selectedIndex: -1
+  // The network under the cursor when the rows were last rebuilt, so the
+  // cursor follows it when a state change re-sorts the list.
+  property string cursorSsid: ""
   property bool wifiActionFocused: false
   property bool cursorActive: false
 
@@ -377,6 +383,8 @@ Panel {
         selectedIndex = passwordIndex
         focusSection = "wifi"
       }
+    } else if (cursorSsid !== "" && wifiIndexForSsid(cursorSsid) >= 0) {
+      selectedIndex = wifiIndexForSsid(cursorSsid)
     } else if (selectedIndex >= wifiNetworks.length) {
       selectedIndex = wifiNetworks.length - 1
     } else if (selectedIndex < 0 && opened) {
@@ -395,6 +403,7 @@ Panel {
   }
 
   onWifiNetworkObjectsChanged: syncWifiNetworks()
+  onWifiStateKeyChanged: Qt.callLater(rebuildWifiRows)
 
   function selectByDelta(delta) {
     if (wifiNetworks.length === 0) { selectedIndex = -1; return }
@@ -698,6 +707,12 @@ Panel {
   }
 
   function syncWifiNetworks() {
+    rebuildWifiRows()
+    wifiStationAvailable = !!wifiDevice
+    scanning = false
+  }
+
+  function rebuildWifiRows() {
     var nets = []
     var networks = wifiNetworkObjects || []
 
@@ -708,9 +723,13 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    wifiNetworks = Model.sortWifiRows(nets)
-    wifiStationAvailable = !!wifiDevice
-    scanning = false
+    nets = Model.sortWifiRows(nets)
+    // A new model rebuilds every delegate, which takes focus from a passphrase
+    // being typed, so identical rows are left in place.
+    if (JSON.stringify(nets) === JSON.stringify(wifiNetworks)) return
+    var selected = wifiNetworks[selectedIndex]
+    cursorSsid = selected ? selected.ssid : ""
+    wifiNetworks = nets
   }
 
   function wifiSectionTitle(index) {
@@ -825,6 +844,8 @@ Panel {
     // throws, etc.), clear the busy state so the row doesn't get stuck on
     // "Connecting…" / "Disconnecting…" forever.
     actionTimeout.restart()
+    // A network already in the asked-for state never signals a change.
+    checkActionCompletion(network)
   }
 
   function clearNetworkAction() {
@@ -1803,15 +1824,6 @@ Panel {
         var ours = root.actionKind === "connect" && root.actionSsid === (row.net.ssid || "")
         root.failNetworkAction(root.networkForSsid(row.net.ssid), reason)
         if (ours && root.shouldRepromptPassphrase(reason, row.requiresCredentials)) root.openPasswordPrompt(row.net.ssid)
-      }
-      function onConnectedChanged() {
-        if (row.net) root.checkActionCompletion(root.networkForSsid(row.net.ssid))
-      }
-      function onKnownChanged() {
-        if (row.net) root.checkActionCompletion(root.networkForSsid(row.net.ssid))
-      }
-      function onStateChangingChanged() {
-        if (row.net) root.checkActionCompletion(root.networkForSsid(row.net.ssid))
       }
     }
 
