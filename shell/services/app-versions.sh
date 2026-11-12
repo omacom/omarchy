@@ -3,7 +3,8 @@
 # Prints "<desktop-id>\t<version>" for every launcher entry a package owns, so
 # the app grid can show the version of the app in focus. The version drops the
 # epoch and package release ("1:2.4.0-3" -> "2.4.0"). Directories go in XDG
-# precedence order and the first owned entry per id wins.
+# precedence order and only the entry that wins each id is asked about, so an
+# unowned override of a packaged app stays versionless.
 
 dirs=("${XDG_DATA_HOME:-$HOME/.local/share}/applications")
 IFS=":" read -ra data_dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
@@ -11,18 +12,27 @@ for dir in "${data_dirs[@]}"; do
   dirs+=("$dir/applications")
 done
 
+declare -A seen_ids file_ids
 files=()
 for dir in "${dirs[@]}"; do
-  [[ -d $dir ]] && files+=("$dir"/*.desktop)
+  [[ -d $dir ]] || continue
+  while IFS= read -r -d "" file; do
+    id="${file#"$dir"/}"
+    id="${id%.desktop}"
+    id="${id//\//-}"
+    [[ -n ${seen_ids[$id]-} ]] && continue
+    seen_ids[$id]=1
+    file_ids[$file]="$id"
+    files+=("$file")
+  done < <(find -L "$dir" -name "*.desktop" -print0 2>/dev/null | sort -z)
 done
 
 (( ${#files[@]} )) || exit 0
 
-LC_ALL=C pacman -Qo "${files[@]}" 2>/dev/null | awk -v OFS="\t" '
-  match($0, / is owned by [^ ]+ [^ ]+$/) {
-    path = substr($0, 1, RSTART - 1)
-    split(substr($0, RSTART + 13), owner, " ")
-    id = path; sub(/.*\//, "", id); sub(/\.desktop$/, "", id)
-    version = owner[2]; sub(/^[0-9]+:/, "", version); sub(/-[^-]+$/, "", version)
-    if (!(id in seen)) { seen[id] = 1; print id, version }
-  }'
+LC_ALL=C pacman -Qo "${files[@]}" 2>/dev/null | while IFS= read -r line; do
+  [[ $line =~ ^(.*)\ is\ owned\ by\ [^\ ]+\ ([^\ ]+)$ ]] || continue
+  file="${BASH_REMATCH[1]}"
+  version="${BASH_REMATCH[2]#*:}"
+  version="${version%-*}"
+  printf '%s\t%s\n' "${file_ids[$file]}" "$version"
+done
