@@ -34,8 +34,7 @@ ShellRoot {
   QtObject {
     id: host
     property var appLibrary: library
-    property var services: ({})
-    function firstPartyServiceFor(id) { return services[id] || null }
+    property var appsDock: null
   }
 
   PluginAppLibraryApi {
@@ -52,8 +51,29 @@ ShellRoot {
 
   QtObject {
     id: dock
+    property var pinnedKeys: []
+    property var calls: []
     function launchEntry(entry) { root.dockLaunched = entry.id }
-    function isPinned(id) { return false }
+    function isPinned(id) { return pinnedKeys.indexOf(id) >= 0 }
+    function setPinned(id, pinned) { pinnedKeys = pinned ? [id] : [] }
+    function moveExternalDrag(screen, x, y) { calls = calls.concat(["move"]) }
+    function dropExternalDrag(screen, x, y, id) { calls = calls.concat(["drop:" + id]) }
+    function endExternalDrag() { calls = calls.concat(["end"]) }
+  }
+
+  PluginAppsDockApi {
+    id: scopedDock
+    ownerPluginId: "tester.apps"
+    available: host.appsDock !== null
+    pinnedKeys: dock.pinnedKeys.slice()
+    _invoke: function(method, args) { dock[method].apply(dock, args) }
+  }
+
+  PluginShellApi {
+    id: clonedShell
+    pluginId: "tester.apps"
+    appLibrary: scopedLibrary
+    appsDock: scopedDock.available ? scopedDock : null
   }
 
   FileView {
@@ -77,7 +97,7 @@ ShellRoot {
     check(apps.apps.length === 1 && apps.apps[0].id === "terminal", "search filters apps without a dock")
     apps.launch(0)
     check(launched === "terminal" && !apps.opened, "selection launches through the app library and closes the grid")
-    host.services = { "omarchy.dock": dock }
+    host.appsDock = dock
     verifyDock.start()
   }
 
@@ -89,7 +109,7 @@ ShellRoot {
       root.apps.open("{}")
       root.apps.launch(0)
       root.check(root.dockLaunched === "editor", "grid uses the dock launch behavior when available")
-      host.services = ({})
+      host.appsDock = null
       verifyRemoval.start()
     }
   }
@@ -102,7 +122,7 @@ ShellRoot {
       root.apps.open("{}")
       root.apps.launch(1)
       root.check(root.launched === "terminal", "grid still launches after the dock is disabled")
-      host.appLibrary = scopedLibrary
+      root.apps.shell = clonedShell
       var refreshes = root.versionRefreshes
       root.apps.open("{}")
       root.check(root.versionRefreshes === refreshes + 1, "a clone refreshes app versions through its scoped library")
@@ -112,6 +132,40 @@ ShellRoot {
       root.check(root.apps.apps.length === 1 && root.apps.apps[0].id === "editor", "a clone searches through its scoped application library")
       root.apps.launch(0)
       root.check(root.launched === "editor", "a clone launches through its scoped application library")
+      host.appsDock = dock
+      verifyCloneDock.start()
+    }
+  }
+
+  Timer {
+    id: verifyCloneDock
+    interval: 100
+    onTriggered: {
+      root.check(root.apps.dock === scopedDock, "a clone receives the narrow dock interface when enabled")
+      root.apps.open("{}")
+      root.apps.dock.setPinned("editor", true)
+      root.check(dock.isPinned("editor"), "a clone pins through the dock interface")
+      root.apps.dock.setPinned("editor", false)
+      root.check(!dock.isPinned("editor"), "a clone unpins through the dock interface")
+      root.apps.dragTo({id: "terminal"}, Qt.point(10, 20))
+      root.apps.dropDrag()
+      root.check(dock.calls.indexOf("move") >= 0 && dock.calls.indexOf("drop:terminal") >= 0 && dock.calls.indexOf("end") >= 0, "a clone forwards drag, drop and cleanup to the dock")
+      root.apps.open("{}")
+      root.apps.launch(0)
+      root.check(root.dockLaunched === "editor", "a clone uses dock launch behavior when enabled")
+      host.appsDock = null
+      verifyCloneRemoval.start()
+    }
+  }
+
+  Timer {
+    id: verifyCloneRemoval
+    interval: 100
+    onTriggered: {
+      root.check(root.apps.dock === null, "a clone drops dock access when disabled")
+      root.apps.open("{}")
+      root.apps.launch(1)
+      root.check(root.launched === "terminal", "a clone falls back to its app library after dock removal")
       finish.start()
     }
   }

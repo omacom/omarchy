@@ -22,6 +22,7 @@ ShellRoot {
   property PluginRegistry pluginRegistry: PluginRegistry { }
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
   property AppLibrary appLibrary: AppLibrary { }
+  readonly property var appsDock: shell.firstPartyServiceFor("omarchy.dock")
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
   property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
   property BackgroundSwitch backgroundSwitch: BackgroundSwitch { intro: shell.bootIntro }
@@ -326,6 +327,11 @@ ShellRoot {
   }
 
   Component {
+    id: pluginAppsDockApiComponent
+    PluginAppsDockApi { }
+  }
+
+  Component {
     id: pluginBarStateApiComponent
     PluginBarStateApi { }
   }
@@ -566,11 +572,46 @@ ShellRoot {
     return api
   }
 
+  function isAppsClone(manifest) {
+    var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+    return !!metadata && metadata.clonedFrom === "omarchy.apps"
+      && shell.manifestHasKind(manifest, "menu")
+  }
+
+  function pluginAppsDockFor(cacheKey, pluginId) {
+    var proxyKey = cacheKey + "::omarchy.dock"
+    if (_pluginFirstPartyServiceApis[proxyKey]) return _pluginFirstPartyServiceApis[proxyKey]
+    function service() {
+      var manifest = shell.pluginRegistry.installedPlugins[pluginId]
+      return shell.isAppsClone(manifest) ? shell.firstPartyServiceFor("omarchy.dock") : null
+    }
+    var api = pluginAppsDockApiComponent.createObject(null, {
+      ownerPluginId: pluginId,
+      _invoke: function(method, args) {
+        var allowed = ["setPinned", "launchEntry", "moveExternalDrag", "dropExternalDrag", "endExternalDrag"]
+        var target = service()
+        if (target && allowed.indexOf(method) !== -1) target[method].apply(target, args)
+      }
+    })
+    if (!api) return null
+    api.available = Qt.binding(function() { return !!service() })
+    api.pinnedKeys = Qt.binding(function() {
+      var target = service()
+      return target ? target.pinnedKeys.slice() : []
+    })
+    var next = ({})
+    for (var key in _pluginFirstPartyServiceApis) next[key] = _pluginFirstPartyServiceApis[key]
+    next[proxyKey] = api
+    _pluginFirstPartyServiceApis = next
+    return api
+  }
+
   function pluginShellCapabilityProfile(manifest, allowOwnService, barCapabilities) {
     return [
       allowOwnService ? "own-service" : "no-own-service",
       barCapabilities ? "bar" : "no-bar",
-      shell.manifestHasKind(manifest, "menu") ? "menu" : "no-menu"
+      shell.manifestHasKind(manifest, "menu") ? "menu" : "no-menu",
+      shell.isAppsClone(manifest) ? "apps-dock" : "no-apps-dock"
     ].join("|")
   }
 
@@ -641,6 +682,7 @@ ShellRoot {
       }
     }
 
+    var appsDockApi = shell.isAppsClone(manifest) ? shell.pluginAppsDockFor(cacheKey, key) : null
     var api = pluginShellApiComponent.createObject(null, {
       pluginId: key,
       appLibrary: shell.manifestHasKind(manifest, "menu")
@@ -692,6 +734,8 @@ ShellRoot {
       }
     })
     if (!api) return null
+
+    api.appsDock = Qt.binding(function() { return appsDockApi && appsDockApi.available ? appsDockApi : null })
 
     var next = ({})
     for (var id in _pluginShellApis) next[id] = _pluginShellApis[id]
