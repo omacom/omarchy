@@ -226,7 +226,10 @@ Item {
     onTriggered: {
       // The keyboard holds the deck open while the pointer passes through.
       if (service.keyboardMode) return
-      service.commit(function() { service.expanded = false; service.openDeck = "" })
+      // Hover lets go with the deck, not before it: an open deck with no card
+      // hovered shows no buttons, so clearing it on leave hid the bar for the
+      // grace period and the closed deck put it back.
+      service.commit(function() { service.expanded = false; service.openDeck = ""; service.hoverKey = "" })
       service.releaseHeld()
     }
   }
@@ -316,10 +319,7 @@ Item {
     keyboardMode = false
     keyboardKey = ""
     // With the pointer over the deck, hover stays where the pointer put it.
-    if (!pointerIn) {
-      hoverKey = ""
-      collapseGrace.restart()
-    }
+    if (!pointerIn) collapseGrace.restart()
   }
 
   // The selected card went away: select the one that took its place, or the
@@ -1621,7 +1621,10 @@ Item {
                 service.pointerEntered(undefined)
                 hoverAt(mouseX, mouseY)
               } else {
-                service.hoverKey = ""
+                // The card keeps hover until the deck closes; only the
+                // pointer's spot goes, so no button under it stays lit.
+                service.hoverX = -1
+                service.hoverY = -1
                 service.pointerLeft()
               }
             }
