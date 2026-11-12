@@ -1,9 +1,9 @@
 -- See https://wiki.hypr.land/Configuring/Basics/Window-Rules/
 
 -- Hyprland tells every app it is maximized and takes any maximize request as a
--- toggle of its own maximize, so only those browsers, whose button asks for it,
+-- toggle of its own maximize, so only apps that draw their own maximize button
 -- are heard. Rules add their suppressed events up, so they are left out here.
-o.window({ class = "negative:" .. o.chromium_browsers }, { suppress_event = "maximize" })
+o.window({ class = "negative:" .. o.self_framed_apps }, { suppress_event = "maximize" })
 
 -- Fix some dragging issues with XWayland.
 o.window(
