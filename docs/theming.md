@@ -388,6 +388,25 @@ Switching themes needs no retint for the palette. The first Qt process to start 
 
 The icon theme lives in the config rather than the theme, so `omarchy-theme-set-qt` writes `Adwaita`, the icons every theme uses as GTK does, into `.theme.iconTheme` on each switch, leaving the rest of the file alone. That write also makes running apps reload their icons. Native file dialogs are delegated to the XDG desktop portal (`misc.dialogTheme`), and `config/xdg-desktop-portal/hyprland-portals.conf` falls through to the GTK backend for the file chooser, so Qt apps keep the GTK file chooser.
 
+## App icons
+
+Omarchy's own apps (Files, Omacut, Omasnap, Hype, Omawrite, Omacalc, Gliff, Plain, Monologue and Signed) are drawn in the current theme's colors. Their templates live in `default/themed/icons/<icon name>.svg.tpl` and render into the theme's `icons/`; `omarchy-theme-set-icons`, run as the theme is swapped in, links each one by name into `~/.local/share/icons/hicolor/scalable/apps/`, ahead of the icon the package installs in `/usr/share`. The links go through `~/.local/state/omarchy/current/theme`, so later switches retint them without relinking. A theme that renders no icons leaves them dangling and they are removed, which brings the packaged icons back; an icon the user put there themselves is never replaced. When the theme name changes, the shell's app library rescans its icons and adds the switch to those icons' URLs, so the menu and dock redraw them.
+
+The icons don't use palette keys directly, because a key means different things across themes: `magenta` is Tokyo Night's violet but Gruvbox's and Nord's pink, and `bright_foreground` is the lightest color of a dark theme but the darkest of a light one. `omarchy-theme-icon-palette` derives roles from the palette instead, and templates may use them like any other key:
+
+| Role | Drawn from |
+|------|------------|
+| `icon_main` | `accent`, or `blue` when the accent is grey or too close to the paper |
+| `icon_main_end` | `icon_main` mixed 30% toward the paper, for gradients |
+| `icon_mark` | handles, cursors and keys: the theme's violet, else its amber, else its most vivid other color, else a mid grey |
+| `icon_paper` | `bright_foreground`; `background` in a light theme |
+| `icon_body` | `background`; `lighter_background` in a light theme |
+| `icon_edge` | `muted` |
+| `icon_ink` | `dark_foreground` |
+| `icon_shadow` | `darker_background`; `dark_background` mixed toward `foreground` in a light theme |
+
+A theme picks any role itself by setting it in `colors.toml` (for example `icon_mark = "#bb9af7"`), or ships a whole icon as `themes/<name>/icons/<icon name>.svg`. The icons are skipped when a role would not be a plain hex color.
+
 ## Adding or overriding theme files
 
 - Add palette values to `themes/<name>/colors.toml`.

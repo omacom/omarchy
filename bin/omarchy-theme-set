@@ -497,6 +497,10 @@ if ! printf '%s\n' "$APPLIED_THEME_GENERATION" 2>/dev/null >"$THEME_GENERATION_P
   APPLIED_THEME_GENERATION=""
 fi
 
+# Link the theme's app icons before naming it, since the shell rescans its icons
+# when the name changes.
+omarchy-theme-set-icons
+
 # Store theme name for reference
 echo "$THEME_NAME" >"$CURRENT_THEME_NAME_PATH"
 

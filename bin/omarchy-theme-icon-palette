@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# omarchy:summary=Derive the app icon colors from a resolved theme palette
+# omarchy:args=< key<TAB>value lines from omarchy-theme-color --all
+# omarchy:hidden=true
+
+# Omarchy's own app icons are drawn from a few roles rather than raw palette
+# keys, because the same key means different things across themes: magenta is
+# Tokyo Night's violet but Gruvbox's and Nord's pink, and bright_foreground is
+# the lightest color of a dark theme but the darkest of a light one.
+#
+#   icon_main      the theme's accent, or blue when the accent is grey or
+#                  too close to the paper to stand out on it
+#   icon_main_end  the far end of icon_main's gradient
+#   icon_mark      handles, cursors and keys: the theme's violet, else its
+#                  amber, else its most vivid other color, else a mid grey
+#   icon_paper, icon_body, icon_edge, icon_ink, icon_shadow
+#                  the neutral pieces, read the right way round in light themes
+#
+# A theme sets any of these in its colors.toml to choose for itself, and its
+# value is printed as given. Prints every role or, when one would not be a
+# plain hex color, none.
+
+awk -F '\t' '
+  function hex(c) { return index("0123456789abcdef", tolower(c)) - 1 }
+  function channel(color, i) { return (hex(substr(color, i, 1)) * 16 + hex(substr(color, i + 1, 1))) / 255 }
+  function is_hex(color) { return color ~ /^#[0-9A-Fa-f]{6}$/ }
+
+  # Hue in degrees, lightness and saturation as Python colorsys computes them.
+  function hls(color,    r, g, b, max, min, d) {
+    r = channel(color, 2); g = channel(color, 4); b = channel(color, 6)
+    max = r > g ? (r > b ? r : b) : (g > b ? g : b)
+    min = r < g ? (r < b ? r : b) : (g < b ? g : b)
+    L = (max + min) / 2
+    if (max == min) { H = 0; S = 0; return }
+    d = max - min
+    S = L <= 0.5 ? d / (max + min) : d / (2 - max - min)
+    if (max == r) H = (g - b) / d
+    else if (max == g) H = 2 + (b - r) / d
+    else H = 4 + (r - g) / d
+    H = (H / 6) * 360
+    if (H < 0) H += 360
+  }
+  function hue(c) { hls(c); return H }
+  function sat(c) { hls(c); return S }
+  function light(c) { hls(c); return L }
+  function gap(a, b,    d) { d = hue(a) - hue(b); if (d < 0) d = -d; return d > 180 ? 360 - d : d }
+  function dist(a, b,    i, d, sum) {
+    for (i = 2; i <= 6; i += 2) { d = channel(a, i) - channel(b, i); sum += d * d }
+    return sqrt(sum)
+  }
+  function mix(a, b, p,    i, out) {
+    out = "#"
+    for (i = 2; i <= 6; i += 2) out = out sprintf("%02x", int((channel(a, i) * (1 - p) + channel(b, i) * p) * 255 + 0.5))
+    return out
+  }
+
+  # The first of keys whose hue lies in [lo, hi] and that stands apart from main.
+  function pick(keys, lo, hi,    list, n, i, c) {
+    n = split(keys, list, " ")
+    for (i = 1; i <= n; i++) {
+      c = color[list[i]]
+      if (is_hex(c) && sat(c) >= 0.12 && hue(c) >= lo && hue(c) <= hi && gap(c, main) >= 25) return c
+    }
+    return ""
+  }
+
+  function vivid(    list, n, i, c, best) {
+    n = split("red orange yellow green cyan blue magenta bright_red bright_yellow bright_green bright_cyan bright_blue bright_magenta", list, " ")
+    for (i = 1; i <= n; i++) {
+      c = color[list[i]]
+      if (is_hex(c) && sat(c) >= 0.35 && gap(c, main) >= 40 && light(c) >= 0.3 && light(c) <= 0.85 && (best == "" || sat(c) > sat(best))) best = c
+    }
+    return best
+  }
+
+  { color[$1] = $2 }
+
+  END {
+    if (!is_hex(color["background"]) || !is_hex(color["foreground"]) || !is_hex(color["accent"])) exit
+
+    if (color["mode"] == "light") {
+      paper = color["background"]
+      body = color["lighter_background"]
+      shadow = mix(color["dark_background"], color["foreground"], 0.35)
+    } else {
+      paper = color["bright_foreground"]
+      body = color["background"]
+      shadow = color["darker_background"]
+    }
+    if ("icon_paper" in color) paper = color["icon_paper"]
+
+    main = color["accent"]
+    if ((sat(main) < 0.2 || dist(main, paper) <= 0.25) && is_hex(color["blue"])) main = color["blue"]
+    if ("icon_main" in color) main = color["icon_main"]
+
+    mark = pick("bright_magenta magenta", 245, 290)
+    if (mark == "") mark = pick("yellow bright_yellow green orange", 30, 55)
+    if (mark == "") mark = vivid()
+    if (mark == "") mark = mix(color["foreground"], color["muted"], 0.5)
+
+    role["icon_main"] = main
+    role["icon_main_end"] = mix(main, paper, 0.3)
+    role["icon_mark"] = mark
+    role["icon_paper"] = paper
+    role["icon_body"] = body
+    role["icon_edge"] = color["muted"]
+    role["icon_ink"] = color["dark_foreground"]
+    role["icon_shadow"] = shadow
+
+    # Half a palette would draw broken icons, so print all of it or none.
+    for (key in role) {
+      if (key in color) role[key] = color[key]
+      if (!is_hex(role[key])) exit
+    }
+    for (key in role) print key "\t" role[key]
+  }
+'

@@ -23,6 +23,14 @@ Item {
   property var iconIndex: ({})
   property var pendingIconIndex: ({})
 
+  // Omarchy's own app icons are linked into the user's icon dir from the current
+  // theme, so a theme switch changes them in place. The revision goes on their
+  // URLs to make images reload instead of showing the cached previous theme, and
+  // the rescan picks up links the switch created.
+  readonly property string home: Quickshell.env("HOME")
+  readonly property string userIconsPath: home + "/.local/share/icons/"
+  property int themeRevision: 0
+
   property int launchSerial: 0
   property int launchToplevelCount: 0
   property var launchActiveToplevel: null
@@ -62,7 +70,8 @@ Item {
     // Prefer the context-limited app/device index. An unconstrained themed
     // lookup can resolve an app name such as "zoom" to an action icon instead.
     var found = root.iconIndex[value]
-    if (found) return Util.fileUrl(found)
+    var revision = root.themeRevision
+    if (found) return Util.fileUrl(found) + (found.indexOf(root.userIconsPath) === 0 ? "?theme=" + revision : "")
     var themed = Quickshell.iconPath(value, true)
     if (themed.length > 0) return themed
     return Quickshell.iconPath("application-x-executable", true)
@@ -233,6 +242,16 @@ Item {
     id: iconIndexDebounce
     interval: 750
     onTriggered: if (!iconIndexScan.running) iconIndexScan.running = true
+  }
+
+  FileView {
+    path: root.home + "/.local/state/omarchy/current/theme.name"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: {
+      root.themeRevision++
+      root.refreshIcons()
+    }
   }
 
   FileView {

@@ -317,7 +317,7 @@ apply_shell_section_overrides() {
 # up whole, as the per-template sed script used to match it. A mix is rounded
 # with awk's floating point exactly as before, so no generated color moves.
 render_templates() {
-  local tpl filename
+  local tpl filename icons=false
   local -a pairs=()
 
   # Process user templates first, then built-in templates (user overrides
@@ -325,6 +325,10 @@ render_templates() {
   for tpl in "${template_files[@]}"; do
     filename=${tpl##*/}
     filename=${filename%.tpl}
+    if [[ ${tpl%/*} == */icons ]]; then
+      filename="icons/$filename"
+      icons=true
+    fi
     if [[ ! -f $NEXT_THEME_DIR/$filename && -z ${rendered[$filename]:-} ]]; then
       rendered[$filename]=1
       pairs+=("$tpl" "$NEXT_THEME_DIR/$filename")
@@ -332,6 +336,7 @@ render_templates() {
   done
 
   (( ${#pairs[@]} > 0 )) || return
+  [[ $icons == "true" ]] && mkdir -p "$NEXT_THEME_DIR/icons"
 
   awk -v value_table="$value_table" -v mix_table="$mix_table" '
     function hex_value(char) {
@@ -439,6 +444,19 @@ if [[ -f $COLORS_FILE ]]; then
   while IFS=$'\t' read -r key value; do
     THEME_COLORS[$key]="$value"
   done < <(omarchy-theme-color --file "$COLORS_FILE" --all)
+
+  # Omarchy's own app icons draw from roles derived from the palette, and only
+  # render when every role resolved. They land in the theme's icons/, which
+  # omarchy-theme-set-icons links into the user's icon theme.
+  icon_roles=0
+  while IFS=$'\t' read -r key value; do
+    THEME_COLORS[$key]="$value"
+    (( ++icon_roles ))
+  done < <(for key in "${!THEME_COLORS[@]}"; do printf '%s\t%s\n' "$key" "${THEME_COLORS[$key]}"; done | omarchy-theme-icon-palette)
+
+  if (( icon_roles > 0 )); then
+    template_files+=("$USER_TEMPLATES_DIR"/icons/*.tpl "$TEMPLATES_DIR"/icons/*.tpl)
+  fi
 
   for key in "${!THEME_COLORS[@]}"; do
     add_template_value "$key" "${THEME_COLORS[$key]}"

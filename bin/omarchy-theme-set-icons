@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:summary=Link the current theme's app icons into the user's icon theme
+# omarchy:hidden=true
+
+# omarchy-theme-set-templates renders Omarchy's own app icons into the theme's
+# icons/. Each is linked by name over the packaged hicolor icon, through the
+# current theme's path, so every later switch retints them without relinking.
+# Only names with an icon template are linked: a theme may redraw Omarchy's
+# icons, but not stand in for another app's. A theme without icons leaves the
+# links dangling; those are dropped, so the packaged icon shows again. An icon
+# the user put there themselves is kept.
+
+THEME_ICONS="$HOME/.local/state/omarchy/current/theme/icons"
+ICONS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
+
+shopt -s nullglob
+
+for link in "$ICONS_DIR"/*.svg; do
+  if [[ -L $link && ! -e $link && $(readlink "$link") == "$THEME_ICONS"/* ]]; then
+    rm "$link"
+  fi
+done
+
+for template in "$HOME/.config/omarchy/themed/icons"/*.svg.tpl "$OMARCHY_PATH/default/themed/icons"/*.svg.tpl; do
+  name=${template##*/}
+  name=${name%.tpl}
+  link="$ICONS_DIR/$name"
+  if [[ -f $THEME_ICONS/$name && ! -e $link && ! -L $link ]]; then
+    mkdir -p "$ICONS_DIR"
+    ln -s "$THEME_ICONS/$name" "$link"
+  fi
+done
