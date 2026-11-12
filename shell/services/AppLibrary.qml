@@ -23,10 +23,11 @@ Item {
   property var iconIndex: ({})
   property var pendingIconIndex: ({})
 
-  // Omarchy's own app icons are linked into the user's icon dir from the current
-  // theme, so a theme switch changes them in place. The revision goes on their
-  // URLs to make images reload instead of showing the cached previous theme, and
-  // the rescan picks up links the switch created.
+  // Omarchy's own app icons are linked into the user's icon dir and redrawn in
+  // place after each theme switch, which then writes icons.revision. The
+  // revision goes on their URLs to make images reload instead of showing the
+  // cached previous theme, and the rescan picks up links created for the first
+  // time.
   readonly property string home: Quickshell.env("HOME")
   readonly property string userIconsPath: (Quickshell.env("XDG_DATA_HOME") || home + "/.local/share") + "/icons/"
   property int themeRevision: 0
@@ -245,7 +246,7 @@ Item {
   }
 
   FileView {
-    path: root.home + "/.local/state/omarchy/current/theme.name"
+    path: root.home + "/.local/state/omarchy/current/icons.revision"
     watchChanges: true
     printErrors: false
     onFileChanged: {

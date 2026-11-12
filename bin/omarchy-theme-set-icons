@@ -1,33 +1,52 @@
 #!/bin/bash
 
-# omarchy:summary=Link the current theme's app icons into the user's icon theme
+# omarchy:summary=Draw Omarchy's app icons in the current theme's colors
 # omarchy:hidden=true
 
-# omarchy-theme-set-templates renders Omarchy's own app icons into the theme's
-# icons/. Each is linked by name over the packaged hicolor icon, through the
-# current theme's path, so every later switch retints them without relinking.
-# Only names with an icon template are linked: a theme may redraw Omarchy's
-# icons, but not stand in for another app's. A theme without icons leaves the
-# links dangling; those are dropped, so the packaged icon shows again. An icon
-# the user put there themselves is kept.
+# Runs after the theme is on screen, so drawing icons never holds up a switch.
+# The icons render into a scratch dir and each one replaces its predecessor in
+# ~/.local/state/omarchy/current/icons with a rename, so an app or the shell
+# reading one mid-switch gets the old icon or the new, never a missing or
+# half-written one. A theme may ship its own icons/<name>.svg instead.
+#
+# Each icon is linked by name over the packaged hicolor icon once; the link
+# never changes after that. Only names with an icon template are linked, so a
+# theme may redraw Omarchy's icons but not stand in for another app's. An icon
+# the user put there themselves is kept. When the theme can't draw an icon, it
+# and its link go, and the packaged icon shows again.
+#
+# The shell watches icons.revision and redraws the icons when it changes.
 
-THEME_ICONS="$HOME/.local/state/omarchy/current/theme/icons"
-ICONS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
+CURRENT="$HOME/.local/state/omarchy/current"
+THEME="$CURRENT/theme"
+ICONS="$CURRENT/icons"
+LINKS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
 
 shopt -s nullglob
 
-for link in "$ICONS_DIR"/*.svg; do
-  if [[ -L $link && ! -e $link && $(readlink "$link") == "$THEME_ICONS"/* ]]; then
-    rm "$link"
-  fi
-done
+scratch=$(mktemp -d "$CURRENT/.icons.XXXXXX")
+trap 'rm -rf "$scratch"' EXIT
 
+# A file already in the output dir is never overwritten, so the theme's own
+# icons win over the templates.
+for icon in "$THEME"/icons/*.svg; do
+  [[ -L $icon ]] || cp "$icon" "$scratch/"
+done
+omarchy-theme-set-templates --icons "$THEME" "$scratch"
+
+mkdir -p "$ICONS" "$LINKS"
 for template in "$HOME/.config/omarchy/themed/icons"/*.svg.tpl "$OMARCHY_PATH/default/themed/icons"/*.svg.tpl; do
   name=${template##*/}
   name=${name%.tpl}
-  link="$ICONS_DIR/$name"
-  if [[ -f $THEME_ICONS/$name && ! -e $link && ! -L $link ]]; then
-    mkdir -p "$ICONS_DIR"
-    ln -s "$THEME_ICONS/$name" "$link"
+  link="$LINKS/$name"
+
+  if [[ -f $scratch/$name ]]; then
+    mv -f "$scratch/$name" "$ICONS/$name"
+    [[ -e $link || -L $link ]] || ln -s "$ICONS/$name" "$link"
+  else
+    rm -f "$ICONS/$name"
+    [[ -L $link && $(readlink "$link") == "$ICONS/$name" ]] && rm "$link"
   fi
 done
+
+printf '%s\n' "${EPOCHREALTIME//[!0-9]/}" >"$CURRENT/icons.revision"

@@ -390,7 +390,7 @@ The icon theme lives in the config rather than the theme, so `omarchy-theme-set-
 
 ## App icons
 
-Omarchy's own apps (Files, Omacut, Omasnap, Hype, Omawrite, Omacalc, Gliff, Plain, Monologue and Signed) are drawn in the current theme's colors. Their templates live in `default/themed/icons/<icon name>.svg.tpl` and render into the theme's `icons/`; `omarchy-theme-set-icons`, run as the theme is swapped in, links each one by name into `$XDG_DATA_HOME/icons/hicolor/scalable/apps/` (`~/.local/share` by default), ahead of the icon the package installs in `/usr/share`. The links go through `~/.local/state/omarchy/current/theme`, so later switches retint them without relinking. A theme that renders no icons leaves them dangling and they are removed, which brings the packaged icons back; an icon the user put there themselves is never replaced. When the theme name changes, the shell's app library rescans its icons and adds the switch to those icons' URLs, so the menu and dock redraw them.
+Omarchy's own apps (Files, Omacut, Omasnap, Hype, Omawrite, Omacalc, Gliff, Plain, Monologue and Signed) are drawn in the current theme's colors, from templates in `default/themed/icons/<icon name>.svg.tpl`. Drawing them never holds up a switch: `omarchy-theme-set-icons` runs with the other app retints once the theme is on screen (and directly when a theme is set headless). It renders them with `omarchy-theme-set-templates --icons` into a scratch dir and renames each one over its predecessor in `~/.local/state/omarchy/current/icons/`, so anything reading an icon mid-switch gets the old one or the new one. Each is linked once by name into `$XDG_DATA_HOME/icons/hicolor/scalable/apps/` (`~/.local/share` by default), ahead of the icon the package installs in `/usr/share`; the links never change, so no icon cache needs rebuilding. Only names with a template are linked, and an icon the user put there themselves is never replaced. A theme that can't draw the icons removes them and their links, which brings the packaged icons back. Last it writes `current/icons.revision`, which the shell's app library watches: it rescans its icons and adds the revision to those icons' URLs, so the menu and dock redraw them.
 
 The icons don't use palette keys directly, because a key means different things across themes: `magenta` is Tokyo Night's violet but Gruvbox's and Nord's pink, and `bright_foreground` is the lightest color of a dark theme but the darkest of a light one. `omarchy-theme-icon-palette` derives roles from the palette instead, and templates may use them like any other key:
 
@@ -406,7 +406,7 @@ The icons don't use palette keys directly, because a key means different things 
 | `icon_shadow` | `darker_background`; `dark_background` mixed toward `foreground` in a light theme |
 | `icon_red`, `icon_orange` | `red` and `orange`, or `icon_mark` when the theme's is not hex |
 
-A theme picks any role itself by setting it in `colors.toml` (for example `icon_mark = "#bb9af7"`), or ships a whole icon as `themes/<name>/icons/<icon name>.svg`. The icons are skipped when a role would not be a plain hex color.
+A theme picks any role itself by setting it in `colors.toml` (for example `icon_mark = "#bb9af7"`), or ships a whole icon as `themes/<name>/icons/<icon name>.svg`, which is used instead of the template. The icons are skipped when a role would not be a plain hex color.
 
 ## Adding or overriding theme files
 

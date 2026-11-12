@@ -77,13 +77,8 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
 done
 pass "theme templates render every built-in template"
 
-for tpl in "$ROOT"/default/themed/icons/*.tpl; do
-  name=${tpl##*/}
-  name=${name%.tpl}
-  [[ -f $next/icons/$name ]] || fail "every app icon template renders ($name)"
-  [[ $(<"$next/icons/$name") != *"{{"* ]] || fail "every app icon template resolves all its colors ($name)"
-done
-pass "theme templates render every app icon"
+[[ ! -e $next/icons ]] || fail "theme templates leave app icons to the retints after the switch"
+pass "theme templates leave app icons to the retints after the switch"
 
 icon_role() {
   local colors="$1" role="$2"
@@ -108,18 +103,34 @@ printf 'accent = "#7aa2f7"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\nred 
 [[ $(icon_role "$test_tmp/rgba-red.toml" icon_red) == "$(icon_role "$test_tmp/rgba-red.toml" icon_mark)" ]] || fail "app icons stand in for a red that is not plain hex"
 pass "app icon colors honor the theme and skip palettes they cannot draw"
 
-# The icons are linked over the packaged ones; a user's own icon stays, a link
-# left dangling by a theme without icons goes, and a theme's icon for an app
-# Omarchy has no template for is not linked.
+# App icons draw from the current theme after the switch, into a dir the links
+# point at. A theme's own icon wins; a user's own icon stays; a theme's icon for
+# an app Omarchy has no template for is not linked; and a theme that can't draw
+# them takes the icons and their links away again.
+state="$home/.local/state/omarchy/current"
 apps="$home/.local/share/icons/hicolor/scalable/apps"
-mkdir -p "$home/.local/state/omarchy/current" "$apps"
-mv "$next" "$home/.local/state/omarchy/current/theme"
+mkdir -p "$state" "$apps"
+mv "$next" "$state/theme"
+mkdir -p "$state/theme/icons"
+printf 'shipped\n' >"$state/theme/icons/hype.svg"
+printf 'spoof\n' >"$state/theme/icons/firefox.svg"
 printf 'mine\n' >"$apps/omacut.svg"
-ln -s "$home/.local/state/omarchy/current/theme/icons/gone.svg" "$apps/gone.svg"
-printf 'spoof\n' >"$home/.local/state/omarchy/current/theme/icons/firefox.svg"
-HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" "$ROOT/bin/omarchy-theme-set-icons"
-[[ $(readlink "$apps/omawrite.svg") == "$home/.local/state/omarchy/current/theme/icons/omawrite.svg" ]] || fail "app icons link from the current theme"
+set_icons() { HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-icons"; }
+set_icons
+for tpl in "$ROOT"/default/themed/icons/*.tpl; do
+  name=${tpl##*/}
+  name=${name%.tpl}
+  [[ -f $state/icons/$name ]] || fail "every app icon template renders ($name)"
+  [[ $(<"$state/icons/$name") != *"{{"* ]] || fail "every app icon template resolves all its colors ($name)"
+done
+[[ $(<"$state/icons/hype.svg") == "shipped" ]] || fail "a theme's own app icon wins over the template"
+[[ $(readlink "$apps/omawrite.svg") == "$state/icons/omawrite.svg" ]] || fail "app icons link over the packaged ones"
 [[ $(<"$apps/omacut.svg") == "mine" ]] || fail "app icons leave an icon the user put there"
-[[ ! -L $apps/gone.svg ]] || fail "app icons drop a link the theme no longer fills"
 [[ ! -e $apps/firefox.svg ]] || fail "app icons link only Omarchy's own icons"
-pass "app icons link into the user's icon theme"
+[[ -s $state/icons.revision ]] || fail "app icons tell the shell they changed"
+pass "app icons render after the switch and link into the user's icon theme"
+
+printf 'accent = "rgba(122,162,247,1)"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$state/theme/colors.toml"
+set_icons
+[[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "a theme that can't draw app icons brings the packaged ones back"
+pass "a theme that can't draw app icons brings the packaged ones back"

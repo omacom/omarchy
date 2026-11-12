@@ -8,6 +8,16 @@ USER_TEMPLATES_DIR="$HOME/.config/omarchy/themed"
 NEXT_THEME_DIR="$HOME/.local/state/omarchy/current/next-theme"
 COLORS_FILE="$NEXT_THEME_DIR/colors.toml"
 
+# With --icons <theme dir> <out dir>, render only Omarchy's app icons from that
+# theme's colors into out dir. omarchy-theme-set-icons does this after the theme
+# is on screen, so drawing icons never holds up a switch.
+ICONS_ONLY=false
+if [[ ${1:-} == "--icons" ]]; then
+  ICONS_ONLY=true
+  COLORS_FILE="$2/colors.toml"
+  NEXT_THEME_DIR="$3"
+fi
+
 # Theme switching waits on this script before the transition starts, so it
 # avoids a process per value: helpers return through REPLY rather than $(...),
 # and one awk pass computes the mixes and renders every template.
@@ -317,7 +327,7 @@ apply_shell_section_overrides() {
 # up whole, as the per-template sed script used to match it. A mix is rounded
 # with awk's floating point exactly as before, so no generated color moves.
 render_templates() {
-  local tpl filename icons=false
+  local tpl filename
   local -a pairs=()
 
   # Process user templates first, then built-in templates (user overrides
@@ -325,10 +335,6 @@ render_templates() {
   for tpl in "${template_files[@]}"; do
     filename=${tpl##*/}
     filename=${filename%.tpl}
-    if [[ ${tpl%/*} == */icons ]]; then
-      filename="icons/$filename"
-      icons=true
-    fi
     if [[ ! -f $NEXT_THEME_DIR/$filename && -z ${rendered[$filename]:-} ]]; then
       rendered[$filename]=1
       pairs+=("$tpl" "$NEXT_THEME_DIR/$filename")
@@ -336,7 +342,6 @@ render_templates() {
   done
 
   (( ${#pairs[@]} > 0 )) || return
-  [[ $icons == "true" ]] && mkdir -p "$NEXT_THEME_DIR/icons"
 
   awk -v value_table="$value_table" -v mix_table="$mix_table" '
     function hex_value(char) {
@@ -437,7 +442,11 @@ if [[ -f $COLORS_FILE ]]; then
   declare -A rendered=()
 
   shopt -s nullglob
-  template_files=("$USER_TEMPLATES_DIR"/*.tpl "$TEMPLATES_DIR"/*.tpl)
+  if [[ $ICONS_ONLY == "true" ]]; then
+    template_files=()
+  else
+    template_files=("$USER_TEMPLATES_DIR"/*.tpl "$TEMPLATES_DIR"/*.tpl)
+  fi
 
   # Parsing and alias/fallback resolution (legacy colorN names, derived
   # shades, mode/theme_type) is shared with every other colors.toml consumer.
@@ -445,17 +454,18 @@ if [[ -f $COLORS_FILE ]]; then
     THEME_COLORS[$key]="$value"
   done < <(omarchy-theme-color --file "$COLORS_FILE" --all)
 
-  # Omarchy's own app icons draw from roles derived from the palette, and only
-  # render when every role resolved. They land in the theme's icons/, which
-  # omarchy-theme-set-icons links into the user's icon theme.
-  icon_roles=0
-  while IFS=$'\t' read -r key value; do
-    THEME_COLORS[$key]="$value"
-    (( ++icon_roles ))
-  done < <(for key in "${!THEME_COLORS[@]}"; do printf '%s\t%s\n' "$key" "${THEME_COLORS[$key]}"; done | omarchy-theme-icon-palette)
+  # The app icons draw from roles derived from the palette, and only render
+  # when every role resolved.
+  if [[ $ICONS_ONLY == "true" ]]; then
+    icon_roles=0
+    while IFS=$'\t' read -r key value; do
+      THEME_COLORS[$key]="$value"
+      (( ++icon_roles ))
+    done < <(for key in "${!THEME_COLORS[@]}"; do printf '%s\t%s\n' "$key" "${THEME_COLORS[$key]}"; done | omarchy-theme-icon-palette)
 
-  if (( icon_roles > 0 )); then
-    template_files+=("$USER_TEMPLATES_DIR"/icons/*.tpl "$TEMPLATES_DIR"/icons/*.tpl)
+    if (( icon_roles > 0 )); then
+      template_files=("$USER_TEMPLATES_DIR"/icons/*.tpl "$TEMPLATES_DIR"/icons/*.tpl)
+    fi
   fi
 
   for key in "${!THEME_COLORS[@]}"; do
@@ -468,5 +478,7 @@ if [[ -f $COLORS_FILE ]]; then
   rm "$value_table" "$mix_table"
 fi
 
-apply_shell_section_overrides
-omarchy-theme-set-glass "$NEXT_THEME_DIR"
+if [[ $ICONS_ONLY != "true" ]]; then
+  apply_shell_section_overrides
+  omarchy-theme-set-glass "$NEXT_THEME_DIR"
+fi
