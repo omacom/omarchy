@@ -36,8 +36,10 @@ wait
 
 # Wine builds Ids from window handles, so apps in two prefixes can share one,
 # and Quickshell gives no bus name to tell them apart. Don't guess: open
-# nothing when two items match, or when a Windows app that didn't answer
-# might be the one that was clicked.
+# nothing when two items match, or when an item that didn't answer might be
+# another Wine app with this Id. Wine apps run Wine's loader (or an x86
+# emulator running it) whatever the Windows program is called, so only a
+# silent app proven to run something else is ruled out.
 matches=()
 silent_wine_apps=0
 for i in "${!items[@]}"; do
@@ -49,14 +51,20 @@ for i in "${!items[@]}"; do
   elif [[ $want == wine-* ]]; then
     pid=$(busctl --user --timeout=1 call org.freedesktop.DBus /org/freedesktop/DBus \
       org.freedesktop.DBus GetConnectionUnixProcessID s "$service" 2>/dev/null | awk '{ print $2 }')
-    if [[ -n $pid ]] && tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep -qi '\.exe\b'; then
-      silent_wine_apps=$(( silent_wine_apps + 1 ))
+    exe=""
+    if [[ -n $pid ]]; then
+      exe=$(readlink "/proc/$pid/exe" 2>/dev/null)
     fi
+    case ${exe##*/} in
+      "" | wine | wine64 | wine-preloader | wine64-preloader | FEX* | box64 | box86)
+        silent_wine_apps=$(( silent_wine_apps + 1 ))
+        ;;
+    esac
   fi
 done
 
 if (( ${#matches[@]} != 1 || silent_wine_apps > 0 )); then
-  echo "omarchy-tray-context-menu: ${#matches[@]} tray items have Id $want, $silent_wine_apps Windows apps didn't answer" >&2
+  echo "omarchy-tray-context-menu: ${#matches[@]} tray items have Id $want, $silent_wine_apps possible Wine apps didn't answer" >&2
   exit 1
 fi
 read -r service path <<<"${matches[0]}"

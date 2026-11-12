@@ -172,19 +172,20 @@ fi
 pass "tray context menu helper opens no menu when two items share an Id"
 
 # An app that stops answering can't be ruled out as the one clicked. A native
-# app can't share a Wine Id, so it doesn't stop the menu; a silent Windows app
-# under Wine might, so the helper opens nothing.
+# app can't share a Wine Id, so it doesn't stop the menu. A silent app running
+# Wine's loader might, whatever its Windows program is called, so the helper
+# opens nothing.
 kill "$TWIN_PID" 2>/dev/null || true
 wait "$TWIN_PID" 2>/dev/null || true
 TWIN_PID=""
 
+# The mock runs as the binary it's given, which is what the helper checks.
 start_silent_item() {
-  local name=$1 ready="$TMPDIR/silent-ready-$1"
+  local binary=$1 ready="$TMPDIR/silent-ready-${1##*/}"
   OMARCHY_TRAY_MENU_READY="$ready" \
   OMARCHY_TRAY_CONTEXT_MENU_RESULT="$TMPDIR/context-menu-silent" \
   OMARCHY_TRAY_MOCK_SILENT=1 \
-    bash -c 'exec -a "$0" python "$1"' "$name" "$SHELL_TEST_DIR/fixtures/tray-menu-activation/mock-sni.py" \
-    >"$TMPDIR/mock-sni-silent.log" 2>&1 &
+    "$binary" "$SHELL_TEST_DIR/fixtures/tray-menu-activation/mock-sni.py" >"$TMPDIR/mock-sni-silent.log" 2>&1 &
   SILENT_PID=$!
   for _ in {1..50}; do
     [[ -s $ready ]] && break
@@ -192,7 +193,8 @@ start_silent_item() {
   done
 }
 
-start_silent_item tray-helper
+python_binary=$(readlink -f "$(command -v python)")
+start_silent_item "$python_binary"
 rm -f "$context_menu_result"
 if ! PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-tray-context-menu" wine-omarchy-test-0 || [[ ! -s $context_menu_result ]]; then
   fail "tray context menu opens while a native tray app doesn't answer"
@@ -201,10 +203,11 @@ pass "tray context menu opens while a native tray app doesn't answer"
 
 kill "$SILENT_PID" 2>/dev/null || true
 wait "$SILENT_PID" 2>/dev/null || true
-start_silent_item Tray.exe
+cp "$python_binary" "$TMPDIR/wine-preloader"
+start_silent_item "$TMPDIR/wine-preloader"
 rm -f "$context_menu_result"
 if PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-tray-context-menu" wine-omarchy-test-0 2>/dev/null ||
   [[ -e $context_menu_result ]]; then
-  fail "tray context menu helper opens no menu while a Windows app doesn't answer"
+  fail "tray context menu helper opens no menu while a Wine app doesn't answer"
 fi
-pass "tray context menu helper opens no menu while a Windows app doesn't answer"
+pass "tray context menu helper opens no menu while a Wine app doesn't answer"
