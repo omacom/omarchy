@@ -115,6 +115,8 @@ mkdir -p "$state/theme/icons"
 printf 'shipped\n' >"$state/theme/icons/hype.svg"
 printf 'spoof\n' >"$state/theme/icons/firefox.svg"
 printf 'mine\n' >"$apps/omacut.svg"
+mkdir -p "$home/.config/omarchy/themed/icons"
+printf '<svg>{{ icon_main }}</svg>\n' >"$home/.config/omarchy/themed/icons/plain.svg.tpl"
 ln -s "$test_tmp/gone/omacalc.svg" "$apps/omacalc.svg"
 set_icons() { HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-icons"; }
 set_icons
@@ -125,6 +127,7 @@ for tpl in "$ROOT"/default/themed/icons/*.tpl; do
   [[ $(<"$state/icons/$name") != *"{{"* ]] || fail "every app icon template resolves all its colors ($name)"
 done
 [[ $(<"$state/icons/hype.svg") == "shipped" ]] || fail "a theme's own app icon wins over the template"
+[[ $(<"$state/icons/plain.svg") == "<svg>#"* && -L $apps/plain.svg ]] || fail "a user's icon template shadows the built-in and stays published"
 [[ $(readlink "$apps/omawrite.svg") == "$state/icons/omawrite.svg" ]] || fail "app icons link over the packaged ones"
 [[ $(<"$apps/omacut.svg") == "mine" ]] || fail "app icons leave an icon the user put there"
 [[ $(readlink "$apps/omacalc.svg") == "$state/icons/omacalc.svg" ]] || fail "app icons replace a dangling link at their name"

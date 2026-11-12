@@ -35,9 +35,14 @@ done
 omarchy-theme-set-templates --icons "$THEME" "$scratch"
 
 mkdir -p "$ICONS" "$LINKS"
+# A user template shadows the built-in of the same name, so each name is
+# published once.
+declare -A published=()
 for template in "$HOME/.config/omarchy/themed/icons"/*.svg.tpl "$OMARCHY_PATH/default/themed/icons"/*.svg.tpl; do
   name=${template##*/}
   name=${name%.tpl}
+  [[ -z ${published[$name]:-} ]] || continue
+  published[$name]=1
   link="$LINKS/$name"
 
   if [[ -f $scratch/$name ]]; then
