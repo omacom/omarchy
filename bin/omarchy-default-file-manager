@@ -65,7 +65,7 @@ fi
 # matter what it wrote.
 xdg-mime default "$desktop_id" inode/directory || exit 1
 handler=$(xdg-mime query default inode/directory 2>/dev/null || true)
-if [[ $handler != "$desktop_id" ]]; then
+if [[ $handler != $desktop_id ]]; then
   echo "Could not set $name as the default file manager (handler: ${handler:-none})" >&2
   exit 1
 fi
@@ -100,7 +100,7 @@ fi
 written=""
 [[ -f $service ]] && read -r written <"$service"
 
-if [[ -f $service && $written != "$marker" ]]; then
+if [[ -f $service && $written != $marker ]]; then
   echo "Leaving $service in place: it was not written by omarchy-default-file-manager" >&2
   registration_ours=false
 elif [[ -n $exec_line ]]; then
@@ -129,7 +129,7 @@ if [[ ${registration_ours:-false} == true ]]; then
     if [[ -n $owner_pid && -r /proc/$owner_pid/comm ]]; then
       read -r owner_comm <"/proc/$owner_pid/comm" || true
     fi
-    if [[ ${owner_comm,,} != "${command,,}" ]]; then
+    if [[ ${owner_comm,,} != ${command,,} ]]; then
       busctl --user --auto-start=no --timeout=2 call org.freedesktop.FileManager1 \
         /org/freedesktop/FileManager1 org.freedesktop.FileManager1 Quit >/dev/null 2>&1 || true
       waited=0
