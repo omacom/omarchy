@@ -105,9 +105,35 @@ Panel {
       // Pairs in the background while the panel stays open; a failure shows
       // on the model's line.
       usage.pair(model)
+      if (usage.pairingId === modelId(model)) landAfterPair = modelId(model)
     } else if (action === "disconnect") {
       Util.execArgv(["omarchy-agent-local", "forget", modelId(model)])
     }
+  }
+
+  // The model being paired from the panel. Once it is, and running there, the
+  // keyboard cursor lands on its terminal, so Return opens an agent on it.
+  // The survey that shows it paired can trail the pairing itself, so this
+  // waits for that rather than for the pairing to end.
+  property string landAfterPair: ""
+  function landOnPaired() {
+    if (landAfterPair === "" || usage.pairingId !== "") return
+    if (!root.opened || usage.pairFailures[landAfterPair]) {
+      landAfterPair = ""
+      return
+    }
+    for (var p = 0; p < providers.length; p++) {
+      var model = providers[p].localModel
+      if (!model || !model.host || modelId(model) !== landAfterPair || model.paired !== true) continue
+      landAfterPair = ""
+      if (localActions(model, usage.canShare).indexOf("launch") >= 0) pointAt("modelLaunch", p)
+      return
+    }
+  }
+  onProvidersChanged: Qt.callLater(landOnPaired)
+  Connections {
+    target: usage
+    function onPairingIdChanged() { Qt.callLater(root.landOnPaired) }
   }
 
   // How long ago an offline host was last seen, in the panel's own words.
