@@ -23,7 +23,7 @@ case "$1 $2" in
   "-Q hyprland") echo "hyprland $TEST_HYPRLAND" ;;
   "-Si cua-hyprland-plugin")
     [[ -n ${TEST_PLUGIN_PIN-} ]] || exit 1
-    if [[ ${LC_ALL-} == C ]]; then depends="Depends On      "; else depends="Hängt ab von    "; fi
+    if [[ ${LC_ALL-} == "C" ]]; then depends="Depends On      "; else depends="Hängt ab von    "; fi
     if [[ -n ${COLUMNS-} ]]; then wrap=$'\n                  '; else wrap="  "; fi
     printf 'Repository      : omarchy\nName            : cua-hyprland-plugin\nDescription     : Cua plugin for hyprland=%s\nProvides        : cua-hyprland=%s\n%s: %s  hyprlang=0.6.8-5\n\n' "$TEST_HYPRLAND" "$TEST_HYPRLAND" "$depends" "${TEST_DEPENDS_BEFORE_PIN:+$TEST_DEPENDS_BEFORE_PIN$wrap}$TEST_PLUGIN_PIN"
     printf 'Repository      : extra\nName            : cua-hyprland-plugin\n%s: hyprland=%s\n' "$depends" "$TEST_HYPRLAND"

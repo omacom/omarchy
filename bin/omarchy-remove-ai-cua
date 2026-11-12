@@ -47,9 +47,9 @@ rm -rf \
 
 echo ""
 echo "Cua Driver has been removed."
-if [[ $plugin_removed == true ]]; then
+if [[ $plugin_removed == "true" ]]; then
   echo "A loaded Hyprland plugin stays in memory until this session ends."
 fi
-if [[ $input_left_on == true ]]; then
+if [[ $input_left_on == "true" ]]; then
   echo "Cua Input may still be on: log out and back in to turn it off."
 fi
