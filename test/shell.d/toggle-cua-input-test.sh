@@ -15,17 +15,17 @@ cat >"$tmp_dir/bin/hyprctl" <<'SCRIPT'
 #!/bin/bash
 case "$*" in
   "-j plugin list")
-    if [[ ${TEST_PLUGIN_LOADED:-0} == 1 ]]; then echo '[{"name":"cua-hyprland-plugin","handle":"1"}]'; else echo '[]'; fi ;;
+    if (( ${TEST_PLUGIN_LOADED:-0} == 1 )); then echo '[{"name":"cua-hyprland-plugin","handle":"1"}]'; else echo '[]'; fi ;;
   "-j cua:status")
     # What Hyprland answers while no module is loaded to take the request.
-    if [[ ${TEST_CUA_UNLOADED:-0} == 1 ]]; then echo "unknown request"; exit 0; fi
-    if [[ ${TEST_CUA_READY:-0} == 1 ]]; then ready=true; else ready=false; fi
+    if (( ${TEST_CUA_UNLOADED:-0} == 1 )); then echo "unknown request"; exit 0; fi
+    if (( ${TEST_CUA_READY:-0} == 1 )); then ready=true; else ready=false; fi
     numlock_capability=""
-    if [[ ${TEST_NUMLOCK_COMPATIBLE:-true} != missing ]]; then
+    if [[ ${TEST_NUMLOCK_COMPATIBLE:-true} != "missing" ]]; then
       numlock_capability=",\"foreground_numlock_compatible\":${TEST_NUMLOCK_COMPATIBLE:-true}"
     fi
     guard_capability=""
-    if [[ ${TEST_IME_GUARD:-true} != missing ]]; then
+    if [[ ${TEST_IME_GUARD:-true} != "missing" ]]; then
       guard_capability=",\"ime_popup_guard\":${TEST_IME_GUARD:-true}"
     fi
     printf '{"configured":%s,"transport":{"ready":%s},"keyboard_layout_independent":%s%s%s}\n' "$ready" "$ready" "${TEST_LAYOUT_INDEPENDENT:-true}" "$numlock_capability" "$guard_capability" ;;
@@ -37,7 +37,7 @@ case "$*" in
     exit "${TEST_LOAD_STATUS:-0}" ;;
   "eval "*)
     printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG"
-    if [[ ${TEST_EVAL_STATUS:-0} == 0 ]]; then echo ok; else echo "error: eval failed"; fi ;;
+    if (( ${TEST_EVAL_STATUS:-0} == 0 )); then echo ok; else echo "error: eval failed"; fi ;;
   reload)
     printf 'hyprctl:%s\n' "$*" >>"$TEST_LOG"
     reloads=$(($(cat "$TEST_LOG.reloads" 2>/dev/null || echo 0) + 1))
@@ -51,7 +51,7 @@ SCRIPT
 # dd fails on demand for copies from a file, which is how the flag is restored.
 cat >"$tmp_dir/bin/dd" <<'SCRIPT'
 #!/bin/bash
-if [[ ${TEST_RESTORE_FAIL:-0} == 1 && " $* " == *" if="* ]]; then exit 1; fi
+if (( ${TEST_RESTORE_FAIL:-0} == 1 )) && [[ " $* " == *" if="* ]]; then exit 1; fi
 exec /usr/bin/dd "$@"
 SCRIPT
 
@@ -89,7 +89,7 @@ SCRIPT
 
 cat >"$tmp_dir/bin/omarchy-pkg-present" <<'SCRIPT'
 #!/bin/bash
-[[ ${TEST_PLUGIN_INSTALLED:-1} == 1 ]]
+(( ${TEST_PLUGIN_INSTALLED:-1} == 1 ))
 SCRIPT
 
 cat >"$tmp_dir/bin/omarchy-notification-send" <<'SCRIPT'
@@ -115,7 +115,7 @@ fresh_home() {
 fresh_home
 rc=0
 TEST_PLUGIN_INSTALLED=0 "$toggle" on 2>/dev/null || rc=$?
-[[ $rc != 0 && ! -e $(flag_file) ]] || fail "cua input refuses without the plugin package"
+(( rc != 0 )) && [[ ! -e $(flag_file) ]] || fail "cua input refuses without the plugin package"
 grep -q '^notify:.*Cua input stays off' "$TEST_LOG" || fail "cua input refuses without the plugin package" "no notification"
 pass "cua input refuses without the plugin package"
 
@@ -163,7 +163,7 @@ pass "cua input config names the plugin option only once the module is loaded"
 fresh_home
 rc=0
 TEST_PLUGIN_VERSION=0.28.2-2 "$toggle" on 2>/dev/null || rc=$?
-[[ $rc != 0 && ! -e $(flag_file) ]] || fail "cua input refuses older packages"
+(( rc != 0 )) && [[ ! -e $(flag_file) ]] || fail "cua input refuses older packages"
 ! grep -q '^hyprctl:plugin load' "$TEST_LOG" || fail "cua input refuses older packages" "plugin loaded anyway"
 pass "cua input refuses older packages"
 
@@ -173,7 +173,7 @@ mkdir -p "$(dirname "$(flag_file)")"
 printf 'hl.config({input={kb_layout="us",kb_options=""}})\n' >"$(flag_file)"
 rc=0
 TEST_PLUGIN_LOADED=1 TEST_LAYOUT_INDEPENDENT=false "$toggle" on 2>/dev/null || rc=$?
-[[ $rc != 0 && ! -e $(flag_file) ]] || fail "cua input disables a stale loaded module"
+(( rc != 0 )) && [[ ! -e $(flag_file) ]] || fail "cua input disables a stale loaded module"
 ! grep -q '^hyprctl:plugin ' "$TEST_LOG" || fail "cua input disables a stale loaded module" "module replaced"
 grep -q 'Log out and back in' "$TEST_LOG" || fail "cua input disables a stale loaded module" "restart instruction missing"
 grep -q '^hyprctl:reload$' "$TEST_LOG" || fail "cua input disables a stale loaded module" "old keymap not restored"
@@ -187,8 +187,8 @@ for action in on --load; do
   cp "$ROOT/default/hypr/toggles/cua-input.lua" "$(flag_file)"
   rc=0
   TEST_PLUGIN_LOADED=1 TEST_NUMLOCK_COMPATIBLE=missing "$toggle" "$action" 2>/dev/null || rc=$?
-  if [[ $action == on ]]; then
-    [[ $rc != 0 ]] || fail "cua input refuses the old Num Lock guard during $action"
+  if [[ $action == "on" ]]; then
+    (( rc != 0 )) || fail "cua input refuses the old Num Lock guard during $action"
   fi
   [[ ! -e $(flag_file) ]] || fail "cua input refuses the old Num Lock guard during $action" "flag remains"
   ! grep -q '^hyprctl:plugin ' "$TEST_LOG" || fail "cua input refuses the old Num Lock guard during $action" "module replaced"
@@ -200,20 +200,20 @@ done
 # install, must not get input: fcitx5 restarting could crash Hyprland. Only
 # the old module is fixed by logging out; a failed hook would fail again.
 for guard in missing false; do
-  if [[ $guard == missing ]]; then expected='Log out and back in'; else expected='could not install its input-method crash guard'; fi
+  if [[ $guard == "missing" ]]; then expected='Log out and back in'; else expected='could not install its input-method crash guard'; fi
   for action in on --load; do
     fresh_home
     mkdir -p "$(dirname "$(flag_file)")"
     cp "$ROOT/default/hypr/toggles/cua-input.lua" "$(flag_file)"
     rc=0
     TEST_PLUGIN_LOADED=1 TEST_IME_GUARD=$guard "$toggle" "$action" 2>/dev/null || rc=$?
-    if [[ $action == on ]]; then
-      [[ $rc != 0 ]] || fail "cua input refuses a $guard input-method guard during $action"
+    if [[ $action == "on" ]]; then
+      (( rc != 0 )) || fail "cua input refuses a $guard input-method guard during $action"
     fi
     [[ ! -e $(flag_file) ]] || fail "cua input refuses a $guard input-method guard during $action" "flag remains"
     ! grep -q '^hyprctl:plugin ' "$TEST_LOG" || fail "cua input refuses a $guard input-method guard during $action" "module replaced"
     grep -q "$expected" "$TEST_LOG" || fail "cua input refuses a $guard input-method guard during $action" "wrong instruction: $(cat "$TEST_LOG")"
-    if [[ $guard == false ]] && grep -q 'Log out and back in' "$TEST_LOG"; then
+    if [[ $guard == "false" ]] && grep -q 'Log out and back in' "$TEST_LOG"; then
       fail "cua input refuses a $guard input-method guard during $action" "a failed hook is not fixed by logging out"
     fi
     pass "cua input refuses a $guard input-method guard during $action without replacing the module"
@@ -243,7 +243,7 @@ done
 fresh_home
 rc=0
 TEST_VERIFY_STATUS=1 "$toggle" on 2>/dev/null || rc=$?
-[[ $rc != 0 && ! -e $(flag_file) ]] || fail "cua input refuses when the compatibility check fails"
+(( rc != 0 )) && [[ ! -e $(flag_file) ]] || fail "cua input refuses when the compatibility check fails"
 ! grep -q '^hyprctl:plugin load' "$TEST_LOG" || fail "cua input refuses when the compatibility check fails" "plugin loaded anyway"
 pass "cua input refuses when the compatibility check fails"
 
@@ -310,7 +310,7 @@ pass "cua input reloads the plugin at session start"
 # The load reloads Hyprland's configuration before the module is checked, so
 # input stays held off through it and is restored only after the checks.
 grep -qx 'flag-at-load:held' "$TEST_LOG" || fail "cua input holds input off while a fresh module loads" "$(cat "$TEST_LOG")"
-[[ $(grep -nm1 '^hyprctl:reload$' "$TEST_LOG" | cut -d: -f1) -lt $(grep -nm1 '^hyprctl:plugin load' "$TEST_LOG" | cut -d: -f1) ]] ||
+(( $(grep -nm1 '^hyprctl:reload$' "$TEST_LOG" | cut -d: -f1) < $(grep -nm1 '^hyprctl:plugin load' "$TEST_LOG" | cut -d: -f1) )) ||
   fail "cua input holds input off while a fresh module loads" "held flag not reloaded before the load"
 cmp -s "$(flag_file)" "$ROOT/default/hypr/toggles/cua-input.lua" || fail "cua input holds input off while a fresh module loads" "flag not restored"
 pass "cua input holds input off while a fresh module loads"
@@ -345,10 +345,10 @@ for guard in true false; do
   rc=0
   TEST_CUA_READY=1 TEST_IME_GUARD=$guard "$toggle" on 2>/dev/null || rc=$?
   grep -qx 'flag-at-load:held' "$TEST_LOG" || fail "cua input on holds input off while loading (guard $guard)" "$(cat "$TEST_LOG")"
-  if [[ $guard == true ]]; then
+  if [[ $guard == "true" ]]; then
     cmp -s "$(flag_file)" "$ROOT/default/hypr/toggles/cua-input.lua" || fail "cua input on holds input off while loading (guard $guard)" "flag not restored"
   else
-    [[ $rc != 0 && ! -e $(flag_file) ]] || fail "cua input on holds input off while loading (guard $guard)" "unguarded module kept its flag"
+    (( rc != 0 )) && [[ ! -e $(flag_file) ]] || fail "cua input on holds input off while loading (guard $guard)" "unguarded module kept its flag"
   fi
   pass "cua input on holds input off while loading (guard $guard)"
 done
@@ -358,7 +358,7 @@ fresh_home
 rm -f "$TEST_LOG.reloads"
 rc=0
 TEST_RELOAD_STATUS=1 "$toggle" on 2>/dev/null || rc=$?
-[[ $rc != 0 && ! -e $(flag_file) ]] || fail "cua input on clears the flag when the reload fails"
+(( rc != 0 )) && [[ ! -e $(flag_file) ]] || fail "cua input on clears the flag when the reload fails"
 grep -q '^notify:.*Cua input stays off Hyprland could not reload' "$TEST_LOG" || fail "cua input on clears the flag when the reload fails" "no notification: $(cat "$TEST_LOG")"
 pass "cua input on clears the flag when the reload fails"
 
@@ -396,7 +396,7 @@ fresh_home
 : >"$TEST_LOG"
 rc=0
 TEST_RELOAD_STATUS=1 TEST_EVAL_STATUS=1 "$toggle" off 2>/dev/null || rc=$?
-[[ $rc != 0 ]] || fail "cua input off reports input that may still be on" "exited 0"
+(( rc != 0 )) || fail "cua input off reports input that may still be on" "exited 0"
 grep -q '^notify:.*Cua input may still be on' "$TEST_LOG" || fail "cua input off reports input that may still be on" "$(cat "$TEST_LOG")"
 ! grep -q '^notify:.*Cua input off' "$TEST_LOG" || fail "cua input off reports input that may still be on" "claimed off"
 pass "cua input off reports input that may still be on"
@@ -407,7 +407,7 @@ fresh_home
 : >"$TEST_LOG"
 rc=0
 TEST_RELOAD_STATUS=1 TEST_EVAL_STATUS=1 "$toggle" on 2>/dev/null || rc=$?
-[[ $rc != 0 ]] || fail "cua input refusal reports input that may still be on" "exited 0"
+(( rc != 0 )) || fail "cua input refusal reports input that may still be on" "exited 0"
 grep -q '^notify:.*Cua input may still be on' "$TEST_LOG" || fail "cua input refusal reports input that may still be on" "$(cat "$TEST_LOG")"
 pass "cua input refusal reports input that may still be on"
 
@@ -471,7 +471,7 @@ chmod a-w "$(dirname "$(flag_file)")"
 rc=0
 "$toggle" off 2>/dev/null || rc=$?
 chmod u+w "$(dirname "$(flag_file)")"
-[[ $rc != 0 ]] || fail "cua input off reports a flag it could not delete" "exited 0"
+(( rc != 0 )) || fail "cua input off reports a flag it could not delete" "exited 0"
 grep -q '^notify:.*Cua input may still be on' "$TEST_LOG" || fail "cua input off reports a flag it could not delete" "$(cat "$TEST_LOG")"
 pass "cua input off reports a flag it could not delete"
 

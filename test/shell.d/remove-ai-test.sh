@@ -509,7 +509,7 @@ grep -q '^drop:cua-hyprland-plugin$' "$TEST_LOG" && grep -q '^drop:cua-driver-bi
 pass "Cua removal drops the plugin and the driver"
 
 # The input toggle is switched off, and before the plugin package goes.
-[[ $(grep -n '^cua-input:off$' "$TEST_LOG" | cut -d: -f1) -lt $(grep -n '^drop:cua-hyprland-plugin$' "$TEST_LOG" | cut -d: -f1) ]] ||
+(( $(grep -n '^cua-input:off$' "$TEST_LOG" | cut -d: -f1) < $(grep -n '^drop:cua-hyprland-plugin$' "$TEST_LOG" | cut -d: -f1) )) ||
   fail "Cua removal turns the input toggle off before dropping the plugin" "$(cat "$TEST_LOG")"
 [[ ! -e $HOME/.local/state/omarchy/toggles/hypr/cua-input.lua ]] ||
   fail "Cua removal turns the input toggle off before dropping the plugin" "flag kept"

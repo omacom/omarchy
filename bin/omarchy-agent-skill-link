@@ -29,7 +29,7 @@ done
 
 [[ -n $skill_dir ]] || usage
 
-if [[ $remove == false && ! -f $skill_dir/SKILL.md ]]; then
+if [[ $remove == "false" && ! -f $skill_dir/SKILL.md ]]; then
   echo "No skill at $skill_dir: expected a directory holding a SKILL.md." >&2
   exit 1
 fi
@@ -54,7 +54,7 @@ done
 for dir in "${agent_dirs[@]}"; do
   link="$dir/$name"
 
-  if [[ $remove == true ]]; then
+  if [[ $remove == "true" ]]; then
     # Only a link to this skill: a skill of the same name the user keeps
     # there themselves is not ours to remove.
     if [[ -L $link && $(realpath -m -- "$link") == "$skill_dir" ]]; then

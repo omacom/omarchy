@@ -32,7 +32,7 @@ flag_off() {
   local live
   omarchy-hyprland-toggle "$FLAG" off >/dev/null || true
   live=$(hyprctl eval 'if hl.get_config("plugin.cua.enabled") ~= nil then hl.config({ plugin = { cua = { enabled = false } } }) end' 2>/dev/null)
-  [[ $live == ok && ! -e $FLAG_FILE ]]
+  [[ $live == "ok" && ! -e $FLAG_FILE ]]
 }
 
 refuse() {
