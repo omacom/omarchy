@@ -559,8 +559,13 @@ Panel {
               anchors.fill: parent
               acceptedButtons: Qt.NoButton
               onWheel: function(wheel) {
+                // Horizontal wheels and touchpad side-scrolls report y === 0,
+                // and are the calendar's to scroll by when it is too wide.
+                if (wheel.angleDelta.y === 0) {
+                  wheel.accepted = false
+                  return
+                }
                 // One month a notch, however many events the notch arrives as.
-                // Horizontal wheels and touchpad side-scrolls report y === 0.
                 var turn = Util.wheelSteps(root.wheelAccumulator, wheel.angleDelta.y)
                 root.wheelAccumulator = turn.remainder
                 if (turn.steps !== 0) root.moveMonth(-turn.steps)
