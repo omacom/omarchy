@@ -927,12 +927,14 @@ BarWidget {
           trayItemRoot.modelData.activate()
         }
       }
-      // A double-click's second click lands here, not in onClicked. Send it on
-      // as a second activate: tray hosts have no double-click call, so Wine
-      // turns two activates in quick succession into one, which Windows apps
-      // like Battle.net need before they reopen.
+      // A double-click's second click lands here, not in onClicked. Wine turns
+      // two activates in quick succession into a double-click, which Windows
+      // apps like Battle.net need before they reopen, so send Wine items
+      // (Ids "wine-...") the second one. Native apps that toggle their window
+      // on each activate would open and close again, so they get just one.
       onDoubleClicked: function(mouse) {
-        if (mouse.button === Qt.LeftButton && !trayItemRoot.modelData.onlyMenu)
+        if (mouse.button === Qt.LeftButton && !trayItemRoot.modelData.onlyMenu
+            && String(trayItemRoot.modelData.id || "").startsWith("wine-"))
           trayItemRoot.modelData.activate()
       }
       onWheel: function(wheel) {
