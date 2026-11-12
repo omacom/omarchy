@@ -24,6 +24,11 @@ LINKS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
 
 shopt -s nullglob
 
+# Quick theme switches can start runs that overlap. One at a time, the last
+# one to run reads the current theme, so an older theme never lands last.
+exec 7>"$CURRENT/.icons.lock"
+flock 7
+
 scratch=$(mktemp -d "$CURRENT/.icons.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 

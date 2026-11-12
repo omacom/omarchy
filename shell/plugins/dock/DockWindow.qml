@@ -534,8 +534,9 @@ PanelWindow {
 
     onSourceChanged: {
       fadeIn.stop()
-      // Set while the current image still holds it, so it comes from the cache.
-      previous.source = current.status === Image.Ready ? current.source : ""
+      // Set while the current image still holds it, so it comes from the
+      // cache. One still loading leaves the icon on screen where it is.
+      if (current.status === Image.Ready) previous.source = current.source
       current.opacity = previous.source.toString() !== "" ? 0 : 1
       current.source = appIcon.source
       appIcon.reveal()
