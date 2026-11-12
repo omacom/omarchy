@@ -789,6 +789,20 @@ Item {
     }
   }
 
+  // Hyprland lights the panel for any key, but a bound key like volume never
+  // reaches the lock surface, so nothing re-arms the blank and the lock stays
+  // lit. Blank once input has been quiet for the run-up and no countdown is
+  // pending, so the resume run-up is left alone.
+  IdleMonitor {
+    id: lockIdleMonitor
+    enabled: root.lockRequested
+    timeout: idleBlankTimer.idleMs / 1000
+    respectInhibitors: false
+    onIsIdleChanged: {
+      if (isIdle && root.lockRequested && !root.authenticatingPassword && !idleBlankTimer.running) root.runBlank()
+    }
+  }
+
   Timer {
     id: sessionLockStabilizeTimer
     interval: 500
