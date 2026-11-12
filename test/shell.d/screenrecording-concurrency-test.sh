@@ -89,6 +89,10 @@ SH
 for command in omarchy-shell omarchy-notification-send ffprobe pkill; do
   printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/$command"
 done
+cat >"$tmp/bin/omarchy-hook" <<'SH'
+#!/bin/bash
+echo "$*" >>"$TEST_STATE/hooks"
+SH
 cat >"$tmp/bin/omarchy-shell" <<'SH'
 #!/bin/bash
 # A stop that finds no start pending while the start is finishing.
@@ -256,3 +260,11 @@ wait "$toggle" || fail "a toggle behind a stale start marker finishes"
   fail "a toggle behind a stale start marker starts the recording instead of cancelling a start that is gone"
 "$record" --stop-recording >/dev/null 2>&1 || true
 pass "a killed start's leftover marker does not swallow a later toggle"
+
+# Tools that keep quiet while the screen is recorded hear of it through the hook.
+: >"$TEST_STATE/hooks"
+"$record" --fullscreen >/dev/null 2>&1 || fail "a recording for the hook starts"
+"$record" --stop-recording >/dev/null 2>&1 || fail "the recording for the hook stops"
+[[ $(<"$TEST_STATE/hooks") == $'screenrecord start\nscreenrecord stop' ]] ||
+  fail "a recording runs the screenrecord hook as it starts and as it stops" "$(<"$TEST_STATE/hooks")"
+pass "a recording runs the screenrecord hook as it starts and as it stops"
