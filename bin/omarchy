@@ -1063,10 +1063,11 @@ dispatch_fast_or_help() {
         if (( DIRECT_RESOLVED_COUNT == 1 )) && group_has_child_commands "$1"; then
           load_group_commands "$1"
           show_group_help "$1"
+          return 0
         else
           show_command_help "$key"
+          return 1
         fi
-        return 0
       fi
     fi
 
@@ -1127,10 +1128,11 @@ dispatch_or_help() {
     if (( ${#remaining[@]} == 0 )) && command_requires_args "$key"; then
       if (( RESOLVED_COUNT == 1 )) && group_exists "$1"; then
         show_group_help "$1"
+        return 0
       else
         show_command_help "$key"
+        return 1
       fi
-      return 0
     fi
 
     exec "$binary_path" "${remaining[@]}"
