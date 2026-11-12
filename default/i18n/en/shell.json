@@ -589,5 +589,12 @@
   "wifiqr.generating": "Generating QR code…",
   "wifiqr.passwordFailed": "Could not read the Wi-Fi password",
   "wifiqr.scanToJoin": "Scan to join this network",
-  "wifiqr.showPassword": "Show password"
+  "wifiqr.showPassword": "Show password",
+  "whatsNew.heading": "What's new in Omarchy %1",
+  "whatsNew.changed": "Changed",
+  "whatsNew.doneTitle": "You're all caught up",
+  "whatsNew.doneBody": "That was Omarchy %1. The release post covers every change and fix.",
+  "whatsNew.readPost": "Read the release post",
+  "whatsNew.keysHint": "← → to move  ·  Enter to open  ·  Esc to close",
+  "whatsNew.unavailable": "The release notes couldn't be read"
 }

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.whats-new",
+  "name": "What's New",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "A short tour of what changed in this Omarchy release",
+  "kinds": [
+    "panel"
+  ],
+  "entryPoints": {
+    "panel": "Panel.qml"
+  }
+}

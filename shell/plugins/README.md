@@ -37,6 +37,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Remote session | `omarchy.remote-session` | `service`               | `services/remote-session/Service.qml` |
 | Lock screen   | `omarchy.lock`            | `service`               | `lock/Service.qml`                    |
 | OSD           | `omarchy.osd`             | `panel`                 | `osd/Osd.qml`                         |
+| What's new    | `omarchy.whats-new`       | `panel`                 | `whats-new/Panel.qml`                 |
 | Polkit agent  | `omarchy.polkit`          | `service`               | `polkit/PolkitAgent.qml`              |
 | Dock          | `omarchy.dock`            | `service`               | `dock/Dock.qml`                       |
 
