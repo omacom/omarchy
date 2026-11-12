@@ -157,10 +157,18 @@ Item {
     resetPreview()
     list.currentIndex = selectedIndex
   }
+  // Closing the enlarged preview returns the keys to the card it came from.
+  onPreviewExpandedChanged: if (!previewExpanded) Qt.callLater(function() { search.forceActiveFocus() })
 
   Process { id: result }
 
   PanelWindow {
+    id: window
+
+    // Right-to-left languages read this overlay mirrored, like every other one.
+    Binding { target: window.contentItem; property: "LayoutMirroring.enabled"; value: Commons.I18n.rightToLeft }
+    Binding { target: window.contentItem; property: "LayoutMirroring.childrenInherit"; value: true }
+
     visible: root.opened
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
@@ -185,11 +193,19 @@ Item {
 
       Keys.priority: Keys.AfterItem
       Keys.onPressed: function(event) {
+        // The enlarged preview covers the card, so it owns the keys while it is
+        // open: Enter must not reach the plugin action it hides.
+        if (root.previewExpanded) {
+          if (event.key === Qt.Key_Escape) { root.previewExpanded = false; event.accepted = true }
+          else if (Util.readingKey(event) === Qt.Key_Left) { root.previousPreview(); event.accepted = true }
+          else if (Util.readingKey(event) === Qt.Key_Right) { root.nextPreview(); event.accepted = true }
+          return
+        }
         if (event.key === Qt.Key_Escape) { if (root.query) root.query = ""; else root.cancel(); event.accepted = true }
         else if (event.key === Qt.Key_Down) { root.move(1); event.accepted = true }
         else if (event.key === Qt.Key_Up) { root.move(-1); event.accepted = true }
-        else if (event.key === Qt.Key_Left) { root.previousPreview(); event.accepted = true }
-        else if (event.key === Qt.Key_Right) { root.nextPreview(); event.accepted = true }
+        else if (Util.readingKey(event) === Qt.Key_Left) { root.previousPreview(); event.accepted = true }
+        else if (Util.readingKey(event) === Qt.Key_Right) { root.nextPreview(); event.accepted = true }
         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.choose(); event.accepted = true }
       }
 
@@ -362,6 +378,9 @@ Item {
       z: 1
       MouseArea { anchors.fill: parent; onClicked: root.previewExpanded = false }
       BorderSurface {
+        id: expandedCard
+        // Focus leaves the search field so a keystroke cannot reach the card.
+        focus: root.previewExpanded
         anchors.centerIn: parent
         width: Math.min(parent.width - Style.gapsOut * 2, Style.space(1120))
         height: Math.min(parent.height - Style.gapsOut * 2, Style.space(760))
