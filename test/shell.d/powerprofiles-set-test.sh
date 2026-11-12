@@ -9,25 +9,32 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 mkdir -p "$tmp_dir/bin" "$tmp_dir/state"
 
-cat >"$tmp_dir/bin/powerprofilesctl" <<'EOF'
-#!/bin/bash
-
-if [[ $1 == "list" ]]; then
-  printf '  power-saver:\n* balanced:\n  performance:\n'
-elif [[ $1 == "set" ]]; then
-  [[ ${POWERPROFILES_SET_FAIL:-0} == "0" ]] || exit 1
-  printf '%s\n' "$2" >>"$POWERPROFILES_LOG"
-fi
-EOF
-chmod +x "$tmp_dir/bin/powerprofilesctl"
-
 cat >"$tmp_dir/bin/busctl" <<'EOF'
 #!/bin/bash
 
-if [[ ${ON_BATTERY:-0} == "1" ]]; then
-  echo "b true"
+# Argument-tolerant fake of the D-Bus calls the power scripts make: reads
+# Profiles / ActiveProfile / UPower OnBattery, logs set-property targets.
+for arg in "$@"; do
+  [[ $arg == "-p" ]] && continue
+  case "$arg" in
+    set-property) op=set ;;
+    get-property) op=get ;;
+    Profiles) prop=Profiles ;;
+    ActiveProfile) prop=ActiveProfile ;;
+    OnBattery) prop=OnBattery ;;
+    *) last=$arg ;;
+  esac
+done
+
+if [[ $op == "set" ]]; then
+  [[ ${POWERPROFILES_SET_FAIL:-0} == "0" ]] || exit 1
+  printf '%s\n' "$last" >>"$POWERPROFILES_LOG"
+elif [[ $prop == "Profiles" ]]; then
+  printf '%s\n' '{"type":"aa{sv}","data":[{"Profile":{"type":"s","data":"power-saver"}},{"Profile":{"type":"s","data":"balanced"}},{"Profile":{"type":"s","data":"performance"}}]}'
+elif [[ $prop == "ActiveProfile" ]]; then
+  printf '%s\n' "{\"type\":\"s\",\"data\":\"${ACTIVE_PROFILE:-balanced}\"}"
 else
-  echo "b false"
+  if [[ ${ON_BATTERY:-0} == "1" ]]; then echo "b true"; else echo "b false"; fi
 fi
 EOF
 chmod +x "$tmp_dir/bin/busctl"
@@ -72,3 +79,7 @@ pass "power profile retains performance as AC default"
 "$ROOT/bin/omarchy-powerprofiles-init"
 [[ $(tail -n 1 "$tmp_dir/calls") == "power-saver" ]] || fail "init restores the autodetected preference"
 pass "power profile init restores the autodetected preference"
+
+out="$("$ROOT/bin/omarchy-powerprofiles-list" --active-state)"
+[[ $out == $'power-saver\t0\nbalanced\t1\nperformance\t0' ]] || fail "power profiles list reads D-Bus Profiles and marks the active one" "$out"
+pass "power profiles list reads D-Bus Profiles and marks the active one"
