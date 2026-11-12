@@ -42,7 +42,8 @@ for template in "$HOME/.config/omarchy/themed/icons"/*.svg.tpl "$OMARCHY_PATH/de
 
   if [[ -f $scratch/$name ]]; then
     mv -f "$scratch/$name" "$ICONS/$name"
-    [[ -e $link || -L $link ]] || ln -s "$ICONS/$name" "$link"
+    # A working icon of the user's own stays; a dangling link at the name goes.
+    [[ -e $link ]] || ln -sfn "$ICONS/$name" "$link"
   else
     rm -f "$ICONS/$name"
     [[ -L $link && $(readlink "$link") == "$ICONS/$name" ]] && rm "$link"

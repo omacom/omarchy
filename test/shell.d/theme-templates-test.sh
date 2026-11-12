@@ -115,6 +115,7 @@ mkdir -p "$state/theme/icons"
 printf 'shipped\n' >"$state/theme/icons/hype.svg"
 printf 'spoof\n' >"$state/theme/icons/firefox.svg"
 printf 'mine\n' >"$apps/omacut.svg"
+ln -s "$test_tmp/gone/omacalc.svg" "$apps/omacalc.svg"
 set_icons() { HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-icons"; }
 set_icons
 for tpl in "$ROOT"/default/themed/icons/*.tpl; do
@@ -126,6 +127,7 @@ done
 [[ $(<"$state/icons/hype.svg") == "shipped" ]] || fail "a theme's own app icon wins over the template"
 [[ $(readlink "$apps/omawrite.svg") == "$state/icons/omawrite.svg" ]] || fail "app icons link over the packaged ones"
 [[ $(<"$apps/omacut.svg") == "mine" ]] || fail "app icons leave an icon the user put there"
+[[ $(readlink "$apps/omacalc.svg") == "$state/icons/omacalc.svg" ]] || fail "app icons replace a dangling link at their name"
 [[ ! -e $apps/firefox.svg ]] || fail "app icons link only Omarchy's own icons"
 [[ -s $state/icons.revision ]] || fail "app icons tell the shell they changed"
 pass "app icons render after the switch and link into the user's icon theme"
