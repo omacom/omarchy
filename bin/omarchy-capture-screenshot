@@ -10,18 +10,47 @@ if [[ -n ${OMARCHY_SCREENSHOT_DIR:-} && -z ${OMASNAP_SCREENSHOT_DIR:-} ]]; then
   export OMASNAP_SCREENSHOT_DIR="$OMARCHY_SCREENSHOT_DIR"
 fi
 
-# --notify announces saved shots with Open and Edit buttons instead of a
-# preview. Omasnap reads that toast's text from this catalog itself:
-#   omarchy-i18n capture.screenshotSaved, omarchy-i18n capture.screenshotSavedCopied,
-#   omarchy-i18n capture.screenshotOpen, omarchy-i18n capture.screenshotEdit
-omasnap_args=(--notify)
+screenshot_dir="${OMASNAP_SCREENSHOT_DIR:-$HOME/Pictures/Screenshots}"
+
+omasnap_args=()
+want_copy=0
+want_save=0
 for arg in "$@"; do
   case "$arg" in
-    copy) omasnap_args+=(--copy) ;;
-    save) omasnap_args+=(--save) ;;
+    copy) omasnap_args+=(--copy); want_copy=1 ;;
+    save) omasnap_args+=(--save); want_save=1 ;;
     slurp) ;;
     *) omasnap_args+=("$arg") ;;
   esac
 done
 
-exec omasnap "${omasnap_args[@]}"
+before="$(ls -1 "$screenshot_dir" 2>/dev/null || true)"
+
+omasnap "${omasnap_args[@]}"
+status=$?
+
+saved=""
+if ((status == 0)); then
+  if ((want_copy == 0 || want_save == 1)); then
+    while IFS= read -r name; do
+      [[ -n $name ]] || continue
+      if ! grep -Fxq -- "$name" <<<"$before"; then
+        saved="$screenshot_dir/$name"
+        break
+      fi
+    done <<<"$(ls -1t "$screenshot_dir" 2>/dev/null || true)"
+  fi
+fi
+
+if [[ -n $saved && -f $saved ]]; then
+  headline="$(omarchy-i18n capture.screenshotSaved)"
+  if ((want_copy == 1 || want_save == 0)); then
+    headline="$(omarchy-i18n capture.screenshotSavedCopied)"
+  fi
+  omarchy-notification-send "$headline" -t 10000 --image "$saved" \
+    --action "$(omarchy-i18n capture.screenshotOpen)" imv \
+    --action "$(omarchy-i18n capture.screenshotEdit)" omasnap \
+    --with "$saved" || true
+fi
+
+exit "$status"
