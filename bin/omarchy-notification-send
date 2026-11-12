@@ -46,6 +46,10 @@ parse_omarchy_option() {
   # Flags take no value, so only the bare word is one: --transient=false must
   # not switch it on.
   case $1 in
+  -h | --help)
+    usage
+    exit 0
+    ;;
   -p | --print-id)
     print_id=1
     parsed_option_args=1
@@ -115,7 +119,7 @@ shift
 # Only a recognized option flag or --exec in that slot is not the description.
 known_flag() {
   case $1 in
-  -g | --glyph | -u | --urgency | --app-name | -i | --icon | -t | --expire-time | --image | -r | --replace-id | -p | --print-id | --transient | --exec | --action) return 0 ;;
+  -g | --glyph | -u | --urgency | --app-name | -i | --icon | -t | --expire-time | --image | -r | --replace-id | -p | --print-id | --transient | --exec | --action | -h | --help) return 0 ;;
   --glyph=* | --urgency=* | --app-name=* | --icon=* | --expire-time=* | --image=* | --replace-id=*) return 0 ;;
   esac
   return 1
