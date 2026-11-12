@@ -27,6 +27,13 @@ assertDeepEqual(dock.pinnedIds({}, { pinned: ['spotify'] }), ['spotify'], 'dock 
 assertDeepEqual(dock.pinnedIds({ pinned: [] }, { pinned: ['spotify'] }), [], 'dock keeps an emptied pin list empty')
 
 const app = (key, id, extra) => Object.assign({ key, id, hasEntry: true, workspaceId: 3 }, extra)
+const t3 = dock.windowForEntry('com.t3tools.T3Code', { id: 'com.t3tools.T3Code', noDisplay: true }, { id: 3, name: '3' })
+assertEqual(dock.windowState(t3), 'running', 'a hidden URL-handler launcher still identifies a running app')
+assertDeepEqual(dock.buildItems([], [t3]).map(item => item.key), ['com.t3tools.T3Code'], 'an unpinned app with NoDisplay appears while running')
+assertEqual(dock.windowState(dock.windowForEntry('com.t3tools.T3Code', { id: 'com.t3tools.T3Code', noDisplay: false }, { id: 3, name: '3' })), 'running', 'regenerating launcher visibility does not change running membership')
+assertEqual(dock.windowState(dock.windowForEntry('helper', null, { id: 3, name: '3' })), 'unmatched', 'helpers without entries remain excluded')
+assertEqual(dock.windowState(dock.windowForEntry('com.t3tools.T3Code', { id: 'com.t3tools.T3Code', noDisplay: true }, { id: -98, name: 'special:scratchpad' })), 'special', 'a hidden launcher does not expose scratchpad windows')
+assertEqual(dock.windowState(dock.windowForEntry('helper', null, { id: -99, name: 'special:minimized' })), 'minimized', 'minimized windows remain recoverable without a launcher')
 const items = dock.buildItems(['chromium', 'Alacritty'], [
   app('signal', 1),
   app('chromium', 2),

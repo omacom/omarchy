@@ -66,14 +66,10 @@ Item {
       if (!toplevel || !toplevel.appId || toplevel.parent) continue
       var entry = root.entryForAppId(toplevel.appId)
       var workspace = toplevels[i].workspace
-      windows.push({
-        key: entry ? entry.id : toplevel.appId,
-        hasEntry: !!entry && !entry.noDisplay,
-        workspaceId: workspace ? workspace.id : -1,
-        minimized: !!workspace && DockModel.isMinimizedWorkspace(workspace.name),
-        address: toplevels[i].address,
-        toplevel: toplevel
-      })
+      var window = DockModel.windowForEntry(toplevel.appId, entry, workspace)
+      window.address = toplevels[i].address
+      window.toplevel = toplevel
+      windows.push(window)
     }
 
     return DockModel.orderItems(DockModel.buildItems(pinned, windows), root.order)

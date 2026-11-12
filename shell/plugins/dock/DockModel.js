@@ -31,13 +31,29 @@ function pinnedIds(dockConfig, defaultsConfig) {
 }
 
 // Only app windows on regular workspaces belong in the dock. Helpers without a
-// visible desktop entry, such as the agent window, and anything parked on a
+// desktop entry, such as the agent window, and anything parked on a
 // special workspace, such as the scratchpad, stay out of it. A minimized window
 // always belongs, entry or not, since the dock is the only way back to it.
+function windowForEntry(appId, entry, workspace) {
+  return {
+    key: entry ? entry.id : appId,
+    // NoDisplay controls launcher menus, not running-window membership.
+    hasEntry: !!entry,
+    workspaceId: workspace ? workspace.id : -1,
+    minimized: !!workspace && isMinimizedWorkspace(workspace.name)
+  }
+}
+
+function windowState(window) {
+  if (!window || !window.key) return "invalid"
+  if (window.minimized === true) return "minimized"
+  if (!(window.workspaceId >= 1)) return "special"
+  return window.hasEntry === true ? "running" : "unmatched"
+}
+
 function isDockWindow(window) {
-  if (!window || !window.key) return false
-  if (window.minimized === true) return true
-  return window.hasEntry === true && window.workspaceId >= 1
+  var state = windowState(window)
+  return state === "running" || state === "minimized"
 }
 
 // Minimizing moves a window to this special workspace, and the dock brings it
@@ -177,6 +193,8 @@ if (typeof module !== "undefined") {
     isVertical: isVertical,
     normalizeId: normalizeId,
     pinnedIds: pinnedIds,
+    windowForEntry: windowForEntry,
+    windowState: windowState,
     isDockWindow: isDockWindow,
     isMinimizedWorkspace: isMinimizedWorkspace,
     claimingEntryId: claimingEntryId,
