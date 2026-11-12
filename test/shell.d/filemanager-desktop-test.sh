@@ -75,7 +75,7 @@ MimeType=inode/directory;
 EOF
     omarchy-default-filemanager "$desktop_id"
     rm -f "$FM_ARGS" "$FM_TERMINAL_ARGS"
-    omarchy-launch-filemanager "$directory"
+    omarchy-launch-files "$directory"
     [[ -f $FM_ARGS ]] || fail "UWSM launches the recorder for %$field, Terminal=$terminal"
     mapfile -d '' -t actual <"$FM_ARGS"
     expected=$directory

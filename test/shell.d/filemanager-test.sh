@@ -80,36 +80,36 @@ finally:
 assert result.returncode == 0, result.stderr
 assert output.decode().strip() == "com.thisisgm.flea.desktop", output
 assert "shortcuts follow this folder association" in result.stderr, result.stderr
-assert "omarchy default filemanager org.gnome.Nautilus.desktop" in result.stderr, result.stderr
+assert "omarchy default filemanager folio.desktop" in result.stderr, result.stderr
 PY
-pass "interactive queries explain the shared association and how to restore Nautilus"
+pass "interactive queries explain the shared association and how to restore Folio"
 
-omarchy-launch-filemanager
+omarchy-launch-files
 assert_launch com.thisisgm.flea.desktop "$HOME"
 pass "the configured desktop entry opens the home folder"
 
 directory="$test_tmp/a folder with 'quotes' and \$(literal)"
 mkdir -p "$directory"
-omarchy-launch-filemanager "$directory"
+omarchy-launch-files "$directory"
 assert_launch com.thisisgm.flea.desktop "$directory"
 pass "folder spaces and shell metacharacters remain literal"
 
 omarchy-default-filemanager org.kde.dolphin.desktop
 [[ $(omarchy-default-filemanager) == "org.kde.dolphin.desktop" ]] || fail "the default changes"
-omarchy-launch-filemanager "$directory"
+omarchy-launch-files "$directory"
 assert_launch org.kde.dolphin.desktop "$directory"
 pass "a changed XDG default is used on the next launch"
 
-FM_CWD="$directory" omarchy-launch-filemanager-cwd
+FM_CWD="$directory" omarchy-launch-files-cwd
 assert_launch org.kde.dolphin.desktop "$directory"
-FM_CWD='' omarchy-launch-filemanager-cwd
+FM_CWD='' omarchy-launch-files-cwd
 assert_launch org.kde.dolphin.desktop "$HOME"
 pass "the cwd launcher preserves the terminal folder and falls back to home"
 
 : >"$FM_STATE"
-omarchy-launch-filemanager
-assert_launch org.gnome.Nautilus.desktop "$HOME"
-pass "an unset association retains Nautilus as the fallback"
+omarchy-launch-files
+assert_launch folio.desktop "$HOME"
+pass "an unset association retains Folio as the fallback"
 
 for args in 'nautilus' '/tmp/example.desktop' '--example.desktop'; do
   if omarchy-default-filemanager "$args" >/dev/null 2>&1; then fail "invalid desktop IDs are refused"; fi
@@ -120,7 +120,7 @@ if FM_WRITE_FAIL=1 omarchy-default-filemanager example.desktop >/dev/null 2>&1; 
 pass "invalid and unsuccessful selections fail instead of reporting success"
 
 rm "$FM_ARGS"
-if FM_QUERY_FAIL=1 omarchy-launch-filemanager; then fail "a failed default lookup stops the launch"; fi
-if FM_CWD_FAIL=1 omarchy-launch-filemanager-cwd; then fail "a failed cwd lookup stops the launch"; fi
+if FM_QUERY_FAIL=1 omarchy-launch-files; then fail "a failed default lookup stops the launch"; fi
+if FM_CWD_FAIL=1 omarchy-launch-files-cwd; then fail "a failed cwd lookup stops the launch"; fi
 [[ ! -e $FM_ARGS ]] || fail "lookup failures do not launch an app"
 pass "lookup failures do not silently launch a different file manager"
