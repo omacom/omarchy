@@ -37,13 +37,14 @@ Item {
   property string selectedAccountId: ""
   property string selectedAccountLabel: ""
   property string switchingAccountId: ""
+  property string renamingAccountId: ""
   property string settingExitNodeId: ""
   property bool accountsAccessDenied: false
   property string actionStatus: ""
   property string lastError: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 30, 5, 3600)
-  readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || operatorProcess.running || exitNodeProcess.running
+  readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || renameProcess.running || operatorProcess.running || exitNodeProcess.running
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
 
   property string _statusOutput: ""
@@ -62,6 +63,8 @@ Item {
   property double _lastAccountsRefreshMs: 0
   property string _switchOutput: ""
   property string _switchError: ""
+  property string _renameOutput: ""
+  property string _renameError: ""
   property string _exitNodeOutput: ""
   property string _exitNodeError: ""
   property string _operatorOutput: ""
@@ -269,6 +272,7 @@ Item {
     selectedAccountId = ""
     selectedAccountLabel = ""
     switchingAccountId = ""
+    renamingAccountId = ""
     settingExitNodeId = ""
     accountsAccessDenied = false
   }
@@ -391,6 +395,17 @@ Item {
     switchingAccountId = accountId
     switchProcess.command = ["tailscale", "switch", accountId]
     switchProcess.running = true
+  }
+
+  function renameAccount(id, nickname) {
+    if (!installed || renameProcess.running) return
+    var plan = Model.renamePlan(id, selectedAccountId, nickname)
+    if (!plan) return
+    _renameOutput = ""
+    _renameError = ""
+    renamingAccountId = String(id || "")
+    renameProcess.command = plan.command
+    renameProcess.running = true
   }
 
   function exitNodeTarget(peer) {
@@ -658,6 +673,29 @@ Item {
         root._lastAccountsRefreshMs = 0
       }
       root.switchingAccountId = ""
+      delayedRefresh.restart()
+    }
+  }
+
+  Process {
+    id: renameProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: renameStdout; waitForEnd: true; onStreamFinished: root._renameOutput = text }
+    stderr: StdioCollector { id: renameStderr; waitForEnd: true; onStreamFinished: root._renameError = text }
+    onExited: function(exitCode) {
+      var stdout = String(renameStdout.text || root._renameOutput || "")
+      var stderr = String(renameStderr.text || root._renameError || "")
+      if (exitCode !== 0) {
+        root.lastError = elideStatus(stderr || stdout || I18n.t("tailscale.renameFailed"))
+        root.actionStatus = root.lastError
+        actionStatusTimer.restart()
+      } else {
+        root.lastError = ""
+        root.actionStatus = ""
+        root._lastAccountsRefreshMs = 0
+      }
+      root.renamingAccountId = ""
       delayedRefresh.restart()
     }
   }

@@ -206,6 +206,25 @@ assertDeepEqual(
   'tailscale ignores stale authorization URLs outside the login state'
 )
 
+assertDeepEqual(
+  tailscale.renamePlan('dd11', 'dd11', 'Home'),
+  { command: ['bash', '-c', 'tailscale set --nickname=Home'] },
+  'tailscale renames the selected connection in place'
+)
+assertDeepEqual(
+  tailscale.renamePlan('dd30', 'dd11', 'Home'),
+  { command: ['bash', '-c', "tailscale switch dd30 && tailscale set --nickname=Home; tailscale switch dd11"] },
+  'tailscale renames another connection by switching there and back'
+)
+assertEqual(
+  tailscale.renamePlan('dd30', 'dd11', "Dave's tailnet").command[2],
+  "tailscale switch dd30 && tailscale set --nickname='Dave'\\''s tailnet'; tailscale switch dd11",
+  'tailscale quotes nicknames that need shell escaping'
+)
+assertEqual(tailscale.renamePlan('dd11', 'dd11', '  '), null, 'tailscale refuses empty rename nicknames')
+assertEqual(tailscale.renamePlan('', 'dd11', 'Home'), null, 'tailscale refuses renames without a profile id')
+assertEqual(tailscale.renamePlan('dd30', '', 'Home'), null, 'tailscale refuses off-profile renames with no selected profile to return to')
+
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
 JS
