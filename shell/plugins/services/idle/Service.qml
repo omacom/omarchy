@@ -30,8 +30,11 @@ Item {
 
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
-  property bool hasPendingStayAwakePersist: false
-  property bool pendingStayAwakePersist: false
+  property var pendingStayAwakePersist: null
+  property double stayAwakeUntil: 0
+  property int stayAwakeRevision: 0
+  property bool stayAwakeProbePending: false
+  property double scheduledStayAwakeUntil: 0
   property bool idledThisCycle: false
   property bool screensaverStartedThisCycle: false
   property string lastEvent: "starting"
@@ -158,6 +161,7 @@ Item {
     return JSON.stringify({
       enabled: root.idleEnabled,
       stayAwake: root.stayAwake,
+      stayAwakeUntil: root.stayAwakeUntil,
       stayAwakeStateLoaded: root.stayAwakeStateLoaded,
       stayAwakeStatePath: root.stayAwakeStatePath,
       idle: idleMonitor.isIdle,
@@ -182,33 +186,60 @@ Item {
     })
   }
 
-  function persistStayAwake(value) {
-    var command = value
-      ? "mkdir -p \"$HOME/.local/state/omarchy/indicators\" && touch \"$HOME/.local/state/omarchy/indicators/stay-awake\""
-      : "rm -f \"$HOME/.local/state/omarchy/indicators/stay-awake\""
+  function persistStayAwake(value, until) {
+    root.pendingStayAwakePersist = { value: value, until: until }
+    flushStayAwakePersist()
+  }
 
-    if (stayAwakeStateWriter.running) {
-      root.pendingStayAwakePersist = !!value
-      root.hasPendingStayAwakePersist = true
+  function flushStayAwakePersist() {
+    if (stayAwakeStateWriter.running) return
+    if (!root.pendingStayAwakePersist) {
+      root.refreshStayAwakeState()
       return
     }
+    var pending = root.pendingStayAwakePersist
+    root.pendingStayAwakePersist = null
 
-    stayAwakeStateWriter.command = ["bash", "-lc", command]
+    // Rename a complete file into place. Readers must never see a timed write as
+    // an empty (indefinite) file, and a symlink must not redirect a truncation.
+    stayAwakeStateWriter.command = ["bash", "-c", `
+      set -euo pipefail
+      mkdir -p -- "$1"
+      exec 9>>"$1/stay-awake.lock"
+      flock 9
+      if [[ $2 == "true" ]]; then
+        temporary=$(mktemp "$1/.stay-awake.XXXXXX")
+        trap 'rm -f -- "$temporary"' EXIT
+        printf '%s' "$3" > "$temporary"
+        mv -fT -- "$temporary" "$1/stay-awake"
+      else
+        rm -f -- "$1/stay-awake"
+      fi
+    `, "--", root.stayAwakeStateDir, String(pending.value), pending.until > 0 ? String(pending.until) : ""]
     stayAwakeStateWriter.running = true
   }
 
   function refreshStayAwakeState() {
-    if (!stayAwakeStateProbe.running) stayAwakeStateProbe.running = true
+    root.stayAwakeProbePending = true
+    if (stayAwakeStateWriter.running || root.pendingStayAwakePersist || stayAwakeStateProbe.running) return
+    root.stayAwakeProbePending = false
+    stayAwakeStateProbe.revision = root.stayAwakeRevision
+    stayAwakeStateProbe.running = true
   }
 
-  function applyStayAwake(value, persist, reason) {
+  function applyStayAwake(value, persist, reason, until) {
     var enabled = !!value
     var changed = !root.stayAwakeStateLoaded || root.stayAwake !== enabled
 
-    if (persist) persistStayAwake(enabled)
+    root.stayAwakeUntil = enabled ? Number(until || 0) : 0
+    if (persist) {
+      root.stayAwakeRevision++
+      persistStayAwake(enabled, root.stayAwakeUntil)
+    }
 
     root.stayAwake = enabled
     root.stayAwakeStateLoaded = true
+    Qt.callLater(root.scheduleStayAwakeExpiry)
 
     if (!changed) return enabled ? "disabled" : "enabled"
 
@@ -221,6 +252,49 @@ Item {
 
   function setIdleEnabled(value) {
     return applyStayAwake(!value, true, "ipc")
+  }
+
+  function stayAwakeFor(seconds) {
+    var until = IdleModel.stayAwakeDeadline(seconds, Date.now())
+    if (!until) return "invalid duration"
+    return applyStayAwake(true, true, "timed", until)
+  }
+
+  function scheduleStayAwakeExpiry() {
+    if (!root.stayAwake || root.stayAwakeUntil <= 0) return
+    if (Date.now() >= root.stayAwakeUntil) {
+      root.applyStayAwake(false, false, "expired")
+      return
+    }
+    if (stayAwakeExpiryScheduler.running || root.scheduledStayAwakeUntil === root.stayAwakeUntil) return
+    stayAwakeExpiryScheduler.deadline = root.stayAwakeUntil
+    // Calendar epoch syntax uses whole seconds; round up to avoid an early refresh.
+    stayAwakeExpiryScheduler.command = [
+      "systemd-run", "--user", "--quiet", "--collect",
+      "--on-calendar=@" + Math.ceil(root.stayAwakeUntil / 1000),
+      "--timer-property=AccuracySec=1ms",
+      "--timer-property=RemainAfterElapse=no",
+      "--setenv=OMARCHY_PATH=" + Quickshell.env("OMARCHY_PATH"),
+      "--setenv=WAYLAND_DISPLAY=" + Quickshell.env("WAYLAND_DISPLAY"),
+      "--", Quickshell.env("OMARCHY_PATH") + "/bin/omarchy-shell", "-q", "idle", "refresh"
+    ]
+    stayAwakeExpiryScheduler.running = true
+  }
+
+  // Calendar timers count suspended time and deliver overdue events on resume.
+  // An old timer only refreshes the saved choice, so it cannot cancel a newer one.
+  Process {
+    id: stayAwakeExpiryScheduler
+    property double deadline: 0
+    onExited: function(exitCode) {
+      if (exitCode === 0) root.scheduledStayAwakeUntil = deadline
+      else if (root.stayAwake && root.stayAwakeUntil === deadline) {
+        root.logEvent("expiry-schedule-failed", exitCode)
+        root.applyStayAwake(false, true, "expiry-schedule-failed")
+        Quickshell.execDetached(["omarchy-notification-send", I18n.t("idle.scheduleFailedTitle"), I18n.t("idle.scheduleFailedBody")])
+      }
+      Qt.callLater(root.scheduleStayAwakeExpiry)
+    }
   }
 
   // With both timeouts at 0 the monitor stops reporting, so nothing else would end a running cycle.
@@ -282,30 +356,48 @@ Item {
 
   Process {
     id: stayAwakeStateProbe
-    command: ["bash", "-c", "mkdir -p \"$HOME/.local/state/omarchy/indicators\"; if [[ -f $HOME/.local/state/omarchy/indicators/stay-awake ]]; then echo yes; else echo no; fi"]
-    stdout: SplitParser {
-      onRead: function(line) { root.applyStayAwake(String(line).trim() === "yes", false, "state-file") }
+    property int revision: 0
+    command: ["bash", "-c", `
+      mkdir -p -- "$1" || exit
+      if [[ ! -e $1/stay-awake && ! -L $1/stay-awake ]]; then
+        printf no
+      elif [[ -f $1/stay-awake && ! -L $1/stay-awake ]]; then
+        printf 'yes:'
+        head -c 64 -- "$1/stay-awake"
+      else
+        exit 1
+      fi
+    `, "--", root.stayAwakeStateDir]
+    stdout: StdioCollector { id: stayAwakeStateOutput; waitForEnd: true }
+    onExited: function(exitCode) {
+      // A probe started before a newer choice must not replace it.
+      if (revision === root.stayAwakeRevision && !stayAwakeStateWriter.running && !root.pendingStayAwakePersist) {
+        var state = IdleModel.stayAwakeState(exitCode === 0 ? stayAwakeStateOutput.text : "no", Date.now())
+        root.applyStayAwake(state.enabled, false, "state-file", state.until)
+        if (exitCode !== 0) root.logEvent("state-read-failed", exitCode)
+      }
+      stayAwakeStateWatcher.reload()
+      if (root.stayAwakeProbePending || revision !== root.stayAwakeRevision) Qt.callLater(root.refreshStayAwakeState)
     }
-    onExited: function() { stayAwakeStateDirWatcher.reload() }
   }
 
   Process {
     id: stayAwakeStateWriter
-    onExited: function() {
-      if (root.hasPendingStayAwakePersist) {
-        var pending = root.pendingStayAwakePersist
-        root.hasPendingStayAwakePersist = false
-        root.persistStayAwake(pending)
-        return
+    onExited: function(exitCode) {
+      if (exitCode !== 0 && !root.pendingStayAwakePersist) {
+        root.logEvent("state-write-failed", exitCode)
+        Quickshell.execDetached(["omarchy-notification-send", I18n.t("idle.saveFailedTitle"), I18n.t("idle.saveFailedBody")])
       }
-
-      root.refreshStayAwakeState()
+      // Process.running can remain true until the exit signal returns. Drain
+      // the latest queued choice afterward, or reread the saved state on failure.
+      Qt.callLater(root.flushStayAwakePersist)
     }
   }
 
   FileView {
-    id: stayAwakeStateDirWatcher
-    path: root.stayAwakeStateDir
+    id: stayAwakeStateWatcher
+    path: root.stayAwakeStatePath
+    preload: false
     watchChanges: true
     printErrors: false
     onFileChanged: root.refreshStayAwakeState()
@@ -327,12 +419,20 @@ Item {
       return root.statusJson()
     }
 
+    function refresh(): void {
+      root.refreshStayAwakeState()
+    }
+
     function enable(): string {
       return root.setIdleEnabled(true)
     }
 
     function disable(): string {
       return root.setIdleEnabled(false)
+    }
+
+    function stayAwakeFor(seconds: int): string {
+      return root.stayAwakeFor(seconds)
     }
 
     function toggle(): string {
