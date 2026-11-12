@@ -1007,13 +1007,13 @@ Item {
 
   Component.onCompleted: applyBarConfig()
 
-  // The indicator peek opens as the pointer comes onto the bar and holds until
-  // it leaves, or crosses onto the clock at the start of the center box
-  // (BarModel.peeksAt). Revealing the indicators widens their section, which
-  // can slide a widget under a stationary pointer, so nothing narrower than the
-  // stretch of bar up to that edge, held still while the peek is open
-  // (BarModel.nextPeekEdge), can hold it without opening and closing it in a
-  // loop.
+  // The indicator peek opens as the pointer comes onto the bar short of the
+  // clock at the start of the center box, and holds until it leaves the bar
+  // (BarModel.peeksAt), so the pointer can cross the clock to the indicators
+  // revealed past it. Revealing the indicators widens their section, which can
+  // slide a widget under a stationary pointer, so only leaving the bar closes
+  // it, and the opening edge is held still while the peek is open
+  // (BarModel.nextPeekEdge); neither can open and close it in a loop.
   function setBarHovered(hovered) {
     barHoverCount = Math.max(0, barHoverCount + (hovered ? 1 : -1))
     if (barHoverCount > 0) {
@@ -1841,7 +1841,7 @@ Item {
         // hovered while the pointer is over a widget, where a sibling would lose
         // hover to the section the pointer entered.
         HoverHandler {
-          readonly property bool peeking: hovered && BarModel.peeksAt(point.position, barWindow.peekEdge, root.vertical)
+          readonly property bool peeking: hovered && BarModel.peeksAt(point.position, barWindow.peekEdge, root.vertical, root.centerSectionRevealHeld)
           onPeekingChanged: root.setBarHovered(peeking)
           // Unplugging a monitor destroys its bar without a leave event, which
           // would strand this surface's tally and hold the peek open for good.
