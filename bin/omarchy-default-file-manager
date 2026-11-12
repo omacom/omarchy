@@ -74,7 +74,9 @@ fi
 # org.freedesktop.FileManager1 D-Bus name, not inode/directory. When more than
 # one file manager is installed, brokers drop duplicate system registrations
 # based on directory order, so a user-level file is what makes the choice
-# stick. Only rewrite or remove a registration this command wrote.
+# stick. Only rewrite or remove a registration this command wrote. It runs the
+# manager through omarchy-launch-file-manager-service, which falls back to an
+# installed manager once the chosen one is uninstalled.
 service_dir="${XDG_DATA_HOME:-$HOME/.local/share}/dbus-1/services"
 service="$service_dir/org.freedesktop.FileManager1.service"
 marker="# Written by omarchy-default-file-manager"
@@ -87,14 +89,14 @@ while IFS= read -r file; do
   fi
 done < <(pacman -Qql "$package" 2>/dev/null)
 
-exec_line=""
+service_command=""
 if [[ -n $registration ]]; then
-  exec_line=$(grep -m1 "^Exec=" "$registration")
+  service_command=$(sed -n 's/^Exec=//p' "$registration")
 elif command_path=$(command -v "$command"); then
   # Files implements FileManager1 in the app itself but ships no activation
   # file yet; other managers may be in the same boat. Launching the binary
   # is enough for it to claim the name.
-  exec_line="Exec=$command_path"
+  service_command=$command_path
 fi
 
 written=""
@@ -103,9 +105,10 @@ written=""
 if [[ -f $service && $written != $marker ]]; then
   echo "Leaving $service in place: it was not written by omarchy-default-file-manager" >&2
   registration_ours=false
-elif [[ -n $exec_line ]]; then
+elif [[ -n $service_command ]]; then
   mkdir -p "$service_dir"
-  printf '%s\n[D-BUS Service]\nName=org.freedesktop.FileManager1\n%s\n' "$marker" "$exec_line" >"$service"
+  printf '%s\n[D-BUS Service]\nName=org.freedesktop.FileManager1\nExec=%s %s\n' \
+    "$marker" "$OMARCHY_PATH/bin/omarchy-launch-file-manager-service" "$service_command" >"$service"
   registration_ours=true
 else
   rm -f "$service"

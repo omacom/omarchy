@@ -130,6 +130,8 @@ printf '[D-BUS Service]\nName=org.freedesktop.FileManager1\nExec=/usr/bin/Thunar
 printf '[D-BUS Service]\nName=org.freedesktop.FileManager1\nExec=/usr/lib/flea/flea-filemanager1\n' \
   >"$system_services/com.thisisgm.flea.FileManager1.service"
 
+service_launcher="$ROOT/bin/omarchy-launch-file-manager-service"
+
 launched() {
   local expected
   printf -v expected '%s\n' -- "$@"
@@ -166,7 +168,7 @@ pass "every file manager launcher follows the chosen default"
 
 grep -qx "# Written by omarchy-default-file-manager" "$user_service" ||
   fail "choosing Thunar writes a marked FileManager1 registration"
-grep -qx "Exec=/usr/bin/Thunar --daemon" "$user_service" ||
+grep -qx "Exec=$service_launcher /usr/bin/Thunar --daemon" "$user_service" ||
   fail "the registration runs Thunar's own FileManager1 service"
 pass "choosing Thunar claims FileManager1 for Thunar"
 
@@ -176,7 +178,7 @@ omarchy-default-file-manager files
 notified "-g  Files is now the default file manager" || fail "choosing Files sends notification with glyph" "$(<"$OMARCHY_TEST_NOTIFY_LOG")"
 grep -qx "# Written by omarchy-default-file-manager" "$user_service" ||
   fail "choosing Files writes a marked FileManager1 registration"
-grep -qx "Exec=$mock_bin/folio" "$user_service" ||
+grep -qx "Exec=$service_launcher $mock_bin/folio" "$user_service" ||
   fail "the registration launches Files itself, which implements FileManager1" "$(cat "$user_service")"
 omarchy-launch-files
 launched folio.desktop || fail "the launcher opens Files" "$(<"$OMARCHY_TEST_LAUNCH_LOG")"
@@ -188,18 +190,38 @@ omarchy-default-file-manager flea
 notified "-g  Flea is now the default file manager" || fail "choosing Flea sends notification with glyph"
 omarchy-launch-files "/tmp/a dir"
 launched com.thisisgm.flea.desktop "/tmp/a dir" || fail "the launcher opens Flea at the directory" "$(<"$OMARCHY_TEST_LAUNCH_LOG")"
-grep -qx "Exec=/usr/lib/flea/flea-filemanager1" "$user_service" || fail "choosing Flea runs Flea's own FileManager1 service"
+grep -qx "Exec=$service_launcher /usr/lib/flea/flea-filemanager1" "$user_service" || fail "choosing Flea runs Flea's own FileManager1 service"
 : >"$OMARCHY_TEST_NOTIFY_LOG"
 omarchy-default-file-manager files
-grep -qx "Exec=$mock_bin/folio" "$user_service" ||
+grep -qx "Exec=$service_launcher $mock_bin/folio" "$user_service" ||
   fail "choosing Files after Flea takes FileManager1 back to Files" "$(cat "$user_service")"
 pass "Flea is a selectable file manager that hands FileManager1 back to Files"
 
 omarchy-default-file-manager nemo
 [[ $(omarchy-default-file-manager) == "nemo" ]] || fail "choosing Nemo makes it the inode/directory default"
-grep -qx "Exec=$mock_bin/nemo" "$user_service" ||
+grep -qx "Exec=$service_launcher $mock_bin/nemo" "$user_service" ||
   fail "a file manager without a D-Bus service still gets a user registration" "$(cat "$user_service")"
 pass "choosing a file manager with no D-Bus service writes a registration that launches it"
+
+# The registration outlives the manager it names: once that one is uninstalled,
+# Show in folder goes to a manager that is still installed.
+cat >"$mock_bin/fm1-service" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$OMARCHY_TEST_LAUNCH_LOG"
+SH
+chmod +x "$mock_bin/fm1-service"
+mkdir -p "$test_tmp/installed/dbus-1/services"
+printf '[D-BUS Service]\nName=org.freedesktop.FileManager1\nExec=%s --installed\n' "$mock_bin/fm1-service" \
+  >"$test_tmp/installed/dbus-1/services/org.example.FileManager1.service"
+XDG_DATA_DIRS="$test_tmp/installed" "$service_launcher" "$mock_bin/fm1-service" --chosen
+[[ $(<"$OMARCHY_TEST_LAUNCH_LOG") == "--chosen" ]] || fail "the registration starts the chosen manager while it is installed"
+XDG_DATA_DIRS="$test_tmp/installed" "$service_launcher" "$test_tmp/removed-manager" --chosen
+[[ $(<"$OMARCHY_TEST_LAUNCH_LOG") == "--installed" ]] ||
+  fail "a registration for an uninstalled manager falls back to an installed one" "$(<"$OMARCHY_TEST_LAUNCH_LOG")"
+if XDG_DATA_DIRS="$test_tmp/empty" "$service_launcher" "$test_tmp/removed-manager" 2>/dev/null; then
+  fail "a registration with no installed manager behind it fails the activation"
+fi
+pass "the FileManager1 registration survives its manager being uninstalled"
 
 printf '# Written by another tool\n[D-BUS Service]\nName=org.freedesktop.FileManager1\nExec=/usr/lib/other\n' >"$user_service"
 omarchy-default-file-manager thunar 2>/dev/null
