@@ -152,7 +152,7 @@
   "games.installed": "%1 instalado",
   "games.noCores": "No se encontraron núcleos de RetroArch",
   "games.pickGame": "Juego retro",
-  "games.startHint": "Inícialo con Super + Espacio",
+  "games.startHint": "Inícialo con Super + Space",
   "gitSetup.emailPrompt": "Correo electrónico> ",
   "gitSetup.ghMissing": "La CLI de GitHub (gh) no está instalada, así que se omitirá el inicio de sesión en GitHub.",
   "gitSetup.ghSignIn": "¿Iniciar sesión en GitHub?",
