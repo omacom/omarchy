@@ -1587,13 +1587,20 @@ Item {
               service.hoverY = y
               var places = service.placements
               var found = ""
+              // In the margin or a gap, the nearest card keeps hover. Leaving
+              // it empty hid that card's buttons, which shrank the card out
+              // from under the pointer, closed the deck, grew it back, and
+              // looped for as long as the pointer sat on the edge.
+              var nearest = "", nearestGap = Infinity
               for (var key in places) {
                 var pl = places[key]
                 if (pl.hidden || pl.leaving) continue
                 var h = pl.height || Style.space(58)
                 if (y >= pl.y && y <= pl.y + h) { found = key; break }
+                var gap = y < pl.y ? pl.y - y : y - (pl.y + h)
+                if (gap < nearestGap) { nearestGap = gap; nearest = key }
               }
-              service.hoverKey = found
+              service.hoverKey = found || nearest
             }
 
             // Cards move under a still pointer after a dismissal: re-hit-test
