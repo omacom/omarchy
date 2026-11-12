@@ -52,14 +52,15 @@ if not isinstance(bundle, dict) or bundle.get("version") != 1 or not all(isinsta
 installed = shutil.which("omarchy-agent-account-transfer")
 use_installed = bool(installed)
 local_backend = None
+codex_members = any("\\n" in str(a.get("accountId") or "") for a in ((bundle.get("accounts") or {}).get("providers") or {}).get("codex", {}).get("accounts", []))
 if installed and (bundle.get("accounts") or {}).get("namePolicy") == "source":
   probe = subprocess.run([installed, "capabilities"], stdin=subprocess.DEVNULL, capture_output=True)
   try:
     capabilities = json.loads(probe.stdout) if probe.returncode == 0 else {}
   except ValueError:
     capabilities = {}
-  use_installed = isinstance(capabilities, dict) and capabilities.get("sourceNames") is True
-  if not use_installed:
+  use_installed = isinstance(capabilities, dict) and capabilities.get("sourceNames") is True and (not codex_members or capabilities.get("codexUserIdentity") is True)
+  if not use_installed and not codex_members:
     root = os.environ.get("OMARCHY_PATH")
     local_backend = pathlib.Path(root) / "bin/omarchy-agent-account-state" if root else None
     if local_backend is None or not local_backend.is_file():
@@ -126,15 +127,24 @@ def validate(payload: Any) -> None:
         raise accounts.AccountError("Invalid account transfer ID")
       if type(entry.get("primary")) is not bool or entry["id"] in ids:
         raise accounts.AccountError("Invalid account transfer account")
-      if entry["accountId"] in identities:
-        raise accounts.AccountError("Duplicate account transfer identity")
-      identities.add(entry["accountId"])
       ids.add(entry["id"])
       files = entry.get("files")
       if not isinstance(files, dict) or not files or not set(files) <= FILES[provider] or not all(isinstance(v, dict) for v in files.values()):
         raise accounts.AccountError("Invalid account transfer files")
       if provider == "claude" and (set(files) != FILES[provider] or set(files[".claude.json"]) != {"oauthAccount"} or set(files[".credentials.json"]) != {"claudeAiOauth"} or not isinstance(files[".claude.json"].get("oauthAccount"), dict) or not isinstance(files[".credentials.json"].get("claudeAiOauth"), dict)):
         raise accounts.AccountError("Invalid Claude account transfer fields")
+      if provider == "codex":
+        auth = files.get("auth.json") or {}
+        found = accounts.codex_identity(auth)["accountId"]
+        # Older senders exported the workspace alone. Derive the member from
+        # the credentials before matching against destination accounts.
+        workspace = found.split("\n", 1)[0]
+        if not found or entry["accountId"] not in (found, workspace):
+          raise accounts.AccountError("Transferred credentials do not match their account identity")
+        entry["accountId"] = found
+      if entry["accountId"] in identities:
+        raise accounts.AccountError("Duplicate account transfer identity")
+      identities.add(entry["accountId"])
 
     if registry["active"] not in ids:
       raise accounts.AccountError("Invalid active account in transfer")
@@ -347,7 +357,7 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
 def main(args: list[str]) -> int:
   try:
     if args == ["capabilities"]:
-      print(json.dumps({"streamVersion": 1, "sourceNames": True}))
+      print(json.dumps({"streamVersion": 1, "sourceNames": True, "codexUserIdentity": True}))
     elif args in (["receiver-command"], ["receiver-command", "--replace"]):
       command = "/usr/bin/python3 -I -c " + shlex.quote(RECEIVER_BOOTSTRAP)
       if "--replace" in args:
