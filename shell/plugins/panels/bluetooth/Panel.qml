@@ -217,10 +217,16 @@ Panel {
     return Model.audioModeForProfile(Model.nodeProps(sink)["api.bluez5.profile"])
   }
 
+  // Music mode is always there to go back to; headset mode only when the
+  // device has a microphone profile.
+  function canSwitchAudioMode(device, mode) {
+    return mode === "headset" || (mode === "music" && Model.hasHeadsetInput(pipewireNodes, device))
+  }
+
   function toggleAudioMode(device) {
     if (!device || !device.address) return
     var mode = audioMode(device)
-    if (mode === "") return
+    if (!canSwitchAudioMode(device, mode)) return
     Quickshell.execDetached(deviceCommand(mode === "headset" ? "music" : "headset", device.address))
   }
 
@@ -925,6 +931,7 @@ Panel {
     readonly property int devState: dev && dev.state !== undefined ? dev.state : -1
     readonly property string action: root.pendingAction(dev ? dev.address : "")
     readonly property string audioMode: isConnected ? root.audioMode(dev) : ""
+    readonly property bool audioModeSwitchable: audioMode !== "" && root.canSwitchAudioMode(dev, audioMode)
     readonly property string actionTooltip: {
       if (!dev) return ""
       if (isConnected) return Commons.I18n.t("bluetooth.disconnect")
@@ -1055,7 +1062,7 @@ Panel {
         anchors.right: forgetBtn.visible ? forgetBtn.left : parent.right
         anchors.rightMargin: forgetBtn.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: row.audioMode !== ""
+        visible: row.audioModeSwitchable
         iconText: row.audioMode === "headset" ? "󰋎" : "󰝚"
         tooltipText: row.audioMode === "headset" ? Commons.I18n.t("bluetooth.switchToMusicMode") : Commons.I18n.t("bluetooth.switchToHeadsetMode")
         foreground: root.bar.foreground

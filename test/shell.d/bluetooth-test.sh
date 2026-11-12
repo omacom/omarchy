@@ -103,6 +103,13 @@ assert(
 assertEqual(bluetooth.audioModeForProfile('headset-head-unit-msbc'), 'headset', 'bluetooth reads a codec-suffixed HFP profile as headset mode')
 assertEqual(bluetooth.audioModeForProfile('a2dp-sink'), 'music', 'bluetooth reads A2DP as music mode')
 assertEqual(bluetooth.audioModeForProfile('audio-gateway'), '', 'bluetooth offers no mode for a phone audio gateway')
+
+// Headset mode is offered only to a device with a microphone input. The music
+// sink alone, or another device's input, is not one.
+const headphones = { address: '12:34:56:78:9A:BC', name: 'Headphones' }
+assert(bluetooth.hasHeadsetInput([{ name: 'bluez_output.12_34_56_78_9A_BC.1' }, { name: 'bluez_input.12:34:56:78:9A:BC' }], headphones), 'bluetooth offers headset mode to a device with a microphone input')
+assert(!bluetooth.hasHeadsetInput([{ name: 'bluez_output.12_34_56_78_9A_BC.1' }], headphones), 'bluetooth offers no headset mode to a device with only a music sink')
+assert(!bluetooth.hasHeadsetInput([{ name: 'bluez_input.AA:BB:CC:DD:EE:FF' }], headphones), 'bluetooth ignores another device\'s microphone input')
 JS
 
 # Turning Bluetooth off is an rfkill soft block, not a bluetoothctl power off,
