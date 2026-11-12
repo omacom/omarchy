@@ -155,11 +155,11 @@ const defaultItems = menu.parseMenuJsonc(defaultMenuJsonc)
 const defaultById = Object.fromEntries(defaultItems.map(item => [item.id, item]))
 
 // The coding agents come from the harness registry rather than fixed rows, so
-// an installed integration's harness shows up under Defaults > Agent without a
+// an installed integration's harness shows up under Agent > Harness without a
 // menu edit. The provider is declared once here and filled at runtime.
 assert(
-  defaultById['setup.default.agent']?.provider === 'agent-harnesses'
-    && !defaultItems.some(item => item.parent === 'setup.default.agent'),
+  defaultById['agent.harness']?.provider === 'agent-harnesses'
+    && !defaultItems.some(item => item.parent === 'agent.harness'),
   'menu fills the coding-agent choices from the harness registry'
 )
 
