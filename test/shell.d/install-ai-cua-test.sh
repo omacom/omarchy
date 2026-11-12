@@ -13,13 +13,18 @@ export HOME="$tmp_dir/home"
 
 # The channel's answer for the plugin comes from TEST_PLUGIN_PIN: empty means
 # the channel does not carry it. The machine's own Hyprland is TEST_HYPRLAND.
+# Every answer names the installed build where it is not a dependency, and a
+# later repository carries a plugin that does pin it: only the dependencies of
+# the first record are what pacman installs. Field names follow the locale.
 cat >"$tmp_dir/bin/pacman" <<'SCRIPT'
 #!/bin/bash
 case "$1 $2" in
   "-Q hyprland") echo "hyprland $TEST_HYPRLAND" ;;
   "-Si cua-hyprland-plugin")
     [[ -n ${TEST_PLUGIN_PIN-} ]] || exit 1
-    printf 'Repository      : omarchy\nName            : cua-hyprland-plugin\nDepends On      : %s  aquamarine=0.16.0-1  hyprlang=0.6.8-5\n' "$TEST_PLUGIN_PIN"
+    if [[ ${LC_ALL-} == C ]]; then depends="Depends On      "; else depends="Hängt ab von    "; fi
+    printf 'Repository      : omarchy\nName            : cua-hyprland-plugin\nDescription     : Cua plugin for hyprland=%s\nProvides        : cua-hyprland=%s\n%s: %s  aquamarine=0.16.0-1  hyprlang=0.6.8-5\n\n' "$TEST_HYPRLAND" "$TEST_HYPRLAND" "$depends" "$TEST_PLUGIN_PIN"
+    printf 'Repository      : extra\nName            : cua-hyprland-plugin\n%s: hyprland=%s\n' "$depends" "$TEST_HYPRLAND"
     ;;
   *)
     printf 'pacman:%s\n' "$*" >>"$TEST_LOG"
