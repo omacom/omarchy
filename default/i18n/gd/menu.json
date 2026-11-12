@@ -1,0 +1,1289 @@
+{
+  "root": {
+    "label": "Rach"
+  },
+  "apps": {
+    "label": "Aplacaidean"
+  },
+  "learn": {
+    "label": "Ionnsaich"
+  },
+  "appearance": {
+    "label": "Coltas"
+  },
+  "trigger": {
+    "label": "Cuir gu dol"
+  },
+  "setup": {
+    "label": "Suidheachadh"
+  },
+  "install": {
+    "label": "Stàlaich"
+  },
+  "remove": {
+    "label": "Thoir air falbh"
+  },
+  "update": {
+    "label": "Ùraich"
+  },
+  "about": {
+    "label": "Mu dhèidhinn"
+  },
+  "system": {
+    "label": "Siostam"
+  },
+  "system.screensaver": {
+    "label": "Sàbhalaiche-sgrìn"
+  },
+  "system.lock": {
+    "label": "Glais"
+  },
+  "system.suspend": {
+    "label": "Cuir na dhàil"
+  },
+  "system.hibernate": {
+    "label": "Cadal-geamhraidh"
+  },
+  "system.logout": {
+    "label": "Clàraich a-mach"
+  },
+  "system.reboot": {
+    "label": "Ath-thòisich"
+  },
+  "system.shutdown": {
+    "label": "Cuir dheth"
+  },
+  "learn.keybindings": {
+    "label": "Ceanglaichean iuchrach"
+  },
+  "learn.omarchy": {
+    "label": "Omarchy"
+  },
+  "learn.hyprland": {
+    "label": "Hyprland"
+  },
+  "learn.arch": {
+    "label": "Arch"
+  },
+  "learn.neovim": {
+    "label": "Neovim"
+  },
+  "learn.bash": {
+    "label": "Bash"
+  },
+  "learn.tmux-keybindings": {
+    "label": "Tmux"
+  },
+  "learn.herdr-keybindings": {
+    "label": "Herdr"
+  },
+  "learn.community": {
+    "label": "Coimhearsnachd"
+  },
+  "appearance.theme": {
+    "label": "Ùrlar"
+  },
+  "appearance.background": {
+    "label": "Cùlaibh"
+  },
+  "appearance.font": {
+    "label": "Cruth-clò"
+  },
+  "appearance.top-bar": {
+    "label": "Bàr a' chlàir-thaice"
+  },
+  "appearance.top-bar.hide": {
+    "label": "Falaich am bàr"
+  },
+  "appearance.top-bar.show": {
+    "label": "Seall am bàr"
+  },
+  "appearance.top-bar.position": {
+    "label": "Ionad a' bhàir"
+  },
+  "appearance.top-bar.background": {
+    "label": "Cùlaibh a' bhàir"
+  },
+  "appearance.top-bar.background.opaque": {
+    "label": "Bàr neo-thrìd-shoilleir"
+  },
+  "appearance.top-bar.background.glassy": {
+    "label": "Bàr glainneach"
+  },
+  "appearance.top-bar.background.clear": {
+    "label": "Bàr trìd-shoilleir"
+  },
+  "appearance.top-bar.indicators": {
+    "label": "Comharran a' bhàir"
+  },
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Seall % a' bhataraidh"
+  },
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Falaich % a' bhataraidh"
+  },
+  "appearance.top-bar.indicators.clock": {
+    "label": "Uaireadair"
+  },
+  "appearance.top-bar.indicators.clock.sunday-24h": {
+    "label": "Didòmhnaich 14:30"
+  },
+  "appearance.top-bar.indicators.clock.sunday-12h": {
+    "label": "Didòmhnaich 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+    "label": "Didòmhnaich 14:30:05"
+  },
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+    "label": "Didòmhnaich 2:30:05 PM"
+  },
+  "appearance.top-bar.indicators.clock.time-24h": {
+    "label": "14:30"
+  },
+  "appearance.top-bar.indicators.clock.time-12h": {
+    "label": "2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.date-24h": {
+    "label": "DiD 3 Cèit 14:30"
+  },
+  "appearance.top-bar.indicators.clock.date-12h": {
+    "label": "DiD 3 Cèit 2:30 PM"
+  },
+  "appearance.top-bar.indicators.clock.week": {
+    "label": "3 Cèit W18 2026"
+  },
+  "appearance.top-bar.indicators.clock.iso": {
+    "label": "2026-05-03 14:30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-24h": {
+    "label": "14 — 30"
+  },
+  "appearance.top-bar.indicators.clock.stacked-12h": {
+    "label": "2 — 30 PM"
+  },
+  "appearance.top-bar.indicators.clock.stacked-date": {
+    "label": "03 Cèit W18 '26"
+  },
+  "appearance.top-bar.indicators.clock.stacked-time": {
+    "label": "14 30"
+  },
+  "appearance.top-bar.position.top": {
+    "label": "Bàr gu h-àrd"
+  },
+  "appearance.top-bar.position.bottom": {
+    "label": "Bàr gu h-ìosal"
+  },
+  "appearance.top-bar.position.left": {
+    "label": "Bàr clì"
+  },
+  "appearance.top-bar.position.right": {
+    "label": "Bàr deas"
+  },
+  "appearance.windows": {
+    "label": "Uinneagan"
+  },
+  "appearance.windows.gaps-on": {
+    "label": "Beàrnan nan uinneagan air"
+  },
+  "appearance.windows.gaps-off": {
+    "label": "Beàrnan nan uinneagan dheth"
+  },
+  "appearance.windows.corners": {
+    "label": "Oiseanan nan uinneagan"
+  },
+  "appearance.windows.corners.theme": {
+    "label": "Oiseanan an ùrlair"
+  },
+  "appearance.windows.corners.sharp": {
+    "label": "Oiseanan biorach"
+  },
+  "appearance.windows.corners.rounded": {
+    "label": "Oiseanan cruinn"
+  },
+  "appearance.windows.transparency": {
+    "label": "Trìd-shoilleireachd nan uinneagan"
+  },
+  "appearance.windows.transparency.opaque": {
+    "label": "Uinneagan neo-thrìd-shoilleir"
+  },
+  "appearance.windows.transparency.transparent": {
+    "label": "Uinneagan trìd-shoilleir"
+  },
+  "appearance.windows.transparency.glassy": {
+    "label": "Uinneagan glainneach"
+  },
+  "appearance.windows.one-window-ratio-on": {
+    "label": "Co-mheas aon uinneige air"
+  },
+  "appearance.windows.one-window-ratio-off": {
+    "label": "Co-mheas aon uinneige dheth"
+  },
+  "appearance.branding": {
+    "label": "Branndadh"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Sàbhalaiche-sgrìn"
+  },
+  "appearance.branding.about": {
+    "label": "Mu dhèidhinn"
+  },
+  "appearance.branding.about.text": {
+    "label": "Deasaich an teacsa"
+  },
+  "appearance.branding.about.image": {
+    "label": "Suidhich o dhealbh"
+  },
+  "appearance.branding.about.default": {
+    "label": "Aisig a' bhun-roghainn"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Deasaich an teacsa"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Suidhich o dhealbh"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Aisig a' bhun-roghainn"
+  },
+  "appearance.dock": {
+    "label": "Doca"
+  },
+  "appearance.dock.autohide": {
+    "label": "Doca fèin-fhalaich"
+  },
+  "appearance.dock.always-on": {
+    "label": "Doca an-còmhnaidh air"
+  },
+  "appearance.dock.position": {
+    "label": "Ionad an doca"
+  },
+  "appearance.dock.position.top": {
+    "label": "Doca gu h-àrd"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Doca gu h-ìosal"
+  },
+  "appearance.dock.position.left": {
+    "label": "Doca clì"
+  },
+  "appearance.dock.position.right": {
+    "label": "Doca deas"
+  },
+  "appearance.workspace-layout": {
+    "label": "Co-dhealbhachd rùim-obrach",
+    "title": "Co-dhealbhachd bhunaiteach nan rumannan-obrach"
+  },
+  "appearance.workspace-layout.dwindle": {
+    "label": "Leacach"
+  },
+  "appearance.workspace-layout.scrolling": {
+    "label": "Sgroladh"
+  },
+  "appearance.workspace-layout.floating": {
+    "label": "Air fleòdradh"
+  },
+  "appearance.animations-on": {
+    "label": "Beòthachaidhean air"
+  },
+  "appearance.animations-off": {
+    "label": "Beòthachaidhean dheth"
+  },
+  "appearance.unlock": {
+    "label": "Thoir a' ghlas dheth"
+  },
+  "trigger.toggle": {
+    "label": "Toglaichean"
+  },
+  "trigger.toggle.idle-lock-on": {
+    "label": "Fuirich nad dhùisg"
+  },
+  "trigger.toggle.idle-lock-off": {
+    "label": "Ceadaich cadal"
+  },
+  "trigger.toggle.notifications-on": {
+    "label": "Brathan air"
+  },
+  "trigger.toggle.notifications-off": {
+    "label": "Mùch na brathan"
+  },
+  "trigger.toggle.nightlight-on": {
+    "label": "Solas na h-oidhche air"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Solas na h-oidhche dheth"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Sàbhalaiche-sgrìn air"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Sàbhalaiche-sgrìn dheth"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Glacadh thuislidhean air"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Glacadh thuislidhean dheth"
+  },
+  "trigger.emoji": {
+    "label": "Emoji"
+  },
+  "trigger.clipboard-history": {
+    "label": "Eachdraidh an stòr-bhùird"
+  },
+  "trigger.reminder": {
+    "label": "Cuimhneachan"
+  },
+  "trigger.capture": {
+    "label": "Glac"
+  },
+  "trigger.capture.screenshot": {
+    "label": "Glacadh-sgrìn"
+  },
+  "trigger.capture.screenrecord.stop": {
+    "label": "Cuir stad air clàradh na sgrìn"
+  },
+  "trigger.capture.screenrecord": {
+    "label": "Clàraich an sgrìn"
+  },
+  "trigger.capture.text": {
+    "label": "Teacsa"
+  },
+  "trigger.capture.qr": {
+    "label": "Còd QR"
+  },
+  "trigger.capture.color": {
+    "label": "Dath"
+  },
+  "trigger.capture.screenrecord.no-audio": {
+    "label": "Gun fhuaim"
+  },
+  "trigger.capture.screenrecord.desktop-audio": {
+    "label": "Le fuaim an deasga"
+  },
+  "trigger.capture.screenrecord.microphone": {
+    "label": "Le fuaim an deasga + a' mhicreofoin"
+  },
+  "trigger.capture.screenrecord.webcam": {
+    "label": "Le fuaim an deasga + a' mhicreofoin + camara-lìn"
+  },
+  "trigger.transcode": {
+    "label": "Tar-chòdaich"
+  },
+  "trigger.share": {
+    "label": "Co-roinn"
+  },
+  "trigger.hardware": {
+    "label": "Bathar-cruaidh"
+  },
+  "trigger.tests": {
+    "label": "Deuchainn astair"
+  },
+  "trigger.hardware.laptop-display-on": {
+    "label": "Sgrìn an laptop air"
+  },
+  "trigger.hardware.laptop-display-off": {
+    "label": "Sgrìn an laptop dheth"
+  },
+  "trigger.hardware.mirror-display-on": {
+    "label": "Sgàthanachadh sgrìn air"
+  },
+  "trigger.hardware.mirror-display-off": {
+    "label": "Sgàthanachadh sgrìn dheth"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Leum gu GPU hibrideach"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Leum gu GPU amalaichte"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Cuir am pada-suathaidh an comas"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Cuir am pada-suathaidh à comas"
+  },
+  "trigger.hardware.touchpad-haptics": {
+    "label": "Haptaig a' phada-suathaidh"
+  },
+  "trigger.hardware.touchpad-haptics.low": {
+    "label": "ìosal"
+  },
+  "trigger.hardware.touchpad-haptics.mid": {
+    "label": "meadhanach"
+  },
+  "trigger.hardware.touchpad-haptics.high": {
+    "label": "àrd"
+  },
+  "trigger.hardware.touchscreen-on": {
+    "label": "Cuir an sgrìn-suathaidh an comas"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Cuir an sgrìn-suathaidh à comas"
+  },
+  "trigger.reminder.set": {
+    "label": "Suidhich fear"
+  },
+  "trigger.reminder.show": {
+    "label": "Seall na h-uile"
+  },
+  "trigger.reminder.clear": {
+    "label": "Falamhaich na h-uile"
+  },
+  "trigger.share.clipboard": {
+    "label": "Stòr-bhòrd"
+  },
+  "trigger.share.file": {
+    "label": "Faidhle"
+  },
+  "trigger.share.folder": {
+    "label": "Pasgan"
+  },
+  "trigger.share.receive": {
+    "label": "Faigh"
+  },
+  "trigger.tests.network-speedtest": {
+    "label": "Deuchainn astair an lìonra"
+  },
+  "trigger.tests.disk-speedtest": {
+    "label": "Deuchainn astair an diosga"
+  },
+  "setup.monitors": {
+    "label": "Monatairean"
+  },
+  "setup.keybindings": {
+    "label": "Ceanglaichean iuchrach"
+  },
+  "setup.input": {
+    "label": "Ion-chur"
+  },
+  "setup.typing": {
+    "label": "Clò-sgrìobhadh"
+  },
+  "setup.typing.keyboard": {
+    "label": "Co-dhealbhachdan meur-chlàir"
+  },
+  "setup.typing.input": {
+    "label": "Dòighean ion-chuir"
+  },
+  "setup.language": {
+    "label": "Cànan"
+  },
+  "setup.network": {
+    "label": "Lìonra"
+  },
+  "setup.network.dns": {
+    "label": "DNS"
+  },
+  "setup.network.dns.dhcp": {
+    "label": "DHCP"
+  },
+  "setup.network.dns.cloudflare": {
+    "label": "Cloudflare"
+  },
+  "setup.network.dns.google": {
+    "label": "Google"
+  },
+  "setup.network.dns.custom": {
+    "label": "Gnàthaichte"
+  },
+  "setup.network.qr": {
+    "label": "Còd QR"
+  },
+  "setup.default": {
+    "label": "Bun-roghainnean"
+  },
+  "setup.default.agent": {
+    "label": "Àidseant",
+    "title": "Àidseant bunaiteach"
+  },
+  "setup.default.agent.agy": {
+    "label": "Antigravity"
+  },
+  "setup.default.agent.amp": {
+    "label": "Amp"
+  },
+  "setup.default.agent.claude": {
+    "label": "Claude"
+  },
+  "setup.default.agent.codex": {
+    "label": "Codex"
+  },
+  "setup.default.agent.commandcode": {
+    "label": "Command Code"
+  },
+  "setup.default.agent.copilot": {
+    "label": "Copilot"
+  },
+  "setup.default.agent.crush": {
+    "label": "Crush"
+  },
+  "setup.default.agent.cursor-agent": {
+    "label": "Cursor CLI"
+  },
+  "setup.default.agent.devin": {
+    "label": "Devin CLI"
+  },
+  "setup.default.agent.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "setup.default.agent.freebuff": {
+    "label": "Freebuff"
+  },
+  "setup.default.agent.grok": {
+    "label": "Grok"
+  },
+  "setup.default.agent.hermes": {
+    "label": "Hermes"
+  },
+  "setup.default.agent.kilo": {
+    "label": "Kilo"
+  },
+  "setup.default.agent.kimi": {
+    "label": "Kimi"
+  },
+  "setup.default.agent.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "setup.default.agent.mcode": {
+    "label": "MiniMax Code"
+  },
+  "setup.default.agent.muse": {
+    "label": "Muse Code"
+  },
+  "setup.default.agent.omp": {
+    "label": "omp"
+  },
+  "setup.default.agent.openclaw": {
+    "label": "OpenClaw"
+  },
+  "setup.default.agent.opencode": {
+    "label": "OpenCode"
+  },
+  "setup.default.agent.ori": {
+    "label": "Ori"
+  },
+  "setup.default.agent.pi": {
+    "label": "Pi"
+  },
+  "setup.default.agent.qwen": {
+    "label": "Qwen Code"
+  },
+  "setup.default.browser": {
+    "label": "Brabhsair",
+    "title": "Brabhsair bunaiteach"
+  },
+  "setup.default.browser.chromium": {
+    "label": "Chromium"
+  },
+  "setup.default.browser.chrome": {
+    "label": "Chrome"
+  },
+  "setup.default.browser.brave": {
+    "label": "Brave"
+  },
+  "setup.default.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "setup.default.browser.edge": {
+    "label": "Edge"
+  },
+  "setup.default.browser.firefox": {
+    "label": "Firefox"
+  },
+  "setup.default.browser.zen": {
+    "label": "Zen"
+  },
+  "setup.default.dictation": {
+    "label": "Deachdadh",
+    "title": "Deachdadh bunaiteach"
+  },
+  "setup.default.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "setup.default.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "setup.default.terminal": {
+    "label": "Tèirmineal",
+    "title": "Tèirmineal bunaiteach"
+  },
+  "setup.default.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "setup.default.terminal.foot": {
+    "label": "Foot"
+  },
+  "setup.default.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "setup.default.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "setup.default.editor": {
+    "label": "Deasaiche",
+    "title": "Deasaiche bunaiteach"
+  },
+  "setup.default.editor.neovim": {
+    "label": "Neovim"
+  },
+  "setup.default.editor.vscode": {
+    "label": "VSCode"
+  },
+  "setup.default.editor.cursor": {
+    "label": "Cursor"
+  },
+  "setup.default.editor.zed": {
+    "label": "Zed"
+  },
+  "setup.default.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "setup.default.editor.helix": {
+    "label": "Helix"
+  },
+  "setup.default.editor.vim": {
+    "label": "Vim"
+  },
+  "setup.default.editor.emacs": {
+    "label": "Emacs"
+  },
+  "setup.plugin": {
+    "label": "Plugain"
+  },
+  "setup.plugin.enable": {
+    "label": "Cuir plugan an comas"
+  },
+  "setup.plugin.disable": {
+    "label": "Cuir plugan à comas"
+  },
+  "setup.plugin.add": {
+    "label": "Cuir plugan ris"
+  },
+  "setup.plugin.clone": {
+    "label": "Clonaich plugan"
+  },
+  "setup.plugin.remove": {
+    "label": "Thoir plugan air falbh"
+  },
+  "setup.security": {
+    "label": "Tèarainteachd"
+  },
+  "setup.config": {
+    "label": "Rèiteachadh"
+  },
+  "setup.security.fingerprint": {
+    "label": "Lorg-meòir"
+  },
+  "setup.security.fido2": {
+    "label": "Fido2"
+  },
+  "setup.security.sshd": {
+    "label": "SSHD"
+  },
+  "setup.security.ssh-agent": {
+    "label": "Àidseant SSH"
+  },
+  "setup.security.sudoless-docker": {
+    "label": "Docker gun sudo"
+  },
+  "setup.security.passwordless-sudo": {
+    "label": "Sudo gun fhacal-faire"
+  },
+  "setup.config.git": {
+    "label": "Git"
+  },
+  "setup.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "setup.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "setup.config.xcompose": {
+    "label": "XCompose"
+  },
+  "setup.direct-boot": {
+    "label": "Bùtadh dìreach"
+  },
+  "setup.reset": {
+    "label": "Ath-shuidhich an coimpiutair"
+  },
+  "install.package": {
+    "label": "Pacaid"
+  },
+  "install.ai": {
+    "label": "AI"
+  },
+  "install.service": {
+    "label": "Seirbheis"
+  },
+  "install.development": {
+    "label": "Leasachadh"
+  },
+  "install.editor": {
+    "label": "Deasaiche"
+  },
+  "install.style": {
+    "label": "Stoidhle"
+  },
+  "install.style.theme": {
+    "label": "Ùrlar"
+  },
+  "install.style.background": {
+    "label": "Cùlaibh"
+  },
+  "install.style.font": {
+    "label": "Cruth-clò"
+  },
+  "install.style.font.cascadia": {
+    "label": "Cascadia Mono"
+  },
+  "install.style.font.meslo": {
+    "label": "Meslo LG Mono"
+  },
+  "install.style.font.fira": {
+    "label": "Fira Code"
+  },
+  "install.style.font.victor": {
+    "label": "Victor Code"
+  },
+  "install.style.font.bitstream": {
+    "label": "Bitstream Vera Mono"
+  },
+  "install.style.font.iosevka": {
+    "label": "Iosevka"
+  },
+  "install.gaming": {
+    "label": "Geamachd"
+  },
+  "install.browser": {
+    "label": "Brabhsair"
+  },
+  "install.webapp": {
+    "label": "Aplacaid-lìn"
+  },
+  "install.terminal": {
+    "label": "Tèirmineal"
+  },
+  "install.tui": {
+    "label": "TUI"
+  },
+  "install.windows": {
+    "label": "Windows"
+  },
+  "install.aur": {
+    "label": "AUR"
+  },
+  "install.preinstalls": {
+    "label": "Ro-stàlaidhean"
+  },
+  "install.browser.chrome": {
+    "label": "Chrome"
+  },
+  "install.browser.edge": {
+    "label": "Edge"
+  },
+  "install.browser.brave": {
+    "label": "Brave"
+  },
+  "install.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "install.browser.firefox": {
+    "label": "Firefox"
+  },
+  "install.browser.zen": {
+    "label": "Zen"
+  },
+  "install.service.1password": {
+    "label": "1Password"
+  },
+  "install.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "install.service.spotify": {
+    "label": "Spotify"
+  },
+  "install.service.signal": {
+    "label": "Signal"
+  },
+  "install.service.slack": {
+    "label": "Slack"
+  },
+  "install.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "install.service.nordvpn": {
+    "label": "NordVPN"
+  },
+  "install.service.once": {
+    "label": "ONCE"
+  },
+  "install.service.bitwarden": {
+    "label": "Bitwarden"
+  },
+  "install.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "install.service.chromium-account": {
+    "label": "Cunntas Chromium"
+  },
+  "install.editor.vscode": {
+    "label": "VSCode"
+  },
+  "install.editor.cursor": {
+    "label": "Cursor"
+  },
+  "install.editor.zed": {
+    "label": "Zed"
+  },
+  "install.editor.sublime": {
+    "label": "Sublime Text"
+  },
+  "install.editor.helix": {
+    "label": "Helix"
+  },
+  "install.editor.vim": {
+    "label": "Vim"
+  },
+  "install.editor.emacs": {
+    "label": "Emacs"
+  },
+  "install.terminal.alacritty": {
+    "label": "Alacritty"
+  },
+  "install.terminal.foot": {
+    "label": "Foot"
+  },
+  "install.terminal.ghostty": {
+    "label": "Ghostty"
+  },
+  "install.terminal.kitty": {
+    "label": "Kitty"
+  },
+  "install.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "install.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "install.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "install.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "install.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "install.ai.ollama": {
+    "label": "Ollama"
+  },
+  "install.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "install.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "install.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "install.gaming.steam": {
+    "label": "Steam"
+  },
+  "install.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "install.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "install.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "install.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "install.gaming.xbox-controllers": {
+    "label": "Uidheaman-smachd Xbox"
+  },
+  "install.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "install.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "install.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "install.gaming.retro-launcher": {
+    "label": "Lòinsear gheamannan RetroArch"
+  },
+  "install.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "install.development.docker-dbs": {
+    "label": "Stòr-dàta Docker"
+  },
+  "install.development.javascript": {
+    "label": "JavaScript"
+  },
+  "install.development.go": {
+    "label": "Go"
+  },
+  "install.development.php": {
+    "label": "PHP"
+  },
+  "install.development.python": {
+    "label": "Python"
+  },
+  "install.development.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.zig": {
+    "label": "Zig"
+  },
+  "install.development.rust": {
+    "label": "Rust"
+  },
+  "install.development.java": {
+    "label": "Java"
+  },
+  "install.development.dotnet": {
+    "label": ".NET"
+  },
+  "install.development.ocaml": {
+    "label": "OCaml"
+  },
+  "install.development.clojure": {
+    "label": "Clojure"
+  },
+  "install.development.scala": {
+    "label": "Scala"
+  },
+  "install.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "install.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "install.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "install.development.php.php": {
+    "label": "PHP"
+  },
+  "install.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "install.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "install.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "install.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "remove.package": {
+    "label": "Pacaid"
+  },
+  "remove.ai": {
+    "label": "AI",
+    "title": "Thoir air falbh"
+  },
+  "remove.dictation": {
+    "label": "Deachdadh"
+  },
+  "remove.service": {
+    "label": "Seirbheisean",
+    "title": "Thoir air falbh"
+  },
+  "remove.development": {
+    "label": "Leasachadh",
+    "title": "Thoir air falbh"
+  },
+  "remove.theme": {
+    "label": "Ùrlar"
+  },
+  "remove.gaming": {
+    "label": "Geamachd",
+    "title": "Thoir air falbh"
+  },
+  "remove.browser": {
+    "label": "Brabhsair",
+    "title": "Thoir air falbh"
+  },
+  "remove.webapp": {
+    "label": "Aplacaid-lìn"
+  },
+  "remove.tui": {
+    "label": "TUI"
+  },
+  "remove.windows": {
+    "label": "Windows"
+  },
+  "remove.preinstalls": {
+    "label": "Ro-stàlaidhean"
+  },
+  "remove.security": {
+    "label": "Tèarainteachd",
+    "title": "Thoir air falbh"
+  },
+  "remove.security.fingerprint": {
+    "label": "Lorg-meòir"
+  },
+  "remove.security.fido2": {
+    "label": "Fido2"
+  },
+  "remove.security.sshd": {
+    "label": "SSHD"
+  },
+  "remove.security.sudoless-docker": {
+    "label": "Docker gun sudo"
+  },
+  "remove.ai.hermes": {
+    "label": "Hermes Desktop"
+  },
+  "remove.browser.chrome": {
+    "label": "Chrome"
+  },
+  "remove.browser.edge": {
+    "label": "Edge"
+  },
+  "remove.browser.brave": {
+    "label": "Brave"
+  },
+  "remove.browser.brave-origin": {
+    "label": "Brave Origin"
+  },
+  "remove.browser.firefox": {
+    "label": "Firefox"
+  },
+  "remove.browser.zen": {
+    "label": "Zen"
+  },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
+  "remove.service.dropbox": {
+    "label": "Dropbox"
+  },
+  "remove.service.tailscale": {
+    "label": "Tailscale"
+  },
+  "remove.service.microsoft": {
+    "label": "Microsoft"
+  },
+  "remove.service.ssh-agent": {
+    "label": "Àidseant SSH"
+  },
+  "remove.ai.chatgpt": {
+    "label": "ChatGPT Desktop"
+  },
+  "remove.ai.claude": {
+    "label": "Claude Desktop"
+  },
+  "remove.dictation.superwhisper": {
+    "label": "Superwhisper"
+  },
+  "remove.dictation.voxtype": {
+    "label": "Voxtype"
+  },
+  "remove.ai.grok-bot": {
+    "label": "Grok Bot"
+  },
+  "remove.ai.lm-studio": {
+    "label": "LM Studio"
+  },
+  "remove.ai.ollama": {
+    "label": "Ollama"
+  },
+  "remove.ai.openclaw": {
+    "label": "OpenClaw"
+  },
+  "remove.ai.perplexity": {
+    "label": "Perplexity"
+  },
+  "remove.ai.t3-code": {
+    "label": "T3 Code"
+  },
+  "remove.gaming.steam": {
+    "label": "Steam"
+  },
+  "remove.gaming.retroarch": {
+    "label": "RetroArch"
+  },
+  "remove.gaming.minecraft": {
+    "label": "Minecraft"
+  },
+  "remove.gaming.geforce-now": {
+    "label": "NVIDIA GeForce NOW"
+  },
+  "remove.gaming.xbox-cloud": {
+    "label": "Xbox Cloud Gaming"
+  },
+  "remove.gaming.xbox-controllers": {
+    "label": "Uidheaman-smachd Xbox (󰂯)"
+  },
+  "remove.gaming.battlenet": {
+    "label": "Battle.net"
+  },
+  "remove.gaming.lutris": {
+    "label": "Lutris"
+  },
+  "remove.gaming.heroic": {
+    "label": "Heroic (Epic Games)"
+  },
+  "remove.development.rails": {
+    "label": "Ruby on Rails"
+  },
+  "remove.development.javascript": {
+    "label": "JavaScript",
+    "title": "Thoir air falbh"
+  },
+  "remove.development.go": {
+    "label": "Go"
+  },
+  "remove.development.php": {
+    "label": "PHP",
+    "title": "Thoir air falbh"
+  },
+  "remove.development.python": {
+    "label": "Python"
+  },
+  "remove.development.elixir": {
+    "label": "Elixir",
+    "title": "Thoir air falbh"
+  },
+  "remove.development.zig": {
+    "label": "Zig"
+  },
+  "remove.development.rust": {
+    "label": "Rust"
+  },
+  "remove.development.java": {
+    "label": "Java"
+  },
+  "remove.development.dotnet": {
+    "label": ".NET"
+  },
+  "remove.development.ocaml": {
+    "label": "OCaml"
+  },
+  "remove.development.clojure": {
+    "label": "Clojure"
+  },
+  "remove.development.scala": {
+    "label": "Scala"
+  },
+  "remove.development.javascript.node": {
+    "label": "Node.js"
+  },
+  "remove.development.javascript.bun": {
+    "label": "Bun"
+  },
+  "remove.development.javascript.deno": {
+    "label": "Deno"
+  },
+  "remove.development.php.php": {
+    "label": "PHP"
+  },
+  "remove.development.php.laravel": {
+    "label": "Laravel"
+  },
+  "remove.development.php.symfony": {
+    "label": "Symfony"
+  },
+  "remove.development.elixir.elixir": {
+    "label": "Elixir"
+  },
+  "remove.development.elixir.phoenix": {
+    "label": "Phoenix"
+  },
+  "update.omarchy": {
+    "label": "Omarchy"
+  },
+  "update.channel": {
+    "label": "Seanail"
+  },
+  "update.kernel": {
+    "label": "Eitean"
+  },
+  "update.config": {
+    "label": "Rèiteachadh",
+    "title": "Ath-shuidhich air a' bhun-roghainn"
+  },
+  "update.themes": {
+    "label": "Ùrlaran a bharrachd"
+  },
+  "update.process": {
+    "label": "Pròiseas",
+    "title": "Ath-thòisich"
+  },
+  "update.hardware": {
+    "label": "Bathar-cruaidh",
+    "title": "Ath-thòisich"
+  },
+  "update.firmware": {
+    "label": "Bathar-daingeann"
+  },
+  "update.password": {
+    "label": "Facal-faire"
+  },
+  "update.timezone": {
+    "label": "Roinn-tìde"
+  },
+  "update.time": {
+    "label": "Àm"
+  },
+  "update.channel.stable": {
+    "label": "Seasmhach"
+  },
+  "update.channel.rc": {
+    "label": "RC"
+  },
+  "update.channel.edge": {
+    "label": "Edge"
+  },
+  "update.channel.dev": {
+    "label": "Dev"
+  },
+  "update.process.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.process.shell": {
+    "label": "Slige"
+  },
+  "update.config.hyprland": {
+    "label": "Hyprland"
+  },
+  "update.config.hyprsunset": {
+    "label": "Hyprsunset"
+  },
+  "update.config.plymouth": {
+    "label": "Plymouth"
+  },
+  "update.config.tmux": {
+    "label": "Tmux"
+  },
+  "update.config.shell": {
+    "label": "Slige"
+  },
+  "update.hardware.audio": {
+    "label": "Fuaim"
+  },
+  "update.hardware.wifi": {
+    "label": "Wi-Fi"
+  },
+  "update.hardware.bluetooth": {
+    "label": "Bluetooth"
+  },
+  "update.hardware.trackpad": {
+    "label": "Pada-suathaidh"
+  },
+  "update.password.drive": {
+    "label": "Crioptachadh an diosga"
+  },
+  "update.password.user": {
+    "label": "Cleachdaiche"
+  }
+}

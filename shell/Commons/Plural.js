@@ -57,6 +57,10 @@ function category(code, count) {
     return within(n100, 3, 10) ? "few" : within(n100, 11, 99) ? "many" : "other"
   case "he":
     return n === 1 ? "one" : n === 2 ? "two" : "other"
+  case "gd":
+    if (n === 1 || n === 11) return "one"
+    if (n === 2 || n === 12) return "two"
+    return within(n, 3, 10) || within(n, 13, 19) ? "few" : "other"
   case "ga":
     if (n <= 2) return n === 0 ? "other" : n === 1 ? "one" : "two"
     return within(n, 3, 6) ? "few" : within(n, 7, 10) ? "many" : "other"

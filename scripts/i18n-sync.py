@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep Omarchy's 49 translations in sync with the English sources.
+"""Keep Omarchy's translations in sync with the English sources.
 
 Subcommands:
   pending       Print the translation queue as JSON (missing or stale units).
