@@ -22,6 +22,7 @@
   "agents.homeFailed": "Не вдалося створити домашній каталог для нового облікового запису.",
   "agents.installCliFailed": "Встановлення CLI %1 не завершилося.",
   "agents.installingCli": "Встановлення CLI %1…",
+  "agents.instructionsBackedUp": "Ваші старі інструкції агента збережено як резервні копії",
   "agents.localUnsupported": "Жоден агент не може використовувати локальну модель",
   "agents.localUnsupportedBody": "Встановіть pi або OpenCode, щоб використовувати локальну модель.",
   "agents.loginUnfinished": "Вхід не завершився, тому обліковий запис не додано.",
