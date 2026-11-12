@@ -20,6 +20,7 @@
   "agents.homeFailed": "අලුත් ගිණුමට home නාමාවලිය සැකසිය නොහැකි විය.",
   "agents.installCliFailed": "%1 CLI ස්ථාපනය අවසන් වූයේ නැත.",
   "agents.installingCli": "%1 CLI ස්ථාපනය කරමින්…",
+  "agents.instructionsBackedUp": "ඔබේ පැරණි ඒජන්ට් උපදෙස් උපස්ථ ලෙස තබා ගත්තා",
   "agents.localUnsupported": "කිසිම ඒජන්ට් එකකට දේශීය ආකෘතිය භාවිත කළ නොහැක",
   "agents.localUnsupportedBody": "දේශීය ආකෘතිය භාවිත කිරීමට pi හෝ OpenCode ස්ථාපනය කරන්න.",
   "agents.loginUnfinished": "ඇතුළු වීම අවසන් වූයේ නැති නිසා ගිණුමක් එක් වූයේ නැත.",

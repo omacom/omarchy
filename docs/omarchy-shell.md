@@ -103,7 +103,7 @@ A Git-managed plugin can opt into an ID change by declaring previous IDs in its 
 
 `omarchy plugin update` migrates the checkout directory and the plugin references in `shell.json` together: enabled plugins, bar selection and placement, disabled state, and clone-source restoration records. Settings and placement order are preserved. The update requires a clean checkout for a rename and refuses an existing destination, another installed plugin with either ID, or saved configuration already using the new ID. Resolve the reported conflict and retry; the updater does not combine two plugins' settings.
 
-Successful migrations record `pluginIdAliases` in `shell.json`. Plugin manager commands, bar commands, and shell lifecycle calls continue accepting the old ID. A manifest's `renamedFrom` alone grants no alias or access to another plugin's configuration. An actually installed ID takes precedence over an alias. If an update is interrupted after saving the references, the shell can discover the new manifest at the old path; rerun the update to finish moving the directory.
+Successful migrations record `pluginIdAliases` in `shell.json`. Plugin manager commands, bar commands, and shell lifecycle calls continue accepting the old ID. A manifest's `renamedFrom` alone grants no alias or access to another plugin's configuration. An actually installed ID takes precedence over an alias. The shell resolves migration aliases at its external command boundary; internal component identities stay unchanged during teardown. If an update is interrupted after saving the references, the shell can discover the new manifest at the old path; rerun the update to finish moving the directory.
 
 ## Elsewhen
 

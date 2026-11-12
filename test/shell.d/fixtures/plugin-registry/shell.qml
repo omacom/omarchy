@@ -594,25 +594,26 @@ ShellRoot {
       plugins: [],
       pluginIdAliases: { "third.previous": "third.widget", "third.earlier": "third.previous" }
     }
-    root.assertEqual(registry.resolveEnabledId("third.previous"), "third.widget", "saved migration routes lifecycle calls")
-    root.assertEqual(registry.resolveEnabledId("third.earlier"), "third.widget", "saved alias chains resolve")
+    root.assertEqual(registry.resolveMigratedId("third.previous"), "third.widget", "saved migration routes lifecycle calls")
+    root.assertEqual(registry.resolveMigratedId("third.earlier"), "third.widget", "saved alias chains resolve")
+    root.assertEqual(registry.resolveEnabledId("third.previous"), "third.previous", "internal component lookup never redirects a retired ID to its replacement")
     root.assertTrue(registry.setEnabled("third.previous", true), "saved migration enables the new manifest")
     root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "old ID places the new widget")
     registry.setEnabled("third.previous", false)
     root.assertDeepEqual(root.config.bar.layout.left, [], "old ID disables the new widget")
     root.config.pluginIdAliases["third.panel"] = "third.widget"
-    root.assertEqual(registry.resolveEnabledId("third.panel"), "third.panel", "installed identity takes precedence over an alias")
+    root.assertEqual(registry.resolveMigratedId("third.panel"), "third.panel", "installed identity takes precedence over an alias")
     root.config.pluginIdAliases["third.reserved"] = "omarchy.first-widget"
-    root.assertEqual(registry.resolveEnabledId("third.reserved"), "third.reserved", "alias cannot claim a first-party identity")
+    root.assertEqual(registry.resolveMigratedId("third.reserved"), "third.reserved", "alias cannot claim a first-party identity")
     root.config.pluginIdAliases["third.cycle-a"] = "third.cycle-b"
     root.config.pluginIdAliases["third.cycle-b"] = "third.cycle-a"
-    root.assertEqual(registry.resolveEnabledId("third.cycle-a"), "third.cycle-a", "alias cycles leave the requested identity unchanged")
+    root.assertEqual(registry.resolveMigratedId("third.cycle-a"), "third.cycle-a", "alias cycles leave the requested identity unchanged")
     var renamed = manifest("third.renamed", ["panel"], { panel: "Panel.qml" })
     renamed.renamedFrom = ["omarchy.first-widget"]
     root.assertEqual(registry.validateManifest(renamed, "/third/renamed"), null, "reserved previous IDs are rejected")
     renamed.renamedFrom = ["third.unclaimed"]
     root.assertTrue(registry.validateManifest(renamed, "/third/renamed") !== null, "valid rename metadata is accepted")
-    root.assertEqual(registry.resolveEnabledId("third.unclaimed"), "third.unclaimed", "manifest declaration alone grants no alias")
+    root.assertEqual(registry.resolveMigratedId("third.unclaimed"), "third.unclaimed", "manifest declaration alone grants no alias")
 
     root.assertTrue(changeCount > 0, "registry emits change notifications")
     writeResult()

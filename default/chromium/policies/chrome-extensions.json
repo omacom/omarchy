@@ -1,0 +1,16 @@
+{
+  "ExtensionSettings": {
+    "aakndbfnmnahdggmjaipjfobeemaelkm": {
+      "installation_mode": "force_installed",
+      "update_url": "file:///usr/share/omarchy/default/chromium/crx/updates.xml"
+    },
+    "ppllkecbgalineleahcmmfjonkfjhhpc": {
+      "installation_mode": "force_installed",
+      "update_url": "file:///usr/share/omarchy/default/chromium/crx/updates.xml"
+    },
+    "dmacfjpbijooagncjdakpklcmepkejom": {
+      "installation_mode": "force_installed",
+      "update_url": "file:///usr/share/omarchy/default/chromium/crx/updates.xml"
+    }
+  }
+}

@@ -199,7 +199,9 @@ QtObject {
   }
 
   function resolveEnabledId(id) {
-    var key = resolveMigratedId(id)
+    // Internal callers identify components, including ones being torn down.
+    // Migration aliases are resolved at the external command boundary only.
+    var key = Util.canonicalWidgetId(String(id || ""))
     // Callers keep using the built-in id after cloning; the enabled local
     // manifest is the implementation that should receive the call.
     for (var candidate in installedPlugins) {

@@ -167,6 +167,6 @@ if (( UPDATED_ANY )); then
   if (( MIGRATED_ANY )); then
     omarchy-shell shell reloadConfig >/dev/null
   fi
-  omarchy-shell shell rescanPlugins >/dev/null
+  omarchy-shell shell reloadPlugins >/dev/null
 fi
 exit $rc
