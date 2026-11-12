@@ -3,6 +3,12 @@
 
 var POSITIONS = ["top", "bottom", "left", "right"]
 
+function dimension(value, fallback, minimum, maximum) {
+  if (value === undefined || value === null || value === "") return fallback
+  var number = Number(value)
+  return Number.isFinite(number) ? Math.max(minimum, Math.min(maximum, Math.round(number))) : fallback
+}
+
 function normalizePosition(value) {
   var position = String(value || "").trim().toLowerCase()
   return POSITIONS.indexOf(position) >= 0 ? position : "bottom"
@@ -173,6 +179,7 @@ function pickWindow(windows, workspaceId) {
 
 if (typeof module !== "undefined") {
   module.exports = {
+    dimension: dimension,
     normalizePosition: normalizePosition,
     isVertical: isVertical,
     normalizeId: normalizeId,
