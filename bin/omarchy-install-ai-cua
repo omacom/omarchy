@@ -41,20 +41,23 @@ if [[ -t 0 ]]; then
   fi
 fi
 
-# The Hyprland plugin gives the driver a compositor route for input. It is
-# built against one exact Hyprland release, so it can be absent from the
-# channel or present but unresolvable against the Hyprland that is installed
-# (edge moves first), and neither undoes the driver install above. -Sp resolves
-# the transaction without root, so the mismatch is named instead of surfacing
-# as a failed sudo pacman run. Installing the plugin loads nothing: activation
-# is a deliberate step, omarchy-toggle-cua-input, because it enables compositor input.
+# The Hyprland plugin gives the driver a compositor route for input. It pins
+# the exact Hyprland build it was compiled against, so it can be absent from
+# the channel or pinned to a build other than the one installed (edge moves
+# first), and neither undoes the driver install above. The pin is compared
+# here, not left to pacman, which meets it by swapping the installed Hyprland
+# for whichever build another repository carries. Installing the plugin loads
+# nothing: activation is a deliberate step, omarchy-toggle-cua-input, because
+# it enables compositor input.
 plugin_installed=false
+installed="hyprland=$(pacman -Q hyprland | cut -d' ' -f2)"
+plugin_info=$(pacman -Si cua-hyprland-plugin 2>/dev/null || true)
+pinned=$(grep -o 'hyprland=[^ ]*' <<<"$plugin_info" | head -1 || true)
 echo ""
-if ! pacman -Si cua-hyprland-plugin &>/dev/null; then
+if [[ -z $plugin_info ]]; then
   echo "The Cua Hyprland plugin is not available in your package channel; Cua Driver works without it."
-elif ! pacman -Sp cua-hyprland-plugin &>/dev/null; then
-  pinned=$(pacman -Si cua-hyprland-plugin | grep -o 'hyprland=[^ ]*' | head -1)
-  echo "The Cua Hyprland plugin is built for ${pinned:-another Hyprland release} and this machine has hyprland=$(pacman -Q hyprland | cut -d' ' -f2); skipping it. Cua Driver works without it."
+elif [[ $pinned != "$installed" ]]; then
+  echo "The Cua Hyprland plugin is built for ${pinned:-another Hyprland build} and this machine has $installed; skipping it. Cua Driver works without it."
 else
   echo "Installing the Cua Hyprland plugin..."
   if omarchy-pkg-add cua-hyprland-plugin; then
@@ -72,5 +75,5 @@ fi
 if [[ $plugin_installed == true ]]; then
   echo "Trigger > Toggle > Cua Input enables the plugin without changing your keyboard settings."
   echo "After a plugin update, log out and back in before enabling it. The plugin pins the exact"
-  echo "Hyprland release, so updates that move Hyprland wait until it is removed."
+  echo "Hyprland build, so an update that moves Hyprland waits for the matching plugin build."
 fi
