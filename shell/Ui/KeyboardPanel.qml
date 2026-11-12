@@ -89,6 +89,11 @@ PanelWindow {
     })
   }
 
+  // Keep the card open during inline editing and let outside clicks reach
+  // other windows. The editor can take the keyboard again with a click.
+  property bool editing: false
+  readonly property bool cardOnlyInput: yielding || editing
+
   // Item that should take keyboard focus once the panel maps. Typically a
   // PanelKeyCatcher inside the panel content. Layer-shell grants focus to the
   // surface during the Exclusive prime, but Qt still needs an active-focus
@@ -148,23 +153,19 @@ PanelWindow {
   // animate, but keyboard/click ownership must release the moment the
   // logical close fires — otherwise the user is locked out until it ends.
   //
-  // Prime with Exclusive on every open, then settle on OnDemand. Hyprland
-  // focuses OnDemand when a surface first maps, but not when an already-mapped
-  // fade-out surface changes from None back to OnDemand. Exclusive also takes
-  // focus when the previously focused application has constrained the pointer.
-  // The brief prime covers both cases; OnDemand then releases compositor-wide
-  // pointer hit-testing so clicks can reach the dismissal windows below.
+  // Normal popouts prime with Exclusive, then settle on OnDemand. Hyprland
+  // does not focus an already-mapped surface that changes from None back to
+  // OnDemand during a fade, and a prior app may have constrained the pointer.
+  // An editor uses OnDemand throughout so another window can take focus
+  // immediately, even during the prime.
   WlrLayershell.keyboardFocus: open && !yielding
-    ? (focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
+    ? (editing || focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
     : WlrKeyboardFocus.None
 
   onBackingWindowVisibleChanged: beginFocusPrime()
 
-  // Full-screen layer-shell. The visible card is positioned inside via
-  // `cardOrigin`. The `mask` below makes the bar area click-through (so
-  // the user can click another bar icon while the panel is open and the
-  // activePopout coordinator swaps to that popup); everywhere else, the
-  // overlay catches the click and dismisses via the MouseArea below.
+  // A full-screen layer surface positions the card relative to the bar.
+  // The mask below controls which parts of the surface take pointer input.
   anchors {
     top: true
     bottom: true
@@ -175,12 +176,21 @@ PanelWindow {
   // Clickable region is the whole screen. Clicks in the bar strip are
   // forwarded to registered bar buttons so switching between panel icons
   // works in one click even when the overlay surface is above the bar.
-  // Yielding, only the card is: the rest reaches the windows beneath.
+  // While yielding or editing, only the card takes pointer input.
+  // Use the animated scale explicitly so the mask follows the drawn card.
   readonly property real _barStripSize: bar ? barThickness + gap : 0
+  readonly property rect cardInputRect: Qt.rect(
+    card.x + growOrigin.x * (1 - card.growScale),
+    card.y + growOrigin.y * (1 - card.growScale),
+    card.width * card.growScale,
+    card.height * card.growScale)
   mask: Region {
-    item: root.yielding ? card : null
-    width: root.screenW
-    height: root.screenH
+    x: root.cardOnlyInput ? Math.floor(root.cardInputRect.x) : 0
+    y: root.cardOnlyInput ? Math.floor(root.cardInputRect.y) : 0
+    width: !root.open ? 0 : root.cardOnlyInput
+      ? Math.ceil(root.cardInputRect.x + root.cardInputRect.width) - x : root.screenW
+    height: !root.open ? 0 : root.cardOnlyInput
+      ? Math.ceil(root.cardInputRect.y + root.cardInputRect.height) - y : root.screenH
   }
 
   // Track every layout change between the bar's contentItem and the
@@ -405,7 +415,7 @@ PanelWindow {
   MouseArea {
     id: dismissArea
     anchors.fill: parent
-    enabled: root.open
+    enabled: root.open && !root.cardOnlyInput
     acceptedButtons: Qt.AllButtons
     hoverEnabled: true
     property bool hoveringBar: false
@@ -484,7 +494,7 @@ PanelWindow {
   // Keyboard focus is None: these must catch the pointer without taking focus
   // from the panel when the cursor merely crosses onto their output.
   Variants {
-    model: root.open && !root.yielding ? Quickshell.screens : []
+    model: root.open && !root.cardOnlyInput ? Quickshell.screens : []
 
     delegate: Component {
       PanelWindow {
@@ -550,11 +560,12 @@ PanelWindow {
       }
     }
     opacity: shown
+    readonly property real growScale: 0.97 + 0.03 * shown
     transform: Scale {
       origin.x: root.growOrigin.x
       origin.y: root.growOrigin.y
-      xScale: 0.97 + 0.03 * card.shown
-      yScale: 0.97 + 0.03 * card.shown
+      xScale: card.growScale
+      yScale: card.growScale
     }
 
     // Swallow clicks on the card so they don't bubble to the dismissal
