@@ -28,6 +28,9 @@ Item {
   property string filterText: ""
   property int selectedIndex: 0
   property var apps: []
+  // Every app, counted when no search narrows the list, so the card keeps its
+  // height while typing.
+  property int totalApps: 0
 
   readonly property int iconSize: Math.round(56 * Style.fontScale)
   readonly property int labelHeight: Math.ceil(labelMetrics.height) * 2
@@ -37,7 +40,6 @@ Item {
   readonly property int cellWidth: Math.round(iconSize * 2.2)
   readonly property int cellHeight: cellPadding * 2 + iconSize + Style.spacing.md + labelHeight + Style.spacing.xs + versionHeight
   readonly property int maxColumns: 7
-  readonly property int visibleRows: 4
   readonly property int borderWidth: Math.max(1, Style.space(2))
   readonly property int contentMargin: Style.spacing.panelPadding
   readonly property int inset: contentMargin + borderWidth
@@ -50,7 +52,13 @@ Item {
   readonly property int cardWidth: Math.min(panel.width - screenMargin * 2, maxColumns * cellWidth + inset * 2)
   readonly property int columns: Math.max(1, Math.floor((cardWidth - inset * 2) / cellWidth))
   readonly property int gridWidth: columns * cellWidth
-  readonly property int cardHeight: Math.min(panel.height - screenMargin * 2, inset * 2 + headerHeight + headerSpacing + visibleRows * cellHeight)
+  // As many whole rows as fit in 60% of the screen, but never more than the
+  // apps fill.
+  readonly property int chromeHeight: inset * 2 + headerHeight + headerSpacing
+  readonly property int fittingRows: Math.max(1, Math.floor((panel.height * 0.6 - chromeHeight) / cellHeight))
+  readonly property int filledRows: Math.max(1, Math.ceil(totalApps / columns))
+  readonly property int visibleRows: Math.min(fittingRows, filledRows)
+  readonly property int cardHeight: Math.min(panel.height - screenMargin * 2, chromeHeight + visibleRows * cellHeight)
 
   function open() {
     root.selectedIndex = 0
@@ -128,6 +136,7 @@ Item {
     root.appsStale = false
     var rows = root.appLibrary ? root.appLibrary.sortedEntries(root.filterText) : []
     root.apps = rows.map(function(row) { return row.entry })
+    if (root.filterText === "") root.totalApps = root.apps.length
     root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.apps.length - 1))
     grid.positionViewAtBeginning()
   }
