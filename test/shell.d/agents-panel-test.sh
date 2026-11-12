@@ -41,6 +41,25 @@ assertEqual(subscribed({ ...historyOnly, tierLabel: 'X Premium+' }), true, 'a pl
 assertEqual(subscribed({ ...historyOnly, limits: [{ label: 'Weekly', percent: 0.04 }] }), true, 'kept limits earn a section')
 assertEqual(subscribed({ ...historyOnly, spend: { amount: 1.25, days: [] } }), true, 'spend alone earns a section')
 
+// The tokens-by-day chart scales each day's bar to the week's busiest day,
+// and marks today's row by the local calendar date. A record without local
+// history still carries seven zeroed days, so the chart waits for the
+// collector's flag rather than reading the week's length alone.
+const chartFunctions = ['todayDate', 'weekPeak', 'hasTokenHistory'].map(name => {
+  const match = panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))
+  return match ? match[0] : ''
+}).join('\n')
+// Local noon pins the date: the same calendar day in every timezone.
+const chart = new Function('root', chartFunctions + '\nreturn {todayDate, weekPeak, hasTokenHistory}')(
+  { nowMs: new Date(2026, 10, 12, 12).getTime() })
+assertEqual(chart.todayDate(), '2026-11-12', 'the chart marks today by the padded local calendar date')
+assertEqual(chart.weekPeak({ recentDays: [{ messageCount: 5 }, { messageCount: 120 }, { messageCount: 0 }] }), 120, 'the chart bars scale to the busiest day of the week')
+assertEqual(chart.weekPeak(null), 0, 'a provider without history has no peak')
+const quietWeek = Array.from({ length: 7 }, (_, day) => ({ date: '2026-11-1' + day, messageCount: 0 }))
+assertEqual(chart.hasTokenHistory({ recentDays: quietWeek, hasLocalStats: false }), false, 'a limit-only agent charts nothing on its zero-filled week')
+assertEqual(chart.hasTokenHistory({ recentDays: quietWeek, hasLocalStats: true }), true, 'a quiet week on an agent that collects usage still charts')
+assertEqual(chart.hasTokenHistory(null), false, 'no provider, no chart')
+
 // A reworded collector line would silently fall back to English, so every
 // fixed help line the collectors cache must still be one the panel maps.
 for (const name of ['claude', 'codex', 'grok', 'fireworks']) {

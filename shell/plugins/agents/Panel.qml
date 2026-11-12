@@ -1244,6 +1244,62 @@ Panel {
     return Qt.locale(Commons.I18n.formatLocale).dayName([7, 1, 2, 3, 4, 5, 6][parsed.getDay()])
   }
 
+  // Short weekday for the chart's row labels; the hero spells the day out,
+  // the chart has 52px to work with.
+  function dayShort(date) {
+    var parsed = new Date(String(date || "") + "T00:00:00")
+    if (isNaN(parsed.getTime())) return String(date || "")
+    return Qt.locale(Commons.I18n.formatLocale).dayName([7, 1, 2, 3, 4, 5, 6][parsed.getDay()], Locale.ShortFormat)
+  }
+
+  // ------------------------------------------------------------- tokens by day
+  //
+  // The per-day usage the hero's line sums up: one bar per day of the last
+  // week, per provider.
+
+  // Local calendar date, recomputed from nowMs so a panel left open across
+  // midnight moves the "Today" row with the clock.
+  function todayDate() {
+    var now = new Date(root.nowMs)
+    return now.getFullYear()
+      + "-" + String(now.getMonth() + 1).padStart(2, "0")
+      + "-" + String(now.getDate()).padStart(2, "0")
+  }
+
+  function dayLabel(date, today) {
+    if (today) return Commons.I18n.t("agents.dayToday")
+    return dayShort(date)
+  }
+
+  function weekPeak(p) {
+    var days = p ? (p.recentDays || []) : []
+    var peak = 0
+    for (var i = 0; i < days.length; i++) peak = Math.max(peak, Number(days[i].messageCount || 0))
+    return peak
+  }
+
+  // A record without local history still carries seven zeroed days from the
+  // empty stats block, so length alone can't tell a quiet week from no data
+  // at all: the collector flags what it actually collected.
+  function hasTokenHistory(p) {
+    return !!p && p.hasLocalStats !== false && (p.recentDays || []).length > 0
+  }
+
+  function dayTooltip(day, today, provider) {
+    if (!day) return ""
+    var parsed = new Date(String(day.date) + "T00:00:00")
+    var label = isNaN(parsed.getTime()) ? String(day.date) : dayName(day.date)
+    var count = Number(day.messageCount || 0)
+    var text = label + " · " + Commons.I18n.tn("agents.tokensCount", count).arg(usage.formatTokenCount(count))
+    // Prompt and session counts only exist for today, so they ride along here
+    // instead of taking a section of their own. Billing-API agents never
+    // count prompts, and "0 prompts" would read as a quiet day, not a gap.
+    if (today && provider && provider.hasPromptStats !== false)
+      text += " · " + Commons.I18n.tn("agents.dayPrompts", Number(provider.todayPrompts || 0)).arg(Commons.I18n.formatNumber(Number(provider.todayPrompts || 0)))
+        + " · " + Commons.I18n.tn("agents.daySessions", Number(provider.todaySessions || 0)).arg(Commons.I18n.formatNumber(Number(provider.todaySessions || 0)))
+    return text
+  }
+
   // Only speaks up when the numbers cover more than this machine.
   function footerText() {
     if (usage.syncStatusText !== "") return usage.syncStatusText
@@ -2571,6 +2627,38 @@ Panel {
       }
     }
 
+    // The last week of this provider's local usage, one bar per day. The
+    // hero's line adds it up; this is where a quiet day or a spike shows.
+    Column {
+      id: tokensSection
+      readonly property var days: section.provider ? (section.provider.recentDays || []) : []
+      readonly property real peak: Math.max(1, root.weekPeak(section.provider))
+      visible: root.hasTokenHistory(section.provider)
+      width: parent.width
+      spacing: Style.space(6)
+
+      PanelSectionHeader {
+        width: parent.width
+        text: Commons.I18n.t("agents.tokensByDay")
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+      }
+
+      Repeater {
+        model: tokensSection.days
+
+        DayRow {
+          required property var modelData
+          width: tokensSection.width
+          day: modelData
+          ratio: Number(modelData.messageCount || 0) / tokensSection.peak
+          readonly property bool isToday: String(modelData.date || "") === root.todayDate()
+          today: isToday
+          tooltip: root.dayTooltip(modelData, isToday, section.provider)
+        }
+      }
+    }
+
     Repeater {
       model: section.multi ? section.accounts : []
 
@@ -3138,6 +3226,79 @@ Panel {
         x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
         color: meter.alarming ? root.urgent : root.foreground
       }
+    }
+  }
+
+  // One day of a provider's local usage: short weekday, bar against the
+  // week's busiest day (not a fixed scale, so the shape survives a quiet
+  // week), and the day's token count on the shared value column.
+  component DayRow: Item {
+    id: dayRow
+    property var day: null
+    property real ratio: 0
+    property bool today: false
+    property string tooltip: ""
+
+    implicitHeight: Math.max(dayLabel.implicitHeight, dayValue.implicitHeight) + Style.spacing.sm
+
+    HoverHandler { id: dayHover }
+
+    PanelToolTip {
+      visible: dayHover.hovered && dayRow.tooltip !== ""
+      text: dayRow.tooltip
+    }
+
+    Text {
+      id: dayLabel
+      textFormat: Text.PlainText
+      text: root.dayLabel(dayRow.day ? dayRow.day.date : "", dayRow.today)
+      color: dayRow.today ? root.foreground : root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      font.bold: dayRow.today
+      anchors.left: parent.left
+      anchors.verticalCenter: parent.verticalCenter
+      width: Style.space(52)
+      elide: Text.ElideRight
+    }
+
+    Rectangle {
+      id: dayTrack
+      anchors.left: dayLabel.right
+      anchors.right: dayValue.left
+      anchors.leftMargin: Style.space(8)
+      anchors.rightMargin: Style.space(10)
+      anchors.verticalCenter: parent.verticalCenter
+      height: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
+      radius: height / 2
+      color: root.track
+
+      Rectangle {
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        height: parent.height
+        radius: parent.radius
+        width: parent.width * root.clamp(dayRow.ratio, 0, 1)
+        color: dayRow.today ? root.foreground : root.alpha(root.foreground, 0.55)
+
+        Behavior on width {
+          NumberAnimation { duration: Style.duration(160); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+        }
+      }
+    }
+
+    Text {
+      id: dayValue
+      textFormat: Text.PlainText
+      text: dayRow.day ? usage.formatTokenCount(Number(dayRow.day.messageCount || 0)) : ""
+      color: dayRow.today ? root.foreground : root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      font.bold: dayRow.today
+      horizontalAlignment: Text.AlignRight
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      width: root.valueColumnWidth
     }
   }
 }

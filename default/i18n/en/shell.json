@@ -135,9 +135,23 @@
   "agents.switchAutoAt": "Switch here automatically at %1%",
   "agents.syncMkdirFailed": "Usage sync mkdir failed",
   "agents.syncScanFailed": "Usage sync scan failed",
+  "agents.dayPrompts": {
+    "one": "%1 prompt",
+    "other": "%1 prompts"
+  },
+  "agents.daySessions": {
+    "one": "%1 session",
+    "other": "%1 sessions"
+  },
+  "agents.dayToday": "Today",
   "agents.theme": "Theme",
   "agents.tierPrepaid": "Prepaid",
   "agents.title": "Agents",
+  "agents.tokensByDay": "Tokens by day",
+  "agents.tokensCount": {
+    "one": "%1 token",
+    "other": "%1 tokens"
+  },
   "agents.tokensThisWeek": {
     "one": "%1 token this week",
     "other": "%1 tokens this week"
