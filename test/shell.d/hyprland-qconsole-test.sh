@@ -286,18 +286,21 @@ handlers["window.move_to_workspace"]()
 top, right, bottom, left = gaps()
 assert(left == 435 and right == 435, "moving it back off recenters the panel")
 
--- A portrait console is full width either way, so splitting it moves no gap.
--- The border and inner gap still have to follow the window count.
+-- A portrait console is full width either way, so splitting it moves no outer
+-- gap, and with no inner gap configured the border is the only thing that
+-- changes. It still has to follow the window count.
+gaps_in = 0
 monitor = { width = 1080, height = 1920, scale = 1, transform = 0, reserved = { top = 0, bottom = 0, left = 0, right = 0 } }
 workspace = { name = "special:qconsole", visible = true, monitor = monitor, windows = 1 }
 handlers["monitor.layout_changed"]()
 assert(current().no_border == true, "a lone portrait console has no border")
 workspace.windows = 2
 handlers["window.open"]()
-assert(current().no_border == false and current().gaps_in == 5, "splitting a portrait console still adds the border and gap")
+assert(current().no_border == false, "splitting a portrait console with no gap still adds the border")
 workspace.windows = 1
 handlers["window.destroy"]()
-assert(current().no_border == true and current().gaps_in == 0, "and closing back to one removes them")
+assert(current().no_border == true, "and closing back to one removes it")
+gaps_in = 5
 
 -- The console loads before the user's own appearance settings, so a split
 -- console has to pick up their gap once the reload has applied it.
