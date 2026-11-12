@@ -119,13 +119,14 @@ pass "a wake overlapping a blank waits for it"
 record="$test_tmp/state/omarchy/brightness-keyboard-asus::kbd_backlight"
 
 # A reboot taken while the keys are blanked: the runtime directory is gone and
-# systemd-backlight brings the LED back at the 0 it saved at shutdown.
+# systemd-backlight brings the LED back at the 0 it saved at shutdown. The
+# session start runs restore (default/hypr/autostart.lua).
 echo 3 >"$level_file"
 run_keyboard off
 rm -rf "$test_tmp/runtime" && mkdir -p "$test_tmp/runtime"
 echo 0 >"$level_file"
 run_keyboard restore
-[[ $(level) == "3" ]] || fail "a wake after a reboot taken while blanked restores the level from before the blank (got $(level))"
+[[ $(level) == "3" ]] || fail "the restore at session start after a reboot taken while blanked brings back the level from before the blank (got $(level))"
 [[ ! -e $record ]] || fail "the restore spends the record"
 pass "the blank's record survives a reboot"
 
