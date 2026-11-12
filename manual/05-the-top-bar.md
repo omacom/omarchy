@@ -95,6 +95,7 @@ The same things have commands, which is what you want for a [dotfiles](31-dotfil
 ```bash
 omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
+omarchy bar max-width 2560     # a centered strip no wider than this; full spans the edge
 omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
 omarchy bar set omarchy.clock format "HH:mm"
@@ -136,6 +137,8 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
 Every widget is one entry in one of the five layout arrays, and its settings sit inline on that entry — there's no separate settings file and no `config` sub-object. The clock's `format`, `formatAlt` (what right-click cycles to), and `verticalFormat` all live right there on `{ "id": "omarchy.clock" }`.
 
 `center` is the box in the middle of the bar: everything in it is centered on the screen as one group. `centerBegin` and `centerEnd` hang off either side of the box, which is how the clock stays dead center even as the weather and update badge come and go. Put more than one widget in `center` and they're centered together; leave it empty and `centerBegin` and `centerEnd` meet in the middle of the bar.
+
+`maxWidth`, also under `bar`, caps how far the bar runs along its edge, in pixels. On a super-ultrawide the stock bar puts the workspaces at one end and the clock and tray more than a meter away at the other; a cap of `2560` keeps it a centered strip you can take in at a glance, and on a vertical bar it caps the height instead. Leave it out and the bar spans the edge. `omarchy bar max-width 2560` sets it, and `omarchy bar max-width full` takes it off again.
 
 One rule worth internalizing: **once you have your own `shell.json`, it's canonical**. Until you customize anything, the shell reads Omarchy's default file. The moment you drag a widget, run `omarchy bar`, or edit the file yourself, you own it — there's no deep merge, so new default widgets in future Omarchy releases won't appear on your bar automatically. `omarchy bar defaults` puts the shipped layout back whenever you want a clean slate.
 

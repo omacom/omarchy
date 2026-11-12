@@ -715,6 +715,19 @@ Item {
   readonly property bool vertical: position === "left" || position === "right"
   readonly property int barSize: vertical ? Style.bar.sizeVertical : Style.bar.sizeHorizontal
 
+  // How far the bar runs along its edge at most, in pixels, or 0 for the
+  // whole edge (bar.maxWidth). A capped bar is a centered strip, so on an
+  // ultrawide the clock and the tray stay within one glance instead of a
+  // meter apart. On a vertical bar the cap is its height.
+  property int maxWidth: 0
+
+  // Where a screen's strip starts in from each end of its edge, so a capped
+  // bar sits centered; zero for a bar that runs the whole edge.
+  function insetFor(screen) {
+    if (!screen) return 0
+    return BarModel.stripInset(root.vertical ? screen.height : screen.width, root.maxWidth)
+  }
+
   // Display cutouts (a camera notch) the platform's own package describes in
   // the fixed platform root, which no environment variable moves. Most machines
   // have none. It is read as the shell starts (blockLoading), so a bar surface
@@ -794,6 +807,7 @@ Item {
     var config = Util.isPlainObject(barConfig) ? barConfig : fallbackBarConfig
 
     position = normalizePosition(config.position)
+    maxWidth = BarModel.normalizeMaxWidth(config.maxWidth)
     // opaque, glassy or none; a config from before background says
     // transparent instead.
     var look = config.background || (config.transparent === true ? "none" : "opaque")
@@ -1352,21 +1366,23 @@ Item {
   }
 
   // How far past the bar the drag point sits, in screen coordinates: past
-  // the strip its screen's bar surface draws, thickness deep along its edge.
-  // The strip, not the window, is the boundary: the window spans the whole
-  // screen (BarPanel).
+  // the strip its screen's bar surface draws, thickness deep along its edge
+  // and, on a capped bar, in from the edge's ends by the inset. The strip,
+  // not the window, is the boundary: the window spans the whole screen
+  // (BarPanel).
   function moduleRemoveDistance(screenPoint) {
     var screen = barDragScreen
     if (!screen) return 0
     var thickness = thicknessFor(screen)
+    var inset = insetFor(screen)
     var x = screenPoint.x
     var y = screenPoint.y
     if (vertical) {
       if (position === "right") x -= Math.max(0, screen.width - thickness)
-      return BarModel.dragDistanceOutside({ x: x, y: y }, thickness, screen.height)
+      return BarModel.dragDistanceOutside({ x: x, y: y - inset }, thickness, screen.height - inset * 2)
     }
     if (position === "bottom") y -= Math.max(0, screen.height - thickness)
-    return BarModel.dragDistanceOutside({ x: x, y: y }, screen.width, thickness)
+    return BarModel.dragDistanceOutside({ x: x - inset, y: y }, screen.width - inset * 2, thickness)
   }
 
   // Arming closes the dragged widget's room, and disarming opens it again
@@ -1512,18 +1528,23 @@ Item {
   function refreshTransparentForeground() {
     if (!requestedTransparent || transparentForegroundProc.running) return
 
-    transparentForegroundProc.command = [
+    var command = [
       "omarchy-bar-text-color",
       root.position,
       String(root.barSize),
       colorHex(root.themeForeground),
       colorHex(root.themeContrastForeground)
     ]
+    // A capped bar covers only its centered strip of the wallpaper, so the
+    // sample is taken there, not along the whole edge.
+    if (root.maxWidth > 0) command.push("--max-width", String(root.maxWidth))
+    transparentForegroundProc.command = command
     transparentForegroundProc.running = true
   }
 
   onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
   onPositionChanged: scheduleTransparentForegroundRefresh()
+  onMaxWidthChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
 
@@ -1773,6 +1794,8 @@ Item {
 
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
+    // How far in from each end of the edge the strip starts on a capped bar.
+    readonly property int inset: root.insetFor(screen)
     // Where the center box starts along the bar, set by the drawn center
     // sections. Hovering past it, over the clock, its trailing widgets and the
     // right section, leaves the indicator peek shut.
@@ -1819,14 +1842,15 @@ Item {
       id: noInputRegion
     }
 
-    // The bar itself, along its screen edge.
+    // The bar itself, along its screen edge; a capped bar's strip sits
+    // centered along it, inset from both ends.
     Item {
       id: barStrip
 
-      x: root.position === "right" ? parent.width - barWindow.thickness : 0
-      y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
-      width: root.vertical ? barWindow.thickness : parent.width
-      height: root.vertical ? parent.height : barWindow.thickness
+      x: root.position === "right" ? parent.width - barWindow.thickness : (root.vertical ? 0 : barWindow.inset)
+      y: root.position === "bottom" ? parent.height - barWindow.thickness : (root.vertical ? barWindow.inset : 0)
+      width: root.vertical ? barWindow.thickness : parent.width - barWindow.inset * 2
+      height: root.vertical ? parent.height - barWindow.inset * 2 : barWindow.thickness
 
       Rectangle {
         anchors.fill: parent

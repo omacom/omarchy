@@ -14,6 +14,25 @@ function normalizePosition(value) {
   return /^(top|bottom|left|right)$/.test(next) ? next : "top"
 }
 
+// The bar's cap along its edge in whole pixels, or 0 for the whole edge:
+// what shell.json's bar.maxWidth says, with anything that is not a positive
+// number meaning no cap.
+function normalizeMaxWidth(value) {
+  if (typeof value !== "number" && typeof value !== "string") return 0
+  var cap = Math.round(Number(value))
+  return isFinite(cap) && cap > 0 ? cap : 0
+}
+
+// How far in from each end of a screen edge `length` long a bar capped at
+// `maxWidth` starts, so the strip sits centered. Zero with no cap, or one
+// the edge already fits inside.
+function stripInset(length, maxWidth) {
+  var available = Number(length)
+  var cap = normalizeMaxWidth(maxWidth)
+  if (!isFinite(available) || cap <= 0 || cap >= available) return 0
+  return Math.round((available - cap) / 2)
+}
+
 function entrySettings(entry) {
   if (!isPlainObject(entry)) return {}
   var copy = {}
@@ -717,6 +736,8 @@ if (typeof module !== "undefined") {
     slotEdge: slotEdge,
     sections: sections,
     normalizePosition: normalizePosition,
+    normalizeMaxWidth: normalizeMaxWidth,
+    stripInset: stripInset,
     entrySettings: entrySettings,
     entryId: entryId,
     moduleString: moduleString,
