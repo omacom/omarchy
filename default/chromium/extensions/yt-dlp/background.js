@@ -18,8 +18,14 @@ const FORWARDED_HEADERS = ['cookie', 'authorization', 'referer', 'origin', 'user
 
 const WATCHED = { urls: ['<all_urls>'], types: ['media', 'xmlhttprequest', 'other'] };
 
-// Request headers by requestId, held until the response says what it is.
+// Request headers by requestId, held until the request finishes. A redirect
+// sends the request again under the same id, so its headers are replaced.
 const pendingHeaders = new Map();
+
+// Each navigation in a tab, including a single-page app moving to another
+// video, starts a new generation. A request that began in an earlier one
+// belongs to the previous video and must not fill the cleared slot.
+const generations = new Map();
 
 // Storage writes are chained so two streams that start together can't both
 // see an empty slot and overwrite each other.
@@ -35,6 +41,7 @@ function tabKey(tabId) {
 }
 
 function forget(tabId) {
+  generations.set(tabId, (generations.get(tabId) || 0) + 1);
   return serially(() => chrome.storage.session.remove(tabKey(tabId)));
 }
 
@@ -73,7 +80,7 @@ chrome.webRequest.onSendHeaders.addListener(
       const name = h.name.toLowerCase();
       if (FORWARDED_HEADERS.includes(name) && h.value) headers[name] = h.value;
     }
-    pendingHeaders.set(details.requestId, headers);
+    pendingHeaders.set(details.requestId, { headers, generation: generations.get(details.tabId) || 0 });
   },
   WATCHED,
   ['requestHeaders', 'extraHeaders'],
@@ -81,19 +88,23 @@ chrome.webRequest.onSendHeaders.addListener(
 
 chrome.webRequest.onHeadersReceived.addListener(
   (details) => {
-    const headers = pendingHeaders.get(details.requestId) || {};
-    pendingHeaders.delete(details.requestId);
-    if (details.tabId < 0 || details.statusCode >= 400) return;
+    // A redirect is followed by the response that matters, with its own headers.
+    if (details.tabId < 0 || details.statusCode < 200 || details.statusCode >= 300) return;
+
+    const pending = pendingHeaders.get(details.requestId);
+    if (!pending || pending.generation !== (generations.get(details.tabId) || 0)) return;
 
     const kind = streamKind(details);
     if (!kind) return;
 
     const key = tabKey(details.tabId);
     serially(async () => {
+      if (pending.generation !== (generations.get(details.tabId) || 0)) return;
       const seen = (await chrome.storage.session.get(key))[key] || {};
       // The first manifest is the master playlist; later ones are its variants.
-      if (seen[kind]) return;
-      seen[kind] = { url: details.url, headers };
+      // The same one fetched again carries the player's renewed credentials.
+      if (seen[kind] && seen[kind].url !== details.url) return;
+      seen[kind] = { url: details.url, headers: pending.headers };
       await chrome.storage.session.set({ [key]: seen });
     });
   },
@@ -101,9 +112,11 @@ chrome.webRequest.onHeadersReceived.addListener(
   ['responseHeaders'],
 );
 
-chrome.webRequest.onErrorOccurred.addListener((details) => {
-  pendingHeaders.delete(details.requestId);
-}, WATCHED);
+for (const event of [chrome.webRequest.onCompleted, chrome.webRequest.onErrorOccurred]) {
+  event.addListener((details) => {
+    pendingHeaders.delete(details.requestId);
+  }, WATCHED);
+}
 
 // A new page, or a single-page app moving to another video, starts over.
 chrome.webNavigation.onCommitted.addListener((details) => {
@@ -116,6 +129,7 @@ chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   forget(tabId);
+  generations.delete(tabId);
 });
 
 async function streamFor(tabId) {
