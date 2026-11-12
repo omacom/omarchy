@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# omarchy:summary=Open a tray item's own context menu at the pointer
+# omarchy:args=<item-id>
+# omarchy:examples=omarchy tray context menu wine-0x200d4-0
+# omarchy:hidden=true
+
+# The bar runs this on right-click for tray items that publish no D-Bus menu,
+# such as Windows apps under Wine. Quickshell can only show D-Bus menus, so
+# this asks the app over StatusNotifierItem.ContextMenu to draw its own.
+
+want=${1:?item id required}
+
+# Find the item's bus name and object path by its Id.
+target=""
+while IFS= read -r item; do
+  if [[ $item == */* ]]; then
+    service=${item%%/*} path=/${item#*/}
+  else
+    service=$item path=/StatusNotifierItem
+  fi
+  id=$(busctl --user --json=short get-property "$service" "$path" org.kde.StatusNotifierItem Id 2>/dev/null | jq -r .data)
+  if [[ $id == "$want" ]]; then
+    target="$service $path"
+    break
+  fi
+done < <(busctl --user --json=short get-property org.kde.StatusNotifierWatcher /StatusNotifierWatcher \
+  org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems | jq -r '.data[]')
+
+[[ -n $target ]] || exit 1
+read -r service path <<<"$target"
+
+# Wine places the menu at the point it is given, in X11 root coordinates.
+# Convert the pointer from Hyprland's layout to the Xwayland output it is on.
+x=0 y=0
+read -r cx cy < <(hyprctl cursorpos -j | jq -r '"\(.x) \(.y)"')
+monitor=$(hyprctl monitors -j | jq -c --argjson cx "$cx" --argjson cy "$cy" \
+  'first(.[] | select($cx >= .x and $cy >= .y and $cx < .x + .width / .scale and $cy < .y + .height / .scale))')
+if [[ -n $monitor ]]; then
+  read -r name mx my mw <<<"$(jq -r '"\(.name) \(.x) \(.y) \(.width / .scale)"' <<<"$monitor")"
+  # xrandr lists outputs as "0: +NAME W/mmxH/mm+X+Y NAME".
+  geometry=$(xrandr --listmonitors 2>/dev/null | awk -v n="$name" '$NF == n { print $3 }')
+  if [[ $geometry =~ ^([0-9]+)/[0-9]+x([0-9]+)/[0-9]+\+([0-9]+)\+([0-9]+)$ ]]; then
+    read -r x y < <(awk -v cx="$cx" -v cy="$cy" -v mx="$mx" -v my="$my" -v mw="$mw" \
+      -v xw="${BASH_REMATCH[1]}" -v xx="${BASH_REMATCH[3]}" -v xy="${BASH_REMATCH[4]}" \
+      'BEGIN { s = xw / mw; printf "%d %d\n", xx + (cx - mx) * s, xy + (cy - my) * s }')
+  fi
+fi
+
+busctl --user call "$service" "$path" org.kde.StatusNotifierItem ContextMenu ii "$x" "$y"

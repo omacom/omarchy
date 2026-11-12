@@ -142,7 +142,17 @@ BarWidget {
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
-    if (!item || !item.menu) {
+    if (!item) return
+
+    // Apps that draw their own context menu (Windows apps under Wine) publish
+    // no D-Bus menu, and Quickshell can only show D-Bus menus. Ask the app
+    // for its menu instead.
+    if (!item.hasMenu) {
+      Util.execArgv(["omarchy-tray-context-menu", item.id])
+      return
+    }
+
+    if (!item.menu) {
       var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
       item.display(anchorItem.QsWindow.window, point.x, point.y)
       return
@@ -916,6 +926,14 @@ BarWidget {
         } else {
           trayItemRoot.modelData.activate()
         }
+      }
+      // A double-click's second click lands here, not in onClicked. Send it on
+      // as a second activate: tray hosts have no double-click call, so Wine
+      // turns two activates in quick succession into one, which Windows apps
+      // like Battle.net need before they reopen.
+      onDoubleClicked: function(mouse) {
+        if (mouse.button === Qt.LeftButton && !trayItemRoot.modelData.onlyMenu)
+          trayItemRoot.modelData.activate()
       }
       onWheel: function(wheel) {
         trayItemRoot.modelData.scroll(wheel.angleDelta.y, false)

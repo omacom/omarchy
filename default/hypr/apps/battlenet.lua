@@ -1,10 +1,10 @@
 -- Battle.net launches under Proton; all its windows share class steam_app_battlenet.
 
--- The actual launcher: float-centered.
+-- The launcher floats. Its tray menu has the same title, so set no size or
+-- position here: Battle.net restores the launcher's own and places the menu
+-- where it was opened.
 o.window({ class = "^steam_app_battlenet$", title = "^Battle\\.net$" }, {
   float = true,
-  center = true,
-  size = { 1280, 800 },
 })
 
 -- Installer: drop decorations and backdrop blur/shadow so the Blizzard chrome
