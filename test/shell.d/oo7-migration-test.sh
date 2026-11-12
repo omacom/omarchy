@@ -17,8 +17,9 @@ stub() {
 }
 
 stub systemctl "echo \"systemctl \$*\" >>\"$calls\"; [[ ! -e $test_tmp/no-user-manager ]] || exit 1; [[ \$* != *is-active* || \$* == *default.target* ]]"
-stub sudo "echo \"sudo \$*\" >>\"$calls\"; [[ ! -e $test_tmp/pacman-fails ]] && touch $test_tmp/oo7-installed"
-stub omarchy-pkg-missing "[[ ! -e $test_tmp/oo7-installed ]]"
+# oo7-installed holds the installed oo7 version; pacman -T accepts 0.7.1 and up.
+stub sudo "echo \"sudo \$*\" >>\"$calls\"; [[ ! -e $test_tmp/pacman-fails ]] && echo 0.7.1 >$test_tmp/oo7-installed"
+stub pacman "[[ \$1 == -T && \$2 == 'oo7>=0.7.1' && -e $test_tmp/oo7-installed ]] && (( \$(vercmp \$(<$test_tmp/oo7-installed) 0.7.1) >= 0 ))"
 stub systemd-creds "echo \"systemd-creds \$*\" >>\"$calls\"; cat >\"\${@: -1}\""
 stub omarchy-keyring-repair "echo \"omarchy-keyring-repair\" >>\"$calls\"; [[ ! -e $test_tmp/repair-fails ]]"
 cp "$ROOT/bin/omarchy-keyring-seal" "$stubs/"
@@ -58,7 +59,7 @@ grep -q 'Secret=oo7-portal' "$home/.config/xdg-desktop-portal/hyprland-portals.c
 pass "migration moves a stock keyring to oo7"
 
 # The swap is one conflict-resolving transaction, before the daemon starts with the credential.
-grep -q 'sudo pacman -S --noconfirm --needed --ask 4 oo7 gcr' "$calls" || fail "packages swap in one transaction"
+grep -qF 'sudo pacman -S --noconfirm --needed --ask 4 oo7>=0.7.1 gcr' "$calls" || fail "packages swap in one transaction"
 seal_line=$(grep -n 'systemd-creds encrypt' "$calls" | cut -d: -f1)
 grep -q 'enable oo7-daemon.service' "$calls" || fail "oo7 is enabled"
 start_line=$(grep -n 'start oo7-daemon.service' "$calls" | cut -d: -f1)
@@ -154,6 +155,16 @@ repair_line=$(grep -n 'omarchy-keyring-repair' "$calls" | cut -d: -f1)
 swap_line=$(grep -n 'sudo pacman' "$calls" | cut -d: -f1)
 (( repair_line < swap_line )) || fail "the repair runs before the package swap"
 pass "migration repairs the keyring before the package swap"
+
+# An oo7 older than 0.7.1 can't read plain-text keyrings, so it's upgraded in the swap.
+echo 0.6.0 >"$test_tmp/oo7-installed"
+home=$(new_home old-oo7)
+seed_keyring "$home"
+: >"$calls"
+run_migration "$home" >/dev/null 2>&1 || fail "migration runs with an older oo7"
+grep -qF 'sudo pacman -S --noconfirm --needed --ask 4 oo7>=0.7.1 gcr' "$calls" || fail "an older oo7 is upgraded"
+[[ $(<"$test_tmp/oo7-installed") == 0.7.1 ]] || fail "oo7 is at 0.7.1 after the swap"
+pass "migration upgrades an oo7 older than 0.7.1"
 
 # If the package swap fails, the migration stays pending and the old keyring comes back.
 rm -f "$test_tmp/oo7-installed"

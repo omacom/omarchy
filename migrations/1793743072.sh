@@ -21,8 +21,11 @@ omarchy-keyring-repair || restore_gnome_keyring
 
 # One transaction with --ask 4: oo7 conflicts with gnome-keyring, and removing
 # gnome-keyring first would leave omarchy's org.freedesktop.secrets unsatisfied.
-if omarchy-pkg-missing oo7 gcr; then
-  sudo pacman -S --noconfirm --needed --ask 4 oo7 gcr || restore_gnome_keyring
+# oo7 before 0.7 can't read gnome-keyring's plain-text keyrings, so an older one,
+# installed or the only one a mirror has, fails the swap and leaves this pending.
+oo7_min="oo7>=0.7.1"
+if ! pacman -T "$oo7_min" gcr >/dev/null; then
+  sudo pacman -S --noconfirm --needed --ask 4 "$oo7_min" gcr || restore_gnome_keyring
 fi
 
 # This copy, and the login.keyring oo7 leaves behind, still hold the secrets in
