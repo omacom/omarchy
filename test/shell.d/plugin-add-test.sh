@@ -331,4 +331,30 @@ update(env, new)
 assert (plugins / new).is_dir() and not (plugins / old).exists()
 assert json.loads(config.read_text())["plugins"][0]["custom"] == {"text": old}
 print("PASS: interrupted config-first migration resolves the manifest and resumes its directory move", flush=True)
+# These paths must still produce shell-usable defaults and removable links.
+errors = []
+for state in ("missing", "blank"):
+  case, plugins, config, original, env = fixture("config-" + state)
+  if state == "missing":
+    config.unlink()
+  else:
+    config.write_text(" \n")
+  result = subprocess.run([str(root / "bin/omarchy-plugin-update"), old, "--yes"], env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+  expected = json.loads((root / "config/omarchy/shell.json").read_text())
+  expected["pluginIdAliases"] = {old: new}
+  try:
+    actual = json.loads(config.read_text())
+  except ValueError:
+    actual = None
+  if result.returncode or actual != expected:
+    errors.append(state + " config did not preserve effective defaults")
+case, plugins, config, original, env = fixture("dangling-remove")
+link = plugins / "acme.broken"
+link.symlink_to(case / "removed-source")
+result = subprocess.run([str(root / "bin/omarchy-plugin-remove"), "acme.broken", "--yes"], env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+if result.returncode or link.is_symlink():
+  errors.append("dangling plugin link cannot be removed")
+assert not errors, errors
+print("PASS: missing/blank config starts from complete defaults and dangling links remain removable", flush=True)
+
 PY

@@ -38,9 +38,19 @@ def installations():
         found.setdefault(key, []).append(folder)
   return found
 
-def read_config():
+def read_config(effective=False):
   raw = config.read_bytes() if config.exists() else None
-  value = json.loads(raw) if raw is not None else {}
+  if raw is not None and raw.strip():
+    value = json.loads(raw)
+  elif effective:
+    # A user config replaces defaults entirely in the shell. Materialize the
+    # complete defaults, not an alias-only object that hides the normal bar.
+    defaults = Path(os.environ["OMARCHY_PATH"]) / "config/omarchy/shell.json"
+    value = json.loads(defaults.read_bytes())
+    if not isinstance(value, dict) or value.get("version") != 1:
+      raise ValueError("cannot migrate without valid shell configuration defaults")
+  else:
+    value = {}
   if not isinstance(value, dict):
     raise ValueError("shell.json must contain an object")
   return raw, value
@@ -83,7 +93,7 @@ def directory(key, found):
   if matches:
     return matches[0]
   folder = plugins / key
-  if folder.is_dir():
+  if folder.is_dir() or folder.is_symlink():
     return folder
   raise ValueError("plugin '" + key + "' is not installed")
 
@@ -129,7 +139,7 @@ def migrate(folder, old_id):
     if info.st_uid != os.getuid() or info.st_nlink != 1 or info.st_mode & 0o077:
       raise ValueError("unsafe plugin migration lock")
     fcntl.flock(lock, fcntl.LOCK_EX)
-    original, value = read_config()
+    original, value = read_config(effective=True)
     mapping = aliases(value)
     refs = []
 
