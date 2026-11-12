@@ -10,6 +10,10 @@ end
 
 o.shell_quote = shell_quote
 
+-- Chromium-based browsers, web apps included. They draw their own frame with
+-- maximize and close buttons, so floating workspaces give them no titlebar.
+o.chromium_browsers = "((google-)?[cC]hrom(e|ium)|[bB]rave-browser|[mM]icrosoft-edge|Vivaldi-stable|helium)"
+
 local function file_exists(path)
   local file = io.open(path, "r")
   if file then
