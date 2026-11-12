@@ -64,9 +64,13 @@ function osIcon(os) {
 function accountLabel(account, tr) {
   var t = translator(tr)
   if (!account) return t("tailscale.unknownAccount", "Unknown account")
-  if (account.nickname) return String(account.nickname)
+  var nickname = String(account.nickname || "")
+  var accountName = String(account.account || "")
+  // A nickname that just mirrors the login name adds nothing — prefer the
+  // tailnet name so multiple profiles on one account stay distinguishable.
+  if (nickname !== "" && nickname !== accountName) return nickname
   if (account.tailnet) return String(account.tailnet)
-  if (account.account) return String(account.account)
+  if (accountName !== "") return accountName
   return String(account.id || t("tailscale.unknownAccount", "Unknown account"))
 }
 
