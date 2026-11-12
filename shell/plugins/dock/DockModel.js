@@ -170,6 +170,21 @@ function pickWindow(windows, workspaceId) {
   return order[0]
 }
 
+// A running app shows a dot for each of its windows, up to three, so a glance
+// tells which apps are open and roughly how many windows each has.
+var MAX_DOTS = 3
+
+function dotCount(windowCount) {
+  return Math.max(0, Math.min(MAX_DOTS, windowCount || 0))
+}
+
+// An app with more than one window lists them when the pointer rests on it,
+// so any one of them can be picked directly instead of clicked through in
+// turn. With a single window a click already goes straight to it.
+function listsWindows(item) {
+  return !!item && (item.windows || []).length >= 2
+}
+
 
 if (typeof module !== "undefined") {
   module.exports = {
@@ -185,6 +200,8 @@ if (typeof module !== "undefined") {
     orderWithKeyAt: orderWithKeyAt,
     dropIndex: dropIndex,
     pinsInOrder: pinsInOrder,
-    pickWindow: pickWindow
+    pickWindow: pickWindow,
+    dotCount: dotCount,
+    listsWindows: listsWindows
   }
 }
