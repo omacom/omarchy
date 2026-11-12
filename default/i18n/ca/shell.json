@@ -572,6 +572,8 @@
   "tailscale.phrase7": "Segellant ports",
   "tailscale.phrase8": "Ordenant tailnets",
   "tailscale.phrase9": "Barrejant claus",
+  "tailscale.renameConnection": "Reanomena la connexió",
+  "tailscale.renameFailed": "No s'ha pogut reanomenar la connexió de Tailscale",
   "tailscale.searchMachines": "Cerca màquines  ( / )",
   "tailscale.searchRegions": "Cerca regions",
   "tailscale.sendFiles": "Envia fitxers",

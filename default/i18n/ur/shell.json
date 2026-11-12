@@ -559,6 +559,8 @@
   "tailscale.phrase7": "پورٹس مہر بند",
   "tailscale.phrase8": "tailnets چھانٹ رہے",
   "tailscale.phrase9": "چابیاں ملا رہے",
+  "tailscale.renameConnection": "کنکشن کا نام بدلیں",
+  "tailscale.renameFailed": "Tailscale کنکشن کا نام نہ بدل سکا",
   "tailscale.searchMachines": "مشینیں تلاش کریں  ( / )",
   "tailscale.searchRegions": "ریجن تلاش کریں",
   "tailscale.sendFiles": "فائلیں بھیجیں",

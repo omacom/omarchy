@@ -572,6 +572,8 @@
   "tailscale.phrase7": "Aizzīmogo portus",
   "tailscale.phrase8": "Kārto tailnet",
   "tailscale.phrase9": "Maisa atslēgas",
+  "tailscale.renameConnection": "Pārdēvēt savienojumu",
+  "tailscale.renameFailed": "Neizdevās pārdēvēt Tailscale savienojumu",
   "tailscale.searchMachines": "Meklēt ierīces  ( / )",
   "tailscale.searchRegions": "Meklēt reģionus",
   "tailscale.sendFiles": "Sūtīt failus",

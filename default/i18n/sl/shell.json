@@ -585,6 +585,8 @@
   "tailscale.phrase7": "Pečatim vrata",
   "tailscale.phrase8": "Razvrščam tailnete",
   "tailscale.phrase9": "Mešam ključe",
+  "tailscale.renameConnection": "Preimenuj povezavo",
+  "tailscale.renameFailed": "Povezave Tailscale ni mogoče preimenovati",
   "tailscale.searchMachines": "Iskanje naprav  ( / )",
   "tailscale.searchRegions": "Iščite regije",
   "tailscale.sendFiles": "Pošlji datoteke",

@@ -546,6 +546,8 @@
   "tailscale.phrase7": "Mengedap port",
   "tailscale.phrase8": "Menyusun tailnet",
   "tailscale.phrase9": "Mengocok kunci",
+  "tailscale.renameConnection": "Namakan semula sambungan",
+  "tailscale.renameFailed": "Tidak dapat menamakan semula sambungan Tailscale",
   "tailscale.searchMachines": "Cari mesin  ( / )",
   "tailscale.searchRegions": "Cari rantau",
   "tailscale.sendFiles": "Hantar fail",

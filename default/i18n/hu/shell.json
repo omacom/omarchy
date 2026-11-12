@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Portok pecsételése",
   "tailscale.phrase8": "Tailnetek rendezése",
   "tailscale.phrase9": "Kulcsok keverése",
+  "tailscale.renameConnection": "Kapcsolat átnevezése",
+  "tailscale.renameFailed": "Nem sikerült átnevezni a Tailscale-kapcsolatot",
   "tailscale.searchMachines": "Gépek keresése  ( / )",
   "tailscale.searchRegions": "Régió keresése",
   "tailscale.sendFiles": "Fájlok küldése",

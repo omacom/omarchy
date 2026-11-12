@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Nagseselyo ng port",
   "tailscale.phrase8": "Nag-aayos ng tailnet",
   "tailscale.phrase9": "Nagbabalasa ng susi",
+  "tailscale.renameConnection": "Palitan ang pangalan ng koneksyon",
+  "tailscale.renameFailed": "Hindi napalitan ang pangalan ng koneksyon ng Tailscale",
   "tailscale.searchMachines": "Maghanap ng mga makina  ( / )",
   "tailscale.searchRegions": "Maghanap ng rehiyon",
   "tailscale.sendFiles": "Magpadala ng file",

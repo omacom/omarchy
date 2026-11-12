@@ -546,6 +546,8 @@
   "tailscale.phrase7": "封住連接埠",
   "tailscale.phrase8": "整理 tailnet",
   "tailscale.phrase9": "洗牌金鑰",
+  "tailscale.renameConnection": "重新命名連線",
+  "tailscale.renameFailed": "無法重新命名 Tailscale 連線",
   "tailscale.searchMachines": "搜尋裝置  ( / )",
   "tailscale.searchRegions": "搜尋區域",
   "tailscale.sendFiles": "傳送檔案",

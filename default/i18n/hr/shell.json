@@ -572,6 +572,8 @@
   "tailscale.phrase7": "Pečatim portove",
   "tailscale.phrase8": "Slažem tailnete",
   "tailscale.phrase9": "Miješam ključeve",
+  "tailscale.renameConnection": "Preimenuj vezu",
+  "tailscale.renameFailed": "Nije moguće preimenovati Tailscale vezu",
   "tailscale.searchMachines": "Pretražite uređaje  ( / )",
   "tailscale.searchRegions": "Pretražite regije",
   "tailscale.sendFiles": "Pošalji datoteke",

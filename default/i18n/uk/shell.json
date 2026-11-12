@@ -585,6 +585,8 @@
   "tailscale.phrase7": "Запечатуємо порти",
   "tailscale.phrase8": "Сортуємо tailnets",
   "tailscale.phrase9": "Тасуємо ключі",
+  "tailscale.renameConnection": "Перейменувати підключення",
+  "tailscale.renameFailed": "Не вдалося перейменувати підключення Tailscale",
   "tailscale.searchMachines": "Пошук пристроїв  ( / )",
   "tailscale.searchRegions": "Пошук регіонів",
   "tailscale.sendFiles": "Надіслати файли",

@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Σφραγίζω θύρες",
   "tailscale.phrase8": "Ταξινομώ tailnets",
   "tailscale.phrase9": "Ανακατεύω κλειδιά",
+  "tailscale.renameConnection": "Μετονομασία σύνδεσης",
+  "tailscale.renameFailed": "Δεν ήταν δυνατή η μετονομασία της σύνδεσης Tailscale",
   "tailscale.searchMachines": "Αναζήτηση συσκευών  ( / )",
   "tailscale.searchRegions": "Αναζήτηση περιοχών",
   "tailscale.sendFiles": "Αποστολή αρχείων",

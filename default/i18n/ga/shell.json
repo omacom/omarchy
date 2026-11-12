@@ -598,6 +598,8 @@
   "tailscale.phrase7": "Poirt á séalú",
   "tailscale.phrase8": "Tailnet á eagrú",
   "tailscale.phrase9": "Eochracha á meascadh",
+  "tailscale.renameConnection": "Athainmnigh nasc",
+  "tailscale.renameFailed": "Ní fhéadfaí nasc Tailscale a athainmniú",
   "tailscale.searchMachines": "Cuardaigh meaisíní  ( / )",
   "tailscale.searchRegions": "Cuardaigh réigiúin",
   "tailscale.sendFiles": "Seol comhaid",

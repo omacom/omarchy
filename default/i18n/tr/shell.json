@@ -559,6 +559,8 @@
   "tailscale.phrase7": "Portları mühürlüyor",
   "tailscale.phrase8": "Tailnet'leri sıralıyor",
   "tailscale.phrase9": "Anahtarları karıştırıyor",
+  "tailscale.renameConnection": "Bağlantıyı yeniden adlandır",
+  "tailscale.renameFailed": "Tailscale bağlantısı yeniden adlandırılamadı",
   "tailscale.searchMachines": "Makine ara  ( / )",
   "tailscale.searchRegions": "Bölge ara",
   "tailscale.sendFiles": "Dosya gönder",

@@ -559,6 +559,8 @@
   "tailscale.phrase7": "قفل‌کردن درگاه‌ها",
   "tailscale.phrase8": "چیدن tailnetها",
   "tailscale.phrase9": "برزدن کلیدها",
+  "tailscale.renameConnection": "تغییر نام اتصال",
+  "tailscale.renameFailed": "تغییر نام اتصال Tailscale ممکن نشد",
   "tailscale.searchMachines": "جستجوی دستگاه‌ها  ( / )",
   "tailscale.searchRegions": "جستجوی منطقه",
   "tailscale.sendFiles": "ارسال فایل‌ها",

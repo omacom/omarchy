@@ -546,6 +546,8 @@
   "tailscale.phrase7": "포트 꽁꽁 봉인",
   "tailscale.phrase8": "tailnet 착착 정리",
   "tailscale.phrase9": "키 뒤섞는 중",
+  "tailscale.renameConnection": "연결 이름 변경",
+  "tailscale.renameFailed": "Tailscale 연결 이름을 변경할 수 없음",
   "tailscale.searchMachines": "기기 검색  ( / )",
   "tailscale.searchRegions": "리전 검색",
   "tailscale.sendFiles": "파일 보내기",

@@ -559,6 +559,8 @@
   "tailscale.phrase7": "পোর্ট সিল করছি",
   "tailscale.phrase8": "tailnet সাজাচ্ছি",
   "tailscale.phrase9": "চাবি এলোমেলো করছি",
+  "tailscale.renameConnection": "সংযোগের নাম বদলান",
+  "tailscale.renameFailed": "Tailscale সংযোগের নাম বদলানো যায়নি",
   "tailscale.searchMachines": "মেশিন খুঁজুন  ( / )",
   "tailscale.searchRegions": "অঞ্চল খুঁজুন",
   "tailscale.sendFiles": "ফাইল পাঠান",
