@@ -104,12 +104,22 @@ ShellRoot {
       panel.connectDirectly("Home")
       check(panel.actionKind === "", "connecting a network that is already connected settles at once")
       panel.connectDirectly("Guest")
-      check(panel.actionKind === "connect", "a connect is tracked while it is in flight")
+      check(panel.actionKind === "connect" && panel.actionSsid === "Guest", "a connect is tracked while it is in flight")
       home.connected = false
       guest.connected = true
     },
     function() {
       check(panel.actionKind === "" && panel.failureReason === "", "a connect completes with no row delegate to notice it")
+      panel.disconnect(panel.networkForSsid("Guest"))
+      guest.connected = false
+      guest.stateChanging = true
+    },
+    function() {
+      check(panel.actionKind === "disconnect", "a disconnect waits while NetworkManager is still tearing down")
+      guest.stateChanging = false
+    },
+    function() {
+      check(panel.actionKind === "", "a disconnect completes once NetworkManager settles")
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()
     }

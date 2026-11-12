@@ -121,7 +121,8 @@ Panel {
   property int selectedIndex: -1
   // The network under the cursor when the rows were last rebuilt, so the
   // cursor follows it when a state change re-sorts the list.
-  property string cursorSsid: ""
+  // null rather than "", which is a hidden network's SSID.
+  property var cursorSsid: null
   property bool wifiActionFocused: false
   property bool cursorActive: false
 
@@ -383,7 +384,7 @@ Panel {
         selectedIndex = passwordIndex
         focusSection = "wifi"
       }
-    } else if (cursorSsid !== "" && wifiIndexForSsid(cursorSsid) >= 0) {
+    } else if (cursorSsid !== null && wifiIndexForSsid(cursorSsid) >= 0) {
       selectedIndex = wifiIndexForSsid(cursorSsid)
     } else if (selectedIndex >= wifiNetworks.length) {
       selectedIndex = wifiNetworks.length - 1
@@ -728,7 +729,7 @@ Panel {
     // being typed, so identical rows are left in place.
     if (JSON.stringify(nets) === JSON.stringify(wifiNetworks)) return
     var selected = wifiNetworks[selectedIndex]
-    cursorSsid = selected ? selected.ssid : ""
+    cursorSsid = selected ? selected.ssid : null
     wifiNetworks = nets
   }
 
@@ -832,7 +833,7 @@ Panel {
     return -1
   }
 
-  function runNetworkAction(kind, network, callback) {
+  function runNetworkAction(kind, network, callback, runsItsOwnWork) {
     if (actionKind !== "" || !network) return
     var ssid = network.name || ""
     actionSsid = ssid
@@ -844,8 +845,9 @@ Panel {
     // throws, etc.), clear the busy state so the row doesn't get stuck on
     // "Connecting…" / "Disconnecting…" forever.
     actionTimeout.restart()
-    // A network already in the asked-for state never signals a change.
-    checkActionCompletion(network)
+    // Quickshell ignores connecting a connected network and disconnecting a
+    // disconnected one, so nothing would signal; the enterprise script really reconnects.
+    if (!runsItsOwnWork) checkActionCompletion(network)
   }
 
   function clearNetworkAction() {
@@ -896,7 +898,7 @@ Panel {
       enterpriseConnect.secret = passphrase
       enterpriseConnect.command = ["bash", "-c", Model.enterpriseConnectScript, "nmcli-eap", ssid, identity]
       enterpriseConnect.running = true
-    })
+    }, true)
   }
 
   // Creates and activates the 802.1X profile (see Model.enterpriseConnectScript).
