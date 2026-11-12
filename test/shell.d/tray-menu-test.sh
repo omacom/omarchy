@@ -8,10 +8,11 @@ TMPDIR=""
 QS_PID=""
 MOCK_PID=""
 NO_MENU_PID=""
+TWIN_PID=""
 
 cleanup() {
   local pid
-  for pid in "$MOCK_PID" "$NO_MENU_PID"; do
+  for pid in "$MOCK_PID" "$NO_MENU_PID" "$TWIN_PID"; do
     if [[ -n $pid ]] && kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
       wait "$pid" 2>/dev/null || true
@@ -145,3 +146,26 @@ if [[ $(cat "$context_menu_result" 2>/dev/null) != "ContextMenu 3280 3400" ]]; t
 fi
 
 pass "tray context menu opens at the pointer on a rotated, scaled monitor"
+
+# A second item with the same Id (Wine apps in two prefixes) leaves the helper
+# no way to tell which was clicked, so it opens neither menu.
+twin_ready="$TMPDIR/twin-ready"
+twin_result="$TMPDIR/context-menu-twin"
+rm -f "$context_menu_result"
+
+OMARCHY_TRAY_MENU_READY="$twin_ready" \
+OMARCHY_TRAY_CONTEXT_MENU_RESULT="$twin_result" \
+  python "$SHELL_TEST_DIR/fixtures/tray-menu-activation/mock-sni.py" >"$TMPDIR/mock-sni-twin.log" 2>&1 &
+TWIN_PID=$!
+
+for _ in {1..50}; do
+  [[ -s $twin_ready ]] && break
+  sleep 0.1
+done
+
+if PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-tray-context-menu" omarchy-test-tray-no-menu 2>/dev/null ||
+  [[ -e $context_menu_result || -e $twin_result ]]; then
+  fail "tray context menu helper opens no menu when two items share an Id"
+fi
+
+pass "tray context menu helper opens no menu when two items share an Id"
