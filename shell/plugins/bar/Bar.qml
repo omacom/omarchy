@@ -87,6 +87,14 @@ Item {
   property bool foregroundAnimationEnabled: true
   property color background: Commons.Color.bar.background
   readonly property color glassBackground: Qt.rgba(background.r, background.g, background.b, Math.min(background.a, 0.35))
+  // Floating islands: a theme with `[bar] style = "islands"` in shell.toml
+  // turns a horizontal bar's full-width strip into one capsule per section,
+  // frosted when glassy and solid black when opaque.
+  readonly property bool islands: Style.bar.style === "islands" && !vertical && !transparent
+  // In islands mode the strip floats one window gap (Hyprland's gaps_out on
+  // that edge) off the screen edge, so the space above and below the capsules
+  // matches. The capsules fill the strip, so widget highlights sit inside them.
+  readonly property int islandGap: islands ? (position === "bottom" ? Style.gapsOutBottom : Style.gapsOutTop) : 0
   property color urgent: Commons.Color.bar.active
 
   // A theme change cross-fades the bar's colors. Cycling the background
@@ -767,12 +775,13 @@ Item {
   }
 
   // Each screen's bar thickness, by screen name: barSize, or more where a notch
-  // floor raises a top bar. Toasts and plugins clear the bar by it; barSize
-  // stays the configured size the widgets are drawn at.
+  // floor raises a top bar, plus the island gap when the bar floats. Toasts,
+  // panels and plugins clear the bar by it; barSize stays the configured size
+  // the widgets are drawn at.
   readonly property var screenBarSizes: {
     var sizes = ({})
     var screens = Quickshell.screens
-    for (var i = 0; i < screens.length; i++) sizes[screens[i].name] = root.thicknessFor(screens[i])
+    for (var i = 0; i < screens.length; i++) sizes[screens[i].name] = root.thicknessFor(screens[i]) + root.islandGap
     return sizes
   }
 
@@ -1724,7 +1733,7 @@ Item {
     // An explicit zone instead of Auto: the reserved area stays the strip's
     // thickness though the window spans its screen.
     exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
-    exclusiveZone: thickness
+    exclusiveZone: thickness + root.islandGap
 
     // While this window's widget or bar-move drag is live, the whole surface
     // takes input (mask below), so the pointer never leaves the bar surface
@@ -1771,7 +1780,7 @@ Item {
       onTriggered: barWindow.cutoutWaitOver = true
     }
 
-    // The same thickness the bar publishes for its screen (screenBarSizes).
+    // The strip's thickness on this screen; screenBarSizes adds the island gap.
     readonly property int thickness: root.thicknessFor(screen)
     // Where the center box starts along the bar, set by the drawn center
     // sections. Hovering past it, over the clock, its trailing widgets and the
@@ -1824,13 +1833,13 @@ Item {
       id: barStrip
 
       x: root.position === "right" ? parent.width - barWindow.thickness : 0
-      y: root.position === "bottom" ? parent.height - barWindow.thickness : 0
+      y: root.position === "bottom" ? parent.height - barWindow.thickness - root.islandGap : root.islandGap
       width: root.vertical ? barWindow.thickness : parent.width
       height: root.vertical ? parent.height : barWindow.thickness
 
       Rectangle {
         anchors.fill: parent
-        color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
+        color: root.transparent || root.islands ? "transparent" : (root.glassy ? root.glassBackground : root.background)
       }
 
       Loader {
@@ -1934,6 +1943,9 @@ Item {
 
         WidgetPool { id: horizontalPool }
 
+        IslandPill { start: leftModules.x; extent: leftModules.width }
+        IslandPill { start: rightModules.x; extent: rightModules.width }
+
         CenterModules {
           anchors.fill: parent
           window: barWindow
@@ -1942,10 +1954,11 @@ Item {
         }
 
         LeftModules {
+          id: leftModules
           window: barWindow
           pool: horizontalPool
           anchors.left: parent.left
-          anchors.leftMargin: Style.space(8)
+          anchors.leftMargin: root.islands ? Style.space(14) : Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
         }
 
@@ -1954,7 +1967,7 @@ Item {
           pool: horizontalPool
           id: rightModules
           anchors.right: parent.right
-          anchors.rightMargin: Style.space(8)
+          anchors.rightMargin: root.islands ? Style.space(14) : Style.space(8)
           anchors.verticalCenter: parent.verticalCenter
         }
 
@@ -2260,6 +2273,26 @@ Item {
     }
   }
 
+  // One floating capsule behind a bar section, `extent` long from `start`,
+  // shown only in islands mode and only around a section that holds widgets.
+  component IslandPill: Rectangle {
+    property real start: 0
+    property real extent: 0
+    readonly property real pad: Style.space(6)
+
+    visible: root.islands && extent > 0
+    x: Math.round(start - pad)
+    y: 0
+    width: Math.round(extent + pad * 2)
+    height: parent.height
+    radius: height / 2
+    // Glassy: frosted see-through capsule with a light rim. Opaque: the bar's
+    // own background, so a theme with a black bar gets a dynamic island.
+    color: root.glassy ? root.glassBackground : root.background
+    border.width: root.glassy ? 1 : 0
+    border.color: Qt.rgba(1, 1, 1, 0.22)
+  }
+
   component LeftModules: ModuleList {
     keys: root.layoutWidgets.sections.left
     region: "left"
@@ -2326,6 +2359,11 @@ Item {
     Connections {
       target: root
       function onCenterSectionRevealHeldChanged() { sections.syncPeekEdge() }
+    }
+
+    IslandPill {
+      start: beginList.x
+      extent: sections.active ? endList.x + endList.width - beginList.x : 0
     }
 
     ModuleList {

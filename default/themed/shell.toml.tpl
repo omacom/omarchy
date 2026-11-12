@@ -13,6 +13,9 @@ active           = "{{ red }}"
 # top/bottom bars; size-vertical is the width of left/right bars. With
 # scale-with-font enabled, these grow/shrink with [font] base-size.
 scale-with-font  = true
+# "strip" is one full-width bar; "islands" draws each section of a top or
+# bottom bar as its own floating capsule.
+style            = "strip"
 size-horizontal  = 26
 size-vertical    = 28
 
