@@ -31,6 +31,9 @@ hl = {
     return list
   end,
   exec_scheduled_prop_refresh_immediately = function() end,
+  get_config = function(key)
+    if key == "general.gaps_in" then return 5 end
+  end,
   exec_cmd = function(cmd, rules) table.insert(spawned, { cmd = cmd, rules = rules }) end,
 }
 
@@ -206,6 +209,8 @@ handlers["window.open"]()
 top, right, bottom, left = gaps()
 assert(left == 0 and right == 0, "a second app on the console restores the full width")
 assert(bottom == 525, "and the console keeps its half-height drop")
+assert(current().no_border == false, "split windows get borders to show which one has focus")
+assert(current().gaps_in == 5, "and the usual gap between them")
 
 workspace.windows = 3
 written = #rules
@@ -216,6 +221,7 @@ workspace.windows = 1
 handlers["window.destroy"]()
 top, right, bottom, left = gaps()
 assert(left == 435 and right == 435, "closing back down to one window recenters the panel")
+assert(current().no_border == true and current().gaps_in == 0, "a lone console window drops the border and gap again")
 
 -- An empty console is about to be seeded with a single agent, so it is sized
 -- as a console rather than as a workspace.
