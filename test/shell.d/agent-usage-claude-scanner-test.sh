@@ -734,4 +734,11 @@ if os.geteuid() != 0:
   expect("Claude does not cache a scan that missed a transcript", record["todayTokensByModel"], {"claude-sonnet-4-5": 340}, record)
 else:
   print("ok - Claude does not cache a scan that missed a transcript # SKIP root reads anything")
+
+sandbox()
+kept = claude_code_session("kept", [("claude-sonnet-4-5", 300)])
+(kept.parent / "removed.jsonl").symlink_to(kept.parent / "gone.jsonl")
+record = claude()
+expect("Claude skips a link to a removed transcript and still caches the scan",
+       [record["todayTokensByModel"], bool(scan_cache_files("claude"))], [{"claude-sonnet-4-5": 300}, True], record)
 PY

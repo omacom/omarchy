@@ -2128,7 +2128,7 @@ def claude_code_usage(
   # Directory order, as before: when one API message shows up in several
   # transcripts with the same output count, the last file visited wins, and
   # the numbers must not move because the scan got faster.
-  files = list(projects.rglob("*.jsonl")) if projects.is_dir() else []
+  files = [path for path in projects.rglob("*.jsonl") if path.is_file()] if projects.is_dir() else []
   if not index_file:
     current, order, complete = _claude_code_read_transcripts(files, {})
   else:
