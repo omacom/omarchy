@@ -388,6 +388,27 @@ Switching themes needs no retint for the palette. The first Qt process to start 
 
 The icon theme lives in the config rather than the theme, so `omarchy-theme-set-qt` writes `Adwaita`, the icons every theme uses as GTK does, into `.theme.iconTheme` on each switch, leaving the rest of the file alone. That write also makes running apps reload their icons. Native file dialogs are delegated to the XDG desktop portal (`misc.dialogTheme`), and `config/xdg-desktop-portal/hyprland-portals.conf` falls through to the GTK backend for the file chooser, so Qt apps keep the GTK file chooser.
 
+## App icons
+
+Omarchy's own apps (Files, Omacut, Omasnap, Hype, Omawrite, Omacalc, Gliff, Plain, Monologue and Signed) and the default cliamp and disktree are drawn in the current theme's colors, from templates in `default/themed/icons/<icon name>.svg.tpl`. Drawing them never holds up a switch: `omarchy-theme-set-icons` runs with the other app retints once the theme is on screen (and directly when a theme is set headless). It renders them with `omarchy-theme-set-templates --icons` into a scratch dir and renames each one over its predecessor in `~/.local/state/omarchy/current/icons/`, so anything reading an icon mid-switch gets the old one or the new one. Each is linked once by name into `$XDG_DATA_HOME/icons/hicolor/scalable/apps/` (`~/.local/share` by default), ahead of the icon the package installs in `/usr/share`; the links never change, so no icon cache needs rebuilding. Only names with a template are linked, and an icon the user put there themselves is never replaced. A theme that can't draw the icons removes them and their links, which brings the packaged icons back. Last it writes `current/icons.revision`, which the shell's app library watches: it rescans its icons and adds the revision to those icons' URLs, so the menu and dock redraw them.
+
+The icons don't use palette keys directly, because a key means different things across themes: `magenta` is Tokyo Night's violet but Gruvbox's and Nord's pink, and `bright_foreground` is the lightest color of a dark theme but the darkest of a light one. `omarchy-theme-icon-palette` derives roles from the palette instead, and templates may use them like any other key:
+
+| Role | Drawn from |
+|------|------------|
+| `icon_main` | `accent`, or `blue` when the accent is grey or too close to the paper |
+| `icon_main_end` | `icon_main` mixed 30% toward the paper, for gradients |
+| `icon_mark` | handles, cursors and keys: the theme's violet, else its amber, else its most vivid other color, else a mid grey |
+| `icon_paper` | `bright_foreground`; `background` in a light theme |
+| `icon_body` | `background`; `lighter_background` in a light theme |
+| `icon_edge` | `muted` |
+| `icon_ink` | `dark_foreground` |
+| `icon_shadow` | `darker_background`; `dark_background` mixed toward `foreground` in a light theme |
+| `icon_contrast` | what stands out most on the paper: `icon_shadow` in a dark theme, `foreground` in a light one |
+| `icon_red`, `icon_orange` | `red` and `orange`, whatever their hue; drawn from the accent's strength when the theme has none |
+
+A theme picks any role itself by setting it in `colors.toml` (for example `icon_mark = "#bb9af7"`), or ships a whole icon as `themes/<name>/icons/<icon name>.svg`, which is used instead of the template. Any theme gets a best guess, a custom one that only sets its accent, background and foreground included: colors written as `rgb()`, `rgba()`, `0xAARRGGBB` or `#rrggbbaa` are read as `#rrggbb`; a neutral the palette leaves out, or sets to the same color as its neighbor, is mixed from the background and foreground; and a palette that names no hues of its own gets its accent turned 40 degrees for the highlight. Only a theme whose background, foreground or accent can't be read as a color gets the packaged icons.
+
 ## Adding or overriding theme files
 
 - Add palette values to `themes/<name>/colors.toml`.
