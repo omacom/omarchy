@@ -36,6 +36,7 @@ source = source.replace(/\bNetworking\./g, 'NetworkMock.')
 source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
       property alias testButton: portalAction
       property alias testTitle: heroSsid
+      property alias testList: networkList
 `)
 source = source.replace('  id: root', `  id: root
   function testEnsureContent() { return panel.ensureContent() }
@@ -44,6 +45,7 @@ source = source.replace('  id: root', `  id: root
   readonly property Item testKeys: panel.loadedContent
   readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
   readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
+  readonly property Item testList: panel.loadedContent ? panel.loadedContent.testList : null
   property alias testPoll: connectivityPoll
   property alias testApPoll: activeApSignalPoll
   property alias testBarButton: button`)
@@ -99,3 +101,7 @@ while IFS= read -r args; do
   [[ $args == "-t -f IN-USE,SIGNAL device wifi list ifname test-wifi --rescan no" ]] || fail "in-use access point read never rescans" "$args"
 done <"$stage/nmcli.log"
 pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use access point, and discards stale reads"
+
+stage_panel password-churn
+run_panel "network password churn"
+pass "a scan landing under the passphrase prompt leaves the row, field and focus where they were"
