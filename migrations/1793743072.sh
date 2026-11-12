@@ -19,13 +19,19 @@ restore_gnome_keyring() {
 # the migration stays pending with the keyring intact.
 omarchy-keyring-repair || restore_gnome_keyring
 
-# One transaction with --ask 4: oo7 conflicts with gnome-keyring, and removing
-# gnome-keyring first would leave omarchy's org.freedesktop.secrets unsatisfied.
 # oo7 before 0.7 can't read gnome-keyring's plain-text keyrings, so an older one,
 # installed or the only one a mirror has, fails the swap and leaves this pending.
+# Since 0.7, oo7 no longer conflicts with gnome-keyring, so oo7 goes in first,
+# keeping omarchy's org.freedesktop.secrets satisfied, and gnome-keyring is removed
+# after. Left installed, its D-Bus activation file, PAM module and autostart
+# entries would race oo7-daemon for the Secret Service at every login. Until
+# oo7-daemon is enabled below, a failure leaves oo7 installed but idle.
 oo7_min="oo7>=0.7.1"
 if ! pacman -T "$oo7_min" gcr >/dev/null; then
-  sudo pacman -S --noconfirm --needed --ask 4 "$oo7_min" gcr || restore_gnome_keyring
+  sudo pacman -S --noconfirm --needed "$oo7_min" gcr || restore_gnome_keyring
+fi
+if omarchy-pkg-present gnome-keyring; then
+  sudo pacman -R --noconfirm gnome-keyring || restore_gnome_keyring
 fi
 
 # This copy, and the login.keyring oo7 leaves behind, still hold the secrets in
