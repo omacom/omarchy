@@ -59,7 +59,7 @@ run_isolated() {
   env -i HOME="$account_test_home" \
     XDG_CONFIG_HOME="$test_tmp/config" XDG_DATA_HOME="$test_tmp/data" XDG_CACHE_HOME="$test_tmp/cache" \
     MISE_DATA_DIR="$mise_data" MISE_SYSTEM_CONFIG_DIR="$mise_system_config" MISE_OFFLINE=1 \
-    OMARCHY_PATH="$ROOT" PATH="$mise_data/command-wrappers/bin:$ROOT/bin:$real_bin:/usr/bin" \
+    OMARCHY_PATH="$ROOT" PATH="$mise_data/command-wrappers/bin:$real_bin:$ROOT/bin:/usr/bin" \
     "$@"
 }
 
@@ -74,6 +74,14 @@ for helper in omarchy-agent-usage-update omarchy-notification-send; do
   printf '#!/bin/bash\nexit 0\n' >"$real_bin/$helper"
   chmod +x "$real_bin/$helper"
 done
+
+# Reauthentication starts the usage helper in the background. It must reach
+# the fixture, or a real refresh can overwrite the registry between assertions.
+for helper in omarchy-agent-usage-update omarchy-notification-send; do
+  resolved=$(run_isolated bash -c 'command -v "$1"' bash "$helper")
+  [[ $resolved == "$real_bin/$helper" ]] || fail "$helper resolves to the isolated fixture" "$resolved"
+done
+pass "account dispatch checks use isolated background helpers"
 
 cd "$test_tmp"
 run_isolated mise reshim
