@@ -278,10 +278,15 @@ cmd_transparent() {
 sync_glass() {
   local dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr"
   local flag="$dir/bar-glassy.lua"
+  local source="$OMARCHY_PATH/default/hypr/toggles/bar-glassy.lua"
 
   if [[ $(current_background) == "glassy" ]]; then
-    [[ ! -f $flag ]] || return 0
-    mkdir -p "$dir" && cp "$OMARCHY_PATH/default/hypr/toggles/bar-glassy.lua" "$flag" || return 1
+    # A copy from an older Omarchy is replaced too, so a changed rule reaches
+    # people who already have the toggle on.
+    if [[ -f $flag ]] && cmp -s "$source" "$flag"; then
+      return 0
+    fi
+    mkdir -p "$dir" && cp "$source" "$flag" || return 1
   else
     [[ -f $flag ]] || return 0
     rm -f "$flag" || return 1

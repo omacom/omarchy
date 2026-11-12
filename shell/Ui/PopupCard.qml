@@ -162,7 +162,8 @@ PopupWindow {
   BorderSurface {
     id: card
     anchors.fill: parent
-    color: Commons.Color.popups.background
+    // Glassy bar: see-through so Hyprland blurs behind the card.
+    color: (root.bar && root.bar.popupsGlassy === true) ? Commons.Color.popups.glassBackground : Commons.Color.popups.background
     borderSpec: root.borderSpec
     padding: root.padding
     radius: Style.cornerRadius

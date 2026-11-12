@@ -76,6 +76,50 @@ QtObject {
     return Util.alpha(flatColor(pick(colorKey, colorFallback), colorFallback), pickAlpha(alphaKey, alphaFallback))
   }
 
+  // --- Glass ------------------------------------------------------------------
+  // Popup cards are drawn see-through while the bar is glassy, so what is behind
+  // them is not known. These keep their text readable for any theme without
+  // per-theme tuning: the card's opacity is the lowest that holds a minimum
+  // contrast against a bright backdrop (a dark one under a light card).
+  readonly property real glassBackdrop: 0.75      // how bright a backdrop to plan for, 0..1
+  readonly property real glassTextContrast: 3.5   // minimum contrast for dimmed labels
+  readonly property real glassTextLift: 1.5       // how far text moves from the card's color
+  readonly property real glassAlphaMin: 0.5
+  readonly property real glassAlphaMax: 0.8
+  // Panels dim their labels as Qt.darker(foreground, 1.4); the same factor here.
+  readonly property real glassLabelDim: 1.4
+
+  function luminance(c) {
+    function channel(v) { return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4) }
+    return 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b)
+  }
+
+  function contrastRatio(a, b) {
+    var la = luminance(a)
+    var lb = luminance(b)
+    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+  }
+
+  // Text on a glass card: further from the card's color, lighter on a dark card
+  // and darker on a light one.
+  function glassTextFor(text, card) {
+    return luminance(text) >= luminance(card) ? Qt.lighter(text, glassTextLift) : Qt.darker(text, glassTextLift)
+  }
+
+  // The lowest card alpha, within limits, at which the dimmed label color keeps
+  // glassTextContrast over the planned-for backdrop.
+  function glassAlphaFor(card, text) {
+    var dim = Qt.darker(text, glassLabelDim)
+    var backdrop = luminance(card) < 0.5 ? glassBackdrop : 1 - glassBackdrop
+    var steps = Math.round((glassAlphaMax - glassAlphaMin) / 0.05)
+    for (var i = 0; i <= steps; i++) {
+      var a = glassAlphaMin + i * 0.05
+      var shown = Qt.rgba(a * card.r + (1 - a) * backdrop, a * card.g + (1 - a) * backdrop, a * card.b + (1 - a) * backdrop, 1)
+      if (contrastRatio(dim, shown) >= glassTextContrast) return a
+    }
+    return glassAlphaMax
+  }
+
   readonly property QtObject bar: QtObject {
     property color background: root.composed("bar.background", "bar.background-alpha", root.background, 1.0)
     property color text: root.pick("bar.text", root.foreground)
@@ -85,6 +129,12 @@ QtObject {
     property color background: root.composed("popups.background", "popups.background-alpha", root.background, 1.0)
     property color text: root.pick("popups.text", root.foreground)
     property color border: root.composed("popups.border", "popups.border-alpha", root.accent, 1.0)
+    // The card and its text while the bar is glassy. The card stays see-through
+    // so Hyprland can blur behind it, and only as opaque as it takes to keep the
+    // dimmed labels readable over a bright (or, on a light card, dark) backdrop.
+    property color glassText: root.glassTextFor(root.bar.text, background)
+    property real glassAlpha: root.glassAlphaFor(background, glassText)
+    property color glassBackground: Qt.rgba(background.r, background.g, background.b, Math.min(background.a, glassAlpha))
   }
   readonly property QtObject tooltip: QtObject {
     property color background: root.composed("tooltip.background", "tooltip.background-alpha", root.background, 1.0)

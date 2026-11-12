@@ -14,6 +14,7 @@ QtObject {
   property color foreground: "transparent"
   property color barForeground: "transparent"
   property color background: "transparent"
+  property bool popupsGlassy: false
   property color urgent: "transparent"
   property string fontFamily: ""
   property string position: "top"

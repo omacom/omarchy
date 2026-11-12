@@ -365,6 +365,19 @@ HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar sync-glass
 [[ ! -f $glass_toggle ]] || fail "syncing a hand-edited opaque bar turns its blur off"
 pass "a bar background edited into shell.json gets its blur synced"
 
+# A blur rule copied by an older Omarchy is replaced, so a changed rule reaches
+# people who already have a glassy bar; one that is current reloads nothing.
+bar_background glassy >/dev/null
+printf -- '-- a rule from an older Omarchy\n' >"$glass_toggle"
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar sync-glass
+cmp -s "$ROOT/default/hypr/toggles/bar-glassy.lua" "$glass_toggle" ||
+  fail "syncing a glassy bar replaces a blur rule from an older Omarchy"
+: >"$TMPDIR/hyprctl.log"
+HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar sync-glass
+[[ ! -s $TMPDIR/hyprctl.log ]] || fail "syncing a current blur rule doesn't reload Hyprland"
+bar_background opaque >/dev/null
+pass "a glassy bar's blur rule from an older Omarchy is refreshed"
+
 # A glassy bar whose blur can't be turned on keeps the background it had.
 toggles_dir="${glass_toggle%/*}"
 chmod a-w "$toggles_dir"
