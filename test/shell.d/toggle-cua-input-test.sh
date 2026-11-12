@@ -411,6 +411,24 @@ TEST_RELOAD_STATUS=1 TEST_EVAL_STATUS=1 "$toggle" on 2>/dev/null || rc=$?
 grep -q '^notify:.*Cua input may still be on' "$TEST_LOG" || fail "cua input refusal reports input that may still be on" "$(cat "$TEST_LOG")"
 pass "cua input refusal reports input that may still be on"
 
+# And with no flag left to take back: an off during on's checks removed it, and Hyprland took neither change.
+fresh_home
+TEST_VERIFY_PAUSE="$tmp_dir/refuse" TEST_VERIFY_STATUS=1 TEST_EVAL_STATUS=1 "$toggle" on 2>/dev/null &
+on_pid=$!
+for ((attempt = 0; attempt < 200; attempt++)); do
+  [[ -e $tmp_dir/refuse.ready ]] && break
+  sleep 0.01
+done
+[[ -e $tmp_dir/refuse.ready ]] || fail "cua input on reached its compatibility check pause"
+TEST_EVAL_STATUS=1 "$toggle" off 2>/dev/null || true
+: >"$TEST_LOG"
+touch "$tmp_dir/refuse.release"
+wait "$on_pid" || true
+grep -q '^notify:.*Cua input may still be on' "$TEST_LOG" || fail "cua input refusal checks the live option when its flag is already gone" "$(cat "$TEST_LOG")"
+! grep -q '^notify:.*Cua input stays off' "$TEST_LOG" || fail "cua input refusal checks the live option when its flag is already gone" "claimed off"
+pass "cua input refusal checks the live option when its flag is already gone"
+rm -f "$tmp_dir/refuse".*
+
 # A reload that keeps the old settings still answers ok, so off always sets the live option.
 fresh_home
 "$toggle" on >/dev/null

@@ -470,6 +470,17 @@ done
 SCRIPT
 chmod +x "$tmp_dir/bin/omarchy-pkg-present"
 
+# Hyprland answers for the loaded module from the environment; none is loaded unless a test says so.
+cat >"$tmp_dir/bin/hyprctl" <<'SCRIPT'
+#!/bin/bash
+if [[ $* == "-j cua:status" && -n ${TEST_CUA_CONFIGURED-} ]]; then
+  printf '{"configured":%s}\n' "$TEST_CUA_CONFIGURED"
+else
+  echo "unknown request"
+fi
+SCRIPT
+chmod +x "$tmp_dir/bin/hyprctl"
+
 # The real toggle would reload Hyprland; the flag it owns is what is checked.
 cat >"$tmp_dir/bin/omarchy-toggle-cua-input" <<'SCRIPT'
 #!/bin/bash
@@ -546,3 +557,25 @@ for toggle_status in 0 1; do
   fi
   pass "Cua removal says when it left input on (toggle $toggle_status)"
 done
+
+# An earlier off can have removed the flag without Hyprland taking the change:
+# the loaded module still saying input is on gets the same off, and the same warning.
+for toggle_status in 0 1; do
+  : >"$TEST_LOG"
+  fresh_home
+  output=$(OMARCHY_PATH="$ROOT" TEST_CUA_CONFIGURED=true TEST_TOGGLE_STATUS=$toggle_status "$ROOT/bin/omarchy-remove-ai-cua")
+  grep -q '^cua-input:off$' "$TEST_LOG" || fail "Cua removal turns off input left on without its flag (toggle $toggle_status)" "$(cat "$TEST_LOG")"
+  if (( toggle_status == 0 )); then
+    [[ $output != *"may still be on"* ]] || fail "Cua removal turns off input left on without its flag (toggle $toggle_status)" "$output"
+  else
+    [[ $output == *"Cua Input may still be on"* ]] || fail "Cua removal turns off input left on without its flag (toggle $toggle_status)" "$output"
+  fi
+  pass "Cua removal turns off input left on without its flag (toggle $toggle_status)"
+done
+
+# A loaded module with input off, and no flag, is left alone.
+: >"$TEST_LOG"
+fresh_home
+OMARCHY_PATH="$ROOT" TEST_CUA_CONFIGURED=false "$ROOT/bin/omarchy-remove-ai-cua" >/dev/null
+! grep -q '^cua-input:' "$TEST_LOG" || fail "Cua removal leaves a module with input off alone" "$(cat "$TEST_LOG")"
+pass "Cua removal leaves a module with input off alone"

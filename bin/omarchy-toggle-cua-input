@@ -37,7 +37,8 @@ flag_off() {
 
 refuse() {
   local message=$1
-  if omarchy-hyprland-toggle-enabled "$FLAG" && ! flag_off; then
+  # Even with no flag: a concurrent off can have removed it without Hyprland taking the change.
+  if ! flag_off; then
     message+=" $(omarchy-i18n cua.changeNotTaken)"
     notify "$(omarchy-i18n cua.mayStillBeOn)" "$message"
   else
