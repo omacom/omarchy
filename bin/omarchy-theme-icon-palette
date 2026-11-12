@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Derive the app icon colors from a resolved theme palette
-# omarchy:args=< key<TAB>value lines from omarchy-theme-color --all
+# omarchy:args=< key<TAB>value lines from omarchy-theme-color --all, and its --raw lines prefixed raw_
 # omarchy:hidden=true
 
 # Omarchy's own app icons are drawn from a few roles rather than raw palette
@@ -94,10 +94,17 @@ awk -F '\t' '
     return from_hls(h, l, s)
   }
   # True when the palette names no colors of its own, as a theme that only
-  # sets its accent, background and foreground: its red is missing or just
-  # the foreground again, and nothing but the accent has a hue. A monochrome
-  # theme names its greys, so it keeps them.
+  # sets its accent, background and foreground. Told from the keys the theme
+  # wrote (the raw_ lines) when given them, so a monochrome theme that names
+  # its greys keeps them; otherwise guessed from a red that is just the
+  # foreground again and nothing but the accent having a hue.
   function bare(    list, n, i, c) {
+    if (has_raw) {
+      n = split("red orange yellow green cyan blue magenta bright_red bright_yellow bright_green bright_cyan bright_blue bright_magenta", list, " ")
+      for (i = 1; i <= n; i++) if (("raw_" list[i]) in color) return 0
+      for (i = 0; i <= 15; i++) if (("raw_color" i) in color) return 0
+      return 1
+    }
     if (is_hex(color["red"]) && dist(color["red"], color["foreground"]) > 0.05) return 0
     n = split("red orange yellow green cyan blue magenta bright_red bright_yellow bright_green bright_cyan bright_blue bright_magenta", list, " ")
     for (i = 1; i <= n; i++) {
@@ -139,7 +146,10 @@ awk -F '\t' '
     return best
   }
 
-  { color[$1] = $1 == "mode" ? $2 : normalize($2) }
+  {
+    color[$1] = $1 == "mode" ? $2 : normalize($2)
+    if ($1 ~ /^raw_/) has_raw = 1
+  }
 
   END {
     bg = color["background"]; fg = color["foreground"]

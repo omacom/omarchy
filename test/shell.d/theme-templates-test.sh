@@ -82,7 +82,7 @@ pass "theme templates leave app icons to the retints after the switch"
 
 icon_role() {
   local colors="$1" role="$2"
-  "$ROOT/bin/omarchy-theme-color" --file "$colors" --all | "$ROOT/bin/omarchy-theme-icon-palette" | awk -F '\t' -v role="$role" '$1 == role { print $2 }'
+  { "$ROOT/bin/omarchy-theme-color" --file "$colors" --all; "$ROOT/bin/omarchy-theme-color" --file "$colors" --raw | sed 's/^/raw_/'; } | "$ROOT/bin/omarchy-theme-icon-palette" | awk -F '\t' -v role="$role" '$1 == role { print $2 }'
 }
 
 # Magenta is Tokyo Night's violet but Gruvbox's pink, which the icons pass over
@@ -107,6 +107,8 @@ printf 'accent = "#e06c75"\nbackground = "#1e2127"\nforeground = "#abb2bf"\n' >"
 [[ $(icon_role "$test_tmp/bare.toml" icon_ink) != "$(icon_role "$test_tmp/bare.toml" icon_paper)" ]] || fail "a bare theme's app icons get text that shows on their paper"
 [[ $(icon_role "$test_tmp/bare.toml" icon_mark) != "#abb2bf" ]] || fail "a bare theme's app icons get a highlight with a hue"
 [[ $(icon_role "$test_tmp/bare.toml" icon_red) != "#abb2bf" ]] || fail "a bare theme's app icons get a red"
+printf 'accent = "#e06c75"\nbackground = "#1e2127"\nforeground = "#abb2bf"\nred = "#abb2bf"\n' >"$test_tmp/grey.toml"
+[[ $(icon_role "$test_tmp/grey.toml" icon_red) == "#abb2bf" ]] || fail "a theme that names its red grey keeps it"
 pass "app icon colors honor the theme and skip palettes they cannot draw"
 
 # App icons draw from the current theme after the switch, into a dir the links

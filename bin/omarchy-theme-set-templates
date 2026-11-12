@@ -461,7 +461,11 @@ if [[ -f $COLORS_FILE ]]; then
     while IFS=$'\t' read -r key value; do
       THEME_COLORS[$key]="$value"
       (( ++icon_roles ))
-    done < <(for key in "${!THEME_COLORS[@]}"; do printf '%s\t%s\n' "$key" "${THEME_COLORS[$key]}"; done | omarchy-theme-icon-palette)
+    done < <({
+      for key in "${!THEME_COLORS[@]}"; do printf '%s\t%s\n' "$key" "${THEME_COLORS[$key]}"; done
+      # The keys the theme wrote itself, so its own greys aren't taken for gaps.
+      omarchy-theme-color --file "$COLORS_FILE" --raw | sed 's/^/raw_/'
+    } | omarchy-theme-icon-palette)
 
     if (( icon_roles > 0 )); then
       template_files=("$USER_TEMPLATES_DIR"/icons/*.tpl "$TEMPLATES_DIR"/icons/*.tpl)
