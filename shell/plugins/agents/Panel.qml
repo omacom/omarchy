@@ -1438,6 +1438,10 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
+    // Pairing may bring up the SSH agent's prompt to approve a key, such as
+    // 1Password's, which has to take focus and clicks while the panel shows
+    // how the pairing goes.
+    yielding: usage.pairingId !== ""
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(860))
