@@ -267,10 +267,11 @@ grep -qx "pactl set-card-profile bluez_card.AA_BB_CC_DD_EE_FF a2dp-sink" "$music
   fail "bluetooth music mode prefers the plain A2DP profile" "$(cat "$music_log")"
 pass "bluetooth music mode prefers the plain A2DP profile"
 
-headset_log=$(bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" headset AA:BB:CC:DD:EE:FF)
+# A lowercase address still finds the card, which PipeWire names in uppercase.
+headset_log=$(bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" headset aa:bb:cc:dd:ee:ff)
 grep -qx "pactl set-card-profile bluez_card.AA_BB_CC_DD_EE_FF headset-head-unit-cvsd" "$headset_log" ||
-  fail "bluetooth headset mode falls back to the best available HFP codec" "$(cat "$headset_log")"
-pass "bluetooth headset mode falls back to the best available HFP codec"
+  fail "bluetooth headset mode falls back to the best available HFP codec for a lowercase address" "$(cat "$headset_log")"
+pass "bluetooth headset mode falls back to the best available HFP codec for a lowercase address"
 
 if PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG=/dev/null "$ROOT/bin/omarchy-bluetooth-device" music 11:22:33:44:55:66 2>/dev/null; then
   fail "bluetooth audio mode fails for a device with no audio card"

@@ -33,8 +33,9 @@ trust_device() {
 # the microphone). Prefer the plain profile name, which PipeWire gives the best
 # codec, and fall back to the highest priority codec variant.
 set_audio_profile() {
-  local prefix=$1 card profile
-  card="bluez_card.${address//:/_}"
+  local prefix=$1 card profile upper=${address^^}
+  # PipeWire names the card from the uppercase address.
+  card="bluez_card.${upper//:/_}"
   profile=$(pactl -f json list cards 2>/dev/null | jq -r --arg card "$card" --arg prefix "$prefix" '
     .[] | select(.name == $card) | .profiles | to_entries
     | map(select(.value.available and (.key == $prefix or (.key | startswith($prefix + "-")))))
