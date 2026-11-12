@@ -583,6 +583,9 @@ function M.reconcile(added, gone)
     end
   end
 
+  -- The blocks workspaces went home from, for the monitors left behind.
+  local hosts = {}
+
   -- Workspaces that joined another monitor's block while theirs was unplugged
   -- go back to it, under their old numbers when those are free.
   local function restore()
@@ -604,6 +607,7 @@ function M.reconcile(added, gone)
       if monitor then
         merged[id] = nil
         save_merged()
+        hosts[block_of_id(id)] = true
 
         local workspace = hl.get_workspace(id)
         if regular(workspace) then
@@ -624,7 +628,9 @@ function M.reconcile(added, gone)
 
   -- A workspace whose monitor is unplugged joins the block of the monitor it
   -- waits on, after that monitor's own, and remembers where it came from. An
-  -- empty one is left to go away, and one with no room stays a guest.
+  -- empty one is left to go away, and one with no room stays a guest. A monitor
+  -- parked on an empty workspace of its own shows the first of them instead, so
+  -- the empty one goes away rather than holding a number they would take.
   local function merge()
     local guests = {}
     for _, workspace in ipairs(hl.get_workspaces()) do
@@ -637,7 +643,15 @@ function M.reconcile(added, gone)
 
     for _, workspace in ipairs(guests) do
       local old = workspace.id
-      local id = append_slot(by_connector[workspace.monitor.name])
+      local block = by_connector[workspace.monitor.name]
+
+      local parked = workspace.monitor.active_workspace
+      if regular(parked) and (parked.windows or 0) == 0 and block_of_id(parked.id) == block then
+        hl.dispatch(hl.dsp.focus({ workspace = tostring(old) }))
+        changed = true
+      end
+
+      local id = append_slot(block)
       if id then
         -- One merged before keeps the monitor it first came from.
         local origin = merged[old]
@@ -664,6 +678,23 @@ function M.reconcile(added, gone)
 
   -- Moving a visible workspace home leaves a gap Hyprland fills with anything.
   own_views()
+
+  -- Hyprland hands a returning monitor its workspaces before saying it is back,
+  -- and fills the gap on the monitor they left with the lowest number free
+  -- while they still held theirs. Left empty on it, that monitor takes the
+  -- lowest number its block has free now.
+  for _, monitor in ipairs(monitors) do
+    local block = by_connector[monitor.name]
+    local parked = monitor.active_workspace
+    if hosts[block] and regular(parked) and (parked.windows or 0) == 0 and block_of_id(parked.id) == block then
+      for id = block * SLOTS + 1, parked.id - 1 do
+        if not hl.get_workspace(id) then
+          renumber(parked, id)
+          break
+        end
+      end
+    end
+  end
 
   if changed then
     if focused_window and hl.get_window("address:" .. focused_window.address) then
