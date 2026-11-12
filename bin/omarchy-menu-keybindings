@@ -21,7 +21,8 @@ leading_keyboard() {
   for option in kb_layout kb_variant; do
     value=$(hyprctl -j getoption "input:$option" 2>/dev/null | jq -r '.str // empty' 2>/dev/null)
     value=${value%%,*}
-    [[ $value =~ ^[A-Za-z0-9_-]*$ ]] || value=""
+    # A bracket range follows the locale's collation, not ASCII; compare in C.
+    (LC_ALL=C; [[ $value =~ ^[A-Za-z0-9_-]*$ ]]) || value=""
     printf '%s\n' "$value"
   done
 }
