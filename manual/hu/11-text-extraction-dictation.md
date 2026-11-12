@@ -1,0 +1,23 @@
+# Szövegkinyerés és diktálás
+
+### Szövegkinyerés
+
+Nyomd meg a `Super + Ctrl + PrtScr` billentyűket, hogy kijelölj egy területet a képernyőn szövegkinyeréshez. A tesseract nyílt forráskódú OCR-modell ezután gyorsan szöveggé alakítja azt a kijelölést, és a vágólapra helyezi. Ezután csak meg kell nyomnod a `Super + V` billentyűket a beillesztéshez.
+
+Ez nagyon hasznos címek kinyeréséhez képek láblécéből vagy weboldalak címsoraiba ágyazott telefonszámok megszerzéséhez.
+
+ ![text-extraction](images/text-extraction.webp)
+
+### Diktálás
+
+Friss telepítéseken a [Superwhisper](https://superwhisper.com/) az alapértelmezett diktálási backend, amely felhős feldolgozást használ, offline modellletöltések nélkül. Válaszd a Superwhisper, a [Voxtype](https://voxtype.io/) vagy a [Hex](https://anoma.ly/hex/) lehetőséget az Omarchy menü _Setup > Defaults > Dictation_ pontján keresztül. Egy backend kiválasztása szükség esetén telepíti azt, és alapértelmezetté teszi a diktáláshoz. A Voxtype egy alap angol modellt tölt be, amely 150MB helyet foglal; a modellt a `voxtype setup model` paranccsal, az egyéb beállításokat pedig a `~/.config/voxtype/config.toml` fájlon keresztül módosíthatod. A Superwhisper megnyitja a beállításait, ahol választhatsz a felhős vagy a helyi feldolgozás között, és az OPR tartja naprakészen az alkalmazást. A Hex a beállítás során tölti le az eszközön futó beszédmodelljét, és a `hex.service` felhasználói szolgáltatásként fut; az ablakát a sáv tálcaikonjáról vagy a `hex` futtatásával nyithatod meg a modell és más beállítások módosításához.
+
+Úgy diktálhatsz, hogy nyomva tartod a `Right Alt` billentyűt, vagy az `Alt + Space` billentyűkkel kapcsolod be és ki a diktálást, és a diktált szöveg a fókuszban lévő beviteli területen jelenik meg. Ezek a gyorsbillentyűk a kiválasztott backendet használják. A Right Alt akkor is elindítja a diktálást, amikor módosítóbillentyű-kombináció részeként használják; az ilyen kombinációkhoz használd a Left Alt billentyűt. Azokon a billentyűzetkiosztásokon, ahol a Right Alt az AltGr, használd az `Alt + Space` kombinációt, hogy az AltGr elérhető maradjon gépeléshez. Azok a telepítések, amelyek azelőttről származnak, hogy az Alt + Space lett volna az alapértelmezett, megtartják az `F9` billentyűt a push-to-talk funkcióhoz és a `Super + Ctrl + X` kombinációt a be- és kikapcsoláshoz, a `~/.config/hypr/bindings.lua` fájlhoz hozzáadva, ahol ez a `Super + Ctrl + X` az agents panel helyét veszi át; távolítsd el őket onnan, hogy visszaadd ezeket a billentyűket az alkalmazásoknak és a panelnek.
+
+Ugyanazok a gyorsbillentyűk minden backenddel működnek. Válaszd ki a backendet a Setup > Defaults > Dictation útvonalon. A backend telepítője konfigurálja azt, és elmenti a kiválasztást. Futtasd az `omarchy default dictation` parancsot, hogy megnézd, melyik van kiválasztva. A kiválasztás a `~/.config/omarchy/defaults/dictation` fájlba kerül mentésre. A friss telepítések automatikusan a Superwhispert választják.
+
+Az Omarchy automatikusan betölti a kiválasztott backend asztali integrációját. Nincs szükség Superwhisper-konfigurációra a `~/.config/hypr/` alatt.
+
+Az egyéni billentyűkötések és szkriptek használhatják az `omarchy dictation start`, az `omarchy dictation stop` és az `omarchy dictation toggle` parancsokat. A kiválasztott backend kezeli a felvételt és az átírást. A Superwhisper kiválasztása letiltja a natív nyomva tartós gyorsbillentyűjét, és a natív kapcsolóját a `Ctrl + Alt + Space` kombinációra állítja, elkülönítve azt az Omarchy felvételi billentyűitől. A Superwhisper legalább egy natív felvételi gyorsbillentyűt megkövetel, és a megszakítási gyorsbillentyűje továbbra is elérhető marad.
+
+További backendek az Omarchy módosítása nélkül is integrálhatók. Biztosíts egy `omarchy-dictation-<backend>` nevű végrehajtható fájlt a PATH útvonalon, amely elfogadja a `start`, a `stop` és a `toggle` parancsot, azonnal visszatér, hiba esetén pedig nem nulla állapotot ad vissza. A telepítője konfigurálja a szolgáltatót, és sikeres beállítás után meghívja az `omarchy-dictation-use <backend>` parancsot. Ez leállítja az előző backendet, és atomikusan elmenti a kiválasztást; a `stop` parancsnak akkor is sikeresnek kell lennie, amikor a szolgáltató tétlen vagy nem érhető el. A backendnevek kisbetűket, számjegyeket és kötőjeleket használnak. A beállításhoz biztosíts egy `omarchy-install-dictation-<backend>` fájlt; az `omarchy default dictation <backend>` indítja el azt. Adj hozzá egy Defaults menübejegyzést egy Omarchy menübővítményen keresztül, amely meghívja azt a választót. Az opcionális asztali integráció a `${XDG_CONFIG_HOME:-$HOME/.config}/<backend>/shortcuts.lua` helyen lehet.

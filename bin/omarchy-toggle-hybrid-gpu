@@ -68,7 +68,7 @@ fi
 
 case "$gpu_mode" in
 "Integrated")
-  if gum confirm "Enable dedicated GPU and reboot?"; then
+  if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n gpu.enableDedicated)"; then
     # Switch to hybrid mode
     sudo sed -i "s/\"mode\": \".*\"/\"mode\": \"Hybrid\"/" /etc/supergfxd.conf
 
@@ -82,7 +82,7 @@ case "$gpu_mode" in
   fi
   ;;
 "Hybrid")
-  if gum confirm "Use only integrated GPU and reboot?"; then
+  if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n gpu.useIntegrated)"; then
     # Delay supergfxd startup to avoid race condition with display manager
     # that can cause system freeze when booting in Integrated mode
     sudo mkdir -p /etc/systemd/system/supergfxd.service.d

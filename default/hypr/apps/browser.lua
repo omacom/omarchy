@@ -28,16 +28,16 @@
 -- on one machine; google-chrome-stable/-beta/-dev/-unstable; Brave's
 -- -beta/-dev/-nightly and Edge's -beta/-dev channel builds, which are their own
 -- packages and report their own class; Vivaldi's -snapshot), none of which the
--- web app class can spell. The tags keep their unscoped patterns: apps/pip.lua
--- and the video rules below key off them for web apps.
-o.window("((google-)?[cC]hrom(e|ium)|[bB]rave-browser|[mM]icrosoft-edge|Vivaldi-stable|helium)", { tag = "+chromium-based-browser" })
+-- web app class can spell. The tags keep their unscoped patterns: o.chromium_browsers,
+-- apps/pip.lua and the video rules below key off them for web apps.
+o.window(o.chromium_browsers, { tag = "+chromium-based-browser" })
 o.window("([fF]irefox|zen|librewolf)", { tag = "+firefox-based-browser" })
 o.window("^((google-)?[cC]hrom(e|ium)(-browser|-stable|-beta|-dev|-unstable)?|[bB]rave-browser(-beta|-dev|-nightly)?|[mM]icrosoft-edge(-beta|-dev)?|Vivaldi-stable|Vivaldi-snapshot|helium)$", { focus_on_activate = false })
 o.window("^(([fF]irefox)(-developer-edition)?|zen|librewolf)$", { focus_on_activate = false })
 o.window({ tag = "chromium-based-browser" }, { tile = true })
 
 -- Video apps: remove the chromium browser tag so they can float.
-o.window("(^.+-youtube\\.com__.*$|^.+-app\\.zoom\\.us__wc_home.*$)", { tag = "-chromium-based-browser" })
+o.window("(^.+-youtube\\.com__.*$|^.+-www\\.netflix\\.com__.*$|^.+-app\\.zoom\\.us__wc_home.*$)", { tag = "-chromium-based-browser" })
 
 -- Hide screen sharing notification windows.
 o.window({ title = ".*is sharing.*" }, { workspace = "special silent" })
