@@ -415,7 +415,7 @@
     "label": "high"
   },
   "trigger.hardware.keyboard-backlight-timeout": {
-    "label": "Keyboard Backlight Timeout"
+    "label": "Key Light Timeout"
   },
   "trigger.hardware.keyboard-backlight-timeout.10s": {
     "label": "10 seconds"
