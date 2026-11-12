@@ -565,6 +565,16 @@ Item {
     return !!left.name && !!right.name && left.name === right.name
   }
 
+  function closePopoutOffWidget(window, item, point) {
+    var owner = activePopout
+    if (!owner) return
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var slot = moduleSlots[i]
+      if (sameWindow(slot.window, window) && Util.itemContainsPoint(slot, item, point.x, point.y)) return
+    }
+    if ("close" in owner) owner.close()
+  }
+
   function sameWindow(left, right) {
     if (!left || !right) return false
     if (left === right) return true
@@ -1833,6 +1843,13 @@ Item {
         color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
       }
 
+      // A panel open over the bar leaves the bar its clicks (PanelSurface), so
+      // a click on the strip that no widget takes is the one that closes it.
+      TapHandler {
+        acceptedButtons: Qt.AllButtons
+        onTapped: function(eventPoint) { root.closePopoutOffWidget(barWindow, barStrip, eventPoint.position) }
+      }
+
       Loader {
         anchors.fill: parent
         sourceComponent: root.vertical ? verticalBar : horizontalBar
@@ -2541,7 +2558,9 @@ Item {
       if (suppressClick) {
         suppressClick = false
         mouse.accepted = true
+        return
       }
+      root.closePopoutOffWidget(root.targetWindow(gestureArea), gestureArea, Qt.point(mouse.x, mouse.y))
     }
 
     onDoubleClicked: function(mouse) {

@@ -1,16 +1,16 @@
 import QtQuick
 import Quickshell
-import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
+import "PanelSurface"
 
 // Layer-shell popup attached to a bar widget icon, designed for
 // click-driven AND keyboard-driven panels (e.g. SUPER+CTRL+W summon).
 //
-// Built on PanelWindow with a brief WlrKeyboardFocus.Exclusive prime followed
-// by OnDemand rather than PopupWindow (xdg-popup). The prime acquires focus
-// both when the surface maps and when it reopens while still mapped for its
-// fade-out. xdg-popups don't get that — they only receive keys after a
+// Drawn on a layer-shell surface with a brief WlrKeyboardFocus.Exclusive
+// prime followed by OnDemand rather than a PopupWindow (xdg-popup). The prime
+// acquires focus both when the surface maps and on every open while it stays
+// mapped. xdg-popups don't get that — they only receive keys after a
 // click/hover routes focus through their parent surface — so keyboard-summoned
 // popups fell flat without it.
 //
@@ -18,6 +18,11 @@ import qs.Commons as Commons
 // *every* pointer event to the exclusive surface no matter which output
 // the cursor is over, which leaves clicks on any other monitor unable to
 // reach the dismissal surfaces below.
+//
+// The panel has no window of its own: its card and click catchers are drawn
+// on PanelSurface's window for its output, shared by every panel (see there
+// for why). It stays a PanelWindow, never shown, so plugins declaring one keep
+// working.
 //
 // API is a subset of Common.PopupCard: anchorItem, owner, bar, open,
 // padding, margin, contentWidth/Height, centerOnBar, default contentItem.
@@ -31,10 +36,11 @@ import qs.Commons as Commons
 // parallel axis (along-the-bar) uses the anchor's content x/y since the
 // bar window spans the full screen on that axis.
 //
-// Outside-click dismissal: an overlay MouseArea catches clicks, with the
-// QsWindow.mask subtracting the bar strip so clicks on the bar still
-// reach the bar widgets (activePopout coordinator hands off to another
-// popup if the user clicks a different bar icon).
+// Outside-click dismissal: an overlay MouseArea catches clicks, with
+// PanelSurface's input region leaving out the bar strip so clicks on the bar
+// still reach the bar widgets (activePopout coordinator hands off to another
+// popup if the user clicks a different bar icon, and the bar closes the panel
+// on a click that lands on no widget).
 PanelWindow {
   id: root
 
@@ -116,18 +122,51 @@ PanelWindow {
   }
 
   function beginFocusPrime() {
-    if (open && backingWindowVisible) focusPrimeTimer.restart()
+    if (open && surfaceWindow && surfaceWindow.backingWindowVisible) focusPrimeTimer.restart()
   }
 
   // --- screen + lifetime ---------------------------------------------------
 
   screen: anchorWindow ? anchorWindow.screen : null
-  visible: open || card.opacity > 0 || popoutSwitching
-  color: "transparent"
-  exclusionMode: ExclusionMode.Ignore
+  visible: false
 
-  WlrLayershell.namespace: "omarchy-keyboard-panel"
-  WlrLayershell.layer: WlrLayer.Overlay
+  // Drawn on screen: open, still fading out, or giving way to another panel.
+  readonly property bool inUse: open || card.opacity > 0 || popoutSwitching
+  // The output's PanelSurface, from the first open on; the card stays on it
+  // between opens. Until then it waits in cardHome, for content built early.
+  property bool placed: false
+  property real stackZ: 0
+  readonly property Item surfaceLayer: placed && screen ? PanelSurface.layers[screen.name] || null : null
+  readonly property var surfaceWindow: placed && screen ? PanelSurface.windows[screen.name] || null : null
+  Component.onCompleted: PanelSurface.track(root)
+  Component.onDestruction: PanelSurface.forget(root)
+
+  // Panels on an output share one window, and with it one focused item. The
+  // panel opening takes it, and a closed panel that takes it back (a field
+  // handing focus to its card as the panel closes) passes it on to the panel
+  // open there, or a hidden card would keep getting the keys.
+  function takeKeyboard() {
+    if (!open) return
+    if (focusTarget) focusTarget.forceActiveFocus()
+    else contentLoader.forceActiveFocus()
+  }
+
+  function yieldKeyboard() {
+    var holder = surfaceWindow ? surfaceWindow.openPanel : null
+    if (!open && contentLoader.activeFocus && holder && holder !== root) holder.takeKeyboard()
+  }
+
+  // A first open builds the panel's content, and the very first the surfaces.
+  // The pointer reaching the panel's icon gives that a head start.
+  HoverHandler {
+    parent: root.anchorItem
+    onHoveredChanged: if (hovered) {
+      PanelSurface.wanted = true
+      root.ensureContent()
+    }
+  }
+
+  // The surface sets keyboard focus from `focusPrimed` of the panel open on it.
   // Keyboard focus follows `open` (NOT `visible`). The window remains
   // mapped during the fade-out so the opacity animation has something to
   // animate, but keyboard/click ownership must release the moment the
@@ -139,32 +178,15 @@ PanelWindow {
   // focus when the previously focused application has constrained the pointer.
   // The brief prime covers both cases; OnDemand then releases compositor-wide
   // pointer hit-testing so clicks can reach the dismissal windows below.
-  WlrLayershell.keyboardFocus: open
-    ? (focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
-    : WlrKeyboardFocus.None
-
-  onBackingWindowVisibleChanged: beginFocusPrime()
-
-  // Full-screen layer-shell. The visible card is positioned inside via
-  // `cardOrigin`. The `mask` below makes the bar area click-through (so
-  // the user can click another bar icon while the panel is open and the
-  // activePopout coordinator swaps to that popup); everywhere else, the
-  // overlay catches the click and dismisses via the MouseArea below.
-  anchors {
-    top: true
-    bottom: true
-    left: true
-    right: true
+  Connections {
+    target: root.surfaceWindow
+    function onBackingWindowVisibleChanged() { root.beginFocusPrime() }
   }
 
-  // Clickable region is the whole screen. Clicks in the bar strip are
-  // forwarded to registered bar buttons so switching between panel icons
-  // works in one click even when the overlay surface is above the bar.
-  readonly property real _barStripSize: bar ? barThickness + gap : 0
-  mask: Region {
-    width: root.screenW
-    height: root.screenH
-  }
+  // The strip the bar takes on this panel's output, which the surface leaves
+  // to the bar while a panel is open; none while the bar is hidden. Only the
+  // built-in bar can say it is hidden, so PanelSurface asks a panel on it first.
+  readonly property real barStripSize: bar && bar.barHidden !== true ? barThickness + gap : 0
 
   // Track every layout change between the bar's contentItem and the
   // anchor item. `transform` updates whenever any item in that chain
@@ -233,10 +255,6 @@ PanelWindow {
   // centering the card under the icon.
   readonly property real barThickness: !bar ? 0
     : (typeof bar.barSizeFor === "function" && screen ? bar.barSizeFor(screen.name) : bar.barSize)
-  // Bar window dimensions, only for mapping overlay coordinates into
-  // bar-window content coordinates in barPoint() below.
-  readonly property real barW: anchorWindow ? anchorWindow.width : screenW
-  readonly property real barH: anchorWindow ? anchorWindow.height : 0
   readonly property point cardOrigin: {
     if (!anchorItem || !bar) return Qt.point(margin, margin)
     var x = 0, y = 0
@@ -285,11 +303,11 @@ PanelWindow {
     if (open) {
       heightSettle.restart()
       if (content) contentRequested = true
+      placed = true
+      stackZ = PanelSurface.raise(root)
       focusPrimed = false
       beginFocusPrime()
-      if (focusTarget) Qt.callLater(function() {
-        if (root.open && root.focusTarget) root.focusTarget.forceActiveFocus()
-      })
+      Qt.callLater(takeKeyboard)
     } else {
       focusPrimeTimer.stop()
       focusPrimed = false
@@ -380,130 +398,51 @@ PanelWindow {
 
   // --- outside-click dismissal --------------------------------------------
 
-  // Catches clicks anywhere in the clickable region (i.e. everywhere on
-  // screen except the bar strip, which is masked out). The card has its
-  // own MouseArea below so clicks on it don't bubble up here. Disabled
-  // during the fade-out so the dying overlay doesn't swallow clicks that
-  // were meant for the apps behind it.
+  // Catches clicks anywhere the surface takes them: everywhere on screen but
+  // the bar strip, which the surface leaves to the bar so a click there does
+  // just what it does with no panel open. The card has its own MouseArea
+  // below so clicks on it don't bubble up here. Disabled during the fade-out
+  // so the dying overlay doesn't swallow clicks that were meant for the apps
+  // behind it.
   MouseArea {
     id: dismissArea
+    parent: root.surfaceLayer || cardHome
+    z: root.stackZ - 0.5
     anchors.fill: parent
     enabled: root.open
     acceptedButtons: Qt.AllButtons
-    hoverEnabled: true
-    property bool hoveringBar: false
-    cursorShape: hoveringBar ? Qt.PointingHandCursor : Qt.ArrowCursor
-
-    function inBarRegion(px, py) {
-      if (root.barPos === "bottom") return py >= root.screenH - root._barStripSize
-      if (root.barPos === "left") return px <= root._barStripSize
-      if (root.barPos === "right") return px >= root.screenW - root._barStripSize
-      return py <= root._barStripSize
-    }
-
-    function barPoint(px, py) {
-      if (root.barPos === "bottom") return Qt.point(px, py - (root.screenH - root.barH))
-      if (root.barPos === "right") return Qt.point(px - (root.screenW - root.barW), py)
-      return Qt.point(px, py)
-    }
-
-    function pressTargetAt(px, py) {
-      if (!root.anchorWindow || !root.anchorWindow.contentItem || !root.bar || !root.bar.clickTargets) return null
-      var p = barPoint(px, py)
-      var targets = root.bar.clickTargets
-      for (var i = targets.length - 1; i >= 0; i--) {
-        var target = targets[i]
-        if (!target || !target.triggerPress || target.visible === false || target.opacity === 0 || !target.mapToItem) continue
-        if (root.bar.targetBelongsToWindow && !root.bar.targetBelongsToWindow(target, root.anchorWindow)) continue
-        if (Util.itemContainsPoint(target, root.anchorWindow.contentItem, p.x, p.y)) return target
-      }
-      return null
-    }
-
-    function forwardBarClick(px, py, button) {
-      if (button !== Qt.LeftButton && button !== Qt.RightButton && button !== Qt.MiddleButton) return false
-      var target = pressTargetAt(px, py)
-      if (!target) return false
-      target.triggerPress(button)
-      return true
-    }
-
-    // This overlay takes presses on the bar strip too, so the bar button under
-    // the pointer never sees itself held; it's told, for its press feedback,
-    // the way the bar's own press handler tells it.
-    property var heldTarget: null
-    function hold(target, button) {
-      if (heldTarget && heldTarget !== target && "heldButtons" in heldTarget) heldTarget.heldButtons = Qt.NoButton
-      heldTarget = target && "heldButtons" in target ? target : null
-      if (heldTarget) heldTarget.heldButtons = button
-    }
-
-    // Every button still down, so a second button pressed or let go mid-hold
-    // leaves the first one's feedback alone.
-    onPressed: function(mouse) {
-      hold(root.focusPrimed && inBarRegion(mouse.x, mouse.y) ? pressTargetAt(mouse.x, mouse.y) : null, mouse.buttons)
-    }
-    onReleased: function(mouse) { hold(mouse.buttons ? heldTarget : null, mouse.buttons) }
-    onCanceled: hold(null)
-    onEnabledChanged: if (!enabled) hold(null)
-
-    onPositionChanged: function(mouse) { hoveringBar = inBarRegion(mouse.x, mouse.y) }
-    onExited: hoveringBar = false
-    onClicked: function(mouse) {
-      // While Exclusive is priming, Hyprland may route a click from another
-      // output here with translated coordinates. Never interpret that as a
-      // click on this output's bar.
-      if (root.focusPrimed && inBarRegion(mouse.x, mouse.y) && forwardBarClick(mouse.x, mouse.y, mouse.button)) return
-      root.close()
-    }
+    onClicked: root.close()
   }
 
-  // The panel surface only spans the anchor's screen, and the compositor
-  // hit-tests pointer input per output, so `dismissArea` above can never see
-  // a click on another monitor. Give every other output a transparent twin
-  // whose only job is to catch that click. They exist only while the panel is
-  // logically open (not during the fade-out, matching `dismissArea.enabled`).
-  //
-  // Keyboard focus is None: these must catch the pointer without taking focus
-  // from the panel when the cursor merely crosses onto their output.
+  // The compositor hit-tests pointer input per output, so `dismissArea` above
+  // can never see a click on another monitor. Every other output's surface
+  // gets a twin whose only job is to catch that click, only while the panel
+  // is logically open (not during the fade-out, matching `dismissArea.enabled`).
   Variants {
-    model: root.open ? Quickshell.screens : []
+    model: root.placed ? Quickshell.screens : []
 
     delegate: Component {
-      PanelWindow {
+      MouseArea {
         required property var modelData
-
-        screen: modelData
-        // Compare by output name: the anchor screen must be known before any
-        // twin maps, or a twin would cover the panel's own output.
-        visible: root.open && !!root.screen && modelData.name !== root.screen.name
-        color: "transparent"
-        exclusionMode: ExclusionMode.Ignore
-
-        WlrLayershell.namespace: "omarchy-keyboard-panel-dismiss"
-        WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-
-        anchors {
-          top: true
-          bottom: true
-          left: true
-          right: true
-        }
-
-        MouseArea {
-          anchors.fill: parent
-          acceptedButtons: Qt.AllButtons
-          onPressed: root.close()
-        }
+        // Compare by output name: the anchor screen must be known first, or a
+        // twin would cover the panel's own output.
+        parent: !!root.screen && modelData.name !== root.screen.name ? PanelSurface.layers[modelData.name] || null : null
+        anchors.fill: parent
+        enabled: root.open
+        acceptedButtons: Qt.AllButtons
+        onPressed: root.close()
       }
     }
   }
 
   // --- card ----------------------------------------------------------------
 
+  Item { id: cardHome }
+
   BorderSurface {
     id: card
+    parent: root.surfaceLayer || cardHome
+    z: root.stackZ
     x: root.morphed(root.morphFrom.x, root.cardOrigin.x)
     y: root.morphed(root.morphFrom.y, root.cardOrigin.y)
     width: root.morphed(root.morphFrom.width, root.contentWidth)
@@ -523,8 +462,8 @@ PanelWindow {
     property real shown: root.open || root.popoutSwitching ? 1 : 0
     Behavior on shown {
       id: showing
-      // The card giving way on a switch still fades out, briefly over the one
-      // taking its place, so there's no empty frame while that one maps.
+      // The card giving way on a switch still fades out, under the one
+      // taking its place.
       enabled: !root.takingOver && !(root.popoutSwitching && root.morph < 1)
       NumberAnimation {
         duration: Style.duration(showing.targetValue > 0 ? 180 : 120)
@@ -567,6 +506,7 @@ PanelWindow {
         anchors.fill: parent
         focus: true
         active: !!root.content && (root.open || root.contentRequested)
+        onActiveFocusChanged: if (activeFocus && !root.open) Qt.callLater(root.yieldKeyboard)
         sourceComponent: root.content
       }
 
