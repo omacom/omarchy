@@ -11,7 +11,8 @@
 
 want=${1:?item id required}
 
-# Find the item's bus name and object path by its Id.
+# Find the item's bus name and object path by its Id. Each call gives up after
+# a second, so an app that stopped answering can't stall the lookup.
 target=""
 while IFS= read -r item; do
   if [[ $item == */* ]]; then
@@ -19,12 +20,13 @@ while IFS= read -r item; do
   else
     service=$item path=/StatusNotifierItem
   fi
-  id=$(busctl --user --json=short get-property "$service" "$path" org.kde.StatusNotifierItem Id 2>/dev/null | jq -r .data)
+  id=$(busctl --user --timeout=1 --json=short call "$service" "$path" \
+    org.freedesktop.DBus.Properties GetAll s org.kde.StatusNotifierItem 2>/dev/null | jq -r '.data[0].Id.data // empty')
   if [[ $id == "$want" ]]; then
     target="$service $path"
     break
   fi
-done < <(busctl --user --json=short get-property org.kde.StatusNotifierWatcher /StatusNotifierWatcher \
+done < <(busctl --user --timeout=1 --json=short get-property org.kde.StatusNotifierWatcher /StatusNotifierWatcher \
   org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems | jq -r '.data[]')
 
 [[ -n $target ]] || exit 1
@@ -47,4 +49,4 @@ if [[ -n $monitor ]]; then
   fi
 fi
 
-busctl --user call "$service" "$path" org.kde.StatusNotifierItem ContextMenu ii "$x" "$y"
+busctl --user --timeout=1 call "$service" "$path" org.kde.StatusNotifierItem ContextMenu ii "$x" "$y"
