@@ -63,7 +63,11 @@ done
 # button on each subscription opens the harness made for it, Codex for OpenAI.
 if [[ -n $agent_override ]]; then
   agent=$agent_override
-  if omarchy-cmd-missing "$agent"; then
+  # An integration names its harness apart from the command it installs
+  # (acme-agent runs acme), so the catalog's install command is what says
+  # whether the agent the panel asked for is there.
+  agent_command=$(omarchy-agent-catalog | jq -r --arg id "$agent" '.[] | select(.id == $id) | .install.command' | head -n1)
+  if [[ -z $agent_command ]] || omarchy-cmd-missing "$agent_command"; then
     omarchy-notification-send "$(omarchy-i18n agents.harnessMissing "$agent")" "$(omarchy-i18n agents.harnessMissingBody "$agent")"
     exit 1
   fi

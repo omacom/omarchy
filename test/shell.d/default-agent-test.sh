@@ -1160,7 +1160,7 @@ JSON
 
 cat >"$harness_bin/omarchy-cmd-missing" <<'MOCK'
 #!/bin/bash
-exit 1
+! command -v "$1" >/dev/null 2>&1
 MOCK
 cat >"$harness_bin/acme-agent" <<'MOCK'
 #!/bin/bash
@@ -1211,3 +1211,22 @@ mapfile -d '' -t harness_argv <"$harness_argv_log"
 [[ ${#harness_argv[@]} == 3 && ${harness_argv[0]} == "--app-id=org.omarchy.agent" && ${harness_argv[1]} == "acme-agent" && ${harness_argv[2]} == "--project=$harness_project" ]] ||
   fail "terminal harness falls back to its command template" "actual: ${harness_argv[*]}"
 pass "terminal harness uses argv fallback when promptCommand is omitted"
+
+# The panel's terminal button passes the harness id, which an integration need
+# not have named after the command it installs (acme-agent runs acme). Asking
+# PATH for the id refused an agent that was right there under its own command.
+# The id must not answer for the command, so only acme is on PATH from here.
+rm -f "$harness_bin/acme-agent"
+jq '.agentHarness.install.command = "acme" | .agentHarness.launch.command = ["acme"]' "$harness_plugin/manifest.json" >"$harness_plugin/updated.json"
+mv "$harness_plugin/updated.json" "$harness_plugin/manifest.json"
+printf '#!/bin/bash\nprintf "acme %%s\\n" "$*"\n' >"$harness_bin/acme"
+chmod +x "$harness_bin/acme"
+: >"$harness_argv_log"
+(
+  cd "$harness_project"
+  omarchy-agent --agent acme-agent
+) || fail "agent launcher opens a harness whose command differs from its id"
+mapfile -d '' -t harness_argv <"$harness_argv_log"
+[[ ${#harness_argv[@]} == 2 && ${harness_argv[1]} == "acme" ]] ||
+  fail "agent launcher resolves a harness's install command for --agent" "actual: ${harness_argv[*]}"
+pass "agent launcher checks a harness's install command, not its id, for --agent"
