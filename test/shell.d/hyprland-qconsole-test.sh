@@ -14,6 +14,7 @@ OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "the console is a centered panel unti
 local rules, handlers, spawned = {}, {}, {}
 local monitor = nil
 local workspace = nil
+local gaps_in = 5
 
 hl = {
   config = function() end,
@@ -32,7 +33,7 @@ hl = {
   end,
   exec_scheduled_prop_refresh_immediately = function() end,
   get_config = function(key)
-    if key == "general.gaps_in" then return 5 end
+    if key == "general.gaps_in" then return gaps_in end
   end,
   exec_cmd = function(cmd, rules) table.insert(spawned, { cmd = cmd, rules = rules }) end,
 }
@@ -284,6 +285,14 @@ workspace.windows = 1
 handlers["window.move_to_workspace"]()
 top, right, bottom, left = gaps()
 assert(left == 435 and right == 435, "moving it back off recenters the panel")
+
+-- The console loads before the user's own appearance settings, so a split
+-- console has to pick up their gap once the reload has applied it.
+workspace.windows = 2
+handlers["window.open"]()
+gaps_in = 12
+handlers["config.reloaded"]()
+assert(current().gaps_in == 12, "a reload brings a split console's gap up to date")
 
 -- window.close still counts the window on its way out, and window.destroy
 -- follows it with the settled count, so only destroy is hooked.

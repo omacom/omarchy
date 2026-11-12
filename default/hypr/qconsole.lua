@@ -46,13 +46,16 @@ hl.config({
 -- still schedules a monitor and window state refresh, and monitor.focused fires
 -- on every hop between screens. Most of those hops do not change the gaps, so
 -- only write the rule when it actually moves.
-local beside, below, framed = nil, nil, nil
+local beside, below, framed, spaced = nil, nil, nil, nil
 
 local function cover(side, bottom, bordered)
-  if beside == side and below == bottom and framed == bordered then
+  -- Read on every refit rather than once: the console loads before the user's
+  -- own appearance settings, so the first read sees the default gap.
+  local gap = bordered and hl.get_config("general.gaps_in") or 0
+  if beside == side and below == bottom and framed == bordered and spaced == gap then
     return false
   end
-  beside, below, framed = side, bottom, bordered
+  beside, below, framed, spaced = side, bottom, bordered, gap
 
   hl.workspace_rule({
     workspace = CONSOLE,
@@ -63,7 +66,7 @@ local function cover(side, bottom, bordered)
     -- Once a second app shares the console, it is tiled like any workspace:
     -- the borders are the only way to tell which one has focus, and the usual
     -- gap keeps them from running together.
-    gaps_in = bordered and hl.get_config("general.gaps_in") or 0,
+    gaps_in = gap,
     no_border = not bordered,
   })
 
@@ -152,6 +155,11 @@ cover(0, 0, false)
 fit(console_monitor())
 
 hl.on("monitor.layout_changed", function()
+  refit()
+end)
+
+-- A reload can change the gap a split console uses without moving anything else.
+hl.on("config.reloaded", function()
   refit()
 end)
 
