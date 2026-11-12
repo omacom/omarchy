@@ -83,9 +83,13 @@ Item {
   // that launch them. Read at startup and when a default changes, since the
   // commands that set one ask the dock to refresh them.
   property var standIns: ({})
+  property bool standInsQueued: false
 
+  // A request during a read queues one more, since the running read may have
+  // seen the old default.
   function refreshStandIns() {
-    standInsProc.running = true
+    if (standInsProc.running) root.standInsQueued = true
+    else standInsProc.running = true
   }
 
   Process {
@@ -95,12 +99,18 @@ Item {
       onStreamFinished: {
         var lines = text.split("\n")
         var next = {}
-        var terminal = DockModel.normalizeId(lines[0])
+        // The terminal may be named with an action, as in foot.desktop:New.
+        var terminal = DockModel.normalizeId(String(lines[0] || "").split(":")[0])
         var browser = DockModel.normalizeId(lines[1])
         if (terminal) next[terminal] = "omarchy-terminal"
         if (browser) next[browser] = "omarchy-browser"
         root.standIns = next
       }
+    }
+    // Deferred: the process still reports running while it signals exit.
+    onExited: if (root.standInsQueued) {
+      root.standInsQueued = false
+      Qt.callLater(root.refreshStandIns)
     }
   }
 
