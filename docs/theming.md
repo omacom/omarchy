@@ -405,9 +405,9 @@ The icons don't use palette keys directly, because a key means different things 
 | `icon_ink` | `dark_foreground` |
 | `icon_shadow` | `darker_background`; `dark_background` mixed toward `foreground` in a light theme |
 | `icon_contrast` | what stands out most on the paper: `icon_shadow` in a dark theme, `foreground` in a light one |
-| `icon_red`, `icon_orange` | `red` and `orange`, or `icon_mark` when the theme's is not hex |
+| `icon_red`, `icon_orange` | `red` and `orange`, whatever their hue; drawn from the accent's strength when the theme has none |
 
-A theme picks any role itself by setting it in `colors.toml` (for example `icon_mark = "#bb9af7"`), or ships a whole icon as `themes/<name>/icons/<icon name>.svg`, which is used instead of the template. The icons are skipped when a role would not be a plain hex color.
+A theme picks any role itself by setting it in `colors.toml` (for example `icon_mark = "#bb9af7"`), or ships a whole icon as `themes/<name>/icons/<icon name>.svg`, which is used instead of the template. Any theme gets a best guess, a custom one that only sets its accent, background and foreground included: colors written as `rgb()`, `rgba()`, `0xAARRGGBB` or `#rrggbbaa` are read as `#rrggbb`; a neutral the palette leaves out, or sets to the same color as its neighbor, is mixed from the background and foreground; and a palette that names no hues of its own gets its accent turned 40 degrees for the highlight. Only a theme whose background, foreground or accent can't be read as a color gets the packaged icons.
 
 ## Adding or overriding theme files
 

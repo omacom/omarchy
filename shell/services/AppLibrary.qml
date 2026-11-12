@@ -22,6 +22,7 @@ Item {
   // whenever the app list changes, so newly installed apps get their icon live.
   property var iconIndex: ({})
   property var pendingIconIndex: ({})
+  property bool iconRescanQueued: false
 
   // Omarchy's own app icons are linked into the user's icon dir and redrawn in
   // place after each theme switch, which then writes icons.revision. The
@@ -85,8 +86,11 @@ Item {
 
   // The shell may start before first-install packages have finished placing
   // their icons; consumers call this when they open so icons appear live.
+  // A request during a scan queues one more, since the running scan may have
+  // listed icons before they changed.
   function refreshIcons() {
-    if (!iconIndexScan.running) iconIndexScan.running = true
+    if (iconIndexScan.running) root.iconRescanQueued = true
+    else iconIndexScan.running = true
   }
 
   function refreshVersions() {
@@ -247,7 +251,13 @@ Item {
     onStarted: root.pendingIconIndex = ({})
     // Swapping the property re-evaluates every iconSource() binding, so
     // newly found icons appear without rebuilding the list.
-    onExited: root.iconIndex = root.pendingIconIndex
+    onExited: {
+      root.iconIndex = root.pendingIconIndex
+      if (root.iconRescanQueued) {
+        root.iconRescanQueued = false
+        running = true
+      }
+    }
   }
 
   Process {

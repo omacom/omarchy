@@ -93,14 +93,20 @@ icon_role() {
 [[ $(icon_role "$ROOT/themes/rose-pine/colors.toml" icon_paper) == "#faf4ed" ]] || fail "app icons draw paper from a light theme's background"
 pass "app icon colors fit each theme's palette"
 
-printf 'accent = "#7aa2f7"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\nicon_mark = "#123456"\n' >"$test_tmp/chosen.toml"
-printf 'red = "rgba(247,118,142,1)"\n' >>"$test_tmp/chosen.toml"
+printf 'accent = "#7aa2f7"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\nicon_mark = "#123456"\nred = "rgba(247,118,142,1)"\n' >"$test_tmp/chosen.toml"
 [[ $(icon_role "$test_tmp/chosen.toml" icon_mark) == "#123456" ]] || fail "a theme chooses its own app icon color"
-[[ $(icon_role "$test_tmp/chosen.toml" icon_red) == "#123456" ]] || fail "a stand-in red follows the theme's chosen highlight"
-printf 'accent = "rgba(122,162,247,1)"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$test_tmp/rgba.toml"
-[[ -z $("$ROOT/bin/omarchy-theme-color" --file "$test_tmp/rgba.toml" --all | "$ROOT/bin/omarchy-theme-icon-palette") ]] || fail "app icons are skipped when the palette is not plain hex"
-printf 'accent = "#7aa2f7"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\nred = "rgba(247,118,142,1)"\n' >"$test_tmp/rgba-red.toml"
-[[ $(icon_role "$test_tmp/rgba-red.toml" icon_red) == "$(icon_role "$test_tmp/rgba-red.toml" icon_mark)" ]] || fail "app icons stand in for a red that is not plain hex"
+[[ $(icon_role "$test_tmp/chosen.toml" icon_red) == "#f7768e" ]] || fail "app icons read a color written as rgba()"
+printf 'accent = "0xff7aa2f7"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$test_tmp/argb.toml"
+[[ $(icon_role "$test_tmp/argb.toml" icon_main) == "#7aa2f7" ]] || fail "app icons read a color written as 0xAARRGGBB"
+printf 'accent = "nope"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$test_tmp/unreadable.toml"
+[[ -z $("$ROOT/bin/omarchy-theme-color" --file "$test_tmp/unreadable.toml" --all | "$ROOT/bin/omarchy-theme-icon-palette") ]] || fail "app icons are skipped when the accent can't be read as a color"
+
+# A theme that sets only its accent, background and foreground still gets
+# paper, text and a highlight that stand apart.
+printf 'accent = "#e06c75"\nbackground = "#1e2127"\nforeground = "#abb2bf"\n' >"$test_tmp/bare.toml"
+[[ $(icon_role "$test_tmp/bare.toml" icon_ink) != "$(icon_role "$test_tmp/bare.toml" icon_paper)" ]] || fail "a bare theme's app icons get text that shows on their paper"
+[[ $(icon_role "$test_tmp/bare.toml" icon_mark) != "#abb2bf" ]] || fail "a bare theme's app icons get a highlight with a hue"
+[[ $(icon_role "$test_tmp/bare.toml" icon_red) != "#abb2bf" ]] || fail "a bare theme's app icons get a red"
 pass "app icon colors honor the theme and skip palettes they cannot draw"
 
 # App icons draw from the current theme after the switch, into a dir the links
@@ -135,7 +141,7 @@ done
 [[ -s $state/icons.revision ]] || fail "app icons tell the shell they changed"
 pass "app icons render after the switch and link into the user's icon theme"
 
-printf 'accent = "rgba(122,162,247,1)"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$state/theme/colors.toml"
+printf 'accent = "nope"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$state/theme/colors.toml"
 set_icons
 [[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "a theme that can't draw app icons brings the packaged ones back"
 pass "a theme that can't draw app icons brings the packaged ones back"
