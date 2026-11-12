@@ -524,9 +524,11 @@ fi
 flock -u 9
 
 # What the user is looking at: the terminals and the programs drawn inside
-# them, plus the window borders when no intro is playing. These run as soon as
-# the theme is in place, alongside the wallpaper and bar transition.
+# them, Omarchy's app icons in the dock, plus the window borders when no intro
+# is playing. These run as soon as the theme is in place, alongside the
+# wallpaper and bar transition, so the dock's icons fade with the palette.
 visible_theme_commands=(
+  omarchy-theme-set-icons
   omarchy-restart-terminal
   omarchy-theme-set-foot
   omarchy-theme-set-tmux
@@ -537,12 +539,11 @@ visible_theme_commands=(
 )
 
 # Configs other apps read on their next refresh or launch: GTK, the browser
-# policy, editors, agents, Omarchy's app icons and the keyboard backlight. Nothing on screen waits
+# policy, editors, agents and the keyboard backlight. Nothing on screen waits
 # for these.
 other_theme_commands=(
   omarchy-theme-set-gnome
   omarchy-theme-set-qt
-  omarchy-theme-set-icons
   omarchy-theme-set-pi
   omarchy-theme-set-claude
   omarchy-theme-set-hermes
