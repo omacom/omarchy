@@ -537,8 +537,13 @@ Item {
 
   // Cards come to rest when the clock finishes or a jump has been drawn.
   signal settled()
-  // A move started after the jump settles on its own finish instead.
-  function landed() { if (t >= 1) settled() }
+  // A move started after the jump settles on its own finish instead. Heights
+  // the jump queued are taken here too, so the jump never outlives its turn:
+  // with nothing queued, a later hover must still move rather than jump.
+  function landed() {
+    flushHeights()
+    if (t >= 1) settled()
+  }
 
   readonly property var layout: { layoutRevision; return layoutWith(expanded, openDeck) }
 
