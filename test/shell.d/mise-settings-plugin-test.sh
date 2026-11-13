@@ -65,13 +65,14 @@ SH
 
 chmod +x "$mock_bin"/*
 
+settings_env=()
 settings() {
   (
     cd "$project"
     env -i HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_PATH="$ROOT" \
       OMARCHY_TEST_CALLS="$calls" MISE_EXPERIMENTAL=1 MISE_YES=1 \
       MISE_SYSTEM_PLUGINS_DIRS="$test_tmp/plugins" MISE_TRUSTED_CONFIG_PATHS="$project" \
-      mise bootstrap settings "$@"
+      "${settings_env[@]}" mise bootstrap settings "$@"
   )
 }
 
@@ -129,6 +130,16 @@ grep -qF 'default = "scrolling"' "$test_tmp/home/.local/state/omarchy/workspace-
   fail "apply sets the theme and the font once each" "$(<"$calls")"
 settings status --missing >/dev/null 2>&1 || fail "nothing differs after apply" "$(settings status 2>&1)"
 pass "apply writes every setting through its command"
+
+# omarchy-theme-set records the theme under ~/.local/state wherever
+# XDG_STATE_HOME points, so that is where the plugin reads it. The commands
+# that follow XDG_STATE_HOME find nothing in the new place.
+settings_env=(XDG_STATE_HOME="$test_tmp/elsewhere")
+moved=$(settings status 2>&1)
+settings_env=()
+[[ $(grep -E '^omarchy +theme ' <<<"$moved") =~ \"tokyo-night\"\ +\"tokyo-night\"\ +set$ ]] ||
+  fail "the theme is read from where Omarchy records it" "$moved"
+pass "the theme is read from where Omarchy records it"
 
 # Only the keys that differ are written, and the ones stored as an "off" flag
 # come back on.

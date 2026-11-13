@@ -88,11 +88,8 @@ local settings = {}
 -- after every apply.
 settings["theme"] = {
   read = function()
-    local state = os.getenv("XDG_STATE_HOME")
-    if not state or state == "" then
-      state = os.getenv("HOME") .. "/.local/state"
-    end
-    local file = io.open(state .. "/omarchy/current/theme.name", "r")
+    -- omarchy-theme-set records the name here whatever XDG_STATE_HOME says.
+    local file = io.open(os.getenv("HOME") .. "/.local/state/omarchy/current/theme.name", "r")
     if not file then
       return nil
     end
