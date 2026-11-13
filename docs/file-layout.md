@@ -126,6 +126,8 @@ default/**                     ──►  omarchy-settings    /usr/share/omarchy
   ├─ hypr/toggles/*.lua (flags,
   │    single-window-aspect-ratio, window-no-gaps)      /etc/skel/.local/state/omarchy/toggles/hypr/
   ├─ nautilus-python/extensions/*.py                    /etc/skel/.local/share/nautilus-python/extensions/
+  ├─ mise/plugins/omarchy/                              /usr/share/mise/plugins/omarchy/
+  │                                                       (mise bootstrap settings plugin; see "mise settings plugin")
   ├─ uwsm/env.d/10-omarchy                              /usr/share/uwsm/env.d/
   ├─ environment.d/*.conf                               /usr/lib/environment.d/
   ├─ fontconfig/conf.avail/50-omarchy.conf              /usr/share/fontconfig/conf.avail/
@@ -221,6 +223,12 @@ upgrade. This is documented in the PKGBUILD.
 `/etc/updatedb.conf` remains owned by plocate and is never rewritten by Omarchy. The command-line options override bind-mount pruning and add to the administrator's existing path exclusions. Installer and AUR package refreshes pass the same options directly because installation may run without systemd and an explicitly requested refresh should work on battery.
 
 Arch's systemd package hook reloads units when the vendor drop-in is installed or upgraded. The settings package containing the drop-in must ship alongside the runtime package that removes the old configuration helper and migration. Pacman removes those retired files; no new state migration is needed. A running indexer finishes with its original options, and subsequent service starts use the drop-in. For an immediate local test after installing the packages, restart `plocate-updatedb.service` while connected to AC power.
+
+## mise settings plugin (`default/mise/plugins/omarchy/`)
+
+A [mise bootstrap settings plugin](https://mise.jdx.dev/bootstrap/settings-plugins.html) that applies the `[bootstrap.settings.omarchy]` section of a user's mise config. mise finds it by its directory name in `/usr/share/mise/plugins`, where it only loads a plugin that root owns and nobody else can write to, so it ships package-owned rather than under `~/.config`. Settings plugins are experimental in mise and need mise 2026.11.8 or later.
+
+mise owns the comparison: `hooks/settings_read.lua` reports current values, `hooks/settings_write.lua` writes the keys mise found different, and mise reads them again. `lib/settings.lua` maps each key to the Omarchy command that owns the setting (`theme` to `omarchy-theme-set`, `appearance.corners` to `omarchy-hyprland-corners`, and so on), so a value applied by mise and one picked in the Omarchy menu are stored the same way. A new setting is one entry there plus its command under `requires` in `mise.plugin.toml`; `test/shell.d/mise-settings-plugin-test.sh` fails when the two lists differ. The hooks never run `sudo` and change only the keys mise passes them.
 
 ## Env bootstrap (`default/bash/env-bootstrap`)
 
