@@ -110,3 +110,12 @@ fi
   fail "an escaping command name removes nothing outside ~/.local/bin"
 
 pass "an escaping command name removes nothing outside ~/.local/bin"
+
+update_log="$tmpdir/update.log"
+if HOME="$home" PATH="$stub_bin:$ROOT/bin:$PATH" OMARCHY_MISE_TEST_LOG="$update_log" OMARCHY_MISE_TEST_OFFLINE=1 \
+  "$ROOT/bin/omarchy-update-mise" >"$tmpdir/update-failure" 2>&1; then
+  fail "mise update failures propagate"
+fi
+HOME="$home" PATH="$stub_bin:$ROOT/bin:$PATH" OMARCHY_MISE_TEST_LOG="$update_log" \
+  "$ROOT/bin/omarchy-update-mise" >/dev/null || fail "successful mise updates succeed"
+pass "mise updates propagate the tool's exit status"

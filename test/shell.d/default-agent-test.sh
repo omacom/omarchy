@@ -287,6 +287,41 @@ omarchy-remove-preinstalls >/dev/null
 rm "$test_home/.local/bin/muse"
 pass "Remove Preinstalls keeps a user-managed Muse install"
 
+# Bun's x86 build needs both flags; ARM uses a different build.
+cpuinfo_dir="$test_tmp/cpuinfo"
+mkdir -p "$cpuinfo_dir"
+printf 'flags : sse4_1\n' >"$cpuinfo_dir/core2duo"
+printf 'flags : sse4_1 sse4_2\n' >"$cpuinfo_dir/sse4_2-only"
+printf 'flags : sse4_1 sse4_2 popcnt\n' >"$cpuinfo_dir/haswell"
+printf 'Features : fp asimd\n' >"$cpuinfo_dir/aarch64"
+for cpu in core2duo sse4_2-only haswell aarch64; do
+  compatible=false
+  OMARCHY_ARCH='' OMARCHY_CPUINFO="$cpuinfo_dir/$cpu" "$ROOT/bin/omarchy-hw-cpu-sse4_2" && compatible=true
+  case $cpu in
+    core2duo | sse4_2-only) [[ $compatible == "false" ]] || fail "$cpu cannot run Bun's x86 build" ;;
+    *) [[ $compatible == "true" ]] || fail "$cpu can run its Bun build" ;;
+  esac
+done
+OMARCHY_ARCH=aarch64 OMARCHY_CPUINFO="$cpuinfo_dir/core2duo" "$ROOT/bin/omarchy-hw-cpu-sse4_2" ||
+  fail "the architecture override takes precedence over x86 cpuinfo"
+pass "Bun CPU detection requires SSE4.2 and POPCNT only on x86"
+
+for agent in claude pi; do
+  : >"$mise_history"
+  : >"$terminal_log"
+  if OMARCHY_ARCH=x86_64 OMARCHY_CPUINFO="$cpuinfo_dir/core2duo" omarchy-default-agent "$agent" >"$test_tmp/cpu-skip" 2>&1; then
+    fail "default agent refuses $agent on an incompatible CPU"
+  fi
+  grep -q 'SSE4.2' "$test_tmp/cpu-skip" || fail "default agent explains why $agent cannot run"
+  [[ ! -s $mise_history && ! -s $terminal_log && ! -f $agent_file ]] ||
+    fail "an incompatible $agent is not installed, launched or selected"
+done
+OMARCHY_ARCH=x86_64 OMARCHY_CPUINFO="$cpuinfo_dir/haswell" OMARCHY_TEST_AGENT_INSTALLED=true \
+  OMARCHY_MISE_CONFIG_PATH="$ROOT/etc/mise/conf.d/omarchy-tools.toml" omarchy-default-agent claude >/dev/null
+[[ $(<"$agent_file") == "claude" ]] || fail "a compatible CPU can select Claude"
+grep -Fx 'install claude' "$mise_history" >/dev/null || fail "a compatible CPU installs the declared Claude tool"
+rm "$agent_file"
+pass "agent selection checks CPU support before installation"
 
 [[ -z $(omarchy-default-agent) ]] || fail "default agent is unset until one is chosen"
 pass "default agent is unset until one is chosen"
@@ -343,6 +378,36 @@ printf '%s\0' omarchy-agent "$@" >"$OMARCHY_TEST_AGENT_OPEN_LOG"
 SH
 chmod +x "$mock_bin/omarchy-agent"
 hash -r
+
+# A managed wrapper is not evidence that its package is installed.
+"$ROOT/bin/omarchy-mise-install" codex
+for wrapper in generated legacy; do
+  if [[ $wrapper == "legacy" ]]; then
+    printf '#!/bin/bash\nexec mise x "codex" -- "codex" "$@"\n' >"$test_home/.local/bin/codex"
+  fi
+  : >"$mise_history"
+  : >"$terminal_log"
+  omarchy-default-agent codex
+  grep -Fx 'where codex' "$mise_history" >/dev/null || fail "$wrapper wrappers probe their mise package"
+  mapfile -d '' -t terminal_args <"$terminal_log"
+  [[ ${terminal_args[*]} == "omarchy-default-agent --install codex" && ! -f $agent_file ]] ||
+    fail "$wrapper wrappers install a missing package before selecting it"
+done
+printf '#!/bin/bash\nexec mise x "custom-codex" -- "custom-agent" "$@"\n' >"$test_home/.local/bin/codex"
+: >"$mise_history"
+omarchy-default-agent codex
+[[ ! -s $mise_history ]] || fail "a foreign two-line launcher must not trigger mise installation"
+printf '#!/bin/bash\nexec mise x "codex" -- "codex" "$@"\n' >"$test_home/.local/bin/codex"
+: >"$mise_history"
+omarchy-default-agent --install codex >/dev/null
+grep -Fx 'use -g codex' "$mise_history" >/dev/null || fail "managed selection restores an undeclared package pin"
+[[ $(<"$agent_file") == "codex" ]] || fail "a successful installation selects the managed agent"
+: >"$mise_history"
+OMARCHY_MISE_CONFIG_PATH="$ROOT/etc/mise/conf.d/omarchy-tools.toml" omarchy-default-agent --install codex >/dev/null
+grep -Fx 'install codex' "$mise_history" >/dev/null || fail "a declared managed agent uses the system declaration"
+grep -q '^use ' "$mise_history" && fail "a declared managed agent leaves the user's pin alone"
+rm "$test_home/.local/bin/codex" "$agent_file"
+pass "managed wrappers restore missing packages without taking over foreign launchers"
 
 declare -A expected_agents=(
   [pi]="pi"
