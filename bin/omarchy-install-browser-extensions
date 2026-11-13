@@ -1,0 +1,113 @@
+#!/bin/bash
+
+# omarchy:summary=Install Omarchy's bundled extensions in a Chromium-based browser, or check they are current
+# omarchy:args=[--check] <chromium|chrome|brave|brave-origin|edge>
+# omarchy:examples=omarchy install browser extensions chromium | omarchy install browser extensions --check chrome
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+# Every browser reaches the bundled extensions through copies taken when it was
+# set up: Chromium, Brave and Edge load them from the --load-extension line in
+# their flags file, Google Chrome (which ignores that flag) force-installs the
+# signed CRXs through its managed policy, and each profile registers native
+# hosts that must admit the extensions' ids. A new extension or new ids leave
+# those copies behind. Only Chrome's policy needs root.
+
+set -euo pipefail
+
+source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+
+check=false
+if [[ ${1:-} == "--check" ]]; then
+  check=true
+  shift
+fi
+
+flags=""
+case ${1:-} in
+chrome) profile=google-chrome ;;
+chromium) profile=chromium; flags=chromium-flags.conf ;;
+brave) profile=BraveSoftware/Brave-Browser; flags=brave-flags.conf ;;
+brave-origin) profile=BraveSoftware/Brave-Origin; flags=brave-origin-flags.conf ;;
+edge) profile=microsoft-edge; flags=microsoft-edge-stable-flags.conf ;;
+*)
+  echo "Usage: omarchy-install-browser-extensions [--check] <chromium|chrome|brave|brave-origin|edge>" >&2
+  exit 1
+  ;;
+esac
+
+browser=$1
+chrome_policy_dir=/etc/opt/chrome/policies/managed
+host_dir=$HOME/.config/$profile/NativeMessagingHosts
+flags_file=$HOME/.config/$flags
+shipped_extensions=$(sed -n 's/^--load-extension=//p' "$OMARCHY_PATH/config/chromium-flags.conf")
+
+chrome_policy_current() {
+  browser_policy_dir_hardened "$chrome_policy_dir" &&
+    browser_policy_parents_hardened "$chrome_policy_dir" &&
+    cmp -s "$OMARCHY_PATH/default/chromium/policies/chrome-extensions.json" "$chrome_policy_dir/omarchy-extensions.json"
+}
+
+hosts_current() {
+  local template
+
+  for template in "$OMARCHY_PATH"/default/chromium/native-messaging-hosts/*.json; do
+    jq -e --slurpfile want "$template" '.allowed_origins | contains($want[0].allowed_origins)' \
+      "$host_dir/${template##*/}" >/dev/null 2>&1 || return 1
+  done
+}
+
+# The extensions the flags file loads but doesn't list yet, one per line.
+missing_flag_extensions() {
+  local loaded extension
+
+  loaded=$(sed -n 's/^--load-extension=//p' "$flags_file" 2>/dev/null | tr ',' '\n')
+  while read -r extension; do
+    grep -Fxq -- "$extension" <<<"$loaded" || printf '%s\n' "$extension"
+  done < <(tr ',' '\n' <<<"$shipped_extensions")
+}
+
+flags_current() {
+  [[ -z $flags ]] || [[ -f $flags_file && -z $(missing_flag_extensions) ]]
+}
+
+# Add only the missing extensions, keeping the user's own flags and extensions.
+repair_flags() {
+  local missing
+
+  if [[ ! -f $flags_file ]]; then
+    mkdir -p "$(dirname "$flags_file")"
+    cp "$OMARCHY_PATH/config/chromium-flags.conf" "$flags_file"
+    return
+  fi
+
+  missing=$(missing_flag_extensions | paste -sd,)
+  [[ -n $missing ]] || return 0
+
+  if grep -q '^--load-extension=' "$flags_file"; then
+    sed -i --follow-symlinks "s|^--load-extension=\(.*\)$|--load-extension=\1,$missing|" "$flags_file"
+  else
+    [[ -z $(tail -c1 "$flags_file") ]] || echo >>"$flags_file"
+    echo "--load-extension=$missing" >>"$flags_file"
+  fi
+}
+
+if [[ $check == "true" ]]; then
+  if [[ $browser == "chrome" ]]; then
+    chrome_policy_current && hosts_current
+  else
+    flags_current && hosts_current
+  fi
+else
+  omarchy-install-chromium-copy-url
+  omarchy-install-chromium-ytdlp
+
+  if [[ $browser == "chrome" ]]; then
+    if ! chrome_policy_current; then
+      browser_policy_setup_dir "$chrome_policy_dir"
+      omarchy-theme-set-browser
+    fi
+  else
+    repair_flags
+  fi
+fi

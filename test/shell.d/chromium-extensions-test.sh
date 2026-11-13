@@ -139,6 +139,30 @@ for template in "$ROOT"/default/chromium/native-messaging-hosts/*.json; do
 done
 pass "a fresh install registers every native messaging host for Chromium and Brave Origin"
 
+# Switching to a browser repairs its copies of the bundled extensions: the
+# flags file gains the extensions it lacks without losing the user's own flags
+# and extensions, and its native hosts admit the current ids.
+home="$test_tmp/repair-home"
+flags_file=$home/.config/brave-origin-flags.conf
+mkdir -p "$home/.config"
+printf -- '--force-dark-mode\n--load-extension=/home/me/my-extension,/usr/share/omarchy/default/chromium/extensions/copy-url' >"$flags_file"
+repair() {
+  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-install-browser-extensions" "$@"
+}
+if repair --check brave-origin; then
+  fail "a browser missing bundled extensions is reported stale"
+fi
+repair brave-origin || fail "a browser's bundled extensions can be repaired without root"
+repair --check brave-origin || fail "a repaired browser's bundled extensions are reported current"
+grep -Fxq -- '--force-dark-mode' "$flags_file" || fail "the repair keeps the user's own flags"
+[[ $(grep -c '^--load-extension=' "$flags_file") == 1 ]] || fail "the repair keeps a single --load-extension line"
+loaded=$(sed -n 's/^--load-extension=//p' "$flags_file" | tr ',' '\n')
+grep -Fxq /home/me/my-extension <<<"$loaded" || fail "the repair keeps the user's own extensions"
+while read -r extension; do
+  [[ $(grep -cFx -- "$extension" <<<"$loaded") == 1 ]] || fail "the repair loads $extension exactly once"
+done < <(sed -n 's/^--load-extension=//p' "$ROOT/config/chromium-flags.conf" | tr ',' '\n')
+pass "switching to a browser repairs the bundled extensions it lacks and keeps the user's own"
+
 # --- WhatsApp Slim ---
 
 # The content script switches WhatsApp Web to its system theme mode, which it
