@@ -1,4 +1,6 @@
 #!/bin/bash
+# omarchy:exclusive
+# Windows opening beside it in the pool make the compositor send the real pointer's position, which the menu takes as the click's first sample.
 
 set -euo pipefail
 
