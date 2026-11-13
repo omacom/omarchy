@@ -883,6 +883,13 @@ show_group_help() {
     rows+="$(command_usage_for_group "$key" "$group")"$'\t'$'\t'"${COMMAND_SUMMARY[$key]}"$'\n'
   done < <(sorted_group_keys "$group" "$include_all")
 
+  if [[ -z $rows && $include_all != "true" ]]; then
+    while IFS= read -r key; do
+      [[ -n $key ]] || continue
+      rows+="$(command_usage_for_group "$key" "$group")"$'\t'$'\t'"${COMMAND_SUMMARY[$key]}"$'\n'
+    done < <(sorted_group_keys "$group" true)
+  fi
+
   if [[ -n $rows ]]; then
     print_command_table "$rows"
   else
