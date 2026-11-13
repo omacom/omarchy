@@ -99,3 +99,7 @@ while IFS= read -r args; do
   [[ $args == "-t -f IN-USE,SIGNAL device wifi list ifname test-wifi --rescan no" ]] || fail "in-use access point read never rescans" "$args"
 done <"$stage/nmcli.log"
 pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use access point, and discards stale reads"
+
+stage_panel live-rows
+run_panel "network live rows"
+pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"
