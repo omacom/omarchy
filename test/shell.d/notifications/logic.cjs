@@ -881,7 +881,7 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
     { body: 'Your Verification Code is 938271' }, { summary: 'Your code is', body: '938271' }, { summary: 'Your OTP is 938271' },
     { rawBody: 'Your OTP is 938\n271', body: 'Open the app' }, { body: 'Do not share this code: 938271' },
     { body: 'That was not your code. Your new code is 938271' }, { summary: 'Sign in', body: '123456 is not a verification code\nOTP: 938271' },
-    { body: '123456 is not a verification code<br>OTP: 938271' }]
+    { body: '123456 is not a verification code<br>OTP: 938271' }, { body: 'Your security <b>key</b> is 938271' }]
   assert.equal(D.scan('Sign in', '123456 is not a verification code\nOTP: 938271').codes, '938271')
   for (const text of secrets) {
     const entry = { key: 'k', urgency: 1, app: 'alternate-secret', source: 'alternate-secret', appIcon: 'alternate-secret',

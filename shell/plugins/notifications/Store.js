@@ -294,7 +294,7 @@ function sanitiseForPersistence(row) {
   // Detect.scan sees them, so a denial cannot run on into the next line.
   var secret = out.codes || out.code || redacted(out) || Detect.codes(
       Markup.decodeEntities(out.summary + "\n" + out.rawBody + "\n" + out.body)
-        .replace(/<[^>]+>/g, "\n").replace(/\s*[\r\n]\s*/g, "\n").replace(/[^\S\n]+/g, " ").trim()).length
+        .replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/\s*[\r\n]\s*/g, "\n").replace(/[^\S\n]+/g, " ").trim()).length
   if (secret) {
     for (var k in SHAPE) if (typeof SHAPE[k] === "string" && k !== "key") out[k] = ""
     out.summary = REDACTED_SUMMARY
