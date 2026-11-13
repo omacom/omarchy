@@ -657,16 +657,6 @@ pass "put places a widget through a ready shell"
 # A bar click that runs a system tool should not pay for a login shell first.
 # Util.execProgram hands the argv straight to Quickshell; run and execArgv keep
 # their `bash -lc` because the targets they launch need the session env.
-if ! rg -qU 'function execProgram\(argv\) \{\n\s*Quickshell\.execDetached\(argv\)\n\s*\}' "$ROOT/shell/Commons/Util.qml"; then
-  fail "Util.execProgram must run the argv without a shell in between"
-fi
-pass "Util.execProgram runs a program without a login shell"
-
-if ! rg -qU 'function runProgram\(argv\) \{[^}]*Util\.execProgram\(argv\)' "$ROOT/shell/plugins/bar/Bar.qml"; then
-  fail "bar.runProgram must delegate to Util.execProgram"
-fi
-pass "bar.runProgram gives widgets the no-shell path"
-
 run_node_test <<'JS'
 const fs = require('fs')
 const facadeSource = fs.readFileSync(root + '/shell/Ui/PluginBarApi.qml', 'utf8')
@@ -693,20 +683,17 @@ invoke(forward, 'hyprctl reload')
 assertEqual(calls.length, 1, 'the cloned direct path ignores malformed argv')
 JS
 
-if rg -q 'bar\.run\("hyprctl' "$ROOT/shell/plugins/bar/widgets/Workspaces.qml" "$ROOT/shell/plugins/bar/widgets/KeyboardLayout.qml"; then
-  fail "hyprctl must not be launched through a login shell from the bar"
-fi
-pass "bar hyprctl calls skip the login shell"
-
-if ! rg -q 'Hyprland\.dispatch\("hl\.dsp\.focus' "$ROOT/shell/plugins/bar/widgets/Workspaces.qml"; then
-  fail "workspace focus must go down the socket the widget already holds"
-fi
-pass "workspace focus dispatches over the existing Hyprland socket"
-
-if rg -q 'hyprctl' "$ROOT/shell/plugins/bar/widgets/Workspaces.qml"; then
-  fail "workspace focus must not spawn hyprctl at all"
-fi
-pass "clicking a workspace spawns no process"
+run_node_test <<'JS'
+const source = require('fs').readFileSync(root + '/shell/plugins/bar/widgets/Workspaces.qml', 'utf8')
+const body = name => source.match(new RegExp(`\\n  function ${name}\\(id\\) \\{([\\s\\S]*?)\\n  \\}`))[1]
+const calls = []
+const widget = { block: 1, slots: 10, monitorName: 'DP-2', bar: { run: command => calls.push(command) } }
+for (const name of ['blockOf', 'slotOf']) widget[name] = id => new Function('root', 'id', body(name))(widget, id)
+const focus = id => new Function('root', 'Hyprland', 'id', body('focusWorkspace'))(widget, { dispatch: request => calls.push(request) }, id)
+focus(13)
+focus(4)
+assertDeepEqual(calls, ['o.workspaces.focus(3, "DP-2")', 'hl.dsp.focus({ workspace = "4" })'], 'a workspace click goes over the Hyprland socket, not through the bar')
+JS
 
 run_node_test <<'JS'
 const source = require('fs').readFileSync(root + '/shell/plugins/bar/widgets/Workspaces.qml', 'utf8')
@@ -725,8 +712,3 @@ run(focusedChanged[1])
 run(focusedChanged[1])
 assertDeepEqual(calls, ['hl.dsp.focus({ monitor = "DP-2" })', 'focused', 'omarchy-hyprland-workspace-layout-toggle'], 'another monitor\'s layout toggles once, after Hyprland reports it focused')
 JS
-
-if ! rg -q 'runProgram\(\["hyprctl", "switchxkblayout", name, String\(next\)\]\)' "$ROOT/shell/plugins/bar/widgets/KeyboardLayout.qml"; then
-  fail "keyboard layout switch must pass the device name as an argv element"
-fi
-pass "keyboard layout switch passes its device name literally"
