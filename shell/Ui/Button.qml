@@ -120,19 +120,26 @@ BorderSurface {
     : bordered                 ? _normalBorderSpec
     : Border.none()
 
-  color: mouseArea.pressed ? Style.pressedFillFor(root.foreground, root.accent)
-    : _showFocusRing       ? Style.focusFillFor(root.foreground, root.accent)
-    : hot                  ? Style.hoverFillFor(root.foreground, root.accent)
-    : selected             ? Style.selectedFillFor(root.foreground, root.accent)
-    : active               ? Style.selectedFillFor(root.foreground, root.accent)
-    : _restingFill
-
   // ColorAnimation blends RGBA channels without premultiplying, so fading
   // from a tint to a different color (opaque, or transparent black) passes
   // through a brighter or darker middle. A clear background rests on the
-  // state tint's own RGB at alpha 0, so only alpha animates.
+  // RGB of the last tint painted at alpha 0, so leaving hover, focus,
+  // press, or selection animates only alpha.
+  readonly property string _fillState: mouseArea.pressed ? "pressed"
+    : _showFocusRing       ? "focus"
+    : hot                  ? "hover"
+    : selected || active   ? "selected"
+    : ""
+  readonly property color _stateFill: _fillState === "pressed" ? Style.pressedFillFor(root.foreground, root.accent)
+    : _fillState === "focus" ? Style.focusFillFor(root.foreground, root.accent)
+    : _fillState === "hover" ? Style.hoverFillFor(root.foreground, root.accent)
+    : Style.selectedFillFor(root.foreground, root.accent)
+  property color _fadeRgb: _selectedColor
   readonly property color _restingFill: background.a > 0 ? background
-    : Qt.rgba(_selectedColor.r, _selectedColor.g, _selectedColor.b, 0)
+    : Qt.rgba(_fadeRgb.r, _fadeRgb.g, _fadeRgb.b, 0)
+  on_StateFillChanged: if (_fillState !== "") _fadeRgb = _stateFill
+
+  color: _fillState !== "" ? _stateFill : _restingFill
 
   // Border follows the same state precedence as fill. Buttons stay
   // borderless at rest unless `bordered` is set, but hover-cursor/focus
