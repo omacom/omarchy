@@ -47,7 +47,7 @@ parse_omarchy_option() {
   # not switch it on.
   case $1 in
   -h | --help)
-    usage
+    usage 2>&1
     exit 0
     ;;
   -p | --print-id)
