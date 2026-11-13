@@ -31,11 +31,11 @@ exit 1
 STUB
 chmod +x "$stub_dir/unshare"
 
-# Read the boundary probe through a pipe, which is what a helper left holding
-# stdout would hang. timeout signals
-# its whole process group when it fires, the stray helper included, so a
-# regression fails here instead of hanging this file as well. As root the probe
-# never calls unshare and goes straight to its mounts, so it is not run from here.
+# Read the boundary probe through a pipe, the reader a helper left holding
+# stdout would hang. timeout signals its whole process group when it fires,
+# the stray helper included, so a regression fails here instead of hanging
+# this file as well. As root the probe never calls unshare and goes straight
+# to its mounts, so it is not run from here.
 if (( EUID == 0 )); then
   skip "running as root; the Windows VM boundary probe only reaches unshare for an unprivileged runner"
 else
@@ -46,8 +46,8 @@ else
   ) || status=$?
 
   (( status != 124 )) ||
-    fail "Windows VM boundary probe leaves nothing holding the runner's pipe when user namespaces are refused" "$output"
+    fail "Windows VM boundary probe leaves nothing holding the pipe it is read through when user namespaces are refused" "$output"
   (( status == 0 )) || fail "Windows VM boundary probe exits cleanly when user namespaces are refused" "$output"
   [[ $output == *"# SKIP"* ]] || fail "Windows VM boundary probe reports a skip when user namespaces are refused" "$output"
-  pass "Windows VM boundary probe skips without holding the runner's pipe when user namespaces are refused"
+  pass "Windows VM boundary probe skips without holding the pipe it is read through when user namespaces are refused"
 fi
