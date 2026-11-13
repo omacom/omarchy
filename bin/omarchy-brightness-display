@@ -29,6 +29,61 @@ backlight_brightness() {
   brightnessctl -d "$1" -m 2>/dev/null | awk -F, '{ gsub("%", "", $4); print $4; found=1 } END{ exit !found }'
 }
 
+# Dual-GPU Macs generate panel PWM from apple-gmux, not the GPU. Hyprland DPMS
+# blanks scanout and leaves that PWM on (glowing black panel). The kernel
+# backlight class writes PWM 0 when brightness is 0 or bl_power is 4.
+gmux_backlight="${OMARCHY_GMUX_BACKLIGHT:-/sys/class/backlight/gmux_backlight}"
+
+gmux_saved_brightness() {
+  printf '%s/omarchy-gmux-brightness\n' "${XDG_RUNTIME_DIR:-/tmp}"
+}
+
+gmux_pwm_off() {
+  local brightness="$gmux_backlight/brightness"
+  local power="$gmux_backlight/bl_power"
+  local saved current=""
+
+  [[ -e $brightness ]] || return 0
+
+  if [[ -r $gmux_backlight/actual_brightness ]]; then
+    current=$(<"$gmux_backlight/actual_brightness")
+  elif [[ -r $brightness ]]; then
+    current=$(<"$brightness")
+  fi
+  if [[ $current =~ ^[1-9][0-9]*$ ]]; then
+    saved=$(gmux_saved_brightness)
+    printf '%s\n' "$current" >"$saved" 2>/dev/null || true
+  fi
+
+  if [[ -w $brightness ]]; then
+    printf '0\n' >"$brightness" 2>/dev/null || true
+  fi
+  if [[ -w $power ]]; then
+    printf '4\n' >"$power" 2>/dev/null || true
+  fi
+}
+
+gmux_pwm_on() {
+  local brightness="$gmux_backlight/brightness"
+  local power="$gmux_backlight/bl_power"
+  local saved current
+
+  [[ -e $brightness ]] || return 0
+
+  if [[ -w $power ]]; then
+    printf '0\n' >"$power" 2>/dev/null || true
+  fi
+
+  saved=$(gmux_saved_brightness)
+  if [[ -r $saved ]]; then
+    current=$(<"$saved")
+    rm -f "$saved"
+    if [[ -w $brightness && $current =~ ^[1-9][0-9]*$ ]]; then
+      printf '%s\n' "$current" >"$brightness" 2>/dev/null || true
+    fi
+  fi
+}
+
 [[ -n $monitor ]] || monitor="$(omarchy-hyprland-monitor-focused 2>/dev/null || true)"
 
 monitor_is_internal() {
@@ -85,14 +140,17 @@ fi
 step="$1"
 
 if [[ $step == "off" ]]; then
+  gmux_pwm_off
   hyprctl dispatch 'hl.dsp.dpms({ action = "disable" })' >/dev/null 2>&1
   exit 0
 elif [[ $step == "on" ]]; then
+  gmux_pwm_on
   # Skip the dispatch when every active display is already lit: a redundant
   # DPMS enable right after system resume forces another modeset, which blanks
   # the panel for a beat (visible flash at the unlock screen).
-  hyprctl monitors -j 2>/dev/null | jq -e '[.[] | select(.disabled == false)] | length > 0 and all(.dpmsStatus)' >/dev/null 2>&1 && exit 0
-  hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1
+  if ! hyprctl monitors -j 2>/dev/null | jq -e '[.[] | select(.disabled == false)] | length > 0 and all(.dpmsStatus)' >/dev/null 2>&1; then
+    hyprctl dispatch 'hl.dsp.dpms({ action = "enable" })' >/dev/null 2>&1
+  fi
   exit 0
 fi
 
