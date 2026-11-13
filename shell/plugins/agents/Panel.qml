@@ -2177,6 +2177,7 @@ Panel {
         visible: section.remote && !section.offline && !section.paired
         iconText: "󰐊"
         tooltipText: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
+        accessibleName: Commons.I18n.t("agents.networkPair").arg(section.remote ? section.model.host : "")
         foreground: usage.pairingId !== "" ? root.dim : root.foreground
         opacity: usage.pairingId !== "" ? 0.5 : 1
         fontFamily: root.fontFamily
@@ -2195,6 +2196,7 @@ Panel {
         visible: section.remote && !section.offline && section.paired && section.model.unit === "active"
         iconText: "󰏤"
         tooltipText: section.remote ? Commons.I18n.t("agents.networkDisconnect").arg(section.model.host) : ""
+        accessibleName: Commons.I18n.t("agents.networkDisconnect").arg(section.remote ? section.model.host : "")
         foreground: root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("modelDisconnect", section.providerIndex)
