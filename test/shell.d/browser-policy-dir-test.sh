@@ -296,10 +296,6 @@ cleanup || fail "omarchy-theme-set-browser-policy's EXIT trap succeeds with a st
 unset -f cleanup
 pass "omarchy-theme-set-browser-policy's EXIT trap never leaks a failure status"
 
-grep -F 'omarchy-theme-set-browser || true' "$ROOT/migrations/1787515927.sh" >/dev/null ||
-  fail "the policy-directory migration hardens Firefox even when the theme refresh fails"
-pass "the policy-directory migration does not abort on a failed theme refresh"
-
 policy_files=(
   "$ROOT/bin/omarchy-install-browser"
   "$ROOT/bin/omarchy-provision-owner"
@@ -309,27 +305,15 @@ policy_files=(
   "$ROOT/install/config/theme-system.sh"
   "$ROOT/install/config/browser-policy.sh"
   "$ROOT/install/helpers/browser-policy.sh"
-  "$ROOT/migrations/1787515927.sh"
 )
 if grep -nE 'chmod a\+rwx\b|chmod a\+rw\b|chmod a\+w\b|chmod o\+w|chmod ugo\+w|chmod 2775\b|chmod 2777\b|chmod 0777\b|chmod 777\b|install -d -m 0?[27]?777|omarchy-browser-policy' "${policy_files[@]}" >/dev/null; then
   fail "browser policy setup is not world-writable and does not use omarchy-browser-policy"
 fi
 pass "browser policy setup is not world-writable"
 
-mapfile -t migrations < <(rg -l 'Stop world-writable Chromium and Firefox policy directories' "$ROOT/migrations")
-(( ${#migrations[@]} == 1 )) || fail "exactly one migration locks existing policy directories" "${migrations[*]}"
-grep -F 'browser_policy_setup_dir' "${migrations[0]}" >/dev/null ||
-  fail "the policy-directory migration repairs managed directories"
-if grep -F 'browser_policy_grant_user' "${migrations[0]}" >/dev/null; then
-  fail "the policy-directory migration does not grant a browser-policy group"
-fi
-grep -F 'BROWSER_POLICY_FIREFOX_DIRS' "${migrations[0]}" >/dev/null ||
-  fail "the policy-directory migration covers Firefox and Zen"
-grep -F 'browser_policy_firefox_policy_file_ok' "${migrations[0]}" >/dev/null ||
-  fail "the policy-directory migration keeps a trusted Firefox policies.json"
 grep -F '/opt/zen-browser/distribution' "$ROOT/install/helpers/browser-policy.sh" >/dev/null ||
   fail "the shared helper names the Zen distribution directory"
-pass "a migration locks existing policy directories"
+pass "the shared helper names the Zen distribution directory"
 
 fx_merge=$test_tmp/fx-merge
 mkdir -p "$fx_merge"

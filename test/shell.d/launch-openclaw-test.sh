@@ -187,3 +187,40 @@ chmod +x "$tmp_dir/bin/openclaw"
 ! grep -q '^omarchy-launch-webapp:' "$TEST_LOG" ||
   fail "--tui seeds the session through --message" "webapp opened instead"
 pass "--tui seeds the session through --message"
+
+# With the package and no openclaw command, the package became the seed before
+# this user's OpenClaw moved; the launcher sets it up first.
+for stub in omarchy-cmd-present omarchy-pkg-present omarchy-install-openclaw-cli; do
+  cat >"$tmp_dir/bin/$stub" <<SCRIPT
+#!/bin/bash
+printf '$stub:%s\n' "\$*" >>"\$TEST_LOG"
+[[ $stub != omarchy-cmd-present ]]
+SCRIPT
+  chmod +x "$tmp_dir/bin/$stub"
+done
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-openclaw"
+grep -Fxq 'omarchy-launch-floating-terminal-with-presentation:omarchy-install-openclaw-cli --now && omarchy-launch-openclaw' "$TEST_LOG" ||
+  fail "OpenClaw launch sets up OpenClaw where the package has no command yet" "$(cat "$TEST_LOG")"
+pass "OpenClaw launch sets up OpenClaw where the package has no command yet"
+
+# In the agent's terminal a failed setup waits to be read before it closes.
+cat >"$tmp_dir/bin/omarchy-install-openclaw-cli" <<'SCRIPT'
+#!/bin/bash
+printf 'omarchy-install-openclaw-cli:%s\n' "$*" >>"$TEST_LOG"
+exit 1
+SCRIPT
+cat >"$tmp_dir/bin/omarchy-show-done" <<'SCRIPT'
+#!/bin/bash
+printf 'omarchy-show-done:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/omarchy-install-openclaw-cli" "$tmp_dir/bin/omarchy-show-done"
+: >"$TEST_LOG"
+if "$ROOT/bin/omarchy-launch-openclaw" --tui >/dev/null 2>&1; then
+  fail "a failed setup in the agent's terminal fails the launch"
+fi
+grep -Fxq 'omarchy-install-openclaw-cli:--now' "$TEST_LOG" && grep -Fxq 'omarchy-show-done:1' "$TEST_LOG" ||
+  fail "a failed setup in the agent's terminal waits to be read" "$(cat "$TEST_LOG")"
+pass "a failed setup in the agent's terminal waits to be read"
+rm "$tmp_dir/bin/omarchy-show-done"
+rm "$tmp_dir/bin/omarchy-cmd-present" "$tmp_dir/bin/omarchy-pkg-present" "$tmp_dir/bin/omarchy-install-openclaw-cli"

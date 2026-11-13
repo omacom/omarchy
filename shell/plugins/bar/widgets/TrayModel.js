@@ -19,7 +19,7 @@ function entryId(entry) {
 }
 
 function layoutHasWidget(layout, id) {
-  var sections = ["left", "center", "right", "tray"]
+  var sections = ["left", "centerBegin", "center", "centerEnd", "right", "tray"]
   for (var s = 0; s < sections.length; s++) {
     var entries = layout && layout[sections[s]]
     if (!Array.isArray(entries)) continue
@@ -49,11 +49,37 @@ function ownedByOmarchy(item, layout) {
   return false
 }
 
+// Whether a double-click's second click activates the item again. Wine turns
+// two activates in quick succession into a double-click, which Windows apps
+// like Battle.net need before they reopen, so Wine items (Ids "wine-...") get
+// it. A native app that toggles its window on each activate, like qBittorrent,
+// would open and hide again, so it gets one.
+function activatesOnDoubleClick(item) {
+  return !!item && !item.onlyMenu && String(item.id || "").indexOf("wine-") === 0
+}
+
+// The stretch of the tray section, from `start` and `length` long along the
+// bar, that the drawer's clip, from `clipStart` and `clipLength` long, shows:
+// { start, length }, or null while it shows none of it. An empty section
+// shows once it is within a pixel of the clip's edge, as the drawer eases to
+// rest.
+function shownSpan(clipStart, clipLength, start, length) {
+  var from = Math.max(start, clipStart)
+  var to = Math.min(start + length, clipStart + clipLength)
+  if (to < from) {
+    if (from - to > 1) return null
+    from = to
+  }
+  return { start: from, length: to - from }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    shownSpan: shownSpan,
     itemNamed: itemNamed,
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
-    ownedByOmarchy: ownedByOmarchy
+    ownedByOmarchy: ownedByOmarchy,
+    activatesOnDoubleClick: activatesOnDoubleClick
   }
 }

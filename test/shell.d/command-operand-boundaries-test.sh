@@ -216,6 +216,47 @@ setsid_argv=$(<"$setsid_calls")
   fail "launch-editor separates a graphical editor path from editor options" "$setsid_argv"
 pass "launch-editor separates a graphical editor path from editor options"
 
+# Plain, the default without a saved choice, runs inline for $EDITOR so the
+# caller waits for its window, and falls back to Neovim without a display.
+rm -f "$fake_home/.local/state/omarchy/defaults/editor"
+cat >"$mock_bin/plain" <<'STUB'
+#!/bin/bash
+
+: "${OMARCHY_TEST_EDITOR_CALLS:?}"
+printf '<plain>\n' >"$OMARCHY_TEST_EDITOR_CALLS"
+printf '<%s>\n' "$@" >>"$OMARCHY_TEST_EDITOR_CALLS"
+STUB
+chmod +x "$mock_bin/plain"
+
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" WAYLAND_DISPLAY=wayland-1 OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline -cquit
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<plain>\n<-->\n<-cquit>' ]] ||
+  fail "launch-editor runs Plain inline as the default editor" "$editor_argv"
+
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" WAYLAND_DISPLAY=wayland-1 OMARCHY_TEST_SETSID_CALLS="$setsid_calls" \
+  "$ROOT/bin/omarchy-launch-editor" -cquit
+setsid_argv=$(<"$setsid_calls")
+[[ $setsid_argv == $'<uwsm-app>\n<-->\n<plain>\n<-->\n<-cquit>' ]] ||
+  fail "launch-editor opens Plain as an app when not inline" "$setsid_argv"
+
+cat >"$mock_bin/vi" <<'STUB'
+#!/bin/bash
+
+: "${OMARCHY_TEST_EDITOR_CALLS:?}"
+printf '<vi>\n' >"$OMARCHY_TEST_EDITOR_CALLS"
+printf '<%s>\n' "$@" >>"$OMARCHY_TEST_EDITOR_CALLS"
+STUB
+chmod +x "$mock_bin/vi"
+
+env -u WAYLAND_DISPLAY HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline -cquit
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == $'<vi>\n<-->\n<-cquit>' ]] ||
+  fail "launch-editor uses vi for Plain without a display" "$editor_argv"
+rm -f "$mock_bin/vi"
+pass "launch-editor defaults to Plain, inline for \$EDITOR, and vi without a display"
+
 hook_calls="$test_tmp/hook-calls"
 hook_home="$test_tmp/hook-home"
 printf '#!/bin/bash\n' >"$test_tmp/--help"

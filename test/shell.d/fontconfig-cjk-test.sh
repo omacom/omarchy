@@ -32,6 +32,8 @@ candidate="$ROOT/default/fontconfig/conf.avail/50-omarchy.conf"
   echo '</fontconfig>'
 } >"$test_tmp/fonts.conf"
 export FONTCONFIG_FILE="$test_tmp/fonts.conf"
+# The user's own conf.d would otherwise join the system rules under test.
+export XDG_CONFIG_HOME="$test_tmp/config"
 fc-cache >/dev/null
 
 # Pango, Qt and Skia add lang as a string, which fc-match never does.
@@ -184,3 +186,87 @@ if $chinese_locale; then
   done
   pass "both font matching paths ignore inherited locale overrides"
 fi
+
+# Chromium and Electron resolve a character that the page's fonts lack by
+# sorting every font for the content locale and taking the first that has it
+# (ui/gfx/font_fallback_linux.cc), with no family on the pattern at all.
+cat >"$test_tmp/chromium-fallback.py" <<'PY'
+import ctypes, sys
+fc = ctypes.CDLL("libfontconfig.so.1")
+pointer = ctypes.c_void_p
+class FontSet(ctypes.Structure):
+  _fields_ = [("nfont", ctypes.c_int), ("sfont", ctypes.c_int), ("fonts", ctypes.POINTER(pointer))]
+fc.FcPatternCreate.restype = pointer
+fc.FcPatternAddString.argtypes = [pointer, ctypes.c_char_p, ctypes.c_char_p]
+fc.FcPatternAddBool.argtypes = [pointer, ctypes.c_char_p, ctypes.c_int]
+fc.FcConfigSubstitute.argtypes = [pointer, pointer, ctypes.c_int]
+fc.FcDefaultSubstitute.argtypes = [pointer]
+fc.FcPatternDel.argtypes = [pointer, ctypes.c_char_p]
+fc.FcFontSort.restype = ctypes.POINTER(FontSet)
+fc.FcFontSort.argtypes = [pointer, pointer, ctypes.c_int, pointer, ctypes.POINTER(ctypes.c_int)]
+fc.FcPatternGetCharSet.argtypes = [pointer, ctypes.c_char_p, ctypes.c_int, ctypes.POINTER(pointer)]
+fc.FcCharSetHasChar.argtypes = [pointer, ctypes.c_uint32]
+fc.FcPatternFormat.restype = ctypes.c_char_p
+fc.FcPatternFormat.argtypes = [pointer, ctypes.c_char_p]
+for line in sys.stdin:
+  locale, char = line.split()
+  pattern = fc.FcPatternCreate()
+  if locale != "-":
+    fc.FcPatternAddString(pattern, b"lang", locale.encode())
+  fc.FcPatternAddBool(pattern, b"scalable", 1)
+  fc.FcConfigSubstitute(None, pattern, 0)
+  fc.FcDefaultSubstitute(pattern)
+  if locale == "-":
+    fc.FcPatternDel(pattern, b"lang")
+  fonts = fc.FcFontSort(None, pattern, 0, None, ctypes.byref(ctypes.c_int())).contents
+  found = "none"
+  for index in range(fonts.nfont):
+    charset = pointer()
+    if fc.FcPatternGetCharSet(fonts.fonts[index], b"charset", 0, ctypes.byref(charset)) == 0 and fc.FcCharSetHasChar(charset, int(char, 16)):
+      found = fc.FcPatternFormat(fonts.fonts[index], b"%{family[0]}").decode()
+      break
+  print(found)
+PY
+
+# chromium_fallback <query...> fills actual with one font per query, or fails.
+chromium_fallback() {
+  local output
+  output=$(printf '%s\n' "$@" | env -u LC_ALL -u LC_CTYPE -u FC_LANG LANG=C.UTF-8 python3 "$test_tmp/chromium-fallback.py") || fail "the Chromium fallback replica runs"
+  mapfile -t actual <<<"$output"
+  (( ${#actual[@]} == $# )) || fail "the Chromium fallback replica answers every query" "${actual[*]}"
+}
+
+# Han, then the ideographic comma and corner bracket, which Noto Sans
+# Mongolian also carries and wins for an English page without a preference.
+for variant in jp kr sc tc hk; do
+  OMARCHY_PATH=$ROOT python3 "$ROOT/default/input-methods/configure.py" font "$variant"
+  chromium_fallback "en 9aa8" "en 3001" "en 300c" "- 9aa8" "- 3001"
+  for found in "${actual[@]}"; do
+    [[ $found == "Noto Sans CJK ${variant^^}" ]] || fail "Chromium fallback with the $variant preference uses Noto Sans CJK ${variant^^}" "${actual[*]}"
+  done
+  for generic in sans-serif serif monospace; do
+    actual=$(echo "$generic - 9aa8" | resolve C.UTF-8 string)
+    [[ $actual == "${cjk[$generic]} ${variant^^}" ]] || fail "$generic Han with the $variant preference" "$actual"
+    actual=$(env -u LC_ALL -u LC_CTYPE -u FC_LANG LANG=C.UTF-8 fc-match -f '%{family[0]}' "$generic")
+    [[ $actual == "${latin[$generic]}" ]] || fail "the $variant preference leaves $generic on its Latin family" "$actual"
+  done
+done
+pass "a CJK preference sets untagged Han and CJK punctuation everywhere, Chromium included, and keeps the Latin families"
+
+OMARCHY_PATH=$ROOT python3 "$ROOT/default/input-methods/configure.py" font default
+! grep -q 'CJK' "$XDG_CONFIG_HOME/fontconfig/conf.d/50-omarchy-input-method.conf" || fail "the default preference names no CJK forms"
+pass "the default CJK preference leaves the system's choice"
+
+# With no preference, untagged Han takes Japanese forms in every app, and an
+# English page's CJK punctuation stays out of Noto Sans Mongolian.
+chromium_fallback "en 9aa8" "en 3001" "en 300c" "en ff01" "- 3001"
+for found in "${actual[@]}"; do
+  [[ $found == "Noto Sans CJK JP" ]] || fail "Chromium fallback with no preference uses Noto Sans CJK JP" "${actual[*]}"
+done
+for generic in sans-serif serif monospace; do
+  actual=$(echo "$generic - 9aa8" | resolve C.UTF-8 string)
+  [[ $actual == "${cjk[$generic]} JP" ]] || fail "$generic Han with no preference is JP" "$actual"
+  actual=$(env -u LC_ALL -u LC_CTYPE -u FC_LANG LANG=C.UTF-8 fc-match -f '%{family[0]}' "$generic")
+  [[ $actual == "${latin[$generic]}" ]] || fail "the Japanese default leaves $generic on its Latin family" "$actual"
+done
+pass "with no preference, Han and CJK punctuation take Japanese forms everywhere"

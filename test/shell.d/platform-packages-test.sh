@@ -75,8 +75,29 @@ for platform in aarch64-apple aarch64 x86; do
 done
 pass "a platform list joins only its own platform's set"
 
+# Snapdragon, the N1x and the GB10 add their own lists after the aarch64
+# additions; no other platform gets them.
+names_of() { sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$ROOT/install/omarchy-$1.packages"; }
+for family in aarch64-qualcomm aarch64-n1x aarch64-gb10; do
+  defaults=$(OMARCHY_PATH="$ROOT" omarchy-pkg-defaults "$family")
+  [[ $(tail -n "$(names_of "$family" | wc -l)" <<<"$defaults") == "$(names_of "$family")" ]] ||
+    fail "$family's own list comes last" "$defaults"
+  while IFS= read -r package; do
+    grep -Fxq "$package" <<<"$defaults" || fail "$family keeps the aarch64 addition $package"
+  done < <(names_of aarch64)
+  for other in aarch64 aarch64-apple x86; do
+    while IFS= read -r package; do
+      ! grep -Fxq "$package" <<<"$(OMARCHY_PATH="$ROOT" omarchy-pkg-defaults "$other")" ||
+        fail "$other leaves out $family's $package"
+    done < <(names_of "$family")
+  done
+done
+grep -Fxq linux-omarchy <<<"$(names_of aarch64-n1x)" || fail "the N1x list names its kernel"
+! grep -Eq 'proart|asus|xps' <<<"$(names_of aarch64-n1x)" || fail "a single N1x model's packages stay with its hardware setup"
+pass "Snapdragon, the N1x and the GB10 add their own lists, and only they do"
+
 # Image builders written before the platform names settled pass the old names.
-for legacy in apple-silicon:aarch64-apple generic-aarch64:aarch64 generic:x86; do
+for legacy in apple-silicon:aarch64-apple generic-aarch64:aarch64 generic:x86 qualcomm:aarch64-qualcomm; do
   [[ $(omarchy-pkg-defaults "${legacy%%:*}") == "$(omarchy-pkg-defaults "${legacy#*:}")" ]] ||
     fail "the old name ${legacy%%:*} composes the ${legacy#*:} set"
 done
@@ -115,6 +136,11 @@ cat >"$work/stubs/omarchy-refresh-pacman" <<'SH'
 printf 'refresh %s\n' "$*" >>"$STUB_LOG"
 [[ -z ${REFRESH_FAILS:-} ]]
 SH
+# INSTALLED names the packages pacman reports as installed.
+cat >"$work/stubs/pacman" <<'SH'
+#!/bin/bash
+[[ $1 == "-Q" && $2 == "--" ]] && grep -Fxq "$3" <<<"${INSTALLED:-}"
+SH
 chmod +x "$work/stubs/"*
 
 for platform in aarch64 x86; do
@@ -122,14 +148,28 @@ for platform in aarch64 x86; do
   : >"$STUB_LOG"
   OMARCHY_PROC_ROOT="$work/$platform/proc" PATH="$work/stubs:$work/$platform/bin:$ROOT/bin:$PATH" \
     omarchy-reinstall-pkgs
-  expected="-Syu --noconfirm --needed $(tr '\n' ' ' <"$work/$platform.packages")"
+  expected="-Syu --noconfirm --ask 4 --needed $(tr '\n' ' ' <"$work/$platform.packages")"
   [[ $(tail -n 1 "$STUB_LOG") == "${expected% }" ]] ||
     fail "$platform: reinstall installs the platform's default set" "$(tail -n 1 "$STUB_LOG")"
 done
 pass "omarchy-reinstall-pkgs installs the platform's default set"
 
-# Every platform resets to its stable templates, as x86_64 always has; a failed
-# refresh stops the reinstall.
+# A JACK server the ARM migration kept would be removed for pipewire-jack, so
+# it is left out there.
+grep -Fxq pipewire-jack "$work/aarch64.packages" || fail "aarch64 defaults include pipewire-jack"
+export STUB_LOG="$work/jack.log"
+expected="-Syu --noconfirm --ask 4 --needed $(grep -vx pipewire-jack "$work/aarch64.packages" | tr '\n' ' ')"
+for server in jack2 jack; do
+  : >"$STUB_LOG"
+  INSTALLED=$server OMARCHY_PROC_ROOT="$work/aarch64/proc" PATH="$work/stubs:$work/aarch64/bin:$ROOT/bin:$PATH" \
+    omarchy-reinstall-pkgs
+  [[ $(tail -n 1 "$STUB_LOG") == "${expected% }" ]] ||
+    fail "aarch64: reinstall keeps an installed $server" "$(tail -n 1 "$STUB_LOG")"
+done
+pass "omarchy-reinstall-pkgs leaves pipewire-jack out where jack or jack2 is installed"
+
+# Reinstall requests the platform's default channel explicitly; a failed refresh
+# stops the reinstall.
 reinstall_on() {
   local platform=$1
   export STUB_LOG="$work/channel.log"
@@ -139,16 +179,17 @@ reinstall_on() {
 }
 for platform in x86 aarch64 aarch64-apple; do
   reinstall_on "$platform" || fail "$platform: reinstall completes" "$(cat "$work/channel.out")"
-  [[ $(head -n 1 "$STUB_LOG") == "refresh " ]] || fail "$platform: reinstall refreshes on stable" "$(cat "$STUB_LOG")"
-  expected="-Syu --noconfirm --needed $(tr '\n' ' ' <"$work/$platform.packages")"
+  if [[ $platform == "aarch64-apple" ]]; then expected_channel=edge; else expected_channel=stable; fi
+  [[ $(head -n 1 "$STUB_LOG") == "refresh $expected_channel" ]] || fail "$platform: reinstall refreshes on $expected_channel" "$(cat "$STUB_LOG")"
+  expected="-Syu --noconfirm --ask 4 --needed $(tr '\n' ' ' <"$work/$platform.packages")"
   [[ $(tail -n 1 "$STUB_LOG") == "${expected% }" ]] || fail "$platform: reinstall installs the platform's set"
 done
-pass "omarchy-reinstall-pkgs refreshes on stable on every platform"
+pass "omarchy-reinstall-pkgs explicitly refreshes the platform's default channel"
 
 if REFRESH_FAILS=1 reinstall_on aarch64; then
   fail "reinstall stops when the refresh fails"
 fi
-[[ $(cat "$STUB_LOG") == "refresh " ]] || fail "reinstall runs nothing after a failed refresh" "$(cat "$STUB_LOG")"
+[[ $(cat "$STUB_LOG") == "refresh stable" ]] || fail "reinstall runs nothing after a failed refresh" "$(cat "$STUB_LOG")"
 pass "omarchy-reinstall-pkgs stops when the refresh fails"
 
 export STUB_LOG="$work/undetected.log"
