@@ -78,8 +78,12 @@ Item {
   // survey moves on: an unchanged tailnet leaves the panel's lines alone.
   property string networkKey: ""
   // Whether this machine can share its own models: Tailscale running with
-  // MagicDNS and HTTPS certificates, as the last survey found it.
+  // MagicDNS and HTTPS certificates, or Circle running, as the last survey
+  // found it.
   property bool canShare: false
+  // Whether that survey found Tailscale, whose mark the share button wears;
+  // a machine only on a circle gets a plain share glyph instead.
+  property bool onTailnet: false
 
   FileView {
     id: networkFile
@@ -194,6 +198,7 @@ Item {
         root.networkModels = models
       }
       root.canShare = parsed.can_share === true
+      root.onTailnet = parsed.tailnet === true
     } catch (e) {
       // A missing or partially written survey keeps the last good one.
     }
