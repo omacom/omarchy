@@ -24,6 +24,9 @@ Item {
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
 
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
+    // A shell that started mid-update may never have read the shipped menu
+    // whole; reading it again here keeps the menu from opening empty.
+    if (root.defaultMenuItems.length === 0) defaultMenuFile.reload()
 
     if (payload.mode === "select" || payload.mode === "input") {
       root.openDmenu(payload)
@@ -39,6 +42,8 @@ Item {
   function refresh() {
     defaultMenuFile.reload()
     userMenuFile.reload()
+    languageFile.reload()
+    menuCatalogFile.reload()
     return "ok"
   }
 
@@ -50,6 +55,14 @@ Item {
   // path doesn't have to shell out to bash + jq on every open.
   property string defaultMenuPath: omarchyPath + "/default/omarchy/omarchy-menu.jsonc"
   property string userMenuPath: Quickshell.env("HOME") + "/.config/omarchy/extensions/omarchy-menu.jsonc"
+  // Display language for the shipped rows. The code lives in
+  // ~/.config/omarchy/language (omarchy-language owns it); a missing file
+  // means English. The catalog at default/i18n/<code>/menu.json is applied
+  // to the default items before the user extension merges on top, so a
+  // user's own rows and retitles always win.
+  property string language: "en"
+  property var menuCatalog: ({})
+  readonly property string languagePath: Quickshell.env("OMARCHY_LANGUAGE_FILE") || ((Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/omarchy/language")
   property var defaultMenuItems: []
   property var userMenuItems: []
   // Whether each file has answered once, loaded or (the user's) missing. At
@@ -76,6 +89,8 @@ Item {
   property bool rowsLoaded: false
   property string activeMenu: "root"
   property string filterText: ""
+  // Resets of filterText reach the search line; its edits come back through setFilter.
+  onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
   property int selectedIndex: 0
   property bool cursorActive: false
   property int requestSerial: 0
@@ -120,7 +135,7 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "style.font") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
@@ -255,18 +270,42 @@ Item {
     return MenuModel.parseMenuJsonc(raw)
   }
 
+  function parseCatalog(raw) {
+    try {
+      var parsed = JSON.parse(raw || "{}")
+      return (parsed && typeof parsed === "object" && !Array.isArray(parsed)) ? parsed : ({})
+    } catch (e) {
+      return ({})
+    }
+  }
+
+  function setLanguage(raw) {
+    var code = String(raw || "").trim()
+    if (!/^[a-z]{2,3}(-[A-Za-z]{2})?$/.test(code)) code = "en"
+    if (root.language === code) return
+    root.language = code
+    menuCatalogFile.reload()
+  }
+
   // Merge defaults + user extension. Later entries override earlier ones
   // on a per-key basis (so the user can tweak label/icon/action without
   // re-declaring the whole row).
-  function rebuildItemsFromSources() {
-    var mergedMenu = MenuModel.mergeMenuSources(root.defaultMenuItems, root.userMenuItems)
+  // Catalog-only rebuilds pass skipGuards: retitling rows cannot change any
+  // when/checked answer, so re-running the guard batch would be pure waste.
+  function rebuildItemsFromSources(skipGuards) {
+    var translatedDefaults = MenuModel.applyTranslations(root.defaultMenuItems, root.menuCatalog)
+    // The root row is injected by the merge (it has no JSONC entry), so its
+    // "Go" label comes from the catalog's root entry; the merge only uses
+    // it for the injected row, never over a user-supplied heading.
+    var rootCatalog = root.menuCatalog.root
+    var mergedMenu = MenuModel.mergeMenuSources(translatedDefaults, root.userMenuItems, rootCatalog && rootCatalog.label)
     root.providerRevision += 1
     root.providersLoaded = ({})
     root.providerQueue = []
     root.items = mergedMenu.items
     root.itemOrder = mergedMenu.itemOrder
     root.rowsLoaded = true
-    if (root.defaultMenuSettled && root.userMenuSettled) root.evaluateGuards()
+    if (!skipGuards && root.defaultMenuSettled && root.userMenuSettled) root.evaluateGuards()
     if (root.opened) {
       root.rebuildDisplay()
       if (!root.dmenuActive) {
@@ -291,7 +330,31 @@ Item {
     "power-profiles": {
       script: "current=$(powerprofilesctl get 2>/dev/null); omarchy-powerprofiles-list 2>/dev/null | while read -r p; do [[ -z $p ]] && continue; printf '%s\\t%s\\t%s\\n' \"$p\" \"$p\" \"$current\"; done",
       icon: "\udb81\udc0b",
+      // Profile names are powerprofilesctl ids; only the label is translated,
+      // and the id stays searchable through searchTerms.
+      labelFor: function(value) {
+        if (value === "power-saver") return Commons.I18n.t("menu.powerProfilePowerSaver")
+        if (value === "balanced") return Commons.I18n.t("menu.powerProfileBalanced")
+        if (value === "performance") return Commons.I18n.t("menu.powerProfilePerformance")
+        return value
+      },
       actionFor: function(value) { return "omarchy-powerprofiles-set autodetect " + Util.shellQuote(value) }
+    },
+    // Kernel names are package names, the same in every language.
+    "kernels": {
+      script: "current=$(omarchy-kernel get 2>/dev/null); omarchy-kernel list 2>/dev/null | while read -r k; do [[ -z $k ]] && continue; printf '%s\\t%s\\t%s\\n' \"$k\" \"$k\" \"$current\"; done",
+      icon: "\uf17c",
+      volatile: true,
+      actionFor: function(value) { return "omarchy-kernel set " + Util.shellQuote(value) }
+    },
+    // Rows carry a fourth field (the English name) so searching "danish"
+    // finds the row labeled with its native name; mergeProviderRows turns
+    // it into an alias.
+    "languages": {
+      script: "current=$(omarchy-language 2>/dev/null); omarchy-language list 2>/dev/null | while IFS=$'\\t' read -r name code english; do [[ -z $code ]] && continue; printf '%s\\t%s\\t%s\\t%s\\n' \"$name\" \"$code\" \"$current\" \"$english\"; done",
+      icon: "\uf1ab",
+      volatile: true,
+      actionFor: function(value) { return "omarchy-language " + Util.shellQuote(value) }
     }
   })
 
@@ -330,6 +393,7 @@ Item {
         action: "",
         provider: "",
         aliases: aliases,
+        searchTerms: [],
         when: "",
         checked: "",
         disabled: "",
@@ -373,7 +437,8 @@ Item {
       var line = lines[i].trim()
       if (!line) continue
       var parts = line.split("\t")
-      var label = parts[0] || ""
+      var rawLabel = parts[0] || ""
+      var label = spec.labelFor ? spec.labelFor(rawLabel) : rawLabel
       var value = parts[1] || parts[0] || ""
       var current = parts[2] || ""
       if (!label) continue
@@ -396,6 +461,7 @@ Item {
         action: spec.actionFor(value),
         provider: "",
         aliases: [],
+        searchTerms: (parts[3] ? [parts[3]] : []).concat(label !== rawLabel ? [rawLabel] : []),
         when: "",
         checked: "",
         disabled: "",
@@ -577,8 +643,8 @@ Item {
     if (root.dmenuMultiple && root.dmenuOnChange.length === 0) {
       displayModel.append({
         itemId: "dmenu.apply", disabled: false, kind: "dmenu", icon: "", iconFont: "",
-        appIcon: "", appId: "", label: "Apply", target: "",
-        detail: root.dmenuSelected.length + " selected", path: "", childCount: 0,
+        appIcon: "", appId: "", label: Commons.I18n.t("common.apply"), target: "",
+        detail: Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)), path: "", childCount: 0,
         action: "", provider: "", score: -1, section: ""
       })
     }
@@ -629,7 +695,7 @@ Item {
     for (var i = 0; i < displayModel.count; i++) {
       var row = displayModel.get(i)
       if (row.itemId === "dmenu.apply") {
-        displayModel.setProperty(i, "detail", root.dmenuSelected.length + " selected")
+        displayModel.setProperty(i, "detail", Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)))
       } else if (row.kind === "dmenu") {
         var value = MenuModel.dmenuValue(root.dmenuOptions[Number(row.itemId.substring(6))])
         displayModel.setProperty(i, "icon", root.dmenuSelected.indexOf(value) !== -1 ? "✓" : "○")
@@ -850,7 +916,7 @@ Item {
     root.deleteTarget = null
     deleteConfirm.selectedIndex = 1
     root.disarmPointer()
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function confirmDelete() {
@@ -905,13 +971,13 @@ Item {
     // their icons. Refresh here even when the desktop entry list did not change.
     if (root.appLibrary) root.appLibrary.refreshIcons()
 
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
 
   function openDmenu(payload) {
     requestSerial += 1
     mode = payload.mode === "input" ? "input" : "select"
-    dmenuPrompt = String(payload.prompt || (mode === "input" ? "Input" : "Select"))
+    dmenuPrompt = String(payload.prompt || (mode === "input" ? Commons.I18n.t("menu.inputPrompt") : Commons.I18n.t("menu.selectPrompt")))
     dmenuOptions = Array.isArray(payload.options) ? payload.options : []
     dmenuMultiple = mode === "select" && payload.multiple === true
     dmenuOnChange = dmenuMultiple && Array.isArray(payload.onChange)
@@ -935,7 +1001,7 @@ Item {
     opened = true
     rebuildDisplay()
 
-    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
   }
   ListModel { id: displayModel }
 
@@ -1085,7 +1151,7 @@ Item {
     path: root.defaultMenuPath
     watchChanges: true
     printErrors: false
-    onLoaded: { root.defaultMenuItems = root.parseMenuJsonc(text()); root.defaultMenuSettled = true; root.rebuildItemsFromSources() }
+    onLoaded: { root.defaultMenuItems = MenuModel.keepMenuRows(root.defaultMenuItems, text(), true); root.defaultMenuSettled = true; root.rebuildItemsFromSources() }
     // A user file that loaded first held its evaluation for this one.
     onLoadFailed: { root.defaultMenuSettled = true; if (root.userMenuSettled) root.evaluateGuards() }
     onFileChanged: reload()
@@ -1096,8 +1162,30 @@ Item {
     path: root.userMenuPath
     watchChanges: true
     printErrors: false
-    onLoaded: { root.userMenuItems = root.parseMenuJsonc(text()); root.userMenuSettled = true; root.rebuildItemsFromSources() }
+    onLoaded: { root.userMenuItems = MenuModel.keepMenuRows(root.userMenuItems, text(), false); root.userMenuSettled = true; root.rebuildItemsFromSources() }
     onLoadFailed: { root.userMenuItems = []; root.userMenuSettled = true; root.rebuildItemsFromSources() }
+    onFileChanged: reload()
+  }
+
+  // The language choice and its catalog are watched the same way, so
+  // picking a language under Setup retitles the menu with no shell restart.
+  FileView {
+    id: languageFile
+    path: root.languagePath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.setLanguage(text())
+    onLoadFailed: root.setLanguage("")
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: menuCatalogFile
+    path: root.omarchyPath + "/default/i18n/" + root.language + "/menu.json"
+    watchChanges: true
+    printErrors: false
+    onLoaded: { root.menuCatalog = root.parseCatalog(text()); root.rebuildItemsFromSources(true) }
+    onLoadFailed: { root.menuCatalog = ({}); root.rebuildItemsFromSources(true) }
     onFileChanged: reload()
   }
 
@@ -1233,12 +1321,13 @@ Item {
         id: keyCatcher
         anchors.fill: parent
         z: root.deleteConfirmOpen ? 20 : 0
-        focus: true
 
-        Keys.priority: Keys.BeforeItem
+        // Focus is on filterInput, which forwards every key here first.
         Keys.onPressed: function(event) {
           if (root.deleteConfirmOpen) {
-            if (deleteConfirm.handleKey(event)) event.accepted = true
+            // Swallow the rest too, or it would type into the search line behind the dialog.
+            deleteConfirm.handleKey(event)
+            event.accepted = true
             return
           }
 
@@ -1252,7 +1341,7 @@ Item {
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
             event.accepted = true
-          } else if ((event.key === Qt.Key_Backspace || event.key === Qt.Key_Left) && !root.filterText) {
+          } else if ((event.key === Qt.Key_Backspace || Util.readingKey(event) === Qt.Key_Left) && !root.filterText) {
             root.goBack()
             event.accepted = true
           } else if (event.key === Qt.Key_Up) {
@@ -1267,15 +1356,12 @@ Item {
           } else if (event.key === Qt.Key_PageDown) {
             root.select(6)
             event.accepted = true
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Right) {
+          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || Util.readingKey(event) === Qt.Key_Right) {
             if (root.dmenuActive) {
               if (root.mode === "input") root.applyDmenuSelection(root.filterText)
               else if (displayModel.count > 0) root.activateIndex(root.cursorActive ? root.selectedIndex : 0)
             } else if (root.cursorActive) root.activateIndex(root.selectedIndex)
             else root.settleCursor()
-            event.accepted = true
-          } else if (event.text && event.text.length === 1 && event.text.charCodeAt(0) >= 32 && event.text.charCodeAt(0) !== 127 && (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier)) {
-            root.setFilter(root.filterText + event.text)
             event.accepted = true
           }
         }
@@ -1286,8 +1372,8 @@ Item {
           anchors.fill: parent
           opened: root.deleteConfirmOpen
           z: 10
-          message: "Do you want to uninstall " + ((root.deleteTarget && root.deleteTarget.label) || "") + "?"
-          confirmText: "Uninstall"
+          message: Commons.I18n.t("common.uninstallConfirm").arg((root.deleteTarget && root.deleteTarget.label) || "")
+          confirmText: Commons.I18n.t("common.uninstall")
           background: root.background
           foreground: root.foreground
           scrim: root.scrim
@@ -1314,14 +1400,28 @@ Item {
           radius: root.cornerRadius
           color: "transparent"
 
-          Text {
-            textFormat: Text.PlainText
+          FilterInput {
+            id: filterInput
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || (root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…"))
+            keyHandler: keyCatcher
+            // Input-method commits bypass key handling, so the dialog has to refuse them here.
+            readOnly: root.deleteConfirmOpen
             color: root.foreground
-            opacity: root.filterText ? 1 : 0.58
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.heading
+            onTextChanged: if (text !== root.filterText) root.setFilter(text)
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            anchors.fill: filterInput
+            verticalAlignment: Text.AlignVCenter
+            visible: !root.filterText && !filterInput.preeditText
+            text: root.dmenuActive ? (root.dmenuPrompt + "…") : ((root.item(root.activeMenu) ? (root.item(root.activeMenu).title || root.item(root.activeMenu).label) : "Go") + "…")
+            color: root.foreground
+            opacity: 0.58
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
             elide: Text.ElideRight
@@ -1469,7 +1569,8 @@ Item {
                 Text {
                   textFormat: Text.PlainText
                   width: parent.width
-                  text: row.detail
+                  // A parent path's separator points along the reading direction.
+                  text: Commons.I18n.rightToLeft && row.kind !== "dmenu" ? row.detail.replace(/ › /g, " ‹ ") : row.detail
                   visible: (root.filterText || row.kind === "dmenu") && row.detail.length > 0
                   color: root.foreground
                   opacity: 0.52
@@ -1500,7 +1601,7 @@ Item {
 
                 Text {
                   textFormat: Text.PlainText
-                  text: row.kind === "menu" || row.kind === "link" ? "›" : ""
+                  text: row.kind === "menu" || row.kind === "link" ? (Commons.I18n.rightToLeft ? "‹" : "›") : ""
                   color: row.hasCursor ? root.selectedText : root.foreground
                   opacity: row.kind === "menu" || row.kind === "link" ? 0.36 : 0
                   font.family: root.fontFamily
@@ -1585,7 +1686,7 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: root.filterText ? "No matches for “" + root.filterText + "”" : "Nothing here yet"
+              text: root.filterText ? Commons.I18n.t("common.noMatchesFor").arg(root.filterText) : Commons.I18n.t("menu.nothingHere")
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily

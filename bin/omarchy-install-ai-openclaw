@@ -12,9 +12,12 @@ omarchy-install-openclaw-cli --now
 # gateway. The launcher entry goes through omarchy-launch-openclaw, which
 # onboards or starts that gateway before opening the window. The icon ships
 # inside the package, so nothing is fetched here.
+# The package before the seed kept the icon inside OpenClaw itself.
+icon=/usr/share/openclaw/openclaw.png
+[[ -r $icon ]] || icon=/usr/lib/node_modules/openclaw/dist/control-ui/apple-touch-icon.png
 echo "Installing the OpenClaw web app..."
 omarchy-webapp-install OpenClaw "http://127.0.0.1:18789" \
-  /usr/share/openclaw/openclaw.png \
+  "$icon" \
   omarchy-launch-openclaw
 
 # A first install runs onboarding right here: launching the app instead would

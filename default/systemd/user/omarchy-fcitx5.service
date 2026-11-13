@@ -17,12 +17,22 @@ PartOf=graphical-session.target
 # working one -- Wants= does not restart what is already running. Skip the start
 # instead; the unit stays enabled and starts for real at graphical login.
 ConditionEnvironment=WAYLAND_DISPLAY
+# Restart=always below is what makes an absent binary expensive: systemd retries
+# every RestartSec forever, so an install that never got fcitx5 -- it is in
+# omarchy-base.packages, but a trimmed or derived image can ship this unit
+# without it -- spends the whole session failing at 203/EXEC every two seconds.
+# Enabling this unit is unconditional in first-run/enable-user-units.sh, whose
+# own comment says ConditionPath* is what keeps an enabled unit inert where it
+# does not apply; this unit was missing its half of that.
+ConditionPathExists=/usr/bin/fcitx5
 
 [Service]
 Type=dbus
 BusName=org.fcitx.Fcitx5
 # notificationitem duplicates the tray entry omarchy already renders itself.
-ExecStart=/usr/bin/fcitx5 --disable notificationitem
+# --replace takes the bus name from a fcitx5 started outside the unit (a user
+# autostart, say), which would otherwise make every restart exit on arrival.
+ExecStart=/usr/bin/fcitx5 --replace --disable notificationitem
 # always, not on-failure: fcitx5 exits 0 when it detects another instance owning
 # its bus name, and a clean exit still leaves the user with no input method.
 Restart=always

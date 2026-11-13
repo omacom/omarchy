@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# omarchy:summary=Give terminals, btop, and GTK apps a see-through background while windows are glassy
+# omarchy:summary=Ask terminals and GTK apps for blur behind them while windows are glassy
 # omarchy:args=[theme-dir]
 # omarchy:hidden=true
 
-# A Hyprland opacity rule fades a terminal's text along with its background,
-# and foot turns compositor blur down unless its own config asks for it, so the
-# glass belongs in each terminal's theme file, as in the glassy Starship
-# (#14726). The lines sit between markers so leaving glassy takes them out
-# again, and a theme that sets its own opacity keeps it.
+# Glassy fades every window, terminals included, with a Hyprland opacity rule.
+# Some apps still have to ask for the blur behind them: foot turns compositor
+# blur down unless its config asks for it, and GTK asks only under a CSS
+# backdrop-filter. Those lines go in each theme file between markers, so
+# leaving glassy takes them out again.
 
 THEME_DIR="${1:-$HOME/.local/state/omarchy/current/theme}"
 TOGGLES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr"
@@ -28,9 +28,11 @@ regex() {
 remove_block() {
   local file="$1" open="$2" close="$3"
   local begin end
+  # Theme switches wait on this, and a freshly rendered file has no block, so
+  # look for one before building its sed addresses.
+  [[ -f $file ]] && grep -qF "$open omarchy-glass begin" "$file" || return 0
   begin=$(regex "$open omarchy-glass begin")
   end=$(regex "$open omarchy-glass end$close")
-  [[ -f $file ]] && grep -qF "$open omarchy-glass begin" "$file" || return 0
 
   local added_newline=false
   grep -qxF "$open omarchy-glass begin after a line without a newline$close" "$file" && added_newline=true
@@ -87,25 +89,20 @@ glass() {
   append_block "$file" "#" "" "${section:+$section$'\n'}$lines"
 }
 
-# Alacritty's own blur works only on macOS and KDE; Hyprland blurs it anyway.
-glass alacritty.toml '[window]' \
-  '^[[:space:]]*opacity[[:space:]]*=' 'opacity = 0.65' || status=1
 glass foot.ini '[colors-dark]' \
-  '^[[:space:]]*alpha[[:space:]]*=' 'alpha=0.65' \
   '^[[:space:]]*blur[[:space:]]*=' 'blur=yes' || status=1
-glass kitty.conf '' \
-  '^[[:space:]]*background_opacity[[:space:]]' 'background_opacity 0.65' || status=1
-# btop paints its own background over the terminal's glass. An empty main_bg
-# uses the terminal background; the last theme value wins, so removing the
-# block restores the theme's colour without changing btop's user config.
-glass btop.theme '' \
-  '^[[:space:]]*theme\[main_bg\][[:space:]]*=[[:space:]]*""' 'theme[main_bg]=""' || status=1
 # GTK only asks Hyprland for blur under a CSS backdrop-filter, which Ghostty
 # takes as custom CSS and reloads live; its background-blur speaks only KDE's
 # blur protocol.
 glass ghostty.conf '' \
-  '^[[:space:]]*background-opacity[[:space:]]*=' 'background-opacity = 0.65' \
   '' "gtk-custom-css = $OMARCHY_PATH/default/gtk/glass.css" || status=1
+
+# Glassy used to give these a see-through background of their own as well,
+# which doubled up with the window fade. Glassing them with no settings takes
+# out a block an earlier glassy left in the current theme.
+for file in alacritty.toml kitty.conf btop.theme; do
+  glass "$file" '' || status=1
+done
 
 # Other GTK apps, such as Nautilus, read the user's gtk.css at launch, so the
 # same backdrop blur is imported there. It follows the mode alone, so a theme
