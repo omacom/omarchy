@@ -349,6 +349,18 @@ function wifiRow(network) {
   }
 }
 
+// Every listed network's state as one comparable value. A network can connect,
+// drop, be saved or be forgotten without the list itself changing.
+function wifiStateKey(networks) {
+  var list = networks || []
+  var keys = []
+  for (var i = 0; i < list.length; i++) {
+    var n = list[i]
+    if (n) keys.push([n.name || "", !!n.connected, !!n.known, !!n.stateChanging, n.security].join("\u001f"))
+  }
+  return keys.sort().join("\u001e")
+}
+
 function sortWifiRows(rows) {
   var nets = Array.isArray(rows) ? rows.slice() : []
   nets.sort(function(a, b) {
@@ -448,6 +460,7 @@ if (typeof module !== "undefined") {
     formatRate: formatRate,
     formatPingLatency: formatPingLatency,
     wifiRow: wifiRow,
+    wifiStateKey: wifiStateKey,
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,

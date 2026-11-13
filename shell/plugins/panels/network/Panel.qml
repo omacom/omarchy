@@ -70,6 +70,9 @@ Panel {
   readonly property var networkDevices: Networking.devices ? Networking.devices.values : []
   readonly property var wifiDevice: findDevice(DeviceType.Wifi)
   readonly property var wifiNetworkObjects: wifiDevice && wifiDevice.networks ? wifiDevice.networks.values : []
+  // Bound here rather than in a row, so it also sees networks with no delegate:
+  // scrolled out of view, or the panel closed.
+  readonly property string wifiStateKey: Model.wifiStateKey(wifiNetworkObjects)
   readonly property var connectedWifiNetwork: findConnectedWifiNetwork()
   property var wifiNetworks: []
   property bool scanning: false
@@ -95,6 +98,7 @@ Panel {
   property string actionKind: ""  // "connect" | "disconnect" | "forget"
   property string failureSsid: ""
   property string failureReason: ""
+  property string failureKind: ""  // the actionKind that failed
   property string passwordSsid: ""
   property string passwordText: ""
   property string identityText: ""
@@ -116,6 +120,10 @@ Panel {
 
   // Index into `wifiNetworks` for keyboard navigation. -1 = no selection.
   property int selectedIndex: -1
+  // The network under the cursor when the rows were last rebuilt, so the
+  // cursor follows it when a state change re-sorts the list.
+  // null rather than "", which is a hidden network's SSID.
+  property var cursorSsid: null
   property bool wifiActionFocused: false
   property bool cursorActive: false
 
@@ -377,6 +385,8 @@ Panel {
         selectedIndex = passwordIndex
         focusSection = "wifi"
       }
+    } else if (cursorSsid !== null && wifiIndexForSsid(cursorSsid) >= 0) {
+      selectedIndex = wifiIndexForSsid(cursorSsid)
     } else if (selectedIndex >= wifiNetworks.length) {
       selectedIndex = wifiNetworks.length - 1
     } else if (selectedIndex < 0 && opened) {
@@ -395,6 +405,7 @@ Panel {
   }
 
   onWifiNetworkObjectsChanged: syncWifiNetworks()
+  onWifiStateKeyChanged: Qt.callLater(rebuildWifiRows)
 
   function selectByDelta(delta) {
     if (wifiNetworks.length === 0) { selectedIndex = -1; return }
@@ -698,6 +709,12 @@ Panel {
   }
 
   function syncWifiNetworks() {
+    rebuildWifiRows()
+    wifiStationAvailable = !!wifiDevice
+    scanning = false
+  }
+
+  function rebuildWifiRows() {
     var nets = []
     var networks = wifiNetworkObjects || []
 
@@ -708,9 +725,13 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    wifiNetworks = Model.sortWifiRows(nets)
-    wifiStationAvailable = !!wifiDevice
-    scanning = false
+    nets = Model.sortWifiRows(nets)
+    // A new model rebuilds every delegate, which takes focus from a passphrase
+    // being typed, so identical rows are left in place.
+    if (JSON.stringify(nets) === JSON.stringify(wifiNetworks)) return
+    var selected = wifiNetworks[selectedIndex]
+    cursorSsid = selected ? selected.ssid : null
+    wifiNetworks = nets
   }
 
   function wifiSectionTitle(index) {
@@ -820,6 +841,10 @@ Panel {
     actionKind = kind
     failureSsid = ""
     failureReason = ""
+    // Already in the asked-for state: Quickshell ignores such a call, so nothing
+    // would ever signal, and the enterprise script would reconnect a live link.
+    checkActionCompletion(network)
+    if (actionKind === "") return
     callback(network)
     // Safety net: if onExited never fires (process death, signal handler
     // throws, etc.), clear the busy state so the row doesn't get stuck on
@@ -829,7 +854,7 @@ Panel {
 
   function clearNetworkAction() {
     actionTimeout.stop()
-    if (actionKind === "connect") passwordSsid = ""
+    if (actionKind === "connect" && passwordSsid === actionSsid) passwordSsid = ""
     failureSsid = ""
     failureReason = ""
     actionSsid = ""
@@ -841,6 +866,7 @@ Panel {
     if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
     actionTimeout.stop()
     failureSsid = actionSsid
+    failureKind = actionKind
     failureReason = networkFailureReason(reason, requiresCredentials(network.security))
     actionSsid = ""
     actionKind = ""
@@ -856,7 +882,18 @@ Panel {
   }
 
   function checkActionCompletion(network) {
-    if (!network || actionKind === "" || actionSsid !== (network.name || "")) return
+    if (!network) return
+    var settled = network.connected && !network.stateChanging
+    // A prompt only opens for a network that is not connected, so once it is
+    // there is nothing left to ask, whether or not its error is still showing.
+    if (settled && passwordSsid !== "" && passwordSsid === (network.name || "")) passwordSsid = ""
+    // NetworkManager can connect a network on its own after a panel connect to
+    // it failed; only a failed connect, since a timed-out disconnect stays connected.
+    if (settled && failureKind === "connect" && failureReason !== "" && failureSsid === (network.name || "")) {
+      failureSsid = ""
+      failureReason = ""
+    }
+    if (actionKind === "" || actionSsid !== (network.name || "")) return
     if (actionKind === "connect" && network.connected) clearNetworkAction()
     else if (actionKind === "disconnect" && !network.connected && !network.stateChanging) clearNetworkAction()
     else if (actionKind === "forget" && !network.known && !network.stateChanging) clearNetworkAction()
@@ -1072,6 +1109,7 @@ Panel {
       else if (root.actionKind === "disconnect") reason = Commons.I18n.t("network.timedOutDisconnecting")
       else reason = Commons.I18n.t("network.timedOutForgetting")
       root.failureSsid = root.actionSsid
+      root.failureKind = root.actionKind
       root.failureReason = reason
       root.actionSsid = ""
       root.actionKind = ""
@@ -1803,15 +1841,6 @@ Panel {
         var ours = root.actionKind === "connect" && root.actionSsid === (row.net.ssid || "")
         root.failNetworkAction(root.networkForSsid(row.net.ssid), reason)
         if (ours && root.shouldRepromptPassphrase(reason, row.requiresCredentials)) root.openPasswordPrompt(row.net.ssid)
-      }
-      function onConnectedChanged() {
-        if (row.net) root.checkActionCompletion(root.networkForSsid(row.net.ssid))
-      }
-      function onKnownChanged() {
-        if (row.net) root.checkActionCompletion(root.networkForSsid(row.net.ssid))
-      }
-      function onStateChangingChanged() {
-        if (row.net) root.checkActionCompletion(root.networkForSsid(row.net.ssid))
       }
     }
 
