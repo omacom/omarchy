@@ -394,7 +394,7 @@ var enterpriseConnectScript =
   " nmcli connection add type wifi con-name \"$1\" ssid \"$1\" connection.uuid \"$u\"" +
   " wifi-sec.key-mgmt wpa-eap 802-1x.eap peap 802-1x.phase2-auth mschapv2" +
   " 802-1x.identity \"$2\" 802-1x.auth-timeout 8 >/dev/null" +
-  " && printf 'set 802-1x.password %s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
+  " && printf 'set 802-1x.password\\n%s\\nsave\\nquit\\n' \"$pw\" | nmcli connection edit uuid \"$u\" >/dev/null" +
   " && nmcli connection up uuid \"$u\"" +
   " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
 
@@ -419,6 +419,303 @@ function shouldRepromptPassphrase(reason, needsCredentials, reasons) {
   var r = reasons || {}
   if (!needsCredentials) return false
   return reason === r.NoSecrets || reason === r.WifiAuthTimeout
+}
+
+// `nmcli -t` escapes a literal '\' inside a field as '\\' and a literal ':' as
+// '\:'. Decoding '\\' before '\:' matters: a backslash that precedes a colon
+// must be read first, or the pair would look like the start of a colon escape.
+function decodeNmcliEscapes(value) {
+  var raw = String(value || "")
+  var out = ""
+  for (var i = 0; i < raw.length; i++) {
+    if (raw[i] === "\\") {
+      var next = raw[i + 1]
+      if (next === "\\") { out += "\\"; i++; continue }
+      if (next === ":") { out += ":"; i++; continue }
+    }
+    out += raw[i]
+  }
+  return out
+}
+
+// Splits one `nmcli -t` row on its unescaped ':' separators -- a colon preceded
+// by an even number of backslashes -- then decodes every field with
+// decodeNmcliEscapes, the same decoder the key/value parser uses.
+function splitNmcliFields(line) {
+  var fields = [], current = "", backslashes = 0
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i]
+    if (ch === ":") {
+      if (backslashes % 2 === 0) {
+        fields.push(decodeNmcliEscapes(current))
+        current = ""
+      } else {
+        current += ch
+      }
+      backslashes = 0
+      continue
+    }
+    if (ch === "\\") { backslashes++; current += ch; continue }
+    backslashes = 0
+    current += ch
+  }
+  fields.push(decodeNmcliEscapes(current))
+  return fields
+}
+
+// Reads `nmcli -t -f NAME,UUID,TYPE,ACTIVE,DEVICE connection show`, one row per
+// saved profile. Names are user-controlled and can repeat, so the UUID is what
+// the callers key on, never the name. The list form rejects setting fields, so
+// the saved SSID (which actually names the network) is not among them: callers
+// fill `ssid` from parseNmcliSsid() with one selector-form read per profile.
+function parseNmcliConnections(output) {
+  var lines = String(output || "").split("\n")
+  var out = []
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i] === "") continue
+    var f = splitNmcliFields(lines[i])
+    out.push({
+      name: f[0] || "",
+      uuid: f[1] || "",
+      type: f[2] || "",
+      active: (f[3] || "") === "yes",
+      device: f[4] || "",
+      ssid: ""
+    })
+  }
+  return out
+}
+
+// Reads `nmcli -t -f 802-11-wireless.ssid connection show uuid <uuid>`, the
+// selector form the list form cannot replace. nmcli prints the setting name and
+// its value on one ':'-separated line; the value is escaped like any other -t
+// field.
+function parseNmcliSsid(output) {
+  var line = String(output || "").split(/\r?\n/)[0]
+  var idx = line.indexOf(":")
+  if (idx === -1) return ""
+  return decodeNmcliEscapes(line.substring(idx + 1))
+}
+
+// A profile's network is its saved 802-11-wireless.ssid, not the user-editable
+// connection name. Only a Wi-Fi profile can name a Wi-Fi row: a VPN or ethernet
+// profile whose connection name happens to equal the SSID must never match.
+// Among Wi-Fi profiles, match the SSID; one with none (legacy or imported)
+// falls back to its name.
+function profileMatchesSsid(profile, ssid) {
+  if (!profile) return false
+  if (profile.type !== "802-11-wireless") return false
+  if (profile.ssid) return profile.ssid === ssid
+  return profile.name === ssid
+}
+
+// Several saved profiles can share one SSID (e.g. a WPA2 and a WPA3 copy), so a
+// name match is not enough to pick one. When the SSID is the connected network,
+// its active profile is the right one; the caller passes the Wi-Fi device it is
+// showing so the device's own active profile wins over another interface's
+// active match on the same SSID. With no device given, any active match stands.
+// Otherwise a lone match stands and duplicates are flagged so the caller can
+// ask the user instead of guessing.
+function resolveProfile(profiles, ssid, connected, device) {
+  var matches = []
+  for (var i = 0; i < (profiles || []).length; i++) {
+    if (profileMatchesSsid(profiles[i], ssid)) matches.push(profiles[i])
+  }
+  if (matches.length === 0) return { uuid: "", ambiguous: false }
+  if (connected) {
+    if (device) {
+      for (var k = 0; k < matches.length; k++) {
+        if (matches[k].active && matches[k].device === device) return { uuid: matches[k].uuid, ambiguous: false }
+      }
+    }
+    for (var j = 0; j < matches.length; j++) {
+      if (matches[j].active) return { uuid: matches[j].uuid, ambiguous: false }
+    }
+  }
+  if (matches.length === 1) return { uuid: matches[0].uuid, ambiguous: false }
+  return { uuid: matches[0].uuid, ambiguous: true }
+}
+
+// `nmcli -t -f UUID connection show --active` prints one bare UUID per line. The
+// save path re-reads it to confirm the profile it is about to cycle is still the
+// connection in use.
+function parseActiveUuids(output) {
+  var lines = String(output || "").split(/\r?\n/)
+  var out = []
+  for (var i = 0; i < lines.length; i++) {
+    var uuid = lines[i].trim()
+    if (uuid !== "") out.push(uuid)
+  }
+  return out
+}
+
+// The settings editor reads one saved profile back with
+// `nmcli -t -f <settings> connection show uuid <uuid>`. `-t` still puts a ':'
+// between the key and its value, and NetworkManager prints a stored secret as
+// the literal `<hidden>` rather than echoing it, so the editor never treats
+// that as a value it can keep.
+function parseNmcliProfile(output) {
+  var lines = String(output || "").split("\n")
+  var out = {}
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i]
+    if (line === "") continue
+    var idx = line.indexOf(":")
+    if (idx === -1) continue
+    var value = decodeNmcliEscapes(line.substring(idx + 1))
+    out[line.substring(0, idx)] = value === "<hidden>" ? "" : value
+  }
+  return out
+}
+
+// Which security types carry a pre-shared key. The editor offers a password
+// field with a "keep the saved one" affordance only for these; on EAP the same
+// `psk` setting is unused, so its `<hidden>` echo means nothing.
+function usesPsk(security, securityEnum) {
+  var e = securityEnum || {}
+  return security === e.Wpa2Psk || security === e.WpaPsk || security === e.Sae
+}
+
+// Seeds the editor from a parsed profile. Values a profile leaves unset read
+// back as "", and the caller supplies the security enum because only it knows
+// the constants, which keeps this pure and testable. `hasPsk` is decided by the
+// security type alone: nmcli prints the stored psk as `<hidden>` (parseNmcliProfile
+// blanks it), so it can never be read here. Offering the field by type, with a
+// blank meaning "keep the current one", is the only way to let a PSK/SAE network
+// be edited at all.
+function editorDefaults(settings, security, securityEnum) {
+  var s = settings || {}
+  var priority = parseInt(s["connection.autoconnect-priority"], 10)
+  return {
+    autoConnect: s["connection.autoconnect"] === "yes",
+    priority: isFinite(priority) ? priority : 0,
+    metered: s["connection.metered"] || "unknown",
+    ipv4Method: s["ipv4.method"] || "auto",
+    address: s["ipv4.addresses"] || "",
+    gateway: s["ipv4.gateway"] || "",
+    identity: s["802-1x.identity"] || "",
+    hasPsk: usesPsk(security, securityEnum)
+  }
+}
+
+// Dotted-quad with every octet in 0-255. A shape-only test lets an impossible
+// address like 999.1.1.1 through to nmcli; this rejects each octet over 255.
+function isValidIPv4(value) {
+  var parts = String(value || "").split(".")
+  if (parts.length !== 4) return false
+  for (var i = 0; i < 4; i++) {
+    if (!/^\d{1,3}$/.test(parts[i])) return false
+    var octet = Number(parts[i])
+    if (octet < 0 || octet > 255) return false
+  }
+  return true
+}
+
+// CIDR host with a 0-32 prefix. The prefix bounded here is what keeps
+// 10.0.0.1/33 and 999.1.1.1/99 from writing a broken profile.
+function isValidCidr(value) {
+  var parts = String(value || "").split("/")
+  if (parts.length !== 2) return false
+  if (!/^\d{1,2}$/.test(parts[1])) return false
+  var prefix = Number(parts[1])
+  return isValidIPv4(parts[0]) && prefix >= 0 && prefix <= 32
+}
+
+// Manual IPv4 needs an address with a prefix, and a gateway only when one is
+// given. Priority has to be a whole number of 0 or more because nmcli rejects
+// anything else. `error` is the message the editor shows under the field;
+// `tr` is the shell's I18n.t, so the copy translates like every other string
+// while the default keeps the Node tests in English.
+function validateEditor(form, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var f = form || {}
+  var priority = f.priority === undefined || f.priority === "" ? 0 : Number(f.priority)
+  if (!isFinite(priority) || priority < 0 || Math.floor(priority) !== priority) {
+    return { ok: false, error: t("network.priorityInvalid", "Priority must be a whole number of 0 or more.") }
+  }
+  if (f.ipv4Method === "manual") {
+    if (!isValidCidr(f.address)) {
+      return { ok: false, error: t("network.addressInvalid", "Enter an address with a prefix, like 10.0.0.5/24.") }
+    }
+    if (f.gateway && !isValidIPv4(f.gateway)) {
+      return { ok: false, error: t("network.gatewayInvalid", "Enter a valid gateway address.") }
+    }
+  }
+  return { ok: true, error: "" }
+}
+
+// Builds the stdin `nmcli connection edit` needs to set one property. The
+// value is written on its own line under a bare `set <setting>.<property>`,
+// which takes nmcli's interactive "Enter '<prop>' value:" path. That path
+// reads the raw line and keeps every character. The one-line
+// `set <setting>.<property> <value>` form cannot: NetworkManager's
+// split_editor_main_cmd_args runs the whole line through g_strstrip and takes
+// the remainder verbatim, so leading/trailing spaces are lost, an empty value
+// is stripped away (making nmcli prompt and swallow the next command), and
+// quotes are never unescaped -- a quoted value stores the quote characters.
+// Verified against nmcli 1.58.1. The value stays off argv, and any embedded
+// newline is flattened so it cannot inject a second editor command.
+function nmcliEditSet(property, value) {
+  var text = value === undefined || value === null ? "" : String(value)
+  return "set " + property + "\n" + text.replace(/[\r\n]+/g, " ") + "\n"
+}
+
+// The editable settings, in the order nmcli receives them. `kind` decides how a
+// form value becomes an argument: a boolean is nmcli's yes/no, an int prints as
+// a number. One list keeps the argv builder, the reapply check and any future
+// field agreed on the setting names.
+var MOD_KEYS = [
+  ["autoConnect", "connection.autoconnect", "bool"],
+  ["priority", "connection.autoconnect-priority", "int"],
+  ["metered", "connection.metered", "str"],
+  ["ipv4Method", "ipv4.method", "str"],
+  ["address", "ipv4.addresses", "str"],
+  ["gateway", "ipv4.gateway", "str"]
+]
+
+function modArgValue(kind, value) {
+  if (kind === "bool") return value ? "yes" : "no"
+  if (kind === "int") {
+    var n = parseInt(value, 10)
+    return String(isFinite(n) ? n : 0)
+  }
+  return value === undefined || value === null ? "" : String(value)
+}
+
+// Builds `nmcli connection modify uuid <uuid> ...` for the settings that
+// actually changed. Keying on the uuid (never the SSID, which can repeat) and
+// emitting only the edited fields keeps the command from rewriting untouched
+// settings; no secret is ever among them, so argv stays safe in /proc. An
+// unchanged form yields an empty array, which the caller runs as a no-op.
+function changedModArgs(uuid, before, after) {
+  var b = before || {}
+  var a = after || {}
+  var args = []
+  for (var i = 0; i < MOD_KEYS.length; i++) {
+    var field = MOD_KEYS[i][0]
+    var setting = MOD_KEYS[i][1]
+    var kind = MOD_KEYS[i][2]
+    var from = modArgValue(kind, b[field])
+    var to = modArgValue(kind, a[field])
+    if (from === to) continue
+    args.push(setting, to)
+  }
+  if (args.length === 0) return []
+  return ["nmcli", "connection", "modify", "uuid", String(uuid)].concat(args)
+}
+
+// An address, method or gateway change only takes effect on the next
+// activation, so the caller must cycle the connection; auto-connect, priority
+// and metered apply live and need no reconnect.
+function needsReapply(before, after) {
+  var b = before || {}
+  var a = after || {}
+  for (var i = 0; i < MOD_KEYS.length; i++) {
+    if (MOD_KEYS[i][1].indexOf("ipv4.") !== 0) continue
+    var field = MOD_KEYS[i][0]
+    if (modArgValue(MOD_KEYS[i][2], b[field]) !== modArgValue(MOD_KEYS[i][2], a[field])) return true
+  }
+  return false
 }
 
 if (typeof module !== "undefined") {
@@ -452,6 +749,17 @@ if (typeof module !== "undefined") {
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
+    parseNmcliConnections: parseNmcliConnections,
+    parseNmcliSsid: parseNmcliSsid,
+    profileMatchesSsid: profileMatchesSsid,
+    resolveProfile: resolveProfile,
+    parseActiveUuids: parseActiveUuids,
+    parseNmcliProfile: parseNmcliProfile,
+    editorDefaults: editorDefaults,
+    validateEditor: validateEditor,
+    nmcliEditSet: nmcliEditSet,
+    changedModArgs: changedModArgs,
+    needsReapply: needsReapply,
     enterpriseConnectScript: enterpriseConnectScript,
     networkFailureReason: networkFailureReason,
     shouldRepromptPassphrase: shouldRepromptPassphrase

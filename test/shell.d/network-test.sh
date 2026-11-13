@@ -234,4 +234,194 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+
+// Three saved profiles can share one SSID; the resolver must not pick blindly.
+// The saved 802-11-wireless.ssid names the network, not the user-editable
+// connection name, so a renamed profile still resolves and a same-named profile
+// for a different network does not. The connection list carries only the fields
+// nmcli's list form allows (type and device among them) and never the SSID, so
+// each Wi-Fi profile's ssid is filled from a per-uuid read of parseNmcliSsid.
+const listed = network.parseNmcliConnections(
+  'Office laptop:3736ec62-6a:802-11-wireless:yes:wlo1\n' +
+  'KEMENKEU:e95bb213-05:802-11-wireless:no:\n' +
+  'KEMENKEU:abc:802-11-wireless:no:\n' +
+  'Other:def:802-3-ethernet:no:enp0s3\n'
+)
+assertDeepEqual(listed, [
+  { name: 'Office laptop', uuid: '3736ec62-6a', type: '802-11-wireless', active: true, device: 'wlo1', ssid: '' },
+  { name: 'KEMENKEU', uuid: 'e95bb213-05', type: '802-11-wireless', active: false, device: '', ssid: '' },
+  { name: 'KEMENKEU', uuid: 'abc', type: '802-11-wireless', active: false, device: '', ssid: '' },
+  { name: 'Other', uuid: 'def', type: '802-3-ethernet', active: false, device: 'enp0s3', ssid: '' }
+], 'network parses nmcli connection rows with type and device, and no ssid from the list form')
+assertEqual(network.parseNmcliSsid('802-11-wireless.ssid:KEMENKEU\n'), 'KEMENKEU',
+  'network reads a saved ssid from the per-profile selector form')
+assertEqual(network.parseNmcliSsid('802-11-wireless.ssid:\n'), '',
+  'network treats an empty saved ssid read as none')
+assertEqual(network.parseNmcliSsid(''), '',
+  'network tolerates a missing ssid read')
+assertEqual(network.parseNmcliSsid('802-11-wireless.ssid:A\\:B\\\\C\n'), 'A:B\\C',
+  'network decodes nmcli escapes in a saved ssid')
+assertDeepEqual(
+  network.parseNmcliConnections('A\\:B:uuid1:802-11-wireless:no:\n'),
+  [{ name: 'A:B', uuid: 'uuid1', type: '802-11-wireless', active: false, device: '', ssid: '' }],
+  'network unescapes a colon-escaped connection name'
+)
+assertDeepEqual(
+  network.parseNmcliConnections('Legacy:cafe:802-11-wireless:no\n'),
+  [{ name: 'Legacy', uuid: 'cafe', type: '802-11-wireless', active: false, device: '', ssid: '' }],
+  'network treats a missing list field as empty'
+)
+assertDeepEqual(
+  network.parseNmcliConnections('C\\\\D\\:E:uuid2:802-11-wireless:no:\n'),
+  [{ name: 'C\\D:E', uuid: 'uuid2', type: '802-11-wireless', active: false, device: '', ssid: '' }],
+  'network decodes a backslash and colon in a connection name'
+)
+// Fill the SSIDs the panel would read for each Wi-Fi profile. The ethernet
+// profile keeps none and is named like a network, which must still not match.
+const conns = listed
+conns[0].ssid = 'KEMENKEU'
+conns[1].ssid = 'Other SSID'
+conns[2].ssid = 'KEMENKEU'
+assertDeepEqual(
+  network.resolveProfile(conns, 'KEMENKEU', true),
+  { uuid: '3736ec62-6a', ambiguous: false },
+  'network resolves a connected SSID to its active profile even when the profile was renamed'
+)
+assertDeepEqual(
+  network.resolveProfile(conns, 'KEMENKEU', false),
+  { uuid: '3736ec62-6a', ambiguous: true },
+  'network flags duplicate saved SSIDs as ambiguous when none is active'
+)
+assertDeepEqual(
+  network.resolveProfile(conns, 'Other', false),
+  { uuid: '', ambiguous: false },
+  'network never matches a non-Wi-Fi profile by its connection name'
+)
+assertDeepEqual(
+  network.resolveProfile(conns, 'Other SSID', false),
+  { uuid: 'e95bb213-05', ambiguous: false },
+  'network matches the saved ssid rather than the connection name'
+)
+assertDeepEqual(
+  network.resolveProfile(conns, 'Missing', false),
+  { uuid: '', ambiguous: false },
+  'network resolves an SSID with no saved profile to empty'
+)
+assertDeepEqual(
+  network.resolveProfile(network.parseNmcliConnections('Legacy:cafe:802-11-wireless:no:\n'), 'Legacy', false),
+  { uuid: 'cafe', ambiguous: false },
+  'network falls back to the connection name when a Wi-Fi profile has no saved ssid'
+)
+// The same SSID can be active on two interfaces at once. The panel passes the
+// Wi-Fi device it is showing, so the device's own active profile wins.
+const dualDevice = [
+  { name: 'Home', uuid: 'devA', type: '802-11-wireless', active: true, device: 'wlan0', ssid: 'Home' },
+  { name: 'Home', uuid: 'devB', type: '802-11-wireless', active: true, device: 'wlan1', ssid: 'Home' }
+]
+assertDeepEqual(
+  network.resolveProfile(dualDevice, 'Home', true, 'wlan1'),
+  { uuid: 'devB', ambiguous: false },
+  'network prefers the active profile on the device the panel is showing'
+)
+assertDeepEqual(
+  network.resolveProfile(dualDevice, 'Home', true, 'wlan0'),
+  { uuid: 'devA', ambiguous: false },
+  'network resolves a given device to its own active profile'
+)
+assertDeepEqual(
+  network.resolveProfile(dualDevice, 'Home', true),
+  { uuid: 'devA', ambiguous: false },
+  'network still falls back to an active match when no device is given'
+)
+assertDeepEqual(
+  network.parseActiveUuids('3736ec62-6a\ne95bb213-05\n\n'),
+  ['3736ec62-6a', 'e95bb213-05'],
+  'network parses the active connection uuids re-read at save time'
+)
+
+// The settings editor reads one profile back as a `nmcli -t` key/value map,
+// seeds its form from it, and then turns only the edited non-secret keys into
+// an argv. Secrets never travel in argv, and a form that changes nothing must
+// produce an empty argv rather than a redundant modify.
+const prof = network.parseNmcliProfile(
+  'connection.autoconnect:yes\nconnection.autoconnect-priority:0\n' +
+  'connection.metered:unknown\nipv4.method:auto\nipv4.addresses:\nipv4.gateway:\n' +
+  '802-1x.identity:zulham.syafrawi\n802-11-wireless-security.psk:<hidden>\n'
+)
+assertEqual(prof['connection.autoconnect'], 'yes', 'network parses a profile setting')
+assertEqual(prof['802-11-wireless-security.psk'], '', 'network blanks a hidden secret')
+assertDeepEqual(
+  network.parseNmcliProfile('802-1x.identity:corp\\:user\\\\name\n'),
+  { '802-1x.identity': 'corp:user\\name' },
+  'network decodes nmcli escapes so a colon and backslash round-trip in a profile value'
+)
+
+const sec = { Wpa2Psk: 3, WpaPsk: 5, Sae: 1, Wpa2Eap: 2, WpaEap: 4, Open: 10 }
+assertDeepEqual(
+  network.editorDefaults(prof, sec.Wpa2Eap, sec),
+  { autoConnect: true, priority: 0, metered: 'unknown', ipv4Method: 'auto', address: '', gateway: '', identity: 'zulham.syafrawi', hasPsk: false },
+  'network derives editor defaults from a profile'
+)
+// The stored psk is unreadable (`<hidden>` blanks to ""), so the field is
+// offered by security type; a PSK profile must still report it as present or
+// the editor could never edit the common WPA2 case.
+assertEqual(network.editorDefaults(prof, sec.Wpa2Psk, sec).hasPsk, true, 'network offers a passphrase field for a PSK profile')
+
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5/24', gateway: '10.0.0.1', priority: 0 }).ok, true, 'network accepts a manual CIDR')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5', gateway: '', priority: 0 }).ok, false, 'network rejects a manual address without a prefix')
+assertEqual(network.validateEditor({ ipv4Method: 'auto', address: '', gateway: '', priority: 0 }).ok, true, 'network accepts automatic ipv4')
+assertEqual(network.validateEditor({ ipv4Method: 'auto', address: '', gateway: '', priority: -1 }).ok, false, 'network rejects a negative priority')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '0.0.0.0/0', gateway: '', priority: 0 }).ok, true, 'network accepts the 0.0.0.0/0 boundary')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '255.255.255.255/32', gateway: '255.255.255.255', priority: 0 }).ok, true, 'network accepts the 255.255.255.255/32 boundary')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '256.1.1.1/24', gateway: '', priority: 0 }).ok, false, 'network rejects an octet above 255')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '999.1.1.1/99', gateway: '', priority: 0 }).ok, false, 'network rejects impossible octets and an impossible prefix')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.1/33', gateway: '', priority: 0 }).ok, false, 'network rejects a prefix above 32')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5/24', gateway: '300.1.1.1', priority: 0 }).ok, false, 'network rejects a gateway octet above 255')
+// validateEditor stays English without a translator (the Node default) but the
+// editor passes Commons.I18n.t, so every error string must route through it.
+assertEqual(network.validateEditor({ ipv4Method: 'auto', priority: 1.5 }).error,
+  'Priority must be a whole number of 0 or more.', 'network defaults the priority error to English')
+const tr = (key) => key
+assertEqual(network.validateEditor({ ipv4Method: 'auto', priority: 1.5 }, tr).error, 'network.priorityInvalid',
+  'network routes the priority error through tr')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: 'nope', priority: 0 }, tr).error, 'network.addressInvalid',
+  'network routes the address error through tr')
+assertEqual(network.validateEditor({ ipv4Method: 'manual', address: '10.0.0.5/24', gateway: 'bad', priority: 0 }, tr).error, 'network.gatewayInvalid',
+  'network routes the gateway error through tr')
+
+// The secret goes through nmcli's interactive value prompt: the property alone
+// on one line and the raw value on the next. That is the only form nmcli keeps
+// verbatim -- the one-line `set <prop> <value>` strips the value and would
+// swallow the next command for an empty one -- so a passphrase's spaces (and
+// leading/trailing ones) survive, and a newline cannot inject a command.
+assertEqual(network.nmcliEditSet('802-11-wireless-security.psk', 'my pass phrase'),
+  'set 802-11-wireless-security.psk\nmy pass phrase\n', 'network writes a passphrase on its own prompt line')
+assertEqual(network.nmcliEditSet('802-1x.identity', ''),
+  'set 802-1x.identity\n\n', 'network keeps an empty value on its own line')
+assertEqual(network.nmcliEditSet('802-1x.password', 'two\nlines'),
+  'set 802-1x.password\ntwo lines\n', 'network flattens a newline so a value cannot inject an editor command')
+
+const noop = network.changedModArgs('uuid-1', { autoConnect: true, priority: 0, metered: 'unknown', ipv4Method: 'auto', address: '', gateway: '' },
+  { autoConnect: true, priority: 0, metered: 'unknown', ipv4Method: 'auto', address: '', gateway: '' })
+assertDeepEqual(noop, [], 'network sends nothing for an unchanged form')
+const changed = network.changedModArgs('uuid-1', { autoConnect: true, priority: 0, metered: 'unknown', ipv4Method: 'auto', address: '', gateway: '' },
+  { autoConnect: false, priority: 5, metered: 'yes', ipv4Method: 'auto', address: '', gateway: '' })
+assertDeepEqual(changed, ['nmcli', 'connection', 'modify', 'uuid', 'uuid-1',
+  'connection.autoconnect', 'no', 'connection.autoconnect-priority', '5', 'connection.metered', 'yes'],
+  'network sends only changed non-secret keys, by uuid')
+assertEqual(changed.some(a => /psk/i.test(a)), false, 'network never puts a secret in argv')
+assertEqual(network.needsReapply({ ipv4Method: 'auto' }, { ipv4Method: 'manual' }), true, 'network reapplies after an ipv4 change')
+assertEqual(network.needsReapply({ autoConnect: true }, { autoConnect: false }), false, 'network does not reconnect for auto-connect alone')
+
+// Every network.* key the panel and the editor display must exist in the
+// English catalog, so a call site can never point at a key the copy never
+// added. The repo-wide i18n test checks the same relation across every area;
+// this keeps the network strings honest on their own as the editor grows.
+const editorSource = fs.readFileSync(root + '/shell/plugins/panels/network/Editor.qml', 'utf8')
+const referenced = new Set()
+for (const source of [panelSource, editorSource])
+  for (const match of source.matchAll(/Commons\.I18n\.t\("(network\.[A-Za-z0-9]+)"/g)) referenced.add(match[1])
+const enShell = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
+const missing = [...referenced].filter((key) => !Object.hasOwn(enShell, key)).sort()
+assertEqual(missing.join(', '), '', 'every network key the panel and editor reference exists in the English catalog')
 JS

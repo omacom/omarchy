@@ -21,6 +21,7 @@ Panel {
   function close() {
     root.controller.hide()
     cancelPasswordPrompt()
+    menuOpen = false
   }
 
   function cancelPasswordPrompt() {
@@ -118,6 +119,67 @@ Panel {
   property int selectedIndex: -1
   property bool wifiActionFocused: false
   property bool cursorActive: false
+
+  // Right-click context menu target. `menuSsid`/`menuIndex` name the row the
+  // menu was opened from; openMenu() fills them and opens the popup beside it.
+  // `menuOpen` tracks the popup so the row cursor can stand down: the spec's
+  // anti-goal is two highlights at once (menu vs row cursor), so while the
+  // popup is up only its own highlight shows.
+  property string menuSsid: ""
+  property int menuIndex: -1
+  property bool menuOpen: false
+  readonly property var menuRow: root.wifiRowForSsid(root.menuSsid)
+  // Items for the right-click menu on a Wi-Fi row: the primary connect/
+  // disconnect action always, Modify only for a known profile, and Forget only
+  // when the profile can be removed (never on the connected row).
+  readonly property var menuItems: {
+    var net = root.menuRow
+    var items = []
+    if (!net) return items
+    if (net.connected) items.push({ key: "disconnect", label: Commons.I18n.t("network.disconnect") })
+    else items.push({ key: "connect", label: Commons.I18n.t("network.connect") })
+    if (net.known) items.push({ key: "modify", label: Commons.I18n.t("network.modifyNetwork") })
+    if (root.canForgetNetwork(net)) items.push({ key: "forget", label: Commons.I18n.t("network.forgetNetwork"), danger: true })
+    return items
+  }
+
+  // Modify editor. `editorOpen` swaps the list out for the native form built by
+  // Editor.qml; `editingUuid` is the resolved profile every write targets (never
+  // the SSID, which repeats). `editorFields` is the read-back prefill and the
+  // "before" side of the changed-keys diff; `editorSteps` is the queue of
+  // nmcli runs the save walks one process at a time.
+  property string editingUuid: ""
+  property string editingSsid: ""
+  property string editorPendingUuid: ""
+  property bool editorOpen: false
+  property bool editorBusy: false
+  property string editorError: ""
+  property var editorFields: null
+  property bool editorActive: false
+  property bool editorEnterprise: false
+  property var editorSteps: []
+  // Monotonic id for the current edit session. Every editor process records the
+  // session it started in and drops its result when the id no longer matches, so
+  // a slow read or a queued write from an editor the user left can never mutate
+  // or close one opened afterwards. openEditor() and cancelEditor() both bump it.
+  property int editorSession: 0
+  // The saved profiles being resolved, and the cursor into them while their
+  // SSIDs are read back one at a time (the list form cannot return the SSID).
+  property var editorProfiles: []
+  property int editorSsidIndex: -1
+  // Profile picker (R1 case 3): more than one saved profile shares the SSID and
+  // none is active, so the user chooses before the form is read.
+  property bool editorPicking: false
+  property var editorChoices: []
+  // Security enum values as a plain object, so Model's pure helpers stay
+  // Node-testable; only the panel knows the WifiSecurityType constants.
+  readonly property var editorSecurityEnum: ({
+    Wpa2Psk: WifiSecurityType.Wpa2Psk,
+    WpaPsk: WifiSecurityType.WpaPsk,
+    Sae: WifiSecurityType.Sae,
+    Wpa2Eap: WifiSecurityType.Wpa2Eap,
+    WpaEap: WifiSecurityType.WpaEap
+  })
 
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
   // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
@@ -907,6 +969,427 @@ Panel {
     runNetworkAction("forget", net ? networkForSsid(net.ssid) : null, function(network) { network.forget() })
   }
 
+  // Wi-Fi rows are primitive snapshots keyed by SSID, so the menu resolves the
+  // row it was opened from by ssid rather than holding a stale reference.
+  function wifiRowForSsid(ssid) {
+    for (var i = 0; i < wifiNetworks.length; i++) {
+      if (wifiNetworks[i] && wifiNetworks[i].ssid === ssid) return wifiNetworks[i]
+    }
+    return null
+  }
+
+  // One entry point for a row click so the mouse button decides between the
+  // context menu (right) and the existing connect/disconnect behaviour (left).
+  // Left-click semantics are unchanged: cursor resync, then disconnect a
+  // connected row, prompt an unknown credentials row, else connect.
+  function rowGesture(net, index, button) {
+    root.cursorActive = true
+    root.focusSection = "wifi"
+    root.selectedIndex = index
+    root.wifiActionFocused = false
+    if (button === Qt.RightButton) {
+      root.openMenu(net ? net.ssid : "", index)
+      return
+    }
+    if (!net) return
+    if (net.connected) { root.disconnectRow(net.ssid); return }
+    if (root.requiresCredentials(net.security) && !net.known) { root.openPasswordPrompt(net.ssid); return }
+    root.connectDirectly(net.ssid)
+  }
+
+  // Set the menu target (read by the menuItems binding) and ask the lazily
+  // built content to open its ContextMenu beside the row. The content owns the
+  // menu object, so it positions and opens it.
+  function openMenu(ssid, index) {
+    menuSsid = ssid
+    menuIndex = index
+    var content = panel.loadedContent
+    if (content && content.openMenu) content.openMenu(index)
+  }
+
+  function activateMenu(key) {
+    if (key === "disconnect") root.disconnectRow(root.menuSsid)
+    else if (key === "connect") {
+      // Mirror the left-click branch: an unknown secured network needs the
+      // passphrase prompt, not a bare connect() that would fail silently.
+      var net = root.wifiRowForSsid(root.menuSsid)
+      if (net && root.requiresCredentials(net.security) && !net.known) root.openPasswordPrompt(root.menuSsid)
+      else root.connectDirectly(root.menuSsid)
+    }
+    else if (key === "modify") root.openEditor(root.menuSsid)
+    else if (key === "forget") root.forget(root.wifiRowForSsid(root.menuSsid))
+  }
+
+  // Opens the editor for a row's SSID: resolve the saved profile by UUID, read
+  // its settings back, then hand the prefill to Editor.qml. Every read and write
+  // goes through the UUID (the SSID can name several profiles).
+  function openEditor(ssid) {
+    if (ssid === "" || editorBusy) return
+    editorSession++
+    editingSsid = ssid
+    editingUuid = ""
+    editorFields = null
+    editorError = ""
+    editorActive = false
+    editorEnterprise = false
+    editorSteps = []
+    editorProfiles = []
+    editorSsidIndex = -1
+    editorPicking = false
+    editorChoices = []
+    editorOpen = true
+    editorBusy = true
+    connectionListProc.session = editorSession
+    connectionListProc.command = ["nmcli", "-t", "-f", "NAME,UUID,TYPE,ACTIVE,DEVICE", "connection", "show"]
+    connectionListProc.running = true
+  }
+
+  function editorMatches(profiles) {
+    var matches = []
+    for (var i = 0; i < profiles.length; i++) {
+      if (Model.profileMatchesSsid(profiles[i], editingSsid)) matches.push(profiles[i])
+    }
+    return matches
+  }
+
+  function finishConnectionList(raw) {
+    if (!editorOpen) return
+    editorProfiles = Model.parseNmcliConnections(raw)
+    editorSsidIndex = 0
+    readNextEditorSsid()
+  }
+
+  // The connection list cannot carry the SSID (`connection show` rejects setting
+  // fields), so each Wi-Fi profile's saved SSID is read back by UUID, one at a
+  // time. A handful of profiles at most, so a small sequential walk is enough.
+  function readNextEditorSsid() {
+    if (!editorOpen) return
+    while (editorSsidIndex < editorProfiles.length
+        && editorProfiles[editorSsidIndex].type !== "802-11-wireless") {
+      editorSsidIndex++
+    }
+    if (editorSsidIndex >= editorProfiles.length) {
+      finishEditorResolution()
+      return
+    }
+    var profile = editorProfiles[editorSsidIndex]
+    if (profile.uuid === "") {
+      editorSsidIndex++
+      readNextEditorSsid()
+      return
+    }
+    ssidProc.session = editorSession
+    ssidProc.command = ["nmcli", "-t", "-f", "802-11-wireless.ssid", "connection", "show", "uuid", profile.uuid]
+    ssidProc.running = true
+  }
+
+  function finishEditorSsid(raw) {
+    if (!editorOpen) return
+    if (editorSsidIndex < editorProfiles.length) {
+      // A profile whose SSID cannot be read keeps it empty and falls back to its
+      // name, the same as a legacy profile that never had one.
+      editorProfiles[editorSsidIndex].ssid = Model.parseNmcliSsid(raw)
+    }
+    editorSsidIndex++
+    readNextEditorSsid()
+  }
+
+  // Resolves the profile the editor should open once every SSID is filled in.
+  function finishEditorResolution() {
+    if (!editorOpen) return
+    var profiles = editorProfiles
+    var matches = editorMatches(profiles)
+    var row = wifiRowForSsid(editingSsid)
+    // An active saved profile means the network is in use; the row can be a
+    // scan-churn snapshot, so trust the profile's own flag too.
+    var connected = !!(row && row.connected)
+    for (var i = 0; i < matches.length; i++) {
+      if (matches[i].active) connected = true
+    }
+    var resolved = Model.resolveProfile(profiles, editingSsid, connected, wifiDevice ? wifiDevice.name : "")
+
+    if (resolved.ambiguous) {
+      editorChoices = matches
+      editorPicking = true
+      editorBusy = false
+      return
+    }
+    if (!resolved.uuid) {
+      editorError = Commons.I18n.t("network.noProfile")
+      editorBusy = false
+      return
+    }
+    readEditorProfile(resolved.uuid, matches)
+  }
+
+  // Reads one profile back and seeds the form. `matches` carries the active
+  // flags so a reapply is only attempted for the profile in use.
+  function readEditorProfile(uuid, matches) {
+    editorPicking = false
+    editorPendingUuid = uuid
+    var active = false
+    for (var i = 0; i < (matches || []).length; i++) {
+      if (matches[i].uuid === uuid) active = !!matches[i].active
+    }
+    editorActive = active
+    editorBusy = true
+    profileProc.session = editorSession
+    profileProc.command = ["nmcli", "-t", "-f",
+      "connection.autoconnect,connection.autoconnect-priority,connection.metered,ipv4.method,ipv4.addresses,ipv4.gateway,802-1x.identity",
+      "connection", "show", "uuid", uuid]
+    profileProc.running = true
+  }
+
+  function chooseEditorProfile(uuid) {
+    readEditorProfile(uuid, editorChoices)
+  }
+
+  function isEnterpriseSecurity(security) {
+    return security === WifiSecurityType.Wpa2Eap || security === WifiSecurityType.WpaEap
+  }
+
+  function finishEditorProfile(raw) {
+    if (!editorOpen) return
+    var settings = Model.parseNmcliProfile(raw)
+    var row = wifiRowForSsid(editingSsid)
+    var security = row ? row.security : -1
+    editorEnterprise = isEnterpriseSecurity(security)
+    editorFields = Model.editorDefaults(settings, security, editorSecurityEnum)
+    editingUuid = editorPendingUuid
+    editorBusy = false
+    editorError = ""
+  }
+
+  // Returns to the list and drops all editor state. Bumping the session id here
+  // means any read or write still in flight for this editor is dropped when its
+  // callback lands, so it cannot touch an editor opened afterwards.
+  function cancelEditor() {
+    editorSession++
+    editingUuid = ""
+    editingSsid = ""
+    editorPendingUuid = ""
+    editorOpen = false
+    editorBusy = false
+    editorError = ""
+    editorFields = null
+    editorActive = false
+    editorEnterprise = false
+    editorSteps = []
+    editorProfiles = []
+    editorSsidIndex = -1
+    editorPicking = false
+    editorChoices = []
+    if (panel.loadedContent) Qt.callLater(function() { panel.loadedContent.forceActiveFocus() })
+  }
+
+  // Diffs the form against the read-back prefill and queues only the writes that
+  // are needed: the non-secret keys as one argv, a changed passphrase/identity
+  // over stdin, and a reconnect only when an ipv4 key changed on the profile in
+  // use. An untouched form queues nothing and never reconnects.
+  function saveEditor(form) {
+    if (editingUuid === "" || editorBusy) return
+    var check = Model.validateEditor(form, Commons.I18n.t)
+    if (!check.ok) {
+      editorError = check.error
+      return
+    }
+    editorError = ""
+    editorBusy = true
+
+    var before = editorFields || {}
+    var steps = []
+    var args = Model.changedModArgs(editingUuid, before, form)
+    if (args.length > 0) steps.push({ command: args, secret: "" })
+
+    var password = form.password || ""
+    var identity = form.identity || ""
+    var secretLines = ""
+    if (identity !== (before.identity || "")) {
+      secretLines += Model.nmcliEditSet("802-1x.identity", identity)
+    }
+    if (password !== "") {
+      // A blank field means "keep the saved passphrase" (the stored value is
+      // never read back), so only a typed value is written.
+      secretLines += Model.nmcliEditSet(before.hasPsk ? "802-11-wireless-security.psk" : "802-1x.password", password)
+    }
+    if (secretLines !== "") {
+      steps.push({
+        command: ["nmcli", "connection", "edit", "uuid", editingUuid],
+        secret: secretLines + "save\nquit\n"
+      })
+    }
+    // A network-layer change only takes effect on the next activation, and a
+    // changed passphrase is one: the secret is written into the profile by
+    // `connection edit` without activating it, so the live link keeps running on
+    // the old key until it is cycled. Reapply only if the edited profile was the
+    // active one when the editor opened; the reconnect step re-checks that at
+    // save time.
+    var secretQueued = secretLines !== ""
+    if ((Model.needsReapply(before, form) || secretQueued) && editorActive) {
+      // `editorActive` was captured when the editor opened. The user (or
+      // NetworkManager, after a drop) may have switched networks since, so queue
+      // a guard step that re-reads the active profile before any `connection up`;
+      // reconnecting the old profile would replace the current connection.
+      steps.push({ reconnect: true })
+    }
+
+    editorSteps = steps
+    runEditorStep()
+  }
+
+  function runEditorStep() {
+    // The editor may have been cancelled while a write was in flight; drop the
+    // rest of the queue rather than writing to a profile the user walked away
+    // from.
+    if (!editorOpen) {
+      editorSteps = []
+      return
+    }
+    if (editorSteps.length === 0) {
+      cancelEditor()
+      refresh()
+      return
+    }
+    var step = editorSteps.shift()
+    if (step.reconnect) {
+      activeProc.session = editorSession
+      activeProc.running = true
+      return
+    }
+    if (step.secret !== "") {
+      editorSecret.session = editorSession
+      editorSecret.secret = step.secret
+      editorSecret.command = step.command
+      editorSecret.running = true
+    } else {
+      editorProc.session = editorSession
+      editorProc.command = step.command
+      editorProc.running = true
+    }
+  }
+
+  // Confirms the edited profile is still the active connection before cycling
+  // it. A stale `editorActive` flag must never reconnect a profile the user
+  // switched away from.
+  function finishActiveCheck(exitCode, raw) {
+    if (!editorOpen) {
+      editorSteps = []
+      return
+    }
+    if (exitCode === 0 && Model.parseActiveUuids(raw).indexOf(editingUuid) !== -1) {
+      editorSteps.unshift({ command: ["nmcli", "connection", "up", "uuid", editingUuid], secret: "" })
+    }
+    runEditorStep()
+  }
+
+  function finishEditorStep(exitCode) {
+    if (exitCode !== 0) {
+      editorSteps = []
+      editorBusy = false
+      editorError = Commons.I18n.t("network.saveFailed")
+      return
+    }
+    runEditorStep()
+  }
+
+  // Reads the connection list, then resolves the SSID of every Wi-Fi profile,
+  // then reads the resolved profile; all feed the same editor state, so a
+  // failure lands on the form's error line. Each process carries the session it
+  // was started in, so a late callback from an editor that was closed is
+  // dropped instead of writing another editor's state.
+  Process {
+    id: connectionListProc
+    // Session id this run belongs to; a mismatch means the editor was replaced.
+    property int session: -1
+    stdout: StdioCollector { id: connectionListOut; waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      if (session !== root.editorSession) return
+      if (exitCode !== 0) {
+        root.editorBusy = false
+        root.editorError = Commons.I18n.t("network.readConnectionsFailed")
+        return
+      }
+      root.finishConnectionList(connectionListOut.text)
+    }
+  }
+
+  // Reads one Wi-Fi profile's saved SSID by UUID. The list form of `connection
+  // show` rejects setting fields like 802-11-wireless.ssid, so the value is read
+  // per profile with the selector form.
+  Process {
+    id: ssidProc
+    property int session: -1
+    stdout: StdioCollector { id: ssidOut; waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      if (session !== root.editorSession) return
+      // A profile whose SSID cannot be read keeps it empty and falls back to its
+      // name downstream rather than aborting the whole editor.
+      root.finishEditorSsid(exitCode === 0 ? ssidOut.text : "")
+    }
+  }
+
+  Process {
+    id: profileProc
+    property int session: -1
+    stdout: StdioCollector { id: profileOut; waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      if (session !== root.editorSession) return
+      if (exitCode !== 0) {
+        root.editorBusy = false
+        root.editorError = Commons.I18n.t("network.readProfileFailed")
+        return
+      }
+      root.finishEditorProfile(profileOut.text)
+    }
+  }
+
+  // Non-secret write: one argv array, no shell, so a value can never be read as
+  // a separate command.
+  Process {
+    id: editorProc
+    property int session: -1
+    stdout: StdioCollector { waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      if (session !== root.editorSession) return
+      root.finishEditorStep(exitCode)
+    }
+  }
+
+  // Secret write: `nmcli connection edit` reads its commands from stdin, the
+  // enterpriseConnect pattern, so a passphrase never appears in argv.
+  Process {
+    id: editorSecret
+    property int session: -1
+    property string secret: ""
+    stdinEnabled: true
+    onStarted: {
+      write(secret)
+      secret = ""
+    }
+    onExited: function(exitCode) {
+      if (session !== root.editorSession) return
+      root.finishEditorStep(exitCode)
+    }
+  }
+
+  // Re-reads the active connection's UUID at save time, so a queued `connection
+  // up` only cycles the profile that is still in use.
+  Process {
+    id: activeProc
+    command: ["nmcli", "-t", "-f", "UUID", "connection", "show", "--active"]
+    property int session: -1
+    stdout: StdioCollector { id: activeOut; waitForEnd: true }
+    stderr: StdioCollector { waitForEnd: true }
+    onExited: function(exitCode) {
+      if (session !== root.editorSession) return
+      root.finishActiveCheck(exitCode, activeOut.text)
+    }
+  }
+
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -1120,11 +1603,40 @@ Panel {
     content: PanelKeyCatcher {
       id: keyCatcher
       property alias heroMeta: heroMeta
-      implicitHeight: column.implicitHeight
+      implicitHeight: root.editorOpen ? editor.implicitHeight : column.implicitHeight
       anchors.fill: parent
-      // Freeze the cursor model while the inline password prompt is open;
-      // the TextField inside owns input until Esc/Enter/Cancel.
-      blocked: root.passwordSsid !== ""
+      // Freeze the cursor model while the inline password prompt is open, and
+      // while the editor owns the panel. `blocked` only stops this handler from
+      // acting: it still forwards every key to the focused descendant, so the
+      // editor's TextFields, its Tab chain, and its own Escape handler keep
+      // working (Editor.qml takes focus and handles Escape).
+      blocked: root.passwordSsid !== "" || root.editorOpen
+
+      // Opens the right-click ContextMenu beside the row at `index`. Called by
+      // root.openMenu() so the menu object — private to this lazily built
+      // content — stays here while the menu target lives on the root. The menu
+      // is kept inside the panel content: a row near the bottom edge flips it
+      // above itself instead of letting the actions fall out of the window.
+      function openMenu(index) {
+        var item = networkList.itemAtIndex(index)
+        if (item && contextMenu) {
+          var content = contextMenu.parent
+          var p = item.mapToItem(content, 0, 0)
+          // Same geometry ContextMenu gives its Popup, from its public props, so
+          // the flip keeps the whole menu (not just its top) in view.
+          var pad = (Border.top(contextMenu.popupBorderSpec) + Style.spacing.hairline) * 2
+          var menuHeight = contextMenu.items.length * contextMenu.rowHeight
+            + Math.max(0, contextMenu.items.length - 1) * Style.spacing.labelGap
+            + pad
+          var y = p.y + item.height
+          if (content && content.height > 0 && y + menuHeight > content.height) {
+            y = Math.max(0, p.y - menuHeight)
+          }
+          contextMenu.x = p.x + Style.space(10)
+          contextMenu.y = y
+        }
+        if (contextMenu) contextMenu.open()
+      }
 
       onMoveRequested: function(dx, dy) {
         if (!root.cursorActive) {
@@ -1222,6 +1734,7 @@ Panel {
 
     Column {
       id: column
+      visible: !root.editorOpen
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.top: parent.top
@@ -1691,6 +2204,41 @@ Panel {
         }
       }
     }
+
+      // Native Modify editor. Built with the rest of the content so its form
+      // state survives the read-back and the card can size to it; the list above
+      // hides while it is up. It also carries the duplicate-profile picker.
+      Editor {
+        id: editor
+        visible: root.editorOpen
+        width: parent.width
+        title: root.editingSsid
+        fields: root.editorFields
+        busy: root.editorBusy
+        error: root.editorError
+        hasPsk: !!(root.editorFields && root.editorFields.hasPsk)
+        enterprise: root.editorEnterprise
+        picking: root.editorPicking
+        choices: root.editorChoices
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onSave: function(form) { root.saveEditor(form) }
+        onCancel: root.cancelEditor()
+        onChoose: function(uuid) { root.chooseEditorProfile(uuid) }
+      }
+
+      // Right-click menu for a Wi-Fi row. Built with the content so it can sit
+      // beside the row it was opened from; root.openMenu() drives it. Mirror
+      // its open state onto the panel so the row cursor yields to the menu's
+      // own highlight.
+      ContextMenu {
+        id: contextMenu
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        items: root.menuItems
+        onPopupOpenChanged: root.menuOpen = popupOpen
+        onActivated: function(key) { root.activateMenu(key) }
+      }
     }
   }
 
@@ -1777,7 +2325,7 @@ Panel {
     readonly property bool forgetFocused: isSelected && root.wifiActionFocused && canForget
     readonly property bool forgetVisible: canForget && (!requiresCredentials || forgetFocused || rightMouse.containsMouse)
 
-    hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused
+    hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused && !root.menuOpen
     current: isConnected
     foreground: root.bar.foreground
     fill: root.hoverFill
@@ -1844,7 +2392,7 @@ Panel {
       anchors.top: parent.top
       height: rowBody.implicitHeight
       hoverEnabled: true
-      acceptedButtons: Qt.LeftButton
+      acceptedButtons: Qt.LeftButton | Qt.RightButton
       cursorShape: Qt.PointingHandCursor
       enabled: !root.busy
 
@@ -1853,23 +2401,9 @@ Panel {
       // subsequent j/k pick up from this row).
       onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "wifi"; root.selectedIndex = row.index; root.wifiActionFocused = false }
 
-      onClicked: {
+      onClicked: function(mouse) {
         if (!row.net) return
-        // Resync cursor in case keyboard nav moved it away while the mouse
-        // stayed parked on this row — the click target is unambiguously here.
-        root.cursorActive = true
-        root.focusSection = "wifi"
-        root.selectedIndex = row.index
-        root.wifiActionFocused = false
-        if (row.isConnected) {
-          root.disconnectRow(row.net.ssid)
-          return
-        }
-        if (row.requiresCredentials && !row.isKnown) {
-          root.openPasswordPrompt(row.net.ssid)
-          return
-        }
-        root.connectDirectly(row.net.ssid)
+        root.rowGesture(row.net, row.index, mouse.button)
       }
     }
 
