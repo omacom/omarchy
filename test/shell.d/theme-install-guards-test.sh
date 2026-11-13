@@ -18,6 +18,7 @@ mkdir -p "$mock_bin"
 cat >"$mock_bin/git" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_GIT_CALLS"
+[[ $1 == "clone" && -n ${OMARCHY_TEST_GIT_FAIL-} ]] && exit 128
 [[ $1 == "clone" ]] && mkdir -p "${*: -1}"
 exit 0
 SH
@@ -189,6 +190,23 @@ grep -Fq "/themes/cool" "$git_calls" || fail "omarchy-theme-install derives the 
 grep -Fxq "cool" "$theme_calls" || fail "omarchy-theme-install applies the theme it installed" "$(cat "$theme_calls")"
 
 pass "an ordinary theme URL still clones and applies"
+
+# Reinstalling over a theme replaces it, but only once the new clone exists: a
+# clone that fails has to leave the installed copy where it was.
+installed="$test_tmp/home/.config/omarchy/themes/cool"
+mkdir -p "$installed"
+printf 'accent = "#7aa2f7"\n' >"$installed/colors.toml"
+
+if OMARCHY_TEST_GIT_FAIL=1 install_theme "https://github.com/example/omarchy-cool-theme.git"; then
+  fail "omarchy-theme-install reports a failed clone"
+fi
+
+grep -Fq '#7aa2f7' "$installed/colors.toml" 2>/dev/null ||
+  fail "omarchy-theme-install keeps the installed theme when the clone fails" "$(cat "$test_tmp/out")"
+! compgen -G "$test_tmp/home/.config/omarchy/.theme-install.*" >/dev/null ||
+  fail "omarchy-theme-install cleans up its backup after a failed clone"
+
+pass "a failed clone leaves the theme that was already installed"
 
 # omarchy-theme-remove joins its argument into the path it deletes.
 remove_theme() {
