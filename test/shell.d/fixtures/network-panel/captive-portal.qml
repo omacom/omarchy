@@ -97,7 +97,10 @@ ShellRoot {
     check(!panel.hasCaptivePortal && !panel.restricted, "login recovery clears restriction")
     check(!panel.testPoll.running, "recovery stops extra checks")
     check(!panel.testButton.visible && !panel.testBarButton.active, "recovery hides button and warning color")
-    check(panel.focusSection === "header", "disappearing button leaves valid cursor")
+    check(
+      panel.focusSection === (panel.headerActionCount > 0 ? "header" : "dns"),
+      "disappearing button leaves the cursor on a visible section"
+    )
     check(panel.icon !== "󰤩", "signal icon returns")
     // No browser launch when the portal is gone (runner asserts one launch).
     panel.openCaptivePortal()

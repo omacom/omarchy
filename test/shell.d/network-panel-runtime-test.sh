@@ -34,12 +34,22 @@ source = source.replace(/\bNetworking\./g, 'NetworkMock.')
 // The panel's content is built lazily, so its private IDs are exposed from
 // the content root and mirrored on the panel once the test builds it.
 source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
+      property alias testEthernetControls: ethernetControls
+      property alias testEthernetRepeater: ethernetRepeater
+      property alias testNetworkList: networkList
+      property alias testWifiScanHeader: wifiScanHeader
+      property alias testWifiSwitch: wifiPowerSwitch
       property alias testButton: portalAction
       property alias testTitle: heroSsid
 `)
 source = source.replace('  id: root', `  id: root
   function testEnsureContent() { return panel.ensureContent() }
   readonly property Item testContent: panel.loadedContent
+  readonly property Item testEthernetControls: panel.loadedContent ? panel.loadedContent.testEthernetControls : null
+  readonly property Item testEthernetRepeater: panel.loadedContent ? panel.loadedContent.testEthernetRepeater : null
+  readonly property Item testNetworkList: panel.loadedContent ? panel.loadedContent.testNetworkList : null
+  readonly property Item testWifiScanHeader: panel.loadedContent ? panel.loadedContent.testWifiScanHeader : null
+  readonly property Item testWifiSwitch: panel.loadedContent ? panel.loadedContent.testWifiSwitch : null
   readonly property Item testButton: panel.loadedContent ? panel.loadedContent.testButton : null
   readonly property Item testKeys: panel.loadedContent
   readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
@@ -99,3 +109,14 @@ while IFS= read -r args; do
   [[ $args == "-t -f IN-USE,SIGNAL device wifi list ifname test-wifi --rescan no" ]] || fail "in-use access point read never rescans" "$args"
 done <"$stage/nmcli.log"
 pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use access point, and discards stale reads"
+
+stage_panel interface-controls
+cat >"$stage/bin/nmcli" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >> "$NETWORK_TEST_NMCLI_LOG"
+SH
+chmod +x "$stage/bin/nmcli"
+run_panel "network interface controls"
+expected=$'device\ndisconnect\nenp1234567890\ndevice\nconnect\nenp2345678901'
+[[ $(<"$stage/nmcli.log") == "$expected" ]] || fail "Ethernet toggles issue per-device NetworkManager commands" "$(<"$stage/nmcli.log")"
+pass "network filters Ethernet devices, wraps their controls, sends per-device commands, and hides disabled Wi-Fi state in QML"

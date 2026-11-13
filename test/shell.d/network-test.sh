@@ -17,6 +17,7 @@ const scannerHelper = panelSource.match(/function setScannerEnabled\(enabled\) \
 assert(scannerHelper, 'network has a scanner ownership helper')
 
 var opened = false
+var Networking = { wifiEnabled: true }
 var wifiDevice = { scannerEnabled: false }
 var scannerDevice = null
 eval(scannerHelper[0])
