@@ -94,6 +94,16 @@ jq '.background = "invalid"' "$state/theme.json" >"$theme"
 cmp -s "$scratch/before.json" "$state/theme.json" || fail "invalid colors leave the previous theme intact"
 pass "invalid colors leave the previous theme intact"
 
+mkdir -p "$scratch/omarchy/default/slack"
+printf 'import sys\nprint("\\n".join(sys.argv[1:]))\n' >"$scratch/omarchy/default/slack/launcher.py"
+launched=$(OMARCHY_PATH="$scratch/omarchy" "$ROOT/bin/omarchy-launch-slack" slack://open)
+[[ $launched == "--user-data-dir=$HOME/.config/Slack-Omarchy"$'\n'"slack://open" ]] || fail "themed Slack runs on a profile outside Slack's default"
+pass "themed Slack runs on a profile outside Slack's default"
+mapfile -t restart <<<"$launched"
+relaunched=$(OMARCHY_PATH="$scratch/omarchy" "$ROOT/bin/omarchy-launch-slack" --remote-debugging-pipe "${restart[@]}")
+[[ $relaunched == "$launched" ]] || fail "a Slack restart keeps its profile and drops the stale pipe flag"
+pass "a Slack restart keeps its profile and drops the stale pipe flag"
+
 mkdir "$scratch/bin"
 cat >"$scratch/bin/stub" <<'STUB'
 #!/bin/bash

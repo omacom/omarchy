@@ -4,14 +4,24 @@
 # omarchy:args=[slack-arguments...]
 # omarchy:hidden=true
 
-# Slack's own restarts come back through here with the pipe flag the
-# launcher added; the launcher adds it again with a pipe behind it.
+# Slack's own restarts come back through here with the flags of the launch
+# before. The pipe flag is dropped, because the launcher adds it again with a
+# pipe behind it; the profile is kept.
 arguments=()
+profile=""
 for argument in "$@"; do
+  if [[ $argument == --user-data-dir=* ]]; then
+    profile=$argument
+  fi
   [[ $argument == "--remote-debugging-pipe" ]] || arguments+=("$argument")
 done
 
 if [[ -f $HOME/.local/state/omarchy/slack/enabled ]]; then
+  # Slack refuses a debugging pipe on its default profile, so themed Slack
+  # signs in to a profile of its own unless the caller names one.
+  if [[ -z $profile ]]; then
+    arguments=("--user-data-dir=$HOME/.config/Slack-Omarchy" "${arguments[@]}")
+  fi
   exec /usr/bin/python "$OMARCHY_PATH/default/slack/launcher.py" "${arguments[@]}"
 else
   exec /usr/bin/slack "${arguments[@]}"
