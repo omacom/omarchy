@@ -17,21 +17,33 @@ if [[ -d $HOME/.config/omarchy/themes/$theme ]]; then
   theme_dir="$HOME/.config/omarchy/themes/$theme"
 elif [[ ! -d $theme_dir ]]; then
   # omarchy-theme-list shows a folder title-cased with its dashes as spaces, so
-  # a name that is no folder is the one shown for a folder: the same name once
-  # both are lowercased with their spaces as dashes. Lowercasing follows the
-  # locale, and a Turkish one turns I into a dotless ı, so it is pinned to C.
+  # a name that is no folder is the one shown for a folder. FOO and foo are
+  # shown as FOO and Foo, so the shown name is matched exactly first, and only
+  # then the same name once both are lowercased with their spaces as dashes.
+  # Case follows the locale, and a Turkish one turns I into a dotless ı, so it
+  # is pinned to C.
   LC_ALL=C
-  wanted=${theme,,}
-  wanted=${wanted// /-}
-
   for path in "$HOME/.config/omarchy/themes"/* "$OMARCHY_PATH/themes"/*; do
-    name=${path##*/}
-    name=${name,,}
-    if [[ -d $path && ${name// /-} == "$wanted" ]]; then
+    IFS=- read -ra words <<<"${path##*/}"
+    if [[ -d $path && ${words[*]^} == "$theme" ]]; then
       theme_dir="$path"
       break
     fi
   done
+
+  if [[ ! -d $theme_dir ]]; then
+    wanted=${theme,,}
+    wanted=${wanted// /-}
+
+    for path in "$HOME/.config/omarchy/themes"/* "$OMARCHY_PATH/themes"/*; do
+      name=${path##*/}
+      name=${name,,}
+      if [[ -d $path && ${name// /-} == "$wanted" ]]; then
+        theme_dir="$path"
+        break
+      fi
+    done
+  fi
 fi
 
 echo "$theme_dir"

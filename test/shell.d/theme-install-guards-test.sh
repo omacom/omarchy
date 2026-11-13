@@ -194,7 +194,7 @@ pass "an ordinary theme URL still clones and applies"
 remove_theme() {
   : >"$theme_calls"
 
-  HOME="$test_tmp/home" PATH="$mock_bin:$PATH" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
+  HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
     bash "$ROOT/bin/omarchy-theme-remove" "$1" >"$test_tmp/out" 2>&1 || return $?
 }
 
@@ -222,6 +222,12 @@ for name in "Walk Kebab" "Walk Handmade Theme"; do
 done
 [[ ! -e $user_themes/walk-kebab && ! -e "$user_themes/Walk Handmade Theme" ]] ||
   fail "omarchy-theme-remove removes the folders it was named" "$(ls -1 "$user_themes")"
+
+# FOO and foo are shown as FOO and Foo, and Foo is foo.
+mkdir -p "$user_themes/FOO" "$user_themes/foo"
+remove_theme Foo || fail "omarchy-theme-remove removes 'Foo'" "$(cat "$test_tmp/out")"
+[[ -d $user_themes/FOO && ! -e $user_themes/foo ]] ||
+  fail "omarchy-theme-remove removes foo, shown as Foo, and keeps FOO" "$(ls -1 "$user_themes")"
 
 for name in "Tokyo Night" tokyo-night; do
   if remove_theme "$name"; then
