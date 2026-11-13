@@ -44,16 +44,41 @@ find_preview() {
 add_theme_preview() {
   local theme_name="$1"
   local preview="$2"
-  local extension="${preview##*.}"
-  extension="${extension,,}"
+  local theme_path="$3"
 
-  [[ -n $preview ]] || return
-  [[ -e $preview_dir/$theme_name.$extension ]] && return
+  if [[ -n $preview ]]; then
+    local extension="${preview##*.}"
+    extension="${extension,,}"
 
-  ln -s "$preview" "$preview_dir/$theme_name.$extension"
+    [[ -e $preview_dir/$theme_name.$extension ]] && return
+
+    ln -s "$preview" "$preview_dir/$theme_name.$extension"
+    return
+  fi
+
+  local extension
+  for extension in png jpg jpeg webp gif bmp mp4 m4v mov webm mkv avi; do
+    [[ -e $preview_dir/$theme_name.$extension ]] && return
+  done
+
+  local colors_file="$theme_path/colors.toml"
+  [[ -f $colors_file ]] || colors_file="$OMARCHY_THEMES_PATH/$theme_name/colors.toml"
+
+  local background="#000000"
+  if [[ -f $colors_file ]]; then
+    background=$(omarchy-theme-color --file "$colors_file" background 2>/dev/null || true)
+    [[ $background =~ ^#[0-9A-Fa-f]{6}$ ]] || background="#000000"
+  fi
+
+  magick -size 1536x864 "xc:$background" "$preview_dir/$theme_name.png" 2>/dev/null || {
+    rm -f "$preview_dir/$theme_name.png"
+    local fallback
+    fallback=$(find -L "$OMARCHY_THEMES_PATH" -mindepth 2 -maxdepth 2 -type f -iname 'preview.png' -print -quit 2>/dev/null)
+    [[ -n $fallback ]] && ln -s "$fallback" "$preview_dir/$theme_name.png"
+  }
 }
 
-fast_signature="v2"$'\n'
+fast_signature="v3"$'\n'
 for theme_dir in "$USER_THEMES_PATH" "$OMARCHY_THEMES_PATH"; do
   if [[ -d $theme_dir ]]; then
     fast_signature+="$theme_dir:$(stat -Lc '%Y' "$theme_dir")"$'\n'
@@ -94,13 +119,13 @@ if [[ ! -f $fast_signature_file ]] || ! cmp -s "$fast_signature_file" <(printf '
       preview=$(find_preview "$OMARCHY_THEMES_PATH/$theme_name")
     fi
 
-    add_theme_preview "$theme_name" "$preview"
+    add_theme_preview "$theme_name" "$preview" "$theme_path"
   done < <(find -L "$USER_THEMES_PATH" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print 2>/dev/null | sort)
 
   while IFS= read -r theme_path; do
     theme_name=${theme_path##*/}
     preview=$(find_preview "$theme_path")
-    add_theme_preview "$theme_name" "$preview"
+    add_theme_preview "$theme_name" "$preview" "$theme_path"
   done < <(find -L "$OMARCHY_THEMES_PATH" -mindepth 1 -maxdepth 1 -type d -print 2>/dev/null | sort)
 
   printf '%s' "$theme_signature" >"$signature_file"
