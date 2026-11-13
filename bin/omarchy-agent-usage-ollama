@@ -136,7 +136,7 @@ def scan_sessions(model_prefix: str, reuse: bool = True) -> tuple[dict[str, Any]
     if model_prefix and not model.lower().startswith(model_prefix):
       continue
     stats.add_row(row, model)
-  return stats.snapshot(), pi_complete and db_complete and routed_complete
+  return stats.snapshot_with_spend(), pi_complete and db_complete and routed_complete
 
 
 def cached_scan(max_age_seconds: float, model_prefix: str) -> dict[str, Any]:

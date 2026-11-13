@@ -20,6 +20,7 @@
   "agents.homeFailed": "Kon geen thuismap instellen voor het nieuwe account.",
   "agents.installCliFailed": "De installatie van de %1 CLI is niet voltooid.",
   "agents.installingCli": "%1 CLI installeren…",
+  "agents.instructionsBackedUp": "Je oude agentinstructies bewaard als back-ups",
   "agents.localUnsupported": "Geen agent kan het lokale model gebruiken",
   "agents.localUnsupportedBody": "Installeer pi of OpenCode om het lokale model te gebruiken.",
   "agents.loginUnfinished": "Het inloggen is niet voltooid, dus er is geen account toegevoegd.",

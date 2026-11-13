@@ -7,7 +7,7 @@ Fonts does not have: the Omarchy logo and the agent and app brand marks. The
 menu draws one by naming the font on an entry:
 
 ```jsonc
-"setup.default.agent.grok": {"icon":"","iconFont":"omarchy","label":"Grok", ...}
+"agent.harness.grok": {"icon":"","iconFont":"omarchy","label":"Grok", ...}
 ```
 
 Without `iconFont`, an entry's `icon` is drawn in the menu font, so reach for

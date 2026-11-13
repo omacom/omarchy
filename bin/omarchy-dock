@@ -3,7 +3,7 @@
 # omarchy:summary=Configure the app dock
 # omarchy:group=dock
 # omarchy:args=show-on [floating|all] | position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
-# omarchy:examples=omarchy dock position left | omarchy dock pin org.gnome.Nautilus
+# omarchy:examples=omarchy dock position left | omarchy dock pin folio
 
 set -euo pipefail
 

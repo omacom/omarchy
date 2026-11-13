@@ -72,13 +72,14 @@
     "showOn": "floating",
     "position": "bottom",
     "pinned": [
-      "org.gnome.Nautilus",
-      "chromium",
-      "foot",
+      "folio",
+      "omarchy-browser",
+      "omarchy-terminal",
       "omacalc",
       "omawrite",
-      "X",
-      "YouTube"
+      "hype",
+      "monologue",
+      "cliamp"
     ]
   },
   "plugins": []

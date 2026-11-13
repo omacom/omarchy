@@ -67,7 +67,7 @@ Item {
       var entry = root.entryForAppId(toplevel.appId)
       var workspace = toplevels[i].workspace
       windows.push({
-        key: entry ? entry.id : toplevel.appId,
+        key: entry ? DockModel.standInKey(entry.id, entry.categories, pinned) : toplevel.appId,
         hasEntry: !!entry && !entry.noDisplay,
         workspaceId: workspace ? workspace.id : -1,
         minimized: !!workspace && DockModel.isMinimizedWorkspace(workspace.name),
