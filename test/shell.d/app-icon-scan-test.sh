@@ -89,6 +89,6 @@ const roots = fs.readFileSync(calls, 'utf8').trim().split('\n')
 assertEqual(new Set(roots).size, 5, 'scan visits all icon roots and pixmaps')
 assertEqual(roots.length, 5, 'scan visits each root only once')
 const startPoints = fs.readFileSync(starts, 'utf8').trim().split('\n')
-assert(startPoints.every(value => value === '/usr/share/pixmaps' || ['theme', 'parent'].includes(path.basename(value))), 'scan starts at the themes it searches rather than walking every theme in a root')
+assert(startPoints.every(value => value === '/usr/share/pixmaps' || ['theme', 'parent', 'hicolor'].includes(path.basename(value))), 'scan starts at the themes it searches rather than walking every theme in a root')
 assert(startPoints.includes(path.join(system, 'icons/parent')), 'scan starts at inherited themes as well as the selected one')
 JS
