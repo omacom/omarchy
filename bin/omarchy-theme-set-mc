@@ -4,23 +4,35 @@
 # omarchy:hidden=true
 
 MC_SKIN_SOURCE="$HOME/.local/state/omarchy/current/theme/mc.ini"
-MC_SKIN_LINK="$HOME/.local/share/mc/skins/omarchy.ini"
+MC_SKIN="$HOME/.local/share/mc/skins/omarchy.ini"
 MC_INI="$HOME/.config/mc/ini"
 
 omarchy-cmd-present mc || exit 0
 [[ -f $MC_SKIN_SOURCE ]] || exit 0
 
-mkdir -p "$(dirname "$MC_SKIN_LINK")"
-ln -snf "$MC_SKIN_SOURCE" "$MC_SKIN_LINK"
+# Copy rather than link the skin, so the last good skin survives switching to
+# a theme without one. Write it in place so a running mc watching the file
+# picks up the change.
+mkdir -p "$(dirname "$MC_SKIN")"
+cat "$MC_SKIN_SOURCE" >"$MC_SKIN"
 
-# Point mc at the generated skin without touching any other user setting.
-if [[ -f $MC_INI ]]; then
-  if grep -q '^skin=' "$MC_INI"; then
-    sed -i 's/^skin=.*/skin=omarchy/' "$MC_INI"
-  else
-    printf 'skin=omarchy\n' >>"$MC_INI"
-  fi
-else
-  mkdir -p "$(dirname "$MC_INI")"
-  printf '[Midnight-Commander]\nskin=omarchy\n' >"$MC_INI"
-fi
+# Point mc at the skin inside its [Midnight-Commander] section, without
+# touching any other user setting.
+mkdir -p "$(dirname "$MC_INI")"
+[[ -f $MC_INI ]] || : >"$MC_INI"
+awk '
+  function add_skin() { if (!done) { print "skin=omarchy"; done = 1 } }
+  /^[[:space:]]*\[/ {
+    if (in_mc) add_skin()
+    in_mc = ($0 ~ /^[[:space:]]*\[Midnight-Commander\][[:space:]]*$/)
+    if (in_mc) seen = 1
+    print
+    next
+  }
+  in_mc && /^[[:space:]]*skin[[:space:]]*=/ { add_skin(); next }
+  { print }
+  END {
+    if (in_mc) add_skin()
+    else if (!seen) { print "[Midnight-Commander]"; print "skin=omarchy" }
+  }
+' "$MC_INI" >"$MC_INI.tmp" && mv "$MC_INI.tmp" "$MC_INI"
