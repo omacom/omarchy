@@ -36,6 +36,7 @@ source = source.replace(/\bNetworking\./g, 'NetworkMock.')
 source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
       property alias testButton: portalAction
       property alias testTitle: heroSsid
+      property alias testMobileRow: mobileRow
 `)
 source = source.replace('  id: root', `  id: root
   function testEnsureContent() { return panel.ensureContent() }
@@ -44,6 +45,7 @@ source = source.replace('  id: root', `  id: root
   readonly property Item testKeys: panel.loadedContent
   readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
   readonly property Item testTitle: panel.loadedContent ? panel.loadedContent.testTitle : null
+  readonly property Item testMobileRow: panel.loadedContent ? panel.loadedContent.testMobileRow : null
   property alias testPoll: connectivityPoll
   property alias testApPoll: activeApSignalPoll
   property alias testBarButton: button`)
@@ -67,6 +69,7 @@ run_panel() {
   local output
   output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
     NETWORK_TEST_BROWSER_LOG="$stage/browser.log" NETWORK_TEST_NMCLI_LOG="$stage/nmcli.log" \
+    NETWORK_TEST_LOG="$stage/commands.log" NETWORK_TEST_STATE="$stage/modem-state" \
     timeout 30 quickshell -p "$stage" --no-color 2>&1) || fail "$1 fixture exits cleanly" "$output"
   [[ $output == *"RESULT pass"* ]] || fail "$1 runtime assertions pass" "$output"
   if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
@@ -109,3 +112,88 @@ pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use ac
 stage_panel live-rows
 run_panel "network live rows"
 pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"
+
+stage_panel mobile
+# The modem lives in a state file the stubs share, so the host's
+# NetworkManager and ModemManager are never queried or changed.
+# It starts absent: ModemManager has not found it when the shell starts.
+printf 'absent\n' > "$stage/modem-state"
+rm -f -- "$stage/bin/nmcli" "$stage/bin/mmcli"
+cat > "$stage/bin/nmcli" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >> "$NETWORK_TEST_LOG"
+state=$(<"$NETWORK_TEST_STATE")
+case $* in
+  "-t -f DEVICE,TYPE dev")
+    printf 'test-wifi:wifi\n'
+    [[ $state == "absent" ]] || printf 'cdc-wdm0:gsm\n'
+    ;;
+  "-e no -t -f GENERAL.STATE,GENERAL.CONNECTION,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show cdc-wdm0")
+    if [[ $state == "connected" ]]; then
+      printf 'GENERAL.STATE:100 (connected)\nGENERAL.CONNECTION:Test Carrier\nGENERAL.CON-UUID:mobile-uuid\nGENERAL.IP-IFACE:wwan0\n'
+    else
+      printf 'GENERAL.STATE:30 (disconnected)\nGENERAL.CONNECTION:\nGENERAL.CON-UUID:\nGENERAL.IP-IFACE:\n'
+    fi
+    printf 'GENERAL.UDI:/org/freedesktop/ModemManager1/Modem/0\n'
+    ;;
+  "-t radio wwan")
+    printf 'enabled\n'
+    ;;
+  "-g UUID,TYPE con show")
+    printf 'wifi-uuid:802-11-wireless\nmobile-uuid:gsm\n'
+    ;;
+  "-e no -g connection.interface-name con show uuid mobile-uuid")
+    ;;
+  "-e no -g connection.id con show uuid mobile-uuid")
+    printf 'Test Carrier\n'
+    ;;
+  "device disconnect cdc-wdm0")
+    printf 'disconnected\n' > "$NETWORK_TEST_STATE"
+    ;;
+  "radio wwan on")
+    ;;
+  "--wait 45 connection up uuid mobile-uuid ifname cdc-wdm0")
+    printf 'connected\n' > "$NETWORK_TEST_STATE"
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+SH
+cat > "$stage/bin/mmcli" <<'SH'
+#!/bin/bash
+[[ $* == "-m /org/freedesktop/ModemManager1/Modem/0 -K" ]] || exit 1
+state=$(<"$NETWORK_TEST_STATE")
+if [[ $state != "connected" ]]; then
+  state=registered
+fi
+printf 'modem.generic.state                             : %s\n' "$state"
+printf 'modem.generic.access-technologies.value[1]      : lte\n'
+printf 'modem.generic.signal-quality.value              : 70\n'
+printf 'modem.3gpp.operator-name                        : Test Carrier \n'
+SH
+# ModemManager's signal stream: the modem comes up shortly after it starts.
+cat > "$stage/bin/gdbus" <<'SH'
+#!/bin/bash
+printf 'gdbus %s\n' "$*" >> "$NETWORK_TEST_LOG"
+sleep 0.5
+printf 'connected\n' > "$NETWORK_TEST_STATE"
+printf '/org/freedesktop/ModemManager1/Bearer/0: org.freedesktop.DBus.Properties.PropertiesChanged (%s)\n' "'org.freedesktop.ModemManager1.Bearer', {'Connected': <true>}, @as []"
+printf '/org/freedesktop/ModemManager1/Modem/0: org.freedesktop.ModemManager1.Modem.StateChanged (8, 11, uint32 1)\n'
+exec sleep 30 </dev/null >/dev/null 2>&1
+SH
+cat > "$stage/bin/omarchy-network-status" <<'SH'
+#!/bin/bash
+if [[ $(<"$NETWORK_TEST_STATE") == "connected" ]]; then
+  printf 'iface\twwan0\nip\t192.0.2.20\ngateway\t192.0.2.21\ntype\tmobile\n'
+fi
+SH
+chmod +x "$stage/bin/nmcli" "$stage/bin/mmcli" "$stage/bin/gdbus" "$stage/bin/omarchy-network-status"
+run_panel "network mobile broadband"
+log=$(<"$stage/commands.log")
+[[ $log == *"gdbus monitor --system --dest org.freedesktop.ModemManager1"* ]] || fail "panel follows ModemManager's signals" "$log"
+(( $(grep -c '^gdbus ' <<< "$log") == 1 )) || fail "one ModemManager stream per panel" "$log"
+[[ ${log%%gdbus *} == *$'-t -f DEVICE,TYPE dev\n-t -f DEVICE,TYPE dev'* ]] || fail "no ModemManager stream starts before a probe finds the modem" "$log"
+[[ $log == *"device disconnect cdc-wdm0"* ]] || fail "disconnect targets the modem device" "$log"
+[[ $log == *$'radio wwan on\n--wait 45 connection up uuid mobile-uuid ifname cdc-wdm0'* ]] || fail "connect turns the radio on, then brings the profile up by UUID on the modem's device" "$log"
+pass "network panel finds a modem that appears after startup, follows ModemManager events, and connects and disconnects it"

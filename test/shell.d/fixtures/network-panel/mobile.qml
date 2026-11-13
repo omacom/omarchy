@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Networking
 import qs.Commons
 import qs.Commons as Commons
@@ -39,14 +40,45 @@ ShellRoot {
     }
   }
 
-  // The startup probe finds a disconnected modem. The stubbed gdbus then
-  // reports it connected, which must reach the panel without any polling.
+  // Wi-Fi is present but not connected, and nothing is online yet, so the
+  // modem will be the only way out and the bar falls back to it.
+  Component.onCompleted: {
+    NetworkMock.wifi.connected = false
+    NetworkMock.network.connected = false
+    NetworkMock.network.known = false
+    NetworkMock.connectivity = NetworkConnectivity.None
+  }
+
+  // ModemManager has not found the modem when the shell starts. It turns up
+  // later, and NetworkManager's connectivity change must make the panel look
+  // again without the panel being opened.
   Timer {
-    interval: 2500
+    interval: 1000
     running: true
     onTriggered: {
+      test.check(!panel.mobile.available, "startup probe finds no modem yet")
+      test.check(panel.kind === "disconnected", "nothing is connected before the modem")
+      modemArrives.running = true
+    }
+  }
+
+  Process {
+    id: modemArrives
+    command: ["bash", "-c", "printf 'disconnected\\n' > \"$NETWORK_TEST_STATE\""]
+    onExited: {
+      NetworkMock.connectivity = NetworkConnectivity.Full
+      afterArrival.start()
+    }
+  }
+
+  // The late probe finds a disconnected modem. The stubbed gdbus then
+  // reports it connected, which must reach the panel without any polling.
+  Timer {
+    id: afterArrival
+    interval: 2500
+    onTriggered: {
       test.check(panel.testEnsureContent() !== null, "panel content builds on demand")
-      test.check(panel.mobile.available, "startup probe finds the modem")
+      test.check(panel.mobile.available, "connectivity change finds the late modem")
       test.check(panel.mobile.state === "connected", "ModemManager event re-probes the modem")
       test.check(panel.kind === "mobile", "modem is the connection when Wi-Fi and wired are down")
       test.check(panel.icon === "󰢽", "bar shows cellular bars for the modem's signal")

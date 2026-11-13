@@ -970,6 +970,14 @@ Panel {
     if (!mobileProc.running) mobileProc.running = true
   }
 
+  // ModemManager can take half a minute after boot to find a modem, long
+  // after the startup probe, and nothing else looks again until the panel
+  // opens. A modem that then connects changes NetworkManager's connectivity,
+  // so look for one whenever it changes while none is known. Nothing runs
+  // while the connection stays as it is.
+  readonly property int networkConnectivity: Networking.connectivity
+  onNetworkConnectivityChanged: if (!mobile.available) refreshMobile()
+
   function updateMobile(raw) {
     mobile = Model.parseMobileStatus(raw)
     if (mobileActionKind === "connect" && mobileConnected) mobileActionKind = ""
