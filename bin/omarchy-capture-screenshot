@@ -17,8 +17,8 @@ want_copy=0
 want_save=0
 for arg in "$@"; do
   case "$arg" in
-    copy) omasnap_args+=(--copy); want_copy=1 ;;
-    save) omasnap_args+=(--save); want_save=1 ;;
+    copy | --copy) omasnap_args+=(--copy); want_copy=1 ;;
+    save | --save) omasnap_args+=(--save); want_save=1 ;;
     slurp) ;;
     *) omasnap_args+=("$arg") ;;
   esac
@@ -32,13 +32,17 @@ status=$?
 saved=""
 if ((status == 0)); then
   if ((want_copy == 0 || want_save == 1)); then
-    while IFS= read -r name; do
-      [[ -n $name ]] || continue
-      if ! grep -Fxq -- "$name" <<<"$before"; then
-        saved="$screenshot_dir/$name"
-        break
-      fi
-    done <<<"$(ls -1t "$screenshot_dir" 2>/dev/null || true)"
+    # Omasnap does not report the file it saved. When more than one image
+    # appeared, another writer shared the directory and this capture's file
+    # cannot be told apart, so nothing is announced.
+    added=()
+    for path in "$screenshot_dir"/*.png; do
+      [[ -f $path ]] || continue
+      grep -Fxq -- "${path##*/}" <<<"$before" || added+=("$path")
+    done
+    if ((${#added[@]} == 1)); then
+      saved="${added[0]}"
+    fi
   fi
 fi
 
