@@ -156,11 +156,25 @@ done
 # same rebuild, and one rebuild covers both.
 if [[ -e $omarchy_image_boot_rebuild || $(initramfs_inputs) != "$(<"$omarchy_image_initramfs_baseline")" ]]; then
   echo "Rebuilding the boot image for this machine"
+
+  rebuild_log=$(mktemp)
+  trap 'rm -f "$rebuild_log"' EXIT
+
+  rebuild_status=0
   if omarchy-cmd-present limine-mkinitcpio; then
-    limine-mkinitcpio </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1
+    limine-mkinitcpio </dev/null >"$rebuild_log" 2>&1 || rebuild_status=$?
   else
-    mkinitcpio -P </dev/null >>"$OMARCHY_INSTALL_LOG_FILE" 2>&1
-  fi || fail "Boot image rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
+    mkinitcpio -P </dev/null >"$rebuild_log" 2>&1 || rebuild_status=$?
+  fi
+  cat "$rebuild_log" >>"$OMARCHY_INSTALL_LOG_FILE"
+
+  # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0,
+  # so its output decides whether the rebuild landed. A rebuild that failed
+  # leaves the machine with the boot image it had, and the rebuild owed.
+  if (( rebuild_status != 0 )) || grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
+    fail "Boot image rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
+  fi
+
   # The new image must be on disk before the queue that owes it is cleared.
   sync || fail "could not flush the rebuilt boot image to disk"
   # The boot image on this machine is its own now, so a later repair knows it

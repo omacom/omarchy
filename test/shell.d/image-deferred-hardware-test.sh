@@ -504,6 +504,34 @@ first_boot "$root" >/dev/null || fail "the first boot finishes the deferred hard
   fail "the first boot records that the boot image is the machine's own"
 pass "the first boot of an image rebuilds the boot image for the machine"
 
+# A rebuild that reports a kernel it could not build is no rebuild, even
+# though the command says nothing wrong with its exit status: the machine
+# keeps the boot image it had, and the rebuild stays owed.
+stub_failed_rebuild() {
+  cat >"$stub_bin/$1" <<'SH'
+#!/bin/bash
+printf '%s %s\n' "${0##*/}" "$*" >>"$REBUILDS"
+echo "==> ERROR: mkinitcpio failed for kernel 7.2.15-1-omarchy, skipping." >&2
+SH
+  chmod +x "$stub_bin/$1"
+}
+
+reset_logs
+stub_failed_rebuild limine-mkinitcpio
+root=$(new_root failed)
+write_manifest "$root"
+build "$root" >/dev/null || fail "the fixture image builds"
+printf '%s\n' install/hardware/c.sh >"$root/var/lib/omarchy/image/deferred-steps"
+status=0
+first_boot "$root" >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "a rebuild that failed stops the run" "status $status"
+[[ ! -e $root/var/lib/omarchy/image/boot-image-rebuilt ]] ||
+  fail "a rebuild that failed does not record the boot image as the machine's own"
+[[ -e $root/var/lib/omarchy/image/boot-rebuild ]] || fail "a rebuild that failed stays owed"
+[[ -e $root/var/lib/omarchy/image/deferred-steps ]] || fail "a rebuild that failed keeps the queue"
+rm -f "$stub_bin/limine-mkinitcpio"
+pass "a rebuild that failed leaves the boot image owed"
+
 # A step that would build the boot image itself asks for the rebuild after the
 # last step instead: one rebuild covers it and the machine's own hardware, and
 # the request outlives a run that stopped early.
