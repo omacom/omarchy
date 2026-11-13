@@ -68,8 +68,8 @@ require_command() {
 # util-linux unshare forks a helper to write --map-users, --map-groups and
 # --map-auto mappings before it calls unshare(2). When that call fails, as in a
 # sandbox that refuses user namespaces, unshare exits and leaves the helper
-# blocked for good with the caller's stdout open: the test skips and exits, and
-# the runner's tee waits on the pipe forever. The same namespaces without
+# blocked for good with the caller's stdout open: the test skips and exits, but
+# a reader waiting for EOF on a pipe to that stdout waits forever. The same namespaces without
 # mappings fail cleanly, so ask this before trying a mapping form.
 user_namespace_available() {
   unshare --user --mount true >/dev/null 2>&1
