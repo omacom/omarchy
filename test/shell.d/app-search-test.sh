@@ -195,8 +195,8 @@ diff -q "$tmpdir/scan" "$tmpdir/scan-again" >/dev/null ||
   fail "icon index scan returns the same order every run"
 pass "icon index scan returns the same order every run"
 
-# Vantablack/White currently name absent themes. Retain useful generic icons
-# through a deterministic installed fallback instead of scanning unrelated themes.
+# A configured icon theme that is not installed falls back to Adwaita, as GTK
+# does, instead of scanning unrelated themes.
 mkdir -p "$icons/Adwaita/scalable/devices"
 printf '[Icon Theme]\n' >"$icons/Adwaita/index.theme"
 touch "$icons/Adwaita/scalable/devices/printer.svg" "$icons/Adwaita/scalable/devices/application-x-executable.svg"
