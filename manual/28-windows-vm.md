@@ -6,6 +6,14 @@ Your machine needs KVM virtualization for this, which most do — but it's somet
 
 The installer asks how much RAM, how many CPU cores, and how much disk to hand over (64GB or more is the sensible floor), then for a Windows username and password. Leave those blank and you get `docker` / `admin`. The download takes a while — 10-15 minutes is normal — and you can follow the progress in the browser at `http://127.0.0.1:8006`. The browser prompts for the same username and password before opening the console.
 
+The installer also asks whether to sign in automatically when the VM starts, and whether to join a Windows domain. Answering yes to the domain question changes what the following prompts mean: the account you enter becomes a **join account** — a domain user with rights to create computer objects, such as a domain admin or a delegated account — that performs an unattended domain join while Windows installs itself. No local Windows account is created in that case, so the installer then asks for the **domain user you actually want to sign in with** over RDP, and that is the login the launcher uses from then on. Joining a domain needs the domain controller to be reachable — with correct DNS — while Windows installs, so connect to your network or VPN before starting.
+
+The browser console at `http://127.0.0.1:8006` always prompts for the account stored in the VM's configuration: the local Windows account for normal installs, and the **join account** for domain-joined ones — use it (not the RDP login user) when the console asks during installation, and whenever you peek at the screen afterwards.
+
+Domain-joined VMs log on **inside** the RDP session instead of through a pre-logon exchange: when the session opens you get the Windows logon screen and type your domain credentials there (the pre-logon exchange NLA uses must round-trip to the domain controller, which high-latency VPN paths cannot do inside the connection's small timeouts). Pressing enter at the logon screen is enough on a fast network, but expect a pause on a VPN.
+
+By default the installer grants **all authenticated domain accounts** the right to sign in over RDP on the VM (the same right console logons get), so any valid domain account works — not just the login user you entered. The grant is machine-local and the VM's ports are bound to localhost; to tighten it, remove `Authenticated Users` from the local `Remote Desktop Users` group inside the guest and add specific accounts instead.
+
  ![windows-vm](images/windows-vm.webp)
 
 ## Using it
@@ -19,10 +27,13 @@ When you close the RDP window, the VM shuts down automatically. If you'd rather 
 The rest of the controls are on the same command:
 
 ```bash
-omarchy windows vm status    # is it running?
-omarchy windows vm stop      # shut it down
-omarchy windows vm launch    # start and connect
+omarchy windows vm status       # is it running?
+omarchy windows vm stop         # shut it down
+omarchy windows vm launch       # start and connect
+omarchy windows vm credentials  # change the login used for RDP
 ```
+
+After a domain join — or any time the password changes — `omarchy windows vm credentials` updates what the launcher submits over RDP. It changes only that: no Windows, local, or domain password is modified. Acceptable forms are a bare name, `DOMAIN\name`, or `name@domain`.
 
 ## Sharing files
 
@@ -44,6 +55,6 @@ The version installed is Windows 11 Pro, unactivated. You'll need your own licen
 
 If this computer shipped with Windows, the OEM key is still in firmware even after installing Omarchy. Print it with `omarchy windows key`. That key is bound to this machine — it will activate Windows reinstalled on this hardware, but it usually will not activate the VM.
 
-You can change the resource allocation later by re-running `omarchy-windows-vm install`, which rewrites the VM's configuration from your answers. The compose file itself now lives at `/var/lib/omarchy/windows/docker-compose.yml` and is owned by root — that is deliberate, so a process running as you cannot rewrite it and have the privileged bring-up mount your whole disk into the container. If you need to hand-edit it (for example to mount a USB device), edit it with `sudo` and see all the options on [the Dockur Windows project](https://github.com/dockur/windows).
+You can change the resource allocation later by re-running `omarchy-windows-vm install`, which rewrites the VM's configuration from your answers. The domain join happens while Windows installs itself, so an existing VM that was set up without a domain needs to be reinstalled (or joined from inside Windows through Settings → System → About → Domain or workgroup). The compose file itself now lives at `/var/lib/omarchy/windows/docker-compose.yml` and is owned by root — that is deliberate, so a process running as you cannot rewrite it and have the privileged bring-up mount your whole disk into the container. If you need to hand-edit it (for example to mount a USB device), edit it with `sudo` and see all the options on [the Dockur Windows project](https://github.com/dockur/windows).
 
 To get rid of the whole thing, use _Remove > Windows_ from the Omarchy menu. That deletes the VM's disk and all its data, so make sure anything you care about is out of `~/Windows` first.
