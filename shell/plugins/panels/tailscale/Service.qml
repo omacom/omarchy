@@ -612,14 +612,22 @@ Item {
       root.refreshing = false
       var stdout = String(statusStdout.text || root._statusOutput || "")
       var stderr = String(statusStderr.text || root._statusError || "")
-      if (root._statusEpoch !== root._accountEpoch) {
-        // Started before an account switch; the refresh after it replaces this.
+      var stale = root._statusEpoch !== root._accountEpoch
+      if (stale) {
+        // Started before an account switch, so it may describe the old account.
       } else if (exitCode === 0) root.parseStatus(stdout)
       else {
         root.resetUnavailable("Disconnected")
         root.lastError = stderr.trim()
       }
-      if (root._pendingFullPeers) {
+      if (stale && !switchProcess.running) {
+        // The refresh after the switch was skipped while this poll ran, so
+        // nothing else is coming to replace the dropped result. A switch still
+        // in flight asks again when it ends.
+        var fullPeers = root._statusFullPeers || root._pendingFullPeers
+        root._pendingFullPeers = false
+        root.refreshStatusAndAccounts(false, fullPeers)
+      } else if (root._pendingFullPeers) {
         root._pendingFullPeers = false
         root.refreshStatusAndAccounts(false, true)
       }

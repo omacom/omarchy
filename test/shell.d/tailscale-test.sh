@@ -314,6 +314,63 @@ assertEqual(backfailRun.status, 9, 'switch-back failure is reported when nothing
 assert(backfailRun.calls.includes('switch backfail'), 'restoration attempt is the failed switch-back itself')
 assertEqual(runPlan(tailscale.renamePlan('dd11', 'dd11', 'Fail')).status, 23, 'in-place rename failure is reported')
 
+// A status poll that was already running when an account switch ended makes
+// the refresh after the switch a no-op, and its own result is dropped as
+// stale. Drive the service's real functions to prove another poll follows.
+{
+  const service = require('fs').readFileSync(path.join(root, 'shell/plugins/panels/tailscale/Service.qml'), 'utf8')
+  const scoped = (args, body) => new Function('root', ...args, 'with (root) {' + body + '}')
+  const refreshBody = scoped(['forceAccounts', 'fullPeers'], service.match(/function refreshStatusAndAccounts\(forceAccounts, fullPeers\) \{([\s\S]*?)\n  \}/)[1])
+  const clearBody = scoped([], service.match(/function clearExitNodeStatus\(\) \{([\s\S]*?)\n  \}/)[1])
+  const exitedBody = scoped(['exitCode'], service.match(/id: statusProcess[\s\S]*?onExited: function\(exitCode\) \{([\s\S]*?)\n    \}/)[1])
+
+  function switchDuringPoll(peersWanted, switchStillRunning) {
+    const idle = () => ({ running: true, command: [] })
+    const state = {
+      installed: true, refreshing: false, peersWanted, accounts: [{}], lastError: '', parsed: 0,
+      _statusOutput: '', _statusError: '', _statusFullPeers: false, _pendingFullPeers: false,
+      _accountEpoch: 0, _statusEpoch: 0, _lastAccountsRefreshMs: Date.now(),
+      _mullvadExitNodesOutput: '', _mullvadExitNodesError: '', _accountsOutput: '', _accountsError: '',
+      exitNodeOffline: true, exitNodeName: 'home', exitNodeId: 'nHome',
+      statusProcess: { running: false, command: [] }, switchProcess: { running: false },
+      mullvadExitNodesProcess: idle(), accountsProcess: idle(),
+      statusStdout: { text: '{}' }, statusStderr: { text: '' },
+      pollWatchdog: { running: true, start() {} },
+      parseStatus() { state.parsed++ }, resetUnavailable() {},
+      refreshStatusAndAccounts: (forceAccounts, fullPeers) => refreshBody(state, forceAccounts, fullPeers)
+    }
+    state.root = state
+
+    state.refreshStatusAndAccounts(false, false)   // the periodic poll, account A
+    const before = state.statusProcess.command
+    state.switchProcess.running = true
+    clearBody(state)                               // switch starts
+    if (!switchStillRunning) {
+      state.switchProcess.running = false
+      clearBody(state)                             // switch ends
+      state.refreshStatusAndAccounts()             // delayed refresh, skipped: poll still running
+    }
+    state.statusProcess.command = []
+    state.statusProcess.running = false
+    exitedBody(state, 0)                           // account A's answer arrives
+    return { state, before }
+  }
+
+  const light = switchDuringPoll(false, false)
+  assertEqual(light.state.parsed, 0, 'tailscale drops a light status read before an account switch')
+  assert(light.state.statusProcess.running, 'tailscale polls again after dropping a light status from before a switch')
+  assertDeepEqual(light.state.statusProcess.command, light.before, 'tailscale keeps the replacement poll light')
+  assert(light.before.includes('--peers=false'), 'tailscale polls light while the panel is closed')
+
+  const full = switchDuringPoll(true, false)
+  assertEqual(full.state.parsed, 0, 'tailscale drops a full status read before an account switch')
+  assert(full.state.statusProcess.running, 'tailscale polls again after dropping a full status from before a switch')
+  assertDeepEqual(full.state.statusProcess.command, ['tailscale', 'status', '--json'], 'tailscale keeps the replacement poll full')
+
+  const midSwitch = switchDuringPoll(false, true)
+  assert(!midSwitch.state.statusProcess.running && midSwitch.state.parsed === 0, 'tailscale waits for the switch to end before polling again')
+}
+
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
 JS
