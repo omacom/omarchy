@@ -236,6 +236,12 @@
   "appearance.branding.about.default": {
     "label": "Restore Default"
   },
+  "appearance.branding.screensaver.omarchy": {
+    "label": "Default"
+  },
+  "appearance.branding.screensaver.amiga": {
+    "label": "Amiga"
+  },
   "appearance.branding.screensaver.text": {
     "label": "Edit Text"
   },
