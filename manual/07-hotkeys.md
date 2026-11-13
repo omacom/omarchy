@@ -227,6 +227,7 @@ All style options are also accessible under _Style_ in the Omarchy menu (`Super 
 | `Super + Ctrl + Delete` | Toggle laptop display on/off |
 | `Super + Ctrl + Alt + Delete` | Toggle laptop display mirroring |
 | `Super + Shift + Space` | Toggle the top bar  |
+| `Super + B` (hold) | Show the top bar over a full screen window |
 | `Shift + Mute` | Switch to next audio output |
 | `Shift + Play` | Switch to next media source |
 | `Super + Shift + Backspace` | Toggle window gaps |

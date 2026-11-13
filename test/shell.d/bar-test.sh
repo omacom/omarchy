@@ -34,6 +34,20 @@ assertEqual(bar.fullscreenOn([toplevel(4, 1)], 4), false, 'a maximized window le
 assertEqual(bar.fullscreenOn([toplevel(9, 2)], 4), false, 'fullscreen on another workspace leaves the bar clickable')
 assertEqual(bar.fullscreenOn([{ workspace: null, lastIpcObject: null }], 4), false, 'a toplevel without a workspace is ignored')
 
+// Raising the bar over a fullscreen window: the key or an edge rest raises
+// it, and the pointer or an open panel only keeps a bar that is already up.
+const raise = (state) => bar.raisedOverFullscreen(Object.assign({ underFullscreen: true }, state))
+assertEqual(raise({ keyHeld: true }), true, 'the raise key lifts the bar over a fullscreen window')
+assertEqual(raise({ pointerOnBar: true }), false, 'a pointer on the hidden bar alone does not lift it')
+assertEqual(raise({ wasRaised: true, pointerOnBar: true }), true, 'letting go of the key over the bar keeps it up')
+assertEqual(raise({ wasRaised: true, popoutOpen: true }), true, 'a panel open from the raised bar keeps it up')
+assertEqual(raise({ wasRaised: true }), false, 'the bar drops once nothing holds it')
+assertEqual(raise({ keyHeld: true, barHidden: true }), false, 'a bar the user hid stays hidden')
+assertEqual(bar.raisedOverFullscreen({ keyHeld: true, underFullscreen: false }), false, 'without a fullscreen window there is nothing to rise over')
+assertEqual(bar.inputRegion(false, true, false, false), 'none', 'the lowered bar takes no clicks from the fullscreen window')
+assertEqual(bar.inputRegion(false, true, false, true), 'edge', 'the edge reveal keeps only the edge line')
+assertEqual(bar.inputRegion(false, true, true, true), 'strip', 'the raised bar takes clicks again')
+
 // A bar surface is built per monitor, so a panel hotkey has one live copy of
 // the widget per screen to choose between.
 const internal = { moduleName: 'omarchy.audio', visible: true, width: 28, height: 81 }

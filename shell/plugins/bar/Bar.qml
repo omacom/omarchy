@@ -60,6 +60,13 @@ Item {
   // The look the blur behind the bar was last synced for. A background set by
   // editing shell.json skips the CLI, so the bar syncs Hyprland's blur itself.
   property string glassSyncedLook: ""
+  // The screen whose bar the raise key holds over a fullscreen window, or ""
+  // while the key is up. Set over IPC by the hold binding.
+  property string raiseKeyScreen: ""
+  // bar.fullscreenEdgeReveal: resting the pointer on the screen edge raises
+  // a bar hidden under a fullscreen window. Off by default, since the edge
+  // line then takes input from the fullscreen window.
+  property bool fullscreenEdgeReveal: false
   property int barConfigSerial: 0
   property string position: "top"
   // Resolves through fontconfig at paint time (Style.font.family defaults
@@ -778,6 +785,7 @@ Item {
     var config = Util.isPlainObject(barConfig) ? barConfig : fallbackBarConfig
 
     position = normalizePosition(config.position)
+    fullscreenEdgeReveal = config.fullscreenEdgeReveal === true
     // opaque, glassy or none; a config from before background says
     // transparent instead.
     var look = config.background || (config.transparent === true ? "none" : "opaque")
@@ -1614,6 +1622,17 @@ Item {
     function syncHidden(): void {
       barHiddenProbe.running = true
     }
+
+    // Raise the focused screen's bar over its fullscreen window until
+    // lower() is called; the hold binding calls them on press and release.
+    function raise(): void {
+      var monitor = Hyprland.focusedMonitor
+      root.raiseKeyScreen = monitor ? String(monitor.name) : ""
+    }
+
+    function lower(): void {
+      root.raiseKeyScreen = ""
+    }
   }
 
   // Hyprland's window list does not follow fullscreen on its own, and each
@@ -1743,7 +1762,10 @@ Item {
     color: "transparent"
     surfaceFormat.opaque: false
     WlrLayershell.namespace: "omarchy-bar"
-    WlrLayershell.layer: WlrLayer.Top
+    // Raised, the bar moves to the overlay layer, the one layer Hyprland
+    // draws above a fullscreen window. The surface stays mapped, so raising
+    // and lowering it rebuilds nothing.
+    WlrLayershell.layer: raised ? WlrLayer.Overlay : WlrLayer.Top
 
     // Whether the active workspace on this screen holds a real fullscreen
     // window, which fades the bar out.
@@ -1755,12 +1777,16 @@ Item {
 
     // Idle, only the strip takes input, so the clear expanse passes clicks
     // through to the windows and desktop below. Under a fullscreen window
-    // nothing does: Hyprland 0.56 passes the pointer through a faded top
-    // layer only while it holds the layer below fullscreen, and it lifts
-    // every layer on the monitor back above whenever a window on any other
-    // workspace leaves fullscreen, or the layer remaps. The invisible strip
-    // would then take the clicks meant for the top of the fullscreen window.
-    mask: dragActive ? null : (underFullscreen ? noInputRegion : stripInputRegion)
+    // the lowered bar takes none, or only its edge line with the edge reveal
+    // on: Hyprland 0.56 passes the pointer through a faded top layer only
+    // while it holds the layer below fullscreen, and it lifts every layer on
+    // the monitor back above whenever a window on any other workspace leaves
+    // fullscreen, or the layer remaps. The invisible strip would then take
+    // the clicks meant for the top of the fullscreen window. Raised, the
+    // strip takes input again.
+    readonly property string inputRegion: BarModel.inputRegion(dragActive, underFullscreen, raised, root.fullscreenEdgeReveal)
+    // "edge" leaves the bar surface no input: the edge sensor takes it.
+    mask: inputRegion === "all" ? null : (inputRegion === "strip" ? stripInputRegion : noInputRegion)
 
     Region {
       id: stripInputRegion
@@ -1769,6 +1795,64 @@ Item {
 
     Region {
       id: noInputRegion
+    }
+
+    // Raising over a fullscreen window: see BarModel.raisedOverFullscreen.
+    property bool raised: false
+    property bool edgeRested: false
+    readonly property bool raiseKeyHeld: root.raiseKeyScreen !== "" && !!screen && root.raiseKeyScreen === screen.name
+    readonly property bool pointerOnBar: stripHover.hovered
+    readonly property bool popoutOpen: root.activePopout !== null && root.targetBelongsToWindow(root.activePopout, barWindow)
+
+    function raiseState(wasRaised) {
+      return {
+        underFullscreen: underFullscreen,
+        barHidden: root.barHidden,
+        keyHeld: raiseKeyHeld,
+        edgeRested: edgeRested,
+        pointerOnBar: pointerOnBar,
+        popoutOpen: popoutOpen,
+        wasRaised: wasRaised
+      }
+    }
+
+    // Raising is immediate. Lowering waits out a short grace when the pointer
+    // leaves, so a pointer that slips off the bar and straight back keeps it,
+    // but follows a key release or the fullscreen window going at once.
+    function syncRaised(graceful) {
+      if (BarModel.raisedOverFullscreen(raiseState(raised))) {
+        lowerTimer.stop()
+        raised = true
+      } else if (raised) {
+        if (graceful && underFullscreen) lowerTimer.restart()
+        else raised = false
+      }
+    }
+
+    onUnderFullscreenChanged: syncRaised(false)
+    onRaiseKeyHeldChanged: syncRaised(false)
+    // Graceful: once raised, the edge sensor stops taking input and ends the
+    // rest, and the grace lets the bar strip pick up the pointer below it.
+    onEdgeRestedChanged: syncRaised(true)
+    onPointerOnBarChanged: syncRaised(true)
+    onPopoutOpenChanged: syncRaised(true)
+    Connections {
+      target: root
+      function onBarHiddenChanged() { barWindow.syncRaised(false) }
+    }
+
+    Timer {
+      id: lowerTimer
+      interval: 300
+      onTriggered: barWindow.raised = BarModel.raisedOverFullscreen(barWindow.raiseState(barWindow.raised))
+    }
+
+    // A rest, not a pass: a pointer crossing the edge on its way to the next
+    // monitor leaves the line before this fires.
+    Timer {
+      id: edgeRestTimer
+      interval: 250
+      onTriggered: barWindow.edgeRested = edgeHover.hovered
     }
 
     // The bar itself, along its screen edge.
@@ -1788,6 +1872,60 @@ Item {
       Loader {
         anchors.fill: parent
         sourceComponent: root.vertical ? verticalBar : horizontalBar
+
+        // A child of the loader, not a sibling of the sections: an ancestor
+        // stays hovered while the pointer is over a widget.
+        HoverHandler { id: stripHover }
+      }
+    }
+
+    // The line along the screen edge that the edge reveal listens on while
+    // the bar is lowered under a fullscreen window, on a surface of its own
+    // in the overlay layer. Hyprland keeps the bar's top layer below the
+    // fullscreen window, where it gets no pointer, so a line on the bar
+    // surface only worked while Hyprland happened to lift that layer back
+    // above (a scale change ends that). Mapped for as long as the reveal is
+    // on, so the fullscreen state toggles only its input region, never a
+    // remap. Two pixels, so a pointer pinned against the edge sits on it
+    // without a precise aim.
+    PanelWindow {
+      id: edgeSensor
+
+      readonly property int depth: 2
+
+      screen: barWindow.screen
+      visible: root.fullscreenEdgeReveal
+      color: "transparent"
+      surfaceFormat.opaque: false
+      exclusionMode: ExclusionMode.Ignore
+      WlrLayershell.namespace: "omarchy-bar-edge"
+      WlrLayershell.layer: WlrLayer.Overlay
+      anchors {
+        top: root.position === "top" || root.vertical
+        bottom: root.position === "bottom" || root.vertical
+        left: root.position === "left" || !root.vertical
+        right: root.position === "right" || !root.vertical
+      }
+      implicitWidth: root.vertical ? depth : 0
+      implicitHeight: root.vertical ? 0 : depth
+      mask: barWindow.inputRegion === "edge" ? null : edgeSensorNoInput
+
+      Region { id: edgeSensorNoInput }
+
+      Item {
+        anchors.fill: parent
+
+        HoverHandler {
+          id: edgeHover
+          onHoveredChanged: {
+            if (hovered) {
+              edgeRestTimer.restart()
+            } else {
+              edgeRestTimer.stop()
+              barWindow.edgeRested = false
+            }
+          }
+        }
       }
     }
 

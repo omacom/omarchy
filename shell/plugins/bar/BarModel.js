@@ -668,10 +668,33 @@ function fullscreenOn(toplevels, workspaceId) {
   return false
 }
 
+// Whether a bar under a fullscreen window is raised over it. Holding the
+// raise key or resting the pointer on the screen edge raises it; once raised,
+// the pointer on the bar or a panel open from it keeps it up, so letting go
+// of the key over the bar does not drop it from under the pointer. A bar the
+// user hid, or one with no fullscreen window to rise over, stays down.
+function raisedOverFullscreen(state) {
+  if (!state || !state.underFullscreen || state.barHidden) return false
+  if (state.keyHeld || state.edgeRested) return true
+  return !!state.wasRaised && (!!state.pointerOnBar || !!state.popoutOpen)
+}
+
+// Which part of a bar surface takes pointer input: "all" during a drag,
+// "strip" normally and while raised over a fullscreen window, and under one
+// while lowered, "edge" with the edge reveal on or "none" without it. The
+// surface's mask in Bar.qml says why.
+function inputRegion(dragActive, underFullscreen, raised, edgeReveal) {
+  if (dragActive) return "all"
+  if (!underFullscreen || raised) return "strip"
+  return edgeReveal ? "edge" : "none"
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     barSizeFor: barSizeFor,
     fullscreenOn: fullscreenOn,
+    raisedOverFullscreen: raisedOverFullscreen,
+    inputRegion: inputRegion,
     centerBesideRight: centerBesideRight,
     cutoutPending: cutoutPending,
     cutoutTop: cutoutTop,
