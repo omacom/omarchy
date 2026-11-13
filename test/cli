@@ -202,6 +202,10 @@ if [[ $output == *"omarchy update perform"* ]]; then
 fi
 pass "hidden update perform compatibility wrapper is not shown"
 
+# Every clipboard command is hidden, so its group help falls back to listing them.
+output=$("$CLI" clipboard --help)
+assert_output_contains "a group whose commands are all hidden lists them in its help" "$output" "omarchy clipboard paste text"
+
 # These three are install-time plumbing the ISO and install leaves call, so
 # they stay out of the listing a user browses -- while still routing, because
 # those callers use the CLI. A GROUP_DESCRIPTIONS entry would put the group
