@@ -60,7 +60,10 @@ app launcher.
 EOF
 
   log="/tmp/omarchy-battlenet-installer.log"
-  setsid -f sh -c "umu-run '$installer' >'$log' 2>&1" </dev/null >/dev/null 2>&1
+  # Inside the presentation the setup runs from its terminal's shell, which
+  # never had the variables exported above.
+  omarchy-launch-after-done env WINEPREFIX="$WINEPREFIX" PROTONPATH="$PROTONPATH" GAMEID="$GAMEID" PROTON_VERB="$PROTON_VERB" \
+    sh -c "umu-run '$installer' >'$log' 2>&1"
   echo "Installer log: $log"
   launched_installer=1
 fi

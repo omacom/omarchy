@@ -102,5 +102,10 @@ fi
 # The handoff URL rides in the browser's argv, which uwsm's app daemon echoes
 # into the user journal. Accepted: the token is single-use with a ten-minute
 # expiry against a loopback-only gateway, and journal access already implies
-# access to ~/.openclaw itself.
-exec omarchy-launch-webapp "$url"
+# access to ~/.openclaw itself. Inside the presentation the Done prompt can
+# wait past that expiry, so the launch that opens the app asks for its own.
+if [[ -f ${OMARCHY_LAUNCH_AFTER_DONE-} ]]; then
+  exec omarchy-launch-after-done omarchy-launch-openclaw
+else
+  exec omarchy-launch-webapp "$url"
+fi

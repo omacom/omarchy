@@ -123,6 +123,16 @@ if [[ -f $test_tmp/launched-no-launch ]] || grep -q 'Opening T3 Code' "$test_tmp
 fi
 pass "--no-launch installs and themes the named channel without opening T3 Code"
 
+# Inside the installer presentation T3 Code opens only once the Done prompt has
+# its key, so its window does not take that key.
+: >"$test_tmp/launch-after-done"
+OMARCHY_LAUNCH_AFTER_DONE="$test_tmp/launch-after-done" OMARCHY_TEST_RUN=presentation run_installer stable ||
+  fail "installing inside the presentation succeeds" "$(cat "$test_tmp/output")"
+if [[ -f $test_tmp/launched-presentation ]] || ! grep -Fq 'gtk-launch t3code' "$test_tmp/launch-after-done"; then
+  fail "inside the presentation T3 Code waits for the Done prompt" "$(cat "$test_tmp/launch-after-done")"
+fi
+pass "inside the presentation T3 Code waits for the Done prompt"
+
 rm -f "$test_tmp/dropped"
 printf '{"defaultTheme":"dark","keep":"existing settings"}\n' >"$settings"
 cp "$settings" "$test_tmp/settings-before.json"

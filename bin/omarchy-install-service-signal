@@ -9,7 +9,7 @@ echo "Installing Signal..."
 omarchy-pkg-add signal-desktop
 
 echo "Opening Signal..."
-setsid uwsm-app -- /usr/bin/signal-desktop >/dev/null 2>&1 &
+omarchy-launch-after-done uwsm-app -- /usr/bin/signal-desktop
 
 echo ""
 echo "Signal has been installed."

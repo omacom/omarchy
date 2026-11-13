@@ -20,6 +20,15 @@ SCRIPT
   chmod +x "$tmp_dir/bin/$stub"
 done
 
+# The app opens detached; in the foreground its call is logged before a check
+# reads the log.
+cat >"$tmp_dir/bin/setsid" <<'SCRIPT'
+#!/bin/bash
+[[ $1 == -f ]] && shift
+exec "$@"
+SCRIPT
+chmod +x "$tmp_dir/bin/setsid"
+
 # The retry loop sleeps between polls; a no-op keeps the suite fast.
 printf '#!/bin/bash\n' >"$tmp_dir/bin/sleep"
 chmod +x "$tmp_dir/bin/sleep"
@@ -60,6 +69,20 @@ chmod +x "$tmp_dir/bin/openclaw"
 grep -q '^omarchy-launch-webapp:http://127.0.0.1:18789/#handoff$' "$TEST_LOG" ||
   fail "OpenClaw launch opens the running gateway's handoff URL"
 pass "OpenClaw launch opens the running gateway's handoff URL"
+
+# Inside the presentation that set OpenClaw up, the app opens only once the
+# Done prompt has its key, so its window does not take that key, and with a
+# handoff URL made then, since one made before the prompt can expire.
+: >"$tmp_dir/launch-after-done"
+: >"$TEST_LOG"
+OMARCHY_LAUNCH_AFTER_DONE="$tmp_dir/launch-after-done" "$ROOT/bin/omarchy-launch-openclaw"
+! grep -q '^omarchy-launch-webapp:' "$TEST_LOG" ||
+  fail "inside the presentation the OpenClaw app waits for the Done prompt" "$(<"$TEST_LOG")"
+sed -i 's/#handoff/#after-done/' "$tmp_dir/bin/openclaw"
+PATH="$tmp_dir/bin:$ROOT/bin:$PATH" OMARCHY_LAUNCH_AFTER_DONE= bash "$tmp_dir/launch-after-done"
+grep -q '^omarchy-launch-webapp:http://127.0.0.1:18789/#after-done$' "$TEST_LOG" ||
+  fail "the OpenClaw app opens a handoff URL made once the Done prompt has its key" "$(cat "$TEST_LOG" "$tmp_dir/launch-after-done")"
+pass "inside the presentation the OpenClaw app waits for the Done prompt and a fresh handoff URL"
 
 # A machine whose gateway unit was never enabled (never installed, or an
 # install that died after writing the unit) gets `gateway install --force`,
