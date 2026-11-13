@@ -23,6 +23,12 @@
 # /var/lib/omarchy/image/pacman-keyring instead, and the first boot makes it
 # before any deferred step runs.
 #
+# The boot image an image carries was built for the machine that built the
+# image, so the machine's first boot rebuilds it for the hardware it runs on
+# and records that in /var/lib/omarchy/image/boot-image-rebuilt. A machine
+# that booted an image before that rebuild existed still carries the
+# builder's, and a migration repairs it.
+#
 # The manifest is also the only source of the image's platform: until that boot,
 # omarchy-hw-platform reports its platform instead of the build host's, so the
 # initramfs, services and packages the build sets up are the target's. It reads
@@ -47,6 +53,7 @@ omarchy_image_init() {
   omarchy_image_queue=$omarchy_image_dir/deferred-steps
   omarchy_image_initramfs_baseline=$omarchy_image_dir/initramfs-inputs
   omarchy_image_boot_rebuild=$omarchy_image_dir/boot-rebuild
+  omarchy_image_boot_image_rebuilt=$omarchy_image_dir/boot-image-rebuilt
   omarchy_image_keyring_request=$omarchy_image_dir/pacman-keyring
   omarchy_image_unit=omarchy-provision-hardware.service
   omarchy_image_systemd_dir=$omarchy_image_root/etc/systemd/system
