@@ -26,6 +26,8 @@ The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardwar
 
 _Appearance_ holds the menu bar and animations, plus a few things that aren't `omarchy toggle` commands but behave the same: battery percentage in the bar, the default workspace layout, and under _Windows_, window gaps (`Super + Shift + Backspace`) and the 1-window square aspect (`Super + Ctrl + Backspace`).
 
+When Hyprland has no GPU to draw with and renders on the CPU instead (llvmpipe), as on Macs whose GPU isn't supported yet, in most virtual machines, or when a graphics driver fails to load, Omarchy turns off animations, blur and shadows for that session and tells you so once with a notification. _Appearance > Animations On_ brings them back, and Omarchy remembers that for later sessions too.
+
 Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If you want to branch on one in a script, `omarchy-toggle-enabled` gives you an exit code instead of making you go looking:
 
 ```bash
@@ -91,7 +93,7 @@ Omarchy's screensaver is ASCII art running through random text effects, one inst
 
 You can start it on demand from _System > Screensaver_ (`Super + Esc`), which forces it up even if you've turned the idle screensaver off. There's no hotkey bound to it by default.
 
-`omarchy toggle screensaver` is what turns the idle one off, if you'd rather go straight from working to locked. It needs a terminal it knows how to configure — Alacritty, Foot, Ghostty, or Kitty — and will tell you so if your default terminal is something else.
+`omarchy toggle screensaver` is what turns the idle one off, if you'd rather go straight from working to locked. Any key, click, scroll or mouse movement closes it.
 
 The logo it draws is yours to change, under _Appearance > Branding > Screensaver_. Upload a png or svg and Omarchy converts it to ASCII. See [branding](41-branding.md).
 

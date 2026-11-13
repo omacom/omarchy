@@ -78,6 +78,23 @@ function applyTo(model, index, row) {
   }
 }
 
+// The same message from the same sender under a new id. A web app open in
+// several tabs (HEY, Gmail, Calendar) fires one notification per tab for a
+// single reminder, all in the same moment: that is one card, not a stack of
+// identical ones. The click target counts, as every screenshot toast shares
+// its text but opens a different file. The image does not: Chromium hands each
+// copy its own temporary file. Past the window, the same words are a second
+// message ("ok", an hour later), not a copy.
+var DUPLICATE_ROLES = ["app", "source", "summary", "body", "execArgv", "execActions"]
+var DUPLICATE_WINDOW = 2
+
+function isDuplicate(row, shown) {
+  if (!row || !shown || Math.abs(row.ts - shown.ts) > DUPLICATE_WINDOW) return false
+  for (var i = 0; i < DUPLICATE_ROLES.length; i++)
+    if (row[DUPLICATE_ROLES[i]] !== shown[DUPLICATE_ROLES[i]]) return false
+  return true
+}
+
 // A restored row has no live sender, and its original timeout has long run
 // out. It gets a short grace instead; critical still waits for you.
 var RESTORE_GRACE = 20000
