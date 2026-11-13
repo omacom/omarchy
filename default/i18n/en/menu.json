@@ -704,6 +704,9 @@
   "setup.config.hyprsunset": {
     "label": "Hyprsunset"
   },
+  "setup.config.touchpad": {
+    "label": "Mouse & Touchpad"
+  },
   "setup.config.xcompose": {
     "label": "XCompose"
   },

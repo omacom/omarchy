@@ -257,6 +257,7 @@
   "setup.config.git": {"icon":"","label":"Git","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-git"},
   "setup.config.hyprland": {"icon":"","label":"Hyprland","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/hyprland.lua\""},
   "setup.config.hyprsunset": {"icon":"","label":"Hyprsunset","action":"omarchy-launch-config-editor ~/.config/hypr/hyprsunset.conf && omarchy-restart-hyprsunset"},
+  "setup.config.touchpad": {"icon":"󰟸","label":"Mouse & Touchpad","action":"omarchy-shell shell summon omarchy.touchpad"},
   "setup.config.xcompose": {"icon":"󰞅","label":"XCompose","action":"omarchy-launch-config-editor ~/.XCompose && omarchy-restart-xcompose"},
   "setup.keyboard": {"icon":"","label":"Keyboard"},
   "setup.keyboard.keybindings": {"icon":"","label":"Keybindings","when":"[[ -f ~/.config/hypr/bindings.lua ]]","action":"omarchy-launch-config-editor \"$HOME/.config/hypr/bindings.lua\""},
