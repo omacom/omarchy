@@ -13,7 +13,7 @@ var HEADINGS = [
   [/^Prune package cache$/, "prepare", "prune"],
   [/^Create system snapshot$/, "prepare", "snapshot"],
   [/^Update Omarchy dev checkout$/, "prepare", "checkout"],
-  [/^Update Arch signing keys$/, "prepare", "keyring"],
+  [/^Update signing keys$/, "prepare", "keyring"],
   [/^Update system packages$/, "packages", "servers"],
   [/^Running migration/, "configure", "migrations"],
   [/^Orphan system packages$/, "cleanup", "orphans"],
