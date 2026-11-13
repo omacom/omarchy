@@ -89,3 +89,5 @@ To move a window off either the scratchpad or the console, send it directly to a
 ### It takes some getting used to!
 
 It takes a little while to get used to navigating your desktop like this, but once you do, it'll be hard to go back to a traditional mouse-driven desktop experience!
+
+Appearance > Dock > Collapse Pinned hides idle pinned launchers until you hover the app launcher. Running app icons remain visible. Clicking the launcher still opens all apps; context menus do not expand the pins. The option is off by default. `omarchy dock collapse-pinned on|off|toggle` controls it from the CLI.

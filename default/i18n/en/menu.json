@@ -1327,5 +1327,8 @@
   },
   "agent.make.app": {
     "label": "Make an app"
+  },
+  "appearance.dock.collapse-pinned": {
+    "label": "Collapse Pinned"
   }
 }

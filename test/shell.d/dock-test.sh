@@ -166,6 +166,15 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
 
+[[ $(omarchy_dock collapse-pinned) == "off" ]] || fail "pin collapse starts off"
+omarchy_dock collapse-pinned toggle >/dev/null
+[[ $(omarchy_dock collapse-pinned) == "on" ]] || fail "pin collapse toggles on"
+omarchy_dock collapse-pinned off >/dev/null
+[[ $(omarchy_dock collapse-pinned) == "off" ]] || fail "pin collapse turns off"
+if omarchy_dock collapse-pinned invalid 2>/dev/null; then fail "invalid collapse value accepted"; fi
+if omarchy_dock collapse-pinned on off 2>/dev/null; then fail "extra collapse argument accepted"; fi
+pass "pin collapse validates and persists independently"
+
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
 # not beside the minimized one.

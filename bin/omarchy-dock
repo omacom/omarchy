@@ -2,7 +2,7 @@
 
 # omarchy:summary=Configure the dock shown on floating workspaces
 # omarchy:group=dock
-# omarchy:args=position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
+# omarchy:args=collapse-pinned [on|off|toggle] | position [top|bottom|left|right] | autohide [on|off|toggle] | pinned [<desktop-id>...] | pin <desktop-id> | unpin <desktop-id>
 # omarchy:examples=omarchy dock position left | omarchy dock pin folio
 
 set -euo pipefail
@@ -18,6 +18,7 @@ Usage: omarchy dock <command> [args...]
   autohide [on|off|toggle]             Hide the dock until the pointer reaches
                                        its edge; prints on or off when given
                                        none
+  collapse-pinned [on|off|toggle]      Collapse idle pinned launchers until hovered
   pinned [<desktop-id>...]             Pinned desktop ids in dock order; prints
                                        them one per line when given none
   pin <desktop-id>                     Keep an app in the dock
@@ -66,6 +67,20 @@ cmd_autohide() {
   echo "Dock auto-hide turned $value"
 }
 
+cmd_collapse_pinned() {
+  if (( $# == 0 )); then
+    jq -r 'if .dock.collapsePinned == true then "on" else "off" end' "$(source_file)"
+    return
+  fi
+  (( $# == 1 )) || fail "collapse-pinned takes a single value"
+  local value="$1"
+  if [[ $value == "toggle" ]]; then
+    if [[ $(cmd_collapse_pinned) == "on" ]]; then value=off; else value=on; fi
+  fi
+  [[ $value == "on" || $value == "off" ]] || fail "collapse-pinned must be on, off, or toggle"
+  commit "$NORMALIZE | .dock.collapsePinned = (\$value == \"on\")" --arg value "$value"
+}
+
 cmd_pinned() {
   if (( $# == 0 )); then
     jq -r --slurpfile defaults "$DEFAULTS_FILE" "$PINNED | .[]" "$(source_file)"
@@ -110,6 +125,7 @@ command="${1:-}"
 case "$command" in
   position) cmd_position "$@" ;;
   autohide) cmd_autohide "$@" ;;
+  collapse-pinned) cmd_collapse_pinned "$@" ;;
   pinned) cmd_pinned "$@" ;;
   pin) cmd_pin "$@" ;;
   unpin) cmd_unpin "$@" ;;
