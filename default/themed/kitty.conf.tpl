@@ -1,5 +1,7 @@
 foreground {{ foreground }}
 background {{ background }}
+{{ terminal_opacity_kitty }}
+{{ terminal_blur_kitty }}
 selection_foreground {{ selection_foreground }}
 selection_background {{ selection_background }}
 

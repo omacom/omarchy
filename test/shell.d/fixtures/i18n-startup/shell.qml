@@ -42,7 +42,11 @@ ShellRoot {
     result.setText(JSON.stringify({first: root.first, current: snapshot()}))
   }
 
-  onLanguageChanged: Qt.callLater(report)
+  onLanguageChanged: {
+    if (Quickshell.env("OMARCHY_TEST_REPLACE_ON_LANGUAGE") === "1" && language === "da")
+      languageReplacement.setText("en")
+    Qt.callLater(report)
+  }
   onLocaleChanged: Qt.callLater(report)
   onNumberChanged: Qt.callLater(report)
   onRtlChanged: Qt.callLater(report)
@@ -60,13 +64,17 @@ ShellRoot {
     directory: pluginDirectory.text().trim()
   }
 
-  FileView {
+  Commons.TranslationFile {
     id: pluginDirectory
     path: Quickshell.env("OMARCHY_TEST_PLUGIN_DIRECTORY")
+  }
+
+  // Replace the selection during its notification, before the reader returns.
+  FileView {
+    id: languageReplacement
+    path: Quickshell.env("OMARCHY_LANGUAGE_FILE")
     preload: false
-    blockAllReads: true
-    watchChanges: true
-    onFileChanged: reload()
+    blockWrites: true
   }
 
   FileView {

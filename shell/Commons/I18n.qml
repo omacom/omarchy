@@ -1,7 +1,6 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import "Plural.js" as Plural
 import "Numbers.js" as Numbers
 
@@ -80,47 +79,23 @@ QtObject {
     return code
   }
 
-  // The catalogs are small local files, read synchronously so the first
-  // binding to call t() already gets the string rather than the raw key.
-  // Every read is synchronous, not just the first (blockAllReads with no
-  // preload): FileView's reload() joins a background read already running
-  // for the same path, so a file deleted or replaced while that read is
-  // open would keep the old contents until the next change.
-  property FileView languageFile: FileView {
+  // TranslationFile reads synchronously and keeps its watcher independent
+  // of reloads, so changes during a read's notification are not dropped.
+  property TranslationFile languageFile: TranslationFile {
     // OMARCHY_LANGUAGE_FILE overrides the location, as it does for
     // omarchy-i18n, so tests can pin a language whatever the machine uses.
     path: Quickshell.env("OMARCHY_LANGUAGE_FILE") || (root.configHome + "/omarchy/language")
-    watchChanges: true
-    printErrors: false
-    preload: false
-    blockAllReads: true
-    onFileChanged: reload()
   }
 
-  property FileView englishCatalogFile: FileView {
+  property TranslationFile englishCatalogFile: TranslationFile {
     path: root.omarchyPath + "/default/i18n/en/shell.json"
-    watchChanges: true
-    printErrors: false
-    preload: false
-    blockAllReads: true
-    onFileChanged: reload()
   }
 
-  property FileView languageCatalogFile: FileView {
+  property TranslationFile languageCatalogFile: TranslationFile {
     path: root.omarchyPath + "/default/i18n/" + root.language + "/shell.json"
-    watchChanges: true
-    printErrors: false
-    preload: false
-    blockAllReads: true
-    onFileChanged: reload()
   }
 
-  property FileView registryFile: FileView {
+  property TranslationFile registryFile: TranslationFile {
     path: root.omarchyPath + "/default/i18n/locales.json"
-    watchChanges: true
-    printErrors: false
-    preload: false
-    blockAllReads: true
-    onFileChanged: reload()
   }
 }
