@@ -74,7 +74,7 @@ assertDeepEqual(
 assertDeepEqual(
   clipboard.removedImagePaths([{ type: 'image', path: '/tmp/a.png' }], clipboard.addEntry(history, history[2], 3)),
   [],
-  'clipboard keeps an image file the history holds again'
+  'clipboard keeps an image file the next history still holds'
 )
 
 assertDeepEqual(
@@ -397,23 +397,40 @@ capture_output=$(WL_PASTE_TYPES="text/plain\nx-kde-passwordManagerHint\n" XDG_RU
 [[ -z $capture_output ]] || fail "clipboard capture ignores password manager hint"
 pass "clipboard capture ignores password manager hint"
 
-# Deleting an image clears the live clipboard only when it still holds that
-# image: not when it holds another one, nor a password capture.sh never recorded.
-clear_if_live=$(node -e '
-  const source = require("node:fs").readFileSync(process.argv[1], "utf8")
-  const m = source.match(/\["bash", "-c",([^]*?),\s*"omarchy-clipboard-clear"/)
-  process.stdout.write(require("node:vm").runInNewContext(m[1]))
-' "$ROOT/shell/plugins/clipboard/Clipboard.qml")
-deleted_image="$TMPDIR/$(printf 'deleted-image' | sha256sum | awk '{print $1}').png"
+clipboard_script() {
+  node -e '
+    const source = require("node:fs").readFileSync(process.argv[1], "utf8")
+    const name = "\"" + process.argv[2] + "\""
+    const piece = source.split("[\"bash\", \"-c\",").find(p => p.includes(name))
+    process.stdout.write(require("node:vm").runInNewContext(piece.slice(0, piece.indexOf(name)).replace(/,\s*$/, "")))
+  ' "$ROOT/shell/plugins/clipboard/Clipboard.qml" "$1"
+}
+
+# Deleting images clears the live clipboard only when it still holds one of
+# them: not when it holds another, nor a password capture.sh never recorded.
+clear_if_live=$(clipboard_script omarchy-clipboard-clear)
+deleted_images=("$TMPDIR/$(printf 'deleted-a' | sha256sum | awk '{print $1}').png" "$TMPDIR/$(printf 'deleted-b' | sha256sum | awk '{print $1}').jpg")
 for live in "" "other-image"; do
   rm -f "$TMPDIR/cleared"
-  WL_PASTE_IMAGE="$live" WL_COPY_OUT="$TMPDIR/cleared" PATH="$TMPDIR/bin:$PATH" bash -c "$clear_if_live" omarchy-clipboard-clear "$deleted_image"
+  WL_PASTE_IMAGE="$live" WL_COPY_OUT="$TMPDIR/cleared" PATH="$TMPDIR/bin:$PATH" bash -c "$clear_if_live" omarchy-clipboard-clear "${deleted_images[@]}"
   [[ ! -e $TMPDIR/cleared ]] || fail "clipboard image deletion leaves a clipboard holding '$live'"
 done
 pass "clipboard image deletion leaves a clipboard holding something else"
-WL_PASTE_IMAGE="deleted-image" WL_COPY_OUT="$TMPDIR/cleared" PATH="$TMPDIR/bin:$PATH" bash -c "$clear_if_live" omarchy-clipboard-clear "$deleted_image"
-[[ $(<"$TMPDIR/cleared") == "cleared" ]] || fail "clipboard image deletion clears the clipboard holding that image"
-pass "clipboard image deletion clears the clipboard holding that image"
+WL_PASTE_IMAGE="deleted-b" WL_COPY_OUT="$TMPDIR/cleared" PATH="$TMPDIR/bin:$PATH" bash -c "$clear_if_live" omarchy-clipboard-clear "${deleted_images[@]}"
+[[ $(<"$TMPDIR/cleared") == "cleared" ]] || fail "clipboard image deletion clears the clipboard holding a deleted image"
+pass "clipboard image deletion clears the clipboard holding a deleted image"
+
+# A removed image's file goes, unless the saved history holds it again by the
+# time the prune runs, as when a re-capture of an evicted image lands.
+mkdir -p "$TMPDIR/nosleep"
+printf '#!/bin/bash\n' >"$TMPDIR/nosleep/sleep"
+chmod +x "$TMPDIR/nosleep/sleep"
+printf 'gone' >"$TMPDIR/gone.png"
+printf 'back' >"$TMPDIR/back.png"
+jq -n --arg back "$TMPDIR/back.png" '["text", {type:"text", text:"note"}, {type:"image", mime:"image/png", path:$back}]' >"$TMPDIR/pruned-history.json"
+PATH="$TMPDIR/nosleep:$PATH" bash -c "$(clipboard_script omarchy-clipboard-prune)" omarchy-clipboard-prune "$TMPDIR/pruned-history.json" "$TMPDIR/gone.png" "$TMPDIR/back.png"
+[[ ! -e $TMPDIR/gone.png && -e $TMPDIR/back.png ]] || fail "clipboard prune deletes only image files the saved history no longer holds"
+pass "clipboard prune deletes only image files the saved history no longer holds"
 
 jq -n --arg text "$(printf 'large block line 1\nlarge block line 2\n')" '[{type:"text", text:"ignored"}, {type:"text", text:$text}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 
