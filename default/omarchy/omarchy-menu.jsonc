@@ -304,6 +304,7 @@
   "install.browser.brave": {"icon":"","label":"Brave","disabled":"omarchy-pkg-present brave-bin","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-browser brave'"},
   "install.browser.brave-origin": {"icon":"","label":"Brave Origin","disabled":"omarchy-pkg-present brave-origin-bin","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-browser brave-origin'"},
   "install.browser.firefox": {"icon":"","label":"Firefox","disabled":"omarchy-pkg-present firefox","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-browser firefox'"},
+  "install.browser.mullvad": {"icon":"","label":"Mullvad Browser","when":"omarchy-hw-x86","disabled":"omarchy-pkg-present mullvad-browser-bin","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-pkg-aur-add mullvad-browser-bin'"},
   "install.browser.zen": {"icon":"󰖟","label":"Zen","disabled":"omarchy-pkg-present zen-browser-bin","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-install-browser zen'"},
   "install.service.1password": {"icon":"󰢁","label":"1Password","disabled":"omarchy-pkg-present 1password","action":"omarchy-launch-floating-terminal-with-presentation omarchy-install-service-1password"},
   "install.service.bitwarden": {"icon":"󰟵","label":"Bitwarden","disabled":"omarchy-pkg-present bitwarden","action":"omarchy-install-and-launch Bitwarden 'bitwarden bitwarden-cli' bitwarden"},
