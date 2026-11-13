@@ -33,6 +33,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -527,10 +528,17 @@ def register(provider: str, label: str, pending: Path) -> dict[str, Any]:
   with Locked(provider, save_on_exit=False) as registry:
     # A surviving login may sanitize its environment. Claims still protect
     # its pending path, so registration must not move or erase that live home.
-    try:
-      claim = session_claim(provider, pending, exclusive=True)
-    except BlockingIOError:
-      raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses this login. Quit it before registering the account.")
+    # A finished login's guardian lets go just after the CLI exits, so give it
+    # a moment before calling the login live.
+    deadline = time.monotonic() + 1
+    while True:
+      try:
+        claim = session_claim(provider, pending, exclusive=True)
+        break
+      except BlockingIOError:
+        if time.monotonic() > deadline:
+          raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses this login. Quit it before registering the account.")
+        time.sleep(0.01)
     try:
       if home_in_use(provider, pending):
         raise AccountError(f"A running {PROVIDERS[provider]['name']} session uses this login. Quit it before registering the account.")

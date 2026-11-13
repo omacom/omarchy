@@ -282,6 +282,38 @@ assert not (home / state.LOGIN_RECEIPT).exists(), "receipt cleanup resumes when 
 state.remove("claude", entry["id"])
 print("ok - moved-home recovery preserves live session claims and resumes receipt cleanup after exit")
 
+# The guardian lets go of a finished login's claim just after the CLI exits,
+# so the add command's register can still meet it. Release it only once
+# registration has found it held.
+pending = state.begin("claude", "Released")
+signed_in(pending, "released", "released@example.com")
+claim = state.session_claim("claude", pending)
+busy_read, busy_write = os.pipe()
+code = """
+import importlib.machinery, importlib.util, os, sys
+loader = importlib.machinery.SourceFileLoader("state", os.environ["STATE"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+state = importlib.util.module_from_spec(spec)
+loader.exec_module(state)
+original = state.session_claim
+def session_claim(*args, **options):
+  try:
+    return original(*args, **options)
+  except BlockingIOError:
+    os.write(int(sys.argv[1]), b"1")
+    raise
+state.session_claim = session_claim
+state.register("claude", "Released", state.Path(sys.argv[2]))
+"""
+registering = subprocess.Popen([sys.executable, "-c", code, str(busy_write), str(pending)], pass_fds=(busy_write,))
+os.close(busy_write)
+assert os.read(busy_read, 1) == b"1", "registration met the guardian's claim"
+os.close(claim)
+assert registering.wait(timeout=5) == 0, "registration waits for a finished login's guardian to let go"
+os.close(busy_read)
+assert state.find(state.load("claude"), "released") is not None and not pending.exists()
+print("ok - registration right after a login exits waits for its guardian's claim")
+
 # Leave a completed login for the real add command to recover below.
 pending = state.begin("claude", "Retry")
 signed_in(pending, "retry", "retry@example.com")
