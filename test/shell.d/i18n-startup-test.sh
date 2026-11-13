@@ -54,21 +54,7 @@ french_fallback = dict(english, language='fr', locale='fr-FR', number='13,5')
 
 # The shell watches these files and reloads them as they change, so replace
 # each one whole: a file written in place can be read while still empty.
-MARK = None
-
-
-def mark(text):
-    if MARK:
-        MARK(text)
-
-
-def remove(path):
-    mark(f'unlink {path}')
-    path.unlink()
-
-
 def write_text(path, text):
-    mark(f'write {path}')
     path.parent.mkdir(parents=True, exist_ok=True)
     staged = path.with_name(path.name + '.tmp')
     staged.write_text(text, encoding='utf-8')
@@ -121,17 +107,11 @@ class Probe:
             'XDG_CONFIG_HOME': str(self.path / 'home/.config'), 'XDG_CACHE_HOME': str(self.path / 'cache'),
             'XDG_STATE_HOME': str(self.path / 'state'), 'QT_QPA_PLATFORM': 'offscreen',
             'QT_QPA_PLATFORMTHEME': '', 'QT_STYLE_OVERRIDE': 'Fusion', 'QT_QUICK_BACKEND': 'software',
-            'QT_LOGGING_RULES': 'quickshell.io.fileview.debug=true',
         })
         self.process = subprocess.Popen(['quickshell', '--no-color', '-p', str(self.config)],
                                         env=env, stdout=self.log, stderr=subprocess.STDOUT)
 
-    def mark(self, text):
-        self.log.write(f'### {time.monotonic():.3f} {text}\n')
-        self.log.flush()
-
     def wait(self, expected):
-        self.mark('wait')
         deadline = time.monotonic() + 5
         latest = None
         while time.monotonic() < deadline:
@@ -183,72 +163,80 @@ try:
     startup('a malformed English catalog does not hide valid selected translations',
             dict(danish, shellFallback='missing English'), language='da\n', malformed_english=True)
 
-    for attempt in range(20):
-        MARK = None
-        probe = Probe()
-        MARK = probe.mark
-        try:
-            probe.wait(english)
-            for language, expected in [('da', danish), ('pt-BR', portuguese), ('fr', french_fallback), ('en', english)]:
-                write_text(probe.language, language)
-                probe.wait(expected)
-            print('ok - live language changes update shell, plugin, and locale bindings', flush=True)
+    probe = Probe()
+    try:
+        probe.wait(english)
+        for language, expected in [('da', danish), ('pt-BR', portuguese), ('fr', french_fallback), ('en', english)]:
+            write_text(probe.language, language)
+            probe.wait(expected)
+        print('ok - live language changes update shell, plugin, and locale bindings', flush=True)
 
-            write_json(probe.catalogs / 'en/shell.json', dict(en_catalog, **{'test.hello': 'Welcome %1'}))
-            changed = dict(english, shellText='Welcome Ada')
-            probe.wait(changed)
-            print('ok - editing the shell catalog refreshes existing bindings', flush=True)
+        write_json(probe.catalogs / 'en/shell.json', dict(en_catalog, **{'test.hello': 'Welcome %1'}))
+        changed = dict(english, shellText='Welcome Ada')
+        probe.wait(changed)
+        print('ok - editing the shell catalog refreshes existing bindings', flush=True)
 
-            write_json(probe.plugin / 'en.json', dict(en_catalog, **{'test.hello': 'Plugin %1', 'test.baseOnly': 'English base'}))
-            changed = dict(changed, pluginText='Plugin Ada')
-            probe.wait(changed)
-            print('ok - editing a plugin catalog refreshes existing bindings', flush=True)
+        write_json(probe.plugin / 'en.json', dict(en_catalog, **{'test.hello': 'Plugin %1', 'test.baseOnly': 'English base'}))
+        changed = dict(changed, pluginText='Plugin Ada')
+        probe.wait(changed)
+        print('ok - editing a plugin catalog refreshes existing bindings', flush=True)
 
-            other = probe.path / 'other-plugin'
-            write_json(other / 'en.json', dict(en_catalog, **{'test.hello': 'Other %1', 'test.baseOnly': 'English base'}))
-            write_text(probe.directory, str(other))
-            changed = dict(changed, pluginText='Other Ada')
-            probe.wait(changed)
-            write_text(probe.directory, str(probe.plugin))
-            changed = dict(changed, pluginText='Plugin Ada')
-            probe.wait(changed)
-            print('ok - changing the plugin catalog directory refreshes existing bindings', flush=True)
+        other = probe.path / 'other-plugin'
+        write_json(other / 'en.json', dict(en_catalog, **{'test.hello': 'Other %1', 'test.baseOnly': 'English base'}))
+        write_text(probe.directory, str(other))
+        changed = dict(changed, pluginText='Other Ada')
+        probe.wait(changed)
+        write_text(probe.directory, str(probe.plugin))
+        changed = dict(changed, pluginText='Plugin Ada')
+        probe.wait(changed)
+        print('ok - changing the plugin catalog directory refreshes existing bindings', flush=True)
 
-            write_text(probe.language, 'da')
-            probe.wait(danish)
-            remove(probe.language)
-            probe.wait(changed)
-            print('ok - deleting the language selection restores English', flush=True)
+        write_text(probe.language, 'da')
+        probe.wait(danish)
+        probe.language.unlink()
+        probe.wait(changed)
+        print('ok - deleting the language selection restores English', flush=True)
 
-            write_text(probe.language, 'da')
-            probe.wait(danish)
-            remove(probe.catalogs / 'da/shell.json')
-            remove(probe.plugin / 'da.json')
-            probe.wait(dict(changed, language='da', locale='da-DK', number='13,5'))
-            print('ok - deleting selected catalogs clears stale translations and falls back to English', flush=True)
+        # An editor's backup can keep the replaced file alive under a second
+        # name, so a rename over it does not end the watch on the old inode.
+        write_text(probe.language, 'da')
+        probe.wait(danish)
+        os.link(probe.language, probe.path / 'language~')
+        write_text(probe.language, 'fr')
+        probe.wait(dict(changed, language='fr', locale='fr-FR', number='13,5'))
+        write_text(probe.language, 'da')
+        probe.wait(danish)
+        print('ok - a replaced language file that keeps another name is still followed', flush=True)
 
-            write_json(probe.catalogs / 'da/shell.json', da_catalog)
-            write_json(probe.plugin / 'da.json', da_catalog)
-            probe.wait(danish)
-            print('ok - recreated catalogs resume live translation', flush=True)
+        write_text(probe.language, 'da')
+        probe.wait(danish)
+        (probe.catalogs / 'da/shell.json').unlink()
+        (probe.plugin / 'da.json').unlink()
+        probe.wait(dict(changed, language='da', locale='da-DK', number='13,5'))
+        print('ok - deleting selected catalogs clears stale translations and falls back to English', flush=True)
 
-            remove(probe.catalogs / 'en/shell.json')
-            changed = dict(danish, shellFallback='missing English')
-            probe.wait(changed)
-            print('ok - deleting English does not hide valid selected translations', flush=True)
+        write_json(probe.catalogs / 'da/shell.json', da_catalog)
+        write_json(probe.plugin / 'da.json', da_catalog)
+        probe.wait(danish)
+        print('ok - recreated catalogs resume live translation', flush=True)
 
-            remove(probe.plugin / 'en.json')
-            changed = dict(changed, pluginBase='test.baseOnly', pluginFallback='test.englishOnly')
-            probe.wait(changed)
-            print('ok - deleting a plugin fallback catalog clears its stale values', flush=True)
+        (probe.catalogs / 'en/shell.json').unlink()
+        changed = dict(danish, shellFallback='missing English')
+        probe.wait(changed)
+        print('ok - deleting English does not hide valid selected translations', flush=True)
 
-            write_json(probe.catalogs / 'locales.json', dict(registry, da=dict(registry['da'], decimal='.', direction='rtl')))
-            probe.wait(dict(changed, number='13.5', rtl=True))
-            print('ok - editing the locale registry refreshes number formatting and direction', flush=True)
-            log = probe.log_path.read_text()
-            assert not any(message in log for message in ('Argument missing', 'Binding loop', 'TypeError', 'ReferenceError')), log
-        finally:
-            probe.close()
+        (probe.plugin / 'en.json').unlink()
+        changed = dict(changed, pluginBase='test.baseOnly', pluginFallback='test.englishOnly')
+        probe.wait(changed)
+        print('ok - deleting a plugin fallback catalog clears its stale values', flush=True)
+
+        write_json(probe.catalogs / 'locales.json', dict(registry, da=dict(registry['da'], decimal='.', direction='rtl')))
+        probe.wait(dict(changed, number='13.5', rtl=True))
+        print('ok - editing the locale registry refreshes number formatting and direction', flush=True)
+        log = probe.log_path.read_text()
+        assert not any(message in log for message in ('Argument missing', 'Binding loop', 'TypeError', 'ReferenceError')), log
+    finally:
+        probe.close()
 except Exception as error:
     print(f'not ok - initial translations and live catalog updates\n{error}', flush=True)
     raise SystemExit(1)
