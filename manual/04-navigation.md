@@ -89,3 +89,11 @@ To move a window off either the scratchpad or the console, send it directly to a
 ### It takes some getting used to!
 
 It takes a little while to get used to navigating your desktop like this, but once you do, it'll be hard to go back to a traditional mouse-driven desktop experience!
+
+### Scenes
+
+Enable Appearance > Menu Bar > Scenes to add a Scenes button beside the clock. Save a set of apps and their arrangement, then select its name to open a fresh copy. An occupied workspace is left untouched; the scene opens on the next empty workspace.
+
+Hover a scene to rename it with the pencil, update it from the current workspace with the refresh icon, or delete it with the trash icon. Tiling, floating and scrolling modes are saved with window positions and sizes. Chrome and Chromium tab URLs and Spotify playlist links are included when available; private browser windows, unsaved app contents and playback positions are not captured. Spotify only supports one window, so close its existing window before opening a scene containing it.
+
+Turning Scenes off hides the bar button and keeps your scenes.
