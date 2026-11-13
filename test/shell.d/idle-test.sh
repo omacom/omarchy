@@ -40,9 +40,13 @@ qml_fixture_scratch
 trap 'qml_fixture_cleanup; rm -rf "$test_tmp"' EXIT
 
 # The service acts on the session once it goes idle; these keep it to itself.
-for stub in omarchy-shell omarchy-launch-screensaver omarchy-system-lock omarchy-system-wake; do
+for stub in omarchy-shell omarchy-launch-screensaver omarchy-system-lock omarchy-system-wake pkill; do
   printf '#!/bin/bash\n' >"$QML_FIXTURE_TMP/bin/$stub"
   chmod +x "$QML_FIXTURE_TMP/bin/$stub"
 done
+# It runs them under `bash -lc`, and a login shell resets PATH from
+# /etc/omarchy.conf, which would put the real commands back ahead of the stubs.
+printf '#!/bin/bash\n[[ ${1:-} == "-lc" ]] && shift && set -- -c "$@"\nexec /bin/bash "$@"\n' >"$QML_FIXTURE_TMP/bin/bash"
+chmod +x "$QML_FIXTURE_TMP/bin/bash"
 
-run_qml_fixture idle-service "idle service keeps reporting idle when its timings change on a running monitor" Commons
+run_qml_fixture idle-service "idle service keeps reporting idle when its timings change on a running monitor, and applies them once the user is back" Commons
