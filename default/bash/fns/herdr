@@ -112,7 +112,8 @@ hsl() {
   [[ -z $HERDR_PANE_ID ]] && { echo "You must start herdr to use hsl."; return 1; }
 
   local count="$1"
-  local cmd="$2"
+  shift
+  local cmd="$*"
   local current_dir="${PWD}"
   local -a columns panes
 
