@@ -43,6 +43,8 @@ assertEqual(whole.tools.map((t) => t.name).join(','), 'claude,pi', 'mise upgrade
 assertEqual([whole.step, whole.exit, whole.errors.length].join(','), 'apps,0,0', 'a clean run ends in apps with exit 0')
 assertEqual(whole.reboot, 'Linux kernel has been updated. Reboot?', 'the unattended reboot notice becomes a restart offer')
 assertEqual(U.progress(whole), 1, 'a finished update is all the way there')
+// The heading omarchy-update-keyring prints today; the step was renamed upstream once already.
+assertEqual(U.feed(U.create(), '\x1b[32m\nUpdate signing keys\x1b[0m\n').activity, 'keyring', 'the signing keys heading is noticed')
 let last = 0
 for (const [i, part] of parts.entries()) {
   const p = U.progress(feedAll(parts.slice(0, i + 1)))
