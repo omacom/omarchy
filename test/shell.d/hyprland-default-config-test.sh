@@ -127,7 +127,7 @@ fresh_home="$tmpdir/fresh-home"
 mkdir -p "$fresh_home"
 fresh_output=$(run_application_bindings "$fresh_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$fresh_output" || fail "default application bindings include essentials"
-grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
+grep -Fq $'SUPER + SHIFT + ALT + A	Grok' <<<"$fresh_output" || fail "default application bindings include preinstalled web apps"
 grep -Fq $'SUPER + SHIFT + Q	Calculator' <<<"$fresh_output" || fail "default application bindings include the preinstalled calculator"
 grep -Fq $'XF86Calculator	Calculator' <<<"$fresh_output" || fail "default application bindings include the calculator hardware key"
 pass "default application bindings load from package defaults"
@@ -137,7 +137,7 @@ mkdir -p "$removed_home/.local/state/omarchy"
 touch "$removed_home/.local/state/omarchy/preinstalls-removed"
 removed_output=$(run_omarchy_bindings "$removed_home")
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$removed_output" || fail "preinstall removal keeps essential bindings"
-if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$removed_output"; then
+if grep -Fq $'SUPER + SHIFT + ALT + A	Grok' <<<"$removed_output"; then
   fail "preinstall removal skips preinstalled web app bindings"
 fi
 if grep -Fq $'	Calculator' <<<"$removed_output"; then
@@ -149,7 +149,7 @@ variable_home="$tmpdir/variable-home"
 mkdir -p "$variable_home"
 variable_output=$(run_omarchy_bindings "$variable_home" 'omarchy_preinstalled_bindings = false')
 grep -Fq $'SUPER + RETURN	Terminal' <<<"$variable_output" || fail "preinstalled binding variable keeps essential bindings"
-if grep -Fq $'SUPER + SHIFT + A	ChatGPT' <<<"$variable_output"; then
+if grep -Fq $'SUPER + SHIFT + ALT + A	Grok' <<<"$variable_output"; then
   fail "preinstalled binding variable skips optional application bindings"
 fi
 if grep -Fq $'	Calculator' <<<"$variable_output"; then
