@@ -179,6 +179,22 @@ function fileMeta(file, nowMs, tr, fmt) {
   return parts.join(" · ")
 }
 
+function findTrayItem(items, passiveStatus) {
+  if (!items) return null
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i]
+    if (!item) continue
+    if (passiveStatus !== undefined && item.status === passiveStatus) continue
+    var id = String(item.id || "").toLowerCase()
+    var title = String(item.title || "").toLowerCase()
+    var tooltip = String(item.tooltipTitle || "").toLowerCase()
+    if (id.indexOf("dropbox") !== -1 || title.indexOf("dropbox") !== -1 || tooltip.indexOf("dropbox") !== -1) {
+      return item
+    }
+  }
+  return null
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     parseStatus: parseStatus,
@@ -192,6 +208,7 @@ if (typeof module !== "undefined") {
     formatPercent: formatPercent,
     usageText: usageText,
     relativeTime: relativeTime,
-    fileMeta: fileMeta
+    fileMeta: fileMeta,
+    findTrayItem: findTrayItem
   }
 }

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.SystemTray
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -140,10 +141,46 @@ Panel {
     }
   }
 
+  function open() {
+    trayMenu.open = false
+    root.controller.show()
+  }
+
+  function close() {
+    trayMenu.open = false
+    root.controller.hide()
+  }
+
+  function closeForPopoutSwitch() {
+    popoutSwitchClosing = true
+    root.close()
+    Qt.callLater(function() { popoutSwitchClosing = false })
+  }
+
+  function toggle() {
+    if (root.opened) root.close()
+    else root.open()
+  }
+
+  function toggleTrayMenu() {
+    if (trayMenu.open) {
+      trayMenu.open = false
+      return
+    }
+    var item = Model.findTrayItem(SystemTray.items.values, Status.Passive)
+    if (!item) {
+      dropbox.refresh()
+      return
+    }
+    if (root.opened) root.controller.hide()
+    if (!trayMenu.openFor(item, button, null)) dropbox.refresh()
+  }
+
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
   onOpenedChanged: if (opened) {
+    trayMenu.open = false
     cursorActive = false
     if (panelFlick) panelFlick.contentY = 0
     dropbox.refresh()
@@ -171,6 +208,7 @@ Panel {
     function show(): void { root.open() }
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
+    function toggleMenu(): string { root.toggleTrayMenu(); return "ok" }
     function refresh(): string { dropbox.refresh(); return "ok" }
     function login(): string { dropbox.login(); return "ok" }
     function status(): string { return dropbox.statusText }
@@ -193,10 +231,19 @@ Panel {
       }
     }
     onPressed: function(buttonCode) {
-      if (buttonCode === Qt.RightButton) dropbox.refresh()
+      if (buttonCode === Qt.RightButton) root.toggleTrayMenu()
       else if (buttonCode === Qt.MiddleButton) dropbox.login()
       else root.toggle()
     }
+  }
+
+  TrayMenuPopup {
+    id: trayMenu
+    anchorItem: button
+    owner: root
+    bar: root.bar
+    foreground: root.foreground
+    fontFamily: root.fontFamily
   }
 
   KeyboardPanel {

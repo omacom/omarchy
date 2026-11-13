@@ -48,6 +48,8 @@ ready="$TMPDIR/ready"
 qs_log="$TMPDIR/quickshell.log"
 mock_log="$TMPDIR/mock-sni.log"
 mkdir -p "$config_dir" "$TMPDIR/home"
+ln -s "$ROOT/shell/Ui" "$config_dir/Ui"
+ln -s "$ROOT/shell/Commons" "$config_dir/Commons"
 cp "$SHELL_TEST_DIR/fixtures/tray-menu-activation/shell.qml" "$config_dir/shell.qml"
 
 OMARCHY_PATH="$ROOT" \
