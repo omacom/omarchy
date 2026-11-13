@@ -120,7 +120,27 @@ pass "webapp remove reaches a nested legacy launcher"
 # Removing by name on a machine with no applications directory yet must stay
 # quiet: omarchy-remove-gaming-xbox-cloud calls it without hiding stderr.
 noise=$(HOME="$tmp_dir/empty" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
-  "$ROOT/bin/omarchy-webapp-remove" "Xbox Cloud Gaming" 2>&1 >/dev/null)
+  "$ROOT/bin/omarchy-webapp-remove" "Xbox Cloud Gaming" 2>&1 >/dev/null) &&
+  fail "webapp remove refuses a name with no applications directory"
 [[ -n $noise ]] &&
   fail "webapp remove stays quiet with no applications directory" "$noise"
 pass "webapp remove stays quiet when there is no applications directory"
+
+# A name that is not an installed web app or TUI used to rebuild a path from the
+# name and delete whatever launcher sat there, then report it removed.
+cat >"$apps_dir/Notes.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Notes
+Exec=notes
+Type=Application
+DESKTOP
+for remover in omarchy-webapp-remove omarchy-tui-remove; do
+  output=$(HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
+    "$ROOT/bin/$remover" "Notes" 2>&1) &&
+    fail "$remover refuses a name that is not installed"
+  [[ $output == *"not found: Notes"* ]] ||
+    fail "$remover says the name was not found" "$output"
+  [[ -f "$apps_dir/Notes.desktop" ]] ||
+    fail "$remover leaves a same-named plain launcher alone"
+done
+pass "webapp and TUI remove refuse a name that is not installed"
