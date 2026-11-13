@@ -48,7 +48,7 @@ You can start WhatsApp using `Super + Shift + Alt + G`.
 
 Google Messages, Google Photos, Google Maps, and Google Contacts are all included as web apps too.
 
-You can start Google Messages using `Super + Shift + Ctrl + G`, Google Photos using `Super + Shift + P`, and Google Maps using `Super + Shift + Alt + S`. Google Contacts is available through the app launcher (`Super + Space`).
+You can start Google Messages using `Super + Shift + Ctrl + G`, Google Photos using `Super + Shift + P`, and Google Maps using `Super + Shift + S`. Google Contacts is available through the app launcher (`Super + Space`).
 
 ## X
 
@@ -88,4 +88,4 @@ To keep work sign-ins separate, append a browser data directory to each launcher
 Exec=omarchy-launch-webapp "https://teams.cloud.microsoft/" --user-data-dir=/absolute/path/to/work-browser-profile
 ```
 
-Replace the example directory with an absolute path of your choice and use the same path for all six launchers to share work sign-ins between them. The web apps use Omarchy's selected supported browser, falling back to Chromium when the default browser is unsupported.
+Replace the example directory with an absolute path of your choice and use the same path for all six launchers to share work sign-ins between them. The web apps use Omarchy's selected supported browser, falling back to Chrome when the default browser is unsupported.

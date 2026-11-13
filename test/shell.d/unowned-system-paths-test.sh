@@ -26,9 +26,6 @@ root = Path(sys.argv[1])
 
 # Paths Omarchy writes into /usr that no package owns, with the reason.
 allowed = {
-  # Symlinks into another package's icon theme; owning them would mean owning
-  # paths inside Yaru.
-  "/usr/share/icons/Yaru/scalable/actions",
   # Hardware-conditional sleep hooks, installed only on the machines that need
   # them so the hook does not exist where it does not apply.
   "/usr/lib/systemd/system-sleep",

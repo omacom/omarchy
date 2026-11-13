@@ -8,11 +8,11 @@
   "learn": {
     "label": "Learn"
   },
+  "appearance": {
+    "label": "Appearance"
+  },
   "trigger": {
     "label": "Trigger"
-  },
-  "style": {
-    "label": "Style"
   },
   "setup": {
     "label": "Setup"
@@ -80,186 +80,249 @@
   "learn.community": {
     "label": "Community"
   },
-  "trigger.appearance": {
-    "label": "Appearance"
+  "appearance.theme": {
+    "label": "Theme"
   },
-  "trigger.appearance.animations": {
-    "label": "Animations"
+  "appearance.background": {
+    "label": "Background"
   },
-  "trigger.appearance.top-bar": {
+  "appearance.font": {
+    "label": "Font"
+  },
+  "appearance.top-bar": {
     "label": "Menu Bar"
   },
-  "trigger.appearance.top-bar.hide": {
+  "appearance.top-bar.hide": {
     "label": "Hide Bar"
   },
-  "trigger.appearance.top-bar.show": {
+  "appearance.top-bar.show": {
     "label": "Show Bar"
   },
-  "trigger.appearance.top-bar.position": {
+  "appearance.top-bar.position": {
     "label": "Position Bar"
   },
-  "trigger.appearance.top-bar.background": {
+  "appearance.top-bar.background": {
     "label": "Bar Background"
   },
-  "trigger.appearance.top-bar.background.opaque": {
+  "appearance.top-bar.background.opaque": {
     "label": "Opaque Bar"
   },
-  "trigger.appearance.top-bar.background.glassy": {
+  "appearance.top-bar.background.glassy": {
     "label": "Glassy Bar"
   },
-  "trigger.appearance.top-bar.background.clear": {
+  "appearance.top-bar.background.clear": {
     "label": "Clear Bar"
   },
-  "trigger.appearance.top-bar.indicators": {
+  "appearance.top-bar.indicators": {
     "label": "Bar Indicators"
   },
-  "trigger.appearance.top-bar.indicators.battery-percentage": {
-    "label": "Battery Percentage"
+  "appearance.top-bar.indicators.battery-percentage-on": {
+    "label": "Show Battery %"
   },
-  "trigger.appearance.top-bar.indicators.clock": {
+  "appearance.top-bar.indicators.battery-percentage-off": {
+    "label": "Hide Battery %"
+  },
+  "appearance.top-bar.indicators.clock": {
     "label": "Clock"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-24h": {
+  "appearance.top-bar.indicators.clock.sunday-24h": {
     "label": "Sunday 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-12h": {
+  "appearance.top-bar.indicators.clock.sunday-12h": {
     "label": "Sunday 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-24h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-24h": {
     "label": "Sunday 14:30:05"
   },
-  "trigger.appearance.top-bar.indicators.clock.sunday-seconds-12h": {
+  "appearance.top-bar.indicators.clock.sunday-seconds-12h": {
     "label": "Sunday 2:30:05 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-24h": {
+  "appearance.top-bar.indicators.clock.time-24h": {
     "label": "14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.time-12h": {
+  "appearance.top-bar.indicators.clock.time-12h": {
     "label": "2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-24h": {
+  "appearance.top-bar.indicators.clock.date-24h": {
     "label": "Sun 3 May 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.date-12h": {
+  "appearance.top-bar.indicators.clock.date-12h": {
     "label": "Sun 3 May 2:30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.week": {
+  "appearance.top-bar.indicators.clock.week": {
     "label": "3 May W18 2026"
   },
-  "trigger.appearance.top-bar.indicators.clock.iso": {
+  "appearance.top-bar.indicators.clock.iso": {
     "label": "2026-05-03 14:30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-24h": {
+  "appearance.top-bar.indicators.clock.stacked-24h": {
     "label": "14 — 30"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-12h": {
+  "appearance.top-bar.indicators.clock.stacked-12h": {
     "label": "2 — 30 PM"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-date": {
+  "appearance.top-bar.indicators.clock.stacked-date": {
     "label": "03 May W18 '26"
   },
-  "trigger.appearance.top-bar.indicators.clock.stacked-time": {
+  "appearance.top-bar.indicators.clock.stacked-time": {
     "label": "14 30"
   },
-  "trigger.appearance.top-bar.position.top": {
+  "appearance.top-bar.position.top": {
     "label": "Top Bar"
   },
-  "trigger.appearance.top-bar.position.bottom": {
+  "appearance.top-bar.position.bottom": {
     "label": "Bottom Bar"
   },
-  "trigger.appearance.top-bar.position.left": {
+  "appearance.top-bar.position.left": {
     "label": "Left Bar"
   },
-  "trigger.appearance.top-bar.position.right": {
+  "appearance.top-bar.position.right": {
     "label": "Right Bar"
   },
-  "trigger.appearance.dock": {
-    "label": "Dock"
+  "appearance.windows": {
+    "label": "Windows"
   },
-  "trigger.appearance.dock.autohide": {
-    "label": "Auto-hide Dock"
+  "appearance.windows.gaps-on": {
+    "label": "Window Gaps On"
   },
-  "trigger.appearance.dock.always-on": {
-    "label": "Always-on Dock"
+  "appearance.windows.gaps-off": {
+    "label": "Window Gaps Off"
   },
-  "trigger.appearance.dock.position": {
-    "label": "Dock Position"
-  },
-  "trigger.appearance.dock.position.top": {
-    "label": "Top Dock"
-  },
-  "trigger.appearance.dock.position.bottom": {
-    "label": "Bottom Dock"
-  },
-  "trigger.appearance.dock.position.left": {
-    "label": "Left Dock"
-  },
-  "trigger.appearance.dock.position.right": {
-    "label": "Right Dock"
-  },
-  "trigger.appearance.window-gaps": {
-    "label": "Window Gaps"
-  },
-  "trigger.appearance.window-corners": {
+  "appearance.windows.corners": {
     "label": "Window Corners"
   },
-  "trigger.appearance.window-corners.theme": {
+  "appearance.windows.corners.theme": {
     "label": "Theme Corners"
   },
-  "trigger.appearance.window-corners.sharp": {
+  "appearance.windows.corners.sharp": {
     "label": "Sharp Corners"
   },
-  "trigger.appearance.window-corners.rounded": {
+  "appearance.windows.corners.rounded": {
     "label": "Rounded Corners"
   },
-  "trigger.appearance.window-transparency": {
+  "appearance.windows.transparency": {
     "label": "Window Opacity"
   },
-  "trigger.appearance.window-transparency.opaque": {
+  "appearance.windows.transparency.opaque": {
     "label": "Opaque Windows"
   },
-  "trigger.appearance.window-transparency.transparent": {
+  "appearance.windows.transparency.transparent": {
     "label": "Transparent Windows"
   },
-  "trigger.appearance.window-transparency.glassy": {
+  "appearance.windows.transparency.glassy": {
     "label": "Glassy Windows"
   },
-  "trigger.appearance.one-window-ratio": {
-    "label": "1-Window Ratio"
+  "appearance.windows.one-window-ratio-on": {
+    "label": "1-Window Ratio On"
   },
-  "trigger.appearance.workspace-layout": {
+  "appearance.windows.one-window-ratio-off": {
+    "label": "1-Window Ratio Off"
+  },
+  "appearance.branding": {
+    "label": "Branding"
+  },
+  "appearance.branding.screensaver": {
+    "label": "Screensaver"
+  },
+  "appearance.branding.about": {
+    "label": "About"
+  },
+  "appearance.branding.about.text": {
+    "label": "Edit Text"
+  },
+  "appearance.branding.about.image": {
+    "label": "Set From Image"
+  },
+  "appearance.branding.about.default": {
+    "label": "Restore Default"
+  },
+  "appearance.branding.screensaver.text": {
+    "label": "Edit Text"
+  },
+  "appearance.branding.screensaver.image": {
+    "label": "Set From Image"
+  },
+  "appearance.branding.screensaver.default": {
+    "label": "Restore Default"
+  },
+  "appearance.dock": {
+    "label": "Dock"
+  },
+  "appearance.dock.autohide": {
+    "label": "Auto-hide Dock"
+  },
+  "appearance.dock.always-on": {
+    "label": "Always-on Dock"
+  },
+  "appearance.dock.position": {
+    "label": "Dock Position"
+  },
+  "appearance.dock.position.top": {
+    "label": "Top Dock"
+  },
+  "appearance.dock.position.bottom": {
+    "label": "Bottom Dock"
+  },
+  "appearance.dock.position.left": {
+    "label": "Left Dock"
+  },
+  "appearance.dock.position.right": {
+    "label": "Right Dock"
+  },
+  "appearance.workspace-layout": {
     "label": "Workspace Layout",
     "title": "Default Workspace Layout"
   },
-  "trigger.appearance.workspace-layout.dwindle": {
+  "appearance.workspace-layout.dwindle": {
     "label": "Tiling"
   },
-  "trigger.appearance.workspace-layout.scrolling": {
+  "appearance.workspace-layout.scrolling": {
     "label": "Scrolling"
   },
-  "trigger.appearance.workspace-layout.floating": {
+  "appearance.workspace-layout.floating": {
     "label": "Floating"
   },
-  "trigger.appearance.theme-sync": {
-    "label": "Herdr Theme Sync"
+  "appearance.animations-on": {
+    "label": "Animations On"
+  },
+  "appearance.animations-off": {
+    "label": "Animations Off"
+  },
+  "appearance.unlock": {
+    "label": "Unlock"
   },
   "trigger.toggle": {
     "label": "Toggle"
   },
-  "trigger.toggle.idle-lock": {
+  "trigger.toggle.idle-lock-on": {
     "label": "Stay Awake"
   },
-  "trigger.toggle.notifications": {
-    "label": "Notifications"
+  "trigger.toggle.idle-lock-off": {
+    "label": "Allow Sleep"
   },
-  "trigger.toggle.nightlight": {
-    "label": "Nightlight"
+  "trigger.toggle.notifications-on": {
+    "label": "Notifications On"
   },
-  "trigger.toggle.screensaver": {
-    "label": "Screensaver"
+  "trigger.toggle.notifications-off": {
+    "label": "Silence Notifications"
   },
-  "trigger.toggle.crash-capture": {
-    "label": "Crash Capture"
+  "trigger.toggle.nightlight-on": {
+    "label": "Nightlight On"
+  },
+  "trigger.toggle.nightlight-off": {
+    "label": "Nightlight Off"
+  },
+  "trigger.toggle.screensaver-on": {
+    "label": "Screensaver On"
+  },
+  "trigger.toggle.screensaver-off": {
+    "label": "Screensaver Off"
+  },
+  "trigger.toggle.crash-capture-on": {
+    "label": "Crash Capture On"
+  },
+  "trigger.toggle.crash-capture-off": {
+    "label": "Crash Capture Off"
   },
   "trigger.emoji": {
     "label": "Emoji"
@@ -315,17 +378,29 @@
   "trigger.tests": {
     "label": "Speed Test"
   },
-  "trigger.hardware.laptop-display": {
-    "label": "Laptop Display"
+  "trigger.hardware.laptop-display-on": {
+    "label": "Laptop Display On"
   },
-  "trigger.hardware.mirror-display": {
-    "label": "Mirror Display"
+  "trigger.hardware.laptop-display-off": {
+    "label": "Laptop Display Off"
   },
-  "trigger.hardware.hybrid-gpu": {
-    "label": "Hybrid GPU"
+  "trigger.hardware.mirror-display-on": {
+    "label": "Display Mirroring On"
   },
-  "trigger.hardware.touchpad": {
-    "label": "Touchpad"
+  "trigger.hardware.mirror-display-off": {
+    "label": "Display Mirroring Off"
+  },
+  "trigger.hardware.hybrid-gpu-on": {
+    "label": "Switch to Hybrid GPU"
+  },
+  "trigger.hardware.hybrid-gpu-off": {
+    "label": "Switch to Integrated GPU"
+  },
+  "trigger.hardware.touchpad-on": {
+    "label": "Enable Touchpad"
+  },
+  "trigger.hardware.touchpad-off": {
+    "label": "Disable Touchpad"
   },
   "trigger.hardware.touchpad-haptics": {
     "label": "Touchpad Haptics"
@@ -339,8 +414,11 @@
   "trigger.hardware.touchpad-haptics.high": {
     "label": "high"
   },
-  "trigger.hardware.touchscreen": {
-    "label": "Touchscreen"
+  "trigger.hardware.touchscreen-on": {
+    "label": "Enable Touchscreen"
+  },
+  "trigger.hardware.touchscreen-off": {
+    "label": "Disable Touchscreen"
   },
   "trigger.reminder.set": {
     "label": "Set one"
@@ -369,84 +447,20 @@
   "trigger.tests.disk-speedtest": {
     "label": "Disk Speed Test"
   },
-  "style.theme": {
-    "label": "Theme"
+  "setup.keyboard": {
+    "label": "Keyboard"
   },
-  "style.background": {
-    "label": "Background"
-  },
-  "style.unlock": {
-    "label": "Unlock"
-  },
-  "style.font": {
-    "label": "Font"
-  },
-  "style.font.cjk": {
-    "label": "Chinese, Japanese, Korean",
-    "title": "Chinese, Japanese, and Korean Glyphs"
-  },
-  "style.font.cjk.auto": {
-    "label": "Automatic"
-  },
-  "style.font.cjk.jp": {
-    "label": "Japanese"
-  },
-  "style.font.cjk.kr": {
-    "label": "Korean"
-  },
-  "style.font.cjk.sc": {
-    "label": "Simplified Chinese"
-  },
-  "style.font.cjk.tc": {
-    "label": "Taiwan"
-  },
-  "style.font.cjk.hk": {
-    "label": "Hong Kong"
-  },
-  "style.hyprland": {
-    "label": "Hyprland"
-  },
-  "style.screensaver": {
-    "label": "Screensaver"
-  },
-  "style.about": {
-    "label": "About"
-  },
-  "style.about.text": {
-    "label": "Edit Text"
-  },
-  "style.about.image": {
-    "label": "Set From Image"
-  },
-  "style.about.default": {
-    "label": "Restore Default"
-  },
-  "style.screensaver.text": {
-    "label": "Edit Text"
-  },
-  "style.screensaver.image": {
-    "label": "Set From Image"
-  },
-  "style.screensaver.default": {
-    "label": "Restore Default"
-  },
-  "setup.monitors": {
-    "label": "Monitors"
-  },
-  "setup.keybindings": {
+  "setup.keyboard.keybindings": {
     "label": "Keybindings"
+  },
+  "setup.keyboard.inputs": {
+    "label": "Keyboard Inputs"
+  },
+  "setup.keyboard.input-methods": {
+    "label": "Input Methods"
   },
   "setup.input": {
     "label": "Input"
-  },
-  "setup.typing": {
-    "label": "Typing"
-  },
-  "setup.typing.keyboard": {
-    "label": "Keyboard Layouts"
-  },
-  "setup.typing.input": {
-    "label": "Input Methods"
   },
   "setup.language": {
     "label": "Language"
@@ -475,54 +489,84 @@
   "setup.default": {
     "label": "Defaults"
   },
-  "setup.default.agent": {
-    "label": "Agent",
-    "title": "Default Agent"
+  "agent": {
+    "label": "Agent"
   },
-  "setup.default.agent.agy": {
+  "agent.harness": {
+    "label": "Harness",
+    "title": "Default Harness"
+  },
+  "agent.harness.agy": {
     "label": "Antigravity"
   },
-  "setup.default.agent.claude": {
+  "agent.harness.amp": {
+    "label": "Amp"
+  },
+  "agent.harness.claude": {
     "label": "Claude"
   },
-  "setup.default.agent.codex": {
+  "agent.harness.codex": {
     "label": "Codex"
   },
-  "setup.default.agent.copilot": {
+  "agent.harness.commandcode": {
+    "label": "Command Code"
+  },
+  "agent.harness.copilot": {
     "label": "Copilot"
   },
-  "setup.default.agent.crush": {
+  "agent.harness.crush": {
     "label": "Crush"
   },
-  "setup.default.agent.cursor-agent": {
+  "agent.harness.cursor-agent": {
     "label": "Cursor CLI"
   },
-  "setup.default.agent.grok": {
+  "agent.harness.devin": {
+    "label": "Devin CLI"
+  },
+  "agent.harness.dsh": {
+    "label": "DeepSeek Harness"
+  },
+  "agent.harness.freebuff": {
+    "label": "Freebuff"
+  },
+  "agent.harness.grok": {
     "label": "Grok"
   },
-  "setup.default.agent.hermes": {
+  "agent.harness.hermes": {
     "label": "Hermes"
   },
-  "setup.default.agent.kimi": {
+  "agent.harness.kilo": {
+    "label": "Kilo"
+  },
+  "agent.harness.kimi": {
     "label": "Kimi"
   },
-  "setup.default.agent.muse": {
+  "agent.harness.kiro-cli": {
+    "label": "Kiro CLI"
+  },
+  "agent.harness.mcode": {
+    "label": "MiniMax Code"
+  },
+  "agent.harness.muse": {
     "label": "Muse Code"
   },
-  "setup.default.agent.omp": {
+  "agent.harness.omp": {
     "label": "omp"
   },
-  "setup.default.agent.openclaw": {
+  "agent.harness.openclaw": {
     "label": "OpenClaw"
   },
-  "setup.default.agent.opencode": {
+  "agent.harness.opencode": {
     "label": "OpenCode"
   },
-  "setup.default.agent.ori": {
+  "agent.harness.ori": {
     "label": "Ori"
   },
-  "setup.default.agent.pi": {
+  "agent.harness.pi": {
     "label": "Pi"
+  },
+  "agent.harness.qwen": {
+    "label": "Qwen Code"
   },
   "setup.default.browser": {
     "label": "Browser",
@@ -553,6 +597,9 @@
     "label": "Dictation",
     "title": "Default Dictation"
   },
+  "setup.default.dictation.hex": {
+    "label": "Hex"
+  },
   "setup.default.dictation.superwhisper": {
     "label": "Superwhisper"
   },
@@ -578,6 +625,9 @@
   "setup.default.editor": {
     "label": "Editor",
     "title": "Default Editor"
+  },
+  "setup.default.editor.plain": {
+    "label": "Plain"
   },
   "setup.default.editor.neovim": {
     "label": "Neovim"
@@ -644,6 +694,9 @@
   },
   "setup.security.passwordless-sudo": {
     "label": "Passwordless Sudo"
+  },
+  "setup.config.git": {
+    "label": "Git"
   },
   "setup.config.hyprland": {
     "label": "Hyprland"
@@ -729,6 +782,9 @@
   "install.preinstalls": {
     "label": "Preinstalls"
   },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
   "install.browser.chrome": {
     "label": "Chrome"
   },
@@ -753,9 +809,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -768,6 +821,9 @@
   "install.service.nordvpn": {
     "label": "NordVPN"
   },
+  "install.service.notion": {
+    "label": "Notion"
+  },
   "install.service.once": {
     "label": "ONCE"
   },
@@ -776,9 +832,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium Account"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -813,6 +866,9 @@
   "install.terminal.kitty": {
     "label": "Kitty"
   },
+  "install.ai.amp": {
+    "label": "Amp Desktop"
+  },
   "install.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
@@ -821,6 +877,9 @@
   },
   "install.ai.grok-bot": {
     "label": "Grok Bot"
+  },
+  "install.ai.herdr": {
+    "label": "Herdr Desktop"
   },
   "install.ai.hermes": {
     "label": "Hermes Desktop"
@@ -857,6 +916,9 @@
   },
   "install.gaming.xbox-controllers": {
     "label": "Xbox Controllers"
+  },
+  "install.gaming.moonlight": {
+    "label": "Moonlight"
   },
   "install.gaming.battlenet": {
     "label": "Battle.net"
@@ -996,6 +1058,9 @@
   "remove.ai.hermes": {
     "label": "Hermes Desktop"
   },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
   "remove.browser.chrome": {
     "label": "Chrome"
   },
@@ -1014,6 +1079,9 @@
   "remove.browser.zen": {
     "label": "Zen"
   },
+  "remove.service.1password": {
+    "label": "1Password"
+  },
   "remove.service.dropbox": {
     "label": "Dropbox"
   },
@@ -1026,11 +1094,17 @@
   "remove.service.ssh-agent": {
     "label": "SSH Agent"
   },
+  "remove.ai.amp": {
+    "label": "Amp Desktop"
+  },
   "remove.ai.chatgpt": {
     "label": "ChatGPT Desktop"
   },
   "remove.ai.claude": {
     "label": "Claude Desktop"
+  },
+  "remove.dictation.hex": {
+    "label": "Hex"
   },
   "remove.dictation.superwhisper": {
     "label": "Superwhisper"
@@ -1073,6 +1147,9 @@
   },
   "remove.gaming.xbox-controllers": {
     "label": "Xbox Controllers (󰂯)"
+  },
+  "remove.gaming.moonlight": {
+    "label": "Moonlight"
   },
   "remove.gaming.battlenet": {
     "label": "Battle.net"
@@ -1155,6 +1232,9 @@
   "update.channel": {
     "label": "Channel"
   },
+  "update.kernel": {
+    "label": "Kernel"
+  },
   "update.config": {
     "label": "Config",
     "title": "Reset to default"
@@ -1232,5 +1312,20 @@
   },
   "update.password.user": {
     "label": "User"
+  },
+  "agent.instructions": {
+    "label": "Instructions"
+  },
+  "agent.make": {
+    "label": "Make something"
+  },
+  "agent.make.theme": {
+    "label": "Make a theme"
+  },
+  "agent.make.plugin": {
+    "label": "Make a plugin"
+  },
+  "agent.make.app": {
+    "label": "Make an app"
   }
 }
