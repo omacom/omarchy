@@ -883,10 +883,13 @@ Panel {
 
   function checkActionCompletion(network) {
     if (!network) return
+    var settled = network.connected && !network.stateChanging
+    // A prompt only opens for a network that is not connected, so once it is
+    // there is nothing left to ask, whether or not its error is still showing.
+    if (settled && passwordSsid !== "" && passwordSsid === (network.name || "")) passwordSsid = ""
     // NetworkManager can connect a network on its own after a panel connect to
     // it failed; only a failed connect, since a timed-out disconnect stays connected.
-    if (network.connected && !network.stateChanging && failureKind === "connect" && failureReason !== "" && failureSsid === (network.name || "")) {
-      if (passwordSsid === failureSsid) passwordSsid = ""
+    if (settled && failureKind === "connect" && failureReason !== "" && failureSsid === (network.name || "")) {
       failureSsid = ""
       failureReason = ""
     }

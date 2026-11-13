@@ -138,6 +138,12 @@ ShellRoot {
     function() {
       check(panel.failureReason === "", "the failure clears once NetworkManager connects that network on its own")
       check(panel.passwordSsid === "", "the reprompt for that network closes with it")
+      // The row's failureTimer clears the error two seconds into a reprompt.
+      panel.openPasswordPrompt("Home")
+      home.connected = true
+    },
+    function() {
+      check(panel.passwordSsid === "", "a prompt closes once its network connects, with no error left behind it")
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()
     }
