@@ -7,7 +7,35 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 export OMARCHY_PATH="$ROOT"
 
 TMPDIR=$(mktemp -d)
-# Retain fixtures for inspection without recursive cleanup.
+readonly dock_test_dir="$TMPDIR"
+
+cleanup_dock_test() {
+  if [[ ${OMARCHY_KEEP_TEST_FIXTURES:-0} == "1" ]]; then
+    printf 'Dock test fixtures kept at %s\n' "$dock_test_dir" >&2
+    return
+  fi
+
+  # Remove only files this test creates. Never traverse directory symlinks or
+  # recursively delete a tree; unexpected entries are left for inspection.
+  local dir
+  for dir in "$dock_test_dir" "$dock_test_dir/bin" "$dock_test_dir/home" \
+    "$dock_test_dir/home/.config" "$dock_test_dir/home/.config/omarchy"; do
+    if [[ -L $dir || ( -e $dir && ! -d $dir ) ]]; then
+      printf 'Skipping unsafe dock fixture cleanup: %s\n' "$dir" >&2
+      return
+    fi
+  done
+  rm -f -- "$dock_test_dir/hyprctl.log" "$dock_test_dir/bin/omarchy-shell" \
+    "$dock_test_dir/bin/hyprctl" "$dock_test_dir/bin/omarchy-hyprland-workspace-layout-current" \
+    "$dock_test_dir/home/.config/omarchy/shell.json" || return
+  for dir in "$dock_test_dir/home/.config/omarchy" "$dock_test_dir/home/.config" \
+    "$dock_test_dir/home" "$dock_test_dir/bin"; do
+    [[ ! -d $dir ]] || rmdir -- "$dir" 2>/dev/null || true
+  done
+  rmdir -- "$dock_test_dir" 2>/dev/null ||
+    printf 'Unexpected dock fixture entries kept at %s\n' "$dock_test_dir" >&2
+}
+trap cleanup_dock_test EXIT
 
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
