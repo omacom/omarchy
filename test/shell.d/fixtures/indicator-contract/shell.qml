@@ -46,9 +46,9 @@ ShellRoot {
 
   QtObject {
     id: nightlightService
-    property bool enabled: false
+    property bool nightlightOn: false
     function setNightlight(value) {
-      enabled = !!value
+      nightlightOn = !!value
     }
   }
 
@@ -457,7 +457,7 @@ ShellRoot {
         nightLight.moduleName = "NightLight"
         root.injectBar(nightLight)
         nightLight.triggerPress(Qt.LeftButton)
-        root.assertTrue(nightlightService.enabled === true, "Night Light left click toggles the nightlight service")
+        root.assertTrue(nightlightService.nightlightOn === true, "Night Light left click toggles the nightlight service")
       }
 
       var screenRecording = root.createIndicator("ScreenRecording")
