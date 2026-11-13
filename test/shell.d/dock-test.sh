@@ -174,11 +174,11 @@ dock_glass="$home/.local/state/omarchy/toggles/hypr/dock-glassy.lua"
 [[ $(omarchy_dock background) == "none" ]] || fail "a dock has no background by default"
 omarchy_dock background glassy >/dev/null
 [[ $(omarchy_dock background) == "glassy" && -f $dock_glass ]] || fail "a glassy dock turns on Hyprland's blur behind it"
-grep -qx 'reload' "$TMPDIR/hyprctl.log" || fail "a glassy dock reloads Hyprland"
+grep -qw 'reload' "$TMPDIR/hyprctl.log" || fail "a glassy dock reloads Hyprland"
 : >"$TMPDIR/hyprctl.log"
 omarchy_dock background opaque >/dev/null
 [[ $(omarchy_dock background) == "opaque" && ! -f $dock_glass ]] || fail "an opaque dock turns the blur off again"
-grep -qx 'reload' "$TMPDIR/hyprctl.log" || fail "turning the dock's blur off reloads Hyprland"
+grep -qw 'reload' "$TMPDIR/hyprctl.log" || fail "turning the dock's blur off reloads Hyprland"
 : >"$TMPDIR/hyprctl.log"
 omarchy_dock background none >/dev/null
 [[ $(omarchy_dock background) == "none" && ! -s $TMPDIR/hyprctl.log ]] || fail "Hyprland reloads only when the dock's glass changes"

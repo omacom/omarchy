@@ -110,7 +110,7 @@ sync_glass() {
     rm -f "$flag" || return 1
   fi
 
-  hyprctl reload >/dev/null 2>&1 || true
+  omarchy-restart-hyprctl
 }
 
 cmd_pinned() {
