@@ -158,7 +158,11 @@ BarWidget {
     text: root.vertical ? "" : root.displayText
     labelVisible: !root.vertical
     hasVisualContent: root.vertical ? root.verticalLines.length > 0 : text !== ""
-    fixedHeight: root.vertical ? root.verticalLines.length * Style.bar.iconSlot : -1
+    // Each stacked line already fills an icon slot, which holds the default
+    // padding; a larger verticalPadding adds the difference above and below.
+    fixedHeight: root.vertical
+      ? root.verticalLines.length * Style.bar.iconSlot + Math.max(0, scaledVerticalPadding - Style.spaceReal(8.75)) * 2
+      : -1
     fontFamily: String(root.setting("fontFamily", "")) || (root.bar ? root.bar.fontFamily : Style.font.family)
     fontSize: Number(root.setting("fontSize", Style.font.body))
     horizontalMargin: Number(root.setting("horizontalMargin", 8.75))
@@ -176,7 +180,8 @@ BarWidget {
 
     Column {
       visible: root.vertical
-      anchors.fill: parent
+      width: parent.width
+      anchors.verticalCenter: parent.verticalCenter
 
       Repeater {
         model: root.verticalLines
