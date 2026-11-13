@@ -204,9 +204,18 @@ fi
 grep -Fq '#7aa2f7' "$installed/colors.toml" 2>/dev/null ||
   fail "omarchy-theme-install keeps the installed theme when the clone fails" "$(cat "$test_tmp/out")"
 ! compgen -G "$test_tmp/home/.config/omarchy/.theme-install.*" >/dev/null ||
-  fail "omarchy-theme-install cleans up its backup after a failed clone"
+  fail "omarchy-theme-install cleans up its staging directory after a failed clone"
 
 pass "a failed clone leaves the theme that was already installed"
+
+install_theme "https://github.com/example/omarchy-cool-theme.git" ||
+  fail "omarchy-theme-install reinstalls over an installed theme"
+[[ -d $installed && ! -e $installed/colors.toml ]] ||
+  fail "omarchy-theme-install replaces the installed copy with the new clone"
+! compgen -G "$test_tmp/home/.config/omarchy/.theme-install.*" >/dev/null ||
+  fail "omarchy-theme-install cleans up its staging directory after a clone"
+
+pass "a successful reinstall replaces the installed theme"
 
 # omarchy-theme-remove joins its argument into the path it deletes.
 remove_theme() {

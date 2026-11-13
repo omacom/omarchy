@@ -47,30 +47,22 @@ if ! (LC_ALL=C; [[ $THEME_NAME =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]); then
   exit 1
 fi
 
-# Move an installed copy aside rather than deleting it, so a clone that fails
-# (no network, a mistyped URL) puts it back instead of leaving no theme at all.
-# It waits beside themes/, not in it, because theme list shows every directory
-# in there.
-BACKUP_DIR=""
-if [[ -d $THEME_PATH ]]; then
-  BACKUP_DIR=$(mktemp -d "$HOME/.config/omarchy/.theme-install.XXXXXX")
-  mv "$THEME_PATH" "$BACKUP_DIR/theme"
-fi
+# Clone into a staging directory and replace an installed copy only once the
+# clone exists, so a clone that fails or is interrupted (no network, a mistyped
+# URL, a closed terminal) leaves the installed theme where it was. Staging sits
+# beside themes/, not in it, because theme list shows every directory in there.
+STAGING_DIR=$(mktemp -d "$HOME/.config/omarchy/.theme-install.XXXXXX") || exit 1
+trap 'rm -rf "$STAGING_DIR"' EXIT
+STAGED_PATH="$STAGING_DIR/themes/$THEME_NAME"
 
-# Clone the repo directly to ~/.config/omarchy/themes
-if ! git clone -- "$REPO_URL" "$THEME_PATH"; then
-  rm -rf "$THEME_PATH"
-  if [[ -n $BACKUP_DIR ]]; then
-    mv "$BACKUP_DIR/theme" "$THEME_PATH"
-    rm -rf "$BACKUP_DIR"
-  fi
+if ! git clone -- "$REPO_URL" "$STAGED_PATH"; then
   echo "Error: Failed to clone theme repo."
   exit 1
 fi
 
-if [[ -n $BACKUP_DIR ]]; then
-  rm -rf "$BACKUP_DIR"
-fi
+mkdir -p "$THEMES_DIR"
+rm -rf "$THEME_PATH"
+mv "$STAGED_PATH" "$THEME_PATH"
 
 # Apply the new theme with omarchy-theme-set, which stages only the files an
 # extra theme is allowed to contribute and names anything it dropped.
