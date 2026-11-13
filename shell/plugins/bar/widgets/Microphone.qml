@@ -1,8 +1,8 @@
 import QtQuick
 import Quickshell
 import Quickshell.Services.Pipewire
-import qs.Ui
 import qs.Commons
+import qs.Ui
 
 BarWidget {
   id: root
@@ -22,6 +22,9 @@ BarWidget {
       if (nodes[i] && nodes[i].name) names.push(String(nodes[i].name))
     return names
   }
+
+  // Carry sub-notch wheel deltas (touchpads, high-resolution wheels) between events.
+  property real wheelAccumulator: 0
 
   readonly property var activeStreams: {
     var list = []
@@ -63,13 +66,16 @@ BarWidget {
       else root.toggleMute()
     }
     onWheelMoved: function(delta) {
-      var step = 0.05
+      var wheel = Util.wheelSteps(root.wheelAccumulator, delta)
+      root.wheelAccumulator = wheel.remainder
+      if (wheel.steps === 0) return
+      var step = wheel.steps * 0.05
       if (root.viaWpctl) {
-        if (UntypedInput.known) UntypedInput.setVolume(root.volume + (delta > 0 ? step : -step))
+        if (UntypedInput.known) UntypedInput.setVolume(root.volume + step)
         return
       }
       if (!root.source || !root.source.audio) return
-      root.source.audio.volume = Math.max(0, Math.min(1, root.volume + (delta > 0 ? step : -step)))
+      root.source.audio.volume = Math.max(0, Math.min(1, root.volume + step))
     }
   }
 }
