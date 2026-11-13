@@ -233,6 +233,7 @@
   "clipboard.search": "Search clipboard…",
   "clock.backToToday": "Back to today",
   "clock.born": "BORN",
+  "clock.calendarShortcut": "%1 (Calendar)",
   "clock.dayMonthFormat": "MMMM d",
   "clock.life": "LIFE",
   "clock.liveTo": "LIVE TO",

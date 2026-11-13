@@ -987,6 +987,7 @@ Panel {
     slotSize: Style.bar.statusSlot
     text: "󰇧"
     tooltipText: Commons.I18n.t("elsewhen.worldClock")
+    tooltipBindingDescription: "World clock"
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton || buttonCode === Qt.MiddleButton) root.refresh()
       else root.toggle()
