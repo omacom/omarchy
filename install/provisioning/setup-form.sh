@@ -130,12 +130,15 @@ omarchy_form_defaults=${OMARCHY_FORM_DEFAULTS:-/etc/omarchy/form-defaults}
 if [[ -r $omarchy_form_defaults ]]; then
   while IFS='=' read -r omarchy_form_key omarchy_form_value; do
     case "$omarchy_form_key" in
-      KEYBOARD) : "${OMARCHY_FORM_KEYBOARD_DEFAULT:=$omarchy_form_value}"; omarchy_form_keyboard_preset=$omarchy_form_value ;;
+      KEYBOARD) : "${OMARCHY_FORM_KEYBOARD_DEFAULT:=$omarchy_form_value}" ;;
       TIMEZONE) : "${OMARCHY_FORM_TIMEZONE_DEFAULT:=$omarchy_form_value}" ;;
     esac
   done <"$omarchy_form_defaults"
   unset omarchy_form_key omarchy_form_value
 fi
+# A layout the caller or the install media named: the one a language's own
+# layout does not replace.
+omarchy_form_keyboard_preset=${OMARCHY_FORM_KEYBOARD_DEFAULT:-}
 
 # The form's strings live in Omarchy's CLI catalogs, which the live ISO carries
 # too. The caller names the language in OMARCHY_FORM_LANGUAGE; English fills in.

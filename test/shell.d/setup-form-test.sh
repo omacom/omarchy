@@ -375,12 +375,18 @@ pass "language Esc and Ctrl+C preserve the previous selection"
     fail "German supplies its keyboard and offline timezone"
   omarchy_form_use_language sw
   [[ $OMARCHY_FORM_TIMEZONE_FALLBACK == "UTC" ]] || fail "a language without a country defaults to UTC"
+  # A layout named before the form is loaded is a preset, the caller's ahead of the media's.
   printf 'KEYBOARD=English (US, Dvorak)\n' >"$tmp_dir/language-presets"
+  unset OMARCHY_FORM_KEYBOARD_DEFAULT
   OMARCHY_FORM_DEFAULTS="$tmp_dir/language-presets" source "${SETUP_FORM_SOURCE:-$ROOT/install/provisioning/setup-form.sh}"
   omarchy_form_use_language de
   [[ $OMARCHY_FORM_KEYBOARD_DEFAULT == "English (US, Dvorak)" ]] || fail "the media keyboard preset beats the language default"
+  OMARCHY_FORM_KEYBOARD_DEFAULT=Japanese
+  OMARCHY_FORM_DEFAULTS="$tmp_dir/language-presets" source "${SETUP_FORM_SOURCE:-$ROOT/install/provisioning/setup-form.sh}"
+  omarchy_form_use_language de
+  [[ $OMARCHY_FORM_KEYBOARD_DEFAULT == "Japanese" ]] || fail "the caller's keyboard preset beats the media's and the language's" "$OMARCHY_FORM_KEYBOARD_DEFAULT"
 )
-pass "language defaults supply the keyboard and timezone while respecting the media preset"
+pass "language defaults supply the keyboard and timezone while respecting the caller's and the media's preset"
 
 for code in $OMARCHY_FORM_CONSOLE_LANGUAGES; do
   jq -e --arg code "$code" 'has($code)' "$ROOT/default/i18n/locales.json" >/dev/null || fail "console language $code is registered"
