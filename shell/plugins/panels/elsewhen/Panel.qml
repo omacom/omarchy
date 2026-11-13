@@ -32,7 +32,8 @@ Panel {
 
   // ---- settings
   // `cities` once written; until then the older `zones` string.
-  readonly property var zones: Model.parseCities(setting("cities", null), setting("zones", ""))
+  // Loaded settings may contain a Qt sequence rather than a JavaScript array.
+  readonly property var zones: Model.parseCities(JSON.parse(JSON.stringify(setting("cities", null))), setting("zones", ""))
   readonly property var zoneIds: zones.map(function(z) { return z.id })
   // Never written: the first probe seeds the list around the local zone.
   readonly property bool needsSeed: zones.length === 0
