@@ -1,48 +1,48 @@
 # Navigatsiya
 
-Omarchy dagi hamma narsa klaviatura orqali amalga oshadi — _HAMMA NARSA!_ Tizim ilk bor ishga tushganda, sichqonchaning o'zi bilan tom ma'noda hech narsa qila olmaysiz. Ammo `Super + Space` tugmalarini bosib Omarchy Menu ni ochishingiz mumkin va shu yerdan deyarli hamma narsani qila olasiz.
+Omarchy'da hamma narsa klaviatura orqali sodir bo'ladi — _HAMMA NARSA!_ Tizim birinchi marta ishga tushganda, siz tom ma'noda faqat sichqoncha bilan hech narsa qila olmaysiz. Lekin Omarchy Menu'ni ochish uchun `Super + Space` tugmasini bosishingiz mumkin va shu yerdan deyarli hamma narsani qilishingiz mumkin.
 
-Ammo Omarchy menyusi ko'p hollarda tizimni boshqarishning asosiy usuli bo'lishi ham mo'ljallanmagan. Bundan ham tezroq ishlashimiz mumkin! Eng muhim ilovalarning barchasi bevosita alohida tezkor tugmalarga biriktirilgan. Terminalni `Super + Return` bilan, brauzerni esa `Super + Shift + Return` bilan ishga tushirasiz. Birini ketidan ikkinchisini bajarib ko'ring, shunda Hyprland plitkalarining sehrini amalda ko'rasiz:
+Lekin Omarchy menyusi ko'p hollarda tizimni boshqarishning asosiy usuli bo'lishi ham mo'ljallanmagan. Biz bundan ham tezroq qila olamiz! Eng muhim ilovalarning hammasiga to'g'ridan-to'g'ri alohida tezkor tugmalar biriktirilgan. Siz terminalni `Super + Return` bilan, brauzerni esa `Super + Shift + Return` bilan ishga tushirasiz. Birini ketidan ikkinchisini bosib ko'ring, shunda Hyprland plitkalarining sehrini amalda ko'rasiz:
 
  ![navigation-browser-terminal](images/navigation-browser-terminal.webp)
 
-Keyin `Super + J` tugmalarini bosib, ularni yonma-yon emas, bir-birining ustiga taxlashingiz mumkin:
+Keyin ularni yonma-yon o'rniga bir-birining ustiga taxlash uchun `Super + J` tugmasini bosishingiz mumkin:
 
  ![navigation-stacked](images/navigation-stacked.webp)
 
-Ularni yonma-yon holatga qaytarish uchun yana `Super + J` tugmalarini bosing. Keyin brauzerda turgan holda oynalarni almashtirish uchun `Super + Shift + Arrow Right` tugmalarini bosib ko'ring.
+Ularni yonma-yon holatlariga qaytarish uchun `Super + J` ni yana bosing. Keyin brauzerdaligingizda oynalarni almashtirish uchun `Super + Shift + Arrow Right` ni bosib ko'ring.
 
-Endi Activity monitorini ishga tushirish uchun `Super + Shift + T` tugmalarini bosib ko'ring. U suzuvchi oyna sifatida paydo bo'ladi. Uni `Super + T` yordamida plitka ko'rinishiga o'tkazishingiz mumkin (va yana suzuvchi qilish uchun yana o'sha tugmani bosing). Endi fayl menejerini ochish uchun `Super + Shift + F` tugmalarini bosing. Sizda chiroyli to'rt qismli joylashuv hosil bo'ladi:
+Endi Activity monitorini ishga tushirish uchun `Super + Shift + T` ni bosib ko'ring. U suzuvchi oyna sifatida paydo bo'ladi. Siz `Super + T` yordamida uni plitkali qilishingiz mumkin (uni yana suzuvchi qilish uchun yana shu tugmani bosing). Endi fayl menejerini ochish uchun `Super + Shift + F` ni bosing. Sizda chiroyli to'rt tomonlama joylashuv bo'ladi:
 
  ![navigation-fourway-tiling](images/navigation-fourway-tiling.webp)
 
-Faol bo'lishini xohlagan oynangizga `Super + Arrow` yordamida o'tasiz. Bu fokusni almashtiradi va kursorni yangi ilovaning o'rtasiga olib boradi. Ekranning chetida u o'sha tomondagi monitorga o'tishda davom etadi.
+Siz `Super + Arrow` bilan faol bo'lishini xohlagan oynangiz o'rtasida harakatlanasiz. Bu fokusni almashtiradi va kursorni yangi ilovaning markaziga ko'chiradi. Ekranning chetida u o'sha tomondagi monitorga o'tib ketadi.
 
-Agar `Super + Shift + 2` tugmalarini bossangiz, hozir fokusdagi ilovani ikkinchi ish maydoniga ko'chirasiz. `Super + Shift + 1` uni orqaga qaytaradi. (`Super + Shift + Alt + 2` esa hozir fokusdagi ilovani ikkinchi ish maydoniga o'sha maydonga o'tmasdan ko'chiradi).
+Agar `Super + Shift + 2` ni bossangiz, hozir fokusdagi ilovani ikkinchi ish maydoniga ko'chirasiz. `Super + Shift + 1` uni orqaga ko'chiradi. (Va `Super + Shift + Alt + 2` hozir fokusdagi ilovani ikkinchi ish maydoniga, unga o'tmasdan ko'chiradi).
 
-Bir nechta monitor bo'lganda, har bir monitorning o'zining 1 dan 10 gacha ish maydonlari bo'ladi. `Super + 2` siz turgan monitorning ikkinchi ish maydoniga o'tadi, har bir monitorning yuqori paneli esa o'z ish maydonlarini va u ko'rsatayotgan maydonni aks ettiradi. `Super + Tab` siz turgan monitordagi ish maydonlari bo'ylab aylanib o'tadi. `Super + Shift + Ctrl + Arrows` siz turgan oynani o'sha yo'nalishdagi monitorga, u ko'rsatayotgan ish maydoniga ko'chiradi, `Super + Shift + Alt + Arrows` esa siz turgan ish maydonini o'sha yo'nalishdagi monitorga ko'chiradi, u yerda maydon bo'sh bo'lsa, u o'sha raqamni oladi. Monitorni uzib qo'ysangiz, u o'z ish maydonlarini saqlab qoladi: ular boshqa ekrannikiga qo'shiladi, uning allaqachon mavjud maydonlaridan keyingi raqamlarni oladi va monitor qaytganda eski raqamlari ostiga qaytadi.
+Bittadan ortiq monitorda har bir monitorning o'zining 1 dan 10 gacha bo'lgan ish maydonlari bor. `Super + 2` siz turgan monitorning ikkinchi ish maydoniga o'tadi va har bir monitorning yuqori paneli uning o'z ish maydonlarini va u ko'rsatayotganini ko'rsatadi. `Super + Tab` siz turgan monitordagi ish maydonlari o'rtasida aylanadi. `Super + Shift + Ctrl + Arrows` siz turgan oynani o'sha yo'nalishdagi monitorga, u ko'rsatayotgan ish maydoniga ko'chiradi va `Super + Shift + Alt + Arrows` siz turgan ish maydonini o'sha yo'nalishdagi monitorga ko'chiradi, u yerda bo'sh bo'lsa shu raqamni oladi. Monitor uzilganida o'z ish maydonlarini saqlab qoladi: ular boshqa ekrannikilariga qo'shiladi, unda allaqachon borlaridan keyin raqamlanadi va monitor qaytganda eski raqamlari ostiga qaytadi.
 
-Agar `Super` tugmasini bosib turib sichqoncha bilan oynani bossangiz, uning joylashuvini qayta tartibga solishingiz mumkin. Agar `Super` tugmasini bosib turib sichqonchaning o'ng tugmasidan foydalansangiz, oyna o'lchamini erkin o'zgartirishingiz mumkin.
+Agar `Super` ni bosib turib sichqoncha bilan oynani bossangiz, uning qayerda turishini qayta tartiblay olasiz. Agar `Super` ni bosib turib sichqonchaning o'ng tugmasidan foydalansangiz, oynaning o'lchamini erkin o'zgartira olasiz.
 
-Oynani `Super + W` yoki `Super + Q` bilan yopasiz (barcha oynalarni esa `Ctrl + Alt + Delete` bilan yopasiz).
+Siz oynani `Super + W` yoki `Super + Q` bilan yopasiz (va barcha oynalarni `Ctrl + Alt + Delete` bilan yopasiz).
 
-Shuningdek `Super + F` bilan to'liq ekranga o'tishingiz yoki hatto `Super + Alt + F` bilan shunchaki to'liq kenglikka (yuqori panelni saqlagan holda) o'tishingiz, yoki `Super + Ctrl + F` bilan oyna ichida to'liq ekranga o'tishingiz mumkin (YouTube uchun ayni muddao!).
+Siz shuningdek `Super + F` bilan to'liq ekranga o'tishingiz yoki hatto `Super + Alt + F` bilan faqat to'liq kenglikka (yuqori panelni saqlab) yoki `Super + Ctrl + F` bilan oyna ichidagi to'liq ekranga o'tishingiz mumkin (YouTube uchun yaxshi!).
 
-### Dwindle bilan scrolling joylashuvi
+### Dwindle vs scrolling tartibi
 
-Omarchy ning standart joylashuvi dwindle deb ataladi. U bitta ish maydonida ochgan barcha oynalaringizni doimo ko'rinadigan holda saqlaydi, buning uchun ularni kichraytirishiga to'g'ri kelsa ham.
+Omarchy'ning standart tartibi dwindle deb ataladi. U bitta ish maydonida ochgan barcha oynalaringizni doimo ko'rinadigan qilib saqlaydi, hatto ularni kichraytirishga to'g'ri kelsa ham.
 
  ![navigation-dwindle-layout](images/navigation-dwindle-layout.webp)
 
-Ammo ish maydonini scrolling joylashuviga ham aylantirishni tanlashingiz mumkin, bunda oynalar displeyning ko'rinadigan chetidan tashqarida yonma-yon tiziladi. Bitta ish maydonini ushbu joylashuvga `Super + L` orqali aylantirasiz.
+Lekin siz ish maydonini oynalar yonma-yon, displeyning ko'rinadigan chetidan tashqarida tiziladigan scrolling tartibiga aylantirishni ham tanlashingiz mumkin. Siz bitta ish maydonini `Super + L` orqali shu tartibga aylantirasiz.
 
-`Super + L` tugmalarini yana bir bor bosish ish maydonini floating holatiga aylantiradi, bunda oynalar erkin ustma-ust tushadi va ularni o'zingiz joylashtirasiz, uchinchi bosish esa uni dwindle holatiga qaytaradi. `Super + Alt + L` ularni teskari tartibda aylanib o'tadi. Baribir suzuvchi bo'lgan oyna — `Super + T` bilan ajratib olganingiz, yoki har doim suzuvchi bo'lib ochiladigan ilova — ish maydoni plitka holatiga qaytganda ham suzuvchi bo'lib qoladi. Yuqori panel siz turgan ish maydonini uning joylashuvi bilan belgilaydi: dwindle uchun kvadrat, scrolling uchun doira va floating uchun uchburchak. O'sha belgini bosish ham joylashuvni navbat bilan almashtiradi.
+`Super + L` ni yana bosish ish maydonini suzuvchi holatga aylantiradi, bu yerda oynalar erkin ustma-ust tushadi va siz ularni o'zingiz joylashtirasiz, uchinchi marta bosish esa uni dwindle'ga qaytaradi. `Super + Alt + L` ularni teskari tartibda aylanib chiqadi. Baribir suzib yuradigan oyna — `Super + T` bilan chiqarib olganingiz yoki har doim suzuvchi bo'lib ochiladigan ilova — ish maydoni plitkalashga qaytganda suzishda davom etadi. Yuqori panel siz turgan ish maydonini uning tartibi bilan belgilaydi: dwindle uchun kvadrat, scrolling uchun doira va suzuvchi uchun uchburchak. O'sha belgini bosish ham tartibni almashtiradi.
 
  ![navigation-scrolling-layout](images/navigation-scrolling-layout.webp)
 
-Tanlov har bir ish maydoni uchun alohida va saqlanib qoladi. Shunday qilib, 1-ish maydonini brauzerda ishlash uchun dwindle holatida, 2-ish maydonini esa kod uchun scrolling holatida saqlashingiz mumkin va ular qayta ishga tushirilgandan keyin ham shunday holatda qaytadi.
+Tanlov har bir ish maydoni uchun alohida va u saqlanib qoladi. Shunday qilib, siz 1-ish maydonini ko'rib chiqish uchun dwindle'da va 2-ish maydonini kod uchun scrolling'da saqlashingiz mumkin va ular qayta ishga tushirilgandan keyin ham shunday qaytadi.
 
-Agar scrolling joylashuvidan standart sifatida foydalanishni xohlasangiz, buni `~/.config/hypr/looknfeel.lua` faylida sozlashingiz mumkin:
+Agar scrolling tartibini standart sifatida ishlatishni xohlasangiz, uni `~/.config/hypr/looknfeel.lua` da o'rnatishingiz mumkin:
 
 ```lua
 hl.config({
@@ -54,38 +54,38 @@ hl.config({
 
 ### Suzuvchi ish maydonlari
 
-Suzuvchi ish maydoni an'anaviy ish stoli kabi ishlaydi: oynalar ustma-ust tushadi va ularni o'zingiz ko'chirasiz hamda o'lchamini o'zingiz belgilaysiz. Har bir oyna mavzuingiz ranglaridagi sarlavha paneliga ega bo'ladi, unda kichraytirish, kattalashtirish va yopish tugmalari bo'ladi. `Super + M` ham fokusdagi oynani kichraytiradi. Kichraytirilgan oyna dock ichida kutadi; uni qaytarish uchun uning ilovasini bosing. Oynani oldinga chiqarish uchun uni bosing. Uning o'lchamini istalgan chetidan yoki burchagidan o'zgartiring. Yuqori panelni ko'rinadigan holda saqlab oynani kattalashtirish uchun sarlavha panelini ikki marta bosing, eski o'lchamini qaytarish uchun esa yana ikki marta bosing.
+Suzuvchi ish maydoni an'anaviy ish stoli kabi ishlaydi: oynalar ustma-ust tushadi va siz ularni o'zingiz ko'chirasiz va o'lchamini o'zgartirasiz. Har bir oyna mavzuingiz ranglaridagi titlebar'ga ega bo'ladi, unda kichraytirish, kattalashtirish va yopish tugmalari bor. `Super + M` ham fokusdagi oynani kichraytiradi. Kichraytirilgan oyna dock'da kutadi; uni qaytarish uchun ilovasini bosing. Oynani oldinga chiqarish uchun uni bosing. Uni istalgan chetidan yoki burchagidan o'lchamini o'zgartiring. Yuqori panelni ko'rinadigan qilib saqlagan holda oynani kattalashtirish uchun titlebar'ni ikki marta bosing va eski o'lchamini qaytarish uchun yana bosing. Chrome va boshqa Chromium asosidagi brauzerlar, Disks va Document Viewer titlebar'ni o'tkazib yuborib, uning o'rniga o'z sarlavhasidan foydalanadi; `Super + Alt + F` ularni kattalashtiradi va `Super + M` ularni kichraytiradi.
 
-Suzuvchi ish maydoni shuningdek dock ni ham ko'rsatadi, unda mahkamlangan ilovalaringiz, ishlayotgan hamma narsa va apps tugmasi ortidagi barcha ilovalar panjarasi bo'ladi, uni `Super + Alt + Space` hamda Omarchy menyusidagi _Apps_ ham ochadi. Ilovani o'chirib tashlash uchun panjaradagi ilovani o'ng tugma bilan bosing, yoki `Delete` tugmasini bosing. Ilovani ochish yoki uning oynasini oldinga chiqarish uchun uni bosing; uning oynalari bo'ylab aylanib o'tish uchun yana bosing. O'rta tugma bilan bosish yangi oyna ochadi. Belgini ko'chirish uchun uni dock bo'ylab sudrab o'tkazing; ishlayotgan ilovani boshqalar orasiga sudrab kiritish uni o'sha yerda saqlaydi. Ilovani dock da saqlash, undan olib tashlash yoki undan chiqish uchun o'ng tugmani bosing. Dock to'liq ekranli oyna yo'lidan chetga chiqadi. Dock ni boshqa chetga ko'chirish yoki ko'rsatgich uning chetiga yetmaguncha uni yashirib turish uchun apps tugmasini o'ng tugma bilan bosing. Joylashuv shuningdek _Appearance > Dock > Dock Position_ ostida ham bor, `omarchy dock position left` va `omarchy dock autohide on` esa ikkalasini ham terminaldan o'rnatadi. Dock da saqlaydigan ilovalaringiz ishlamayotgan paytda xira ko'rinadi.
+Suzuvchi ish maydoni shuningdek dock'ni ko'rsatadi, unda mahkamlangan ilovalaringiz, ishlayotgan hamma narsa va ilovalar tugmasi orqasidagi har bir ilovaning panjarasi bor, uni `Super + Alt + Space` va Omarchy menyusidagi _Apps_ ham ochadi. Ilovani o'chirib tashlash uchun panjaradagi ilovani o'ng tugma bilan bosing yoki `Delete` ni bosing. Ilovani ochish yoki uning oynasini oldinga chiqarish uchun ilovani bosing; uning oynalari o'rtasida aylanish uchun yana bosing. O'rta tugma bilan bosish yangi oyna ochadi. Belgini ko'chirish uchun uni dock bo'ylab sudrab boring; ishlayotgan ilovani boshqalar orasiga sudrab kiritsangiz u o'sha yerda qoladi. Ilovani dock'da saqlash, uni olib tashlash yoki undan chiqish uchun o'ng tugmani bosing. Dock to'liq ekranli oyna yo'lidan chekinadi. Dock'ni boshqa chetga ko'chirish yoki ko'rsatkich uning chetiga yetguncha yashirinishi uchun ilovalar tugmasini o'ng tugma bilan bosing. Joylashuv shuningdek _Appearance > Dock > Dock Position_ ostida ham bor va `omarchy dock position left` hamda `omarchy dock autohide on` ikkalasini ham terminaldan o'rnatadi. Dock'da saqlagan ilovalaringiz ishlamayotgan vaqtida xira ko'rinadi.
 
-Yangi ish maydonlari va `Super + L` bilan o'z joylashuvini bermagan har qanday ish maydoni standart joylashuvdan foydalanadi. Standartni o'zgartirish oynalari bo'lmagan har bir ish maydonini unga qayta o'rnatadi, oynalari bor maydon esa o'zida bor joylashuvni saqlaydi. Dock ga kichraytirilgan oyna hali ham u tark etgan ish maydonidagi oyna sifatida hisobga olinadi. Uni _Appearance > Workspace Layout_ ostida tanlang: Tiling, Scrolling yoki Floating. `omarchy-hyprland-workspace-layout-default scrolling` uni terminaldan o'rnatadi.
+Yangi ish maydonlari va `Super + L` bilan o'z tartibini bermagan har qanday ish maydoni standart tartibni ishlatadi. Standartni o'zgartirish oynalari bo'lmagan har bir ish maydonini unga qayta o'rnatadi, ustida oynalari bor ish maydoni esa o'zidagi tartibni saqlab qoladi. Dock'ga kichraytirilgan oyna hamon u tark etgan ish maydonidagi oyna sifatida hisoblanadi. Uni _Appearance > Workspace Layout_ ostida tanlang: Tiling, Scrolling yoki Floating. `omarchy-hyprland-workspace-layout-default scrolling` uni terminaldan o'rnatadi.
 
 ### Oynalarni guruhlash
 
-Oynalarni `Super + G` yordamida guruhlash mumkin. Guruhga kirganingizdan so'ng, u faol bo'lgan paytda ishga tushirgan har bir oynangiz guruhga tegishli bo'ladi. Ushbu guruhlangan oynalar orasida `Super + Ctrl + Arrow Left/Right` yordamida harakatlanishingiz mumkin, yoki guruhlangan oynalarga tartib bo'yicha to'g'ridan-to'g'ri o'tish uchun `Super + Alt + 1/2/3/4` dan foydalanishingiz mumkin.
+Oynalarni `Super + G` yordamida guruhlash mumkin. Guruhga kirganingizdan keyin, u faol bo'lguncha ishga tushirgan har bir oynangiz guruhga tegishli bo'ladi. Siz bu guruhlangan oynalar o'rtasida `Super + Ctrl + Arrow Left/Right` yordamida yoki tartib bilan guruhlangan oynalarga to'g'ridan-to'g'ri o'tish uchun `Super + Alt + 1/2/3/4` yordamida harakatlanishingiz mumkin.
 
-Oynani `Super + Alt + G` bilan guruhdan chiqarib yuborishingiz, yoki `Super + G` tugmalarini yana bosib butun guruhni tarqatib yuborishingiz mumkin. Nihoyat, guruhdan tashqaridagi oynalarni `Super + Alt + Arrows` bilan uning ichiga ko'chirishingiz mumkin.
+Siz `Super + Alt + G` bilan oynani guruhlashdan chiqarishingiz yoki `Super + G` ni yana bosib butun guruhni tarqatib yuborishingiz mumkin. Va nihoyat, siz `Super + Alt + Arrows` bilan guruhdan tashqaridagi oynalarni uning ichiga ko'chirishingiz mumkin.
 
-### Oynalarni ajratib chiqarish
+### Oynalarni chiqarib olish
 
-Oynani `Super + O` bilan uning ish maydonidagi ajratilishidan chiqarib olishingiz mumkin. Bu uni qaysi ish maydoniga borsangiz ham siz bilan birga yuradigan suzuvchi oyna sifatida mahkamlaydi. Video pleyerlar va shunga o'xshashlar uchun ajoyib.
+Siz `Super + O` bilan oynani uning ish maydoni taqsimotidan chiqarib olishingiz mumkin. Bu uni qayerga borsangiz ham ish maydoningizda sizga ergashadigan suzuvchi oyna sifatida mahkamlaydi. Video pleyerlar va shunga o'xshashlar uchun ajoyib.
 
  ![navigation-popped-window](images/navigation-popped-window.webp)
 
 ### Scratchpad ish maydoni
 
-Hozir turgan ish maydoningiz ustiga qoplanadigan maxsus to'liq o'lchamli scratchpad ish maydoni bor. Undagi narsalarga `Super + S` yordamida kirasiz, oynalarni u yerga esa `Super + Alt + S` yordamida joylashtirasiz.
+Hozir turgan ish maydoningiz ustiga qoplanadigan maxsus to'liq o'lchamli scratchpad ish maydoni bor. Siz undagi narsalarga `Super + S` yordamida kirasiz va u yerga oynalarni `Super + Alt + S` yordamida joylashtirasiz.
 
-U hozirgi ish maydonini tark etmasdan tezda o'zaro ta'sir qilmoqchi bo'lgan boshqaruv elementlari yoki terminal uchun juda yaxshi ishlaydi.
+U joriy ish maydonini tark etmasdan tezda o'zaro ta'sir qilmoqchi bo'lgan boshqaruv elementlari yoki terminal uchun yaxshi ishlaydi.
 
 ### Quake konsoli
 
-Nihoyat, hozir turgan ish maydoningiz ustiga pastga tushadigan yarim balandlikdagi Quake konsoli bor. Uni `Super + Grave` bilan yoqib-o'chirasiz, u yerga oynani esa `Super + Shift + Grave` yordamida joylashtirasiz.
+Nihoyat, hozir turgan ish maydoningiz ustiga tushadigan yarim balandlikdagi Quake konsoli bor. Uni `Super + Grave` bilan almashtiring va u yerga `Super + Shift + Grave` yordamida oyna joylashtiring.
 
-U standart agentingiz tayyor holatda ochiladi. Konsol bitta oynani ushlab turgan paytda, u ekranni qoplamasdan, o'rtaga joylashgan panel sifatida pastga tushadi. Unga ikkinchi ilovani qo'ying va u yana to'liq kenglikka qaytadi, shunda ikkalasiga yonma-yon joylashish uchun joy bo'ladi.
+U standart agentingiz tayyor holda ochiladi. Konsol bitta oynani ushlab turganida, u ekranni qoplamasdan markazlashtirilgan panel sifatida tushadi. Unga ikkinchi ilovani qo'ying, shunda u to'liq kenglikka qaytadi, shu tariqa ikkalasiga yonma-yon turishga joy bo'ladi.
 
-Oynani scratchpad dan ham, konsoldan ham ko'chirish uchun uni `Super + Shift + 1` kabi tugmalar bilan to'g'ridan-to'g'ri boshqa ish maydoniga yuboring.
+Oynani scratchpad'dan ham, konsoldan ham ko'chirish uchun uni `Super + Shift + 1` kabi narsa bilan to'g'ridan-to'g'ri boshqa ish maydoniga yuboring.
 
 ### Bunga ko'nikish uchun biroz vaqt kerak!
 
-Ish stolingizda shu tarzda harakatlanishga ko'nikishingiz uchun biroz vaqt kerak bo'ladi, ammo ko'nikkaningizdan so'ng an'anaviy sichqoncha bilan boshqariladigan ish stoli tajribasiga qaytish qiyin bo'ladi!
+Ish stolingizda shu tarzda harakatlanishga ko'nikish uchun biroz vaqt kerak bo'ladi, lekin ko'nikkaningizdan keyin an'anaviy sichqoncha bilan boshqariladigan ish stoli tajribasiga qaytish qiyin bo'ladi!

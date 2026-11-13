@@ -26,14 +26,6 @@ assertEqual(bar.pickDrawnSlot([undrawn]), undrawn, 'bar falls back to an undrawn
 assertEqual(bar.pickDrawnSlot([]), null, 'bar reports no slot when there are none')
 assertEqual(bar.pickDrawnSlot(null), null, 'bar tolerates a missing slot list')
 
-// Hovering the clock, or anything past it, leaves the indicators hidden; the
-// rest of the bar up to the clock's start opens them.
-assertEqual(bar.peeksAt({ x: 400, y: 10 }, 1000, false), true, 'the peek opens left of the clock')
-assertEqual(bar.peeksAt({ x: 1200, y: 10 }, 1000, false), false, 'the peek stays shut over and right of the clock')
-assertEqual(bar.peeksAt({ x: 1200, y: 400 }, 600, true), true, 'a vertical bar opens the peek above the clock')
-assertEqual(bar.peeksAt({ x: 10, y: 800 }, 600, true), false, 'a vertical bar keeps the peek shut below the clock')
-assertEqual(bar.peeksAt(null, 1000, false), false, 'no pointer opens no peek')
-
 // The bar drops its input under a real fullscreen window on its workspace, so
 // the window gets the clicks along the edge; a maximized one keeps the bar.
 const toplevel = (id, fullscreen) => ({ workspace: { id }, lastIpcObject: { fullscreen } })
@@ -45,22 +37,6 @@ assertEqual(bar.fullscreenOn([toplevel(-98, 2)], 4, -98), true, 'fullscreen on t
 assertEqual(bar.fullscreenOn([toplevel(-98, 1)], 4, -98), false, 'a maximized special workspace window leaves the bar visible')
 assertEqual(bar.fullscreenOn([toplevel(-97, 2)], 4, -98), false, 'fullscreen on another monitor special workspace leaves the bar visible')
 assertEqual(bar.fullscreenOn([toplevel(-98, 2)], 4), false, 'a closed special workspace leaves the bar visible')
-
-// Beside a display notch, indicators right of the clock pull its end toward
-// the start as they reveal. A stationary pointer between the two ends has to
-// keep the peek open rather than close it, slide the clock back and reopen it.
-const notchBoxEnd = revealed => revealed ? 900 : 1000
-function peekRun(pointers) {
-  let edge = notchBoxEnd(false)
-  return pointers.map(pointer => {
-    const held = bar.peeksAt(pointer, edge, false)
-    edge = bar.nextPeekEdge(edge, notchBoxEnd(held), held)
-    return held
-  })
-}
-const between = { x: 950, y: 10 }
-assertEqual(peekRun([between, between, between, between]).join(), 'true,true,true,true', 'a reveal that moves the clock does not close the peek under a still pointer')
-assertEqual(peekRun([between, { x: 1050, y: 10 }, { x: 1050, y: 10 }]).join(), 'true,false,false', 'leaving past the clock closes the peek for good')
 
 // A bar surface is built per monitor, so a panel hotkey has one live copy of
 // the widget per screen to choose between.

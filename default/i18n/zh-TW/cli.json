@@ -19,6 +19,7 @@
   "agents.homeFailed": "無法為新帳號建立主目錄。",
   "agents.installCliFailed": "%1 CLI 安裝未完成。",
   "agents.installingCli": "安裝 %1 CLI 中…",
+  "agents.instructionsBackedUp": "已將舊的代理程式指令保留為備份",
   "agents.localUnsupported": "沒有代理程式可使用本機模型",
   "agents.localUnsupportedBody": "請安裝 pi 或 OpenCode 以使用本機模型。",
   "agents.loginUnfinished": "登入未完成，因此未新增帳號。",

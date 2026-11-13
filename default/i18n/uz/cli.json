@@ -20,6 +20,7 @@
   "agents.homeFailed": "Yangi hisob uchun bosh katalogni sozlab boʻlmadi.",
   "agents.installCliFailed": "%1 CLI oʻrnatish yakunlanmadi.",
   "agents.installingCli": "%1 CLI oʻrnatilmoqda…",
+  "agents.instructionsBackedUp": "Eski agent koʻrsatmalaringiz zaxira nusxalari sifatida saqlandi",
   "agents.localUnsupported": "Hech bir agent lokal modeldan foydalana olmaydi",
   "agents.localUnsupportedBody": "Lokal modeldan foydalanish uchun pi yoki OpenCode ni oʻrnating.",
   "agents.loginUnfinished": "Kirish yakunlanmadi, hisob qoʻshilmadi.",

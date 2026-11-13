@@ -21,6 +21,7 @@
   "agents.homeFailed": "Neizdevās sagatavot mājvietu jaunajam kontam.",
   "agents.installCliFailed": "%1 CLI instalēšana netika pabeigta.",
   "agents.installingCli": "Instalē %1 CLI…",
+  "agents.instructionsBackedUp": "Jūsu vecās aģenta instrukcijas saglabātas kā rezerves kopijas",
   "agents.localUnsupported": "Neviens aģents nevar izmantot lokālo modeli",
   "agents.localUnsupportedBody": "Instalējiet pi vai OpenCode, lai izmantotu lokālo modeli.",
   "agents.loginUnfinished": "Pieteikšanās netika pabeigta, tāpēc konts netika pievienots.",
