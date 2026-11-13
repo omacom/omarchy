@@ -787,25 +787,32 @@ dispatch_binding() {
   local dispatcher="$1"
   local arg="$2"
 
-  case "$dispatcher" in
-    exec)
-      [[ -n $arg ]] && dispatch_exec_binding "$arg"
-      ;;
-    sendshortcut)
-      [[ -n $arg ]] && dispatch_sendshortcut_binding "$arg"
-      ;;
-    lua)
-      [[ -n $arg ]] && hyprctl dispatch "$arg"
-      ;;
-    "") return 1 ;;
-    *)
-      if [[ -n $arg ]]; then
-        hyprctl dispatch "$dispatcher" "$arg"
-      else
-        hyprctl dispatch "$dispatcher"
-      fi
-      ;;
-  esac
+  # Hyprland 0.57 prints a dispatcher label and the Lua registry index of the
+  # bind's callback. The index is not an argument. Calling that entry runs the
+  # bind. A plain argument, such as workspace "3", still goes through hyprctl.
+  if [[ $arg =~ ^[0-9]+$ && ( $dispatcher == HL.Dispatcher\(* || $dispatcher == function:* || $dispatcher == __lua ) ]]; then
+    hyprctl eval "debug.getregistry()[${arg}]()"
+  else
+    case "$dispatcher" in
+      exec)
+        [[ -n $arg ]] && dispatch_exec_binding "$arg"
+        ;;
+      sendshortcut)
+        [[ -n $arg ]] && dispatch_sendshortcut_binding "$arg"
+        ;;
+      lua)
+        [[ -n $arg ]] && hyprctl dispatch "$arg"
+        ;;
+      "") return 1 ;;
+      *)
+        if [[ -n $arg ]]; then
+          hyprctl dispatch "$dispatcher" "$arg"
+        else
+          hyprctl dispatch "$dispatcher"
+        fi
+        ;;
+    esac
+  fi
 }
 
 if [[ $1 == "--print" || $1 == "-p" ]]; then
