@@ -227,6 +227,9 @@
   "appearance.branding.about": {
     "label": "About"
   },
+  "appearance.branding.unlock": {
+    "label": "Unlock"
+  },
   "appearance.branding.about.text": {
     "label": "Edit Text"
   },
@@ -243,6 +246,12 @@
     "label": "Set From Image"
   },
   "appearance.branding.screensaver.default": {
+    "label": "Restore Default"
+  },
+  "appearance.branding.unlock.screensaver": {
+    "label": "Use Screensaver Art"
+  },
+  "appearance.branding.unlock.default": {
     "label": "Restore Default"
   },
   "appearance.dock": {
