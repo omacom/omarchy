@@ -10,6 +10,9 @@ ShellRoot {
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var failures: []
   property int checks: 0
+  property var serviceRef: null
+  property int wakePhase: -1
+  property bool finished: false
 
   Item { id: host }
 
@@ -39,6 +42,7 @@ ShellRoot {
     if (component.status !== Component.Ready) throw new Error(component.errorString())
     var service = component.createObject(host, { omarchyPath: rootPath })
     if (!service) throw new Error(component.errorString())
+    root.serviceRef = service
     try {
       var retry = timer(service, 250, false)
       var reach = timer(service, 20000, false)
@@ -237,11 +241,67 @@ ShellRoot {
       check(!service.fingerprintPaused, "unlock reset clears a pause so the next lock starts the reader")
       service.applyFingerprintProbe("Daemon is restarting")
       check(!recheck.running, "an unknown probe outside the lock cannot restart it")
-    } finally {
-      service.lockRequested = false
-      service.resetAuthenticationState()
-      service.destroy()
+
+      // The blank grace: runWake starts it only once the displays report
+      // themselves lit, and the hyprctl stub the test installs answers dark
+      // until this fixture flips its state file.
+      if (Quickshell.env("OMARCHY_TEST_WAKE_CHECK") === "1") {
+        root.wakePhase = 0
+        service.lockRequested = true
+        timer(service, 5000, false).stop()
+        service.runWake()
+        wakePhaseTimer.start()
+        return
+      }
+      root.finish()
+    } catch (error) {
+      root.failures.push(String(error))
+      root.finish()
     }
+  }
+
+  function writeDpms(state) {
+    Quickshell.execDetached(["bash", "-c", 'printf %s "$1" > "$2"', "_", state, Quickshell.env("OMARCHY_TEST_DPMS_FILE")])
+  }
+
+  function finish() {
+    if (root.finished) return
+    root.finished = true
+    wakePhaseTimer.stop()
+    if (root.serviceRef) {
+      root.serviceRef.lockRequested = false
+      root.serviceRef.resetAuthenticationState()
+      root.serviceRef.destroy()
+      root.serviceRef = null
+    }
+    var payload = JSON.stringify({ ok: root.failures.length === 0, checks: root.checks, failures: root.failures })
+    var quoted = "'" + payload.replace(/'/g, "'\\''") + "'"
+    Quickshell.execDetached(["bash", "-c", "printf '%s' " + quoted + " > \"$1\"", "_", root.resultPath])
+  }
+
+  function wakeCheck() {
+    try {
+      var blank = timer(root.serviceRef, 5000, false)
+      if (root.wakePhase === 0) {
+        check(!blank.running, "the blank grace waits while the displays are still dark")
+        root.wakePhase = 1
+        root.writeDpms("on")
+      } else if (root.wakePhase === 1) {
+        check(blank.running, "the blank grace starts once the displays are lit")
+        root.finish()
+      }
+    } catch (error) {
+      root.failures.push(String(error))
+      root.finish()
+    }
+  }
+
+  Timer {
+    id: wakePhaseTimer
+    interval: 1200
+    repeat: true
+    running: false
+    onTriggered: root.wakeCheck()
   }
 
   Timer {
@@ -252,10 +312,8 @@ ShellRoot {
         root.run()
       } catch (error) {
         root.failures.push(String(error))
+        root.finish()
       }
-      var payload = JSON.stringify({ ok: root.failures.length === 0, checks: root.checks, failures: root.failures })
-      var quoted = "'" + payload.replace(/'/g, "'\\''") + "'"
-      Quickshell.execDetached(["bash", "-c", "printf '%s' " + quoted + " > \"$1\"", "_", root.resultPath])
     }
   }
 }
