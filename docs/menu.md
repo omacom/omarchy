@@ -178,6 +178,8 @@ renders under the label, filters with it, and comes back as
 how the pickers behind menu actions (`omarchy-menu-plugin`,
 `omarchy-menu-timezone`, ...) present lists without owning any UI.
 
+Opening a new picker or a normal menu cancels the previous request. `omarchy-menu-select` accepts `-- --timeout <seconds>` for callers that need a bounded wait; a timeout exits 124 and cancels only that caller's request. Signal and exit cleanup use the same request-specific cancellation, so an old caller cannot dismiss a replacement menu. Completion files live in a private request directory removed on exit.
+
 
 Pass `-- --multiple` to `omarchy-menu-select` for a multi-select request. Repeat `--selected <value>` to preselect returned values (labels plus any subtext, without icons). Clicking or pressing Enter toggles an option without closing the menu; Apply returns a JSON array in option order, including `[]` when all choices are deselected. Cancellation still exits 1. Selections survive filtering.
 
