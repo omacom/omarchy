@@ -14,13 +14,15 @@ omarchy-cmd-present mc || exit 0
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-mc.lock"
 flock 9
 
-[[ -f $MC_SKIN_SOURCE ]] || exit 0
+# Read the whole skin before touching the saved one, so a theme switch that
+# removes the source mid-sync leaves the last good skin in place.
+skin=$(cat "$MC_SKIN_SOURCE" 2>/dev/null) && [[ -n $skin ]] || exit 0
 
 # Copy rather than link the skin, so the last good skin survives switching to
 # a theme without one. Write it in place so a running mc watching the file
 # picks up the change.
 mkdir -p "$(dirname "$MC_SKIN")"
-cat "$MC_SKIN_SOURCE" >"$MC_SKIN"
+printf '%s\n' "$skin" >"$MC_SKIN"
 
 # Point mc at the skin inside its [Midnight-Commander] section, without
 # touching any other user setting.
