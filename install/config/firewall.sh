@@ -6,6 +6,11 @@ ufw default allow outgoing
 ufw allow 53317/udp
 ufw allow 53317/tcp
 
+# Let the machines on a circle reach the local models this one shares, which
+# omarchy-local-ai's share proxy answers on circle0. Nothing listens there
+# until a model is shared, and the rule is inert without Circle.
+ufw allow in on circle0 to any port 11431 proto tcp comment 'omarchy-local-ai-circle'
+
 # Allow Docker containers to use DNS on host.
 ufw allow in proto udp from 172.16.0.0/12 to 172.17.0.1 port 53 comment 'allow-docker-dns'
 ufw allow in proto udp from 192.168.0.0/16 to 172.17.0.1 port 53 comment 'allow-docker-dns'

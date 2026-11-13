@@ -2133,11 +2133,12 @@ Panel {
         record: section.provider
       }
 
-      // Shares this machine's running model with the tailnet, or stops
-      // sharing it: the Tailscale mark, dim while private and in the icons'
-      // color while shared, when its tooltip counts the machines using it.
-      // Shown only while the model runs, where Tailscale can serve it or it's
-      // shared already; a stopped shared model is shared again on start.
+      // Shares this machine's running model with the tailnet and the circle,
+      // or stops sharing it: the Tailscale mark on a tailnet, a share glyph on
+      // a circle alone, dim while private and in the icons' color while
+      // shared, when its tooltip counts the machines using it. Shown only
+      // while the model runs, where the machine can share or it's shared
+      // already; a stopped shared model is shared again on start.
       PanelActionButton {
         id: localShare
         anchors.right: localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
@@ -2148,13 +2149,16 @@ Panel {
         readonly property int users: shared ? (usage.shareClients[section.model.recipe] || 0) : 0
         tooltipText: users > 0 ? Commons.I18n.tn("agents.networkSharedUsers", users).arg(Commons.I18n.formatNumber(users))
           : shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
-        foreground: root.foreground
+        iconText: usage.onTailnet ? "" : "󰒗"
+        foreground: usage.onTailnet || shared ? root.foreground : root.dim
+        hoverColor: root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("modelShare", section.providerIndex)
         onHasCursorChanged: if (hasCursor) root.revealItem(localShare)
         onClicked: root.runLocalAction(section.model, "share")
 
         Tailscale.TailscaleIcon {
+          visible: usage.onTailnet
           anchors.centerIn: parent
           // The mark fills its box where a font glyph leaves padding around
           // its ink, so it's drawn smaller to sit no larger than the pause.
