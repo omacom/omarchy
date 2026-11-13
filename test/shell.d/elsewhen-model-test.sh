@@ -319,17 +319,30 @@ assertEqual(M.homeCityAfterTap('Nashville', CHI, '', ''), null, 'elsewhen stores
 assertEqual(M.homeCityAfterTap('  Nashville  ', CHI, '', CHI), 'Nashville', 'elsewhen trims a tapped name')
 
 // ---- coordinates and weather
-const tab = '#comment\nUS\t+404251-0740023\tAmerica/New_York\nIN\t+2232+08822\tAsia/Kolkata\n'
+const tab = '#comment\nUS\t+404251-0740023\tAmerica/New_York\nIN\t+2232+08822\tAsia/Kolkata\nGB\t+513030-0000731\tEurope/London\nCI\t+0519-00402\tAfrica/Abidjan\nTH\t+1345+10031\tAsia/Bangkok\n'
 assertDeepEqual(M.zoneTabCoords(tab, 'America/New_York'), { lat: 40.7142, lon: -74.0064 }, 'elsewhen reads seconds-precision zone1970 coordinates')
 assertDeepEqual(M.zoneTabCoords(tab, 'Asia/Kolkata'), { lat: 22.5333, lon: 88.3667 }, 'elsewhen reads minutes-precision zone1970 coordinates')
 assertEqual(M.zoneTabCoords(tab, 'Nowhere/Else'), null, 'elsewhen has no fallback for an unknown zone')
+assertDeepEqual(M.zoneTabCoords(tab, 'Asia/Calcutta'), { lat: 22.5333, lon: 88.3667 }, 'elsewhen reads a legacy link id through the places table')
+assertDeepEqual(M.zoneTabCoords(tab, 'GB-Eire'), { lat: 51.5083, lon: -0.1253 }, 'elsewhen resolves GB-Eire to London, not Dublin')
+assertEqual(M.zoneTabCoords(tab, 'Asia/Rangoon'), null, 'elsewhen returns null when a legacy zone target is missing from the table')
+assertEqual(M.zoneTabCoords(tab, 'Iceland'), null, 'elsewhen leaves coordinates unknown for same-clock links that cross places')
+assertEqual(M.zoneTabCoords(tab, 'Indian/Christmas'), null, 'elsewhen omits same-clock merges like Christmas Island')
 
 const geocoded = JSON.stringify({ results: [
   { latitude: 34.0, longitude: -98.4, timezone: 'America/Chicago' },
   { latitude: 26.4, longitude: -80.1, timezone: 'America/New_York' }
 ] })
 assertDeepEqual(M.pickGeocode(geocoded, 'America/New_York'), { place: { lat: 26.4, lon: -80.1 }, answered: true }, 'elsewhen prefers a geocode in the row\'s own zone')
-assertDeepEqual(M.pickGeocode(geocoded, 'Asia/Tokyo'), { place: { lat: 34.0, lon: -98.4 }, answered: true }, 'elsewhen falls back to the top geocode')
+// Issue #17782: a geocode search for "Calcutta" answers Calcutta, South Africa
+// first and never Kolkata, so a row whose zone the geocoder does not echo gets
+// nothing here and falls back to the zone table.
+const calcutta = JSON.stringify({ results: [
+  { latitude: -24.98317, longitude: 31.23485, timezone: 'Africa/Johannesburg' },
+  { latitude: 40.6734, longitude: -80.57646, timezone: 'America/New_York' }
+] })
+assertDeepEqual(M.pickGeocode(calcutta, 'Asia/Calcutta'), { place: null, answered: true }, 'elsewhen adopts no geocode kept in another timezone')
+assertDeepEqual(M.pickGeocode(geocoded, 'Asia/Tokyo'), { place: null, answered: true }, 'elsewhen keeps no place when every geocode is in another zone')
 assertDeepEqual(M.pickGeocode('{}', 'Asia/Tokyo'), { place: null, answered: true }, 'elsewhen treats no results as an answer')
 assertDeepEqual(M.pickGeocode('', 'Asia/Tokyo'), { place: null, answered: false }, 'elsewhen treats a failed request as unanswered')
 assert(M.geocodeUrl('São Paulo').endsWith('name=S%C3%A3o%20Paulo'), 'elsewhen URL-encodes the geocoded label')

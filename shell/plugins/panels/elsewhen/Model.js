@@ -932,19 +932,120 @@ function geocodeUrl(label) {
     + encodeURIComponent(label)
 }
 
-// { place, answered }: a place in the row's own zone beats the top result, and
-// `answered` is false when the request itself failed.
+// { place, answered }: only a result the geocoder itself keeps in the row's
+// zone is adopted. The top result may be a same-named town on another
+// continent - a geocode search for "Calcutta" answers Calcutta, South Africa
+// first, and never Kolkata - so a row whose zone id the geocoder does not echo
+// gets no coordinates here and falls back to the zone table. `answered` is
+// false when the request itself failed.
 function pickGeocode(text, zone) {
   var results = geocodeResults(text)
   if (!results) return { place: null, answered: false }
   var best = null
   for (var i = 0; i < results.length && !best; i++) if (results[i] && results[i].timezone === zone) best = results[i]
-  if (!best && results.length > 0 && results[0] && typeof results[0] === "object") best = results[0]
   return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
 }
 
-// The zone's representative city from zone1970.tab (ISO 6709), the offline fallback.
+// Legacy zone ids that are known pure renames of a canonical zone1970.tab id,
+// preserving the representative place.
+//
+// Deliberately NOT in the table: cross-place links that tzdata merges solely
+// because two places share a clock (e.g. Iceland -> Africa/Abidjan,
+// Atlantic/Reykjavik, Atlantic/Faeroe, Atlantic/Faroe, Arctic/Longyearbyen,
+// Europe/Uzhgorod, Europe/Zaporozhye, Indian/Christmas, Indian/Cocos,
+// Indian/Maldives, Indian/Mahe, Indian/Mauritius, Indian/Reunion, Indian/Comoro,
+// Indian/Chagos, Australia/Currie, America/Montreal, America/Cambridge_Bay,
+// America/Pangnirtung, America/Yellowknife, America/Nipigon, America/Thunder_Bay,
+// America/Rainy_River, America/Rankin_Inlet, America/Resolute, Asia/Choibalsan,
+// Pacific/Johnston). A legacy id not in the table yields null coordinates so
+// its location stays unknown rather than being misplaced to another place.
+// Even a stale table entry is fail-safe: if the target has no zone1970.tab row,
+// zoneTabEntry returns null.
+var LEGACY_ZONE_PLACES = {
+  "Asia/Calcutta": "Asia/Kolkata",
+  "Asia/Dacca": "Asia/Dhaka",
+  "Asia/Rangoon": "Asia/Yangon",
+  "Asia/Saigon": "Asia/Ho_Chi_Minh",
+  "Asia/Katmandu": "Asia/Kathmandu",
+  "Asia/Ulan_Bator": "Asia/Ulaanbaatar",
+  "Asia/Istanbul": "Europe/Istanbul",
+  "Europe/Kiev": "Europe/Kyiv",
+  "US/Eastern": "America/New_York",
+  "US/Michigan": "America/Detroit",
+  "US/East-Indiana": "America/Indiana/Indianapolis",
+  "US/Central": "America/Chicago",
+  "US/Mountain": "America/Denver",
+  "US/Arizona": "America/Phoenix",
+  "US/Pacific": "America/Los_Angeles",
+  "US/Alaska": "America/Anchorage",
+  "US/Aleutian": "America/Adak",
+  "US/Hawaii": "Pacific/Honolulu",
+  "US/Samoa": "Pacific/Pago_Pago",
+  "Canada/Atlantic": "America/Halifax",
+  "Canada/Eastern": "America/Toronto",
+  "Canada/Central": "America/Winnipeg",
+  "Canada/Mountain": "America/Edmonton",
+  "Canada/Pacific": "America/Vancouver",
+  "Canada/Saskatchewan": "America/Regina",
+  "Canada/Newfoundland": "America/St_Johns",
+  "Canada/Yukon": "America/Whitehorse",
+  "Mexico/BajaNorte": "America/Tijuana",
+  "Mexico/BajaSur": "America/Mazatlan",
+  "Mexico/General": "America/Mexico_City",
+  "Brazil/Acre": "America/Rio_Branco",
+  "Brazil/DeNoronha": "America/Noronha",
+  "Brazil/East": "America/Sao_Paulo",
+  "Brazil/West": "America/Manaus",
+  "Chile/Continental": "America/Santiago",
+  "Chile/EasterIsland": "Pacific/Easter",
+  "America/Buenos_Aires": "America/Argentina/Buenos_Aires",
+  "America/Catamarca": "America/Argentina/Catamarca",
+  "America/Cordoba": "America/Argentina/Cordoba",
+  "America/Jujuy": "America/Argentina/Jujuy",
+  "America/Mendoza": "America/Argentina/Mendoza",
+  "America/Godthab": "America/Nuuk",
+  "America/Santa_Isabel": "America/Tijuana",
+  "Pacific/Enderbury": "Pacific/Kanton",
+  "Kwajalein": "Pacific/Kwajalein",
+  "Cuba": "America/Havana",
+  "Egypt": "Africa/Cairo",
+  "Eire": "Europe/Dublin",
+  "GB": "Europe/London",
+  "GB-Eire": "Europe/London",
+  "Hongkong": "Asia/Hong_Kong",
+  "Iran": "Asia/Tehran",
+  "Israel": "Asia/Jerusalem",
+  "Jamaica": "America/Jamaica",
+  "Japan": "Asia/Tokyo",
+  "Korea": "Asia/Seoul",
+  "Kuwait": "Asia/Kuwait",
+  "Libya": "Africa/Tripoli",
+  "Navajo": "America/Denver",
+  "NZ": "Pacific/Auckland",
+  "NZ-CHAT": "Pacific/Chatham",
+  "Poland": "Europe/Warsaw",
+  "Portugal": "Europe/Lisbon",
+  "PRC": "Asia/Shanghai",
+  "ROC": "Asia/Taipei",
+  "ROK": "Asia/Seoul",
+  "Singapore": "Asia/Singapore",
+  "Taiwan": "Asia/Taipei",
+  "Turkey": "Europe/Istanbul",
+  "W-SU": "Europe/Moscow"
+}
+
+// The zone's representative city from zone1970.tab (ISO 6709), the offline
+// fallback. A zone can reach the panel under a legacy link id the tab does not
+// list (`timedatectl list-timezones` offers Asia/Calcutta next to Asia/Kolkata):
+// LEGACY_ZONE_PLACES maps known pure renames back to the tab's canonical id.
 function zoneTabCoords(tabText, zone) {
+  var place = zoneTabEntry(tabText, zone)
+  if (place) return place
+  var canonical = LEGACY_ZONE_PLACES[zone]
+  return canonical ? zoneTabEntry(tabText, canonical) : null
+}
+
+function zoneTabEntry(tabText, zone) {
   var lines = String(tabText || "").split("\n")
   for (var i = 0; i < lines.length; i++) {
     var parts = lines[i].split("\t")
