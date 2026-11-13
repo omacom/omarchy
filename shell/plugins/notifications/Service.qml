@@ -418,28 +418,31 @@ Item {
   // a new front card shows its buttons as the placements arrive. Taking the
   // height then would rebuild the layout from inside its own update, a binding
   // loop that drops the new height. So it waits for the next tick, except
-  // while the card is being inserted, which measures it in place.
+  // while the card is being inserted, which measures it in place. A height
+  // that follows a jump (a keyboard dismissal) jumps with it.
   property var pendingHeights: ({})
+  property bool jumpedSinceMove: false
   function queueHeight(key, h) {
     if (key === arriving) { noteHeight(key, h); return }
     pendingHeights[key] = h
     Qt.callLater(flushHeights)
   }
   function flushHeights() {
-    var queued = pendingHeights
+    var queued = pendingHeights, instant = jumpedSinceMove
     pendingHeights = {}
-    for (var key in queued) if (liveKeys[key]) noteHeight(key, queued[key])
+    for (var key in queued) if (liveKeys[key]) noteHeight(key, queued[key], instant)
+    jumpedSinceMove = false
   }
 
   // Fed target heights, never mid-animation ones, so layout moves on events.
-  function noteHeight(key, h) {
+  function noteHeight(key, h, instant) {
     if (Math.abs((heights[key] || 0) - h) < 0.5) return
     // Measured while it is being inserted: the arrival's own move follows.
     if (key === arriving) {
       heights[key] = h
       return
     }
-    if (fresh[key] && !expanded && !sceneRun.running) {
+    if (instant || (fresh[key] && !expanded && !sceneRun.running)) {
       heights[key] = h
       land()
     } else {
@@ -515,6 +518,7 @@ Item {
     deckWas = deckNow
     was = snap
     sceneDuration = duration || arriveDuration
+    jumpedSinceMove = false
     layoutRevision += 1
     t = 0
     sceneRun.restart()
@@ -523,6 +527,7 @@ Item {
   // Keyboard dismissals skip the clock: everything jumps to its place.
   function land() {
     sceneRun.stop()
+    jumpedSinceMove = true
     jumping = true
     layoutRevision += 1
     t = 1
