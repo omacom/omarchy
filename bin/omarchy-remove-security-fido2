@@ -5,6 +5,21 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-security-fido2"
+    echo
+    echo "Remove FIDO2 authentication from sudo and polkit"
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-security-fido2: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
 
 remove_pam_config() {
   # Remove from sudo
