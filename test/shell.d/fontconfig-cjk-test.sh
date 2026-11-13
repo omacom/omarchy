@@ -14,15 +14,16 @@ fi
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-candidate="$ROOT/default/fontconfig/conf.avail/50-omarchy.conf"
+candidate="$ROOT/default/fontconfig/conf.avail/51-omarchy.conf"
 {
   echo '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig>'
   echo "<dir>/usr/share/fonts</dir><cachedir>$test_tmp/cache</cachedir>"
   placed=false
   for conf in /etc/fonts/conf.d/*.conf; do
     name=${conf##*/}
-    [[ $name == "50-omarchy.conf" ]] && continue
-    if ! $placed && [[ $name > "50-omarchy.conf" ]]; then
+    # Skip the installed rule, old name included: the candidate replaces it.
+    [[ $name == "50-omarchy.conf" || $name == "51-omarchy.conf" ]] && continue
+    if ! $placed && [[ $name > "51-omarchy.conf" ]]; then
       echo "<include>$candidate</include>"
       placed=true
     fi
