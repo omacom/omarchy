@@ -96,7 +96,7 @@ Item {
   Timer {
     id: resizeDelay
     interval: 5000
-    running: peek.open && stripHover.hovered && !peek.controlsReady
+    running: peek.open && stripMouse.containsMouse && !peek.controlsReady
     onTriggered: peek.controlsReady = true
   }
 
@@ -242,8 +242,6 @@ Item {
       width: peek.stripWidth
       height: peek.expandedHeight
 
-      HoverHandler { id: stripHover }
-
       Repeater {
         model: cardModel
 
@@ -251,6 +249,7 @@ Item {
       }
 
       MouseArea {
+        id: stripMouse
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
