@@ -198,3 +198,37 @@ dump=$(env -i HOME="$omareader_home" PATH=/usr/bin "$ROOT/bin/omarchy-chromium-o
 [[ $(jq -r '.themes["tokyo-night"].background' <<<"$dump") != null ]] ||
   fail "Omareader host finds the shipped themes without OMARCHY_PATH"
 pass "Omareader host streams the current Omarchy palette"
+
+# A theme switch reaches the extension without polling: the host watches the
+# state dir and pushes a new palette once omarchy-theme-set has moved the new
+# theme in and written its name.
+if command -v inotifywait >/dev/null; then
+  mkfifo "$test_tmp/omareader-in"
+  env -i HOME="$omareader_home" PATH=/usr/bin "$ROOT/bin/omarchy-chromium-omareader-host" \
+    <"$test_tmp/omareader-in" >"$test_tmp/omareader-out" &
+  omareader_host=$!
+  exec {omareader_in}>"$test_tmp/omareader-in"
+  for _ in {1..50}; do
+    grep -aq '"name":"catppuccin-latte"' "$test_tmp/omareader-out" && break
+    sleep 0.1
+  done
+  grep -aq '"name":"catppuccin-latte"' "$test_tmp/omareader-out" || fail "Omareader host sends the palette when the extension connects"
+
+  current="$omareader_home/.local/state/omarchy/current"
+  mkdir "$current/next-theme"
+  cp "$ROOT/themes/gruvbox/colors.toml" "$current/next-theme/"
+  rm -rf "$current/theme"
+  mv "$current/next-theme" "$current/theme"
+  echo "gruvbox" >"$current/theme.name"
+  for _ in {1..50}; do
+    grep -aq '"name":"gruvbox"' "$test_tmp/omareader-out" && break
+    sleep 0.1
+  done
+  grep -aq '"name":"gruvbox"' "$test_tmp/omareader-out" || fail "Omareader host pushes the palette after a theme switch"
+
+  exec {omareader_in}>&-
+  wait "$omareader_host" || fail "Omareader host exits when the browser closes the port"
+  pass "Omareader host pushes theme switches to the extension"
+else
+  skip "inotifywait is not installed; skipping the Omareader live switch check"
+fi

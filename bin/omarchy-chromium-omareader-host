@@ -13,8 +13,8 @@ import os
 import re
 import select
 import struct
+import subprocess
 import sys
-import time
 import tomllib
 from pathlib import Path
 
@@ -72,15 +72,28 @@ def state() -> dict:
     return {"type": "state", "current": current_state(), "themes": all_themes()}
 
 
-def signature():
-    sig = []
-    for p in (CURRENT / "theme.name", CURRENT / "theme/colors.toml", CURRENT / "theme"):
-        try:
-            st = p.stat()
-            sig.append((st.st_ino, st.st_mtime_ns, st.st_size))
-        except OSError:
-            sig.append(None)
-    return sig
+def watch():
+    """An inotifywait on the current-theme dir, printing one line per change, or None.
+
+    omarchy-theme-set moves the new theme dir in and writes theme.name last, so
+    close_write and moved_to on this one dir see every switch. The parent-death
+    signal ends the watcher with the host, even when the browser kills the host.
+    """
+    try:
+        proc = subprocess.Popen(
+            ["setpriv", "--pdeathsig", "TERM", "inotifywait", "-m", "-e", "close_write,moved_to", "--format", "%f", str(CURRENT)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=0,
+        )
+    except OSError:
+        return None
+    # Without -q, inotifywait reports when its watch is in place. Waiting for that
+    # means a switch right after the first palette is sent cannot be missed.
+    for line in iter(proc.stdout.readline, b""):
+        if line.startswith(b"Watches established"):
+            return proc
+    return None  # the dir is missing or inotify failed; the palette stays as sent
 
 
 def send(msg: dict) -> None:
@@ -98,21 +111,24 @@ def read_message():
 
 
 def serve() -> None:
+    watcher = watch()
+    events = watcher.stdout if watcher else None
     send(state())
-    last = signature()
     while True:
-        ready, _, _ = select.select([sys.stdin], [], [], 1.0)
-        if ready:
+        ready, _, _ = select.select([sys.stdin] + ([events] if events else []), [], [])
+        if sys.stdin in ready:
             msg = read_message()
             if msg is None:
                 return  # browser closed the port
             if isinstance(msg, dict) and msg.get("type") == "refresh":
                 send(state())
-            continue
-        sig = signature()
-        if sig != last:
-            time.sleep(0.25)  # theme switches write several files; let them settle
-            last = signature()
+        if events and events in ready:
+            if not events.readline():
+                events = None  # watcher gone; keep answering refreshes
+                continue
+            # A theme switch writes several files: send once they have settled.
+            while select.select([events], [], [], 0.25)[0] and events.readline():
+                pass
             send(state())
 
 
