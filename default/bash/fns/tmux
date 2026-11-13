@@ -101,7 +101,13 @@ tsl() {
 
   local count="$1"
   shift
-  local cmd="$*"
+  local cmd
+  if (( $# == 1 )); then
+    cmd="$1"
+  else
+    printf -v cmd '%q ' "$@"
+    cmd="${cmd% }"
+  fi
   local current_dir="${PWD}"
   local -a panes
 

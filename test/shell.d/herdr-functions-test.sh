@@ -46,3 +46,10 @@ expected_first=$(printf 'cd %q && hdl %q' "$test_dir/first project's files" "cod
 
 [[ ${commands[0]} == "$expected_first" ]] || fail "hdlm omits an absent second agent argument"
 pass "hdlm omits an absent second agent argument"
+
+: >"$log"
+HERDR_TAB_ID="tab" hsl 1 tail -f "/tmp/server log"
+mapfile -t commands <"$log"
+
+[[ ${commands[0]} == 'tail -f /tmp/server\ log' ]] || fail "hsl keeps the quoting of a command given as several arguments"
+pass "hsl keeps the quoting of a command given as several arguments"
