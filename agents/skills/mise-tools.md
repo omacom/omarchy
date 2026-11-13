@@ -17,7 +17,7 @@ codex = { version = "latest", lazy = true, minimum_release_age = "0s" }
 
 Lazy defaults need mise 2026.10.11 or newer. Older releases install every lazy tool nobody has run yet. Before 2026.10.11, a bare `mise upgrade`, which `omarchy update` and `mup` run, does it. In 2026.10.7 and 2026.10.8, the `auto_update` check a shell prompt starts did it too.
 
-Agent CLIs also set `auto_update = "4h"`, so mise upgrades them before they run (at most once every four hours) instead of leaving them on whatever version was installed first. Leave it off for tools that mise itself calls, such as `gh`, which is mise's GitHub credential helper.
+Agent CLIs also set `auto_update = "4h"`, so mise upgrades them before they run (at most once every four hours) instead of leaving them on whatever version was installed first. Leave it off for tools that mise itself calls, such as `gh`, which is mise's GitHub credential helper. Each of those upgrades leaves the previous version installed, because `upgrade.auto_prune` is off to protect running sessions; `omarchy-update-mise` removes them by naming the declared tools to `mise prune --tools`, which keeps versions a tracked config or tool stub selects and versions it detects as running.
 
 ```toml
 [tools]
