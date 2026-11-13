@@ -1,41 +1,39 @@
 # Aplikasi/layanan komersial
 
-Omarchy sebagian besar berfokus pada penyediaan perangkat lunak gratis dan open source, tetapi tidak religius tentang hal itu. Terkadang solusi terbaik adalah penawaran komersial, dan itu baik-baik saja. Berikut beberapa pilihan yang kami sediakan pemasangan mudahnya.
+Omarchy sebagian besar berfokus pada penyediaan perangkat lunak gratis dan open source, tetapi tidak fanatik soal itu. Terkadang solusi terbaik adalah tawaran komersial, dan itu sah-sah saja. Berikut ini beberapa opsi yang kami sediakan cara pemasangannya dengan mudah.
 
 ## 1Password
 
-Menyimpan kata sandimu di manajer kata sandi adalah praktik terbaik. Apalagi jika kamu bekerja dengan tim. Dan [1password](https://1password.com/) adalah solusi yang bagus, yang juga dilengkapi dengan alat baris perintah untuk mengintegrasikan pencarian kunci dalam skrip.
+Menyimpan kata sandi Anda di pengelola kata sandi adalah praktik terbaik. Apalagi jika Anda bekerja dengan tim. Dan [1password](https://1password.com/) adalah solusi yang hebat, yang juga dilengkapi alat command line untuk mengintegrasikan pencarian kunci dalam skrip.
 
-Kamu memulai 1Password dengan `Super + Shift + /`. Jika belum terpasang, hotkey tersebut memulai pemasangan terlebih dahulu (kamu juga dapat menggunakan _Pasang > Service > 1Password_ dari menu Omarchy). Pemasang juga menyiapkan ekstensi 1Password untuk Chromium.
+Anda menjalankan 1Password dengan `Super + Shift + /`. Jika belum terpasang, hotkey itu akan memulai pemasangannya terlebih dahulu (Anda juga dapat menggunakan _Install > Service > 1Password_ dari menu Omarchy). Pemasangnya juga menyiapkan ekstensi 1Password untuk Chromium.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) adalah alternatif open source di ruang manajer kata sandi, dengan tingkat gratis yang mencakup sebagian besar penggunaan pribadi. Pasang dengan _Pasang > Service > Bitwarden_ dari menu Omarchy, yang juga membawa alat baris perintah Bitwarden.
+[Bitwarden](https://bitwarden.com/) adalah alternatif open source di bidang pengelola kata sandi, dengan tingkat gratis yang mencakup sebagian besar penggunaan pribadi. Pasang dengan _Install > Service > Bitwarden_ dari menu Omarchy, yang juga menyertakan alat command line Bitwarden.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) adalah layanan streaming musik paling populer di dunia. Dan aplikasi Linux menyediakan semua yang kamu harapkan, termasuk pemutaran offline.
-
-Kamu memulai Spotify menggunakan `Super + Shift + M`. Seperti 1Password, hotkey memulai pemasangan terlebih dahulu jika Spotify belum terpasang (atau gunakan _Pasang > Service > Spotify_ dari menu Omarchy).
+[Spotify](https://spotify.com/) adalah layanan streaming musik terpopuler di dunia. Omarchy menyediakannya sebagai aplikasi web, yang memberi Anda pemutar lengkap, tombol media, dan Spotify Connect, tetapi tidak untuk unduhan offline. Jalankan dengan `Super + Shift + M`.
 
 ## Slack
 
-[Slack](https://slack.com/) adalah tempat banyak tim melakukan obrolan, baik di dalam perusahaan maupun dengan kolaborator luar. Pasang dengan _Pasang > Service > Slack_ dari menu Omarchy, dan itu akan terbuka segera setelah siap.
+[Slack](https://slack.com/) adalah tempat banyak tim mengobrol, baik di dalam perusahaan maupun dengan kolaborator di luar. Pasang dengan _Install > Service > Slack_ dari menu Omarchy, dan aplikasi akan terbuka begitu siap.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) adalah cara bagus untuk menyinkronkan berkas antar mesin sambil menyimpan cadangan di cloud. Untuk menyiapkannya, pilih _Pasang > Service > Dropbox_ dari menu Omarchy. Setelah berjalan, arahkan kursor ke tray di kanan atas bilah dan klik kanan ikon Dropbox untuk menyelesaikan penyiapan.
+[Dropbox](https://www.dropbox.com/) adalah cara hebat untuk menyinkronkan file antar mesin sambil menyimpan cadangan di cloud. Untuk menyiapkannya, pilih _Install > Service > Dropbox_ dari menu Omarchy. Setelah berjalan, arahkan kursor ke tray di kanan atas bilah dan klik kanan ikon Dropbox untuk menyelesaikan penyiapan.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) adalah mesh VPN yang membuat akses ke semua komputer dan servermu melalui internet secara aman menjadi sangat sederhana. Untuk menyiapkannya, pilih _Pasang > Service > Tailscale_ dari menu Omarchy.
+[Tailscale](https://tailscale.com/) adalah VPN mesh yang membuat akses ke semua komputer dan server Anda melalui internet secara aman menjadi sangat mudah. Untuk menyiapkannya, pilih _Install > Service > Tailscale_ dari menu Omarchy.
 
-Ini mendapatkan panel di bilah, aplikasi web untuk konsol admin, dan Taildrop untuk mengirim berkas antar mesinmu — lihat [jaringan](35-networking.md).
+Ia mendapat panel di bilah, aplikasi web untuk konsol admin, dan Taildrop untuk mengirim file antar mesin Anda — lihat [jaringan](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) adalah lini perangkat lunak 37signals yang kamu beli sekali dan jalankan di servermu sendiri, seperti sistem obrolan Campfire. Pilih _Pasang > Service > ONCE_ dari menu Omarchy untuk memasangnya, yang mengaktifkan layanan latar belakangnya dan membawamu ke antarmuka terminal ONCE untuk melanjutkannya dari sana.
+[ONCE](https://once.com/) adalah lini perangkat lunak 37signals yang Anda beli sekali dan Anda jalankan di server Anda sendiri, seperti sistem obrolan Campfire. Pilih _Install > Service > ONCE_ dari menu Omarchy untuk memasangnya, yang mengaktifkan layanan latar belakangnya dan membawa Anda ke antarmuka terminal ONCE untuk melanjutkan dari sana.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) adalah layanan VPN standar yang memungkinkan kamu mengeluarkan lalu lintasmu dari sebagian besar wilayah di seluruh dunia. Untuk menyiapkannya, pilih _Pasang > Service > NordVPN_ dari menu Omarchy. Setelah reboot yang dimintanya, jalankan `nordvpn login` untuk mengautentikasi.
+[NordVPN](https://nordvpn.com/) adalah layanan VPN standar yang memungkinkan Anda mengeluarkan lalu lintas Anda dari sebagian besar wilayah di seluruh dunia. Untuk menyiapkannya, pilih _Install > Service > NordVPN_ dari menu Omarchy. Setelah reboot yang dimintanya, jalankan `nordvpn login` untuk mengautentikasi.

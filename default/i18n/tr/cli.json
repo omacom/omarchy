@@ -20,6 +20,7 @@
   "agents.homeFailed": "Yeni hesap için bir ev dizini kurulamadı.",
   "agents.installCliFailed": "%1 CLI kurulumu tamamlanamadı.",
   "agents.installingCli": "%1 CLI kuruluyor…",
+  "agents.instructionsBackedUp": "Eski agent talimatlarınız yedek olarak saklandı",
   "agents.localUnsupported": "Hiçbir agent yerel modeli kullanamıyor",
   "agents.localUnsupportedBody": "Yerel modeli kullanmak için pi veya OpenCode kurun.",
   "agents.loginUnfinished": "Oturum açma tamamlanmadı, bu nedenle hesap eklenmedi.",
