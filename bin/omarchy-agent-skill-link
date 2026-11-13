@@ -37,6 +37,15 @@ fi
 skill_dir=$(realpath -m -- "$skill_dir")
 name=${skill_dir##*/}
 
+# A link made while a dev checkout was linked points into that checkout, and
+# outlives it being unlinked: the skill at the same place in any tree is this one.
+tree_path="default/agents/${skill_dir##*/default/agents/}"
+ours() {
+  local target
+  target=$(realpath -m -- "$1")
+  [[ $target == "$skill_dir" || $target == */"$tree_path" ]]
+}
+
 # Hermes profiles are only linked when they already exist; nothing here
 # creates one.
 agent_dirs=(
@@ -57,13 +66,13 @@ for dir in "${agent_dirs[@]}"; do
   if [[ $remove == "true" ]]; then
     # Only a link to this skill: a skill of the same name the user keeps
     # there themselves is not ours to remove.
-    if [[ -L $link && $(realpath -m -- "$link") == "$skill_dir" ]]; then
+    if [[ -L $link ]] && ours "$link"; then
       rm -- "$link"
     fi
   elif [[ -e $link && ! -L $link ]]; then
     # ln would otherwise drop the link inside the directory that is there.
     echo "Leaving $link alone: it is not a symlink." >&2
-  elif [[ -L $link && -e $link && $(realpath -m -- "$link") != "$skill_dir" ]]; then
+  elif [[ -L $link && -e $link ]] && ! ours "$link"; then
     # A live link to some other skill is the user's choice; only a dangling
     # one, or one already pointing here, gets replaced.
     echo "Leaving $link alone: it points elsewhere." >&2

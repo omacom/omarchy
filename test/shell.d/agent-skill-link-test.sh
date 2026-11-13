@@ -63,6 +63,48 @@ pass "skill link --remove takes back the links it made"
   fail "skill link --remove keeps a foreign link of the same name"
 pass "skill link --remove keeps a foreign link of the same name"
 
+# A link made from another Omarchy tree is still this skill: installed while a
+# dev checkout was linked, then removed or installed again from the package.
+fresh_home
+for tree in checkout package; do
+  mkdir -p "$tmp_dir/$tree/default/agents/optional-skills/example"
+  printf -- '---\nname: example\n---\n' >"$tmp_dir/$tree/default/agents/optional-skills/example/SKILL.md"
+done
+checkout_skill="$tmp_dir/checkout/default/agents/optional-skills/example"
+package_skill="$tmp_dir/package/default/agents/optional-skills/example"
+
+"$link" "$checkout_skill"
+"$link" "$package_skill" 2>/dev/null
+for dir in "${agent_dirs[@]}"; do
+  [[ $(realpath "$HOME/$dir/example") == "$(realpath "$package_skill")" ]] ||
+    fail "skill link repoints a link made from another Omarchy tree" "$dir"
+done
+pass "skill link repoints a link made from another Omarchy tree"
+
+"$link" "$checkout_skill"
+rm -rf "$tmp_dir/checkout"
+mkdir -p "$tmp_dir/theirs/optional-skills/example"
+ln -sfn "$tmp_dir/theirs/optional-skills/example" "$HOME/.claude/skills/example"
+"$link" "$package_skill" --remove
+for dir in .agents/skills .codex/skills .pi/agent/skills .gemini/config/skills .hermes/skills; do
+  [[ ! -e $HOME/$dir/example && ! -L $HOME/$dir/example ]] ||
+    fail "skill link --remove takes back links made from another Omarchy tree" "$dir"
+done
+pass "skill link --remove takes back links made from another Omarchy tree"
+
+[[ -L $HOME/.claude/skills/example ]] || fail "skill link --remove keeps a link to a same-named skill kept anywhere else"
+pass "skill link --remove keeps a link to a same-named skill kept anywhere else"
+
+# The tree's own path may hold a default/agents of its own.
+fresh_home
+nested_skill="$tmp_dir/default/agents/checkout/default/agents/optional-skills/example"
+mkdir -p "$nested_skill"
+cp "$package_skill/SKILL.md" "$nested_skill/"
+"$link" "$package_skill"
+"$link" "$nested_skill" --remove
+[[ ! -L $HOME/.claude/skills/example ]] || fail "skill link finds the skill's place in a tree kept under another default/agents"
+pass "skill link finds the skill's place in a tree kept under another default/agents"
+
 # Removing what was never linked is not an error.
 fresh_home
 "$link" "$skill" --remove || fail "skill link --remove succeeds with nothing to remove"
