@@ -24,6 +24,7 @@ mkdir -p "$matching"
     OMARCHY_YOGA_MKINITCPIO_DIR="$matching/mkinitcpio.conf.d" \
     OMARCHY_YOGA_LIMINE_CONFIG_DIR="$matching/limine-entry-tool.d" \
     OMARCHY_YOGA_SYSTEMD_DIR="$matching/systemd" \
+    OMARCHY_YOGA_SLEEP_HOOK_DIR="$matching/system-sleep" \
     source "$setup"
 )
 
@@ -69,6 +70,8 @@ if grep -Fq 'systemd-udev-settle.service' "$matching/systemd/yoga-slim7x-remotep
 fi
 grep -Fxq 'enable yoga-slim7x-remoteprocs.service' "$matching/systemctl.log" ||
   fail "Yoga Slim 7x enables its remote processor service"
+[[ -x $matching/system-sleep/yoga-slim7x-lid-wake ]] ||
+  fail "Yoga Slim 7x installs its lid wake sleep hook"
 
 nonmatching="$scratch/nonmatching"
 mkdir -p "$nonmatching"
@@ -81,6 +84,7 @@ mkdir -p "$nonmatching"
     OMARCHY_YOGA_MKINITCPIO_DIR="$nonmatching/mkinitcpio.conf.d" \
     OMARCHY_YOGA_LIMINE_CONFIG_DIR="$nonmatching/limine-entry-tool.d" \
     OMARCHY_YOGA_SYSTEMD_DIR="$nonmatching/systemd" \
+    OMARCHY_YOGA_SLEEP_HOOK_DIR="$nonmatching/system-sleep" \
     source "$setup"
 )
 
@@ -92,6 +96,34 @@ mkdir -p "$nonmatching"
   fail "nonmatching Qualcomm hardware does not get Yoga boot parameters"
 [[ ! -e $nonmatching/systemd/yoga-slim7x-remoteprocs.service ]] ||
   fail "nonmatching Qualcomm hardware does not get Yoga services"
+[[ ! -e $nonmatching/system-sleep/yoga-slim7x-lid-wake ]] ||
+  fail "nonmatching Qualcomm hardware does not get the Yoga lid wake hook"
+
+# The lid wakes nothing while suspended with it open, and keeps its wakeup
+# when closed.
+lid="$scratch/lid"
+mkdir -p "$lid/bin"
+cat >"$lid/bin/busctl" <<'STUB'
+#!/bin/bash
+echo "b $LID_CLOSED"
+STUB
+chmod +x "$lid/bin/busctl"
+run_lid_hook() {
+  PATH="$lid/bin:$PATH" OMARCHY_YOGA_LID_WAKEUP="$lid/wakeup" \
+    OMARCHY_YOGA_LID_WAKE_MARKER="$lid/marker" \
+    "$ROOT/default/systemd/system-sleep/yoga-slim7x-lid-wake" "$@"
+}
+echo enabled >"$lid/wakeup"
+LID_CLOSED=false run_lid_hook pre suspend
+[[ $(<"$lid/wakeup") == disabled ]] || fail "an open lid wakes nothing during suspend"
+run_lid_hook post suspend
+[[ $(<"$lid/wakeup") == enabled ]] || fail "the open lid wakes again after resume"
+LID_CLOSED=true run_lid_hook pre suspend
+[[ $(<"$lid/wakeup") == enabled ]] || fail "a closed lid still wakes the laptop"
+echo disabled >"$lid/wakeup"
+LID_CLOSED=false run_lid_hook pre suspend
+run_lid_hook post suspend
+[[ $(<"$lid/wakeup") == disabled ]] || fail "a lid wakeup turned off elsewhere stays off"
 
 remoteprocs="$scratch/remoteproc"
 mkdir -p "$remoteprocs/remoteproc0" "$remoteprocs/remoteproc1" "$remoteprocs/remoteproc2"
@@ -182,7 +214,7 @@ printf 'offline\n' >"$late/remoteproc1/state"
 (( $(grep -c 'could not start CDSP' "$scratch/late.err") == 2 )) ||
   fail "a compute DSP that cannot start is tried on every attempt"
 
-pass "Yoga Slim 7x adds only its board-specific keyboard, display, CPU and DSP setup"
+pass "Yoga Slim 7x adds only its board-specific keyboard, display, CPU, DSP and lid wake setup"
 
 # The family half of the gate is omarchy-hw-aarch64-qualcomm, so ask the real
 # detector: the DMI name sets a Snapdragon laptop up and no other platform.
@@ -203,6 +235,7 @@ run_setup_on() (
     OMARCHY_YOGA_MKINITCPIO_DIR="$out/mkinitcpio.conf.d" \
     OMARCHY_YOGA_LIMINE_CONFIG_DIR="$out/limine-entry-tool.d" \
     OMARCHY_YOGA_SYSTEMD_DIR="$out/systemd" \
+    OMARCHY_YOGA_SLEEP_HOOK_DIR="$out/system-sleep" \
     source "$setup"
 )
 
