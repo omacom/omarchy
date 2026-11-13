@@ -74,6 +74,8 @@ You start Zoom using the application launcher (`Super + Space`).
 
 You start Discord using the application launcher (`Super + Space`).
 
+For a desktop client with Vencord built in and support for Wayland screen sharing with audio, select _Install > Service > Vesktop_. This installs [Vesktop](https://vesktop.dev/) from the AUR and opens it. After installation, launch Vesktop using `Super + Space`.
+
 ## Microsoft apps
 
 Select _Install > Service > Microsoft_ to add Outlook, Word, Excel, PowerPoint, Teams, and OneDrive as web apps. Each app has its own launcher and opens directly, using the commercial Microsoft 365 URLs and your existing browser profile. They open in the same browser app windows as Omarchy's other web apps; they do not install the separate Teams for Linux client.
