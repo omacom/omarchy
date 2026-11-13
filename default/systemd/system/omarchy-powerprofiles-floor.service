@@ -6,6 +6,7 @@ After=power-profiles-daemon.service systemd-logind.service
 ExecStart=/usr/bin/omarchy-powerprofiles-floor monitor
 ExecStopPost=/usr/bin/omarchy-powerprofiles-floor release
 Restart=on-failure
+RestartSec=2
 # Setting another process's utilisation clamp needs CAP_SYS_NICE, and only that
 CapabilityBoundingSet=CAP_SYS_NICE
 NoNewPrivileges=yes

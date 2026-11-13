@@ -62,6 +62,10 @@ monitor() {
   done < <(dbus-monitor --system \
     "type='signal',sender='org.freedesktop.UPower.PowerProfiles',path='/org/freedesktop/UPower/PowerProfiles',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'" \
     "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='SessionNew'")
+
+  # The monitor only ends if it lost the bus; fail so the service restarts it
+  echo "The D-Bus monitor stopped" >&2
+  return 1
 }
 
 case ${1:-monitor} in

@@ -107,7 +107,10 @@ chmod +x "$tmp_dir/bin/loginctl" "$tmp_dir/bin/pgrep" "$tmp_dir/bin/uclampset" "
 
 export POWERPROFILES_QUEUE="$tmp_dir/profiles" UCLAMP_LOG="$tmp_dir/uclamp"
 printf '%s\n' balanced performance power-saver >"$POWERPROFILES_QUEUE"
-"$ROOT/bin/omarchy-powerprofiles-floor" monitor
+# The mock monitor's stream ends, which must fail so the service restarts it
+if "$ROOT/bin/omarchy-powerprofiles-floor" monitor 2>/dev/null; then
+  fail "power profile floor fails when its D-Bus monitor stops"
+fi
 expected=$'-m 768 -a -p 4242\n-m 1024 -a -p 4242\n-m 0 -a -p 4242'
 [[ $(<"$UCLAMP_LOG") == "$expected" ]] ||
   fail "power profile floor follows the profile once listening, on profile changes and logins" "$(<"$UCLAMP_LOG")"
