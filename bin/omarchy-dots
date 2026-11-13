@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Keep local preference history and share settings between computers
+# omarchy:args=<setup|snapshot|log|diff|restore|push|pull|resolve|continue|abort|status> [options]
+# omarchy:examples=omarchy dots setup | omarchy dots pull --dry-run | omarchy dots restore .bashrc --at HEAD~1
+
+exec python3 "$OMARCHY_PATH/default/dots/dots.py" "$@"
