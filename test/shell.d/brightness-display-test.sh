@@ -253,6 +253,11 @@ grep -F 'hyprctl dispatch hl.dsp.dpms({ action = "disable" })' "$call_log" >/dev
   fail "gmux off still blanks Hyprland DPMS"
 pass "gmux off powers PWM down then blanks DPMS"
 
+printf '0\n' >"$gmux/actual_brightness"
+run_gmux off
+[[ $(<"$runtime_dir/omarchy-gmux-brightness") == "286" ]] || fail "a second blank keeps the first saved gmux level"
+pass "a second blank keeps the first saved gmux level"
+
 : >"$call_log"
 HYPR_MONITORS_JSON='[{"name":"eDP-1","disabled":false,"dpmsStatus":false}]' run_gmux on
 [[ $(<"$gmux/bl_power") == "0" ]] || fail "gmux on writes bl_power 0" "actual: $(<"$gmux/bl_power")"
