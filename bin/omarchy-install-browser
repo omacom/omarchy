@@ -43,6 +43,11 @@ setup_firefox_wayland() {
   echo "MOZ_ENABLE_WAYLAND=1" > ~/.config/environment.d/omarchy-firefox-wayland.conf
 }
 
+setup_omafox() {
+  omarchy-pkg-aur-add omafox
+  omafox setup
+}
+
 case $1 in
 chromium)
   echo "Installing Chromium..."
@@ -102,6 +107,7 @@ firefox)
 
   browser_policy_setup_firefox_distribution /usr/lib/firefox/distribution
   setup_firefox_wayland
+  setup_omafox
   omarchy-lifecycle-dispatch post-install firefox
   announce_browser_installed "Firefox"
   ;;
@@ -111,6 +117,7 @@ zen)
 
   browser_policy_setup_firefox_distribution /opt/zen-browser/distribution
   setup_firefox_wayland
+  setup_omafox
   omarchy-lifecycle-dispatch post-install zen
   announce_browser_installed "Zen"
   ;;
