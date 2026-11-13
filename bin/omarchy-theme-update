@@ -4,7 +4,41 @@
 
 mapfile -t themes < <(omarchy-theme-extras)
 
+rc=0
 for theme in "${themes[@]}"; do
   echo "Updating: $(basename "$theme")"
-  git -C "$theme" pull
+  if ! branch=$(git -C "$theme" symbolic-ref --quiet --short HEAD 2>/dev/null) || [[ -z $branch ]]; then
+    echo "omarchy-theme-update: $(basename "$theme") is not on a branch" >&2
+    rc=1
+    continue
+  fi
+
+  remote=$(git -C "$theme" config --get "branch.$branch.remote" 2>/dev/null || true)
+  [[ -n $remote ]] || remote=origin
+  pull_source="$remote"
+
+  if [[ $remote != "." ]]; then
+    if remote_url=$(git -C "$theme" remote get-url -- "$remote" 2>/dev/null) && [[ -n $remote_url ]]; then
+      if ! omarchy-git-url-check --require-authenticated-network "$remote_url"; then
+        echo "omarchy-theme-update: $(basename "$theme") cannot be updated from its '$remote' remote." >&2
+        echo "Set it to an HTTPS, SSH, FTPS, or local URL before updating:" >&2
+        printf '  git -C %q remote set-url %q URL\n' "$theme" "$remote" >&2
+        rc=1
+        continue
+      fi
+    else
+      # Resolve direct branch URLs from inside the checkout so repository-local
+      # url.*.insteadOf rules are part of the destination we validate.
+      if ! pull_source=$(cd -- "$theme" && omarchy-git-url-check --require-authenticated-network --resolve "$remote"); then
+        echo "omarchy-theme-update: $(basename "$theme") cannot be updated from its branch remote." >&2
+        echo "Set the branch remote to an HTTPS, SSH, FTPS, or local URL before updating:" >&2
+        printf '  git -C %q config %q URL\n' "$theme" "branch.$branch.remote" >&2
+        rc=1
+        continue
+      fi
+    fi
+  fi
+  git -C "$theme" pull -- "$pull_source" || rc=1
 done
+
+exit $rc
