@@ -194,12 +194,82 @@ for (const name of ['Wpa3SuiteB192', 'Sae', 'Wpa2Eap', 'Wpa2Psk', 'WpaEap', 'Wpa
 assertEqual(network.requiresCredentials(security.Owe, security.Open, security.Owe), false, 'network does not ask for OWE credentials')
 assertEqual(network.requiresCredentials(security.Open, security.Open, security.Owe), false, 'network does not ask for open-network credentials')
 
+assert(
+  /Model\.requiresCredentials\(security, WifiSecurityType\.Open, WifiSecurityType\.Owe\)/.test(panelSource),
+  'network wires the Quickshell OWE enum into credential detection'
+)
+assert(
+  /if \(requiresCredentials\(net\.security\) && !net\.known\)/.test(panelSource),
+  'network keyboard activation gates unknown-network prompts on credential requirements'
+)
+assert(
+  /if \(row\.requiresCredentials && !row\.isKnown\)/.test(panelSource),
+  'network row clicks gate unknown-network prompts on credential requirements'
+)
+assert(
+  /shouldRepromptPassphrase\(reason, row\.requiresCredentials\)/.test(panelSource),
+  'network failure reprompts use the row credential requirement'
+)
+assert(
+  /networkFailureReason\(/.test(panelSource) &&
+    /requiresCredentials\(network\.security\)/.test(panelSource) &&
+    /isEnterpriseSecurity\(network\.security\)/.test(panelSource),
+  'network failure copy uses the live network credential and enterprise flags'
+)
+assert(
+  /readonly property bool canForget: root\.canForgetNetwork\(net\)/.test(panelSource),
+  'network rows derive forget eligibility from the tested model helper'
+)
+const rightAction = panelSource.match(/Item \{\s*id: rightAction\b[\s\S]*?\n {6}\}/)
+assert(rightAction, 'network has a right-edge action target')
+assert(
+  /visible: row\.requiresCredentials \|\| row\.canForget/.test(rightAction[0]),
+  'network keeps a forget target for known passwordless networks'
+)
+const lockIndicator = panelSource.match(/Text \{\s*id: lockIndicator\b[\s\S]*?\n {8}\}/)
+assert(lockIndicator, 'network has a lock/forget indicator')
+assert(
+  /visible: row\.requiresCredentials \|\| row\.forgetVisible/.test(lockIndicator[0]),
+  'network hides the lock on passwordless networks until showing their forget action'
+)
+assert(
+  /forgetVisible: canForget && \(!requiresCredentials \|\| forgetFocused \|\| rightMouse\.containsMouse\)/.test(panelSource),
+  'network shows the forget action directly for known passwordless networks'
+)
+
 const reasons = { NoSecrets: 1, WifiAuthTimeout: 2, WifiNetworkLost: 3, WifiClientDisconnected: 4, WifiClientFailed: 5 }
 assertEqual(network.networkFailureReason(reasons.NoSecrets, true, reasons), 'Passphrase required', 'network maps missing credential failures')
 assertEqual(network.networkFailureReason(reasons.WifiAuthTimeout, true, reasons), 'Wrong password', 'network maps credentialed auth timeouts')
+assertEqual(network.networkFailureReason(reasons.WifiAuthTimeout, true, reasons, undefined, true), 'Connection timed out', 'network does not call enterprise timeouts a wrong password')
 assertEqual(network.networkFailureReason(reasons.NoSecrets, false, reasons), 'Failed to connect', 'network gives passwordless missing-secret failures generic copy')
 assertEqual(network.networkFailureReason(reasons.WifiAuthTimeout, false, reasons), 'Failed to connect', 'network gives passwordless auth timeouts generic copy')
 assertEqual(network.networkFailureReason(99, true, reasons), 'Failed to connect', 'network maps unknown failures')
+assert(
+  /networkFailureReason\(\s*reason,\s*requiresCredentials\(network\.security\),\s*isEnterpriseSecurity\(network\.security\)\s*\)/.test(panelSource),
+  'network failure copy distinguishes enterprise security'
+)
+assert(
+  /Prefer an existing wpa-eap profile/.test(network.enterpriseConnectScript) ||
+    /while IFS=: read -r cand/.test(network.enterpriseConnectScript),
+  'enterprise connect reuses an existing wpa-eap profile for the SSID'
+)
+assert(
+  /created=1/.test(network.enterpriseConnectScript) &&
+    /\(\( created \)\) && nmcli connection delete/.test(network.enterpriseConnectScript),
+  'enterprise connect only deletes a profile it just created'
+)
+assert(
+  /nmcli -e no -g 802-11-wireless\.ssid/.test(network.enterpriseConnectScript),
+  'enterprise connect reads SSIDs without nmcli escaping so colon/backslash names reuse'
+)
+assert(
+  !/802-1x\.auth-timeout 8/.test(network.enterpriseConnectScript),
+  'enterprise connect does not pin an eight-second auth timeout'
+)
+assert(
+  /row\.isFailed \? \(root\.failureReason \|\| Commons\.I18n\.t\("network\.wrongPassword"\)\)/.test(panelSource),
+  'password prompt shows the mapped failureReason instead of a hard-coded wrong password'
+)
 
 assertEqual(network.canForgetNetwork({ known: true, connected: false, security: security.Owe }), true, 'network can forget known disconnected OWE networks')
 assertEqual(network.canForgetNetwork({ known: true, connected: false, security: security.Open }), true, 'network can forget known disconnected open networks')
