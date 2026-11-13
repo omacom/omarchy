@@ -1,40 +1,454 @@
 #!/bin/bash
 
-# omarchy:summary=Remove FIDO2 authentication from sudo and polkit
+# omarchy:summary=Remove one FIDO2 key, or remove FIDO2 from sudo and polkit entirely
+# omarchy:args=[--one|--all|INDEX]
 # omarchy:requires-sudo=true
 
 set -e
+set -o pipefail
 
+authdir=/etc/fido2
+authfile=/etc/fido2/fido2
+mapuser=$(/usr/bin/id -un)
 
 remove_pam_config() {
-  # Remove from sudo
   if grep -q pam_u2f.so /etc/pam.d/sudo; then
     echo "Removing FIDO2 authentication from sudo..."
     sudo sed -i '/pam_u2f\.so/d' /etc/pam.d/sudo
   fi
 
-  # Remove from polkit
   if [[ -f /etc/pam.d/polkit-1 ]] && grep -Fq 'pam_u2f.so' /etc/pam.d/polkit-1; then
     echo "Removing FIDO2 authentication from polkit..."
     sudo sed -i '/pam_u2f\.so/d' /etc/pam.d/polkit-1
   fi
 }
 
-echo -e "\e[32mRemoving FIDO2 device from authentication.\n\e[0m"
+fido_remove_interactive() {
+  # Real terminals, or tests that force the chooser without a PTY.
+  [[ -t 0 || ${OMARCHY_FIDO_REMOVE_MENU:-} == 1 ]]
+}
 
-remove_pam_config
+remove_all_fido2() {
+  # Interactive runs confirm; non-TTY scripts and the stock shell suite wipe
+  # without a second prompt (historical omarchy-remove-security-fido2 behavior).
+  if fido_remove_interactive; then
+    echo -e "\e[33mThis removes ALL FIDO2 keys, PAM config, and packages.\e[0m"
+    echo -n "Type 'yes' to wipe FIDO2 completely: "
+    read -r confirm || true
+    if [[ $confirm != yes ]]; then
+      echo "Cancelled. Nothing was changed."
+      exit 0
+    fi
+  fi
 
-authdir=/etc/fido2
+  echo -e "\e[32mRemoving FIDO2 from authentication.\n\e[0m"
+  remove_pam_config
 
-# -d follows symlinks, so a dangling link at /etc/fido2 would survive this and
-# a later setup would install the authfile through it. rm -rf on a symlink
-# removes the link itself, never the directory it points at.
-if [[ -e $authdir || -L $authdir ]]; then
-  echo "Removing FIDO2 configuration..."
-  sudo rm -rf "$authdir"
+  # -d follows symlinks, so a dangling link at /etc/fido2 would survive this and
+  # a later setup would install the authfile through it. rm -rf on a symlink
+  # removes the link itself, never the directory it points at.
+  if [[ -e $authdir || -L $authdir ]]; then
+    echo "Removing FIDO2 configuration..."
+    sudo rm -rf "$authdir"
+  fi
+
+  echo "Removing FIDO2 packages..."
+  omarchy-pkg-drop libfido2 pam-u2f
+
+  echo -e "\e[32mFIDO2 authentication has been completely removed.\e[0m"
+}
+
+# FIDO hidraw nodes from udev (no device open — works even when ACLs are missing).
+fido_udev_paths() {
+  local path
+
+  for path in /dev/hidraw[0-9]*; do
+    [[ -e $path ]] || continue
+    [[ $path =~ ^/dev/hidraw[0-9]+$ ]] || continue
+    if udevadm info -q property -- "$path" 2>/dev/null | grep -qx 'ID_FIDO_TOKEN=1'; then
+      printf '%s\n' "$path"
+    fi
+  done
+}
+
+# Grant the invoking user rw on FIDO hidraw nodes so fido2-token / fido2-assert
+# can open them. logind uaccess normally does this; a prior setfacl -b (or a
+# race) can leave nodes root-only, which made every key look "not plugged in".
+ensure_fido_access_for_scan() {
+  local path
+  local -a paths=()
+
+  # Already visible via libfido2 ⇒ logind uaccess (or equivalent) is fine.
+  mapfile -t paths < <(fido_device_paths)
+  if ((${#paths[@]} > 0)); then
+    return 0
+  fi
+
+  # Root-only hidraw: discover via udev (no open) and grant a temporary ACL.
+  mapfile -t paths < <(fido_udev_paths)
+  for path in "${paths[@]}"; do
+    [[ $path =~ ^/dev/hidraw[0-9]+$ ]] || continue
+    /usr/bin/sudo /usr/bin/setfacl -m "u:${mapuser}:rw-" -- "$path" || true
+  done
+}
+
+fido_device_has_keyhandle() {
+  local path=$1 kh=$2
+  local rp cdh err status
+
+  [[ $path =~ ^/dev/hidraw[0-9]+$ ]] || return 1
+  [[ -n $kh ]] || return 1
+  rp="pam://$(/usr/bin/hostname)"
+  cdh=$(/usr/bin/openssl rand -base64 32)
+  set +e
+  err=$(
+    printf '%s\n%s\n%s\n' "$cdh" "$rp" "$kh" |
+      /usr/bin/timeout 2 fido2-assert -G -t up=false -i /dev/stdin "$path" 2>&1 >/dev/null
+  )
+  status=$?
+  set -e
+  # Only treat a clear credential hit as plugged. Permission errors and
+  # NO_CREDENTIALS must not look like a match.
+  if [[ $status -eq 0 || $err == *FIDO_ERR_USER_PRESENCE_REQUIRED* ]]; then
+    return 0
+  fi
+  return 1
+}
+
+fido_device_paths() {
+  local line path
+
+  while IFS= read -r line; do
+    path=${line%%:*}
+    [[ $path =~ ^/dev/hidraw[0-9]+$ ]] || continue
+    printf '%s\n' "$path"
+  done < <(fido2-token -L 2>/dev/null)
+}
+
+# USB port from sysfs path (e.g. 3-2) — distinguishes identical product names
+# when udev serials are not unique (common on Feitian ePass sticks).
+fido_usb_port() {
+  local path=$1 devpath
+
+  devpath=$(udevadm info -q path -- "$path" 2>/dev/null) || true
+  if [[ $devpath =~ /(usb[0-9]+/)?([0-9]+-[0-9]+([.][0-9]+)*)/ ]]; then
+    printf '%s' "${BASH_REMATCH[2]}"
+    return 0
+  fi
+  return 1
+}
+
+fido_device_product() {
+  local path=$1 line
+
+  while IFS= read -r line; do
+    if [[ ${line%%:*} == "$path" ]]; then
+      if [[ $line =~ \((.+)\) ]]; then
+        printf '%s' "${BASH_REMATCH[1]}"
+      else
+        printf '%s' "$line"
+      fi
+      return 0
+    fi
+  done < <(fido2-token -L 2>/dev/null)
+
+  # udev fallback when token -L is empty
+  line=$(udevadm info -q property -- "$path" 2>/dev/null | awk -F= '$1=="ID_MODEL_FROM_DATABASE"{print $2; exit}')
+  if [[ -n $line ]]; then
+    printf '%s' "$line"
+    return 0
+  fi
+  printf 'FIDO key'
+}
+
+fido_device_label() {
+  local path=$1 product port
+
+  product=$(fido_device_product "$path")
+  if port=$(fido_usb_port "$path"); then
+    printf '%s, USB %s' "$product" "$port"
+  else
+    printf '%s (%s)' "$product" "$path"
+  fi
+}
+
+remove_one_key() {
+  local preset_index=${1:-}
+  local -a _cred_lines=() WHERE=()
+  local cred_count i idx cred kh preview where label path choice confirm
+  local before_devices drop stage after_devices
+
+  if [[ -L $authdir || ( -e $authdir && ! -d $authdir ) ]]; then
+    echo -e "\e[31m\n$authdir is not a FIDO2 configuration directory.\e[0m"
+    echo "Choose 'all' to wipe, or run omarchy-setup-security-fido2 after a clean remove."
+    exit 1
+  fi
+
+  if [[ -L $authfile || ! -f $authfile ]]; then
+    echo -e "\e[31m\nNo FIDO2 registration file exists at $authfile.\e[0m"
+    echo "Nothing to remove one-by-one. Choose 'all' if PAM/packages are still installed,"
+    echo "or run omarchy-setup-security-fido2 to register a key."
+    exit 1
+  fi
+
+  mapfile -t _cred_lines < <(/usr/bin/awk -F: -v user="$mapuser" '
+    $1 == user {
+      count++
+      for (i = 2; i <= NF; i++) {
+        print $i
+      }
+    }
+    END {
+      if (count != 1) {
+        exit 1
+      }
+    }
+  ' "$authfile") || {
+    echo -e "\e[31m\nNo single FIDO2 mapping for $mapuser in $authfile.\e[0m"
+    exit 1
+  }
+
+  cred_count=${#_cred_lines[@]}
+  if ((cred_count < 1)); then
+    echo -e "\e[31m\nNo FIDO2 devices registered for $mapuser.\e[0m"
+    exit 1
+  fi
+
+  if ((cred_count == 1)); then
+    echo -e "\e[33mOnly one FIDO2 key is registered for $mapuser.\e[0m"
+    echo "Removing it would leave FIDO2 enabled with no usable key."
+    echo "Choose 'all' from the menu to disable FIDO2 entirely (PAM + packages)."
+    exit 1
+  fi
+
+  echo "Scanning plugged keys (no touch needed)..."
+  ensure_fido_access_for_scan
+
+  echo -e "\e[32mRegistered FIDO2 keys for $mapuser ($cred_count):\e[0m"
+  echo "  (pick list 1–$cred_count — not numbers printed on the key)"
+  echo
+
+  for i in "${!_cred_lines[@]}"; do
+    idx=$((i + 1))
+    cred=${_cred_lines[i]}
+    kh=${cred%%,*}
+    preview=${kh:0:12}
+    where="not plugged in"
+    label=""
+    while IFS= read -r path; do
+      if fido_device_has_keyhandle "$path" "$kh"; then
+        label=$(fido_device_label "$path")
+        where="plugged in — $label"
+        break
+      fi
+    done < <(fido_device_paths)
+    WHERE[idx]=$where
+    if [[ -n $label ]]; then
+      printf '  %d) %s\n' "$idx" "$where"
+    else
+      printf '  %d) not plugged in (credential %s…)\n' "$idx" "$preview"
+    fi
+  done
+
+  echo
+  echo "This removes one credential from $authfile only."
+  echo "PAM stays configured; remaining keys keep working."
+  echo
+  echo "Tip: match by USB port / product above. Unplug keys you want to keep"
+  echo "if two look the same, then re-run so only the target shows as plugged in."
+  echo
+
+  choice=$preset_index
+  if [[ -z $choice ]]; then
+    echo -n "Remove which key? [1-$cred_count] (or q to cancel): "
+    read -r choice || true
+  fi
+
+  if [[ $choice == [qQ] || -z $choice ]]; then
+    echo "Cancelled. Nothing was changed."
+    exit 0
+  fi
+
+  if [[ ! $choice =~ ^[1-9][0-9]*$ ]] || ((choice < 1 || choice > cred_count)); then
+    echo -e "\e[31mInvalid selection: $choice\e[0m"
+    exit 1
+  fi
+
+  echo
+  echo "Will remove key $choice (${WHERE[choice]})."
+  echo -n "Type 'yes' to confirm: "
+  read -r confirm || true
+  if [[ $confirm != yes ]]; then
+    echo "Cancelled. Nothing was changed."
+    exit 0
+  fi
+
+  before_devices=$cred_count
+  drop=$choice
+  stage=""
+
+  safe_stage_path() {
+    local candidate=$1
+    local prefix="$authfile.new."
+    local suffix
+
+    [[ $candidate == "$prefix"* ]] || return 1
+    suffix=${candidate#"$prefix"}
+    [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
+  }
+
+  cleanup_stage() {
+    local status=$?
+
+    if safe_stage_path "$stage"; then
+      /usr/bin/sudo /usr/bin/rm -f -- "$stage" || true
+    fi
+
+    return "$status"
+  }
+
+  trap cleanup_stage EXIT
+  stage=$(/usr/bin/sudo /usr/bin/mktemp "$authfile.new.XXXXXX")
+
+  if ! safe_stage_path "$stage" || [[ ! -f $stage || -L $stage ]]; then
+    echo -e "\e[31m\nCould not create a safe staging file beside $authfile.\e[0m"
+    exit 1
+  fi
+
+  if /usr/bin/sudo /usr/bin/awk -v user="$mapuser" -v drop="$drop" '
+    BEGIN { FS = OFS = ":" }
+    $1 == user {
+      matched++
+      if (NF - 1 < 2) {
+        exit 2
+      }
+      if (drop < 1 || drop > NF - 1) {
+        exit 3
+      }
+      out = $1
+      for (i = 2; i <= NF; i++) {
+        if (i - 1 == drop) {
+          continue
+        }
+        out = out OFS $i
+      }
+      $0 = out
+    }
+    { print }
+    END {
+      if (matched != 1) {
+        exit 1
+      }
+    }
+  ' "$authfile" | /usr/bin/sudo /usr/bin/tee "$stage" >/dev/null && [[ -s $stage ]]; then
+    after_devices=$(/usr/bin/sudo /usr/bin/awk -F: -v user="$mapuser" '
+      $1 == user {
+        count++
+        devices = NF - 1
+      }
+      END {
+        if (count != 1 || devices < 1) {
+          exit 1
+        }
+        print devices
+      }
+    ' "$stage") || {
+      echo -e "\e[31m\nStaged FIDO2 authfile failed validation. Nothing was changed.\e[0m"
+      exit 1
+    }
+
+    if [[ $after_devices -ne $((before_devices - 1)) ]]; then
+      echo -e "\e[31m\nStaged device count is wrong ($after_devices). Nothing was changed.\e[0m"
+      exit 1
+    fi
+
+    /usr/bin/sudo /usr/bin/chmod 644 "$stage"
+    /usr/bin/sudo /usr/bin/mv -Tf "$stage" "$authfile"
+    stage=""
+    trap - EXIT
+    echo -e "\e[32mRemoved FIDO2 key $choice. $after_devices key(s) remain for $mapuser.\e[0m"
+  else
+    echo -e "\e[31m\nFailed to rewrite $authfile. Nothing was changed.\e[0m"
+    exit 1
+  fi
+}
+
+# --- entry -----------------------------------------------------------------
+
+mode=
+key_index=
+
+case ${1:-} in
+  --one | one | -1)
+    mode=one
+    key_index=${2:-}
+    ;;
+  --all | all | -a)
+    mode=all
+    ;;
+  '')
+    ;;
+  [1-9] | [1-9][0-9])
+    # Backward compatible: bare index implies remove-one.
+    mode=one
+    key_index=$1
+    ;;
+  -h | --help)
+    echo "Usage: omarchy-remove-security-fido2 [--one [INDEX]|--all]"
+    echo "  (no args)  ask: remove one key, or remove all FIDO2"
+    echo "  --one      remove a single registered key (keeps PAM)"
+    echo "  --all      wipe keys, PAM, and packages"
+    exit 0
+    ;;
+  *)
+    echo "Unknown argument: $1" >&2
+    echo "Use --one, --all, or no args for the interactive menu." >&2
+    exit 1
+    ;;
+esac
+
+if [[ -z $mode ]]; then
+  # No args + no TTY: preserve stock full wipe (scripts / existing tests).
+  if ! fido_remove_interactive; then
+    mode=all
+  else
+    echo -e "\e[32mFIDO2 removal\e[0m"
+    echo
+    if [[ -f $authfile && ! -L $authfile ]]; then
+      echo "  1) Remove one registered key (keeps FIDO2 / PAM working)"
+      echo "  a) Remove ALL FIDO2 (keys + PAM + packages)"
+    else
+      echo "  No authfile at $authfile."
+      echo "  a) Remove ALL FIDO2 (PAM + packages, if still installed)"
+    fi
+    echo "  q) Cancel"
+    echo
+    echo -n "Choose [1/a/q]: "
+    read -r reply || true
+    case $reply in
+      1)
+        mode=one
+        ;;
+      a | A)
+        mode=all
+        ;;
+      q | Q | '')
+        echo "Cancelled. Nothing was changed."
+        exit 0
+        ;;
+      *)
+        echo -e "\e[31mInvalid choice: $reply\e[0m"
+        exit 1
+        ;;
+    esac
+  fi
 fi
 
-echo "Removing FIDO2 packages..."
-omarchy-pkg-drop libfido2 pam-u2f
-
-echo -e "\e[32mFIDO2 authentication has been completely removed.\e[0m"
+case $mode in
+  one)
+    remove_one_key "$key_index"
+    ;;
+  all)
+    remove_all_fido2
+    ;;
+esac
