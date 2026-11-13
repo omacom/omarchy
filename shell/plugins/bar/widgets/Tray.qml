@@ -179,10 +179,26 @@ BarWidget {
     return item.tooltipTitle || item.title || item.id || ""
   }
 
+  function idShared(item) {
+    var id = String(item && item.id || "")
+    if (!id) return false
+    var values = SystemTray.items.values
+    var seen = 0
+    for (var i = 0; i < values.length; i++) {
+      if (String(values[i].id || "") === id) seen++
+      if (seen > 1) return true
+    }
+    return false
+  }
+
+  function itemStateKey(item) {
+    return TrayModel.stateKey(item)
+  }
+
   function classifyItem(item) {
-    var iid = String(item.id || "")
-    if (hiddenIds.indexOf(iid) !== -1) return "hidden"
-    if (pinnedIds.indexOf(iid) !== -1) return "pinned"
+    var shared = idShared(item)
+    if (TrayModel.appliesStored(hiddenIds, item, shared)) return "hidden"
+    if (TrayModel.appliesStored(pinnedIds, item, shared)) return "pinned"
     return "drawer"
   }
 
@@ -213,28 +229,14 @@ BarWidget {
     root.bar.shell.updateEntryInline(id, { id: id, pinned: pinned, hidden: hidden })
   }
 
-  function togglePin(iid) {
-    var p = pinnedIds.slice(), h = hiddenIds.slice()
-    var idx = p.indexOf(iid)
-    if (idx !== -1) p.splice(idx, 1)
-    else {
-      p.push(iid)
-      var hi = h.indexOf(iid)
-      if (hi !== -1) h.splice(hi, 1)
-    }
-    persistTrayState(p, h)
+  function togglePin(item) {
+    var next = TrayModel.toggleStored(pinnedIds, hiddenIds, item, idShared(item))
+    persistTrayState(next.keys, next.others)
   }
 
-  function toggleHide(iid) {
-    var p = pinnedIds.slice(), h = hiddenIds.slice()
-    var idx = h.indexOf(iid)
-    if (idx !== -1) h.splice(idx, 1)
-    else {
-      h.push(iid)
-      var pi = p.indexOf(iid)
-      if (pi !== -1) p.splice(pi, 1)
-    }
-    persistTrayState(p, h)
+  function toggleHide(item) {
+    var next = TrayModel.toggleStored(hiddenIds, pinnedIds, item, idShared(item))
+    persistTrayState(next.others, next.keys)
   }
 
   visible: pinnedItems.length > 0 || hasDrawer
@@ -496,7 +498,7 @@ BarWidget {
           width: manageColumn.width
           implicitHeight: 28
 
-          readonly property string itemId: String(modelData.id || "")
+          readonly property string itemId: root.itemStateKey(modelData)
           readonly property string displayName: {
             var t = String(modelData.title || "").trim()
             if (t) return t
@@ -506,8 +508,8 @@ BarWidget {
             var slash = id.lastIndexOf("/")
             return slash !== -1 ? id.substring(slash + 1) : (id || Commons.I18n.t("tray.unknown"))
           }
-          readonly property bool isPinned: root.pinnedIds.indexOf(itemId) !== -1
-          readonly property bool isHidden: root.hiddenIds.indexOf(itemId) !== -1
+          readonly property bool isPinned: TrayModel.appliesStored(root.pinnedIds, modelData, root.idShared(modelData))
+          readonly property bool isHidden: TrayModel.appliesStored(root.hiddenIds, modelData, root.idShared(modelData))
 
           TrayIcon {
             id: rowIcon
@@ -543,7 +545,7 @@ BarWidget {
             verticalPadding: 3
             iconSize: Style.font.bodySmall
             fontSize: Style.font.bodySmall
-            onClicked: root.togglePin(rowRoot.itemId)
+            onClicked: root.togglePin(rowRoot.modelData)
           }
 
           Button {
@@ -558,7 +560,7 @@ BarWidget {
             verticalPadding: 3
             iconSize: Style.font.bodySmall
             fontSize: Style.font.bodySmall
-            onClicked: root.toggleHide(rowRoot.itemId)
+            onClicked: root.toggleHide(rowRoot.modelData)
           }
         }
       }
