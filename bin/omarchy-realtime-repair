@@ -78,7 +78,7 @@ scan_zero_rttime() {
       [[ -d $dir && -z ${own_only:-} ]] && fail "Could not read the stat, status or limits of process ${dir##*/}"
       continue
     fi
-    [[ $uids == *" $uid "* && $hard == "0" && $again == $start ]] && echo "${dir##*/} $start $uid"
+    [[ $uids == *" $uid "* && $hard == "0" && $again == "$start" ]] && echo "${dir##*/} $start $uid"
   done
   return 0
 }
@@ -106,8 +106,8 @@ raise_zero_budgets() {
     sudo -n env PROC_ROOT="$proc_root" BUDGET="$budget" bash -c "$(declare -f start_time)"'
       while read -r pid start uid; do
         dir=$PROC_ROOT/$pid
-        [[ $(start_time "$dir") == $start ]] || continue
-        [[ $(awk "/^Uid:/ { print \$2 }" "$dir/status" 2>/dev/null) == $uid ]] || continue
+        [[ $(start_time "$dir") == "$start" ]] || continue
+        [[ $(awk "/^Uid:/ { print \$2 }" "$dir/status" 2>/dev/null) == "$uid" ]] || continue
         [[ $(awk "/^Max realtime timeout/ { print \$5 }" "$dir/limits" 2>/dev/null) == "0" ]] || continue
         prlimit --pid "$pid" --rttime="$BUDGET:$BUDGET" || [[ ! -d $dir ]] || exit 1
       done' <<<"$targets" || fail "Could not raise the realtime budget of every process"
@@ -120,7 +120,7 @@ as_user() {
   local user=$1 command=$2
   shift 2
 
-  if [[ $user == $(id -un) ]]; then
+  if [[ $user == "$(id -un)" ]]; then
     "$command" --user "$@"
   else
     sudo -n "$command" --user --machine="$user@" "$@"
