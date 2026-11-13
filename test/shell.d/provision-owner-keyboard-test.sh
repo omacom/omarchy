@@ -380,7 +380,7 @@ lang=$tmp/language
 mkdir -p "$lang"
 export OMARCHY_FORM_DEFAULTS=$lang/no-defaults
 source "$ROOT/install/provisioning/setup-form.sh"
-source <(sed -n '/^fit_console_font() {/,/^}/p; /^initial_language() {/,/^}/p; /^configure_language() {/,/^}/p; /^keyboard_form() {/,/^}/p; /^user_form() {/,/^}/p; /^run_setup() {/,/^}/p' \
+source <(sed -n '/^fit_console_font() {/,/^}/p; /^initial_language() {/,/^}/p; /^configure_language() {/,/^}/p; /^keyboard_form() {/,/^}/p; /^user_form() {/,/^}/p; /^clear_logo() {/,/^}/p; /^brand_logo() {/,/^}/p; /^brand_console_font() {/,/^}/p; /^confirm_shutdown() {/,/^}/p; /^eula_form() {/,/^}/p; /^run_setup() {/,/^}/p' \
   "$ROOT/bin/omarchy-provision-owner")
 
 LANGUAGE_FILE=$lang/attempt-language
@@ -530,10 +530,18 @@ pass "setup is translated only on a console set in the font that draws the trans
     return 1
   }
   rekey_accepts_password() { return 0; }
+  # Esc on the agreement the first time it is shown.
+  eula_form() {
+    echo agreement >>"$lang/setup-order"
+    [[ -e $lang/agreed ]] && return 0
+    touch "$lang/agreed"
+    return "$OMARCHY_FORM_BACK"
+  }
   load_tips() { exit 0; }
   run_setup
 )
-[[ $(<"$lang/setup-order") == $'font\ninitial\nlanguage\nkeyboard\naccount\nreview\nkeyboard\naccount\nreview' ]] || fail "declining review returns to the keyboard and account steps" "$(cat "$lang/setup-order")"
+[[ $(<"$lang/setup-order") == $'font\ninitial\nlanguage\nkeyboard\naccount\nreview\nkeyboard\naccount\nreview\nagreement\nkeyboard\naccount\nreview\nagreement' ]] ||
+  fail "declining review, or Esc on the agreement that follows it, returns to the keyboard and account steps" "$(cat "$lang/setup-order")"
 (
   platform_ready() { :; }
   fit_console_font() { :; }
@@ -545,7 +553,305 @@ pass "setup is translated only on a console set in the font that draws the trans
   run_setup || status=$?
   (( status == 1 )) || fail "a failed keyboard step fails the setup attempt"
 )
-pass "setup asks language, keyboard, account, review and preserves its keyboard failure gate"
+pass "setup asks language, keyboard, account, review, then the agreement, and preserves its keyboard failure gate"
+
+# The OEM's part of first boot: what its bundle names for setup's screens, and
+# its agreement, read and answered with keys the test queues.
+oem=$tmp/oem
+mkdir -p "$oem/bundle" "$oem/state"
+source "$ROOT/install/provisioning/oem.sh"
+source <(sed -n '/^record_eula() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" | sed "s|/var/lib/omarchy/oem|$oem/state|g")
+export OMARCHY_OEM_DIR=$oem/bundle
+omarchy_oem_tty=/dev/null
+
+omarchy_oem_load
+[[ -z $OMARCHY_OEM_NAME$OMARCHY_OEM_COLOR$OMARCHY_OEM_LOGO$OMARCHY_OEM_EULA ]] || fail "a machine no OEM prepared has no branding and no agreement"
+printf '{"name":"Acme","tagline":"Built by Acme","color":"#ff6a00","eula_title":"Acme Agreement"}\n' >"$oem/bundle/oem.json"
+printf 'ACME\n' >"$oem/bundle/logo.txt"
+{
+  printf 'Line %d\n' {1..39}
+  printf 'wrapped %.0s' {1..40}
+  printf '\nLine 40\n'
+} >"$oem/bundle/eula.txt"
+omarchy_oem_load
+[[ $OMARCHY_OEM_NAME == "Acme" && $OMARCHY_OEM_TAGLINE == "Built by Acme" && $OMARCHY_OEM_COLOR == "#ff6a00" && $OMARCHY_OEM_EULA_TITLE == "Acme Agreement" ]] ||
+  fail "the bundle names the OEM, its tagline, its colour and its agreement's title"
+[[ $OMARCHY_OEM_LOGO == "$oem/bundle/logo.txt" && $OMARCHY_OEM_EULA == "$oem/bundle/eula.txt" ]] || fail "the bundle's logo and agreement are found beside it"
+# The colour is written into a console escape, so only a colour may pass.
+printf '{"name":"Acme","color":"#ff6a00]P0000000","eula_title":"Acme Agreement"}\n' >"$oem/bundle/oem.json"
+omarchy_oem_load
+[[ -z $OMARCHY_OEM_COLOR ]] || fail "a colour that is not #RRGGBB is not used"
+pass "the OEM bundle supplies setup's branding and agreement, and only a real colour"
+
+# A 24-row console: the logo gives way, leaving 13 rows of the agreement, whose
+# 45 wrapped lines end "Line 40".
+agreement() {
+  local status=0
+  (
+    LINES=24 LOGO_WIDTH=81 LOGO_HEIGHT=10 PADDING_LEFT=0
+    measure_terminal() { :; }
+    clear_logo() { fail "a 24-row console has no room for the logo above the agreement"; }
+    keys=("$@")
+    omarchy_oem_read_key() {
+      ((${#keys[@]})) || fail "the agreement waited for a key the test did not send"
+      OMARCHY_OEM_KEY=${keys[0]}
+      keys=("${keys[@]:1}")
+    }
+    omarchy_oem_eula >"$oem/screen"
+  ) || status=$?
+  return "$status"
+}
+shown() { grep -oF -- "$1" "$oem/screen" | wc -l; }
+
+agreement enter || fail "Return on the agreement accepts it, the answer in focus"
+(($(shown "Line 13") == 1 && $(shown "Line 14") == 0)) || fail "the agreement opens on its first rows"
+grep -qF "Acme Agreement" "$oem/screen" || fail "the agreement is shown under the OEM's title"
+OMARCHY_OEM_EULA_TITLE="" agreement enter
+grep -qF "Acme License Agreement" "$oem/screen" || fail "an agreement without a title is named for the OEM"
+agreement up pagedown enter || fail "paging keeps the agreement accepted on Return"
+(($(shown "Line 25") == 1 && $(shown "Line 26") == 0)) || fail "a page down keeps one row of the page before, and up stops at the top"
+agreement end pagedown down enter || fail "reading to the end and past it still accepts on Return"
+(($(shown "Line 40") == 3 && $(shown "Line 33") == 3)) || fail "the end shows the last rows and stops there" "$(shown "Line 40") $(shown "Line 33")"
+! grep -qE '(wrapped ){11}' "$oem/screen" || fail "a long paragraph is wrapped to the column"
+
+status=0; agreement tab enter || status=$?
+((status == OMARCHY_OEM_DECLINED)) || fail "Tab then Return declines" "$status"
+agreement right left enter || fail "moving to Decline and back accepts"
+status=0; agreement down escape || status=$?
+((status == OMARCHY_FORM_BACK)) || fail "Esc goes back, as on every other step"
+status=0; agreement interrupt || status=$?
+((status == OMARCHY_FORM_SIGNAL)) || fail "Ctrl+C is the form's signal, not the end of setup"
+pass "the agreement scrolls within its text, wraps it, and reports accept, decline, Esc and Ctrl+C"
+
+# The keys as the Linux console sends them, through the reader itself: the
+# arrows and paging keys, Tab, Space and Return, a function key it has no use
+# for, and Esc with nothing after it.
+(
+  read_keys() {
+    local names=() count=$1
+    exec 9< <(printf "$2")
+    omarchy_oem_tty=/dev/fd/9
+    while ((count-- > 0)); do
+      omarchy_oem_read_key
+      names+=("${OMARCHY_OEM_KEY:-none}")
+    done
+    exec 9<&-
+    echo "${names[*]}"
+  }
+  [[ $(read_keys 12 '\033[A\033[B\033[5~\033[6~\033[1~\033[4~\033[C\033[D\t \n\033[[A') == "up down pageup pagedown home end right left tab pagedown enter other" ]] ||
+    fail "the console's keys are read by name"
+  [[ $(read_keys 2 '\033') == "escape none" ]] || fail "Esc with nothing after it is Esc, and no key is none"
+)
+# Ctrl+C reaches the agreement as SIGINT, since bash's read keeps the
+# console's signals on: it is the form's signal, and the caller's own trap is
+# back afterwards.
+(
+  LINES=24 LOGO_WIDTH=81 LOGO_HEIGHT=10 PADDING_LEFT=0
+  measure_terminal() { :; }
+  eval "typed_$(declare -f omarchy_oem_read_key)"
+  omarchy_oem_read_key() {
+    kill -INT "$BASHPID"
+    typed_omarchy_oem_read_key
+  }
+  trap : INT
+  status=0
+  omarchy_oem_eula >/dev/null || status=$?
+  [[ $status == "$OMARCHY_FORM_SIGNAL" && $(trap -p INT) == "trap -- ':' SIGINT" ]] ||
+    fail "Ctrl+C on the agreement is its signal status, and leaves the caller's trap in place" "$status $(trap -p INT)"
+)
+pass "the agreement reads the console's own key sequences, and takes Ctrl+C as a signal"
+
+# A logo is art, and art can open with dashes: it is drawn, not read as an option.
+if command -v gum >/dev/null; then
+  (
+    measure_terminal() { PADDING_LEFT=0; }
+    LOGO_COLOR=2 LOGO_PATH=$oem/dashes.txt
+    printf -- '--ACME--\n' >"$LOGO_PATH"
+    clear_logo | grep -qF -- '--ACME--' || fail "a logo that opens with dashes is drawn"
+  )
+  pass "a logo that opens with dashes is drawn"
+else
+  skip "gum is not installed; a logo that opens with dashes is drawn"
+fi
+
+# Declining is not a dead end and not an accident: the owner goes back to the
+# agreement unless they choose to shut down, and only accepting moves on.
+cat >"$stub_bin/systemctl" <<SH
+#!/bin/bash
+echo "systemctl \$*" >>"$oem/calls"
+SH
+chmod +x "$stub_bin/systemctl"
+# eula_form as setup runs it, with the console's font left alone.
+agreement_form() {
+  PADDING_LEFT=0 LOGO_WIDTH=81 LOGO_PATH=$oem/omarchy-logo.txt LOGO_HEIGHT=10 LOGO_COLOR=2 EULA_ACCEPTED_AT=""
+  BRAND_LOGO_PATH=$OMARCHY_OEM_LOGO BRAND_LOGO_HEIGHT=1 BRAND_LOGO_COLOR=9
+  brand_console_font() { :; }
+  fit_console_font() { echo form-font >>"$oem/calls"; }
+}
+(
+  agreement_form
+  fit_console_font() { :; }
+  clear_logo() { :; }
+  say() { :; }
+  answers=("$OMARCHY_OEM_DECLINED" "$OMARCHY_OEM_DECLINED" 0)
+  omarchy_oem_eula() {
+    local answer=${answers[0]}
+    answers=("${answers[@]:1}")
+    return "$answer"
+  }
+  # Ctrl+C while the screen after the agreement is being drawn.
+  say() { kill -INT "$BASHPID"; }
+  gum() {
+    [[ " $* " == *" --default=false "* ]] || fail "shutting down must not be the answer in focus"
+    echo ask >>"$oem/calls"
+    return 1
+  }
+  eula_form >/dev/null
+  [[ -z $(trap -p INT) ]] || fail "the agreement's Ctrl+C handling ends with it"
+  [[ -n $EULA_ACCEPTED_AT && $(<"$oem/calls") == $'ask\nask' ]] || fail "a declined agreement is shown again until it is accepted" "$(cat "$oem/calls")"
+
+  username=owner
+  record_eula
+  [[ $(jq -r '.accepted_by, .oem, .sha256' "$oem/state/eula-accepted.json") == $'owner\nAcme\n'"$(sha256sum <"$OMARCHY_OEM_EULA" | cut -d' ' -f1)" ]] ||
+    fail "accepting records who accepted whose agreement"
+)
+: >"$oem/calls"
+(
+  agreement_form
+  fit_console_font() { :; }
+  clear_logo() { :; }
+  say() { :; }
+  omarchy_oem_eula() { return "$OMARCHY_OEM_DECLINED"; }
+  gum() { return 0; }
+  eula_form >/dev/null
+  fail "choosing to shut down ends setup"
+)
+[[ $(<"$oem/calls") == "systemctl poweroff" ]] || fail "declining and choosing to shut down powers the machine off" "$(cat "$oem/calls")"
+(
+  # Ctrl+C offers the reboot every step offers; turned down, the agreement is
+  # back, and Esc from it is the form's step back with nothing accepted.
+  agreement_form
+  fit_console_font() { :; }
+  answers=("$OMARCHY_FORM_SIGNAL" "$OMARCHY_FORM_BACK")
+  omarchy_oem_eula() {
+    local answer=${answers[0]}
+    answers=("${answers[@]:1}")
+    return "$answer"
+  }
+  confirm_reboot() { echo reboot-offered >>"$oem/calls"; return 1; }
+  status=0
+  eula_form >/dev/null || status=$?
+  [[ $status == "$OMARCHY_FORM_BACK" && -z $EULA_ACCEPTED_AT && $(<"$oem/calls") == $'systemctl poweroff\nreboot-offered' ]] ||
+    fail "Ctrl+C on the agreement offers a reboot and Esc goes back, accepting nothing" "$status $(cat "$oem/calls")"
+)
+(
+  agreement_form
+  OMARCHY_OEM_EULA=""
+  omarchy_oem_eula() { fail "a machine without an agreement is not asked to accept one"; }
+  eula_form
+  rm -f "$oem/state/eula-accepted.json"
+  record_eula
+  [[ ! -e $oem/state/eula-accepted.json ]] || fail "nothing is recorded where nothing was accepted"
+)
+pass "a declined agreement comes back until it is accepted or the machine is shut down, and acceptance is recorded"
+
+# The brand is on the screens setup opens and ends on. The steps between are
+# under Omarchy's logo, and the form's own font is back once the agreement is
+# answered.
+printf 'OMARCHY\n' >"$oem/omarchy-logo.txt"
+printf '⣿⣷⣄ ⢀⣴⣿\n' >"$oem/bundle/logo.txt"
+(
+  agreement_form
+  : >"$oem/calls"
+  gum() { printf '%s\n' "${*: -1}" >>"$oem/drawn"; }
+  measure_terminal() { :; }
+  omarchy_oem_eula() { clear_logo >/dev/null; }
+
+  clear_logo >/dev/null
+  eula_form >/dev/null
+  clear_logo >/dev/null
+  [[ $(<"$oem/drawn") == $'OMARCHY\n⣿⣷⣄ ⢀⣴⣿\nOMARCHY' ]] || fail "only the agreement is under the OEM's logo" "$(cat "$oem/drawn")"
+  [[ $(<"$oem/calls") == "form-font" ]] || fail "the form's font is back after the agreement" "$(cat "$oem/calls")"
+)
+# A logo in braille dots needs them added to the console font, beside the text
+# that screen shows. A console that cannot take them shows Omarchy's logo.
+(
+  agreement_form
+  source <(sed -n '/^brand_console_font() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner")
+  OMARCHY_PATH=$ROOT OMARCHY_FORM_LANGUAGE=de
+  tty() { echo /dev/tty1; }
+  omarchy_console_font() { printf '%s\n' "$@" >"$oem/font-asked"; return "$font_status"; }
+
+  font_status=0
+  brand_logo "$OMARCHY_OEM_LOGO"
+  brand_console_font
+  [[ $BRAND_LOGO_PATH == "$OMARCHY_OEM_LOGO" && $BRAND_LOGO_WIDTH == 7 ]] || fail "a console given the dots draws the OEM's logo"
+  [[ $(<"$oem/font-asked") == "/dev/tty1"$'\n'"$OMARCHY_OEM_LOGO"$'\n'"$OMARCHY_OEM_DIR/oem.json"$'\n'"$OMARCHY_OEM_EULA"$'\n'"$ROOT/default/i18n/en/cli.json"$'\n'"$ROOT/default/i18n/de/cli.json" ]] ||
+    fail "the font keeps what the branded screens say: the bundle's text and setup's own in this language" "$(cat "$oem/font-asked")"
+
+  font_status=1
+  brand_console_font
+  [[ $BRAND_LOGO_PATH == "$LOGO_PATH" && $BRAND_LOGO_WIDTH == 7 ]] || fail "a console that cannot draw the dots shows Omarchy's logo"
+
+  printf '█▀█\n' >"$oem/bundle/logo.txt"
+  rm "$oem/font-asked"
+  brand_logo "$OMARCHY_OEM_LOGO"
+  brand_console_font
+  [[ ! -e $oem/font-asked && $BRAND_LOGO_PATH == "$OMARCHY_OEM_LOGO" ]] || fail "a logo the font already draws needs nothing added to it"
+)
+pass "the OEM's logo heads the greeter and the agreement only, with its dots added to the console font for them"
+
+# The font itself: the dot patterns a logo uses are drawn in glyphs that
+# neither the logo nor the text beside it needs, and a font with no room says so.
+python3 - "$ROOT/install/provisioning/console-font.py" "$oem" <<'PYTHON' || fail "console-font.py adds a logo's braille dots to the font"
+import importlib.util, subprocess, sys
+from pathlib import Path
+
+tool, work = sys.argv[1], Path(sys.argv[2])
+spec = importlib.util.spec_from_file_location("console_font", tool)
+font = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(font)
+
+def build(codepoints, width=8, height=16):
+    # Each glyph is its own code point's low byte, so a redrawn one shows.
+    glyphs = [bytes([codepoint & 0xFF]) * ((width + 7) // 8 * height) for codepoint in codepoints]
+    path = work / "source.psf"
+    path.write_bytes(font.write_psf2(width, height, glyphs, [[codepoint] for codepoint in codepoints]))
+    return path
+
+def run(source, *files):
+    return subprocess.run([sys.executable, tool, str(source), str(work / "out.psf"), *map(str, files)], capture_output=True)
+
+(work / "art.txt").write_text("⣿⠁ ⠈⡀\n")
+(work / "text.txt").write_text("Жюль ΩΨ")
+text = [ord(char) for char in "Жюль ΩΨ" if char != " "]
+spare = [0x0429, 0x042E, 0x042F, 0x0401]
+# The text's glyphs come last, where a tool that forgot the text would take them first.
+source = build([0xFFFD, *range(0x20, 0x7F), 0x0149, 0x20A7, 0x2588, *spare, *text])
+assert run(source, work / "art.txt", work / "text.txt").returncode == 0
+width, height, glyphs, table = font.read_font((work / "out.psf").read_bytes())
+owner = {codepoint: index for index, codepoints in enumerate(table) for codepoint in codepoints}
+assert all(ord(char) in owner for char in "⣿⠁⠈⡀"), "the art's patterns are drawn"
+assert not any(codepoint in owner for codepoint in spare), "they take the glyphs nothing needs"
+assert all(glyphs[owner[codepoint]] == bytes([codepoint & 0xFF]) * 16 for codepoint in [*text, *range(0x20, 0x7F)]), "text beside the art keeps its glyphs"
+full, one = glyphs[owner[0x28FF]], glyphs[owner[0x2801]]
+# All eight dots: two columns, four rows, two pixels square in an 8x16 cell.
+assert [row for row in full] == [0, 0x66, 0x66, 0] * 4, full.hex()
+assert [row for row in one] == [0, 0x60, 0x60] + [0] * 13, one.hex()
+# Dot 4 heads the right column and dot 7 ends the left, as Unicode numbers them.
+assert list(glyphs[owner[0x2808]]) == [0, 0x06, 0x06] + [0] * 13
+assert list(glyphs[owner[0x2840]]) == [0] * 13 + [0x60, 0x60, 0]
+
+wide = build([0xFFFD, *range(0x20, 0x7F), 0x0149, 0x20A7, *spare], width=16, height=32)
+assert run(wide, work / "art.txt").returncode == 0
+_, _, glyphs, table = font.read_font((work / "out.psf").read_bytes())
+owner = {codepoint: index for index, codepoints in enumerate(table) for codepoint in codepoints}
+assert glyphs[owner[0x28FF]] == (bytes(4) + bytes([0x3C, 0x3C] * 4) + bytes(4)) * 4, "a 16x32 cell has dots four pixels square"
+
+# Four patterns, three glyphs to spare.
+assert run(build([0xFFFD, *range(0x20, 0x7F), 0x0149, 0x20A7, *spare[:3]]), work / "art.txt").returncode != 0
+PYTHON
+pass "the console font draws a logo's dots in glyphs the screen has no other use for"
 
 source "$ROOT/install/provisioning/console-font.sh"
 status=0
