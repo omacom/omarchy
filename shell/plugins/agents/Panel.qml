@@ -1137,15 +1137,29 @@ Panel {
       : Commons.I18n.t("agents.balanceSpent").arg(spent).arg(funded)
   }
 
-  // A balance or spend row's amount is as wide as a limit row's time left
-  // ("19h 40m"), so every line ends where the limit meters do.
+  // A two-digit sample of a duration in the display language, such as
+  // "00h 00m" or "00 Std. 00 Min.", for sizing the column it is shown in.
+  function durationSample(key) {
+    var digits = Commons.I18n.formatNumber(0) + Commons.I18n.formatNumber(0)
+    return Commons.I18n.t(key).arg(digits).arg(digits)
+  }
+
+  // The value column is as wide as the widest time left in the display
+  // language ("19h 40m", "1 Tg. 22 Std."), so every meter, balance and spend
+  // line ends in the same place.
   TextMetrics {
-    id: valueColumnMetrics
+    id: hoursMinutesMetrics
     font.family: root.fontFamily
     font.pixelSize: Style.font.bodySmall
-    text: "00h 00m"
+    text: root.durationSample("agents.durationHoursMinutes")
   }
-  readonly property real valueColumnWidth: Math.ceil(valueColumnMetrics.advanceWidth)
+  TextMetrics {
+    id: daysHoursMetrics
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.bodySmall
+    text: root.durationSample("agents.durationDaysHours")
+  }
+  readonly property real valueColumnWidth: Math.ceil(Math.max(hoursMinutesMetrics.advanceWidth, daysHoursMetrics.advanceWidth))
 
   // ------------------------------------------------------------------ spend
   //
@@ -3066,20 +3080,12 @@ Panel {
       markers: compact.scoped
     }
 
-    // Sized to the widest time left ("19h 40m"), so every meter ends in the
-    // same place.
-    TextMetrics {
-      id: compactValueMetrics
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
-      text: "00h 00m"
-    }
-
-    // How long until the window resets. The meter says how full it is; the
-    // exact percentage is in the row's tooltip.
+    // How long until the window resets, in the shared value column so every
+    // meter ends in the same place. The meter says how full it is; the exact
+    // percentage is in the row's tooltip.
     Text {
       id: compactValue
-      width: Math.ceil(compactValueMetrics.advanceWidth)
+      width: root.valueColumnWidth
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
       textFormat: Text.PlainText
