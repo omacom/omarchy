@@ -50,9 +50,15 @@ if [[ -z $APP_NAME ]]; then
   exit 1
 fi
 
-icon_name=$(printf '%s\n' "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
 desktop_file=$(path_for_web_app "$APP_NAME")
-rm -f "${desktop_file:-$DESKTOP_DIR/$APP_NAME.desktop}"
+
+if [[ -z $desktop_file ]]; then
+  echo "Web app not found: $APP_NAME"
+  exit 1
+fi
+
+icon_name=$(printf '%s\n' "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^[:alnum:]]\+/-/g; s/^-//; s/-$//')
+rm -f "$desktop_file"
 rm -f "$ICON_DIR/$icon_name.png" "$ICON_DIR/$APP_NAME.png" "$OLD_ICON_DIR/$APP_NAME.png"
 
 if [[ ${OMARCHY_REMOVE_NOTIFY:-true} != "false" ]]; then
