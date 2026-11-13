@@ -62,6 +62,61 @@ ShellRoot {
     return isFinite(n) && n >= 0
   }
 
+  function calendarOf(item) {
+    for (var i = 0; i < item.children.length; i++) {
+      var child = item.children[i]
+      if (child && child.item && ("viewMonth" in child.item)) return child.item
+    }
+    return null
+  }
+
+  // The SystemClock a QML object declares, found by the properties only it has.
+  function systemClockOf(item) {
+    for (var i = 0; i < item.data.length; i++) {
+      var child = item.data[i]
+      if (child && ("precision" in child) && ("enabled" in child)) return child
+    }
+    return null
+  }
+
+  // How many times a clock was stopped and started while fn ran.
+  function restartsDuring(clock, fn) {
+    var restarts = 0
+    var count = function() { if (clock.enabled) restarts++ }
+    clock.enabledChanged.connect(count)
+    fn()
+    clock.enabledChanged.disconnect(count)
+    return restarts
+  }
+
+  // A wake leaves SystemClock counting down a minute it started before the
+  // sleep. Re-enabling it is what re-reads the time, so the resync the system
+  // clock timer asks for has to restart both the label's clock and the
+  // calendar's, and has to do it without sending a browsed month back to today.
+  function assertClockResyncs(item) {
+    var calendar = calendarOf(item)
+    root.assertTrue(calendar !== null, "omarchy.clock loads its calendar")
+    if (!calendar) return
+
+    var labelClock = systemClockOf(item)
+    var calendarClock = systemClockOf(calendar)
+    root.assertTrue(labelClock !== null && calendarClock !== null, "omarchy.clock and its calendar each run a SystemClock")
+    if (!labelClock || !calendarClock) return
+
+    calendar.viewMonth = (calendar.viewMonth + 3) % 12
+    var browsed = calendar.viewMonth
+
+    var labelRestarts = 0
+    var calendarRestarts = restartsDuring(calendarClock, function() {
+      labelRestarts = restartsDuring(labelClock, function() { item.resync() })
+    })
+
+    root.assertEqual(labelRestarts, 1, "omarchy.clock restarts its clock when the system clock jumps")
+    root.assertEqual(calendarRestarts, 1, "omarchy.clock restarts its calendar's clock when the system clock jumps")
+    root.assertTrue(labelClock.enabled && calendarClock.enabled, "omarchy.clock leaves both clocks running after a resync")
+    root.assertEqual(calendar.viewMonth, browsed, "omarchy.clock leaves a browsed month alone when the system clock jumps")
+  }
+
   function loadWidget(entry) {
     var component = Qt.createComponent(entry.url, Component.PreferSynchronous)
     if (component.status !== Component.Ready) {
@@ -162,6 +217,7 @@ ShellRoot {
           var id = root.createdIds[j]
           root.assertTrue(root.finiteDimension(item.implicitWidth), id + " has a finite implicitWidth")
           root.assertTrue(root.finiteDimension(item.implicitHeight), id + " has a finite implicitHeight")
+          if (id === "omarchy.clock") root.assertClockResyncs(item)
         }
 
         fakeBar.vertical = true

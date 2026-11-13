@@ -1,0 +1,11 @@
+[Unit]
+Description=Restart the bar clock after the system clock jumped
+# The same environment omarchy-sleep-lock waits for: the IPC call finds the
+# running shell through OMARCHY_PATH and WAYLAND_DISPLAY. -q makes a shell that
+# is not running, or still starting, a success rather than a failed unit.
+ConditionEnvironment=OMARCHY_PATH
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-shell -q omarchy.clock resync
