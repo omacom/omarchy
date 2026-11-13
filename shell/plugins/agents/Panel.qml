@@ -2326,7 +2326,7 @@ Panel {
       readonly property var agentDays: section.provider ? (section.provider.history || null) : null
       visible: root.hasHistory(section.provider)
       width: parent.width
-      source: root.usage
+      source: usage
       days: agentDays || ({})
       range: root.historyRange
       nowMs: root.nowMs
