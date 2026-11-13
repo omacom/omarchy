@@ -1237,6 +1237,7 @@ Panel {
 
       TextField {
         id: renameField
+        accessibleName: Commons.I18n.t("tailscale.renameConnection")
         visible: accountRow.renaming
         Layout.fillWidth: true
         foreground: root.foreground
