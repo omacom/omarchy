@@ -61,7 +61,7 @@ done
 if [[ -z $id ]]; then
   interactive || fail "a plugin-id is required"
   ids=$(find "$PLUGINS_DIR" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) \
-    ! -name '.*' -printf '%f\n' 2>/dev/null | sort)
+    ! -name '.*' -printf '%f\n' 2>/dev/null | sort) || fail "could not list installed plugins"
   [[ -n $ids ]] || fail "no plugins installed"
   id=$(gum choose --header="$(omarchy-i18n plugin.removeWhich)" <<<"$ids") || fail "cancelled"
   [[ -n $id ]] || fail "nothing selected"
