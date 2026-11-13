@@ -178,7 +178,8 @@ run_theme_set() {
   local markers=$1 rc=0
   mkdir -p "$markers"
   HOME="$TMPDIR" PATH="$hang_bin:$TMP_BIN:$ROOT/bin:/usr/bin:/bin" OMARCHY_PATH="$ROOT" \
-    OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" CALL_LOG="$CALL_LOG" POLICY_STATUS="${POLICY_STATUS:-0}" \
+    OMARCHY_BROWSER_POLICY_DIRS="$policy_tmp" OMARCHY_BROWSER_FLAGS_DIR="$TMPDIR/etc" \
+    CALL_LOG="$CALL_LOG" POLICY_STATUS="${POLICY_STATUS:-0}" \
     RUNNING_BROWSERS="$running" BROWSER_BIN="$hang_bin" REFRESH_MARKER_DIR="$markers" \
     timeout -k 5s 30s bash "$ROOT/bin/omarchy-theme-set-browser" >/dev/null 2>&1 || rc=$?
   return "$rc"
@@ -270,3 +271,12 @@ rm "$TMPDIR/.config/brave-flags.conf"
 (( rc == 0 )) && [[ -f $TMPDIR/other-flags/brave ]] ||
   fail "theme-set-browser refreshes a browser on a data directory from its flags file" "exit $rc"
 pass "theme-set-browser refreshes a browser on a data directory from its flags file"
+
+mkdir -p "$TMPDIR/etc"
+printf -- '--user-data-dir=%s\n' "$TMPDIR/elsewhere" >"$TMPDIR/etc/brave-flags.conf"
+rc=0
+run_theme_set "$TMPDIR/other-system-flags" || rc=$?
+rm "$TMPDIR/etc/brave-flags.conf"
+(( rc == 0 )) && [[ -f $TMPDIR/other-system-flags/brave ]] ||
+  fail "theme-set-browser refreshes a browser on a data directory from the system flags file" "exit $rc"
+pass "theme-set-browser refreshes a browser on a data directory from the system flags file"

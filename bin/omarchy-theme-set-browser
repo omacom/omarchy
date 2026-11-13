@@ -76,7 +76,7 @@ omarchy-cmd-present "$chrome" || chrome=google-chrome
 profile_owned() {
   local config=${XDG_CONFIG_HOME:-$HOME/.config} owner pid
   [[ -n ${CHROME_USER_DATA_DIR:-}${CHROME_CONFIG_HOME:-} ]] && return 0
-  grep -qs -- --user-data-dir "/etc/$2" "$config/$2" && return 0
+  grep -qs -- --user-data-dir "${OMARCHY_BROWSER_FLAGS_DIR:-/etc}/$2" "$config/$2" && return 0
   owner=$(readlink "$config/$1/SingletonLock") || return 1
   pid=${owner##*-}
   [[ ${owner%-*} == "$(uname -n)" && $pid =~ ^[0-9]+$ && -d /proc/$pid ]]
