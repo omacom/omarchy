@@ -679,9 +679,14 @@ Item {
         if (dropAction !== Qt.IgnoreAction) { card.dragging = false; card.dismissed(); return }
         // The deck in its surface's coordinates, so a drop back on the
         // notifications is not mistaken for one on the window beneath them.
+        // Only this card's monitor counts: the surfaces on the others let
+        // input through to the windows under them.
         var deck = card.parent
         var at = deck.mapToItem(null, 0, 0)
-        dropCheck.environment = ({ DECK: JSON.stringify([at.x, at.y, deck.width, deck.height]) })
+        dropCheck.environment = ({
+          DECK: JSON.stringify([at.x, at.y, deck.width, deck.height]),
+          MONITOR: String(card.Screen.name || "")
+        })
         dropCheck.running = true
       }
     }
@@ -692,8 +697,8 @@ Item {
       id: dropCheck
       command: ["sh", "-c",
         "c=$(hyprctl cursorpos -j) || exit; " +
-        "hyprctl layers -j | jq -e --argjson c \"$c\" --argjson d \"$DECK\" " +
-        "'any(.[] | .levels[] | .[]; .namespace == \"omarchy-notifications\" " +
+        "hyprctl layers -j | jq -e --argjson c \"$c\" --argjson d \"$DECK\" --arg m \"$MONITOR\" " +
+        "'any(.[$m] // empty | .levels[] | .[]; .namespace == \"omarchy-notifications\" " +
         "and $c.x >= .x + $d[0] and $c.x < .x + $d[0] + $d[2] and $c.y >= .y + $d[1] and $c.y < .y + $d[1] + $d[3])' " +
         ">/dev/null && { echo false; exit; }; " +
         "ws=$(hyprctl monitors -j | jq -c '[.[] | .activeWorkspace.id, .specialWorkspace.id]') && " +
