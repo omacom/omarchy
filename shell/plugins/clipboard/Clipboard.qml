@@ -19,6 +19,7 @@ Item {
   property var history: []
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
+  property string imageDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/clipboard-images"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
@@ -77,11 +78,24 @@ Item {
     historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
   }
 
+  function pruneRemovedImages(previous, next, clearClipboard) {
+    var removed = ClipboardHistory.removedImagePaths(previous, next)
+    for (var i = 0; i < removed.length; i++) {
+      var path = removed[i]
+      if (path.indexOf(root.imageDir + "/") === 0)
+        Quickshell.execDetached(["rm", "-f", path])
+    }
+    if (clearClipboard)
+      Quickshell.execDetached(["wl-copy", "--clear"])
+  }
+
   function addClipboardEntry(entry) {
     var normalized = ClipboardHistory.normalizeEntry(entry)
     if (!normalized) return
 
+    var previous = root.history
     root.history = ClipboardHistory.addEntry(root.history, normalized, root.historyLimit)
+    root.pruneRemovedImages(previous, root.history, false)
     root.saveHistory()
     if (root.opened) root.rebuildDisplay()
   }
@@ -103,7 +117,9 @@ Item {
   }
 
   function confirmClearHistory() {
+    var previous = root.history
     root.history = ClipboardHistory.clearHistory()
+    root.pruneRemovedImages(previous, root.history, previous.length > 0)
     root.saveHistory()
     root.selectedIndex = 0
     root.cursorActive = false
@@ -117,7 +133,9 @@ Item {
     if (index < 0 || index >= displayModel.count) return
 
     var row = displayModel.get(index)
+    var previous = root.history
     root.history = ClipboardHistory.removeEntryAt(root.history, row.historyIndex)
+    root.pruneRemovedImages(previous, root.history, Number(row.historyIndex) === 0)
     root.saveHistory()
 
     if (displayModel.count <= 1) {
