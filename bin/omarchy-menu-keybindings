@@ -83,12 +83,13 @@ parse_keycodes() {
       mouse_symbol["274"] = "MIDDLE MOUSE BUTTON"
     }
     {
-      if (match($0, /code:([0-9]+)/, match_parts)) {
+      split($0, fields, ",")
+      if (match(fields[2], /^code:([0-9]+)$/, match_parts)) {
         code = match_parts[1]
         symbol = keycode_symbol[code]
         if (symbol == "") symbol = "code:" code
         sub("code:" code, symbol)
-      } else if (match($0, /mouse:([0-9]+)/, match_parts)) {
+      } else if (match(fields[2], /^mouse:([0-9]+)$/, match_parts)) {
         code = match_parts[1]
         symbol = mouse_symbol[code]
         if (symbol == "") symbol = "mouse:" code
@@ -391,7 +392,7 @@ modmask_to_text() {
 # - Map numeric modifier key mask to a textual rendition
 # - Output comma-separated values that the parser can understand
 dynamic_bindings() {
-  local modmask key keycode description dispatcher arg modifiers cache_key
+  local modmask key keycode description dispatcher arg modifiers cache_key submap reference flags
 
   # Parse the plain `hyprctl binds` output rather than `hyprctl -j binds`:
   # Hyprland 0.56.0 emits invalid JSON for binds (misaligned fields in
@@ -400,13 +401,13 @@ dynamic_bindings() {
     function emit() {
       if (!seen) return
       seen = 0
-      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", f["modmask"], f["key"], f["keycode"], f["description"], f["dispatcher"], f["arg"]
+      printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", f["modmask"], f["key"], f["keycode"], f["description"], f["dispatcher"], f["arg"], f["submap"], flags
     }
-    /^bind/ { emit(); seen = 1; delete f; next }
+    /^bind/ { emit(); seen = 1; flags = substr($1, 5); delete f; next }
     seen && match($0, /^\t[a-z]+: /) { f[substr($0, 2, RLENGTH - 3)] = substr($0, RLENGTH + 1) }
     END { emit() }
   ' |
-    while IFS=$'\x1f' read -r modmask key keycode description dispatcher arg; do
+    while IFS=$'\x1f' read -r modmask key keycode description dispatcher arg submap flags; do
       # Lua binds report their full display key ("SUPER + code:20"); the
       # modifiers are already carried separately in modmask.
       key="${key##* + }"
@@ -417,6 +418,16 @@ dynamic_bindings() {
 
       if [[ -z $key && -n $description ]]; then
         key="${LUA_BIND_KEY_MAP["$modmask,$description"]}"
+      fi
+
+      if [[ ${1:-} == "--raw" ]]; then
+        printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n' "$modmask" "$key" "$description" "$dispatcher" "$arg" "$submap" "$flags"
+        continue
+      fi
+
+      reference=""
+      if [[ $dispatcher == "__lua" && $arg =~ ^[0-9]+$ && -z $submap ]]; then
+        reference=$arg
       fi
 
       if [[ $dispatcher == "__lua" && -n $description && -n $key ]]; then
@@ -442,7 +453,7 @@ dynamic_bindings() {
       modifiers=$(modmask_to_text "$modmask")
       arg="${arg//~\/.local\/share\/omarchy\/bin\//}"
 
-      printf '%s,%s,%s,%s,%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$arg"
+      printf '%s,%s,%s,%s,%s\x1f%s\n' "$modifiers" "$key" "$description" "$dispatcher" "$arg" "$reference"
     done
 }
 
@@ -467,14 +478,15 @@ ACTIONS
 # Parse and format keybindings
 #
 # `awk` does the heavy lifting:
-# - Set the field separator to a comma ','.
+# - Separate the compositor references from the comma-delimited display records.
 # - Joins the key combination (e.g., "SUPER + Q").
 # - Joins the command that the key executes.
 # - Puts an action's alternative chord on the row with the first one.
 # - Prints display text and dispatch metadata as tab-separated fields.
 parse_binding_records() {
-  awk -F, -v alternatives="$(alternative_chord_actions)" '
+  awk -v alternatives="$(alternative_chord_actions)" '
 BEGIN {
+    FS = ",";
     # The column every row pads its chords to. Nothing is allowed past it: the
     # menu renders in monospace, and a row that overruns pushes its arrow out
     # of a column the eye reads straight down.
@@ -486,7 +498,11 @@ BEGIN {
     }
 }
 {
-    # Combine the modifier and key (first two fields)
+    # Keep the compositor reference separate from the display and command.
+    split($0, record, "\x1f");
+    $0 = record[1];
+    reference = record[2];
+
     key_combo = $1 " + " $2;
 
     # Clean up: strip leading "+" if present, trim spaces
@@ -531,6 +547,7 @@ BEGIN {
 
         if (together != "" && length(together) <= column) {
             chords[leads[action_key]] = together;
+            if (reference != "") references[leads[action_key]] = references[leads[action_key]] " " reference;
         } else {
             # Also the path a pair too wide for the column takes: two rows in
             # line beat one that juts out of it.
@@ -539,13 +556,16 @@ BEGIN {
             actions[entries] = action;
             dispatchers[entries] = dispatcher;
             args[entries] = arg;
+            references[entries] = reference;
             leads[action_key] = entries;
         }
     }
 }
 END {
     for (entry = 1; entry <= entries; entry++) {
-        printf "%-*s → %s\t%s\t%s\n", column, chords[entry], actions[entry], dispatchers[entry], args[entry];
+        printf "%-*s → %s\t%s\t%s", column, chords[entry], actions[entry], dispatchers[entry], args[entry];
+        if (references[entry] != "") printf "\x1f%s", references[entry];
+        print "";
     }
 }'
 }
@@ -621,8 +641,6 @@ prioritize_entries() {
   cut -f2-
 }
 
-# Drop repeated records while keeping the order Hyprland reported them in, so
-# the chord a user declared first is the one that leads a merged entry.
 # The bindings describe themselves in English; show the descriptions in the
 # Omarchy language from default/i18n/<code>/keybindings.json. One with a
 # number in it ("Switch to workspace 3") matches its catalog pattern
@@ -655,8 +673,18 @@ translate_binding_records() {
   '
 }
 
+# Keep the compositor's row order, collecting all bindings behind identical rows.
 dedupe_binding_records() {
-  awk '!seen[$0]++'
+  awk -F '\x1f' '
+    !seen[$1]++ { order[++count] = $1 }
+    $2 != "" { references[$1] = references[$1] (references[$1] ? " " : "") $2 }
+    END {
+      for (i = 1; i <= count; i++) {
+        row = order[i]
+        print row (references[row] ? "\x1f" references[row] : "")
+      }
+    }
+  '
 }
 
 output_binding_records_uncached() {
@@ -682,7 +710,7 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v19\n'
+    printf 'v20\n'
     leading_keyboard
     omarchy-language 2>/dev/null
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
@@ -726,7 +754,7 @@ output_binding_records() {
 }
 
 output_keybindings() {
-  output_binding_records | cut -f1
+  output_binding_records | cut -d $'\x1f' -f1 | cut -f1
 }
 
 trim() {
@@ -808,15 +836,29 @@ dispatch_binding() {
   esac
 }
 
-if [[ $1 == "--print" || $1 == "-p" ]]; then
+if [[ $1 == "--raw-bindings" ]]; then
+  build_lua_bind_cache
+  dynamic_bindings --raw
+elif [[ $1 == "--print" || $1 == "-p" ]]; then
   output_keybindings
 else
-  records=$(output_binding_records)
-  selection=$(cut -f1 <<<"$records" |
-    omarchy-menu-select "$(omarchy-i18n keybindings.title)" -- --width 800 --height 500)
+  prompt=$(omarchy-i18n keybindings.title)
+  while :; do
+    records=$(output_binding_records)
+    selection=$(/usr/bin/python3 "$OMARCHY_PATH/default/hypr/keybindings-picker.py" "$prompt" <<<"$records")
+    case $? in
+      3) continue ;; # An edit saved. Rebuild the rows from the new bindings.
+      2)
+        selection=$(cut -d $'\x1f' -f1 <<<"$records" | cut -f1 |
+          omarchy-menu-select "$prompt" -- --width 800 --height 500)
+        ;;
+    esac
+    break
+  done
 
   if [[ -n $selection ]]; then
-    record=$(awk -F '\t' -v selection="$selection" '$1 == selection { print; exit }' <<<"$records")
+    record=$(cut -d $'\x1f' -f1 <<<"$records" |
+      awk -F '\t' -v selection="$selection" '$1 == selection { print; exit }')
     dispatcher=$(cut -f2 <<<"$record")
     arg=$(cut -f3- <<<"$record")
 

@@ -1,6 +1,7 @@
 -- Shared helpers for Hyprland Lua configuration.
 
 local paths = require("default.hypr.paths")
+local binding_overrides = require("default.hypr.binding-overrides")
 
 o = o or {}
 
@@ -162,7 +163,7 @@ function o.bind(keys, description, dispatcher, options)
     dispatcher = hl.dsp.exec_cmd(dispatcher)
   end
 
-  hl.bind(keys, dispatcher, opts)
+  binding_overrides.bind(keys, dispatcher, opts)
 end
 
 function o.rebind(keys, description, dispatcher, options)
