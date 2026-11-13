@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle compositor upscaling for X11 apps that ignore HiDPI scaling hints.
+
+# nf-md-monitor, escaped so this file reads without a Nerd Font.
+readonly MONITOR_GLYPH=$'\U000f0379'
+
+case $(omarchy-hyprland-toggle xwayland-scaling) in
+  on) omarchy-notification-send -g "$MONITOR_GLYPH" "$(omarchy-i18n monitor.x11ScalingOn)" "$(omarchy-i18n monitor.x11ScalingRestart)" ;;
+  off) omarchy-notification-send -g "$MONITOR_GLYPH" "$(omarchy-i18n monitor.x11ScalingOff)" "$(omarchy-i18n monitor.x11ScalingRestart)" ;;
+esac

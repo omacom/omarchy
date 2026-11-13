@@ -324,6 +324,12 @@
   "trigger.toggle.crash-capture-off": {
     "label": "Crash Capture Off"
   },
+  "trigger.toggle.xwayland-scaling-on": {
+    "label": "X11 App Scaling On"
+  },
+  "trigger.toggle.xwayland-scaling-off": {
+    "label": "X11 App Scaling Off"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },
