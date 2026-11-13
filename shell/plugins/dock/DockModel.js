@@ -71,6 +71,25 @@ function claimingEntryId(appId, entries) {
   return ""
 }
 
+// The launcher's Terminal and Browser open the default terminal and browser,
+// whose windows carry that app's own id. A pinned Terminal or Browser claims
+// the windows of any app in its category, unless that app is pinned itself.
+var STAND_INS = [
+  { id: "omarchy-terminal", category: "TerminalEmulator" },
+  { id: "omarchy-browser", category: "WebBrowser" }
+]
+
+function standInKey(key, categories, pinned) {
+  var pins = pinned || []
+  if (pins.indexOf(key) >= 0) return key
+  for (var i = 0; i < STAND_INS.length; i++) {
+    var standIn = STAND_INS[i]
+    if (key !== standIn.id && pins.indexOf(standIn.id) >= 0 && (categories || []).indexOf(standIn.category) >= 0)
+      return standIn.id
+  }
+  return key
+}
+
 // Pinned apps come first, in pin order, whether or not they run. Running apps
 // that are not pinned follow in the order their first window appeared. Each
 // window is { key, hasEntry, workspaceId, ... } where key is the desktop id of
@@ -180,6 +199,7 @@ if (typeof module !== "undefined") {
     isDockWindow: isDockWindow,
     isMinimizedWorkspace: isMinimizedWorkspace,
     claimingEntryId: claimingEntryId,
+    standInKey: standInKey,
     buildItems: buildItems,
     orderItems: orderItems,
     orderWithKeyAt: orderWithKeyAt,

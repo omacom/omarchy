@@ -53,8 +53,8 @@ PanelWindow {
   // straight to the edge of the dock.
   readonly property int iconInset: Style.spacing.md
   readonly property int slotSize: iconSize + iconInset * 2
-  // A pinned app that is not running is drawn faded.
-  readonly property real idleOpacity: 0.7
+  // An app that is starting pulses down to this.
+  readonly property real pulseOpacity: 0.7
   // Room inward of the dock for its menus: the tallest, the apps button's,
   // has five rows.
   readonly property int popupRoom: Style.spacing.popupRowHeight * 5 + Style.spacing.sm * 2 + Style.normalBorderWidth * 2 + gap * 2
@@ -189,7 +189,6 @@ PanelWindow {
     return Math.max(window.gap, Math.min(window.height - popup.height - window.gap, center - popup.height / 2))
   }
 
-  visible: !remapGuard.remapping
   color: "transparent"
   WlrLayershell.namespace: "omarchy-dock"
   WlrLayershell.layer: WlrLayer.Top
@@ -247,11 +246,6 @@ PanelWindow {
     }
   }
 
-  ScreenMoveRemap {
-    id: remapGuard
-    window: window
-  }
-
   HyprlandFocusGrab {
     active: window.menuOpen
     windows: [window]
@@ -273,9 +267,15 @@ PanelWindow {
     // where it belongs at once.
     property real tuck: window.tucked ? window.slotSize + window.gap : 0
 
+    // Tucking away is quicker than coming back. A gentler curve than
+    // Style.easeOut, which crosses the short slide in a frame or two.
     Behavior on tuck {
+      id: tuckMotion
       enabled: window.shown
-      NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+      NumberAnimation {
+        duration: Style.duration(tuckMotion.targetValue > 0 ? 120 : 180)
+        easing.type: Easing.OutCubic
+      }
     }
 
     x: window.position === "left" ? window.gap - tuck
@@ -345,7 +345,7 @@ PanelWindow {
 
     Behavior on displayedShift {
       enabled: window.animateShifts
-      NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
     }
 
     transform: Translate {
@@ -373,10 +373,14 @@ PanelWindow {
       scale: appsSlot.hovered ? 1.15 : 1
       transformOrigin: window.popOrigin
 
-      Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+      Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
 
       Grid {
         readonly property int square: Math.round(window.iconSize * 0.22)
+        // A theme change fades it with the bar's palette.
+        property color tint: Commons.Color.bar.text
+
+        Behavior on tint { ColorAnimation { duration: Style.duration(250); easing.type: Easing.OutCubic } }
 
         anchors.centerIn: parent
         columns: 3
@@ -389,7 +393,7 @@ PanelWindow {
             width: parent.square
             height: parent.square
             radius: Math.max(1, Math.round(parent.square * 0.2))
-            color: Commons.Color.bar.text
+            color: parent.tint
           }
         }
       }
@@ -406,7 +410,6 @@ PanelWindow {
     readonly property bool lifted: window.dragIndex === index
     property point pressPoint
     property bool dragged: false
-    readonly property int windowCount: modelData ? modelData.windows.length : 0
     property real pulse: 1
 
     // Slots between where the dragged app was and where it would land step
@@ -423,7 +426,7 @@ PanelWindow {
     // where they were shown.
     Behavior on displayedShift {
       enabled: window.animateShifts && ((window.dragging && !appSlot.lifted) || window.insertIndex >= 0)
-      NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+      NumberAnimation { duration: Style.duration(150); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
     }
 
     z: lifted ? 1 : 0
@@ -487,20 +490,14 @@ PanelWindow {
       else window.dock.activate(appSlot.modelData)
     }
 
-    // Running apps are drawn in full, pinned ones that are not running faded,
-    // and one that is starting pulses between the two.
-    Image {
+    // Apps are drawn in full, running or not, and one that is starting pulses.
+    AppIcon {
       x: window.iconInset
       y: window.iconInset
       width: window.iconSize
       height: window.iconSize
-      sourceSize: Qt.size(window.iconSize * 2, window.iconSize * 2)
       source: window.dock && appSlot.modelData ? window.dock.iconFor(appSlot.modelData) : ""
-      fillMode: Image.PreserveAspectFit
-      asynchronous: true
-      smooth: true
-      mipmap: true
-      opacity: appSlot.launching ? appSlot.pulse : (appSlot.windowCount > 0 ? 1 : window.idleOpacity)
+      opacity: appSlot.launching ? appSlot.pulse : 1
       transform: Translate {
         x: window.vertical ? 0 : appSlot.displayedShift
         y: window.vertical ? appSlot.displayedShift : 0
@@ -508,16 +505,73 @@ PanelWindow {
       scale: appSlot.lifted || appSlot.hovered ? 1.15 : 1
       transformOrigin: window.popOrigin
 
-      Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+      Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
     }
 
+    // With animations off it holds still rather than spinning through
+    // zero-length steps.
     SequentialAnimation {
-      running: appSlot.launching
+      running: appSlot.launching && !Style.reduceMotion
       loops: Animation.Infinite
       onRunningChanged: if (!running) appSlot.pulse = 1
 
-      NumberAnimation { target: appSlot; property: "pulse"; from: 1; to: window.idleOpacity; duration: 500; easing.type: Easing.InOutSine }
-      NumberAnimation { target: appSlot; property: "pulse"; to: 1; duration: 500; easing.type: Easing.InOutSine }
+      NumberAnimation { target: appSlot; property: "pulse"; from: 1; to: window.pulseOpacity; duration: Style.duration(500); easing.type: Easing.InOutSine }
+      NumberAnimation { target: appSlot; property: "pulse"; to: 1; duration: Style.duration(500); easing.type: Easing.InOutSine }
+    }
+  }
+
+  // A theme switch redraws Omarchy's app icons. The icon on screen stays until
+  // its successor has loaded, rather than blanking while it loads, and the new
+  // one fades in over it like the bar's palette.
+  component AppIcon: Item {
+    id: appIcon
+
+    property url source
+
+    function reveal() {
+      if (current.status !== Image.Loading && previous.source.toString() !== "") fadeIn.restart()
+    }
+
+    onSourceChanged: {
+      fadeIn.stop()
+      // Set while the current image still holds it, so it comes from the
+      // cache. One still loading leaves the icon on screen where it is.
+      if (current.status === Image.Ready) previous.source = current.source
+      current.opacity = previous.source.toString() !== "" ? 0 : 1
+      current.source = appIcon.source
+      appIcon.reveal()
+    }
+    Component.onCompleted: current.source = appIcon.source
+
+    Image {
+      id: previous
+      anchors.fill: parent
+      sourceSize: current.sourceSize
+      fillMode: Image.PreserveAspectFit
+      asynchronous: true
+      smooth: true
+      mipmap: true
+    }
+
+    Image {
+      id: current
+      anchors.fill: parent
+      sourceSize: Qt.size(window.iconSize * 2, window.iconSize * 2)
+      fillMode: Image.PreserveAspectFit
+      asynchronous: true
+      smooth: true
+      mipmap: true
+      onStatusChanged: appIcon.reveal()
+    }
+
+    NumberAnimation {
+      id: fadeIn
+      target: current
+      property: "opacity"
+      to: 1
+      duration: Style.duration(250)
+      easing.type: Easing.OutCubic
+      onFinished: previous.source = ""
     }
   }
 
@@ -547,86 +601,55 @@ PanelWindow {
       Repeater {
         model: [["top", Commons.I18n.t("dock.positionTop")], ["bottom", Commons.I18n.t("dock.positionBottom")], ["left", Commons.I18n.t("dock.positionLeft")], ["right", Commons.I18n.t("dock.positionRight")]]
 
-        delegate: MenuRow {
+        // Each row acts, then closes the menu: the actions read its item.
+        delegate: PopupMenuRow {
           required property var modelData
 
           visible: window.settingsMenu
           text: modelData[1]
           checked: window.position === modelData[0]
-          onTriggered: Util.execDetached("omarchy-dock position " + modelData[0])
+          onTriggered: {
+            Util.execDetached("omarchy-dock position " + modelData[0])
+            window.closeMenu()
+          }
         }
       }
 
-      MenuRow {
+      PopupMenuRow {
         visible: window.settingsMenu
         text: Commons.I18n.t("dock.autoHide")
         checked: window.autohide
-        onTriggered: Util.execDetached("omarchy-dock autohide " + (window.autohide ? "off" : "on"))
+        onTriggered: {
+          Util.execDetached("omarchy-dock autohide " + (window.autohide ? "off" : "on"))
+          window.closeMenu()
+        }
       }
 
-      MenuRow {
+      PopupMenuRow {
         visible: menu.hasEntry && menu.running
         text: Commons.I18n.t("dock.newWindow")
-        onTriggered: window.dock.launch(menu.item)
+        onTriggered: {
+          window.dock.launch(menu.item)
+          window.closeMenu()
+        }
       }
 
-      MenuRow {
+      PopupMenuRow {
         visible: menu.hasEntry
         text: menu.item && menu.item.pinned ? Commons.I18n.t("dock.removeFromDock") : Commons.I18n.t("dock.keepInDock")
-        onTriggered: window.dock.setPinned(menu.item.key, !menu.item.pinned)
+        onTriggered: {
+          window.dock.setPinned(menu.item.key, !menu.item.pinned)
+          window.closeMenu()
+        }
       }
 
-      MenuRow {
+      PopupMenuRow {
         visible: menu.running
         text: Commons.I18n.t("dock.quit")
-        onTriggered: window.dock.quit(menu.item)
-      }
-    }
-  }
-
-  component MenuRow: Rectangle {
-    id: row
-
-    property string text: ""
-    property bool checked: false
-    signal triggered()
-
-    width: parent ? parent.width : 0
-    height: visible ? Style.spacing.popupRowHeight : 0
-    radius: Style.cornerRadius
-    color: rowMouse.containsMouse ? Style.hoverFill : "transparent"
-
-    Text {
-      anchors.verticalCenter: parent.verticalCenter
-      anchors.left: parent.left
-      anchors.leftMargin: Style.spacing.controlPaddingX
-      textFormat: Text.PlainText
-      text: row.text
-      color: Commons.Color.popups.text
-      font.family: Style.font.family
-      font.pixelSize: Style.font.body
-    }
-
-    Text {
-      visible: row.checked
-      anchors.verticalCenter: parent.verticalCenter
-      anchors.right: parent.right
-      anchors.rightMargin: Style.spacing.controlPaddingX
-      textFormat: Text.PlainText
-      text: "✓"
-      color: Commons.Color.accent
-      font.family: Style.font.family
-      font.pixelSize: Style.font.body
-    }
-
-    MouseArea {
-      id: rowMouse
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onClicked: {
-        row.triggered()
-        window.closeMenu()
+        onTriggered: {
+          window.dock.quit(menu.item)
+          window.closeMenu()
+        }
       }
     }
   }

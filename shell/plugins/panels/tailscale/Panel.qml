@@ -20,7 +20,9 @@ Panel {
   readonly property Item exitNodeColumn: panel.loadedContent ? panel.loadedContent.exitNodeColumn : null
   readonly property Item mullvadSearch: panel.loadedContent ? panel.loadedContent.mullvadSearch : null
   readonly property Item mullvadRegionColumn: panel.loadedContent ? panel.loadedContent.mullvadRegionColumn : null
-  readonly property Item peerColumn: panel.loadedContent ? panel.loadedContent.peerColumn : null
+  readonly property Item peerSearch: panel.loadedContent ? panel.loadedContent.peerSearch : null
+  readonly property Item peerList: panel.loadedContent ? panel.loadedContent.peerList : null
+  readonly property var sharedCopyPopup: panel.loadedContent ? panel.loadedContent.sharedCopyPopup : null
 
   property string focusSection: "header"
   property int headerIndex: 0
@@ -32,6 +34,18 @@ Panel {
   property bool copyMenuOpen: false
   property bool mullvadPickerOpen: false
   property string mullvadQuery: ""
+  // The connection currently showing its inline rename field, by profile id.
+  property string editingAccountId: ""
+  // The draft lives at panel level so a row rebuilt by an accounts refresh
+  // can put the same text back into its replacement's editor.
+  property string editingDraft: ""
+
+  function accountIdExists(id) {
+    for (var i = 0; i < tailscale.accounts.length; i++) {
+      if (String(tailscale.accounts[i].id || "") === String(id || "")) return true
+    }
+    return false
+  }
   property int phraseIndex: 0
   readonly property var activePhrases: [
     Commons.I18n.t("tailscale.phrase1"),
@@ -52,7 +66,7 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property bool showConnections: tailscale.accounts.length > 1 || tailscale.accountsAccessDenied
-  readonly property bool showPeers: tailscale.active && tailscale.peers.length > 0
+  readonly property bool showPeers: tailscale.active && filteredPeers.length > 0
   readonly property var recentMullvadRegions: settings.recentMullvadRegions instanceof Array ? settings.recentMullvadRegions : (settings.recentMullvadCountries instanceof Array ? settings.recentMullvadCountries : [])
   readonly property var recentMullvadExitNodes: recentMullvadNodes()
   readonly property var exitNodes: displayExitNodes()
@@ -67,9 +81,89 @@ Panel {
   readonly property color hoverFill: bar ? Style.hoverFillFor(bar.foreground, Commons.Color.accent) : "transparent"
   readonly property color selectedFill: bar ? Style.selectedFillFor(bar.foreground, Commons.Color.accent) : "transparent"
 
+  // Large tailnets: the machine list renders through a virtualized
+  // ListView over this filtered view instead of one eager row per peer.
+  property string peerQuery: ""
+  readonly property var filteredPeers: {
+    var query = peerQuery.trim().toLowerCase()
+    if (query === "") return tailscale.peers
+    var result = []
+    for (var i = 0; i < tailscale.peers.length; i++) {
+      var p = tailscale.peers[i]
+      var ip = p.TailscaleIPs && p.TailscaleIPs.length > 0 ? String(p.TailscaleIPs[0]) : ""
+      var hay = (String(p.DisplayName || "") + " " + String(p.DNSName || "") + " " + ip).toLowerCase()
+      if (hay.indexOf(query) !== -1) result.push(p)
+    }
+    return result
+  }
+
+  // One shared copy menu for whichever row summoned it, instead of a Popup
+  // instantiated inside every machine row.
+  property var copyPeer: null
+  property int copyIndex: 0
+  readonly property var copyOptions: copyOptionsFor(copyPeer)
+
+  function copyOptionsFor(peer) {
+    var options = []
+    if (!peer) return options
+    var name = String(peer.DisplayName || peer.HostName || "")
+    var dns = String(peer.DNSName || "")
+    var ipv6 = peer.TailscaleIPv6 && peer.TailscaleIPv6.length > 0 ? String(peer.TailscaleIPv6[0] || "") : ""
+    var ip = peer.TailscaleIPs && peer.TailscaleIPs.length > 0 ? String(peer.TailscaleIPs[0]) : ""
+    if (name !== "") options.push({ kind: "name", label: name })
+    if (dns !== "") options.push({ kind: "dns", label: dns })
+    if (ipv6 !== "") options.push({ kind: "ipv6", label: ipv6 })
+    if (ip !== "") options.push({ kind: "ip", label: ip })
+    return options
+  }
+
+  function clampCopyIndex() {
+    copyIndex = Math.max(0, Math.min(copyIndex, copyOptions.length - 1))
+  }
+
+  function moveCopyCursor(delta) {
+    if (copyOptions.length === 0) return
+    copyIndex = Math.max(0, Math.min(copyOptions.length - 1, copyIndex + delta))
+  }
+
+  function copyOption(kind) {
+    var peer = copyPeer
+    if (peer) {
+      if (kind === "name") tailscale.copyPeerName(peer)
+      else if (kind === "dns") tailscale.copyPeerDnsName(peer)
+      else if (kind === "ipv6") {
+        var ipv6 = peer.TailscaleIPv6 && peer.TailscaleIPv6.length > 0 ? String(peer.TailscaleIPv6[0] || "") : ""
+        tailscale.copyToClipboard(ipv6, String(peer.DisplayName || peer.HostName || "") + " IPv6")
+      } else if (kind === "ip") tailscale.copyPeerIp(peer)
+    }
+    if (sharedCopyPopup) sharedCopyPopup.close()
+  }
+
+  function copyCurrentOption() {
+    clampCopyIndex()
+    if (copyOptions.length === 0) return
+    copyOption(copyOptions[copyIndex].kind)
+  }
+
+  function openCopyMenuFor(peer, row) {
+    if (!peer || !peerList || !sharedCopyPopup || copyOptionsFor(peer).length === 0) return
+    // The popup is shared across rows, so a cursor position left over from
+    // another machine's menu must not carry into this one.
+    if (!copyPeer || String(copyPeer.id || "") !== String(peer.id || "")) copyIndex = 0
+    copyPeer = peer
+    clampCopyIndex()
+    var anchor = row || peerList
+    var point = anchor.mapToItem(peerList, 0, anchor.height)
+    // Opens toward the row, from whichever end its copy button sits at.
+    var x = peerList.LayoutMirroring.enabled ? point.x : point.x + anchor.width - sharedCopyPopup.width
+    sharedCopyPopup.x = Math.max(0, Math.min(peerList.width - sharedCopyPopup.width, x))
+    sharedCopyPopup.y = point.y + Style.space(4)
+    sharedCopyPopup.open()
+  }
+
   function selectedPeer() {
-    if (tailscale.peers.length === 0) return null
-    return tailscale.peers[Math.max(0, Math.min(peerIndex, tailscale.peers.length - 1))]
+    if (filteredPeers.length === 0) return null
+    return filteredPeers[Math.max(0, Math.min(peerIndex, filteredPeers.length - 1))]
   }
 
   function selectedExitNode() {
@@ -191,7 +285,7 @@ Panel {
     if (headerIndex < 0) headerIndex = 0
     if (headerIndex > 0) headerIndex = 0
     if (accountIndex >= tailscale.accounts.length) accountIndex = Math.max(0, tailscale.accounts.length - 1)
-    if (peerIndex >= tailscale.peers.length) peerIndex = Math.max(0, tailscale.peers.length - 1)
+    if (peerIndex >= filteredPeers.length) peerIndex = Math.max(0, filteredPeers.length - 1)
     if (exitNodeIndex >= exitNodes.length) exitNodeIndex = Math.max(0, exitNodes.length - 1)
     if (mullvadRegionIndex >= filteredMullvadRegions.length) mullvadRegionIndex = Math.max(0, filteredMullvadRegions.length - 1)
     if (focusSection === "auth" && !tailscale.accountsAccessDenied) focusSection = tailscale.accounts.length > 1 ? "accounts" : (showExitNodes ? "exitNodes" : (showPeers ? "peers" : "header"))
@@ -229,7 +323,7 @@ Panel {
         if (dy < 0) {
           if (peerIndex <= 0) focusSection = showExitNodes ? "exitNodes" : (tailscale.accounts.length > 1 ? "accounts" : (tailscale.accountsAccessDenied ? "auth" : "header"))
           else peerIndex--
-        } else if (peerIndex < tailscale.peers.length - 1) {
+        } else if (peerIndex < filteredPeers.length - 1) {
           peerIndex++
         }
       } else if (focusSection === "exitNodes") {
@@ -292,8 +386,11 @@ Panel {
   }
 
   function scrollCursorIntoView() {
-    if (focusSection === "peers" && peerColumn && peerIndex >= 0 && peerIndex < peerColumn.children.length) scrollItemIntoView(peerColumn.children[peerIndex])
-    else if (focusSection === "exitNodes" && exitNodeColumn && exitNodeIndex >= 0 && exitNodeIndex < exitNodeColumn.children.length) scrollItemIntoView(exitNodeColumn.children[exitNodeIndex])
+    if (focusSection === "peers" && peerList && filteredPeers.length > 0) {
+      peerList.positionViewAtIndex(Math.max(0, Math.min(peerIndex, filteredPeers.length - 1)), ListView.Contain)
+      peerList.rememberPosition()
+      scrollItemIntoView(peerList)
+    } else if (focusSection === "exitNodes" && exitNodeColumn && exitNodeIndex >= 0 && exitNodeIndex < exitNodeColumn.children.length) scrollItemIntoView(exitNodeColumn.children[exitNodeIndex])
   }
 
   function scrollMullvadRegionCursorIntoView() {
@@ -315,9 +412,11 @@ Panel {
   }
 
   function openSelectedPeerCopyMenu() {
-    if (!peerColumn || peerIndex < 0 || peerIndex >= peerColumn.children.length) return
-    var item = peerColumn.children[peerIndex]
-    if (item && item.openCopyMenu) item.openCopyMenu()
+    if (filteredPeers.length === 0 || !peerList) return
+    ensureCursor()
+    peerList.positionViewAtIndex(peerIndex, ListView.Contain)
+    peerList.rememberPosition()
+    openCopyMenuFor(selectedPeer(), peerList.itemAtIndex(peerIndex))
   }
 
   function setExitNodeCursor(index) {
@@ -331,6 +430,11 @@ Panel {
     cursorActive = true
     focusSection = "accounts"
     accountIndex = index
+  }
+
+  function beginAccountRenameAt(index) {
+    var row = accountRepeater ? accountRepeater.itemAt(index) : null
+    if (row) row.beginRename()
   }
 
   function setAuthCursor() {
@@ -350,27 +454,66 @@ Panel {
   onOpenedChanged: if (opened) {
     cursorActive = false
     if (panelFlick) panelFlick.contentY = 0
-    tailscale.refresh()
+    if (peerList) {
+      peerList.rememberedY = 0
+      peerList.positionViewAtBeginning()
+    }
+    tailscale.refresh(false, true)
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
+  } else {
+    // An unfinished rename must not survive the panel: reopening would land
+    // on a surprise input box instead of the list.
+    editingAccountId = ""
+    if (peerSearch && peerSearch.text !== "") {
+      // A query must not survive the panel: reopening to a silently filtered
+      // list looks like machines are missing.
+      peerSearch.text = ""
+    }
   }
   onPeerIndexChanged: scrollCursorIntoView()
   onExitNodeIndexChanged: scrollCursorIntoView()
   onMullvadRegionIndexChanged: if (mullvadPickerOpen) scrollMullvadRegionCursorIntoView()
   onShowConnectionsChanged: ensureCursor()
   onShowPeersChanged: ensureCursor()
+  onFilteredPeersChanged: ensureCursor()
   onShowExitNodesChanged: ensureCursor()
   onFilteredMullvadRegionsChanged: ensureCursor()
 
   Service {
     id: tailscale
     settings: root.settings
+    peersWanted: root.opened
   }
 
   Connections {
+    id: serviceEvents
     target: tailscale
+    property string lastAccountId: ""
     function onPeersChanged() { root.ensureCursor() }
-    function onAccountsChanged() { root.ensureCursor() }
+    function onAccountsChanged() {
+      root.ensureCursor()
+      // A refresh that removed the connection being renamed closes the
+      // editor; one that kept it lets the rebuilt row restore the draft.
+      if (root.editingAccountId !== "" && !root.accountIdExists(root.editingAccountId)) {
+        root.editingAccountId = ""
+        root.editingDraft = ""
+      }
+    }
     function onAccountsAccessDeniedChanged() { root.ensureCursor() }
+    function onSelectedAccountIdChanged() {
+      // A remembered scroll position belongs to the tailnet it was scrolled
+      // in; restoring it midway into another account's machine list would
+      // land the user somewhere they have never been.
+      var next = tailscale.selectedAccountId
+      // A failed account poll publishes an empty id for the tailnet the user
+      // is still on, so compare against the last one actually seen.
+      if (next === "" || next === serviceEvents.lastAccountId) return
+      serviceEvents.lastAccountId = next
+      root.peerIndex = 0
+      if (!root.peerList) return
+      root.peerList.rememberedY = 0
+      root.peerList.positionViewAtBeginning()
+    }
   }
 
   ShellIpc {
@@ -380,7 +523,7 @@ Panel {
     function show(): void { root.open() }
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
-    function refresh(): string { tailscale.refresh(); return "ok" }
+    function refresh(): string { tailscale.refresh(false, true); return "ok" }
     function up(): string { tailscale.loginOrUp(); return "ok" }
     function down(): string { tailscale.down(); return "ok" }
     function toggleTailscale(): string { tailscale.toggleTailscale(); return "ok" }
@@ -406,7 +549,7 @@ Panel {
     }
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) tailscale.toggleTailscale()
-      else if (buttonCode === Qt.MiddleButton) tailscale.refresh()
+      else if (buttonCode === Qt.MiddleButton) tailscale.refresh(false, true)
       else root.toggle()
     }
   }
@@ -428,7 +571,9 @@ Panel {
       property alias exitNodeColumn: exitNodeColumn
       property alias mullvadSearch: mullvadSearch
       property alias mullvadRegionColumn: mullvadRegionColumn
-      property alias peerColumn: peerColumn
+      property alias peerSearch: peerSearch
+      property alias peerList: peerList
+      property alias sharedCopyPopup: sharedCopyPopup
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       blocked: root.copyMenuOpen
@@ -445,6 +590,8 @@ Panel {
         else if (t === "n" || t === "N") tailscale.copyPeerName(root.selectedPeer())
         else if (t === "d" || t === "D") tailscale.copyPeerDnsName(root.selectedPeer())
         else if (t === "s" || t === "S") root.sendPeerFile(root.selectedPeer())
+        else if (t === "/" && peerSearch.visible) peerSearch.forceActiveFocus()
+        else if ((t === "r" || t === "R") && root.focusSection === "accounts") root.beginAccountRenameAt(root.accountIndex)
       }
 
       Flickable {
@@ -569,6 +716,7 @@ Panel {
             }
 
             Repeater {
+              id: accountRepeater
               model: tailscale.accounts
               AccountRow {
                 required property var modelData
@@ -696,13 +844,62 @@ Panel {
             spacing: Style.space(10)
 
             PanelSectionHeader {
-              text: Commons.I18n.t("tailscale.machines")
+              text: {
+                if (tailscale.peers.length === 0) return Commons.I18n.t("tailscale.machines")
+                var total = Commons.I18n.formatNumber(tailscale.peers.length)
+                if (root.peerQuery.trim() === "") return Commons.I18n.t("tailscale.machinesCount").arg(total)
+                return Commons.I18n.t("tailscale.machinesFiltered").arg(Commons.I18n.formatNumber(root.filteredPeers.length)).arg(total)
+              }
               foreground: root.foreground
               fontFamily: root.fontFamily
             }
 
+            TextField {
+              id: peerSearch
+              visible: tailscale.peers.length > 8
+              width: parent.width
+              foreground: root.foreground
+              placeholderText: Commons.I18n.t("tailscale.searchMachines")
+              // The field can disappear (account switch to a small tailnet)
+              // while a query is typed; a filter with no visible box and no
+              // `/` shortcut to clear it would look like missing machines.
+              onVisibleChanged: if (!visible && text !== "") text = ""
+              onTextChanged: {
+                root.peerQuery = text
+                root.peerIndex = 0
+                peerList.rememberedY = 0
+                peerList.positionViewAtBeginning()
+              }
+              onAccepted: {
+                root.setPeerCursor(0)
+                keyCatcher.forceActiveFocus()
+              }
+              Keys.onPressed: function(event) {
+                if (event.key === Qt.Key_Down) {
+                  root.setPeerCursor(0)
+                  keyCatcher.forceActiveFocus()
+                  event.accepted = true
+                  return
+                }
+                if (event.key === Qt.Key_Up) {
+                  // Unhandled Up propagates past the field and moves the
+                  // panel's section cursor out from under the query.
+                  keyCatcher.forceActiveFocus()
+                  event.accepted = true
+                  return
+                }
+                if (event.key === Qt.Key_Escape) {
+                  if (peerSearch.text !== "") peerSearch.text = ""
+                  else keyCatcher.forceActiveFocus()
+                  event.accepted = true
+                }
+              }
+            }
+
             Text {
-              visible: tailscale.installed && tailscale.active && tailscale.peers.length === 0
+              // Only claim an empty tailnet once a full peer fetch has
+              // answered; before that the panel is simply still loading.
+              visible: tailscale.installed && tailscale.active && tailscale.peersLoaded && tailscale.peers.length === 0
               width: parent.width
               text: Commons.I18n.t("tailscale.noMachines")
               textFormat: Text.PlainText
@@ -712,20 +909,128 @@ Panel {
               horizontalAlignment: Text.AlignHCenter
             }
 
-            Column {
-              id: peerColumn
+            Text {
+              visible: tailscale.installed && tailscale.active && !tailscale.peersLoaded && tailscale.peers.length === 0
+              width: parent.width
+              text: Commons.I18n.t("tailscale.loadingMachines")
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              horizontalAlignment: Text.AlignHCenter
+            }
+
+            Text {
+              visible: tailscale.peers.length > 0 && root.filteredPeers.length === 0
+              width: parent.width
+              text: Commons.I18n.t("tailscale.noMatchingMachines")
+              textFormat: Text.PlainText
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              horizontalAlignment: Text.AlignHCenter
+            }
+
+            // Virtualized: only the visible slice of the tailnet exists as
+            // delegates, and rows are pooled instead of destroyed on refresh.
+            ListView {
+              id: peerList
               visible: root.showPeers
               width: parent.width
+              height: Math.min(contentHeight, Style.space(300))
+              clip: true
               spacing: Style.space(6)
+              model: root.filteredPeers
+              reuseItems: true
+              boundsBehavior: Flickable.StopAtBounds
+              flickableDirection: Flickable.VerticalFlick
+              interactive: contentHeight > height
+              // Qt resets contentY whenever a JS-array model is reassigned,
+              // and any poll where a peer changed publishes a new array — so
+              // without this a background refresh scrolls the list to the top
+              // under the user's finger. Remember the position the user (or
+              // keyboard cursor) chose and put it back; filter changes and
+              // panel opens reset it explicitly instead.
+              property real rememberedY: 0
+              function rememberPosition() { rememberedY = contentY }
+              onContentYChanged: if (moving || dragging) rememberedY = contentY
+              onModelChanged: contentY = Math.max(0, Math.min(rememberedY, Math.max(0, contentHeight - height)))
+              ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AsNeeded
+                onPressedChanged: if (!pressed) peerList.rememberPosition()
+              }
 
-              Repeater {
-                model: tailscale.peers
-                PeerRow {
-                  required property var modelData
-                  required property int index
-                  width: peerColumn.width
-                  peer: modelData
-                  rowIndex: index
+              delegate: PeerRow {
+                required property var modelData
+                required property int index
+                width: peerList.width
+                peer: modelData
+                rowIndex: index
+              }
+            }
+
+            Popup {
+              id: sharedCopyPopup
+              parent: peerList
+              width: Style.space(280)
+              padding: 0
+              modal: false
+              focus: true
+              closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+              function handleKey(event) {
+                if (event.key === Qt.Key_Escape) {
+                  close()
+                  event.accepted = true
+                  return
+                }
+                if (event.key === Qt.Key_Down || event.text === "j") {
+                  root.moveCopyCursor(1)
+                  event.accepted = true
+                  return
+                }
+                if (event.key === Qt.Key_Up || event.text === "k") {
+                  root.moveCopyCursor(-1)
+                  event.accepted = true
+                  return
+                }
+                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                  root.copyCurrentOption()
+                  event.accepted = true
+                }
+              }
+              onOpenedChanged: {
+                root.copyMenuOpen = opened
+                if (opened) {
+                  root.clampCopyIndex()
+                  Qt.callLater(function() { sharedCopyContent.forceActiveFocus() })
+                } else if (root.opened) {
+                  Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+                }
+              }
+              background: BorderSurface {
+                color: Commons.Color.background
+                borderSpec: Border.flat(root.dim, 1)
+                radius: Style.cornerRadius
+              }
+
+              contentItem: Column {
+                id: sharedCopyContent
+                width: parent.width
+                focus: true
+                Keys.priority: Keys.BeforeItem
+                Keys.onPressed: function(event) { sharedCopyPopup.handleKey(event) }
+
+                Repeater {
+                  model: root.copyOptions
+                  CopyChoice {
+                    required property var modelData
+                    required property int index
+                    width: parent.width
+                    label: String(modelData.label || "")
+                    selected: root.copyIndex === index
+                    onHovered: root.copyIndex = index
+                    onChosen: root.copyOption(String(modelData.kind || ""))
+                  }
                 }
               }
             }
@@ -747,14 +1052,14 @@ Panel {
     id: phraseSwap
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(150); easing.type: Easing.OutCubic
     }
     ScriptAction {
       script: root.phraseIndex = (root.phraseIndex + 1) % root.activePhrases.length
     }
     PropertyAnimation {
       target: hero; property: "metaOpacity"
-      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(200); easing.type: Easing.OutCubic
     }
   }
 
@@ -826,6 +1131,8 @@ Panel {
     property int rowIndex: 0
     readonly property bool selectedAccount: account && account.selected === true
     readonly property bool switchingAccount: account && tailscale.switchingAccountId === String(account.id || "")
+    readonly property bool renaming: account && root.editingAccountId === String(account.id || "")
+    readonly property bool renameInFlight: account && tailscale.renamingAccountId === String(account.id || "")
     readonly property string accountText: account ? tailscale.accountLabel(account) : Commons.I18n.t("tailscale.account")
 
     hasCursor: root.cursorActive && root.focusSection === "accounts" && root.accountIndex === rowIndex
@@ -836,7 +1143,54 @@ Panel {
 
     implicitHeight: accountInner.implicitHeight + Style.spacing.xl
 
-    Row {
+    // Enter renames, Escape or clicking away leaves the name as it was —
+    // the same contract as the agent panel's account rename.
+    function beginRename() {
+      if (!account || switchingAccount || renameInFlight) return
+      root.editingAccountId = String(account.id || "")
+      // Seed the draft with the current label: if the field already shows
+      // that text, no textChanged fires and a rebuilt row would otherwise
+      // restore an empty editor.
+      root.editingDraft = accountText
+      renameField.text = accountText
+      renameField.forceActiveFocus()
+      renameField.selectAll()
+    }
+
+    function finishRename(save) {
+      if (!account || !renaming) return
+      var value = renameField.text.trim()
+      root.editingAccountId = ""
+      root.editingDraft = ""
+      keyCatcher.forceActiveFocus()
+      if (save && value !== "" && value !== accountText) tailscale.renameAccount(account.id, value)
+    }
+
+    // A delegate rebuilt by an accounts refresh mid-edit comes back with an
+    // empty, unfocused editor; put the panel-level draft back into it, even
+    // when the user had cleared the field on purpose.
+    Component.onCompleted: {
+      if (!accountRow.renaming) return
+      renameField.text = root.editingDraft
+      Qt.callLater(function() {
+        if (!accountRow.renaming) return
+        renameField.forceActiveFocus()
+        renameField.selectAll()
+      })
+    }
+
+    // Declared before the row content so the pen button stacks above it and
+    // keeps its own clicks — a full-row MouseArea on top would swallow them.
+    MouseArea {
+      id: accountMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onEntered: root.setAccountCursor(accountRow.rowIndex)
+      onClicked: if (accountRow.account && !accountRow.renaming && tailscale.switchingAccountId === "" && tailscale.renamingAccountId === "") tailscale.switchAccount(accountRow.account.id)
+    }
+
+    RowLayout {
       id: accountInner
       anchors.left: parent.left
       anchors.right: parent.right
@@ -847,24 +1201,44 @@ Panel {
 
       Text {
         id: accountGlyph
-        text: ""
+        text: "\ueb01"
         color: accountRow.selectedAccount || accountRow.switchingAccount ? root.foreground : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
         width: Style.space(22)
         horizontalAlignment: Text.AlignHCenter
-        anchors.verticalCenter: parent.verticalCenter
-        opacity: accountRow.switchingAccount ? 0.45 : 1.0
+        Layout.alignment: Qt.AlignVCenter
+        opacity: accountRow.switchingAccount || accountRow.renameInFlight ? 0.45 : 1.0
 
         SequentialAnimation on opacity {
-          running: accountRow.switchingAccount && !Style.reduceMotion
-          NumberAnimation { to: 1.0; duration: 420; easing.type: Easing.InOutQuad }
-          NumberAnimation { to: 0.45; duration: 420; easing.type: Easing.InOutQuad }
+          running: (accountRow.switchingAccount || accountRow.renameInFlight) && !Style.reduceMotion
+          NumberAnimation { to: 1.0; duration: Style.duration(420); easing.type: Easing.InOutQuad }
+          NumberAnimation { to: 0.45; duration: Style.duration(420); easing.type: Easing.InOutQuad }
           loops: Animation.Infinite
         }
       }
 
+      TextField {
+        id: renameField
+        visible: accountRow.renaming
+        Layout.fillWidth: true
+        foreground: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.body
+        horizontalPadding: Style.space(4)
+        verticalPadding: Style.space(1)
+        onAccepted: accountRow.finishRename(true)
+        onTextChanged: root.editingDraft = text
+        onActiveFocusChanged: if (!activeFocus && accountRow.renaming) accountRow.finishRename(false)
+        Keys.onEscapePressed: function(event) {
+          accountRow.finishRename(false)
+          event.accepted = true
+        }
+      }
+
       Text {
+        id: nameLabel
+        visible: !accountRow.renaming
         textFormat: Text.PlainText
         text: accountRow.accountText
         color: root.foreground
@@ -872,17 +1246,27 @@ Panel {
         font.pixelSize: Style.font.body
         font.bold: accountRow.selectedAccount
         elide: Text.ElideRight
-        width: parent.width - Style.space(22) - Style.space(8)
-        anchors.verticalCenter: parent.verticalCenter
+        Layout.fillWidth: true
+        Layout.alignment: Qt.AlignVCenter
       }
-    }
 
-    MouseArea {
-      anchors.fill: parent
-      hoverEnabled: true
-      cursorShape: Qt.PointingHandCursor
-      onEntered: root.setAccountCursor(accountRow.rowIndex)
-      onClicked: if (accountRow.account) tailscale.switchAccount(accountRow.account.id)
+      PanelActionButton {
+        id: renameButton
+        visible: !accountRow.renaming && !accountRow.switchingAccount
+        // Space is reserved even when hidden — revealing the pen on hover
+        // must not squeeze the connection name sideways.
+        readonly property bool hot: accountMouse.containsMouse || accountRow.hasCursor
+        opacity: hot ? 1.0 : 0.0
+        Behavior on opacity { NumberAnimation { duration: Style.duration(120) } }
+        iconText: "󰏫"
+        tooltipText: Commons.I18n.t("tailscale.renameConnection")
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        // Disabled while invisible so clicks fall through to the row.
+        enabled: hot && !tailscale.busy
+        Layout.alignment: Qt.AlignVCenter
+        onClicked: accountRow.beginRename()
+      }
     }
   }
 
@@ -897,48 +1281,13 @@ Panel {
       return String(peer.TailscaleIPv6[0] || "")
     }
     readonly property string peerDns: peer ? String(peer.DNSName || "") : ""
-    readonly property var copyOptions: {
-      var options = []
-      if (peerName !== "") options.push({ kind: "name", label: peerName })
-      if (peerDns !== "") options.push({ kind: "dns", label: peerDns })
-      if (peerIpv6 !== "") options.push({ kind: "ipv6", label: peerIpv6 })
-      if (peerIp !== "") options.push({ kind: "ip", label: peerIp })
-      return options
-    }
-    property int copyIndex: 0
-
     hasCursor: root.cursorActive && root.focusSection === "peers" && root.peerIndex === rowIndex
     foreground: root.foreground
 
     implicitHeight: Math.max(peerContent.implicitHeight, copyButton.implicitHeight) + Style.spacing.rowPaddingX
 
-    function clampCopyIndex() {
-      copyIndex = Math.max(0, Math.min(copyIndex, copyOptions.length - 1))
-    }
-
     function openCopyMenu() {
-      if (copyOptions.length === 0) return
-      clampCopyIndex()
-      copyPopup.open()
-    }
-
-    function moveCopyCursor(delta) {
-      if (copyOptions.length === 0) return
-      copyIndex = Math.max(0, Math.min(copyOptions.length - 1, copyIndex + delta))
-    }
-
-    function copyOption(kind) {
-      if (kind === "name") tailscale.copyPeerName(peer)
-      else if (kind === "dns") tailscale.copyPeerDnsName(peer)
-      else if (kind === "ipv6") tailscale.copyToClipboard(peerIpv6, peerName + " IPv6")
-      else if (kind === "ip") tailscale.copyPeerIp(peer)
-      copyPopup.close()
-    }
-
-    function copyCurrentOption() {
-      clampCopyIndex()
-      if (copyOptions.length === 0) return
-      copyOption(copyOptions[copyIndex].kind)
+      root.openCopyMenuFor(peer, peerRow)
     }
 
     MouseArea {
@@ -1016,74 +1365,6 @@ Panel {
         enabled: peerRow.peerIp !== "" || peerRow.peerName !== "" || peerRow.peerDns !== "" || peerRow.peerIpv6 !== ""
         Layout.alignment: Qt.AlignVCenter
         onClicked: peerRow.openCopyMenu()
-      }
-
-      Popup {
-        id: copyPopup
-        // Opens toward the row, from whichever end the button sits at.
-        x: copyButton.LayoutMirroring.enabled ? copyButton.x : copyButton.x + copyButton.width - width
-        y: copyButton.y + copyButton.height + Style.space(4)
-        width: Style.space(280)
-        padding: 0
-        modal: false
-        focus: true
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        function handleKey(event) {
-          if (event.key === Qt.Key_Escape) {
-            close()
-            event.accepted = true
-            return
-          }
-          if (event.key === Qt.Key_Down || event.text === "j") {
-            peerRow.moveCopyCursor(1)
-            event.accepted = true
-            return
-          }
-          if (event.key === Qt.Key_Up || event.text === "k") {
-            peerRow.moveCopyCursor(-1)
-            event.accepted = true
-            return
-          }
-          if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-            peerRow.copyCurrentOption()
-            event.accepted = true
-          }
-        }
-        onOpenedChanged: {
-          root.copyMenuOpen = opened
-          if (opened) {
-            peerRow.clampCopyIndex()
-            Qt.callLater(function() { copyPopupContent.forceActiveFocus() })
-          } else if (root.opened) {
-            Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })
-          }
-        }
-        background: BorderSurface {
-          color: Commons.Color.background
-          borderSpec: Border.flat(root.dim, 1)
-          radius: Style.cornerRadius
-        }
-
-        contentItem: Column {
-          id: copyPopupContent
-          width: parent.width
-          focus: true
-          Keys.priority: Keys.BeforeItem
-          Keys.onPressed: function(event) { copyPopup.handleKey(event) }
-
-          Repeater {
-            model: peerRow.copyOptions
-            CopyChoice {
-              required property var modelData
-              required property int index
-              width: parent.width
-              label: String(modelData.label || "")
-              selected: peerRow.copyIndex === index
-              onHovered: peerRow.copyIndex = index
-              onChosen: peerRow.copyOption(String(modelData.kind || ""))
-            }
-          }
-        }
       }
     }
   }
@@ -1177,7 +1458,7 @@ Panel {
           running: exitNodeRow.settingExitNode && !Style.reduceMotion
           from: 0
           to: 360
-          duration: 900
+          duration: Style.duration(900)
           loops: Animation.Infinite
         }
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Install the T3 Code desktop app from its AppImage release, replacing a T3 Code package
+# omarchy:summary=Install the T3 Code desktop app from its AppImage release
 # omarchy:args=<stable|nightly>
 # omarchy:hidden=true
 # omarchy:requires-sudo=true
@@ -19,7 +19,7 @@ APP_DIR="$HOME/.local/share/t3code"
 # T3 Code updates itself by replacing this file. A name without a version is
 # what tells its updater to keep the name, so the launcher below stays valid.
 # It is moved in last: once it exists, the launcher and `t3` link do too, which
-# the migration and the Install menu rely on.
+# the Install menu relies on.
 APPIMAGE="$APP_DIR/T3-Code.AppImage"
 DESKTOP_FILE="$HOME/.local/share/applications/t3code.desktop"
 ICON_DIR="$HOME/.local/share/icons/hicolor"
@@ -113,6 +113,3 @@ if [[ ! -e $link && ! -L $link ]] || [[ $link_target == "/usr/bin/t3" || $link_t
 fi
 
 mv -f "$download" "$APPIMAGE"
-
-# Only once the app is in place, so a failed install leaves the package working.
-omarchy-pkg-drop t3code-bin t3code-nightly-bin

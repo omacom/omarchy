@@ -61,9 +61,15 @@ cat >"$mock_bin/gum" <<'SH'
 echo "${OMARCHY_TEST_GUM_PICK:-Stable}"
 SH
 
+cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
+#!/bin/bash
+echo "$*" >"$TEST_TMP/dropped"
+SH
+
+# The launch is backgrounded, so each run names its own record.
 cat >"$mock_bin/setsid" <<'SH'
 #!/bin/bash
-exit 0
+touch "$TEST_TMP/launched-${OMARCHY_TEST_RUN:-default}"
 SH
 chmod +x "$mock_bin"/* "$mount_dir/t3code"
 
@@ -88,6 +94,7 @@ OMARCHY_TEST_GUM_PICK=Nightly run_installer || fail "installing after an update 
 cmp -s "$state/theme/t3code.json" "$palette" || fail "T3 receives the current theme's palette"
 grep -q 'T3 selected Omarchy' "$test_tmp/output" || fail "the published palette is selected"
 grep -q 'Opening T3 Code' "$test_tmp/output" || fail "the themed app opens"
+[[ $(cat "$test_tmp/dropped") == "t3code-bin t3code-nightly-bin" ]] || fail "the T3 Code packages go once the app is themed"
 [[ ! -e $test_home/.t3 ]] || fail "the custom T3 home is respected"
 pass "an update with no staged T3 palette renders, publishes and selects it before launch"
 
@@ -107,6 +114,16 @@ run_installer stable || fail "installing with an existing palette succeeds" "$(c
 cmp -s "$test_tmp/palette.json" "$palette" || fail "an existing palette is published without re-staging"
 pass "an existing palette is used without refreshing the current theme"
 
+rm -f "$test_tmp/channel"
+OMARCHY_TEST_RUN=no-launch run_installer nightly --no-launch || fail "installing without a launch succeeds" "$(cat "$test_tmp/output")"
+[[ $(cat "$test_tmp/channel") == "nightly" ]] || fail "the named channel is installed without a prompt"
+grep -q 'T3 selected Omarchy' "$test_tmp/output" || fail "the palette is selected without a launch"
+if [[ -f $test_tmp/launched-no-launch ]] || grep -q 'Opening T3 Code' "$test_tmp/output"; then
+  fail "--no-launch leaves T3 Code closed" "$(cat "$test_tmp/output")"
+fi
+pass "--no-launch installs and themes the named channel without opening T3 Code"
+
+rm -f "$test_tmp/dropped"
 printf '{"defaultTheme":"dark","keep":"existing settings"}\n' >"$settings"
 cp "$settings" "$test_tmp/settings-before.json"
 if OMARCHY_TEST_T3_FAIL=1 run_installer stable; then
@@ -117,7 +134,8 @@ if grep -Eq 'Opening T3 Code|T3 Code has been installed' "$test_tmp/output"; the
   fail "a failed selection does not report successful setup"
 fi
 cmp -s "$test_tmp/settings-before.json" "$settings" || fail "a failed selection does not rewrite settings"
-pass "a CLI failure remains visible and leaves the existing settings intact"
+[[ ! -e $test_tmp/dropped ]] || fail "a failed selection keeps the package, so the migration retries"
+pass "a CLI failure remains visible and leaves the existing settings and package intact"
 
 # Ctrl-C reaches the installer's whole process group, but the background
 # mounter ignores it, so the installer has to unmount on its way out.
@@ -135,6 +153,7 @@ kill -INT -- "-$installer"
 status=0
 wait "$installer" || status=$?
 ((status != 0)) || fail "an interrupted install does not report success"
+[[ ! -e $test_tmp/dropped ]] || fail "an interrupted install keeps the package"
 mounter=$(cat "$test_tmp/mounter.pid")
 for _ in {1..50}; do
   kill -0 "$mounter" 2>/dev/null || break

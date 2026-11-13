@@ -8,7 +8,7 @@ elif lspci | grep -qi 'nvidia'; then
     # The 32-bit driver comes when a game asks for it, through
     # omarchy-install-gaming-gpu-lib32, so a machine that never runs a 32-bit
     # game does not carry it.
-    PACKAGES=(nvidia-open-dkms nvidia-utils libva-nvidia-driver)
+    PACKAGES=(linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver)
   elif omarchy-hw-nvidia-without-gsp; then
     PACKAGES=(nvidia-580xx-dkms nvidia-580xx-utils)
     # The 580xx 32-bit driver stays: without it, a Steam installed with pacman
