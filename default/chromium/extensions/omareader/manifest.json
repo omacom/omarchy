@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Omareader",
+  "version": "1.0",
+  "description": "Repaint web pages in the current Omarchy theme, this extension is installed by Omarchy",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoOuy4Khi/9bgXTLtG9y+dFcNElG7Z9UKYwqQc14+wgZO+kHmIO3ybuPyI3EaAreJce0CUb72FgYMFwlWuVPWPMgmuv7wx9VGTsenZQFOAb4NdHhI47SwP4Dt8i3mE8mP1XX27bBFOMoUenUNVfTPxZaufZvMt6Pa/QsBPj3P6GIiHkNS0aC+IRqYwLO6EtKoV16x/WoPiQ26lwSb+pOi52ksZR18Fw8Q3mekZEzh3pXLwIvr5PMxqFFP4+DD1/W+pSBDLaI/c3HCZShyny6Q28Ruu6NEO1uTqUKYfTMF+X2xW1wHasaCzY9RVQJGHOlHOwwMUeODbPEJzhEb0nrX5wIDAQAB",
+  "minimum_chrome_version": "125",
+  "permissions": ["storage", "nativeMessaging", "alarms", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "Omareader",
+    "default_popup": "popup/popup.html",
+    "default_icon": { "16": "icons/omarchy-16.png", "32": "icons/omarchy-32.png" }
+  },
+  "icons": { "16": "icons/omarchy-16.png", "32": "icons/omarchy-32.png", "48": "icons/omarchy-48.png", "128": "icons/omarchy-128.png" },
+  "commands": {
+    "toggle-site": {
+      "suggested_key": { "default": "Alt+Shift+O" },
+      "description": "Toggle Omareader on the current site"
+    },
+    "mode-normal": {
+      "description": "All sites: Normal (pages untouched)"
+    },
+    "mode-dark": {
+      "description": "All sites: Dark"
+    },
+    "mode-omarchy": {
+      "description": "All sites: Follow Omarchy"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/page-hook.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true,
+      "match_origin_as_fallback": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/color.js", "src/theme.js", "src/transform.js", "src/content.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true,
+      "match_origin_as_fallback": true
+    }
+  ]
+}

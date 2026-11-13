@@ -188,6 +188,7 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Super + Alt + ]` | Make webcam overlay larger while recording |
 | `Alt + Shift + L` | Copy current URL from webapp or browser |
 | `Alt + Shift + D` | Download the video on the current page to `~/Videos` |
+| `Alt + Shift + O` | Turn Omareader's theme on or off for the current site |
 | `Alt + Space` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
 | `Right Alt` | Hold to dictate (requires _Setup > Defaults > Dictation_) |
 

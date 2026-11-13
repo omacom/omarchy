@@ -1,0 +1,127 @@
+#!/usr/bin/python3
+# omarchy:summary=Native messaging host: stream the Omarchy palette to the Omareader Chromium extension
+# omarchy:args=[--dump]
+# omarchy:hidden=true
+"""Omareader native messaging host.
+
+Streams the active Omarchy palette to the extension and pushes an update whenever the
+theme changes. `--dump` prints the same state once as JSON.
+"""
+
+import json
+import os
+import re
+import select
+import struct
+import sys
+import time
+import tomllib
+from pathlib import Path
+
+HOME = Path.home()
+STATE = Path(os.environ.get("OMAREADER_STATE_DIR", HOME / ".local/state/omarchy"))
+CURRENT = STATE / "current"
+# The browser may launch the host without Omarchy's environment (as with the yt-dlp
+# host), so find the Omarchy tree from the host's own path when OMARCHY_PATH is unset.
+OMARCHY_PATH = Path(os.environ.get("OMARCHY_PATH") or Path(__file__).resolve().parent.parent)
+# Later directories override earlier ones: user themes win over Omarchy's own.
+THEME_DIRS = [
+    OMARCHY_PATH / "themes",
+    HOME / ".config/omarchy/themes",
+]
+HEX = re.compile(r"^#[0-9a-fA-F]{3,8}$")
+LINE = re.compile(r'^\s*([A-Za-z0-9_]+)\s*=\s*"([^"]*)"')
+
+
+def read_colors(path: Path) -> dict | None:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        data = {m[1]: m[2] for m in map(LINE.match, text.splitlines()) if m}
+    colors = {k: v for k, v in data.items() if isinstance(v, str) and HEX.match(v.strip())}
+    if data.get("mode") in ("light", "dark"):
+        colors["mode"] = data["mode"]
+    return colors if "background" in colors or "color0" in colors else None
+
+
+def current_state() -> dict:
+    try:
+        name = (CURRENT / "theme.name").read_text(encoding="utf-8").strip()
+    except OSError:
+        name = "omarchy"
+    return {"name": name, "colors": read_colors(CURRENT / "theme/colors.toml")}
+
+
+def all_themes() -> dict:
+    themes = {}
+    for root in THEME_DIRS:
+        if not root.is_dir():
+            continue
+        for d in sorted(root.iterdir()):
+            colors = read_colors(d / "colors.toml")
+            if colors:
+                themes[d.name] = colors
+    return themes
+
+
+def state() -> dict:
+    return {"type": "state", "current": current_state(), "themes": all_themes()}
+
+
+def signature():
+    sig = []
+    for p in (CURRENT / "theme.name", CURRENT / "theme/colors.toml", CURRENT / "theme"):
+        try:
+            st = p.stat()
+            sig.append((st.st_ino, st.st_mtime_ns, st.st_size))
+        except OSError:
+            sig.append(None)
+    return sig
+
+
+def send(msg: dict) -> None:
+    data = json.dumps(msg, separators=(",", ":")).encode()
+    sys.stdout.buffer.write(struct.pack("=I", len(data)) + data)
+    sys.stdout.buffer.flush()
+
+
+def read_message():
+    raw = sys.stdin.buffer.read(4)
+    if len(raw) < 4:
+        return None
+    (length,) = struct.unpack("=I", raw)
+    return json.loads(sys.stdin.buffer.read(length) or b"null")
+
+
+def serve() -> None:
+    send(state())
+    last = signature()
+    while True:
+        ready, _, _ = select.select([sys.stdin], [], [], 1.0)
+        if ready:
+            msg = read_message()
+            if msg is None:
+                return  # browser closed the port
+            if isinstance(msg, dict) and msg.get("type") == "refresh":
+                send(state())
+            continue
+        sig = signature()
+        if sig != last:
+            time.sleep(0.25)  # theme switches write several files; let them settle
+            last = signature()
+            send(state())
+
+
+if __name__ == "__main__":
+    if "--dump" in sys.argv:
+        s = state()
+        print(json.dumps({"current": s["current"], "themes": s["themes"]}, indent=1))
+    else:
+        try:
+            serve()
+        except (BrokenPipeError, KeyboardInterrupt):
+            pass

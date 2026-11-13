@@ -128,6 +128,7 @@ done
 for setup_command in \
   omarchy-install-chromium-copy-url \
   omarchy-install-chromium-ytdlp \
+  omarchy-install-chromium-omareader \
   omarchy-theme-set-browser; do
   ln -s omarchy-test-setup-call "$mock_bin/$setup_command"
 done
@@ -240,6 +241,8 @@ grep -Fxq 'omarchy-install-chromium-copy-url:' "$setup_log" ||
   fail "Chromium browser installer registers the Copy URL host"
 grep -Fxq 'omarchy-install-chromium-ytdlp:' "$setup_log" ||
   fail "Chromium browser installer registers the yt-dlp host"
+grep -Fxq 'omarchy-install-chromium-omareader:' "$setup_log" ||
+  fail "Chromium browser installer registers the Omareader host"
 grep -Fxq 'omarchy-theme-set-browser:' "$setup_log" ||
   fail "Chromium browser installer applies the current theme"
 pass "Chromium browser installer restores the complete Omarchy setup"

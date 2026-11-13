@@ -4,3 +4,4 @@
 # bundled extensions talk to have to be registered here.
 omarchy-install-chromium-copy-url
 omarchy-install-chromium-ytdlp
+omarchy-install-chromium-omareader

@@ -23,6 +23,7 @@ extension_id() {
 # would orphan the same things, so the ids that shipped stay pinned here.
 declare -A shipped_id=(
   [copy-url]=bgpiichlckmfanooecilcjemknkcpngb
+  [omareader]=mcijladoahfdoapchpmbphlibdgplpdi
   [whatsapp-slim]=amhpgjbcfakkmkeojmoaoiochhifohdi
   [yt-dlp]=dedjgknigfeelejglamclffonmophnfl
 )
@@ -166,3 +167,34 @@ JS
 else
   skip "node is not installed; skipping the WhatsApp Slim content script check"
 fi
+
+# --- Omareader ---
+
+# Color parsing, palette mapping and CSS value rewriting are pure functions the
+# content script and popup share.
+if command -v node >/dev/null; then
+  if output=$(node --test "$SHELL_TEST_DIR/omareader/unit.test.cjs" 2>&1); then
+    pass "Omareader maps page colors onto the Omarchy palette"
+  else
+    fail "Omareader maps page colors onto the Omarchy palette" "$output"
+  fi
+else
+  skip "node is not installed; skipping the Omareader mapping checks"
+fi
+
+# The host reads the current theme from Omarchy's state dir, and a user theme of
+# the same name wins over the one Omarchy ships.
+omareader_home="$test_tmp/omareader-home"
+mkdir -p "$omareader_home/.local/state/omarchy/current/theme" "$omareader_home/.config/omarchy/themes/catppuccin"
+cp "$ROOT/themes/catppuccin-latte/colors.toml" "$omareader_home/.local/state/omarchy/current/theme/"
+echo "catppuccin-latte" >"$omareader_home/.local/state/omarchy/current/theme.name"
+printf 'background = "#123456"\nforeground = "#abcdef"\n' >"$omareader_home/.config/omarchy/themes/catppuccin/colors.toml"
+dump=$(env -i HOME="$omareader_home" PATH=/usr/bin "$ROOT/bin/omarchy-chromium-omareader-host" --dump) ||
+  fail "Omareader host dumps the palette"
+[[ $(jq -r '.current.name + " " + .current.colors.mode' <<<"$dump") == "catppuccin-latte light" ]] ||
+  fail "Omareader host reads the current theme from the state dir" "$(jq -c .current <<<"$dump")"
+[[ $(jq -r '.themes["catppuccin"].background' <<<"$dump") == "#123456" ]] ||
+  fail "Omareader host lets a user theme override the shipped one"
+[[ $(jq -r '.themes["tokyo-night"].background' <<<"$dump") != null ]] ||
+  fail "Omareader host finds the shipped themes without OMARCHY_PATH"
+pass "Omareader host streams the current Omarchy palette"
