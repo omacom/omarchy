@@ -25,10 +25,12 @@ fi
 
 rebuild_log=$(mktemp)
 trap 'rm -f "$rebuild_log"' EXIT
-sudo limine-mkinitcpio 2>&1 | tee "$rebuild_log"
+
+rebuild_status=0
+sudo limine-mkinitcpio </dev/null 2>&1 | tee "$rebuild_log" || rebuild_status=$?
 
 # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
-if grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
+if (( rebuild_status != 0 )) || grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
   echo "A boot image was not rebuilt. Fix the error above, then run omarchy-migrate again before rebooting." >&2
   exit 1
 fi
