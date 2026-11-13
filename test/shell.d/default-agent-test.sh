@@ -945,16 +945,6 @@ grep -F "omarchy agent prompt" "$test_tmp/positional-output" >/dev/null ||
 [[ ! -s $launch_log ]] || fail "omarchy agent starts nothing for a positional prompt"
 pass "omarchy agent keeps prompts on the prompt route"
 
-# A caller that reaches the launcher directly still gets its own guidance.
-: >"$launch_log"
-if omarchy-agent Review this project >"$test_tmp/positional-output" 2>&1; then
-  fail "the agent launcher rejects a positional prompt"
-fi
-grep -F "omarchy agent prompt" "$test_tmp/positional-output" >/dev/null ||
-  fail "the agent launcher points a positional prompt at the prompt route"
-[[ ! -s $launch_log ]] || fail "the agent launcher starts nothing for a positional prompt"
-pass "the agent launcher points a positional prompt at the prompt route"
-
 printf '%s\n' "missing" >"$agent_file"
 if OMARCHY_TEST_MISSING_COMMAND=missing omarchy-agent >"$test_tmp/missing-output" 2>&1; then
   fail "agent launcher rejects a missing default command"

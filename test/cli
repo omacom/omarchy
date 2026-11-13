@@ -202,6 +202,18 @@ if [[ $output == *"omarchy update perform"* ]]; then
 fi
 pass "hidden update perform compatibility wrapper is not shown"
 
+# omarchy update documents only -y, so a bare word after it is a mistyped
+# subcommand. script is the first thing omarchy-update runs, so a stub of it
+# shows whether the update started.
+make_tmpdir update_stub_bin
+printf '#!/bin/bash\necho update-ran\n' >"$update_stub_bin/script"
+chmod +x "$update_stub_bin/script"
+status=0
+output=$(PATH="$update_stub_bin:$PATH" timeout 5 "$CLI" update mispeled 2>&1) || status=$?
+(( status == 127 )) && [[ $output != *"update-ran"* ]] ||
+  fail "a mistyped update subcommand does not start an update (status $status): $output"
+pass "a mistyped update subcommand does not start an update"
+
 # These three are install-time plumbing the ISO and install leaves call, so
 # they stay out of the listing a user browses -- while still routing, because
 # those callers use the CLI. A GROUP_DESCRIPTIONS entry would put the group
