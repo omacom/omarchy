@@ -121,7 +121,7 @@ class Probe:
             'XDG_CONFIG_HOME': str(self.path / 'home/.config'), 'XDG_CACHE_HOME': str(self.path / 'cache'),
             'XDG_STATE_HOME': str(self.path / 'state'), 'QT_QPA_PLATFORM': 'offscreen',
             'QT_QPA_PLATFORMTHEME': '', 'QT_STYLE_OVERRIDE': 'Fusion', 'QT_QUICK_BACKEND': 'software',
-            'QT_LOGGING_RULES': 'quickshell.io.fileview.debug=true;qt.core.filesystemwatcher.debug=true',
+            'QT_LOGGING_RULES': 'quickshell.io.fileview.debug=true',
         })
         self.process = subprocess.Popen(['quickshell', '--no-color', '-p', str(self.config)],
                                         env=env, stdout=self.log, stderr=subprocess.STDOUT)
@@ -183,7 +183,7 @@ try:
     startup('a malformed English catalog does not hide valid selected translations',
             dict(danish, shellFallback='missing English'), language='da\n', malformed_english=True)
 
-    for attempt in range(5):
+    for attempt in range(20):
         MARK = None
         probe = Probe()
         MARK = probe.mark
