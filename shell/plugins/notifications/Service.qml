@@ -414,6 +414,23 @@ Item {
     return true
   }
 
+  // A card's height can change while the layout is still being worked out:
+  // a new front card shows its buttons as the placements arrive. Taking the
+  // height then would rebuild the layout from inside its own update, a binding
+  // loop that drops the new height. So it waits for the next tick, except
+  // while the card is being inserted, which measures it in place.
+  property var pendingHeights: ({})
+  function queueHeight(key, h) {
+    if (key === arriving) { noteHeight(key, h); return }
+    pendingHeights[key] = h
+    Qt.callLater(flushHeights)
+  }
+  function flushHeights() {
+    var queued = pendingHeights
+    pendingHeights = {}
+    for (var key in queued) if (liveKeys[key]) noteHeight(key, queued[key])
+  }
+
   // Fed target heights, never mid-animation ones, so layout moves on events.
   function noteHeight(key, h) {
     if (Math.abs((heights[key] || 0) - h) < 0.5) return
@@ -1670,7 +1687,7 @@ Item {
               drawnHeight: service.at(model.key, "height")
               // A hidden output collapses child visibility; its measurements
               // must not overwrite the visible deck's heights.
-              onTargetHeightChanged: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
+              onTargetHeightChanged: if (surface.showingNotifications) service.queueHeight(model.key, targetHeight)
               Component.onCompleted: if (surface.showingNotifications) service.noteHeight(model.key, targetHeight)
 
               onExpired: service.closeToast(model.key, "expired")
