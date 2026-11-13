@@ -21,6 +21,8 @@ Item {
   readonly property bool vertical: DockModel.isVertical(position)
   readonly property bool autohide: dockConfig.autohide === true
 
+  readonly property bool collapsePinned: dockConfig.collapsePinned === true
+
   // The dock's order for the session, as desktop ids, set when the user moves
   // an app: a drag moves it, and keeping it in the dock puts it at the end. An
   // app the order does not know yet goes at the end. Pins are saved in this
