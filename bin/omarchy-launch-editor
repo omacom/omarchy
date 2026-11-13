@@ -24,8 +24,17 @@ fi
 omarchy-cmd-present "$editor" || editor="nvim"
 
 # Plain is a window, so a session without a display (SSH, a TTY) edits in vi
-# instead, which every install has.
-[[ ${editor##*/} == plain && -z ${WAYLAND_DISPLAY:-} ]] && editor="vi"
+# instead, which every install has. Plain also only opens files, so a
+# directory operand edits in vi too.
+if [[ ${editor##*/} == plain ]]; then
+  if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
+    editor="vi"
+  else
+    for operand in "$@"; do
+      [[ -d $operand ]] && editor="vi"
+    done
+  fi
+fi
 
 case "${editor##*/}" in
 plain)
