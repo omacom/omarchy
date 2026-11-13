@@ -21,6 +21,7 @@ Item {
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
   property string imageDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/clipboard-images"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
+  property var pendingImageRemovals: []
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
   // singleton so consumers drop them straight into Rectangle bindings.
@@ -82,11 +83,21 @@ Item {
     var removed = ClipboardHistory.removedImagePaths(previous, next)
     for (var i = 0; i < removed.length; i++) {
       var path = removed[i]
-      if (path.indexOf(root.imageDir + "/") === 0)
-        Quickshell.execDetached(["rm", "-f", path])
+      if (path.indexOf(root.imageDir + "/") !== 0) continue
+      if (clearClipboard) root.clearIfLive(path)
+      root.pendingImageRemovals = root.pendingImageRemovals.concat([{ type: "image", path: path }])
     }
-    if (clearClipboard)
-      Quickshell.execDetached(["wl-copy", "--clear"])
+    if (removed.length) imageRemovalTimer.restart()
+  }
+
+  // An image's file is named for the sha256 of its bytes, so the live
+  // clipboard holds it only when its bytes hash to that name. A copy
+  // capture.sh never recorded, such as a password, is left alone.
+  function clearIfLive(path) {
+    Quickshell.execDetached(["bash", "-c",
+      'file=${1##*/}; ext=${file##*.}; [[ $ext == "jpg" ]] && ext=jpeg; ' +
+      'if [[ $(timeout 2s wl-paste --type "image/$ext" 2>/dev/null | sha256sum) == "${file%.*} "* ]]; then wl-copy --clear; fi',
+      "omarchy-clipboard-clear", path])
   }
 
   function addClipboardEntry(entry) {
@@ -119,7 +130,7 @@ Item {
   function confirmClearHistory() {
     var previous = root.history
     root.history = ClipboardHistory.clearHistory()
-    root.pruneRemovedImages(previous, root.history, previous.length > 0)
+    root.pruneRemovedImages(previous, root.history, true)
     root.saveHistory()
     root.selectedIndex = 0
     root.cursorActive = false
@@ -135,7 +146,7 @@ Item {
     var row = displayModel.get(index)
     var previous = root.history
     root.history = ClipboardHistory.removeEntryAt(root.history, row.historyIndex)
-    root.pruneRemovedImages(previous, root.history, Number(row.historyIndex) === 0)
+    root.pruneRemovedImages(previous, root.history, true)
     root.saveHistory()
 
     if (displayModel.count <= 1) {
@@ -334,6 +345,22 @@ Item {
     onTriggered: {
       if (!textWatchProc.running) textWatchProc.running = true
       if (!imageWatchProc.running) imageWatchProc.running = true
+    }
+  }
+
+  // A capture that found an image's file already on disk drops its own copy
+  // and reports the file a moment later, so the file it found may be one an
+  // eviction just removed from history. Files wait here, and only those the
+  // history still does not hold when the timer fires are deleted.
+  Timer {
+    id: imageRemovalTimer
+    interval: 5000
+    repeat: false
+    onTriggered: {
+      var removed = ClipboardHistory.removedImagePaths(root.pendingImageRemovals, root.history)
+      root.pendingImageRemovals = []
+      for (var i = 0; i < removed.length; i++)
+        Quickshell.execDetached(["rm", "-f", removed[i]])
     }
   }
 

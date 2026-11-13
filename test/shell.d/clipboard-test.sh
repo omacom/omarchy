@@ -66,6 +66,18 @@ assertDeepEqual(clipboard.removeEntryAt(history, 10), history, 'clipboard remove
 assertDeepEqual(clipboard.clearHistory(), [], 'clipboard clearHistory returns an empty history')
 
 assertDeepEqual(
+  clipboard.removedImagePaths(history, clipboard.addEntry(history, 'newest', 3)),
+  ['/tmp/a.png'],
+  'clipboard reports the image file an eviction drops'
+)
+
+assertDeepEqual(
+  clipboard.removedImagePaths([{ type: 'image', path: '/tmp/a.png' }], clipboard.addEntry(history, history[2], 3)),
+  [],
+  'clipboard keeps an image file the history holds again'
+)
+
+assertDeepEqual(
   clipboard.displayRows(history, 'image', 50).map(row => ({ type: row.entryType, preview: row.previewText, mime: row.mime })),
   [{ type: 'image', preview: 'Image', mime: 'image/png' }],
   'clipboard display rows search image metadata'
@@ -171,7 +183,11 @@ chmod +x "$TMPDIR/bin/timeout"
 
 cat >"$TMPDIR/bin/wl-copy" <<'SH'
 #!/bin/bash
-cat >"$WL_COPY_OUT"
+if [[ ${1:-} == "--clear" ]]; then
+  printf 'cleared' >"$WL_COPY_OUT"
+else
+  cat >"$WL_COPY_OUT"
+fi
 SH
 
 cat >"$TMPDIR/bin/wl-paste" <<'SH'
@@ -186,6 +202,9 @@ elif [[ $1 == "--type" && $2 == "text" ]]; then
     sleep 10
   fi
   printf '%s' "${WL_PASTE_TEXT:-terminal copy}"
+elif [[ $1 == "--type" ]]; then
+  [[ -n ${WL_PASTE_IMAGE:-} ]] || exit 1
+  printf '%s' "$WL_PASTE_IMAGE"
 fi
 SH
 
@@ -377,6 +396,24 @@ pass "clipboard capture ignores sensitive clipboard events"
 capture_output=$(WL_PASTE_TYPES="text/plain\nx-kde-passwordManagerHint\n" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh")
 [[ -z $capture_output ]] || fail "clipboard capture ignores password manager hint"
 pass "clipboard capture ignores password manager hint"
+
+# Deleting an image clears the live clipboard only when it still holds that
+# image: not when it holds another one, nor a password capture.sh never recorded.
+clear_if_live=$(node -e '
+  const source = require("node:fs").readFileSync(process.argv[1], "utf8")
+  const m = source.match(/\["bash", "-c",([^]*?),\s*"omarchy-clipboard-clear"/)
+  process.stdout.write(require("node:vm").runInNewContext(m[1]))
+' "$ROOT/shell/plugins/clipboard/Clipboard.qml")
+deleted_image="$TMPDIR/$(printf 'deleted-image' | sha256sum | awk '{print $1}').png"
+for live in "" "other-image"; do
+  rm -f "$TMPDIR/cleared"
+  WL_PASTE_IMAGE="$live" WL_COPY_OUT="$TMPDIR/cleared" PATH="$TMPDIR/bin:$PATH" bash -c "$clear_if_live" omarchy-clipboard-clear "$deleted_image"
+  [[ ! -e $TMPDIR/cleared ]] || fail "clipboard image deletion leaves a clipboard holding '$live'"
+done
+pass "clipboard image deletion leaves a clipboard holding something else"
+WL_PASTE_IMAGE="deleted-image" WL_COPY_OUT="$TMPDIR/cleared" PATH="$TMPDIR/bin:$PATH" bash -c "$clear_if_live" omarchy-clipboard-clear "$deleted_image"
+[[ $(<"$TMPDIR/cleared") == "cleared" ]] || fail "clipboard image deletion clears the clipboard holding that image"
+pass "clipboard image deletion clears the clipboard holding that image"
 
 jq -n --arg text "$(printf 'large block line 1\nlarge block line 2\n')" '[{type:"text", text:"ignored"}, {type:"text", text:$text}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 
