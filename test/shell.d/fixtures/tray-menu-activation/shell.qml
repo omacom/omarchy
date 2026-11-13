@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Services.SystemTray
+import qs.Ui
 
 ShellRoot {
   id: root
@@ -33,13 +34,15 @@ ShellRoot {
   }
 
   function triggerSignIn() {
-    var rows = menuOpener.children.values
+    if (!menuPopup.open) menuPopup.openFor(root.trayItem, anchor, null)
+    var rows = menuPopup.currentChildren.values
     var labels = []
     for (var i = 0; i < rows.length; i++) {
       var row = rows[i]
       labels.push(String(row.text || ""))
       if (!row.isSeparator && String(row.text || "") === "Sign in") {
         row.triggered()
+        menuPopup.close()
         writeResult(true, "triggered Sign in")
         return true
       }
@@ -48,9 +51,17 @@ ShellRoot {
     return false
   }
 
-  QsMenuOpener {
-    id: menuOpener
-    menu: root.trayItem ? root.trayItem.menu : null
+  Item {
+    id: anchor
+    width: 16
+    height: 16
+  }
+
+  TrayMenuPopup {
+    id: menuPopup
+    anchorItem: anchor
+    bar: null
+    visible: false
   }
 
   Timer {

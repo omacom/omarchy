@@ -74,6 +74,13 @@ assertEqual(dropbox.relativeTime(1, 1000 + 359 * day), '11mo ago', 'dropbox show
 assertEqual(dropbox.relativeTime(1, 1000 + 360 * day), '11mo ago', 'dropbox never shows zero years at 360 days')
 assertEqual(dropbox.relativeTime(1, 1000 + 364 * day), '11mo ago', 'dropbox never shows zero years at 364 days')
 assertEqual(dropbox.relativeTime(1, 1000 + 365 * day), '1y ago', 'dropbox shows one year at 365 days')
+
+const activeDropbox = { id: 'dropbox_client_64767', status: 1 }
+const passiveDropbox = { id: 'dropbox_client_100', status: 0 }
+assertEqual(dropbox.findTrayItem([{ id: 'nextcloud', status: 1 }, activeDropbox], 0), activeDropbox, 'dropbox finds its active StatusNotifierItem by id')
+assertEqual(dropbox.findTrayItem([passiveDropbox], 0), null, 'dropbox skips passive tray items')
+assertEqual(dropbox.findTrayItem([{ id: 'sni-1', tooltipTitle: 'Team Dropbox', status: 1 }], 0).id, 'sni-1', 'dropbox matches tray items by tooltip')
+assertEqual(dropbox.findTrayItem([{ id: 'nextcloud', status: 1 }], 0), null, 'dropbox returns null when its tray item is absent')
 JS
 
 require_command jq
