@@ -144,7 +144,7 @@ Column {
             id: pillText
             anchors.centerIn: parent
             textFormat: Text.PlainText
-            text: Commons.I18n.t("agents.historyRange").arg(parent.modelData)
+            text: Commons.I18n.t("agents.historyRange").arg(Commons.I18n.formatNumber(parent.modelData))
             color: parent.picked ? block.foreground : block.dim
             font.family: block.fontFamily
             font.pixelSize: Style.font.caption
@@ -162,7 +162,7 @@ Column {
 
           PanelToolTip {
             visible: pillHover.containsMouse
-            text: Commons.I18n.tn("agents.historyRangeTip", parent.modelData).arg(parent.modelData)
+            text: Commons.I18n.tn("agents.historyRangeTip", parent.modelData).arg(Commons.I18n.formatNumber(parent.modelData))
             fontFamily: block.fontFamily
           }
         }
