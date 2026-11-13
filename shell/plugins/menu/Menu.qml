@@ -306,12 +306,13 @@ Item {
     root.itemOrder = mergedMenu.itemOrder
     root.rowsLoaded = true
     if (!skipGuards && root.defaultMenuSettled && root.userMenuSettled) root.evaluateGuards()
-    if (root.opened) {
+    // Dmenu rows come solely from dmenuOptions, so item changes never redraw
+    // an open dmenu: clearing the model would reset its scroll under the
+    // reader for rows that cannot have changed.
+    if (root.opened && !root.dmenuActive) {
       root.rebuildDisplay()
-      if (!root.dmenuActive) {
-        if (root.filterText.trim()) root.loadProvidersForSearch()
-        else root.loadProviderForMenu(root.activeMenu)
-      }
+      if (root.filterText.trim()) root.loadProvidersForSearch()
+      else root.loadProviderForMenu(root.activeMenu)
     }
   }
 
@@ -404,7 +405,7 @@ Item {
     var merged = MenuModel.mergeAppRows(root.items, root.itemOrder, appRows)
     root.items = merged.items
     root.itemOrder = merged.itemOrder
-    if (root.opened) root.rebuildDisplay()
+    if (root.opened && !root.dmenuActive) root.rebuildDisplay()
   }
 
   function startProviderForMenu(id) {
@@ -471,7 +472,7 @@ Item {
     var merged = MenuModel.swapProviderRows(root.items, root.itemOrder, menuId, providerRows)
     root.items = merged.items
     root.itemOrder = merged.itemOrder
-    if (root.opened) root.rebuildDisplay()
+    if (root.opened && !root.dmenuActive) root.rebuildDisplay()
   }
 
   function startNextProvider() {
@@ -695,6 +696,7 @@ Item {
     for (var i = 0; i < displayModel.count; i++) {
       var row = displayModel.get(i)
       if (row.itemId === "dmenu.apply") {
+        displayModel.setProperty(i, "label", Commons.I18n.t("common.apply"))
         displayModel.setProperty(i, "detail", Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)))
       } else if (row.kind === "dmenu") {
         var value = MenuModel.dmenuValue(root.dmenuOptions[Number(row.itemId.substring(6))])
@@ -1136,6 +1138,14 @@ Item {
     referenceItem: card
   }
 
+  // An open dmenu skips the refresh rebuilds, so a language switch retitles
+  // its Apply row in place rather than clearing the list under the reader.
+  Connections {
+    target: Commons.I18n
+    function onStringsChanged() { if (root.opened && root.dmenuActive && root.dmenuMultiple) root.updateDmenuChecks() }
+    function onZeroDigitChanged() { if (root.opened && root.dmenuActive && root.dmenuMultiple) root.updateDmenuChecks() }
+  }
+
   Connections {
     target: root.appLibrary
     function onAppsChanged() {
@@ -1264,7 +1274,7 @@ Item {
       root.whenResults = nextWhen
       root.checkedResults = nextChecked
       root.disabledResults = nextDisabled
-      if (root.opened) root.rebuildDisplay()
+      if (root.opened && !root.dmenuActive) root.rebuildDisplay()
       // Run the evaluation that had to stand aside. Deferred by a turn so the
       // process is settled before its command is set again.
       if (root.guardsPending) Qt.callLater(function() { root.evaluateGuards() })
