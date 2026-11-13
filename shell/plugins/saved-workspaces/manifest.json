@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.saved-workspaces",
+  "name": "Scenes",
+  "version": "0.1.0",
+  "author": "Omarchy",
+  "description": "Save and reopen sets of apps and their arrangement",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "Widget.qml"},
+  "barWidget": {
+    "displayName": "Scenes",
+    "description": "Save and reopen sets of apps and their arrangement",
+    "category": "Workspace",
+    "allowMultiple": false
+  }
+}
