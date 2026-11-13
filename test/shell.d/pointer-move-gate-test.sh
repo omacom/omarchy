@@ -1,6 +1,6 @@
 #!/bin/bash
 # omarchy:exclusive
-# Windows opening beside it in the pool make the compositor send the real pointer's position, which the menu takes as the click's first sample.
+# Its menu covers the live desktop and reads the real pointer, so it needs the desktop to itself.
 
 set -euo pipefail
 
@@ -39,5 +39,10 @@ cat >"$QML_FIXTURE_TMP/menu.jsonc" <<'EOF'
   "three.c": {"label": "Three C", "action": "true"}
 }
 EOF
+# The compositor sends the menu the real pointer's position too, and the menu
+# rightly selects the row under it. Park it in a corner of the menu's monitor,
+# outside the card.
+read -r corner_x corner_y < <(hyprctl monitors -j | jq -r '.[] | select(.focused) | "\(.x) \(.y)"')
+hyprctl eval "hl.dispatch(hl.dsp.cursor.move({ x = $corner_x, y = $corner_y }))" >/dev/null
 MENU_FIXTURE_FILE="$QML_FIXTURE_TMP/menu.jsonc" \
   run_qml_fixture menu-pointer "a click into a submenu selects the row left under the pointer" Ui Commons
