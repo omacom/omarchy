@@ -80,6 +80,11 @@ grep -Fq $'sudo\tmodprobe\tfacetimehd' "$calls" ||
   fail "the live load runs through sudo (migration runs as the user)" "$(cat "$calls")"
 pass "a pre-T2 Mac with the camera installs driver and firmware"
 
+grep -Fq $'install\t-Dm755' "$calls" &&
+  grep -Fq 'system-sleep/facetimehd' "$calls" ||
+  fail "a pre-T2 Mac with the camera installs the hibernate hook" "$(cat "$calls")"
+pass "a pre-T2 Mac with the camera installs the hibernate hook"
+
 run_leaf "Apple Inc." 0 >/dev/null
 [[ ! -s $calls ]] || fail "an Apple machine without the camera is left alone" "$(cat "$calls")"
 pass "an Apple machine without the camera is left alone"
@@ -123,3 +128,26 @@ pass "the migration installs driver and firmware on a pre-T2 Mac with the camera
 run_migration "LENOVO" 0
 [[ ! -s $calls ]] || fail "the migration leaves other hardware alone" "$(cat "$calls")"
 pass "the migration leaves other hardware alone"
+
+# The hook has to unload the driver for hibernate, keep out of S3, and load it
+# again after waking: the hang it avoids happens inside the device-freeze.
+hook="$ROOT/default/systemd/system-sleep/facetimehd"
+
+hook_run() {
+  : >"$calls"
+  PATH="$stub_bin:$PATH" TEST_LOG="$calls" SYSTEMD_SLEEP_ACTION="${1:-}" bash "$hook" "$2" "${1:-}" >/dev/null 2>&1
+}
+
+hook_run hibernate pre
+grep -Fq $'modprobe\t-r\tfacetimehd' "$calls" ||
+  fail "the hook unloads the camera driver before hibernating" "$(cat "$calls")"
+pass "the hook unloads the camera driver before hibernating"
+
+hook_run suspend pre
+[[ ! -s $calls ]] || fail "the hook leaves S3 alone" "$(cat "$calls")"
+pass "the hook leaves S3 alone"
+
+hook_run hibernate post
+grep -Fq $'modprobe\tfacetimehd' "$calls" ||
+  fail "the hook loads the camera driver again after resuming" "$(cat "$calls")"
+pass "the hook loads the camera driver again after resuming"

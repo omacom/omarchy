@@ -12,6 +12,12 @@ if [[ $sys_vendor == Apple* ]] && lspci -nn | grep -E "14e4:1570" >/dev/null; th
   omarchy-pkg-aur-add facetimehd-firmware facetimehd-dkms-git ||
     echo "Warning: could not install the FaceTime HD camera packages" >&2
 
+  # The driver hangs hibernation inside the kernel's device-freeze, so keep it
+  # unloaded across the freeze. S3 is unaffected and the hook leaves it alone.
+  sudo install -Dm755 "$OMARCHY_PATH/default/systemd/system-sleep/facetimehd" \
+    /usr/lib/systemd/system-sleep/facetimehd ||
+    echo "Warning: could not install the FaceTime HD sleep hook" >&2
+
   # Best-effort on a live session so the camera works without a reboot. The
   # driver's PCI alias binds it automatically on boot. Never fatal, following
   # fix-synaptic-touchpad.sh: an optional camera must not halt hardware setup,

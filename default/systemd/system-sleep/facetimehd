@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# The pre-T2 FaceTime HD camera driver (bcwc_pcie, AUR facetimehd-dkms-git)
+# deadlocks the machine during hibernation: its PCI suspend runs inside the
+# kernel's device-freeze and the system hangs at "PM: hibernation: hibernation
+# entry", before the image is written. Keeping it unloaded for the freeze and
+# loading it again after resume avoids the hang; S3 does not need this, so it
+# is left alone there.
+
+sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
+
+case "$1" in
+  pre)
+    [[ $sleep_action == "hibernate" ]] || exit 0
+    modprobe -r facetimehd 2>/dev/null || true
+    ;;
+  post)
+    modprobe facetimehd 2>/dev/null || true
+    ;;
+esac
