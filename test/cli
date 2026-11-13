@@ -111,6 +111,9 @@ pass "sudo metadata marks sudo commands"
 output=$("$CLI" theme --help)
 assert_output_contains "group help renders" "$output" "Theme commands"
 
+output=$("$CLI" notification "?")
+assert_output_contains "? renders group help" "$output" "Notification commands"
+
 output=$("$CLI" install --help)
 assert_output_contains "install group help renders" "$output" "Install commands"
 assert_output_contains "install group includes browser route" "$output" "omarchy install browser"
