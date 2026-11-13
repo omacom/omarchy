@@ -199,10 +199,10 @@ Item {
           } else if (Util.editsFilter(event, root.filterText)) {
             root.setFilter(Util.editedFilter(event, root.filterText))
             event.accepted = true
-          } else if (event.key === Qt.Key_Left) {
+          } else if (Util.readingKey(event) === Qt.Key_Left) {
             root.select(-1)
             event.accepted = true
-          } else if (event.key === Qt.Key_Right) {
+          } else if (Util.readingKey(event) === Qt.Key_Right) {
             root.select(1)
             event.accepted = true
           } else if (event.key === Qt.Key_Up) {
@@ -247,7 +247,7 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.filterText || "Search emojis…"
+            text: root.filterText || Commons.I18n.t("emojis.search")
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
@@ -310,6 +310,7 @@ Item {
 
           Column {
             anchors.centerIn: parent
+            width: parent.width - 2 * root.contentMargin
             spacing: Style.space(8)
             visible: displayModel.count === 0
 
@@ -325,13 +326,14 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: "No matches for “" + root.filterText + "”"
+              text: Commons.I18n.t("emojis.noMatches").arg(root.filterText)
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily
               font.pixelSize: Style.font.title
               horizontalAlignment: Text.AlignHCenter
               width: parent.width
+              elide: Text.ElideRight
             }
           }
         }

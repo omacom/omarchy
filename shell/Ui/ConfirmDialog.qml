@@ -7,8 +7,8 @@ Item {
 
   property bool opened: false
   property string message: ""
-  property string cancelText: "Cancel"
-  property string confirmText: "Confirm"
+  property string cancelText: Commons.I18n.t("common.cancel")
+  property string confirmText: Commons.I18n.t("common.confirm")
   property int selectedIndex: 1
   property color background: Commons.Color.background
   property color foreground: Commons.Color.foreground
@@ -27,7 +27,7 @@ Item {
     if (event.key === Qt.Key_Escape) {
       root.canceled()
       return true
-    } else if (event.key === Qt.Key_Left || event.key === Qt.Key_Right || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+    } else if (event.key === Qt.Key_Left || event.key === Qt.Key_Right || event.text === "h" || event.text === "l" || event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
       root.selectedIndex = root.selectedIndex === 0 ? 1 : 0
       return true
     } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {

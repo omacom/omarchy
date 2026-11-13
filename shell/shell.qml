@@ -24,6 +24,7 @@ ShellRoot {
   property AppLibrary appLibrary: AppLibrary { }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
   property BackgroundIntro bootIntro: BackgroundIntro { host: shell }
+  property BackgroundSwitch backgroundSwitch: BackgroundSwitch { intro: shell.bootIntro }
 
   property string home: Quickshell.env("HOME")
 
@@ -48,10 +49,11 @@ ShellRoot {
     bar: {
       position: "top",
       background: "opaque",
-      centerAnchor: "omarchy.clock",
       layout: {
         left: [{ id: "omarchy.menu" }, { id: "omarchy.workspaces" }],
+        centerBegin: [],
         center: [{ id: "omarchy.clock", format: "dddd HH:mm" }],
+        centerEnd: [],
         right: [{ id: "omarchy.audio" }]
       }
     },
@@ -60,13 +62,23 @@ ShellRoot {
 
   property var defaultsConfig: builtinShellConfig
   property var shellConfig: builtinShellConfig
+  // shell.json has text the shell could not use; persisting would replace it with defaults.
+  property bool userConfigUnreadable: false
   property bool pluginReloading: false
   property bool pluginReloadPending: false
+  property bool localPluginNeedsReload: false
 
   Timer {
     id: localPluginReloadTimer
     interval: 150
-    onTriggered: shell.reloadPlugins()
+    onTriggered: {
+      if (shell.localPluginNeedsReload) {
+        shell.localPluginNeedsReload = false
+        shell.reloadPlugins()
+      } else {
+        shell.rescanPlugins()
+      }
+    }
   }
 
   onShellConfigChanged: {
@@ -90,6 +102,7 @@ ShellRoot {
         console.warn("shell.json parse failed, using defaults:", e)
       }
     }
+    userConfigUnreadable = !!userText.trim() && !user
     shellConfig = user || defaults
   }
 
@@ -115,6 +128,10 @@ ShellRoot {
     var payload = JSON.parse(JSON.stringify(nextConfig))
     payload.version = 1
     shellConfig = payload
+    if (userConfigUnreadable) {
+      console.warn("shell.json is unreadable, not overwriting it; fix it to save bar changes")
+      return
+    }
     userConfigFile.setText(JSON.stringify(payload, null, 2) + "\n")
   }
 
@@ -1099,11 +1116,11 @@ ShellRoot {
   function updateEntryInline(moduleName, settings) {
     var stripped = Util.canonicalWidgetId(moduleName)
     var copy = JSON.parse(JSON.stringify(shellConfig || builtinShellConfig))
-    if (!Util.isPlainObject(copy.bar)) copy.bar = { layout: { left: [], center: [], right: [] } }
-    if (!Util.isPlainObject(copy.bar.layout)) copy.bar.layout = { left: [], center: [], right: [] }
+    if (!Util.isPlainObject(copy.bar)) copy.bar = { layout: {} }
+    if (!Util.isPlainObject(copy.bar.layout)) copy.bar.layout = {}
     if (!Array.isArray(copy.plugins)) copy.plugins = []
 
-    var sections = ["left", "center", "right"]
+    var sections = Util.barSections
     var foundInLayout = false
     var dirty = false
     for (var s = 0; s < sections.length; s++) {
@@ -1506,6 +1523,34 @@ ShellRoot {
     pluginWidgetComponents = ({})
   }
 
+  // A rescan asked for while another scan ran; it stays a rescan.
+  property bool pluginRescanPending: false
+
+  // The watcher names a plugin by its folder, which need not be its manifest
+  // id (Superwhisper's superwhisper-panel folder holds superwhisper.panel).
+  function localPluginLoaded(dirName) {
+    var dir = String(shell.pluginRegistry.pluginsDir || "").replace(/\/+$/, "") + "/" + dirName
+    var installed = shell.pluginRegistry.installedPlugins || ({})
+    for (var id in installed) {
+      var source = String((installed[id] && installed[id].__sourceDir) || "").replace(/\/+$/, "")
+      if (source === dir) return true
+    }
+    return false
+  }
+
+  // Rescan without closing anything: the syncs after the scan add, update and
+  // drop plugins in place. Only fresh code needs the full reload, which closes
+  // every panel and unloads every service. A first login linking a new
+  // plugin's panel (Superwhisper's setup) otherwise closed the menu and
+  // blanked the wallpaper.
+  function rescanPlugins() {
+    if (shell.pluginReloading || shell.pluginRegistry.scanning) {
+      shell.pluginRescanPending = true
+      return
+    }
+    shell.pluginRegistry.rescan()
+  }
+
   function reloadPlugins() {
     if (shell.pluginReloading || shell.pluginRegistry.scanning) {
       shell.pluginReloadPending = true
@@ -1531,13 +1576,18 @@ ShellRoot {
   Connections {
     target: shell.pluginRegistry
     function onLocalPluginChanged(pluginId) {
-      console.log("Local plugin changed, reloading:", pluginId)
+      // An edit to a plugin the shell already runs needs its fresh code; a
+      // plugin that just appeared only needs adding.
+      if (shell.localPluginLoaded(pluginId))
+        shell.localPluginNeedsReload = true
+      console.log("Local plugin changed:", pluginId)
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
       if (shell.pluginReloadPending) {
         shell.pluginReloadPending = false
         shell.pluginReloading = false
+        shell.pluginRescanPending = false
         Qt.callLater(shell.reloadPlugins)
         return
       }
@@ -1545,6 +1595,10 @@ ShellRoot {
       shell._syncServices()
       shell.syncPanelEntries()
       shell.syncPluginWidgets()
+      if (shell.pluginRescanPending) {
+        shell.pluginRescanPending = false
+        Qt.callLater(shell.rescanPlugins)
+      }
     }
   }
 
@@ -1745,8 +1799,27 @@ ShellRoot {
       shell.bootIntro.prepareTheme(fromPath, token, colorsB64, shellB64)
     }
 
-    function finishThemeIntro(token: string): void {
-      shell.bootIntro.finishTheme(token)
+    // A theme switch whose cover is up hands the rest over: the still, the
+    // intro if there is one, the reveal and Hyprland's reload.
+    function playThemeIntro(token: string, stillPath: string, introPath: string, prepared: string): string {
+      return shell.backgroundSwitch.play(token, stillPath, introPath, prepared)
+    }
+
+    // omarchy-theme-bg-set's change, with the intro it found or none.
+    function switchBackground(path: string, introPath: string): string {
+      return shell.backgroundSwitch.switchTo(path, introPath)
+    }
+
+    // What the latest background selection names, ahead of the link while
+    // its change is still queued or setting up.
+    function selectedBackground(): string {
+      return shell.backgroundSwitch.selected()
+    }
+
+    // A cover is up or revealing, so the screen does not yet show a frame a
+    // new switch could capture as its own outgoing cover.
+    function themeIntroBusy(): string {
+      return shell.backgroundSwitch.busy ? "pending" : "ready"
     }
 
     function themeIntroStatus(token: string): string {
@@ -1785,7 +1858,13 @@ ShellRoot {
       return Commons.InputMethodState.cycle(direction === "back") ? "ok" : "not running"
     }
 
+    // Adds, updates and drops plugins in place, leaving running ones alone.
     function rescanPlugins(): void {
+      shell.rescanPlugins()
+    }
+
+    // Rebuilds every plugin from fresh code, for an update that kept its manifest.
+    function reloadPlugins(): void {
       shell.reloadPlugins()
     }
 

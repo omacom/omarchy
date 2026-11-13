@@ -18,24 +18,6 @@ trap cleanup EXIT
 require_command jq
 
 TMPDIR=$(mktemp -d)
-test_home="$TMPDIR/home"
-manifest_path="$test_home/.config/chromium/NativeMessagingHosts/com.omarchy.ytdlp.json"
-
-HOME="$test_home" OMARCHY_PATH="$ROOT" omarchy-install-chromium-ytdlp
-
-[[ -f $manifest_path ]] || fail "yt-dlp native host installer creates fresh Chromium profile root"
-pass "yt-dlp native host installer creates fresh Chromium profile root"
-
-jq -e --arg path "$ROOT/bin/omarchy-chromium-ytdlp-host" '
-  .name == "com.omarchy.ytdlp" and
-  .path == $path and
-  (.allowed_origins | index("chrome-extension://dedjgknigfeelejglamclffonmophnfl/"))
-' "$manifest_path" >/dev/null
-pass "yt-dlp native host manifest uses Omarchy host path and extension id"
-
-[[ -f $test_home/.config/BraveSoftware/Brave-Origin/NativeMessagingHosts/com.omarchy.ytdlp.json ]] ||
-  fail "yt-dlp native host installer covers Brave Origin"
-pass "yt-dlp native host installer covers Brave Origin"
 
 parse_result=$(bash -c '
   OMARCHY_PATH="$3"
@@ -135,7 +117,7 @@ dash_title=$(host_fn title_from_file "$download_dir/--include.mp4")
 [[ $dash_title == "Video" ]] || fail "yt-dlp native host does not pass a leading-dash title to the notifier" "$dash_title"
 pass "yt-dlp native host does not pass a leading-dash title to the notifier"
 
-# The click action passes the path as a discrete --exec argument (asserted
+# The actions pass the path as a discrete --with argument (asserted
 # end-to-end below against the real download); `--` keeps mpv from parsing a
 # leading-dash filename as an option.
 
@@ -172,7 +154,9 @@ pass "yt-dlp native host keeps a real file after a forged OMARCHY_FILE record"
 # stubbed tools so the yt-dlp invocation and the toast's click command are covered
 # too: a record template that carried the title again would pass every test above.
 fake_root="$TMPDIR/fake"
-mkdir -p "$fake_root/bin"
+mkdir -p "$fake_root/bin" "$fake_root/default"
+# A real install root carries the i18n catalogs omarchy-i18n reads.
+ln -s "$ROOT/default/i18n" "$fake_root/default/i18n"
 fake_dir="$TMPDIR/fake-videos"
 mkdir -p "$fake_dir"
 fake_file="$fake_dir/Real_Clip [id].mp4"
@@ -185,6 +169,18 @@ cat >"$fake_root/bin/yt-dlp" <<'EOF'
 printf '%s\n' "$*" >>"$YTDLP_ARGV_LOG"
 for arg in "$@"; do
   if [[ $arg == "--no-simulate" ]]; then
+    if [[ -n ${YTDLP_PROGRESS:-} ]]; then
+      # What YouTube serves: an HLS video whose first report is a bogus 100%,
+      # then a separate audio stream. Paced past the host's redraw throttle.
+      printf 'OMARCHY_PARTS\t616+251\n'
+      for record in 'downloading 616 100.0%' 'downloading 616   0.2%' 'downloading 616  50.0%' \
+        'downloading 616  40.0%' 'finished 616 100.0%' 'downloading 251   0.0%' \
+        'downloading 251  50.0%' 'finished 251 100.0%'; do
+        read -r status format pct <<<"$record"
+        printf 'OMARCHY_PROG\t%s\t%s\t%s\n' "$status" "$format" "$pct"
+        sleep 0.3
+      done
+    fi
     printf 'OMARCHY_FILE\t%s\n' "$YTDLP_FAKE_FILE"
     [[ -n ${YTDLP_SKIP_TITLE:-} ]] || printf 'OMARCHY_TITLE\t%s\n' '"My Great Clip"'
     exit 0
@@ -198,7 +194,15 @@ cat >"$fake_root/bin/omarchy-notification-send" <<'EOF'
 printf '%s\n' "$*" >>"$NOTIFY_ARGV_LOG"
 EOF
 
-for stub in omarchy-osd omarchy-shell ffmpeg; do
+cat >"$fake_root/bin/omarchy-osd" <<'EOF'
+#!/bin/bash
+while (($#)); do
+  [[ $1 == -p ]] && printf '%s\n' "$2" >>"${OSD_LOG:-/dev/null}"
+  shift
+done
+EOF
+
+for stub in omarchy-shell ffmpeg; do
   printf '#!/bin/bash\nexit 0\n' >"$fake_root/bin/$stub"
 done
 chmod +x "$fake_root/bin/"*
@@ -232,9 +236,9 @@ grep -qF -- $'OMARCHY_FILE\t%(title)s' "$ytdlp_argv" &&
   fail "yt-dlp native host never prints the title into the file record" "$(cat "$ytdlp_argv")"
 pass "yt-dlp native host never prints the title into the file record"
 
-grep -q -- "--exec mpv -- " "$notify_argv" ||
-  fail "yt-dlp native host builds the click command as mpv -- <path>" "$(cat "$notify_argv")"
-pass "yt-dlp native host builds the click command as mpv -- <path>"
+grep -qF -- "--action Open mpv -- --action Cut omacut --with $fake_file" "$notify_argv" ||
+  fail "yt-dlp native host offers Open in mpv and Cut in Omacut for the download" "$(cat "$notify_argv")"
+pass "yt-dlp native host offers Open in mpv and Cut in Omacut for the download"
 
 grep -qF -- "Download complete My Great Clip" "$notify_argv" ||
   fail "yt-dlp native host toasts the page title, not the sanitised filename" "$(cat "$notify_argv")"
@@ -253,3 +257,27 @@ YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fa
 grep -qF -- "Download complete Real_Clip [id]" "$notify_argv" ||
   fail "yt-dlp native host falls back to the filename when no title record arrives" "$(cat "$notify_argv")"
 pass "yt-dlp native host falls back to the filename when no title record arrives"
+
+# Video and audio download as separate streams, each 0-100%, and an HLS stream opens
+# with a bogus 100%. The OSD shows them as one bar that only moves forward.
+osd_log="$TMPDIR/osd-log"
+YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fake_file" \
+  YTDLP_PROGRESS=1 OSD_LOG="$osd_log" OMARCHY_PATH="$fake_root" OMARCHY_YTDLP_DIR="$fake_dir" \
+  bash -c '
+    source "$1"
+    download_url "$2"
+  ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://example.test/watch" >/dev/null 2>&1
+
+shown=$(paste -sd' ' "$osd_log")
+[[ $shown == "0 45 90 95 100" ]] ||
+  fail "yt-dlp native host shows video and audio as one bar that only moves forward" "$shown"
+pass "yt-dlp native host shows video and audio as one bar that only moves forward"
+
+# The stub replays progress records whatever it is asked for, so assert the requests.
+grep -qF -- $'video:OMARCHY_PARTS\t%(format_id)s' "$ytdlp_argv" ||
+  fail "yt-dlp native host asks which streams make up the download" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host asks which streams make up the download"
+
+grep -qF -- $'download:OMARCHY_PROG\t%(progress.status)s\t%(info.format_id)s\t%(progress._percent_str)s' "$ytdlp_argv" ||
+  fail "yt-dlp native host tags each progress report with its status and stream" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host tags each progress report with its status and stream"

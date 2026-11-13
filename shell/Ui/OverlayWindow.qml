@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Wayland
+import qs.Commons as Commons
 
 // Map a fresh fullscreen surface on each open. Keep its first frames
 // transparent until Qt receives the output's scale, so it opens sharp without
@@ -85,5 +86,17 @@ PanelWindow {
     target: window.contentItem
     property: "opacity"
     value: window.contentRevealed ? 1 : 0
+  }
+
+  // Right-to-left languages read the overlay mirrored.
+  Binding {
+    target: window.contentItem
+    property: "LayoutMirroring.enabled"
+    value: Commons.I18n.rightToLeft
+  }
+  Binding {
+    target: window.contentItem
+    property: "LayoutMirroring.childrenInherit"
+    value: true
   }
 }

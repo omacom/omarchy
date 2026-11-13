@@ -10,6 +10,20 @@ end
 
 o.shell_quote = shell_quote
 
+-- Chromium-based browsers. Rule classes match the whole name, so their web apps
+-- (chrome-<host>_<path>-<profile>) aren't included.
+o.chromium_browsers = "((google-)?[cC]hrom(e|ium)|[bB]rave-browser|[mM]icrosoft-edge|Vivaldi-stable|helium)"
+
+-- Apps that draw their own header with a close button: those browsers and GNOME
+-- apps with a header bar. Floating workspaces give them no titlebar. Web apps
+-- keep theirs, having no tab strip to drag the window by.
+--
+-- Their maximize button stays off (GNOME's default button layout) and their
+-- maximize requests stay suppressed: Hyprland reports every app as maximized and
+-- takes any maximize request as a toggle, so Chrome's request to return to
+-- "maximized" after leaving fullscreen would maximize a normal window.
+o.self_framed_apps = "(" .. o.chromium_browsers .. "|org\\.gnome\\.(DiskUtility|Papers))"
+
 local function file_exists(path)
   local file = io.open(path, "r")
   if file then
@@ -164,6 +178,10 @@ end
 -- run a bind that Hyprland only reports as Lua.
 o.bind_commands = {}
 
+-- The Lua expression each function bind stands for, for binds with no command
+-- to run instead. The menu dispatches it as `hyprctl dispatch <expression>`.
+o.bind_expressions = {}
+
 -- Hand the launcher the focused window's pid, which it would otherwise ask
 -- Hyprland for, to open the new terminal in that terminal's directory.
 function o.launch_terminal()
@@ -267,7 +285,30 @@ function o.notify(message)
   return "omarchy-notification-send -u low " .. shell_quote(message)
 end
 
+-- Whether this session gets default/hypr/software-rendering.lua's lighter look:
+-- it renders on the CPU (llvmpipe or softpipe), as
+-- omarchy-hyprland-software-rendering marks it once Hyprland is up, and the user
+-- hasn't turned animations back on there with omarchy-toggle-animations.
+function o.software_rendering_defaults()
+  local runtime = os.getenv("XDG_RUNTIME_DIR")
+  local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+  if not runtime or runtime == "" or not signature or signature == "" then
+    return false
+  end
+
+  return file_exists(runtime .. "/hypr/" .. signature .. "/omarchy-software-rendering")
+    and not file_exists(paths.home .. "/.local/state/omarchy/toggles/animations-without-gpu")
+end
+
+-- What makes apps float on their own account, so a floating workspace can
+-- leave their floating to them: the class and title patterns of rules that
+-- float them, the tags rules float, and the patterns of rules that tag them.
+o.floating_apps = { class = {}, title = {}, tags = {}, tagged = {} }
+-- Helpers reload before workspace modes, so discard the previous config's hook.
+o.floating_apps_changed = nil
+
 function o.window(match, rules)
+  local floating_changed = false
   rules.match = rules.match or {}
 
   if type(match) == "string" then
@@ -278,11 +319,40 @@ function o.window(match, rules)
     end
   end
 
+  if rules.float == true then
+    -- Only a rule floating a tag alone floats everything with that tag; one
+    -- that also names a class or title floats just those, recorded below.
+    if type(rules.match.tag) == "string" and rules.match.class == nil and rules.match.title == nil then
+      o.floating_apps.tags[rules.match.tag] = true
+      floating_changed = true
+    end
+    for _, key in ipairs({ "class", "title" }) do
+      if type(rules.match[key]) == "string" then
+        table.insert(o.floating_apps[key], rules.match[key])
+        floating_changed = true
+      end
+    end
+  end
+
+  if type(rules.tag) == "string" and rules.tag:sub(1, 1) == "+" then
+    local tag = rules.tag:sub(2)
+    o.floating_apps.tagged[tag] = o.floating_apps.tagged[tag] or {}
+    for _, key in ipairs({ "class", "title" }) do
+      if type(rules.match[key]) == "string" then
+        table.insert(o.floating_apps.tagged[tag], { key = key, pattern = rules.match[key] })
+        floating_changed = true
+      end
+    end
+  end
+
   hl.window_rule(rules)
+  if floating_changed and o.floating_apps_changed then
+    o.floating_apps_changed()
+  end
 end
 
 -- Opt a window in to Omarchy's standard active/inactive transparency. The tag
--- lets Appearance > Window Transparency turn these windows opaque or glassy.
+-- lets Appearance > Windows > Window Opacity turn these windows opaque or glassy.
 function o.transparent_window(match, opacity)
   o.window(match, { opacity = opacity or "0.985 0.96", tag = "+transparent-window" })
 end
