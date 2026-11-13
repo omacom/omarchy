@@ -29,15 +29,19 @@ function isProductName(t, at, word) {
 }
 
 // "123456 is not a verification code": the sender says it is no code, so the
-// keywords right after "is not" open no window. "Do not share this code"
-// still offers its code.
+// keywords right after "is not" open no window, and the number before it is
+// offered by no other keyword's window. "Do not share this code" still offers
+// its code. The keywords stop at the line's end, or a denial would swallow
+// the "OTP:" that labels a real code on the next line.
 var DENIED = "\\b(?:is|are|was|were|['\u2019]s)(?:\\s+not|n['\u2019]t)\\s+(?:(?:an?|the|your)\\s+)?" +
-  "(?:" + CODE_WORDS.source + "\\s*)+"
+  "(?:" + CODE_WORDS.source + "[^\\S\\r\\n]*)+"
 
-function windows(t) {
+function windows(t, denied) {
   var out = [], m
   var re = new RegExp("(" + DENIED + ")|" + CODE_WORDS.source, "gi")
   while ((m = re.exec(t)) !== null) {
+    var subject = m[1] && t.slice(Math.max(0, m.index - 24), m.index).match(/([\w-]*\d[\w-]*)\s+$/)
+    if (subject) denied[subject[1].replace(/^[A-Za-z]-/, "").replace(/-/g, "")] = true
     if (!m[1] && !isProductName(t, m.index, m[0]))
       out.push([Math.max(0, m.index - NEAR_BEFORE), m.index + m[0].length + NEAR_AFTER])
     if (re.lastIndex === m.index) re.lastIndex++
@@ -58,10 +62,11 @@ function harvest(t, re, seen, out, keep) {
 
 function codes(text) {
   var t = Security.bounded(text, Security.MAX_BODY)
-  var spans = windows(t)
+  var seen = {}
+  var spans = windows(t, seen)
   if (!spans.length) return []
 
-  var out = [], seen = {}
+  var out = []
   for (var i = 0; i < spans.length; i++) {
     harvest(t.slice(spans[i][0], spans[i][1]), CODE_SHAPE, seen, out, function (raw) {
       var value = raw.replace(/^[A-Za-z]-/, "").replace(/[\s-]/g, "")

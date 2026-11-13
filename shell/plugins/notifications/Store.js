@@ -290,10 +290,11 @@ function sanitiseForPersistence(row) {
   var out = normalise(row)
   // Strip literal markup before detection so long attributes cannot push a
   // code outside the keyword window in a legacy/raw-only entry. A row already
-  // redacted stays exactly as it was written.
+  // redacted stays exactly as it was written. Line breaks are kept, as
+  // Detect.scan sees them, so a denial cannot run on into the next line.
   var secret = out.codes || out.code || redacted(out) || Detect.codes(
-      Markup.decodeEntities(out.summary + " " + out.rawBody + " " + out.body)
-        .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()).length
+      Markup.decodeEntities(out.summary + "\n" + out.rawBody + "\n" + out.body)
+        .replace(/<[^>]+>/g, "\n").replace(/\s*[\r\n]\s*/g, "\n").replace(/[^\S\n]+/g, " ").trim()).length
   if (secret) {
     for (var k in SHAPE) if (typeof SHAPE[k] === "string" && k !== "key") out[k] = ""
     out.summary = REDACTED_SUMMARY

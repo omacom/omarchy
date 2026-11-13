@@ -880,7 +880,9 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
     { body: '938271 is your verification code' }, { body: 'Please confirm 938271' }, { body: 'Your security key is 938271' },
     { body: 'Your Verification Code is 938271' }, { summary: 'Your code is', body: '938271' }, { summary: 'Your OTP is 938271' },
     { rawBody: 'Your OTP is 938\n271', body: 'Open the app' }, { body: 'Do not share this code: 938271' },
-    { body: 'That was not your code. Your new code is 938271' }]
+    { body: 'That was not your code. Your new code is 938271' }, { summary: 'Sign in', body: '123456 is not a verification code\nOTP: 938271' },
+    { body: '123456 is not a verification code<br>OTP: 938271' }]
+  assert.equal(D.scan('Sign in', '123456 is not a verification code\nOTP: 938271').codes, '938271')
   for (const text of secrets) {
     const entry = { key: 'k', urgency: 1, app: 'alternate-secret', source: 'alternate-secret', appIcon: 'alternate-secret',
                     image: '/etc/passwd', glyph: '\u{f0306}',
@@ -898,7 +900,8 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
       ['Chat', 'Review requested', 'Please review code abc123'], ['OTP Monitor', 'Build finished', 'Build 4123 completed successfully'],
       ['Auth', 'Verification completed successfully', 'Account ready'], ['Settings', 'PIN configuration updated', 'Settings saved'],
       ['Verification test', 'The number 123456 is not a verification code', ''],
-      ['Shop', 'Order 123456', 'Reference number 123456 is not a verification code']]) {
+      ['Shop', 'Order 123456', 'Reference number 123456 is not a verification code'],
+      ['Shop', 'Order confirmation', 'Reference number 123456 is not a verification code']]) {
     const [saved] = Store.parseLive(JSON.stringify([Store.persistable({ key: 'notification-4123', app, summary, body, urgency: 1 })]))
     eq([saved.app, saved.summary, saved.body], [app, summary, body], summary + ' ' + body)
     assert.equal(snap({ appName: app, summary, body }).codes, '', summary + ' ' + body)
