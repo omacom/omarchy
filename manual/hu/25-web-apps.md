@@ -1,91 +1,91 @@
-# Webalkalmazások
+# Webes alkalmazások
 
-Az Omarchy menü (`Super + Space`) _Install > Web App_ pontjában adhatod hozzá saját webalkalmazásaidat. Megkérdezi az alkalmazás nevét, az alkalmazás URL-jét és az ikon URL-jét, ha nem tudja lekérni faviconból. Nagyszerű PNG-ikonokat találsz sok népszerű webalkalmazáshoz a [Dashboard Icons](https://dashboardicons.com) oldalon.
+Saját webes alkalmazásokat adhatsz hozzá az Omarchy menüben (`Super + Space`) az _Install > Web App_ menüponttal. Meg kell adnod az alkalmazás nevét, az alkalmazás URL-jét és az ikon URL-jét, ha nem tudja lekérni a favicon alapján. Számos népszerű webes alkalmazáshoz találsz kiváló PNG-ikonokat a [Dashboard Icons](https://dashboardicons.com) oldalon.
 
-Ezután az alkalmazásindítón (`Super + Space`) keresztül érhetők el, és a gyönyörű, keret nélküli webalkalmazás-ablakot használják.
+Ezután az alkalmazásindítón (`Super + Space`) keresztül érheted el őket, és a gyönyörű, keret nélküli webalkalmazás-ablakot használják.
 
-Ha el szeretnél távolítani egy webalkalmazást, csak menj az Omarchy menü _Remove > Web App_ pontjába.
+Ha el szeretnél távolítani egy webes alkalmazást, egyszerűen lépj az Omarchy menü _Remove > Web App_ menüpontjára.
 
-A legjobb, ha egy szokásos böngészőben minden fiókodba bejelentkezel, mielőtt a webalkalmazások gyorsbillentyűit használod. A vékony csomagolókeret nem működik jól az 1passworddel, így könnyebb, ha előbb közvetlenül be vagy jelentkezve.
+A legjobb, ha a webalkalmazás-parancsikonok használata előtt egy hagyományos böngészőben jelentkezel be az összes fiókodba. A vékony keretalkalmazás nem működik jól a 1password szolgáltatással, ezért egyszerűbb, ha előbb közvetlenül bejelentkezel.
 
-Ezen webalkalmazások összes billentyűparancsa módosítható a `~/.config/hypr/bindings.lua` fájlban.
+Ezeknek a webes alkalmazásoknak az összes billentyűparancsa módosítható a `~/.config/hypr/bindings.lua` fájlban.
 
-Amikor egy webalkalmazásban vagy, az aktuális URL-t a `Shift + Alt + L` kombinációval másolhatod a vágólapra.
+Amikor egy webes alkalmazásban vagy, a `Shift + Alt + L` billentyűkombinációval a vágólapra másolhatod az aktuális URL-t.
 
-Alapértelmezetten az Omarchy már egy sor alapértelmezett alkalmazással érkezik:
+Az Omarchy alapértelmezetten már számos alapértelmezett alkalmazással érkezik:
 
 ## HEY
 
-A [HEY](https://www.hey.com/) egy e-mail- és naptárszolgáltatás, amely kiváló alternatívaként szolgál azoknak, akik belefáradtak a Gmailbe, az Outlookba vagy az Apple Mailbe. A [37signals](https://37signals.com/) készíti, ahonnan az Omarchy származik.
+A [HEY](https://www.hey.com/) egy e-mail- és naptárszolgáltatás, amely remek alternatívát kínál azoknak, akiknek elegük van a Gmail, az Outlook vagy az Apple Mail használatából. A [37signals](https://37signals.com/) készíti, ahonnan az Omarchy is származik.
 
-A HEY Emailt a `Super + Shift + E` kombinációval indíthatod, közvetlenül egy új e-mail írásához ugorhatsz a `Super + Shift + Alt + E` kombinációval, a HEY Calendart pedig a `Super + Shift + C` kombinációval indíthatod.
+A HEY Email alkalmazást a `Super + Shift + E` billentyűkombinációval indíthatod el, a `Super + Shift + Alt + E` billentyűkombinációval közvetlenül új e-mail írására ugorhatsz, a HEY Calendar alkalmazást pedig a `Super + Shift + C` billentyűkombinációval indíthatod el.
 
 ## Basecamp
 
-A [Basecamp](https://basecamp.com/) egy projektmenedzsment-szolgáltatás, amely segít a kis csapatoknak gyorsabban haladni és nagyobb előrehaladást elérni. Ahelyett, hogy Trello-, Slack-, Asana-, Notion- vagy akármilyen összevisszaságot foltoznál össze, a Basecamppel mindent egy helyen megkaphatsz. A [37signals](https://37signals.com/) készíti, ahonnan az Omarchy származik.
+A [Basecamp](https://basecamp.com/) egy projektmenedzsment-szolgáltatás, amely segít a kis csapatoknak gyorsabban haladni és több eredményt elérni. Ahelyett, hogy a Trello, a Slack, az Asana, a Notion vagy bármi más összevissza keverékét foltoznád össze, a Basecamp segítségével mindezt egy helyen megkaphatod. A [37signals](https://37signals.com/) készíti, ahonnan az Omarchy is származik.
 
-A Basecampot az alkalmazásindítón keresztül indíthatod (`Super + Space`)
+A Basecampet az alkalmazásindítóval (`Super + Space`) indíthatod el.
 
 ## ChatGPT
 
-A [ChatGPT](https://chatgpt.com) a világ legnépszerűbb AI-csevegőbotja.
+A [ChatGPT](https://chatgpt.com) a világ legnépszerűbb AI-chatbotja.
 
-A ChatGPT-t a `Super + Shift + A` kombinációval indíthatod.
+A ChatGPT-t a `Super + Shift + A` billentyűkombinációval indíthatod el.
 
 ## Grok
 
-A [Grok](https://grok.com) az xAI csevegőbotja.
+A [Grok](https://grok.com) az xAI chatbotja.
 
-A Grokot a `Super + Shift + Alt + A` kombinációval indíthatod.
+A Grokot a `Super + Shift + Alt + A` billentyűkombinációval indíthatod el.
 
 ## WhatsApp
 
-A [WhatsApp](https://www.whatsapp.com/) a világ egyik legnépszerűbb üzenetküldő szolgáltatása, és a webes verzió kiváló lehetőség Linuxon.
+A [WhatsApp](https://www.whatsapp.com/) a világ egyik legnépszerűbb üzenetküldő szolgáltatása, és a webes változata remek lehetőség Linuxon.
 
-A WhatsAppot a `Super + Shift + Alt + G` kombinációval indíthatod.
+A WhatsAppot a `Super + Shift + Alt + G` billentyűkombinációval indíthatod el.
 
 ## Google-alkalmazások
 
-A Google Messages, a Google Photos, a Google Maps és a Google Contacts szintén webalkalmazásként találhatók meg.
+A Google Messages, a Google Photos, a Google Maps és a Google Contacts is webes alkalmazásként szerepel.
 
-A Google Messages-t a `Super + Shift + Ctrl + G`, a Google Photost a `Super + Shift + P`, a Google Mapset pedig a `Super + Shift + S` kombinációval indíthatod. A Google Contacts az alkalmazásindítón (`Super + Space`) keresztül érhető el.
+A Google Messages alkalmazást a `Super + Shift + Ctrl + G`, a Google Photos alkalmazást a `Super + Shift + P`, a Google Maps alkalmazást pedig a `Super + Shift + S` billentyűkombinációval indíthatod el. A Google Contacts az alkalmazásindítón (`Super + Space`) keresztül érhető el.
 
 ## X
 
-Az X az a hely, ahol a hírek születnek.
+Az X az a hely, ahol berobbannak a hírek.
 
-Az X-et a `Super + Shift + X` kombinációval indíthatod, és közvetlenül egy új bejegyzés írásához ugorhatsz a `Super + Shift + Alt + X` kombinációval.
+Az X-et a `Super + Shift + X` billentyűkombinációval indíthatod el, és a `Super + Shift + Alt + X` billentyűkombinációval közvetlenül új bejegyzés írására ugorhatsz.
 
 ## YouTube
 
 A [YouTube](https://youtube.com/) a világ legnépszerűbb videóplatformja.
 
-A YouTube-ot a `Super + Shift + Y` kombinációval indíthatod.
+A YouTube-ot a `Super + Shift + Y` billentyűkombinációval indíthatod el.
 
 ## Zoom
 
-A [Zoom](https://zoom.us/) a legnépszerűbb videócsevegő-rendszer az Egyesült Államokban. Az egész világon kiváló kapcsolatokat biztosít. És 40 perces megbeszélések fizetős fiók nélkül is tarthatók. Az Omarchy becsomagolja a Zoom webes kliensét, és a zoom-megbeszéléslinkek közvetlenül abban nyílnak meg.
+A [Zoom](https://zoom.us/) a legnépszerűbb videóchat-rendszer az Egyesült Államokban. Kiváló kapcsolatok világszerte. És 40 perces megbeszélések fizetős fiók nélkül is tarthatók. Az Omarchy a Zoom webes kliensét csomagolja, és a Zoom-megbeszélésekre mutató hivatkozások közvetlenül abban nyílnak meg.
 
-A Zoomot az alkalmazásindítón (`Super + Space`) keresztül indíthatod.
+A Zoomot az alkalmazásindítóval (`Super + Space`) indíthatod el.
 
 ## Discord
 
-A [Discord](https://discord.com/) az a hely, ahol a legtöbb játékos- és nyílt forráskódú közösség időzik, beleértve az [Omarchy sajátját](https://discord.gg/tXFUdasqhY) is.
+A [Discord](https://discord.com/) az a hely, ahol a legtöbb játékos és nyílt forráskódú közösség lóg, beleértve [az Omarchy sajátját](https://discord.gg/tXFUdasqhY) is.
 
-A Discordot az alkalmazásindítón (`Super + Space`) keresztül indíthatod.
+A Discordot az alkalmazásindítóval (`Super + Space`) indíthatod el.
 
 ## Microsoft-alkalmazások
 
-Válaszd az _Install > Service > Microsoft_ pontot az Outlook, a Word, az Excel, a PowerPoint, a Teams és a OneDrive webalkalmazásként történő hozzáadásához. Minden alkalmazásnak van saját indítója, és közvetlenül megnyílik, a kereskedelmi Microsoft 365 URL-eket és a meglévő böngészőprofilodat használva. Ugyanazokban a böngésző-alkalmazásablakokban nyílnak, mint az Omarchy többi webalkalmazása; nem telepítik a különálló Teams for Linux klienst.
+Válaszd az _Install > Service > Microsoft_ menüpontot az Outlook, a Word, az Excel, a PowerPoint, a Teams és a OneDrive webes alkalmazásként való hozzáadásához. Minden alkalmazásnak saját indítója van, és közvetlenül megnyílik, a kereskedelmi Microsoft 365 URL-eket és a meglévő böngészőprofilodat használva. Ugyanazokban a böngészőalkalmazás-ablakokban nyílnak meg, mint az Omarchy többi webes alkalmazása; nem telepítik a külön Teams for Linux klienst.
 
-A csomagot az _Remove > Service > Microsoft_ ponttal távolítsd el, vagy az egyes alkalmazásokat az _Remove > Web App_ ponttal. Az _Install > Web App_ pontban csak a kívánt alkalmazásokat is telepítheted.
+Távolítsd el a csomagot a _Remove > Service > Microsoft_ menüponttal, vagy távolíts el egyes alkalmazásokat a _Remove > Web App_ menüponttal. Csak a kívánt alkalmazásokat is telepítheted az _Install > Web App_ menüponttal.
 
-Kormányzati vagy szuverén felhő esetén szerkeszd az `Exec=` soron lévő URL-t a vonatkozó indítóban a `~/.local/share/applications/` alatt, például a `Microsoft Teams.desktop` fájlban, a szervezeted által megadott URL-t használva. Ebben a sorban minden literális `%` jelet `%%` formában írj. A módosítások a következő indításkor lépnek életbe. A csomagtelepítő újrafuttatása visszaállítja az indítók alapértelmezett URL-jeit.
+Kormányzati vagy szuverén felhő esetén szerkeszd az `Exec=` sor URL-jét a `~/.local/share/applications/` alatti megfelelő indítóban, például a `Microsoft Teams.desktop` fájlban, a szervezeted által megadott URL használatával. Az adott sorban minden szó szerinti `%` jelet `%%` formában írj. A módosítások a következő indításkor lépnek érvénybe. A csomagtelepítő újbóli futtatása az alapértelmezett URL-ekre cseréli vissza az indítóit.
 
-A munkahelyi bejelentkezések különválasztásához fűzz hozzá egy böngészőadatkönyvtárat minden indító `Exec=` sorához:
+A munkahelyi bejelentkezések elkülönítéséhez fűzz hozzá egy böngészőadat-könyvtárat minden indító `Exec=` sorához:
 
 ```ini
 Exec=omarchy-launch-webapp "https://teams.cloud.microsoft/" --user-data-dir=/absolute/path/to/work-browser-profile
 ```
 
-Cseréld ki a példakönyvtárat egy általad választott abszolút útvonalra, és használd ugyanazt az útvonalat mind a hat indítóhoz, hogy megosszák a munkahelyi bejelentkezéseket. A webalkalmazások az Omarchy által kiválasztott, támogatott böngészőt használják, és a Chromiumra esnek vissza, amikor az alapértelmezett böngésző nem támogatott.
+Cseréld le a példakönyvtárat egy általad választott abszolút elérési útra, és használd ugyanazt az elérési utat mind a hat indítóhoz, hogy megoszd közöttük a munkahelyi bejelentkezéseket. A webes alkalmazások az Omarchy által kiválasztott támogatott böngészőt használják, és a Chrome-ot használják tartalékként, ha az alapértelmezett böngésző nem támogatott.

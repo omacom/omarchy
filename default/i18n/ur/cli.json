@@ -20,6 +20,7 @@
   "agents.homeFailed": "نئے اکاؤنٹ کے لیے ہوم ترتیب نہیں دی جا سکی۔",
   "agents.installCliFailed": "%1 CLI انسٹال مکمل نہیں ہوا۔",
   "agents.installingCli": "%1 CLI انسٹال ہو رہا ہے…",
+  "agents.instructionsBackedUp": "آپ کی پرانی ایجنٹ ہدایات بیک اپ کے طور پر محفوظ کر لیں",
   "agents.localUnsupported": "کوئی ایجنٹ مقامی ماڈل استعمال نہیں کر سکتا",
   "agents.localUnsupportedBody": "مقامی ماڈل استعمال کرنے کے لیے pi یا OpenCode انسٹال کریں۔",
   "agents.loginUnfinished": "سائن ان مکمل نہیں ہوا، اس لیے کوئی اکاؤنٹ شامل نہیں ہوا۔",

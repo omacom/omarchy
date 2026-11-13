@@ -1,8 +1,8 @@
-# FAQ
+# Tez-tez so'raladigan savollar
 
-### Men klaviatura tartiblari oʻrtasida qanday almashinaman?
+### Klaviatura tartiblari o'rtasida qanday almashaman?
 
-`~/.config/hypr/input.lua` faylingizni tahrirlang va `Left Alt + Right Alt` dagi tartiblarni almashtirish uchun buni qoʻshing:
+`~/.config/hypr/input.lua` faylingizni tahrirlang va `Left Alt + Right Alt` bilan tartiblar o'rtasida almashish uchun buni qo'shing:
 
 ```
 hl.config({
@@ -14,72 +14,68 @@ hl.config({
 })
 ```
 
-Siz bir nechta tartiblarni sozlaganingizdan keyin panel avtomatik sizning joriy klaviatura tartibingizni koʻrsatadi (va almashinish uchun uni bosishingiz ham mumkin).
+Bir nechta tartibni sozlaganingizdan so'ng, panel joriy klaviatura tartibingizni avtomatik ko'rsatadi (almashish uchun uni bosishingiz ham mumkin).
 
-### Soat formatini 12 soatlikga qanday oʻzgartiraman?
+### Soat formatini 12 soatlikka qanday o'zgartiraman?
 
-12 soatliklar ham ichida umumiy formatlarni aylanib chiqish uchun paneldagi soatni oʻng tugma bilan bosing. Formatni toʻgʻridan-toʻgʻri ham oʻrnatishingiz mumkin:
+Umumiy formatlar, jumladan 12 soatlik formatlar orasida aylanib o'tish uchun paneldagi soatni o'ng tugma bilan bosing. Formatni to'g'ridan-to'g'ri ham o'rnatishingiz mumkin:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Bu Sunday 10:55 AM ni koʻrsatadi.
+Bu yakshanba 10:55 AM ko'rinishida ko'rsatadi.
 
-### Vaqt mintaqamni qanday oʻzgartiraman?
+### Vaqt mintaqamni qanday o'zgartiraman?
 
-Omarchy menyusida _Yangilash > Vaqt mintaqasi_ ni ishga tushiring va roʻyxatdan tanlang. Agar vaqt mintaqasi toʻgʻri boʻlsa-yu, lekin soatning oʻzi surilib ketgan boʻlsa, _Yangilash > Vaqt_ siz uchun vaqt sinxronlashini qayta ishga tushiradi.
+Omarchy menyusida _Update > Timezone_ ni ishga tushiring va ro'yxatdan tanlang. Agar vaqt mintaqasi to'g'ri bo'lsa-yu, lekin soatning o'zi adashib ketgan bo'lsa, _Update > Time_ vaqt sinxronizatsiyasini siz uchun qayta ishga tushiradi.
 
-### DNS imni qanday oʻzgartiraman, Wi-Fiimni qanday ulashaman yoki ulanish tezligini qanday tekshiraman?
+### DNS imni qanday o'zgartiraman, Wi-Fi imni qanday tarqataman yoki ulanish tezligimni qanday tekshiraman?
 
-Ularning hammasi [tarmoqda](35-networking.md) yashaydi.
+Ularning barchasi [tarmoq](35-networking.md) bo'limida joylashgan.
 
-### Diskim qanchalik tezligini qanday tekshiraman?
+### Diskim qanchalik tez ekanini qanday tekshiraman?
 
-_Ishga tushirish > Tezlik testi > Disk tezligi testi_ drayvingizda jonli oʻqish va yozish tezligini oʻlchaydi yoki terminaldan `omarchy disk speedtest`.
+_Trigger > Speed Test > Disk Speed Test_ diskingizdagi jonli o'qish va yozish tezligini o'lchaydi, yoki terminaldan `omarchy disk speedtest` ni ishga tushiring.
 
-### Nega Chromium-da Google hisobimga kira olmayman?
+### Printer qanday qo'shaman?
 
-Oddiy ochiq manbali Chromium qurilmasi Google hisobga kirish uchun talab qiladigan OAuth maʼlumotlari bilan kelmaydi. Ularni qoʻshish uchun Omarchy menyusida _Oʻrnatish > Xizmat > Chromium hisob_ ni ishga tushiring, brauzerni qayta ishga tushiring va kirish oʻtadi.
+Chop etish qutidan chiqqan holda sozlangan va ishlaydi, har bir printerni esa ilovalarni ishga tushirgichdagi (`Super + Space`) _Print Settings_ dan o'zingiz qo'shasiz.
 
-### Printerni qanday qoʻshaman?
+_Add_ ni tanlang va qidirishi uchun unga biroz vaqt bering: USB orqali ulangan printer va ko'pchilik tarmoq printerlari siz uchun topiladi. Agar sizniki ro'yxatda bo'lmasa, _Network Printer > Internet Printing Protocol (ipp)_ ni tanlang va uning manzilini kiriting — printerning o'z displeyi yoki uning veb-sahifasi bu nima ekanini aytib beradi, odatda `ipp/print` navbati bilan `192.168.1.50` kabi narsa. So'ng _Forward_ drayver taklif qiladi, bunda zamonaviy printer drayversiz _IPP Everywhere_ profilida eng yaxshi ishlaydi, eskisi esa modelning o'z drayverini talab qiladi.
 
-Chop etish qutidan chiqqan zahoti sozlangan va ishlayapti va siz har bir printerni ilova ishga tushiruvchisidan (`Super + Space`) _Print Settings_ dan oʻzingiz qoʻshasiz.
+Ilovalaringiz birinchi bo'lib qaysi biriga murojaat qilishini tanlash uchun printerni o'ng tugma bilan bosing va _Set as Default_ ni tanlang, qog'oz o'lchami, duplex va sifatni o'rnatish uchun esa _Properties_ ni tanlang.
 
-_Add_ ni tanlang va unga qarash uchun bir daqiqa bering: USB orqali ulangan printer va aksariyat tarmoq printerlari siz uchun topiladi. Agar sizniki roʻyxatda boʻlmasa, _Network Printer > Internet Printing Protocol (ipp)_ ni tanlang va uning manzilini kiriting — printerning oʻz displeyi yoki uning veb sahifasi sizga bu nima ekanligini aytadi, odatda `192.168.1.50` ga oʻxshagan va `ipp/print` navbatiga ega narsa. Keyin _Forward_ drayverni taklif qiladi, u yerda zamonaviy printer drayversiz _IPP Everywhere_ profilida eng yaxshi ishlaydi va eskiriroqʻ modelning oʻz drayverini xohlaydi.
+Tarmoqdagi printerlar qo'shmasdan turib paydo bo'ladigan avtomatik aniqlash, u qayta ishlanayotgani sababli vaqtincha o'chirilgan, aynan shuning uchun yuqoridagi birinchi qadamni avtomatik tizim emas, siz bajarasiz. PDF faylga chop etish umuman hech qanday printersiz ham ishlaydi.
 
-Printerni oʻng tugma bilan bosing va ilovalaringiz birinchisi qaysi biriga yetishini tanlash uchun _Set as Default_ ni va qogʻoz oʻlchami, duplex hamda sifatni oʻrnatish uchun _Properties_ ni tanlang.
+### Skrinshotlar yoki ekran yozuvlari saqlanadigan joyni qanday o'zgartiraman?
 
-Tarmoqdagi printerlar qoʻshilmasdan paydo boʻladigan avtomatik kashfiyot u qayta ishlanayotganda vaqtincha oʻirilgan, shuning uchun yuqoridagi birinchi qadam avtomatik emas, sizniki. PDF faylga chop etish hech qanday printersiz ishlaydi.
-
-### Skrinshotlar yoki ekran yozuvlari qayerda saqlanishini qanday oʻzgartiraman?
-
-Saqlangan skrinshotlar standart holatda `~/Pictures/Screenshots` ga ketadi. Boshqa katalogni ishlatish uchun, buni `~/.config/uwsm/env.d/` ostidagi faylga (`~/.config/uwsm/env.d/capture` kabi) qoʻshing:
+Saqlangan skrinshotlar sukut bo'yicha `~/Pictures/Screenshots` ga boradi. Boshqa katalogdan foydalanish uchun buni `~/.config/uwsm/env.d/` ostidagi faylga (masalan, `~/.config/uwsm/env.d/capture`) qo'shing:
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Siz `OMARCHY_SCREENRECORD_DIR` yordamida ekran yozuvlari uchun ham xuddi shunday qilishingiz mumkin.
+Ekran yozuvlari uchun ham `OMARCHY_SCREENRECORD_DIR` yordamida xuddi shunday qilishingiz mumkin.
 
-Omasnap oʻzining skrinshot katalogini avtomatik yaratadi. Ekran yozish katalogini oʻzingiz yarating, keyin har qanday muhit oʻzgarishi kuchga kirishi uchun Omarchy ni qayta ishga tushiring.
+Omasnap o'zining skrinshot katalogini avtomatik yaratadi. Ekran yozuvi katalogini o'zingiz yarating, so'ng muhitdagi har ikkala o'zgarish ham kuchga kirishi uchun Omarchy ni qayta ishga tushiring.
 
-### Apple Studio Display imdagi karnaylar + vebkamerani qanday ishlataman?
+### Apple Studio Display imda karnaylar + veb-kamerani qanday ishlataman?
 
-Siz USB C ni shunchaki ulaganda hammasi ishlashi kerak deb oʻylasangiz ham, afsuski bunday emas. Uni ishonchli ishlatish uchun topgan yechimim [WJESOG DisplayPort + USB-A => USB-C kabelidan](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/) foydalanish. Keyin karnaylar va vebkamera joduday ishlaydi.
+USB C ni ulash bilan hammasi ishlaydi deb o'ylashingiz mumkin, ammo afsuski unday emas. Uni ishonchli ishlatish uchun men topgan yechim — [WJESOG DisplayPort + USB-A => USB-C kabeli](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/) dan foydalanish. Shunda karnaylar va veb-kamera ajoyib ishlaydi.
 
-Apple Displays (Studio ham, XDR ham) uchun odatdagi klaviatura yorugʻlik tugmalaridan foydalangan holda Omarchy-da ichki yorqinlik boshqaruviga ega ekanligingizni unutmang.
+Omarchy da Apple displeylari (Studio ham, XDR ham) uchun oddiy klaviatura yorqinlik tugmalari yordamida o'rnatilgan yorqinlik boshqaruvi borligini unutmang.
 
-### Ortiqcha dasturiy taʼminotni qanday yoʻqotaman?
+### Barcha ortiqcha dasturiy ta'minotdan qanday qutulsam bo'ladi?
 
-Agar Obsidian yoki LibreOffice yoki oldindan oʻrnatilgan boshqa narsalar kabi dasturlarni istamasangiz, uni juda oson olib tashlashingiz mumkin.
+Agar Obsidian yoki LibreOffice kabi dasturlarni yoki oldindan o'rnatilgan boshqa narsalardan birortasini xohlamasangiz, uni juda oson olib tashlashingiz mumkin.
 
-Oʻrnatilgan har bir paketni koʻrish uchun _Olib tashlash > Paket_ ni ishga tushiring. Keyin siz tab bilan olib tashlamoqchi boʻlgan har qanday paketni tanlashingiz va return bilan tanlagan hamma narsangizni olib tashlashni boshlashingiz mumkin.
+O'rnatilgan har bir paketni ko'rish uchun _Remove > Package_ ni ishga tushiring. Keyin olib tashlamoqchi bo'lgan har qanday paketni tab bilan tanlashingiz va tanlagan hamma narsangizni olib tashlashni return bilan boshlashingiz mumkin.
 
-Va oldindan oʻrnatilgan veb-ilovalardan istamaydiganlarini olib tashlash uchun Omarchy menyusidan _Olib tashlash > Veb-ilova_ dan foydalanishingiz mumkin.
+Kerak bo'lmagan oldindan o'rnatilgan veb-ilovalardan istalganini olib tashlash uchun Omarchy menyusidan _Remove > Web App_ dan ham foydalanishingiz mumkin.
 
-Yoki bir urinishda barcha oldindan oʻrnatilgan qoʻshimchalarni — veb-ilovalar, TUI lar va ixtiyoriy ilovalarni tozalash uchun _Olib tashlash > Oldindan oʻrnatilganlar_ ni ishga tushiring. Ularga boshlagan hotkeylar ular bilan yoʻqoladi, shuning uchun siz `~/.config/hypr/bindings.lua` da oʻzingizniki bilan toʻldirish uchun toza bindings lavhasi bilan qolasiz.
+Yoki barcha oldindan o'rnatilgan qo'shimchalar — veb-ilovalar, TUI lar va ixtiyoriy ilovalar — ni bir yo'la supurib tashlash uchun _Remove > Preinstalls_ ni ishga tushiring. Ularni ishga tushirgan tezkor tugmalar ham ular bilan birga yo'qoladi, shuning uchun sizga `~/.config/hypr/bindings.lua` da o'zingiznikilar bilan to'ldirish uchun toza bog'lamalar varag'i qoladi.
 
 ---
 
-Xatolar va buzilgan bitlar uchun [Muammolarni hal qilish boʻlimini](45-troubleshooting.md) koʻring.
+Xatolar va buzilgan joylar uchun [Muammolarni bartaraf etish bo'limi](45-troubleshooting.md) ga qarang.
