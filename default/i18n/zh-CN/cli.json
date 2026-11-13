@@ -19,6 +19,7 @@
   "agents.homeFailed": "无法为新账户设置主目录。",
   "agents.installCliFailed": "%1 CLI 安装未完成。",
   "agents.installingCli": "正在安装 %1 CLI…",
+  "agents.instructionsBackedUp": "已将旧智能体指令保存为备份",
   "agents.localUnsupported": "没有智能体可使用本地模型",
   "agents.localUnsupportedBody": "安装 pi 或 OpenCode 以使用本地模型。",
   "agents.loginUnfinished": "登录未完成，因此未添加账户。",

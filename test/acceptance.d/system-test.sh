@@ -61,8 +61,8 @@ verify_defaults() {
   [[ $(omarchy-default-terminal) == "foot" ]] || fail "Foot is the default terminal"
   pass "Foot is the default terminal"
 
-  [[ $(omarchy-default-editor) == "nvim" ]] || fail "Neovim is the default editor"
-  pass "Neovim is the default editor"
+  [[ $(omarchy-default-editor) == "plain" ]] || fail "Plain is the default editor"
+  pass "Plain is the default editor"
 
   [[ $(omarchy-theme-current) != "Unknown" ]] || fail "a current theme is configured"
   pass "a current theme is configured"
@@ -75,7 +75,7 @@ verify_defaults() {
 
   [[ $(XDG_CURRENT_DESKTOP=Hyprland xdg-mime query default x-scheme-handler/http) == "omarchy-browser.desktop" ]] || fail "Hyprland routes HTTP links through the running default browser"
   [[ $(XDG_CURRENT_DESKTOP= xdg-mime query default x-scheme-handler/http) == "chromium.desktop" ]] || fail "HTTP MIME handling defaults to Chromium"
-  [[ $(xdg-mime query default inode/directory) == "org.gnome.Nautilus.desktop" ]] || fail "directory MIME handling uses Nautilus"
+  [[ $(xdg-mime query default inode/directory) == "folio.desktop" ]] || fail "directory MIME handling uses Files"
   pass "desktop MIME handlers are configured"
 }
 

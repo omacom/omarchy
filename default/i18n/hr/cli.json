@@ -21,6 +21,7 @@
   "agents.homeFailed": "Nije moguće postaviti početni direktorij za novi račun.",
   "agents.installCliFailed": "Instaliranje %1 CLI nije završilo.",
   "agents.installingCli": "Instaliranje %1 CLI…",
+  "agents.instructionsBackedUp": "Stare upute za agenta spremljene su kao sigurnosne kopije",
   "agents.localUnsupported": "Nijedan agent ne može koristiti lokalni model",
   "agents.localUnsupportedBody": "Instaliraj pi ili OpenCode za korištenje lokalnog modela.",
   "agents.loginUnfinished": "Prijava nije završila, pa račun nije dodan.",
