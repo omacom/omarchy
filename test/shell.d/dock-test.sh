@@ -152,6 +152,19 @@ assertEqual(dock.previewScale(0.1), 0.45, 'dock bounds the smallest preview size
 assertEqual(dock.previewScale(4), 1.75, 'dock bounds the largest preview size')
 assertEqual(dock.previewScale('1.25'), 1.25, 'dock reads a saved preview size')
 
+assertEqual(dock.previewSelection(['a', 'b', 'c'], 1, ['b', 'c']), 0,
+  'dock keeps the same preview when a preceding window closes')
+assertEqual(dock.previewSelection(['a', 'b'], 1, ['new', 'a', 'b']), 2,
+  'dock keeps the same preview when a preceding window opens')
+assertEqual(dock.previewSelection(['a', 'b', 'c'], 1, ['a', 'c', 'b']), 2,
+  'dock follows the preview address when minimized ordering changes')
+assertEqual(dock.previewSelection(['a', 'b', 'c'], 1, ['a', 'c']), 1,
+  'dock chooses the next neighbor when the previewed window closes')
+assertEqual(dock.previewSelection(['a', 'b', 'c'], 2, ['a', 'b']), 1,
+  'dock chooses the preceding neighbor when the last preview closes')
+assertEqual(dock.previewSelection(['a'], 0, []), 0,
+  'dock resets selection when no previews remain')
+
 const strip = { expanded: 300, slice: 40, overlap: 10, expandedHeight: 200, sliceHeight: 160, maxWidth: 1000, minStep: 8 }
 const three = dock.stripLayout(3, 1, strip)
 assertEqual(three.width, 360, 'dock strip is as wide as one expanded slice and a step for each other window')

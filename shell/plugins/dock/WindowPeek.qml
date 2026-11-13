@@ -169,6 +169,7 @@ Item {
 
   function syncCards() {
     var next = peek.windows.map(function(window) { return String(window.address) })
+    var selection = DockModel.previewSelection(peek.addresses, peek.selected, next)
     for (var i = 0; i < next.length; i++) {
       if (i < cardModel.count && cardModel.get(i).address === next[i]) continue
       var found = -1
@@ -180,7 +181,7 @@ Item {
     }
     if (cardModel.count > next.length) cardModel.remove(next.length, cardModel.count - next.length)
     peek.addresses = next
-    peek.selected = Math.max(0, Math.min(peek.selected, next.length - 1))
+    peek.selected = selection
   }
 
   // The strip grows out of its slot and fades in; it leaves faster than it came.
@@ -320,7 +321,7 @@ Item {
         y: peek.vertical ? 0 : parent.height - height - Style.space(5)
         width: peek.vertical ? parent.width - x : parent.width
         height: peek.vertical ? parent.height : Style.font.caption + Style.spacing.xs
-        text: Math.round(peek.previewScale * 100) + "%"
+        text: Commons.I18n.formatNumber(Math.round(peek.previewScale * 100)) + "%"
         color: Commons.Color.popups.text
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
@@ -500,7 +501,7 @@ Item {
           anchors.centerIn: parent
           visible: !slice.minimized
           textFormat: Text.PlainText
-          text: slice.window && !slice.minimized ? String(slice.window.workspaceId) : ""
+          text: slice.window && !slice.minimized ? Commons.I18n.formatNumber(slice.window.workspaceId) : ""
           color: Commons.Color.popups.text
           font.family: Style.font.family
           font.pixelSize: Style.font.bodySmall

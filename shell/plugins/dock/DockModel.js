@@ -229,6 +229,14 @@ function previewScale(value) {
   return Math.max(0.45, Math.min(1.75, scale))
 }
 
+// Keep the previewed window across insertions, removals and reordering. If it
+// disappears, choose its next neighbor, or the preceding one at the end.
+function previewSelection(previous, selected, next) {
+  var address = (previous || [])[selected]
+  var index = next.indexOf(address)
+  return index >= 0 ? index : Math.max(0, Math.min(selected, next.length - 1))
+}
+
 // The previews of an app's windows stand side by side in a strip of slanted
 // slices, like the image picker's carousel: the selected one wide, the rest
 // narrow and overlapping. The strip is as wide as it is for any selection, so
@@ -313,6 +321,7 @@ if (typeof module !== "undefined") {
     pickWindow: pickWindow,
     indicatorSegments: indicatorSegments,
     previewScale: previewScale,
+    previewSelection: previewSelection,
     stripLayout: stripLayout,
     stripIndexAt: stripIndexAt
   }
