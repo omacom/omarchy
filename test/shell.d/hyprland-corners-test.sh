@@ -94,6 +94,7 @@ LUA
   [[ $(toggle_load corners-sharp) == "0" ]] || fail "sharp corners override the theme's rounding"
   [[ $(toggle_load corners-rounded window-no-gaps) == "0" ]] || fail "no-gaps squares rounded corners"
   pass "corners load after the theme, and no-gaps still squares them"
+
 else
   skip "lua is not installed"
 fi

@@ -1,9 +1,8 @@
--- Remove all window gaps and borders.
+-- Remove all window gaps.
 hl.config({
   general = {
     gaps_out = 0,
     gaps_in = 0,
-    border_size = 0,
   },
 
   decoration = {
