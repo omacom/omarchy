@@ -326,7 +326,7 @@ start_screenrecording() {
   if [[ ${OMARCHY_SCREENRECORD_USE_PORTAL:-false} == "true" ]]; then
     use_portal=true
   elif [[ ${OMARCHY_SCREENRECORD_USE_KMS:-false} != "true" ]] &&
-    ! gsr_kms_has_sys_admin; then
+    omarchy-cmd-present gpu-screen-recorder && ! gsr_kms_has_sys_admin; then
     use_portal=true
   fi
 
