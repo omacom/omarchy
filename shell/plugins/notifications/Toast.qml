@@ -33,6 +33,21 @@ Item {
   // their buttons work out what is under it themselves.
   property real hoverX: -1
   property real hoverY: -1
+  // The deck's hover region lies over every card, so the cursor a card's
+  // own parts set never shows. The deck shows this one for them.
+  readonly property int pointerCursor: {
+    if (!hovered || localHoverX < 0) return Qt.ArrowCursor
+    if (shut.visible && shut.hot) return Qt.PointingHandCursor
+    if (deedArea.shown)
+      for (var i = 0; i < deeds.count; i++)
+        if (deeds.itemAt(i) && deeds.itemAt(i).hot) return Qt.PointingHandCursor
+    if (bodyBox.visible) {
+      var at = bodyBox.mapFromItem(card, localHoverX, localHoverY)
+      if (bodyBox.linkAt(at.x, at.y) !== "") return Qt.PointingHandCursor
+    }
+    if (dragUrl) return dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+    return Qt.PointingHandCursor
+  }
   readonly property real localHoverX: hoverX - x
   readonly property real localHoverY: hoverY - y
 
@@ -577,6 +592,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
 
         Repeater {
+          id: deeds
           model: card.allDeeds
           DeedButton {
             required property var modelData
