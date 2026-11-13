@@ -12,11 +12,11 @@ format_remaining() {
   local remainder=$((seconds % 60))
 
   if ((minutes > 0 && remainder > 0)); then
-    omarchy-i18n reminder.durationMinutesSeconds "$minutes" "$remainder"
+    omarchy-i18n reminder.durationMinutesSeconds "$(omarchy-i18n --number "$minutes")" "$(omarchy-i18n --number "$remainder")"
   elif ((minutes > 0)); then
-    omarchy-i18n battery.durationMinutes "$minutes"
+    omarchy-i18n battery.durationMinutes "$(omarchy-i18n --number "$minutes")"
   else
-    omarchy-i18n reminder.durationSeconds "$remainder"
+    omarchy-i18n reminder.durationSeconds "$(omarchy-i18n --number "$remainder")"
   fi
   echo
 }
@@ -57,7 +57,7 @@ show_reminders() {
     reminder_message=""
     [[ -f $reminder_dir/${timer%.timer}.message ]] && reminder_message=$(<"$reminder_dir/${timer%.timer}.message")
 
-    [[ -n $reminder_message ]] || reminder_message=$(omarchy-i18n reminder.minuteLabel "$reminder_minutes")
+    [[ -n $reminder_message ]] || reminder_message=$(omarchy-i18n reminder.minuteLabel "$(omarchy-i18n --number "$reminder_minutes")")
     body+="$(omarchy-i18n reminder.inRemaining "$reminder_message" "$(format_remaining $remaining)" "$(date -d "@$next" +%-H:%M)")"$'\n'
   done < <(active_reminder_timers "$now")
 
@@ -90,7 +90,7 @@ show_json() {
     if [[ -n $reminder_message ]]; then
       label=$reminder_message
     else
-      label=$(omarchy-i18n reminder.minuteLabel "$reminder_minutes")
+      label=$(omarchy-i18n reminder.minuteLabel "$(omarchy-i18n --number "$reminder_minutes")")
     fi
 
     item_json=$(jq -cn \
@@ -108,7 +108,7 @@ show_json() {
   done < <(active_reminder_timers "$now")
 
   if ((count > 0)); then
-    tooltip=$(omarchy-i18n --count "$count" reminder.count "$count")
+    tooltip=$(omarchy-i18n --count "$count" reminder.count "$(omarchy-i18n --number "$count")")
   fi
 
   jq -cn --argjson count "$count" --arg tooltip "$tooltip" --argjson reminders "$reminders_json" '{count:$count,active:($count > 0),tooltip:$tooltip,reminders:$reminders}'
@@ -173,7 +173,7 @@ if [[ -z $minutes ]] || [[ ! $minutes =~ ^[0-9]+$ ]] || ((minutes == 0)); then
 fi
 
 if [[ -z $message ]]; then
-  message=$(omarchy-i18n --count "$minutes" reminder.minutesUp "$minutes")
+  message=$(omarchy-i18n --count "$minutes" reminder.minutesUp "$(omarchy-i18n --number "$minutes")")
 fi
 
 set_at=$(date +%s)
@@ -182,13 +182,13 @@ unit="omarchy-reminder-${minutes}m-$set_at"
 reminder_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders"
 message_file="$reminder_dir/$unit.message"
 confirmation=$(omarchy-i18n reminder.willRemindAt "$remind_at")
-confirmation_title=$(omarchy-i18n --count "$minutes" reminder.setForMinutes "$minutes")
+confirmation_title=$(omarchy-i18n --count "$minutes" reminder.setForMinutes "$(omarchy-i18n --number "$minutes")")
 
 mkdir -p "$reminder_dir"
 
 if [[ -n $custom_message ]]; then
   printf "%s" "$custom_message" >"$message_file"
-  confirmation_title=$(omarchy-i18n --count "$minutes" reminder.customInMinutes "$custom_message" "$minutes")
+  confirmation_title=$(omarchy-i18n --count "$minutes" reminder.customInMinutes "$custom_message" "$(omarchy-i18n --number "$minutes")")
 fi
 
 systemd-run --user --quiet --collect --on-active="${minutes}m" --unit="$unit" \

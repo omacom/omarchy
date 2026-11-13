@@ -19,7 +19,7 @@ while read -rsn 1 -t 0.1 _ </dev/tty; do :; done
 if (( code == 0 )); then
   printf '\n\033[32m● \033[0m%s' "$(omarchy-i18n done.success)" >/dev/tty
 else
-  printf '\n\033[31m● \033[0m%s' "$(omarchy-i18n done.failed "$code")" >/dev/tty
+  printf '\n\033[31m● \033[0m%s' "$(omarchy-i18n done.failed "$(omarchy-i18n --number "$code")")" >/dev/tty
 fi
 read -rsn 1 </dev/tty
 echo >/dev/tty
