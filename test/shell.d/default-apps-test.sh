@@ -132,12 +132,12 @@ for setup_command in \
   ln -s omarchy-test-setup-call "$mock_bin/$setup_command"
 done
 
-cat >"$mock_bin/omarchy-install-chrome-extensions" <<'SH'
+cat >"$mock_bin/omarchy-install-browser-extensions" <<'SH'
 #!/bin/bash
 if [[ ${1:-} == "--check" ]]; then
-  [[ ${OMARCHY_TEST_CHROME_EXTENSIONS_STALE:-false} != "true" ]]
+  [[ ${OMARCHY_TEST_BROWSER_EXTENSIONS_STALE:-false} != "true" ]]
 else
-  printf 'omarchy-install-chrome-extensions\n' >>"$OMARCHY_TEST_SETUP_LOG"
+  printf 'omarchy-install-browser-extensions:%s\n' "$*" >>"$OMARCHY_TEST_SETUP_LOG"
 fi
 SH
 
@@ -331,25 +331,32 @@ omarchy-default-editor nvim
 [[ ! -s $install_log && ! -s $terminal_log ]] || fail "installed defaults skip installation"
 pass "installed defaults are selected immediately"
 
-# Chrome's extension policy is a root-owned copy that goes stale when the
-# extension ids change, so picking an installed Chrome repairs it in a terminal
-# where sudo can prompt, and leaves a current one alone.
-touch "$installed_dir/google-chrome-stable"
+# The bundled extensions reach each browser through copies taken at setup that
+# go stale when an extension or its id changes. Picking an installed Chrome
+# repairs its root-owned policy in a terminal where sudo can prompt; the other
+# browsers repair their own files on the spot; current ones are left alone.
+touch "$installed_dir/google-chrome-stable" "$installed_dir/chromium"
 : >"$terminal_log"
 : >"$setup_log"
-OMARCHY_TEST_CHROME_EXTENSIONS_STALE=true omarchy-default-browser chrome
+OMARCHY_TEST_BROWSER_EXTENSIONS_STALE=true omarchy-default-browser chrome
 mapfile -d '' -t terminal_args <"$terminal_log"
 [[ ${terminal_args[*]} == "omarchy-default-browser --install chrome" ]] ||
   fail "an installed Chrome with stale extensions opens its repair in a terminal"
-OMARCHY_TEST_CHROME_EXTENSIONS_STALE=true omarchy-default-browser --install chrome
-grep -Fxq 'omarchy-install-chrome-extensions' "$setup_log" ||
+OMARCHY_TEST_BROWSER_EXTENSIONS_STALE=true omarchy-default-browser --install chrome
+grep -Fxq 'omarchy-install-browser-extensions:chrome' "$setup_log" ||
   fail "an installed Chrome with stale extensions reinstalls them"
 [[ $(omarchy-default-browser) == "chrome" ]] || fail "Chrome becomes the default after its extensions are repaired"
 : >"$terminal_log"
 : >"$setup_log"
+OMARCHY_TEST_BROWSER_EXTENSIONS_STALE=true omarchy-default-browser chromium
+[[ ! -s $terminal_log ]] || fail "an installed Chromium with stale extensions repairs them without a terminal"
+grep -Fxq 'omarchy-install-browser-extensions:chromium' "$setup_log" ||
+  fail "an installed Chromium with stale extensions reinstalls them"
+[[ $(omarchy-default-browser) == "chromium" ]] || fail "Chromium becomes the default after its extensions are repaired"
+: >"$setup_log"
 omarchy-default-browser chrome
-[[ ! -s $terminal_log && ! -s $setup_log ]] || fail "an installed Chrome with current extensions is selected immediately"
-pass "picking Chrome repairs its bundled extensions when they are stale"
+[[ ! -s $terminal_log && ! -s $setup_log ]] || fail "an installed browser with current extensions is selected immediately"
+pass "picking a Chromium-based browser repairs its bundled extensions when they are stale"
 
 # Picking an editor points every text type at the editor handler in the
 # user's mimeapps.list, replacing what was there and keeping everything else.

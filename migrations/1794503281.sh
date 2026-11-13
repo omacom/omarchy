@@ -5,4 +5,4 @@ echo "Point Google Chrome at the bundled extensions' current ids"
 # which updates.xml no longer lists, so Chrome installs none of them.
 omarchy-pkg-present google-chrome || exit 0
 
-omarchy-install-chrome-extensions
+omarchy-install-browser-extensions chrome
