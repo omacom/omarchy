@@ -5,6 +5,8 @@
 
 set -e
 
+pkill -x chatgpt || true
+
 omarchy-pkg-drop openai-codex-desktop
 
 # Not ~/.cache/codex-runtimes: the Codex CLI resolves its own runtime under
