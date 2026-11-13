@@ -21,6 +21,7 @@
   "agents.homeFailed": "Није могуће припремити почетни директоријум за нови налог.",
   "agents.installCliFailed": "Инсталација %1 CLI-ја није завршена.",
   "agents.installingCli": "Инсталација %1 CLI-ја…",
+  "agents.instructionsBackedUp": "Ваша стара упутства за агенте сачувана су као резервне копије",
   "agents.localUnsupported": "Ниједан агент не може да користи локални модел",
   "agents.localUnsupportedBody": "Инсталирајте pi или OpenCode да бисте користили локални модел.",
   "agents.loginUnfinished": "Пријава није завршена, па налог није додат.",
