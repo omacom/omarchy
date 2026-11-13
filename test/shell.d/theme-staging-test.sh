@@ -119,8 +119,8 @@ grep -q 'hyprland.lua' "$test_tmp/stderr" || fail "omarchy-theme-set names the f
 
 pass "an installed theme keeps its colour and loses everything that runs code"
 
-# icons.theme is staged verbatim and handed to gsettings, so a symlinked one
-# would stage a copy of whatever it points at.
+# A theme's files are staged verbatim, so a symlinked one would stage a copy
+# of whatever it points at.
 linked="$themes/linked"
 mkdir -p "$linked/.git"
 write_colors "$linked/colors.toml"

@@ -6,7 +6,7 @@ Omarchy themes live under `themes/<name>/` in the source tree (installed at
 `colors.toml`; Omarchy generates the active theme files from
 `default/themed/*.tpl` when `omarchy-theme-set <name>` runs.
 
-Beyond `colors.toml` and hand-written config overrides, a first-party theme can ship `backgrounds/` (users overlay their own via `~/.config/omarchy/backgrounds/<name>/`; the active image is the `~/.local/state/omarchy/current/background` symlink), `preview.png` and `preview-unlock.png` for the theme switcher, `icons.theme`, `keyboard.rgb`, `unlock.png`, and a `light.mode` marker file.
+Beyond `colors.toml` and hand-written config overrides, a first-party theme can ship `backgrounds/` (users overlay their own via `~/.config/omarchy/backgrounds/<name>/`; the active image is the `~/.local/state/omarchy/current/background` symlink), `preview.png` and `preview-unlock.png` for the theme switcher, `keyboard.rgb`, `unlock.png`, and a `light.mode` marker file.
 
 A theme can pair a still background with a silent intro video using matching filenames: `backgrounds/0-winding-road.webp` and `backgrounds/intros/0-winding-road.mp4`. The video plays automatically at login, when switching to that theme with this background selected, and when this background is chosen within the current theme (`omarchy-theme-bg-set`, `omarchy-theme-bg-next`, the background picker, or reselecting the theme). No registration, checksum file or manual setting is needed. Supported video extensions are `mp4`, `m4v`, `mov`, `webm`, `mkv` and `avi`. Intro videos stay inside the nested `intros/` directory so the background picker does not list them as looping wallpapers. An image selected from another directory looks for its intro in that directory's own `intros/`, so a same-named custom image cannot inherit a theme's video.
 
@@ -60,7 +60,7 @@ The helper holds the theme-switch staging lock while it reads and publishes, so 
 - `alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf` — each names the program the terminal launches
 - `vscode.json` — names the extension `omarchy-theme-set-vscode` installs, and a VS Code extension is arbitrary JavaScript
 
-Symlinks are dropped with them, at any depth; in a cloned theme they point wherever the theme author chose. Everything a cloned theme ships that is colour is kept, including files Omarchy would otherwise have generated — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, `icons.theme`, `keyboard.rgb` and the rest — so a theme can still say exactly how it wants each app to look. What is dropped gets generated from `default/themed/*.tpl` instead, and is named on stderr.
+Symlinks are dropped with them, at any depth; in a cloned theme they point wherever the theme author chose. Everything a cloned theme ships that is colour is kept, including files Omarchy would otherwise have generated — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, `keyboard.rgb` and the rest — so a theme can still say exactly how it wants each app to look. What is dropped gets generated from `default/themed/*.tpl` instead, and is named on stderr.
 
 A denylist is only right while it is maintained. Adding a template for another terminal, or for another editor that loads Lua, means adding it to `INSTALLED_THEME_DENIED` in `bin/omarchy-theme-set`; `test/shell.d/theme-staging-test.sh` fails on any `default/themed/*.tpl` whose output is recorded as neither code nor colour, so a new template cannot be added without that decision being made.
 
@@ -386,7 +386,28 @@ The input method's candidate window is drawn by Fcitx's classicui, from `default
 Qt apps are themed by the qtengine platform theme (`QT_QPA_PLATFORMTHEME=qtengine` in `default/hypr/envs.lua`), configured by `~/.config/qtengine/config.json`, seeded from `config/qtengine/config.json`. Its `colorScheme` points at `~/.local/state/omarchy/current/theme/qtengine.colors`, a KDE color scheme rendered from `default/themed/qtengine.colors.tpl`; a theme can ship its own `qtengine.colors` instead. qtengine layers `~/.config/kdeglobals` under that file, so the template defines colour roles for both normal and inactive groups. KColorScheme selects an existing inactive subgroup instead of the normal group; omitting one would let a KDE install supply its unfocused-window colours. Content (lists, text fields, editors) sits on `background`, the color a theme's hues are drawn against in the terminal, and the window chrome around it on `dark_background`.
 Switching themes needs no retint for the palette. The first Qt process to start (normally the shell) claims `org.qtengine.ConfigWatcher` on the session bus and watches the config and the color scheme file; swapping in the new theme directory replaces the file, and that process tells every Qt app to reload. QWidget apps repaint with the new palette; Qt Quick apps only pick it up at their next launch. KDE apps that choose Breeze and their own color scheme are left to do so.
 
-The icon theme lives in the config rather than the theme, so `omarchy-theme-set-qt` copies the theme's `icons.theme` (default `Yaru-blue`, as for GTK) into `.theme.iconTheme` on each switch, leaving the rest of the file alone. That write also makes running apps reload their icons. Native file dialogs are delegated to the XDG desktop portal (`misc.dialogTheme`), and `config/xdg-desktop-portal/hyprland-portals.conf` falls through to the GTK backend for the file chooser, so Qt apps keep the GTK file chooser.
+The icon theme lives in the config rather than the theme, so `omarchy-theme-set-qt` writes `Adwaita`, the icons every theme uses as GTK does, into `.theme.iconTheme` on each switch, leaving the rest of the file alone. That write also makes running apps reload their icons. Native file dialogs are delegated to the XDG desktop portal (`misc.dialogTheme`), and `config/xdg-desktop-portal/hyprland-portals.conf` falls through to the GTK backend for the file chooser, so Qt apps keep the GTK file chooser.
+
+## App icons
+
+Omarchy's own apps (Files, Omacut, Omasnap, Hype, Omawrite, Omacalc, Gliff, Plain, Monologue and Signed), the launcher's Terminal and Browser, which open the default terminal and browser, and the default cliamp and disktree are drawn in the current theme's colors, from templates in `default/themed/icons/<icon name>.svg.tpl`. Drawing them never holds up a switch: `omarchy-theme-set-icons` runs alongside the terminal restarts once the shell has the new palette (and directly when a theme is set headless), so the dock's icons change with it. It renders them with `omarchy-theme-set-templates --icons` into a scratch dir and renames each one over its predecessor in `~/.local/state/omarchy/current/icons/`, so anything reading an icon mid-switch gets the old one or the new one. Each is linked once by name into `$XDG_DATA_HOME/icons/hicolor/scalable/apps/` (`~/.local/share` by default), ahead of the icon the package installs in `/usr/share`; the links never change, so no icon cache needs rebuilding. Only names with a template are linked, and an icon the user put there themselves is never replaced. A theme that can't draw the icons removes them and their links, which brings the packaged icons back. Last it writes `current/icons.revision`, which the shell's app library watches: it rescans its icons and adds the revision to those icons' URLs, so the menu and dock redraw them. The dock keeps each icon until its successor has loaded and fades the new one in over the same 250ms as the bar's palette.
+
+The icons don't use palette keys directly, because a key means different things across themes: `magenta` is Tokyo Night's violet but Gruvbox's and Nord's pink, and `bright_foreground` is the lightest color of a dark theme but the darkest of a light one. `omarchy-theme-icon-palette` derives roles from the palette instead, and templates may use them like any other key:
+
+| Role | Drawn from |
+|------|------------|
+| `icon_main` | `accent`, or `blue` when the accent is grey or too close to the paper |
+| `icon_main_end` | `icon_main` mixed 30% toward the paper, for gradients |
+| `icon_mark` | handles, cursors and keys: the theme's violet, else its amber, else its most vivid other color, else a mid grey |
+| `icon_paper` | `bright_foreground`; `background` in a light theme |
+| `icon_body` | `background`; `lighter_background` in a light theme |
+| `icon_edge` | `muted` |
+| `icon_ink` | `dark_foreground` |
+| `icon_shadow` | `darker_background`; `dark_background` mixed toward `foreground` in a light theme |
+| `icon_contrast` | what stands out most on the paper: `icon_shadow` in a dark theme, `foreground` in a light one |
+| `icon_red`, `icon_orange` | `red` and `orange`, whatever their hue; drawn from the accent's strength when the theme has none |
+
+A theme picks any role itself by setting it in `colors.toml` (for example `icon_mark = "#bb9af7"`), or ships a whole icon as `themes/<name>/icons/<icon name>.svg`, which is used instead of the template. Any theme gets a best guess, a custom one that only sets its accent, background and foreground included: colors written as `rgb()`, `rgba()`, `0xAARRGGBB` or `#rrggbbaa` are read as `#rrggbb`; a neutral the palette leaves out, or sets to the same color as its neighbor, is mixed from the background and foreground; and a palette that names no hues of its own gets its accent turned 40 degrees for the highlight. Only a theme whose background, foreground or accent can't be read as a color gets the packaged icons.
 
 ## Adding or overriding theme files
 

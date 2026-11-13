@@ -21,6 +21,7 @@
   "agents.homeFailed": "No se pudo configurar el directorio principal de la cuenta nueva.",
   "agents.installCliFailed": "La instalación de la CLI de %1 no terminó.",
   "agents.installingCli": "Instalando la CLI de %1…",
+  "agents.instructionsBackedUp": "Se guardaron tus instrucciones anteriores del agente como respaldo",
   "agents.localUnsupported": "Ningún agente puede usar el modelo local",
   "agents.localUnsupportedBody": "Instala pi u OpenCode para usar el modelo local.",
   "agents.loginUnfinished": "El inicio de sesión no terminó, así que no se agregó ninguna cuenta.",

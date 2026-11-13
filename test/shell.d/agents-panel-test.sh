@@ -140,6 +140,84 @@ assertEqual(localOffer(recipes, {}, id => id !== 'local:nemotron'), null, 'a hid
 assertEqual(localOffer([{ id: 'nemotron', best: true, available: false }], {}, everyone), null, 'a best recipe that does not fit is not offered')
 JS
 
+# The tailnet survey can be rewritten under the panel; models whose host is
+# away keep their lines, and only a well-formed survey replaces the last one.
+run_node_test <<'JS'
+const fs = require('fs')
+const main = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const state = { networkModels: {} }
+const parse = new Function('root', main.match(/function parseNetwork\([^]*?\n  \}/)[0] + '\nreturn parseNetwork')(state)
+const survey = { models: {
+  'box/big': { id: 'box/big', host: 'box', recipe: 'big', unit: 'active', paired: true, offline: '' },
+  'away/small': { id: 'away/small', host: 'away', recipe: 'small', unit: 'inactive', paired: true, offline: 'offline', last_seen_ms: 5 },
+} }
+parse(JSON.stringify(survey))
+assertDeepEqual(state.networkModels, survey.models, 'a survey loads its running and offline models')
+for (const raw of ['{', 'null', '[]', '{"models":[]}', '{"models":{"box/big":{"id":"box/other","host":"box","recipe":"big","unit":"active"}}}', '{"models":{"box/big":{"id":"box/big","host":"box","recipe":"big","unit":"rebooting"}}}']) {
+  parse(raw)
+  assertDeepEqual(state.networkModels, survey.models, 'an invalid survey keeps the last good one: ' + raw)
+}
+const loaded = state.networkModels
+parse(JSON.stringify({ models: { ...survey.models, 'box/big': { ...survey.models['box/big'], last_seen_ms: 99 } } }))
+assert(state.networkModels === loaded, 'a survey that only moves last seen leaves the lines alone')
+parse(JSON.stringify({ models: { 'away/small': survey.models['away/small'] } }))
+assertDeepEqual(state.networkModels, { 'away/small': survey.models['away/small'] }, 'a model that stops being shared goes at the next survey')
+parse(JSON.stringify(survey))
+assertDeepEqual(state.networkModels, survey.models, 'a newly shared model appears at the next survey')
+assertEqual(state.canShare, false, 'a survey without can_share does not offer sharing')
+parse('{"models":{},"can_share":true}')
+assertDeepEqual(state.networkModels, {}, 'an empty survey clears the network lines')
+assertEqual(state.canShare, true, 'a survey that can share offers sharing')
+
+const parseClients = new Function(main.match(/function parseClients\([^]*?\n  \}/)[0] + '\nreturn parseClients')()
+assertDeepEqual(parseClients('{"models":{"m":2,"idle":0,"odd":"3","half":1.5}}'), { m: 2 }, 'only whole, positive machine counts are kept')
+for (const raw of ['{', 'null', '[]', '{"models":[]}'])
+  assertDeepEqual(parseClients(raw), {}, 'an unreadable count file counts nobody: ' + raw)
+
+// A failed pairing's line is the reason's first line, not ssh's noise above
+// it or the remedy below it.
+const pairFailureMessage = new Function(main.match(/function pairFailureMessage\([^]*?\n  \}/)[0] + '\nreturn pairFailureMessage')()
+assertEqual(pairFailureMessage("Pairing with box.tail.ts.net over SSH\nalice@box.tail.ts.net: Permission denied (publickey).\nError: box refused this machine's SSH keys\nStart the SSH agent that holds your key\n"),
+  "box refused this machine's SSH keys", 'a failed pairing shows the first line of its reason')
+assertEqual(pairFailureMessage('Traceback (most recent call last):\n  ...\n'), '', 'a pairing that gave no reason leaves the line to say it failed')
+
+const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const localActions = new Function(panel.match(/function localActions\([^]*?\n  \}/)[0] + '\nreturn localActions')()
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, true), ['share', 'toggle', 'launch'], 'a running local model can be shared, stopped and launched')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active' }, false), ['toggle', 'launch'], 'without Tailscale set up, sharing is not offered')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'active', shared: true }, false), ['share', 'toggle', 'launch'], 'a running shared model can always stop sharing')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive', shared: true }, true), ['toggle'], 'a stopped shared model does not say it is shared')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'inactive' }, true), ['toggle'], 'a local model that has not been started is not offered for sharing')
+assertDeepEqual(localActions({ recipe: 'm', unit: 'installing' }, true), [], 'a model being set up offers nothing yet')
+assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' }), ['disconnect', 'launch'], 'a paired network model launches or disconnects, never stops its host\'s model')
+assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'inactive', paired: true, offline: '' }), [], 'a paired network model that is not running offers nothing, not even disconnecting')
+assertDeepEqual(localActions({ host: 'box', recipe: 'm', unit: 'active', paired: false, offline: '' }), ['pair'], 'an unpaired network model offers pairing only')
+assertDeepEqual(localActions({ host: 'away', recipe: 'm', unit: 'inactive', paired: true, offline: 'offline' }), [], 'an offline network model offers nothing until its host is back')
+
+// A model paired from the panel that is still starting on its host has no
+// terminal yet: the cursor waits for one rather than giving up.
+const modelId = new Function(panel.match(/function modelId\([^]*?\n  \}/)[0] + '\nreturn modelId')()
+const landing = { landAfterPair: 'box/m', usage: { pairingId: '', pairFailures: {}, canShare: false }, root: { opened: true }, providers: [], localActions, modelId, pointed: null }
+landing.pointAt = (kind, index) => { landing.pointed = [kind, index] }
+const landOnPaired = new Function('scope', 'with (scope) { ' + panel.match(/function landOnPaired\([^]*?\n  \}/)[0] + '\nreturn landOnPaired }')(landing)
+landing.providers = [{ localModel: { host: 'box', recipe: 'm', unit: 'activating', paired: true, offline: '' } }]
+landOnPaired()
+assert(landing.pointed === null && landing.landAfterPair === 'box/m', 'a paired model still starting keeps the cursor waiting for its terminal')
+landing.providers = [{ localModel: { host: 'box', recipe: 'm', unit: 'active', paired: true, offline: '' } }]
+landOnPaired()
+assertDeepEqual(landing.pointed, ['modelLaunch', 0], 'the cursor lands on its terminal once it runs')
+assertEqual(landing.landAfterPair, '', 'and stops waiting')
+
+// A running network model shows what it is and how fast its host runs it,
+// not that host's memory.
+const i18n = { t: key => ({ text: key, arg(value) { this.text += '(' + value + ')'; return this }, toString() { return this.text } }), formatNumber: value => String(value) }
+const remoteStats = new Function('Commons', panel.match(/function remoteStats\([^]*?\n  \}/)[0] + '\nreturn remoteStats')({ I18n: i18n })
+assertEqual(remoteStats({ architecture: 'moe', decode_tok_s: 41.6, prefill_tok_s: 812.2, ctx: 262144 }),
+  'agents.localSpeedFact(42) · agents.localContextFact(256)', 'a network model lists its output speed and context, never prefill')
+assertEqual(remoteStats({ architecture: 'dense', decode_tok_s: null, prefill_tok_s: null, ctx: 0 }), '', 'unmeasured speeds and an unknown context are left out, and the architecture never shows')
+assertEqual(remoteStats({}), '', 'a host that reports nothing gives no stats line')
+JS
+
 # The panel has no terminal for sudo: a detached setup missing its packages
 # installs them in one first, and otherwise starts at once.
 wrapper_dir=$(mktemp -d)
@@ -166,6 +244,21 @@ pass "a detached setup with its packages starts without a terminal"
 calls=$(run_wrapper 1 use nemotron-3.5-bolt-tensorfold)
 [[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold' ]] || fail "a setup in a terminal installs its packages there" "$calls"
 pass "a setup in a terminal installs its packages there"
+
+# Sharing needs the SSH server other machines pair over: the panel's Share
+# sets it up in a terminal first, until it runs.
+printf '#!/bin/bash\nexit %s\n' 3 >"$wrapper_dir/systemctl"
+chmod +x "$wrapper_dir/systemctl"
+calls=$(run_wrapper 1 share nemotron-3.5-bolt-tensorfold </dev/null)
+[[ $calls == "omarchy-launch-floating-terminal-with-presentation omarchy-setup-security-sshd && omarchy-local-ai 'share' 'nemotron-3.5-bolt-tensorfold'" ]] || fail "sharing without an SSH server sets one up in a terminal first" "$calls"
+pass "sharing without an SSH server sets one up in a terminal first"
+calls=$(run_wrapper 1 share nemotron-3.5-bolt-tensorfold --off </dev/null)
+[[ $calls == "omarchy-local-ai share nemotron-3.5-bolt-tensorfold --off" ]] || fail "stopping a share never asks for an SSH server" "$calls"
+pass "stopping a share never asks for an SSH server"
+printf '#!/bin/bash\nexit 0\n' >"$wrapper_dir/systemctl"
+calls=$(run_wrapper 1 share nemotron-3.5-bolt-tensorfold </dev/null)
+[[ $calls == "omarchy-local-ai share nemotron-3.5-bolt-tensorfold" ]] || fail "sharing with the SSH server running shares at once" "$calls"
+pass "sharing with the SSH server running shares at once"
 
 # Hosted and local rows share ordering, including positions saved while hidden.
 run_node_test <<'JS'

@@ -20,6 +20,7 @@
   "agents.homeFailed": "Hindi ma-set up ang home para sa bagong account.",
   "agents.installCliFailed": "Hindi natapos ang pag-install ng %1 CLI.",
   "agents.installingCli": "Ini-install ang %1 CLI…",
+  "agents.instructionsBackedUp": "Na-backup ang dating mga tagubilin ng agent mo",
   "agents.localUnsupported": "Walang agent na makakagamit ng lokal na modelo",
   "agents.localUnsupportedBody": "I-install ang pi o OpenCode upang magamit ang lokal na modelo.",
   "agents.loginUnfinished": "Hindi natapos ang pag-login, kaya walang naidagdag na account.",

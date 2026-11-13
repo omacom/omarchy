@@ -154,7 +154,7 @@ assertDeepEqual(
 const defaultItems = menu.parseMenuJsonc(defaultMenuJsonc)
 const defaultById = Object.fromEntries(defaultItems.map(item => [item.id, item]))
 for (const id of ['claude', 'pi']) {
-  assertEqual(defaultById[`setup.default.agent.${id}`].when, 'omarchy-hw-cpu-sse4_2', 'menu checks CPU support for ' + id)
+  assertEqual(defaultById[`agent.harness.${id}`].when, 'omarchy-hw-cpu-sse4_2', 'menu checks CPU support for ' + id)
 }
 
 // Needs the real menu: app rows sort after all menu items, and only at that
