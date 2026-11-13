@@ -85,6 +85,12 @@ for theme_dir in "$USER_THEMES_PATH" "$OMARCHY_THEMES_PATH"; do
 
     while IFS= read -r -d '' theme_path; do
       fast_signature+="$theme_path:$(stat -Lc '%Y' "$theme_path")"$'\n'
+
+      # A colours-only theme's preview is drawn from colors.toml, which an
+      # in-place edit changes without touching the folder.
+      if [[ -f $theme_path/colors.toml ]]; then
+        fast_signature+="$theme_path/colors.toml:$(stat -Lc '%s:%Y' "$theme_path/colors.toml")"$'\n'
+      fi
     done < <(find -L "$theme_dir" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print0 2>/dev/null | sort -z)
   fi
 done
