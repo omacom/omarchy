@@ -159,8 +159,10 @@ BarWidget {
     labelVisible: !root.vertical
     hasVisualContent: root.vertical ? root.verticalLines.length > 0 : text !== ""
     fixedHeight: root.vertical ? root.verticalLines.length * Style.bar.iconSlot : -1
-    horizontalMargin: 8.75
-    verticalPadding: 8.75
+    fontFamily: String(root.setting("fontFamily", "")) || (root.bar ? root.bar.fontFamily : Style.font.family)
+    fontSize: Number(root.setting("fontSize", Style.font.body))
+    horizontalMargin: Number(root.setting("horizontalMargin", 8.75))
+    verticalPadding: Number(root.setting("verticalPadding", 8.75))
     tooltipText: I18n.t("clock.toggleFormat")
     // The clock is text to read, not an icon to press, so a click never
     // shrinks it; the format it cycles to, or the panel it opens, is feedback.
