@@ -39,6 +39,13 @@ Item {
   property string switchingAccountId: ""
   property string renamingAccountId: ""
   property string settingExitNodeId: ""
+  property bool exitNodeOffline: false
+  property string exitNodeName: ""
+  property string exitNodeId: ""
+  // Bumped when an account switch starts and ends; a status launched under an
+  // older value may describe the previous account, so it is dropped.
+  property int _accountEpoch: 0
+  property int _statusEpoch: 0
   property bool accountsAccessDenied: false
   property string actionStatus: ""
   property string lastError: ""
@@ -209,6 +216,7 @@ Item {
       _statusOutput = ""
       _statusError = ""
       refreshing = true
+      _statusEpoch = _accountEpoch
       _statusFullPeers = fullPeers === true || peersWanted || _pendingFullPeers
       if (_statusFullPeers) _pendingFullPeers = false
       statusProcess.command = _statusFullPeers
@@ -276,6 +284,9 @@ Item {
     switchingAccountId = ""
     renamingAccountId = ""
     settingExitNodeId = ""
+    exitNodeOffline = false
+    exitNodeName = ""
+    exitNodeId = ""
     accountsAccessDenied = false
   }
 
@@ -318,6 +329,11 @@ Item {
       peersLoaded = false
     }
     syncExitNodes()
+    exitNodeOffline = parsed.exitNodeOffline
+    // A light poll has no peer rows to name the node from, so keep the name a
+    // full poll found for the same node rather than falling back to its IP.
+    if (_statusFullPeers || parsed.exitNodeId !== exitNodeId) exitNodeName = parsed.exitNodeName
+    exitNodeId = parsed.exitNodeId
 
     if (needsLogin) statusText = "Needs login"
     else if (running) {
@@ -405,6 +421,7 @@ Item {
     _switchOutput = ""
     _switchError = ""
     switchingAccountId = accountId
+    clearExitNodeStatus()
     switchProcess.command = ["tailscale", "switch", accountId]
     switchProcess.running = true
   }
@@ -441,6 +458,24 @@ Item {
     _exitNodeError = ""
     settingExitNodeId = String(peer.id || "")
     exitNodeProcess.command = ["tailscale", "set", "--exit-node=" + target]
+    exitNodeProcess.running = true
+  }
+
+  // The offline notice belongs to the account it was read from; forget it
+  // when the account changes so it cannot act on the next one.
+  function clearExitNodeStatus() {
+    _accountEpoch++
+    exitNodeOffline = false
+    exitNodeName = ""
+    exitNodeId = ""
+  }
+
+  // Works without the node's peer row, which can vanish while it is offline.
+  function clearExitNode() {
+    if (!installed || !running || !exitNodeOffline || switchProcess.running || exitNodeProcess.running) return
+    _exitNodeOutput = ""
+    _exitNodeError = ""
+    exitNodeProcess.command = ["tailscale", "set", "--exit-node="]
     exitNodeProcess.running = true
   }
 
@@ -577,12 +612,22 @@ Item {
       root.refreshing = false
       var stdout = String(statusStdout.text || root._statusOutput || "")
       var stderr = String(statusStderr.text || root._statusError || "")
-      if (exitCode === 0) root.parseStatus(stdout)
+      var stale = root._statusEpoch !== root._accountEpoch
+      if (stale) {
+        // Started before an account switch, so it may describe the old account.
+      } else if (exitCode === 0) root.parseStatus(stdout)
       else {
         root.resetUnavailable("Disconnected")
         root.lastError = stderr.trim()
       }
-      if (root._pendingFullPeers) {
+      if (stale && !switchProcess.running) {
+        // The refresh after the switch was skipped while this poll ran, so
+        // nothing else is coming to replace the dropped result. A switch still
+        // in flight asks again when it ends.
+        var fullPeers = root._statusFullPeers || root._pendingFullPeers
+        root._pendingFullPeers = false
+        root.refreshStatusAndAccounts(false, fullPeers)
+      } else if (root._pendingFullPeers) {
         root._pendingFullPeers = false
         root.refreshStatusAndAccounts(false, true)
       }
@@ -691,6 +736,7 @@ Item {
         root.selectedAccountId = root.switchingAccountId
       }
       root.switchingAccountId = ""
+      root.clearExitNodeStatus()
       delayedRefresh.restart()
     }
   }
