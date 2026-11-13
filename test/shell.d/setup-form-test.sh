@@ -19,7 +19,7 @@ printf '%s' "$count" >"$GUM_COUNT"
 printf '%s\n' "$*" >>"$GUM_ARGS"
 
 case $1 in
-  choose | filter) cat >"$GUM_DIR/stdin.$count" ;;
+  choose | filter | table) cat >"$GUM_DIR/stdin.$count" ;;
 esac
 
 line=$(sed -n "${count}p" "$GUM_SCRIPT")
@@ -51,7 +51,7 @@ cat >"$tmp_dir/driver" <<'EOF'
 set -euo pipefail
 set -T
 
-source "$ROOT/install/provisioning/setup-form.sh"
+source "${SETUP_FORM_SOURCE:-$ROOT/install/provisioning/setup-form.sh}"
 
 notice() { printf '%s\n' "$1" >>"$NOTICES"; }
 
@@ -59,10 +59,17 @@ if [[ -n ${TAKEN_USERS:-} ]]; then
   omarchy_username_taken() { [[ " $TAKEN_USERS " == *" $1 "* ]]; }
 fi
 
-trap 'if [[ ${FUNCNAME[0]:-} == "$PROMPT_FN" ]]; then printf "returned\n" >>"$MARKER"; fi' RETURN
+trap 'if [[ ${FUNCNAME[0]:-} == "$PROMPT_FN" ]]; then printf "returned\n" >>"$MARKER"; printf "%s\n" "$language" >"$GUM_DIR/language-returned"; fi' RETURN
 
+language=${INITIAL_LANGUAGE:-en}
+if [[ $PROMPT_FN == omarchy_form_review ]]; then
+  keyboard_label='English (US, Dvorak)'
+  keyboard=dvorak timezone=UTC username=owner password=secret hostname=omarchy
+fi
 "$PROMPT_FN"
 
+printf 'language=%s\n' "${language:-}"
+printf 'form_language=%s\n' "${OMARCHY_FORM_LANGUAGE:-}"
 printf 'keyboard=%s\n' "${keyboard:-}"
 printf 'keyboard_label=%s\n' "${keyboard_label:-}"
 printf 'keyboard_input_method=%s\n' "${keyboard_input_method:-}"
@@ -124,7 +131,7 @@ actual notices:   $actual"
 }
 
 # The contract both callers read, and the ordering the shared list exists to keep
-source "$ROOT/install/provisioning/setup-form.sh"
+source "${SETUP_FORM_SOURCE:-$ROOT/install/provisioning/setup-form.sh}"
 
 ((OMARCHY_FORM_BACK == 1)) || fail "Esc reports status 1"
 ((OMARCHY_FORM_SIGNAL == 130)) || fail "Ctrl+C reports status 130"
@@ -337,3 +344,63 @@ TZ_GUESS=Europe/Copenhagen run_prompt omarchy_prompt_timezone "130:"
 assert_status "$OMARCHY_FORM_SIGNAL" "timezone prompt reports Ctrl+C as the caller's signal"
 assert_returned "timezone prompt survives Ctrl+C under set -e"
 pass "timezone prompt propagates Esc and Ctrl+C without dying under set -e"
+
+run_prompt omarchy_prompt_language '0:de'
+assert_status 0 "language prompt accepts German"
+[[ $(field language) == "de" && $(field form_language) == "de" ]] || fail "a drawn language sets the desktop and form language"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == $'English\ten' ]] || fail "English leads the language picker"
+[[ $(cut -f2 "$tmp_dir/stdin.1" | sort) == "$(jq -r 'keys[]' "$ROOT/default/i18n/locales.json" | sort)" ]] ||
+  fail "every registered language is offered exactly once"
+grep -qxF $'Deutsch\tde' "$tmp_dir/stdin.1" || fail "a drawn language appears under its native name"
+grep -qxF $'Japanese\tja' "$tmp_dir/stdin.1" || fail "an undrawn language appears under its English name"
+pass "language picker offers the registry with English first and readable labels"
+
+run_prompt omarchy_prompt_language '0:ja'
+assert_status 0 "language prompt accepts Japanese"
+[[ $(field language) == "ja" && $(field form_language) == "en" ]] || fail "an undrawn language keeps the form in English"
+pass "language selection distinguishes the desktop language from the console language"
+
+for cancel in 1 130; do
+  INITIAL_LANGUAGE=de run_prompt omarchy_prompt_language "$cancel:ja"
+  assert_status "$cancel" "language prompt propagates cancellation status $cancel"
+  assert_returned "language cancellation returns under set -e"
+  [[ $(<"$tmp_dir/language-returned") == "de" ]] || fail "cancellation leaves the language unchanged"
+done
+pass "language Esc and Ctrl+C preserve the previous selection"
+
+(
+  unset OMARCHY_FORM_KEYBOARD_DEFAULT OMARCHY_FORM_TIMEZONE_FALLBACK omarchy_form_keyboard_preset
+  omarchy_form_use_language de
+  [[ $language == "de" && $OMARCHY_FORM_KEYBOARD_DEFAULT == "German" && $OMARCHY_FORM_TIMEZONE_FALLBACK == "Europe/Berlin" ]] ||
+    fail "German supplies its keyboard and offline timezone"
+  omarchy_form_use_language sw
+  [[ $OMARCHY_FORM_TIMEZONE_FALLBACK == "UTC" ]] || fail "a language without a country defaults to UTC"
+  printf 'KEYBOARD=English (US, Dvorak)\n' >"$tmp_dir/language-presets"
+  OMARCHY_FORM_DEFAULTS="$tmp_dir/language-presets" source "${SETUP_FORM_SOURCE:-$ROOT/install/provisioning/setup-form.sh}"
+  omarchy_form_use_language de
+  [[ $OMARCHY_FORM_KEYBOARD_DEFAULT == "English (US, Dvorak)" ]] || fail "the media keyboard preset beats the language default"
+)
+pass "language defaults supply the keyboard and timezone while respecting the media preset"
+
+for code in $OMARCHY_FORM_CONSOLE_LANGUAGES; do
+  jq -e --arg code "$code" 'has($code)' "$ROOT/default/i18n/locales.json" >/dev/null || fail "console language $code is registered"
+done
+while IFS=$'\t' read -r code label; do
+  jq -e --arg code "$code" 'has($code)' "$ROOT/default/i18n/locales.json" >/dev/null || fail "default language $code is registered"
+  printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | cut -d'|' -f1 | grep -qxF -- "$label" || fail "language $code has an offered keyboard label: $label"
+done < <(jq -r 'to_entries[] | [.key, .value.keyboard] | @tsv' "$omarchy_form_language_defaults")
+pass "console languages and language defaults refer to registered languages and offered keyboards"
+
+[[ $(omarchy_form_text ownerSetup.keyboardRetry 'English (US, Dvorak)') == 'Could not set the English (US, Dvorak) keyboard layout. Choose it again.' ]] ||
+  fail "form text fills a placeholder from its argument"
+[[ $(omarchy_form_text missing.test.key ignored) == "missing.test.key" ]] || fail "an unknown form text key is printed as the fallback"
+pass "form text fills arguments and preserves unknown keys"
+
+for confirmation in 0 1 130; do
+  run_prompt omarchy_form_review '0:' "$confirmation:"
+  assert_status "$confirmation" "review returns gum confirm status $confirmation"
+  grep -qxF $'Keyboard\tEnglish (US, Dvorak)' "$tmp_dir/stdin.1" || fail "review preserves a comma inside one keyboard cell"
+  awk -F '\t' 'NF != 2 { exit 1 }' "$tmp_dir/stdin.1" || fail "review rows have two tab-separated cells"
+  grep -qF -- $'table -s \t -p' "$GUM_ARGS" || fail "review tells gum to use tab-separated input"
+done
+pass "review uses tab-separated cells and propagates confirmation status"

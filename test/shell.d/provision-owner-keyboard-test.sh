@@ -81,10 +81,13 @@ grep -q '^keyboard_form() {' "$tmp/keyboard.sh" && grep -q '^apply_keyboard() {'
 # asked once more than the test answered.
 cat >"$tmp/form.sh" <<SH
 set -euo pipefail
-source "$tmp/keyboard.sh"
 LOG_FILE=$tmp/log
-OMARCHY_FORM_BACK=2
-step() { echo "prompt" >>"$tmp/screen"; }
+OMARCHY_PATH=$ROOT
+OMARCHY_FORM_DEFAULTS=$tmp/no-defaults
+source "$ROOT/install/provisioning/setup-form.sh"
+source "$tmp/keyboard.sh"
+language=en
+clear_logo() { echo "prompt" >>"$tmp/screen"; }
 notice() { echo "notice: \$1" >>"$tmp/screen"; }
 log_step() { echo "\$1" >>"\$LOG_FILE"; }
 confirm_reboot() { exit 5; }
@@ -304,7 +307,7 @@ form || status=$?
   fail "the keyboard step gives up after three failures, and says so" "$(cat "$tmp/screen")"
 ! grep -q 'password form' "$tmp/screen" || fail "a layout that can never be set never reaches the password form" "$(cat "$tmp/screen")"
 grep -q 'no keyboard layout could be set after 3 attempts' "$tmp/log" || fail "the log records giving up" "$(cat "$tmp/log")"
-sed -n '/^run_setup() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" | grep -qx '    keyboard_form || return 1' ||
+sed -n '/^run_setup() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" | grep -qE '^ +keyboard_form \|\| return 1$' ||
   fail "a failed keyboard step fails the setup attempt, which offers retry or a console"
 pass "a machine that can't set any layout fails the attempt after three tries, reaching setup's retry-or-console screen"
 
