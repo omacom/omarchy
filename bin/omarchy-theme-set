@@ -509,6 +509,9 @@ if [[ $THEME_HEADLESS == "1" ]]; then
   # real login still needs a current background symlink for omarchy-shell to
   # render.
   [[ $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]] || set_theme_background_link || true
+  # The app retints don't run headless, but the first login should already
+  # show Omarchy's app icons in the theme's colors.
+  omarchy-theme-set-icons || true
 elif [[ $OMARCHY_THEME_SKIP_BACKGROUND == "1" ]]; then
   shell_ipc shell applyTheme "$colors_payload" "$shell_payload" || true
 else
@@ -521,9 +524,11 @@ fi
 flock -u 9
 
 # What the user is looking at: the terminals and the programs drawn inside
-# them, plus the window borders when no intro is playing. These run as soon as
-# the theme is in place, alongside the wallpaper and bar transition.
+# them, Omarchy's app icons in the dock, plus the window borders when no intro
+# is playing. These run as soon as the theme is in place, alongside the
+# wallpaper and bar transition, so the dock's icons fade with the palette.
 visible_theme_commands=(
+  omarchy-theme-set-icons
   omarchy-restart-terminal
   omarchy-theme-set-foot
   omarchy-theme-set-tmux

@@ -22,6 +22,21 @@ Item {
   // whenever the app list changes, so newly installed apps get their icon live.
   property var iconIndex: ({})
   property var pendingIconIndex: ({})
+  property bool iconRescanQueued: false
+
+  // Omarchy's own app icons are linked into the user's icon dir and redrawn in
+  // place after each theme switch, which then writes icons.revision. The
+  // revision goes on their URLs to make images reload instead of showing the
+  // cached previous theme, and the rescan picks up links created for the first
+  // time.
+  readonly property string home: Quickshell.env("HOME")
+  readonly property string userIconsPath: (Quickshell.env("XDG_DATA_HOME") || home + "/.local/share") + "/icons/"
+  property int themeRevision: 0
+
+  // Maps a desktop id to the version of the package that owns it. Rescanned
+  // each time the app grid opens, since upgrades leave desktop entries alone.
+  property var versions: ({})
+  property var pendingVersions: ({})
 
   property int launchSerial: 0
   property int launchToplevelCount: 0
@@ -62,7 +77,8 @@ Item {
     // Prefer the context-limited app/device index. An unconstrained themed
     // lookup can resolve an app name such as "zoom" to an action icon instead.
     var found = root.iconIndex[value]
-    if (found) return Util.fileUrl(found)
+    var revision = root.themeRevision
+    if (found) return Util.fileUrl(found) + (found.indexOf(root.userIconsPath) === 0 ? "?theme=" + revision : "")
     var themed = Quickshell.iconPath(value, true)
     if (themed.length > 0) return themed
     return Quickshell.iconPath("application-x-executable", true)
@@ -70,8 +86,19 @@ Item {
 
   // The shell may start before first-install packages have finished placing
   // their icons; consumers call this when they open so icons appear live.
+  // A request during a scan queues one more, since the running scan may have
+  // listed icons before they changed.
   function refreshIcons() {
-    if (!iconIndexScan.running) iconIndexScan.running = true
+    if (iconIndexScan.running) root.iconRescanQueued = true
+    else iconIndexScan.running = true
+  }
+
+  function refreshVersions() {
+    if (!versionScan.running) versionScan.running = true
+  }
+
+  function version(entry) {
+    return String(root.versions[String((entry && entry.id) || "")] || "")
   }
 
   function launch(desktopId, name) {
@@ -141,7 +168,7 @@ Item {
     // so the parser, which keeps the first hit per name, prefers scalable icons.
     // Within each icon dir, PNGs go largest size first, so a 256x256 beats a 32x32.
     return [
-      'dirs="$HOME/.icons $HOME/.local/share/icons";',
+      'dirs="$HOME/.icons ${XDG_DATA_HOME:-$HOME/.local/share}/icons";',
       'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
       '{',
       '  for base in $dirs; do',
@@ -224,7 +251,26 @@ Item {
     onStarted: root.pendingIconIndex = ({})
     // Swapping the property re-evaluates every iconSource() binding, so
     // newly found icons appear without rebuilding the list.
-    onExited: root.iconIndex = root.pendingIconIndex
+    onExited: {
+      root.iconIndex = root.pendingIconIndex
+      if (root.iconRescanQueued) {
+        root.iconRescanQueued = false
+        running = true
+      }
+    }
+  }
+
+  Process {
+    id: versionScan
+    command: [root.omarchyPath + "/bin/omarchy-launch-versions"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var tab = line.indexOf("\t")
+        if (tab > 0) root.pendingVersions[line.slice(0, tab)] = line.slice(tab + 1)
+      }
+    }
+    onStarted: root.pendingVersions = ({})
+    onExited: root.versions = root.pendingVersions
   }
 
   // Coalesces bursts of app-list changes (a package install touches many
@@ -233,6 +279,16 @@ Item {
     id: iconIndexDebounce
     interval: 750
     onTriggered: if (!iconIndexScan.running) iconIndexScan.running = true
+  }
+
+  FileView {
+    path: root.home + "/.local/state/omarchy/current/icons.revision"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: {
+      root.themeRevision++
+      root.refreshIcons()
+    }
   }
 
   FileView {

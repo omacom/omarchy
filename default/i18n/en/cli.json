@@ -18,6 +18,7 @@
   "agents.homeFailed": "Couldn't set up a home for the new account.",
   "agents.installCliFailed": "Installing the %1 CLI didn't finish.",
   "agents.installingCli": "Installing the %1 CLI…",
+  "agents.instructionsBackedUp": "Kept your old agent instructions as backups",
   "agents.loginUnfinished": "The login didn't finish, so no account was added.",
   "agents.newSessionsUse": "New %1 sessions now use %2",
   "agents.noAccountNamed": "No %1 account named %2.",

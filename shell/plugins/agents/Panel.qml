@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "../panels/elsewhen/Model.js" as Reorder
+import "../panels/tailscale" as Tailscale
 
 Panel {
   id: root
@@ -32,27 +33,64 @@ Panel {
   // answers is how much room is left, and where.
   readonly property var providers: dragProviders !== null ? dragProviders : usage.panelProviders
 
-  function localActions(model) {
+  // A model on another machine of the tailnet carries its host. Away, it
+  // offers nothing; unpaired, only pairing, which is what fetches its key.
+  // Paired, it can be used or disconnected from while its host runs it, and
+  // offers nothing while it doesn't: it's never started or stopped from here.
+  // This machine's own models offer sharing only while running: where
+  // Tailscale can serve them, or where one is shared already, so it can
+  // always be stopped. A stopped model stays shared and is served again when
+  // it starts, but says nothing about it until then.
+  function localActions(model, canShare) {
     var actions = []
     if (model.unit === "removing" || model.unit === "installing") return actions
+    if (model.host) {
+      if (model.offline) return actions
+      if (!model.paired) return ["pair"]
+      return model.unit === "active" ? ["disconnect", "launch"] : []
+    } else if (model.unit === "active" && (canShare || model.shared === true)) {
+      actions.push("share")
+    }
     if (model.unit !== "deactivating") actions.push("toggle")
     if (model.unit === "active") actions.push("launch")
     return actions
   }
 
-  // A stopped model with an error to explain, which links to its logs.
+  readonly property var actionKinds: ({ toggle: "modelToggle", launch: "modelLaunch", pair: "modelPair", disconnect: "modelDisconnect", share: "modelShare" })
+
+  function modelId(model) {
+    return model.host ? model.host + "/" + model.recipe : model.recipe
+  }
+
+  // A stopped model with an error to explain, which links to its logs. Only
+  // this machine's own: a tailnet model's logs live on its host. A tailnet
+  // model can fail to pair instead, which links to what pairing printed.
   function localFailed(model) {
+    if (model.host) return pairFailure(model) !== null
     return ["active", "activating", "deactivating", "removing"].indexOf(model.unit) < 0 && String(model.error || "") !== ""
   }
 
+  // A failed pairing still to explain: not once the model is paired, its host
+  // is away (its line says so instead), or it's being paired again.
+  function pairFailure(model) {
+    if (!model || !model.host || model.paired === true || String(model.offline || "") !== "") return null
+    var id = modelId(model)
+    return usage.pairingId === id ? null : (usage.pairFailures[id] || null)
+  }
+
   function showLocalLogs(model) {
-    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local logs " + Util.shellQuote(String(model.recipe))])
+    var failure = pairFailure(model)
+    // A pairing's output is all there is of it, so the terminal shows that
+    // again and closes as failed, the way a pairing in a terminal ended.
+    var command = failure ? "printf %s " + Util.shellQuote(String(failure.output)) + "; false"
+      : "omarchy-agent-local logs " + Util.shellQuote(String(model.recipe))
+    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", command])
     root.close()
   }
 
   function runLocalAction(model, action) {
     if (action === "launch") {
-      Util.execArgv(["omarchy-agent", "--local-model", model.recipe])
+      Util.execArgv(["omarchy-agent", "--local-model", modelId(model)])
       root.close()
     } else if (action === "toggle") {
       var running = model.unit === "active" || model.unit === "activating"
@@ -61,13 +99,79 @@ Panel {
       // The panel has no terminal: a start that fails records its reason,
       // which the model's line shows.
       Util.execArgv(["omarchy-agent-local", running ? "stop" : "start", model.recipe])
+    } else if (action === "share") {
+      Util.execArgv(["omarchy-agent-local", "share", model.recipe].concat(model.shared ? ["--off"] : []))
+    } else if (action === "pair") {
+      // Pairs in the background while the panel stays open; a failure shows
+      // on the model's line.
+      usage.pair(model)
+      if (usage.pairingId === modelId(model)) landAfterPair = modelId(model)
+    } else if (action === "disconnect") {
+      Util.execArgv(["omarchy-agent-local", "forget", modelId(model)])
     }
+  }
+
+  // The model being paired from the panel. Once it is, and running there, the
+  // keyboard cursor lands on its terminal, so Return opens an agent on it.
+  // The survey that shows it paired can trail the pairing itself, and a model
+  // still starting on its host has no terminal yet, so this waits for the
+  // terminal rather than for the pairing to end, while the panel stays open.
+  property string landAfterPair: ""
+  function landOnPaired() {
+    if (landAfterPair === "" || usage.pairingId !== "") return
+    if (!root.opened || usage.pairFailures[landAfterPair]) {
+      landAfterPair = ""
+      return
+    }
+    for (var p = 0; p < providers.length; p++) {
+      var model = providers[p].localModel
+      if (!model || !model.host || modelId(model) !== landAfterPair || model.paired !== true) continue
+      if (localActions(model, usage.canShare).indexOf("launch") < 0) return
+      landAfterPair = ""
+      pointAt("modelLaunch", p)
+      return
+    }
+  }
+  onProvidersChanged: Qt.callLater(landOnPaired)
+  Connections {
+    target: usage
+    function onPairingIdChanged() { Qt.callLater(root.landOnPaired) }
+  }
+
+  // How long ago an offline host was last seen, in the panel's own words.
+  function lastSeenText(model) {
+    var seen = Number(model && model.last_seen_ms || 0)
+    if (!(seen > 0)) return ""
+    var ago = Math.max(0, nowMs - seen)
+    return ago < 60000 ? Commons.I18n.t("agents.networkJustNow") : Commons.I18n.t("agents.networkAgo").arg(formatDuration(ago))
+  }
+
+  // The tailnet has no change signal, so the panel surveys it when it opens
+  // and again every 2 seconds while it stays open, never while closed: a
+  // model another machine starts or stops sharing shows up or goes at once.
+  // A survey is one fetch per online peer, half a second, and never overlaps.
+  Timer {
+    interval: 2000
+    running: root.opened
+    repeat: true
+    onTriggered: usage.refreshNetwork()
   }
 
   // The setup runs on in the background and reports to status.json, where it
   // becomes the model's own line, which draws the download as it goes.
   function downloadLocal(recipe) {
+    // A Spark cabled to this one: its setup asks for the other machine's password once, so it
+    // runs in a terminal.
+    if (recipe.link) {
+      Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local link setup"])
+      root.close()
+      return
+    }
     Util.execArgv(["omarchy-agent-local", "use", "--detach", String(recipe.id)])
+  }
+
+  function linkTitle(link) {
+    return link.host ? Commons.I18n.t("agents.linkOffer").arg(link.host) : Commons.I18n.t("agents.linkOfferUnnamed")
   }
 
   function localStartBlocked(model) {
@@ -95,7 +199,7 @@ Panel {
   property var deleteTarget: null
   function deleteSelected() {
     var target = keyTarget
-    if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "localDownload"].indexOf(target.kind) < 0) return
+    if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "localDownload"].indexOf(target.kind) < 0) return
     deleteTarget = providers[target.index]
   }
 
@@ -103,7 +207,7 @@ Panel {
     var target = deleteTarget
     deleteTarget = null
     if (!target) return
-    if (target.localModel) {
+    if (target.localModel && !target.localModel.host) {
       Util.execArgv(["omarchy-agent-local", "remove", target.localModel.recipe])
     } else if (bar && bar.shell) {
       var next = JSON.parse(JSON.stringify(settings || {}))
@@ -157,8 +261,8 @@ Panel {
       if (addStage === "")
         for (var o = 0; o < providers.length; o++)
           if (providers[o].localOffer) rows.push([{ kind: "localDownload", index: o }])
-    } else if (addStage === "local") {
-      for (var r = 0; r < localAddRecipes.length; r++) rows.push([{ kind: "localAdd", index: r }])
+    } else if (addStage === "local" || addStage === "network") {
+      for (var r = 0; r < addRows.length; r++) rows.push([{ kind: "localAdd", index: r }])
     } else if (addStage === "") {
       // Accounts count in the same order as accountEntries. Only what can be
       // done is a stop: one that isn't active offers Autoswitch beside Use, a
@@ -171,8 +275,8 @@ Panel {
           continue
         }
         if (providers[p].localModel) {
-          var actions = localActions(providers[p].localModel)
-          rows.push(actions.length > 0 ? actions.map(function(action) { return { kind: action === "toggle" ? "modelToggle" : "modelLaunch", index: p } }) : [{ kind: "modelHeader", index: p }])
+          var actions = localActions(providers[p].localModel, usage.canShare)
+          rows.push(actions.length > 0 ? actions.map(function(action) { return { kind: actionKinds[action], index: p } }) : [{ kind: "modelHeader", index: p }])
           if (localFailed(providers[p].localModel)) rows.push([{ kind: "modelLogs", index: p }])
           continue
         }
@@ -242,8 +346,10 @@ Panel {
     if (!provider) return "provider"
     if (provider.localOffer) return "localDownload"
     if (provider.localModel) {
-      var actions = localActions(provider.localModel)
+      var actions = localActions(provider.localModel, usage.canShare)
       if (actions.indexOf("launch") >= 0) return "modelLaunch"
+      if (actions.indexOf("pair") >= 0) return "modelPair"
+      if (actions.indexOf("disconnect") >= 0) return "modelDisconnect"
       return actions.indexOf("toggle") >= 0 ? "modelToggle" : "modelHeader"
     }
     return harnessFor(provider) !== "" ? "providerLaunch" : "provider"
@@ -264,7 +370,7 @@ Panel {
       var row = keyRows[keyRow]
       var use = -1
       for (var c = 0; c < row.length; c++) if (row[c].kind === "account") use = c
-      var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "localDownload"].indexOf(row[0].kind) >= 0
+      var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "localDownload"].indexOf(row[0].kind) >= 0
       keyColumn = use >= 0 ? use : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
       keyColumn = clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
@@ -275,7 +381,7 @@ Panel {
   function providerIndexOfKey() {
     var target = keyTarget
     if (!target) return -1
-    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelHeader", "modelLogs", "localDownload", "range7", "range30"].indexOf(target.kind) >= 0) return target.index
+    if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "modelLogs", "localDownload", "range7", "range30"].indexOf(target.kind) >= 0) return target.index
     if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
@@ -429,6 +535,51 @@ Panel {
     { providerId: "codex", providerName: "Codex" },
     { providerId: "grok", providerName: "Grok" }
   ].concat(localFits ? [{ providerId: "local", providerName: Commons.I18n.t("agents.localAi") }] : [])
+   .concat(networkAddModels.length > 0 ? [{ providerId: "network", providerName: Commons.I18n.t("agents.networkModels") }] : [])
+
+  // Add another › Network models brings back the tailnet's models hidden
+  // from the page, wherever their hosts are now.
+  readonly property var networkAddModels: {
+    var network = usage.networkModels || {}
+    var hidden = []
+    for (var id in network)
+      if (!usage.providerEnabled("net:" + id)) hidden.push(network[id])
+    hidden.sort(function(a, b) { return String(a.id).localeCompare(String(b.id)) })
+    return hidden
+  }
+  readonly property var addRows: addStage === "network" ? networkAddModels : localAddRecipes
+
+  // What a running network model is, in place of the memory meter its host
+  // measures: its output speed there, and its context.
+  function remoteStats(model) {
+    var facts = []
+    var decode = Math.round(Number(model.decode_tok_s))
+    if (decode > 0) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Commons.I18n.formatNumber(decode, 0)))
+    if (Number(model.ctx) > 0) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.ctx) / 1024), 0)))
+    return facts.join(" · ")
+  }
+
+  function networkFacts(model) {
+    var facts = [Commons.I18n.t("agents.networkOnHost").arg(model.host)]
+    if (Number(model.ctx) > 0) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(Number(model.ctx) / 1024), 0)))
+    facts.push(model.offline ? Commons.I18n.t("agents.networkOffline")
+      : model.unit === "active" ? Commons.I18n.t("agents.networkRunning") : Commons.I18n.t("agents.localLoadingMeter"))
+    return facts.join(" · ")
+  }
+
+  function showNetworkModel(model) {
+    if (!model || !bar || !bar.shell) return
+    var next = JSON.parse(JSON.stringify(settings || {}))
+    if (!next.providers) next.providers = {}
+    next.providers["net:" + model.id] = Object.assign({}, next.providers["net:" + model.id] || {}, { enabled: true })
+    bar.shell.updateEntryInline(moduleName, next)
+    cancelAdd()
+  }
+
+  function chooseAddRow(index) {
+    if (addStage === "network") showNetworkModel(networkAddModels[index])
+    else setUpLocal(localAddRecipes[index])
+  }
 
   // Local AI offers the catalog's recipes that fit this machine and aren't
   // set up yet, recommended first. Each downloads tens of GB, so setting one
@@ -444,9 +595,8 @@ Panel {
   }
 
   function recipeFacts(recipe) {
+    if (recipe.link) return Commons.I18n.t("agents.linkSetUp")
     var facts = []
-    if (recipe.architecture === "moe") facts.push(Commons.I18n.t("agents.localMoe"))
-    else if (recipe.architecture === "dense") facts.push(Commons.I18n.t("agents.localDense"))
     if (recipe.memory_gib != null) facts.push(Commons.I18n.t("agents.localMemoryFact").arg(Commons.I18n.formatNumber(recipe.memory_gib, 0)))
     if (recipe.context != null) facts.push(Commons.I18n.t("agents.localContextFact").arg(Commons.I18n.formatNumber(Math.round(recipe.context / 1024), 0)))
     if (recipe.decode_tok_s != null) facts.push(Commons.I18n.t("agents.localSpeedFact").arg(Commons.I18n.formatNumber(Math.round(recipe.decode_tok_s), 0)))
@@ -498,6 +648,10 @@ Panel {
   function chooseAddProvider(id) {
     if (id === "local") {
       if (localAddRecipes.length > 0) addStage = "local"
+      return
+    }
+    if (id === "network") {
+      if (networkAddModels.length > 0) addStage = "network"
       return
     }
     var state = addChecks[id] || ""
@@ -575,11 +729,12 @@ Panel {
   }
 
   // A few ways into making Omarchy your own, handed to the local model when one
-  // is running, and to the default agent otherwise or when Shift is held.
+  // is running, and to the default agent otherwise or when Shift is held. The
+  // prompts live in omarchy-agent-make, shared with the menu's Agent > Make something.
   readonly property var starterPrompts: [
-    { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), prompt: "Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the Omarchy skill's theming guide and switch to it." },
-    { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), prompt: "Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the Omarchy skill's plugin guide and enable it." },
-    { glyph: "󰣆", label: Commons.I18n.t("agents.app"), prompt: "Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-app skill and install it so it shows up in the app launcher." }
+    { glyph: "󰏘", label: Commons.I18n.t("agents.theme"), kind: "theme" },
+    { glyph: "󰐱", label: Commons.I18n.t("agents.plugin"), kind: "plugin" },
+    { glyph: "󰣆", label: Commons.I18n.t("agents.app"), kind: "app" }
   ]
 
   // The local model a starter opens on, picked as omarchy-agent --prefer-local
@@ -596,10 +751,10 @@ Panel {
     return models[up.indexOf(local.last) >= 0 ? local.last : up[0]]
   }
 
-  function startPrompt(prompt, modifiers) {
+  function startPrompt(kind, modifiers) {
     root.close()
     var useDefault = !!(modifiers & Qt.ShiftModifier)
-    Util.execArgv(["omarchy-agent"].concat(useDefault ? [] : ["--prefer-local"], ["--prompt", prompt]))
+    Util.execArgv(["omarchy-agent-make"].concat(useDefault ? ["--default"] : [], [kind]))
   }
 
   function renameAccount(p, account, label) {
@@ -638,11 +793,12 @@ Panel {
     if (!target) refreshNow()
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
-    else if (target.kind === "localAdd") setUpLocal(localAddRecipes[target.index])
-    else if (target.kind === "modelToggle" || target.kind === "modelLaunch") runLocalAction(providers[target.index].localModel, target.kind === "modelToggle" ? "toggle" : "launch")
+    else if (target.kind === "localAdd") chooseAddRow(target.index)
+    else if (["modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare"].indexOf(target.kind) >= 0)
+      runLocalAction(providers[target.index].localModel, { modelToggle: "toggle", modelLaunch: "launch", modelPair: "pair", modelDisconnect: "disconnect", modelShare: "share" }[target.kind])
     else if (target.kind === "localDownload") downloadLocal(providers[target.index].localOffer)
     else if (target.kind === "providerLaunch") launchHarness(providers[target.index])
-    else if (target.kind === "starter") startPrompt(starterPrompts[target.index].prompt, modifiers)
+    else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind, modifiers)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
     else if (target.kind === "modelLogs") showLocalLogs(providers[target.index].localModel)
     else if (target.kind === "range7" || target.kind === "range30") historyRange = target.kind === "range7" ? 7 : 30
@@ -1189,7 +1345,7 @@ Panel {
     keyColumn = 0
     Qt.callLater(function() {
       if (picking) pointAt("choice", 0)
-      else if (addStage === "local") pointAt("localAdd", 0)
+      else if (addStage === "local" || addStage === "network") pointAt("localAdd", 0)
     })
   }
   implicitWidth: button.implicitWidth
@@ -1197,6 +1353,9 @@ Panel {
 
   onOpenedChanged: if (!opened) {
     resetProviderDrag()
+    // A model paired here that starts after the panel closes doesn't move
+    // the cursor the next time it opens.
+    landAfterPair = ""
   } else {
     deleteTarget = null
     if (addStage !== "running") addStage = ""
@@ -1208,6 +1367,7 @@ Panel {
     // "Doesn't fit" was true when a model last started or stopped; memory an
     // app has since let go of only shows after a fresh look, once per open.
     if (localBlocked) Util.execArgv(["omarchy-agent-local", "status", "--write"])
+    usage.refreshNetwork()
     // The first page offers the recommended model from the same listing, so a
     // machine with no local model reads it fresh once per shell run too; an
     // update restarts the shell.
@@ -1320,6 +1480,10 @@ Panel {
     owner: root
     bar: root.bar
     open: root.opened
+    // Pairing may bring up the SSH agent's prompt to approve a key, such as
+    // 1Password's, which has to take focus and clicks while the panel shows
+    // how the pairing goes.
+    yielding: usage.pairingId !== ""
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
@@ -1347,7 +1511,9 @@ Panel {
           event.accepted = true
         }
         message: !root.deleteTarget ? ""
+          : root.deleteTarget.localModel && root.deleteTarget.localModel.host ? Commons.I18n.t("agents.networkHideConfirm").arg(root.deleteTarget.localModel.name || root.deleteTarget.localModel.recipe).arg(root.deleteTarget.localModel.host)
           : root.deleteTarget.localModel ? Commons.I18n.t("agents.localRemoveConfirm").arg(root.deleteTarget.localModel.name || root.deleteTarget.localModel.recipe)
+          : root.deleteTarget.localOffer && root.deleteTarget.localOffer.link ? Commons.I18n.t("agents.linkHideConfirm").arg(root.deleteTarget.providerName)
           : root.deleteTarget.localOffer ? Commons.I18n.t("agents.localHideOfferConfirm").arg(root.deleteTarget.providerName)
           : Commons.I18n.t("agents.hideProviderConfirm").arg(root.deleteTarget.providerName)
         foreground: root.foreground
@@ -1363,7 +1529,7 @@ Panel {
 
       onMoveRequested: function(dx, dy) {
         // Naming and signing in have their own fields; there the arrows scroll.
-        if (root.addStage === "" || root.addStage === "local" || root.picking) root.moveKey(dx, dy)
+        if (root.addStage === "" || root.addStage === "local" || root.addStage === "network" || root.picking) root.moveKey(dx, dy)
         else if (dy !== 0)
           panelFlick.contentY = root.clamp(panelFlick.contentY + dy * Style.space(56), 0,
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
@@ -1500,7 +1666,7 @@ Panel {
                   width: (tileRow.width - tileRow.spacing * 2) / 3
                   glyph: modelData.glyph
                   title: modelData.label
-                  onClicked: function(modifiers) { root.startPrompt(modelData.prompt, modifiers) }
+                  onClicked: function(modifiers) { root.startPrompt(modelData.kind, modifiers) }
                 }
               }
             }
@@ -1557,7 +1723,7 @@ Panel {
           required property int index
           readonly property string state: root.addChecks[modelData.providerId] || ""
           readonly property bool local: modelData.providerId === "local"
-          readonly property bool available: local ? root.localAddRecipes.length > 0 : state === "first" || state === "additional"
+          readonly property bool available: local ? root.localAddRecipes.length > 0 : modelData.providerId === "network" ? root.networkAddModels.length > 0 : state === "first" || state === "additional"
           // Local AI stays offered once everything that fits is installed,
           // greyed out and saying so.
           opacity: local && !available ? 0.4 : 1
@@ -1607,14 +1773,15 @@ Panel {
       }
     }
 
-    // Local AI: the curated recipes that fit this machine, one per row.
+    // Local AI: the curated recipes that fit this machine, one per row. The
+    // same rows list the tailnet's hidden models under Network models.
     Column {
-      visible: root.addStage === "local"
+      visible: root.addStage === "local" || root.addStage === "network"
       width: parent.width
       spacing: Style.space(14)
 
       Repeater {
-        model: root.addStage === "local" ? root.localAddRecipes : []
+        model: root.addStage === "local" || root.addStage === "network" ? root.addRows : []
 
         Item {
           id: recipeRow
@@ -1660,7 +1827,7 @@ Panel {
                 id: recipeName
                 anchors.left: parent.left
                 textFormat: Text.PlainText
-                text: String(recipeRow.modelData.name || recipeRow.modelData.id)
+                text: String(recipeRow.modelData.name || recipeRow.modelData.recipe || recipeRow.modelData.id)
                 color: recipeRow.hasCursor ? Commons.Color.accent : root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
@@ -1685,7 +1852,7 @@ Panel {
             Text {
               width: parent.width
               textFormat: Text.PlainText
-              text: root.recipeFacts(recipeRow.modelData)
+              text: root.addStage === "network" ? root.networkFacts(recipeRow.modelData) : root.recipeFacts(recipeRow.modelData)
               color: root.dim
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
@@ -1698,7 +1865,7 @@ Panel {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onEntered: root.pointAt("localAdd", recipeRow.index)
-            onClicked: root.setUpLocal(recipeRow.modelData)
+            onClicked: root.chooseAddRow(recipeRow.index)
           }
         }
       }
@@ -1828,6 +1995,10 @@ Panel {
     property var provider: null
     property int providerIndex: -1
     readonly property var model: provider ? (provider.localModel || null) : null
+    // On another machine of the tailnet: whose, whether paired, whether away.
+    readonly property bool remote: !!model && !!model.host
+    readonly property bool offline: remote && String(model.offline || "") !== ""
+    readonly property bool paired: remote && model.paired === true
     // The recommended model offered for download, before it has a line of its own.
     readonly property var offer: provider ? (provider.localOffer || null) : null
     // A first setup: downloading, or failed with its reason.
@@ -1860,6 +2031,7 @@ Panel {
     readonly property real phaseSeconds: removing ? removeSeconds : stopping ? stopSeconds : loadSeconds
     readonly property real elapsed: model ? Math.max(0, (root.loadNowMs - Number(model.since_ms || root.loadNowMs)) / 1000) : 0
     readonly property real memory: model && model.observed ? Number(model.observed.ram_used_gib || 0) : 0
+    readonly property real ramTotal: Number(usage.localModel.ram_total_gib) || 0
     readonly property var accounts: root.providerAccounts(provider)
     readonly property bool multi: accounts.length > 1
     readonly property var windows: root.displayWindows(provider)
@@ -1932,10 +2104,10 @@ Panel {
         anchors.leftMargin: Style.space(10)
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(40))) : implicitWidth
+        width: section.model || section.offer ? Math.max(0, Math.min(implicitWidth, sectionHead.width - sectionMark.width - sectionPlan.implicitWidth - (localShare.visible ? localShare.width : 0) - (remotePair.visible ? remotePair.width : 0) - (remoteDisconnect.visible ? remoteDisconnect.width : 0) - (localToggle.visible ? localToggle.width : 0) - (sectionLaunch.visible ? sectionLaunch.width : 0) - Style.space(44))) : implicitWidth
         elide: Text.ElideRight
         text: section.model ? (section.model.name || section.model.recipe)
-          : section.offer ? (section.offer.name || section.offer.id)
+          : section.offer ? (section.offer.link ? root.linkTitle(section.offer.link) : (section.offer.name || section.offer.id))
           : section.provider ? section.provider.providerName : ""
         HoverHandler { id: localNameHover }
         PanelToolTip {
@@ -1957,7 +2129,8 @@ Panel {
         anchors.baseline: sectionName.baseline
         visible: !section.multi && text !== ""
         textFormat: Text.PlainText
-        text: section.model || section.offer ? "" : root.planLabel(section.provider)
+        // A network model names its host where a plan would be.
+        text: section.remote ? section.model.host : section.model || section.offer ? "" : root.planLabel(section.provider)
         color: root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
@@ -1971,12 +2144,77 @@ Panel {
         record: section.provider
       }
 
+      // Shares this machine's running model with the tailnet, or stops
+      // sharing it: the Tailscale mark, dim while private and in the icons'
+      // color while shared, when its tooltip counts the machines using it.
+      // Shown only while the model runs, where Tailscale can serve it or it's
+      // shared already; a stopped shared model is shared again on start.
+      PanelActionButton {
+        id: localShare
+        anchors.right: localToggle.visible ? localToggle.left : sectionLaunch.visible ? sectionLaunch.left : parent.right
+        anchors.rightMargin: localToggle.visible || sectionLaunch.visible ? Style.space(4) : 0
+        anchors.verticalCenter: parent.verticalCenter
+        readonly property bool shared: !!section.model && section.model.shared === true
+        visible: !!section.model && !section.remote && !section.removing && !section.installing && section.running && (shared || usage.canShare)
+        readonly property int users: shared ? (usage.shareClients[section.model.recipe] || 0) : 0
+        tooltipText: users > 0 ? Commons.I18n.tn("agents.networkSharedUsers", users).arg(Commons.I18n.formatNumber(users))
+          : shared ? Commons.I18n.t("agents.networkStopSharing") : Commons.I18n.t("agents.networkShare")
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("modelShare", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(localShare)
+        onClicked: root.runLocalAction(section.model, "share")
+
+        Tailscale.TailscaleIcon {
+          anchors.centerIn: parent
+          // The mark fills its box where a font glyph leaves padding around
+          // its ink, so it's drawn smaller to sit no larger than the pause.
+          iconSize: Math.round(Style.font.icon * 0.7)
+          color: localShare.shared || localShare._hot ? root.foreground : root.dim
+        }
+      }
+
+      // A network model this machine isn't paired with yet: the play a local
+      // model starts with, which pairs over SSH. Greyed out while a pairing
+      // runs, as only one runs at a time.
+      PanelActionButton {
+        id: remotePair
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        visible: section.remote && !section.offline && !section.paired
+        iconText: "󰐊"
+        tooltipText: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
+        foreground: usage.pairingId !== "" ? root.dim : root.foreground
+        opacity: usage.pairingId !== "" ? 0.5 : 1
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("modelPair", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(remotePair)
+        onClicked: root.runLocalAction(section.model, "pair")
+      }
+
+      // Once paired and running there: the pause a local model stops with,
+      // which stops using just this model here.
+      PanelActionButton {
+        id: remoteDisconnect
+        anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
+        anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
+        anchors.verticalCenter: parent.verticalCenter
+        visible: section.remote && !section.offline && section.paired && section.model.unit === "active"
+        iconText: "󰏤"
+        tooltipText: section.remote ? Commons.I18n.t("agents.networkDisconnect").arg(section.model.host) : ""
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        hasCursor: root.hasKey("modelDisconnect", section.providerIndex)
+        onHasCursorChanged: if (hasCursor) root.revealItem(remoteDisconnect)
+        onClicked: root.runLocalAction(section.model, "disconnect")
+      }
+
       PanelActionButton {
         id: localToggle
         anchors.right: sectionLaunch.visible ? sectionLaunch.left : parent.right
         anchors.rightMargin: sectionLaunch.visible ? Style.space(4) : 0
         anchors.verticalCenter: parent.verticalCenter
-        visible: !!section.model && !section.stopping && !section.removing && !section.installing
+        visible: !!section.model && !section.remote && !section.stopping && !section.removing && !section.installing
         // Greyed out, not disabled, so the reason still shows on hover.
         readonly property bool blocked: root.localStartBlocked(section.model)
         iconText: section.running || section.loading ? "󰏤" : "󰐊"
@@ -2005,9 +2243,9 @@ Panel {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         readonly property bool download: !!section.offer
-        visible: download || (section.model ? section.running : root.harnessFor(section.provider) !== "")
-        iconText: download ? "󰇚" : "󰞷"
-        tooltipText: download ? Commons.I18n.t("agents.localDownload")
+        visible: download || (section.model ? section.running && (!section.remote || (section.paired && !section.offline)) : root.harnessFor(section.provider) !== "")
+        iconText: download ? (section.offer.link ? "󰌘" : "󰇚") : "󰞷"
+        tooltipText: download ? (section.offer.link ? Commons.I18n.t("agents.linkSetUp") : Commons.I18n.t("agents.localDownload"))
           : section.model ? Commons.I18n.t("agents.localLaunch") : Commons.I18n.t("agents.launchHarness").arg(section.provider ? section.provider.providerName : "")
         foreground: root.foreground
         fontFamily: root.fontFamily
@@ -2031,9 +2269,10 @@ Panel {
 
     // Under a local model: its download while it's set up, memory while it
     // runs, progress while it loads or stops (against how long that took last
-    // time), or why it couldn't start.
+    // time), or why it couldn't start. A network model shows its stats while
+    // it runs instead: its memory is its host's business.
     Item {
-      visible: section.downloadShown || section.running || section.loadingShown || section.stoppingShown || section.removing
+      visible: section.downloadShown || (section.running && !section.remote) || section.loadingShown || section.stoppingShown || section.removing
       width: parent.width
       implicitHeight: Math.max(localMeterTitle.implicitHeight, localMeterValue.implicitHeight)
 
@@ -2059,7 +2298,7 @@ Panel {
         anchors.verticalCenter: parent.verticalCenter
         value: section.downloadShown ? (section.totalBytes > 0 ? section.doneBytes / section.totalBytes : 0)
           : section.finishing !== "" ? 1 : section.loading || section.stopping || section.removing ? root.phaseProgress(section.elapsed, section.phaseSeconds)
-          : Number(usage.localModel.ram_total_gib) > 0 ? section.memory / Number(usage.localModel.ram_total_gib) : 0
+          : section.ramTotal > 0 ? section.memory / section.ramTotal : 0
       }
       // How much of a download has arrived, over its bar. The bar is a few
       // pixels tall, so the whole height of its row answers the pointer.
@@ -2091,20 +2330,80 @@ Panel {
     }
 
     Text {
-      visible: !!section.model && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
+      visible: section.remote && section.running && !section.loadingShown && !section.stoppingShown && text !== ""
       width: parent.width
       textFormat: Text.PlainText
-      text: section.model ? String(section.model.error || "") : ""
+      text: section.remote ? root.remoteStats(section.model) : ""
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      elide: Text.ElideRight
+    }
+
+    // A network model whose host is away keeps its line, saying so.
+    Text {
+      visible: section.offline
+      width: parent.width
+      textFormat: Text.PlainText
+      text: !section.offline ? ""
+        : (section.model.offline === "offline" ? Commons.I18n.t("agents.networkHostOffline") : Commons.I18n.t("agents.networkHostUnreachable")).arg(section.model.host)
+          + (root.lastSeenText(section.model) !== "" ? " · " + Commons.I18n.t("agents.networkLastSeen").arg(root.lastSeenText(section.model)) : "")
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
+    }
+
+    // A network model being paired, until it is or fails to be.
+    Text {
+      visible: section.remote && usage.pairingId === root.modelId(section.model)
+      width: parent.width
+      textFormat: Text.PlainText
+      text: section.remote ? Commons.I18n.t("agents.networkPairing").arg(section.model.host) : ""
+      color: root.dim
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
+    }
+
+    // Why pairing with a network model failed, which links to all that
+    // pairing printed.
+    TextLink {
+      readonly property var failure: section.remote ? root.pairFailure(section.model) : null
+      visible: failure !== null
+      width: Math.min(implicitWidth, parent.width)
+      text: !failure ? "" : failure.message !== "" ? failure.message : Commons.I18n.t("agents.networkPairFailed").arg(section.model.host)
+      idleColor: root.urgent
+      hotColor: root.urgent
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
+      picked: root.hasKey("modelLogs", section.providerIndex)
+      tooltip: Commons.I18n.t("agents.networkPairOutputTip")
+      onClicked: root.showLocalLogs(section.model)
+    }
+
+    // Sharing that Tailscale refused, with the way to fix it.
+    Text {
+      visible: !!section.model && !section.remote && section.model.shared === true && String(usage.localModel.share_error || "") !== ""
+      width: parent.width
+      textFormat: Text.PlainText
+      text: String(usage.localModel.share_error || "")
       color: root.urgent
       font.family: root.fontFamily
       font.pixelSize: Style.font.bodySmall
       wrapMode: Text.Wrap
     }
 
+    // Why a model on this machine stopped, which links to its logs.
     TextLink {
-      visible: !!section.model && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
+      visible: !!section.model && !section.remote && !section.running && !section.loadingShown && !section.stoppingShown && !section.removing && String(section.model.error || "") !== ""
+      width: Math.min(implicitWidth, parent.width)
+      text: section.model ? String(section.model.error || "") : ""
+      idleColor: root.urgent
+      hotColor: root.urgent
+      font.pixelSize: Style.font.bodySmall
+      wrapMode: Text.Wrap
       picked: root.hasKey("modelLogs", section.providerIndex)
-      text: Commons.I18n.t("agents.localShowLogs")
       tooltip: Commons.I18n.t("agents.localShowLogsTip")
       onClicked: root.showLocalLogs(section.model)
     }
@@ -2483,10 +2782,11 @@ Panel {
     property bool picked: false
     property string tooltip: ""
     property color idleColor: root.dim
+    property color hotColor: root.foreground
     readonly property bool hot: linkMouse.containsMouse || picked
     onPickedChanged: if (picked) root.revealItem(link)
     textFormat: Text.PlainText
-    color: current ? Commons.Color.accent : (hot ? root.foreground : idleColor)
+    color: current ? Commons.Color.accent : (hot ? hotColor : idleColor)
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
     font.bold: current
