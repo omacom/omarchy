@@ -97,6 +97,24 @@ for machine in n1x other; do
 done
 pass "a GB10 keeps its cores out of deep idle states and other machines keep theirs"
 
+# The initcall blacklist NVIDIA requires on GB10 lands in the boot entries of a
+# GB10 only, and rewriting it changes nothing.
+for machine in spark n1x other; do
+  run "$machine" "$scratch/$machine-initcall" env OMARCHY_LIMINE_CONFIG_DIR="$scratch/$machine-limine" \
+    bash "$ROOT/install/hardware/gb10/initcall-blacklist.sh"
+done
+blacklist="$scratch/spark-limine/omarchy-gb10-initcall.conf"
+grep -Fxq 'KERNEL_CMDLINE[default]+=" initcall_blacklist=tegra234_cbb_init,power_wrap_init"' "$blacklist" ||
+  fail "a GB10 blacklists both initcalls NVIDIA requires"
+before=$(sha256sum "$blacklist")
+run spark "$scratch/spark-initcall" env OMARCHY_LIMINE_CONFIG_DIR="$scratch/spark-limine" \
+  bash "$ROOT/install/hardware/gb10/initcall-blacklist.sh"
+[[ $(sha256sum "$blacklist") == "$before" ]] || fail "rerunning leaves the initcall blacklist unchanged"
+for machine in n1x other; do
+  [[ ! -e $scratch/$machine-limine ]] || fail "the $machine machine gets no initcall blacklist"
+done
+pass "a GB10 blacklists the initcalls NVIDIA requires and other machines are untouched"
+
 run spark "$scratch/spark" omarchy-sleep-disabled || fail "sleep reads as disabled with the setting in place"
 run spark "$scratch/none" omarchy-sleep-disabled && fail "sleep reads as enabled without the setting"
 pass "omarchy-sleep-disabled follows the sleep setting"
