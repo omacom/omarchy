@@ -4,23 +4,17 @@
 # omarchy:group=capture
 # omarchy:examples=omarchy capture qr
 
-# Keep hyprpicker alive until after grim captures so the screenshot sees the
-# frozen overlay rather than live content shifting during teardown.
-cleanup_freeze() {
-  [[ -n $PID ]] && kill $PID 2>/dev/null
-}
-trap cleanup_freeze EXIT
+CAPTURE_DIR=$(mktemp -d)
+trap 'rm -rf "$CAPTURE_DIR"' EXIT
 
-hyprpicker -r -z >/dev/null 2>&1 &
-PID=$!
-sleep .1
-SELECTION=$(slurp 2>/dev/null)
+OMASNAP_SCREENSHOT_DIR="$CAPTURE_DIR" omasnap --notify region --save
 
-[[ -z $SELECTION ]] && exit 0
+IMAGE=$(find "$CAPTURE_DIR" -type f -print -quit)
+[[ -n $IMAGE ]] || exit 0
 
 # Decode QR codes only. Leaving the other symbologies enabled lets dense screen
 # content false-positive as an EAN or Code 39 barcode and take over the clipboard.
-RESULT=$(grim -g "$SELECTION" - | zbarimg -q --raw -Sdisable -Sqrcode.enable - 2>/dev/null)
+RESULT=$(zbarimg -q --raw -Sdisable -Sqrcode.enable "$IMAGE" 2>/dev/null)
 
 if [[ -z $RESULT ]]; then
   omarchy-notification-send -g 󰐲 -u critical "$(omarchy-i18n capture.qrNone)" "$(omarchy-i18n capture.qrHelp)"

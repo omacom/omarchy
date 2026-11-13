@@ -304,9 +304,7 @@ pick() {
 
 FREEZE_PID=""
 freeze_screen() {
-  hyprpicker -r -z >/dev/null 2>&1 &
-  FREEZE_PID=$!
-  sleep .1
+  :
 }
 
 cleanup_freeze() {
