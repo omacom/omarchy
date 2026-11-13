@@ -895,6 +895,13 @@ mapfile -d '' -t launch_args <"$launch_log"
   fail "agent launcher starts the selected agent without an initial prompt"
 pass "agent launcher starts the selected agent without an initial prompt"
 
+: >"$launch_log"
+omarchy-agent-prompt ""
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
+  fail "agent launcher opens the agent with no prompt for an empty prompt"
+pass "agent launcher opens the agent with no prompt for an empty prompt"
+
 omarchy-agent-prompt --inline "Review this project"
 mapfile -d '' -t inline_args <"$inline_log"
 [[ ${inline_args[*]} == "opencode --auto --prompt Review this project" ]] ||
