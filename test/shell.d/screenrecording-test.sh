@@ -530,11 +530,16 @@ none_runtime="$tmp_dir/none-runtime"
 none_recordings="$tmp_dir/none-recordings"
 mkdir -p "$none_runtime" "$none_recordings"
 echo 424242 >"$none_runtime/omarchy-screenrecord-pid"
+rm -f "$OMARCHY_TEST_NOTIFICATION_ARGS"
+status=0
 XDG_RUNTIME_DIR="$none_runtime" OMARCHY_SCREENRECORD_DIR="$none_recordings" \
-  "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1 || true
+  "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1 || status=$?
 [[ ! -e $none_runtime/omarchy-screenrecord-pid && ! -e $none_runtime/omarchy-screenrecord-filename ]] ||
   fail "a recorder that cannot start records no state, and clears a stale pid" "$(ls -a "$none_runtime")"
-pass "a recorder that cannot start records no state, and clears a stale pid"
+(( status == 1 )) || fail "a recording that cannot start exits 1" "$status"
+grep -Fxq "Screen recording failed to start" "$OMARCHY_TEST_NOTIFICATION_ARGS" 2>/dev/null ||
+  fail "a recording that cannot start says so" "$(cat "$OMARCHY_TEST_NOTIFICATION_ARGS" 2>/dev/null)"
+pass "a recorder that cannot start records no state, clears a stale pid, and reports the failure"
 
 # Another recorder runs in both cases below: the helper answers for any
 # selection but a pid, and a stop by name ends it.
