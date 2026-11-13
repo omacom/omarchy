@@ -119,8 +119,8 @@ grep -q 'hyprland.lua' "$test_tmp/stderr" || fail "omarchy-theme-set names the f
 
 pass "an installed theme keeps its colour and loses everything that runs code"
 
-# icons.theme is staged verbatim and handed to gsettings, so a symlinked one
-# would stage a copy of whatever it points at.
+# A theme's files are staged verbatim, so a symlinked one would stage a copy
+# of whatever it points at.
 linked="$themes/linked"
 mkdir -p "$linked/.git"
 write_colors "$linked/colors.toml"
@@ -207,7 +207,7 @@ pass "a theme name cannot climb out of the theme directories"
 # generates. Every generated theme file is either denied to an installed theme or
 # recorded here as carrying colour, so a new template fails until it is placed.
 denied=(alacritty.toml foot.ini ghostty.conf kitty.conf gum_env.lua hyprland.lua neovim.lua vscode.json)
-colour_only=(btop.theme chromium.theme claude.json fcitx5-theme.conf helix.toml herdr-app.json hermes.yaml hyprland-preview-share-picker.css keyboard.rgb obsidian.css opencode.json pi.json shell.toml slack.json t3code.json vscode-theme.json)
+colour_only=(btop.theme chromium.theme claude.json fcitx5-theme.conf helix.toml herdr-app.json hermes.yaml hyprland-preview-share-picker.css keyboard.rgb obsidian.css opencode.json pi.json qtengine.colors shell.toml slack.json t3code.json vscode-theme.json)
 
 for tpl in "$ROOT"/default/themed/*.tpl; do
   generated=$(basename "$tpl" .tpl)

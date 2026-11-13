@@ -169,6 +169,18 @@ cat >"$fake_root/bin/yt-dlp" <<'EOF'
 printf '%s\n' "$*" >>"$YTDLP_ARGV_LOG"
 for arg in "$@"; do
   if [[ $arg == "--no-simulate" ]]; then
+    if [[ -n ${YTDLP_PROGRESS:-} ]]; then
+      # What YouTube serves: an HLS video whose first report is a bogus 100%,
+      # then a separate audio stream. Paced past the host's redraw throttle.
+      printf 'OMARCHY_PARTS\t616+251\n'
+      for record in 'downloading 616 100.0%' 'downloading 616   0.2%' 'downloading 616  50.0%' \
+        'downloading 616  40.0%' 'finished 616 100.0%' 'downloading 251   0.0%' \
+        'downloading 251  50.0%' 'finished 251 100.0%'; do
+        read -r status format pct <<<"$record"
+        printf 'OMARCHY_PROG\t%s\t%s\t%s\n' "$status" "$format" "$pct"
+        sleep 0.3
+      done
+    fi
     printf 'OMARCHY_FILE\t%s\n' "$YTDLP_FAKE_FILE"
     [[ -n ${YTDLP_SKIP_TITLE:-} ]] || printf 'OMARCHY_TITLE\t%s\n' '"My Great Clip"'
     exit 0
@@ -182,7 +194,15 @@ cat >"$fake_root/bin/omarchy-notification-send" <<'EOF'
 printf '%s\n' "$*" >>"$NOTIFY_ARGV_LOG"
 EOF
 
-for stub in omarchy-osd omarchy-shell ffmpeg; do
+cat >"$fake_root/bin/omarchy-osd" <<'EOF'
+#!/bin/bash
+while (($#)); do
+  [[ $1 == -p ]] && printf '%s\n' "$2" >>"${OSD_LOG:-/dev/null}"
+  shift
+done
+EOF
+
+for stub in omarchy-shell ffmpeg; do
   printf '#!/bin/bash\nexit 0\n' >"$fake_root/bin/$stub"
 done
 chmod +x "$fake_root/bin/"*
@@ -237,3 +257,27 @@ YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fa
 grep -qF -- "Download complete Real_Clip [id]" "$notify_argv" ||
   fail "yt-dlp native host falls back to the filename when no title record arrives" "$(cat "$notify_argv")"
 pass "yt-dlp native host falls back to the filename when no title record arrives"
+
+# Video and audio download as separate streams, each 0-100%, and an HLS stream opens
+# with a bogus 100%. The OSD shows them as one bar that only moves forward.
+osd_log="$TMPDIR/osd-log"
+YTDLP_ARGV_LOG="$ytdlp_argv" NOTIFY_ARGV_LOG="$notify_argv" YTDLP_FAKE_FILE="$fake_file" \
+  YTDLP_PROGRESS=1 OSD_LOG="$osd_log" OMARCHY_PATH="$fake_root" OMARCHY_YTDLP_DIR="$fake_dir" \
+  bash -c '
+    source "$1"
+    download_url "$2"
+  ' bash "$ROOT/bin/omarchy-chromium-ytdlp-host" "https://example.test/watch" >/dev/null 2>&1
+
+shown=$(paste -sd' ' "$osd_log")
+[[ $shown == "0 45 90 95 100" ]] ||
+  fail "yt-dlp native host shows video and audio as one bar that only moves forward" "$shown"
+pass "yt-dlp native host shows video and audio as one bar that only moves forward"
+
+# The stub replays progress records whatever it is asked for, so assert the requests.
+grep -qF -- $'video:OMARCHY_PARTS\t%(format_id)s' "$ytdlp_argv" ||
+  fail "yt-dlp native host asks which streams make up the download" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host asks which streams make up the download"
+
+grep -qF -- $'download:OMARCHY_PROG\t%(progress.status)s\t%(info.format_id)s\t%(progress._percent_str)s' "$ytdlp_argv" ||
+  fail "yt-dlp native host tags each progress report with its status and stream" "$(cat "$ytdlp_argv")"
+pass "yt-dlp native host tags each progress report with its status and stream"

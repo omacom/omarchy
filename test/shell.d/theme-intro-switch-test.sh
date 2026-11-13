@@ -108,9 +108,11 @@ fi
 STUB
 chmod +x "$commands/omarchy-restart-hyprctl" "$commands/hyprctl" "$commands/omarchy-shell" "$commands/owe"
 
+# OMARCHY_THEME_WAIT=1 keeps the retints from running on behind the switch,
+# where they would still be writing into $test_tmp as it is removed.
 set_theme() {
   : >"$log"
-  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" \
+  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$commands:$ROOT/bin:$PATH" XDG_RUNTIME_DIR="$test_tmp" TEST_LOG="$log" OMARCHY_THEME_WAIT=1 \
     /bin/bash "$ROOT/bin/omarchy-theme-set" "$1" </dev/null >"$test_tmp/stdout" 2>"$test_tmp/stderr" || fail "theme selection completes" "$(cat "$test_tmp/stderr")"
 }
 

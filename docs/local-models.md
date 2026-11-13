@@ -9,7 +9,7 @@ Local models run open models on the machine for the coding agents. The work happ
 | `bin/omarchy-agent-local` | The routed command (`omarchy agent local <command>`). Runs `omarchy-local-ai`; `use` installs Podman and crun, plus nvidia-container-toolkit where `omarchy-hw-nvidia` finds a GPU, with `omarchy-pkg-add` first when they're missing |
 | `shell/plugins/agents/Main.qml` | Watches the engine's `status.json` (`localModel`) and `list.json` (`localRecipes`) |
 | `shell/plugins/agents/Panel.qml` | Model lines (play/pause, terminal, memory meter, loading, stopping and removing bars, errors, Delete to remove) and Add another › Local AI, offered only when `list.json` has a recipe that fits this machine, and greyed out once every fitting recipe is set up |
-| `bin/omarchy-agent` | `--local` and `--local-model <recipe>` ask `omarchy-agent-local overlay` for the agent's launch overlay |
+| `bin/omarchy-agent` | `--local` and `--local-model <recipe>` ask `omarchy-agent-local overlay` for the agent's launch overlay; `--prefer-local` does so only while a model is running (the Quake console seeds with it), and otherwise launches the usual agent |
 | `shell/plugins/agents/Panel.qml` (Add another) | Runs `omarchy-agent-local refresh --quiet` whenever the picker shows, so Local AI lists what an upgraded package brought |
 | `install/omarchy-base.packages`, `migrations/1793563475.sh` | Install `omarchy-local-ai` on every machine |
 | `manual/17-ai.md` | The user-facing guide |

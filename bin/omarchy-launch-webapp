@@ -6,19 +6,22 @@
 browser=$(omarchy-cmd-default-browser)
 
 case $browser in
-google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) ;;
-*) browser="chromium.desktop" ;;
+chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) browsers=("$browser") ;;
+# New installs have Chrome; older ones may only have the Chromium they shipped with.
+*) browsers=(google-chrome.desktop chromium.desktop) ;;
 esac
 
 # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, as
 # omarchy-launch-browser does, so a browser it resolved is one this can start.
 IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 browser_exec=""
-for data_dir in "${data_dirs[@]}"; do
-  entry="$data_dir/applications/$browser"
-  [[ -f $entry ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
-  break
+for browser in "${browsers[@]}"; do
+  for data_dir in "${data_dirs[@]}"; do
+    entry="$data_dir/applications/$browser"
+    [[ -f $entry ]] || continue
+    browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
+    break 2
+  done
 done
 
 # Handing an empty command to uwsm-app surfaces as "Command not found: \"\"",

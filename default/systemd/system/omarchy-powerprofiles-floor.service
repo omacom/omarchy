@@ -1,0 +1,18 @@
+[Unit]
+Description=Omarchy CPU frequency floor for the power profile
+After=power-profiles-daemon.service systemd-logind.service
+
+[Service]
+ExecStart=/usr/bin/omarchy-powerprofiles-floor monitor
+ExecStopPost=/usr/bin/omarchy-powerprofiles-floor release
+Restart=on-failure
+RestartSec=2
+# Setting another process's utilisation clamp needs CAP_SYS_NICE, and only that
+CapabilityBoundingSet=CAP_SYS_NICE
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target
