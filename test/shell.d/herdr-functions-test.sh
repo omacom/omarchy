@@ -11,7 +11,7 @@ assert_invalid_pane_count() {
   local expected="Usage: $function_name <pane_count> <command>"
   local output status=0
 
-  if [[ $function_name == tsl ]]; then
+  if [[ $function_name == "tsl" ]]; then
     output=$(TMUX= bash -c 'source "$1"; tsl "$2" echo' _ "$ROOT/default/bash/fns/tmux" "$count" 2>&1) || status=$?
   else
     output=$(HERDR_PANE_ID= bash -c 'source "$1"; hsl "$2" echo' _ "$ROOT/default/bash/fns/herdr" "$count" 2>&1) || status=$?
