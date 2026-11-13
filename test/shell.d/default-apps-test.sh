@@ -132,6 +132,15 @@ for setup_command in \
   ln -s omarchy-test-setup-call "$mock_bin/$setup_command"
 done
 
+cat >"$mock_bin/omarchy-install-chrome-extensions" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "--check" ]]; then
+  [[ ${OMARCHY_TEST_CHROME_EXTENSIONS_STALE:-false} != "true" ]]
+else
+  printf 'omarchy-install-chrome-extensions\n' >>"$OMARCHY_TEST_SETUP_LOG"
+fi
+SH
+
 # The real browser installer below calls the platform's post-install hook; on a
 # Mac with the platform package installed that would run, so answer it here.
 printf '#!/bin/bash\nexit 0\n' >"$mock_bin/omarchy-lifecycle-dispatch"
@@ -321,6 +330,26 @@ omarchy-default-terminal kitty
 omarchy-default-editor nvim
 [[ ! -s $install_log && ! -s $terminal_log ]] || fail "installed defaults skip installation"
 pass "installed defaults are selected immediately"
+
+# Chrome's extension policy is a root-owned copy that goes stale when the
+# extension ids change, so picking an installed Chrome repairs it in a terminal
+# where sudo can prompt, and leaves a current one alone.
+touch "$installed_dir/google-chrome-stable"
+: >"$terminal_log"
+: >"$setup_log"
+OMARCHY_TEST_CHROME_EXTENSIONS_STALE=true omarchy-default-browser chrome
+mapfile -d '' -t terminal_args <"$terminal_log"
+[[ ${terminal_args[*]} == "omarchy-default-browser --install chrome" ]] ||
+  fail "an installed Chrome with stale extensions opens its repair in a terminal"
+OMARCHY_TEST_CHROME_EXTENSIONS_STALE=true omarchy-default-browser --install chrome
+grep -Fxq 'omarchy-install-chrome-extensions' "$setup_log" ||
+  fail "an installed Chrome with stale extensions reinstalls them"
+[[ $(omarchy-default-browser) == "chrome" ]] || fail "Chrome becomes the default after its extensions are repaired"
+: >"$terminal_log"
+: >"$setup_log"
+omarchy-default-browser chrome
+[[ ! -s $terminal_log && ! -s $setup_log ]] || fail "an installed Chrome with current extensions is selected immediately"
+pass "picking Chrome repairs its bundled extensions when they are stale"
 
 # Picking an editor points every text type at the editor handler in the
 # user's mimeapps.list, replacing what was there and keeping everything else.

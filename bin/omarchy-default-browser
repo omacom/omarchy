@@ -45,6 +45,14 @@ if omarchy-cmd-missing "$command"; then
   else
     omarchy-install-browser "$browser" || exit 1
   fi
+elif [[ $browser == "chrome" ]] && ! omarchy-install-chrome-extensions --check; then
+  # Chrome installs the bundled extensions from a root-owned policy, which goes
+  # stale when their ids change, so repair it where a sudo prompt can be answered.
+  if [[ $installing == "false" ]]; then
+    exec omarchy-launch-floating-terminal-with-presentation omarchy-default-browser --install "$browser"
+  else
+    omarchy-install-chrome-extensions || exit 1
+  fi
 fi
 
 # xdg-settings checks what it set by reading the handler back, which the

@@ -1,0 +1,45 @@
+#!/bin/bash
+
+# omarchy:summary=Install Omarchy's bundled extensions in Google Chrome, or check they are current
+# omarchy:args=[--check]
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+# Chrome ignores --load-extension, so its managed policy force-installs the
+# bundled extensions from the signed CRXs, and their native hosts must admit
+# the CRXs' ids. Both are copies taken when Chrome was set up, so new extension
+# ids leave them pointing at extensions updates.xml no longer offers.
+
+set -euo pipefail
+
+source "$OMARCHY_PATH/install/helpers/browser-policy.sh"
+
+policy_dir=/etc/opt/chrome/policies/managed
+host_dir=$HOME/.config/google-chrome/NativeMessagingHosts
+
+policy_current() {
+  browser_policy_dir_hardened "$policy_dir" &&
+    browser_policy_parents_hardened "$policy_dir" &&
+    cmp -s "$OMARCHY_PATH/default/chromium/policies/chrome-extensions.json" "$policy_dir/omarchy-extensions.json"
+}
+
+hosts_current() {
+  local template
+
+  for template in "$OMARCHY_PATH"/default/chromium/native-messaging-hosts/*.json; do
+    jq -e --slurpfile want "$template" '.allowed_origins | contains($want[0].allowed_origins)' \
+      "$host_dir/${template##*/}" >/dev/null 2>&1 || return 1
+  done
+}
+
+if [[ ${1:-} == "--check" ]]; then
+  policy_current && hosts_current
+else
+  omarchy-install-chromium-copy-url
+  omarchy-install-chromium-ytdlp
+
+  if ! policy_current; then
+    browser_policy_setup_dir "$policy_dir"
+    omarchy-theme-set-browser
+  fi
+fi
