@@ -21,7 +21,7 @@ The design goal is:
 
 | Path | Owner | Purpose |
 | --- | --- | --- |
-| `${XDG_RUNTIME_DIR:-/tmp}/omarchy-update.lock` | user | Prevent overlapping update runs. Owned by `omarchy-update-lock`; compatibility wrappers inherit/respect it. |
+| `${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-~/.local/state}/omarchy}/omarchy-update.lock` | user | Prevent overlapping update runs. Owned by `omarchy-update-lock`; compatibility wrappers inherit/respect it. Without a runtime dir the lock is in a mode-0700 state directory, not `/tmp`. |
 | `${XDG_RUNTIME_DIR}/omarchy-update-stay-awake/` | user | Private mode-0700 inhibitor coordination state. If no runtime directory is available, the helper uses the validated mode-0700 `/tmp/omarchy-$UID/` fallback. |
 | `/tmp/omarchy-update.log` | user | Transcript of `omarchy update`, used by `omarchy-update-analyze-logs`. |
 | `~/.local/state/omarchy/current/` | user | Generated active theme, selected theme name, and current background symlink. |
