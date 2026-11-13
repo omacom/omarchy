@@ -32,6 +32,8 @@ verify_kernel_headers() {
   if omarchy-hw-aarch64-apple; then
     # The Mac's image and omarchy-mac-boot own its kernel and boot chain, and
     # headers are optional there, so only check headers that are installed.
+    # Only bare-metal Macs report aarch64-apple, so this runs only with
+    # OMARCHY_ACCEPTANCE_ALLOW_HOST=1 set on a Mac.
     kernel=$(cat "/usr/lib/modules/$release/pkgbase") ||
       fail "the running kernel names its package" "/usr/lib/modules/$release/pkgbase is missing"
 
