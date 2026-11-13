@@ -8,6 +8,12 @@ MC_SKIN="$HOME/.local/share/mc/skins/omarchy.ini"
 MC_INI="$HOME/.config/mc/ini"
 
 omarchy-cmd-present mc || exit 0
+
+# Serialize runs so overlapping theme changes never interleave their writes,
+# and read whichever theme is current once the lock is held.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-mc.lock"
+flock 9
+
 [[ -f $MC_SKIN_SOURCE ]] || exit 0
 
 # Copy rather than link the skin, so the last good skin survives switching to
@@ -20,6 +26,8 @@ cat "$MC_SKIN_SOURCE" >"$MC_SKIN"
 # touching any other user setting.
 mkdir -p "$(dirname "$MC_INI")"
 [[ -f $MC_INI ]] || : >"$MC_INI"
+mc_ini_tmp=$(mktemp "$MC_INI.XXXXXX")
+trap 'rm -f "$mc_ini_tmp"' EXIT
 awk '
   function add_skin() { if (!done) { print "skin=omarchy"; done = 1 } }
   /^[[:space:]]*\[/ {
@@ -35,4 +43,4 @@ awk '
     if (in_mc) add_skin()
     else if (!seen) { print "[Midnight-Commander]"; print "skin=omarchy" }
   }
-' "$MC_INI" >"$MC_INI.tmp" && mv "$MC_INI.tmp" "$MC_INI"
+' "$MC_INI" >"$mc_ini_tmp" && chmod --reference="$MC_INI" "$mc_ini_tmp" && mv "$mc_ini_tmp" "$MC_INI"
