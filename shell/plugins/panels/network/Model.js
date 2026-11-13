@@ -95,7 +95,7 @@ function mobileIconFor(strength, usable) {
 var mobileStatusScript =
   "export LC_ALL=C;" +
   " dev=$(nmcli -t -f DEVICE,TYPE dev 2>/dev/null | awk -F: '$2 == \"gsm\" || $2 == \"cdma\" { print $1; exit }');" +
-  " [ -n \"$dev\" ] || exit 0;" +
+  " [[ -n $dev ]] || exit 0;" +
   " printf 'device\\t%s\\n' \"$dev\";" +
   " show=$(nmcli -e no -t -f GENERAL.STATE,GENERAL.CONNECTION,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show \"$dev\" 2>/dev/null);" +
   " field() { printf '%s\\n' \"$show\" | sed -n \"s/^GENERAL\\.$1://p\"; };" +
@@ -105,14 +105,14 @@ var mobileStatusScript =
   " case $modem in /org/freedesktop/ModemManager1/Modem/*) mm=$(mmcli -m \"$modem\" -K 2>/dev/null) ;; esac;" +
   " ports=\" $dev $(field IP-IFACE) $(printf '%s\\n' \"$mm\" | awk -F' *: ' '$1 ~ /^modem\\.generic\\.ports\\.value/ { split($2, p, \" \"); printf \"%s \", p[1] }')\";" +
   " uuid=$(field CON-UUID);" +
-  " if [ -z \"$uuid\" ]; then" +
+  " if [[ -z $uuid ]]; then" +
   "   for u in $(nmcli -g UUID,TYPE con show 2>/dev/null | awk -F: '$2 == \"gsm\" || $2 == \"cdma\" { print $1 }'); do" +
   "     bound=$(nmcli -e no -g connection.interface-name con show uuid \"$u\" 2>/dev/null);" +
-  "     if [ -z \"$bound\" ]; then uuid=$u; break; fi;" +
+  "     if [[ -z $bound ]]; then uuid=$u; break; fi;" +
   "     case $ports in *\" $bound \"*) uuid=$u; break ;; esac;" +
   "   done;" +
   " fi;" +
-  " if [ -n \"$uuid\" ]; then printf 'profile_uuid\\t%s\\n' \"$uuid\";" +
+  " if [[ -n $uuid ]]; then printf 'profile_uuid\\t%s\\n' \"$uuid\";" +
   "   printf 'profile\\t%s\\n' \"$(nmcli -e no -g connection.id con show uuid \"$uuid\" 2>/dev/null)\"; fi;" +
   " printf '%s\\n' \"$mm\" | awk -F' *: ' '" +
   "   $1 == \"modem.3gpp.operator-name\" { print \"operator\\t\" $2 }" +
