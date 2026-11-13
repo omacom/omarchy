@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# omarchy:summary=Wrapper for xdg-settings to inspect and modify browser defaults in mimeapps.list
+# Omarchy routes HTTP and HTTPS links through omarchy-browser.desktop in
+# hyprland-mimeapps.list to bring browser windows into focus. Standard xdg-settings
+# queries and verifies handlers against the active desktop list, which would answer
+# with omarchy-browser.desktop instead of the real browser. Run browser checks and
+# changes with XDG_CURRENT_DESKTOP cleared so xdg-settings only sees mimeapps.list,
+# matching Omarchy's default-browser command.
+
+set -euo pipefail
+
+wrapper_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+real_bin=""
+IFS=: read -ra path_dirs <<<"${PATH:-}"
+for dir in "${path_dirs[@]}"; do
+  [[ -n $dir ]] || continue
+  resolved_dir=$(cd -- "$dir" 2>/dev/null && pwd -P || true)
+  if [[ -n $resolved_dir && $resolved_dir != "$wrapper_dir" && -x "$dir/xdg-settings" ]]; then
+    real_bin="$dir/xdg-settings"
+    break
+  fi
+done
+real_bin=${real_bin:-/usr/bin/xdg-settings}
+
+if [[ ! -x $real_bin ]]; then
+  echo "xdg-settings: command not found" >&2
+  exit 127
+fi
+
+case "${1:-} ${2:-}" in
+  "get default-web-browser"|\
+  "check default-web-browser"|\
+  "set default-web-browser")
+    exec env -u BROWSER XDG_CURRENT_DESKTOP= "$real_bin" "$@"
+    ;;
+esac
+
+case "${1:-} ${2:-} ${3:-}" in
+  "get default-url-scheme-handler http"|\
+  "get default-url-scheme-handler https"|\
+  "check default-url-scheme-handler http"|\
+  "check default-url-scheme-handler https"|\
+  "set default-url-scheme-handler http"|\
+  "set default-url-scheme-handler https")
+    exec env -u BROWSER XDG_CURRENT_DESKTOP= "$real_bin" "$@"
+    ;;
+esac
+
+exec "$real_bin" "$@"
