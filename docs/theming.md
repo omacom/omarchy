@@ -409,6 +409,10 @@ The icons don't use palette keys directly, because a key means different things 
 
 A theme picks any role itself by setting it in `colors.toml` (for example `icon_mark = "#bb9af7"`), or ships a whole icon as `themes/<name>/icons/<icon name>.svg`, which is used instead of the template. Any theme gets a best guess, a custom one that only sets its accent, background and foreground included: colors written as `rgb()`, `rgba()`, `0xAARRGGBB` or `#rrggbbaa` are read as `#rrggbb`; a neutral the palette leaves out, or sets to the same color as its neighbor, is mixed from the background and foreground; and a palette that names no hues of its own gets its accent turned 40 degrees for the highlight. Only a theme whose background, foreground or accent can't be read as a color gets the packaged icons.
 
+## SolidCraft
+
+`default/themed/solidcraft.json.tpl` renders a `solidcraft-theme/1` file to `~/.local/state/omarchy/current/theme/solidcraft.json`. SolidCraft already follows a theme file: in the desktop app, Interface > Theme > Follow a theme file, or `solidcraft --theme-file` with that path, reloads it about a second after it changes and again when the window comes back to the front. Omarchy does not launch SolidCraft or change its preferences. `base` is the theme's `mode` (`dark` or `light`). A colour the template leaves out keeps that base palette, which is where sketch geometry and the colours SolidCraft draws translucent stay. Every colour the template sets is a name SolidCraft's importer accepts; an unknown name makes it refuse the file.
+
 ## Adding or overriding theme files
 
 - Add palette values to `themes/<name>/colors.toml`.
