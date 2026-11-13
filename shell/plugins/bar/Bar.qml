@@ -1784,7 +1784,7 @@ Item {
     // fullscreen, or the layer remaps. The invisible strip would then take
     // the clicks meant for the top of the fullscreen window. Raised, the
     // strip takes input again.
-    readonly property string inputRegion: BarModel.inputRegion(dragActive, underFullscreen, raised, root.fullscreenEdgeReveal)
+    readonly property string inputRegion: BarModel.inputRegion(dragActive, underFullscreen, raised, root.fullscreenEdgeReveal, root.barHidden)
     // "edge" leaves the bar surface no input: the edge sensor takes it.
     mask: inputRegion === "all" ? null : (inputRegion === "strip" ? stripInputRegion : noInputRegion)
 
@@ -1812,6 +1812,7 @@ Item {
         edgeRested: edgeRested,
         pointerOnBar: pointerOnBar,
         popoutOpen: popoutOpen,
+        dragActive: dragActive,
         wasRaised: wasRaised
       }
     }
@@ -1836,6 +1837,7 @@ Item {
     onEdgeRestedChanged: syncRaised(true)
     onPointerOnBarChanged: syncRaised(true)
     onPopoutOpenChanged: syncRaised(true)
+    onDragActiveChanged: syncRaised(true)
     Connections {
       target: root
       function onBarHiddenChanged() { barWindow.syncRaised(false) }

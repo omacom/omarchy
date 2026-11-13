@@ -41,11 +41,13 @@ assertEqual(raise({ keyHeld: true }), true, 'the raise key lifts the bar over a 
 assertEqual(raise({ pointerOnBar: true }), false, 'a pointer on the hidden bar alone does not lift it')
 assertEqual(raise({ wasRaised: true, pointerOnBar: true }), true, 'letting go of the key over the bar keeps it up')
 assertEqual(raise({ wasRaised: true, popoutOpen: true }), true, 'a panel open from the raised bar keeps it up')
+assertEqual(raise({ wasRaised: true, dragActive: true }), true, 'a drag started on the raised bar keeps it up off the strip')
 assertEqual(raise({ wasRaised: true }), false, 'the bar drops once nothing holds it')
 assertEqual(raise({ keyHeld: true, barHidden: true }), false, 'a bar the user hid stays hidden')
 assertEqual(bar.raisedOverFullscreen({ keyHeld: true, underFullscreen: false }), false, 'without a fullscreen window there is nothing to rise over')
 assertEqual(bar.inputRegion(false, true, false, false), 'none', 'the lowered bar takes no clicks from the fullscreen window')
 assertEqual(bar.inputRegion(false, true, false, true), 'edge', 'the edge reveal keeps only the edge line')
+assertEqual(bar.inputRegion(false, true, false, true, true), 'none', 'a bar the user hid leaves the edge line no clicks')
 assertEqual(bar.inputRegion(false, true, true, true), 'strip', 'the raised bar takes clicks again')
 
 // A bar surface is built per monitor, so a panel hotkey has one live copy of

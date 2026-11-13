@@ -670,23 +670,25 @@ function fullscreenOn(toplevels, workspaceId) {
 
 // Whether a bar under a fullscreen window is raised over it. Holding the
 // raise key or resting the pointer on the screen edge raises it; once raised,
-// the pointer on the bar or a panel open from it keeps it up, so letting go
-// of the key over the bar does not drop it from under the pointer. A bar the
+// the pointer on the bar, a panel open from it, or a drag started on it keeps
+// it up, so letting go of the key over the bar does not drop it from under the
+// pointer, and a drag that strays off the strip keeps its drop targets. A bar the
 // user hid, or one with no fullscreen window to rise over, stays down.
 function raisedOverFullscreen(state) {
   if (!state || !state.underFullscreen || state.barHidden) return false
   if (state.keyHeld || state.edgeRested) return true
-  return !!state.wasRaised && (!!state.pointerOnBar || !!state.popoutOpen)
+  return !!state.wasRaised && (!!state.pointerOnBar || !!state.popoutOpen || !!state.dragActive)
 }
 
 // Which part of a bar surface takes pointer input: "all" during a drag,
 // "strip" normally and while raised over a fullscreen window, and under one
-// while lowered, "edge" with the edge reveal on or "none" without it. The
+// while lowered, "edge" with the edge reveal on or "none" without it. A bar
+// the user hid never rises, so its edge line takes no clicks either. The
 // surface's mask in Bar.qml says why.
-function inputRegion(dragActive, underFullscreen, raised, edgeReveal) {
+function inputRegion(dragActive, underFullscreen, raised, edgeReveal, barHidden) {
   if (dragActive) return "all"
   if (!underFullscreen || raised) return "strip"
-  return edgeReveal ? "edge" : "none"
+  return edgeReveal && !barHidden ? "edge" : "none"
 }
 
 if (typeof module !== "undefined") {
