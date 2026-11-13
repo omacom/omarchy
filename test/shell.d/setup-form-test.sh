@@ -23,7 +23,9 @@ case $1 in
 esac
 
 line=$(sed -n "${count}p" "$GUM_SCRIPT")
-printf '%s\n' "${line#*:}"
+reply=${line#*:}
+[[ $reply != :first: ]] || reply=$(head -n 1 "$GUM_DIR/stdin.$count")
+printf '%s\n' "$reply"
 exit "${line%%:*}"
 EOF
 
@@ -61,7 +63,9 @@ fi
 
 trap 'if [[ ${FUNCNAME[0]:-} == "$PROMPT_FN" ]]; then printf "returned\n" >>"$MARKER"; fi' RETURN
 
-"$PROMPT_FN"
+for ((visit = 0; visit < ${PROMPT_VISITS:-1}; visit++)); do
+  "$PROMPT_FN"
+done
 
 printf 'keyboard=%s\n' "${keyboard:-}"
 printf 'keyboard_label=%s\n' "${keyboard_label:-}"
@@ -129,7 +133,7 @@ source "$ROOT/install/provisioning/setup-form.sh"
 ((OMARCHY_FORM_BACK == 1)) || fail "Esc reports status 1"
 ((OMARCHY_FORM_SIGNAL == 130)) || fail "Ctrl+C reports status 130"
 [[ $(printf '%s\n' "$OMARCHY_KEYBOARD_LAYOUTS" | head -n 1) == "English (US)|us" ]] ||
-  fail "English (US) leads the keyboard layouts so gum choose opens on the default"
+  fail "English (US) leads the keyboard layouts"
 pass "the form publishes the 0/1/130 status contract and leads with English (US)"
 
 # Keyboard
@@ -139,7 +143,10 @@ assert_status 0 "keyboard prompt succeeds"
 [[ $(field keyboard) == "de-latin1" ]] || fail "keyboard prompt resolves the label to a keymap"
 [[ $(field keyboard_label) == "German" ]] || fail "keyboard prompt keeps the label for the summary"
 [[ $(head -n 1 "$tmp_dir/stdin.1") == "English (US)" ]] || fail "keyboard prompt offers English (US) first"
-grep -qF -- '--selected English (US)' "$GUM_ARGS" || fail "keyboard prompt preselects English (US)"
+[[ $(head -n 1 "$GUM_ARGS") == filter* ]] || fail "keyboard prompt can be searched"
+if grep -qE -- '--(selected|value)([ =]|$)' "$GUM_ARGS"; then
+  fail "keyboard prompt leaves the search empty and the pick to the user" "$(cat "$GUM_ARGS")"
+fi
 pass "keyboard prompt maps the chosen label to its keymap"
 
 for selection in 'French|fr-latin1' 'French (Switzerland)|fr_CH-latin1'; do
@@ -150,21 +157,36 @@ for selection in 'French|fr-latin1' 'French (Switzerland)|fr_CH-latin1'; do
 done
 pass "French takes the latin1 console maps that type its accented letters"
 
-OMARCHY_FORM_KEYBOARD_DEFAULT="Chinese (Simplified, Pinyin)" run_prompt omarchy_prompt_keyboard "0:Chinese (Simplified, Pinyin)"
+OMARCHY_FORM_KEYBOARD_DEFAULT="Chinese (Simplified, Pinyin)" run_prompt omarchy_prompt_keyboard "0::first:"
 assert_status 0 "a preset keyboard prompt succeeds"
-grep -qF -- '--selected Chinese (Simplified\, Pinyin)' "$GUM_ARGS" || fail "install media can preset the keyboard choice" "$(cat "$GUM_ARGS")"
-[[ $(head -n 1 "$tmp_dir/stdin.1") == "English (US)" ]] || fail "a preset keeps the list in its usual order"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Chinese (Simplified, Pinyin)" ]] || fail "install media can put its keyboard first"
+[[ $(grep -cxF 'Chinese (Simplified, Pinyin)' "$tmp_dir/stdin.1") == 1 ]] || fail "the preset keyboard is offered once"
 [[ $(field keyboard_input_method) == "pinyin" ]] || fail "the preset choice carries its input method"
 pass "install media can preselect the keyboard, which stays a choice"
 
+OMARCHY_FORM_KEYBOARD_DEFAULT=Polish run_prompt omarchy_prompt_keyboard "0:German"
+assert_status 0 "a preset keyboard can be replaced"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Polish" && $(field keyboard) == "de-latin1" ]] || fail "a preset never overrides another selection"
+PROMPT_VISITS=2 OMARCHY_FORM_KEYBOARD_DEFAULT=Polish run_prompt omarchy_prompt_keyboard "0:German" "0::first:"
+assert_status 0 "the keyboard picker can be revisited"
+[[ $(head -n 1 "$tmp_dir/stdin.2") == "German" && $(field keyboard) == "de-latin1" ]] || fail "returning keeps the current keyboard ahead of the preset"
+pass "a new keyboard choice replaces the preset and remains the default on return"
+
+for default in Missing $'Polish\nGerman'; do
+  OMARCHY_FORM_KEYBOARD_DEFAULT="$default" run_prompt omarchy_prompt_keyboard "0::first:"
+  assert_status 0 "an invalid keyboard default does not stop setup"
+  [[ $(field keyboard) == "us" ]] || fail "an invalid default falls back to English (US)"
+done
+pass "unknown and multiline keyboard defaults leave only real layouts in the picker"
+
 printf 'KEYBOARD=Chinese (Simplified, Pinyin)\nTIMEZONE=Asia/Shanghai\nOTHER=$(touch %s/NEVER)\n' "$tmp_dir" >"$tmp_dir/form-defaults"
 OMARCHY_FORM_DEFAULTS="$tmp_dir/form-defaults" run_prompt omarchy_prompt_keyboard "0:Chinese (Simplified, Pinyin)"
-grep -qF -- '--selected Chinese (Simplified\, Pinyin)' "$GUM_ARGS" || fail "a first-boot owner setup takes the media's keyboard default" "$(cat "$GUM_ARGS")"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Chinese (Simplified, Pinyin)" ]] || fail "a first-boot owner setup takes the media's keyboard default"
 OMARCHY_FORM_DEFAULTS="$tmp_dir/form-defaults" TZ_GUESS=Europe/Copenhagen run_prompt omarchy_prompt_timezone "0:Asia/Shanghai"
 [[ $(head -n 1 "$tmp_dir/stdin.1") == "Asia/Shanghai" ]] || fail "a first-boot owner setup takes the media's timezone default" "$(cat "$tmp_dir/stdin.1")"
 [[ ! -e $tmp_dir/NEVER ]] || fail "form defaults are read as data"
 OMARCHY_FORM_DEFAULTS="$tmp_dir/form-defaults" OMARCHY_FORM_KEYBOARD_DEFAULT=Japanese run_prompt omarchy_prompt_keyboard "0:Japanese"
-grep -qF -- '--selected Japanese' "$GUM_ARGS" || fail "the live installer's environment wins over the file"
+[[ $(head -n 1 "$tmp_dir/stdin.1") == "Japanese" ]] || fail "the live installer's environment wins over the file"
 pass "a first-boot owner setup reads the media's defaults as data"
 
 for selection in 'Japanese|jp106|mozc|' 'Japanese (US keyboard)|us|mozc|' 'Korean|us|hangul|kr:kr104' 'Lao|us|none|la' 'Chinese (Simplified, Pinyin)|us|pinyin|' 'Taiwan (Zhuyin)|us|chewing|' 'Hong Kong (Cangjie)|us|cangjie5|'; do
