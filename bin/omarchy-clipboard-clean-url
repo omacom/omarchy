@@ -53,7 +53,7 @@ fi
 fail() {
   echo "$1" >&2
   if ((copy)); then
-    omarchy-notification-send -g "link" "$(omarchy-i18n clipboard.linkNotCleaned)" "$1" || true
+    omarchy-notification-send -g "󰐲" "$(omarchy-i18n clipboard.linkNotCleaned)" "$1" || true
   fi
   exit 1
 }
@@ -114,5 +114,5 @@ printf '%s\n' "$cleaned"
 
 if ((copy)); then
   printf '%s' "$cleaned" | wl-copy
-  omarchy-notification-send -g "link" "$(omarchy-i18n clipboard.linkCleaned)" "$cleaned" || true
+  omarchy-notification-send -g "󰐲" "$(omarchy-i18n clipboard.linkCleaned)" "$cleaned" || true
 fi
