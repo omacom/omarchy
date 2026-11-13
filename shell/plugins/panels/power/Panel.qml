@@ -19,6 +19,9 @@ Panel {
   property var profiles: []
   property string activeProfile: ""
   property int profileIndex: 0
+  // Apple Silicon's cpufreq driver rejects the boost write every profile
+  // change needs, so the picker would only snap back to balanced.
+  property bool profilesApplicable: true
   property bool cursorActive: false
   readonly property bool showPercentage: setting("showPercentage", false) === true
   // With the percentage shown the button paints a text block wider than an
@@ -226,6 +229,14 @@ Panel {
     command: ["omarchy-powerprofiles-list", "--active-state"]
     stdout: StdioCollector { waitForEnd: true; onStreamFinished: root.updateProfiles(text) }
   }
+
+  Process {
+    id: profilePlatformProc
+    command: ["omarchy-hw-aarch64-apple"]
+    onExited: function(exitCode) { root.profilesApplicable = exitCode !== 0 }
+  }
+
+  Component.onCompleted: profilePlatformProc.running = true
 
   Process {
     id: systemProc
@@ -465,10 +476,12 @@ Panel {
 
         // ---------- Power profile picker ----------
         PanelSeparator {
+          visible: root.profilesApplicable
           foreground: root.bar.foreground
         }
 
         Column {
+          visible: root.profilesApplicable
           width: parent.width
           spacing: Style.space(10)
 
