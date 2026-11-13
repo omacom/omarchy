@@ -80,7 +80,7 @@ It works well for controls or a terminal you want to interact with quickly witho
 
 ### Quake console
 
-Finally, there's a half-height Quake console that drops down over whatever workspace you're currently on. Toggle it with `Super + Grave`, and place a window there using `Super + Shift + Grave`.
+Finally, there's a half-height Quake console that drops down over whatever workspace you're currently on. Toggle it with `Super + the key above Tab` (grave on US layouts), and place a window there using `Super + Shift + the key above Tab`.
 
 It opens with your default agent ready to go. While the console holds a single window, it drops down as a centered panel rather than spanning the screen. Put a second app on it and it goes back to the full width, so the two have room to sit side by side.
 
