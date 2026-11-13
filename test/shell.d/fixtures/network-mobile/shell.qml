@@ -62,7 +62,7 @@ ShellRoot {
       test.check(panel.focusSection === "wifi" && panel.selectedIndex === 0, "down from the modem reaches the Wi-Fi list")
       panel.testKeys.moveRequested(0, -1)
       test.check(panel.focusSection === "mobile", "up from the first network returns to the modem row")
-      panel.testKeys.activateRequested()
+      panel.testKeys.activateRequested(Qt.NoModifier)
       test.check(panel.mobileActionKind === "disconnect", "activating a connected modem disconnects it")
       afterDisconnect.start()
     }
@@ -75,7 +75,7 @@ ShellRoot {
       test.check(panel.mobileActionKind === "", "disconnect finishes")
       test.check(panel.mobile.state === "disconnected" && panel.kind === "disconnected", "disconnected modem leaves no connection")
       test.check(panel.testMobileRow.statusText === "LTE · 70%", "disconnected row keeps signal without state: " + panel.testMobileRow.statusText)
-      panel.testKeys.activateRequested()
+      panel.testKeys.activateRequested(Qt.NoModifier)
       test.check(panel.mobileActionKind === "connect", "activating a disconnected modem connects its profile")
       afterConnect.start()
     }
