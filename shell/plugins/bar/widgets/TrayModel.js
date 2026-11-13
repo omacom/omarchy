@@ -64,12 +64,44 @@ function shownSpan(clipStart, clipLength, start, length) {
   return { start: from, length: to - from }
 }
 
+// Where an icon goes, given whether it is on the hidden and pinned lists:
+// "hidden", "pinned" or "drawer". Hidden wins over pinned, as the manager
+// never leaves an icon on both lists. An icon on neither list goes to the
+// drawer, or stays in the bar when the tray's `unlisted` setting is
+// "visible"; any other value means the drawer.
+function placement(isHidden, isPinned, unlisted) {
+  if (isHidden) return "hidden"
+  if (isPinned) return "pinned"
+  return unlisted === "visible" ? "pinned" : "drawer"
+}
+
+// Whether the tray shows its chevron: while the drawer has something to open
+// onto (app icons, widgets in the tray section, or the slot a widget drag
+// offers), and while every icon is hidden, as the chevron is then the only
+// way left into the manager.
+function showsChevron(drawerCount, sectionCount, dragging, pinnedCount, allCount) {
+  return drawerCount > 0 || sectionCount > 0 || dragging || (pinnedCount === 0 && allCount > 0)
+}
+
+// The entry a pin or hide writes back. The write replaces the whole entry,
+// so it carries the tray's other settings, such as `unlisted`, along.
+function trayEntry(settings, pinned, hidden) {
+  var entry = {}
+  for (var key in settings) entry[key] = settings[key]
+  entry.pinned = pinned
+  entry.hidden = hidden
+  return entry
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     shownSpan: shownSpan,
     itemNamed: itemNamed,
     entryId: entryId,
     layoutHasWidget: layoutHasWidget,
-    ownedByOmarchy: ownedByOmarchy
+    ownedByOmarchy: ownedByOmarchy,
+    placement: placement,
+    showsChevron: showsChevron,
+    trayEntry: trayEntry
   }
 }
