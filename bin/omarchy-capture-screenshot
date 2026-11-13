@@ -24,7 +24,10 @@ for arg in "$@"; do
   esac
 done
 
-before="$(ls -1 "$screenshot_dir" 2>/dev/null || true)"
+declare -A before=()
+for path in "$screenshot_dir"/*.png; do
+  before[${path##*/}]=1
+done
 
 omasnap "${omasnap_args[@]}"
 status=$?
@@ -38,7 +41,7 @@ if ((status == 0)); then
     added=()
     for path in "$screenshot_dir"/*.png; do
       [[ -f $path ]] || continue
-      grep -Fxq -- "${path##*/}" <<<"$before" || added+=("$path")
+      [[ -n ${before[${path##*/}]:-} ]] || added+=("$path")
     done
     if ((${#added[@]} == 1)); then
       saved="${added[0]}"
