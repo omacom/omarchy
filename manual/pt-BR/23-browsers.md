@@ -1,39 +1,39 @@
 # Navegadores
 
-O Omarchy vem com o [Chromium](https://www.chromium.org/) como navegador padrão. É a compilação simples de código aberto, tematizada para combinar com o restante do seu sistema, e é o que `Super + Shift + Return` abre e dentro do qual todos os [aplicativos web](25-web-apps.md) são executados.
+O Omarchy vem com o [Google Chrome](https://www.google.com/chrome/) como navegador padrão. Ele recebe um tema que combina com o resto do sistema, é o que `Super + Shift + Return` abre e é dentro dele que todo [aplicativo web](25-web-apps.md) roda. Ele abre direto em uma janela do navegador: não há tela de boas-vindas nem solicitação de login, as estatísticas de uso e os relatórios de falhas não são enviados ao Google e os avisos de privacidade de anúncios ficam desativados. Você ainda pode entrar na sua conta do Google pelo botão de perfil sempre que quiser sincronizar.
 
-Se o Chromium não for do seu gosto, você não está preso a ele. Em _Instalar > Navegador_ no menu do Omarchy, você encontrará Chrome, Edge, Brave, Brave Origin, Firefox e [Zen](https://zen-browser.app/). Escolha um e o Omarchy o instala, configura seu diretório de políticas e aplica seu tema atual a ele.
+Se o Chrome não for do seu gosto, você não está preso a ele. Em _Instalar > Navegador_, no menu do Omarchy, você encontra o [Chromium](https://www.chromium.org/) (a versão pura e de código aberto a partir da qual o Chrome é feito), o Edge, o Brave, o Brave Origin, o Firefox e o [Zen](https://zen-browser.app/). Escolha um e o Omarchy o instala, configura seu diretório de políticas e aplica seu tema atual a ele.
 
 ## Tornando um deles o padrão
 
-Instalar um navegador não o promove. Depois que ele estiver na máquina, vá a _Setup > Defaults > Browser_ e escolha-o — o menu só lista os navegadores que você realmente tem instalados e marca o padrão atual com uma marca de seleção.
+Instalar um navegador não o promove. Depois que ele estiver na máquina, vá para _Configuração > Padrões > Navegador_ e escolha-o — o menu só lista os navegadores que você realmente tem instalados e marca o padrão atual com uma marca de seleção.
 
-Pelo terminal, é:
+Pelo terminal, é assim:
 
 ```bash
 omarchy default browser firefox
 ```
 
-Execute-o sem argumento e ele informa o padrão atual. Isso define o manipulador XDG, então não são apenas os atalhos do Omarchy que acompanham — qualquer coisa que abra um link, de um aplicativo de chat a um comando de terminal, vai para o navegador que você escolheu.
+Execute-o sem nenhum argumento e ele informa o padrão atual. Isso define o manipulador XDG, então não são só os atalhos do Omarchy que acompanham — qualquer coisa que abra um link, de um aplicativo de bate-papo a um comando no terminal, vai para o navegador que você escolheu.
 
-## Copiar URL e baixar vídeo
+## Copiar URL e Baixar Vídeo
 
-Os navegadores da família Chromium (o próprio Chromium, Chrome, Edge e Brave) vêm com duas extensões do Omarchy que saem do navegador e alcançam o resto do seu sistema.
+Os navegadores da família Chromium (o próprio Chromium, o Chrome, o Edge e o Brave) vêm com duas extensões do Omarchy que alcançam além do navegador e chegam ao resto do sistema.
 
-**Copy URL** coloca o endereço da guia atual na sua área de transferência com `Alt + Shift + L`. Isso é mais rápido do que clicar na barra de endereço e copiar e, como ele passa pela área de transferência do sistema em vez da do navegador, você recebe uma notificação do Omarchy confirmando e a URL fica imediatamente disponível no [histórico da área de transferência](08-unified-clipboard-history.md) e em todos os outros aplicativos. Há também um botão na barra de ferramentas, se você preferir clicar.
+**Copiar URL** coloca o endereço da guia atual na sua área de transferência com `Alt + Shift + L`. Isso é mais rápido do que clicar na barra de endereços e copiar e, como passa pela área de transferência do sistema e não pela do navegador, você recebe uma notificação do Omarchy confirmando e a URL fica imediatamente disponível no [histórico da área de transferência](08-unified-clipboard-history.md) e em todos os outros aplicativos. Também há um botão na barra de ferramentas, se você preferir clicar.
 
-**Download Video** captura o vídeo em reprodução na página que você está vendo com `Alt + Shift + D`. Ele entrega a URL ao [yt-dlp](https://github.com/yt-dlp/yt-dlp), então funciona em muito mais do que o YouTube, e o download vai para `~/Videos`. O progresso aparece na mesma exibição na tela que volume e brilho usam, atualizando no local em vez de empilhar notificações. Defina `OMARCHY_YTDLP_DIR` se você preferir que os arquivos vão para outro lugar — consulte as [perguntas frequentes](46-faq.md) para saber onde colocar as variáveis de ambiente.
+**Baixar Vídeo** pega o vídeo em reprodução na página que você está vendo com `Alt + Shift + D`. Ele entrega a URL ao [yt-dlp](https://github.com/yt-dlp/yt-dlp), então funciona em muito mais lugares além do YouTube, e o download vai para `~/Videos`. O progresso aparece no mesmo indicador na tela que o volume e o brilho usam, atualizando no lugar em vez de empilhar notificações. Defina `OMARCHY_YTDLP_DIR` se preferir que os arquivos vão para outro lugar — veja o [FAQ](46-faq.md) para saber onde colocar variáveis de ambiente.
 
-As duas extensões conversam com o Omarchy por meio de um pequeno host de mensagens nativas, que é instalado para você junto com o navegador. É essa a peça que permite que o vídeo de uma página web acabe no seu diretório inicial e uma URL acabe no seu gerenciador de área de transferência, algo que uma extensão normal não consegue fazer sozinha.
+As duas extensões se comunicam com o Omarchy por meio de um pequeno host de mensagens nativo, que é instalado para você junto com o navegador. É essa peça que permite que o vídeo de uma página web acabe no seu diretório pessoal e que uma URL acabe no seu gerenciador de área de transferência, algo que uma extensão normal não consegue fazer sozinha.
 
-Esses recursos são só para a família Chromium. Firefox e Zen não os recebem.
+Elas são exclusivas da família Chromium. O Firefox e o Zen não as recebem.
 
 ## Firefox e Zen
 
-Firefox e Zen são de outra família, então recebem um tratamento diferente: o Omarchy instala um arquivo de políticas para padrões sensatos e os coloca em modo Wayland nativo, que é o que você quer para dimensionamento fracionário e rolagem suave no trackpad.
+O Firefox e o Zen são de outra família, então recebem um tratamento diferente: o Omarchy instala um arquivo de políticas com padrões sensatos e os coloca no modo Wayland nativo, que é o que você quer para escala fracionária e rolagem suave no trackpad.
 
-Eles não recebem as extensões do Chromium acima, nem são tematizados pelo Omarchy, então essas partes da experiência ficam por sua conta configurar.
+Eles não recebem as extensões do Chromium acima e não recebem tema do Omarchy, então essas partes da experiência ficam por sua conta para configurar.
 
-## Removendo um deles de novo
+## Removendo um deles novamente
 
-Qualquer coisa que você instalou aqui pode ser removida de volta em _Remover > Navegador_. O Chromium não está nessa lista — ele faz parte do sistema base.
+Qualquer um desses navegadores, incluindo o Chrome, pode ser removido em _Remover > Navegador_. Os links então vão para o Chrome ou o Chromium, se o outro ainda estiver instalado.

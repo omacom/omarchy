@@ -20,8 +20,10 @@ def variant(value):
 
 
 class StatusNotifierItem(dbus.service.Object):
-  def __init__(self, bus):
+  def __init__(self, bus, item_id, context_menu_path=""):
     super().__init__(bus, ITEM_PATH)
+    self.item_id = item_id
+    self.context_menu_path = context_menu_path
 
   @dbus.service.method("org.freedesktop.DBus.Properties", in_signature="ss", out_signature="v")
   def Get(self, interface, prop):
@@ -32,10 +34,14 @@ class StatusNotifierItem(dbus.service.Object):
     if interface != "org.kde.StatusNotifierItem":
       return {}
 
-    return dbus.Dictionary({
+    # Set to act as an app that stopped answering.
+    if os.environ.get("OMARCHY_TRAY_MOCK_SILENT"):
+      time.sleep(5)
+
+    props = {
       "Category": "ApplicationStatus",
-      "Id": "omarchy-test-tray",
-      "Title": "omarchy-test-tray",
+      "Id": self.item_id,
+      "Title": self.item_id,
       "Status": "Active",
       "WindowId": dbus.Int32(0),
       "IconName": os.environ.get("OMARCHY_TRAY_ICON_NAME", "dialog-information"),
@@ -45,10 +51,14 @@ class StatusNotifierItem(dbus.service.Object):
       "ToolTip": dbus.Struct((
         "",
         dbus.Array([], signature="(iiay)"),
-        "omarchy-test-tray",
+        self.item_id,
         "",
       ), signature=None),
-    }, signature="sv")
+    }
+    # Like Wine, an item that draws its own menu publishes no Menu property.
+    if self.context_menu_path:
+      del props["Menu"]
+    return dbus.Dictionary(props, signature="sv")
 
   @dbus.service.method("org.freedesktop.DBus.Properties", in_signature="ssv")
   def Set(self, interface, prop, value):
@@ -56,7 +66,9 @@ class StatusNotifierItem(dbus.service.Object):
 
   @dbus.service.method("org.kde.StatusNotifierItem", in_signature="ii")
   def ContextMenu(self, x, y):
-    return
+    if self.context_menu_path:
+      with open(self.context_menu_path, "w", encoding="utf-8") as handle:
+        handle.write(f"ContextMenu {int(x)} {int(y)}\n")
 
   @dbus.service.method("org.kde.StatusNotifierItem", in_signature="ii")
   def Activate(self, x, y):
@@ -157,15 +169,20 @@ def main():
 
 
 def run():
-  event_path = os.environ["OMARCHY_TRAY_MENU_EVENT_RESULT"]
   ready_path = os.environ["OMARCHY_TRAY_MENU_READY"]
+  # Set to act as a Wine item: no D-Bus menu, only the ContextMenu method.
+  context_menu_path = os.environ.get("OMARCHY_TRAY_CONTEXT_MENU_RESULT", "")
 
   DBusGMainLoop(set_as_default=True)
   bus = dbus.SessionBus()
-  dbus.service.BusName("org.omarchy.TestStatusNotifier", bus)
 
-  StatusNotifierItem(bus)
-  DBusMenu(bus, event_path)
+  if context_menu_path:
+    # Wine names its items wine-<window>-<icon>.
+    StatusNotifierItem(bus, "wine-omarchy-test-0", context_menu_path)
+  else:
+    dbus.service.BusName("org.omarchy.TestStatusNotifier", bus)
+    StatusNotifierItem(bus, "omarchy-test-tray")
+    DBusMenu(bus, os.environ["OMARCHY_TRAY_MENU_EVENT_RESULT"])
 
   for _ in range(50):
     try:

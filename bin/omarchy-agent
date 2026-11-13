@@ -82,7 +82,15 @@ fi
 # Only agents with a launch-time overlay can be pointed at the local model. When
 # the default can't, or none is set, the local model opens in pi, or OpenCode
 # without pi: the agents panel launches it whether or not a default was chosen.
-if [[ $use_local == "true" && $agent != "pi" && $agent != "opencode" ]]; then
+# Qwen Code takes one from an omarchy-local-ai new enough to write it.
+local_capable() {
+  case "$1" in
+  pi | opencode) return 0 ;;
+  qwen) omarchy-agent-local overlay --help 2>/dev/null | grep -q qwen ;;
+  *) return 1 ;;
+  esac
+}
+if [[ $use_local == "true" ]] && ! local_capable "$agent"; then
   local_agent=""
   for candidate in pi opencode; do
     if omarchy-cmd-present "$candidate"; then
@@ -106,7 +114,7 @@ fi
 # picked. --pick offers the choice instead of the error, which is what the
 # keybinding wants: a keypress that opens nothing explains nothing.
 if [[ -z $agent ]]; then
-  [[ $pick == "true" ]] && exec omarchy-menu summon setup.default.agent
+  [[ $pick == "true" ]] && exec omarchy-menu summon agent.harness
   echo "Choose default agent with: omarchy default agent <name>" >&2
   exit 1
 fi
@@ -282,6 +290,17 @@ if [[ $use_local == "true" ]]; then
     ;;
   pi)
     command+=(--extension "${overlay[0]}" --provider "${overlay[1]}" --model "${overlay[2]}")
+    ;;
+  qwen)
+    # Qwen Code takes the endpoint and model as flags and the key only from
+    # its environment. Terminals launched through uwsm don't inherit ours, and
+    # a key on the command line is anyone's to read, so the terminal's own
+    # shell reads it from its file just before Qwen Code starts.
+    base_url=$(jq -r '.baseUrl // empty' "${overlay[0]}")
+    key_file=$(jq -r '.keyFile // empty' "${overlay[0]}")
+    [[ -n $base_url && -n $key_file ]] || exit 1
+    command=(bash -c 'OPENAI_API_KEY=$(<"$1") || exit 1; export OPENAI_API_KEY; shift; exec "$@"' omarchy-agent-qwen "$key_file"
+      "${command[@]}" --auth-type openai --openai-base-url "$base_url" --model "${overlay[2]}")
     ;;
   esac
 fi

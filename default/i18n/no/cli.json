@@ -20,6 +20,7 @@
   "agents.homeFailed": "Kunne ikke sette opp et hjem for den nye kontoen.",
   "agents.installCliFailed": "Installeringen av %1 CLI ble ikke fullført.",
   "agents.installingCli": "Installerer %1 CLI…",
+  "agents.instructionsBackedUp": "Beholdt de gamle agentinstruksjonene dine som sikkerhetskopier",
   "agents.localUnsupported": "Ingen agent kan bruke den lokale modellen",
   "agents.localUnsupportedBody": "Installer pi eller OpenCode for å bruke den lokale modellen.",
   "agents.loginUnfinished": "Innloggingen ble ikke fullført, så ingen konto ble lagt til.",
