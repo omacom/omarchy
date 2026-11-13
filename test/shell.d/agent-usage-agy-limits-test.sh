@@ -92,6 +92,20 @@ read = limits({"groups": [
 ]})
 expect("Antigravity collector finds the Gemini group wherever it is listed", [(entry["label"], entry["percent"]) for entry in read], [("Weekly (7-day)", 0.5)], read)
 
+# An answer with no Gemini group has no plan limits: the Claude and GPT
+# group's windows stay that group's allowance, and so does Argon's.
+read = limits({"groups": [{"displayName": "Claude and GPT models", "buckets": [
+  {"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 0.9},
+  {"bucketId": "3p-5h", "window": "5h", "remainingFraction": 1.0},
+]}]})
+expect("Antigravity collector shows no plan limits when no Gemini group is listed", [(entry["label"], round(entry["percent"], 2)) for entry in read], [("Claude/GPT Weekly", 0.1)], read)
+
+read = limits({"groups": [
+  {"displayName": "Gemini 4 Argon", "buckets": [{"window": "weekly", "remainingFraction": 1.0}]},
+  {"displayName": "Gemini Models", "buckets": [{"window": "weekly", "remainingFraction": 0.5}]},
+]})
+expect("Antigravity collector doesn't take the Argon allowance for the Gemini group", [(entry["label"], entry["percent"]) for entry in read], [("Weekly (7-day)", 0.5)], read)
+
 read = limits({"buckets": [
   {"window": "5h", "remaining_fraction": 0.4, "reset_time": "2026-09-15T19:31:46Z"},
   {"window": "weekly", "remainingFraction": "plenty"},
@@ -148,6 +162,17 @@ check_scan_cache(adapter)
 
 record, http = agy()
 expect("Antigravity collector asks with agy's token", {r["headers"].get("authorization") for r in http.requests}, {"Bearer token-main"})
+
+# Google lists the Gemini group only for a client that names an agy release.
+stub = home() / "bin" / "agy"
+stub.write_text('#!/bin/bash\necho "agy 9.8.7"\n')
+stub.chmod(0o755)
+installed = {r["headers"].get("user-agent") for r in agy()[1].requests}
+stub.write_text("#!/bin/bash\nexit 1\n")
+unreadable = {r["headers"].get("user-agent") for r in agy()[1].requests}
+stub.unlink()
+expect("Antigravity collector names the installed agy's release to Google, else a known one",
+       [installed, unreadable], [{"antigravity/cli/9.8.7"}, {f"antigravity/cli/{load_collector('agy').FALLBACK_AGY_VERSION}"}])
 
 # agy's RetrieveUserQuotaSummaryRequest carries the project, which omp sends
 # from loadCodeAssist's cloudaicompanionProject, named as a string or {id}.

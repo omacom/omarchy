@@ -20,6 +20,7 @@ only ever read. The agents panel only ever reads the JSON this prints.
 """
 
 import argparse
+import functools
 import json
 import math
 import os
@@ -62,6 +63,8 @@ AUTH_HELP = "Run `agy` to sign in, or sign in to Antigravity in omp, pi, or open
 # How each source of a sign-in is named when it needs attention.
 SOURCE_NAMES = {"agy": "`agy`", "omp": "omp", "pi": "pi", "opencode": "opencode"}
 DEFAULT_CLOUD_CODE_URL = "https://daily-cloudcode-pa.googleapis.com"
+# The agy release named to Google when the one installed can't be read.
+FALLBACK_AGY_VERSION = "1.5.8"
 
 
 def app_root():
@@ -289,9 +292,11 @@ def listed(data, key):
 
 
 # The Gemini group's 5-hour and weekly buckets are the plan's own limits; the
-# other groups (Claude and GPT models) are scoped allowances, shown once
-# they have been touched. An answer that lists its buckets without groups
-# lists the Gemini ones. An answer of another shape (not an object, an error,
+# other groups (Claude and GPT models, and the Gemini 4 Argon allowance a Pro
+# plan keeps apart) are scoped allowances, shown once they have been touched.
+# An answer with no Gemini group has no plan limits to show: another group's
+# buckets never stand in for them. An answer that lists its buckets without
+# groups lists the Gemini ones. An answer of another shape (not an object, an error,
 # groups or the Gemini buckets that aren't a list) is None, a failed check
 # rather than a plan without quotas; another group's buckets of the wrong
 # shape skip that group.
@@ -303,13 +308,14 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
-  if not listed(gemini, "buckets"):
+  names = [str(g.get("displayName") or "").lower() for g in groups]
+  gemini = next((g for g, name in zip(groups, names) if "gemini" in name and "argon" not in name), None)
+  if gemini and not listed(gemini, "buckets"):
     return None
 
   limits = []
   session = weekly = None
-  for bucket in gemini.get("buckets") or []:
+  for bucket in (gemini or {}).get("buckets") or []:
     if not isinstance(bucket, dict) or used(bucket) is None:
       continue
     window = str(bucket.get("window") or "").lower()
@@ -337,6 +343,21 @@ def extract_limits(data):
   return limits
 
 
+# Google's quota summary lists the Gemini group only for a client that names
+# an agy release (1.2.0 or later, as of November 2026); a bare "antigravity"
+# is answered with the Claude and GPT group alone. The installed agy names
+# its own release; without one (a sign-in omp, pi, or opencode keeps) a
+# known release stands in.
+@functools.cache
+def user_agent():
+  try:
+    out = subprocess.check_output(["agy", "--version"], text=True, stderr=subprocess.DEVNULL, timeout=3)
+  except Exception:
+    out = ""
+  version = re.search(r"\d+(?:\.\d+)+", out)
+  return f"antigravity/cli/{version.group(0) if version else FALLBACK_AGY_VERSION}"
+
+
 # The bearer token goes wherever CLOUD_CODE_URL points, so a destination
 # named there is taken only over https, and anything else is Google's own.
 def post(endpoint, token, body=None):
@@ -345,7 +366,7 @@ def post(endpoint, token, body=None):
     base = DEFAULT_CLOUD_CODE_URL
   request = urllib.request.Request(
     f"{base}/v1internal:{endpoint}", data=json.dumps(body or {}).encode(),
-    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "antigravity"},
+    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": user_agent()},
   )
   return open_json(request, timeout=8)
 
