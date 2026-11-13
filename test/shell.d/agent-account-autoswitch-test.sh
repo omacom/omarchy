@@ -158,6 +158,13 @@ pass "expired sign-ins never become active before or after a cached reset"
 
 registry main auto
 record 0.97 "$soon" 0.10 "$later"
+jq '.accounts[0].usageStatusText = "Sign-in expired"' "$usage/claude.json" >"$test_tmp/record.json"
+mv "$test_tmp/record.json" "$usage/claude.json"
+[[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "an expired active account over the threshold is switched away from"
+pass "an expired active account over the threshold is switched away from"
+
+registry main auto
+record 0.97 "$soon" 0.10 "$later"
 jq '.accounts[1].usageStatusText = "Limits paused"' "$usage/claude.json" >"$test_tmp/record.json"
 mv "$test_tmp/record.json" "$usage/claude.json"
 [[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "a limits-paused account with a usable login stays eligible"

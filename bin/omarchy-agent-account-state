@@ -928,12 +928,15 @@ def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, st
 # Limits per account id. An account nobody is signed in to is left out, so it
 # is never a candidate: its cached headroom is no use to a session that can't
 # start. A collector's expired sign-in needs user authentication, while a
-# temporarily paused limits check can still have a refreshable login.
-def usage_by_account(provider: str) -> tuple[dict[str, Any], frozenset[str]]:
+# temporarily paused limits check can still have a refreshable login. The
+# active account keeps its expired numbers, so they can still move new
+# sessions off it.
+def usage_by_account(provider: str, current: str) -> tuple[dict[str, Any], frozenset[str]]:
   record = read_json(usage_record_path(provider)) or {}
   accounts = [
     a for a in record.get("accounts") or []
-    if isinstance(a, dict) and a.get("id") and a.get("usageStatusText") not in ("Waiting for auth", "Sign-in expired")
+    if isinstance(a, dict) and a.get("id") and a.get("usageStatusText") != "Waiting for auth"
+    and (a.get("usageStatusText") != "Sign-in expired" or str(a["id"]) == current)
   ]
   return (
     {str(a["id"]): a.get("limits") for a in accounts},
@@ -973,7 +976,7 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
   with Locked(provider) as registry:
     if len(registry["accounts"]) < 2:
       return False
-    usage, stale = usage_by_account(provider)
+    usage, stale = usage_by_account(provider, active(registry)["id"])
     decision = decide(registry, usage, now, stale)
     if decision is None:
       return False
