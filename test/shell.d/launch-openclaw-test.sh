@@ -71,14 +71,18 @@ grep -q '^omarchy-launch-webapp:http://127.0.0.1:18789/#handoff$' "$TEST_LOG" ||
 pass "OpenClaw launch opens the running gateway's handoff URL"
 
 # Inside the presentation that set OpenClaw up, the app opens only once the
-# Done prompt has its key, so its window does not take that key.
+# Done prompt has its key, so its window does not take that key, and with a
+# handoff URL made then, since one made before the prompt can expire.
 : >"$tmp_dir/launch-after-done"
 : >"$TEST_LOG"
 OMARCHY_LAUNCH_AFTER_DONE="$tmp_dir/launch-after-done" "$ROOT/bin/omarchy-launch-openclaw"
-! grep -q '^omarchy-launch-webapp:' "$TEST_LOG" &&
-  grep -Fq 'omarchy-launch-webapp http://127.0.0.1:18789/' "$tmp_dir/launch-after-done" ||
-  fail "inside the presentation the OpenClaw app waits for the Done prompt" "$(cat "$TEST_LOG" "$tmp_dir/launch-after-done")"
-pass "inside the presentation the OpenClaw app waits for the Done prompt"
+! grep -q '^omarchy-launch-webapp:' "$TEST_LOG" ||
+  fail "inside the presentation the OpenClaw app waits for the Done prompt" "$(<"$TEST_LOG")"
+sed -i 's/#handoff/#after-done/' "$tmp_dir/bin/openclaw"
+PATH="$tmp_dir/bin:$ROOT/bin:$PATH" OMARCHY_LAUNCH_AFTER_DONE= bash "$tmp_dir/launch-after-done"
+grep -q '^omarchy-launch-webapp:http://127.0.0.1:18789/#after-done$' "$TEST_LOG" ||
+  fail "the OpenClaw app opens a handoff URL made once the Done prompt has its key" "$(cat "$TEST_LOG" "$tmp_dir/launch-after-done")"
+pass "inside the presentation the OpenClaw app waits for the Done prompt and a fresh handoff URL"
 
 # A machine whose gateway unit was never enabled (never installed, or an
 # install that died after writing the unit) gets `gateway install --force`,
