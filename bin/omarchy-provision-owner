@@ -733,7 +733,6 @@ create_user() {
   fi
 
   printf '%s:%s\n' "$username" "$password" | chpasswd
-  printf '%s:%s\n' root "$password" | chpasswd
 
   # deferred-provisioning installs skip archinstall's create_users, which is what normally
   # uncomments %wheel in /etc/sudoers. Always write the drop-in: detecting an
