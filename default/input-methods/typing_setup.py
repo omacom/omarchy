@@ -156,7 +156,7 @@ def seed_language(method):
     if all(name.startswith("keyboard-") for name, override in items):
       save_inputs([method])
   except (OSError, ValueError, KeyError, IndexError, RuntimeError, subprocess.CalledProcessError) as error:
-    print(f"Add {setup.PRESETS[method]['label']} under Setup > Typing > Input Methods: {error}", file=sys.stderr)
+    print(f"Add {setup.PRESETS[method]['label']} under Setup > Keyboard > Input Methods: {error}", file=sys.stderr)
   config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
   setup.font_default(config_home, method)
 
@@ -255,7 +255,7 @@ def main():
   kind = sys.argv[2] if applying else sys.argv[1] if len(sys.argv) == 2 else ""
   if kind not in ("input", "keyboard"):
     raise ValueError("Choose keyboard or input setup")
-  title = "Input methods" if kind == "input" else "Keyboard layouts"
+  failed = "omarchy-i18n input.inputMethodsFailed" if kind == "input" else "omarchy-i18n input.keyboardLayoutsFailed"
   try:
     if applying:
       apply_selection(kind, json.loads(sys.argv[3]), json.loads(sys.argv[4]))
@@ -264,7 +264,8 @@ def main():
     else:
       configure_keyboard()
   except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
-    subprocess.run(["omarchy-notification-send", title + " could not be updated", str(error)], check=True)
+    title = subprocess.run(failed.split(), text=True, capture_output=True, check=True).stdout.strip()
+    subprocess.run(["omarchy-notification-send", title, str(error)], check=True)
     raise SystemExit(1)
 
 

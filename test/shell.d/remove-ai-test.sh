@@ -120,6 +120,33 @@ for kept in .grok .claude.json .npm .local/share/opencode; do
 done
 pass "T3 Code removal keeps the agent state it bootstrapped"
 
+# The AppImage install leaves its app, launchers, icons, update cache and `t3` link.
+fresh_home
+: >"$TEST_LOG"
+mkdir -p "$HOME/.local/share/t3code" "$HOME/.local/share/applications" "$HOME/.local/share/icons/hicolor/512x512/apps" \
+  "$HOME/.cache/t3code-updater" "$HOME/.config/t3code-v2" "$HOME/.t3/bin" "$HOME/.local/bin"
+touch "$HOME/.local/share/t3code/T3-Code.AppImage" "$HOME/.local/share/applications/t3code.desktop" \
+  "$HOME/.local/share/applications/com.t3tools.T3Code.desktop" "$HOME/.local/share/icons/com.t3tools.T3Code.desktop.png" \
+  "$HOME/.local/share/icons/hicolor/512x512/apps/t3code.png" "$HOME/.local/share/applications/other.desktop"
+ln -s "$HOME/.t3/bin/t3" "$HOME/.local/bin/t3"
+"$ROOT/bin/omarchy-remove-ai-t3-code" >/dev/null
+
+for gone in .local/share/t3code .local/share/applications/t3code.desktop .local/share/applications/com.t3tools.T3Code.desktop \
+  .local/share/icons/com.t3tools.T3Code.desktop.png .local/share/icons/hicolor/512x512/apps/t3code.png \
+  .cache/t3code-updater .config/t3code-v2 .local/bin/t3; do
+  [[ ! -e $HOME/$gone && ! -L $HOME/$gone ]] || fail "T3 Code removal deletes what its app install left" "$gone"
+done
+[[ -e $HOME/.local/share/applications/other.desktop ]] || fail "T3 Code removal keeps other launchers"
+grep -qx 'drop:t3code-bin t3code-nightly-bin' "$TEST_LOG" || fail "T3 Code removal drops either package" "$(cat "$TEST_LOG")"
+pass "T3 Code removal deletes the app, its launchers, icons, update cache and t3 link"
+
+fresh_home
+mkdir -p "$HOME/.local/bin"
+echo "#!/bin/sh" >"$HOME/.local/bin/t3"
+"$ROOT/bin/omarchy-remove-ai-t3-code" >/dev/null
+[[ -f $HOME/.local/bin/t3 ]] || fail "T3 Code removal keeps a t3 the user put there"
+pass "T3 Code removal keeps a t3 the user put there"
+
 # Perplexity's other products (the CLI, Comet) share the perplexity-* prefix;
 # the desktop app owns only its rpc-server runtime and Electron caches. The
 # logins, vault, and flags are the user's and only go when a terminal said so.

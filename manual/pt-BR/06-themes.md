@@ -1,12 +1,12 @@
 # Temas
 
-O Omarchy vem com vinte e dois temas lindos. Você pode selecionar entre eles via _Estilo > Tema_ no Menu do Omarchy (`Super + Space`) ou pular direto para o seletor de temas usando `Super + Ctrl + Shift + Space`.
+O Omarchy vem com vinte e dois temas lindos. Você pode alternar entre eles em _Aparência > Tema_ no Menu do Omarchy (`Super + Space`) ou ir direto para o seletor de temas usando `Super + Ctrl + T`.
 
-Cada tema estiliza o desktop, o terminal, o neovim, a tela de atividade (btop), o Chromium e todo o shell do Omarchy: barra superior, menu, notificações, OSD e tela de bloqueio. (Para o Obsidian, você deve selecionar manualmente o tema do Omarchy via _Aparência > Temas_ dentro do aplicativo).
+Cada tema estiliza a área de trabalho, o terminal, o neovim, a tela de atividades (btop), o Chromium e todo o shell do Omarchy: barra superior, menu, notificações, OSD e a tela de bloqueio. (No Obsidian, você deve selecionar manualmente o tema do Omarchy em _Aparência > Temas_ dentro do aplicativo).
 
-Os temas têm um conjunto de imagens de fundo entre as quais você pode escolher usando `Super + Ctrl + Space`.
+Os temas têm um conjunto de imagens de fundo entre as quais você pode escolher usando `Super + Ctrl + W`.
 
-Você pode encontrar ainda mais temas em [a página de temas extras](https://omarchy.org/themes/) ou até [fazer seu próprio tema](43-making-your-own-theme.md).
+Você pode encontrar ainda mais temas na [página de temas extras](https://omarchy.org/themes/) ou até [criar seu próprio tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Desbloqueios
 
-Os temas também podem ter um design de desbloqueio personalizado, usado no processo de descriptografia na inicialização. Você pode selecionar um deles em _Estilo > Desbloqueio_. Eles se parecem com isto:
+Os temas também podem ter um design de desbloqueio personalizado, que é usado no processo de descriptografia na inicialização. Você pode selecionar um deles em _Aparência > Desbloqueio_. Eles têm esta aparência:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

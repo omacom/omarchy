@@ -1,117 +1,120 @@
-# Menüüriba
+# Ülemine riba
 
-Riba piki ekraani ülaosa on Omarchy riba. See pole külge poltidega kinnitatud olekuriba, vaid osa Omarchy kestast, ühest kauakestvast Quickshelli protsessist, mis joonistab ka menüü, teavitused, OSD hüpikaknad ja lukuekraani. Seepärast teemastub see kõike muud täiuslikult ja seepärast avaneb paneel hetkega, mitte ei käivita uut rakendust.
+Riba ekraani ülaosas on Omarchy riba. See ei ole külge poltitud olekuriba, vaid osa Omarchy kestast, ühest pikaajalisest Quickshell protsessist, mis joonistab ka menüü, teavitused, OSD hüpikaknad ja lukustuskuva. Seepärast sobib see temaatiliselt täiuslikult kõigega muuga ja paneel avaneb kohe, selle asemel et käivitada uus rakendus.
 
 See on ka ainus töölaua osa, mis on alati ekraanil, nii et tasub teada, mida kõik need väikesed glüüfid teevad.
 
 ## Mis sellel vaikimisi on
 
-Ribal on kolm sektsiooni. Vasakul asub Omarchy logo (menüü käivitaja) ja tööalanäidikud. Keskel saad olekunäidikud, kella, Elsewheni (maailmakella), ilma ja Omarchy uuendusmärgi. Paremal: klaviatuuripaigutus (kui rohkem kui üks on seadistatud), süsteemialus, agendid, bluetooth, võrk, heli, ekraan ja toide.
+Ribal on kolm jaotist. Vasakul asuvad Omarchy logo (menüükäivitaja) ja tööalade indikaatorid. Keskel on olekuindikaatorid, kell, Elsewhen (maailmakell), ilm ja Omarchy värskenduse märk. Paremal: süsteemisalv, klaviatuuripaigutus (kui konfigureeritud on rohkem kui üks), agendid, bluetooth, võrk, heli, ekraan ja toide.
 
-Mõned neist ilmuvad ainult siis, kui neil on midagi öelda. Klaviatuuripaigutus ilmub ainult siis, kui oled seadistanud rohkem kui ühe paigutuse. Uuendusmärk ilmub ainult siis, kui Omarchy uuendus ootab. Ja agentide ikoon ilmub esimest korda, kui Omarchy masinast AI programmeerimiskasutust leiab (vt [AI](17-ai.md)).
+Mõned neist ilmuvad ainult siis, kui neil on midagi öelda. Klaviatuuripaigutus ilmub ainult siis, kui oled konfigureerinud rohkem kui ühe paigutuse. Värskendusmärk ilmub ainult siis, kui Omarchy värskendus ootab. Ja agentide ikoon ilmub esimest korda, kui Omarchy leiab masinast AI kodeerimise kasutust (vt [AI](17-ai.md)).
 
-## Ringi klõpsamine
+## Klõpsamine
 
-Peaaegu iga vidin teeb midagi vasaku, parema ja keskmise klõpsuga ning mitmed reageerivad kerimisele. See on osa, millest inimesed ilma jäävad — parem ja keskmine nupp on kohad, kus palju head kraami peitub.
+Peaaegu iga vidin teeb vasaku, parema ja keskmise klõpsu korral midagi ning mitmed reageerivad kerimisele. See on osa, millest inimesed mööda vaatavad — parem ja keskmine nupp on kohad, kuhu on peidetud palju head kraami.
 
 | Vidin | Vasak | Parem | Keskmine / kerimine |
 | --- | --- | --- | --- |
 | Menüü | Omarchy menüü | Uus terminal | — |
-| Tööalad | Fokuseeri see tööala | — | Kerimine: järgmine/eelmine tööala |
-| Kell | Kalendri hüpik | Vaheta sildi vormingut | Keskmine: ajavööndi valija |
-| Ilm | Prognoosi hüpik | Täielik ilm teavitusena | Keskmine: värskenda |
+| Tööalad | Fokuseeri see tööala sellel kuvaril | — | Kerimine: järgmine/eelmine tööala |
+| Kell | Kalendri hüpikaken | Vaheta sildi vormingut järjest | Keskmine: ajavööndi valija |
+| Ilm | Ilmaprognoosi hüpikaken | Täielik ilm teavitusena | Keskmine: värskenda |
 | Heli | Helipaneel | Vaigista | Keskmine: paneel · kerimine: helitugevus |
 | Mikrofon | Vaigista mikrofon | — | Keskmine: helipaneel · kerimine: sisendi helitugevus |
 | Võrk | Võrgupaneel | — | — |
-| Bluetooth | Bluetoothi paneel | Lülita raadio | — |
+| Bluetooth | Bluetoothi paneel | Lülita raadio sisse/välja | — |
 | Ekraan | Ekraanipaneel | — | Kerimine: heledus |
-| Toide | Toitepaneel | Lülita aku protsent | — |
-| Meedia | Esita/peata | Kaanepildi hüpik | Keskmine: järgmine · kerimine: eelmine/järgmine |
+| Toide | Toitepaneel | Lülita aku protsendi kuvamine sisse/välja | — |
+| Meedia | Esita/peata | Kaanepildi hüpikaken | Keskmine: järgmine · kerimine: eelmine/järgmine |
 | Agendid | Agentide paneel | Käivita oma agent | Keskmine: järgmine tellimus |
-| Alus | Hõlju, et sahtel avada | Paremklõps noolel haldamiseks | — |
-| Omarchy uuendus | Käivita uuendus | — | — |
+| Salv | Hõlju sahtli näitamiseks | Paremklõps noolel haldamiseks | — |
+| Omarchy värskendus | Käivita värskendus | — | — |
 
-Kõik selles tabelis pole su ribal karbist välja võttes. Meediavidin (MPRIS praegu mängiv, keriva loo ja artistiga) ja mikrofonividin on mõlemad sisse ehitatud, kuid vaikimisi välja lülitatud — lisa need, kui soovid, nagu allpool kirjeldatud.
+Kõik selles tabelis ei ole sinu ribal karbist võttes. Meediavidin (MPRIS praegu esitatav, keriva loo ja esitajaga) ja mikrofonividin on mõlemad sisse ehitatud, kuid vaikimisi välja lülitatud — lisa need, kui soovid, nagu allpool kirjeldatud.
 
 ## Paneelid
 
-Riba ikoonil klõpsamine avab paneeli, mis on korralik hüpik koos liugrite, loendite ja klaviatuurinavigeerimisega, mitte vihje. Igalühel on ka kiirklahv, nii et sa ei pea kunagi 16-pikslisele glüüfile täpselt pihta saama:
+Ribaikoonil klõpsamine avab paneeli, mis on korralik hüpikaken liugurite, loendite ja klaviatuuriga navigeerimisega, mitte kohtspikker. Igal neist on ka kiirklahv, nii et sa ei pea kunagi sihtima 16-pikslist glüüfi:
 
 | Kiirklahv | Paneel |
 | --- | --- |
 | `Super + Ctrl + A` | Heli |
-| `Super + Ctrl + W` | Võrk |
+| `Super + Ctrl + N` | Võrk |
 | `Super + Ctrl + B` | Bluetooth |
 | `Super + Ctrl + D` | Ekraan |
 | `Super + Ctrl + P` | Toide |
 | `Super + Ctrl + Alt + D` | Kalender |
 | `Super + Ctrl + Alt + E` | Maailmakell |
-| `Super + Ctrl + 1-9` | Lülita parema sektsiooni n-ndat paneeli |
+| `Super + Ctrl + 1-9` | Lülita parema jaotise n-ndat paneeli sisse/välja |
 
-Paneelid ei ole näidud. Need on kohad, kus sa asja päriselt ära teed:
+Paneelid ei ole ainult näidikud. Need on kohad, kus sa asja päriselt ära teed:
 
-- **Helil** on peahelitugevuse liugur, väljundseadme valija ja rakendusepõhine mikser, nii et saad selle ühe brauseri vahelehe vaiksemaks keerata, puudutamata kõike muud.
-- **Võrk** otsib Wi-Fi-t, näitab signaali tugevust, ühendab ja laseb sul DNS-teenuse pakkuja valida.
-- **Bluetooth** loetleb su seadmed koos ühendamise/lahtiühendamise ja akutase metega.
-- **Toide** näitab aku statistikat, vahetab toiteprofiile (mäletab eraldi valikut aku ja võrgutoite jaoks) ja prindib mõningat süsteemiteavet.
-- **Ekraanil** on heleduse liugur, teksti suurus, kuvari skaleerimise eelvalikud ja — kui sul on rohkem kui üks ekraan — kuvaripõhised juhtelemendid. Sügavama loo jaoks vt [kuvarid](33-monitors.md).
-- **Kell** avab kuuvõrgu koos ISO-nädalnumbrite ja kuusammudega.
+- **Heli** puhul on peamine helitugevuse liugur, väljundseadme valija ja rakendusepõhine mikser, nii et saad selle ühe brauserikaardi vaiksemaks keerata, puudutamata kõike muud.
+- **Võrk** otsib Wi-Fi võrke, näitab signaali tugevust, loob ühenduse ja laseb sul valida DNS-i pakkuja.
+- **Bluetooth** loetleb sinu seadmed koos ühendamise/lahutamise ja akutasemetega.
+- **Toide** näitab aku statistikat, vahetab toiteprofiile (see jätab aku ja AC jaoks eraldi valiku meelde) ja kuvab veidi süsteemiinfot.
+- **Ekraan** sisaldab heleduse liugurit, teksti suurust, kuvari skaleerimise eelseadistusi ja — kui sul on rohkem kui üks ekraan — iga kuvari juhtnuppe. Sügavama loo jaoks vaata [kuvareid](33-monitors.md).
+- **Kell** avab kuuvõrgustiku ISO nädalanumbrite ja kuude kaupa liikumisega.
+- **Maailmakell** hoiab iga linna jaoks ühte rida koos selle ilma ja sellega, kuidas selle päev läheb. Otsing leiab nii linnu kui ka ajavööndeid, nii et Fort Lauderdale on Fort Lauderdale, mitte New York. Kui ülaosas olev rida nimetab valet linna, klõpsa sellel ja ütle, kus sa oled; vali koht teises ajavööndis ja süsteemikell liigub samuti sinna, mis on reisimisel mugav. Hõlju linna kohal ja klõpsa inimese nuppu, et öelda, kes seal elab — tavalised nimed või `@` GitHubi kasutajanimed, et tuua kaasa ka nende näod.
 
-Iga paneel võtab vastu nii klaviatuuri kui ka hiire: nooled liiguvad, Return aktiveerib, Tab astub naaberpaneeli juurde ja Escape sulgeb.
+Iga paneel võtab vastu nii klaviatuuri kui ka hiire: nooled liigutavad, Return aktiveerib, Tab liigub naaberpaneelile ja Escape sulgeb.
 
-`Super + Ctrl + 1-9` loendab paneele vasakult paremale paremas sektsioonis, jättes aluse vahele, kuna sellel pole oma paneeli. Nii et number vastab ikoonile, millele osutaksid.
+`Super + Ctrl + 1-9` loendab paneele vasakult paremale paremas jaotises, jättes salve vahele, kuna sellel pole oma paneeli. Nii vastab number ikoonile, millele sa osutaksid.
 
 ### Tailscale ja Dropbox
 
-Kaks vidinat ilmuvad ribale alles siis, kui paigaldad vastava teenuse **Paigalda → Teenus** alt, ja mõlema kohta tasub teada, sest need teevad rohkem kui pelgalt olekut raporteerivad.
+Veel kaks vidinat ilmuvad ribale alles siis, kui installid vastava teenuse jaotisest **Install → Service**, ja mõlemat tasub teada, sest need teevad rohkem kui ainult olekut raporteerivad.
 
-**Tailscale'i** paneel ühendab ja lahutab tailneti, vahetab kontode vahel ja valib väljumissõlme (su oma masinad ja Mullvadi piirkonnad ilmuvad mõlemad selles loendis). See sirbib ka su masinaid — ja ühega valitud, `s` saadab sellele failid Taildropi kaudu, mis on kiireim viis fail telefoni või teisele sülearvutile liigutada. `c` kopeerib masina IP, `n` selle nime ja `d` selle täieliku DNS-nime. Igal masinareal on ka saatmisnupp, kui eelistad klõpsata. Sama terminalist on `omarchy tailscale send <machine> [file...]`.
+**Tailscale** paneel ühendab tailnetiga ja lahutab sellest, vahetab kontode vahel ja valib väljumisõlme (selles loendis kuvatakse nii sinu oma masinad kui ka Mullvadi piirkonnad). See sirbib ka sinu masinaid — ja kui üks on valitud, saadab `s` sellele faile Taildropi kaudu, mis on kiireim viis faili telefoni või teise sülearvutisse liigutamiseks. `c` kopeerib masina IP, `n` selle nime ja `d` selle täieliku DNS-nime. Igal masina real on ka saatmisnupp, kui eelistad klõpsata. Sama asi terminalist on `omarchy tailscale send <machine> [file...]`.
 
-**Dropboxi** paneel tegeleb sisselogimisega, näitab, kui palju salvestusruumi oled kasutanud, ja loetleb hiljuti sünkroniseeritud failid.
+**Dropbox** paneel tegeleb sisselogimisega, näitab, kui palju salvestusruumi oled kasutanud, ja loetleb hiljuti sünkroonitud faile.
 
-Kumma teenuse eemaldamine võtab selle vidina ribalt tagasi.
+Kummagi teenuse eemaldamine võtab selle vidina ribalt tagasi maha.
 
-## Näidikud
+## Indikaatorid
 
-Väike kobar keskel on näidikute vidin. Need on olekuglüüfid režiimidele, mille oled sisse lülitanud: ära sega, öövalgus, järjekorras olev [meeldetuletus](09-reminders.md), aktiivne ekraanisalvestus, püsi ärkvel ja [dikteerimine](11-text-extraction-dictation.md). Need süttivad, kui režiim on aktiivne, ja püsivad muidu eemal — hõlju kella vasakule (vertikaalsel ribal selle kohal), et passiivsetele piiluda. Näidikul klõpsamine lülitab selle režiimi. Üks veel on ainult olek: kaugseanss süttib punaselt, kui keegi on gliffi kaudu selle masinaga ühendatud.
+Väike kobar keskel on indikaatorite vidin. Need on olekuglüüfid režiimide jaoks, mille oled sisse lülitanud: mitte segada, öövalgus, järjekorras olev [meeldetuletus](09-reminders.md), aktiivne ekraani salvestamine, ärkvel püsimine ja [dikteerimine](11-text-extraction-dictation.md). Need süttivad, kui režiim on aktiivne, ja püsivad muidu eemal — hõlju nende kõrval, kus passiivsed asuksid, et neid piiluda. Indikaatoril klõpsamine lülitab selle režiimi sisse/välja. Veel üks on ainult olek: kaugseanss süttib punaselt, kui keegi on selle masinaga gliffi kaudu ühendatud.
 
-Kui eelistad, et need oleksid alati nähtavad, sea vidinal `alwaysShow` väärtuseks `true`. Ja kui hoolid ainult mõnest neist, loetle need, mida soovid, `items`-is: `["Dnd", "Reminder", "NightLight"]`. Sul võib olla rohkem kui üks näidikute vidin, nii et erinevad sektsioonid saavad näidata erinevaid alamhulki.
+Kui eelistad, et need oleksid alati nähtavad, määra vidinal `alwaysShow` väärtuseks `true`. Ja kui hoolid ainult mõnest neist, loetle soovitud `items` all: `["Dnd", "Reminder", "NightLight"]`. Sul võib olla rohkem kui üks indikaatorite vidin, nii et erinevad jaotised saavad näidata erinevaid alamhulki.
 
-## Riba ümberpaigutamine
+## Riba ümberkorraldamine
 
-Riba seadistab ennast ise. Sa ei pea asjade liigutamiseks seadistusfaili avama.
+Riba konfigureerib ennast ise. Asjade liigutamiseks ei pea sa konfiguratsioonifaili avama.
 
-Haara keske kandis tühja riba kohta ja lohista see teise ekraaniserva poole ja riba liigub sinna — vasak, parem, ülemine või alumine toimivad kõik ja iga vidin kohaneb (vertikaalsed ribad lähevad tagasi kompaktsetele ainult-ikoonidega vormidele). Klõpsa-ja-hoiab alustab sama lohistamist. Tee samal tühjal ruumil topeltvasakklõps, et riba taustal ringi läbi käia läbipaistvast klaasjani läbipaistmatuni. Ja lohista ükskõik millist vidinat, et seda ümber järjestada või teise sektsiooni visata.
+Haara keskmise ümbruses tühjast riba laigust ja lohista see teise ekraaniserva poole ning riba liigub sinna — vasak, parem, ülemine või alumine serv sobivad kõik ja iga vidin kohandub (vertikaalsed ribad taanduvad kompaktsetele ainult ikoonidega vormidele). Klõps-ja-hoia käivitab sama lohistamise. Tee topeltvasakklõps samal tühjal ruumil, et vahetada riba tausta järjest läbipaistvast klaasjaks ja läbipaistmatuks. Ja lohista mis tahes vidinat, et seda ümber järjestada või teise jaotisse visata; teised vidinad libisevad lahku, et teha ruumi sinna, kuhu see maandub.
 
-Vidina, mida soovid käepärast hoida, kuid mitte kogu aeg silme ees, võid panna aluse sahtlisse: lohista see alusele ja sahtel avaneb, et see vastu võtta. See jääb sinna rakenduste ikoonide järele, ilmub iga kord, kui sahtel avaneb, ja hoiab sahtli avatuna, kuni selle paneel on üleval. Lohista see ribale tagasi, et see oma kohale panna.
+Riba keskosa on kast: mis iganes selle sees on, püsib ühe rühmana keskel ja selle mõlemal küljel olevad vidinad ripuvad selle servade küljes. Vidina lohistamise ajal kuvatakse kast kontuurina või, kui see on tühi, joonena üle riba, ja saad selle sisse või selle kõrvale kukutada. Kui kukutamine maanduks kasti, kasvab kast vidina vastuvõtmiseks.
 
-Kui eelistad menüüst valida, on **Käivita → Välimus → Menüüriba** all asukoht ja **Riba taust** valib, kuidas riba joonistatakse: **Läbipaistmatu riba**, **Klaasriba** (läbipaistev, taustal olev hägustatud) või **Läbipaistev riba**.
+Vidin, mida soovid käepärast, kuid mitte alati nähtaval, võib minna salve sahtlisse: lohista see salvele ja sahtel avaneb selle vastuvõtmiseks. See istub seal rakenduseikoonide järel, ilmub alati, kui sahtel ilmub, ja hoiab oma sahtli avatuna, kui selle paneel on üleval. Lohista see ribale tagasi, et see tagasi panna.
 
-Samadel asjadel on käsud, mida soovid [dotfiles](31-dotfiles.md) seadistuse jaoks:
+Kui eelistad menüüst valida, on jaotises **Appearance → Menu Bar** asukoht ja **Bar Background** valib, kuidas riba joonistatakse: **Opaque Bar**, **Glassy Bar** (läbipaistev, taga olev hägustatud) või **Clear Bar**.
+
+Samatel asjadel on käsud, mida soovid [dotfiles](31-dotfiles.md) seadistuse jaoks:
 
 ```bash
 omarchy bar position bottom
 omarchy bar background glassy  # opaque, glassy, none, or cycle
-omarchy bar move omarchy.clock --section center --index 0
+omarchy bar move omarchy.weather --section centerBegin --index 0
 omarchy bar move omarchy.bluetooth --section tray  # into the tray's drawer
 omarchy bar set omarchy.clock format "HH:mm"
 omarchy bar defaults          # back to the shipped layout
 ```
 
-Vidina täielikuks lisamiseks või eemaldamiseks kasuta pluginakäske. `omarchy plugin list` prindib iga vidina, mida kest teab, koos selle id-ga, ja seejärel:
+Vidina täielikuks lisamiseks või eemaldamiseks kasuta pistikprogrammi käske. `omarchy plugin list` prindib iga vidina, mida kest teab, koos selle id-ga, ja seejärel:
 
 ```bash
-omarchy plugin enable omarchy.media --section center
+omarchy plugin enable omarchy.media --section centerEnd
 omarchy plugin disable omarchy.weather
 ```
 
 ## Riba peitmine
 
-`Super + Shift + Space` lülitab riba välja ja tagasi sisse, ilma kesta tapmata — paneelid ja kiirklahvid töötavad edasi, saad lihtsalt pikslid tagasi. See on ka menüüs **Käivita → Välimus → Menüüriba → Peida riba** all.
+`Super + Shift + Space` lülitab riba välja ja tagasi sisse kesta tapmata — paneelid ja kiirklahvid töötavad edasi, saad lihtsalt pikslid tagasi. See on ka menüüs jaotise **Appearance → Menu Bar → Hide Bar** all.
 
-## Seadistusfail
+## Konfiguratsioonifail
 
-Kõik see on salvestatud `~/.config/omarchy/shell.json`-i, `bar` võtme alla. Siin on kärbitud versioon:
+Kõik see on salvestatud faili `~/.config/omarchy/shell.json` võtme `bar` alla. Siin on kärbitud versioon:
 
 ```json
 {
@@ -119,20 +122,21 @@ Kõik see on salvestatud `~/.config/omarchy/shell.json`-i, `bar` võtme alla. Si
   "bar": {
     "position": "top",
     "background": "opaque",
-    "centerAnchor": "omarchy.clock",
     "layout": {
       "left": [{ "id": "omarchy.menu" }, { "id": "omarchy.workspaces" }],
+      "centerBegin": [{ "id": "omarchy.indicators" }],
       "center": [{ "id": "omarchy.clock", "format": "HH:mm" }],
+      "centerEnd": [{ "id": "omarchy.weather" }],
       "right": [{ "id": "omarchy.audio" }, { "id": "omarchy.power" }]
     }
   }
 }
 ```
 
-Iga vidin on üks kirje ühes kolmest paigutusmassiivist ja selle seaded asuvad sellel kirjel teksti sees — pole eraldi seadetefaili ega `config` alamobjekti. Kella `format`, `formatAlt` (millele paremklõps ringi käib) ja `verticalFormat` asuvad kõik täpselt seal kirjel `{ "id": "omarchy.clock" }`.
+Iga vidin on üks kirje ühes viiest paigutuse massiivist ja selle seaded asuvad sellel kirjel reasiseselt — eraldi seadete faili ei ole ja `config` alamobjekti ei ole. Kella `format`, `formatAlt` (millele paremklõps järjest vahetab) ja `verticalFormat` elavad kõik otse seal kirjel `{ "id": "omarchy.clock" }`.
 
-`centerAnchor` nimetab selle ühe keskmise vidina, mis kinnitatakse täpselt ekraani keskele, nii et ülejäänud külgnevad sellega. Nii püsib kell täpselt keskel ka siis, kui ilm ja uuendusmärk tulevad ja lähevad. Sea selleks tühi string ja keskmine loend tsentreeritakse lihtsalt rühmana.
+`center` on riba keskel olev kast: kõik selle sees on ekraanil ühe rühmana keskel. `centerBegin` ja `centerEnd` ripuvad kasti mõlemal küljel, nii püsib kell täpselt keskel isegi siis, kui ilm ja värskendusmärk tulevad ja lähevad. Pane `center` alla rohkem kui üks vidin ja need on koos keskel; jäta see tühjaks ja `centerBegin` ning `centerEnd` kohtuvad riba keskel.
 
-Üks reegel, mida tasub pähe õppida: **kui sul on oma `shell.json`, on see lõplik**. Kuni sa midagi ei kohanda, loeb kest Omarchy vaikefaili. Kohe kui lohistad vidinat, käivitad `omarchy bar` või muudad faili ise, kuulub see sulle — sügavat liitmist pole, nii et tulevaste Omarchy väljaannete uued vaikevidinad ei ilmu su ribale automaatselt. `omarchy bar defaults` paneb tarnitud paigutuse tagasi, millal iganes soovid puhast lehte.
+Üks reegel, mis tasub endale selgeks teha: **kui sul on oma `shell.json`, on see kanooniline**. Kuni sa midagi ei kohanda, loeb kest Omarchy vaikefaili. Hetkel, kui lohistad vidinat, käivitad `omarchy bar` või muudad faili ise, kuulub see sulle — sügavat liitmist ei toimu, nii et uued vaikimisi vidinad tulevastes Omarchy väljaannetes ei ilmu sinu ribale automaatselt. `omarchy bar defaults` paneb tarnitud paigutuse tagasi alati, kui soovid puhtalt lehelt alustada.
 
-Sama fail hoiab ka su jõudeaegu ülemisel tasemel, väljaspool `bar` võtit: `idle.screensaver` ja `idle.lock`, mõlemad sekundites sellest ajast, kui jõude jäid. Nii et vaikeekraanisäästja käivitub 150 sekundi ja lukk 300 sekundi kohal.
+Sama fail hoiab ka sinu jõudeaja ajastusi ülemisel tasemel, väljaspool `bar` võtit: `idle.screensaver` ja `idle.lock`, mõlemad sekundites alates jõudeolekusse minekust. Nii käivitub vaikimisi ekraanisäästja 150 sekundi ja lukk 300 sekundi pärast.
