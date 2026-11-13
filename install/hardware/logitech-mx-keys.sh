@@ -14,6 +14,14 @@
 # The Bolt probe opens /dev/hidraw* read/write and needs root (the sysfs scan
 # for Bluetooth / Unifying does not). During install this script already runs as
 # root; from the migration it runs as the user, so elevate the probe there.
+# The detector exits 1 both when it finds no keyboard and when it cannot run,
+# so get sudo up front: a cancelled or failed prompt must fail the migration so
+# the next update retries, not read as "no MX Keys here".
+if (( EUID != 0 )) && ! sudo -v; then
+  echo "Could not get sudo to probe for a Logitech MX Keys; will retry on the next update" >&2
+  return 1 2>/dev/null || exit 1
+fi
+
 mx_keys_hw() {
   if [[ $EUID -eq 0 ]]; then
     omarchy-hw-logitech-mx-keys "$@"
