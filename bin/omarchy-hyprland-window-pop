@@ -33,7 +33,9 @@ elif [[ -n $addr ]]; then
     hypr_dispatch "hl.dsp.window.fullscreen({ window = \"$window\", action = \"unset\" })" fullscreenstate 0 0 "$window"
   fi
 
-  hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
+  # A floating workspace can float this window itself while fullscreen clears.
+  # Toggle would turn that float back off, so force it on.
+  hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"on\" })" setfloating "$window"
   hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $width, y = $height })" resizeactive exact "$width" "$height" "$window"
 
   if [[ -n $x && -n $y ]]; then
