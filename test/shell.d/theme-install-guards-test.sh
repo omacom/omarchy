@@ -229,11 +229,14 @@ remove_theme Foo || fail "omarchy-theme-remove removes 'Foo'" "$(cat "$test_tmp/
 [[ -d $user_themes/FOO && ! -e $user_themes/foo ]] ||
   fail "omarchy-theme-remove removes foo, shown as Foo, and keeps FOO" "$(ls -1 "$user_themes")"
 
+# tokyo-night- is shown as "Tokyo Night ", so "Tokyo Night" is still the stock theme.
+mkdir -p "$user_themes/tokyo-night-"
 for name in "Tokyo Night" tokyo-night; do
   if remove_theme "$name"; then
     fail "omarchy-theme-remove refuses the stock theme '$name'"
   fi
 done
-[[ -d $ROOT/themes/tokyo-night ]] || fail "omarchy-theme-remove leaves the stock theme in place"
+[[ -d $ROOT/themes/tokyo-night && -d $user_themes/tokyo-night- ]] ||
+  fail "omarchy-theme-remove leaves the stock theme and tokyo-night- in place" "$(ls -1 "$user_themes")"
 
 pass "a theme is removed by the name omarchy theme list shows or by its folder name"

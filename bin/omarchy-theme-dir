@@ -24,8 +24,16 @@ elif [[ ! -d $theme_dir ]]; then
   # is pinned to C.
   LC_ALL=C
   for path in "$HOME/.config/omarchy/themes"/* "$OMARCHY_PATH/themes"/*; do
-    IFS=- read -ra words <<<"${path##*/}"
-    if [[ -d $path && ${words[*]^} == "$theme" ]]; then
+    rest=${path##*/}
+    shown=${rest%%-*}
+    shown=${shown^}
+    while [[ $rest == *-* ]]; do
+      rest=${rest#*-}
+      word=${rest%%-*}
+      shown+=" ${word^}"
+    done
+
+    if [[ -d $path && $shown == "$theme" ]]; then
       theme_dir="$path"
       break
     fi
