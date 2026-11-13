@@ -99,6 +99,10 @@ You start mpv via the application launcher (`Super + Space`) or just double-clic
 
 You start Omacut via the application launcher (`Super + Space`).
 
+## FilmCraft
+
+[FilmCraft](https://getartcraft.com/apps/filmcraft) is a full video editor for when trimming isn't enough: edit video, color and sound on one timeline, laid out the way people coming from Premiere Pro expect. It's not part of the base install. Pick _Install > Video > FilmCraft_ from the Omarchy menu (or run `omarchy install filmcraft`) and it's installed from the AUR and opened. The AUR package is x86_64 only for now.
+
 ## Monologue
 
 [Monologue](https://github.com/omacom/monologue) is Omarchy's own dead-simple webcam recorder. Choose your camera and microphone once, then press `Space` to record, and again to pause and resume the same take. It always records at your camera's highest resolution, with a live microphone meter so you can check your levels before you start.
