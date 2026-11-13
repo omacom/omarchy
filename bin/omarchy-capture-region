@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# omarchy:summary=Pick a screen region over frozen screen content
-# omarchy:args=[region|windows|smart|fullscreen] [--keep-freeze] [--match-monitor] | --take-fullscreen | --take-window | --select-window <next|prev|left|right|up|down>
+# omarchy:summary=Pick a screen region
+# omarchy:args=[region|windows|smart|fullscreen] [--match-monitor] | --take-fullscreen | --take-window | --select-window <next|prev|left|right|up|down>
 # omarchy:hidden=true
 
 # Prints the picked geometry in slurp's "X,Y WxH" format, or exits 1 when the
@@ -14,9 +14,6 @@
 #                   (area < 20px^2) snaps to the rectangle it landed in
 #   fullscreen      the focused monitor, no interaction
 #
-#   --keep-freeze   leave the hyprpicker screen freeze running and print its
-#                   PID as the first output line (empty when no freeze was
-#                   started); the caller owns killing it
 #   --match-monitor print "monitor:NAME" instead when the picked geometry
 #                   exactly matches a monitor
 
@@ -272,12 +269,10 @@ if [[ ${1:-} == "--select-window" ]]; then
 fi
 
 MODE=smart
-KEEP_FREEZE=false
 MATCH_MONITOR=false
 
 for arg in "$@"; do
   case $arg in
-  --keep-freeze) KEEP_FREEZE=true ;;
   --match-monitor) MATCH_MONITOR=true ;;
   *) MODE=$arg ;;
   esac
@@ -302,24 +297,11 @@ pick() {
   printf '%s' "$selection"
 }
 
-FREEZE_PID=""
-freeze_screen() {
-  :
-}
-
-cleanup_freeze() {
-  [[ $KEEP_FREEZE == true ]] && return
-  [[ -n $FREEZE_PID ]] && kill $FREEZE_PID 2>/dev/null
-}
-trap cleanup_freeze EXIT
-
 case "$MODE" in
 region)
-  freeze_screen
   SELECTION=$(pick)
   ;;
 windows)
-  freeze_screen
   SELECTION=$(get_rectangles | pick -r)
   ;;
 fullscreen)
@@ -327,7 +309,6 @@ fullscreen)
   ;;
 smart | *)
   RECTS=$(get_rectangles)
-  freeze_screen
   SELECTION=$(echo "$RECTS" | pick)
 
   # A bare click (area < 20px^2) snaps to whichever rectangle it landed in,
@@ -352,8 +333,6 @@ smart | *)
   fi
   ;;
 esac
-
-[[ $KEEP_FREEZE == true ]] && echo "$FREEZE_PID"
 
 [[ -n $SELECTION ]] || exit 1
 

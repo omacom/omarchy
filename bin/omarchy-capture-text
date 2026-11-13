@@ -7,9 +7,15 @@
 CAPTURE_DIR=$(mktemp -d)
 trap 'rm -rf "$CAPTURE_DIR"' EXIT
 
-OMASNAP_SCREENSHOT_DIR="$CAPTURE_DIR" omasnap --notify region --save
+# Omasnap announces every shot it saves, with buttons that open the file. This
+# shot is deleted once read, so omasnap gets a silent omarchy-notification-send.
+mkdir "$CAPTURE_DIR/bin" "$CAPTURE_DIR/shot"
+printf '#!/bin/bash\n' >"$CAPTURE_DIR/bin/omarchy-notification-send"
+chmod +x "$CAPTURE_DIR/bin/omarchy-notification-send"
 
-IMAGE=$(find "$CAPTURE_DIR" -type f -print -quit)
+OMASNAP_SCREENSHOT_DIR="$CAPTURE_DIR/shot" PATH="$CAPTURE_DIR/bin:$PATH" omasnap region --save
+
+IMAGE=$(find "$CAPTURE_DIR/shot" -type f -print -quit)
 [[ -n $IMAGE ]] || exit 0
 
 TEXT=$(tesseract "$IMAGE" stdout --oem 1 --psm 6 -l "${OMARCHY_OCR_LANGS:-eng}" --dpi 300 -c preserve_interword_spaces=1 2>/dev/null) || exit 1
