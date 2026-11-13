@@ -370,6 +370,23 @@ for failure in copy race; do
 done
 pass "failed copies and concurrent app creation preserve existing work and clean only staging"
 
+# A self-updated Hermes moves its venv into the managed store. Its published
+# launcher remains authoritative, including when stale legacy files remain.
+new_home managed-runtime
+run_installer || fail "managed runtime fixture sets up"
+mkdir -p "$runtime/.hermes/bin"
+mv "$runtime/venv/bin/hermes" "$runtime/.hermes/bin/hermes"
+printf '#!/bin/bash\nexec "%s/.hermes/bin/hermes" "$@"\n' "$runtime" >"$test_home/.local/bin/hermes"
+rm -rf "$runtime/venv"
+# A pending legacy migration forces --now through runtime readiness even
+# though the command and app already run.
+mkdir -p "$test_home/.local/bin/.hermes-before-desktop.test"
+printf '# Written by omarchy-install-hermes-cli.\n' >"$test_home/.local/bin/.hermes-before-desktop.test/hermes"
+run_installer || fail "managed runtime without an in-tree venv is accepted" "$(cat "$test_tmp/output")"
+printf '#!/bin/bash\nexit 1\n' >"$runtime/.hermes/bin/hermes"
+run_installer && fail "broken managed launcher is not a ready runtime"
+pass "managed runtime readiness follows the published launcher without requiring a legacy venv"
+
 new_home incomplete-native
 run_installer || fail "incomplete native fixture sets up"
 rm "$native/resources/app.asar"
