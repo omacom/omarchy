@@ -283,11 +283,16 @@ for installer in omarchy-install-service-slack omarchy-install-ai-chatgpt omarch
   omarchy-install-ai-openclaw omarchy-install-editor-vscode omarchy-install-editor-zed omarchy-install-editor-emacs \
   omarchy-install-service-1password omarchy-install-service-signal \
   omarchy-install-gaming-steam omarchy-install-gaming-heroic omarchy-install-gaming-lutris omarchy-install-gaming-retroarch \
-  omarchy-install-gaming-xbox-cloud omarchy-install-gaming-battlenet; do
+  omarchy-install-gaming-xbox-cloud; do
   assert_opens_after_done "$installer" "done:0 launch:-f" omarchy-launch-floating-terminal-with-presentation "$installer"
 done
 OMARCHY_TEST_SLACK_SETUP_STATUS=1 assert_opens_after_done "Slack after a failed theme setup" "done:0 launch:-f" \
   omarchy-launch-floating-terminal-with-presentation omarchy-install-service-slack
+# Battle.net's setup runs from the presentation's shell, not the installer's.
+assert_opens_after_done "Battle.net's setup" "done:0 launch:-f" \
+  omarchy-launch-floating-terminal-with-presentation omarchy-install-gaming-battlenet
+grep -Fq "launch:-f env WINEPREFIX=$test_home/Games/battlenet PROTONPATH=GE-Proton GAMEID=umu-battlenet PROTON_VERB=run " "$OMARCHY_TEST_LOG" ||
+  fail "Battle.net's setup keeps its Wine prefix and Proton settings once the Done prompt has its key" "$(<"$OMARCHY_TEST_LOG")"
 assert_opens_after_done omarchy-install-and-launch "done:0 launch:-f" omarchy-install-and-launch "Example App" "alpha beta" "Disk Usage"
 assert_opens_after_done "a failed command" "done:1 launch:-f" \
   omarchy-launch-floating-terminal-with-presentation 'omarchy-launch-after-done uwsm-app -- gtk-launch code; false'
