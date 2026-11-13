@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Request a USB policy transition from the desktop lock
+
+set -euo pipefail
+[[ $# == 1 && ( $1 == "lock" || $1 == "unlock" ) ]] || exit 64
+if [[ -e /etc/omarchy/usb-lock.enabled ]]; then
+  exec timeout --kill-after=1 6 pkexec --disable-internal-agent /usr/bin/omarchy-usb-lock-state "$1"
+else
+  echo off
+fi

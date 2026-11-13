@@ -1,0 +1,27 @@
+#!/bin/bash -p
+
+# omarchy:hidden=true
+# omarchy:summary=Manage saved Thunderbolt device approvals
+
+# Privileged Bash prevents startup files and exported functions running as root.
+if [[ $- != *p* ]]; then exit 126; fi
+source /usr/bin/omarchy-security-functions || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_sanitize_bash_environment "$0" "$@"
+set -euo pipefail
+(( EUID == 0 )) || exit 126
+export PATH=/usr/bin:/bin LC_ALL=C
+unset DBUS_SYSTEM_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS
+source /usr/share/omarchy/install/helpers/thunderbolt-lock.sh
+(( $# > 0 && $# <= 2 )) || exit 64
+exec 9>"$TB_LOCK"
+flock -w 4 -x 9
+case $1 in
+  list) (( $# == 1 )) || exit 64; tb_state | jq -c '.trusted[]' ;;
+  always|forget)
+    (( $# == 2 && ${#2} <= 16384 )) || exit 64
+    jq -e 'type=="object"' <<<"$2" >/dev/null
+    if [[ $1 == "always" ]]; then tb_lock_approve "$2"; else tb_lock_forget "$2"; fi
+    ;;
+  *) exit 64 ;;
+esac

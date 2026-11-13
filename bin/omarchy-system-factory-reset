@@ -606,6 +606,15 @@ scrub_factory_accounts() {
   rm -f "$root/etc/"{shadow-,gshadow-,passwd-,group-,subuid-,subgid-}
 }
 
+reset_usb_protection() {
+  local root=$1
+  source "$OMARCHY_PATH/install/helpers/usb-lock.sh" || return 1
+  usb_lock_reset_root "$root" || return 1
+  source "$OMARCHY_PATH/install/helpers/thunderbolt-lock.sh" || return 1
+  source "$OMARCHY_PATH/install/helpers/thunderbolt-lock-setup.sh" || return 1
+  tb_lock_reset_root "$root" || return 1
+}
+
 # Remove the seller's account material and machine identity from the retained
 # @factory baseline so it can neither be mounted for recovery nor restore the
 # seller's account on a future reset. Idempotent (a scrubbed baseline has no
@@ -622,6 +631,10 @@ sanitize_factory_baseline() {
   rm -f "$factory"/etc/NetworkManager/system-connections/*
   rm -rf "$factory"/var/lib/NetworkManager/* "$factory/var/lib/tailscale" "$factory/var/lib/iwd"
   rm -f "$factory/var/lib/sddm/state.conf" "$factory/etc/sddm.conf.d/autologin.conf"
+  if ! reset_usb_protection "$factory"; then
+    btrfs property set -ts "$factory" ro true
+    fail "could not clear USB approvals from the factory baseline"
+  fi
   : >"$factory/etc/machine-id"
 
   btrfs property set -ts "$factory" ro true
@@ -644,6 +657,8 @@ stage_full_reset() {
   rm -f "$next"/etc/NetworkManager/system-connections/*
   rm -rf "$next"/var/lib/NetworkManager/* "$next/var/lib/tailscale" "$next/var/lib/iwd"
   rm -f "$next/var/lib/sddm/state.conf" "$next/etc/sddm.conf.d/autologin.conf"
+
+  reset_usb_protection "$next" || fail "could not clear USB approvals from the staged system"
 
   # A factory snapshot from a normal install contains the original
   # user account; first-boot setup must start from none. A leftover account

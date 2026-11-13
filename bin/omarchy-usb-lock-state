@@ -1,0 +1,29 @@
+#!/bin/bash -p
+
+# omarchy:hidden=true
+# omarchy:summary=Apply a lock or unlock transition to USB and Thunderbolt policy
+
+# Polkit exposes only these two fixed operations, with no caller-supplied paths.
+# Privileged Bash prevents startup files and exported functions running as root.
+if [[ $- != *p* ]]; then exit 126; fi
+source /usr/bin/omarchy-security-functions || exit 126
+omarchy_security_require_privileged_bash_startup || exit 126
+omarchy_security_sanitize_bash_environment "$0" "$@"
+set -euo pipefail
+(( EUID == 0 && $# == 1 )) || exit 126
+[[ $1 == "lock" || $1 == "unlock" ]] || exit 64
+export PATH=/usr/bin:/bin LC_ALL=C
+unset DBUS_SYSTEM_BUS_ADDRESS DBUS_SESSION_BUS_ADDRESS
+source /usr/share/omarchy/install/helpers/usb-lock.sh
+source /usr/share/omarchy/install/helpers/thunderbolt-lock.sh
+exec 9>/run/lock/omarchy-usb-lock.lock
+flock -w 4 -x 9
+# A failed controller must not prevent the other policy from being applied.
+# Apply USB first so a slow Bolt startup cannot consume its transition budget.
+result=0
+reply=$(usb_lock_change "$1") || result=1
+tb_lock_change "$1" || result=1
+if (( result == 0 )); then
+  printf '%s\n' "$reply"
+fi
+exit "$result"
