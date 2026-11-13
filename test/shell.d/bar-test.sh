@@ -33,6 +33,10 @@ assertEqual(bar.fullscreenOn([toplevel(4, 0), toplevel(4, 2)], 4), true, 'a full
 assertEqual(bar.fullscreenOn([toplevel(4, 1)], 4), false, 'a maximized window leaves the bar clickable')
 assertEqual(bar.fullscreenOn([toplevel(9, 2)], 4), false, 'fullscreen on another workspace leaves the bar clickable')
 assertEqual(bar.fullscreenOn([{ workspace: null, lastIpcObject: null }], 4), false, 'a toplevel without a workspace is ignored')
+assertEqual(bar.fullscreenOn([toplevel(-98, 2)], 4, -98), true, 'fullscreen on the visible special workspace hides the bar')
+assertEqual(bar.fullscreenOn([toplevel(-98, 1)], 4, -98), false, 'a maximized special workspace window leaves the bar visible')
+assertEqual(bar.fullscreenOn([toplevel(-97, 2)], 4, -98), false, 'fullscreen on another monitor special workspace leaves the bar visible')
+assertEqual(bar.fullscreenOn([toplevel(-98, 2)], 4), false, 'a closed special workspace leaves the bar visible')
 
 // A bar surface is built per monitor, so a panel hotkey has one live copy of
 // the widget per screen to choose between.
