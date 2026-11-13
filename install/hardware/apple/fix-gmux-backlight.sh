@@ -6,13 +6,16 @@
 if omarchy-hw-match "MacBookPro11,3"; then
   echo "Detected MacBookPro11,3, applying gmux backlight PWM fix..."
 
-  sudo mkdir -p /etc/udev/rules.d /etc/systemd/system
+  sudo mkdir -p /etc/systemd/system
 
-  sudo tee /etc/udev/rules.d/99-omarchy-gmux-backlight.rules >/dev/null <<'EOF'
-# MacBookPro11,3: the seat writes gmux brightness and bl_power so lock/idle can
-# turn PWM off with the panel. See install/hardware/apple/fix-gmux-backlight.sh.
-ACTION=="add", SUBSYSTEM=="backlight", KERNEL=="gmux_backlight", RUN+="/bin/chmod a+w /sys/class/backlight/%k/brightness /sys/class/backlight/%k/bl_power"
-EOF
+  # PWM off/on goes through brightnessctl/logind (the active seat). An earlier
+  # revision world-wrote these sysfs files; drop that so other accounts cannot
+  # blank the panel.
+  sudo rm -f /etc/udev/rules.d/99-omarchy-gmux-backlight.rules
+  if [[ -e /sys/class/backlight/gmux_backlight/brightness ]]; then
+    sudo chmod 644 /sys/class/backlight/gmux_backlight/brightness \
+      /sys/class/backlight/gmux_backlight/bl_power 2>/dev/null || true
+  fi
 
   sudo tee /etc/systemd/system/omarchy-gmux-bridge.service >/dev/null <<'EOF'
 [Unit]
@@ -31,11 +34,4 @@ EOF
 
   sudo systemctl enable omarchy-gmux-bridge.service
   sudo systemctl start omarchy-gmux-bridge.service 2>/dev/null || true
-
-  # udev applies the chmod on the next add; do it now so a live migration can
-  # write PWM without a reboot.
-  if [[ -e /sys/class/backlight/gmux_backlight/brightness ]]; then
-    sudo chmod a+w /sys/class/backlight/gmux_backlight/brightness \
-      /sys/class/backlight/gmux_backlight/bl_power 2>/dev/null || true
-  fi
 fi
