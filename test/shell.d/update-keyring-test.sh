@@ -36,14 +36,10 @@ printf '\n' >>"$KEYRING_TEST_LOG"
 
 if [[ $1 == "env" ]]; then
   shift
-  while [[ $# -gt 0 && $1 == *=* ]]; do
+  while (( $# > 0 )) && [[ $1 == *=* ]]; do
     export "$1"
     shift
   done
-fi
-
-if [[ -n ${LC_ALL:-} ]]; then
-  printf 'LC_ALL=%s\n' "$LC_ALL" >>"$KEYRING_TEST_LOG"
 fi
 
 alarm_key=68B3537F39A313B3E574D06777193F152BDBE6A6
@@ -184,10 +180,6 @@ KEYRING_TEST_WARN=1 run_keyring 2>&1 >"$test_tmp/ok.out" | cat >"$test_tmp/ok.er
 grep -F "Keys are correct" "$test_tmp/ok.out" >/dev/null ||
   fail "update-keyring reports success when the keyring is healthy" "$(cat "$test_tmp/ok.out")"
 pass "update-keyring reports success when the keyring is healthy"
-
-grep -A 1 -E $'^sudo\t(env\tLC_ALL=C\t)?pacman\t-Sy' "$log_file" | grep -Fx "LC_ALL=C" >/dev/null ||
-  fail "update-keyring forces the C locale on the keyring refresh" "$(cat "$log_file")"
-pass "update-keyring forces the C locale on the keyring refresh"
 
 grep -Eq $'^sudo\tenv\tLC_ALL=C\tpacman\t-Sy\t--needed\t--noconfirm\tarchlinux-keyring\tomarchy-keyring$' "$log_file" ||
   fail "update-keyring refreshes the Arch and Omarchy keyrings, installing only newer ones" "$(cat "$log_file")"
