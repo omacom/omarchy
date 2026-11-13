@@ -20,6 +20,11 @@ assert(/manageIpc: false/.test(panelSource), 'bluetooth owns its IPC handler so 
 assert(/function toggleBluetooth\(\)[\s\S]*?execDetached\(\["omarchy-bluetooth-power", adapter\.enabled \? "off" : "on"\]\)/.test(panelSource), 'bluetooth toggles the radio through the rfkill soft block')
 assert(!/adapter\.enabled = /.test(panelSource), 'bluetooth never writes the adapter power state directly')
 
+// Trusted is not a bond. Using it as a stand-in for paired/bonded makes a
+// failed first pair skip pairing on every later click.
+assert(/if \(device\.paired \|\| device\.bonded\) runDeviceAction\(device, "connect"/.test(panelSource), 'bluetooth connects only paired or bonded devices')
+assert(!/if \(device\.paired \|\| device\.bonded \|\| device\.trusted\)/.test(panelSource), 'bluetooth does not treat trusted as already paired')
+
 // Discovery is a BlueZ session that nothing ends at panel close: it persists
 // until StopDiscovery or until quickshell's D-Bus connection drops with the
 // shell, and a leaked session keeps the radio in inquiry, starving A2DP audio
@@ -61,7 +66,8 @@ const devices = [
   { name: 'Headphones', connected: true, address: '1' },
   { name: 'Keyboard', connected: false, address: '3' },
   { name: 'AA:BB:CC:DD:EE:FF', connected: true, address: '4' },
-  { name: 'Mouse', connected: false, trusted: true, address: '5' }
+  { name: 'Mouse', connected: false, trusted: true, address: '5' },
+  { name: 'Trackball', connected: false, bonded: true, address: '6' }
 ]
 
 const arrayLikeDevices = {
@@ -77,8 +83,8 @@ assertDeepEqual(
 
 const lists = bluetooth.deviceLists(devices)
 assertDeepEqual(lists.connected.map(bluetooth.deviceLabel), ['Headphones'], 'bluetooth groups connected devices')
-assertDeepEqual(lists.known.map(bluetooth.deviceLabel), ['Mouse', 'Speaker'], 'bluetooth groups known devices by label')
-assertDeepEqual(lists.discovered.map(bluetooth.deviceLabel), ['Keyboard'], 'bluetooth groups discovered devices')
+assertDeepEqual(lists.known.map(bluetooth.deviceLabel), ['Speaker', 'Trackball'], 'bluetooth groups known devices by label')
+assertDeepEqual(lists.discovered.map(bluetooth.deviceLabel), ['Keyboard', 'Mouse'], 'bluetooth groups discovered devices')
 assertDeepEqual(bluetooth.visibleSections(lists, true), ['connected', 'known', 'discovered'], 'bluetooth shows discovered section while scanning')
 assertDeepEqual(bluetooth.visibleSections(lists, false), ['connected', 'known'], 'bluetooth hides discovered section when not scanning')
 
@@ -165,7 +171,15 @@ if [[ $1 == "show" ]]; then
   [[ -n ${2:-} && -f "$POWERED_FILE.$2" ]] && state="$POWERED_FILE.$2"
   printf '\tPowered: %s\n' "$(cat "$state")"
 fi
+# A failed pair must not still trust the address. PAIR_FAILS is its exit status.
+[[ $1 == "pair" && -n ${PAIR_FAILS:-} ]] && exit "$PAIR_FAILS"
 exit 0
+SH
+
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+
+printf 'notification %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
 SH
 
 cat >"$mock_bin/rfkill" <<'SH'
@@ -180,7 +194,7 @@ printf 'rfkill %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
 exit 0
 SH
 
-chmod +x "$mock_bin/bluetoothctl" "$mock_bin/rfkill"
+chmod +x "$mock_bin/bluetoothctl" "$mock_bin/rfkill" "$mock_bin/omarchy-notification-send"
 
 # $ROOT/bin so omarchy-bluetooth-device resolves the real omarchy-bluetooth-power.
 bluetooth_run() {
@@ -262,6 +276,57 @@ pass "bluetooth lifts the block before connecting"
 grep -qx "connect AA:BB:CC:DD:EE:FF" "$unpowered_log" ||
   fail "bluetooth connects once the adapter is up" "$(cat "$unpowered_log")"
 pass "bluetooth connects once the adapter is up"
+
+# Pairing that never bonds still used to trust the address, which parked the
+# device under PAIRED and skipped pairing on later clicks.
+pair_log=$(bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+grep -qx "pair AA:BB:CC:DD:EE:FF" "$pair_log" ||
+  fail "bluetooth pairs before trusting" "$(cat "$pair_log")"
+pass "bluetooth pairs before trusting"
+
+grep -qx "trust AA:BB:CC:DD:EE:FF" "$pair_log" ||
+  fail "bluetooth trusts after a successful pair" "$(cat "$pair_log")"
+pass "bluetooth trusts after a successful pair"
+
+grep -qx "connect AA:BB:CC:DD:EE:FF" "$pair_log" ||
+  fail "bluetooth connects after a successful pair" "$(cat "$pair_log")"
+pass "bluetooth connects after a successful pair"
+
+grep -q "^notification " "$pair_log" &&
+  fail "bluetooth does not notify after a successful pair" "$(cat "$pair_log")"
+pass "bluetooth does not notify after a successful pair"
+
+# The panel launches the helper detached, so a failed pair has to say so itself.
+# 124 is timeout giving up on the 20 second pair.
+for status in 1 124; do
+  failed_pair_log="$device_tmp/log"
+  echo yes >"$POWERED_FILE"
+  : >"$failed_pair_log"
+  PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$failed_pair_log" PAIR_FAILS=$status \
+    "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF 2>"$device_tmp/stderr" &&
+    fail "bluetooth exits non-zero after a failed pair (status $status)"
+  pass "bluetooth exits non-zero after a failed pair (status $status)"
+
+  grep -qx "pair AA:BB:CC:DD:EE:FF" "$failed_pair_log" ||
+    fail "bluetooth still attempts the pair when it will fail (status $status)" "$(cat "$failed_pair_log")"
+  pass "bluetooth still attempts the pair when it will fail (status $status)"
+
+  grep -q "^trust " "$failed_pair_log" &&
+    fail "bluetooth does not trust after a failed pair (status $status)" "$(cat "$failed_pair_log")"
+  pass "bluetooth does not trust after a failed pair (status $status)"
+
+  grep -q "^connect " "$failed_pair_log" &&
+    fail "bluetooth does not connect after a failed pair (status $status)" "$(cat "$failed_pair_log")"
+  pass "bluetooth does not connect after a failed pair (status $status)"
+
+  grep -q "^notification .*Bluetooth pairing failed" "$failed_pair_log" ||
+    fail "bluetooth notifies after a failed pair (status $status)" "$(cat "$failed_pair_log")"
+  pass "bluetooth notifies after a failed pair (status $status)"
+done
+
+grep -q "timed out" "$device_tmp/stderr" ||
+  fail "bluetooth names a pairing timeout as one" "$(cat "$device_tmp/stderr")"
+pass "bluetooth names a pairing timeout as one"
 
 # Blocking hits every radio at once, so the read has to span them too. A bare
 # bluetoothctl show reports the default controller and misses a powered dongle.
