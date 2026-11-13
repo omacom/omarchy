@@ -278,6 +278,17 @@ launch_wf_recorder() {
   REC_PID=$!
 }
 
+# kill -0 succeeds on a zombie, so a recorder that aborts after creating
+# its file would look live and be saved as one. A zombie is not running.
+pid_running() {
+  local pid=$1 stat
+  kill -0 "$pid" 2>/dev/null || return 1
+  [[ -r /proc/$pid/stat ]] || return 1
+  stat=$(<"/proc/$pid/stat") 2>/dev/null || return 1
+  stat=${stat##*) }
+  [[ ${stat:0:1} != "Z" ]]
+}
+
 start_cancelled() {
   [[ -e $CANCEL_FILE ]]
 }
@@ -360,7 +371,7 @@ start_screenrecording() {
     fi
 
     local ticks=0
-    while kill -0 $pid 2>/dev/null && [[ ! -f $filename ]]; do
+    while pid_running "$pid" && [[ ! -f $filename ]]; do
       start_cancelled && break
       if [[ $target != "portal" ]] && (( ++ticks > READY_TIMEOUT_TICKS )); then
         end_launched_recorder "$pid"
@@ -371,6 +382,11 @@ start_screenrecording() {
       sleep 0.2
     done
 
+    # A recorder can create its file and abort in the same moment, so the
+    # check above can still see it running. Confirm it is still running a
+    # moment later before it is saved as running.
+    sleep 1
+
     if start_cancelled; then
       end_launched_recorder "$pid"
       wf_audio_cleanup
@@ -378,7 +394,7 @@ start_screenrecording() {
       return 1
     fi
 
-    if kill -0 $pid 2>/dev/null; then
+    if pid_running "$pid"; then
       echo "$pid" >"$REC_PID_FILE"
       echo "$filename" >"$RECORDING_FILE"
       toggle_screenrecording_indicator
@@ -579,7 +595,7 @@ fi
       # start still runs.
       starter=""
       [[ -r $STARTING_FILE ]] && starter=$(<"$STARTING_FILE")
-      if [[ $starter =~ ^[0-9]+$ ]] && kill -0 "$starter" 2>/dev/null; then
+      if [[ $starter =~ ^[0-9]+$ ]] && pid_running "$starter"; then
         exit 0
       fi
       flock 9 || exit 1
@@ -611,6 +627,7 @@ fi
         wf_audio_cleanup
         cleanup_webcam
         rm -f "$CANCEL_FILE"
+        exit 1
       fi
     fi
   fi

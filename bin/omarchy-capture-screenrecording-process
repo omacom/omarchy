@@ -35,7 +35,13 @@ while (($#)); do
 done
 
 is_recorder() {
-  local exe
+  local exe stat
+  # A zombie is not a running recorder, though pgrep and kill -0 still see it.
+  if [[ -r $proc_root/$1/stat ]]; then
+    stat=$(<"$proc_root/$1/stat") 2>/dev/null || return 1
+    stat=${stat##*) }
+    [[ ${stat:0:1} != "Z" ]] || return 1
+  fi
   exe=$(readlink "$proc_root/$1/exe" 2>/dev/null) || return 1
   # Linux appends this when an upgrade unlinks a still-running executable.
   exe=${exe% (deleted)}
