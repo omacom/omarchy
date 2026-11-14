@@ -211,6 +211,7 @@ Item {
   function rowListHeight(_serial, _count, _filter, _divider) {
     if (displayModel.count === 0) return root.baseRowHeight
 
+    var available = availableRowsHeight()
     var totals = []
     var total = 0
     var previousSection = ""
@@ -222,9 +223,12 @@ Item {
       total += root.rowHeightForDetail(row.detail)
       previousSection = row.section
       totals.push(total)
+      // Rows past the fold can't change the height, and a search can match
+      // every installed app.
+      if (total > available) break
     }
 
-    return foldedListHeight(totals, availableRowsHeight())
+    return foldedListHeight(totals, available)
   }
 
   function dmenuRowListHeight(_serial, _count, _filter) {
@@ -240,6 +244,7 @@ Item {
       if (i > 0) total += root.rowSpacing
       total += root.rowHeightForDetail(displayModel.get(i).detail)
       totals.push(total)
+      if (total > available) break
     }
 
     return foldedListHeight(totals, available)
@@ -640,8 +645,9 @@ Item {
       return
     }
 
+    var rows = []
     if (root.dmenuMultiple && root.dmenuOnChange.length === 0) {
-      displayModel.append({
+      rows.push({
         itemId: "dmenu.apply", disabled: false, kind: "dmenu", icon: "", iconFont: "",
         appIcon: "", appId: "", label: Commons.I18n.t("common.apply"), target: "",
         detail: Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)), path: "", childCount: 0,
@@ -660,7 +666,7 @@ Item {
       var detail = parts.join("\t")
       if (query && label.toLowerCase().indexOf(query) < 0
           && detail.toLowerCase().indexOf(query) < 0) continue
-      displayModel.append({
+      rows.push({
         itemId: "dmenu." + i,
         disabled: false,
         kind: "dmenu",
@@ -680,6 +686,7 @@ Item {
       })
     }
 
+    if (rows.length > 0) displayModel.append(rows)
     layoutSerial += 1
 
     if (displayModel.count === 0) selectedIndex = 0
@@ -772,7 +779,9 @@ Item {
       }
     }
 
-    for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
+    // In one append: the row height binding walks the model on every count
+    // change, so appending row by row is quadratic in the number of matches.
+    if (rows.length > 0) displayModel.append(rows)
     layoutSerial += 1
 
     root.settleCursor()
