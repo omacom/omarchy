@@ -190,6 +190,41 @@ for name, expected in [("node", True), ("nvim", False)]:
     child.terminate()
     child.wait()
 
+# A missing or relative home is the session's own: the answer must not depend
+# on where the check runs, as the SSH receiver runs it from the home itself.
+# The receiver can also run beside an older backend, whose check gets these
+# cases wrong, so they must hold with that check in place.
+def older_home_in_use(provider, home):
+  wanted = f"{state.PROVIDERS[provider]['home_env']}=".encode()
+  for environ in Path("/proc").glob("[0-9]*/environ"):
+    try:
+      entries = environ.read_bytes().split(b"\0")
+    except OSError:
+      continue
+    for entry in entries:
+      if entry.startswith(wanted) and Path(entry[len(wanted):].decode(errors="replace")).resolve() == home.resolve():
+        return True
+  return False
+started_in = os.getcwd()
+current_home_in_use = transfer.accounts.home_in_use
+other = Path.home() / "other-login"
+(other / ".claude").mkdir(parents=True)
+cases = [({"HOME": ""}, "/", state.primary_home("claude"), False), ({"CLAUDE_CONFIG_DIR": ".claude"}, "/", state.primary_home("claude"), False), ({"CLAUDE_CONFIG_DIR": ".claude"}, str(Path.home()), state.primary_home("claude"), True), ({"CLAUDE_CONFIG_DIR": ".claude"}, str(other), other / ".claude", True)]
+for backend_check in [current_home_in_use, older_home_in_use]:
+  transfer.accounts.home_in_use = backend_check
+  for extra, cwd, target, expected in cases:
+    child = subprocess.Popen([sys.executable, "-c", code], env=dict(child_env, **extra), cwd=cwd, stdout=subprocess.PIPE, text=True)
+    try:
+      assert child.stdout.readline().strip() == "ready"
+      for checked_from in [Path.home(), Path("/")]:
+        os.chdir(checked_from)
+        assert transfer.home_in_use("claude", target) == expected, (backend_check.__name__, extra, cwd, str(checked_from))
+    finally:
+      child.terminate()
+      child.wait()
+transfer.accounts.home_in_use = current_home_in_use
+os.chdir(started_in)
+
 # Abrupt receiver death after copying files is recovered on the next refresh.
 machine("interrupted")
 transfer.write_json(Path.home() / ".claude.json", {"mcpServers": {"local": "interrupted-settings"}})
