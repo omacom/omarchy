@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# omarchy:summary=List DRM cards for Hyprland, excluding an Apple Silicon Touch Bar
+
+# Aquamarine opens every DRM card it finds. On an Apple Silicon Touch Bar Mac
+# the adp card is that panel, and tiny-dfr cannot draw it while the card is
+# busy. Print the other cards, colon-separated, for AQ_DRM_DEVICES.
+#
+# Paths are /dev/dri/cardN. by-path names contain ':', which AQ_DRM_DEVICES
+# already uses as its separator. Only DRIVER=adp is the Touch Bar: the T2
+# bar's appletbdrm driver, the Apple display controller, the GPU, and any
+# other card stay in the list. With no adp card, or with nothing left beside
+# it, print nothing so Hyprland keeps its own device choice.
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  drm_sys=/sys/class/drm
+  dri=/dev/dri
+else
+  if [[ -n ${OMARCHY_SYS_ROOT:-} ]]; then
+    drm_sys=${OMARCHY_SYS_ROOT}/class/drm
+  else
+    drm_sys=/sys/class/drm
+  fi
+  dri=${OMARCHY_DRI_PATH:-/dev/dri}
+fi
+
+driver_of() {
+  local card_dir=$1
+  local uevent=$card_dir/device/uevent
+  local line="" driver="" link=""
+
+  if [[ -f $uevent && -r $uevent ]]; then
+    while IFS= read -r line || [[ -n $line ]]; do
+      if [[ $line == DRIVER=* ]]; then
+        driver=${line#DRIVER=}
+        break
+      fi
+    done <"$uevent"
+  fi
+
+  if [[ -z $driver && -L $card_dir/device/driver ]]; then
+    link=$(readlink -- "$card_dir/device/driver" || true)
+    driver=${link##*/}
+  fi
+
+  driver=${driver//$'\0'/}
+  driver=${driver%$'\r'}
+  driver=${driver//[[:space:]]/}
+  printf '%s' "$driver"
+}
+
+shopt -s nullglob
+names=()
+for card_dir in "$drm_sys"/card*; do
+  name=${card_dir##*/}
+  [[ $name =~ ^card[0-9]+$ ]] || continue
+  names+=("$name")
+done
+shopt -u nullglob
+
+sorted=()
+if (( ${#names[@]} > 0 )); then
+  while IFS= read -r name; do
+    [[ -n $name ]] || continue
+    sorted+=("$name")
+  done < <(printf '%s\n' "${names[@]}" | sed 's/^card//' | sort -n | sed 's/^/card/')
+fi
+
+touchbar=0
+keep=()
+for name in "${sorted[@]}"; do
+  if [[ $(driver_of "$drm_sys/$name") == "adp" ]]; then
+    touchbar=1
+    continue
+  fi
+  path=$dri/$name
+  # A colon would split into a second AQ_DRM_DEVICES entry.
+  [[ $path == *:* ]] && continue
+  keep+=("$path")
+done
+
+if (( touchbar == 0 || ${#keep[@]} == 0 )); then
+  exit 0
+fi
+
+joined=""
+for path in "${keep[@]}"; do
+  if [[ -z $joined ]]; then
+    joined=$path
+  else
+    joined+=:$path
+  fi
+done
+printf '%s\n' "$joined"
