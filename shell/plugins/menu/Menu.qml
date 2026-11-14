@@ -133,6 +133,7 @@ Item {
   property int rowPeek: Math.round(baseRowHeight * 0.55)
   property int rowSpacing: Style.spacing.xs
   property int dividerHeight: Style.space(17)
+  property int headingRowHeight: Style.font.caption + Style.space(22)
   property bool searchDivider: false
   property int layoutSerial: 0
   property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
@@ -175,6 +176,10 @@ Item {
   // dmenu rows carry caller-supplied subtext that must always be visible.
   function rowHeightForDetail(detail) {
     return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
+  }
+
+  function rowHeightFor(kind, detail) {
+    return kind === "heading" ? root.headingRowHeight : root.rowHeightForDetail(detail)
   }
 
   // Height the card can devote to rows before running off the screen — or
@@ -238,7 +243,7 @@ Item {
     var total = 0
     for (var i = 0; i < displayModel.count; i++) {
       if (i > 0) total += root.rowSpacing
-      total += root.rowHeightForDetail(displayModel.get(i).detail)
+      total += root.rowHeightFor(displayModel.get(i).kind, displayModel.get(i).detail)
       totals.push(total)
     }
 
@@ -648,34 +653,34 @@ Item {
         action: "", provider: "", score: -1, section: ""
       })
     }
-    var query = root.filterText.trim().toLowerCase()
-    for (var i = 0; i < root.dmenuOptions.length; i++) {
-      // An option is "<label>", "<glyph>\t<label>", or
-      // "<glyph>\t<label>\t<subtext>". The glyph never comes back with the
-      // selection; the subtext renders under the label, filters alongside it,
-      // and returns with the selection as a stable key for same-named rows.
-      var parts = String(root.dmenuOptions[i] || "").split("\t")
-      var icon = parts.length > 1 ? parts.shift() : ""
-      var label = parts.shift() || ""
-      var detail = parts.join("\t")
-      if (query && label.toLowerCase().indexOf(query) < 0
-          && detail.toLowerCase().indexOf(query) < 0) continue
+    var rows = MenuModel.dmenuRows(root.dmenuOptions, root.filterText)
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i]
+      if (row.heading) {
+        // Disabled, so the cursor, pointer, and Enter step over it.
+        displayModel.append({
+          itemId: "dmenu.heading." + i, disabled: true, kind: "heading", icon: "", iconFont: "",
+          appIcon: "", appId: "", label: row.label, target: "", detail: "", path: "", childCount: 0,
+          action: "", provider: "", score: -1, section: ""
+        })
+        continue
+      }
       displayModel.append({
-        itemId: "dmenu." + i,
+        itemId: "dmenu." + row.index,
         disabled: false,
         kind: "dmenu",
-        icon: root.dmenuMultiple ? (root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[i])) !== -1 ? "✓" : "○") : icon,
+        icon: root.dmenuMultiple ? root.dmenuCheckIcon(row.index) : row.icon,
         iconFont: "",
         appIcon: "",
         appId: "",
-        label: label,
+        label: row.label,
         target: "",
-        detail: detail,
+        detail: row.detail,
         path: "",
         childCount: 0,
         action: "",
         provider: "",
-        score: i,
+        score: row.index,
         section: ""
       })
     }
@@ -685,10 +690,16 @@ Item {
     if (displayModel.count === 0) selectedIndex = 0
     else if (selectedIndex >= displayModel.count) selectedIndex = displayModel.count - 1
     else if (selectedIndex < 0) selectedIndex = 0
+    // Never leave the cursor on a heading.
+    if (root.cursorActive && !root.rowSelectable(selectedIndex)) root.settleCursor()
 
     Qt.callLater(function() {
       if (displayModel.count > 0) root.revealCursor()
     })
+  }
+
+  function dmenuCheckIcon(optionIndex) {
+    return root.dmenuSelected.indexOf(MenuModel.dmenuValue(root.dmenuOptions[optionIndex])) !== -1 ? "✓" : "○"
   }
 
   function updateDmenuChecks() {
@@ -697,8 +708,7 @@ Item {
       if (row.itemId === "dmenu.apply") {
         displayModel.setProperty(i, "detail", Commons.I18n.tn("menu.selectedCount", root.dmenuSelected.length).arg(Commons.I18n.formatNumber(root.dmenuSelected.length)))
       } else if (row.kind === "dmenu") {
-        var value = MenuModel.dmenuValue(root.dmenuOptions[Number(row.itemId.substring(6))])
-        displayModel.setProperty(i, "icon", root.dmenuSelected.indexOf(value) !== -1 ? "✓" : "○")
+        displayModel.setProperty(i, "icon", root.dmenuCheckIcon(Number(row.itemId.substring(6))))
       }
     }
   }
@@ -1490,13 +1500,14 @@ Item {
 
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
+              readonly property bool isHeading: row.kind === "heading"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
 
               width: ListView.view.width
-              height: root.rowHeightForDetail(row.detail)
+              height: root.rowHeightFor(row.kind, row.detail)
               // Faded: the row is here to say the software is already
-              // installed, not to be picked.
-              opacity: row.disabled ? 0.4 : 1
+              // installed, not to be picked. A heading has its own tone.
+              opacity: row.disabled && !row.isHeading ? 0.4 : 1
               radius: root.cornerRadius
               color: row.hasCursor ? root.selectedBackground : "transparent"
               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
@@ -1545,8 +1556,33 @@ Item {
                 y: contentColumn.y + labelText.y + (labelText.height - height) / 2
               }
 
+              PanelSectionHeader {
+                id: headingText
+                visible: row.isHeading
+                text: row.label
+                width: Math.min(implicitWidth, parent.width - anchors.leftMargin - Style.space(40))
+                elide: Text.ElideRight
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                anchors.left: parent.left
+                anchors.leftMargin: root.rowReservedBorderLeft + Style.space(10)
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: Style.space(4)
+              }
+
+              PanelSeparator {
+                visible: row.isHeading
+                foreground: root.foreground
+                anchors.left: headingText.right
+                anchors.leftMargin: Style.space(10)
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(10)
+                anchors.verticalCenter: headingText.verticalCenter
+              }
+
               Column {
                 id: contentColumn
+                visible: !row.isHeading
                 anchors.left: row.hasIcon ? iconText.right : parent.left
                 anchors.leftMargin: row.hasIcon ? Style.space(6) : root.rowReservedBorderLeft + Style.space(18)
                 anchors.right: trail.left
