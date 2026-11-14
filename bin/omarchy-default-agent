@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Set and launch the default coding agent
-# omarchy:args=[pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode]
+# omarchy:args=[pi|omp|opencode|ori|claude|codex|duo|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode]
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
@@ -30,6 +30,7 @@ opencode | open-code) agent="opencode"; name="OpenCode" ;;
 ori | openrouter) agent="ori"; name="Ori"; agent_package="ori" ;;
 claude | claude-code) agent="claude"; name="Claude Code" ;;
 codex) agent="codex"; name="Codex" ;;
+duo) agent="duo"; name="GitLab Duo CLI"; agent_installer="omarchy-install-duo-cli" ;;
 crush) agent="crush"; name="Crush" ;;
 grok) agent="grok"; name="Grok" ;;
 openclaw) agent="openclaw"; name="OpenClaw"; agent_installer="omarchy-install-openclaw-cli" ;;
@@ -65,7 +66,7 @@ devin | devin-cli)
 amp | ampcode) agent="amp"; name="Amp" ;;
 commandcode | command-code | cmdc) agent="commandcode"; name="Command Code"; agent_package="npm:command-code" ;;
 *)
-  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode>"
+  echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|duo|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode>"
   exit 1
   ;;
 esac
@@ -76,11 +77,9 @@ agent_package=${agent_package:-$agent}
 # from a table-valued key. The bracketed package is only for the user's config.
 agent_tool=${agent_tool:-$agent_package}
 
-# Hermes and OpenClaw are not mise tools: each is a self-updating runtime in
-# the user's home, Hermes the desktop app's and OpenClaw the one its Control
-# UI updates. Each has its own installer with the same --check/--now contract
-# mise-backed agents get from mise; see omarchy-install-hermes-cli and
-# omarchy-install-openclaw-cli.
+# Hermes, OpenClaw and Duo have their own installers with the same --check/--now
+# contract mise-backed agents get from mise. Duo's binary and authentication
+# are managed by glab; Hermes and OpenClaw use their own runtimes.
 if [[ -n ${agent_installer:-} ]]; then
   # Not omarchy-cmd-present: a command on PATH says nothing about whether the
   # install behind it finished or runs the sessions omarchy-agent starts.
