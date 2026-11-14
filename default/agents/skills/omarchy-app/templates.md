@@ -1319,7 +1319,7 @@ StartupWMClass=<name>
 
 Add `Name[<code>]=` and `Comment[<code>]=` lines for each language the app ships, so the launcher shows the translated name (`Name[da]=…`, `Comment[pt_BR]=…`; desktop files spell regions with an underscore).
 
-A click on a running app in Omarchy's dock brings its window forward. An app whose windows are each wanted fresh says so with `X-Omarchy-Dock-Click=new`, and the dock opens a new window on every click (Terminal, Agent). `X-Omarchy-Dock-Click=workspace` brings back a window only from the workspace in front of the user and opens a new one otherwise (Files). Leave it out for the usual behavior.
+A click on a running app in Omarchy's dock brings its window forward. An app whose windows are each wanted fresh says so with `X-Omarchy-Dock-Click=new`, and the dock opens a new window on every click (Terminal, Agent). `X-Omarchy-Dock-Click=workspace` brings back a window only from the workspace in front of the user and opens a new one otherwise (Files). With either, a minimized window comes back first. Leave it out for the usual behavior.
 
 ## `share/<name>.svg`
 
