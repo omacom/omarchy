@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.cellular",
+  "name": "Cellular",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "license": "MIT",
+  "description": "Mobile broadband status from ModemManager: signal, operator, roaming, SIM state, and mobile data on/off in the Omarchy bar.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Cellular",
+    "description": "Signal bars for a WWAN modem, with operator, roaming, APN, address, session data, and a mobile data switch.",
+    "category": "Network",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
