@@ -371,6 +371,24 @@ pass "off a virtual console the layout is persisted and checked without loadkeys
   ! grep -q '^sed$' "$tmp/started" && (( $(grep -c '^stty$' "$tmp/started") <= 2 )) ||
     fail "ten frames read the console size at most twice and run no sed" "$(sort "$tmp/started" | uniq -c)"
   pass "a frame starts no process except the console size check on every fifth"
+
+  # The ISO draws this screen in Chinese inside kmscon, where a CJK character
+  # takes two columns: lines center and cut by columns, not characters.
+  ICON_COLS=40 ICON_TEXT_WIDTH=12
+  line=$(LC_ALL=C.UTF-8 progress_icon_line "提示：中文")
+  [[ $line == *$'\e[2K'"$(printf '%15s' '')"'提示：中文'* ]] ||
+    fail "a ten-column Chinese line centers fifteen columns in" "$(cat -v <<<"$line")"
+  # An icon-font glyph from the private use area stays one column.
+  glyph=$(LC_ALL=C.UTF-8 printf '\ue900')
+  line=$(LC_ALL=C.UTF-8 progress_icon_line "${glyph}abc")
+  [[ $line == *$'\e[2K'"$(printf '%18s' '')$glyph"* ]] ||
+    fail "a four-column icon line centers eighteen columns in" "$(cat -v <<<"$line")"
+  LC_ALL=C.UTF-8 progress_icon_truncate cut "提示：中文宽度测试"
+  [[ $cut == "提示：中文…" ]] || fail "Chinese text is cut to twelve columns" "$cut"
+  ICON_TEXT_WIDTH=0
+  LC_ALL=C.UTF-8 progress_icon_truncate cut "提示"
+  [[ $cut == "…" ]] || fail "a console with no room for text shows only the ellipsis" "$cut"
+  pass "Chinese lines center and cut by the columns they take"
 )
 
 # The steps around the keyboard: the language first boot opens in and applies,

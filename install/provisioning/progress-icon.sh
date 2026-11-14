@@ -237,24 +237,50 @@ progress_icon_render() {
   ICON_DRAWN=$drawn
 }
 
+# Set the variable <name> to the columns <text> takes: CJK and fullwidth
+# characters take two, so counting characters would center Chinese half its
+# width too far right (the installer draws it in kmscon).
+# The ranges are written as escapes because editors may normalize a literal
+# U+F900 into U+8C48. Outside a UTF-8 locale bash counts bytes, so nothing is
+# doubled there.
+progress_icon_width() {
+  local probe=é narrow wide=
+  if (( ${#probe} == 1 )); then
+    printf -v narrow '[^\u1100-\u115F\u2E80-\u3029\u3030-\u303E\u3040-\u3098\u309B-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE19\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6\U0001F300-\U0001F64F\U0001F900-\U0001F9FF\U00020000-\U0003FFFD]'
+    wide=${2//$narrow/}
+  fi
+  printf -v "$1" '%s' $((${#2} + ${#wide}))
+}
+
 # Center one line of text, escapes included, across the console the layout
 # measured. The text is measured in bash, so drawing a line starts no process.
 progress_icon_line() {
-  local text="$1" plain pad
+  local text="$1" plain pad width
   printf -v plain '%b' "$text"
   while [[ $plain =~ $PROGRESS_ICON_ESCAPE ]]; do
     plain=${plain/"${BASH_REMATCH[0]}"/}
   done
-  pad=$(( (ICON_COLS - ${#plain}) / 2 ))
+  progress_icon_width width "$plain"
+  pad=$(( (ICON_COLS - width) / 2 ))
   (( pad < 0 )) && pad=0
   printf '\r%s2K%*s%b%s\n' "$PROGRESS_ICON_CSI" "$pad" '' "$text" "$PROGRESS_ICON_RESET"
 }
 
 # Set the variable <name> to <text>, cut to the text width.
 progress_icon_truncate() {
-  local text="$2" width="$ICON_TEXT_WIDTH"
-  if (( ${#text} > width )); then
-    printf -v "$1" '%s…' "${text:0:$((width - 1))}"
+  local text="$2" width="$ICON_TEXT_WIDTH" columns
+  (( width < 1 )) && width=1
+  progress_icon_width columns "$text"
+  if (( columns > width )); then
+    # Each character takes at most two columns, so dropping half the excess
+    # never cuts too much and a couple of passes reach the width.
+    text=${text:0:$((width - 1))}
+    progress_icon_width columns "$text"
+    while (( columns > width - 1 )); do
+      text=${text:0:$((${#text} - (columns - width + 2) / 2))}
+      progress_icon_width columns "$text"
+    done
+    printf -v "$1" '%s…' "$text"
   else
     printf -v "$1" '%s' "$text"
   fi

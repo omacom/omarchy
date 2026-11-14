@@ -342,6 +342,7 @@
   "setupForm.reviewValue": "Value",
   "setupForm.reviewYes": "Yes",
   "setupForm.timezoneHeader": "Timezone",
+  "setupForm.timezonePlaceholder": "Filter...",
   "setupForm.usernameInvalid": "Username must be alphanumeric with no spaces",
   "setupForm.usernamePlaceholder": "Alphanumeric without spaces (like dhh)",
   "setupForm.usernamePrompt": "Username> ",
