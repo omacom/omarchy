@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Download the package databases for any configured repository that has never been synced.
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# The ISO installs the entire system from the bundled [offline] repository, and
+# install/post-install/pacman.sh then swaps /etc/pacman.conf over to the Omarchy
+# mirrors. Those repositories land on the new machine with no database behind
+# them, so the first `pacman -S` fails with "target not found" -- installing a
+# browser on a freshly booted machine takes that path before anything has ever
+# run `omarchy update`. Wanting a package is exactly the moment those databases
+# have to exist, so the package helpers come through here first.
+
+sync_dir="$(pacman-conf DBPath)"
+sync_dir="${sync_dir%/}/sync"
+
+unsynced=0
+while IFS= read -r repo; do
+  if [[ ! -f $sync_dir/$repo.db ]]; then
+    unsynced=1
+    break
+  fi
+done < <(pacman-conf --repo-list)
+
+if (( unsynced )); then
+  # A failed sync is not fatal here. The install that follows raises its own
+  # error, and someone still offline should hear about the package they asked
+  # for rather than about the database behind it.
+  if (( EUID == 0 )); then
+    pacman -Sy --noconfirm || true
+  else
+    sudo pacman -Sy --noconfirm || true
+  fi
+fi
+
+exit 0
