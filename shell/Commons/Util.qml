@@ -99,17 +99,20 @@ QtObject {
   }
 
   // Parse the last line of a custom-module / indicator process output as
-  // waybar-style JSON ({text, class, tooltip, ...}). Falls back to {text: raw}
-  // when the output isn't JSON, and {} for empty output.
+  // waybar-style JSON ({text, class, tooltip, ...}). Only a JSON object counts,
+  // so a plain number or quoted string stays plain text. Falls back to
+  // {text: raw} when the output isn't JSON, and {} for empty output.
   function parseModuleJson(raw) {
     var text = String(raw || "").trim()
     if (!text) return {}
     var lines = text.split("\n")
     try {
-      return JSON.parse(lines[lines.length - 1])
+      var parsed = JSON.parse(lines[lines.length - 1])
+      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) return parsed
     } catch (e) {
-      return { text: text }
+      // Plain output; handled below.
     }
+    return { text: text }
   }
 
   // Standard Qt text-editing keys shared by every searchable panel's filter:
