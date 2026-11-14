@@ -49,7 +49,14 @@ if [ -n "$omarchy_home" ]; then
       if [ "$omarchy_xdg_value" != "${omarchy_xdg_root}${omarchy_xdg_suffix}" ]; then
         return 0
       fi
-      if [ -d "$omarchy_xdg_value" ] && [ ! -O "$omarchy_xdg_value" ]; then
+      omarchy_xdg_check="$omarchy_xdg_value"
+      if [ ! -d "$omarchy_xdg_check" ]; then
+        omarchy_xdg_check=${omarchy_xdg_value%/*}
+      fi
+      if [ ! -d "$omarchy_xdg_check" ]; then
+        omarchy_xdg_check="$omarchy_xdg_root"
+      fi
+      if [ -d "$omarchy_xdg_check" ] && [ ! -O "$omarchy_xdg_check" ]; then
         if [ -n "$omarchy_foreign_conflict" ]; then
           return 0
         fi
@@ -135,7 +142,7 @@ if [ -n "$omarchy_home" ]; then
   OMARCHY_XDG_HOME="$omarchy_home"
   export OMARCHY_XDG_HOME
 fi
-unset omarchy_home omarchy_prev_home omarchy_foreign_home omarchy_foreign_conflict omarchy_xdg_value omarchy_xdg_suffix omarchy_xdg_root omarchy_clean_path omarchy_seen
+unset omarchy_home omarchy_prev_home omarchy_foreign_home omarchy_foreign_conflict omarchy_xdg_value omarchy_xdg_suffix omarchy_xdg_root omarchy_xdg_check omarchy_clean_path omarchy_seen
 
 # Only prepend in dev-link mode. On a production install, the binaries are
 # already on PATH as /usr/bin/omarchy-* via the omarchy package — prepending

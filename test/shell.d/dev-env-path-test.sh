@@ -222,10 +222,7 @@ pass "the same account keeps explicit XDG defaults and its mise session"
 
 # No recorded owner. A directory this user created only looks like another
 # home's default; it is an override and stays. A standard default this user
-# does not own was inherited and is dropped. /usr stands in for that directory.
-foreign="$tmpdir/foreign"
-mkdir -p "$foreign/.local"
-ln -s /usr "$foreign/.local/state"
+# does not own was inherited and is dropped.
 mapfile -t owned_result < <(source_bootstrap_env bash \
   -u OMARCHY_XDG_HOME \
   HOME="$target" \
@@ -235,16 +232,88 @@ mapfile -t owned_result < <(source_bootstrap_env bash \
   fail "an owned XDG default is kept when no previous account was recorded" "actual: ${owned_result[4]}"
 pass "an owned XDG default is kept when no previous account was recorded"
 
-mapfile -t foreign_result < <(source_bootstrap_env bash \
-  -u OMARCHY_XDG_HOME \
-  HOME="$target" \
-  PATH="/usr/bin:$foreign/.local/bin" \
-  XDG_STATE_HOME="$foreign/.local/state")
-[[ ${foreign_result[4]} == "UNSET" ]] ||
-  fail "an unowned inherited XDG default is dropped when no owner was recorded" "actual: ${foreign_result[4]}"
-[[ ${foreign_result[12]} == "$target/.local/share/mise/command-wrappers/bin:/usr/bin:$target/.local/share/mise/shims:$target/.local/bin" ]] ||
-  fail "an unowned inherited home is removed from PATH" "actual PATH: ${foreign_result[12]}"
-pass "an unowned inherited XDG default is dropped when no owner was recorded"
+foreign="$tmpdir/foreign"
+foreign_ready=0
+if (( EUID == 0 )); then
+  mkdir -p "$foreign/.local/state"
+  if chown 65534:65534 "$foreign" "$foreign/.local" "$foreign/.local/state" 2>/dev/null; then
+    foreign_ready=1
+  fi
+else
+  mkdir -p "$foreign/.local"
+  ln -s /usr "$foreign/.local/state"
+  [[ -d $foreign/.local/state && ! -O $foreign/.local/state ]] && foreign_ready=1
+fi
+if (( foreign_ready )); then
+  mapfile -t foreign_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="/usr/bin:$foreign/.local/bin" \
+    XDG_STATE_HOME="$foreign/.local/state")
+  [[ ${foreign_result[0]} == "$target" && ${foreign_result[4]} == "UNSET" ]] ||
+    fail "an unowned inherited XDG default is dropped when no owner was recorded" \
+      "owner=${foreign_result[0]} state=${foreign_result[4]}"
+  [[ ${foreign_result[12]} == "$target/.local/share/mise/command-wrappers/bin:/usr/bin:$target/.local/share/mise/shims:$target/.local/bin" ]] ||
+    fail "an unowned inherited home is removed from PATH" "actual PATH: ${foreign_result[12]}"
+  pass "an unowned inherited XDG default is dropped when no owner was recorded"
+
+  # Owned subdirectory inside an unowned parent (e.g. shared root-owned prefix)
+  # is an intentional override and must not be mistaken for a foreign home.
+  shared_root="$tmpdir/shared-parent"
+  if (( EUID == 0 )); then
+    mkdir -p "$shared_root/.local/state"
+    chown 65534:65534 "$shared_root" "$shared_root/.local"
+  else
+    mkdir -p "$shared_root/.local/state"
+  fi
+  mapfile -t shared_owned_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="/usr/bin" \
+    XDG_STATE_HOME="$shared_root/.local/state")
+  [[ ${shared_owned_result[4]} == "$shared_root/.local/state" ]] ||
+    fail "an owned XDG directory under another parent is kept" "actual: ${shared_owned_result[4]}"
+  pass "an owned XDG directory under another parent is kept"
+else
+  skip "no unowned directory fixture available for foreign XDG fallback test"
+fi
+
+# Private (0700) previous home without OMARCHY_XDG_HOME: the target user cannot
+# traverse into $prev_home/.local/state, so `-d` on the XDG leaf fails with
+# EACCES; ownership must fall back to the enclosing foreign home directory.
+private_foreign="$tmpdir/private-foreign"
+private_ready=0
+if (( EUID == 0 )); then
+  mkdir -p "$private_foreign"
+  chmod 700 "$private_foreign"
+  if chown 65534:65534 "$private_foreign" 2>/dev/null; then
+    private_ready=1
+  fi
+else
+  for candidate in /root /var/root /etc/ssl/private /var/db/sudo; do
+    if [[ -d $candidate && ! -O $candidate && ! -x $candidate ]]; then
+      ln -s "$candidate" "$private_foreign"
+      private_ready=1
+      break
+    fi
+  done
+fi
+if (( private_ready )); then
+  mapfile -t private_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="/usr/bin:$private_foreign/.local/bin" \
+    XDG_CONFIG_HOME="$private_foreign/.config" \
+    XDG_STATE_HOME="$private_foreign/.local/state")
+  [[ ${private_result[0]} == "$target" && ${private_result[1]} == "UNSET" && ${private_result[4]} == "UNSET" ]] ||
+    fail "a private (0700) unowned home is dropped when XDG leaf directories cannot be traversed" \
+      "owner=${private_result[0]} config=${private_result[1]} state=${private_result[4]}"
+  [[ ${private_result[12]} == "$target/.local/share/mise/command-wrappers/bin:/usr/bin:$target/.local/share/mise/shims:$target/.local/bin" ]] ||
+    fail "a private (0700) unowned home is removed from PATH" "actual PATH: ${private_result[12]}"
+  pass "a private (0700) unowned home is dropped when XDG leaf directories cannot be traversed"
+else
+  skip "no non-searchable unowned directory available for private-home XDG fallback test"
+fi
 
 if command -v zsh >/dev/null 2>&1; then
   mapfile -t zsh_switch_result < <(source_bootstrap_env zsh \
