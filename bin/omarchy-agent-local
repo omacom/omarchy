@@ -5,10 +5,11 @@
 # omarchy:examples=omarchy agent local use best | omarchy agent local use qwen3.8-27b-gufo | omarchy agent local stop | omarchy-agent-local use --help
 
 # The engine and its recipes come in omarchy-local-ai, on every machine so the
-# agents panel knows which models fit. Podman, which runs them, only comes when
-# a model is first set up, from the terminal that setup runs in. An NVIDIA GPU
-# reaches the containers through the CDI spec nvidia-container-toolkit writes
-# on install and again at every boot.
+# agents panel knows which models fit. Podman, which runs them, is a base
+# package too, and an NVIDIA machine gets nvidia-container-toolkit with its
+# driver; a machine installed without them gets what's missing when a model is
+# first set up. An NVIDIA GPU reaches the containers through the CDI spec the
+# toolkit writes on install and again at every boot.
 run=(omarchy-local-ai "$@")
 
 if [[ ${1:-} == "use" ]]; then
@@ -19,10 +20,20 @@ if [[ ${1:-} == "use" ]]; then
 
   if [[ " $* " == *" --detach "* ]]; then
     # The agents panel starts a setup in the background, with no terminal to
-    # ask for a password in. While the packages are missing, a terminal
-    # installs them and then hands the setup back to run detached.
+    # ask for a password in, so polkit asks for it instead. The panel shows
+    # the setup's line while this runs and reads the reason from the Error
+    # line; pkexec's 126 is the password dialog dismissed, passed on as is.
     if omarchy-pkg-missing "${packages[@]}"; then
-      run=(omarchy-launch-floating-terminal-with-presentation "omarchy-pkg-add ${packages[*]} && omarchy-local-ai ${*@Q}")
+      echo "Installing ${packages[*]}"
+      pkexec /usr/bin/pacman -S --noconfirm --needed -- "${packages[@]}"
+      status=$?
+      if (( status == 126 )); then
+        echo "Error: Authentication was cancelled"
+        exit 126
+      elif (( status != 0 )) || omarchy-pkg-missing "${packages[@]}"; then
+        echo "Error: Couldn't install ${packages[*]}"
+        exit 1
+      fi
     fi
   else
     omarchy-pkg-add "${packages[@]}" || exit 1
