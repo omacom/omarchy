@@ -41,6 +41,16 @@ The installer detects Mac hardware and applies the needed fixes automatically: B
 
 Members of the community are constantly working on solutions to these challenges so if these are problematic for you, join #omarchy-on-other in our [Discord](https://discord.gg/tXFUdasqhY) and see if there's any up-to-date methods for resolving these.
 
+#### MacBook Pro 13-inch (2017, two Thunderbolt 3 ports)
+
+On `MacBookPro14,1`, deep sleep with a USB-C hub attached can leave the fast USB controller inaccessible until a complete shutdown and power-on. A Gigabit Ethernet adapter may then use the hub's USB 2 connection, even though its wired link still reports 1 Gbps.
+
+Check `lsusb -t` before and after sleep. A Gigabit USB adapter connected at `480M` cannot deliver full Gigabit throughput; its USB 3 connection normally appears at `5000M`. A fallback after sleep can indicate a controller resume failure, so check it after a cold power-on before replacing the hub or cable. The SSD suspend fix does not cover this Thunderbolt controller issue.
+
+See [the upstream investigation](https://github.com/omacom/omarchy/issues/10593) and [the proposed module fix](https://github.com/omacom/omarchy/pull/10758) for current status. Independent RTC-triggered testing on one MacBookPro14,1 verified quick wake and over 900 Mbps after resume with the proposed module and s2idle; the package proposal remains unmerged as of November 8, 2026. Other models, Thunderbolt peripherals and overnight battery use need separate validation.
+
+Test lid-open wake separately from an alarm or keyboard wake. On the tested machine, opening the lid still required a keypress even after restoring the older suspend hook. Investigation found that the kernel rejected enabling the embedded controller's wake interrupt because it was not registered as wake-capable. A model-specific local helper corrected that error and passed a physical lid-open test. It then loaded automatically after reboot, followed by two more completed lid cycles. Longer-term reliability and battery effects still need validation; this is not yet a shipped Omarchy fix.
+
 #### Devices with T1 Chip
 
 The Apple T1 chip was introduced in late 2016 and used exclusively in the first-generation MacBook Pro models with Touch Bar.
