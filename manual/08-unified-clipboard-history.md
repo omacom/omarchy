@@ -14,6 +14,8 @@ Omarchy tackles both problems with unified clipboard hotkeys that work (almost) 
 
 _Note that most agent harnesses will use `Ctrl + V` for pasting images, but `Super + V` for pasting text._
 
+In terminals, `Super + C/V` sends `Ctrl + Shift + C/V`. If a terminal Omarchy doesn't know, or an app with a terminal inside, gets `Ctrl + C/V` instead, tag it in `~/.config/hypr/hyprland.lua` with `o.window("^app-class$", { tag = "+terminal-clipboard" })`. Find the class with `hyprctl activewindow`.
+
 Use `Super + A`, then `Super + C` to copy everything in a focused text field or other app that supports `Ctrl + A`. In a terminal, `Ctrl + A` moves to the start of the command line instead of selecting its text.
 
 ### Clipboard history
