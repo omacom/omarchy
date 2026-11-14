@@ -77,11 +77,57 @@ if [[ $exec_line =~ (^|[[:space:]])(\$TERMINAL|xdg-terminal-exec)[[:space:]].*-e
   exit 0
 fi
 
+plugin_owner_for_desktop() {
+  local plugins_dir commands command candidate path plugin_id
+  plugins_dir="$HOME/.config/omarchy/plugins"
+
+  [[ -d $plugins_dir ]] || return 1
+
+  # A plugin owns a launcher whose own command lives in its tree. The desktop id,
+  # TryExec=, Path=, Icon= and secondary actions can name a plugin without belonging to it.
+  commands=$(awk '/^\[/ { main = ($0 == "[Desktop Entry]") } main && /^Exec[ \t]*=/ { sub(/^[^=]*=[ \t]*/, ""); print }' "$desktop_file")
+  while IFS= read -r command; do
+    if [[ $command == \"* ]]; then
+      command=${command#\"}
+      command=${command%%\"*}
+    else
+      command=${command%%[[:space:]]*}
+    fi
+    [[ $command == /* && $command != */../* ]] || continue
+
+    # The literal path catches a symlinked plugin, the resolved one a symlinked command.
+    for candidate in "$command" "$(readlink -f "$command" 2>/dev/null || true)"; do
+      case "$candidate" in
+        "$plugins_dir"/*/*)
+          path=${candidate#"$plugins_dir"/}
+          plugin_id=${path%%/*}
+          if [[ $plugin_id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && ( -e $plugins_dir/$plugin_id || -L $plugins_dir/$plugin_id ) ]]; then
+            printf '%s\n' "$plugin_id"
+            return 0
+          fi
+          ;;
+      esac
+    done
+  done <<<"$commands"
+
+  return 1
+}
+
 if is_user_desktop_file; then
-  display_name="${entry_name:-$desktop_name}"
-  rm -f "$desktop_file"
-  update-desktop-database "${desktop_file%/*}" &>/dev/null || true
-  exit 0
+  if plugin_id="$(plugin_owner_for_desktop)"; then
+    # An executable within a plugin does not prove that this launcher owns it.
+    # Confirm plugin removal in a terminal; cancellation retains the launcher.
+    quoted_plugin="$(printf '%q' "$plugin_id")"
+    quoted_desktop="$(printf '%q' "$desktop_file")"
+    quoted_dir="$(printf '%q' "${desktop_file%/*}")"
+    exec omarchy-launch-floating-terminal-with-presentation \
+      "omarchy-plugin-remove $quoted_plugin && rm -f -- $quoted_desktop && { update-desktop-database $quoted_dir &>/dev/null || true; }"
+  else
+    display_name="${entry_name:-$desktop_name}"
+    rm -f "$desktop_file"
+    update-desktop-database "${desktop_file%/*}" &>/dev/null || true
+    exit 0
+  fi
 fi
 
 if package_name="$(pacman -Qqo "$desktop_file" 2>/dev/null | head -1)" && [[ -n $package_name ]]; then
