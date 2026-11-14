@@ -1,0 +1,3 @@
+# Dell's firmware turns the keyboard backlight off after its own timeout (10s by
+# default). Let the session change it, so Trigger > Hardware can set it without sudo.
+ACTION=="add", SUBSYSTEM=="leds", KERNEL=="dell::kbd_backlight", TEST=="stop_timeout", RUN+="/usr/bin/sh -c 'chgrp wheel /sys$devpath/stop_timeout && chmod g+w /sys$devpath/stop_timeout'"

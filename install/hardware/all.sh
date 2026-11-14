@@ -1,6 +1,7 @@
 run_logged "$OMARCHY_INSTALL/hardware/asus-rog.sh"
 run_logged "$OMARCHY_INSTALL/hardware/framework16.sh"
 run_logged "$OMARCHY_INSTALL/hardware/dell-xps-touchpad-haptics.sh"
+run_logged "$OMARCHY_INSTALL/hardware/dell-keyboard-backlight-timeout.sh"
 run_logged "$OMARCHY_INSTALL/hardware/surface.sh"
 run_logged "$OMARCHY_INSTALL/hardware/gb10/sleep.sh"
 run_logged "$OMARCHY_INSTALL/hardware/gb10/cpuidle.sh"
