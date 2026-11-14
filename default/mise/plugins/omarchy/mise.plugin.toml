@@ -1,0 +1,20 @@
+# Marks this directory as a mise bootstrap settings plugin: mise applies
+# [bootstrap.settings.omarchy] through hooks/settings_read.lua and
+# hooks/settings_write.lua. lib/settings.lua holds the settings themselves.
+[bootstrap-settings]
+os = ["linux"]
+requires = [
+  "omarchy-font-current",
+  "omarchy-font-set",
+  "omarchy-hyprland-animations-off",
+  "omarchy-hyprland-corners",
+  "omarchy-hyprland-toggle",
+  "omarchy-hyprland-toggle-enabled",
+  "omarchy-hyprland-window-transparency",
+  "omarchy-hyprland-workspace-layout-default",
+  "omarchy-theme-set",
+  "omarchy-toggle",
+  "omarchy-toggle-animations",
+  "omarchy-toggle-bar",
+  "omarchy-toggle-enabled",
+]
