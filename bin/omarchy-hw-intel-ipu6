@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# omarchy:summary=Detect an Intel IPU6 MIPI camera controller.
+
+# Match on the driver that claimed the controller rather than on a sensor ACPI
+# HID the way the IPU7 leaf does: IPU6 spans five CPU generations and a dozen
+# different sensors, and the in-kernel driver having bound is exactly the
+# precondition libcamera needs.
+#
+# Read the cached sysfs IDs rather than lspci, which reads PCI config space.
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+shopt -s nullglob
+
+for device in "$pci_devices_path"/*; do
+  [[ -L $device/driver ]] || continue
+  [[ $(basename "$(readlink "$device/driver")") == "intel-ipu6" ]] && exit 0
+done
+
+exit 1
