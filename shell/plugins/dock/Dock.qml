@@ -29,7 +29,23 @@ Item {
 
   // A reorder shows at once rather than when the saved config comes back.
   property var pendingPins: null
-  onDockConfigChanged: pendingPins = null
+  onDockConfigChanged: {
+    pendingPins = null
+    pendingPreviewScale = null
+  }
+
+  property var pendingPreviewScale: null
+  readonly property real previewScale: DockModel.previewScale(pendingPreviewScale !== null ? pendingPreviewScale : dockConfig.previewScale)
+
+  function setPreviewScale(value, save) {
+    var scale = DockModel.previewScale(value)
+    pendingPreviewScale = scale
+    // Persist once at release, never once per pointer movement.
+    if (save && shell) shell.mutateShellConfig(function(config) {
+      if (!config.dock) config.dock = {}
+      config.dock.previewScale = scale
+    })
+  }
 
   // Entries that can claim a terminal app's window: those run in a terminal,
   // and those that hand the terminal an app id of their own.

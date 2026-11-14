@@ -7,7 +7,35 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 export OMARCHY_PATH="$ROOT"
 
 TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
+readonly dock_test_dir="$TMPDIR"
+
+cleanup_dock_test() {
+  if [[ ${OMARCHY_KEEP_TEST_FIXTURES:-0} == "1" ]]; then
+    printf 'Dock test fixtures kept at %s\n' "$dock_test_dir" >&2
+    return
+  fi
+
+  # Remove only files this test creates. Never traverse directory symlinks or
+  # recursively delete a tree; unexpected entries are left for inspection.
+  local dir
+  for dir in "$dock_test_dir" "$dock_test_dir/bin" "$dock_test_dir/home" \
+    "$dock_test_dir/home/.config" "$dock_test_dir/home/.config/omarchy"; do
+    if [[ -L $dir || ( -e $dir && ! -d $dir ) ]]; then
+      printf 'Skipping unsafe dock fixture cleanup: %s\n' "$dir" >&2
+      return
+    fi
+  done
+  rm -f -- "$dock_test_dir/hyprctl.log" "$dock_test_dir/bin/omarchy-shell" \
+    "$dock_test_dir/bin/hyprctl" "$dock_test_dir/bin/omarchy-hyprland-workspace-layout-current" \
+    "$dock_test_dir/home/.config/omarchy/shell.json" || return
+  for dir in "$dock_test_dir/home/.config/omarchy" "$dock_test_dir/home/.config" \
+    "$dock_test_dir/home" "$dock_test_dir/bin"; do
+    [[ ! -d $dir ]] || rmdir -- "$dir" 2>/dev/null || true
+  done
+  rmdir -- "$dock_test_dir" 2>/dev/null ||
+    printf 'Unexpected dock fixture entries kept at %s\n' "$dock_test_dir" >&2
+}
+trap cleanup_dock_test EXIT
 
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
@@ -115,6 +143,92 @@ assertEqual(dock.pickWindow(foot, 4), 2, 'dock brings forward the window on the 
 assertEqual(dock.pickWindow(foot, 3), 1, 'dock restores a minimized window before leaving for another workspace')
 assertEqual(dock.pickWindow(foot.map((w, i) => Object.assign({}, w, { activated: i === 2 })), 4), 1, 'dock cycles from the window here to the minimized one')
 assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app that is not running')
+
+const win = (extra) => Object.assign({ minimized: false, activated: false }, extra)
+assertDeepEqual(
+  dock.indicatorSegments([win({ minimized: true }), win(), win({ activated: true })]),
+  ['open', 'focused', 'minimized'],
+  'dock indicator has a segment for each window, minimized ones last'
+)
+assertDeepEqual(
+  dock.indicatorSegments([win(), win(), win(), win(), win({ activated: true }), win(), win({ minimized: true }), win({ minimized: true })]),
+  ['open', 'open', 'open', 'focused', 'minimized', 'minimized'],
+  'dock indicator of an app with more windows than segments keeps the focused and minimized ones'
+)
+assertDeepEqual(dock.indicatorSegments([]), [], 'dock gives an app without windows no indicator')
+
+const previewWindows = [win({ address: 'a', activated: true }), win({ address: 'b', minimized: true }), win({ address: 'c' })]
+assertDeepEqual(dock.indicatorSegments(previewWindows, 'b'), ['focused', 'open', 'previewed'],
+  'dock highlights the preview by address after moving minimized windows last')
+assertDeepEqual(dock.indicatorSegments(previewWindows, 'c'), ['focused', 'previewed', 'minimized'],
+  'dock moves the highlight with the preview without changing window focus')
+assertDeepEqual(dock.indicatorSegments(previewWindows, null), ['focused', 'open', 'minimized'],
+  'dock restores the focus indicator when previews close')
+assertDeepEqual(dock.indicatorSegments(previewWindows, 'closed'), ['focused', 'open', 'minimized'],
+  'dock drops the preview highlight if that window disappears')
+const manyPreviews = Array.from({length: 9}, (_, i) => win({address: String(i), activated: i === 0}))
+assertDeepEqual(dock.indicatorSegments(manyPreviews, '8'), ['focused', 'open', 'open', 'open', 'open', 'previewed'],
+  'dock retains the previewed window beyond the six-segment limit')
+assertDeepEqual(dock.indicatorSegments(previewWindows, 'a'), ['previewed', 'open', 'minimized'],
+  'dock marks the focused window as previewed when it is selected')
+
+
+for (const invalid of [undefined, null, 'bad', 0, -1, Infinity]) {
+  assertEqual(dock.previewScale(invalid), 1, 'dock defaults an invalid saved preview size')
+}
+assertEqual(dock.previewScale(0.1), 0.45, 'dock bounds the smallest preview size')
+assertEqual(dock.previewScale(4), 1.75, 'dock bounds the largest preview size')
+assertEqual(dock.previewScale('1.25'), 1.25, 'dock reads a saved preview size')
+
+assertEqual(dock.previewSelection(['a', 'b', 'c'], 1, ['b', 'c']), 0,
+  'dock keeps the same preview when a preceding window closes')
+assertEqual(dock.previewSelection(['a', 'b'], 1, ['new', 'a', 'b']), 2,
+  'dock keeps the same preview when a preceding window opens')
+assertEqual(dock.previewSelection(['a', 'b', 'c'], 1, ['a', 'c', 'b']), 2,
+  'dock follows the preview address when minimized ordering changes')
+assertEqual(dock.previewSelection(['a', 'b', 'c'], 1, ['a', 'c']), 1,
+  'dock chooses the next neighbor when the previewed window closes')
+assertEqual(dock.previewSelection(['a', 'b', 'c'], 2, ['a', 'b']), 1,
+  'dock chooses the preceding neighbor when the last preview closes')
+assertEqual(dock.previewSelection(['a'], 0, []), 0,
+  'dock resets selection when no previews remain')
+
+const strip = { expanded: 300, slice: 40, overlap: 10, expandedHeight: 200, sliceHeight: 160, maxWidth: 1000, minStep: 8 }
+const three = dock.stripLayout(3, 1, strip)
+assertEqual(three.width, 360, 'dock strip is as wide as one expanded slice and a step for each other window')
+assertDeepEqual(
+  three.cards.map(card => [card.x, card.width, card.y, card.selected]),
+  [[0, 40, 20, false], [30, 300, 0, true], [320, 40, 20, false]],
+  'dock strip expands the selected slice and centers the narrow ones against it'
+)
+assertEqual(dock.stripLayout(1, 0, strip).width, 300, 'dock strip of a lone window is just its expanded slice')
+for (let count = 1; count <= 9; count++) {
+  const width = dock.stripLayout(count, 0, strip).width
+  for (let selected = 0; selected < count; selected++) {
+    assertEqual(dock.stripLayout(count, selected, strip).width, width, 'dock strip keeps its width whichever slice is selected')
+  }
+}
+const narrowed = dock.stripLayout(12, 4, Object.assign({}, strip, { maxWidth: 400 }))
+assert(Math.abs(narrowed.width - 400) < 1e-9 && narrowed.step < 30 && narrowed.step >= 8, 'dock narrows the slices of a strip that would not fit')
+const squeezed = dock.stripLayout(30, 0, Object.assign({}, strip, { maxWidth: 400 }))
+assert(squeezed.width <= 400 + 1e-9 && squeezed.cards[0].width >= squeezed.slice, 'dock gives up width on the selected slice only after the narrow ones are as narrow as they go')
+assertEqual(dock.stripIndexAt(3, 1, 100, strip), 1, 'dock picks the selected slice where the pointer is over it')
+assertEqual(dock.stripIndexAt(3, 1, 5, strip), 0, 'dock picks a narrow slice before the selected one')
+assertEqual(dock.stripIndexAt(3, 1, 345, strip), 2, 'dock picks a narrow slice after the selected one')
+assertEqual(dock.stripIndexAt(3, 1, -1, strip) + dock.stripIndexAt(3, 1, 361, strip), -2, 'dock picks nothing past either end of the strip')
+let settled = true
+for (const options of [strip, Object.assign({}, strip, { maxWidth: 400 })]) {
+  for (let count = 1; count <= 12; count++) {
+    for (let selected = 0; selected < count; selected++) {
+      const width = dock.stripLayout(count, selected, options).width
+      for (let x = 0; x <= width; x += 0.5) {
+        const picked = dock.stripIndexAt(count, selected, x, options)
+        if (picked < 0 || dock.stripIndexAt(count, picked, x, options) !== picked) settled = false
+      }
+    }
+  }
+}
+assert(settled, 'dock strip keeps the pointer over the slice it selected, so the selection never flickers')
 
 JS
 

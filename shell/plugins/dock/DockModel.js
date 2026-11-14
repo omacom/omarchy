@@ -189,6 +189,119 @@ function pickWindow(windows, workspaceId) {
   return order[0]
 }
 
+// An app with windows has a thin strip with as many segments as it has
+// windows, up to this many.
+var INDICATOR_SEGMENTS = 6
+
+// The indicator's segments: "previewed", "focused", "open" or "minimized". Windows in
+// front of the user in their order, then the minimized ones. An app with more
+// windows than segments gives up plain open ones first, then minimized ones,
+// so focused and previewed windows always keep their segments. Windows are
+// { address, minimized, activated }; previewAddress identifies the preview
+// independently of its position, including after minimized windows move last.
+function indicatorSegments(windows, previewAddress) {
+  var open = []
+  var minimized = []
+  var list = windows || []
+  for (var i = 0; i < list.length; i++) {
+    var previewed = previewAddress !== undefined && previewAddress !== null
+      && previewAddress !== "" && String(list[i].address) === String(previewAddress)
+    var kind = previewed ? "previewed" : list[i].minimized ? "minimized" : list[i].activated ? "focused" : "open"
+    if (list[i].minimized) minimized.push(kind)
+    else open.push(kind)
+  }
+  var segments = open.concat(minimized)
+  var spare = ["open", "minimized", "focused"]
+  for (var j = 0; j < spare.length; j++) {
+    while (segments.length > INDICATOR_SEGMENTS) {
+      var at = segments.lastIndexOf(spare[j])
+      if (at < 0) break
+      segments.splice(at, 1)
+    }
+  }
+  return segments
+}
+
+// Keep saved or dragged preview sizes within the supported range.
+function previewScale(value) {
+  var scale = Number(value)
+  if (!isFinite(scale) || !(scale > 0)) return 1
+  return Math.max(0.45, Math.min(1.75, scale))
+}
+
+// Keep the previewed window across insertions, removals and reordering. If it
+// disappears, choose its next neighbor, or the preceding one at the end.
+function previewSelection(previous, selected, next) {
+  var address = (previous || [])[selected]
+  var index = next.indexOf(address)
+  return index >= 0 ? index : Math.max(0, Math.min(selected, next.length - 1))
+}
+
+// The previews of an app's windows stand side by side in a strip of slanted
+// slices, like the image picker's carousel: the selected one wide, the rest
+// narrow and overlapping. The strip is as wide as it is for any selection, so
+// moving the selection never moves what is under the pointer. options are the
+// selected slice's width (expanded), a narrow slice's width (slice), the
+// overlap between narrow slices (overlap), the most room there is (maxWidth)
+// and the least a slice may advance (minStep).
+function stripMetrics(count, options) {
+  var o = options || {}
+  var expanded = o.expanded > 0 ? o.expanded : 0
+  var overlap = o.overlap > 0 ? o.overlap : 0
+  var minStep = o.minStep > 0 ? o.minStep : 1
+  var slice = o.slice > 0 ? o.slice : 0
+  var step = slice - overlap
+  var others = Math.max(0, count - 1)
+  if (others > 0 && o.maxWidth > 0 && expanded + others * step > o.maxWidth) {
+    step = Math.max(minStep, (o.maxWidth - expanded) / others)
+    slice = step + overlap
+    // Past the narrowest slices the selected one gives way too.
+    if (expanded + others * step > o.maxWidth) expanded = Math.max(slice, o.maxWidth - others * step)
+  }
+  return { expanded: expanded, slice: slice, step: step, width: expanded + others * step }
+}
+
+// Where each slice stands for a selection, from the strip's left edge. A narrow
+// slice is centered against the selected one.
+function stripLayout(count, selected, options) {
+  var o = options || {}
+  var m = stripMetrics(count, o)
+  var height = o.expandedHeight > 0 ? o.expandedHeight : 0
+  var sliceHeight = o.sliceHeight > 0 ? o.sliceHeight : 0
+  var current = Math.max(0, Math.min(count - 1, selected))
+  var cards = []
+  for (var i = 0; i < count; i++) {
+    var chosen = i === current
+    var x = i <= current ? i * m.step : current * m.step + m.expanded + (i - current - 1) * m.step + (m.step - m.slice)
+    cards.push({
+      x: x,
+      y: chosen ? 0 : (height - sliceHeight) / 2,
+      width: chosen ? m.expanded : m.slice,
+      height: chosen ? height : sliceHeight,
+      selected: chosen
+    })
+  }
+  return { width: m.width, expanded: m.expanded, slice: m.slice, step: m.step, cards: cards }
+}
+
+// The slice at a point along the strip, as it stands for the current
+// selection, or -1 off either end. Where slices overlap the one in front takes
+// the point: the selected slice, then the ones nearer to it. A slice that is
+// picked this way spans the point once it is selected, so asking again with the
+// new selection gives the same slice.
+function stripIndexAt(count, selected, x, options) {
+  if (!(count > 0)) return -1
+  var layout = stripLayout(count, selected, options)
+  var current = Math.max(0, Math.min(count - 1, selected))
+  var chosen = layout.cards[current]
+  if (x >= chosen.x && x <= chosen.x + chosen.width) return current
+  if (x < 0 || x > layout.width) return -1
+  if (x < chosen.x) return Math.max(0, Math.min(current - 1, Math.floor(x / layout.step)))
+  for (var i = current + 1; i < count; i++) {
+    if (x <= layout.cards[i].x + layout.cards[i].width) return i
+  }
+  return count - 1
+}
 
 if (typeof module !== "undefined") {
   module.exports = {
@@ -205,6 +318,11 @@ if (typeof module !== "undefined") {
     orderWithKeyAt: orderWithKeyAt,
     dropIndex: dropIndex,
     pinsInOrder: pinsInOrder,
-    pickWindow: pickWindow
+    pickWindow: pickWindow,
+    indicatorSegments: indicatorSegments,
+    previewScale: previewScale,
+    previewSelection: previewSelection,
+    stripLayout: stripLayout,
+    stripIndexAt: stripIndexAt
   }
 }
