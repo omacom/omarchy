@@ -17,6 +17,9 @@ runtime_dir="$run_root/$EUID"
 dead_signature="dead-signature"
 
 mkdir -p "$runtime_dir/hypr/$signature" "$runtime_dir/hypr/$dead_signature"
+proc_root="$test_tmp/proc"
+mkdir -p "$proc_root/4242"
+ln -s /usr/bin/Hyprland "$proc_root/4242/exe"
 
 cat >"$fake_hyprctl" <<'BASH'
 #!/bin/bash
@@ -24,6 +27,13 @@ cat >"$fake_hyprctl" <<'BASH'
 fixture_dir="${0%/*}"
 printf '%s\t%s\n' "$XDG_RUNTIME_DIR" "$*" >>"$fixture_dir/hyprctl.log"
 [[ ! -f $fixture_dir/hang ]] || sleep 30
+if [[ -f $fixture_dir/stall-first && $2 == *"-stalled" && $* != *'-j instances' ]]; then sleep 30; fi
+if [[ -f $fixture_dir/fail-query && $* == *'-j instances' ]]; then exit 1; fi
+if [[ -f $fixture_dir/fail-reload && $* == *' reload' ]]; then exit 1; fi
+if [[ -f $fixture_dir/reject-eval && $* == *' eval '* ]]; then
+  echo "eval is only supported with the lua config manager"
+  exit 0
+fi
 
 case "$*" in
   *'--instance dead-signature '*)
@@ -31,7 +41,7 @@ case "$*" in
     exit 4
     ;;
   *'-j instances')
-    printf '[{"instance":"test-signature","pid":4242}]\n'
+    printf '[{"instance":"%s","pid":4242}]\n' "$2"
     ;;
   *'getoption misc.disable_autoreload'*)
     cat "$fixture_dir/disable.json"
@@ -78,9 +88,7 @@ pass "reload guard resumes live Hyprland reloads"
 
 # Once an upgrade replaces the binary under the running compositor, that one
 # predates the new config, so reloading would show it errors for new keys.
-proc_root="$test_tmp/proc"
-mkdir -p "$proc_root/4242"
-ln -s "/usr/bin/Hyprland (deleted)" "$proc_root/4242/exe"
+ln -sf "/usr/bin/Hyprland (deleted)" "$proc_root/4242/exe"
 run_guard() {
   HYPRCTL="$fake_hyprctl" \
     OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT="$run_root" \
@@ -112,7 +120,7 @@ OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR="$state_dir" "$ROOT/bin/omarchy-hyprland
   fail "reload guard reports itself paused during a transaction"
 pass "reload guard reports whether a transaction is holding reloads"
 
-rm -f "$proc_root/4242/exe"
+ln -sf /usr/bin/Hyprland "$proc_root/4242/exe"
 rm -rf "$state_dir"
 printf '{"bool":true}\n' >"$test_tmp/disable.json"
 printf '{"bool":true}\n' >"$test_tmp/suppress.json"
@@ -169,6 +177,96 @@ run_guard pause
 rm "$runtime_dir/hypr"
 mv "$runtime_dir/hypr-original" "$runtime_dir/hypr"
 pass "reload guard skips symlinked directories at pause and after replacement"
+
+# A failed state publication or marker must never disable reloads. The target
+# directory makes publication fail even when this suite runs as root.
+for fault in state-directory state-publication pause-marker; do
+  rm -rf "$state_dir"
+  case "$fault" in
+    state-directory) touch "$state_dir" ;;
+    state-publication) mkdir -p "$state_file" ;;
+    pause-marker) mkdir -p "$state_dir/paused" ;;
+  esac
+  : >"$hyprctl_log"
+  if run_guard pause >"$test_tmp/storage-stderr" 2>&1; then
+    fail "$fault failure was ignored"
+  fi
+  ! grep -F ' eval ' "$hyprctl_log" >/dev/null || fail "$fault failure still paused Hyprland"
+  if [[ -d $state_dir/private/$EUID ]]; then
+    [[ -z $(find "$state_dir/private/$EUID" -maxdepth 1 -type f -name '.*' -print -quit) ]] ||
+      fail "failed state publication left a partial record"
+  fi
+done
+rm -rf "$state_dir"
+pass "storage and marker failures cannot pause a session without recoverable state"
+
+printf -v long_signature '%0254d_' 0
+mkdir -p "$runtime_dir/hypr/$long_signature"
+run_guard pause
+[[ -f $state_dir/private/$EUID/$long_signature ]] || fail "a maximum-length signature could not publish state"
+run_guard resume
+[[ ! -d $state_dir ]] || fail "a maximum-length signature could not restore and clear state"
+rmdir "$runtime_dir/hypr/$long_signature"
+pass "maximum-length instance signatures can publish and restore state"
+
+mkdir -p "$runtime_dir/hypr/"{a,b,c}-stalled
+run_guard pause
+# Give the three failed endpoints deterministic queue positions before the
+# healthy one. All timestamps are on root-private state in production.
+touch -d '@1' "$state_dir/private/$EUID/"{a,b,c}-stalled
+touch -d '@2' "$state_file"
+touch "$test_tmp/stall-first"
+: >"$hyprctl_log"
+started=$SECONDS
+run_guard resume
+(( SECONDS - started < 12 )) || fail "resume retries are bounded"
+[[ -f $state_file ]] || fail "an untouched session lost its original settings"
+run_guard paused && fail "pending recovery is not an active package transaction"
+run_guard resume
+grep -F -- '--instance test-signature reload' "$hyprctl_log" >/dev/null ||
+  fail "repeated resumes did not advance past stalled sessions of the same user"
+[[ ! -e $state_file && -f $state_dir/private/$EUID/a-stalled ]] ||
+  fail "resume discarded unrestored settings or retained restored settings"
+rm "$test_tmp/stall-first"
+run_guard resume
+[[ ! -d $state_dir ]] || fail "a later resume recovers the original settings"
+rmdir "$runtime_dir/hypr/"{a,b,c}-stalled
+pass "bounded resumes preserve state and advance past stalled sessions across invocations"
+
+# A partly completed restore must retain the values from before the pause,
+# including when the old guard wrote the state or another transaction starts.
+mkdir -p "$state_dir"
+printf '%s\tfalse\ttrue\n' "$runtime_dir" >"$state_dir/$signature"
+touch "$test_tmp/fail-reload"
+: >"$hyprctl_log"
+run_guard resume
+[[ ! -e $state_dir/$signature && -f $state_file ]] || fail "failed legacy restoration was not kept privately"
+expected_state=$(printf '%s\tfalse\ttrue' "$runtime_dir")
+[[ $(cat "$state_file") == "$expected_state" ]] || fail "partial restoration lost the original settings"
+grep -F 'hl.config({ misc = { disable_autoreload = false }, debug = { suppress_errors = true } })' "$hyprctl_log" >/dev/null ||
+  fail "the guard attempts to undo pause even when reload fails"
+run_guard paused && fail "pending legacy recovery blocks monitor recovery"
+run_guard pause
+[[ $(cat "$state_file") == "$expected_state" ]] || fail "a new pause overwrote unrestored original settings"
+rm "$test_tmp/fail-reload"
+run_guard resume
+[[ ! -d $state_dir ]] || fail "partial restoration cannot recover on a later resume"
+pass "failed legacy and partial restores remain private and survive a new pause"
+
+for failure in fail-query reject-eval; do
+  run_guard pause
+  touch "$test_tmp/$failure"
+  : >"$hyprctl_log"
+  run_guard resume
+  [[ -f $state_file ]] || fail "$failure discarded saved settings"
+  if [[ $failure == "fail-query" ]]; then
+    ! grep -F ' eval ' "$hyprctl_log" >/dev/null || fail "a failed compatibility probe permitted reload"
+  fi
+  rm "$test_tmp/$failure"
+  run_guard resume
+  [[ ! -d $state_dir ]] || fail "$failure could not recover after the endpoint became healthy"
+done
+pass "failed probes and zero-exit compositor refusals retain recoverable state"
 
 touch "$test_tmp/hang"
 started=$SECONDS
@@ -277,7 +375,10 @@ try:
     victim_requests = requests(1)
     assert all(r["uid"] == 1 for r in victim_requests), "redirected IPC reached another account"
     assert not any("suppress_errors = false" in r["request"] for r in victim_requests), "attacker state reached the victim"
-    assert not state.exists(), "cross-user state or pause marker survived resume"
+    assert (state / "private" / "65534" / signature).exists(), "failed cross-user restore lost saved state"
+    assert not (state / "private" / "1" / signature).exists(), "restored victim state survived resume"
+    env = dict(os.environ, OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR=str(state))
+    assert as_user(1, guard, "paused", env=env).returncode != 0, "pending recovery left the transaction paused"
     print("ok - real kernel permissions block socket replacement into another user's compositor")
 
     # One account's timeout allowance must neither starve another account nor
@@ -290,7 +391,7 @@ try:
 printf '%s\\n' "$*" >>"$XDG_RUNTIME_DIR/requests"
 [[ ! -f $XDG_RUNTIME_DIR/stall ]] || sleep 30
 case "$*" in
-  *'-j instances') printf '[]\\n' ;;
+  *'-j instances') printf '[{"instance":"%s","pid":4242}]\\n' "$2" ;;
   *'getoption'*) printf '{"bool":false}\\n' ;;
   *) printf 'ok\\n' ;;
 esac
@@ -308,7 +409,8 @@ esac
     def budget_run(action):
         env = dict(os.environ, HYPRCTL=str(budget_hyprctl),
                    OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT=str(budget_base),
-                   OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR=str(budget_state))
+                   OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR=str(budget_state),
+                   OMARCHY_HYPRLAND_RELOAD_GUARD_PROC_ROOT=str(Path(scratch) / "proc"))
         subprocess.run([guard, action], env=env, check=True, timeout=40, capture_output=True)
 
     def budget_requests(uid):
@@ -329,7 +431,7 @@ esac
     budget_run("resume")
     assert "--instance current reload" in budget_requests(65534), "hostile IPC prevented healthy restore"
     assert "--instance legacy-z reload" in budget_requests(65534), "hostile IPC prevented healthy legacy restore"
-    assert "--instance legacy-a" not in budget_requests(1), "legacy state renewed an exhausted account's allowance"
+    assert len(budget_requests(1).splitlines()) <= 4, "legacy state renewed an exhausted account's allowance within a pass"
     (budget_base / "1" / "stall").unlink()
     budget_run("pause")
     (budget_state / "private" / "1" / "legacy-a").rename(budget_state / "legacy-a")
@@ -338,7 +440,10 @@ esac
     (budget_base / "65534" / "stall").touch()
     budget_run("resume")
     assert "--instance legacy-a reload" in budget_requests(1), "another account's IPC time consumed healthy legacy allowance"
-    assert not budget_state.exists(), "per-account timeout left a stale transaction marker"
+    assert not (budget_state / "paused").exists(), "per-account timeout left a stale transaction marker"
+    (budget_base / "65534" / "stall").unlink()
+    budget_run("resume")
+    assert not budget_state.exists(), "a later resume could not finish pending recovery"
     print("ok - hostile IPC cannot consume another account's pause or legacy restore allowance")
 finally:
     for process in processes:
