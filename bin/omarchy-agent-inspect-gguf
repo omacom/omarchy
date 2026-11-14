@@ -1,0 +1,135 @@
+#!/usr/bin/python3
+# omarchy:summary=Read architecture and context from a local GGUF model file
+# omarchy:args=<file> [--json]
+# omarchy:examples=omarchy agent inspect gguf ~/Models/model.gguf --json
+
+import argparse
+import json
+import os
+from pathlib import Path
+import stat
+import struct
+import sys
+
+
+# GGUF's on-disk scalar types. Strings and arrays have variable length.
+FORMATS = {0: "B", 1: "b", 2: "H", 3: "h", 4: "I", 5: "i", 6: "f", 7: "?", 10: "Q", 11: "q", 12: "d"}
+INTEGER_TYPES = {0, 1, 2, 3, 4, 5, 10, 11}
+STRING = 8
+ARRAY = 9
+
+
+class MetadataReader:
+  def __init__(self, stream, size):
+    self.stream = stream
+    self.limit = min(size, 512 * 1024 * 1024)
+    self.array_values_left = 4_000_000
+    if self.read(4) != b"GGUF":
+      raise ValueError("This file has no GGUF header")
+    raw_version = self.read(4)
+    self.version = int.from_bytes(raw_version, "little")
+    self.endian = "<"
+    if raw_version == b"\x00\x00\x00\x03":
+      self.version = 3
+      self.endian = ">"
+    if self.version not in (2, 3):
+      raise ValueError(f"Unsupported GGUF version {self.version}")
+
+  def check_range(self, size):
+    if size > self.limit - self.stream.tell():
+      raise ValueError("GGUF metadata is truncated or exceeds the inspection limit")
+
+  def read(self, size):
+    self.check_range(size)
+    data = self.stream.read(size)
+    if len(data) != size:
+      raise ValueError("GGUF metadata is truncated")
+    return data
+
+  def skip(self, size):
+    self.check_range(size)
+    self.stream.seek(size, os.SEEK_CUR)
+
+  def number(self, fmt):
+    return struct.unpack(self.endian + fmt, self.read(struct.calcsize(fmt)))[0]
+
+  def text(self, maximum):
+    size = self.number("Q")
+    if size > maximum:
+      raise ValueError("GGUF metadata string exceeds the inspection limit")
+    return self.read(size).decode("utf-8")
+
+  def skip_value(self, kind, depth=0):
+    if kind in FORMATS:
+      self.skip(struct.calcsize(FORMATS[kind]))
+    elif kind == STRING:
+      self.skip(self.number("Q"))
+    elif kind == ARRAY and depth < 8:
+      item_type = self.number("I")
+      count = self.number("Q")
+      self.array_values_left -= count
+      if self.array_values_left < 0:
+        raise ValueError("GGUF metadata arrays exceed the inspection limit")
+      if item_type in FORMATS:
+        self.skip(count * struct.calcsize(FORMATS[item_type]))
+      else:
+        for _ in range(count):
+          self.skip_value(item_type, depth + 1)
+    else:
+      raise ValueError("Unknown GGUF metadata type or nested array limit exceeded")
+
+  def inspect(self):
+    tensors = self.number("Q")
+    entries = self.number("Q")
+    if entries > 8192:
+      raise ValueError("GGUF metadata entry count exceeds the inspection limit")
+
+    metadata = {}
+    for _ in range(entries):
+      key = self.text(65535)
+      kind = self.number("I")
+      if kind == STRING and key in ("general.name", "general.architecture"):
+        metadata[key] = self.text(1024 * 1024)
+      elif kind in INTEGER_TYPES and (key == "general.file_type" or key.endswith(".context_length")):
+        metadata[key] = self.number(FORMATS[kind])
+      else:
+        self.skip_value(kind)
+
+    architecture = metadata.get("general.architecture")
+    return {
+      "gguf_version": self.version,
+      "name": metadata.get("general.name"),
+      "architecture": architecture,
+      "context_tokens": metadata.get(f"{architecture}.context_length"),
+      "file_type": metadata.get("general.file_type"),
+      "tensor_count": tensors,
+    }
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Read model metadata without loading tensor data or starting a model server.")
+  parser.add_argument("file", type=Path)
+  parser.add_argument("--json", action="store_true")
+  args = parser.parse_args()
+
+  fd = os.open(args.file.expanduser(), os.O_RDONLY | os.O_NONBLOCK)
+  with os.fdopen(fd, "rb") as stream:
+    info = os.fstat(stream.fileno())
+    if not stat.S_ISREG(info.st_mode):
+      raise ValueError("Choose a regular GGUF file")
+    report = MetadataReader(stream, info.st_size).inspect()
+
+  if args.json:
+    print(json.dumps(report))
+    return
+  for key, value in report.items():
+    value = "unavailable" if value is None else str(value)
+    print(key.replace("_", " ").capitalize() + ": " + "".join(char for char in value if char.isprintable()))
+
+
+if __name__ == "__main__":
+  try:
+    main()
+  except (OSError, ValueError) as error:
+    print(f"GGUF inspect: {error}", file=sys.stderr)
+    sys.exit(1)
