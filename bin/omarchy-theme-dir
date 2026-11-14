@@ -2,7 +2,7 @@
 
 # omarchy:summary=Print the directory holding a theme, preferring a user-installed copy
 # omarchy:args=<theme-name>
-# omarchy:examples=omarchy theme dir tokyo-night
+# omarchy:examples=omarchy theme dir tokyo-night | omarchy theme dir "Tokyo Night"
 
 theme="${1:-}"
 
@@ -11,8 +11,47 @@ if [[ -z $theme ]]; then
   exit 1
 fi
 
+theme_dir="$OMARCHY_PATH/themes/$theme"
+
 if [[ -d $HOME/.config/omarchy/themes/$theme ]]; then
-  echo "$HOME/.config/omarchy/themes/$theme"
-else
-  echo "$OMARCHY_PATH/themes/$theme"
+  theme_dir="$HOME/.config/omarchy/themes/$theme"
+elif [[ ! -d $theme_dir ]]; then
+  # omarchy-theme-list shows a folder title-cased with its dashes as spaces, so
+  # a name that is no folder is the one shown for a folder. FOO and foo are
+  # shown as FOO and Foo, so the shown name is matched exactly first, and only
+  # then the same name once both are lowercased with their spaces as dashes.
+  # Case follows the locale, and a Turkish one turns I into a dotless ı, so it
+  # is pinned to C.
+  LC_ALL=C
+  for path in "$HOME/.config/omarchy/themes"/* "$OMARCHY_PATH/themes"/*; do
+    rest=${path##*/}
+    shown=${rest%%-*}
+    shown=${shown^}
+    while [[ $rest == *-* ]]; do
+      rest=${rest#*-}
+      word=${rest%%-*}
+      shown+=" ${word^}"
+    done
+
+    if [[ -d $path && $shown == "$theme" ]]; then
+      theme_dir="$path"
+      break
+    fi
+  done
+
+  if [[ ! -d $theme_dir ]]; then
+    wanted=${theme,,}
+    wanted=${wanted// /-}
+
+    for path in "$HOME/.config/omarchy/themes"/* "$OMARCHY_PATH/themes"/*; do
+      name=${path##*/}
+      name=${name,,}
+      if [[ -d $path && ${name// /-} == "$wanted" ]]; then
+        theme_dir="$path"
+        break
+      fi
+    done
+  fi
 fi
+
+echo "$theme_dir"

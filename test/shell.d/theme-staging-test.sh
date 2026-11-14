@@ -203,6 +203,28 @@ done
 
 pass "a theme name cannot climb out of the theme directories"
 
+# Every name `omarchy theme list` shows applies the folder it was shown for,
+# however that folder is cased or spaced, and an exact folder name is never
+# traded for a stock theme spelled the same in another case.
+while IFS=: read -r shown folder; do
+  mkdir -p "$themes/$folder"
+  write_colors "$themes/$folder/colors.toml"
+  listed=$(HOME="$home" bash "$ROOT/bin/omarchy-theme-list")
+  grep -Fxq "$shown" <<<"$listed" || fail "omarchy theme list shows the folder '$folder' as '$shown'" "$listed"
+  set_theme "$shown" || fail "omarchy-theme-set applies '$shown', as omarchy theme list shows it"
+  [[ $(<"$state/theme.name") == "$folder" ]] || fail "'$shown' applies the folder '$folder'" "$(<"$state/theme.name")"
+done <<'NAMES'
+Walk Handmade Theme:Walk Handmade Theme
+Walk lower theme:walk lower theme
+Walk Kebab:walk-kebab
+Gruvbox:Gruvbox
+NAMES
+
+set_theme gruvbox || fail "omarchy-theme-set applies a stock theme by its folder name"
+[[ $(<"$state/theme.name") == "gruvbox" ]] || fail "a stock folder name applies the stock theme" "$(<"$state/theme.name")"
+
+pass "a theme is applied by the name omarchy theme list shows or by its folder name"
+
 # A denylist is only correct while someone adding a template classifies what it
 # generates. Every generated theme file is either denied to an installed theme or
 # recorded here as carrying colour, so a new template fails until it is placed.

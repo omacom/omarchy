@@ -2,7 +2,7 @@
 
 # omarchy:summary=Remove a user-installed theme
 # omarchy:args=[theme-name]
-# omarchy:examples=omarchy theme remove "Tokyo Night"
+# omarchy:examples=omarchy theme remove "My Theme"
 
 if [[ -z $1 ]]; then
   mapfile -t extra_themes < <(find ~/.config/omarchy/themes -mindepth 1 -maxdepth 1 -type d ! -xtype l -printf '%f\n')
@@ -19,13 +19,18 @@ else
 fi
 
 THEMES_DIR="$HOME/.config/omarchy/themes"
-THEME_PATH="$THEMES_DIR/$THEME_NAME"
 
 # Ensure a theme was set, and that the name cannot climb out of THEMES_DIR
 # on its way into the rm below.
 if [[ -z $THEME_NAME || $THEME_NAME == .* || $THEME_NAME == */* ]]; then
   exit 1
 fi
+
+# The name may be the one omarchy-theme-list shows rather than the folder's own.
+# It can resolve to a stock theme, which is not under THEMES_DIR and is not found.
+THEME_DIR=$(omarchy-theme-dir "$THEME_NAME")
+THEME_NAME=${THEME_DIR##*/}
+THEME_PATH="$THEMES_DIR/$THEME_NAME"
 
 # Check if theme exists before attempting removal
 if [[ ! -d $THEME_PATH ]]; then

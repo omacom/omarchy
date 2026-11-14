@@ -194,7 +194,7 @@ pass "an ordinary theme URL still clones and applies"
 remove_theme() {
   : >"$theme_calls"
 
-  HOME="$test_tmp/home" PATH="$mock_bin:$PATH" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
+  HOME="$test_tmp/home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
     bash "$ROOT/bin/omarchy-theme-remove" "$1" >"$test_tmp/out" 2>&1 || return $?
 }
 
@@ -210,3 +210,33 @@ for name in ".." "." "../../evil" ".git"; do
 done
 
 pass "a theme name cannot climb out of the themes directory on the way to rm"
+
+# The name `omarchy theme list` shows removes the folder it was shown for, and so
+# does the folder's own name, however it is cased or spaced. A stock theme is
+# not the user's to remove, whichever name it is given by.
+user_themes="$test_tmp/home/.config/omarchy/themes"
+mkdir -p "$user_themes/walk-kebab" "$user_themes/Walk Handmade Theme"
+
+for name in "Walk Kebab" "Walk Handmade Theme"; do
+  remove_theme "$name" || fail "omarchy-theme-remove removes '$name'" "$(cat "$test_tmp/out")"
+done
+[[ ! -e $user_themes/walk-kebab && ! -e "$user_themes/Walk Handmade Theme" ]] ||
+  fail "omarchy-theme-remove removes the folders it was named" "$(ls -1 "$user_themes")"
+
+# FOO and foo are shown as FOO and Foo, and Foo is foo.
+mkdir -p "$user_themes/FOO" "$user_themes/foo"
+remove_theme Foo || fail "omarchy-theme-remove removes 'Foo'" "$(cat "$test_tmp/out")"
+[[ -d $user_themes/FOO && ! -e $user_themes/foo ]] ||
+  fail "omarchy-theme-remove removes foo, shown as Foo, and keeps FOO" "$(ls -1 "$user_themes")"
+
+# tokyo-night- is shown as "Tokyo Night ", so "Tokyo Night" is still the stock theme.
+mkdir -p "$user_themes/tokyo-night-"
+for name in "Tokyo Night" tokyo-night; do
+  if remove_theme "$name"; then
+    fail "omarchy-theme-remove refuses the stock theme '$name'"
+  fi
+done
+[[ -d $ROOT/themes/tokyo-night && -d $user_themes/tokyo-night- ]] ||
+  fail "omarchy-theme-remove leaves the stock theme and tokyo-night- in place" "$(ls -1 "$user_themes")"
+
+pass "a theme is removed by the name omarchy theme list shows or by its folder name"
