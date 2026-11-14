@@ -27,7 +27,7 @@ Row {
   property var options: []
   property string value: ""
   property color foreground: Commons.Color.foreground
-  property color background: Commons.Color.background
+  property color background: "transparent"
   property color accent: Commons.Color.accent
   property string fontFamily: Style.font.family
   property real fontSize: Style.font.body
