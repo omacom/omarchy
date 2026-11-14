@@ -85,9 +85,57 @@ Item {
     return DockModel.orderItems(DockModel.buildItems(pinned, windows, root.instances), root.order, root.instances)
   }
 
+  // Remember live workspace changes before minimizing makes IPC tags stale.
+  property var windowWorkspaces: ({})
+
+  function rememberWindowWorkspace(toplevel) {
+    var workspace = toplevel ? toplevel.workspace : null
+    if (!workspace || workspace.id < 1) return
+    var address = String(toplevel.address)
+    var remembered = root.windowWorkspaces[address]
+    if (remembered && remembered.window === toplevel && remembered.workspace === workspace.id) return
+    var next = Object.assign({}, root.windowWorkspaces)
+    next[address] = { window: toplevel, workspace: workspace.id }
+    root.windowWorkspaces = next
+  }
+
+  function pruneWindowWorkspaces() {
+    var alive = {}
+    var windows = Hyprland.toplevels.values
+    for (var i = 0; i < windows.length; i++) alive[String(windows[i].address)] = windows[i]
+    var next = {}
+    var changed = false
+    for (var address in root.windowWorkspaces) {
+      if (alive[address] === root.windowWorkspaces[address].window) next[address] = root.windowWorkspaces[address]
+      else changed = true
+    }
+    if (changed) root.windowWorkspaces = next
+  }
+
+  Repeater {
+    model: Hyprland.toplevels.values
+    delegate: Item {
+      id: workspaceTracker
+      required property var modelData
+      function remember() { root.rememberWindowWorkspace(modelData) }
+      onModelDataChanged: remember()
+      Component.onCompleted: remember()
+      Connections {
+        target: workspaceTracker.modelData
+        function onWorkspaceChanged() { workspaceTracker.remember() }
+      }
+      Connections {
+        target: workspaceTracker.modelData ? workspaceTracker.modelData.workspace : null
+        function onIdChanged() { workspaceTracker.remember() }
+      }
+    }
+  }
+
   function rememberedWorkspace(toplevel) {
     var workspace = toplevel.workspace
     if (workspace && workspace.id > 0) return workspace.id
+    var remembered = root.windowWorkspaces[String(toplevel.address)]
+    if (remembered && remembered.window === toplevel) return remembered.workspace
     var tags = (toplevel.lastIpcObject || {}).tags || []
     for (var i = 0; i < tags.length; i++) {
       var match = /^omarchy-minimized-from-(\d+)$/.exec(String(tags[i]))
@@ -132,6 +180,7 @@ Item {
     }
     if (itemModel.count > keys.length) itemModel.remove(keys.length, itemModel.count - keys.length)
     root.settleLaunches()
+    root.pruneWindowWorkspaces()
     if (root.instances && root.order.join("\n") !== keys.join("\n")) root.order = keys
   }
 

@@ -11,6 +11,28 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
+const badgeDockQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/Dock.qml', 'utf8')
+const badgeMethod = name => badgeDockQml.match(new RegExp('function ' + name + '\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}'))[1]
+const badgeMemory = {windowWorkspaces: {}}
+const rememberLiveWorkspace = new Function('root', 'toplevel', badgeMethod('rememberWindowWorkspace'))
+const rememberedBadgeWorkspace = new Function('root', 'toplevel', badgeMethod('rememberedWorkspace'))
+const badgeNative = {address: 'abc', workspace: {id: 2}, lastIpcObject: {tags: ['omarchy-minimized-from-2']}}
+rememberLiveWorkspace(badgeMemory, badgeNative)
+badgeNative.workspace = {id: 11}; rememberLiveWorkspace(badgeMemory, badgeNative)
+badgeNative.workspace = {id: -98}; rememberLiveWorkspace(badgeMemory, badgeNative)
+assertEqual(rememberedBadgeWorkspace(badgeMemory, badgeNative), 11, 'minimizing on monitor two ignores a stale monitor-one origin tag')
+badgeNative.lastIpcObject.tags = ['omarchy-minimized-from-11']
+assertEqual(rememberedBadgeWorkspace(badgeMemory, badgeNative), 11, 'the refreshed minimize tag does not change the badge')
+const badgeStartup = {address: 'new', workspace: {id: -98}, lastIpcObject: {tags: ['omarchy-minimized-from-3']}}
+assertEqual(rememberedBadgeWorkspace(badgeMemory, badgeStartup), 3, 'already minimized windows still use their persisted origin at startup')
+const badgeReusedAddress = {address: 'abc', workspace: {id: -98}, lastIpcObject: {tags: ['omarchy-minimized-from-4']}}
+assertEqual(rememberedBadgeWorkspace(badgeMemory, badgeReusedAddress), 4, 'a reused window address never borrows the previous window badge')
+new Function('root', 'Hyprland', badgeMethod('pruneWindowWorkspaces'))(badgeMemory, {toplevels: {values: []}})
+assertDeepEqual(badgeMemory.windowWorkspaces, {}, 'closed windows release remembered workspace state')
+const badgeWindowQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/DockWindow.qml', 'utf8')
+const badgeValue = new Function('modelData', 'minimized', badgeWindowQml.match(/readonly property int otherWorkspace: \{([\s\S]*?)\n    \}/)[1])
+assertEqual(badgeValue({windows: [{workspaceId: -98, sortWorkspaceId: 11, minimized: true}]}, false), 11, 'badge selection uses one window snapshot while the delegate minimized flag catches up')
+
 
 for (const [icon, count, length, extra] of [[66, 12, 742, 0], [36, 29, 1280, 24], [36, 120, 742, 24]]) {
   const fit = dock.fitSlots(icon, 6, count, length, extra)
