@@ -179,4 +179,43 @@ assert(model.REACH_TIMEOUT_MS < 25000,
   "the reach bound lands before GDBus fails a stuck Claim at 25s and pam_fprintd's 30s verify timeout reports as a non-error message")
 assert(model.REACH_TIMEOUT_MS >= 10000,
   'the reach bound outlasts a slow device open, so a reader that takes seconds to claim is not killed mid-Claim on every attempt')
+
+// dbus-monitor prints the property name, then its boolean on a later line.
+// finger-present is the sensor reading. The next string owns the next boolean,
+// so finger-needed cannot be read as a touch.
+function presence(lines) {
+  let expect = ""
+  let touching = null
+  for (const line of lines) {
+    const step = model.fingerPresenceStep(expect, line)
+    expect = step.expect
+    if (step.touching === true || step.touching === false) touching = step.touching
+  }
+  return touching
+}
+
+assertEqual(presence([
+  '   string "net.reactivated.Fprint.Device"',
+  '         string "finger-present"',
+  '         variant             boolean true'
+]), true, 'finger-present true is a touch')
+assertEqual(presence([
+  '         string "finger-present"',
+  '         variant             boolean false'
+]), false, 'finger-present false is a lift')
+assertEqual(presence([
+  '         string "finger-needed"',
+  '         variant             boolean true'
+]), null, 'finger-needed is not a touch')
+assertEqual(presence([
+  '         string "finger-present"',
+  '         string "finger-needed"',
+  '         variant             boolean true'
+]), null, 'a later property owns the boolean')
+assertEqual(presence([
+  '         string "finger-needed"',
+  '         variant             boolean true',
+  '         string "finger-present"',
+  '         variant             boolean true'
+]), true, 'finger-present after finger-needed is still a touch')
 JS

@@ -67,6 +67,20 @@ function isUnavailable(streak) {
   return streak >= UNAVAILABLE_AFTER
 }
 
+// dbus-monitor prints one property, then its boolean. finger-present is the
+// enclave reading the finger (HoldStill). A later string owns the next boolean,
+// so finger-needed cannot be read as a touch.
+function fingerPresenceStep(expect, line) {
+  var text = String(line || "")
+  var named = text.match(/string "([^"]*)"/)
+  if (named) return { expect: named[1] === "finger-present" ? "present" : "", touching: null }
+  if (expect === "present") {
+    var value = text.match(/boolean (true|false)/)
+    if (value) return { expect: "", touching: value[1] === "true" }
+  }
+  return { expect: expect, touching: null }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     MATCH_RETRY_MS: MATCH_RETRY_MS,
@@ -86,6 +100,7 @@ if (typeof module !== "undefined") {
     inResumeGrace: inResumeGrace,
     retryDelayMs: retryDelayMs,
     nextStreak: nextStreak,
-    isUnavailable: isUnavailable
+    isUnavailable: isUnavailable,
+    fingerPresenceStep: fingerPresenceStep
   }
 }
