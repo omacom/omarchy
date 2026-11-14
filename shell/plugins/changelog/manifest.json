@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.changelog",
+  "name": "Changelog",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Browse the Omarchy release changelog",
+  "kinds": [
+    "overlay"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "Changelog.qml"
+  }
+}

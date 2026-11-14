@@ -1229,6 +1229,9 @@
   "update.omarchy": {
     "label": "Omarchy"
   },
+  "update.changelog": {
+    "label": "Changelog"
+  },
   "update.channel": {
     "label": "Channel"
   },

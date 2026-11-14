@@ -91,6 +91,8 @@ hl.env("GUM_FILE_HEADER_BACKGROUND", "{{ background }}")
 -- Gum Pager Style Variables
 hl.env("GUM_PAGER_FOREGROUND", "{{ foreground }}")
 hl.env("GUM_PAGER_BACKGROUND", "{{ background }}")
+hl.env("GUM_PAGER_BORDER_FOREGROUND", "{{ muted }}")
+hl.env("GUM_PAGER_BORDER_BACKGROUND", "{{ background }}")
 hl.env("GUM_PAGER_LINE_NUMBER_FOREGROUND", "{{ muted }}")
 hl.env("GUM_PAGER_LINE_NUMBER_BACKGROUND", "{{ background }}")
 hl.env("GUM_PAGER_MATCH_FOREGROUND", "{{ accent }}")
