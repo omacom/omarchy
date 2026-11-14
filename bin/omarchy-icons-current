@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# omarchy:summary=Show current icon set
+
+# Papercraft, the default set, is in use until another is picked. --id prints the name the
+# set's directory has, for the commands that read it.
+ICONS_NAME_PATH="$HOME/.local/state/omarchy/current/icons.name"
+
+name=$(cat "$ICONS_NAME_PATH" 2>/dev/null)
+[[ -n $name ]] || name="papercraft"
+
+if [[ ${1:-} == "--id" ]]; then
+  printf '%s\n' "$name"
+else
+  sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g' <<<"$name"
+fi

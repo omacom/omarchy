@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# omarchy:summary=Remove a user-installed icon set
+# omarchy:args=[icon-set-name]
+# omarchy:examples=omarchy icons remove "Example"
+
+SETS_DIR="$HOME/.config/omarchy/icons"
+
+if [[ -z $1 ]]; then
+  mapfile -t extra_sets < <(find "$SETS_DIR" -mindepth 1 -maxdepth 1 -type d ! -xtype l -printf '%f\n' 2>/dev/null)
+
+  if (( ${#extra_sets[@]} > 0 )); then
+    mapfile -t extra_sets < <(printf '%s\n' "${extra_sets[@]}" | sort)
+    SET_NAME=$(omarchy-menu-select "$(omarchy-i18n icons.removeExtraTitle)" "${extra_sets[@]}" -- --width 520 --maxheight 520)
+  else
+    echo "No extra icon sets installed."
+    exit 1
+  fi
+else
+  SET_NAME=$(tr '[:upper:]' '[:lower:]' <<<"$1" | tr ' ' '-')
+fi
+
+SET_PATH="$SETS_DIR/$SET_NAME"
+
+# Ensure a set was named, and that the name cannot climb out of SETS_DIR on
+# its way into the rm below.
+if [[ -z $SET_NAME || $SET_NAME == .* || $SET_NAME == */* ]]; then
+  exit 1
+fi
+
+if [[ ! -d $SET_PATH ]]; then
+  echo "Error: Icon set '$SET_NAME' not found."
+  exit 1
+fi
+
+rm -rf "$SET_PATH"
+
+# The set in use is drawn again without what was removed. A set of the user's
+# own is gone, so the default takes over; one laid over a built-in set leaves
+# that set as Omarchy ships it.
+if [[ $(omarchy-icons-current --id) == "$SET_NAME" ]]; then
+  [[ -d $OMARCHY_PATH/icons/$SET_NAME ]] || rm -f "$HOME/.local/state/omarchy/current/icons.name"
+  omarchy-theme-set-icons
+fi
+
+omarchy-notification-send "$(omarchy-i18n icons.removed)" "$SET_NAME" || true
+echo "Removed $SET_NAME"
