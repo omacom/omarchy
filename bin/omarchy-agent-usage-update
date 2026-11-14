@@ -39,12 +39,59 @@ wanted() {
   return 1
 }
 
+# Each limit keeps [ms, percent] samples of its current window, carried over
+# from the record it replaces, so the panel can project from the recent burn
+# rate rather than the window's average. A sample is stamped with when its
+# limits were measured (the record's limitsFetchedAt, an account's fetchedAt),
+# so a cached or stale answer adds none. A reset that moved, or another active
+# account behind the record's own limits, starts the history over. Samples
+# reach back 26 hours (a day of a weekly window, with slack), at least five
+# minutes apart except the newest. Only the distance between two resets
+# matters, so the offset is dropped before parsing.
+LIMIT_HISTORY='
+  def epoch: (.[0:19] + "Z" | fromdateiso8601? * 1000) // null;
+  def active: [.accounts[]? | objects | select(.active == true) | .id][0];
+  def stamp: if type == "number" then . else 0 end;
+  def carry($before; $at):
+    ([$before[]? | objects] | INDEX(.label)) as $prior
+    | map(if type != "object" then . else
+        ($prior[.label | tostring] // {}) as $was
+        | (.resetsAt // "" | tostring | epoch) as $resets
+        | ($was.resetsAt // "" | tostring | epoch) as $resetsBefore
+        | (if $resets != null and $resetsBefore != null and ($resets - $resetsBefore | fabs) < 600000
+           then [$was.history[]? | arrays | select(.[0] >= $at - 93600000)]
+           else [] end) as $kept
+        | .history = (if $at > 0 and ($kept | length == 0 or .[-1][0] < $at)
+            then (if ($kept | length) >= 2 and $kept[-1][0] - $kept[-2][0] < 300000
+              then $kept[:-1] else $kept end) + [[$at, .percent]]
+            else $kept end)
+      end);
+  ($previous[0] | if type == "object" then . else {} end) as $previous
+  | (if ($previous | active) == active then $previous.limits else [] end) as $before
+  | (.limitsFetchedAt | stamp) as $at
+  | (if (.limits | type) == "array" then .limits |= carry($before; $at) else . end)
+  | ([$previous.accounts[]? | objects] | INDEX(.id)) as $accounts
+  | if (.accounts | type) != "array" then . else
+      .accounts |= map(if type == "object" and (.limits | type) == "array"
+        then . as $account
+          | .limits |= carry($accounts[$account.id | tostring].limits; $account.fetchedAt | stamp)
+        else . end)
+    end'
+
 collect() {
   local collector="$1" agent="$2"
-  local record tmp
+  local record tmp previous merged
   if ! record=$("$collector" "${flags[@]}") || [[ -z $record ]] || ! jq -e . >/dev/null 2>&1 <<<"$record"; then
     echo "omarchy-agent-usage-update: $agent collector failed" >&2
     return 1
+  fi
+  # A history that can't be carried costs only the recent rate, never the
+  # record. The record it replaces is read from its file, since a record can
+  # outgrow what one argument may hold.
+  previous=$USAGE_DIR/$agent.json
+  [[ -f $previous ]] || previous=/dev/null
+  if merged=$(jq -c --slurpfile previous "$previous" "$LIMIT_HISTORY" <<<"$record" 2>/dev/null) && [[ -n $merged ]]; then
+    record=$merged
   fi
   tmp=$(mktemp "$USAGE_DIR/.$agent.XXXXXX")
   printf '%s\n' "$record" >"$tmp"
