@@ -24,6 +24,15 @@ verify_core_packages() {
   pass "all Omarchy core packages are installed (${#missing[@]} missing)"
 }
 
+verify_core_package_versions() {
+  local dependency="gpu-screen-recorder>=6.1.2"
+
+  # Check versioned provides as well as the repository package's version.
+  LC_ALL=C pacman -T "$dependency" >/dev/null ||
+    fail "GPU Screen Recorder meets its minimum version" "a package providing $dependency is required for the KMS helper security fix"
+  pass "GPU Screen Recorder meets its minimum version"
+}
+
 verify_kernel_headers() {
   local kernel=linux-omarchy
   local release
@@ -126,7 +135,7 @@ verify_user_setup() {
   pass "Omarchy user state and shell configuration exist"
 }
 
-for check in verify_core_packages verify_kernel_headers verify_defaults verify_services verify_runtime_tools verify_user_setup; do
+for check in verify_core_packages verify_core_package_versions verify_kernel_headers verify_defaults verify_services verify_runtime_tools verify_user_setup; do
   if ! ("$check"); then
     status=1
   fi
