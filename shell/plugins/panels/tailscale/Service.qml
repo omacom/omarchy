@@ -197,7 +197,7 @@ Item {
     }
     if (!whichProcess.running) {
       refreshing = true
-      whichProcess.command = ["which", "tailscale"]
+      whichProcess.command = ["omarchy-cmd-present", "tailscale"]
       whichProcess.running = true
     }
   }
