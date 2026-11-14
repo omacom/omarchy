@@ -1,0 +1,57 @@
+#!/usr/bin/python3
+# omarchy:summary=Transcribe an audio or video file locally with whisper.cpp
+# omarchy:args=<media> --model <model.bin> [--language <code>] [--format <txt|srt|vtt>] [--output <file>]
+# omarchy:examples=omarchy transcode transcribe meeting.m4a --model ~/Models/ggml-base.bin | omarchy transcode transcribe clip.mp4 --model ~/Models/ggml-base.bin --format srt --output clip.srt
+
+import argparse
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Transcribe saved audio or video using an already downloaded whisper.cpp model. Prints text or subtitles, or saves a new output file. Requires ffmpeg and whisper-cli.")
+  parser.add_argument("media", type=Path)
+  parser.add_argument("--model", type=Path, required=True)
+  parser.add_argument("--language", default="auto")
+  parser.add_argument("--format", choices=("txt", "srt", "vtt"), default="txt")
+  parser.add_argument("--output", type=Path)
+  args = parser.parse_args()
+  media = args.media.expanduser().resolve(strict=True)
+  model = args.model.expanduser().resolve(strict=True)
+  if not media.is_file() or not model.is_file():
+    parser.error("media and model must be files")
+  output = args.output.expanduser().absolute() if args.output else None
+  if output and os.path.lexists(output):
+    raise FileExistsError(f"Output already exists: {output}")
+  if subprocess.run(["omarchy-cmd-missing", "whisper-cli"]).returncode == 0:
+    raise ValueError("Install whisper.cpp's whisper-cli first, and choose a local .bin model with --model.")
+
+  with tempfile.TemporaryDirectory(prefix=".omarchy-transcribe-", dir=output.parent if output else None) as scratch:
+    wav = Path(scratch) / "audio.wav"
+    prefix = Path(scratch) / "transcript"
+    subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-i", str(media),
+      "-vn", "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", str(wav)], check=True, stdout=sys.stderr)
+    subprocess.run(["whisper-cli", "-m", str(model), "-f", str(wav), "-l", args.language,
+      "-o" + args.format, "-of", str(prefix)], check=True, stdout=sys.stderr)
+    transcript = prefix.with_suffix("." + args.format)
+    text = transcript.read_text(encoding="utf-8")
+    if not text.strip():
+      raise ValueError("No speech was transcribed; no output file was created.")
+    if output:
+      os.chmod(transcript, 0o600)
+      os.link(transcript, output)
+      print(output)
+    else:
+      print(text, end="" if text.endswith("\n") else "\n")
+  return 0
+
+
+if __name__ == "__main__":
+  try:
+    sys.exit(main())
+  except (OSError, ValueError, subprocess.SubprocessError) as error:
+    print(f"Transcription: {error}", file=sys.stderr)
+    sys.exit(1)
