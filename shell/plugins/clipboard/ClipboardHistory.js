@@ -1,3 +1,29 @@
+// Optional metadata every entry may carry: the pinboard it is pinned to, the
+// app it was copied from, and when it was copied (epoch milliseconds). Values
+// come from the history file, so they are bounded before they are kept.
+var pinboardNameLimit = 64
+var appIdLimit = 128
+
+function boundedString(value, limit) {
+  if (typeof value !== "string") return ""
+  var text = value.replace(/[\u0000-\u001f\u007f]/g, " ").trim()
+  return text.length > limit ? text.slice(0, limit) : text
+}
+
+function pinboardName(value) {
+  return boundedString(value, pinboardNameLimit)
+}
+
+function withMetadata(entry, value) {
+  var pinboard = pinboardName(value.pinboard)
+  if (pinboard) entry.pinboard = pinboard
+  var app = boundedString(value.app, appIdLimit)
+  if (app) entry.app = app
+  var copiedAt = Number(value.copiedAt)
+  if (value.copiedAt !== undefined && value.copiedAt !== null && isFinite(copiedAt) && copiedAt > 0) entry.copiedAt = Math.floor(copiedAt)
+  return entry
+}
+
 function normalizeEntry(value) {
   if (typeof value === "string")
     return value.trim().length > 0 ? { type: "text", text: value } : null
@@ -7,7 +33,7 @@ function normalizeEntry(value) {
   var type = String(value.type || value.kind || "")
   if (type === "text") {
     var text = String(value.text || "")
-    return text.trim().length > 0 ? { type: "text", text: text } : null
+    return text.trim().length > 0 ? withMetadata({ type: "text", text: text }, value) : null
   }
 
   if (type === "image") {
@@ -20,7 +46,7 @@ function normalizeEntry(value) {
     }
     if (value.capturedAt !== undefined && value.capturedAt !== null)
       entry.capturedAt = String(value.capturedAt)
-    return entry
+    return withMetadata(entry, value)
   }
 
   return null
@@ -48,24 +74,46 @@ function parseHistory(raw) {
   }
 }
 
+// The new copy goes to the front. Copying something already in history moves
+// it there instead of adding a second row, keeping its pinboard and the app it
+// first came from. The limit only trims unpinned entries: a pinned entry stays
+// until it is unpinned or deleted.
 function addEntry(history, entry, limit) {
   var normalized = normalizeEntry(entry)
   var max = limit === undefined || limit === null ? 100 : Number(limit)
   if (isNaN(max)) max = 100
   max = Math.max(0, max)
-  if (!normalized) return Array.isArray(history) ? history.slice(0, max) : []
-  if (max === 0) return []
+  var values = Array.isArray(history) ? history : []
+  if (!normalized) return trimmed(values, max)
 
   var key = entryKey(normalized)
-  var next = [normalized]
-  var values = Array.isArray(history) ? history : []
-
-  for (var i = 0; i < values.length && next.length < max; i++) {
+  var rest = []
+  for (var i = 0; i < values.length; i++) {
     var existing = normalizeEntry(values[i])
-    if (!existing || entryKey(existing) === key) continue
-    next.push(existing)
+    if (!existing) continue
+    if (entryKey(existing) === key) {
+      if (existing.pinboard) normalized.pinboard = existing.pinboard
+      if (existing.app) normalized.app = existing.app
+      continue
+    }
+    rest.push(existing)
   }
 
+  return trimmed([normalized].concat(rest), max)
+}
+
+function trimmed(values, max) {
+  var next = []
+  var unpinned = 0
+  for (var i = 0; i < values.length; i++) {
+    var entry = normalizeEntry(values[i])
+    if (!entry) continue
+    if (!entry.pinboard) {
+      if (unpinned >= max) continue
+      unpinned++
+    }
+    next.push(entry)
+  }
   return next
 }
 
@@ -79,8 +127,81 @@ function removeEntryAt(history, index) {
   return next
 }
 
-function clearHistory() {
-  return []
+// Clearing history keeps pinned entries: they were saved on purpose.
+function clearHistory(history) {
+  var values = Array.isArray(history) ? history : []
+  return values.filter(function(entry) { return !!(entry && entry.pinboard) })
+}
+
+function pinEntryAt(history, index, pinboard) {
+  var values = Array.isArray(history) ? history.slice() : []
+  var target = Number(index)
+  var name = pinboardName(pinboard)
+  if (!name || isNaN(target) || target < 0 || target >= values.length) return values
+
+  var entry = normalizeEntry(values[target])
+  if (!entry) return values
+  entry.pinboard = name
+  values[target] = entry
+  return values
+}
+
+function unpinEntryAt(history, index) {
+  var values = Array.isArray(history) ? history.slice() : []
+  var target = Number(index)
+  if (isNaN(target) || target < 0 || target >= values.length) return values
+
+  var entry = normalizeEntry(values[target])
+  if (!entry) return values
+  delete entry.pinboard
+  values[target] = entry
+  return values
+}
+
+// Pinboards are named tabs. A board can exist before anything is pinned to it,
+// so the saved list keeps the user's order and empty boards, and any board an
+// entry names but the list lacks (a hand-edited file) is appended.
+function parsePinboards(raw) {
+  try {
+    return pinboardList(JSON.parse(String(raw || "[]")), [])
+  } catch (e) {
+    return []
+  }
+}
+
+function pinboardList(saved, history) {
+  var names = []
+  function add(value) {
+    var name = pinboardName(value)
+    if (name && names.indexOf(name) < 0) names.push(name)
+  }
+
+  if (Array.isArray(saved)) saved.forEach(add)
+  if (Array.isArray(history)) history.forEach(function(entry) { if (entry) add(entry.pinboard) })
+  return names
+}
+
+function renamePinboard(history, from, to) {
+  var source = pinboardName(from)
+  var target = pinboardName(to)
+  var values = Array.isArray(history) ? history : []
+  return values.map(function(value) {
+    var entry = normalizeEntry(value)
+    if (entry && source && target && entry.pinboard === source) entry.pinboard = target
+    return entry
+  }).filter(function(entry) { return !!entry })
+}
+
+// Deleting a board unpins its entries rather than deleting them, so they fall
+// back into history and age out with everything else.
+function removePinboard(history, name) {
+  var board = pinboardName(name)
+  var values = Array.isArray(history) ? history : []
+  return values.map(function(value) {
+    var entry = normalizeEntry(value)
+    if (entry && board && entry.pinboard === board) delete entry.pinboard
+    return entry
+  }).filter(function(entry) { return !!entry })
 }
 
 function parseEntryJson(line) {
@@ -91,8 +212,43 @@ function parseEntryJson(line) {
 
 function searchableText(entry) {
   if (!entry) return ""
-  if (entry.type === "image") return "image screenshot " + String(entry.mime || "") + " " + String(entry.capturedAt || "")
-  return String(entry.text || "") + " " + fileEntryText(entry)
+  var app = entry.app ? " " + entry.app : ""
+  if (entry.type === "image") return "image screenshot " + String(entry.mime || "") + " " + String(entry.capturedAt || "") + app
+  return String(entry.text || "") + " " + fileEntryText(entry) + app
+}
+
+function isLink(entry) {
+  if (!entry || entry.type !== "text") return false
+  return /^(https?|ftp):\/\/\S+$/i.test(String(entry.text || "").trim())
+}
+
+// What the type filter matches on: image, file, link or text.
+function entryKind(entry) {
+  if (!entry) return ""
+  if (entry.type === "image") return "image"
+  if (filePaths(entry).length > 0) return "file"
+  if (isLink(entry)) return "link"
+  return "text"
+}
+
+var kinds = ["all", "text", "link", "image", "file"]
+
+function kindOptions(tr) {
+  var t = translator(tr)
+  var labels = {
+    all: t("clipboard.kindAll", "All"),
+    text: t("clipboard.kindText", "Text"),
+    link: t("clipboard.kindLinks", "Links"),
+    image: t("clipboard.kindImages", "Images"),
+    file: t("clipboard.kindFiles", "Files")
+  }
+  return kinds.map(function(kind) { return { value: kind, label: labels[kind] } })
+}
+
+function nextKind(kind, delta) {
+  var index = kinds.indexOf(String(kind || "all"))
+  if (index < 0) index = 0
+  return kinds[(index + delta + kinds.length) % kinds.length]
 }
 
 function decodeFileUri(uri) {
@@ -133,6 +289,16 @@ function isImagePath(path) {
 // stand, which is what the Node tests assert.
 function translator(tr) {
   return typeof tr === "function" ? tr : function(key, english) { return english }
+}
+
+function characterCount(count, trn, fmt) {
+  var tn = typeof trn === "function" ? trn : function(key, n, english) { return n === 1 ? english.one : english.other }
+  var number = typeof fmt === "function" ? fmt : function(v) { return String(v) }
+  var english = { one: "%1 character", other: "%1 characters" }
+  var pattern = tn("clipboard.characters", count, english)
+  // A catalog without the key hands the fallback object back unpicked.
+  if (typeof pattern !== "string") pattern = count === 1 ? english.one : english.other
+  return pattern.replace("%1", number(count))
 }
 
 function fileEntryText(entry, tr, trn, fmt) {
@@ -181,11 +347,14 @@ function cappedEntry(entry) {
   if (!entry || entry.type !== "text" || entry.text.length <= displayTextLimit) return entry
 
   // Cut on a line break so a file:// URI never truncates into a bogus path.
+  // Keep the metadata: a long pinned snippet still belongs to its board.
   var cut = entry.text.lastIndexOf("\n", displayTextLimit)
-  return { type: "text", text: entry.text.slice(0, cut > 0 ? cut : displayTextLimit) }
+  return withMetadata({ type: "text", text: entry.text.slice(0, cut > 0 ? cut : displayTextLimit) }, entry)
 }
 
-function displayRows(history, query, limit, tr, trn, fmt) {
+// filter narrows the rows to one pinboard ({ pinboard: name }; empty means
+// all of history) and one kind ({ kind: "link" }; empty or "all" means any).
+function displayRows(history, query, limit, tr, trn, fmt, filter) {
   var values = Array.isArray(history) ? history : []
   var needle = String(query || "").trim().toLowerCase()
   var max = limit === undefined || limit === null ? 50 : Number(limit)
@@ -193,11 +362,17 @@ function displayRows(history, query, limit, tr, trn, fmt) {
   max = Math.max(0, max)
   if (max === 0) return []
 
+  var board = pinboardName(filter && filter.pinboard)
+  var kind = String(filter && filter.kind || "all")
   var rows = []
 
   for (var i = 0; i < values.length; i++) {
-    var entry = cappedEntry(normalizeEntry(values[i]))
+    var full = normalizeEntry(values[i])
+    var entry = cappedEntry(full)
     if (!entry) continue
+    if (board && entry.pinboard !== board) continue
+    var entryKindValue = entryKind(entry)
+    if (kind !== "all" && entryKindValue !== kind) continue
     if (needle && searchableText(entry).toLowerCase().indexOf(needle) < 0) continue
 
     var paths = filePaths(entry)
@@ -206,11 +381,16 @@ function displayRows(history, query, limit, tr, trn, fmt) {
     var previewPath = isImage ? String(entry.path || "") : (isFile && paths.length === 1 && isImagePath(paths[0]) ? paths[0] : "")
     rows.push({
       entryType: isFile ? "file" : entry.type,
+      kind: entryKindValue,
       fullText: isImage ? "" : fullText(entry),
       previewText: previewText(entry, tr, trn, fmt),
       previewImage: previewPath,
       path: isImage ? String(entry.path || "") : (isFile && paths.length === 1 ? paths[0] : ""),
       mime: isImage ? String(entry.mime || "image/png") : "text/plain",
+      pinboard: entry.pinboard || "",
+      app: entry.app || "",
+      copiedAt: entry.copiedAt || 0,
+      textLength: isImage || isFile ? 0 : full.text.length,
       index: i
     })
     if (rows.length >= max) break
@@ -223,10 +403,21 @@ if (typeof module !== "undefined") {
   module.exports = {
     normalizeEntry: normalizeEntry,
     entryKey: entryKey,
+    pinboardName: pinboardName,
     parseHistory: parseHistory,
     addEntry: addEntry,
     removeEntryAt: removeEntryAt,
     clearHistory: clearHistory,
+    pinEntryAt: pinEntryAt,
+    unpinEntryAt: unpinEntryAt,
+    parsePinboards: parsePinboards,
+    pinboardList: pinboardList,
+    renamePinboard: renamePinboard,
+    removePinboard: removePinboard,
+    entryKind: entryKind,
+    kindOptions: kindOptions,
+    characterCount: characterCount,
+    nextKind: nextKind,
     parseEntryJson: parseEntryJson,
     searchableText: searchableText,
     previewText: previewText,
