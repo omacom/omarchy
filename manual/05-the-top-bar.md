@@ -135,6 +135,8 @@ All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here
 
 Every widget is one entry in one of the five layout arrays, and its settings sit inline on that entry — there's no separate settings file and no `config` sub-object. The clock's `format`, `formatAlt` (what right-click cycles to), and `verticalFormat` all live right there on `{ "id": "omarchy.clock" }`.
 
+The clock and workspaces widgets also take `fontFamily`, `fontSize` (in pixels), `horizontalMargin`, and `verticalPadding` on their entry, so `{ "id": "omarchy.clock", "fontFamily": "Greek-Freak", "fontSize": 16 }` gives just the clock its own font. `horizontalMargin` is the space on each side of the label in a horizontal bar, and `verticalPadding` the space above and below it in a vertical bar. Leave a key out to keep the bar's default.
+
 `center` is the box in the middle of the bar: everything in it is centered on the screen as one group. `centerBegin` and `centerEnd` hang off either side of the box, which is how the clock stays dead center even as the weather and update badge come and go. Put more than one widget in `center` and they're centered together; leave it empty and `centerBegin` and `centerEnd` meet in the middle of the bar.
 
 One rule worth internalizing: **once you have your own `shell.json`, it's canonical**. Until you customize anything, the shell reads Omarchy's default file. The moment you drag a widget, run `omarchy bar`, or edit the file yourself, you own it — there's no deep merge, so new default widgets in future Omarchy releases won't appear on your bar automatically. `omarchy bar defaults` puts the shipped layout back whenever you want a clean slate.

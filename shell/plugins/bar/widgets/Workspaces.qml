@@ -272,10 +272,14 @@ BarWidget {
         bar: root.bar
         text: shown ? root.modeGlyph(root.activeMode) : (slot === root.slots ? "0" : String(slot))
         opacity: occupied || shown ? 1 : 0.5
-        horizontalMargin: 6
-        verticalPadding: 6
-        fixedWidth: root.vertical ? root.barSize : Style.space(20)
-        fixedHeight: root.barSize
+        fontFamily: String(root.setting("fontFamily", "")) || (root.bar ? root.bar.fontFamily : Style.font.family)
+        fontSize: Number(root.setting("fontSize", Style.font.body))
+        horizontalMargin: Number(root.setting("horizontalMargin", 6))
+        verticalPadding: Number(root.setting("verticalPadding", 6))
+        // The slot along the bar is 8px plus the configurable margin or
+        // padding on each side, so the defaults (6) keep the 20px slot.
+        fixedWidth: root.vertical ? root.barSize : Math.round(Style.spaceReal(8) + scaledHorizontalMargin * 2)
+        fixedHeight: root.vertical ? Math.round(root.barSize - Style.spaceReal(6) * 2 + scaledVerticalPadding * 2) : root.barSize
         onPressed: function() {
           if (shown) root.cycleLayout()
           else root.focusWorkspace(modelData)
