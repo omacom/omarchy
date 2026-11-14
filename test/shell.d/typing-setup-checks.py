@@ -28,6 +28,7 @@ class TypingSetupTest(unittest.TestCase):
     self.assertEqual(catalog["us"], "English (US)")
     self.assertEqual(catalog["gb"], "English (UK)")
     self.assertEqual(catalog["us:colemak"], "English (US, Colemak)")
+    self.assertEqual(catalog["us:colemak_dh"], "English (US, Colemak-DH)")
     self.assertEqual(catalog["ch"], "German (Switzerland)")
     self.assertEqual(catalog["la"], "Lao")
     self.assertEqual(catalog["kr:kr104"], "Korean")
