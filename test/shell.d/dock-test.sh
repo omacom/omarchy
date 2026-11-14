@@ -12,6 +12,16 @@ trap 'rm -rf "$TMPDIR"' EXIT
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
+const coordinateQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/DockWindow.qml', 'utf8')
+const coordinateMoveBody = coordinateQml.match(/id: bodyHover[\s\S]*?onPointChanged: \{([\s\S]*?)\n      \}/)[1]
+const coordinateMove = new Function('window', 'point', 'Style', coordinateMoveBody)
+const coordinateWindow = {hoverStale: true, dragging: false, dropPoint: {x: 600, y: 400}}
+coordinateMove(coordinateWindow, {position: {x: 601, y: 400}}, {space: n => n})
+assert(coordinateWindow.hoverStale, 'one pixel in window space preserves post-drag hover suppression')
+coordinateMove(coordinateWindow, {position: {x: 607, y: 400}}, {space: n => n})
+assert(!coordinateWindow.hoverStale, 'a deliberate move in window space clears post-drag hover suppression')
+
+
 for (const [icon, count, length, extra] of [[66, 12, 742, 0], [36, 29, 1280, 24], [36, 120, 742, 24]]) {
   const fit = dock.fitSlots(icon, 6, count, length, extra)
   assert((fit.iconSize + fit.inset * 2) * count + extra <= length + 0.0001, 'all dock slots fit the available edge: ' + count + ' slots on ' + length)

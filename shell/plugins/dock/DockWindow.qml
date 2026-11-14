@@ -328,12 +328,12 @@ PanelWindow {
 
     HoverHandler {
       id: bodyHover
-      parent: hitStrip
+      parent: window.contentItem
       onHoveredChanged: if (!hovered && window.autohide) hideTimer.restart()
       // Only a real move clears it: the release itself reports the pointer too.
       onPointChanged: {
         if (!window.hoverStale || window.dragging) return
-        var at = hitStrip.mapToItem(window.contentItem, point.position.x, point.position.y)
+        var at = point.position
         if (Math.hypot(at.x - window.dropPoint.x, at.y - window.dropPoint.y) > Style.space(4)) window.hoverStale = false
       }
     }
