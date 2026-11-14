@@ -2,38 +2,38 @@
 
 ## Lazygit
 
-[Lazygit](https://github.com/jesseduffield/lazygit) යනු GitHub Desktop වැනි යෙදුමකට ඇති ප්‍රියජනක විකල්පයක් වන අතර, එය terminal එක තුළ ක්‍රියාත්මක වේ.
+[Lazygit](https://github.com/jesseduffield/lazygit) යනු GitHub Desktop යෙදුම වැනි දෙයකට ඇති රසවත් විකල්පයක් වන අතර, එය terminal එක තුළ ක්‍රියාත්මක වේ.
 
-ඔබට එය කෙලින්ම ක්‍රියාත්මක කළ හැකිය, git මගින් කළමනාකරණය වන ඕනෑම directory එකකට ගොස් `lazygit` ක්‍රියාත්මක කිරීමෙන්. නැතහොත් Neovim තුළ එය ක්‍රියාත්මක කළ හැකි අතර, එහිදී එය `Space G G` මගින් ආරම්භ කළ හැකිය.
+ඔබට එය කෙලින්ම ධාවනය කළ හැකිය, git මගින් කළමනාකරණය වන ඕනෑම නාමාවලියකට ගොස් `lazygit` ධාවනය කිරීමෙන්. නැතහොත් ඔබට එය Neovim තුළ ධාවනය කළ හැකි අතර, එහිදී එය `Space G G` මගින් ආරම්භ කළ හැකිය.
 
-විවිධ panes අතර මාරු වීමට ඔබ `Tab` භාවිතා කරයි. Files pane එකේ, staging සඳහා ගොනු තෝරන්නේ `Space` භාවිතයෙන් වන අතර, ඉන්පසු `c` භාවිතයෙන් ඔබට නව commit එකක් සෑදිය හැකිය. ලබා ගත හැකි සියලුම commands බැලීමට ඔබට `?` භාවිතා කළ හැකිය.
+ඔබට `Tab` භාවිතයෙන් විවිධ කොටස් අතර මාරු විය හැකිය. Files කොටසේදී, ඔබ `Space` භාවිතයෙන් staging සඳහා ගොනු තෝරන අතර, පසුව ඔබට `c` භාවිතයෙන් නව commit එකක් සාදා ගත හැකිය. `?` භාවිතයෙන් ලබා ගත හැකි සියලුම විධාන ඔබට බලා ගත හැකිය.
 
 ## Btop
 
-[Btop](https://github.com/aristocratos/btop) යනු memory, CPU, disk, සහ network භාවිතය පෙන්වන අලංකාර resource manager එකකි. එය සියලුම සක්‍රිය processes ලැයිස්තුගත කරන අතර, ඒවා කළමනාකරණය කිරීමටද ඔබට ඉඩ සලසයි.
+[Btop](https://github.com/aristocratos/btop) යනු මතකය, CPU, තැටිය සහ ජාල භාවිතය පෙන්වන අලංකාර සම්පත් කළමනාකරුවෙකි. එය සියලුම සක්‍රිය ක්‍රියාවලි ලැයිස්තුගත කරන අතර, ඒවා කළමනාකරණය කිරීමට ඔබට ඉඩ සලසයි.
 
-Omarchy එය Activity Monitor ලෙස හඳුන්වන අතර, ඔබ එය app launcher එකෙන් හෝ `Super + Shift + T` එබීමෙන් ආරම්භ කරයි. එය floating window එකක් ලෙස විවෘත වන අතර, `Super + T` මගින් ඔබට එය tile කළ හැකිය.
+Omarchy එය Activity Monitor ලෙස හඳුන්වන අතර, ඔබ එය යෙදුම් දියත්කරණයෙන් හෝ `Super + Shift + T` එබීමෙන් ආරම්භ කරයි. එය පාවෙන කවුළුවක් ලෙස විවෘත වන අතර, ඔබට `Super + T` මගින් එය tile කළ හැකිය.
 
 ## Herdr
 
-[Herdr](https://github.com/omacom-io/herdr) යනු ඔබට workspaces, tabs, සහ panes ලබා දෙන terminal workspace manager එකක් වන අතර, ඒ සියල්ලම ඔබට වෙන් වී පසුව නැවත පැමිණිය හැකි persistent session එකක ක්‍රියාත්මකව තබා ගනී.
+[Herdr](https://github.com/omacom-io/herdr) යනු ඔබට වැඩ අවකාශ, ටැබ් සහ කොටස් ලබා දෙන terminal වැඩ අවකාශ කළමනාකරුවෙක් වන අතර, ඒ සියල්ල ඔබට පසුව වෙන් වී නැවත පැමිණිය හැකි ස්ථීර සැසියක ක්‍රියාත්මක කර තබයි.
 
-ඔබ එය ආරම්භ කරන්නේ (හෝ ඔබේ පවතින session එකට නැවත සම්බන්ධ වන්නේ) `Super + Ctrl + Return` මගිනි. Omarchy, එහි Tmux config එක පිළිබිඹු කරන Herdr configuration එකක් සමඟ එන බැවින්, මෙහිදීද prefix key එක `Ctrl + Space` වේ. `Super + Ctrl + K` මගින් ඔබට සියලුම keybindings බ්‍රවුස් කළ හැකිය.
+ඔබ එය යෙදුම් දියත්කරණයෙන් හෝ `Super + Ctrl + Return` මගින් ආරම්භ කරයි (නැතහොත් ඔබේ පවතින සැසියට නැවත සම්බන්ධ වේ). Omarchy එහි Tmux config එක පිළිබිඹු කරන Herdr වින්‍යාසයක් සමඟ එන බැවින්, මෙහිද පූර්ව යතුර `Ctrl + Space` වේ. ඔබට `Super + Ctrl + K` මගින් සියලුම යතුරු බැඳීම් බ්‍රවුස් කළ හැකිය.
 
 ## Fastfetch
 
-[Fastfetch](https://github.com/fastfetch-cli/fastfetch) මගින් kernel version, uptime, theme, CPU, memory, සහ තවත් බොහෝ දේ වැනි system information පෙන්වයි. එය ජනප්‍රිය neofetch tool එකේ අනුප්‍රාප්තිකයෙකි.
+[Fastfetch](https://github.com/fastfetch-cli/fastfetch) kernel අනුවාදය, uptime, තේමාව, CPU, මතකය සහ තවත් බොහෝ දේ වැනි පද්ධති තොරතුරු පෙන්වයි. එය ජනප්‍රිය neofetch මෙවලමෙහි අනුප්‍රාප්තිකයෙකි.
 
-Omarchy මෙය Omarchy menu එකේ (`Super + Space`) _About_ ලෙස ඇසුරුම් කර ඇත.
+Omarchy මෙය Omarchy මෙනුවේ (`Super + Space`) _ගැන_ ලෙස ඇසුරුම් කර ඇත.
 
 ## Cliamp
 
-[Cliamp](https://www.cliamp.stream/) යනු Winamp 2.x මගින් ආභාසය ලත් retro terminal music player එකක් වන අතර, lo-fi beats සඳහා built-in radio stations සමඟ සම්පූර්ණ වේ. `Super + Shift + Alt + M` මගින්, හෝ Omarchy menu එකේ _Apps_ යටතෙන් එය දියත් කරන්න. සම්පූර්ණ keybinding ලැයිස්තුව සඳහා `?` ඔබන්න.
+[Cliamp](https://www.cliamp.stream/) යනු Winamp 2.x මගින් ආභාසය ලැබූ retro terminal සංගීත වාදකයක් වන අතර, lo-fi beats සඳහාම නිමවා ඇති රේඩියෝ මධ්‍යස්ථාන සමඟ සම්පූර්ණයි. එය `Super + Shift + Alt + M` මගින්, නැතහොත් Omarchy මෙනුවේ _යෙදුම්_ යටතේ දියත් කරන්න. සම්පූර්ණ යතුරු බැඳීම් ලැයිස්තුව සඳහා `?` ඔබන්න.
 
 ## Wi-Fi සහ Bluetooth ගැන කුමක් කිව හැකිද?
 
-ඔබට Wi-Fi සහ Bluetooth සඳහා TUIs සොයාගත නොහැකි වනු ඇත — එම කාර්යයන් අයත් වන්නේ Omarchy shell එකටය. networks බැලීමට සහ සම්බන්ධ වීමට ඉහළ තීරුවේ Wi-Fi icon එක ක්ලික් කරන්න (හෝ `Super + Ctrl + N` ඔබන්න), සහ devices යුගල කිරීමට සහ සම්බන්ධ කිරීමට Bluetooth icon එක ක්ලික් කරන්න (හෝ `Super + Ctrl + B` ඔබන්න). සම්පූර්ණ විස්තරය සඳහා [networking](35-networking.md) බලන්න.
+ඔබට Wi-Fi සහ Bluetooth සඳහා TUIs සොයාගත නොහැකි වනු ඇත — එම කාර්යයන් අයත් වන්නේ Omarchy shell එකටය. ජාල බැලීමට සහ සම්බන්ධ වීමට ඉහළ තීරුවේ Wi-Fi අයිකනය ක්ලික් කරන්න (නැතහොත් `Super + Ctrl + N` ඔබන්න), සහ උපාංග යුගල කිරීමට සහ සම්බන්ධ කිරීමට Bluetooth අයිකනය ක්ලික් කරන්න (නැතහොත් `Super + Ctrl + B` ඔබන්න). සම්පූර්ණ විස්තරය සඳහා [ජාලකරණය](35-networking.md) බලන්න.
 
-## ඔබේම ඒවා එක් කිරීම
+## ඔබේම එකක් එකතු කිරීම
 
-ඕනෑම terminal program එකකට සම්පූර්ණ app සැලකිල්ල ලබා ගත හැකිය. Omarchy menu එකේ (`Super + Space`) _Install > TUI_ වෙත ගොස්, එයට නමක්, launch command එකක්, window style එකක්, සහ icon එකක් ලබා දෙන්න, එවිට එය වෙනත් ඕනෑම application එකක් මෙන් app launcher එකේ දිස් වනු ඇත. _Remove > TUI_ යටතේ ඔබට එය නැවත ඉවත් කළ හැකිය.
+ඕනෑම terminal වැඩසටහනකට සම්පූර්ණ යෙදුම් සැලකීම ලැබිය හැකිය. Omarchy මෙනුවේ (`Super + Space`) _ස්ථාපනය කරන්න > TUI_ වෙත යන්න, එයට නමක්, දියත් කිරීමේ විධානයක්, කවුළු විලාසයක් සහ අයිකනයක් දෙන්න, එවිට එය වෙනත් ඕනෑම යෙදුමක් මෙන්ම යෙදුම් දියත්කරණයේ දිස් වනු ඇත. ඔබට එය නැවත _ඉවත් කරන්න > TUI_ යටතේ ඉවත් කළ හැකිය.

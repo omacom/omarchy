@@ -2,38 +2,38 @@
 
 ## Lazygit
 
-[Lazygit](https://github.com/jesseduffield/lazygit) GitHub Desktop जैसे किसी application का एक बेहद शानदार विकल्प है, और यह terminal के अंदर चलता है।
+[Lazygit](https://github.com/jesseduffield/lazygit) GitHub Desktop जैसे किसी ऐप्लिकेशन का एक शानदार विकल्प है, और यह टर्मिनल के अंदर चलता है।
 
-आप इसे सीधे चला सकते हैं, git द्वारा managed किसी भी directory में जाकर `lazygit` चलाकर। या आप इसे Neovim के अंदर चला सकते हैं, जहाँ इसे `Space G G` से शुरू किया जा सकता है।
+आप इसे सीधे चला सकते हैं, किसी भी git द्वारा प्रबंधित डायरेक्टरी में जाकर `lazygit` चलाकर। या आप इसे Neovim के अंदर चला सकते हैं, जहाँ इसे `Space G G` से शुरू किया जा सकता है।
 
-आप `Tab` का उपयोग करके अलग-अलग panes के बीच घूमते हैं। Files pane में, आप `Space` का उपयोग करके staging के लिए files चुनते हैं, और फिर `c` का उपयोग करके एक नया commit बना सकते हैं। आप `?` का उपयोग करके उपलब्ध सभी commands देख सकते हैं।
+आप `Tab` का उपयोग करके अलग-अलग पेन के बीच जाते हैं। Files पेन में, आप `Space` का उपयोग करके स्टेजिंग के लिए फ़ाइलें चुनते हैं, और फिर आप `c` का उपयोग करके एक नया commit बना सकते हैं। आप `?` का उपयोग करके उपलब्ध सभी कमांड देख सकते हैं।
 
 ## Btop
 
-[Btop](https://github.com/aristocratos/btop) एक सुंदर resource manager है जो memory, CPU, disk और network का उपयोग दिखाता है। यह सभी active processes को भी सूचीबद्ध करता है, और आपको उन्हें manage करने देता है।
+[Btop](https://github.com/aristocratos/btop) एक सुंदर रिसोर्स मैनेजर है जो मेमोरी, CPU, डिस्क और नेटवर्क उपयोग दिखाता है। यह सभी सक्रिय प्रोसेस को भी सूचीबद्ध करता है, और आपको उन्हें प्रबंधित करने की अनुमति देता है।
 
-Omarchy इसे Activity Monitor कहता है, और आप इसे app launcher से या `Super + Shift + T` दबाकर शुरू करते हैं। यह एक floating window के रूप में खुलता है, जिसे आप `Super + T` से tile कर सकते हैं।
+Omarchy इसे Activity Monitor कहता है, और आप इसे ऐप लॉन्चर से या `Super + Shift + T` दबाकर शुरू करते हैं। यह एक फ़्लोटिंग विंडो के रूप में खुलता है, जिसे आप `Super + T` से टाइल कर सकते हैं।
 
 ## Herdr
 
-[Herdr](https://github.com/omacom-io/herdr) एक terminal workspace manager है जो आपको workspaces, tabs और panes देता है, और उन सभी को एक persistent session में चलता रखता है, जिससे आप detach होकर बाद में वापस आ सकते हैं।
+[Herdr](https://github.com/omacom-io/herdr) एक टर्मिनल वर्कस्पेस मैनेजर है जो आपको वर्कस्पेस, टैब और पेन देता है, और उन सभी को एक स्थायी सेशन में चलता रखता है, जिससे आप अलग हो सकते हैं और बाद में वापस आ सकते हैं।
 
-आप इसे `Super + Ctrl + Return` से शुरू करते हैं (या अपने मौजूदा session से फिर से जुड़ते हैं)। Omarchy एक Herdr configuration के साथ आता है जो इसके Tmux config की तरह ही है, इसलिए यहाँ भी prefix key `Ctrl + Space` है। आप `Super + Ctrl + K` से सभी keybindings देख सकते हैं।
+आप इसे ऐप लॉन्चर से या `Super + Ctrl + Return` से शुरू करते हैं (या अपने मौजूदा सेशन से फिर से जुड़ते हैं)। Omarchy एक Herdr कॉन्फ़िगरेशन के साथ आता है जो उसके Tmux कॉन्फ़िग को प्रतिबिंबित करता है, इसलिए यहाँ भी प्रीफ़िक्स कुंजी `Ctrl + Space` है। आप `Super + Ctrl + K` से सभी कुंजी बाइंडिंग देख सकते हैं।
 
 ## Fastfetch
 
-[Fastfetch](https://github.com/fastfetch-cli/fastfetch) system की जानकारी दिखाता है, जैसे kernel version, uptime, theme, CPU, memory और भी बहुत कुछ। यह लोकप्रिय neofetch tool का उत्तराधिकारी है।
+[Fastfetch](https://github.com/fastfetch-cli/fastfetch) सिस्टम जानकारी दिखाता है, जैसे कर्नेल वर्शन, अपटाइम, थीम, CPU, मेमोरी और बहुत कुछ। यह लोकप्रिय neofetch टूल का उत्तराधिकारी है।
 
-Omarchy ने इसे Omarchy menu (`Super + Space`) में _About_ के रूप में packaged किया है।
+Omarchy ने इसे Omarchy मेनू (`Super + Space`) में _About_ के रूप में पैकेज किया है।
 
 ## Cliamp
 
-[Cliamp](https://www.cliamp.stream/) Winamp 2.x से प्रेरित एक retro terminal music player है, lo-fi beats के लिए built-in radio stations के साथ पूरा। इसे `Super + Shift + Alt + M` से, या Omarchy menu में _Apps_ के अंतर्गत launch करें। पूरी keybinding सूची के लिए `?` दबाएँ।
+[Cliamp](https://www.cliamp.stream/) Winamp 2.x से प्रेरित एक रेट्रो टर्मिनल म्यूज़िक प्लेयर है, जो lo-fi बीट्स के लिए बिल्ट-इन रेडियो स्टेशनों के साथ पूरा है। इसे `Super + Shift + Alt + M` से, या Omarchy मेनू में _Apps_ के अंतर्गत लॉन्च करें। पूरी कुंजी बाइंडिंग सूची के लिए `?` दबाएँ।
 
 ## Wi-Fi और Bluetooth का क्या?
 
-आपको Wi-Fi और Bluetooth के लिए TUIs नहीं मिलेंगे — वे काम Omarchy shell के हैं। Networks देखने और connect करने के लिए top bar में Wi-Fi icon पर click करें (या `Super + Ctrl + N` दबाएँ), और devices को pair और connect करने के लिए Bluetooth icon पर click करें (या `Super + Ctrl + B` दबाएँ)। पूरी जानकारी के लिए [नेटवर्किंग](35-networking.md) देखें।
+आपको Wi-Fi और Bluetooth के लिए TUIs नहीं मिलेंगे — वे काम Omarchy शेल के हैं। नेटवर्क देखने और कनेक्ट करने के लिए शीर्ष बार में Wi-Fi आइकन पर क्लिक करें (या `Super + Ctrl + N` दबाएँ), और डिवाइस पेयर और कनेक्ट करने के लिए Bluetooth आइकन पर क्लिक करें (या `Super + Ctrl + B` दबाएँ)। पूरी कहानी के लिए [नेटवर्किंग](35-networking.md) देखें।
 
 ## अपना खुद का जोड़ना
 
-कोई भी terminal program पूरा app treatment पा सकता है। Omarchy menu (`Super + Space`) में _Install > TUI_ पर जाएँ, उसे एक नाम, एक launch command, एक window style और एक icon दें, और वह किसी भी अन्य application की तरह app launcher में दिखाई देगा। आप उसे _Remove > TUI_ के अंतर्गत फिर से हटा सकते हैं।
+कोई भी टर्मिनल प्रोग्राम पूरा ऐप ट्रीटमेंट पा सकता है। Omarchy मेनू (`Super + Space`) में _Install > TUI_ पर जाएँ, इसे एक नाम, एक लॉन्च कमांड, एक विंडो स्टाइल और एक आइकन दें, और यह किसी भी अन्य ऐप्लिकेशन की तरह ऐप लॉन्चर में दिखाई देगा। आप इसे फिर से _Remove > TUI_ के अंतर्गत हटा सकते हैं।
