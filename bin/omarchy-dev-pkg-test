@@ -18,7 +18,8 @@ can't shadow.
 
 Defaults:
   packages          omarchy-settings-dev omarchy-dev
-  path-to-checkout  ~/Work/omarchy/omarchy-installer
+  path-to-checkout  active dev-link \$OMARCHY_PATH, otherwise
+                    ~/Work/omarchy/omarchy-installer
 
 Examples:
   omarchy dev pkg-test
@@ -28,7 +29,8 @@ Examples:
 The pkgver of the built package is tagged 'dev.<short-sha>[.dirty]' so
 'pacman -Q' makes it obvious where the installed version came from.
 
-PKGBUILDs are read from \${OMARCHY_PKGBUILDS_DIR:-~/Work/omarchy/omarchy-pkgs/pkgbuilds}/<package-name>/.
+PKGBUILDs default to <parent-of-path-to-checkout>/omarchy-pkgs/pkgbuilds/.
+Set OMARCHY_PKGBUILDS_DIR to override that location.
 USAGE
   exit 0
 fi
@@ -71,16 +73,21 @@ dev_package_name() {
   esac
 }
 
+default_checkout="$HOME/Work/omarchy/omarchy-installer"
+if [[ ${OMARCHY_PATH:-/usr/share/omarchy} != "/usr/share/omarchy" ]]; then
+  default_checkout="$OMARCHY_PATH"
+fi
+
 if (( $# == 0 )); then
   PKGS=(omarchy-settings-dev omarchy-dev)
-  CHECKOUT="$HOME/Work/omarchy/omarchy-installer"
+  CHECKOUT="$default_checkout"
   MAKEPKG_ARGS=()
 else
   PKGS=("$(dev_package_name "$1")")
-  CHECKOUT="${2:-$HOME/Work/omarchy/omarchy-installer}"
+  CHECKOUT="${2:-$default_checkout}"
   MAKEPKG_ARGS=("${@:3}")
 fi
-PKGBUILDS_ROOT="${OMARCHY_PKGBUILDS_DIR:-$HOME/Work/omarchy/omarchy-pkgs/pkgbuilds}"
+PKGBUILDS_ROOT="${OMARCHY_PKGBUILDS_DIR:-$(dirname -- "${CHECKOUT%/}")/omarchy-pkgs/pkgbuilds}"
 
 if [[ ! -d "$CHECKOUT" ]]; then
   echo "Error: checkout not found at $CHECKOUT" >&2
@@ -90,7 +97,7 @@ for PKG in "${PKGS[@]}"; do
   PKGBUILD_DIR="$PKGBUILDS_ROOT/$PKG"
   if [[ ! -f "$PKGBUILD_DIR/PKGBUILD" ]]; then
     echo "Error: PKGBUILD not found at $PKGBUILD_DIR/PKGBUILD" >&2
-    echo "       Pass a different package name as arg 1, or set OMARCHY_PKGBUILDS_DIR." >&2
+    echo "       Place omarchy-pkgs beside $CHECKOUT, or set OMARCHY_PKGBUILDS_DIR." >&2
     exit 1
   fi
 done
