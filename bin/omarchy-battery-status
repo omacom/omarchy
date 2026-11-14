@@ -118,10 +118,13 @@ minutes_remaining=$(awk \
 }')
 time_remaining=$(format_duration "$minutes_remaining")
 
+# A USB-C charger can enumerate as a USB supply rather than Mains. Both are
+# external power, the same pair omarchy-power-present accepts.
 ac_online=false
 for supply in "$power_supply_path"/*; do
   [[ -r $supply/type ]] || continue
-  [[ $(<"$supply/type") == "Mains" ]] || continue
+  supply_type=$(<"$supply/type")
+  [[ $supply_type == "Mains" || $supply_type == "USB" ]] || continue
   [[ -r $supply/online ]] || continue
 
   if [[ $(<"$supply/online") == "1" ]]; then

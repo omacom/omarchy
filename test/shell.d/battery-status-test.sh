@@ -132,6 +132,14 @@ grep -Fx $'percentage\t80%' <<<"$held_output" >/dev/null || fail "threshold perc
 grep -Fx $'state\tholding' <<<"$held_output" >/dev/null || fail "idle charging at the threshold is holding"
 pass "battery status reports holding once the raw percentage reaches the threshold"
 
+# A USB-C charger can enumerate as a USB supply rather than Mains; it is still
+# external power, so the same hold must show.
+printf 'USB\n' >"$hold_dir/power/ac/type"
+usb_held_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'state\tholding' <<<"$usb_held_output" >/dev/null || fail "a USB supply at the threshold is holding" "$usb_held_output"
+printf 'Mains\n' >"$hold_dir/power/ac/type"
+pass "battery status treats an online USB supply as external power"
+
 # Charging counts up to the charge limit, not to a full battery.
 printf '27800000\n' >"$hold_dir/power/BAT0/power_now"
 sed -i 's/percentage:           80.0%/percentage:           40.0%/; s/energy-full:          69.6 Wh/energy:               27.84 Wh\n  energy-full:          69.6 Wh/' "$hold_dir/bin/upower"
