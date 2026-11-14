@@ -15,6 +15,128 @@ else
 fi
 export OMARCHY_PATH
 
+# Plain `su` changes HOME and keeps the previous account's exported environment.
+# uwsm and this file record which home that environment belongs to. On the next
+# account, drop XDG and mise paths under the previous home before mise starts:
+# mise creates files under XDG_STATE_HOME on startup and on every prompt.
+# Intentional overrides outside the previous home stay. Writability is the wrong
+# check: root can write the previous user's directories and would leave
+# root-owned files there. XDG_RUNTIME_DIR is the session's runtime directory,
+# not a home path, so `su` is left to pass it through unchanged.
+omarchy_home=${HOME:-}
+omarchy_home=${omarchy_home%/}
+if [ -n "$omarchy_home" ]; then
+  omarchy_prev_home=${OMARCHY_XDG_HOME:-}
+  omarchy_prev_home=${omarchy_prev_home%/}
+  omarchy_foreign_home=
+  omarchy_foreign_conflict=
+
+  # No recorded owner yet (a shell started before this was tracked). Another
+  # account's standard XDG directory that we do not own was inherited. A
+  # directory we own, or any path that is not that exact default, is an override.
+  if [ -z "$omarchy_prev_home" ]; then
+    omarchy_note_foreign_xdg() {
+      omarchy_xdg_value=${1%/}
+      omarchy_xdg_suffix=$2
+      case "$omarchy_xdg_value" in
+        *"$omarchy_xdg_suffix") ;;
+        *) return 0 ;;
+      esac
+      omarchy_xdg_root=${omarchy_xdg_value%"$omarchy_xdg_suffix"}
+      if [ -z "$omarchy_xdg_root" ] || [ "$omarchy_xdg_root" = "/" ] || [ "$omarchy_xdg_root" = "$omarchy_home" ]; then
+        return 0
+      fi
+      if [ "$omarchy_xdg_value" != "${omarchy_xdg_root}${omarchy_xdg_suffix}" ]; then
+        return 0
+      fi
+      if [ -d "$omarchy_xdg_value" ] && [ ! -O "$omarchy_xdg_value" ]; then
+        if [ -n "$omarchy_foreign_conflict" ]; then
+          return 0
+        fi
+        if [ -z "$omarchy_foreign_home" ]; then
+          omarchy_foreign_home="$omarchy_xdg_root"
+        elif [ "$omarchy_foreign_home" != "$omarchy_xdg_root" ]; then
+          omarchy_foreign_home=
+          omarchy_foreign_conflict=1
+        fi
+      fi
+      return 0
+    }
+    omarchy_note_foreign_xdg "${XDG_CONFIG_HOME:-}" /.config
+    omarchy_note_foreign_xdg "${XDG_CACHE_HOME:-}" /.cache
+    omarchy_note_foreign_xdg "${XDG_DATA_HOME:-}" /.local/share
+    omarchy_note_foreign_xdg "${XDG_STATE_HOME:-}" /.local/state
+    unset -f omarchy_note_foreign_xdg
+    if [ -z "$omarchy_foreign_conflict" ] && [ -n "$omarchy_foreign_home" ]; then
+      omarchy_prev_home="$omarchy_foreign_home"
+    fi
+  fi
+
+  if [ -n "$omarchy_prev_home" ] && [ "$omarchy_prev_home" != "/" ] && [ "$omarchy_prev_home" != "$omarchy_home" ]; then
+    omarchy_drop_prev_home_var() {
+      case "$1" in
+        "$omarchy_home"|"$omarchy_home"/*) ;;
+        "$omarchy_prev_home"|"$omarchy_prev_home"/*) unset "$2" ;;
+      esac
+    }
+    omarchy_drop_prev_home_var "${XDG_CONFIG_HOME:-}" XDG_CONFIG_HOME
+    omarchy_drop_prev_home_var "${XDG_CACHE_HOME:-}" XDG_CACHE_HOME
+    omarchy_drop_prev_home_var "${XDG_DATA_HOME:-}" XDG_DATA_HOME
+    omarchy_drop_prev_home_var "${XDG_STATE_HOME:-}" XDG_STATE_HOME
+    omarchy_drop_prev_home_var "${MISE_DATA_DIR:-}" MISE_DATA_DIR
+    omarchy_drop_prev_home_var "${MISE_CONFIG_DIR:-}" MISE_CONFIG_DIR
+    omarchy_drop_prev_home_var "${MISE_CACHE_DIR:-}" MISE_CACHE_DIR
+    omarchy_drop_prev_home_var "${MISE_STATE_DIR:-}" MISE_STATE_DIR
+    unset -f omarchy_drop_prev_home_var
+
+    # Drop the previous account's private entries, including mise install bins
+    # hook-env prepended. Leave every other entry where `su` put it, then let
+    # the PATH logic below add this account's shims. Unset the mise shell
+    # session so `mise activate` snapshots that PATH instead of replaying the
+    # previous account's __MISE_ORIG_PATH and __MISE_DIFF.
+    if [ -n "${PATH:-}" ]; then
+      omarchy_clean_path=
+      omarchy_seen=
+      omarchy_remaining_path="$PATH"
+      while :; do
+        omarchy_path_entry=${omarchy_remaining_path%%:*}
+        case "$omarchy_path_entry" in
+          "$omarchy_prev_home"|"$omarchy_prev_home"/*)
+            case "$omarchy_path_entry" in
+              "$omarchy_home"|"$omarchy_home"/*)
+                if [ -n "$omarchy_seen" ]; then
+                  omarchy_clean_path="$omarchy_clean_path:$omarchy_path_entry"
+                else
+                  omarchy_clean_path="$omarchy_path_entry"
+                  omarchy_seen=1
+                fi
+                ;;
+            esac
+            ;;
+          *)
+            if [ -n "$omarchy_seen" ]; then
+              omarchy_clean_path="$omarchy_clean_path:$omarchy_path_entry"
+            else
+              omarchy_clean_path="$omarchy_path_entry"
+              omarchy_seen=1
+            fi
+            ;;
+        esac
+        case "$omarchy_remaining_path" in
+          *:*) omarchy_remaining_path=${omarchy_remaining_path#*:} ;;
+          *) break ;;
+        esac
+      done
+      PATH="$omarchy_clean_path"
+    fi
+    unset MISE_SHELL __MISE_DIFF __MISE_ORIG_PATH __MISE_SESSION __MISE_EXE
+  fi
+
+  OMARCHY_XDG_HOME="$omarchy_home"
+  export OMARCHY_XDG_HOME
+fi
+unset omarchy_home omarchy_prev_home omarchy_foreign_home omarchy_foreign_conflict omarchy_xdg_value omarchy_xdg_suffix omarchy_xdg_root omarchy_clean_path omarchy_seen
+
 # Only prepend in dev-link mode. On a production install, the binaries are
 # already on PATH as /usr/bin/omarchy-* via the omarchy package — prepending
 # /usr/share/omarchy/bin would just be noise.
