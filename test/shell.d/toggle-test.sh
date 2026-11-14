@@ -18,7 +18,7 @@ trap cleanup EXIT
 TMPDIR=$(mktemp -d)
 test_home="$TMPDIR/home"
 flag="$test_home/.local/state/omarchy/toggles/example"
-bar_flag="$test_home/.local/state/omarchy/toggles/bar-off"
+bar_flag="$test_home/.local/state/omarchy/toggles/bar-hidden"
 
 HOME="$test_home" omarchy-toggle example on
 [[ -f $flag ]] || fail "generic toggle enables explicit on state"
@@ -41,16 +41,16 @@ HOME="$test_home" omarchy-toggle example toggle
 pass "generic toggle flips enabled state off"
 
 HOME="$test_home" omarchy-toggle-bar on
-[[ -f $bar_flag ]] || fail "bar on enables bar-off toggle"
-pass "bar on enables bar-off toggle"
+[[ ! -f $bar_flag ]] || fail "bar on removes the bar-hidden flag so the bar is visible"
+pass "bar on removes the bar-hidden flag so the bar is visible"
 
 HOME="$test_home" omarchy-toggle-bar on
-[[ -f $bar_flag ]] || fail "bar on is idempotent"
+[[ ! -f $bar_flag ]] || fail "bar on is idempotent"
 pass "bar on is idempotent"
 
 HOME="$test_home" omarchy-toggle-bar off
-[[ ! -f $bar_flag ]] || fail "bar off disables bar-off toggle"
-pass "bar off disables bar-off toggle"
+[[ -f $bar_flag ]] || fail "bar off creates the bar-hidden flag so the bar is hidden"
+pass "bar off creates the bar-hidden flag so the bar is hidden"
 
 # The gaps half of full screen copies a flag file in and reloads Hyprland, so
 # give it this checkout to copy from and a hyprctl that answers without a
