@@ -32,6 +32,12 @@ assertEqual(power.localizeReading('13.10W', function(v, d) { return v.toFixed(d)
 assertEqual(power.localizeReading(undefined), '', 'power reads a missing battery field as empty')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 0.5, state: states.Discharging }, true, states), 'On battery', 'power labels battery mode')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'Charging', 'power treats external power as newer than stale discharging state')
+assert(power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Discharging }, true, states, false), 'power draws from battery when unplugged')
+assert(power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Charging }, true, states, true), 'power trusts unplugging before battery state refreshes')
+assert(!power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states, true), 'power trusts plugging in before battery state refreshes')
+assert(power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states, false), 'power reports draining when a settled battery still discharges on external power')
+assert(!power.drawingFromBattery({ isPresent: true, percentage: 0.5, state: states.Charging }, false, states, false), 'power does not report draining while charging on external power')
+assert(!power.drawingFromBattery({ isPresent: false }, true, states, false), 'power reports no draw without a battery')
 assert(power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging }, false, states).length > 0, 'power maps battery icons')
 assertEqual(
   power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Discharging }, false, states),
