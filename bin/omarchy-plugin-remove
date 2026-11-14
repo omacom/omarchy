@@ -75,7 +75,7 @@ was_enabled=""
 shell_plugins=$(omarchy-shell shell listPlugins)
 if [[ -n $shell_plugins ]]; then
   was_enabled=$(jq -r --arg id "$id" '
-    .[] | select(.id == $id) | .enabled
+    [.[] | select(.id == $id)][0].enabled // empty
   ' <<<"$shell_plugins")
 fi
 
@@ -116,8 +116,28 @@ fi
 
 omarchy-shell shell rescanPlugins >/dev/null
 
+restored=false
 if [[ -n $cloned_from && $was_enabled == "true" ]]; then
-  echo "Restored $cloned_from."
-elif [[ $was_enabled == "true" ]]; then
+  is_disabled=false
+  config_file="$HOME/.config/omarchy/shell.json"
+  if [[ -f $config_file ]] && jq -e --arg id "$cloned_from" '
+    .disabledPlugins // [] | index($id) != null
+  ' "$config_file" >/dev/null 2>&1; then
+    is_disabled=true
+  elif shell_plugins_after=$(omarchy-shell shell listPlugins 2>/dev/null) && [[ -n $shell_plugins_after ]]; then
+    if jq -e --arg id "$cloned_from" '
+      .[] | select(.id == $id) | .enabled == false
+    ' <<<"$shell_plugins_after" >/dev/null 2>&1; then
+      is_disabled=true
+    fi
+  fi
+
+  if [[ $is_disabled == "false" ]]; then
+    echo "Restored $cloned_from."
+    restored=true
+  fi
+fi
+
+if [[ $was_enabled == "true" && $restored == "false" ]]; then
   echo "Plugin was enabled and was unloaded from omarchy-shell."
 fi
