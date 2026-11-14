@@ -123,7 +123,7 @@ for (const key of collectKeys(path.join(root, 'install'), ['.sh', '.hook'], cliK
 for (const key of collectKeys(path.join(root, 'default'), ['.py'], cliKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'etc'), ['.jsonc'], cliKeyPattern)) cliKeys.add(key)
 const formKeyPattern = /omarchy_form_text ([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9]+)+)/g
-for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh'], formKeyPattern)) cliKeys.add(key)
+for (const key of collectKeys(path.join(root, 'install/provisioning'), ['setup-form.sh', 'oem.sh'], formKeyPattern)) cliKeys.add(key)
 for (const key of collectKeys(path.join(root, 'bin'), ['omarchy-provision-owner'], formKeyPattern)) cliKeys.add(key)
 const unreferencedCli = Object.keys(enCli).filter((key) => !cliKeys.has(key))
 assert(unreferencedCli.length === 0, 'every cli catalog key is referenced', JSON.stringify(unreferencedCli))

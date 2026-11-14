@@ -7,9 +7,10 @@
 # Runs on tty1 via omarchy-provision-owner.service when /var/lib/omarchy/provisioning/pending
 # exists — the state a deferred-provisioning ISO install or omarchy-system-factory-reset leaves
 # behind. Asks what the installer asks, in its order and on its screens (the
-# language, the keyboard, then the account), creates the user with the groups
-# system setup recorded, finalizes it offline, re-keys LUKS from the throwaway
-# install passphrase to the user's password, and hands off to SDDM.
+# language, the keyboard, then the account), then for the OEM's agreement where
+# the install laid one down (install/provisioning/oem.sh), creates the user
+# with the groups system setup recorded, finalizes it offline, re-keys LUKS from
+# the throwaway install passphrase to the user's password, and hands off to SDDM.
 # A platform whose boot package owns its boot chain prepares it, drops the
 # install key's unlock from it and records the kept key slot through
 # omarchy-lifecycle-dispatch.
@@ -48,15 +49,39 @@ source "$OMARCHY_PATH/install/provisioning/setup-form.sh"
 # The installer's console font, from the same file the ISO vendors.
 source "$OMARCHY_PATH/install/provisioning/console-font.sh"
 
+# What the OEM that prepared this machine left for its owner, if one did.
+source "$OMARCHY_PATH/install/provisioning/oem.sh"
+omarchy_oem_load
+
 # Unlike a fresh install target, this machine already has accounts; a pinned
 # resume (below) bypasses the prompt entirely.
 omarchy_username_taken() { getent passwd "$1" >/dev/null; }
 
+# Every screen is laid out in a column the width of the Omarchy logo, which
+# heads the steps of the form.
 LOGO_PATH="$OMARCHY_PATH/logo.txt"
 LOGO_WIDTH=$(awk '{ if (length > max) max = length } END { print max+0 }' "$LOGO_PATH" 2>/dev/null || echo 0)
 LOGO_HEIGHT=$(wc -l <"$LOGO_PATH" 2>/dev/null || echo 0)
 (( LOGO_WIDTH > 0 )) || LOGO_WIDTH=81
 (( LOGO_HEIGHT > 0 )) || LOGO_HEIGHT=1
+LOGO_COLOR=2
+
+# The screens setup opens and ends on, the greeter and the agreement, carry
+# the brand: an OEM's logo where it left one, in its colour where it named one
+# (the palette's bright red, which setup draws nothing else in), else Omarchy's.
+brand_logo() {
+  BRAND_LOGO_PATH=$1
+  BRAND_LOGO_WIDTH=$(awk '{ if (length > max) max = length } END { print max+0 }' "$1" 2>/dev/null || echo 0)
+  BRAND_LOGO_HEIGHT=$(wc -l <"$1" 2>/dev/null || echo 0)
+  (( BRAND_LOGO_HEIGHT > 0 )) || BRAND_LOGO_HEIGHT=1
+}
+brand_logo "${OMARCHY_OEM_LOGO:-$LOGO_PATH}"
+BRAND_LOGO_COLOR=2
+BRAND_SHIMMER=(2 10 6 10)
+if [[ -n $OMARCHY_OEM_COLOR ]]; then
+  BRAND_LOGO_COLOR=9
+  BRAND_SHIMMER=(9 9 15 9)
+fi
 
 # The language setup is in: what an attempt picked, for the retry that follows a
 # failed one, and the preset the installed system reads its language from.
@@ -73,6 +98,22 @@ fit_console_font() {
   omarchy_console_font "$tty" || OMARCHY_FORM_CONSOLE_LANGUAGES=en
 }
 
+# An OEM's logo may be drawn in braille dots, which the console font has none
+# of: for as long as a branded screen is up the font draws the ones this logo
+# uses, in place of characters that neither the logo nor that screen's text
+# does. fit_console_font puts the form's font back. A console that cannot be
+# given them shows Omarchy's logo instead.
+brand_console_font() {
+  local tty
+  # U+2800 to U+28FF, by their bytes: a range of the characters needs a locale that collates them.
+  [[ $BRAND_LOGO_PATH != "$LOGO_PATH" ]] && LC_ALL=C grep -q $'\xe2[\xa0-\xa3]' "$BRAND_LOGO_PATH" || return 0
+  tty=$(tty 2>/dev/null) || tty=""
+  [[ $tty == /dev/tty[0-9]* ]] || return 0
+
+  omarchy_console_font "$tty" "$BRAND_LOGO_PATH" "${OMARCHY_OEM_DIR:-/etc/omarchy/oem}/oem.json" ${OMARCHY_OEM_EULA:+"$OMARCHY_OEM_EULA"} \
+    "$OMARCHY_PATH/default/i18n/en/cli.json" "$OMARCHY_PATH/default/i18n/${OMARCHY_FORM_LANGUAGE:-en}/cli.json" || brand_logo "$LOGO_PATH"
+}
+
 # Same Tokyo Night VT palette the ISO configurator sets, so the first-boot
 # form looks like a continuation of the install.
 set_tokyo_night_colors() {
@@ -83,6 +124,7 @@ set_tokyo_night_colors() {
   echo -en "\e]P9f7768e"; echo -en "\e]PA9ece6a"; echo -en "\e]PBe0af68"
   echo -en "\e]PC7aa2f7"; echo -en "\e]PDbb9af7"; echo -en "\e]PE7dcfff"
   echo -en "\e]PFc0caf5"
+  [[ -z $OMARCHY_OEM_COLOR ]] || echo -en "\e]P9${OMARCHY_OEM_COLOR#\#}"
   echo -en "\033[0m"
   clear
 }
@@ -117,7 +159,8 @@ measure_terminal() {
 clear_logo() {
   measure_terminal
   printf "\033[H\033[2J"
-  gum style --foreground 2 --padding "1 0 0 $PADDING_LEFT" "$(<"$LOGO_PATH")"
+  # An OEM's logo is art, which may open with dashes.
+  gum style --foreground "$LOGO_COLOR" --padding "1 0 0 $PADDING_LEFT" -- "$(<"$LOGO_PATH")"
 }
 
 step() {
@@ -158,7 +201,7 @@ DIM="${CSI}2m"
 HIDE_CURSOR="${CSI}?25l"
 SHOW_CURSOR="${CSI}?25h"
 CLEAR="${CSI}2J${CSI}H"
-GREEN="${CSI}32m"
+BRAND_LOGO_SGR="${CSI}$((BRAND_LOGO_COLOR < 8 ? 30 + BRAND_LOGO_COLOR : 82 + BRAND_LOGO_COLOR))m"
 
 STATE_FILE=/run/omarchy-provision-owner.state
 FINALIZE_WARNING_FLAG=/run/omarchy-provision-owner.finalize-warning
@@ -377,15 +420,15 @@ greeter_screen() {
     rows=$(stty size 2>/dev/null </dev/tty | awk '{print $1}')
     [[ $rows =~ ^[0-9]+$ ]] || rows=${LINES:-24}
 
-    tagline="Beautiful, Fun & Agentic Linux by DHH"
+    tagline=${OMARCHY_OEM_TAGLINE:-"Beautiful, Fun & Agentic Linux by DHH"}
     hint="Press Return to Start Setup"
 
     printf '%s%s' "$HIDE_CURSOR" "$CLEAR"
 
-    # Console still too narrow for the 81-column logo (a transient small mode):
-    # skip the logo and animation rather than wrap them into mush — just center
-    # the words. The redraw loop repaints the full splash once the VT widens.
-    if (( cols <= LOGO_WIDTH )); then
+    # Console still too narrow for the logo (a transient small mode): skip the
+    # logo and animation rather than wrap them into mush — just center the
+    # words. The redraw loop repaints the full splash once the VT widens.
+    if (( cols <= BRAND_LOGO_WIDTH )); then
       local mid=$(( rows / 2 ))
       tpad=$(( (cols - ${#tagline}) / 2 )); (( tpad < 0 )) && tpad=0
       hpad=$(( (cols - ${#hint}) / 2 )); (( hpad < 0 )) && hpad=0
@@ -395,20 +438,20 @@ greeter_screen() {
     fi
 
     # logo + blank + tagline + blank + hint
-    content_h=$(( LOGO_HEIGHT + 4 ))
+    content_h=$(( BRAND_LOGO_HEIGHT + 4 ))
     top=$(( (rows - content_h) / 2 )); (( top < 0 )) && top=0
     logo_row=$(( top + 1 ))
-    tagline_row=$(( top + LOGO_HEIGHT + 2 ))
-    hint_row=$(( top + LOGO_HEIGHT + 4 ))
+    tagline_row=$(( top + BRAND_LOGO_HEIGHT + 2 ))
+    hint_row=$(( top + BRAND_LOGO_HEIGHT + 4 ))
 
     # Draw each logo row at an explicit column so nothing can wrap it even if a
     # measurement is off by one; left_padding centers it for the current width.
-    pad="$(left_padding "$LOGO_WIDTH")"
+    pad="$(left_padding "$BRAND_LOGO_WIDTH")"
     i=0
     while IFS= read -r line; do
-      printf '%s%d;1H%s%b%s%b' "$CSI" "$((logo_row + i))" "$pad" "$GREEN" "$line" "$RESET"
+      printf '%s%d;1H%s%b%s%b' "$CSI" "$((logo_row + i))" "$pad" "$BRAND_LOGO_SGR" "$line" "$RESET"
       i=$((i + 1))
-    done <"$LOGO_PATH"
+    done <"$BRAND_LOGO_PATH"
 
     tpad=$(( (cols - ${#tagline}) / 2 )); (( tpad < 0 )) && tpad=0
     printf '%s%d;%dH%s' "$CSI" "$tagline_row" "$((tpad + 1))" "$tagline"
@@ -433,22 +476,22 @@ greeter_screen() {
     # above. --canvas-width is cols-2, not cols-1: ttfx centres its text two
     # columns right of plain centering, so cols-1 lands the animated logo a
     # column off the static one and it jumps when the effect starts.
-    printf '%s%d;1H\0337' "$CSI" "$((logo_row + LOGO_HEIGHT))"
+    printf '%s%d;1H\0337' "$CSI" "$((logo_row + BRAND_LOGO_HEIGHT))"
     # Run ttfx directly (not inside a `while` subshell) so $anim is ttfx's own
     # PID: killing a wrapping subshell would orphan ttfx, which then keeps
     # painting the logo over the keyboard step. --cycles is high enough that it
     # never ends on its own before Return.
-    ttfx -i "$LOGO_PATH" \
+    ttfx -i "$BRAND_LOGO_PATH" \
       --canvas-width "$((cols > 2 ? cols - 2 : cols))" \
       --anchor-text c \
       --frame-rate 60 \
       --reuse-canvas \
       --xterm-colors \
       colorshift \
-      --gradient-stops 2 10 6 10 \
+      --gradient-stops "${BRAND_SHIMMER[@]}" \
       --gradient-frames 3 \
       --cycles 1000 \
-      --final-gradient-stops 2 \
+      --final-gradient-stops "$BRAND_LOGO_COLOR" \
       </dev/null >/dev/tty 2>/dev/null &
     anim=$!
   }
@@ -466,6 +509,7 @@ greeter_screen() {
   # Let the console settle before the first paint, then size the font to it.
   wait_console_stable 100 15 || true
   fit_console_font
+  brand_console_font
   wait_console_stable 30 5 || true
 
   trap 'resized=1' WINCH
@@ -485,8 +529,12 @@ greeter_screen() {
     if (( resized )) || [[ -n $cur_sig && $cur_sig != "$drawn_sig" ]]; then
       _greeter_kill_anim
       stty sane </dev/tty 2>/dev/null || true
+      # Cleared before the font changes under it: what is on screen is drawn
+      # from whichever font is set, and the brand's dots are in only one.
+      printf '%s' "$CLEAR"
       wait_console_stable 50 5 || true
       fit_console_font
+      brand_console_font
       wait_console_stable 30 5 || true
       _greeter_draw
       drawn_sig=$(console_signature 2>/dev/null || true)
@@ -502,6 +550,8 @@ greeter_screen() {
   # leftover animation frame.
   stty sane </dev/tty 2>/dev/null || true
   printf '%s%s%s' "$RESET" "$CLEAR" "$SHOW_CURSOR"
+  # The form's font again, for whatever comes next, a failure to start included.
+  fit_console_font
 }
 
 # The first screen, as in the installer: every Omarchy language, and the rest of
@@ -579,6 +629,63 @@ confirm_reboot() {
   echo
   gum confirm --affirmative "$(omarchy_form_text ownerSetup.rebootYes)" --negative "$(omarchy_form_text ownerSetup.rebootNo)" \
     "$(omarchy_form_text ownerSetup.rebootPrompt)"
+}
+
+# Declining the agreement offers to shut down, and going back to it is the
+# answer in focus.
+confirm_shutdown() {
+  clear_logo
+  echo
+  say --width "$((PADDING_LEFT + LOGO_WIDTH))" "$(omarchy_form_text ownerSetup.eulaDeclined)"
+  echo
+  gum confirm --default=false --affirmative "$(omarchy_form_text ownerSetup.eulaShutDownYes)" \
+    --negative "$(omarchy_form_text ownerSetup.eulaShutDownNo)" "$(omarchy_form_text ownerSetup.eulaShutDownPrompt)"
+}
+
+# The OEM's agreement, where it left one: setup's last question, asked before
+# anything is created, so a machine whose owner declines is still as it left
+# the factory.
+EULA_ACCEPTED_AT=""
+
+eula_form() {
+  local status
+  [[ -n $OMARCHY_OEM_EULA ]] || return 0
+
+  # Setup ends as it opened, under the brand.
+  printf '\033[H\033[2J'
+  brand_console_font
+  local LOGO_PATH=$BRAND_LOGO_PATH LOGO_HEIGHT=$BRAND_LOGO_HEIGHT LOGO_COLOR=$BRAND_LOGO_COLOR
+
+  # The agreement reads its own keys, so there Ctrl+C is a signal, and one
+  # that lands while the screen after it is drawn must not end setup.
+  trap : INT
+  while true; do
+    omarchy_oem_eula && status=0 || status=$?
+    if ((status == 0)); then
+      EULA_ACCEPTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+      break
+    elif ((status == OMARCHY_FORM_BACK)); then
+      break
+    elif ((status == OMARCHY_FORM_SIGNAL)); then
+      confirm_reboot && exec systemctl reboot
+    else
+      confirm_shutdown && exec systemctl poweroff
+    fi
+  done
+  trap - INT
+  printf '\033[H\033[2J'
+  fit_console_font
+  return "$status"
+}
+
+# Whose agreement was accepted, by whom and when, for the OEM and the owner to
+# refer to. The hash is of the text as the ISO laid it down.
+record_eula() {
+  [[ -n $EULA_ACCEPTED_AT ]] || return 0
+  mkdir -p /var/lib/omarchy/oem
+  jq -n --arg oem "$OMARCHY_OEM_NAME" --arg user "$username" --arg at "$EULA_ACCEPTED_AT" \
+    --arg sha256 "$(sha256sum <"$OMARCHY_OEM_EULA" | cut -d' ' -f1)" \
+    '{oem: $oem, sha256: $sha256, accepted_by: $user, accepted_at: $at}' >/var/lib/omarchy/oem/eula-accepted.json
 }
 
 # XKB settings for the form's keymaps that kbd-model-map lacks, as its rows for
@@ -1142,6 +1249,7 @@ cleanup_oem_state() {
 run_provisioning() {
   log_step "creating user $username"
   create_user
+  record_eula
   install_authorized_keys
   configure_login
 
@@ -1237,6 +1345,11 @@ run_setup() {
     fi
     if ! rekey_accepts_password; then
       notice "$(omarchy_form_text ownerSetup.samePassword)" 4
+      continue
+    fi
+    # Esc on the agreement unwinds to the keyboard, as it does from the account.
+    if ! eula_form; then
+      keyboard_form || return 1
       continue
     fi
     break

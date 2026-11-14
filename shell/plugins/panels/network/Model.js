@@ -53,12 +53,14 @@ function parseActiveApSignal(raw) {
 // login page. Never execute or automatically open an untrusted Location header.
 var captivePortalUrl = "http://ping.omacom.io/nm-check.txt"
 
-function connectivityState(kind, connectivity, states, checksEnabled) {
+function connectivityState(kind, connectivity, states, checksEnabled, limitedSettled) {
   if (kind === "disconnected") return "none"
   // Ignore stale cached results when the operator has disabled probing.
   if (!checksEnabled) return "unknown"
   if (connectivity === states.Portal) return "portal"
-  if (connectivity === states.Limited) return "limited"
+  // NetworkManager reports Limited for every fresh link until its first probe
+  // answers, so it is only an outage once it has held.
+  if (connectivity === states.Limited) return limitedSettled ? "limited" : "unknown"
   if (connectivity === states.Full) return "full"
   if (connectivity === states.None) return "none"
   return "unknown"
