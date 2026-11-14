@@ -42,6 +42,11 @@ assertDeepEqual(
   'wifiqr parses open network QR'
 )
 assertDeepEqual(
+  wifiqr.parseWifiQr('WIFI:T:OWE;S:EnhancedLobby;;'),
+  { valid: true, ssid: 'EnhancedLobby', password: '', security: 'OWE', hidden: false },
+  'wifiqr preserves OWE mode distinctly from plain open networks'
+)
+assertDeepEqual(
   wifiqr.parseWifiQr('https://omarchy.org'),
   { valid: false, reason: 'notWifi' },
   'wifiqr rejects non-WIFI QR payloads'
@@ -88,9 +93,13 @@ if [[ $* == *"radio wifi"* ]]; then
 elif [[ $* == *"GENERAL.CON-UUID"* ]]; then
   echo "--"
 elif [[ $* == *"UUID,TYPE connection show"* ]]; then
-  printf 'saved-uuid-1:802-11-wireless\n'
-elif [[ $* == *"802-11-wireless.ssid connection show uuid saved-uuid-1"* ]]; then
+  printf 'other-adapter-uuid:802-11-wireless\nsaved-uuid-1:802-11-wireless\n'
+elif [[ $* == *"802-11-wireless.ssid connection show uuid "* ]]; then
   echo "Cafe WiFi"
+elif [[ $* == *"connection.interface-name connection show uuid other-adapter-uuid"* ]]; then
+  echo "wlan1"
+elif [[ $* == *"connection.interface-name connection show uuid saved-uuid-1"* ]]; then
+  echo "wlan0"
 elif [[ $* == *"connection edit"* ]]; then
   cat >"$NMCLI_STDIN_FILE"
 elif [[ $* == *"connection up"* ]]; then
@@ -107,21 +116,26 @@ chmod +x "$tmp/bin/nmcli" "$tmp/bin/uuidgen"
 export NMCLI_STDIN_FILE="$tmp/nmcli-stdin"
 export NMCLI_LOG_FILE="$tmp/nmcli-log"
 
-# 1. Successful connection: sends secret via stdin, activates new profile, then replaces old profile
+# 1. Successful connection: verifies via temp profile, then updates saved-uuid-1 in place without deleting saved profiles
 : >"$NMCLI_LOG_FILE"
 printf 'topsecret123\n' | NMCLI_UP_EXIT=0 PATH="$tmp/bin:$PATH" "$ROOT/shell/plugins/panels/wifiqr/connect-wifi-qr.sh" "Cafe WiFi" "WPA" "no" "wlan0"
 [[ $(<"$NMCLI_STDIN_FILE") == $'set 802-11-wireless-security.psk topsecret123\nsave\nquit' ]] \
   || fail "connect helper sends the Wi-Fi passphrase over stdin rather than argv"
-grep -qxF "connection delete uuid saved-uuid-1" "$NMCLI_LOG_FILE" \
-  || fail "connect helper removes superseded profile after the new profile connects"
-pass "connect helper sends the Wi-Fi passphrase over stdin and commits after connecting"
+grep -qxF "connection modify uuid saved-uuid-1 wifi-sec.key-mgmt wpa-psk" "$NMCLI_LOG_FILE" \
+  || fail "connect helper updates the matching saved profile in place after verification"
+grep -qxF "connection delete uuid new-temp-uuid" "$NMCLI_LOG_FILE" \
+  || fail "connect helper cleans up the temporary verification profile after updating the saved profile"
+if grep -q "delete uuid saved-uuid-1\|delete uuid other-adapter-uuid\|modify uuid other-adapter-uuid" "$NMCLI_LOG_FILE"; then
+  fail "connect helper must never delete saved profiles or touch another adapter's profile" "$(<"$NMCLI_LOG_FILE")"
+fi
+pass "connect helper verifies credentials on a temporary profile, updates the matching profile in place, and leaves other profiles intact"
 
 # 2. Failed connection: deletes only the temporary profile and preserves saved-uuid-1
 : >"$NMCLI_LOG_FILE"
 if printf 'topsecret123\n' | NMCLI_UP_EXIT=1 PATH="$tmp/bin:$PATH" "$ROOT/shell/plugins/panels/wifiqr/connect-wifi-qr.sh" "Cafe WiFi" "SAE" "no" "wlan0" 2>/dev/null; then
   fail "connect helper fails when nmcli connection up fails"
 fi
-if grep -q "saved-uuid-1" "$NMCLI_LOG_FILE" && grep -q "delete uuid saved-uuid-1\|modify uuid saved-uuid-1\|edit uuid saved-uuid-1" "$NMCLI_LOG_FILE"; then
+if grep -q "delete uuid saved-uuid-1\|modify uuid saved-uuid-1\|edit uuid saved-uuid-1" "$NMCLI_LOG_FILE"; then
   fail "failed scan must not modify or delete an existing saved profile" "$(<"$NMCLI_LOG_FILE")"
 fi
 if grep -q "wpa-psk" "$NMCLI_LOG_FILE"; then
@@ -130,3 +144,10 @@ fi
 grep -qxF "connection delete uuid new-temp-uuid" "$NMCLI_LOG_FILE" \
   || fail "failed scan cleans up its temporary profile"
 pass "failed SAE scan preserves existing saved profiles and never downgrades to WPA2"
+
+# 3. OWE connection: configures wifi-sec.key-mgmt owe
+: >"$NMCLI_LOG_FILE"
+printf '\n' | NMCLI_UP_EXIT=0 PATH="$tmp/bin:$PATH" "$ROOT/shell/plugins/panels/wifiqr/connect-wifi-qr.sh" "EnhancedLobby" "OWE" "no" "wlan0"
+grep -qxF "connection modify uuid new-temp-uuid wifi-sec.key-mgmt owe" "$NMCLI_LOG_FILE" \
+  || fail "OWE scan configures wifi-sec.key-mgmt owe"
+pass "OWE scan configures wifi-sec.key-mgmt owe"

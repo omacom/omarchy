@@ -129,8 +129,10 @@ function parseWifiQr(raw) {
   }
 
   var security = "nopass"
-  if (rawType === "" || rawType === "NOPASS" || rawType === "NONE" || rawType === "OPEN" || rawType === "OWE") {
+  if (rawType === "" || rawType === "NOPASS" || rawType === "NONE" || rawType === "OPEN") {
     security = "nopass"
+  } else if (rawType === "OWE") {
+    security = "OWE"
   } else if (rawType === "SAE" || rawType === "WPA3" || rawType === "WPA3-SAE") {
     security = "SAE"
   } else if (rawType === "WPA" || rawType === "WPA2" || rawType === "WPA-PSK" || rawType === "WPA2-PSK" || rawType === "WPA/WPA2") {
@@ -148,14 +150,15 @@ function parseWifiQr(raw) {
     security = "WPA"
   }
 
-  if (security !== "nopass" && password === "") {
+  var passwordless = security === "nopass" || security === "OWE"
+  if (!passwordless && password === "") {
     return { valid: false, reason: "missingPassword", ssid: ssid }
   }
 
   return {
     valid: true,
     ssid: ssid,
-    password: security === "nopass" ? "" : password,
+    password: passwordless ? "" : password,
     security: security,
     hidden: hidden
   }
@@ -165,6 +168,7 @@ function securityLabel(security, openLabel) {
   if (security === "SAE") return "WPA3"
   if (security === "WPA") return "WPA"
   if (security === "WEP") return "WEP"
+  if (security === "OWE") return "OWE"
   return openLabel || "Open"
 }
 
