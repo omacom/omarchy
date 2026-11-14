@@ -218,6 +218,12 @@
   "appearance.windows.one-window-ratio-off": {
     "label": "1-Window Ratio Off"
   },
+  "appearance.windows.snap-on": {
+    "label": "Window Snapping On"
+  },
+  "appearance.windows.snap-off": {
+    "label": "Window Snapping Off"
+  },
   "appearance.branding": {
     "label": "Branding"
   },

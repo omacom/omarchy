@@ -123,10 +123,13 @@ duplicate_signatures() {
 }
 
 # Deliberate stacking: Hyprland runs both dispatchers, so cycling to the next
-# window also raises it. Anything else sharing a chord is a collision.
+# window also raises it, and window snapping's non-consuming watcher sees the
+# press of a SUPER drag before the drag bind takes it. Anything else sharing a
+# chord is a collision.
 allowed_duplicates=(
   "ALT+SHIFT+TAB"
   "ALT+TAB"
+  "SUPER+MOUSE:272"
 )
 
 is_allowed_duplicate() {
