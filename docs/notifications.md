@@ -42,6 +42,8 @@ The shell keeps its state in `~/.local/state/omarchy/notifications/` (0700), thr
 - `history.json`: closed rows, newest first, each with `closed_ts` and `closed_reason`. Capped at 100 entries and 24 hours. Rows whose reason is `silenced` were held back by Do Not Disturb.
 - `quiet.json`: `{ dnd }`.
 
+`showHistory` puts the newest history rows back on screen. Dismissing or clicking one of those replayed cards removes that history entry, matched by its key and `closed_ts`, so a later notification that reused the sender's id is left alone. Letting the replayed card expire leaves the entry. A card put back from `live.json` after a shell restart is not a replay: closing it still moves it into history.
+
 A card with the `transient` hint is never written to either file, as the hint asks: it is not put back after a restart and leaves no history when it closes. Its sender sends it again when it still applies, as `omarchy-migrate-notify` does at every login.
 
 `Store.persistable` decides what a row keeps: its scalar fields, never images, detected links, or derived text. Text with a verification code is stored only as the redacted placeholder, the click command and glyph included. A live row is cut to 16K characters and a history row, shown as a one-line preview, to 4K. Rows keep `execArgv` and `glyph`, so a card restored after a shell restart clicks through like the live one. Rows are re-checked the same way when read back; a file that is not an array of keyed objects, or is oversized, reads as empty, and a file that does not read back exactly as it would be written is rewritten.

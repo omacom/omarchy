@@ -365,7 +365,7 @@ function newCapacityScope() {
     maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
     arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
     held: [], doNotDisturb: false,
-    liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
+    liveEntries: [], historyEntries: [], replayedFromHistory: Object.create(null), unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
     deckDisplayName: '',
     hyprRevision: 0,
