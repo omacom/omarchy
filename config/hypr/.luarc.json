@@ -6,6 +6,6 @@
     "checkThirdParty": false
   },
   "diagnostics": {
-    "globals": ["hl", "o"]
+    "globals": ["hl", "o", "omarchy_default_bindings", "omarchy_preinstalled_bindings"]
   }
 }
