@@ -1,0 +1,34 @@
+#!/bin/bash
+# systemd-sleep hook for BCM4377 on T2 Macs (MacBookAir9,1).
+#
+# brcmfmac times out entering D3 (error -5), which aborts every suspend.
+# hci_bcm4377 survives suspend but its function comes back hung and later
+# raises a PCIe error that takes the whole chip (Wi-Fi too) offline.
+# Unload both before sleep; reload about 15s after wake, since an instant
+# reload crashed the machine.
+#
+# The reload runs as the named unit t2-wifi-reload.service rather than a
+# transient systemd-run unit. A transient unit reuses one fixed name, so when
+# the machine woke briefly and suspended again before the reload finished, the
+# next resume failed with "Unit t2-wifi-reload.timer was already loaded or has
+# a fragment file" and the reload was skipped entirely: no Wi-Fi and no
+# Bluetooth until reboot. A named unit can always be restarted, and the pre
+# hook cancels a reload still in flight so it cannot race the module unload.
+
+RELOAD_UNIT=t2-wifi-reload.service
+REBIND_UNIT=bt-bcm4377-rebind.service
+
+case "$1" in
+  pre)
+    # Cancel any reload or rebind still running from an earlier wake. Bounded,
+    # so a stuck unit cannot hold up the suspend indefinitely.
+    timeout 20 systemctl stop "$RELOAD_UNIT" "$REBIND_UNIT" 2>/dev/null
+    systemctl reset-failed "$RELOAD_UNIT" "$REBIND_UNIT" 2>/dev/null
+    modprobe -r brcmfmac_wcc brcmfmac hci_bcm4377
+    ;;
+  post)
+    systemctl reset-failed "$RELOAD_UNIT" 2>/dev/null
+    systemctl restart --no-block "$RELOAD_UNIT"
+    ;;
+esac
+exit 0
