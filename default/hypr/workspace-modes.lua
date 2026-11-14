@@ -305,7 +305,10 @@ local function arrange(windows, workspace)
   for _, window in ipairs(windows) do
     local id = tonumber(workspace and workspace.id or (window.workspace and window.workspace.id))
 
-    if id and id >= 1 then
+    -- A window can close before the timers below get here. Hyprland reports a
+    -- dispatcher handed a destroyed window as an error, then runs it on the
+    -- focused window instead.
+    if window.mapped and id and id >= 1 then
       if floating_workspace(id) then
         table.insert(floating, window)
       else
