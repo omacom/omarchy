@@ -12,6 +12,37 @@ Item {
 
   // Injected by omarchy-shell when this plugin is summoned.
   property string omarchyPath: Quickshell.env("OMARCHY_PATH")
+  // Bundled vector icons for query-plugin rows (calc / search). Rendered as
+  // SVG so they never depend on a font glyph or theme icon (which can render
+  // as a generic "file"/gear on some setups).
+  property string iconRoot: omarchyPath + "/shell/plugins/menu/assets"
+  // Keys that map to a bundled SVG under iconRoot.
+  property var bundledIcons: ({ "calc": "calc", "search": "search" })
+  // Resolve a query-plugin icon to an image source, or "" if it should be
+  // drawn as a font glyph instead. Accepts: a bundled key ("calc"/"search"),
+  // an absolute/relative path (expands ~), or a bare filename with an image
+  // extension (resolved under iconRoot). Anything else is treated as a glyph.
+  function queryIconSource(icon) {
+    if (!icon) return ""
+    if (root.bundledIcons[icon]) {
+      // Bundled icons ship two stroke variants: white (default, for dark
+      // themes) and -dark (for light themes). Pick by menu background
+      // luminance so the icon always contrasts the card. This is deliberately
+      // NOT a shader tint: QtQuick.Effects is unreliable (blackholed) on some
+      // Quickshell builds.
+      var c = root.background
+      var lum = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
+      var suffix = lum > 0.5 ? "-dark" : ""
+      return root.iconRoot + "/" + icon + suffix + ".svg"
+    }
+    if (icon.charAt(0) === "/" || icon.slice(0, 2) === "~/" || icon.slice(0, 2) === "./")
+      return icon.replace("~", Quickshell.env("HOME"))
+    if (/\.(svg|png|jpg|jpeg|ico)$/i.test(icon)) return root.iconRoot + "/" + icon
+    return ""  // glyph → drawn as Text
+  }
+  function queryIconIsImage(icon) {
+    return root.queryIconSource(icon) !== ""
+  }
   property var shell: null
   property var manifest: null
 
@@ -31,6 +62,7 @@ Item {
     if (payload.mode === "select" || payload.mode === "input") {
       root.openDmenu(payload)
     } else {
+      root.rebuildQueryPluginMap()
       root.openRoute(payload.initialMenu || payload.menu || "root")
     }
   }
@@ -107,7 +139,9 @@ Item {
   readonly property var appLibrary: root.shell ? root.shell.appLibrary : null
   property bool deleteConfirmOpen: false
   property var deleteTarget: null
-  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null }
+  // Every way the menu closes (dismiss, pick, close()) lands here, so query
+  // commands still running for it stop with it.
+  onOpenedChanged: if (!opened) { deleteConfirmOpen = false; deleteTarget = null; cancelQueryPlugins() }
   // Bound to the central [menu] section in shell.toml via Commons.Color.qml.
   // Each color already includes its alpha companion (composed in the
   // singleton), so consumers can drop them straight into a Rectangle.
@@ -128,6 +162,10 @@ Item {
   property int contentSpacing: Style.spacing.md
   property int baseRowHeight: Math.max(Style.space(50), Style.font.body + Style.spacing.rowPaddingX * 2)
   property int detailRowHeight: Math.max(Style.space(58), Style.font.body + Style.font.caption + Style.spacing.rowPaddingX * 2)
+  // Rows with a two-line query result (heading label + bodySmall detail) need
+  // more vertical room than a normal detail row, whose height only budgets for
+  // body + caption. Otherwise the content overflows the card.
+  property int queryRowHeight: Math.max(Style.space(62), Style.font.heading + Style.font.bodySmall + Style.spacing.rowPaddingX * 2 + Style.space(3))
   // How much of the first hidden row stays visible at the fold — enough to
   // read as a cut-off row rather than a bottom border.
   property int rowPeek: Math.round(baseRowHeight * 0.55)
@@ -135,7 +173,23 @@ Item {
   property int dividerHeight: Style.space(17)
   property bool searchDivider: false
   property int layoutSerial: 0
-  property int cardWidth: Math.min(root.dmenuActive ? Style.space(root.dmenuWidth) : ((root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") ? Style.space(520) : Style.space(300)), panel.width - Style.gapsOut * 2)
+  // The card grows with the typed query up to 80% of the monitor width (and
+  // never past the layer), then the text inside elides with "…". Static menus
+  // keep their fixed widths.
+  property int cardWidth: Math.min(root.baseCardWidth(), panel.width - Style.gapsOut * 2)
+  function baseCardWidth() {
+    if (root.dmenuActive) return Style.space(root.dmenuWidth)
+    if (root.activeMenu === "trigger.capture.screenrecord" || root.activeMenu === "appearance.font" || root.activeMenu === "update.kernel") return Style.space(520)
+    var minW = Style.space(300)
+    if (!root.filterText) return minW
+    // Grow only once the query no longer fits the base width, so the card does
+    // not jump wider on the first keystroke. The cap uses the monitor width,
+    // not the layer width, so the card never resizes with its own result rows.
+    var est = root.filterText.length * Math.round(Style.font.heading * 0.8) + Style.space(80)
+    var monitorW = (panel.screen && panel.screen.width) ? panel.screen.width : panel.width
+    var cap = isNaN(monitorW) ? Style.space(1200) : Math.round(monitorW * 0.8)
+    return Math.min(cap, Math.max(minW, est))
+  }
   property int visibleRowsHeight: root.dmenuActive ? dmenuRowListHeight(layoutSerial, displayModel.count, filterText) : rowListHeight(layoutSerial, displayModel.count, filterText, searchDivider)
   property int cardHeight: root.dmenuActive
     ? Math.min(contentMargin * 2 + headerHeight + (mode === "input" ? 0 : contentSpacing + visibleRowsHeight), panel.height - Style.gapsOut * 2)
@@ -173,8 +227,16 @@ Item {
 
   // Menu rows only surface their detail while a search is narrowing them;
   // dmenu rows carry caller-supplied subtext that must always be visible.
-  function rowHeightForDetail(detail) {
-    return (root.filterText || root.dmenuActive) && detail ? root.detailRowHeight : root.baseRowHeight
+  function rowHeightForDetail(row) {
+    if (row && row.kind === "query") return root.queryRowHeight
+    return (root.filterText || root.dmenuActive) && row && row.detail ? root.detailRowHeight : root.baseRowHeight
+  }
+
+  // Sections that open with a divider: drill-down matches under the current
+  // menu's own, and the web fallback under the rows above it. rowListHeight
+  // and the list's section delegate both count them through here.
+  function sectionHasDivider(section) {
+    return section === "drilldown" || section === "fallback"
   }
 
   // Height the card can devote to rows before running off the screen — or
@@ -218,8 +280,8 @@ Item {
     for (var i = 0; i < displayModel.count; i++) {
       var row = displayModel.get(i)
       if (i > 0) total += root.rowSpacing
-      if (row.section === "drilldown" && previousSection !== "drilldown") total += root.dividerHeight
-      total += root.rowHeightForDetail(row.detail)
+      if (root.sectionHasDivider(row.section) && previousSection !== row.section) total += root.dividerHeight
+      total += root.rowHeightForDetail(row)
       previousSection = row.section
       totals.push(total)
     }
@@ -238,7 +300,7 @@ Item {
     var total = 0
     for (var i = 0; i < displayModel.count; i++) {
       if (i > 0) total += root.rowSpacing
-      total += root.rowHeightForDetail(displayModel.get(i).detail)
+      total += root.rowHeightForDetail(displayModel.get(i))
       totals.push(total)
     }
 
@@ -772,6 +834,20 @@ Item {
       }
     }
 
+    // Query-plugin rows: math and keyword results above the matches, the web
+    // fallback below them behind a divider (none when it is the only row).
+    var queryRows = root.queryRowsForDisplay(query)
+    var topRows = []
+    var fallbackRows = []
+    for (var q = 0; q < queryRows.length; q++) {
+      var queryRow = Object.assign({}, queryRows[q])
+      if (queryRow.section === "fallback") fallbackRows.push(queryRow)
+      else topRows.push(queryRow)
+    }
+    rows = topRows.concat(rows)
+    if (rows.length === 0 && fallbackRows.length > 0) fallbackRows[0].section = ""
+    rows = rows.concat(fallbackRows)
+
     for (var k = 0; k < rows.length; k++) displayModel.append(rows[k])
     layoutSerial += 1
 
@@ -813,6 +889,7 @@ Item {
     if (target < 0) return
 
     cursorActive = true
+    queryCursorAuto = false
     selectedIndex = target
     revealCursor()
   }
@@ -823,8 +900,9 @@ Item {
     root.selectedIndex = 0
     root.cursorActive = root.mode !== "input"
     root.disarmPointer()
-    if (!root.dmenuActive && root.filterText.trim()) root.loadProvidersForSearch()
+    root.queryCursorAuto = true
     root.rebuildDisplay()
+    if (!root.dmenuActive && root.filterText.trim()) root.loadProvidersForSearch()
   }
 
   function setActiveMenu(id, pushHistory, fromPointer) {
@@ -890,6 +968,10 @@ Item {
     var row = displayModel.get(index)
     if (row.kind === "menu" || row.kind === "link") {
       root.setActiveMenu(row.target || row.itemId, true, fromPointer)
+    } else if (row.kind === "query") {
+      // Live query-plugin result: copy or run per the plugin's action, then
+      // close the menu the same way a normal action does.
+      root.applySelected(row.itemId, row.action)
     } else if (row.kind === "app") {
       var appId = row.appId
       var label = row.label
@@ -948,6 +1030,271 @@ Item {
     if (root.dmenuActive) root.finishRequest(null)
     opened = false
     filterText = ""
+  }
+
+  // ------------------------------------------------------------------
+  // Live query plugins (Alfred/Raycast-style inline results)
+  //
+  // While the user types a free-text query, registered plugins run a command
+  // and surface a row each. Math and keyword plugins sit above the normal
+  // search matches, so the calculator result is the default row; web search is
+  // the fallback below them (on top when nothing else matches). Plugins come
+  // from three sources, lowest precedence first:
+  //   1. the built-in definitions below
+  //   2. user plugins in $HOME/.config/omarchy/query-plugins.json
+  //   3. enabled/language preferences in
+  //      $HOME/.config/omarchy/extensions/query-plugins-prefs.jsonc
+  // The pure decision/row logic lives in MenuModel.js so the test suite can
+  // exercise it under Node; this file owns the processes and displayModel.
+  // ------------------------------------------------------------------
+
+  readonly property string queryPluginsPath: Quickshell.env("HOME") + "/.config/omarchy/query-plugins.json"
+  readonly property string queryPluginPrefsPath: Quickshell.env("HOME") + "/.config/omarchy/extensions/query-plugins-prefs.jsonc"
+  // A plugin command that has not answered by then is killed and its row dropped.
+  readonly property int queryPluginTimeoutSeconds: 5
+
+  // `builtin: true` resolves `command` under $OMARCHY_PATH/bin; user plugins
+  // run their command as configured (absolute path or a name on PATH).
+  readonly property var queryPlugins: ([
+    {
+      id: "omarchy.query.calc",
+      kind: "math",
+      icon: "calc",
+      enabled: true,
+      action: "copy",
+      command: "omarchy-query-calc",
+      builtin: true
+    },
+    {
+      id: "omarchy.query.web",
+      kind: "web",
+      icon: "search",
+      enabled: true,
+      action: "run",
+      command: "omarchy-query-web",
+      args: "url",
+      builtin: true
+    }
+  ])
+
+  // id -> { enabled, language } from the user prefs file.
+  property var queryPluginPrefs: ({})
+  property var userQueryPlugins: []
+  // id -> plugin definition merged from built-ins + user file + prefs.
+  property var queryPluginMap: ({})
+  // Bumped on every cancel, so a runner from an older query is ignored.
+  property int queryPluginRevision: 0
+  // id -> Process for the current query.
+  property var queryRunners: ({})
+  // Ranked rows for the current query: disabled placeholders until their
+  // command answers. rebuildDisplay places them around the search matches, so
+  // provider merges that rebuild the list mid-query keep them.
+  property var queryRows: []
+  // The query queryRows belong to ("" when none are active).
+  property string queryRowsFor: ""
+  // While the user has not moved the cursor since typing, a result that lands
+  // takes the cursor, so one Enter acts on it.
+  property bool queryCursorAuto: true
+
+  function loadQueryPluginPrefs(raw) {
+    var prefs = ({})
+    try {
+      var parsed = JSON.parse(root.stripJsonc(raw))
+      var entries = (parsed && parsed.plugins) || parsed || {}
+      var keys = Object.keys(entries)
+      for (var i = 0; i < keys.length; i++) {
+        var val = entries[keys[i]]
+        prefs[keys[i]] = {
+          enabled: val && typeof val.enabled === "boolean" ? val.enabled : true,
+          language: val && val.language ? String(val.language) : ""
+        }
+      }
+    } catch (e) { }
+    root.queryPluginPrefs = prefs
+    root.rebuildQueryPluginMap()
+  }
+
+  function loadUserQueryPlugins(raw) {
+    var list = []
+    try {
+      var arr = JSON.parse(root.stripJsonc(raw))
+      if (Array.isArray(arr)) {
+        for (var i = 0; i < arr.length; i++) {
+          var p = arr[i]
+          if (p && p.id && p.kind && p.command) list.push(p)
+        }
+      }
+    } catch (e) { }
+    root.userQueryPlugins = list
+    root.rebuildQueryPluginMap()
+  }
+
+  function rebuildQueryPluginMap() {
+    var map = ({})
+    var sources = root.queryPlugins.concat(root.userQueryPlugins)
+    for (var i = 0; i < sources.length; i++) map[sources[i].id] = JSON.parse(JSON.stringify(sources[i]))
+    var ids = Object.keys(map)
+    for (var m = 0; m < ids.length; m++) {
+      var pref = root.queryPluginPrefs[ids[m]]
+      if (!pref) continue
+      if (typeof pref.enabled === "boolean") map[ids[m]].enabled = pref.enabled
+      if (pref.language) map[ids[m]].language = pref.language
+    }
+    var changed = JSON.stringify(map) !== JSON.stringify(root.queryPluginMap)
+    root.queryPluginMap = map
+    // Rows and runs for the current query came from the old definitions: a
+    // plugin disabled mid-query must not stay selectable or finish into a row.
+    if (changed && root.queryRowsFor) {
+      root.cancelQueryPlugins()
+      if (root.opened) root.rebuildDisplay()
+    }
+  }
+
+  function queryPluginsForQuery(query) {
+    return MenuModel.queryPluginsForQuery(root.queryPluginMap, query)
+  }
+
+  function queryTranslate(key, english) {
+    return Commons.I18n.t(key, english)
+  }
+
+  function queryPluginLanguage(plugin) {
+    return plugin.language || root.language || "en"
+  }
+
+  function queryPluginBin(plugin) {
+    return plugin.builtin ? (root.omarchyPath + "/bin/" + plugin.command) : plugin.command
+  }
+
+  // Query rows to place around the search matches for `query`, starting the
+  // plugins when the query changed. Same-query rebuilds (provider merges)
+  // reuse the rows and runs already in flight.
+  function queryRowsForDisplay(query) {
+    if (root.dmenuActive || !query) {
+      if (root.queryRowsFor) root.cancelQueryPlugins()
+      return []
+    }
+    if (query !== root.queryRowsFor) root.startQueryPlugins(query)
+    return root.queryRows
+  }
+
+  function startQueryPlugins(query) {
+    root.cancelQueryPlugins()
+    root.queryRowsFor = query
+    var plugins = root.queryPluginsForQuery(query)
+    var rows = []
+    var runners = ({})
+    for (var i = 0; i < plugins.length; i++) {
+      var p = plugins[i]
+      var runner = root.makeQueryRunner(p, query, root.queryPluginRevision)
+      if (!runner) continue
+      runners[p.id] = runner
+      var placeholder = MenuModel.queryPluginRow(p, query, "", root.queryPluginLanguage(p), root.queryTranslate)
+      placeholder.disabled = true
+      rows.push(placeholder)
+    }
+    root.queryRunners = runners
+    root.queryRows = rows
+  }
+
+  function makeQueryRunner(plugin, query, revision) {
+    // Per-runner state travels as properties: closures can't cross the
+    // createQmlObject string boundary. SplitParser drops each newline, so the
+    // handler puts it back to keep multi-line output intact.
+    var proc = Qt.createQmlObject(
+      "import Quickshell.Io; import QtQuick; Process { " +
+      "property string collected: \"\"; " +
+      "property string pluginId: \"\"; " +
+      "property string queryText: \"\"; " +
+      "property int rev: 0; " +
+      "stdout: SplitParser { onRead: function(d) { collected += d + \"\\n\" } } " +
+      "onExited: function(exitCode) { root.finishQueryRunner(pluginId, queryText, collected, rev, exitCode) } }",
+      root, "queryRunner"
+    )
+    if (!proc) return null
+    proc.pluginId = plugin.id
+    proc.queryText = query
+    proc.rev = revision
+    // The web plugin only computes the URL while typing (--print); the browser
+    // opens on Enter through the row's action.
+    var args = plugin.args === "url" ? ["--print", query] : [query]
+    proc.command = ["timeout", String(root.queryPluginTimeoutSeconds), root.queryPluginBin(plugin)].concat(args)
+    proc.running = true
+    return proc
+  }
+
+  function queryRowAction(plugin, query, value) {
+    if (plugin.action === "copy") return "printf '%s' " + Util.shellQuote(value) + " | wl-copy"
+    if (plugin.action !== "run") return ""
+    // Web plugins print a URL; Enter opens it as a web app. Other run plugins
+    // execute their own command again with the same query.
+    if (plugin.kind === "web") return Util.shellQuote(root.omarchyPath + "/bin/omarchy-launch-webapp") + " " + Util.shellQuote(value)
+    return Util.shellQuote(root.queryPluginBin(plugin)) + " " + Util.shellQuote(query)
+  }
+
+  // A runner finished: fill its placeholder in place, or drop it when the
+  // command failed or printed nothing useful.
+  function finishQueryRunner(pluginId, query, out, rev, exitCode) {
+    var runner = root.queryRunners[pluginId]
+    if (rev !== root.queryPluginRevision) return
+    if (runner) {
+      delete root.queryRunners[pluginId]
+      runner.destroy()
+    }
+
+    var plugin = root.queryPluginMap[pluginId]
+    var value = String(out || "").replace(/\s+$/, "").replace(/^\n+/, "")
+    var failed = !plugin || exitCode !== 0 || !value.trim() || value === "Error" || value.indexOf("Error:") === 0
+    var itemId = pluginId + ".result"
+    var rows = root.queryRows.slice()
+    var rowIndex = -1
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].itemId === itemId) { rowIndex = i; break }
+    }
+    if (rowIndex < 0) return
+
+    var filled = null
+    if (failed) {
+      rows.splice(rowIndex, 1)
+    } else {
+      filled = MenuModel.queryPluginRow(plugin, query, value, root.queryPluginLanguage(plugin), root.queryTranslate)
+      filled.action = root.queryRowAction(plugin, query, value)
+      rows[rowIndex] = filled
+    }
+    root.queryRows = rows
+
+    for (var j = 0; j < displayModel.count; j++) {
+      var shown = displayModel.get(j)
+      if (shown.kind !== "query" || shown.itemId !== itemId) continue
+      if (filled) {
+        // Show it in the section it was placed with (a lone fallback has
+        // none), leaving the stored row's own section for later rebuilds.
+        var display = Object.assign({}, filled)
+        display.section = shown.section
+        displayModel.set(j, display)
+      } else {
+        displayModel.remove(j)
+        if (j < root.selectedIndex) root.selectedIndex -= 1
+        if (displayModel.count > 0 && displayModel.get(0).section === "fallback") displayModel.setProperty(0, "section", "")
+      }
+      break
+    }
+    root.layoutSerial += 1
+
+    if (root.queryCursorAuto) root.selectedIndex = 0
+    if (root.queryCursorAuto || !root.cursorActive) root.settleCursor()
+  }
+
+  function cancelQueryPlugins() {
+    root.queryPluginRevision += 1
+    var ids = Object.keys(root.queryRunners)
+    for (var i = 0; i < ids.length; i++) {
+      var r = root.queryRunners[ids[i]]
+      try { r.running = false; r.destroy() } catch (e) { }
+    }
+    root.queryRunners = ({})
+    root.queryRows = []
+    root.queryRowsFor = ""
   }
 
   function openExistingMenu(initialMenu) {
@@ -1042,6 +1389,7 @@ Item {
     if (!pointerGate.moved(item, mouse)) return
     if (!root.rowSelectable(index)) return
     root.cursorActive = true
+    root.queryCursorAuto = false
     root.selectedIndex = index
   }
 
@@ -1186,6 +1534,28 @@ Item {
     printErrors: false
     onLoaded: { root.menuCatalog = root.parseCatalog(text()); root.rebuildItemsFromSources(true) }
     onLoadFailed: { root.menuCatalog = ({}); root.rebuildItemsFromSources(true) }
+    onFileChanged: reload()
+  }
+
+  // Live query-plugin sources: a single user plugin file and a prefs file. Both
+  // are watched so edits take effect without restarting the shell.
+  FileView {
+    id: userQueryPluginsFile
+    path: root.queryPluginsPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.loadUserQueryPlugins(text())
+    onLoadFailed: { root.userQueryPlugins = []; root.rebuildQueryPluginMap() }
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: queryPluginPrefsFile
+    path: root.queryPluginPrefsPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.loadQueryPluginPrefs(text())
+    onLoadFailed: { root.queryPluginPrefs = ({}); root.rebuildQueryPluginMap() }
     onFileChanged: reload()
   }
 
@@ -1444,7 +1814,7 @@ Item {
             WheelHandler {
               target: null
               onWheel: function(event) {
-                var delta = event.pixelDelta.y || event.angleDelta.y / 120 * root.rowHeightForDetail("") * 3
+                var delta = event.pixelDelta.y || event.angleDelta.y / 120 * root.rowHeightForDetail(null) * 3
                 var bottom = resultList.originY + Math.max(0, resultList.contentHeight - resultList.height)
                 resultList.contentY = Math.max(resultList.originY, Math.min(bottom, resultList.contentY - delta))
                 event.accepted = true
@@ -1457,8 +1827,8 @@ Item {
               required property string section
 
               width: ListView.view.width
-              height: section === "drilldown" ? root.dividerHeight : 0
-              visible: section === "drilldown"
+              height: root.sectionHasDivider(section) ? root.dividerHeight : 0
+              visible: root.sectionHasDivider(section)
 
               Rectangle {
                 anchors.left: parent.left
@@ -1489,11 +1859,13 @@ Item {
               required property bool disabled
 
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
-              readonly property bool isApp: row.kind === "app"
-              readonly property bool hasIcon: row.icon.length > 0 || row.isApp
+              // kind alone is the complete app-row test (native rows carry no
+              // isApp role; reading one would be an unknown-member access).
+              readonly property bool isAppRow: row.kind === "app"
+              readonly property bool hasIcon: row.icon.length > 0 || row.isAppRow
 
               width: ListView.view.width
-              height: root.rowHeightForDetail(row.detail)
+              height: root.rowHeightForDetail(row)
               // Faded: the row is here to say the software is already
               // installed, not to be picked.
               opacity: row.disabled ? 0.4 : 1
@@ -1515,7 +1887,7 @@ Item {
               Text {
                 id: iconText
                 textFormat: Text.PlainText
-                visible: row.hasIcon && !row.isApp
+                visible: row.hasIcon && !iconImage.visible
                 text: row.icon
                 color: row.hasCursor ? root.selectedText : root.foreground
                 font.family: row.iconFont.length > 0 ? row.iconFont : root.fontFamily
@@ -1528,9 +1900,13 @@ Item {
                 y: contentColumn.y + labelText.y + (labelText.height - height) / 2
               }
 
+              // Single image icon used for (a) bundled SVG icons on query-plugin
+              // rows (calc/search — queryIconSource picks the stroke variant
+              // that contrasts the current theme), (b) a user-supplied icon
+              // PATH on query rows, and (c) real theme/app icons on native rows.
               Image {
-                id: appIconImage
-                visible: row.isApp
+                id: iconImage
+                visible: row.hasIcon && (row.kind === "query" ? root.queryIconIsImage(row.icon) : row.isAppRow)
                 width: Style.font.iconLarge
                 height: Style.font.iconLarge
                 fillMode: Image.PreserveAspectFit
@@ -1538,7 +1914,11 @@ Item {
                 // PNG icons upscaled and blurry on HiDPI displays.
                 sourceSize.width: width * Screen.devicePixelRatio
                 sourceSize.height: height * Screen.devicePixelRatio
-                source: row.isApp && root.appLibrary ? root.appLibrary.iconSource(row.appIcon) : ""
+                source: {
+                  if (row.kind === "query" && row.icon) return root.queryIconSource(row.icon)
+                  if (row.isAppRow && root.appLibrary) return root.appLibrary.iconSource(row.appIcon)
+                  return ""
+                }
                 asynchronous: true
                 anchors.left: parent.left
                 anchors.leftMargin: root.rowReservedBorderLeft + Style.space(8) + (Style.space(36) - width) / 2

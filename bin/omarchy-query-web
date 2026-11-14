@@ -1,0 +1,71 @@
+#!/bin/bash
+# omarchy:summary=Open a web search (or URL) for the given query in a web app
+# omarchy:group=query
+# omarchy:args=[--print] [provider] <query>
+# omarchy:examples=omarchy query web hello world | omarchy query web youtube omarchy | omarchy query web --print https://omarchy.org
+#
+# Usage: omarchy-query-web [--print] [provider] <query>
+#   provider  one of: google (default), duckduckgo, bing, amazon, youtube, github, wikipedia
+#   query     the text to search for, or a bare URL to open directly
+#   --print   print the resolved URL instead of opening it
+#
+# The arguments are joined into one query, so the menu (which passes the typed
+# text as a single argument) and a shell call with separate words read alike.
+# A leading provider name selects that provider only when more words follow,
+# so "youtube omarchy" searches YouTube and a lone "youtube" searches Google.
+# The URL is handed to `omarchy-launch-webapp`, which opens it as a chromeless
+# app window in the user's supported browser.
+
+set -euo pipefail
+
+print_only=0
+if [[ ${1:-} == "--print" ]]; then
+  print_only=1
+  shift
+fi
+
+query="$*"
+# Trim surrounding whitespace.
+query="${query#"${query%%[![:space:]]*}"}"
+query="${query%"${query##*[![:space:]]}"}"
+
+if [[ -z $query ]]; then
+  exit 0
+fi
+
+provider="google"
+first="${query%%[[:space:]]*}"
+if [[ $first != "$query" ]]; then
+  case "${first,,}" in
+    google | duckduckgo | bing | amazon | youtube | github | wikipedia)
+      provider="${first,,}"
+      query="${query#"$first"}"
+      query="${query#"${query%%[![:space:]]*}"}"
+      ;;
+  esac
+fi
+
+case "$query" in
+  http://* | https://*)
+    # A bare URL opens as typed.
+    url="$query"
+    ;;
+  *)
+    case "$provider" in
+      google) base="https://www.google.com/search?q=" ;;
+      duckduckgo) base="https://duckduckgo.com/?q=" ;;
+      bing) base="https://www.bing.com/search?q=" ;;
+      amazon) base="https://www.amazon.com/s?k=" ;;
+      youtube) base="https://www.youtube.com/results?search_query=" ;;
+      github) base="https://github.com/search?q=" ;;
+      wikipedia) base="https://en.wikipedia.org/w/index.php?search=" ;;
+    esac
+    url="$base$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$query")"
+    ;;
+esac
+
+if (( print_only )); then
+  printf '%s\n' "$url"
+else
+  omarchy-launch-webapp "$url"
+fi
