@@ -1,0 +1,14 @@
+# Apple's Cinema Displays from before the Studio Display (the aluminium Cinema
+# HD and the LED Cinema) take brightness over USB. The kernel's appledisplay
+# driver turns that into a backlight, but usbhid binds the interface first, so
+# appledisplay never gets it and the display looks like it has fixed
+# brightness. Hand the interface over whenever usbhid takes it; the product IDs
+# are exactly the ones appledisplay supports.
+#
+# Nothing is detached unless appledisplay loads: the bind can arrive before the
+# module has. If appledisplay then refuses the interface, it goes back to
+# usbhid, and a marker in /run stops that rebind from starting the handover
+# again until the next boot.
+ACTION=="bind", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_interface", DRIVER=="usbhid", \
+  ATTRS{idVendor}=="05ac", ATTRS{idProduct}=="9218|9219|921c|921d|9222|9226|9236", \
+  RUN+="/bin/sh -c 'failed=/run/omarchy-appledisplay-failed-%k; [ -e $$failed ] && exit 0; /usr/bin/modprobe -q appledisplay || exit 0; echo %k > /sys/bus/usb/drivers/usbhid/unbind || exit 0; echo %k > /sys/bus/usb/drivers/appledisplay/bind && exit 0; touch $$failed; echo %k > /sys/bus/usb/drivers/usbhid/bind'"
