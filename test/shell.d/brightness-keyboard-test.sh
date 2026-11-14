@@ -11,6 +11,7 @@ trap 'touch "$test_tmp/pause.go"; wait || true; rm -rf "$test_tmp"' EXIT
 mock_bin="$test_tmp/bin"
 leds="$test_tmp/leds"
 level_file="$test_tmp/level"
+osd_file="$test_tmp/osd"
 mkdir -p "$mock_bin" "$leds/asus::kbd_backlight" "$test_tmp/runtime"
 
 # A device holding one level, as the LED class does.
@@ -35,6 +36,17 @@ set)
 esac
 SH
 chmod +x "$mock_bin/brightnessctl"
+
+# Records each OSD call, and whether a blank could take the lock while it shows.
+cat >"$mock_bin/omarchy-osd" <<SH
+#!/bin/bash
+if flock -n "$test_tmp/runtime/omarchy-brightness-keyboard-asus::kbd_backlight.lock" true; then
+  echo "unlocked \$*" >>"$osd_file"
+else
+  echo "locked \$*" >>"$osd_file"
+fi
+SH
+chmod +x "$mock_bin/omarchy-osd"
 
 keyboard="$test_tmp/omarchy-brightness-keyboard"
 sed -e "s|/sys/class/leds|$leds|g" "$ROOT/bin/omarchy-brightness-keyboard" >"$keyboard"
@@ -79,6 +91,38 @@ run_keyboard restore
 [[ $(level) == "3" ]] || fail "a failed restore keeps the saved level for the next one (got $(level))"
 pass "a failed restore keeps the saved level"
 
+# A level chosen with the keys on the lock screen outlasts the unlock.
+echo 3 >"$level_file"
+run_keyboard off
+run_keyboard --no-osd up
+run_keyboard restore
+[[ $(level) == "1" ]] || fail "a level set with the keys while blanked survives restore (got $(level))"
+run_keyboard off
+run_keyboard --no-osd up
+run_keyboard --no-osd down
+run_keyboard restore
+[[ $(level) == "0" ]] || fail "a backlight stepped back to 0 with the keys while blanked stays off (got $(level))"
+pass "a level set with the keys while blanked survives restore"
+
+# Down while blanked changes nothing, so the blank is still undone.
+echo 3 >"$level_file"
+run_keyboard off
+run_keyboard --no-osd down
+run_keyboard restore
+[[ $(level) == "3" ]] || fail "down at 0 while blanked keeps the saved level (got $(level))"
+pass "down at 0 while blanked keeps the saved level"
+
+# A firmware key lights the backlight without this command.
+echo 3 >"$level_file"
+run_keyboard off
+echo 2 >"$level_file"
+run_keyboard restore
+[[ $(level) == "2" ]] || fail "restore leaves a backlight lit since the blank alone (got $(level))"
+run_keyboard off
+run_keyboard restore
+[[ $(level) == "2" ]] || fail "the next blank saves the firmware's level (got $(level))"
+pass "restore leaves a backlight lit since the blank alone"
+
 # A level that cannot be read is left lit rather than lost.
 echo 2 >"$level_file"
 FAIL_GET=1 run_keyboard off
@@ -114,3 +158,22 @@ touch "$pause.go"
 wait "$blank" "$wake"
 [[ $(level) == "3" ]] || fail "a wake overlapping a blank restores the level once the blank is done (got $(level))"
 pass "a wake overlapping a blank waits for it"
+
+# A key the device rejects keeps the saved level and shows no level it never set.
+echo 3 >"$level_file"
+run_keyboard off
+: >"$osd_file"
+if FAIL_SET=1 run_keyboard up; then
+  fail "a rejected key reports failure"
+fi
+[[ ! -s $osd_file ]] || fail "a rejected key shows no OSD (got $(<"$osd_file"))"
+run_keyboard restore
+[[ $(level) == "3" ]] || fail "a rejected key keeps the saved level (got $(level))"
+pass "a rejected key keeps the saved level and shows no OSD"
+
+# The OSD shows after the lock is released, so a stalled shell holds up nothing.
+echo 1 >"$level_file"
+: >"$osd_file"
+run_keyboard up
+[[ $(<"$osd_file") == "unlocked -i keyboard -p 66" ]] || fail "the OSD runs without the lock held (got $(<"$osd_file"))"
+pass "the OSD runs without the lock held"
