@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <title>Google Photos</title>
-  <desc>Google Photos' logo in the theme's colors: its four-petal pinwheel, outlined in the main color and filled in the highlight, with a hard shadow.</desc>
+  <desc>Google Photos' logo in the theme's colors: its four-petal pinwheel, outlined in the main color and filled pale, with a hard shadow.</desc>
   <defs>
     <linearGradient id="main" x1="0" y1="0" x2="1" y2="1">
       <stop stop-color="{{ icon_main }}"/>
@@ -18,8 +18,8 @@
         <path d="M1.4 11.315l9.95 .008c-.527 -6.829 -9.762 -6.367 -9.95 -.008z"/>
         <path d="M12.638 12.68c.682 6.875 9.67 6.284 9.977 .01z"/>
       </g>
-      <!-- What the logo leaves open, in the highlight. -->
-      <g fill="{{ icon_mark }}">
+      <!-- What the logo leaves open, pale. -->
+      <g fill="{{ icon_paper }}">
         <path d="M12.678 16.672c0 2.175 .002 4.565 -.001 6.494c-.001 .576 -.244 .814 -.817 .833c-7.045 .078 -8.927 -7.871 -4.468 -11.334c-1.95 .016 -4.019 .007 -5.986 .007c-1.351 0 -1.414 -.01 -1.405 -1.351c.258 -6.583 7.946 -8.275 11.323 -3.936L11.308 .928c-.001 -.695 .212 -.906 .906 -.925c6.409 -.187 9.16 7.308 4.426 11.326l6.131 .002c1.097 0 1.241 .105 1.228 1.217c-.223 6.723 -7.802 8.376 -11.321 4.124z"/>
         <path d="M12.68 1.388l-.003 9.972c6.56 -.465 6.598 -9.532 .003 -9.972z"/>
         <path d="M11.32 22.612l-.001 -9.97c-6.927 .598 -6.29 9.726 .002 9.97z"/>
