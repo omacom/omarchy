@@ -44,15 +44,16 @@ PanelWindow {
   SequentialAnimation {
     id: positionMove
     // Keep the short exit visible instead of front-loading most of its travel.
-    NumberAnimation { target: window; property: "positionSlide"; to: 1; duration: Style.duration(280); easing.type: Easing.OutSine }
+    NumberAnimation { target: window; property: "positionSlide"; to: 1; duration: Style.duration(160); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
     ScriptAction { script: window.position = window.requestedPosition }
     PauseAnimation { duration: Style.duration(80) }
-    NumberAnimation { target: window; property: "positionSlide"; to: 0; duration: Style.duration(280); easing.type: Easing.OutCubic }
+    NumberAnimation { target: window; property: "positionSlide"; to: 0; duration: Style.duration(240); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
     ScriptAction {
       script: {
         window.hoverStale = true
         window.dropPoint = bodyHover.point.position
         window.positionChanging = false
+        if (window.autohide) hideTimer.restart()
       }
     }
   }
@@ -79,7 +80,7 @@ PanelWindow {
   readonly property bool autohide: !!dock && (dock.autohide || fullscreenMode === 1)
   property bool revealed: false
   readonly property bool menuOpen: menuItem !== null || settingsMenu
-  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0)
+  readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0 || positionChanging)
   readonly property bool contentShown: shown && !tucked
 
   readonly property int gap: Style.spacing.xs
