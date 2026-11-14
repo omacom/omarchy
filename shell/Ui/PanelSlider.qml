@@ -115,6 +115,9 @@ Item {
     hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     acceptedButtons: Qt.LeftButton | Qt.RightButton
+    // Keep the grab inside a ScrollView; otherwise a vertical move off the
+    // track lets the Flickable steal it and onReleased never fires.
+    preventStealing: true
 
     function valueFromX(x) {
       if (track.width <= 0) return root.minimum
@@ -123,6 +126,13 @@ Item {
       var raw = root.minimum + fraction * root.range
       if (root.integer) raw = Math.round(raw)
       return Math.max(root.minimum, Math.min(root.maximum, raw))
+    }
+
+    function endDrag() {
+      if (!root.dragging) return
+      root.dragging = false
+      root.released(root.liveValue)
+      root.liveValue = root.value
     }
 
     onPressed: function(mouse) {
@@ -136,17 +146,16 @@ Item {
       if (mouse.button === Qt.RightButton) root.rightClicked()
     }
     onPositionChanged: function(mouse) {
-      if (!root.dragging) return
+      if (!pressed || !root.dragging) return
       var next = valueFromX(mouse.x)
       root.liveValue = next
       root.moved(next)
     }
     onReleased: function(mouse) {
       if (mouse.button !== Qt.LeftButton) return
-      root.dragging = false
-      root.released(root.liveValue)
-      root.liveValue = root.value
+      endDrag()
     }
+    onCanceled: endDrag()
     onWheel: function(wheel) {
       var delta = wheel.angleDelta.y > 0 ? root.step : -root.step
       var next = Math.max(root.minimum, Math.min(root.maximum, root.liveValue + delta))
