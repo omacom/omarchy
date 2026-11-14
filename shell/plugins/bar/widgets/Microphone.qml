@@ -11,9 +11,9 @@ BarWidget {
 
   readonly property var source: Pipewire.defaultAudioSource
   // A virtual source is untyped in Quickshell, so it has no PwNode.audio; its
-  // volume and mute go through wpctl (UntypedInput).
+  // volume goes through wpctl (UntypedInput). Mute covers every input.
   readonly property bool viaWpctl: UntypedInput.active
-  readonly property bool muted: viaWpctl ? (!UntypedInput.known || UntypedInput.muted) : (source && source.audio ? source.audio.muted : true)
+  readonly property bool muted: MicrophoneMute.known && MicrophoneMute.muted
   readonly property real volume: viaWpctl ? UntypedInput.volume : (source && source.audio ? source.audio.volume : 0)
   readonly property var nodes: Pipewire.nodes ? Pipewire.nodes.values : []
   readonly property var nodeNames: {
@@ -43,10 +43,7 @@ BarWidget {
   implicitHeight: button.implicitHeight
 
   function toggleMute() {
-    if (viaWpctl) {
-      if (UntypedInput.known) UntypedInput.setMuted(!UntypedInput.muted)
-    }
-    else if (source && source.audio) source.audio.muted = !source.audio.muted
+    MicrophoneMute.toggle()
   }
 
   PwObjectTracker { objects: root.source ? [root.source] : [] }
