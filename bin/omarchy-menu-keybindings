@@ -659,10 +659,13 @@ dedupe_binding_records() {
   awk '!seen[$0]++'
 }
 
-# The layout and variant of the group the main keyboard is typing in right now,
+# The layout and variant of the group the keyboards are typing in right now,
 # when that is not the first one. Nothing when the first is active, or when
 # binds are matched by symbol: then a letter chord follows the active layout
-# and the leading layout is the one that names it.
+# and the leading layout is the one that names it. Like the bar's layout
+# indicator, leave out the virtual keyboard and the buttons Hyprland reports as
+# keyboards, and read the one furthest along, since only the one being typed on
+# advances through the list.
 active_keyboard() {
   local by_symbol layout variant
 
@@ -673,7 +676,9 @@ active_keyboard() {
 
   IFS=$'\t' read -r layout variant < <(
     hyprctl -j devices 2>/dev/null | jq -r '
-      .keyboards[] | select(.main) | .active_layout_index as $group | select($group > 0)
+      [.keyboards[] | select(.name | test("^(hl-virtual-keyboard|power-button|sleep-button|lid-switch|video-bus)|(-wmi-hotkeys|-wireless-radio-control)(-[0-9]+)?$") | not)]
+      | max_by(.active_layout_index // 0) | select(. != null)
+      | .active_layout_index as $group | select($group > 0)
       | [(.layout | split(",")[$group] // ""), (.variant | split(",")[$group] // "")] | @tsv
     ' 2>/dev/null
   )
@@ -743,9 +748,9 @@ display_active_layout() {
 
       chords = substr($0, 1, arrow - 1)
       shown = ""
-      while (match(chords, /(^|\+ )([A-Z])( |$)/, parts)) {
+      while (match(chords, /(^|\+ )([A-Za-z])( |$)/, parts)) {
         letter = parts[2]
-        name = active[letter_code[letter]]
+        name = active[letter_code[toupper(letter)]]
         if (name in greek) letter = greek[name]
         shown = shown substr(chords, 1, RSTART - 1) parts[1] letter parts[3]
         chords = substr(chords, RSTART + RLENGTH)
