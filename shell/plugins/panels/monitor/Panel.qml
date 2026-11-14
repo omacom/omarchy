@@ -74,7 +74,7 @@ Panel {
       // Matched here, on the plain arrays: once they're handed through a QML
       // property they're no longer ones Array.isArray accepts.
       var scales = Model.availableScales(scalePresets, display.width, display.height)
-      var resolutions = Model.resolutionOptions(display.availableModes, display.width, display.height)
+      var resolutions = Model.resolutionOptions(display.availableModes, display.width, display.height, display.name)
       list.push({
         name: display.name,
         title: Model.displayTitle(display, Commons.I18n.t("monitor.builtInDisplay")),
