@@ -434,7 +434,7 @@ assert(not fullscreen.floating, "a fullscreen window was floated")
 assert(has_tag(fullscreen, "omarchy-floating-workspace"), "a fullscreen window on a floating workspace got no titlebar tag")
 
 -- Pointer focus follows the active workspace.
-assert(s.config["input.follow_mouse"] == 0, "a floating workspace focused on hover")
+assert(s.config["input.follow_mouse"] == 2, "a floating workspace focused on hover, or held the pointer on the focused window")
 s.active.id = 2
 s.subscriptions["workspace.active"][1]()
 assert(s.config["input.follow_mouse"] == 1, "a tiled workspace lost the user focus setting")
