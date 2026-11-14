@@ -77,6 +77,19 @@ QtObject {
         return null
       }
     }
+    if (manifest.kinds.indexOf("panel-extension") !== -1) {
+      var extension = manifest.panelExtension
+      if (!Util.isPlainObject(extension)
+          || typeof extension.point !== "string"
+          || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(extension.point)
+          || !isSafeEntryPoint(manifest.entryPoints.panelExtension)
+          || (extension.order !== undefined
+            && (typeof extension.order !== "number" || !isFinite(extension.order)
+              || Math.floor(extension.order) !== extension.order || Math.abs(extension.order) > 10000))) {
+        console.warn("PluginRegistry: invalid panel-extension contract at " + sourcePath)
+        return null
+      }
+    }
     // Every entry point must be a relative path inside the plugin's source
     // directory. Reject the whole manifest if an entry point escapes it.
     for (var key in manifest.entryPoints) {
@@ -130,6 +143,35 @@ QtObject {
       return ""
     }
     return Util.fileUrl(resolved)
+  }
+
+  // A host opts into a named point; only enabled plugins claiming that point
+  // are returned. Descriptors contain detached settings, never host objects.
+  function panelExtensionsFor(point) {
+    var revision = registryRevision
+    var config = shellConfigProvider ? shellConfigProvider() : null
+    var entries = []
+    for (var id in installedPlugins) {
+      var manifest = installedPlugins[id]
+      if (!Array.isArray(manifest.kinds) || manifest.kinds.indexOf("panel-extension") === -1
+          || !manifest.panelExtension || manifest.panelExtension.point !== point || !isEnabled(id)) continue
+      var source = entryPointUrl(manifest, "panelExtension")
+      if (!source) continue
+      var settings = ({})
+      var plugins = config && Array.isArray(config.plugins) ? config.plugins : []
+      for (var i = 0; i < plugins.length; i++) {
+        if (Util.isPlainObject(plugins[i]) && plugins[i].id === id) {
+          settings = Util.cloneJson(plugins[i])
+          delete settings.id
+          break
+        }
+      }
+      entries.push({ id: id, source: source, settings: settings, order: manifest.panelExtension.order || 0 })
+    }
+    entries.sort(function(a, b) {
+      return a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    })
+    return entries
   }
 
   // Enabled = the plugin id is referenced somewhere in shell.json. That can

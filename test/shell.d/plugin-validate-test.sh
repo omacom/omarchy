@@ -30,6 +30,11 @@ write_plugin() {
 }
 JSON
 
+  if [[ $kinds == '["panel-extension"]' ]]; then
+    jq '.panelExtension = {point: "omarchy.power.sections"}' "$dir/manifest.json" >"$dir/manifest.tmp"
+    mv "$dir/manifest.tmp" "$dir/manifest.json"
+  fi
+
   while IFS= read -r entry; do
     [[ -n $entry ]] || continue
     touch "$dir/$entry"
@@ -64,6 +69,7 @@ bar-widget:barWidget
 menu:menu
 overlay:overlay
 panel:panel
+panel-extension:panelExtension
 service:service
 KINDS
 
@@ -115,3 +121,12 @@ output=$(validate "$dir") && fail "validate refuses an entry point file that is 
 grep -qF "entry point file not found" <<<"$output" \
   || fail "validate reports a missing file as a missing file" "$output"
 pass "validate refuses an entry point file that is not there"
+
+# CLI and runtime agree on named points and finite, bounded integer ordering.
+dir=$(write_plugin "extension-contract" '["panel-extension"]' '{"panelExtension": "Entry.qml"}')
+for metadata in '{}' '{"point":""}' '{"point":"../power"}' '{"point":"omarchy.power.sections","order":"1"}' '{"point":"omarchy.power.sections","order":0.5}' '{"point":"omarchy.power.sections","order":10001}'; do
+  jq --argjson metadata "$metadata" '.panelExtension = $metadata' "$dir/manifest.json" >"$dir/manifest.tmp"
+  mv "$dir/manifest.tmp" "$dir/manifest.json"
+  output=$(validate "$dir") && fail "validate refuses invalid panel-extension metadata" "$output"
+done
+pass "validate refuses invalid panel-extension metadata"

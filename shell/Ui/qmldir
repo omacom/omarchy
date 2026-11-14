@@ -20,6 +20,7 @@ NumberField 1.0 NumberField.qml
 OpticalGlyph 1.0 OpticalGlyph.qml
 OverlayWindow 1.0 OverlayWindow.qml
 Panel 1.0 Panel.qml
+PanelExtensions 1.0 PanelExtensions.qml
 PanelActionButton 1.0 PanelActionButton.qml
 PanelController 1.0 PanelController.qml
 PanelKeyCatcher 1.0 PanelKeyCatcher.qml

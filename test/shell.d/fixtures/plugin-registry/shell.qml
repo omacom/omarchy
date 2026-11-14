@@ -1,6 +1,8 @@
 import QtQuick
+import QtQuick.Window
 import Quickshell
 import "services"
+import "Ui"
 
 ShellRoot {
   id: root
@@ -8,6 +10,7 @@ ShellRoot {
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   property var failures: []
   property int changeCount: 0
+  property int paintSampleY: 10
   property var config: ({
     version: 1,
     bar: { layout: { left: [], center: [], right: [] } },
@@ -41,6 +44,7 @@ ShellRoot {
       ok: failures.length === 0,
       failures: failures,
       changeCount: changeCount,
+      paintSampleY: paintSampleY,
       config: config,
       ids: Object.keys(registry.installedPlugins).sort()
     })
@@ -588,8 +592,219 @@ ShellRoot {
     registry.setEnabled("third.widget", true)
     root.assertDeepEqual(root.config.bar.layout.left, [{ id: "third.widget" }], "a widget named as bar.id and already on the bar is not placed twice")
 
+    // Contributions are opt-in, ordered, scoped to one named point, and
+    // detached from persisted configuration. Enable/disable uses plugins[].
+    var contribution = manifest("third.limits", ["panel-extension"], { panelExtension: "Limits.qml" })
+    contribution.panelExtension = { point: "omarchy.power.sections", order: 10 }
+    var earlier = manifest("third.earlier", ["panel-extension"], { panelExtension: "Extra.qml" })
+    earlier.panelExtension = { point: "omarchy.power.sections", order: -1 }
+    var peer = manifest("third.peer", ["panel-extension"], { panelExtension: "Extra.qml" })
+    peer.panelExtension = { point: "omarchy.power.sections", order: 10 }
+    var invalid = manifest("third.invalid", ["panel-extension"], { panelExtension: "Bad.qml" })
+    invalid.panelExtension = { point: "omarchy.power.sections", order: "first" }
+    root.assertEqual(registry.validateManifest(invalid, "test"), null, "extension rejects a nonnumeric order")
+    invalid.panelExtension = { point: "" }
+    root.assertEqual(registry.validateManifest(invalid, "test"), null, "extension rejects an empty point")
+    invalid.panelExtension = { point: "omarchy.power.sections" }
+    invalid.entryPoints = { panel: "Bad.qml" }
+    root.assertEqual(registry.validateManifest(invalid, "test"), null, "extension requires its entry point")
+    registry.parseScanOutput(block("thirdparty", "/third/limits", contribution)
+      + block("thirdparty", "/third/earlier", earlier) + block("thirdparty", "/third/peer", peer))
+    root.config = { version: 1, bar: { layout: {} }, plugins: [] }
+    root.assertEqual(registry.panelExtensionsFor("omarchy.power.sections").length, 0, "installed extensions start disabled")
+    registry.setEnabled("third.limits", true)
+    registry.setEnabled("third.earlier", true)
+    registry.setEnabled("third.peer", true)
+    root.assertDeepEqual(registry.panelExtensionsFor("omarchy.power.sections").map(function(e) { return e.id }),
+      ["third.earlier", "third.limits", "third.peer"], "extension order has a stable id tiebreaker")
+    root.assertEqual(registry.panelExtensionsFor("omarchy.audio.sections").length, 0, "extensions cannot appear at another point")
+    root.config.plugins[0].options = { stop: 80 }
+    var entries = registry.panelExtensionsFor("omarchy.power.sections")
+    root.assertEqual(entries[1].source, "file:///third/limits/Limits.qml", "extension source resolves within its plugin")
+    entries[1].settings.options.stop = 100
+    root.assertEqual(root.config.plugins[0].options.stop, 80, "extension settings are detached")
+    registry.setEnabled("third.limits", false)
+    root.assertEqual(registry.panelExtensionsFor("omarchy.power.sections").length, 2, "disable removes only the selected contribution")
+    registry.parseScanOutput("")
+    root.assertEqual(registry.panelExtensionsFor("omarchy.power.sections").length, 0, "rescan removes stale contributions")
+
     root.assertTrue(changeCount > 0, "registry emits change notifications")
-    writeResult()
+    startExtensionHostChecks()
+  }
+
+  property int extensionCheckAttempts: 0
+  property int extensionCheckStage: -1
+  property var editedExtension: null
+
+  QtObject {
+    id: extensionShell
+    function panelExtensionsFor(point) { return registry.panelExtensionsFor(point) }
+    function configurePanelExtension(item, id) { item.shell = { pluginId: id } }
+  }
+
+  Window {
+    visible: true
+    width: 300
+    height: 300
+    PanelExtensions {
+      id: extensionHost
+      foreground: "#123456"
+      fontFamily: "serif"
+      width: 250
+      point: root.extensionCheckStage < 0 ? "" : "omarchy.power.sections"
+      shell: extensionShell
+      panelOpen: true
+    }
+    PanelExtensions {
+      id: columnHost
+      width: 250
+      point: "test.column.sections"
+      shell: extensionShell
+      panelOpen: true
+    }
+  }
+
+  QtObject {
+    id: paintShell
+    property bool partial: true
+    function panelExtensionsFor(point) {
+      return [
+        { id: "test.neighbour", source: Qt.resolvedUrl("PaintNeighbour.qml").toString(), settings: {} },
+        { id: "test.painted", source: Qt.resolvedUrl("PaintedExtension.qml").toString(), settings: { partial: partial } }
+      ]
+    }
+    function configurePanelExtension(item, id) {}
+  }
+
+  Window {
+    id: paintWindow
+    visible: true
+    width: 100
+    height: 200
+    Rectangle { anchors.fill: parent; color: "black" }
+    PanelExtensions {
+      id: paintHost
+      width: parent.width
+      point: "test.paint.sections"
+      shell: paintShell
+      panelOpen: true
+    }
+  }
+
+  function captureCollapsedExtension() {
+    var painted = root.loadedExtension(paintHost)
+    root.paintSampleY = Math.floor(painted.mapToItem(paintWindow.contentItem, 10, 20).y)
+    paintHost.panelOpen = false
+    collapsedCapture.start()
+  }
+
+  Timer {
+    id: collapsedCapture
+    interval: 50
+    onTriggered: paintWindow.contentItem.grabToImage(function(result) {
+      root.assertTrue(result.saveToFile(resultPath + ".collapsed.png"), "capture shrinking contribution")
+      paintShell.partial = false
+      zeroCapture.start()
+    })
+  }
+
+  Timer {
+    id: zeroCapture
+    interval: 50
+    onTriggered: paintWindow.contentItem.grabToImage(function(result) {
+      root.assertTrue(result.saveToFile(resultPath + ".zero.png"), "capture zero-height contribution")
+      paintHost.panelOpen = true
+      expandedCapture.start()
+    })
+  }
+
+  Timer {
+    id: expandedCapture
+    interval: 50
+    repeat: true
+    onTriggered: {
+      if (paintHost.implicitHeight <= 49) return
+      stop()
+      paintWindow.contentItem.grabToImage(function(result) {
+        root.assertTrue(result.saveToFile(resultPath + ".expanded.png"), "capture expanded contribution")
+        root.writeResult()
+      })
+    }
+  }
+
+  function loadedExtension(item) {
+    if (!item) return null
+    if (item.extensionMarker === true) return item
+    var children = item.children || []
+    for (var i = 0; i < children.length; i++) {
+      var found = loadedExtension(children[i])
+      if (found) return found
+    }
+    return null
+  }
+
+  function startExtensionHostChecks() {
+    root.extensionCheckStage = 0
+    var testExtension = manifest("third.hosted", ["panel-extension"], { panelExtension: "TestExtension.qml" })
+    testExtension.panelExtension = { point: "omarchy.power.sections" }
+    var columnExtension = manifest("third.column", ["panel-extension"], { panelExtension: "ColumnExtension.qml" })
+    columnExtension.panelExtension = { point: "test.column.sections" }
+    var sourceDir = Qt.resolvedUrl(".").toString().replace(/^file:\/\//, "").replace(/\/$/, "")
+    registry.parseScanOutput(block("thirdparty", sourceDir, testExtension) + block("thirdparty", sourceDir, columnExtension))
+    root.config = { version: 1, bar: { layout: {} }, plugins: [{ id: "third.hosted", height: 37 }, { id: "third.column" }] }
+    registry.registryRevision++
+    extensionCheckTimer.start()
+  }
+
+  Timer {
+    id: extensionCheckTimer
+    interval: 30
+    repeat: true
+    onTriggered: {
+      root.extensionCheckAttempts++
+      if (root.extensionCheckAttempts > 60) {
+        root.fail("extension host did not settle at stage " + root.extensionCheckStage
+          + " entries=" + JSON.stringify(extensionHost.entries)
+          + " height=" + extensionHost.implicitHeight + " columnHeight=" + columnHost.implicitHeight
+          + " loaded=" + String(root.loadedExtension(extensionHost)))
+        stop()
+        root.writeResult()
+        return
+      }
+      var extension = root.loadedExtension(extensionHost)
+      if (root.extensionCheckStage === 0 && extension && extensionHost.implicitHeight === 37 && columnHost.implicitHeight === 49) {
+        root.assertTrue(root.loadedExtension(columnHost).initiallyVisible, "natural-height Column starts visible so its children can lay out")
+        root.assertEqual(extension.width, 250, "host supplies available width")
+        root.assertEqual(extension.shell.pluginId, "third.hosted", "host configures the contribution's own facade")
+        root.assertEqual(extension.panelOpen, true, "host supplies panel open state")
+        root.assertEqual(String(extension.foreground), "#123456", "host supplies its foreground colour")
+        root.assertEqual(extension.fontFamily, "serif", "host supplies its font family")
+        extensionHost.foreground = "#654321"
+        extensionHost.fontFamily = "monospace"
+        root.editedExtension = extension
+        extension.draft = 73
+        root.config = { version: 1, bar: { layout: {} }, plugins: [{ id: "third.hosted", height: 91 }] }
+        root.extensionCheckStage = 4
+      } else if (root.extensionCheckStage === 4 && extension && extensionHost.implicitHeight === 91) {
+        root.assertEqual(extension, root.editedExtension, "settings changes keep the loaded extension instance")
+        root.assertEqual(extension.settings.height, 91, "settings changes reach the loaded extension")
+        root.assertEqual(extension.draft, 73, "settings changes preserve unapplied edits")
+        root.assertEqual(String(extension.foreground), "#654321", "foreground changes reach the retained extension")
+        root.assertEqual(extension.fontFamily, "monospace", "font changes reach the retained extension")
+        extensionHost.panelOpen = false
+        root.extensionCheckStage = 1
+      } else if (root.extensionCheckStage === 1 && extension && !extension.panelOpen && extensionHost.implicitHeight === 0) {
+        registry.setEnabled("third.hosted", false)
+        root.extensionCheckStage = 2
+      } else if (root.extensionCheckStage === 2 && !extension && extensionHost.implicitHeight === 0) {
+        registry.setEnabled("third.hosted", true)
+        extensionHost.panelOpen = true
+        root.extensionCheckStage = 3
+      } else if (root.extensionCheckStage === 3 && extension && extensionHost.implicitHeight === 37) {
+        stop()
+        root.captureCollapsedExtension()
+      }
+    }
   }
 
   PluginRegistry {

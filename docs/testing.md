@@ -79,6 +79,21 @@ The runner also lists files with skipped checks, including files that ran some c
 
 Some tests launch Quickshell or query Hyprland, but the suite must stay green on headless machines. `require_compositor "description"` handles this: when no compositor answers it calls `skip` with the reason and exits 0, and otherwise returns so the file proceeds. The skip marker lets the runner distinguish unavailable runtime coverage from checks that passed.
 
+The plugin registry and inline extension-loader fixture can also run without a compositor. Use Qt's offscreen platform with a private runtime directory, and clear the display, platform-theme, and desktop-bus environment so the fixture cannot map a window on the active session:
+
+```bash
+runtime=$(mktemp -d)
+chmod 700 "$runtime"
+QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_STYLE_OVERRIDE=Basic \
+  XDG_CURRENT_DESKTOP= DISPLAY= WAYLAND_DISPLAY= HYPRLAND_INSTANCE_SIGNATURE= \
+  DBUS_SESSION_BUS_ADDRESS= XDG_RUNTIME_DIR="$runtime" \
+  bash test/shell.d/plugin-registry-contract-test.sh
+rm -rf "$runtime"
+```
+
+This covers registry selection, ordering, settings isolation, and QML contribution loading and sizing. It does not exercise Wayland layer-shell positioning. Other compositor-dependent files still skip when no compositor is available.
+
+
 The probe is more than an environment check, because `WAYLAND_DISPLAY` only
 proves the variable was inherited. Sandboxes pass the environment through
 while blocking `$XDG_RUNTIME_DIR`, so Quickshell clears a bare variable check

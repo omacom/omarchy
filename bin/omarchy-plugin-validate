@@ -73,6 +73,18 @@ jq -e '
 ' "$MANIFEST" >/dev/null 2>&1 \
   || fail "'barWidget.defaultSection' must be left, centerBegin, center, centerEnd, tray, or right"
 
+if jq -e '(.kinds | index("panel-extension")) != null' "$MANIFEST" >/dev/null; then
+  jq -e '
+    (.panelExtension | type) == "object"
+    and (.panelExtension.point | type) == "string"
+    and (.panelExtension.point | test("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"))
+    and (if .panelExtension | has("order") then
+      .panelExtension.order as $order | ($order | type) == "number"
+        and ($order | floor) == $order and ($order | fabs) <= 10000
+      else true end)
+  ' "$MANIFEST" >/dev/null || fail "invalid panel-extension contract"
+fi
+
 # Read each entry point as a JSON-encoded string (one per line), then decode it,
 # so a value that itself contains a newline stays one literal path instead of
 # being split into fragments that each pass the checks.
@@ -100,6 +112,7 @@ for kind_entry_point in \
   "menu:menu" \
   "overlay:overlay" \
   "panel:panel" \
+  "panel-extension:panelExtension" \
   "service:service"; do
   kind="${kind_entry_point%%:*}"
   entry_point="${kind_entry_point##*:}"

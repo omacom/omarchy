@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as QQC
 import Quickshell
 import Quickshell.Io
 import Quickshell.Services.UPower
@@ -310,205 +311,232 @@ Panel {
 
     content: PanelKeyCatcher {
       id: keyCatcher
+      blocked: extensions.activeFocus
       property alias heroStatus: heroStatus
       anchors.fill: parent
       implicitHeight: column.implicitHeight
       onMoveRequested: function(dx, dy) {
-        if (!root.cursorActive) { root.cursorActive = true; return }
-        if (dx !== 0) root.selectProfileByDelta(dx)
+        if (!root.cursorActive) root.cursorActive = true
+        else if (dx !== 0) root.selectProfileByDelta(dx)
         else if (dy !== 0) root.selectProfileByDelta(dy)
+        // Profiles are the last section, below any extension content.
+        var flick = scrollArea.contentItem
+        flick.contentY = Math.max(0, flick.contentHeight - flick.height)
       }
       onActivateRequested: if (root.cursorActive) root.activateSelectedProfile()
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
 
-      Column {
-        id: column
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        spacing: Style.space(14)
-
-        // ---------- Hero: battery icon · title/status · percentage ----------
-        Item {
-          width: parent.width
-          implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroPercent.implicitHeight)
-
-          Text {
-            id: heroIcon
-            textFormat: Text.PlainText
-            text: root.batteryIcon()
-            color: root.bar.foreground
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.display
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-
-            Behavior on color { ColorAnimation { duration: Style.duration(200) } }
-          }
-
-          Column {
-            id: heroLabels
-            anchors.left: heroIcon.right
-            anchors.leftMargin: Style.space(14)
-            anchors.right: heroPercent.left
-            anchors.rightMargin: Style.space(10)
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(2)
-
-            Text {
-              text: Commons.I18n.t("power.battery")
-              textFormat: Text.PlainText
-              color: root.bar.foreground
-              font.family: root.bar.fontFamily
-              font.pixelSize: Style.font.title
-              font.bold: true
-              elide: Text.ElideRight
-              width: parent.width
-            }
-
-            Text {
-              id: heroStatus
-              textFormat: Text.PlainText
-              text: root.heroStatusText.toUpperCase()
-              color: Qt.darker(root.bar.foreground, 1.4)
-              font.family: root.bar.fontFamily
-              font.pixelSize: Style.font.caption
-              font.bold: true
-              font.letterSpacing: 1.2
-              elide: Text.ElideRight
-              width: parent.width
-            }
-          }
-
-          Text {
-            id: heroPercent
-            textFormat: Text.PlainText
-            text: root.reading(root.batteryInfo.percentage) || "—"
-            color: root.bar.foreground
-            font.family: root.bar.fontFamily
-            font.pixelSize: Style.font.displayLarge
-            font.bold: true
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-
-            Behavior on color { ColorAnimation { duration: Style.duration(200) } }
-          }
-        }
-
-        // ---------- Battery progress bar ----------
-        Item {
-          width: parent.width
-          implicitHeight: Style.space(8)
-
-          Rectangle {
-            id: barTrack
-            anchors.fill: parent
-            radius: height / 2
-            color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
-          }
-
-          Rectangle {
-            id: barFill
-            anchors.left: barTrack.left
-            anchors.verticalCenter: barTrack.verticalCenter
-            height: barTrack.height
-            radius: barTrack.radius
-            color: root.batteryFillColor
-            width: Math.max(barTrack.height, barTrack.width * root.batteryFraction)
-
-            Behavior on width { NumberAnimation { duration: Style.duration(320); easing.type: Easing.OutCubic } }
-            Behavior on color { ColorAnimation { duration: Style.duration(220) } }
-
-            // Subtle pulse while charging — visible signal that energy is flowing in.
-            SequentialAnimation on opacity {
-              running: root.charging && !root.fullyCharged && root.opened && !Style.reduceMotion
-              loops: Animation.Infinite
-              alwaysRunToEnd: true
-              NumberAnimation { from: 1.0; to: 0.55; duration: Style.duration(950); easing.type: Easing.InOutSine }
-              NumberAnimation { from: 0.55; to: 1.0; duration: Style.duration(950); easing.type: Easing.InOutSine }
-            }
-          }
-        }
-
-        // ---------- Stats ----------
-        // Visibility is intentionally only gated by "we've ever loaded data" so
-        // the section never collapses mid-transition. fullyCharged is *not* part
-        // of the condition: UPower briefly reports FullyCharged on plug-in when
-        // the battery sits above the charge-control start threshold, and we
-        // refuse to flicker the whole panel for that ~1s window.
-        Row {
-          visible: root.batteryInfo.percentage !== undefined
-          width: parent.width
-          spacing: Style.space(20)
-
-          Column {
-            width: (parent.width - parent.spacing) / 2
-            spacing: Style.spacing.labelGap
-            InfoPair { label: Commons.I18n.t("power.batterySize"); value: root.reading(root.batteryInfo.size) }
-            InfoPair { label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "—" }
-          }
-
-          Column {
-            width: (parent.width - parent.spacing) / 2
-            spacing: Style.spacing.labelGap
-            InfoPair {
-              label: root.chargeThresholdActive ? Commons.I18n.t("power.chargeLimit") : (root.discharging ? Commons.I18n.t("power.timeLeft") : Commons.I18n.t("power.timeToFull"))
-              value: root.chargeThresholdActive ? (root.reading(root.batteryInfo.threshold) || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
-            }
-            InfoPair {
-              label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
-              value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
-            }
-          }
-        }
-
-        // ---------- Power profile picker ----------
-        PanelSeparator {
-          foreground: root.bar.foreground
+      QQC.ScrollView {
+        id: scrollArea
+        anchors.fill: parent
+        clip: true
+        contentWidth: availableWidth
+        QQC.ScrollBar.horizontal.policy: QQC.ScrollBar.AlwaysOff
+        QQC.ScrollBar.vertical.policy: column.implicitHeight > height ? QQC.ScrollBar.AsNeeded : QQC.ScrollBar.AlwaysOff
+        Binding {
+          target: scrollArea.contentItem
+          property: "interactive"
+          value: column.implicitHeight > scrollArea.height
         }
 
         Column {
-          width: parent.width
-          spacing: Style.space(10)
+          id: column
+          width: scrollArea.availableWidth
+          spacing: Style.space(14)
 
-          PanelSectionHeader {
-            text: Commons.I18n.t("power.powerProfile")
-            foreground: root.bar.foreground
-            fontFamily: root.bar.fontFamily
+          // ---------- Hero: battery icon · title/status · percentage ----------
+          Item {
+            width: parent.width
+            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroPercent.implicitHeight)
+
+            Text {
+              id: heroIcon
+              textFormat: Text.PlainText
+              text: root.batteryIcon()
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.display
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+
+              Behavior on color { ColorAnimation { duration: Style.duration(200) } }
+            }
+
+            Column {
+              id: heroLabels
+              anchors.left: heroIcon.right
+              anchors.leftMargin: Style.space(14)
+              anchors.right: heroPercent.left
+              anchors.rightMargin: Style.space(10)
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(2)
+
+              Text {
+                text: Commons.I18n.t("power.battery")
+                textFormat: Text.PlainText
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.title
+                font.bold: true
+                elide: Text.ElideRight
+                width: parent.width
+              }
+
+              Text {
+                id: heroStatus
+                textFormat: Text.PlainText
+                text: root.heroStatusText.toUpperCase()
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                font.letterSpacing: 1.2
+                elide: Text.ElideRight
+                width: parent.width
+              }
+            }
+
+            Text {
+              id: heroPercent
+              textFormat: Text.PlainText
+              text: root.reading(root.batteryInfo.percentage) || "—"
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.displayLarge
+              font.bold: true
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+
+              Behavior on color { ColorAnimation { duration: Style.duration(200) } }
+            }
           }
 
-          Row {
-            id: profileRow
+          // ---------- Battery progress bar ----------
+          Item {
             width: parent.width
-            spacing: Style.space(6)
+            implicitHeight: Style.space(8)
 
-            readonly property real cellWidth: root.profiles.length > 0
-              ? (width - spacing * (root.profiles.length - 1)) / root.profiles.length
-              : 0
+            Rectangle {
+              id: barTrack
+              anchors.fill: parent
+              radius: height / 2
+              color: Qt.rgba(root.bar.foreground.r, root.bar.foreground.g, root.bar.foreground.b, 0.12)
+            }
 
-            Repeater {
-              model: root.profiles
-              Button {
-                required property var modelData
-                required property int index
-                width: profileRow.cellWidth
-                iconText: root.profileIcon(String(modelData))
-                iconSize: Style.font.title
-                text: Model.profileLabel(modelData, Commons.I18n.t)
-                fontSize: Style.font.bodySmall
-                foreground: root.bar.foreground
-                fontFamily: root.bar.fontFamily
-                horizontalPadding: Style.spacing.controlPaddingX
-                verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
-                bordered: true
-                active: root.activeProfile === modelData
-                hasCursor: root.cursorActive && root.profileIndex === index
-                onClicked: root.setProfile(modelData)
-                onHovered: function(h) {
-                  if (h) {
-                    root.cursorActive = true
-                    root.profileIndex = index
+            Rectangle {
+              id: barFill
+              anchors.left: barTrack.left
+              anchors.verticalCenter: barTrack.verticalCenter
+              height: barTrack.height
+              radius: barTrack.radius
+              color: root.batteryFillColor
+              width: Math.max(barTrack.height, barTrack.width * root.batteryFraction)
+
+              Behavior on width { NumberAnimation { duration: Style.duration(320); easing.type: Easing.OutCubic } }
+              Behavior on color { ColorAnimation { duration: Style.duration(220) } }
+
+              // Subtle pulse while charging — visible signal that energy is flowing in.
+              SequentialAnimation on opacity {
+                running: root.charging && !root.fullyCharged && root.opened && !Style.reduceMotion
+                loops: Animation.Infinite
+                alwaysRunToEnd: true
+                NumberAnimation { from: 1.0; to: 0.55; duration: Style.duration(950); easing.type: Easing.InOutSine }
+                NumberAnimation { from: 0.55; to: 1.0; duration: Style.duration(950); easing.type: Easing.InOutSine }
+              }
+            }
+          }
+
+          // ---------- Stats ----------
+          // Visibility is intentionally only gated by "we've ever loaded data" so
+          // the section never collapses mid-transition. fullyCharged is *not* part
+          // of the condition: UPower briefly reports FullyCharged on plug-in when
+          // the battery sits above the charge-control start threshold, and we
+          // refuse to flicker the whole panel for that ~1s window.
+          Row {
+            visible: root.batteryInfo.percentage !== undefined
+            width: parent.width
+            spacing: Style.space(20)
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              spacing: Style.spacing.labelGap
+              InfoPair { label: Commons.I18n.t("power.batterySize"); value: root.reading(root.batteryInfo.size) }
+              InfoPair { label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "—" }
+            }
+
+            Column {
+              width: (parent.width - parent.spacing) / 2
+              spacing: Style.spacing.labelGap
+              InfoPair {
+                label: root.chargeThresholdActive ? Commons.I18n.t("power.chargeLimit") : (root.discharging ? Commons.I18n.t("power.timeLeft") : Commons.I18n.t("power.timeToFull"))
+                value: root.chargeThresholdActive ? (root.reading(root.batteryInfo.threshold) || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
+              }
+              InfoPair {
+                label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
+                value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
+              }
+            }
+          }
+
+          PanelExtensions {
+            id: extensions
+            width: parent.width
+            shell: root.bar ? root.bar.shell : null
+            point: "omarchy.power.sections"
+            foreground: root.bar ? root.bar.foreground : Commons.Color.foreground
+            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+            panelOpen: root.opened
+            onCloseRequested: root.close()
+          }
+
+          // ---------- Power profile picker ----------
+          PanelSeparator {
+            foreground: root.bar.foreground
+          }
+
+          Column {
+            width: parent.width
+            spacing: Style.space(10)
+
+            PanelSectionHeader {
+              text: Commons.I18n.t("power.powerProfile")
+              foreground: root.bar.foreground
+              fontFamily: root.bar.fontFamily
+            }
+
+            Row {
+              id: profileRow
+              width: parent.width
+              spacing: Style.space(6)
+
+              readonly property real cellWidth: root.profiles.length > 0
+                ? (width - spacing * (root.profiles.length - 1)) / root.profiles.length
+                : 0
+
+              Repeater {
+                model: root.profiles
+                Button {
+                  required property var modelData
+                  required property int index
+                  width: profileRow.cellWidth
+                  iconText: root.profileIcon(String(modelData))
+                  iconSize: Style.font.title
+                  text: Model.profileLabel(modelData, Commons.I18n.t)
+                  fontSize: Style.font.bodySmall
+                  foreground: root.bar.foreground
+                  fontFamily: root.bar.fontFamily
+                  horizontalPadding: Style.spacing.controlPaddingX
+                  verticalPadding: Style.spacing.controlPaddingY + Style.space(2)
+                  bordered: true
+                  active: root.activeProfile === modelData
+                  hasCursor: root.cursorActive && root.profileIndex === index
+                  onClicked: root.setProfile(modelData)
+                  onHovered: function(h) {
+                    if (h) {
+                      root.cursorActive = true
+                      root.profileIndex = index
+                    }
                   }
                 }
               }
