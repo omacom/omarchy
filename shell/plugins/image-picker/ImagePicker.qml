@@ -369,7 +369,7 @@ Item {
   }
 
   function openThemes() {
-    if (themeRows) {
+    if (themeRows && currentThemePreview()) {
       openThemeRows()
     } else {
       // First open before the startup refresh has landed.
