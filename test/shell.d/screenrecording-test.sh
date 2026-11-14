@@ -2,13 +2,56 @@
 
 set -euo pipefail
 
+# No session variables, credentials, or developer command lookup reach fixtures.
+if [[ ${1:-} != "--isolated" ]]; then
+  exec /usr/bin/env -i PATH=/usr/bin:/bin LC_ALL=C /bin/bash "$0" --isolated
+fi
+
 source "$(dirname "$0")/base-test.sh"
 
 tmp_dir=$(mktemp -d)
-trap 'rm -rf "$tmp_dir"' EXIT
-
 stub_bin="$tmp_dir/bin"
-mkdir -p "$stub_bin"
+tool_bin="$tmp_dir/tools"
+mkdir -p "$stub_bin" "$tool_bin" "$tmp_dir/home" "$tmp_dir/tmp"
+export HOME="$tmp_dir/home" TMPDIR="$tmp_dir/tmp"
+export XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share"
+export XDG_CACHE_HOME="$HOME/.cache" XDG_STATE_HOME="$HOME/.local/state"
+export OMARCHY_TEST_SANDBOX="$tmp_dir" OMARCHY_TEST_PID_LOG="$tmp_dir/fixture-pids"
+
+stop_fixture_recorders() {
+  local pid state
+  [[ -f $OMARCHY_TEST_PID_LOG ]] || return 0
+  while read -r pid; do
+    if [[ $pid =~ ^[0-9]+$ ]] && grep -qzxF "OMARCHY_TEST_SANDBOX=$tmp_dir" "/proc/$pid/environ" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      for _ in {1..100}; do
+        [[ -r /proc/$pid/stat ]] || break
+        state=$(<"/proc/$pid/stat")
+        [[ ${state##*) } != "Z "* ]] || break
+        sleep 0.01
+      done
+      wait "$pid" 2>/dev/null || true
+    fi
+  done <"$OMARCHY_TEST_PID_LOG"
+  : >"$OMARCHY_TEST_PID_LOG"
+}
+cleanup() {
+  stop_fixture_recorders
+  rm -rf "$tmp_dir"
+}
+trap cleanup EXIT
+
+# Only these harmless tools and checkout helpers are discoverable. In
+# particular an installed recorder can never become an accidental fallback.
+for tool in awk bash cat chmod cmp date diff dirname env flock grep jq ln ls mkdir mkfifo mktemp mv python3 readlink rm rmdir sed sleep stat tac tail touch wc; do
+  ln -s "$(command -v "$tool")" "$tool_bin/$tool"
+done
+for tool in omarchy-capture-webcam-list omarchy-hw-webcam omarchy-capture-screenrecording-with-webcam omarchy-capture-webcam-resize omarchy-i18n omarchy-cmd-present; do
+  ln -s "$ROOT/bin/$tool" "$tool_bin/$tool"
+done
+# A failed or cancelled start may clean its webcam; there is no live overlay.
+printf '#!/bin/bash\nexit 1\n' >"$stub_bin/pkill"
+chmod +x "$stub_bin/pkill"
 
 cat >"$stub_bin/v4l2-ctl" <<'SH'
 #!/bin/bash
@@ -77,7 +120,7 @@ SH
 
 chmod +x "$stub_bin"/*
 
-export PATH="$stub_bin:$ROOT/bin:$PATH"
+export PATH="$stub_bin:$tool_bin"
 # The resize helper anchors to a region file here, so keep it out of the real one
 export XDG_RUNTIME_DIR="$tmp_dir"
 export OMARCHY_TEST_MENU_ARGS="$tmp_dir/menu-args"
@@ -390,11 +433,12 @@ SH
 
 cat >"$stub_bin/gpu-screen-recorder" <<'SH'
 #!/bin/bash
+echo "$$" >>"$OMARCHY_TEST_PID_LOG"
 for i in "$@"; do
   [[ -n ${take_next:-} ]] && { : >"$i"; break; }
   [[ $i == "-o" ]] && take_next=1
 done
-sleep 5
+exec sleep 30
 SH
 
 cat >"$stub_bin/omarchy-shell" <<'SH'
@@ -414,7 +458,7 @@ tmp_state_before=$(stat -c '%y %s' "$tmp_state" 2>/dev/null || true)
 OMARCHY_SCREENRECORD_DIR="$recording_dir" \
   "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1
 
-pkill -f "$stub_bin/gpu-screen-recorder" 2>/dev/null || true
+stop_fixture_recorders
 
 [[ $(stat -c '%y %s' "$tmp_state" 2>/dev/null) == "$tmp_state_before" ]] ||
   fail "screen recording keeps no state under a fixed /tmp name"
@@ -443,7 +487,7 @@ env -u XDG_RUNTIME_DIR \
   OMARCHY_SCREENRECORD_DIR="$recording_dir" \
   "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1
 
-pkill -f "$stub_bin/gpu-screen-recorder" 2>/dev/null || true
+stop_fixture_recorders
 
 [[ $(stat -c '%y %s' "$tmp_state" 2>/dev/null) == "$tmp_state_before" ]] ||
   fail "without a runtime dir, screen recording still keeps no state under a fixed /tmp name"
@@ -493,13 +537,14 @@ SH
 
 cat >"$stub_bin/wf-recorder" <<'SH'
 #!/bin/bash
+echo "$$" >>"$OMARCHY_TEST_PID_LOG"
 printf '%s\n' "$@" >"$OMARCHY_TEST_WF_ARGS"
 echo "$$" >"$OMARCHY_TEST_WF_PID"
 for i in "$@"; do
   [[ -n ${take_next:-} ]] && { : >"$i"; break; }
   [[ $i == "-f" ]] && take_next=1
 done
-sleep 5
+exec sleep 30
 SH
 chmod +x "$stub_bin/gpu-screen-recorder" "$stub_bin/wf-recorder"
 
@@ -513,7 +558,7 @@ XDG_RUNTIME_DIR="$wf_runtime" OMARCHY_TEST_WF_ARGS="$wf_args" OMARCHY_TEST_WF_PI
   OMARCHY_SCREENRECORD_DIR="$wf_recordings" \
   "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1
 
-pkill -f "$stub_bin/wf-recorder" 2>/dev/null || true
+stop_fixture_recorders
 
 [[ -s $wf_args ]] || fail "wf-recorder records when gpu-screen-recorder cannot start"
 grep -Fxq -- '-o' "$wf_args" && grep -Fxq DP-1 "$wf_args" && grep -Fxq 48000 "$wf_args" ||
@@ -662,3 +707,324 @@ recorder --status || status=$?
 (( status == 1 )) || fail "status reports inactive before the recorder starts"
 [[ ! -s $audio_calls && -e $audio_modules ]] || fail "status preserves the audio mix created before the recorder starts"
 pass "status leaves the starting recorder's audio mix alone"
+
+# VAAPI startup diagnostics use the same command, notification, and owned
+# recorder fixtures as the backend tests above. Sysfs and drivers are scratch.
+pci="$tmp_dir/pci"
+dri="$tmp_dir/dri"
+runtime="$tmp_dir/vaapi-runtime"
+recordings="$tmp_dir/vaapi-recordings"
+notice="$tmp_dir/vaapi-notice"
+export XDG_RUNTIME_DIR="$runtime" OMARCHY_PCI_DEVICES_PATH="$pci"
+export OMARCHY_DRI_DRIVERS_PATH="$dri" OMARCHY_SCREENRECORD_DIR="$recordings"
+export OMARCHY_TEST_NOTIFICATION_ARGS="$notice"
+cat >"$stub_bin/omarchy-capture-screenrecording-process" <<'SH'
+#!/bin/bash
+exit 1
+SH
+cat >"$stub_bin/gpu-screen-recorder" <<'SH'
+#!/bin/bash
+echo "$$" >>"$OMARCHY_TEST_PID_LOG"
+exec python3 - "$@" <<'PYTHON'
+import os, pathlib, signal, sys, time
+mode = os.environ.get("OMARCHY_TEST_GSR_MODE", "ok")
+runtime = pathlib.Path(os.environ["XDG_RUNTIME_DIR"])
+filename = pathlib.Path(sys.argv[sys.argv.index("-o") + 1])
+signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+if mode == "split":
+    os.write(2, b"vaInit")
+    time.sleep(0.3)
+    os.write(2, b"ialize failed\n")
+if mode not in ("ok", "late", "split"):
+    os.write(2, b"gsr error: vaInitialize failed\n")
+if mode == "exit":
+    sys.exit(7)
+if mode == "cancel":
+    (runtime / "omarchy-screenrecord-cancel").touch()
+elif mode == "flood":
+    written = 0
+    while not (runtime / "ready").exists():
+        written += os.write(2, b"x" * 4096)
+        if written >= 131072:
+            (runtime / "noisy").touch()
+        time.sleep(0.001)
+    filename.touch()
+elif mode != "stall":
+    filename.touch()
+if mode == "late":
+    while not (runtime / "continue").exists():
+        time.sleep(0.01)
+    os.write(2, b"vaInitialize failed\n" + b"x" * 1048576)
+    (runtime / "drained").touch()
+while True:
+    time.sleep(0.1)
+PYTHON
+SH
+chmod +x "$stub_bin/omarchy-capture-screenrecording-process" "$stub_bin/gpu-screen-recorder"
+add_gpu() {
+  local slot=$1 vendor=$2 class=$3
+  mkdir -p "$pci/$slot"
+  printf '%s\n' "$vendor" >"$pci/$slot/vendor"
+  printf '%s\n' "$class" >"$pci/$slot/class"
+}
+
+reset_case() {
+  stop_fixture_recorders
+  rm -rf "$pci" "$dri" "$runtime" "$recordings" "$notice"
+  mkdir -p "$pci" "$dri" "$runtime" "$recordings"
+}
+
+record() {
+  OMARCHY_TEST_GSR_MODE=$1 "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen --resolution=0x0 >"$tmp_dir/recorder-output" 2>&1 || true
+  [[ ! -e $runtime/omarchy-screenrecord-gsr.err ]] || fail "startup removes its temporary stderr file"
+  [[ -z $(compgen -G "$runtime/omarchy-screenrecord-stderr.*") ]] || fail "startup removes its stderr FIFO"
+}
+
+started() {
+  [[ -s $runtime/omarchy-screenrecord-pid && -s $runtime/omarchy-screenrecord-filename ]]
+}
+
+# Haswell-shaped iGPU (the name lspci gives it is not what this check reads)
+# plus a NVIDIA 3D controller and a NVIDIA audio function that must not count.
+reset_case
+add_gpu 00 0x8086 0x030000
+add_gpu 01 0x10de 0x030200
+add_gpu 02 0x10de 0x040300
+touch "$dri/nvidia_drv_video.so"
+record fail
+started || fail "a VAAPI init failure still starts the recording on the CPU fallback"
+grep -F 'VAAPI failed to initialize' "$notice" >/dev/null || fail "VAAPI init failure is reported" "$(cat "$notice" 2>/dev/null || true)"
+grep -F 'intel-media-driver' "$notice" >/dev/null || fail "a hybrid with no Intel driver names intel-media-driver" "$(cat "$notice")"
+grep -F 'libva-intel-driver' "$notice" >/dev/null || fail "a hybrid with no Intel driver names libva-intel-driver" "$(cat "$notice")"
+if grep -F 'libva-nvidia-driver' "$notice" >/dev/null; then
+  fail "a hybrid does not ask for the NVIDIA driver that is already installed" "$(cat "$notice")"
+fi
+if grep -F 'libva-mesa-driver' "$notice" >/dev/null; then
+  fail "a hybrid does not ask for an AMD driver" "$(cat "$notice")"
+fi
+pass "hybrid Intel+NVIDIA with no Intel VAAPI driver reports that driver and still starts"
+
+reset_case
+add_gpu 00 0x8086 0x030000
+add_gpu 01 0x10de 0x030200
+touch "$dri/nvidia_drv_video.so"
+record ok
+started || fail "a clean recorder start is recorded as started"
+[[ ! -e $notice ]] || fail "a clean recorder start does not mention VAAPI" "$(cat "$notice")"
+pass "a recorder that does not fail VAAPI init stays quiet even when the Intel driver is absent"
+
+reset_case
+add_gpu 00 0x8086 0x030000
+add_gpu 01 0x10de 0x030200
+touch "$dri/iHD_drv_video.so" "$dri/nvidia_drv_video.so"
+record fail
+started || fail "VAAPI init failure with drivers installed still starts"
+grep -F 'even though a VAAPI driver' "$notice" >/dev/null || fail "an installed driver that will not initialize says so" "$(cat "$notice" 2>/dev/null || true)"
+if grep -F 'intel-media-driver' "$notice" >/dev/null; then
+  fail "an installed Intel driver is not listed as missing" "$(cat "$notice")"
+fi
+pass "VAAPI init failure with the detected drivers installed points at the debug log"
+
+reset_case
+add_gpu 00 0x8086 0x030000
+add_gpu 01 0x10de 0x030200
+touch "$dri/nvidia_drv_video.so"
+record exit
+if started; then
+  fail "a recorder that exits before writing a file is not recorded as started"
+fi
+grep -F 'libva-intel-driver' "$notice" >/dev/null || fail "a recorder that exits on VAAPI init still names the missing Intel driver" "$(cat "$notice" 2>/dev/null || true)"
+pass "a recorder that exits on VAAPI init still reports the missing Intel driver"
+
+reset_case
+add_gpu 00 0x1002 0x030000
+add_gpu 01 0x1002 0x040300
+record fail
+grep -F 'libva-mesa-driver' "$notice" >/dev/null || fail "AMD with no Mesa VAAPI driver names libva-mesa-driver" "$(cat "$notice" 2>/dev/null || true)"
+grep -F 'mesa-vdpau' "$notice" >/dev/null || fail "AMD with no Mesa VAAPI driver names mesa-vdpau" "$(cat "$notice")"
+if grep -F 'intel-media-driver' "$notice" >/dev/null; then
+  fail "an AMD machine is not told to install an Intel driver" "$(cat "$notice")"
+fi
+pass "AMD with no Mesa VAAPI driver reports that driver"
+
+reset_case
+add_gpu 00 0x10de 0x030000
+record fail
+grep -F 'libva-nvidia-driver' "$notice" >/dev/null || fail "NVIDIA with no VAAPI driver names libva-nvidia-driver" "$(cat "$notice" 2>/dev/null || true)"
+if grep -F 'intel-media-driver' "$notice" >/dev/null; then
+  fail "a NVIDIA machine is not told to install an Intel driver" "$(cat "$notice")"
+fi
+pass "NVIDIA with no VAAPI driver reports libva-nvidia-driver"
+
+reset_case
+add_gpu 00 0x8086 0x0c0330
+record fail
+grep -F 'Install the driver for your GPU' "$notice" >/dev/null || fail "no display GPU falls back to the generic driver hint" "$(cat "$notice" 2>/dev/null || true)"
+if grep -F 'until the missing driver is installed' "$notice" >/dev/null; then
+  fail "a non-display Intel device is not treated as an iGPU" "$(cat "$notice")"
+fi
+pass "a machine with no display GPU gets the generic VAAPI hint"
+
+reset_case
+add_gpu 00 0x8086 0x030000
+add_gpu 01 0x10de 0x030200
+touch "$dri/nvidia_drv_video.so"
+printf '%s\n' 'old gsr error: vaInitialize failed' >"$runtime/omarchy-screenrecord.log"
+OMARCHY_SCREENRECORD_DEBUG=true record ok
+[[ ! -e $notice ]] || fail "an older debug log line does not report the next recording" "$(cat "$notice")"
+pass "an older vaInitialize line in the debug log does not report the next recording"
+
+reset_case
+add_gpu 00 0x8086 0x030000
+add_gpu 01 0x10de 0x030200
+touch "$dri/nvidia_drv_video.so"
+OMARCHY_SCREENRECORD_DEBUG=true record fail
+grep -F 'vaInitialize failed' "$runtime/omarchy-screenrecord.log" >/dev/null ||
+  fail "debug mode still keeps the recorder stderr" "$(cat "$runtime/omarchy-screenrecord.log" 2>/dev/null || true)"
+grep -F 'libva-intel-driver' "$notice" >/dev/null || fail "debug mode still reports the missing Intel driver" "$(cat "$notice" 2>/dev/null || true)"
+pass "debug mode keeps the recorder stderr and still reports the missing driver"
+
+reset_case
+add_gpu 00 0x8086 0x030000
+add_gpu 01 0x10de 0x030200
+touch "$dri/nvidia_drv_video.so"
+record cancel
+[[ ! -e $notice ]] || fail "a cancelled start does not report VAAPI" "$(cat "$notice")"
+if started; then
+  fail "a cancelled start is not recorded as started"
+fi
+pass "a cancelled start stays quiet about VAAPI"
+
+# A stalled/portal start may be arbitrarily noisy. Its diagnostics must stay
+# bounded before readiness, then disappear without closing stderr on the GPU.
+wait_for_file() {
+  for _ in {1..250}; do
+    [[ ! -e $1 ]] || return 0
+    sleep 0.02
+  done
+  fail "fixture writes $1" "$(cat "$tmp_dir/recorder-output")"
+}
+reset_case
+OMARCHY_TEST_GSR_MODE=flood "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen --resolution=0x0 >"$tmp_dir/recorder-output" 2>&1 &
+starter=$!
+wait_for_file "$runtime/noisy"
+bytes=0
+[[ ! -f $runtime/omarchy-screenrecord-gsr.err ]] || bytes=$(stat -c %s "$runtime/omarchy-screenrecord-gsr.err")
+(( bytes <= 65536 )) || fail "noisy startup diagnostics use bounded storage" "$bytes bytes"
+touch "$runtime/ready"
+wait "$starter"
+started || fail "noisy startup reaches readiness"
+[[ ! -e $runtime/omarchy-screenrecord-gsr.err ]] || fail "ready startup removes its diagnostics"
+[[ -z $(compgen -G "$runtime/omarchy-screenrecord-stderr.*") ]] || fail "ready startup removes its FIFO"
+pass "noisy startup uses bounded storage and cleans it at readiness"
+
+reset_case
+record late
+pid=$(<"$runtime/omarchy-screenrecord-pid")
+[[ $pid == "$(tail -n 1 "$OMARCHY_TEST_PID_LOG")" ]] || fail "saved pid is the recorder, not its stderr drainer"
+touch "$runtime/continue"
+wait_for_file "$runtime/drained"
+kill -0 "$pid" || fail "detached recorder survives later stderr without SIGPIPE"
+[[ ! -e $notice && ! -e $runtime/omarchy-screenrecord-gsr.err ]] || fail "later stderr is discarded without a warning or log"
+pass "detached recorder keeps its own pid and later stderr is drained without SIGPIPE"
+
+# Run the actual startup body with a synthetic clock, not a native locale.
+# Unsetting EPOCHREALTIME makes it assignable in this disposable Bash process.
+sed '/^mkdir -p "\$RUNTIME_DIR" || exit 1$/,$d' "$ROOT/bin/omarchy-capture-screenrecording" >"$tmp_dir/clock-recorder"
+cat >>"$tmp_dir/clock-recorder" <<'SH'
+unset EPOCHREALTIME
+EPOCHREALTIME="1794080000${OMARCHY_TEST_CLOCK_SEPARATOR}900000"
+clock_checks=0
+start_cancelled() {
+  if [[ -v started_at && $recorder_ended == "false" ]]; then
+    clock_checks=$((clock_checks + 1))
+    if (( clock_checks == 1 )); then
+      EPOCHREALTIME="1794080001${OMARCHY_TEST_CLOCK_SEPARATOR}100000"
+    else
+      EPOCHREALTIME="1794080020${OMARCHY_TEST_CLOCK_SEPARATOR}100000"
+    fi
+    # Safely end a broken timeout rather than leaving its recorder running.
+    (( clock_checks <= 2 )) || touch "$CANCEL_FILE"
+  fi
+  [[ -e $CANCEL_FILE ]]
+}
+start_screenrecording
+# Both conversions must agree: wait at 0.2 seconds, time out at 19.2 seconds.
+(( clock_checks == 2 )) && [[ ! -e $CANCEL_FILE ]]
+SH
+for separator in '.' ',' '٫'; do
+  for mode in stall flood; do
+    reset_case
+    OMARCHY_TEST_CLOCK_SEPARATOR="$separator" OMARCHY_TEST_GSR_MODE="$mode" \
+      bash "$tmp_dir/clock-recorder" --fullscreen --resolution=0x0 >"$tmp_dir/recorder-output" 2>&1 ||
+      fail "startup times out across '$separator' clock separators with $mode stderr" "$(cat "$tmp_dir/recorder-output")"
+    ! started || fail "a recorder that never becomes ready records no state"
+    [[ ! -e $runtime/omarchy-screenrecord-gsr.err && -z $(compgen -G "$runtime/omarchy-screenrecord-stderr.*") ]] ||
+      fail "timed-out startup removes its diagnostics"
+    pass "startup waits within budget and times out across '$separator' clock separators with $mode stderr"
+  done
+done
+
+reset_case
+add_gpu 00 0x8086 0x030000
+record split
+grep -F 'intel-media-driver' "$notice" >/dev/null || fail "VAAPI marker survives short stderr chunks across read timeouts"
+pass "VAAPI detection handles short chunks split across read timeouts"
+
+# Stop must still select the actual backend PID. This helper only signals a
+# process carrying this fixture's unique environment marker, never a session.
+cat >"$stub_bin/omarchy-capture-screenrecording-process" <<'SH'
+#!/bin/bash
+[[ ${1:-} == "--pid" && $2 =~ ^[0-9]+$ ]] || exit 1
+grep -qzxF "OMARCHY_TEST_SANDBOX=$OMARCHY_TEST_SANDBOX" "/proc/$2/environ" 2>/dev/null || exit 1
+state=$(<"/proc/$2/stat")
+[[ ${state##*) } != "Z "* ]] || exit 1
+if [[ ${3:-} == "--signal" ]]; then
+  printf '%s\n' "$*" >>"$OMARCHY_TEST_SANDBOX/stop-signals"
+  kill "-$4" "$2"
+fi
+SH
+reset_case
+record late
+pid=$(<"$runtime/omarchy-screenrecord-pid")
+drain_pipe=$(readlink "/proc/$pid/fd/2")
+"$ROOT/bin/omarchy-capture-screenrecording" --status || fail "status selects the actual detached recorder"
+touch "$runtime/continue"
+wait_for_file "$runtime/drained"
+# A recording removed outside Omarchy needs no preview or finalization.
+rm "$(<"$runtime/omarchy-screenrecord-filename")"
+"$ROOT/bin/omarchy-capture-screenrecording" --stop-recording >"$tmp_dir/stop-output" 2>&1 || fail "stop signals the actual recorder"
+grep -Fxq -- "--pid $pid --signal INT" "$tmp_dir/stop-signals" || fail "stop sends INT to the backend PID"
+[[ ! -e $runtime/omarchy-screenrecord-pid && ! -e $runtime/omarchy-screenrecord-gsr.err ]] || fail "stop removes recorder state and retains no diagnostics"
+for _ in {1..100}; do
+  drainers=0
+  for proc in /proc/[0-9]*; do
+    grep -qzxF "OMARCHY_TEST_SANDBOX=$tmp_dir" "$proc/environ" 2>/dev/null || continue
+    for fd in "$proc"/fd/*; do
+      [[ $(readlink "$fd" 2>/dev/null) != "$drain_pipe" ]] || drainers=$((drainers + 1))
+    done
+  done
+  (( drainers > 0 )) || break
+  sleep 0.01
+done
+(( drainers == 0 )) || fail "stderr drainer exits at recorder EOF"
+pass "status and stop own the backend PID, and its stderr drainer exits at EOF"
+
+# A failed external discard reader must not close the pipe on a live recorder.
+cat >"$stub_bin/cat" <<'SH'
+#!/bin/bash
+if [[ ${OMARCHY_TEST_DRAIN_FAIL:-false} == "true" ]] && (( $# == 0 )); then
+  touch "$OMARCHY_TEST_SANDBOX/drainer-failed"
+  exit 73
+fi
+exec /usr/bin/cat "$@"
+SH
+chmod +x "$stub_bin/cat"
+reset_case
+OMARCHY_TEST_DRAIN_FAIL=true record late
+touch "$runtime/continue"
+wait_for_file "$runtime/drained"
+[[ -e $tmp_dir/drainer-failed ]] || fail "discard-reader failure was exercised"
+kill -0 "$(<"$runtime/omarchy-screenrecord-pid")" || fail "builtin discard reader keeps recorder alive after cat fails"
+pass "discard-reader failure falls back without giving the recorder SIGPIPE"
