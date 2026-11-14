@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Run a command and notify when it finishes, preserving its exit status
+# omarchy:args=[--title <title>] -- <command> [args...]
+# omarchy:examples=omarchy notification run -- make | omarchy notification run --title Build -- bash -c 'make && make test'
+
+exec python3 "$OMARCHY_PATH/default/notification-run.py" "$@"
