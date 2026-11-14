@@ -243,8 +243,14 @@ Panel {
               opacity: .75
               HoverHandler { id: headingHover }
               PanelToolTip {
+                id: headingTip
                 visible: headingHover.hovered
                 text: Commons.I18n.t("scenes.explanation")
+                background: BorderSurface {
+                  color: headingTip.panelBackground
+                  borderSpec: headingTip.panelBorderSpec
+                  radius: 0
+                }
               }
             }
             Item {
