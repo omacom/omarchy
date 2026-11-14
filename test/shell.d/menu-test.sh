@@ -424,3 +424,48 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+# Exercise the configured menu action through the confirmation wrapper. Neither
+# the launcher nor the test may touch the user's real Hyprland configuration.
+reset_fixture=$(mktemp -d)
+trap 'rm -rf "$reset_fixture"' EXIT
+export RESET_CALLS="$reset_fixture/calls"
+mkdir -p "$reset_fixture/bin"
+cat >"$reset_fixture/bin/omarchy-launch-floating-terminal-with-presentation" <<'STUB'
+#!/bin/bash
+exec "$@"
+STUB
+cat >"$reset_fixture/bin/gum" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$RESET_CALLS"
+exit "${RESET_ANSWER:-1}"
+STUB
+cat >"$reset_fixture/bin/omarchy-refresh-hyprland" <<'STUB'
+#!/bin/bash
+echo reset >>"$RESET_CALLS"
+STUB
+chmod +x "$reset_fixture/bin/"*
+
+reset_action=$(node - "$ROOT" <<'JS'
+const fs = require('fs')
+const root = process.argv[2]
+const menu = require(root + '/shell/plugins/menu/MenuModel.js')
+const rows = menu.parseMenuJsonc(fs.readFileSync(root + '/default/omarchy/omarchy-menu.jsonc', 'utf8'))
+console.log(rows.find(row => row.id === 'update.config.hyprland').action)
+JS
+)
+run_reset_action() {
+  PATH="$reset_fixture/bin:$ROOT/bin:$PATH" bash -c "$reset_action"
+}
+
+reset_status=0
+run_reset_action || reset_status=$?
+((reset_status == 130)) || fail "a declined menu reset closes as a cancellation"
+! grep -qx reset "$RESET_CALLS" || fail "a declined menu reset preserves the configuration"
+grep -qF 'Reset Hyprland to Omarchy defaults?' "$RESET_CALLS" ||
+  fail "the confirmation names the configuration it will reset"
+pass "declining the menu's Hyprland confirmation preserves its configuration"
+
+RESET_ANSWER=0 run_reset_action
+[[ $(tail -n 1 "$RESET_CALLS") == "reset" ]] || fail "accepting the prompt runs the reset"
+pass "accepting the menu's Hyprland confirmation dispatches its reset"

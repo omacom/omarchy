@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# omarchy:summary=Confirm a menu request before resetting a component's configuration.
+# omarchy:args=<hyprland|hyprsunset|plymouth|tmux|shell>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+case ${1:-} in
+  hyprland) name=Hyprland ;;
+  hyprsunset) name=Hyprsunset ;;
+  plymouth) name=Plymouth ;;
+  tmux) name=tmux ;;
+  shell) name="Omarchy Shell" ;;
+  *) echo "Usage: omarchy-menu-reset-config <hyprland|hyprsunset|plymouth|tmux|shell>" >&2; exit 2 ;;
+esac
+
+prompt=$(omarchy-i18n update.resetConfig "$name")
+if gum confirm --default=false --affirmative "$(omarchy-i18n common.yes)" \
+  --negative "$(omarchy-i18n common.no)" "$prompt"; then
+  exec "omarchy-refresh-$1"
+fi
+
+# The floating terminal closes quietly when the user cancels.
+exit 130
