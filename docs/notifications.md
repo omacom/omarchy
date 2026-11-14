@@ -75,7 +75,7 @@ Three kinds of notification get through Do Not Disturb:
 - urgency critical *and* `app_name` = `notify-send`: bare-CLI emergency alerts. Critical alone is not enough, because chat apps use it to force visibility under their own app name.
 - a detected verification code: it was asked for a moment ago and expires in minutes.
 
-Apps can also be muted one at a time. `quiet.json` keeps a `muted` list of app names, trimmed and lowercased, at most 100 of them and 128 characters each, matched against the sender's `app_name` whatever its case. A muted app's notifications are held back whether Do Not Disturb is on or not, including the kinds Do Not Disturb lets through; only a detected verification code still shows. `omarchy-notification-mute` lists, mutes and unmutes them through `omarchy-shell notifications listMuted` / `setMuted <app> <on|off|toggle>`.
+Apps can also be muted one at a time. `quiet.json` keeps a `muted` list of app names, trimmed and lowercased, at most 100 of them and 128 characters each, matched against the sender's `app_name` whatever its case. A muted app's notifications are held back whether Do Not Disturb is on or not, including the kinds Do Not Disturb lets through; only a detected verification code still shows. `omarchy-notification-mute` lists, mutes and unmutes them through `omarchy-shell notifications listMuted` / `setMuted <app> <on|off|toggle>`, which answers the app's state after, `full` when the list already holds 100 apps, or `invalid`.
 
 Silenced and muted notifications are recorded in history, so `showHistory` can put them back on screen. Ephemeral ones (the `transient` hint, or `app_name` `notify-send`/`omarchy-action`) are dropped.
 

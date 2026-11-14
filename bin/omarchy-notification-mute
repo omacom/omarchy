@@ -53,6 +53,10 @@ fi
 case "$state" in
   on) echo "Muted notifications from $app." ;;
   off) echo "Notifications from $app are back on." ;;
+  full)
+    echo "Too many apps are muted to add $app. Unmute one first." >&2
+    exit 1
+    ;;
   *)
     echo "Not an app name: $app" >&2
     usage

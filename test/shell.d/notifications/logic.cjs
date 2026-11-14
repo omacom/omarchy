@@ -1039,19 +1039,38 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   // unmuting it lets the next one through. The mute is saved with quiet.json.
   const s = newCapacityScope()
   const from = (id, app) => Object.assign(s.fakeNotification(id, app + ' ' + id), { appName: app })
-  assert.equal(s.setAppMuted(' OmaSnap', true), true)
+  assert.equal(s.setAppMuted(' OmaSnap', true), 'on')
   eq(s.mutedApps, ['omasnap'])
   assert.ok(s.unsaved.quiet)
-  assert.equal(s.setAppMuted('', true), false)
+  assert.equal(s.setAppMuted('', true), 'invalid')
   s.handleNotification(from(1, 'omasnap'))
   s.admit(from(2, 'Slack'))
   eq([s.toasts.count, s.toasts.get(0).summary], [1, 'Slack 2'])
   eq(s.historyEntries.map(e => e.summary + ':' + e.closed_reason), ['omasnap 1:muted'])
   eq(s.liveEntries.map(e => e.summary), ['Slack 2'])
-  assert.equal(s.setAppMuted('omasnap', 'toggle'), false)
+  assert.equal(s.setAppMuted('omasnap', 'toggle'), 'off')
   eq(s.mutedApps, [])
   s.admit(from(3, 'omasnap'))
   eq(s.toasts.count, 2)
+}
+
+{ // A full list refuses another app and says so, rather than answering "on"
+  // for an app that keeps notifying. Apps already on it can still come off.
+  const s = newCapacityScope()
+  const from = (id, app) => Object.assign(s.fakeNotification(id, app + ' ' + id), { appName: app })
+  s.quietLoaded = true
+  for (let i = 0; i < Store.MUTED_LIMIT; i++) assert.equal(s.setAppMuted('app' + i, true), 'on')
+  assert.equal(s.setAppMuted('one-too-many', true), 'full')
+  assert.equal(s.setAppMuted('one-too-many', 'toggle'), 'full')
+  assert.equal(s.mutedApps.length, Store.MUTED_LIMIT)
+  assert.ok(!s.mutedApps.includes('one-too-many'))
+  s.admit(from(1, 'one-too-many'))
+  eq([s.toasts.count, s.historyEntries.length], [1, 0])
+  assert.equal(s.setAppMuted('app0', true), 'on')
+  assert.equal(s.setAppMuted('app0', false), 'off')
+  assert.equal(s.setAppMuted('one-too-many', true), 'on')
+  assert.ok(s.mutedApps.includes('one-too-many'))
+  assert.equal(s.mutedApps.length, Store.MUTED_LIMIT)
 }
 
 { // A transient card is shown but never stored, so the next login does not

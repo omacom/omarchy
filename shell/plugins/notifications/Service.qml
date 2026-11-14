@@ -61,15 +61,19 @@ Item {
   // Apps muted one by one, lowercased (Store.muteName). Their notifications
   // go straight to history, Do Not Disturb or not.
   property var mutedApps: []
+  // The app's state after: "on" or "off", "full" when the list has no room
+  // for another app (Store.MUTED_LIMIT), "invalid" for a name it cannot hold.
   function setAppMuted(app, value) {
     var name = Store.muteName(app)
-    if (!name) return false
+    if (!name) return "invalid"
     var muted = mutedApps.indexOf(name) !== -1
     var on = value === "toggle" ? !muted : !!value
-    if (on === muted) return on
-    mutedApps = Store.mutedList(on ? mutedApps.concat([name]) : mutedApps.filter(function(a) { return a !== name }))
-    saveQuiet()
-    return on
+    if (on && !muted && mutedApps.length >= Store.MUTED_LIMIT) return "full"
+    if (on !== muted) {
+      mutedApps = Store.mutedList(on ? mutedApps.concat([name]) : mutedApps.filter(function(a) { return a !== name }))
+      saveQuiet()
+    }
+    return on ? "on" : "off"
   }
 
   // Persisted: nothing on screen says the desktop is quiet, so a reload must not lift it.
@@ -1453,12 +1457,12 @@ Item {
     function listMuted(): string { return service.mutedApps.join("\n") }
 
     // Mute or unmute one app by its app name: on, off or toggle. Answers the
-    // app's state after, or "invalid" for a name the list cannot hold.
+    // app's state after, "full" when the list has no room for another app, or
+    // "invalid" for a name it cannot hold.
     function setMuted(app: string, value: string): string {
       var v = String(value || "").toLowerCase()
       if (v !== "on" && v !== "off" && v !== "toggle") return "invalid"
-      if (!Store.muteName(app)) return "invalid"
-      return service.setAppMuted(app, v === "toggle" ? "toggle" : v === "on") ? "on" : "off"
+      return service.setAppMuted(app, v === "toggle" ? "toggle" : v === "on")
     }
 
     // Dismiss, press the one button on, or focus the newest card on screen.
