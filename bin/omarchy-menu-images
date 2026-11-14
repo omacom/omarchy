@@ -81,8 +81,9 @@ selection_file=$(mktemp)
 done_file=$(mktemp)
 pending_file=$(mktemp)
 pending_video_file=$(mktemp)
+rows_file=$(mktemp)
 rm -f "$done_file"
-trap 'rm -f "$selection_file" "$done_file" "$pending_file" "$pending_video_file"' EXIT
+trap 'rm -f "$selection_file" "$done_file" "$pending_file" "$pending_video_file" "$rows_file"' EXIT
 
 image_dirs_env=""
 for dir in "${image_dirs[@]}"; do
@@ -380,19 +381,18 @@ if [[ $print_rows == true ]]; then
   exit 0
 fi
 
-# Image rows can contain newlines and tabs, which don't survive positional
-# shell IPC arguments. Base64-encode for transit; the ImagePicker plugin
-# Qt.atob()s on the other side.
-rows_b64=$(printf '%s' "$rows" | base64 -w 0)
+# Rows go to the shell as a file: a few hundred images make an argument too
+# large for shell IPC, and rows may hold tabs and newlines besides.
+printf '%s' "$rows" >"$rows_file"
 
 if [[ $preload == true ]]; then
-  omarchy-shell image-selector preload "$rows_b64" "$selected_list_image" "$show_labels" "$filterable" >/dev/null || true
+  omarchy-shell image-selector preload "$rows_file" "$selected_list_image" "$show_labels" "$filterable" >/dev/null || true
   exit 0
 fi
 
 if ! open_result=$(omarchy-shell image-selector open \
      "" \
-     "$rows_b64" \
+     "$rows_file" \
      "$selected_list_image" \
      "$selection_file" \
      "$done_file" \
