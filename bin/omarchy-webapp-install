@@ -84,20 +84,40 @@ require_http_url() {
 
 fetch_site_icon() {
   local site_url="$1" dest="$2"
-  local origin page icon_url
-  origin=$(sed -E 's|^(https?://[^/]+).*|\1|' <<<"$site_url")
+  local page page_url origin base icon_url
 
   # Prefer the site's own high-res icon (apple-touch-icon is typically 180px+),
   # then the well-known path, then Google's favicon service as a last resort.
-  page=$(curl -fsSL --max-time 5 "$site_url" 2>/dev/null | head -c 100000 | tr '\n' ' ')
+  # head bounds the page as it streams; curl writes the post-redirect URL to
+  # stderr as its last line, which survives head cutting the body short. The log
+  # is global so the EXIT trap can still remove it if the fetch is interrupted.
+  PAGE_URL_LOG=$(mktemp)
+  trap 'rm -f "$PAGE_URL_LOG"' EXIT
+  page=$(curl -fsSL --max-time 5 -w '%{stderr}\n%{url_effective}' "$site_url" 2>"$PAGE_URL_LOG" |
+    head -c 100000 | tr '\n' ' ')
+  page_url=$(tail -n 1 "$PAGE_URL_LOG")
+  rm -f "$PAGE_URL_LOG"
   icon_url=$(grep -oiE "<link[^>]*rel=[\"'][^\"']*apple-touch-icon[^\"']*[\"'][^>]*>" <<<"$page" |
     grep -oiE "href=[\"'][^\"']+" | head -1 | sed -E "s/^href=[\"']//")
+
+  # A relative href resolves against the page's directory after redirects, not
+  # the origin: an app served under a subpath (https://host/ redirecting to
+  # /app/) keeps its icon at /app/icon.png.
+  [[ $page_url =~ ^https?:// ]] || page_url=$site_url
+  page_url=${page_url%%#*}
+  page_url=${page_url%%\?*}
+  origin=$(sed -E 's|^(https?://[^/]+).*|\1|' <<<"$page_url")
+  if [[ $page_url == "$origin" ]]; then
+    base="$origin/"
+  else
+    base="${page_url%/*}/"
+  fi
 
   case $icon_url in
   http://* | https://*) ;;
   //*) icon_url="https:$icon_url" ;;
   /*) icon_url="$origin$icon_url" ;;
-  ?*) icon_url="$origin/$icon_url" ;;
+  ?*) icon_url="$base$icon_url" ;;
   esac
 
   { [[ -n $icon_url ]] && download_icon "$icon_url" "$dest"; } ||
