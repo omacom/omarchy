@@ -82,7 +82,7 @@ if [[ -f ~/.config/wezterm/wezterm.lua ]]; then
   # Escape the Lua string first, then the sed replacement. Match escaped quotes
   # too, so another font change can replace a previously escaped name in full.
   wezterm_font_name=$(printf '%s' "$font_name" | sed 's/[\\"]/\\&/g; s/[\\&/]/\\&/g')
-  sed --follow-symlinks -i -E "s/wezterm\\.font\\(\"([^\"\\\\]|\\\\.)*\"/wezterm.font(\"$wezterm_font_name\"/g" ~/.config/wezterm/wezterm.lua
+  sed --follow-symlinks -i -E "s/^([[:space:]]*config\\.font[[:space:]]*=[[:space:]]*wezterm\\.font\\(\")([^\"\\\\]|\\\\.)*\"/\\1$wezterm_font_name\"/" ~/.config/wezterm/wezterm.lua
 fi
 
 # fontconfig is the canonical source of truth — the omarchy shell, Qt apps,

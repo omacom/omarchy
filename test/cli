@@ -330,6 +330,7 @@ pass "font set preserves ghostty size"
 if command -v lua5.1 >/dev/null; then
   mkdir -p "$FONT_TMPDIR/.config/wezterm"
   cp "$ROOT/config/wezterm/wezterm.lua" "$FONT_TMPDIR/wezterm-dotfile.lua"
+  sed -i '/^return config/i config.font_rules = { { italic = true, font = wezterm.font("Custom Italic", { weight = "Regular" }) } }' "$FONT_TMPDIR/wezterm-dotfile.lua"
   ln -s "$FONT_TMPDIR/wezterm-dotfile.lua" "$FONT_TMPDIR/.config/wezterm/wezterm.lua"
   printf '#!/bin/bash\nprintf "%%s\\n" "$WEZTERM_TEST_FONT"\n' >"$FONT_TMPDIR/fake-bin/fc-list"
   # Other terminal formats have their own escaping rules; isolate the Lua case.
@@ -343,7 +344,6 @@ package.preload.wezterm = function()
   return {
     config_builder = function() return {} end,
     font = function(name, options)
-      assert(name == os.getenv("WEZTERM_TEST_FONT"), "font name changed during escaping")
       assert(options.weight == "Regular", "font options were changed")
       return name
     end,
@@ -355,6 +355,8 @@ package.preload.wezterm = function()
   }
 end
 local config = dofile(os.getenv("HOME") .. "/.config/wezterm/wezterm.lua")
+assert(config.font == os.getenv("WEZTERM_TEST_FONT"), "font name changed during escaping")
+assert(config.font_rules[1].font == "Custom Italic", "custom italic font was replaced")
 assert(config.font_size == 9, "unrelated settings were changed")
 LUA
   done
