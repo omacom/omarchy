@@ -662,3 +662,28 @@ recorder --status || status=$?
 (( status == 1 )) || fail "status reports inactive before the recorder starts"
 [[ ! -s $audio_calls && -e $audio_modules ]] || fail "status preserves the audio mix created before the recorder starts"
 pass "status leaves the starting recorder's audio mix alone"
+
+# A recorder can create its file and abort a moment later, as one whose encoder
+# fails to open does. That start fails and saves nothing as recording.
+cat >"$stub_bin/gpu-screen-recorder" <<'SH'
+#!/bin/bash
+for i in "$@"; do
+  [[ -n ${take_next:-} ]] && { : >"$i"; break; }
+  [[ $i == "-o" ]] && take_next=1
+done
+sleep 0.5
+exit 1
+SH
+chmod +x "$stub_bin/gpu-screen-recorder"
+died_runtime="$tmp_dir/died-runtime"
+died_recordings="$tmp_dir/died-recordings"
+mkdir -p "$died_runtime" "$died_recordings"
+status=0
+XDG_RUNTIME_DIR="$died_runtime" OMARCHY_SCREENRECORD_DIR="$died_recordings" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "a recorder that dies after creating its file fails the start" "$status"
+[[ ! -e $died_runtime/omarchy-screenrecord-pid && ! -e $died_runtime/omarchy-screenrecord-filename ]] ||
+  fail "a recorder that dies after creating its file is not saved as recording" "$(ls -a "$died_runtime")"
+[[ -z $(ls -A "$died_recordings") ]] ||
+  fail "a recorder that dies after creating its file leaves no recording behind" "$(ls -A "$died_recordings")"
+pass "a recorder that dies after creating its file is not saved as recording"

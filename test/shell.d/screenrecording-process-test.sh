@@ -145,6 +145,16 @@ recorders "$(<"$tmp/helper.pid")"
 alive "$(<"$tmp/helper.pid")" && [[ ! -s $tmp/helper.signal ]] || fail "--signal leaves a recorder-prefixed helper alone"
 pass "the executable, not the truncated process name, decides what is a recorder"
 
+# A recorder that exited but was not yet reaped still answers pgrep and kill -0.
+exe 5004 /usr/bin/gpu-screen-recorder
+echo '5004 (gpu-screen-reco) Z 1 5004' >"$tmp/proc/5004/stat"
+exe 5005 /usr/bin/gpu-screen-recorder
+echo '5005 (gpu-screen-reco) S 1 5005' >"$tmp/proc/5005/stat"
+recorders 5004 5005
+[[ $(run --pid 5004) == 1 ]] || fail "a zombie recorder is not a running recorder"
+[[ $(run --pid 5005) == 0 ]] || fail "a sleeping recorder is a running recorder"
+pass "a zombie recorder is not a running recorder"
+
 true &
 dead1=$!
 wait "$dead1"
