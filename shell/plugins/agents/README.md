@@ -26,7 +26,11 @@ Every subscription on one page, limits first.
   panel. Any other trouble — a paused token, another agent's sign-in, an
   endpoint that didn't answer — leaves the last known limits on show, with a
   small info mark beside the name whose tooltip says why they aren't current
-  and what to do; each meter's tooltip says how old it is.
+  and what to do; each meter's tooltip says how old it is. A provider with
+  local history also gets a _Tokens by day_ chart: one bar per day of the
+  last week against its busiest day, the day's token count beside it, and
+  today's row lit, with the day's full name and (for today) its prompts and
+  sessions on hover.
 - **Accounts** — an agent with more than one subscription account (see
   `omarchy agent account`) lists each: name and plan on one line (the email on hover), and its own limit
   lines. An _ACTIVE_ label marks the account new sessions start as; the
