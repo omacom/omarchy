@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# omarchy:summary=Print the folder shown in the focused Files window
+# omarchy:hidden=true
+
+# Nautilus doesn't tie its D-Bus windows to Wayland surfaces, so match the
+# focused window's title (the folder name, or "Home") against the locations
+# Nautilus publishes on org.freedesktop.FileManager1.
+
+window=$(hyprctl activewindow -j 2>/dev/null)
+
+if [[ $(jq -r '.class // empty' <<<"$window") != "org.gnome.Nautilus" ]]; then
+  exit 1
+fi
+
+title=$(jq -r '.title // empty' <<<"$window")
+open=$(busctl --user -j get-property org.freedesktop.FileManager1 /org/freedesktop/FileManager1 \
+  org.freedesktop.FileManager1 OpenWindowsWithLocations 2>/dev/null |
+  jq -r '.data | to_entries[] | .value[]')
+
+folders=()
+while IFS= read -r uri; do
+  if [[ $uri == file://* ]]; then
+    path="${uri#file://}"
+    printf -v path '%b' "${path//%/\\x}"
+    [[ $path != / ]] && path="${path%/}"
+    [[ -d $path ]] && folders+=("$path")
+  fi
+done <<<"$open"
+
+folder=""
+
+for path in "${folders[@]}"; do
+  if [[ $path == / ]]; then
+    # Nautilus titles the root folder "/" or a label such as "File System"
+    [[ $title == / || $title == "File System" || $title == "Computer" ]] && folder=$path && break
+  # $title stays quoted: a literal match, so names like "project [old]" are not patterns
+  elif [[ $path != $HOME && ${path##*/} == "$title" ]]; then
+    folder=$path
+    break
+  elif [[ $path == $HOME && ($title == "Home" || $title == ${HOME##*/}) ]]; then
+    folder=$path
+  fi
+done
+
+if [[ -n $folder ]]; then
+  echo "$folder"
+else
+  exit 1
+fi
