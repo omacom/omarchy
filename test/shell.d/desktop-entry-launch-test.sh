@@ -11,18 +11,20 @@ mock_bin="$test_tmp/bin"
 test_home="$test_tmp/home"
 mkdir -p "$mock_bin" "$test_home"
 
-cat >"$mock_bin/omarchy-pkg-add" <<'SH'
+for command in omarchy-pkg-add omarchy-pkg-aur-add; do
+  cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 printf 'pkg:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
 exit "${OMARCHY_TEST_PKG_STATUS:-0}"
 SH
+done
 
 cat >"$mock_bin/omarchy-font-set" <<'SH'
 #!/bin/bash
 printf 'font:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
 SH
 
-for command in omarchy-pkg-aur-add omarchy-install-emacs omazed omarchy-theme-set-vscode omarchy-install-gaming-gpu-lib32 omarchy-lifecycle-dispatch; do
+for command in omarchy-install-emacs omazed omarchy-theme-set-vscode omarchy-theme-refresh omarchy-install-gaming-gpu-lib32 omarchy-lifecycle-dispatch; do
   cat >"$mock_bin/$command" <<'SH'
 #!/bin/bash
 exit 0
@@ -74,6 +76,13 @@ assert_detached_installer_launch omarchy-install-editor-vscode code
 assert_detached_installer_launch omarchy-install-editor-zed dev.zed.Zed
 assert_detached_installer_launch omarchy-install-gaming-heroic heroic
 assert_detached_installer_launch omarchy-install-gaming-steam steam
+
+for script in omarchy-install-editor-emacs omarchy-install-editor-helix omarchy-install-editor-vscode omarchy-install-editor-zed; do
+  if OMARCHY_TEST_PKG_STATUS=1 bash "$ROOT/bin/$script" >/dev/null 2>&1; then
+    fail "$script exits non-zero when its package install fails"
+  fi
+done
+pass "editor installers exit non-zero when their package install fails"
 
 bash "$ROOT/bin/omarchy-install-and-launch" "Example App" "alpha beta" "Disk Usage"
 presentation_command=$(<"$OMARCHY_TEST_PRESENTATION")
