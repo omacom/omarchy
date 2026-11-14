@@ -93,6 +93,7 @@ PanelWindow {
   property point dropPoint
   // Where an app dragged in from the app grid would land, or -1.
   property int insertIndex: -1
+  property var externalDropArea: null
 
   // Where this window sits on its screen, which a point from the app grid's
   // fullscreen surface is given in: against its edge, clear of the space
@@ -111,12 +112,24 @@ PanelWindow {
   function moveExternalDrag(screenX, screenY) {
     var at = window.origin()
     var point = Qt.point(screenX - at.x - body.x, screenY - at.y - body.y)
-    var reach = window.slotSize
-    var along = window.vertical ? point.y : point.x
-    var across = window.vertical ? point.x : point.y
-    var length = window.vertical ? body.height : body.width
-    var depth = window.vertical ? body.width : body.height
-    var near = along >= -window.slotSize && along <= length + window.slotSize && across >= -reach && across <= depth + reach
+    // A preview may shrink crowded slots or expand folded pins. Its drop
+    // area can grow during this drag, but must not shrink under the pointer.
+    var x = window.position === "left" ? window.gap
+      : window.position === "right" ? window.width - body.width - window.gap : body.x
+    var y = window.position === "top" ? window.gap
+      : window.position === "bottom" ? window.height - body.height - window.gap : body.y
+    var area = { left: x - window.slotSize, top: y - window.slotSize,
+      right: x + body.width + window.slotSize, bottom: y + body.height + window.slotSize }
+    var previous = window.externalDropArea
+    if (previous) {
+      area.left = Math.min(area.left, previous.left)
+      area.top = Math.min(area.top, previous.top)
+      area.right = Math.max(area.right, previous.right)
+      area.bottom = Math.max(area.bottom, previous.bottom)
+    }
+    window.externalDropArea = area
+    var near = screenX - at.x >= area.left && screenX - at.x <= area.right
+      && screenY - at.y >= area.top && screenY - at.y <= area.bottom
     if (window.shown && window.autohide && near) window.revealed = true
     window.insertIndex = window.shown && near ? window.slotIndexAt(point) : -1
   }
@@ -129,6 +142,7 @@ PanelWindow {
   }
 
   function endExternalDrag() {
+    window.externalDropArea = null
     window.insertIndex = -1
     if (window.autohide) hideTimer.restart()
   }
