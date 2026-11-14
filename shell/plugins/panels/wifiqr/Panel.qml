@@ -7,14 +7,10 @@ import qs.Commons
 import qs.Ui
 import "Model.js" as Model
 
-// Centered Wi-Fi share overlay: no card, just the QR code floating on a
-// heavy scrim. Esc or the scrim dismiss it.
-//
-// Standalone panel plugin: each summon regenerates the code via
-// omarchy-network-qr, which emits the interface, security, and SSID it
-// shared ahead of the module matrix — so a bare summon self-detects the
-// connection. The payload may pin the interface and pre-title the card:
-// {"iface": "wlan0", "ssid": "MyWifi"}.
+// Centered Wi-Fi QR overlay supporting two modes:
+//   - "share": renders the connected Wi-Fi network as a scannable QR matrix
+//   - "scan": opens the webcam to scan a WIFI: QR code and connect to it
+//     automatically via NetworkManager.
 Item {
   id: root
 
@@ -22,11 +18,19 @@ Item {
   property var shell: null
   property var manifest: null
 
+  function scriptPath(name) {
+    var sourceDir = manifest && manifest.__sourceDir ? String(manifest.__sourceDir) : ""
+    if (sourceDir !== "") return sourceDir + "/" + name
+    return omarchyPath + "/shell/plugins/panels/wifiqr/" + name
+  }
+
   property bool opened: false
+  property string mode: "share" // "share" | "scan"
   property string iface: ""
   property string ssid: ""
   property bool secured: false
 
+  // Share-mode state
   property var qrRows: []
   property int qrSize: 0
   property string error: ""
@@ -39,28 +43,51 @@ Item {
   property string passwordError: ""
   property bool pwExpectedStop: false
 
-  readonly property bool showingQr: qrSize > 0 && !loading && error === ""
+  readonly property bool showingQr: mode === "share" && qrSize > 0 && !loading && error === ""
+
+  // Scan-mode state
+  property bool webcamAvailable: false
+  property string scanState: "starting" // "starting" | "scanning" | "connecting" | "connected" | "error"
+  property var cameras: []
+  property string activeCameraDevice: ""
+  property string activeCameraLabel: ""
+  property string framePath: ""
+  property bool frameReady: false
+  property int frameTick: 0
+  property string scanHintError: ""
+  property string scanErrorCode: ""
+  property string scanErrorText: ""
+  property string scannedSsid: ""
+  property string scannedSecurity: "WPA"
+  property bool scannedHidden: false
+  property string pendingConnectPassword: ""
+  property bool scanExpectedStop: false
+  property bool pendingScan: false
+  property string pendingScanDevice: ""
+  property bool connectExpectedStop: false
 
   // The scrim below is a fixed near-black regardless of theme, so text on
   // it needs a fixed light palette, not the themed foreground.
   readonly property color onScrim: "white"
   readonly property color onScrimDim: Qt.rgba(1, 1, 1, 0.55)
   readonly property color onScrimUrgent: "#ff6b6b"
+  readonly property color onScrimSuccess: "#51cf66"
   readonly property string fontFamily: Style.font.family
 
   function open(payloadJson) {
     var payload = {}
     try { payload = JSON.parse(payloadJson || "{}") || {} } catch (e) {}
-    // The payload SSID titles the card during generation; the meta line the
-    // generator emits is authoritative and overwrites it. A payload without
-    // one clears the title: a re-summon may be sharing a different
-    // connection, so the previous card's name must not label this one.
     root.ssid = payload.ssid !== undefined ? String(payload.ssid) : ""
-    generate(String(payload.iface || ""))
+    root.iface = payload.iface !== undefined ? String(payload.iface) : ""
     root.opened = true
-    // The window is instantiated hidden, so the content's `focus: true` is
-    // evaluated before the surface is mapped and Escape would land nowhere.
-    // Re-acquire after mapping.
+    if (!webcamCheckProc.running) webcamCheckProc.running = true
+
+    if (payload.mode === "scan") {
+      startScan(String(payload.device || ""))
+    } else {
+      startShare(String(payload.iface || ""))
+    }
+
     Qt.callLater(function() {
       if (root.opened) keyCatcher.forceActiveFocus()
     })
@@ -69,22 +96,10 @@ Item {
   function close() {
     root.opened = false
     root.pendingShow = false
-    if (qrProc.running) {
-      root.expectedStop = true
-      qrProc.running = false
-    }
-    if (pwProc.running) pwProc.running = false
-    root.qrSize = 0
-    root.qrRows = []
-    root.error = ""
-    root.loading = false
-    root.iface = ""
-    root.ssid = ""
-    root.secured = false
-    // The Wi-Fi password only enters shell memory while the card is up.
-    root.password = ""
-    root.passwordVisible = false
-    root.passwordError = ""
+    stopShareProcesses()
+    stopScanProcesses()
+    resetShareState()
+    resetScanState()
   }
 
   function dismiss() {
@@ -93,11 +108,125 @@ Item {
     else close()
   }
 
+  function stopShareProcesses() {
+    if (qrProc.running) {
+      root.expectedStop = true
+      qrProc.running = false
+    }
+    if (pwProc.running) {
+      root.pwExpectedStop = true
+      pwProc.running = false
+    }
+  }
+
+  function resetShareState() {
+    root.qrSize = 0
+    root.qrRows = []
+    root.error = ""
+    root.loading = false
+    root.secured = false
+    root.password = ""
+    root.passwordVisible = false
+    root.passwordError = ""
+  }
+
+  function stopCameraProcess() {
+    root.pendingScan = false
+    root.pendingScanDevice = ""
+    if (scanProc.running) {
+      root.scanExpectedStop = true
+      scanProc.running = false
+    }
+    root.frameReady = false
+  }
+
+  function stopScanProcesses() {
+    stopCameraProcess()
+    if (connectProc.running) {
+      root.connectExpectedStop = true
+      connectProc.running = false
+    }
+    hintResetTimer.stop()
+    connectedDismissTimer.stop()
+    root.pendingConnectPassword = ""
+  }
+
+  function resetScanState() {
+    root.scanState = "starting"
+    root.cameras = []
+    root.activeCameraDevice = ""
+    root.activeCameraLabel = ""
+    root.framePath = ""
+    root.frameReady = false
+    root.frameTick = 0
+    root.scanHintError = ""
+    root.scanErrorCode = ""
+    root.scanErrorText = ""
+    root.scannedSsid = ""
+    root.scannedSecurity = "WPA"
+    root.scannedHidden = false
+    root.pendingConnectPassword = ""
+  }
+
+  function startShare(requestedIface) {
+    stopScanProcesses()
+    resetScanState()
+    root.mode = "share"
+    generate(requestedIface !== undefined ? requestedIface : root.iface)
+  }
+
+  function startScan(requestedDevice) {
+    stopShareProcesses()
+    if (connectProc.running) {
+      root.connectExpectedStop = true
+      connectProc.running = false
+    }
+    hintResetTimer.stop()
+    connectedDismissTimer.stop()
+    root.pendingConnectPassword = ""
+
+    if (scanProc.running) {
+      root.pendingScan = true
+      root.pendingScanDevice = requestedDevice || ""
+      if (!root.scanExpectedStop) {
+        root.scanExpectedStop = true
+        scanProc.running = false
+      }
+      return
+    }
+
+    root.mode = "scan"
+    root.scanState = "starting"
+    root.frameReady = false
+    root.framePath = ""
+    root.frameTick = 0
+    root.scanHintError = ""
+    root.scanErrorCode = ""
+    root.scanErrorText = ""
+    root.scannedSsid = ""
+    root.cameras = []
+    root.scanExpectedStop = false
+
+    var script = root.scriptPath("scan-webcam-qr.sh")
+    scanProc.command = requestedDevice ? [script, requestedDevice] : [script]
+    scanProc.running = true
+  }
+
+  function switchCamera() {
+    if (root.cameras.length <= 1) return
+    var currentIdx = -1
+    for (var i = 0; i < root.cameras.length; i++) {
+      if (root.cameras[i].device === root.activeCameraDevice) {
+        currentIdx = i
+        break
+      }
+    }
+    var nextIdx = (currentIdx + 1) % root.cameras.length
+    startScan(root.cameras[nextIdx].device)
+  }
+
   function generate(requestedIface) {
     if (qrProc.running) {
-      // Whether the run in flight is a dismissal's SIGTERM still landing or
-      // a live generation for an earlier summon, the latest request wins:
-      // queue it for onExited and stop the old process.
       pendingShow = true
       pendingIface = requestedIface
       if (!expectedStop) {
@@ -111,11 +240,6 @@ Item {
     error = ""
     loading = true
     expectedStop = false
-    // A re-summon while the card is still loaded reaches here without a
-    // close() in between, and may be sharing a different connection now:
-    // neither the previous reveal's password nor a reveal still in flight
-    // may survive onto the new card.
-    iface = ""
     secured = false
     password = ""
     passwordVisible = false
@@ -137,8 +261,6 @@ Item {
     if (parsed.meta.ssid !== "") ssid = parsed.meta.ssid
     if (parsed.meta.iface !== "") iface = parsed.meta.iface
     secured = parsed.meta.security !== "" && parsed.meta.security !== "nopass"
-    // Good output settles the run: a canceled predecessor's stderr may have
-    // landed after this generation started, and must not shadow its result.
     if (qrSize > 0) error = ""
   }
 
@@ -147,20 +269,105 @@ Item {
     if (password !== "") { passwordVisible = true; return }
     if (pwProc.running || !iface) return
     passwordError = ""
-    // Only a deliberate new lookup lowers the canceled-fetch guard, right as
-    // it launches -- see the pwProc comment.
     pwExpectedStop = false
     pwProc.command = ["omarchy-network-password", iface]
     pwProc.running = true
   }
 
+  function localizedScanError(code, fallbackText) {
+    if (code === "noWebcam") return I18n.t("wifiqr.noWebcam")
+    if (code === "cameraFailed") return I18n.t("wifiqr.cameraFailed")
+    if (code === "notWifi") return I18n.t("wifiqr.notWifiQr")
+    if (code === "missingSsid") return I18n.t("wifiqr.missingSsid")
+    if (code === "missingPassword") return I18n.t("wifiqr.missingPassword")
+    if (code === "enterpriseUnsupported") return I18n.t("wifiqr.enterpriseUnsupported")
+    if (code === "connectFailed") return I18n.t("wifiqr.connectFailed").arg(root.scannedSsid || "Wi-Fi")
+    return fallbackText || I18n.t("wifiqr.cameraFailed")
+  }
+
+  function handleScannerEvent(line) {
+    if (!root.opened || root.mode !== "scan") return
+    var ev = Model.parseScannerLine(line)
+    if (!ev) return
+
+    if (ev.type === "camera") {
+      var list = root.cameras.slice()
+      list.push({ device: ev.device, label: ev.label })
+      root.cameras = list
+    } else if (ev.type === "active") {
+      root.activeCameraDevice = ev.device
+      root.activeCameraLabel = ev.label
+      root.framePath = ev.framePath
+    } else if (ev.type === "ready") {
+      root.framePath = ev.framePath
+      root.frameReady = true
+      root.frameTick = 1
+      if (root.scanState === "starting") root.scanState = "scanning"
+    } else if (ev.type === "qr") {
+      handleDecodedQr(ev.raw)
+    } else if (ev.type === "error") {
+      if (ev.code === "noWebcam") root.webcamAvailable = false
+      root.scanErrorCode = ev.code
+      root.scanErrorText = ""
+      root.scanState = "error"
+    }
+  }
+
+  function handleDecodedQr(rawText) {
+    if (root.scanState === "connecting" || root.scanState === "connected") return
+
+    var parsed = Model.parseWifiQr(rawText)
+    if (!parsed.valid) {
+      root.scanHintError = localizedScanError(parsed.reason || "notWifi", "")
+      hintResetTimer.restart()
+      return
+    }
+
+    stopCameraProcess()
+    hintResetTimer.stop()
+    root.scanHintError = ""
+    root.scannedSsid = parsed.ssid
+    root.scannedSecurity = parsed.security
+    root.scannedHidden = parsed.hidden
+    root.scanState = "connecting"
+    root.connectExpectedStop = false
+    root.pendingConnectPassword = parsed.password || ""
+
+    var connectScript = root.scriptPath("connect-wifi-qr.sh")
+    connectProc.command = [
+      connectScript,
+      parsed.ssid,
+      parsed.security,
+      parsed.hidden ? "yes" : "no",
+      root.iface
+    ]
+    connectProc.running = true
+  }
+
+  Timer {
+    id: frameTimer
+    interval: 66
+    repeat: true
+    running: root.opened && root.mode === "scan" && root.scanState === "scanning" && root.frameReady
+    onTriggered: root.frameTick = (root.frameTick + 1) % 1000000
+  }
+
+  Timer {
+    id: hintResetTimer
+    interval: 2600
+    repeat: false
+    onTriggered: root.scanHintError = ""
+  }
+
+  Timer {
+    id: connectedDismissTimer
+    interval: 1200
+    repeat: false
+    onTriggered: if (root.opened && root.scanState === "connected") root.dismiss()
+  }
+
   Process {
     id: qrProc
-    // Both collectors check expectedStop: a dismissal mid-generation kills
-    // the process, but buffered output still arrives afterwards and would
-    // repopulate qrSize -- reopening the card the user just closed. The flag
-    // stays set through onExited (generate resets it) because the exit and
-    // stream-finished signals have no guaranteed order.
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: if (!root.expectedStop) root.updateQr(text)
@@ -173,9 +380,6 @@ Item {
       root.loading = false
       if (root.pendingShow) {
         root.pendingShow = false
-        // expectedStop stays set until generate() launches the replacement:
-        // the canceled run's collectors may fire between here and then, and
-        // must keep being dropped.
         Qt.callLater(function() { root.generate(root.pendingIface) })
         return
       }
@@ -188,14 +392,6 @@ Item {
     }
   }
 
-  // The Wi-Fi password only enters shell memory when the user clicks to
-  // reveal it, and close() drops it again. Both handlers bail when the card
-  // is gone so a fetch that was in flight during dismissal can't stash the
-  // secret into a closed panel's state, and check pwExpectedStop so a fetch
-  // that a regeneration killed can't reveal the previous network's password
-  // under the new card. The exit and stream-finished signals have no
-  // guaranteed order, so the flag survives onExited; only togglePassword
-  // lowers it, as it launches the next deliberate lookup.
   Process {
     id: pwProc
     stdout: StdioCollector {
@@ -210,12 +406,71 @@ Item {
     }
   }
 
+  Process {
+    id: webcamCheckProc
+    command: ["omarchy-hw-webcam"]
+    onExited: function(exitCode) {
+      root.webcamAvailable = (exitCode === 0)
+    }
+  }
+
+  Process {
+    id: scanProc
+    stdout: SplitParser {
+      onRead: function(line) {
+        if (!root.scanExpectedStop) root.handleScannerEvent(line)
+      }
+    }
+    onExited: function(exitCode) {
+      root.frameReady = false
+      if (root.pendingScan) {
+        root.pendingScan = false
+        var nextDevice = root.pendingScanDevice
+        root.pendingScanDevice = ""
+        Qt.callLater(function() {
+          if (root.opened) root.startScan(nextDevice)
+        })
+        return
+      }
+      if (root.scanExpectedStop || !root.opened || root.mode !== "scan") return
+      if (root.scanState === "starting" || root.scanState === "scanning") {
+        if (root.scanErrorCode === "") root.scanErrorCode = "cameraFailed"
+        root.scanState = "error"
+      }
+    }
+  }
+
+  Process {
+    id: connectProc
+    stdinEnabled: true
+    onStarted: {
+      write(root.pendingConnectPassword + "\n")
+      root.pendingConnectPassword = ""
+    }
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        if (!root.connectExpectedStop) root.scanErrorText = String(text || "").trim()
+      }
+    }
+    onExited: function(exitCode) {
+      root.pendingConnectPassword = ""
+      if (root.connectExpectedStop || !root.opened) return
+      if (exitCode === 0) {
+        root.ssid = root.scannedSsid
+        root.scanState = "connected"
+        connectedDismissTimer.restart()
+      } else {
+        root.scanErrorCode = "connectFailed"
+        root.scanState = "error"
+      }
+    }
+  }
+
   OverlayWindow {
     shown: root.opened
     WlrLayershell.namespace: "omarchy-network-qr"
 
-    // Deep scrim: the floating code needs the backdrop to carry the contrast
-    // on any wallpaper.
     Rectangle {
       anchors.fill: parent
       color: Qt.rgba(0, 0, 0, 0.78)
@@ -232,18 +487,26 @@ Item {
       focus: true
 
       Keys.onEscapePressed: root.dismiss()
+      Keys.onPressed: function(event) {
+        if (!root.webcamAvailable || root.mode !== "scan") return
+        if (event.key === Qt.Key_C && root.cameras.length > 1) {
+          root.switchCamera()
+          event.accepted = true
+        } else if ((event.key === Qt.Key_R || event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space)
+                   && root.scanState === "error") {
+          root.startScan(root.activeCameraDevice)
+          event.accepted = true
+        }
+      }
 
       Item {
         anchors.centerIn: parent
         width: content.implicitWidth
         height: content.implicitHeight
-        // Narrow or heavily scaled outputs: shrink the whole card rather than
-        // clipping it at the screen edge.
         scale: Math.min(1,
           (keyCatcher.width - Style.space(32)) / Math.max(1, width),
           (keyCatcher.height - Style.space(32)) / Math.max(1, height))
 
-        // Swallow clicks so only the scrim outside the content dismisses.
         MouseArea { anchors.fill: parent; onClicked: {} }
 
         ColumnLayout {
@@ -251,25 +514,24 @@ Item {
           anchors.fill: parent
           spacing: Style.space(16)
 
+          // Title header
           Text {
             textFormat: Text.PlainText
-            text: (root.ssid || "Wi-Fi").toUpperCase()
+            text: (root.mode === "scan"
+              ? (root.scannedSsid !== "" && root.scanState !== "scanning" ? root.scannedSsid : I18n.t("wifiqr.scanTitle"))
+              : (root.ssid || "Wi-Fi")).toUpperCase()
             color: root.onScrimDim
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
             font.bold: true
             font.letterSpacing: 2
             elide: Text.ElideRight
-            Layout.maximumWidth: Style.space(320)
+            Layout.maximumWidth: Style.space(340)
             Layout.alignment: Qt.AlignHCenter
             horizontalAlignment: Text.AlignHCenter
           }
 
-          // Render every QR module as an integer-sized native rectangle. This
-          // stays crisp and avoids temporary images and file-cache races. Only
-          // the dark modules paint, so the white canvas can keep its rounded
-          // corners; the spec quiet zone baked into the matrix keeps the code
-          // itself clear of them.
+          // ==================== SHARE MODE ====================
           Rectangle {
             id: qrCanvas
             readonly property int moduleSize: root.qrSize > 0
@@ -286,8 +548,6 @@ Item {
             Grid {
               anchors.fill: parent
               columns: root.qrSize
-              // A mirrored QR code does not scan: modules stay left to right
-              // in right-to-left languages too.
               LayoutMirroring.enabled: false
 
               Repeater {
@@ -307,7 +567,7 @@ Item {
           }
 
           Text {
-            visible: root.loading
+            visible: root.mode === "share" && root.loading
             text: I18n.t("wifiqr.generating")
             textFormat: Text.PlainText
             color: root.onScrimDim
@@ -319,7 +579,7 @@ Item {
 
           Text {
             textFormat: Text.PlainText
-            visible: root.error !== ""
+            visible: root.mode === "share" && root.error !== ""
             text: root.error
             color: root.onScrimUrgent
             font.family: root.fontFamily
@@ -362,8 +622,192 @@ Item {
               onClicked: root.togglePassword()
             }
           }
+
+          // ==================== SCAN MODE ====================
+          Rectangle {
+            id: scannerCard
+            visible: root.mode === "scan"
+            width: Style.space(320)
+            height: Style.space(240)
+            radius: Style.cornerRadius
+            color: "#141414"
+            border.width: 1
+            border.color: root.scanState === "connected" ? root.onScrimSuccess
+              : (root.scanState === "error" ? root.onScrimUrgent : Qt.rgba(1, 1, 1, 0.18))
+            clip: true
+            Layout.alignment: Qt.AlignHCenter
+
+            Image {
+              id: cameraPreview
+              anchors.fill: parent
+              anchors.margins: 1
+              visible: (root.scanState === "scanning" || root.scanState === "starting") && root.frameReady
+              source: root.frameReady && root.framePath !== ""
+                ? "file://" + root.framePath + "?v=" + root.frameTick
+                : ""
+              fillMode: Image.PreserveAspectCrop
+              cache: false
+              asynchronous: false
+              mirror: true
+            }
+
+            // Viewfinder reticle brackets while actively scanning
+            Item {
+              anchors.centerIn: parent
+              width: Style.space(168)
+              height: Style.space(168)
+              visible: root.scanState === "scanning" && root.frameReady
+
+              readonly property int armLen: Style.space(22)
+              readonly property int armThick: 3
+              readonly property color reticleColor: root.scanHintError !== "" ? root.onScrimUrgent : root.onScrim
+
+              // Top-left
+              Rectangle { x: 0; y: 0; width: parent.armLen; height: parent.armThick; color: parent.reticleColor; radius: 1 }
+              Rectangle { x: 0; y: 0; width: parent.armThick; height: parent.armLen; color: parent.reticleColor; radius: 1 }
+              // Top-right
+              Rectangle { anchors.right: parent.right; y: 0; width: parent.armLen; height: parent.armThick; color: parent.reticleColor; radius: 1 }
+              Rectangle { anchors.right: parent.right; y: 0; width: parent.armThick; height: parent.armLen; color: parent.reticleColor; radius: 1 }
+              // Bottom-left
+              Rectangle { x: 0; anchors.bottom: parent.bottom; width: parent.armLen; height: parent.armThick; color: parent.reticleColor; radius: 1 }
+              Rectangle { x: 0; anchors.bottom: parent.bottom; width: parent.armThick; height: parent.armLen; color: parent.reticleColor; radius: 1 }
+              // Bottom-right
+              Rectangle { anchors.right: parent.right; anchors.bottom: parent.bottom; width: parent.armLen; height: parent.armThick; color: parent.reticleColor; radius: 1 }
+              Rectangle { anchors.right: parent.right; anchors.bottom: parent.bottom; width: parent.armThick; height: parent.armLen; color: parent.reticleColor; radius: 1 }
+            }
+
+            // Center states: Starting camera, Connecting, Connected, or Error
+            ColumnLayout {
+              anchors.centerIn: parent
+              width: parent.width - Style.space(32)
+              spacing: Style.space(10)
+              visible: !cameraPreview.visible
+
+              Text {
+                textFormat: Text.PlainText
+                text: root.scanState === "connected" ? "󰄬"
+                  : (root.scanState === "connecting" ? "󰤨"
+                  : (root.scanState === "error" ? "󰤮" : "󰄀"))
+                color: root.scanState === "connected" ? root.onScrimSuccess
+                  : (root.scanState === "error" ? root.onScrimUrgent : root.onScrim)
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.display
+                Layout.alignment: Qt.AlignHCenter
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                visible: root.scannedSsid !== "" && (root.scanState === "connecting" || root.scanState === "connected")
+                text: root.scannedSsid + " (" + Model.securityLabel(root.scannedSecurity, I18n.t("wifiqr.openNetwork")) + ")"
+                color: root.onScrim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: true
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                text: {
+                  if (root.scanState === "starting") return I18n.t("wifiqr.startingCamera")
+                  if (root.scanState === "connecting") return I18n.t("wifiqr.connectingTo").arg(root.scannedSsid)
+                  if (root.scanState === "connected") return I18n.t("wifiqr.connectedTo").arg(root.scannedSsid)
+                  if (root.scanState === "error") return root.localizedScanError(root.scanErrorCode, root.scanErrorText)
+                  return ""
+                }
+                color: root.scanState === "error" ? root.onScrimUrgent
+                  : (root.scanState === "connected" ? root.onScrimSuccess : root.onScrimDim)
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+              }
+            }
+          }
+
+          // Scan mode hint / non-fatal warning below the viewfinder
+          Text {
+            textFormat: Text.PlainText
+            visible: root.mode === "scan" && (root.scanState === "scanning" || root.scanState === "starting")
+            text: root.scanHintError !== "" ? root.scanHintError : I18n.t("wifiqr.pointCamera")
+            color: root.scanHintError !== "" ? root.onScrimUrgent : root.onScrimDim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.Wrap
+            Layout.fillWidth: true
+            Layout.maximumWidth: Style.space(320)
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          // Scan mode bottom action buttons (Scan again, Switch camera)
+          RowLayout {
+            visible: root.mode === "scan" && root.webcamAvailable && root.scanState !== "connecting" && root.scanState !== "connected" && (root.scanState === "error" || root.cameras.length > 1)
+            Layout.alignment: Qt.AlignHCenter
+            spacing: Style.space(8)
+
+            ActionPill {
+              visible: root.scanState === "error"
+              iconGlyph: "󰑐"
+              labelText: I18n.t("wifiqr.scanAgain")
+              onClicked: root.startScan(root.activeCameraDevice)
+            }
+
+            ActionPill {
+              visible: root.cameras.length > 1
+              iconGlyph: "󰄀"
+              labelText: I18n.t("wifiqr.switchCamera")
+              onClicked: root.switchCamera()
+            }
+          }
         }
       }
+    }
+  }
+
+  component ActionPill: Rectangle {
+    id: actionPill
+    required property string iconGlyph
+    required property string labelText
+    signal clicked()
+
+    implicitWidth: actionRow.implicitWidth + Style.space(20)
+    implicitHeight: actionRow.implicitHeight + Style.space(10)
+    radius: Style.cornerRadius
+    color: actionMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(1, 1, 1, 0.08)
+    border.width: 1
+    border.color: Qt.rgba(1, 1, 1, 0.22)
+
+    RowLayout {
+      id: actionRow
+      anchors.centerIn: parent
+      spacing: Style.space(6)
+
+      Text {
+        textFormat: Text.PlainText
+        text: actionPill.iconGlyph
+        color: root.onScrim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+      }
+
+      Text {
+        textFormat: Text.PlainText
+        text: actionPill.labelText
+        color: root.onScrim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+      }
+    }
+
+    MouseArea {
+      id: actionMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: actionPill.clicked()
     }
   }
 }

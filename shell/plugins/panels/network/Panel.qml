@@ -77,6 +77,7 @@ Panel {
   property var wifiNetworks: []
   property bool scanning: false
   property bool wifiStationAvailable: false
+  property bool webcamAvailable: false
   property string dnsProvider: ""
   property string pendingDnsProvider: ""
   // Wi-Fi band state from `omarchy-network-band`. `bandCurrent` is the band
@@ -134,15 +135,18 @@ Panel {
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
+  readonly property bool wifiConnected: kind === "wifi" || !!connectedWifiNetwork
   readonly property bool canShareWifi: info.type === "wifi" && canShareNetwork(connectedWifiNetwork)
   // The hero switch is the Wi-Fi radio, so it only exists when there is a
   // radio to switch. On a wired box it would otherwise sit there reading
   // "off" beside a perfectly live Ethernet connection.
   readonly property bool canToggleWifi: networkManagerAvailable && wifiStationAvailable
-  readonly property int qrHeaderIndex: canShareWifi ? 0 : -1
-  readonly property int speedHeaderIndex: canRunSpeedTest ? (canShareWifi ? 1 : 0) : -1
-  readonly property int toggleHeaderIndex: canToggleWifi ? (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) : -1
-  readonly property int headerActionCount: (canShareWifi ? 1 : 0) + (canRunSpeedTest ? 1 : 0) + (canToggleWifi ? 1 : 0)
+  readonly property bool canScanWifiQr: networkManagerAvailable && wifiStationAvailable && webcamAvailable && !wifiConnected
+  readonly property bool canUseQrAction: canShareWifi || canScanWifiQr
+  readonly property int qrHeaderIndex: canUseQrAction ? 0 : -1
+  readonly property int speedHeaderIndex: canRunSpeedTest ? (canUseQrAction ? 1 : 0) : -1
+  readonly property int toggleHeaderIndex: canToggleWifi ? (canUseQrAction ? 1 : 0) + (canRunSpeedTest ? 1 : 0) : -1
+  readonly property int headerActionCount: (canUseQrAction ? 1 : 0) + (canRunSpeedTest ? 1 : 0) + (canToggleWifi ? 1 : 0)
   readonly property bool qrHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === qrHeaderIndex
   readonly property bool speedHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === speedHeaderIndex
   readonly property bool toggleHeaderHasCursor: cursorActive && focusSection === "header" && headerIndex === toggleHeaderIndex
@@ -230,13 +234,14 @@ Panel {
     // Compat routes for configs that summon the centered cards through the
     // network target; both cards are their own plugins now.
     function showQr() { root.summonWifiQr(true) }
+    function scanQr() { root.summonWifiQrScanner() }
     function speedTest() { root.summonSpeedTest() }
     function openCaptivePortal() { root.openCaptivePortal() }
     function checkConnectivity() { root.checkConnectivity() }
   }
 
   function activateHeader() {
-    if (headerIndex === qrHeaderIndex) summonWifiQr()
+    if (headerIndex === qrHeaderIndex) triggerQrAction()
     else if (headerIndex === speedHeaderIndex) summonSpeedTest()
     else if (headerIndex === toggleHeaderIndex) toggleNetwork()
   }
@@ -587,7 +592,7 @@ Panel {
   function summonWifiQr(forceDetect) {
     controller.hide()
     cancelPasswordPrompt()
-    var payload = {}
+    var payload = { mode: "share" }
     if (!forceDetect && info.type === "wifi" && info.iface) {
       payload.iface = info.iface
       if (info.ssid) payload.ssid = info.ssid
@@ -595,10 +600,26 @@ Panel {
     bar.shell.summon("omarchy.wifiqr", JSON.stringify(payload))
   }
 
+  function summonWifiQrScanner() {
+    if (!networkManagerAvailable || !wifiStationAvailable || !webcamAvailable) return
+    controller.hide()
+    cancelPasswordPrompt()
+    var payload = { mode: "scan" }
+    if (wifiDevice && wifiDevice.name) payload.iface = wifiDevice.name
+    else if (info.type === "wifi" && info.iface) payload.iface = info.iface
+    bar.shell.summon("omarchy.wifiqr", JSON.stringify(payload))
+  }
+
+  function triggerQrAction() {
+    if (canShareWifi) summonWifiQr()
+    else if (canScanWifiQr) summonWifiQrScanner()
+  }
+
   function refresh(scanWifi) {
     checkConnectivity()
     if (scanWifi === undefined) scanWifi = false
     if (!detailsProc.running) detailsProc.running = true
+    if (opened && !webcamProc.running) webcamProc.running = true
     if (!dnsProc.running) {
       dnsProc.command = ["bash", "-c", root.dnsCommand("")]
       dnsProc.running = true
@@ -959,7 +980,10 @@ Panel {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  Component.onCompleted: refresh()
+  Component.onCompleted: {
+    webcamProc.running = true
+    refresh()
+  }
 
   // Pulls everything we want about the active route's interface in one shot.
   Process {
@@ -968,6 +992,15 @@ Panel {
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.updateDetails(text)
+    }
+  }
+
+  // Checks udev/v4l2 capability without powering up the camera LED.
+  Process {
+    id: webcamProc
+    command: ["omarchy-hw-webcam"]
+    onExited: function(exitCode) {
+      root.webcamAvailable = (exitCode === 0)
     }
   }
 
@@ -1268,6 +1301,7 @@ Panel {
       onTextKey: function(t) {
         if (t === "r" || t === "R") root.refresh()
         else if (t === "w" || t === "W") root.toggleNetwork()
+        else if ((t === "s" || t === "S" || t === "q" || t === "Q") && root.canUseQrAction) root.triggerQrAction()
       }
 
     Column {
@@ -1305,16 +1339,18 @@ Panel {
 
           PanelActionButton {
             id: qrAction
-            visible: root.canShareWifi
+            visible: root.canUseQrAction
             iconText: "󰐲"
-            tooltipText: Commons.I18n.t("network.showQrCode")
+            tooltipText: root.canShareWifi
+              ? Commons.I18n.t("network.showQrCode")
+              : Commons.I18n.t("network.scanQrCode")
             foreground: root.bar.foreground
             fontFamily: root.bar.fontFamily
             fontSize: Style.font.subtitle * 1.5
             hasCursor: root.qrHeaderHasCursor
             Layout.alignment: Qt.AlignVCenter
             onHovered: function(on) { if (on) root.setHeaderCursor(root.qrHeaderIndex) }
-            onClicked: root.summonWifiQr()
+            onClicked: root.triggerQrAction()
           }
 
           PanelActionButton {
