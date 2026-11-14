@@ -310,6 +310,9 @@ PanelWindow {
     LayoutMirroring.enabled: false
     LayoutMirroring.childrenInherit: true
 
+    readonly property real foldedLength: ((window.dock ? window.dock.items.length : 0) + 1 - window.pinnedLauncherCount) * window.slotSize
+    readonly property real unfoldedLength: ((window.dock ? window.dock.items.length : 0) + 1) * window.slotSize
+    readonly property real pinnedAnchor: DockModel.pinnedOrigin(window.vertical ? window.height : window.width, foldedLength, unfoldedLength, window.gap)
     width: slots.implicitWidth
     height: slots.implicitHeight
     // How far the dock is tucked past its edge. Auto-hide slides it, but only
@@ -330,10 +333,10 @@ PanelWindow {
 
     x: window.position === "left" ? window.gap - tuck
       : window.position === "right" ? window.width - width - window.gap + tuck
-      : (window.width - width) / 2
+      : window.collapsePins ? pinnedAnchor : (window.width - width) / 2
     y: window.position === "top" ? window.gap - tuck
       : window.position === "bottom" ? window.height - height - window.gap + tuck
-      : (window.height - height) / 2
+      : window.collapsePins ? pinnedAnchor : (window.height - height) / 2
     // Switching between tiled and floating workspaces shows and hides the dock
     // at once, with nothing to watch in between. Hidden by opacity rather than
     // visibility, so the icons keep their textures and are drawn on the first
