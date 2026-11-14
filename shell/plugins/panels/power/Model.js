@@ -110,6 +110,41 @@ function profileLabel(name, tr) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+// Battery health arrives as a display string ("72%"), hence parseInt.
+//
+// 80% is the load-bearing threshold: the line most vendors treat as a pack
+// still being serviceable, and where capacity warranties usually stop. It
+// separates "nothing to think about" from "start budgeting".
+//
+// 70% separates planning a replacement from needing one. A round third of the
+// pack is gone by then, and it sits in the band where lithium-ion fade tends
+// to accelerate rather than continue linearly. 90% is wording alone; nothing
+// rides on it.
+function healthLevel(health) {
+  var n = parseInt(health, 10)
+  return isFinite(n) && n > 0 ? n : 0
+}
+
+function healthVerdict(health, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var n = healthLevel(health)
+  if (n === 0) return ""
+  if (n >= 90) return t("power.healthGreat", "Great")
+  if (n >= 80) return t("power.healthNormal", "Normal")
+  if (n >= 70) return t("power.healthWorn", "Worn")
+  return t("power.healthBad", "Bad")
+}
+
+function healthHint(health, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var n = healthLevel(health)
+  if (n === 0) return ""
+  if (n >= 90) return t("power.healthPracticallyNew", "Practically new")
+  if (n >= 80) return t("power.healthNormalWear", "Normal wear for its age")
+  if (n >= 70) return t("power.healthPlanReplacement", "Worth planning a replacement")
+  return t("power.healthReplace", "Time to replace it")
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     clampIndex: clampIndex,
@@ -122,6 +157,9 @@ if (typeof module !== "undefined") {
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
     profileLabel: profileLabel,
-    localizeReading: localizeReading
+    localizeReading: localizeReading,
+    healthLevel: healthLevel,
+    healthVerdict: healthVerdict,
+    healthHint: healthHint
   }
 }

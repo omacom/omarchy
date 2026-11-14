@@ -45,9 +45,12 @@ if [[ $1 == "-i" ]]; then
   state:                discharging
   energy:               28.3 Wh
   energy-full:          56.7 Wh
+  energy-full-design:   78.9 Wh
   energy-rate:          7.3 W
   time to empty:        2.5 hours
   percentage:           51%
+  capacity-level:       Normal
+  capacity:             71.8%
 INFO
   exit 0
 fi
@@ -65,6 +68,12 @@ grep -Fx $'size\t56Wh' <<<"$shell_output" >/dev/null || fail "battery status rep
 grep -Fx $'time\t2h 37m' <<<"$shell_output" >/dev/null || fail "battery status works the time left out from the draw it shows"
 grep -Fx $'cycles\t212' <<<"$shell_output" >/dev/null || fail "battery status reports native-path cycle count"
 grep -Fx $'threshold\t75-80%' <<<"$shell_output" >/dev/null || fail "battery status reports native-path charge thresholds"
+grep -Fx $'design\t78Wh' <<<"$shell_output" >/dev/null || fail "battery status reports design capacity"
+grep -Fx $'health\t71%' <<<"$shell_output" >/dev/null || fail "battery status reports pack health"
+
+# capacity-level is a word ("Normal"), so an unanchored /capacity:/ match would
+# report a health of 0% and the panel would hide the section it belongs to.
+grep -Fx $'health\t0%' <<<"$shell_output" >/dev/null && fail "battery status does not read health from capacity-level"
 line_output=$(OMARCHY_TEST_NATIVE_PATH=macsmc-battery OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $line_output == *$' '"10.8W"$' / '"56Wh" ]] || fail "a draw signed negative still shows in the status line" "$line_output"
 
@@ -168,6 +177,49 @@ danish_output=$(OMARCHY_LANGUAGE_FILE="$tmp_dir/language" OMARCHY_POWER_SUPPLY_P
 danish_time=$(OMARCHY_LANGUAGE_FILE="$tmp_dir/language" OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
 grep -Fx $'time\t1 t 30 min' <<<"$danish_time" >/dev/null || fail "battery status durations follow the Omarchy language" "$danish_time"
 pass "battery status reads in the Omarchy language"
+
+# A pack whose firmware omits the design figure must yield neither key rather
+# than a fabricated 100%: the panel keys its whole health section off them.
+cat >"$tmp_dir/bin/upower" <<'STUB'
+#!/bin/bash
+
+if [[ $1 == "-e" ]]; then
+  echo "/org/freedesktop/UPower/devices/battery_BAT0"
+  exit 0
+fi
+
+if [[ $1 == "-i" ]]; then
+  cat <<'INFO'
+  native-path:          BAT0
+  power supply:         yes
+  state:                discharging
+  energy:               28.3 Wh
+  energy-full:          56.7 Wh
+  energy-rate:          7.3 W
+  time to empty:        2.5 hours
+  percentage:           51%
+INFO
+  exit 0
+fi
+
+exit 1
+STUB
+chmod +x "$tmp_dir/bin/upower"
+
+designless_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+
+grep -q $'^design\t' <<<"$designless_output" && fail "battery status omits design capacity when the firmware has none"
+grep -q $'^health\t' <<<"$designless_output" && fail "battery status omits health when there is no design capacity to measure against"
+grep -Fx $'size\t56Wh' <<<"$designless_output" >/dev/null || fail "battery status still reports full capacity without a design figure"
+
+sed -i '/percentage:           51%/a\  capacity:             71.8%' "$tmp_dir/bin/upower"
+designless_health_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -qE $'^(design|health)\t' <<<"$designless_health_output" && fail "battery status omits both health fields without design capacity"
+
+sed -i '/capacity:             71.8%/d; /energy-full:          56.7 Wh/a\  energy-full-design:   78.9 Wh' "$tmp_dir/bin/upower"
+healthless_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -qE $'^(design|health)\t' <<<"$healthless_output" && fail "battery status omits both health fields without a health percentage"
+pass "battery status hides incomplete health information"
 
 # A full battery says so, with no time to count and no 0W draw.
 cat >"$hold_dir/bin/upower" <<'STUB'
