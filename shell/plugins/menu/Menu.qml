@@ -6,6 +6,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "MenuModel.js" as MenuModel
+import "Calc.js" as Calc
 
 Item {
   id: root
@@ -747,6 +748,18 @@ Item {
         for (var d = 0; d < drilldownRows.length; d++) drilldownRows[d].section = "drilldown"
       }
       rows = currentRows.concat(drilldownRows)
+
+      // Arithmetic gets its answer on top: "25*3" offers "= 75", and Enter
+      // copies it.
+      var answer = Calc.evaluate(query, Commons.I18n.decimal)
+      if (answer !== null) {
+        rows.unshift({
+          itemId: "calc.answer", disabled: false, kind: "calc", icon: "󰃬", iconFont: "",
+          appIcon: "", appId: "", label: "= " + Commons.I18n.formatNumber(answer), target: "",
+          detail: Commons.I18n.t("menu.calcCopy"), path: "", childCount: 0,
+          action: String(answer), provider: "", score: -1, section: ""
+        })
+      }
     } else {
       for (var j = 0; j < root.itemOrder.length; j++) {
         var child = root.item(root.itemOrder[j])
@@ -890,6 +903,12 @@ Item {
     var row = displayModel.get(index)
     if (row.kind === "menu" || row.kind === "link") {
       root.setActiveMenu(row.target || row.itemId, true, fromPointer)
+    } else if (row.kind === "calc") {
+      var answer = row.action
+      applySerial = requestSerial
+      opened = false
+      filterText = ""
+      Util.execArgv(["wl-copy", "--", answer])
     } else if (row.kind === "app") {
       var appId = row.appId
       var label = row.label

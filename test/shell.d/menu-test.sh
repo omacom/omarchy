@@ -423,4 +423,20 @@ const missingGlyphs = fontGlyphRows
   .filter(({ code }) => !fontRanges.some(([start, end = start]) => code >= start && code <= end))
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
+
+// Search answers arithmetic, and leaves everything else a search.
+const calc = requireFromRoot('shell/plugins/menu/Calc.js')
+assertEqual(calc.evaluate('25*3'), 75, 'menu search answers 25*3')
+assertEqual(calc.evaluate('2 + 3 x 4 ^ 2'), 50, 'menu math follows operator precedence')
+assertEqual(calc.evaluate('15% of 340'), 51, 'menu math takes a percentage of a number')
+assertEqual(calc.evaluate('200 + 10%'), 220, 'menu math adds a percentage of the left side')
+assertEqual(calc.evaluate('200 + -10%'), 180, 'a negated percentage is still of the left side')
+assertEqual(calc.evaluate('-2^2'), -4, 'a leading minus applies after the power')
+assertEqual(calc.evaluate('2^-2'), 0.25, 'a power takes a negative exponent')
+assertEqual(calc.evaluate('0.1 + 0.2'), 0.3, 'menu math hides float noise')
+assertEqual(calc.evaluate('1.250,5 * 2', ','), 2501, 'menu math reads a comma-decimal language')
+assertEqual(calc.evaluate('2024'), null, 'a bare number stays a search')
+assertEqual(calc.evaluate('=2024'), 2024, 'a leading = forces a bare number')
+assertEqual(calc.evaluate('1/0'), null, 'menu math offers no answer for division by zero')
+assertEqual(calc.evaluate('omarchy-theme-set 1'), null, 'text that is not arithmetic gets no answer')
 JS
