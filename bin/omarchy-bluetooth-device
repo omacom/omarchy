@@ -29,10 +29,33 @@ trust_device() {
   bluetoothctl trust "$address" >/dev/null 2>&1 || true
 }
 
+# Only a positive "no": an adapter that cannot be read is left alone rather than
+# raised and then switched off underneath an agent that was holding it.
+adapter_unpairable() {
+  [[ $(timeout 2s bluetoothctl show 2>/dev/null) == *"Pairable: no"* ]]
+}
+
+# BlueZ only flags the adapter pairable while a default agent is registered,
+# and the non-interactive bluetoothctl pair does not register one. Against a
+# non-pairable adapter the kernel negotiates "no bonding": pairing succeeds and
+# audio plays, but the link key never reaches /var/lib/bluetooth, so the next
+# reconnect is refused and the device has to be forgotten and paired again.
+# Raise the flag for the handshake and put it back the way it was.
+pair_device() {
+  local raised=false
+  if adapter_unpairable; then
+    timeout 5s bluetoothctl pairable on >/dev/null 2>&1 && raised=true
+  fi
+  timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
+  if [[ $raised == true ]]; then
+    timeout 5s bluetoothctl pairable off >/dev/null 2>&1 || true
+  fi
+}
+
 case "$action" in
   pair)
     power_on
-    timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
+    pair_device
     trust_device
     timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
     ;;
