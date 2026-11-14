@@ -273,8 +273,10 @@ launch_wf_recorder() {
   # -r 60 caps the framerate: capturing a 120 Hz panel at its native rate makes
   # needlessly large files. -R 48000 keeps the AAC track at 48 kHz rather than
   # following a sink that advertises 96 kHz into a file many players, and some
-  # speaker DSPs, play as silence.
-  wf-recorder "${geom_args[@]}" -r 60 -R 48000 "${audio_args[@]}" -f "$filename" 9>&- 2>>"$LOG_FILE" &
+  # speaker DSPs, play as silence. -D records every frame, not only changed
+  # ones: wf-recorder acts on a stop only after its next frame, which a still
+  # screen never sends, so the stop would wait for the kill.
+  wf-recorder "${geom_args[@]}" -D -r 60 -R 48000 "${audio_args[@]}" -f "$filename" 9>&- 2>>"$LOG_FILE" &
   REC_PID=$!
 }
 
