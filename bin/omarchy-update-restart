@@ -4,6 +4,23 @@
 # omarchy:args=[--services-only|--reboot-only]
 
 kernel_modules_path="${OMARCHY_KERNEL_MODULES_PATH:-/usr/lib/modules}"
+proc_root="${OMARCHY_PROC_ROOT:-/proc}"
+systemctl_bin="${SYSTEMCTL:-systemctl}"
+
+# A package upgrade unlinks the running binary. systemctl still reports the
+# old process as active, and its MainPID's exe link ends in " (deleted)".
+restart_replaced_user_service() {
+  local unit="$1"
+  local pid exe
+
+  pid=$("$systemctl_bin" --user show -p MainPID --value "$unit" 2>/dev/null || true)
+  [[ $pid =~ ^[1-9][0-9]*$ ]] || return 0
+  exe=$(readlink "$proc_root/$pid/exe" 2>/dev/null || true)
+  if [[ $exe == *"(deleted)"* ]]; then
+    echo "Restarting $unit"
+    "$systemctl_bin" --user restart "$unit" || true
+  fi
+}
 
 mode="${1:-all}"
 case "$mode" in
@@ -63,6 +80,11 @@ if [[ $mode != "--reboot-only" ]]; then
   # Updates routinely replace the shell's QML, and a stale process can lazy-load
   # new files into old code. A restart failure (locked session, ssh, TTY) only
   # prints its reason: the next update or login gets a fresh shell anyway.
+  # The desktop portal is the same kind of long-lived process. Replacing its
+  # binary and then starting a new shell leaves the shell unable to register,
+  # so panels stay dead until the next login. Restart a replaced portal first.
+  restart_replaced_user_service xdg-desktop-portal-hyprland.service
+  restart_replaced_user_service xdg-desktop-portal.service
   echo -e "\e[32m\nRestarting shell\e[0m"
   echo "All plugins have been reloaded"
   omarchy-restart-shell || true
