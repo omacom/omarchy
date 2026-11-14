@@ -1,0 +1,19 @@
+#!/bin/bash
+# omarchy:summary=Enable opt-in Wi-Fi positioning through BeaconDB and GeoClue
+# omarchy:requires-sudo=true
+set -euo pipefail
+cat <<'NOTICE'
+This enables location lookups while a GeoClue client requests location.
+Nearby public Wi-Fi MAC addresses and signal strength are sent to BeaconDB.
+No GPS traces or BeaconDB contributions are uploaded. Disable the service
+with: sudo systemctl disable --now iwd-geolocate.service
+NOTICE
+omarchy-pkg-add geoclue python-gobject iwd
+getent group geoclue >/dev/null
+source_dir="$OMARCHY_PATH/default/geolocation"
+sudo install -d -m 755 /usr/local/lib/omarchy /etc/geoclue/conf.d
+sudo install -m 755 "$source_dir/iwd-geolocate.py" /usr/local/lib/omarchy/iwd-geolocate.py
+sudo install -m 644 "$source_dir/90-iwd-geolocate.conf" /etc/geoclue/conf.d/90-iwd-geolocate.conf
+sudo install -m 644 "$source_dir/iwd-geolocate.service" /etc/systemd/system/iwd-geolocate.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now iwd-geolocate.service
