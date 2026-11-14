@@ -10,10 +10,11 @@ tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT
 
 timing_file="$tmp_dir/omarchy-install-timing.json"
+language_file="$tmp_dir/language"
 duration_command="$ROOT/bin/omarchy-install-duration"
 
 install_duration() {
-  OMARCHY_INSTALL_TIMING_FILE="$timing_file" "$duration_command"
+  PATH="$ROOT/bin:$PATH" OMARCHY_INSTALL_TIMING_FILE="$timing_file" OMARCHY_LANGUAGE_FILE="$language_file" "$duration_command"
 }
 
 assert_duration() {
@@ -45,6 +46,11 @@ assert_duration "1m 8s" "installation durations over one minute show minutes and
 
 printf '{"started_at":1000,"finished_at":4723}\n' >"$timing_file"
 assert_duration "1h 2m 3s" "installation durations over one hour show hours, minutes, and seconds"
+
+printf 'fa\n' >"$language_file"
+printf '{"started_at":1000.1,"finished_at":1068.4}\n' >"$timing_file"
+assert_duration "۱ دقیقه ۸ ثانیه" "installation durations localize digits and units"
+rm "$language_file"
 
 rm "$timing_file"
 assert_omitted "a missing timing file omits the installation duration"
