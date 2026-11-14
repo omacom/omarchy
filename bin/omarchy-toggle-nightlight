@@ -15,10 +15,28 @@ current_temp() {
   grep -oE '[0-9]+' <<<"$output" | head -n1
 }
 
+# hyprsunset owns its IPC socket before it answers on it, so a probe during its
+# boot reads as off and sends the next toggle the wrong way. Wait for the
+# daemon to answer while its process exists; with no daemon there is nothing to
+# wait for, and off is the truth.
+settled_temp() {
+  local temp attempt
+
+  for attempt in {1..20}; do
+    temp=$(current_temp)
+    if [[ -n $temp ]]; then
+      printf '%s' "$temp"
+      return
+    fi
+    pgrep -x hyprsunset >/dev/null || return
+    sleep 0.1
+  done
+}
+
 status_json() {
   local temp enabled
 
-  temp=$(current_temp)
+  temp=$(settled_temp)
   if [[ -n $temp ]] && (( temp < IDENTITY_TEMP )); then
     enabled=true
   else
@@ -45,7 +63,7 @@ elif (( $(ps -o etimes= -p "$(pgrep -nx hyprsunset)" 2>/dev/null || echo 0) < 3 
 fi
 
 # Query the current temperature
-CURRENT_TEMP=$(current_temp)
+CURRENT_TEMP=$(settled_temp)
 
 if [[ -n $CURRENT_TEMP ]] && (( CURRENT_TEMP < IDENTITY_TEMP )); then
   TARGET_TEMP=$OFF_TEMP

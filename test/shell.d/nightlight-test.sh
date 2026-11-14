@@ -30,6 +30,13 @@ if [[ ${1:-} == "hyprsunset" && ${2:-} == "temperature" ]]; then
     printf '%s\n' "$3" >"$HYPRSUNSET_STATE"
     printf 'false\n' >"$HYPRSUNSET_STATE.identity"
   else
+    if [[ -n ${HYPRSUNSET_SLOW:-} && -s $HYPRSUNSET_SLOW ]]; then
+      remaining=$(<"$HYPRSUNSET_SLOW")
+      if (( remaining > 0 )); then
+        printf '%s\n' "$((remaining - 1))" >"$HYPRSUNSET_SLOW"
+        exit 1
+      fi
+    fi
     cat "$HYPRSUNSET_STATE" 2>/dev/null || exit 1
   fi
   exit 0
@@ -58,6 +65,7 @@ chmod +x "$TMPDIR/bin/hyprctl" "$TMPDIR/bin/pgrep" "$TMPDIR/bin/omarchy-shell"
 nightlight_cli() {
   PATH="$TMPDIR/bin:$PATH" \
   HYPRSUNSET_STATE="$STATE" \
+  HYPRSUNSET_SLOW="${SLOW:-}" \
   OMARCHY_SHELL_LOG="$SHELL_LOG" \
     "$ROOT/bin/omarchy-toggle-nightlight" "$@"
 }
@@ -97,6 +105,20 @@ pass "nightlight toggle restores daylight from night light"
 
 [[ $(<"$STATE.identity") == "true" ]] || fail "nightlight toggle resets to the identity matrix when turning off"
 pass "nightlight toggle resets to the identity matrix when turning off"
+
+# hyprsunset owns its socket before it answers on it. A probe during that boot
+# read as off, so the menu showed "Nightlight On" and the next toggle warmed
+# the screen again instead of cooling it.
+SLOW="$TMPDIR/slow"
+printf '3\n' >"$SLOW"
+[[ $(nightlight_status 4000 | jq -r .enabled) == "true" ]] || \
+  fail "nightlight status waits for a booting hyprsunset to answer"
+printf '3\n' >"$SLOW"
+nightlight_cli >/dev/null
+unset SLOW
+[[ $(<"$STATE") == 6500 ]] || \
+  fail "nightlight toggle reads a booting hyprsunset before choosing the direction"
+pass "nightlight reads a booting hyprsunset before choosing the direction"
 
 # hyprsunset's own default, as the shipped identity profile starts it
 printf '6000\n' >"$STATE"
