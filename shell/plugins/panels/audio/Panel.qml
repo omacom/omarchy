@@ -735,6 +735,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("audio.title")
     anchors.fill: parent
     bar: root.bar
     text: root.outputIcon()
@@ -755,6 +756,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("audio.title")
     anchorItem: button
     owner: root
     bar: root.bar

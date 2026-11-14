@@ -92,6 +92,12 @@ Custom text bounds include text alignment and padding. The bar applies each shap
 
 `WidgetButton` also uses the shared renderer for a single icon glyph. This covers custom command widgets and existing plugins that use `WidgetButton` with a different `fontSize`. Text labels retain their text size. Custom widgets must use `WidgetButton` or `BarIconButton` for this icon contract.
 
+## Accessibility
+
+`WidgetButton` exposes a button role and left-press action to assistive technology when it is pressable, and otherwise exposes static text. Its accessible name prefers `tooltipText`, then falls back to visible text; a lone icon-font glyph is never used as the name. `BarIconButton` therefore needs a tooltip or an explicit `accessibleName`. Concealed buttons and buttons with no visual content are omitted from the accessibility tree.
+
+A panel built on `KeyboardPanel` should set `accessibleName` to its localized title. The panel card then appears as a named dialog in the accessibility tree.
+
 ## Custom user modules
 
 The schema accepts arbitrary module ids that you provide. Set `type` to `command` for shell-driven output or `qml` for a custom QML widget. Both still go under `bar.layout.<section>` in `shell.json`.

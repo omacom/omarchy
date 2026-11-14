@@ -532,6 +532,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("accessibility.tailscale")
     anchors.fill: parent
     bar: root.bar
     iconComponent: Component {
@@ -556,6 +557,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("accessibility.tailscale")
     anchorItem: button
     owner: root
     bar: root.bar
