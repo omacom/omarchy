@@ -20,10 +20,56 @@ if [[ $DIRECTION != "next" && $DIRECTION != "back" ]]; then
   exit 1
 fi
 
-ACTIVE_WORKSPACE=$(hyprctl activeworkspace -j | jq -r '.id')
-# Named workspaces report a negative id, and Hyprland reads a leading "-" as a
-# selector relative to the current workspace: targeting one lands on workspace 1
-# and reconfigures that instead.
+# The compositor can reassign negative IDs. Keep named and special workspaces
+# on their two tiled modes and persist their rules by name.
+toggle_named_layout() {
+  local name="$1" current="$2" selector key layout command applied
+  [[ -n $name ]] || return 1
+  if [[ $name == special:* ]]; then
+    selector=$name
+  else
+    selector="name:$name"
+  fi
+  key=$(printf '%s' "$name" | od -An -tx1 | tr -d ' \n')
+  selector=${selector//\\/\\\\}
+  selector=${selector//\"/\\\"}
+  selector=${selector//$'\n'/\\n}
+  selector=${selector//$'\r'/\\r}
+  selector=${selector//$'\t'/\\t}
+
+  local set_message unsaved_message
+  if [[ $current == dwindle ]]; then
+    layout=scrolling
+    set_message=$(omarchy-i18n layout.workspaceScrolling)
+    unsaved_message=$(omarchy-i18n layout.workspaceScrollingUnsaved)
+  else
+    layout=dwindle
+    set_message=$(omarchy-i18n layout.workspaceTiling)
+    unsaved_message=$(omarchy-i18n layout.workspaceTilingUnsaved)
+  fi
+  command="hl.workspace_rule({ workspace = \"$selector\", layout = \"$layout\" })"
+  applied=$(hyprctl eval "$command" >/dev/null 2>&1 && hyprctl workspaces -j |
+    jq -r --arg name "$name" 'first(.[] | select(.name == $name) | .tiledLayout) // empty')
+  if [[ $applied != "$layout" ]]; then
+    notify_layout "$(omarchy-i18n layout.needsReload)"
+    return 1
+  fi
+  local layouts_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts"
+  if ! mkdir -p "$layouts_dir" || ! printf '%s\n' "$command" >"$layouts_dir/name-$key.lua"; then
+    notify_layout "$unsaved_message"
+    return 1
+  fi
+  notify_layout "$set_message"
+  omarchy-shell -q omarchy.workspaces refresh
+}
+
+ACTIVE_INFO=$(hyprctl activeworkspace -j)
+ACTIVE_WORKSPACE=$(jq -r '.id // empty' <<<"$ACTIVE_INFO")
+if [[ $ACTIVE_WORKSPACE =~ ^-[0-9]+$ ]]; then
+  toggle_named_layout "$(jq -r '.name // empty' <<<"$ACTIVE_INFO")" \
+    "$(jq -r '.tiledLayout // empty' <<<"$ACTIVE_INFO")"
+  exit $?
+fi
 [[ $ACTIVE_WORKSPACE =~ ^[0-9]+$ ]] || exit 1
 MODES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts"
 MODE_FILE="$MODES_DIR/$ACTIVE_WORKSPACE.lua"
