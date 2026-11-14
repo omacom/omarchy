@@ -2,6 +2,7 @@
 Version=1.0
 Name=Zoom
 Exec=omarchy-webapp-handler-zoom %u
+StartupWMClass=chrome-app.zoom.us__wc_home-Default
 Terminal=false
 Type=Application
 Icon=zoom
