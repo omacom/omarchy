@@ -1671,6 +1671,7 @@ Item {
 
           Column {
             anchors.centerIn: parent
+            width: Math.min(Style.space(320), parent.width - Style.space(24))
             spacing: Style.space(8)
             visible: displayModel.count === 0 && root.mode !== "input"
 
@@ -1681,7 +1682,7 @@ Item {
               font.family: root.fontFamily
               font.pixelSize: Style.font.displayLarge
               horizontalAlignment: Text.AlignHCenter
-              width: Style.space(320)
+              width: parent.width
             }
 
             Text {
@@ -1692,7 +1693,10 @@ Item {
               font.family: root.fontFamily
               font.pixelSize: Style.font.title
               horizontalAlignment: Text.AlignHCenter
-              width: Style.space(320)
+              width: parent.width
+              // The empty card is one row tall, so a long search is cut short
+              // rather than wrapped; the search field above shows its end.
+              elide: Text.ElideRight
             }
           }
         }
