@@ -59,6 +59,10 @@ Item {
     return AppSearch.entrySubtext(entry)
   }
 
+  function searchableId(entry) {
+    return AppSearch.searchableId(entry)
+  }
+
   function isHiddenEntry(entry) {
     var id = String((entry && entry.id) || "")
     return root.configuredHiddenEntryIds[id] === true || root.desktopHiddenEntryIds[id] === true

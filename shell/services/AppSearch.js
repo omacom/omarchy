@@ -18,9 +18,27 @@ function keywordText(entry) {
   return ""
 }
 
+// A browser-installed web app's .desktop id is a generated identifier, not
+// something a user would ever intentionally type: <browser>-<32-char
+// Chromium extension id, base16 with a-p instead of 0-9a-f>-<browser
+// profile directory name> ("Default", "Profile 1", ...). Installing more
+// than one web app under the same (usually "Default") profile means every
+// one of them matches any search for that profile's name - e.g. three
+// unrelated PWAs (YouTube, Prime Video, Disney+) all matched a search for
+// "default", ranked as real app results ahead of unrelated, actually
+// relevant matches. None of an id shaped like this is human-meaningful, so
+// it is excluded wholesale wherever entry.id feeds search text, rather
+// than trimmed or left in.
+var GENERATED_WEBAPP_ID_RE = /^[a-z0-9]+-[a-p]{32}-.+$/i
+
+function searchableId(entry) {
+  var id = String((entry && entry.id) || "")
+  return GENERATED_WEBAPP_ID_RE.test(id) ? "" : id
+}
+
 function entrySearchText(entry) {
   if (!entry) return ""
-  return [entry.name, entry.genericName, entry.comment, keywordText(entry), entry.id].join(" ").toLowerCase()
+  return [entry.name, entry.genericName, entry.comment, keywordText(entry), searchableId(entry)].join(" ").toLowerCase()
 }
 
 function wordText(value) {
@@ -40,7 +58,7 @@ function words(value) {
 }
 
 function entryAcronym(entry) {
-  var values = words([entry && entry.name, entry && entry.genericName, keywordText(entry), entry && entry.id].join(" "))
+  var values = words([entry && entry.name, entry && entry.genericName, keywordText(entry), searchableId(entry)].join(" "))
   var result = ""
   for (var i = 0; i < values.length; i++) result += values[i].charAt(0)
   return result
@@ -50,7 +68,7 @@ function termMatches(entry, term) {
   if (!term) return true
 
   var name = entryName(entry).toLowerCase()
-  var id = String((entry && entry.id) || "").toLowerCase()
+  var id = searchableId(entry).toLowerCase()
   var haystack = entrySearchText(entry)
 
   if (name.indexOf(term) >= 0) return true
@@ -74,7 +92,7 @@ function fuzzyScore(entry, query) {
   if (!allTermsMatch(entry, q)) return -1
 
   var name = entryName(entry).toLowerCase()
-  var id = String((entry && entry.id) || "").toLowerCase()
+  var id = searchableId(entry).toLowerCase()
   var haystack = entrySearchText(entry)
   var directName = name.indexOf(q)
   var directId = id.indexOf(q)
@@ -128,6 +146,7 @@ if (typeof module !== "undefined") {
     entrySortKey: entrySortKey,
     entrySearchText: entrySearchText,
     entryAcronym: entryAcronym,
+    searchableId: searchableId,
     fuzzyScore: fuzzyScore,
     sortedEntries: sortedEntries
   }
