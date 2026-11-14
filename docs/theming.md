@@ -50,6 +50,16 @@ A theme switch only replaces that file: it never contacts Herdr, touches its `se
 
 The helper holds the theme-switch staging lock while it reads and publishes, so a queued run can't publish an older palette. A palette with unresolved or invalid colors keeps the last good theme and skips without failing the switch.
 
+## Claude desktop app
+
+`claude-desktop.json.tpl` generates the few colors the Claude desktop app is painted from: the theme's mode, background, foreground and accent, and the red, green, yellow and magenta its status colors are seeded with. `omarchy-theme-set-claude-desktop` publishes it atomically as `~/.config/Claude/omarchy-theme.json` when that directory exists, so a machine without the app gets nothing. It holds the theme-switch staging lock while it reads and publishes, so a queued run can't publish an older palette. A palette with unresolved colors keeps the last good one and skips without failing the switch.
+
+The app has no theme file of its own to write. It draws its Claude Code sessions in whatever look a mod sets, and a mod is a Claude Code plugin made of function hooks. Omarchy's is `default/claude-desktop/omarchy-theme`. `omarchy-theme-set-claude-desktop --activate` links it to `~/.claude/skills/omarchy-theme`, where Claude Code loads it as a plugin without an install step, and `omarchy-install-ai-claude` does that before the app first opens. Anything of the user's own under that name is left alone and the activation fails; the installer says so and opens the app regardless. `omarchy-remove-ai-claude` removes the link again.
+
+When a session starts, the mod reads the palette, expands it into the app's design tokens and sets the result as the session's theme. It also asks the session to watch the palette file, so a theme switch repaints the windows that are already open. A palette that is missing or that the token generator refuses sets nothing, and the app keeps the look it had.
+
+`hooks/make-colors.js` is that generator, copied unchanged from the plugin-authoring skill Claude Code ships, which is the only place the app's token names and contrast rules are written down. Copy it again from a newer Claude Code when the app's design system moves on. The app ignores a whole palette when any text in it falls under 3:1 contrast, so the mod spaces its surfaces and muted text to stay above that, and `test/shell.d/claude-desktop-theme-test.sh` holds every stock theme to it. A theme of the user's own that still falls under is not painted.
+
 ## What an installed theme may not ship
 
 `themes/<name>/` in this repo is Omarchy's own code and is trusted. So is a theme the user wrote by hand in `~/.config/omarchy/themes/<name>/`: it is their machine and their file, and both stage in full.

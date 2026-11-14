@@ -84,6 +84,48 @@ pass "Claude removal keeps the Claude Code CLI's state"
 grep -qx 'pkill:-x claude-desktop' "$TEST_LOG" || fail "Claude removal quits the running app before deleting its state"
 pass "Claude removal quits the running app before deleting its state"
 
+# Installing the app links its theme mod into the CLI's skills. That link goes
+# with the app; a skill of the user's own under the same name is not ours.
+fresh_home
+mkdir -p "$HOME/.claude/skills/kept"
+ln -s "$ROOT/default/claude-desktop/omarchy-theme" "$HOME/.claude/skills/omarchy-theme"
+"$ROOT/bin/omarchy-remove-ai-claude" >/dev/null
+
+[[ ! -e $HOME/.claude/skills/omarchy-theme && ! -L $HOME/.claude/skills/omarchy-theme ]] || fail "Claude removal unlinks the app's theme mod"
+[[ -d $HOME/.claude/skills/kept ]] || fail "Claude removal unlinks the app's theme mod" "another skill was removed"
+pass "Claude removal unlinks the app's theme mod"
+
+# An app still shutting down keeps writing its state, and deleting it can fail.
+fresh_home
+mkdir -p "$HOME/.claude/skills" "$HOME/.config/Claude" "$tmp_dir/failing-bin"
+ln -s "$ROOT/default/claude-desktop/omarchy-theme" "$HOME/.claude/skills/omarchy-theme"
+cat >"$tmp_dir/failing-bin/rm" <<'SCRIPT'
+#!/bin/bash
+[[ $* != *.config/Claude* ]] || exit 1
+exec /usr/bin/rm "$@"
+SCRIPT
+chmod +x "$tmp_dir/failing-bin/rm"
+if PATH="$tmp_dir/failing-bin:$PATH" "$ROOT/bin/omarchy-remove-ai-claude" >/dev/null 2>&1; then
+  fail "Claude removal reports state it could not delete"
+fi
+
+[[ ! -L $HOME/.claude/skills/omarchy-theme ]] || fail "Claude removal unlinks the theme mod even when the app's state cannot be deleted"
+pass "Claude removal unlinks the theme mod even when the app's state cannot be deleted"
+
+fresh_home
+mkdir -p "$HOME/.claude/skills/omarchy-theme"
+"$ROOT/bin/omarchy-remove-ai-claude" >/dev/null
+
+[[ -d $HOME/.claude/skills/omarchy-theme ]] || fail "Claude removal keeps a skill of the user's own named like the mod" "a directory was removed"
+
+fresh_home
+mkdir -p "$HOME/.claude/skills" "$HOME/own-skill"
+ln -s "$HOME/own-skill" "$HOME/.claude/skills/omarchy-theme"
+"$ROOT/bin/omarchy-remove-ai-claude" >/dev/null
+
+[[ -L $HOME/.claude/skills/omarchy-theme ]] || fail "Claude removal keeps a skill of the user's own named like the mod" "a link pointing elsewhere was removed"
+pass "Claude removal keeps a skill of the user's own named like the mod"
+
 # LM Studio's models follow a relocatable home, named only by the pointer file.
 fresh_home
 mkdir -p "$tmp_dir/relocated-models/models"

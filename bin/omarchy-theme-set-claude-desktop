@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# omarchy:summary=Sync the generated Omarchy theme to the Claude desktop app
+# omarchy:args=[--activate]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+activate=0
+case "${1:-}" in
+  --activate) activate=1 ;;
+  "") ;;
+  -h | --help) echo "Usage: omarchy-theme-set-claude-desktop [--activate]"; exit 0 ;;
+  *) echo "Usage: omarchy-theme-set-claude-desktop [--activate]" >&2; exit 1 ;;
+esac
+
+source_path="$HOME/.local/state/omarchy/current/theme/claude-desktop.json"
+app_home="$HOME/.config/Claude"
+palette_path="$app_home/omarchy-theme.json"
+mod_link="$HOME/.claude/skills/omarchy-theme"
+
+# The app runs Claude Code, which loads a mod linked into its skills as a
+# plugin. The mod paints the app from the palette published below.
+if (( activate == 1 )); then
+  # Only Omarchy's own link is replaced, wherever Omarchy lived when it was
+  # made: anything else under that name is the user's.
+  if [[ -e $mod_link || -L $mod_link ]] && [[ $(readlink "$mod_link") != */default/claude-desktop/omarchy-theme ]]; then
+    echo "Claude desktop theme not linked: $mod_link is in the way." >&2
+    exit 1
+  fi
+
+  mkdir -p "$app_home" "${mod_link%/*}"
+  ln -sfn "$OMARCHY_PATH/default/claude-desktop/omarchy-theme" "$mod_link"
+fi
+
+# Only follow an app that has been set up. Creating its directory here would
+# leave a stray one on machines that do not run it.
+[[ -d $app_home ]] || exit 0
+
+# Theme setters release this lock before running app helpers. Hold it through
+# publication so a setter cannot swap the source directory mid-read and a
+# standalone activation cannot publish an older palette over a newer one.
+exec {theme_lock}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+flock "$theme_lock"
+
+# A theme with no colors.toml generates no palette, and the mod sets nothing
+# without one.
+[[ -f $source_path ]] || exit 0
+
+# A theme without one of these colors leaves its placeholder unresolved, which
+# the mod would refuse. Skip instead and leave the previous palette in place.
+if grep -q '{{' "$source_path"; then
+  echo "Skipping Claude desktop theme: $(basename "$source_path") has unresolved colors." >&2
+  exit 0
+fi
+
+# The mod watches this file and retints every open window on change, so the
+# write has to be atomic: a half-written file would read as invalid.
+tmp=$(mktemp "$palette_path.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+cp "$source_path" "$tmp"
+mv "$tmp" "$palette_path"
