@@ -108,3 +108,21 @@ device false true
 device false false
 [[ ! -s $tmp/out && ! -e $tmp/calls ]] || fail "no audio asks pactl nothing" "$(cat "$tmp/calls")"
 pass "a single source records directly and no audio asks for nothing"
+
+# A translated sentence that gets the English source name as %1 reads half in
+# English ("Optager uden microphone-lyd"), so each source has whole sentences
+# of its own and no English word goes in as an argument.
+export I18N_REAL=$ROOT/bin/omarchy-i18n
+cat >"$tmp/bin/omarchy-i18n" <<'SH'
+#!/bin/bash
+echo "$*" >>"$TMP/i18n"
+exec "$I18N_REAL" "$@"
+SH
+chmod +x "$tmp/bin/omarchy-i18n"
+
+echo "source=speakers.monitor source=mic" >"$tmp/refuse"
+rm -f "$tmp/i18n"
+device true true
+[[ $(cat "$tmp/i18n") == $'capture.recordingWithoutDesktopAudio\ncapture.desktopAudioNotAdded\ncapture.recordingWithoutMicrophoneAudio\ncapture.microphoneAudioNotAdded' ]] ||
+  fail "each dropped source is announced in whole sentences of its own" "$(cat "$tmp/i18n")"
+pass "each dropped source is announced in whole sentences, with no English name glued into a translation"
