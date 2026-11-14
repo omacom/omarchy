@@ -193,6 +193,20 @@ class TypingSetupTest(unittest.TestCase):
       self.assertEqual(setter.call_args.args, after)
       self.assertEqual((Path(temporary) / "omarchy/keyboard-layouts").read_text(), "XKBLAYOUT=fr,us\nXKBVARIANT=,intl\n")
 
+  def test_changed_layouts_restart_fcitx_to_replace_its_stale_keymap(self):
+    with tempfile.TemporaryDirectory() as temporary:
+      before = ("Default", "us", [["keyboard-us", ""]])
+      after = ("Default", "no", [["keyboard-no", ""]])
+      with patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}), patch.object(typing.setup, "live_group", side_effect=[before, after]), patch.object(typing.setup, "run", return_value="") as run, patch.object(typing, "keyboard_selection", side_effect=[["us"], ["no"]]), patch.object(typing.setup, "live_set"), patch.object(typing.setup, "wait_ready") as ready:
+        typing.save_keyboard(["no"])
+      self.assertEqual(run.call_args.args, (["omarchy-restart-xcompose"],))
+      ready.assert_called_once_with("keyboard-no")
+      # Saving the layouts Hyprland already has leaves Fcitx running.
+      with patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}), patch.object(typing.setup, "live_group", side_effect=[after, after]), patch.object(typing.setup, "run", return_value="") as run, patch.object(typing, "keyboard_selection", return_value=["no"]), patch.object(typing.setup, "live_set"), patch.object(typing.setup, "wait_ready") as ready:
+        typing.save_keyboard(["no"])
+      self.assertNotIn((["omarchy-restart-xcompose"],), [call.args for call in run.call_args_list])
+      ready.assert_not_called()
+
 
 if __name__ == "__main__":
   unittest.main()
