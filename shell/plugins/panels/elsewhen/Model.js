@@ -932,15 +932,57 @@ function geocodeUrl(label) {
     + encodeURIComponent(label)
 }
 
-// { place, answered }: a place in the row's own zone beats the top result, and
-// `answered` is false when the request itself failed.
-function pickGeocode(text, zone) {
+// { place, answered }: only a result in the row's own zone is a place, and
+// `answered` is false when the request itself failed. A name match alone is not
+// enough: "Calcutta" tops out at a hamlet in Mpumalanga, so taking the first
+// result puts the marker in southern Africa (#17782). The geocoder answers with
+// whichever name tzdata gives the place, which for a legacy row name can be a
+// link: a Chuuk result says Pacific/Chuuk, never Pacific/Truk.
+function pickGeocode(text, zone, aliases) {
   var results = geocodeResults(text)
   if (!results) return { place: null, answered: false }
-  var best = null
-  for (var i = 0; i < results.length && !best; i++) if (results[i] && results[i].timezone === zone) best = results[i]
-  if (!best && results.length > 0 && results[0] && typeof results[0] === "object") best = results[0]
-  return { place: best ? { lat: best.latitude, lon: best.longitude } : null, answered: true }
+  for (var i = 0; i < results.length; i++) {
+    if (results[i] && canonicalZone(results[i].timezone, aliases) === zone) {
+      return { place: { lat: results[i].latitude, lon: results[i].longitude }, answered: true }
+    }
+  }
+  return { place: null, answered: true }
+}
+
+// The `L <canonical> <alias>` lines of tzdata.zi map the legacy zone names the
+// picker still offers (Asia/Calcutta, US/Pacific) onto the canonical names that
+// zone1970.tab and the geocoder both answer with.
+function zoneAliases(ziText) {
+  var aliases = {}
+  var lines = String(ziText || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var parts = lines[i].split(/\s+/)
+    if (parts[0] !== "L" || parts.length < 3) continue
+    aliases[parts[2]] = parts[1]
+  }
+  return aliases
+}
+
+// Follows a legacy name to its canonical zone, and leaves an unknown one alone.
+function canonicalZone(zone, aliases) {
+  var name = String(zone || "")
+  var seen = {}
+  while (aliases && aliases[name] && !seen[name]) {
+    seen[name] = true
+    name = aliases[name]
+  }
+  return name
+}
+
+// A link's target is only this row's place when both name the same country.
+// Pacific/Truk is a link to Pacific/Port_Moresby, but Truk is in Micronesia:
+// the target's Papua New Guinea coordinates would move the marker, the weather
+// and the daylight strip to another country. Keep the row's own zone there,
+// whose zone1970.tab entry is absent, so the marker waits for a geocode.
+function fallbackZone(rowId, canonical, countryOf) {
+  var country = countryOf(rowId)
+  if (country === "" || countryOf(canonical) === country) return canonical
+  return rowId
 }
 
 // The zone's representative city from zone1970.tab (ISO 6709), the offline fallback.
@@ -1365,6 +1407,9 @@ if (typeof module !== "undefined") {
     factsKey: factsKey,
     geocodeUrl: geocodeUrl,
     pickGeocode: pickGeocode,
+    zoneAliases: zoneAliases,
+    canonicalZone: canonicalZone,
+    fallbackZone: fallbackZone,
     zoneTabCoords: zoneTabCoords,
     forecastUrl: forecastUrl,
     parseForecast: parseForecast,
