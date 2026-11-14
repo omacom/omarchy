@@ -31,6 +31,12 @@ fi
 exit 0
 SH
 
+cat >"$TMPDIR/bin/omarchy-version" <<'SH'
+#!/bin/bash
+[[ ${FAKE_NO_VERSION:-0} == 1 ]] && exit 1
+printf '4.1.0-1\n'
+SH
+
 for command in omarchy-plugin-enable omarchy-notification-send fake-editor; do
   cat >"$TMPDIR/bin/$command" <<'SH'
 #!/bin/bash
@@ -77,16 +83,25 @@ jq -e '
   .name == "My Clock" and
   .barWidget.displayName == "My Clock" and
   .omarchy.clonedFrom == "omarchy.clock" and
+  .omarchy.clonedFromVersion == "4.1.0-1" and
   .kinds == ["bar-widget"] and
   .entryPoints.barWidget == "BarWidget.qml"
 ' "$clock/manifest.json" >/dev/null || fail "clock clone manifest is incorrect"
 pass "clone updates identity without replacing the manifest"
+pass "clone records the Omarchy version it was copied from"
 
 grep -qx 'omarchy-plugin-enable tester.clock' "$CALLS" ||
   fail "clone does not enable the editable copy"
 grep -qx 'omarchy-notification-send -g 󰐱 Editing Cloned Plugin Original plugin has been replace by clone.' "$CALLS" ||
   fail "clone does not notify that the editable clone is active"
 pass "clone enables bar widgets and confirms the editable clone"
+
+FAKE_NO_VERSION=1 clone_plugin omarchy.background >/dev/null
+jq -e '.omarchy.clonedFrom == "omarchy.background" and (.omarchy | has("clonedFromVersion") | not)' \
+  "$TMPDIR/home/.config/omarchy/plugins/tester.background/manifest.json" >/dev/null ||
+  fail "clone fails or records a version when the Omarchy version is unknown"
+pass "clone omits the source version when it cannot be determined"
+rm -rf "$TMPDIR/home/.config/omarchy/plugins/tester.background"
 
 clone_plugin omarchy.keyboard-layout >/dev/null
 grep -qx 'omarchy-plugin-enable tester.keyboard-layout' "$CALLS" ||
