@@ -104,3 +104,28 @@ if kill -0 "$producer_pid" 2>/dev/null; then
   fail "sleep monitor cleans up its producer when terminated" "producer still running: $producer_pid"
 fi
 pass "sleep monitor cleans up its producer when terminated"
+
+# A dbus-monitor shadowing /usr/bin, like Homebrew's, may default to a system
+# bus socket under its own prefix, so the address must be named.
+bus_address_file="$tmpdir/bus-address"
+cat >"$mock_bin/dbus-monitor" <<'SH'
+#!/bin/bash
+
+printf '%s\n' "${DBUS_SYSTEM_BUS_ADDRESS-unset}" >"$BUS_ADDRESS_FILE"
+printf '   boolean true\n'
+exec sleep 30
+SH
+chmod +x "$mock_bin/dbus-monitor"
+: >"$lock_log"
+
+env -u DBUS_SYSTEM_BUS_ADDRESS \
+  OMARCHY_PATH="$mock_omarchy" \
+  PATH="$mock_bin:$PATH" \
+  BUS_ADDRESS_FILE="$bus_address_file" \
+  LOCK_LOG="$lock_log" \
+  "$sleep_monitor" --inhibited
+
+bus_address=$(<"$bus_address_file")
+[[ $bus_address == "unix:path=/run/dbus/system_bus_socket" ]] ||
+  fail "sleep monitor names the system bus for dbus-monitor" "address: $bus_address"
+pass "sleep monitor names the system bus for dbus-monitor"
