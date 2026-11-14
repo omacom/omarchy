@@ -138,10 +138,14 @@ function slug(text) {
 // The group key, rebuilt from a row's fields: per site for a browser,
 // otherwise per app. An unnamed sender is no app, so each of its toasts stands
 // alone: first login's keybindings, git and update toasts are three, not a deck.
+// Unless it names a deck with the omarchy-group hint, as every crash toast does.
 function regroup(row) {
   var app = String(row.app || "")
   var source = String(row.source || "")
-  if (app === "omarchy-action" || app === "notify-send") return "toast:" + String(row.key || "")
+  if (app === "omarchy-action" || app === "notify-send") {
+    var group = String(row.group || "")
+    return group ? "group:" + group : "toast:" + String(row.key || "")
+  }
   if (isBrowser(app) && source && source !== app && hostname(source)) return "web:" + hostname(source)
   return "app:" + slug(app)
 }

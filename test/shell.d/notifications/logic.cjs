@@ -101,6 +101,13 @@ for (let i = 0; i < 1000; i++) {
   // An unnamed sender's toasts each stand alone rather than stacking.
   for (const app of ['omarchy-action', 'notify-send'])
     assert.notEqual(Store.restored({ key: 'a', app }).groupKey, Store.restored({ key: 'b', app }).groupKey, app)
+  // Unless they name a deck, as every crash toast does, through a restart too.
+  const crash = (key, group = 'crashes') => snap({ appName: 'omarchy-action', summary: 'Process crashed: x', hints: { 'omarchy-group': group } }, key)
+  assert.equal(crash('a').groupKey, crash('b').groupKey, 'toasts naming one deck stack')
+  assert.equal(crash('a', '工作').groupKey, crash('b', '工作').groupKey, 'a name in any script names a deck')
+  assert.notEqual(crash('a', 'a/b').groupKey, crash('b', 'a-b').groupKey, 'distinct names are distinct decks')
+  assert.equal(Store.restored(Store.persistable(crash('a'), 4096)).groupKey, crash('b').groupKey, 'a restored toast keeps its deck')
+  assert.equal(snap({ appName: 'Chat', hints: { 'omarchy-group': 'crashes' } }).groupKey, 'app:chat', 'a named app keeps its own deck')
 }
 
 { // `-i name` is an icon name, not a picture; only the strict charset is kept.
