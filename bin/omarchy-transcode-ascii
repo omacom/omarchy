@@ -233,6 +233,8 @@ if [[ ! -s $tmp_output ]]; then
   exit 1
 fi
 
-mkdir -p "$(dirname "$output_path")"
-cp "$tmp_output" "$output_path"
+if ! mkdir -p "$(dirname "$output_path")" || ! cp -T -- "$tmp_output" "$output_path"; then
+  echo "Unable to write ASCII art: $output_path" >&2
+  exit 1
+fi
 echo "Wrote ASCII art to $output_path"
