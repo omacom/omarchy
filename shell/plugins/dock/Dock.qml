@@ -151,6 +151,12 @@ Item {
     return item ? DesktopEntries.byId(item.key) : null
   }
 
+  function nameFor(item) {
+    var entry = entryFor(item)
+    if (!entry) return ""
+    return root.appLibrary ? root.appLibrary.entryName(entry) : entry.name
+  }
+
   function iconFor(item) {
     var entry = entryFor(item)
     var icon = entry && entry.icon ? entry.icon : (item ? item.key : "")
