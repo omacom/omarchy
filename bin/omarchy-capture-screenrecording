@@ -389,7 +389,8 @@ start_screenrecording() {
     rm -f "$filename"
   done
 
-  return 1
+  omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingFailed)"
+  return 2
 }
 
 # Selects the recorder this script started, by the pid it saved. A saved pid
@@ -593,7 +594,9 @@ fi
     else
       rm -f "$CANCEL_FILE"
       echo $$ >"$STARTING_FILE"
-      if start_screenrecording; then
+      start_screenrecording
+      start_status=$?
+      if (( start_status == 0 )); then
         rm -f "$STARTING_FILE"
         # Cancelled while the recording was being saved as started.
         if start_cancelled; then
@@ -611,6 +614,9 @@ fi
         wf_audio_cleanup
         cleanup_webcam
         rm -f "$CANCEL_FILE"
+        if (( start_status == 2 )); then
+          exit 1
+        fi
       fi
     fi
   fi
