@@ -280,7 +280,7 @@ PanelWindow {
   Timer {
     id: hideTimer
     // Long enough to cross a gap between the edge and the icons, no longer.
-    interval: 150
+    interval: 225
     onTriggered: {
       if (!window.iconsHovered && !bodyHover.hovered && !edgeHover.containsMouse && !edgeSensor.containsMouse && !window.menuOpen && !window.dragging) window.revealed = false
     }
@@ -368,7 +368,7 @@ PanelWindow {
       id: tuckMotion
       enabled: window.shown && !window.positionChanging
       NumberAnimation {
-        duration: Style.duration(tuckMotion.targetValue > 0 ? 160 : 240)
+        duration: Style.duration(tuckMotion.targetValue > 0 ? 170 : 250)
         easing.type: Easing.Bezier
         easing.bezierCurve: Style.easeOut
       }
