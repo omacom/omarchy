@@ -42,6 +42,8 @@ Groups:
   ...
 ```
 
+For diagnostics, run `omarchy-debug --no-sudo --print` directly. It prints diagnostics and writes `/tmp/omarchy-debug.log` without prompting for sudo, including on package installs where `omarchy debug` can fail with "Unknown Omarchy command".
+
 And you can dive deeper on every group:
 
 ```
