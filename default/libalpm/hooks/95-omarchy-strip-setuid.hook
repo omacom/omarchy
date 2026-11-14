@@ -1,0 +1,15 @@
+# Arch ships mount.cifs (cifs-utils, pulled in by gvfs-smb) and ksu (krb5) setuid
+# root. Neither is needed on a desktop: gvfs mounts SMB shares through
+# libsmbclient, and ksu only works against a configured Kerberos realm. Drop the
+# bits after every install or upgrade, since pacman restores them.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/bin/mount.cifs
+Target = usr/bin/ksu
+
+[Action]
+Description = Removing setuid from mount.cifs and ksu...
+When = PostTransaction
+Exec = /bin/sh -c 'for f in /usr/bin/mount.cifs /usr/bin/ksu; do [ -e "$f" ] && chmod ug-s "$f"; done; true'
