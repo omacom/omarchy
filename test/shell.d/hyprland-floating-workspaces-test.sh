@@ -324,6 +324,7 @@ hl = {
     subscriptions[event] = subscriptions[event] or {}
     table.insert(subscriptions[event], callback)
   end,
+  bind = function() end,
   timer = function(callback) callback() end,
   get_loaded_plugins = function()
     return os.getenv("HYPRBARS_RESIDENT") == "1" and { { name = "hyprbars" } } or {}
@@ -522,23 +523,20 @@ assert(open_rule().enabled == false, "the open rule still applies after the work
 fi
 pass "windows the open rule floats tile again when the workspace stops floating"
 
-# A maximized window on a floating workspace comes back to its own size when
-# another window opens there, and one on a tiled workspace is left maximized.
+# A maximized window on a floating workspace stays maximized when another app
+# opens a window there: the new one floats over it at its own size.
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
 if ! run_lua '
 require("default.hypr.workspace-layouts")
-local maximized = window("0x1", 1, { floating = true, fullscreen = 1 })
-local tiled_max = window("0x2", 2, { fullscreen = 1 })
-local opening = window("0x3", 1, { floating = true })
+local maximized = window("0x1", 1, { floating = true, fullscreen = 1, tags = { "omarchy-mode-floated" } })
+local opening = window("0x2", 1, { floating = true, tags = { "omarchy-mode-opened*" } })
 state().subscriptions["window.open"][1](opening)
-assert(maximized.fullscreen == 0, "a maximized window stayed maximized when another opened on its floating workspace")
-local next_door = window("0x4", 2)
-state().subscriptions["window.open"][1](next_door)
-assert(tiled_max.fullscreen == 1, "a maximized window on a tiled workspace was unmaximized")
+assert(maximized.fullscreen == 1, "a maximized window lost its maximize when another opened on its floating workspace")
+assert(opening.fullscreen == 0 and opening.floating, "the new window did not open floating at its own size")
 '; then
-  fail "a new window on a floating workspace brings a maximized one back to size"
+  fail "a new window on a floating workspace leaves a maximized one maximized"
 fi
-pass "a new window on a floating workspace brings a maximized one back to size"
+pass "a new window on a floating workspace leaves a maximized one maximized"
 
 # Apps with float rules of their own keep them on a floating workspace: the
 # open rule passes them over, so they open at their own size and the mode never
@@ -562,20 +560,23 @@ pass "apps with float rules of their own are left to them on a floating workspac
 
 # Apps floated through a tag keep their floating too: one tagged into a tag a
 # float rule matches is passed over, while a rule floating a tag together with
-# a title passes over only that title, not everything with the tag.
+# a title passes over only that title, not everything with the tag. A rule
+# tagging an app's file chooser by class and title passes over just the title,
+# so the app's main window still opens floating.
 printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
 if ! run_lua '
 o.window("^1password$", { tag = "+floating-window" })
 o.window({ tag = "floating-window" }, { float = true })
 o.window("^chromium$", { tag = "+chromium-based-browser" })
 o.window({ tag = "chromium-based-browser", title = "^Meet - .+" }, { float = true })
+o.window({ class = "^files$", title = "^Open Files$" }, { tag = "+floating-window" })
 require("default.hypr.workspace-layouts")
 local rule
 for _, candidate in ipairs(state().rules) do
   if candidate.name == "omarchy-floating-open-1" then rule = candidate end
 end
 assert(rule.match.class == "negative:(?:^1password$)", "the open rule does not pass over an app tagged to float: " .. tostring(rule.match.class))
-assert(rule.match.title == "negative:(?:^Meet - .+)", "the open rule does not pass over just the title a tag rule floats: " .. tostring(rule.match.title))
+assert(rule.match.title == "negative:(?:^Meet - .+)|(?:^Open Files$)", "the open rule does not pass over just the titles tag rules float: " .. tostring(rule.match.title))
 '; then
   fail "apps floated through a tag are left to it on a floating workspace"
 fi
