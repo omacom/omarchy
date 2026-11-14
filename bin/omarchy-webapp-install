@@ -50,8 +50,16 @@ install_user_icon() {
 }
 
 download_icon() {
-  curl -fsSL --max-time 10 -o "$2" "$1" 2>/dev/null &&
-    [[ -s $2 && $(file -b --mime-type "$2") == image/* ]]
+  local temporary
+  temporary=$(mktemp "$2.XXXXXX") || return 1
+  if curl -fsSL --max-time 10 -o "$temporary" "$1" 2>/dev/null &&
+    [[ -s $temporary && $(file -b --mime-type "$temporary") == image/* ]] &&
+    chmod 644 "$temporary" && mv -f -- "$temporary" "$2"; then
+    return 0
+  else
+    rm -f -- "$temporary"
+    return 1
+  fi
 }
 
 # Chromium --app= treats javascript:, file:, and data: as a document to
