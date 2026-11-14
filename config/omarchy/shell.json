@@ -51,6 +51,9 @@
           "id": "omarchy.agents"
         },
         {
+          "id": "omarchy.flight-mode"
+        },
+        {
           "id": "omarchy.bluetooth"
         },
         {
