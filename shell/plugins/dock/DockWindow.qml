@@ -48,9 +48,10 @@ PanelWindow {
   readonly property bool contentShown: shown && !tucked
 
   readonly property int gap: Style.spacing.xs
-  readonly property real targetIconSize: (dock ? dock.iconSize : 36) * Style.fontScale
-  property real iconSize: targetIconSize
-  Behavior on iconSize {
+  readonly property real requestedIconSize: (dock ? dock.iconSize : 36) * Style.fontScale
+  property real animatedIconSize: slotMetrics.iconSize
+  readonly property real iconSize: Math.min(animatedIconSize, slotMetrics.iconLimit)
+  Behavior on animatedIconSize {
     enabled: window.shown
     NumberAnimation { duration: Style.duration(280); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
   }
@@ -58,7 +59,9 @@ PanelWindow {
   readonly property real maximumSlotSize: maximumIconSize + iconInset * 2
   // Each app has a square slot with its icon in the middle, and the slots run
   // straight to the edge of the dock.
-  readonly property int iconInset: Style.spacing.md
+  readonly property real availableLength: Math.max(0, (window.vertical ? window.height : window.width) - window.gap * 2 - Math.max(0, requestedIconSize * magnification / 2 - Style.spacing.md) * 2)
+  readonly property var slotMetrics: DockModel.fitSlots(requestedIconSize, Style.spacing.md, (dock ? dock.items.length : 0) + 1 + (insertIndex >= 0 ? 1 : 0), availableLength, 0)
+  readonly property real iconInset: slotMetrics.inset
   readonly property real slotSize: iconSize + iconInset * 2
   readonly property real magnification: dock ? dock.magnification : 0.15
   readonly property real inwardReach: Math.max(0, iconSize * magnification - iconInset)
