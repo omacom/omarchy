@@ -7,8 +7,9 @@ import "Model.js" as Model
 // A button that opens into a city search: a field, then the matching cities
 // with their zone and offset - the zone catalogue first, then the places the
 // geocoder knows. Arrows move the selection, Return picks it, Escape backs
-// out. Inline rather than a dropdown so the results grow the panel instead of
-// running off the bottom of the screen.
+// out. A Return that beats the geocoder picks once its places land. Inline
+// rather than a dropdown so the results grow the panel instead of running off
+// the bottom of the screen.
 Column {
   id: search
 
@@ -52,13 +53,22 @@ Column {
   readonly property bool searching: active && placesPending(query)
   // An index, not the match itself: the list is rebuilt on every keystroke.
   property int selectedIndex: 0
+  // Return came while the geocoder was still answering with nothing to pick.
+  property bool pickPending: false
 
   // `place` carries the coordinates and region of a geocoded city, when there are any.
   signal picked(string label, string id, var place)
   signal dismissed()
 
-  onQueryChanged: selectedIndex = 0
-  onMatchesChanged: if (selectedIndex >= matches.length) selectedIndex = 0
+  onQueryChanged: { selectedIndex = 0; pickPending = false }
+  onMatchesChanged: {
+    if (selectedIndex >= matches.length) selectedIndex = 0
+    if (pickPending && matches.length > 0) pickSelected()
+  }
+  // Deferred: the answer that ends the search is also what fills matches, and
+  // the two bindings update in no set order. An answer with no matches drops
+  // the pick.
+  onSearchingChanged: if (!searching) Qt.callLater(function() { if (!search.searching) search.pickPending = false })
 
   function start() {
     selectedIndex = 0
@@ -69,6 +79,7 @@ Column {
   // The hidden field would keep the keyboard, so the host takes it back on dismissed.
   function stop() {
     active = false
+    pickPending = false
     field.text = ""
     dismissed()
   }
@@ -81,6 +92,7 @@ Column {
 
   function pickSelected() {
     if (matches.length > 0) pick(matches[Util.clamp(selectedIndex, 0, matches.length - 1)])
+    else pickPending = searching
   }
 
   spacing: Style.spacing.md
