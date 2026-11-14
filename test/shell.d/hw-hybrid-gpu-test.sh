@@ -73,7 +73,7 @@ pci_devices() {
 }
 
 hybrid_gpu() {
-  OMARCHY_PCI_DEVICES_PATH="$(pci_devices)" PATH="$fake_bin:$PATH" timeout --kill-after=1s 10s bash "$ROOT/bin/omarchy-hw-hybrid-gpu"
+  OMARCHY_PCI_DEVICES_PATH="$(pci_devices)" PATH="$fake_bin:$ROOT/bin:$PATH" timeout --kill-after=1s 10s bash "$ROOT/bin/omarchy-hw-hybrid-gpu"
 }
 
 hybrid_gpu ||
