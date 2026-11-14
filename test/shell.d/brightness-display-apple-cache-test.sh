@@ -34,6 +34,8 @@ asd_log="$TMPDIR/asdcontrol.log"
 
 cat >"$stub_dir/sudo" <<'STUB'
 #!/bin/bash
+# The helper passes -n (never prompt); drop sudo's own flags before the command.
+while [[ $1 == -* ]]; do shift; done
 exec "$@"
 STUB
 chmod +x "$stub_dir/sudo"
