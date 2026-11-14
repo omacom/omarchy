@@ -148,7 +148,7 @@ Item {
     var entry = root.apps[index]
     if (!entry || !root.appLibrary) return
     root.close()
-    if (root.dock) root.dock.launchEntry(entry)
+    if (root.dock) root.dock.openEntry(entry)
     else root.appLibrary.launch(entry.id, root.appLibrary.entryName(entry))
   }
 
@@ -489,7 +489,7 @@ Item {
           onTriggered: {
             var entry = menu.entry
             root.close()
-            if (entry && root.dock) root.dock.launchEntry(entry)
+            if (entry && root.dock) root.dock.openEntry(entry)
             else if (entry && root.appLibrary) root.appLibrary.launch(entry.id, root.appLibrary.entryName(entry))
           }
         }
