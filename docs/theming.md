@@ -402,6 +402,7 @@ Print Settings asks for the `printer` device icon, so its file is `printer.svg.t
 | Set | Where | What it draws |
 |-----|-------|---------------|
 | `papercraft` (the default) | `icons/papercraft/` | Omarchy's own apps (Files, Omacut, Omasnap, Hype, Omawrite, Omacalc, Gliff, Plain, Monologue and Signed), the launcher's Terminal and Browser, and the other apps a fresh install puts in the launcher (Image Viewer, Media Player, Document Viewer, Disks, Print Settings, Foot, Neovim, Pinta, LibreOffice Writer, Calc and Impress, Aether, LocalSend, Obsidian, Superwhisper, cliamp and disktree). Google Chrome and the web apps keep their own logos, which are only recognizable as drawn. |
+| `arcade` | `icons/arcade/` | The same apps as Papercraft, as 8-bit pixel art on a 16 by 16 grid, in the theme's colors. An example of a second look to switch to. |
 | `original` | nowhere; it is the set with nothing in it | Nothing, so every app shows the icon its package installed. |
 | the user's own | `~/.config/omarchy/icons/<name>/` | Whatever it holds. Written by hand, or cloned by `omarchy icons install <git url>`, which names the set after the repo without a leading `omarchy-` and a trailing `-icons`. |
 

@@ -70,6 +70,7 @@ _White_
 The icons in the app launcher and dock are drawn in the colors of your theme, so they change along with it. They come from an icon set, which you pick separately from the theme under _Appearance > Icons_:
 
 - _Papercraft_ is the default: Omarchy's own apps and the other apps that come installed, all drawn in one style.
+- _Arcade_ draws the same apps as 8-bit pixel art, like an old game console would.
 - _Original_ shows every app with the icon its maker gave it.
 
 You can install an icon set someone else has made with _Install > Style > Icons_ (or `omarchy icons install <git url>`), and remove it again under _Remove > Icons_. _Update > Extra Icons_ fetches the latest version of the sets you have installed.

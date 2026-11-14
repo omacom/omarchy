@@ -158,7 +158,7 @@ mkdir -p "$sets/mine"
 printf '<svg>{{ icon_mark }}</svg>\n' >"$sets/mine/firefox.svg.tpl"
 printf 'fixed\n' >"$sets/mine/mpv.svg"
 [[ $(icons icons-current) == "Papercraft" ]] || fail "the default icon set is in use until another is picked"
-[[ $(icons icons-list) == $'Mine\nOriginal\nPapercraft' ]] || fail "icon sets list the built-in ones, the user's and Original"
+[[ $(icons icons-list) == $'Arcade\nMine\nOriginal\nPapercraft' ]] || fail "icon sets list the built-in ones, the user's and Original"
 icons icons-set Mine
 [[ $(icons icons-current) == "Mine" && $(icons icons-current --id) == "mine" ]] || fail "an icon set is picked by the name it is listed under"
 [[ $(<"$apps/firefox.svg") == "<svg>#"* && $(<"$apps/mpv.svg") == "fixed" ]] || fail "a user's icon set draws any app, themed or as it is"
@@ -186,6 +186,19 @@ icons icons-set Original
 ! icons icons-set "../themes" >/dev/null 2>&1 || fail "an icon set name can't climb out of the sets dir"
 [[ $(icons icons-current --id) == "original" ]] || fail "a refused icon set leaves the current one in use"
 pass "the Original icon set shows every app's own icon"
+
+# Every set Omarchy ships draws the same apps, and all of its colors resolve.
+for set in "$ROOT"/icons/*/; do
+  set=${set%/}
+  icons icons-set "${set##*/}"
+  [[ $(cd "$set" && ls) == "$(cd "$ROOT/icons/papercraft" && ls)" ]] || fail "the ${set##*/} icon set draws the apps Papercraft does"
+  for tpl in "$set"/*.tpl; do
+    name=${tpl##*/}
+    name=${name%.tpl}
+    [[ -f $state/icons/$name && $(<"$state/icons/$name") != *"{{"* ]] || fail "the ${set##*/} icon set resolves all its colors ($name)"
+  done
+done
+pass "every built-in icon set draws the same apps with all its colors resolved"
 
 # Only a set cloned from a git repo is pulled on update: not one the user wrote
 # or a working copy linked in.
