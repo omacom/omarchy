@@ -502,3 +502,7 @@ assert(!M.weatherStale(reading, 60 * 1000, { lat: 40.71, lon: -74.01 }), 'elsewh
 assert(M.weatherStale(reading, 60 * 1000, { lat: 26.12, lon: -80.14 }), 'elsewhen refetches weather when a city\'s coordinates move')
 assert(!M.weatherStale({ c: 1, at: 0 }, 60 * 1000, { lat: 26.12, lon: -80.14 }), 'elsewhen keeps an older reading that never said where it was')
 JS
+
+require_quickshell "elsewhen city search test"
+
+run_qml_fixture elsewhen-city-search "elsewhen city search picks on a Return that beat the geocoder" Ui Commons
