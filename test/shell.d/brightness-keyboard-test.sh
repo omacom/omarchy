@@ -114,3 +114,13 @@ touch "$pause.go"
 wait "$blank" "$wake"
 [[ $(level) == "3" ]] || fail "a wake overlapping a blank restores the level once the blank is done (got $(level))"
 pass "a wake overlapping a blank waits for it"
+
+# No session runtime dir: the saved level must not land on a fixed /tmp name.
+echo 3 >"$level_file"
+fallback_home="$test_tmp/fallback-home"
+mkdir -p "$fallback_home"
+env -u XDG_RUNTIME_DIR HOME="$fallback_home" XDG_STATE_HOME="$test_tmp/fallback-state" \
+  PATH="$mock_bin:$PATH" "$keyboard" off
+saved="$test_tmp/fallback-state/omarchy/omarchy-brightness-keyboard-asus::kbd_backlight"
+[[ -s $saved && ! -L $saved ]] || fail "keyboard brightness is saved in the private state dir"
+pass "keyboard brightness stays out of /tmp"
