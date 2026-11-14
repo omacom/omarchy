@@ -1,0 +1,18 @@
+[Unit]
+Description=Enable MSI Cooler Boost when CPU/GPU hit 85C (sustained 30s)
+Documentation=https://github.com/omacom/omarchy/issues/11583
+After=multi-user.target
+ConditionPathExists=/sys/devices/platform/msi-ec/cooler_boost
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-msi-cooler-boost-watch
+Restart=on-failure
+RestartSec=10
+Environment=MSI_COOLER_BOOST_ON_AT=85
+Environment=MSI_COOLER_BOOST_OFF_AT=70
+Environment=MSI_COOLER_BOOST_SUSTAIN=30
+Environment=MSI_COOLER_BOOST_INTERVAL=5
+
+[Install]
+WantedBy=multi-user.target

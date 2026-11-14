@@ -1,0 +1,143 @@
+#!/bin/bash
+
+# omarchy:summary=Turn MSI Cooler Boost on when CPU/GPU hit the high-temp threshold
+# omarchy:args=[--once|--decide <state> <cpu> <gpu>]
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# Cooler Boost is a binary EC flag. Silent/auto fan modes do not enable it at a
+# temperature, so Titan GT77HX units stay on the quiet curve until this watcher
+# flips the flag. Default: on at 85C after 30s sustained, off at 70C (hysteresis).
+# Matches #11583 Extreme 100% at 85C and Silent staying low until 70C.
+
+set -euo pipefail
+
+ON_AT=${MSI_COOLER_BOOST_ON_AT:-85}
+OFF_AT=${MSI_COOLER_BOOST_OFF_AT:-70}
+SUSTAIN=${MSI_COOLER_BOOST_SUSTAIN:-30}
+INTERVAL=${MSI_COOLER_BOOST_INTERVAL:-5}
+EC_PATH=${OMARCHY_MSI_EC_PATH:-/sys/devices/platform/msi-ec}
+
+desired_cooler_boost() {
+  local state=$1 cpu=$2 gpu=$3 on_at=$4 off_at=$5
+  local hot=$cpu
+
+  [[ $cpu =~ ^[0-9]+$ ]] || cpu=0
+  [[ $gpu =~ ^[0-9]+$ ]] || gpu=0
+  hot=$cpu
+  if (( gpu > hot )); then
+    hot=$gpu
+  fi
+
+  if [[ $state != on ]] && (( hot >= on_at )); then
+    printf '%s\n' on
+  elif [[ $state == on ]] && (( hot <= off_at )); then
+    printf '%s\n' off
+  elif [[ $state == on ]]; then
+    printf '%s\n' on
+  else
+    printf '%s\n' off
+  fi
+}
+
+read_temp() {
+  local file=$1
+  local value=0
+
+  if [[ -r $file ]]; then
+    value=$(< "$file")
+  fi
+  if [[ ! $value =~ ^[0-9]+$ ]]; then
+    value=0
+  fi
+  printf '%s\n' "$value"
+}
+
+read_state() {
+  local file=$1
+  local value=off
+
+  if [[ -r $file ]]; then
+    value=$(tr -d '[:space:]' < "$file")
+  fi
+  if [[ $value != on ]]; then
+    value=off
+  fi
+  printf '%s\n' "$value"
+}
+
+if [[ ${1:-} == --decide ]]; then
+  desired_cooler_boost "${2:-off}" "${3:-0}" "${4:-0}" "$ON_AT" "$OFF_AT"
+  exit 0
+fi
+
+if ! omarchy-hw-msi-titan; then
+  echo "omarchy-msi-cooler-boost-watch: not an MSI Titan GT77HX; exiting"
+  exit 0
+fi
+
+boost=$EC_PATH/cooler_boost
+cpu_temp=$EC_PATH/cpu/realtime_temperature
+gpu_temp=$EC_PATH/gpu/realtime_temperature
+
+if [[ ! -e $boost ]]; then
+  echo "omarchy-msi-cooler-boost-watch: $boost missing (msi-ec not loaded)" >&2
+  exit 1
+fi
+
+apply_once() {
+  local state cpu gpu want hot sustained_file count
+
+  state=$(read_state "$boost")
+  cpu=$(read_temp "$cpu_temp")
+  gpu=$(read_temp "$gpu_temp")
+  sustained_file="${OMARCHY_MSI_SUSTAIN_FILE:-/run/omarchy-msi-cooler-boost.sustain}"
+
+  hot=$cpu
+  [[ $cpu =~ ^[0-9]+$ ]] || cpu=0
+  [[ $gpu =~ ^[0-9]+$ ]] || gpu=0
+  if (( gpu > hot )); then
+    hot=$gpu
+  fi
+
+  if [[ $state == off ]] && (( hot >= ON_AT )); then
+    # Track consecutive high-temp readings; flip only after SUSTAIN seconds
+    if [[ -s "$sustained_file" ]]; then
+      count=$(< "$sustained_file")
+    else
+      count=0
+    fi
+    count=$(( count + 1 ))
+    printf '%s\n' "$count" > "$sustained_file"
+
+    if (( count * INTERVAL > SUSTAIN )); then
+      want=on
+    else
+      want=off
+    fi
+  else
+    # Reset sustain tracking when temp drops or boost is already on
+    rm -f "$sustained_file"
+    want=$(desired_cooler_boost "$state" "$cpu" "$gpu" "$ON_AT" "$OFF_AT")
+  fi
+
+  if [[ $want != "$state" ]]; then
+    if printf '%s\n' "$want" > "$boost"; then
+      echo "cooler_boost $state -> $want (cpu=${cpu}C gpu=${gpu}C)"
+    else
+      echo "omarchy-msi-cooler-boost-watch: cannot write $boost" >&2
+      return 1
+    fi
+  fi
+}
+
+if [[ ${1:-} == --once ]]; then
+  apply_once
+  exit $?
+fi
+
+echo "omarchy-msi-cooler-boost-watch: on>=${ON_AT}C off<=${OFF_AT}C sustain=${SUSTAIN}s interval=${INTERVAL}s"
+while true; do
+  apply_once || true
+  sleep "$INTERVAL"
+done
