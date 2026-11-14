@@ -326,3 +326,20 @@ set_icons
 [[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "a theme that can't draw app icons brings the packaged ones back"
 [[ $(<"$state/icons/gliff.svg") == "drawn" ]] || fail "an icon that needs no colors stays under a theme that can't draw the rest"
 pass "a theme that can't draw app icons brings the packaged ones back"
+
+# Installing a terminal can fill one newly introduced file in the current
+# theme without regenerating unrelated app configs or staging a theme swap.
+current="$test_tmp/current-theme"
+mkdir -p "$current"
+cp "$ROOT/themes/tokyo-night/colors.toml" "$current/colors.toml"
+printf 'custom foot settings\n' >"$current/foot.ini"
+HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" --file wezterm.lua "$current"
+grep -Fq 'background = "#1a1b26"' "$current/wezterm.lua" || fail "single-file rendering uses the selected theme palette"
+[[ ! -e $current/alacritty.toml && ! -e $current/shell.toml ]] || fail "single-file rendering leaves unrelated templates alone"
+[[ $(<"$current/foot.ini") == "custom foot settings" ]] || fail "single-file rendering keeps existing app settings"
+printf 'custom colors\n' >"$current/wezterm.lua"
+HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" --file wezterm.lua "$current"
+[[ $(<"$current/wezterm.lua") == "custom colors" ]] || fail "single-file rendering preserves an existing generated file"
+pass "single-file rendering fills a missing current-theme config without a theme refresh"

@@ -323,7 +323,11 @@ done
 pass "terminal defaults install every missing terminal before selection"
 
 # Exercise the real installer, including partially configured existing installs.
+unset WEZTERM_CONFIG_FILE
 mkdir -p "$test_home/.config/wezterm" "$test_home/.local/share/applications"
+current_theme="$test_home/.local/state/omarchy/current/theme"
+mkdir -p "$current_theme"
+cp "$ROOT/themes/tokyo-night/colors.toml" "$current_theme/colors.toml"
 printf 'custom module\n' >"$test_home/.config/wezterm/extra.lua"
 printf 'custom desktop\n' >"$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop"
 rm -f "$installed_dir/wezterm"
@@ -346,6 +350,7 @@ rm "$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop"
 OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/null
 cmp -s "$ROOT/applications/org.wezfurlong.wezterm.desktop" "$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop" ||
   fail "WezTerm installation supplies its command-capable desktop entry"
+grep -Fq 'background = "#1a1b26"' "$current_theme/wezterm.lua" || fail "first WezTerm launch uses the current theme"
 pass "WezTerm installation fills missing settings and preserves user configuration"
 
 omarchy-default-terminal kitty

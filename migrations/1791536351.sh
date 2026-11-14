@@ -18,3 +18,6 @@ if [[ ! -f ~/.local/share/applications/org.wezfurlong.wezterm.desktop ]]; then
   mkdir -p ~/.local/share/applications
   cp "$OMARCHY_PATH/applications/org.wezfurlong.wezterm.desktop" ~/.local/share/applications/
 fi
+
+# Existing themes predate the new template. Fill only its missing colors.
+omarchy-theme-set-templates --file wezterm.lua "$HOME/.local/state/omarchy/current/theme"
