@@ -24,6 +24,12 @@
 # it is installed. wf-recorder encodes on the CPU and captures one audio
 # device, so desktop and microphone audio together go through a temporary null
 # sink. Portal capture and --resolution are gpu-screen-recorder only.
+#
+# Webcam overlay: mpv. When this session already renders on the CPU, or Mesa
+# reports a software rasterizer, the camera is opened with Wayland software
+# rendering. The same fallback runs when a GPU overlay exits before its window
+# maps, which is the M3 Max abort (mpv asserts in vo_x11_init after EGL setup
+# fails). A GPU overlay that is still running keeps mpv's default renderer.
 
 [[ -f ~/.config/user-dirs.dirs ]] && source ~/.config/user-dirs.dirs
 OUTPUT_DIR="${OMARCHY_SCREENRECORD_DIR:-${XDG_VIDEOS_DIR:-$HOME/Videos}}"
@@ -90,6 +96,91 @@ if [[ $STATUS != "true" && ! -d $OUTPUT_DIR ]]; then
   exit 1
 fi
 
+# The session marker is written when Hyprland's GL renderer is a software
+# rasterizer. Without one, ask Mesa. An unreadable renderer (exit 2) is not a
+# known failure: try the GPU overlay, and fall back only if that process dies.
+webcam_overlay_gpu_unsupported() {
+  local marker
+  if [[ -n ${XDG_RUNTIME_DIR:-} && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+    marker="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/omarchy-software-rendering"
+    if [[ -e $marker ]]; then
+      return 0
+    fi
+  fi
+  omarchy-hw-software-rendering >/dev/null 2>&1
+}
+
+webcam_overlay_mapped() {
+  hyprctl clients -j 2>/dev/null | jq -e 'any(.[]; .title == "WebcamOverlay")' >/dev/null 2>&1
+}
+
+# kill -0 is true for a zombie, and a reaped mpv has no /proc entry. cat keeps
+# a missing entry quiet; bash still prints the error for $(<missing-file>).
+webcam_overlay_running() {
+  local state
+  [[ -n ${WEBCAM_OVERLAY_PID:-} ]] || return 1
+  state=$(cat "/proc/$WEBCAM_OVERLAY_PID/stat" 2>/dev/null) || return 1
+  state=${state##*) }
+  [[ ${state:0:1} != "Z" ]]
+}
+
+launch_webcam_overlay() {
+  local renderer=$1
+  local capture_options=$2
+  local -a renderer_args=()
+
+  # Software Wayland path for when the GPU overlay cannot start (#17968).
+  # vo=wlshm rejects this camera ("Input image format unknown"). The gpu VO
+  # on a Wayland OpenGL software context is what kept the picture, and these
+  # probing overrides are what keep the low-latency profile from exiting
+  # before apple-isp shows a frame. A mapped GPU overlay never gets them.
+  if [[ $renderer == "software" ]]; then
+    renderer_args=(
+      --vo=gpu
+      --gpu-api=opengl
+      --gpu-context=wayland
+      --gpu-sw=yes
+      --demuxer-lavf-probe-info=auto
+      --demuxer-lavf-analyzeduration=0
+      --video-latency-hacks=no
+    )
+  fi
+
+  mpv "av://v4l2:$WEBCAM_DEVICE" \
+    --profile=low-latency --untimed --no-cache \
+    --demuxer-lavf-o="$capture_options" \
+    '--vf=lavfi=[crop=ih*8/9:ih]' \
+    --title="WebcamOverlay" --wayland-app-id="WebcamOverlay-$WEBCAM_SIZE" \
+    --no-border --no-audio --no-osc --osd-level=0 \
+    --really-quiet \
+    "${renderer_args[@]}" \
+    9>&- &>/dev/null &
+  WEBCAM_OVERLAY_PID=$!
+}
+
+# 0 when the overlay window is up, or when mpv is still running as the wait
+# ends. 1 when mpv exits before that window maps.
+wait_for_webcam_overlay() {
+  local waited=0
+  while (( waited < 40 )); do
+    if ! webcam_overlay_running; then
+      wait "$WEBCAM_OVERLAY_PID" 2>/dev/null || true
+      return 1
+    fi
+    if webcam_overlay_mapped; then
+      return 0
+    fi
+    sleep 0.05
+    ((waited++))
+  done
+
+  if ! webcam_overlay_running; then
+    wait "$WEBCAM_OVERLAY_PID" 2>/dev/null || true
+    return 1
+  fi
+  return 0
+}
+
 start_webcam_overlay() {
   cleanup_webcam
 
@@ -105,7 +196,8 @@ start_webcam_overlay() {
   # Try preferred 16:9 resolutions in order, use first available
   local preferred_resolutions=("640x360" "1280x720" "1920x1080")
   local capture_options="framerate=30"
-  local available_formats=$(v4l2-ctl --list-formats-ext -d "$WEBCAM_DEVICE" 2>/dev/null)
+  local available_formats renderer
+  available_formats=$(v4l2-ctl --list-formats-ext -d "$WEBCAM_DEVICE" 2>/dev/null)
 
   for resolution in "${preferred_resolutions[@]}"; do
     if echo "$available_formats" | grep -q "$resolution"; then
@@ -114,24 +206,30 @@ start_webcam_overlay() {
     fi
   done
 
-  mpv "av://v4l2:$WEBCAM_DEVICE" \
-    --profile=low-latency --untimed --no-cache \
-    --demuxer-lavf-o="$capture_options" \
-    '--vf=lavfi=[crop=ih*8/9:ih]' \
-    --title="WebcamOverlay" --wayland-app-id="WebcamOverlay-$WEBCAM_SIZE" \
-    --no-border --no-audio --no-osc --osd-level=0 \
-    --really-quiet 9>&- &>/dev/null &
+  if webcam_overlay_gpu_unsupported; then
+    renderer=software
+    echo "webcam overlay: Wayland software rendering (no GPU acceleration)" >>"$LOG_FILE"
+  else
+    renderer=gpu
+  fi
+
+  launch_webcam_overlay "$renderer" "$capture_options"
+  if ! wait_for_webcam_overlay; then
+    if [[ $renderer == "gpu" ]]; then
+      echo "webcam overlay: GPU renderer exited before the window mapped; retrying with Wayland software rendering" >>"$LOG_FILE"
+      launch_webcam_overlay software "$capture_options"
+      if ! wait_for_webcam_overlay; then
+        echo "webcam overlay: software renderer exited before the window mapped" >>"$LOG_FILE"
+      fi
+    else
+      echo "webcam overlay: software renderer exited before the window mapped" >>"$LOG_FILE"
+    fi
+  fi
 
   # The move has to settle before gpu-screen-recorder starts, or the camera is
   # recorded sliding into its corner. Waiting for the map is what the blind
   # second was partly guessing at, so the remainder is trimmed to hold the
   # pre-capture delay where it was: starting later costs the first words spoken.
-  local waited=0
-  while ((waited < 40)) && ! hyprctl clients -j | jq -e 'any(.[]; .title == "WebcamOverlay")' >/dev/null 2>&1; do
-    sleep 0.05
-    ((waited++))
-  done
-
   [[ ${1:-} == region:* ]] && echo "${1#region:}" >"$REGION_FILE"
   omarchy-capture-webcam-resize "$WEBCAM_SIZE"
 
