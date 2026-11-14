@@ -84,15 +84,35 @@ close_portal_window() {
   done
 }
 
-# Nothing on the machine changes when the sign-in completes, so ask
-# NetworkManager to re-check: often while a sign-in is likely, then gently
-# until it is done. Its connectivity state updates as it does, which is what
-# the panel shows. Joining any other working network ends the wait too.
+portal_states() {
+  LC_ALL=C timeout 5 nmcli -t -e no -f GENERAL.CON-PATH,GENERAL.IP4-CONNECTIVITY,GENERAL.IP6-CONNECTIVITY device show 2>/dev/null |
+    awk -F: '
+      /^GENERAL.CON-PATH:/ { path = $2; portal = full = 0 }
+      /^GENERAL.IP[46]-CONNECTIVITY:2 / { portal = 1 }
+      /^GENERAL.IP[46]-CONNECTIVITY:4 / { full = 1 }
+      /^GENERAL.IP6-CONNECTIVITY:/ && path ~ /^\// {
+        print path, (portal ? "portal" : full ? "full" : "waiting")
+      }
+    '
+}
+
+sign_in_finished() {
+  local overall states state
+  overall=$(LC_ALL=C timeout 5 nmcli networking connectivity check 2>/dev/null) || true
+  if [[ -z $portal_connection ]]; then
+    [[ $overall == "full" ]]
+  else
+    states=$(portal_states) || return 1
+    state=$(awk -v path="$portal_connection" '$1 == path { print $2; exit }' <<< "$states")
+    # An active connection path goes away if the user disconnects or switches networks.
+    [[ $state == "full" || -z $state ]]
+  fi
+}
+
 wait_until_online() {
   local fast_until=$(( SECONDS + 300 ))
 
-  # nmcli translates its answer, so read it in the C locale.
-  until [[ $(LC_ALL=C timeout 5 nmcli networking connectivity check 2>/dev/null) == "full" ]]; do
+  until sign_in_finished; do
     if portal_window_failed; then
       exit 1
     fi
@@ -107,6 +127,14 @@ wait_until_online() {
 exec 9>"$lock"
 if flock -n 9; then
   trap restore_exit_node EXIT
+
+  # Pin an unambiguous portal to its active connection. A working dock or
+  # tether can report system-wide connectivity while this sign-in is pending.
+  mapfile -t portal_connections < <(portal_states | awk '$2 == "portal" { print $1 }')
+  portal_connection=""
+  if (( ${#portal_connections[@]} == 1 )); then
+    portal_connection=${portal_connections[0]}
+  fi
 
   if exit_node_active && set_exit_node_enabled false; then
     paused_exit_node=1
