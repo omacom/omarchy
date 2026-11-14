@@ -20,15 +20,36 @@ cat >"$test_home/.local/share/applications/chromium.desktop" <<'EOF'
 Exec=chromium %U
 EOF
 
+# Zen's binary name is not its window class, so only StartupWMClass finds it.
+# Use a test-local path: omarchy-cmd-default-browser only accepts an installed Exec.
+mkdir -p "$test_tmp/opt/zen-browser-bin"
+cat >"$test_tmp/opt/zen-browser-bin/zen-bin" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$test_tmp/opt/zen-browser-bin/zen-bin"
+cat >"$test_home/.local/share/applications/zen.desktop" <<EOF
+[Desktop Entry]
+Exec=$test_tmp/opt/zen-browser-bin/zen-bin %u
+StartupWMClass=zen
+EOF
+
+# A class with regex metacharacters must be matched literally.
+cat >"$test_home/.local/share/applications/dotted.desktop" <<'EOF'
+[Desktop Entry]
+Exec=chromium %U
+StartupWMClass=org.example.Browser
+EOF
+
 cat >"$mock_bin/xdg-settings" <<'SH'
 #!/bin/bash
 [[ -z ${BROWSER:-} ]] || printf '%s\n' "$BROWSER" >"$OMARCHY_TEST_XDG_SETTINGS_BROWSER"
-[[ ${OMARCHY_TEST_XDG_SETTINGS_EMPTY:-0} == "1" ]] || echo chromium.desktop
+[[ ${OMARCHY_TEST_XDG_SETTINGS_EMPTY:-0} == "1" ]] || echo "${OMARCHY_TEST_DEFAULT_BROWSER:-chromium.desktop}"
 SH
 cat >"$mock_bin/xdg-mime" <<'SH'
 #!/bin/bash
 if [[ $* == "query default x-scheme-handler/https" ]]; then
-  echo chromium.desktop
+  echo "${OMARCHY_TEST_DEFAULT_BROWSER:-chromium.desktop}"
 fi
 SH
 cat >"$mock_bin/chromium" <<'SH'
@@ -82,6 +103,28 @@ grep -F 'https://example.test/fallback' "$launch_log" >/dev/null ||
   fail "browser launcher unsets BROWSER before reading xdg-settings"
 grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
   fail "browser launcher focuses the browser resolved from the HTTPS handler"
+
+rm -f "$focus_log" "$launch_log"
+
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_DEFAULT_BROWSER=zen.desktop \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/zen"
+
+grep -F -- "$test_tmp/opt/zen-browser-bin/zen-bin https://example.test/zen" "$launch_log" >/dev/null ||
+  fail "browser launcher still launches the desktop entry's Exec binary" "$(cat "$launch_log" 2>/dev/null)"
+grep -Fx '^zen$' "$focus_log" >/dev/null ||
+  fail "browser launcher focuses the window class the desktop entry declares"
+
+rm -f "$focus_log"
+
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_DEFAULT_BROWSER=dotted.desktop \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/dotted"
+
+grep -Fx '^org\.example\.Browser$' "$focus_log" >/dev/null ||
+  fail "browser launcher escapes regex characters in the declared window class"
 
 pass "browser launcher follows opened links to the browser workspace"
 
