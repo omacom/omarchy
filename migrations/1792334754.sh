@@ -9,14 +9,17 @@ if [[ ! -r /usr/share/openclaw/install-cli.sh || ! -r /usr/share/openclaw/opencl
 fi
 
 # An OpenClaw of the user's own in the way, a command, another one on PATH or a
-# gateway running it, is theirs to move aside, and nothing was changed. Failing
-# here would stop every update until they did, so the move is left to launching
-# OpenClaw from Omarchy, which sets it up once the way is clear. A setup that
-# failed, the npm registry out of reach for one, stays pending as before.
+# gateway running it, is theirs to move aside. Failing here would stop every
+# update until they did, so the rest of the move is left to launching OpenClaw
+# from Omarchy, which finishes it once the way is clear. A service the old
+# package installed, which no longer starts from the seed package, is moved to
+# the runtime first, unless a gateway running another OpenClaw keeps one from
+# being set up at all. A setup that failed, the npm registry out of reach for
+# one, stays pending as before.
 status=0
 omarchy-install-openclaw-cli --now || status=$?
 if ((status == 79)); then
-  echo "Leaving OpenClaw as it is; launching it from Omarchy finishes the move once the OpenClaw above is out of the way."
+  echo "Leaving the OpenClaw above as it is; launching OpenClaw from Omarchy finishes the move once it is out of the way."
   exit 0
 fi
 exit "$status"
