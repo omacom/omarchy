@@ -40,6 +40,50 @@ function parseStatus(raw) {
   }
 }
 
+// Dropbox reports transfer details as separate status lines, including speed and ETA.
+function isSyncing(status) {
+  return /\b(syncing|uploading|downloading)\b/i.test(String(status || ""))
+}
+
+function syncDetails(status, fmt, tr) {
+  var t = translator(tr)
+  var f = formatter(fmt)
+  var lines = String(status || "").trim().split(/\n/)
+  var transfers = lines.filter(function(line) { return /^(Downloading|Uploading)\b/i.test(line) })
+  var transfer = transfers.filter(function(line) { return /B\/(?:sec|s)\b/i.test(line) })[0] || transfers[0] || lines[0] || ""
+  var rate = transfer.match(/([\d,.]+)\s*([KMGT]?)B\/(?:sec|s)\b/i)
+  var speed = ""
+  if (rate) {
+    var unit = rate[2] === "" ? 0 : "KMGT".indexOf(rate[2].toUpperCase()) + 1
+    speed = formatBytes(Number(rate[1].replace(/,/g, "")) * Math.pow(1000, unit), fmt) + "/s"
+  }
+  var overall = lines[0].match(/^Syncing\s+([\d,]+)\s+files?\b/i)
+  var count = transfer.match(/([\d,]+)\s+files?\b/i)
+  var remaining = overall ? Number(overall[1].replace(/,/g, "")) : count ? Number(count[1].replace(/,/g, "")) : 0
+  var action = transfers.length > 1 ? "syncing" : /^Downloading/i.test(transfer) ? "downloading" : /^Uploading/i.test(transfer) ? "uploading" : "syncing"
+  var label = t("dropbox.syncing", "Syncing…")
+  if (count || overall) {
+    var labelCount = transfers.length > 1 ? remaining : count ? Number(count[1].replace(/,/g, "")) : remaining
+    var one = labelCount === 1
+    var pattern = action === "downloading" ? (one ? t("dropbox.downloadingOne", "Downloading %1 file") : t("dropbox.downloadingFiles", "Downloading %1 files"))
+      : action === "uploading" ? (one ? t("dropbox.uploadingOne", "Uploading %1 file") : t("dropbox.uploadingFiles", "Uploading %1 files"))
+      : one ? t("dropbox.syncingOne", "Syncing %1 file") : t("dropbox.syncingFiles", "Syncing %1 files")
+    label = pattern.replace("%1", f(labelCount))
+  }
+  var etaMatch = (lines[0].split(/[•·]/)[1] || "").trim().match(/^(\d+)(\+?)\s*(sec(?:ond)?s?|min(?:ute)?s?|hours?|days?)$/i)
+  var eta = ""
+  if (etaMatch) {
+    var amount = Number(etaMatch[1])
+    var singular = amount === 1 && etaMatch[2] === ""
+    var timePattern = /^sec/i.test(etaMatch[3]) ? (singular ? t("dropbox.etaSecondsOne", "%1 sec") : t("dropbox.etaSeconds", "%1 secs"))
+      : /^min/i.test(etaMatch[3]) ? (singular ? t("dropbox.etaMinutesOne", "%1 min") : t("dropbox.etaMinutes", "%1 mins"))
+      : /^hour/i.test(etaMatch[3]) ? (singular ? t("dropbox.etaHoursOne", "%1 hour") : t("dropbox.etaHours", "%1 hours"))
+      : singular ? t("dropbox.etaDaysOne", "%1 day") : t("dropbox.etaDays", "%1 days")
+    eta = timePattern.replace("%1", f(amount) + etaMatch[2])
+  }
+  return { label: label, detail: [speed, eta].filter(function(value) { return value !== "" }).join(" · "), remaining: remaining }
+}
+
 function defaultStatus() {
   return {
     ok: true,
@@ -138,6 +182,8 @@ function fileMeta(file, nowMs, tr, fmt) {
 if (typeof module !== "undefined") {
   module.exports = {
     parseStatus: parseStatus,
+    isSyncing: isSyncing,
+    syncDetails: syncDetails,
     defaultStatus: defaultStatus,
     fileExtension: fileExtension,
     fileKind: fileKind,

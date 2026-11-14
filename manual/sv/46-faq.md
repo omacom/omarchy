@@ -2,7 +2,7 @@
 
 ### Hur växlar jag mellan tangentbordslayouter?
 
-Redigera din `~/.config/hypr/input.lua`-fil och lägg till detta för att växla mellan layouter på `Left Alt + Right Alt`:
+Redigera din fil `~/.config/hypr/input.lua` och lägg till detta för att växla mellan layouter med `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -14,72 +14,68 @@ hl.config({
 })
 ```
 
-Fältet kommer automatiskt att visa din aktuella tangentbordslayout när du har flera layouter konfigurerade (och du kan klicka på det för att växla också).
+Baren visar automatiskt din aktuella tangentbordslayout när du har flera layouter konfigurerade (och du kan klicka på den för att växla också).
 
 ### Hur ändrar jag klockformatet till 12-timmars?
 
-Högerklicka på klockan i fältet för att bläddra igenom de vanliga formaten, inklusive 12-timmarsformaten. Du kan också ställa in formatet direkt:
+Högerklicka på klockan i baren för att bläddra igenom de vanliga formaten, inklusive 12-timmarsformaten. Du kan också ställa in formatet direkt:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Detta kommer att visa Sunday 10:55 AM.
+Detta visar Sunday 10:55 AM.
 
 ### Hur ändrar jag min tidszon?
 
-Kör _Uppdatera > Timezone_ i Omarchy-menyn och välj från listan. Om tidszonen är rätt men själva klockan har driftat startar _Uppdatera > Time_ om tidssynkroniseringen åt dig.
+Kör _Update > Timezone_ i Omarchy-menyn och välj från listan. Om tidszonen är rätt men själva klockan har drivit iväg startar _Update > Time_ om tidssynkroniseringen åt dig.
 
 ### Hur ändrar jag min DNS, delar mitt Wi-Fi eller kontrollerar min anslutningshastighet?
 
-De finns alla i [nätverk](35-networking.md).
+Allt det finns i [networking](35-networking.md).
 
 ### Hur kontrollerar jag hur snabb min disk är?
 
-_Utlös > Hastighetstest > Diskhastighetstest_ mäter läs- och skrivhastighet i realtid på din enhet, eller `omarchy disk speedtest` från terminalen.
-
-### Varför kan jag inte logga in på mitt Google-konto i Chromium?
-
-Den vanliga Chromium-versionen med öppen källkod levereras inte med de OAuth-uppgifter som Google kräver för kontoinloggning. Kör _Installera > Service > Chromium Account_ i Omarchy-menyn för att lägga till dem, starta om webbläsaren, så går inloggningen igenom.
+_Trigger > Speed Test > Disk Speed Test_ mäter aktuell läs- och skrivhastighet på din disk, eller `omarchy disk speedtest` från terminalen.
 
 ### Hur lägger jag till en skrivare?
 
-Utskrift är konfigurerat och körs direkt ur lådan, och du lägger till varje skrivare själv från _Print Settings_ i appstartaren (`Super + Space`).
+Utskrift är konfigurerad och igång direkt från start, och du lägger till varje skrivare själv från _Print Settings_ i application launcher (`Super + Space`).
 
-Välj _Add_, och ge det en stund att leta: en skrivare inkopplad via USB, och de flesta nätverksskrivare, hittas åt dig. Om din inte finns i listan väljer du _Network Printer > Internet Printing Protocol (ipp)_ och anger dess adress — skrivarens egen display eller dess webbsida berättar vad det är, vanligtvis något i stil med `192.168.1.50` med en kö på `ipp/print`. _Forward_ erbjuder sedan en drivrutin, där en modern skrivare fungerar bäst på den drivrutinslösa _IPP Everywhere_-profilen och en äldre vill ha modellens egen drivrutin.
+Välj _Add_, och ge det en stund att söka: en skrivare inkopplad via USB, och de flesta nätverksskrivare, hittas åt dig. Om din inte finns i listan, välj _Network Printer > Internet Printing Protocol (ipp)_ och ange dess adress — skrivarens egen display eller dess webbsida berättar vad det är, vanligtvis något i stil med `192.168.1.50` med en kö `ipp/print`. _Forward_ erbjuder sedan en drivrutin, där en modern skrivare fungerar bäst med den drivrutinslösa profilen _IPP Everywhere_ och en äldre vill ha modellens egen drivrutin.
 
-Högerklicka på en skrivare och välj _Set as Default_ för att välja vilken dina appar når först, och _Properties_ för att ställa in pappersstorlek, duplex och kvalitet.
+Högerklicka på en skrivare och välj _Set as Default_ för att välja vilken dina appar använder först, och _Properties_ för att ställa in pappersstorlek, duplex och kvalitet.
 
-Automatisk upptäckt, där skrivare i nätverket visas utan att läggas till, är tillfälligt avstängd medan den omarbetas, vilket är anledningen till att det första steget ovan är ditt snarare än automatiskt. Att skriva ut till en PDF-fil fungerar utan någon skrivare alls.
+Automatisk upptäckt, där skrivare på nätverket dyker upp utan att läggas till, är tillfälligt avstängd medan den görs om, vilket är varför första steget ovan är ditt och inte automatiskt. Utskrift till en PDF-fil fungerar helt utan skrivare.
 
-### Hur ändrar jag var skärmbilder eller skärminspelningar sparas?
+### Hur ändrar jag var screenshots eller screenrecordings sparas?
 
-Sparade skärmbilder går till `~/Pictures/Screenshots` som standard. För att använda en annan katalog lägger du till detta i en fil under `~/.config/uwsm/env.d/` (som `~/.config/uwsm/env.d/capture`):
+Sparade screenshots hamnar i `~/Pictures/Screenshots` som standard. För att använda en annan katalog, lägg till detta i en fil under `~/.config/uwsm/env.d/` (som `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Du kan göra samma sak för skärminspelningar med `OMARCHY_SCREENRECORD_DIR`.
+Du kan göra samma sak för screenrecordings med `OMARCHY_SCREENRECORD_DIR`.
 
-Omasnap skapar sin skärmbildskatalog automatiskt. Skapa skärminspelningskatalogen själv, och starta sedan om Omarchy för att någon av miljöändringarna ska träda i kraft.
+Omasnap skapar sin screenshot-katalog automatiskt. Skapa screenrecording-katalogen själv, och starta sedan om Omarchy för att någon av miljövariabeländringarna ska börja gälla.
 
-### Hur får jag högtalare + webbkamera att fungera på min Apple Studio Display?
+### Hur får jag högtalarna + webbkameran att fungera på min Apple Studio Display?
 
-Man skulle kunna tro att allt bara ska fungera med att koppla in USB C, men tyvärr är det inte fallet. Den lösning jag har funnit för att få det att fungera tillförlitligt är att använda [WJESOG DisplayPort + USB-A => USB-C-kabeln](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Då fungerar högtalare och webbkamera som en charm.
+Man skulle tro att allt bara ska fungera genom att koppla in USB C, men så är det tyvärr inte. Lösningen jag har hittat för att få det att fungera pålitligt är att använda [the WJESOG DisplayPort + USB-A => USB-C cable](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Då fungerar högtalare och webbkamera som en dröm.
 
-Kom ihåg att du har inbyggd ljusstyrkekontroll i Omarchy för Apple Displays (både Studio och XDR) med de vanliga ljusstyrkeknapparna på tangentbordet.
+Kom ihåg att du har inbyggd ljusstyrkekontroll i Omarchy för Apple Displays (både Studio och XDR) med de vanliga tangentbordsknapparna för ljusstyrka.
 
 ### Hur blir jag av med all extra mjukvara?
 
-Om du inte vill ha program som Obsidian eller LibreOffice eller något av det andra förinstallerade kan du mycket enkelt ta bort det.
+Om du inte vill ha program som Obsidian eller LibreOffice eller något av det andra förinstallerade, kan du väldigt enkelt ta bort det.
 
-Kör _Ta bort > Package_ för att se varje installerat paket. Sedan kan du välja vilket paket du vill ta bort med tab, och börja ta bort allt du har valt med retur.
+Kör _Remove > Package_ för att se varje paket som är installerat. Sedan kan du välja vilket paket du vill ta bort med tab, och börja ta bort allt du har valt med return.
 
-Och du kan använda _Ta bort > Web App_ från Omarchy-menyn för att ta bort någon av de förinstallerade webbapparna du inte vill ha.
+Och du kan använda _Remove > Web App_ från Omarchy-menyn för att ta bort någon av de förinstallerade webbappar du inte vill ha.
 
-Eller kör _Ta bort > Preinstalls_ för att sopa ut alla förinstallerade tillägg — webbappar, TUI:er och valfria applikationer — i ett svep. Snabbtangenterna som startade dem försvinner med dem, så du lämnas med ett rent blad av bindningar att fylla med dina egna i `~/.config/hypr/bindings.lua`.
+Eller kör _Remove > Preinstalls_ för att sopa ut alla förinstallerade tillbehör — webbappar, TUIs och valfria applikationer — i ett svep. Snabbkommandona som startade dem försvinner med dem, så du lämnas med en ren tavla av bindningar att fylla med dina egna i `~/.config/hypr/bindings.lua`.
 
 ---
 
-För fel och trasiga delar, se [felsökningsavsnittet](45-troubleshooting.md).
+För fel och trasiga delar, se [the Troubleshooting section](45-troubleshooting.md).

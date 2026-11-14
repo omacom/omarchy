@@ -1395,13 +1395,6 @@ apply_system_transition() {
   log "Applying Omarchy quattro system transition"
   [[ -d /usr/share/omarchy ]] || fail "/usr/share/omarchy was not installed."
 
-  as_root install -d -m 0755 /usr/share/icons/Yaru/scalable/actions
-  as_root ln -snf /usr/share/icons/Adwaita/symbolic/actions/go-previous-symbolic.svg \
-    /usr/share/icons/Yaru/scalable/actions/go-previous-symbolic.svg
-  as_root ln -snf /usr/share/icons/Adwaita/symbolic/actions/go-next-symbolic.svg \
-    /usr/share/icons/Yaru/scalable/actions/go-next-symbolic.svg
-  as_root gtk-update-icon-cache /usr/share/icons/Yaru >/dev/null 2>&1 || true
-
   local browser_policy_helper=/usr/share/omarchy/install/helpers/browser-policy.sh
   if ! as_root test -f "$browser_policy_helper"; then
     warn "$browser_policy_helper is unavailable; Chromium policy directories were not hardened."

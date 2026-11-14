@@ -1,91 +1,91 @@
 # වෙබ් යෙදුම්
 
-Omarchy මෙනුවේ (`Super + Space`) _ස්ථාපනය > වෙබ් යෙදුම_ භාවිතයෙන් ඔබට ඔබේම වෙබ් යෙදුම් එක් කළ හැක. එය favicon හරහා එය ලබාගත නොහැකි නම්, යෙදුම් නාමය, යෙදුම් URL එක, සහ අයිකන URL එක ඔබෙන් අසනු ඇත. [Dashboard Icons](https://dashboardicons.com) මත බොහෝ ජනප්‍රිය වෙබ් යෙදුම් සඳහා විශිෂ්ට PNG අයිකන ඔබට ලබාගත හැක.
+Omarchy මෙනුවේ (`Super + Space`) _Install > Web App_ භාවිතයෙන් ඔබට ඔබේම වෙබ් යෙදුම් එක් කළ හැකියි. එය ඔබෙන් යෙදුමේ නම, යෙදුමේ URL එක සහ, favicon එක හරහා එය ලබාගත නොහැකි නම්, අයිකනයේ URL එක විමසනු ඇත. බොහෝ ජනප්‍රිය වෙබ් යෙදුම් සඳහා විශිෂ්ට PNG අයිකන [Dashboard Icons](https://dashboardicons.com) වෙතින් ලබාගත හැකියි.
 
-ඉන්පසු ඒවා යෙදුම් දියත් කරන්නා හරහා (`Super + Space`) ප්‍රවේශ විය හැකි අතර, අලංකාර රාමු රහිත වෙබ්-යෙදුම් කවුළුව භාවිතා කරනු ඇත.
+ඉන්පසු ඒවා app launcher එක (`Super + Space`) හරහා ප්‍රවේශ විය හැකි වන අතර, ලස්සන රාමු රහිත web-app කවුළුව භාවිත කරනු ඇත.
 
-ඔබට වෙබ් යෙදුමක් ඉවත් කිරීමට අවශ්‍ය නම්, Omarchy මෙනුවේ _ඉවත් කරන්න > වෙබ් යෙදුම_ වෙත යන්න.
+වෙබ් යෙදුමක් ඉවත් කිරීමට අවශ්‍ය නම්, Omarchy මෙනුවේ _Remove > Web App_ වෙත යන්න.
 
-වෙබ් යෙදුම් කෙටිමං භාවිතා කිරීමට පෙර ඔබේ සියලු ගිණුම්වලට සාමාන්‍ය බ්‍රවුසරයක් භාවිතයෙන් ඇතුළු වීම හොඳය. සිහින් එතුම් රාමුව 1password සමඟ හොඳින් වැඩ නොකරන බැවින්, පළමුව කෙලින්ම ඇතුළු වීම පහසුය.
+web app කෙටිමං භාවිත කිරීමට පෙර සාමාන්‍ය browser එකක් භාවිතයෙන් ඔබේ සියලුම ගිණුම්වලට log වීම වඩාත් හොඳයි. සිහින් wrapper රාමුව 1password සමඟ හොඳින් ක්‍රියා නොකරන බැවින්, කෙලින්ම පළමුව log වී සිටීම පහසුයි.
 
-මෙම වෙබ් යෙදුම් සඳහා වන සියලු යතුරුපුවරු හොට්කී `~/.config/hypr/bindings.lua` තුළ වෙනස් කළ හැක.
+මෙම වෙබ් යෙදුම් සඳහා වන සියලුම keyboard hotkeys `~/.config/hypr/bindings.lua` තුළ වෙනස් කළ හැකියි.
 
-ඔබ වෙබ් යෙදුමක සිටින විට, ඔබට `Shift + Alt + L` භාවිතයෙන් වත්මන් URL එක පසුරුපුවරුවට පිටපත් කළ හැක.
+ඔබ වෙබ් යෙදුමක සිටින විට, `Shift + Alt + L` භාවිතයෙන් වත්මන් URL එක clipboard එකට පිටපත් කළ හැකියි.
 
 පෙරනිමියෙන්, Omarchy දැනටමත් පෙරනිමි යෙදුම් එකතුවක් සමඟ පැමිණේ:
 
 ## HEY
 
-[HEY](https://www.hey.com/) යනු Gmail, Outlook, හෝ Apple Mail වලින් කැළඹුණු අයට විශිෂ්ට විකල්පයක් ලෙස සේවය කරන විද්‍යුත් තැපෑල සහ දිනදර්ශන සේවාවකි. එය Omarchy ආරම්භ වූ [37signals](https://37signals.com/) විසින් සාදනු ලැබේ.
+[HEY](https://www.hey.com/) යනු Gmail, Outlook, හෝ Apple Mail ගැන වෙහෙසට පත් අයට විශිෂ්ට විකල්පයක් ලෙස ක්‍රියා කරන email සහ calendar සේවාවකි. එය නිර්මාණය කර ඇත්තේ Omarchy බිහි වූ [37signals](https://37signals.com/) විසිනි.
 
-ඔබට HEY Email එක `Super + Shift + E` භාවිතයෙන් ආරම්භ කළ හැක, `Super + Shift + Alt + E` භාවිතයෙන් නව විද්‍යුත් තැපෑලක් රචනා කිරීම වෙත කෙලින්ම පැනිය හැක, සහ `Super + Shift + C` භාවිතයෙන් HEY Calendar එක ආරම්භ කළ හැක.
+ඔබට `Super + Shift + E` භාවිතයෙන් HEY Email ආරම්භ කළ හැකියි, `Super + Shift + Alt + E` භාවිතයෙන් නව email එකක් ලිවීමට කෙලින්ම යා හැකියි, සහ `Super + Shift + C` භාවිතයෙන් HEY Calendar ආරම්භ කළ හැකියි.
 
 ## Basecamp
 
-[Basecamp](https://basecamp.com/) යනු කුඩා කණ්ඩායම්වලට වේගයෙන් ගමන් කිරීමට සහ වැඩි ප්‍රගතියක් ලැබීමට උපකාර කරන ව්‍යාපෘති කළමනාකරණ සේවාවකි. Trello, Slack, Asana, Notion, හෝ වෙනත් දෙයක් එකට ඇමිණීම වෙනුවට, ඔබට Basecamp සමඟ ඒ සියල්ල එකම ස්ථානයක ලබාගත හැක. එය Omarchy ආරම්භ වූ [37signals](https://37signals.com/) විසින් සාදනු ලැබේ.
+[Basecamp](https://basecamp.com/) යනු කුඩා කණ්ඩායම්වලට වේගයෙන් ඉදිරියට යාමට සහ වැඩි ප්‍රගතියක් ලබා ගැනීමට උදව් කරන project management සේවාවකි. Trello, Slack, Asana, Notion, හෝ වෙන කුමක් වුවත් ඒවායේ අවුල් සහගත එකතුවක් එකට අලවනවා වෙනුවට, Basecamp සමඟ සියල්ල එකම තැනක ලබා ගත හැකියි. එය නිර්මාණය කර ඇත්තේ Omarchy බිහි වූ [37signals](https://37signals.com/) විසිනි.
 
-ඔබට යෙදුම් දියත් කරන්නා භාවිතයෙන් Basecamp ආරම්භ කළ හැක (`Super + Space`)
+ඔබට application launcher එක (`Super + Space`) භාවිතයෙන් Basecamp ආරම්භ කළ හැකියි
 
 ## ChatGPT
 
-[ChatGPT](https://chatgpt.com) යනු ලෝකයේ ජනප්‍රියම AI කතාබස් බොට් එකයි.
+[ChatGPT](https://chatgpt.com) යනු ලෝකයේ වඩාත්ම ජනප්‍රිය AI chat bot එකයි.
 
-ඔබට ChatGPT `Super + Shift + A` භාවිතයෙන් ආරම්භ කළ හැක.
+ඔබට `Super + Shift + A` භාවිතයෙන් ChatGPT ආරම්භ කළ හැකියි.
 
 ## Grok
 
-[Grok](https://grok.com) යනු xAI හි කතාබස් බොට් එකයි.
+[Grok](https://grok.com) යනු xAI හි chat bot එකයි.
 
-ඔබට Grok `Super + Shift + Alt + A` භාවිතයෙන් ආරම්භ කළ හැක.
+ඔබට `Super + Shift + Alt + A` භාවිතයෙන් Grok ආරම්භ කළ හැකියි.
 
 ## WhatsApp
 
-[WhatsApp](https://www.whatsapp.com/) යනු ලෝකයේ ජනප්‍රියම පණිවිඩකරණ සේවාවන්ගෙන් එකක් වන අතර, වෙබ් අනුවාදය Linux සඳහා විශිෂ්ට විකල්පයකි.
+[WhatsApp](https://www.whatsapp.com/) යනු ලෝකයේ වඩාත්ම ජනප්‍රිය messaging සේවාවන්ගෙන් එකක් වන අතර, එහි web අනුවාදය Linux සඳහා විශිෂ්ට විකල්පයකි.
 
-ඔබට WhatsApp `Super + Shift + Alt + G` භාවිතයෙන් ආරම්භ කළ හැක.
+ඔබට `Super + Shift + Alt + G` භාවිතයෙන් WhatsApp ආරම්භ කළ හැකියි.
 
-## Google යෙදුම්
+## Google apps
 
-Google Messages, Google Photos, Google Maps, සහ Google Contacts යන සියල්ල වෙබ් යෙදුම් ලෙසද ඇතුළත්ය.
+Google Messages, Google Photos, Google Maps, සහ Google Contacts යන සියල්ලම වෙබ් යෙදුම් ලෙසද ඇතුළත් වී ඇත.
 
-ඔබට Google Messages එක `Super + Shift + Ctrl + G` භාවිතයෙන්, Google Photos එක `Super + Shift + P` භාවිතයෙන්, සහ Google Maps එක `Super + Shift + S` භාවිතයෙන් ආරම්භ කළ හැක. Google Contacts යෙදුම් දියත් කරන්නා හරහා ලබාගත හැක (`Super + Space`).
+ඔබට `Super + Shift + Ctrl + G` භාවිතයෙන් Google Messages, `Super + Shift + P` භාවිතයෙන් Google Photos, සහ `Super + Shift + S` භාවිතයෙන් Google Maps ආරම්භ කළ හැකියි. Google Contacts app launcher එක (`Super + Space`) හරහා ලබා ගත හැකියි.
 
 ## X
 
-X යනු පුවත් මතුපිටට එන ස්ථානයයි.
+X යනු ප්‍රවෘත්ති බිඳෙන තැනයි.
 
-ඔබට X එක `Super + Shift + X` භාවිතයෙන් ආරම්භ කළ හැකි අතර `Super + Shift + Alt + X` භාවිතයෙන් නව සටහනක් ලිවීම වෙත කෙලින්ම යා හැක.
+ඔබට `Super + Shift + X` භාවිතයෙන් X ආරම්භ කළ හැකි අතර `Super + Shift + Alt + X` සමඟ නව post එකක් ලිවීමට කෙලින්ම යා හැකියි.
 
 ## YouTube
 
-[YouTube](https://youtube.com/) යනු ලෝකයේ ජනප්‍රියම වීඩියෝ වේදිකාවයි.
+[YouTube](https://youtube.com/) යනු ලෝකයේ වඩාත්ම ජනප්‍රිය video platform එකයි.
 
-ඔබට YouTube එක `Super + Shift + Y` භාවිතයෙන් ආරම්භ කළ හැක.
+ඔබට `Super + Shift + Y` භාවිතයෙන් YouTube ආරම්භ කළ හැකියි.
 
 ## Zoom
 
-[Zoom](https://zoom.us/) යනු එක්සත් ජනපදයේ භාවිතා වන ජනප්‍රියම වීඩියෝ කතාබස් පද්ධතියයි. ලෝකය පුරා විශිෂ්ට සම්බන්ධතාවක්. සහ ගෙවන ගිණුමක් නොමැතිව විනාඩි 40ක රැස්වීම් පැවැත්විය හැක. Omarchy Zoom හි වෙබ් සේවාදායකයා ඔතා ඇති අතර, zoom රැස්වීම් සබැඳි කෙලින්ම එය තුළට විවෘත වනු ඇත.
+[Zoom](https://zoom.us/) යනු US හි භාවිත වන වඩාත්ම ජනප්‍රිය video chat පද්ධතියයි. ලොව පුරා විශිෂ්ට සම්බන්ධතා. තවද ගෙවන ගිණුමක් නොමැතිව විනාඩි 40ක රැස්වීම් පැවැත්විය හැකියි. Omarchy විසින් Zoom හි web client එක ඔතා ඇති අතර, zoom meeting links කෙලින්ම එය තුළ විවෘත වනු ඇත.
 
-ඔබ Zoom එක යෙදුම් දියත් කරන්නා භාවිතයෙන් අරඹයි (`Super + Space`).
+ඔබ application launcher එක (`Super + Space`) භාවිතයෙන් Zoom ආරම්භ කරයි.
 
 ## Discord
 
-[Discord](https://discord.com/) යනු [Omarchy හිම](https://discord.gg/tXFUdasqhY) ඇතුළුව බොහෝ ක්‍රීඩා සහ විවෘත මූලාශ්‍ර ප්‍රජාවන් ගැවසෙන ස්ථානයයි.
+[Discord](https://discord.com/) යනු [Omarchy සතු එක](https://discord.gg/tXFUdasqhY) ඇතුළුව බොහෝ gaming සහ open source ප්‍රජාවන් එක්රොක් වන ස්ථානයයි.
 
-ඔබ Discord එක යෙදුම් දියත් කරන්නා භාවිතයෙන් අරඹයි (`Super + Space`).
+ඔබ application launcher එක (`Super + Space`) භාවිතයෙන් Discord ආරම්භ කරයි.
 
-## Microsoft යෙදුම්
+## Microsoft apps
 
-Outlook, Word, Excel, PowerPoint, Teams, සහ OneDrive වෙබ් යෙදුම් ලෙස එක් කිරීමට _ස්ථාපනය > සේවාව > Microsoft_ තෝරන්න. සෑම යෙදුමක්ම තමන්ගේම දියත් කරන්නෙකු ඇති අතර, වාණිජ Microsoft 365 URL සහ ඔබේ පවතින බ්‍රවුසර පැතිකඩ භාවිතයෙන් කෙලින්ම විවෘත වේ. ඒවා Omarchy හි වෙනත් වෙබ් යෙදුම් මෙන් එකම බ්‍රවුසර යෙදුම් කවුළු තුළ විවෘත වේ; ඒවා වෙනම Teams for Linux සේවාදායකයා ස්ථාපනය නොකරයි.
+Outlook, Word, Excel, PowerPoint, Teams, සහ OneDrive වෙබ් යෙදුම් ලෙස එක් කිරීමට _Install > Service > Microsoft_ තෝරන්න. සෑම යෙදුමකටම තමන්ගේම launcher එකක් ඇති අතර වාණිජ Microsoft 365 URLs සහ ඔබේ පවතින browser profile එක භාවිත කරමින් කෙලින්ම විවෘත වේ. ඒවා Omarchy හි අනෙකුත් වෙබ් යෙදුම් මෙන්ම එකම browser app කවුළුවල විවෘත වේ; ඒවා වෙනම Teams for Linux client එක install නොකරයි.
 
-_ඉවත් කරන්න > සේවාව > Microsoft_ සමඟ බණ්ඩලය ඉවත් කරන්න, නැතහොත් _ඉවත් කරන්න > වෙබ් යෙදුම_ සමඟ තනි යෙදුම් ඉවත් කරන්න. _ස්ථාපනය > වෙබ් යෙදුම_ හරහා ඔබට අවශ්‍ය යෙදුම් පමණක් ස්ථාපනය කළ හැක.
+_Remove > Service > Microsoft_ සමඟ bundle එක ඉවත් කරන්න, නැතහොත් _Remove > Web App_ සමඟ තනි යෙදුම් ඉවත් කරන්න. ඔබට අවශ්‍ය යෙදුම් පමණක් _Install > Web App_ හරහාද install කළ හැකියි.
 
-රාජ්‍ය හෝ ස්වෛරී වලාකුළකට, `~/.local/share/applications/` යටතේ අදාළ දියත් කරන්නාගේ `Exec=` රේඛාවේ URL එක සංස්කරණය කරන්න, උදාහරණයක් ලෙස `Microsoft Teams.desktop`, ඔබේ සංවිධානය විසින් සපයනු ලබන URL එක භාවිතයෙන්. එම රේඛාවේ ඕනෑම වචනාර්ථ `%` එකක් `%%` ලෙස ලියන්න. වෙනස්කම් ඊළඟ දියත් කිරීමේදී අදාළ වේ. බණ්ඩල ස්ථාපකය නැවත ක්‍රියාත්මක කිරීම එහි දියත් කරන්නන් පෙරනිමි URL සමඟ ආදේශ කරයි.
+රජයේ හෝ ස්වෛරී cloud එකක් සඳහා, ඔබේ සංවිධානය විසින් සපයන ලද URL එක භාවිත කරමින්, `~/.local/share/applications/` යටතේ ඇති අදාළ launcher එකෙහි, උදාහරණයක් ලෙස `Microsoft Teams.desktop` හි, `Exec=` පේළියේ ඇති URL එක edit කරන්න. එම පේළියේ ඇති ඕනෑම සැබෑ `%` එකක් `%%` ලෙස ලියන්න. වෙනස්කම් ඊළඟ launch එකේදී අදාළ වේ. bundle installer එක නැවත run කිරීමෙන් එහි launchers පෙරනිමි URLs සමඟ ප්‍රතිස්ථාපනය වේ.
 
-වැඩ අත්සන් වෙනම තබාගැනීමට, සෑම දියත් කරන්නෙකුගේම `Exec=` රේඛාවට බ්‍රවුසර දත්ත නාමාවලියක් ඇමුණන්න:
+වැඩ sign-ins වෙන් වෙන්ව තබා ගැනීමට, සෑම launcher එකකම `Exec=` පේළියට browser data directory එකක් append කරන්න:
 
 ```ini
 Exec=omarchy-launch-webapp "https://teams.cloud.microsoft/" --user-data-dir=/absolute/path/to/work-browser-profile
 ```
 
-උදාහරණ නාමාවලිය ඔබ කැමති නිරපේක්ෂ මාර්ගයකින් ආදේශ කර ඒවා අතර වැඩ අත්සන් බෙදාගැනීමට දියත් කරන්නන් සියයකටම එකම මාර්ගය භාවිතා කරන්න. වෙබ් යෙදුම් Omarchy තේරූ සහාය දක්වන බ්‍රවුසරය භාවිතා කරයි, පෙරනිමි බ්‍රවුසරය සහාය නොදක්වන විට Chromium වෙත ආපසු යයි.
+උදාහරණ directory එක ඔබ කැමති absolute path එකකින් ප්‍රතිස්ථාපනය කර, වැඩ sign-ins ඒවා අතර බෙදා ගැනීමට launchers හයම සඳහා එකම path එක භාවිත කරන්න. වෙබ් යෙදුම් Omarchy විසින් තෝරාගත් සහාය දක්වන browser එක භාවිත කරන අතර, පෙරනිමි browser එකට සහාය නොදක්වන්නේ නම් Chrome වෙත ආපසු යයි.

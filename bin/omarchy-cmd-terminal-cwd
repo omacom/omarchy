@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Print the current working directory of the active terminal window
+# omarchy:summary=Print the current working directory of the active terminal or Files window
 # omarchy:args=[terminal-pid]
 # omarchy:hidden=true
 
@@ -8,7 +8,11 @@ terminal_pid=${1:-$(hyprctl activewindow | awk '/pid:/ {print $2}')}
 kitty_socket="$XDG_RUNTIME_DIR/omarchy-kitty-$terminal_pid"
 cwd=""
 
-if [[ -S $kitty_socket ]]; then
+# Files keeps its working directory on the folder it shows, so a terminal
+# opened over it starts there.
+if [[ $(readlink "/proc/$terminal_pid/exe" 2>/dev/null) == */folio ]]; then
+  cwd=$(readlink -f "/proc/$terminal_pid/cwd" 2>/dev/null)
+elif [[ -S $kitty_socket ]]; then
   cwd=$(kitten @ --to "unix:$kitty_socket" ls --match "state:focused" 2>/dev/null |
     jq -r '.[].tabs[].windows[].cwd // empty')
 else

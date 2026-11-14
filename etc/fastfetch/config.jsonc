@@ -26,10 +26,16 @@
       "keyColor": "green"
     },
     {
-      "type": "cpu",
+      "type": "command",
       "key": "│ ├",
-      "showPeCoreCount": true,
-      "keyColor": "green"
+      "keyColor": "green",
+      "text": "omarchy-branding-about-cpu name"
+    },
+    {
+      "type": "command",
+      "key": " ",
+      "format": "{#1;32}│ │   {#}{result}",
+      "text": "omarchy-branding-about-cpu details"
     },
     {
       "type": "gpu",

@@ -5,12 +5,18 @@ limine_config_dir=${OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR:-/etc/limine-entry-too
 sleep_config_dir=${OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR:-/etc/systemd/sleep.conf.d}
 
 if omarchy-hw-aarch64-qualcomm && omarchy-hw-match "UX3607OA"; then
-  # The kernel defaults to deep sleep, PSCI system suspend, and resuming from
-  # it resets the SoC. Suspend to idle resumes cleanly, so sleep that way.
+  # Neither sleep mode is reliable yet. Resuming from deep sleep, PSCI system
+  # suspend, resets the SoC. Suspend to idle survives a short nap, but the SoC
+  # never collapses its CX rail (qcom_stats cxsd stays at 0, with a PCIe link
+  # timing out on L2 entry), and an overnight suspend hung until a forced power
+  # off. Keep the laptop awake until suspend reaches real SoC sleep.
+  # The shared file name is what omarchy-sleep-disabled looks for to hide
+  # Suspend from the menu; the one suspend to idle was set in goes away.
   mkdir -p "$sleep_config_dir"
-  cat >"$sleep_config_dir/zenbook-a16.conf" <<'CONF'
+  rm -f "$sleep_config_dir/zenbook-a16.conf"
+  cat >"$sleep_config_dir/omarchy-sleep-disabled.conf" <<'CONF'
 [Sleep]
-MemorySleepMode=s2idle
+AllowSuspend=no
 AllowHibernation=no
 AllowSuspendThenHibernate=no
 AllowHybridSleep=no

@@ -16,10 +16,8 @@ export OMARCHY_PATH="$ROOT"
 source "$ROOT/install/helpers/pacman.sh"
 
 platforms="x86 aarch64 aarch64-apple"
-# Apple Silicon has rc and edge: its stable template comes with the first Mac
-# stable release.
 channels_for() {
-  if [[ $1 == "aarch64-apple" ]]; then echo "rc edge"; else echo "stable rc edge"; fi
+  echo "stable rc edge"
 }
 
 # ── the templates ────────────────────────────────────────────────────────────
@@ -50,11 +48,6 @@ repos() {
 }
 for platform in $platforms; do
   templates=$(omarchy_pacman_templates "$platform")
-  for channel in stable; do
-    [[ $platform == "aarch64-apple" ]] || continue
-    [[ ! -e $templates/pacman-$channel.conf && ! -e $templates/mirrorlist-$channel ]] ||
-      fail "$platform has no $channel template or mirrorlist"
-  done
   for channel in $(channels_for "$platform"); do
     [[ -f $templates/pacman-$channel.conf && -f $templates/mirrorlist-$channel ]] ||
       fail "$platform has a $channel template and mirrorlist"
@@ -80,7 +73,7 @@ for platform in $platforms; do
     [[ $mirror == "https://$host/$layout" ]] || fail "$platform $channel: the $channel Arch mirror" "$mirror"
   done
 done
-pass "x86 and aarch64 have templates for stable, rc and edge and Apple Silicon for edge alone, each with its repositories in order and its channel's mirrors"
+pass "every platform has templates for stable, rc and edge, each with its repositories in order and its channel's mirrors"
 
 # omarchy-version-channel names each template pair's channel: the menu's
 # checkmarks and a refresh with no channel go by it.
@@ -224,11 +217,13 @@ grep -F "step:cp $SUDO_TEST_ROOT/default/pacman/pacman-rc.conf " "$SUDO_TEST_LOG
   fail "explicit rc overrides current edge" "$(events)"
 pass "an explicit channel overrides the current channel without querying it"
 
+mv "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-stable.conf" "$boundary_tmp/saved-template"
 for channel in stable; do
   reset_boundary
   if SUDO_TEST_PLATFORM=aarch64-apple SUDO_TEST_CHANNEL=$channel refresh; then fail "aarch64-apple refuses current $channel without templates"; fi
   [[ -z $(events) ]] || fail "unsupported current channel changes nothing" "$(events)"
 done
+mv "$boundary_tmp/saved-template" "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-stable.conf"
 for channel in invalid failed; do
   reset_boundary
   if [[ $channel == "failed" ]]; then
@@ -245,8 +240,9 @@ if refresh invalid; then fail "invalid explicit channel is refused"; fi
 [[ -z $(events) ]] || fail "invalid explicit channel changes nothing" "$(events)"
 pass "an invalid explicit channel changes nothing"
 
-# A channel the platform has no template for (stable on Apple Silicon), or a
-# machine whose platform can't be told, stops before anything changes.
+# A channel the platform has no template for, or a machine whose platform can't
+# be told, stops before anything changes.
+mv "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-stable.conf" "$boundary_tmp/saved-template"
 for platform in aarch64-apple; do
   for channel in stable; do
     reset_boundary
@@ -255,6 +251,7 @@ for platform in aarch64-apple; do
     grep -q "Omarchy has no $channel channel for $platform" "$boundary_tmp/output" || fail "the refusal says why" "$(cat "$boundary_tmp/output")"
   done
 done
+mv "$boundary_tmp/saved-template" "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-stable.conf"
 cat >"$SUDO_TEST_ROOT/bin/omarchy-hw-platform" <<'STUB'
 #!/bin/bash
 exit 1

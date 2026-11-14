@@ -18,12 +18,14 @@
 
 PROGRESS_ICON_CSI=$'\033['
 PROGRESS_ICON_RESET="${PROGRESS_ICON_CSI}0m"
+PROGRESS_ICON_ESCAPE=$'\033''\[[0-9;?]*[A-Za-z]'
 
 # The icon uses half-block glyphs, scaled to the terminal's actual cell aspect
 # ratio so its square silhouette stays square. No graphics protocol is needed.
 # Coordinates follow the 15 x 15 grid of Omarchy's icon.svg. Each segment
 # paints the full stroke width, starting at the bottom middle of the outer ring.
 ICON_WIDTH=30
+ICON_COLUMN=2
 ICON_HEIGHT=15
 ICON_TOP=1
 ICON_LEFT=1
@@ -34,6 +36,8 @@ ICON_DRAWN=0
 ICON_FRAME=""
 ICON_TTY=/dev/tty
 ICON_SIZE=""
+ICON_COLS=80
+ICON_FRAMES=0
 ICON_TEXT_WIDTH=78
 ICON_TEXT_LIMIT=78
 ICON_DISPLAY_PM=0
@@ -41,19 +45,14 @@ ICON_TARGET_PM=0
 declare -a ICON_ORDER=() ICON_TRACE=() ICON_FILL=()
 
 # Read the actual character dimensions instead of assuming an 8 x 16 font.
-# Linux VTs expose the font through KDFONTOP; desktop terminals may expose
-# pixels in their window size or answer the standard cell-size query.
+# Desktop terminals expose pixels in their window size. A Linux VT leaves those
+# at zero but reports its font through KDFONTOP.
 progress_icon_cell_size() {
   python3 - "$1" <<'PY'
 import fcntl
-import os
-import re
-import select
 import struct
 import sys
 import termios
-import time
-import tty
 
 with open(sys.argv[1], "r+b", buffering=0) as terminal:
   fd = terminal.fileno()
@@ -63,7 +62,11 @@ with open(sys.argv[1], "r+b", buffering=0) as terminal:
     print(round(width / cols), round(height / rows))
     sys.exit()
   try:
-    font = bytearray(struct.pack("@5IP", 1, 0, 0, 0, 0, 0))
+    # KD_FONT_OP_GET with no data pointer fills in only the size, but the
+    # kernel refuses with ENOSPC a font larger than the width and height
+    # passed in. A plain GET returns fonts up to 32 rows, and none here is
+    # wider than 16, so 32 x 32 lets it answer.
+    font = bytearray(struct.pack("@5IP", 1, 0, 32, 32, 0, 0))
     fcntl.ioctl(fd, 0x4B72, font)  # KDFONTOP / KD_FONT_OP_GET, no glyph data
     _, _, width, height, _ = struct.unpack_from("@5I", font)
     if width and height:
@@ -71,25 +74,6 @@ with open(sys.argv[1], "r+b", buffering=0) as terminal:
       sys.exit()
   except OSError:
     pass
-
-  settings = termios.tcgetattr(fd)
-  try:
-    tty.setcbreak(fd, termios.TCSANOW)
-    os.write(fd, b"\x1b[16t")
-    response = b""
-    deadline = time.monotonic() + 0.15
-    while select.select([fd], [], [], max(0, deadline - time.monotonic()))[0]:
-      response += os.read(fd, 64)
-      match = re.search(rb"\x1b\[6;(\d+);(\d+)t", response)
-      if match:
-        height, width = map(int, match.groups())
-        if width and height:
-          print(width, height)
-          sys.exit()
-      if time.monotonic() >= deadline:
-        break
-  finally:
-    termios.tcsetattr(fd, termios.TCSANOW, settings)
   print(8, 16)  # Conventional console font when dimensions aren't available.
 PY
 }
@@ -126,6 +110,15 @@ progress_icon_segment() {
   fi
 }
 
+# The screen columns each of the icon's 15 grid columns takes at <scale>. Every
+# grid column gets the same whole number, the nearest to square in this font,
+# so a font that isn't 2:1, like sun12x22, neither drops a column nor draws some
+# strokes narrower than others.
+progress_icon_column() {
+  ICON_COLUMN=$(( ($1 * CELL_HEIGHT + CELL_WIDTH) / (2 * CELL_WIDTH) ))
+  (( ICON_COLUMN > 0 )) || ICON_COLUMN=1
+}
+
 progress_icon_pixel() {
   local pixel="$1"
   if [[ ! -v ICON_TRACE[pixel] ]]; then
@@ -153,7 +146,8 @@ progress_icon_build() {
     100000010000001
     111111110111111
   )
-  ICON_WIDTH=$(( (15 * scale * CELL_HEIGHT + CELL_WIDTH) / (2 * CELL_WIDTH) ))
+  progress_icon_column "$scale"
+  ICON_WIDTH=$((15 * ICON_COLUMN))
   ICON_HEIGHT=$(((15 * scale + 1) / 2))
   ICON_ORDER=() ICON_TRACE=() ICON_FILL=()
   ICON_DRAWN=0
@@ -208,8 +202,13 @@ progress_icon_cell() {
     ICON_FRAME+="${PROGRESS_ICON_CSI}${upper};49m▀"
   elif (( upper == 0 )); then
     ICON_FRAME+="${PROGRESS_ICON_CSI}${lower};49m▄"
-  else
+  elif (( upper >= 90 )); then
     ICON_FRAME+="${PROGRESS_ICON_CSI}${upper};$((lower + 10))m▀"
+  else
+    # The VT reads bright backgrounds (100-107) as normal ones (40-47), so the
+    # grey half under a green tip would vanish. The bright half is always the
+    # foreground: green over grey is grey ▄ on green.
+    ICON_FRAME+="${PROGRESS_ICON_CSI}${lower};$((upper + 10))m▄"
   fi
 }
 
@@ -238,24 +237,26 @@ progress_icon_render() {
   ICON_DRAWN=$drawn
 }
 
-# Center one line of text, escapes included, across the console.
+# Center one line of text, escapes included, across the console the layout
+# measured. The text is measured in bash, so drawing a line starts no process.
 progress_icon_line() {
-  local text="$1" plain cols pad
-  plain="$(printf '%b' "$text" | sed -E $'s/\x1b\\[[0-9;?]*[A-Za-z]//g')"
-  cols="$(progress_icon_term_size)"
-  cols="${cols#* }"
-  [[ $cols =~ ^[0-9]+$ ]] || cols=80
-  pad=$(( (cols - ${#plain}) / 2 ))
+  local text="$1" plain pad
+  printf -v plain '%b' "$text"
+  while [[ $plain =~ $PROGRESS_ICON_ESCAPE ]]; do
+    plain=${plain/"${BASH_REMATCH[0]}"/}
+  done
+  pad=$(( (ICON_COLS - ${#plain}) / 2 ))
   (( pad < 0 )) && pad=0
   printf '\r%s2K%*s%b%s\n' "$PROGRESS_ICON_CSI" "$pad" '' "$text" "$PROGRESS_ICON_RESET"
 }
 
+# Set the variable <name> to <text>, cut to the text width.
 progress_icon_truncate() {
-  local text="$1" width="$ICON_TEXT_WIDTH"
+  local text="$2" width="$ICON_TEXT_WIDTH"
   if (( ${#text} > width )); then
-    printf '%s…' "${text:0:$((width - 1))}"
+    printf -v "$1" '%s…' "${text:0:$((width - 1))}"
   else
-    printf '%s' "$text"
+    printf -v "$1" '%s' "$text"
   fi
 }
 
@@ -271,11 +272,14 @@ progress_icon_layout() {
   read -r rows cols <<<"$ICON_SIZE"
   [[ $rows =~ ^[0-9]+$ ]] || rows=24
   [[ $cols =~ ^[0-9]+$ ]] || cols=80
+  ICON_COLS=$cols
   read -r CELL_WIDTH CELL_HEIGHT < <(progress_icon_cell_size "$ICON_TTY" 2>/dev/null || printf '8 16\n')
   (( rows >= 34 && cols >= 49 )) && scale=2
   (( rows >= 50 && cols >= 64 )) && scale=3
-  while (( scale > 1 && (15 * scale * CELL_HEIGHT + CELL_WIDTH) / (2 * CELL_WIDTH) > cols - 4 )); do
+  progress_icon_column "$scale"
+  while (( scale > 1 && 15 * ICON_COLUMN > cols - 4 )); do
     scale=$((scale - 1))
+    progress_icon_column "$scale"
   done
   progress_icon_build "$scale"
   top=$(( (rows - ICON_HEIGHT - 5) / 2 ))
@@ -297,16 +301,19 @@ progress_icon_static() {
 # Draw one frame toward <pm>, which must never go back. Phase jumps ease over
 # several frames, with the percentage following the same position as the trace.
 # The status row is blank when no status is given, so the layout never changes
-# height.
+# height. Callers draw ten frames a second while setup works the disk, so a
+# frame starts no process except the console size check on every fifth.
 progress_icon_frame() {
-  local pm="${1:-0}" status="${2:-}" tip="${3:-}" step
+  local pm="${1:-0}" status="${2:-}" tip="${3:-}" step shown_status="" shown_tip
   [[ $pm =~ ^[0-9]+$ ]] || pm=$ICON_TARGET_PM
   (( pm > 1000 )) && pm=1000
   (( pm < ICON_TARGET_PM )) && pm=$ICON_TARGET_PM
   ICON_TARGET_PM=$pm
   # The framebuffer can settle late in VMs. Rebuild at the new size, preserving
   # progress, instead of leaving the drawing at the old screen coordinates.
-  [[ "$(progress_icon_term_size)" == "$ICON_SIZE" ]] || progress_icon_static
+  if (( ICON_FRAMES++ % 5 == 0 )); then
+    [[ "$(progress_icon_term_size)" == "$ICON_SIZE" ]] || progress_icon_static
+  fi
   step=$(( (ICON_TARGET_PM - ICON_DISPLAY_PM + 3) / 4 ))
   ICON_DISPLAY_PM=$((ICON_DISPLAY_PM + step))
   progress_icon_render "$ICON_DISPLAY_PM"
@@ -315,11 +322,13 @@ progress_icon_frame() {
   progress_icon_line "${PROGRESS_ICON_CSI}32m$((ICON_DISPLAY_PM / 10))%"
   progress_icon_line ""
   if [[ -n $status ]]; then
-    progress_icon_line "${PROGRESS_ICON_CSI}2m$(progress_icon_truncate "$status")"
+    progress_icon_truncate shown_status "$status"
+    progress_icon_line "${PROGRESS_ICON_CSI}2m$shown_status"
   else
     progress_icon_line ""
   fi
-  progress_icon_line "${PROGRESS_ICON_CSI}2m$(progress_icon_truncate "$tip")"
+  progress_icon_truncate shown_tip "$tip"
+  progress_icon_line "${PROGRESS_ICON_CSI}2m$shown_tip"
   printf '%sJ' "$PROGRESS_ICON_CSI"
 }
 

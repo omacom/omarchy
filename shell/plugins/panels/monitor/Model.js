@@ -308,19 +308,39 @@ function displayTitle(display, builtInLabel) {
   return String(display.make || "").trim() || name
 }
 
-// tr is an optional translate(key, english) from the QML side (I18n.t);
-// without it the English text stands, which is what the Node tests assert.
-function brightnessName(percent, tr) {
-  var t = typeof tr === "function" ? tr : function(key, english) { return english }
-  var p = Math.round(percent)
-  if (p >= 95) return t("monitor.level.sunBlast", "Sun blast")
-  if (p >= 80) return t("monitor.level.solarFlare", "Solar flare")
-  if (p >= 65) return t("monitor.level.goldenHour", "Golden hour")
-  if (p >= 45) return t("monitor.level.evenDay", "Even day")
-  if (p >= 30) return t("monitor.level.softGlow", "Soft glow")
-  if (p >= 20) return t("monitor.level.lampLight", "Lamp light")
-  if (p >= 10) return t("monitor.level.candlelit", "Candlelit")
-  return t("monitor.level.nightOwl", "Night owl")
+// What the display is: its mode, its refresh rate, and its pixel density, as in
+// "1920×1200 · 60 Hz · 161 ppi". The density comes from the physical size in mm
+// the display's EDID reports, and is left out when that size can't be trusted:
+// none at all (projectors, VMs, and EDIDs that only give an aspect ratio), a
+// size whose shape doesn't match the mode's (the two axes then disagree on the
+// density), or a TV's made-up figure (outside 50-600 ppi).
+// fmt is an optional formatNumber(value, decimals) from the QML side
+// (I18n.formatNumber); without it plain digits stand.
+function displaySpecs(display, fmt) {
+  var format = typeof fmt === "function" ? fmt : function(value) { return String(value) }
+  var parts = []
+  if (!display) return ""
+
+  var width = Number(display.width)
+  var height = Number(display.height)
+  if (width > 0 && height > 0) parts.push(format(width) + "×" + format(height))
+
+  var refresh = Math.round(Number(display.refreshRate))
+  if (refresh > 0) parts.push(format(refresh) + " Hz")
+
+  var ppi = pixelDensity(width, height, Number(display.physicalWidth), Number(display.physicalHeight))
+  if (ppi > 0) parts.push(format(ppi) + " ppi")
+
+  return parts.join(" · ")
+}
+
+function pixelDensity(width, height, physicalWidth, physicalHeight) {
+  if (!(width > 0 && height > 0 && physicalWidth > 0 && physicalHeight > 0)) return 0
+  var across = width / (physicalWidth / 25.4)
+  var down = height / (physicalHeight / 25.4)
+  if (Math.abs(across - down) / Math.max(across, down) > 0.1) return 0
+  var ppi = Math.round((across + down) / 2)
+  return ppi >= 50 && ppi <= 600 ? ppi : 0
 }
 
 function parseDisplays(raw) {
@@ -360,7 +380,7 @@ if (typeof module !== "undefined") {
     dropDisplay: dropDisplay,
     placeDisplay: placeDisplay,
     sameLayout: sameLayout,
-    brightnessName: brightnessName,
+    displaySpecs: displaySpecs,
     parseDisplays: parseDisplays
   }
 }

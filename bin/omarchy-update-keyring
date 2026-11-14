@@ -3,13 +3,29 @@
 # omarchy:summary=Ensure the Omarchy, Arch and (on aarch64) Arch Linux ARM keyring packages are installed and populated
 # omarchy:requires-sudo=true
 
-# omarchy-update runs this under set -e as a trusted pre-step, so a failed recv
-# or a broken keyring has to stop this script here, not surface later as
+# omarchy-update runs this under set -e as a trusted pre-step, so a failed key
+# lookup or a broken keyring has to stop this script here, not surface later as
 # signature errors in the middle of the main transaction.
 set -euo pipefail
 
+# Omarchy's packaging key comes from Omarchy's own Web Key Directory for
+# pkgs@omarchy.org, never a public keyserver, so it is always the current key
+# with its current subkeys. Only the pinned fingerprint is added: a different
+# key there fails the lsign below instead of being trusted.
+# A subshell, so its trap cleans up the temporary keyring and its gpg daemons
+# however a step fails under set -e. A failed daemon kill must neither skip
+# the removal nor replace the subshell's own exit status.
+add_omarchy_key() (
+  GNUPGHOME=$(mktemp -d)
+  export GNUPGHOME
+  trap 'gpgconf --kill all 2>/dev/null || true; rm -rf "$GNUPGHOME"' EXIT
+  gpg --batch --quiet --auto-key-locate clear,nodefault,wkd --locate-external-keys pkgs@omarchy.org
+  gpg --batch --export 40DFB630FF42BCFFB047046CF0134EE680CAC571 >"$GNUPGHOME/omarchy.gpg"
+  sudo pacman-key --add "$GNUPGHOME/omarchy.gpg"
+)
+
 if omarchy-pkg-missing omarchy-keyring || ! sudo pacman-key --list-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571 &>/dev/null; then
-  sudo pacman-key --recv-keys 40DFB630FF42BCFFB047046CF0134EE680CAC571 --keyserver keys.openpgp.org
+  add_omarchy_key
   sudo pacman-key --lsign-key 40DFB630FF42BCFFB047046CF0134EE680CAC571
 
   # This is generally not a good idea, but this is a special case because we're going to be updating
@@ -24,10 +40,11 @@ fi
 # included, with its build key, and only archlinuxarm-keyring carries it.
 # pacman's "Import PGP key?" prompt adds that key without trusting it, after
 # which every update stops at "unknown trust", so check that it is valid, not
-# just present: populate it from the installed keyring, or fetch it by
-# fingerprint and sign it locally when the package is missing, the way the
-# Omarchy key is bootstrapped, and install the package with the refresh below.
-# keys.openpgp.org does not carry it.
+# just present: populate it from the installed keyring, or add the copy
+# Omarchy ships and sign it locally when the package is missing, then install
+# the package with the refresh below. The shipped copy needs no keyserver:
+# keyserver.ubuntu.com, the only one that carried it, went down with the rest
+# of Canonical on 11 November 2026, and a failed fetch stops this update.
 alarm_key=68B3537F39A313B3E574D06777193F152BDBE6A6
 alarm_keyring_missing=0
 
@@ -39,7 +56,7 @@ if omarchy-hw-aarch64 && ! alarm_key_trusted; then
   if omarchy-pkg-present archlinuxarm-keyring; then
     sudo pacman-key --populate archlinuxarm
   else
-    sudo pacman-key --recv-keys "$alarm_key" --keyserver keyserver.ubuntu.com
+    sudo pacman-key --add "$OMARCHY_PATH/default/pacman/keys/$alarm_key.asc"
     sudo pacman-key --lsign-key "$alarm_key"
     alarm_keyring_missing=1
   fi

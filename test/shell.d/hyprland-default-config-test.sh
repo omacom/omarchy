@@ -4,6 +4,31 @@ source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
 require_command lua
 
+for bell_supported in false true; do
+  OMARCHY_BELL_SUPPORTED="$bell_supported" lua - <<'LUA' || fail "look and feel loads before and after a Hyprland upgrade"
+local supported = os.getenv("OMARCHY_BELL_SUPPORTED") == "true"
+local bell
+hl = {
+  get_config = function(key)
+    assert(key == "misc.bell_sound")
+    if supported then return "default" end
+    return nil, "unknown config key 'misc.bell_sound'"
+  end,
+  config = function(config)
+    if config.misc then
+      bell = config.misc.bell_sound
+      assert(supported or bell == nil, "unknown config key 'misc.bell_sound'")
+    end
+  end,
+  curve = function() end,
+  animation = function() end,
+}
+dofile(os.getenv("ROOT") .. "/default/hypr/looknfeel.lua")
+assert(bell == (supported and "none" or nil))
+LUA
+done
+pass "look and feel mutes bells only when the running compositor supports it"
+
 run_application_bindings() {
   local home="$1"
   local prelude="${2:-}"

@@ -83,6 +83,29 @@ run_suite all
   fail "the aggregate runner preserves shell failures and skip reporting" "$output"
 pass "the aggregate runner preserves shell failures and skip reporting"
 
+# test/ci-vm prints a failed run's logs from that run's own directory: its
+# failed and unfinished files, not its passing ones, and nothing from a
+# nested test/shell run, whose announcement lands later in run.log.
+out=$test_dir/out
+run_dir=$(sed -n 's/^Logs for every file: //p' <<<"$output" | tail -n 1)
+mkdir -p "$out/shell-logs/omarchy-test-shell.nested"
+printf '%s\nLogging every file to /tmp/omarchy-test-shell.nested\n' "$output" >"$out/run.log"
+cp -r "$run_dir" "$out/shell-logs/"
+echo "hang detail" >"$out/shell-logs/${run_dir##*/}/e-hung-test.sh.out"
+echo "nested detail" >"$out/shell-logs/omarchy-test-shell.nested/nested-test.sh.out"
+echo 1 >"$out/shell-logs/omarchy-test-shell.nested/nested-test.sh.code"
+source "$ROOT/test/ci-failure-logs"
+printed=$(print_failure_logs "$out" 2>&1)
+[[ $printed == *$'::group::test/cli\n'*"CLI fixture passed"* ]] ||
+  fail "a failed CI run prints the CLI suite's output" "$printed"
+[[ $printed == *"::group::test/shell.d/d-failed-test.sh failed (exit 1)"*"failure detail"* ]] ||
+  fail "a failed CI run prints each failed file with its output" "$printed"
+[[ $printed == *"::group::test/shell.d/e-hung-test.sh did not finish"*"hang detail"* ]] ||
+  fail "a failed CI run prints a file that never finished" "$printed"
+[[ $printed != *"::group::test/shell.d/a-pass-test.sh"* && $printed != *"nested detail"* ]] ||
+  fail "a failed CI run prints neither passing files nor a nested run's logs" "$printed"
+pass "a failed CI run prints its own failed and unfinished files"
+
 # The overlap file starts beside the pool rather than in either batch; it
 # must still run, print in file order, and count like any other file.
 cat >"$test_dir/test/shell.d/shell-idle-spawn-test.sh" <<'SH'

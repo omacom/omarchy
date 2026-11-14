@@ -131,6 +131,10 @@ Exceptions are allowed for migration and package-helper scripts where the helper
 - Do not add `aliases` to new menu entries. Aliases are reserved for
   established alternate names users already type, kept for compatibility.
 
+# Keybindings
+
+- Default hotkeys follow the planes in [`manual/07-hotkeys.md`](manual/07-hotkeys.md#how-hotkeys-are-laid-out). Pick the plane from what the binding does, never move an existing binding to make room for a new one, and use `Alt` only for a variant of the same binding without it. Hold new and changed bindings in review to the same rules.
+
 # Config Structure
 
 - `config/` - default configs copied to `~/.config/`

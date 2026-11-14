@@ -22,7 +22,7 @@ if omarchy-cmd-present voxtype; then
   if [[ -f $backend_config && $(< "$backend_config") == "voxtype" ]]; then
     rm "$backend_config"
   fi
-  hyprctl reload >/dev/null
+  omarchy-restart-hyprctl
 else
   echo "Voxtype was not installed."
 fi

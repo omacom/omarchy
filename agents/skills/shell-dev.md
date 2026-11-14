@@ -32,7 +32,7 @@ Run `omarchy-restart-shell` after making changes to QML files.
   the running shell and does not start it. Prefer it over re-implementing
   direct Quickshell socket calls in every CLI.
 - The `shell` IPC target exposes lifecycle and configuration methods including
-  `ping`, `summon`, `hide`, `toggle`, `call`, `rescanPlugins`, `reloadConfig`,
+  `ping`, `summon`, `hide`, `toggle`, `call`, `rescanPlugins`, `reloadPlugins`, `reloadConfig`,
   `setPluginEnabled`, and `listPlugins`. `shell.qml` also registers
   `image-selector`, which drives the `omarchy.image-picker` panel.
 - Individual plugins register their own IPC targets, named for the plugin rather
@@ -44,7 +44,7 @@ Run `omarchy-restart-shell` after making changes to QML files.
 
 The shell runs all day on battery, and a widget is built once per monitor, so a `Timer` that starts a `Process` costs that process times the number of monitors, every tick, forever. Don't poll for state that only changes through known events. Pick the first of these that fits:
 
-- A native Quickshell service that signals on change: `UPower` and `PowerProfiles` (`Quickshell.Services.UPower`), `Hyprland` and each workspace's `lastIpcObject`, `Pipewire`, `Mpris`, `SystemTray`, `Notifications`.
+- A native Quickshell service that signals on change: `UPower` and `PowerProfiles` (`Quickshell.Services.UPower`), `Hyprland` and each workspace's `lastIpcObject`, `Pipewire`, `Mpris`, `SystemTray`, `Notifications`, and `Networking` (`Quickshell.Networking`), whose `connectivity` turning `NetworkConnectivity.Full` is the cue to refetch anything that needs the internet.
 - An event stream the shell already runs, such as the Hyprland IPC events or the long-running `pactl subscribe` in `Commons/UntypedInput.qml`. Extend it rather than starting a second one.
 - A file watch: `FileView` with `watchChanges`, or the directory watch in `plugins/bar/Bar.qml`, when the state lives in a file the user can read.
 - A push from the command that changes the state. If only Omarchy commands change it, have them call `omarchy-shell -q <target> refresh` after the change, the way `omarchy-reminder` and `omarchy-sudo-passwordless` do. When the change happens later, without a command running (an expiry, say), schedule the refresh with a transient `systemd-run --user --on-active=…` timer. A root-owned timer cannot reach the user's shell.

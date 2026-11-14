@@ -146,3 +146,41 @@ load_module()
 check(#applied == 0 and env.GDK_SCALE == nil, "applies nothing without saved settings")
 ' || fail "monitor settings leave monitors.lua alone until something is saved"
 pass "monitor settings leave monitors.lua alone until something is saved"
+
+# On Apple Silicon every monitor rule maps sRGB into the display's own gamut,
+# the panel's port-named rules included, since a rule without cm puts the
+# display back on sRGB. A color choice of a rule's own wins, and nothing changes
+# on a PC, where the display does the mapping itself.
+wide_gamut_rules='
+o.shell_quote = function(value) return value end
+o.shell_succeeds = function() return apple end
+package.loaded["default.hypr.wide-gamut"] = nil
+require("default.hypr.wide-gamut")
+hl.monitor({ output = "", mode = "preferred", scale = "auto" })
+hl.monitor({ output = "DP-2", scale = 2 })
+hl.monitor({ output = "DP-3", scale = 2, cm = "srgb" })
+'
+run_lua "apple = true $wide_gamut_rules"'
+check(applied[1].cm == "edid" and applied[2].cm == "edid" and applied[2].scale == 2, "gives every rule EDID color")
+check(applied[3].cm == "srgb", "keeps a color choice of its own")
+' || fail "monitors get EDID color on Apple Silicon"
+# The panel'"'"'s port-named rules, loading after monitors.lua, keep a cm chosen
+# there for the monitor'"'"'s description or for every monitor.
+run_lua '
+apple = true
+plug("DP-2", "", { description = "Apple Computer Inc ProDisplayXDR 0x0A110A08" })
+plug("DP-3", "", { description = "Dell Inc. DELL U2723QE" })
+o.shell_quote = function(value) return value end
+o.shell_succeeds = function() return apple end
+require("default.hypr.wide-gamut")
+hl.monitor({ output = "", cm = "srgb" })
+hl.monitor({ output = "desc:Apple Computer Inc ProDisplayXDR", cm = "dcip3" })
+hl.monitor({ output = "DP-2", scale = 2 })
+hl.monitor({ output = "DP-3", scale = 2 })
+check(applied[3].cm == "dcip3", "keeps the cm chosen for the monitor'"'"'s description, got " .. tostring(applied[3].cm))
+check(applied[4].cm == "srgb", "keeps the cm chosen for every monitor, got " .. tostring(applied[4].cm))
+' || fail "port rules keep a cm chosen in monitors.lua"
+run_lua "apple = false $wide_gamut_rules"'
+check(applied[1].cm == nil and applied[2].cm == nil, "changes no rule off Apple Silicon")
+' || fail "monitors keep sRGB off Apple Silicon"
+pass "monitors get EDID color only on Apple Silicon"

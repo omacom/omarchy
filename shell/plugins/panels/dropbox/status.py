@@ -56,10 +56,14 @@ def scan_dropbox(path, limit):
   total = 0
   counter = 0
   recent = []
+  internal_names = {".dropbox", ".dropbox.cache"}
   try:
     for root, dirs, files in os.walk(path):
-      dirs[:] = [name for name in dirs if not os.path.islink(os.path.join(root, name))]
+      # Internal metadata and staged downloads are not account files or stored usage.
+      dirs[:] = [name for name in dirs if not (root == path and name in internal_names) and not os.path.islink(os.path.join(root, name))]
       for name in files:
+        if root == path and name in internal_names:
+          continue
         file_path = os.path.join(root, name)
         if os.path.islink(file_path):
           continue
@@ -118,11 +122,13 @@ def main():
     stopped = "not running" in lowered or "isn't running" in lowered or lowered == "stopped"
     running = status_exit == 0 and status_output != "" and not stopped
 
-  used, files = scan_dropbox(account_path, limit) if authenticated else (0, [])
+  status_only = "--status-only" in sys.argv
+  used, files = scan_dropbox(account_path, limit) if authenticated and not status_only else (0, [])
   usage_percent = (used / quota * 100) if quota > 0 else 0
 
   print(json.dumps({
     "ok": True,
+    "statusOnly": status_only,
     "installed": dropbox_cli is not None,
     "running": running,
     "authenticated": authenticated,

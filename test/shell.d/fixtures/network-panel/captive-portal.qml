@@ -88,7 +88,7 @@ ShellRoot {
     check(panel.focusSection === "band", "down from portal reaches available band")
     panel.testKeys.moveRequested(0, -1)
     check(panel.focusSection === "portal", "up from band reaches portal")
-    panel.testKeys.activateRequested()
+    panel.testKeys.activateRequested(Qt.NoModifier)
     NetworkMock.connectivity = NetworkConnectivity.Full
     Qt.callLater(recoveryChecks)
   }

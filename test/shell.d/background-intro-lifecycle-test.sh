@@ -13,10 +13,19 @@ printf 'P6\n1 1\n255\n\377\377\377' >"$stage/cover.ppm"
 cp "$ROOT/shell/services/BackgroundIntro.qml" "$stage/services/"
 ln -s "$ROOT/shell/Commons" "$stage/Commons"
 cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/shell.qml" "$stage/shell.qml"
+# The launcher ends after 2 s, or, with INTRO_TEST_LAUNCHER_RELEASE, once the
+# fixture creates that file, so a slow cover can't outlast it.
 cat >"$stage/bin/omarchy-theme-bg-boot-intro" <<'SH'
 #!/bin/bash
 printf 'intro\n' >>"$INTRO_TEST_LOG"
-sleep 2
+if [[ -n ${INTRO_TEST_LAUNCHER_RELEASE:-} ]]; then
+  for (( i = 0; i < 80; i++ )); do
+    [[ -e $INTRO_TEST_LAUNCHER_RELEASE ]] && break
+    sleep 0.1
+  done
+else
+  sleep 2
+fi
 SH
 chmod +x "$stage/bin/omarchy-theme-bg-boot-intro"
 cat >"$stage/bin/owe" <<'SH'
@@ -36,7 +45,15 @@ else
 fi
 SH
 chmod +x "$stage/bin/owe"
-output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" INTRO_TEST_LOG="$stage/starts" INTRO_TEST_COVER="$stage/cover.ppm" INTRO_TEST_FRAME_READY="$stage/video-ready" timeout 10 quickshell -p "$stage" --no-color 2>&1) || fail "background intro fixture exits cleanly" "$output"
+# The crossfades under test need their length, and a session that renders on
+# the CPU (the CI VM) turns Hyprland's animations off, which zeroes every
+# Style.duration. This also keeps the fixtures off the live compositor.
+cat >"$stage/bin/hyprctl" <<'SH'
+#!/bin/bash
+echo '{"bool":true}'
+SH
+chmod +x "$stage/bin/hyprctl"
+output=$(HOME="$stage/home" PATH="$stage/bin:$PATH" INTRO_TEST_LOG="$stage/starts" INTRO_TEST_COVER="$stage/cover.ppm" INTRO_TEST_FRAME_READY="$stage/video-ready" INTRO_TEST_LAUNCHER_RELEASE="$stage/launcher-release" timeout 10 quickshell -p "$stage" --no-color 2>&1) || fail "background intro fixture exits cleanly" "$output"
 [[ $output == *"RESULT pass"* ]] || fail "background intro lifecycle assertions pass" "$output"
 if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
   fail "background intro fixture has no QML errors" "$output"

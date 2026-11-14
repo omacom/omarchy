@@ -91,7 +91,7 @@ done
 # user's own looknfeel. Workspaces given a layout with Super + L keep theirs.
 printf 'o.workspace_mode({ default = "%s" })\n' "$1" >"$DEFAULT_FILE"
 
-hyprctl reload >/dev/null
+omarchy-restart-hyprctl
 omarchy-shell -q omarchy.workspaces refresh
 omarchy-shell -q omarchy.dock refresh
 notify_layout "$MESSAGE"

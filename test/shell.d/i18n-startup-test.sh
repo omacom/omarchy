@@ -197,6 +197,17 @@ try:
         probe.wait(changed)
         print('ok - deleting the language selection restores English', flush=True)
 
+        # An editor's backup can keep the replaced file alive under a second
+        # name, so a rename over it does not end the watch on the old inode.
+        write_text(probe.language, 'da')
+        probe.wait(danish)
+        os.link(probe.language, probe.path / 'language~')
+        write_text(probe.language, 'fr')
+        probe.wait(dict(changed, language='fr', locale='fr-FR', number='13,5'))
+        write_text(probe.language, 'da')
+        probe.wait(danish)
+        print('ok - a replaced language file that keeps another name is still followed', flush=True)
+
         write_text(probe.language, 'da')
         probe.wait(danish)
         (probe.catalogs / 'da/shell.json').unlink()

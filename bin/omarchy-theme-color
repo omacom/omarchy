@@ -267,6 +267,7 @@ resolve_theme_colors() {
   for key in "${!ansi_alias[@]}"; do
     alias_theme_color "$key" "${ansi_alias[$key]}"
   done
+  alias_theme_color accent color4
 
   # Keep canonical themes compatible with old user templates and consumers
   # that still query the short palette names directly.

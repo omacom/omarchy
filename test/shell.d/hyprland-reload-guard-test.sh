@@ -28,6 +28,9 @@ case "$*" in
     printf "Couldn't connect to %s/hypr/dead-signature/.socket.sock. (4)\n" "$XDG_RUNTIME_DIR"
     exit 4
     ;;
+  '-j instances')
+    printf '[{"instance":"test-signature","pid":4242}]\n'
+    ;;
   *'getoption misc.disable_autoreload'*)
     printf '{"option":"misc.disable_autoreload","bool":%s,"set":true}\n' "${FAKE_DISABLE_AUTORELOAD:-false}"
     ;;
@@ -63,12 +66,35 @@ FAKE_HYPRCTL_LOG="$hyprctl_log" \
   HYPRCTL="$fake_hyprctl" \
   OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT="$run_root" \
   OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR="$state_dir" \
+  OMARCHY_HYPRLAND_RELOAD_GUARD_PROC_ROOT="$test_tmp/proc" \
   "$ROOT/bin/omarchy-hyprland-reload-guard" resume
 
 [[ ! -e $state_file ]] || fail "reload guard clears Hyprland state after resume"
 grep -F -- '--instance test-signature reload' "$hyprctl_log" >/dev/null || fail "reload guard forces one Hyprland reload after package transaction"
 grep -F 'hl.config({ misc = { disable_autoreload = false }, debug = { suppress_errors = false } })' "$hyprctl_log" >/dev/null || fail "reload guard restores previous Hyprland reload settings"
 pass "reload guard resumes live Hyprland reloads"
+
+# Once an upgrade replaces the binary under the running compositor, that one
+# predates the new config, so reloading would show it errors for new keys.
+proc_root="$test_tmp/proc"
+mkdir -p "$proc_root/4242"
+ln -s "/usr/bin/Hyprland (deleted)" "$proc_root/4242/exe"
+run_guard() {
+  FAKE_HYPRCTL_LOG="$hyprctl_log" \
+    HYPRCTL="$fake_hyprctl" \
+    OMARCHY_HYPRLAND_RELOAD_GUARD_RUN_ROOT="$run_root" \
+    OMARCHY_HYPRLAND_RELOAD_GUARD_STATE_DIR="$state_dir" \
+    OMARCHY_HYPRLAND_RELOAD_GUARD_PROC_ROOT="$proc_root" \
+    "$ROOT/bin/omarchy-hyprland-reload-guard" "$1"
+}
+run_guard pause
+: >"$hyprctl_log"
+run_guard resume
+[[ ! -e $state_file ]] || fail "reload guard clears state for a compositor whose binary was replaced"
+if grep -F -e '--instance test-signature reload' -e 'suppress_errors = false' "$hyprctl_log" >/dev/null; then
+  fail "reload guard reloads a compositor whose binary was replaced" "$(cat "$hyprctl_log")"
+fi
+pass "reload guard leaves a compositor whose binary was replaced paused until it restarts"
 
 # The modeless monitor recovery loop reloads on its own schedule, so it needs to
 # ask whether a transaction is in flight.
