@@ -382,6 +382,13 @@ start_screenrecording() {
       echo "$pid" >"$REC_PID_FILE"
       echo "$filename" >"$RECORDING_FILE"
       toggle_screenrecording_indicator
+      # A recorder can end without a stop command (capture failure, portal
+      # cancellation, or an external signal). Wait on this exact process using
+      # pidfd events rather than polling once per monitor in the bar.
+      (
+        pidwait --pid "$pid"
+        toggle_screenrecording_indicator
+      ) 9>&- </dev/null >/dev/null 2>&1 &
       return 0
     fi
 
