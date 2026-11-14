@@ -52,7 +52,7 @@ write_setting_theme() {
   if [[ -f $CLAUDE_SETTINGS_PATH ]]; then
     tmp=$(mktemp "$CLAUDE_SETTINGS_PATH.XXXXXX")
     jq '.theme = "custom:omarchy"' "$CLAUDE_SETTINGS_PATH" >"$tmp"
-    mv "$tmp" "$CLAUDE_SETTINGS_PATH"
+    omarchy-file-replace "$tmp" "$CLAUDE_SETTINGS_PATH"
   else
     cat >"$CLAUDE_SETTINGS_PATH" <<EOF
 {
@@ -67,7 +67,7 @@ EOF
 mkdir -p "$(dirname "$CLAUDE_THEME_PATH")"
 tmp=$(mktemp "$CLAUDE_THEME_PATH.XXXXXX")
 cp "$CLAUDE_SOURCE_PATH" "$tmp"
-mv "$tmp" "$CLAUDE_THEME_PATH"
+omarchy-file-replace "$tmp" "$CLAUDE_THEME_PATH"
 
 if (( CLAUDE_ACTIVATE == 1 )); then
   write_setting_theme

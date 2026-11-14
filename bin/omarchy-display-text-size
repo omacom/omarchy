@@ -85,7 +85,7 @@ set_base_size() {
       }
     }
   ' "$shell_config" >"$tmp"
-  mv "$tmp" "$shell_config"
+  omarchy-file-replace "$tmp" "$shell_config"
 }
 
 # Drop the base-size line, returning the shell to the theme/default size.
@@ -98,7 +98,7 @@ reset_base_size() {
     in_font && /^[[:space:]]*base-size[[:space:]]*=/ { next }
     { print }
   ' "$shell_config" >"$tmp"
-  mv "$tmp" "$shell_config"
+  omarchy-file-replace "$tmp" "$shell_config"
 }
 
 # ---- GTK text-scaling-factor ----
