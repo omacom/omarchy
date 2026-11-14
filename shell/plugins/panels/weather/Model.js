@@ -1,6 +1,7 @@
 // weather.json holds {"name": ..., "latitude": ..., "longitude": ...} (see
 // omarchy-weather-location, which owns the format). Missing, blank, or
 // unparseable means the location is auto-detected (see isAutoLocation).
+// Coordinates off the globe are dropped, leaving the name.
 function parseLocationFile(raw) {
   var unset = { name: "", latitude: null, longitude: null }
   try {
@@ -9,7 +10,8 @@ function parseLocationFile(raw) {
 
     var latitude = parseFloat(data.latitude)
     var longitude = parseFloat(data.longitude)
-    var hasCoordinates = !isNaN(latitude) && !isNaN(longitude)
+    // NaN compares false, so a missing or unparseable coordinate drops the pair too.
+    var hasCoordinates = Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
     return {
       name: typeof data.name === "string" ? data.name.replace(/^\s+|\s+$/g, "") : "",
       latitude: hasCoordinates ? latitude : null,

@@ -12,6 +12,18 @@ assertDeepEqual(weather.parseLocationFile('{"name": "New York"}'), { name: 'New 
 assertDeepEqual(weather.parseLocationFile('{"name": "Malibu", "latitude": 34.02577}'), { name: 'Malibu', latitude: null, longitude: null }, 'weather requires both coordinates')
 assertDeepEqual(weather.parseLocationFile('not json'), { name: '', latitude: null, longitude: null }, 'weather treats an unparseable weather.json as auto-detect')
 assertDeepEqual(weather.parseLocationFile(''), { name: '', latitude: null, longitude: null }, 'weather treats a missing weather.json as auto-detect')
+assertDeepEqual(
+  [[90, 180], [-90, -180], [91, 181], [-90.5, 0], [0, 181], [0, -180.01]].map(([latitude, longitude]) => weather.parseLocationFile(JSON.stringify({ name: 'Edge', latitude, longitude }))),
+  [
+    { name: 'Edge', latitude: 90, longitude: 180 },
+    { name: 'Edge', latitude: -90, longitude: -180 },
+    { name: 'Edge', latitude: null, longitude: null },
+    { name: 'Edge', latitude: null, longitude: null },
+    { name: 'Edge', latitude: null, longitude: null },
+    { name: 'Edge', latitude: null, longitude: null }
+  ],
+  'weather keeps coordinates on the globe and drops ones off it'
+)
 
 assertDeepEqual(weather.locationCommit('  Pasadena  ', [], 0), { name: 'Pasadena', latitude: null, longitude: null }, 'weather commits typed locations before suggestions load')
 assertDeepEqual(weather.locationCommit('', [], 0), { name: '', latitude: null, longitude: null }, 'weather commits an empty location as auto-detect')
@@ -146,6 +158,17 @@ if weather_location --set "bad" "not,coords" 2>/dev/null; then
   fail "weather location rejects malformed coordinates"
 fi
 pass "weather location rejects malformed coordinates"
+
+for coords in 91,181 91,0 -90.5,0 0,181 0,-180.01 -103.2310,44.0805; do
+  if weather_location --set "Off the globe" "$coords" 2>/dev/null; then
+    fail "weather location rejects coordinates off the globe" "accepted $coords"
+  fi
+done
+[[ $(jq -c . "$test_tmp/.local/state/omarchy/settings/weather.json") == '{"name":"New York"}' ]] || fail "weather location keeps the stored location when coordinates are rejected"
+weather_location --set "North Pole" "90,180"
+weather_location --set "South Pole" "-90,-180"
+[[ $(jq -c . "$test_tmp/.local/state/omarchy/settings/weather.json") == '{"name":"South Pole","latitude":-90,"longitude":-180}' ]] || fail "weather location accepts the poles"
+pass "weather location rejects coordinates off the globe and keeps the stored location"
 
 weather_location --clear
 [[ ! -e "$test_tmp/.local/state/omarchy/settings/weather.json" ]] || fail "weather location clear removes the state file"
