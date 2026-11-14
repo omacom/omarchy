@@ -211,3 +211,21 @@ printf '9000000\n' >"$hold_dir/power/BAT0/power_now"
 sparse_output=$(OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status")
 [[ $sparse_output == "Battery 60%  ·  "$' '"9W" ]] || fail "missing readings drop out of the status line" "$sparse_output"
 pass "battery status leaves out readings it doesn't have"
+
+# Super+Ctrl+Alt+B shows that line, and a machine without a battery gets no
+# toast rather than an empty one.
+cat >"$hold_dir/bin/omarchy-notification-send" <<'STUB'
+#!/bin/bash
+printf '%s\n' "${@: -1}" >>"$OMARCHY_TEST_SENT"
+STUB
+chmod +x "$hold_dir/bin/omarchy-notification-send"
+notify_battery() {
+  OMARCHY_TEST_SENT="$hold_dir/sent" OMARCHY_POWER_SUPPLY_PATH="$hold_dir/power" PATH="$hold_dir/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-notification-battery"
+}
+notify_battery
+[[ $(<"$hold_dir/sent") == "$sparse_output" ]] || fail "the battery shortcut shows the status line" "$(<"$hold_dir/sent")"
+printf '#!/bin/bash\nexit 0\n' >"$hold_dir/bin/upower"
+: >"$hold_dir/sent"
+notify_battery
+[[ ! -s $hold_dir/sent ]] || fail "the battery shortcut sends nothing without a battery" "$(<"$hold_dir/sent")"
+pass "the battery shortcut shows the status line, and nothing without a battery"
