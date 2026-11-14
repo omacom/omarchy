@@ -42,6 +42,9 @@ Item {
   // killing the entire shell. Hidden panels stay mapped but park off-screen
   // without an exclusion zone; updated by the FileView watcher further down.
   property bool barHidden: false
+  // Mirrors the on-disk `config-lock` flag: while it exists, pointer gestures
+  // that would rewrite the bar or workspace layout are ignored.
+  property bool configLocked: false
   property string home: Quickshell.env("HOME")
   property string stateHome: home + "/.local/state"
   property string omarchyConfigDir: home + "/.config/omarchy"
@@ -1594,11 +1597,22 @@ Item {
     command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/bar-off ]] && echo yes || echo no"]
     stdout: SplitParser { onRead: function(line) { root.barHidden = String(line).trim() === "yes" } }
   }
+  // Presence of the `config-lock` flag = layout gestures locked. Probe it the
+  // same way as `bar-off`, through the toggles directory watch.
+  Process {
+    id: configLockProbe
+    running: true
+    command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/config-lock ]] && echo yes || echo no"]
+    stdout: SplitParser { onRead: function(line) { root.configLocked = String(line).trim() === "yes" } }
+  }
   FileView {
     path: root.home + "/.local/state/omarchy/toggles"
     watchChanges: true
     printErrors: false
-    onFileChanged: barHiddenProbe.running = true
+    onFileChanged: {
+      barHiddenProbe.running = true
+      configLockProbe.running = true
+    }
   }
 
   // The directory watch can permanently stop delivering events after flag
@@ -1613,6 +1627,10 @@ Item {
     // killing it here can swallow the result entirely.
     function syncHidden(): void {
       barHiddenProbe.running = true
+    }
+
+    function syncConfigLock(): void {
+      configLockProbe.running = true
     }
   }
 
@@ -2408,6 +2426,9 @@ Item {
     readonly property real dragThreshold: Style.space(4)
 
     acceptedButtons: Qt.LeftButton
+    // Empty bar space moves the bar between screen edges; a locked layout
+    // leaves that gesture inert while widgets still take their own clicks.
+    enabled: !root.configLocked
     cursorShape: dragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
     pressAndHoldInterval: 200
 
@@ -2469,6 +2490,7 @@ Item {
     }
 
     onDoubleClicked: function(mouse) {
+      if (root.configLocked) return
       if (suppressClick) {
         suppressClick = false
         return
@@ -2993,6 +3015,7 @@ Item {
       property real pressedX: 0
       property real pressedY: 0
       readonly property bool canReorder: root.shell && typeof root.shell.mutateShellConfig === "function"
+        && !root.configLocked
       readonly property real dragThreshold: Style.space(4)
 
       anchors.fill: parent

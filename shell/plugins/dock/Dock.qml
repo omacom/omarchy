@@ -17,6 +17,21 @@ Item {
   readonly property var appLibrary: shell ? shell.appLibrary : null
   readonly property var dockConfig: shell && shell.shellConfig && shell.shellConfig.dock ? shell.shellConfig.dock : ({})
   readonly property var defaultDockConfig: shell && shell.defaultsConfig && shell.defaultsConfig.dock ? shell.defaultsConfig.dock : ({})
+  // Mirrors the shared `config-lock` flag: while it exists, dock reordering,
+  // pinning and unpinning are ignored.
+  property bool configLocked: false
+  Process {
+    id: configLockProbe
+    running: true
+    command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/config-lock ]] && echo yes || echo no"]
+    stdout: SplitParser { onRead: function(line) { root.configLocked = String(line).trim() === "yes" } }
+  }
+  FileView {
+    path: (Quickshell.env("HOME") || "") + "/.local/state/omarchy/toggles"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: configLockProbe.running = true
+  }
   readonly property string position: DockModel.normalizePosition(dockConfig.position)
   readonly property bool vertical: DockModel.isVertical(position)
   readonly property bool autohide: dockConfig.autohide === true
@@ -233,6 +248,7 @@ Item {
   // saved in the new order. The index counts the slots once the app has left
   // its own.
   function placeAt(key, index) {
+    if (root.configLocked) return
     if (!key) return
     root.order = DockModel.orderWithKeyAt(root.shownKeys(), key, index)
     var pinned = {}
@@ -243,6 +259,7 @@ Item {
 
   // A reorder shows at once; the saved config catches up after.
   function savePins(pins) {
+    if (root.configLocked) return
     root.pendingPins = pins
     Util.execDetached("omarchy-dock pinned " + pins.map(function(id) { return Util.shellQuote(id) }).join(" "))
   }
@@ -260,6 +277,7 @@ Item {
   // Keeping an app in the dock puts it at the end; taking one out leaves it in
   // its slot while it still runs.
   function setPinned(key, pinned) {
+    if (root.configLocked) return
     if (!key) return
     if (pinned) {
       root.placeAt(key, root.shownKeys().length)
@@ -360,6 +378,10 @@ Item {
     // The layout commands call this after changing a workspace's mode.
     function refresh(): void { root.refresh() }
     function apps(): void { appGrid.toggle() }
+
+    function syncConfigLock(): void {
+      configLockProbe.running = true
+    }
   }
 
   // An app dragged out of the app grid: the grid holds the pointer and

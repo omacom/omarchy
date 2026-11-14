@@ -10,6 +10,22 @@ BarWidget {
   id: root
   moduleName: "omarchy.workspaces"
 
+  // Mirrors the shared `config-lock` flag. While it is set, clicking the
+  // focused workspace switches to a workspace but does not cycle its layout.
+  property bool configLocked: false
+  Process {
+    id: configLockProbe
+    running: true
+    command: ["bash", "-c", "[[ -f $HOME/.local/state/omarchy/toggles/config-lock ]] && echo yes || echo no"]
+    stdout: SplitParser { onRead: function(line) { root.configLocked = String(line).trim() === "yes" } }
+  }
+  FileView {
+    path: (Quickshell.env("HOME") || "") + "/.local/state/omarchy/toggles"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: configLockProbe.running = true
+  }
+
   // Every monitor has workspaces 1-10 of its own, which Hyprland numbers in a
   // block of ten per monitor: 1-10, 11-20, and so on (see
   // default/hypr/monitor-workspaces.lua). Each bar shows its own monitor's block,
@@ -177,6 +193,7 @@ BarWidget {
   // The layout commands act on the focused workspace, so a click on another
   // monitor's bar focuses that monitor first.
   function cycleLayout() {
+    if (root.configLocked) return
     if (!root.bar) return
     var command = "omarchy-hyprland-workspace-layout-toggle"
     if (root.monitor && !root.monitor.focused) {
@@ -237,6 +254,10 @@ BarWidget {
     target: "omarchy.workspaces"
 
     function refresh(): void { root.broadcast("refresh") }
+
+    function syncConfigLock(): void {
+      configLockProbe.running = true
+    }
   }
 
   readonly property real trailingGap: root.vertical ? 0 : Style.spaceReal(1.5)
