@@ -89,7 +89,7 @@ fetch_site_icon() {
 
   # Prefer the site's own high-res icon (apple-touch-icon is typically 180px+),
   # then the well-known path, then Google's favicon service as a last resort.
-  page=$(curl -fsSL --max-time 5 "$site_url" 2>/dev/null | head -c 100000 | tr '\n' ' ')
+  page=$(curl -fsSL --max-time 5 --max-redirs 3 "$site_url" 2>/dev/null | head -c 100000 | tr '\n' ' ')
   icon_url=$(grep -oiE "<link[^>]*rel=[\"'][^\"']*apple-touch-icon[^\"']*[\"'][^>]*>" <<<"$page" |
     grep -oiE "href=[\"'][^\"']+" | head -1 | sed -E "s/^href=[\"']//")
 
@@ -100,9 +100,26 @@ fetch_site_icon() {
   ?*) icon_url="$origin/$icon_url" ;;
   esac
 
+  # Google's fallback wants a bare hostname. ${origin#*://} still carries
+  # user:password@, any :port and the whole ?query, so building the request
+  # from it would hand all of that to Google every time the site's own icon
+  # downloads fail. Cut at the query before stripping userinfo: ##*@ is
+  # greedy, and a query can hold an @ with no / before the ?, so stripping
+  # first drops everything up to the last @. Userinfo cannot contain /, ? or
+  # #, so the query cut can never eat into it and this order is always safe.
+  local google_domain=${origin#*://}
+  google_domain=${google_domain%%[/?#]*}
+  google_domain=${google_domain##*@}
+  if [[ $google_domain == \[* ]]; then
+    # A bracketed IPv6 literal keeps its closing bracket; only :port goes.
+    google_domain=${google_domain%%\]*}\]
+  else
+    google_domain=${google_domain%%:*}
+  fi
+
   { [[ -n $icon_url ]] && download_icon "$icon_url" "$dest"; } ||
     download_icon "$origin/apple-touch-icon.png" "$dest" ||
-    download_icon "https://www.google.com/s2/favicons?domain=${site_url}&sz=256" "$dest"
+    download_icon "https://www.google.com/s2/favicons?domain=${google_domain}&sz=256" "$dest"
 }
 
 desktop_string_escape() {
