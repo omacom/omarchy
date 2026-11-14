@@ -167,6 +167,7 @@ def identity(provider: str, home: Path) -> dict[str, str]:
   plan = str(openai.get("chatgpt_plan_type") or "")
   return {
     "accountId": str(tokens.get("account_id") or openai.get("chatgpt_account_id") or ""),
+    "userId": str(openai.get("chatgpt_user_id") or openai.get("user_id") or ""),
     "email": str(claims.get("email") or ""),
     "org": "",
     "plan": plan[0].upper() + plan[1:] if plan else "",
@@ -282,6 +283,18 @@ def find(registry: dict[str, Any], account_id: str) -> dict[str, Any] | None:
   return None
 
 
+# Team/Business workspaces share one account_id across members, so two
+# different people can carry the same workspace id. Two logins are the same
+# account only when the workspace id matches and both tokens name the same
+# user; entries recorded before the user id was kept (empty on either side)
+# still compare by the workspace id alone.
+def same_login(a: dict[str, Any], b: dict[str, Any]) -> bool:
+  if not a.get("accountId") or a.get("accountId") != b.get("accountId"):
+    return False
+  ua, ub = str(a.get("userId") or ""), str(b.get("userId") or "")
+  return not (ua and ub) or ua == ub
+
+
 def active(registry: dict[str, Any]) -> dict[str, Any]:
   return find(registry, registry["active"]) or registry["accounts"][0]
 
@@ -384,7 +397,7 @@ def register(provider: str, label: str, pending: Path) -> dict[str, Any]:
     for account in registry["accounts"]:
       account.update(identity(provider, account_home(provider, account)))
     for account in registry["accounts"]:
-      if account.get("accountId") == found["accountId"]:
+      if same_login(account, found):
         shutil.rmtree(pending, ignore_errors=True)
         if found["email"]:
           raise AccountError(tr("omarchy-i18n agents.sameAccountEmail", "That's %1 (%2). Try again, and sign in as the other account in the private window.", account["label"], found["email"]))
@@ -457,7 +470,7 @@ def recover_home(provider: str, home: Path) -> dict[str, Any] | None:
     entry = receipt.get("entry")
     if not isinstance(entry, dict) or entry.get("home") != str(home) or entry.get("id") != home.name:
       return None
-    if any(identity(provider, account_home(provider, a))["accountId"] == found["accountId"] for a in registry["accounts"]):
+    if any(same_login(identity(provider, account_home(provider, a)), found) for a in registry["accounts"]):
       # A retry may already have registered this login under another home.
       shutil.rmtree(home)
       return None
