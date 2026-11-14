@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# omarchy:summary=Remove suspend battery floor setup
+# omarchy:group=battery-floor
+# omarchy:name=remove
+# omarchy:requires-sudo=true
+
+HOOK_DEST="/usr/lib/systemd/system-sleep/battery-floor"
+
+if [[ ! -f $HOOK_DEST && ! -L $HOOK_DEST ]]; then
+  echo "Suspend battery floor is not set up"
+  exit 0
+fi
+
+if ! gum confirm "Remove suspend battery floor setup?"; then
+  exit 0
+fi
+
+echo "Removing suspend battery floor hook"
+if ! sudo rm -f -- "$HOOK_DEST"; then
+  echo "Could not remove the battery-floor hook" >&2
+  exit 1
+fi
+sudo rm -rf -- /run/omarchy-battery-floor
+
+echo "Suspend battery floor removed"
