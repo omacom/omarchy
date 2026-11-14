@@ -352,6 +352,12 @@ OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/n
 cmp -s "$ROOT/applications/org.wezfurlong.wezterm.desktop" "$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop" ||
   fail "WezTerm installation supplies its command-capable desktop entry"
 grep -Fq 'background = "#1a1b26"' "$current_theme/wezterm.lua" || fail "first WezTerm launch uses the current theme"
+rm "$test_home/.config/wezterm/wezterm.lua" "$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop"
+ln -s "$test_tmp/missing-config.lua" "$test_home/.config/wezterm/wezterm.lua"
+ln -s "$test_tmp/missing-entry.desktop" "$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop"
+OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/null
+[[ -L $test_home/.config/wezterm/wezterm.lua && ! -e $test_home/.config/wezterm/wezterm.lua ]] || fail "WezTerm installation preserves a dangling config link"
+[[ -L $test_home/.local/share/applications/org.wezfurlong.wezterm.desktop && ! -e $test_home/.local/share/applications/org.wezfurlong.wezterm.desktop ]] || fail "WezTerm installation preserves a dangling desktop link"
 printf 'stale Foot entry\n' >"$test_home/.local/share/applications/foot.desktop"
 OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal foot >/dev/null
 cmp -s "$ROOT/applications/foot.desktop" "$test_home/.local/share/applications/foot.desktop" || fail "Foot reinstallation still refreshes its desktop entry"
