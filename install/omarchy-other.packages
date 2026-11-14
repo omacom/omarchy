@@ -41,6 +41,7 @@ qt6-wayland
 snapper
 sof-firmware
 thermald
+virtualbox-guest-utils
 webp-pixbuf-loader
 yay-debug
 tuxedo-drivers-nocompatcheck-dkms
