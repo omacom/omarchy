@@ -46,9 +46,9 @@ for platform in aarch64-apple aarch64 x86; do
       ;;
   esac
 
-  # The Mac's packages, and wf-recorder, which records its screen: nothing else
-  # captures on Apple Silicon.
-  for package in omarchy-mac omarchy-mac-boot wf-recorder; do
+  # The Mac's packages, wf-recorder, which records its screen (nothing else
+  # captures on Apple Silicon), and tiny-dfr, which drives a Touch Bar.
+  for package in omarchy-mac omarchy-mac-boot wf-recorder tiny-dfr; do
     if [[ $platform == "aarch64-apple" ]]; then
       grep -Fxq "$package" "$work/$platform.packages" || fail "Apple Silicon adds $package"
     else
