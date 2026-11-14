@@ -10,6 +10,8 @@ export GIT_TERMINAL_PROMPT=0
 export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
 
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
+# Plugins held with omarchy plugin hold, skipped unless named.
+HELD_DIR="$HOME/.local/state/omarchy/plugins/held"
 ASSUME_YES=0
 UPDATED_ANY=0
 
@@ -114,7 +116,12 @@ if [[ -n $id ]]; then
 else
   for dir in "$PLUGINS_DIR"/*/; do
     [[ -d $dir/.git ]] || continue
-    targets+=("$(basename "$dir")")
+    plugin=$(basename "$dir")
+    if [[ -f $HELD_DIR/$plugin ]]; then
+      echo "$plugin is held back; run: omarchy plugin unhold $plugin"
+      continue
+    fi
+    targets+=("$plugin")
   done
   if (( ${#targets[@]} == 0 )); then
     echo "No git-managed plugins installed."

@@ -20,6 +20,16 @@ Finally, there's the dev channel, which links Omarchy directly to a git checkout
 
 You can switch between channels using _Update > Channel_ from the Omarchy menu (or `omarchy-channel-set` in the terminal).
 
+### Updating plugins with Omarchy
+
+Shell plugins you added with `omarchy plugin add` are not part of an update by default. They are third-party code that runs inside your shell, so Omarchy leaves them to you and `omarchy plugin update`. If you'd rather keep them current with everything else, turn it on once:
+
+```
+omarchy-toggle update-plugins on
+```
+
+From then on, `omarchy update` also runs `omarchy plugin update` near the end, before it restarts the shell, so the new plugin code is what comes back up. You still see each plugin's diff and confirm it, unless you run `omarchy update -y`, which approves them. A plugin that fails to update prints a warning, and the rest of the update finishes. Turn it off again with `omarchy-toggle update-plugins off`. To keep a single plugin out of it, use `omarchy plugin hold <id>` (see the shell plugins chapter).
+
 ### Switching kernels
 
 Omarchy boots its own `linux-omarchy` kernel, but you can keep others installed next to it, like the stock Arch `linux` kernel or an experimental build you're testing. When there's more than one, _Update > Kernel_ in the Omarchy menu lists them with a check next to the one that boots by default. Pick another, enter your password once, and it'll boot after the next restart. The other kernels stay in the boot menu, so you can still pick one by hand if the new default gives you trouble. In the terminal, it's `omarchy-kernel` to see the current default, `omarchy-kernel list` for what's installed, and `omarchy-kernel set <kernel>` to switch.

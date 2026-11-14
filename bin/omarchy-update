@@ -114,6 +114,19 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # sync database again and refetch the checkout only to hear the same.
   omarchy-shell -q omarchy.system-update clear
 
+  # Plugins are third-party code, so updating them here is opt-in
+  # (omarchy-toggle update-plugins). The shell restart below loads what changed.
+  if omarchy-toggle-enabled update-plugins; then
+    if [[ ${OMARCHY_UPDATE_UNATTENDED:-} == "1" ]]; then
+      plugin_update_args=(--yes)
+    else
+      plugin_update_args=()
+    fi
+    if ! omarchy-plugin-update "${plugin_update_args[@]}"; then
+      echo -e "\e[33m\nSome plugins could not be updated. Review the errors above and run 'omarchy plugin update' to retry.\e[0m" >&2
+    fi
+  fi
+
   # Service restart helpers can need sudo. The reboot-only phase below
   # performs no privileged work.
   omarchy-update-restart --services-only
