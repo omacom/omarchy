@@ -273,6 +273,8 @@ machine() {
     proart-pz13-not-qualcomm) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; FAKE_PLATFORM=aarch64 ;;
     aspire-16-ai) dmi sys_vendor Acer; dmi product_name "Aspire A16-11M"; dmi product_family "Aspire 16 AI"; FAKE_PLATFORM=aarch64-qualcomm ;;
     aspire-16-ai-not-qualcomm) dmi sys_vendor Acer; dmi product_name "Aspire A16-11M"; FAKE_PLATFORM=aarch64 ;;
+    omnibook-3-14) dmi sys_vendor HP; dmi product_name "HP OmniBook 3 Laptop 14-hz0xxx"; dmi product_family "103C_5335KV HP OmniBook 3"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    omnibook-3-14-not-qualcomm) dmi sys_vendor HP; dmi product_name "HP OmniBook 3 Laptop 14-hz0xxx"; FAKE_PLATFORM=aarch64 ;;
     omnibook-ultra-14) dmi sys_vendor HP; dmi product_name "HP OmniBook Ultra Laptop 14-kg0xxx"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="hp,omnibook-ultra-kg0xxx qcom,glymur" ;;
     anduril-bluechip) dmi sys_vendor Anduril; dmi product_name "Qualcomm Glymur"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
     glymur-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
@@ -360,6 +362,7 @@ leaves=(
   hardware/asus/fix-asus-proart-pz13-speakers.sh
   hardware/acer/fix-acer-aspire-16-ai-speakers.sh
   hardware/acer/fix-acer-aspire-16-ai-boot.sh
+  hardware/hp/fix-hp-omnibook-3-speakers.sh
   hardware/asus/fix-asus-zenbook-a16-firmware.sh
   hardware/asus/fix-asus-zenbook-a16-boot.sh
   hardware/asus/fix-asus-vivobook-s15-boot.sh
@@ -433,6 +436,10 @@ hardware/acer/fix-acer-aspire-16-ai-boot.sh|aspire-16-ai+unreadable|0
 hardware/acer/fix-acer-aspire-16-ai-boot.sh|aspire-16-ai-not-qualcomm|0
 # The Aspire 14 AI shares the tree's display outputs and is untested.
 hardware/acer/fix-acer-aspire-16-ai-boot.sh|snapdragon-unpackaged|0
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-3-14|0|pkg-add hp-omnibook-3-audio
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-3-14+unreadable|0
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-3-14-not-qualcomm|0
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-x14|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16|0|pkg-add asus-zenbook-a16-firmware
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16-not-qualcomm|0
