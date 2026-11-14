@@ -12,7 +12,7 @@ You hop between the different panes using `Tab`. In the Files pane, you select f
 
 [Btop](https://github.com/aristocratos/btop) is a beautiful resource manager that shows memory, CPU, disk, and network usage. It also lists all active processes, and allows you to manage them.
 
-Omarchy calls it Activity, and you start it by hitting `Super + Shift + T`. It opens as a floating window, which you can tile with `Super + T`.
+Omarchy calls it Activity Monitor, and you start it from the app launcher or by hitting `Super + Shift + T`. It opens as a floating window, which you can tile with `Super + T`.
 
 ## Herdr
 
