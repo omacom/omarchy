@@ -680,9 +680,11 @@ def collect_limits(access_token: str, expires_at_ms: int, refresh_expires_at_ms:
 # ---------------------------------------------------------------- accounts
 
 
-def current_account_id(home: Path) -> str:
+def current_identity(home: Path) -> tuple[str, str]:
   account = read_json(profile_path(home)).get("oauthAccount")
-  return str(account.get("accountUuid") or "") if isinstance(account, dict) else ""
+  if not isinstance(account, dict):
+    return "", ""
+  return str(account.get("accountUuid") or ""), str(account.get("organizationUuid") or "")
 
 
 def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
@@ -692,8 +694,12 @@ def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
   # "Work", and the new one must never fall back on the old one's allowance.
   # Who the home is signed in as now, not when it was added: a `claude auth
   # login` run in it by hand makes it a different subscription.
-  identity = current_account_id(home)
-  key = re.sub(r"[^A-Za-z0-9_-]", "", identity or str(account.get("accountId") or "")) or account["id"]
+  identity, organization = current_identity(home)
+  # A home that now names an organization starts a new cache file; the old
+  # per-user file is left behind rather than reused for a subscription it may
+  # not describe.
+  fallback = "-".join(part for part in (str(account.get("accountId") or ""), str(account.get("orgId") or "")) if part)
+  key = re.sub(r"[^A-Za-z0-9_-]", "", "-".join(part for part in (identity, organization) if part) or fallback) or account["id"]
   # The primary home is keyed the same way once it says who it's signed in
   # as, so signing it in to another subscription never inherits the last
   # one's numbers; until then it keeps the single-account cache.
@@ -733,7 +739,7 @@ def main() -> int:
     # Keyed by who the home is signed in as, as a registered primary is, so
     # signing in to another subscription never shows the last one's numbers
     # and registering the home later keeps its cache.
-    identity = re.sub(r"[^A-Za-z0-9_-]", "", current_account_id(claude_dir))
+    identity = re.sub(r"[^A-Za-z0-9_-]", "", "-".join(part for part in current_identity(claude_dir) if part))
     cache_name = f"claude-limits-{identity}.json" if identity else "claude-limits.json"
     limits = collect_limits(access_token, expires_at_ms, refresh_expires_at_ms, args.force, cache_name)
     stale, fetched_at = not limits["live"] and bool(limits["limits"]), limits["fetchedAtMs"]

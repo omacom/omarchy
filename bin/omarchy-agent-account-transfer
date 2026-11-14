@@ -89,6 +89,39 @@ def login_files(provider: str, home: Path) -> dict[str, Any]:
   return {name: data for name, data in files.items() if isinstance(data, dict)} if files.get("auth.json") else {}
 
 
+# An export written before organizations were recorded has no top-level
+# orgId, but its Claude .claude.json still carries the organizationUuid. Read
+# it from there so an older bundle is compared by subscription too. A bundle
+# that names two different organizations is refused before any file is
+# written.
+def entry_org(provider: str, entry: dict[str, Any]) -> str:
+  org = str(entry.get("orgId") or "")
+  if provider != "claude":
+    return org
+  files = entry.get("files")
+  account = files.get(".claude.json") if isinstance(files, dict) else None
+  oauth = account.get("oauthAccount") if isinstance(account, dict) else None
+  embedded = str(oauth.get("organizationUuid") or "") if isinstance(oauth, dict) else ""
+  if org and embedded and org != embedded:
+    raise accounts.AccountError("Conflicting account transfer organization")
+  return org or embedded
+
+
+def entry_identity(provider: str, entry: dict[str, Any]) -> dict[str, str]:
+  return {"accountId": str(entry.get("accountId") or ""), "orgId": entry_org(provider, entry)}
+
+
+# The receiver may run against the destination's older account backend, which
+# has no same_account(). Keep the comparison here so a copy does not depend on
+# the backend version.
+def same_identity(left: dict[str, Any], right: dict[str, Any]) -> bool:
+  if str(left.get("accountId") or "") != str(right.get("accountId") or ""):
+    return False
+  left_org = str(left.get("orgId") or "")
+  right_org = str(right.get("orgId") or "")
+  return not left_org or not right_org or left_org == right_org
+
+
 def export_accounts(providers: list[str]) -> dict[str, Any]:
   payload = {"version": 1, "namePolicy": "source", "providers": {}}
   for provider in providers:
@@ -101,7 +134,10 @@ def export_accounts(providers: list[str]) -> dict[str, Any]:
       found = accounts.identity(provider, home)
       files = login_files(provider, home)
       if found["accountId"] and files:
-        entries.append({"id": account["id"], "label": account["label"], "primary": bool(account.get("primary")), "accountId": found["accountId"], "files": files})
+        entry = {"id": account["id"], "label": account["label"], "primary": bool(account.get("primary")), "accountId": found["accountId"], "files": files}
+        if found.get("orgId"):
+          entry["orgId"] = found["orgId"]
+        entries.append(entry)
     if entries:
       payload["providers"][provider] = {"active": registry["active"] if any(a["id"] == registry["active"] for a in entries) else entries[0]["id"], "switch": registry["switch"], "threshold": registry["threshold"], "accounts": entries}
   if not payload["providers"]:
@@ -118,17 +154,21 @@ def validate(payload: Any) -> None:
     if not isinstance(registry.get("active"), str) or registry.get("switch") not in accounts.SWITCH_MODES or type(registry.get("threshold")) is not int or not 50 <= registry["threshold"] <= 100:
       raise accounts.AccountError("Invalid account transfer preferences")
     ids = set()
-    identities = set()
+    identities = []
     for entry in registry["accounts"]:
       if not isinstance(entry, dict) or not all(isinstance(entry.get(k), str) and entry[k] for k in ("id", "label", "accountId")):
         raise accounts.AccountError("Invalid account transfer identity")
+      if not isinstance(entry.get("orgId", ""), str):
+        raise accounts.AccountError("Invalid account transfer organization")
       if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", entry["id"]) or entry["id"] in accounts.RESERVED_IDS:
         raise accounts.AccountError("Invalid account transfer ID")
       if type(entry.get("primary")) is not bool or entry["id"] in ids:
         raise accounts.AccountError("Invalid account transfer account")
-      if entry["accountId"] in identities:
+      # Compared the way import matches, so no two entries land on one account.
+      identity = entry_identity(provider, entry)
+      if any(same_identity(identity, seen) for seen in identities):
         raise accounts.AccountError("Duplicate account transfer identity")
-      identities.add(entry["accountId"])
+      identities.append(identity)
       ids.add(entry["id"])
       files = entry.get("files")
       if not isinstance(files, dict) or not files or not set(files) <= FILES[provider] or not all(isinstance(v, dict) for v in files.values()):
@@ -259,7 +299,8 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
           cleanup_transfers(file_path(provider, accounts.account_home(provider, a), name).parent)
       was_empty = not any(accounts.identity(provider, accounts.account_home(provider, a))["accountId"] and login_files(provider, accounts.account_home(provider, a)) for a in registry["accounts"])
       for entry in incoming["accounts"]:
-        existing = next((a for a in registry["accounts"] if accounts.identity(provider, accounts.account_home(provider, a))["accountId"] == entry["accountId"]), None)
+        incoming_identity = entry_identity(provider, entry)
+        existing = next((a for a in registry["accounts"] if same_identity(accounts.identity(provider, accounts.account_home(provider, a)), incoming_identity)), None)
         if existing and login_files(provider, accounts.account_home(provider, existing)) and not replace:
           copied.append((entry, existing))
           results.append(("kept", existing))
@@ -306,7 +347,7 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
             data = current
           write_json(path, data)
         found = accounts.identity(provider, home)
-        if found["accountId"] != entry["accountId"] or not login_files(provider, home):
+        if not same_identity(found, incoming_identity) or not login_files(provider, home):
           raise accounts.AccountError("Transferred credentials do not match their account identity")
         if not account.get("primary"):
           accounts.link_shared(provider, home)

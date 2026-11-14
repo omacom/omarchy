@@ -289,6 +289,27 @@ result = subprocess.run(["/usr/bin/python3", "-I", "-c", transfer.RECEIVER_BOOTS
 assert result.returncode == 0, result.stderr
 assert state.read_json(state.registry_path("claude"))["futureSetting"] == "keep"
 
+# A destination backend written before organizations existed has no
+# same_account(); the receiver must not call it, even for a single account.
+machine("older-backend")
+older_root = root / "older-omarchy"
+(older_root / "bin").mkdir(parents=True)
+older_source = (Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-agent-account-state").read_text()
+older_source = older_source.replace('      "orgId": str(account.get("organizationUuid") or ""),\n', '')
+start = older_source.index("# A subscription is the login plus")
+end = older_source.index("# ---------------------------------------------------------------- registry", start)
+older_source = older_source[:start] + older_source[end:]
+(older_root / "bin/omarchy-agent-account-state").write_text(older_source)
+older_receiver = root / "older-receiver-bin"
+older_receiver.mkdir()
+older_command = older_receiver / "omarchy-agent-account-transfer"
+older_command.write_text("#!/bin/bash\nexit 1\n")
+older_command.chmod(0o755)
+older_env = dict(os.environ, OMARCHY_PATH=str(older_root), PATH=str(older_receiver) + ":" + str(root / "bin"))
+result = subprocess.run(["/usr/bin/python3", "-I", "-c", transfer.RECEIVER_BOOTSTRAP], input=json.dumps(bundle), text=True, capture_output=True, env=older_env)
+assert result.returncode == 0, result.stderr
+assert len(state.read_json(state.registry_path("claude"))["accounts"]) == 3
+
 # A missing optional refresh command must not undo a completed import.
 machine("no-updater")
 no_updater_env = dict(os.environ, PATH="")
@@ -405,3 +426,92 @@ PYBOOT
 )" --replace
 [[ $(cat "$test_tmp/preferred-receiver") == "import --replace" ]] || fail "installed receiver is preferred"
 pass "installed receiver is preferred"
+
+# One user's two Claude organizations are separate subscriptions, so a copy
+# carries both instead of treating the second as a duplicate.
+python3 - <<'PY' || fail "two Claude organizations survive a copy"
+import copy, importlib.machinery, importlib.util, json, os
+from pathlib import Path
+
+loader = importlib.machinery.SourceFileLoader("transfer", str(Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-agent-account-transfer"))
+spec = importlib.util.spec_from_loader(loader.name, loader)
+transfer = importlib.util.module_from_spec(spec)
+loader.exec_module(transfer)
+state = transfer.accounts
+root = Path(os.environ["OMARCHY_TEST_ROOT"])
+
+
+def machine(name):
+  os.environ["HOME"] = str(root / name)
+  os.environ["XDG_STATE_HOME"] = str(root / name / "state")
+  Path.home().mkdir(exist_ok=True)
+
+
+def register(label, org):
+  pending = state.begin("claude", label)
+  account_file = state.claude_account_file(pending)
+  transfer.write_json(account_file, {"oauthAccount": {
+    "accountUuid": "u-shared",
+    "organizationUuid": org,
+    "emailAddress": "shared@example.com",
+    "organizationName": org,
+  }})
+  transfer.write_json(pending / ".credentials.json", {"claudeAiOauth": {"accessToken": "fake-" + org, "refreshToken": "fake-refresh", "subscriptionType": "max"}})
+  return state.register("claude", label, pending)
+
+
+machine("org-source")
+register("Org A", "org-a")
+register("Org B", "org-b")
+payload = transfer.export_accounts(["claude"])
+transfer.validate(payload)
+
+machine("org-destination")
+transfer.write_json(Path.home() / ".claude.json", {})
+transfer.import_provider("claude", payload["providers"]["claude"], False)
+registry = state.load("claude")
+shared = [a for a in registry["accounts"] if a.get("accountId") == "u-shared"]
+assert len(shared) == 2, shared
+assert {a.get("orgId") for a in shared} == {"org-a", "org-b"}, shared
+assert {state.read_json(state.account_home("claude", a) / ".credentials.json")["claudeAiOauth"]["accessToken"] for a in shared} == {"fake-org-a", "fake-org-b"}
+
+# An export written before the top-level orgId still names the organization in
+# its Claude account file; the copy must read it from there.
+legacy = copy.deepcopy(payload)
+for entry in legacy["providers"]["claude"]["accounts"]:
+  entry.pop("orgId", None)
+transfer.validate(legacy)
+
+machine("org-destination-legacy")
+transfer.write_json(Path.home() / ".claude.json", {})
+transfer.import_provider("claude", legacy["providers"]["claude"], False)
+registry = state.load("claude")
+shared = [a for a in registry["accounts"] if a.get("accountId") == "u-shared"]
+assert len(shared) == 2, shared
+assert {a.get("orgId") for a in shared} == {"org-a", "org-b"}, shared
+
+# A bundle that names one organization on the account and another in the
+# Claude file is refused before any credentials are written.
+conflict = copy.deepcopy(payload)
+conflict["providers"]["claude"]["accounts"][0]["orgId"] = "org-other"
+try:
+  transfer.validate(conflict)
+except state.AccountError:
+  pass
+else:
+  raise AssertionError("a conflicting organization must not validate")
+
+# An entry with no organization matches any organization of its user on
+# import, so beside one that names an organization it is a duplicate.
+unknown = copy.deepcopy(payload)
+unknown_entry = unknown["providers"]["claude"]["accounts"][0]
+unknown_entry.pop("orgId", None)
+unknown_entry["files"][".claude.json"]["oauthAccount"].pop("organizationUuid", None)
+try:
+  transfer.validate(unknown)
+except state.AccountError:
+  pass
+else:
+  raise AssertionError("an entry without an organization must not validate beside its user's other one")
+PY
+pass "two Claude organizations survive a copy"
