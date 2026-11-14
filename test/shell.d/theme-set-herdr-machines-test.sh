@@ -166,8 +166,8 @@ run_sync >/dev/null
 [[ $(set_log alpha) == 'theme set demo$(touch "$HOME/injected") from=local-box session=wayland-1' ]] || fail "a theme name reaches the remote verbatim"
 pass "a theme name reaches the remote verbatim without running commands"
 
-# The menu shows Herdr Theme Sync whenever herdr has an enabled machine, with sync on or off,
-# so the toggle is there to turn it on.
+# --available reports theme sync whenever herdr has an enabled machine, with sync on or off,
+# so it is there to turn on.
 rm "$local_toggle"
 run_sync --available || fail "an enabled herdr machine makes theme sync available"
 pass "an enabled herdr machine makes theme sync available while it is off"

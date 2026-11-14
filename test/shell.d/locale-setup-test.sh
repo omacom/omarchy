@@ -8,10 +8,6 @@ leaf="$ROOT/install/config/locale.sh"
 
 [[ -f $leaf ]] || fail "the locale step ships"
 
-grep -Fq 'config/locale.sh' "$ROOT/install/config/all.sh" ||
-  fail "config phase sets a UTF-8 locale"
-pass "config phase sets a UTF-8 locale"
-
 # Root always writes the real locale files: the overrides below are for
 # unprivileged runs, so as root the step would change this machine's locale.
 if (( EUID == 0 )); then

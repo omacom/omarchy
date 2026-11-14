@@ -1,19 +1,21 @@
 # Spánok systému
 
-Omarchy predvolene povoľuje uspanie a hibernáciu, ale ak máte na svojom stroji s niektorým z nich problémy, môžete ich vypnúť.
+Omarchy má uspanie a hibernáciu v predvolenom nastavení povolené, ale ak máš na svojom počítači problémy s jedným z nich, môžeš ich vypnúť.
+
+Na počítačoch s NVIDIA GB10, ako sú DGX Spark a ASUS Ascent GX10, sú uspanie a hibernácia vypnuté, rovnako ako v systéme DGX OS od NVIDIA, pretože sa zatiaľ nepreukázalo, že spánok na tomto hardvéri funguje. To isté platí pre ASUS Zenbook A16 (UX3607OA), kde uspanie zatiaľ čip úplne neuspí a môže cez noc zamrznúť. Prepínač uspania a nastavenie hibernácie sa tam neuplatňujú. Ak chceš spánok znova zapnúť, odstráň `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` pomocou `sudo rm`; Uspať sa potom vráti do ponuky a hibernáciu je možné nastaviť ako na iných počítačoch. Spustením `sudo omarchy apply hardware --install-user "$USER"` súbor vrátiš späť.
 
 ### Profily napájania
 
-Na notebooku si Omarchy pamätá váš profil napájania osobitne pre napájanie zo siete a pre prevádzku na batériu a prepína medzi nimi, keď zapájate a odpájate napájanie. Hneď po vybalení to znamená výkon na striedavom napájaní a vyvážený režim na batériu.
+Na notebooku si Omarchy pamätá tvoj profil napájania zvlášť pre napájanie zo siete a pre prevádzku na batériu a prepína medzi nimi, keď počítač pripojíš a odpojíš. V predvolenom nastavení to znamená výkon pri AC a vyvážený režim na batériu.
 
-To, čo váš stroj ponúka, zistíte príkazom `omarchy powerprofiles list` a ten, ktorý chcete pre stav, v ktorom sa práve nachádzate, nastavíte príkazom `omarchy powerprofiles set autodetect power-saver`. Ak chcete nastaviť druhý stav bez toho, aby ste čokoľvek odpájali, pomenujte ho priamo: `omarchy powerprofiles set battery power-saver`. Čokoľvek vyberiete, to dostanete späť, keď budete nabudúce v tom stave.
+Pomocou `omarchy powerprofiles list` si môžeš pozrieť, čo tvoj počítač ponúka, a pomocou `omarchy powerprofiles set autodetect power-saver` nastaviť ten, ktorý chceš pre stav, v ktorom sa práve nachádzaš. Ak chceš nastaviť druhý stav bez toho, aby si čokoľvek odpájal, pomenuj ho priamo: `omarchy powerprofiles set battery power-saver`. Čokoľvek si vyberieš, presne to dostaneš späť, keď budeš nabudúce v danom stave.
 
-### Prepínanie uspania
+### Prepnutie uspania
 
-Uspanie prepnete spustením príkazu `omarchy toggle suspend` z terminálu. Tým sa len zobrazí alebo skryje možnosť v časti _Systém_ (alebo `Super + Esc`) a potom môžete vyskúšať, či na vašom systéme funguje spoľahlivo. Ak nie, môžete ju tým istým príkazom znova skryť.
+Uspávanie prepneš spustením `omarchy toggle suspend` z terminálu. Tým sa len zobrazí/skryje možnosť v časti _System_ (alebo `Super + Esc`) a potom môžeš zistiť, či na tvojom systéme funguje spoľahlivo. Ak nie, môžeš ju rovnakým príkazom znova skryť.
 
-### Prepínanie hibernácie
+### Prepnutie hibernácie
 
-Hibernáciu nastavíte spustením príkazu `omarchy hibernation setup` z terminálu. Hibernácia vytvorí na vašom zavádzacom disku podzväzok /swap vo veľkosti vašej fyzickej pamäte RAM, takže dbajte na to, aby ste mali dostatok voľného miesta. Na 32GB stroji budete pre tento zväzok vždy potrebovať voľných 32GB+. Hibernácia si tiež vyžaduje predvolený zavádzač Limine.
+Hibernáciu nastavíš spustením `omarchy hibernation setup` z terminálu. Hibernácia vytvorí podzväzok /swap na tvojom zavádzacom disku s veľkosťou tvojej fyzickej pamäte RAM, takže sa uisti, že máš dostatok voľného miesta. Na počítači s 32GB pamäťou budeš pre tento zväzok vždy potrebovať viac ako 32GB voľného miesta. Hibernácia tiež vyžaduje predvolený zavádzač Limine.
 
-Po nastavení uvidíte možnosť hibernácie v časti _Systém_ (alebo `Super + Esc`) a potom môžete vyskúšať, či na vašom systéme funguje spoľahlivo. Ak nie, môžete ju znova odstrániť spustením príkazu `omarchy hibernation remove`.
+Po nastavení uvidíš možnosť hibernácie v časti _System_ (alebo `Super + Esc`) a potom môžeš zistiť, či na tvojom systéme funguje spoľahlivo. Ak nie, môžeš ju znova odstrániť spustením `omarchy hibernation remove`.

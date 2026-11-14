@@ -1,10 +1,10 @@
 # Темы
 
-Omarchy поставляется с двадцатью двумя красивыми темами. Выбирать между ними можно через _Стиль > Тема_ в меню Omarchy (`Super + Space`) или перейти напрямую к выбору темы через `Super + Ctrl + Shift + Space`.
+В состав Omarchy входят двадцать две прекрасные темы. Выбрать тему можно через _Внешний вид > Тема_ в меню Omarchy (`Super + Space`) или сразу перейти к выбору темы с помощью `Super + Ctrl + T`.
 
-Каждая тема оформляет рабочий стол, терминал, neovim, экран активности (btop), Chromium и всю оболочку Omarchy: верхнюю панель, меню, уведомления, OSD и экран блокировки. (Для Obsidian нужно вручную выбрать тему Omarchy через _Appearance > Themes_ внутри приложения.)
+Каждая тема оформляет рабочий стол, терминал, neovim, экран активности (btop), Chromium и всю оболочку Omarchy: верхнюю панель, меню, уведомления, OSD и экран блокировки. (Для Obsidian тему Omarchy нужно вручную выбрать через _Внешний вид > Темы_ внутри приложения).
 
-У тем есть набор фоновых изображений, между которыми можно выбирать через `Super + Ctrl + Space`.
+У тем есть набор фоновых изображений, между которыми можно выбирать с помощью `Super + Ctrl + W`.
 
 Ещё больше тем можно найти на [странице дополнительных тем](https://omarchy.org/themes/) или даже [создать собственную тему](43-making-your-own-theme.md).
 
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Разблокировки
+### Экраны разблокировки
 
-Темы также могут иметь собственный дизайн разблокировки, который используется для процесса расшифровки при загрузке. Выбрать один из них можно в _Стиль > Разблокировать_. Они выглядят так:
+У тем также может быть собственное оформление разблокировки, которое используется в процессе расшифровки при загрузке. Выбрать одно из них можно в разделе _Внешний вид > Разблокировка_. Выглядят они так:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

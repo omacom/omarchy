@@ -41,13 +41,12 @@ boot_package "$tmp/unverified" 1
 mkdir -p "$tmp/none" "$tmp/older/usr/lib/omarchy/mac-boot" "$tmp/older/var/lib/pacman/local/omarchy-mac-boot-20260921-10"
 
 # omarchy update -y on platform $1 with the boot package in lifecycle root $2.
-# The update's own PATH is fixed, so the platform's uname goes beside the
-# stubbed steps.
+# The platform's uname goes beside the stubbed steps, first on the PATH.
 run_update() {
   local platform=$1 lifecycle=$2
   reset_boundary
   rm -f "$tmp/boot-ran"
-  cp "$tmp/$platform/bin/uname" "$SUDO_TEST_ROOT/bin/uname"
+  /usr/bin/cp "$tmp/$platform/bin/uname" "$SUDO_TEST_ROOT/bin/uname"
   status=0
   OMARCHY_PROC_ROOT="$tmp/$platform/proc" OMARCHY_LIFECYCLE_ROOT="$lifecycle" \
     "$SUDO_TEST_ROOT/bin/omarchy-update" -y >"$tmp/out" 2>"$tmp/err" || status=$?
@@ -71,23 +70,20 @@ for platform in x86 aarch64; do
   ! grep -q 'omarchy-lifecycle-dispatch' "$SUDO_TEST_LOG" || fail "$platform: the boot check asks for no root" "$(cat "$SUDO_TEST_LOG")"
   [[ ! -s $tmp/err ]] || fail "$platform: the boot check prints nothing" "$(cat "$tmp/err")"
   reboot_offered || fail "$platform: the reboot is offered" "$(cat "$SUDO_TEST_LOG")"
-  assert_boundary_cold "$platform update"
 done
 pass "x86 and plain aarch64 updates are unchanged: no boot check runs, nothing asks for root and the reboot is offered"
 
-# Apple: verify runs once the last package step, AUR, is done, cold through
-# the no-update wrapper, before the reboot offer.
+# Apple: verify runs once the last package step, AUR, is done, under the
+# update's one authorization, before the reboot offer.
 run_update aarch64-apple "$tmp/passing"
 (( status == 0 )) || fail "apple: an update whose boot check passes reports success" "status $status: $(cat "$tmp/err")"
 [[ $(cat "$tmp/boot-ran") == "update-verify" ]] || fail "apple: verify runs once" "$(cat "$tmp/boot-ran")"
-aur=$(at 'step:omarchy-update-aur-pkgs') verify=$(at 'sudo -N omarchy-lifecycle-dispatch update-verify') hook=$(at 'step:omarchy-hook post-update')
+aur=$(at 'step:omarchy-update-aur-pkgs') verify=$(at 'sudo omarchy-lifecycle-dispatch update-verify') hook=$(at 'step:omarchy-hook post-update')
 [[ -n $aur && -n $verify && -n $hook ]] && (( hook < aur && aur < verify )) ||
-  fail "apple: verify follows AUR through the no-update wrapper" "$(cat "$SUDO_TEST_LOG")"
-! grep -q '^sudo omarchy-lifecycle-dispatch update-verify' "$SUDO_TEST_LOG" || fail "apple: verification never uses a reusable timestamp" "$(cat "$SUDO_TEST_LOG")"
-[[ $(sed -n "$((verify - 1))p;$((verify + 1))p" "$SUDO_TEST_LOG") == $'sudo -k\nsudo -k' ]] ||
-  fail "apple: verification starts cold after AUR and sudo is revoked right after it" "$(cat "$SUDO_TEST_LOG")"
+  fail "apple: verify follows AUR" "$(cat "$SUDO_TEST_LOG")"
+! grep -q '^sudo -k$' "$SUDO_TEST_LOG" ||
+  fail "apple: verification shares the update's authorization" "$(cat "$SUDO_TEST_LOG")"
 reboot_offered || fail "apple: a verified update offers the reboot"
-assert_boundary_cold "apple update"
 pass "apple: verify runs as root through the boot package, and a verified update offers the reboot"
 
 # omarchy-update-boot takes no operation, so a caller still asking for a
@@ -107,7 +103,6 @@ grep -q '^step:omarchy-update-stay-awake stop' "$SUDO_TEST_LOG" ||
 grep -q 'the boot files do not match' "$tmp/err" && grep -q 'The update is not finished' "$tmp/err" ||
   fail "apple: a failed verification says why, and that the update is not finished" "$(cat "$tmp/err")"
 ! grep -q 'Something went wrong during the update' "$tmp/out" "$tmp/err" || fail "apple: a failed verification is not reported as a crash"
-assert_boundary_cold "apple failed verification"
 pass "apple: a failed verification fails the update, explained, with no reboot offered"
 
 # A Mac without the boot package at all predates it: the update warns that its

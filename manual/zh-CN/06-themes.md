@@ -1,12 +1,12 @@
 # 主题
 
-Omarchy 附带二十二个美丽的主题。你可以通过 Omarchy 菜单（`Super + Space`）中的_样式 > 主题_在它们之间进行选择，或使用 `Super + Ctrl + Shift + Space` 直接跳转到主题选择器。
+Omarchy 内置二十二款精美主题。你可以通过 Omarchy 菜单（`Super + Space`）中的_外观 > 主题_在它们之间进行选择，也可以直接使用 `Super + Ctrl + T` 跳转到主题选择器。
 
-每个主题都会为桌面、终端、neovim、活动屏幕（btop）、Chromium 以及整个 Omarchy shell 设置样式：菜单栏、菜单、通知、OSD 和锁屏。（对于 Obsidian，你必须在应用内通过 _Appearance > Themes_ 手动选择 Omarchy 主题）。
+每个主题都会为桌面、终端、neovim、活动屏幕（btop）、Chromium 以及整个 Omarchy shell 设置样式：顶栏、菜单、通知、OSD 和锁屏。（对于 Obsidian，你必须在应用内通过_外观 > 主题_手动选择 Omarchy 主题）。
 
-主题有一组背景图片，你可以使用 `Super + Ctrl + Space` 在其中进行选择。
+主题带有一组背景图片，你可以使用 `Super + Ctrl + W` 在它们之间进行选择。
 
-你可以在[更多主题页面](https://omarchy.org/themes/)上找到更多主题，甚至可以[制作自己的主题](43-making-your-own-theme.md)。
+你可以在[额外主题页面](https://omarchy.org/themes/)上找到更多主题，甚至可以[制作你自己的主题](43-making-your-own-theme.md)。
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### 解锁界面
 
-主题还可以有自定义解锁设计，用于启动解密过程。你可以在_样式 > 解锁_下选择其中一个。它们看起来像这样：
+主题还可以拥有自定义的解锁设计，用于开机解密过程。你可以在_外观 > 解锁_下选择其中一款。它们看起来像这样：
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

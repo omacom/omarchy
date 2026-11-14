@@ -1,41 +1,39 @@
-# Komercinės programos/paslaugos
+# Komercinės programos / paslaugos
 
-Omarchy dažniausiai orientuota į nemokamos, atviro kodo programinės įrangos teikimą, bet ji nėra religinga šiuo klausimu. Kartais geriausias sprendimas yra komercinis pasiūlymas, ir tai visiškai gerai. Štai keletas pasirinkimų, kurių lengvą diegimą siūlome.
+Omarchy daugiausia orientuota į nemokamą, atvirojo kodo programinę įrangą, bet dėl to nėra religinga. Kartais geriausias sprendimas yra komercinis pasiūlymas, ir tai visiškai normalu. Štai keletas variantų, kuriuos lengvai įdiegsite.
 
 ## 1Password
 
-Slaptažodžius laikyti slaptažodžių tvarkytuvėje yra geriausia praktika. Dvigubai taip, jei dirbi su komanda. O [1password](https://1password.com/) yra puikus sprendimas, taip pat pristatomas su komandinės eilutės įrankiu, skirtu raktų paieškoms integruoti scenarijuose.
+Slaptažodžių laikymas slaptažodžių tvarkytuvėje yra geriausia praktika. Dvigubai labiau, jei dirbate su komanda. Ir [1password](https://1password.com/) yra puikus sprendimas, kuris taip pat turi komandinės eilutės įrankį, skirtą raktų paieškai scenarijuose integruoti.
 
-1Password paleidi su `Super + Shift + /`. Jei ji dar neįdiegta, tas spartusis klavišas pirmiausia pradeda diegimą (taip pat gali naudoti _Įdiegti > Service > 1Password_ iš Omarchy meniu). Diegimo programa taip pat paruošia 1Password plėtinį, skirtą Chromium.
+1Password paleisite paspaudę `Super + Shift + /`. Jei ji dar neįdiegta, šis spartusis klavišas pirmiausia pradės diegimą (taip pat galite naudoti _Install > Service > 1Password_ iš Omarchy meniu). Diegimo programa taip pat nustato 1Password plėtinį, skirtą Chromium.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/) yra atviro kodo alternatyva slaptažodžių tvarkytuvių erdvėje, su nemokamu lygiu, apimančiu didžiąją dalį asmeninio naudojimo. Įdiek jį su _Įdiegti > Service > Bitwarden_ iš Omarchy meniu, kuris kartu atsiveža ir Bitwarden komandinės eilutės įrankį.
+[Bitwarden](https://bitwarden.com/) yra atvirojo kodo alternatyva slaptažodžių tvarkytuvių srityje, su nemokamu planu, kuris patenkina daugumą asmeninių poreikių. Įdiekite ją per _Install > Service > Bitwarden_ iš Omarchy meniu, kartu bus įdiegtas ir Bitwarden komandinės eilutės įrankis.
 
 ## Spotify
 
-[Spotify](https://spotify.com/) yra populiariausia pasaulyje srautinės muzikos paslauga. O Linux programa teikia viską, ko tikėtumeisi, įskaitant grojimą neprisijungus.
-
-Spotify paleidi naudodamas `Super + Shift + M`. Kaip ir 1Password atveju, spartusis klavišas pirmiausia pradeda diegimą, jei Spotify dar neįdiegta (arba naudok _Įdiegti > Service > Spotify_ iš Omarchy meniu).
+[Spotify](https://spotify.com/) yra populiariausia pasaulyje muzikos transliavimo paslauga. Omarchy ją pateikia kaip žiniatinklio programą, kuri suteikia visavertį grotuvą, medijos klavišus ir Spotify Connect, bet ne atsisiuntimus neprisijungus. Paleiskite ją paspaudę `Super + Shift + M`.
 
 ## Slack
 
-[Slack](https://slack.com/) yra vieta, kur daugybė komandų susirašinėja, tiek įmonės viduje, tiek su išoriniais bendradarbiais. Įdiek jį su _Įdiegti > Service > Slack_ iš Omarchy meniu, ir jis atsidarys, kai tik bus paruoštas.
+[Slack](https://slack.com/) yra vieta, kurioje daug komandų bendrauja tiek įmonės viduje, tiek su išoriniais bendradarbiais. Įdiekite ją per _Install > Service > Slack_ iš Omarchy meniu, ir ji atsidarys, kai tik bus paruošta.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/) yra puikus būdas sinchronizuoti failus tarp kompiuterių, kartu laikant atsarginę kopiją debesyje. Kad jį paruoštum, Omarchy meniu pasirink _Įdiegti > Service > Dropbox_. Kai jis veikia, užvesk pelę ant dėklo viršinės juostos dešinėje ir dešiniuoju pelės klavišu spustelėk Dropbox piktogramą, kad užbaigtum sąranką.
+[Dropbox](https://www.dropbox.com/) yra puikus būdas sinchronizuoti failus tarp įrenginių ir kartu turėti atsarginę kopiją debesyje. Norėdami ją nustatyti, Omarchy meniu pasirinkite _Install > Service > Dropbox_. Kai ji pradės veikti, užveskite pelę ant dėklo viršutiniame dešiniajame juostos kampe ir dešiniuoju pelės mygtuku spustelėkite Dropbox piktogramą, kad užbaigtumėte sąranką.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) yra mesh VPN, dėl kurio saugiai pasiekti visus tavo kompiuterius ir serverius internetu yra nepaprastai paprasta. Kad jį paruoštum, Omarchy meniu pasirink _Įdiegti > Service > Tailscale_.
+[Tailscale](https://tailscale.com/) yra mesh VPN, kuris itin paprastai ir saugiai suteikia prieigą prie visų jūsų kompiuterių ir serverių internetu. Norėdami ją nustatyti, Omarchy meniu pasirinkite _Install > Service > Tailscale_.
 
-Jis gauna skydelį juostoje, žiniatinklio programą administratoriaus konsolei ir Taildrop failams siųsti tarp tavo kompiuterių — žr. [tinklas](35-networking.md).
+Ji gauna skydelį juostoje, žiniatinklio programą administratoriaus konsolei ir Taildrop failams siųsti tarp jūsų įrenginių — žr. [tinklas](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/) yra 37signals programinės įrangos linija, kurią nusiperki kartą ir paleidi savo serveryje, pavyzdžiui, Campfire pokalbių sistema. Omarchy meniu pasirink _Įdiegti > Service > ONCE_, kad ją įdiegtum, kas įjungia jos foninę paslaugą ir perkelia tave į ONCE terminalo sąsają tęsti nuo ten.
+[ONCE](https://once.com/) yra 37signals programinės įrangos linija, kurią nusiperkate vieną kartą ir paleidžiate savo serveryje, pavyzdžiui, Campfire pokalbių sistema. Omarchy meniu pasirinkite _Install > Service > ONCE_, kad ją įdiegtumėte; tai įjungs jos foninę paslaugą ir nukels jus į ONCE terminalo sąsają, iš kurios galėsite tęsti.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/) yra standartinė VPN paslauga, leidžianti išvesti savo srautą iš daugumos pasaulio regionų. Kad ją paruoštum, Omarchy meniu pasirink _Įdiegti > Service > NordVPN_. Po jos prašomo perkrovimo paleisk `nordvpn login`, kad autentifikuotumeisi.
+[NordVPN](https://nordvpn.com/) yra standartinė VPN paslauga, leidžianti nukreipti srautą per daugumą pasaulio regionų. Norėdami ją nustatyti, Omarchy meniu pasirinkite _Install > Service > NordVPN_. Po perkrovimo, kurio ji paprašys, paleiskite `nordvpn login`, kad autentifikuotumėtės.

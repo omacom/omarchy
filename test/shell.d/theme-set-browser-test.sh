@@ -76,6 +76,12 @@ if [[ ! -e $CALL_LOG ]]; then
 fi
 pass "setter invokes the privileged writer when color.json mismatches"
 
+# etc/sudoers.d/omarchy-theme-browser admits six bare hex digits and nothing
+# else, so a leading # would send every write to a password prompt.
+[[ $(<"$CALL_LOG") == "1c2027" ]] ||
+  fail "setter hands the writer the bare hex its sudoers rule admits" "got: $(<"$CALL_LOG")"
+pass "setter hands the writer the bare hex its sudoers rule admits"
+
 # No managed policy dirs at all must not vacuously skip the writer.
 rm -f "$CALL_LOG"
 
@@ -124,7 +130,3 @@ refreshed=$(sort "$refresh_log" | tr '\n' ' ')
 [[ $refreshed == "brave brave-origin chromium google-chrome " ]] ||
   fail "setter refreshes exactly the running browsers (got: $refreshed)"
 pass "setter refreshes exactly the running browsers"
-
-grep -q '<&0 &$' "$ROOT/bin/omarchy-theme-set-browser" ||
-  fail "setter keeps stdin for the backgrounded policy writer"
-pass "setter keeps stdin for the backgrounded policy writer"

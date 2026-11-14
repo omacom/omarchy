@@ -467,9 +467,12 @@ for run_spec in "${matrix[@]}"; do
         [[ -e $journal ]] || fail "$backend: after '$point' a refused rerun keeps the journal"
         answer=$new_password
       fi
+      # A rerun that finds both keys (killed between luksChangeKey's two header
+      # updates) asks for the new password, and the old one when it was given
+      # the new, before it removes either slot.
       for (( again = 1; ; again++ )); do
         status=0
-        attempt "$again" "$answer" || status=$?
+        attempt "$again" "$answer" "$new_password" "$old_password" || status=$?
         (( status == 0 )) && break
         (( status == 137 )) || fail "$backend: the rerun after '$point' finishes" "$(cat "$tmp/output")"
         recoverable "rerun after '$point' killed at step $again"
@@ -521,7 +524,7 @@ unset TEST_CHANGE_PARTIAL TEST_KILL_FAIL
 if attempt 0 "$recovery_key"; then fail "an unconfirmed change refuses the recovery key"; fi
 said "That password does not finish the change"
 [[ -e $journal && -n $(opens "$system" "$recovery_key") ]] || fail "refusing the recovery key changes nothing"
-attempt 0 "$new_password" || fail "the rerun retires the old key and finishes" "$(cat "$tmp/output")"
+attempt 0 "$new_password" "$new_password" "$old_password" || fail "the rerun retires the old key and finishes" "$(cat "$tmp/output")"
 consistent "rerun after a failed retirement" "$new_password"
 pass "before the change is confirmed a rerun refuses the recovery key and retires the old key"
 
@@ -529,9 +532,41 @@ fixture
 export TEST_CHANGE_PARTIAL=1 TEST_KILL_FAIL=1
 attempt 0 "$old_password" "$new_password" "$new_password" || true
 unset TEST_CHANGE_PARTIAL TEST_KILL_FAIL
-attempt 0 "$old_password" || fail "the rerun with the old password rolls back" "$(cat "$tmp/output")"
+attempt 0 "$old_password" "$new_password" || fail "the rerun with the old password rolls back" "$(cat "$tmp/output")"
 consistent "rollback with the old password" "$old_password"
 pass "a rerun with the old password removes the half-added new key"
+
+# With both keys on the disk, the added slot is only removed or kept once the
+# new password opens it and the old password the old slot: a wrong new password
+# removes nothing.
+fixture
+export TEST_CHANGE_PARTIAL=1 TEST_KILL_FAIL=1
+attempt 0 "$old_password" "$new_password" "$new_password" || true
+unset TEST_CHANGE_PARTIAL TEST_KILL_FAIL
+# Each case's answers stay whole (the new password has a space in it), and
+# each case is judged on its own output and prompts.
+for c in 1 2 3; do
+  case $c in
+    1) answers=("$old_password" not-the-new-one) ;;
+    2) answers=("$new_password" not-the-new-one "$old_password") ;;
+    3) answers=("$new_password" "$new_password" not-the-old-one) ;;
+  esac
+  : >"$tmp/output"
+  : >"$tmp/prompts"
+  if attempt 0 "${answers[@]}"; then fail "a rerun with both keys refuses unconfirmed passwords: case $c"; fi
+  grep -q 'New encryption password you chose for this change' "$tmp/prompts" ||
+    fail "a rerun with both keys asks to confirm the added slot: case $c" "$(cat "$tmp/prompts" "$tmp/output")"
+  if (( c == 3 )); then
+    said "The new password opens key slot 2, but the old password didn't open slot 0, so no key is removed."
+    said "Check that you typed the old password correctly"
+  else
+    said "Those passwords don't show that slot 2 holds this change's new password, so no key is removed."
+    said "Settle it by hand"
+  fi
+  [[ -e $journal && -n $(opens "$system" "$old_password") && -n $(opens "$system" "$new_password") ]] ||
+    fail "a rerun with unconfirmed passwords removes neither key: case $c" "$(cat "$tmp/output")"
+done
+pass "with both keys on the disk, a rerun removes neither until both passwords confirm the added slot"
 
 # On Apple the slot record follows the confirmed change: a crash there leaves
 # the confirmed phase.
@@ -594,6 +629,42 @@ if attempt 0 "$old_password"; then fail "a rerun waits for a luksChangeKey the k
 attempt 0 "$new_password" || fail "the rerun finishes after the orphaned change" "$(cat "$tmp/output")"
 consistent "orphaned luksChangeKey" "$new_password"
 pass "a luksChangeKey that outlives its run finishes before the rerun reads the disk"
+
+# A change that stopped before luksChangeKey added nothing, so a key enrolled
+# before the rerun (a recovery key, with cryptsetup luksAddKey) is not the
+# change's, though it sits where the change's key would. Whichever password
+# the rerun gets, the new password doesn't open that slot, so it removes
+# neither that key nor the old password's slot.
+for answer in "$old_password" later-key; do
+  fixture
+  attempt "$change_step" "$old_password" "$new_password" "$new_password" || true
+  [[ -e $journal && -z $(opens "$system" "$new_password") ]] || fail "the change stops before its key is added" "$(cat "$tmp/trace")"
+  printf '2\tlater-key\n' >>"$system.slots"
+  if attempt 0 "$answer" "$new_password" "$old_password"; then fail "a rerun with $answer leaves a key enrolled after the change stopped to the owner"; fi
+  said "Settle it by hand"
+  [[ -e $journal && $(opens "$system" later-key) == "2" && $(opens "$system" "$old_password") == "0" && -n $(opens "$system" "$recovery_key") ]] ||
+    fail "a rerun with $answer removes no key" "$(cat "$tmp/sudo-calls" "$tmp/output")"
+  ! grep -q 'luksKillSlot' "$tmp/sudo-calls" || fail "a rerun with $answer kills no slot" "$(cat "$tmp/sudo-calls")"
+done
+pass "a rerun never removes a key enrolled after a change that stopped before adding its own"
+
+# luksChangeKey killed after rewriting the old slot's key and before its last
+# header update leaves the old slot listed but opened by nothing, and the new
+# key in the added slot. The rerun removes nothing and says the old slot is
+# safe to remove; once the owner removes it, the rerun finishes on the new key.
+fixture
+attempt "$change_step" "$old_password" "$new_password" "$new_password" || true
+awk -F'\t' -v OFS='\t' '$1 == 0 { $2 = "overwritten" } 1' "$system.slots" >"$system.slots.next" && mv -f "$system.slots.next" "$system.slots"
+printf '2\t%s\n' "$new_password" >>"$system.slots"
+if attempt 0 "$new_password" "$new_password" "$old_password"; then fail "a rerun with the old slot rewritten removes nothing"; fi
+said "The new password opens key slot 2, but the old password didn't open slot 0"
+said "remove it (sudo cryptsetup luksKillSlot $system 0)"
+! grep -q 'luksKillSlot' "$tmp/sudo-calls" && grep -q '^0'$'\t' "$system.slots" && [[ -e $journal ]] ||
+  fail "a rerun with the old slot rewritten kills no slot and keeps the journal" "$(cat "$tmp/sudo-calls")"
+awk -F'\t' '$1 != 0' "$system.slots" >"$system.slots.next" && mv -f "$system.slots.next" "$system.slots"
+attempt 0 "$new_password" || fail "the rerun finishes once the rewritten slot is removed" "$(cat "$tmp/output")"
+consistent "rewritten old slot removed by hand" "$new_password"
+pass "a rerun with the old slot rewritten says how to check it before removing it, then finishes once it is gone"
 
 fixture
 printf '/dev/mapper/root crypt btrfs\n%s part \n/dev/fake-disk disk \n' "$system" >"$tmp/root-ancestry"

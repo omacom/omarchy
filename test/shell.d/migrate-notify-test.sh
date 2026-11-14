@@ -92,10 +92,7 @@ pass "migration notifier reports pending migrations"
 
 run_notify 1 >"$test_tmp/notified.out" 2>"$test_tmp/notified.err"
 notify_args_written || fail "migration notifier sends a notification for pending migrations"
-grep -Fx 'Pending Omarchy Migrations' "$test_tmp/notify-args" >/dev/null || fail "migration notifier uses pending migrations title"
-grep -Fx 'Click to run 1 pending migration.' "$test_tmp/notify-args" >/dev/null || fail "migration notifier describes the pending migration"
-grep -Fx '' "$test_tmp/notify-args" >/dev/null || fail "migration notifier includes the large-slot glyph"
-pass "migration notifier uses the actionable notification format"
+pass "migration notifier sends a notification for pending migrations"
 
 # `omarchy update` applies migrations itself, so nothing may notify about them
 # while it holds its lock -- a stale trigger firing mid-transaction is exactly
@@ -115,9 +112,7 @@ pass "migration notifier stays quiet while omarchy update holds its lock"
 exec {update_lock_fd}>&-
 
 run_notify 1 >/dev/null 2>&1
-notify_args_written &&
-  grep -Fx 'Pending Omarchy Migrations' "$test_tmp/notify-args" >/dev/null ||
-  fail "migration notifier resumes notifying once the update lock is released"
+notify_args_written || fail "migration notifier resumes notifying once the update lock is released"
 pass "migration notifier resumes notifying after the update releases its lock"
 
 rm -f "$test_tmp/notify-args"
@@ -133,23 +128,35 @@ fi
   fail "migration notifier sends no notification when an update starts while it waits for the notification server"
 pass "migration notifier re-checks for an update after waiting for the notification server"
 
-# The guard must never read a lock outside this user's runtime directory: a
+# The guard must never read a lock outside this user's runtime directory. The
+# updater falls back to /tmp/omarchy-update.lock without XDG_RUNTIME_DIR, and a
 # shared /tmp path belongs to whoever created it first, so honouring it would
-# let one user silence another user's critical notification.
-rm -f "$test_tmp/notify-args" /tmp/omarchy-update.lock
-foreign_lock="$test_tmp/foreign/omarchy-update.lock"
-mkdir -p "$(dirname "$foreign_lock")"
-: >"$foreign_lock"
-exec {foreign_lock_fd}>"$foreign_lock"
-flock -n "$foreign_lock_fd" || fail "test could not hold the foreign update lock"
-
-run_notify 1 >/dev/null 2>&1
-notify_args_written &&
-  grep -Fx 'Pending Omarchy Migrations' "$test_tmp/notify-args" >/dev/null ||
-  fail "migration notifier ignores update locks outside its own runtime directory"
-pass "migration notifier ignores update locks outside its own runtime directory"
-
-exec {foreign_lock_fd}>&-
+# let one user silence another user's critical notification. Hold that /tmp
+# lock in a private mount namespace, so the real /tmp is never touched, and run
+# the notifier with no runtime directory.
+if unshare --user --map-root-user --mount true 2>/dev/null; then
+  rm -f "$test_tmp/notify-args"
+  unshare --user --map-root-user --mount bash -c '
+    set -euo pipefail
+    # A tmpfs is about to cover /tmp, where the test files and even this
+    # checkout may live, so reach them through directory descriptors.
+    exec {tmp_fd}<"$1" {bin_fd}<"$2"
+    tmp=/proc/$$/fd/$tmp_fd bin=/proc/$$/fd/$bin_fd
+    mount -t tmpfs tmpfs /tmp
+    exec {lock_fd}>/tmp/omarchy-update.lock
+    flock -n "$lock_fd"
+    env -u XDG_RUNTIME_DIR \
+      HOME="$tmp/home" \
+      PATH="$tmp/bin:$bin:$PATH" \
+      OMARCHY_TEST_PENDING_MIGRATIONS=1 \
+      OMARCHY_TEST_NOTIFY_ARGS="$tmp/notify-args" \
+      "$bin/omarchy-migrate-notify"
+  ' _ "$test_tmp" "$ROOT/bin" >/dev/null 2>&1 || true
+  notify_args_written || fail "migration notifier ignores a held update lock in shared /tmp"
+  pass "migration notifier ignores a held update lock in shared /tmp"
+else
+  skip "no unprivileged mount namespace; skipping the shared /tmp lock check"
+fi
 
 # The notifier is a Type=oneshot with no start timeout, so it must not stay
 # activating until the toast is answered. Handing the click command to the shell

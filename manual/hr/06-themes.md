@@ -1,10 +1,10 @@
 # Teme
 
-Omarchy dolazi s dvadeset i dvije lijepe teme. Između njih možete birati putem _Stil > Tema_ u Omarchy izborniku (`Super + Space`) ili izravno skočiti u birač tema pomoću `Super + Ctrl + Shift + Space`.
+Omarchy dolazi s dvadeset dvije prekrasne teme. Među njima možete birati putem _Izgled > Tema_ u izborniku Omarchy Menu (`Super + Space`) ili izravno otvoriti birač tema pomoću `Super + Ctrl + T`.
 
-Svaka tema stilizira radnu površinu, terminal, neovim, zaslon aktivnosti (btop), Chromium i cijelu Omarchy ljusku: gornju traku, izbornik, obavijesti, OSD i zaključani zaslon. (Za Obsidian morate ručno odabrati Omarchy temu putem _Appearance > Themes_ unutar aplikacije).
+Svaka tema oblikuje radnu površinu, terminal, neovim, zaslon aktivnosti (btop), Chromium i cijelu ljusku Omarchy: gornju traku, izbornik, obavijesti, OSD i zaslon za zaključavanje. (Za Obsidian morate ručno odabrati temu Omarchy putem _Izgled > Teme_ unutar aplikacije).
 
-Teme imaju skup pozadinskih slika između kojih možete birati pomoću `Super + Ctrl + Space`.
+Teme imaju skup pozadinskih slika među kojima možete birati pomoću `Super + Ctrl + W`.
 
 Još više tema možete pronaći na [stranici s dodatnim temama](https://omarchy.org/themes/) ili čak [izraditi vlastitu temu](43-making-your-own-theme.md).
 
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Otključavanja
 
-Teme mogu imati i prilagođeni dizajn otključavanja, koji se koristi za postupak dešifriranja pri pokretanju. Jedan od njih možete odabrati pod _Stil > Otključaj_. Izgledaju ovako:
+Teme mogu imati i prilagođeni dizajn otključavanja, koji se koristi za dešifriranje pri pokretanju. Jedan od njih možete odabrati pod _Izgled > Otključavanje_. Izgledaju ovako:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

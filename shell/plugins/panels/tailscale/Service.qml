@@ -37,13 +37,14 @@ Item {
   property string selectedAccountId: ""
   property string selectedAccountLabel: ""
   property string switchingAccountId: ""
+  property string renamingAccountId: ""
   property string settingExitNodeId: ""
   property bool accountsAccessDenied: false
   property string actionStatus: ""
   property string lastError: ""
 
   readonly property int refreshIntervalSec: intSetting("refreshIntervalSec", 30, 5, 3600)
-  readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || operatorProcess.running || exitNodeProcess.running
+  readonly property bool busy: whichProcess.running || statusProcess.running || mullvadExitNodesProcess.running || accountsProcess.running || actionProcess.running || loginProcess.running || switchProcess.running || renameProcess.running || operatorProcess.running || exitNodeProcess.running
   readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
 
   property string _statusOutput: ""
@@ -62,10 +63,53 @@ Item {
   property double _lastAccountsRefreshMs: 0
   property string _switchOutput: ""
   property string _switchError: ""
+  property string _renameOutput: ""
+  property string _renameError: ""
   property string _exitNodeOutput: ""
   property string _exitNodeError: ""
   property string _operatorOutput: ""
   property string _operatorError: ""
+  // Change signatures for the big arrays. A 4k-machine tailnet makes every
+  // status poll rebuild thousands of delegate rows if the arrays are
+  // reassigned unconditionally, so only publish an array whose content
+  // actually changed.
+  property string _peersSig: "[]"
+  property string _accountsSig: "[]"
+  property string _tailnetExitNodesSig: "[]"
+  property string _exitNodesSig: "[]"
+  property string _mullvadRegionsSig: "[]"
+
+  // The full status JSON is ~4.6MB on a 4k-machine tailnet, and the bar icon
+  // only needs Self/BackendState. Poll light (--peers=false) while the panel
+  // is closed; the panel binds peersWanted and forces a full fetch on open.
+  property bool peersWanted: false
+  property bool _statusFullPeers: false
+  property bool _pendingFullPeers: false
+  // False until a full peer fetch has answered, so the panel can tell
+  // "still loading" apart from "this tailnet has no machines".
+  property bool peersLoaded: false
+
+  function publishPeers(next) {
+    var sig = JSON.stringify(next)
+    if (sig === _peersSig) return
+    _peersSig = sig
+    peers = next
+  }
+
+  function publishTailnetExitNodes(next) {
+    var sig = JSON.stringify(next)
+    if (sig === _tailnetExitNodesSig) return
+    _tailnetExitNodesSig = sig
+    tailnetExitNodes = next
+  }
+
+  function syncExitNodes() {
+    var next = running ? tailnetExitNodes.concat(mullvadRegions) : []
+    var sig = JSON.stringify(next)
+    if (sig === _exitNodesSig) return
+    _exitNodesSig = sig
+    exitNodes = next
+  }
 
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
@@ -146,9 +190,9 @@ Item {
     Quickshell.execDetached(["omarchy-tailscale-send", target])
   }
 
-  function refresh(forceAccounts) {
+  function refresh(forceAccounts, fullPeers) {
     if (installed) {
-      refreshStatusAndAccounts(forceAccounts === true)
+      refreshStatusAndAccounts(forceAccounts === true, fullPeers === true)
       return
     }
     if (!whichProcess.running) {
@@ -158,16 +202,24 @@ Item {
     }
   }
 
-  function refreshStatusAndAccounts(forceAccounts) {
+  function refreshStatusAndAccounts(forceAccounts, fullPeers) {
     if (!installed) return
     var launched = false
     if (!statusProcess.running) {
       _statusOutput = ""
       _statusError = ""
       refreshing = true
-      statusProcess.command = ["tailscale", "status", "--json"]
+      _statusFullPeers = fullPeers === true || peersWanted || _pendingFullPeers
+      if (_statusFullPeers) _pendingFullPeers = false
+      statusProcess.command = _statusFullPeers
+        ? ["tailscale", "status", "--json"]
+        : ["tailscale", "status", "--json", "--peers=false"]
       statusProcess.running = true
       launched = true
+    } else if ((fullPeers === true || peersWanted) && !_statusFullPeers) {
+      // A full-peer request arrived while a light poll is in flight; remember
+      // it so the panel is not left stale until the next periodic refresh.
+      _pendingFullPeers = true
     }
     if (!mullvadExitNodesProcess.running) {
       _mullvadExitNodesOutput = ""
@@ -210,15 +262,19 @@ Item {
     selfUserId = ""
     fileSharing = false
     authUrl = ""
-    peers = []
-    exitNodes = []
-    tailnetExitNodes = []
+    publishPeers([])
+    publishTailnetExitNodes([])
+    peersLoaded = false
+    syncExitNodes()
     mullvadExitNodes = []
     mullvadRegions = []
+    _mullvadRegionsSig = "[]"
+    _accountsSig = "[]"
     accounts = []
     selectedAccountId = ""
     selectedAccountLabel = ""
     switchingAccountId = ""
+    renamingAccountId = ""
     settingExitNodeId = ""
     accountsAccessDenied = false
   }
@@ -248,9 +304,20 @@ Item {
     selfIp = parsed.selfIp
     selfUserId = parsed.selfUserId
     fileSharing = parsed.fileSharing
-    peers = parsed.running ? parsed.peers : []
-    tailnetExitNodes = parsed.running ? parsed.exitNodes : []
-    exitNodes = parsed.running ? tailnetExitNodes.concat(mullvadRegions) : []
+    // A light poll carries no peer data — keep the last full machine list
+    // while running, and only clear it when tailscale actually went down.
+    if (_statusFullPeers) {
+      publishPeers(parsed.running ? parsed.peers : [])
+      publishTailnetExitNodes(parsed.running ? parsed.exitNodes : [])
+      // A stopped tailnet publishes no peers, so a later light poll finding it
+      // running again must not read as "fetched, and this tailnet is empty".
+      peersLoaded = parsed.running
+    } else if (!parsed.running) {
+      publishPeers([])
+      publishTailnetExitNodes([])
+      peersLoaded = false
+    }
+    syncExitNodes()
 
     if (needsLogin) statusText = "Needs login"
     else if (running) {
@@ -269,6 +336,12 @@ Item {
 
   function parseAccounts(raw) {
     var parsed = Model.parseAccounts(raw, I18n.t)
+    // Reassigning the array rebuilds every row — including one with an open
+    // rename editor whose draft would be lost — so only publish when the
+    // content really changed between polls.
+    var sig = JSON.stringify(parsed.accounts) + "\n" + parsed.selectedAccountId
+    if (sig === _accountsSig) return
+    _accountsSig = sig
     accounts = parsed.accounts
     selectedAccountId = parsed.selectedAccountId
     selectedAccountLabel = parsed.selectedAccountLabel
@@ -276,9 +349,16 @@ Item {
   }
 
   function parseMullvadExitNodes(raw) {
+    // The raw node list is small and nothing hot binds to it, so publish it
+    // unconditionally; only the derived regions need the churn guard.
     mullvadExitNodes = Model.parseExitNodeList(raw)
-    mullvadRegions = Model.mullvadRegionOptions(mullvadExitNodes)
-    exitNodes = running ? tailnetExitNodes.concat(mullvadRegions) : []
+    var nextRegions = Model.mullvadRegionOptions(mullvadExitNodes)
+    var sig = JSON.stringify(nextRegions)
+    if (sig !== _mullvadRegionsSig) {
+      _mullvadRegionsSig = sig
+      mullvadRegions = nextRegions
+    }
+    syncExitNodes()
   }
 
   function toggleTailscale() {
@@ -317,12 +397,27 @@ Item {
 
   function switchAccount(id) {
     var accountId = String(id || "")
-    if (!installed || accountId === "" || accountId === selectedAccountId || switchProcess.running) return
+    // A switch racing an in-flight rename would move the daemon between the
+    // rename's switch and its set --nickname, renaming the wrong profile.
+    // Also wait out an in-flight exit-node change: its target profile is
+    // resolved from the same selectedAccountId this switch would move.
+    if (!installed || accountId === "" || accountId === selectedAccountId || switchProcess.running || renameProcess.running || exitNodeProcess.running) return
     _switchOutput = ""
     _switchError = ""
     switchingAccountId = accountId
     switchProcess.command = ["tailscale", "switch", accountId]
     switchProcess.running = true
+  }
+
+  function renameAccount(id, nickname) {
+    if (!installed || renameProcess.running || switchProcess.running || exitNodeProcess.running) return
+    var plan = Model.renamePlan(id, selectedAccountId, nickname)
+    if (!plan) return
+    _renameOutput = ""
+    _renameError = ""
+    renamingAccountId = String(id || "")
+    renameProcess.command = plan.command
+    renameProcess.running = true
   }
 
   function exitNodeTarget(peer) {
@@ -335,7 +430,10 @@ Item {
   }
 
   function setExitNode(peer) {
-    if (!installed || !running || !peer || exitNodeProcess.running) return
+    // An exit-node command landing inside a rename's temporary profile
+    // switch would apply the exit node to the wrong profile, or have its own
+    // target swapped underneath it.
+    if (!installed || !running || !peer || exitNodeProcess.running || renameProcess.running || switchProcess.running) return
     var active = peer.ExitNode === true
     var target = active ? "" : exitNodeTarget(peer)
     if (!active && target === "") return
@@ -484,6 +582,10 @@ Item {
         root.resetUnavailable("Disconnected")
         root.lastError = stderr.trim()
       }
+      if (root._pendingFullPeers) {
+        root._pendingFullPeers = false
+        root.refreshStatusAndAccounts(false, true)
+      }
     }
   }
 
@@ -584,8 +686,34 @@ Item {
         root.lastError = ""
         root.actionStatus = ""
         root._lastAccountsRefreshMs = 0
+        // Optimistic so a rename requested right after a switch takes the
+        // in-place path; the next accounts poll confirms it.
+        root.selectedAccountId = root.switchingAccountId
       }
       root.switchingAccountId = ""
+      delayedRefresh.restart()
+    }
+  }
+
+  Process {
+    id: renameProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: renameStdout; waitForEnd: true; onStreamFinished: root._renameOutput = text }
+    stderr: StdioCollector { id: renameStderr; waitForEnd: true; onStreamFinished: root._renameError = text }
+    onExited: function(exitCode) {
+      var stdout = String(renameStdout.text || root._renameOutput || "")
+      var stderr = String(renameStderr.text || root._renameError || "")
+      if (exitCode !== 0) {
+        root.lastError = elideStatus(stderr || stdout || I18n.t("tailscale.renameFailed"))
+        root.actionStatus = root.lastError
+        actionStatusTimer.restart()
+      } else {
+        root.lastError = ""
+        root.actionStatus = ""
+        root._lastAccountsRefreshMs = 0
+      }
+      root.renamingAccountId = ""
       delayedRefresh.restart()
     }
   }

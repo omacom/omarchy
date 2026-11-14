@@ -292,6 +292,47 @@ if run_reset_function verify_limine_hashes "$root" /boot 2>/dev/null; then
 fi
 pass "hash verification covers exactly this installation's rebuilt entry"
 
+# Where UKIs are off the entry loads a kernel and initramfs, each with its own
+# hash. Snapshot copies under limine_history are not rebuilt, so not checked.
+# $1 names the case; then the lines of this installation's entry, where
+# HASH:<file> stands for that file's hash.
+kernel=/$NEW_ID/linux-aarch64/vmlinuz-linux-aarch64
+initramfs=/$NEW_ID/linux-aarch64/initramfs-linux-aarch64.img
+direct_boot() {
+  local line file
+  root="$test_tmp/direct-$1"
+  shift
+  make_root "$root"
+  mkdir -p "$root/boot/$NEW_ID/linux-aarch64" "$root/boot/$NEW_ID/limine_history"
+  printf 'kernel\n' >"$root/boot$kernel"
+  printf 'initramfs\n' >"$root/boot$initramfs"
+  printf 'old\n' >"$root/boot/$NEW_ID/limine_history/vmlinuz-linux-aarch64_1"
+  printf '/+Omarchy\ncomment: machine-id=%s order-priority=50\n  //linux\n' "$NEW_ID" >"$root/boot/limine.conf"
+  for line in "$@"; do
+    while [[ $line =~ HASH:([^[:space:]]+) ]]; do
+      file=${BASH_REMATCH[1]}
+      line=${line/HASH:$file/$(b2sum "$root/boot$file" | cut -d' ' -f1)}
+    done
+    printf '%s\n' "$line" >>"$root/boot/limine.conf"
+  done
+}
+verify_direct() { run_reset_function verify_limine_hashes "$root" /boot 2>&1; }
+
+direct_boot matching "    protocol: linux" "    module_path: boot():$initramfs#HASH:$initramfs" "    path: boot():$kernel#HASH:$kernel"
+verify_direct >/dev/null || fail "a matching kernel and initramfs pass"
+
+direct_boot stale-initramfs "    module_path: boot():$initramfs#0123abcd" "    path: boot():$kernel#HASH:$kernel"
+output=$(verify_direct) && fail "a stale initramfs hash is refused"
+[[ $output == *"hash for $initramfs does not match"* ]] || fail "a stale initramfs hash names the file" "$output"
+
+direct_boot missing-kernel "    module_path: boot():$initramfs#HASH:$initramfs" "    path: boot():/$NEW_ID/linux-aarch64/vmlinuz-gone#0123abcd"
+output=$(verify_direct) && fail "a missing kernel is refused"
+[[ $output == *"points at missing /$NEW_ID/linux-aarch64/vmlinuz-gone"* ]] || fail "a missing kernel names the file" "$output"
+
+direct_boot history "    path: boot():$kernel#HASH:$kernel" "    path: boot():/$NEW_ID/limine_history/vmlinuz-linux-aarch64_1#0123abcd"
+verify_direct >/dev/null || fail "snapshot copies under limine_history are left alone"
+pass "hash verification checks the kernel and initramfs and leaves snapshot copies alone"
+
 # ------------------------------------------------ first-boot provisioning
 
 if ! unshare --user --map-root-user --mount true 2>/dev/null; then

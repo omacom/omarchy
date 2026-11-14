@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Az Omarchyt általában a billentyűparancsokkal és az Omarchy menüvel (`Super + Space`) vezérlik. De az `omarchy` CLI-n keresztül is vezérelheted. Ez különösen hasznos, amikor egy AI-agenttel dolgozol együtt testreszabási vagy konfigurációs feladatokon.
+Az Omarchyt általában a gyorsbillentyűkkel és az Omarchy menüvel (`Super + Space`) vezérled. De az `omarchy` CLI-n keresztül is vezérelheted. Ez különösen hasznos, amikor egy AI-ügynök dolgozik veled a testreszabáson vagy a konfiguráláson.
 
-A CLI hozzáfér az összes belső eszközhöz, amelyet mind a menün keresztül, mind máshol használnak. Mindent láthatsz, ami rendelkezésre áll, ha terminálban futtatod az `omarchy` parancsot.
+A CLI hozzáfér minden belső eszközhöz, amelyet a menün keresztül és más módokon is használ a rendszer. Minden elérhető lehetőséget megnézhetsz, ha futtatod az `omarchy` parancsot a terminálban.
 
 Valahogy így néz ki:
 
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-És minden csoportban mélyebbre merülhetsz:
+És minden csoportban mélyebbre is áshatsz:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Minden parancs elfogadja a `--help` kapcsolót is, akár egy egész csoporttól kérdezed (`omarchy capture --help`), akár egyetlen parancstól (`omarchy capture screenshot --help`).
+Minden parancs elfogadja a `--help` kapcsolót is, akár egy egész csoportról kérdezel (`omarchy capture --help`), akár egyetlen parancsról (`omarchy capture screenshot --help`).
 
 ### A menü megnyitása a terminálból
 
-Az Omarchy menü szkriptelhető is, ami jól jön a saját billentyűhozzárendeléseidhez. Az `omarchy menu` a gyökérnél nyitja meg, és a fában egyenesen bármely pontra ugorhatsz, ha megnevezed: az `omarchy menu summon style.theme` egyenesen a témaválasztóhoz megy, az `omarchy menu toggle system` megnyitja a rendszermenüt, és ismét bezárja, ha már nyitva van, az `omarchy menu close` pedig elteszi.
+Az Omarchy menü is szkriptelhető, ami jól jön a saját billentyűparancsaidhoz. Az `omarchy menu` a gyökérnél nyitja meg, és a fa bármely pontjára közvetlenül odaugorhatsz, ha megnevezed: az `omarchy menu summon appearance.theme` egyenesen a témaválasztóhoz visz, az `omarchy menu toggle system` megnyitja a rendszermenüt, és újra bezárja, ha már nyitva van, az `omarchy menu close` pedig eltünteti.

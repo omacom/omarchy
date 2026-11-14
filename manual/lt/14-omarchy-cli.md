@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy paprastai valdoma per sparčiuosius klavišus ir Omarchy meniu (`Super + Space`). Bet taip pat galite ją valdyti per `omarchy` CLI. Tai ypač naudinga, kai AI agentas dirba su jumis prie pritaikymo ar konfigūracijos.
+Omarchy paprastai valdoma sparčiaisiais klavišais ir Omarchy meniu (`Super + Space`). Tačiau ją taip pat galima valdyti per `omarchy` CLI. Tai ypač naudinga, kai kartu su jumis pritaikymo ar konfigūravimo darbus atlieka AI agentas.
 
-CLI turi prieigą prie visų vidinių įrankių, kurie naudojami tiek per meniu, tiek kitaip. Viską, kas prieinama, galite pamatyti terminale paleisdami `omarchy`.
+CLI turi prieigą prie visų vidinių įrankių, kurie naudojami tiek per meniu, tiek kitais būdais. Viską, kas prieinama, galite pamatyti terminale paleidę `omarchy`.
 
 Tai atrodo maždaug taip:
 
@@ -59,4 +59,4 @@ Kiekviena komanda taip pat priima `--help`, nesvarbu, ar klausiate visos grupės
 
 ### Meniu atidarymas iš terminalo
 
-Omarchy meniu taip pat galima užprogramuoti scenarijais, o tai patogu jūsų pačių klavišų susiejimams. `omarchy menu` atidaro jį šaknyje, ir galite šokti tiesiai į bet kurį medžio tašką jį įvardydami: `omarchy menu summon style.theme` eina tiesiai į temų parinkiklį, `omarchy menu toggle system` atidaro sistemos meniu ir vėl jį uždaro, jei jis jau atidarytas, o `omarchy menu close` jį padeda.
+Omarchy meniu taip pat galima valdyti scenarijais, o tai patogu jūsų pačių klavišų susiejimams. `omarchy menu` atidaro jį nuo šaknies, o jūs galite pereiti tiesiai į bet kurią medžio vietą ją įvardydami: `omarchy menu summon appearance.theme` nukelia tiesiai į temų pasirinkimą, `omarchy menu toggle system` atidaro sistemos meniu ir vėl jį uždaro, jei jis jau atidarytas, o `omarchy menu close` jį paslepia.

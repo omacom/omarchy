@@ -1,12 +1,12 @@
 # Teemad
 
-Omarchyga tuleb kaasa kakskümmend kaks ilusat teemat. Saad nende vahel valida Omarchy menüüs _Stiil > Teema_ kaudu (`Super + Space`) või hüpata otse teemavalija juurde `Super + Ctrl + Shift + Space` abil.
+Omarchyga on kaasas kakskümmend kaks ilusat teemat. Saad nende vahel valida Omarchy menüüs (`Super + Space`) valiku _Välimus > Teema_ kaudu või hüpata otse teemavalijasse, kasutades klahve `Super + Ctrl + T`.
 
-Iga teema stiilib töölaua, terminali, neovimi, aktiivsusekraani (btop), Chromiumi ja kogu Omarchy kesta: menüüriba, menüü, teavitused, OSD ja lukuekraani. (Obsidiani puhul pead rakenduses käsitsi valima Omarchy teema _Appearance > Themes_ kaudu).
+Iga teema kujundab töölaua, terminali, neovimi, tegevusekraani (btop), Chromiumi ja kogu Omarchy kesta: ülemise riba, menüü, teavitused, OSD ja lukustuskuva. (Obsidiani puhul pead Omarchy teema käsitsi valima rakendusesiseselt valiku _Välimus > Teemad_ kaudu).
 
-Teemadel on taustapiltide kogum, mille vahel saad valida `Super + Ctrl + Space` abil.
+Teemadel on hulk taustapilte, mille vahel saad valida, kasutades klahve `Super + Ctrl + W`.
 
-Rohkem teemasid leiad [lisateemade lehelt](https://omarchy.org/themes/) või saad isegi [oma teema teha](43-making-your-own-theme.md).
+Veel rohkem teemasid leiad [lisateemade lehelt](https://omarchy.org/themes/) või võid isegi [oma teema teha](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Ava lukk kujundused
+### Avamiskujundused
 
-Teemadel võib olla ka kohandatud luku avamise kujundus, mida kasutatakse käivitamise dekrüpteerimisprotsessiks. Saad ühe neist valida _Stiil > Ava lukk_ alt. Need näevad välja nii:
+Teemadel võib olla ka kohandatud avamiskujundus, mida kasutatakse alglaadimise dekrüpteerimise protsessis. Saad ühe neist valida valiku _Välimus > Avamine_ alt. Need näevad välja sellised:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

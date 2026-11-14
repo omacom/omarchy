@@ -1,8 +1,8 @@
-# Perguntas frequentes
+# FAQ
 
 ### Como alterno entre esquemas de teclado?
 
-Edite o seu ficheiro `~/.config/hypr/input.lua` e adicione isto para alternar entre esquemas com `Left Alt + Right Alt`:
+Edite o ficheiro `~/.config/hypr/input.lua` e adicione isto para alternar entre esquemas com `Left Alt + Right Alt`:
 
 ```
 hl.config({
@@ -14,72 +14,68 @@ hl.config({
 })
 ```
 
-A barra mostrará automaticamente o seu esquema de teclado atual assim que tiver vários esquemas configurados (e também pode clicar nela para alternar).
+A barra mostrará automaticamente o esquema de teclado atual assim que tiver vários esquemas configurados (e também pode clicar nela para alternar).
 
 ### Como mudo o formato do relógio para 12 horas?
 
-Clique com o botão direito no relógio da barra para percorrer os formatos comuns, incluindo os de 12 horas. Também pode definir o formato diretamente:
+Clique com o botão direito do rato no relógio na barra para percorrer os formatos comuns, incluindo os de 12 horas. Também pode definir o formato diretamente:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Isto mostrará Sunday 10:55 AM.
+Isto apresentará domingo 10:55 AM.
 
 ### Como mudo o meu fuso horário?
 
-Execute _Atualizar > Fuso horário_ no menu Omarchy e escolha da lista. Se o fuso horário estiver certo, mas o próprio relógio tiver derivado, _Atualizar > Hora_ reinicia a sincronização da hora por si.
+Execute _Atualizar > Fuso Horário_ no menu do Omarchy e escolha a partir da lista. Se o fuso horário estiver certo mas o próprio relógio tiver dessincronizado, _Atualizar > Hora_ reinicia a sincronização da hora por si.
 
 ### Como mudo o meu DNS, partilho o meu Wi-Fi ou verifico a velocidade da minha ligação?
 
-Isso vive tudo em [rede](35-networking.md).
+Tudo isso está em [redes](35-networking.md).
 
-### Como verifico quão rápido é o meu disco?
+### Como verifico a velocidade do meu disco?
 
-_Acionar > Teste de velocidade > Velocidade do disco_ mede a velocidade de leitura e escrita em tempo real da sua unidade, ou `omarchy disk speedtest` a partir do terminal.
-
-### Porque é que não consigo entrar na minha conta Google no Chromium?
-
-A versão simples de código aberto do Chromium não traz as credenciais OAuth que a Google exige para o início de sessão na conta. Execute _Instalar > Serviço > Conta Chromium_ no menu Omarchy para as adicionar, reinicie o navegador e o início de sessão passará.
+_Ativar > Teste de Velocidade > Teste de Velocidade do Disco_ mede a velocidade de leitura e escrita em tempo real na sua unidade, ou `omarchy disk speedtest` a partir do terminal.
 
 ### Como adiciono uma impressora?
 
-A impressão está configurada e a funcionar de origem, e adiciona cada impressora por si a partir de _Definições de Impressão_ no lançador de aplicações (`Super + Space`).
+A impressão está configurada e a funcionar logo de origem, e adiciona cada impressora a partir de _Definições de Impressão_ no lançador de aplicações (`Super + Space`).
 
-Escolha _Adicionar_ e dê-lhe um momento para procurar: uma impressora ligada por USB, e a maioria das impressoras de rede, são encontradas por si. Se a sua não estiver na lista, escolha _Impressora de Rede > Internet Printing Protocol (ipp)_ e introduza o seu endereço — o próprio ecrã da impressora ou a sua página web dir-lhe-ão qual é, normalmente algo como `192.168.1.50` com uma fila de `ipp/print`. _Avançar_ oferece então um driver, onde uma impressora moderna funciona melhor com o perfil sem driver _IPP Everywhere_ e uma mais antiga quer o driver do próprio modelo.
+Escolha _Adicionar_ e aguarde um momento enquanto procura: uma impressora ligada por USB, e a maioria das impressoras de rede, são encontradas por si. Se a sua não estiver na lista, escolha _Impressora de Rede > Internet Printing Protocol (ipp)_ e introduza o seu endereço — o próprio ecrã da impressora ou a sua página web indicar-lhe-á qual é, normalmente algo como `192.168.1.50` com uma fila de `ipp/print`. _Avançar_ apresenta então um controlador, em que uma impressora moderna funciona melhor com o perfil sem controlador _IPP Everywhere_ e uma mais antiga prefere o controlador próprio do modelo.
 
-Clique com o botão direito numa impressora e escolha _Definir como Predefinida_ para escolher aquela a que as suas aplicações recorrem primeiro, e _Propriedades_ para definir o tamanho do papel, a frente e verso e a qualidade.
+Clique com o botão direito do rato numa impressora e escolha _Definir como Predefinida_ para escolher aquela a que as suas aplicações recorrem primeiro, e _Propriedades_ para definir o tamanho do papel, duplex e qualidade.
 
-A descoberta automática, em que as impressoras na rede aparecem sem serem adicionadas, está temporariamente desligada enquanto é reformulada, e é por isso que o primeiro passo acima é seu, e não automático. Imprimir para um ficheiro PDF funciona sem impressora nenhuma.
+A descoberta automática, em que as impressoras na rede aparecem sem serem adicionadas, está temporariamente desativada enquanto está a ser reformulada, razão pela qual o primeiro passo acima é seu em vez de automático. Imprimir para um ficheiro PDF funciona sem qualquer impressora.
 
-### Como mudo onde as capturas de ecrã ou gravações de ecrã são guardadas?
+### Como mudo onde são guardadas as capturas de ecrã ou as gravações de ecrã?
 
-As capturas de ecrã guardadas vão para `~/Pictures/Screenshots` por predefinição. Para usar outro diretório, adicione isto a um ficheiro em `~/.config/uwsm/env.d/` (como `~/.config/uwsm/env.d/capture`):
+As capturas de ecrã guardadas vão para `~/Pictures/Screenshots` por predefinição. Para utilizar outro diretório, adicione isto a um ficheiro em `~/.config/uwsm/env.d/` (como `~/.config/uwsm/env.d/capture`):
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Pode fazer o mesmo para gravações de ecrã usando `OMARCHY_SCREENRECORD_DIR`.
+Pode fazer o mesmo para as gravações de ecrã utilizando `OMARCHY_SCREENRECORD_DIR`.
 
-O Omasnap cria automaticamente o seu diretório de capturas de ecrã. Crie o diretório de gravação de ecrã por si e depois reinicie o Omarchy para qualquer das alterações ao ambiente produzir efeito.
+O Omasnap cria automaticamente o seu diretório de capturas de ecrã. Crie o diretório de gravações de ecrã e, em seguida, reinicie o Omarchy para que qualquer uma das alterações ao ambiente entre em vigor.
 
-### Como faço funcionar as colunas e a webcam no meu Apple Studio Display?
+### Como ponho as colunas + webcam a funcionar no meu Apple Studio Display?
 
-Seria de pensar que tudo funcionaria bastando ligar o USB C, mas infelizmente não é esse o caso. A solução que encontrei para o fazer funcionar de forma fiável é usar [o cabo WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Depois as colunas e a webcam funcionam às mil maravilhas.
+Pensaria que devia funcionar tudo ligando apenas por USB C, mas infelizmente não é o caso. A solução que encontrei para pôr tudo a funcionar de forma fiável é utilizar [o cabo WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Depois, as colunas e a webcam funcionam às mil maravilhas.
 
-Lembre-se de que tem controlo de brilho integrado no Omarchy para os ecrãs da Apple (tanto o Studio como o XDR) usando os botões normais de brilho do teclado.
+Lembre-se de que tem controlo de brilho integrado no Omarchy para os ecrãs Apple (tanto o Studio como o XDR) utilizando os botões normais de brilho do teclado.
 
 ### Como me livro de todo o software extra?
 
 Se não quiser programas como o Obsidian ou o LibreOffice ou qualquer outro material pré-instalado, pode removê-lo muito facilmente.
 
-Execute _Remover > Pacote_ para ver todos os pacotes instalados. Depois pode selecionar qualquer pacote que queira remover com tab, e começar a remover tudo o que selecionou com return.
+Execute _Remover > Pacote_ para ver todos os pacotes instalados. Depois, pode selecionar qualquer pacote que pretenda remover com tab, e começar a remover tudo o que selecionou com return.
 
-E pode usar _Remover > App Web_ a partir do menu Omarchy para remover qualquer app web pré-instalada que não queira.
+E pode utilizar _Remover > Aplicação Web_ a partir do menu do Omarchy para remover qualquer uma das aplicações web pré-instaladas que não queira.
 
-Ou execute _Remover > Pré-instaladas_ para varrer todos os extras pré-instalados — apps web, TUI e aplicações opcionais — de uma só vez. Os atalhos que as lançavam desaparecem com elas, por isso fica com uma folha limpa de associações para preencher com as suas em `~/.config/hypr/bindings.lua`.
+Ou execute _Remover > Pré-instalados_ para varrer todos os extras pré-instalados — aplicações web, TUIs, e aplicações opcionais — de uma só vez. As teclas de atalho que as lançavam desaparecem com eles, pelo que fica com uma folha limpa de atalhos para preencher com os seus em `~/.config/hypr/bindings.lua`.
 
 ---
 
-Para erros e coisas estragadas, veja [a secção de Resolução de problemas](45-troubleshooting.md).
+Para erros e coisas avariadas, consulte [a secção de Resolução de Problemas](45-troubleshooting.md).

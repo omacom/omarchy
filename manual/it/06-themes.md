@@ -1,12 +1,12 @@
 # Temi
 
-Omarchy viene fornito con ventidue bellissimi temi. Puoi selezionarli tramite _Stile > Tema_ nel menu Omarchy (`Super + Space`) o saltare direttamente al selettore del tema usando `Super + Ctrl + Shift + Space`.
+Omarchy include ventidue bellissimi temi. Puoi scegliere tra loro tramite _Aspetto > Tema_ nel Menu di Omarchy (`Super + Space`) o passare direttamente al selettore dei temi usando `Super + Ctrl + T`.
 
-Ogni tema stilizza il desktop, il terminale, neovim, la schermata attività (btop), Chromium e l'intera shell di Omarchy: barra superiore, menu, notifiche, OSD e schermata di blocco. (Per Obsidian, devi selezionare manualmente il tema Omarchy tramite _Appearance > Themes_ dentro l'app).
+Ogni tema definisce lo stile del desktop, del terminale, di neovim, della schermata delle attività (btop), di Chromium e dell'intera shell di Omarchy: barra superiore, menu, notifiche, OSD e schermata di blocco. (Per Obsidian, devi selezionare manualmente il tema Omarchy tramite _Aspetto > Temi_ all'interno dell'app).
 
-I temi hanno un insieme di immagini di sfondo tra cui puoi scegliere usando `Super + Ctrl + Space`.
+I temi includono una serie di immagini di sfondo tra cui puoi scegliere usando `Super + Ctrl + W`.
 
-Puoi trovare ancora più temi sulla [pagina dei temi extra](https://omarchy.org/themes/) o addirittura [creare il tuo tema](43-making-your-own-theme.md).
+Puoi trovare ancora più temi sulla [pagina dei temi extra](https://omarchy.org/themes/) o persino [creare il tuo tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Sblocchi
 
-I temi possono anche avere un design di sblocco personalizzato, usato per il processo di decifratura all'avvio. Puoi selezionarne uno sotto _Stile > Sblocca_. Hanno questo aspetto:
+I temi possono avere anche un design di sblocco personalizzato, usato per il processo di decrittografia all'avvio. Puoi selezionarne uno in _Aspetto > Sblocco_. Hanno questo aspetto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

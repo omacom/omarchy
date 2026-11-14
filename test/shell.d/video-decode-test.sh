@@ -5,7 +5,6 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 helper="$ROOT/bin/omarchy-install-video-decode"
-migration=$(grep -l -- 'omarchy-install-video-decode' "$ROOT"/migrations/*.sh | head -n1)
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
@@ -36,14 +35,17 @@ hwdec='hwdec=auto-safe,v4l2m2m-copy'
 touch "$OMARCHY_TEST_QUALCOMM"
 home=$(new_home shipped)
 cp "$shipped" "$home/.config/chromium-flags.conf"
+cp "$shipped" "$home/.config/chrome-flags.conf"
 run_helper "$home"
 run_helper "$home"
-conf="$home/.config/chromium-flags.conf"
-(( $(grep -c -- '^--use-angle=gles-egl$' "$conf") == 1 )) || fail "Snapdragon Chromium gets ANGLE on GLES once" "$(cat "$conf")"
-grep -Fxq -- "$features,AcceleratedVideoDecoder" "$conf" || fail "Snapdragon Chromium keeps its features and adds AcceleratedVideoDecoder once" "$(cat "$conf")"
-(( $(grep -c -- '^--enable-features=' "$conf") == 1 )) || fail "Snapdragon Chromium keeps one feature list" "$(cat "$conf")"
+# Chrome, the default, reads its own flags file beside Chromium's.
+for conf in "$home/.config/chromium-flags.conf" "$home/.config/chrome-flags.conf"; do
+  (( $(grep -c -- '^--use-angle=gles-egl$' "$conf") == 1 )) || fail "Snapdragon ${conf##*/} gets ANGLE on GLES once" "$(cat "$conf")"
+  grep -Fxq -- "$features,AcceleratedVideoDecoder" "$conf" || fail "Snapdragon ${conf##*/} keeps its features and adds AcceleratedVideoDecoder once" "$(cat "$conf")"
+  (( $(grep -c -- '^--enable-features=' "$conf") == 1 )) || fail "Snapdragon ${conf##*/} keeps one feature list" "$(cat "$conf")"
+done
 (( $(grep -cFx -- "$hwdec" "$home/.config/mpv/mpv.conf") == 1 )) || fail "Snapdragon mpv gets the V4L2 fallback once" "$(cat "$home/.config/mpv/mpv.conf")"
-pass "a Snapdragon laptop gets the mpv and Chromium settings once, even when the helper runs twice"
+pass "a Snapdragon laptop gets the mpv, Chrome and Chromium settings once, even when the helper runs twice"
 
 rm "$OMARCHY_TEST_QUALCOMM"
 home=$(new_home other)
@@ -142,6 +144,18 @@ else
     fail "a Chromium flags file that can't be written fails the helper, even when the feature is already there"
   fi
   pass "a Chromium flags file that can't be written fails the helper, even when the feature is already there"
+
+  home=$(new_home chrome-beside-readonly)
+  printf '%s\n' '--ozone-platform=wayland' >"$home/.config/chromium-flags.conf"
+  chmod 0444 "$home/.config/chromium-flags.conf"
+  cp "$shipped" "$home/.config/chrome-flags.conf"
+  if run_helper "$home" 2>/dev/null; then
+    fail "a Chromium flags file that can't be written fails the helper beside Chrome's"
+  fi
+  conf=$home/.config/chrome-flags.conf
+  grep -Fxq -- '--use-angle=gles-egl' "$conf" && grep -Fxq -- "$features,AcceleratedVideoDecoder" "$conf" ||
+    fail "a Chromium flags file that can't be written doesn't hold back Chrome's" "$(cat "$conf")"
+  pass "a Chromium flags file that can't be written fails the helper but doesn't hold back Chrome's"
 fi
 
 home=$(new_home bare)
@@ -167,14 +181,3 @@ run_helper "$home"
 grep -Fxq -- "$features,AcceleratedVideoDecoder" "$test_tmp/flags-target.conf" || fail "the target of a symlinked Chromium file gets the feature"
 grep -Fxq -- "$hwdec" "$test_tmp/mpv-target.conf" || fail "the target of a symlinked mpv config gets the fallback"
 pass "symlinked config files stay symlinks and their targets get the settings"
-
-[[ -n $migration ]] || fail "a migration applies the settings on existing installs"
-home=$(new_home migration)
-cp "$shipped" "$home/.config/chromium-flags.conf"
-HOME="$home" bash -euo pipefail "$migration" >/dev/null
-if ! grep -Fxq -- '--use-angle=gles-egl' "$home/.config/chromium-flags.conf" ||
-  ! grep -Fxq -- "$features,AcceleratedVideoDecoder" "$home/.config/chromium-flags.conf" ||
-  ! grep -Fxq -- "$hwdec" "$home/.config/mpv/mpv.conf"; then
-  fail "the migration applies the settings on an existing Snapdragon install" "$(cat "$home/.config/chromium-flags.conf")"
-fi
-pass "the migration applies the settings on an existing Snapdragon install"

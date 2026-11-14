@@ -1,12 +1,12 @@
 # Temos
 
-Omarchy pateikiama su dvidešimt dviem gražiomis temomis. Tarp jų galite rinktis per _Stilius > Tema_ Omarchy meniu (`Super + Space`) arba šokti tiesiai į temų parinkiklį naudodami `Super + Ctrl + Shift + Space`.
+Omarchy pateikiama su dvidešimt dviem gražiomis temomis. Jas galite pasirinkti per _Išvaizda > Tema_ Omarchy Menu (`Super + Space`) arba tiesiai pereiti prie temų pasirinkimo paspaudę `Super + Ctrl + T`.
 
-Kiekviena tema stilizuoja darbalaukį, terminalą, neovim, veiklos ekraną (btop), Chromium ir visą Omarchy apvalkalą: viršutinę juostą, meniu, pranešimus, OSD ir užrakinimo ekraną. (Obsidian atveju Omarchy temą turite rankiniu būdu pasirinkti per _Appearance > Themes_ programos viduje).
+Kiekviena tema stilizuoja darbalaukį, terminalą, neovim, aktyvumo ekraną (btop), Chromium ir visą Omarchy apvalkalą: viršutinę juostą, meniu, pranešimus, OSD ir užrakinimo ekraną. (Obsidian programoje Omarchy temą turite pasirinkti rankiniu būdu per _Išvaizda > Temos_ pačioje programoje).
 
-Temos turi foninių paveikslėlių rinkinį, iš kurio galite rinktis naudodami `Super + Ctrl + Space`.
+Temos turi foninių paveikslėlių rinkinį, iš kurio galite rinktis paspaudę `Super + Ctrl + W`.
 
-Dar daugiau temų galite rasti [papildomų temų puslapyje](https://omarchy.org/themes/) arba net [susikurti savo temą](43-making-your-own-theme.md).
+Dar daugiau temų rasite [papildomų temų puslapyje](https://omarchy.org/themes/) arba netgi galite [susikurti savo temą](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Atrakinimai
+### Atrakinimo ekranai
 
-Temos taip pat gali turėti pasirinktinį atrakinimo dizainą, kuris naudojamas paleidimo iššifravimo procesui. Vieną iš jų galite pasirinkti po _Stilius > Atrakinti_. Jie atrodo taip:
+Temos taip pat gali turėti pasirinktinį atrakinimo dizainą, naudojamą įkrovos iššifravimo procese. Vieną iš jų galite pasirinkti per _Išvaizda > Atrakinimas_. Jie atrodo taip:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

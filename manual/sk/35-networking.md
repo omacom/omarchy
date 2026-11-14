@@ -1,45 +1,45 @@
-# Siete
+# Sieť
 
-Siete v Omarchy má na starosti NetworkManager a ovládate ich cez ikonu siete v [hornej lište](05-the-top-bar.md) alebo skratkou `Super + Ctrl + W`.
+Sieť v Omarchy spravuje NetworkManager a ovládate ju z ikony siete v [hornej lište](05-the-top-bar.md) alebo pomocou `Super + Ctrl + N`.
 
-Ten panel vyhľadá siete Wi-Fi, ukáže silu signálu a pripojí vás. Ethernet nepotrebuje vôbec nič — stačí ho zapojiť a funguje. Ak radšej zostávate v termináli, `nmtui` vám dáva rovnaké ovládacie prvky a existuje aj skupina príkazov `omarchy network`.
+Tento panel vyhľadáva siete Wi-Fi, ukazuje silu signálu a pripája sa k nim. Ethernet nepotrebuje vôbec nič — zapojíte ho a funguje. Ak radšej zostanete v termináli, `nmtui` vám dá rovnaké ovládanie a existuje aj skupina príkazov `omarchy network`.
 
-## Zdieľanie Wi-Fi
+## Zdieľanie vašej Wi-Fi
 
-Namiesto toho, aby ste nahlas čítali dlhé heslo, spustite _Nastavenie > Sieť > QR kód_, keď ste na Wi-Fi. Tým sa na obrazovke zobrazí QR kód, ktorý dokáže naskenovať fotoaparát každého telefónu a pripojiť sa. Je to jedna z vecí, ktoré budete používať častejšie, než by ste čakali, keď viete, že tam je.
+Namiesto toho, aby ste nahlas čítali dlhé heslo, spustite _Nastavenie > Sieť > QR kód_, keď ste na Wi-Fi. Na obrazovke sa zobrazí QR kód, ktorý môže naskenovať fotoaparát akéhokoľvek telefónu a pripojiť sa. Je to jedna z tých vecí, ktoré budete používať častejšie, než by ste čakali, keď už viete, že tam je.
 
-Ak skutočne potrebujete samotné heslo, `omarchy network password <interface>` ho vypíše.
+Ak skutočne potrebujete samotné heslo, vypíše ho `omarchy network password <interface>`.
 
 ## DNS
 
-Omarchy používa také DNS, aké vaša sieť rozdáva cez DHCP. Môžete to prepísať pre celý stroj v časti _Nastavenie > Sieť > DNS_, kde sú Cloudflare a Google na jedno kliknutie. Vyberte _Vlastné_, ak chcete zadať vlastné servery.
+Omarchy používa akékoľvek DNS, ktoré vaša sieť poskytne cez DHCP. Pre celý počítač to môžete prepísať v _Nastavenie > Sieť > DNS_, kde sú Cloudflare a Google vzdialené na jedno kliknutie. Vyberte _Vlastné_, ak chcete zadať vlastné servery.
 
 Z terminálu `omarchy dns` vypíše aktuálneho poskytovateľa a `omarchy dns Cloudflare` jedného nastaví.
 
 ## Pripnutie pásma Wi-Fi
 
-Ak váš smerovač dáva 2.4GHz, 5GHz a 6GHz na rovnaký názov siete, váš notebook sa niekedy bude držať toho pomalého pásma. `omarchy network band` ukáže, v ktorom pásme ste, a `omarchy network band 5` ho pripne. Použite `auto`, ak mu chcete dovoliť vyberať si znova.
+Ak váš router používa pre 2.4GHz, 5GHz a 6GHz rovnaký názov siete, váš notebook sa niekedy bude držať toho pomalého. `omarchy network band` ukáže, na ktorom pásme ste, a `omarchy network band 5` ho pripne. Použite `auto`, aby si znova vyberal sám.
 
-Tým sa pripne pásmo, nie konkrétny prístupový bod, takže sa naďalej normálne prepájate medzi prístupovými bodmi.
+Tým sa pripne pásmo, a nie konkrétny prístupový bod, takže sa naďalej normálne presúvate medzi APs.
 
-## Ako rýchle to je?
+## Aké je to rýchle?
 
-_Akcie > Test rýchlosti > Test rýchlosti siete_ zmeria vašu skutočnú rýchlosť sťahovania a odosielania pomocou dvojice stupníc. Z terminálu je to `omarchy network speedtest down` alebo `up`. (Hneď vedľa v tej ponuke je aj test rýchlosti disku, ak práve meriate druhé úzke miesto.)
+_Spúšťač > Test rýchlosti > Test rýchlosti siete_ meria vašu skutočnú rýchlosť sťahovania a odosielania pomocou dvojice ciferníkov. Z terminálu je to `omarchy network speedtest down` alebo `up`. Meria voči vlastnej službe Omarchy a počíta len svoje testovacie prenosy. Iné sťahovania môžu súťažiť o šírku pásma, ale do výsledku testu rýchlosti sa nepripočítavajú. (V tom menu je hneď vedľa aj test rýchlosti disku, ak meriate to druhé úzke hrdlo.)
 
 ## Firewall
 
-Firewall je predvolene zapnutý a blokuje všetku prichádzajúcu prevádzku, s jednou výnimkou: port 53317, aby [LocalSend](22-guis.md) fungoval hneď po vybalení.
+Firewall je predvolene zapnutý a blokuje všetku prichádzajúcu prevádzku, s jednou výnimkou: port 53317, aby [LocalSend](22-guis.md) fungoval hneď po inštalácii.
 
-SSH je vypnuté, kým ho nezapnete v časti _Nastavenie > Security > SSHD_, čo spustí démona, otvorí port 22 s obmedzením rýchlosti proti útokom hrubou silou a autorizuje kľúč. Aj Docker je uzamknutý, takže sa kontajnery nemôžu náhodne vystaviť svetu. Celý príbeh nájdete v časti [bezpečnosť](48-security.md).
+SSH je vypnuté, kým ho nezapnete pomocou _Nastavenie > Zabezpečenie > SSHD_, čo spustí démona, otvorí port 22 s obmedzením rýchlosti proti útokom hrubou silou a autorizuje kľúč. Docker je tiež uzamknutý, takže kontajnery sa nemôžu náhodou vystaviť svetu. Celý príbeh nájdete v časti [zabezpečenie](48-security.md).
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) je sieťová VPN typu mesh, vďaka ktorej je dosiahnutie všetkých vašich počítačov a serverov cez internet jednoduché a bezpečné. Nainštalujete ho cez _Inštalovať > Service > Tailscale_.
+[Tailscale](https://tailscale.com/) je mesh VPN, vďaka ktorej je prístup ku všetkým vašim počítačom a serverom cez internet jednoduchý a bezpečný. Nainštalujete ho pomocou _Inštalácia > Služba > Tailscale_.
 
-Tým získate panel Tailscale v lište, ktorý pripája a odpája tailnet, prepína účty a vyberá výstupný uzol — v zozname sa zobrazujú vaše vlastné stroje aj regióny Mullvad. Takisto prechádza vaše stroje a práve tam žije Taildrop: vyberte stroj a stlačte `s`, ak mu chcete poslať súbory, alebo `c`, `n` a `d`, ak chcete skopírovať jeho IP adresu, názov alebo úplný názov DNS. Ekvivalent v termináli je `omarchy tailscale send <machine> [file...]` a súbory poslané vám automaticky pristávajú v `~/Downloads`. Upozornenie oznamujúce príchod čaká, kým naň nekliknete a neotvoríte ho alebo ho nezavriete, takže súbor, ktorý dorazí, keď ste preč od stroja, tam stále čaká na odpoveď, keď sa vrátite.
+Získate tak panel Tailscale v lište, ktorý pripája a odpája tailnet, prepína účty a vyberá výstupný uzol — v zozname sa zobrazia vaše vlastné počítače aj regióny Mullvad. Prechádza tiež vaše počítače a práve tam žije Taildrop: vyberte počítač a stlačte `s`, ak mu chcete poslať súbory, alebo `c`, `n` a `d`, ak chcete skopírovať jeho IP, názov alebo úplný názov DNS. Ekvivalentom v termináli je `omarchy tailscale send <machine> [file...]` a súbory poslané vám automaticky pristanú v `~/Downloads`. Oznámenie o príchode čaká, kým ho kliknutím otvoríte alebo zrušíte, takže súbor, ktorý príde, keď ste preč od počítača, tam na vás stále čaká, keď sa vrátite.
 
-Inštaláciou sa pridá aj webová aplikácia pre konzolu správcu Tailscale.
+Jeho inštalácia pridá aj webovú aplikáciu pre administračnú konzolu Tailscale.
 
 ## Keď to prestane fungovať
 
-Pred reštartom skúste reštartovať len ten problematický kus samostatne. _Aktualizovať > Hardware_ má Wi-Fi, Bluetooth, Audio a Trackpad a opätovné načítanie jedného z nich vyrieši väčšinu situácií typu „pred piatimi minútami to fungovalo“. Pozrite si [riešenie problémov](45-troubleshooting.md).
+Pred reštartovaním skúste reštartovať len problematickú časť samostatne. _Aktualizácia > Hardvér_ obsahuje Wi-Fi, Bluetooth, Audio a Trackpad a opätovné načítanie jedného z nich vyrieši väčšinu situácií typu „pred piatimi minútami to fungovalo“. Pozrite si [riešenie problémov](45-troubleshooting.md).

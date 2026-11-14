@@ -53,9 +53,38 @@ done
 # Nothing set in a config dir: let xdg-settings search the data dirs and caches.
 # It consults $BROWSER too, which the session points back at omarchy-launch-browser,
 # and the desktop-specific list, which points at omarchy-browser.desktop.
+#
+# Either answer can outlive its browser, so an entry is only taken once
+# installed() agrees, and xdg-mime still gets its say when xdg-settings names
+# one that is gone.
 browser=$(env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings get default-web-browser 2>/dev/null)
-if [[ -z $browser || $browser == "omarchy-browser.desktop" ]]; then
-  browser=$(XDG_CURRENT_DESKTOP= xdg-mime query default x-scheme-handler/https 2>/dev/null)
+if [[ -n $browser && $browser != "omarchy-browser.desktop" ]] && installed "$browser"; then
+  echo "$browser"
+  exit 0
 fi
 
-[[ -n $browser && $browser != "omarchy-browser.desktop" ]] && echo "$browser"
+browser=$(XDG_CURRENT_DESKTOP= xdg-mime query default x-scheme-handler/https 2>/dev/null)
+if [[ -n $browser && $browser != "omarchy-browser.desktop" ]] && installed "$browser"; then
+  echo "$browser"
+  exit 0
+fi
+
+# With the listed handler gone, both tools settle on the routing entry, which
+# only hands links back to omarchy-launch-browser. Take the first installed
+# https handler the data dirs still list, so a stale list cannot leave every
+# launch empty.
+for data_dir in "${data_dirs[@]}"; do
+  cache="$data_dir/applications/mimeinfo.cache"
+  [[ -r $cache ]] || continue
+
+  entries=$(sed -n 's|^x-scheme-handler/https=||p' "$cache")
+  IFS=';' read -ra entries <<<"$entries"
+  for entry in "${entries[@]}"; do
+    if [[ -n $entry && $entry != "omarchy-browser.desktop" ]] && installed "$entry"; then
+      echo "$entry"
+      exit 0
+    fi
+  done
+done
+
+exit 1

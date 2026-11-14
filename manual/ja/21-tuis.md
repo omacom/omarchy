@@ -1,39 +1,39 @@
-# TUI
+# TUIs
 
 ## Lazygit
 
-[Lazygit](https://github.com/jesseduffield/lazygit) は GitHub Desktop アプリケーションのようなものの楽しい代替であり、ターミナル内で動作します。
+[Lazygit](https://github.com/jesseduffield/lazygit) は、GitHub Desktop のようなアプリケーションに代わる快適な選択肢で、ターミナル内で動作します。
 
-git で管理されている任意のディレクトリへ移動して `lazygit` を実行すれば直接起動できます。あるいは Neovim 内で実行することもでき、`Space G G` で起動できます。
+git で管理されている任意のディレクトリに移動して `lazygit` を実行すれば、そのまま起動できます。あるいは Neovim 内で実行することもでき、その場合は `Space G G` で起動します。
 
-`Tab` で異なるペイン間を移動します。Files ペインでは `Space` でステージングするファイルを選択し、`c` で新しいコミットを作成できます。利用可能なすべてのコマンドは `?` で確認できます。
+異なるペイン間の移動は `Tab` で行います。Files ペインでは `Space` でステージングするファイルを選択し、`c` で新しいコミットを作成できます。利用可能なすべてのコマンドは `?` で確認できます。
 
 ## Btop
 
-[Btop](https://github.com/aristocratos/btop) はメモリ、CPU、ディスク、ネットワークの使用状況を表示する美しいリソースマネージャーです。すべての有効なプロセスも一覧表示し、管理できます。
+[Btop](https://github.com/aristocratos/btop) は、メモリ、CPU、ディスク、ネットワークの使用状況を表示する美しいリソースマネージャーです。アクティブなすべてのプロセスも一覧表示し、それらを管理できます。
 
-Omarchy ではこれを Activity と呼び、`Super + Ctrl + T` を押して起動します。フローティングウィンドウとして開き、`Super + T` でタイルできます。
+Omarchy では Activity と呼ばれており、`Super + Shift + T` を押して起動します。フローティングウィンドウとして開きますが、`Super + T` でタイル表示にできます。
 
 ## Herdr
 
-[Herdr](https://github.com/omacom-io/herdr) はターミナルのワークスペースマネージャーで、ワークスペース、タブ、ペインを提供し、それらすべてを、デタッチして後で戻ってこられる永続セッションで動かし続けます。
+[Herdr](https://github.com/omacom-io/herdr) は、ワークスペース、タブ、ペインを提供するターミナルワークスペースマネージャーで、それらすべてを永続セッションで動作させ続け、デタッチして後から戻ってくることができます。
 
-`Super + Ctrl + Return` で起動（または既存セッションへの再接続）します。Omarchy には Tmux の設定をミラーした Herdr の設定が同梱されているため、プレフィックスキーはここでも `Ctrl + Space` です。すべてのキーバインドは `Super + Ctrl + K` で閲覧できます。
+起動する（または既存のセッションに再接続する）には `Super + Ctrl + Return` を使います。Omarchy には Tmux の設定を反映した Herdr の設定が同梱されているため、ここでもプレフィックスキーは `Ctrl + Space` です。すべてのキーバインドは `Super + Ctrl + K` で閲覧できます。
 
 ## Fastfetch
 
-[Fastfetch](https://github.com/fastfetch-cli/fastfetch) はカーネルのバージョン、アップタイム、テーマ、CPU、メモリなどのシステム情報を表示します。人気の neofetch ツールの後継です。
+[Fastfetch](https://github.com/fastfetch-cli/fastfetch) は、カーネルのバージョン、稼働時間、テーマ、CPU、メモリなど、システム情報を表示します。人気のあった neofetch ツールの後継です。
 
-Omarchy ではこれを Omarchy メニュー（`Super + Space`）の _情報_ としてパッケージしています。
+Omarchy では、Omarchy メニュー（`Super + Space`）の _About_ としてこれが組み込まれています。
 
 ## Cliamp
 
-[Cliamp](https://www.cliamp.stream/) は Winamp 2.x に触発されたレトロなターミナル音楽プレイヤーで、ローファイビート用のラジオステーションを内蔵しています。`Super + Shift + Alt + M` で起動するか、Omarchy メニューの _アプリ_ から起動してください。`?` を押すとキーバインドの完全なリストが表示されます。
+[Cliamp](https://www.cliamp.stream/) は、Winamp 2.x にインスパイアされたレトロなターミナル音楽プレーヤーで、ローファイビート向けのラジオステーションを内蔵しています。`Super + Shift + Alt + M` で、または Omarchy メニューの _Apps_ から起動します。`?` を押すと、キーバインドの全リストが表示されます。
 
 ## Wi-Fi と Bluetooth は？
 
-Wi-Fi と Bluetooth 向けの TUI は見つかりません — それらの仕事は Omarchy シェルに属します。上部バー（メニューバー）の Wi-Fi アイコンをクリックするか（または `Super + Ctrl + W` を押すか）すればネットワークを表示して接続でき、Bluetooth アイコンをクリックするか（または `Super + Ctrl + B` を押すか）すればデバイスをペアリングして接続できます。詳しくは [ネットワーク](35-networking.md) を参照してください。
+Wi-Fi と Bluetooth 用の TUI はありません — それらは Omarchy シェルの仕事です。上部バーの Wi-Fi アイコンをクリックする（または `Super + Ctrl + N` を押す）とネットワークを表示して接続でき、Bluetooth アイコンをクリックする（または `Super + Ctrl + B` を押す）とデバイスをペアリングして接続できます。詳細は[ネットワーク](35-networking.md)を参照してください。
 
-## 独自の TUI を追加する
+## 独自のものを追加する
 
-どんなターミナルプログラムでも完全なアプリ待遇を受けられます。Omarchy メニュー（`Super + Space`）の _インストール > TUI_ へ移動し、名前、起動コマンド、ウィンドウスタイル、アイコンを指定すれば、他のアプリケーションと同様にアプリランチャーに表示されます。再び削除するには _削除 > TUI_ を使ってください。
+あらゆるターミナルプログラムを、完全なアプリとして扱うことができます。Omarchy メニュー（`Super + Space`）の _Install > TUI_ に移動し、名前、起動コマンド、ウィンドウスタイル、アイコンを指定すれば、他のアプリケーションと同じようにアプリランチャーに表示されるようになります。再び削除するには _Remove > TUI_ を使います。

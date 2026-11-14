@@ -40,6 +40,7 @@ fi
 MKINITCPIO_CONF="/etc/mkinitcpio.conf.d/omarchy_resume.conf"
 SWAP_FILE="/swap/swapfile"
 RESUME_DROP_IN="/etc/limine-entry-tool.d/resume.conf"
+RESUME_REBUILD_PENDING="/var/lib/omarchy/hibernation-resume-rebuild"
 
 install_root_file() {
   local source="$1"
@@ -70,6 +71,72 @@ safe_stage_path() {
   [[ $suffix =~ ^[[:alnum:]]{6}$ ]]
 }
 
+# The device resume= names for the filesystem holding the swapfile. A kernel name
+# such as /dev/nvme0n1p2 follows probe order, so on a machine with two NVMe disks
+# it can name the other disk at the next boot, and resume then finds no image.
+# The filesystem UUID names the same disk on every boot. A device-mapper name is
+# set by whoever opened it (/dev/mapper/root on an encrypted install), so it stays.
+resume_device() {
+  local source uuid
+
+  source=$(findmnt -no SOURCE -T "$SWAP_FILE" | sed 's/\[.*\]//')
+  if [[ $source != /dev/mapper/* ]] && uuid=$(findmnt -no UUID -T "$SWAP_FILE") && [[ -n $uuid ]]; then
+    echo "UUID=$uuid"
+  else
+    echo "$source"
+  fi
+}
+
+# Earlier setups named an unencrypted root by its kernel name. Rename it in the
+# line setup writes; a drop-in edited by hand is left to whoever edited it. The
+# boot image keeps the old name until it is rebuilt, so a marker written before
+# the drop-in changes stays until a rebuild succeeds. A failed or interrupted
+# rebuild then leaves the marker, and the next run rebuilds again.
+rename_resume_device() {
+  local previous device offset staged
+
+  [[ -f $RESUME_DROP_IN && -f $SWAP_FILE ]] || return 0
+  previous=$(<"$RESUME_DROP_IN")
+  [[ $previous =~ ^KERNEL_CMDLINE\[default\]\+=\"\ ?resume=(/dev/[^[:space:]\"]+)\ resume_offset=([0-9]+)\"$ ]] || return 0
+  [[ ${BASH_REMATCH[1]} != /dev/mapper/* ]] || return 0
+  offset=${BASH_REMATCH[2]}
+  device=$(resume_device)
+  [[ $device == UUID=* ]] || return 0
+
+  staged=$(mktemp) || return 1
+  if printf 'KERNEL_CMDLINE[default]+=" resume=%s resume_offset=%s"\n' "$device" "$offset" >"$staged" &&
+    { $NO_REBUILD || sudo install -Dm644 /dev/null "$RESUME_REBUILD_PENDING"; } &&
+    install_root_file "$staged" "$RESUME_DROP_IN" 0644; then
+    rm -f "$staged"
+    echo "Named the resume device by $device"
+    return 0
+  fi
+
+  rm -f "$staged"
+  return 1
+}
+
+rebuild_renamed_resume_device() {
+  local log
+  local -a status
+
+  [[ -e $RESUME_REBUILD_PENDING ]] && ! $NO_REBUILD || return 0
+
+  # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+  log=$(mktemp) || return 1
+  sudo limine-mkinitcpio 2>&1 | tee "$log"
+  status=("${PIPESTATUS[@]}")
+  if (( status[0] == 0 && status[1] == 0 )) && ! grep -q 'mkinitcpio failed for kernel' "$log"; then
+    rm -f "$log"
+    sudo rm -f "$RESUME_REBUILD_PENDING"
+    return
+  fi
+
+  rm -f "$log"
+  echo "Could not rebuild the boot image with the renamed resume device; run omarchy-hibernation-setup again once that is fixed" >&2
+  return 1
+}
+
 # Check if hibernation is already configured
 if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; then
   # Fix empty resume_offset if btrfs map-swapfile failed during initial setup
@@ -83,6 +150,10 @@ if [[ -f $MKINITCPIO_CONF ]] && grep -q "^HOOKS+=(resume)$" "$MKINITCPIO_CONF"; 
       fi
     fi
   fi
+
+  # After the offset repair, which leaves the device as it found it.
+  rename_resume_device || exit 1
+  rebuild_renamed_resume_device || exit 1
   echo "Hibernation is already set up"
   exit 0
 fi
@@ -142,7 +213,7 @@ echo "HOOKS+=(resume)" | sudo tee "$MKINITCPIO_CONF" >/dev/null
 if [[ ! -f $RESUME_DROP_IN ]]; then
   echo "Adding resume kernel parameters"
   sudo swapon -p 0 "$SWAP_FILE" 2>/dev/null
-  RESUME_DEVICE=$(findmnt -no SOURCE -T "$SWAP_FILE" | sed 's/\[.*\]//')
+  RESUME_DEVICE=$(resume_device)
   RESUME_OFFSET=$(sudo btrfs inspect-internal map-swapfile -r "$SWAP_FILE")
   if [[ -n $RESUME_OFFSET ]]; then
     sudo mkdir -p /etc/limine-entry-tool.d

@@ -121,9 +121,9 @@ BarWidget {
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
 
-  SystemClock {
+  WallClock {
     id: clock
-    precision: root.showsSeconds ? SystemClock.Seconds : SystemClock.Minutes
+    step: root.showsSeconds ? 1000 : 60000
     onDateChanged: root.displayDate = date
   }
 
@@ -162,6 +162,9 @@ BarWidget {
     horizontalMargin: 8.75
     verticalPadding: 8.75
     tooltipText: I18n.t("clock.toggleFormat")
+    // The clock is text to read, not an icon to press, so a click never
+    // shrinks it; the format it cycles to, or the panel it opens, is feedback.
+    pressFeedbackButtons: Qt.NoButton
 
     onPressed: function(b) {
       if (b === Qt.RightButton) root.cycleFormat()

@@ -1,24 +1,27 @@
-# Bảng nhớ tạm & Lịch sử thống nhất
+# Clipboard thống nhất & Lịch sử
 
-Thông thường trên Linux, bạn cần `Ctrl + Shift + C/V` để sao chép và dán trong terminal và `Ctrl + C/V` để làm điều đó ở khắp mọi nơi khác. Điều đó khó làm quen đối với bất kỳ ai chưa sinh ra và lớn lên trên Linux! Việc chuyển từ super sang ctrl cũng vậy, nếu bạn đến từ Mac.
+Thông thường trên Linux, bạn cần `Ctrl + Shift + C/V` để sao chép và dán trong terminal và `Ctrl + C/V` để làm điều đó ở mọi nơi khác. Thật khó làm quen với điều đó đối với bất kỳ ai không sinh ra và lớn lên cùng Linux! Việc chuyển từ Super sang Ctrl cũng vậy, nếu bạn chuyển đến từ Mac.
 
-Omarchy giải quyết cả hai vấn đề bằng các phím tắt bảng nhớ tạm thống nhất hoạt động (gần như) ở khắp mọi nơi. Chúng là:
+Omarchy giải quyết cả hai vấn đề bằng các phím tắt clipboard thống nhất hoạt động (gần như) ở mọi nơi. Chúng là:
 
 | Phím tắt | Lệnh |
 | ------- | ----------- |
+| Super + A | Chọn tất cả |
 | Super + C | Sao chép |
 | Super + X | Cắt |
 | Super + V | Dán |
-| Super + Ctrl + V | Lịch sử bảng nhớ tạm |
+| Super + Ctrl + V | Lịch sử clipboard |
 
-_Lưu ý rằng hầu hết các khung agent sẽ dùng `Ctrl + V` để dán hình ảnh, nhưng `Super + V` để dán văn bản._
+_Lưu ý rằng hầu hết các agent harness sẽ dùng `Ctrl + V` để dán hình ảnh, nhưng dùng `Super + V` để dán văn bản._
 
-### Lịch sử bảng nhớ tạm
+Dùng `Super + A`, sau đó `Super + C` để sao chép mọi thứ trong một trường văn bản đang được focus hoặc ứng dụng khác hỗ trợ `Ctrl + A`. Trong terminal, `Ctrl + A` sẽ di chuyển đến đầu dòng lệnh thay vì chọn văn bản của nó.
 
-Lịch sử bảng nhớ tạm được cung cấp bởi shell Omarchy và hoạt động cho cả văn bản và hình ảnh. Bạn kích hoạt nó bằng `Super + Ctrl + V`, chọn mục của bạn bằng phím return, và sau đó mục đó sẽ được đặt trên bảng nhớ tạm sẵn sàng để dán bằng `Super + V`.
+### Lịch sử clipboard
+
+Lịch sử clipboard được cung cấp bởi shell của Omarchy và hoạt động với cả văn bản và hình ảnh. Bạn kích hoạt nó bằng `Super + Ctrl + V`, chọn mục của bạn bằng phím Return, và mục đó sau đó sẽ được đặt vào clipboard, sẵn sàng để dán bằng `Super + V`.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-Bạn cũng có thể tìm kiếm lịch sử chỉ bằng cách bắt đầu gõ:
+Bạn cũng có thể tìm kiếm trong lịch sử chỉ bằng cách bắt đầu gõ:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)

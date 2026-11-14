@@ -1,45 +1,45 @@
-# Tīklošana
+# Tīkls
 
-Tīklošanu Omarchy nodrošina NetworkManager, un jūs to vadāt no tīkla ikonas [augšējā joslā](05-the-top-bar.md) vai ar `Super + Ctrl + W`.
+Omarchy tīklu pārvalda NetworkManager, un tu to vadi no tīkla ikonas [augšējā joslā](05-the-top-bar.md) vai ar `Super + Ctrl + N`.
 
-Šis panelis meklē Wi-Fi tīklus, rāda signāla stiprumu un savienojas. Ethernet neprasa neko — pievienojiet kabeli, un viss strādā. Ja labāk patīk terminālis, `nmtui` dod tās pašas vadīklas, un ir arī `omarchy network` komandu grupa.
+Šis panelis meklē Wi-Fi tīklus, rāda signāla stiprumu un savienojas. Ethernet nevajag neko — vienkārši pieslēdz to, un viss darbojas. Ja labprātāk paliec terminālī, `nmtui` sniedz tās pašas vadīklas, un ir arī `omarchy network` komandu grupa.
 
-## Sava Wi-Fi kopīgošana
+## Sava Wi-Fi koplietošana
 
-Tā vietā, lai skaļi nolasītu garu paroli, esot Wi-Fi tīklā, palaidiet _Iestatīšana > Tīkls > QR kods_. Ekrānā parādīsies QR kods, ko jebkura tālruņa kamera var noskenēt, lai pievienotos. Tā ir viena no tām lietām, ko izmantosiet biežāk, nekā domājat, tiklīdz zināsiet, ka tā tur ir.
+Tā vietā, lai skaļi nolasītu garu paroli, kamēr esi pieslēdzies Wi-Fi, palaid _Setup > Network > QR Code_. Tas uz ekrāna parāda QR kodu, ko jebkura tālruņa kamera var noskenēt, lai pievienotos. Tā ir viena no tām lietām, ko izmantosi biežāk, nekā gaidītu, tiklīdz zināsi, ka tā tur ir.
 
-Ja jums patiešām vajadzīga pati parole, `omarchy network password <interface>` to izdrukā.
+Ja tev patiešām vajag pašu paroli, `omarchy network password <interface>` to izdrukā.
 
 ## DNS
 
-Omarchy izmanto jebkuru DNS, ko jūsu tīkls izdala ar DHCP. Visai iekārtai to varat pārrakstīt sadaļā _Iestatīšana > Tīkls > DNS_, kur Cloudflare un Google ir viena klikšķa attālumā. Izvēlieties _Pielāgots_, lai ierakstītu savus serverus.
+Omarchy izmanto jebkuru DNS, ko tavs tīkls piešķir ar DHCP. Tu vari to mainīt visai iekārtai sadaļā _Setup > Network > DNS_, kur Cloudflare un Google ir viena klikšķa attālumā. Izvēlies _Custom_, lai ierakstītu savus serverus.
 
-Terminālī `omarchy dns` izdrukā pašreizējo pakalpojumu sniedzēju, un `omarchy dns Cloudflare` iestata vienu.
+No termināļa `omarchy dns` izdrukā pašreizējo pakalpojumu sniedzēju, un `omarchy dns Cloudflare` iestata kādu no tiem.
 
-## Wi-Fi joslas piespraušana
+## Wi-Fi joslas piesaiste
 
-Ja jūsu maršrutētājs 2.4GHz, 5GHz un 6GHz liek zem viena tīkla nosaukuma, jūsu klēpjdators dažkārt turas pie lēnās joslas. `omarchy network band` parāda, kurā joslā esat, un `omarchy network band 5` to piesprauž. Izmantojiet `auto`, lai ļautu izvēlēties no jauna.
+Ja tavs maršrutētājs 2.4GHz, 5GHz un 6GHz izvieto ar vienu un to pašu tīkla nosaukumu, tavs klēpjdators dažreiz pieķersies lēnajai joslai. `omarchy network band` parāda, kurā joslā esi, un `omarchy network band 5` to piesaista. Izmanto `auto`, lai ļautu tam atkal izvēlēties pašam.
 
-Tas piesprauž joslu, nevis konkrētu piekļuves punktu, tāpēc viesabonēšana starp AP turpinās kā ierasts.
+Tas piesaista joslu, nevis konkrētu piekļuves punktu, tāpēc tu turpini kā parasti pārvietoties starp AP.
 
-## Cik ātri tas ir?
+## Cik ātrs tas ir?
 
-_Palaist > Ātruma tests > Tīkla ātruma tests_ mēra jūsu faktisko lejupielādes un augšupielādes ātrumu ar ciparnīcu pāri. Terminālī tas ir `omarchy network speedtest down` vai `up`. (Blakus šajā izvēlnē ir arī diska ātruma tests, ja mērāt otru vājo vietu.)
+_Trigger > Speed Test > Network Speed Test_ mēra tavu faktisko augšupielādes un lejupielādes ātrumu ar diviem rādītājiem. No termināļa tas ir `omarchy network speedtest down` vai `up`. Tas mēra pret paša Omarchy pakalpojumu un skaita tikai savas testa pārsūtīšanas. Citas lejupielādes var sacensties par joslas platumu, bet tās netiek pieskaitītas ātruma testa rezultātam. (Blakus tam šajā izvēlnē atrodas diska ātruma tests, ja tu nosaki otru sašaurinājumu.)
 
 ## Ugunsmūris
 
-Ugunsmūris pēc noklusējuma ir ieslēgts un bloķē visu ienākošo datplūsmu ar vienu izņēmumu: ports 53317, lai [LocalSend](22-guis.md) darbotos uzreiz pēc uzstādīšanas.
+Ugunsmūris pēc noklusējuma ir ieslēgts un bloķē visu ienākošo trafiku, ar vienu izņēmumu: ports 53317, lai [LocalSend](22-guis.md) darbotos uzreiz.
 
-SSH ir izslēgts, līdz to ieslēdzat sadaļā _Iestatīšana > Drošība > SSHD_, kas palaiž dēmonu, atver 22. portu ar ātruma ierobežojumu pret brutāla spēka uzbrukumiem un autorizē atslēgu. Arī Docker ir noslēgts, lai konteineri nejauši neatklātos pasaulei. Visu stāstu skatiet sadaļā [drošība](48-security.md).
+SSH ir izslēgts, līdz tu to ieslēdz ar _Setup > Security > SSHD_, kas palaiž dēmonu, atver 22. portu ar ātruma ierobežojumu pret brutāla spēka uzbrukumiem un autorizē atslēgu. Arī Docker ir stingri ierobežots, tāpēc konteineri nevar nejauši atklāt sevi pasaulei. Visu stāstu skati sadaļā [drošība](48-security.md).
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/) ir tīkla VPN, kas padara visu jūsu datoru un serveru sasniegšanu internetā vienkāršu un drošu. Instalējiet to sadaļā _Instalēt > Pakalpojums > Tailscale_.
+[Tailscale](https://tailscale.com/) ir mesh VPN, kas padara visu tavu datoru un serveru sasniegšanu internetā vienkāršu un drošu. Instalē to ar _Install > Service > Tailscale_.
 
-Tas joslā dod Tailscale paneli, kas savieno un atvieno tailnet, pārslēdz kontus un izvēlas izejas mezglu — sarakstā parādās gan jūsu pašu iekārtas, gan Mullvad reģioni. Tas arī pārlūko jūsu iekārtas, un tieši tur mitinās Taildrop: atlasiet iekārtu un nospiediet `s`, lai nosūtītu tai failus, vai `c`, `n` un `d`, lai kopētu tās IP, nosaukumu vai pilnu DNS nosaukumu. Termināļa ekvivalents ir `omarchy tailscale send <machine> [file...]`, un jums nosūtītie faili automātiski nonāk `~/Downloads`. Paziņojums par ierašanos gaida, līdz to atverat vai noraidāt, tāpēc fails, kas ieradās, kamēr nebijāt pie datora, joprojām būs tur, kad atgriezīsieties.
+Tas piešķir tev Tailscale paneli joslā, kas savieno un atvieno tailnet, pārslēdz kontus un izvēlas izejas mezglu — sarakstā parādās gan tavas iekārtas, gan Mullvad reģioni. Tas arī pārlūko tavas iekārtas, un tur dzīvo Taildrop: izvēlies iekārtu un nospied `s`, lai nosūtītu tai failus, vai `c`, `n` un `d`, lai kopētu tās IP, nosaukumu vai pilno DNS nosaukumu. Termināļa ekvivalents ir `omarchy tailscale send <machine> [file...]`, un tev nosūtītie faili automātiski nonāk `~/Downloads`. Paziņojums par pienākšanu gaida, līdz tu to noklikšķini vaļā vai noraidi, tāpēc fails, kas parādās, kamēr esi prom no iekārtas, joprojām būs tur, lai uz to reaģētu, kad atgriezīsies.
 
-Instalēšana pievieno arī tīmekļa lietotni Tailscale administratora konsolei.
+To instalējot, tiek pievienota arī tīmekļa lietotne Tailscale administrēšanas konsolei.
 
 ## Kad tas pārstāj darboties
 
-Pirms pārstartēšanas mēģiniet atsevišķi pārstartēt vainīgo daļu. Sadaļā _Atjaunināt > Aparatūra_ ir Wi-Fi, Bluetooth, Audio un Skārienpaliktnis, un viena no tiem pārlādēšana atrisina lielāko daļu situāciju „tas taču pirms piecām minūtēm strādāja“. Skatiet [problēmu novēršanu](45-troubleshooting.md).
+Pirms pārstartēšanas pamēģini pārstartēt traucējošo daļu atsevišķi. _Update > Hardware_ ir Wi-Fi, Bluetooth, Audio un Trackpad, un kādas no tām pārlādēšana atrisina lielāko daļu situāciju “tas darbojās pirms piecām minūtēm”. Skati [problēmu novēršanu](45-troubleshooting.md).

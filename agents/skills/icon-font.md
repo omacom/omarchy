@@ -7,7 +7,7 @@ Fonts does not have: the Omarchy logo and the agent and app brand marks. The
 menu draws one by naming the font on an entry:
 
 ```jsonc
-"setup.default.agent.grok": {"icon":"","iconFont":"omarchy","label":"Grok", ...}
+"agent.harness.grok": {"icon":"","iconFont":"omarchy","label":"Grok", ...}
 ```
 
 Without `iconFont`, an entry's `icon` is drawn in the menu font, so reach for
@@ -49,8 +49,6 @@ Pick a source whose silhouette alone reads.
 The command prints these, and all of them matter:
 
 - Point the menu entry at the new codepoint with `"iconFont":"omarchy"`.
-- Bump the charset range asserted in `test/shell.d/menu-test.sh`; that test
-  pins the font's coverage and fails until it matches.
 - Check the README line the command added, and give it a proper display name
   with `--label` if the glyph name is not the brand's name.
 

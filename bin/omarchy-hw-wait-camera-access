@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Wait at login until this user can open the camera media devices
+# omarchy:hidden=true
+
+# libcamera opens every camera's media device once, when WirePlumber starts,
+# and does not look again when access arrives later. At login the user manager
+# starts WirePlumber with pipewire-pulse a moment before logind gives the new
+# desktop session access to the seat's devices, so the camera stays missing
+# until WirePlumber restarts. Wait for that access first, at most five seconds,
+# and only for media devices the seat hands out. Only Snapdragon laptops wait:
+# their cameras reach PipeWire through libcamera alone, while PipeWire's V4L2
+# monitor watches its devices and finds a webcam once access arrives.
+
+media_path=${OMARCHY_MEDIA_DEVICES_PATH:-/dev}
+tries=${OMARCHY_CAMERA_ACCESS_TRIES:-50}
+
+devices=()
+if omarchy-hw-aarch64-qualcomm; then
+  for device in "$media_path"/media*; do
+    [[ -e $device && ! -d $device ]] || continue
+    if [[ $(udevadm info --query=property --property=CURRENT_TAGS --value "$device" 2>/dev/null) == *:uaccess:* ]]; then
+      devices+=("$device")
+    fi
+  done
+fi
+
+for ((try = 0; try < tries; try++)); do
+  waiting=0
+  for device in "${devices[@]}"; do
+    [[ -r $device && -w $device ]] || waiting=1
+  done
+  ((waiting)) || break
+  sleep 0.1
+done

@@ -37,9 +37,4 @@ assert(!hit(hiddenButton, null, 170, 12), 'hidden ancestors prevent forwarded cl
 drawer.visible = true
 drawer.enabled = false
 assert(!hit(hiddenButton, null, 170, 12), 'disabled ancestors prevent forwarded clicks')
-
-for (const file of ['shell/plugins/bar/Bar.qml', 'shell/Ui/KeyboardPanel.qml']) {
-  assert(fs.readFileSync(root + '/' + file, 'utf8').includes('Util.itemContainsPoint(target,'),
-    file + ' checks clipping when forwarding bar clicks')
-}
 JS

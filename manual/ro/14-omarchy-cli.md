@@ -1,8 +1,8 @@
-# CLI-ul Omarchy
+# Omarchy CLI
 
-Omarchy este controlat de obicei prin scurtături și meniul Omarchy (`Super + Space`). Dar îl poți controla și prin CLI-ul `omarchy`. Este deosebit de util atunci când ai un agent AI care lucrează cu tine la personalizare sau configurare.
+Omarchy este controlat de obicei prin tastele rapide și prin meniul Omarchy (`Super + Space`). Dar îl poți controla și prin CLI-ul `omarchy`. Acest lucru este deosebit de util atunci când un agent AI lucrează cu tine la personalizare sau configurare.
 
-CLI-ul are acces la toate instrumentele interne folosite atât prin meniu, cât și altfel. Poți vedea tot ce este disponibil rulând `omarchy` în terminal.
+CLI-ul are acces la toate instrumentele interne folosite atât prin meniu, cât și în alte moduri. Poți vedea tot ce este disponibil rulând `omarchy` în terminal.
 
 Arată cam așa:
 
@@ -59,4 +59,4 @@ Fiecare comandă acceptă și `--help`, fie că întrebi un întreg grup (`omarc
 
 ### Deschiderea meniului din terminal
 
-Meniul Omarchy este și el programabil, ceea ce este util pentru propriile tale mapări. `omarchy menu` îl deschide la rădăcină, și poți sări direct la orice punct din arbore numindu-l: `omarchy menu summon style.theme` merge direct la selectorul de teme, `omarchy menu toggle system` deschide meniul de sistem și îl închide din nou dacă este deja afișat, iar `omarchy menu close` îl pune deoparte.
+Meniul Omarchy poate fi folosit și în scripturi, ceea ce este util pentru propriile tale combinații de taste. `omarchy menu` îl deschide la rădăcină, iar tu poți sări direct la orice punct din arbore numindu-l: `omarchy menu summon appearance.theme` te duce direct la selectorul de teme, `omarchy menu toggle system` deschide meniul de sistem și îl închide din nou dacă este deja deschis, iar `omarchy menu close` îl ascunde.

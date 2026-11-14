@@ -9,7 +9,7 @@ require_platform_fixtures "the composed mkinitcpio HOOKS"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-for platform in aarch64-apple aarch64 x86; do
+for platform in aarch64-apple aarch64-qualcomm aarch64 x86; do
   fake_platform "$test_tmp/platforms/$platform" "$platform"
 done
 # omarchy-settings without the runtime package: no detector on PATH.
@@ -78,8 +78,9 @@ pci_devices() {
 
 # mkinitcpio appends the drop-ins to mkinitcpio.conf in its own order and
 # sources the result once. Do the same on a platform fixture and print what the
-# image is built from. The vconsole.conf entry comes from the host's own file,
-# so it is left out of FILES.
+# image is built from. The drop-ins read /etc/vconsole.conf, so point them at
+# $vconsole, which only the cases that need a layout write.
+vconsole="$test_tmp/vconsole.conf"
 compose() {
   local fixture="$test_tmp/platforms/$1" config="$test_tmp/buildconfig" conf
   local -a conf_files=()
@@ -89,16 +90,13 @@ compose() {
   for conf in "${conf_files[@]}"; do
     cat -- "$etc/mkinitcpio.conf.d/$conf" >>"$config"
   done
+  sed -i "s|/etc/vconsole.conf|$vconsole|g" "$config"
 
   local path="$fixture/bin:$ROOT/bin:$PATH"
   [[ $1 != "no-detector" ]] || path="$fixture/bin"
   KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" PATH="$path" "$BASH" -c '
     . "$1" || exit 1
-    files=()
-    for file in "${FILES[@]}"; do
-      [[ $file == /etc/vconsole.conf ]] || files+=("$file")
-    done
-    printf "HOOKS=%s\nMODULES=%s\nFILES=%s\n" "${HOOKS[*]}" "${MODULES[*]}" "${files[*]}"
+    printf "HOOKS=%s\nMODULES=%s\nFILES=%s\n" "${HOOKS[*]}" "${MODULES[*]}" "${FILES[*]}"
   ' -- "$config"
 }
 
@@ -250,6 +248,29 @@ for platform in aarch64; do
     "$omarchy_hooks resume" "thunderbolt" "/etc/omarchy/provisioning.key"
 done
 
+# A Snapdragon laptop's internal keyboard on I2C needs the I2C HID transport
+# at the disk unlock prompt; mkinitcpio's keyboard hook adds only hid-*. It is
+# early-loaded where the detector calls the machine Snapdragon and the kernel
+# builds it as a module, and nowhere else.
+new_etc
+KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "a Snapdragon laptop early-loads i2c-hid-of for its keyboard" aarch64-qualcomm \
+  "$omarchy_hooks" "i2c-hid-of thunderbolt" ""
+new_etc
+KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "a machine without a device tree leaves i2c-hid-of out" x86 \
+  "$omarchy_hooks" "thunderbolt" ""
+new_etc
+KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "a device-tree machine that isn't Snapdragon leaves i2c-hid-of out" aarch64 \
+  "$omarchy_hooks" "thunderbolt" ""
+new_etc
+KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "without the runtime's detector i2c-hid-of stays out" no-detector \
+  "$omarchy_hooks" "thunderbolt" ""
+new_etc
+KERNEL_MODULES="thunderbolt i2c-hid-of" assert_composed "an Apple Silicon Mac leaves i2c-hid-of out" aarch64-apple \
+  "$apple_hooks" "thunderbolt" ""
+new_etc
+KERNEL_MODULES="thunderbolt" KERNEL_BUILTINS="i2c-hid-of" assert_composed "a kernel with i2c-hid-of built in leaves it out" aarch64-qualcomm \
+  "$omarchy_hooks" "thunderbolt" ""
+
 # thunderbolt is early-loaded only where the kernel builds it as a module. A
 # systemd initramfs writes MODULES into modules-load.d as they are, so neither
 # an optional thunderbolt? nor a module the kernel lacks may reach it.
@@ -262,3 +283,46 @@ KERNEL_MODULES="" assert_composed "a plain aarch64 kernel without thunderbolt le
 new_etc
 KERNEL_MODULES="" KERNEL_BUILTINS=thunderbolt assert_composed "a kernel with thunderbolt built in leaves it out" x86 \
   "$omarchy_hooks" "" ""
+
+# Apple Silicon's boot package ships mkinitcpio drop-ins 90- to 94- that sort
+# after the HOOKS baseline and add the Asahi firmware and systemd unlock hooks
+# to it. The fixtures are the drop-ins omarchy-mac-boot 20260926-1.45 installs,
+# as read from an encrypted M1 Pro, byte for byte the same as
+# omarchy-mac-boot/files/etc/mkinitcpio.conf.d in omacom/omarchy-mac-pkgs at
+# 4399105 (MIT). The encryption drop-in leaves a line carrying busybox encrypt
+# alone, since that is a Mac unlocked through cryptdevice=, so the baseline must
+# give a Mac the systemd line. No kernel modules here: the HID drop-in adds
+# only what modinfo finds.
+mac_etc() {
+  new_etc
+  cp "$ROOT"/test/shell.d/fixtures/omarchy-mac-boot-mkinitcpio/*.conf "$etc/mkinitcpio.conf.d/"
+  sed -i "s/^HOOKS=.*/HOOKS=($1)/" "$etc/mkinitcpio.conf"
+}
+
+mac_files() {
+  KERNEL_MODULES="" compose aarch64-apple | sed -n 's/^FILES=//p'
+}
+
+# The HOOKS the M1 Pro builds its encrypted image from today.
+mac_hooks="base systemd plymouth autodetect microcode modconf kms keyboard sd-vconsole block asahi omarchy-vendorfw omarchy-mac-encrypt sd-encrypt filesystems fsck"
+alarm_systemd="base systemd autodetect microcode modconf kms keyboard sd-vconsole block filesystems fsck"
+alarm_busybox="base udev autodetect microcode modconf kms keyboard keymap consolefont block filesystems fsck"
+
+printf 'KEYMAP=us\nXKBLAYOUT=us\n' >"$vconsole"
+mac_etc "$alarm_systemd"
+KERNEL_MODULES="" assert_hooks "a Mac keeps its firmware and systemd unlock hooks" aarch64-apple "$mac_hooks"
+[[ $(mac_files) == *"$vconsole"* ]] || fail "a Latin layout reaches the Mac image" "FILES=$(mac_files)"
+pass "a Latin layout reaches the Mac image"
+mac_etc "$alarm_busybox"
+KERNEL_MODULES="" assert_hooks "a Mac whose mkinitcpio.conf has the busybox line gets the same hooks" aarch64-apple "$mac_hooks"
+
+printf 'KEYMAP=ru\nXKBLAYOUT=ru\n' >"$vconsole"
+mac_etc "$alarm_systemd"
+KERNEL_MODULES="" assert_hooks "a non-Latin layout keeps the Mac prompt on the US map" aarch64-apple "${mac_hooks/ sd-vconsole / }"
+[[ $(mac_files) != *vconsole* ]] || fail "a non-Latin layout stays out of the Mac image" "FILES=$(mac_files)"
+pass "a non-Latin layout stays out of the Mac image"
+
+# A Mac that unlocks through cryptdevice= keeps its busybox line, drop-ins and all.
+printf 'KEYMAP=us\nXKBLAYOUT=us\n' >"$vconsole"
+mac_etc "$legacy_encrypted"
+KERNEL_MODULES="" assert_hooks "a busybox encrypt Mac keeps its own line with the Apple drop-ins" aarch64-apple "$legacy_encrypted"

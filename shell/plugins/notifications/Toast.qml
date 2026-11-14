@@ -8,7 +8,6 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 
-import "Markup.js" as Markup
 import "Security.js" as Security
 import "Delivery.js" as Delivery
 import "Store.js" as Store
@@ -17,23 +16,17 @@ import "Icons.js" as Icons
 Item {
   id: card
 
-  property real fontScale: 1
-  property bool showCountdown: false
   property var row: ({})
-  property var iconOverrides: ({})          // slug -> file URL, from the service
   property var place: ({ y: 0, scale: 1, opacity: 1, z: 1, front: true, hidden: false })
   property var scene: null                   // owns the clock; without it the card stands still
   property bool expanded: false
   property bool sole: false                  // the only card on screen
   property bool paused: false
   property bool hovered: false
+  property bool selected: false              // the keyboard's card
   property double now: Date.now()
   property real cardWidth: Style.space(380)
-  property string actionsAlign: "right"      // right | left
-  property var snoozeOptions: []             // the daemon's, from settings
   property var actions: []                   // what the sender put on the wire
-  property bool deedsOpen: false
-  property bool menuOpen: false
 
   // The pointer in the deck's coordinates: the deck owns hover, so cards and
   // their buttons work out what is under it themselves.
@@ -49,12 +42,13 @@ Item {
         && localHoverY >= origin.y && localHoverY <= origin.y + item.height
   }
 
-  // "now", then minutes, then the clock time, then "yesterday", then the day.
+  // Nothing while it is fresh, then minutes, then the clock time, then
+  // "yesterday", then the day.
   function ago() {
     var t = Number(row.ts || 0) * 1000
     if (!t) return ""
     var s = Math.max(0, (now - t) / 1000)
-    if (s < 50) return I18n.t("notifications.now")
+    if (s < 300) return ""
     if (s < 3600) return I18n.t("notifications.minutesAgo").arg(I18n.formatNumber(Math.round(s / 60)))
     var then = new Date(t)
     var locale = Qt.locale(I18n.formatLocale)
@@ -66,15 +60,15 @@ Item {
   }
 
   // The card's only duration: crossfades inside its own edges.
-  readonly property int fade: 150
+  readonly property int fade: Style.duration(150)
 
   signal expired()
   signal activated()
   signal dismissed()
-  signal snoozeRequested(int seconds)
-  signal silenceRequested()
-  signal offerTaken(string kind, string value)
+  signal codeCopied(string code)
   signal actionInvoked(string identifier)
+  signal execInvoked(int index)
+  signal linkOpened()
 
   readonly property bool critical: row.urgency === 2
   readonly property color dimColor: Qt.darker(Commons.Color.notifications.text, 1.4)
@@ -89,15 +83,26 @@ Item {
   readonly property bool glyphLed: Delivery.summaryStartsWithGlyph(row.summary)
   readonly property real contentPaddingY: hasBody ? Style.space(10) : Style.space(7)
   // A card behind the front of a collapsed deck is a shape: the cards are
-  // translucent, so its text would read through the one in front.
-  readonly property bool showsContent: expanded || place.front
+  // translucent, so its text would read through the one in front. The text
+  // fades as the deck moves (opening, closing, a card arriving over it or
+  // leaving it the front) and jumps with it when a keypress skips the move.
+  // It goes out in half the time it comes in, so a card arriving over this one
+  // doesn't show both texts at once.
+  property real contentOpacity: expanded || place.front ? 1 : 0
+  Behavior on contentOpacity {
+    id: contentFade
+    enabled: !(card.scene && card.scene.jumping)
+    NumberAnimation {
+      duration: contentFade.targetValue > 0 ? card.fade : card.fade / 2
+      easing.type: Easing.OutCubic
+    }
+  }
 
   // The body opens in an open deck, or on hover when nothing else is on
   // screen. Never in a collapsed stack: every card there is drawn at the front
   // one's height, so a tall one would hang out of it.
   readonly property bool bodyOpen: expanded || (hovered && sole)
   readonly property int bodyLines: bodyOpen ? 8 : 2
-  readonly property int stands: place.count || 1     // how many this card speaks for
 
   // Every code the body carried; two or more have to say which they copy.
   readonly property var foundCodes: {
@@ -107,104 +112,41 @@ Item {
     return out
   }
 
-  // What the card found in its own text first, then the sender's actions.
+  // Buttons an Omarchy sender asked for (--action), as commands the shell runs.
+  readonly property var execActions: Security.parseExecActions(row.execActions) || []
+
+  // Every button, in Delivery.deeds' order, with the code labels translated.
   readonly property var allDeeds: {
-    var out = []
-    for (var c = 0; c < foundCodes.length; c++)
-      out.push({ kind: "code", value: foundCodes[c],
-                 label: foundCodes.length > 1 ? I18n.t("notifications.copyThisCode").arg(foundCodes[c])
-                                              : I18n.t("notifications.copyCode") })
-    if (String(row.link || ""))
-      out.push({ kind: row.meeting ? "meeting" : "link",
-                 label: row.meeting ? I18n.t("notifications.join") : I18n.t("notifications.openLink"),
-                 value: String(row.link) })
-    if (String(row.phone || ""))
-      out.push({ kind: "phone", label: I18n.t("notifications.copyNumber"), value: String(row.phone) })
-    for (var i = 0; i < actions.length; i++)
-      out.push({ kind: "action", label: String(actions[i].text || ""), value: String(actions[i].id) })
+    var out = Delivery.deeds(row, actions)
+    for (var i = 0; i < out.length; i++)
+      if (out[i].kind === "code")
+        out[i].label = foundCodes.length > 1 ? I18n.t("notifications.copyThisCode").arg(out[i].value)
+                                             : I18n.t("notifications.copyCode")
     return out
   }
 
-  // Marks on the headline rather than buttons: buttons cost height, and a
-  // collapsed deck draws every card at the tallest one's height.
+  // Marks on the headline. Buttons say for themselves that a card can be
+  // acted on; a verification code is marked even where they are hidden.
   readonly property var marks: {
     var out = []
     if (String(row.code || "")) out.push("\u{f0306}")
-    if (String(row.link || "")) out.push(row.meeting ? "\u{f0567}" : "\u{f0339}")
-    if (String(row.phone || "")) out.push("\u{f03f2}")
-    if (actions.length > 0) out.push("\u{f0cfd}")
-    return out
-  }
-
-  readonly property var moreDeed: ({ kind: "more", label: I18n.t("notifications.more"), value: "" })
-
-  // Measure the actual themed buttons: a fixed count overflows with larger
-  // fonts or longer action labels. Reserve More before admitting each action.
-  readonly property int fits: {
-    var widths = [], gap = deedRow.spacing, available = deedArea.width
-    for (var i = 0; i < deedMeasures.count; i++) {
-      var button = deedMeasures.itemAt(i)
-      if (button) widths.push(button.implicitWidth)
-    }
-    if (widths.length !== allDeeds.length) return 0
-    var total = 0
-    for (var k = 0; k < widths.length; k++) total += widths[k] + (k ? gap : 0)
-    if (total <= available) return widths.length
-    var used = moreMeasure.implicitWidth, count = 0
-    for (var j = 0; j < widths.length; j++) {
-      if (used + gap + widths[j] > available) break
-      used += gap + widths[j]
-      count++
-    }
-    return count
-  }
-  readonly property var deeds: allDeeds.slice(0, fits)
-  readonly property var spare: allDeeds.slice(fits)
-
-  Item {
-    visible: false
-    Repeater {
-      id: deedMeasures
-      model: card.allDeeds
-      DeedButton {
-        required property var modelData
-        deed: modelData
-        toast: card
-      }
-    }
-    DeedButton {
-      id: moreMeasure
-      deed: card.moreDeed
-      toast: card
-    }
-  }
-
-  readonly property var menuDeeds: {
-    var out = []
-    for (var i = 0; i < snoozeOptions.length; i++)
-      out.push({ kind: "snooze", label: String(snoozeOptions[i].menuLabel),
-                 value: Number(snoozeOptions[i].seconds) })
-    out.push({ kind: "silence", label: I18n.t("notifications.enableDnd"), value: 0 })
     return out
   }
 
   function doDeed(deed) {
     var kind = String(deed.kind || "")
-    if (kind === "more") { deedsOpen = !deedsOpen; return }
-    if (kind === "snooze") { menuOpen = false; snoozeRequested(Number(deed.value)); return }
-    if (kind === "silence") { menuOpen = false; silenceRequested(); return }
     if (kind === "action") { actionInvoked(String(deed.value)); return }
-    offerTaken(kind, String(deed.value))
-    takenKind = kind + ":" + String(deed.value)
+    if (kind === "exec") { execInvoked(Number(deed.value)); return }
+    codeCopied(String(deed.value))
+    copiedCode = String(deed.value)
     tick.restart()
   }
 
-  // "kind:value" of the last press, ticked for a moment: copying is silent.
-  property string takenKind: ""
-  Timer { id: tick; interval: 1400; onTriggered: card.takenKind = "" }
+  // The code last copied, ticked for a moment: copying is silent.
+  property string copiedCode: ""
+  Timer { id: tick; interval: 1400; onTriggered: card.copiedCode = "" }
 
-  // One ticker drives both the countdown and the expiry, so they cannot drift;
-  // pausing holds the remaining time rather than restarting it.
+  // Pausing holds the remaining time rather than restarting it.
   // An update (replaces_id) rewrites the row in place with a new arrival
   // time, and gets a fresh display period of its own duration. Its picture
   // may be new at the same path, so the image is read again too.
@@ -219,8 +161,9 @@ Item {
     Qt.callLater(function() { card.reloading = false })
   }
 
+  // Coarse: nothing draws the time left, only the expiry needs it.
   Timer {
-    interval: 100
+    interval: 500
     repeat: true
     running: card.ticking && card.remaining > 0
     onTriggered: {
@@ -262,8 +205,6 @@ Item {
   // The height the scene says it is right now, on the way there.
   property real drawnHeight: targetHeight
 
-  onHoveredChanged: if (!hovered) menuOpen = false
-  onExpandedChanged: if (!expanded) menuOpen = false
 
   y: scene ? scene.at(row.key, "y") : 0
   z: place.z
@@ -274,7 +215,7 @@ Item {
   // `visible` is deliberately unbound: anything derived from layout output
   // (opacity, place.hidden) closes a binding loop through `heights`. A hidden
   // card is at opacity 0 and costs no drawing; `enabled` refuses the pointer.
-  enabled: !place.hidden
+  enabled: !place.hidden && !place.leaving
 
   // BorderSurface keeps gradients and per-side border widths; content below is
   // inset by those exact widths.
@@ -288,7 +229,15 @@ Item {
                                    Math.max(1, Style.space(2)))
   }
 
-  // No offscreen layer, so the ticking countdown does not force a repaint.
+  // The keyboard's card is tinted with the theme's hover fill, buttons and all.
+  Rectangle {
+    anchors.fill: plate
+    anchors { leftMargin: plate.borderLeft; rightMargin: plate.borderRight
+              topMargin: plate.borderTop; bottomMargin: plate.borderBottom }
+    visible: card.selected
+    color: Style.hoverFillFor(Commons.Color.notifications.text, Commons.Color.accent)
+  }
+
   Item {
     id: body
     width: parent.width
@@ -317,8 +266,7 @@ Item {
         height: width > 0 ? (compact ? glyphText.implicitHeight : slot) : 0
         visible: width > 0
         y: Math.max(0, (card.restingBlock - height) / 2)
-        opacity: card.showsContent ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: card.fade } }
+        opacity: card.contentOpacity
 
         function entryIcon(icon) {
           var value = String(icon || "")
@@ -331,9 +279,8 @@ Item {
         readonly property string sent: /^image:\/\/qsimage\/[0-9]+\/[0-9]+$/.test(String(card.row.image || ""))
                                        ? String(card.row.image) : Security.localImageUrl(card.row.image)
 
-        // Best first: the sender's picture, then your override for the source,
-        // then the icon theme, then a desktop entry's icon (Icons.candidates
-        // has the names). A file that will not load gives way to the next.
+        // Best first: the sender's picture, then the icon theme, then a
+        // desktop entry's icon (Icons.candidates has the names). A file that will not load gives way to the next.
         function firstOf(names, look) {
           for (var i = 0; i < names.length; i++) {
             var found = look(names[i])
@@ -345,7 +292,6 @@ Item {
           var appsRevision = DesktopEntries.applications.values.length
           var want = Icons.candidates(card.row)
           var found = [sent,
-            firstOf(want.overrides, function(name) { return card.iconOverrides[name] || "" }),
             firstOf(want.themed, function(name) { return Quickshell.iconPath(name, true) }),
             firstOf(want.entries, function(name) {
               var entry = DesktopEntries.heuristicLookup(name)
@@ -372,7 +318,7 @@ Item {
             text: String(card.row.source || card.row.app || "?").substring(0, 1).toUpperCase()
             color: card.dimColor
             font.family: Style.font.family
-            font.pixelSize: Style.font.body * card.fontScale
+            font.pixelSize: Style.font.body
             font.weight: Font.DemiBold
           }
         }
@@ -384,8 +330,8 @@ Item {
           visible: thumb.glyphed
           text: String(card.row.glyph || "")
           color: Commons.Color.notifications.text
-          font.family: Style.font.family
-          font.pixelSize: (thumb.compact ? Style.font.icon : Style.font.displayLarge) * card.fontScale
+          font.family: Delivery.omarchyGlyph(card.row.glyph) ? "omarchy" : Style.font.family
+          font.pixelSize: (thumb.compact ? Style.font.icon : Style.font.displayLarge)
         }
 
         Image {
@@ -433,14 +379,12 @@ Item {
         width: layout.width - (thumb.visible ? thumb.width + layout.spacing : 0)
         spacing: Style.space(3)
 
-        // Title, marks, how many this one stands for, and when it arrived.
+        // Title, marks, and when it arrived.
         Item {
           id: headline
           width: parent.width
-          height: Math.max(title.implicitHeight, rightSide.height,
-                           badge.visible ? badge.height : 0)
-          opacity: card.showsContent ? 1 : 0
-          Behavior on opacity { NumberAnimation { duration: card.fade } }
+          height: Math.max(title.implicitHeight, rightSide.height)
+          opacity: card.contentOpacity
 
           Text {
             textFormat: Text.PlainText
@@ -448,13 +392,12 @@ Item {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             width: Math.max(1, parent.width - rightSide.width
-                   - (badge.visible ? badge.width + Style.space(6) : 0)
                    - (titleMarks.visible ? titleMarks.width + Style.space(7) : 0)
                    - Style.space(8))
             text: card.redacted ? I18n.t("notifications.redactedSummary") : String(card.row.summary || "")
-            color: card.critical ? Commons.Color.urgent : Commons.Color.notifications.text
+            color: Commons.Color.notifications.text
             font.family: "Liberation Sans"
-            font.pixelSize: Style.font.title * card.fontScale
+            font.pixelSize: Style.font.title
             font.bold: true
             wrapMode: Text.Wrap
             maximumLineCount: card.bodyOpen ? 8 : 3
@@ -481,32 +424,8 @@ Item {
                 color: Commons.Color.notifications.text
                 opacity: 0.9
                 font.family: Style.font.family
-                font.pixelSize: Style.font.body * card.fontScale
+                font.pixelSize: Style.font.body
               }
-            }
-          }
-
-          Rectangle {
-            id: badge
-            // The row, not the time inside it: Qt only anchors to siblings.
-            anchors.right: rightSide.left
-            anchors.rightMargin: Style.space(6)
-            anchors.verticalCenter: title.verticalCenter
-            visible: card.stands > 1
-            width: badgeText.implicitWidth + Style.spacing.sm * 2
-            height: badgeText.implicitHeight + Style.spacing.xxs * 2
-            radius: Style.cornerRadius
-            color: Style.normalFillFor(Commons.Color.notifications.text, card.accentColor,
-                                       Commons.Color.urgent)
-
-            Text {
-              textFormat: Text.PlainText
-              id: badgeText
-              anchors.centerIn: parent
-              text: I18n.formatNumber(card.stands)
-              color: card.dimColor
-              font.family: Style.font.family
-              font.pixelSize: Style.font.caption * card.fontScale
             }
           }
 
@@ -516,8 +435,8 @@ Item {
             anchors.verticalCenter: title.verticalCenter
             spacing: Style.space(5)
 
-            // The time and the close mark share one square and crossfade on
-            // hover, so nothing in the headline moves.
+            // The time and the hover close mark share one square and
+            // crossfade, so nothing in the headline moves.
             Item {
               width: Math.max(stamp.implicitWidth, shut.implicitWidth)
               height: Math.max(stamp.implicitHeight, shut.implicitHeight)
@@ -532,20 +451,21 @@ Item {
                 opacity: card.hovered ? 0 : 1
                 visible: opacity > 0.01
                 font.family: Style.font.family
-                font.pixelSize: Style.font.bodySmall * card.fontScale
-                Behavior on opacity { NumberAnimation { duration: card.fade } }
+                font.pixelSize: Style.font.bodySmall
+                Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
               }
 
               Item {
                 id: shut
-                anchors.centerIn: parent
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
                 implicitWidth: closeMark.implicitWidth + Style.space(6)
                 implicitHeight: closeMark.implicitHeight
-                readonly property bool hot: card.pointerOver(shut)
                 enabled: card.hovered
                 opacity: card.hovered ? 1 : 0
                 visible: opacity > 0.01
-                Behavior on opacity { NumberAnimation { duration: card.fade } }
+                readonly property bool hot: card.pointerOver(shut)
+                Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
 
                 Text {
                   id: closeMark
@@ -553,18 +473,14 @@ Item {
                   textFormat: Text.PlainText
                   text: "✕"
                   color: shut.hot ? Commons.Color.notifications.text : card.dimColor
-                  font.pixelSize: Math.round(Style.font.caption * 1.44 * card.fontScale)
+                  font.pixelSize: Math.round(Style.font.caption * 1.44)
                 }
 
                 MouseArea {
                   anchors.fill: parent
                   anchors.margins: -Style.space(3)
-                  acceptedButtons: Qt.LeftButton | Qt.RightButton
                   cursorShape: Qt.PointingHandCursor
-                  onClicked: function(mouse) {
-                    if (mouse.button === Qt.RightButton) card.menuOpen = !card.menuOpen
-                    else card.dismissed()
-                  }
+                  onClicked: card.dismissed()
                 }
               }
             }
@@ -574,143 +490,93 @@ Item {
         FontMetrics {
           id: metrics
           font.family: "Liberation Sans"
-          font.pixelSize: Style.font.title * card.fontScale
+          font.pixelSize: Style.font.title
         }
 
-        // Rich text cannot elide, so a body over the current line cap is
-        // flattened into the plain rendering, which can end in an ellipsis.
-        Item {
+        // StyledText, not RichText: it covers the tags Markup lets through,
+        // keeps links clickable, and can still end a long body in an ellipsis.
+        Text {
           id: bodyBox
-          clip: true
           width: parent.width
-          // Laid-out height, never lineCount: in RichText mode lineCount counts
-          // paragraphs, not wrapped lines.
-          readonly property real lineH: Math.max(1, metrics.height)
-          readonly property real cap: lineH * card.bodyLines
-          // A body a hair over the cap is worth one more pixel, not flattening.
-          readonly property bool overflow: rich.contentHeight > cap + lineH * 0.4
-          readonly property real shown: overflow ? plain.contentHeight : rich.contentHeight
-          // Not clamped to `cap`: plain.maximumLineCount enforces the limit, and
-          // clamping to the arithmetic slices the last line instead of eliding.
-          height: Math.ceil(shown)
-
           // The closed height, read only by the icon so it does not move.
-          readonly property real restHeight:
-              Math.min(Math.ceil(lineH * 2), Math.ceil(rich.contentHeight))
+          readonly property real restHeight: Math.ceil(Math.max(1, metrics.height) * Math.min(2, lineCount))
           visible: card.hasBody
-          opacity: card.showsContent ? 1 : 0
-          Behavior on opacity { NumberAnimation { duration: card.fade } }
+          opacity: card.contentOpacity
 
-          Text {
-            id: rich
-            width: parent.width
-            visible: !bodyBox.overflow
-            textFormat: Text.RichText
-            text: card.redacted ? I18n.t("notifications.redactedBody") : Markup.colourLinks(String(card.row.bodyRich || card.row.body || ""),
-                                     String(Commons.Color.notifications.countdown))
-            color: card.bodyColor
-            font.family: "Liberation Sans"
-            font.pixelSize: Style.font.title * card.fontScale
-            wrapMode: Text.Wrap
-            // Second gate: Markup already drops anchors it will not vouch for.
-            onLinkActivated: function(url) {
-              Security.openExternalUrl(url)
-            }
-          }
-
-          Text {
-            textFormat: Text.PlainText
-            id: plain
-            width: parent.width
-            visible: bodyBox.overflow
-            text: card.redacted ? I18n.t("notifications.redactedBody") : String(card.row.bodyLine || card.row.body || "")
-            color: card.bodyColor
-            font.family: "Liberation Sans"
-            font.pixelSize: Style.font.title * card.fontScale
-            wrapMode: Text.Wrap
-            maximumLineCount: card.bodyLines
-            elide: Text.ElideRight
-          }
-        }
-
-        // The space under the body does one job at a time: the right-click
-        // menu, the "More" list, or the button row. Lists are drawn in the
-        // card, not as popups, because the surface is clipped. The row shows
-        // only under the pointer in an open deck.
-        Item {
-          id: deedArea
-          width: parent.width
-
-          readonly property string mode: card.menuOpen ? "menu"
-                                       : card.deedsOpen ? "list"
-                                       : (card.hovered && card.expanded
-                                          && card.allDeeds.length > 0) ? "row" : ""
-
-          readonly property real contentHeight: mode === "menu" ? menuColumn.implicitHeight
-                                              : mode === "list" ? deedColumn.implicitHeight
-                                              : mode === "row" ? deedRow.implicitHeight : 0
-          // What the state asks for; the drawn height is whatever slack the
-          // scene has given the card so far.
-          readonly property real wanted: mode === "" ? 0 : contentHeight + Style.space(7)
-          height: Math.max(0, card.drawnHeight - card.fixedHeight)
-          visible: height > 0
-          clip: true
-
-          Row {
-            id: deedRow
-            anchors.bottom: parent.bottom
-            anchors.right: card.actionsAlign === "right" ? parent.right : undefined
-            anchors.left: card.actionsAlign === "right" ? undefined : parent.left
-            spacing: Style.space(6)
-            opacity: deedArea.mode === "row" ? 1 : 0
-            visible: opacity > 0.01
-            Behavior on opacity { NumberAnimation { duration: card.fade } }
-
-            Repeater {
-              model: card.deeds
-              DeedButton {
-                required property var modelData
-                deed: modelData
-                toast: card
-              }
-            }
-
-            DeedButton {
-              visible: card.spare.length > 0
-              deed: card.moreDeed
-              toast: card
-            }
-          }
-
-          DeedList {
-            id: deedColumn
-            shown: deedArea.mode === "list"
-            deedModel: card.deedsOpen ? card.allDeeds : []
-          }
-
-          DeedList {
-            id: menuColumn
-            shown: deedArea.mode === "menu"
-            deedModel: card.menuOpen ? card.menuDeeds : []
-          }
+          textFormat: Text.StyledText
+          text: card.redacted ? I18n.t("notifications.redactedBody") : String(card.row.bodyRich || "")
+          color: card.bodyColor
+          linkColor: Commons.Color.notifications.countdown
+          font.family: "Liberation Sans"
+          font.pixelSize: Style.font.title
+          wrapMode: Text.Wrap
+          maximumLineCount: card.bodyLines
+          elide: Text.ElideRight
+          // Second gate: Markup already drops anchors it will not vouch for.
+          onLinkActivated: function(url) { card.linkOpened(); Security.openExternalUrl(url) }
         }
       }
     }
 
-    // Optional visual countdown. The expiry clock runs either way.
-    BorderSurface {
-      visible: card.showCountdown && card.row.duration > 0 && card.place.front
-               && card.remaining > 0 && !card.expanded
-      anchors { left: parent.left; bottom: parent.bottom
-                leftMargin: plate.contentLeftInset + Style.space(7)
-                bottomMargin: plate.contentBottomInset }
-      height: Style.spacing.hairline
-      radius: Style.cornerRadius
-      color: card.accentColor
-      borderSpec: Border.none()
-      width: visible ? Math.max(0, (body.width - plate.contentLeftInset
-                                    - plate.contentRightInset - Style.space(14))
-                                   * (card.remaining / Math.max(1, card.row.duration))) : 0
+    // The buttons, as a bar along the card's bottom edge: a hairline above,
+    // equal segments split by hairlines, three to a line, and a short last line
+    // stretched across. Drawn in the card because the surface is clipped. In
+    // an open deck only the card under the pointer, or the keyboard, has them;
+    // otherwise the front card of each deck does.
+    Item {
+      id: deedArea
+      anchors { left: parent.left; right: parent.right; bottom: parent.bottom
+                leftMargin: plate.borderLeft; rightMargin: plate.borderRight
+                bottomMargin: plate.borderBottom }
+
+      readonly property bool shown: card.allDeeds.length > 0 && (card.expanded ? card.hovered : card.place.front)
+      readonly property int columns: Math.max(1, Math.min(3, card.allDeeds.length))
+      readonly property int rows: Math.ceil(card.allDeeds.length / columns)
+      readonly property real rule: 1
+      readonly property color ruleColor: Qt.rgba(card.dimColor.r, card.dimColor.g, card.dimColor.b, 0.35)
+      readonly property real segmentHeight: Style.spacing.controlHeight + Style.space(6)
+      readonly property real barHeight: rows * (rule + segmentHeight)
+      // What the state asks for; the drawn height is whatever slack the
+      // scene has given the card so far.
+      readonly property real wanted: shown ? barHeight : 0
+      height: Math.max(0, card.drawnHeight - card.fixedHeight)
+      visible: height > 0
+      clip: true
+
+      Item {
+        id: deedRow
+        anchors.bottom: parent.bottom
+        width: parent.width
+        height: deedArea.barHeight
+        opacity: deedArea.shown ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
+
+        Repeater {
+          model: card.allDeeds
+          DeedButton {
+            required property var modelData
+            required property int index
+            readonly property int line: Math.floor(index / deedArea.columns)
+            readonly property int slot: index % deedArea.columns
+            readonly property int perLine: line < deedArea.rows - 1 ? deedArea.columns
+                                           : card.allDeeds.length - line * deedArea.columns
+            // Where the segment starts in reading order; the first action
+            // sits on the right in a right-to-left language.
+            readonly property real start: Math.round(slot * deedRow.width / perLine)
+            deed: modelData
+            toast: card
+            hint: card.selected && index < 9 ? String(index + 1) : ""
+            rule: deedArea.rule
+            ruleColor: deedArea.ruleColor
+            leftRule: slot > 0
+            width: Math.round((slot + 1) * deedRow.width / perLine) - start
+            x: card.LayoutMirroring.enabled ? deedRow.width - start - width : start
+            y: line * (deedArea.rule + deedArea.segmentHeight)
+            height: deedArea.rule + deedArea.segmentHeight
+          }
+        }
+      }
     }
 
     // Under the content (z: -1) so buttons get their clicks first; anything
@@ -724,33 +590,8 @@ Item {
       cursorShape: Qt.PointingHandCursor
 
       onClicked: function(mouse) {
-        if (mouse.button === Qt.RightButton) { card.menuOpen = !card.menuOpen; return }
-        // The surface takes no keyboard focus, so a click is the way out of the menu.
-        if (card.menuOpen) { card.menuOpen = false; return }
-        if (mouse.button === Qt.MiddleButton) card.dismissed()
-        else card.activated()
-      }
-    }
-  }
-
-  component DeedList: Column {
-    id: list
-    property bool shown: false
-    property var deedModel: []
-    anchors.bottom: parent.bottom
-    width: parent.width
-    spacing: Style.space(4)
-    opacity: list.shown ? 1 : 0
-    visible: opacity > 0.01
-    Behavior on opacity { NumberAnimation { duration: card.fade } }
-
-    Repeater {
-      model: list.deedModel
-      DeedButton {
-        required property var modelData
-        deed: modelData
-        toast: card
-        wide: true
+        if (mouse.button === Qt.LeftButton) card.activated()
+        else card.dismissed()
       }
     }
   }

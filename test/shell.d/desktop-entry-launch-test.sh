@@ -65,9 +65,7 @@ assert_detached_installer_launch() {
   bash "$ROOT/bin/$script"
 
   wait_for_launch "launch:uwsm-app -- gtk-launch $desktop_id" ||
-    fail "$script launches its desktop entry through gtk-launch in a UWSM scope"
-  grep -Fqx "setsid uwsm-app -- gtk-launch $desktop_id >/dev/null 2>&1 &" "$ROOT/bin/$script" ||
-    fail "$script detaches its scoped desktop-entry launch"
+    fail "$script launches its desktop entry through setsid and gtk-launch in a UWSM scope"
   pass "$script detaches its scoped desktop-entry launch"
 }
 

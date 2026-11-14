@@ -229,9 +229,10 @@ fi
 
 # ── setup and app-install operations ─────────────────────────────────────────
 
-# System and user setup and the app-install hooks resolve in omarchy-mac's
-# directory on a Mac, never in omarchy-mac-boot's, and are optional everywhere.
-setup_operations=(setup-system setup-user post-install pre-remove)
+# System and user setup, the app-install hooks and the fingerprint hooks resolve
+# in omarchy-mac's directory on a Mac, never in omarchy-mac-boot's, and are
+# optional everywhere.
+setup_operations=(setup-system setup-user post-install pre-remove enable-fingerprint disable-fingerprint)
 user_operations=(setup-user post-install pre-remove)
 setup_implementation=usr/lib/omarchy/mac
 install_setup() {

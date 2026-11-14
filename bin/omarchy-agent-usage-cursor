@@ -1,0 +1,473 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Cursor usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Cursor usage into one display-ready JSON record.
+
+Cursor keeps no token counts on disk, so everything here comes from the same
+dashboard RPCs the Cursor CLI itself calls: the plan and the period meters
+from GetCurrentPeriodUsage and GetPlanInfo, tokens per model and per day from
+GetAggregatedUsageEvents. They are asked with the sign-in the Cursor CLI
+stores, or failing that the one the Cursor editor keeps in its state.vscdb.
+The agents panel only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, time, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  account_key,
+  base_record as shared_base_record,
+  cached_scan,
+  config_home,
+  cursor_auth_path,
+  cursor_token,
+  emit,
+  empty_bucket,
+  empty_stats,
+  finite,
+  number,
+  open_json,
+  read_json,
+  scan_cache_paths,
+  scan_max_age,
+  token_lapsed,
+  trusted_endpoint,
+)
+
+AGENT_ID = "cursor"
+AGENT_NAME = "Cursor"
+AUTH_HELP = "Sign in to the Cursor editor, or run `cursor-agent login`."
+API_BASE_URL = "https://api2.cursor.sh"
+SERVICE = "aiserver.v1.DashboardService"
+REQUEST_TIMEOUT = 20
+RECENT_DAYS = 7
+
+
+class CursorError(Exception):
+  def __init__(self, message: str, auth: bool = False, transport: bool = False) -> None:
+    super().__init__(message)
+    self.auth = auth
+    # Nothing answered at all, so the panel should try again soon.
+    self.transport = transport
+
+
+def fraction(value: Any) -> float:
+  # Cursor reports whole percentages; the panel's meters take 0..1.
+  return min(1.0, max(0.0, finite(value) / 100))
+
+
+# The Cursor CLI keeps its config beside auth.json and in ~/.cursor, the editor
+# under ~/.config/Cursor. Any of them means Cursor is used here, so a missing
+# sign-in is worth saying; without them the machine doesn't use Cursor at all.
+def cursor_in_use(auth_path: Path) -> bool:
+  return any(path.is_dir() for path in (auth_path.parent, config_home() / "Cursor", Path.home() / ".cursor"))
+
+
+# ------------------------------------------------------------------ record
+
+
+def iso(epoch_millis: Any) -> str:
+  millis = number(epoch_millis)
+  if millis <= 0:
+    return ""
+  try:
+    return datetime.fromtimestamp(millis / 1000, timezone.utc).isoformat()
+  except (OverflowError, OSError, ValueError):
+    return ""
+
+
+def base_record(**overrides: Any) -> dict[str, Any]:
+  # Dashboard numbers are account-global, not machine-local: every synced
+  # device reports the same truth, so aggregation must not sum them. The
+  # dashboard reports usage events, never prompt or session counts; the panel
+  # keeps those numbers out of today's tooltip when hasPromptStats is false.
+  return shared_base_record(AGENT_ID, AGENT_NAME, scope="account", hasPromptStats=False, **overrides)
+
+
+class CursorClient:
+  def __init__(self, token: str, api_base_url: str) -> None:
+    self.token = token
+    self.api_base_url = api_base_url.rstrip("/")
+
+  def call(self, method: str, payload: dict[str, Any]) -> dict[str, Any]:
+    request = urllib.request.Request(
+      f"{self.api_base_url}/{SERVICE}/{method}",
+      data=json.dumps(payload).encode("utf-8"),
+      headers={
+        "Content-Type": "application/json",
+        "Connect-Protocol-Version": "1",
+        "Authorization": f"Bearer {self.token}",
+        "x-cursor-client-type": "cli",
+      },
+      method="POST",
+    )
+    try:
+      parsed = open_json(request, timeout=REQUEST_TIMEOUT)
+    except HttpError as error:
+      if error.status in (401, 403):
+        raise CursorError(AUTH_HELP, auth=True) from error
+      if error.status:
+        raise CursorError(f"Cursor's dashboard returned status {error.status}.") from error
+      # A reply cut short came from a server that answered, so it is no
+      # reason to ask the panel for a sooner retry.
+      if error.cut_short:
+        raise CursorError("Cursor's dashboard cut its reply short.") from error
+      # No route, no DNS, refused, reset or timed out: nothing answered.
+      if error.transport:
+        raise CursorError("Couldn't reach Cursor's dashboard. Retrying shortly.", transport=True) from error
+      raise CursorError("Cursor's dashboard returned malformed JSON.") from error
+    if not isinstance(parsed, dict):
+      raise CursorError("Cursor's dashboard returned malformed JSON.")
+    return parsed
+
+  def period(self) -> dict[str, Any]:
+    return self.call("GetCurrentPeriodUsage", {})
+
+  # None when the plan couldn't be asked, so the last known one stands.
+  def plan_info(self) -> dict[str, Any] | None:
+    try:
+      plan = self.call("GetPlanInfo", {}).get("planInfo")
+    except CursorError:
+      return None
+    return plan if isinstance(plan, dict) else {}
+
+  def aggregations(self, start_millis: int, end_millis: int) -> list[Any]:
+    payload = {"startDate": str(start_millis), "endDate": str(end_millis)}
+    rows = self.call("GetAggregatedUsageEvents", payload).get("aggregations")
+    return rows if isinstance(rows, list) else []
+
+
+# ------------------------------------------------------------------ tokens
+
+
+def day_windows(today: date, count: int) -> list[tuple[str, int, int]]:
+  """The last `count` local days, oldest first, as (date, startMs, endMs)."""
+  windows = []
+  for offset in range(count - 1, -1, -1):
+    day = today - timedelta(days=offset)
+    # Each midnight converts on its own: a day that springs forward or falls
+    # back is 23 or 25 hours long, never a fixed 24.
+    start = datetime.combine(day, time.min).astimezone()
+    end = datetime.combine(day + timedelta(days=1), time.min).astimezone()
+    windows.append((day.isoformat(), int(start.timestamp() * 1000), int(end.timestamp() * 1000)))
+  return windows
+
+
+def summarize_day(rows: list[Any]) -> dict[str, dict[str, int]]:
+  """One day's aggregations under the token names every collector prints."""
+  usage: dict[str, dict[str, int]] = {}
+  for row in rows:
+    if not isinstance(row, dict):
+      continue
+    model = str(row.get("modelIntent") or "cursor")
+    bucket = usage.setdefault(model, empty_bucket())
+    # Connect's JSON writes 64-bit counts as strings, so number() rather than
+    # the strict token_count().
+    bucket["inputTokens"] += number(row.get("inputTokens"))
+    bucket["outputTokens"] += number(row.get("outputTokens"))
+    bucket["cacheReadInputTokens"] += number(row.get("cacheReadTokens"))
+    bucket["cacheCreationInputTokens"] += number(row.get("cacheWriteTokens"))
+  return usage
+
+
+def summarize_usage(days: list[tuple[str, dict[str, dict[str, int]]]]) -> dict[str, Any]:
+  recent_days = []
+  active_dates = []
+  model_usage: dict[str, dict[str, int]] = {}
+  today_by_model: dict[str, int] = {}
+
+  for index, (day, usage) in enumerate(days):
+    tokens = 0
+    for model, bucket in usage.items():
+      carried = model_usage.setdefault(model, empty_bucket())
+      for name, value in bucket.items():
+        carried[name] += value
+      tokens += sum(bucket.values())
+    recent_days.append({"date": day, "messageCount": tokens})
+    if tokens > 0:
+      active_dates.append(day)
+    if index == len(days) - 1:
+      today_by_model = {model: sum(bucket.values()) for model, bucket in usage.items() if sum(bucket.values()) > 0}
+
+  return {
+    "hasLocalStats": bool(model_usage),
+    "todayTotalTokens": sum(today_by_model.values()),
+    "todayTokensByModel": today_by_model,
+    "recentDays": recent_days,
+    "activeDays": len(active_dates),
+    "activeDates": active_dates,
+    "modelUsage": model_usage,
+  }
+
+
+# The token scan is cached per account rather than per data path: Cursor's
+# numbers live on its dashboard, and the account is who they belong to.
+def stats_cache(key: str) -> Path:
+  return scan_cache_paths(AGENT_ID, [key])[0]
+
+
+def carried_stats(key: str, today: date) -> dict[str, Any]:
+  """The last scan of this account, for runs that fetch no fresh tokens.
+
+  Another account's scan never stands in for this one's. A scan from an
+  earlier day is moved onto this week's dates, and its today figures are
+  cleared, since nothing in it happened today.
+  """
+  stats = {"hasLocalStats": False, **empty_stats()}
+  cached = read_json(stats_cache(key))
+  previous = cached.get("stats")
+  if not isinstance(previous, dict):
+    return stats
+  for name in stats:
+    if name in previous:
+      stats[name] = previous[name]
+  if cached.get("scanDate") != today.isoformat():
+    week = [window[0] for window in day_windows(today, RECENT_DAYS)]
+    kept_days = {str(day): usage for day, usage in previous.get("days") or [] if isinstance(usage, dict)}
+    if kept_days:
+      # Summed again over the new week, so the day that fell out leaves the
+      # model totals and active days along with the chart.
+      stats.update(summarize_usage([(day, kept_days.get(day, {})) for day in week]), hasLocalStats=stats["hasLocalStats"])
+    else:
+      counts = {str(row.get("date")): row.get("messageCount", 0) for row in stats["recentDays"] if isinstance(row, dict)}
+      stats["recentDays"] = [{"date": day, "messageCount": counts.get(day, 0)} for day in week]
+      stats["activeDates"] = [day for day in stats.get("activeDates") or [] if day in week]
+      stats["activeDays"] = len(stats["activeDates"])
+    stats["todayTotalTokens"] = 0
+    stats["todayTokensByModel"] = {}
+  return stats
+
+
+# This week's tokens: a scan of this account recent enough to reuse, else a
+# fresh one, else the last one when the fetch fails.
+def week_stats(client: CursorClient, today: date, key: str, max_age_seconds: float) -> dict[str, Any]:
+  def scan() -> tuple[dict[str, Any], bool]:
+    windows = day_windows(today, RECENT_DAYS)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+      rows = list(pool.map(lambda window: client.aggregations(window[1], window[2]), windows))
+    days = [(window[0], summarize_day(day_rows)) for window, day_rows in zip(windows, rows)]
+    # Each day's usage is kept too, so a scan carried past midnight can be
+    # summed again over the new week.
+    return {**empty_stats(), **summarize_usage(days), "days": days}, True
+
+  try:
+    stats = cached_scan(AGENT_ID, [key], max_age_seconds, scan)
+  except Exception:
+    return carried_stats(key, today)
+  return {name: value for name, value in stats.items() if name != "days"}
+
+
+# ------------------------------------------------------------------ limits
+
+
+# One section of the period reply. Connect's JSON leaves an empty message out
+# (or sends null), so a missing section is a plan with nothing in it; one of
+# another type is a reply this doesn't read, which must not pass for no meters
+# and replace the known limits.
+def usage_section(period: dict[str, Any], key: str) -> dict[str, Any]:
+  section = period.get(key)
+  if section is None:
+    return {}
+  if not isinstance(section, dict):
+    raise CursorError("Cursor's dashboard sent usage in a form this doesn't read.")
+  return section
+
+
+# PlanInfo.included_usage_period says whether the included allowance runs on
+# the billing cycle or resets each week, at included_usage_resets_at. The
+# enum may arrive as its number or its name, prefixed or not.
+def weekly_included(plan: dict[str, Any] | None) -> bool:
+  value = (plan or {}).get("includedUsagePeriod")
+  if isinstance(value, bool):
+    return False
+  return value == 2 or (isinstance(value, str) and value.strip().upper() in ("WEEKLY", "INCLUDED_USAGE_PERIOD_WEEKLY"))
+
+
+# The weekly reset as an epoch in milliseconds, like billingCycleEnd; one
+# small enough to be seconds is read as seconds rather than as 1970.
+def weekly_reset(value: Any) -> str:
+  stamp = number(value)
+  return iso(stamp * 1000 if 0 < stamp < 100_000_000_000 else stamp)
+
+
+def summarize_limits(period: dict[str, Any], plan_info: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+  """Cursor's own percentages, never a percentage derived from spend.
+
+  The dollar figures do not divide into the allowance: bonus usage the
+  providers hand out is spend without an allowance behind it, so
+  totalSpend/limit reads well past 100% while Cursor's own meters do not.
+
+  Every meter runs on the billing cycle, unless the plan says its included
+  allowance is weekly. The included total is the Monthly (or Weekly) row;
+  the model meters and the on-demand budget are titled after it, so the
+  panel attaches them to that row rather than showing four rows that each
+  read "Monthly". The on-demand budget always runs on the billing cycle.
+  """
+  plan = usage_section(period, "planUsage")
+  spend = usage_section(period, "spendLimitUsage")
+  resets_at = iso(period.get("billingCycleEnd"))
+  window, included_resets_at = "Monthly", resets_at
+  if weekly_included(plan_info):
+    window, included_resets_at = "Weekly", weekly_reset((plan_info or {}).get("includedUsageResetsAt"))
+  limits = []
+
+  for label, title, key in (
+    ("Included total", window, "totalPercentUsed"),
+    ("Auto models", f"Auto models {window}", "autoPercentUsed"),
+    ("Named models", f"Named models {window}", "apiPercentUsed"),
+  ):
+    if key in plan:
+      limits.append({"label": label, "title": title, "percent": fraction(plan.get(key)), "resetsAt": included_resets_at})
+
+  limit_cents = number(spend.get("individualLimit"))
+  if limit_cents > 0:
+    used_cents = number(spend.get("individualUsed"))
+    limits.append(dict(on_demand_names(used_cents, limit_cents), percent=min(1.0, used_cents / limit_cents), resetsAt=resets_at, onDemandLimitCents=limit_cents))
+  return limits
+
+
+# The on-demand meter names its dollars, so a kept one that resets to zero
+# is renamed with the spend it now stands at.
+def on_demand_names(used_cents: float, limit_cents: float) -> dict[str, str]:
+  label = f"On-demand ${used_cents / 100:.2f} / ${limit_cents / 100:.2f}"
+  return {"label": label, "title": f"{label} Monthly"}
+
+
+def limits_cache(key: str) -> LimitsCache:
+  return LimitsCache(AGENT_ID, key)
+
+
+# The kept limits as they read now: one whose billing cycle has ended is back
+# at zero, with the next cycle's reset unknown until a check succeeds, and an
+# on-demand meter among them is renamed for its spend of zero.
+def kept_limits(cache: LimitsCache) -> list[dict[str, Any]]:
+  raw = cache.data.get("limits")
+  raw = [entry for entry in raw if isinstance(entry, dict)] if isinstance(raw, list) else []
+  kept = []
+  for entry, opened in zip(raw, cache.limits):
+    cents = number(entry.get("onDemandLimitCents"))
+    if cents > 0 and entry.get("resetsAt") and not opened.get("resetsAt"):
+      opened = dict(opened, **on_demand_names(0, cents))
+    kept.append(opened)
+  return kept
+
+
+# ---------------------------------------------------------------- assembly
+
+
+def scan(api_base_url: str, auth_path: Path, limits_only: bool, state_db: Path | None = None, force: bool = False) -> dict[str, Any]:
+  token = cursor_token(auth_path, state_db)
+  if not token:
+    if cursor_in_use(auth_path):
+      return base_record(ready=True, usageStatusText="Waiting for auth", authHelpText=AUTH_HELP)
+    return base_record()
+
+  client = CursorClient(token, api_base_url)
+  key = account_key(token)
+  cache = limits_cache(key)
+  kept = kept_limits(cache)
+  fetched_at = cache.fetched_at
+  kept_tier = str(cache.data.get("tierLabel") or "")
+  today = datetime.now().astimezone().date()
+  # --limits-only runs while a meter is near its limit, which can last hours,
+  # so the tokens it carries are only so old before they are fetched again.
+  scan_age = scan_max_age(force, limits_only)
+
+  # A failed check keeps the last good limits, marked stale so the panel
+  # gives their age on hover, and the week of tokens already on disk.
+  def failed(status: str, detail: str, retry: bool = False) -> dict[str, Any]:
+    record = base_record(
+      ready=True,
+      tierLabel=kept_tier,
+      usageStatusText=status,
+      authHelpText=detail + (" Showing the last known limits." if kept else ""),
+      limits=kept,
+      limitsStale=True,
+      limitsFetchedAt=fetched_at if kept else 0,
+    )
+    if retry:
+      record["retryAdvised"] = True
+    record.update(carried_stats(key, today))
+    return record
+
+  # CURSOR_API_ENDPOINT moves the endpoint, never the sign-in onto a
+  # connection anyone on the way can read.
+  if not trusted_endpoint(api_base_url):
+    return failed("" if kept else "Cursor limits unavailable", "CURSOR_API_ENDPOINT must use HTTPS (plain HTTP only for loopback).")
+
+  if token_lapsed(token):
+    return failed(
+      "Limits paused",
+      "Cursor's access token has lapsed. Open the Cursor editor, or run `cursor-agent`, to renew it; signing in again is not needed.",
+    )
+
+  # A panel opened and shut repeatedly must not turn into a request per
+  # flick, so an answer this recent is the answer, even one with no meters.
+  if cache.fresh(force, allow_empty=True):
+    record = base_record(ready=True, tierLabel=kept_tier, limits=kept, limitsFetchedAt=fetched_at)
+    record.update(week_stats(client, today, key, scan_age))
+    return record
+
+  try:
+    period = client.period()
+    plan = client.plan_info()
+    # Only the plan says the included allowance is weekly, and the week's
+    # reset with it, so one last known weekly keeps its limits, stale,
+    # rather than reading them as Monthly on the billing cycle.
+    if plan is None and cache.data.get("weekly") is True:
+      raise CursorError("Cursor's plan couldn't be checked.")
+    limits = summarize_limits(period, plan)
+  except CursorError as error:
+    if error.auth:
+      return failed("Sign-in expired", "Cursor refused the saved sign-in. " + AUTH_HELP)
+    return failed("" if kept else "Cursor limits unavailable", str(error), retry=error.transport)
+  except Exception as error:
+    print(f"omarchy-agent-usage-cursor: {type(error).__name__}", file=sys.stderr)
+    return failed("" if kept else "Cursor limits unavailable", "Cursor's usage check failed.")
+
+  tier = kept_tier if plan is None else str(plan.get("planName") or "")
+  weekly = cache.data.get("weekly") is True if plan is None else weekly_included(plan)
+  # The cache only backs later runs; failing to keep it never costs this
+  # run's live answer.
+  record = base_record(ready=True, tierLabel=tier, limits=limits, limitsFetchedAt=cache.save(limits, tierLabel=tier, weekly=weekly))
+  record.update(week_stats(client, today, key, scan_age))
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the Cursor usage record as JSON")
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.add_argument("--auth-path", default=os.environ.get("CURSOR_AUTH_PATH", ""))
+  parser.add_argument("--api-base-url", default=os.environ.get("CURSOR_API_ENDPOINT", API_BASE_URL))
+  args = parser.parse_args()
+
+  auth_path = Path(args.auth_path).expanduser() if args.auth_path else cursor_auth_path()
+  try:
+    record = scan(args.api_base_url, auth_path, args.limits_only, force=args.force)
+  # scan() keeps the last limits through any failed check; only a failure
+  # before it knows the account ends up here.
+  except Exception as error:
+    record = base_record(usageStatusText="Cursor limits unavailable", authHelpText="Cursor's usage check failed.")
+    print(f"omarchy-agent-usage-cursor: {type(error).__name__}", file=sys.stderr)
+  emit(record)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

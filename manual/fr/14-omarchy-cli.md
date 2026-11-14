@@ -1,10 +1,10 @@
-# CLI Omarchy
+# Omarchy CLI
 
 Omarchy se contrôle habituellement via les raccourcis clavier et le menu Omarchy (`Super + Space`). Mais vous pouvez aussi le contrôler via la CLI `omarchy`. C'est particulièrement utile lorsque vous faites travailler un agent IA avec vous sur la personnalisation ou la configuration.
 
 La CLI a accès à tous les outils internes utilisés à la fois via le menu et autrement. Vous pouvez voir tout ce qui est disponible en exécutant `omarchy` dans le terminal.
 
-Cela ressemble à ceci :
+Cela ressemble à quelque chose comme ceci :
 
 ```
 ~ ❯ omarchy
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-Et vous pouvez approfondir chaque groupe :
+Et vous pouvez explorer chaque groupe plus en détail :
 
 ```
 ~ ❯ omarchy capture
@@ -59,4 +59,4 @@ Chaque commande accepte aussi `--help`, que vous interrogiez un groupe entier (`
 
 ### Ouvrir le menu depuis le terminal
 
-Le menu Omarchy est également scriptable, ce qui est pratique pour vos propres raccourcis. `omarchy menu` l'ouvre à la racine, et vous pouvez sauter directement à n'importe quel point de l'arborescence en le nommant : `omarchy menu summon style.theme` va directement au sélecteur de thème, `omarchy menu toggle system` ouvre le menu système et le referme s'il est déjà ouvert, et `omarchy menu close` le range.
+Le menu Omarchy est également scriptable, ce qui est pratique pour vos propres raccourcis clavier. `omarchy menu` l'ouvre à la racine, et vous pouvez sauter directement à n'importe quel point de l'arborescence en le nommant : `omarchy menu summon appearance.theme` va directement au sélecteur de thème, `omarchy menu toggle system` ouvre le menu système et le referme s'il est déjà affiché, et `omarchy menu close` le masque.

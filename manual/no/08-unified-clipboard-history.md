@@ -1,24 +1,27 @@
-# Samlet utklippstavle og historikk
+# Enhetlig utklippstavle og historikk
 
-Vanligvis på Linux trenger du `Ctrl + Shift + C/V` for å kopiere og lime inn i terminalen og `Ctrl + C/V` for å gjøre det alle andre steder. Det er vanskelig å venne seg til for alle som ikke er født og oppvokst på Linux! Det samme gjelder byttet fra super til ctrl, hvis du kommer fra Mac.
+Vanligvis på Linux må du bruke `Ctrl + Shift + C/V` for å kopiere og lime inn i terminalen, og `Ctrl + C/V` for å gjøre det alle andre steder. Det er vanskelig å venne seg til for alle som ikke er født og oppvokst på Linux! Det samme gjelder byttet fra Super til Ctrl hvis du kommer fra Mac.
 
-Omarchy løser begge problemene med samlede utklippstavlesnarveier som fungerer (nesten) overalt. De er:
+Omarchy løser begge problemene med enhetlige hurtigtaster for utklippstavlen som fungerer (nesten) overalt. De er:
 
-| Snarvei | Kommando |
+| Hurtigtast | Kommando |
 | ------- | ----------- |
+| Super + A | Velg alt |
 | Super + C | Kopier |
 | Super + X | Klipp ut |
 | Super + V | Lim inn |
-| Super + Ctrl + V | Utklippshistorikk |
+| Super + Ctrl + V | Utklippstavlehistorikk |
 
-_Merk at de fleste agentrammeverk bruker `Ctrl + V` for å lime inn bilder, men `Super + V` for å lime inn tekst._
+_Merk at de fleste agent-harnessene bruker `Ctrl + V` til å lime inn bilder, men `Super + V` til å lime inn tekst._
 
-### Utklippshistorikk
+Bruk `Super + A`, og deretter `Super + C`, for å kopiere alt i et fokusert tekstfelt eller en annen app som støtter `Ctrl + A`. I en terminal flytter `Ctrl + A` deg til starten av kommandolinjen i stedet for å velge teksten i den.
 
-Utklippshistorikken leveres av Omarchy-skallet og fungerer for både tekst og bilder. Du utløser den med `Super + Ctrl + V`, velger oppføringen din med retur, og da legges den på utklippstavlen klar til å limes inn med `Super + V`.
+### Utklippstavlehistorikk
+
+Utklippstavlehistorikken leveres av Omarchy-skallet og fungerer for både tekst og bilder. Du utløser den med `Super + Ctrl + V`, velger oppføringen din med Enter, og så legges den på utklippstavlen, klar til å limes inn med `Super + V`.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-Du kan også søke i historikken ved å bare begynne å skrive:
+Du kan også søke i historikken bare ved å begynne å skrive:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)

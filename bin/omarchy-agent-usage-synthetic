@@ -1,0 +1,318 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Synthetic usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Synthetic usage into one display-ready JSON record.
+
+Local stats come from pi/omp sessions and opencode messages that ran on the
+synthetic provider, and from Claude Code, MiniMax Code and Codex sessions sent
+to Synthetic's API. The account's allowances (the rolling five-hour request
+limit, the weekly credits, search and free tool calls) come from Synthetic's
+documented GET https://api.synthetic.new/v2/quotas, which doesn't count
+against them. The agents panel only ever reads the JSON this prints.
+"""
+
+import argparse
+import math
+import os
+import re
+import sys
+import urllib.request
+from datetime import datetime
+from pathlib import Path
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  Stats,
+  base_record,
+  cached_scan,
+  data_home,
+  emit,
+  number,
+  obj,
+  open_json,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  routed_match,
+  routed_sources,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  scan_routed,
+  trusted_endpoint,
+)
+
+AGENT_ID = "synthetic"
+AGENT_NAME = "Synthetic"
+PROVIDER = "synthetic"
+API_BASE_URL = "https://api.synthetic.new"
+AUTH_HELP = "Set SYNTHETIC_API_KEY, or sign in to Synthetic in pi, omp or opencode, to read its quotas."
+REFUSED_HELP = "Synthetic rejected the API key. Set a current one in SYNTHETIC_API_KEY or sign in to Synthetic again."
+
+
+def finite(value):
+  if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    return None
+  return float(value)
+
+
+def model_name(raw):
+  # Synthetic serves Hugging Face models as "hf:org/model"; the model is the
+  # last part. An alias (syn:large:text) is kept whole.
+  value = str(raw or "").strip().removeprefix("hf:").rstrip("/").split("/")[-1]
+  return value or AGENT_ID
+
+
+# ------------------------------------------------------------- local stats
+
+
+def pi_agent_dirs():
+  pi_agent = os.environ.get("PI_CODING_AGENT_DIR")
+  dirs = [Path(pi_agent).expanduser() if pi_agent else Path.home() / ".pi" / "agent", Path.home() / ".omp" / "agent"]
+  # `omp --profile=<name>` (and pi's equivalent) moves the agent tree under
+  # <base>/profiles/<name>/.
+  for base in (Path.home() / ".pi", Path.home() / ".omp"):
+    try:
+      dirs.extend(sorted(child / "agent" for child in (base / "profiles").iterdir() if child.is_dir()))
+    except OSError:
+      pass
+  return dirs
+
+
+# pi, omp, and opencode name the provider alike. Exact match: opencode
+# provider ids are free-form.
+def billed_here(provider, model, entry):
+  return provider == PROVIDER
+
+
+def run_local_scans(reuse=True):
+  stats = Stats()
+  pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"synthetic"', billed_here)
+  # The closing quote makes the database's prefilter match the whole id.
+  db_rows, db_complete = scan_opencode([PROVIDER + '"'], billed_here)
+  # Claude Code, MiniMax Code and Codex sent to Synthetic's host, or Claude
+  # Code answered by an hf:/syn: model.
+  routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
+  for row in pi_rows + db_rows + routed_rows:
+    stats.add_row(row, model_name(row.model))
+  return stats.snapshot(), pi_complete and db_complete and routed_complete
+
+
+def cached_local_stats(max_age):
+  # The digest covers every data path the scan reads: the pi/omp session
+  # roots, the opencode DB, and Claude Code's, MiniMax Code's and Codex's
+  # sessions, whose owner depends on where they are sent. A forced scan reads
+  # every Codex rollout again too.
+  sources = [Path.home(), opencode_db(), *pi_session_roots(), *routed_sources()]
+  return cached_scan(AGENT_ID, sources, max_age, lambda: run_local_scans(reuse=max_age > 0), match=routed_match())
+
+
+# ------------------------------------------------------------- credentials
+
+
+PI_ENV_REFERENCE = re.compile(r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))")
+
+
+def stored_key(path):
+  # pi, omp and opencode keep {"synthetic": {"key": ...}}. pi's key may also
+  # be a $ENV_VAR reference, resolved here, or a !command, which stays pi's.
+  entry = obj(read_json(path).get(PROVIDER))
+  key = str(entry.get("key") or "").strip()
+  if not key or key.startswith("!"):
+    return ""
+  unresolved = []
+
+  def substitute(match):
+    value = os.environ.get(match.group(1) or match.group(2), "")
+    if not value:
+      unresolved.append(match.group(0))
+    return value
+
+  key = PI_ENV_REFERENCE.sub(substitute, key).strip()
+  return "" if unresolved else key
+
+
+def api_key():
+  explicit = str(os.environ.get("SYNTHETIC_API_KEY", "")).strip()
+  if explicit:
+    return explicit
+  # The default pi and omp sign-ins, then opencode's, then each named profile's:
+  # a profile's sessions are counted, so a sign-in made only there must read
+  # its quotas too, without outranking the defaults.
+  agent_dirs = pi_agent_dirs()
+  paths = [agent_dir / "auth.json" for agent_dir in agent_dirs[:2]]
+  paths.append(data_home() / "opencode" / "auth.json")
+  paths.extend(agent_dir / "auth.json" for agent_dir in agent_dirs[2:])
+  for path in paths:
+    key = stored_key(path)
+    if key:
+      return key
+  return ""
+
+
+# ------------------------------------------------------------------ quotas
+
+
+def used_fraction(used, maximum):
+  used, maximum = finite(used), finite(maximum)
+  if used is None or maximum is None or maximum <= 0:
+    return None
+  return max(0.0, min(1.0, used / maximum))
+
+
+def reset_time(value):
+  raw = str(value or "").strip()
+  if not raw:
+    return ""
+  try:
+    datetime.fromisoformat(raw.replace("Z", "+00:00"))
+  except ValueError:
+    return ""
+  return raw
+
+
+def request_window(label, payload, title=None):
+  payload = obj(payload)
+  percent = used_fraction(payload.get("requests"), payload.get("limit"))
+  if percent is None:
+    return None
+  window = {"label": label, "percent": percent, "resetsAt": reset_time(payload.get("renewsAt"))}
+  if title:
+    window["title"] = title
+  return window
+
+
+def parse_quotas(payload):
+  limits = []
+  # The rolling limit and the weekly credits regenerate a little at a time.
+  # nextTickAt and nextRegenAt say when the next share comes back, not when
+  # the window starts over, so they are no reset time: reading them as one
+  # would zero a window that has only regained a sliver.
+  rolling = obj(payload.get("rollingFiveHourLimit"))
+  remaining, maximum = finite(rolling.get("remaining")), finite(rolling.get("max"))
+  if remaining is not None and maximum is not None and maximum > 0:
+    percent = 1.0 if rolling.get("limited") is True else max(0.0, min(1.0, 1.0 - remaining / maximum))
+    limits.append({"label": "Rolling (5h)", "percent": percent, "resetsAt": ""})
+  weekly = finite(obj(payload.get("weeklyTokenLimit")).get("percentRemaining"))
+  if weekly is not None:
+    limits.append({"label": "Weekly credits", "percent": max(0.0, min(1.0, 1.0 - weekly / 100.0)), "resetsAt": ""})
+
+  # The documented bucket. Accounts on the credit system still receive it, at
+  # zero, so it stands in only when neither of those parsed.
+  if not limits:
+    window = request_window("Subscription requests", payload.get("subscription"))
+    if window:
+      limits.append(window)
+  for window in (
+    request_window("Search (hourly)", obj(payload.get("search")).get("hourly"), "Search"),
+    request_window("Free tool calls", payload.get("freeToolCalls")),
+  ):
+    if window:
+      limits.append(window)
+  return limits
+
+
+def probe_quotas(key, base_url):
+  # SYNTHETIC_API_BASE_URL moves the endpoint, never the key onto a
+  # connection anyone on the way can read.
+  if not trusted_endpoint(base_url):
+    return {"ok": False, "helpText": "SYNTHETIC_API_BASE_URL must use HTTPS (plain HTTP only for loopback). Local Synthetic stats are still shown."}
+  request = urllib.request.Request(
+    base_url.rstrip("/") + "/v2/quotas",
+    headers={
+      "Authorization": "Bearer " + key,
+      "Accept": "application/json",
+      "User-Agent": "omarchy-agent-usage-synthetic/1.0",
+    },
+  )
+  try:
+    payload = open_json(request, timeout=10)
+  except HttpError as error:
+    if error.status in (401, 403):
+      return {"ok": False, "refused": True, "helpText": REFUSED_HELP}
+    if error.status:
+      return {"ok": False, "helpText": f"Synthetic's quota endpoint returned status {error.status}. Local Synthetic stats are still shown."}
+    if error.transport:
+      # A transport failure reached no server at all: no route, no DNS.
+      return {"ok": False, "transport": True, "helpText": "Couldn't reach Synthetic's quota endpoint. Retrying shortly. Local Synthetic stats are still shown."}
+    return {"ok": False, "helpText": "Synthetic returned an unreadable quota answer. Local Synthetic stats are still shown."}
+  limits = parse_quotas(payload) if isinstance(payload, dict) else []
+  if not limits:
+    return {"ok": False, "helpText": "Synthetic's quota endpoint returned no quotas. Local Synthetic stats are still shown."}
+  return {"ok": True, "limits": limits}
+
+
+def collect_limits(key, base_url, force):
+  result = {"limits": [], "usageStatusText": "", "authHelpText": "", "stale": False, "fetchedAtMs": 0, "retryAdvised": False}
+  if not key:
+    return result
+
+  # One cache per key, so another key never shows this one's quotas.
+  cache = LimitsCache(AGENT_ID, key)
+
+  # --force is a person asking for fresh numbers, so it skips the reuse window.
+  if cache.fresh(force):
+    result.update(limits=cache.limits, fetchedAtMs=cache.fetched_at)
+    return result
+
+  probe = probe_quotas(key, base_url)
+  if probe["ok"]:
+    result.update(limits=probe["limits"], fetchedAtMs=cache.save(probe["limits"], only_if_newer=True))
+    return result
+
+  # Last good numbers, marked stale, beat an empty section while the check
+  # fails. A kept window whose reset has passed is untouched, not unknown: it
+  # comes back at zero with no reset time until the next check.
+  fallback, fetched_at = cache.kept()
+  result.update(limits=fallback, stale=bool(fallback), fetchedAtMs=fetched_at, retryAdvised=bool(probe.get("transport")))
+  if probe.get("refused"):
+    result.update(usageStatusText="Sign-in expired", authHelpText=probe["helpText"])
+  elif not fallback:
+    result.update(usageStatusText="Synthetic limits unavailable", authHelpText=probe["helpText"])
+  return result
+
+
+# ------------------------------------------------------------------ record
+
+
+def main():
+  parser = argparse.ArgumentParser(description="Print the Synthetic usage record as JSON")
+  parser.add_argument("--force", action="store_true", help="rescan local sessions and re-check quotas, ignoring caches")
+  parser.add_argument("--limits-only", action="store_true", help="reuse a recent local scan; only the quotas must be fresh")
+  args = parser.parse_args()
+
+  stats = cached_local_stats(scan_max_age(args.force, args.limits_only))
+  key = api_key()
+  limits = collect_limits(key, os.environ.get("SYNTHETIC_API_BASE_URL") or API_BASE_URL, args.force)
+  in_use = number(stats.get("totalPrompts")) > 0
+
+  record = base_record(
+    AGENT_ID,
+    AGENT_NAME,
+    ready=in_use or bool(key),
+    # A key with no sessions here has no local stats to show.
+    hasLocalStats=number(stats.get("totalSessions")) > 0 or in_use or bool(stats.get("modelUsage")),
+    # The quotas answer names no plan.
+    tierLabel="",
+    usageStatusText=limits["usageStatusText"],
+    authHelpText=limits["authHelpText"],
+    limits=limits["limits"],
+    limitsStale=limits["stale"],
+    limitsFetchedAt=limits["fetchedAtMs"],
+  )
+  if in_use and not key:
+    record.update(usageStatusText="Waiting for auth", authHelpText=AUTH_HELP)
+  if limits["retryAdvised"]:
+    record["retryAdvised"] = True
+  record.update(stats)
+  emit(record, sort_keys=True)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

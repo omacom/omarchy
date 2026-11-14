@@ -1,12 +1,12 @@
 # Temalar
 
-Omarchy yirmi iki güzel temasıyla birlikte gelir. Bunlar arasında Omarchy Menüsündeki (`Super + Space`) _Stil > Tema_ yoluyla seçim yapabilir veya `Super + Ctrl + Shift + Space` kullanarak doğrudan tema seçiciye atlayabilirsiniz.
+Omarchy yirmi iki güzel temayla birlikte gelir. Bunlar arasında Omarchy Menüsü'ndeki (`Super + Space`) _Appearance > Theme_ üzerinden seçim yapabilir veya `Super + Ctrl + T` kullanarak doğrudan tema seçiciye atlayabilirsiniz.
 
-Her tema masaüstünü, terminali, neovim'i, aktivite ekranını (btop), Chromium'u ve tüm Omarchy kabuğunu stilize eder: üst çubuk, menü, bildirimler, OSD ve kilit ekranı. (Obsidian için, uygulama içindeki _Appearance > Themes_ yoluyla Omarchy temasını elle seçmelisiniz).
+Her tema masaüstünü, terminali, neovim'i, etkinlik ekranını (btop), Chromium'u ve tüm Omarchy kabuğunu biçimlendirir: üst çubuk, menü, bildirimler, OSD ve kilit ekranı. (Obsidian için, uygulama içindeki _Appearance > Themes_ üzerinden Omarchy temasını manuel olarak seçmelisiniz).
 
-Temaların, `Super + Ctrl + Space` kullanarak aralarından seçim yapabileceğiniz bir dizi arka plan görüntüsü vardır.
+Temaların, `Super + Ctrl + W` kullanarak aralarında seçim yapabileceğiniz bir dizi arka plan görseli vardır.
 
-Daha fazla temayı [ek temalar sayfasında](https://omarchy.org/themes/) bulabilir veya hatta [kendi temanızı yapabilirsiniz](43-making-your-own-theme.md).
+Daha da fazla temayı [ek temalar sayfasında](https://omarchy.org/themes/) bulabilir, hatta [kendi temanızı yapabilirsiniz](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,9 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Kilidi Aç
+### Kilit Açma Ekranları
 
-Temaların, önyükleme şifre çözme işlemi için kullanılan özel bir kilit açma tasarımı da olabilir. Bunlardan birini _Stil > Kilidi Aç_ altında seçebilirsiniz. Şöyle görünürler:
+Temaların ayrıca önyükleme şifre çözme işlemi için kullanılan özel bir kilit açma tasarımı da olabilir. Bunlardan birini _Appearance > Unlock_ altında seçebilirsiniz. Şöyle görünürler:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

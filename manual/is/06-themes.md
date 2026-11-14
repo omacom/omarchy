@@ -1,12 +1,12 @@
 # Þemu
 
-Omarchy kemur með tuttugu og tvö falleg þemu. Þú getur valið á milli þeirra með _Stíll > Þema_ í Omarchy-valmyndinni (`Super + Space`) eða hoppað beint í þemavalið með `Super + Ctrl + Shift + Space`.
+Omarchy kemur með tuttugu og tvö falleg þemu. Þú getur valið á milli þeirra í gegnum _Útlit > Þema_ í Omarchy-valmyndinni (`Super + Space`) eða farið beint í þemavalið með `Super + Ctrl + T`.
 
-Hvert þema stílar skjáborðið, terminal, neovim, virkniskjáinn (btop), Chromium og alla Omarchy-skelina: valmyndastikuna, valmyndina, tilkynningar, OSD og læsingarskjáinn. (Fyrir Obsidian verður þú að velja Omarchy-þemað handvirkt með _Appearance > Themes_ inni í forritinu).
+Hvert þema stílar skjáborðið, útstöðina, neovim, virkniskjáinn (btop), Chromium og alla Omarchy-skelina: efstu stikuna, valmyndina, tilkynningar, OSD og læsiskjáinn. (Í Obsidian verður þú að velja Omarchy-þemað handvirkt í gegnum _Útlit > Þemu_ inni í forritinu).
 
-Þemu hafa safn af bakgrunnsmyndum sem þú getur valið á milli með `Super + Ctrl + Space`.
+Þemu eru með safn bakgrunnsmynda sem þú getur valið á milli með `Super + Ctrl + W`.
 
-Þú getur fundið enn fleiri þemu á [síðunni fyrir aukaþemu](https://omarchy.org/themes/) eða jafnvel [búið til þitt eigið þema](43-making-your-own-theme.md).
+Þú getur fundið enn fleiri þemu á [síðunni með aukaþemum](https://omarchy.org/themes/) eða jafnvel [búið til þitt eigið þema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Aflæsingar
 
-Þemu geta einnig haft sérsniðna aflæsingarhönnun, sem er notuð fyrir afkóðunarferlið við ræsingu. Þú getur valið eina af þessum undir _Stíll > Opna_. Þær líta svona út:
+Þemu geta líka verið með sérsniðna aflæsingarhönnun sem er notuð við afkóðun við ræsingu. Þú getur valið eina slíka undir _Útlit > Aflæsing_. Þær líta svona út:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

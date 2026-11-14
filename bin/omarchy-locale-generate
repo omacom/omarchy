@@ -9,10 +9,12 @@ set -euo pipefail
 # Runs as root through the passwordless rule in etc/sudoers.d/omarchy-locale-generate,
 # which names each registry code as the whole argument. Under sudo's
 # secure_path a dev link prepends a user-writable checkout bin/ to PATH, and
-# every helper this calls by bare name (grep, sed, locale-gen) is a system
-# tool, so pin PATH to trusted system directories while holding root.
+# every helper this calls by bare name (grep, sed, localedef) is a system
+# tool, so pin PATH to trusted system directories while holding root. sudo
+# keeps the caller's directory, where localedef looks for a source first.
 if (( EUID == 0 )); then
   export PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin
+  cd /
 fi
 
 # Root reads only the packaged registry and the real locale.gen; the
@@ -31,7 +33,7 @@ if (( $# != 1 )) || [[ ! $code =~ ^[a-z]{2,3}(-[A-Za-z]{2})?$ ]]; then
 fi
 
 # The code only selects a locale from the registry; nothing the caller passes
-# reaches locale.gen or locale-gen itself.
+# reaches locale.gen or localedef itself.
 locale=$(jq -r --arg code "$code" '.[$code].locale // empty' "$registry")
 if [[ ! $locale =~ ^[a-z]{2,3}_[A-Z]{2}\.UTF-8$ ]]; then
   echo "Unknown language code: $code" >&2
@@ -45,4 +47,20 @@ if grep -qE "^#$base(\.UTF-8)? UTF-8" "$locale_gen" 2>/dev/null; then
 elif ! grep -qE "^$base(\.UTF-8)? UTF-8" "$locale_gen" 2>/dev/null; then
   echo "$locale UTF-8" >>"$locale_gen"
 fi
-locale-gen "$locale" >/dev/null
+
+# locale-gen would delete the archive and rebuild every locale, ignoring each
+# failure; add only this one, and ask the archive whether it landed, since
+# localedef exits 1 both for warnings and for a locale it could not add.
+# Like locale-gen, a source under /usr/local overrides the packaged one.
+input=$base
+for name in "$locale" "$base"; do
+  if [[ -e /usr/local/share/i18n/locales/$name ]]; then
+    input=/usr/local/share/i18n/locales/$name
+    break
+  fi
+done
+localedef -i "$input" -c -f UTF-8 -A /usr/share/locale/locale.alias "$locale" >/dev/null || true
+if ! localedef --list-archive | grep -Fx "$base.utf8" >/dev/null; then
+  echo "Could not generate $locale" >&2
+  exit 1
+fi

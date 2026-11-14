@@ -1,91 +1,91 @@
 # Veb-ilovalar
 
-Omarchy menyusidagi (`Super + Space`) _Oʻrnatish > Web App_ yordamida oʻz veb-ilovalaringizni qoʻshishingiz mumkin. U sizdan ilova nomi, ilova URL si va agar uni favicon orqali ololmasa, piktogramma URL sini soʻraydi. Koʻplab mashhur veb-ilovalar uchun ajoyib PNG piktogrammalarni [Dashboard Icons](https://dashboardicons.com) da olishingiz mumkin.
+Siz Omarchy menyusidagi (`Super + Space`) _O‘rnatish > Veb-ilova_ orqali o‘zingizning veb-ilovalaringizni qo‘shishingiz mumkin. U sizdan ilova nomini, ilova URL manzilini va, agar favicon orqali ololmasa, ikona URL manzilini so‘raydi. Ko‘plab mashhur veb-ilovalar uchun ajoyib PNG ikonalarni [Dashboard Icons](https://dashboardicons.com) saytida topishingiz mumkin.
 
-Keyin ularga ilova ishga tushirgichi (`Super + Space`) orqali kirish mumkin boʻladi va chiroyli ramkasiz veb-ilova oynasidan foydalaniladi.
+Keyin ular ilovalarni ishga tushirgich (`Super + Space`) orqali mavjud bo‘ladi va chiroyli ramkasiz veb-ilova oynasidan foydalanadi.
 
-Agar veb-ilovani olib tashlamoqchi boʻlsangiz, shunchaki Omarchy menyusidagi _Olib tashlash > Web App_ ga oʻting.
+Agar veb-ilovani olib tashlamoqchi bo‘lsangiz, shunchaki Omarchy menyusida _Olib tashlash > Veb-ilova_ bo‘limiga o‘ting.
 
-Veb-ilova yorliqlaridan foydalanishdan oldin oddiy brauzer yordamida barcha hisoblaringizga kirib qoʻyganingiz maʼqul. Yupqa oʻrovchi ramka 1password bilan yaxshi ishlamaydi, shuning uchun avval toʻgʻridan-toʻgʻri kirib qoʻyish osonroqdir.
+Veb-ilova yorliqlaridan foydalanishdan oldin barcha hisoblaringizga oddiy brauzer orqali kirib olganingiz ma’qul. Yupqa o‘ram ramkasi 1password bilan yaxshi ishlamaydi, shuning uchun avval to‘g‘ridan-to‘g‘ri kirib olish osonroq.
 
-Bu veb-ilovalar uchun barcha klaviatura tezkor tugmalari `~/.config/hypr/bindings.lua` da oʻzgartirilishi mumkin.
+Bu veb-ilovalar uchun barcha klaviatura tezkor tugmalarini `~/.config/hypr/bindings.lua` faylida o‘zgartirish mumkin.
 
-Veb-ilovada boʻlganingizda, joriy URL ni `Shift + Alt + L` yordamida almashish buferiga nusxalashingiz mumkin.
+Veb-ilovada bo‘lganingizda, `Shift + Alt + L` yordamida joriy URL manzilini almashuv buferiga nusxalashingiz mumkin.
 
-Standart tarzda Omarchy allaqachon standart ilovalar toʻplami bilan keladi:
+Odatiy holatda, Omarchy allaqachon turli xil standart ilovalar to‘plami bilan keladi:
 
 ## HEY
 
-[HEY](https://www.hey.com/) Gmail, Outlook yoki Apple Mail dan charchagan odamlar uchun ajoyib muqobil boʻlib xizmat qiluvchi elektron pochta va kalendar xizmatidir. U Omarchy kelib chiqqan [37signals](https://37signals.com/) tomonidan yaratilgan.
+[HEY](https://www.hey.com/) Gmail, Outlook yoki Apple Mail dan charchaganlar uchun ajoyib muqobil bo‘ladigan elektron pochta va taqvim xizmatidir. U Omarchy paydo bo‘lgan [37signals](https://37signals.com/) tomonidan yaratilgan.
 
-HEY Email ni `Super + Shift + E` yordamida boshlashingiz, `Super + Shift + Alt + E` yordamida toʻgʻridan-toʻgʻri yangi elektron pochta yozishga sakrashingiz va `Super + Shift + C` yordamida HEY Calendar ni boshlashingiz mumkin.
+HEY Email ni `Super + Shift + E` yordamida ishga tushirishingiz, `Super + Shift + Alt + E` yordamida to‘g‘ridan-to‘g‘ri yangi xat yozishga o‘tishingiz va HEY Calendar ni `Super + Shift + C` yordamida ishga tushirishingiz mumkin.
 
 ## Basecamp
 
-[Basecamp](https://basecamp.com/) kichik jamoalarga tezroq harakat qilish va koʻproq yutuqqa erishishga yordam beruvchi loyiha boshqaruvi xizmatidir. Trello, Slack, Asana, Notion yoki nimaningdir aralashmasini yamoq qilib birlashtirish oʻrniga, hammasini Basecamp bilan bir joyda olishingiz mumkin. U Omarchy kelib chiqqan [37signals](https://37signals.com/) tomonidan yaratilgan.
+[Basecamp](https://basecamp.com/) kichik jamoalarga tezroq harakat qilish va ko‘proq natijaga erishishga yordam beradigan loyihalarni boshqarish xizmatidir. Trello, Slack, Asana, Notion yoki boshqa nimaningdir aralashmasini yig‘ib yurish o‘rniga, Basecamp bilan hammasini bir joyda olishingiz mumkin. U Omarchy paydo bo‘lgan [37signals](https://37signals.com/) tomonidan yaratilgan.
 
-Basecamp ni ilova ishga tushirgichi (`Super + Space`) yordamida boshlashingiz mumkin
+Basecamp ni ilovalarni ishga tushirgich (`Super + Space`) yordamida ishga tushirishingiz mumkin
 
 ## ChatGPT
 
-[ChatGPT](https://chatgpt.com) dunyodagi eng mashhur AI chat botidir.
+[ChatGPT](https://chatgpt.com) dunyodagi eng mashhur AI chat-botdir.
 
-ChatGPT ni `Super + Shift + A` yordamida boshlashingiz mumkin.
+ChatGPT ni `Super + Shift + A` yordamida ishga tushirishingiz mumkin.
 
 ## Grok
 
-[Grok](https://grok.com) xAI ning chat botidir.
+[Grok](https://grok.com) xAI ning chat-botidir.
 
-Grok ni `Super + Shift + Alt + A` yordamida boshlashingiz mumkin.
+Grok ni `Super + Shift + Alt + A` yordamida ishga tushirishingiz mumkin.
 
 ## WhatsApp
 
-[WhatsApp](https://www.whatsapp.com/) dunyodagi eng mashhur xabar almashish xizmatlaridan biri boʻlib, veb versiyasi Linux uchun ajoyib variantdir.
+[WhatsApp](https://www.whatsapp.com/) dunyodagi eng mashhur xabar almashish xizmatlaridan biri bo‘lib, veb-versiyasi Linux uchun ajoyib tanlovdir.
 
-WhatsApp ni `Super + Shift + Alt + G` yordamida boshlashingiz mumkin.
+WhatsApp ni `Super + Shift + Alt + G` yordamida ishga tushirishingiz mumkin.
 
 ## Google ilovalari
 
 Google Messages, Google Photos, Google Maps va Google Contacts ham veb-ilovalar sifatida kiritilgan.
 
-Google Messages ni `Super + Shift + Ctrl + G`, Google Photos ni `Super + Shift + P` va Google Maps ni `Super + Shift + S` yordamida boshlashingiz mumkin. Google Contacts ilova ishga tushirgichi (`Super + Space`) orqali mavjud.
+Google Messages ni `Super + Shift + Ctrl + G` yordamida, Google Photos ni `Super + Shift + P` yordamida va Google Maps ni `Super + Shift + S` yordamida ishga tushirishingiz mumkin. Google Contacts ilovalarni ishga tushirgich (`Super + Space`) orqali mavjud.
 
 ## X
 
-X yangiliklar tarqaladigan joydir.
+X — yangiliklar tarqaladigan joy.
 
-X ni `Super + Shift + X` yordamida boshlashingiz va `Super + Shift + Alt + X` bilan toʻgʻridan-toʻgʻri yangi post yozishga oʻtishingiz mumkin.
+X ni `Super + Shift + X` yordamida ishga tushirishingiz va `Super + Shift + Alt + X` yordamida to‘g‘ridan-to‘g‘ri yangi post yozishga o‘tishingiz mumkin.
 
 ## YouTube
 
-[YouTube](https://youtube.com/) dunyodagi eng mashhur video platformasidir.
+[YouTube](https://youtube.com/) dunyodagi eng mashhur video platformadir.
 
-YouTube ni `Super + Shift + Y` yordamida boshlashingiz mumkin.
+YouTube ni `Super + Shift + Y` yordamida ishga tushirishingiz mumkin.
 
 ## Zoom
 
-[Zoom](https://zoom.us/) AQSh da ishlatiladigan eng mashhur video chat tizimidir. Butun dunyo boʻylab ajoyib ulanishlar. Va 40 daqiqalik uchrashuvlarni pullik hisobsiz oʻtkazish mumkin. Omarchy Zoom ning veb mijozini oʻraydi va zoom uchrashuv havolalari toʻgʻridan-toʻgʻri unga ochiladi.
+[Zoom](https://zoom.us/) AQShda ishlatiladigan eng mashhur videochat tizimidir. Butun dunyo bo‘ylab ajoyib aloqalar. Va 40 daqiqalik uchrashuvlarni pullik hisobsiz ham o‘tkazish mumkin. Omarchy Zoom ning veb-mijozini o‘rab oladi va zoom uchrashuv havolalari to‘g‘ridan-to‘g‘ri unda ochiladi.
 
-Zoom ni ilova ishga tushirgichi (`Super + Space`) yordamida boshlaysiz.
+Zoom ni ilovalarni ishga tushirgich (`Super + Space`) yordamida ishga tushirasiz.
 
 ## Discord
 
-[Discord](https://discord.com/) koʻpchilik oʻyin va ochiq manbali hamjamiyatlar, jumladan [Omarchy ning oʻzi](https://discord.gg/tXFUdasqhY) toʻplanadigan joydir.
+[Discord](https://discord.com/) aksariyat gaming va open source hamjamiyatlari, jumladan [Omarchy ning o‘zi](https://discord.gg/tXFUdasqhY) ham to‘planadigan joydir.
 
-Discord ni ilova ishga tushirgichi (`Super + Space`) yordamida boshlaysiz.
+Discord ni ilovalarni ishga tushirgich (`Super + Space`) yordamida ishga tushirasiz.
 
 ## Microsoft ilovalari
 
-Outlook, Word, Excel, PowerPoint, Teams va OneDrive ni veb-ilovalar sifatida qoʻshish uchun _Oʻrnatish > Service > Microsoft_ ni tanlang. Har bir ilovaning oʻz ishga tushirgichi bor va tijorat Microsoft 365 URL lari hamda mavjud brauzer profilingizdan foydalanib toʻgʻridan-toʻgʻri ochiladi. Ular Omarchy ning boshqa veb-ilovalari bilan bir xil brauzer ilova oynalarida ochiladi; ular alohida Teams for Linux mijozini oʻrnatmaydi.
+Outlook, Word, Excel, PowerPoint, Teams va OneDrive ni veb-ilovalar sifatida qo‘shish uchun _O‘rnatish > Xizmat > Microsoft_ ni tanlang. Har bir ilovaning o‘z ishga tushirgichi bor va u tijoriy Microsoft 365 URL manzillari hamda mavjud brauzer profilingizdan foydalanib, to‘g‘ridan-to‘g‘ri ochiladi. Ular Omarchy ning boshqa veb-ilovalari kabi bir xil brauzer ilova oynalarida ochiladi; ular alohida Teams for Linux mijozini o‘rnatmaydi.
 
-Toʻplamni _Olib tashlash > Service > Microsoft_ bilan olib tashlang yoki alohida ilovalarni _Olib tashlash > Web App_ bilan olib tashlang. Faqat istagan ilovalaringizni _Oʻrnatish > Web App_ orqali ham oʻrnatishingiz mumkin.
+To‘plamni _Olib tashlash > Xizmat > Microsoft_ orqali olib tashlang yoki alohida ilovalarni _Olib tashlash > Veb-ilova_ orqali olib tashlang. Shuningdek, faqat o‘zingiz xohlagan ilovalarni _O‘rnatish > Veb-ilova_ orqali o‘rnatishingiz mumkin.
 
-Hukumat yoki suveren bulut uchun `~/.local/share/applications/` ostidagi tegishli ishga tushirgichdagi `Exec=` qatoridagi URL ni, masalan `Microsoft Teams.desktop` ni, tashkilotingiz tomonidan berilgan URL dan foydalanib tahrirlang. Undagi har qanday literal `%` ni `%%` sifatida yozing. Oʻzgarishlar keyingi ishga tushirishda qoʻllanadi. Toʻplam oʻrnatuvchisini yana ishga tushirish uning ishga tushirgichlarini standart URL lar bilan almashtiradi.
+Davlat yoki suveren bulut uchun, `~/.local/share/applications/` ostidagi tegishli ishga tushirgichda, masalan, `Microsoft Teams.desktop` da, `Exec=` qatoridagi URL manzilni tashkilotingiz bergan URL manzil bilan tahrirlang. O‘sha qatordagi har qanday literal `%` ni `%%` sifatida yozing. O‘zgarishlar keyingi ishga tushirishda qo‘llanadi. To‘plam o‘rnatuvchisini yana ishga tushirish uning ishga tushirgichlarini standart URL manzillar bilan almashtiradi.
 
-Ish kirishlarini alohida saqlash uchun har bir ishga tushirgichning `Exec=` qatoriga brauzer maʼlumotlar katalogini qoʻshing:
+Ishga kirishlarni alohida saqlash uchun, har bir ishga tushirgichning `Exec=` qatoriga brauzer ma’lumotlar katalogini qo‘shing:
 
 ```ini
 Exec=omarchy-launch-webapp "https://teams.cloud.microsoft/" --user-data-dir=/absolute/path/to/work-browser-profile
 ```
 
-Misol katalogini oʻzingiz tanlagan mutlaq yoʻl bilan almashtiring va ish kirishlarini ular orasida ulashish uchun oltita ishga tushirgichning hammasi uchun bir xil yoʻldan foydalaning. Veb-ilovalar Omarchy ning tanlangan qoʻllab-quvvatlanadigan brauzeridan foydalanadi, standart brauzer qoʻllab-quvvatlanmasa Chromium ga qaytadi.
+Misol katalogni o‘zingiz tanlagan mutlaq yo‘l bilan almashtiring va ishga kirishlarni ular orasida ulashish uchun barcha oltita ishga tushirgich uchun bir xil yo‘ldan foydalaning. Veb-ilovalar Omarchy tomonidan tanlangan qo‘llab-quvvatlanadigan brauzerdan foydalanadi, standart brauzer qo‘llab-quvvatlanmasa, Chrome ga qaytadi.

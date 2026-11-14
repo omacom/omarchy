@@ -1,6 +1,12 @@
 [Unit]
 Description=Save incoming Taildrop files to the downloads directory
+# Announcing a file needs OMARCHY_PATH for its strings. Without this ordering the
+# receiver starts before UWSM imports the session environment and keeps posting
+# empty notifications for the rest of the login.
+After=wayland-session-waitenv.service
+PartOf=graphical-session.target
 ConditionPathExists=/usr/bin/tailscale
+ConditionEnvironment=OMARCHY_PATH
 
 [Service]
 Type=simple

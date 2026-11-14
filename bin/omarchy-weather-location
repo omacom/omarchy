@@ -4,8 +4,9 @@
 #
 # State lives in ~/.local/state/omarchy/settings/weather.json as
 # {"name": ..., "latitude": ..., "longitude": ...}. A missing file means the
-# location is auto-detected from the IP address. Coordinates make the weather
-# panel exact; a hand-written {"name": "Malibu"} alone works too.
+# location is auto-detected by geo.omarchy.org, which answers in this shape.
+# Coordinates make the weather panel exact; a hand-written {"name": "Malibu"}
+# alone works too.
 #
 #   (no args)           the current location: the stored name, or the
 #                       IP-detected city when nothing is set
@@ -20,8 +21,7 @@ case "${1:-}" in
   name=""
   [[ -f $LOC_FILE ]] && name=$(jq -r '.name // "" | if type == "string" then . else "" end' "$LOC_FILE" 2>/dev/null)
   if [[ -z $name ]]; then
-    name=$(curl -fsS --max-time 4 "https://wttr.in/?format=%l" 2>/dev/null)
-    name=${name%%,*}
+    name=$(curl -fsS --max-time 4 https://geo.omarchy.org/ 2>/dev/null | jq -r '.name // empty' 2>/dev/null)
   fi
   [[ -n $name ]] && echo "$name"
   ;;

@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy se obično kontrolira prečacima i Omarchy izbornikom (`Super + Space`). Ali možete ga kontrolirati i putem CLI-ja `omarchy`. To je osobito korisno kada vam AI agent pomaže u prilagodbi ili konfiguraciji.
+Omarchyjem se obično upravlja putem tipkovničkih prečaca i Omarchy izbornika (`Super + Space`). Ali njime možete upravljati i putem `omarchy` CLI-ja. To je osobito korisno kada AI agent radi s vama na prilagodbi ili konfiguraciji.
 
-CLI ima pristup svim internim alatima koji se koriste i putem izbornika i na drugi način. Sve što je dostupno možete vidjeti pokretanjem `omarchy` u terminalu.
+CLI ima pristup svim internim alatima koji se koriste i putem izbornika i na druge načine. Sve što je dostupno možete vidjeti pokretanjem naredbe `omarchy` u terminalu.
 
 Izgleda otprilike ovako:
 
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-I možete kopati dublje po svakoj grupi:
+A možete i dublje zaroniti u svaku skupinu:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +55,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Svaka naredba također prima `--help`, bilo da pitate cijelu grupu (`omarchy capture --help`) ili jednu naredbu (`omarchy capture screenshot --help`).
+Svaka naredba također prihvaća `--help`, bilo da pitate cijelu skupinu (`omarchy capture --help`) ili jednu naredbu (`omarchy capture screenshot --help`).
 
 ### Otvaranje izbornika iz terminala
 
-Omarchy izbornik također se može skriptirati, što je zgodno za vaše vlastite poveznice tipki. `omarchy menu` otvara ga u korijenu, a izravno možete skočiti na bilo koju točku u stablu imenovanjem: `omarchy menu summon style.theme` ide ravno na birač tema, `omarchy menu toggle system` otvara izbornik sustava i ponovno ga zatvara ako je već otvoren, a `omarchy menu close` ga sprema.
+Omarchy izbornik također se može skriptirati, što je zgodno za vlastite tipkovničke prečace. `omarchy menu` otvara ga na korijenu, a možete skočiti izravno na bilo koju točku u stablu navodeći je: `omarchy menu summon appearance.theme` vodi ravno na birač tema, `omarchy menu toggle system` otvara izbornik sustava i ponovno ga zatvara ako je već otvoren, a `omarchy menu close` ga uklanja.

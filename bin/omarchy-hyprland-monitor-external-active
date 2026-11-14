@@ -3,4 +3,7 @@
 # omarchy:summary=Returns true when Hyprland has an active external monitor
 # omarchy:hidden=true
 
-hyprctl monitors all -j | jq -e '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | select(.disabled == false)' >/dev/null 2>&1
+# Hyprland stands in a FALLBACK output when no real monitor is enabled. It is
+# not an external display, so counting it would keep the internal panel off
+# after the last external monitor is unplugged.
+hyprctl monitors all -j | jq -e '.[] | select(.name | test("^(eDP|LVDS|DSI)-") | not) | select(.name != "FALLBACK") | select(.disabled == false)' >/dev/null 2>&1

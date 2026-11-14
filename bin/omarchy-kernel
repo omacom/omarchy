@@ -1,0 +1,188 @@
+#!/bin/bash
+
+# omarchy:summary=Show, list, or set the kernel Limine boots by default
+# omarchy:args=[get|list|set <kernel>]
+# omarchy:examples=omarchy kernel | omarchy kernel list | omarchy kernel set linux-omarchy
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# Root only runs system tools, so pin PATH away from a dev checkout that a dev
+# link may have put on sudo's secure_path. sudo and pkexec drop the caller's
+# environment, so the override only reaches root from root (the tests).
+if (( EUID == 0 )); then
+  export PATH=${OMARCHY_KERNEL_ROOT_PATH:-/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin}
+fi
+
+LIMINE_CONF="${OMARCHY_KERNEL_LIMINE_CONF:-/etc/default/limine}"
+LIMINE_DROP_INS="${OMARCHY_KERNEL_LIMINE_DROP_INS:-/etc/limine-entry-tool.d}"
+MODULES_DIR="${OMARCHY_KERNEL_MODULES_DIR:-/usr/lib/modules}"
+LOCK_FILE="${OMARCHY_KERNEL_LOCK:-/run/lock/omarchy-kernel.lock}"
+
+usage() { echo "Usage: omarchy-kernel [get|list|set <kernel>]"; }
+
+# Every kernel package records its pkgbase in its module tree, and that is the
+# name Limine's boot entries and BOOT_ORDER patterns refer to.
+installed_kernels() {
+  cat "$MODULES_DIR"/*/pkgbase 2>/dev/null | sort -u
+}
+
+# The effective BOOT_ORDER patterns, one per line. limine-entry-tool reads these
+# files in order and the last assignment wins, so /etc/default/limine beats
+# every drop-in.
+boot_patterns() {
+  local file value order="*, *fallback, Snapshots"
+  local -a patterns
+
+  for file in /usr/share/limine-entry-tool.d/*.conf /etc/limine-entry-tool.conf "$LIMINE_DROP_INS"/*.conf "$LIMINE_CONF"; do
+    [[ -r $file ]] || continue
+    value=$(sed -nE "s/^[[:space:]]*BOOT_ORDER[[:space:]]*=[[:space:]]*[\"']?([^\"'#]*)[\"']?[[:space:]]*(#.*)?$/\1/p" "$file" | tail -n1)
+    [[ -z $value ]] || order=$value
+  done
+
+  IFS=', ' read -ra patterns <<<"$order"
+  printf '%s\n' "${patterns[@]}"
+}
+
+# The kernel the first matching BOOT_ORDER pattern names. When that pattern is
+# a wildcard, the order in limine.conf decides, which only root can read, so
+# print nothing rather than guess.
+default_kernel() {
+  local pattern kernel
+  local -a kernels patterns
+
+  mapfile -t kernels < <(installed_kernels)
+  mapfile -t patterns < <(boot_patterns)
+  for pattern in "${patterns[@]}"; do
+    for kernel in "${kernels[@]}"; do
+      if [[ $kernel == $pattern ]]; then
+        [[ $pattern == *"*"* ]] || echo "$kernel"
+        return
+      fi
+    done
+  done
+}
+
+# The kernel goes first and the rest of the effective order follows, so
+# preferences like linux-t2 still rank what is left. Earlier assignments in the
+# central config go, since the last one read would win. Chained, so a failure
+# reaches apply_kernel's rollback.
+write_boot_order() {
+  local kernel=$1 order=$1 pattern
+  local -a patterns
+
+  mapfile -t patterns < <(boot_patterns)
+  for pattern in "${patterns[@]}"; do
+    [[ $pattern == "$kernel" ]] || order+=", $pattern"
+  done
+
+  sed -i -E -e '/^[[:space:]]*BOOT_ORDER[[:space:]]*=/d' -e '$a\' "$LIMINE_CONF" &&
+    printf 'BOOT_ORDER="%s"\n' "$order" >>"$LIMINE_CONF"
+}
+
+# The first installed kernel in the boot menu, read from the tree lines that
+# sit directly under an OS entry ("├─ linux-omarchy").
+first_menu_kernel() {
+  local entry
+  local -a kernels entries
+
+  mapfile -t kernels < <(installed_kernels)
+  mapfile -t entries < <(limine-entry-tool --tree | sed -nE 's/^(├|└)─ (.*)$/\2/p')
+  for entry in "${entries[@]}"; do
+    if printf '%s\n' "${kernels[@]}" | grep -Fxq -- "$entry"; then
+      echo "$entry"
+      return
+    fi
+  done
+}
+
+# Direct Boot has the firmware load one UKI and skip Limine, so reordering the
+# boot menu would change nothing that boots. Read as omarchy-boot-direct does,
+# from efibootmgr directly, since root runs on a PATH without omarchy-*.
+direct_boot_active() {
+  efibootmgr 2>/dev/null | cut -f1 | grep -Eq '^Boot[0-9A-Fa-f]+\*[[:space:]]+Omarchy[[:space:]]*$'
+}
+
+# Rebuilding one kernel rewrites limine.conf in BOOT_ORDER order, which
+# reorders the menu without rebuilding every image. If the write, the rebuild,
+# or the check that the kernel now leads the menu fails, the old config comes
+# back and the old menu leader is rebuilt to put it in front again (a post hook
+# can fail after the menu changed). Menu actions run detached, so a lock keeps
+# a failing switch from restoring its backup over one that has since succeeded.
+apply_kernel() {
+  local kernel=$1 previous backup lock
+
+  exec {lock}>"$LOCK_FILE"
+  flock "$lock"
+
+  touch "$LIMINE_CONF"
+  backup=$(mktemp)
+  cp "$LIMINE_CONF" "$backup"
+  previous=$(first_menu_kernel)
+
+  if write_boot_order "$kernel" && limine-mkinitcpio "$kernel" && [[ $(first_menu_kernel) == "$kernel" ]]; then
+    rm -f "$backup"
+  else
+    cat "$backup" >"$LIMINE_CONF"
+    rm -f "$backup"
+    if [[ -n $previous && $previous != "$kernel" && $(first_menu_kernel) != "$previous" ]]; then
+      limine-mkinitcpio "$previous" || true
+    fi
+    echo "Error: $kernel did not become the first boot entry; the previous boot order is restored." >&2
+    exit 1
+  fi
+}
+
+set_kernel() {
+  local kernel=${1:-}
+
+  if [[ -z $kernel ]]; then
+    usage >&2
+    exit 1
+  elif ! installed_kernels | grep -Fxq -- "$kernel"; then
+    echo "Error: $kernel is not an installed kernel. Installed: $(installed_kernels | paste -sd ' ')" >&2
+    exit 1
+  elif direct_boot_active; then
+    echo "Error: Direct Boot skips the boot menu. Turn it off in Setup > Direct Boot to switch kernels." >&2
+    if (( EUID != 0 )) && [[ ! -t 0 ]]; then
+      omarchy-notification-send -g  -u critical "$(omarchy-i18n kernel.directBoot)"
+    fi
+    exit 1
+  fi
+
+  if (( EUID == 0 )); then
+    apply_kernel "$kernel"
+    return
+  fi
+
+  # The root half runs from the packaged copy when there is one, else from the
+  # checkout. Root resolves nothing here: pkexec clears the environment.
+  local self=/usr/bin/omarchy-kernel
+  [[ -x $self ]] || self=$OMARCHY_PATH/bin/omarchy-kernel
+
+  if [[ -t 0 ]]; then
+    sudo "$self" set "$kernel"
+    omarchy-state set reboot-required
+    echo "$kernel will boot after the next restart."
+  else
+    # From the menu there is no terminal, so polkit asks once, on screen.
+    if pkexec "$self" set "$kernel"; then
+      omarchy-state set reboot-required
+      omarchy-notification-send -g  -t 30000 "$(omarchy-i18n kernel.nowUsing "$kernel")" "$(omarchy-i18n kernel.rebootToUse)" --exec omarchy-system reboot
+    else
+      omarchy-notification-send -g  -u critical -t 30000 "$(omarchy-i18n kernel.switchFailed "$kernel")" "$(omarchy-i18n kernel.retryInTerminal)" --exec omarchy-launch-floating-terminal-with-presentation "omarchy-kernel set $kernel"
+      exit 1
+    fi
+  fi
+}
+
+case "${1:-get}" in
+  get) default_kernel ;;
+  list) installed_kernels ;;
+  set) set_kernel "${2:-}" ;;
+  -h | --help | help) usage ;;
+  *)
+    usage >&2
+    exit 1
+    ;;
+esac

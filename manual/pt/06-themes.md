@@ -1,12 +1,12 @@
 # Temas
 
-O Omarchy vem com vinte e dois temas lindíssimos. Podes escolher entre eles através de _Estilo > Tema_ no menu do Omarchy (`Super + Space`) ou saltar diretamente para o seletor de temas com `Super + Ctrl + Shift + Space`.
+O Omarchy inclui vinte e dois temas bonitos. Pode selecionar entre eles em _Aparência > Tema_ no Menu do Omarchy (`Super + Space`) ou ir diretamente para o seletor de temas com `Super + Ctrl + T`.
 
-Cada tema dá estilo ao ambiente de trabalho, ao terminal, ao neovim, ao ecrã de atividade (btop), ao Chromium e a toda a shell do Omarchy: barra superior, menu, notificações, OSD e ecrã de bloqueio. (Para o Obsidian, tens de selecionar manualmente o tema do Omarchy através de _Appearance > Themes_ dentro da aplicação).
+Cada tema define o estilo do ambiente de trabalho, do terminal, do neovim, do ecrã de atividade (btop), do Chromium e de todo o shell do Omarchy: barra superior, menu, notificações, OSD e ecrã de bloqueio. (No Obsidian, tem de selecionar manualmente o tema do Omarchy em _Aparência > Temas_ dentro da aplicação).
 
-Os temas têm um conjunto de imagens de fundo entre as quais podes escolher com `Super + Ctrl + Space`.
+Os temas têm um conjunto de imagens de fundo entre as quais pode escolher com `Super + Ctrl + W`.
 
-Podes encontrar ainda mais temas na [página de temas extra](https://omarchy.org/themes/) ou até [criar o teu próprio tema](43-making-your-own-theme.md).
+Pode encontrar ainda mais temas na [página de temas extra](https://omarchy.org/themes/) ou até [criar o seu próprio tema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Desbloqueios
 
-Os temas também podem ter um design de desbloqueio personalizado, que é utilizado no processo de desencriptação no arranque. Podes selecionar um deles em _Estilo > Desbloqueio_. Têm este aspeto:
+Os temas também podem ter um design de desbloqueio personalizado, utilizado no processo de desencriptação no arranque. Pode selecionar um deles em _Aparência > Desbloqueio_. Têm este aspeto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

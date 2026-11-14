@@ -51,16 +51,15 @@ trap 'rm -rf "$TMPDIR"' EXIT
 
 mkdir -p "$TMPDIR/bin"
 
+# wl-copy publishes the clipboard (args first, then the data, renamed into
+# place so a reader never sees half of it). The helper's sleep before pasting
+# waits for that, so the result doesn't depend on which background process
+# the scheduler runs first.
 cat >"$TMPDIR/bin/wl-copy" <<'SH'
 #!/bin/bash
-args="$*"
-target="$WL_COPY_OUT"
-if [[ $args == "--type text/plain --sensitive --foreground" ]]; then
-  target="$WL_COPY_EMOJI_OUT"
-fi
-
-printf '%s\n' "$args" >"$target.args"
-cat >"$target"
+printf '%s\n' "$*" >"$WL_COPY_OUT.args"
+cat >"$WL_COPY_OUT.tmp"
+mv "$WL_COPY_OUT.tmp" "$WL_COPY_OUT"
 SH
 
 cat >"$TMPDIR/bin/wtype" <<'SH'
@@ -70,19 +69,29 @@ SH
 
 cat >"$TMPDIR/bin/sleep" <<'SH'
 #!/bin/bash
-exit 0
+for (( i = 0; i < 500; i++ )); do
+  [[ -e $WL_COPY_OUT ]] && exit 0
+  /usr/bin/sleep 0.01
+done
 SH
 
 chmod +x "$TMPDIR/bin/wl-copy" "$TMPDIR/bin/wtype" "$TMPDIR/bin/sleep"
 
-WL_COPY_OUT="$TMPDIR/copy" WL_COPY_EMOJI_OUT="$TMPDIR/emoji" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \
+WL_COPY_OUT="$TMPDIR/emoji" WTYPE_OUT="$TMPDIR/wtype" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-menu-emoji-insert" "😀"
 
 [[ $(<"$TMPDIR/emoji") == "😀" ]] || fail "emoji insert helper copies emoji transiently"
 pass "emoji insert helper copies emoji transiently"
 
-[[ $(<"$TMPDIR/emoji.args") == "--type text/plain --sensitive --foreground" ]] || fail "emoji insert helper serves sensitive transient clipboard in foreground"
-pass "emoji insert helper serves transient clipboard in foreground"
+copy_args=" $(<"$TMPDIR/emoji.args") "
+[[ $copy_args == *" --type text/plain "* ]] || fail "emoji insert helper offers the emoji as plain text"
+pass "emoji insert helper offers the emoji as plain text"
+
+[[ $copy_args == *" --sensitive "* ]] || fail "emoji insert helper keeps the emoji out of clipboard history"
+pass "emoji insert helper keeps the emoji out of clipboard history"
+
+[[ $copy_args == *" --foreground "* ]] || fail "emoji insert helper serves the clipboard from a process it can stop"
+pass "emoji insert helper serves the clipboard from a process it can stop"
 
 [[ $(<"$TMPDIR/wtype") == "-M shift -k Insert -m shift" ]] || fail "emoji insert helper pastes with shift insert"
 pass "emoji insert helper pastes with shift insert"

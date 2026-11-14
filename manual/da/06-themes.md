@@ -1,10 +1,10 @@
 # Temaer
 
-Omarchy leveres med toogtyve smukke temaer. Du kan vælge mellem dem via _Stil > Tema_ i Omarchy-menuen (`Super + Space`) eller hoppe direkte til temavælgeren med `Super + Ctrl + Shift + Space`.
+Omarchy leveres med toogtyve smukke temaer. Du kan vælge mellem dem via _Udseende > Tema_ i Omarchy-menuen (`Super + Space`) eller hoppe direkte til temavælgeren med `Super + Ctrl + T`.
 
-Hvert tema stiler skrivebordet, terminalen, neovim, aktivitetsskærmen (btop), Chromium og hele Omarchy-shell'en: menulinjen, menuen, notifikationerne, OSD'en og låseskærmen. (Til Obsidian skal du manuelt vælge Omarchy-temaet via _Appearance > Themes_ inde i appen).
+Hvert tema styler skrivebordet, terminalen, neovim, aktivitetsskærmen (btop), Chromium og hele Omarchy-skallen: øverste bjælke, menu, notifikationer, OSD og låseskærmen. (Til Obsidian skal du manuelt vælge Omarchy-temaet via _Udseende > Temaer_ inde i appen).
 
-Temaer har et sæt baggrundsbilleder, som du kan vælge imellem med `Super + Ctrl + Space`.
+Temaer har et sæt baggrundsbilleder, som du kan vælge imellem med `Super + Ctrl + W`.
 
 Du kan finde endnu flere temaer på [siden med ekstra temaer](https://omarchy.org/themes/) eller endda [lave dit eget tema](43-making-your-own-theme.md).
 
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Oplåsninger
 
-Temaer kan også have et brugerdefineret oplåsningsdesign, som bruges til boot-dekrypteringsprocessen. Du kan vælge ét af dem under _Stil > Lås op_. De ser sådan her ud:
+Temaer kan også have et brugerdefineret oplåsningsdesign, som bruges til dekrypteringsprocessen under opstart. Du kan vælge et af dem under _Udseende > Lås op_. De ser sådan ud:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

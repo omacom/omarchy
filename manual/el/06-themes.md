@@ -1,12 +1,12 @@
 # Θέματα
 
-Το Omarchy έρχεται με εικοσιδύο όμορφα θέματα. Μπορείς να επιλέξεις ανάμεσα τους μέσω _Στυλ > Θέμα_ στο μενού Omarchy (`Super + Space`) ή να πηδήξεις κατευθείαν στον επιλογέα θέματος χρησιμοποιώντας το `Super + Ctrl + Shift + Space`.
+Το Omarchy έρχεται με είκοσι δύο όμορφα θέματα. Μπορείτε να επιλέξετε ανάμεσά τους μέσω του _Εμφάνιση > Θέμα_ στο Μενού Omarchy (`Super + Space`) ή να μεταβείτε απευθείας στον επιλογέα θεμάτων χρησιμοποιώντας το `Super + Ctrl + T`.
 
-Κάθε θέμα διαμορφώνει το desktop, το τερματικό, το neovim, την οθόνη δραστηριότητας (btop), τον Chromium, και ολόκληρο το shell του Omarchy: πάνω γραμμή, μενού, ειδοποιήσεις, OSD και την οθόνη κλειδώματος. (Για το Obsidian, πρέπει να επιλέξεις χειροκίνητα το θέμα Omarchy μέσω _Appearance > Themes_ μέσα στην εφαρμογή).
+Κάθε θέμα διαμορφώνει την επιφάνεια εργασίας, το τερματικό, το neovim, την οθόνη δραστηριότητας (btop), το Chromium και ολόκληρο το κέλυφος του Omarchy: την επάνω γραμμή, το μενού, τις ειδοποιήσεις, το OSD και την οθόνη κλειδώματος. (Για το Obsidian, πρέπει να επιλέξετε χειροκίνητα το θέμα του Omarchy μέσω του _Εμφάνιση > Θέματα_ μέσα στην εφαρμογή).
 
-Τα θέματα έχουν ένα σύνολο εικόνων φόντου από τις οποίες μπορείς να διαλέξεις χρησιμοποιώντας το `Super + Ctrl + Space`.
+Τα θέματα έχουν ένα σύνολο εικόνων φόντου από τις οποίες μπορείτε να επιλέξετε χρησιμοποιώντας το `Super + Ctrl + W`.
 
-Μπορείς να βρεις ακόμα περισσότερα θέματα στη [σελίδα επιπλέον θεμάτων](https://omarchy.org/themes/) ή ακόμα και να [φτιάξεις το δικό σου θέμα](43-making-your-own-theme.md).
+Μπορείτε να βρείτε ακόμη περισσότερα θέματα στη [σελίδα με επιπλέον θέματα](https://omarchy.org/themes/) ή ακόμη και να [φτιάξετε το δικό σας θέμα](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -67,7 +67,7 @@ _White_
 
 ### Ξεκλειδώματα
 
-Τα θέματα μπορούν επίσης να έχουν έναν προσαρμοσμένο σχεδιασμό ξεκλειδώματος, που χρησιμοποιείται για τη διεργασία αποκρυπτογράφησης κατά την εκκίνηση. Μπορείς να επιλέξεις έναν από αυτούς στο _Στυλ > Ξεκλείδωμα_. Μοιάζουν έτσι:
+Τα θέματα μπορούν επίσης να έχουν ένα προσαρμοσμένο σχέδιο ξεκλειδώματος, το οποίο χρησιμοποιείται για τη διαδικασία αποκρυπτογράφησης κατά την εκκίνηση. Μπορείτε να επιλέξετε ένα από αυτά στο _Εμφάνιση > Ξεκλείδωμα_. Μοιάζουν κάπως έτσι:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +90,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +107,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
