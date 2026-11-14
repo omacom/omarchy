@@ -39,6 +39,7 @@
   "agent.make.plugin": {"icon":"󰐱","label":"Make a plugin","action":"omarchy-agent-make plugin"},
   "agent.make.app": {"icon":"󰣆","label":"Make an app","action":"omarchy-agent-make app"},
   "agent.harness": {"icon":"󰆍","label":"Harness","title":"Default Harness"},
+  "agent.harness.afk": {"icon":"󰖟","label":"AFK","checked":"[[ \"$(omarchy-default-agent)\" == \"afk\" ]]","action":"omarchy-default-agent afk"},
   "agent.harness.amp": {"icon":"","iconFont":"omarchy","label":"Amp","checked":"[[ \"$(omarchy-default-agent)\" == \"amp\" ]]","action":"omarchy-default-agent amp"},
   "agent.harness.agy": {"icon":"","iconFont":"omarchy","label":"Antigravity","checked":"[[ \"$(omarchy-default-agent)\" == \"agy\" ]]","action":"omarchy-default-agent agy"},
   "agent.harness.claude": {"icon":"","iconFont":"omarchy","label":"Claude","checked":"[[ \"$(omarchy-default-agent)\" == \"claude\" ]]","action":"omarchy-default-agent claude"},

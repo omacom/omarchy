@@ -17,6 +17,7 @@ codex = { version = "latest", lazy = true, auto_update = "4h", minimum_release_a
 copilot = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 crush = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 cursor-agent = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
+"forgejo:mooglest/public" = { version = "latest", lazy = true, auto_update = "4h", lazy_bins = ["afk"], minimum_release_age = "0s", api_url = "https://git.mooglest.com/api/v1" }
 gh = { version = "latest", lazy = true, minimum_release_age = "0s" }
 ghui = { version = "latest", lazy = true, minimum_release_age = "0s" }
 grok = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }

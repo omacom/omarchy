@@ -496,6 +496,9 @@
     "label": "Harness",
     "title": "Default Harness"
   },
+  "agent.harness.afk": {
+    "label": "AFK"
+  },
   "agent.harness.agy": {
     "label": "Antigravity"
   },

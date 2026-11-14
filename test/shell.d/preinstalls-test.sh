@@ -33,6 +33,7 @@ SH
 cat >"$mock_bin/omarchy-pkg-drop" <<'SH'
 #!/bin/bash
 printf '%s\n' "$@" >"$OMARCHY_TEST_PKG_LOG"
+exit "${OMARCHY_TEST_PKG_DROP_STATUS:-0}"
 SH
 
 cat >"$mock_bin/mise" <<'SH'
@@ -174,3 +175,7 @@ touch "$mise_config"
 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null
 [[ -f $mise_config ]] || fail "Remove Preinstalls leaves the package-owned mise declarations in place"
 pass "Remove Preinstalls leaves the package-owned mise declarations in place"
+
+OMARCHY_TEST_PKG_DROP_STATUS=1 "$ROOT/bin/omarchy-remove-preinstalls" >/dev/null && status=0 || status=$?
+(( status == 1 )) || fail "Remove Preinstalls reports a failed package transaction" "exit status was $status"
+pass "Remove Preinstalls reports a failed package transaction"
