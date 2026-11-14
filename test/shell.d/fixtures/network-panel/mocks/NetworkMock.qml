@@ -3,6 +3,8 @@ import QtQuick
 import Quickshell.Networking
 
 QtObject {
+  id: root
+
   property int backend: NetworkBackendType.NetworkManager
   property bool wifiEnabled: true
   property bool canCheckConnectivity: true
@@ -11,7 +13,11 @@ QtObject {
   property int checks: 0
   function checkConnectivity() { checks++ }
 
-  property var devices: ({ values: [wifi] })
+  // A real ObjectModel, not a plain list: the network service re-probes when
+  // its device list changes, so the mock has to carry that signal.
+  property QtObject devices: QtObject {
+    property var values: [root.wifi]
+  }
   property QtObject wifi: QtObject {
     property int type: DeviceType.Wifi
     property string name: "test-wifi"
