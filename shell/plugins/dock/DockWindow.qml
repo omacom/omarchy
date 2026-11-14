@@ -326,6 +326,20 @@ PanelWindow {
     property bool pressed: mouse.pressed
     property alias mouse: mouse
 
+    // Use the pointer's distance along the strip for a continuous wave:
+    // the closest icon grows most, with a smaller lift for its neighbors.
+    readonly property real pointerInfluence: {
+      if (!bodyHover.hovered || window.hoverStale || window.dragging
+          || window.insertIndex >= 0 || !window.contentShown) return 0
+      var pointer = bodyHover.point.position
+      var center = slot.mapToItem(body, slot.width / 2, slot.height / 2)
+      var distance = Math.abs(window.vertical ? pointer.y - center.y : pointer.x - center.x)
+      var reach = window.slotSize * 2
+      return DockModel.hoverInfluence(distance, reach)
+    }
+    readonly property real magnification: 1 + 0.15 * pointerInfluence
+
+
     width: window.slotSize
     height: window.slotSize
 
@@ -370,7 +384,7 @@ PanelWindow {
       y: window.iconInset
       width: window.iconSize
       height: window.iconSize
-      scale: appsSlot.hovered ? 1.15 : 1
+      scale: appsSlot.magnification
       transformOrigin: window.popOrigin
 
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }
@@ -502,7 +516,7 @@ PanelWindow {
         x: window.vertical ? 0 : appSlot.displayedShift
         y: window.vertical ? appSlot.displayedShift : 0
       }
-      scale: appSlot.lifted || appSlot.hovered ? 1.15 : 1
+      scale: appSlot.lifted ? 1.15 : appSlot.magnification
       transformOrigin: window.popOrigin
 
       Behavior on scale { NumberAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic } }

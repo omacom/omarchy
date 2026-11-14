@@ -12,6 +12,12 @@ trap 'rm -rf "$TMPDIR"' EXIT
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
+assertEqual(dock.hoverInfluence(0, 90), 1, 'hover peaks under the pointer')
+assertEqual(dock.hoverInfluence(90, 90), 0, 'hover reaches base scale at the boundary')
+assertEqual(dock.hoverInfluence(120, 90), 0, 'hover leaves distant icons at base scale')
+assertEqual(dock.hoverInfluence(-45, 90), dock.hoverInfluence(45, 90), 'hover is symmetric on both sides')
+assertEqual(dock.hoverInfluence(0, 0), 0, 'zero reach has no magnification')
+
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
 assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')
