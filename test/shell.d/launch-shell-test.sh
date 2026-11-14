@@ -41,8 +41,9 @@ cat >"$fake_bin/quickshell" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$OMARCHY_TEST_QS_LOG"
-printf 'watcher=%s popup=%s background=%s\n' \
-  "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" "${OMARCHY_STARTUP_BACKGROUND:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
+printf 'watcher=%s popup=%s platformtheme=%s background=%s\n' \
+  "${QS_DISABLE_FILE_WATCHER:-unset}" "${QS_NO_RELOAD_POPUP:-unset}" \
+  "${QT_QPA_PLATFORMTHEME-unset}" "${OMARCHY_STARTUP_BACKGROUND:-unset}" >>"$OMARCHY_TEST_QS_ENV_LOG"
 
 launches=$(wc -l <"$OMARCHY_TEST_QS_LOG")
 status=$(awk -v n="$launches" 'NR == n { print; found = 1 } END { if (!found) print "0" }' <<<"$OMARCHY_TEST_QS_STATUSES")
@@ -105,6 +106,7 @@ launch_shell() {
   PATH="$fake_bin:$PATH" \
   HOME="$launch_home" \
   OMARCHY_PATH="$shell_root" \
+  QT_QPA_PLATFORMTHEME=gtk3 \
   OMARCHY_TEST_QS_LOG="$qs_log" \
   OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
   OMARCHY_TEST_QS_STATUSES="$1" \
@@ -130,6 +132,11 @@ pass "a shell that exits cleanly is left alone"
 [[ $(<"$qs_env_log") == "watcher=1 popup=1 "* ]] ||
   fail "the shell launches with Quickshell's own reloading off" "$(<"$qs_env_log")"
 pass "the shell launches with Quickshell's config watcher and reload popup off"
+# Inherited from the session on purpose for other Qt apps. GDK's Wayland
+# client inside this process is what crashes on monitor hotplug.
+[[ $(<"$qs_env_log") == *"platformtheme=unset"* ]] ||
+  fail "the shell starts without the GTK3 platform theme" "$(<"$qs_env_log")"
+pass "the shell starts without the GTK3 platform theme"
 [[ $(<"$qs_env_log") == *"background=$startup_wallpaper" ]] || fail "the shell receives the resolved wallpaper path before startup" "$(<"$qs_env_log")"
 pass "the selected wallpaper can decode as soon as Quickshell starts"
 
