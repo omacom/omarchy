@@ -383,11 +383,15 @@ def finite_number(value):
 # Business seat. Its snapshot gives a reset time but no period, so no
 # frequency is inferred from the plan or date, and the meter is titled for
 # what it is. The amounts give the share; remainingPercent only has
-# whole-percent precision, so it stands in only for a cap of zero.
+# whole-percent precision, so it stands in when amounts are unavailable.
 def spend_limit(snapshot):
   if not isinstance(snapshot, dict):
     return None
   cap = finite_number(snapshot.get("limit"))
+  # No allocated credits means this paid-usage meter does not apply. Showing
+  # it as fully spent also makes automatic switching reject usable accounts.
+  if cap == 0:
+    return None
   used = finite_number(snapshot.get("used"))
   if cap is not None and cap > 0 and used is not None:
     share = used / cap
