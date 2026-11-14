@@ -195,6 +195,26 @@ grep -Fxq "$images/one.png"$'\t'"$cache_dir/$hash.jpg" <<<"$rows" ||
   fail "image menu regenerates the thumbnail of an image overwritten in place"
 pass "image menu notices an image overwritten in place"
 
+bg_home="$tmp/bg-home"
+bg_bin="$tmp/bg-bin"
+mkdir -p "$bg_home/.local/state/omarchy/current/theme/backgrounds" "$bg_bin"
+printf 'plain\n' >"$bg_home/.local/state/omarchy/current/theme.name"
+for command in omarchy-shell omarchy-notification-send; do
+  cat >"$bg_bin/$command" <<'EOF'
+#!/bin/bash
+printf '%s %s\n' "${0##*/}" "$*" >>"$BG_CALLS"
+EOF
+done
+chmod +x "$bg_bin/"*
+status=0
+HOME="$bg_home" OMARCHY_PATH="$ROOT" PATH="$bg_bin:$ROOT/bin:$PATH" XDG_CACHE_HOME="$cache_home" BG_CALLS="$tmp/bg-calls" \
+  "$ROOT/bin/omarchy-theme-bg-switcher" >/dev/null 2>&1 || status=$?
+if (( status == 3 )) && grep -q 'No background was found for theme' "$tmp/bg-calls" && ! grep -q 'image-selector open' "$tmp/bg-calls"; then
+  pass "background switcher with no backgrounds says so instead of opening an empty picker"
+else
+  fail "background switcher with no backgrounds says so instead of opening an empty picker" "exit $status: $(cat "$tmp/bg-calls" 2>/dev/null)"
+fi
+
 # Block converters behind a gate: printing lazy rows must neither await them
 # nor start one process per image. Repeated refreshes share one worker pool.
 lazy_images="$tmp/lazy-images"
