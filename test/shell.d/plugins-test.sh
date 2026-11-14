@@ -11,6 +11,7 @@ const pluginsDir = path.join(root, 'shell/plugins')
 const kindEntryPoints = {
   'bar': 'bar',
   'bar-widget': 'barWidget',
+  'extension': 'extension',
   'menu': 'menu',
   'overlay': 'overlay',
   'panel': 'panel',
