@@ -51,8 +51,15 @@ write_setting_theme() {
 
   if [[ -f $CLAUDE_SETTINGS_PATH ]]; then
     tmp=$(mktemp "$CLAUDE_SETTINGS_PATH.XXXXXX")
-    jq '.theme = "custom:omarchy"' "$CLAUDE_SETTINGS_PATH" >"$tmp"
-    mv "$tmp" "$CLAUDE_SETTINGS_PATH"
+    # jq rejects a hand-edited settings.json (JSONC comments, trailing commas
+    # are common there). The staged file must not outlive that failure: under
+    # set -e the script would otherwise exit leaving settings.json.XXXXXX
+    # litter beside a settings.json it never updated.
+    if ! jq '.theme = "custom:omarchy"' "$CLAUDE_SETTINGS_PATH" >"$tmp" || ! mv "$tmp" "$CLAUDE_SETTINGS_PATH"; then
+      rm -f "$tmp"
+      echo "omarchy-theme-set-claude: could not update $CLAUDE_SETTINGS_PATH" >&2
+      return 1
+    fi
   else
     cat >"$CLAUDE_SETTINGS_PATH" <<EOF
 {
@@ -66,8 +73,12 @@ EOF
 # so running sessions retint without a restart.
 mkdir -p "$(dirname "$CLAUDE_THEME_PATH")"
 tmp=$(mktemp "$CLAUDE_THEME_PATH.XXXXXX")
-cp "$CLAUDE_SOURCE_PATH" "$tmp"
-mv "$tmp" "$CLAUDE_THEME_PATH"
+# The staged theme copy must not outlive a failed cp/mv either.
+if ! cp "$CLAUDE_SOURCE_PATH" "$tmp" || ! mv "$tmp" "$CLAUDE_THEME_PATH"; then
+  rm -f "$tmp"
+  echo "omarchy-theme-set-claude: could not write $CLAUDE_THEME_PATH" >&2
+  exit 1
+fi
 
 if (( CLAUDE_ACTIVATE == 1 )); then
   write_setting_theme
