@@ -14,7 +14,7 @@ file first, if one exists.
 ├── battery-low.d/          # Low battery (percentage in $1)
 ├── font-set.d/             # After font change (font name in $1)
 ├── post-boot.d/            # After the desktop starts
-├── post-update.d/          # At the end of `omarchy update`, after privileged work
+├── post-update.d/          # Near the end of `omarchy update`, before mise, AUR packages and the boot check
 ├── pre-refresh-pacman.d/   # After `omarchy refresh pacman` re-syncs the package config, before it updates packages
 └── theme-set.d/            # After theme change (theme slug in $1)
 ```
