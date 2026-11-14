@@ -97,7 +97,7 @@ end
 
 function workspace_object(workspace)
   if not workspace then return nil end
-  return setmetatable({}, { __index = function(_, key)
+  return setmetatable({}, { __name = "HLWorkspace", __index = function(_, key)
     if key == "id" then return workspace.id end
     if key == "name" then return tostring(workspace.id) end
     if key == "special" then return false end
@@ -111,7 +111,12 @@ function monitor_object(monitor)
   return setmetatable({
     set_workspace = function(_, spec)
       world.calls = world.calls + 1
-      local workspace = workspace_numbered(tonumber(spec.workspace))
+      -- Hyprland 0.57 takes a workspace object or selector, not an options table.
+      local mt = getmetatable(spec)
+      local id = mt and mt.__name == "HLWorkspace" and spec.id or spec
+      assert(type(id) == "string" or type(id) == "number",
+        "HLMonitor.set_workspace: expected a workspace object or selector")
+      local workspace = workspace_numbered(tonumber(id))
       if workspace and workspace.monitor == monitor.name then
         monitor.active = workspace.id
         world.focused = monitor.name
