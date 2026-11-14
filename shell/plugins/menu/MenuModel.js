@@ -531,9 +531,17 @@ function guardHelpers() {
 // of its own; the batch then reads each one's output in turn. Run one after
 // another they were a quarter of the batch. Reading to EOF and dropping the
 // trailing newlines is what `$(...)` does with the same output.
-function guardPrelude(guards) {
+function guardPrelude(guards, probes) {
   var start = ""
   var collect = ""
+
+  for (var p = 0; p < (probes || []).length; p++) {
+    var status = "__omarchy_probe_" + p
+    var pipe = "__omarchy_probe_fd_" + p
+    start += "exec {" + pipe + "}< <(" + probes[p] + " >/dev/null 2>&1 </dev/null; printf %s \"$?\")\n"
+    collect += "IFS= read -r -d '' " + status + " <&$" + pipe + " || :\n"
+      + "exec {" + pipe + "}<&-\n"
+  }
 
   for (var i = 0; i < GUARD_READERS.length; i++) {
     // The guards arrive already substituted, so what marks a reader as wanted
@@ -563,8 +571,61 @@ function substituteGuardReaders(expression) {
   return expression
 }
 
-function guardLine(id, tag, expression) {
-  return "if { " + substituteGuardReaders(expression) + "; } >/dev/null 2>&1; then echo "
+// Commands that several guards run as a whole condition: `omarchy-hw-x86`
+// gates seven install rows and `omarchy-hw-laptop` six. Each repeat is another
+// process start for the same answer, and nothing a guard asks changes between
+// two rows of one batch. So a command that more than one guard runs first
+// runs once, beside the readers, and each of those guards tests the exit
+// status it left.
+//
+// Only a guard's head is taken: an `omarchy-*` name and plain words, no
+// quotes, expansions or redirections, with nothing before it but `!` and
+// nothing after it but `&&`, `||` or the end. A head always runs, before
+// anything in the guard could change the directory or the environment, and
+// never inside quotes, a substitution or a group that would run it in another
+// shell or hand its output on. The guard discards that output and gives it no
+// input, so the status is all it contributed -- unless the guard goes on to
+// read `$?`, `$_` or PIPESTATUS, which see more than whether it was zero.
+//
+// Everything else runs as written: those guards, a command further along a
+// guard (`omarchy-hw-laptop && …` keeps a desktop from asking about its
+// internal monitor, and the batch must not start what no row would), and the
+// helpers the batch already answers inside bash.
+var GUARD_PROBE = /^(\s*(?:![ \t]+)?)(omarchy-[\w.-]+(?:[ \t]+[\w.+=:,\/-]+)*)(?=\s*(?:$|&&|\|\|))/
+var GUARD_PROBE_SKIP = /^omarchy-(pkg|cmd)-(present|missing)$/
+var GUARD_PROBE_STATUS = /\$(\?|_(?!\w)|\{[?_]\})|PIPESTATUS/
+
+function guardProbeHead(expression) {
+  var head = GUARD_PROBE.exec(expression)
+  if (!head || GUARD_PROBE_SKIP.test(head[2].split(/[ \t]/)[0]) || GUARD_PROBE_STATUS.test(expression)) return null
+  return { lead: head[1], command: head[2].replace(/[ \t]+/g, " "), end: head[0].length }
+}
+
+function guardProbes(expressions) {
+  var order = []
+  var uses = Object.create(null)
+
+  for (var i = 0; i < expressions.length; i++) {
+    var head = guardProbeHead(expressions[i])
+    if (!head) continue
+    if (!uses[head.command]) order.push(head.command)
+    uses[head.command] = (uses[head.command] || 0) + 1
+  }
+  return order.filter(function(command) { return uses[command] > 1 })
+}
+
+function guardProbeSlot(index) {
+  return '[[ ${__omarchy_probe_' + index + '-} == 0 ]]'
+}
+
+function substituteGuardProbes(expression, probes) {
+  var head = probes && probes.length > 0 ? guardProbeHead(expression) : null
+  var index = head ? probes.indexOf(head.command) : -1
+  return index < 0 ? expression : head.lead + guardProbeSlot(index) + expression.slice(head.end)
+}
+
+function guardLine(id, tag, expression, probes) {
+  return "if { " + substituteGuardProbes(substituteGuardReaders(expression), probes) + "; } >/dev/null 2>&1; then echo "
     + id + ":" + tag + ":1; else echo " + id + ":" + tag + ":0; fi\n"
 }
 
@@ -582,27 +643,30 @@ var GUARD_GROUPS = 8
 // long a row can contradict the state it describes.
 //
 // Guards are dealt round-robin into GUARD_GROUPS background subshells, each
-// inheriting the package set, the shadowed helpers and the readers' answers,
-// and the batch exits once all of them have. Lines arrive in any order, which
-// the menu never relied on: each names its row, and each is one short write
-// to the pipe, which the kernel never interleaves.
+// inheriting the package set, the shadowed helpers, the readers' answers and
+// the probes' statuses, and the batch exits once all of them have. Lines
+// arrive in any order, which the menu never relied on: each names its row,
+// and each is one short write to the pipe, which the kernel never interleaves.
 //
 // A group that dies part way (a guard tripping a login shell's `set -u`, say)
 // has left its remaining rows unanswered, and the menu keeps the last full
 // set only when the batch fails. So each group is waited for by pid, and the
 // batch's status is nonzero if any of them was.
 function guardScript(items) {
-  var lines = []
+  var guards = []
   var ids = Object.keys(items || {})
 
   for (var i = 0; i < ids.length; i++) {
     var entry = items[ids[i]]
     if (!entry) continue
-    if (entry.when) lines.push(guardLine(ids[i], "w", entry.when))
-    if (entry.checked) lines.push(guardLine(ids[i], "c", entry.checked))
-    if (entry.disabled) lines.push(guardLine(ids[i], "d", entry.disabled))
+    if (entry.when) guards.push([ids[i], "w", entry.when])
+    if (entry.checked) guards.push([ids[i], "c", entry.checked])
+    if (entry.disabled) guards.push([ids[i], "d", entry.disabled])
   }
-  if (lines.length === 0) return ""
+  if (guards.length === 0) return ""
+
+  var probes = guardProbes(guards.map(function(guard) { return substituteGuardReaders(guard[2]) }))
+  var lines = guards.map(function(guard) { return guardLine(guard[0], guard[1], guard[2], probes) })
 
   var groups = []
   for (var j = 0; j < lines.length; j++) {
@@ -610,7 +674,7 @@ function guardScript(items) {
     groups[group] = (groups[group] || "") + lines[j]
   }
 
-  var script = guardPrelude(lines.join("")) + "__omarchy_groups=()\n"
+  var script = guardPrelude(lines.join(""), probes) + "__omarchy_groups=()\n"
   for (var k = 0; k < groups.length; k++) script += "{\n" + groups[k] + "} &\n__omarchy_groups+=($!)\n"
   return script + "__omarchy_failed=0\n"
     + 'for __omarchy_group in "${__omarchy_groups[@]}"; do wait "$__omarchy_group" || __omarchy_failed=1; done\n'
