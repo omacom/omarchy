@@ -1311,7 +1311,7 @@
     "label": "Drive Encryption"
   },
   "update.password.user": {
-    "label": "User"
+    "label": "User and root"
   },
   "agent.instructions": {
     "label": "Instructions"
