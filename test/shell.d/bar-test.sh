@@ -477,6 +477,28 @@ for (const extent of [29, 30, 47]) {
 assertDeepEqual(bar.roomLengths(40, { 2: 0.5 }), { 2: 20 }, 'a half open room is half as long')
 
 assertEqual(bar.moduleString({ id: 'custom', label: 42 }, 'label', 'fallback'), '42', 'bar stringifies module settings')
+assertDeepEqual(
+  bar.specialWorkspaceEvent('activespecial', 'special:scratchpad,eDP-1'),
+  { workspaceName: 'special:scratchpad', monitorName: 'eDP-1' },
+  'bar parses special-workspace activation events'
+)
+assertDeepEqual(
+  bar.specialWorkspaceEvent('activespecialv2', '-98,special:scratchpad,eDP-1'),
+  { workspaceName: 'special:scratchpad', monitorName: 'eDP-1' },
+  'bar parses versioned special-workspace activation events'
+)
+assertDeepEqual(
+  bar.specialWorkspaceEvent('activespecial', ',eDP-1'),
+  { workspaceName: '', monitorName: 'eDP-1' },
+  'bar parses special-workspace deactivation events'
+)
+assertEqual(bar.specialWorkspaceEvent('workspacev2', '1,1'), null, 'bar ignores unrelated Hyprland events')
+for (const event of ['openwindow', 'closewindow', 'movewindowv2', 'workspacev2', 'focusedmon', 'activespecial', 'activespecialv2', 'monitorremoved']) {
+  assertEqual(bar.affectsTransparency(event), true, `bar refreshes for ${event}`)
+}
+for (const event of ['windowtitle', 'activewindow', 'urgent']) {
+  assertEqual(bar.affectsTransparency(event), false, `bar ignores unrelated ${event} events`)
+}
 
 assertEqual(bar.expandPath('~/module.qml', '/home/dhh'), '/home/dhh/module.qml', 'bar expands tilde paths')
 assertEqual(bar.expandPath('$HOME/module.qml', '/home/dhh'), '/home/dhh/module.qml', 'bar expands HOME paths')

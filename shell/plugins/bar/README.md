@@ -26,6 +26,8 @@ Example `shell.json` (bar subtree only shown):
   "bar": {
     "position": "top",
     "background": "opaque",
+    "transparentOnlyWhenWorkspaceEmpty": false,
+    "transparentForegroundPerMonitor": false,
     "layout": {
       "left": [
         { "id": "omarchy.menu" },
@@ -49,6 +51,8 @@ Example `shell.json` (bar subtree only shown):
 ```
 
 `center` is a box in the middle of the bar whose modules are centered as one group on the exact horizontal/vertical center. `centerBegin` and `centerEnd` hang off the box's two edges and move out as it grows; with the box empty they meet in the middle of the bar.
+
+Set `background: "none"` to allow the bar to become transparent. With `transparentOnlyWhenWorkspaceEmpty: true`, each monitor's bar is transparent only when no normal or visible special-workspace windows occupy that monitor. With `transparentForegroundPerMonitor: true`, transparent bar text is sampled against each monitor's wallpaper separately instead of using a shared color. Both options default to `false` and can be combined: `"background": "none", "transparentOnlyWhenWorkspaceEmpty": true, "transparentForegroundPerMonitor": true`. Opaque and glassy backgrounds keep their existing behavior. Legacy `transparent: true` is still accepted when `background` is absent.
 
 ## Module catalogue
 
@@ -153,7 +157,7 @@ Item {
   Text {
     anchors.centerIn: parent
     text: "GPU"
-    color: bar ? bar.foreground : "white"
+    color: bar ? bar.barForeground : "white"
     font.family: bar ? bar.fontFamily : "monospace"
     font.pixelSize: 12
   }
@@ -167,9 +171,12 @@ Item {
 
 ## Bar properties available to widgets
 
-Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (object) injected at load time. A widget that declares `fixedEdge` also gets the edge of it that stays put when it grows: `"start"` (left, or top on a vertical bar), `"end"`, or `"center"` when it grows both ways, following the section it sits in. When the center box holds more than one widget, its first gets `"end"` and its last `"start"`, like `centerBegin`'s and `centerEnd`'s. A widget that grows, like the tray's drawer or the indicator peek, can lay its content out against that edge so it doesn't shift. A widget moved to another section keeps running, and its `fixedEdge` and `settings` change in place, so bind to them rather than reading them once. The bar exposes:
+Widgets receive `bar`, `moduleName` (string), and `settings` (object) injected at load time. First-party widgets receive their monitor's bar surface; third-party widgets receive a plugin-scoped facade with presentation state from their own monitor.
 
-- `bar.foreground`, `bar.background`, `bar.urgent` — theme colors (live-updated)
+A widget that declares `fixedEdge` also gets the edge of it that stays put when it grows: `"start"` (left, or top on a vertical bar), `"end"`, or `"center"` when it grows both ways, following the section it sits in. When the center box holds more than one widget, its first gets `"end"` and its last `"start"`, like `centerBegin`'s and `centerEnd`'s. A widget that grows, like the tray's drawer or the indicator peek, can lay its content out against that edge so it doesn't shift. A widget moved to another section keeps running, and its `fixedEdge` and `settings` change in place, so bind to them rather than reading them once. The bar exposes:
+
+- `bar.foreground`, `bar.background`, `bar.urgent` — colors for existing widgets (live-updated); `bar.foreground` does not follow wallpaper contrast
+- `bar.barForeground` — text/icon color for the bar surface, adjusted for wallpaper contrast when configured; use `Color.popups.text` from `qs.Commons` for content on opaque popup cards
 - `bar.fontFamily` — current monospace family
 - `bar.position` — `"top" | "bottom" | "left" | "right"`
 - `bar.vertical` — boolean shortcut

@@ -17,7 +17,8 @@ BarWidget {
   property bool trayMenuOpen: false
   property var activeTrayItem: null
   property var activeTrayAnchor: null
-  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+  // Both popup menus have opaque surfaces independent of the bar wallpaper.
+  readonly property color foreground: Commons.Color.popups.text
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var pinnedIds: settings.pinned instanceof Array ? settings.pinned : []
   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
@@ -526,6 +527,7 @@ BarWidget {
             width: 16
             height: 16
             icon: rowRoot.modelData.icon
+            tint: root.foreground
           }
 
           Text {
@@ -829,12 +831,12 @@ BarWidget {
     }
   }
 
-  // Renders a tray icon, recoloring symbolic icons to the bar foreground so
-  // they stay visible on any theme (a raw symbolic icon keeps its baked-in
-  // fill and disappears against a matching background).
+  // Symbolic icons follow the bar foreground by default; popup copies override
+  // the tint to match their own surface.
   component TrayIcon: Item {
     id: trayIconRoot
     required property var icon
+    property color tint: root.bar ? root.bar.barForeground : Commons.Color.bar.text
     readonly property bool symbolic: root.iconIsSymbolic(icon)
 
     Image {
@@ -855,7 +857,7 @@ BarWidget {
     // keeps the source's lightness, so a dark fill stayed dark on a dark bar.
     Rectangle {
       anchors.fill: trayIconImage
-      color: root.foreground
+      color: trayIconRoot.tint
       visible: trayIconRoot.symbolic
       layer.enabled: trayIconRoot.symbolic
       layer.effect: MultiEffect {

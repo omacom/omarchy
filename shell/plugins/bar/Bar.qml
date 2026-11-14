@@ -48,11 +48,18 @@ Item {
   property var fallbackBarConfig: ({
     position: "top",
     background: "opaque",
+    transparentOnlyWhenWorkspaceEmpty: false,
+    transparentForegroundPerMonitor: false,
     layout: { left: [], centerBegin: [], center: [], centerEnd: [], right: [] }
   })
   property var layoutConfig: fallbackBarConfig.layout
   property bool requestedTransparent: false
+  property bool transparentOnlyWhenWorkspaceEmpty: false
+  property bool transparentForegroundPerMonitor: false
+  property var visibleSpecialWorkspaceNames: ({})
+  property int transparencyRevision: 0
   property bool useTransparentForeground: false
+  property bool foregroundRefreshPending: false
   property bool transparent: false
   // A see-through bar that Hyprland blurs behind (the bar-glassy toggle), so
   // its theme background stays faintly. A transparent bar wins over it.
@@ -77,6 +84,7 @@ Item {
   property color background: Commons.Color.bar.background
   readonly property color glassBackground: Qt.rgba(background.r, background.g, background.b, Math.min(background.a, 0.35))
   property color urgent: Commons.Color.bar.active
+  property int backgroundSerial: 0
 
   // A theme change cross-fades the bar's colors. Cycling the background
   // between opaque, glassy and clear jumps, text color included.
@@ -199,6 +207,8 @@ Item {
   // Every widget's place on every bar surface (ModuleSlot), and every widget
   // itself (WidgetHost), which its slot borrows from its surface's pool.
   property var moduleSlots: []
+  property var barSurfaces: []
+  property int pluginBarApiSerial: 0
   property var widgetHosts: []
   property var centerBoxes: []
   property var pluginBarApis: ({})
@@ -217,17 +227,26 @@ Item {
     return JSON.parse(JSON.stringify(root.layoutConfig || {}))
   }
 
-  function bindPluginBarApi(api) {
+  function bindPluginBarApi(api, slot) {
     if (!api) return
-    api.foreground = Qt.binding(function() { return root.foreground })
-    api.barForeground = Qt.binding(function() { return root.barForeground })
+    api.foreground = Qt.binding(function() {
+      var surface = root.slotWindow(slot)
+      return surface ? surface.foreground : root.foreground
+    })
+    api.barForeground = Qt.binding(function() {
+      var surface = root.slotWindow(slot)
+      return surface ? surface.barForeground : root.barForeground
+    })
     api.background = Qt.binding(function() { return root.background })
     api.urgent = Qt.binding(function() { return root.urgent })
     api.fontFamily = Qt.binding(function() { return root.fontFamily })
     api.position = Qt.binding(function() { return root.position })
     api.vertical = Qt.binding(function() { return root.vertical })
     api.barSize = Qt.binding(function() { return root.barSize })
-    api.transparent = Qt.binding(function() { return root.transparent })
+    api.transparent = Qt.binding(function() {
+      var surface = root.slotWindow(slot)
+      return surface ? surface.transparent : root.transparent
+    })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
     api.traySectionDragActive = Qt.binding(function() { return root.traySectionDragActive })
     api.traySectionPopoutOpen = Qt.binding(function() { return root.traySectionPopoutOpen })
@@ -323,19 +342,27 @@ Item {
   function requestPluginPopout(pluginId, owner) {
     if (!root.markPluginObject(pluginId, owner, "popout")) return
     root.requestPopout(owner)
-    root.syncPluginBarApiObjects(pluginBarApis[String(pluginId || "")])
+    root.syncPluginBarApisFor(pluginId)
   }
 
   function releasePluginPopout(pluginId, owner) {
     if (!root.pluginOwnsBarObject(pluginId, owner)) return
     root.releasePopout(owner)
     root.unmarkPluginObject(pluginId, owner, "popout")
-    root.syncPluginBarApiObjects(pluginBarApis[String(pluginId || "")])
+    root.syncPluginBarApisFor(pluginId)
   }
 
-  function pluginBarApiFor(pluginId, moduleName, registered) {
-    var key = String(pluginId || "")
-    if (!key) return null
+  function syncPluginBarApisFor(pluginId) {
+    for (var key in pluginBarApis) {
+      var api = pluginBarApis[key]
+      if (api && api.pluginId === pluginId) root.syncPluginBarApiObjects(api)
+    }
+  }
+
+  function pluginBarApiFor(pluginId, moduleName, registered, slot) {
+    var id = String(pluginId || "")
+    if (!id || !slot) return null
+    var key = slot.ensurePluginApiKey()
 
     var pluginShell = null
     if (registered && root.shell && typeof root.shell.pluginShellForId === "function") {
@@ -346,7 +373,7 @@ Item {
       // Replacement bars receive a service-less entry facade. Giving an
       // untrusted bar a generic facade factory would let it retrieve another
       // third-party plugin's live service object.
-      pluginShell = root.shell.pluginShellForBarEntry(key, moduleName)
+      pluginShell = root.shell.pluginShellForBarEntry(id, moduleName)
     }
 
     if (pluginBarApis[key]) {
@@ -355,15 +382,15 @@ Item {
     }
 
     var api = pluginBarApiComponent.createObject(null, {
-      pluginId: key,
+      pluginId: id,
       moduleName: String(moduleName || ""),
       shell: pluginShell,
       _showTooltip: function(target, text) { root.showTooltip(target, text) },
       _hideTooltip: function(target) { root.hideTooltip(target) },
-      _registerClickTarget: function(target) { root.registerPluginClickTarget(key, target) },
-      _unregisterClickTarget: function(target) { root.unregisterPluginClickTarget(key, target) },
-      _requestPopout: function(owner) { root.requestPluginPopout(key, owner) },
-      _releasePopout: function(owner) { root.releasePluginPopout(key, owner) },
+      _registerClickTarget: function(target) { root.registerPluginClickTarget(id, target) },
+      _unregisterClickTarget: function(target) { root.unregisterPluginClickTarget(id, target) },
+      _requestPopout: function(owner) { root.requestPluginPopout(id, owner) },
+      _releasePopout: function(owner) { root.releasePluginPopout(id, owner) },
       _switchPanelFrom: function(owner, direction) { return root.switchPanelFrom(owner, direction) },
       _notePopoutCard: function(card) { root.notePopoutCard(card) },
       _popoutCardFor: function(owner) { return root.popoutCardFor(owner) },
@@ -375,19 +402,19 @@ Item {
       _run: function(command) { root.run(command) }
     })
     if (!api) return null
-    root.bindPluginBarApi(api)
+    root.bindPluginBarApi(api, slot)
 
     var next = ({})
-    for (var id in pluginBarApis) next[id] = pluginBarApis[id]
+    for (var apiKey in pluginBarApis) next[apiKey] = pluginBarApis[apiKey]
     next[key] = api
     pluginBarApis = next
     return api
   }
 
-  function pluginBarApiUsed(pluginId) {
+  function pluginBarApiUsed(key) {
     for (var i = 0; i < widgetHosts.length; i++) {
       var host = widgetHosts[i]
-      if (host && host.pluginApiId === pluginId) return true
+      if (host && host.pluginApiKey === key) return true
     }
     return false
   }
@@ -405,16 +432,24 @@ Item {
 
   function prunePluginBarApis() {
     var next = ({})
+    var removed = []
     for (var id in pluginBarApis) {
       var api = pluginBarApis[id]
       if (root.pluginBarApiUsed(id)) {
         next[id] = api
         continue
       }
-      root.releasePluginObjects(id)
+      removed.push(api.pluginId)
       if (api && typeof api.destroy === "function") api.destroy()
     }
     pluginBarApis = next
+    for (var i = 0; i < removed.length; i++) {
+      var stillUsed = false
+      for (var key in next) {
+        if (next[key].pluginId === removed[i]) { stillUsed = true; break }
+      }
+      if (!stillUsed) root.releasePluginObjects(removed[i])
+    }
   }
 
   onActivePopoutChanged: schedulePluginBarApiSync()
@@ -540,7 +575,26 @@ Item {
 
   function slotWindow(slot) {
     if (!slot) return null
-    return targetWindow(slot.activeItem) || targetWindow(slot)
+    var window = targetWindow(slot.activeItem) || targetWindow(slot)
+    return window ? (root.barSurfaceForScreen(window.screen) || window) : null
+  }
+
+  function registerBarSurface(surface) {
+    if (barSurfaces.indexOf(surface) !== -1) return
+    barSurfaces = barSurfaces.concat([surface])
+  }
+
+  function unregisterBarSurface(surface) {
+    barSurfaces = barSurfaces.filter(function(item) { return item !== surface })
+  }
+
+  function barSurfaceForScreen(screen) {
+    if (!screen) return null
+    for (var i = 0; i < barSurfaces.length; i++) {
+      var surface = barSurfaces[i]
+      if (surface.screen === screen || (surface.screen && surface.screen.name === screen.name)) return surface
+    }
+    return null
   }
 
   function sameScreen(left, right) {
@@ -778,6 +832,8 @@ Item {
     var config = Util.isPlainObject(barConfig) ? barConfig : fallbackBarConfig
 
     position = normalizePosition(config.position)
+    transparentOnlyWhenWorkspaceEmpty = config.transparentOnlyWhenWorkspaceEmpty === true
+    transparentForegroundPerMonitor = config.transparentForegroundPerMonitor === true
     // opaque, glassy or none; a config from before background says
     // transparent instead.
     var look = config.background || (config.transparent === true ? "none" : "opaque")
@@ -785,7 +841,7 @@ Item {
     // A bar going clear waits for its text color before dropping its
     // background, so a glassy one stays glassy until then rather than
     // flashing opaque. Once clear, transparent wins over a stale glassy.
-    if (look !== "none") glassy = look === "glassy"
+    if (look !== "none" || transparentOnlyWhenWorkspaceEmpty) glassy = look === "glassy"
     if (look !== glassSyncedLook) {
       glassSyncedLook = look
       Util.execDetached("omarchy-bar sync-glass")
@@ -1438,9 +1494,69 @@ Item {
   }
 
   function setRequestedTransparency(value) {
-    var nextTransparent = value === true
-    requestedTransparent = nextTransparent
-    if (!nextTransparent) {
+    requestedTransparent = value === true
+    syncTransparency()
+  }
+
+  function specialWorkspaceName(monitor) {
+    if (!monitor) return ""
+
+    var names = visibleSpecialWorkspaceNames || ({})
+    if (Object.prototype.hasOwnProperty.call(names, monitor.name)) return names[monitor.name]
+
+    var special = (monitor.lastIpcObject || {}).specialWorkspace || ({})
+    return String(special.name || "")
+  }
+
+  function specialWorkspaceHasToplevels(monitor) {
+    var name = specialWorkspaceName(monitor)
+    if (!name) return false
+
+    var workspaces = Hyprland.workspaces.values
+    for (var i = 0; i < workspaces.length; i++) {
+      if (workspaces[i].name === name) return workspaces[i].toplevels.values.length > 0
+    }
+    return false
+  }
+
+  function updateVisibleSpecialWorkspace(event) {
+    var update = BarModel.specialWorkspaceEvent(String(event.name || ""), String(event.data || ""))
+    if (!update || !update.monitorName) return
+
+    var names = Object.assign({}, visibleSpecialWorkspaceNames)
+    names[update.monitorName] = update.workspaceName
+    visibleSpecialWorkspaceNames = names
+  }
+
+  function shouldBeTransparent(monitor) {
+    var revision = transparencyRevision
+    if (!requestedTransparent) return false
+    if (!transparentOnlyWhenWorkspaceEmpty) return true
+    var targetMonitor = monitor || Hyprland.focusedMonitor
+    if (specialWorkspaceHasToplevels(targetMonitor)) return false
+
+    var workspace = targetMonitor ? targetMonitor.activeWorkspace : Hyprland.focusedWorkspace
+    return revision >= 0 && workspace !== null && workspace.toplevels.values.length === 0
+  }
+
+  function needsTransparentForeground() {
+    if (!requestedTransparent) return false
+    if (!transparentOnlyWhenWorkspaceEmpty) return true
+
+    // The shared wallpaper color belongs to every transparent surface, not
+    // just the focused monitor. Keep it while any monitor still needs it.
+    var monitors = Hyprland.monitors.values
+    for (var i = 0; i < monitors.length; i++) {
+      if (shouldBeTransparent(monitors[i])) return true
+    }
+    return false
+  }
+
+  function syncTransparency() {
+    transparencyRevision++
+    if (!needsTransparentForeground()) {
+      foregroundRefreshPending = false
+      transparentForegroundTimer.stop()
       foregroundAnimationEnabled = false
       useTransparentForeground = false
       transparent = false
@@ -1448,7 +1564,11 @@ Item {
       restoreForegroundAnimation()
       return
     }
-    scheduleTransparentForegroundRefresh()
+
+    // The standard transparent bar waits for wallpaper-aware text contrast;
+    // workspace-conditional transparency must change as soon as a workspace clears.
+    if (transparentOnlyWhenWorkspaceEmpty) transparent = shouldBeTransparent(Hyprland.focusedMonitor)
+    if (!useTransparentForeground) scheduleTransparentForegroundRefresh()
   }
 
   function restoreForegroundAnimation() {
@@ -1458,15 +1578,25 @@ Item {
   }
 
   function scheduleTransparentForegroundRefresh() {
-    if (!requestedTransparent) {
+    if (!needsTransparentForeground()) {
+      foregroundRefreshPending = false
+      transparentForegroundTimer.stop()
       transparentForeground = themeForeground
+      return
+    }
+    if (transparentForegroundProc.running) {
+      foregroundRefreshPending = true
       return
     }
     transparentForegroundTimer.restart()
   }
 
   function refreshTransparentForeground() {
-    if (!requestedTransparent || transparentForegroundProc.running) return
+    if (!needsTransparentForeground()) return
+    if (transparentForegroundProc.running) {
+      foregroundRefreshPending = true
+      return
+    }
 
     transparentForegroundProc.command = [
       "omarchy-bar-text-color",
@@ -1478,7 +1608,14 @@ Item {
     transparentForegroundProc.running = true
   }
 
-  onRequestedTransparentChanged: scheduleTransparentForegroundRefresh()
+  onTransparentOnlyWhenWorkspaceEmptyChanged: {
+    if (!transparentOnlyWhenWorkspaceEmpty) {
+      // Switching back to the standard mode must wait for wallpaper contrast.
+      transparent = false
+      useTransparentForeground = false
+    }
+    syncTransparency()
+  }
   onPositionChanged: scheduleTransparentForegroundRefresh()
   onThemeForegroundChanged: scheduleTransparentForegroundRefresh()
   onThemeContrastForegroundChanged: scheduleTransparentForegroundRefresh()
@@ -1492,6 +1629,12 @@ Item {
 
   Process {
     id: transparentForegroundProc
+    onRunningChanged: {
+      if (!running && root.foregroundRefreshPending) {
+        root.foregroundRefreshPending = false
+        root.scheduleTransparentForegroundRefresh()
+      }
+    }
     stdout: SplitParser {
       onRead: function(line) {
         var value = String(line || "").trim()
@@ -1499,13 +1642,31 @@ Item {
 
         root.foregroundAnimationEnabled = false
         root.transparentForeground = value
-        if (root.requestedTransparent) {
+        if (root.needsTransparentForeground()) {
           root.useTransparentForeground = true
-          root.transparent = true
+          root.transparent = root.shouldBeTransparent(Hyprland.focusedMonitor)
         }
         root.restoreForegroundAnimation()
       }
     }
+  }
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      var name = String(event.name || "")
+      if (name === "activespecial" || name === "activespecialv2") root.updateVisibleSpecialWorkspace(event)
+      if (!root.transparentOnlyWhenWorkspaceEmpty || !BarModel.affectsTransparency(name)) return
+      // Toplevel membership changes do not always propagate through QML bindings.
+      workspaceTransparencyTimer.restart()
+    }
+  }
+
+  Timer {
+    id: workspaceTransparencyTimer
+    interval: 0
+    repeat: false
+    onTriggered: root.syncTransparency()
   }
 
   // FileView also fires for any change in its path's parent directory, so watch
@@ -1514,7 +1675,10 @@ Item {
     path: root.stateHome + "/omarchy/current/theme"
     watchChanges: true
     printErrors: false
-    onFileChanged: root.scheduleTransparentForegroundRefresh()
+    onFileChanged: {
+      root.backgroundSerial++
+      root.scheduleTransparentForegroundRefresh()
+    }
   }
 
   function runProcess(process) {
@@ -1666,6 +1830,138 @@ Item {
   component BarPanel: PanelWindow {
     id: barWindow
 
+    Component.onCompleted: {
+      root.registerBarSurface(barWindow)
+      if (!cutoutPending) cutoutWaitOver = true
+    }
+    Component.onDestruction: root.unregisterBarSurface(barWindow)
+
+    readonly property var hyprlandMonitor: Hyprland.monitorFor(screen)
+    readonly property bool transparent: root.transparentOnlyWhenWorkspaceEmpty
+      ? root.shouldBeTransparent(hyprlandMonitor) : root.transparent
+    property color transparentForeground: root.themeForeground
+    property bool useTransparentForeground: false
+    property bool foregroundRefreshPending: false
+    readonly property color barForeground: !barWindow.transparent ? root.themeForeground
+      : (root.transparentForegroundPerMonitor && useTransparentForeground
+        ? transparentForeground : root.barForeground)
+    // Preserve the existing theme color unless per-monitor wallpaper contrast
+    // is enabled. Popup content must never inherit the wallpaper color.
+    readonly property color foreground: root.transparentForegroundPerMonitor && barWindow.transparent
+      ? Commons.Color.popups.text : root.foreground
+    readonly property color background: root.background
+    readonly property color urgent: root.urgent
+    readonly property string fontFamily: root.fontFamily
+    readonly property string position: root.position
+    readonly property bool vertical: root.vertical
+    readonly property int barSize: root.barSize
+    readonly property bool barHidden: root.barHidden
+    readonly property bool foregroundAnimationEnabled: root.foregroundAnimationEnabled
+    readonly property bool centerSectionRevealHeld: root.centerSectionRevealHeld
+    readonly property bool centerHoverRevealSuppressed: root.centerHoverRevealSuppressed
+    readonly property var shell: root.shell
+    readonly property var layoutConfig: root.layoutConfig
+    readonly property var activePopout: root.activePopout
+    readonly property var clickTargets: root.clickTargets
+    readonly property bool traySectionDragActive: root.traySectionDragActive
+    readonly property bool traySectionPopoutOpen: root.traySectionPopoutOpen
+
+    function scheduleTransparentForegroundRefresh() {
+      if (!root.transparentForegroundPerMonitor || !barWindow.transparent) {
+        foregroundRefreshPending = false
+        transparentForegroundTimer.stop()
+        useTransparentForeground = false
+        transparentForeground = root.themeForeground
+        return
+      }
+      if (transparentForegroundProc.running) {
+        foregroundRefreshPending = true
+        return
+      }
+      transparentForegroundTimer.restart()
+    }
+
+    function showTooltip(target, text) { root.showTooltip(target, text) }
+    function hideTooltip(target) { root.hideTooltip(target) }
+    function registerClickTarget(target) { root.registerClickTarget(target) }
+    function unregisterClickTarget(target) { root.unregisterClickTarget(target) }
+    function requestPopout(owner) { root.requestPopout(owner) }
+    function releasePopout(owner) { root.releasePopout(owner) }
+    function switchPanelFrom(owner, direction) { return root.switchPanelFrom(owner, direction) }
+    function notePopoutCard(card) { root.notePopoutCard(card) }
+    function popoutCardFor(owner) { return root.popoutCardFor(owner) }
+    function targetBelongsToWindow(target, window) { return root.targetBelongsToWindow(target, window) }
+    function moduleWidgets(id) { return root.moduleWidgets(id) }
+    function barSizeFor(screenName) { return root.barSizeFor(screenName) }
+    function run(command) { root.run(command) }
+    function setCenterHoverRevealSuppressed(value) { root.setCenterHoverRevealSuppressed(value) }
+
+    onTransparentChanged: {
+      scheduleTransparentForegroundRefresh()
+      // Initial Hyprland state arrives asynchronously, without a raw event.
+      // A newly transparent surface must also wake the shared sampler.
+      Qt.callLater(root.syncTransparency)
+    }
+    onHyprlandMonitorChanged: scheduleTransparentForegroundRefresh()
+
+    Connections {
+      target: root
+      function onPositionChanged() { barWindow.scheduleTransparentForegroundRefresh() }
+      function onThemeForegroundChanged() { barWindow.scheduleTransparentForegroundRefresh() }
+      function onThemeContrastForegroundChanged() { barWindow.scheduleTransparentForegroundRefresh() }
+      function onTransparentForegroundPerMonitorChanged() { barWindow.scheduleTransparentForegroundRefresh() }
+      function onBackgroundSerialChanged() { barWindow.scheduleTransparentForegroundRefresh() }
+    }
+
+    Timer {
+      id: transparentForegroundTimer
+      interval: 120
+      repeat: false
+      onTriggered: {
+        if (!root.transparentForegroundPerMonitor || !barWindow.transparent) return
+        if (transparentForegroundProc.running) {
+          barWindow.foregroundRefreshPending = true
+          return
+        }
+        if (!barWindow.hyprlandMonitor || !barWindow.screen) return
+
+        transparentForegroundProc.command = [
+          "omarchy-bar-text-color",
+          root.position,
+          String(root.barSize),
+          root.colorHex(root.themeForeground),
+          root.colorHex(root.themeContrastForeground),
+          "--screen",
+          String(Math.round(barWindow.screen.width)) + "x" + String(Math.round(barWindow.screen.height))
+        ]
+        transparentForegroundProc.running = true
+      }
+    }
+
+    Process {
+      id: transparentForegroundProc
+      onRunningChanged: {
+        if (!running && barWindow.foregroundRefreshPending) {
+          barWindow.foregroundRefreshPending = false
+          barWindow.scheduleTransparentForegroundRefresh()
+        }
+      }
+      stdout: SplitParser {
+        onRead: function(line) {
+          var value = String(line || "").trim()
+          if (!/^#[0-9A-Fa-f]{6}$/.test(value)) return
+          barWindow.transparentForeground = value
+          barWindow.useTransparentForeground = root.transparentForegroundPerMonitor && barWindow.transparent
+        }
+      }
+    }
+
+    Connections {
+      target: barWindow.screen
+      function onWidthChanged() { barWindow.scheduleTransparentForegroundRefresh() }
+      function onHeightChanged() { barWindow.scheduleTransparentForegroundRefresh() }
+    }
+
     // Hiding parks the bar just past its screen edge instead of unmapping it.
     // Unmapping frees the layer surface and the whole scene graph, so every
     // reveal has to rebuild them — new surface, re-shaped glyphs, re-uploaded
@@ -1719,7 +2015,6 @@ Item {
     readonly property bool cutoutPending: BarModel.cutoutPending(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
     property bool cutoutWaitOver: false
     onCutoutPendingChanged: if (!cutoutPending) cutoutWaitOver = true
-    Component.onCompleted: if (!cutoutPending) cutoutWaitOver = true
 
     Timer {
       interval: 2000
@@ -1782,7 +2077,7 @@ Item {
 
       Rectangle {
         anchors.fill: parent
-        color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
+        color: barWindow.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
       }
 
       Loader {
@@ -1956,6 +2251,9 @@ Item {
     id: ghostWindow
 
     required property var ghostScreen
+    readonly property var barSurface: root.barSurfaceForScreen(ghostScreen)
+    readonly property bool barTransparent: barSurface ? barSurface.transparent : root.transparent
+    readonly property color barTextColor: barSurface ? barSurface.barForeground : root.barForeground
     readonly property bool active: !!root.barDragSource && root.sameScreen(root.barDragScreen, ghostScreen)
     readonly property var sourceItem: root.barDragSource ? root.barDragSource.activeItem : null
     readonly property bool poofShown: !!root.barPoof && root.sameScreen(root.barPoof.screen, ghostScreen)
@@ -1994,7 +2292,7 @@ Item {
       Behavior on scale { NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic } }
       Behavior on opacity { NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic } }
 
-      RoomOutline { opacity: root.transparent ? 0.45 : 0.94 }
+      RoomOutline { barSurface: ghostWindow.barSurface; opacity: ghostWindow.barTransparent ? 0.45 : 0.94 }
 
       Image {
         anchors.fill: parent
@@ -2120,7 +2418,7 @@ Item {
             radius: size / 2
             x: cloud.width / 2 + Math.cos(angle) * poof.spanX * reach * drift - size / 2
             y: cloud.height / 2 + Math.sin(angle) * poof.spanY * reach * drift - Style.spaceReal(10) * poof.outCubic(t) - size / 2
-            color: root.barForeground
+            color: ghostWindow.barTextColor
             // In at once, holding while it billows, thinning away after.
             opacity: Math.min(1, t / 0.08) * (1 - Math.pow(Math.max(0, t - 0.3) / 0.7, 1.4)) * 0.9
           }
@@ -2143,7 +2441,7 @@ Item {
           radius: size / 2
           x: Math.cos(angle) * (poof.spanX + poof.puffSize * 0.6) * reach * fly - size / 2
           y: Math.sin(angle) * (poof.spanY + poof.puffSize * 0.6) * reach * fly - size / 2
-          color: root.barForeground
+          color: ghostWindow.barTextColor
           opacity: (t > 0 ? 1 : 0) * (1 - t) * 0.9
         }
       }
@@ -2154,6 +2452,9 @@ Item {
     id: moveGhostWindow
 
     required property var ghostScreen
+    readonly property var barSurface: root.barSurfaceForScreen(ghostScreen)
+    readonly property bool barTransparent: barSurface ? barSurface.transparent : root.transparent
+    readonly property color barTextColor: barSurface ? barSurface.barForeground : root.barForeground
     visible: root.barMoveActive && root.sameScreen(root.barMoveScreen, ghostScreen)
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
@@ -2189,10 +2490,10 @@ Item {
         y: modelData === "bottom" ? parent.height - edgeSize : 0
         width: edgeVertical ? edgeSize : parent.width
         height: edgeVertical ? parent.height : edgeSize
-        color: root.transparent ? "transparent" : root.background
-        borderSpec: Border.flat(root.barForeground, 1)
+        color: moveGhostWindow.barTransparent ? "transparent" : root.background
+        borderSpec: Border.flat(moveGhostWindow.barTextColor, 1)
         visible: opacity > 0
-        opacity: root.barMoveCandidate === modelData ? (root.transparent ? 0.45 : 0.7) : 0
+        opacity: root.barMoveCandidate === modelData ? (moveGhostWindow.barTransparent ? 0.45 : 0.7) : 0
 
         Behavior on opacity {
           NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
@@ -2326,6 +2627,7 @@ Item {
     }
 
     DropOutline {
+      barSurface: box.window
       visible: box.dragHere
       length: box.extent
       dropInto: box.dropInto
@@ -2337,18 +2639,22 @@ Item {
   // The outline of a dragged widget's room, inset from its edges: on the
   // ghost, on the room it leaves, and on the room it would land in.
   component RoomOutline: BorderSurface {
+    property var barSurface: null
+    readonly property bool barTransparent: barSurface ? barSurface.transparent : root.transparent
+    readonly property color barTextColor: barSurface ? barSurface.barForeground : root.barForeground
     anchors.fill: parent
     anchors.margins: Style.space(1)
-    color: root.transparent ? "transparent" : root.background
-    borderSpec: Border.flat(root.barForeground, 1)
+    color: barTransparent ? "transparent" : root.background
+    borderSpec: Border.flat(barTextColor, 1)
     radius: Math.min(Style.cornerRadius, Math.min(width, height) / 2)
-    opacity: root.transparent ? 0.22 : 0.32
+    opacity: barTransparent ? 0.22 : 0.32
   }
 
   // The outline of a section a drop can go into, the center box or the tray
   // section, during a drag: as wide across the bar as the dragged widget's
   // outline, and `length` along it, or a line where that is nothing.
   component DropOutline: BorderSurface {
+    property var barSurface: null
     property real length: 0
     property bool dropInto: false
     readonly property real across: Math.max(1, (root.vertical ? root.barDragGhostWidth : root.barDragGhostHeight) - Style.space(1) * 2)
@@ -2356,7 +2662,7 @@ Item {
     width: root.vertical ? across : Math.max(1, length)
     height: root.vertical ? Math.max(1, length) : across
     color: "transparent"
-    borderSpec: Border.flat(dropInto ? Commons.Color.accent : root.barForeground, 1)
+    borderSpec: Border.flat(dropInto ? Commons.Color.accent : (barSurface ? barSurface.barForeground : root.barForeground), 1)
     radius: Math.min(Style.cornerRadius, Math.min(width, height) / 2)
     opacity: dropInto ? 1 : 0.5
   }
@@ -2385,7 +2691,7 @@ Item {
     Component.onCompleted: root.registerDragSpacer(spacer)
     Component.onDestruction: root.unregisterDragSpacer(spacer)
 
-    RoomOutline {}
+    RoomOutline { barSurface: spacer.window }
 
     Image {
       anchors.centerIn: parent
@@ -2648,6 +2954,18 @@ Item {
     readonly property var registryMetadata: root.barWidgetRegistry.metadataFor(root.canonicalWidgetId(moduleName))
     readonly property bool firstParty: registryMetadata && registryMetadata.firstParty === true
     readonly property string pluginApiId: registered ? root.canonicalWidgetId(moduleName) : "bar-entry:" + moduleName
+    readonly property var barSurface: root.slotWindow(host)
+    onBarSurfaceChanged: injectProps()
+    property string pluginApiKey: ""
+    function ensurePluginApiKey() {
+      if (!pluginApiKey || pluginApiKey.indexOf(pluginApiId + ":") !== 0)
+        pluginApiKey = pluginApiId + ":" + (++root.pluginBarApiSerial)
+      return pluginApiKey
+    }
+    onPluginApiIdChanged: {
+      pluginApiKey = ""
+      Qt.callLater(root.prunePluginBarApis)
+    }
     // Re-evaluate when the registry mutates (Component reference changes,
     // plugin enabled/disabled, etc.). Reading the `widgets` property creates
     // the binding dependency — the wrapped function call alone wouldn't.
@@ -2758,7 +3076,7 @@ Item {
       if ("fixedEdge" in target) target.fixedEdge = fixedEdge
       if ("inTraySection" in target) target.inTraySection = inTraySection
       if ("bar" in target) target.bar = firstParty
-        ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
+        ? (barSurface || root) : root.pluginBarApiFor(pluginApiId, moduleName, registered, host)
       if ("moduleName" in target) target.moduleName = moduleName
       if ("settings" in target) target.settings = moduleSettings
     }
@@ -2897,12 +3215,13 @@ Item {
       height: root.vertical ? slot.alongLength : slot.widgetHeight
       clip: slot.dragSource || slot.removalPending
 
-      RoomOutline { visible: slot.dragSource }
+      RoomOutline { barSurface: slot.window; visible: slot.dragSource }
 
       // The whole tray, lit while a drop would land in its drawer section and
       // dark again the moment the pointer takes the widget out, so in and out
       // of the tray read at a glance. Under the icons, so they stay crisp.
       DropOutline {
+        barSurface: slot.window
         visible: slot.trayDropInto
         length: root.vertical ? parent.height : parent.width
         dropInto: true
@@ -2926,6 +3245,7 @@ Item {
       // clip would hide an empty section's line. Faint until a drop would
       // land in it; then the whole tray's highlight takes over.
       DropOutline {
+        barSurface: slot.window
         readonly property var section: slot.traySectionGeometry || { x: 0, y: 0, width: 0, height: 0 }
 
         visible: slot.traySectionShown && !slot.trayDropInto && !!slot.traySectionGeometry

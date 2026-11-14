@@ -148,6 +148,8 @@ string on a miss.
     "id": "omarchy.bar",
     "position": "top",
     "background": "opaque",
+    "transparentOnlyWhenWorkspaceEmpty": false,
+    "transparentForegroundPerMonitor": false,
     "layout": {
       "left":        [ { "id": "omarchy.menu" } ],
       "centerBegin": [ { "id": "omarchy.indicators" } ],
@@ -187,6 +189,12 @@ The bar's sections run along it in the order `left`, `centerBegin`, `center`, `c
 `config/omarchy/shell.json` describes the fresh-install state. When no
 user `shell.json` exists, defaults are used verbatim. Once the user
 customizes, `shell.json` is canonical — there is no deep-merge.
+
+Set `bar.background` to `"none"` to enable wallpaper-aware bar transparency. `bar.transparentOnlyWhenWorkspaceEmpty` (default `false`) makes each monitor's bar transparent only while its active workspace has no windows, including visible special-workspace windows; occupied monitors stay solid. `bar.transparentForegroundPerMonitor` (default `false`) samples each monitor's wallpaper separately to choose readable text for transparent bars. With it off, transparent bars share a foreground color. Both options apply to `bar.background: "none"`, not opaque or glassy, and can be enabled independently. Legacy `bar.transparent: true` is still accepted when `background` is absent:
+
+```json
+{ "bar": { "background": "none", "transparentOnlyWhenWorkspaceEmpty": true, "transparentForegroundPerMonitor": true } }
+```
 
 `shell.json` is shell configuration; theme tokens live in `shell.toml`
 (next section). Both are current — they answer different questions. A
@@ -434,7 +442,7 @@ For a custom QML widget:
 
 Then `~/.config/omarchy/bar/modules/gpu.qml` (or set `source` to point
 elsewhere). The module is an `Item` and receives `bar`, `moduleName`,
-`settings` properties. `bar` exposes `foreground` / `background` /
+`settings` properties. Use `bar.barForeground` for text or symbolic icons on the bar (wallpaper-aware when transparency is enabled), and `Color.popups.text` from `qs.Commons` for text inside an opaque popup. `bar.foreground` remains available for existing widgets but is not the wallpaper-aware bar color. `bar` also exposes `background` /
 `urgent` / `fontFamily` / `position` / `vertical` / `barSize`, plus
 `run(cmd)`, `showTooltip(t, s)` / `hideTooltip(t)`,
 `requestPopout(o)` / `releasePopout(o)`. To shell-quote arguments for

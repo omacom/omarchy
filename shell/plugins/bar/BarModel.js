@@ -166,6 +166,30 @@ function nearestEdge(candidates, axis, vertical) {
   return best
 }
 
+function specialWorkspaceEvent(eventName, eventData) {
+  var values = String(eventData || "").split(",")
+  if (eventName === "activespecial" && values.length === 2) {
+    return { workspaceName: values[0], monitorName: values[1] }
+  }
+  if (eventName === "activespecialv2" && values.length === 3) {
+    return { workspaceName: values[1], monitorName: values[2] }
+  }
+  return null
+}
+
+function affectsTransparency(eventName) {
+  switch (eventName) {
+  case "openwindow": case "closewindow": case "movewindow": case "movewindowv2":
+  case "workspace": case "workspacev2": case "focusedmon":
+  case "createworkspace": case "createworkspacev2": case "destroyworkspace": case "destroyworkspacev2":
+  case "activespecial": case "activespecialv2":
+  case "monitoradded": case "monitoraddedv2": case "monitorremoved": case "monitorremovedv2":
+    return true
+  default:
+    return false
+  }
+}
+
 // A drop over the room the dragged widget (`source`, a candidate's slot)
 // still holds, which puts it back, or null off it.
 function ownRoomTarget(rows, axis, vertical, source) {
@@ -681,6 +705,8 @@ if (typeof module !== "undefined") {
     pickDrawnSlot: pickDrawnSlot,
     pickPanelSlot: pickPanelSlot,
     nearestDropTarget: nearestDropTarget,
+    specialWorkspaceEvent: specialWorkspaceEvent,
+    affectsTransparency: affectsTransparency,
     centerDropTarget: centerDropTarget,
     centerDropZone: centerDropZone,
     traySectionDropTarget: traySectionDropTarget,
