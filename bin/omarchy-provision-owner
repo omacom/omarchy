@@ -911,6 +911,12 @@ finalize_user() {
   home=$(getent passwd "$username" | cut -d: -f6)
   shell=$(getent passwd "$username" | cut -d: -f7)
 
+  # Deferred images install hardware before an owner exists. Register the
+  # actual owner UID now, before offline user hooks publish the selected font.
+  if "$OMARCHY_PATH/bin/omarchy-hw-touchbar"; then
+    "$OMARCHY_PATH/bin/omarchy-setup-touchbar-system" --configure-user "$username" || return 1
+  fi
+
   runuser -u "$username" -- env \
     HOME="$home" \
     USER="$username" \
