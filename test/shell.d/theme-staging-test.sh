@@ -143,7 +143,7 @@ program = "$marker"
 background = "#102030"
 foreground = "#a0b0c0"
 
-[colors.normal]
+[colors.normal] # Normal colors
 black = "#102030"
 red = "#ff0000"
 green = "#00ff00"

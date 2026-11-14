@@ -39,7 +39,7 @@ done < <(awk '
   /^[ \t]*\[/ {
     line = $0
     sub(/^[ \t]+/, "", line)
-    if (line ~ /^\[[^]]*\][ \t]*$/) {
+    if (line ~ /^\[[^]]*\][ \t]*(#.*)?$/) {
       section = substr(line, 2, index(line, "]") - 2)
     } else {
       section = ""
