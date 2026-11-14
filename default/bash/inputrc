@@ -2,6 +2,10 @@ set meta-flag on
 set input-meta on
 set output-meta on
 set convert-meta off
+
+# Prevent pastejacking: treat pasted text as a single block so embedded
+# newlines are not executed automatically.
+set enable-bracketed-paste on
 set completion-ignore-case on
 set completion-prefix-display-length 2
 set show-all-if-ambiguous on
