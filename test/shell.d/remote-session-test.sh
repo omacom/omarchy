@@ -56,3 +56,11 @@ pass "probe reports a local server with an empty peer"
 
 (( $(probe "100 200" | wc -l) == 2 )) || fail "probe lists every server"
 pass "probe lists every server"
+
+# Environment values may contain newlines; only a NUL starts a new entry.
+printf 'NOTE=hello\nSSH_CONNECTION=decoy 1 2 3\0SSH_CONNECTION=fd00::9 51234 ::1 22\0' >"$TMPDIR/proc/100/environ"
+[[ $(probe "100") == "100 fd00::9" ]] || fail "probe parses NUL-delimited entries and IPv6 peers"
+pass "probe parses NUL-delimited entries and IPv6 peers"
+
+[[ $(probe "300") == "300 " ]] || fail "probe tolerates a server exiting before its environment is read"
+pass "probe tolerates a server exiting before its environment is read"
