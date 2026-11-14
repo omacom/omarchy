@@ -70,7 +70,7 @@ lock_ipc() {
 # a request that may not have landed costs nothing to repeat.
 request_lock() {
   case $(lock_ipc "$lock_timeout_ms" lock lock 2>/dev/null) in
-    missing-pam) report_unsecured "no lock screen is configured" ;;
+    missing-pam) report_unsecured "no lock screen is configured" "$(omarchy-i18n lock.unlockedNoLockScreen)" ;;
   esac
 }
 
@@ -92,14 +92,15 @@ sync_clamshell() {
 
 # logind suspends whether or not this wait succeeded, so a failure here means
 # the machine slept with the session exposed. The notification is the only way
-# anyone finds out, and it lands on the screen they unlock into.
+# anyone finds out, and it lands on the screen they unlock into. The journal
+# gets the reason in English ($1), the notification the user's language ($2).
 report_unsecured() {
   printf 'omarchy-system-sleep-lock: suspending without a secure lock (%s)\n' \
     "$1" >&2
 
   omarchy-notification-send -u critical -g 󰌾 \
-    "Screen did not lock before suspend" \
-    "The session was left unlocked ($1)." >/dev/null 2>&1 || true
+    "$(omarchy-i18n lock.didNotLock)" \
+    "$2" >/dev/null 2>&1 || true
 
   exit 1
 }
@@ -121,4 +122,4 @@ while (( $(remaining_ms) > 0 )); do
   sleep "$poll_interval"
 done
 
-report_unsecured "the shell did not secure the session within ${budget_ms}ms"
+report_unsecured "the shell did not secure the session within ${budget_ms}ms" "$(omarchy-i18n lock.unlockedTimeout "$budget_ms")"

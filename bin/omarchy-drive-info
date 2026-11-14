@@ -19,7 +19,14 @@ else
 fi
 
 # Get basic disk information
-size=$(lsblk -dno SIZE "$drive" 2>/dev/null)
+size=$(lsblk -dno SIZE "$drive" 2>/dev/null | tr -d '[:space:]')
+
+# lsblk glues the unit to the number ("476.9G"); write the number with the
+# language's decimal separator and digits.
+if [[ $size =~ ^([0-9]+([.,][0-9]+)?)([A-Za-z]*)$ ]] && number=$(omarchy-i18n --number "${BASH_REMATCH[1]/,/.}"); then
+  size="$number${BASH_REMATCH[3]}"
+fi
+
 vendor=$(lsblk -dno VENDOR "$root_drive" 2>/dev/null | sed 's/ *$//')
 model=$(lsblk -dno MODEL "$root_drive" 2>/dev/null | sed 's/ *$//')
 
