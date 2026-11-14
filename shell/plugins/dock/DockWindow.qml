@@ -83,6 +83,20 @@ PanelWindow {
   readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0 || positionChanging)
   readonly property bool contentShown: shown && !tucked
 
+  // Icon MouseAreas can own hover while the outer handlers hand it off.
+  readonly property bool iconsHovered: {
+    if (launcherSlot.pointerInside) return true
+    for (var i = 0; i < appRepeater.count; i++) {
+      var item = appRepeater.itemAt(i)
+      if (item && item.pointerInside) return true
+    }
+    return false
+  }
+  onIconsHoveredChanged: {
+    if (iconsHovered) hideTimer.stop()
+    else if (window.autohide) hideTimer.restart()
+  }
+
   readonly property int gap: Style.spacing.xs
   readonly property int iconSize: Math.round(36 * Style.fontScale)
   // Each app has a square slot with its icon in the middle, and the slots run
@@ -270,7 +284,7 @@ PanelWindow {
     // Long enough to cross a gap between the edge and the icons, no longer.
     interval: 150
     onTriggered: {
-      if (!bodyHover.hovered && !edgeHover.containsMouse && !edgeSensor.containsMouse && !window.menuOpen && !window.dragging) window.revealed = false
+      if (!window.iconsHovered && !bodyHover.hovered && !edgeHover.containsMouse && !edgeSensor.containsMouse && !window.menuOpen && !window.dragging) window.revealed = false
     }
   }
 
@@ -301,7 +315,7 @@ PanelWindow {
       anchors.fill: parent
       hoverEnabled: true
       acceptedButtons: Qt.NoButton
-      onEntered: window.revealed = true
+      onEntered: { hideTimer.stop(); window.revealed = true }
       onExited: hideTimer.restart()
     }
   }
@@ -324,7 +338,7 @@ PanelWindow {
       anchors.fill: parent
       hoverEnabled: true
       acceptedButtons: Qt.NoButton
-      onEntered: window.revealed = true
+      onEntered: { hideTimer.stop(); window.revealed = true }
       onExited: hideTimer.restart()
     }
   }
@@ -376,7 +390,10 @@ PanelWindow {
 
     HoverHandler {
       id: bodyHover
-      onHoveredChanged: if (!hovered && window.autohide) hideTimer.restart()
+      onHoveredChanged: {
+        if (hovered) hideTimer.stop()
+        else if (window.autohide) hideTimer.restart()
+      }
       // Only a real move clears it: the release itself reports the pointer too.
       onPointChanged: {
         if (!window.hoverStale || window.dragging) return
@@ -390,7 +407,7 @@ PanelWindow {
       anchors.centerIn: parent
       columns: window.vertical ? 1 : appRepeater.count + 1
 
-      AppsSlot {}
+      AppsSlot { id: launcherSlot }
 
       Repeater {
         id: appRepeater
@@ -406,6 +423,7 @@ PanelWindow {
 
     // Only the dragged icon is lifted while a drag is on; none of the others
     // pop as it passes over them.
+    readonly property bool pointerInside: mouse.containsMouse
     property bool hovered: mouse.containsMouse && !window.hoverStale && !window.dragging
     property bool pressed: mouse.pressed
     property alias mouse: mouse
