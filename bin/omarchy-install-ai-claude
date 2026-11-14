@@ -8,6 +8,16 @@ set -euo pipefail
 echo "Installing Claude..."
 omarchy-pkg-add claude-desktop
 
+# The app works without its theme, so nothing here may keep it from opening.
+echo "Matching Claude to the current theme..."
+
+# An updated user's current theme may have been staged before this template existed.
+if [[ ! -f $HOME/.local/state/omarchy/current/theme/claude-desktop.json ]]; then
+  omarchy-theme-refresh || true
+fi
+
+omarchy-theme-set-claude-desktop --activate || echo "Claude could not be matched to the current theme."
+
 echo "Opening Claude..."
 setsid uwsm-app -- /usr/bin/claude-desktop >/dev/null 2>&1 &
 

@@ -1,0 +1,5 @@
+{
+  "name": "omarchy-theme",
+  "version": "0.1.0",
+  "description": "Paints the Claude desktop app in the current Omarchy theme, and repaints it when the theme changes."
+}
