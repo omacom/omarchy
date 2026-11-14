@@ -20,6 +20,12 @@ Press `Fn + Super` once before you dig into `~/.config/hypr/`, and if that doesn
 
 Before you reboot, try restarting the offending subsystem on its own. _Update > Hardware_ in the Omarchy menu has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up the majority of "it worked five minutes ago" situations — a Bluetooth headset that won't reconnect, a trackpad that went dead after a suspend, sound that vanished when you unplugged a monitor.
 
+### The screen froze when I rebooted
+
+A reboot that sits on the last frame for minutes can be caused by a kernel driver stuck in uninterruptible sleep, holding up shutdown. Unloading an audio, GPU, or Wi-Fi module that is still in use with `modprobe -r` is one way to get there. Wait it out, or hold the power button; don't try to unload the driver again.
+
+Reboot with `omarchy system reboot` rather than a raw `systemctl reboot` (or `reboot`) from a terminal or coding agent. It shows an on-screen notice and asks apps to close first, so you can tell the reboot has started.
+
 ### Why are my external speakers not playing?
 
 Probably because they're not set as the primary output. Click on the speaker icon on the right side of the bar, and it'll open the volume popup where you can pick the output device (and mix per-app volumes too).
