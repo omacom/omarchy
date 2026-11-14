@@ -96,6 +96,13 @@ Item {
   property int requestSerial: 0
   property int applySerial: 0
   property var items: ({})
+  // The guard batch is a function of the menu's items alone, and building it
+  // walks every item: long enough to hold up an open by a frame or two. Build
+  // it again only once the items have been replaced, which is the only way
+  // they change.
+  property string guardScriptCache: ""
+  property bool guardScriptStale: true
+  onItemsChanged: guardScriptStale = true
   property var itemOrder: []
   property var navStack: []
   property var providersLoaded: ({})
@@ -1214,7 +1221,11 @@ Item {
     }
     root.guardsPending = false
 
-    var script = MenuModel.guardScript(root.items)
+    if (root.guardScriptStale) {
+      root.guardScriptCache = MenuModel.guardScript(root.items)
+      root.guardScriptStale = false
+    }
+    var script = root.guardScriptCache
     if (!script) {
       root.whenResults = ({})
       root.checkedResults = ({})
