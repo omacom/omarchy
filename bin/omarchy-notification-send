@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Send an Omarchy desktop notification
-# omarchy:args=[--app-name <app-name>] [-g <glyph>] [-u <low|normal|critical>] [-i <icon>] [-t <ms>] [-r <id>] [-p] [--transient] [--image <path-or-uri>] <headline> [description] [--exec <program> [args...] | --action <label> <program> [words...]... [--with <args...>]]
+# omarchy:args=[--app-name <app-name>] [-g <glyph>] [-u <low|normal|critical>] [-i <icon>] [-t <ms>] [-r <id>] [-p] [--transient] [--image <path-or-uri>] [--] <headline> [description] [--exec <program> [args...] | --action <label> <program> [words...]... [--with <args...>]]
 # omarchy:examples=omarchy notification send "Reminder" "5 minutes are up" -g 󰢌
 
 set -euo pipefail
@@ -23,9 +23,10 @@ action_labels=()
 action_words=()
 with_args=()
 parsed_option_args=0
+strict_text=0
 
 usage() {
-  echo "Usage: omarchy-notification-send [--app-name <app-name>] [-g <glyph>] [-u <low|normal|critical>] [-i <icon>] [-t <ms>] [-r <id>] [-p] [--transient] [--image <path-or-uri>] <headline> [description] [--exec <program> [args...] | --action <label> <program> [words...]... [--with <args...>]]" >&2
+  echo "Usage: omarchy-notification-send [--app-name <app-name>] [-g <glyph>] [-u <low|normal|critical>] [-i <icon>] [-t <ms>] [-r <id>] [-p] [--transient] [--image <path-or-uri>] [--] <headline> [description] [--exec <program> [args...] | --action <label> <program> [words...]... [--with <args...>]]" >&2
 }
 
 # Recognize a known option, in both `--flag value` and `--flag=value` forms.
@@ -94,8 +95,13 @@ parse_omarchy_option() {
   return 0
 }
 
+# After --, accept only a headline and optional description as literal text.
 while (($# > 0)); do
-  if parse_omarchy_option "$@"; then
+  if [[ $1 == "--" ]]; then
+    strict_text=1
+    shift
+    break
+  elif parse_omarchy_option "$@"; then
     shift "$parsed_option_args"
   else
     break
@@ -121,9 +127,14 @@ known_flag() {
   return 1
 }
 
-if (($# > 0)) && ! known_flag "$1"; then
+if (($# > 0)) && { ((strict_text)) || ! known_flag "$1"; }; then
   description=$1
   shift
+fi
+
+if ((strict_text && $# > 0)); then
+  usage
+  exit 1
 fi
 
 while (($# > 0)); do

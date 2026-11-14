@@ -37,3 +37,9 @@ You can also start this layout configuration for every subdirectory in the curre
 Finally, you can start a swarm of agents using `tsl [panes] [command]`. So `tsl 4 c` will give you a four-way grid of opencode agents:
 
  ![tmux-tsl](images/tmux-tsl.webp)
+
+## Command completion notifications
+
+Use `omarchy notification run -- make` to get a desktop notification when a command finishes. `--title "Project build"` gives the notification a custom title. The command keeps its input, output, and exit status; notification delivery failure does not change the result. Only the executable name and status are included automatically, not command arguments or captured output.
+
+For a pipeline, shell function, or compound command, run the shell explicitly: `omarchy notification run -- bash -c 'make && make test'`. Interrupting the wrapper forwards the signal to the launched command and suppresses the completion alert. The command remains in the caller's foreground process group, so normal terminal Ctrl+C behavior is retained; descendant signal handling follows the launched command. No automatic shell hooks are installed.
