@@ -49,7 +49,7 @@ else
 
   echo
   echo "Downloading Battle.net installer..."
-  curl --fail --location --retry 3 "$INSTALLER_URL" --output "$installer"
+  curl --proto '=https' --proto-redir '=https' --fail --location --retry 3 "$INSTALLER_URL" --output "$installer"
 
   cat <<'EOF'
 
