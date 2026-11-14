@@ -832,3 +832,316 @@ assertEqual(proc.runs[proc.runs.length - 1], '2', 'the pending read follows the 
 finish('dwindle\n')
 assertEqual(widget.activeMode, 'dwindle', 'the newly focused workspace shows its own layout')
 JS
+
+# --- Window snapping ----------------------------------------------------------
+
+# A 2560x1440 monitor with a 30 px bar, Omarchy's gaps (10 out, 5 in), and the
+# titlebars plugin's 30 px titlebar and 2 px border around every window.
+snap_setup='
+local display = { name = "DP-1", x = 0, y = 0, width = 2560, height = 1440, scale = 1, transform = 0,
+  reserved = { left = 0, top = 30, right = 0, bottom = 0 }, active_workspace = { id = 1 } }
+local settings = { ["general.gaps_out"] = { left = 10, top = 10, right = 10, bottom = 10 }, ["general.gaps_in"] = { left = 5 }, ["general.border_size"] = 2 }
+local base_config = hl.get_config
+hl.get_config = function(key) if settings[key] ~= nil then return settings[key] end return base_config(key) end
+dispatched, minimum = {}, nil
+local base_dispatch = hl.dispatch
+hl.dispatch = function(action)
+  table.insert(dispatched, action)
+  local target = action.window
+  if action.kind == "place" and action.x and action.relative == false then
+    if action.workspace then
+    elseif action.place == "resize" then target.size = { x = action.x, y = action.y }
+    else target.at = { x = action.x, y = action.y } end
+  end
+  if action.kind ~= "focus" and action.kind ~= "event" then base_dispatch(action) end
+end
+hl.dsp.window.resize = function(spec) spec.kind = "place" spec.place = "resize" return spec end
+hl.dsp.focus = function(spec) spec.kind = "focus" return spec end
+hl.dsp.event = function(name) return { kind = "event", name = name } end
+hl.get_monitors = function() return { display } end
+hl.get_monitor = function() return display end
+hl.get_monitor_at = function() return display end
+hl.get_active_window = function() return focused end
+hl.get_window = function(selector)
+  for _, candidate in ipairs(hl.get_windows()) do
+    if "address:" .. candidate.address == selector then return candidate end
+  end
+end
+hl.plugin.hyprbars = {
+  add_button = function() end,
+  -- A closing window has lost its titlebar, as in Hyprland.
+  extents = function(w) if w.closing then return { left = 0, top = 0, right = 0, bottom = 0 } end return { left = 2, top = 32, right = 2, bottom = 2 } end,
+  limits = function() return minimum and { min = minimum } or {} end,
+}
+function snap_window(address, workspace)
+  local created = window(address, workspace, { floating = true })
+  created.monitor, created.at, created.size = display, { x = 500, y = 300 }, { x = 1100, y = 760 }
+  return created
+end
+function find(kind, place)
+  for _, action in ipairs(dispatched) do
+    if action.kind == kind and (not place or action.place == place) then return action end
+  end
+end
+function has_restore_tag(target)
+  for _, tag in ipairs(target.tags) do if tag:match("^snap%-restore:") then return tag end end
+end
+require("default.hypr.workspace-layouts")
+require("default.hypr.window-snapping")
+'
+
+rm -rf "$modes_dir"
+mkdir -p "$modes_dir"
+printf 'o.workspace_mode({ workspace = "1", mode = "floating" })\n' >"$modes_dir/1.lua"
+printf 'o.workspace_mode({ workspace = "2", mode = "dwindle" })\n' >"$modes_dir/2.lua"
+
+# KWin's rules for Super + arrows, tiles that meet at the inner gap, and where a
+# drag snaps.
+if ! run_lua '
+local G = require("default.hypr.window-snapping-geometry")
+local cases = {
+  { nil, "left", "left" }, { "left", "right", "right" }, { "left", "top", "top-left" },
+  { "top-left", "right", "top" }, { "top-left", "bottom", "left" }, { "top", "left", "top-left" },
+  { "max", "left", "left" }, { "bottom-right", "top", "right" }, { "right", "left", "left" },
+  { "top", "top", "max" }, { "bottom", "bottom", "max" }, { "left", "left", "max" }, { "right", "right", "max" },
+  { "top-left", "top", "max" }, { "bottom-right", "right", "max" }, { "max", "top", "top" },
+}
+for _, case in ipairs(cases) do
+  local got = G.press(case[1], case[2])
+  assert(got == case[3], string.format("%s + %s gave %s, not %s", tostring(case[1]), case[2], tostring(got), case[3]))
+end
+
+local area = { x = 0, y = 30, w = 2560, h = 1410 }
+local gaps = { outer = { left = 10, top = 10, right = 10, bottom = 10 }, inner = 5 }
+local left, right = G.tile_box(area, "left", gaps), G.tile_box(area, "right", gaps)
+assert(left.x == 10 and left.y == 40 and left.w == 1265 and left.h == 1390, "the left half sits inside the outer gaps")
+assert(right.x - (left.x + left.w) == 10, "two halves leave twice the inner gap between them")
+local odd = G.tile_box({ x = 0, y = 26, w = 1366, h = 742 }, "top-left", gaps)
+local next_to = G.tile_box({ x = 0, y = 26, w = 1366, h = 742 }, "top-right", gaps)
+assert(next_to.x - (odd.x + odd.w) == 10, "quarters of an odd width still meet at the inner gap")
+assert(G.tile_of(G.tile_box(area, "bottom-right", gaps), area, gaps) == "bottom-right", "a snapped box is recognized as its tile")
+
+assert(G.zone({ x = 5, y = 700 }, area) == "left", "the side edge snaps to a half")
+assert(G.zone({ x = 5, y = 60 }, area) == "top-left", "the top of a side edge snaps to a quarter")
+assert(G.zone({ x = 2555, y = 1400 }, area) == "bottom-right", "the bottom of a side edge snaps to a quarter")
+assert(G.zone({ x = 1280, y = 32 }, area) == "max", "the top edge maximizes")
+assert(G.zone({ x = 1280, y = 700 }, area) == nil, "the middle does not snap")
+assert(G.shared_side("right", { x = 0, y = 0, w = 2560, h = 1440 }, { { x = 2560, y = 0, w = 1920, h = 1080 } }, { x = 2559, y = 500 }), "an edge shared with another monitor is known")
+assert(not G.shared_side("left", { x = 0, y = 0, w = 2560, h = 1440 }, { { x = 2560, y = 0, w = 1920, h = 1080 } }, { x = 0, y = 500 }), "an outer edge is not shared")
+-- A laptop (1280x720 logical) left of a 2560x1440 monitor shares only the top of the left edge of the larger one.
+local big, laptop = { x = 1280, y = 0, w = 2560, h = 1440 }, { { x = 0, y = 0, w = 1280, h = 720 } }
+assert(G.shared_side("left", big, laptop, { x = 1285, y = 360 }), "the part of an edge across from a smaller monitor is shared")
+assert(not G.shared_side("left", big, laptop, { x = 1285, y = 1000 }), "the part of an edge below a smaller monitor is not shared")
+assert(G.shared_side("right", { x = 0, y = 0, w = 1280, h = 720 }, { big }, { x = 1279, y = 360 }), "the edge of a smaller monitor next to a larger one is shared")
+assert(G.fill({ "left" }) == "right", "beside a left half, the right half is free")
+assert(G.fill({ "top-left", "top-right", "bottom-left" }) == "bottom-right", "beside three quarters, the fourth is free")
+assert(G.fill({ "left", "top-right" }) == "bottom-right", "beside a half and a quarter, the last quarter is free")
+assert(G.fill({ "top-left", "bottom-right" }) == nil, "two diagonal quarters leave no single tile")
+assert(G.fill({ "bottom-right" }) == nil, "three free quarters are no single tile")
+assert(G.fill({ "left", "top-left" }) == nil, "overlapping windows have no layout to complete")
+assert(G.full({ "left", "right" }) and G.full({ "left", "top-right", "bottom-right" }), "halves and quarters can fill the screen")
+assert(not G.full({ "left" }) and not G.full({ "left", "right", "top-left" }), "a gap or an overlap is no full layout")
+local keep, give = G.split("right")
+assert(keep == "top-right" and give == "bottom-right" and G.split("top-left") == nil, "a half splits into its quarters, a quarter does not")
+assert(G.near_tile({ x = 40, y = 40, w = 1240, h = 1390 }, area, gaps, 70) == "left", "a box near the left half is the left half")
+assert(G.near_tile({ x = 400, y = 40, w = 1240, h = 1390 }, area, gaps, 70) == nil, "a box far from every tile is none")
+-- Moved from the laptop (1280x720 logical) to a 2560x1440 monitor and back.
+local laptop, big = { x = 0, y = 26, w = 1280, h = 694 }, { x = 1280, y = 26, w = 2560, h = 1414 }
+local carried, kept = G.carry(G.tile_box(laptop, "left", gaps), laptop, big, gaps, 34)
+assert(kept == "left" and carried.x == G.tile_box(big, "left", gaps).x and carried.w == G.tile_box(big, "left", gaps).w, "a half moved to a larger monitor is that half there")
+local _, near = G.carry({ x = 1295, y = 40, w = 1240, h = 1390 }, big, laptop, gaps, 70)
+assert(near == "left", "a box resized by hand close to a half is carried as that half")
+local free = G.carry({ x = 320, y = 200, w = 400, h = 300 }, laptop, big, gaps, 34)
+assert(free.x == 1920 and free.y == 381 and free.w == 800 and free.h == 611, "a free window keeps its place and size relative to the screen: " .. free.x .. "," .. free.y .. " " .. free.w .. "x" .. free.h)
+local fitted = G.fit({ x = 700, y = 100, w = 900, h = 1000 }, laptop)
+assert(fitted.x == 380 and fitted.y == 26 and fitted.w == 900 and fitted.h == 694, "a box larger than the screen is fitted inside it")
+local grows, into = G.merge("bottom-right", { "left", "top-right" })
+assert(grows == "top-right" and into == "right", "a closed quarter gives its half back to the quarter above it")
+assert(G.merge("bottom-right", { "top-left", "bottom-left", "top-right", "top-right" }) == nil, "stacked windows are no layout to grow back")
+assert(G.merge("left", { "right" }) == nil, "a closed half leaves the other half as it is")
+local tag = G.tag(1100, 760, 1261, 1356)
+local back = G.parse_tag(tag)
+assert(back.w == 1100 and back.h == 760 and back.snapped_w == 1261 and back.snapped_h == 1356, "a restore tag reads back what it holds")
+'; then
+  fail "the snapping geometry: KWin's keys, tiles that meet at the inner gap, drag zones and monitor edges"
+fi
+pass "the snapping geometry: KWin's keys, tiles that meet at the inner gap, drag zones and monitor edges"
+
+# Super + arrows snap on a floating workspace and move focus anywhere else.
+if ! run_lua "$snap_setup"'
+focused = snap_window("0x1", 1)
+o.snap.key("left")
+local resize, move = find("place", "resize"), find("place")
+assert(resize and resize.x == 1261 and resize.y == 1356, "the left half was not the client size inside titlebar and border")
+assert(focused.at.x == 12 and focused.at.y == 72, "the window was not placed in the left half")
+assert(has_restore_tag(focused) == "snap-restore:1100x760/1261x1356", "the size to go back to was not kept")
+o.snap.key("top")
+assert(focused.size.y == 656 and has_restore_tag(focused) == "snap-restore:1100x760/1261x656", "left then up is the top-left quarter, keeping the first size")
+
+-- A window floating on a tiled workspace (popped out with Super + T) too.
+dispatched = {}
+focused = snap_window("0x2", 2)
+o.snap.key("left")
+local focus = find("focus")
+assert(focus and focus.direction == "l" and not find("place"), "a tiled workspace moves focus instead")
+'; then
+  fail "Super + arrows snap on a floating workspace and move focus elsewhere"
+fi
+pass "Super + arrows snap on a floating workspace and move focus elsewhere"
+
+# A window opening beside a snapped one fills the tile left free, and keeps its
+# own size for later; a dialog opens where it would anyway.
+if ! run_lua "$snap_setup"'
+focused = snap_window("0x1", 1)
+o.snap.key("left")
+local dialog = snap_window("0x3", 1)
+dialog.tags = { "omarchy-floating-workspace" }
+o.snap.opened(dialog)
+assert(dialog.at.x == 500 and not has_restore_tag(dialog), "a dialog was moved into the free half")
+
+local new = snap_window("0x2", 1)
+new.tags = { "omarchy-floating-workspace", "omarchy-mode-opened*" }
+o.snap.opened(new)
+assert(new.at.x == 1287 and new.at.y == 72 and new.size.x == 1261, "the new window did not open in the right half")
+assert(has_restore_tag(new) == "snap-restore:1100x760/1261x1356", "the new window lost its own size")
+dialog.workspace = { id = 9 } -- out of the way
+
+-- Both halves taken: the third window shares the half used last.
+focused.focus_history_id, new.focus_history_id = 2, 1
+local third = snap_window("0x4", 1)
+third.tags = { "omarchy-floating-workspace", "omarchy-mode-opened*" }
+o.snap.opened(third)
+assert(new.at.x == 1287 and new.size.y == 656, "the right half, used last, did not keep its top quarter")
+assert(third.at.x == 1287 and third.at.y == 772 and third.size.y == 656, "the third window did not take the bottom-right quarter")
+assert(focused.size.y == 1356, "the left half was split instead")
+
+-- The fourth shares the only half left; the fifth finds nothing to share.
+third.focus_history_id = 1
+local fourth = snap_window("0x5", 1)
+fourth.tags = { "omarchy-floating-workspace", "omarchy-mode-opened*" }
+o.snap.opened(fourth)
+assert(focused.size.y == 656 and fourth.at.x == 12 and fourth.at.y == 772, "the fourth window did not take the bottom-left quarter")
+local fifth = snap_window("0x6", 1)
+fifth.tags = { "omarchy-floating-workspace", "omarchy-mode-opened*" }
+o.snap.opened(fifth)
+assert(fifth.at.x == 500 and not has_restore_tag(fifth), "a fifth window was squeezed into four quarters")
+
+-- Two windows stacked on the same half are no layout to rearrange.
+for _, held in ipairs({ focused, new, third, fourth, fifth }) do held.workspace = { id = 9 } end
+local first, second = snap_window("0x7", 1), snap_window("0x8", 1)
+focused = first; o.snap.key("left")
+focused = second; o.snap.key("left")
+local another = snap_window("0x9", 1)
+another.tags = { "omarchy-floating-workspace", "omarchy-mode-opened*" }
+o.snap.opened(another)
+assert(first.size.y == 1356 and second.size.y == 1356 and another.at.x == 500, "two windows on the same half were rearranged")
+'; then
+  fail "a new window fills the tile left free, or shares the half used last"
+fi
+pass "a new window fills the tile left free, or shares the half used last"
+
+# Closing a window that held a quarter gives its space back to the window
+# sharing its half; closing a half leaves the other half as it is.
+if ! run_lua "$snap_setup"'
+local left, top, bottom = snap_window("0x1", 1), snap_window("0x2", 1), snap_window("0x3", 1)
+focused = left; o.snap.key("left")
+focused = top; o.snap.key("right"); o.snap.key("top")
+focused = bottom; o.snap.key("right"); o.snap.key("bottom")
+assert(top.size.y == 656 and bottom.at.y == 772, "setup: the right half was not two quarters")
+bottom.closing = true
+o.snap.closed(bottom)
+assert(top.at.y == 72 and top.size.y == 1356 and top.at.x == 1287, "the top-right window did not grow back into the right half")
+assert(has_restore_tag(top) == "snap-restore:1100x760/1261x1356", "the window that grew back lost its own size")
+assert(left.size.y == 1356 and left.at.x == 12, "the left half moved")
+bottom.workspace = { id = 9 }
+top.closing = true
+o.snap.closed(top)
+assert(left.size.x == 1261, "closing a half changed the other one")
+'; then
+  fail "closing a quarter gives its space back to the window sharing its half"
+fi
+pass "closing a quarter gives its space back to the window sharing its half"
+
+# Switching a tiled workspace to floating keeps its windows where tiling had
+# them, as snapped tiles, instead of piling them up in the middle; one off the
+# screen (a scrolling column) joins them as a new window would.
+if ! run_lua "$snap_setup"'
+local half = window("0x1", 2)
+half.monitor, half.at, half.size = hl.get_monitors()[1], { x = 12, y = 42 }, { x = 1261, y = 1386 }
+half.tags = { "snap-restore:640x480/1261x1356" }
+local right = window("0x3", 2)
+right.monitor, right.at, right.size = hl.get_monitors()[1], { x = 1287, y = 42 }, { x = 1261, y = 1386 }
+local away = window("0x2", 2)
+away.monitor, away.at, away.size = hl.get_monitors()[1], { x = 2600, y = 42 }, { x = 800, y = 1386 }
+o.workspace_mode({ workspace = "2", mode = "floating" })
+assert(half.floating and half.at.x == 12 and half.at.y == 72 and half.size.x == 1261 and half.size.y == 1356, "the left tile did not stay the left half, titlebar inside")
+assert(has_restore_tag(half) == "snap-restore:1100x760/1261x1356", "a kept window lost the comfortable size it goes back to")
+local restore_tags = 0
+for _, tag in ipairs(half.tags) do if tag:match("^snap%-restore:") then restore_tags = restore_tags + 1 end end
+assert(restore_tags == 1, "a kept window carries more than one snap-restore tag")
+assert(away.floating and away.at.x >= 1287 and away.size.y < 1356, "a window off the screen to the right did not join the right half as a quarter")
+assert(right.size.y == away.size.y and right.at.y < away.at.y, "the right half did not make room for the window from off the screen")
+'; then
+  fail "switching a tiled workspace to floating keeps its windows in place"
+fi
+pass "switching a tiled workspace to floating keeps its windows in place"
+
+# A tile a window can't fill leaves it alone: no move, no flicker.
+if ! run_lua "$snap_setup"'
+focused = snap_window("0x1", 1)
+minimum = { x = 1400, y = 300 }
+dispatched = {}
+o.snap.key("left")
+assert(#dispatched == 0, "a window wider than half the screen was moved")
+'; then
+  fail "a tile a window can't fill leaves it alone"
+fi
+pass "a tile a window can't fill leaves it alone"
+
+# A drag to an edge shows the tile and snaps there on release; one let go
+# elsewhere stays where it was dropped.
+if ! run_lua "$snap_setup"'
+local s = state()
+for _, event in ipairs({ "hyprbars.drag_start", "hyprbars.drag_move", "hyprbars.drag_end" }) do
+  assert(s.subscriptions[event], event .. " is not followed")
+end
+local dragged = snap_window("0x1", 1)
+local function emit(event, ...) for _, callback in ipairs(s.subscriptions[event]) do callback(...) end end
+local function previews()
+  local found = {}
+  for _, action in ipairs(dispatched) do if action.kind == "event" then table.insert(found, action.name) end end
+  return found
+end
+
+dispatched = {}
+emit("hyprbars.drag_start", dragged, 1280, 700)
+emit("hyprbars.drag_move", dragged, 4, 700)
+emit("hyprbars.drag_move", dragged, 3, 702)
+local shown = previews()
+assert(#shown == 1 and shown[1] == "snap-preview DP-1 10 40 1265 1390", "the left half is announced once: " .. table.concat(shown, ", "))
+emit("hyprbars.drag_end", dragged, 3, 702)
+assert(previews()[2] == "snap-preview none", "the outline is cleared at the drop")
+assert(dragged.at.x == 12 and dragged.size.x == 1261, "the window was not snapped to the left half")
+
+dispatched = {}
+emit("hyprbars.drag_start", dragged, 600, 700)
+emit("hyprbars.drag_move", dragged, 1200, 700)
+emit("hyprbars.drag_end", dragged, 1200, 700)
+assert(not find("place"), "a window let go in the middle was snapped")
+'; then
+  fail "a drag to an edge snaps there, and one let go elsewhere stays"
+fi
+pass "a drag to an edge snaps there, and one let go elsewhere stays"
+
+# The outline reads only an exact, bounded snap-preview message: any client on
+# Hyprland's socket can send a custom event.
+ROOT="$ROOT" run_node_test <<'JS'
+const preview = requireFromRoot('shell/plugins/snap-preview/SnapPreviewModel.js')
+
+assertDeepEqual(preview.parse('custom', 'snap-preview DP-1 10 40 1265 1390'), { monitor: 'DP-1', x: 10, y: 40, w: 1265, h: 1390 }, 'the outline reads a drop target')
+assertEqual(preview.parse('custom', 'snap-preview none'), null, 'none clears the outline')
+assertEqual(preview.parse('custom', 'something else'), undefined, 'another custom event leaves the outline alone')
+assertEqual(preview.parse('workspacev2', 'snap-preview DP-1 1 2 3 4'), undefined, 'only custom events are read')
+for (const bad of ['snap-preview DP-1 1 2 3', 'snap-preview DP-1 1 2 0 5', 'snap-preview DP-1 1 2 9999999 5', 'snap-preview <b>x</b> 1 2 3 4', 'snap-preview DP-1 1.5 2 3 4'])
+  assertEqual(preview.parse('custom', bad), null, `a malformed message clears the outline: ${bad}`)
+JS

@@ -39,6 +39,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | OSD           | `omarchy.osd`             | `panel`                 | `osd/Osd.qml`                         |
 | Polkit agent  | `omarchy.polkit`          | `service`               | `polkit/PolkitAgent.qml`              |
 | Dock          | `omarchy.dock`            | `service`               | `dock/Dock.qml`                       |
+| Snap preview  | `omarchy.snap-preview`    | `service`               | `snap-preview/SnapPreview.qml`        |
 
 First-party bar-only widgets also carry manifests next to their QML files,
 e.g. `bar/widgets/Workspaces.manifest.json`. Rich popup widgets live in their
@@ -104,6 +105,10 @@ runs inside the long-lived `omarchy-shell` process, replacing the old
 App dock shown on floating workspaces, and hidden on tiled ones and behind a fullscreen window. Floating is not a Hyprland layout, so the dock reads each workspace's mode through `omarchy-hyprland-workspace-layout-current`, caches it, and is told to read again over `omarchy-shell omarchy.dock refresh` by the layout commands. `omarchy-shell omarchy.dock apps` toggles its grid of every app.
 
 Its settings live in the `dock:` subtree of `shell.json`: `position` (`top`, `bottom`, `left` or `right`) and `pinned` (desktop ids). A `shell.json` without pins uses the defaults. `omarchy dock` sets both.
+
+## Snap preview
+
+The outline of where a window dragged on a floating workspace will snap. Window snapping (`default/hypr/window-snapping.lua`) announces the drop target as a Hyprland custom event whenever it changes, `snap-preview <monitor> <x> <y> <w> <h>` in layout coordinates or `snap-preview none`, and the plugin outlines that box in the theme's accent on that monitor. Any client on Hyprland's socket can send a custom event, so `SnapPreviewModel.js` takes only an exact, bounded message and treats anything else as none. The `omarchy-snap-preview` layer surface takes no input or focus and exists only while an outline shows.
 
 ## Omarchy menu
 

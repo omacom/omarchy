@@ -89,13 +89,11 @@ local function anything_floats()
   return false
 end
 
--- A window the mode floats opens at a comfortable size in the middle of its
--- monitor, each one stepped from the last so a workspace floated all at once does
--- not leave every window stacked exactly on the one beneath it.
-local function place(window)
+-- The comfortable size the mode gives a window it floats.
+local function comfortable(window)
   local monitor = window.monitor
   if not monitor or not monitor.width then
-    return
+    return nil
   end
 
   local width = math.floor(monitor.width / monitor.scale)
@@ -109,12 +107,19 @@ local function place(window)
   width = width - (reserved.left or 0) - (reserved.right or 0)
   height = height - (reserved.top or 0) - (reserved.bottom or 0)
 
-  hl.dispatch(hl.dsp.window.resize({
-    x = math.min(1100, math.floor(width * 0.64)),
-    y = math.min(760, math.floor(height * 0.68)),
-    relative = false,
-    window = window,
-  }))
+  return math.min(1100, math.floor(width * 0.64)), math.min(760, math.floor(height * 0.68))
+end
+
+-- A window the mode floats opens at a comfortable size in the middle of its
+-- monitor, each one stepped from the last so a workspace floated all at once does
+-- not leave every window stacked exactly on the one beneath it.
+local function place(window)
+  local width, height = comfortable(window)
+  if not width then
+    return
+  end
+
+  hl.dispatch(hl.dsp.window.resize({ x = width, y = height, relative = false, window = window }))
   hl.dispatch(hl.dsp.window.center({ window = window }))
 
   cascade = (cascade + 1) % 5
@@ -128,8 +133,13 @@ end
 -- Every tiled window is claimed before any of them is floated: floating one
 -- member of a group floats the rest, and a single pass would then find those
 -- already floating and leave them to be stranded when the mode ends.
-local function float_for_mode(windows)
-  local claiming = {}
+--
+-- A workspace switched to floating (keep) has its windows keep the places tiling
+-- gave them where window snapping can (window-snapping.lua), rather than piling
+-- up in the middle, and the rest join them as new windows would. Their boxes are
+-- read before any of them floats.
+local function float_for_mode(windows, keep)
+  local claiming, tiled = {}, {}
 
   for _, window in ipairs(windows) do
     set_on_floating_workspace(window, true)
@@ -137,12 +147,26 @@ local function float_for_mode(windows)
     if not window.floating and (window.fullscreen or 0) == 0 then
       set_claimed(window, true)
       table.insert(claiming, window)
+      if keep and window.at and window.size then
+        tiled[window.address] = { x = window.at.x, y = window.at.y, w = window.size.x, h = window.size.y }
+      end
     end
   end
 
+  local placed = {}
   for _, window in ipairs(claiming) do
     set_floating(window, true)
-    place(window)
+    local width, height = comfortable(window)
+    local box = tiled[window.address]
+    if not (box and width and o.snap and o.snap.adopt and o.snap.adopt(window, box, width, height)) then
+      place(window)
+      table.insert(placed, { address = window.address, box = box })
+    end
+  end
+
+  -- One that could not keep its place joins the kept ones as a new window would.
+  if keep and #placed > 0 and o.snap and o.snap.join then
+    o.snap.join(placed)
   end
 end
 
@@ -297,8 +321,9 @@ local function unmaximize_others(window)
   end
 end
 
--- The workspace is passed in when a window is still on its way to it.
-local function arrange(windows, workspace)
+-- The workspace is passed in when a window is still on its way to it; keep
+-- when the workspace itself is switching to floating.
+local function arrange(windows, workspace, keep)
   local floating = {}
   local mine = claimed()
 
@@ -314,7 +339,7 @@ local function arrange(windows, workspace)
     end
   end
 
-  float_for_mode(floating)
+  float_for_mode(floating, keep)
 end
 
 -- Overlapping windows are placed with the pointer, so a floating workspace
@@ -405,7 +430,7 @@ function o.workspace_mode(spec)
     set_up_floating()
   end
 
-  arrange(hl.get_workspace_windows(workspace))
+  arrange(hl.get_workspace_windows(workspace), nil, true)
   sync_open_rules()
   update_input()
 end
@@ -578,5 +603,8 @@ set_up_floating = function()
 
   titlebars()
 end
+
+-- Whether a workspace floats, for window snapping (window-snapping.lua).
+M.floating = floating_workspace
 
 return M
