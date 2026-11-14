@@ -147,7 +147,7 @@ for flags in [['--app=https://x.com/'], ['--app', 'https://x.com/'], ['--app-id=
   with patch.object(m, 'query', return_value=[window]):
     state = m.capture_app_state(window, process, cache)
   command = m.state_command({'class': 'chromium', 'appState': state}, m.command_for(window, process))
-  check(state['urls'] == ['https://omarchy.org/'] and command == ['chromium', '--user-data-dir=/unused', '--new-window', 'https://omarchy.org/'], 'ordinary browser tabs are restored independently when a web app started their shared process: ' + str(flags))
+  check(state['urls'] == ['https://omarchy.org/'] and command[-1] == 'https://omarchy.org/' and '--user-data-dir=/unused' in command and '--profile-directory=Default' in command and not any(a.startswith('--app') for a in command), 'ordinary browser tabs are restored independently when a web app started their shared process: ' + str(flags))
   check(m.chromium_window_argv({'class': 'chrome-x.com__-Default'}, process['argv']) == process['argv'], 'web-app launch flags remain intact for the actual web-app window')
 with patch.object(m, 'query', return_value=[window, {'pid': 42, 'class': 'chrome-x.com__-Default'}]):
   state = m.capture_app_state(window, process, {'/unused/Default/Sessions': [{'title': '', 'urls': ['https://omarchy.org/']}]})
@@ -179,6 +179,15 @@ with tempfile.TemporaryDirectory() as directory:
       print('ok - collecting multiple browser profiles does not weaken private-window exclusion')
     else:
       raise AssertionError('private window bypassed multi-profile check')
+
+  # An inactive profile retains its last session on disk; it is not a live window.
+  (Path(directory) / 'Local State').write_text(json.dumps({'profile': {'last_active_profiles': ['Default']}}))
+  with patch.object(m, 'query', return_value=[first]):
+    current = m.capture_app_state(first, process, cache)
+  check(current['profile'] == 'Default', 'inactive profiles with retained sessions do not block saving current browser windows')
+flattened = ['chromium', '--window-name=My', 'scene', 'name', '--profile-directory=Profile', '1', '--user-data-dir=/unused', '--new-window', 'https://old.example/']
+command = m.state_command({'class': 'chromium', 'appState': {'kind': 'browser', 'urls': ['https://current.example/'], 'profile': 'Profile 1', 'userDataDir': '/unused'}}, flattened)
+check(command[-1] == 'https://current.example/' and 'scene' not in command and 'name' not in command and '1' not in command and '--profile-directory=Profile 1' in command, 'flattened browser window names and profile fragments never reopen as extra search tabs')
 
 # Private sessions must never reuse the normal session's matching page title.
 for flag in ['--incognito', '--guest']:
