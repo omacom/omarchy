@@ -4,6 +4,28 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
+opened_omawrite=0
+
+# Close whatever this file opened on any exit: a leftover overlay keeps
+# keyboard focus.
+cleanup() {
+  local plugin
+  for plugin in omarchy.emojis omarchy.clipboard omarchy.menu omarchy.image-picker omarchy.reminders; do
+    omarchy-shell shell hide "$plugin" >/dev/null 2>&1 || true
+  done
+  # The dock has no close(), so shell hide leaves its grid up; its apps IPC
+  # only toggles, so send it only while the grid is mapped.
+  if layer_on_overlay "omarchy-dock-apps" >/dev/null 2>&1; then
+    omarchy-shell omarchy.dock apps >/dev/null 2>&1 || true
+  fi
+  if ((opened_omawrite)); then
+    close_windows "(?i)omawrite"
+  fi
+  # An EXIT trap's last status becomes the script's.
+  return 0
+}
+trap cleanup EXIT
+
 open_and_close() {
   local name="$1" plugin="$2" namespace="$3" payload="${4:-}"
 
@@ -96,24 +118,35 @@ omarchy-shell notifications dismissAll >/dev/null
 notifications_cleared() { [[ $(omarchy-shell notifications count) == "0" ]]; }
 wait_until "notification popup closes" 15 notifications_cleared
 
-# The menu's Apps submenu does the full launcher loop: open, search by
-# typing, launch the top hit.
+# Apps in the menu hands off to the dock's app grid, which does the full
+# launcher loop: open, search by typing, launch the top hit.
 if window_present "(?i)omawrite" >/dev/null 2>&1; then
   fail "app launch test starts with no Omawrite window" "an Omawrite window is already open"
 fi
+# The grid's IPC toggles, so summoning an already open grid would close it.
+if layer_on_overlay "omarchy-dock-apps" >/dev/null 2>&1; then
+  fail "app launch test starts with the app grid closed" "the app grid is already open"
+fi
+opened_omawrite=1
 
 omarchy-menu summon apps >/dev/null
-wait_until "apps menu opens" 15 layer_on_overlay "omarchy-menu"
+wait_until "apps grid opens" 15 layer_on_overlay "omarchy-dock-apps"
+if layer_present "omarchy-menu" >/dev/null 2>&1; then
+  fail "menu apps entry hands off to the app grid" "the omarchy-menu layer is mapped"
+else
+  pass "menu apps entry hands off to the app grid"
+fi
 sleep 1
-screenshot "success-apps-menu-open"
+screenshot "success-apps-grid-open"
 
 wtype "omawrite"
 sleep 1
-screenshot "success-apps-menu-search"
+screenshot "success-apps-grid-search"
 wtype -k Return
 
-wait_until "apps menu launches the top search hit" 60 window_present "(?i)omawrite"
-wait_until "apps menu closes after launching" 15 layer_absent "omarchy-menu"
+wait_until "apps grid launches the top search hit" 60 window_present "(?i)omawrite"
+wait_until "apps grid closes after launching" 15 layer_absent "omarchy-dock-apps"
 
 close_windows "(?i)omawrite"
 wait_until "Omawrite window closes" 30 window_absent "(?i)omawrite"
+opened_omawrite=0

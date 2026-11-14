@@ -156,6 +156,7 @@ for method in mozc hangul pinyin chewing cangjie5; do
 
   launch_app "foot --app-id=org.omarchy.ime-test $work/reader $work/result"
   wait_until "$method test terminal opens" 15 window_present '^org\.omarchy\.ime-test$'
+  wait_until "$method test terminal has focus" 15 window_focused '^org\.omarchy\.ime-test$'
   [[ $(fcitx5-remote) == "1" ]] || fail "$method setup starts in Latin mode"
   compose
   screenshot "success-input-$method-composition"
@@ -176,6 +177,7 @@ for method in mozc hangul pinyin chewing cangjie5; do
     esac
     launch_app "uwsm app -- $command"
     wait_until "$method $toolkit opens" 30 window_present "$class"
+    wait_until "$method $toolkit has focus" 15 window_focused "$class"
     sleep 1
     compose
     screenshot "success-input-$method-$toolkit-composition"
