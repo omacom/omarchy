@@ -7,14 +7,18 @@
 # copy the ISO vendors beside its copy of setup-form.sh, by the installer, so an
 # install and the first boot that finishes it are set in one font at one size.
 #
-#   omarchy_console_font <tty>   0 once the console is in Terminus, 1 when it is
-#                                left as it was: not a Linux VT, or no Terminus
+#   omarchy_console_font <tty> [<art> [<text>...]]
+#       0 once the console is in Terminus, 1 when it is left as it was: not a
+#       Linux VT, or no Terminus. With art, an OEM's logo, the font also draws
+#       the braille dots it is made of, in place of characters that neither it
+#       nor the text files shown with it use; 1 too when there is no room.
 
 omarchy_console_font_py=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/console-font.py
 
 omarchy_console_font() {
   local tty=$1 rows cols width height terminus=ter-v16b font
   [[ $tty == /dev/tty[0-9]* ]] || return 1
+  shift
 
   # Twice the size where the kernel itself boots in 16x32 rather than 8x16: a
   # display of 22,000 8x16 cells or more (lib/fonts/fonts.c), 2560x1440 and up.
@@ -26,10 +30,11 @@ omarchy_console_font() {
   [[ $rows$cols$width$height =~ ^[0-9]+$ ]] || return 1
   (( 4 * (cols * width / 16) * (rows * height / 32) >= 22000 )) && terminus=ter-v32b
 
-  font=${OMARCHY_CONSOLE_FONT_DIR:-/run/omarchy}/$terminus.psf
-  if [[ ! -s $font ]]; then
+  font=${OMARCHY_CONSOLE_FONT_DIR:-/run/omarchy}/$terminus${1:+-art}.psf
+  # A font with art is built each time: the text beside the art changes.
+  if [[ ! -s $font || $# -gt 0 ]]; then
     mkdir -p "${font%/*}" 2>/dev/null || return 1
-    python3 "$omarchy_console_font_py" "/usr/share/kbd/consolefonts/$terminus.psf.gz" "$font" 2>/dev/null || return 1
+    python3 "$omarchy_console_font_py" "/usr/share/kbd/consolefonts/$terminus.psf.gz" "$font" "$@" 2>/dev/null || return 1
   fi
   setfont -C "$tty" "$font" 2>/dev/null
 }
