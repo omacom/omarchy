@@ -147,7 +147,7 @@ Panel {
     onExited: {
       stateFile.reload()
       if (!succeeded) {
-        if (root.action === "restore") root.opened = true
+        if (root.action === "restore") root.controller.show()
         return
       }
       if (root.action === "restore") {
