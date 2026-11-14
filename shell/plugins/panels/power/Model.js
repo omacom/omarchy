@@ -63,6 +63,16 @@ function chargeThresholdActive(device, onBattery, states) {
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
+// Line power can be online while the battery drains (an undersized charger
+// or a stale USB-C source). Use its flow state when known, and only fall back
+// to the plug status while UPower has no definite charging/discharging state.
+function isDischarging(device, onBattery, states) {
+  if (!device || !device.isPresent) return false
+  if (device.state === states.Discharging) return true
+  if (device.state === states.Charging || device.state === states.FullyCharged) return false
+  return onBattery
+}
+
 function batteryIcon(device, onBattery, states) {
   var d = device || {}
   if (!d.isPresent) return ""
@@ -74,7 +84,7 @@ function batteryIcon(device, onBattery, states) {
 
   if (threshold) return defaultIcons[index]
   if (d.state === states.FullyCharged) return "󰂅"
-  if (!onBattery) return chargingIcons[index]
+  if (!isDischarging(d, onBattery, states)) return chargingIcons[index]
   return defaultIcons[index]
 }
 
@@ -85,8 +95,8 @@ function modeLabel(device, onBattery, states, tr) {
 
   var percentage = d.isPresent ? d.percentage : 0
   if (chargeThresholdActive(d, onBattery, states)) return t("power.threshold", "Threshold")
-  if (onBattery) return t("power.onBattery", "On battery")
-  if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
+  if (isDischarging(d, onBattery, states)) return t("power.onBattery", "On battery")
+  if (percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")
 }
 
@@ -119,6 +129,7 @@ if (typeof module !== "undefined") {
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
+    isDischarging: isDischarging,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
     profileLabel: profileLabel,
