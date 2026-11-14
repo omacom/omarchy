@@ -214,3 +214,11 @@ rebound=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
 [[ $rebound == $'ALT+SPACE (release)\tALT + SPACE\tDictation on release' ]] ||
   fail "rebinding replaces all bindings for a key and preserves binding options" "$rebound"
 pass "rebinding replaces all bindings for a key and preserves binding options"
+
+empty_all=$(PATH="$stub_bin:$PATH" list_bindings "$home" \
+  'o.rebind("SUPER + SHIFT + F", "Disabled", "")') ||
+  fail "binding an empty command does not raise a Lua error" "$empty_all"
+empty=$(awk -F'\t' '$1 == "SHIFT+SUPER+F"' <<<"$empty_all")
+[[ -z $empty ]] ||
+  fail "an empty command disables the binding instead of binding an empty exec_cmd" "$empty"
+pass "an empty command disables the binding instead of binding an empty exec_cmd"
