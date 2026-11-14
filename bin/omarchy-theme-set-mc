@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Sync current Omarchy theme into the Midnight Commander skin
+# omarchy:hidden=true
+
+MC_SKIN_SOURCE="$HOME/.local/state/omarchy/current/theme/mc.ini"
+MC_SKIN="$HOME/.local/share/mc/skins/omarchy.ini"
+MC_INI="$HOME/.config/mc/ini"
+
+omarchy-cmd-present mc || exit 0
+
+# Serialize runs so overlapping theme changes never interleave their writes,
+# and read whichever theme is current once the lock is held.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-mc.lock"
+flock 9
+
+# Read the whole skin before touching the saved one, so a theme switch that
+# removes the source mid-sync leaves the last good skin in place.
+skin=$(cat "$MC_SKIN_SOURCE" 2>/dev/null) && [[ -n $skin ]] || exit 0
+
+# Copy rather than link the skin, so the last good skin survives switching to
+# a theme without one. Write it in place so a running mc watching the file
+# picks up the change.
+mkdir -p "$(dirname "$MC_SKIN")"
+printf '%s\n' "$skin" >"$MC_SKIN"
+
+# Point mc at the skin inside its [Midnight-Commander] section, without
+# touching any other user setting.
+mkdir -p "$(dirname "$MC_INI")"
+[[ -f $MC_INI ]] || : >"$MC_INI"
+mc_ini_tmp=$(mktemp "$MC_INI.XXXXXX")
+trap 'rm -f "$mc_ini_tmp"' EXIT
+awk '
+  function add_skin() { if (!done) { print "skin=omarchy"; done = 1 } }
+  /^[[:space:]]*\[/ {
+    if (in_mc) add_skin()
+    in_mc = ($0 ~ /^[[:space:]]*\[Midnight-Commander\][[:space:]]*$/)
+    if (in_mc) seen = 1
+    print
+    next
+  }
+  in_mc && /^[[:space:]]*skin[[:space:]]*=/ { add_skin(); next }
+  { print }
+  END {
+    if (in_mc) add_skin()
+    else if (!seen) { print "[Midnight-Commander]"; print "skin=omarchy" }
+  }
+' "$MC_INI" >"$mc_ini_tmp" && chmod --reference="$MC_INI" "$mc_ini_tmp" && mv "$mc_ini_tmp" "$MC_INI"
