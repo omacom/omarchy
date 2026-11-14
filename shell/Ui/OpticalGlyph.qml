@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 import qs.Commons
 import qs.Commons as Commons
 
@@ -17,10 +18,15 @@ Item {
   // pixel of ink that isn't there and shifts the glyph's center. Measuring a
   // hundred times larger keeps them to the outline.
   readonly property int metricsScale: 100
+  // Their top is exact, but their bottom never rises above the baseline:
+  // QFontEngine::tightBoundingBox() starts the bottom edge at 0. A glyph drawn
+  // wholly above the baseline, like most icons in a Nerd Font Mono font, would
+  // be centered as if it reached down to it and paint high, so the height
+  // comes from the glyph's outline.
   readonly property rect ink: Qt.rect(glyphMetrics.tightBoundingRect.x / metricsScale,
     glyphMetrics.tightBoundingRect.y / metricsScale,
     glyphMetrics.tightBoundingRect.width / metricsScale,
-    glyphMetrics.tightBoundingRect.height / metricsScale)
+    glyphOutline.boundingRect.height / metricsScale)
   readonly property real tightWidth: Math.max(1, root.ink.width)
   readonly property real tightHeight: Math.max(1, root.ink.height)
   readonly property real paintedScale: paintedSize > 0
@@ -38,6 +44,22 @@ Item {
     font.family: root.fontFamily
     font.pixelSize: root.renderedFontSize * root.metricsScale
     text: root.text
+  }
+
+  Shape {
+    id: glyphOutline
+    visible: false
+
+    ShapePath {
+      fillColor: "transparent"
+      strokeColor: "transparent"
+
+      PathText {
+        text: root.text
+        font.family: root.fontFamily
+        font.pixelSize: root.renderedFontSize * root.metricsScale
+      }
+    }
   }
 
   Text {
