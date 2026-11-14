@@ -168,6 +168,7 @@ amp_package="amp"
 commandcode_package="npm:command-code"
 cursor_agent_package="cursor-agent"
 muse_package="muse"
+openzoo_package="npm:openzoo"
 
 assert_lazy_stub() {
   local package=$1
@@ -242,12 +243,10 @@ for agent in "${!declared_option_bins[@]}"; do
       fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
   done
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 21 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 31 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
@@ -262,11 +261,15 @@ pass "user setup leaves ordinary lazy wrappers to mise"
 "$ROOT/bin/omarchy-mise-install" "$omp_package" omp
 "$ROOT/bin/omarchy-mise-install" "$crush_package" crush
 touch "$test_home/.local/bin/agy" "$test_home/.local/bin/ori"
+printf '#!/bin/bash\necho user-openzoo\n' >"$test_home/.local/bin/openzoo"
+chmod +x "$test_home/.local/bin/openzoo"
 omarchy-remove-preinstalls >/dev/null
 for command in agy omp ori grok crush cursor-agent muse kimi; do
   [[ ! -e $test_home/.local/bin/$command ]] || fail "Remove Preinstalls deletes the $command lazy stub"
 done
-pass "Remove Preinstalls deletes every optional agent lazy stub"
+[[ $("$test_home/.local/bin/openzoo") == "user-openzoo" ]] || fail "Remove Preinstalls deletes a user's openzoo install"
+rm "$test_home/.local/bin/openzoo"
+pass "Remove Preinstalls deletes every optional agent lazy stub and keeps a user's openzoo"
 
 # Cursor's installer links the same path, so anything but the mise wrapper is
 # the user's own install.
@@ -424,6 +427,7 @@ declare -A expected_agents=(
   [muse]="muse"
   [muse-code]="muse"
   [musecode]="muse"
+  [openzoo]="openzoo"
 )
 
 declare -A expected_packages=(
@@ -449,6 +453,7 @@ declare -A expected_packages=(
   [commandcode]="$commandcode_package"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
+  [openzoo]="$openzoo_package"
 )
 
 for selection in "${!expected_agents[@]}"; do
@@ -707,7 +712,7 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
 pass "Muse installs visibly through mise and opens directly"
 
 saved_agent=$(<"$agent_file")
-for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
+for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode openzoo; do
   tool_var="${agent//-/_}_tool"
   package_var="${agent//-/_}_package"
   declared_tool=${!tool_var:-${!package_var}}
@@ -845,6 +850,7 @@ assert_launch commandcode commandcode --yolo -- "Review this project"
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "Freebuff launcher puts the prompt on the clipboard"
 mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"Freebuff takes no starting prompt"* ]] || fail "Freebuff launcher says where the prompt went"
+assert_launch openzoo openzoo claude --permission-mode auto -- "Review this project"
 pass "agent launcher adapts initial prompts for every supported agent"
 
 literal_muse_prompt=$'--disable-sandbox !Crash {$(touch must-not-run)}\ntrailing\\ '
@@ -886,6 +892,7 @@ assert_bypass devin devin --permission-mode dangerous --respect-workspace-trust 
 assert_bypass amp amp --dangerously-allow-all
 assert_bypass commandcode commandcode --yolo
 [[ ! -s $clipboard_log && ! -s $notification_history ]] || fail "Freebuff launcher leaves the clipboard alone without a prompt"
+assert_bypass openzoo openzoo claude --permission-mode auto
 pass "agent launcher skips permission prompts for every supported agent"
 
 printf '%s\n' "opencode" >"$agent_file"

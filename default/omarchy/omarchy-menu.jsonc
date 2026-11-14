@@ -60,6 +60,7 @@
   "agent.harness.omp": {"icon":"","iconFont":"omarchy","label":"omp","checked":"[[ \"$(omarchy-default-agent)\" == \"omp\" ]]","action":"omarchy-default-agent omp"},
   "agent.harness.openclaw": {"icon":"","iconFont":"omarchy","label":"OpenClaw","checked":"[[ \"$(omarchy-default-agent)\" == \"openclaw\" ]]","action":"omarchy-default-agent openclaw"},
   "agent.harness.opencode": {"icon":"","iconFont":"omarchy","label":"OpenCode","checked":"[[ \"$(omarchy-default-agent)\" == \"opencode\" ]]","action":"omarchy-default-agent opencode"},
+  "agent.harness.openzoo": {"icon":"󰚩","label":"openzoo","checked":"[[ \"$(omarchy-default-agent)\" == \"openzoo\" ]]","action":"omarchy-default-agent openzoo"},
   "agent.harness.ori": {"icon":"","iconFont":"omarchy","label":"Ori","checked":"[[ \"$(omarchy-default-agent)\" == \"ori\" ]]","action":"omarchy-default-agent ori"},
   "agent.harness.pi": {"icon":"","iconFont":"omarchy","label":"Pi","checked":"[[ \"$(omarchy-default-agent)\" == \"pi\" ]]","action":"omarchy-default-agent pi"},
   "agent.harness.qwen": {"icon":"","iconFont":"omarchy","label":"Qwen Code","checked":"[[ \"$(omarchy-default-agent)\" == \"qwen\" ]]","action":"omarchy-default-agent qwen"},
