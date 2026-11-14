@@ -50,6 +50,7 @@ cat >"$rtmp/bin/limine-mkinitcpio" <<'SH'
 case ${REBUILD_RESULT:-ok} in
   skip) echo "==> ERROR: mkinitcpio failed for kernel 7.2.8-9-omarchy, skipping." >&2 ;;
   interrupt) kill -TERM "$PPID"; exit 0 ;;
+  fail) exit 1 ;;
 esac
 cat "$DROP_IN" >>"$REBUILD_LOG"
 exit 0
@@ -131,6 +132,23 @@ for line in 'KERNEL_CMDLINE[default]+=" resume=/dev/mapper/root resume_offset=42
   [[ $(<"$drop_in") == "$line" && ! -s $rtmp/rebuilds ]] || fail "setup leaves a drop-in it does not own alone" "$(<"$drop_in")"
 done
 pass "setup leaves device-mapper and hand-edited drop-ins alone"
+
+# --force rebuilds a boot image left without the resume hook on a machine already set up,
+# once even when the offset repair or a rename also wants a rebuild, and never with --no-rebuild.
+for line in "$uuid_line" 'KERNEL_CMDLINE[default]+=" resume=/dev/nvme1n1p2 resume_offset="'; do
+  machine "$line"
+  SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup --force || fail "forced setup on '$line'" "$(<"$rtmp/out")"
+  [[ $(<"$rtmp/rebuilds") == "$uuid_line" ]] || fail "forced setup rebuilds '$line' once" "$(<"$rtmp/rebuilds")"
+done
+machine "$uuid_line"
+SWAP_SOURCE="/dev/nvme0n1p2[/@]" setup --force --no-rebuild || fail "forced setup without rebuild" "$(<"$rtmp/out")"
+[[ ! -s $rtmp/rebuilds ]] || fail "--no-rebuild suppresses a forced rebuild"
+for result in fail skip; do
+  if SWAP_SOURCE="/dev/nvme0n1p2[/@]" REBUILD_RESULT=$result setup --force || grep -q "already set up" "$rtmp/out"; then
+    fail "forced setup reports a rebuild that failed ($result)" "$(<"$rtmp/out")"
+  fi
+done
+pass "forced setup rebuilds the boot image of a machine already set up"
 rm -rf "$rtmp"
 
 if [[ ! -f /sys/power/image_size ]]; then
