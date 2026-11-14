@@ -1,0 +1,17 @@
+[Unit]
+Description=Context firewall (apache+ModSecurity DLP) 127.0.0.1:8081 -> :8080
+After=models-mount.service llama-server.service
+Requires=models-mount.service
+
+[Service]
+Type=simple
+RuntimeDirectory=apache2
+Environment=APACHE_RUN_USER=fw APACHE_RUN_GROUP=fw APACHE_RUN_DIR=/run/apache2 APACHE_PID_FILE=/run/apache2/apache2.pid APACHE_LOG_DIR=/var/log/apache2
+ExecStart=/usr/sbin/apache2 -DFOREGROUND
+ExecReload=/usr/sbin/apache2 -k graceful
+Restart=on-failure
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=Coordinator host ssh access (self-healing nft rule)
+After=whonix-firewall.service network-online.target
+Wants=whonix-firewall.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash -c 'set +B; while true; do /usr/sbin/nft list chain inet filter input 2>/dev/null | grep -q coordinator-ssh || /usr/sbin/nft insert rule inet filter input ip saddr 10.152.152.222 tcp dport {22,8765} counter accept comment coordinator-ssh 2>/dev/null; sleep 10; done'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+# egress-pinhole.nft — per-provider outbound allowlist (resolved 2026-11-08; providers
+# use rotating CDN pools — re-resolve + reload periodically or pin at DNS level).
+table inet compartment-egress {
+  chain output {
+    type filter hook output priority filter - 5; policy accept;
+    # devin cloud agent
+    ip daddr { 100.23.147.166, 34.208.1.84, 35.167.217.94, 44.230.221.200 } tcp dport 443 accept comment "devin-egress"
+    # anthropic / claude
+    ip daddr 160.79.104.10 tcp dport 443 accept comment "anthropic-egress"
+    # opencode — resolve api.opencode.ai at impl time
+  }
+}

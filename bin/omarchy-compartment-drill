@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Integrity drill — verify audit/wazuh watches fire on compartment artifact changes
+# omarchy:hidden=true
+
+# Tamper drill: create then remove a marker in a watched path, then show the
+# ledger tail. Read-only rehearsal — does NOT modify real compartment data.
+
+set -euo pipefail
+
+MARKER="$HOME/.config/vmctl/DRILL-MARKER"
+LEDGER="${COMPARTMENT_LEDGER:-/var/lib/omarchy-compartment/ledger}/ledger.log"
+mkdir -p "$(dirname "$MARKER")"
+
+echo "[drill] writing marker to ~/.config/vmctl/ (watched path)"
+echo "integrity drill $(date -Is)" > "$MARKER"
+sleep 2
+echo "[drill] removing marker"
+rm "$MARKER"
+echo "[drill] recent ledger entries:"
+tail -5 "$LEDGER" 2>/dev/null || echo "(no ledger yet)"
+echo "[drill] check wazuh agent + aide for the create/delete events"

@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# omarchy:summary=Pick which compartment `omarchy agent` routes into
+# omarchy:args=[<name>]
+# omarchy:examples=omarchy default compartment hermes-coding | omarchy default compartment
+
+set -euo pipefail
+compartment_file="$HOME/.config/omarchy/defaults/compartment"
+
+if (($# == 0)); then
+  if [[ -f $compartment_file ]]; then
+    read -r name <"$compartment_file"
+    echo "$name"
+  else
+    echo "none"
+  fi
+else
+  mkdir -p "$(dirname "$compartment_file")"
+  echo "$1" >"$compartment_file"
+  echo "default compartment: $1"
+fi

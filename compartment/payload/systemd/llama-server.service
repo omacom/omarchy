@@ -1,0 +1,27 @@
+[Unit]
+Description=llama.cpp inference server (Ornith-1.5-9B, localhost-only)
+After=models-mount.service
+Requires=models-mount.service
+ConditionPathExists=/opt/models/Ornith-1.5-9B-uncensored.Q4_K_M.gguf
+
+[Service]
+Type=simple
+User=llmserve
+Group=llmserve
+ExecStart=/usr/local/bin/llama-server \
+    -m /opt/models/Ornith-1.5-9B-uncensored.Q4_K_M.gguf \
+    --mmproj /opt/models/Ornith-1.5-9B-uncensored.mmproj-f16.gguf \
+    --host 127.0.0.1 --port 8080 \
+    --ctx-size 65536 --threads 10 --jinja --log-disable
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+StateDirectory=llama
+ReadWritePaths=/var/lib/llama
+MemoryMax=9G
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,4 @@
+# canary-sigs.txt — one substring per line, unique to your canarytoken decoy files.
+# Generate per compartment from the actual decoy contents placed in the workspace.
+# If any string here reaches the model, a honeypot was read. Edit and redeploy:
+#   omarchy-compartment-pii-style flow or virt-customize --upload to /etc/modsecurity/dlp

@@ -1,0 +1,4 @@
+# canary-sigs.txt — substrings unique to your canarytoken decoy files.
+# Generated per-VM at provision from the actual decoy contents.
+# If any of these strings reach the model, a honeypot was read.
+CANARY-EXAMPLE-STRING-REPLACE-AT-PROVISION

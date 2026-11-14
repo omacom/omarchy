@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# omarchy:summary=Provision the networkless vault-signer VM (virtio-serial signing channel)
+# omarchy:hidden=true
+
+# Debian cloud image, NO NIC; clef + virtio-serial tx-relay channel.
+# See docs/compartments.md for guest provisioning (clef, keys, sign-daemon).
+
+set -euo pipefail
+
+: "${OMARCHY_PATH:?OMARCHY_PATH is not set — run inside an Omarchy session}"
+
+if [[ ${EUID} -ne 0 ]]; then
+  exec sudo env OMARCHY_PATH="$OMARCHY_PATH" bash "$0" "$@"
+fi
+
+IMGDIR="${COMPARTMENT_IMGDIR:-/var/lib/libvirt/images/whonix}"
+BASE=/var/lib/libvirt/images/vault-base.qcow2
+OUT="$IMGDIR/vault-signer.qcow2"
+XML=/tmp/vault-signer.xml
+DEBIAN_QCOW2="https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2"
+
+if [[ ! -f $BASE ]]; then
+  echo "downloading Debian cloud image -> $BASE"
+  curl -fL --retry 3 -o "$BASE" "$DEBIAN_QCOW2"
+fi
+
+echo "[1/4] overlay (vault-signer on debian base)"
+qemu-img create -f qcow2 -b "$BASE" -F qcow2 "$OUT"
+
+echo "[2/4] domain XML — NO NIC, virtio-serial signer channel"
+cat > "$XML" <<'XML'
+<domain type='kvm'>
+  <name>vault-signer</name>
+  <memory unit='MiB'>2048</memory>
+  <currentMemory unit='MiB'>2048</currentMemory>
+  <vcpu placement='static'>2</vcpu>
+  <os><type>hvm</type><boot dev='hd'/></os>
+  <features><acpi/><apic/><pae/></features>
+  <cpu mode='host-passthrough'/>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2'/>
+      <source file='/var/lib/libvirt/images/whonix/vault-signer.qcow2'/>
+      <target dev='vda' bus='virtio'/>
+    </disk>
+    <channel type='unix'>
+      <source mode='bind' path='/var/lib/libvirt/channels/vault-signer.sock'/>
+      <target type='virtio' name='signer'/>
+    </channel>
+    <console type='pty'/>
+    <memballoon model='virtio'/>
+  </devices>
+</domain>
+XML
+
+echo "[3/4] define + no-network enforcement"
+mkdir -p /var/lib/libvirt/channels
+virsh -c qemu:///system undefine vault-signer 2>/dev/null || true
+virsh -c qemu:///system define "$XML"
+
+echo "[4/4] done — provision clef/keys next per docs/compartments.md"
+echo "NOTE: virtio-serial channel bound to /var/lib/libvirt/channels/vault-signer.sock"
