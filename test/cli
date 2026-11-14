@@ -384,10 +384,16 @@ selection-foreground={{ selection_foreground }}
 cursor-alias={{ cursor }}
 EOF
 
+cat >"$USER_THEMED/shell.osd.toml.tpl" <<'EOF'
+text = "{{ color1 }}"
+EOF
+
 cat >"$NEXT_THEME/shell.lock.toml" <<'EOF'
 text = "#ffffff"
 placeholder = "#ffffff"
 border = "#ffffff"
+text-error = "{{ color1 }}"
+selection = "{{ mix red blue 50% }}"
 EOF
 
 OMARCHY_PATH="$ROOT" HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-set-templates"
@@ -515,9 +521,19 @@ awk '
   in_lock && /^text = "#ffffff"$/ { text = 1 }
   in_lock && /^placeholder = "#ffffff"$/ { placeholder = 1 }
   in_lock && /^border = "#ffffff"$/ { border = 1 }
-  END { exit(text && placeholder && border ? 0 : 1) }
-' "$NEXT_THEME/shell.toml" || fail "theme shell section override is merged"
-pass "theme shell section override is merged"
+  in_lock && /^text-error = "#ff0000"$/ { text_error = 1 }
+  in_lock && /^selection = "#800080"$/ { selection = 1 }
+  END { exit(text && placeholder && border && text_error && selection ? 0 : 1) }
+' "$NEXT_THEME/shell.toml" || fail "theme shell section override is merged with placeholders rendered"
+pass "theme shell section override is merged with placeholders rendered"
+
+awk '
+  /^\[osd\]$/ { in_osd = 1; next }
+  /^\[/ { in_osd = 0 }
+  in_osd && /^text = "#ff0000"$/ { text = 1 }
+  END { exit(text ? 0 : 1) }
+' "$NEXT_THEME/shell.toml" || fail "user template shell section override is merged"
+pass "user template shell section override is merged"
 
 jq -e '.name == "omarchy-system" and .vars.panel == "#0f0f0f" and .vars.border == "#4d4d4d" and .colors.accent == "accent"' "$NEXT_THEME/pi.json" >/dev/null
 pass "pi theme template is generated from standard themed templates"
