@@ -57,7 +57,7 @@ Panel {
   readonly property var discoveredDevices: deviceGroups.discovered || []
 
   readonly property string icon: {
-    if (!adapter) return ""
+    if (!adapter) return radioBlocked ? "󰂲" : ""
     if (!adapter.enabled) return "󰂲"
     if (connectedDevices.length > 0) return "󰂱"
     return "󰂯"
@@ -76,7 +76,7 @@ Panel {
   ]
   readonly property bool rotatingPhrases: adapter && adapter.enabled
   readonly property string heroStatusText: {
-    if (!adapter) return Commons.I18n.t("bluetooth.noAdapter")
+    if (!adapter) return radioBlocked ? Commons.I18n.t("bluetooth.turnedOff") : Commons.I18n.t("bluetooth.noAdapter")
     if (!adapter.enabled) return Commons.I18n.t("bluetooth.turnedOff")
     return activePhrases[phraseIndex % activePhrases.length]
   }
@@ -498,7 +498,7 @@ Panel {
     if (selectedIndex < 0) selectedIndex = 0
   }
 
-  visible: adapter !== null
+  visible: adapter !== null || radioBlocked
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
@@ -634,8 +634,29 @@ Panel {
   // switch only moves once BlueZ catches up, so a second click inside that window
   // would re-read the old state and undo the first.
   function toggleBluetooth() {
-    if (!adapter) return
+    if (!adapter) {
+      if (radioBlocked) Quickshell.execDetached(["omarchy-bluetooth-power", "on"])
+      return
+    }
     Quickshell.execDetached(["omarchy-bluetooth-power", adapter.enabled ? "off" : "on"])
+  }
+
+  // On laptops whose platform rfkill driver cuts power to the radio on a soft
+  // block, the adapter vanishes from BlueZ instead of reading
+  // Powered: no, and the icon went with it. Read the block when the adapter
+  // goes, and at startup without one, so "off" stays on the bar and can be
+  // switched back on. The block always comes first, so one read is enough, and
+  // unblocking brings the adapter back on its own: nothing has to watch.
+  property bool radioBlocked: false
+  onAdapterChanged: if (!adapter) rfkillRead.running = true
+  Component.onCompleted: if (!adapter) rfkillRead.running = true
+
+  Process {
+    id: rfkillRead
+    command: ["rfkill", "-n", "-o", "SOFT", "list", "bluetooth"]
+    stdout: StdioCollector {
+      onStreamFinished: root.radioBlocked = Model.rfkillSoftBlocked(text)
+    }
   }
 
   ShellIpc {
@@ -715,7 +736,7 @@ Panel {
           // header's only cursor target.
           ToggleSwitch {
             id: powerSwitch
-            visible: !!root.adapter
+            visible: !!root.adapter || root.radioBlocked
             checked: !!root.adapter && root.adapter.enabled
             hasCursor: root.headerHasCursor
             foreground: root.bar.foreground
@@ -871,7 +892,7 @@ Panel {
         Text {
           textFormat: Text.PlainText
           visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0
-          text: !root.adapter ? Commons.I18n.t("bluetooth.noBluetoothAdapter")
+          text: !root.adapter ? (root.radioBlocked ? Commons.I18n.t("bluetooth.turnOnToScan") : Commons.I18n.t("bluetooth.noBluetoothAdapter"))
               : !root.adapter.enabled ? Commons.I18n.t("bluetooth.turnOnToScan")
               : Commons.I18n.t("bluetooth.scanning")
           color: Qt.darker(root.bar.foreground, 1.5)
