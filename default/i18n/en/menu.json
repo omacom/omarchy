@@ -1251,6 +1251,9 @@
   "update.themes": {
     "label": "Extra Themes"
   },
+  "update.icons": {
+    "label": "Extra Icons"
+  },
   "update.process": {
     "label": "Process",
     "title": "Restart"

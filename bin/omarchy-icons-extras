@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=List the user-installed icon sets that came from a git clone
+# omarchy:examples=omarchy icons extras
+
+# Exits nonzero when there are none, so a caller can ask whether any exist
+# without reading the list. A symlinked set is someone's working copy and a
+# `.git` file is a worktree pointing elsewhere; neither is ours to pull.
+status=1
+
+for set in ~/.config/omarchy/icons/*; do
+  [[ ! -L $set && -d $set/.git ]] || continue
+  echo "$set"
+  status=0
+done
+
+exit $status

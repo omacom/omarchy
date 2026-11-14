@@ -455,6 +455,7 @@
   "update.kernel": {"icon":"","label":"Kernel","when":"(( $(omarchy-kernel list | wc -l) > 1 ))","provider":"kernels"},
   "update.config": {"icon":"","label":"Config","title":"Reset to default"},
   "update.themes": {"icon":"󰸌","label":"Extra Themes","when":"omarchy-theme-extras","action":"omarchy-launch-floating-terminal-with-presentation omarchy-theme-update"},
+  "update.icons": {"icon":"󰠱","label":"Extra Icons","when":"omarchy-icons-extras","action":"omarchy-launch-floating-terminal-with-presentation omarchy-icons-update"},
   "update.process": {"icon":"","label":"Process","title":"Restart"},
   "update.hardware": {"icon":"󰇅","label":"Hardware","title":"Restart"},
   "update.firmware": {"icon":"","label":"Firmware","action":"omarchy-launch-floating-terminal-with-presentation omarchy-update-firmware"},

@@ -187,6 +187,18 @@ icons icons-set Original
 [[ $(icons icons-current --id) == "original" ]] || fail "a refused icon set leaves the current one in use"
 pass "the Original icon set shows every app's own icon"
 
+# Only a set cloned from a git repo is pulled on update: not one the user wrote
+# or a working copy linked in.
+mkdir -p "$sets/cloned/.git" "$test_tmp/working/.git"
+ln -s "$test_tmp/working" "$sets/linked"
+[[ $(icons icons-extras) == "$sets/cloned" ]] || fail "only cloned icon sets are listed as extras"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$test_tmp/git-calls" >"$test_tmp/stubs/git"
+chmod +x "$test_tmp/stubs/git"
+icons icons-update >/dev/null
+[[ $(<"$test_tmp/git-calls") == "-C $sets/cloned pull" ]] || fail "updating icon sets pulls the cloned ones only"
+rm -r "$sets/cloned" "$sets/linked" "$test_tmp/stubs/git"
+pass "updating icon sets pulls only the ones cloned from git"
+
 # Removing the set in use falls back to the default one.
 icons icons-set Mine
 icons icons-remove Mine >/dev/null
