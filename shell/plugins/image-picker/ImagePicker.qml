@@ -633,6 +633,7 @@ Item {
     shown: root.opened
     shownKeyboardFocus: root.imagesLoaded ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     WlrLayershell.namespace: "omarchy-image-selector"
+    onDismissRequested: root.cancel()
 
     MouseArea {
       anchors.fill: parent
