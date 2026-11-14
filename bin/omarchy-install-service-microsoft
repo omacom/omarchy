@@ -25,4 +25,5 @@ echo "Installing Microsoft OneDrive..."
 omarchy-webapp-install "Microsoft OneDrive" "https://www.office.com/launch/onedrive" "$ICONS/microsoft-onedrive.png"
 
 echo ""
-echo "You can now find Microsoft Outlook, Word, Excel, PowerPoint, Teams, and OneDrive using the app launcher (SUPER + SPACE)"
+launcher_shortcut=$(omarchy-hyprland-bind-label Apps || true)
+echo "You can now find Microsoft Outlook, Word, Excel, PowerPoint, Teams, and OneDrive using the app launcher${launcher_shortcut:+ ($launcher_shortcut)}"

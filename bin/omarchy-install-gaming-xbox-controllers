@@ -36,4 +36,5 @@ fi
 sudo modprobe hid_xpadneo
 
 echo ""
-echo "Now you can pair your Xbox controller with Bluetooth using Super + Ctrl + B."
+bluetooth_shortcut=$(omarchy-hyprland-bind-label Bluetooth || true)
+echo "Now you can pair your Xbox controller with Bluetooth${bluetooth_shortcut:+ using $bluetooth_shortcut}."

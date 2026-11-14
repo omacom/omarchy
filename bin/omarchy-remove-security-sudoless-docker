@@ -24,7 +24,8 @@ omarchy-state set reboot-required
 
 echo ""
 echo "Sudoless Docker DISABLED. Docker access goes through a polkit/sudo prompt"
-echo "again: the Docker TUI (Super + Shift + D) and the Windows VM ask when they"
+docker_shortcut=$(omarchy-hyprland-bind-label Docker || true)
+echo "again: the Docker TUI${docker_shortcut:+ ($docker_shortcut)} and the Windows VM ask when they"
 echo "need it, and the plain 'docker' CLI runs under sudo. It takes effect after a reboot."
 echo ""
 # The migration reuses this command during 'omarchy update' and defers the
