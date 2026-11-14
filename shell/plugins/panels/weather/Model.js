@@ -142,6 +142,80 @@ function shouldUseImperial(unitOverride, localeName, countryName) {
   return localeUsesImperial(localeName)
 }
 
+function localeUsesMps(localeName) {
+  var name = String(localeName || "").replace(".", "_")
+  if (/^(nb|nn|no|sv|da|fi|is|ru|uk|be|kk|et|lv|lt|ja|ko|zh|cs)($|[_.-])/i.test(name)) return true
+  if (/[_-](NO|SE|DK|FI|IS|RU|UA|BY|KZ|EE|LV|LT|JP|KR|CN|TW|CZ)($|[_.-])/i.test(name)) return true
+  return false
+}
+
+function countryUsesMps(countryName) {
+  var country = String(countryName || "")
+    .replace(/^\s+|\s+$/g, "")
+    .replace(/[._-]+/g, " ")
+    .toLowerCase()
+  if (!country) return null
+  var mpsCountries = [
+    "norway", "norge", "noreg", "no",
+    "sweden", "sverige", "se",
+    "finland", "suomi", "fi",
+    "denmark", "danmark", "dk",
+    "iceland", "ísland", "island", "is",
+    "russia", "russian federation", "ru",
+    "ukraine", "ua",
+    "belarus", "by",
+    "kazakhstan", "kz",
+    "estonia", "eesti", "ee",
+    "latvia", "latvija", "lv",
+    "lithuania", "lietuva", "lt",
+    "japan", "nippon", "nihon", "jp",
+    "south korea", "korea", "republic of korea", "kr",
+    "china", "prc", "cn",
+    "taiwan", "tw",
+    "czech republic", "czechia", "cz"
+  ]
+  return mpsCountries.indexOf(country) !== -1
+}
+
+function shouldUseMps(windUnitOverride, localeName, countryName) {
+  var unit = normalizedUnit(windUnitOverride)
+  if (unit === "mps" || unit === "m/s" || unit === "ms") return true
+  if (unit === "kmph" || unit === "km/h" || unit === "kmh" || unit === "mph") return false
+
+  var countryPreference = countryUsesMps(countryName)
+  if (countryPreference !== null) return countryPreference
+
+  return localeUsesMps(localeName)
+}
+
+function windSpeedUnit(windUnitOverride, useImperial, localeName, countryName) {
+  var unit = normalizedUnit(windUnitOverride)
+  if (unit === "mps" || unit === "m/s" || unit === "ms") return "m/s"
+  if (unit === "kmph" || unit === "km/h" || unit === "kmh") return "km/h"
+  if (unit === "mph") return "mph"
+
+  if (useImperial) return "mph"
+  if (shouldUseMps("", localeName, countryName)) return "m/s"
+  return "km/h"
+}
+
+function windSpeedValue(current, unit) {
+  if (!current) return ""
+  if (unit === "mph") {
+    if (current.windspeedMiles !== undefined && current.windspeedMiles !== null && current.windspeedMiles !== "")
+      return current.windspeedMiles
+    var kmph = parseFloat(current.windspeedKmph)
+    return isNaN(kmph) ? "" : roundedTemp(kmph * 0.621371)
+  }
+  if (unit === "m/s") {
+    if (current.windspeedMps !== undefined && current.windspeedMps !== null && current.windspeedMps !== "")
+      return current.windspeedMps
+    var kmph = parseFloat(current.windspeedKmph)
+    return isNaN(kmph) ? "" : roundedTemp(kmph / 3.6)
+  }
+  return current.windspeedKmph !== undefined && current.windspeedKmph !== null ? current.windspeedKmph : ""
+}
+
 function dayName(dateString, formatter) {
   if (!dateString) return ""
   var d = new Date(dateString + "T12:00:00")
@@ -187,6 +261,7 @@ function openMeteoCurrentCondition(dailyForecastReport) {
     FeelsLikeF: roundedTemp(celsiusToFahrenheit(current.apparent_temperature)),
     windspeedKmph: roundedTemp(current.wind_speed_10m),
     windspeedMiles: roundedTemp(current.wind_speed_10m * 0.621371),
+    windspeedMps: roundedTemp(current.wind_speed_10m / 3.6),
     humidity: roundedTemp(current.relative_humidity_2m),
     openMeteoWeatherCode: current.weather_code,
     isDay: current.is_day
@@ -301,6 +376,11 @@ if (typeof module !== "undefined") {
     localeUsesImperial: localeUsesImperial,
     countryUsesImperial: countryUsesImperial,
     shouldUseImperial: shouldUseImperial,
+    localeUsesMps: localeUsesMps,
+    countryUsesMps: countryUsesMps,
+    shouldUseMps: shouldUseMps,
+    windSpeedUnit: windSpeedUnit,
+    windSpeedValue: windSpeedValue,
     dayName: dayName,
     openMeteoForecastDays: openMeteoForecastDays,
     openMeteoCurrentCondition: openMeteoCurrentCondition,

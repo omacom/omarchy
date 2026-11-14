@@ -133,6 +133,7 @@ Panel {
   readonly property string reportCountry: areaInfo && areaInfo.country && areaInfo.country[0] ? areaInfo.country[0].value : ""
 
   readonly property bool useImperial: Model.shouldUseImperial(setting("unit", ""), Qt.locale().name, reportCountry)
+  readonly property string windUnit: Model.windSpeedUnit(setting("windUnit", ""), useImperial, Qt.locale().name, reportCountry)
 
   // Auto-refresh interval in minutes; clamped to a sane minimum.
   readonly property int refreshMinutes: Math.max(1, parseInt(setting("refreshMinutes", 15), 10) || 15)
@@ -141,7 +142,7 @@ Panel {
   readonly property string reportTempNum:   current ? displayNumber(useImperial ? current.temp_F : current.temp_C) : ""
   readonly property string tempUnit:        "°" + (useImperial ? "F" : "C")
   readonly property string reportFeels:     current ? formatTemp(useImperial ? current.FeelsLikeF : current.FeelsLikeC) : ""
-  readonly property string reportWind:      current ? (useImperial ? (displayNumber(current.windspeedMiles) + " mph") : (displayNumber(current.windspeedKmph) + " km/h")) : ""
+  readonly property string reportWind:      current ? (displayNumber(Model.windSpeedValue(current, windUnit)) + " " + windUnit) : ""
   readonly property string reportHumidity:  current ? (displayNumber(current.humidity) + "%") : ""
 
   // The report's numbers arrive as strings ("13"), and blank when missing.
