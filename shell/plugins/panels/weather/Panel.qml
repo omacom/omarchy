@@ -56,6 +56,9 @@ Panel {
 
   // Parsed wttr.in j1 response. Kept on failure so stale data stays visible.
   property var report: null
+  // Width the hero row needs so the temperature and the stats column never
+  // overlap (labels are much wider in some languages, e.g. Russian).
+  property real heroNeededWidth: 0
   property var dailyForecastReport: null
 
   // Configured location, read from the weather.json state file (owned by
@@ -536,7 +539,7 @@ Panel {
     // popup follows wherever the widget is placed.
     centerOnBar: false
     focusTarget: panel.loadedContent
-    contentWidth: panel.fittedContentWidth(Style.space(480))
+    contentWidth: panel.fittedContentWidth(Model.heroContentWidth(Style.space(480), root.heroNeededWidth, panel.padding * 2 + Style.space(4)))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
 
     content: PanelKeyCatcher {
@@ -567,6 +570,13 @@ Panel {
       Item {
         width: parent.width
         height: Math.max(heroLeft.height, heroRight.height)
+
+        // left margin + temperature block + gap + stats column + right margin
+        Binding {
+          target: root
+          property: "heroNeededWidth"
+          value: Model.heroNeededWidth(Style.space(16), heroLeft.implicitWidth, Style.space(24), heroRight.width, Style.space(20))
+        }
 
         Row {
           id: heroLeft
@@ -627,6 +637,7 @@ Panel {
           spacing: Style.space(12)
 
           Row {
+            id: locationRow
             visible: !root.editingLocation && root.reportLocation !== ""
             spacing: Style.space(6)
 
@@ -638,6 +649,7 @@ Panel {
             }
 
             Text {
+              id: locationPin
               text: ""  // nf-fa-map_marker
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
@@ -647,6 +659,9 @@ Panel {
             Text {
               textFormat: Text.PlainText
               text: (root.reportLocation || "").toUpperCase()
+              // Long place names are elided instead of spilling past the panel.
+              width: Model.locationLabelWidth(implicitWidth, heroRight.width, locationPin.width, locationRow.spacing)
+              elide: Text.ElideRight
               color: Qt.darker(root.bar.foreground, 1.4)
               font.family: root.bar.fontFamily
               font.pixelSize: Style.font.body

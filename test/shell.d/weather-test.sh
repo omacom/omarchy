@@ -121,6 +121,53 @@ assertEqual(
   weather.iconForCode(389, false),
   'weather picks hourly forecast icon nearest noon'
 )
+
+// #17630: the °C and the stats column share one row. These widths stand in
+// for the measured halves (a hero temperature, and stat labels as wide as
+// Russian ОЩУЩАЕТСЯ / ВЕТЕР / ВЛАЖНОСТЬ). The card opens up so the halves
+// and the gap still fit; short labels stay on the 480px floor. The screen
+// cap stays in KeyboardPanel.fittedContentWidth, which this width feeds.
+function heroOverlaps(contentWidth, spec) {
+  const inner = contentWidth - spec.chrome
+  const temperatureRight = spec.leftMargin + spec.temperatureWidth
+  const statsLeft = inner - spec.rightMargin - spec.statsWidth
+  return temperatureRight + spec.gap > statsLeft
+}
+
+const longStats = {
+  baseWidth: 480,
+  chrome: 32,
+  leftMargin: 16,
+  temperatureWidth: 200,
+  gap: 24,
+  statsWidth: 360,
+  rightMargin: 20
+}
+const longWidth = weather.heroContentWidth(
+  longStats.baseWidth,
+  weather.heroNeededWidth(longStats.leftMargin, longStats.temperatureWidth, longStats.gap, longStats.statsWidth, longStats.rightMargin),
+  longStats.chrome
+)
+assert(!heroOverlaps(longWidth, longStats), 'long language stats stay clear of the temperature unit')
+assert(longWidth > longStats.baseWidth, 'long language stats widen the weather panel past 480')
+
+const shortStats = Object.assign({}, longStats, { statsWidth: 120 })
+const shortWidth = weather.heroContentWidth(
+  shortStats.baseWidth,
+  weather.heroNeededWidth(shortStats.leftMargin, shortStats.temperatureWidth, shortStats.gap, shortStats.statsWidth, shortStats.rightMargin),
+  shortStats.chrome
+)
+assert(!heroOverlaps(shortWidth, shortStats), 'short language stats stay clear of the temperature unit')
+assertEqual(shortWidth, shortStats.baseWidth, 'short language stats keep the 480px weather panel')
+
+const statsColumn = 360
+const pinWidth = 14
+const locationSpacing = 6
+const locationRoom = statsColumn - pinWidth - locationSpacing
+const longLocation = weather.locationLabelWidth(900, statsColumn, pinWidth, locationSpacing)
+assert(longLocation <= locationRoom, 'long location names elide inside the stats column')
+assert(longLocation > 0, 'an elided location name still shows')
+assertEqual(weather.locationLabelWidth(40, statsColumn, pinWidth, locationSpacing), 40, 'short location names keep their own width')
 JS
 
 test_tmp=$(mktemp -d)
