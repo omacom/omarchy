@@ -323,12 +323,14 @@ Item {
   readonly property var providers: ({
     "dock-icon-sizes": {
       checkAfterLabel: true,
+      labelFor: function(label) { return Commons.I18n.formatNumber(parseInt(label, 10)) + " px" },
       script: "current=$(omarchy-dock icon-size); for value in 24 30 36 42 48 54 60 66; do printf '%s px\\t%s\\t%s\\n' \"$value\" \"$value\" \"$current\"; done",
       volatile: true,
       actionFor: function(value) { return "omarchy-dock icon-size " + Util.shellQuote(value) }
     },
     "dock-magnification": {
       checkAfterLabel: true,
+      labelFor: function(label) { return Commons.I18n.formatNumber(parseInt(label, 10)) + "%" },
       script: "current=$(omarchy-dock magnification); for value in 0 5 10 15 20 25 30 35; do printf '%s%%\\t%s\\t%s\\n' \"$value\" \"$value\" \"$current\"; done",
       volatile: true,
       actionFor: function(value) { return "omarchy-dock magnification " + Util.shellQuote(value) }

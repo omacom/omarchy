@@ -52,7 +52,7 @@ PanelWindow {
   property real iconSize: targetIconSize
   Behavior on iconSize {
     enabled: window.shown
-    NumberAnimation { duration: Style.duration(280); easing.type: Easing.OutCubic }
+    NumberAnimation { duration: Style.duration(280); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
   }
   readonly property real maximumIconSize: 66 * Style.fontScale
   readonly property real maximumSlotSize: maximumIconSize + iconInset * 2
@@ -60,6 +60,9 @@ PanelWindow {
   // straight to the edge of the dock.
   readonly property int iconInset: Style.spacing.md
   readonly property real slotSize: iconSize + iconInset * 2
+  readonly property real magnification: dock ? dock.magnification : 0.15
+  readonly property real inwardReach: Math.max(0, iconSize * magnification - iconInset)
+  readonly property real sideReach: Math.max(0, iconSize * magnification / 2 - iconInset)
   // An app that is starting pulses down to this.
   readonly property real pulseOpacity: 0.7
   // Room inward of the dock for its menus: the tallest, the apps button's,
@@ -216,7 +219,7 @@ PanelWindow {
   implicitHeight: window.vertical ? 0 : window.gap + window.maximumSlotSize + window.popupRoom
 
   mask: Region {
-    item: window.contentShown ? body : null
+    item: window.contentShown ? hitStrip : null
 
     Region { item: window.shown && window.autohide ? edgeTrigger : null }
     Region { item: menu.visible ? menu : null }
@@ -251,6 +254,15 @@ PanelWindow {
         else hideTimer.restart()
       }
     }
+  }
+
+  // Include every enlarged pixel in the surface mask, without moving slots.
+  Item {
+    id: hitStrip
+    x: body.x - (window.vertical ? (window.position === "right" ? window.inwardReach : 0) : window.sideReach)
+    y: body.y - (window.vertical ? window.sideReach : (window.position === "bottom" ? window.inwardReach : 0))
+    width: body.width + (window.vertical ? window.inwardReach : window.sideReach * 2)
+    height: body.height + (window.vertical ? window.sideReach * 2 : window.inwardReach)
   }
 
   HyprlandFocusGrab {
@@ -299,6 +311,7 @@ PanelWindow {
 
     HoverHandler {
       id: bodyHover
+      parent: hitStrip
       onHoveredChanged: if (!hovered && window.autohide) hideTimer.restart()
       // Only a real move clears it: the release itself reports the pointer too.
       onPointChanged: {
@@ -332,13 +345,20 @@ PanelWindow {
     property bool hovered: mouse.containsMouse && !window.hoverStale && !window.dragging
     property bool pressed: mouse.pressed
     property alias mouse: mouse
+    property bool firstSlot: false
+    property bool lastSlot: false
+    readonly property real leadingReach: firstSlot ? window.sideReach : 0
+    readonly property real trailingReach: lastSlot ? window.sideReach : 0
 
     width: window.slotSize
     height: window.slotSize
 
     MouseArea {
       id: mouse
-      anchors.fill: parent
+      x: window.vertical ? (window.position === "right" ? -window.inwardReach : 0) : -slot.leadingReach
+      y: window.vertical ? -slot.leadingReach : (window.position === "bottom" ? -window.inwardReach : 0)
+      width: slot.width + (window.vertical ? window.inwardReach : slot.leadingReach + slot.trailingReach)
+      height: slot.height + (window.vertical ? slot.leadingReach + slot.trailingReach : window.inwardReach)
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
@@ -347,6 +367,8 @@ PanelWindow {
 
   component AppsSlot: Slot {
     id: appsSlot
+    firstSlot: true
+    lastSlot: appRepeater.count === 0
 
     property real displayedShift: window.insertIndex >= 0 ? -window.slotSize / 2 : 0
 
@@ -409,6 +431,7 @@ PanelWindow {
 
   component AppSlot: Slot {
     id: appSlot
+    lastSlot: index === appRepeater.count - 1
 
     required property int index
     required property string key
@@ -442,7 +465,7 @@ PanelWindow {
     // icon moves. Reading the pointer through a slot that moves with it would
     // feed each move back into the next.
     function bodyPoint(event) {
-      return appSlot.mapToItem(body, event.x, event.y)
+      return appSlot.mouse.mapToItem(body, event.x, event.y)
     }
 
     mouse.onPressed: function(event) {
