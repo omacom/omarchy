@@ -528,7 +528,8 @@ PanelWindow {
     // While it morphs or grows, the content keeps its own size and the card
     // crops it.
     clip: root.morph < 1 || root.drawnHeight < root.contentHeight - 0.5
-    color: Commons.Color.popups.background
+    fillSpec: Commons.Color.popups.backgroundSpec
+    fillColor: Commons.Color.popups.background
     borderSpec: root.borderSpec
     padding: root.padding
     radius: Style.cornerRadius
