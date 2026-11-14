@@ -179,4 +179,22 @@ assert(model.REACH_TIMEOUT_MS < 25000,
   "the reach bound lands before GDBus fails a stuck Claim at 25s and pam_fprintd's 30s verify timeout reports as a non-error message")
 assert(model.REACH_TIMEOUT_MS >= 10000,
   'the reach bound outlasts a slow device open, so a reader that takes seconds to claim is not killed mid-Claim on every attempt')
+
+// PrepareForSleep lines from dbus-monitor. The header is not an edge, and a
+// value line still matches when the monitor adds a suffix.
+assertEqual(model.prepareForSleepSignal('   boolean true'), true, 'the suspend value is the true edge')
+assertEqual(model.prepareForSleepSignal('   boolean false'), false, 'the wake value is the false edge')
+assertEqual(
+  model.prepareForSleepSignal("signal time=1 sender=:1.0 path=/org/freedesktop/login1; interface=org.freedesktop.login1.Manager; member=PrepareForSleep"),
+  null,
+  'the signal header is not a sleep edge'
+)
+assertEqual(model.prepareForSleepSignal(''), null, 'an empty monitor line is ignored')
+assertEqual(model.prepareForSleepSignal('boolean true extra'), true, 'a value line still matches when dbus-monitor adds a suffix')
+assertEqual(model.sleepClaimTransition(true, false), 'release', 'the first suspend edge releases the claim')
+assertEqual(model.sleepClaimTransition(false, true), 'restart', 'the wake edge after a release may start one verify')
+assertEqual(model.sleepClaimTransition(true, true), 'none', 'a repeated suspend edge does not release twice')
+assertEqual(model.sleepClaimTransition(false, false), 'none', 'a wake with no pending suspend does nothing')
+assert(model.mayStartClaim(false), 'a claim may start while the machine is awake')
+assert(!model.mayStartClaim(true), 'a claim may not start while suspend is pending')
 JS

@@ -38,6 +38,14 @@ Item {
   // The sleep watch is stopped while paused, so a sleep seen after the
   // pre-suspend lock request is marked here instead.
   property bool fingerprintSleptWhilePaused: false
+  // True from PrepareForSleep(true) until the matching wake, so nothing claims
+  // the reader on the way into suspend.
+  property bool fingerprintPreparingForSleep: false
+  // fprintd-list activates the daemon. Hold that probe until the machine is awake.
+  property bool fingerprintCheckDeferred: false
+  // Bumped when a probe is discarded on the way into suspend, so its exit
+  // cannot be read as a fresh enrollment answer.
+  property int fingerprintProbeEpoch: 0
   // When the armed retry is due, so time spent blank counts toward it.
   property double fingerprintRetryDueMs: 0
   // The backoff the armed retry was set to; a wake shortens the timer to the
@@ -154,7 +162,17 @@ Item {
   }
 
   function refreshFingerprintStatus() {
-    if (!fingerprintCheckProc.running) fingerprintCheckProc.running = true
+    if (!FingerprintModel.mayStartClaim(fingerprintPreparingForSleep)) {
+      fingerprintCheckDeferred = true
+      return
+    }
+    if (fingerprintCheckProc.running) {
+      fingerprintCheckDeferred = true
+      return
+    }
+    fingerprintCheckDeferred = false
+    fingerprintCheckProc.probeEpoch = fingerprintProbeEpoch
+    fingerprintCheckProc.running = true
   }
 
   // Only definitive enrollment results may disable authentication.
@@ -163,10 +181,13 @@ Item {
     if (status === "unknown") {
       if (fingerprintConfigured) return
       fingerprintProbeStreak += 1
-      if (lockRequested) {
-        fingerprintRecheckTimer.interval = FingerprintModel.retryDelayMs(fingerprintProbeStreak)
-        fingerprintRecheckTimer.restart()
+      if (!lockRequested) return
+      if (!FingerprintModel.mayStartClaim(fingerprintPreparingForSleep)) {
+        fingerprintCheckDeferred = true
+        return
       }
+      fingerprintRecheckTimer.interval = FingerprintModel.retryDelayMs(fingerprintProbeStreak)
+      fingerprintRecheckTimer.restart()
       return
     }
     fingerprintProbeStreak = 0
@@ -206,6 +227,7 @@ Item {
     fingerprintProbeStreak = 0
     fingerprintPaused = false
     fingerprintSleptWhilePaused = false
+    fingerprintCheckDeferred = false
     fingerprintRecheckTimer.stop()
     fingerprintRetryTimer.stop()
     fingerprintReachTimer.stop()
@@ -237,6 +259,9 @@ Item {
   function finishUnlock() {
     if (!root.currentlyLocked()) return
 
+    // The hold is the machine's suspend, not this lock. Clearing it here would
+    // let a relock inside the delay window claim the reader with no second
+    // PrepareForSleep(true) to release it.
     lockRequested = false
     pendingSessionLock = false
     sessionLockStabilizeTimer.stop()
@@ -274,6 +299,8 @@ Item {
   // at once, as the sleep watch does.
   function resumeFingerprint() {
     if (!fingerprintPaused) return
+    // A wake inside the suspend window must not claim the reader again.
+    if (!FingerprintModel.mayStartClaim(fingerprintPreparingForSleep)) return
     fingerprintPaused = false
     if (fingerprintSleptWhilePaused) {
       fingerprintSleptWhilePaused = false
@@ -301,6 +328,7 @@ Item {
   // User activity advances retries without recreating a busy retry loop.
   function nudgeFingerprint() {
     if (!lockRequested) return
+    if (!FingerprintModel.mayStartClaim(fingerprintPreparingForSleep)) return
     if (!fingerprintConfigured && fingerprintRecheckTimer.running) {
       var now = Date.now()
       if (FingerprintModel.shouldNudge(now, fingerprintLastNudgeMs, now - FingerprintModel.IDLE_CLEAR_MS, fingerprintRecheckTimer.interval)) {
@@ -321,6 +349,7 @@ Item {
 
 
   function armFingerprintRetry(delayMs) {
+    if (!FingerprintModel.mayStartClaim(fingerprintPreparingForSleep)) return
     fingerprintRetryTimer.interval = delayMs
     fingerprintRetryBackoffMs = delayMs
     fingerprintRetryDueMs = Date.now() + delayMs
@@ -336,16 +365,112 @@ Item {
     fingerprintUnreachedStreak = 0
   }
 
+  // omarchy-system-sleep-lock calls this from inside the delay inhibitor, then
+  // polls status until the claim is released. A normal lock must not come here:
+  // it shares `lock lock` with the keybinding and with shell restart.
+  function prepareSleepLock() {
+    if (!passwordPamConfigured) return "missing-pam"
+    prepareFingerprintForSleep(true)
+    if (currentlyLocked()) noteSleepRequested()
+    if (!currentlyLocked() && !beginLock()) return "failed"
+    return "ok"
+  }
+
+  // Drop the verify while logind is still delaying suspend, so fprintd can
+  // release the device before the reader is powered down. abort() reports
+  // nothing and schedules the helper's destruction; the attempt is closed
+  // here and no retry is armed. The inhibitor polls the paused state on a later
+  // IPC call. This cannot acknowledge fprintd's device release after disconnect.
+  function releaseFingerprintClaim() {
+    fingerprintPreparingForSleep = true
+    if (fingerprintRecheckTimer.running || fingerprintCheckProc.running) fingerprintCheckDeferred = true
+    fingerprintRetryTimer.stop()
+    fingerprintReachTimer.stop()
+    fingerprintRecheckTimer.stop()
+    if (fingerprintCheckProc.running) {
+      fingerprintProbeEpoch += 1
+      fingerprintCheckProc.running = false
+    }
+    if (fingerprintPam.active) {
+      fingerprintPam.abort()
+      logEvent("fingerprint-released: claim")
+    } else {
+      logEvent("fingerprint-released")
+    }
+    fingerprintAuthenticating = false
+    // Past the shipped 15s inhibit delay. Timers pause while suspended, so this
+    // only fires when the machine stayed awake, and a missed wake cannot leave
+    // the reader blocked for the rest of the session.
+    fingerprintSleepHoldTimer.restart()
+    armFingerprintSleepMonitor()
+  }
+
+  // A repeated suspend edge must not restart the verify or the missed-wake
+  // timer, but the inhibitor asks again until the probe process has exited.
+  function ensureFingerprintClaimReleased() {
+    if (!fingerprintPreparingForSleep) return
+    if (fingerprintCheckProc.running) {
+      fingerprintCheckDeferred = true
+      fingerprintProbeEpoch += 1
+      fingerprintCheckProc.running = false
+    }
+    if (fingerprintPam.active) fingerprintPam.abort()
+    fingerprintAuthenticating = false
+    fingerprintReachTimer.stop()
+  }
+
+  function armFingerprintSleepMonitor() {
+    fingerprintSleepMonitorRestart.stop()
+    if (!fingerprintSleepMonitor.running) fingerprintSleepMonitor.running = true
+  }
+
+  // PrepareForSleep(true) releases the claim. PrepareForSleep(false) starts
+  // one fresh verify. A repeated signal is ignored.
+  function prepareFingerprintForSleep(sleeping) {
+    var transition = FingerprintModel.sleepClaimTransition(sleeping, fingerprintPreparingForSleep)
+    if (transition === "none") {
+      if (sleeping) ensureFingerprintClaimReleased()
+      return
+    }
+    if (transition === "release") {
+      releaseFingerprintClaim()
+      return
+    }
+
+    logEvent("fingerprint-wake")
+    // The wall-clock watch would treat this same wake as a second resume and
+    // abort the verify started below.
+    fingerprintSleepWatch.lastTickMs = Date.now()
+    if (fingerprintResumeTimer.running) fingerprintResumeTimer.lastTickMs = Date.now()
+    restartFingerprintAfterSleep()
+  }
+
+  function clearFingerprintSleepHold() {
+    fingerprintPreparingForSleep = false
+    fingerprintSleepHoldTimer.stop()
+    fingerprintSleepMonitorRestart.stop()
+    if (fingerprintSleepMonitor.running) fingerprintSleepMonitor.running = false
+  }
+
   // A suspended PAM conversation may be orphaned by the daemon restart.
+  // A claim released before sleep is not running, so resume still arms one.
   function restartFingerprintAfterSleep() {
+    var released = fingerprintPreparingForSleep
+    var deferredProbe = fingerprintCheckDeferred
+    clearFingerprintSleepHold()
+    fingerprintCheckDeferred = false
     noteFingerprintResumed()
     if (fingerprintAuthenticating || fingerprintPam.active) {
       if (fingerprintPam.active) fingerprintPam.abort()
       settleFingerprintAttempt()
-      return
+    } else if (fingerprintPaused && released) {
+      fingerprintSleptWhilePaused = true
+      resumeFingerprint()
+      armBlankTimer(idleBlankTimer.resumeMs)
+    } else if (lockRequested && fingerprintConfigured && !fingerprintPaused && (released || fingerprintRetryTimer.running)) {
+      armFingerprintRetry(FingerprintModel.MATCH_RETRY_MS)
     }
-    if (!fingerprintRetryTimer.running) return
-    armFingerprintRetry(FingerprintModel.MATCH_RETRY_MS)
+    if (deferredProbe) refreshFingerprintStatus()
   }
 
   function runBlank() {
@@ -387,6 +512,7 @@ Item {
   }
 
   function startFingerprint() {
+    if (!FingerprintModel.mayStartClaim(fingerprintPreparingForSleep)) return
     if (!lockRequested || !sessionLock.secure || !fingerprintConfigured || fingerprintPaused) return
     if (fingerprintPam.active || fingerprintAuthenticating) return
 
@@ -424,6 +550,11 @@ Item {
   // onError and onCompleted can both fire; settle each attempt once.
   function settleFingerprintAttempt(deviceError) {
     if (!fingerprintAuthenticating) return
+    if (!FingerprintModel.mayStartClaim(fingerprintPreparingForSleep)) {
+      fingerprintAuthenticating = false
+      fingerprintReachTimer.stop()
+      return
+    }
     fingerprintAuthenticating = false
     fingerprintReachTimer.stop()
     if (!lockRequested || !fingerprintConfigured) return
@@ -642,14 +773,55 @@ Item {
     id: fingerprintSleepWatch
     interval: 1000
     repeat: true
-    running: root.lockRequested && root.fingerprintConfigured && (!root.fingerprintPaused || root.fingerprintAuthenticating)
+    running: root.lockRequested && (root.fingerprintPreparingForSleep || (root.fingerprintConfigured && (!root.fingerprintPaused || root.fingerprintAuthenticating)))
     property double lastTickMs: 0
     onRunningChanged: lastTickMs = Date.now()
     onTriggered: {
       var now = Date.now()
       var slept = FingerprintModel.spannedSleep(now - lastTickMs, interval)
       lastTickMs = now
-      if (slept) root.restartFingerprintAfterSleep()
+      if (!slept) return
+      // A claim released before sleep must wake through the same path as
+      // PrepareForSleep(false), or the blanked resume watch handles it twice.
+      if (root.fingerprintPreparingForSleep) root.prepareFingerprintForSleep(false)
+      else root.restartFingerprintAfterSleep()
+    }
+  }
+
+  // Started only once the inhibitor has asked for the release, so an idle
+  // shell does not keep a dbus-monitor. logind emits PrepareForSleep(false)
+  // after that inhibitor drops, which is after this process is running.
+  // The true edge is handled by prepareSleepLock; a late copy is idempotent.
+  Process {
+    id: fingerprintSleepMonitor
+    command: ["dbus-monitor", "--system",
+      "type='signal',sender='org.freedesktop.login1',interface='org.freedesktop.login1.Manager',member='PrepareForSleep'"]
+    running: false
+    stdout: SplitParser {
+      onRead: function(line) {
+        var sleeping = FingerprintModel.prepareForSleepSignal(line)
+        if (sleeping === null || sleeping === undefined) return
+        root.prepareFingerprintForSleep(sleeping)
+      }
+    }
+    onExited: function(exitCode) {
+      if (root.fingerprintPreparingForSleep) fingerprintSleepMonitorRestart.restart()
+    }
+  }
+
+  Timer {
+    id: fingerprintSleepMonitorRestart
+    interval: 7000
+    repeat: false
+    onTriggered: fingerprintSleepMonitor.running = true
+  }
+
+  Timer {
+    id: fingerprintSleepHoldTimer
+    interval: 30000
+    repeat: false
+    onTriggered: {
+      if (root.fingerprintPreparingForSleep) root.prepareFingerprintForSleep(false)
     }
   }
 
@@ -668,9 +840,13 @@ Item {
       lastTickMs = now
       if (slept && root.lockRequested && root.fingerprintPaused) {
         stop()
-        root.fingerprintSleptWhilePaused = true
-        root.resumeFingerprint()
-        root.armBlankTimer(idleBlankTimer.resumeMs)
+        if (root.fingerprintPreparingForSleep) {
+          root.prepareFingerprintForSleep(false)
+        } else {
+          root.fingerprintSleptWhilePaused = true
+          root.resumeFingerprint()
+          root.armBlankTimer(idleBlankTimer.resumeMs)
+        }
       } else if (slept || !root.fingerprintPaused || --ticksLeft <= 0) {
         stop()
       }
@@ -724,9 +900,18 @@ Item {
   // Keep fprintd errors distinguishable from an explicit empty enrollment.
   Process {
     id: fingerprintCheckProc
-    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1; then LC_ALL=C fprintd-list \"$USER\" 2>&1; else echo no; fi"]
+    property int probeEpoch: 0
+    command: ["bash", "-c", "if [[ -f /etc/pam.d/omarchy-lock-fingerprint ]] && command -v fprintd-list >/dev/null 2>&1; then LC_ALL=C exec fprintd-list \"$USER\" 2>&1; else echo no; fi"]
     stdout: StdioCollector { id: fingerprintCheckStdout; waitForEnd: true }
-    onExited: root.applyFingerprintProbe(fingerprintCheckStdout.text)
+    // running = false sends SIGTERM and returns before the process exits.
+    // A release bumps the epoch first, so this exit is not a new enrollment.
+    onExited: function(exitCode) {
+      if (fingerprintCheckProc.probeEpoch !== root.fingerprintProbeEpoch) {
+        if (root.fingerprintCheckDeferred && !root.fingerprintPreparingForSleep) root.refreshFingerprintStatus()
+        return
+      }
+      root.applyFingerprintProbe(fingerprintCheckStdout.text)
+    }
   }
 
   // Retries a probe that could not reach fprintd, paced like the attempt
@@ -877,10 +1062,15 @@ Item {
 
     function lock(): string {
       if (!root.passwordPamConfigured) return "missing-pam"
-      // omarchy-system-sleep-lock asks for the lock before every suspend.
+      // omarchy-system-sleep-lock uses prepareSleep. This remains the ordinary
+      // lock, shared with the keybinding and with restart recovery.
       if (root.currentlyLocked()) root.noteSleepRequested()
       if (!root.currentlyLocked() && !root.beginLock()) return "failed"
       return "ok"
+    }
+
+    function prepareSleep(): string {
+      return root.prepareSleepLock()
     }
 
     function isLocked(): string {
@@ -899,6 +1089,7 @@ Item {
         fingerprint: root.fingerprintConfigured,
         fingerprintUnavailable: root.fingerprintUnavailable,
         authenticating: root.authenticating,
+        fingerprintSleepReady: root.fingerprintPreparingForSleep && !fingerprintPam.active && !fingerprintCheckProc.running,
         lastEvent: root.lastEvent,
         lastEventAt: root.lastEventAt
       })
