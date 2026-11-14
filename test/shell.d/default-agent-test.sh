@@ -774,7 +774,7 @@ assert_launched() {
   shift 2
   # Every agent window launches under the same app-id, whichever agent is
   # default, so window rules and themes see one class for all of them.
-  local expected=(--app-id=org.omarchy.agent "$@")
+  local expected=(--app-id=org.omarchy.agent omarchy-agent-suspend-guard "$@")
 
   mapfile -d '' -t actual <"$launch_log"
 
@@ -891,7 +891,7 @@ pass "agent launcher skips permission prompts for every supported agent"
 printf '%s\n' "opencode" >"$agent_file"
 omarchy-agent
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent-suspend-guard opencode --auto" ]] ||
   fail "agent launcher starts the selected agent without an initial prompt"
 pass "agent launcher starts the selected agent without an initial prompt"
 
@@ -906,7 +906,7 @@ pass "inline agent launcher runs in the current terminal"
 : >"$launch_log"
 omarchy agent
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent-suspend-guard opencode --auto" ]] ||
   fail "omarchy agent routes to the launcher"
 
 # With an agent chosen there is nothing to pick, so the keybinding launches.
@@ -914,7 +914,7 @@ mapfile -d '' -t launch_args <"$launch_log"
 : >"$menu_log"
 omarchy-agent --pick
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent-suspend-guard opencode --auto" ]] ||
   fail "--pick launches once an agent is chosen"
 [[ ! -s $menu_log ]] || fail "--pick opens no menu once an agent is chosen"
 pass "--pick launches once an agent is chosen"
@@ -945,11 +945,11 @@ prefer_local_launch '{"last":"big","models":{"big":{"unit":"inactive","sub_state
   fail "--prefer-local opens whichever model is running when the last one is stopped: ${launch_args[*]}"
 
 prefer_local_launch '{"last":"big","models":{"big":{"unit":"activating","sub_state":"start"}}}'
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent-suspend-guard opencode --auto" ]] ||
   fail "--prefer-local opens the usual agent while the model is still loading: ${launch_args[*]}"
 
 prefer_local_launch ''
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent-suspend-guard opencode --auto" ]] ||
   fail "--prefer-local opens the usual agent without a local model: ${launch_args[*]}"
 
 # A default that can't take the overlay, with no pi or OpenCode to stand in,
@@ -969,7 +969,7 @@ pass "--prefer-local opens the running local model, and the usual agent otherwis
 : >"$launch_log"
 omarchy agent prompt "Review this project"
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto --prompt Review this project" ]] ||
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent-suspend-guard opencode --auto --prompt Review this project" ]] ||
   fail "omarchy agent prompt routes the prompt to the launcher"
 
 : >"$launch_log"
@@ -1018,7 +1018,7 @@ OMARCHY_TEST_OPENCLAW_INSTALLED=true omarchy-default-agent openclaw
 read -r chosen <"$agent_file"
 [[ $chosen == openclaw ]] || fail "choosing OpenClaw records it as the default agent"
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-launch-openclaw --tui" ]] ||
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent-suspend-guard omarchy-launch-openclaw --tui" ]] ||
   fail "choosing OpenClaw launches its terminal UI"
 [[ ! -s $terminal_log ]] || fail "an installed OpenClaw needs no install terminal"
 ! grep -q 'use -g openclaw' "$mise_history" || fail "OpenClaw never installs through mise"
@@ -1046,12 +1046,13 @@ omarchy agent prompt "Review this project"
 mapfile -d '' -t launch_args <"$launch_log"
 # Element-wise: the prompt must travel as one argv entry, which a space-joined
 # comparison could not tell apart from a prompt split into words.
-[[ ${#launch_args[@]} == 5 &&
+[[ ${#launch_args[@]} == 6 &&
   ${launch_args[0]} == "--app-id=org.omarchy.agent" &&
-  ${launch_args[1]} == "omarchy-launch-openclaw" &&
-  ${launch_args[2]} == "--tui" &&
-  ${launch_args[3]} == "--message" &&
-  ${launch_args[4]} == "Review this project" ]] ||
+  ${launch_args[1]} == "omarchy-agent-suspend-guard" &&
+  ${launch_args[2]} == "omarchy-launch-openclaw" &&
+  ${launch_args[3]} == "--tui" &&
+  ${launch_args[4]} == "--message" &&
+  ${launch_args[5]} == "Review this project" ]] ||
   fail "OpenClaw receives prompts through --message" "argv: ${launch_args[*]}"
 pass "OpenClaw receives prompts through --message"
 
@@ -1066,7 +1067,7 @@ chmod +x "$mock_bin/omarchy-pkg-present"
 OMARCHY_TEST_MISSING_COMMAND=openclaw OMARCHY_TEST_PACKAGES=openclaw omarchy-agent >/dev/null 2>&1 ||
   fail "OpenClaw's agent launches with the package and no command yet"
 mapfile -d '' -t launch_args <"$launch_log"
-[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-launch-openclaw --tui" ]] ||
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent-suspend-guard omarchy-launch-openclaw --tui" ]] ||
   fail "OpenClaw's agent hands a missing command to its launcher when the package is there" "argv: ${launch_args[*]}"
 : >"$launch_log"
 if OMARCHY_TEST_MISSING_COMMAND=openclaw OMARCHY_TEST_PACKAGES= omarchy-agent >/dev/null 2>&1; then
