@@ -72,6 +72,17 @@ fi
 echo "grok home=${GROK_HOME:-default} args=$*"
 SH
 
+cat >"$mock_bin/agy" <<'SH'
+#!/bin/bash
+printf 'HOME=%s DBUS=%s\n' "$HOME" "$DBUS_SESSION_BUS_ADDRESS" >>"${OMARCHY_TEST_AGY_ENV:-/dev/null}"
+"${BROWSER:-omarchy-test-default-browser}" "https://accounts.google.com/o/oauth2/auth"
+home=${AGY_DIR:-$HOME/.gemini/antigravity-cli}
+mkdir -p "$home"
+printf '{"auth_method":"consumer","id_token_email":"%s","token":{"access_token":"token-%s","refresh_token":"ref-%s","expiry":"2030-01-01T00:00:00Z"}}\n' \
+  "${OMARCHY_TEST_LOGIN_EMAIL:-agy@example.com}" "${OMARCHY_TEST_LOGIN_UUID:-u-agy}" "${OMARCHY_TEST_LOGIN_UUID:-u-agy}" >"$home/antigravity-oauth-token"
+echo "agy home=${AGY_DIR:-default} args=$*"
+SH
+
 cat >"$mock_bin/omarchy-test-default-browser" <<'SH'
 #!/bin/bash
 printf 'default %s\n' "$*" >>"$OMARCHY_TEST_BROWSER_LOG"
@@ -88,7 +99,33 @@ SH
 
 cat >"$mock_bin/omarchy-launch-browser" <<'SH'
 #!/bin/bash
+printf 'HOME=%s DBUS=%s\n' "$HOME" "$DBUS_SESSION_BUS_ADDRESS" >>"${OMARCHY_TEST_BROWSER_ENV:-/dev/null}"
 printf '%s\n' "$*" >>"$OMARCHY_TEST_BROWSER_LOG"
+SH
+
+cat >"$mock_bin/secret-tool" <<'SH'
+#!/bin/bash
+store_file="$HOME/.mock-secret-tool.json"
+case "${1:-}" in
+  lookup)
+    if [[ -f $store_file ]]; then
+      cat "$store_file"
+      exit 0
+    fi
+    exit 1
+    ;;
+  store)
+    cat >"$store_file"
+    exit 0
+    ;;
+  clear)
+    rm -f "$store_file"
+    exit 0
+    ;;
+  *)
+    exit 1
+    ;;
+esac
 SH
 
 chmod +x "$mock_bin"/*
@@ -101,14 +138,19 @@ export OMARCHY_TEST_NOTIFICATIONS="$notifications"
 export OMARCHY_TEST_BROWSER_LOG="$test_tmp/browser"
 # A session started by an account launch pins its home through these, and
 # a run from inside one (an agent working on Omarchy) must not inherit it.
-unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME BROWSER
-unset OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME
+unset CLAUDE_CONFIG_DIR CODEX_HOME GROK_HOME AGY_DIR BROWSER DBUS_SESSION_BUS_ADDRESS
+unset OMARCHY_AGENT_CLAUDE_HOME OMARCHY_AGENT_CODEX_HOME OMARCHY_AGENT_GROK_HOME OMARCHY_AGENT_AGY_HOME
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$test_tmp/bus"
+export OMARCHY_TEST_AGY_ENV="$test_tmp/agy_env"
+export OMARCHY_TEST_BROWSER_ENV="$test_tmp/browser_env"
 
 accounts="$XDG_STATE_HOME/omarchy/agents/accounts"
 
 echo '{"oauthAccount":{"accountUuid":"u-main","emailAddress":"me@example.com","organizationName":"Me"},"mcpServers":{"docs":{"command":"docs-mcp"}}}' >"$HOME/.claude.json"
 echo '{"claudeAiOauth":{"rateLimitTier":"default_claude_max_20x","subscriptionType":"max"}}' >"$HOME/.claude/.credentials.json"
 echo '{"theme":"custom:omarchy"}' >"$HOME/.claude/settings.json"
+mkdir -p "$HOME/.gemini/antigravity-cli"
+printf '{"auth_method":"consumer","id_token_email":"me@example.com","token":{"access_token":"token-main","refresh_token":"ref-main","expiry":"2030-01-01T00:00:00Z"}}\n' >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
 
 # ---------------------------------------------------------------- single account
 
@@ -239,6 +281,79 @@ omarchy-agent-account-use grok side >/dev/null
 omarchy-agent-account-use grok main >/dev/null
 pass "Grok accounts are added and used like the others"
 
+# ------------------------------------------------------------------------- agy
+
+OMARCHY_TEST_LOGIN_UUID=u-agyside OMARCHY_TEST_LOGIN_EMAIL=agyside@example.com \
+  omarchy-agent-account-add agy Side </dev/null >/dev/null
+[[ $(omarchy-agent-account-list agy --json | jq -c '.[0].accounts[1] | {id, email, plan}') == '{"id":"side","email":"agyside@example.com","plan":"Pro"}' ]] ||
+  fail "an Antigravity account reads its identity and plan from its own home" "$(omarchy-agent-account-list agy --json)"
+[[ $(readlink "$accounts/agy/side/conversations") == "$HOME/.gemini/antigravity-cli/conversations" ]] ||
+  fail "an Antigravity account shares conversations with the primary"
+grep -qx -- "--private https://accounts.google.com/o/oauth2/auth" "$OMARCHY_TEST_BROWSER_LOG" ||
+  fail "a second Antigravity login opens in a private window" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
+grep -qE "HOME=$accounts/agy/\.pending/.* DBUS=unix:path=/dev/null" "$OMARCHY_TEST_AGY_ENV" ||
+  fail "agy runs isolated in its account home with null dbus" "$(cat "$OMARCHY_TEST_AGY_ENV")"
+grep -q "HOME=$HOME DBUS=$DBUS_SESSION_BUS_ADDRESS" "$OMARCHY_TEST_BROWSER_ENV" ||
+  fail "browser wrapper restores the desktop home and session bus" "$(cat "$OMARCHY_TEST_BROWSER_ENV")"
+omarchy-agent-account-use agy side >/dev/null
+[[ $(omarchy-agent-account-exec agy --version) == "agy home=$accounts/agy/side args=--version" ]] || fail "agy starts as the active Antigravity account" "$(omarchy-agent-account-exec agy --version)"
+grep -q "agyside@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" || fail "Side token was synced to primary home"
+
+# Simulate a running session refreshing the active account's token in primary home
+printf '{"auth_method":"consumer","id_token_email":"agyside@example.com","token":{"access_token":"token-refreshed","refresh_token":"ref-refreshed","expiry":"2035-01-01T00:00:00Z"}}\n' \
+  >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
+omarchy-agent-account-state sync agy
+grep -q "token-refreshed" "$accounts/agy/side/antigravity-oauth-token" ||
+  fail "running session token refresh syncs back to account home"
+grep -q "token-refreshed" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ||
+  fail "running session token refresh is preserved in primary home"
+
+omarchy-agent-account-use agy main >/dev/null
+grep -q "me@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" || fail "Main token was restored after switching back to main"
+omarchy-agent-account-use agy side >/dev/null
+grep -q "token-refreshed" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" || fail "Refreshed token is applied when switching back to side"
+omarchy-agent-account-use agy main >/dev/null
+
+# Signing in with a different account on Main updates Main's login
+printf '{"auth_method":"consumer","id_token_email":"newmain@example.com","token":{"access_token":"token-newmain","refresh_token":"ref-newmain","expiry":"2030-01-01T00:00:00Z"}}\n' \
+  >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
+omarchy-agent-account-state refresh agy
+list=$(omarchy-agent-account-list agy --json)
+[[ $(jq -r '.[0].accounts[] | select(.primary) | .email' <<<"$list") == "newmain@example.com" ]] ||
+  fail "refreshing adopts an intentional sign-in change on Main" "$list"
+omarchy-agent-account-state sync agy
+grep -q "newmain@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ||
+  fail "sync preserves an intentional sign-in change on Main"
+
+# Leftover secondary credential is rejected and Main is restored
+printf '{"auth_method":"consumer","id_token_email":"agyside@example.com","token":{"access_token":"token-side","refresh_token":"ref-side","expiry":"2030-01-01T00:00:00Z"}}\n' \
+  >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
+omarchy-agent-account-state sync agy
+grep -q "newmain@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ||
+  fail "sync restores Main when a secondary account's token was left in primary"
+
+# Restore original Main login for subsequent tests
+printf '{"auth_method":"consumer","id_token_email":"me@example.com","token":{"access_token":"token-main","refresh_token":"ref-main","expiry":"2030-01-01T00:00:00Z"}}\n' \
+  >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token"
+omarchy-agent-account-state refresh agy
+pass "Antigravity accounts are added and used like the others"
+
+# Verify that isolated login bypasses mise command-wrappers on PATH and does not trigger sync
+wrapper_dir="$test_tmp/data/mise/command-wrappers/bin"
+mkdir -p "$wrapper_dir"
+cat >"$wrapper_dir/agy" <<'SH'
+#!/bin/bash
+echo "FAIL: invoked command wrapper during login" >&2
+exit 1
+SH
+chmod +x "$wrapper_dir/agy"
+PATH="$wrapper_dir:$PATH" OMARCHY_TEST_LOGIN_UUID=u-agywrapper OMARCHY_TEST_LOGIN_EMAIL=agywrapper@example.com \
+  omarchy-agent-account-add agy Wrapper </dev/null >/dev/null
+[[ $(omarchy-agent-account-list agy --json | jq -r '.[0].accounts[] | select(.id == "wrapper") | .email') == "agywrapper@example.com" ]] ||
+  fail "login bypasses command-wrappers on PATH"
+omarchy-agent-account-remove agy wrapper </dev/null >/dev/null
+rm -rf "$test_tmp/data/mise/command-wrappers"
+
 # ---------------------------------------------------------------------- routing
 
 omarchy-agent-account-use claude work >/dev/null
@@ -260,6 +375,10 @@ pass "account dispatch follows the active account"
 omarchy-agent-account-use codex side >/dev/null
 [[ $(OMARCHY_TEST_DEFAULT_AGENT=codex omarchy-agent --inline) == "codex home=$accounts/codex/side args=--approve-for-me" ]] ||
   fail "omarchy-agent starts Codex as the active account"
+omarchy-agent-account-use agy side >/dev/null
+[[ $(OMARCHY_TEST_DEFAULT_AGENT=agy omarchy-agent --inline) == "agy home=$accounts/agy/side args=--dangerously-skip-permissions" ]] ||
+  fail "omarchy-agent starts Antigravity as the active account"
+omarchy-agent-account-use agy main >/dev/null
 pass "omarchy-agent follows the active account"
 
 omarchy-agent-account-use claude next >/dev/null
@@ -329,6 +448,13 @@ kill "$session"; wait "$session" 2>/dev/null || true
 omarchy-agent-account-remove claude work </dev/null >/dev/null
 [[ ! -e $work && -d $HOME/.claude/projects && -f $HOME/.claude/settings.json ]] || fail "removing an account deletes its home and nothing it links to"
 [[ -z $(omarchy-agent-account-home claude) ]] || fail "removing the active account falls back to the primary"
+OMARCHY_TEST_LOGIN_UUID=u-agytemp OMARCHY_TEST_LOGIN_EMAIL=agytemp@example.com \
+  omarchy-agent-account-add agy Temp </dev/null >/dev/null
+omarchy-agent-account-use agy temp >/dev/null
+omarchy-agent-account-remove agy temp </dev/null >/dev/null
+[[ ! -d $accounts/agy/temp ]] || fail "removing an active account deletes its directory on disk"
+grep -q "me@example.com" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ||
+  fail "removing the active Antigravity account restores Main credentials"
 pass "remove forgets an added account without touching shared files"
 
 # A registry that can't be saved leaves the new login pending for recovery,
@@ -381,7 +507,7 @@ pass "a Grok settings cache of the wrong shape reads as no plan"
 
 # ------------------------------------------------------------ panel add flow
 
-[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional' ]] ||
+[[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional\nagy additional' ]] ||
   fail "--check says what adding would mean for each provider" "$(omarchy-agent-account-add --check)"
 pass "--check says what adding would mean for each provider"
 
@@ -434,6 +560,13 @@ grep -qx "default https://claude.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG
 if omarchy-agent-account-add --reauth nobody claude </dev/null >/dev/null 2>&1; then
   fail "--reauth of an unknown account fails"
 fi
+
+: >"$OMARCHY_TEST_BROWSER_LOG"
+OMARCHY_TEST_LOGIN_UUID=u-agynew OMARCHY_TEST_LOGIN_EMAIL=agynew@example.com \
+  omarchy-agent-account-add --reauth side agy </dev/null >/dev/null
+grep -qx -- "--private https://accounts.google.com/o/oauth2/auth" "$OMARCHY_TEST_BROWSER_LOG" || fail "--reauth of added Antigravity account uses private window"
+grep -q "agynew@example.com" "$accounts/agy/side/antigravity-oauth-token" || fail "--reauth signs in to Antigravity account's own home"
+
 pass "--reauth signs an existing account in again where it lives"
 
 # ------------------------------------------------------------------- cancel

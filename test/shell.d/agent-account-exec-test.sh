@@ -18,13 +18,14 @@ mkdir -p "$account_test_home" "$real_bin" "$registry_dir"
 
 # Use real mise dispatch and real account resolution, with fake agent binaries.
 # No shell functions, login startup files, credentials, or network are involved.
-for provider in claude codex grok; do
+for provider in claude codex grok agy; do
   cat >"$real_bin/$provider" <<'SH'
 #!/bin/bash
 case "${0##*/}" in
   claude) printf '%s\n' "${CLAUDE_CONFIG_DIR:-default}" ;;
   codex) printf '%s\n' "${CODEX_HOME:-default}" ;;
   grok) printf '%s\n' "${GROK_HOME:-default}" ;;
+  agy) printf '%s\n' "${AGY_DIR:-default}" ;;
 esac
 if (($#)); then
   printf '%s\n' "$@"
@@ -134,6 +135,19 @@ for provider in claude codex grok; do
   [[ $output == default ]] || fail "$provider works without an account registry" "$output"
   pass "$provider works without an account registry"
 done
+
+select_account agy side
+output=$(run_isolated agy)
+[[ $output == "$test_tmp/accounts/agy side" ]] || fail "agy dispatch selects the active account" "$output"
+pass "agy dispatch selects the active account"
+
+output=$(run_isolated env AGY_DIR=/explicit/account agy)
+[[ $output == /explicit/account ]] || fail "agy preserves an explicit account home" "$output"
+pass "agy preserves an explicit account home"
+
+output=$(run_isolated env OMARCHY_AGENT_LOGIN=1 agy)
+[[ $output == "$test_tmp/accounts/agy side" ]] || fail "agy dispatch respects login mode" "$output"
+pass "agy dispatch respects login mode"
 
 select_account claude side
 output=$(run_isolated python3 -c 'import subprocess; print(subprocess.check_output(["claude", "-p", "review"], text=True), end="")')

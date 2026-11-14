@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# omarchy:summary=Sign in to a Claude, Codex, or Grok subscription
-# omarchy:args=[--check] [--events] [--reauth <account>] [claude|codex|grok] [label]
-# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side
+# omarchy:summary=Sign in to a Claude, Codex, Grok, or Antigravity subscription
+# omarchy:args=[--check] [--events] [--reauth <account>] [claude|codex|grok|agy] [label]
+# omarchy:examples=omarchy agent account add claude | omarchy agent account add Work | omarchy agent account add codex Side | omarchy agent account add agy Work
 
 set -uo pipefail
 
@@ -24,7 +24,7 @@ while [[ ${1:-} == --* ]]; do
   --reauth)
     reauth="${2:-}"
     if [[ -z $reauth || $reauth == --* ]]; then
-      echo "Usage: omarchy-agent-account-add --reauth <account> [claude|codex|grok]" >&2
+      echo "Usage: omarchy-agent-account-add --reauth <account> [claude|codex|grok|agy]" >&2
       exit 1
     fi
     shift
@@ -34,13 +34,13 @@ while [[ ${1:-} == --* ]]; do
   shift
 done
 
-# Whether a provider's own home (~/.claude, ~/.codex, ~/.grok) is signed in.
+# Whether a provider's own home (~/.claude, ~/.codex, ~/.grok, ~/.gemini/antigravity-cli) is signed in.
 primary_signed_in() {
   omarchy-agent-account-state list "$1" | jq -e '.[0].accounts | any(.primary and .signedIn)' >/dev/null
 }
 
 if [[ $check == "true" ]]; then
-  for p in claude codex grok; do
+  for p in claude codex grok agy; do
     if primary_signed_in "$p"; then
       echo "$p additional"
     else
@@ -52,17 +52,18 @@ fi
 
 # The provider can be left out when it's your default agent:
 # `omarchy agent account add Work`.
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" && ${1:-} != "agy" ]]; then
   default=$(omarchy-default-agent)
-  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
+  [[ $default == "claude" || $default == "codex" || $default == "grok" || $default == "agy" ]] && set -- "$default" "$@"
 fi
 
 case "${1:-}" in
 claude) provider="claude"; name="Claude"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
 codex) provider="codex"; name="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
 grok) provider="grok"; name="Grok"; site="x.ai"; package="grok"; home_env="GROK_HOME" ;;
+agy) provider="agy"; name="Antigravity"; site="google.com"; package="agy"; home_env="AGY_DIR" ;;
 *)
-  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok] [label]" >&2
+  echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok|agy] [label]" >&2
   exit 1
   ;;
 esac
@@ -100,9 +101,18 @@ fail() {
 # half-made home behind.
 home=""
 browser=""
+restore_token_target=""
+restore_token_bak=""
+restore_keyring=""
 cleanup() {
   [[ -n $browser ]] && rm -f "$browser"
   [[ -n $home && -d $home && $home == */.pending/* ]] && rm -rf "$home"
+  if [[ -n $restore_token_target && -f $restore_token_bak ]]; then
+    mv -f "$restore_token_bak" "$restore_token_target" 2>/dev/null || true
+  fi
+  if [[ -n $restore_keyring ]] && omarchy-cmd-present secret-tool; then
+    printf '%s' "$restore_keyring" | secret-tool store --label=Antigravity service gemini username antigravity 2>/dev/null || true
+  fi
 }
 trap cleanup EXIT
 trap 'pkill -TERM -P $$; exit 130' TERM INT
@@ -138,11 +148,12 @@ case "$provider" in
 claude) login_command=(claude auth login) ;;
 codex) login_command=(codex login) ;;
 grok) login_command=(grok login) ;;
+agy) login_command=(agy) ;;
 esac
 
 # The CLI's own home, whatever this shell has pointed it at.
 login() {
-  interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "OMARCHY_AGENT_${provider^^}_HOME=" "${login_command[@]}"
+  interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME -u AGY_DIR "OMARCHY_AGENT_${provider^^}_HOME=" "${login_command[@]}"
 }
 
 # Signing an account that's already here in again, where it lives: the
@@ -150,20 +161,61 @@ login() {
 # window. Its home is never recreated or removed.
 if [[ -n $reauth ]]; then
   if [[ $reauth == ":primary" ]]; then
-    account_home="$HOME/.$provider"
+    account_home=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' '$4 == "1" { print $2; exit }')
+    if [[ -z $account_home ]]; then
+      if [[ $provider == "agy" ]]; then
+        account_home="$HOME/.gemini/antigravity-cli"
+      else
+        account_home="$HOME/.$provider"
+      fi
+    fi
   else
     account_home=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' -v id="$reauth" '$1 == id { print $2 }')
   fi
   [[ -n $account_home ]] || fail "$(omarchy-i18n agents.noAccountNamed "$name" "$reauth")"
 
-  if [[ $account_home == "$HOME/.$provider" ]]; then
+  if [[ $account_home == "$HOME/.$provider" || ( $provider == "agy" && $account_home == "$HOME/.gemini/antigravity-cli" ) ]]; then
     say "$(omarchy-i18n agents.signInAgainBrowser "$name")"
-    login || fail "$(omarchy-i18n agents.signInFailed "$name")"
+    if [[ $provider == "agy" ]]; then
+      restore_token_target="$account_home/antigravity-oauth-token"
+      restore_token_bak="$account_home/.antigravity-oauth-token.bak"
+      cp "$restore_token_target" "$restore_token_bak" 2>/dev/null || true
+      rm -f "$restore_token_target"
+      if omarchy-cmd-present secret-tool; then
+        restore_keyring=$(secret-tool lookup service gemini username antigravity 2>/dev/null || true)
+        secret-tool clear service gemini username antigravity 2>/dev/null || true
+      fi
+      if ! interruptible omarchy-agent-account-state login agy "$account_home"; then
+        fail "$(omarchy-i18n agents.signInFailed "$name")"
+      fi
+      rm -f "$restore_token_bak"
+      restore_token_target=""
+      restore_token_bak=""
+      restore_keyring=""
+      omarchy-agent-account-state backup-main agy >/dev/null 2>&1 || true
+    else
+      login || fail "$(omarchy-i18n agents.signInFailed "$name")"
+    fi
   else
     say "$(omarchy-i18n agents.signInAgainPrivate)"
-    private_browser
-    interruptible env BROWSER="$browser" "$home_env=$account_home" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
+    if [[ $provider == "agy" ]]; then
+      restore_token_target="$account_home/antigravity-oauth-token"
+      restore_token_bak="$account_home/.antigravity-oauth-token.bak"
+      cp "$restore_token_target" "$restore_token_bak" 2>/dev/null || true
+      rm -f "$restore_token_target"
+      if ! interruptible omarchy-agent-account-state login agy "$account_home" --private; then
+        fail "$(omarchy-i18n agents.signInFailed "$name")"
+      fi
+      rm -f "$restore_token_bak"
+      restore_token_target=""
+      restore_token_bak=""
+    else
+      private_browser
+      interruptible env BROWSER="$browser" "$home_env=$account_home" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
+    fi
   fi
+
+  omarchy-agent-account-state sync "$provider" >/dev/null 2>&1 || true
 
   omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
   finish "$(omarchy-i18n agents.signedInAgain "$name")"
@@ -174,7 +226,22 @@ fi
 # normal browser: nothing is signed in there yet that it could be mistaken for.
 if ! primary_signed_in "$provider"; then
   say "$(omarchy-i18n agents.signInBrowser "$name")"
-  if login && primary_signed_in "$provider"; then
+  login_ok=false
+  if [[ $provider == "agy" ]]; then
+    primary_home=$(omarchy-agent-account-state homes agy | awk -F'\t' '$4 == "1" { print $2; exit }')
+    [[ -n $primary_home ]] || primary_home="$HOME/.gemini/antigravity-cli"
+    if interruptible omarchy-agent-account-state login agy "$primary_home"; then
+      login_ok=true
+    fi
+  else
+    if login; then
+      login_ok=true
+    fi
+  fi
+  if [[ $login_ok == "true" ]] && primary_signed_in "$provider"; then
+    if [[ $provider == "agy" ]]; then
+      omarchy-agent-account-state sync agy >/dev/null 2>&1 || true
+    fi
     # The first agent signed in on a machine with none chosen becomes the
     # default, so `omarchy agent` and the panel's starter prompts have one to
     # run. A default someone already picked is never touched.
@@ -220,8 +287,12 @@ EOF
 
   home=$(omarchy-agent-account-state begin "$provider" "$label" "$$") || fail "$(omarchy-i18n agents.homeFailed)"
 
-  private_browser
-  interruptible env BROWSER="$browser" "$home_env=$home" "${login_command[@]}"
+  if [[ $provider == "agy" ]]; then
+    interruptible omarchy-agent-account-state login agy "$home" --private || fail "$(omarchy-i18n agents.signInFailed "$name")"
+  else
+    private_browser
+    interruptible env BROWSER="$browser" "$home_env=$home" "${login_command[@]}"
+  fi
 
   if account=$(omarchy-agent-account-state register "$provider" "$label" "$home" 2>&1); then
     home=""

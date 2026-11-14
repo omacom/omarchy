@@ -1,17 +1,17 @@
 #!/bin/bash
 
-# omarchy:summary=Print the config home of the active Claude, Codex, or Grok account
-# omarchy:args=<claude|codex|grok>
+# omarchy:summary=Print the config home of the active Claude, Codex, Grok, or Antigravity account
+# omarchy:args=<claude|codex|grok|agy>
 # omarchy:hidden=true
 
-# Prints nothing while the primary account (~/.claude, ~/.codex) is active, so
-# a launch only sets CLAUDE_CONFIG_DIR / CODEX_HOME when there's somewhere
+# Prints nothing while the primary account (~/.claude, ~/.codex, ~/.grok, ~/.gemini/antigravity-cli) is active, so
+# a launch only sets CLAUDE_CONFIG_DIR / CODEX_HOME / GROK_HOME / AGY_DIR when there's somewhere
 # else to point it. Without a registry, no Python starts at all: this runs on
 # every `claude` and `codex` typed at a prompt.
 registry="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/accounts/${1:-}.json"
 
-if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
-  echo "Usage: omarchy-agent-account-home <claude|codex|grok>" >&2
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" && ${1:-} != "agy" ]]; then
+  echo "Usage: omarchy-agent-account-home <claude|codex|grok|agy>" >&2
   exit 1
 fi
 

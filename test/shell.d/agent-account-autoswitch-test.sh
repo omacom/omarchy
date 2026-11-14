@@ -200,3 +200,36 @@ jq -nc --arg later "$later" '{
 autoswitch >/dev/null
 [[ $(active) == "work" ]] || fail "a stale account with room wins over a fresh one near the limit" "$(active)"
 pass "a stale account with room wins over a fresh one near the limit"
+
+# A model-scoped allowance (such as Claude/GPT in Antigravity or a model in Codex)
+# at 100% does not exhaust an account whose core windows have room.
+registry main auto
+jq -nc --arg soon "$soon" --arg later "$later" '{
+  id: "claude",
+  accounts: [
+    {id: "main", limits: [
+      {label: "Session (5-hour)", title: "Session", percent: 0.10, resetsAt: $soon},
+      {label: "Weekly (7-day)", title: "Weekly", percent: 0.15, resetsAt: $later},
+      {label: "Claude/GPT Weekly", title: "Claude/GPT Weekly", percent: 1.0, resetsAt: $later}
+    ]},
+    {id: "work", limits: [{label: "Session (5-hour)", percent: 0.05, resetsAt: $soon}]}
+  ]
+}' >"$usage/claude.json"
+[[ -z $(autoswitch) && $(active) == "main" && ! -s $notifications ]] || fail "scoped allowances do not trigger autoswitch"
+pass "scoped model allowances do not exhaust an account with core headroom"
+
+# An account with 100% model-scoped allowance is still eligible to be switched to
+# when its core windows have plenty of room.
+registry work auto
+jq -nc --arg soon "$soon" --arg later "$later" '{
+  id: "claude",
+  accounts: [
+    {id: "main", limits: [
+      {label: "Session (5-hour)", title: "Session", percent: 0.10, resetsAt: $soon},
+      {label: "Claude/GPT Weekly", title: "Claude/GPT Weekly", percent: 1.0, resetsAt: $later}
+    ]},
+    {id: "work", limits: [{label: "Session (5-hour)", percent: 0.98, resetsAt: $soon}]}
+  ]
+}' >"$usage/claude.json"
+[[ $(autoswitch) == "claude" && $(active) == "main" ]] || fail "scoped allowance does not prevent switching to account"
+pass "account with exhausted scoped allowance is still a valid switch target"
