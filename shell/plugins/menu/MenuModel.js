@@ -388,6 +388,33 @@ function searchScore(items, entry, query) {
   return score * 1000 + depthFor(items, entry.id) * 25 + entry.order
 }
 
+// The contentY that brings the cursor row into view. `reach` is the row-and-gap
+// kept past the cursor so the list hints at what follows. A disabled row can be
+// hinted at but never reached, so once nothing selectable follows the cursor
+// that hint can never grow into a full row: scroll on to the end instead,
+// stopping short only when that would push the cursor row off the top.
+function revealOffset(view) {
+  var originY = view.originY || 0
+  var height = view.height || 0
+  var maxY = Math.max(originY, originY + (view.contentHeight || 0) - height)
+  var reach = view.reach || 0
+  var y = Math.min(Math.max(view.contentY || 0, originY), maxY)
+
+  if (view.selectedIndex < view.count - 1) {
+    if (view.selectableAfter) {
+      var overhang = view.itemY + view.itemHeight + reach - (y + height)
+      if (overhang > 0) y = Math.min(y + overhang, maxY)
+    } else {
+      y = Math.min(maxY, Math.max(y, view.itemY - reach))
+    }
+  }
+  if (view.selectedIndex > 0) {
+    var underhang = y - (view.itemY - reach)
+    if (underhang > 0) y = Math.max(y - underhang, originY)
+  }
+  return y
+}
+
 function displayRow(items, itemOrder, checkedResults, disabledResults, entry, detail, score, section) {
   var target = entry.kind === "link" ? entry.target : entry.id
   return {
@@ -719,6 +746,7 @@ if (typeof module !== "undefined") {
     dmenuSelections: dmenuSelections,
     toggleDmenuSelection: toggleDmenuSelection,
     displayRow: displayRow,
+    revealOffset: revealOffset,
     applyTranslations: applyTranslations
   }
 }
