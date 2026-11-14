@@ -109,6 +109,34 @@ ShellRoot {
     safeCall(item, "refresh", entry)
     safeCall(item, "close", entry)
 
+    if (entry.id === "omarchy.clock") {
+      var tick = null
+      for (var t = 0; t < item.data.length; t++)
+        if ("step" in item.data[t] && "interval" in item.data[t]) tick = item.data[t]
+      root.assertTrue(tick !== null, entry.id + " has a clock tick")
+      if (tick) {
+        // What suspend leaves behind: the time the lid closed at, and a
+        // countdown that has not moved since.
+        tick.date = new Date(2000, 0, 1)
+        tick.interval = 3600000
+        tick.restart()
+        SystemSleep.resumed()
+        root.assertTrue(Math.abs(item.displayDate.getTime() - Date.now()) < 61000, entry.id + " catches up to the current time when the machine wakes")
+        root.assertTrue(tick.interval <= tick.step, entry.id + " re-arms its next tick from now when the machine wakes")
+      }
+
+      var calendar = null
+      for (var i = 0; i < item.data.length; i++)
+        if (item.data[i].item && "viewMonth" in item.data[i].item) calendar = item.data[i].item
+      root.assertTrue(calendar !== null, entry.id + " loads its calendar")
+      if (calendar) {
+        var browsed = (calendar.today.getMonth() + 6) % 12
+        calendar.viewMonth = browsed
+        SystemSleep.resumed()
+        root.assertEqual(calendar.viewMonth, browsed, entry.id + " keeps the month being browsed when the machine wakes")
+      }
+    }
+
     createdObjects.push(item)
     createdIds.push(entry.id)
   }
