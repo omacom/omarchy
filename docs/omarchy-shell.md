@@ -241,7 +241,7 @@ The shell exposes these tokens to QML via three singletons in
 - `Border` — border-spec helpers for QML surfaces. Use with
   `BorderSurface` from `qs.Ui` when a border should honor shell theme
   gradients or per-side widths. `Commons.Color.<section>.border` is only the
-  flat-color fallback for code that cannot render a real border.
+  flat-color fallback for code that cannot render a real border. `BorderSurface.fillSpec` similarly renders surface-fill specs such as `Commons.Color.menu.backgroundSpec` and `selectedBackgroundSpec`, with `fillColor` providing the solid fallback. Clipboard, emojis, and reminders share these menu fills.
 
 ### Interactive states
 

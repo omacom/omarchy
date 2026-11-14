@@ -284,6 +284,20 @@ const endpoints = geometry.gradientEndpoints(100, 50, 0)
 assertEqual(Math.round(endpoints.x1), 0, 'border geometry 0deg starts at left edge')
 assertEqual(Math.round(endpoints.x2), 100, 'border geometry 0deg ends at right edge')
 
+// Fixed renderer slots must preserve every authored gradient stop, including
+// middle stops that uniform ten-slot sampling would miss.
+for (let count = 2; count <= 10; count++) {
+  const colors = Array.from({ length: count }, (_, i) => ({ r: i / 10, g: 0, b: 0, a: 1 }))
+  const positions = Array.from({ length: 10 }, (_, i) => geometry.sampledStopPosition(colors, i, 10))
+  assert(positions[0] === 0 && positions[9] === 1 && positions.every((p, i) => i === 0 || p > positions[i - 1]), `${count} stops occupy distinct positions`)
+  for (let stop = 0; stop < count; stop++) {
+    const slot = Math.floor(stop * 9 / (count - 1))
+    assert(Math.abs(positions[slot] - stop / (count - 1)) < 1e-10, `${count}-stop palette retains authored stop ${stop} position`)
+    const color = geometry.sampledStopColor(colors, slot, 10)
+    assert(Math.abs(color.r - colors[stop].r) < 1e-10, `${count}-stop palette retains authored stop ${stop} color`)
+  }
+}
+
 const overlayQml = fs.readFileSync(path.join(root, 'shell/Ui/BorderOverlay.qml'), 'utf8')
 assert(overlayQml.includes('ShapePath.WindingFill'), 'border overlay uses winding fill for side-run and compound paths')
 assert(!overlayQml.includes('ShapePath.OddEvenFill'), 'border overlay no longer uses touching odd-even geometry')
