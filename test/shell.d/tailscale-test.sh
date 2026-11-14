@@ -20,6 +20,9 @@ assertDeepEqual(
 
 assertEqual(tailscale.cleanDnsName('work.tailnet.ts.net.'), 'work.tailnet.ts.net', 'tailscale strips trailing DNS dot')
 assertEqual(tailscale.displayHostName('localhost', 'work.tailnet.ts.net.'), 'work', 'tailscale falls back from localhost to short DNS name')
+// Without the dot, tailscale file cp looks the name up through DNS, which fails
+// with MagicDNS off or --accept-dns=false.
+assertEqual(tailscale.peerAddress({ DNSName: 'work.tailnet.ts.net' }), 'work.tailnet.ts.net.', 'tailscale addresses a peer by its full name with the trailing dot')
 
 const status = tailscale.parseStatus(JSON.stringify({
   BackendState: 'Running',
