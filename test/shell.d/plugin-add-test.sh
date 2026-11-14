@@ -175,3 +175,39 @@ for good in \
     fail "plugin add did not reach git clone for a legitimate URL: $good" "$output"
 done
 pass "plugin add lets legitimate git URLs reach git clone"
+
+# --- Interactive placement of a clone ----------------------------------------
+# Enabling a clone swaps it into its source's slot, so the section is asked only when the source is off the bar.
+
+if script -qec true /dev/null >/dev/null 2>&1; then
+  place_stubs="$TMPDIR/place-stubs"
+  mkdir -p "$place_stubs"
+  cat >"$place_stubs/omarchy-shell" <<'STUB'
+#!/bin/bash
+case $2 in
+  listPlugins) printf '[{"id":"omarchy.monitor","enabled":%s},{"id":"acme.display","clonedFrom":"omarchy.monitor"}]\n' "$SOURCE_ON_BAR" ;;
+  enablePlugin) printf '%s\n' "$4" >"$ENABLE_LOG"; echo ok ;;
+esac
+STUB
+  printf '#!/bin/bash\necho right\n' >"$place_stubs/gum"
+  chmod +x "$place_stubs/omarchy-shell" "$place_stubs/gum"
+
+  clone_repo="$TMPDIR/clone-repo"
+  write_plugin "$clone_repo" "acme.display" "Display"
+  git -C "$clone_repo" init -q
+  git -C "$clone_repo" add .
+  git -C "$clone_repo" -c user.name=Test -c user.email=test@example.com commit -qm "Initial"
+
+  for source_on_bar in true false; do
+    if [[ $source_on_bar == "true" ]]; then expected="{}"; else expected='{"section":"right"}'; fi
+    output=$(SOURCE_ON_BAR="$source_on_bar" ENABLE_LOG="$TMPDIR/enable-log" HOME="$TMPDIR/place-home-$source_on_bar" \
+      OMARCHY_PATH="$ROOT" PATH="$place_stubs:$ROOT/bin:$PATH" \
+      script -qec "omarchy-plugin-add '$clone_repo' --enable" /dev/null 2>&1) ||
+      fail "plugin add enables a clone (source on bar: $source_on_bar)" "$output"
+    [[ $(cat "$TMPDIR/enable-log") == "$expected" ]] ||
+      fail "plugin add places a clone (source on bar: $source_on_bar)" "$(cat "$TMPDIR/enable-log")"
+  done
+  pass "plugin add keeps a clone in its source's slot and asks for a section only when the source is off the bar"
+else
+  skip "script -qec unavailable; skipping the interactive clone placement cases"
+fi
