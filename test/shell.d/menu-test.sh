@@ -154,6 +154,15 @@ assertDeepEqual(
 const defaultItems = menu.parseMenuJsonc(defaultMenuJsonc)
 const defaultById = Object.fromEntries(defaultItems.map(item => [item.id, item]))
 
+// The coding agents come from the harness registry rather than fixed rows, so
+// an installed integration's harness shows up under Agent > Harness without a
+// menu edit. The provider is declared once here and filled at runtime.
+assert(
+  defaultById['agent.harness']?.provider === 'agent-harnesses'
+    && !defaultItems.some(item => item.parent === 'agent.harness'),
+  'menu fills the coding-agent choices from the harness registry'
+)
+
 // Needs the real menu: app rows sort after all menu items, and only at that
 // item count does the order tiebreak alone bury an installed app.
 const rankBase = menu.mergeMenuSources(defaultItems, [])
