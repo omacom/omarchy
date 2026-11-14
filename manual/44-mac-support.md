@@ -51,7 +51,21 @@ The Apple T1 chip was introduced in late 2016 and used exclusively in the first-
 #### Known Issues
 
 - Touch Bar is non-functional
-- Sound is not functioning
+- Internal speakers are silent with the mainline CS8409 codec. PipeWire can show a live analog sink with volume up and still produce no sound.
+
+On at least MacBookPro13,2 (2016 13-inch with Touch Bar), speakers work after installing the [davidjo/snd_hda_macbookpro](https://github.com/davidjo/snd_hda_macbookpro) DKMS driver:
+
+```bash
+omarchy pkg add wget linux-omarchy-headers base-devel dkms git
+git clone https://github.com/davidjo/snd_hda_macbookpro.git
+cd snd_hda_macbookpro
+sudo ./install.cirrus.driver.sh -i
+sudo reboot
+```
+
+Use `omarchy pkg add` / `omarchy update` rather than `pacman -Syu`. The install script downloads matching kernel source from kernel.org, so it needs network and `wget`. After a kernel update, DKMS rebuilds the module, downloading that kernel's source again. Keep the cloned `snd_hda_macbookpro` directory where it is: the installer links `/usr/src/snd_hda_macbookpro-0.1` to it rather than copying it, so deleting or moving the clone breaks the rebuild. Reboot after installing so the patched module attaches in place of the in-tree one.
+
+Success looks like `dkms status` showing `snd_hda_macbookpro` installed for the running kernel, `modinfo -n snd_hda_codec_cs8409` pointing at `/lib/modules/$(uname -r)/updates/dkms/`, and `dmesg` containing `trying APPLE`. The ALSA device name becomes `CS8409/CS42L83 Analog`. This is an optional out-of-tree module (it taints the kernel); it is not installed by default.
 
 #### Devices with T2 Chip
 
