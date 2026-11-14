@@ -26,6 +26,19 @@ Item {
   property bool selected: false              // the keyboard's card
   property double now: Date.now()
   property real cardWidth: Style.space(380)
+  property bool menuOpen: false
+  signal menuRequested(bool open)
+  property int menuIndex: 0
+  onEnabledChanged: if (!enabled) menuRequested(false)
+  // From the card's top to the bottom of the screen.
+  property real roomBelow: Infinity
+  // The deck shutting puts the menu away; so does reaching another card,
+  // which the service handles.
+  onExpandedChanged: if (!expanded) menuRequested(false)
+  // A refsRevision bump can rebuild equal arrays for unrelated senders.
+  readonly property string actionIdentity: JSON.stringify(allDeeds)
+  onActionIdentityChanged: if (menuOpen) menuRequested(false)
+
   property var actions: []                   // what the sender put on the wire
 
   // The pointer in the deck's coordinates: the deck owns hover, so cards and
@@ -134,6 +147,8 @@ Item {
   }
 
   function doDeed(deed) {
+    if (deed.kind === "more") { menuRequested(!menuOpen); return }
+    menuRequested(false)
     var kind = String(deed.kind || "")
     if (kind === "action") { actionInvoked(String(deed.value)); return }
     if (kind === "exec") { execInvoked(Number(deed.value)); return }
@@ -151,10 +166,11 @@ Item {
   // time, and gets a fresh display period of its own duration. Its picture
   // may be new at the same path, so the image is read again too.
   property real remaining: Number(row.duration || 0)
-  readonly property bool ticking: Number(row.duration || 0) > 0 && !paused
+  readonly property bool ticking: Number(row.duration || 0) > 0 && !paused && !menuOpen
   readonly property string arrival: String(row.ts) + ":" + String(row.duration)
   property bool reloading: false
   onArrivalChanged: {
+    menuRequested(false)
     remaining = Number(row.duration || 0)
     thumb.failed = 0
     reloading = true
@@ -518,34 +534,47 @@ Item {
       }
     }
 
-    // The buttons, as a bar along the card's bottom edge: a hairline above,
-    // equal segments split by hairlines, three to a line, and a short last line
-    // stretched across. Drawn in the card because the surface is clipped. In
-    // an open deck only the card under the pointer, or the keyboard, has them;
-    // otherwise the front card of each deck does.
+    // The buttons, as a bar along the card's bottom edge: a hairline above and
+    // the first action beside More, which lists the rest beneath the bar.
+    // Drawn in the card because the surface is clipped. In an open deck only
+    // the card under the pointer, or the keyboard, has them; otherwise the
+    // front card of each deck does. Secondary actions keep their indices in
+    // the full list, for number keys and IPC.
     Item {
       id: deedArea
       anchors { left: parent.left; right: parent.right; bottom: parent.bottom
                 leftMargin: plate.borderLeft; rightMargin: plate.borderRight
                 bottomMargin: plate.borderBottom }
 
-      readonly property bool shown: card.allDeeds.length > 0 && (card.expanded ? card.hovered : card.place.front)
-      readonly property int columns: Math.max(1, Math.min(3, card.allDeeds.length))
-      readonly property int rows: Math.ceil(card.allDeeds.length / columns)
+      // Until a card is under the pointer (entering through the bar's edge, or
+      // the grace after leaving), bars stay as they are when shut. Hiding them
+      // then shrank the card out from under the pointer, which left the deck,
+      // which showed the bar again: the card bounced.
+      readonly property bool tracking: card.expanded && (!card.scene || card.scene.keyboardMode
+                                                         || (card.scene.pointerIn && card.scene.hoverKey !== ""))
+      readonly property bool shown: card.allDeeds.length > 0
+                                    && (card.menuOpen || (tracking ? card.hovered : card.place.front))
+      readonly property var buttons: Delivery.actionButtons(card.allDeeds, I18n.t("notifications.more"))
       readonly property real rule: 1
       readonly property color ruleColor: Qt.rgba(card.dimColor.r, card.dimColor.g, card.dimColor.b, 0.35)
       readonly property real segmentHeight: Style.spacing.controlHeight + Style.space(6)
-      readonly property real barHeight: rows * (rule + segmentHeight)
+      readonly property real barHeight: rule + segmentHeight
+      readonly property real roomUnder: card.roomBelow - card.fixedHeight - barHeight
+      readonly property bool menuUp: Delivery.menuOpensUp(roomUnder, barHeight)
+      // Opening upwards, the menu covers the card's content and adds nothing.
+      readonly property real menuHeight: card.menuOpen && !menuUp ? menu.implicitHeight : 0
       // What the state asks for; the drawn height is whatever slack the
       // scene has given the card so far.
-      readonly property real wanted: shown ? barHeight : 0
+      readonly property real wanted: shown ? barHeight + menuHeight : 0
       height: Math.max(0, card.drawnHeight - card.fixedHeight)
       visible: height > 0
       clip: true
 
       Item {
         id: deedRow
-        anchors.bottom: parent.bottom
+        // Rises from the bottom edge as the bar opens, then stays at the top
+        // while the menu opens beneath it.
+        y: Math.min(0, deedArea.height - deedArea.barHeight)
         width: parent.width
         height: deedArea.barHeight
         opacity: deedArea.shown ? 1 : 0
@@ -553,29 +582,48 @@ Item {
         Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
 
         Repeater {
-          model: card.allDeeds
+          model: deedArea.buttons
           DeedButton {
             required property var modelData
             required property int index
-            readonly property int line: Math.floor(index / deedArea.columns)
-            readonly property int slot: index % deedArea.columns
-            readonly property int perLine: line < deedArea.rows - 1 ? deedArea.columns
-                                           : card.allDeeds.length - line * deedArea.columns
             // Where the segment starts in reading order; the first action
             // sits on the right in a right-to-left language.
-            readonly property real start: Math.round(slot * deedRow.width / perLine)
+            readonly property real start: Math.round(index * deedRow.width / deedArea.buttons.length)
             deed: modelData
             toast: card
-            hint: card.selected && index < 9 ? String(index + 1) : ""
+            hint: card.selected ? (modelData.kind === "more" ? "M" : "1") : ""
             rule: deedArea.rule
             ruleColor: deedArea.ruleColor
-            leftRule: slot > 0
-            width: Math.round((slot + 1) * deedRow.width / perLine) - start
+            leftRule: index > 0
+            width: Math.round((index + 1) * deedRow.width / deedArea.buttons.length) - start
             x: card.LayoutMirroring.enabled ? deedRow.width - start - width : start
-            y: line * (deedArea.rule + deedArea.segmentHeight)
-            height: deedArea.rule + deedArea.segmentHeight
+            height: deedArea.barHeight
           }
         }
+      }
+
+      ActionMenu {
+        id: menu
+        // Under the bar, inside the clipped area that opens with the card;
+        // or, near the screen's bottom, up over the card's content.
+        parent: deedArea.menuUp ? body : deedArea
+        z: deedArea.menuUp ? 10 : 0
+        x: deedArea.menuUp ? plate.borderLeft : 0
+        y: deedArea.menuUp ? deedArea.y - height : deedRow.y + deedArea.barHeight
+        width: deedArea.width
+        background: deedArea.menuUp ? Commons.Color.notifications.background : "transparent"
+        toast: card
+        deeds: card.allDeeds.slice(1)
+        currentIndex: card.selected ? card.menuIndex : -1
+        showHints: card.selected
+        rule: deedArea.rule
+        ruleColor: deedArea.ruleColor
+        rowHeight: deedArea.segmentHeight
+        maxHeight: deedArea.menuUp ? card.fixedHeight - plate.borderTop - plate.borderBottom : deedArea.roomUnder
+        opacity: card.menuOpen ? 1 : 0
+        visible: opacity > 0.01
+        Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
+        onChosen: function(deed) { card.doDeed(deed) }
       }
     }
 

@@ -64,8 +64,9 @@ Item {
       id: label
       // Cut short only when it cannot fit: measured apart from the label, as
       // an elided label's own width can come out a hair short of the text.
-      readonly property real room: button.width - Style.space(8)
-                                   - (hintText.visible ? hintText.implicitWidth + content.spacing : 0)
+      readonly property real room: Math.max(0, button.width - Style.space(8)
+                                   - (chevron.visible ? chevron.implicitWidth + content.spacing : 0)
+                                   - (hintText.visible ? hintText.implicitWidth + content.spacing : 0))
       readonly property bool tooLong: labelMetrics.advanceWidth > room
       // Never its own implicit width, which would bind the width to itself.
       width: tooLong ? room : Math.ceil(labelMetrics.advanceWidth)
@@ -73,6 +74,17 @@ Item {
       textFormat: Text.PlainText
       elide: tooLong ? Text.ElideRight : Text.ElideNone
       color: button.hot ? Commons.Color.notifications.text : Qt.darker(Commons.Color.notifications.text, 1.15)
+      font.family: Style.font.family
+      font.pixelSize: Style.font.body
+    }
+
+    Text {
+      id: chevron
+      visible: button.deed.kind === "more"
+      anchors.verticalCenter: parent.verticalCenter
+      text: "\u{f0140}"
+      textFormat: Text.PlainText
+      color: label.color
       font.family: Style.font.family
       font.pixelSize: Style.font.body
     }

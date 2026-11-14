@@ -231,8 +231,8 @@ if ((${#action_labels[@]} > 0)); then
     echo "--exec and --action cannot be combined: the card click runs the first action." >&2
     exit 1
   fi
-  if ((${#action_labels[@]} > 3)); then
-    echo "A notification takes at most 3 actions." >&2
+  if ((${#action_labels[@]} > 9)); then
+    echo "A notification takes at most 9 actions." >&2
     exit 1
   fi
   if ((${#with_args[@]} > 0)); then

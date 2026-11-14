@@ -218,8 +218,13 @@ load
   fail "the first action is the click command" "$(hint_value omarchy-exec-argv)"
 pass "notification wrapper builds --action buttons with --with data, the first as the click"
 
-if send "Head" --action One true --action Two true --action Three true --action Four true 2>/dev/null; then
-  fail "notification wrapper rejects a fourth action"
+action_args=()
+for n in {1..9}; do action_args+=(--action "Action $n" true); done
+send "Head" "${action_args[@]}" --with "/tmp/a b.mp4"
+load
+[[ $(hint_value omarchy-actions | jq length) == 9 ]] || fail "nine overflow actions survive the sender"
+if send "Head" "${action_args[@]}" --action Ten true 2>/dev/null; then
+  fail "notification wrapper rejects a tenth action"
 fi
 if send "Head" --action Go true --exec mpv 2>/dev/null; then
   fail "notification wrapper rejects --exec alongside --action"
