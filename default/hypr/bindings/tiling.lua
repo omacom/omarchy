@@ -21,9 +21,15 @@ o.bind("SUPER + UP", "Focus on above window", hl.dsp.focus({ direction = "u" }))
 o.bind("SUPER + DOWN", "Focus on below window", hl.dsp.focus({ direction = "d" }))
 
 -- Each monitor has workspaces 1-10 of its own; see default/hypr/monitor-workspaces.lua.
+-- With omarchy_workspaces_span, Super + N moves every monitor to that slot at
+-- once rather than the focused one alone.
 for workspace = 1, 10 do
   local key = "code:" .. tostring(workspace + 9)
-  o.bind("SUPER + " .. key, "Switch to workspace " .. workspace, o.workspaces.focus(workspace))
+  if _G.omarchy_workspaces_span == true then
+    o.bind("SUPER + " .. key, "Switch all monitors to workspace " .. workspace, o.workspaces.focus_all(workspace))
+  else
+    o.bind("SUPER + " .. key, "Switch to workspace " .. workspace, o.workspaces.focus(workspace))
+  end
   o.bind("SUPER + SHIFT + " .. key, "Move window to workspace " .. workspace, o.workspaces.move_window(workspace))
   o.bind("SUPER + SHIFT + ALT + " .. key, "Move window silently to workspace " .. workspace, o.workspaces.move_window(workspace, false))
 end

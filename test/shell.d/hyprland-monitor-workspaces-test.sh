@@ -660,3 +660,18 @@ hl.dispatch(m.move_to_monitor("u"))
 check(world.windows["0xa"].workspace == 11 and world.focused == "DP-1", "a move toward no monitor did something")
 ' || fail "a window moves to the monitor in a direction, and nowhere when there is none"
 pass "a window moves to the monitor in a direction, and nowhere when there is none"
+
+run_lua focus_all '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+
+hl.dispatch(m.focus_all(3))
+check(shows("eDP-1") == 3, "the laptop shows slot 3 of its own block: " .. tostring(shows("eDP-1")))
+check(shows("DP-1") == 13, "the other monitor shows slot 3 of its block: " .. tostring(shows("DP-1")))
+check(world.focused == "eDP-1", "focus stayed on the monitor it started on")
+check(o.bind_expressions[m.focus_all(3)] == "o.workspaces.focus_all(3)", "the menu can replay it")
+' || fail "one keypress puts every monitor on the same slot"
+pass "one keypress puts every monitor on the same slot"
