@@ -186,7 +186,7 @@ download_url() {
     # Open plays it, Cut takes it into Omacut; clicking the card plays it too.
     # `--` keeps mpv from parsing a leading-dash filename as an option; the path
     # is one discrete --with argument, so it never reaches a shell.
-    omarchy-notification-send -g 󰄬 "$(omarchy-i18n download.complete)" "$title" \
+    omarchy-notification-send -g 󰄬 "$(omarchy-i18n download.complete)" --description "$title" \
       -t 10000 --image "${preview:-$filepath}" \
       --action "$(omarchy-i18n download.open)" mpv -- \
       --action "$(omarchy-i18n download.cut)" omacut \

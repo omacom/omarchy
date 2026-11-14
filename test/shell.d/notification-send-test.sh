@@ -243,3 +243,35 @@ send "Timed" -t 3000 >/dev/null
 load
 [[ ${args[12]} == "" && ${args[-1]} == "3000" ]] || fail "notification wrapper still parses a flag after the headline" "body=${args[12]} timeout=${args[-1]}"
 pass "notification wrapper still treats a known flag after the headline as an option"
+
+# Text after --description is always shown as the description, never used as
+# a setting, even when it is exactly one of the tool's settings, such as a
+# reminder's message --exec.
+: >"$args_file"
+send -g K "Reminder" --description "--exec" >/dev/null
+load
+[[ ${args[12]} == "--exec" ]] || fail "notification wrapper shows a --description of --exec as text" "${args[12]}"
+has_hint omarchy-exec-argv && fail "a --description of --exec must not set a click command"
+: >"$args_file"
+send "Reminder" --description "--transient" >/dev/null
+load
+[[ ${args[12]} == "--transient" ]] || fail "notification wrapper shows a --description of --transient as text" "${args[12]}"
+! has_hint transient || fail "a --description of --transient must not set the transient hint"
+: >"$args_file"
+send --description "Stretch" -u critical "Reminder" >/dev/null
+load
+[[ ${args[11]} == "Reminder" && ${args[12]} == "Stretch" && $(hint_value urgency) == "2" ]] ||
+  fail "notification wrapper reads --description before the headline, with other settings" "${args[11]} / ${args[12]} / $(hint_value urgency)"
+pass "notification wrapper shows the text after --description as the description"
+
+# A plain -- is still just text, as it always was: a downloaded video titled --
+# keeps its card.
+: >"$args_file"
+send "Download complete" "--" -t 10000 >/dev/null
+load
+[[ ${args[12]} == "--" && ${args[-1]} == "10000" ]] || fail "notification wrapper shows a -- description as text" "${args[12]} / ${args[-1]}"
+: >"$args_file"
+send "--" >/dev/null
+load
+[[ ${args[11]} == "--" ]] || fail "notification wrapper shows a -- headline as text" "${args[11]}"
+pass "notification wrapper still shows a plain -- as text"
