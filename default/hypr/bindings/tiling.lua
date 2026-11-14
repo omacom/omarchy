@@ -57,8 +57,8 @@ o.bind("SUPER + SHIFT + DOWN", "Swap window down", hl.dsp.window.swap({ directio
 -- moves the active window to the end of the same list cycle_next walks, so a raise here ping-pongs.
 o.bind("ALT + SHIFT + TAB", "Reveal active window on top", hl.dsp.window.alter_zorder({ mode = "bottom" }))
 o.bind("ALT + TAB", "Focus on next window", hl.dsp.window.cycle_next())
-o.bind("ALT + SHIFT + TAB", "Focus on previous window", hl.dsp.window.cycle_next({ next = false }))
-o.bind("ALT + TAB", "Reveal active window on top", hl.dsp.window.bring_to_top())
+o.bind("ALT + SHIFT + TAB", "Focus on previous window", hl.dsp.window.cycle_next({ next = false }), { append = true })
+o.bind("ALT + TAB", "Reveal active window on top", hl.dsp.window.bring_to_top(), { append = true })
 
 o.bind("CTRL + ALT + TAB", "Focus on next monitor", hl.dsp.focus({ monitor = "+1" }))
 o.bind("CTRL + ALT + SHIFT + TAB", "Focus on previous monitor", hl.dsp.focus({ monitor = "-1" }))
