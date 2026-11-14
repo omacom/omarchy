@@ -1102,7 +1102,10 @@ Panel {
         WheelHandler {
           acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
           onWheel: function(event) {
-            var d = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 120 * Style.space(40)
+            // A touchpad gesture carries a scroll phase and moves by its
+            // pixels. A wheel has none and is read by its angle: Hyprland puts
+            // a fixed 15 in pixelDelta, and only on some wheel events.
+            var d = event.phase === Qt.NoScrollPhase ? event.angleDelta.y / 120 * Style.space(40) : event.pixelDelta.y
             scroller.contentY -= d
             scroller.clamp()
           }
