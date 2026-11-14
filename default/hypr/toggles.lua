@@ -1,7 +1,10 @@
 local paths = require("default.hypr.paths")
 local require_all = require("default.hypr.require_all")
 
-local toggles_dir = paths.state_home .. "/omarchy/toggles/hypr"
+-- Hardcoded to ~/.local/state to match omarchy-hyprland-toggle and the other
+-- tools that write these flags, which all write there regardless of
+-- XDG_STATE_HOME.
+local toggles_dir = paths.home .. "/.local/state/omarchy/toggles/hypr"
 package.path = toggles_dir .. "/?.lua;" .. package.path
 
 -- touchpad-disabled.lua / touchscreen-disabled.lua were generated Lua in older
