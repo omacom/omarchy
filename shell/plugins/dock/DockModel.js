@@ -227,8 +227,15 @@ function pickClickWindow(mode, windows, workspaceId) {
 
 }
 
+// Keep the leading launcher under the pointer throughout pin expansion.
+// Prefer the collapsed strip's centre, reserving enough room for all pins.
+function pinnedOrigin(length, collapsed, expanded, gap) {
+  return Math.max(gap, Math.min((length - collapsed) / 2, length - expanded - gap))
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    pinnedOrigin: pinnedOrigin,
     normalizePosition: normalizePosition,
     isVertical: isVertical,
     normalizeId: normalizeId,
