@@ -293,6 +293,86 @@ empty = [cursor(routes=dict(routes, **{RPC + "GetCurrentPeriodUsage": period})) 
 expect("an empty plan is an answer with no meters",
        [[record["limits"], record["limitsStale"], record["usageStatusText"]] for record in empty], [[[], False, ""]] * 2, empty)
 
+# ------------------------------------------------- the enterprise/team answer
+
+# A team account keeps its team id in cli-config.json; the period reply then
+# reports the team's spend caps. The request must name the team and ask for
+# pooled usage, and the meters show the included allowance and the pooled
+# credit — the pooled meter appears even with nothing used yet this cycle.
+sandbox()
+cli_signed_in()
+write_json(config_home() / "cursor" / "cli-config.json", {"authInfo": {"teamId": 42}})
+team_routes = dict(ROUTES, **{
+  RPC + "GetCurrentPeriodUsage": {"billingCycleEnd": "4092099926000",
+                                  "spendLimitUsage": {"overallLimit": "40000", "overallUsed": "7508",
+                                                      "pooledLimit": "20000", "pooledUsed": "0"}},
+})
+record = cursor(routes=team_routes)
+period_requests = [request for request in cursor.requests if request["url"].endswith("GetCurrentPeriodUsage")]
+sent = json.loads(period_requests[0]["data"])
+expect("a team account's period request names its team and asks for pooled usage",
+       [len(period_requests), sent.get("team_id"), sent.get("include_pooled_usage")], [1, 42, True], record)
+expect("the team's included and pooled meters show, pooled even at zero used",
+       meters(record), [{"label": "Included usage", "percent": 1877}, {"label": "Pooled usage", "percent": 0}], record)
+
+# The same team with pooled credit partly spent reads its used share.
+team_routes[RPC + "GetCurrentPeriodUsage"]["spendLimitUsage"]["pooledUsed"] = "5000"
+record = cursor(routes=team_routes)
+expect("a partly spent pool reads its used share",
+       meters(record), [{"label": "Included usage", "percent": 1877}, {"label": "Pooled usage", "percent": 2500}], record)
+
+# The team id belongs to the CLI's credential, not whatever token the
+# collector ends up asking as. A lapsed team CLI login gives way to a valid
+# personal editor login; that personal account must not be asked about the
+# CLI's team.
+sandbox()
+cli_signed_in(expires_in=-60)
+write_json(config_home() / "cursor" / "cli-config.json", {"authInfo": {"teamId": 42}})
+cursor_state_db(None, jwt({"sub": "p-editor", "exp": time.time() + 3600}))
+record = cursor()
+period_requests = [request for request in cursor.requests if request["url"].endswith("GetCurrentPeriodUsage")]
+sent = json.loads(period_requests[0]["data"])
+expect("a personal editor login is never asked about the CLI's team",
+       [len(period_requests), sent.get("team_id"), sent.get("include_pooled_usage")], [1, None, None], record)
+expect("the personal editor's own plan meters read instead",
+       [limit["label"] for limit in record["limits"]], ["Included total", "Auto models", "Named models", "On-demand $9.51 / $10.00"], record)
+
+# The same account signed in through the editor still carries its team, so a
+# lapsed CLI token that falls back to the editor's fresh token of the same
+# account keeps the team's meters rather than dropping them.
+sandbox()
+cli_signed_in(expires_in=-60)
+write_json(config_home() / "cursor" / "cli-config.json", {"authInfo": {"teamId": 42}})
+cursor_state_db(None, jwt({"sub": "u-main", "exp": time.time() + 3600}))
+record = cursor(routes=team_routes)
+period_requests = [request for request in cursor.requests if request["url"].endswith("GetCurrentPeriodUsage")]
+sent = json.loads(period_requests[0]["data"])
+expect("the editor's fresh token of the same account still names its team",
+       [len(period_requests), sent.get("team_id"), sent.get("include_pooled_usage")], [1, 42, True], record)
+expect("the team's meters still show through the editor's token",
+       meters(record), [{"label": "Included usage", "percent": 1877}, {"label": "Pooled usage", "percent": 2500}], record)
+
+# An exported bearer ahead of the CLI, and a moved auth path, each name a
+# different account; neither is asked about the default CLI's team.
+sandbox()
+cli_signed_in()
+write_json(config_home() / "cursor" / "cli-config.json", {"authInfo": {"teamId": 42}})
+record = cursor(CURSOR_AUTH_TOKEN=jwt({"sub": "exported", "exp": time.time() + 3600}))
+period_requests = [request for request in cursor.requests if request["url"].endswith("GetCurrentPeriodUsage")]
+sent = json.loads(period_requests[0]["data"])
+expect("an exported bearer of another account is never asked about the CLI's team",
+       [len(period_requests), sent.get("team_id"), sent.get("include_pooled_usage")], [1, None, None], record)
+
+sandbox()
+cli_signed_in()
+write_json(config_home() / "cursor" / "cli-config.json", {"authInfo": {"teamId": 42}})
+write_json(config_home() / "cursor" / "moved-auth.json", {"accessToken": jwt({"sub": "moved", "exp": time.time() + 3600})})
+record = cursor(CURSOR_AUTH_PATH=str(config_home() / "cursor" / "moved-auth.json"))
+period_requests = [request for request in cursor.requests if request["url"].endswith("GetCurrentPeriodUsage")]
+sent = json.loads(period_requests[0]["data"])
+expect("a moved auth path of another account is never asked about the CLI's team",
+       [len(period_requests), sent.get("team_id"), sent.get("include_pooled_usage")], [1, None, None], record)
+
 # Untrusted numbers never break the record.
 expect("untrusted numbers read as nothing",
        [module.fraction("nan"), module.fraction("inf"), module.fraction(True), module.number("1e400"), module.iso("9" * 30)], [0.0, 0.0, 0.0, 0, ""])
