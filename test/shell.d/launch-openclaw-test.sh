@@ -108,11 +108,44 @@ grep -q '^omarchy-launch-webapp:http://127.0.0.1:18789/#cold-start$' "$TEST_LOG"
 pass "OpenClaw launch starts a stopped gateway before opening the app"
 rm -f "$tmp_dir/gateway-enabled"
 
+# A remote client has no local gateway to install or start: the gateway it is
+# configured for runs elsewhere, and a local install breaks its token.
+printf '{"gateway":{"mode":"remote","remote":{"url":"wss://gateway.example"}}}\n' >"$HOME/.openclaw/openclaw.json"
+rm -f "$tmp_dir/gateway-up"
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-openclaw"
+! grep -q '^openclaw:gateway' "$TEST_LOG" ||
+  fail "OpenClaw launch leaves a remote client's gateway alone" "$(grep '^openclaw:gateway' "$TEST_LOG")"
+grep -q '^omarchy-launch-floating-terminal-with-presentation:omarchy-launch-openclaw --tui$' "$TEST_LOG" ||
+  fail "OpenClaw launch leaves a remote client's gateway alone" "terminal UI never opened"
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-openclaw" --tui
+grep -q '^openclaw:tui$' "$TEST_LOG" && ! grep -q '^openclaw:gateway' "$TEST_LOG" ||
+  fail "OpenClaw launch leaves a remote client's gateway alone" "--tui: $(cat "$TEST_LOG")"
+pass "OpenClaw launch leaves a remote client's gateway alone"
+
+# OpenClaw accepts JSON5, which jq cannot parse, so the CLI's reader decides.
+printf '{\n  // remote client\n  gateway: {mode: "remote"},\n}\n' >"$HOME/.openclaw/openclaw.json"
+cat >"$tmp_dir/bin/openclaw" <<'SCRIPT'
+#!/bin/bash
+printf 'openclaw:%s\n' "$*" >>"$TEST_LOG"
+[[ $* == "config get gateway.mode" ]] && echo remote
+[[ $* == *--json* ]] && echo '{"ok":false,"reason":"Gateway is not running."}'
+exit 0
+SCRIPT
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-openclaw"
+! grep -q '^openclaw:gateway' "$TEST_LOG" &&
+  grep -q '^omarchy-launch-floating-terminal-with-presentation:omarchy-launch-openclaw --tui$' "$TEST_LOG" ||
+  fail "OpenClaw launch leaves a JSON5 remote client's gateway alone" "$(cat "$TEST_LOG")"
+pass "OpenClaw launch leaves a JSON5 remote client's gateway alone"
+: >"$HOME/.openclaw/openclaw.json"
+
 # A dashboard probe that hangs is cut off, so the launch still fails cleanly
 # instead of sitting forever behind an app-grid icon with no terminal.
 cat >"$tmp_dir/bin/timeout" <<SCRIPT
 #!/bin/bash
-printf 'timeout:%s\\n' "\$1" >>"\$TEST_LOG"
+printf 'timeout:%s\\n' "\$*" >>"\$TEST_LOG"
 exit 124
 SCRIPT
 chmod +x "$tmp_dir/bin/timeout"
@@ -120,7 +153,7 @@ chmod +x "$tmp_dir/bin/timeout"
 rc=0
 "$ROOT/bin/omarchy-launch-openclaw" >/dev/null 2>&1 || rc=$?
 [[ $rc != 0 ]] || fail "OpenClaw launch bounds a hanging dashboard probe"
-grep -q '^timeout:10$' "$TEST_LOG" || fail "OpenClaw launch bounds a hanging dashboard probe" "probe ran without a timeout"
+grep -q '^timeout:10 openclaw dashboard --json$' "$TEST_LOG" || fail "OpenClaw launch bounds a hanging dashboard probe" "probe ran without a timeout"
 pass "OpenClaw launch bounds a hanging dashboard probe"
 rm -f "$tmp_dir/bin/timeout"
 

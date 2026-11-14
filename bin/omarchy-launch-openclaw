@@ -53,6 +53,20 @@ if [[ ! -f $HOME/.openclaw/openclaw.json ]]; then
   fi
 fi
 
+# A remote client's gateway runs on another host, and the dashboard probe reads
+# it as not running. Installing a local one would write a token the remote
+# gateway rejects, so attach the terminal UI to the configured gateway instead.
+# OpenClaw's own reader covers the JSON5 it accepts and jq rejects.
+gateway_mode=$(jq -r '.gateway.mode // empty' "$HOME/.openclaw/openclaw.json" 2>/dev/null) ||
+  gateway_mode=$(timeout 10 openclaw config get gateway.mode </dev/null 2>/dev/null) || true
+if [[ $gateway_mode == "remote" ]]; then
+  if [[ $tui == "true" ]]; then
+    exec openclaw tui "${message[@]}"
+  else
+    exec omarchy-launch-floating-terminal-with-presentation 'omarchy-launch-openclaw --tui'
+  fi
+fi
+
 dashboard_url() {
   # browserUrl carries a single-use browser handoff; url is the shared-auth
   # fallback for gateways predating the handoff flow. The timeout keeps a
