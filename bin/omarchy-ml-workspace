@@ -1,0 +1,184 @@
+#!/bin/bash
+
+# omarchy:summary=Learn the window sets you reopen and put one back
+# omarchy:args=<record|suggest|restore|train|park> [--print]
+# omarchy:examples=omarchy ml workspace suggest | omarchy ml workspace restore --print | omarchy ml workspace train --print
+
+set -euo pipefail
+
+exec python3 - "$@" <<'PY'
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+TRAIN_WORKSPACE = "9"
+
+def state_dir():
+    root = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
+    path = os.path.join(root, "omarchy", "ml")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def sessions_path():
+    return os.path.join(state_dir(), "sessions.jsonl")
+
+def clients():
+    raw = os.environ.get("OMARCHY_ML_CLIENTS")
+    if raw:
+        with open(raw, encoding="utf-8") as handle:
+            return json.load(handle)
+    result = subprocess.run(["hyprctl", "clients", "-j"], capture_output=True, text=True, check=True)
+    return json.loads(result.stdout)
+
+def workspace_id(client):
+    workspace = client.get("workspace") or {}
+    if isinstance(workspace, dict):
+        return workspace.get("id")
+    return workspace
+
+def grouped(rows):
+    groups = {}
+    order = []
+    for client in rows:
+        wid = workspace_id(client)
+        if wid not in groups:
+            groups[wid] = []
+            order.append(wid)
+        name = client.get("class") or client.get("initialClass") or ""
+        if name:
+            groups[wid].append(name)
+    if not order:
+        return None, []
+    chosen = max(order, key=lambda wid: len(groups[wid]))
+    return chosen, groups[chosen]
+
+def record():
+    wid, apps = grouped(clients())
+    if not apps:
+        return
+    row = {"workspace": wid, "apps": apps}
+    with open(sessions_path(), "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row) + "\n")
+
+def load_sessions():
+    path = sessions_path()
+    if not os.path.isfile(path):
+        return []
+    rows = []
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows
+
+def suggestion():
+    rows = load_sessions()
+    if not rows:
+        return None
+    counts = {}
+    latest = {}
+    for index, row in enumerate(rows):
+        key = tuple(row.get("apps") or [])
+        counts[key] = counts.get(key, 0) + 1
+        latest[key] = index
+    best = max(counts, key=lambda key: (counts[key], latest[key]))
+    for row in reversed(rows):
+        if tuple(row.get("apps") or []) == best:
+            return row
+    return None
+
+def launch_for(name):
+    lowered = name.lower()
+    if lowered in {"alacritty", "foot", "ghostty", "kitty", "org.omarchy.terminal"}:
+        command = "xdg-terminal-exec"
+    else:
+        command = name
+    return f"omarchy-launch-or-focus {name} {command}"
+
+def run(lines, print_only):
+    if print_only:
+        print("\n".join(lines))
+        return
+    for line in lines:
+        subprocess.Popen(line, shell=True)
+
+def restore(print_only):
+    row = suggestion()
+    if not row:
+        print("No workspace to restore yet.", file=sys.stderr)
+        sys.exit(1)
+    lines = [f"hyprctl dispatch workspace {row.get('workspace') or 1}"]
+    lines.extend(launch_for(app) for app in row.get("apps") or [])
+    run(lines, print_only)
+
+def monitor():
+    return "nvtop" if shutil.which("nvtop") else "btop"
+
+def train(print_only):
+    lines = [
+        f"hyprctl dispatch workspace {TRAIN_WORKSPACE}",
+        "xdg-terminal-exec --app-id=org.omarchy.ml-train",
+        f"xdg-terminal-exec --app-id=org.omarchy.ml-gpu {monitor()}",
+        "xdg-open http://127.0.0.1:8888",
+    ]
+    run(lines, print_only)
+
+def on_training_workspace(client):
+    workspace = client.get("workspace") or {}
+    name = workspace.get("name") if isinstance(workspace, dict) else ""
+    return str(workspace_id(client)) == TRAIN_WORKSPACE or name == "special:mltrain"
+
+def park(print_only):
+    flag = os.path.join(state_dir(), "parked")
+    parked = os.path.isfile(flag)
+    destination = TRAIN_WORKSPACE if parked else "special:mltrain"
+    lines = []
+    for client in clients():
+        if not on_training_workspace(client):
+            continue
+        address = client.get("address")
+        if address:
+            lines.append(f"hyprctl dispatch movetoworkspacesilent {destination},address:{address}")
+        else:
+            lines.append(f"hyprctl dispatch movetoworkspacesilent {destination},class:{client.get('class')}")
+    if not lines:
+        print("Nothing on the training workspace.", file=sys.stderr)
+        sys.exit(1)
+    run(lines, print_only)
+    if print_only:
+        return
+    if parked:
+        os.remove(flag)
+    else:
+        open(flag, "w", encoding="utf-8").close()
+
+def suggest():
+    row = suggestion()
+    if not row:
+        print("No workspace to restore yet.", file=sys.stderr)
+        sys.exit(1)
+    print(f"{row.get('workspace')}\t{','.join(row.get('apps') or [])}")
+
+args = sys.argv[1:]
+if not args:
+    print("Usage: omarchy ml workspace <record|suggest|restore|train|park>", file=sys.stderr)
+    sys.exit(1)
+command = args[0]
+print_only = "--print" in args[1:]
+if command == "record":
+    record()
+elif command == "suggest":
+    suggest()
+elif command == "restore":
+    restore(print_only)
+elif command == "train":
+    train(print_only)
+elif command == "park":
+    park(print_only)
+else:
+    print("Usage: omarchy ml workspace <record|suggest|restore|train|park>", file=sys.stderr)
+    sys.exit(1)
+PY

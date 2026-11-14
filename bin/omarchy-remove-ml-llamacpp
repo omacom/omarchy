@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# omarchy:summary=Remove llama.cpp and its chat service
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+systemctl --user disable --now omarchy-ml-chat.service 2>/dev/null || true
+rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/omarchy-ml-chat.service"
+systemctl --user daemon-reload || true
+omarchy-pkg-drop llama-cpp
+echo "Models in $HOME/models were left in place."

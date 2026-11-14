@@ -1,0 +1,14 @@
+[Unit]
+Description=Local llama.cpp chat server
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionPathExistsGlob=%h/models/*.gguf
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/llama-server --host 127.0.0.1 --port 8080 -m %h/models/chat.gguf
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

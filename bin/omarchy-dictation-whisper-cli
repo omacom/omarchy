@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# omarchy:summary=Record dictation with whisper.cpp and type it
+# omarchy:args=<start|stop|toggle>
+
+set -euo pipefail
+
+runtime="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/omarchy-whisper"
+model="${OMARCHY_WHISPER_MODEL:-${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/whisper/ggml-base.en.bin}"
+
+start_recording() {
+  mkdir -p "$runtime"
+  if [[ -f $runtime/record.pid ]] && kill -0 "$(<"$runtime/record.pid")" 2>/dev/null; then
+    exit 0
+  fi
+  rm -f "$runtime/dictate.wav" "$runtime/dictate.wav.txt"
+  nohup pw-record --rate 16000 --channels 1 --format s16 "$runtime/dictate.wav" >/dev/null 2>&1 &
+  echo $! > "$runtime/record.pid"
+  disown || true
+  local _try
+  for _try in 1 2 3 4 5 6 7 8 9 10; do
+    [[ -f $runtime/dictate.wav ]] && break
+    sleep 0.1
+  done
+}
+
+stop_recording() {
+  if [[ -f $runtime/record.pid ]]; then
+    local pid
+    pid=$(<"$runtime/record.pid")
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    rm -f "$runtime/record.pid"
+  fi
+  if [[ ! -f $runtime/dictate.wav ]]; then
+    exit 0
+  fi
+  if [[ ! -f $model ]]; then
+    echo "Whisper model is missing. Install it from Setup > Defaults > Dictation." >&2
+    exit 1
+  fi
+  whisper-cli -m "$model" -f "$runtime/dictate.wav" -nt -np -otxt >/dev/null
+  if [[ ! -s $runtime/dictate.wav.txt ]]; then
+    exit 0
+  fi
+  local text
+  text=$(tr '\n' ' ' < "$runtime/dictate.wav.txt")
+  text=${text%" "}
+  [[ -n $text ]] || exit 0
+  wtype -- "$text"
+}
+
+case "${1:-}" in
+  start) start_recording ;;
+  stop) stop_recording ;;
+  toggle)
+    if [[ -f $runtime/record.pid ]] && kill -0 "$(<"$runtime/record.pid")" 2>/dev/null; then
+      stop_recording
+    else
+      start_recording
+    fi
+    ;;
+  *)
+    echo "Usage: omarchy dictation whisper-cli <start|stop|toggle>" >&2
+    exit 1
+    ;;
+esac

@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# omarchy:summary=Create ~/models and optionally point Hugging Face and Ollama caches there
+# omarchy:args=[--link]
+
+set -euo pipefail
+
+models="${OMARCHY_ML_MODELS:-$HOME/models}"
+mkdir -p "$models"
+
+echo "Weights belong in $models."
+echo "An existing cache stays put until you move it. For Hugging Face:"
+echo "  mv ~/.cache/huggingface $models/huggingface && ln -s $models/huggingface ~/.cache/huggingface"
+echo "Same for Ollama: ~/.ollama/models -> $models/ollama."
+
+if [[ ${1:-} != "--link" ]]; then
+  exit 0
+fi
+
+link_cache() {
+  local source=$1
+  local dest=$2
+  mkdir -p "$(dirname "$source")" "$(dirname "$dest")"
+  if [[ -L $source ]]; then
+    return 0
+  fi
+  if [[ -e $source ]]; then
+    echo "Leave $source where it is, or move it yourself:"
+    echo "  mv $source $dest && ln -s $dest $source"
+    return 1
+  fi
+  mkdir -p "$dest"
+  ln -s "$dest" "$source"
+}
+
+failed=0
+link_cache "${XDG_CACHE_HOME:-$HOME/.cache}/huggingface" "$models/huggingface" || failed=1
+link_cache "$HOME/.ollama/models" "$models/ollama" || failed=1
+exit "$failed"

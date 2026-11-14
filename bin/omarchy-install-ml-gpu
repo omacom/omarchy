@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# omarchy:summary=Install NVIDIA CUDA or AMD ROCm and check the GPU answers
+# omarchy:args=[--print-plan] [nvidia|rocm]
+# omarchy:examples=omarchy install ml-gpu --print-plan nvidia | omarchy install ml-gpu rocm
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+print_plan=0
+if [[ ${1:-} == "--print-plan" ]]; then
+  print_plan=1
+  shift
+fi
+
+choice="${1:-${OMARCHY_ML_GPU:-}}"
+if [[ -z $choice ]]; then
+  if omarchy-cmd-present nvidia-smi || omarchy-hw-nvidia; then
+    choice=nvidia
+  elif omarchy-cmd-present rocminfo || omarchy-cmd-present rocm-smi; then
+    choice=rocm
+  else
+    echo "No NVIDIA or AMD GPU found." >&2
+    exit 1
+  fi
+fi
+
+case "$choice" in
+  nvidia)
+    printf '%s\n' cuda nvidia-container-toolkit "check nvidia-smi"
+    ;;
+  rocm)
+    printf '%s\n' hip-runtime-amd rocm-smi-lib "check rocm-smi"
+    ;;
+  *)
+    echo "Usage: omarchy install ml-gpu [nvidia|rocm]" >&2
+    exit 1
+    ;;
+esac
+
+if ((print_plan)); then
+  exit 0
+fi
+
+if [[ $choice == nvidia ]]; then
+  bash "$OMARCHY_PATH/install/hardware/nvidia.sh"
+  omarchy-pkg-add cuda nvidia-container-toolkit
+  if ! nvidia-smi; then
+    echo "nvidia-smi did not answer. The driver is not ready." >&2
+    exit 1
+  fi
+  echo "NVIDIA is answering."
+else
+  omarchy-pkg-add hip-runtime-amd rocm-smi-lib
+  if ! rocm-smi; then
+    echo "rocm-smi did not answer. ROCm is not ready." >&2
+    exit 1
+  fi
+  echo "ROCm is answering."
+fi
+
+omarchy-plugin-enable omarchy.gpu --section center --before omarchy.system-update || true

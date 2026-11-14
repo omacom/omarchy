@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Open Jupyter Lab on localhost
+# omarchy:args=[--print]
+
+set -euo pipefail
+
+if [[ ${1:-} == "--print" ]]; then
+  echo "http://127.0.0.1:8888/lab"
+  exit 0
+fi
+
+venv="${OMARCHY_ML_PYTORCH:-$HOME/.local/share/omarchy/ml/pytorch}"
+python="$venv/bin/python"
+if [[ ! -x $python ]]; then
+  echo "Install Jupyter from Install > Machine Learning." >&2
+  exit 1
+fi
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/ml"
+mkdir -p "$state"
+chmod 700 "$state"
+token=$(openssl rand -hex 8)
+url="http://127.0.0.1:8888/lab?token=$token"
+printf '%s\n' "$url" > "$state/jupyter.url"
+chmod 600 "$state/jupyter.url"
+
+nohup "$python" -m jupyter lab \
+  --no-browser \
+  --ip=127.0.0.1 \
+  --port=8888 \
+  --ServerApp.token="$token" \
+  --ServerApp.password='' \
+  > "$state/jupyter.log" 2>&1 &
+
+omarchy-notification-send "$(omarchy-i18n ml.jupyterTitle)" "$(omarchy-i18n ml.jupyterOpen)"
+xdg-open "$url"

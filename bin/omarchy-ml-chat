@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Open a local chat with Ollama or llama.cpp
+
+set -euo pipefail
+
+model="${OMARCHY_ML_MODEL:-llama3.2}"
+
+if omarchy-cmd-present ollama; then
+  exec xdg-terminal-exec --app-id=org.omarchy.ml-chat ollama run "$model"
+fi
+
+if omarchy-cmd-present llama-server && curl -sf "http://127.0.0.1:8080/" >/dev/null; then
+  exec xdg-open "http://127.0.0.1:8080"
+fi
+
+if omarchy-cmd-present llama-cli; then
+  weights="${OMARCHY_ML_GGUF:-$HOME/models/chat.gguf}"
+  if [[ ! -e $weights ]]; then
+    echo "Put a .gguf in $HOME/models/chat.gguf, or install Ollama from the menu." >&2
+    exit 1
+  fi
+  exec xdg-terminal-exec --app-id=org.omarchy.ml-chat llama-cli -m "$weights" -cnv
+fi
+
+echo "Install Ollama or llama.cpp from Install > Machine Learning." >&2
+exit 1
