@@ -467,6 +467,7 @@ REGIONAL_NOTES = {
     "pt": "European Portuguese as written in Portugal (estar a fazer, equipa, ecrã, ficheiro, utilizador); Brazilian forms are a defect.",
     "pt-BR": "Brazilian Portuguese.",
     "es-MX": "Mexican Spanish.",
+    "es-ES": "European Spanish (peninsular usage).",
     "zh-CN": "Simplified Chinese.",
     "zh-TW": "Traditional Chinese in Taiwan usage.",
     "no": "Norwegian Bokmål.",
