@@ -89,17 +89,25 @@ power_rate=$(awk -v rate="${power_rate_raw:-0}" 'BEGIN {
   print rounded
 }')
 state=$(awk '/state/ { print $2; exit }' <<<"$battery_info")
-threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
-threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
 
 # Read the thresholds from the battery UPower resolved rather than a BAT* glob,
-# which misses every battery with another name.
-[[ -n $threshold_end || ! -r $battery_path/charge_control_end_threshold ]] || threshold_end=$(<"$battery_path/charge_control_end_threshold")
-[[ -n $threshold_start || ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
+# which misses every battery with another name. Sysfs is the live limit: on
+# ThinkPads UPower reports a built-in 75/80 until its own toggle is enabled.
+threshold_start=""
+threshold_end=""
+[[ ! -r $battery_path/charge_control_end_threshold ]] || threshold_end=$(<"$battery_path/charge_control_end_threshold")
+[[ ! -r $battery_path/charge_control_start_threshold ]] || threshold_start=$(<"$battery_path/charge_control_start_threshold")
+# Each fallback fills a pair only when there is none, so an end-only limit never gains another source's start.
+if [[ -z $threshold_start && -z $threshold_end ]]; then
+  threshold_start=$(awk '/charge-start-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+  threshold_end=$(awk '/charge-end-threshold:/ { gsub(/%/, "", $2); print int($2); exit }' <<<"$battery_info")
+fi
 # The time to full counts to this battery's own limit, never another one's.
 charge_limit=${threshold_end:-100}
-[[ -n $threshold_end ]] || threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
-[[ -n $threshold_start ]] || threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+if [[ -z $threshold_start && -z $threshold_end ]]; then
+  threshold_end=$(cat "$power_supply_path"/BAT*/charge_control_end_threshold 2>/dev/null | head -1)
+  threshold_start=$(cat "$power_supply_path"/BAT*/charge_control_start_threshold 2>/dev/null | head -1)
+fi
 
 # Time left is the energy left over the draw shown beside it, so the two always
 # agree; charging counts up to the charge limit. UPower's own estimate averages
