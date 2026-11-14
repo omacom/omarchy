@@ -21,10 +21,20 @@ assertDeepEqual(
 assert(power.profileIcon('performance').length > 0, 'power maps profile icons')
 assertEqual(power.batteryFraction({ isPresent: true, percentage: 1.5 }), 1, 'power clamps battery fraction')
 
-assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states), 'power detects threshold by pending charge state')
-assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0.1, timeToFull: 120 }, false, states), 'power detects threshold by stalled charging')
-assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states), 'power does not flag active charging as threshold')
-assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'power does not flag discharging as threshold')
+assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states, '80%'), 'power detects threshold by pending charge state')
+assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0.1, timeToFull: 120 }, false, states, '80%'), 'power detects threshold by stalled charging')
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states, '80%'), 'power does not flag active charging as threshold')
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states, '80%'), 'power does not flag discharging as threshold')
+
+// Hardware with no charge_control_* attribute reports no threshold at all, and
+// omarchy-battery-status then omits the field. Apple's SMC stops recharging
+// around 94% and UPower reports FullyCharged there, which must not read as a
+// charge limit the machine cannot set.
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.947, state: states.FullyCharged }, false, states, ''), 'power does not invent a threshold without charge control')
+assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.947, state: states.FullyCharged }, false, states, '95%'), 'power detects threshold when the hardware reports one')
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states, ''), 'power does not flag pending charge as threshold without charge control')
+assertEqual(power.modeLabel({ isPresent: true, percentage: 0.947, state: states.FullyCharged }, false, states, ''), 'Charging', 'power does not label a held charge without charge control')
+assertEqual(power.modeLabel({ isPresent: true, percentage: 0.947, state: states.FullyCharged }, false, states, '95%'), 'Threshold', 'power labels a held charge when a threshold exists')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 1, state: states.FullyCharged }, false, states), 'Fully charged', 'power labels full battery')
 assertEqual(power.localizeReading('13.1W'), '13.1W', 'power keeps battery readings in English digits by default')
 assertEqual(power.localizeReading('75-80%', function(v, d) { return '<' + v + '>' }), '<75>-<80>%', 'power localizes every number in a battery reading')
