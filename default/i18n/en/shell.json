@@ -551,6 +551,7 @@
   "tailscale.noMatchingMachines": "No machines match.",
   "tailscale.noRegions": "No Mullvad regions found.",
   "tailscale.notInstalled": "Tailscale CLI is not installed or not on PATH.",
+  "tailscale.offline": "Offline",
   "tailscale.operatorAuthorized": "Tailscale operator authorized",
   "tailscale.phrase1": "Encrypting connections",
   "tailscale.phrase10": "Watching machines",
