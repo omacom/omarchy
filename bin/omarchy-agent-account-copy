@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Copy subscription account logins to another Omarchy machine over SSH
-# omarchy:args=[--replace] <ssh-host> [claude|codex|grok...]
+# omarchy:args=[--replace] <ssh-host> [claude|codex|grok|agy...]
 # omarchy:examples=omarchy agent account copy laptop | omarchy agent account copy user@desktop claude
 
 set -euo pipefail
@@ -28,7 +28,7 @@ while (( $# > 0 )); do
 done
 
 if [[ -z $host || $host == -* ]]; then
-  echo "Usage: omarchy-agent-account-copy [--replace] <ssh-host> [claude|codex|grok...]" >&2
+  echo "Usage: omarchy-agent-account-copy [--replace] <ssh-host> [claude|codex|grok|agy...]" >&2
   exit 1
 fi
 

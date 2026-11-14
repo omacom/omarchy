@@ -344,6 +344,7 @@ case "$agent" in
 claude) home_env="CLAUDE_CONFIG_DIR" ;;
 codex) home_env="CODEX_HOME" ;;
 grok) home_env="GROK_HOME" ;;
+agy) home_env="AGY_DIR" ;;
 *) home_env="" ;;
 esac
 if [[ -n $home_env ]]; then

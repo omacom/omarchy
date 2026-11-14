@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# omarchy:summary=Run Claude, Codex, or Grok as the selected subscription account
-# omarchy:args=<claude|codex|grok> [args...]
+# omarchy:summary=Run Claude, Codex, Grok, or Antigravity as the selected subscription account
+# omarchy:args=<claude|codex|grok|agy> [args...]
 # omarchy:hidden=true
 
 set -euo pipefail
@@ -10,14 +10,21 @@ case "${1:-}" in
   claude) account_env="CLAUDE_CONFIG_DIR" ;;
   codex) account_env="CODEX_HOME" ;;
   grok) account_env="GROK_HOME" ;;
+  agy) account_env="AGY_DIR" ;;
   *)
-    echo "Usage: omarchy-agent-account-exec <claude|codex|grok> [args...]" >&2
+    echo "Usage: omarchy-agent-account-exec <claude|codex|grok|agy> [args...]" >&2
     exit 1
     ;;
 esac
 
 provider=$1
 shift
+
+if [[ $provider == "agy" ]]; then
+  if [[ -z ${OMARCHY_AGENT_LOGIN:-} && -z ${AGY_DIR:-} ]]; then
+    omarchy-agent-account-state sync agy
+  fi
+fi
 
 # mise removes its wrapper dispatch directories before calling us, so exec
 # finds the real CLI (or its first-run installer) rather than this wrapper.

@@ -11,3 +11,7 @@ args = ["codex"]
 [wrappers.grok]
 command = "omarchy-agent-account-exec"
 args = ["grok"]
+
+[wrappers.agy]
+command = "omarchy-agent-account-exec"
+args = ["agy"]

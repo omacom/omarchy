@@ -13,6 +13,24 @@ cat >"$test_tmp/bin/omarchy-agent-usage-update" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_REFRESH"
 SH
+cat >"$test_tmp/bin/secret-tool" <<'SH'
+#!/bin/bash
+state_file="${XDG_STATE_HOME:-/tmp}/mock-secret-tool.json"
+if [[ ${1:-} == "lookup" ]]; then
+  if [[ -f "$state_file" ]]; then
+    cat "$state_file"
+    exit 0
+  fi
+  exit 1
+elif [[ ${1:-} == "store" ]]; then
+  cat >"$state_file"
+  exit 0
+elif [[ ${1:-} == "clear" ]]; then
+  rm -f "$state_file"
+  exit 0
+fi
+exit 0
+SH
 chmod +x "$test_tmp/bin"/*
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_TEST_ROOT="$test_tmp"
@@ -77,12 +95,16 @@ transfer.write_json(codex / "auth.json", {"tokens": {"account_id": "codex-main",
 grok = state.primary_home("grok")
 transfer.write_json(grok / "auth.json", {"issuer": {"user_id": "grok-main", "email": "grok@example.com", "access_token": "fake-grok"}})
 transfer.write_json(grok / "settings_cache.json", {"payload": json.dumps({"settings": {"subscription_tier_display": "SuperGrok"}})})
-payload = transfer.export_accounts(["claude", "codex", "grok"])
+agy = state.primary_home("agy")
+agy.mkdir(parents=True, exist_ok=True)
+claims_agy = base64.urlsafe_b64encode(json.dumps({"email": "agy@example.com"}).encode()).decode().rstrip("=")
+transfer.write_json(agy / "antigravity-oauth-token", {"token": {"access_token": "fake-agy", "refresh_token": "fake-refresh-agy", "expiry": "2030-01-01T00:00:00Z"}, "id_token": "h." + claims_agy + ".s"})
+payload = transfer.export_accounts(["claude", "codex", "grok", "agy"])
 transfer.validate(payload)
 encoded = json.dumps(payload)
 assert str(Path.home()) not in encoded, "source paths must not be exported"
 assert "SOURCE_SETTINGS_SENTINEL" not in encoded, "only account metadata is exported"
-assert set(payload["providers"]) == {"claude", "codex", "grok"}
+assert set(payload["providers"]) == {"claude", "codex", "grok", "agy"}
 (root / "payload.json").write_text(encoded)
 
 machine("destination")
@@ -103,6 +125,7 @@ for account in registry["accounts"]:
     assert state.read_json(home / ".claude.json")["mcpServers"] == {"local": "destination-settings"}
 assert state.identity("codex", state.primary_home("codex"))["accountId"] == "codex-main"
 assert state.identity("grok", state.primary_home("grok"))["plan"] == "SuperGrok"
+assert state.identity("agy", state.primary_home("agy"))["email"] == "agy@example.com"
 
 # Default copy is idempotent and never replaces an existing token.
 claude(state.primary_home("claude"), "personal", "destination-token")

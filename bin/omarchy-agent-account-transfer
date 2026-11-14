@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # omarchy:summary=Export or import subscription account credentials for SSH transfer
-# omarchy:args=<capabilities|export|bundle|receiver-command|import> [--replace] [claude|codex|grok...]
+# omarchy:args=<capabilities|export|bundle|receiver-command|import> [--replace] [claude|codex|grok|agy...]
 # omarchy:hidden=true
 """The private, versioned stream behind account copy. Never log its payload."""
 
@@ -33,6 +33,7 @@ FILES = {
   "claude": {".credentials.json", ".claude.json"},
   "codex": {"auth.json"},
   "grok": {"auth.json", "settings_cache.json"},
+  "agy": {"antigravity-oauth-token"},
 }
 MAX_STREAM = 8 * 1024 * 1024
 MAX_BUNDLE = MAX_STREAM + 1024 * 1024
@@ -85,6 +86,11 @@ def login_files(provider: str, home: Path) -> dict[str, Any]:
     if identity and credentials:
       return {".claude.json": {"oauthAccount": identity}, ".credentials.json": {"claudeAiOauth": credentials}}
     return {}
+  if provider == "agy":
+    data = accounts.read_json(home / "antigravity-oauth-token")
+    if not isinstance(data, dict) and home == accounts.primary_home("agy"):
+      data = accounts.read_keyring_token()
+    return {"antigravity-oauth-token": data} if isinstance(data, dict) else {}
   files = {name: accounts.read_json(home / name) for name in FILES[provider]}
   return {name: data for name, data in files.items() if isinstance(data, dict)} if files.get("auth.json") else {}
 
@@ -158,8 +164,13 @@ def file_path(provider: str, home: Path, name: str) -> Path:
 
 
 def saved_credentials(provider: str, home: Path) -> bool:
-  name = ".credentials.json" if provider == "claude" else "auth.json"
-  return bool(accounts.read_json(home / name))
+  if provider == "claude":
+    name = ".credentials.json"
+  elif provider == "agy":
+    name = "antigravity-oauth-token"
+  else:
+    name = "auth.json"
+  return bool(accounts.read_json(home / name)) or (provider == "agy" and home == accounts.primary_home("agy") and bool(accounts.read_keyring_token()))
 
 
 def cleanup_transfers(parent: Path) -> None:
@@ -201,7 +212,8 @@ def home_in_use(provider: str, home: Path) -> bool:
       configured = next((v[len(home_key):].decode() for v in env if v.startswith(home_key)), "")
       selected_pin = next((v[len(pinned_key):].decode() for v in env if v.startswith(pinned_key)), "")
       process_home = next((v[5:].decode() for v in env if v.startswith(b"HOME=")), "")
-      selected = Path(configured or selected_pin) if configured or selected_pin else Path(process_home) / f".{provider}"
+      fallback_home = Path(process_home) / ".gemini/antigravity-cli" if provider == "agy" else Path(process_home) / f".{provider}"
+      selected = Path(configured or selected_pin) if configured or selected_pin else fallback_home
       if selected.resolve() == home.resolve():
         return True
     except (OSError, UnicodeError):
@@ -305,6 +317,8 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
             current.update(data)
             data = current
           write_json(path, data)
+          if provider == "agy" and (account.get("primary") or account["id"] == registry.get("active")):
+            accounts.apply_token_to_primary(provider, data)
         found = accounts.identity(provider, home)
         if found["accountId"] != entry["accountId"] or not login_files(provider, home):
           raise accounts.AccountError("Transferred credentials do not match their account identity")
@@ -337,6 +351,8 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
     (home / accounts.LOGIN_RECEIPT).unlink(missing_ok=True)
   for folder in backup_dirs:
     shutil.rmtree(folder)
+  if provider == "agy":
+    accounts.sync_credentials(provider)
   return [
     f"{accounts.PROVIDERS[provider]['name']}: kept {a['label']} (already present)" if action == "kept"
     else f"{accounts.PROVIDERS[provider]['name']}: copied {a['label']} ({a['email']})"
