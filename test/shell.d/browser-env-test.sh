@@ -24,3 +24,21 @@ pass "uwsm session env leaves BROWSER unset"
 
 ! grep -q "export BROWSER" "$uwsm_env" || fail "uwsm env.d fallback leaves BROWSER unset"
 pass "uwsm env.d fallback leaves BROWSER unset"
+
+# uwsm never sources /etc/profile.d, so 10-omarchy has to pull in the flatpak
+# package's script itself or the Flatpak export dirs never reach XDG_DATA_DIRS
+# and Flatpak apps stay out of the launcher (#17309).
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+mkdir -p "$tmpdir/bin"
+printf '#!/bin/bash\nexit 1\n' >"$tmpdir/bin/omarchy-cmd-present"
+chmod +x "$tmpdir/bin/omarchy-cmd-present"
+printf 'export FLATPAK_PROFILE_SOURCED=1\n' >"$tmpdir/flatpak.sh"
+# The env bootstrap is repointed away so a dev-linked host cannot put its own
+# checkout's bin ahead of the stubs, and HOME keeps user uwsm overrides out.
+sed -e "s#/usr/share/omarchy/default/bash/env-bootstrap#$tmpdir/no-env-bootstrap#g" \
+  -e "s#/etc/profile.d/flatpak.sh#$tmpdir/flatpak.sh#g" \
+  "$uwsm_env" >"$tmpdir/10-omarchy"
+sourced=$(HOME="$tmpdir" PATH="$tmpdir/bin:$PATH" bash -c '. "$1"; printf "%s" "${FLATPAK_PROFILE_SOURCED:-}"' bash "$tmpdir/10-omarchy")
+[[ $sourced == "1" ]] || fail "uwsm env.d sources the flatpak profile script" "marker not exported"
+pass "uwsm env.d sources the flatpak profile script"
