@@ -1,7 +1,8 @@
 [binds]
 
-# Print the current image file
-<Ctrl+p> = exec lp "$imv_current_file"
+# Print the current image file. Convert it to PNG first, since CUPS sends
+# types it can't identify (WebP, AVIF, HEIC, JXL) to the printer as raw text
+<Ctrl+p> = exec magick "$imv_current_file[0]" -auto-orient png:- | lp -t "${imv_current_file##*/}"
 
 # Trash the current image and quit the viewer (recoverable from Trash)
 <Ctrl+x> = exec gio trash -- "$imv_current_file"; quit
