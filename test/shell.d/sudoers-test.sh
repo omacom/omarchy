@@ -299,6 +299,42 @@ omarchy-theme-browser|omarchy-theme-set-browser-policy|1c2027|sudo /usr/bin/omar
 ROWS
 pass "helpers take the passwordless sudo grant where it reaches and polkit elsewhere"
 
+# sudo-rs omits the tags from a command-filtered listing. The grant is still
+# visible on the unfiltered one, and a command that is not under it must not
+# inherit a tag from some other entry.
+rs_bin="$test_tmp/sudo-rs-bin"
+mkdir -p "$rs_bin"
+cat >"$rs_bin/pkexec" <<'SH'
+#!/bin/bash
+printf 'pkexec %s\n' "$*" >"$ELEVATION_LOG"
+SH
+chmod +x "$rs_bin/pkexec"
+cat >"$rs_bin/sudo" <<'SH'
+#!/bin/bash
+if [[ $1 == -n && $2 == -l && $3 == -l && $# -eq 3 ]]; then
+  printf '%s' "$STUB_SUDO_RS_LISTING"
+  exit 0
+fi
+if [[ $1 == -n && $2 == -l ]]; then
+  printf 'filtered\n'
+  exit 0
+fi
+printf 'sudo %s\n' "$*" >"$ELEVATION_LOG"
+SH
+chmod +x "$rs_bin/sudo"
+rs_listing=$'Sudoers entry:\n    RunAsUsers: root\n    Options: !authenticate\n    Commands:\n\t/usr/bin/omarchy-dns Cloudflare\n\t/usr/bin/omarchy-dns Google\n\t/usr/bin/omarchy-dns DHCP\n'
+: >"$test_tmp/elevation"
+STUB_SUDO_RS_LISTING="$rs_listing" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-dns" Cloudflare </dev/null >/dev/null 2>&1 || true
+[[ $(<"$test_tmp/elevation") == "sudo /usr/bin/omarchy-dns Cloudflare" ]] ||
+  fail "omarchy-dns takes a sudo-rs passwordless grant" "got: $(<"$test_tmp/elevation")"
+: >"$test_tmp/elevation"
+STUB_SUDO_RS_LISTING="$rs_listing" ELEVATION_LOG="$test_tmp/elevation" PATH="$rs_bin:$PATH" \
+  bash "$ROOT/bin/omarchy-dns" Custom </dev/null >/dev/null 2>&1 || true
+[[ $(<"$test_tmp/elevation") == "pkexec /usr/bin/omarchy-dns Custom" ]] ||
+  fail "omarchy-dns keeps Custom on polkit when sudo-rs lists only the stock providers" "got: $(<"$test_tmp/elevation")"
+pass "omarchy-dns reads a sudo-rs passwordless grant from the unfiltered listing"
+
 # expect_rejected <drop-in> <command> [args...]
 expect_rejected() {
   if STUB_DROPIN="$sudoers_dir/$1" ELEVATION_LOG="$test_tmp/elevation" PATH="$stub_bin:$PATH" \
