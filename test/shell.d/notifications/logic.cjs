@@ -272,6 +272,19 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
     [{ app: 'omarchy-action', urgency: 0 }, true, ''],
     [{ app: 'Google', urgency: 1, code: '482913' }, true, ''],
   ]) assert.equal(Delivery.quietReason(row, dnd), expected, JSON.stringify([row, dnd]))
+  // A muted app is held back with or without Do Not Disturb, even the kinds it
+  // lets through, matched by app name whatever its case; a code still shows.
+  const muted = ['omasnap', 'notify-send', 'omarchy-action']
+  for (const [row, dnd, expected] of [
+    [{ app: 'omasnap', urgency: 1 }, false, 'muted'],
+    [{ app: 'OmaSnap ', urgency: 1 }, true, 'muted'],
+    [{ app: 'notify-send', urgency: 2 }, true, 'muted'],
+    [{ app: 'omarchy-action', urgency: 0 }, false, 'muted'],
+    [{ app: 'Slack', urgency: 1 }, false, ''],
+    [{ app: 'Slack', urgency: 1 }, true, 'silenced'],
+    [{ app: '', urgency: 1 }, false, ''],
+    [{ app: 'omasnap', urgency: 1, code: '482913' }, false, ''],
+  ]) assert.equal(Delivery.quietReason(row, dnd, muted), expected, JSON.stringify([row, dnd]))
   // The number keys count buttons in the order the card draws them: codes, --action, the sender's.
   const deeds = Delivery.deeds({ codes: '482913 771204', execActions: JSON.stringify([{ label: 'Edit', argv: ['omasnap'] }]) },
                                [{ id: 'join', text: 'Join call' }])
@@ -350,7 +363,7 @@ const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'keyForDuplicate', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
   'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'senderActions', 'dismissOne',
   'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
-  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
+  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive', 'setAppMuted', 'saveQuiet']
 
 function newCapacityScope() {
   const toasts = { rows: [],
@@ -364,7 +377,7 @@ function newCapacityScope() {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
     maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
     arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
-    held: [], doNotDisturb: false,
+    held: [], doNotDisturb: false, mutedApps: [],
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
     deckDisplayName: '',
@@ -984,13 +997,24 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
 }
 
 { // quiet.json keeps today's shape, and anything else in it is ignored.
-  const state = { dnd: true }
+  const state = { dnd: true, muted: ['omasnap', 'slack'] }
   eq(Store.parseQuiet(Store.serialiseQuiet(state)), state)
   eq(JSON.parse(Store.serialiseQuiet(state)), state)
   for (const text of ['', 'nope', '[]', '"dnd"', 'null'])
     assert.equal(Store.parseQuiet(text), null, text)
   const odd = Store.parseQuiet('{"snoozes":{"a":{"until":5}},"dnd":"yes","silencedSince":"later","codesBypassQuiet":"no"}')
-  eq(odd, { dnd: false })
+  eq(odd, { dnd: false, muted: [] })
+  // A file from before the mute list reads as nothing muted.
+  eq(Store.parseQuiet('{"dnd":true}'), { dnd: true, muted: [] })
+  // The mute list is names only: trimmed, lowercased, deduplicated, sorted,
+  // printable, capped in length and count.
+  const list = Store.parseQuiet(JSON.stringify({ muted: [' Slack', 'slack', 'OMASNAP', 5, null, '', '  ', 'a\u0007b',
+                                                          'x'.repeat(129), { app: 'x' }] }))
+  eq(list.muted, ['omasnap', 'slack'])
+  eq(Store.parseQuiet('{"muted":"omasnap"}').muted, [])
+  eq(Store.mutedList(Array.from({ length: 150 }, (_, i) => 'app' + i)).length, Store.MUTED_LIMIT)
+  assert.equal(Store.muteName('  Zoom '), 'zoom')
+  for (const bad of ['', ' ', 'a\nb', 'x'.repeat(129), null, undefined]) assert.equal(Store.muteName(bad), '', String(bad))
 }
 
 { // The service: shown rows are saved live, closed ones move to history, quiet
@@ -1009,6 +1033,25 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   eq(s.historyEntries.map(e => e.summary + ':' + e.closed_reason), ['Silenced:silenced', 'Shown:expired'])
   assert.equal(s.liveEntries.length, 0)
   assert.ok(s.unsaved.live && s.unsaved.history)
+}
+
+{ // A muted app goes straight to history, Do Not Disturb or not, and
+  // unmuting it lets the next one through. The mute is saved with quiet.json.
+  const s = newCapacityScope()
+  const from = (id, app) => Object.assign(s.fakeNotification(id, app + ' ' + id), { appName: app })
+  assert.equal(s.setAppMuted(' OmaSnap', true), true)
+  eq(s.mutedApps, ['omasnap'])
+  assert.ok(s.unsaved.quiet)
+  assert.equal(s.setAppMuted('', true), false)
+  s.handleNotification(from(1, 'omasnap'))
+  s.admit(from(2, 'Slack'))
+  eq([s.toasts.count, s.toasts.get(0).summary], [1, 'Slack 2'])
+  eq(s.historyEntries.map(e => e.summary + ':' + e.closed_reason), ['omasnap 1:muted'])
+  eq(s.liveEntries.map(e => e.summary), ['Slack 2'])
+  assert.equal(s.setAppMuted('omasnap', 'toggle'), false)
+  eq(s.mutedApps, [])
+  s.admit(from(3, 'omasnap'))
+  eq(s.toasts.count, 2)
 }
 
 { // A transient card is shown but never stored, so the next login does not

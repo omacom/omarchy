@@ -58,6 +58,20 @@ Item {
     saveQuiet()
   }
 
+  // Apps muted one by one, lowercased (Store.muteName). Their notifications
+  // go straight to history, Do Not Disturb or not.
+  property var mutedApps: []
+  function setAppMuted(app, value) {
+    var name = Store.muteName(app)
+    if (!name) return false
+    var muted = mutedApps.indexOf(name) !== -1
+    var on = value === "toggle" ? !muted : !!value
+    if (on === muted) return on
+    mutedApps = Store.mutedList(on ? mutedApps.concat([name]) : mutedApps.filter(function(a) { return a !== name }))
+    saveQuiet()
+    return on
+  }
+
   // Persisted: nothing on screen says the desktop is quiet, so a reload must not lift it.
   function saveQuiet() { saveSoon("quiet") }
 
@@ -619,7 +633,7 @@ Item {
     }
 
     // Quiet still records it (unless ephemeral), straight to history.
-    var muted = Delivery.quietReason(row, doNotDisturb)
+    var muted = Delivery.quietReason(row, doNotDisturb, mutedApps)
     if (muted) {
       if (!Delivery.isEphemeral(row)) storeRecord(row, muted)
       release(key)
@@ -1266,7 +1280,7 @@ Item {
     }
     if (unsaved.quiet && quietLoaded) {
       delete unsaved.quiet
-      quietFile.setText(Store.serialiseQuiet({ dnd: doNotDisturb }))
+      quietFile.setText(Store.serialiseQuiet({ dnd: doNotDisturb, muted: mutedApps }))
     }
   }
 
@@ -1297,6 +1311,8 @@ Item {
     if (quietLoaded) return
     if (read) {
       doNotDisturb = read.dnd
+      // A mute set before the file was read is kept alongside the stored ones.
+      mutedApps = Store.mutedList(read.muted.concat(mutedApps))
     }
     quietLoaded = true
     if (unsaved.quiet) saveSoon("quiet")
@@ -1431,6 +1447,18 @@ Item {
       var v = String(value || "").toLowerCase()
       service.setDoNotDisturb(v === "true" || v === "1" || v === "on" || v === "yes")
       return isDnd()
+    }
+
+    // The muted apps, one per line.
+    function listMuted(): string { return service.mutedApps.join("\n") }
+
+    // Mute or unmute one app by its app name: on, off or toggle. Answers the
+    // app's state after, or "invalid" for a name the list cannot hold.
+    function setMuted(app: string, value: string): string {
+      var v = String(value || "").toLowerCase()
+      if (v !== "on" && v !== "off" && v !== "toggle") return "invalid"
+      if (!Store.muteName(app)) return "invalid"
+      return service.setAppMuted(app, v === "toggle" ? "toggle" : v === "on") ? "on" : "off"
     }
 
     // Dismiss, press the one button on, or focus the newest card on screen.

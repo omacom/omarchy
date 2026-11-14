@@ -277,19 +277,40 @@ function parseHistory(text) { return parseStored(text, HISTORY_LIMIT, HISTORY_RO
 
 function serialise(entries) { return JSON.stringify(entries) + "\n" }
 
-// quiet.json: whether Do Not Disturb is on. null when there is nothing usable
-// in it.
+// quiet.json: whether Do Not Disturb is on, and the apps muted one by one.
+// null when there is nothing usable in it.
+var MUTED_LIMIT = 100
+
+// An app name as the mute list keeps it: trimmed, lowercased, printable, and
+// short. "" when there is nothing to keep.
+function muteName(app) {
+  var name = String(app === undefined || app === null ? "" : app).trim().toLowerCase()
+  if (!name || name.length > 128 || /[\u0000-\u001f\u007f]/.test(name)) return ""
+  return name
+}
+
+function mutedList(list) {
+  var out = []
+  if (!Array.isArray(list)) return out
+  for (var i = 0; i < list.length && out.length < MUTED_LIMIT; i++) {
+    if (typeof list[i] !== "string") continue
+    var name = muteName(list[i])
+    if (name && out.indexOf(name) === -1) out.push(name)
+  }
+  return out.sort()
+}
+
 function parseQuiet(text) {
   var raw = String(text || "")
   if (!raw.trim() || raw.length > 262144) return null
   var read
   try { read = JSON.parse(raw) } catch (e) { return null }
   if (!read || typeof read !== "object" || Array.isArray(read)) return null
-  return { dnd: read.dnd === true }
+  return { dnd: read.dnd === true, muted: mutedList(read.muted) }
 }
 
 function serialiseQuiet(state) {
-  return JSON.stringify({ dnd: !!state.dnd }) + "\n"
+  return JSON.stringify({ dnd: !!state.dnd, muted: mutedList(state.muted) }) + "\n"
 }
 
 // What a redacted row says, stored in English like any stored value and
