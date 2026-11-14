@@ -149,12 +149,15 @@ local function internal(monitor)
 end
 
 -- The monitors that show workspaces of their own. `gone` names one Hyprland
--- still lists while it reports the monitor's removal.
+-- still lists while it reports the monitor's removal. FALLBACK is the headless
+-- output Hyprland stands in while no monitor is connected, such as when the
+-- only one sleeps off its link; given a block, it would renumber every
+-- workspace into it and keep that block forever.
 local function connected(gone)
   local monitors = {}
 
   for _, monitor in ipairs(hl.get_monitors()) do
-    if not monitor.is_mirror and monitor.name ~= gone then
+    if not monitor.is_mirror and monitor.name ~= gone and monitor.name ~= "FALLBACK" then
       monitors[#monitors + 1] = monitor
     end
   end
@@ -307,13 +310,15 @@ function M.workspace_id(monitor, slot)
 end
 
 -- The workspace a monitor falls back to when what it shows isn't its own: the
--- lowest of its own already on it, or its first.
-local function home(monitor, block)
+-- lowest of its own already on it, or with occupied, the lowest holding windows,
+-- or its first.
+local function home(monitor, block, occupied)
   local best = nil
 
   for _, workspace in ipairs(hl.get_workspaces()) do
     if regular(workspace) and block_of_id(workspace.id) == block and workspace.monitor
-      and workspace.monitor.name == monitor.name and (not best or workspace.id < best) then
+      and workspace.monitor.name == monitor.name and (not occupied or (workspace.windows or 0) > 0)
+      and (not best or workspace.id < best) then
       best = workspace.id
     end
   end
@@ -554,8 +559,17 @@ function M.reconcile(added, gone)
       local guest = regular(active) and not owner(active.id, monitors, by_connector) and monitor.name ~= added
         and (active.windows or 0) > 0
 
-      if not own and not guest then
-        show(monitor, home(monitor, block))
+      -- A returning monitor that Hyprland started on a free number inside its
+      -- own block, while its workspaces waited elsewhere, shows those instead,
+      -- even when that free number is below them.
+      local target = home(monitor, block)
+      local waiting = hl.get_workspace(home(monitor, block, true))
+      local parked = own and monitor.name == added and (active.windows or 0) == 0
+        and waiting and waiting.id ~= active.id and (waiting.windows or 0) > 0
+      if parked then target = waiting.id end
+
+      if (not own and not guest) or parked then
+        show(monitor, target)
         changed = true
       end
     end
