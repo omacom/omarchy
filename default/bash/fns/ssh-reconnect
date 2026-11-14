@@ -42,7 +42,29 @@ ssh() {
 # Disarm mouse tracking (1000/1002/1003, 1006 encoding), focus reporting
 # (1004), and the alternate screen (1049), and show the cursor again.
 _ssh_disarm() {
-  printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?1049l\e[?25h'
+  printf '\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l'
+
+  # Leaving the alternate screen also restores the cursor saved on entering
+  # it. A session that stayed on the primary screen saved none, so the cursor
+  # would jump to a stale spot, often the top-left corner, and the next output
+  # would print over the scrollback. Skip it when the screen is already off.
+  _ssh_primary_screen || printf '\e[?1049l'
+
+  printf '\e[?25h'
+}
+
+# True only when the terminal answers a DECRQM query saying the alternate
+# screen is off (2) or permanently off (4). A terminal that cannot answer
+# leaves the state unknown, and the caller falls back to leaving it anyway.
+_ssh_primary_screen() {
+  local reply=""
+
+  {
+    printf '\e[?1049$p'
+    IFS= read -rs -d y -t 0.5 reply
+  } </dev/tty >/dev/tty 2>/dev/null
+
+  [[ $reply == *'[?1049;'[24]'$' ]]
 }
 
 # True for an interactive session: a destination and no remote command. The
