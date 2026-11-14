@@ -61,6 +61,7 @@ chmod +x "$fake_bin/sleep"
 
 monitors_file="$test_tmp/monitors.json"
 reload_log="$test_tmp/reload.log"
+clamshell_log="$test_tmp/clamshell.log"
 recovered="$test_tmp/recovered.json"
 events="$test_tmp/events"
 modeless_lock="$test_tmp/omarchy-monitor-modeless.lock"
@@ -107,6 +108,12 @@ exit 0
 SH
 
 cp "$fake_bin/omarchy-hyprland-monitor-clamshell" "$fake_bin/omarchy-system-lid-inhibit"
+
+cat >"$fake_bin/omarchy-hyprland-monitor-clamshell" <<'SH'
+#!/bin/bash
+
+printf 'sync\n' >>"$OMARCHY_TEST_CLAMSHELL_LOG"
+SH
 
 chmod +x "$fake_bin"/*
 ln -s "$ROOT/bin/omarchy-hyprland-monitor-modeless" "$fake_bin/omarchy-hyprland-monitor-modeless"
@@ -180,6 +187,7 @@ start_watcher() {
   OMARCHY_TEST_EVENTS="$events" \
   OMARCHY_TEST_MONITORS_FILE="$monitors_file" \
   OMARCHY_TEST_RELOAD_LOG="$reload_log" \
+  OMARCHY_TEST_CLAMSHELL_LOG="$clamshell_log" \
   OMARCHY_TEST_RECOVERED_MONITORS="$recovered" \
   OMARCHY_TEST_GUARD_PAUSED="${1:-0}" \
   OMARCHY_TEST_HYPRCTL_FAIL_FLAG="$hyprctl_fail" \
@@ -290,5 +298,32 @@ start_watcher
 sleep 0.6
 [[ ! -s $reload_log ]] || fail "a healthy machine is left alone" "$(<"$reload_log")"
 pass "a healthy machine is never reloaded"
+
+stop_watcher
+
+await_clamshell_syncs() {
+  local waited
+
+  for (( waited = 0; waited < 100; waited++ )); do
+    (( $(wc -l <"$clamshell_log") >= $1 )) && return 0
+    sleep 0.05
+  done
+
+  return 1
+}
+
+# A reload is how a 0x0 monitor gains its mode, and no hotplug follows, so the
+# reload itself has to bring clamshell up to date.
+printf '%s' '[{"name":"DP-1","width":2560,"height":1440,"disabled":false}]' >"$monitors_file"
+: >"$clamshell_log"
+start_watcher
+
+# Startup syncs once and retries three times; a late retry would pass for the reload's.
+await_clamshell_syncs 4 || fail "the watcher syncs clamshell at startup"
+: >"$clamshell_log"
+printf 'configreloaded>>\n' >&"$events_fd"
+
+await_clamshell_syncs 1 || fail "a config reload syncs clamshell"
+pass "a config reload syncs clamshell"
 
 stop_watcher
