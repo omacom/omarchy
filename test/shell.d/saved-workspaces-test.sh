@@ -101,7 +101,8 @@ check(named[0]['title'] == 'Focused work' and named[0]['urls'] == records[0]['ur
 for ending in [' - Chromium', ' - Google Chrome', ' - Brave']:
   title = 'Focused work' + ending
   cache = {'/unused/Default/Sessions': [{'title': title, 'urls': ['https://example.org/exact']}, {'title': 'Focused work', 'urls': ['https://example.org/other']}]}
-  state = m.capture_app_state({'title': title, 'class': 'chromium', 'pid': 42}, {'argv': ['chromium', '--user-data-dir=/unused']}, cache)
+  with patch.object(m, 'query', return_value=[{'pid': 42, 'class': 'chromium'}, {'pid': 42, 'class': 'chromium'}]):
+    state = m.capture_app_state({'title': title, 'class': 'chromium', 'pid': 42}, {'argv': ['chromium', '--user-data-dir=/unused']}, cache)
   check(state['urls'] == ['https://example.org/exact'], 'an exact saved window name wins over a browser-suffix fallback: ' + ending)
 
 # Forwarded Omarchy web apps share Chromium's normal browser process.
@@ -143,7 +144,8 @@ for flags in [['--app=https://x.com/'], ['--app', 'https://x.com/'], ['--app-id=
   process = {'argv': ['chromium', '--user-data-dir=/unused', *flags]}
   window = {'class': 'chromium', 'title': 'Browser work - Chromium', 'pid': 42}
   cache = {'/unused/Default/Sessions': [{'title': 'Browser work', 'urls': ['https://omarchy.org/']}]}
-  state = m.capture_app_state(window, process, cache)
+  with patch.object(m, 'query', return_value=[window]):
+    state = m.capture_app_state(window, process, cache)
   command = m.state_command({'class': 'chromium', 'appState': state}, m.command_for(window, process))
   check(state['urls'] == ['https://omarchy.org/'] and command == ['chromium', '--user-data-dir=/unused', '--new-window', 'https://omarchy.org/'], 'ordinary browser tabs are restored independently when a web app started their shared process: ' + str(flags))
   check(m.chromium_window_argv({'class': 'chrome-x.com__-Default'}, process['argv']) == process['argv'], 'web-app launch flags remain intact for the actual web-app window')
@@ -155,6 +157,23 @@ with patch.object(m, 'query', return_value=[custom_window, {'pid': 42, 'class': 
   state = m.capture_app_state(custom_window, process, {'/unused/Default/Sessions': [{'title': '', 'urls': ['https://omarchy.org/']}]})
   check(state['urls'] == ['https://omarchy.org/'], 'custom ordinary browser classes remain eligible for the sole-session fallback alongside a web app')
 check(m.state_command({'class': 'chromium'}, ['chromium', '--app=https://x.com/', '--new-window']) == ['chromium', '--new-window'], 'existing scene browser commands cannot reopen as a web app')
+
+# Private sessions must never reuse the normal session's matching page title.
+for flag in ['--incognito', '--guest']:
+  try:
+    m.capture_app_state({'class': 'chromium', 'title': 'Normal page', 'pid': 42}, {'argv': ['chromium', flag]}, {'ignored': []})
+  except m.WorkspaceError:
+    print('ok - ' + flag + ' is rejected before accepting matching ordinary tabs')
+  else:
+    raise AssertionError('private process accepted')
+private_window = {'class': 'chromium', 'title': 'Same page - Chromium', 'pid': 42}
+with patch.object(m, 'query', return_value=[private_window, {**private_window, 'address': 'normal'}]):
+  try:
+    m.capture_app_state(private_window, {'argv': ['chromium', '--user-data-dir=/unused']}, {'/unused/Default/Sessions': [{'title': 'Same page', 'urls': ['https://normal.example/']}]})
+  except m.WorkspaceError:
+    print('ok - forwarded private windows with normal process flags cannot borrow the normal window session')
+  else:
+    raise AssertionError('forwarded private window accepted')
 
 # Firefox session snapshots preserve the current navigation, order and active tab.
 firefox_data = {'windows': [
