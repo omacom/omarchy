@@ -180,6 +180,8 @@ set_connection_dns() {
   while IFS=: read -r uuid type; do
     [[ -n $uuid ]] || continue
     networkmanager_dns_connection "$type" || continue
+    # Hotspots (method=shared) reject ipv4.dns and take DNS from the host.
+    [[ $(nmcli -g ipv4.method connection show "$uuid") == "shared" ]] && continue
 
     nmcli connection modify "$uuid" \
       ipv4.ignore-auto-dns yes \
@@ -196,6 +198,8 @@ clear_connection_dns() {
   while IFS=: read -r uuid type; do
     [[ -n $uuid ]] || continue
     networkmanager_dns_connection "$type" || continue
+    # Hotspots (method=shared) reject ipv4.dns and take DNS from the host.
+    [[ $(nmcli -g ipv4.method connection show "$uuid") == "shared" ]] && continue
 
     nmcli connection modify "$uuid" \
       ipv4.ignore-auto-dns no \
