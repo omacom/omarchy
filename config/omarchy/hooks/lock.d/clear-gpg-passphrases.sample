@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# This hook is called when the screen locks (once per lock, including before
+# suspend), in the background.
+# To put it into use, remove .sample from this file name.
+
+# Forget the passphrases gpg-agent has cached, so they are asked for again
+# after unlocking.
+if omarchy-cmd-present gpg-connect-agent; then
+  gpg-connect-agent reloadagent /bye >/dev/null 2>&1
+fi
