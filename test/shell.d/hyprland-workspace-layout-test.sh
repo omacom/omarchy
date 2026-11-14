@@ -484,6 +484,52 @@ if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROO
 fi
 pass "a saved floating mode floats the workspace without inventing a layout"
 
+# A maximized window fills the work area, so its shadow falls over the bar.
+# Floating turns shadows on for its windows, and a maximized window keeps the
+# floating tag, so the rule taking the shadow off it must come after.
+shadow_probe="$tmpdir/shadow-probe.lua"
+cat >"$shadow_probe" <<'LUA'
+local rules = {}
+
+hl = {
+  workspace_rule = function() end,
+  get_workspace_windows = function() return {} end,
+  get_windows = function() return {} end,
+  dispatch = function() end,
+  dsp = { window = { float = function(spec) return spec end, tag = function(spec) return spec end } },
+  on = function() end,
+  timer = function(callback) callback() end,
+  get_active_workspace = function() return { id = 3 } end,
+  get_config = function() end,
+  config = function() end,
+  window_rule = function(rule) table.insert(rules, rule) end,
+  plugin = { load = function() end },
+}
+
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+require("default.hypr.workspace-layouts")
+
+local shadow_on, maximized_off
+for index, rule in ipairs(rules) do
+  if rule.match.tag == "omarchy-floating-workspace" and rule.no_shadow == false then
+    shadow_on = index
+  elseif rule.match.fullscreen_state_internal == 1 and rule.no_shadow == true then
+    maximized_off = index
+  end
+end
+
+assert(shadow_on, "floating did not turn shadows on for its windows")
+assert(maximized_off, "a maximized window keeps its shadow")
+assert(maximized_off > shadow_on, "the floating shadow rule overrides the maximized one")
+LUA
+
+if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROOT" \
+  lua "$shadow_probe"; then
+  fail "a maximized window on a floating workspace casts no shadow"
+fi
+pass "a maximized window on a floating workspace casts no shadow"
+
 # A layout change replaces the last layout notification rather than stacking
 # another under it.
 : >"$notification_log"
