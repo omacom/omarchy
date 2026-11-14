@@ -14,7 +14,15 @@ function iconFor(name, percent) {
   if (n === "volume-high" || n === "volume") return ""
   if (n === "microphone-muted" || n === "microphone-off" || n === "mic-muted" || n === "mic-off") return "󰍭"
   if (n === "microphone" || n === "mic") return "󰍬"
-  if (n === "keyboard") return "󰌌"
+  // Backlight tiers: md-keyboard_off at zero, then the md-brightness_4/5/7
+  // glyphs brightening with the level; md-keyboard stays when no value is shown.
+  if (n === "keyboard") {
+    if (percent < 0) return "󰌌"
+    if (percent <= 0) return "󰌐"
+    if (percent <= 33) return "󰃝"
+    if (percent <= 66) return "󰃞"
+    return "󰃠"
+  }
   if (n === "brightness" || n === "display") return "󰍹"
   if (n === "touchpad") return "󰟸"
   if (n === "touch" || n === "touchscreen") return "󰝁"
