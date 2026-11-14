@@ -201,6 +201,8 @@ machine() {
   xps13() { dmi sys_vendor "Dell Inc."; dmi product_name "XPS 13 ${1:-DX13260}"; dmi product_sku "${2:-0E53}"; }
   synaptics() { printf '%s\n' 'N: Name="SynPS/2 Synaptics TouchPad"' >"$hw/input-devices"; }
   surface() { dmi sys_vendor "Microsoft Corporation"; dmi product_name "$1"; }
+  # An ACPI device with its _STA: 15 when fitted, 0 when the firmware lists one the board does not carry.
+  acpi() { mkdir -p "$hw/acpi/$1:00"; printf '%s\n' "$1" >"$hw/acpi/$1:00/hid"; printf '%s\n' "$2" >"$hw/acpi/$1:00/status"; }
   vivobook_s15() { dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_family "ASUS Vivobook S 15"; dmi product_name "ASUS Vivobook S 15 S5507QA_$1"; }
   # A Qualcomm Wi-Fi card bound to ath12k, or to ath11k for the WCN6855 (1103); with "board-data",
   # the board data the package installed for it.
@@ -257,6 +259,10 @@ machine() {
     t14s-21n2) dmi product_name 21N20000US; FAKE_PLATFORM=aarch64-qualcomm ;;
     t14s-21n1-not-qualcomm) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64 ;;
     t14-gen4) dmi product_name 21F60000US ;;
+    # The ThinkPad X9 Gen 1 fits a Sony IMX471; its firmware also lists absent OmniVision sensors.
+    thinkpad-x9-imx471) acpi SONY471A 15; acpi OVTI01AF 0; acpi OVTI13B1 0 ;;
+    imx471-listed-absent) acpi SONY471A 0 ;;
+    ov08x40) acpi OVTI08F4 15 ;;
     yoga-slim7x) dmi product_name 83ED; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,yoga-slim7x qcom,x1e80100" ;;
     zenbook-a16) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-a16-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64 ;;
@@ -331,6 +337,7 @@ run_leaf() {
     OMARCHY_ZENBOOK_UX3480QA_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$hw/nvidia.conf" \
     OMARCHY_PCI_DEVICES="$root/sys/bus/pci/devices" \
+    OMARCHY_ACPI_DEVICES_PATH="$hw/acpi" \
     OMARCHY_ATH12K_BOARD_STATE="$root/var/lib/ath12k-board-fallback/installed" \
     bash -eE -c 'source "$1"' bash "$ROOT/install/$1" </dev/null >/dev/null 2>&1 || status=$?
   {
@@ -349,6 +356,7 @@ leaves=(
   hardware/surface.sh
   hardware/fix-surface-keyboard.sh
   hardware/lenovo/thinkpad-t14s-camera.sh
+  hardware/intel/ipu7-camera.sh
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
   hardware/asus/fix-asus-proart-pz13-speakers.sh
   hardware/acer/fix-acer-aspire-16-ai-speakers.sh
@@ -407,6 +415,9 @@ hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n1+unreadable|0
 hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n1-not-qualcomm|0
 hardware/lenovo/thinkpad-t14s-camera.sh|t14-gen4|0
 hardware/lenovo/thinkpad-t14s-camera.sh|yoga-slim7x|0
+hardware/intel/ipu7-camera.sh|thinkpad-x9-imx471|0|pkg-add intel-ipu7-camera
+hardware/intel/ipu7-camera.sh|imx471-listed-absent|0
+hardware/intel/ipu7-camera.sh|ov08x40|0|pkg-add intel-ipu7-camera
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16|0|pkg-add asus-zenbook-a16-audio
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16-not-qualcomm|0
