@@ -39,6 +39,9 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     rm -f ~/.local/bin/muse
   fi
 
+  # The cliamp override outlives the package it launches
+  rm -f ~/.local/share/applications/cliamp.desktop
+
   omarchy-pkg-drop \
     aether \
     cliamp \
