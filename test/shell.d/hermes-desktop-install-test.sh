@@ -33,18 +33,6 @@ def _write_desktop_build_stamp(project_root, *, source_mode):
     with (Path(os.environ['OMARCHY_TEST_ROOT']) / 'events').open('a') as log:
         log.write('build-stamp\n')
 PY
-git -C "$test_tmp/seed" add .
-git -C "$test_tmp/seed" -c user.name=Test -c user.email=test@example.invalid commit -qm fixture
-release_commit=$(git -C "$test_tmp/seed" rev-parse HEAD)
-printf 'after\n' >"$test_tmp/seed/runtime.txt"
-git -C "$test_tmp/seed" diff >"$test_tmp/share/runtime.patch"
-printf 'before\n' >"$test_tmp/seed/runtime.txt"
-printf 'newer desktop source\n' >"$test_tmp/seed/apps/desktop/src/main.js"
-git -C "$test_tmp/seed" add apps/desktop/src/main.js
-git -C "$test_tmp/seed" -c user.name=Test -c user.email=test@example.invalid commit -qm newer-main
-origin_commit=$(git -C "$test_tmp/seed" rev-parse HEAD)
-export OMARCHY_TEST_RELEASE_COMMIT="$release_commit"
-printf '{"branch":"main","commit":"%s"}\n' "$release_commit" >"$test_tmp/package/resources/install-stamp.json"
 printf 'packaged app\n' >"$test_tmp/package/resources/app.asar"
 printf '#!/bin/bash\nexit 0\n' >"$test_tmp/package/Hermes"
 touch "$test_tmp/package/chrome-sandbox"
@@ -117,6 +105,22 @@ chmod +x "$runtime/venv/bin/python"
 [[ ${OMARCHY_TEST_NO_MARKER:-0} == 1 ]] || touch "$runtime/.hermes-bootstrap-complete"
 write_commands
 MOCK
+# A checkout carries the installer of its own release, and that copy is the one
+# Omarchy asks which contract the runtime follows.
+mkdir -p "$test_tmp/seed/scripts"
+cp "$test_tmp/share/install.sh" "$test_tmp/seed/scripts/install.sh"
+git -C "$test_tmp/seed" add .
+git -C "$test_tmp/seed" -c user.name=Test -c user.email=test@example.invalid commit -qm fixture
+release_commit=$(git -C "$test_tmp/seed" rev-parse HEAD)
+printf 'after\n' >"$test_tmp/seed/runtime.txt"
+git -C "$test_tmp/seed" diff >"$test_tmp/share/runtime.patch"
+printf 'before\n' >"$test_tmp/seed/runtime.txt"
+printf 'newer desktop source\n' >"$test_tmp/seed/apps/desktop/src/main.js"
+git -C "$test_tmp/seed" add apps/desktop/src/main.js
+git -C "$test_tmp/seed" -c user.name=Test -c user.email=test@example.invalid commit -qm newer-main
+origin_commit=$(git -C "$test_tmp/seed" rev-parse HEAD)
+export OMARCHY_TEST_RELEASE_COMMIT="$release_commit"
+printf '{"branch":"main","commit":"%s"}\n' "$release_commit" >"$test_tmp/package/resources/install-stamp.json"
 
 cat >"$test_tmp/bin/omarchy-pkg-add" <<'MOCK'
 #!/bin/bash
@@ -130,7 +134,10 @@ cat >"$test_tmp/bin/omarchy-pkg-present" <<'MOCK'
 MOCK
 cat >"$test_tmp/bin/git" <<'MOCK'
 #!/bin/bash
-if [[ ${OMARCHY_TEST_FETCH_FAIL:-0} == 1 && " $* " == *" --unshallow "* ]]; then exit 8; fi
+if [[ " $* " == *" --unshallow "* ]]; then
+  touch "$OMARCHY_TEST_ROOT/unshallow-attempted"
+  [[ ${OMARCHY_TEST_FETCH_FAIL:-0} != 1 ]] || exit 8
+fi
 exec /usr/bin/git "$@"
 MOCK
 cat >"$test_tmp/bin/setsid" <<'MOCK'
@@ -732,3 +739,328 @@ run_installer || fail "setup supports the relocated desktop helper" "$(cat "$tes
 [[ $(cat "$hermes_home/desktop-build-stamp.json") == 'upstream build stamp' ]] || fail "relocated helper writes the build stamp"
 grep -qx launch "$test_tmp/events" || fail "setup launches after the relocated helper writes the stamp"
 pass "new releases use the relocated desktop stamp writer"
+
+# Upstream's current installer contract. The seed moves on to it the way
+# upstream did, so the release before is still there for a runtime or a
+# package that stayed behind.
+legacy_release=$release_commit
+git -C "$test_tmp/seed" rm -rq hermes_cli
+printf '.hermes/\n' >>"$test_tmp/seed/.gitignore"
+printf 'locked dependencies\n' >"$test_tmp/seed/pnpm-lock.yaml"
+cat >"$test_tmp/seed/scripts/install.sh" <<'MOCK'
+#!/bin/bash
+set -e
+printf '%s\n' "$@" >"$OMARCHY_TEST_ROOT/install-args"
+commit=$OMARCHY_TEST_RELEASE_COMMIT
+stage=""
+while (( $# )); do
+  case "$1" in
+    --skip-setup) ;;
+    --branch) shift ;;
+    --dir) runtime=$2; shift ;;
+    --commit) commit=$2; shift ;;
+    --stage) stage=$2; shift ;;
+    --hermes-home) [[ $2 == "$HERMES_HOME" ]]; shift ;;
+    *) echo "unknown option: $1" >&2; exit 1 ;;
+  esac
+  shift
+done
+# Unlike the path stage before it, this leaves a name somebody else holds, and
+# it names the runtime with its links resolved, quoted as Python's shlex does.
+publish_commands() {
+  local resolved launcher
+  # With cli.expose_on_path off, upstream succeeds having published nothing.
+  [[ ${OMARCHY_TEST_EXPOSE_OFF:-0} != 1 ]] || return 0
+  resolved=$(realpath -- "$runtime")
+  mkdir -p "$HOME/.local/bin"
+  for command in hermes hermes-agent hermes-acp; do
+    target="$HOME/.local/bin/$command"
+    launcher="exec $(python3 -c 'import shlex, sys; print(shlex.join(sys.argv[1:]))' "$resolved/.hermes/bin/$command") \"\$@\""
+    if [[ -e $target || -L $target ]] && ! grep -qsxF -- "$launcher" "$target"; then
+      continue
+    fi
+    printf '#!/bin/sh\n%s\n' "$launcher" >"$target"
+    chmod +x "$target"
+  done
+}
+if [[ $stage == "products" ]]; then
+  printf 'products\n' >>"$OMARCHY_TEST_ROOT/events"
+  publish_commands
+  # Upstream publishes its commands before it builds the products.
+  [[ ${OMARCHY_TEST_PRODUCTS_FAIL:-0} != 1 ]] || exit 6
+  exit 0
+elif [[ -n $stage ]]; then
+  echo "unknown stage: $stage" >&2
+  exit 1
+fi
+printf 'bootstrap\n' >>"$OMARCHY_TEST_ROOT/events"
+if [[ ! -d $runtime ]]; then
+  git init -q "$runtime"
+  git -C "$runtime" remote add origin "file://$OMARCHY_TEST_ROOT/seed"
+fi
+git -C "$runtime" fetch -q origin
+git -C "$runtime" checkout -q --detach "$commit"
+mkdir -p "$runtime/.hermes/bin"
+cat >"$runtime/.hermes/bin/hermes" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "chat" && ${2:-} == "--help" ]]; then
+  echo "[-q QUERY, --query QUERY] [--tui]"
+else
+  echo "hermes-agent 0.0.0-test"
+fi
+SH
+chmod +x "$runtime/.hermes/bin/hermes"
+printf '{"commit":"%s"}\n' "$commit" >"$runtime/.hermes-bootstrap-complete"
+publish_commands
+MOCK
+git -C "$test_tmp/seed" add .
+git -C "$test_tmp/seed" -c user.name=Test -c user.email=test@example.invalid commit -qm current-installer
+current_release=$(git -C "$test_tmp/seed" rev-parse HEAD)
+# The package of a release ships that release's installer and names its commit.
+use_package() {
+  release_commit=$1
+  export OMARCHY_TEST_RELEASE_COMMIT="$release_commit"
+  git -C "$test_tmp/seed" show "$release_commit:scripts/install.sh" >"$test_tmp/share/install.sh"
+  printf '{"branch":"main","commit":"%s"}\n' "$release_commit" >"$test_tmp/package/resources/install-stamp.json"
+}
+own_command() {
+  grep -qF -e "$runtime/$1/hermes" -e "$(realpath -- "$runtime")/$1/hermes" "$test_home/.local/bin/hermes"
+}
+
+use_package "$current_release"
+new_home current-fresh
+rm -f "$test_tmp/unshallow-attempted"
+run_installer || fail "fresh setup succeeds with the current installer" "$(cat "$test_tmp/output")"
+expected=$(printf '%s\n' --skip-setup --branch main --commit "$release_commit" --dir "$runtime" --hermes-home "$hermes_home")
+[[ $(cat "$test_tmp/install-args") == "$expected" ]] || fail "the current installer is not handed the flag it dropped" "$(cat "$test_tmp/install-args")"
+[[ $(head -2 "$test_tmp/events") == $'package hermes-desktop\nbootstrap' ]] || fail "the package precedes the current runtime's bootstrap" "$(cat "$test_tmp/events")"
+! grep -qx build-stamp "$test_tmp/events" || fail "no build stamp is written for a release whose receipt only a build can write" "$(cat "$test_tmp/events")"
+[[ ! -e $hermes_home/desktop-build-stamp.json && ! -e $runtime/venv ]] || fail "the current runtime gains neither a build stamp nor a venv"
+grep -qx theme-start "$test_tmp/events" || fail "current setup hands Hermes the theme" "$(cat "$test_tmp/events")"
+[[ -f $native/resources/app.asar && $(tail -1 "$test_tmp/events") == launch ]] || fail "the seeded app opens beside the current runtime" "$(cat "$test_tmp/events")"
+[[ $(cat "$runtime/runtime.txt") == after ]] || fail "the current runtime receives its patch"
+[[ -z $(git -C "$runtime" symbolic-ref -q HEAD) && $(git -C "$runtime" rev-parse HEAD) == "$release_commit" ]] || fail "the checkout stays detached at the release" "$(git -C "$runtime" status -sb)"
+[[ -z $(git -C "$runtime" for-each-ref refs/heads/main) ]] || fail "no main is made for an updater that moves release to release"
+[[ ! -e $test_tmp/unshallow-attempted ]] || fail "a full clone is not asked for its history again"
+own_command .hermes/bin || fail "the command is the current runtime's own launcher" "$(cat "$test_home/.local/bin/hermes")"
+run_cli --check || fail "--check follows the current runtime"
+pass "fresh setup with the current installer leaves the pinned checkout as upstream made it and seeds the app"
+
+# Omarchy keeps the Hermes home as it is spelled and the current installer
+# resolves it, so through a linked home the launcher names a path Omarchy
+# never used, and is the runtime's own all the same.
+new_home current-linked-home
+mkdir -p "$test_home/elsewhere"
+ln -s "$test_home/elsewhere" "$hermes_home"
+run_cli --now || fail "the current installer sets up through a linked home" "$(cat "$test_tmp/output")"
+grep -qF "$test_home/elsewhere/hermes-agent/.hermes/bin/hermes" "$test_home/.local/bin/hermes" && ! grep -qF "$hermes_home/" "$test_home/.local/bin/hermes" ||
+  fail "the launcher names the linked home resolved" "$(cat "$test_home/.local/bin/hermes")"
+run_cli --check || fail "--check follows a launcher that names the linked home resolved"
+: >"$test_tmp/events"
+run_cli --now || fail "a finished install through a linked home is accepted" "$(cat "$test_tmp/output")"
+[[ ! -s $test_tmp/events ]] || fail "a launcher that names the linked home resolved is written again" "$(cat "$test_tmp/events")"
+pass "a launcher that names a linked home resolved is the runtime's own"
+
+# A runtime kept elsewhere behind a link: the launcher names where the link
+# leads, which is under no spelling of the Hermes home.
+new_home current-linked-runtime
+git clone -q "$test_tmp/seed" "$test_home/elsewhere"
+git -C "$test_home/elsewhere" checkout -q --detach "$release_commit"
+mkdir -p "$hermes_home"
+ln -s "$test_home/elsewhere" "$runtime"
+run_cli --now || fail "the current installer sets up a runtime behind a link" "$(cat "$test_tmp/output")"
+grep -qF "$test_home/elsewhere/.hermes/bin/hermes" "$test_home/.local/bin/hermes" && ! grep -qF "$hermes_home/" "$test_home/.local/bin/hermes" ||
+  fail "the launcher names the linked runtime resolved" "$(cat "$test_home/.local/bin/hermes")"
+run_cli --check || fail "--check follows a launcher that names the linked runtime resolved"
+pass "a launcher that names a linked runtime resolved is the runtime's own"
+
+# shlex quotes a path with an apostrophe by closing the quotes around it, so
+# the launcher never carries the Hermes home as it is spelled.
+new_home current-apostrophe
+hermes_home="$test_home/Hermes's/.hermes"
+runtime="$hermes_home/hermes-agent"
+run_cli --now || fail "the current installer sets up a home with an apostrophe in its path" "$(cat "$test_tmp/output")"
+grep -qF "Hermes'\"'\"'s/.hermes/hermes-agent/.hermes/bin/hermes" "$test_home/.local/bin/hermes" || fail "the launcher quotes the apostrophe as shlex does" "$(cat "$test_home/.local/bin/hermes")"
+run_cli --check || fail "--check follows a launcher that quotes an apostrophe in the home"
+pass "a launcher that quotes an apostrophe in the Hermes home is the runtime's own"
+
+# The current installer keeps a hermes it did not write, so Omarchy frees the
+# name it saved aside and has the runtime publish its commands again.
+new_home current-own-hermes
+mkdir -p "$test_home/.local/bin"
+cat >"$test_home/.local/bin/hermes" <<'SH'
+#!/bin/bash
+if [[ ${1:-} == "chat" && ${2:-} == "--help" ]]; then
+  echo "[-q QUERY, --query QUERY] [--tui]"
+else
+  echo "hermes-agent 0.0.0-user"
+fi
+SH
+chmod +x "$test_home/.local/bin/hermes"
+own_hermes=$(cat "$test_home/.local/bin/hermes")
+run_cli --now || fail "the current installer sets up over a Hermes from elsewhere" "$(cat "$test_tmp/output")"
+[[ $(cat "$test_tmp/events") == $'package hermes-desktop\nbootstrap\nproducts\ntheme-stop\ntheme-start' ]] ||
+  fail "the runtime publishes its commands again once the saved name is free" "$(cat "$test_tmp/events")"
+backups=("$test_home/.local/bin/".hermes-before-desktop.*)
+(( ${#backups[@]} == 1 )) && [[ $(cat "${backups[0]}/hermes") == "$own_hermes" ]] || fail "the hermes the current installer kept is saved aside"
+own_command .hermes/bin || fail "the command the current installer kept is replaced by the runtime's own" "$(cat "$test_home/.local/bin/hermes")"
+run_cli --check || fail "--check follows the current runtime's command"
+pass "a Hermes from elsewhere that the current installer keeps is saved aside and superseded"
+
+# The wrapper the retired installer wrote is one more command the current
+# installer keeps, and its saved copy is what proves the mise Hermes Omarchy's.
+new_home current-handover
+mkdir -p "$test_home/.local/bin"
+printf '%s\n' "#!/bin/bash" "# Written by omarchy-install-hermes-cli." >"$test_home/.local/bin/hermes"
+chmod +x "$test_home/.local/bin/hermes"
+: >"$test_tmp/mise-log"; rm -f "$test_tmp/mise-removed" "$test_tmp/mise-unrequested"
+OMARCHY_TEST_MISE_BUILT=1 run_cli --now || fail "the current installer sets up over the retired wrapper" "$(cat "$test_tmp/output")"
+own_command .hermes/bin || fail "the retired wrapper is replaced by the current runtime's own command" "$(cat "$test_home/.local/bin/hermes")"
+grep -q 'mise uninstall --all' "$test_tmp/mise-log" && [[ -e $test_tmp/mise-removed && -e $test_tmp/mise-unrequested ]] ||
+  fail "the environment the retired wrapper built is removed" "$(cat "$test_tmp/mise-log")"
+[[ -z $(find "$test_home/.local/bin" -maxdepth 1 -name '.hermes-before-desktop.*' -print) ]] || fail "the saved wrapper and its directory go once the environment is gone"
+OMARCHY_TEST_MISE_BUILT=1 run_cli --check || fail "--check follows the current runtime once the wrapper is retired"
+pass "the retired wrapper is superseded under the current installer, and the mise Hermes goes with it"
+
+# A Hermes set not to expose its commands leaves a fresh setup without one, and
+# with nothing saved aside either: the run names the setting, not an update.
+new_home current-unexposed
+OMARCHY_TEST_EXPOSE_OFF=1 run_installer && fail "a fresh setup that ends without a command stops"
+[[ $(cat "$test_tmp/events") == $'package hermes-desktop\nbootstrap\nproducts' ]] ||
+  fail "the runtime is asked for its commands once more before the run stops" "$(cat "$test_tmp/events")"
+grep -qxF 'Hermes did not write its commands; its cli.expose_on_path setting can turn that off.' "$test_tmp/output" ||
+  fail "a fresh setup without a command names the setting, with no backup to point at" "$(cat "$test_tmp/output")"
+! grep -q 'does not run the interactive seeded sessions' "$test_tmp/output" || fail "a fresh setup without a command is not told to update Hermes"
+assert_stopped "a fresh setup without a command prevents launch and theme setup"
+pass "a fresh setup whose Hermes is set not to expose its commands names that setting"
+
+# The current installer has no path stage: a finished current runtime gets its
+# command back from its own products stage, which only writes a free name.
+new_home current-command-repair
+run_cli --now || fail "current command-repair fixture sets up" "$(cat "$test_tmp/output")"
+rm "$test_home/.local/bin/hermes"
+run_cli --check && fail "--check calls a current runtime installed without its command"
+: >"$test_tmp/events"
+run_cli --now || fail "a current runtime's missing command is restored" "$(cat "$test_tmp/output")"
+[[ $(cat "$test_tmp/events") == products ]] || fail "a current runtime's command is restored without bootstrapping again" "$(cat "$test_tmp/events")"
+own_command .hermes/bin || fail "the current runtime's own command is back"
+run_cli --check || fail "--check follows the current runtime's restored command"
+printf '%s\n' "#!/bin/bash" "exec /usr/local/bin/somebody-elses-hermes \"\$@\"" >"$test_home/.local/bin/hermes"
+chmod +x "$test_home/.local/bin/hermes"
+: >"$test_tmp/events"
+run_cli --now || fail "a foreign command beside a current runtime is replaced" "$(cat "$test_tmp/output")"
+[[ $(cat "$test_tmp/events") == products ]] || fail "a foreign command beside a current runtime is replaced without bootstrapping again" "$(cat "$test_tmp/events")"
+grep -lF somebody-elses-hermes "$test_home/.local/bin/".hermes-before-desktop.*/hermes >/dev/null 2>&1 || fail "the foreign command beside a current runtime is saved aside"
+own_command .hermes/bin || fail "the current runtime's own command replaces the foreign one" "$(cat "$test_home/.local/bin/hermes")"
+run_cli --check || fail "--check follows the current runtime's own command"
+pass "a finished current runtime gets its own command back from its products stage"
+
+# The names are freed before the products stage is asked for them, and that
+# stage can fail, or succeed having written nothing when Hermes is set not to
+# expose its commands. The run says which, and where what held the names went.
+foreign_hermes="#!/bin/bash
+exec /usr/local/bin/another-hermes \"\$@\""
+unfinished="Hermes' installer did not finish."
+unexposed='Hermes did not write its commands; its cli.expose_on_path setting can turn that off.'
+for switch in OMARCHY_TEST_PRODUCTS_FAIL OMARCHY_TEST_EXPOSE_OFF; do
+  if [[ $switch == OMARCHY_TEST_PRODUCTS_FAIL ]]; then said=$unfinished other=$unexposed; else said=$unexposed other=$unfinished; fi
+  printf '%s\n' "$foreign_hermes" >"$test_home/.local/bin/hermes"
+  : >"$test_tmp/events"
+  export "$switch=1"
+  run_cli --now && fail "a products stage that leaves the commands unsettled stops the run ($switch)"
+  unset "$switch"
+  [[ $(cat "$test_tmp/events") == products ]] || fail "the products stage is asked for the commands ($switch)" "$(cat "$test_tmp/events")"
+  saved=$(grep -F -- "$said The commands that were there are saved in " "$test_tmp/output" || true)
+  saved=${saved#"$said The commands that were there are saved in "}
+  saved=${saved%.}
+  [[ -n $saved && -d $saved ]] || fail "the run says what the products stage did and where the previous commands were saved ($switch)" "$(cat "$test_tmp/output")"
+  ! grep -qF -- "$other" "$test_tmp/output" || fail "a failed stage and an unexposed command are told apart ($switch)" "$(cat "$test_tmp/output")"
+  [[ $(cat "$saved/hermes") == "$foreign_hermes" ]] || fail "the foreign command is intact where the run says it is ($switch)"
+  assert_stopped "a products stage that leaves the commands unsettled prevents theme setup ($switch)"
+done
+pass "a products stage that fails, or succeeds without writing the commands, says which and where the previous ones are saved"
+
+# A checkout that has lost its installer still gets its command back, from the
+# copy the package ships.
+rm -f "$runtime/scripts/install.sh" "$test_home/.local/bin/hermes"
+: >"$test_tmp/events"
+run_cli --now || fail "a runtime without its installer gets its command back" "$(cat "$test_tmp/output")"
+[[ $(cat "$test_tmp/events") == products ]] || fail "the packaged installer writes the commands of a runtime without its own" "$(cat "$test_tmp/events")"
+own_command .hermes/bin || fail "the command of a runtime without its installer is its own" "$(cat "$test_home/.local/bin/hermes")"
+run_cli --check || fail "--check follows a runtime restored by the packaged installer"
+pass "a runtime whose checkout lost its installer gets its command back from the packaged one"
+
+# The dependency lock moved to pnpm with the current release, and an edited one
+# means the packaged app is no longer the build of those sources.
+new_home current-dirty-lock
+HOME="$test_home" HERMES_HOME="$hermes_home" bash "$test_tmp/share/install.sh" --dir "$runtime" --hermes-home "$hermes_home"
+printf 'local dependency\n' >>"$runtime/pnpm-lock.yaml"
+: >"$test_tmp/events"
+run_installer && fail "an edited pnpm lock cannot be certified as the packaged build"
+[[ ! -e $native ]] || fail "an edited pnpm lock receives no packaged app"
+grep -q 'hermes desktop --build-only' "$test_tmp/output" || fail "an edited pnpm lock has build guidance" "$(cat "$test_tmp/output")"
+assert_stopped "an edited pnpm lock prevents launch and theme setup"
+pass "a current runtime with an edited pnpm lock is preserved without seeding"
+
+# A runtime keeps the contract of the release it is at, whatever the package
+# has moved to: one set up by the installer before, under the current package,
+# gets its command back from its own path stage, which the package's lacks.
+use_package "$legacy_release"
+new_home legacy-runtime
+run_cli --now || fail "legacy runtime fixture sets up" "$(cat "$test_tmp/output")"
+use_package "$current_release"
+rm "$test_home/.local/bin/hermes"
+: >"$test_tmp/events"
+run_cli --now || fail "an earlier runtime's command is restored under the current package" "$(cat "$test_tmp/output")"
+[[ $(cat "$test_tmp/events") == path ]] || fail "an earlier runtime's command comes from its own path stage" "$(cat "$test_tmp/events")"
+own_command venv/bin || fail "the earlier runtime's own command is back" "$(cat "$test_home/.local/bin/hermes")"
+run_cli --check || fail "--check follows the earlier runtime under the current package"
+pass "a runtime from the installer before gets its command back from its own installer under the current package"
+
+# And the other way: a runtime that has moved on to the current layout, past a
+# package still at the release before, is finished rather than half set up.
+new_home current-runtime
+run_cli --now || fail "current runtime fixture sets up" "$(cat "$test_tmp/output")"
+use_package "$legacy_release"
+: >"$test_tmp/events"
+run_cli --now || fail "a current runtime past an earlier package is accepted" "$(cat "$test_tmp/output")"
+[[ ! -s $test_tmp/events ]] || fail "a current runtime past an earlier package is set up again" "$(cat "$test_tmp/events")"
+# With its command there --now never looks at the runtime; without it, the
+# runtime has to count as finished for its own products stage to be asked.
+rm "$test_home/.local/bin/hermes"
+run_cli --now || fail "a current runtime past an earlier package gets its command back" "$(cat "$test_tmp/output")"
+! grep -q 'Hermes setup is incomplete' "$test_tmp/output" || fail "a current runtime is not called incomplete for having no venv"
+[[ $(cat "$test_tmp/events") == products ]] || fail "a current runtime's command comes from its own products stage under an earlier package" "$(cat "$test_tmp/events")"
+own_command .hermes/bin || fail "the current runtime's own command is back under an earlier package" "$(cat "$test_home/.local/bin/hermes")"
+[[ $(git -C "$runtime" rev-parse HEAD) == "$current_release" ]] || fail "a current runtime past an earlier package is not moved"
+pass "a current runtime past an earlier package is accepted, and repaired by its own installer"
+
+# A checkout that has lost its installer is taken to follow the package's in
+# everything decided after setup, not only for its commands: here the seeded
+# app is gone too, so the stamp that goes with seeding is the package's call.
+new_home legacy-lost-installer
+run_cli --now || fail "legacy lost-installer fixture sets up" "$(cat "$test_tmp/output")"
+rm -rf "$native"
+rm "$runtime/scripts/install.sh" "$test_home/.local/bin/hermes"
+: >"$test_tmp/events"
+run_cli --now || fail "an earlier runtime without its installer or its app is repaired" "$(cat "$test_tmp/output")"
+[[ $(cat "$test_tmp/events") == $'path\nbuild-stamp\ntheme-stop\ntheme-start' ]] ||
+  fail "the packaged installer's path stage and the build stamp follow the package's contract" "$(cat "$test_tmp/events")"
+own_command venv/bin || fail "the command of an earlier runtime without its installer is its own" "$(cat "$test_home/.local/bin/hermes")"
+[[ -f $native/resources/app.asar ]] || fail "the app is seeded again beside a runtime without its installer"
+[[ $(git -C "$runtime" symbolic-ref --short HEAD) == main && $(git -C "$runtime" rev-parse main) == "$release_commit" ]] || fail "main stays at the release beside a runtime without its installer"
+run_cli --check || fail "--check follows an earlier runtime repaired by the packaged installer"
+pass "an earlier runtime that lost its installer and its app is repaired by the package's contract, build stamp included"
+
+# The installer before writes the path as it is, between double quotes, so an
+# apostrophe in the Hermes home reaches its launcher without being respelled.
+new_home legacy-apostrophe
+hermes_home="$test_home/Hermes's/.hermes"
+runtime="$hermes_home/hermes-agent"
+run_cli --now || fail "the installer before sets up a home with an apostrophe in its path" "$(cat "$test_tmp/output")"
+grep -qF "\"$runtime/venv/bin/hermes\"" "$test_home/.local/bin/hermes" || fail "the earlier launcher carries the apostrophe as it is" "$(cat "$test_home/.local/bin/hermes")"
+run_cli --check || fail "--check follows an earlier launcher with an apostrophe in the home"
+: >"$test_tmp/events"
+run_cli --now || fail "a finished earlier install under a home with an apostrophe is accepted" "$(cat "$test_tmp/output")"
+[[ ! -s $test_tmp/events ]] || fail "an earlier launcher with an apostrophe in the home is written again" "$(cat "$test_tmp/events")"
+pass "an earlier launcher that carries an apostrophe in the Hermes home as it is, is the runtime's own"
