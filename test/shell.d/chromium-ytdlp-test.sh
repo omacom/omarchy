@@ -87,7 +87,7 @@ pass "yt-dlp native host rejects a symlink whose target name ends in a newline"
 
 ln -s / "$TMPDIR/root-link"
 root_resolved=$(download_dir="$TMPDIR/root-link" host_fn resolve_download_file /etc/passwd)
-[[ $root_resolved == "/etc/passwd" ]] ||
+[[ $root_resolved == "$(realpath -e -- /etc/passwd)" ]] ||
   fail "yt-dlp native host accepts a file when the download dir resolves to /" "$root_resolved"
 pass "yt-dlp native host accepts a file when the download dir resolves to /"
 
@@ -155,6 +155,8 @@ pass "yt-dlp native host keeps a real file after a forged OMARCHY_FILE record"
 # too: a record template that carried the title again would pass every test above.
 fake_root="$TMPDIR/fake"
 mkdir -p "$fake_root/bin" "$fake_root/default"
+# Native hosts source the shared reader from the installation's bin directory.
+ln -s "$ROOT/bin/omarchy-chromium-native-functions" "$fake_root/bin/omarchy-chromium-native-functions"
 # A real install root carries the i18n catalogs omarchy-i18n reads.
 ln -s "$ROOT/default/i18n" "$fake_root/default/i18n"
 fake_dir="$TMPDIR/fake-videos"
