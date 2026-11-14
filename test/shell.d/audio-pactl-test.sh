@@ -65,6 +65,10 @@ Sink Input #42
 OUT
     ;;
   "-f json list sinks")
+    if [[ -n ${SINKS_JSON:-} ]]; then
+      cat "$SINKS_JSON"
+      exit 0
+    fi
     cat <<'OUT'
 [
   {
@@ -120,6 +124,53 @@ grep -qx 'C pactl list sink-inputs' "$CALLS" ||
 grep -q 'pactl move-sink-input 42 alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-set-default moves streams' "$(calls)"
 pass 'audio-output-set-default reads sink-inputs in the C locale'
+
+# --- omarchy-audio-output-set-default keeps the default following hotplug ---
+
+# Speakers behind a DSP sink (850), a headphone jack (1000) and DisplayPort.
+sinks_json() {
+  local headphones=$1 display_priority=$2
+  cat >"$work/sinks.json" <<OUT
+[
+  {"index": 1, "name": "speakers", "ports": [], "properties": {"priority.session": "850"}},
+  {"index": 2, "name": "headphones",
+   "ports": [{"name": "Headphones", "availability": "$headphones"}],
+   "properties": {"priority.session": "1000"}},
+  {"index": 3, "name": "display",
+   "ports": [{"name": "HDMI1", "availability": "available"}],
+   "properties": {"priority.session": "$display_priority"}}
+]
+OUT
+}
+cleared() {
+  grep -qx 'wpctl clear-default 0' "$CALLS"
+}
+export SINKS_JSON="$work/sinks.json"
+
+sinks_json available 500
+: >"$CALLS"
+omarchy-audio-output-set-default 2 headphones
+cleared || fail 'choosing the output WirePlumber would pick forgets the saved choice' "$(calls)"
+grep -q '^wpctl set-default 2$' "$CALLS" || fail 'the chosen output still becomes the default at once' "$(calls)"
+pass 'choosing the output WirePlumber would pick forgets the saved choice'
+
+: >"$CALLS"
+omarchy-audio-output-set-default 1 speakers
+! cleared || fail 'choosing the speakers while headphones are in stays saved' "$(calls)"
+pass 'choosing the speakers while headphones are in stays saved'
+
+sinks_json "not available" 500
+: >"$CALLS"
+omarchy-audio-output-set-default 1 speakers
+cleared || fail 'choosing the speakers with the jack empty forgets the saved choice' "$(calls)"
+pass 'choosing the speakers with the jack empty forgets the saved choice'
+
+sinks_json available 1000
+: >"$CALLS"
+omarchy-audio-output-set-default 2 headphones
+! cleared || fail 'a choice between outputs of equal priority stays saved' "$(calls)"
+pass 'a choice between outputs of equal priority stays saved'
+unset SINKS_JSON
 
 : >"$CALLS"
 LC_ALL=en_US.UTF-8 omarchy-audio-output-sink "virtual_sink" >/dev/null 2>&1

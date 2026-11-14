@@ -15,6 +15,24 @@ fi
 timeout 2 wpctl set-default "$node_id" 2>/dev/null || true
 timeout 2 pactl set-default-sink "$sink_name" 2>/dev/null || true
 
+# Both calls above save the choice, and WirePlumber then prefers a saved output
+# over anything plugged in later: pick the speakers once and headphones never
+# take over again. When the choice is the output WirePlumber would pick by itself
+# (the only connected output with the highest priority), forget it instead, so
+# the default keeps following what is plugged in. A choice it would not make by
+# itself, such as the speakers while headphones are in, stays saved.
+automatic_sink=$(LC_ALL=C timeout 2 pactl -f json list sinks 2>/dev/null | jq -r '
+  [.[]
+    | select((.ports | length == 0) or ([.ports[]? | .availability != "not available"] | any))
+    | {name, priority: ((.properties."priority.session" // "0") | tonumber? // 0)}]
+  | (map(.priority) | max) as $top
+  | map(select(.priority == $top))
+  | if length == 1 then .[0].name else empty end' 2>/dev/null)
+
+if [[ -n $automatic_sink && $automatic_sink == "$sink_name" ]]; then
+  timeout 2 wpctl clear-default 0 2>/dev/null || true
+fi
+
 # Move only real application streams. A DSP filter-chain's own output is also a
 # sink input but carries no application.name, and moving it would rewire the
 # processing itself -- onto headphones, or into its own virtual sink, which is a
