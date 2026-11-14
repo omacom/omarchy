@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Name=Herdr
+Exec=xdg-terminal-exec --app-id=TUI.tile -e herdr
+Terminal=false
+Type=Application
+Icon=herdr
+StartupNotify=true
