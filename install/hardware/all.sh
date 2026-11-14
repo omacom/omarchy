@@ -45,6 +45,8 @@ run_logged "$OMARCHY_INSTALL/hardware/asus/fix-asus-vivobook-s15-boot.sh"
 run_logged "$OMARCHY_INSTALL/hardware/hp/fix-hp-omnibook-x14-boot.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-n1x-gpu-memory.sh"
 
+run_logged "$OMARCHY_INSTALL/hardware/google/fix-pixelbook-eve-backlight.sh"
+
 run_logged "$OMARCHY_INSTALL/hardware/framework/qmk-hid.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/apple/fix-spi-keyboard.sh"
