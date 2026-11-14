@@ -104,3 +104,19 @@ DESKTOP
 [[ $(tail -1 "$TEST_LOG") == "terminal::omarchy-remove-service-slack" ]] || fail "the themed Slack launcher opens its package removal flow"
 [[ -f $tmp_dir/data/applications/slack.desktop ]] || fail "the override remains until package removal succeeds"
 pass "the themed Slack override routes to package removal before any cleanup"
+
+mkdir -p "$tmp_dir/data/applications/wine/Programs/Deck"
+touch "$tmp_dir/data/applications/wine/Programs/Deck/Deck.exe.desktop"
+"$ROOT/bin/omarchy-remove-launcher-entry" wine-Programs-Deck-Deck.exe Deck
+[[ ! -e $tmp_dir/data/applications/wine/Programs/Deck/Deck.exe.desktop ]] || fail "launcher remove deletes user-owned desktop files in subdirectories"
+pass "launcher remove deletes user-owned desktop files in subdirectories"
+
+mkdir -p "$tmp_dir/data/applications/Tools"
+cat >"$tmp_dir/data/applications/Tools/Lazy.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Lazy
+Exec=xdg-terminal-exec --app-id=TUI.tile -e lazygit
+DESKTOP
+"$ROOT/bin/omarchy-remove-launcher-entry" Tools-Lazy Lazy
+[[ $(tail -1 "$TEST_LOG") == "tui:false:Tools/Lazy" ]] || fail "launcher remove passes a nested TUI's path to its helper" "$(tail -1 "$TEST_LOG")"
+pass "launcher remove passes a nested TUI's path to its helper"
