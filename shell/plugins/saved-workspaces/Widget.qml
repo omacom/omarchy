@@ -11,7 +11,6 @@ Panel {
   moduleName: "omarchy.saved-workspaces"
   manageIpc: false
 
-  Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
   property var saved: ({ items: [], active: ({}) })
   readonly property var entries: saved.items || []
@@ -135,11 +134,11 @@ Panel {
           operation.otherWorkspace = Number(result.otherWorkspace) || 0
           if (!operation.succeeded) {
             root.failed = true
-            root.feedback = String(result.error || strings.t("failure"))
+            root.feedback = String(result.error || Commons.I18n.t("scenes.failure"))
           }
         } catch (error) {
           root.failed = true
-          root.feedback = strings.t("failure")
+          root.feedback = Commons.I18n.t("scenes.failure")
         }
       }
     }
@@ -148,10 +147,10 @@ Panel {
       if (!succeeded) return
       if (root.action === "restore") {
         root.close()
-        if (otherWorkspace > 0) Util.execArgv(["omarchy-notification-send", strings.t("title"), strings.t("otherWindows").arg(Commons.I18n.formatNumber(otherWorkspace))])
+        if (otherWorkspace > 0) Util.execArgv(["omarchy-notification-send", Commons.I18n.t("scenes.title"), Commons.I18n.t("scenes.otherWindows").arg(Commons.I18n.formatNumber(otherWorkspace))])
         return
       }
-      root.feedback = strings.t(root.action === "delete" ? "deleted" : root.action === "update" ? "updated" : root.action === "rename" ? "renamed" : "saved")
+      root.feedback = root.action === "delete" ? Commons.I18n.t("scenes.deleted") : root.action === "update" ? Commons.I18n.t("scenes.updated") : root.action === "rename" ? Commons.I18n.t("scenes.renamed") : Commons.I18n.t("scenes.saved")
       root.editingName = false
       root.renameId = ""
       root.deletingId = ""
@@ -167,7 +166,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: "\uf0db"
-    tooltipText: strings.t("title")
+    tooltipText: Commons.I18n.t("scenes.title")
     active: root.opened || root.activeId !== ""
     slotSize: Style.bar.statusSlot
     onPressed: function(button) {
@@ -238,7 +237,7 @@ Panel {
               id: heading
               height: saveButton.height
               verticalAlignment: Text.AlignVCenter
-              text: strings.t("title")
+              text: Commons.I18n.t("scenes.title")
               font.bold: true
               font.pixelSize: Style.font.caption
               opacity: .75
@@ -250,7 +249,7 @@ Panel {
               horizontalPadding: 0
               iconText: "\uf05a"
               iconSize: Style.font.body
-              tooltipText: strings.t("explanation")
+              tooltipText: Commons.I18n.t("scenes.explanation")
             }
             Item {
               width: Math.max(0, parent.width - heading.width - infoButton.width - saveButton.width - 3 * parent.spacing)
@@ -258,12 +257,12 @@ Panel {
             }
             LinkButton {
               id: saveButton
-              text: strings.t("save")
+              text: Commons.I18n.t("scenes.save")
               iconText: "+"
               fontSize: Style.font.caption
               height: Style.space(28)
               enabled: !root.busy
-              tooltipText: strings.t("save.current")
+              tooltipText: Commons.I18n.t("scenes.save.current")
               onClicked: root.beginSave()
             }
           }
@@ -271,7 +270,7 @@ Panel {
           Label {
             visible: root.entries.length === 0
             width: parent.width
-            text: strings.t("empty")
+            text: Commons.I18n.t("scenes.empty")
             opacity: .6
             wrapMode: Text.Wrap
           }
@@ -330,7 +329,7 @@ Panel {
                       width: Style.space(26); height: Style.space(28)
                       iconText: "\uf040"
                       horizontalPadding: 0
-                      tooltipText: strings.t("rename")
+                      tooltipText: Commons.I18n.t("scenes.rename")
                       enabled: !root.busy
                       onClicked: root.beginRename(savedRow.modelData)
                     }
@@ -338,7 +337,7 @@ Panel {
                       width: Style.space(26); height: Style.space(28)
                       iconText: "\uf021"
                       horizontalPadding: 0
-                      tooltipText: strings.t("update.hint")
+                      tooltipText: Commons.I18n.t("scenes.update.hint")
                       enabled: !root.busy
                       onClicked: root.perform("update", savedRow.modelData.id)
                     }
@@ -346,7 +345,7 @@ Panel {
                       width: Style.space(26); height: Style.space(28)
                       iconText: "\uf1f8"
                       horizontalPadding: 0
-                      tooltipText: strings.t("delete")
+                      tooltipText: Commons.I18n.t("scenes.delete")
                       enabled: !root.busy
                       onClicked: root.deletingId = savedRow.modelData.id
                     }
@@ -359,14 +358,14 @@ Panel {
                   width: parent.width - x
                   spacing: Style.space(8)
                   Label {
-                    text: strings.t("confirm.delete")
+                    text: Commons.I18n.t("scenes.confirm.delete")
                     color: "#E5C736"
                     font.pixelSize: Style.font.caption
                     height: Style.space(28)
                     verticalAlignment: Text.AlignVCenter
                   }
-                  LinkButton { text: strings.t("yes"); fontSize: Style.font.caption; height: Style.space(28); enabled: !root.busy; onClicked: root.perform("delete", savedRow.modelData.id) }
-                  LinkButton { text: strings.t("no"); fontSize: Style.font.caption; height: Style.space(28); onClicked: root.deletingId = "" }
+                  LinkButton { text: Commons.I18n.t("scenes.yes"); fontSize: Style.font.caption; height: Style.space(28); enabled: !root.busy; onClicked: root.perform("delete", savedRow.modelData.id) }
+                  LinkButton { text: Commons.I18n.t("scenes.no"); fontSize: Style.font.caption; height: Style.space(28); onClicked: root.deletingId = "" }
                 }
               }
             }
@@ -382,7 +381,7 @@ Panel {
               id: nameEditor
               width: parent.width
               maximumLength: 80
-              placeholderText: strings.t("name")
+              placeholderText: Commons.I18n.t("scenes.name")
               enabled: !root.busy
               onAccepted: root.saveName()
               Keys.onEscapePressed: function(event) {
@@ -393,8 +392,8 @@ Panel {
             }
             Row {
               spacing: Style.space(6)
-              Button { text: strings.t(root.renameId !== "" ? "rename" : "save"); enabled: !root.busy && nameEditor.text.trim() !== ""; onClicked: root.saveName() }
-              Button { text: strings.t("cancel"); enabled: !root.busy; onClicked: { root.editingName = false; catcher.forceActiveFocus() } }
+              Button { text: (root.renameId !== "" ? Commons.I18n.t("scenes.rename") : Commons.I18n.t("scenes.save")); enabled: !root.busy && nameEditor.text.trim() !== ""; onClicked: root.saveName() }
+              Button { text: Commons.I18n.t("scenes.cancel"); enabled: !root.busy; onClicked: { root.editingName = false; catcher.forceActiveFocus() } }
             }
           }
 
@@ -405,7 +404,7 @@ Panel {
             wrapMode: Text.Wrap
             font.pixelSize: Style.font.caption
             opacity: root.failed ? 1 : .6
-            text: root.busy ? strings.t(root.action === "restore" ? "restoring" : "saving") : root.feedback
+            text: root.busy ? (root.action === "restore" ? Commons.I18n.t("scenes.restoring") : Commons.I18n.t("scenes.saving")) : root.feedback
           }
         }
       }
