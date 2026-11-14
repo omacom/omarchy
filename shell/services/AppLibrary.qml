@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs.Commons
 import "AppSearch.js" as AppSearch
@@ -41,6 +42,7 @@ Item {
   property int launchSerial: 0
   property int launchToplevelCount: 0
   property var launchActiveToplevel: null
+  property var launchLayerNamespaces: []
   // True while the launch OSD is on screen. It outlives the launch that opened
   // it: the OSD shows with duration 0, so only closeLaunchFeedback() takes it
   // down.
@@ -104,11 +106,12 @@ Item {
   function launch(desktopId, name) {
     var id = String(desktopId || "")
     if (!id) return
-    root.beginLaunchFeedback(name)
+    var entry = DesktopEntries.byId(id)
+    root.beginLaunchFeedback(name, entry)
     // A terminal app goes through Omarchy's TUI launcher, which names its
     // terminal window after the command (org.omarchy.nvim), so the dock and
     // titlebars can tell Neovim from the terminal it runs in.
-    var command = root.terminalCommand(DesktopEntries.byId(id))
+    var command = root.terminalCommand(entry)
     if (command.length > 0) {
       Util.execDetached("omarchy-launch-tui " + command.map(function(word) { return Util.shellQuote(word) }).join(" "))
       return
@@ -202,8 +205,13 @@ Item {
     try { return ToplevelManager.toplevels.values.length } catch (e) { return 0 }
   }
 
-  function beginLaunchFeedback(name) {
+  function beginLaunchFeedback(name, entry) {
     root.launchSerial++
+    // Layer-shell apps such as Omasnap never appear in ToplevelManager.
+    // Match their mapped namespace to this entry, not to unrelated panels.
+    root.launchLayerNamespaces = entry
+      ? [root.normalizeDesktopId(entry.id), String(entry.startupClass || "")].filter(function(value) { return value.length > 0 })
+      : []
     root.launchToplevelCount = root.toplevelCount()
     root.launchActiveToplevel = ToplevelManager.activeToplevel
     root.launchOsdMessage = name ? I18n.t("appLibrary.launching").arg(String(name)) : I18n.t("appLibrary.launchingApp")
@@ -213,6 +221,7 @@ Item {
 
   function closeLaunchFeedback(serial) {
     if (serial !== root.launchSerial) return
+    root.launchLayerNamespaces = []
     launchDelay.stop()
     launchTimeout.stop()
     if (root.launchOsdOpen) {
@@ -225,6 +234,14 @@ Item {
     if (!launchDelay.running && !launchTimeout.running && !root.launchOsdOpen) return
     if (root.toplevelCount() <= root.launchToplevelCount && ToplevelManager.activeToplevel === root.launchActiveToplevel) return
     root.closeLaunchFeedback(root.launchSerial)
+  }
+
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) {
+      if (event && event.name === "openlayer" && root.launchLayerNamespaces.indexOf(String(event.data)) !== -1)
+        root.closeLaunchFeedback(root.launchSerial)
+    }
   }
 
   QtObject {
