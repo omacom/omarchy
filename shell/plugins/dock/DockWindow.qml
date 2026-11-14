@@ -83,14 +83,12 @@ PanelWindow {
   readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0 || positionChanging)
   readonly property bool contentShown: shown && !tucked
 
-  // Icon MouseAreas can own hover while the outer handlers hand it off.
-  readonly property bool iconsHovered: {
-    if (launcherSlot.pointerInside) return true
-    for (var i = 0; i < appRepeater.count; i++) {
-      var item = appRepeater.itemAt(i)
-      if (item && item.pointerInside) return true
-    }
-    return false
+  // Track the slot itself, including when another layout wraps its delegate.
+  property Item hoveredIcon: null
+  readonly property bool iconsHovered: !!window.hoveredIcon && window.hoveredIcon.pointerInside
+  function trackIconHover(icon) {
+    if (icon.pointerInside) window.hoveredIcon = icon
+    else if (window.hoveredIcon === icon) window.hoveredIcon = null
   }
   onIconsHoveredChanged: {
     if (iconsHovered) hideTimer.stop()
@@ -407,7 +405,7 @@ PanelWindow {
       anchors.centerIn: parent
       columns: window.vertical ? 1 : appRepeater.count + 1
 
-      AppsSlot { id: launcherSlot }
+      AppsSlot {}
 
       Repeater {
         id: appRepeater
@@ -424,6 +422,7 @@ PanelWindow {
     // Only the dragged icon is lifted while a drag is on; none of the others
     // pop as it passes over them.
     readonly property bool pointerInside: mouse.containsMouse
+    onPointerInsideChanged: window.trackIconHover(slot)
     property bool hovered: mouse.containsMouse && !window.hoverStale && !window.dragging
     property bool pressed: mouse.pressed
     property alias mouse: mouse
