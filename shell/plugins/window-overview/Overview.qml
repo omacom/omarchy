@@ -93,9 +93,9 @@ Item {
         var key = Util.readingKey(event)
         if (key === Qt.Key_Escape) root.close()
         else if (key === Qt.Key_Return || key === Qt.Key_Enter) root.choose(root.selectedIndex)
-        else if (root.windows.length && [Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down, Qt.Key_Tab].indexOf(key) >= 0) {
+        else if (root.windows.length && [Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down, Qt.Key_Tab, Qt.Key_Backtab].indexOf(key) >= 0) {
           var step = key === Qt.Key_Up ? -layout.columns : key === Qt.Key_Down ? layout.columns
-            : key === Qt.Key_Left || (key === Qt.Key_Tab && event.modifiers & Qt.ShiftModifier) ? -1 : 1
+            : key === Qt.Key_Left || key === Qt.Key_Backtab || (key === Qt.Key_Tab && event.modifiers & Qt.ShiftModifier) ? -1 : 1
           root.selectedIndex = OverviewModel.moveSelection(root.selectedIndex, step, root.windows.length)
         } else return
         event.accepted = true

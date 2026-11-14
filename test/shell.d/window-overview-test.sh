@@ -2,8 +2,17 @@
 set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-run_node_test <<'JS'
+ROOT="$ROOT" run_node_test <<'JS'
 const overview = requireFromRoot('shell/plugins/window-overview/OverviewModel.js')
+const qml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/window-overview/Overview.qml', 'utf8')
+const keys = qml.match(/Keys.onPressed: function\(event\) \{([\s\S]*?)\n      \}/)[1]
+const Qt = Object.fromEntries(['Key_Escape','Key_Return','Key_Enter','Key_Left','Key_Right','Key_Up','Key_Down','Key_Tab','Key_Backtab','ShiftModifier'].map((key, index) => [key, index + 1]))
+const selection = {windows: [{}, {}], selectedIndex: 0}
+const press = new Function('root', 'Qt', 'Util', 'layout', 'OverviewModel', 'event', keys)
+press(selection, Qt, {readingKey: event => event.key}, {columns: 3}, overview, {key: Qt.Key_Backtab, modifiers: Qt.ShiftModifier})
+assertEqual(selection.selectedIndex, 1, 'Qt Backtab moves backward and wraps to the last window')
+press(selection, Qt, {readingKey: event => event.key}, {columns: 3}, overview, {key: Qt.Key_Tab, modifiers: 0})
+assertEqual(selection.selectedIndex, 0, 'Tab moves forward after Backtab')
 assertEqual(overview.moveSelection(0, -3, 2), 1, 'Up with more columns than windows keeps a valid selection')
 assertEqual(overview.moveSelection(0, -11, 2), 1, 'large backward steps wrap without a negative remainder')
 const windows = [
