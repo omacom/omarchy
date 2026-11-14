@@ -36,16 +36,42 @@ valid_plugin_id() {
   [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
 }
 
+validate_update() (
+  local dir="$1" current="$2" incoming="$3" checkout index shared_index
+  checkout=$(mktemp -d) || return 1
+  trap '
+    status=$?
+    git -C "$dir" worktree remove --force "$checkout" >/dev/null 2>&1 || rmdir "$checkout" 2>/dev/null || true
+    exit "$status"
+  ' EXIT
+  git -C "$dir" worktree add --quiet --no-checkout --detach "$checkout" "$current" || return 1
+
+  # Give Git the installed index and files so its dry-run merge sees the
+  # staged, unstaged and untracked files the real fast-forward can retain.
+  index=$(git -C "$checkout" rev-parse --path-format=absolute --git-path index) || return 1
+  cp -- "$dir/.git/index" "$index" || return 1
+  shared_index=$(git -C "$dir" rev-parse --path-format=absolute --shared-index-path) || return 1
+  if [[ -n $shared_index ]]; then
+    cp -- "$shared_index" "${index%/*}/" || return 1
+  fi
+  tar -C "$dir" --exclude='./.git' -cf - . | tar -C "$checkout" -xf - || return 1
+
+  git -C "$checkout" -c core.hooksPath=/dev/null merge --quiet --ff-only --no-autostash "$incoming" || return 1
+  omarchy-plugin-validate "$checkout"
+)
+
 update_one() {
   local id="$1"
-  local dir="$PLUGINS_DIR/$id"
+  local dir="$PLUGINS_DIR/$id" current incoming
 
   if ! git -C "$dir" fetch --quiet origin HEAD; then
     echo "omarchy-plugin-update: fetch failed for '$id'" >&2
     return 1
   fi
 
-  if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse FETCH_HEAD) ]]; then
+  current=$(git -C "$dir" rev-parse HEAD) || return 1
+  incoming=$(git -C "$dir" rev-parse FETCH_HEAD) || return 1
+  if [[ $current == "$incoming" ]]; then
     echo "$id is up to date."
     return 0
   fi
@@ -53,9 +79,9 @@ update_one() {
   if (( ! ASSUME_YES )); then
     echo "Changes for $id:"
     if omarchy-cmd-present delta; then
-      git -C "$dir" diff HEAD FETCH_HEAD | delta --paging=never
+      git -C "$dir" diff "$current" "$incoming" | delta --paging=never
     else
-      git -C "$dir" diff HEAD FETCH_HEAD
+      git -C "$dir" diff "$current" "$incoming"
     fi
     echo
     confirm "Update $id?" || {
@@ -64,14 +90,14 @@ update_one() {
     }
   fi
 
-  if ! git -C "$dir" merge --ff-only FETCH_HEAD >/dev/null 2>&1; then
-    echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
+  if ! validate_update "$dir" "$current" "$incoming"; then
+    echo "omarchy-plugin-update: update of '$id' failed validation; keeping the installed version" >&2
     return 1
   fi
 
-  if ! omarchy-plugin-validate "$dir"; then
-    git -C "$dir" reset --hard ORIG_HEAD >/dev/null
-    echo "omarchy-plugin-update: update of '$id' failed validation; rolled back" >&2
+  if [[ $(git -C "$dir" rev-parse HEAD) != "$current" ]] ||
+    ! git -C "$dir" merge --ff-only --no-autostash "$incoming" >/dev/null 2>&1; then
+    echo "omarchy-plugin-update: cannot fast-forward '$id'; you have local changes in $dir" >&2
     return 1
   fi
 
