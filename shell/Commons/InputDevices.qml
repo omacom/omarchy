@@ -34,9 +34,11 @@ Singleton {
   // again after it went away with the last device, when the watch on the old
   // directory is gone and has to be set up on the new one. udev's records for
   // input devices are the c13: entries, character major 13.
+  // setpriv ends the watch if the shell is killed rather than stopped: a quiet
+  // /dev/input never makes an orphaned inotifywait notice.
   Process {
     id: watcher
-    command: ["bash", "-c",
+    command: ["setpriv", "--pdeathsig", "TERM", "bash", "-c",
       "dirs=(\"$2\"); for dir in \"$1\" \"$3\"; do [[ -d $dir ]] && dirs+=(\"$dir\"); done; "
         + "exec inotifywait -m -q -e create,delete,delete_self,moved_to --format '%w|%e|%f' \"${dirs[@]}\"",
       "input-devices", root.inputDir, root.devDir, root.udevDir]
