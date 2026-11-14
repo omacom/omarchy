@@ -171,7 +171,11 @@ set_terminal_size() {
       new_id="$(omarchy-notification-send \
         "$(omarchy-i18n display.restartFootForFontSize)" \
         "${replace[@]}" -p 2>/dev/null)" || true
-      [[ $new_id =~ ^[0-9]+$ ]] && printf '%s\n' "$new_id" >"$id_file"
+      # An if, not `[[ ]] && …`: this function ends the script, so a missing id
+      # would otherwise fail a size change that has already been applied.
+      if [[ $new_id =~ ^[0-9]+$ ]]; then
+        printf '%s\n' "$new_id" >"$id_file"
+      fi
     fi
   fi
 }
