@@ -244,6 +244,28 @@ expect("under the thread that started it", records[str(native)]["session"], THRE
 records, _ = collectors.codex_rollouts(collectors.codex_rollout_cache())
 expect("a built-in rollout read whole stays read", days(records[str(native)]), {"hf:zai-org/GLM-4.6": [*tokens(FIRST), 1]})
 
+# Codex Desktop importing another agent's session (a Claude Code one) writes
+# each of its turns as external-import-turn-N, with plain user_message lines
+# and no usage. Those prompts are the other agent's; a turn Codex then runs on
+# the thread counts, read whole or read on from inside an imported turn.
+def turn_started(n, turn):
+  return {"timestamp": stamp(n), "type": "event_msg", "payload": {"type": "task_started", "turn_id": turn}}
+
+
+def user_message(n, text):
+  return {"timestamp": stamp(n), "type": "event_msg", "payload": {"type": "user_message", "message": text}}
+
+
+imported = sessions / "rollout-2026-10-22T12-20-00-01a16452-0000-7000-8000-000000000000.jsonl"
+imported.write_text(lines(meta("zai"), turn_started(1, "external-import-turn-1"), user_message(2, "from claude")))
+collectors.codex_rollouts(collectors.codex_rollout_cache("zai"))
+grow(imported, lines(user_message(3, "also from claude"), turn_started(4, TURN), turn_context(5, "glm-4.6"),
+  user_message(6, "typed in codex"), response(7, "resp_i1", FIRST, FIRST)))
+records, _ = collectors.codex_rollouts(collectors.codex_rollout_cache("zai"))
+expect("an imported turn's prompts count nowhere, and the turn Codex ran after them counts its own",
+  days(records[str(imported)]), {"glm-4.6": [*tokens(FIRST), 1]})
+expect("the same read whole", days(collectors.read_codex_rollout(imported, imported.stat())), days(records[str(imported)]))
+
 # ------------------------------------------------- one forced refresh
 
 # A refresh forces every collector at once. The ones that wait for the lock
