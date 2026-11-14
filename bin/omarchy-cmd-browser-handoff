@@ -40,8 +40,23 @@ done
 socket="$config/$profile/SingletonSocket"
 [[ -S $socket && -O $socket ]] || exit 1
 
+# The token from whatever opened the link is the compositor's proof that a click
+# asked for focus. A browser process moves XDG_ACTIVATION_TOKEN into this switch
+# before it hands off, so do the same; without it the running browser asks for
+# focus with a token of its own.
+if [[ -n ${XDG_ACTIVATION_TOKEN:-} ]]; then
+  set -- --xdg-activation-token="$XDG_ACTIVATION_TOKEN" "$@"
+fi
+
+# Edge's own handoff sends two more fields after the directory: the time in
+# microseconds since 1601, then a number Edge doesn't check. Without them Edge
+# takes the first two arguments as those fields whenever there is more than one.
 reply=$({
-  printf 'START\0%s\0browser' "$PWD"
+  printf 'START\0%s' "$PWD"
+  if [[ $profile == "microsoft-edge" ]]; then
+    printf '\0%s\0%s' "$((${EPOCHREALTIME//[!0-9]/} + 11644473600000000))" 0
+  fi
+  printf '\0browser'
   printf '\0%s' "$@"
 } | socat -t2 - "UNIX-CONNECT:$socket" 2>/dev/null)
 
