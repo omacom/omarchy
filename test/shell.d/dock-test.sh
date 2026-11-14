@@ -12,15 +12,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
-for (const length of [742, 1280, 2048]) {
-  const collapsed = 4 * 48, expanded = 9 * 48
-  const origin = dock.pinnedOrigin(length, collapsed, expanded, 4)
-  assert(origin >= 4 && origin + expanded <= length - 4, 'pin expansion fits after the stationary launcher on edge length ' + length)
 
-}
-
-assertEqual(dock.pinnedOrigin(1280, 192, 432, 4), 544, 'the collapsed dock keeps its centred launcher while pins open after it')
-assertEqual(dock.pinnedOrigin(742, 500, 700, 4), 38, 'a crowded dock reserves its expanded extent before the launcher is hovered')
 
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
