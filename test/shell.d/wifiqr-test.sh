@@ -116,19 +116,17 @@ chmod +x "$tmp/bin/nmcli" "$tmp/bin/uuidgen"
 export NMCLI_STDIN_FILE="$tmp/nmcli-stdin"
 export NMCLI_LOG_FILE="$tmp/nmcli-log"
 
-# 1. Successful connection: verifies via temp profile, then updates saved-uuid-1 in place without deleting saved profiles
+# 1. Successful connection: verifies credentials on the new profile, enables autoconnect, and leaves saved profiles untouched
 : >"$NMCLI_LOG_FILE"
 printf 'topsecret123\n' | NMCLI_UP_EXIT=0 PATH="$tmp/bin:$PATH" "$ROOT/shell/plugins/panels/wifiqr/connect-wifi-qr.sh" "Cafe WiFi" "WPA" "no" "wlan0"
 [[ $(<"$NMCLI_STDIN_FILE") == $'set 802-11-wireless-security.psk topsecret123\nsave\nquit' ]] \
   || fail "connect helper sends the Wi-Fi passphrase over stdin rather than argv"
-grep -qxF "connection modify uuid saved-uuid-1 wifi-sec.key-mgmt wpa-psk" "$NMCLI_LOG_FILE" \
-  || fail "connect helper updates the matching saved profile in place after verification"
-grep -qxF "connection delete uuid new-temp-uuid" "$NMCLI_LOG_FILE" \
-  || fail "connect helper cleans up the temporary verification profile after updating the saved profile"
-if grep -q "delete uuid saved-uuid-1\|delete uuid other-adapter-uuid\|modify uuid other-adapter-uuid" "$NMCLI_LOG_FILE"; then
-  fail "connect helper must never delete saved profiles or touch another adapter's profile" "$(<"$NMCLI_LOG_FILE")"
+grep -qxF "connection modify uuid new-temp-uuid connection.autoconnect yes" "$NMCLI_LOG_FILE" \
+  || fail "connect helper enables autoconnect on the verified profile"
+if grep -q "saved-uuid-1\|other-adapter-uuid" "$NMCLI_LOG_FILE"; then
+  fail "connect helper must never overwrite or delete existing saved profiles" "$(<"$NMCLI_LOG_FILE")"
 fi
-pass "connect helper verifies credentials on a temporary profile, updates the matching profile in place, and leaves other profiles intact"
+pass "connect helper creates a dedicated profile, enables autoconnect after verification, and leaves saved profiles untouched"
 
 # 2. Failed connection: deletes only the temporary profile and preserves saved-uuid-1
 : >"$NMCLI_LOG_FILE"

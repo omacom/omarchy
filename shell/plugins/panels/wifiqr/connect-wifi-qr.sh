@@ -51,22 +51,10 @@ nmcli device wifi rescan ifname "$iface" ssid "$ssid" >/dev/null 2>&1 ||
   nmcli device wifi rescan ifname "$iface" >/dev/null 2>&1 || true
 sleep 0.4
 
-# Find a saved Wi-Fi profile for this SSID that applies to this adapter (or any
-# adapter). Profiles pinned to a different interface are left untouched.
-existing_uuid=""
-while IFS=: read -r cand_uuid cand_type; do
-  [[ $cand_type == "802-11-wireless" ]] || continue
-  cand_ssid=$(nmcli --escape no --get-values 802-11-wireless.ssid connection show uuid "$cand_uuid" 2>/dev/null | head -n 1 || true)
-  [[ $cand_ssid == "$ssid" ]] || continue
-  cand_iface=$(nmcli --escape no --get-values connection.interface-name connection show uuid "$cand_uuid" 2>/dev/null | head -n 1 || true)
-  if [[ -z $cand_iface || $cand_iface == "--" || $cand_iface == "$iface" ]]; then
-    existing_uuid="$cand_uuid"
-    break
-  fi
-done < <(LC_ALL=C nmcli -t -f UUID,TYPE connection show 2>/dev/null)
-
-# Always verify the scanned credentials using a temporary profile first so a
-# failed or stale QR code never overwrites working saved credentials.
+# Create a dedicated profile for this scan with autoconnect disabled until the
+# credentials are verified. Existing saved profiles are left untouched so
+# networks in other locations or on other adapters that share the same SSID are
+# never overwritten or erased.
 target_uuid=$(uuidgen)
 if ! nmcli connection add type wifi con-name "$ssid" ssid "$ssid" \
   connection.uuid "$target_uuid" ifname "$iface" autoconnect no \
@@ -98,15 +86,10 @@ configure_security() {
   fi
 }
 
-verified_mode=""
 try_mode() {
   local mode="$1"
   configure_security "$target_uuid" "$mode" || return 1
-  if nmcli --wait 25 connection up uuid "$target_uuid" ifname "$iface" >/dev/null 2>&1; then
-    verified_mode="$mode"
-    return 0
-  fi
-  return 1
+  nmcli --wait 25 connection up uuid "$target_uuid" ifname "$iface" >/dev/null 2>&1
 }
 
 connected=0
@@ -127,17 +110,6 @@ else
 fi
 
 if (( connected )); then
-  # If a saved profile for this SSID and adapter already existed, update its
-  # credentials in place so band pinning and custom settings are preserved,
-  # then remove the temporary verification profile.
-  if [[ -n $existing_uuid && $existing_uuid != "$target_uuid" ]]; then
-    nmcli connection modify uuid "$existing_uuid" 802-11-wireless.hidden "$hidden" connection.autoconnect yes >/dev/null 2>&1 || true
-    if configure_security "$existing_uuid" "$verified_mode" &&
-      nmcli --wait 25 connection up uuid "$existing_uuid" ifname "$iface" >/dev/null 2>&1; then
-      nmcli connection delete uuid "$target_uuid" >/dev/null 2>&1 || true
-      exit 0
-    fi
-  fi
   nmcli connection modify uuid "$target_uuid" connection.autoconnect yes >/dev/null 2>&1 || true
   exit 0
 fi
