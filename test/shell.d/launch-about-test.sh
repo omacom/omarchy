@@ -282,3 +282,124 @@ export CPU_NAME="Qualcomm Snapdragon X2 Elite X2E-88/90-100" CPU_CORE_TYPES='[{"
 [[ $(about_cpu name) == "$CPU_NAME" && $(about_cpu details) == "(12+6) @ 4.03 GHz" ]] ||
   fail "a CPU line that overruns the box splits under its name" "name: $(about_cpu name) details: $(about_cpu details)"
 pass "a CPU line that overruns the box splits under its name"
+
+# A user's own fastfetch config lays the logo out its own way, so the fit sizes
+# the window to the render itself — the widest line it drew and the rows it
+# wrote — instead of walking away and leaving the stock float rule's 920x480 to
+# clip it. The remembered size is keyed on that render rather than on Omarchy's
+# logo file, which says nothing about the config's layout.
+rm -rf "${HOME:?}/.local"
+custom_config="$HOME/.config/fastfetch/config.jsonc"
+mkdir -p "${custom_config%/*}"
+printf '// a config of the user\x27s own\n' >"$custom_config"
+config_paths=("$HOME/.config/fastfetch/" "$OMARCHY_FASTFETCH_DIR/ (*)")
+render_width=90
+render_rows=30
+fastfetch() {
+  case ${1:-} in
+    --list-config-paths) printf '%s\n' "${config_paths[@]}" ;;
+    --pipe)
+      printf '\e[1m\e[32m'
+      for (( i = 0; i < render_rows; i++ )); do printf '%090d\n' 0; done
+      printf '\e[m' ;;
+    *) return 1 ;;
+  esac
+}
+custom_fastfetch_config || fail "a custom config is in force for the fit"
+pass "a custom config is in force for the fit"
+
+refuses "a custom config still leaves the sheen's logo alone"
+
+custom_fit_cols=$(( render_width + FIT_SPARE_COLUMNS ))
+custom_fit_rows=$(( render_rows + 1 + FIT_SPARE_ROWS ))
+rows_by_cols="$custom_fit_rows $custom_fit_cols"
+fit_window || fail "the fit sizes a custom config's window to its render"
+[[ -r $FIT_FILE ]] || fail "a fit measured from a custom config's render is remembered"
+pass "the fit sizes a custom config's window to its render"
+read -r fit_kind key_w key_r fit_w fit_h <"$FIT_FILE"
+[[ $key_w == $render_width && $key_r == $render_rows && $fit_w == 800 && $fit_h == 600 ]] ||
+  fail "the remembered fit is keyed on the render it measured" "$FIT_FILE: $key_w $key_r $fit_w $fit_h"
+pass "the remembered fit is keyed on the render it measured"
+
+# The next launch presizes from the remembered fit only while the render comes
+# out the same size; one that grew stays on the float rule while the fit
+# measures the new size.
+evals=()
+hyprctl() {
+  if [[ $1 == eval ]]; then
+    evals+=("${2:-}")
+    return 0
+  fi
+  [[ $1 == clients ]] && printf '[{"class":"org.omarchy.about","address":"0x1","size":[800,600]}]\n'
+  return 0
+}
+
+presize_window
+[[ ${evals[-1]} == *'size = { 800, 600 }'* ]] ||
+  fail "the launcher presizes a custom config's window from the remembered fit" "${evals[-1]}"
+pass "the launcher presizes a custom config's window from the remembered fit"
+
+render_rows=33
+presize_window
+[[ ${evals[-1]} != *'size ='* ]] ||
+  fail "a render that outgrew its remembered fit is left to the float rule" "${evals[-1]}"
+pass "a render that outgrew its remembered fit is left to the float rule"
+
+# And a stock-config launch still keys on the logo file: the custom render's
+# fit says nothing about it.
+rm -r "${custom_config%/*}"
+presize_window
+[[ ${evals[-1]} != *'size ='* ]] ||
+  fail "a stock-config launch is not presized by a custom config's fit" "${evals[-1]}"
+pass "a stock-config launch is not presized by a custom config's fit"
+
+# A custom render can measure the same as the stock logo does, and a size that
+# fits one layout clips the other, so the stock launch below has to refuse a
+# fit the custom path recorded even here: the logo file and the render are both
+# 8 columns wide and 2 rows tall.
+render_width=8
+render_rows=2
+fastfetch() {
+  case ${1:-} in
+    --list-config-paths) printf '%s\n' "${config_paths[@]}" ;;
+    --pipe)
+      printf '\e[1m\e[32m'
+      for (( i = 0; i < render_rows; i++ )); do printf '%0'"$render_width"'d\n' 0; done
+      printf '\e[m' ;;
+    *) return 1 ;;
+  esac
+}
+mkdir -p "${custom_config%/*}"
+printf '// a config of the user\x27s own\n' >"$custom_config"
+rows_by_cols="$(( render_rows + 1 + FIT_SPARE_ROWS )) $(( render_width + FIT_SPARE_COLUMNS ))"
+fit_window || fail "a fit for a render shaped like the stock logo is remembered"
+pass "a fit for a render shaped like the stock logo is remembered"
+
+# Back on the stock config, the logo file measures the same 8 by 2 the render
+# did. The landmark section above pointed LOGO_FILE at a file of its own, so
+# point it back before the fit is held against the logo the launcher reads. The
+# remembered fit still says which layout it came from, so this launch is not
+# presized by it and stays on the float rule.
+LOGO_FILE="$HOME/.config/omarchy/branding/about.txt"
+printf '%s\n' '████████' '████████' >"$LOGO_FILE"
+rm -r "${custom_config%/*}"
+presize_window
+[[ ${evals[-1]} != *'size ='* ]] ||
+  fail "a stock launch is not presized by a custom fit of the same dimensions" "${evals[-1]}"
+pass "a stock launch is not presized by a custom fit of the same dimensions"
+
+# A record written before the fit said which layout it came from names no
+# layout at all, so neither launch trusts it; the next measured fit overwrites
+# it.
+printf '8 2 800 600\n' >"$FIT_FILE"
+presize_window
+[[ ${evals[-1]} != *'size ='* ]] ||
+  fail "an unmarked record from an older build is left to the float rule" "${evals[-1]}"
+pass "an unmarked record from an older build is left to the float rule"
+
+mkdir -p "${custom_config%/*}"
+printf '// a config of the user\x27s own\n' >"$custom_config"
+presize_window
+[[ ${evals[-1]} != *'size ='* ]] ||
+  fail "a custom launch does not trust an unmarked record either" "${evals[-1]}"
+pass "a custom launch does not trust an unmarked record either"
