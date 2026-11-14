@@ -328,6 +328,41 @@ check(state_file():find("0\t\tSamsung Panel\n", 1, true), "an unplugged monitor 
 ' || fail "a monitor keeps its block across sessions and connectors"
 pass "a monitor keeps its block across sessions and connectors"
 
+run_lua panel-swap '
+local function remember(content)
+  os.execute("mkdir -p " .. os.getenv("XDG_STATE_HOME") .. "/omarchy/monitors")
+  local file = io.open(os.getenv("XDG_STATE_HOME") .. "/omarchy/monitors/workspaces", "w")
+  file:write(content)
+  file:close()
+end
+
+-- The state came from a laptop with another panel.
+remember("0\t\tOld Panel\n1\t\tLG\n")
+plug("eDP-1", 0, "New Panel", 1)
+world.focused = "eDP-1"
+window("0xa", 1)
+local m = load_module()
+world.handlers["hyprland.start"]()
+check(m.workspace_id(hl.get_monitor("eDP-1"), 1) == 1, "a new panel got " .. m.workspace_id(hl.get_monitor("eDP-1"), 1))
+check(world.windows["0xa"].workspace == 1 and shows("eDP-1") == 1, "the panel left its workspace for " .. shows("eDP-1"))
+check(state_file():find("2\t\tOld Panel\n", 1, true), "the old panel moved to a free block: " .. state_file())
+
+-- A panel that already got a later block takes the first one back.
+remember("0\t\tOld Panel\n1\t\tLG\n2\teDP-1\tNew Panel\n")
+m = load_module()
+world.handlers["config.reloaded"]()
+check(m.workspace_id(hl.get_monitor("eDP-1"), 1) == 1, "the panel kept block " .. m.workspace_id(hl.get_monitor("eDP-1"), 1) // 10)
+check(state_file():find("2\t\tOld Panel\n", 1, true), "the old panel took the block the new one had: " .. state_file())
+
+-- A second internal panel that is plugged in keeps its block.
+remember("0\teDP-2\tOther Panel\n")
+plug("eDP-2", 1, "Other Panel", 2)
+m = load_module()
+world.handlers["config.reloaded"]()
+check(m.workspace_id(hl.get_monitor("eDP-2"), 1) == 1, "a plugged-in panel lost the first block")
+' || fail "the laptop panel takes the first block from a panel that is not plugged in"
+pass "the laptop panel takes the first block from a panel that is not plugged in"
+
 # --- The keys ------------------------------------------------------------------
 
 run_lua keys '

@@ -242,6 +242,32 @@ local function assign(monitors)
   local identities = identities_of(monitors)
   local by_connector = {}
 
+  -- The laptop panel takes the first block from a panel that isn't plugged in,
+  -- one from a laptop the state came over from or from before a panel swap,
+  -- which moves to the block this one had or to a free one.
+  local panel = monitors[1]
+  if panel and internal(panel) then
+    local identity = identities[panel.name]
+    local holder = nil
+    for other, block in pairs(blocks) do
+      if block == 0 then
+        holder = other
+      end
+    end
+
+    local plugged = false
+    for _, other in pairs(identities) do
+      plugged = plugged or other == holder
+    end
+
+    if holder ~= identity and not plugged then
+      if holder then
+        blocks[holder] = blocks[identity] or free_block()
+      end
+      blocks[identity] = 0
+    end
+  end
+
   for _, monitor in ipairs(monitors) do
     local identity = identities[monitor.name]
     if not blocks[identity] then
