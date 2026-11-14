@@ -501,6 +501,10 @@ def launch_window(saved, known, workspace):
     while browser_name in titles:
       browser_name = base + " (" + str(copy) + ")"
       copy += 1
+  if firefox:
+    # The temporary title carries a non-rendering nonce, so a website with the
+    # same visible name cannot be claimed as this launch's window.
+    browser_name += chr(0x2063) + "".join(chr(0xFE00 + int(c, 16)) for c in token.rsplit("-", 1)[-1])
   if chromium:
     cleaned = []
     skip = False
