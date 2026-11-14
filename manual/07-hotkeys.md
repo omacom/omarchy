@@ -50,8 +50,8 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + Alt + F`                 | Go full width              |
 | `Super + Ctrl + F`                 | Go full screen inside window              |
 | `Super + 1/2/3/4`         | Jump to specific workspace on the focused monitor |
-| `Super + Tab` | Jump to next workspace on the focused monitor |
-| `Super + Shift + Tab` | Jump to previous workspace on the focused monitor |
+| `Super + Tab` | Jump to next workspace on the focused monitor, including empty ones |
+| `Super + Shift + Tab` | Jump to previous workspace on the focused monitor, including empty ones |
 | `Super + Ctrl + Tab` | Jump to former workspace on the focused monitor |
 | `Super + Shift + 1/2/3/4` | Move window to workspace on the focused monitor |
 | `Super + Shift + Alt + 1/2/3/4` | Move window to workspace on the focused monitor without following |
@@ -73,7 +73,7 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + Home` | Restore saved window width |
 | `Super + Left Mouse` | Drag window around |
 | `Super + Right Mouse` | Resize window |
-| `Super + Scroll Wheel` | Scroll through workspaces on the focused monitor |
+| `Super + Scroll Wheel` | Scroll through workspaces on the focused monitor, including empty ones |
 | `Super + G`               | Toggle window grouping      |
 | `Super + Alt + G`               | Move window out of grouping      |
 | `Super + Alt + Tab`               | Cycle between windows in grouping      |
