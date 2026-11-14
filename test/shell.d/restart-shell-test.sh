@@ -9,8 +9,9 @@ restart_pid_one=""
 restart_pid_two=""
 
 cleanup() {
-  [[ -n $restart_pid_one ]] && kill "$restart_pid_one" 2>/dev/null || true
-  [[ -n $restart_pid_two ]] && kill "$restart_pid_two" 2>/dev/null || true
+  [[ -n $restart_pid_one ]] && kill -9 "$restart_pid_one" 2>/dev/null || true
+  [[ -n $restart_pid_two ]] && kill -9 "$restart_pid_two" 2>/dev/null || true
+  [[ -n ${stubborn_pid:-} ]] && kill -9 "$stubborn_pid" 2>/dev/null || true
   rm -rf "$test_tmp"
 }
 trap cleanup EXIT
@@ -163,7 +164,38 @@ else
 fi
 SH
 
-chmod +x "$restart_bin/qs" "$restart_bin/quickshell" "$restart_bin/hyprctl" "$restart_bin/systemd-cat" "$restart_bin/systemctl" "$restart_bin/busctl"
+# pgrep is stubbed so the pid sweep for shells Quickshell cannot see is
+# hermetic: only pids the test recorded are ever visible, never the live
+# desktop's own shell. An entry may carry an owner uid as its second field;
+# one that does not match the `-u` filter stays hidden, as the real pgrep
+# hides another account's process from it.
+cat >"$restart_bin/pgrep" <<'SH'
+#!/bin/bash
+
+owner=""
+if [[ $1 == "-u" ]]; then
+  owner=$2
+  shift 2
+fi
+if [[ $1 == "-af" && -n ${OMARCHY_TEST_PGREP_SHELLS:-} && -f $OMARCHY_TEST_PGREP_SHELLS ]]; then
+  while IFS= read -r entry; do
+    pid=${entry%% *}
+    rest=${entry#* }
+    entry_owner=""
+    if [[ $rest == *" "* && ${rest%% *} =~ ^[0-9]+$ ]]; then
+      entry_owner=${rest%% *}
+    fi
+    [[ -n $owner && -n $entry_owner && $entry_owner != "$owner" ]] && continue
+    cmd=$rest
+    [[ -n $entry_owner ]] && cmd=${rest#"$entry_owner "}
+    # Like the real pgrep -af, print "pid command line" and nothing else.
+    kill -0 "$pid" 2>/dev/null && printf '%s %s\n' "$pid" "$cmd"
+  done <"$OMARCHY_TEST_PGREP_SHELLS"
+fi
+exit 0
+SH
+
+chmod +x "$restart_bin/qs" "$restart_bin/quickshell" "$restart_bin/hyprctl" "$restart_bin/systemd-cat" "$restart_bin/systemctl" "$restart_bin/busctl" "$restart_bin/pgrep"
 
 sleep 30 &
 restart_pid_one=$!
@@ -329,3 +361,105 @@ wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 [[ $(<"$restart_state") == 303 ]] || fail "restart with a worktree shell leaves one fresh session shell"
 pass "restart stops a worktree's shell and leaves other Quickshell configs alone"
+
+# A Quickshell instance that could not write its instance.lock never reaches
+# `quickshell list`, so nothing above can stop it: `quickshell kill` matches
+# nothing and the blank record has no usable path or pid. A restart used to
+# add a second shell next to it, one every later restart failed to remove
+# while it kept the notification server and the polkit agent. A live
+# quickshell process from an Omarchy tree is stopped by pid instead.
+sleep 30 &
+restart_pid_one=$!
+printf '%s quickshell -n -p %s/shell\n' "$restart_pid_one" "$restart_root" >"$test_tmp/pgrep-shells"
+: >"$restart_state"
+rm -f "$restart_state.locked" "$test_tmp/notification-checks"
+: >"$restart_log"
+: >"$dispatch_log"
+: >"$ipc_log"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+OMARCHY_TEST_PGREP_SHELLS="$test_tmp/pgrep-shells" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" || fail "restart succeeds past a shell instance Quickshell cannot see"
+
+if kill -0 "$restart_pid_one" 2>/dev/null; then
+  fail "restart stops an unregistered shell instance"
+fi
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$restart_state") == 303 ]] || fail "restart leaves one fresh shell after stopping the unregistered instance"
+[[ $(grep -c '^-n -p ' "$restart_log") == 1 ]] || fail "restart launches exactly one fresh shell after stopping the unregistered instance"
+pass "restart stops an unregistered shell instance and starts its replacement"
+
+# The pid sweep must never trip over another account's shell: `-u "$UID"`
+# keeps it to the caller's own processes, so a matching process of another
+# user — whose kill would fail anyway — cannot stop the restart.
+bash -c 'trap "" TERM; sleep 30' &
+restart_pid_one=$!
+printf '%s %d quickshell -n -p %s/shell\n' "$restart_pid_one" "$(( UID + 4242 ))" "$restart_root" >"$test_tmp/pgrep-shells"
+: >"$restart_state"
+rm -f "$restart_state.locked" "$test_tmp/notification-checks"
+: >"$restart_log"
+: >"$dispatch_log"
+: >"$ipc_log"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+OMARCHY_TEST_PGREP_SHELLS="$test_tmp/pgrep-shells" \
+  timeout 5 "$ROOT/bin/omarchy-restart-shell" || fail "restart ignores a shell Quickshell cannot see that belongs to another account"
+
+[[ $(<"$restart_state") == "303" ]] || fail "another account's shell still lets the restart start one fresh shell"
+[[ $(grep -c '^-n -p ' "$restart_log") -eq 1 ]] || fail "another account's shell still lets the restart launch exactly once"
+kill -9 "$restart_pid_one" 2>/dev/null || true
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+pass "restart ignores a shell Quickshell cannot see that belongs to another account"
+
+# A shell Quickshell cannot see that will not die stops the restart: the
+# sweep signals it, waits out its grace, and refuses to launch a second
+# shell next to it. `sleep 30` alone would die on SIGTERM and never reach
+# that refusal, so the process here ignores it.
+bash -c 'trap "" TERM; sleep 30' &
+stubborn_pid=$!
+printf '%s %d quickshell -n -p %s/shell\n' "$stubborn_pid" "$(id -u)" "$restart_root" >"$test_tmp/pgrep-shells"
+: >"$restart_state"
+rm -f "$restart_state.locked" "$test_tmp/notification-checks"
+: >"$restart_log"
+: >"$dispatch_log"
+: >"$ipc_log"
+
+if PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+OMARCHY_TEST_PGREP_SHELLS="$test_tmp/pgrep-shells" \
+  timeout 15 "$ROOT/bin/omarchy-restart-shell"; then
+  fail "restart refuses a shell Quickshell cannot see that will not exit"
+fi
+kill -0 "$stubborn_pid" 2>/dev/null || fail "the test's stubborn shell should have survived SIGTERM"
+[[ $(grep -c '^-n -p ' "$restart_log") -eq 0 ]] || fail "a refused restart launches no replacement shell"
+if [[ -s "$restart_state" ]]; then
+  fail "a refused restart leaves no fresh shell state"
+fi
+kill -9 "$stubborn_pid" 2>/dev/null || true
+wait "$stubborn_pid" 2>/dev/null || true
+pass "restart refuses a shell Quickshell cannot see that will not exit"
