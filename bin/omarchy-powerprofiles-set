@@ -48,10 +48,16 @@ elif [[ -r $state_file ]]; then
 fi
 
 if [[ -z ${profile:-} ]] || ! profile_available "$profile"; then
-  if [[ $action == "ac" ]] && profile_available performance; then
+  # Prefer balanced for both AC and battery when no preference is saved.
+  # On several laptops the firmware's performance profile is a fixed max-fan
+  # mode, so choosing it automatically on first AC boot is a poor default.
+  # Users can still select performance explicitly; that choice is remembered.
+  if profile_available balanced; then
+    profile=balanced
+  elif [[ $action == "ac" ]] && profile_available performance; then
     profile=performance
   else
-    profile=balanced
+    profile=${profiles[0]:-balanced}
   fi
 fi
 
