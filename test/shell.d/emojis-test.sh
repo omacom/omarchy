@@ -39,6 +39,41 @@ assertDeepEqual(
   'emoji filtering supports zero result limit'
 )
 
+assertDeepEqual(emojis.parseUsage('{"a":2}'), { a: 2 }, 'emoji usage parses')
+assertDeepEqual(emojis.parseUsage('{'), {}, 'invalid emoji usage parses as empty')
+assertDeepEqual(emojis.parseUsage('[1]'), {}, 'non-object emoji usage parses as empty')
+assertDeepEqual(emojis.parseUsage('{"a":2,"b":"5","c":0}'), { a: 2 }, 'emoji usage keeps only positive numeric counts')
+
+assertDeepEqual(
+  emojis.mostUsed(fixture, { c: 1, b: 3 }, 2),
+  ['b', 'c'],
+  'most used emojis rank by use count'
+)
+
+assertDeepEqual(
+  emojis.mostUsed(fixture, { c: 1 }, 3),
+  ['c', 'a', 'b'],
+  'most used emojis top up from the catalog without duplicates'
+)
+
+assertDeepEqual(
+  emojis.mostUsed(fixture, { typo: 9, a: 1 }, 1),
+  ['a'],
+  'most used emojis ignore keys outside the catalog'
+)
+
+assertDeepEqual(
+  emojis.mostUsed(data, {}, 3),
+  ['\u{1F602}', '\u{2764}\u{FE0F}', '\u{1F60D}'],
+  'most used emojis start out with the popular ones'
+)
+
+assertDeepEqual(
+  emojis.mostUsed(data, { '\u{1F60D}': 1 }, 3),
+  ['\u{1F60D}', '\u{1F602}', '\u{2764}\u{FE0F}'],
+  'most used emojis rank picks ahead of the popular ones'
+)
+
 assertEqual(
   emojis.filterEmojis(data, 'face with tears')[0].e,
   '\u{1F602}',
