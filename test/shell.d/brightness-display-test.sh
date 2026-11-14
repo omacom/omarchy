@@ -27,6 +27,12 @@ cat >"$mock_bin/omarchy-hw-display" <<'SH'
 printf 'mock_backlight\n'
 SH
 
+cat >"$mock_bin/hyprctl" <<'SH'
+#!/bin/bash
+default='[{"name":"eDP-1"},{"name":"DP-1"},{"name":"DP-2"}]'
+printf '%s\n' "${HYPR_MONITORS:-$default}"
+SH
+
 cat >"$mock_bin/brightnessctl" <<'SH'
 #!/bin/bash
 printf 'brightnessctl %s\n' "$*" >>"$CALL_LOG"
@@ -164,6 +170,14 @@ DDC_CURRENT=4 DDC_MAXIMUM=100 run_brightness --no-osd --monitor DP-1 +5%
 grep -F 'ddcutil --bus 7 --skip-ddc-checks --noverify setvcp 10 5' "$call_log" >/dev/null || \
   fail "external low brightness writes the one-percent target"
 pass "external low brightness uses a one-percent step"
+
+# An all-in-one's built-in panel is its lone display, on DP-1, and does not answer DDC.
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
+: >"$call_log"
+HYPR_MONITORS='[{"name":"DP-1"}]' DDC_READ_FAIL=1 run_brightness --no-osd --monitor DP-1 60%
+grep -Fx 'brightnessctl -d mock_backlight set 60%' "$call_log" >/dev/null || \
+  fail "all-in-one panel on a DP connector sets the kernel backlight" "$(<"$call_log")"
+pass "all-in-one panel on a DP connector falls back to the kernel backlight"
 
 cat >"$mock_bin/hyprctl" <<'SH'
 #!/bin/bash
