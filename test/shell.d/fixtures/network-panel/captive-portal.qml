@@ -109,9 +109,6 @@ ShellRoot {
     check(!panel.restricted && panel.connectivity === "unknown" && panel.icon !== "󰤩" && !panel.testBarButton.active,
       "a fresh link's passing Limited state raises no warning")
     check(panel.testLimitedSettle.running && panel.testLimitedSettle.interval === 3000, "Limited is given time to clear")
-    NetworkMock.connectivity = NetworkConnectivity.Full
-    NetworkMock.connectivity = NetworkConnectivity.Limited
-    check(!panel.restricted && panel.testLimitedSettle.running, "each new Limited spell is waited out afresh")
     panel.testLimitedSettle.triggered()
     Qt.callLater(settledLimitedChecks)
   }
@@ -119,6 +116,14 @@ ShellRoot {
   function settledLimitedChecks() {
     check(panel.restricted && !panel.hasCaptivePortal, "outage is not mislabelled as a portal")
     check(!panel.testButton.visible && panel.testMeta.text === "LIMITED INTERNET ACCESS", "limited state has no login button")
+    NetworkMock.connectivity = NetworkConnectivity.Full
+    NetworkMock.connectivity = NetworkConnectivity.Limited
+    Qt.callLater(relapsedLimitedChecks)
+  }
+
+  function relapsedLimitedChecks() {
+    check(!panel.restricted && panel.connectivity === "unknown" && panel.testLimitedSettle.running,
+      "each new Limited spell is waited out afresh")
     NetworkMock.connectivity = NetworkConnectivity.Portal
     NetworkMock.connectivityCheckEnabled = false
     Qt.callLater(disabledChecks)
