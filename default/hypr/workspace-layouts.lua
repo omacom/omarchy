@@ -6,7 +6,7 @@ local require_all = require("default.hypr.require_all")
 -- The saved files call o.workspace_mode, so it has to exist before they load.
 local workspace_modes = require("default.hypr.workspace-modes")
 
-local layouts_dir = paths.state_home .. "/omarchy/workspace-layouts"
+local layouts_dir = workspace_modes.layouts_dir
 
 -- The directory is found through XDG_STATE_HOME but the files are loaded by
 -- module name, and bootstrap only puts ~/.local/state on the search path. A
