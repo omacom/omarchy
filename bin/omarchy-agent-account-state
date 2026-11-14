@@ -27,6 +27,7 @@ import os
 import pty
 import re
 import select
+import shlex
 import shutil
 import subprocess
 import sys
@@ -351,12 +352,28 @@ def apply_token_to_primary(provider: str, data: dict[str, Any]) -> None:
   write_keyring_token(data)
 
 
+def clear_primary_token(provider: str) -> None:
+  if provider != "agy":
+    return
+  (primary_home("agy") / "antigravity-oauth-token").unlink(missing_ok=True)
+  clear_keyring_token()
+
+
 def backup_main(provider: str) -> None:
   if provider != "agy":
     return
+  reg_file = registry_path(provider)
+  if reg_file.is_file():
+    reg = read_json(reg_file)
+    if isinstance(reg, dict) and reg.get("active") and reg.get("active") != "main":
+      return
   token = current_primary_token(provider)
   if token:
     write_token_file(agy_main_token_path(), token)
+    main_home = accounts_root() / provider / "main"
+    main_home.mkdir(parents=True, exist_ok=True)
+    link_shared(provider, main_home)
+    write_token_file(main_home / "antigravity-oauth-token", token)
 
 
 def switch_credentials(provider: str, from_account: dict[str, Any] | None, to_account: dict[str, Any]) -> None:
@@ -434,11 +451,11 @@ def make_login_browser(desktop_env: dict[str, str], status_pipe: str | None = No
     handle.write("#!/bin/bash\n")
     handle.write('url="${1:-}"\n')
     if status_pipe:
-      handle.write(f'printf "URL %s\\n" "$url" >"{status_pipe}" 2>/dev/null || true\n')
+      handle.write(f'printf "URL %s\\n" "$url" >{shlex.quote(status_pipe)} 2>/dev/null || true\n')
     for key in ("HOME", "DBUS_SESSION_BUS_ADDRESS", "PATH", "XDG_RUNTIME_DIR", "XDG_DATA_DIRS", "XDG_CONFIG_DIRS", "XDG_CURRENT_DESKTOP"):
       val = desktop_env.get(key)
-      if val:
-        handle.write(f'export {key}="{val}"\n')
+      if val is not None:
+        handle.write(f'export {key}={shlex.quote(val)}\n')
       else:
         handle.write(f'unset {key}\n')
     handle.write("unset AGY_DIR\n")
@@ -481,6 +498,8 @@ def run_agy_login(provider: str, pending_home: Path, events: bool = False) -> No
   child_env["PATH"] = clean_path
 
   token_file = pending_home / "antigravity-oauth-token"
+  initial_token_mtime = token_file.stat().st_mtime_ns if token_file.is_file() else 0
+  initial_data = read_json(token_file) if token_file.is_file() else None
   master_fd, slave_fd = pty.openpty()
 
   pipe_fd = None
@@ -491,6 +510,7 @@ def run_agy_login(provider: str, pending_home: Path, events: bool = False) -> No
       pipe_fd = None
 
   proc = None
+  stdin_flags = None
   try:
     proc = subprocess.Popen(
       [agy_bin],
@@ -518,19 +538,27 @@ def run_agy_login(provider: str, pending_home: Path, events: bool = False) -> No
 
     while True:
       if token_file.is_file() and token_file.stat().st_size > 0:
+        is_new = initial_token_mtime == 0 or token_file.stat().st_mtime_ns > initial_token_mtime
         try:
           data = json.loads(token_file.read_text(encoding="utf-8"))
           if isinstance(data, dict) and (data.get("token") or data.get("access_token")):
-            break
+            if is_new or data != initial_data:
+              break
         except Exception:
           pass
 
       if proc.poll() is not None:
         if token_file.is_file() and token_file.stat().st_size > 0:
-          break
+          is_new = initial_token_mtime == 0 or token_file.stat().st_mtime_ns > initial_token_mtime
+          try:
+            data = json.loads(token_file.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and (data.get("token") or data.get("access_token")) and (is_new or data != initial_data):
+              break
+          except Exception:
+            pass
         if proc.returncode != 0:
           raise AccountError(f"Antigravity sign-in exited with code {proc.returncode}")
-        break
+        raise AccountError("Antigravity sign-in exited before writing credentials")
 
       rlist = [master_fd]
       if pipe_fd is not None:
@@ -580,6 +608,8 @@ def run_agy_login(provider: str, pending_home: Path, events: bool = False) -> No
               code_match = re.search(r"\b([A-Z0-9]{4}-[A-Z0-9]{4})\b", clean)
               if code_match:
                 print(code_match.group(1), flush=True)
+              if re.search(r"paste.*code|enter.*code|authorization code", clean, re.IGNORECASE):
+                print(clean.strip(), flush=True)
             else:
               sys.stdout.write(chunk)
               sys.stdout.flush()
@@ -598,6 +628,11 @@ def run_agy_login(provider: str, pending_home: Path, events: bool = False) -> No
         raise AccountError("Antigravity sign-in timed out")
 
   finally:
+    if stdin_flags is not None:
+      try:
+        fcntl.fcntl(sys.stdin.fileno(), fcntl.F_SETFL, stdin_flags)
+      except OSError:
+        pass
     if slave_fd != -1:
       try:
         os.close(slave_fd)
@@ -1317,6 +1352,24 @@ def main(argv: list[str]) -> int:
           "1" if account["id"] == registry["active"] else "0",
           "1" if account.get("primary") else "0",
         ]))
+    elif command == "active":
+      provider = provider_arg(args)
+      registry = read_json(registry_path(provider))
+      if registry:
+        print(normalized(provider, registry)["active"])
+      else:
+        print("main")
+    elif command == "main-home":
+      provider = provider_arg(args)
+      if provider == "agy":
+        main_dir = accounts_root() / "agy" / "main"
+        if (main_dir / "antigravity-oauth-token").is_file():
+          print(main_dir)
+        elif agy_main_token_path().is_file():
+          main_dir.mkdir(parents=True, exist_ok=True)
+          link_shared("agy", main_dir)
+          write_token_file(main_dir / "antigravity-oauth-token", read_json(agy_main_token_path()))
+          print(main_dir)
     elif command == "login":
       provider = provider_arg(args)
       if len(args) < 2:

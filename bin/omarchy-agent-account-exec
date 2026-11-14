@@ -20,8 +20,10 @@ esac
 provider=$1
 shift
 
+account_pin="OMARCHY_AGENT_${provider^^}_HOME"
+
 if [[ $provider == "agy" ]]; then
-  if [[ -z ${OMARCHY_AGENT_LOGIN:-} && -z ${AGY_DIR:-} ]]; then
+  if [[ -z ${OMARCHY_AGENT_LOGIN:-} && -z ${AGY_DIR:-} && ! -v $account_pin ]]; then
     omarchy-agent-account-state sync agy
   fi
 fi
@@ -35,6 +37,14 @@ if [[ -z ${!account_env:-} ]]; then
   export "OMARCHY_AGENT_${provider^^}_HOME=$account_home"
   if [[ -n $account_home ]]; then
     export "$account_env=$account_home"
+  elif [[ $provider == "agy" && -v $account_pin ]]; then
+    active_now=$(omarchy-agent-account-state active agy 2>/dev/null || echo "main")
+    if [[ $active_now != "main" ]]; then
+      main_home=$(omarchy-agent-account-state main-home agy 2>/dev/null || true)
+      if [[ -n $main_home ]]; then
+        export "$account_env=$main_home"
+      fi
+    fi
   fi
 fi
 

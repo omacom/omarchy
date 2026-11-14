@@ -127,12 +127,16 @@ trap 'pkill -TERM -P $$; exit 130' TERM INT
 
 backup_agy_login() {
   if [[ $provider == "agy" ]]; then
-    if [[ -f "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ]]; then
-      backup_agy_token=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/agy-token-backup.XXXXXX")
-      cp -f "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" "$backup_agy_token"
-    fi
-    if omarchy-cmd-present secret-tool; then
-      backup_agy_keyring=$(secret-tool lookup service gemini username antigravity 2>/dev/null || true)
+    local active_account
+    active_account=$(omarchy-agent-account-state active agy 2>/dev/null || echo "main")
+    if [[ $active_account == "main" ]]; then
+      if [[ -f "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ]]; then
+        backup_agy_token=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/agy-token-backup.XXXXXX")
+        cp -f "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" "$backup_agy_token"
+      fi
+      if omarchy-cmd-present secret-tool; then
+        backup_agy_keyring=$(secret-tool lookup service gemini username antigravity 2>/dev/null || true)
+      fi
     fi
   fi
 }
@@ -202,6 +206,8 @@ if [[ -n $reauth ]]; then
     [[ $account_home == "$HOME/.$provider" ]] && primary_target=true
   fi
 
+  event_flag=()
+  [[ $events == "true" ]] && event_flag=(--events)
   if [[ $primary_target == "true" ]]; then
     say "$(omarchy-i18n agents.signInAgainBrowser "$name")"
     login || fail "$(omarchy-i18n agents.signInFailed "$name")"
@@ -213,7 +219,7 @@ if [[ -n $reauth ]]; then
   else
     say "$(omarchy-i18n agents.signInAgainPrivate)"
     if [[ $provider == "agy" ]]; then
-      interruptible omarchy-agent-account-state login agy "$account_home" ${events:+--events} || fail "$(omarchy-i18n agents.signInFailed "$name")"
+      interruptible omarchy-agent-account-state login agy "$account_home" "${event_flag[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
       login_succeeded=true
     else
       private_browser
@@ -286,8 +292,10 @@ EOF
 
   home=$(omarchy-agent-account-state begin "$provider" "$label" "$$") || fail "$(omarchy-i18n agents.homeFailed)"
 
+  event_flag=()
+  [[ $events == "true" ]] && event_flag=(--events)
   if [[ $provider == "agy" ]]; then
-    interruptible omarchy-agent-account-state login agy "$home" ${events:+--events}
+    interruptible omarchy-agent-account-state login agy "$home" "${event_flag[@]}"
   else
     private_browser
     interruptible env BROWSER="$browser" "$home_env=$home" "${login_command[@]}"

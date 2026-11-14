@@ -104,8 +104,19 @@ def export_accounts(providers: list[str]) -> dict[str, Any]:
     entries = []
     for account in registry["accounts"]:
       home = accounts.account_home(provider, account)
-      found = accounts.identity(provider, home)
-      files = login_files(provider, home)
+      if provider == "agy" and account.get("primary") and registry.get("active") != account.get("id"):
+        main_token_file = accounts.agy_main_token_path()
+        main_dir = accounts.accounts_root() / "agy" / "main" / "antigravity-oauth-token"
+        main_data = accounts.read_json(main_token_file) or accounts.read_json(main_dir)
+        if isinstance(main_data, dict):
+          found = accounts.agy_identity_from_token_data(main_data)
+          files = {"antigravity-oauth-token": main_data}
+        else:
+          found = accounts.identity(provider, home)
+          files = login_files(provider, home)
+      else:
+        found = accounts.identity(provider, home)
+        files = login_files(provider, home)
       if found["accountId"] and files:
         entries.append({"id": account["id"], "label": account["label"], "primary": bool(account.get("primary")), "accountId": found["accountId"], "files": files})
     if entries:
@@ -259,6 +270,8 @@ def match_source_names(provider: str, registry: dict[str, Any], copied: list[tup
 
 def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> list[str]:
   accounts.recover(provider)
+  orig_primary_token = accounts.current_primary_token(provider) if provider == "agy" else None
+  orig_main_token = accounts.read_json(accounts.agy_main_token_path()) if provider == "agy" else None
   backups = {}
   backup_dirs = []
   created = []
@@ -317,8 +330,12 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
             current.update(data)
             data = current
           write_json(path, data)
-          if provider == "agy" and (account.get("primary") or account["id"] == registry.get("active")):
-            accounts.apply_token_to_primary(provider, data)
+          if provider == "agy" and account.get("primary") and name == "antigravity-oauth-token":
+            accounts.write_token_file(accounts.agy_main_token_path(), data)
+            main_home = accounts.accounts_root() / "agy" / "main"
+            main_home.mkdir(parents=True, exist_ok=True)
+            accounts.link_shared("agy", main_home)
+            accounts.write_token_file(main_home / "antigravity-oauth-token", data)
         found = accounts.identity(provider, home)
         if found["accountId"] != entry["accountId"] or not login_files(provider, home):
           raise accounts.AccountError("Transferred credentials do not match their account identity")
@@ -337,6 +354,19 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
         registry["threshold"] = max(50, min(100, int(incoming.get("threshold", 95))))
       registry["alert"] = ""
   except BaseException:
+    if provider == "agy":
+      if orig_primary_token is not None:
+        accounts.apply_token_to_primary(provider, orig_primary_token)
+      else:
+        accounts.clear_primary_token(provider)
+      if orig_main_token is not None:
+        accounts.write_token_file(accounts.agy_main_token_path(), orig_main_token)
+        main_dir = accounts.accounts_root() / "agy" / "main"
+        if main_dir.is_dir():
+          accounts.write_token_file(main_dir / "antigravity-oauth-token", orig_main_token)
+      else:
+        accounts.agy_main_token_path().unlink(missing_ok=True)
+        shutil.rmtree(accounts.accounts_root() / "agy" / "main", ignore_errors=True)
     for home in created:
       shutil.rmtree(home, ignore_errors=True)
     for path, original in backups.items():
