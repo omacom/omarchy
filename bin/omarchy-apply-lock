@@ -56,6 +56,8 @@ fi
 
 if grep -qE '^[[:space:]]*-[[:space:]]*#[0-9]+:' <<< "$fingerprint_status"; then
   echo "Configuring lock screen fingerprint authentication..."
+  # No lid gate: skipping pam_fprintd on this stack is unlock success. Lid
+  # handling for fingerprint belongs in the lock service, not PAM.
   as_root install -Dm755 -o root -g root "$resume_hook_src" "$resume_hook_dst"
   as_root install -Dm644 -o root -g root "$stop_timeout_src" "$stop_timeout_dst"
   as_root systemctl daemon-reload
