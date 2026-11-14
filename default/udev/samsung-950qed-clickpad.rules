@@ -1,0 +1,3 @@
+# The ZNT clickpad exposes both a Touchpad and a companion Mouse event node.
+# Ignore only the companion Mouse; keep the real Touchpad available to libinput.
+SUBSYSTEM=="input", ACTION=="add|change", KERNEL=="event*", ATTRS{name}=="ZNT0001:00 14E5:650E Mouse", ENV{LIBINPUT_IGNORE_DEVICE}="1"
