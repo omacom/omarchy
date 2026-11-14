@@ -29,9 +29,54 @@ trust_device() {
   bluetoothctl trust "$address" >/dev/null 2>&1 || true
 }
 
+stop_scan() {
+  [[ -n ${1:-} ]] || return 0
+  kill "$1" 2>/dev/null || true
+  wait "$1" 2>/dev/null || true
+}
+
+wait_for_bredr() {
+  # BlueZ can know a dual-mode device from its BLE advertisements alone. AirPods
+  # keep advertising for Find My while they are not in pairing mode, so `pair`
+  # can run before any BR/EDR record exists and fail with AuthenticationFailed
+  # or "Device not available". A dual-mode inquiry adds `Class:`; wait for it
+  # before pairing. Use the panel's discovery when it is running, but start an
+  # owned scan if it stops. A device that already has a BR/EDR record or a bond
+  # skips the wait; a BLE-only device pays the timeout once.
+  local info
+  info=$(timeout 2s bluetoothctl info "$address" 2>/dev/null)
+  if [[ $info == *"Class:"* ]]; then
+    return 0
+  fi
+  if [[ $info == *"Paired: yes"* || $info == *"Bonded: yes"* ]]; then
+    return 0
+  fi
+
+  local scan_pid=""
+  local deadline=$((SECONDS + ${OMARCHY_BLUETOOTH_BREDR_WAIT_SECONDS:-10}))
+  while (( SECONDS < deadline )); do
+    if [[ -n $scan_pid ]] && ! kill -0 "$scan_pid" 2>/dev/null; then
+      scan_pid=""
+    fi
+    if [[ -z $scan_pid && $(timeout 2s bluetoothctl show 2>/dev/null) != *"Discovering: yes"* ]]; then
+      timeout 20s bluetoothctl --timeout 20 scan on >/dev/null 2>&1 &
+      scan_pid=$!
+    fi
+    if [[ $(timeout 2s bluetoothctl info "$address" 2>/dev/null) == *"Class:"* ]]; then
+      stop_scan "$scan_pid"
+      return 0
+    fi
+    sleep 0.5
+  done
+
+  stop_scan "$scan_pid"
+  return 1
+}
+
 case "$action" in
   pair)
     power_on
+    wait_for_bredr || true
     timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
     trust_device
     timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
