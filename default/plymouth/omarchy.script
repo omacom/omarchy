@@ -218,7 +218,9 @@ fun layout() {
   global.layout_height = Window.GetHeight();
 
   logo.sprite.SetX(global.layout_width / 2 - logo.image.GetWidth() / 2);
-  logo.sprite.SetY(global.layout_height / 2 - logo.image.GetHeight() / 2);
+  # Center the logo and the password entry below it as one group
+  group_height = logo.image.GetHeight() + 40 + entry.image.GetHeight();
+  logo.sprite.SetY(global.layout_height / 2 - group_height / 2);
 
   entry.x = global.layout_width / 2 - entry.image.GetWidth() / 2;
   entry.y = logo.sprite.GetY() + logo.image.GetHeight() + 40;
