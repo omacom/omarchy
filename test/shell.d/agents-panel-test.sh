@@ -32,6 +32,44 @@ assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: '', limitsSta
 assertEqual(signIn.usageNote({usageStatusText: '', stale: true, authHelpText: 'Endpoint returned 500.'}),
   'Endpoint returned 500.', 'an account whose refresh failed still says why')
 
+// Node covers timestamp guards and tooltip composition; custom date formats
+// need Qt. Adapt its date overload to Intl for these non-formatting checks.
+const Qt = { locale: code => code }
+class LocaleDate extends Date {
+  toLocaleString(locale) {
+    return super.toLocaleString(locale, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  }
+}
+const catalog = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
+const translated = value => ({
+  arg(arg) { return translated(value.replace(/%\d/, String(arg))) },
+  toString() { return value }
+})
+const Commons = { I18n: {
+  formatLocale: 'en-US', formatNumber: String,
+  t: key => translated(catalog[key])
+} }
+const helpers = ['formatResetAt', 'formatDuration', 'windowDisplayTitle', 'scopedAllowanceText'].map(name =>
+  panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n')
+const tooltipRoot = new Function('Qt', 'Date', 'Commons', helpers + '\nreturn {formatResetAt, formatDuration, windowDisplayTitle, scopedAllowanceText}')(
+  Qt, LocaleDate, Commons)
+for (const value of ['', undefined, null, false, 0, 'not-a-date', '<b>invalid</b>'])
+  assertEqual(tooltipRoot.formatResetAt(value), '', 'no invented reset date for ' + value)
+const resetAt = '2030-01-02T15:04:05Z'
+const compact = { window: { title: 'Weekly', percent: 0.42, resetAt }, resetMs: 7200000, scoped: [], stale: false }
+const tooltipBody = panelSource.slice(panelSource.indexOf('component CompactLimit:')).match(/text: \{([^]*?)\n      \}/)[1]
+const tooltip = new Function('compact', 'root', 'Commons', tooltipBody).bind(null, compact, tooltipRoot, Commons)
+const exact = tooltipRoot.formatResetAt(resetAt)
+assertEqual(tooltip(), 'Weekly: 42% used · resets in 2h 0m\nResets at ' + exact, 'limit tooltip keeps the countdown and adds the exact reset')
+compact.window.resetAt = 'bad-date'
+assertEqual(tooltip(), 'Weekly: 42% used · resets in 2h 0m', 'invalid reset dates add no tooltip line')
+compact.window.resetAt = resetAt
+compact.stale = true
+compact.fetchedAt = 0
+compact.scoped = [{ title: '<b>Fable</b>', percent: 0.1 }]
+assertEqual(tooltip(), 'Weekly: 42% used · resets in 2h 0m\nResets at ' + exact + '\nLast updated time unavailable\n<b>Fable</b>: 10% of its weekly allowance',
+  'exact resets preserve stale and scoped notes as plain text')
+
 // Local history alone feeds the summary; a section needs a subscription to show.
 const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
 const subscribed = new Function(mainSource.match(/function providerHasSubscription\([^]*?\n  \}/)[0] + '\nreturn providerHasSubscription')()
@@ -48,6 +86,34 @@ for (const name of ['claude', 'codex', 'grok', 'fireworks']) {
   const help = collector.match(/^AUTH_HELP = "([^"]+)"$/m)
   assert(help && panelSource.includes('case ' + JSON.stringify(help[1]) + ':'), name + ' auth help is translated in the panel')
 }
+JS
+
+# Node cannot render Qt date patterns, but must pass the catalog's pattern
+# and the selected formatting locale through unchanged, including fallback.
+run_node_test <<'JS'
+const fs = require('fs')
+const panel = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const i18n = fs.readFileSync(root + '/shell/Commons/I18n.qml', 'utf8')
+const english = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
+const state = { englishStrings: english, languageStrings: {} }
+const merge = new Function('root', i18n.match(/readonly property var strings: \{([^]*?)\n  \}/)[1])
+const translate = new Function('root', i18n.match(/function t\([^]*?\n  \}/)[0] + '\nreturn t')(state)
+const Commons = { I18n: { formatLocale: 'en-US', t: translate } }
+const Qt = { locale: code => ({ code }) }
+class CapturedDate extends Date {
+  toLocaleString(locale, pattern) { return { locale: locale.code, pattern } }
+}
+const format = new Function('Date', 'Qt', 'Commons', panel.match(/function formatResetAt\([^]*?\n  \}/)[0] + '\nreturn formatResetAt')(CapturedDate, Qt, Commons)
+const resetAt = '2030-01-02T15:04:05Z'
+state.strings = merge(state)
+assertDeepEqual(format(resetAt), { locale: 'en-US', pattern: 'ddd d MMM, HH:mm' }, 'English keeps the compact reset pattern without seconds, year or zone')
+Commons.I18n.formatLocale = 'ja-JP'
+state.languageStrings = { 'agents.resetDateFormat': 'M/d (ddd) HH:mm' }
+state.strings = merge(state)
+assertDeepEqual(format(resetAt), { locale: 'ja-JP', pattern: 'M/d (ddd) HH:mm' }, 'reset dates consume the translated pattern and selected formatting locale')
+state.languageStrings = {}
+state.strings = merge(state)
+assertDeepEqual(format(resetAt), { locale: 'ja-JP', pattern: 'ddd d MMM, HH:mm' }, 'a missing translated reset pattern falls back to English, retaining the selected locale')
 JS
 
 # The panel reads a window out of a label, and that guess cannot survive a
