@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.camera",
+  "name": "Camera",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Camera usage state and disable toggle",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Camera.qml"
+  },
+  "barWidget": {
+    "displayName": "Camera",
+    "description": "Camera usage state and disable toggle",
+    "category": "System",
+    "allowMultiple": false
+  }
+}
