@@ -17,6 +17,9 @@ hl.on("hyprland.start", function()
   -- remote clients don't ask to restart it on every attach.
   hl.exec_cmd(o.launch("setsid herdr server"))
 
+  -- Reopen the windows saved at the last logout, reboot or shutdown.
+  hl.exec_cmd("sleep 2 && omarchy-session-restore")
+
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")
 end)
