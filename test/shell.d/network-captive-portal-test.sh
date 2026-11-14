@@ -26,7 +26,7 @@ for (const native of Object.values(states)) {
 for (const state of ['portal', 'limited']) {
   assertEqual(network.connectionIcon('wifi', 80, state), '󰤩', `${state} uses a blocked Wi-Fi icon`)
   assertEqual(network.connectionIcon('ethernet', 80, state), '󰈂', `${state} uses a blocked Ethernet icon`)
-  assertEqual(network.connectionIcon('disconnected', 80, state), '󰤮', `${state} does not override the disconnected icon`)
+  assertEqual(network.connectionIcon('disconnected', 80, state), '󰤫', `${state} does not override the disconnected icon`)
 }
 for (const state of ['full', 'unknown', 'none', undefined]) {
   for (const signal of [-1, 0, 20, 40, 60, 80, 100]) {

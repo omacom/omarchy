@@ -127,7 +127,9 @@ ShellRoot {
 
   function disconnectedChecks() {
     check(panel.kind === "disconnected" && !panel.hasCaptivePortal, "disconnect clears stale portal")
-    check(!panel.testButton.visible && panel.icon === "󰤮", "disconnected icon not portal icon")
+    check(!panel.testButton.visible && panel.icon === "󰤫", "disconnected icon not portal icon")
+    NetworkMock.wifiEnabled = false
+    check(panel.icon === "󰤮", "Wi-Fi off crosses out the icon")
     if (failed) { Qt.quit(); return }
     console.log("RESULT pass")
     var preview = Quickshell.env("NETWORK_TEST_PREVIEW")
