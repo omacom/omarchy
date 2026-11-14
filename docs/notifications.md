@@ -121,6 +121,12 @@ immediately. For third-party clients the click falls back to the libnotify
 window by class via `omarchy-hyprland-focus-app` — chat apps rarely register
 an action and just expect click-to-jump.
 
+A toast that expires does not close the notification of an app with a
+desktop entry and a `default` action: the shell keeps the sender for the
+newest `replayCount` of them. When `showHistory` replays such a row, the card
+has its live sender again, so a Slack notification still opens its thread.
+A close by the sender lets it go, and an update puts it back on screen.
+
 ### Click commands are argv, never shell strings
 
 `--exec` consumes the rest of the line as the click command:
