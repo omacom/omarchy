@@ -654,6 +654,8 @@ def argument_value(argv, flag, default=None):
 def capture_app_state(window, info, cache):
   argv = chromium_window_argv(window, info["argv"])
   app = Path(argv[0]).name.lower() if argv else ""
+  if app in CHROMIUM_WINDOW_CLASSES and (any(a in {"--incognito", "--guest"} for a in argv)):
+    raise WorkspaceError("Private browser windows cannot be saved in Scenes.")
   if app in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"} and not any(a.startswith(("--app=", "--app-id=")) for a in argv):
     if chromium_webapp_argv(window, info):
       return None
@@ -671,6 +673,13 @@ def capture_app_state(window, info, cache):
           cache[str(location)] = records
           break
     records = cache[str(location)]
+    live = [w for w in query("clients") if w["pid"] == window["pid"] and w.get("mapped", True)
+        and not chromium_webapp_class(w)]
+    # Forwarded private windows can share normal process flags and titles.
+    # They have no session record. Do not borrow a normal window's tabs when
+    # the live windows and persisted session have not caught up with each other.
+    if len(live) != len(records):
+      raise WorkspaceError("This browser's current windows aren't all available in its session data. Wait a moment and save again. Private windows aren't supported.")
     # Named windows may themselves end in a browser suffix: exact titles win.
     title = window["title"]
     matches = [record for record in records if record["title"] == title or record.get("activeUrl") == title]
@@ -678,8 +687,6 @@ def capture_app_state(window, info, cache):
       title = re.sub(r" - (Chromium|Google Chrome|Brave)$", "", title)
       matches = [record for record in records if record["title"] == title or record.get("activeUrl") == title]
     if not matches and len(records) == 1 and not any(a in {"--incognito", "--guest"} for a in argv) and not re.search(r"incognito|private", window["title"], re.I):
-      live = [w for w in query("clients") if w["pid"] == window["pid"] and w.get("mapped", True)
-          and not chromium_webapp_class(w)]
       if len(live) == 1:
         matches = records
     if len(matches) != 1:
