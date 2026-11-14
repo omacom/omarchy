@@ -2,6 +2,11 @@
 
 # omarchy:summary=Reload opencode configuration (used by the Omarchy theme switching).
 
-if pgrep -x opencode >/dev/null; then
-  killall -SIGUSR2 opencode
-fi
+# mise installs the binary as opencode.exe. Only the TUI handles SIGUSR2, so
+# leave the background server alone; the signal would terminate it.
+for pid in $(pgrep -x 'opencode|opencode\.exe'); do
+  mapfile -d '' -t argv <"/proc/$pid/cmdline" 2>/dev/null || continue
+  if [[ ${argv[1]:-} != "serve" ]]; then
+    kill -USR2 "$pid" 2>/dev/null
+  fi
+done
