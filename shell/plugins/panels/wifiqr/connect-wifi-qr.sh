@@ -51,74 +51,68 @@ nmcli device wifi rescan ifname "$iface" ssid "$ssid" >/dev/null 2>&1 ||
   nmcli device wifi rescan ifname "$iface" >/dev/null 2>&1 || true
 sleep 0.4
 
-# Find if a saved Wi-Fi profile already exists for this SSID.
-existing_uuid=""
+# Collect any existing saved Wi-Fi profiles for this SSID so they are only
+# replaced after the newly scanned profile connects. A failed scan must never
+# overwrite or delete working saved credentials.
+existing_uuids=()
 while IFS=: read -r cand_uuid cand_type; do
   [[ $cand_type == "802-11-wireless" ]] || continue
   cand_ssid=$(nmcli --escape no --get-values 802-11-wireless.ssid connection show uuid "$cand_uuid" 2>/dev/null | head -n 1 || true)
   if [[ $cand_ssid == "$ssid" ]]; then
-    existing_uuid="$cand_uuid"
-    break
+    existing_uuids+=("$cand_uuid")
   fi
 done < <(LC_ALL=C nmcli -t -f UUID,TYPE connection show 2>/dev/null)
 
-if [[ $security == "nopass" ]]; then
-  if [[ -n $existing_uuid ]]; then
-    nmcli connection modify uuid "$existing_uuid" 802-11-wireless.hidden "$hidden" >/dev/null 2>&1 || true
-    if nmcli --wait 25 connection up uuid "$existing_uuid" ifname "$iface" >/dev/null 2>&1; then
-      exit 0
-    fi
-  fi
-  if nmcli --wait 25 device wifi connect "$ssid" ifname "$iface" hidden "$hidden" >/dev/null 2>&1; then
-    exit 0
-  fi
-  echo "Could not connect to $ssid" >&2
+target_uuid=$(uuidgen)
+if ! nmcli connection add type wifi con-name "$ssid" ssid "$ssid" \
+  connection.uuid "$target_uuid" ifname "$iface" autoconnect no \
+  802-11-wireless.hidden "$hidden" >/dev/null 2>&1; then
+  echo "Could not create connection profile for $ssid" >&2
   exit 1
 fi
 
-created_new=0
-target_uuid="$existing_uuid"
-if [[ -z $target_uuid ]]; then
-  target_uuid=$(uuidgen)
-  created_new=1
-  if ! nmcli connection add type wifi con-name "$ssid" ssid "$ssid" \
-    connection.uuid "$target_uuid" ifname "$iface" autoconnect no \
-    802-11-wireless.hidden "$hidden" >/dev/null 2>&1; then
-    echo "Could not create connection profile for $ssid" >&2
-    exit 1
-  fi
-else
-  nmcli connection modify uuid "$target_uuid" 802-11-wireless.hidden "$hidden" >/dev/null 2>&1 || true
-fi
+commit_profile() {
+  local old_uuid
+  nmcli connection modify uuid "$target_uuid" connection.autoconnect yes >/dev/null 2>&1 || true
+  for old_uuid in "${existing_uuids[@]}"; do
+    [[ $old_uuid != "$target_uuid" ]] || continue
+    nmcli connection delete uuid "$old_uuid" >/dev/null 2>&1 || true
+  done
+}
 
 try_activate_psk() {
   local key_mgmt="$1"
-  nmcli connection modify uuid "$target_uuid" wifi-sec.key-mgmt "$key_mgmt" connection.autoconnect yes >/dev/null 2>&1 || return 1
+  nmcli connection modify uuid "$target_uuid" wifi-sec.key-mgmt "$key_mgmt" >/dev/null 2>&1 || return 1
   printf 'set 802-11-wireless-security.psk %s\nsave\nquit\n' "$password" |
     nmcli connection edit uuid "$target_uuid" >/dev/null 2>&1 || return 1
   nmcli --wait 25 connection up uuid "$target_uuid" ifname "$iface" >/dev/null 2>&1
 }
 
-if [[ $security == "WEP" ]]; then
+if [[ $security == "nopass" ]]; then
+  if nmcli --wait 25 connection up uuid "$target_uuid" ifname "$iface" >/dev/null 2>&1; then
+    commit_profile
+    exit 0
+  fi
+elif [[ $security == "WEP" ]]; then
   nmcli connection modify uuid "$target_uuid" wifi-sec.key-mgmt none >/dev/null 2>&1 || true
   printf 'set 802-11-wireless-security.wep-key0 %s\nsave\nquit\n' "$password" |
     nmcli connection edit uuid "$target_uuid" >/dev/null 2>&1 || true
   if nmcli --wait 25 connection up uuid "$target_uuid" ifname "$iface" >/dev/null 2>&1; then
+    commit_profile
     exit 0
   fi
 elif [[ $security == "SAE" ]]; then
-  if try_activate_psk "sae" || try_activate_psk "wpa-psk"; then
+  if try_activate_psk "sae"; then
+    commit_profile
     exit 0
   fi
 else
   if try_activate_psk "wpa-psk" || try_activate_psk "sae"; then
+    commit_profile
     exit 0
   fi
 fi
 
-if (( created_new )); then
-  nmcli connection delete uuid "$target_uuid" >/dev/null 2>&1 || true
-fi
-
+nmcli connection delete uuid "$target_uuid" >/dev/null 2>&1 || true
 echo "Could not connect to $ssid" >&2
 exit 1

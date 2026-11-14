@@ -62,6 +62,8 @@ Item {
   property bool scannedHidden: false
   property string pendingConnectPassword: ""
   property bool scanExpectedStop: false
+  property bool pendingScan: false
+  property string pendingScanDevice: ""
   property bool connectExpectedStop: false
 
   // The scrim below is a fixed near-black regardless of theme, so text on
@@ -129,6 +131,8 @@ Item {
   }
 
   function stopCameraProcess() {
+    root.pendingScan = false
+    root.pendingScanDevice = ""
     if (scanProc.running) {
       root.scanExpectedStop = true
       scanProc.running = false
@@ -173,7 +177,24 @@ Item {
 
   function startScan(requestedDevice) {
     stopShareProcesses()
-    stopScanProcesses()
+    if (connectProc.running) {
+      root.connectExpectedStop = true
+      connectProc.running = false
+    }
+    hintResetTimer.stop()
+    connectedDismissTimer.stop()
+    root.pendingConnectPassword = ""
+
+    if (scanProc.running) {
+      root.pendingScan = true
+      root.pendingScanDevice = requestedDevice || ""
+      if (!root.scanExpectedStop) {
+        root.scanExpectedStop = true
+        scanProc.running = false
+      }
+      return
+    }
+
     root.mode = "scan"
     root.scanState = "starting"
     root.frameReady = false
@@ -183,7 +204,6 @@ Item {
     root.scanErrorCode = ""
     root.scanErrorText = ""
     root.scannedSsid = ""
-    root.pendingConnectPassword = ""
     root.cameras = []
     root.scanExpectedStop = false
 
@@ -403,6 +423,15 @@ Item {
     }
     onExited: function(exitCode) {
       root.frameReady = false
+      if (root.pendingScan) {
+        root.pendingScan = false
+        var nextDevice = root.pendingScanDevice
+        root.pendingScanDevice = ""
+        Qt.callLater(function() {
+          if (root.opened) root.startScan(nextDevice)
+        })
+        return
+      }
       if (root.scanExpectedStop || !root.opened || root.mode !== "scan") return
       if (root.scanState === "starting" || root.scanState === "scanning") {
         if (root.scanErrorCode === "") root.scanErrorCode = "cameraFailed"

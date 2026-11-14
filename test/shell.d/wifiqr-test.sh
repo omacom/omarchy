@@ -82,25 +82,51 @@ cat >"$tmp/bin/nmcli" <<'EOF'
 for arg in "$@"; do
   [[ $arg != "topsecret123" ]] || exit 98
 done
+printf '%s\n' "$*" >>"$NMCLI_LOG_FILE"
 if [[ $* == *"radio wifi"* ]]; then
   echo "enabled"
 elif [[ $* == *"GENERAL.CON-UUID"* ]]; then
   echo "--"
 elif [[ $* == *"UUID,TYPE connection show"* ]]; then
-  true
+  printf 'saved-uuid-1:802-11-wireless\n'
+elif [[ $* == *"802-11-wireless.ssid connection show uuid saved-uuid-1"* ]]; then
+  echo "Cafe WiFi"
 elif [[ $* == *"connection edit"* ]]; then
   cat >"$NMCLI_STDIN_FILE"
+elif [[ $* == *"connection up"* ]]; then
+  exit "${NMCLI_UP_EXIT:-0}"
 fi
 exit 0
 EOF
 cat >"$tmp/bin/uuidgen" <<'EOF'
 #!/bin/bash
-echo "00000000-0000-0000-0000-000000000001"
+echo "new-temp-uuid"
 EOF
 chmod +x "$tmp/bin/nmcli" "$tmp/bin/uuidgen"
 
 export NMCLI_STDIN_FILE="$tmp/nmcli-stdin"
-printf 'topsecret123\n' | PATH="$tmp/bin:$PATH" "$ROOT/shell/plugins/panels/wifiqr/connect-wifi-qr.sh" "Cafe WiFi" "WPA" "no" "wlan0"
+export NMCLI_LOG_FILE="$tmp/nmcli-log"
+
+# 1. Successful connection: sends secret via stdin, activates new profile, then replaces old profile
+: >"$NMCLI_LOG_FILE"
+printf 'topsecret123\n' | NMCLI_UP_EXIT=0 PATH="$tmp/bin:$PATH" "$ROOT/shell/plugins/panels/wifiqr/connect-wifi-qr.sh" "Cafe WiFi" "WPA" "no" "wlan0"
 [[ $(<"$NMCLI_STDIN_FILE") == $'set 802-11-wireless-security.psk topsecret123\nsave\nquit' ]] \
   || fail "connect helper sends the Wi-Fi passphrase over stdin rather than argv"
-pass "connect helper sends the Wi-Fi passphrase over stdin rather than argv"
+grep -qxF "connection delete uuid saved-uuid-1" "$NMCLI_LOG_FILE" \
+  || fail "connect helper removes superseded profile after the new profile connects"
+pass "connect helper sends the Wi-Fi passphrase over stdin and commits after connecting"
+
+# 2. Failed connection: deletes only the temporary profile and preserves saved-uuid-1
+: >"$NMCLI_LOG_FILE"
+if printf 'topsecret123\n' | NMCLI_UP_EXIT=1 PATH="$tmp/bin:$PATH" "$ROOT/shell/plugins/panels/wifiqr/connect-wifi-qr.sh" "Cafe WiFi" "SAE" "no" "wlan0" 2>/dev/null; then
+  fail "connect helper fails when nmcli connection up fails"
+fi
+if grep -q "saved-uuid-1" "$NMCLI_LOG_FILE" && grep -q "delete uuid saved-uuid-1\|modify uuid saved-uuid-1\|edit uuid saved-uuid-1" "$NMCLI_LOG_FILE"; then
+  fail "failed scan must not modify or delete an existing saved profile" "$(<"$NMCLI_LOG_FILE")"
+fi
+if grep -q "wpa-psk" "$NMCLI_LOG_FILE"; then
+  fail "explicit SAE scan must not downgrade to wpa-psk" "$(<"$NMCLI_LOG_FILE")"
+fi
+grep -qxF "connection delete uuid new-temp-uuid" "$NMCLI_LOG_FILE" \
+  || fail "failed scan cleans up its temporary profile"
+pass "failed SAE scan preserves existing saved profiles and never downgrades to WPA2"
