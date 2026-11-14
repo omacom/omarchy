@@ -110,7 +110,7 @@ chmod +x "$scratch/bin/stub"
 for command in omarchy-pkg-add omarchy-pkg-drop omarchy-setup-slack uwsm-app update-desktop-database; do
   ln -s stub "$scratch/bin/$command"
 done
-export PATH="$scratch/bin:$PATH"
+export PATH="$scratch/bin:$ROOT/bin:$PATH"
 mkfifo "$HOME/launch"
 
 "$ROOT/bin/omarchy-install-service-slack" 2>"$scratch/install.log"

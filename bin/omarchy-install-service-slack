@@ -7,8 +7,8 @@ set -euo pipefail
 
 omarchy-pkg-add slack-desktop
 if omarchy-setup-slack; then
-  setsid uwsm-app -- gtk-launch slack >/dev/null 2>&1 &
+  omarchy-launch-after-done uwsm-app -- gtk-launch slack
 else
   echo "Slack theme setup failed; opening packaged Slack." >&2
-  setsid uwsm-app -- gio launch /usr/share/applications/slack.desktop >/dev/null 2>&1 &
+  omarchy-launch-after-done uwsm-app -- gio launch /usr/share/applications/slack.desktop
 fi

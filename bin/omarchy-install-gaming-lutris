@@ -22,4 +22,4 @@ Lutris will open and auto-fetch its DXVK and VKD3D runtimes in the background
 
 EOF
 
-setsid lutris >/dev/null 2>&1 &
+omarchy-launch-after-done lutris

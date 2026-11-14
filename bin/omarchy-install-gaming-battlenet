@@ -60,7 +60,9 @@ app launcher.
 EOF
 
   log="/tmp/omarchy-battlenet-installer.log"
-  setsid -f sh -c "umu-run '$installer' >'$log' 2>&1" </dev/null >/dev/null 2>&1
+  # A launch after Done runs outside this script, so it carries umu's settings along.
+  omarchy-launch-after-done env WINEPREFIX="$WINEPREFIX" PROTONPATH="$PROTONPATH" GAMEID="$GAMEID" PROTON_VERB="$PROTON_VERB" \
+    sh -c "umu-run '$installer' >'$log' 2>&1"
   echo "Installer log: $log"
   launched_installer=1
 fi
@@ -73,7 +75,7 @@ update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 if (( launched_installer )); then
   cat <<EOF
 
-The Battle.net installer is running in the background. After it finishes,
+The Battle.net installer opens once this window closes. After it finishes,
 find Battle.net in your app launcher, or run:
 
   omarchy-launch-battlenet

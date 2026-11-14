@@ -39,7 +39,7 @@ run_installer() {
   local installer="$1" driver_status="$2"
 
   : >"$test_tmp/calls"
-  HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$stub_bin:$PATH" \
+  HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$stub_bin:$ROOT/bin:$PATH" \
     OMARCHY_TEST_CALLS="$test_tmp/calls" OMARCHY_TEST_DRIVER_STATUS="$driver_status" \
     bash "$ROOT/bin/$installer" >"$test_tmp/output" 2>&1
 }

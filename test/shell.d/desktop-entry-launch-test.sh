@@ -44,7 +44,7 @@ chmod +x "$mock_bin"/*
 export HOME="$test_home"
 export OMARCHY_TEST_LOG="$test_tmp/launch.log"
 export OMARCHY_TEST_PRESENTATION="$test_tmp/presentation"
-export PATH="$mock_bin:$PATH"
+export PATH="$mock_bin:$ROOT/bin:$PATH"
 
 wait_for_launch() {
   local expected="$1"
@@ -64,7 +64,7 @@ assert_detached_installer_launch() {
   : >"$OMARCHY_TEST_LOG"
   bash "$ROOT/bin/$script"
 
-  wait_for_launch "launch:uwsm-app -- gtk-launch $desktop_id" ||
+  wait_for_launch "launch:-f uwsm-app -- gtk-launch $desktop_id" ||
     fail "$script launches its desktop entry through setsid and gtk-launch in a UWSM scope"
   pass "$script detaches its scoped desktop-entry launch"
 }
@@ -80,15 +80,15 @@ presentation_command=$(<"$OMARCHY_TEST_PRESENTATION")
 
 [[ $presentation_command == *'echo Installing\ Example\ App...;'* ]] ||
   fail "generic installer shell-quotes the display name" "$presentation_command"
-[[ $presentation_command == *'omarchy-pkg-add alpha beta && (setsid uwsm-app -- gtk-launch Disk\ Usage >/dev/null 2>&1 &)'* ]] ||
-  fail "generic installer waits for packages and detaches only the scoped launch" "$presentation_command"
-pass "generic installer waits for packages and detaches only the scoped launch"
+[[ $presentation_command == *'omarchy-pkg-add alpha beta && omarchy-launch-after-done uwsm-app -- gtk-launch Disk\ Usage' ]] ||
+  fail "generic installer waits for packages before its scoped launch" "$presentation_command"
+pass "generic installer waits for packages before its scoped launch"
 
 : >"$OMARCHY_TEST_LOG"
 bash -c "$presentation_command"
 grep -Fxq 'pkg:alpha beta' "$OMARCHY_TEST_LOG" ||
   fail "generic installer passes every package to the package helper"
-wait_for_launch 'launch:uwsm-app -- gtk-launch Disk Usage' ||
+wait_for_launch 'launch:-f uwsm-app -- gtk-launch Disk Usage' ||
   fail "generic installer preserves a desktop ID containing spaces"
 pass "generic installer preserves a desktop ID containing spaces"
 
@@ -233,3 +233,43 @@ fi
 grep -Fxq 'pkg:alpha; echo PWNED' "$OMARCHY_TEST_LOG" ||
   fail "install-and-launch hands a hostile package list to the package helper as arguments" "$(<"$OMARCHY_TEST_LOG")"
 pass "install-and-launch does not run extra commands from a package list"
+
+# Through the real presentation, with its terminal running the script in place:
+# an app the install opens must wait until the Done prompt has had its key.
+presentation_bin="$test_tmp/presentation-bin"
+mkdir -p "$presentation_bin"
+cat >"$presentation_bin/setsid" <<'SH'
+#!/bin/bash
+if [[ $1 == -f ]]; then printf 'launch:%s\n' "${*:2}" >>"$OMARCHY_TEST_LOG"; else exec "$@"; fi
+SH
+cat >"$presentation_bin/uwsm-app" <<'SH'
+#!/bin/bash
+exec "${@:2}"
+SH
+cat >"$presentation_bin/xdg-terminal-exec" <<'SH'
+#!/bin/bash
+while [[ $1 != -e ]]; do shift; done
+exec "${@:2}"
+SH
+cat >"$presentation_bin/omarchy-show-done" <<'SH'
+#!/bin/bash
+printf 'done:%s\n' "$1" >>"$OMARCHY_TEST_LOG"
+SH
+# omarchy-restart-gum is sourced, so it must not exit.
+for command in omarchy-restart-gum omarchy-show-logo omarchy-setup-slack; do
+  printf '#!/bin/bash\n:\n' >"$presentation_bin/$command"
+done
+chmod +x "$presentation_bin"/*
+
+present() {
+  : >"$OMARCHY_TEST_LOG"
+  PATH="$presentation_bin:$PATH" bash "$ROOT/bin/omarchy-launch-floating-terminal-with-presentation" "$@"
+}
+
+present omarchy-install-service-slack
+[[ $(<"$OMARCHY_TEST_LOG") == $'pkg:slack-desktop\ndone:0\nlaunch:uwsm-app -- gtk-launch slack' ]] ||
+  fail "an installed app opens only after the Done prompt" "$(<"$OMARCHY_TEST_LOG")"
+present 'omarchy-launch-after-done uwsm-app -- gtk-launch slack; false'
+[[ $(<"$OMARCHY_TEST_LOG") == $'done:1\nlaunch:uwsm-app -- gtk-launch slack' ]] ||
+  fail "a queued app still opens after a Failed prompt" "$(<"$OMARCHY_TEST_LOG")"
+pass "an installed app opens only after the Done prompt"
