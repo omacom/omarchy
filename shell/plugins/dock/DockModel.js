@@ -151,8 +151,12 @@ function orderItems(items, order, instances) {
     var launchers = result.filter(function(item) { return item.windows.length === 0 })
     var windows = result.filter(function(item) { return item.windows.length > 0 })
     // Sort live windows into the non-minimized slots, preserving the latter.
+    var rank = {}
+    for (var w = 0; w < windows.length; w++) rank[windows[w].key] = w
     var live = windows.filter(function(item) { return !item.windows[0].minimized })
-    live.sort(function(a, b) { return a.windows[0].workspaceId - b.windows[0].workspaceId })
+    live.sort(function(a, b) {
+      return a.windows[0].workspaceId - b.windows[0].workspaceId || rank[a.key] - rank[b.key]
+    })
     var next = 0
     windows = windows.map(function(item) { return item.windows[0].minimized ? item : live[next++] })
     return launchers.concat(windows)
