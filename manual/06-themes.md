@@ -65,6 +65,17 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### App icons
+
+The icons in the app launcher and dock are drawn in the colors of your theme, so they change along with it. They come from an icon set, which you pick separately from the theme under _Appearance > Icons_:
+
+- _Papercraft_ is the default: Omarchy's own apps and the other apps that come installed, all drawn in one style.
+- _Original_ shows every app with the icon its maker gave it.
+
+You can install an icon set someone else has made with _Install > Style > Icons_ (or `omarchy icons install <git url>`), and remove it again under _Remove > Icons_.
+
+To make your own, put your icons in `~/.config/omarchy/icons/<name>/`, one file per app, named after the `Icon=` line of the app's `.desktop` file. A file ending in `.svg` is shown as it is. A file ending in `.svg.tpl` is drawn in the theme's colors: write `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` or `{{ icon_shadow }}` where a color goes. The default set in `/usr/share/omarchy/icons/papercraft/` is a good place to start from. To change a single icon of the default set, put your version in `~/.config/omarchy/icons/papercraft/`.
+
 ### Unlocks
 
 Themes can also have a custom unlock design, which is used for the boot decryption process. You can select one of these under _Appearance > Unlock_. They look like this:

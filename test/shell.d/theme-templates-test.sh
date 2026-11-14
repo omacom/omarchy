@@ -113,39 +113,89 @@ printf 'accent = "#e06c75"\ncolor0 = "#1e2127"\ncolor7 = "#abb2bf"\n' >"$test_tm
 [[ $(icon_role "$test_tmp/ansi.toml" icon_mark) == "$(icon_role "$test_tmp/bare.toml" icon_mark)" ]] || fail "a theme naming only its neutral ANSI slots gets the same highlight as a bare one"
 pass "app icon colors honor the theme and skip palettes they cannot draw"
 
-# App icons draw from the current theme after the switch, into a dir the links
-# point at. A theme's own icon wins; a user's own icon stays; a theme's icon for
-# an app Omarchy has no template for is not linked; and a theme that can't draw
-# them takes the icons and their links away again.
+# App icons are an icon set, drawn in the current theme's colors after the
+# switch into a dir the links point at. The set is picked apart from the theme,
+# which supplies colors and no icons. A user's set of the same name lies over
+# the built-in one; a user's own icon stays; and a theme that can't draw them
+# takes the icons and their links away again.
 state="$home/.local/state/omarchy/current"
 apps="$home/.local/share/icons/hicolor/scalable/apps"
+sets="$home/.config/omarchy/icons"
 mkdir -p "$state" "$apps"
 mv "$next" "$state/theme"
 mkdir -p "$state/theme/icons"
 printf 'shipped\n' >"$state/theme/icons/hype.svg"
 printf 'spoof\n' >"$state/theme/icons/firefox.svg"
 printf 'mine\n' >"$apps/omacut.svg"
-mkdir -p "$home/.config/omarchy/themed/icons"
-printf '<svg>{{ icon_main }}</svg>\n' >"$home/.config/omarchy/themed/icons/plain.svg.tpl"
+mkdir -p "$sets/papercraft"
+printf '<svg>{{ icon_main }}</svg>\n' >"$sets/papercraft/plain.svg.tpl"
+printf 'drawn\n' >"$sets/papercraft/gliff.svg"
 ln -s "$test_tmp/gone/omacalc.svg" "$apps/omacalc.svg"
-set_icons() { HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-icons"; }
+mkdir -p "$test_tmp/stubs"
+printf '#!/bin/bash\nexit 0\n' >"$test_tmp/stubs/omarchy-notification-send"
+chmod +x "$test_tmp/stubs/omarchy-notification-send"
+icons() { HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" PATH="$test_tmp/stubs:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-$1" "${@:2}"; }
+set_icons() { icons theme-set-icons; }
 set_icons
-for tpl in "$ROOT"/default/themed/icons/*.tpl; do
+for tpl in "$ROOT"/icons/papercraft/*.tpl; do
   name=${tpl##*/}
   name=${name%.tpl}
   [[ -f $state/icons/$name ]] || fail "every app icon template renders ($name)"
   [[ $(<"$state/icons/$name") != *"{{"* ]] || fail "every app icon template resolves all its colors ($name)"
 done
-[[ $(<"$state/icons/hype.svg") == "shipped" ]] || fail "a theme's own app icon wins over the template"
-[[ $(<"$state/icons/plain.svg") == "<svg>#"* && -L $apps/plain.svg ]] || fail "a user's icon template shadows the built-in and stays published"
+[[ $(<"$state/icons/hype.svg") != "shipped" && ! -e $apps/firefox.svg ]] || fail "a theme supplies the icons' colors and no icons of its own"
+[[ $(<"$state/icons/plain.svg") == "<svg>#"* && -L $apps/plain.svg ]] || fail "a user's icon template lies over the built-in set's"
+[[ $(<"$state/icons/gliff.svg") == "drawn" ]] || fail "a user's finished icon replaces the built-in set's template"
 [[ $(readlink "$apps/omawrite.svg") == "$state/icons/omawrite.svg" ]] || fail "app icons link over the packaged ones"
 [[ $(<"$apps/omacut.svg") == "mine" ]] || fail "app icons leave an icon the user put there"
 [[ $(readlink "$apps/omacalc.svg") == "$state/icons/omacalc.svg" ]] || fail "app icons replace a dangling link at their name"
-[[ ! -e $apps/firefox.svg ]] || fail "app icons link only Omarchy's own icons"
 [[ -s $state/icons.revision ]] || fail "app icons tell the shell they changed"
-pass "app icons render after the switch and link into the user's icon theme"
+pass "the icon set renders after the switch and links into the user's icon theme"
+
+# A set of the user's own may draw any app, in the theme's colors or as it is,
+# and draws only what it holds. Switching sets takes the last one's icons away.
+mkdir -p "$sets/mine"
+printf '<svg>{{ icon_mark }}</svg>\n' >"$sets/mine/firefox.svg.tpl"
+printf 'fixed\n' >"$sets/mine/mpv.svg"
+[[ $(icons icons-current) == "Papercraft" ]] || fail "the default icon set is in use until another is picked"
+[[ $(icons icons-list) == $'Mine\nOriginal\nPapercraft' ]] || fail "icon sets list the built-in ones, the user's and Original"
+icons icons-set Mine
+[[ $(icons icons-current) == "Mine" && $(icons icons-current --id) == "mine" ]] || fail "an icon set is picked by the name it is listed under"
+[[ $(<"$apps/firefox.svg") == "<svg>#"* && $(<"$apps/mpv.svg") == "fixed" ]] || fail "a user's icon set draws any app, themed or as it is"
+[[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "switching icon sets takes the last set's icons away"
+[[ $(<"$apps/omacut.svg") == "mine" ]] || fail "switching icon sets leaves an icon the user put there"
+pass "an icon set is picked apart from the theme and draws any app"
+
+# A set cloned from a git repo holds whatever its author pushed, so its
+# symlinks are left out; a set the user wrote themselves keeps its own.
+printf 'elsewhere\n' >"$test_tmp/elsewhere.svg"
+ln -s "$test_tmp/elsewhere.svg" "$sets/mine/imv.svg"
+set_icons
+[[ $(<"$apps/imv.svg") == "elsewhere" ]] || fail "a user's own icon set may link to its icons"
+mkdir "$sets/mine/.git"
+set_icons
+[[ ! -e $apps/imv.svg && $(<"$apps/mpv.svg") == "fixed" ]] || fail "a cloned icon set's symlinks are left out"
+rmdir "$sets/mine/.git"
+pass "a cloned icon set contributes only its own icon files"
+
+# Original is the set with nothing in it, so every app shows its own icon.
+icons icons-set Original
+[[ -z $(ls "$state/icons") && ! -e $apps/firefox.svg && ! -e $apps/mpv.svg ]] || fail "the Original icon set brings every app's own icon back"
+[[ $(<"$apps/omacut.svg") == "mine" ]] || fail "the Original icon set leaves an icon the user put there"
+! icons icons-set "No Such Set" >/dev/null 2>&1 || fail "an icon set that isn't there is refused"
+! icons icons-set "../themes" >/dev/null 2>&1 || fail "an icon set name can't climb out of the sets dir"
+[[ $(icons icons-current --id) == "original" ]] || fail "a refused icon set leaves the current one in use"
+pass "the Original icon set shows every app's own icon"
+
+# Removing the set in use falls back to the default one.
+icons icons-set Mine
+icons icons-remove Mine >/dev/null
+[[ ! -d $sets/mine && $(icons icons-current --id) == "papercraft" && -L $apps/omawrite.svg && ! -e $apps/firefox.svg ]] || fail "removing the icon set in use falls back to the default"
+! icons icons-remove "../themes" >/dev/null 2>&1 || fail "removing an icon set can't climb out of the sets dir"
+pass "removing the icon set in use falls back to the default"
 
 printf 'accent = "nope"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$state/theme/colors.toml"
 set_icons
 [[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "a theme that can't draw app icons brings the packaged ones back"
+[[ $(<"$state/icons/gliff.svg") == "drawn" ]] || fail "an icon that needs no colors stays under a theme that can't draw the rest"
 pass "a theme that can't draw app icons brings the packaged ones back"

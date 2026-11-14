@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=List available icon sets
+# omarchy:examples=omarchy icons list | omarchy icons set "Original"
+
+# Original is the set with nothing in it: every app shows its own icon.
+{
+  find ~/.config/omarchy/icons/ -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n' 2>/dev/null
+  find "$OMARCHY_PATH/icons/" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
+  echo original
+} | sort -u | sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g'

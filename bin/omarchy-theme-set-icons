@@ -1,19 +1,31 @@
 #!/bin/bash
 
-# omarchy:summary=Draw Omarchy's app icons in the current theme's colors
+# omarchy:summary=Draw the current icon set in the current theme's colors
 # omarchy:hidden=true
 
-# Runs after the theme is on screen, so drawing icons never holds up a switch.
-# The icons render into a scratch dir and each one replaces its predecessor in
-# ~/.local/state/omarchy/current/icons with a rename, so an app or the shell
-# reading one mid-switch gets the old icon or the new, never a missing or
-# half-written one. A theme may ship its own icons/<name>.svg instead.
+# An icon set is a directory of app icons named after the Icon= of the desktop
+# entries they are for: <icon name>.svg.tpl is drawn in the theme's colors, and
+# <icon name>.svg is used as it is. Omarchy's own sets live in icons,
+# the user's in ~/.config/omarchy/icons, and `omarchy icons set` picks the one
+# in use. A set and a theme are chosen separately: the theme only ever supplies
+# the colors, so it ships no icons of its own.
+#
+# A user's set with the name of a built-in one is laid over it, icon by icon, so
+# ~/.config/omarchy/icons/papercraft/<icon name>.svg.tpl redraws a single icon
+# of the default set. A set that isn't there draws nothing, which is how the
+# `original` set brings every app's own icon back.
+#
+# This runs after the theme is on screen, so drawing icons never holds up a
+# switch. The icons render into a scratch dir and each one replaces its
+# predecessor in ~/.local/state/omarchy/current/icons with a rename, so an app
+# or the shell reading one mid-switch gets the old icon or the new, never a
+# missing or half-written one.
 #
 # Each icon is linked by name over the packaged hicolor icon once; the link
-# never changes after that. Only names with an icon template are linked, so a
-# theme may redraw Omarchy's icons but not stand in for another app's. An icon
-# the user put there themselves is kept. When the theme can't draw an icon, it
-# and its link go, and the packaged icon shows again.
+# never changes after that. An icon the user put there themselves is kept. An
+# icon the set no longer draws goes, and its link with it, and the packaged
+# icon shows again: after a switch to a set without it, or under a theme whose
+# colors can't be read.
 #
 # The shell watches icons.revision and redraws the icons when it changes.
 
@@ -21,43 +33,60 @@ CURRENT="$HOME/.local/state/omarchy/current"
 THEME="$CURRENT/theme"
 ICONS="$CURRENT/icons"
 LINKS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
+SET=$(omarchy-icons-current --id)
+BUILT_IN_SET="$OMARCHY_PATH/icons/$SET"
+USER_SET="$HOME/.config/omarchy/icons/$SET"
 
 shopt -s nullglob
 
-# Quick theme switches can start runs that overlap. One at a time, the last
-# one to run reads the current theme, so an older theme never lands last.
+# Quick switches can start runs that overlap. One at a time, the last one to
+# run reads the current theme and set, so an older one never lands last.
+mkdir -p "$CURRENT"
 exec 7>"$CURRENT/.icons.lock"
 flock 7
 
 scratch=$(mktemp -d "$CURRENT/.icons.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
+mkdir "$scratch/set" "$scratch/out"
 
-# A file already in the output dir is never overwritten, so the theme's own
-# icons win over the templates.
-for icon in "$THEME"/icons/*.svg; do
-  [[ -L $icon ]] || cp "$icon" "$scratch/"
+# The user's set goes over the built-in one of the same name. An icon is given
+# once, so the user's drawing replaces the built-in template of that name and
+# the other way around. A set cloned from a git repo holds whatever its author
+# pushed, so its symlinks, which point wherever they chose, are left out.
+for dir in "$BUILT_IN_SET" "$USER_SET"; do
+  for icon in "$dir"/*.svg "$dir"/*.svg.tpl; do
+    [[ -f $icon ]] || continue
+    [[ -L $icon && -e $dir/.git ]] && continue
+    name=${icon##*/}
+    name=${name%.tpl}
+    rm -f "$scratch/set/$name" "$scratch/set/$name.tpl"
+    cp "$icon" "$scratch/set/"
+  done
 done
-omarchy-theme-set-templates --icons "$THEME" "$scratch"
+
+for icon in "$scratch/set"/*.svg; do
+  mv "$icon" "$scratch/out/"
+done
+omarchy-theme-set-templates --icons "$THEME" "$scratch/out" "$scratch/set"
 
 mkdir -p "$ICONS" "$LINKS"
-# A user template shadows the built-in of the same name, so each name is
-# published once.
-declare -A published=()
-for template in "$HOME/.config/omarchy/themed/icons"/*.svg.tpl "$OMARCHY_PATH/default/themed/icons"/*.svg.tpl; do
-  name=${template##*/}
-  name=${name%.tpl}
-  [[ -z ${published[$name]:-} ]] || continue
-  published[$name]=1
+declare -A drawn=()
+for icon in "$scratch/out"/*.svg; do
+  name=${icon##*/}
   link="$LINKS/$name"
+  drawn[$name]=1
+  mv -f "$icon" "$ICONS/$name"
+  # A working icon of the user's own stays; a dangling link at the name goes.
+  [[ -e $link ]] || ln -sfn "$ICONS/$name" "$link"
+done
 
-  if [[ -f $scratch/$name ]]; then
-    mv -f "$scratch/$name" "$ICONS/$name"
-    # A working icon of the user's own stays; a dangling link at the name goes.
-    [[ -e $link ]] || ln -sfn "$ICONS/$name" "$link"
-  else
-    rm -f "$ICONS/$name"
-    [[ -L $link && $(readlink "$link") == "$ICONS/$name" ]] && rm "$link"
-  fi
+# What the last run drew and this one didn't.
+for icon in "$ICONS"/*.svg; do
+  name=${icon##*/}
+  link="$LINKS/$name"
+  [[ -z ${drawn[$name]:-} ]] || continue
+  rm -f "$icon"
+  [[ -L $link && $(readlink "$link") == "$icon" ]] && rm "$link"
 done
 
 printf '%s\n' "${EPOCHREALTIME//[!0-9]/}" >"$CURRENT/icons.revision"

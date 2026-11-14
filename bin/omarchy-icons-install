@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# omarchy:summary=Install an icon set from a git repository
+# omarchy:args=[git-repo-url]
+# omarchy:examples=omarchy icons install https://github.com/example/omarchy-example-icons.git
+# omarchy:examples=omarchy icons install git@github.com:example/omarchy-example-icons.git
+
+if [[ -z $1 ]]; then
+  REPO_URL=$(gum input --placeholder="$(omarchy-i18n icons.repoPlaceholder)" --header="")
+else
+  REPO_URL="$1"
+fi
+
+if [[ -z $REPO_URL ]]; then
+  exit 1
+fi
+
+# Refuse a URL that names a git option or a transport helper before cloning. The
+# check is shared with omarchy-theme-install and explains itself; a missing
+# checker leaves this non-zero, which refuses the URL rather than cloning it.
+omarchy-git-url-check "$REPO_URL" || exit 1
+
+SETS_DIR="$HOME/.config/omarchy/icons"
+
+# Strip user@host: prefix from scp-style SSH URLs so basename sees just the
+# path, as omarchy-theme-install does.
+REPO_PATH="$REPO_URL"
+[[ $REPO_PATH != *"://"* && $REPO_PATH == *:* && ${REPO_PATH%%:*} != */* ]] && REPO_PATH="${REPO_PATH#*:}"
+SET_NAME=$(basename -- "$REPO_PATH" .git | sed -E 's/^omarchy-//; s/-icons$//' | tr '[:upper:]' '[:lower:]')
+SET_PATH="$SETS_DIR/$SET_NAME"
+
+# The name comes from the URL and is joined into a path that is about to be
+# removed, so it is held to the characters a set name needs: a repo called `..`
+# would take ~/.config/omarchy with it. The locale is pinned so the bracket
+# ranges are the ASCII ones written here. A set may not take the name of
+# `original`, which always means no icon set at all.
+if ! (LC_ALL=C; [[ $SET_NAME =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]) || [[ $SET_NAME == "original" ]]; then
+  echo "Error: '$REPO_URL' does not give a usable icon set name."
+  exit 1
+fi
+
+# Remove existing set if present
+if [[ -d $SET_PATH ]]; then
+  rm -rf "$SET_PATH"
+fi
+
+mkdir -p "$SETS_DIR"
+if ! git clone -- "$REPO_URL" "$SET_PATH"; then
+  echo "Error: Failed to clone icon set repo."
+  exit 1
+fi
+
+# Only the set's icons are ever read, and they are drawings: nothing in the
+# repo is run.
+omarchy-icons-set "$SET_NAME"
