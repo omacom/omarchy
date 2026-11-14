@@ -151,6 +151,8 @@
   "agents.waitingForAuth": "Waiting for auth",
   "agents.windowLimit": "Limit",
   "agents.windowMonthly": "Monthly",
+  "agents.windowMonthlyIncluded": "Monthly included",
+  "agents.windowPooledIncluded": "Pooled included",
   "agents.windowSession": "Session",
   "agents.windowSpendLimit": "Spend limit",
   "agents.windowUsed": "%1: %2% used",

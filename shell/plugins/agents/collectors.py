@@ -3771,6 +3771,22 @@ def _cursor_ide_token(state_db: Path) -> str:
   return str(value or "").strip()
 
 
+def cursor_cli_token(auth_path: Path | None = None) -> str:
+  """The Cursor CLI's own access token, as its auth.json holds it, honoring
+  an exported API key but without the exported bearer or the editor's
+  fallback. This is the credential the CLI's cli-config.json (and the team id
+  inside it) belongs to, so a collector resolves the team against this token
+  rather than whatever cursor_token() happens to select."""
+  auth = read_json(auth_path or cursor_auth_path())
+  key = str(os.environ.get("CURSOR_API_KEY") or "").strip()
+  traded = str(auth.get("accessToken") or "").strip()
+  if key:
+    # With no token traded for this key, any other sign-in is someone else's
+    # account than the one the CLI runs as.
+    return traded if str(auth.get("apiKey") or "").strip() == key else ""
+  return traded
+
+
 def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) -> str:
   """The token the user exported, the credential the Cursor CLI stores, or
   the editor's sign-in, in that order.
@@ -3787,14 +3803,11 @@ def cursor_token(auth_path: Path | None = None, state_db: Path | None = None) ->
   bearer = str(os.environ.get("CURSOR_AUTH_TOKEN") or "").strip()
   if bearer:
     return bearer
-  auth = read_json(auth_path or cursor_auth_path())
-  key = str(os.environ.get("CURSOR_API_KEY") or "").strip()
-  traded = str(auth.get("accessToken") or "").strip()
-  if key:
-    # With no token traded for this key, any other sign-in is someone else's
-    # account than the one the CLI runs as.
-    return traded if str(auth.get("apiKey") or "").strip() == key else ""
-  cli = traded
+  if str(os.environ.get("CURSOR_API_KEY") or "").strip():
+    # An exported key stands only for the token the CLI traded it for: no
+    # other sign-in, editor or otherwise, is the account the CLI runs as.
+    return cursor_cli_token(auth_path)
+  cli = cursor_cli_token(auth_path)
   if cli and not token_lapsed(cli):
     return cli
   ide = _cursor_ide_token(state_db or cursor_state_db())
