@@ -13,7 +13,19 @@ for script in "$firmware_setup" "$dtb_setup"; do
   bash -n "$script" || fail "Snapdragon hardware scripts have valid syntax"
 done
 
-(
+# A root disk in a USB enclosure, behind the controller at $1 with compatible $2,
+# as sysfs shows it.
+usb_root_sysfs() {
+  local sysfs="$scratch/sys-$1" controller="$scratch/sys-$1/devices/platform/soc@0/$1.usb"
+  local disk="$controller/xhci-hcd.2.auto/usb4/4-1/4-1.2/4-1.2:1.0/host0/target0:0:0/0:0:0:0/block/sda"
+  mkdir -p "$controller/of_node" "$disk/sda2" "$sysfs/class/block"
+  printf '%s\0qcom,snps-dwc3\0' "$2" >"$controller/of_node/compatible"
+  ln -sfn "$disk" "$sysfs/class/block/sda"
+  ln -sfn "$disk/sda2" "$sysfs/class/block/sda2"
+  printf '%s\n' "$sysfs"
+}
+
+run_usb_root_firmware_setup() (
   omarchy-hw-aarch64-qualcomm() { return 0; }
   omarchy-pkg-add() { :; }
   qcom-firmware-extract() {
@@ -29,15 +41,22 @@ done
   }
   lsblk() {
     [[ ${!#} == "/dev/mapper/root" ]] || fail "Snapdragon firmware setup passes a resolvable root device to lsblk"
-    printf 'usb\n'
+    printf 'root \nsda2 \nsda usb\n'
   }
 
+  OMARCHY_QUALCOMM_SYSFS=$1
   OMARCHY_QUALCOMM_MODPROBE_DIR="$scratch/modprobe.d"
   source "$firmware_setup"
 )
 
+run_usb_root_firmware_setup "$(usb_root_sysfs a600000 qcom,x1e80100-dwc3)"
 [[ -f $scratch/modprobe.d/qualcomm-adsp-nofw.conf ]] ||
-  fail "Snapdragon firmware setup protects a USB-backed root disk"
+  fail "Snapdragon firmware setup protects a root disk on a USB-C port"
+
+# The IdeaCentre Mini x keeps running from a USB-A disk with the DSPs started.
+run_usb_root_firmware_setup "$(usb_root_sysfs a400000 qcom,x1e80100-dwc3-mp)"
+[[ ! -f $scratch/modprobe.d/qualcomm-adsp-nofw.conf ]] ||
+  fail "Snapdragon firmware setup lets the DSPs start with the root disk on a USB-A port"
 
 run_internal_firmware_setup() (
   omarchy-hw-aarch64-qualcomm() { return 0; }
