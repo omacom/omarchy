@@ -5,7 +5,16 @@ set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
 
 test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+cleanup() {
+  touch "$test_tmp/release"
+  [[ -z ${first_pid:-} ]] || wait "$first_pid" 2>/dev/null || true
+  [[ -z ${second_pid:-} ]] || wait "$second_pid" 2>/dev/null || true
+  rm -rf "$test_tmp"
+}
+trap cleanup EXIT
+
+export XDG_RUNTIME_DIR="$test_tmp/runtime"
+export XDG_CACHE_HOME="$test_tmp/cache"
 
 stub_bin="$test_tmp/bin"
 git_log="$test_tmp/git.log"
@@ -126,6 +135,20 @@ grep -q '^omarchy ' "$stdout" || fail "update checker prints omarchy updates"
 ! grep -q '^linux ' "$stdout" || fail "update checker ignores non-Omarchy package updates"
 ! grep -q '^omarchy-dev ' "$stdout" || fail "update checker ignores omarchy-dev when omarchy is installed"
 pass "update checker detects installed omarchy package updates"
+[[ -f $XDG_RUNTIME_DIR/omarchy/checkupdates.lock ]] || fail "update lock lives in the runtime directory"
+[[ ! -e $XDG_CACHE_HOME ]] || fail "update locking does not create cache state"
+pass "update lock uses runtime state rather than persistent cache"
+
+touch "$test_tmp/not-a-directory"
+if capture_checker "$stdout" "$stderr" TEST_CHECKUPDATES=updates TEST_INSTALLED_PACKAGE=omarchy XDG_RUNTIME_DIR="$test_tmp/not-a-directory"; then
+  status=0
+else
+  status=$?
+fi
+[[ $status -eq 0 ]] || fail "update checker still checks without a runtime directory" "$(cat "$stderr")"
+grep -q '^omarchy ' "$stdout" || fail "update checker reports updates without a runtime directory"
+[[ ! -s $stderr ]] || fail "update checker stays quiet without a runtime directory" "$(cat "$stderr")"
+pass "update checker checks unlocked when no runtime directory can be made"
 
 if capture_checker "$stdout" "$stderr" TEST_CHECKUPDATES=updates TEST_INSTALLED_PACKAGE=omarchy-dev; then
   status=0
@@ -211,3 +234,39 @@ grep -Fx 'omarchy-dev-checkout 1 new commit on origin/quattro' "$stdout" >/dev/n
   fail "update checker reports cached dev commits after a fetch failure" "$(cat "$stdout")"
 [[ ! -s $stderr ]] || fail "update checker keeps dev fetch failures quiet" "$(cat "$stderr")"
 pass "update checker uses cached dev state when fetching is unavailable"
+
+# Model checkupdates' shared database lock: overlapping runs lose an update.
+cat >"$stub_bin/checkupdates" <<'SH'
+#!/bin/bash
+if ! mkdir "$TEST_CHECK_DIR/active" 2>/dev/null; then
+  echo collision >>"$TEST_CHECK_DIR/collisions"
+  exit 1
+fi
+trap 'rmdir "$TEST_CHECK_DIR/active"' EXIT
+touch "$TEST_CHECK_DIR/started"
+while [[ ! -e $TEST_CHECK_DIR/release ]]; do sleep 0.01; done
+printf 'omarchy 4.0.0-1 -> 4.0.1-1\n'
+SH
+cat >"$stub_bin/flock" <<'SH'
+#!/bin/bash
+printf '%s\n' "$$" >>"$TEST_CHECK_DIR/attempts"
+exec /usr/bin/flock "$@"
+SH
+chmod +x "$stub_bin/flock"
+export TEST_CHECK_DIR="$test_tmp" TEST_INSTALLED_PACKAGE=omarchy
+XDG_CACHE_HOME="$test_tmp/first-cache" run_checker >"$test_tmp/first" &
+first_pid=$!
+timeout 5 bash -c 'until [[ -e $TEST_CHECK_DIR/started ]]; do sleep 0.01; done' || fail "the first availability check reaches checkupdates"
+XDG_CACHE_HOME="$test_tmp/second-cache" run_checker >"$test_tmp/second" &
+second_pid=$!
+timeout 5 bash -c 'until [[ -f $TEST_CHECK_DIR/attempts ]] && (( $(wc -l <"$TEST_CHECK_DIR/attempts") == 2 )); do sleep 0.01; done' || fail "both availability checks attempt the shared lock"
+if /usr/bin/flock -n "$XDG_RUNTIME_DIR/omarchy/checkupdates.lock" true; then
+  fail "the first check holds its lock while the second attempts it"
+fi
+[[ ! -e $test_tmp/collisions ]] || fail "the second check cannot enter the shared database while the first holds it"
+touch "$test_tmp/release"
+wait "$first_pid" || fail "first concurrent caller receives the update"
+wait "$second_pid" || fail "second concurrent caller receives the update"
+[[ ! -e $test_tmp/collisions ]] || fail "checkupdates never overlaps"
+cmp -s "$test_tmp/first" "$test_tmp/second" || fail "concurrent callers agree"
+pass "concurrent callers serialize checkupdates and receive the same update"
