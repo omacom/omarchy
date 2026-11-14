@@ -112,6 +112,19 @@ omarchy plugin disable omarchy.weather
 
 `Super + Shift + Space` toggles the bar off and back on without killing the shell — panels and hotkeys keep working, you just get the pixels back. It's also in the menu under **Appearance → Menu Bar → Hide Bar**.
 
+## Over full screen apps
+
+A full screen window (`Super + F`) covers the bar. Hold `Super + B` to bring the bar down over it, and let go to send it back. If you let go with the pointer on the bar, or with one of its panels open, it stays until you move away or close the panel.
+
+To bring it down with the mouse instead, like on a Mac, set `fullscreenEdgeReveal` to `true` under `bar` in `~/.config/omarchy/shell.json`. Then pushing the pointer against the bar's screen edge and resting there for a moment brings it down. A pointer that only passes over the edge on its way to another monitor leaves it alone. It's off by default because the edge pixels then belong to the bar, not to the full screen app.
+
+```json
+"bar": {
+  "position": "top",
+  "fullscreenEdgeReveal": true
+}
+```
+
 ## The config file
 
 All of it is stored in `~/.config/omarchy/shell.json`, under the `bar` key. Here's a trimmed version:
