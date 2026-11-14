@@ -42,6 +42,57 @@ long_suffix=$(printf 'l%.0s' {1..223})
 )
 pass "legacy cleanup removes generated rules for any account and quarantines everything else in the prefix"
 
+(
+  source "$library"
+  policies=(
+    'audituser  ALL=(ALL) NOPASSWD: ALL'
+    "$(printf 'audituser\tALL=(ALL)\tNOPASSWD:\tALL')"
+    'audituser ALL = ( ALL ) NOPASSWD : ALL'
+    '"audituser" ALL=(ALL) NOPASSWD: ALL'
+    "$(printf 'audituser ALL=(ALL) \\\n  NOPASSWD: ALL')"
+    "$(printf 'User_Alias GRANTEE = audituser\nCmnd_Alias ROOT_COMMANDS = ALL\nGRANTEE ALL=(ALL) NOPASSWD: ROOT_COMMANDS')"
+    'audituser,root ALL=(ALL) NOPASSWD: ALL'
+  )
+  uid=1003
+  for policy in "${policies[@]}"; do
+    file=$(rule_file "$uid" permanent)
+    printf '%s\n' "$policy" >"$file"
+    /usr/sbin/visudo -cf "$file" >/dev/null
+    cleanup_all_locked include-permanent
+    [[ ! -e $file ]] || fail "repair preserved a reformatted broad grant: $policy"
+    [[ $(quarantined_policy "${file##*/}") == "$policy" ]] || fail "repair discarded a reformatted administrator policy"
+    (( uid += 1 ))
+  done
+  file="$test_tmp/etc/sudoers.d/99-omarchy-permanent-nopasswd-admin"
+  printf 'admin ALL=(ALL) NOPASSWD: ALL\n' >"$file"
+  cleanup_all_locked include-permanent
+  [[ $(quarantined_policy "${file##*/}") == 'admin ALL=(ALL) NOPASSWD: ALL' ]] || fail "repair discarded a custom permanent policy"
+)
+pass "repair quarantines reformatted broad grants and preserves custom permanent policy content"
+
+(
+  source "$library"
+  file=$(rule_file 1003 permanent)
+  for policy in \
+    '#1000  ALL=(ALL) NOPASSWD: ALL' \
+    'audituser ALL=(ALL) PASSWD: ALL, NOPASSWD: /usr/bin/true' \
+    'audituser ALL=(ALL) NOPASSWD: ALL, !ALL' \
+    'audituser ALL=(ALL, !root) NOPASSWD: ALL' \
+    'audituser ALL=() NOPASSWD: ALL' \
+    'audituser,!audituser ALL=(ALL) NOPASSWD: ALL'; do
+    printf '%s\n' "$policy" >"$file"
+    cleanup_all_locked include-permanent
+    [[ $(cat "$file") == "$policy" ]] || fail "repair altered safe custom policy: $policy"
+  done
+  for policy in 'audituser ALL=(ALL) NOPASSWD: EXTERNAL' 'audituser ALL=(ALL) NOPASSWD:'; do
+    printf '%s\n' "$policy" >"$file"
+    assert_status 1 migrate_locked
+    [[ ! -e $MIGRATION_MARKER && -f $file ]] || fail "incomplete policy was certified or discarded"
+  done
+  rm "$file"
+)
+pass "repair preserves UID-only, limited and deny-only policy and leaves incomplete policy pending"
+
 reset_grant
 (
   source "$library"
