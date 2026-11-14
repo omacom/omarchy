@@ -14,6 +14,7 @@ OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "the console is a centered panel unti
 local rules, handlers, spawned = {}, {}, {}
 local monitor = nil
 local workspace = nil
+local gaps_in = 5
 
 hl = {
   config = function() end,
@@ -31,6 +32,9 @@ hl = {
     return list
   end,
   exec_scheduled_prop_refresh_immediately = function() end,
+  get_config = function(key)
+    if key == "general.gaps_in" then return gaps_in end
+  end,
   exec_cmd = function(cmd, rules) table.insert(spawned, { cmd = cmd, rules = rules }) end,
 }
 
@@ -206,6 +210,8 @@ handlers["window.open"]()
 top, right, bottom, left = gaps()
 assert(left == 0 and right == 0, "a second app on the console restores the full width")
 assert(bottom == 525, "and the console keeps its half-height drop")
+assert(current().no_border == false, "split windows get borders to show which one has focus")
+assert(current().gaps_in == 5, "and the usual gap between them")
 
 workspace.windows = 3
 written = #rules
@@ -216,6 +222,7 @@ workspace.windows = 1
 handlers["window.destroy"]()
 top, right, bottom, left = gaps()
 assert(left == 435 and right == 435, "closing back down to one window recenters the panel")
+assert(current().no_border == true and current().gaps_in == 0, "a lone console window drops the border and gap again")
 
 -- An empty console is about to be seeded with a single agent, so it is sized
 -- as a console rather than as a workspace.
@@ -278,6 +285,30 @@ workspace.windows = 1
 handlers["window.move_to_workspace"]()
 top, right, bottom, left = gaps()
 assert(left == 435 and right == 435, "moving it back off recenters the panel")
+
+-- A portrait console is full width either way, so splitting it moves no outer
+-- gap, and with no inner gap configured the border is the only thing that
+-- changes. It still has to follow the window count.
+gaps_in = 0
+monitor = { width = 1080, height = 1920, scale = 1, transform = 0, reserved = { top = 0, bottom = 0, left = 0, right = 0 } }
+workspace = { name = "special:qconsole", visible = true, monitor = monitor, windows = 1 }
+handlers["monitor.layout_changed"]()
+assert(current().no_border == true, "a lone portrait console has no border")
+workspace.windows = 2
+handlers["window.open"]()
+assert(current().no_border == false, "splitting a portrait console with no gap still adds the border")
+workspace.windows = 1
+handlers["window.destroy"]()
+assert(current().no_border == true, "and closing back to one removes it")
+gaps_in = 5
+
+-- The console loads before the user's own appearance settings, so a split
+-- console has to pick up their gap once the reload has applied it.
+workspace.windows = 2
+handlers["window.open"]()
+gaps_in = 12
+handlers["config.reloaded"]()
+assert(current().gaps_in == 12, "a reload brings a split console's gap up to date")
 
 -- window.close still counts the window on its way out, and window.destroy
 -- follows it with the settled count, so only destroy is hooked.
