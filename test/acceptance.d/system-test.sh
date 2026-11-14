@@ -25,19 +25,12 @@ verify_core_packages() {
 }
 
 verify_core_package_versions() {
-  local package="gpu-screen-recorder"
-  local minimum_version="6.1.2"
-  local installed_package installed_version
+  local dependency="gpu-screen-recorder>=6.1.2"
 
-  if installed_package=$(LC_ALL=C pacman -Q "$package" 2>/dev/null); then
-    installed_version=${installed_package##* }
-  else
-    fail "GPU Screen Recorder meets its minimum version" "$package is not installed"
-  fi
-
-  (( $(vercmp "$installed_version" "$minimum_version") >= 0 )) ||
-    fail "GPU Screen Recorder meets its minimum version" "v${minimum_version} or newer is required; v${installed_version} is installed"
-  pass "GPU Screen Recorder meets its minimum version (v${installed_version})"
+  # Check versioned provides as well as the repository package's version.
+  LC_ALL=C pacman -T "$dependency" >/dev/null ||
+    fail "GPU Screen Recorder meets its minimum version" "a package providing $dependency is required for the KMS helper security fix"
+  pass "GPU Screen Recorder meets its minimum version"
 }
 
 verify_kernel_headers() {

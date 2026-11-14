@@ -1,32 +1,25 @@
-echo "Upgrade GPU Screen Recorder to v6.1.2 or newer"
+echo "Check GPU Screen Recorder's security update"
 
 package="gpu-screen-recorder"
 minimum_version="6.1.2"
 
+# Upstream 6.1.2 includes a security fix for the privileged KMS helper.
+# https://git.dec05eba.com/gpu-screen-recorder/commit/?h=6.1.2
 if installed_package=$(LC_ALL=C pacman -Q "$package" 2>/dev/null); then
-  installed_name=${installed_package% *}
-  installed_version=${installed_package##* }
-  if (( $(vercmp "$installed_version" "$minimum_version") < 0 )); then
-    # omarchy-pkg-add skips packages that are already installed, so ask pacman
-    # for the required minimum explicitly and stay pending if it is unavailable.
+  # A provider's build version need not match upstream's release version.
+  # Let pacman compare the version in its provides metadata instead.
+  if ! LC_ALL=C pacman -T "$package>=$minimum_version" >/dev/null; then
+    installed_name=${installed_package% *}
+    installed_version=${installed_package##* }
+    echo "GPU Screen Recorder v${minimum_version} or newer is required for its KMS helper security fix." >&2
     if [[ $installed_name == "$package" ]]; then
-      sudo pacman -S --noconfirm --needed "$package>=$minimum_version"
+      echo "v${installed_version} is installed. Run omarchy update; if the package is held, review IgnorePkg in /etc/pacman.conf before updating it." >&2
     else
-      # Providers conflict with the packaged recorder. Answer pacman's removal
-      # question so the replacement happens in one dependency-safe transaction.
-      sudo pacman -S --noconfirm --ask 4 --needed "$package>=$minimum_version"
+      echo "$installed_name ($installed_version) does not provide $package>=$minimum_version. Update or rebuild it with the upstream security fix and a versioned provides entry." >&2
     fi
-
-    if installed_package=$(LC_ALL=C pacman -Q "$package"); then
-      installed_version=${installed_package##* }
-      if (( $(vercmp "$installed_version" "$minimum_version") < 0 )); then
-        echo "GPU Screen Recorder v${minimum_version} or newer is required; v${installed_version} is still installed." >&2
-        exit 1
-      fi
-    else
-      echo "Could not verify GPU Screen Recorder after its required upgrade from v${installed_version}; the migration will retry." >&2
-      exit 1
-    fi
+    # Normal package updates already upgrade repository installs. Leave holds
+    # and alternate providers to their owner rather than overriding them.
+    exit 1
   fi
 else
   if missing_dependencies=$(LC_ALL=C pacman -T "$package" 2>/dev/null); then
