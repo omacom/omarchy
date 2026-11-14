@@ -8,11 +8,15 @@ default_browser=$(omarchy-cmd-default-browser)
 # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, in
 # the same order, so the command always comes from the entry that was checked.
 IFS=: read -ra data_dirs <<<"${XDG_DATA_HOME:-$HOME/.local/share}:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+# An entry may set variables for its browser with an env prefix, as in
+# Exec=env DRI_PRIME=0 chromium %U: keep them for the launch, and take the
+# browser from the word after them, not env itself.
+source omarchy-cmd-browser-exec
 browser_exec=""
 for data_dir in "${data_dirs[@]}"; do
   entry="$data_dir/applications/$default_browser"
   [[ -f $entry ]] || continue
-  browser_exec=$(sed -n 's/^Exec=\([^ ]*\).*/\1/p' "$entry" | head -1)
+  browser_from_desktop_entry "$entry"
   break
 done
 
@@ -38,10 +42,13 @@ if [[ " $* " == *" --private "* ]]; then
   fi
 fi
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
+# The handoff sees the entry's variables too, so it leaves a browser pointed at
+# another profile to the launch instead of giving the URL to the running one,
+# and checks the executable the entry's PATH selects, so a wrapper there runs.
+if ! env "${handoff_env[@]}" omarchy-cmd-browser-handoff "$handoff_browser" "${@/--private/$private_flag}"; then
   systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
     --property=StandardOutput=null --property=StandardError=null \
-    uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
+    uwsm-app -- "${browser_command[@]}" "${@/--private/$private_flag}"
 fi
 
 url=""

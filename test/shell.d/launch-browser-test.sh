@@ -145,6 +145,56 @@ grep -F -- ' -- vivaldi https://example.test/vivaldi' "$launch_log" >/dev/null |
   fail "a browser in XDG_DATA_DIRS launches from its desktop entry" "$(cat "$launch_log")"
 pass "browser launcher reads Exec= from the data dirs the resolver searched"
 
+# An env prefix sets variables for the browser; env is not the browser, and
+# launching it with only the URL ran `env <url>`, so every link did nothing.
+cat >"$XDG_DATA_DIRS/applications/vivaldi-stable.desktop" <<'EOF'
+[Desktop Entry]
+Exec=env DRI_PRIME=0 vivaldi %U
+EOF
+rm -f "$launch_log"
+launch "https://example.test/env"
+grep -F -- ' -- env DRI_PRIME=0 vivaldi https://example.test/env' "$launch_log" >/dev/null ||
+  fail "a browser behind an env prefix launches with its variables" "$(cat "$launch_log")"
+pass "a browser behind an env prefix launches with its variables"
+
+rm -f "$launch_log"
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" \
+  bash "$ROOT/bin/omarchy-launch-webapp" "https://example.test/app-env"
+grep -F -- '-- env DRI_PRIME=0 vivaldi --app=https://example.test/app-env' "$launch_log" >/dev/null ||
+  fail "a web app in a browser behind an env prefix launches with its variables" "$(cat "$launch_log")"
+pass "a web app in a browser behind an env prefix launches with its variables"
+
+# A value with spaces is quoted in Exec=; splitting on spaces took its second
+# half for the browser.
+cat >"$XDG_DATA_DIRS/applications/vivaldi-stable.desktop" <<'EOF'
+[Desktop Entry]
+Exec=env "CHROME_CONFIG_HOME=/home/alex/Browser Profiles" vivaldi %U
+EOF
+rm -f "$launch_log"
+launch "https://example.test/quoted"
+grep -F -- ' -- env CHROME_CONFIG_HOME=/home/alex/Browser Profiles vivaldi https://example.test/quoted' "$launch_log" >/dev/null ||
+  fail "a quoted variable in an env prefix launches unquoted, with its browser" "$(cat "$launch_log")"
+pass "a quoted variable in an env prefix launches unquoted, with its browser"
+
+# A PATH in the prefix picks the browser, so the handoff checks that one: a
+# wrapper there must not be bypassed for a same-named browser on the session's.
+mkdir -p "$test_tmp/opt/bin"
+printf '#!/bin/bash\n' >"$test_tmp/opt/bin/vivaldi"
+chmod +x "$test_tmp/opt/bin/vivaldi"
+printf '[Desktop Entry]\nExec=env PATH=%s:/usr/bin vivaldi %%U\n' "$test_tmp/opt/bin" >"$XDG_DATA_DIRS/applications/vivaldi-stable.desktop"
+cat >"$mock_bin/omarchy-cmd-browser-handoff" <<'SH'
+#!/bin/bash
+printf '%s\n' "$1" >"$OMARCHY_TEST_HANDOFF"
+exit 1
+SH
+chmod +x "$mock_bin/omarchy-cmd-browser-handoff"
+export OMARCHY_TEST_HANDOFF="$test_tmp/handoff"
+launch "https://example.test/wrapper"
+[[ $(<"$OMARCHY_TEST_HANDOFF") == "$test_tmp/opt/bin/vivaldi" ]] ||
+  fail "the handoff checks the browser the entry's PATH selects" "$(cat "$OMARCHY_TEST_HANDOFF")"
+rm -f "$mock_bin/omarchy-cmd-browser-handoff"
+pass "the handoff checks the browser the entry's PATH selects"
+
 # With nothing to launch, the failure has to be visible from a keybinding,
 # where stderr goes nowhere, and must never reach uwsm-app as an empty command.
 rm -f "$XDG_CONFIG_HOME/mimeapps.list" "$test_home/.local/share/applications/chromium.desktop" "$launch_log"
