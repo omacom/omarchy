@@ -173,20 +173,24 @@ pass "a keycode is named by what the leading layout prints on it"
 
 # Binds fire by the physical key, so while the second layout is active a letter
 # chord is the key that layout prints, and a key it prints no letter on keeps
-# its name. The first layout is named as before.
-echo '{"keyboards": [{"main": true, "layout": "us,gr", "variant": "", "active_layout_index": 1}]}' >"$stub_bin/devices.json"
+# its name. The first layout is named as before. The keyboard marked main can be
+# the virtual one fcitx5 types through, which stays on the first layout, so the
+# layout is read off the keyboard being typed on.
+echo '{"keyboards": [{"name": "hl-virtual-keyboard-fcitx5", "main": true, "layout": "us,gr", "variant": "", "active_layout_index": 0}, {"name": "some-keyboard", "main": false, "layout": "us,gr", "variant": "", "active_layout_index": 1}]}' >"$stub_bin/devices.json"
 stub_hyprctl <<BINDS
 $(lua_bind 64 "SUPER + K" "Keybindings")
 $(lua_bind 64 "SUPER + RETURN" "Terminal")
 $(lua_bind 0 "J" "Pseudo window")
+$(lua_bind 64 "SUPER + l" "Lock system")
 BINDS
 
 rendered=$(keybindings "$menu" "$tmpdir/cache-greek")
 grep -q 'SUPER + Κ  *→ Keybindings' <<<"$rendered" &&
   grep -q 'SUPER + RETURN  *→ Terminal' <<<"$rendered" &&
-  grep -q '^Ξ  *→ Pseudo window' <<<"$rendered" ||
+  grep -q '^Ξ  *→ Pseudo window' <<<"$rendered" &&
+  grep -q 'SUPER + Λ  *→ Lock system' <<<"$rendered" ||
   fail "a letter chord is named after the active layout" "$rendered"
-echo '{"keyboards": [{"main": true, "layout": "us,gr", "variant": "", "active_layout_index": 0}]}' >"$stub_bin/devices.json"
+echo '{"keyboards": [{"name": "some-keyboard", "main": true, "layout": "us,gr", "variant": "", "active_layout_index": 0}]}' >"$stub_bin/devices.json"
 rendered=$(keybindings "$menu" "$tmpdir/cache-first")
 rm "$stub_bin/devices.json"
 grep -q 'SUPER + K  *→ Keybindings' <<<"$rendered" ||
