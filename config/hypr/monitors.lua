@@ -5,7 +5,7 @@
 -- panel still wins for that monitor, unless the panel's choices are switched
 -- off below.
 --
--- See https://wiki.hypr.land/Configuring/Basics/Monitors/
+-- See https://wiki.hypr.land/Configuring/Core/Monitors/
 -- List current monitors and supported resolutions with: hyprctl monitors all
 
 -- Ignore the monitor panel's saved choices, so this file alone sets every

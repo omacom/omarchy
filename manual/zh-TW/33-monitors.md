@@ -37,9 +37,9 @@ omarchy display text size 14
 
 ### 排列多個螢幕
 
-Hyprland 處理多個螢幕非常出色。頂部列的螢幕面板會依它們實際所在的位置繪製它們：把一台拖到另一台的側邊就能移到那裡，排列方式會連同每台螢幕的其他設定一起儲存。對於面板沒有涵蓋的任何功能，請在 [Hyprland 螢幕文件](https://wiki.hypr.land/Configuring/Basics/Monitors/)中閱讀更多關於如何排列它們的資訊。在 Omarchy 中，這些會以 `hl.monitor` 條目的形式放在 `~/.config/hypr/monitors.lua` 中 — 該檔案附有註解範例，說明如何保持一台螢幕關閉、使用面板沒有提供的模式、10-bit 色彩，以及可變更新率。
+Hyprland 處理多個螢幕非常出色。頂部列的螢幕面板會依它們實際所在的位置繪製它們：把一台拖到另一台的側邊就能移到那裡，排列方式會連同每台螢幕的其他設定一起儲存。對於面板沒有涵蓋的任何功能，請在 [Hyprland 螢幕文件](https://wiki.hypr.land/Configuring/Core/Monitors/)中閱讀更多關於如何排列它們的資訊。在 Omarchy 中，這些會以 `hl.monitor` 條目的形式放在 `~/.config/hypr/monitors.lua` 中 — 該檔案附有註解範例，說明如何保持一台螢幕關閉、使用面板沒有提供的模式、10-bit 色彩，以及可變更新率。
 
-每台螢幕都有各自的 1 到 10 號工作區，所以 `Super + 1` 永遠代表你所在螢幕的第一個工作區。在幕後，Hyprland 仍然會跨所有螢幕編號工作區：你的筆電螢幕（或第一台螢幕）會拿到 1–10，下一台螢幕拿到 11–20，依此類推，而且每次你插上螢幕時，每台螢幕都會保留自己的區塊。如果你為特定螢幕編寫[工作區規則](https://wiki.hypr.land/Configuring/Basics/Workspace-Rules/)或視窗規則，請使用那些編號，所以 12 號工作區就是你第二台螢幕的第二個工作區。`~/.local/state/omarchy/monitors/workspaces` 會列出每台螢幕擁有的區塊。
+每台螢幕都有各自的 1 到 10 號工作區，所以 `Super + 1` 永遠代表你所在螢幕的第一個工作區。在幕後，Hyprland 仍然會跨所有螢幕編號工作區：你的筆電螢幕（或第一台螢幕）會拿到 1–10，下一台螢幕拿到 11–20，依此類推，而且每次你插上螢幕時，每台螢幕都會保留自己的區塊。如果你為特定螢幕編寫[工作區規則](https://wiki.hypr.land/Configuring/Core/Rules/Workspace-Rules/)或視窗規則，請使用那些編號，所以 12 號工作區就是你第二台螢幕的第二個工作區。`~/.local/state/omarchy/monitors/workspaces` 會列出每台螢幕擁有的區塊。
 
 方向鍵可以在版面中共享一條邊的螢幕之間運作。只在一個角落相碰的螢幕，或彼此之間有間隙的螢幕，並不是鄰居，所以請用 `Ctrl + Alt + Tab` 在它們之間移動。
 
