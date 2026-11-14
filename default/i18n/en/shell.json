@@ -88,6 +88,8 @@
   "agents.localRemovingMeter": "Removing",
   "agents.localDownload": "Download and set up",
   "agents.localDownloadingMeter": "Downloading",
+  "agents.localInstallingMeter": "Installing",
+  "agents.localSetupFailed": "Setup failed",
   "agents.localDownloadValue": "%1 of %2 GB",
   "agents.localDownloadRate": "%1 MB/s",
   "agents.localHideOfferConfirm": "Hide %1 from the panel? Add another › Local AI still sets it up.",
