@@ -39,6 +39,7 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json -e '
     mode => "input",
     prompt => decode("UTF-8", $ARGV[0]),
     selectionFile => decode("UTF-8", $ARGV[1]),
+    selectionFileCreated => JSON::PP::true,
     doneFile => decode("UTF-8", $ARGV[2])
   };
   $payload->{width} = int($ARGV[3]) if length($ARGV[3] // "");
