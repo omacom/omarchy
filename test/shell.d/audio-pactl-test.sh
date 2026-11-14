@@ -52,6 +52,14 @@ OUT
     "volume": {"front-left": {"value_percent": "50%"}}
   },
   {
+    "index": 3,
+    "name": "superwhisper_muffle",
+    "description": "Superwhisper Muffle",
+    "ports": [],
+    "properties": {"filter.smart": "true"},
+    "volume": {"front-left": {"value_percent": "100%"}}
+  },
+  {
     "index": 2,
     "name": "alsa_output.headphones",
     "description": "Headphones",
@@ -113,6 +121,9 @@ grep -qx 'C pactl get-sink-volume alsa_output.headphones' "$CALLS" ||
 grep -qx 'C pactl get-sink-mute alsa_output.headphones' "$CALLS" ||
   fail 'audio-output-switch reads sink mute in the C locale' "$(calls)"
 pass 'audio-output-switch reads pactl outputs in the C locale'
+grep -q 'superwhisper_muffle' "$CALLS" &&
+  fail 'audio-output-switch skips smart filter sinks' "$(calls)"
+pass 'audio-output-switch skips smart filter sinks'
 
 : >"$CALLS"
 LC_ALL=en_US.UTF-8 omarchy-audio-output-volume +5 2>/dev/null || true
@@ -159,6 +170,13 @@ Sink #57
 	Ports:
 		[Out] analog-output-headphones: Headphones (type: Headphones, priority: 300, availability group: Headphone, not available)
 	Active Port: [Out] analog-output-headphones
+Sink #3
+	Name: superwhisper_muffle
+	Properties:
+		filter.smart = "true"
+		filter.smart.name = "superwhisper-muffle"
+	Formats:
+		pcm
 OUT
 
 : >"$CALLS"
@@ -170,9 +188,9 @@ pass 'source availability reports an empty jack input unavailable'
 
 : >"$CALLS"
 actual=$(LC_ALL=de_DE.UTF-8 omarchy-audio-sink-availability)
-[[ $actual == $'alsa_output.pci-0000_00_1f.3.analog-stereo\t0' ]] || fail 'sink availability reports an empty headphone jack unavailable' "$actual"
+[[ $actual == $'alsa_output.pci-0000_00_1f.3.analog-stereo\t0\nsuperwhisper_muffle\t0' ]] || fail 'sink availability reports an empty headphone jack and a smart filter unavailable' "$actual"
 grep -qx 'C pactl list sinks' "$CALLS" || fail 'sink availability reads pactl in the C locale whatever the caller'"'"'s' "$(calls)"
-pass 'sink availability reports an empty headphone jack unavailable, in the C locale'
+pass 'sink availability reports an empty headphone jack and a smart filter unavailable, in the C locale'
 
 # --- omarchy-audio-input-set-default ---
 
