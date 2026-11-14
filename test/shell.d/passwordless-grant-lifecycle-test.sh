@@ -42,7 +42,95 @@ long_suffix=$(printf 'l%.0s' {1..223})
 )
 pass "legacy cleanup removes generated rules for any account and quarantines everything else in the prefix"
 
-marker="$test_tmp/var/lib/omarchy/migrations/1788163635"
+(
+  source "$library"
+  policies=(
+    'audituser  ALL=(ALL) NOPASSWD: ALL'
+    "$(printf 'audituser\tALL=(ALL)\tNOPASSWD:\tALL')"
+    'audituser ALL = ( ALL ) NOPASSWD : ALL'
+    '"audituser" ALL=(ALL) NOPASSWD: ALL'
+    "$(printf 'audituser ALL=(ALL) \\\n  NOPASSWD: ALL')"
+    "$(printf 'User_Alias GRANTEE = audituser\nCmnd_Alias ROOT_COMMANDS = ALL\nGRANTEE ALL=(ALL) NOPASSWD: ROOT_COMMANDS')"
+    'audituser,root ALL=(ALL) NOPASSWD: ALL'
+  )
+  uid=1003
+  for policy in "${policies[@]}"; do
+    file=$(rule_file "$uid" permanent)
+    printf '%s\n' "$policy" >"$file"
+    /usr/sbin/visudo -cf "$file" >/dev/null
+    cleanup_all_locked include-permanent
+    [[ ! -e $file ]] || fail "repair preserved a reformatted broad grant: $policy"
+    [[ $(quarantined_policy "${file##*/}") == "$policy" ]] || fail "repair discarded a reformatted administrator policy"
+    (( uid += 1 ))
+  done
+  file="$test_tmp/etc/sudoers.d/99-omarchy-permanent-nopasswd-admin"
+  printf 'admin ALL=(ALL) NOPASSWD: ALL\n' >"$file"
+  cleanup_all_locked include-permanent
+  [[ $(quarantined_policy "${file##*/}") == 'admin ALL=(ALL) NOPASSWD: ALL' ]] || fail "repair discarded a custom permanent policy"
+)
+pass "repair quarantines reformatted broad grants and preserves custom permanent policy content"
+
+(
+  source "$library"
+  file=$(rule_file 1003 permanent)
+  for policy in \
+    '#1000  ALL=(ALL) NOPASSWD: ALL' \
+    'audituser ALL=(ALL) PASSWD: ALL, NOPASSWD: /usr/bin/true' \
+    'audituser ALL=(ALL) NOPASSWD: ALL, !ALL' \
+    'audituser ALL=(ALL, !root) NOPASSWD: ALL' \
+    'audituser ALL=() NOPASSWD: ALL' \
+    'audituser,!audituser ALL=(ALL) NOPASSWD: ALL'; do
+    printf '%s\n' "$policy" >"$file"
+    cleanup_all_locked include-permanent
+    [[ $(cat "$file") == "$policy" ]] || fail "repair altered safe custom policy: $policy"
+  done
+  for policy in 'audituser ALL=(ALL) NOPASSWD: EXTERNAL' 'audituser ALL=(ALL) NOPASSWD:'; do
+    printf '%s\n' "$policy" >"$file"
+    assert_status 1 migrate_locked
+    [[ ! -e $MIGRATION_MARKER && -f $file ]] || fail "incomplete policy was certified or discarded"
+  done
+  rm "$file"
+)
+pass "repair preserves UID-only, limited and deny-only policy and leaves incomplete policy pending"
+
+reset_grant
+(
+  source "$library"
+  mkdir -p "$test_tmp/var/lib/omarchy/migrations"
+  : >"$test_tmp/var/lib/omarchy/migrations/1788163635"
+  printf 'audituser ALL=(ALL) NOTAFTER=99991231235959Z NOPASSWD: ALL\n' >"$(rule_file 1000)"
+  printf 'audituser ALL=(ALL) NOPASSWD: ALL\n' >"$(rule_file 1000 permanent)"
+  printf 'admin ALL=(ALL) NOPASSWD: /usr/bin/true\n' >"$test_tmp/etc/sudoers.d/99-omarchy-permanent-nopasswd-custom"
+  modified_policy=$(printf '# Administrator note\naudituser ALL=(ALL) NOPASSWD: ALL # Original grant\nadmin ALL=(ALL) NOPASSWD: /usr/bin/true\n')
+  printf '%s\n' "$modified_policy" >"$(rule_file 1001 permanent)"
+  TEST_DELETE_FAIL=1 assert_status 1 migrate_locked
+  [[ ! -e $MIGRATION_MARKER ]] || fail "failed revocation completed the UID repair"
+  assert_status 1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" __migration-complete 1794660024
+  for repair in 1788163635 '' ../../marker; do
+    assert_status 1 env TEST_EUID=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" __migrate "$repair"
+  done
+  ln -s "$test_tmp/etc/sudoers.d/99-omarchy-permanent-nopasswd-custom" "$(rule_file 1002 permanent)"
+  assert_status 1 env TEST_EUID=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" __migrate 1794660024
+  [[ ! -e $MIGRATION_MARKER ]] || fail "unsafe permanent policy completed the UID repair"
+  rm "$(rule_file 1002 permanent)"
+  env TEST_EUID=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" __migrate 1794660024
+  assert_status 3 status_locked 1000
+  [[ -f $MIGRATION_MARKER ]]
+  /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" __migration-complete 1794660024
+  /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" __migration-complete
+  assert_status 1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" __migration-complete 1788163635
+  [[ $(cat "$test_tmp/etc/sudoers.d/99-omarchy-permanent-nopasswd-custom") == 'admin ALL=(ALL) NOPASSWD: /usr/bin/true' ]]
+  [[ $(quarantined_policy 99-omarchy-permanent-nopasswd-1001) == "$modified_policy" ]]
+  # A later user's migration queue must not revoke newly enabled access.
+  enable_locked 1000 permanent
+  migrate_locked
+  status_locked 1000
+  cleanup_uid_locked 1000
+  rm "$MIGRATION_MARKER"
+)
+pass "UID repair revokes both grant types despite the old marker and preserves access re-enabled after repair"
+
+marker="$test_tmp/var/lib/omarchy/migrations/1794660024"
 : >"$test_tmp/marker-target"
 (
   source "$library"
