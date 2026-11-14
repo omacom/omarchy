@@ -84,6 +84,7 @@ omarchy-pkg-add|omarchy-pkg-aur-add)
   neovim) command=nvim ;;
   plain) command=plain ;;
   wezterm) command=wezterm ;;
+  foot) command=foot ;;
   esac
   ;;
 omarchy-install-browser)
@@ -345,7 +346,7 @@ OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/n
 rm "$test_home/.config/wezterm/wezterm.lua"
 printf 'return {}\n' >"$test_home/.wezterm.lua"
 OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/null
-[[ ! -e $test_home/.config/wezterm/wezterm.lua ]] || fail "WezTerm installation does not shadow ~/.wezterm.lua"
+[[ ! -e $test_home/.config/wezterm/wezterm.lua ]] || fail "WezTerm installation preserves ~/.wezterm.lua"
 rm "$test_home/.wezterm.lua"
 WEZTERM_CONFIG_FILE="$test_home/custom.lua" OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/null
 [[ ! -e $test_home/.config/wezterm/wezterm.lua ]] || fail "WezTerm installation respects WEZTERM_CONFIG_FILE"
@@ -354,6 +355,9 @@ OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal wezterm >/dev/n
 cmp -s "$ROOT/applications/org.wezfurlong.wezterm.desktop" "$test_home/.local/share/applications/org.wezfurlong.wezterm.desktop" ||
   fail "WezTerm installation supplies its command-capable desktop entry"
 grep -Fq 'background = "#1a1b26"' "$current_theme/wezterm.lua" || fail "first WezTerm launch uses the current theme"
+printf 'stale Foot entry\n' >"$test_home/.local/share/applications/foot.desktop"
+OMARCHY_TEST_REAL_TERMINAL_INSTALL=true omarchy-install-terminal foot >/dev/null
+cmp -s "$ROOT/applications/foot.desktop" "$test_home/.local/share/applications/foot.desktop" || fail "Foot reinstallation still refreshes its desktop entry"
 pass "WezTerm installation fills missing settings and preserves user configuration"
 
 omarchy-default-terminal kitty

@@ -34,7 +34,7 @@ if omarchy-pkg-add $package; then
     cp "$OMARCHY_PATH/default/alacritty/$desktop_id" ~/.local/share/applications/
   elif [[ $package == "foot" || $package == "wezterm" ]]; then
     mkdir -p ~/.local/share/applications
-    if [[ ! -e ~/.local/share/applications/$desktop_id ]]; then
+    if [[ $package == "foot" || ! -e ~/.local/share/applications/$desktop_id ]]; then
       cp "$OMARCHY_PATH/applications/$desktop_id" ~/.local/share/applications/
     fi
   fi
