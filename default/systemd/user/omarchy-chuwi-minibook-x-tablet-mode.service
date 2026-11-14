@@ -1,0 +1,13 @@
+[Unit]
+Description=Turn off the Chuwi MiniBook X keyboard and touchpad in tablet mode
+After=graphical-session.target
+PartOf=graphical-session.target
+ConditionFirmware=smbios-field(product_name = "MiniBook X")
+
+[Service]
+ExecStart=/usr/bin/omarchy-chuwi-minibook-x-tablet-mode
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

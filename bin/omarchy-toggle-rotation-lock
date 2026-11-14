@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# omarchy:summary=Lock or unlock automatic screen rotation
+# omarchy:args=[on|off|toggle]
+
+omarchy-toggle rotation-lock "${1:-toggle}"
+
+if omarchy-toggle-enabled rotation-lock; then
+  omarchy-osd -i "󰌾" -m "$(omarchy-i18n rotation.locked)"
+else
+  # Restarting reports the current orientation, so the screen catches up with
+  # how the machine is held now.
+  systemctl --user restart omarchy-chuwi-minibook-x-autorotate.service 2>/dev/null || true
+  omarchy-osd -i "󰑝" -m "$(omarchy-i18n rotation.unlocked)"
+fi
