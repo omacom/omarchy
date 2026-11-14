@@ -6,7 +6,8 @@ if omarchy-cmd-missing wezterm; then
   exit 0
 fi
 
-if [[ ! -e ~/.config/wezterm/wezterm.lua ]]; then
+# Creating this file would take precedence over ~/.wezterm.lua.
+if [[ ! -e ~/.config/wezterm/wezterm.lua && ! -e ~/.wezterm.lua && -z ${WEZTERM_CONFIG_FILE:-} && ! -e ${XDG_CONFIG_HOME:-$HOME/.config}/wezterm/wezterm.lua ]]; then
   mkdir -p ~/.config/wezterm
   cp "$OMARCHY_PATH/config/wezterm/wezterm.lua" ~/.config/wezterm/
 fi
