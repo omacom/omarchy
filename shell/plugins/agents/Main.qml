@@ -283,6 +283,7 @@ Item {
 
   function recordsChanged() {
     dataRevision++
+    endSharedParks()
     scheduleLimitsRetry()
     scheduleSync()
   }
@@ -521,6 +522,69 @@ Item {
       var parsed = []
       try { parsed = JSON.parse(text()) } catch (e) { parsed = [] }
       root.providerOrder = Array.isArray(parsed) ? parsed.map(String) : []
+    }
+    onFileChanged: reload()
+  }
+
+  // ---------------------------------------------------------------- parked
+  //
+  // Spent limits someone parked so they stop lighting the bar until they
+  // reset: agent id, then window title, then the reset it was parked for. A
+  // park holds only for that reset, so it lapses on its own when the window
+  // rolls over; lapsed ones are dropped the next time anything is parked.
+  readonly property string parkedPath: (Quickshell.env("XDG_STATE_HOME") || home + "/.local/state") + "/omarchy/agents/parked.json"
+  property var parkedLimits: ({})
+
+  function setLimitParked(id, title, resetAt, parked) {
+    var now = Date.now()
+    var next = {}
+    for (var provider in parkedLimits) {
+      for (var window in parkedLimits[provider]) {
+        var at = String(parkedLimits[provider][window])
+        if (!(new Date(at).getTime() > now)) continue
+        if (!next[provider]) next[provider] = {}
+        next[provider][window] = at
+      }
+    }
+    if (parked) {
+      if (!next[id]) next[id] = {}
+      next[id][title] = String(resetAt)
+    } else if (next[id]) {
+      delete next[id][title]
+      if (Object.keys(next[id]).length === 0) delete next[id]
+    }
+    parkedLimits = next
+    parkedFile.setText(JSON.stringify(next) + "\n")
+  }
+
+  // Parks are made while an agent has one account, and its record doesn't
+  // say which one that is. Once a second account is added, a park can't be
+  // tied to either of them, so it ends rather than carry over to whichever
+  // account is left later.
+  function endSharedParks() {
+    var next = null
+    for (var i = 0; i < agents.length; i++) {
+      var record = agents[i] ? agents[i].record : null
+      var id = record ? String(record.id || "") : ""
+      if (id === "" || !parkedLimits[id] || !Array.isArray(record.accounts) || record.accounts.length < 2) continue
+      if (!next) next = Object.assign({}, parkedLimits)
+      delete next[id]
+    }
+    if (!next) return
+    parkedLimits = next
+    parkedFile.setText(JSON.stringify(next) + "\n")
+  }
+
+  FileView {
+    id: parkedFile
+    path: root.parkedPath
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      var parsed = {}
+      try { parsed = JSON.parse(text()) } catch (e) { parsed = {} }
+      root.parkedLimits = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}
     }
     onFileChanged: reload()
   }

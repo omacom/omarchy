@@ -241,8 +241,8 @@ Panel {
 
   // The keyboard walks everything on the page that does something, in
   // reading order, one row at a time: the hero's buttons, then each agent's
-  // header, its Sign-in required link or switchable accounts, and the starter
-  // tiles, or the agents to add while picking one. Up and down change rows, left and right move along one.
+  // header, its Sign-in required link, Park links or switchable accounts, and
+  // the starter tiles, or the agents to add while picking one. Up and down change rows, left and right move along one.
   // Hovering moves the same cursor, so only one thing is lit.
   readonly property var keyRows: {
     var rows = []
@@ -282,6 +282,11 @@ Panel {
         var accounts = providerAccounts(providers[p])
         if (accounts.length < 2) {
           if (needsSignIn(providers[p])) rows.push([{ kind: "providerSignin", index: p }])
+          var windows = displayWindows(providers[p])
+          for (var w = 0; w < windows.length; w++) {
+            var park = parkIndex(providers[p], windows[w])
+            if (park >= 0) rows.push([{ kind: "park", index: park }])
+          }
           continue
         }
         for (var a = 0; a < accounts.length; a++, entry++) {
@@ -372,6 +377,10 @@ Panel {
     var target = keyTarget
     if (!target) return -1
     if (["provider", "providerSignin", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "modelLogs", "localDownload"].indexOf(target.kind) >= 0) return target.index
+    if (target.kind === "park") {
+      var parked = parkEntries[target.index]
+      return parked ? providers.indexOf(parked.provider) : -1
+    }
     if (["account", "autoswitch", "signin"].indexOf(target.kind) < 0) return -1
     var entry = accountEntries[target.index]
     return entry ? providers.indexOf(entry.provider) : -1
@@ -483,11 +492,12 @@ Panel {
       panelFlick.contentY = Math.min(panelFlick.contentHeight - panelFlick.height, top + item.height + margin - panelFlick.height)
   }
 
-  // The bar icon lights up when any account new sessions use is nearly out,
-  // a prepaid balance is down to its last 10%, or monthly spend is near its cap.
+  // The bar icon lights up when any account new sessions use is nearly out
+  // (unless that limit is spent and parked), a prepaid balance is down to its
+  // last 10%, or monthly spend is near its cap.
   readonly property bool alarming: {
     for (var i = 0; i < providers.length; i++) {
-      var window = bindingWindow(providers[i])
+      var window = alarmWindow(providers[i])
       if (window && window.percent >= 0.9) return true
       if (balanceAlarming(providers[i].balance)) return true
       if (spendAlarming(providers[i].spend)) return true
@@ -791,6 +801,7 @@ Panel {
     else if (target.kind === "starter") startPrompt(starterPrompts[target.index].kind, modifiers)
     else if (target.kind === "providerSignin") signInAgain(providers[target.index], null)
     else if (target.kind === "modelLogs") showLocalLogs(providers[target.index].localModel)
+    else if (target.kind === "park" && parkEntries[target.index]) toggleParked(parkEntries[target.index].provider, parkEntries[target.index].window)
     else if (target.kind === "signin") signInAgain(pickedEntry.provider, pickedEntry.account)
     else if (target.kind === "autoswitch") setSwitchMode(pickedEntry.provider, autoSwitchFor(pickedEntry.provider) ? "manual" : "auto")
     else if (pickedEntry && !pickedEntry.account.active) useAccount(pickedEntry.provider, pickedEntry.account)
@@ -1018,6 +1029,104 @@ Panel {
       if (!best || windows[i].percent > best.percent) best = windows[i]
     }
     return best
+  }
+
+  // A spent limit can be parked so it stops lighting the bar until it
+  // resets. A model's allowance on the same row parks with it. Parks belong
+  // to an agent with one account; a second one ends them (Main.qml).
+  function isParked(p, w) {
+    if (!p || !w || w.resetAt === "" || providerAccounts(p).length >= 2) return false
+    var key = parkKey(p, w)
+    if (key === "") return false
+    var at = usage.parkedLimits[p.providerId][key]
+    return new Date(String(at)).getTime() > root.nowMs && sameReset(at, w.resetAt)
+  }
+
+  // The saved park a window answers to: its own, or else the row's it is
+  // drawn on. Unpark removes that one, so an inherited park can be ended.
+  function parkKey(p, w) {
+    var parked = p ? usage.parkedLimits[p.providerId] : null
+    if (!parked || !w) return ""
+    if (parked[w.title] !== undefined) return w.title
+    var part = scopedPart(w.title)
+    return part && parked[part.window] !== undefined ? part.window : ""
+  }
+
+  // Providers restate a reset with some drift between checks. A park only
+  // holds until the reset it was made for, so the next window, however
+  // short, is never mistaken for the parked one, and a reset that moves
+  // further brings the alarm back.
+  function sameReset(a, b) {
+    var x = new Date(String(a)).getTime()
+    var y = new Date(String(b)).getTime()
+    return isFinite(x) && isFinite(y) && Math.abs(x - y) < 3600000
+  }
+
+  // Only a spent limit with a known reset can be parked: short of full, the
+  // warning still leaves time to act, and without a reset it would never
+  // light again. An agent with several accounts has Use and Autoswitch.
+  function canPark(p, w) {
+    return !!p && !!w && !p.localModel && providerAccounts(p).length < 2
+      && w.percent >= 1 && w.resetAt !== ""
+  }
+
+  // The fullest window that still lights the bar.
+  function alarmWindow(p) {
+    var windows = limitWindows(p)
+    var best = null
+    for (var i = 0; i < windows.length; i++) {
+      if (isParked(p, windows[i])) continue
+      if (!best || windows[i].percent > best.percent) best = windows[i]
+    }
+    return best
+  }
+
+  // A row is parked as a whole: its own window and the model allowances
+  // drawn on it, so a spent model can be parked without its row being full.
+  function rowWindows(row) {
+    var out = row ? [row] : []
+    var scoped = row && row.scoped ? row.scoped : []
+    for (var i = 0; i < scoped.length; i++)
+      out.push({ title: scoped[i].title + " " + row.title, percent: scoped[i].percent, resetAt: scoped[i].resetAt })
+    return out
+  }
+
+  // What Park on the row would park: whatever on it is spent and still
+  // lighting the bar. The rest of the row keeps counting.
+  function rowParkable(p, row) {
+    return rowWindows(row).filter(function(w) { return canPark(p, w) && !isParked(p, w) })
+  }
+
+  function rowParked(p, row) {
+    return rowWindows(row).some(function(w) { return isParked(p, w) })
+  }
+
+  // Every row the keyboard can park or unpark, in page order.
+  readonly property var parkEntries: {
+    var out = []
+    for (var i = 0; i < providers.length; i++) {
+      var windows = displayWindows(providers[i])
+      for (var j = 0; j < windows.length; j++)
+        if (rowParked(providers[i], windows[j]) || rowParkable(providers[i], windows[j]).length > 0)
+          out.push({ provider: providers[i], window: windows[j] })
+    }
+    return out
+  }
+
+  function parkIndex(p, w) {
+    for (var i = 0; i < parkEntries.length; i++)
+      if (!!p && !!w && parkEntries[i].provider.providerId === p.providerId && parkEntries[i].window.title === w.title) return i
+    return -1
+  }
+
+  // Park takes whatever on the row is spent; once nothing is left to park,
+  // Unpark lets all of it light the bar again.
+  function toggleParked(p, row) {
+    if (!p || !row) return
+    var spent = rowParkable(p, row)
+    var windows = spent.length > 0 ? spent : rowWindows(row).filter(function(w) { return isParked(p, w) })
+    for (var i = 0; i < windows.length; i++)
+      usage.setLimitParked(p.providerId, spent.length > 0 ? windows[i].title : parkKey(p, windows[i]), windows[i].resetAt, spent.length > 0)
   }
 
   function resetMsFor(w) {
@@ -2421,6 +2530,8 @@ Panel {
           required property var modelData
           width: section.width
           window: modelData
+          provider: section.provider
+          picked: root.hasKey("park", root.parkIndex(section.provider, modelData))
           stale: !!section.provider && section.provider.limitsStale === true
           fetchedAt: section.provider ? Number(section.provider.limitsFetchedAt || 0) : 0
         }
@@ -3013,11 +3124,17 @@ Panel {
   component CompactLimit: Item {
     id: compact
     property var window: null
+    // Set where the row can be parked: a single-account agent's own limits.
+    property var provider: null
+    property bool picked: false
     // The age of numbers kept past a failed check is shown only on hover.
     property bool stale: false
     property real fetchedAt: 0
     readonly property var scoped: window && window.scoped ? window.scoped : []
-    readonly property bool alarming: window && window.percent >= 0.9
+    readonly property bool parked: root.isParked(provider, window)
+    readonly property bool parkOffered: root.rowParkable(provider, window).length > 0
+    readonly property bool parkable: parkOffered || root.rowParked(provider, window)
+    readonly property bool alarming: !parked && !!window && window.percent >= 0.9
     readonly property real resetMs: root.resetMsFor(window)
     implicitHeight: Math.max(compactTitle.implicitHeight, compactValue.implicitHeight)
 
@@ -3040,6 +3157,15 @@ Panel {
             : compact.fetchedAt > 0 ? Commons.I18n.t("agents.lastUpdatedJustNow") : Commons.I18n.t("agents.lastUpdatedUnknown"))
         for (var i = 0; i < compact.scoped.length; i++)
           lines.push(root.scopedAllowanceText(compact.scoped[i], compact.window ? compact.window.title : ""))
+        var onRow = root.rowWindows(compact.window)
+        if (compact.parked) {
+          lines.push(Commons.I18n.t("agents.parked"))
+        } else {
+          for (var j = 1; j < onRow.length; j++)
+            if (root.isParked(compact.provider, onRow[j]))
+              lines.push(Commons.I18n.t("agents.modelParked").arg(compact.scoped[j - 1].title))
+        }
+        if (compact.parkOffered) lines.push(Commons.I18n.t("agents.parkHint"))
         return lines.join("\n")
       }
     }
@@ -3063,11 +3189,12 @@ Panel {
       anchors.verticalCenter: parent.verticalCenter
       value: compact.window ? compact.window.percent : -1
       alarming: compact.alarming
+      muted: compact.parked
       markers: compact.scoped
     }
 
-    // Sized to the widest time left ("19h 40m"), so every meter ends in the
-    // same place.
+    // Sized to the widest time left ("19h 40m") or Park link, so every meter
+    // ends in the same place.
     TextMetrics {
       id: compactValueMetrics
       font.family: root.fontFamily
@@ -3075,19 +3202,51 @@ Panel {
       text: "00h 00m"
     }
 
+    TextMetrics {
+      id: compactParkMetrics
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      text: Commons.I18n.t("agents.park")
+    }
+
+    TextMetrics {
+      id: compactUnparkMetrics
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      text: Commons.I18n.t("agents.unpark")
+    }
+
     // How long until the window resets. The meter says how full it is; the
-    // exact percentage is in the row's tooltip.
-    Text {
+    // exact percentage is in the row's tooltip. Hovering a spent row trades
+    // it for Park, or Unpark once it is parked.
+    Item {
       id: compactValue
-      width: Math.ceil(compactValueMetrics.advanceWidth)
+      width: Math.ceil(Math.max(compactValueMetrics.advanceWidth, compactParkMetrics.advanceWidth, compactUnparkMetrics.advanceWidth))
+      height: compactValueText.implicitHeight
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
-      textFormat: Text.PlainText
-      horizontalAlignment: Text.AlignRight
-      text: compact.resetMs > 0 ? root.formatDuration(compact.resetMs) : ""
-      color: root.dim
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.bodySmall
+      readonly property bool linkShown: compact.parkable && (compactHover.hovered || compact.picked)
+
+      Text {
+        id: compactValueText
+        anchors.fill: parent
+        visible: !compactValue.linkShown
+        textFormat: Text.PlainText
+        horizontalAlignment: Text.AlignRight
+        text: compact.resetMs > 0 ? root.formatDuration(compact.resetMs) : ""
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+      }
+
+      TextLink {
+        visible: compactValue.linkShown
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        picked: compact.picked
+        text: compact.parkOffered ? Commons.I18n.t("agents.park") : Commons.I18n.t("agents.unpark")
+        onClicked: root.toggleParked(compact.provider, compact.window)
+      }
     }
   }
 
@@ -3096,6 +3255,8 @@ Panel {
     id: meter
     property real value: -1
     property bool alarming: false
+    // A parked limit is drawn quietly: it's known, and it can't be helped.
+    property bool muted: false
     property real thickness: Math.max(Style.space(4), Math.round(Style.spacing.controlHeight * 0.14))
 
     // Other allowances on the same clock, drawn as ticks across the track.
@@ -3116,7 +3277,7 @@ Panel {
       height: meterTrack.height
       radius: meterTrack.radius
       width: meterTrack.width * root.clamp(meter.value, 0, 1)
-      color: meter.alarming ? root.urgent : root.foreground
+      color: meter.alarming ? root.urgent : meter.muted ? root.dim : root.foreground
 
       Behavior on width {
         NumberAnimation { duration: Style.duration(160); easing.type: Easing.OutCubic }
@@ -3136,7 +3297,7 @@ Panel {
         // fill grows from.
         readonly property real along: root.clamp(meterTrack.width * root.clamp(Number(modelData.percent), 0, 1) - width / 2, 0, meterTrack.width - width)
         x: LayoutMirroring.enabled ? meterTrack.width - width - along : along
-        color: meter.alarming ? root.urgent : root.foreground
+        color: meter.alarming ? root.urgent : meter.muted ? root.dim : root.foreground
       }
     }
   }
