@@ -12,6 +12,8 @@ without restarting the shell. Rendering and behavior live in
 also load — the shell tests in `test/shell.d/menu-test.sh` and
 `menu-guards-test.sh` exercise it directly.
 
+Tab and Shift+Tab move focus between search and the highlighted result. Up and Down move through results, and Enter activates the highlighted result. Typing filters the menu even when a result has focus. Assistive technology can read each result's label, detail, selection and check state and activate it through the same menu action.
+
 JSONC here means JSON plus comments and trailing commas, stripped by the
 parser rather than a real JSONC grammar: only whole-line `//` comments are
 removed, so an inline trailing comment breaks the parse. A file that fails to
@@ -123,7 +125,7 @@ can point a submenu at an existing provider but cannot declare a new one:
   `label\tvalue\tcurrent`, with an optional fourth field that becomes a search-only
   term for the row (the languages provider passes each language's English name, so
   searching "danish" finds the row labeled "Dansk", without making "danish" a routable command). The row whose value equals `current` gets the ✓
-  icon, and selection runs the spec's `actionFor(value)`. Row ids are
+  icon and is marked checked for assistive technology. Activating a row runs the spec's `actionFor(value)`. Row ids are
   `<menuId>.<slugify(value)>`, with a `-` appended on collision so two values
   that slugify alike cannot silently drop a row.
 
