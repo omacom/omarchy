@@ -81,8 +81,16 @@ invoke_remove() {
   : >"$calls"
   TEST_AUTHDIR="$authdir" TEST_LOG="$calls" \
     PATH="$stub_bin:$ROOT/bin:$PATH" \
-    bash "$remove_copy" </dev/null >/dev/null
+    bash "$remove_copy" "$@" </dev/null >/dev/null
 }
+
+# Asking for help must not remove anything.
+rm -rf "$authdir"
+mkdir -p "$authdir"
+invoke_remove --help
+[[ ! -s $calls ]] || fail "help escalates nothing" "$(cat "$calls")"
+[[ -d $authdir ]] || fail "help leaves the FIDO2 directory in place"
+pass "help removes nothing"
 
 # The ordinary case: a real directory holding a registration.
 rm -rf "$authdir"
