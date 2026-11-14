@@ -40,8 +40,12 @@ platform_root="$tmp_dir/platform"
 mkdir -p "$platform_root" "$tmp_dir/bin"
 platform_root_copy "$ROOT/bin/omarchy-hw-fingerprint" "$tmp_dir/bin/omarchy-hw-fingerprint" "$platform_root"
 
+# No libfprint hwdb unless a case writes one, whatever the host has installed.
+libfprint_hwdb="$tmp_dir/libfprint.hwdb"
+
 hw_fingerprint() {
-  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" "$tmp_dir/bin/omarchy-hw-fingerprint"
+  OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" OMARCHY_LIBFPRINT_HWDB_PATH="$libfprint_hwdb" \
+    "$tmp_dir/bin/omarchy-hw-fingerprint"
 }
 
 assert_detects() {
@@ -109,6 +113,31 @@ assert_detects "a self-named reader is detected with a driver bound"
 
 write_usb_devices '1234:5678:Generic USB Device'
 assert_rejects "a machine with no matching USB devices detects nothing"
+
+# The shape fprint-list-udev-hwdb generates: ids under the driver that claims
+# them, then the ones libfprint knows and cannot drive.
+write_libfprint_hwdb() {
+  local driver_id="$1" unsupported_id="$2"
+  printf '%s\n' '# SPDX-License-Identifier: LGPL-2.1-or-later' '' \
+    '# Supported by libfprint driver elanmoc' "usb:v${driver_id}*" ' ID_AUTOSUSPEND=1' '' \
+    '# Known unsupported devices' "usb:v${unsupported_id}*" ' ID_AUTOSUSPEND=1' >"$libfprint_hwdb"
+}
+
+# ELAN 04f3:0c00 (HP Pavilion Aero 13) names itself ELAN:ARM-M4, which the
+# product match trusts, but stock libfprint has no driver for it (#17672).
+write_usb_devices '04f3:0c00:ELAN:ARM-M4'
+assert_detects "an ELAN:ARM-M4 reader is detected while libfprint is not installed"
+write_libfprint_hwdb 04F3p0C7D 04F3p0C00
+assert_rejects "a reader libfprint lists as unsupported is not detected"
+
+write_usb_devices '04f3:0c00:ELAN:ARM-M4' '27c6:1234'
+assert_detects "an unsupported reader does not hide another reader"
+
+# A fork that drives the reader lists its id under a driver.
+write_libfprint_hwdb 04F3p0C00 04F3p0C00
+write_usb_devices '04f3:0c00:ELAN:ARM-M4'
+assert_detects "a reader a libfprint driver claims is detected"
+rm -f "$libfprint_hwdb"
 
 # A reader the platform names: a file and the value it reads once usable, as a
 # Mac's Secure Enclave reports Touch ID. No USB device takes part.

@@ -15,8 +15,13 @@ mkdir -p "$scratch/bin"
 export CALL_LOG="$scratch/calls"
 export PATH="$scratch/bin:$ROOT/bin:$PATH"
 
+# HARDWARE_STATUS_AFTER_INSTALL is the answer once pacman has run, as it
+# changes when the newly installed libfprint lists the reader as unsupported.
 cat > "$scratch/bin/omarchy-hw-fingerprint" <<'STUB'
 #!/bin/bash
+if grep -q '^pacman -S' "$CALL_LOG"; then
+  exit "${HARDWARE_STATUS_AFTER_INSTALL:-${HARDWARE_STATUS:-0}}"
+fi
 exit "${HARDWARE_STATUS:-0}"
 STUB
 cat > "$scratch/bin/sudo" <<'STUB'
@@ -139,6 +144,12 @@ pass "a failed installation stops before enrollment"
 HARDWARE_STATUS=1 run_setup
 [[ ! -s $CALL_LOG ]] || fail "missing hardware stops before package operations"
 pass "missing hardware performs no package operations"
+
+HARDWARE_STATUS_AFTER_INSTALL=1 run_setup
+if grep -Eq '^(enroll|sudo authenticated)$' "$CALL_LOG"; then
+  fail "a reader the installed libfprint cannot drive stops before enrollment"
+fi
+pass "a reader the installed libfprint cannot drive stops before enrollment"
 
 # Successful setup must reuse the same lock/recovery installer as updates.
 : > "$CALL_LOG"
