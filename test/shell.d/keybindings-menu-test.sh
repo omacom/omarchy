@@ -484,3 +484,32 @@ output=$(lua_scan) || fail "Lua bind scan ends an indexed walk over a stub colle
 [[ $output != *"lua bind scan failed"* ]] || fail "Lua bind scan does not abort on an indexed walk over a stub collection ($output)"
 grep -qF $'64\tKeybindings menu\tK\texec\tomarchy-menu keybindings' <<<"$output" || fail "Lua bind scan reports binds declared after an indexed walk (got: $output)"
 pass "Lua bind scan ends an indexed walk over a stub collection and keeps the binds after it"
+
+# Hyprland 0.57 reports a bind as a dispatcher label plus the Lua registry
+# index of its callback. Enter has to call that entry. A workspace number is
+# still an argument and must not be called as a callback.
+dispatch_log=$tmpdir/dispatch.log
+cat >"$stub_bin/hyprctl" <<SH
+#!/bin/bash
+printf '%s\n' "\$*" >>"$dispatch_log"
+SH
+chmod +x "$stub_bin/hyprctl"
+eval "$(sed -n '/^dispatch_binding()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"
+
+: >"$dispatch_log"
+PATH="$stub_bin:$PATH" dispatch_binding "HL.Dispatcher(global)" "334"
+[[ $(<"$dispatch_log") == 'eval debug.getregistry()[334]()' ]] ||
+  fail "choosing a global shortcut in the keybindings menu calls its callback" "$(<"$dispatch_log")"
+pass "choosing a global shortcut in the keybindings menu calls its callback"
+
+: >"$dispatch_log"
+PATH="$stub_bin:$PATH" dispatch_binding "function: 0x1" "73"
+[[ $(<"$dispatch_log") == 'eval debug.getregistry()[73]()' ]] ||
+  fail "choosing a Lua function bind in the keybindings menu calls its callback" "$(<"$dispatch_log")"
+pass "choosing a Lua function bind in the keybindings menu calls its callback"
+
+: >"$dispatch_log"
+PATH="$stub_bin:$PATH" dispatch_binding "workspace" "3"
+[[ $(<"$dispatch_log") == "dispatch workspace 3" ]] ||
+  fail "a numeric dispatcher argument is still passed to hyprctl" "$(<"$dispatch_log")"
+pass "a numeric dispatcher argument is still passed to hyprctl"
