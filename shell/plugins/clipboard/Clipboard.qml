@@ -19,6 +19,7 @@ Item {
   property var history: []
 
   property string historyPath: Quickshell.env("HOME") + "/.local/state/omarchy/clipboard-history.json"
+  property string imageDir: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/clipboard-images"
   property string captureScript: root.omarchyPath + "/shell/plugins/clipboard/capture.sh"
   // Shares the [menu] surface tokens — themes that style the menu also
   // style the clipboard. Selected-row colors composed in the
@@ -77,11 +78,39 @@ Item {
     historyFile.setText(JSON.stringify(root.history.slice(0, root.historyLimit), null, 2) + "\n")
   }
 
+  function pruneRemovedImages(previous, next, clearClipboard) {
+    var removed = ClipboardHistory.removedImagePaths(previous, next).filter(function(path) {
+      return path.indexOf(root.imageDir + "/") === 0
+    })
+    if (!removed.length) return
+    if (clearClipboard) root.clearIfLive(removed)
+    // A capture that finds an image's file already on disk drops its own copy
+    // and reports the file a moment later, so a file just evicted may be on its
+    // way back. Each is deleted a few seconds on, only if the saved history
+    // still does not hold it, by a process a shell restart does not stop.
+    Quickshell.execDetached(["bash", "-c",
+      'sleep 5; kept=$(jq -r ".[] | .path? // empty" "$1" 2>/dev/null); ' +
+      'for file in "${@:2}"; do grep -qxF -- "$file" <<<"$kept" || rm -f -- "$file"; done',
+      "omarchy-clipboard-prune", root.historyPath].concat(removed))
+  }
+
+  // An image's file is named for the sha256 of its bytes, so the live
+  // clipboard holds one only when its bytes hash to that name. A copy
+  // capture.sh never recorded, such as a password, is left alone.
+  function clearIfLive(paths) {
+    Quickshell.execDetached(["bash", "-c",
+      'live=$(timeout 2s wl-paste --type image 2>/dev/null | sha256sum); ' +
+      'for file in "$@"; do name=${file##*/}; if [[ $live == "${name%.*} "* ]]; then wl-copy --clear; break; fi; done',
+      "omarchy-clipboard-clear"].concat(paths))
+  }
+
   function addClipboardEntry(entry) {
     var normalized = ClipboardHistory.normalizeEntry(entry)
     if (!normalized) return
 
+    var previous = root.history
     root.history = ClipboardHistory.addEntry(root.history, normalized, root.historyLimit)
+    root.pruneRemovedImages(previous, root.history, false)
     root.saveHistory()
     if (root.opened) root.rebuildDisplay()
   }
@@ -103,7 +132,9 @@ Item {
   }
 
   function confirmClearHistory() {
+    var previous = root.history
     root.history = ClipboardHistory.clearHistory()
+    root.pruneRemovedImages(previous, root.history, true)
     root.saveHistory()
     root.selectedIndex = 0
     root.cursorActive = false
@@ -117,7 +148,9 @@ Item {
     if (index < 0 || index >= displayModel.count) return
 
     var row = displayModel.get(index)
+    var previous = root.history
     root.history = ClipboardHistory.removeEntryAt(root.history, row.historyIndex)
+    root.pruneRemovedImages(previous, root.history, true)
     root.saveHistory()
 
     if (displayModel.count <= 1) {

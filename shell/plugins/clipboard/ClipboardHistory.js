@@ -83,6 +83,30 @@ function clearHistory() {
   return []
 }
 
+function removedImagePaths(history, next) {
+  var kept = {}
+  var keptValues = Array.isArray(next) ? next : []
+
+  for (var k = 0; k < keptValues.length; k++) {
+    var keptEntry = normalizeEntry(keptValues[k])
+    if (keptEntry && keptEntry.type === "image") kept[keptEntry.path] = true
+  }
+
+  var removed = []
+  var seen = {}
+  var values = Array.isArray(history) ? history : []
+
+  for (var i = 0; i < values.length; i++) {
+    var entry = normalizeEntry(values[i])
+    if (!entry || entry.type !== "image") continue
+    if (kept[entry.path] || seen[entry.path]) continue
+    seen[entry.path] = true
+    removed.push(entry.path)
+  }
+
+  return removed
+}
+
 function parseEntryJson(line) {
   var raw = String(line || "").trim()
   if (!raw) return null
@@ -227,6 +251,7 @@ if (typeof module !== "undefined") {
     addEntry: addEntry,
     removeEntryAt: removeEntryAt,
     clearHistory: clearHistory,
+    removedImagePaths: removedImagePaths,
     parseEntryJson: parseEntryJson,
     searchableText: searchableText,
     previewText: previewText,
