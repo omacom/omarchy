@@ -579,4 +579,7 @@ set_up_floating = function()
   titlebars()
 end
 
+-- Whether a workspace floats, for window snapping (window-snapping.lua).
+M.floating = floating_workspace
+
 return M
