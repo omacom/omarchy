@@ -25,6 +25,7 @@ for unit in \
   omarchy-sleep-lock.service \
   omarchy-migrate-notify.service \
   omarchy-fcitx5.service \
+  omarchy-clipboard-persist.service \
   omarchy-crash-watch.service; do
   systemctl --user enable --now "$unit" || failed=1
 done
