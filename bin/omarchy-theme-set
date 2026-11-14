@@ -392,6 +392,18 @@ if [[ ! -d $OMARCHY_THEMES_PATH/$THEME_NAME ]] && [[ ! -d $USER_THEMES_PATH/$THE
   exit 1
 fi
 
+# A directory without a palette is not a theme. Removing a theme can leave its
+# backgrounds-only directory behind (osaka-jade is still shipped that way by
+# omarchy-themes-intros), and the bare directory check above then accepted it:
+# the switch staged no palette, kept the last staged theme half-alive, and
+# exited 0 while every terminal include pointed at a file that was never
+# generated. Refuse it the same way a missing theme is refused.
+if [[ ! -f $OMARCHY_THEMES_PATH/$THEME_NAME/colors.toml && ! -f $OMARCHY_THEMES_PATH/$THEME_NAME/alacritty.toml &&
+  ! -f $USER_THEMES_PATH/$THEME_NAME/colors.toml && ! -f $USER_THEMES_PATH/$THEME_NAME/alacritty.toml ]]; then
+  echo "Theme '$THEME_NAME' has no colors.toml and cannot be applied"
+  exit 1
+fi
+
 # Serialize theme changes. Theme switching rebuilds a shared next-theme staging
 # directory and updates current theme/background symlinks; concurrent calls can
 # otherwise race and make one selection appear to be ignored.
@@ -424,6 +436,15 @@ fi
 # Generate colors.toml from alacritty.toml if theme is missing colors.toml
 if [[ ! -f $NEXT_THEME_PATH/colors.toml && -f $NEXT_THEME_PATH/alacritty.toml ]]; then
   omarchy-theme-colors-from-alacritty "$NEXT_THEME_PATH"
+fi
+
+# Staging itself can still lose the palette: an installed theme's colors.toml
+# is a symlink the installed-theme filter drops, and an alacritty.toml missing
+# a normal colour converts to nothing. Refuse before anything is replaced --
+# the current theme and its background stay exactly as they are.
+if [[ ! -f $NEXT_THEME_PATH/colors.toml ]]; then
+  echo "Theme '$THEME_NAME' staged no colors.toml and cannot be applied"
+  exit 1
 fi
 
 CHOSEN_THEME_BACKGROUND=""
