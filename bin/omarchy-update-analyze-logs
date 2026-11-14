@@ -2,7 +2,8 @@
 
 # omarchy:summary=Check the update log for known failure conditions
 
-update_log="/tmp/omarchy-update.log"
+update_log="${OMARCHY_UPDATE_LOG:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/update.log}"
+[[ -f $update_log ]] || update_log="/tmp/omarchy-update.log"
 
 # Check for initramfs generation failure
 if grep -q "Updating linux initcpios" "$update_log"; then
