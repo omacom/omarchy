@@ -1,0 +1,144 @@
+# Kinetic Zine — theme-only shell visuals; shell.json remains user-owned.
+[bar]
+background = "#f5f5f5"
+background-alpha = 1.0
+text = "#202024"
+active = "#265bd8"
+scale-with-font = true
+size-horizontal = 28
+size-vertical = 30
+
+[hyprland]
+active-border = "#265bd8"
+active-border-foreground = "#265bd8"
+
+[controls]
+normal-color = "#202024"
+normal-fill-alpha = 0.04
+normal-border = "#626267"
+normal-border-width = 1
+normal-border-alpha = 0.62
+hover-cursor-color = "#111114"
+hover-cursor-fill-alpha = 0.10
+hover-cursor-border = "#7134b5"
+hover-cursor-border-width = 2
+hover-cursor-border-alpha = 0.90
+focus-color = "#111114"
+focus-fill-alpha = 0.13
+focus-border = "hyprland.active-border"
+focus-border-width = 2
+focus-border-alpha = 1.0
+selected-color = "foreground"
+selected-fill-alpha = 0.14
+selected-border = "#111114"
+selected-border-width = 2
+selected-border-alpha = 0.86
+pressed-fill-alpha = 0.24
+selection-fill-alpha = 0.40
+
+[spacing]
+scale = 1.0
+scale-with-font = true
+control-height = 30
+popup-row-height = 32
+panel-gap = 9
+panel-padding = 14
+popup-padding = 12
+
+[font]
+base-size = 12
+caption = 10
+body-small = 11
+body = 12
+subtitle = 13
+heading = 15
+
+[popups]
+background = "#eeeeee"
+background-alpha = 1.0
+text = "#202024"
+border = "#202024"
+border-alpha = 0.96
+border-width = 2
+
+[tooltip]
+background = "#eeeeee"
+background-alpha = 1.0
+text = "#202024"
+border = "#626267"
+border-alpha = 0.90
+
+[notifications]
+background = "#eeeeee"
+background-alpha = 1.0
+text = "#202024"
+border = "#202024"
+border-alpha = 0.96
+border-width = 2
+countdown = "#745800"
+
+[launcher]
+background = "#eeeeee"
+background-alpha = 1.0
+text = "#202024"
+border = "#202024"
+border-alpha = 0.98
+border-width = 2
+scrim = "#ededed"
+scrim-alpha = 0.28
+selected-background = "#265bd8"
+selected-background-alpha = 1.0
+selected-text = "#f5f5f5"
+selected-border = "#111114"
+selected-border-alpha = 0.85
+selected-border-width = 2
+
+[menu]
+background = "#eeeeee"
+background-alpha = 1.0
+text = "#202024"
+border = "#202024"
+border-alpha = 0.98
+border-width = 2
+scrim = "#ededed"
+scrim-alpha = 0.28
+selected-background = "#265bd8"
+selected-background-alpha = 1.0
+selected-text = "#f5f5f5"
+selected-border = "#111114"
+selected-border-alpha = 0.85
+selected-border-width = 2
+
+[polkit]
+background = "#eeeeee"
+background-alpha = 1.0
+text = "#202024"
+text-error = "#9f2332"
+border = "#202024"
+border-error = "#9f2332"
+border-alpha = 1.0
+scrim = "#ededed"
+scrim-alpha = 0.36
+accent = "#7134b5"
+
+[lock]
+background = "#eeeeee"
+background-alpha = 1.0
+text = "#202024"
+placeholder = "#48484e"
+text-error = "#9f2332"
+border = "#626267"
+border-active = "hyprland.active-border"
+border-error = "#9f2332"
+border-alpha = 1.0
+selection = "#265bd8"
+selection-alpha = 0.55
+
+[image-picker]
+scrim = "#ededed"
+scrim-alpha = 0.28
+text = "#202024"
+selected-border = "#265bd8"
+selected-border-alpha = 1.0
+unselected-border = "#626267"
+unselected-border-alpha = 0.72

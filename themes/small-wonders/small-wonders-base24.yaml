@@ -1,0 +1,39 @@
+system: "base24"
+name: "Small Wonders"
+slug: "small-wonders"
+author: "OldJobobo; Miasma foundation / Omarchy"
+variant: "dark"
+
+# Exact semantic export from colors.toml; no derived or substituted slots.
+# Miasma heritage: blue is olive, magenta is copper, cyan is amber.
+
+palette:
+  # --- lantern-lit charcoal / woodland linen ---
+  base00: "#24241F" # Woodland Charcoal - default background
+  base01: "#2E2E28" # Warm Stone - lighter background
+  base02: "#444735" # Moss Shelter - selection background
+  base03: "#A6A38D" # Lichen Sketch - comments / muted text
+  base04: "#B9B69E" # Field Notebook - dark foreground
+  base05: "#D6D3BA" # Woodland Linen - default foreground
+  base06: "#E4DFC5" # Birch Paper - light foreground
+  base07: "#F2E8C9" # Lantern Cream - brightest foreground
+
+  # --- miasma roots / small discoveries ---
+  base08: "#C88C70" # Terracotta Fox - red / error
+  base09: "#C29468" # Acorn Shell - orange / warning
+  base0A: "#D29B59" # Autumn Lantern - yellow
+  base0B: "#87A477" # Fern Frond - green
+  base0C: "#D0B462" # Butterfly Amber - cyan (Miasma gold)
+  base0D: "#A3AC68" # Firefly Olive - blue (Miasma olive)
+  base0E: "#CC925E" # Copper Cap - purple (Miasma copper)
+  base0F: "#B69A79" # Trail Bark - brown / special
+
+  # --- base24 extension ---
+  base10: "#1B1B17" # Root Shade - darker background
+  base11: "#141410" # Forest Hollow - darkest background
+  base12: "#E0A384" # Bright Terracotta Fox - bright red
+  base13: "#E9B875" # Bright Autumn Lantern - bright orange / yellow
+  base14: "#A5BF8D" # Bright Fern Frond - bright green
+  base15: "#E6CE85" # Bright Butterfly Amber - bright cyan
+  base16: "#BEC780" # Bright Firefly Olive - bright blue
+  base17: "#E5AE78" # Bright Copper Cap - bright purple

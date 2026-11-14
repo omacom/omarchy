@@ -1,0 +1,40 @@
+system: "base24"
+name: "Far Horizon"
+slug: "far-horizon"
+author: "OldJobobo"
+variant: "dark"
+
+# Exported from colors.toml; semantic roles and repeated colors are preserved.
+# base09 and base0F reuse accent: no separate orange or brown source roles.
+# The blue slots deliberately carry peach, matching the source theme.
+
+palette:
+  # --- storybook observatory / indigo ramp ---
+  base00: "#27213E" # Observatory Night - default background
+  base01: "#332C4B" # Storybook Panel - lighter background
+  base02: "#4E4264" # Constellation Violet - selection background
+  base03: "#939FBE" # Moon Pencil - comments / muted text
+  base04: "#BAC5DF" # Sky Haze - dark foreground
+  base05: "#EEF2FA" # Cool Moonlight - default foreground
+  base06: "#DCE5F5" # Cloud Veil - light foreground
+  base07: "#F8FAFF" # Telescope Spark - brightest foreground
+
+  # --- peach planets / friendly signals ---
+  base08: "#F38491" # Coral Beacon - red / error
+  base09: "#FFA68F" # Peach Pop - orange / warning
+  base0A: "#F2C66D" # Pocket Lantern - yellow
+  base0B: "#9CC9AE" # Sea-glass Garden - green
+  base0C: "#88C8D7" # Morning Mist - cyan
+  base0D: "#FFA68F" # Peach Pop - blue
+  base0E: "#C0B0E6" # Garden Halo - purple
+  base0F: "#FFA68F" # Peach Pop - brown / special
+
+  # --- base24 extension ---
+  base10: "#1E1A32" # Quiet Orbit - darker background
+  base11: "#171527" # Deep Space - darkest background
+  base12: "#F38491" # Bright Coral Beacon - bright red
+  base13: "#F2C66D" # Bright Pocket Lantern - bright orange / yellow
+  base14: "#9CC9AE" # Bright Sea-glass Garden - bright green
+  base15: "#88C8D7" # Bright Morning Mist - bright cyan
+  base16: "#FFA68F" # Bright Peach Pop - bright blue
+  base17: "#C0B0E6" # Bright Garden Halo - bright purple
