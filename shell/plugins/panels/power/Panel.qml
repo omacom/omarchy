@@ -528,7 +528,10 @@ Panel {
 
     InfoLabel { text: label }
     Item { width: Math.max(0, parent.width - parent.children[0].implicitWidth - parent.children[2].implicitWidth - parent.spacing * 2); height: 1 }
-    InfoValue { text: value }
+    InfoValue {
+      text: value
+      width: Math.max(0, parent.width - parent.children[0].width - parent.spacing)
+    }
   }
 
   component InfoLabel: Text {
@@ -541,6 +544,7 @@ Panel {
 
   component InfoValue: Text {
     textFormat: Text.PlainText
+    elide: Text.ElideRight
     color: root.bar.foreground
     font.family: root.bar.fontFamily
     font.pixelSize: Style.font.bodySmall
