@@ -29,6 +29,10 @@ elif [[ ${1:-} == "--file" ]]; then
   TEMPLATE_NAME=$2
   NEXT_THEME_DIR=$3
   COLORS_FILE="$NEXT_THEME_DIR/colors.toml"
+  # The current theme directory can be replaced while this command runs.
+  # Serialize its palette read and output write with the theme switch itself.
+  exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
+  flock 9
 fi
 
 # Theme switching waits on this script before the transition starts, so it
