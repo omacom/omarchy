@@ -26,12 +26,6 @@ You can start HEY Email using `Super + Shift + E`, jump straight to composing a 
 
 You can start Basecamp using the application launcher (`Super + Space`)
 
-## ChatGPT
-
-[ChatGPT](https://chatgpt.com) is the most popular AI chat bot in the world.
-
-You can start ChatGPT using `Super + Shift + A`.
-
 ## Grok
 
 [Grok](https://grok.com) is xAI's chat bot.
