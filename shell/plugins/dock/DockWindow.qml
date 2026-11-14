@@ -335,6 +335,7 @@ PanelWindow {
 
         delegate: Item {
           id: slotContainer
+          z: window.dragIndex === index ? 1 : 0
           required property int index
           required property string key
           readonly property var entry: window.dock ? window.dock.itemFor(key) : null
@@ -624,7 +625,7 @@ PanelWindow {
         Text {
           id: workspaceText
           anchors.centerIn: parent
-          text: String(appSlot.otherWorkspace)
+          text: Commons.I18n.formatNumber(appSlot.otherWorkspace % 10)
           textFormat: Text.PlainText
           color: Commons.Color.foreground
           font.family: Style.font.family
@@ -697,6 +698,7 @@ PanelWindow {
     readonly property var item: window.menuItem
     readonly property bool hasEntry: !!item && !!window.dock && !!window.dock.entryFor(item)
     readonly property bool running: !!item && item.windows.length > 0
+    readonly property bool pinned: !!item && (item.appPinned === true || item.pinned === true)
 
     visible: window.contentShown && (!!item || window.settingsMenu)
     width: Math.max(Style.space(140), menuColumn.implicitWidth) + padding * 2
@@ -758,9 +760,9 @@ PanelWindow {
 
       PopupMenuRow {
         visible: menu.hasEntry
-        text: menu.item && menu.item.pinned ? Commons.I18n.t("dock.removeFromDock") : Commons.I18n.t("dock.keepInDock")
+        text: menu.pinned ? Commons.I18n.t("dock.removeFromDock") : Commons.I18n.t("dock.keepInDock")
         onTriggered: {
-          window.dock.setPinned(menu.item.key, !menu.item.pinned)
+          window.dock.setPinned(menu.item.key, !menu.pinned)
           window.closeMenu()
         }
       }
