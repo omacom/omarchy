@@ -36,7 +36,7 @@ remove_block() {
 
   local added_newline=false
   grep -qxF "$open omarchy-glass begin after a line without a newline$close" "$file" && added_newline=true
-  sed -i "/^$begin/,/^$end\$/d" "$file" || return 1
+  sed -i --follow-symlinks "/^$begin/,/^$end\$/d" "$file" || return 1
   if [[ $added_newline == "true" && -s $file && -z $(tail -c 1 "$file") ]]; then
     truncate -s -1 "$file" || return 1
   fi
@@ -79,7 +79,7 @@ glass() {
     local block
     block=$(mktemp) || return 1
     printf '# omarchy-glass begin\n%s\n# omarchy-glass end\n' "$lines" >"$block"
-    sed -i -E "0,/$header/{/$header/r $block
+    sed -i --follow-symlinks -E "0,/$header/{/$header/r $block
 }" "$file"
     local result=$?
     rm -f "$block"

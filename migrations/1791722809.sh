@@ -16,6 +16,6 @@ done
 # Only a tab bar still on the shipped black changes; any other choice is kept,
 # and a surface_dim of the user's own is never given a second one.
 if [[ -f $config ]] && grep -qx 'panel_bg = "black"' "$config" && ! grep -q '^[[:space:]]*surface_dim[[:space:]]*=' "$config"; then
-  sed -i 's/^panel_bg = "black"$/panel_bg = "reset"\nsurface_dim = "black"/' "$config"
+  sed -i --follow-symlinks 's/^panel_bg = "black"$/panel_bg = "reset"\nsurface_dim = "black"/' "$config"
   omarchy-restart-herdr || true
 fi
