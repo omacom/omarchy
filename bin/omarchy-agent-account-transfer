@@ -1,11 +1,12 @@
 #!/usr/bin/python3
 # omarchy:summary=Export or import subscription account credentials for SSH transfer
-# omarchy:args=<capabilities|export|bundle|receiver-command|import> [--replace] [claude|codex|grok...]
+# omarchy:args=<capabilities|export|bundle|receiver-command|import> [--replace] [claude|codex|grok|agy...]
 # omarchy:hidden=true
 """The private, versioned stream behind account copy. Never log its payload."""
 
 from __future__ import annotations
 
+import copy
 import importlib.machinery
 import importlib.util
 import json
@@ -33,6 +34,7 @@ FILES = {
   "claude": {".credentials.json", ".claude.json"},
   "codex": {"auth.json"},
   "grok": {"auth.json", "settings_cache.json"},
+  "agy": {"antigravity-oauth-token"},
 }
 MAX_STREAM = 8 * 1024 * 1024
 MAX_BUNDLE = MAX_STREAM + 1024 * 1024
@@ -85,6 +87,11 @@ def login_files(provider: str, home: Path) -> dict[str, Any]:
     if identity and credentials:
       return {".claude.json": {"oauthAccount": identity}, ".credentials.json": {"claudeAiOauth": credentials}}
     return {}
+  if provider == "agy":
+    data = accounts.read_json(home / "antigravity-oauth-token")
+    if not isinstance(data, dict) and home == accounts.primary_home("agy"):
+      data = accounts.read_keyring_token()
+    return {"antigravity-oauth-token": data} if isinstance(data, dict) else {}
   files = {name: accounts.read_json(home / name) for name in FILES[provider]}
   return {name: data for name, data in files.items() if isinstance(data, dict)} if files.get("auth.json") else {}
 
@@ -98,8 +105,19 @@ def export_accounts(providers: list[str]) -> dict[str, Any]:
     entries = []
     for account in registry["accounts"]:
       home = accounts.account_home(provider, account)
-      found = accounts.identity(provider, home)
-      files = login_files(provider, home)
+      if provider == "agy" and account.get("primary") and registry.get("active") != account.get("id"):
+        main_token_file = accounts.agy_main_token_path()
+        main_dir = accounts.accounts_root() / "agy" / "main" / "antigravity-oauth-token"
+        main_data = accounts.read_json(main_token_file) or accounts.read_json(main_dir)
+        if isinstance(main_data, dict):
+          found = accounts.agy_identity_from_token_data(main_data)
+          files = {"antigravity-oauth-token": main_data}
+        else:
+          found = accounts.identity(provider, home)
+          files = login_files(provider, home)
+      else:
+        found = accounts.identity(provider, home)
+        files = login_files(provider, home)
       if found["accountId"] and files:
         entries.append({"id": account["id"], "label": account["label"], "primary": bool(account.get("primary")), "accountId": found["accountId"], "files": files})
     if entries:
@@ -158,8 +176,13 @@ def file_path(provider: str, home: Path, name: str) -> Path:
 
 
 def saved_credentials(provider: str, home: Path) -> bool:
-  name = ".credentials.json" if provider == "claude" else "auth.json"
-  return bool(accounts.read_json(home / name))
+  if provider == "claude":
+    name = ".credentials.json"
+  elif provider == "agy":
+    name = "antigravity-oauth-token"
+  else:
+    name = "auth.json"
+  return bool(accounts.read_json(home / name)) or (provider == "agy" and home == accounts.primary_home("agy") and bool(accounts.read_keyring_token()))
 
 
 def cleanup_transfers(parent: Path) -> None:
@@ -201,7 +224,8 @@ def home_in_use(provider: str, home: Path) -> bool:
       configured = next((v[len(home_key):].decode() for v in env if v.startswith(home_key)), "")
       selected_pin = next((v[len(pinned_key):].decode() for v in env if v.startswith(pinned_key)), "")
       process_home = next((v[5:].decode() for v in env if v.startswith(b"HOME=")), "")
-      selected = Path(configured or selected_pin) if configured or selected_pin else Path(process_home) / f".{provider}"
+      fallback_home = Path(process_home) / ".gemini/antigravity-cli" if provider == "agy" else Path(process_home) / f".{provider}"
+      selected = Path(configured or selected_pin) if configured or selected_pin else fallback_home
       if selected.resolve() == home.resolve():
         return True
     except (OSError, UnicodeError):
@@ -252,8 +276,11 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
   created = []
   results = []
   copied = []
-  try:
-    with accounts.Locked(provider) as registry:
+  with accounts.Locked(provider, save_on_exit=False) as registry:
+    orig_registry = copy.deepcopy(registry)
+    orig_primary_token = accounts.current_primary_token(provider) if provider == "agy" else None
+    orig_main_token = accounts.read_json(accounts.agy_main_token_path()) if provider == "agy" else None
+    try:
       for a in registry["accounts"]:
         for name in FILES[provider]:
           cleanup_transfers(file_path(provider, accounts.account_home(provider, a), name).parent)
@@ -305,6 +332,12 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
             current.update(data)
             data = current
           write_json(path, data)
+          if provider == "agy" and account.get("primary") and name == "antigravity-oauth-token":
+            accounts.write_token_file(accounts.agy_main_token_path(), data)
+            main_home = accounts.accounts_root() / "agy" / "main"
+            main_home.mkdir(parents=True, exist_ok=True)
+            accounts.link_shared("agy", main_home)
+            accounts.write_token_file(main_home / "antigravity-oauth-token", data)
         found = accounts.identity(provider, home)
         if found["accountId"] != entry["accountId"] or not login_files(provider, home):
           raise accounts.AccountError("Transferred credentials do not match their account identity")
@@ -322,17 +355,44 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
           registry["switch"] = incoming["switch"]
         registry["threshold"] = max(50, min(100, int(incoming.get("threshold", 95))))
       registry["alert"] = ""
-  except BaseException:
-    for home in created:
-      shutil.rmtree(home, ignore_errors=True)
-    for path, original in backups.items():
-      if original is None:
-        path.unlink(missing_ok=True)
-      else:
-        os.replace(original, path)
-    for folder in backup_dirs:
-      shutil.rmtree(folder)
-    raise
+      curr_active = accounts.active(registry)
+      active_replaced = any(action == "copied" and a["id"] == curr_active["id"] for action, a in results)
+      if provider == "agy" and (was_empty or active_replaced):
+        if curr_active.get("primary"):
+          active_token = accounts.read_json(accounts.agy_main_token_path()) or accounts.read_json(accounts.primary_home("agy") / "antigravity-oauth-token")
+        else:
+          active_token = accounts.read_json(accounts.account_home(provider, curr_active) / "antigravity-oauth-token")
+        if active_token:
+          accounts.apply_token_to_primary(provider, active_token)
+      accounts.save(provider, registry)
+    except BaseException:
+      if provider == "agy":
+        if orig_primary_token is not None:
+          accounts.apply_token_to_primary(provider, orig_primary_token)
+        else:
+          accounts.clear_primary_token(provider)
+        if orig_main_token is not None:
+          accounts.write_token_file(accounts.agy_main_token_path(), orig_main_token)
+          main_dir = accounts.accounts_root() / "agy" / "main"
+          if main_dir.is_dir():
+            accounts.write_token_file(main_dir / "antigravity-oauth-token", orig_main_token)
+        else:
+          accounts.agy_main_token_path().unlink(missing_ok=True)
+          shutil.rmtree(accounts.accounts_root() / "agy" / "main", ignore_errors=True)
+      for home in created:
+        shutil.rmtree(home, ignore_errors=True)
+      for path, original in backups.items():
+        if original is None:
+          path.unlink(missing_ok=True)
+        else:
+          os.replace(original, path)
+      for folder in backup_dirs:
+        shutil.rmtree(folder)
+      try:
+        accounts.save(provider, orig_registry)
+      except Exception:
+        pass
+      raise
   for home in created:
     (home / accounts.LOGIN_RECEIPT).unlink(missing_ok=True)
   for folder in backup_dirs:

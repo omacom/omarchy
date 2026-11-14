@@ -200,3 +200,59 @@ jq -nc --arg later "$later" '{
 autoswitch >/dev/null
 [[ $(active) == "work" ]] || fail "a stale account with room wins over a fresh one near the limit" "$(active)"
 pass "a stale account with room wins over a fresh one near the limit"
+
+# ---------------------------------------------------------------- antigravity
+
+mkdir -p "$accounts/agy/work" "$HOME/.gemini/antigravity-cli"
+cat >"$HOME/.gemini/antigravity-cli/antigravity-oauth-token" <<'EOF'
+{"auth_method":"consumer","id_token_email":"main@example.com","token":{"access_token":"at-main","refresh_token":"rt-main","expiry":1900000000}}
+EOF
+cat >"$accounts/agy/work/antigravity-oauth-token" <<'EOF'
+{"auth_method":"consumer","id_token_email":"work@example.com","token":{"access_token":"at-work","refresh_token":"rt-work","expiry":1900000000}}
+EOF
+cat >"$accounts/agy.json" <<JSON
+{
+  "active": "main",
+  "switch": "auto",
+  "threshold": 95,
+  "alert": "",
+  "accounts": [
+    {"id": "main", "label": "Main", "home": "", "primary": true},
+    {"id": "work", "label": "Work", "home": "$accounts/agy/work", "primary": false}
+  ]
+}
+JSON
+
+# Auxiliary 3P model quotas (Claude/GPT 100%) must not trigger autoswitch when primary Gemini has room
+jq -nc --arg later "$later" '{
+  id: "agy",
+  accounts: [
+    {id: "main", limits: [
+      {label: "Session (5-hour)", percent: 0.12, resetsAt: $later},
+      {label: "Weekly (7-day)", percent: 0.10, resetsAt: $later},
+      {label: "Claude/GPT Weekly", percent: 1.0, resetsAt: $later, auxiliary: true}
+    ]},
+    {id: "work", limits: [{label: "Session (5-hour)", percent: 0.05, resetsAt: $later}]}
+  ]
+}' >"$usage/agy.json"
+
+: >"$notifications"
+omarchy-agent-account-state autoswitch agy >/dev/null
+[[ $(jq -r .active "$accounts/agy.json") == "main" && ! -s $notifications ]] ||
+  fail "auxiliary model quotas do not trigger autoswitch for Antigravity"
+
+# Primary Gemini session crossing threshold switches active account and syncs credentials
+jq -nc --arg later "$later" '{
+  id: "agy",
+  accounts: [
+    {id: "main", limits: [{label: "Session (5-hour)", percent: 0.98, resetsAt: $later}]},
+    {id: "work", limits: [{label: "Session (5-hour)", percent: 0.10, resetsAt: $later}]}
+  ]
+}' >"$usage/agy.json"
+
+switched=$(omarchy-agent-account-state autoswitch agy)
+[[ $switched == "agy" && $(jq -r .active "$accounts/agy.json") == "work" ]] ||
+  fail "Antigravity autoswitches when primary Gemini quota reaches threshold" "$switched"
+grep -q "at-work" "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ||
+  fail "Antigravity autoswitch synchronizes target credentials into primary storage" "$(cat "$HOME/.gemini/antigravity-cli/antigravity-oauth-token")"
+pass "Antigravity isolates Gemini quotas and autoswitches credentials"

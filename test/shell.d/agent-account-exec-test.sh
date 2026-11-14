@@ -18,13 +18,14 @@ mkdir -p "$account_test_home" "$real_bin" "$registry_dir"
 
 # Use real mise dispatch and real account resolution, with fake agent binaries.
 # No shell functions, login startup files, credentials, or network are involved.
-for provider in claude codex grok; do
+for provider in claude codex grok agy; do
   cat >"$real_bin/$provider" <<'SH'
 #!/bin/bash
 case "${0##*/}" in
   claude) printf '%s\n' "${CLAUDE_CONFIG_DIR:-default}" ;;
   codex) printf '%s\n' "${CODEX_HOME:-default}" ;;
   grok) printf '%s\n' "${GROK_HOME:-default}" ;;
+  agy) printf '%s\n' "${AGY_DIR:-default}" ;;
 esac
 if (($#)); then
   printf '%s\n' "$@"
@@ -78,7 +79,7 @@ done
 cd "$test_tmp"
 run_isolated mise reshim
 
-for provider in claude codex grok; do
+for provider in claude codex grok agy; do
   select_account "$provider" side
   account_dir="$test_tmp/accounts/$provider side"
   output=$(run_isolated "$provider" 'a spaced prompt' '' '--flag=$literal')
@@ -90,6 +91,7 @@ for provider in claude codex grok; do
     claude) account_env=CLAUDE_CONFIG_DIR ;;
     codex) account_env=CODEX_HOME ;;
     grok) account_env=GROK_HOME ;;
+    agy) account_env=AGY_DIR ;;
   esac
   output=$(run_isolated env "$account_env=/explicit/account" "$provider")
   [[ $output == /explicit/account ]] || fail "$provider preserves an explicit account home" "$output"

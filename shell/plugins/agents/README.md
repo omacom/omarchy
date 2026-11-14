@@ -21,7 +21,7 @@ Every subscription on one page, limits first.
   per limit window: its meter and the time until it resets (the exact percentage
   on hover). A model-scoped allowance on the same clock (Claude's Fable weekly
   limit) is a tick on that window's meter rather than a line of its own; the
-  row's tooltip names it. A lapsed or missing Claude, Codex, or Grok sign-in
+  row's tooltip names it. A lapsed or missing Claude, Codex, Grok, or Antigravity sign-in
   shows a _Sign-in required_ link that signs that account in again from the
   panel. Any other trouble — a paused token, another agent's sign-in, an
   endpoint that didn't answer — leaves the last known limits on show, with a
@@ -47,19 +47,19 @@ Every subscription on one page, limits first.
 - **Make something cool** — starter prompts (a new theme, plugin, or app) that
   start the default agent on the task through `omarchy agent prompt`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
-  Claude Code, Codex, and Grok as large marks, three across, with the first
+  Claude Code, Codex, Grok, and Antigravity as large marks, four across, with the first
   one focused, and the hero's line reads Add an account. The + becomes the
   X that goes back. An agent that can't be added is dimmed and says why on
   hover. A further account asks for a name first, and Enter signs it in. The
   panel then runs `omarchy-agent-account-add --events` and follows it: the
   status, the code Grok asks you to confirm in the browser, a field to paste
-  Claude's code back if its page shows one instead of finishing, and a link to
+  Claude or Antigravity code back if its page shows one instead of finishing, and a link to
   reopen the sign-in page. Esc or the X stops the login. The browser taking focus may close the panel; the sign-in
   carries on and its result arrives as a notification.
 
 The icon is always in the bar. On a machine with no agent yet, the panel is
 the blank slate for setting one up: it opens on the same choice of Claude,
-Codex, or Grok, and the first agent signed in becomes the default agent if
+Codex, Grok, or Antigravity, and the first agent signed in becomes the default agent if
 none was picked. An agent appears once it is enabled in settings and has
 recorded usage, on this machine or a synced one; a CLI installed
 mid-session shows up at the next refresh. Drop the widget with

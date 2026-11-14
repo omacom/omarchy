@@ -523,7 +523,8 @@ Panel {
   readonly property var addProviders: [
     { providerId: "claude", providerName: "Claude Code" },
     { providerId: "codex", providerName: "Codex" },
-    { providerId: "grok", providerName: "Grok" }
+    { providerId: "grok", providerName: "Grok" },
+    { providerId: "agy", providerName: "Antigravity" }
   ].concat(localFits ? [{ providerId: "local", providerName: Commons.I18n.t("agents.localAi") }] : [])
    .concat(networkAddModels.length > 0 ? [{ providerId: "network", providerName: Commons.I18n.t("agents.networkModels") }] : [])
 
@@ -686,8 +687,8 @@ Panel {
   // talking, and only two things in it matter here: a code to confirm in the
   // browser (Grok), and an invitation to paste one back (Claude).
   function handleAddLine(line) {
-    var text = String(line).replace(/\u001b\[[0-9;]*m/g, "")
-    var tagged = text.match(/^@@omarchy (status|done|error) (.*)$/)
+    var text = String(line).replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, "").replace(/\r/g, "")
+    var tagged = text.match(/(?:^|@)@omarchy (status|done|error) (.*)$/)
     if (tagged) {
       if (tagged[1] === "status") {
         addStatus = tagged[2]
@@ -708,7 +709,7 @@ Panel {
     }
     var code = text.match(/^\s*([A-Z0-9]{4}-[A-Z0-9]{4})\s*$/)
     if (code) addCode = code[1]
-    if (/paste code/i.test(text)) addNeedsPaste = true
+    if (/paste code|enter.*code|authorization code/i.test(text)) addNeedsPaste = true
     var url = text.match(/(https:\/\/\S+)/)
     if (url && addUrl === "") addUrl = url[1]
   }
