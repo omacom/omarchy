@@ -40,7 +40,7 @@ run_hook_command theme-set ethereal >"$test_tmp/shebang.out" 2>&1
 [[ -f $marker ]] || fail "executable hook runs through its own shebang" "no marker written; output:
 $(cat "$test_tmp/shebang.out")"
 read -r ran_path ran_args <"$marker"
-[[ $ran_path == "$shebang_hook" ]] || fail "executable hook runs through its own shebang" "expected path: $shebang_hook
+[[ $ran_path == $shebang_hook ]] || fail "executable hook runs through its own shebang" "expected path: $shebang_hook
 actual path:    $ran_path"
 [[ $ran_args == "ethereal" ]] || fail "executable hook receives its arguments" "expected: ethereal
 actual:   $ran_args"
