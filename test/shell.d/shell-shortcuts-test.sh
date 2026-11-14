@@ -124,3 +124,63 @@ for (const line of lines) {
 }
 JS
 pass "every shortcut menu route resolves in the menu"
+
+# Exercise real XKB resolution: a non-Latin group must not turn clipboard
+# injection into an active-group keysym lookup, nor pin other layouts to US.
+require_command xkbcli
+OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "clipboard injection uses primary-layout keys with paired releases"
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+local binds, events, pending = {}, {}, nil
+local window
+local config = { ["input.kb_layout"] = "us,il" }
+hl = {
+  get_config = function(key) return config[key] end,
+  get_active_window = function() return window end,
+  dsp = { send_key_state = function(spec) return spec end },
+  dispatch = function(spec) events[#events + 1] = spec end,
+  timer = function(callback, options)
+    assert(options.timeout == 50 and options.type == "oneshot")
+    pending = callback
+  end,
+}
+require("default.hypr.helpers")
+o.bind = function(keys, _, callback) binds[keys] = callback end
+require("default.hypr.bindings.clipboard")
+local function check(callback, mods, code)
+  events, pending = {}, nil
+  callback()
+  assert(#events == 1 and pending, "release must be deferred")
+  -- A layout change while the key is down must still release the same key.
+  local layout = config["input.kb_layout"]
+  config["input.kb_layout"] = "fr,il"
+  pending()
+  config["input.kb_layout"] = layout
+  assert(#events == 2)
+  for i, state in ipairs({ "down", "up" }) do
+    local event = events[i]
+    assert(event.mods == mods and event.key == "code:" .. code and event.state == state,
+      ("expected %s code:%s %s, got %s %s %s"):format(mods, code, state, event.mods, event.key, event.state))
+    assert(event.window == nil, "injection must reach the focused surface")
+  end
+end
+for _, tags in ipairs({ {}, { "terminal" }, { "terminal*" } }) do
+  window = { tags = tags }
+  local clipboard_mods = #tags > 0 and "CTRL SHIFT" or "CTRL"
+  check(binds["SUPER + A"], "CTRL", 38)
+  check(binds["SUPER + C"], clipboard_mods, 54)
+  check(binds["SUPER + V"], clipboard_mods, 55)
+  check(binds["SUPER + X"], "CTRL", 53)
+  check(o.universal_paste, clipboard_mods, 55)
+end
+window = nil
+check(o.universal_paste, "CTRL", 55)
+config["input.kb_layout"] = "us,il"
+config["input.kb_variant"] = "dvorak,"
+check(binds["SUPER + C"], "CTRL", 31)
+check(binds["SUPER + V"], "CTRL", 60)
+config["input.kb_layout"], config["input.kb_variant"] = "fr,il", ""
+check(binds["SUPER + A"], "CTRL", 24)
+config["input.kb_layout"], config["input.kb_variant"] = "us", "3l"
+check(binds["SUPER + A"], "CTRL", 41)
+LUA
+pass "clipboard injection uses primary-layout keys with paired releases"

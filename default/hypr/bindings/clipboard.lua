@@ -5,12 +5,51 @@
 -- The down/up split works around Hyprland send_shortcut sometimes leaving
 -- synthetic key state stuck/repeating.
 -- https://github.com/hyprwm/Hyprland/discussions/14099
+local keycodes = {}
+
+-- Named injection scans the active group, which may have no Latin letters.
+-- Resolve the primary layout's unmodified letter instead of assuming QWERTY
+-- positions: A/C/V/X also move on AZERTY, Dvorak, and Colemak layouts.
+local function shortcut_keycode(key)
+  local command = { "xkbcli how-to-type --disable-compose --keysym" }
+  for _, option in ipairs({ "layout", "variant", "model", "options", "rules", "file" }) do
+    local value = hl.get_config("input.kb_" .. option) or ""
+    if value ~= "" then
+      local flag = option == "file" and "keymap" or option
+      table.insert(command, "--" .. flag .. " " .. o.shell_quote(value))
+    end
+  end
+  table.insert(command, o.shell_quote(key:lower()))
+  local lookup = table.concat(command, " ")
+  if keycodes[lookup] then
+    return keycodes[lookup]
+  end
+
+  local pipe = io.popen(lookup .. " 2>/dev/null", "r")
+  local output = pipe and pipe:read("*a") or ""
+  if pipe then pipe:close() end
+  for line in output:gmatch("[^\r\n]+") do
+    -- xkbcli uses XKB keycodes (evdev + 8), as send_key_state expects.
+    -- Only group 1, level 1, without modifiers is the shortcut's base key.
+    local code = line:match("^%s*(%d+)%s+%S+%s+1%s+.-%s+1%s+%[%s*%]%s*$")
+    if code then
+      keycodes[lookup] = "code:" .. code
+      return keycodes[lookup]
+    end
+  end
+
+  -- Retain named injection if the keymap cannot resolve a base letter.
+  keycodes[lookup] = key
+  return key
+end
+
 local function send_shortcut_once(mods, key)
   return function()
-    hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))
+    local resolved_key = shortcut_keycode(key)
+    hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = resolved_key, state = "down" }))
 
     hl.timer(function()
-      hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "up" }))
+      hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = resolved_key, state = "up" }))
     end, { timeout = 50, type = "oneshot" })
   end
 end
