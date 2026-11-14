@@ -47,11 +47,14 @@ PanelWindow {
   readonly property bool contentShown: shown && !tucked
 
   readonly property int gap: Style.spacing.xs
-  readonly property int iconSize: Math.round(36 * Style.fontScale)
+  readonly property real requestedIconSize: 36 * Style.fontScale
+  readonly property real iconSize: slotMetrics.iconSize
   // Each app has a square slot with its icon in the middle, and the slots run
   // straight to the edge of the dock.
-  readonly property int iconInset: Style.spacing.md
-  readonly property int slotSize: iconSize + iconInset * 2
+  readonly property real availableLength: Math.max(0, (window.vertical ? window.height : window.width) - window.gap * 2)
+  readonly property var slotMetrics: DockModel.fitSlots(requestedIconSize, Style.spacing.md, (dock ? dock.items.length : 0) + 1 + (insertIndex >= 0 ? 1 : 0), availableLength, body.hasWindowGroup ? window.groupGap : 0)
+  readonly property real iconInset: slotMetrics.inset
+  readonly property real slotSize: iconSize + iconInset * 2
   // An app that is starting pulses down to this.
   readonly property real pulseOpacity: 0.7
   readonly property real groupGap: Style.space(24)

@@ -141,7 +141,7 @@ Item {
   readonly property int launchTimeout: 10000
 
   function isLaunching(key) {
-    return root.launches[key] !== undefined
+    return root.launches[root.appKey(key)] !== undefined
   }
 
   function settleLaunches() {
