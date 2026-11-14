@@ -1452,6 +1452,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("agents.title")
     anchors.fill: parent
     bar: root.bar
     text: "󱚣"
@@ -1465,6 +1466,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("agents.title")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -1880,6 +1882,7 @@ Panel {
         id: addNameField
         width: parent.width
         placeholderText: Commons.I18n.t("agents.placeholderWork")
+        accessibleName: Commons.I18n.t("agents.accountName")
         foreground: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
@@ -1948,6 +1951,7 @@ Panel {
           id: pasteField
           width: parent.width
           placeholderText: Commons.I18n.t("agents.placeholderCode")
+          accessibleName: Commons.I18n.t("agents.placeholderCode")
           foreground: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -2173,6 +2177,7 @@ Panel {
         visible: section.remote && !section.offline && !section.paired
         iconText: "󰐊"
         tooltipText: section.remote ? Commons.I18n.t("agents.networkPair").arg(section.model.host) : ""
+        accessibleName: Commons.I18n.t("agents.networkPair").arg(section.remote ? section.model.host : "")
         foreground: usage.pairingId !== "" ? root.dim : root.foreground
         opacity: usage.pairingId !== "" ? 0.5 : 1
         fontFamily: root.fontFamily
@@ -2191,6 +2196,7 @@ Panel {
         visible: section.remote && !section.offline && section.paired && section.model.unit === "active"
         iconText: "󰏤"
         tooltipText: section.remote ? Commons.I18n.t("agents.networkDisconnect").arg(section.model.host) : ""
+        accessibleName: Commons.I18n.t("agents.networkDisconnect").arg(section.remote ? section.model.host : "")
         foreground: root.foreground
         fontFamily: root.fontFamily
         hasCursor: root.hasKey("modelDisconnect", section.providerIndex)
@@ -2916,6 +2922,7 @@ Panel {
       TextField {
         id: nameField
         visible: head.editing
+        accessibleName: Commons.I18n.t("agents.accountName")
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter

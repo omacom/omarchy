@@ -735,6 +735,7 @@ Panel {
 
   BarIconButton {
     id: button
+    accessibleName: I18n.t("audio.title")
     anchors.fill: parent
     bar: root.bar
     text: root.outputIcon()
@@ -755,6 +756,7 @@ Panel {
 
   KeyboardPanel {
     id: panel
+    accessibleName: I18n.t("audio.title")
     anchorItem: button
     owner: root
     bar: root.bar
@@ -834,6 +836,7 @@ Panel {
             // audible, so muting everything reads as switching audio off.
             ToggleSwitch {
               id: powerSwitch
+              accessibleName: I18n.t("audio.title")
               checked: root.anyAudible
               hasCursor: root.headerHasCursor
               foreground: root.bar.foreground
@@ -935,6 +938,7 @@ Panel {
 
               PanelSlider {
                 id: outputSlider
+                accessibleName: I18n.t("accessibility.outputVolume")
                 bar: root.bar
                 anchors.fill: parent
                 anchors.leftMargin: Style.space(6)
@@ -1034,6 +1038,7 @@ Panel {
 
                 PanelSlider {
                   id: inputSlider
+                  accessibleName: I18n.t("accessibility.inputVolume")
                   bar: root.bar
                   width: parent.width
                   minimum: 0
@@ -1130,6 +1135,8 @@ Panel {
     required property int rowIndex
 
     readonly property bool isActive: root.sink && node && root.sink.id === node.id
+    accessibleName: node ? root.nodeLabel(node) : ""
+    Accessible.onPressAction: sinkRow.activate()
     hasCursor: root.cursorActive && root.focusSection === "output" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sinkRow)
     current: isActive
@@ -1137,6 +1144,10 @@ Panel {
     fill: root.hoverFill
     currentFill: root.selectedFill
     implicitHeight: sinkInner.implicitHeight + Style.spacing.xl
+
+    function activate() {
+      if (node) root.setDefaultSink(node)
+    }
 
     Row {
       id: sinkInner
@@ -1180,7 +1191,7 @@ Panel {
         root.focusSection = "output"
         root.selectedIndex = sinkRow.rowIndex
       }
-      onClicked: root.setDefaultSink(sinkRow.node)
+      onClicked: sinkRow.activate()
     }
   }
 
@@ -1191,6 +1202,8 @@ Panel {
     required property int rowIndex
 
     readonly property bool isActive: root.source && node && root.source.id === node.id
+    accessibleName: node ? root.nodeLabel(node) : ""
+    Accessible.onPressAction: sourceRow.activate()
     hasCursor: root.cursorActive && root.focusSection === "input" && root.selectedIndex === rowIndex
     onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(sourceRow)
     current: isActive
@@ -1198,6 +1211,10 @@ Panel {
     fill: root.hoverFill
     currentFill: root.selectedFill
     implicitHeight: sourceInner.implicitHeight + Style.spacing.xl
+
+    function activate() {
+      if (node) root.setDefaultSource(node)
+    }
 
     Row {
       id: sourceInner
@@ -1241,7 +1258,7 @@ Panel {
         root.focusSection = "input"
         root.selectedIndex = sourceRow.rowIndex
       }
-      onClicked: root.setDefaultSource(sourceRow.node)
+      onClicked: sourceRow.activate()
     }
   }
 
@@ -1329,6 +1346,7 @@ Panel {
       }
 
       PanelSlider {
+        accessibleName: I18n.t("accessibility.streamVolume").arg(root.streamLabel(streamRow.node))
         bar: root.bar
         width: parent.width
         minimum: 0

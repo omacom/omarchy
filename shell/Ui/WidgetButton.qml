@@ -38,10 +38,21 @@ Item {
   // rather than pressed, like the clock.
   property int pressFeedbackButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
 
+  // What assistive technology announces. Bar labels are often glyphs, so the
+  // tooltip wins; BarIconButton never falls back to its glyph text.
+  property string accessibleName: tooltipText !== "" ? tooltipText : text
+
   signal pressed(int button)
   signal wheelMoved(int delta)
 
+  Accessible.role: pressable ? Accessible.Button : Accessible.StaticText
+  Accessible.name: accessibleName
+  Accessible.description: tooltipText !== accessibleName ? tooltipText : ""
+  Accessible.ignored: concealed || !hasVisualContent
+  Accessible.onPressAction: if (root.interactive && root.pressable) root.triggerPress(Qt.LeftButton)
+
   function triggerPress(button) {
+    if (!root.enabled) return
     if (root.bar) root.bar.hideTooltip(root)
     root.pressed(button)
   }
