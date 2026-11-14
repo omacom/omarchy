@@ -82,6 +82,9 @@ NO_PLAN_RECHECK_SECONDS = 3600
 # custom `zai-proxy` gateway is not this subscription.
 PROVIDERS = ("zai", "zhipu", "zai-coding-cn", "zhipu-coding-plan", "zhipuai", "zai-coding-plan", "zhipuai-coding-plan")
 
+# The environment variables pi and omp read the China coding plan's key from.
+CHINA_KEY_VARIABLES = ("ZHIPU_API_KEY", "ZHIPUAI_API_KEY", "ZAI_CODING_CN_API_KEY")
+
 # Coding-plan limit windows are tagged by (unit, number); the monitor endpoint
 # reports one CREDIT_LIMIT row per window (older responses used TOKENS_LIMIT).
 LIMIT_TYPES = {"CREDIT_LIMIT", "TOKENS_LIMIT"}
@@ -146,9 +149,8 @@ def credentials() -> tuple[str, str]:
   if not key:
     if os.environ.get("ZAI_API_KEY"):
       key, platform = os.environ["ZAI_API_KEY"].strip(), platform or "zai"
-    elif os.environ.get("ZHIPU_API_KEY") or os.environ.get("ZHIPUAI_API_KEY"):
-      key = (os.environ.get("ZHIPU_API_KEY") or os.environ.get("ZHIPUAI_API_KEY")).strip()
-      platform = platform or "zhipu"
+    elif china := next((os.environ[name] for name in CHINA_KEY_VARIABLES if os.environ.get(name)), ""):
+      key, platform = china.strip(), platform or "zhipu"
 
   if not key:
     for env_path in (Path.home() / ".omp" / "agent" / ".env", pi_agent_dir() / ".env"):
@@ -156,9 +158,8 @@ def credentials() -> tuple[str, str]:
       if values.get("ZAI_API_KEY"):
         key, platform = values["ZAI_API_KEY"], platform or "zai"
         break
-      if values.get("ZHIPU_API_KEY") or values.get("ZHIPUAI_API_KEY"):
-        key = values.get("ZHIPU_API_KEY") or values["ZHIPUAI_API_KEY"]
-        platform = platform or "zhipu"
+      if china := next((values[name] for name in CHINA_KEY_VARIABLES if values.get(name)), ""):
+        key, platform = china, platform or "zhipu"
         break
 
   if not key:
@@ -166,7 +167,7 @@ def credentials() -> tuple[str, str]:
       if found := auth_json_key(auth_path, "zai"):
         key, platform = found, platform or "zai"
         break
-      if found := auth_json_key(auth_path, "zhipu"):
+      if found := auth_json_key(auth_path, "zhipu") or auth_json_key(auth_path, "zai-coding-cn") or auth_json_key(auth_path, "zhipu-coding-plan"):
         key, platform = found, platform or "zhipu"
         break
 
@@ -362,8 +363,7 @@ def collect_limits(api_key: str, platform: str, force: bool) -> dict[str, Any]:
 # Local session stats
 # --------------------------------------------------------------------------
 
-# pi, omp, and opencode name the provider alike. Exact names: a custom
-# `zai-proxy` gateway is not this subscription.
+# Exact names: a custom `zai-proxy` gateway is not this subscription.
 def billed_here(provider: str, model: str, entry: dict) -> bool:
   return provider.lower() in PROVIDERS
 
