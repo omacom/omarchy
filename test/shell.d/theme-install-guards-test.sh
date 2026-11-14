@@ -194,7 +194,7 @@ pass "an ordinary theme URL still clones and applies"
 remove_theme() {
   : >"$theme_calls"
 
-  HOME="$test_tmp/home" PATH="$mock_bin:$PATH" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
+  HOME="$test_tmp/home" OMARCHY_PATH="$ROOT" PATH="$mock_bin:$PATH" OMARCHY_TEST_THEME_CALLS="$theme_calls" \
     bash "$ROOT/bin/omarchy-theme-remove" "$1" >"$test_tmp/out" 2>&1 || return $?
 }
 
@@ -210,3 +210,18 @@ for name in ".." "." "../../evil" ".git"; do
 done
 
 pass "a theme name cannot climb out of the themes directory on the way to rm"
+
+# The name omarchy-theme-list shows finds the folder, and the exact folder name the menu passes still does.
+mkdir -p "$test_tmp/home/.config/omarchy/themes/my-theme" "$test_tmp/home/.config/omarchy/themes/Walk Handmade Theme"
+remove_theme "My Theme" || fail "omarchy-theme-remove removes my-theme by its listed name" "$(cat "$test_tmp/out")"
+remove_theme "Walk Handmade Theme" || fail "omarchy-theme-remove removes a folder by its exact name" "$(cat "$test_tmp/out")"
+[[ ! -e $test_tmp/home/.config/omarchy/themes/my-theme && ! -e "$test_tmp/home/.config/omarchy/themes/Walk Handmade Theme" ]] ||
+  fail "omarchy-theme-remove deletes the folders it named"
+
+if remove_theme "Tokyo Night"; then
+  fail "omarchy-theme-remove refuses a bundled theme"
+fi
+grep -Fq "comes with Omarchy" "$test_tmp/out" || fail "omarchy-theme-remove says a bundled theme cannot be removed" "$(cat "$test_tmp/out")"
+[[ -d $ROOT/themes/tokyo-night ]] || fail "omarchy-theme-remove leaves the bundled theme alone"
+
+pass "a theme is removed by the name omarchy-theme-list shows"
