@@ -1686,7 +1686,7 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: root.filterText ? Commons.I18n.t("common.noMatchesFor").arg(root.filterText) : Commons.I18n.t("menu.nothingHere")
+              text: root.filterText ? Commons.I18n.t("common.noMatches") : Commons.I18n.t("menu.nothingHere")
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily
