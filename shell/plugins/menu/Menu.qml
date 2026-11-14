@@ -838,6 +838,10 @@ Item {
     if (fromPointer) pointerGate.allowInitialSample()
     else root.disarmPointer()
     root.rebuildDisplay()
+    // Qt may send no hover to a row made under a pointer resting where it
+    // clicked, so the click's point is the first sample, taken once the
+    // rebuild has scrolled the list to its cursor.
+    if (fromPointer) Qt.callLater(function() { root.selectUnderPointer(fromPointer) })
     root.invalidateVolatileProvider(id)
     root.loadProviderForMenu(id)
   }
@@ -1043,6 +1047,14 @@ Item {
     if (!root.rowSelectable(index)) return
     root.cursorActive = true
     root.selectedIndex = index
+  }
+
+  // `point` is in card coordinates, where the gate measures. With no row there
+  // yet, the gate stays open for a provider's rows arriving under the pointer.
+  function selectUnderPointer(point) {
+    var at = card.mapToItem(resultList.contentItem, point.x, point.y)
+    var index = resultList.indexAt(at.x, at.y)
+    if (index >= 0) root.selectFromPointer(index, card, point)
   }
 
   Process {
@@ -1623,11 +1635,11 @@ Item {
                 onPositionChanged: function(mouse) {
                   root.selectFromPointer(row.index, row, mouse)
                 }
-                onClicked: {
+                onClicked: function(mouse) {
                   if (row.disabled) return
                   root.cursorActive = true
                   root.selectedIndex = row.index
-                  root.activateIndex(row.index, true)
+                  root.activateIndex(row.index, mouseArea.mapToItem(card, mouse.x, mouse.y))
                 }
               }
             }
