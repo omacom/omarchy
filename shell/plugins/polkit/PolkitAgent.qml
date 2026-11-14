@@ -35,6 +35,12 @@ Item {
   property bool errorFlash: false
   // pam_fprintd appears in the polkit PAM stack (a sensor is enrolled).
   property bool fingerprintConfigured: false
+  // pam_u2f appears in the polkit PAM stack (a FIDO security key is set up).
+  property bool securityKeyConfigured: false
+  // pam_u2f comes before pam_fprintd, so it is the module PAM waits on first.
+  property bool securityKeyFirst: false
+  // pam_u2f's cue_prompt= values, so a custom cue still shows the key.
+  property var securityKeyCues: []
   // Lid shut right now — the reader is physically unreachable, so we fall back
   // to the password even when a sensor is enrolled. Refreshed per request.
   property bool laptopClosed: false
@@ -45,11 +51,43 @@ Item {
   // waiting on the reader (lid open, sensor enrolled); the moment PAM asks for
   // a password — including immediately when the lid is shut and the clamshell
   // gate skips pam_fprintd — we switch to the password field instead.
-  readonly property bool fingerprintMode: fingerprintConfigured && !laptopClosed && dialogVisible && !responseRequired && !submitted && !errorFlash
+  // pam_u2f blocks until the key is touched and asks for nothing — at most a
+  // PAM info message ("Please touch the device." with `cue`). Show that
+  // instead of a password field whose Enter would do nothing. The decision is
+  // in PolkitModel.js, where tests check that a password prompt from PAM is
+  // never hidden.
+  readonly property var modeState: ({
+    dialogVisible: dialogVisible,
+    responseRequired: responseRequired,
+    submitted: submitted,
+    errorFlash: errorFlash,
+    supplementary: currentSupplementary,
+    securityKeyConfigured: securityKeyConfigured,
+    securityKeyFirst: securityKeyFirst,
+    securityKeyCues: securityKeyCues,
+    fingerprintConfigured: fingerprintConfigured,
+    laptopClosed: laptopClosed
+  })
+  readonly property bool securityKeyMode: PolkitModel.securityKeyMode(modeState)
+  readonly property bool fingerprintMode: PolkitModel.fingerprintMode(modeState)
   readonly property int cardHeight: panel.height > 0 ? Math.min(fieldHeight + contentMargin * 2, panel.height - Style.gapsOut * 2) : fieldHeight + contentMargin * 2
   // Password mode is a wide field; fingerprint mode collapses to a square that
-  // just frames the centered sensor icon.
-  readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
+  // just frames the centered sensor icon; the security key prompt widens to
+  // fit its instruction, which is longer in some languages ("Toque na sua
+  // chave de segurança"), up to the screen's width. The instruction is
+  // measured by a hidden Text laid out like the shown one: TextMetrics'
+  // advanceWidth can fall short of the width a Text needs to not elide.
+  readonly property int securityKeyCardWidth: Math.ceil(touchMeasure.implicitWidth + Style.space(40) + card.contentLeftInset + card.contentRightInset)
+  readonly property int cardWidth: fingerprintMode ? cardHeight : Math.min(securityKeyMode ? Math.max(Style.space(400), securityKeyCardWidth) : Style.space(312), Math.max(Style.space(260), panel.width - Style.gapsOut * 2))
+
+  Text {
+    id: touchMeasure
+    visible: false
+    textFormat: Text.PlainText
+    font.family: root.fontFamily
+    font.pixelSize: Style.font.iconLarge
+    text: I18n.t("polkit.touchSecurityKey")
+  }
 
   function authorizationLabel(message) {
     return message ? PolkitModel.authorizationLabel(message, I18n.t) : I18n.t("polkit.authenticationNeeded")
@@ -57,6 +95,9 @@ Item {
 
   function loadPamConfig(raw) {
     fingerprintConfigured = PolkitModel.fingerprintConfiguredFromPamConfig(raw)
+    securityKeyConfigured = PolkitModel.securityKeyConfiguredFromPamConfig(raw)
+    securityKeyFirst = PolkitModel.passiveAuthModules(raw)[0] === "security-key"
+    securityKeyCues = PolkitModel.securityKeyCuesFromPamConfig(raw)
   }
 
   function refreshLidState() {
@@ -81,12 +122,20 @@ Item {
 
     currentMessage = String(flow.message || "")
     currentPrompt = String(flow.inputPrompt || "")
-    currentSupplementary = String(flow.supplementaryMessage || "")
+    var supplementary = String(flow.supplementaryMessage || "")
+    var messageChanged = supplementary !== currentSupplementary
+    currentSupplementary = supplementary
     responseRequired = !!flow.isResponseRequired
     responseVisible = !!flow.responseVisible
     failed = !!flow.failed
 
-    if (responseRequired) submitted = false
+    submitted = PolkitModel.stillSubmitted({
+      submitted: submitted,
+      responseRequired: responseRequired,
+      supplementary: supplementary,
+      securityKeyCues: securityKeyCues,
+      messageChanged: messageChanged
+    })
   }
 
   function beginFlow() {
@@ -103,7 +152,7 @@ Item {
     if (!dialogVisible) return
     // In fingerprint mode there is no field to type into — park focus on the
     // key catcher so Escape still cancels; otherwise focus the password field.
-    if (fingerprintMode) keyCatcher.forceActiveFocus()
+    if (fingerprintMode || securityKeyMode) keyCatcher.forceActiveFocus()
     else passwordInput.forceActiveFocus()
   }
 
@@ -163,7 +212,12 @@ Item {
     watchChanges: true
     printErrors: false
     onLoaded: root.loadPamConfig(text())
-    onLoadFailed: root.fingerprintConfigured = false
+    onLoadFailed: {
+      root.fingerprintConfigured = false
+      root.securityKeyConfigured = false
+      root.securityKeyFirst = false
+      root.securityKeyCues = []
+    }
     onFileChanged: reload()
   }
 
@@ -297,8 +351,19 @@ Item {
         spacing: Style.space(14)
 
         Text {
-          text: "\uf023"
+          id: methodIcon
+          // Padlock for the password, a key while waiting for the security key.
+          textFormat: Text.PlainText
+          text: root.securityKeyMode ? "\udb80\udf06" : "\uf023"
           color: root.errorFlash ? Commons.Color.polkit.textError : root.accent
+
+          SequentialAnimation on opacity {
+            running: root.securityKeyMode && !Style.reduceMotion
+            loops: Animation.Infinite
+            onStopped: methodIcon.opacity = 1
+            NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
+            NumberAnimation { to: 1; duration: 700; easing.type: Easing.InOutSine }
+          }
           font.family: root.fontFamily
           font.pixelSize: Style.font.iconLarge
           width: Style.space(26)
@@ -314,6 +379,7 @@ Item {
           TextInput {
             id: passwordInput
             anchors.fill: parent
+            visible: !root.securityKeyMode
             verticalAlignment: TextInput.AlignVCenter
             activeFocusOnPress: true
             clip: true
@@ -341,9 +407,11 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: root.errorFlash ? I18n.t("polkit.wrong") : (root.submitted ? I18n.t("polkit.checking") : I18n.t("polkit.enterPassword"))
+            text: root.errorFlash ? I18n.t("polkit.wrong")
+              : root.securityKeyMode ? I18n.t("polkit.touchSecurityKey")
+              : (root.submitted ? I18n.t("polkit.checking") : PolkitModel.passwordPlaceholder(root.currentPrompt, I18n.t))
             color: root.errorFlash ? Commons.Color.polkit.textError : root.foreground
-            opacity: root.errorFlash ? 1 : 0.36
+            opacity: root.errorFlash || root.securityKeyMode ? 1 : 0.36
             font.family: root.fontFamily
             font.pixelSize: Style.font.iconLarge
             elide: Text.ElideRight
