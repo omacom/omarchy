@@ -74,6 +74,7 @@ Panel {
   // scrolled out of view, or the panel closed.
   readonly property string wifiStateKey: Model.wifiStateKey(wifiNetworkObjects)
   readonly property var connectedWifiNetwork: findConnectedWifiNetwork()
+  readonly property bool showAdapter: Model.shouldShowAdapter(info)
   property var wifiNetworks: []
   property bool scanning: false
   property bool wifiStationAvailable: false
@@ -1469,6 +1470,15 @@ Panel {
             text: root.info.gateway || "--"
             copyable: !!root.info.gateway
             tooltipText: Commons.I18n.t("network.copyGateway")
+          }
+
+          InfoLabel {
+            text: "Adapter"
+            visible: root.showAdapter
+          }
+          DetailValue {
+            text: root.info.iface || "--"
+            visible: root.showAdapter
           }
         }
       }
