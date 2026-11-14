@@ -205,6 +205,15 @@ Panel {
   function deleteSelected() {
     var target = keyTarget
     if (!target || ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "localDownload"].indexOf(target.kind) < 0) return
+    var model = providers[target.index].localModel
+    // A setup the panel still owns has nothing on disk to delete, so it asks
+    // nothing: a failure is forgotten and one waiting its turn is dropped. The
+    // one starting can't be stopped midway through installing packages.
+    if (model && model.panelSetup) {
+      if (model.install.phase === "failed") usage.dismissSetupFailure()
+      else if (model.install.phase === "waiting") usage.unqueueSetup(model.recipe)
+      return
+    }
     deleteTarget = providers[target.index]
   }
 
@@ -212,10 +221,7 @@ Panel {
     var target = deleteTarget
     deleteTarget = null
     if (!target) return
-    if (target.localModel && target.localModel.panelSetup) {
-      // Not set up yet, so nothing to remove: a failure is just forgotten.
-      if (target.localModel.install.phase === "failed") usage.dismissSetupFailure()
-    } else if (target.localModel && !target.localModel.host) {
+    if (target.localModel && !target.localModel.host) {
       Util.execArgv(["omarchy-agent-local", "remove", target.localModel.recipe])
     } else if (bar && bar.shell) {
       var next = JSON.parse(JSON.stringify(settings || {}))
