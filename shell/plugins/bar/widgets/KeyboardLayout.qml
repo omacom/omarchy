@@ -41,7 +41,9 @@ BarWidget {
   onNeedsBriefsChanged: loadBriefs()
 
   function loadBriefs() {
-    if (!needsBriefs || briefsRequested) return
+    if (!needsBriefs) return
+    InputMethodState.requestKeybindings()
+    if (briefsRequested) return
     briefsRequested = true
     briefsProc.running = true
   }
@@ -262,7 +264,8 @@ BarWidget {
     text: root.inputLabel
     fontSize: Style.font.caption
     horizontalMargin: 6
-    tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts)
+    tooltipText: KeyboardLayoutModel.inputTooltip(root.inputState, root.layoutFull, root.multipleLayouts,
+      KeyboardLayoutModel.switchShortcut(InputMethodState.keybindings))
     onPressed: function(button) {
       if (root.multipleInputs && button === Qt.LeftButton) {
         InputMethodState.cycle()
