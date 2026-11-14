@@ -137,7 +137,7 @@ border-alpha     = 1.0
 background       = "{{ background }}"
 background-alpha = 0.97
 text             = "{{ foreground }}"
-border           = "hyprland.active-border-foreground"
+border           = "hyprland.active-border"
 border-alpha     = 1.0
 
 [notifications]
@@ -176,7 +176,7 @@ selected-border-alpha     = 0.25
 background                = "{{ background }}"
 background-alpha          = 1.0
 text                      = "{{ foreground }}"
-border                    = "hyprland.active-border-foreground"
+border                    = "hyprland.active-border"
 border-alpha              = 1.0
 scrim                     = "{{ background }}"
 scrim-alpha               = 0.5
