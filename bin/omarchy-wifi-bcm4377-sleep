@@ -1,0 +1,301 @@
+#!/bin/bash
+
+# omarchy:summary=Unload BCM4377 Wi-Fi around system sleep and restore Apple d3cold
+# omarchy:args=pre|post
+# omarchy:hidden=true
+# omarchy:requires-sudo=true
+
+# BCM4377 firmware does not acknowledge HOST_D3_INFORM. brcmfmac returns EIO
+# and the kernel aborts suspend. Unload it for the sleep instead.
+#
+# On a 2020 MacBook Air (MacBookAir9,1, t2bce), unloading the driver was not
+# enough. s2idle was entered and resume never returned while the Apple NVMe
+# controller (106b:2005) and the T2 functions (106b:1801, 106b:1802, 106b:1803)
+# could still enter d3cold. Hold those out of d3cold for the sleep, then put
+# the previous values back so runtime power management is unchanged.
+#
+# NetworkManager profiles pick the network. WPA2 and WPA3 both come back
+# through autoconnect. This script never names a network.
+
+set -euo pipefail
+
+state_dir=${OMARCHY_WIFI_BCM4377_STATE_DIR:-/run/omarchy-wifi-bcm4377-sleep}
+pci_root=${OMARCHY_WIFI_BCM4377_PCI_ROOT:-/sys/bus/pci/devices}
+
+settle() {
+  local seconds=${OMARCHY_WIFI_BCM4377_SETTLE_SECONDS:-1}
+
+  if [[ $seconds == "0" ]]; then
+    return 0
+  fi
+  sleep "$seconds"
+}
+
+retry_pause() {
+  if [[ ${OMARCHY_WIFI_BCM4377_SETTLE_SECONDS:-1} == "0" ]]; then
+    return 0
+  fi
+  sleep 0.4
+}
+
+read_sysfs_word() {
+  local value
+
+  [[ -f $1 ]] || return 1
+  value=$(<"$1")
+  value=${value,,}
+  value=${value//[[:space:]]/}
+  printf '%s\n' "$value"
+}
+
+bcm4377_present() {
+  lspci -nn 2>/dev/null | grep '14e4:4488' >/dev/null
+}
+
+# The Apple IDs whose d3cold blocked resume on this machine. The Wi-Fi
+# function itself is Broadcom 14e4:4488 and is not in this list.
+apple_sleep_device() {
+  local vendor=$1 device=$2
+
+  [[ $vendor == "0x106b" || $vendor == "106b" ]] || return 1
+  case $device in
+    0x2005 | 2005 | 0x1801 | 1801 | 0x1802 | 1802 | 0x1803 | 1803) return 0 ;;
+  esac
+  return 1
+}
+
+module_loaded() {
+  local root=${OMARCHY_WIFI_BCM4377_MODULE_ROOT:-/sys/module}
+
+  [[ -d $root/$1 ]]
+}
+
+wifi_ifaces() {
+  local net path driver
+
+  net=${OMARCHY_WIFI_BCM4377_NET_ROOT:-/sys/class/net}
+  [[ -d $net ]] || return 0
+  for path in "$net"/*; do
+    [[ -d $path ]] || continue
+    [[ -e $path/device/driver ]] || continue
+    driver=$(readlink -f "$path/device/driver" 2>/dev/null || true)
+    [[ ${driver##*/} == "brcmfmac" ]] || continue
+    printf '%s\n' "${path##*/}"
+  done
+}
+
+# Drop the link before rmmod. Removing brcmfmac while firmware still has TX
+# in flight times out in brcmf_msgbuf_delete_flowring, and the next probe
+# comes up with a dead command ring. Stopping NetworkManager from a sleep
+# unit can deadlock the suspend transaction, so the device is disconnected
+# instead.
+quiesce_wifi() {
+  local net iface state
+
+  net=${OMARCHY_WIFI_BCM4377_NET_ROOT:-/sys/class/net}
+  while IFS= read -r iface; do
+    [[ -n $iface ]] || continue
+    state=down
+    if [[ -f $net/$iface/operstate ]]; then
+      state=$(<"$net/$iface/operstate")
+      state=${state//[[:space:]]/}
+    fi
+    if [[ $state == "down" ]]; then
+      continue
+    fi
+    nmcli --wait 8 device disconnect "$iface" || true
+    ip link set "$iface" down || true
+    settle
+  done < <(wifi_ifaces)
+}
+
+block_d3cold() {
+  local dir vendor device current allowed
+
+  : >"$state_dir/d3cold"
+  [[ -d $pci_root ]] || return 0
+  for dir in "$pci_root"/*; do
+    [[ -d $dir ]] || continue
+    vendor=$(read_sysfs_word "$dir/vendor" || true)
+    device=$(read_sysfs_word "$dir/device" || true)
+    [[ -n $vendor && -n $device ]] || continue
+    apple_sleep_device "$vendor" "$device" || continue
+    allowed=$dir/d3cold_allowed
+    [[ -f $allowed ]] || continue
+    current=$(read_sysfs_word "$allowed" || true)
+    [[ -n $current ]] || continue
+    printf '%s %s\n' "${dir##*/}" "$current" >>"$state_dir/d3cold"
+    printf '0\n' >"$allowed"
+  done
+}
+
+restore_d3cold() {
+  local bdf value allowed
+
+  [[ -f $state_dir/d3cold ]] || return 0
+  while read -r bdf value; do
+    [[ -n $bdf && -n $value ]] || continue
+    allowed=$pci_root/$bdf/d3cold_allowed
+    [[ -f $allowed ]] || continue
+    printf '%s\n' "$value" >"$allowed"
+  done <"$state_dir/d3cold"
+}
+
+unload_once() {
+  if module_loaded brcmfmac_wcc; then
+    modprobe -r brcmfmac_wcc || return 1
+  fi
+  if module_loaded brcmfmac; then
+    modprobe -r brcmfmac || return 1
+  fi
+  if module_loaded brcmfmac; then
+    return 1
+  fi
+  return 0
+}
+
+try_unload() {
+  local attempt attempts=${OMARCHY_WIFI_BCM4377_ATTEMPTS:-8}
+
+  for (( attempt = 1; attempt <= attempts; attempt++ )); do
+    if unload_once; then
+      return 0
+    fi
+    if (( attempt < attempts )); then
+      retry_pause
+    fi
+  done
+  return 1
+}
+
+wifi_link_state() {
+  local raw
+
+  raw=$(nmcli -g GENERAL.STATE device show "$1" 2>/dev/null || true)
+  raw=${raw##*(}
+  raw=${raw%)*}
+  printf '%s\n' "$raw"
+}
+
+radio_on() {
+  local attempt
+
+  for (( attempt = 1; attempt <= 5; attempt++ )); do
+    if nmcli radio wifi on; then
+      return 0
+    fi
+    if (( attempt < 5 )); then
+      settle
+    fi
+  done
+  return 1
+}
+
+# Ask NetworkManager to connect the interface. The profile it picks is the
+# user's, so this works for WPA2 and WPA3 without a stored network name.
+bring_wifi_back() {
+  local iface state attempt
+
+  radio_on || return 1
+  for (( attempt = 1; attempt <= 5; attempt++ )); do
+    iface=$(wifi_ifaces)
+    iface=${iface%%$'\n'*}
+    if [[ -n $iface ]]; then
+      state=$(wifi_link_state "$iface")
+      case $state in
+        connected | connecting) return 0 ;;
+      esac
+      if nmcli device connect "$iface"; then
+        return 0
+      fi
+    fi
+    if (( attempt < 5 )); then
+      settle
+    fi
+  done
+  return 1
+}
+
+abort_pre() {
+  restore_d3cold
+  rm -rf "$state_dir"
+  printf '%s\n' "BCM4377: brcmfmac stayed loaded, so sleep was not started" >&2
+  return 1
+}
+
+sleep_pre() {
+  if ! bcm4377_present; then
+    return 0
+  fi
+
+  # A previous sleep that never ran post must not leave d3cold blocked
+  # or stack another saved value on top of the first.
+  if [[ -d $state_dir ]]; then
+    sleep_post || true
+  fi
+
+  mkdir -p "$state_dir"
+  block_d3cold
+
+  if ! module_loaded brcmfmac; then
+    printf '%s\n' absent >"$state_dir/method"
+    printf '%s\n' "BCM4377: brcmfmac was already unloaded"
+    return 0
+  fi
+
+  quiesce_wifi
+  if try_unload; then
+    printf '%s\n' removed >"$state_dir/method"
+    printf '%s\n' "BCM4377: unloaded brcmfmac before sleep"
+    return 0
+  fi
+
+  # The radio holds the module busy when a scan or a join is still in flight.
+  nmcli radio wifi off || true
+  if try_unload; then
+    printf '%s\n' radio-off >"$state_dir/method"
+    printf '%s\n' "BCM4377: unloaded brcmfmac before sleep"
+    return 0
+  fi
+
+  abort_pre
+}
+
+sleep_post() {
+  local method="" reload_failed=0
+
+  [[ -d $state_dir ]] || return 0
+  restore_d3cold
+  if [[ -f $state_dir/method ]]; then
+    method=$(<"$state_dir/method")
+    method=${method//[[:space:]]/}
+  fi
+
+  if [[ $method == "removed" || $method == "radio-off" ]]; then
+    if ! module_loaded brcmfmac; then
+      modprobe brcmfmac || reload_failed=1
+    fi
+    if (( reload_failed == 0 )); then
+      if ! bring_wifi_back; then
+        nmcli radio wifi on || true
+        printf '%s\n' "BCM4377: reloaded brcmfmac; NetworkManager did not reconnect yet" >&2
+      fi
+    fi
+  fi
+
+  rm -rf "$state_dir"
+  return "$reload_failed"
+}
+
+main() {
+  case ${1:-} in
+    pre) sleep_pre ;;
+    post) sleep_post ;;
+    *)
+      printf '%s\n' "Usage: omarchy-wifi-bcm4377-sleep pre|post" >&2
+      return 1
+      ;;
+  esac
+}
+
+main "$@"
