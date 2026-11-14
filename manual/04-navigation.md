@@ -89,3 +89,5 @@ To move a window off either the scratchpad or the console, send it directly to a
 ### It takes some getting used to!
 
 It takes a little while to get used to navigating your desktop like this, but once you do, it'll be hard to go back to a traditional mouse-driven desktop experience!
+
+Changing dock position slides it out through the old screen edge and back in through the selected edge. Auto-hide uses a 240 ms reveal and 160 ms dismissal. All motion respects the shared animation toggle.
