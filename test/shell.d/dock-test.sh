@@ -17,6 +17,26 @@ for (const [icon, count, length, extra] of [[66, 12, 742, 0], [36, 29, 1280, 24]
   assert((fit.iconSize + fit.inset * 2) * count + extra <= length + 0.0001, 'all dock slots fit the available edge: ' + count + ' slots on ' + length)
   assert(fit.iconSize > 0 && fit.iconSize <= icon, 'fitting keeps every icon visible without enlarging requested icons')
 }
+const dragQml = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/DockWindow.qml', 'utf8')
+const method = name => dragQml.match(new RegExp('function ' + name + '\\([^)]*\\) \\{([\\s\\S]*?)\\n  \\}'))[1]
+const dropWindow = { position: 'left', vertical: true, width: 240, height: 742, gap: 3, shown: true, autohide: false, insertIndex: -1, externalDropArea: null,
+  origin: () => ({x: 0, y: 0}), slotIndexAt: () => 5, settleShifts: () => {}, dock: {pinAt: key => { pinnedDrop = key }} }
+Object.defineProperty(dropWindow, 'slotSize', {get() { const fit = dock.fitSlots(66, 6, 12 + (this.insertIndex >= 0 ? 1 : 0), 736, 0); return fit.iconSize + fit.inset * 2 }})
+const dropBody = { x: 3, get y() { return (742 - this.height) / 2 }, get width() { return dropWindow.slotSize }, get height() { return dropWindow.slotSize * (12 + (dropWindow.insertIndex >= 0 ? 1 : 0)) } }
+const moveDrop = new Function('window', 'body', 'Qt', 'screenX', 'screenY', method('moveExternalDrag'))
+dropWindow.moveExternalDrag = (x, y) => moveDrop(dropWindow, dropBody, {point: (x,y) => ({x,y})}, x, y)
+const initialSlot = dropWindow.slotSize
+dropWindow.moveExternalDrag(120, 371)
+assert(dropWindow.insertIndex >= 0 && dropWindow.slotSize < initialSlot, 'a crowded dock shows a fitted app-drop preview')
+dropWindow.moveExternalDrag(120, 371)
+assert(dropWindow.insertIndex >= 0, 'preview shrink cannot reject the stationary drag pointer')
+let pinnedDrop = null
+const timer = {restart() {}}
+dropWindow.endExternalDrag = () => new Function('window', 'collapseTimer', 'hideTimer', method('endExternalDrag'))(dropWindow, timer, timer)
+new Function('window', 'screenX', 'screenY', 'key', method('dropExternalDrag'))(dropWindow, 120, 371, 'org.example.Drop')
+assertEqual(pinnedDrop, 'org.example.Drop', 'releasing a crowded preview pins the app')
+assertEqual(dropWindow.externalDropArea, null, 'the next drag starts with fresh acceptance bounds')
+
 const roomy = dock.fitSlots(36, 6, 4, 1280, 0)
 assertEqual(roomy.iconSize, 36, 'a dock that already fits keeps its normal icon size')
 assertEqual(roomy.inset, 6, 'a dock that already fits keeps its normal spacing')
