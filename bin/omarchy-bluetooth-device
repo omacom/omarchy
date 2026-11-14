@@ -18,6 +18,9 @@ address=${2:-}
 [[ $action == "pair" || $action == "connect" || $action == "disconnect" || $action == "forget" ]] || usage
 [[ $address =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] || usage
 
+# Long enough to read a passkey off the notification and type it on a keyboard.
+PAIR_TIMEOUT_SECONDS=${OMARCHY_BLUETOOTH_PAIR_TIMEOUT_SECONDS:-60}
+
 power_on() {
   [[ $(timeout 2s bluetoothctl show 2>/dev/null) == *"Powered: yes"* ]] && return
   # Not bluetoothctl directly: Bluetooth is turned off by an rfkill soft block,
@@ -29,12 +32,77 @@ trust_device() {
   bluetoothctl trust "$address" >/dev/null 2>&1 || true
 }
 
+device_name() {
+  local name
+  name=$(timeout 2s bluetoothctl info "$address" 2>/dev/null | sed -n 's/^[[:space:]]*Alias: //p' | head -n 1)
+  echo "${name:-$address}"
+}
+
+notify_code() {
+  omarchy-notification-send -g 󰂯 -u critical -t $((PAIR_TIMEOUT_SECONDS * 1000)) "$@" || true
+}
+
+# A one-shot `bluetoothctl pair` registers no agent, so BlueZ has nowhere to send
+# the passkey a keyboard asks for ("No agent available for request type 2") and
+# the pairing fails. Run bluetoothctl interactively with a KeyboardDisplay agent
+# instead and answer its prompts: the passkey to type on a keyboard goes to a
+# notification, a code to compare is accepted (the user asked for this pairing),
+# and a legacy device asking for a PIN gets a random one to type on it.
+pair_device() {
+  local name line pin result=1 attempts=0
+
+  name=$(device_name)
+  coproc BLUETOOTHCTL { timeout "${PAIR_TIMEOUT_SECONDS}s" bluetoothctl --agent KeyboardDisplay 2>&1; }
+
+  while IFS= read -r line <&"${BLUETOOTHCTL[0]}"; do
+    line=$(sed 's/\x1b\[[0-9;]*m//g; s/\r//g' <<<"$line")
+
+    # Pairing before the agent is up would fail the same way the one-shot did.
+    if [[ $line == *"Agent registered"* ]]; then
+      echo "pair $address" >&"${BLUETOOTHCTL[1]}"
+    elif [[ $line =~ Passkey:\ ([0-9]{6}) ]]; then
+      notify_code "$(omarchy-i18n bluetooth.pairTypeCode "$name")" "$(omarchy-i18n bluetooth.pairTypeCodeBody "${BASH_REMATCH[1]}")"
+    elif [[ $line =~ Confirm\ passkey\ ([0-9]{6}) ]]; then
+      notify_code "$(omarchy-i18n bluetooth.pairCompareCode "$name")" "$(omarchy-i18n bluetooth.pairCompareCodeBody "${BASH_REMATCH[1]}")"
+      echo "yes" >&"${BLUETOOTHCTL[1]}"
+    elif [[ $line == *"Enter PIN code"* ]]; then
+      pin=$(printf '%06d' $((SRANDOM % 1000000)))
+      notify_code "$(omarchy-i18n bluetooth.pairTypeCode "$name")" "$(omarchy-i18n bluetooth.pairTypeCodeBody "$pin")"
+      echo "$pin" >&"${BLUETOOTHCTL[1]}"
+    elif [[ $line == *"(yes/no)"* ]]; then
+      echo "yes" >&"${BLUETOOTHCTL[1]}"
+    elif [[ $line == *"Device $address not available"* ]] && ((attempts++ < 10)); then
+      # A fresh bluetoothctl can take a moment to load the devices BlueZ knows.
+      sleep 0.5
+      echo "pair $address" >&"${BLUETOOTHCTL[1]}"
+    elif [[ $line == *"Pairing successful"* || $line == *"AlreadyExists"* ]]; then
+      result=0
+      break
+    elif [[ $line == *"Failed to pair"* || $line == *"not available"* ]]; then
+      break
+    fi
+  done
+
+  echo "quit" >&"${BLUETOOTHCTL[1]}" 2>/dev/null || true
+  wait "$BLUETOOTHCTL_PID" 2>/dev/null || true
+
+  if ((result != 0)); then
+    omarchy-notification-send -g 󰂲 "$(omarchy-i18n bluetooth.pairFailed "$name")" || true
+  fi
+
+  return $result
+}
+
 case "$action" in
   pair)
     power_on
-    timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
-    trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    # A device that never paired must not be trusted: the panel treats a trusted
+    # device as known and only reconnects it from then on, so a failed pairing
+    # would leave it looping on connect without ever pairing again.
+    if pair_device; then
+      trust_device
+      timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    fi
     ;;
   connect)
     power_on

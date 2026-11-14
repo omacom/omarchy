@@ -113,6 +113,26 @@ cat >"$mock_bin/bluetoothctl" <<'SH'
 #!/bin/bash
 
 printf '%s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+# An interactive session with an agent, the way omarchy-bluetooth-device pairs.
+# MOCK_PAIR picks how the device answers: a passkey to type, or a failure.
+if [[ $1 == "--agent" ]]; then
+  echo "Agent registered"
+  while IFS= read -r command; do
+    printf '%s\n' "$command" >>"$BLUETOOTHCTL_LOG"
+    case $command in
+      pair\ *)
+        if [[ ${MOCK_PAIR:-} == "fail" ]]; then
+          echo "Failed to pair: org.bluez.Error.AuthenticationFailed"
+        else
+          echo "[agent] Passkey: 123456"
+          echo "Pairing successful"
+        fi
+        ;;
+      quit) exit 0 ;;
+    esac
+  done
+  exit 0
+fi
 [[ $1 == "power" && $2 == "on" ]] && echo yes >"$POWERED_FILE"
 [[ $1 == "list" ]] &&
   for c in ${MOCK_CONTROLLERS:-AA:BB:CC:DD:EE:FF}; do printf 'Controller %s mock\n' "$c"; done
@@ -137,7 +157,13 @@ printf 'rfkill %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
 exit 0
 SH
 
-chmod +x "$mock_bin/bluetoothctl" "$mock_bin/rfkill"
+cat >"$mock_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+
+printf 'notify %s\n' "$*" >>"$BLUETOOTHCTL_LOG"
+SH
+
+chmod +x "$mock_bin/bluetoothctl" "$mock_bin/rfkill" "$mock_bin/omarchy-notification-send"
 
 # $ROOT/bin so omarchy-bluetooth-device resolves the real omarchy-bluetooth-power.
 bluetooth_run() {
@@ -231,3 +257,25 @@ rm -f "$POWERED_FILE.11:22:33:44:55:66"
 grep -qx "rfkill block bluetooth" "$multi_log" ||
   fail "bluetooth counts a secondary controller as on" "$(cat "$multi_log")"
 pass "bluetooth counts a secondary controller as on"
+
+# A one-shot `bluetoothctl pair` has no agent, so a keyboard's passkey request
+# fails and the device never pairs. Pairing has to run with one and show the code.
+pair_log=$(bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+grep -qx -- "--agent KeyboardDisplay" "$pair_log" ||
+  fail "bluetooth pairs with an agent" "$(cat "$pair_log")"
+pass "bluetooth pairs with an agent"
+
+grep -q "^notify .*123456" "$pair_log" ||
+  fail "bluetooth shows the passkey to type on the device" "$(cat "$pair_log")"
+pass "bluetooth shows the passkey to type on the device"
+
+grep -qx "connect AA:BB:CC:DD:EE:FF" "$pair_log" ||
+  fail "bluetooth connects once pairing succeeds" "$(cat "$pair_log")"
+pass "bluetooth connects once pairing succeeds"
+
+# The panel only reconnects a trusted device, so trusting one that failed to
+# pair would strand it in a connect loop it can never pair its way out of.
+failed_pair_log=$(MOCK_PAIR=fail bluetooth_run yes "$ROOT/bin/omarchy-bluetooth-device" pair AA:BB:CC:DD:EE:FF)
+grep -qx "trust AA:BB:CC:DD:EE:FF" "$failed_pair_log" &&
+  fail "bluetooth does not trust a device that failed to pair" "$(cat "$failed_pair_log")"
+pass "bluetooth does not trust a device that failed to pair"
