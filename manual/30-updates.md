@@ -28,7 +28,7 @@ Shell plugins you added with `omarchy plugin add` are not part of an update by d
 omarchy-toggle update-plugins on
 ```
 
-From then on, `omarchy update` also runs `omarchy plugin update` near the end, before it restarts the shell, so the new plugin code is what comes back up. You still see each plugin's diff and confirm it, unless you run `omarchy update -y`, which approves them. A plugin that fails to update prints a warning, and the rest of the update finishes. Turn it off again with `omarchy-toggle update-plugins off`.
+From then on, `omarchy update` also runs `omarchy plugin update` near the end, before it restarts the shell, so the new plugin code is what comes back up. You still see each plugin's diff and confirm it, unless you run `omarchy update -y`, which approves them. A plugin that fails to update prints a warning, and the rest of the update finishes. Turn it off again with `omarchy-toggle update-plugins off`. To keep a single plugin out of it, use `omarchy plugin hold <id>` (see the shell plugins chapter).
 
 ### Switching kernels
 

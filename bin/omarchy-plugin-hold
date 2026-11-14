@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# omarchy:summary=Keep a plugin out of updates that do not name it
+# omarchy:group=plugin
+# omarchy:args=<id>
+
+set -euo pipefail
+
+fail() {
+  echo "omarchy-plugin-hold: $*" >&2
+  exit 1
+}
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  echo "Usage: omarchy plugin hold <id>"
+  exit 0
+fi
+
+id="${1:-}"
+[[ -n $id ]] || fail "plugin id is required"
+[[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $id != *..* ]] || fail "invalid plugin id '$id'"
+
+held_dir="$HOME/.local/state/omarchy/plugins/held"
+mkdir -p "$held_dir" && : >"$held_dir/$id"
+
+echo "Held $id: plugin updates skip it until: omarchy plugin unhold $id"
