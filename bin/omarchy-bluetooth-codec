@@ -1,0 +1,300 @@
+#!/bin/bash
+
+# omarchy:summary=Show or pin the audio codec a Bluetooth headset plays with
+# omarchy:group=bluetooth
+# omarchy:args=<address> [auto|<codec>] | <address> ldac-quality [auto|hq|sq|mq]
+# omarchy:examples=omarchy bluetooth codec 00:11:22:33:44:55 | omarchy bluetooth codec 00:11:22:33:44:55 aac | omarchy bluetooth codec 00:11:22:33:44:55 auto | omarchy bluetooth codec 00:11:22:33:44:55 ldac-quality hq
+
+set -euo pipefail
+
+# PipeWire offers each A2DP codec as its own card profile: the best codec gets
+# the plain a2dp-sink, the rest a2dp-sink-<codec>. Pinning a codec is therefore
+# selecting its profile, which WirePlumber saves per device and restores on the
+# next connection. Automatic is the plain profile, so PipeWire picks again.
+#
+# The plain profile's codec differs per headset (LDAC on one, AAC on another),
+# so pinning the codec it already carries looks exactly like Automatic. A pin
+# file per device keeps that choice visible as a pin.
+
+#
+# LDAC's bitrate is not a profile but a property PipeWire reads when it builds
+# the device, so a quality other than auto is a WirePlumber rule for that card,
+# and taking effect means restarting WirePlumber: every stream drops for a
+# moment, not just the headset's.
+
+PIN_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/bluetooth-codec"
+LDAC_RULES="${XDG_CONFIG_HOME:-$HOME/.config}/wireplumber/wireplumber.conf.d/90-omarchy-bluetooth-ldac.conf"
+A2DP="a2dp-sink"
+
+usage() {
+  echo "Usage: omarchy-bluetooth-codec <address> [auto|<codec>] | <address> ldac-quality [auto|hq|sq|mq]" >&2
+  exit 1
+}
+
+address=${1:-}
+target=${2:-}
+quality=${3:-}
+
+(( $# >= 1 && $# <= 3 )) || usage
+[[ $address =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] || usage
+if [[ $target == "ldac-quality" ]]; then
+  [[ $quality =~ ^(auto|hq|sq|mq)$ ]] || usage
+else
+  [[ -z $target || $target =~ ^[a-z0-9_]{1,32}$ ]] || usage
+  [[ -z $quality ]] || usage
+fi
+
+address=${address^^}
+card="bluez_card.${address//:/_}"
+pin_file="$PIN_DIR/${address//:/_}"
+ldac_file="$PIN_DIR/${address//:/_}.ldac"
+
+card_json() {
+  LC_ALL=C pactl -f json list cards 2>/dev/null | jq -c --arg card "$card" '.[] | select(.name == $card)'
+}
+
+# One line per available A2DP profile, best first: <codec> <profile> <label>.
+# The codec is the profile's suffix, or for the plain profile the codec named
+# in its description ("High Fidelity Playback (A2DP Sink, codec LDAC)"),
+# lowercased with spaces and dashes as underscores (SBC-XQ -> sbc_xq).
+codec_options() {
+  jq -r --arg prefix "$A2DP" '
+    .profiles | to_entries
+    | map(select(.value.available != false and (.key == $prefix or (.key | startswith($prefix + "-")))))
+    | sort_by(-.value.priority)[]
+    | (.value.description | capture("codec (?<label>[^)]+)\\)$").label // "") as $label
+    | (if .key == $prefix then ($label | ascii_downcase | gsub("[ -]"; "_")) else .key[($prefix | length) + 1:] end) as $codec
+    | select($codec | test("^[a-z0-9_]{1,32}$"))
+    | [$codec, .key, (if $label == "" then ($codec | ascii_upcase) else $label end)] | @tsv
+  ' <<<"$1"
+}
+
+profile_for() {
+  awk -F'\t' -v codec="$2" '$1 == codec { print $2; exit }' <<<"$1"
+}
+
+codec_for_profile() {
+  awk -F'\t' -v profile="$2" '$2 == profile { print $1; exit }' <<<"$1"
+}
+
+# music (A2DP), headset (HFP/HSP), le (LE Audio) or off.
+mode_for_profile() {
+  case "$1" in
+    a2dp-sink*) echo "music" ;;
+    headset-head-unit*) echo "headset" ;;
+    bap-*) echo "le" ;;
+    *) echo "off" ;;
+  esac
+}
+
+pinned_codec() {
+  local codec=""
+  if [[ -f $pin_file ]]; then
+    codec=$(<"$pin_file")
+  fi
+  if [[ $codec =~ ^[a-z0-9_]{1,32}$ ]]; then
+    echo "$codec"
+  fi
+}
+
+ldac_quality() {
+  local value=""
+  if [[ -f $ldac_file ]]; then
+    value=$(<"$ldac_file")
+  fi
+  if [[ $value =~ ^(hq|sq|mq)$ ]]; then
+    echo "$value"
+  else
+    echo "auto"
+  fi
+}
+
+# Whether WirePlumber moves headsets into headset mode when an app opens a
+# microphone (omarchy-toggle-bluetooth-headset-switch).
+headset_switch() {
+  if [[ $(wpctl settings bluetooth.autoswitch-to-headset-profile 2>/dev/null) == *"Value: false"* ]]; then
+    echo "off"
+  else
+    echo "on"
+  fi
+}
+
+print_status() {
+  local json options active codec selected pin
+
+  json=$(card_json)
+  [[ -n $json ]] || return 0
+
+  options=$(codec_options "$json")
+  active=$(jq -r '.active_profile // ""' <<<"$json")
+  codec=$(codec_for_profile "$options" "$active")
+  pin=$(pinned_codec)
+
+  # A variant profile is a pin whoever chose it (this command, pavucontrol, or
+  # WirePlumber restoring one). On the plain profile only the pin file can
+  # tell a pinned best codec from Automatic. Headset mode keeps the A2DP pin,
+  # which comes back with music mode.
+  if [[ $active == "$A2DP-"* ]]; then
+    selected=$codec
+  elif [[ -n $pin ]] && [[ -n $(profile_for "$options" "$pin") ]]; then
+    selected=$pin
+  else
+    selected="auto"
+  fi
+
+  printf 'mode\t%s\n' "$(mode_for_profile "$active")"
+  printf 'codec\t%s\n' "$codec"
+  printf 'selected\t%s\n' "$selected"
+  printf 'ldac-quality\t%s\n' "$(ldac_quality)"
+  printf 'headset-switch\t%s\n' "$(headset_switch)"
+  while IFS=$'\t' read -r option_codec _ label; do
+    if [[ -n $option_codec ]]; then
+      printf 'option\t%s\t%s\n' "$option_codec" "$label"
+    fi
+  done <<<"$options"
+}
+
+set_profile() {
+  local profile=$1 previous=$2
+
+  if [[ $profile == "$previous" ]]; then
+    return 0
+  fi
+
+  # A profile switch tears the transport down and builds it again. If the
+  # headset will not come back on the new codec, put the old one back rather
+  # than leave it silent.
+  if ! pactl set-card-profile "$card" "$profile" 2>/dev/null; then
+    if [[ -n $previous ]]; then
+      pactl set-card-profile "$card" "$previous" 2>/dev/null || true
+    fi
+    echo "Error: could not switch $address to $profile; kept $previous." >&2
+    exit 1
+  fi
+}
+
+set_codec() {
+  local json options active profile
+
+  json=$(card_json)
+  if [[ -z $json ]]; then
+    echo "Error: $address has no audio card; is it connected?" >&2
+    exit 1
+  fi
+
+  options=$(codec_options "$json")
+  active=$(jq -r '.active_profile // ""' <<<"$json")
+
+  # Codecs are A2DP profiles. Mid-call the headset is on a headset profile, and
+  # switching would take its microphone away; a pin recorded for later would
+  # only be undone by WirePlumber restoring the profile it saved. So refuse,
+  # and let the choice be made once the headset is back in music mode.
+  if [[ $(mode_for_profile "$active") != "music" ]]; then
+    echo "Error: $address is not in music mode; codecs can be chosen once it is." >&2
+    exit 1
+  fi
+
+  if [[ $target == "auto" ]]; then
+    set_profile "$A2DP" "$active"
+    rm -f "$pin_file"
+    return 0
+  fi
+
+  profile=$(profile_for "$options" "$target")
+  if [[ -z $profile ]]; then
+    echo "Error: $address does not offer the $target codec." >&2
+    exit 1
+  fi
+
+  # set_profile exits on a failed switch, so a pin is only ever recorded for
+  # the codec actually playing.
+  set_profile "$profile" "$active"
+  mkdir -p "$PIN_DIR"
+  echo "$target" >"$pin_file"
+}
+
+# One rule per headset with a quality pinned, rebuilt from the state files so
+# the config never holds a headset the state no longer names.
+write_ldac_rules() {
+  local file name quality rules=""
+
+  for file in "$PIN_DIR"/*.ldac; do
+    [[ -f $file ]] || continue
+    name=${file##*/}
+    name=${name%.ldac}
+    quality=$(<"$file")
+    [[ $name =~ ^([0-9A-F]{2}_){5}[0-9A-F]{2}$ && $quality =~ ^(hq|sq|mq)$ ]] || continue
+    rules+="  {
+    matches = [ { device.name = \"bluez_card.$name\" } ]
+    actions = { update-props = { bluez5.a2dp.ldac.quality = \"$quality\" } }
+  }
+"
+  done
+
+  if [[ -z $rules ]]; then
+    rm -f "$LDAC_RULES"
+  else
+    mkdir -p "${LDAC_RULES%/*}"
+    printf '## Written by omarchy-bluetooth-codec: LDAC quality pinned per headset.\n\nmonitor.bluez.rules = [\n%s]\n' "$rules" >"$LDAC_RULES"
+  fi
+}
+
+set_ldac_quality() {
+  if [[ $quality == "$(ldac_quality)" ]]; then
+    return 0
+  fi
+
+  if [[ $quality == "auto" ]]; then
+    rm -f "$ldac_file"
+  else
+    mkdir -p "$PIN_DIR"
+    echo "$quality" >"$ldac_file"
+  fi
+  write_ldac_rules
+
+  systemctl --user restart wireplumber.service
+  restore_pin_after_restart
+}
+
+# WirePlumber restores each headset's saved profile, but it writes that state a
+# moment after a switch, so a restart straight after pinning can bring the
+# headset back on its best codec instead. Wait for the card to return, then
+# put the pin back if it did not come with it. Waiting also keeps the panel's
+# switch busy until the headset is playing again.
+restore_pin_after_restart() {
+  local json="" active="off" pin profile
+
+  local previous="" steady=0
+
+  # The card comes back on "off", then WirePlumber applies the profile it
+  # restores, so wait until the profile has held for a moment.
+  for (( i = 0; i < 40 && steady < 3; i++ )); do
+    sleep 0.5
+    json=$(card_json)
+    active=$(jq -r '.active_profile // "off"' <<<"${json:-{\}}")
+    if [[ $active != "off" && $active == "$previous" ]]; then
+      (( steady += 1 ))
+    else
+      steady=0
+    fi
+    previous=$active
+  done
+
+  pin=$(pinned_codec)
+  if [[ -z $json || -z $pin || $(mode_for_profile "$active") != "music" ]]; then
+    return 0
+  fi
+
+  profile=$(profile_for "$(codec_options "$json")" "$pin")
+  if [[ -n $profile && $profile != "$active" ]]; then
+    set_profile "$profile" "$active"
+  fi
+}
+
+if [[ -z $target ]]; then
+  print_status
+elif [[ $target == "ldac-quality" ]]; then
+  set_ldac_quality
+else
+  set_codec
+fi
