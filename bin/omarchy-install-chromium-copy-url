@@ -23,7 +23,7 @@ browser_dirs=(
   "$HOME/.config/microsoft-edge-dev"
 )
 
-manifest=$(sed "s|__HOST_PATH__|$HOST_PATH|g" "$TEMPLATE")
+manifest=$(jq --arg path "$HOST_PATH" '.path = $path' "$TEMPLATE")
 
 for dir in "${browser_dirs[@]}"; do
   mkdir -p "$dir/NativeMessagingHosts"
