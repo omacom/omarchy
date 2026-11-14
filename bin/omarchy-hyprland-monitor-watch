@@ -61,6 +61,14 @@ recover_modeless() {
   ) 9>"$MODELESS_LOCK" &
 }
 
+# Losing the last external display with the lid shut is a lid close by another
+# route, so lock as omarchy-system-lid-close does rather than wait for logind to suspend.
+lock_if_closed_undocked() {
+  omarchy-hw-laptop-closed && ! omarchy-hw-external-monitors || return 0
+  omarchy-hyprland-session-locked && return 0
+  omarchy-system-lock >/dev/null 2>&1 || true
+}
+
 poll_clamshell_state() {
   while true; do
     sleep 2
@@ -101,6 +109,7 @@ while read -r event; do
       recover_modeless
       ;;
     monitorremoved\>\>*|monitorremovedv2\>\>*)
+      lock_if_closed_undocked
       sync_clamshell_after_monitor_change
       sync_poll_state
       recover_modeless
