@@ -26,6 +26,21 @@ assertDeepEqual(
 assertDeepEqual(dock.pinnedIds({}, { pinned: ['spotify'] }), ['spotify'], 'dock falls back to the default pins')
 assertDeepEqual(dock.pinnedIds({ pinned: [] }, { pinned: ['spotify'] }), [], 'dock keeps an emptied pin list empty')
 
+// A dock at the bottom of a 1280x720 screen, 96x48 at 592,669: hidden while a
+// window covers it, not while one only comes close.
+const dockBox = { x: 592, y: 669, width: 96, height: 48 }
+const win = (extra) => Object.assign({ workspaceId: 1, at: [400, 300], size: [500, 300], tags: [] }, extra)
+assert(dock.coversDock([win({ at: [400, 500] })], dockBox, { workspaceId: 1 }), 'a window over the dock covers it')
+assert(dock.coversDock([win({ size: [500, 368] })], dockBox, { workspaceId: 1 }), 'a window whose border reaches the dock covers it')
+assert(!dock.coversDock([win({ size: [500, 366] })], dockBox, { workspaceId: 1 }), 'a window just clear of the dock leaves it out')
+assert(!dock.coversDock([win({ at: [400, 500], workspaceId: 2 })], dockBox, { workspaceId: 1 }), "another workspace's window does not cover it")
+assert(dock.coversDock([win({ at: [400, 500], workspaceId: undefined, workspaceName: 'special:scratchpad' })], dockBox, { workspaceId: 1, special: 'special:scratchpad' }), 'a window on a special workspace open over it covers it')
+assert(!dock.coversDock([win({ at: [400, 500], workspaceId: undefined, workspaceName: 'special:scratchpad' })], dockBox, { workspaceId: 1, special: '' }), 'a closed special workspace does not cover it')
+assert(!dock.coversDock([win({ at: [400, 500], hidden: true })], dockBox, { workspaceId: 1 }), 'a hidden window does not cover it')
+const topDock = { x: 592, y: 4, width: 96, height: 48 }
+assert(dock.coversDock([win({ at: [400, 80], tags: ['omarchy-floating-workspace*'] })], topDock, { workspaceId: 1 }), 'a titlebar reaching over a dock at the top covers it')
+assert(!dock.coversDock([win({ at: [400, 80] })], topDock, { workspaceId: 1 }), 'a window without a titlebar below a dock at the top leaves it out')
+
 const app = (key, id, extra) => Object.assign({ key, id, hasEntry: true, workspaceId: 3 }, extra)
 const items = dock.buildItems(['chromium', 'Alacritty'], [
   app('signal', 1),

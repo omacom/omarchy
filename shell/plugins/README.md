@@ -101,7 +101,7 @@ runs inside the long-lived `omarchy-shell` process, replacing the old
 
 ## Dock
 
-App dock shown on floating workspaces, and hidden on tiled ones and behind a fullscreen window. Floating is not a Hyprland layout, so the dock reads each workspace's mode through `omarchy-hyprland-workspace-layout-current`, caches it, and is told to read again over `omarchy-shell omarchy.dock refresh` by the layout commands. `omarchy-shell omarchy.dock apps` toggles its grid of every app.
+App dock shown on floating workspaces, and hidden on tiled ones and behind a fullscreen window. A maximized window, or any window over it (`DockModel.coversDock`, which also counts a special workspace open over the screen), tucks it away the way auto-hide does, so its edge still brings it back. Hyprland announces windows opening, closing, gaining focus, and changing workspace or floating, but not a floating window being moved or resized, so while a dock is out on a floating workspace with nothing else hiding it, one shared 250 ms timer also refreshes the window list; it starts no process. Floating is not a Hyprland layout, so the dock reads each workspace's mode through `omarchy-hyprland-workspace-layout-current`, caches it, and is told to read again over `omarchy-shell omarchy.dock refresh` by the layout commands. `omarchy-shell omarchy.dock apps` toggles its grid of every app.
 
 Its settings live in the `dock:` subtree of `shell.json`: `position` (`top`, `bottom`, `left` or `right`) and `pinned` (desktop ids). A `shell.json` without pins uses the defaults. `omarchy dock` sets both.
 

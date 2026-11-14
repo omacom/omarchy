@@ -48,6 +48,28 @@ function isMinimizedWorkspace(name) {
   return String(name || "") === MINIMIZED_WORKSPACE
 }
 
+// Whether a window covers the dock: its client area, the border around it, and
+// the titlebar above it on a floating workspace, against where the dock's
+// icons sit when it is out. Windows are { workspaceId, workspaceName,
+// at: [x, y], size: [w, h], hidden, mapped, tags }, from Hyprland; on is the
+// dock screen's workspace id and the name of a special workspace open over it
+// (named: Hyprland 0.57 gives special workspaces no id).
+var TITLEBAR_HEIGHT = 30 // Omarchy's titlebar (default/hypr/workspace-modes.lua)
+var BORDER = 2
+
+function coversDock(windows, dockBox, on) {
+  for (var i = 0; i < (windows || []).length; i++) {
+    var w = windows[i]
+    if (!w || !(w.workspaceId === on.workspaceId || (on.special && w.workspaceName === on.special))) continue
+    if (!w.at || !w.size || w.hidden || w.mapped === false) continue
+    var titled = (w.tags || []).some(function(tag) { return String(tag).replace(/\*$/, "") === "omarchy-floating-workspace" })
+    var top = BORDER + (titled ? TITLEBAR_HEIGHT : 0)
+    if (w.at[0] - BORDER < dockBox.x + dockBox.width && w.at[0] + w.size[0] + BORDER > dockBox.x
+        && w.at[1] - top < dockBox.y + dockBox.height && w.at[1] + w.size[1] + BORDER > dockBox.y) return true
+  }
+  return false
+}
+
 // A terminal app's window carries the app id its launcher gave the terminal,
 // which no desktop entry names as its class. The entry that passes that app id
 // claims it, and so does a terminal entry for the command Omarchy's TUI
@@ -198,6 +220,7 @@ if (typeof module !== "undefined") {
     pinnedIds: pinnedIds,
     isDockWindow: isDockWindow,
     isMinimizedWorkspace: isMinimizedWorkspace,
+    coversDock: coversDock,
     claimingEntryId: claimingEntryId,
     standInKey: standInKey,
     buildItems: buildItems,
