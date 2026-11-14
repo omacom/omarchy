@@ -257,6 +257,13 @@ editor_argv=$(<"$editor_calls")
 rm -f "$mock_bin/vi"
 pass "launch-editor defaults to Plain, inline for \$EDITOR, and vi without a display"
 
+HOME="$fake_home" PATH="$mock_bin:$ROOT/bin:$PATH" WAYLAND_DISPLAY=wayland-1 OMARCHY_TEST_EDITOR_CALLS="$editor_calls" \
+  "$ROOT/bin/omarchy-launch-editor" --inline "$test_tmp"
+editor_argv=$(<"$editor_calls")
+[[ $editor_argv == "<-->"$'\n'"<$test_tmp>" ]] ||
+  fail "launch-editor opens a directory in Neovim when Plain is the editor" "$editor_argv"
+pass "launch-editor opens a directory in Neovim when Plain is the editor"
+
 hook_calls="$test_tmp/hook-calls"
 hook_home="$test_tmp/hook-home"
 printf '#!/bin/bash\n' >"$test_tmp/--help"
