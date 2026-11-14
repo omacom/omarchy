@@ -11,18 +11,6 @@ Item {
   height: 650
 
   property var dropdown: null
-  // DIAGNOSTIC, temporary: who changes the selection or the focus mid-walk.
-  property var watch: null
-  Connections {
-    target: scene.watch
-    function onCurrentIndexChanged() { console.warn("INDEX ->", scene.watch.currentIndex); console.trace() }
-    function onActiveFocusChanged() { console.warn("LISTFOCUS ->", scene.watch.activeFocus); console.trace() }
-  }
-  Connections {
-    target: scene.Window.window
-    function onActiveChanged() { console.warn("WINACTIVE ->", scene.Window.active) }
-    function onActiveFocusItemChanged() { console.warn("AFI ->", scene.Window.activeFocusItem) }
-  }
   Component {
     id: dropdownComponent
     Dropdown {
@@ -128,11 +116,25 @@ Item {
         wait(100)
         list.forceActiveFocus()
         for (var index = 1; index < data.count; index++) {
-          scene.watch = list
-          console.warn("PRESS", index, "cur", list.currentIndex)
           keyClick(Qt.Key_Down)
-          if (list.currentIndex !== index)
-            console.warn("STALL want", index, "cur", list.currentIndex, "popupOpened", popup.opened, "listFocus", list.activeFocus, "winActive", scene.Window.active, "afi", scene.Window.activeFocusItem, "contentY", list.contentY)
+          // DIAGNOSTIC, temporary: nothing runs until the walk has already stalled.
+          if (list.currentIndex !== index) {
+            var hovered = []
+            var rows = list.contentItem.children
+            for (var r = 0; r < rows.length; r++) {
+              if (rows[r].index === undefined) continue
+              var parts = rows[r].children
+              for (var c = 0; c < parts.length; c++)
+                if (parts[c].containsMouse) hovered.push(rows[r].index + "@" + parts[c].mouseX + "," + parts[c].mouseY)
+            }
+            console.warn("STALL want", index, "cur", list.currentIndex, "popupOpened", popup.opened, "listFocus", list.activeFocus,
+                         "winActive", scene.Window.active, "afi", scene.Window.activeFocusItem, "contentY", list.contentY, "hovered", hovered)
+            keyClick(Qt.Key_Down)
+            console.warn("STALL second press cur", list.currentIndex)
+            wait(200)
+            console.warn("STALL settled cur", list.currentIndex)
+            fail("keyboard walk stalled at " + index)
+          }
           tryCompare(list, "currentIndex", index)
         }
         tryCompare(list, "currentIndex", data.count - 1)

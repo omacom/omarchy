@@ -32,7 +32,7 @@ run_once() {
     "$qml_test_runner" -import "$fixture" -input "$fixture" -o -,txt >"$fixture/run-$1.log" 2>&1 ||
     touch "$fixture/run-$1.failed"
 }
-for round in 1 2 3 4 5 6 7 8; do
+for round in 1 2 3 4 5 6 7 8 9 10 11 12; do
   for slot in 1 2 3 4; do
     run_once "$round-$slot" &
   done
@@ -45,11 +45,11 @@ for marker in "$fixture"/run-*.failed; do
   log=${marker%.failed}.log
   echo "=== $log"
   if grep -q "STALL" "$log"; then
-    grep -B70 -A45 "STALL" "$log"
+    grep -B6 -A12 "STALL" "$log"
   else
     # A failure the walk did not flag: what led up to it, and the runner's own summary.
     grep -B70 -A8 "^FAIL!" "$log" || tail -n 60 "$log"
   fi
 done
-(( failed == 0 )) || fail "dropdown popup test failed in $failed of 32 runs"
-pass "dropdown popup fits short lists and preserves capped scrolling in 32 runs"
+(( failed == 0 )) || fail "dropdown popup test failed in $failed of 48 runs"
+pass "dropdown popup fits short lists and preserves capped scrolling in 48 runs"
