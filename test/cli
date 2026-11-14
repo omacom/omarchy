@@ -273,6 +273,7 @@ font_family JetBrainsMono Nerd Font
 font_size 12.0
 EOF
 cat >"$FONT_TMPDIR/.config/alacritty/alacritty.toml" <<'EOF'
+bold = { family = "Old Font", style = "Bold" }
 size = 12
 EOF
 cat >"$FONT_TMPDIR/.config/ghostty/config" <<'EOF'
@@ -298,6 +299,8 @@ grep -qx 'font_size 12.0' "$FONT_TMPDIR/.config/kitty/kitty.conf" || fail "font 
 pass "font set preserves kitty size"
 grep -qx 'size = 12' "$FONT_TMPDIR/.config/alacritty/alacritty.toml" || fail "font set preserves alacritty size"
 pass "font set preserves alacritty size"
+grep -qx 'bold = { family = "Test Font", style = "Bold" }' "$FONT_TMPDIR/.config/alacritty/alacritty.toml" || fail "font set preserves alacritty font style"
+pass "font set preserves alacritty font style"
 grep -qx 'font-size = 12' "$FONT_TMPDIR/.config/ghostty/config" || fail "font set preserves ghostty size"
 pass "font set preserves ghostty size"
 
