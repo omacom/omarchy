@@ -4,9 +4,27 @@
 # omarchy:args=[--status]
 # omarchy:examples=omarchy toggle nightlight
 
-ON_TEMP=4000
+source omarchy-shell-config
+
+DEFAULT_ON_TEMP=4000
 OFF_TEMP=6500
 IDENTITY_TEMP=6000
+
+# Keep in sync with NightlightModel.js: hyprsunset rejects anything below
+# 1000K, and a temperature at or above the identity point would read back as
+# off, so the toggle could never turn it off again.
+# Slurped so that only a file holding exactly one JSON document counts, and
+# only a version 1 object, as the shell's applyShellConfig requires; anything
+# else yields the default, never nothing or two lines.
+on_temp() {
+  local temp
+
+  temp=$(jq -rs --argjson identity "$IDENTITY_TEMP" --argjson fallback "$DEFAULT_ON_TEMP" '
+    (if length == 1 and (.[0] | type == "object" and .version == 1) then (try .[0].nightlight.temperature catch null) else null end)
+    | if type == "number" and . == floor and . >= 1000 and . < $identity then floor else $fallback end
+  ' "$(source_file)" 2>/dev/null) || temp=$DEFAULT_ON_TEMP
+  echo "$temp"
+}
 
 current_temp() {
   local output
@@ -50,7 +68,7 @@ CURRENT_TEMP=$(current_temp)
 if [[ -n $CURRENT_TEMP ]] && (( CURRENT_TEMP < IDENTITY_TEMP )); then
   TARGET_TEMP=$OFF_TEMP
 else
-  TARGET_TEMP=$ON_TEMP
+  TARGET_TEMP=$(on_temp)
 fi
 
 # A freshly-started hyprsunset applies its default temperature at the end of
