@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# omarchy:summary=Detect an Intel IPU6 MIPI webcam behind a MEI based Visual Sensing Controller.
+
+acpi_devices="${OMARCHY_ACPI_DEVICES:-/sys/bus/acpi/devices}"
+
+# TGL / ADL / RPL / MTL IVSC ACPI IDs; the kernel reaches these over the MEI bus.
+grep -qsxE 'INTC1059|INTC1095|INTC100A|INTC10CF' "$acpi_devices"/*/hid
