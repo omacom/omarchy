@@ -36,6 +36,12 @@ local M = { slots = SLOTS }
 local blocks = {}
 local written = nil
 
+-- Identities of outputs the session made for itself, such as the headless one a
+-- remote-desktop tool adds per session. They come and go under a name of their
+-- own (gliff-<pid>), so a block saved for one would never be claimed again.
+-- They keep a block only while they are connected.
+local ephemeral = {}
+
 -- Connector -> identity for the monitors plugged in now.
 local current = {}
 
@@ -117,7 +123,9 @@ local function save(monitors, identities)
 
   local rows = {}
   for identity, block in pairs(blocks) do
-    rows[#rows + 1] = { block = block, line = block .. "\t" .. (connector[identity] or "") .. "\t" .. identity }
+    if not ephemeral[identity] then
+      rows[#rows + 1] = { block = block, line = block .. "\t" .. (connector[identity] or "") .. "\t" .. identity }
+    end
   end
   table.sort(rows, function(left, right) return left.block < right.block end)
 
@@ -236,10 +244,38 @@ local function free_block()
   return block
 end
 
+-- A monitor Hyprland made rather than found reports no description, or gives its
+-- make as headless. Such a monitor comes back under a new name next time, so a
+-- block saved for it would never be claimed again. Hold a block for each while
+-- it is connected and hand it back when it goes.
+local function ephemeral_output(monitor)
+  return (monitor.description or "") == "" or (monitor.make or "") == "headless"
+end
+
+local function forget_ephemeral(identities, monitors)
+  local present = {}
+
+  for _, monitor in ipairs(monitors) do
+    local identity = identities[monitor.name]
+    if identity and ephemeral_output(monitor) then
+      ephemeral[identity] = true
+      present[identity] = true
+    end
+  end
+
+  for identity in pairs(ephemeral) do
+    if not present[identity] then
+      ephemeral[identity] = nil
+      blocks[identity] = nil
+    end
+  end
+end
+
 -- Each connected monitor's block, assigning one to a monitor seen for the first
 -- time. Keyed by connector.
 local function assign(monitors)
   local identities = identities_of(monitors)
+  forget_ephemeral(identities, monitors)
   local by_connector = {}
 
   for _, monitor in ipairs(monitors) do
