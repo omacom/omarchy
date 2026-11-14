@@ -10,6 +10,12 @@ On a laptop, Omarchy remembers your power profile separately for plugged in and 
 
 You can see what your machine offers with `omarchy powerprofiles list`, and set the one you want for the state you're currently in with `omarchy powerprofiles set autodetect power-saver`. To set the other state without unplugging anything, name it directly: `omarchy powerprofiles set battery power-saver`. Whatever you pick is what you'll get back the next time you're in that state.
 
+### Charge limit
+
+A laptop that spends most of its life plugged in wears its battery fastest sitting at 100%. If your battery supports it, the _Charge limit_ row in the top bar's power panel stops charging short of full, usually at 80%, while the laptop keeps running off the charger. Pick _Full_ the night before you need the whole battery, and switch back afterwards. Some laptops, like many Dells, stop by a long-life charging mode rather than at a set percentage, so the buttons just say _Limit_ and _Full_.
+
+From the terminal, use `omarchy battery charge-limit on`, `off`, `toggle`, or `status`. The choice is kept across reboots.
+
 ### Toggle suspend
 
 You toggle suspend by running `omarchy toggle suspend` from the terminal. That just reveals/hides the option under _System_ (or `Super + Esc`), and then you can see if it works consistently on your system. If not, you can hide it again with the same command.
