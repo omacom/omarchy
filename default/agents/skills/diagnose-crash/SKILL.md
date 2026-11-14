@@ -56,7 +56,7 @@ that it is actually implicated.
 This is Arch, which runs a public debuginfod server:
 
 ```bash
-core=$(mktemp -t crash-XXXXXX.core)
+core=$(mktemp -p /var/tmp crash-XXXXXX.core)
 trap 'rm -f "$core"' EXIT
 coredumpctl dump <pid> --output="$core"
 DEBUGINFOD_URLS="https://debuginfod.archlinux.org" \
@@ -66,7 +66,8 @@ DEBUGINFOD_URLS="https://debuginfod.archlinux.org" \
 
 A core is a verbatim copy of the process's memory and can hold passwords, tokens,
 and private documents. Write it to a fresh `mktemp` path rather than a predictable
-shared one, and delete it when you are done — never leave it lying in `/tmp`.
+shared one, and delete it when you are done. Keep it in `/var/tmp`, which is on disk:
+`/tmp` is RAM, and a large core expanded there eats the memory you may be diagnosing.
 
 Many packages publish no debug symbols. When frames stay unresolved, say so —
 never invent function names to fill the gap. An unsymbolized stack still has
