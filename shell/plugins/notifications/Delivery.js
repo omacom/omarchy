@@ -83,8 +83,7 @@ function barThickness(bar, screenName, defaultBarSize) {
   return Math.max(0, size)
 }
 
-// The deck hangs from the top-right corner, so it clears the bar only on the
-// two edges it touches.
+// Follow the bar: top-right for top, bottom-left for left, bottom-right otherwise.
 function deckMargins(barPosition, thickness, gap) {
   var position = String(barPosition || "top")
   var edge = Number(gap)
@@ -93,6 +92,14 @@ function deckMargins(barPosition, thickness, gap) {
   if (!isFinite(bar)) bar = 0
   return {
     top: (position === "top" ? bar : 0) + edge,
-    right: (position === "right" ? bar : 0) + edge
+    right: (position === "right" ? bar : 0) + edge,
+    bottom: (position === "bottom" ? bar : 0) + edge,
+    left: (position === "left" ? bar : 0) + edge
   }
+}
+
+// Scene coordinates always measure inward from the anchored edge. Mirror only
+// the drawing, so snapshots and interrupted animations keep the same clock.
+function cardY(offset, height, deckHeight, growUp) {
+  return growUp ? deckHeight - offset - height : offset
 }

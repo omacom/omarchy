@@ -1,6 +1,6 @@
 # Notifications
 
-The shell is the notification daemon: `shell/plugins/notifications/Service.qml` hosts a Quickshell `NotificationServer` that claims `org.freedesktop.Notifications` on the session bus, so anything that speaks the freedesktop protocol (notify-send, libnotify apps, Chromium web apps) is drawn as a card in a deck at the top-right corner. The end-user view is in `manual/10-notices.md`.
+The shell is the notification daemon: `shell/plugins/notifications/Service.qml` hosts a Quickshell `NotificationServer` that claims `org.freedesktop.Notifications` on the session bus, so anything that speaks the freedesktop protocol (notify-send, libnotify apps, Chromium web apps) is drawn as a card in a deck beside the bar: top-right for a top bar, bottom-left for a left bar, and bottom-right for a bottom or right bar. Bottom decks stack and arrive upward. The end-user view is in `manual/10-notices.md`.
 
 ## Files
 
