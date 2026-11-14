@@ -4,6 +4,7 @@ run_logged "$OMARCHY_INSTALL/hardware/dell-xps-touchpad-haptics.sh"
 run_logged "$OMARCHY_INSTALL/hardware/surface.sh"
 run_logged "$OMARCHY_INSTALL/hardware/gb10/sleep.sh"
 run_logged "$OMARCHY_INSTALL/hardware/gb10/cpuidle.sh"
+run_logged "$OMARCHY_INSTALL/hardware/gb10/initcall-blacklist.sh"
 run_logged "$OMARCHY_INSTALL/hardware/nvidia/dgx-spark-boot.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/network.sh"
