@@ -11,19 +11,43 @@ remaining_height=$(jq -r --arg name "$remaining_monitor" '.[] | select(.name == 
 # the remaining display, so a mapped but misplaced menu cannot pass recovery.
 tall_height=$((remaining_height * 2 + 1600))
 virtual_monitor=""
+virtual_sequence=0
+read -r original_cursor_x original_cursor_y < <(hyprctl cursorpos | tr ',' ' ')
+[[ $original_cursor_x =~ ^-?[0-9]+$ && $original_cursor_y =~ ^-?[0-9]+$ ]] || fail "pointer position can be recorded"
+
+focus_monitor() {
+  local name="$1" x y
+  read -r x y < <(hyprctl -j monitors | jq -er --arg name "$name" '.[] | select(.name == $name) | [.x + 64, .y + 64] | @tsv')
+  [[ $x =~ ^-?[0-9]+$ && $y =~ ^-?[0-9]+$ ]] || return 1
+  # Keep pointer-driven focus on the selected output throughout the probe.
+  hyprctl eval "hl.dispatch(hl.dsp.cursor.move({ x = $x, y = $y }))" >/dev/null
+  hyprctl dispatch "hl.dsp.focus({ monitor = \"$name\" })" >/dev/null
+}
 
 cleanup() {
-  omarchy-shell shell hide omarchy.menu >/dev/null 2>&1 || true
+  local status=$? cleanup_failed=0 x y
+  trap - EXIT
+  omarchy-shell shell hide omarchy.menu >/dev/null 2>&1 || { printf 'cleanup: menu close failed\n' >&2; cleanup_failed=1; }
   if [[ -n $virtual_monitor ]]; then
-    hyprctl output remove "$virtual_monitor" >/dev/null 2>&1 || true
+    hyprctl output remove "$virtual_monitor" >/dev/null 2>&1 || { printf 'cleanup: output removal failed\n' >&2; cleanup_failed=1; }
   fi
-  hyprctl dispatch "hl.dsp.focus({ monitor = \"$remaining_monitor\" })" >/dev/null 2>&1 || true
+  focus_monitor "$remaining_monitor" >/dev/null 2>&1 || { printf 'cleanup: monitor focus failed\n' >&2; cleanup_failed=1; }
+  hyprctl eval "hl.dispatch(hl.dsp.cursor.move({ x = $original_cursor_x, y = $original_cursor_y }))" >/dev/null 2>&1 || { printf 'cleanup: pointer move failed\n' >&2; cleanup_failed=1; }
+  read -r x y < <(hyprctl cursorpos | tr ',' ' ') || { printf 'cleanup: pointer read failed\n' >&2; cleanup_failed=1; }
+  if [[ $x != "$original_cursor_x" || $y != "$original_cursor_y" ]]; then
+    printf 'cleanup: pointer restore mismatch: expected %s,%s; got %s,%s\n' "$original_cursor_x" "$original_cursor_y" "$x" "$y" >&2
+    cleanup_failed=1
+  fi
+  if ((cleanup_failed)); then
+    printf 'not ok - overlay monitor cleanup failed\n' >&2
+    status=1
+  fi
+  exit "$status"
 }
 trap cleanup EXIT
 
-find_virtual_monitor() {
-  virtual_monitor=$(hyprctl -j monitors | jq -r --argjson previous "$original_monitors" '[.[].name | select(. as $name | $previous | map(.name) | index($name) == null)][0] // empty')
-  [[ -n $virtual_monitor ]]
+monitor_is_present() {
+  hyprctl -j monitors | jq -e --arg name "$virtual_monitor" 'any(.[]; .name == $name)'
 }
 
 monitor_is_tall() {
@@ -53,18 +77,23 @@ monitor_contains() {
 }
 
 create_source_monitor() {
-  hyprctl output create headless >/dev/null
-  wait_until "temporary overlay monitor appears" 15 find_virtual_monitor
+  local name
+  ((virtual_sequence += 1))
+  name="omarchy-overlay-$$-$virtual_sequence"
+  hyprctl -j monitors | jq -e --arg name "$name" 'all(.[]; .name != $name)' >/dev/null || fail "temporary monitor name is unused"
+  virtual_monitor="$name"
+  hyprctl output create headless "$virtual_monitor" >/dev/null
+  wait_until "temporary overlay monitor appears" 15 monitor_is_present
   hyprctl eval "hl.monitor({ output = \"$virtual_monitor\", mode = \"1920x${tall_height}@60\", position = \"auto\", scale = 1 })" >/dev/null
   wait_until "temporary overlay monitor has tall geometry" 15 monitor_is_tall
-  hyprctl dispatch "hl.dsp.focus({ monitor = \"$virtual_monitor\" })" >/dev/null
+  focus_monitor "$virtual_monitor"
   wait_until "temporary overlay monitor is focused" 15 monitor_is_focused "$virtual_monitor"
 }
 
 remove_source_monitor() {
   hyprctl output remove "$virtual_monitor" >/dev/null
   virtual_monitor=""
-  hyprctl dispatch "hl.dsp.focus({ monitor = \"$remaining_monitor\" })" >/dev/null
+  focus_monitor "$remaining_monitor"
   wait_until "remaining monitor is focused" 15 monitor_is_focused "$remaining_monitor"
 }
 
