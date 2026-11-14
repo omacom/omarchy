@@ -88,6 +88,8 @@ The `[bar]` section of a theme's `shell.toml` supplies the shared dimensions. `i
 
 Custom `iconComponent` content also fits the shared target. Its source dimensions can be 15px or another size. The bar measures its glyph, image, or vector bounds and applies one scale without changing its aspect ratio. A source `iconSize` override does not change the rendered target. Image padding remains part of an application's tray asset.
 
+For composite content such as a gauge followed by a value, set `normalizeIconComponent: false` on `BarIconButton` to retain the component's source size. The default normalization fits the entire component, including any text, into one icon-sized box; existing plugins with composite content need this opt-out to keep their text readable. The button expands along the bar to contain the component and its usual margins, including the clickable area. Provide a compact or stacked component for vertical bars so it fits the bar's width. Single icons should keep the default normalization.
+
 Custom text bounds include text alignment and padding. The bar applies each shape's fill mode and alignment to `Shape.boundingRect`. Canvas and shader icons use their item bounds. Set their item size to match their artwork.
 
 `WidgetButton` also uses the shared renderer for a single icon glyph. This covers custom command widgets and existing plugins that use `WidgetButton` with a different `fontSize`. Text labels retain their text size. Custom widgets must use `WidgetButton` or `BarIconButton` for this icon contract.
