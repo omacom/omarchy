@@ -61,6 +61,10 @@ Item {
   // Apps muted one by one, lowercased (Store.muteName). Their notifications
   // go straight to history, Do Not Disturb or not.
   property var mutedApps: []
+  // Changes made before quiet.json was read, name to on or off. The read
+  // would bring back a stored name turned off meanwhile, so they are applied
+  // on top of what it holds (applyQuiet).
+  property var pendingMutes: ({})
   // The app's state after: "on" or "off", "full" when the list has no room
   // for another app (Store.MUTED_LIMIT), "invalid" for a name it cannot hold.
   function setAppMuted(app, value) {
@@ -69,6 +73,7 @@ Item {
     var muted = mutedApps.indexOf(name) !== -1
     var on = value === "toggle" ? !muted : !!value
     if (on && !muted && mutedApps.length >= Store.MUTED_LIMIT) return "full"
+    if (!quietLoaded) pendingMutes[name] = on
     if (on !== muted) {
       mutedApps = Store.mutedList(on ? mutedApps.concat([name]) : mutedApps.filter(function(a) { return a !== name }))
       saveQuiet()
@@ -1313,13 +1318,18 @@ Item {
 
   function applyQuiet(read) {
     if (quietLoaded) return
-    if (read) {
-      doNotDisturb = read.dnd
-      // A mute set before the file was read is kept alongside the stored ones.
-      mutedApps = Store.mutedList(read.muted.concat(mutedApps))
-    }
+    var pending = pendingMutes
+    var changed = Object.keys(pending)
+    var names = (read ? read.muted : []).filter(function(name) { return pending[name] !== false })
+    // What was asked for meanwhile wins over what was stored, to the limit.
+    changed.forEach(function(name) {
+      if (pending[name] && names.indexOf(name) === -1 && names.length < Store.MUTED_LIMIT) names.push(name)
+    })
+    mutedApps = Store.mutedList(names)
+    pendingMutes = ({})
+    if (read) doNotDisturb = read.dnd
     quietLoaded = true
-    if (unsaved.quiet) saveSoon("quiet")
+    if (unsaved.quiet || changed.length > 0) saveSoon("quiet")
   }
 
   // The files exist before anything writes them, at 0600; an atomic write

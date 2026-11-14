@@ -363,7 +363,7 @@ const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'nextKey', 'rowIndexFor', 'keyForOriginal', 'keyForDuplicate', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
   'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'senderActions', 'dismissOne',
   'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
-  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive', 'setAppMuted', 'saveQuiet']
+  'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive', 'setAppMuted', 'saveQuiet', 'applyQuiet', 'loadQuiet']
 
 function newCapacityScope() {
   const toasts = { rows: [],
@@ -377,7 +377,7 @@ function newCapacityScope() {
     toasts, refs: {}, refsRevision: 0, keySeed: 0, liveKeys: Object.create(null),
     maxLiveNotifications: 100, heights: {}, fresh: {}, leaving: {}, departures: {}, layoutRevision: 0,
     arriving: '', jumping: false, travel: 24, arriveDuration: 250, leaveDuration: 200, placements: {},
-    held: [], doNotDisturb: false, mutedApps: [],
+    held: [], doNotDisturb: false, mutedApps: [], pendingMutes: {}, quietLoaded: false,
     liveEntries: [], historyEntries: [], unsaved: {}, liveLoaded: false,
     saveTimer: { running: false, start() {} },
     deckDisplayName: '',
@@ -1071,6 +1071,66 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   assert.equal(s.setAppMuted('one-too-many', true), 'on')
   assert.ok(s.mutedApps.includes('one-too-many'))
   assert.equal(s.mutedApps.length, Store.MUTED_LIMIT)
+}
+
+{ // A mute changed before quiet.json is read still holds once it is. Reading
+  // the file must not bring back a stored app that was unmuted meanwhile, nor
+  // lose one that was muted.
+  const stored = names => JSON.stringify({ dnd: false, muted: names })
+
+  { // Unmuted at startup: stays off, and the file is rewritten without it.
+    const s = newCapacityScope()
+    assert.equal(s.setAppMuted('Slack', false), 'off')
+    s.loadQuiet(stored(['slack', 'zoom']))
+    eq(s.mutedApps, ['zoom'])
+    assert.ok(s.unsaved.quiet)
+    s.admit(Object.assign(s.fakeNotification(1, 'hello'), { appName: 'slack' }))
+    eq([s.toasts.count, s.historyEntries.length], [1, 0])
+  }
+
+  { // Muted at startup: kept next to the stored ones.
+    const s = newCapacityScope()
+    assert.equal(s.setAppMuted('Teams', true), 'on')
+    s.loadQuiet(stored(['slack']))
+    eq(s.mutedApps, ['slack', 'teams'])
+  }
+
+  { // Muted, unmuted and muted again before the read: the last word stands.
+    const s = newCapacityScope()
+    s.setAppMuted('slack', true)
+    s.setAppMuted('slack', false)
+    s.setAppMuted('slack', true)
+    s.setAppMuted('zoom', true)
+    s.setAppMuted('zoom', false)
+    s.loadQuiet(stored(['zoom']))
+    eq(s.mutedApps, ['slack'])
+  }
+
+  { // An unreadable file keeps what was asked for.
+    const s = newCapacityScope()
+    s.setAppMuted('slack', true)
+    s.loadQuiet('')
+    eq(s.mutedApps, ['slack'])
+    assert.equal(s.quietLoaded, true)
+  }
+
+  { // After the read a change is made straight away and nothing is pending.
+    const s = newCapacityScope()
+    s.loadQuiet(stored(['slack']))
+    assert.equal(s.setAppMuted('slack', false), 'off')
+    eq(s.mutedApps, [])
+    eq(s.pendingMutes, {})
+    s.loadQuiet(stored(['slack']))
+    eq(s.mutedApps, [])
+  }
+
+  { // A file already at the limit has no room for one more asked for meanwhile.
+    const s = newCapacityScope()
+    s.setAppMuted('zzz-new', true)
+    s.loadQuiet(stored(Array.from({ length: Store.MUTED_LIMIT }, (_, i) => 'app' + String(i).padStart(3, '0'))))
+    assert.equal(s.mutedApps.length, Store.MUTED_LIMIT)
+    assert.ok(!s.mutedApps.includes('zzz-new'))
+  }
 }
 
 { // A transient card is shown but never stored, so the next login does not
