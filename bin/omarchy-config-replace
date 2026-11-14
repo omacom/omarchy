@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Atomically replace an existing config while retaining its symlink and metadata
+# omarchy:hidden=true
+
+set -euo pipefail
+
+source=${1:?usage: omarchy-config-replace <staged-content> <config>}
+config=${2:?usage: omarchy-config-replace <staged-content> <config>}
+target=$(realpath -e -- "$config")
+[[ -f $target && -w $target ]] || {
+  echo "Cannot replace read-only or non-file config: $config" >&2
+  exit 1
+}
+
+# The original transform can stage on /tmp, which may be another filesystem.
+# Copy into a private file beside the resolved target before publishing; a
+# failed/partial copy then cannot truncate the user's live config.
+stage=$(mktemp "$(dirname "$target")/.omarchy-config.XXXXXX")
+trap 'rm -f -- "$stage"' EXIT
+cat -- "$source" >"$stage"
+cp --attributes-only --preserve=mode,ownership,xattr -- "$target" "$stage"
+mv -fT -- "$stage" "$target"

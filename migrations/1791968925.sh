@@ -31,8 +31,7 @@ if [[ -s $config_file ]] && jq -e '
     )
   ' "$config_file" >"$tmp"
   if [[ $(jq -cS . "$tmp") != "$(jq -cS . "$config_file")" ]]; then
-    mv "$tmp" "$config_file"
-  else
-    rm -f "$tmp"
+    omarchy-config-replace "$tmp" "$config_file" || { rm -f "$tmp"; exit 1; }
   fi
+  rm -f "$tmp"
 fi
