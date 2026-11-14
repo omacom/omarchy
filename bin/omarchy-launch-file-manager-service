@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# omarchy:summary=Start the default file manager's org.freedesktop.FileManager1 service
+# omarchy:args=<command> [args...]
+# omarchy:hidden=true
+
+# The FileManager1 registration that omarchy-default-file-manager writes runs
+# this rather than the chosen manager's command, so the registration keeps
+# working after that manager is uninstalled: when the command is gone, the
+# first installed manager that registers the name system-wide answers.
+
+service_command=()
+if (($# > 0)) && command -v "$1" >/dev/null; then
+  service_command=("$@")
+else
+  IFS=: read -ra data_dirs <<<"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  for data_dir in "${data_dirs[@]}"; do
+    for file in "$data_dir"/dbus-1/services/*.service; do
+      if [[ -f $file ]] && grep -qx "Name=org.freedesktop.FileManager1" "$file"; then
+        read -ra candidate < <(sed -n 's/^Exec=//p' "$file")
+        if ((${#candidate[@]} > 0)) && command -v "${candidate[0]}" >/dev/null; then
+          service_command=("${candidate[@]}")
+          break 2
+        fi
+      fi
+    done
+  done
+fi
+
+if ((${#service_command[@]} == 0)); then
+  echo "No installed file manager provides org.freedesktop.FileManager1" >&2
+  exit 1
+fi
+
+exec "${service_command[@]}"
