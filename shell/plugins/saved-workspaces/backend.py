@@ -696,6 +696,18 @@ def capture_app_state(window, info, cache):
     if not directory.is_absolute():
       directory = Path(info.get("cwd", str(HOME))) / directory
     profiles = {profile} | {path.parent.name for path in directory.glob("*/Sessions") if path.is_dir()}
+    local_state = directory / "Local State"
+    if local_state.is_file():
+      try:
+        if local_state.stat().st_size > 32 * 1024 * 1024:
+          raise ValueError("Oversized browser state")
+        active = json.loads(local_state.read_text()).get("profile", {}).get("last_active_profiles")
+        if active is not None:
+          if not isinstance(active, list) or not all(isinstance(name, str) and name not in {".", ".."} and Path(name).name == name and "\0" not in name for name in active):
+            raise ValueError("Invalid active profiles")
+          profiles = set(active)
+      except (OSError, ValueError, AttributeError):
+        raise WorkspaceError("This browser's active profiles aren't available yet. Wait a moment and save again.") from None
     records = []
     # All profiles in this browser share a process. Include each current
     # session in the private-window count, then retain the matched profile.
@@ -762,23 +774,18 @@ def state_command(window, argv):
     urls = state.get("urls", [])
     if not urls or len(urls) > 200 or not all(isinstance(u, str) and re.match(r"^(https?://|file://|about:|chrome://|chrome-extension://)", u) and "\0" not in u for u in urls):
       raise WorkspaceError("The saved browser tabs are invalid.")
-    argv = [a for a in argv if not re.match(r"^(https?://|file://|about:|chrome://|chrome-extension://)", a)]
-    for flag, value in [("--profile-directory", state.get("profile")), ("--user-data-dir", state.get("userDataDir"))]:
+    # Chromium rewrites /proc cmdline as a flattened string. A multi-word
+    # --window-name can leave bare words after recovery; replaying those opens
+    # extra search tabs. All tab URLs come from the saved session, not argv.
+    identity = {"--window-name", "--profile-directory", "--user-data-dir"}
+    options = [argv[0]] + [arg for arg in argv[1:] if arg.startswith("-") and arg.split("=", 1)[0] not in identity]
+    for flag, value in [("--profile-directory", state.get("profile", argument_value(argv, "--profile-directory"))), ("--user-data-dir", state.get("userDataDir", argument_value(argv, "--user-data-dir")))]:
       if value is None:
-        continue  # Older scenes did not store per-window profile context.
+        continue
       if not isinstance(value, str) or not value or "\0" in value or (flag == "--profile-directory" and (Path(value).name != value or value in {".", ".."})) or (flag == "--user-data-dir" and not Path(value).is_absolute()):
         raise WorkspaceError("The saved browser profile is invalid.")
-      if argument_value(argv, flag, "Default" if flag == "--profile-directory" else None) == value:
-        continue
-      cleaned, skip = [], False
-      for arg in argv:
-        if skip:
-          skip = False
-        elif arg == flag:
-          skip = True
-        elif not arg.startswith(flag + "="):
-          cleaned.append(arg)
-      argv = cleaned + [flag + "=" + value]
+      options.append(flag + "=" + value)
+    argv = options
     return argv + urls
   if state.get("kind") == "spotify":
     uri = state.get("uri", "")
