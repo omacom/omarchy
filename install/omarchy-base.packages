@@ -45,6 +45,7 @@ ffmpegthumbnailer
 folio
 fontconfig
 foot
+fs-uae
 fzf
 git
 gliff
@@ -97,6 +98,7 @@ obsidian
 omacalc
 omacut
 omawrite
+omarchy-ambient
 omarchy-nvim
 omarchy-hyprland-titlebars
 # Local model recipes and their engine; Podman comes when a model is set up.
