@@ -484,3 +484,45 @@ output=$(lua_scan) || fail "Lua bind scan ends an indexed walk over a stub colle
 [[ $output != *"lua bind scan failed"* ]] || fail "Lua bind scan does not abort on an indexed walk over a stub collection ($output)"
 grep -qF $'64\tKeybindings menu\tK\texec\tomarchy-menu keybindings' <<<"$output" || fail "Lua bind scan reports binds declared after an indexed walk (got: $output)"
 pass "Lua bind scan ends an indexed walk over a stub collection and keeps the binds after it"
+
+# Merged rows still need both compositor references after translation. A
+# picker must be able to edit either chord without guessing from its label.
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + W" "Close window" | sed 's/arg: $/arg: 401/')
+$(lua_bind 64 "SUPER + Q" "Close window" | sed 's/arg: $/arg: 402/')
+BINDS
+printf '{"Close window": "Luk vindue"}\n' >"$translate_root/default/i18n/da/keybindings.json"
+cp -r "$ROOT/default/hypr" "$translate_root/default/hypr"
+env -i PATH="$stub_bin:$ROOT/bin:$PATH" HOME="$home" XDG_CACHE_HOME="$tmpdir/cache-edit" \
+  OMARCHY_PATH="$translate_root" OMARCHY_LANGUAGE_FILE="$tmpdir/translate-language" \
+  bash "$menu" --print >"$tmpdir/rendered-edit"
+grep -qx 'SUPER + W / SUPER + Q  *→ Luk vindue' "$tmpdir/rendered-edit" ||
+  fail "a translated row shows both chords without its edit metadata"
+grep -qF $'\x1f401 402' "$tmpdir"/cache-edit/omarchy/keybindings-*.records ||
+  fail "a merged row carries both compositor references into the picker"
+pass "merged translated rows retain both editable binding references"
+
+# Applying an override must preserve Lua dispatchers and flags, and only omit
+# the conflicting declaration named by the replacement.
+mkdir -p "$home/.local/state/omarchy"
+(cd "$ROOT" && HOME="$home" lua -E -) <<'LUA' || fail "saved edits preserve dispatchers and flags"
+local function id(keys, label)
+  return (keys .. "\0" .. label):gsub(".", function(byte) return string.format("%02x", byte:byte()) end) .. ":1"
+end
+local state = assert(io.open(os.getenv("HOME") .. "/.local/state/omarchy/keybindings.tsv", "w"))
+state:write(id("SUPER + A", "Action"), "\tSUPER + code:36\n")
+state:write(id("SUPER + RETURN", "Conflict"), "\t\n")
+state:close()
+
+local calls = {}
+hl = { bind = function(...) calls[#calls + 1] = { ... } end }
+local overrides = require("default.hypr.binding-overrides")
+local action = function() end
+overrides.bind("SUPER + A", action, { description = "Action", release = true })
+overrides.bind("SUPER + RETURN", function() end, { description = "Conflict" })
+overrides.bind("SUPER + RETURN", function() end, { description = "Keep this one" })
+assert(#calls == 2)
+assert(calls[1][1] == "SUPER + code:36" and calls[1][2] == action and calls[1][3].release)
+assert(calls[2][1] == "SUPER + RETURN" and calls[2][3].description == "Keep this one")
+LUA
+pass "saved edits preserve dispatchers, flags and unrelated bindings on the same chord"

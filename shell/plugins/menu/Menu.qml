@@ -23,6 +23,8 @@ Item {
     var payload = ({})
     try { payload = JSON.parse(payloadJson || "{}") } catch (e) { payload = ({}) }
 
+    if (root.requestActive && (root.editableShortcuts.length || root.shortcutCapture || root.shortcutDetail))
+      root.finishRequest(null)
     if (payload.fontFamily) root.fontFamily = payload.fontFamily
     // A shell that started mid-update may never have read the shipped menu
     // whole; reading it again here keeps the menu from opening empty.
@@ -75,6 +77,39 @@ Item {
   readonly property bool dmenuActive: mode === "select" || mode === "input"
   property string dmenuPrompt: ""
   property var dmenuOptions: []
+  property var editableShortcuts: []
+  property bool shortcutCapture: false
+  property string shortcutDetail: ""
+  property var recordedShortcut: null
+
+  function canEditShortcut(index) {
+    return root.mode === "select" && !root.dmenuMultiple
+      && root.editableShortcuts.indexOf(index) !== -1
+  }
+
+  function editShortcut(index) {
+    root.applyDmenuSelection("edit-shortcut:" + index)
+  }
+
+  function captureShortcut(event) {
+    if (event.isAutoRepeat || root.recordedShortcut) return
+    var modifiers = event.modifiers & (Qt.MetaModifier | Qt.ControlModifier | Qt.AltModifier | Qt.ShiftModifier)
+    if (event.key === Qt.Key_Escape && !modifiers) {
+      root.cancel()
+      return
+    }
+    if (!shortcutInhibitor.active || !event.nativeScanCode ||
+        [Qt.Key_Shift, Qt.Key_Control, Qt.Key_Meta, Qt.Key_Alt, Qt.Key_AltGr,
+         Qt.Key_CapsLock, Qt.Key_NumLock, Qt.Key_ScrollLock, Qt.Key_Super_L, Qt.Key_Super_R,
+         Qt.Key_Hyper_L, Qt.Key_Hyper_R].indexOf(event.key) !== -1) return
+    var names = []
+    if (modifiers & Qt.MetaModifier) names.push("SUPER")
+    if (modifiers & Qt.ControlModifier) names.push("CTRL")
+    if (modifiers & Qt.AltModifier) names.push("ALT")
+    if (modifiers & Qt.ShiftModifier) names.push("SHIFT")
+    root.recordedShortcut = { code: event.nativeScanCode, modifiers: names }
+  }
+
   property bool dmenuMultiple: false
   property var dmenuSelected: []
   // What the last confirmed change applied; a failed change returns the checks here.
@@ -124,7 +159,8 @@ Item {
   readonly property real rowReservedBorderRight: Border.right(selectedBorderSpec)
   readonly property int cornerRadius: Style.cornerRadius
   property int contentMargin: Style.spacing.panelPadding
-  property int headerHeight: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
+  property int searchLineHeight: Math.max(Style.space(34), Style.font.title + Style.spacing.controlPaddingY * 2)
+  property int headerHeight: searchLineHeight + (dmenuActive && shortcutDetail ? shortcutDetailText.height + Style.spacing.xs : 0)
   property int contentSpacing: Style.spacing.md
   property int baseRowHeight: Math.max(Style.space(50), Style.font.body + Style.spacing.rowPaddingX * 2)
   property int detailRowHeight: Math.max(Style.space(58), Style.font.body + Style.font.caption + Style.spacing.rowPaddingX * 2)
@@ -979,6 +1015,10 @@ Item {
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? Commons.I18n.t("menu.inputPrompt") : Commons.I18n.t("menu.selectPrompt")))
     dmenuOptions = Array.isArray(payload.options) ? payload.options : []
+    editableShortcuts = Array.isArray(payload.editableShortcuts) ? payload.editableShortcuts : []
+    shortcutCapture = mode === "input" && payload.shortcutCapture === true
+    shortcutDetail = String(payload.shortcutDetail || "")
+    recordedShortcut = null
     dmenuMultiple = mode === "select" && payload.multiple === true
     dmenuOnChange = dmenuMultiple && Array.isArray(payload.onChange)
       && payload.onChange.every(function(arg) { return typeof arg === "string" }) ? payload.onChange : []
@@ -1270,6 +1310,13 @@ Item {
       if (root.guardsPending) Qt.callLater(function() { root.evaluateGuards() })
     }
   }
+  ShortcutInhibitor {
+    id: shortcutInhibitor
+    window: panel
+    enabled: root.opened && root.dmenuActive && root.shortcutCapture
+    onCancelled: if (enabled) root.cancel()
+  }
+
   OverlayWindow {
     id: panel
     shown: root.opened && root.rowsLoaded
@@ -1322,8 +1369,32 @@ Item {
         anchors.fill: parent
         z: root.deleteConfirmOpen ? 20 : 0
 
+        // Keep inhibition through key release so release bindings stay quiet.
+        Keys.onReleased: function(event) {
+          if (!root.dmenuActive || !root.shortcutCapture) return
+          event.accepted = true
+          if (!event.isAutoRepeat && root.recordedShortcut
+              && event.nativeScanCode === root.recordedShortcut.code)
+            root.applyDmenuSelection(JSON.stringify(root.recordedShortcut))
+        }
+
         // Focus is on filterInput, which forwards every key here first.
         Keys.onPressed: function(event) {
+          if (root.dmenuActive && root.shortcutCapture) {
+            root.captureShortcut(event)
+            event.accepted = true
+            return
+          }
+
+          if (event.key === Qt.Key_F2 && root.dmenuActive && displayModel.count > 0) {
+            var option = displayModel.get(root.cursorActive ? root.selectedIndex : 0).score
+            if (root.canEditShortcut(option)) {
+              root.editShortcut(option)
+              event.accepted = true
+              return
+            }
+          }
+
           if (root.deleteConfirmOpen) {
             // Swallow the rest too, or it would type into the search line behind the dialog.
             deleteConfirm.handleKey(event)
@@ -1404,10 +1475,10 @@ Item {
             id: filterInput
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+            y: (root.searchLineHeight - height) / 2
             keyHandler: keyCatcher
             // Input-method commits bypass key handling, so the dialog has to refuse them here.
-            readOnly: root.deleteConfirmOpen
+            readOnly: root.deleteConfirmOpen || (root.dmenuActive && root.shortcutCapture)
             color: root.foreground
             font.family: root.fontFamily
             font.pixelSize: Style.font.heading
@@ -1427,6 +1498,21 @@ Item {
             elide: Text.ElideRight
           }
 
+          Text {
+            id: shortcutDetailText
+            textFormat: Text.PlainText
+            width: parent.width
+            y: root.searchLineHeight
+            text: root.shortcutDetail
+            visible: root.dmenuActive && text.length > 0
+            color: root.foreground
+            opacity: 0.7
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            wrapMode: Text.Wrap
+            maximumLineCount: 3
+            elide: Text.ElideRight
+          }
         }
 
         Item {
@@ -1474,6 +1560,7 @@ Item {
             delegate: BorderSurface {
               id: row
               required property int index
+              required property real score
               required property string itemId
               required property string kind
               required property string icon
@@ -1488,6 +1575,7 @@ Item {
               required property int childCount
               required property bool disabled
 
+              readonly property bool shortcutEditable: row.kind === "dmenu" && root.canEditShortcut(row.score)
               readonly property bool hasCursor: root.cursorActive && row.index === root.selectedIndex
               readonly property bool isApp: row.kind === "app"
               readonly property bool hasIcon: row.icon.length > 0 || row.isApp
@@ -1558,7 +1646,8 @@ Item {
                   id: labelText
                   textFormat: Text.PlainText
                   width: parent.width
-                  text: row.label
+                  text: root.editableShortcuts.length > 0 && row.kind === "dmenu"
+                    ? row.label.replace(" → ", "   → ") : row.label
                   color: row.hasCursor ? root.selectedText : root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.heading
@@ -1609,6 +1698,30 @@ Item {
                   font.weight: Font.Normal
                   anchors.verticalCenter: parent.verticalCenter
                 }
+              }
+
+              TextMetrics {
+                id: chordMetrics
+                font: labelText.font
+                text: row.shortcutEditable ? row.label.split(" → ", 1)[0].trim() : ""
+              }
+
+              Button {
+                visible: row.shortcutEditable
+                z: 1
+                anchors.left: contentColumn.left
+                anchors.leftMargin: chordMetrics.advanceWidth + Style.space(2)
+                anchors.verticalCenter: contentColumn.verticalCenter
+                width: Style.space(22)
+                height: Style.space(28)
+                horizontalPadding: 0
+                verticalPadding: 0
+                iconText: "󰏫"
+                tooltipText: Commons.I18n.t("keybindings.editShortcut")
+                Accessible.name: tooltipText
+                iconSize: Style.font.heading
+                foreground: row.hasCursor ? root.selectedText : root.foreground
+                onClicked: root.editShortcut(row.score)
               }
 
               MouseArea {
