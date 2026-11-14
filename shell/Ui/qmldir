@@ -35,6 +35,7 @@ PopupMenuRow 1.0 PopupMenuRow.qml
 SearchableDropdown 1.0 SearchableDropdown.qml
 SizedImage 1.0 SizedImage.qml
 SpeedTestOverlay 1.0 SpeedTestOverlay.qml
+StillFrame 1.0 StillFrame.qml
 TextField 1.0 TextField.qml
 Toggle 1.0 Toggle.qml
 ToggleSwitch 1.0 ToggleSwitch.qml
