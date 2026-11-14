@@ -487,7 +487,7 @@ PanelWindow {
     readonly property int otherWorkspace: {
       if (!modelData || !modelData.windows.length) return -1
       var win = modelData.windows[0]
-      var workspace = minimized ? win.sortWorkspaceId : win.workspaceId
+      var workspace = win.minimized ? win.sortWorkspaceId : win.workspaceId
       return workspace > 0 ? workspace : -1
     }
 
