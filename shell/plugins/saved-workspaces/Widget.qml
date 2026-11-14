@@ -241,18 +241,14 @@ Panel {
               font.bold: true
               font.pixelSize: Style.font.caption
               opacity: .75
-            }
-            LinkButton {
-              id: infoButton
-              width: Style.space(20)
-              height: saveButton.height
-              horizontalPadding: 0
-              iconText: "\uf05a"
-              iconSize: Style.font.body
-              tooltipText: Commons.I18n.t("scenes.explanation")
+              HoverHandler { id: headingHover }
+              PanelToolTip {
+                visible: headingHover.hovered
+                text: Commons.I18n.t("scenes.explanation")
+              }
             }
             Item {
-              width: Math.max(0, parent.width - heading.width - infoButton.width - saveButton.width - 3 * parent.spacing)
+              width: Math.max(0, parent.width - heading.width - saveButton.width - 2 * parent.spacing)
               height: 1
             }
             LinkButton {
