@@ -70,6 +70,7 @@ mkdir -p "$hostile/backgrounds" "$hostile/.git"
 write_colors "$hostile/colors.toml"
 touch "$hostile/light.mode"
 printf 'os.execute("%s")\n' "$marker" >"$hostile/hyprland.lua"
+printf 'os.execute("%s")\n' "$marker" >"$hostile/wezterm.lua"
 printf 'vim.cmd("%s")\n' "$marker" >"$hostile/neovim.lua"
 printf 'shell %s\n' "$marker" >"$hostile/kitty.conf"
 printf '[terminal.shell]\nprogram = "%s"\n' "$marker" >"$hostile/alacritty.toml"
@@ -105,7 +106,7 @@ assert_not_staged .git "the clone's own git directory is never staged"
 
 # These run code, so the theme's versions must lose to Omarchy's generated ones
 # rather than merely be absent.
-for generated in hyprland.lua neovim.lua gum_env.lua kitty.conf alacritty.toml foot.ini ghostty.conf; do
+for generated in hyprland.lua neovim.lua gum_env.lua kitty.conf alacritty.toml foot.ini ghostty.conf wezterm.lua; do
   assert_staged "$generated" "$generated is generated from Omarchy's template"
   assert_no_marker "$generated" "an installed theme cannot supply $generated"
 done
@@ -218,7 +219,7 @@ pass "a theme is set by the name omarchy-theme-list shows"
 # A denylist is only correct while someone adding a template classifies what it
 # generates. Every generated theme file is either denied to an installed theme or
 # recorded here as carrying colour, so a new template fails until it is placed.
-denied=(alacritty.toml foot.ini ghostty.conf kitty.conf gum_env.lua hyprland.lua neovim.lua vscode.json)
+denied=(alacritty.toml foot.ini ghostty.conf kitty.conf gum_env.lua hyprland.lua neovim.lua vscode.json wezterm.lua)
 colour_only=(btop.theme chromium.theme claude.json fcitx5-theme.conf helix.toml herdr-app.json hermes.yaml hyprland-preview-share-picker.css keyboard.rgb obsidian.css pi.json qtengine.colors shell.toml t3code.css t3code.json vscode-theme.json)
 
 for tpl in "$ROOT"/default/themed/*.tpl; do
