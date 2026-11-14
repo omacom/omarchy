@@ -226,6 +226,7 @@ machine() {
   case $name in
     plain) dmi sys_vendor LENOVO; dmi product_name 21HM0000US; dmi product_family "ThinkPad X1 Carbon Gen 11" ;;
     no-dmi) rm -rf "$hw/dmi" ;;
+    macbookpro11) dmi product_name "MacBookPro11,4" ;;
     macbookpro13) dmi product_name "MacBookPro13,2" ;;
     macbook8) dmi product_name "MacBook8,1" ;;
     macbookpro15) dmi product_name "MacBookPro15,1" ;;
@@ -330,6 +331,7 @@ run_leaf() {
     OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_NVIDIA_MODPROBE_CONFIG="$hw/nvidia.conf" \
+    OMARCHY_SYSTEM_SLEEP_DIR="$root/usr/lib/systemd/system-sleep" \
     OMARCHY_PCI_DEVICES="$root/sys/bus/pci/devices" \
     OMARCHY_ATH12K_BOARD_STATE="$root/var/lib/ath12k-board-fallback/installed" \
     bash -eE -c 'source "$1"' bash "$ROOT/install/$1" </dev/null >/dev/null 2>&1 || status=$?
@@ -344,6 +346,7 @@ run_leaf() {
 # standing between it and any other machine.
 leaves=(
   hardware/apple/fix-spi-keyboard.sh
+  hardware/apple/fix-resume-cpus.sh
   hardware/n1x.sh
   hardware/fix-synaptic-touchpad.sh
   hardware/surface.sh
@@ -389,6 +392,9 @@ hardware/apple/fix-spi-keyboard.sh|macbookpro13|0|pkg-add macbook12-spi-driver-d
 hardware/apple/fix-spi-keyboard.sh|macbook8|0|pkg-add macbook12-spi-driver-dkms|wrote etc/mkinitcpio.conf.d/macbook_spi_modules.conf
 hardware/apple/fix-spi-keyboard.sh|macbookpro13+unreadable|0
 hardware/apple/fix-spi-keyboard.sh|macbookpro15|0
+hardware/apple/fix-resume-cpus.sh|macbookpro11|0|wrote usr/lib/systemd/system-sleep/apple-fast-resume
+hardware/apple/fix-resume-cpus.sh|macbookpro11+unreadable|0
+hardware/apple/fix-resume-cpus.sh|macbookpro13|0
 hardware/fix-synaptic-touchpad.sh|synaptics|0|modprobe psmouse synaptics_intertouch=1
 # Under arch-chroot the live kernel's modules are not the ones on disk.
 hardware/fix-synaptic-touchpad.sh|synaptics-chroot|0

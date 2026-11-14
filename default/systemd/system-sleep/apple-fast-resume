@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# On the MacBook Pro (Mid 2015), deep sleep resume brings the non-boot CPUs
+# back one at a time, and each can take seconds. The screen stays black for
+# 10+ seconds after the lid opens. With those CPUs offline before sleep, the
+# kernel has none to bring back, and bringing them online again after resume
+# takes milliseconds per CPU.
+#
+# Only the CPUs taken offline here come back, so a CPU someone turned off on
+# purpose stays off.
+
+cpus="${OMARCHY_CPU_SYSFS:-/sys/devices/system/cpu}"
+state="${OMARCHY_APPLE_FAST_RESUME_STATE:-/run/omarchy-apple-fast-resume}"
+
+case $1 in
+  pre)
+    : >"$state"
+    for online in "$cpus"/cpu[1-9]*/online; do
+      if [[ $(<"$online") == "1" ]] && echo 0 >"$online"; then
+        printf '%s\n' "$online" >>"$state"
+      fi
+    done
+    ;;
+  post)
+    if [[ -f $state ]]; then
+      while read -r online; do
+        echo 1 >"$online" || true
+      done <"$state"
+      rm -f "$state"
+    fi
+    ;;
+esac
+
+exit 0
