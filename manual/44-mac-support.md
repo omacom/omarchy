@@ -37,6 +37,22 @@ It is necessary to disable Apple's Secure Boot in order to boot the bootable USB
 
 The installer detects Mac hardware and applies the needed fixes automatically: Broadcom Wi-Fi drivers and firmware, the SPI keyboard driver on the MacBook models that need it, and an NVMe suspend fix for those same models.
 
+#### MacBook8,1: experimental deep/S3 sleep recovery
+
+The 2015 12-inch MacBook8,1 has a separate SPI wake problem in deep/S3. `s2idle` remains the conservative default. If its kernel already uses `initcall_blacklist=dw_pci_driver_init` for the SPI PIO workaround, you can opt into a **separate experimental** SPI LPSS register save/restore hook:
+
+```bash
+omarchy setup macbook81-s3 enable
+cat /sys/power/mem_sleep
+# After checking the hook is installed, test one suspend with recovery access available:
+echo deep | sudo tee /sys/power/mem_sleep
+sudo systemctl suspend
+# After wake:
+sudo journalctl -b -t omarchy-macbook81-s3 --no-pager
+```
+
+This does **not** make deep sleep persistent across reboot, and it does **not** enable Bluetooth UART recovery. Back up important work and keep a USB keyboard/SSH recovery path for initial tests. For a failed wake, force power-off only if other recovery methods are exhausted. Switch back to `s2idle` with `echo s2idle | sudo tee /sys/power/mem_sleep`. The command `omarchy setup macbook81-s3 disable` removes only this opt-in hook, and refuses to remove it if a persistent `mem_sleep_default=deep` override is detected. On systems using a separate MacBook8,1 all-in-one patch, do not install a second competing sleep hook.
+
 ### Known Limitations
 
 Members of the community are constantly working on solutions to these challenges so if these are problematic for you, join #omarchy-on-other in our [Discord](https://discord.gg/tXFUdasqhY) and see if there's any up-to-date methods for resolving these.
