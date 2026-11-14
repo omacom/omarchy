@@ -9,7 +9,26 @@ step="${2:-}"
 
 [[ -n $monitor ]] || exit 1
 
-cache_dir="${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display-ddc"
+# The bus and range cache is read back to steer later ddcutil calls.
+# XDG_RUNTIME_DIR is 0700 and session-scoped; without it, the state directory
+# keeps the cache out of world-writable /tmp, where another local account could
+# plant a cache file and point brightness writes at a bus of their choosing.
+cache_dir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}/omarchy-brightness-display-ddc"
+if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+  mkdir -p "$cache_dir" 2>/dev/null && chmod 700 "$cache_dir" 2>/dev/null
+
+  # The state-directory fallback persists across reboots, but I2C bus numbers
+  # can come up differently after one, and a stale bus would steer a monitor's
+  # brightness at another display. Keep the fallback cache for one boot only.
+  boot_id=""
+  cached_boot=""
+  [[ -r /proc/sys/kernel/random/boot_id ]] && read -r boot_id </proc/sys/kernel/random/boot_id
+  [[ -r $cache_dir/boot-id ]] && read -r cached_boot <"$cache_dir/boot-id"
+  if [[ -n $boot_id && $cached_boot != "$boot_id" ]]; then
+    rm -f "$cache_dir"/*.bus
+    printf '%s\n' "$boot_id" >"$cache_dir/boot-id" 2>/dev/null
+  fi
+fi
 cache_name="${monitor//[^[:alnum:]_.-]/_}"
 cache_file="$cache_dir/$cache_name.bus"
 unavailable_cache_seconds=60
