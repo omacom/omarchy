@@ -86,12 +86,15 @@ reset_entries() {
 
 # One core dump as systemd-coredump journals it. The UID must be this user's, or
 # the watcher discards it as somebody else's crash before anything under test.
+# An optional cmdline has its arguments separated by |, which become the NULs
+# a cmdline is made of.
 crash_entry() {
-  local comm="$1" exe="$2"
+  local comm="$1" exe="$2" cmdline="${3:-}"
 
-  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
+  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" --arg cmdline "$cmdline" \
     '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
-      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
+      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV",
+      COREDUMP_CMDLINE: ($cmdline | split("|") | join("\u0000"))}' >>"$JOURNAL_ENTRIES"
 }
 
 # The stubbed journalctl ends after the entries, so the watcher's loop ends too.
@@ -242,6 +245,34 @@ run_watch
   fail "the fallback name cannot be muted, so the one crash most likely to repeat is the one that cannot be silenced"
 pass "the fallback name can be muted like any other"
 mute unknown off
+
+# Chromium and Electron child processes crash and are restarted by their parent
+# while the app keeps working, so they are not worth a critical toast (#16819).
+reset_entries
+crash_entry spotify /opt/spotify/spotify '/opt/spotify/spotify --type=gpu-process --no-sandbox'
+crash_entry spotify /opt/spotify/spotify '/opt/spotify/spotify|--type=renderer|--no-sandbox'
+run_watch
+! announced spotify ||
+  fail "a recovered Chromium child process is announced as if the app crashed"
+pass "a recovered Chromium child process is not announced"
+
+reset_entries
+crash_entry spotify /opt/spotify/spotify '/opt/spotify/spotify --no-sandbox --ozone-platform=x11'
+run_watch
+announced spotify ||
+  fail "a crash of the Chromium main process is not announced"
+pass "a crash of the Chromium main process is still announced"
+
+# --type= is not Chromium's alone: only its child types mark a child.
+reset_entries
+crash_entry git /usr/bin/git '/usr/bin/git|config|--type=bool|core.bare'
+crash_entry vim /usr/bin/vim '/usr/bin/vim|notes--type=renderer.txt'
+run_watch
+announced git ||
+  fail "a non-Chromium crash with --type=bool in its cmdline goes unannounced"
+announced vim ||
+  fail "a crash with --type= glued inside an argument goes unannounced"
+pass "a --type= that is not a Chromium child type is still announced"
 
 # What omarchy-crash-mute does on its own. That it agrees with the watcher is
 # already covered above, which drives it for every mute it makes.

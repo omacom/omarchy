@@ -52,13 +52,19 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
     # nothing, and that crash used to be read as somebody else's and dropped.
-    IFS=$'\t' read -r uid comm pid exe signal < <(
+    IFS=$'\t' read -r uid comm pid exe signal child < <(
       jq -r 'def field: if . == null or . == "" then "-" else . end;
              [(._UID | field),
               (.COREDUMP_COMM | field),
               (.COREDUMP_PID | field),
               (.COREDUMP_EXE | field),
-              (.COREDUMP_SIGNAL_NAME | field)] | @tsv' <<<"$entry" 2>/dev/null
+              (.COREDUMP_SIGNAL_NAME | field),
+              # Each argument is matched whole (systemd joins them with spaces,
+              # NULs are accepted too): only a Chromium child type counts, not
+              # --type= anywhere, which other programs take (git config --type=bool).
+              ((.COREDUMP_CMDLINE // "") | gsub("\u0000"; " ") | split(" ")
+                | any(test("^--type=(renderer|gpu-process|utility|zygote|broker|crashpad-handler|ppapi|ppapi-broker|nacl-loader|nacl-broker)$"))
+                | if . then "child" else "main" end)] | @tsv' <<<"$entry" 2>/dev/null
     )
 
     [[ $pid =~ ^[0-9]+$ ]] || continue
@@ -71,6 +77,12 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
     [[ $uid =~ ^[0-9]+$ ]] || continue
     ((uid == UID)) || continue
+
+    # Chromium and Electron child processes (--type=renderer, gpu-process, ...)
+    # crash and are restarted by their parent all the time while the app keeps
+    # working; the main process, whose crash the user actually sees, has no
+    # such flag. Announcing the child looks like the whole app died.
+    [[ $child == "child" ]] && continue
 
     # comm is truncated to 15 characters, so prefer the executable's basename.
     name=$comm
