@@ -61,7 +61,7 @@ PanelWindow {
     enabled: window.shown && !window.pinPressActive
     NumberAnimation {
       id: pinsMotion
-      duration: Style.duration(window.pinsHeldOpen ? 500 : 250)
+      duration: Style.duration(window.pinsHeldOpen ? 250 : 160)
       easing.type: Easing.Bezier
       easing.bezierCurve: Style.easeOut
     }
