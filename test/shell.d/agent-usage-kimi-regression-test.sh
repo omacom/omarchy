@@ -127,6 +127,73 @@ def share_dir(root):
     del os.environ["KIMI_SHARE_DIR"]
 
 
+# A global (kimi.ai) sign-in is filed under the slot config.toml names, and
+# brings its own login and API hosts.
+def scoped_slot(root):
+  del os.environ["KIMI_CODE_HOME"]
+  code = home() / ".kimi-code"
+  slot = "kimi-code-env-0e4f99c69cc27850"
+
+  def config(key="oauth/" + slot, base="https://api.kimi.ai/coding/v1", auth="https://auth.kimi.ai"):
+    code.mkdir(parents=True, exist_ok=True)
+    (code / "config.toml").write_text(f'[providers."managed:kimi-code"]\nbase_url = "{base}"\n\n'
+                                      f'[providers."managed:kimi-code".oauth]\nkey = "{key}"\noauth_host = "{auth}"\n')
+
+  config()
+  write_json(code / "credentials" / (slot + ".json"), {"access_token": "AT_old", "refresh_token": "RT_old", "expires_at": time.time() - 10})
+  scanner = load_collector("kimi")
+  expect("a global sign-in is read from the slot config.toml names, at the hosts it names",
+         [scanner.CREDENTIALS_PATH.name, scanner.USAGE_URL, scanner.TOKEN_URL],
+         [slot + ".json", "https://api.kimi.ai/coding/v1/usages", "https://auth.kimi.ai/api/oauth/token"])
+
+  lock = code / "oauth" / (slot + ".lock")
+  lock.mkdir(parents=True)
+  os.utime(lock, (0, 0))
+  held = []
+  state["token_hook"] = lambda: held.append(lock.is_dir())
+  data = run_main(scanner, "--force", "--limits-only")
+  expect("the slot's lease is taken over, held through the refresh, and let go",
+         [[request["method"] + " " + request["path"] for request in reqs], held, lock.exists()],
+         [["POST /api/oauth/token", "GET /coding/v1/usages"], [True], False], data)
+  expect("the rotated pair lands in the slot file, and no kimi-code.json appears",
+         [json.loads(scanner.CREDENTIALS_PATH.read_text())["refresh_token"], (code / "credentials" / "kimi-code.json").exists()], ["RT_new", False])
+
+  os.environ.update(KIMI_CODE_BASE_URL="https://api.kimi.com/coding/v1", KIMI_CODE_OAUTH_HOST="https://auth.kimi.com")
+  scanner = load_collector("kimi")
+  expect("KIMI_CODE_BASE_URL and KIMI_CODE_OAUTH_HOST win over config.toml", [scanner.USAGE_URL, scanner.TOKEN_URL],
+         ["https://api.kimi.com/coding/v1/usages", "https://auth.kimi.com/api/oauth/token"])
+  os.environ.update(KIMI_USAGE_URL="https://usage.kimi.com/u", KIMI_OAUTH_HOST="https://login.kimi.com")
+  del os.environ["KIMI_CODE_OAUTH_HOST"]
+  scanner = load_collector("kimi")
+  expect("KIMI_USAGE_URL and KIMI_OAUTH_HOST win too", [scanner.USAGE_URL, scanner.TOKEN_URL],
+         ["https://usage.kimi.com/u", "https://login.kimi.com/api/oauth/token"])
+  for name in ("KIMI_CODE_BASE_URL", "KIMI_USAGE_URL", "KIMI_OAUTH_HOST"):
+    del os.environ[name]
+
+  config(base="https://outside.example", auth="https://outside.example")
+  scanner = load_collector("kimi")
+  reqs.clear()
+  try:
+    scanner.request_refresh("RT_old")
+    refused = False
+  except scanner.KimiError:
+    refused = True
+  expect("hosts config.toml names get no exemption from the trusted domains",
+         [scanner.trusted_url(scanner.USAGE_URL)[1], refused, len(reqs)], [False, True, 0])
+
+  config(key="oauth/../../escape")
+  expect("a slot key that escapes the credentials directory falls back to kimi-code",
+         load_collector("kimi").CREDENTIALS_PATH, code / "credentials" / "kimi-code.json")
+
+  config()
+  (code / "credentials" / (slot + ".json")).unlink()
+  write_json(home() / ".kimi" / "credentials" / "kimi-code.json", {"access_token": "AT_old"})
+  scanner = load_collector("kimi")
+  expect("a legacy kimi-cli sign-in stays on the default slot and the kimi.com hosts",
+         [scanner.CREDENTIALS_PATH, scanner.USAGE_URL, scanner.TOKEN_URL],
+         [home() / ".kimi" / "credentials" / "kimi-code.json", "https://api.kimi.com/coding/v1/usages", "https://auth.kimi.com/api/oauth/token"])
+
+
 def home_isolation(root):
   default = home() / ".kimi-code" / "credentials"
   default.mkdir(parents=True)
@@ -148,6 +215,9 @@ def refresh(root):
   expect("a lapsed token is refreshed, and the usage asked with the new one",
          [[request["method"] + " " + request["path"] for request in reqs], auth_header(), bool(data["limits"])],
          [["POST /api/oauth/token", "GET /coding/v1/usages"], "Bearer AT_new", True], data)
+  expect("both requests identify themselves, since kimi.ai refuses urllib's own User-Agent",
+         [{key.lower(): value for key, value in request["headers"].items()}.get("user-agent") for request in reqs],
+         ["omarchy-agent-usage-kimi"] * 2)
   expect("the rotated single-use refresh token is kept", [persisted["access_token"], persisted["refresh_token"]], ["AT_new", "RT_new"], persisted)
 
 
@@ -435,7 +505,7 @@ def switched_cache(root):
   expect("an answer is never kept under a token it wasn't asked with", record()["limits"], [])
 
 
-cases = {"contract": contract, "env_key": env_key, "stores": stores, "share_dir": share_dir, "home": home_isolation, "static": static_token,
+cases = {"contract": contract, "env_key": env_key, "stores": stores, "share_dir": share_dir, "scoped_slot": scoped_slot, "home": home_isolation, "static": static_token,
          "refresh": refresh, "cli_lock": cli_lock, "stale_lock": stale_lock,"lock_failure": lock_failure, "heartbeat": heartbeat,
          "private_write": private_write, "concurrent_signin": concurrent_signin, "concurrent_logout": concurrent_logout,
          "invalid_grant": invalid_grant, "refused_refresh": refused_refresh, "key_help": key_help, "refused": refused,
