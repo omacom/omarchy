@@ -6,6 +6,8 @@ QtObject {
   required property string ownerPluginId
   required property string serviceId
 
+  signal resumed()
+
   property bool stayAwake: false
   property bool enabled: false
   property bool doNotDisturb: false
