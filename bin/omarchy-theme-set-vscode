@@ -9,9 +9,35 @@ GENERATED_EXTENSION_NAME="omarchy-theme"
 GENERATED_EXTENSION_ID="local.$GENERATED_EXTENSION_NAME"
 GENERATED_EXTENSION_VERSION="1.0.0"
 
+# Replace the resolved registry beside its target so dotfile symlinks and modes survive.
+rewrite_extension_registry() {
+  (
+    local file="$1" initial="$2" target tmp mode
+    shift 2
+    target=$(readlink -f -- "$file") || return
+    if [[ -e $target ]]; then
+      mode=$(stat -c '%a' -- "$target") || return
+      if [[ ! -f $target || ! -w $target ]] || (( (8#$mode & 0222) == 0 )); then
+        printf 'Cannot update read-only extension registry: %s\n' "$file" >&2
+        return 1
+      fi
+    fi
+
+    tmp=$(mktemp "$target.XXXXXX") || return
+    trap 'rm -f -- "$tmp"' EXIT
+    if [[ -f $target ]]; then
+      jq "$@" "$target" >"$tmp" || return
+      chmod --reference="$target" "$tmp" || return
+    else
+      printf '%s\n' "$initial" | jq "$@" >"$tmp" || return
+    fi
+    mv -fT -- "$tmp" "$target"
+  )
+}
+
 register_generated_extension() {
   local ext_dir="$1"
-  local ext_base extensions_file obsolete_file relative tmp
+  local ext_base extensions_file obsolete_file relative remaining
 
   ext_base=$(dirname "$ext_dir")
   extensions_file="$ext_base/extensions.json"
@@ -19,19 +45,16 @@ register_generated_extension() {
   relative=$(basename "$ext_dir")
 
   if [[ -f $obsolete_file ]]; then
-    tmp=$(mktemp)
-    if jq --arg key "$GENERATED_EXTENSION_ID-$GENERATED_EXTENSION_VERSION" 'del(.[$key])' "$obsolete_file" >"$tmp"; then
-      mv "$tmp" "$obsolete_file"
-      [[ $(jq 'length' "$obsolete_file") == "0" ]] && rm -f "$obsolete_file"
-    else
-      rm -f "$tmp"
+    rewrite_extension_registry "$obsolete_file" '{}' \
+      --arg key "$GENERATED_EXTENSION_ID-$GENERATED_EXTENSION_VERSION" 'del(.[$key])' || return
+    remaining=$(jq 'length' "$obsolete_file") || return
+    # Removing a symlink or its referent would break a dotfile-managed registry.
+    if [[ $remaining == "0" && ! -L $obsolete_file ]]; then
+      rm -f -- "$obsolete_file" || return
     fi
   fi
 
-  [[ -f $extensions_file ]] || printf '[]\n' >"$extensions_file"
-
-  tmp=$(mktemp)
-  if jq \
+  rewrite_extension_registry "$extensions_file" '[]' \
     --arg id "$GENERATED_EXTENSION_ID" \
     --arg version "$GENERATED_EXTENSION_VERSION" \
     --arg fs_path "$ext_dir" \
@@ -48,12 +71,7 @@ register_generated_extension() {
         scheme: "file"
       },
       relativeLocation: $relative
-    }]' \
-    "$extensions_file" >"$tmp"; then
-    mv "$tmp" "$extensions_file"
-  else
-    rm -f "$tmp"
-  fi
+    }]'
 }
 
 # Install generated theme as a local extension for a given editor
@@ -164,7 +182,7 @@ set_theme() {
     fi
   elif [[ -f "$GENERATED_THEME" ]]; then
     # VS Code only discovers local color themes through an extension package.
-    install_generated_extension "$ext_base/$GENERATED_EXTENSION_NAME"
+    install_generated_extension "$ext_base/$GENERATED_EXTENSION_NAME" || return
     theme_name="Omarchy"
   fi
 
@@ -191,14 +209,14 @@ set_theme() {
 }
 
 if ! omarchy-toggle-enabled skip-vscode-theme-changes; then
-  set_theme "code" "$HOME/.config/Code/User/settings.json" "$HOME/.vscode/extensions"
+  set_theme "code" "$HOME/.config/Code/User/settings.json" "$HOME/.vscode/extensions" || exit $?
 fi
 if ! omarchy-toggle-enabled skip-vscode-insiders-theme-changes; then
-  set_theme "code-insiders" "$HOME/.config/Code - Insiders/User/settings.json" "$HOME/.vscode-insiders/extensions"
+  set_theme "code-insiders" "$HOME/.config/Code - Insiders/User/settings.json" "$HOME/.vscode-insiders/extensions" || exit $?
 fi
 if ! omarchy-toggle-enabled skip-codium-theme-changes; then
-  set_theme "codium" "$HOME/.config/VSCodium/User/settings.json" "$HOME/.vscode-oss/extensions"
+  set_theme "codium" "$HOME/.config/VSCodium/User/settings.json" "$HOME/.vscode-oss/extensions" || exit $?
 fi
 if ! omarchy-toggle-enabled skip-cursor-theme-changes; then
-  set_theme "/usr/bin/cursor" "$HOME/.config/Cursor/User/settings.json" "$HOME/.cursor/extensions"
+  set_theme "/usr/bin/cursor" "$HOME/.config/Cursor/User/settings.json" "$HOME/.cursor/extensions" || exit $?
 fi
