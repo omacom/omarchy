@@ -7,7 +7,7 @@ set -euo pipefail
 
 usage() {
   cat <<USAGE
-Usage: omarchy finalize user [--force] [--first-install]
+Usage: omarchy provision user [--force] [--first-install]
 
 Runs the per-user setup steps that /etc/skel can't seed:
 dev-aware skill symlinks, xdg-user-dirs + gtk bookmarks (need \$HOME),
