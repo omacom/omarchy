@@ -11,9 +11,36 @@ if sudo test -f /boot/EFI/Linux/omarchy_linux.efi && sudo test -f "$legacy_uki";
 fi
 echo "Resetting limine config"
 
-sudo mv /boot/limine.conf /boot/limine.conf.bak
+# Keep other systems' entries (Windows, other Linux installs) and only the header of this one's,
+# so limine-update refills it in place, ahead of them, where default_entry points.
+entries=""
+if sudo test -f /boot/limine.conf; then
+  if ! entries=$(sudo awk -v id="$(cat /etc/machine-id)" '
+    function flush() {
+      if (block == "") return
+      if (is_own && !kept) { printf "\n%s", header; kept = 1 }
+      else if (!is_own) printf "\n%s", block
+      block = header = ""; is_own = nested = 0
+    }
+    /^[[:space:]]*\/[^\/]/ { flush(); in_entry = 1 }
+    !in_entry || /^[[:space:]]*$/ { next }
+    {
+      if (/^[[:space:]]*\/\//) nested = 1
+      if (!nested && $0 ~ ("^[[:space:]]*comment:[[:space:]]*machine-id=" id "([[:space:]]|$)")) is_own = 1
+      block = block $0 "\n"
+      if (!nested) header = header $0 "\n"
+    }
+    END { flush() }
+  ' /boot/limine.conf) || ! sudo mv /boot/limine.conf /boot/limine.conf.bak; then
+    echo "Could not read and back up /boot/limine.conf, leaving it as it is" >&2
+    exit 1
+  fi
+fi
 
-sudo cp "$OMARCHY_PATH/default/limine/limine.conf" /boot/limine.conf
+{
+  cat "$OMARCHY_PATH/default/limine/limine.conf"
+  [[ -z $entries ]] || printf '%s\n' "$entries"
+} | sudo tee /boot/limine.conf >/dev/null
 
 sudo limine-update
 sudo limine-snapper-sync
