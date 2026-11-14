@@ -29,6 +29,10 @@ Item {
   readonly property int lockDelaySeconds: IdleModel.delayAfterFirstIdle(lockTimeoutSeconds, firstIdleTimeoutSeconds)
   readonly property bool idleEnabled: stayAwakeStateLoaded && !stayAwake
   readonly property string screensaverClass: "org.omarchy.screensaver"
+  // The screensaver hides the cursor and shows it again on its way out, but a
+  // terminal that dies without running that exit would leave the desktop with
+  // no cursor. The startup reveal owns the cursor while it is still pending.
+  readonly property string showCursorLua: "if not omarchy_startup_cursor_pending then hl.config({ cursor = { invisible = false } }) end"
 
   property bool stayAwake: false
   property bool stayAwakeStateLoaded: false
@@ -40,6 +44,9 @@ Item {
   property string lastEventAt: ""
   property var screensaverWindows: ({})
   property int screensaverWindowCount: 0
+  // Every open screensaver window, kept apart from the idle cycle's own count,
+  // which lock and cancel clear before the windows have actually closed.
+  property var cursorHidingWindows: ({})
 
   function secondsFromConfig(value, fallback) {
     return IdleModel.secondsFromConfig(value, fallback)
@@ -155,6 +162,16 @@ Item {
     root.cancelIdleCycle("screensaver-dismissed")
   }
 
+  function trackCursorHidingWindow(address, visible) {
+    var next = IdleModel.screensaverWindowsAfter(root.cursorHidingWindows, address, visible)
+    root.cursorHidingWindows = next.windows
+    if (!visible && next.count === 0) {
+      logEvent("cursor-show", "last screensaver window closed")
+      cursorShowProcess.running = false
+      cursorShowProcess.running = true
+    }
+  }
+
   function eventParts(event, count) {
     return IdleModel.eventParts(event, count)
   }
@@ -163,10 +180,14 @@ Item {
     var name = String(event && event.name ? event.name : "")
     if (name === "openwindow") {
       var open = eventParts(event, 4)
-      if (String(open[2] || "") === root.screensaverClass) root.handleScreensaverWindowOpened(open[0])
+      if (String(open[2] || "") === root.screensaverClass) {
+        root.trackCursorHidingWindow(open[0], true)
+        root.handleScreensaverWindowOpened(open[0])
+      }
     } else if (name === "closewindow") {
       var close = eventParts(event, 1)
       var address = String(close[0] || "")
+      if (root.cursorHidingWindows[address]) root.trackCursorHidingWindow(address, false)
       if (root.screensaverWindows[address]) root.handleScreensaverWindowClosed(address)
     }
   }
@@ -314,6 +335,11 @@ Item {
   Process {
     id: wakeProcess
     onExited: function(exitCode, exitStatus) { root.logEvent("process-exit", "wake exitCode=" + exitCode + " status=" + exitStatus) }
+  }
+
+  Process {
+    id: cursorShowProcess
+    command: ["hyprctl", "eval", root.showCursorLua]
   }
 
   Process {
