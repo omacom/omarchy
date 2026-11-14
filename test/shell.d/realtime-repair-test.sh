@@ -50,6 +50,10 @@ echo "Max realtime timeout $4 $5 us" >"$OMARCHY_PROC_ROOT/$1/limits"
 STUB
 cat >"$stub_bin/loginctl" <<'STUB'
 #!/bin/bash
+if [[ $* == "show-user $MY_UID --property=Linger --value" ]]; then
+  echo "${LINGER:-no}"
+  exit 0
+fi
 [[ $* == "list-users --no-legend" ]] || exit 2
 [[ -z ${LOGINCTL_FAILS:-} ]] || exit 1
 cat "$STATE/users"
@@ -198,12 +202,28 @@ repair() {
     OMARCHY_PROC_ROOT=$proc_root OMARCHY_REALTIME_REPAIR_PENDING=$state/pending \
     OMARCHY_REALTIME_REPAIR_LOCK=$state/lock \
     STATE=$state CALLS=$calls RTKIT_BUDGET=200000 MY_UID=${run_uid:-$my_uid} ME=${run_user:-$me} \
-    PATH="$stub_bin:$ROOT/bin:$PATH" "$repair_command" >"${run_out:-$test_dir/out}" 2>&1
+    PATH="$stub_bin:$ROOT/bin:$PATH" "$repair_command" "$@" >"${run_out:-$test_dir/out}" 2>&1
 }
 
 hard_of() {
   awk '/^Max realtime timeout/ { print $5 }' "$proc_root/$1/limits"
 }
+
+fresh_machine
+touch "$state/rtkit"
+repair --after-login || fail "a login without linger succeeds"
+[[ ! -s $calls ]] || fail "a login without linger does not restart audio"
+
+LINGER=yes NO_SUDO=1 repair --after-login || fail "a lingering login retries realtime without sudo"
+[[ $(<"$calls") == "restart audio" ]] || fail "only audio restarts on a lingering login" "$(cat "$calls")"
+: >"$calls"
+LINGER=yes repair --after-login || fail "a second lingering login succeeds"
+[[ ! -s $calls ]] || fail "an already realtime server is left alone"
+rm -f "$state/rtkit"
+echo TS >"$state/pipewire"
+LINGER=yes repair --after-login || fail "a login without rtkit succeeds"
+[[ ! -s $calls && ! -e $state/rtkit ]] || fail "login does not restart audio or install a missing rtkit"
+pass "login retries PipeWire only when linger left it without realtime scheduling"
 
 fresh_machine
 ZERO_DURING_RESTART=1 repair || fail "the repair succeeds on a fresh machine" "$(cat "$test_dir/out")"
