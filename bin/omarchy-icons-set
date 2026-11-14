@@ -20,7 +20,7 @@ if ! (LC_ALL=C; [[ $SET_NAME =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]); then
   exit 1
 fi
 
-if [[ $SET_NAME != "original" && ! -d $HOME/.config/omarchy/icons/$SET_NAME && ! -d $OMARCHY_PATH/icons/$SET_NAME ]]; then
+if [[ $SET_NAME != "original" && ! -d $HOME/.config/omarchy/icons/$SET_NAME ]] && ! omarchy-icons-dir "$SET_NAME" >/dev/null; then
   echo "Icon set '$SET_NAME' does not exist"
   exit 1
 fi

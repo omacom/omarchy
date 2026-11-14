@@ -85,7 +85,7 @@ default/libalpm/hooks/*.hook
 install/**                     ──►  omarchy             /usr/share/omarchy/install/
 migrations/**                  ──►  omarchy             /usr/share/omarchy/migrations/
 themes/**                      ──►  omarchy             /usr/share/omarchy/themes/
-icons/**                       ──►  omarchy             /usr/share/omarchy/icons/    (icon sets, see theming.md "App icons")
+icons/**                       ──►  omarchy             /usr/share/omarchy/icons/    (Omarchy's icon sets; other packages add theirs here)
 shell/**                       ──►  omarchy             /usr/share/omarchy/shell/
 version                        ──►  omarchy             /usr/share/omarchy/version
                                                         + /etc/skel/.local/state/omarchy/migrations/*

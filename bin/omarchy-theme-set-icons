@@ -5,12 +5,12 @@
 
 # An icon set is a directory of app icons named after the Icon= of the desktop
 # entries they are for: <icon name>.svg.tpl is drawn in the theme's colors, and
-# <icon name>.svg is used as it is. Omarchy's own sets live in icons,
-# the user's in ~/.config/omarchy/icons, and `omarchy icons set` picks the one
-# in use. A set and a theme are chosen separately: the theme only ever supplies
+# <icon name>.svg is used as it is. Omarchy's own sets live in its icons/,
+# another package's in /usr/share/omarchy/icons, the user's in
+# ~/.config/omarchy/icons, and `omarchy icons set` picks the one in use. A set and a theme are chosen separately: the theme only ever supplies
 # the colors, so it ships no icons of its own.
 #
-# A user's set with the name of a built-in one is laid over it, icon by icon, so
+# A user's set with the name of an installed one is laid over it, icon by icon, so
 # ~/.config/omarchy/icons/papercraft/<icon name>.svg.tpl redraws a single icon
 # of the default set. A set that isn't there draws nothing, which is how the
 # `original` set brings every app's own icon back.
@@ -34,8 +34,10 @@ THEME="$CURRENT/theme"
 ICONS="$CURRENT/icons"
 LINKS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
 SET=$(omarchy-icons-current --id)
-BUILT_IN_SET="$OMARCHY_PATH/icons/$SET"
+INSTALLED_SET=$(omarchy-icons-dir "$SET")
 USER_SET="$HOME/.config/omarchy/icons/$SET"
+# Original draws nothing, whatever a directory of that name holds.
+[[ $SET != "original" ]] || USER_SET=""
 
 shopt -s nullglob
 
@@ -49,11 +51,13 @@ scratch=$(mktemp -d "$CURRENT/.icons.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 mkdir "$scratch/set" "$scratch/out"
 
-# The user's set goes over the built-in one of the same name. An icon is given
-# once, so the user's drawing replaces the built-in template of that name and
+# The user's set goes over the installed one of the same name. An icon is given
+# once, so the user's drawing replaces the installed template of that name and
 # the other way around. A set cloned from a git repo holds whatever its author
-# pushed, so its symlinks, which point wherever they chose, are left out.
-for dir in "$BUILT_IN_SET" "$USER_SET"; do
+# pushed, so its symlinks, which point wherever they chose, are left out; a set
+# a package installed came through pacman and is read as it is.
+for dir in "$INSTALLED_SET" "$USER_SET"; do
+  [[ -n $dir ]] || continue
   for icon in "$dir"/*.svg "$dir"/*.svg.tpl; do
     [[ -f $icon ]] || continue
     [[ -L $icon && -e $dir/.git ]] && continue

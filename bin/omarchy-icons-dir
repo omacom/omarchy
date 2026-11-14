@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Print the directory an installed icon set lives in
+# omarchy:args=[icon-set-id]
+# omarchy:hidden=true
+
+# An icon set comes with Omarchy, in its own icons/, or with any other package,
+# which installs it as /usr/share/omarchy/icons/<name>/. Omarchy's own tree is
+# read first, so a development checkout draws its sets rather than the packaged
+# copies of them, and still finds the sets other packages installed. Original
+# is the set with nothing in it, so it has no directory whoever ships one.
+#
+# The user's sets in ~/.config/omarchy/icons are not answered here: they are
+# laid over the set of the same name, or stand alone. With no set named, the
+# installed sets are listed.
+PACKAGED_SETS="${OMARCHY_PACKAGED_ICONS_PATH:-/usr/share/omarchy/icons}"
+
+if [[ -z ${1:-} ]]; then
+  for dir in "$OMARCHY_PATH/icons" "$PACKAGED_SETS"; do
+    [[ -d $dir ]] && find "$dir/" -mindepth 1 -maxdepth 1 -type d ! -name original -printf '%f\n'
+  done | sort -u
+  exit 0
+fi
+
+[[ $1 != "original" ]] || exit 1
+
+for dir in "$OMARCHY_PATH/icons/$1" "$PACKAGED_SETS/$1"; do
+  if [[ -d $dir ]]; then
+    printf '%s\n' "$dir"
+    exit 0
+  fi
+done
+
+exit 1
