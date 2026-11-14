@@ -323,3 +323,21 @@ assertEqual(progress(10, 10), 0.9, 'a start reaches 90% at the time the last one
 assert(progress(20, 10) > progress(15, 10) && progress(15, 10) > 0.9, 'a start that runs long keeps creeping')
 assert(progress(1000, 10) < 0.99, 'the bar never fills before the model is ready')
 JS
+
+# The time left is wider in most languages than English's "19h 40m". A column
+# measured from the English sample let the German one run over the meter.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
+const sample = source.match(/function durationSample\([^]*?\n  \}/)
+assert(sample, 'the agents panel sizes its time left from a sample duration')
+const catalog = JSON.parse(fs.readFileSync(root + '/default/i18n/de/shell.json', 'utf8'))
+const hole = text => ({ arg: value => hole(text.replace(/%\d/, value)), text })
+const Commons = { I18n: { t: key => hole(catalog[key]), formatNumber: String } }
+const durationSample = new Function('Commons', sample[0] + '\nreturn durationSample')(Commons)
+assertEqual(durationSample('agents.durationHoursMinutes').text, '00 Std. 00 Min.', 'the sample is the translated hours and minutes')
+assertEqual(durationSample('agents.durationDaysHours').text, '00 Tg. 00 Std.', 'the sample is the translated days and hours')
+assert(!/text: "00h 00m"/.test(source), 'no column is measured from the English sample')
+for (const key of ['agents.durationHoursMinutes', 'agents.durationDaysHours'])
+  assert(source.includes('text: root.durationSample("' + key + '")'), key + ' is measured for the value column')
+JS
