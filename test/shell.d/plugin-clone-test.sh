@@ -191,3 +191,19 @@ fi
 [[ ! -e $TMPDIR/home/.config/omarchy/plugins/tester.osd ]] ||
   fail "failed clone discovery leaves a partial clone behind"
 pass "clone removes a partial clone when switching fails"
+
+# Removing the last plugin leaves the plugins folder behind, empty. The picker
+# needs a terminal, so script gives it one; gum is stubbed to record a call.
+cat >"$TMPDIR/bin/gum" <<'SH'
+#!/bin/bash
+printf 'gum %s\n' "$*" >>"$FAKE_CALLS"
+exit 1
+SH
+chmod +x "$TMPDIR/bin/gum"
+mkdir -p "$TMPDIR/empty/.config/omarchy/plugins"
+: >"$CALLS"
+remove_output=$(HOME="$TMPDIR/empty" OMARCHY_PATH="$ROOT" PATH="$TMPDIR/bin:$ROOT/bin:$PATH" \
+  FAKE_CALLS="$CALLS" script -qec omarchy-plugin-remove /dev/null </dev/null 2>&1 || true)
+[[ $remove_output == *"no plugins installed"* && ! -s $CALLS ]] ||
+  fail "remove with no plugins left says so instead of opening an empty picker" "$remove_output"
+pass "remove with no plugins left says so instead of opening an empty picker"

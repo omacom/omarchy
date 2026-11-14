@@ -390,6 +390,12 @@ if [[ $preload == true ]]; then
   exit 0
 fi
 
+# With no image the picker never reveals itself, so nothing to offer exits 3,
+# as omarchy-menu-select does, for the caller to say why.
+if [[ -z $rows ]]; then
+  exit 3
+fi
+
 if ! open_result=$(omarchy-shell image-selector open \
      "" \
      "$rows_b64" \

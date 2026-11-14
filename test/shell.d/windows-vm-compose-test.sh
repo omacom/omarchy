@@ -510,3 +510,20 @@ df() {
 unset -f df
 [[ $(cat "$df_log") == "$external_storage" ]] || fail "free-space used home filesystem"
 pass "disk-space checks follow the storage symlink target"
+
+# Under 2G of memory leaves no RAM size to offer, so install stops before the
+# picker. The steps around it are stubbed in the substitution's own shell.
+reset_case
+ram_calls="$TMPDIR/ram-calls"
+: >"$ram_calls"
+ram_output=$(
+  prepare_user_mount_sources() { :; }
+  check_prerequisites() { :; }
+  omarchy-pkg-add() { :; }
+  awk() { if [[ ${!#} == /proc/meminfo ]]; then echo 1; else command awk "$@"; fi; }
+  gum() { printf 'gum %s\n' "$*" >>"$ram_calls"; }
+  install_windows 2>&1
+) && fail "install with under 2G of memory succeeded"
+[[ $ram_output == *"Insufficient memory for Windows VM"* && ! -s $ram_calls ]] ||
+  fail "install with under 2G of memory says so instead of opening an empty picker" "$ram_output"
+pass "install with under 2G of memory says so instead of opening an empty picker"

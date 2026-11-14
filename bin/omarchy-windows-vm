@@ -1200,6 +1200,13 @@ EOF
   echo "  Total CPU Cores: $TOTAL_CORES"
   echo ""
 
+  if ((TOTAL_RAM_GB < 2)); then
+    echo "❌ Insufficient memory for Windows VM!"
+    echo "   Available: $TOTAL_RAM"
+    echo "   Minimum required: 2GB"
+    exit 1
+  fi
+
   RAM_OPTIONS=""
   for size in 2 4 8 16 32 64; do
     if ((size <= TOTAL_RAM_GB)); then

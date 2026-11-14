@@ -195,6 +195,31 @@ grep -Fxq "$images/one.png"$'\t'"$cache_dir/$hash.jpg" <<<"$rows" ||
   fail "image menu regenerates the thumbnail of an image overwritten in place"
 pass "image menu notices an image overwritten in place"
 
+# A theme can be its colors alone, with no backgrounds to offer. The picker
+# would open with no image to reveal it, so the switcher says so instead.
+switcher_bin="$tmp/switcher-bin"
+switcher_home="$tmp/switcher-home"
+mkdir -p "$switcher_bin" "$switcher_home/.local/state/omarchy/current/theme"
+printf 'plain' >"$switcher_home/.local/state/omarchy/current/theme.name"
+cat >"$switcher_bin/omarchy-shell" <<'EOF'
+#!/bin/bash
+printf 'omarchy-shell %s\n' "$*" >>"$FAKE_CALLS"
+touch "$7"
+printf 'ok\n'
+EOF
+cat >"$switcher_bin/omarchy-notification-send" <<'EOF'
+#!/bin/bash
+printf 'notification: %s\n' "$*" >>"$FAKE_CALLS"
+EOF
+chmod +x "$switcher_bin"/*
+: >"$tmp/switcher-calls"
+status=0
+HOME="$switcher_home" PATH="$switcher_bin:$stub_bin:$PATH" XDG_CACHE_HOME="$cache_home" FAKE_CALLS="$tmp/switcher-calls" \
+  "$ROOT/bin/omarchy-theme-bg-switcher" >/dev/null || status=$?
+(( status != 0 )) && [[ $(<"$tmp/switcher-calls") == "notification: No background was found for theme -t 2000" ]] ||
+  fail "background switcher with no backgrounds says so instead of opening an empty picker" "status=$status $(<"$tmp/switcher-calls")"
+pass "background switcher with no backgrounds says so instead of opening an empty picker"
+
 # Block converters behind a gate: printing lazy rows must neither await them
 # nor start one process per image. Repeated refreshes share one worker pool.
 lazy_images="$tmp/lazy-images"
