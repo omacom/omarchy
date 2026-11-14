@@ -303,7 +303,7 @@ pass "keybinding descriptions show in the Omarchy language"
 # saved with CRLF line ends and blanks around a line, and (the copy above) none.
 platform=$tmpdir/platform
 mkdir -p "$platform/root" "$platform/crlf"
-printf '%s\n' 'XF86MonBrightnessUp F2' 'XF86MonBrightnessDown F1' 'not a line' 'Bad-Sym F3' >"$platform/root/key-names"
+printf '%s\n' 'XF86MonBrightnessUp F2' 'XF86MonBrightnessDown F1' 'not a line' 'Bad-Sym F3' 'XF86KbdBrightnessUp -' 'Bad-Sym -' >"$platform/root/key-names"
 printf '%s\r\n' 'XF86MonBrightnessUp F2' '  XF86MonBrightnessDown	F1 ' >"$platform/crlf/key-names"
 platform_root_copy "$ROOT/bin/omarchy-menu-keybindings" "$platform/with-names" "$platform/root"
 platform_root_copy "$ROOT/bin/omarchy-menu-keybindings" "$platform/crlf-names" "$platform/crlf"
@@ -341,6 +341,14 @@ bind
 	dispatcher: exec
 	arg: wtype -k XF86MonBrightnessUp
 
+bindl
+	modmask: 0
+	key: XF86KbdBrightnessUp
+	keycode: 0
+	description: Keyboard brightness up
+	dispatcher: exec
+	arg: omarchy-brightness-keyboard up
+
 bindm
 	modmask: 64
 	key: Q
@@ -375,6 +383,12 @@ grep -qF 'XF86MonBrightness' <<<"$output" &&
 tr -s ' ' <<<"$output" | grep -qF 'SUPER + Q → Close window' ||
   fail "unrelated bindings render unchanged (SUPER + Q)" "$output"
 
+# A key the platform's keyboards do not have ("<keysym> -") leaves its rows out.
+grep -qF 'XF86KbdBrightnessUp' <<<"$output" &&
+  fail "a key the platform's keyboards lack is left out of the menu" "$output"
+(( $(tr -s ' ' <<<"$output" | grep -cF '→ Keyboard brightness up') == 1 )) ||
+  fail "only the absent key's row goes, not others with the same action" "$output"
+
 # The menu runs a chosen row from its cached record, which carries what the
 # binding runs.
 records=$(cat "$names_cache"/omarchy/keybindings-*.records)
@@ -394,6 +408,8 @@ output=$(keybindings "$menu" "$names_cache")
 tr -s ' ' <<<"$output" | grep -qF 'SHIFT + XF86MonBrightnessUp → Keyboard brightness up' ||
   fail "without key names the brightness key keeps its own name" "$output"
 grep -qF 'SHIFT + F2' <<<"$output" && fail "without key names nothing is renamed F2" "$output"
+tr -s ' ' <<<"$output" | grep -qF 'XF86KbdBrightnessUp → Keyboard brightness up' ||
+  fail "without key names no key is left out" "$output"
 pass "keybindings menu keeps keysym names without a platform package"
 
 # The menu learns about Lua-only binds by running the user's hyprland.lua under
