@@ -9,6 +9,7 @@ test_tmp="$boundary_tmp"
 stub_bin="$SUDO_TEST_ROOT/bin"
 test_home="$SUDO_TEST_HOME"
 runtime_dir="/run/user/$(id -u)"
+mkdir -p -m 700 "$runtime_dir" 2>/dev/null || true
 test_run_id="test-$BASHPID-$RANDOM"
 update_lock_name="omarchy-update-$test_run_id.lock"
 stay_awake_dir_name="omarchy-update-stay-awake-$test_run_id"
