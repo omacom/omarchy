@@ -83,6 +83,23 @@ assertEqual(bar.centerBesideRight([], 'top', 'eDP-1', 1512, 982, 2, mode(3024, 1
 for (const position of ['bottom', 'left', 'right'])
   assertEqual(bar.centerBesideRight(cutouts, position, 'eDP-1', 1512, 982, 2, mode(3024, 1964)), false, `a ${position} bar keeps the center section`)
 
+// A described cutoutWidth, or a calibrated [bar] notch-width, splits the center
+// sections around the notch instead of moving them beside the right one.
+const wide = bar.parseCutouts(JSON.stringify({ panels: [
+  { connector: 'eDP', width: 3024, height: 1964, top: 64, cutoutWidth: 370 },
+  { connector: 'eDP', width: 2560, height: 1664, top: 56, cutoutWidth: 2560 }
+] }))
+assertEqual(wide.length, 2, 'an unusable cutoutWidth keeps its panel')
+assertEqual(wide[1].cutoutWidth, undefined, 'a cutoutWidth as wide as the panel is left out')
+assertEqual(bar.notchSpan(wide, 'top', 'eDP-1', 1512, 982, 2, mode(3024, 1964), 0), 185, 'the described width is in logical pixels')
+assertEqual(bar.notchSpan(wide, 'top', 'eDP-1', 1890, 1228, 2, mode(3024, 1964), 0), 232, 'a fractional scale rounds the width up')
+assertEqual(bar.centerBesideRight(wide, 'top', 'eDP-1', 1512, 982, 2, mode(3024, 1964), 0), false, 'a notch of known width splits the center sections')
+assertEqual(bar.centerBesideRight(wide, 'top', 'eDP-1', 1280, 832, 2, mode(2560, 1664), 0), true, 'one of unknown width still moves them beside the right one')
+assertEqual(bar.notchSpan(cutouts, 'top', 'eDP-1', 1512, 982, 2, mode(3024, 1964), 190), 190, 'a calibrated notch-width stands in for a missing one')
+assertEqual(bar.centerBesideRight(cutouts, 'top', 'eDP-1', 1512, 982, 2, mode(3024, 1964), 190), false, 'and splits the center sections too')
+assertEqual(bar.notchSpan(cutouts, 'top', 'DP-1', 2560, 1440, 1, mode(2560, 1440), 190), 0, 'a calibrated notch-width never reaches an external monitor')
+assertEqual(bar.notchSpan(wide, 'bottom', 'eDP-1', 1512, 982, 2, mode(3024, 1964), 0), 0, 'a bottom bar has no notch to split around')
+
 // With no gap the last center slot and the first right slot would share an
 // edge, and a drop there would always land in whichever registered first.
 const seam = [
