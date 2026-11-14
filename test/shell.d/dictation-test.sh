@@ -422,3 +422,6 @@ printf '%s\n' voxtype > "$config"
 omarchy-remove-dictation-hex
 [[ $(cat "$config") == "voxtype" ]] || fail "removing Hex preserves another selected backend"
 pass "Hex installer selects Hex only after setup succeeds, and removal clears only its own selection"
+
+python3 "$ROOT/test/shell.d/fixtures/dictation-cancel-test.py" "$ROOT"
+pass "dictation cancellation discards Voxtype input and shares the backend-selection lock"
