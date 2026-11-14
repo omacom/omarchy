@@ -1090,14 +1090,14 @@ ShellRoot {
   Connections {
     target: shell.pluginRegistry
     function onPluginsChanged() {
-      shell.syncPluginApis()
+      Qt.callLater(shell.syncPluginApis)
       if (!shell.pluginReloading) shell._syncServices()
     }
   }
 
   Connections {
     target: shell.barWidgetRegistry
-    function onChanged() { shell.syncPluginApis() }
+    function onChanged() { Qt.callLater(shell.syncPluginApis) }
   }
 
   Connections {
