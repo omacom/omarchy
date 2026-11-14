@@ -37,8 +37,12 @@ When you finish your Omarchy install, you'll notice that the Limine bootloader i
 
 To add other operating systems, run `limine-scan` and follow the prompts to add the entries you want to your Limine config. The boot menu stays hidden by default and starts Omarchy after one second. To choose Windows or another entry, press any key as soon as Limine starts; when the menu appears, use the arrow keys to select an entry and press Enter. If Omarchy starts before you press a key, restart and try again. If you turned on _Setup > Direct Boot_, the firmware skips Limine entirely, so pick Limine from your BIOS boot menu or run _Setup > Direct Boot_ again to remove the entry.
 
-## Bitlocker
+## BitLocker
 
-It's important to note that this install method is not compatible with Bitlocker as it encrypts the entire drive, not just the partition. If you encounter an error stating that Bitlocker is enabled, boot to Windows, go to **Settings -> Privacy & Security -> Device encryption** and toggle Bitlocker off. It may take some time to decrypt the drive.
+The current free-space installer will not proceed when it detects BitLocker on the selected disk. If you encounter this error, boot into Windows, go to **Settings -> Privacy & Security -> Device encryption**, and toggle BitLocker off. Wait for Windows to finish decrypting the volume before retrying the installation. Suspending BitLocker protection is not enough to satisfy this installer check.
 
  ![dual-boot-7](images/dual-boot-7.webp)
+
+After Omarchy is installed, you can turn BitLocker back on for the Windows volume. Make sure you select only the Windows volume and leave the Omarchy partitions unchanged. When enabling it, save the recovery key somewhere accessible outside the encrypted Windows volume.
+
+If you want to start Windows with Limine, run `limine-scan` and successfully boot Windows from the new entry before turning BitLocker back on, because changing the Windows boot path afterward can alter TPM measurements and trigger recovery. Keep the recovery key available, and suspend BitLocker before changing Secure Boot or TPM settings, installing UEFI/BIOS or TPM firmware updates outside Windows, or changing the Windows boot path.
