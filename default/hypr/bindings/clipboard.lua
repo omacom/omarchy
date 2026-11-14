@@ -11,23 +11,27 @@ local keycodes = {}
 -- Injection delivers the key in group 0, so resolve the primary layout's
 -- unmodified letter instead of assuming QWERTY positions: A/C/V/X also move
 -- on AZERTY, Dvorak, and Colemak-DH layouts.
-local function shortcut_keycode(key)
-  local command = { "xkbcli how-to-type --disable-compose --keysym" }
+local function shortcut_keymap_options()
   local keymap = hl.get_config("input.kb_file") or ""
   if keymap ~= "" then
     -- A keymap replaces RMLVO; xkbcli rejects combining the two. Its optional
     -- file argument also requires the equals form rather than a separate word.
-    table.insert(command, "--keymap=" .. o.shell_quote(keymap))
-  else
-    for _, option in ipairs({ "layout", "variant", "model", "options", "rules" }) do
-      local value = hl.get_config("input.kb_" .. option) or ""
-      if value ~= "" then
-        table.insert(command, "--" .. option .. " " .. o.shell_quote(value))
-      end
+    return "--keymap=" .. o.shell_quote(keymap)
+  end
+
+  local options = {}
+  for _, option in ipairs({ "layout", "variant", "model", "options", "rules" }) do
+    local value = hl.get_config("input.kb_" .. option) or ""
+    if value ~= "" then
+      table.insert(options, "--" .. option .. " " .. o.shell_quote(value))
     end
   end
-  table.insert(command, o.shell_quote(key:lower()))
-  local lookup = table.concat(command, " ")
+  return table.concat(options, " ")
+end
+
+local function shortcut_keycode(key)
+  local lookup = "xkbcli how-to-type --disable-compose --keysym "
+    .. shortcut_keymap_options() .. " " .. o.shell_quote(key:lower())
   if keycodes[lookup] then
     return keycodes[lookup]
   end
