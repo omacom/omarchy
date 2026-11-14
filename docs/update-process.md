@@ -266,6 +266,7 @@ which pacman repo the mirrorlist points at (and swap between the `omarchy` and
 the runtime to a git checkout via the dev-link mechanism, after which
 `omarchy update` fast-forwards that checkout instead of upgrading a package.
 The refresh before that swap ignores `omarchy-dev` and `omarchy-settings-dev` on stable and rc, so an old build of them still listed in those repositories can't replace an edge machine's tree before the swap installs the release.
+When the refresh's downgrade stops on files owned by a package that no repository on the destination channel has, such as edge's `openssl-3`, whose `libcrypto.so.3` and `libssl.so.3` stable and rc's `openssl` installs again, the refresh removes that package and retries. It does so only when the upgrade itself replaces everything that needs it, after `IgnorePkg` and `--ignore`, and a cached copy of it can be reinstalled. If the retry doesn't finish, including when the switch is interrupted, it reinstalls that copy.
 Channel switching runs the `pre-refresh-pacman` hook once, during its refresh
 step, after the package config is re-synced and before the refresh transaction. It does not run if the switch fails earlier.
 
