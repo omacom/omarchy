@@ -39,11 +39,23 @@ if ! (LC_ALL=C; [[ $SET_NAME =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]) || [[ $SET_NAME == 
   exit 1
 fi
 
-# Only a set this command cloned is replaced. One the user wrote, or a working
-# copy they linked in, is theirs: it is left alone and the install refused.
+# Only a set this command cloned, and that is still as it was cloned, is
+# replaced. One the user wrote, or a working copy they linked in, is theirs: it
+# is left alone and the install refused.
 if [[ -e $SET_PATH || -L $SET_PATH ]] && [[ -L $SET_PATH || ! -d $SET_PATH/.git ]]; then
   echo "Error: icon set '$SET_NAME' already exists and was not installed from git. Remove it first."
   exit 1
+fi
+
+# A set this command cloned may have been edited since: files changed or added
+# in place, or commits made that its remote never saw. Replacing it would lose
+# them, so it is refused as well. A clone git can't read is not vouched for.
+if [[ -d $SET_PATH ]]; then
+  if ! changes=$(git -C "$SET_PATH" status --porcelain) || [[ -n $changes ]] ||
+    [[ -n $(git -C "$SET_PATH" log --branches --not --remotes --oneline 2>/dev/null) ]]; then
+    echo "Error: icon set '$SET_NAME' has local changes. Remove it first, or keep them somewhere else."
+    exit 1
+  fi
 fi
 
 # Cloned beside the sets and moved into place once it is whole, so a clone that

@@ -18,6 +18,8 @@ mkdir -p "$mock_bin"
 cat >"$mock_bin/git" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_GIT_CALLS"
+[[ $* == *" status --porcelain" ]] && { printf '%s' "${OMARCHY_TEST_GIT_STATUS:-}"; exit 0; }
+[[ $* == *" log --branches --not --remotes --oneline" ]] && { printf '%s' "${OMARCHY_TEST_GIT_UNPUSHED:-}"; exit 0; }
 [[ -z ${OMARCHY_TEST_GIT_FAILS:-} ]] || exit 1
 [[ $1 == "clone" ]] && mkdir -p "${*: -1}/.git" && printf 'cloned\n' >"${*: -1}/mpv.svg"
 exit 0
@@ -96,6 +98,20 @@ install_icons "https://github.com/example/omarchy-cool-icons.git" || fail "omarc
 [[ $(<"$sets/cool/mpv.svg") == "cloned" ]] || fail "reinstalling replaces the cloned icon set"
 
 pass "a failed clone leaves the installed icon set in place"
+
+# A cloned set the user has since edited is not replaced either: neither with
+# files changed in place nor with commits its remote never saw.
+printf 'edited\n' >"$sets/cool/mpv.svg"
+if OMARCHY_TEST_GIT_STATUS=" M mpv.svg" install_icons "https://github.com/example/omarchy-cool-icons.git"; then
+  fail "omarchy-icons-install refuses to replace a cloned set with uncommitted changes"
+fi
+if OMARCHY_TEST_GIT_UNPUSHED="abc1234 my icon" install_icons "https://github.com/example/omarchy-cool-icons.git"; then
+  fail "omarchy-icons-install refuses to replace a cloned set with commits of the user's own"
+fi
+! grep -q '^clone' "$git_calls" || fail "a cloned set with local changes is refused before cloning" "$(cat "$git_calls")"
+[[ $(<"$sets/cool/mpv.svg") == "edited" ]] || fail "a cloned icon set's local changes are left as they were"
+
+pass "installing never replaces a cloned icon set that has local changes"
 
 # A set the user wrote, or a working copy they linked in, is never replaced.
 mkdir -p "$sets/handmade" "$test_tmp/working/.git"
