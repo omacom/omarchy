@@ -516,7 +516,19 @@ Panel {
   readonly property string connectivity: Model.connectivityState(kind, Networking.connectivity, {
     Portal: NetworkConnectivity.Portal, Limited: NetworkConnectivity.Limited,
     Full: NetworkConnectivity.Full, None: NetworkConnectivity.None
-  }, connectivityChecksEnabled)
+  }, connectivityChecksEnabled, limitedSettled)
+  // A network switch passes through Limited for a fraction of a second while
+  // NetworkManager's first probe is in flight. Wait that out rather than flash
+  // the outage warning on every connect.
+  readonly property bool nativeLimited: Networking.connectivity === NetworkConnectivity.Limited
+  property bool limitedSettled: false
+  onNativeLimitedChanged: if (!nativeLimited) limitedSettled = false
+  Timer {
+    id: limitedSettle
+    interval: 3000
+    running: root.nativeLimited
+    onTriggered: root.limitedSettled = true
+  }
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
   readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
