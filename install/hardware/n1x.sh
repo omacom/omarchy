@@ -59,9 +59,11 @@ RULES
 # Omarchy's Thunderbolt authorization prompt, like any other accessory.
 #
 # The ASUS ProArt P14's sizes are validated with a CalDigit TS4 on all three
-# ports. Other N1x laptops (the Dell XPS 16) set aside fewer bus numbers, as
-# tested there with a TS4.
-if omarchy-hw-match "H7407BA"; then
+# ports. The ProArt P16 has the same three USB4 host routers and tunnel root
+# ports and takes the same sizes; a Surface Thunderbolt 4 Dock's PCIe switch
+# comes up behind one there. Other N1x laptops (the Dell XPS 16) set aside
+# fewer bus numbers, as tested there with a TS4.
+if omarchy-hw-match "H7407BA" || omarchy-hw-match "H7607BA"; then
   cat > /etc/limine-entry-tool.d/00-omarchy-n1x-usb4.conf <<'CONF'
 # N1x: leave room for docks behind the USB4 tunnel root ports; see
 # install/hardware/n1x.sh.
