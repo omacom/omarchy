@@ -32,6 +32,7 @@ mkdir -p "$HOME/.local/bin"
 # a package name carrying shell characters stays one argument instead of running.
 printf -v package_arg '%q' "$package"
 printf -v bin_arg '%q' "$bin"
+printf -v diagnostic_arg '%q' "omarchy-mise-install: '$command' recursed; mise could not provide $bin"
 
 # Keep values that are inert inside double quotes in the form existing migrations
 # recognize, including mise backend options that %q would unnecessarily escape.
@@ -44,13 +45,24 @@ case "$bin" in
   *) bin_arg="\"$bin\"" ;;
 esac
 
+guard="_OMARCHY_MISE_GUARD_$(printf '%s' "$command" | tr -c 'A-Za-z0-9_' '_' | tr '[:lower:]' '[:upper:]')"
+
 # These tools install and upgrade on first run, so mise's release cooldown would
 # hold a new version back for days after it ships. Exported rather than set on
 # the install line alone, so resolving the version to execute agrees with the
 # one just installed.
+#
+# mise resolves the command below by PATH when the tool does not provide it,
+# which finds this wrapper again. Guard against recursing indefinitely when
+# the tool is missing or fails to provide the binary (omacom/omarchy#13177).
 rm -f "$HOME/.local/bin/$command"
 cat >"$HOME/.local/bin/$command" <<EOF
 #!/bin/bash
+if [[ -n \${$guard:-} ]]; then
+  printf '%s\n' $diagnostic_arg >&2
+  exit 127
+fi
+export $guard=1
 export MISE_MINIMUM_RELEASE_AGE=0
 mise use -g --quiet $package_arg || exit 1
 exec mise x $package_arg -- $bin_arg "\$@"
