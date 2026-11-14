@@ -1273,6 +1273,9 @@ Item {
   OverlayWindow {
     id: panel
     shown: root.opened && root.rowsLoaded
+    cooperativeFocus: root.shell ? root.shell.overlaysCooperativeFocus : false
+    ownReservedSpace: root.shell ? root.shell.barReservedSpace : [0, 0, 0, 0]
+    onDismissRequested: root.cancel()
     WlrLayershell.namespace: "omarchy-menu"
 
     // The card opens centered exactly as always. The first search keystroke
