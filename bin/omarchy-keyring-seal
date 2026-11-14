@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# omarchy:summary=Seal the secret that unlocks this user's oo7 keyring without a password.
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Autologin has no password to unlock the keyring with, so oo7-daemon reads this
+# credential instead (ImportCredential= in its unit). It's sealed with the host
+# key rather than the TPM, so that clearing the TPM can't lose the user's secrets.
+# It needs the system's credentials service, so it can't run from the ISO chroot.
+credential_name="oo7.keyring-encryption-password"
+credential_store="${XDG_CONFIG_HOME:-$HOME/.config}/credstore.encrypted"
+credential="$credential_store/$credential_name"
+
+if [[ -s $credential ]]; then
+  exit 0
+fi
+
+umask 077
+mkdir -p "$credential_store"
+chmod 700 "$credential_store"
+
+head -c 32 /dev/urandom | base64 --wrap=0 |
+  systemd-creds encrypt --user --with-key=host --name="$credential_name" - "$credential.new"
+mv "$credential.new" "$credential"
