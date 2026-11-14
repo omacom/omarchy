@@ -16,14 +16,30 @@ if [[ -z $description ]]; then
   exit 2
 fi
 
-label=$(hyprctl binds -j 2>/dev/null | jq -r --arg description "$description" '
-  first(.[] | select(.description == $description and .submap == "" and .mouse == false and .key != ""))
-  | ([ if (.modmask / 64 | floor) % 2 == 1 then "SUPER" else empty end,
-       if (.modmask / 4 | floor) % 2 == 1 then "CTRL" else empty end,
-       if (.modmask / 8 | floor) % 2 == 1 then "ALT" else empty end,
-       if .modmask % 2 == 1 then "SHIFT" else empty end ] | join(" ")) as $mods
-  | if $mods == "" then .key else "\($mods) + \(.key)" end
-' 2>/dev/null)
+# Parse the plain `hyprctl binds` output rather than `hyprctl -j binds`:
+# Hyprland 0.56.0 emits invalid JSON for binds. Lua binds report their full
+# display key ("SUPER + ALT + SPACE") in `key`, while the modifiers are also
+# carried in modmask, so keep only the last part of the key and name the
+# modifiers from modmask, as omarchy-menu-keybindings does.
+label=$(hyprctl binds 2>/dev/null | awk -v description="$description" '
+  function emit(   mods, name) {
+    if (!seen || done || f["description"] != description || f["submap"] != "") return
+    name = f["key"]
+    sub(/^.* \+ /, "", name)
+    if (name == "" && f["keycode"] != "0") name = "code:" f["keycode"]
+    if (name == "" || name ~ /^mouse:/) return
+    mods = ""
+    if (int(f["modmask"] / 64) % 2 == 1) mods = mods " SUPER"
+    if (int(f["modmask"] / 4) % 2 == 1) mods = mods " CTRL"
+    if (int(f["modmask"] / 8) % 2 == 1) mods = mods " ALT"
+    if (int(f["modmask"]) % 2 == 1) mods = mods " SHIFT"
+    print (mods == "" ? name : substr(mods, 2) " + " name)
+    done = 1
+  }
+  /^bind/ { emit(); seen = 1; delete f; next }
+  seen && match($0, /^\t[a-z]+: /) { f[substr($0, 2, RLENGTH - 3)] = substr($0, RLENGTH + 1) }
+  END { emit() }
+')
 
 if [[ -n $label ]]; then
   echo "$label"
