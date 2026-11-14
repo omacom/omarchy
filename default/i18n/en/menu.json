@@ -89,6 +89,9 @@
   "appearance.font": {
     "label": "Font"
   },
+  "appearance.font-hinting": {
+    "label": "Font Hinting"
+  },
   "appearance.top-bar": {
     "label": "Menu Bar"
   },
