@@ -62,12 +62,7 @@ only comments, so the default state adds nothing.
 
 ## Guards
 
-`when`, `checked`, and `disabled` are bash conditions. The shell never
-evaluates them on the open path: all guards in the menu are batched into a
-single bash process per (re)load and per open, reporting `<id>:<w|c|d>:<0|1>`
-lines. The menu opens immediately on the previous evaluation's answers, so
-the batch's runtime is exactly how long a row can contradict the state it
-describes — which is why the batch works hard to be fast:
+`when`, `checked`, and `disabled` are bash conditions. The shell never evaluates them on the open path: all guards in the menu are batched into a single bash process per (re)load and per open, started once the menu's card is on screen so its processes never compete with the first frame, reporting `<id>:<w|c|d>:<0|1>` lines. The menu opens immediately on the previous evaluation's answers, so the batch's runtime is exactly how long a row can contradict the state it describes — which is why the batch works hard to be fast:
 
 - Package and command presence (`omarchy-pkg-present` and friends) are
   answered in-process from one `pacman -Q` snapshot instead of a fork per

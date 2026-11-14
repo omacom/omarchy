@@ -423,4 +423,63 @@ const missingGlyphs = fontGlyphRows
   .filter(({ code }) => !fontRanges.some(([start, end = start]) => code >= start && code <= end))
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
+
+// Opening the menu shows the card first; the guard batch and the icon rescan,
+// which together fork ~150 processes, wait for the card to be on screen plus a
+// frame, fall back to a timer when it never reveals, and are dropped by a close.
+const menuQml = fs.readFileSync(path.join(root, 'shell/plugins/menu/Menu.qml'), 'utf8')
+const qmlBody = (pattern) => {
+  const match = pattern.exec(menuQml)
+  assert(match, `Menu.qml defines ${pattern}`)
+  return match[1]
+}
+const afterReveal = Number(qmlBody(/readonly property int afterReveal: (\d+)/))
+const fallback = Number(qmlBody(/readonly property int fallback: (\d+)/))
+assert(afterReveal > 0 && afterReveal < fallback, 'the reveal delay is short and the fallback longer')
+const scheduleOpenWork = new Function('root', 'panel', 'openWorkTimer', qmlBody(/function scheduleOpenWork\(\) \{([\s\S]*?)\n  \}/))
+const cancelOpenWork = new Function('root', 'openWorkTimer', qmlBody(/function cancelOpenWork\(\) \{([\s\S]*?)\n  \}/))
+const runOpenWork = new Function('root', 'openWorkTimer', qmlBody(/function runOpenWork\(\) \{([\s\S]*?)\n  \}/))
+const contentRevealed = new Function('contentRevealed', 'root', 'openWorkTimer',
+  qmlBody(/onContentRevealedChanged: (if \(contentRevealed && root\.openWorkPending\) \{[\s\S]*?\n    \})/))
+const openWorkTimer = () => ({ afterReveal, fallback, interval: 0, running: false,
+  restart() { this.running = true }, stop() { this.running = false } })
+const menuRoot = () => {
+  const r = { opened: true, openWorkPending: false, guards: 0, icons: 0,
+    evaluateGuards() { r.guards++ }, appLibrary: { refreshIcons() { r.icons++ } } }
+  return r
+}
+
+let openRoot = menuRoot(), workTimer = openWorkTimer()
+scheduleOpenWork(openRoot, { contentRevealed: false }, workTimer)
+assertEqual(workTimer.interval, fallback, 'a window that has not revealed waits on the fallback')
+contentRevealed(true, openRoot, workTimer)
+assertEqual(workTimer.interval, afterReveal, 'the reveal shortens the wait to one frame after it')
+runOpenWork(openRoot, workTimer)
+runOpenWork(openRoot, workTimer)
+assertDeepEqual([openRoot.guards, openRoot.icons, workTimer.running], [1, 1, false],
+  'the timer runs the guard batch and the icon rescan once, then disarms')
+openRoot = menuRoot(); workTimer = openWorkTimer()
+scheduleOpenWork(openRoot, { contentRevealed: true }, workTimer)
+assertEqual(workTimer.interval, afterReveal, 'opening onto an already revealed window waits one frame only')
+openRoot = menuRoot(); workTimer = openWorkTimer()
+scheduleOpenWork(openRoot, { contentRevealed: false }, workTimer)
+openRoot.opened = false
+cancelOpenWork(openRoot, workTimer)
+runOpenWork(openRoot, workTimer)
+assertEqual(openRoot.guards + openRoot.icons, 0, 'closing before the timer fires runs nothing')
+
+// The guard script only changes with the items, which are replaced whole, so
+// it is built once per item set rather than on every open.
+const evaluateGuards = new Function('root', 'guardProc', 'MenuModel', qmlBody(/function evaluateGuards\(\) \{([\s\S]*?)\n  \}/))
+let scriptBuilds = 0
+const guardRoot = { items: { script: 'echo a:w:1' }, guardScriptItems: null, guardScript: '', guardsPending: false }
+const guardBatch = { running: false, collected: '', command: null }
+const evaluateOnce = () => { evaluateGuards(guardRoot, guardBatch, { guardScript(items) { scriptBuilds++; return items.script } }); guardBatch.running = false }
+evaluateOnce()
+evaluateOnce()
+assertEqual(scriptBuilds, 1, 'the guard script is built once for the same items')
+assertEqual(guardBatch.command[guardBatch.command.length - 1], 'echo a:w:1', 'the cached script is what runs')
+guardRoot.items = { script: 'echo b:w:1' }
+evaluateOnce()
+assertEqual(scriptBuilds, 2, 'replaced items rebuild the guard script')
 JS
