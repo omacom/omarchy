@@ -181,6 +181,42 @@ assert_mounts_safe 2>/dev/null && fail "writable compose accepted"
 chmod 0640 "$COMPOSE"
 pass "bring-up rejects tampered, duplicate, unprotected, and writable compose inputs"
 
+# Pre-4.0.1 usernames the writer now rejects still migrate.
+# Install used to accept emails and other strings that fail valid_username.
+# Windows keeps its account after setup, so RDP keeps the original name; only the web console takes docker.
+reset_case
+mkdir -p "$HOME/.config/windows"
+LEGACY_COMPOSE_FILE="$HOME/.config/windows/docker-compose.yml"
+COMPOSE_FILE="$COMPOSE"
+cat >"$LEGACY_COMPOSE_FILE" <<'LEG'
+services:
+  windows:
+    environment:
+      RAM_SIZE: "8G"
+      CPU_CORES: "4"
+      DISK_SIZE: "64G"
+      USERNAME: "user@example.com"
+      PASSWORD: "legacypass"
+      TZ: "UTC"
+    volumes:
+      - /home/old/.windows:/storage
+      - /home/old/Windows:/shared
+LEG
+priv() { return 1; }
+migrate_legacy_compose >"$TMPDIR/migrate.out" 2>&1 && fail "migration succeeded though the elevated writer failed"
+grep -q 'signs in as docker' "$TMPDIR/migrate.out" && fail "migration announced the docker web console login though nothing migrated"
+[[ -f $LEGACY_COMPOSE_FILE ]] || fail "failed migration kept the legacy compose"
+priv() { local action=$1; shift; "__priv_$action" "$@"; }
+migrate_legacy_compose >"$TMPDIR/migrate.out"
+[[ -f $COMPOSE_FILE ]] || fail "migration wrote the root-owned compose for an email username"
+grep -q 'web console .* signs in as docker' "$TMPDIR/migrate.out" || fail "migration tells the user the web console login is now docker"
+grep -q 'USERNAME: "docker"' "$COMPOSE_FILE" || fail "migration sanitizes an invalid legacy username to docker"
+grep -q 'USERNAME: "user@example.com"' "$COMPOSE_FILE" && fail "migration must not write an invalid username into the compose"
+[[ $(read_credential USERNAME) == "user@example.com" ]] || fail "RDP credentials keep the original Windows username"
+[[ $(read_credential PASSWORD) == "legacypass" ]] || fail "RDP credentials keep the original password"
+[[ ! -f $LEGACY_COMPOSE_FILE ]] || fail "migration removes the legacy compose after sanitizing username"
+pass "migration sanitizes invalid legacy usernames and keeps RDP credentials"
+
 # Both sources are pinned before a bind; bad symlinks stay untouched.
 reset_case
 mkdir -p "$HOME/.windows"
