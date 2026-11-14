@@ -37,6 +37,75 @@ install_user_icon() {
   printf '%s\n' "$name"
 }
 
+# A URL that answers with an error body still exits 0, so the answer is
+# checked: an empty file or a body that is not an image is not an icon. The
+# answer is written beside the icon and only replaces it once it is an image,
+# so a failed download leaves an installed icon alone. The downloader's own
+# error is kept, so a failed fetch still says why it failed.
+download_icon() {
+  local url="$1" dest="$2" temp
+
+  temp=$(mktemp "$dest.XXXXXX") || return 1
+  if curl -fsSL --max-time 10 -o "$temp" "$url" &&
+    [[ -s $temp && $(file -b --mime-type "$temp") == image/* ]]; then
+    # The temporary file is owner-only, and the icon is not.
+    chmod 0644 "$temp" && mv -f "$temp" "$dest" && return 0
+  fi
+  rm -f "$temp"
+  return 1
+}
+
+# The desktop resolves an icon through the icon theme, which lives in the data
+# directories it searches, and in the legacy per-user theme directory.
+icon_dirs() {
+  local dir
+  local -a data_dirs=("${XDG_DATA_HOME:-$HOME/.local/share}")
+
+  # A configured list of data directories replaces the default one, the same
+  # way it does for the desktop that resolves the icon.
+  if [[ -n ${XDG_DATA_DIRS:-} ]]; then
+    local -a configured=()
+    IFS=: read -r -a configured <<<"${XDG_DATA_DIRS}"
+    data_dirs+=("${configured[@]}")
+  else
+    data_dirs+=(/usr/local/share /usr/share)
+  fi
+
+  printf '%s\n' "$HOME/.icons"
+  for dir in "${data_dirs[@]}"; do
+    printf '%s\n' "$dir/icons" "$dir/pixmaps"
+  done
+}
+
+# A bare name has to resolve to an icon the desktop environment can find, or
+# the launcher ends up with a blank tile.
+icon_exists() {
+  local name="$1" dir path stem pattern
+
+  # An empty name is not an icon: the search would match every dotfile.
+  [[ -n $name ]] || return 1
+
+  # The name is matched literally, so a name the user typed cannot reach
+  # another file. The theme indexes a name without its extension, so "foo" is
+  # not "foo.bar.png", and a directory is not an icon.
+  pattern=$(printf '%s' "$name" | sed 's/[][*?\\]/\\&/g')
+
+  while IFS= read -r dir; do
+    [[ -d $dir ]] || continue
+    while IFS= read -r path; do
+      stem=${path##*/}
+      stem=${stem%.*}
+      [[ $stem == "$name" ]] || continue
+      # A theme entry is often a symbolic link to the real image, and the
+      # mime probe has to follow it to see what it points at.
+      [[ $(file -L -b --mime-type "$path") == image/* ]] || continue
+      return 0
+    done < <(find "$dir" -maxdepth 4 \( -type f -o -type l \) -name "$pattern.*" 2>/dev/null)
+  done < <(icon_dirs)
+
+  return 1
+}
+
 if (( $# != 4 )); then
   echo -e "\e[32m$(omarchy-i18n tui.intro)\n\e[0m"
   APP_NAME=$(gum input --prompt "$(omarchy-i18n tui.namePrompt)" --placeholder "$(omarchy-i18n tui.namePlaceholder)")
@@ -61,7 +130,7 @@ mkdir -p "$(dirname "$DESKTOP_FILE")"
 if [[ $ICON_REF =~ ^https?:// ]]; then
   ICON_VALUE=$(safe_icon_name "$APP_NAME")
   mkdir -p "$ICON_DIR"
-  if ! curl -sL -o "$ICON_DIR/$ICON_VALUE.png" "$ICON_REF"; then
+  if ! download_icon "$ICON_REF" "$ICON_DIR/$ICON_VALUE.png"; then
     echo "Error: Failed to download icon."
     exit 1
   fi
@@ -71,6 +140,9 @@ elif [[ -f $ICON_REF ]]; then
 else
   # Bundled Omarchy icons are package-owned under /usr/share/icons/hicolor.
   ICON_VALUE=$(icon_name_from_ref "$ICON_REF")
+  if ! icon_exists "$ICON_VALUE"; then
+    echo "Warning: No icon named $ICON_VALUE was found." >&2
+  fi
 fi
 
 if [[ $WINDOW_STYLE == "float" ]]; then
