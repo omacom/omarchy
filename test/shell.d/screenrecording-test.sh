@@ -613,6 +613,36 @@ if status "$legacy_runtime"; then fail "--status reports nothing when no recorde
 [[ ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] || fail "--status never notifies, even without a recordings directory" "$(<"$OMARCHY_TEST_NOTIFICATION_ARGS")"
 pass "--status answers what stop would act on, without a recordings directory, notifications or signals"
 
+# A typo in a status query, such as --stauts, must be rejected as an unknown
+# option rather than silently ignored and taken as a toggle: the picker and the
+# recorder helper stay untouched, and nothing is recorded.
+picker_calls="$tmp_dir/picker-calls"
+cat >"$stub_bin/omarchy-capture-region" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$OMARCHY_TEST_PICKER_CALLS"
+SH
+chmod +x "$stub_bin/omarchy-capture-region"
+export OMARCHY_TEST_PICKER_CALLS="$picker_calls"
+
+unknown_runtime="$tmp_dir/unknown-runtime"
+mkdir -p "$unknown_runtime"
+recordings_before=$(ls "$recording_dir")
+for arg in --stauts --stop-recordng --unknown; do
+  : >"$helper_calls"
+  rm -f "$picker_calls"
+  status=0
+  XDG_RUNTIME_DIR="$unknown_runtime" OMARCHY_TEST_HELPER_CALLS="$helper_calls" OMARCHY_TEST_RECORDING="$recording_flag" \
+    "$ROOT/bin/omarchy-capture-screenrecording" "$arg" >/dev/null 2>"$tmp_dir/unknown-err" || status=$?
+  (( status == 1 )) || fail "an unknown option fails the command" "$arg: exit $status"
+  grep -Fxq "Unknown option: $arg" "$tmp_dir/unknown-err" ||
+    fail "an unknown option is named on stderr" "$arg: $(cat "$tmp_dir/unknown-err")"
+  [[ ! -e $picker_calls ]] || fail "an unknown option never opens the picker" "$(cat "$picker_calls")"
+  [[ ! -s $helper_calls ]] || fail "an unknown option never asks the recorder helper" "$(cat "$helper_calls")"
+done
+[[ ! -e $unknown_runtime/omarchy-screenrecord-filename ]] || fail "an unknown option starts no recording"
+[[ $(ls "$recording_dir") == "$recordings_before" ]] || fail "an unknown option records nothing" "$(ls "$recording_dir")"
+pass "an unknown option fails without opening the picker or the recorder helper"
+
 # A recording that ended without a stop leaves its audio loopbacks and sink
 # loaded. Status and stop unload them, newest first, once the saved recorder is
 # gone; while it records, or before it saves its pid, the mix stays.

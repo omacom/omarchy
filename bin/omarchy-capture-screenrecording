@@ -72,6 +72,10 @@ for arg in "$@"; do
   --fullscreen) FULLSCREEN="true" ;;
   --stop-recording) STOP_RECORDING="true" ;;
   --status) STATUS="true" ;;
+  *)
+    echo "Unknown option: $arg" >&2
+    exit 1
+    ;;
   esac
 done
 
