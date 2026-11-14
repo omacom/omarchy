@@ -37,16 +37,17 @@ function localMidnightMs(ms, offsetMinutes) {
 function sunTimes(lat, lon, ms, offsetMinutes) {
   var midnight = localMidnightMs(ms, offsetMinutes)
   var noon = solarNoonMs(lon, midnight + 43200000)
+  var noonMinutes = (noon - midnight) / 60000
   var dec = Solar.subsolarPoint(noon).lat
 
   var cosH = (Math.sin(HORIZON * DEG) - Math.sin(lat * DEG) * Math.sin(dec * DEG))
            / (Math.cos(lat * DEG) * Math.cos(dec * DEG))
 
   if (cosH <= -1)
-    return { kind: "midnightSun", noonMs: noon, riseMs: null, setMs: null,
+    return { kind: "midnightSun", noonMs: noon, noonMinutes: noonMinutes, riseMs: null, setMs: null,
              riseMinutes: null, setMinutes: null, dayMinutes: 1440 }
   if (cosH >= 1)
-    return { kind: "polarNight", noonMs: noon, riseMs: null, setMs: null,
+    return { kind: "polarNight", noonMs: noon, noonMinutes: noonMinutes, riseMs: null, setMs: null,
              riseMinutes: null, setMinutes: null, dayMinutes: 0 }
 
   var halfDayMs = Math.acos(cosH) / DEG / 15 * 3600000
@@ -56,6 +57,7 @@ function sunTimes(lat, lon, ms, offsetMinutes) {
   return {
     kind: "normal",
     noonMs: noon,
+    noonMinutes: noonMinutes,
     riseMs: riseMs,
     setMs: setMs,
     riseMinutes: (riseMs - midnight) / 60000,
