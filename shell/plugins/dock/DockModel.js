@@ -101,7 +101,7 @@ function buildItems(pinned, windows, instances) {
     })
     for (var w = 0; w < (windows || []).length; w++) {
       var win = windows[w]
-      if (isDockWindow(win)) separate.push({ key: win.key + "::window::" + win.address, appKey: win.key, pinned: false, windows: [win] })
+      if (isDockWindow(win)) separate.push({ key: win.key + "::window::" + win.address, appKey: win.key, pinned: false, appPinned: (pinned || []).indexOf(win.key) >= 0, windows: [win] })
     }
     return separate
   }
@@ -150,19 +150,11 @@ function orderItems(items, order, instances) {
   if (instances) {
     var launchers = result.filter(function(item) { return item.windows.length === 0 })
     var windows = result.filter(function(item) { return item.windows.length > 0 })
-    // A minimized window has no workspace of its own. Keep it in its current
-    // slot; only windows assigned to regular workspaces drive insertion.
-    for (var w = 1; w < windows.length; w++) {
-      var moving = windows[w].windows[0]
-      if (moving.minimized) continue
-      for (var before = 0; before < w; before++) {
-        var other = windows[before].windows[0]
-        if (!other.minimized && other.workspaceId > moving.workspaceId) {
-          windows.splice(before, 0, windows.splice(w, 1)[0])
-          break
-        }
-      }
-    }
+    // Sort live windows into the non-minimized slots, preserving the latter.
+    var live = windows.filter(function(item) { return !item.windows[0].minimized })
+    live.sort(function(a, b) { return a.windows[0].workspaceId - b.windows[0].workspaceId })
+    var next = 0
+    windows = windows.map(function(item) { return item.windows[0].minimized ? item : live[next++] })
     return launchers.concat(windows)
   }
   return result

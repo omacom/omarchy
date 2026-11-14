@@ -126,6 +126,12 @@ const minimized = instances[1]
 minimized.windows[0].minimized = true
 assertDeepEqual(dock.orderItems(instances, instances.map(i => i.key), true).map(i => i.key), instances.map(i => i.key), 'minimizing alone does not rearrange instances')
 
+const held = { key: 'M', windows: [{ minimized: true, workspaceId: -99 }] }
+const liveA = { key: 'A', windows: [{ workspaceId: 5 }] }
+const liveB = { key: 'B', windows: [{ workspaceId: 3 }] }
+assertDeepEqual(dock.orderItems([liveA, held, liveB], ['A', 'M', 'B'], true).map(i => i.key), ['B', 'M', 'A'], 'workspace changes sort live windows around a fixed minimized slot')
+assert(instances[1].appPinned && !instances[1].pinned, 'a pinned app instance keeps its menu pin state separate from launcher placement')
+
 assert(dock.isMinimizedWorkspace('special:minimized'), 'legacy minimized windows remain recognized')
 assert(!dock.isMinimizedWorkspace('special:scratchpad'), 'other special workspaces stay excluded')
 
@@ -214,12 +220,12 @@ fi
 pass "dock auto-hide is set through omarchy-dock autohide"
 
 omarchy_dock instances on >/dev/null
-[[ $(omarchy_dock instances) == on ]] || fail "instances preference persists"
+[[ $(omarchy_dock instances) == "on" ]] || fail "instances preference persists"
 omarchy_dock position left >/dev/null
 omarchy_dock autohide on >/dev/null
 omarchy_dock reset >/dev/null
-[[ $(omarchy_dock instances) == off ]] || fail "instances reset restores grouping"
-[[ $(omarchy_dock position) == bottom && $(omarchy_dock autohide) == off ]] || fail "dock reset restores native position and auto-hide defaults"
+[[ $(omarchy_dock instances) == "off" ]] || fail "instances reset restores grouping"
+[[ $(omarchy_dock position) == "bottom" && $(omarchy_dock autohide) == "off" ]] || fail "dock reset restores native position and auto-hide defaults"
 pass "instance preference persists and resets"
 
 # Minimizing moves a window to the dock's hidden workspace without following

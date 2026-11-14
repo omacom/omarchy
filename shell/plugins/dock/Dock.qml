@@ -314,7 +314,9 @@ Item {
   // its slot while it still runs.
   function setPinned(key, pinned) {
     if (!key) return
+    key = root.appKey(key)
     if (pinned) {
+      if (root.pinnedKeys.indexOf(key) >= 0) return
       root.placeAt(key, root.shownKeys().length)
     } else {
       root.pendingPins = root.pinnedKeys.filter(function(other) { return other !== root.appKey(key) })
