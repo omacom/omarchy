@@ -319,11 +319,36 @@ PanelWindow {
       y: 0
       columns: window.vertical ? 1 : appRepeater.count + 1
       move: Transition {
+        id: reorderMove
         enabled: !window.dragging && window.animateShifts
-        NumberAnimation {
-          properties: "x,y"
+        // A window moving toward the front passes inward of its neighbors,
+        // so crossing instances never completely cover one another.
+        PathAnimation {
           duration: Style.duration(250)
-          easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut
+          easing.type: Easing.Bezier
+          easing.bezierCurve: Style.easeOut
+          path: Path {
+            PathQuad {
+              controlX: {
+                var item = reorderMove.ViewTransition.item
+                var end = reorderMove.ViewTransition.destination
+                if (!item) return 0
+                var passing = item.entry && item.entry.windows.length > 0 && window.dock.instances
+                  && (window.vertical ? item.y > end.y : item.x > end.x)
+                return (item.x + end.x) / 2 + (passing && window.vertical
+                  ? (window.position === "right" ? -1 : 1) * window.iconSize * 3 : 0)
+              }
+              controlY: {
+                var item = reorderMove.ViewTransition.item
+                var end = reorderMove.ViewTransition.destination
+                if (!item) return 0
+                var passing = item.entry && item.entry.windows.length > 0 && window.dock.instances
+                  && (window.vertical ? item.y > end.y : item.x > end.x)
+                return (item.y + end.y) / 2 + (passing && !window.vertical
+                  ? (window.position === "bottom" ? -1 : 1) * window.iconSize * 3 : 0)
+              }
+            }
+          }
         }
       }
 
