@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Detect a Broadcom FaceTime HD PCIe webcam (14e4:1570).
+
+# grep -q would SIGPIPE a chatty lspci under pipefail and look like "no camera".
+lspci -nn | grep "14e4:1570" >/dev/null
