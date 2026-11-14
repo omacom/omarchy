@@ -54,6 +54,7 @@ Item {
 
   function open() {
     root.selectedIndex = 0
+    pointerGate.reset()
     if (root.appLibrary) {
       root.appLibrary.refreshIcons()
       root.appLibrary.refreshVersions()
@@ -129,6 +130,8 @@ Item {
     var rows = root.appLibrary ? root.appLibrary.sortedEntries(root.filterText) : []
     root.apps = rows.map(function(row) { return row.entry })
     root.selectedIndex = Math.max(0, Math.min(root.selectedIndex, root.apps.length - 1))
+    // Cells reflow under a pointer that may not have moved.
+    pointerGate.reset()
     grid.positionViewAtBeginning()
   }
 
@@ -141,7 +144,22 @@ Item {
   function select(delta) {
     if (root.apps.length === 0) return
     root.selectedIndex = Math.max(0, Math.min(root.apps.length - 1, root.selectedIndex + delta))
+    pointerGate.reset()
     grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+  }
+
+  // Hover only takes the selection once the pointer itself moves. Filtering,
+  // rebuilds and keyboard scrolling slide cells under a resting pointer, and
+  // containsMouse flips for those too.
+  function selectFromPointer(index, item, mouse) {
+    if (root.dragging) return
+    if (!pointerGate.moved(item, mouse)) return
+    root.selectedIndex = index
+  }
+
+  PointerMoveGate {
+    id: pointerGate
+    referenceItem: card
   }
 
   function launch(index) {
@@ -404,13 +422,16 @@ Item {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 // The grid would otherwise take a dragging press for a scroll.
                 preventStealing: true
-                onContainsMouseChanged: if (containsMouse && !root.dragging) root.selectedIndex = cell.index
+                onEntered: root.selectFromPointer(cell.index, cell, { x: mouseX, y: mouseY })
                 onPressed: function(event) {
                   cell.moved = false
                   cell.pressPoint = Qt.point(event.x, event.y)
                 }
                 onPositionChanged: function(event) {
-                  if (!(pressedButtons & Qt.LeftButton)) return
+                  if (!(pressedButtons & Qt.LeftButton)) {
+                    root.selectFromPointer(cell.index, cell, event)
+                    return
+                  }
                   if (!cell.moved && Math.hypot(event.x - cell.pressPoint.x, event.y - cell.pressPoint.y) > Style.space(4)) cell.moved = true
                   if (cell.moved) root.dragTo(cell.modelData, cell.mapToItem(panel.contentItem, event.x, event.y))
                 }
