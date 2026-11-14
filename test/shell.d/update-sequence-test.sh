@@ -26,6 +26,7 @@ steps=(
   omarchy-restart-shell
   omarchy-hook
   omarchy-update-aur-pkgs
+  omarchy-update-restart-hex
   omarchy-update-mise
   omarchy-update-orphan-pkgs
   omarchy-update-analyze-logs
@@ -95,6 +96,7 @@ expected_steps() {
     omarchy-hook \
     omarchy-update-mise \
     omarchy-update-aur-pkgs \
+    omarchy-update-restart-hex \
     omarchy-update-boot \
     omarchy-update-stay-awake \
     omarchy-update-restart
@@ -132,7 +134,7 @@ pass "an update restarts the shell before migrating only when migrations are pen
 if FAILING_STEP=omarchy-update-system-pkgs run_update -y; then
   fail "an update whose packages did not upgrade passes for a whole one"
 fi
-for step in omarchy-migrate omarchy-restart-shell omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
+for step in omarchy-migrate omarchy-restart-shell omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart-hex omarchy-update-restart; do
   if grep -q "^$step " "$test_tmp/steps"; then
     fail "a blocked package upgrade still runs $step"
   fi
@@ -146,3 +148,11 @@ diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
   fail "a failed mise update skips later update steps" "$(cat "$test_tmp/order")"
 grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
 pass "a mise failure still finishes the update, offers a reboot and explains how to retry"
+
+# Restarting Hex needs the user's session bus, which an update over SSH or from
+# another session may not reach. The packages are already in place, so the
+# update still verifies boot files, releases Stay Awake and offers a reboot.
+FAILING_STEP=omarchy-update-restart-hex run_update -y || fail "a failed Hex restart fails the update"
+diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
+  fail "a failed Hex restart skips later update steps" "$(cat "$test_tmp/order")"
+pass "a failed Hex restart still verifies boot files and offers a reboot"

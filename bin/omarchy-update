@@ -128,6 +128,10 @@ if [[ ${1:-} == "-y" ]] || omarchy-update-confirm; then
   # share the update's one authorization like every step before them.
   omarchy-update-aur-pkgs
 
+  # Hex is one of those packages. The service pass above already ran, and a
+  # failure here (no user bus, another session) must not skip the boot check.
+  omarchy-update-restart-hex || true
+
   # The last sudo-capable step: the boot files every package step left, AUR
   # packages' initramfs rebuilds included, must be shown to boot the updated
   # system. Until it passes, the update neither finishes nor offers a reboot.

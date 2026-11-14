@@ -137,6 +137,7 @@ omarchy-update
   ├─ run the post-update hook, then update mise tools (a failed tool update
   │  warns and the update continues)
   ├─ update AUR packages
+  ├─ restart Hex when that upgrade replaced its running binary
   ├─ omarchy-update-boot, then stop the keepalive
   │    └─ the platform's boot package proves the boot files boot the updated system
   ├─ omarchy-update-stay-awake stop
@@ -149,7 +150,7 @@ Important behavior:
 - `omarchy update`, `omarchy-refresh-pacman` and `omarchy-channel-set` are ordinary scripts that run with the caller's environment, so hooks and mise see the user's own PATH. They gain no privilege of their own beyond the `sudo` calls they make.
 - In dev-link mode, `omarchy update` fast-forwards the active checkout from its configured upstream before changing system packages or running migrations.
 - Sudo behaves as it does everywhere else: one password is good for 10 minutes in the same terminal (`etc/sudoers.d/omarchy-sudo-timeout`), and no Omarchy command invalidates it. The update asks once right after confirmation (it runs inside `script`'s own pseudo-terminal, so a password typed in the calling terminal does not carry in), then a background keepalive refreshes the timestamp every minute so long downloads, migrations, hooks, AUR builds, and mise never outlast it. Every step shares that authorization, and the keepalive stops after the boot check. The authorization runs a command rather than `sudo -v`, so passwordless sudo still needs no prompt. Stay-awake reuses a cached authorization non-interactively when it has no terminal, rather than asking through polkit.
-- AUR packages build against the upgraded system, so they run after it, under the same authorization as everything else.
+- AUR packages build against the upgraded system, so they run after it, under the same authorization as everything else. Hex is one of them. Its service restart pass has already finished, and pacman leaves the old user process running, so the update restarts `hex.service` when that process is still the binary the upgrade replaced.
 - Sleep inhibition authenticates before detaching, drops the held command back to the caller, and closes both update lock descriptors before the persistent process starts. Cleanup accepts only caller-owned, mode-0600, single-link state and revalidates the recorded PID, process start time, owner, and random token immediately before every signal.
 - Channel switching swaps the `omarchy`/`omarchy-dev` pair with a direct `pacman -S`, since the refresh before it can already have installed an older release without this tree's helpers, then hands off to the destination's own `omarchy update`.
 - `-y` exports `OMARCHY_UPDATE_UNATTENDED=1` and suppresses Omarchy confirmation prompts. Conflict handoff reports and skips instead of blocking. Orphan packages are automatically removed during every update. Privileged commands still require the one sudo authorization.
@@ -302,6 +303,7 @@ scripts.
 | `omarchy-update-user-notify` | Hidden compatibility wrapper for `omarchy-migrate-notify`. | **Temporary.** Keep only for old callers. |
 | `omarchy-update-available` | Update checker for the shell widget. The update itself clears the widget instead of rechecking. | **Keep.** Could eventually be renamed `omarchy-update-check`, but current name matches widget semantics. |
 | `omarchy-update-aur-pkgs` | Updates AUR packages with `yay -Sua` if foreign packages exist and AUR is reachable. | **Question.** Omarchy is package-backed now, but users may still install AUR packages. Keep for now. |
+| `omarchy-update-restart-hex` | Hidden helper that restarts `hex.service` after the AUR step when the running Hex executable was replaced. | **Keep internal/hidden.** The service pass runs before AUR packages, and Hex's new command will not drive the process that package left behind. |
 | `omarchy-update-mise` | Runs `MISE_MINIMUM_RELEASE_AGE=0 mise up` for mise-managed tools — the override of mise's release-age cooldown is the point. | **Keep.** Mise-managed tools are intentionally part of the blessed update path. |
 | `omarchy-update-orphan-pkgs` | Lists orphans and prompts before removal unless passed `-y`, as the update pipeline does; standalone noninteractive mode only reports. | **Keep for now.** Automates cleanup during updates and supports standalone review. |
 | `omarchy-update-analyze-logs` | Scans `/tmp/omarchy-update.log` for known failure patterns, currently initramfs generation. | **Keep/expand.** Useful safety net; should grow only for high-signal checks. |
