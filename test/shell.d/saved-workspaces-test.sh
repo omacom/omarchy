@@ -104,6 +104,24 @@ for ending in [' - Chromium', ' - Google Chrome', ' - Brave']:
   state = m.capture_app_state({'title': title, 'class': 'chromium', 'pid': 42}, {'argv': ['chromium', '--user-data-dir=/unused']}, cache)
   check(state['urls'] == ['https://example.org/exact'], 'an exact saved window name wins over a browser-suffix fallback: ' + ending)
 
+# Forwarded Omarchy web apps share Chromium's normal browser process.
+with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'XDG_DATA_HOME': directory, 'XDG_DATA_DIRS': directory + '/system'}):
+  applications = Path(directory) / 'applications'
+  applications.mkdir()
+  app_class = 'chrome-example.org__-Profile_1'
+  (applications / 'Example.desktop').write_text('[Desktop Entry]\nType=Application\nStartupWMClass=' + app_class + '\nExec=omarchy-launch-webapp https://example.org/work\n')
+  web_window = {'class': app_class, 'title': 'Example app', 'pid': 42}
+  process = {'argv': ['chromium', '--user-data-dir=/unused', '--new-window', 'https://ordinary.example/']}
+  cache = {'/unused/Default/Sessions': [{'title': 'Other browser', 'urls': ['https://ordinary.example/']}, {'title': 'Second browser', 'urls': ['https://second.example/']}]}
+  check(m.capture_app_state(web_window, process, cache) is None, 'a shared-process web app does not require ordinary browser tab records')
+  web_argv = m.command_for(web_window, process)
+  check(web_argv == ['chromium', '--user-data-dir=/unused', '--profile-directory=Profile 1', '--app=https://example.org/work'], 'web apps retain their own launcher URL and profile instead of the shared browser command')
+  before = [{'address': '0xexisting', 'class': app_class, 'tags': []}]
+  unrelated = {'address': '0xordinary', 'class': 'chromium', 'tags': []}
+  opened = {'address': '0xapp', 'class': app_class, 'tags': []}
+  with patch.object(m, 'query', side_effect=[before, before + [unrelated, opened]]), patch.object(m, 'execute'), patch.object(m.socket, 'socket', return_value=MagicMock()):
+    check(m.launch_window({'argv': web_argv, 'class': app_class}, {'0xexisting'}, 8)['address'] == '0xapp', 'forwarded web-app restores select only a new window of the exact app/profile, leaving existing browser windows alone')
+
 firefox_other = {'address': '0xother', 'class': 'firefox', 'title': 'Focused work — Mozilla Firefox', 'tags': []}
 firefox_ours = {'address': '0xours', 'class': 'firefox', 'title': 'Focused work' + chr(0x2063) + chr(0xFE0A) + chr(0xFE0B) + ' — Mozilla Firefox', 'tags': []}
 with patch.object(m.uuid, 'uuid4', return_value=SimpleNamespace(hex='ab')), patch.object(m, 'query', side_effect=[[], [firefox_other], [firefox_other, firefox_ours]]), patch.object(m, 'execute') as launch, patch.object(m.socket, 'socket', return_value=MagicMock()):

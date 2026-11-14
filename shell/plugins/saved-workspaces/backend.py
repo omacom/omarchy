@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import configparser
 import fcntl
 import json
 import html
@@ -280,12 +281,61 @@ def firefox_launch_parts(argv):
   return options, urls or ["about:blank"]
 
 
+def chromium_webapp_argv(window, info):
+  # A forwarded web app shares the browser PID and its ordinary launch command.
+  # Recover its own URL/profile from the matching desktop launcher instead.
+  app_class = window.get("class", "")
+  if not re.fullmatch(r"(?:chrome|chromium|brave)-.+-(?:Default|Profile_\d+)", app_class, re.I):
+    return None
+  argv = info.get("argv", [])
+  if not argv or Path(argv[0]).name.lower() not in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"}:
+    return None
+  data_dirs = [Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share"))]
+  data_dirs += [Path(p) for p in os.environ.get("XDG_DATA_DIRS", "/usr/local/share:/usr/share").split(":") if p]
+  seen = set()
+  for directory in data_dirs:
+    for path in sorted((directory / "applications").glob("*.desktop")):
+      if path.name in seen:
+        continue
+      seen.add(path.name)
+      try:
+        entry = configparser.ConfigParser(interpolation=None, strict=False)
+        entry.read_string(path.read_text())
+        entry = entry["Desktop Entry"]
+        if entry.get("Hidden", "false").lower() == "true" or entry.get("StartupWMClass", "").casefold() != app_class.casefold():
+          continue
+        command = shlex.split(entry.get("Exec", ""))
+        if not command:
+          continue
+        if Path(command[0]).name == "omarchy-launch-webapp" and len(command) > 1:
+          url = command[1]
+        else:
+          url = argument_value(command, "--app")
+        if not isinstance(url, str) or not re.match(r"^(https?://|file://)", url):
+          continue
+        result = [argv[0]]
+        user_data = argument_value(command, "--user-data-dir", argument_value(argv, "--user-data-dir"))
+        if user_data:
+          result.append("--user-data-dir=" + user_data)
+        profile = argument_value(command, "--profile-directory")
+        if not profile:
+          profile = re.search(r"-(Default|Profile_\d+)$", app_class, re.I).group(1).replace("_", " ")
+        result += ["--profile-directory=" + profile, "--app=" + url]
+        return result
+      except (OSError, UnicodeError, ValueError, KeyError, configparser.Error):
+        continue
+  return None
+
+
 def command_for(window, info):
   argv = info["argv"]
   if not argv:
     raise WorkspaceError("A window's launch command is unavailable. Try saving again after the app starts.")
   app = Path(argv[0]).name.lower()
   if app in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"}:
+    webapp = chromium_webapp_argv(window, info)
+    if webapp:
+      return webapp
     argv = [a for a in argv if a not in {"--new-window", "--restore-last-session"}]
     argv += ["--new-window"]
     if not any(a.startswith(("http:", "https:", "file:", "about:", "--app=")) for a in argv[1:]):
@@ -374,6 +424,8 @@ def capture_app_state(window, info, cache):
   argv = info["argv"]
   app = Path(argv[0]).name.lower() if argv else ""
   if app in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"} and not any(a.startswith(("--app=", "--app-id=")) for a in argv):
+    if chromium_webapp_argv(window, info):
+      return None
     defaults = {"chromium": "chromium", "chrome": "google-chrome", "google-chrome": "google-chrome", "brave": "BraveSoftware/Brave-Browser", "brave-browser": "BraveSoftware/Brave-Browser"}
     directory = Path(argument_value(argv, "--user-data-dir", str(HOME / ".config" / defaults[app])))
     profile = argument_value(argv, "--profile-directory", "Default")
@@ -489,6 +541,7 @@ def launch_window(saved, known, workspace):
   app = Path(argv[0]).name.lower()
   chromium = app in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"} and not any(a.startswith(("--app=", "--app-id=")) for a in argv)
   firefox = app in {"firefox", "firefox-bin"}
+  webapp = app in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"} and any(a.startswith("--app=") for a in argv) and bool(re.fullmatch(r"(?:chrome|chromium|brave)-.+-(?:Default|Profile_\d+)", saved["class"], re.I))
   if chromium or firefox:
     # Browser requests may be forwarded to an existing process, so give the
     # requested window its own meaningful identity instead of using its PID/class.
@@ -547,8 +600,10 @@ def launch_window(saved, known, workspace):
     execute(launch_command)
     while time.monotonic() < deadline:
       clients = query("clients")
+      # App-mode Chromium ignores launch tags and window names. Its generated
+      # class identifies the app URL and profile; only a new matching window is eligible.
       candidates = [w for w in clients if w["address"] not in known and w["class"].casefold() == saved["class"].casefold()
-                    and ((w.get("title") == browser_name or (firefox and w.get("title") in {browser_name + " — Mozilla Firefox", browser_name + " - Mozilla Firefox", browser_name + " — Firefox", browser_name + " — Mozilla Firefox ESR"})) if browser_name else token in [t.rstrip("*") for t in w.get("tags", [])])]
+                    and ((w.get("title") == browser_name or (firefox and w.get("title") in {browser_name + " — Mozilla Firefox", browser_name + " - Mozilla Firefox", browser_name + " — Firefox", browser_name + " — Mozilla Firefox ESR"})) if browser_name else webapp or token in [t.rstrip("*") for t in w.get("tags", [])])]
       if len(candidates) == 1:
         if token in [t.rstrip("*") for t in candidates[0].get("tags", [])]:
           dispatch("window.tag", {"window": "address:" + candidates[0]["address"], "tag": "-" + token})
