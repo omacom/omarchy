@@ -325,7 +325,7 @@ stop_watcher
 drm_path="$test_tmp/drm"
 eval_log="$test_tmp/eval.log"
 unlit_lock="$test_tmp/omarchy-monitor-unlit.lock"
-lit_monitor='[{"name":"DP-1","width":5120,"height":1440,"disabled":false,"dpmsStatus":true}]'
+lit_monitor='[{"name":"DP-1","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1920x1080@239.76Hz","1920x1080@60.00Hz","1280x720@59.94Hz"]}]'
 
 for command in omarchy-hyprland-monitor-unlit omarchy-hyprland-monitor-relight omarchy-hw-external-monitors omarchy-restart-hyprctl; do
   ln -sf "$ROOT/bin/$command" "$fake_bin/$command"
@@ -452,6 +452,7 @@ run_relight() {
   write_connector DP-1 connected disabled
   printf '%s' "$lit_monitor" >"$monitors_file"
   : >"$reload_log"
+  : >"$eval_log"
 
   PATH="$fake_bin:$PATH" OMARCHY_DRM_PATH="$drm_path" OMARCHY_TEST_EVAL_LOG="$eval_log" \
   OMARCHY_TEST_MONITORS_FILE="$monitors_file" OMARCHY_TEST_RELOAD_LOG="$reload_log" \
@@ -479,3 +480,15 @@ grep -q "DP-1 dropped off the bus while waking and did not come back" "$test_tmp
 pass "a monitor that drops off the bus for good is reported lost, with its config restored"
 
 unset OMARCHY_TEST_WAKES_CONNECTOR OMARCHY_TEST_DROPS_CONNECTOR
+
+# Hyprland can only ask for a mode it remembers, so a size the kernel lists but
+# Hyprland never had would be refused three times over while a smaller one both
+# know goes untried.
+printf '%s' '[{"name":"DP-1","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1280x720@120.00Hz","1280x720@59.94Hz"]}]' >"$test_tmp/narrow.json"
+lit_monitor=$(<"$test_tmp/narrow.json")
+export OMARCHY_TEST_WAKES_CONNECTOR="$drm_path/card1-DP-1"
+run_relight
+[[ $(<"$eval_log") == 'hl.monitor({ output = "DP-1", mode = "1280x720@59.94", position = "auto", scale = 1 })' ]] ||
+  fail "the wake mode is one both the kernel and Hyprland have, at the rate nearest 60 Hz" "$(<"$eval_log")"
+pass "the wake mode is one both the kernel and Hyprland have, at the rate nearest 60 Hz"
+unset OMARCHY_TEST_WAKES_CONNECTOR

@@ -19,13 +19,28 @@ HOLD=5
 
 # Sizes nearly every monitor offers awake and asleep, largest first. The mode has
 # to be in the kernel's list for the kernel to accept it and in Hyprland's older
-# list for Hyprland to ask for it.
+# list for Hyprland to ask for it, so a size only one of them has is passed
+# over. Of the rates Hyprland has at that size, the one nearest 60 Hz is the
+# one a sleeping monitor is most likely to share.
 fallback_mode() {
-  local size
+  local size mode known
+
+  known=$(hyprctl monitors all -j 2>/dev/null |
+    jq -r --arg name "$2" '.[] | select(.name == $name) | .availableModes[]?' 2>/dev/null)
 
   for size in 1920x1080 1280x720 1024x768 800x600 640x480; do
-    if grep -qx "$size" "$1/modes" 2>/dev/null; then
-      printf '%s@60\n' "$size"
+    grep -qx "$size" "$1/modes" 2>/dev/null || continue
+
+    mode=$(awk -F@ -v size="$size" '
+      $1 == size {
+        rate = $2 + 0
+        off = rate > 60 ? rate - 60 : 60 - rate
+        if (best == "" || off < nearest) { best = rate; nearest = off }
+      }
+      END { if (best != "") print size "@" best }' <<<"$known")
+
+    if [[ -n $mode ]]; then
+      printf '%s\n' "$mode"
       return 0
     fi
   done
@@ -79,7 +94,7 @@ relight() {
   # The name goes into Lua below, so take nothing but a kernel connector name.
   [[ $name =~ ^[A-Za-z0-9-]+$ ]] || return 1
 
-  if ! mode=$(fallback_mode "$connector"); then
+  if ! mode=$(fallback_mode "$connector" "$name"); then
     echo "$name stayed black after wake and offers no mode to wake it with"
     return 1
   fi
