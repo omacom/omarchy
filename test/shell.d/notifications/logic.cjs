@@ -270,6 +270,8 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
     [{ app: 'notify-send', urgency: 2 }, true, ''],
     [{ app: 'notify-send', urgency: 1 }, true, 'silenced'],
     [{ app: 'omarchy-action', urgency: 0 }, true, ''],
+    [{ app: 'omasnap', urgency: 0 }, true, ''],
+    [{ app: 'omasnap-other', urgency: 0 }, true, 'silenced'],
     [{ app: 'Google', urgency: 1, code: '482913' }, true, ''],
   ]) assert.equal(Delivery.quietReason(row, dnd), expected, JSON.stringify([row, dnd]))
   // The number keys count buttons in the order the card draws them: codes, --action, the sender's.

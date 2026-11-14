@@ -5,12 +5,13 @@
 
 var CRITICAL = 2
 
-// Omarchy's own action toasts and bare notify-send critical alerts get through
-// Do Not Disturb. Critical alone is not enough: chat apps send
+// Omarchy's own action toasts, screenshot confirmations and bare notify-send
+// critical alerts get through Do Not Disturb. Critical alone is not enough:
+// chat apps send
 // critical to force visibility, under their own app name.
 function bypassesQuiet(row) {
   var app = String((row && row.app) || "")
-  if (app === "omarchy-action") return true
+  if (app === "omarchy-action" || app === "omasnap") return true
   return app === "notify-send" && Number(row.urgency) === CRITICAL
 }
 

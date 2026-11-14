@@ -69,9 +69,10 @@ Images are decoded in the shell process like every other image it draws. A sende
 
 Do Not Disturb is a boolean in `quiet.json`, toggled via `omarchy-shell notifications toggleDnd` / `setDnd` / `isDnd`; `omarchy-toggle-notification-silencing` wraps the toggle.
 
-Three kinds of notification get through Do Not Disturb:
+The following notifications get through Do Not Disturb:
 
 - `app_name` = `omarchy-action`: Omarchy's own confirmation toasts for something the user just did.
+- Screenshot confirmations sent by `omasnap`, so a user-requested capture still confirms that it was saved while Do Not Disturb is enabled.
 - urgency critical *and* `app_name` = `notify-send`: bare-CLI emergency alerts. Critical alone is not enough, because chat apps use it to force visibility under their own app name.
 - a detected verification code: it was asked for a moment ago and expires in minutes.
 
