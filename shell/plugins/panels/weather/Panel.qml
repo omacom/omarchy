@@ -39,6 +39,7 @@ Panel {
   }
 
   function close() {
+    editAfterFocusPrime = false
     if (root.editingLocation) root.cancelEditingLocation()
     root.controller.hide()
   }
@@ -112,6 +113,7 @@ Panel {
 
   // Click-to-edit state for the location label.
   property bool editingLocation: false
+  property bool editAfterFocusPrime: false
   property bool savingLocation: false
   property bool savingLocationQueryStarted: false
   property var locationSuggestions: []
@@ -206,6 +208,8 @@ Panel {
   }
 
   function startEditingLocation() {
+    editAfterFocusPrime = false
+    if (editingLocation) return
     editingLocation = true
     savingLocation = false
     savingLocationQueryStarted = false
@@ -523,7 +527,13 @@ Panel {
     function show(): void { root.openFromHotkey() }
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
-    function edit(): void { root.openFromHotkey(); root.startEditingLocation() }
+    function edit(): void {
+      root.openFromHotkey()
+      if (root.editingLocation) return
+      // Acquire the keyboard on a direct open before entering OnDemand editing.
+      if (panel.focusPrimed) root.startEditingLocation()
+      else root.editAfterFocusPrime = true
+    }
   }
 
   KeyboardPanel {
@@ -532,10 +542,12 @@ Panel {
     owner: root.barIdentity
     bar: root.bar
     open: root.opened
+    editing: root.editingLocation
+    onFocusPrimedChanged: if (focusPrimed && root.editAfterFocusPrime) root.startEditingLocation()
     // Anchor under the widget rather than the middle of the bar, so the
     // popup follows wherever the widget is placed.
     centerOnBar: false
-    focusTarget: panel.loadedContent
+    focusTarget: root.editingLocation ? root.locationInput() : panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(480))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
 

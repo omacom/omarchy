@@ -588,6 +588,7 @@ Item {
     required property var service
     anchors.fill: parent
     acceptedButtons: Qt.LeftButton | Qt.RightButton
+    onClicked: Commons.Desktop.clicked()
     onDoubleClicked: function(mouse) {
       if (mouse.button === Qt.RightButton) service.openThemeSwitcher()
       else service.openSelector()
