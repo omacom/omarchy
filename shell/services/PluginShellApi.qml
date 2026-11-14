@@ -16,6 +16,9 @@ QtObject {
   property var bar: null
   property var barConfig: ({})
   property var idleConfig: ({})
+  // Inline fields from this plugin's own shell.json entry (id stripped), kept
+  // in sync by the host. Mirrors updateEntryInline for the read side.
+  property var entrySettings: ({})
 
   property var _serviceLookup: null
   property var _firstPartyServiceLookup: null
