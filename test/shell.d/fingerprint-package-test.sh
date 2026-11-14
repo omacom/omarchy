@@ -2,8 +2,17 @@
 #
 # The fingerprint setup installs libfprint-git in place of stock libfprint. The
 # two conflict, so the swap has to happen inside one --ask 4 transaction, and a
-# rerun with everything installed must not touch pacman at all. The real
-# omarchy-pkg-missing runs; pacman and the privileged calls are stubbed.
+# rerun with everything installed must not touch pacman at all. A Broadcom
+# ControlVault 3 reader instead installs libfprint-tod and Broadcom's plugin,
+# which conflict with both of those libraries. The first ControlVault open can
+# flash firmware inside fprintd's startup, so setup raises that start timeout
+# before it restarts the daemon. A restart that still times out must not skip
+# enrollment. A second restart happens only when that service is already
+# active, so a start still in progress is not killed. If fprintd is already
+# activating, setup waits on that start instead of restarting it. If it is
+# deactivating, setup waits out the stop, then restarts. After yay, setup checks
+# that pacman actually registered each package. The real omarchy-pkg-missing
+# runs; pacman, yay, and the privileged calls are stubbed.
 
 set -euo pipefail
 
@@ -19,15 +28,76 @@ cat > "$scratch/bin/omarchy-hw-fingerprint" <<'STUB'
 #!/bin/bash
 exit "${HARDWARE_STATUS:-0}"
 STUB
+cat > "$scratch/bin/omarchy-hw-fingerprint-controlvault3" <<'STUB'
+#!/bin/bash
+exit "${CONTROLVAULT_STATUS:-1}"
+STUB
+cat > "$scratch/bin/omarchy-hw-x86" <<'STUB'
+#!/bin/bash
+exit "${X86_STATUS:-0}"
+STUB
+cat > "$scratch/bin/omarchy-pkg-aur-accessible" <<'STUB'
+#!/bin/bash
+printf 'aur-access\n' >> "$CALL_LOG"
+exit "${AUR_ACCESS_STATUS:-0}"
+STUB
+cat > "$scratch/bin/yay" <<'STUB'
+#!/bin/bash
+printf 'yay %s\n' "$*" >> "$CALL_LOG"
+if [[ ${YAY_STATUS:-0} == 0 && ${YAY_REGISTER:-1} == 1 ]]; then
+  past_separator=0
+  for arg in "$@"; do
+    if (( past_separator )); then
+      printf '%s\n' "$arg" >> "$CALL_LOG.installed"
+    elif [[ $arg == "--" ]]; then
+      past_separator=1
+    fi
+  done
+fi
+exit "${YAY_STATUS:-0}"
+STUB
+cat > "$scratch/bin/fprintd-list" <<'STUB'
+#!/bin/bash
+printf 'list\n' >> "$CALL_LOG"
+exit "${LIST_STATUS:-1}"
+STUB
 cat > "$scratch/bin/sudo" <<'STUB'
 #!/bin/bash
 case "$1" in
   -n) exit "${SUDO_CACHED:-1}" ;;
   -v) echo "sudo authenticated" >> "$CALL_LOG"; exit "${SUDO_V_STATUS:-0}" ;;
   pacman | fprintd-enroll) exec "$@" ;;
+  systemctl)
+    printf 'systemctl %s\n' "${*:2}" >> "$CALL_LOG"
+    if [[ $2 == is-active ]]; then
+      # FPRINTD_STATE is only the non-quiet pre-check. The --quiet call stays
+      # on FPRINTD_ACTIVE / SYSTEMCTL_STATUS, and the log lines stay distinct.
+      if [[ ${3:-} != --quiet && -n ${FPRINTD_STATE:-} ]]; then
+        printf '%s\n' "$FPRINTD_STATE"
+      fi
+      if [[ -n ${FPRINTD_ACTIVE+x} ]]; then
+        [[ $FPRINTD_ACTIVE == 1 ]]
+      else
+        [[ ${SYSTEMCTL_STATUS:-0} == 0 ]]
+      fi
+      exit
+    fi
+    if [[ ${SYSTEMCTL_STATUS:-0} != 0 && $2 == restart ]]; then
+      exit "$SYSTEMCTL_STATUS"
+    fi
+    ;;
   omarchy-lifecycle-dispatch) echo "dispatch ${*:2}" >> "$CALL_LOG"; exit "${ENABLE_STATUS:-0}" ;;
   sed) printf 'pam %s\n' "$*" >> "$CALL_LOG" ;;
-  tee) printf 'pam %s\n' "$*" >> "$CALL_LOG"; cat >/dev/null ;;
+  mkdir) printf 'mkdir %s\n' "${*:2}" >> "$CALL_LOG" ;;
+  tee)
+    if [[ $* == *controlvault* ]]; then
+      printf 'dropin\n' >> "$CALL_LOG"
+      cat > "$CALL_LOG.dropin"
+    else
+      printf 'pam %s\n' "$*" >> "$CALL_LOG"
+      cat >/dev/null
+    fi
+    ;;
   *) echo "Unexpected privileged call: $*" >> "$CALL_LOG"; exit 99 ;;
 esac
 STUB
@@ -41,7 +111,8 @@ case "$1" in
     else
       shift
     fi
-    grep -qx -- "$1" <<< "${INSTALLED:-}"
+    grep -qx -- "$1" <<< "${INSTALLED:-}" && exit 0
+    [[ -f $CALL_LOG.installed ]] && grep -qx -- "$1" "$CALL_LOG.installed"
     ;;
   -S)
     printf 'pacman %s\n' "$*" >> "$CALL_LOG"
@@ -95,12 +166,16 @@ STUB
 chmod +x "$scratch/bin/omarchy-apply-lock"
 
 export TEST_LOCK_PAM="$scratch/omarchy-lock-fingerprint"
+dropin="$scratch/fprintd.service.d/20-controlvault-start-timeout.conf"
 setup_script="$scratch/omarchy-setup-security-fingerprint"
-sed "s|/etc/pam.d/omarchy-lock-fingerprint|$TEST_LOCK_PAM|g" "$ROOT/bin/omarchy-setup-security-fingerprint" > "$setup_script"
+sed -e "s|/etc/pam.d/omarchy-lock-fingerprint|$TEST_LOCK_PAM|g" \
+  -e "s|/etc/systemd/system/fprintd.service.d/20-controlvault-start-timeout.conf|$dropin|g" \
+  "$ROOT/bin/omarchy-setup-security-fingerprint" > "$setup_script"
 chmod +x "$setup_script"
 
 run_setup() {
   : > "$CALL_LOG"
+  rm -f "$CALL_LOG.dropin" "$CALL_LOG.installed"
   if OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1; then
     fail "setup stops on the simulated enrollment or installation failure"
   fi
@@ -112,6 +187,29 @@ run_setup() {
 assert_installs() {
   grep -qx 'pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils' "$CALL_LOG" || fail "$1"
   (( $(grep -c '^pacman ' "$CALL_LOG") == 1 )) || fail "$1: one pacman transaction"
+  if grep -q '^yay ' "$CALL_LOG"; then
+    fail "$1: stock readers stay on libfprint-git"
+  fi
+}
+
+controlvault_yay='yay -S --needed --noconfirm --useask --pgpfetch --sudoloop -- fprintd usbutils libfprint-tod libfprint-2-tod1-broadcom'
+
+assert_controlvault_installs() {
+  grep -qx "$controlvault_yay" "$CALL_LOG" || fail "$1"
+  (( $(grep -c '^yay ' "$CALL_LOG") == 1 )) || fail "$1: one driver transaction"
+  if grep -q '^pacman ' "$CALL_LOG"; then
+    fail "$1: ControlVault setup does not install libfprint-git"
+  fi
+  (( $(grep -cx 'systemctl restart fprintd' "$CALL_LOG") == 2 )) || fail "$1: restarts fprintd around the firmware check"
+  grep -qx 'systemctl is-active --quiet fprintd' "$CALL_LOG" || fail "$1: restarts again only when the reader service is active"
+  grep -qx list "$CALL_LOG" || fail "$1: opens the reader before enrollment"
+  grep -qx 'mkdir -p /etc/systemd/system/fprintd.service.d' "$CALL_LOG" || fail "$1: creates the fprintd drop-in directory"
+  grep -qx dropin "$CALL_LOG" || fail "$1: raises the fprintd start timeout"
+  grep -qx 'systemctl daemon-reload' "$CALL_LOG" || fail "$1: reloads systemd after the start timeout"
+  grep -qx 'TimeoutStartSec=240' "$CALL_LOG.dropin" || fail "$1: start timeout is 240 seconds"
+  if grep -q 'TimeoutStopSec' "$CALL_LOG.dropin"; then
+    fail "$1: does not lengthen the stop timeout"
+  fi
 }
 
 run_setup
@@ -194,6 +292,194 @@ if grep -q 'Perfect!\|You can use your fingerprint' "$scratch/output"; then
 fi
 pass "an inconclusive lock installer cannot report successful lock setup"
 
+CONTROLVAULT_STATUS=0 run_setup
+assert_controlvault_installs "a ControlVault 3 machine installs the Broadcom driver"
+grep -qx enroll "$CALL_LOG" || fail "ControlVault installation is followed by enrollment"
+grep -q 'firmware' "$scratch/output" || fail "ControlVault setup warns that the first open updates firmware"
+pass "a ControlVault 3 machine installs the Broadcom driver and reaches enrollment"
+
+# These two call the setup script directly. run_setup treats a zero exit as
+# failure, and both of these enroll successfully.
+# A ControlVault machine whose platform has no enable-fingerprint hook enrolls
+# without ever running that hook as root. The stock no-hook case above does
+# not enter this branch.
+: > "$CALL_LOG"
+rm -f "$CALL_LOG.dropin" "$CALL_LOG.installed"
+CONTROLVAULT_STATUS=0 ENABLE_HOOK= ENROLL_STATUS=0 VERIFY_STATUS=0 \
+  OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 ||
+  fail "a ControlVault machine without a platform hook still sets up"
+assert_controlvault_installs "a ControlVault machine without a platform hook still prepares the reader"
+grep -qx 'resolve enable-fingerprint' "$CALL_LOG" ||
+  fail "a ControlVault machine without a platform hook still asks whether one exists"
+grep -qx enroll "$CALL_LOG" ||
+  fail "a ControlVault machine without a platform hook still enrolls"
+if grep -qx 'dispatch enable-fingerprint' "$CALL_LOG"; then
+  fail "a ControlVault machine without a platform hook never runs it" "$(cat "$CALL_LOG")"
+fi
+pass "a ControlVault machine without a platform hook enrolls without running it"
+
+# When the platform does have a hook, the ControlVault reader is prepared
+# before that hook runs.
+: > "$CALL_LOG"
+rm -f "$CALL_LOG.dropin" "$CALL_LOG.installed"
+CONTROLVAULT_STATUS=0 ENROLL_STATUS=0 VERIFY_STATUS=0 \
+  OMARCHY_PATH="$scratch" "$setup_script" > "$scratch/output" 2>&1 ||
+  fail "a ControlVault machine with a platform hook still sets up"
+assert_controlvault_installs "a ControlVault machine with a platform hook still prepares the reader"
+grep -qx 'dispatch enable-fingerprint' "$CALL_LOG" ||
+  fail "a ControlVault machine with a platform hook runs it"
+list_at=0
+dispatch_at=0
+call_n=0
+while IFS= read -r line; do
+  call_n=$((call_n + 1))
+  if [[ $line == "list" && $list_at == 0 ]]; then
+    list_at=$call_n
+  fi
+  if [[ $line == "dispatch enable-fingerprint" && $dispatch_at == 0 ]]; then
+    dispatch_at=$call_n
+  fi
+done < "$CALL_LOG"
+(( list_at > 0 && dispatch_at > list_at )) ||
+  fail "the ControlVault reader is prepared before the platform hook runs" "list:$list_at dispatch:$dispatch_at"
+grep -qx enroll "$CALL_LOG" ||
+  fail "a ControlVault machine with a platform hook still enrolls"
+pass "a ControlVault machine prepares the reader before running a platform hook"
+
+CONTROLVAULT_STATUS=0 INSTALLED=$'libfprint-git\nfprintd\nusbutils' run_setup
+assert_controlvault_installs "an installed libfprint-git is replaced by the ControlVault driver"
+pass "an installed libfprint-git is replaced by the ControlVault driver"
+
+CONTROLVAULT_STATUS=0 INSTALLED=$'fprintd\nusbutils\nlibfprint-tod\nlibfprint-2-tod1-broadcom' run_setup
+if grep -q '^yay ' "$CALL_LOG"; then
+  fail "a rerun with the ControlVault driver installed does not rebuild it"
+fi
+grep -qx enroll "$CALL_LOG" || fail "a rerun with the ControlVault driver installed reaches enrollment"
+grep -qx list "$CALL_LOG" || fail "a rerun still opens the reader before enrollment"
+grep -qx dropin "$CALL_LOG" || fail "a rerun still raises the fprintd start timeout"
+pass "a rerun with the ControlVault driver installed goes straight to the reader"
+
+CONTROLVAULT_STATUS=0 YAY_STATUS=1 run_setup
+if grep -Eq '^(list|enroll)$' "$CALL_LOG"; then
+  fail "a failed ControlVault install does not open or enroll the reader"
+fi
+pass "a failed ControlVault install stops before the reader is opened"
+
+CONTROLVAULT_STATUS=0 YAY_REGISTER=0 run_setup
+if grep -Eq '^(list|enroll)$' "$CALL_LOG"; then
+  fail "a driver yay reports installed, but pacman does not, is not enrolled"
+fi
+grep -q "Package 'fprintd' did not install" "$scratch/output" || fail "a missing registration names the package"
+pass "a driver yay reports installed, but pacman does not, stops before the reader is opened"
+
+CONTROLVAULT_STATUS=0 X86_STATUS=1 run_setup
+if grep -Eq '^(yay |list$|enroll$)' "$CALL_LOG"; then
+  fail "ControlVault setup on non-x86 stops before installing"
+fi
+grep -q 'only available on x86_64' "$scratch/output" || fail "ControlVault setup on non-x86 explains why"
+pass "ControlVault setup on non-x86 stops before installing"
+
+CONTROLVAULT_STATUS=0 AUR_ACCESS_STATUS=1 run_setup
+if grep -Eq '^(yay |list$|enroll$)' "$CALL_LOG"; then
+  fail "ControlVault setup does not install when the AUR is unreachable"
+fi
+grep -q 'AUR, which is unreachable' "$scratch/output" || fail "ControlVault setup explains an unreachable AUR"
+pass "ControlVault setup stops when the AUR is unreachable"
+
+CONTROLVAULT_STATUS=0 AUR_ACCESS_STATUS=1 INSTALLED=$'fprintd\nusbutils\nlibfprint-tod\nlibfprint-2-tod1-broadcom' run_setup
+if grep -qx aur-access "$CALL_LOG"; then
+  fail "an installed ControlVault driver does not consult the AUR"
+fi
+if grep -q '^yay ' "$CALL_LOG"; then
+  fail "an installed ControlVault driver does not download when the AUR is unreachable"
+fi
+grep -qx enroll "$CALL_LOG" || fail "an installed ControlVault driver still enrolls when the AUR is unreachable"
+pass "an installed ControlVault driver enrolls while the AUR is unreachable"
+
+: > "$CALL_LOG"
+rm -f "$CALL_LOG.installed"
+OMARCHY_PATH="$scratch" CONTROLVAULT_STATUS=0 ENROLL_STATUS=0 VERIFY_STATUS=0 \
+  "$setup_script" > "$scratch/output" 2>&1 || fail "ControlVault enrollment configures authentication"
+[[ $(grep -E '^(enroll|verify|apply-lock)$' "$CALL_LOG") == $'enroll\nverify\napply-lock' ]] ||
+  fail "ControlVault setup configures lock recovery once, after enrollment and verification"
+grep -qx "$controlvault_yay" "$CALL_LOG" || fail "successful ControlVault setup installed the Broadcom driver"
+grep -qx dropin "$CALL_LOG" || fail "successful ControlVault setup raises the fprintd start timeout"
+pass "ControlVault setup reuses apply-lock after enrollment and verification"
+
+mkdir -p "$(dirname "$dropin")"
+printf '[Service]\nTimeoutStartSec=240\n' > "$dropin"
+CONTROLVAULT_STATUS=0 INSTALLED=$'fprintd\nusbutils\nlibfprint-tod\nlibfprint-2-tod1-broadcom' run_setup
+if grep -qx dropin "$CALL_LOG"; then
+  fail "an existing 240s start timeout is left in place"
+fi
+if grep -qx 'systemctl daemon-reload' "$CALL_LOG"; then
+  fail "an existing 240s start timeout does not reload systemd"
+fi
+grep -qx enroll "$CALL_LOG" || fail "an existing start timeout still reaches enrollment"
+if grep -q 'couple of minutes' "$scratch/output"; then
+  fail "an existing start timeout does not repeat the firmware warning"
+fi
+pass "an existing 240s start timeout is left in place"
+
+printf '[Service]\nTimeoutStartSec=90\n' > "$dropin"
+CONTROLVAULT_STATUS=0 INSTALLED=$'fprintd\nusbutils\nlibfprint-tod\nlibfprint-2-tod1-broadcom' run_setup
+grep -qx dropin "$CALL_LOG" || fail "a short start timeout is replaced"
+grep -qx 'TimeoutStartSec=240' "$CALL_LOG.dropin" || fail "a short start timeout is raised to 240 seconds"
+pass "a short start timeout is raised to 240 seconds"
+rm -f "$dropin"
+
+CONTROLVAULT_STATUS=0 SYSTEMCTL_STATUS=1 INSTALLED=$'fprintd\nusbutils\nlibfprint-tod\nlibfprint-2-tod1-broadcom' run_setup
+grep -qx enroll "$CALL_LOG" || fail "a slow reader start still reaches enrollment"
+grep -q 'still starting' "$scratch/output" || fail "a slow reader start says enrollment will wait"
+(( $(grep -cx 'systemctl restart fprintd' "$CALL_LOG") == 1 )) || fail "a slow reader start does not restart a start still in progress"
+grep -qx 'systemctl is-active --quiet fprintd' "$CALL_LOG" || fail "a slow reader start checks whether the service came up"
+pass "a slow reader start still reaches enrollment"
+
+CONTROLVAULT_STATUS=0 FPRINTD_ACTIVE=0 INSTALLED=$'fprintd\nusbutils\nlibfprint-tod\nlibfprint-2-tod1-broadcom' run_setup
+grep -qx enroll "$CALL_LOG" || fail "an inactive reader service still reaches enrollment"
+(( $(grep -cx 'systemctl restart fprintd' "$CALL_LOG") == 1 )) || fail "an inactive reader service is not restarted again"
+grep -qx 'systemctl is-active --quiet fprintd' "$CALL_LOG" || fail "an inactive reader service was probed"
+pass "an inactive reader service is not restarted again"
+
+# A firmware write still in progress is activating. Restarting it would stop
+# that start and SIGKILL the write after 3s. Setup joins the start instead.
+CONTROLVAULT_STATUS=0 FPRINTD_STATE=activating INSTALLED=$'fprintd\nusbutils\nlibfprint-tod\nlibfprint-2-tod1-broadcom' run_setup
+grep -qx enroll "$CALL_LOG" || fail "a reader start already in progress still reaches enrollment"
+grep -qx 'systemctl start fprintd' "$CALL_LOG" || fail "a reader start already in progress is waited on"
+(( $(grep -cx 'systemctl restart fprintd' "$CALL_LOG") == 1 )) || fail "a reader start already in progress is restarted only once it is active"
+(( $(grep -cx 'systemctl is-active --quiet fprintd' "$CALL_LOG") == 1 )) || fail "the quiet active check stays the post-list restart guard"
+start_at=0
+restart_at=0
+call_n=0
+while IFS= read -r line; do
+  call_n=$((call_n + 1))
+  if [[ $line == 'systemctl start fprintd' && $start_at == 0 ]]; then
+    start_at=$call_n
+  fi
+  if [[ $line == 'systemctl restart fprintd' && $restart_at == 0 ]]; then
+    restart_at=$call_n
+  fi
+done < "$CALL_LOG"
+(( start_at > 0 && restart_at > start_at )) || fail "a reader start already in progress is restarted only after the wait"
+pass "a reader start already in progress is waited on, then restarted once it is active"
+
+# Idle exit and a wedged stop both report deactivating. A start or a restart
+# would replace that stop. Setup waits past the 3s stop timeout, then restarts.
+CONTROLVAULT_STATUS=0 FPRINTD_STATE=deactivating INSTALLED=$'fprintd\nusbutils\nlibfprint-tod\nlibfprint-2-tod1-broadcom' run_setup
+grep -qx enroll "$CALL_LOG" || fail "a stop already in progress still reaches enrollment"
+if grep -qx 'systemctl start fprintd' "$CALL_LOG"; then
+  fail "a stop already in progress is not replaced with a start"
+fi
+(( $(grep -cx 'systemctl restart fprintd' "$CALL_LOG") == 2 )) || fail "a stop already in progress restarts once the wait is over"
+(( $(grep -cx 'systemctl is-active --quiet fprintd' "$CALL_LOG") == 1 )) || fail "the quiet active check stays the post-list restart guard"
+reads_before_restart=0
+while IFS= read -r line; do
+  [[ $line == 'systemctl restart fprintd' ]] && break
+  [[ $line == 'systemctl is-active fprintd' ]] && reads_before_restart=$((reads_before_restart + 1))
+done < "$CALL_LOG"
+# The first look, then five one-second waits, past the 3s stop timeout.
+(( reads_before_restart == 6 )) || fail "a stop already in progress is waited out before restart" "$reads_before_restart"
+pass "a stop already in progress is waited out, then restarted"
 # A press sensor, such as a Mac's Touch ID, takes a touch per sample, so setup
 # says to lift and touch again; a swipe sensor keeps the moving-finger
 # instruction, and one fprintd can't name is told neither.

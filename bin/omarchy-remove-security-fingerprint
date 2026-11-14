@@ -48,9 +48,18 @@ remove_resume_hook() {
     echo "Removing fingerprint resume hook..."
     sudo rm -f /usr/lib/systemd/system-sleep/fprintd-resume
   fi
+  local reload=0
   if [[ -f /etc/systemd/system/fprintd.service.d/10-stop-timeout.conf ]]; then
     echo "Removing fprintd stop timeout bound..."
     sudo rm -f /etc/systemd/system/fprintd.service.d/10-stop-timeout.conf
+    reload=1
+  fi
+  if [[ -f /etc/systemd/system/fprintd.service.d/20-controlvault-start-timeout.conf ]]; then
+    echo "Removing ControlVault start timeout..."
+    sudo rm -f /etc/systemd/system/fprintd.service.d/20-controlvault-start-timeout.conf
+    reload=1
+  fi
+  if (( reload )); then
     sudo rmdir --ignore-fail-on-non-empty /etc/systemd/system/fprintd.service.d
     sudo systemctl daemon-reload
   fi
@@ -91,6 +100,8 @@ if ! disable_hook=$(omarchy-lifecycle-dispatch --resolve disable-fingerprint) ||
 fi
 
 echo "Removing fingerprint packages..."
-omarchy-pkg-drop fprintd libfprint libfprint-git
+# libfprint-tod and the Broadcom plugin are what ControlVault 3 setup installs
+# in place of libfprint-git. A name that is not installed is left alone.
+omarchy-pkg-drop fprintd libfprint libfprint-git libfprint-tod libfprint-2-tod1-broadcom
 
 echo -e "\e[32mFingerprint authentication and $fingerprint_user's local saved fingerprints have been removed.\e[0m"

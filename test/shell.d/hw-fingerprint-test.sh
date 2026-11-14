@@ -110,6 +110,19 @@ assert_detects "a self-named reader is detected with a driver bound"
 write_usb_devices '1234:5678:Generic USB Device'
 assert_rejects "a machine with no matching USB devices detects nothing"
 
+# The product string on these is the chip name "58200", which names neither
+# the function nor a vendor in the list above. The id is the reader.
+for product_id in 5842 5843 5844 5845; do
+  write_usb_devices "0a5c:${product_id}:58200"
+  assert_detects "ControlVault 3 USB id ${product_id} is detected"
+done
+
+write_usb_devices '0a5c:bd1f:BCM43242'
+assert_rejects "a Broadcom wireless adapter is not detected as a fingerprint reader"
+
+write_usb_devices '0a5c:5865:58200'
+assert_rejects "a ControlVault 3+ reader is not detected as ControlVault 3"
+
 # A reader the platform names: a file and the value it reads once usable, as a
 # Mac's Secure Enclave reports Touch ID. No USB device takes part.
 write_platform_readers() {
