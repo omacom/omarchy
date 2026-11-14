@@ -19,6 +19,7 @@ User-installed plugins live alongside these conceptually but on disk under
 | Clipboard mgr | `omarchy.clipboard`       | `overlay`               | `clipboard/Clipboard.qml`             |
 | Reminders     | `omarchy.reminders`       | `overlay`               | `reminders/ReminderFlow.qml`          |
 | Omarchy menu  | `omarchy.menu`            | `menu`, `bar-widget`    | `menu/Menu.qml`, `menu/BarWidget.qml` |
+| Apps          | `omarchy.apps`            | `menu`                  | `apps/Apps.qml`                       |
 | Notifications | `omarchy.notifications`   | `service`               | `notifications/Service.qml`           |
 | Audio         | `omarchy.audio`           | `bar-widget`            | `panels/audio/Panel.qml`              |
 | Bluetooth     | `omarchy.bluetooth`       | `bar-widget`            | `panels/bluetooth/Panel.qml`          |
@@ -101,7 +102,7 @@ runs inside the long-lived `omarchy-shell` process, replacing the old
 
 ## Dock
 
-App dock shown on floating workspaces, and hidden on tiled ones and behind a fullscreen window. Floating is not a Hyprland layout, so the dock reads each workspace's mode through `omarchy-hyprland-workspace-layout-current`, caches it, and is told to read again over `omarchy-shell omarchy.dock refresh` by the layout commands. `omarchy-shell omarchy.dock apps` toggles its grid of every app.
+App dock shown on floating workspaces, and hidden on tiled ones and behind a fullscreen window. Floating is not a Hyprland layout, so the dock reads each workspace's mode through `omarchy-hyprland-workspace-layout-current`, caches it, and is told to read again over `omarchy-shell omarchy.dock refresh` by the layout commands. `omarchy-shell shell toggle omarchy.apps` toggles the independent grid of every app, which remains available when the dock is disabled. The legacy `omarchy-shell omarchy.dock apps` command forwards to it while the dock is enabled.
 
 Its settings live in the `dock:` subtree of `shell.json`: `position` (`top`, `bottom`, `left` or `right`) and `pinned` (desktop ids). A `shell.json` without pins uses the defaults. `omarchy dock` sets both.
 

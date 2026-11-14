@@ -13,6 +13,7 @@ QtObject {
   required property string pluginId
 
   property var appLibrary: null
+  property var appsDock: null
   property var bar: null
   property var barConfig: ({})
   property var idleConfig: ({})
