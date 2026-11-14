@@ -684,6 +684,49 @@ function applyTranslations(items, catalog) {
   return out
 }
 
+// Keybinding hints. default/hypr/helpers.lua writes one "<keys>\t<command>"
+// line per bind that runs a command, after every config load, and a row whose
+// action is one of those commands shows the keys under itself while selected.
+// The uwsm-app launcher prefix is the bind's business, not the action's, so it
+// does not keep a launcher row from matching the key that opens the same app.
+var KEY_NAMES = { SUPER: "Super", CTRL: "Ctrl", CONTROL: "Ctrl", SHIFT: "Shift", ALT: "Alt" }
+
+function keybindingCommand(command) {
+  return String(command || "").trim().replace(/\s+/g, " ").replace(/^uwsm-app -- /, "")
+}
+
+// "SUPER + CTRL + L" reads as "Super + Ctrl + L". Names already in mixed case
+// (XF86AudioMute) and keycodes (code:10) are kept as written.
+function formatChord(keys) {
+  return String(keys || "").split("+").map(function(part) {
+    var name = part.trim()
+    var upper = name.toUpperCase()
+    if (KEY_NAMES[upper]) return KEY_NAMES[upper]
+    if (name.length > 1 && name === upper && /^[A-Z]+$/.test(name)) return name.charAt(0) + name.slice(1).toLowerCase()
+    return name
+  }).filter(function(name) { return name }).join(" + ")
+}
+
+// The first chord bound to a command wins: defaults load before the user's
+// own bindings, so a second key a user adds does not replace the familiar one.
+function parseKeybindingHints(raw) {
+  // No prototype, so a command spelled like an Object member is just a key.
+  var hints = Object.create(null)
+  var lines = String(raw || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var tab = lines[i].indexOf("\t")
+    if (tab <= 0) continue
+    var command = keybindingCommand(lines[i].slice(tab + 1))
+    if (command && !(command in hints)) hints[command] = formatChord(lines[i].slice(0, tab))
+  }
+  return hints
+}
+
+function keybindingHintFor(hints, action) {
+  var command = keybindingCommand(action)
+  return command && hints && Object.prototype.hasOwnProperty.call(hints, command) ? hints[command] : ""
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     summonAction: summonAction,
@@ -719,6 +762,9 @@ if (typeof module !== "undefined") {
     dmenuSelections: dmenuSelections,
     toggleDmenuSelection: toggleDmenuSelection,
     displayRow: displayRow,
-    applyTranslations: applyTranslations
+    applyTranslations: applyTranslations,
+    formatChord: formatChord,
+    parseKeybindingHints: parseKeybindingHints,
+    keybindingHintFor: keybindingHintFor
   }
 }
