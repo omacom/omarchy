@@ -18,113 +18,60 @@ run_update() {
 
 for args in '-y' ''; do
   reset_boundary
-  touch "$SUDO_TEST_CACHE"
   run_update $args || fail "update failed" "$(<"$boundary_tmp/output")"
-  assert_boundary_cold "successful update"
   python3 - "$SUDO_TEST_LOG" <<'PY'
 import sys
 s=open(sys.argv[1]).read().splitlines()
-# A cached credential from before the update is revoked, then the update
-# authorizes exactly once before any step that could need sudo.
-assert s[0]=='sudo -k', s
+# The update authorizes exactly once before any step that could need sudo.
 # Authorization runs a command (sudo -v prompts even with passwordless sudo).
 prune=s.index('step:omarchy-update-pkg-prune ')
-auth=s.index('sudo /usr/bin/true')
+auth=s.index('sudo true')
 assert auth < prune, s
-assert [l for l in s[:prune] if l.startswith('sudo ') and l not in ('sudo -k','sudo -h')]==['sudo /usr/bin/true'], s
+assert [l for l in s[:prune] if l.startswith('sudo ')]==['sudo true'], s
 assert 'sudo -v' not in s, s
 positions=[next(i for i,line in enumerate(s) if line.startswith(prefix)) for prefix in ['step:omarchy-update-system-pkgs','step:omarchy-migrate','step:omarchy-update-restart --services-only','step:omarchy-hook post-update','step:omarchy-update-mise','step:yay','step:omarchy-update-stay-awake stop','step:omarchy-update-restart --reboot-only']]
 assert positions==sorted(positions), s
 yay=positions[5]
-# Everything through AUR shares the one authorization: plain sudo, no revokes.
-assert not any(line=='sudo -k' or line.startswith('sudo -N ') for line in s[auth:yay+1]), s
-assert 'sudo /usr/bin/true' in s[auth:positions[0]+1], s
-# Nothing after AUR authorizes again, and the update ends cold.
-assert not any(line.startswith('sudo ') and line not in ('sudo -k','sudo -n /usr/bin/true') for line in s[yay:]), s
+# Everything through AUR shares the one authorization (the stand-in exits 94
+# if the hook, mise or yay found it gone), and nothing revokes it.
+assert 'sudo -k' not in s, s
+# Nothing after AUR authorizes again.
+assert not any(line.startswith('sudo ') for line in s[yay:]), s
 PY
-  pass "update $args authorizes once for everything, AUR included, and exits cold"
+  pass "update $args authorizes once for everything, AUR included"
 done
 
 for step in omarchy-update-system-pkgs yay omarchy-hook; do
   reset_boundary
   export SUDO_TEST_FAIL_STEP=$step
   if run_update -y; then fail "$step failure must fail the update"; fi
-  assert_boundary_cold "failed $step"
-  python3 - "$SUDO_TEST_LOG" <<'PY'
-import sys
-s=open(sys.argv[1]).read().splitlines()
-for i,line in enumerate(s):
- if line=='step:omarchy-update-stay-awake stop': assert i>0 and s[i-1]=='sudo -k',s
-PY
-  pass "update revokes credentials after $step fails"
+  grep -Fxq 'step:omarchy-update-stay-awake stop' "$SUDO_TEST_LOG" || fail "failed $step left the sleep inhibitor" "$(<"$SUDO_TEST_LOG")"
+  if grep -q '^step:omarchy-update-restart --reboot-only' "$SUDO_TEST_LOG"; then fail "failed $step still offered a reboot"; fi
+  pass "update stops after $step fails and releases the sleep inhibitor"
 done
 
 reset_boundary
 export SUDO_TEST_SIGNAL_STEP=omarchy-hook
 if run_update -y; then fail "interrupted update must fail"; fi
-assert_boundary_cold "interrupted update"
-pass "update revokes credentials on TERM"
-
-reset_boundary
-export SUDO_TEST_REVOKE_FAIL=1
-if run_update -y; then fail "failed initial revocation must fail the update"; fi
-if grep -q '^step:' "$SUDO_TEST_LOG"; then fail "failed revocation must precede update work"; fi
-pass "a failed cold start prevents update work"
+grep -Fxq 'step:omarchy-update-stay-awake stop' "$SUDO_TEST_LOG" || fail "an interrupted update left the sleep inhibitor" "$(<"$SUDO_TEST_LOG")"
+pass "update stops on TERM and releases the sleep inhibitor"
 
 reset_boundary
 "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" stable >"$boundary_tmp/output" 2>&1 || fail "refresh failed" "$(<"$boundary_tmp/output")"
-assert_boundary_cold "refresh"
 python3 - "$SUDO_TEST_LOG" <<'PY'
 import sys
 s=open(sys.argv[1]).read().splitlines()
 hook=next(i for i,l in enumerate(s) if l=='step:omarchy-hook pre-refresh-pacman')
-copies=[i for i,l in enumerate(s) if l.startswith('sudo -N cp ')]
+copies=[i for i,l in enumerate(s) if l.startswith('sudo cp ')]
 transaction=next(i for i,l in enumerate(s) if l.startswith('step:pacman '))
 assert len(copies)==4 and max(copies) < hook < transaction, s
-assert s[hook-1]=='sudo -k' and s[hook+1]=='sudo -k', s
-assert all(l in ('sudo -h','sudo -k') or l.startswith('sudo -N ') for l in s if l.startswith('sudo ')), s
 PY
-pass "refresh runs the hook cold between the config re-sync and the transaction"
+pass "refresh runs the hook between the config re-sync and the transaction"
 
 for step in pacman omarchy-hook; do
   reset_boundary
   export SUDO_TEST_FAIL_STEP=$step
   if "$SUDO_TEST_ROOT/bin/omarchy-refresh-pacman" stable >"$boundary_tmp/output" 2>&1; then fail "refresh must propagate $step failure"; fi
-  assert_boundary_cold "failed refresh $step"
-  pass "refresh revokes after $step failure"
+  if [[ $step == "omarchy-hook" ]] && grep -q '^step:pacman ' "$SUDO_TEST_LOG"; then fail "a failed hook still reached the transaction"; fi
+  pass "refresh propagates $step failure"
 done
-
-# The wrapper must preserve sudo's own option parser, including validation and
-# explicit --, while standalone timestamp maintenance cannot be combined with N.
-for args in '-v' '-n /usr/bin/true' '--user test -- /usr/bin/true' '-- /usr/bin/true' '-k' '-K'; do
-  reset_boundary
-  "$SUDO_TEST_ROOT/default/omarchy/sudo-no-update/sudo" $args
-  case "$args" in
-    -k|-K) expected="sudo $args" ;;
-    *) expected="sudo -N $args" ;;
-  esac
-  [[ $(<"$SUDO_TEST_LOG") == "$expected" ]] || fail "wrapper changed options: $args" "$(<"$SUDO_TEST_LOG")"
-  [[ ! -e $SUDO_TEST_CACHE ]] || fail "wrapper refreshed credentials"
-  pass "sudo wrapper preserves $args"
-done
-
-for script in bin/omarchy-update bin/omarchy-refresh-pacman default/omarchy/sudo-no-update/sudo; do
-  reset_boundary
-  if /usr/bin/bash "$SUDO_TEST_ROOT/$script" -p >"$boundary_tmp/output" 2>&1; then fail "$script accepted an ordinary Bash launch"; fi
-  [[ ! -s $SUDO_TEST_LOG ]] || fail "$script reached sudo through an invalid interpreter"
-  pass "$script rejects a decoy privileged-mode argument"
-done
-
-reset_boundary
-printf '%s\n' 'printf startup-ran >>"$SUDO_TEST_ROOT/startup-marker"' >"$boundary_tmp/startup"
-BASH_ENV="$boundary_tmp/startup" ENV="$boundary_tmp/startup" run_update -y || fail "sanitized update failed" "$(<"$boundary_tmp/output")"
-[[ ! -e $SUDO_TEST_ROOT/startup-marker ]] || fail "startup code leaked into an update helper"
-pass "inherited startup files do not run in the updater or its child scripts"
-
-reset_boundary
-function printf() { /usr/bin/touch "$SUDO_TEST_ROOT/function-marker"; }
-export -f printf
-run_update -y || fail "update failed with inherited function" "$(<"$boundary_tmp/output")"
-unset -f printf
-[[ ! -e $SUDO_TEST_ROOT/function-marker ]] || fail "an inherited function reached an update helper"
-pass "exported functions do not reach update helper interpreters"

@@ -5,7 +5,12 @@
 
 dropbox-cli stop 2>/dev/null || true
 omarchy-plugin-disable omarchy.dropbox
-omarchy-pkg-drop dropbox dropbox-cli libappindicator-gtk3 python-gpgme nautilus-dropbox
+omarchy-pkg-drop dropbox dropbox-cli python-gpgme nautilus-dropbox
+
+# Other tray apps need libappindicator too, and naming a required package fails the whole removal
+if pacman -Qqtt libappindicator &>/dev/null; then
+  omarchy-pkg-drop libappindicator
+fi
 
 echo ""
 echo "Dropbox has been removed."

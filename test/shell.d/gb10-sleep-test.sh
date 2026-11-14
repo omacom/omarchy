@@ -74,6 +74,29 @@ for machine in n1x other; do
 done
 pass "the GB10 setting disallows every sleep operation and leaves the N1x and other machines alone"
 
+# The CPU idle setup turns off every idle state past state0 on the running
+# cores of a GB10, and leaves other machines' cores alone.
+for machine in spark n1x other; do
+  for state in 0 1 2 3; do
+    mkdir -p "$scratch/hw/$machine/sys/devices/system/cpu/cpu3/cpuidle/state$state"
+    echo 0 >"$scratch/hw/$machine/sys/devices/system/cpu/cpu3/cpuidle/state$state/disable"
+  done
+  run "$machine" "$scratch/$machine-sleep" env OMARCHY_UDEV_RULES_DIR="$scratch/$machine-udev" \
+    bash "$ROOT/install/hardware/gb10/cpuidle.sh"
+done
+idle_state() { cat "$scratch/hw/$1/sys/devices/system/cpu/cpu3/cpuidle/state$2/disable"; }
+[[ $(idle_state spark 0) == 0 ]] || fail "a GB10 keeps state0"
+for state in 1 2 3; do
+  [[ $(idle_state spark $state) == 1 ]] || fail "a GB10 turns off idle state$state"
+done
+[[ -f $scratch/spark-udev/71-omarchy-gb10-cpuidle.rules ]] || fail "a GB10 keeps the idle setting across boots"
+for machine in n1x other; do
+  [[ $(cat "$scratch/hw/$machine/sys/devices/system/cpu/cpu3/cpuidle"/state*/disable | sort -u) == 0 ]] ||
+    fail "the $machine machine keeps its idle states"
+  [[ ! -e $scratch/$machine-udev ]] || fail "the $machine machine gets no idle rule"
+done
+pass "a GB10 keeps its cores out of deep idle states and other machines keep theirs"
+
 run spark "$scratch/spark" omarchy-sleep-disabled || fail "sleep reads as disabled with the setting in place"
 run spark "$scratch/none" omarchy-sleep-disabled && fail "sleep reads as enabled without the setting"
 pass "omarchy-sleep-disabled follows the sleep setting"

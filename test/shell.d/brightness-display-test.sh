@@ -113,16 +113,42 @@ pass "unsupported external monitor has no brightness backend"
 
 rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 detect_count=$(grep -c ' detect --brief' "$call_log")
+get_count=$(grep -c ' getvcp 10 ' "$call_log")
+if DDC_READ_FAIL=1 run_brightness --monitor DP-1 >/dev/null 2>&1; then
+  fail "unreadable DDC brightness is reported"
+fi
+if DDC_READ_FAIL=1 run_brightness --monitor DP-1 >/dev/null 2>&1; then
+  fail "cached unreadable DDC brightness is reported"
+fi
+(( $(grep -c ' detect --brief' "$call_log") == detect_count + 1 )) || \
+  fail "unreadable DDC brightness is temporarily cached"
+(( $(grep -c ' getvcp 10 ' "$call_log") == get_count + 1 )) || \
+  fail "cached unreadable DDC brightness is not read again"
+pass "unreadable DDC brightness is temporarily cached"
+
+printf 'unavailable 0\n' >"$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
+brightness=$(run_brightness --monitor DP-1)
+[[ $brightness == "50" ]] || fail "expired unreadable DDC brightness is retried" "actual: $brightness"
+pass "expired unreadable DDC brightness is retried"
+
+detect_count=$(grep -c ' detect --brief' "$call_log")
 if DDC_READ_FAIL=1 run_brightness --monitor DP-1 >/dev/null 2>&1; then
   fail "transient DDC read failure is reported"
 fi
-(( $(grep -c ' detect --brief' "$call_log") == detect_count + 1 )) || \
-  fail "transient DDC read failure is not retried immediately"
 brightness=$(run_brightness --monitor DP-1)
-[[ $brightness == "50" ]] || fail "transient DDC read failure is retried on the next invocation" "actual: $brightness"
-(( $(grep -c ' detect --brief' "$call_log") == detect_count + 2 )) || \
-  fail "transient DDC read failure does not create a negative cache entry"
-pass "transient DDC read failure is retried on the next invocation"
+[[ $brightness == "50" ]] || fail "transient DDC read failure on a known bus is retried on the next invocation" "actual: $brightness"
+(( $(grep -c ' detect --brief' "$call_log") == detect_count + 1 )) || \
+  fail "transient DDC read failure on a known bus detects the bus again"
+pass "transient DDC read failure on a known bus is retried on the next invocation"
+
+printf '7\n' >"$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
+if DDC_READ_FAIL=1 run_brightness --monitor DP-1 >/dev/null 2>&1; then
+  fail "unread DDC bus failure is reported"
+fi
+read -r cached_entry _ <"$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
+[[ $cached_entry == "unavailable" ]] || fail "a bus never read successfully is temporarily cached" "actual: $cached_entry"
+pass "a bus never read successfully is temporarily cached"
+rm -f "$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 
 printf '7 80 0\n' >"$runtime_dir/omarchy-brightness-display-ddc/DP-1.bus"
 get_count=$(grep -c ' getvcp 10 ' "$call_log")

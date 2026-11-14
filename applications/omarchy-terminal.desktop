@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=Terminal
+Comment=Open the default terminal
+Exec=omarchy-launch-terminal
+Icon=omarchy-terminal
+Terminal=false
+Type=Application
+Categories=System;

@@ -1,91 +1,91 @@
 # Aipeanna Gréasáin
 
-Is féidir leat d'aipeanna gréasáin féin a chur leis trí _Suiteáil > Aip Gréasáin_ sa roghchlár Omarchy (`Super + Space`) a úsáid. Iarrfaidh sé ort ainm na haipe, URL na haipe, agus URL an deilbhín, mura féidir leis é a fháil trí favicon. Is féidir leat deilbhíní PNG iontacha do go leor aipeanna gréasáin coitianta a fháil ar [Dashboard Icons](https://dashboardicons.com).
+Is féidir leat d'aipeanna gréasáin féin a chur leis ag úsáid _Suiteáil > Aip Ghréasáin_ i roghchlár Omarchy (`Super + Space`). Iarrfaidh sé ainm na haipe, URL na haipe, agus URL an deilbhín ort, mura féidir leis é a aisghabháil tríd an favicon. Is féidir leat deilbhíní PNG iontacha a fháil do go leor aipeanna gréasáin a bhfuil tóir orthu ar [Dashboard Icons](https://dashboardicons.com).
 
-Beidh siad inrochtana ansin tríd an lainseálaí aipeanna (`Super + Space`), agus bainfidh siad úsáid as an bhfuinneog aipe gréasáin gan fhráma álainn.
+Beidh rochtain orthu ansin tríd an tosaitheoir aipeanna (`Super + Space`), agus úsáidfidh siad an fhuinneog álainn aipe gréasáin gan fráma.
 
-Más mian leat aip gréasáin a bhaint, téigh chuig _Bain > Aip Gréasáin_ sa roghchlár Omarchy.
+Más mian leat aip ghréasáin a bhaint, níl le déanamh ach dul go _Bain > Aip Ghréasáin_ i roghchlár Omarchy.
 
-Is fearr má logáilann tú isteach i do chuntais go léir trí bhrabhsálaí rialta sula n-úsáideann tú aicearraí na n-aipeanna gréasáin. Ní oibríonn an fráma fillteáin tanaí go maith le 1password, mar sin is éasca bheith logáilte isteach go díreach ar dtús.
+Is fearr logáil isteach i do chuntais go léir le brabhsálaí rialta sula n-úsáideann tú aicearraí na n-aipeanna gréasáin. Ní oibríonn an fráma tanaí cumhdaigh go maith le 1password, mar sin is éascaí a bheith logáilte isteach go díreach ar dtús.
 
-Is féidir na heochracha te go léir do na haipeanna gréasáin seo a athrú in `~/.config/hypr/bindings.lua`.
+Is féidir na heochracha aicearra go léir do na haipeanna gréasáin seo a athrú in `~/.config/hypr/bindings.lua`.
 
-Nuair atá tú in aip gréasáin, is féidir leat an URL reatha a chóipeáil chuig an ngearrthaisce trí `Shift + Alt + L` a úsáid.
+Nuair atá tú in aip ghréasáin, is féidir leat an URL reatha a chóipeáil chuig an ngearrthaisce ag úsáid `Shift + Alt + L`.
 
-De réir réamhshocraithe, tagann Omarchy le rogha aipeanna réamhshocraithe cheana féin:
+De réir réamhshocraithe, tagann réimse aipeanna réamhshocraithe le Omarchy cheana féin:
 
 ## HEY
 
-Is seirbhís ríomhphoist agus féilire é [HEY](https://www.hey.com/) a fhreastalaíonn mar mhalairt iontach do dhaoine atá tuirseach de Gmail, Outlook, nó Apple Mail. Déanann [37signals](https://37signals.com/) é áit ar tháinig Omarchy ar dtús.
+[HEY](https://www.hey.com/) is seirbhís ríomhphoist agus féilire í a chuireann rogha eile iontach ar fáil do dhaoine atá tuirseach de Gmail, Outlook, nó Apple Mail. Is í [37signals](https://37signals.com/) a dhéanann í, áit ar tháinig Omarchy ar an bhfód.
 
-Is féidir leat HEY Email a thosú trí `Super + Shift + E` a úsáid, léim díreach go dtí ríomhphost nua a chumadh trí `Super + Shift + Alt + E` a úsáid, agus HEY Calendar a thosú trí `Super + Shift + C` a úsáid.
+Is féidir leat HEY Email a thosú ag úsáid `Super + Shift + E`, léim go díreach chuig ríomhphost nua a scríobh ag úsáid `Super + Shift + Alt + E`, agus HEY Calendar a thosú ag úsáid `Super + Shift + C`.
 
 ## Basecamp
 
-Is seirbhís bainistíochta tionscadal é [Basecamp](https://basecamp.com/) a chuidíonn le foirne beaga bogadh níos tapúla agus níos mó dul chun cinn a dhéanamh. In ionad mishmash de Trello, Slack, Asana, Notion, nó cibé rud a chur le chéile, is féidir leat é go léir a bheith agat in aon áit amháin le Basecamp. Déanann [37signals](https://37signals.com/) é áit ar tháinig Omarchy ar dtús.
+[Basecamp](https://basecamp.com/) is seirbhís bainistíochta tionscadal í a chabhraíonn le foirne beaga bogadh níos tapúla agus níos mó dul chun cinn a dhéanamh. In ionad meascán mearaí de Trello, Slack, Asana, Notion, nó pé rud a chur le chéile go garbh, is féidir leat é ar fad a bheith agat in aon áit amháin le Basecamp. Is í [37signals](https://37signals.com/) a dhéanann é, áit ar tháinig Omarchy ar an bhfód.
 
-Is féidir leat Basecamp a thosú tríd an lainseálaí feidhmchlár a úsáid (`Super + Space`)
+Is féidir leat Basecamp a thosú ag úsáid an tosaitheora feidhmchlár (`Super + Space`)
 
 ## ChatGPT
 
-Is é [ChatGPT](https://chatgpt.com) an bot comhrá AI is mó tóir ar domhan.
+[ChatGPT](https://chatgpt.com) is é an bot comhrá AI is mó tóir ar domhan é.
 
-Is féidir leat ChatGPT a thosú trí `Super + Shift + A` a úsáid.
+Is féidir leat ChatGPT a thosú ag úsáid `Super + Shift + A`.
 
 ## Grok
 
-Is bot comhrá xAI é [Grok](https://grok.com).
+[Grok](https://grok.com) is é bot comhrá xAI é.
 
-Is féidir leat Grok a thosú trí `Super + Shift + Alt + A` a úsáid.
+Is féidir leat Grok a thosú ag úsáid `Super + Shift + Alt + A`.
 
 ## WhatsApp
 
-Is é [WhatsApp](https://www.whatsapp.com/) ceann de na seirbhísí teachtaireachtaí is mó tóir ar domhan, agus is rogha iontach é an leagan gréasáin do Linux.
+[WhatsApp](https://www.whatsapp.com/) is ceann de na seirbhísí teachtaireachtaí is mó tóir ar domhan é, agus is rogha iontach do Linux é an leagan gréasáin.
 
-Is féidir leat WhatsApp a thosú trí `Super + Shift + Alt + G` a úsáid.
+Is féidir leat WhatsApp a thosú ag úsáid `Super + Shift + Alt + G`.
 
 ## Aipeanna Google
 
-Tá Google Messages, Google Photos, Google Maps, agus Google Contacts uile san áireamh mar aipeanna gréasáin freisin.
+Tá Google Messages, Google Photos, Google Maps, agus Google Contacts ar fad san áireamh mar aipeanna gréasáin freisin.
 
-Is féidir leat Google Messages a thosú trí `Super + Shift + Ctrl + G` a úsáid, Google Photos trí `Super + Shift + P` a úsáid, agus Google Maps trí `Super + Shift + S` a úsáid. Tá Google Contacts ar fáil tríd an lainseálaí aipeanna (`Super + Space`).
+Is féidir leat Google Messages a thosú ag úsáid `Super + Shift + Ctrl + G`, Google Photos ag úsáid `Super + Shift + P`, agus Google Maps ag úsáid `Super + Shift + S`. Tá Google Contacts ar fáil tríd an tosaitheoir aipeanna (`Super + Space`).
 
 ## X
 
-Is ann a bhriseann nuacht X.
+Is ar X a bhriseann an nuacht.
 
-Is féidir leat X a thosú trí `Super + Shift + X` a úsáid agus dul díreach go dtí post nua a scríobh le `Super + Shift + Alt + X`.
+Is féidir leat X a thosú ag úsáid `Super + Shift + X` agus dul go díreach chuig postáil nua a scríobh le `Super + Shift + Alt + X`.
 
 ## YouTube
 
-Is é [YouTube](https://youtube.com/) an t-ardán físeáin is mó tóir ar domhan.
+[YouTube](https://youtube.com/) is é an t-ardán físeán is mó tóir ar domhan é.
 
-Is féidir leat YouTube a thosú trí `Super + Shift + Y` a úsáid.
+Is féidir leat YouTube a thosú ag úsáid `Super + Shift + Y`.
 
 ## Zoom
 
-Is é [Zoom](https://zoom.us/) an córas fíchomhrá is mó tóir a úsáidtear sna SA. Naisc iontacha ar fud an domhain. Agus is féidir cruinnithe 40 nóiméad a reáchtáil gan cuntas íocaíochta. Fillteánann Omarchy cliant gréasáin Zoom, agus osclóidh naisc chruinnithe zoom díreach isteach ann.
+[Zoom](https://zoom.us/) is é an córas comhrá físe is mó tóir a úsáidtear sna Stáit Aontaithe é. Naisc iontacha ar fud an domhain. Agus is féidir cruinnithe 40 nóiméad a reáchtáil gan chuntas íoctha. Cuireann Omarchy cumhdach timpeall ar chliant gréasáin Zoom, agus osclóidh naisc cruinnithe Zoom go díreach ann.
 
-Tosaíonn tú Zoom tríd an lainseálaí feidhmchlár a úsáid (`Super + Space`).
+Tosaíonn tú Zoom ag úsáid an tosaitheora feidhmchlár (`Super + Space`).
 
 ## Discord
 
-Is é [Discord](https://discord.com/) an áit a mbíonn formhór na bpobal cearrbhachais agus foinse oscailte ag crochadh amach, lena n-áirítear [pobal Omarchy féin](https://discord.gg/tXFUdasqhY).
+[Discord](https://discord.com/) is ann a bhíonn an chuid is mó de na pobail chearrbhachais agus foinse oscailte, [pobal Omarchy féin](https://discord.gg/tXFUdasqhY) ina measc.
 
-Tosaíonn tú Discord tríd an lainseálaí feidhmchlár a úsáid (`Super + Space`).
+Tosaíonn tú Discord ag úsáid an tosaitheora feidhmchlár (`Super + Space`).
 
 ## Aipeanna Microsoft
 
-Roghnaigh _Suiteáil > Seirbhís > Microsoft_ chun Outlook, Word, Excel, PowerPoint, Teams, agus OneDrive a chur leis mar aipeanna gréasáin. Tá a lainseálaí féin ag gach aip agus osclaíonn sé go díreach, ag úsáid URLanna tráchtála Microsoft 365 agus do phróifíl bhrabhsálaí reatha. Osclaíonn siad sna fuinneoga aipe brabhsálaí céanna le haipeanna gréasáin eile Omarchy; ní shuiteálann siad cliant Teams for Linux ar leith.
+Roghnaigh _Suiteáil > Seirbhís > Microsoft_ chun Outlook, Word, Excel, PowerPoint, Teams, agus OneDrive a chur leis mar aipeanna gréasáin. Tá a thosaitheoir féin ag gach aip agus osclaíonn sé go díreach, ag úsáid URLanna tráchtála Microsoft 365 agus do phróifíl brabhsálaí atá ann cheana. Osclaíonn siad sna fuinneoga céanna aipe brabhsálaí agus a osclaíonn aipeanna gréasáin eile Omarchy; ní shuiteálann siad an cliant ar leith Teams for Linux.
 
-Bain an bundle le _Bain > Seirbhís > Microsoft_, nó bain aipeanna aonair le _Bain > Aip Gréasáin_. Is féidir leat díreach na haipeanna atá uait a shuiteáil freisin trí _Suiteáil > Aip Gréasáin_.
+Bain an beart le _Bain > Seirbhís > Microsoft_, nó bain aipeanna aonair le _Bain > Aip Ghréasáin_. Is féidir leat freisin díreach na haipeanna atá uait a shuiteáil trí _Suiteáil > Aip Ghréasáin_.
 
-Le haghaidh scamall rialtais nó flaitheasaigh, cuir an URL ar an líne `Exec=` in eagar sa lainseálaí ábhartha faoi `~/.local/share/applications/`, ar nós `Microsoft Teams.desktop`, ag úsáid an URL a sholáthair d'eagraíocht. Scríobh aon `%` liteartha sa líne sin mar `%%`. Baineann athruithe feidhm ar an chéad lainseáil eile. Ionadaíonn rith an suiteálaí bundle arís a lainseálaithe leis na URLanna réamhshocraithe.
+I gcás néil rialtais nó néil cheannasaigh, cuir an URL in eagar ar an líne `Exec=` sa tosaitheoir ábhartha faoi `~/.local/share/applications/`, amhail `Microsoft Teams.desktop`, ag úsáid an URL a sholáthraíonn d'eagraíocht. Scríobh aon `%` litriúil sa líne sin mar `%%`. Tagann athruithe i bhfeidhm ar an gcéad seoladh eile. Má ritheann tú suiteálaí an bhearta arís, cuirfidh sé na URLanna réamhshocraithe in ionad a thosaitheoirí.
 
-Chun síniú isteach oibre a choinneáil ar leith, cuir eolaire sonraí brabhsálaí ar aghaidh chuig líne `Exec=` gach lainseálaí:
+Chun logálacha isteach oibre a choinneáil ar leithligh, cuir eolaire sonraí brabhsálaí ag deireadh líne `Exec=` gach tosaitheora:
 
 ```ini
 Exec=omarchy-launch-webapp "https://teams.cloud.microsoft/" --user-data-dir=/absolute/path/to/work-browser-profile
 ```
 
-Ionadaigh an eolaire samplach le conair iomlán de do rogha agus úsáid an chonair chéanna do na sé lainseálaí go léir chun síniú isteach oibre a chomhroinnt eatarthu. Úsáideann na haipeanna gréasáin brabhsálaí tacaithe roghnaithe Omarchy, ag titim ar ais chuig Chromium nuair nach dtacaítear leis an mbrabhsálaí réamhshocraithe.
+Cuir conair iomlán de do rogha féin in ionad an eolaire shamplaigh agus úsáid an chonair chéanna do na sé thosaitheoir ar fad chun logálacha isteach oibre a roinnt eatarthu. Úsáideann na haipeanna gréasáin an brabhsálaí tacaithe a roghnaíonn Omarchy, agus téann siad ar ais ar Chrome nuair nach dtacaítear leis an mbrabhsálaí réamhshocraithe.

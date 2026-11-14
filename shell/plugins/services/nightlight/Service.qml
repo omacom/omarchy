@@ -49,7 +49,9 @@ Item {
   function runApply(temp) {
     applyProcess.command = ["bash", "-lc",
       "pgrep -x hyprsunset >/dev/null || { setsid uwsm-app -- hyprsunset >/dev/null 2>&1 & sleep 1; }; " +
-      "hyprctl hyprsunset temperature " + Number(temp)]
+      "hyprctl hyprsunset temperature " + Number(temp) +
+      // Even daylight tints the screen, so off also restores the identity matrix
+      (temp === dayTemperature ? " && hyprctl hyprsunset identity" : "")]
     applyProcess.running = true
   }
 

@@ -1,0 +1,149 @@
+#!/bin/bash
+
+# omarchy:summary=Choose whether the keyboard's top row sends F1-F12 or media keys by default
+# omarchy:args=[mediakeys|fnkeys]
+# omarchy:examples=omarchy keyboard toprow | omarchy keyboard toprow mediakeys | omarchy keyboard toprow fnkeys
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# Most keyboards keep Fn-lock in their own firmware, where Fn+Esc already
+# survives a reboot. Three drivers keep it on the host instead and set it again
+# at every boot from a module option: hid_asus (ASUS I2C keyboards such as the
+# Zenbook A16 and ProArt P14), asus_wmi (ASUS laptops) and hid_apple (Apple and
+# Apple-style keyboards such as the Lofree Flow). This sets all three in one
+# file, which sorts after hid_apple.conf and hid_asus.conf, so it wins over them.
+#
+# mediakeys: the top row sends the media keys, and Fn gives F1-F12.
+# fnkeys: the top row sends F1-F12, and Fn gives the media keys.
+
+modprobe_dir=${OMARCHY_MODPROBE_DIR:-/etc/modprobe.d}
+sys_module=${OMARCHY_SYS_MODULE:-/sys/module}
+conf="$modprobe_dir/omarchy-toprow.conf"
+rebuild_pending=${OMARCHY_TOPROW_REBUILD_PENDING:-/var/lib/omarchy/toprow-rebuild-pending}
+
+usage() {
+  echo "Usage: omarchy-keyboard-toprow [mediakeys|fnkeys] [--no-rebuild]" >&2
+  exit 1
+}
+
+state=
+rebuild=1
+for arg in "$@"; do
+  case $arg in
+    mediakeys | fnkeys)
+      [[ -z $state ]] || usage
+      state=$arg
+      ;;
+    --no-rebuild) rebuild=0 ;;
+    *) usage ;;
+  esac
+done
+
+param() {
+  cat "$sys_module/$1/parameters/$2" 2>/dev/null
+}
+
+# Without an argument, print what the top row sends by default: the chosen
+# setting once there is one, otherwise what the loaded driver booted with.
+# Prints unsupported where Linux can't set it: Apple Silicon, or a keyboard
+# that keeps Fn-lock in its own firmware.
+if [[ -z $state ]]; then
+  if omarchy-hw-aarch64-apple || [[ ! -d $sys_module/hid_asus && ! -d $sys_module/asus_wmi && ! -d $sys_module/hid_apple ]]; then
+    echo unsupported
+  elif grep -qx 'options hid_asus fnlock_default=1' "$conf" 2>/dev/null; then
+    echo fnkeys
+  elif grep -qx 'options hid_asus fnlock_default=0' "$conf" 2>/dev/null; then
+    echo mediakeys
+  else
+    fnlock=$(param hid_asus fnlock_default || param asus_wmi fnlock_default || true)
+    case $fnlock:$(param hid_apple fnmode) in
+      Y:* | 1:* | :0 | :2) echo fnkeys ;;
+      N:* | 0:* | :1) echo mediakeys ;;
+      *) echo unset ;;
+    esac
+  fi
+  exit 0
+fi
+
+if omarchy-hw-aarch64-apple; then
+  echo "On Apple Silicon the omarchy-mac package sets the keyboard's mode." >&2
+  exit 1
+fi
+
+if [[ $state == "fnkeys" ]]; then
+  fnmode=2 fnlock=1 first="F1-F12" second="the media keys"
+else
+  fnmode=1 fnlock=0 first="the media keys" second="F1-F12"
+fi
+
+content="# Written by omarchy-keyboard-toprow: the top row sends $first by default,
+# and Fn (Fn+Esc to lock it) gives $second.
+options hid_apple fnmode=$fnmode
+options hid_asus fnlock_default=$fnlock
+options asus_wmi fnlock_default=$fnlock"
+
+# Omarchy wrote these before this command existed. An administrator's own
+# versions stay, and this file overrides them.
+legacy_apple="options hid_apple fnmode=2"
+legacy_asus="# ASUS ProArt P14: the top row sends media keys by default; Fn+Esc switches to F1-F12.
+options hid_asus fnlock_default=0"
+legacy=()
+if [[ -f $modprobe_dir/hid_apple.conf && $(<"$modprobe_dir/hid_apple.conf") == "$legacy_apple" ]]; then
+  legacy+=("$modprobe_dir/hid_apple.conf")
+fi
+if [[ -f $modprobe_dir/hid_asus.conf && $(<"$modprobe_dir/hid_asus.conf") == "$legacy_asus" ]]; then
+  legacy+=("$modprobe_dir/hid_asus.conf")
+fi
+
+# hid_apple takes the change right away; the others read it only when they load.
+# Applied even when the file already matches, since the live mode can drift.
+if [[ -e $sys_module/hid_apple/parameters/fnmode && $(param hid_apple fnmode) != "$fnmode" ]]; then
+  echo "$fnmode" | sudo tee "$sys_module/hid_apple/parameters/fnmode" >/dev/null
+fi
+
+# A rebuild that failed or was interrupted last time is still owed, even with
+# the file in place.
+if [[ ! -e $rebuild_pending && -f $conf && $(<"$conf") == "$content" ]] && (( ${#legacy[@]} == 0 )); then
+  echo "The top row already sends $first by default."
+  exit 0
+fi
+
+# A loaded HID keyboard driver is in the boot image, with the options it had
+# when that was built. Record the rebuild before changing anything, so an
+# interrupted run still owes it. An owed rebuild stays owed even after the
+# keyboard that needed it is unplugged.
+needs_rebuild=0
+if (( rebuild )) && [[ -e $rebuild_pending || -d $sys_module/hid_asus || -d $sys_module/hid_apple ]]; then
+  needs_rebuild=1
+  sudo install -Dm644 /dev/null "$rebuild_pending"
+fi
+
+(( ${#legacy[@]} == 0 )) || sudo rm -f "${legacy[@]}"
+printf '%s\n' "$content" | sudo install -Dm644 /dev/stdin "$conf"
+
+if (( ! needs_rebuild )) && [[ ! -d $sys_module/hid_asus && ! -d $sys_module/hid_apple && ! -d $sys_module/asus_wmi ]]; then
+  echo "The top row now sends $first by default on keyboards that leave Fn-lock to Linux."
+  echo "This machine's keyboard keeps Fn-lock in its own firmware, where Fn+Esc already survives a reboot."
+  exit 0
+fi
+
+if (( needs_rebuild )); then
+  log=$(mktemp)
+  trap 'rm -f "$log"' EXIT
+  sudo limine-mkinitcpio 2>&1 | tee "$log"
+  status=("${PIPESTATUS[@]}")
+
+  # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+  if (( status[0] != 0 || status[1] != 0 )) || grep -q 'mkinitcpio failed for kernel' "$log"; then
+    echo "Could not rebuild the boot image; run omarchy-keyboard-toprow $state again once that is fixed." >&2
+    exit 1
+  fi
+  sudo rm -f "$rebuild_pending"
+fi
+
+if [[ -d $sys_module/hid_asus || -d $sys_module/asus_wmi ]]; then
+  echo "The top row sends $first by default from the next boot."
+else
+  echo "The top row now sends $first by default."
+fi

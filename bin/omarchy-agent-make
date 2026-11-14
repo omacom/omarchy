@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# omarchy:summary=Have an agent make a new theme, plugin, or app
+# omarchy:args=[--default] <theme|plugin|app>
+# omarchy:examples=omarchy agent make theme | omarchy agent make --default app
+
+# A few ways into making Omarchy your own, shared by the agents panel's starter
+# tiles and the menu's Agent > Make something. The task goes to the local
+# model when one is running and to the default agent otherwise; --default
+# always takes the default agent.
+
+prefer_local=(--prefer-local)
+if [[ ${1:-} == "--default" ]]; then
+  prefer_local=()
+  shift
+fi
+
+case "${1:-}" in
+theme) prompt="Make me a new Omarchy theme. Ask me what look or inspiration I have in mind, then build it following the Omarchy skill's theming guide and switch to it." ;;
+plugin) prompt="Make me a new Omarchy shell plugin. Ask me what I'd like it to do, then build it following the Omarchy skill's plugin guide and enable it." ;;
+app) prompt="Make me a new app for my Omarchy desktop. Ask me what it should do, then build it following the omarchy-app skill and install it so it shows up in the app launcher." ;;
+*)
+  echo "Usage: omarchy-agent-make [--default] <theme|plugin|app>" >&2
+  exit 1
+  ;;
+esac
+
+exec omarchy-agent "${prefer_local[@]}" --pick --prompt "$prompt"

@@ -76,3 +76,76 @@ for tpl in "$ROOT"/default/themed/*.tpl; do
   [[ -f $next/$name ]] || fail "every built-in template renders ($name)"
 done
 pass "theme templates render every built-in template"
+
+[[ ! -e $next/icons ]] || fail "theme templates leave app icons to the retints after the switch"
+pass "theme templates leave app icons to the retints after the switch"
+
+icon_role() {
+  local colors="$1" role="$2"
+  { "$ROOT/bin/omarchy-theme-color" --file "$colors" --all; "$ROOT/bin/omarchy-theme-color" --file "$colors" --raw | sed 's/^/raw_/'; } | "$ROOT/bin/omarchy-theme-icon-palette" | awk -F '\t' -v role="$role" '$1 == role { print $2 }'
+}
+
+# Magenta is Tokyo Night's violet but Gruvbox's pink, which the icons pass over
+# for its amber; Kanagawa's accent is its foreground, so its blue stands in.
+[[ $(icon_role "$ROOT/themes/tokyo-night/colors.toml" icon_mark) == "#bb9af7" ]] || fail "app icons take a theme's violet for their highlight"
+[[ $(icon_role "$ROOT/themes/gruvbox/colors.toml" icon_mark) == "#d8a657" ]] || fail "app icons skip a pink magenta for the theme's amber"
+[[ $(icon_role "$ROOT/themes/kanagawa/colors.toml" icon_main) == "#7e9cd8" ]] || fail "app icons replace an accent that matches the paper with blue"
+[[ $(icon_role "$ROOT/themes/rose-pine/colors.toml" icon_paper) == "#faf4ed" ]] || fail "app icons draw paper from a light theme's background"
+pass "app icon colors fit each theme's palette"
+
+printf 'accent = "#7aa2f7"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\nicon_mark = "#123456"\nred = "rgba(247,118,142,1)"\n' >"$test_tmp/chosen.toml"
+[[ $(icon_role "$test_tmp/chosen.toml" icon_mark) == "#123456" ]] || fail "a theme chooses its own app icon color"
+[[ $(icon_role "$test_tmp/chosen.toml" icon_red) == "#f7768e" ]] || fail "app icons read a color written as rgba()"
+printf 'accent = "0xff7aa2f7"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$test_tmp/argb.toml"
+[[ $(icon_role "$test_tmp/argb.toml" icon_main) == "#7aa2f7" ]] || fail "app icons read a color written as 0xAARRGGBB"
+printf 'accent = "nope"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$test_tmp/unreadable.toml"
+[[ -z $("$ROOT/bin/omarchy-theme-color" --file "$test_tmp/unreadable.toml" --all | "$ROOT/bin/omarchy-theme-icon-palette") ]] || fail "app icons are skipped when the accent can't be read as a color"
+
+# A theme that sets only its accent, background and foreground still gets
+# paper, text and a highlight that stand apart.
+printf 'accent = "#e06c75"\nbackground = "#1e2127"\nforeground = "#abb2bf"\n' >"$test_tmp/bare.toml"
+[[ $(icon_role "$test_tmp/bare.toml" icon_ink) != "$(icon_role "$test_tmp/bare.toml" icon_paper)" ]] || fail "a bare theme's app icons get text that shows on their paper"
+[[ $(icon_role "$test_tmp/bare.toml" icon_mark) != "#abb2bf" ]] || fail "a bare theme's app icons get a highlight with a hue"
+[[ $(icon_role "$test_tmp/bare.toml" icon_red) != "#abb2bf" ]] || fail "a bare theme's app icons get a red"
+printf 'accent = "#e06c75"\nbackground = "#1e2127"\nforeground = "#abb2bf"\nred = "#abb2bf"\n' >"$test_tmp/grey.toml"
+[[ $(icon_role "$test_tmp/grey.toml" icon_red) == "#abb2bf" ]] || fail "a theme that names its red grey keeps it"
+printf 'accent = "#e06c75"\ncolor0 = "#1e2127"\ncolor7 = "#abb2bf"\n' >"$test_tmp/ansi.toml"
+[[ $(icon_role "$test_tmp/ansi.toml" icon_mark) == "$(icon_role "$test_tmp/bare.toml" icon_mark)" ]] || fail "a theme naming only its neutral ANSI slots gets the same highlight as a bare one"
+pass "app icon colors honor the theme and skip palettes they cannot draw"
+
+# App icons draw from the current theme after the switch, into a dir the links
+# point at. A theme's own icon wins; a user's own icon stays; a theme's icon for
+# an app Omarchy has no template for is not linked; and a theme that can't draw
+# them takes the icons and their links away again.
+state="$home/.local/state/omarchy/current"
+apps="$home/.local/share/icons/hicolor/scalable/apps"
+mkdir -p "$state" "$apps"
+mv "$next" "$state/theme"
+mkdir -p "$state/theme/icons"
+printf 'shipped\n' >"$state/theme/icons/hype.svg"
+printf 'spoof\n' >"$state/theme/icons/firefox.svg"
+printf 'mine\n' >"$apps/omacut.svg"
+mkdir -p "$home/.config/omarchy/themed/icons"
+printf '<svg>{{ icon_main }}</svg>\n' >"$home/.config/omarchy/themed/icons/plain.svg.tpl"
+ln -s "$test_tmp/gone/omacalc.svg" "$apps/omacalc.svg"
+set_icons() { HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-theme-set-icons"; }
+set_icons
+for tpl in "$ROOT"/default/themed/icons/*.tpl; do
+  name=${tpl##*/}
+  name=${name%.tpl}
+  [[ -f $state/icons/$name ]] || fail "every app icon template renders ($name)"
+  [[ $(<"$state/icons/$name") != *"{{"* ]] || fail "every app icon template resolves all its colors ($name)"
+done
+[[ $(<"$state/icons/hype.svg") == "shipped" ]] || fail "a theme's own app icon wins over the template"
+[[ $(<"$state/icons/plain.svg") == "<svg>#"* && -L $apps/plain.svg ]] || fail "a user's icon template shadows the built-in and stays published"
+[[ $(readlink "$apps/omawrite.svg") == "$state/icons/omawrite.svg" ]] || fail "app icons link over the packaged ones"
+[[ $(<"$apps/omacut.svg") == "mine" ]] || fail "app icons leave an icon the user put there"
+[[ $(readlink "$apps/omacalc.svg") == "$state/icons/omacalc.svg" ]] || fail "app icons replace a dangling link at their name"
+[[ ! -e $apps/firefox.svg ]] || fail "app icons link only Omarchy's own icons"
+[[ -s $state/icons.revision ]] || fail "app icons tell the shell they changed"
+pass "app icons render after the switch and link into the user's icon theme"
+
+printf 'accent = "nope"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$state/theme/colors.toml"
+set_icons
+[[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "a theme that can't draw app icons brings the packaged ones back"
+pass "a theme that can't draw app icons brings the packaged ones back"

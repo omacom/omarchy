@@ -43,6 +43,45 @@ for manifest in "$ROOT"/default/chromium/extensions/*/manifest.json; do
 done
 pass "each bundled Chromium extension pins its id and ships the files its manifest loads"
 
+# --- Google Chrome CRXs ---
+
+# Chrome ignores --load-extension, so policy installs each extension from a
+# signed CRX under its own id. A CRX left behind its source would give Chrome
+# users the old extension, and one whose version didn't move would never update.
+require_command bsdtar
+crx_dir=$ROOT/default/chromium/crx
+crx_policy=$ROOT/default/chromium/policies/chrome-extensions.json
+for extension_dir in "$ROOT"/default/chromium/extensions/*/; do
+  name=$(basename "$extension_dir")
+  crx=$crx_dir/$name.crx
+  [[ -f $crx ]] || fail "the $name extension ships a CRX for Chrome" "run omarchy-dev-pack-chrome-extensions"
+
+  expected=$test_tmp/crx-expected/$name
+  shipped=$test_tmp/crx-shipped/$name
+  mkdir -p "$(dirname "$expected")" "$shipped"
+  cp -rL "$extension_dir" "$expected"
+  jq 'del(.key)' "$extension_dir/manifest.json" >"$expected/manifest.json"
+  # A CRX is a signed header and then a zip, which bsdtar finds from the
+  # central directory at its end. Streamed through a pipe, libarchive 3.8.10
+  # fails on the zip instead.
+  bsdtar -xf "$crx" -C "$shipped"
+  diff -r "$expected" "$shipped" >/dev/null ||
+    fail "$name.crx matches its source" "run omarchy-dev-pack-chrome-extensions after bumping the version in $name/manifest.json"
+
+  app=$(grep -F "/$name.crx'" "$crx_dir/updates.xml") || fail "updates.xml offers $name.crx"
+  [[ $app =~ appid=\'([a-p]{32})\'.*codebase=\'file:///usr/share/omarchy/default/chromium/crx/$name\.crx\'\ version=\'([^\']+)\' ]] ||
+    fail "updates.xml offers $name.crx from the installed Omarchy tree" "$app"
+  id=${BASH_REMATCH[1]}
+  [[ ${BASH_REMATCH[2]} == "$(jq -r .version "$expected/manifest.json")" ]] ||
+    fail "updates.xml offers $name at its manifest version"
+  jq -e --arg id "$id" '.ExtensionSettings[$id] | .installation_mode == "force_installed" and .update_url == "file:///usr/share/omarchy/default/chromium/crx/updates.xml"' "$crx_policy" >/dev/null ||
+    fail "Chrome's policy installs $name from updates.xml"
+  extension_manifest[$id]=$extension_dir/manifest.json
+done
+[[ $(jq '.ExtensionSettings | length' "$crx_policy") == "$(ls "$ROOT"/default/chromium/extensions | wc -l)" ]] ||
+  fail "Chrome's policy installs only the bundled extensions"
+pass "each bundled extension ships as a current CRX that Chrome's policy installs"
+
 # --- Native messaging hosts ---
 
 # Each host admits exactly the bundled extensions whose scripts message it, and

@@ -87,6 +87,19 @@ run_toggle touchpad
 pass "default toggle action flips the persisted state"
 
 : >"$log_file"
+run_toggle touchpad cycle
+[[ $(<"$log_file") == $'hl.device({ name = "elan-touchpad", enabled = false })\nhl.device({ name = "elan-touchpad", enabled = true })' ]] ||
+  fail "cycle turns an enabled touchpad off and back on" "$(<"$log_file")"
+[[ ! -e $name_file ]] || fail "cycle persists no disable"
+
+run_toggle touchpad off
+: >"$log_file"
+run_toggle touchpad cycle
+[[ ! -s $log_file ]] || fail "cycle leaves a user-disabled touchpad off" "$(<"$log_file")"
+run_toggle touchpad on
+pass "cycle releases an enabled touchpad and leaves a disabled one off"
+
+: >"$log_file"
 stub_device touchscreen 'wacom-hid-52eb-finger'
 ts_name_file="$state_dir/touchscreen-disabled-name"
 
@@ -119,8 +132,10 @@ hl = {
     table.insert(seen, opts)
   end,
   -- toggles.lua goes on to restore workspace layouts, which looks at the open
-  -- windows; these reloads have none.
+  -- windows; these reloads have none. It also loads the saved monitor
+  -- settings, which listen for monitors arriving.
   get_windows = function() return {} end,
+  on = function() end,
 }
 
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
@@ -153,6 +168,7 @@ hl = {
     table.insert(seen, opts)
   end,
   get_windows = function() return {} end,
+  on = function() end,
 }
 os.execute = function()
   executed = true
@@ -233,6 +249,7 @@ local disabled = {}
 hl = {
   device = function(opts) table.insert(disabled, opts) end,
   get_windows = function() return {} end,
+  on = function() end,
 }
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
 require("default.hypr.toggles")
