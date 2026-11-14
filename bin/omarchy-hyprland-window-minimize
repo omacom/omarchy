@@ -32,5 +32,27 @@ remember_minimized_from "$ADDRESS" "$WORKSPACE"
 hyprctl dispatch "hl.dsp.window.move({ workspace = \"special:minimized\", follow = false, window = \"address:$ADDRESS\" })" >/dev/null
 
 # Focus would otherwise stay with the minimized window, and the next window
-# opened would join it on the hidden workspace.
-hyprctl dispatch "hl.dsp.focus({ workspace = \"$WORKSPACE\" })" >/dev/null
+# opened would join it on the hidden workspace. Focusing the workspace we are
+# already on is a no-op (Hyprland keeps focus on the moved window), so bounce
+# through another workspace and back inside a single eval: that leaves focus
+# on the now-empty workspace with no visible flicker. The hop away is
+# previous_per_monitor — the workspace this monitor last switched from, the
+# one SUPER+CTRL+TAB returns to — resolved by Hyprland itself, so the round
+# trip ends from it and leaves that record as it found it; hopping through a
+# concrete workspace would rewrite it. On a monitor with nothing before this
+# one (a fresh session) the selector resolves to nothing and both hops are
+# no-ops, leaving focus with the hidden window: the window is still active
+# after the round trip. Focusing this workspace again or the monitor we are
+# on is a no-op upstream (changeWorkspace returns on the same workspace,
+# focusmonitor refuses the focused one), so the only dispatch that clears
+# keyboard focus here is a hop through another workspace. Bounce through an
+# unused workspace that no monitor shows and back; the former-workspace record
+# is empty on that monitor, so the concrete hop has nothing to rewrite, and
+# on_current_monitor cannot swap another monitor's visible workspace away.
+hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"previous_per_monitor\" })) hl.dispatch(hl.dsp.focus({ workspace = \"$WORKSPACE\" }))" >/dev/null
+
+if [[ $(hyprctl activewindow -j | jq -r '.address // empty') == $ADDRESS ]]; then
+  OTHER_WORKSPACE=$(hyprctl workspaces -j | jq -r '[.[] | .id | select(. > 0)] as $used | first(range(1; 200) | select(. as $w | $used | index($w) | not)) // 1')
+  OTHER_WORKSPACE=${OTHER_WORKSPACE:-1}
+  hyprctl eval "hl.dispatch(hl.dsp.focus({ workspace = \"$OTHER_WORKSPACE\", on_current_monitor = true })) hl.dispatch(hl.dsp.focus({ workspace = \"$WORKSPACE\" }))" >/dev/null
+fi
