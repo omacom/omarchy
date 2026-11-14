@@ -200,7 +200,7 @@ done
 
 case "$1" in
 /bin/bash)
-  [[ ${2:-} == -c && $# == 9 ]] || exit 90
+  [[ ${2:-} == -c && ( $# == 9 || $# == 11 ) ]] || exit 90
   code=$3
   shell_name=$4
   shift 4
@@ -294,6 +294,7 @@ cat >"$root_tools/magick" <<'SH'
 #!/bin/bash
 source=$1
 destination=${@: -1}
+[[ -z ${TEST_MAGICK_LOG:-} ]] || printf '%s\n' "$*" >>"$TEST_MAGICK_LOG"
 [[ $source == "$destination" ]] || /usr/bin/cp -- "$source" "$destination"
 SH
 
@@ -311,6 +312,7 @@ setup_run() {
   fake_root="$run_dir/root"
   sudo_log="$run_dir/sudo.log"
   leak_log="$run_dir/leaked-stage-path.log"
+  magick_log="$run_dir/magick.log"
   omarchy_conf="$run_dir/omarchy.conf"
   theme="$fake_root/usr/share/plymouth/themes/omarchy"
   sddm="$fake_root/usr/share/sddm/themes/omarchy"
@@ -384,6 +386,7 @@ run_in_fake_root() {
       TEST_OMARCHY_CONF="$omarchy_conf" \
       TEST_SUDO_LOG="$sudo_log" \
       TEST_LEAK_LOG="$leak_log" \
+      TEST_MAGICK_LOG="$magick_log" \
       "$@"
   )
 }
@@ -498,6 +501,34 @@ if grep -Fq '__OMARCHY_SDDM_' "$sddm/Main.qml"; then
   fail "SDDM color substitution left an intermediate token behind"
 fi
 pass "White theme keeps a white SDDM background instead of becoming black-on-black"
+
+# Theme set accepts custom progress bar and track colors and validates them.
+setup_run
+output=$(run_in_fake_root 022 env \
+  /bin/bash "$ROOT/bin/omarchy-plymouth-set" '#111c18' '#c1c497' "$test_tmp/logo.png" '#509475' '#32473b' 2>&1)
+status=$?
+(( status == 0 )) || fail "omarchy-plymouth-set accepts custom progress bar and track colors" "$output"
+grep -Fq 'progress_bar.png -channel RGB +level-colors #509475,#509475' "$magick_log" ||
+  fail "progress_bar.png was recolored with the bar color"
+grep -Fq 'progress_box.png -channel RGB +level-colors #32473b,#32473b' "$magick_log" ||
+  fail "progress_box.png was recolored with the track color"
+
+output=$(run_in_fake_root 022 env \
+  /bin/bash "$ROOT/bin/omarchy-plymouth-set" '#111c18' '#c1c497' "$test_tmp/logo.png" 'not-hex' '#32473b' 2>&1)
+(( $? != 0 )) || fail "omarchy-plymouth-set rejects an invalid progress bar color"
+[[ $output == *"Invalid progress bar color"* ]] || fail "rejection explains the invalid bar color" "$output"
+
+output=$(run_in_fake_root 022 env \
+  /bin/bash "$ROOT/bin/omarchy-plymouth-set" '#111c18' '#c1c497' "$test_tmp/logo.png" '#509475' 'not-hex' 2>&1)
+(( $? != 0 )) || fail "omarchy-plymouth-set rejects an invalid progress track color"
+[[ $output == *"Invalid progress track color"* ]] || fail "rejection explains the invalid track color" "$output"
+
+output=$(run_in_fake_root 022 env \
+  /bin/bash "$ROOT/bin/omarchy-plymouth-set" '#111c18' '#c1c497' "$test_tmp/logo.png" '#509475' 2>&1)
+(( $? != 0 )) || fail "omarchy-plymouth-set rejects an odd number of color arguments"
+[[ $output == *"Usage:"* ]] || fail "rejection explains usage on odd arguments" "$output"
+
+pass "theme set accepts custom progress bar and track colors and validates them"
 
 # Swap the selected logo to an unreadable file in the DEBUG hook immediately
 # before Bash opens its descriptor. The caller-side open must fail, so sudo
