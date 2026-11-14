@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Link the Everything Skills catalog guide into agent skill directories
+
+set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as the user whose agents should read the guide, not as root." >&2
+  exit 1
+fi
+
+skill="$OMARCHY_PATH/default/agents/skills/everything-skills"
+[[ -f $skill/SKILL.md ]] || { echo "The packaged Everything Skills guide is missing." >&2; exit 1; }
+
+link_skill() {
+  local directory=$1 target="$1/everything-skills"
+  if [[ $target -ef $skill ]]; then
+    return
+  elif [[ -e $target || -L $target ]]; then
+    echo "Leaving your existing $target in place" >&2
+  else
+    mkdir -p "$directory"
+    ln -s "$skill" "$target"
+    echo "Linked $target"
+  fi
+}
+
+for directory in "$HOME/.agents/skills" "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.pi/agent/skills" "$HOME/.gemini/config/skills" "$HOME/.hermes/skills"; do
+  link_skill "$directory"
+done
+
+if [[ -d $HOME/.hermes/profiles ]]; then
+  for profile in "$HOME"/.hermes/profiles/*/; do
+    if [[ -d $profile ]]; then
+      link_skill "$profile/skills"
+    fi
+  done
+fi

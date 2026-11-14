@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Search and compose workflows from the optional Everything Skills catalog
+# omarchy:args=[search|list|why|show|compose|repo|eval] [arguments...]
+# omarchy:examples=omarchy skills search "API review" --json | omarchy skills compose api-review --json | omarchy skills show api-design-reviewer --json
+
+if omarchy-cmd-present everything-skills; then
+  exec everything-skills "$@"
+else
+  echo "Everything Skills is optional and is not installed." >&2
+  echo "Install its reviewed package first: https://github.com/findscripter/everything-skills/blob/3e7ee56b94f34f8f47b7b48fe174c4846737b3ff/docs/omarchy.md" >&2
+  exit 127
+fi
