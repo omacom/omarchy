@@ -15,6 +15,10 @@ Item {
       if (event.key === Qt.Key_Up || event.key === Qt.Key_Return) {
         handler.handled = handler.handled.concat([event.key])
         event.accepted = true
+      } else if (event.key === Qt.Key_Backspace && input.text) {
+        // Like the menu, the panel edits the query a character at a time.
+        input.text = input.text.slice(0, -1)
+        event.accepted = true
       }
     }
   }
@@ -66,10 +70,29 @@ Item {
       input.text = "term"
       input.cursorPosition = 0
       compare(input.cursorPosition, 4)
-      input.selectAll()
-      compare(input.selectedText, "")
       keyClick(Qt.Key_S)
       compare(input.text, "terms")
+    }
+
+    function test_ctrlASelectsTheWholeQuery() {
+      input.text = "term"
+      keyClick(Qt.Key_A, Qt.ControlModifier)
+      compare(input.selectedText, "term")
+    }
+
+    function test_typingReplacesTheSelectedQuery() {
+      input.text = "term"
+      keyClick(Qt.Key_A, Qt.ControlModifier)
+      keyClick("f")
+      compare(input.text, "f")
+      compare(input.selectedText, "")
+    }
+
+    function test_backspaceClearsTheSelectedQuery() {
+      input.text = "two words"
+      keyClick(Qt.Key_A, Qt.ControlModifier)
+      keyClick(Qt.Key_Backspace)
+      compare(input.text, "")
     }
   }
 }
