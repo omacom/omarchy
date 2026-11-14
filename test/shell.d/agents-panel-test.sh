@@ -270,33 +270,50 @@ pass "sharing with the SSH server running shares at once"
 # A setup from the panel has its line before status.json lists it: starting,
 # then installing Podman once the command says so, and a failure stays with
 # its reason, while a dismissed password dialog just brings the offer back.
+# One chosen while another starts waits its turn instead of being dropped.
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const names = ['setupLine', 'finishSetup', 'setupRow', 'pairFailureMessage']
-const scope = { I18n: { t: key => key } }
+const names = ['setUp', 'startSetup', 'unqueueSetup', 'setupLine', 'finishSetup', 'setupRows', 'pairFailureMessage']
+const scope = { I18n: { t: key => key }, setupProcess: {} }
 for (const name of names)
   scope[name] = new Function('scope', 'with (scope) { return ' + source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0] + ' }')(scope)
-const start = () => Object.assign(scope, { setupOutput: '', setupFailure: null, settingUp: { recipe: 'm', name: 'M', vendor: 'v', since_ms: 1, installing: false } })
+const start = id => {
+  Object.assign(scope, { settingUp: null, setupFailure: null, setupQueue: [], setupOutput: '' })
+  scope.setUp({ id, name: id.toUpperCase(), vendor: 'v' })
+}
+const phases = () => scope.setupRows().map(row => row.recipe + ':' + row.install.phase)
 
-start()
-assertEqual(scope.setupRow().install.phase, 'starting', 'a setup starts out as starting, never claiming an install it may not need')
+start('m')
+assertDeepEqual(phases(), ['m:starting'], 'a setup starts out as starting, never claiming an install it may not need')
 scope.setupLine('Installing podman crun')
-assertEqual(scope.setupRow().install.phase, 'dependencies', 'it shows the install once the command announces it')
-scope.finishSetup(126)
-assertEqual(scope.setupRow(), null, 'a dismissed password dialog leaves no line, so the offer comes back')
+assertDeepEqual(phases(), ['m:dependencies'], 'it shows the install once the command announces it')
+assertEqual(scope.finishSetup(126), null, 'a dismissed password dialog starts nothing')
+assertDeepEqual(phases(), [], 'and leaves no line, so the offer comes back')
 
-start()
+start('m')
 scope.setupLine('Installing podman crun')
 scope.setupLine("Error: Couldn't install podman crun")
 scope.finishSetup(1)
-const failed = scope.setupRow()
+const failed = scope.setupRows()[0]
 assertEqual(failed.install.phase, 'failed', 'a failed install keeps its line')
 assertEqual(failed.error, "Couldn't install podman crun", 'with the reason the command gave')
 
-start()
-scope.finishSetup(0)
-assertEqual(scope.setupRow(), null, 'a setup handed to the background leaves its line to status.json')
+start('m')
+assertEqual(scope.finishSetup(0), null, 'a setup handed to the background starts nothing more')
+assertDeepEqual(phases(), [], 'and leaves its line to status.json')
+
+start('m')
+scope.setUp({ id: 'n' })
+scope.setUp({ id: 'n' })
+scope.setUp({ id: 'o' })
+assertDeepEqual(phases(), ['m:starting', 'n:waiting', 'o:waiting'], 'setups chosen meanwhile wait their turn, once each')
+scope.unqueueSetup('o')
+assertDeepEqual(phases(), ['m:starting', 'n:waiting'], 'one waiting can be dropped')
+assertEqual(scope.finishSetup(0).recipe, 'n', 'the next one starts once the first hands off')
+scope.setUp({ id: 'o' })
+scope.finishSetup(126)
+assertDeepEqual(phases(), [], 'a declined password drops those waiting, which would stop there too')
 JS
 
 # Hosted and local rows share ordering, including positions saved while hidden.
