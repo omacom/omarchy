@@ -10,7 +10,9 @@
 # subtext shown under the label, as "<glyph><TAB><label><TAB><subtext>". The
 # menu shows the glyph but never returns it. A plain option returns the label
 # alone; an option with a subtext returns "<label><TAB><subtext>", so callers
-# with same-named rows get the subtext back as the stable key.
+# with same-named rows get the subtext back as the stable key. An icon written
+# "app:<name>" shows an installed app's own icon instead of a glyph, where the
+# name is a desktop entry id, a window class, or an icon name.
 
 # With --multiple, clicking/Enter toggles rows and Apply returns a JSON array.
 # --on-change takes a JSON command array; each toggle runs it with the selection

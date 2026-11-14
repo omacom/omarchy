@@ -31,24 +31,10 @@ Item {
   property var pendingPins: null
   onDockConfigChanged: pendingPins = null
 
-  // Entries that can claim a terminal app's window: those run in a terminal,
-  // and those that hand the terminal an app id of their own.
-  readonly property var terminalEntries: {
-    var values = DesktopEntries.applications.values
-    var out = []
-    for (var i = 0; i < values.length; i++) {
-      var entry = values[i]
-      if (entry.runInTerminal || String(entry.execString || "").indexOf("--app-id=") >= 0)
-        out.push({ id: entry.id, execString: entry.execString, command: entry.command, runInTerminal: entry.runInTerminal })
-    }
-    return out
-  }
-
+  // Matched in qs.Commons, not through the shell's app library, which a
+  // cloned dock does not get.
   function entryForAppId(appId) {
-    var entry = DesktopEntries.heuristicLookup(appId)
-    if (entry) return entry
-    var id = DockModel.claimingEntryId(appId, root.terminalEntries)
-    return id ? DesktopEntries.byId(id) : null
+    return AppMatch.entryForAppId(appId)
   }
 
   // A pinned app that is not installed has nothing to launch, so it is left

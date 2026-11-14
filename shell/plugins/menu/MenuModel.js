@@ -635,6 +635,13 @@ function dmenuValue(option) {
   return parts.join("\t")
 }
 
+// A select option's icon field is a glyph, or "app:<name>" for an installed
+// app's own icon; the name, possibly empty, or null for a glyph.
+function dmenuAppName(icon) {
+  var value = String(icon || "")
+  return value.indexOf("app:") === 0 ? value.slice(4).trim() : null
+}
+
 function dmenuSelections(options, selected, preserveOrder) {
   var available = options.map(dmenuValue)
   return (preserveOrder ? selected : available).filter(function(value, index, values) {
@@ -716,6 +723,7 @@ if (typeof module !== "undefined") {
     matchesQuery: matchesQuery,
     searchScore: searchScore,
     dmenuValue: dmenuValue,
+    dmenuAppName: dmenuAppName,
     dmenuSelections: dmenuSelections,
     toggleDmenuSelection: toggleDmenuSelection,
     displayRow: displayRow,
