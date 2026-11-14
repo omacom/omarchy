@@ -46,9 +46,16 @@ collect() {
     echo "omarchy-agent-usage-update: $agent collector failed" >&2
     return 1
   fi
-  tmp=$(mktemp "$USAGE_DIR/.$agent.XXXXXX")
-  printf '%s\n' "$record" >"$tmp"
-  mv "$tmp" "$USAGE_DIR/$agent.json"
+  tmp=$(mktemp "$USAGE_DIR/.$agent.XXXXXX") || return 1
+  # A write that fails (a full disk) must not replace the last good record
+  # with a truncated one: the panel would drop the agent until the next run.
+  if printf '%s\n' "$record" >"$tmp"; then
+    mv "$tmp" "$USAGE_DIR/$agent.json"
+  else
+    rm -f "$tmp"
+    echo "omarchy-agent-usage-update: could not write the $agent record" >&2
+    return 1
+  fi
 }
 
 # Accounts can be signed in to someone else since they were added; the

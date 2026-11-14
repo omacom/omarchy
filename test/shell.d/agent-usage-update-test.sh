@@ -63,3 +63,16 @@ pass "update succeeds when the requested collectors all pass"
 [[ -e $usage_dir/skipped.json && ! -e $usage_dir/noisy.json ]] ||
   fail "update with agent arguments only runs the named collectors"
 pass "update with agent arguments only runs the named collectors"
+
+# A write that fails, as on a full disk, keeps the last good record. With
+# SIGXFSZ ignored and no room for any byte, every write gets EFBIG.
+(
+  trap '' XFSZ
+  ulimit -f 0
+  HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
+    "$ROOT/bin/omarchy-agent-usage-update" good 2>/dev/null
+) && fail "update reports a record it could not write"
+[[ $(jq -r '.name' "$usage_dir/good.json") == "Good Agent" ]] ||
+  fail "a failed write keeps the last good record"
+compgen -G "$usage_dir/.good.*" >/dev/null && fail "a failed write leaves no temporary file"
+pass "a failed write keeps the last good record"
