@@ -1,39 +1,39 @@
 # Böngészők
 
-Az Omarchy alapértelmezett böngészőként a [Chromiumot](https://www.chromium.org/) szállítja. Ez a nyílt forráskódú, egyszerű build, a rendszered többi részéhez igazított témával, és ezt nyitja meg a `Super + Shift + Return`, valamint ebben fut minden [webalkalmazás](25-web-apps.md).
+Az Omarchy alapértelmezett böngészőként a [Google Chrome](https://www.google.com/chrome/) böngészőt szállítja. A témája illeszkedik a rendszered többi részéhez, ez nyílik meg a `Super + Shift + Return` billentyűkombinációval, és ebben fut minden [webalkalmazás](25-web-apps.md) is. Egyenesen böngészőablakkal indul: nincs üdvözlőképernyő vagy bejelentkezésre felszólító üzenet, a használati statisztikákat és az összeomlási jelentéseket nem küldi el a Google-nak, a hirdetések adatvédelmével kapcsolatos felszólítások pedig ki vannak kapcsolva. Ha szeretnéd a szinkronizálást, a profilgombra kattintva bármikor bejelentkezhetsz a Google-fiókodba.
 
-Ha a Chromium nem ízlésed szerinti, nem kell beérned vele. Az Omarchy menü _Install > Browser_ pontjában megtalálod a Chrome-ot, az Edge-et, a Brave-et, a Brave Origint, a Firefoxot és a [Zent](https://zen-browser.app/). Válassz egyet, és az Omarchy telepíti, beállítja a házirend-könyvtárát, és alkalmazza rá az aktuális témádat.
+Ha a Chrome nem a te ízlésed, nem vagy hozzákötve. Az Omarchy menü _Telepítés > Böngésző_ pontja alatt megtalálod a [Chromium](https://www.chromium.org/) böngészőt (a sima, nyílt forráskódú buildet, amelyből a Chrome is készül), az Edge-et, a Brave-et, a Brave Origint, a Firefoxot és a [Zen](https://zen-browser.app/) böngészőt. Válassz egyet, és az Omarchy telepíti, beállítja a házirendkönyvtárát, és alkalmazza rá az aktuális témádat.
 
-## Alapértelmezetté tétel
+## Az egyik beállítása alapértelmezettként
 
-Egy böngésző telepítése nem lépteti elő. Ha már rajta van a gépen, menj a _Setup > Defaults > Browser_ ponthoz, és válaszd ki — a menü csak a ténylegesen telepített böngészőket sorolja fel, és pipával jelöli az aktuális alapértelmezettet.
+Attól, hogy telepítesz egy böngészőt, még nem lesz alapértelmezett. Ha már fent van a gépen, menj a _Beállítás > Alapértelmezések > Böngésző_ menüpontba, és válaszd ki — a menü csak azokat a böngészőket sorolja fel, amelyeket ténylegesen telepítettél, az aktuális alapértelmezettet pedig pipával jelöli.
 
-Terminálból így:
+Terminálból így megy:
 
 ```bash
 omarchy default browser firefox
 ```
 
-Argumentum nélkül futtatva kiírja az aktuális alapértelmezettet. Ez beállítja az XDG-kezelőt, így nem csak az Omarchy gyorsbillentyűi követik — minden, ami linket nyit meg, a csevegőalkalmazástól a terminálparancsig, a kiválasztott böngészőbe megy.
+Argumentum nélkül futtatva megmondja, mi az aktuális alapértelmezett. Ez az XDG-kezelőt állítja be, így nem csak az Omarchy gyorsbillentyűi igazodnak hozzá — minden, ami linket nyit meg, a csevegőalkalmazástól a terminálparancsig, az általad választott böngészőbe kerül.
 
 ## URL másolása és videó letöltése
 
-A Chromium-család böngészői (maga a Chromium, a Chrome, az Edge és a Brave) két Omarchy-kiegészítővel érkeznek, amelyek kinyúlnak a böngészőből a rendszered többi részébe.
+A Chromium-család böngészői (maga a Chromium, a Chrome, az Edge és a Brave) két Omarchy-bővítménnyel érkeznek, amelyek kinyúlnak a böngészőből a rendszered többi részébe.
 
-A **Copy URL** az aktuális lap címét az `Alt + Shift + L` kombinációval a vágólapra helyezi. Ez gyorsabb, mint a címsorba kattintás és a másolás, és mivel a rendszer vágólapját használja a böngészőé helyett, Omarchy-értesítést kapsz a megerősítésről, és az URL azonnal elérhető a [vágólap-előzményekben](08-unified-clipboard-history.md) és minden más alkalmazásban. Az eszköztáron gomb is van, ha szívesebben kattintasz.
+Az **URL másolása** az `Alt + Shift + L` billentyűkombinációval a vágólapra teszi az aktuális lap címét. Ez gyorsabb, mint belekattintani a címsorba és másolni, és mivel a rendszer vágólapján keresztül megy, nem a böngészőén, Omarchy-értesítés erősíti meg, és az URL azonnal elérhető a [vágólapelőzményekben](08-unified-clipboard-history.md) és minden más alkalmazásban is. Van eszköztárgomb is, ha inkább kattintanál.
 
-A **Download Video** az `Alt + Shift + D` kombinációval letölti az éppen nézett oldalon lejátszott videót. Átadja az URL-t a [yt-dlp](https://github.com/yt-dlp/yt-dlp) programnak, így a YouTube-nál jóval több oldalon működik, és a letöltés a `~/Videos` mappába érkezik. A folyamatjelzés ugyanabban a képernyőre fektetett kijelzőben jelenik meg, amelyet a hangerő és a fényerő is használ, helyben frissülve ahelyett, hogy értesítések halmozódnának. Állítsd be az `OMARCHY_YTDLP_DIR` változót, ha a fájlokat máshová szeretnéd — a környezeti változók helyéről lásd a [FAQ](46-faq.md) részt.
+A **Videó letöltése** az `Alt + Shift + D` billentyűkombinációval letölti az éppen nézett oldalon lejátszott videót. Átadja az URL-t a [yt-dlp](https://github.com/yt-dlp/yt-dlp) programnak, így messze nem csak a YouTube-on működik, a letöltés pedig a `~/Videos` mappába érkezik. A folyamat ugyanabban a képernyőn megjelenő kijelzésben látszik, amelyet a hangerő és a fényerő is használ, és helyben frissül ahelyett, hogy egymásra halmozná az értesítéseket. Állítsd be az `OMARCHY_YTDLP_DIR` változót, ha inkább máshová szeretnéd menteni a fájlokat — a környezeti változók helyéről lásd a [GYIK](46-faq.md) részt.
 
-Mindkét kiegészítő egy apró natív üzenetközvetítőn keresztül beszél az Omarchyval, amely a böngészővel együtt telepítődik. Ez az a rész, amely lehetővé teszi, hogy egy weboldal videója a saját mappádba, egy URL pedig a vágólapkezelődbe kerüljön, amelyre egy szokásos kiegészítő önmagában nem képes.
+Mindkét bővítmény egy kis natív üzenetküldő gazdaprogramon keresztül kommunikál az Omarchyval, amely a böngészővel együtt települ. Ez az a darab, amely lehetővé teszi, hogy egy weboldal videója a saját könyvtáradba, egy URL pedig a vágólapkezelődbe kerüljön, amire egy átlagos bővítmény önmagában nem képes.
 
-Ezek csak a Chromium-családhoz érhetők el. A Firefox és a Zen nem kapja meg őket.
+Ezek csak a Chromium-családhoz járnak. A Firefox és a Zen nem kapja meg őket.
 
 ## Firefox és Zen
 
-A Firefox és a Zen más család, ezért más kezelést kapnak: az Omarchy telepít hozzájuk egy házirendfájlt az értelmes alapértelmezésekhez, és natív Wayland-módba kapcsolja őket, ami a tört skálázáshoz és a sima érintőpados görgetéshez szükséges.
+A Firefox és a Zen más családba tartozik, ezért más elbánásban részesül: az Omarchy egy házirendfájlt telepít az ésszerű alapértelmezésekhez, és natív Wayland módba kapcsolja őket, amelyet tört skálázáshoz és sima, érintőpados görgetéshez akarsz.
 
-Nem kapják meg a fenti Chromium-kiegészítőket, és az Omarchy nem témázza őket, így az élmény ezen részeinek beállítása rád marad.
+Nem kapják meg a fenti Chromium-bővítményeket, és az Omarchy sem témázza őket, így az élménynek ezeket a részeit neked kell beállítanod.
 
-## Újbóli eltávolítás
+## Eltávolítás
 
-Az itt telepített böngészők bármelyikét visszavonhatod az _Remove > Browser_ alatt. A Chromium nincs azon a listán — az alaprendszer része.
+Ezek bármelyike, a Chrome-ot is beleértve, újra eltávolítható az _Eltávolítás > Böngésző_ menüpont alatt. Ezután a linkek a Chrome-ban vagy a Chromiumban nyílnak meg, ha a másik még telepítve van.

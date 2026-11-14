@@ -44,6 +44,8 @@ end
 
 o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "A"))
 o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL SHIFT", "C"))
-o.bind("SUPER + V", "Universal paste", universal_clipboard_shortcut("CTRL", "V", "CTRL SHIFT", "V"))
+-- Scripts paste the same way with `hyprctl dispatch 'o.universal_paste'`.
+o.universal_paste = universal_clipboard_shortcut("CTRL", "V", "CTRL SHIFT", "V")
+o.bind("SUPER + V", "Universal paste", o.universal_paste)
 o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "X"))
 o.bind("SUPER + CTRL + V", "Clipboard manager", { panel = "omarchy.clipboard" })

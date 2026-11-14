@@ -74,6 +74,21 @@ PanelWindow {
   property bool popoutSwitchClosing: false
   property bool focusPrimed: false
 
+  // A panel waiting on something that may open a window of its own, such as
+  // a password manager asking to approve a key: the panel stays on show but
+  // steps aside, so that window can take the keyboard and the pointer. Only
+  // the card takes clicks, a click elsewhere doesn't close the panel, and
+  // the keyboard comes back to the panel when it stops waiting.
+  property bool yielding: false
+  onYieldingChanged: {
+    if (yielding || !open) return
+    focusPrimed = false
+    beginFocusPrime()
+    if (focusTarget) Qt.callLater(function() {
+      if (root.open && !root.yielding && root.focusTarget) root.focusTarget.forceActiveFocus()
+    })
+  }
+
   // Item that should take keyboard focus once the panel maps. Typically a
   // PanelKeyCatcher inside the panel content. Layer-shell grants focus to the
   // surface during the Exclusive prime, but Qt still needs an active-focus
@@ -139,7 +154,7 @@ PanelWindow {
   // focus when the previously focused application has constrained the pointer.
   // The brief prime covers both cases; OnDemand then releases compositor-wide
   // pointer hit-testing so clicks can reach the dismissal windows below.
-  WlrLayershell.keyboardFocus: open
+  WlrLayershell.keyboardFocus: open && !yielding
     ? (focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
     : WlrKeyboardFocus.None
 
@@ -160,8 +175,10 @@ PanelWindow {
   // Clickable region is the whole screen. Clicks in the bar strip are
   // forwarded to registered bar buttons so switching between panel icons
   // works in one click even when the overlay surface is above the bar.
+  // Yielding, only the card is: the rest reaches the windows beneath.
   readonly property real _barStripSize: bar ? barThickness + gap : 0
   mask: Region {
+    item: root.yielding ? card : null
     width: root.screenW
     height: root.screenH
   }
@@ -467,7 +484,7 @@ PanelWindow {
   // Keyboard focus is None: these must catch the pointer without taking focus
   // from the panel when the cursor merely crosses onto their output.
   Variants {
-    model: root.open ? Quickshell.screens : []
+    model: root.open && !root.yielding ? Quickshell.screens : []
 
     delegate: Component {
       PanelWindow {

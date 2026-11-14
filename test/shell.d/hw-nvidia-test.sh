@@ -34,7 +34,7 @@ while IFS='|' read -r description nvidia gsp without_gsp display expected_env de
   done
 
   # Run the real Lua config and detectors; capture only Hyprland's env calls.
-  actual_env=$(lua <<'LUA'
+  actual_env=$(lua - <<'LUA'
 package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 require("default.hypr.helpers")
 local env = {}

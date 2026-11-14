@@ -1,5 +1,4 @@
 import QtQuick
-import Quickshell.Io
 import "Plural.js" as Plural
 
 // Strings for a plugin that ships its own catalogs, following the language
@@ -28,11 +27,11 @@ QtObject {
   readonly property string baseLanguage: language.split("-")[0]
   readonly property string directoryPath: String(directory).replace(/^file:\/\//, "").replace(/\/+$/, "")
 
-  // Read through FileView so blockLoading applies to the first lookup, and
-  // keep the maps bound to the watched files for subsequent updates.
-  readonly property var englishStrings: parseCatalog(englishFile.text())
-  readonly property var baseStrings: parseCatalog(baseFile.text())
-  readonly property var languageStrings: parseCatalog(languageFile.text())
+  // Read synchronously on the first lookup and on every change (WatchedFile),
+  // and keep the maps bound to the watched files.
+  readonly property var englishStrings: parseCatalog(englishFile.text)
+  readonly property var baseStrings: parseCatalog(baseFile.text)
+  readonly property var languageStrings: parseCatalog(languageFile.text)
   readonly property var strings: {
     var merged = ({})
     var layers = [root.englishStrings, root.baseStrings, root.languageStrings]
@@ -73,28 +72,16 @@ QtObject {
     return root.directoryPath !== "" ? root.directoryPath + "/" + code + ".json" : ""
   }
 
-  property FileView englishFile: FileView {
+  property WatchedFile englishFile: WatchedFile {
     path: root.catalogPath("en")
-    watchChanges: true
-    printErrors: false
-    blockLoading: true
-    onFileChanged: reload()
   }
 
   // Only read for a regional code; for "da" the language file covers it.
-  property FileView baseFile: FileView {
+  property WatchedFile baseFile: WatchedFile {
     path: root.baseLanguage !== root.language && root.baseLanguage !== "en" ? root.catalogPath(root.baseLanguage) : ""
-    watchChanges: true
-    printErrors: false
-    blockLoading: true
-    onFileChanged: reload()
   }
 
-  property FileView languageFile: FileView {
+  property WatchedFile languageFile: WatchedFile {
     path: root.language !== "en" ? root.catalogPath(root.language) : ""
-    watchChanges: true
-    printErrors: false
-    blockLoading: true
-    onFileChanged: reload()
   }
 }

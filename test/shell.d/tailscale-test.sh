@@ -184,6 +184,11 @@ assertEqual(
   'tailnet.example',
   'tailscale labels connections by tailnet when nickname is missing'
 )
+assertEqual(
+  tailscale.accountLabel({ nickname: 'dhh@github', tailnet: 'Omacom', account: 'dhh@github', id: 'dd30' }),
+  'Omacom',
+  'tailscale labels connections by tailnet when nickname mirrors the account'
+)
 
 assertDeepEqual(
   tailscale.loginPlan(true, 'https://login.tailscale.com/a/existing'),
@@ -200,6 +205,61 @@ assertDeepEqual(
   { authUrl: '', command: ['tailscale', 'up'] },
   'tailscale ignores stale authorization URLs outside the login state'
 )
+
+assertDeepEqual(
+  tailscale.renamePlan('dd11', 'dd11', 'Home'),
+  { command: ['bash', '-c', 'tailscale set --nickname=Home'] },
+  'tailscale renames the selected connection in place'
+)
+assertDeepEqual(
+  tailscale.renamePlan('dd30', 'dd11', 'Home'),
+  { command: ['bash', '-c', "r=0; s=0; tailscale switch dd30 || r=$?; if (( r == 0 )); then tailscale set --nickname=Home || r=$?; fi; tailscale switch dd11 || s=$?; (( r == 0 )) && r=$s; exit $r"] },
+  'tailscale renames another connection by switching there and back'
+)
+assertEqual(
+  tailscale.renamePlan('dd30', 'dd11', "Dave's tailnet").command[2],
+  "r=0; s=0; tailscale switch dd30 || r=$?; if (( r == 0 )); then tailscale set --nickname='Dave'\\''s tailnet' || r=$?; fi; tailscale switch dd11 || s=$?; (( r == 0 )) && r=$s; exit $r",
+  'tailscale quotes nicknames that need shell escaping'
+)
+assertEqual(tailscale.renamePlan('dd11', 'dd11', '  '), null, 'tailscale refuses empty rename nicknames')
+assertEqual(tailscale.renamePlan('', 'dd11', 'Home'), null, 'tailscale refuses renames without a profile id')
+assertEqual(tailscale.renamePlan('dd30', '', 'Home'), null, 'tailscale refuses off-profile renames with no selected profile to return to')
+
+// Run the generated scripts against a stubbed tailscale binary to prove the
+// status contract: the first failure wins, restoration always runs.
+const spawnSync = require('child_process').spawnSync
+const stubFs = require('fs'), stubOs = require('os'), stubPath = require('path')
+const stubDir = stubFs.mkdtempSync(stubPath.join(stubOs.tmpdir(), 'ts-stub-'))
+stubFs.writeFileSync(stubPath.join(stubDir, 'tailscale'), [
+  '#!/bin/bash',
+  'echo "$1 $2" >> "$TS_LOG"',
+  'case "$1 $2" in',
+  '  "set --nickname=Fail") exit 23;;',
+  '  "switch lost") exit 9;;',
+  '  "switch backfail") exit 9;;',
+  '  *) exit 0;;',
+  'esac',
+  ''
+].join('\n'))
+stubFs.chmodSync(stubPath.join(stubDir, 'tailscale'), 0o755)
+const stubEnv = Object.assign({}, process.env, {
+  PATH: stubDir + stubPath.delimiter + process.env.PATH,
+  TS_LOG: stubPath.join(stubDir, 'calls.log')
+})
+function runPlan(plan) {
+  stubFs.rmSync(stubEnv.TS_LOG, { force: true })
+  const status = spawnSync(plan.command[0], plan.command.slice(1), { env: stubEnv, encoding: 'utf8' }).status
+  return { status, calls: stubFs.readFileSync(stubEnv.TS_LOG, 'utf8') }
+}
+assertEqual(runPlan(tailscale.renamePlan('dd30', 'dd11', 'Good')).status, 0, 'tailscale rename script succeeds end to end')
+assertEqual(runPlan(tailscale.renamePlan('dd30', 'dd11', 'Fail')).status, 23, 'rename failure survives a successful switch-back')
+const lostRun = runPlan(tailscale.renamePlan('lost', 'dd11', 'Good'))
+assertEqual(lostRun.status, 9, 'initial switch failure survives')
+assert(lostRun.calls.includes('switch dd11'), 'switch-back still runs after a failed first switch')
+const backfailRun = runPlan(tailscale.renamePlan('dd30', 'backfail', 'Good'))
+assertEqual(backfailRun.status, 9, 'switch-back failure is reported when nothing else failed')
+assert(backfailRun.calls.includes('switch backfail'), 'restoration attempt is the failed switch-back itself')
+assertEqual(runPlan(tailscale.renamePlan('dd11', 'dd11', 'Fail')).status, 23, 'in-place rename failure is reported')
 
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')

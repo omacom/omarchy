@@ -3,11 +3,21 @@ name: Check translation structure
 # The pull-request gate for i18n: individual PRs only add the English side
 # (code plus English catalog entries), so this validates structure, not
 # completeness. Missing translations are pending work for the sync workflow.
-# The job runs on every PR (and passes trivially when nothing i18n-relevant
-# changed) so it can be a required status check without blocking PRs that
-# never trigger a path-filtered workflow.
+# It runs only for pull requests that touch what it checks. A required status
+# check must not be path-filtered, since a PR that skips it waits on it
+# forever, so this needs a job-level condition instead if it is ever made one.
 on:
   pull_request:
+    paths:
+      - 'default/i18n/**'
+      - 'default/omarchy/omarchy-menu.jsonc'
+      - 'shell/**'
+      - 'bin/**'
+      - 'install/**'
+      - 'manual/**'
+      - 'scripts/i18n-sync.py'
+      - 'test/shell.d/i18n-test.sh'
+      - '.github/workflows/i18n-*'
 
 permissions:
   contents: read
@@ -18,27 +28,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Check whether anything i18n-relevant changed
-        id: relevant
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          git fetch origin "$BASE_REF"
-          if git diff --name-only "origin/$BASE_REF...HEAD" | grep -qE '^(default/i18n/|default/omarchy/omarchy-menu\.jsonc|shell/|bin/|install/|manual/|scripts/i18n-sync\.py|test/shell\.d/i18n-test\.sh|\.github/workflows/i18n-)'; then
-            echo "relevant=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "relevant=false" >> "$GITHUB_OUTPUT"
-            echo "No i18n-relevant files changed; passing."
-          fi
       - uses: actions/setup-node@v7
-        if: steps.relevant.outputs.relevant == 'true'
         with:
           node-version: 24
       - name: Structural i18n test
-        if: steps.relevant.outputs.relevant == 'true'
         run: I18N_STRUCTURAL=1 bash test/shell.d/i18n-test.sh
       - name: No embedded English literals
-        if: steps.relevant.outputs.relevant == 'true'
         run: python3 scripts/i18n-sync.py extract-scan --check

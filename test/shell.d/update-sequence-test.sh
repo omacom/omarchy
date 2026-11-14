@@ -23,6 +23,7 @@ steps=(
   omarchy-update-keyring
   omarchy-update-system-pkgs
   omarchy-migrate
+  omarchy-restart-shell
   omarchy-hook
   omarchy-update-aur-pkgs
   omarchy-update-mise
@@ -37,7 +38,13 @@ for step in "${steps[@]}"; do
   rm -f "$stub_bin/$step"
   cat >"$stub_bin/$step" <<'STUB'
 #!/bin/bash
-printf '%s unattended=%s\n' "${0##*/}" "${OMARCHY_UPDATE_UNATTENDED:-}" >>"$STEP_LOG"
+step=${0##*/}
+# The pending check is a step of its own, so the order around the restart shows.
+if [[ $step == "omarchy-migrate" && ${1:-} == "--pending" ]]; then
+  step+=":--pending"
+fi
+printf '%s unattended=%s\n' "$step" "${OMARCHY_UPDATE_UNATTENDED:-}" >>"$STEP_LOG"
+[[ $step != "omarchy-migrate:--pending" || ${NO_PENDING:-} != 1 ]] || exit 1
 if [[ ${0##*/} == "omarchy-update-orphan-pkgs" ]]; then
   printf '%s\n' "$@" >"$STEP_LOG.orphan-args"
 fi
@@ -64,7 +71,8 @@ steps_run() {
   cut -d' ' -f1 "$test_tmp/steps"
 }
 
-# Every step of a whole update, in order. $1 asks for the one a person confirms.
+# Every step of a whole update, in order. $1 asks for the one a person confirms;
+# an empty $2 leaves out the shell restart, for an update with nothing to migrate.
 # Stay Awake bookends the work, so it is here twice.
 expected_steps() {
   printf '%s\n' \
@@ -77,6 +85,8 @@ expected_steps() {
     omarchy-update-dev \
     omarchy-update-keyring \
     omarchy-update-system-pkgs \
+    omarchy-migrate:--pending \
+    ${2-omarchy-restart-shell} \
     omarchy-migrate \
     omarchy-update-orphan-pkgs \
     omarchy-update-analyze-logs \
@@ -111,13 +121,18 @@ pass "-y is what marks an update unattended, not the update itself"
 [[ $(cat "$test_tmp/steps.orphan-args") == "-y" ]] || fail "a confirmed update approves orphan removal"
 pass "a confirmed update approves orphan removal"
 
+NO_PENDING=1 run_update -y || fail "an update with nothing to migrate reports a failure"
+diff <(expected_steps "" "") <(steps_run) >"$test_tmp/order" ||
+  fail "an update with nothing to migrate restarts the shell anyway" "$(cat "$test_tmp/order")"
+pass "an update restarts the shell before migrating only when migrations are pending"
+
 # Migrations ship with the packages the upgrade installs and are written against
 # them. Running them against what is still on disk is the failure this ordering
 # exists to prevent, so the update stops where the packages did.
 if FAILING_STEP=omarchy-update-system-pkgs run_update -y; then
   fail "an update whose packages did not upgrade passes for a whole one"
 fi
-for step in omarchy-migrate omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
+for step in omarchy-migrate omarchy-restart-shell omarchy-hook omarchy-update-aur-pkgs omarchy-update-restart; do
   if grep -q "^$step " "$test_tmp/steps"; then
     fail "a blocked package upgrade still runs $step"
   fi
@@ -130,5 +145,4 @@ FAILING_STEP=omarchy-update-mise run_update -y || fail "a failed mise update pre
 diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
   fail "a failed mise update skips later update steps" "$(cat "$test_tmp/order")"
 grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
-assert_boundary_cold "update after mise failure"
 pass "a mise failure still finishes the update, offers a reboot and explains how to retry"

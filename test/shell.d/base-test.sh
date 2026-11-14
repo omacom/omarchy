@@ -130,13 +130,34 @@ QML_FIXTURE_TMP=""
 QML_FIXTURE_PID=""
 QML_FIXTURE_LOG=""
 
+# The fixture's Quickshell and every process it started, deepest last.
+qml_fixture_tree() {
+  local pid=$1 child
+  printf '%s\n' "$pid"
+  for child in $(pgrep -P "$pid" 2>/dev/null); do
+    qml_fixture_tree "$child"
+  done
+}
+
 qml_fixture_cleanup() {
+  local -a tree=()
+  local attempt
   if [[ -n $QML_FIXTURE_PID ]] && kill -0 "$QML_FIXTURE_PID" 2>/dev/null; then
-    kill "$QML_FIXTURE_PID" 2>/dev/null || true
+    # Processes a fixture started outlive Quickshell and can still be writing
+    # into its HOME while that is removed, so stop them with it.
+    mapfile -t tree < <(qml_fixture_tree "$QML_FIXTURE_PID")
+    kill "${tree[@]}" 2>/dev/null || true
     wait "$QML_FIXTURE_PID" 2>/dev/null || true
   fi
   QML_FIXTURE_PID=""
-  [[ -n $QML_FIXTURE_TMP && -d $QML_FIXTURE_TMP ]] && rm -rf "$QML_FIXTURE_TMP"
+  if [[ -n $QML_FIXTURE_TMP && -d $QML_FIXTURE_TMP ]]; then
+    # A child that was mid-write when it got the signal can still add a file.
+    for attempt in {1..20}; do
+      rm -rf "$QML_FIXTURE_TMP" 2>/dev/null && break
+      sleep 0.1
+    done
+    [[ ! -e $QML_FIXTURE_TMP ]] || echo "Could not remove $QML_FIXTURE_TMP" >&2
+  fi
   return 0
 }
 

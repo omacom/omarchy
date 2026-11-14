@@ -38,7 +38,8 @@
 --       -- Enable the touchpad while typing.
 --       disable_while_typing = false,
 --
---       -- Left-click-and-drag with three fingers.
+--       -- Left-click-and-drag with three fingers. Turn off Omarchy's
+--       -- three-finger gestures with omarchy_default_gestures = false first.
 --       drag_3fg = 1,
 --     },
 --   },
@@ -49,10 +50,11 @@
 -- o.window("foot", { scroll_touchpad = 2.0 })
 -- o.window("com.mitchellh.ghostty", { scroll_touchpad = 0.2 })
 
--- Enable touchpad gestures for changing workspaces.
+-- Change one of Omarchy's touchpad gestures by unsetting it first, since
+-- Hyprland rejects a second gesture on the same fingers and direction. This
+-- makes a three-finger swipe move focus instead (helpful on scrolling layout).
 -- See https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/
--- hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
-
--- Enable touchpad gestures for moving focus (helpful on scrolling layout).
+-- hl.gesture({ fingers = 3, direction = "left", action = "unset" })
+-- hl.gesture({ fingers = 3, direction = "right", action = "unset" })
 -- hl.gesture({ fingers = 3, direction = "left", action = function() hl.dispatch(hl.dsp.focus({ direction = "l" })) end })
 -- hl.gesture({ fingers = 3, direction = "right", action = function() hl.dispatch(hl.dsp.focus({ direction = "r" })) end })

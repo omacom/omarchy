@@ -16,10 +16,8 @@ export OMARCHY_PATH="$ROOT"
 source "$ROOT/install/helpers/pacman.sh"
 
 platforms="x86 aarch64 aarch64-apple"
-# Apple Silicon has edge alone: its packages and Asahi ALARM are published for
-# edge only so far.
 channels_for() {
-  if [[ $1 == "aarch64-apple" ]]; then echo "edge"; else echo "stable rc edge"; fi
+  echo "stable rc edge"
 }
 
 # ── the templates ────────────────────────────────────────────────────────────
@@ -50,11 +48,6 @@ repos() {
 }
 for platform in $platforms; do
   templates=$(omarchy_pacman_templates "$platform")
-  for channel in stable rc; do
-    [[ $platform == "aarch64-apple" ]] || continue
-    [[ ! -e $templates/pacman-$channel.conf && ! -e $templates/mirrorlist-$channel ]] ||
-      fail "$platform has no $channel template or mirrorlist"
-  done
   for channel in $(channels_for "$platform"); do
     [[ -f $templates/pacman-$channel.conf && -f $templates/mirrorlist-$channel ]] ||
       fail "$platform has a $channel template and mirrorlist"
@@ -80,7 +73,7 @@ for platform in $platforms; do
     [[ $mirror == "https://$host/$layout" ]] || fail "$platform $channel: the $channel Arch mirror" "$mirror"
   done
 done
-pass "x86 and aarch64 have templates for stable, rc and edge and Apple Silicon for edge alone, each with its repositories in order and its channel's mirrors"
+pass "every platform has templates for stable, rc and edge, each with its repositories in order and its channel's mirrors"
 
 # omarchy-version-channel names each template pair's channel: the menu's
 # checkmarks and a refresh with no channel go by it.
@@ -177,7 +170,7 @@ for platform in $platforms; do
     [[ -n $channel ]] || channel=$(omarchy_pacman_default_channel "$platform")
     python3 - "$SUDO_TEST_LOG" "$templates" "$channel" <<'PY'
 import sys
-events = [e for e in open(sys.argv[1]).read().splitlines() if e not in ('sudo -h', 'sudo -k')]
+events = open(sys.argv[1]).read().splitlines()
 templates, channel = sys.argv[2:]
 # The caller renders from the platform's templates; root backs up and copies
 # the result.
@@ -202,10 +195,9 @@ if channel in ('stable', 'rc'):
 transaction = events.index(upgrade)
 assert events.index(expected[-1]) < hook < transaction, events
 PY
-    assert_boundary_cold "$platform $channel"
   done
 done
-pass "a refresh renders and copies the named channel, or the platform default when the current channel is unknown, then runs the cold hook and the upgrade"
+pass "a refresh renders and copies the named channel, or the platform default when the current channel is unknown, then runs the hook and the upgrade"
 
 for channel in stable rc edge dev; do
   reset_boundary
@@ -216,7 +208,6 @@ for channel in stable rc edge dev; do
     fail "$channel refresh uses $expected repositories" "$(events)"
   grep -F "step:cp $SUDO_TEST_ROOT/default/pacman/mirrorlist-$expected " "$SUDO_TEST_LOG" >/dev/null ||
     fail "$channel refresh uses $expected mirrors" "$(events)"
-  assert_boundary_cold "$channel refresh"
 done
 pass "a refresh with no channel preserves stable, rc and edge, and uses edge for a linked dev checkout"
 
@@ -224,15 +215,15 @@ reset_boundary
 SUDO_TEST_CHANNEL=edge SUDO_TEST_CHANNEL_FAIL=1 refresh rc || fail "explicit rc overrides current edge without detecting it"
 grep -F "step:cp $SUDO_TEST_ROOT/default/pacman/pacman-rc.conf " "$SUDO_TEST_LOG" >/dev/null ||
   fail "explicit rc overrides current edge" "$(events)"
-assert_boundary_cold "explicit override"
 pass "an explicit channel overrides the current channel without querying it"
 
-for channel in stable rc; do
+mv "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-stable.conf" "$boundary_tmp/saved-template"
+for channel in stable; do
   reset_boundary
   if SUDO_TEST_PLATFORM=aarch64-apple SUDO_TEST_CHANNEL=$channel refresh; then fail "aarch64-apple refuses current $channel without templates"; fi
   [[ -z $(events) ]] || fail "unsupported current channel changes nothing" "$(events)"
-  assert_boundary_cold "unsupported current channel"
 done
+mv "$boundary_tmp/saved-template" "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-stable.conf"
 for channel in invalid failed; do
   reset_boundary
   if [[ $channel == "failed" ]]; then
@@ -241,27 +232,26 @@ for channel in invalid failed; do
     if SUDO_TEST_CHANNEL=$channel refresh; then fail "unexpected channel is refused"; fi
   fi
   [[ -z $(events) ]] || fail "failed channel detection changes nothing" "$(events)"
-  assert_boundary_cold "failed channel detection"
 done
 pass "unsupported, unexpected or failed current channel detection changes nothing"
 
 reset_boundary
 if refresh invalid; then fail "invalid explicit channel is refused"; fi
 [[ -z $(events) ]] || fail "invalid explicit channel changes nothing" "$(events)"
-assert_boundary_cold "invalid explicit channel"
 pass "an invalid explicit channel changes nothing"
 
-# A channel the platform has no template for (stable or rc on Apple Silicon),
-# or a machine whose platform can't be told, stops before anything changes.
+# A channel the platform has no template for, or a machine whose platform can't
+# be told, stops before anything changes.
+mv "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-stable.conf" "$boundary_tmp/saved-template"
 for platform in aarch64-apple; do
-  for channel in stable rc; do
+  for channel in stable; do
     reset_boundary
     if SUDO_TEST_PLATFORM=$platform refresh "$channel"; then fail "$platform: $channel is refused"; fi
     [[ -z $(events) ]] || fail "$platform: $channel stops before anything" "$(events)"
     grep -q "Omarchy has no $channel channel for $platform" "$boundary_tmp/output" || fail "the refusal says why" "$(cat "$boundary_tmp/output")"
-    assert_boundary_cold "$platform $channel"
   done
 done
+mv "$boundary_tmp/saved-template" "$SUDO_TEST_ROOT/default/pacman/aarch64-apple/pacman-stable.conf"
 cat >"$SUDO_TEST_ROOT/bin/omarchy-hw-platform" <<'STUB'
 #!/bin/bash
 exit 1
@@ -269,5 +259,4 @@ STUB
 reset_boundary
 if refresh stable; then fail "an unknown platform is refused"; fi
 [[ -z $(events) ]] || fail "an unknown platform stops before anything" "$(events)"
-assert_boundary_cold "unknown platform"
 pass "a channel without a template, or a machine whose platform can't be told, changes nothing"
