@@ -10,11 +10,15 @@ function parseLocationFile(raw) {
     var latitude = parseFloat(data.latitude)
     var longitude = parseFloat(data.longitude)
     var hasCoordinates = !isNaN(latitude) && !isNaN(longitude)
-    return {
+    var location = {
       name: typeof data.name === "string" ? data.name.replace(/^\s+|\s+$/g, "") : "",
       latitude: hasCoordinates ? latitude : null,
       longitude: hasCoordinates ? longitude : null
     }
+    // The place's own country picks units even when wttr.in, the only other
+    // source of one, cannot be reached.
+    if (typeof data.country === "string" && data.country) location.country = data.country
+    return location
   } catch (e) {
     return unset
   }
@@ -58,12 +62,14 @@ function parseGeocodingResults(raw) {
       var r = results[i]
       if (!r || !r.name || r.latitude === undefined || r.longitude === undefined) continue
       var region = [r.admin1, r.country].filter(function(part) { return !!part }).join(", ")
-      out.push({
+      var suggestion = {
         name: String(r.name),
         description: region,
         latitude: r.latitude,
         longitude: r.longitude
-      })
+      }
+      if (r.country_code) suggestion.country = String(r.country_code)
+      out.push(suggestion)
     }
     return out
   } catch (e) {
@@ -127,7 +133,7 @@ function countryUsesImperial(countryName) {
     .toLowerCase()
   if (!country) return null
   if (country === "us" || country === "usa" || country === "united states" || country === "united states of america") return true
-  if (country === "liberia" || country === "myanmar" || country === "burma") return true
+  if (country === "lr" || country === "liberia" || country === "mm" || country === "myanmar" || country === "burma") return true
   return false
 }
 

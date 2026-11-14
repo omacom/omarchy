@@ -30,7 +30,7 @@ assertEqual(weather.wttrLocationQuery('  ', null, null), '', 'weather treats a b
 
 const unset = weather.parseLocationFile('')
 const detected = weather.parseLocationFile('{"name":"Amsterdam","latitude":52.37403,"longitude":4.88969,"country":"NL","timezone":"Europe/Amsterdam"}')
-assertDeepEqual(detected, { name: 'Amsterdam', latitude: 52.37403, longitude: 4.88969 }, 'weather reads a geo.omarchy.org answer with the weather.json parser')
+assertDeepEqual(detected, { name: 'Amsterdam', latitude: 52.37403, longitude: 4.88969, country: 'NL' }, 'weather reads a geo.omarchy.org answer with the weather.json parser')
 assertDeepEqual(weather.effectiveLocation(unset, detected), detected, 'weather reports for the detected place when none is stored')
 assertDeepEqual(weather.effectiveLocation({ name: 'New York', latitude: null, longitude: null }, detected).name, 'New York', 'weather keeps a stored name over the detected place')
 assertDeepEqual(weather.effectiveLocation({ name: '', latitude: 34.02577, longitude: -118.7804 }, detected).latitude, 34.02577, 'weather keeps stored coordinates over the detected place')
@@ -51,6 +51,11 @@ assertDeepEqual(
   ],
   'weather parses geocoding suggestions and drops incomplete rows'
 )
+assertDeepEqual(
+  weather.parseGeocodingResults(JSON.stringify({ results: [{ name: 'Sydney', latitude: -33.87, longitude: 151.21, country: 'Australia', country_code: 'AU' }] }))[0].country,
+  'AU',
+  'weather keeps the country code of a geocoding suggestion'
+)
 assertDeepEqual(weather.parseGeocodingResults('{}'), [], 'weather handles empty geocoding responses')
 assertDeepEqual(weather.parseGeocodingResults('{'), [], 'weather handles invalid geocoding JSON')
 
@@ -63,6 +68,10 @@ assertEqual(weather.shouldUseImperial('', 'en_US', 'Denmark'), false, 'weather p
 assertEqual(weather.shouldUseImperial('', 'da_DK', 'United States of America'), true, 'weather prefers reported imperial country over metric locale')
 assertEqual(weather.shouldUseImperial('metric', 'en_US', 'United States of America'), false, 'weather metric override wins')
 assertEqual(weather.shouldUseImperial('imperial', 'da_DK', 'Denmark'), true, 'weather imperial override wins')
+// A saved location's country code stands in when wttr.in reported none.
+assertEqual(weather.shouldUseImperial('', 'en_US', 'AU'), false, 'weather prefers a metric country code over US locale')
+assertEqual(weather.shouldUseImperial('', 'da_DK', 'US'), true, 'weather prefers an imperial country code over metric locale')
+assertEqual(weather.shouldUseImperial('', 'en_GB', 'LR'), true, 'weather knows every imperial country by code')
 assertEqual(weather.dayName('2026-05-25'), 'Monday', 'weather derives day names')
 
 const openMeteo = {
@@ -136,6 +145,10 @@ pass "weather location stores name and coordinates as JSON"
 
 [[ $(weather_location) == "Malibu" ]] || fail "weather location returns the stored name"
 pass "weather location returns the stored name"
+
+weather_location --set "Sydney" "-33.87,151.21" "AU"
+[[ $(jq -c . "$test_tmp/.local/state/omarchy/settings/weather.json") == '{"name":"Sydney","latitude":-33.87,"longitude":151.21,"country":"AU"}' ]] || fail "weather location stores the country code it is given"
+pass "weather location stores the country code it is given"
 
 weather_location --set "New York"
 [[ $(jq -c . "$test_tmp/.local/state/omarchy/settings/weather.json") == '{"name":"New York"}' ]] || fail "weather location stores a bare name as JSON"
