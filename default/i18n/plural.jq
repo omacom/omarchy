@@ -33,6 +33,8 @@ def plural_category($code; $count):
     elif $code == "he" then (if $n == 1 then "one" elif $n == 2 then "two" else "other" end)
     elif $code == "ga" then
       (if $n == 1 then "one" elif $n == 2 then "two" elif $n >= 3 and $n <= 6 then "few" elif $n >= 7 and $n <= 10 then "many" else "other" end)
+    elif $code == "zgh" then
+      (if $n <= 1 or ($n >= 11 and $n <= 99) then "one" else "other" end)
     else (if $n == 1 then "one" else "other" end)
     end;
 
