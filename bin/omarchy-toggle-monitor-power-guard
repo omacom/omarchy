@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle automatic recovery for monitors that lose power
+# omarchy:name=monitor-power-guard
+# omarchy:args=[on|off|toggle]
+
+set -uo pipefail
+
+readonly FLAG=monitor-power-guard
+readonly SERVICE=omarchy-hyprland-monitor-power-guard.service
+readonly omarchy_path=$OMARCHY_PATH
+readonly packaged_unit=/usr/lib/systemd/user/$SERVICE
+readonly source_unit="$omarchy_path/default/systemd/user/$SERVICE"
+readonly user_unit="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$SERVICE"
+action=${1:-toggle}
+
+if [[ $action != "on" && $action != "off" && $action != "toggle" ]]; then
+  echo "Usage: $(basename "$0") {on|off|toggle}" >&2
+  exit 1
+fi
+
+notify() {
+  omarchy-notification-send -g 󰍹 "$1" >/dev/null 2>&1 || true
+}
+
+failed() {
+  notify "$(omarchy-i18n monitor.powerGuardFailed)"
+  exit 1
+}
+
+enabled() {
+  omarchy-toggle-enabled "$FLAG"
+}
+
+install_unit() {
+  # A packaged Omarchy install already owns the unit. Only a source checkout
+  # needs the fallback copy, so the user copy can never shadow a packaged unit
+  # or go stale across updates.
+  if [[ -f $packaged_unit ]]; then
+    return 0
+  fi
+  [[ -f $source_unit ]] || return 1
+  mkdir -p "$(dirname "$user_unit")" || return 1
+  install -Dm644 "$source_unit" "$user_unit" || return 1
+  systemctl --user daemon-reload >/dev/null 2>&1
+}
+
+remove_unit() {
+  [[ ! -f $packaged_unit && -f $user_unit ]] || return 0
+  rm -f "$user_unit" || return 1
+  systemctl --user daemon-reload >/dev/null 2>&1 || true
+}
+
+enable() {
+  install_unit || failed
+  omarchy-toggle "$FLAG" on >/dev/null || failed
+
+  if ! systemctl --user enable --now "$SERVICE" >/dev/null 2>&1; then
+    systemctl --user disable --now "$SERVICE" >/dev/null 2>&1 || true
+    omarchy-toggle "$FLAG" off >/dev/null
+    remove_unit || true
+    failed
+  fi
+
+  notify "$(omarchy-i18n monitor.powerGuardEnabled)"
+}
+
+disable() {
+  # Stop first. If the stop fails and the service is still active, keep the
+  # opt-in flag so the user can retry; a running guard must not lose its flag.
+  if ! systemctl --user stop "$SERVICE" >/dev/null 2>&1; then
+    if systemctl --user is-active --quiet "$SERVICE" >/dev/null 2>&1; then
+      failed
+    fi
+  fi
+
+  # A failed restore must never strand the off switch. The service is stopped,
+  # so this is a best-effort layout restore; clear the flag and unit even when
+  # the monitor is absent or still dark.
+  omarchy-hyprland-monitor-power-guard --restore-all >/dev/null 2>&1 || true
+
+  if ! systemctl --user disable "$SERVICE" >/dev/null 2>&1; then
+    if systemctl --user is-enabled --quiet "$SERVICE" >/dev/null 2>&1; then
+      failed
+    fi
+  fi
+
+  remove_unit || true
+  omarchy-toggle "$FLAG" off >/dev/null || failed
+  notify "$(omarchy-i18n monitor.powerGuardDisabled)"
+}
+
+case $action in
+  on) enable ;;
+  off) disable ;;
+  toggle)
+    if enabled; then
+      disable
+    else
+      enable
+    fi
+    ;;
+esac

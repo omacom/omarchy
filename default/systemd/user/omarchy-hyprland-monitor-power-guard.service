@@ -1,0 +1,20 @@
+[Unit]
+Description=Move windows off external monitors that lose power
+After=dbus.socket wayland-session-waitenv.service graphical-session.target
+Requires=dbus.socket
+PartOf=graphical-session.target
+ConditionEnvironment=OMARCHY_PATH
+ConditionEnvironment=WAYLAND_DISPLAY
+ConditionPathExists=%h/.local/state/omarchy/toggles/monitor-power-guard
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-hyprland-monitor-power-guard
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=5
+
+[Install]
+WantedBy=graphical-session.target
