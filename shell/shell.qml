@@ -1,4 +1,12 @@
 //@ pragma OmarchyLoadPatch
+// Works around an NVIDIA driver bug (seen on 615.78.08, omacom/omarchy#10108):
+// after a resume from suspend, explicit sync can leave the shell's render
+// thread spinning in the driver's buffer swap. The main thread waits on it, so
+// the bar and global shortcuts freeze. Quickshell sets this before it starts
+// Qt, but after it has kept the environment it hands to the processes it
+// starts, so apps launched from the shell keep explicit sync. Only NVIDIA's
+// driver reads it, and a value set in the session wins.
+//@ pragma DefaultEnv __NV_DISABLE_EXPLICIT_SYNC=1
 import QtQuick
 import QtQml.Models
 import Quickshell
