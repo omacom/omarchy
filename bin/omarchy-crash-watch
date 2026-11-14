@@ -52,16 +52,21 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
     # nothing, and that crash used to be read as somebody else's and dropped.
-    IFS=$'\t' read -r uid comm pid exe signal < <(
+    IFS=$'\t' read -r uid comm pid exe signal user_unit < <(
       jq -r 'def field: if . == null or . == "" then "-" else . end;
              [(._UID | field),
               (.COREDUMP_COMM | field),
               (.COREDUMP_PID | field),
               (.COREDUMP_EXE | field),
-              (.COREDUMP_SIGNAL_NAME | field)] | @tsv' <<<"$entry" 2>/dev/null
+              (.COREDUMP_SIGNAL_NAME | field),
+              (.COREDUMP_USER_UNIT | field)] | @tsv' <<<"$entry" 2>/dev/null
     )
 
     [[ $pid =~ ^[0-9]+$ ]] || continue
+
+    # The health probe runs inside this service but crashes as quickshell, so
+    # its service provenance is the only reliable self-exclusion signal.
+    [[ $user_unit == omarchy-crash-watch.service ]] && continue
 
     # The toast only offers a diagnosis, so it has nothing to offer until an
     # agent is chosen. Checked per crash, not at startup, so picking one takes
