@@ -48,10 +48,20 @@ local function edid_has_gamut(name)
   return math.abs(rx * (gy - by) + gx * (by - ry) + bx * (ry - gy)) / 2 > 0.01
 end
 
--- Whether every monitor a rule covers has a gamut ("" covers all of them).
+-- Whether a rule's output selector covers a monitor: "" covers all, otherwise
+-- the port name or a "desc:" prefix of the monitor description.
+local function covers(output, monitor)
+  local prefix = output:match("^desc:(.+)$")
+  if prefix then
+    return (monitor.description or ""):sub(1, #prefix) == prefix
+  end
+  return output == "" or monitor.name == output
+end
+
+-- Whether every monitor a rule covers has a gamut.
 local function gamut_for_rule(output)
   for _, monitor in ipairs(hl.get_monitors()) do
-    if (output == "" or monitor.name == output) and not edid_has_gamut(monitor.name) then
+    if covers(output, monitor) and not edid_has_gamut(monitor.name) then
       return false
     end
   end
