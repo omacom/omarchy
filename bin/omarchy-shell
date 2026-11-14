@@ -106,8 +106,22 @@ fi
 # The -- keeps function names that shadow qs subcommands (e.g. show) as
 # positionals. qs reports connection failures with a nonzero exit, but IPC-level
 # failures (unknown target/function, bad arguments) go to stdout with exit 0.
+# qs ipc also splits a bracketed list literal ("[a,b]", even "[x]") into as many
+# arguments as it has items, where the socket path delivers every field whole.
+# An empty one goes as CLI11's [[]] escape, which arrives as exactly []. No
+# escape keeps a longer one exact, so it keeps a trailing space to stay a single
+# value; JSON parsing on the far side tolerates the space.
 ipc_timeout=${OMARCHY_SHELL_IPC_TIMEOUT:-2s}
-output=$(timeout --kill-after=1s "$ipc_timeout" qs ipc -n -p "$OMARCHY_PATH/shell" call -- "$@" 2>/dev/null)
+ipc_args=()
+for arg in "$@"; do
+  if [[ $arg == "[]" ]]; then
+    arg="[[]]"
+  elif [[ $arg == \[*\] ]]; then
+    arg="$arg "
+  fi
+  ipc_args+=("$arg")
+done
+output=$(timeout --kill-after=1s "$ipc_timeout" qs ipc -n -p "$OMARCHY_PATH/shell" call -- "${ipc_args[@]}" 2>/dev/null)
 ipc_status=$?
 
 if (( ipc_status == 124 || ipc_status == 137 )); then
