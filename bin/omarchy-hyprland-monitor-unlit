@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when Hyprland wants an external monitor lit at a mode the kernel no longer offers for it
+# omarchy:hidden=true
+
+# A monitor that went into standby during a blank can answer with a smaller
+# EDID than the one it showed when it was plugged in. The kernel takes the new
+# mode list, Hyprland keeps the old one, and on wake the kernel refuses the mode
+# Hyprland asks for. The connector then reads connected but disabled while
+# Hyprland reports the monitor as on, and the screen stays black.
+#
+# Prints the sysfs directory of each such connector.
+#
+# Exits 0 unlit, 1 not, 2 when the compositor cannot say. Nothing fires an event
+# for this state, so a caller must not read an unanswered query as a lit monitor.
+drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
+
+dark=()
+for connector in "$drm_path"/card*-*; do
+  [[ $connector =~ -(eDP|LVDS|DSI)-[^/]+$ ]] && continue
+  [[ -r $connector/status && -r $connector/enabled ]] || continue
+
+  if [[ $(<$connector/status) == "connected" && $(<$connector/enabled) == "disabled" ]]; then
+    dark+=("$connector")
+  fi
+done
+
+# Asking the compositor is the expensive half, so a machine with every
+# connected monitor driven never gets that far.
+(( ${#dark[@]} > 0 )) || exit 1
+
+monitors=$(hyprctl monitors all -j 2>/dev/null) || exit 2
+
+# A monitor blanked by DPMS or turned off in the config is dark on purpose, and
+# one with no mode at all belongs to omarchy-hyprland-monitor-modeless.
+wanted=$(jq -r '.[] | select(.disabled == false and .dpmsStatus == true and .width > 0 and .height > 0) | "\(.name) \(.width)x\(.height)"' \
+  <<<"$monitors" 2>/dev/null) || exit 2
+
+found=1
+for connector in "${dark[@]}"; do
+  name=${connector##*/}
+  name=${name#card*-}
+
+  size=$(awk -v name="$name" '$1 == name { print $2; exit }' <<<"$wanted")
+  [[ -n $size ]] || continue
+
+  # A mode the kernel still lists was refused for some other reason: a link
+  # that will not train, or a monitor switched off at its own button. Another
+  # modeset does not help there, and repeating one into a monitor that is
+  # powered off has frozen an NVIDIA session before.
+  grep -qx -- "$size" "$connector/modes" 2>/dev/null && continue
+
+  printf '%s\n' "$connector"
+  found=0
+done
+
+exit "$found"

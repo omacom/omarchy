@@ -1,0 +1,119 @@
+#!/bin/bash
+
+# omarchy:summary=Bring back external monitors that stayed black after the displays woke
+# omarchy:hidden=true
+
+# See omarchy-hyprland-monitor-unlit for how a monitor ends up here. Blanking
+# and waking again repeats the refused modeset, and so does a reload, because
+# Hyprland still holds the mode list from before the monitor slept. Until now
+# only pulling the cable got the picture back.
+#
+# Asking for a small mode the sleeping monitor does offer gets a modeset the
+# kernel accepts. The link trains, the monitor wakes and announces its real
+# modes, and a reload then puts the configured mode back. None of it needs root.
+
+SETTLE=4
+TRIES=3
+
+# Sizes nearly every monitor offers awake and asleep, largest first. The mode has
+# to be in the kernel's list for the kernel to accept it and in Hyprland's older
+# list for Hyprland to ask for it.
+fallback_mode() {
+  local size
+
+  for size in 1920x1080 1280x720 1024x768 800x600 640x480; do
+    if grep -qx "$size" "$1/modes" 2>/dev/null; then
+      printf '%s@60\n' "$size"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# A monitor shows it woke in one of two ways: the kernel is driving it, or it
+# has dropped off the bus to come back announcing its real modes. The first can
+# last well under a second before the second, so both count.
+woke() {
+  [[ $(<$1/enabled) == "enabled" || $(<$1/status) != "connected" ]]
+}
+
+# The small mode is a runtime monitor rule that outlives the attempt, so every
+# attempt ends here, whether or not the monitor woke. Left behind, it would
+# bring the monitor up small the next time it was plugged in.
+restore_config() {
+  # Reloading into half-replaced package config is what the guard prevents.
+  while omarchy-hyprland-reload-guard paused; do
+    sleep 2
+  done
+
+  omarchy-restart-hyprctl
+}
+
+relight() {
+  local connector=$1 name mode asleep_modes awake_modes waited
+
+  name=${connector##*/}
+  name=${name#card*-}
+
+  # The name goes into Lua below, so take nothing but a kernel connector name.
+  [[ $name =~ ^[A-Za-z0-9-]+$ ]] || return 1
+
+  if ! mode=$(fallback_mode "$connector"); then
+    echo "$name stayed black after wake and offers no mode to wake it with"
+    return 1
+  fi
+
+  asleep_modes=$(<$connector/modes)
+  echo "$name stayed black after wake, waking its link at $mode"
+  hyprctl eval "hl.monitor({ output = \"$name\", mode = \"$mode\", position = \"auto\", scale = 1 })" >/dev/null 2>&1
+
+  for (( waited = 0; waited < 75; waited++ )); do
+    woke "$connector" && break
+    sleep 0.2
+  done
+
+  if ! woke "$connector"; then
+    echo "$name did not take $mode"
+    restore_config
+    return 1
+  fi
+
+  # Reloading while the monitor still shows its sleeping modes would ask for the
+  # configured one too early and get it refused again. Once it has dropped off
+  # the bus the reload can go ahead, so that it comes back straight into the
+  # configured mode.
+  for (( waited = 0; waited < 10; waited++ )); do
+    [[ $(<$connector/status) != "connected" ]] && break
+    awake_modes=$(<$connector/modes)
+    [[ -n $awake_modes && $awake_modes != "$asleep_modes" ]] && break
+    sleep 1
+  done
+
+  restore_config
+  echo "$name woke, restored its configured mode"
+}
+
+# A wake that is still being modeset looks the same for a moment.
+sleep "$SETTLE"
+
+for (( try = 1; try <= TRIES; try++ )); do
+  connectors=$(omarchy-hyprland-monitor-unlit) || break
+
+  for connector in $connectors; do
+    relight "$connector"
+  done
+
+  # Give the reload's modeset time to land before judging it.
+  sleep 3
+done
+
+# A monitor these tries could not bring back is left dark with its config
+# restored. Hold on until it is blanked, unplugged or lit, so the watcher does
+# not start over on the same monitor every few seconds for as long as it stays
+# that way.
+while omarchy-hyprland-monitor-unlit >/dev/null; do
+  sleep 10
+done
+
+exit 0
