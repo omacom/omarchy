@@ -1,24 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <title>Agent</title>
-  <desc>A terminal window seen from the front with a big spark where the work happens and a small one beside it, over a prompt, each piece with a hard shadow.</desc>
+  <desc>The agents panel's robot (Material Design Icons' robot-excited), its eyes cut out to the background, with a hard shadow.</desc>
   <defs>
     <linearGradient id="main" x1="0" y1="0" x2="1" y2="1">
       <stop stop-color="{{ icon_main }}"/>
       <stop offset="1" stop-color="{{ icon_main_end }}"/>
     </linearGradient>
-    <path id="spark" d="M0 -100C9 -40 40 -9 100 0C40 9 9 40 0 100C-9 40 -40 9 -100 0C-40 -9 -9 -40 0 -100Z"/>
   </defs>
   <g transform="translate(256 256) scale(1.2) translate(-256 -256)">
-    <!-- The window, as the Terminal's; one hard shadow, as Hype's slides. -->
-    <rect x="76" y="100" width="360" height="312" rx="20" fill="{{ icon_shadow }}" transform="translate(0 8)"/>
-    <rect x="76" y="100" width="360" height="312" rx="20" fill="{{ icon_body }}" stroke="{{ icon_edge }}" stroke-width="3"/>
-    <!-- The prompt the agent answers. -->
-    <path d="M118 340L146 362L118 384" fill="none" stroke="{{ icon_edge }}" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-    <rect x="166" y="355" width="120" height="14" rx="7" fill="{{ icon_edge }}"/>
-    <!-- The sparks. -->
-    <use href="#spark" fill="{{ icon_shadow }}" transform="translate(236 230) scale(1.05) translate(0 8)"/>
-    <use href="#spark" fill="url(#main)" transform="translate(236 230) scale(1.05)"/>
-    <use href="#spark" fill="{{ icon_shadow }}" transform="translate(360 166) scale(.42) translate(0 16)"/>
-    <use href="#spark" fill="{{ icon_mark }}" transform="translate(360 166) scale(.42)"/>
+    <g transform="translate(76 76) scale(15)">
+      <path d="M22 14H21C21 10.13 17.87 7 14 7H13V5.73C13.6 5.39 14 4.74 14 4C14 2.9 13.11 2 12 2S10 2.9 10 4C10 4.74 10.4 5.39 11 5.73V7H10C6.13 7 3 10.13 3 14H2C1.45 14 1 14.45 1 15V18C1 18.55 1.45 19 2 19H3V20C3 21.11 3.9 22 5 22H19C20.11 22 21 21.11 21 20V19H22C22.55 19 23 18.55 23 18V15C23 14.45 22.55 14 22 14M8.68 17.04L7.5 15.86L6.32 17.04L5.14 15.86L7.5 13.5L9.86 15.86L8.68 17.04M17.68 17.04L16.5 15.86L15.32 17.04L14.14 15.86L16.5 13.5L18.86 15.86L17.68 17.04Z" fill="{{ icon_shadow }}" transform="translate(0 .67)"/>
+      <!-- Shows through the eyes cut into the head. -->
+      <rect x="5" y="13" width="5" height="4.5" fill="{{ icon_body }}"/>
+      <rect x="14" y="13" width="5" height="4.5" fill="{{ icon_body }}"/>
+      <path d="M22 14H21C21 10.13 17.87 7 14 7H13V5.73C13.6 5.39 14 4.74 14 4C14 2.9 13.11 2 12 2S10 2.9 10 4C10 4.74 10.4 5.39 11 5.73V7H10C6.13 7 3 10.13 3 14H2C1.45 14 1 14.45 1 15V18C1 18.55 1.45 19 2 19H3V20C3 21.11 3.9 22 5 22H19C20.11 22 21 21.11 21 20V19H22C22.55 19 23 18.55 23 18V15C23 14.45 22.55 14 22 14M8.68 17.04L7.5 15.86L6.32 17.04L5.14 15.86L7.5 13.5L9.86 15.86L8.68 17.04M17.68 17.04L16.5 15.86L15.32 17.04L14.14 15.86L16.5 13.5L18.86 15.86L17.68 17.04Z" fill="url(#main)"/>
+    </g>
   </g>
 </svg>
