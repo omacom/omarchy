@@ -123,8 +123,8 @@ gpu_bin=$tmp/gpu-bin
 mkdir -p "$gpu_bin"
 printf '#!/bin/bash\necho "00:02.0 VGA compatible controller: %s"\n' '${GPU:-Apple Inc. AGX}' >"$gpu_bin/lspci"
 printf '#!/bin/bash\nexit "${ARCH_X86:-0}"\n' >"$gpu_bin/omarchy-hw-x86"
-printf '#!/bin/bash\nexit 1\n' >"$gpu_bin/omarchy-hw-nvidia-gsp"
-printf '#!/bin/bash\nexit 1\n' >"$gpu_bin/omarchy-hw-nvidia-without-gsp"
+printf '#!/bin/bash\nexit "${NVIDIA_GSP:-1}"\n' >"$gpu_bin/omarchy-hw-nvidia-gsp"
+printf '#!/bin/bash\nexit "${NVIDIA_LEGACY:-1}"\n' >"$gpu_bin/omarchy-hw-nvidia-without-gsp"
 printf '#!/bin/bash\necho "omarchy-pkg-add $*" >>"%s"\n' "$tmp/calls" >"$gpu_bin/omarchy-pkg-add"
 chmod +x "$gpu_bin"/*
 rm -f "$tmp/calls"
@@ -135,6 +135,18 @@ GPU="Advanced Micro Devices, Inc. [AMD/ATI] Navi 31" PATH="$gpu_bin:$PATH" bash 
   fail "an AMD GPU installs its 32-bit driver"
 [[ $(cat "$tmp/calls") == "omarchy-pkg-add lib32-vulkan-radeon" ]] || fail "an AMD GPU gets lib32-vulkan-radeon" "$(cat "$tmp/calls")"
 pass "32-bit drivers: a machine with no supported GPU adds nothing without failing"
+
+# An NVIDIA GPU with GSP gets its 32-bit driver only here, when a game asks
+# (install/hardware/nvidia.sh leaves it out); a 580xx GPU gets the 580xx one.
+rm -f "$tmp/calls"
+NVIDIA_GSP=0 GPU="NVIDIA Corporation AD104 [GeForce RTX 4070]" PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >/dev/null 2>&1 ||
+  fail "an NVIDIA GPU with GSP installs its 32-bit driver"
+[[ $(cat "$tmp/calls") == "omarchy-pkg-add lib32-nvidia-utils" ]] || fail "an NVIDIA GPU with GSP gets lib32-nvidia-utils" "$(cat "$tmp/calls")"
+rm -f "$tmp/calls"
+NVIDIA_LEGACY=0 GPU="NVIDIA Corporation GP104 [GeForce GTX 1080]" PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >/dev/null 2>&1 ||
+  fail "a 580xx NVIDIA GPU installs its 32-bit driver"
+[[ $(cat "$tmp/calls") == "omarchy-pkg-add lib32-nvidia-580xx-utils" ]] || fail "a 580xx NVIDIA GPU gets lib32-nvidia-580xx-utils" "$(cat "$tmp/calls")"
+pass "32-bit drivers: an NVIDIA GPU gets the 32-bit driver of its generation"
 
 # Multilib only exists on x86_64; an ARM machine runs the native arm64 Steam.
 rm -f "$tmp/calls"
