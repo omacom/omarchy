@@ -12,6 +12,23 @@ trap 'rm -rf "$TMPDIR"' EXIT
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
+for (const [icon, count, length, extra] of [[66, 12, 742, 0], [36, 29, 1280, 24], [36, 120, 742, 24]]) {
+  const fit = dock.fitSlots(icon, 6, count, length, extra)
+  assert((fit.iconSize + fit.inset * 2) * count + extra <= length + 0.0001, 'all dock slots fit the available edge: ' + count + ' slots on ' + length)
+  assert(fit.iconSize > 0 && fit.iconSize <= icon, 'fitting keeps every icon visible without enlarging requested icons')
+}
+const roomy = dock.fitSlots(36, 6, 4, 1280, 0)
+assertEqual(roomy.iconSize, 36, 'a dock that already fits keeps its normal icon size')
+assertEqual(roomy.inset, 6, 'a dock that already fits keeps its normal spacing')
+
+const dockSource = require('fs').readFileSync(process.env.ROOT + '/shell/plugins/dock/Dock.qml', 'utf8')
+const keyBody = dockSource.match(/function appKey\(key\) \{([^}]+)\}/)[1]
+const pulseBody = dockSource.match(/function isLaunching\(key\) \{([^}]+)\}/)[1]
+const launchingRoot = { appKey: new Function('key', keyBody), launches: { 'org.example.App': {} } }
+const isLaunching = new Function('root', 'key', pulseBody)
+assert(isLaunching(launchingRoot, 'org.example.App::window::0xabc'), 'window-instance launch feedback resolves the shared app identity')
+assert(!isLaunching(launchingRoot, 'org.example.Other::window::0xdef'), 'launch feedback does not pulse another app')
+
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
 assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')
