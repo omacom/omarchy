@@ -55,7 +55,11 @@ BarIndicator {
     onExited: function(exitCode, exitStatus) {
       if ((exitCode !== 0 || exitStatus !== 0) && root.bar)
         Util.execArgv(["omarchy-notification-send", I18n.t("bar.passwordlessSudoDisableFailed"), I18n.t("bar.passwordlessSudoDisableFailedBody")])
-      if (root.indicatorHost) root.indicatorHost.refresh()
+      // Every screen, not just this one. When the grant had already ended (an
+      // expiry refresh that never arrived), the script finds nothing to revoke
+      // and so pushes no refresh of its own, and the other screens stayed red
+      // until each was clicked in turn.
+      if (root.indicatorHost) root.indicatorHost.broadcast("refresh")
       else root.refresh()
     }
   }
