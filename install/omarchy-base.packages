@@ -166,6 +166,7 @@ xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland
 xdg-terminal-exec
 xdg-user-dirs
+xdg-utils
 xorg-xrandr
 yay
 yt-dlp
