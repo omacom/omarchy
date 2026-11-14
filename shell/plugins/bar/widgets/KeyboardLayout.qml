@@ -30,6 +30,10 @@ BarWidget {
   property int layoutIndex: 0
   property int layoutCount: 0
   property var syncNames: []
+  // The kb_layout and kb_variant lists as Hyprland reports them, which tell two
+  // variants of one layout apart where the brief cannot.
+  property string layoutCodes: ""
+  property string layoutVariants: ""
   // Short language code per layout description ("English (US)": "en"), read from
   // xkb's own table rather than maintained by hand.
   property var layoutBriefs: ({})
@@ -45,7 +49,8 @@ BarWidget {
     briefsRequested = true
     briefsProc.running = true
   }
-  readonly property string layoutLabel: KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs)
+  readonly property string layoutLabel: KeyboardLayoutModel.variantLabel(layoutCodes, layoutVariants, layoutIndex)
+                                        || KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs)
   readonly property var inputState: InputMethodState.state
   readonly property bool multipleInputs: (inputState.methods || []).length > 1
   readonly property string inputLabel: KeyboardLayoutModel.inputLabel(inputState, layoutLabel)
@@ -176,6 +181,8 @@ BarWidget {
           root.keyboardUnresolved = true
           if (typed.length === 0) {
             root.layoutFull = ""
+            root.layoutCodes = ""
+            root.layoutVariants = ""
             root.keyboardName = ""
           }
           return
@@ -187,6 +194,8 @@ BarWidget {
         root.layoutsRead = true
         root.layoutIndex = kb.active_layout_index || 0
         root.layoutCount = kb.layout === undefined ? 0 : String(kb.layout).split(",").length
+        root.layoutCodes = String(kb.layout || "")
+        root.layoutVariants = String(kb.variant || "")
         // Buttons and virtual keyboards are included on purpose: they hold the
         // same list, and leaving them behind is what lets a reading drift onto
         // one of them later.
