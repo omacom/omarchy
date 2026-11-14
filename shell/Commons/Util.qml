@@ -1,6 +1,7 @@
 pragma Singleton
 import Quickshell
 import QtQuick
+import "KeypadDigits.js" as KeypadDigits
 
 // Shared utility helpers used across plugins. Pure functions only — no
 // state. Anything stateful belongs on Color, Style, or a service.
@@ -148,6 +149,18 @@ QtObject {
     if (event.modifiers & Qt.ControlModifier)                    // Ctrl+Backspace: word
       return text.replace(/\s+$/, "").replace(/\S+$/, "")
     return text.slice(0, -1)                                     // Backspace: char
+  }
+
+  // Digit a desynced keypad key should type into a search field, or null.
+  // numLockOn is the compositor's NumLock; false keeps genuine navigation.
+  // Exposed on Util so cloned menu plugins resolve it via qs.Commons.
+  function keypadDigit(event, numLockOn) {
+    if (!event) return null
+    return KeypadDigits.digitFor(event.key, event.modifiers, event.text, numLockOn)
+  }
+
+  function numLockFromDevices(devices) {
+    return KeypadDigits.numLockFromDevices(devices)
   }
 
   // Layout normalization shared by bar config consumers
