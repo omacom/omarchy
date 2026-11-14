@@ -39,7 +39,11 @@ Panel {
   readonly property var probeIds: needsSeed ? zoneIds.concat(Model.seedCandidateZones()) : zoneIds
 
   readonly property var formatLocale: Qt.locale(Commons.I18n.formatLocale)
-  readonly property bool autoHour24: Model.usesTwentyFourHour(formatLocale.timeFormat(Locale.ShortFormat))
+  // The bar clock's 12 or 24 hours, else the language's.
+  readonly property var barHour24: Model.barClockHour24(bar ? bar.layoutConfig : null, bar ? bar.vertical === true : false)
+  readonly property bool autoHour24: barHour24 !== null
+    ? barHour24
+    : Model.usesTwentyFourHour(formatLocale.timeFormat(Locale.ShortFormat))
   readonly property bool hour24: Model.resolveHour24(setting("hour24", ""), autoHour24)
   // "home" shows the distance from here ("+2h"), "utc" the zone itself ("UTC-5").
   readonly property string offsetMode: setting("offsetMode", "home") === "utc" ? "utc" : "home"

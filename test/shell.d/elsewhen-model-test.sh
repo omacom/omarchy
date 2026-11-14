@@ -263,7 +263,21 @@ assertDeepEqual(
 assertDeepEqual(
   [M.resolveHour24('', true), M.resolveHour24('', false), M.resolveHour24(undefined, true), M.resolveHour24(null, true), M.resolveHour24('maybe', true)],
   [true, false, true, true, true],
-  'elsewhen follows the system clock otherwise'
+  'elsewhen follows its default otherwise'
+)
+const clockBar = (entry) => ({ left: [], center: [entry] })
+assertDeepEqual(
+  [
+    M.barClockHour24(clockBar({ id: 'omarchy.clock', format: 'yyyy-MM-dd HH:mm' }), false),
+    M.barClockHour24(clockBar({ id: 'omarchy.clock', format: 'dddd h:mm AP' }), false),
+    M.barClockHour24(clockBar({ id: 'omarchy.clock', format: 'dddd h:mm AP', verticalFormat: 'HH\nmm' }), true),
+    M.barClockHour24(clockBar({ id: 'omarchy.clock', format: "d MMMM 'W'ww yyyy" }), false),
+    M.barClockHour24(clockBar('omarchy.clock'), false),
+    M.barClockHour24({ center: [{ id: 'omarchy.weather' }] }, false),
+    M.barClockHour24(null, false)
+  ],
+  [true, false, true, null, null, null, null],
+  'elsewhen takes 12 or 24 hours from the bar clock, and nothing from a clock without an hour or no clock at all'
 )
 
 // ---- first run
