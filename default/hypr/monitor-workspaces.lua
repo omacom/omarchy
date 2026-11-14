@@ -174,7 +174,8 @@ end
 -- Make, model and serial. Two monitors that report the same, such as a pair
 -- without serials, are told apart by connector order when they first appear,
 -- and each keeps that identity while it stays plugged in, so unplugging one of
--- the pair doesn't hand its block to the other.
+-- the pair doesn't hand its block to the other, and gets it back when it
+-- returns on the same connector.
 local function identities_of(monitors)
   local identities = {}
   local taken = {}
@@ -211,7 +212,19 @@ local function identities_of(monitors)
     end
   end
 
-  current = identities
+  -- An unplugged monitor's connector keeps its identity, so a twin that comes
+  -- back on it gets its own block even when both were unplugged together, as a
+  -- sleep or a KVM switch does, and the other one returns first.
+  local remembered = {}
+  for connector, identity in pairs(identities) do
+    remembered[connector] = identity
+  end
+  for connector, identity in pairs(current) do
+    if not remembered[connector] and not taken[identity] then
+      remembered[connector] = identity
+    end
+  end
+  current = remembered
 
   return identities
 end
