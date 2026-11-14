@@ -35,3 +35,6 @@ require_optional.module("omarchy.current.theme.hyprland")
 
 -- Lighter defaults for a session that renders on the CPU, over the theme's.
 require("default.hypr.software-rendering")
+
+-- Last, so the boot splash keeps animating while the rest of the config loads.
+require("default.hypr.plymouth-release")
