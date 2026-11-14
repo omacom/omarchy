@@ -19,7 +19,7 @@ cat >"$mock_bin/git" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_GIT_CALLS"
 [[ $* == *" status --porcelain" ]] && { printf '%s' "${OMARCHY_TEST_GIT_STATUS:-}"; exit 0; }
-[[ $* == *" log --branches --not --remotes --oneline" ]] && { printf '%s' "${OMARCHY_TEST_GIT_UNPUSHED:-}"; exit 0; }
+[[ $* == *" log HEAD --branches --not --remotes --oneline" ]] && { printf '%s' "${OMARCHY_TEST_GIT_UNPUSHED:-}"; exit 0; }
 [[ -z ${OMARCHY_TEST_GIT_FAILS:-} ]] || exit 1
 [[ $1 == "clone" ]] && mkdir -p "${*: -1}/.git" && printf 'cloned\n' >"${*: -1}/mpv.svg"
 exit 0
@@ -112,6 +112,45 @@ fi
 [[ $(<"$sets/cool/mpv.svg") == "edited" ]] || fail "a cloned icon set's local changes are left as they were"
 
 pass "installing never replaces a cloned icon set that has local changes"
+
+# With git itself: a clone is replaced while it is as it was cloned, and kept
+# once it holds work of the user's own that no remote has, wherever git keeps
+# it: a commit on a branch, a commit on a detached HEAD, or a stash.
+real_home="$test_tmp/real-home"
+real_sets="$real_home/.config/omarchy/icons"
+upstream="$test_tmp/omarchy-real-icons"
+real_git() { git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main "$@"; }
+real_git init -q "$upstream"
+printf '<svg/>\n' >"$upstream/mpv.svg"
+real_git -C "$upstream" add mpv.svg
+real_git -C "$upstream" commit -q -m "An icon"
+install_real() {
+  : >"$set_calls"
+  HOME="$real_home" PATH="$test_tmp/set-only:$ROOT/bin:$PATH" OMARCHY_TEST_SET_CALLS="$set_calls" \
+    bash "$ROOT/bin/omarchy-icons-install" "$upstream" >"$test_tmp/out" 2>&1 || return $?
+}
+mkdir -p "$test_tmp/set-only"
+cp "$mock_bin/omarchy-icons-set" "$test_tmp/set-only/"
+install_real || fail "omarchy-icons-install clones with git itself" "$(cat "$test_tmp/out")"
+install_real || fail "omarchy-icons-install replaces a clone that is as it was cloned" "$(cat "$test_tmp/out")"
+
+real_git -C "$real_sets/real" commit -q --allow-empty -m "On a branch"
+! install_real || fail "omarchy-icons-install keeps a clone with a commit on a branch"
+real_git -C "$real_sets/real" reset -q --hard origin/HEAD
+
+real_git -C "$real_sets/real" checkout -q --detach
+real_git -C "$real_sets/real" commit -q --allow-empty -m "On a detached HEAD"
+! install_real || fail "omarchy-icons-install keeps a clone with a commit on a detached HEAD"
+real_git -C "$real_sets/real" checkout -q -
+
+printf 'stashed\n' >"$real_sets/real/mpv.svg"
+real_git -C "$real_sets/real" stash -q
+! install_real || fail "omarchy-icons-install keeps a clone with stashed changes"
+real_git -C "$real_sets/real" stash drop -q
+
+install_real || fail "omarchy-icons-install replaces the clone again once that work is gone" "$(cat "$test_tmp/out")"
+
+pass "a clone holding commits or a stash no remote has is kept, on a branch or a detached HEAD"
 
 # A set the user wrote, or a working copy they linked in, is never replaced.
 mkdir -p "$sets/handmade" "$test_tmp/working/.git"
