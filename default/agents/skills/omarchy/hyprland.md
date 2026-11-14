@@ -53,7 +53,7 @@ View current bindings: `omarchy menu keybindings --print`
 Example - rebinding SUPER+F (which is bound to fullscreen by default):
 ```lua
 -- Replace SUPER+F (was: fullscreen) with the file manager.
-o.rebind("SUPER + F", "File manager", { launch = "nautilus" })
+o.rebind("SUPER + F", "File manager", { omarchy = "files" })
 ```
 
 Tell the user which action was replaced. Use `hl.unbind(...)` to remove a binding without replacing it.

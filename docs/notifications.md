@@ -174,7 +174,7 @@ as a `busctl` option; the summary/body themselves are never parsed as options.)
 ```bash
 omarchy-notification-send "Screen recording saved" "$name" \
   --action "Play" mpv -- \
-  --action "Show in folder" nautilus --select \
+  --action "Show in folder" folio \
   --with "$filename"
 ```
 

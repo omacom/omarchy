@@ -2,7 +2,7 @@
 
 ## Files
 
-Files (Nautilus) is the graphical file manager. `Super + Shift + F` opens it, and `Super + Shift + Alt + F` opens it in the directory your terminal is sitting in, which saves a lot of clicking. `Ctrl + L` lets you type a path, and hitting `Space` on any file gives you a quick preview without opening anything.
+Files is Omarchy's own graphical file manager. `Super + Shift + F` opens it, and `Super + Shift + Alt + F` opens it in the directory your terminal is sitting in, which saves a lot of clicking. `Ctrl + L` lets you type a path, and hitting `Space` on any file gives you a quick preview without opening anything.
 
 Plug in a USB stick or an SD card and it's mounted automatically, so it just shows up in the sidebar. For anything more involved — formatting a drive, checking SMART health, creating partitions — launch _Disks_ from the app launcher (`Super + Space`).
 
@@ -53,7 +53,7 @@ You can open the Share menu on `Super + Ctrl + S` or under _Trigger > Share_ in 
 
 The same thing works from the terminal with `omarchy share clipboard`, `omarchy share file [path]`, and `omarchy share folder [path]`. Leave the path off and you get the picker.
 
-You can also send straight from the file manager: right-click any selection in Nautilus and pick _Send via LocalSend_.
+You can also send straight from the file manager: right-click any selection in Files and pick _Share_, then _LocalSend…_.
 
 Omarchy's firewall is closed by default except for LocalSend's port, so this works out of the box on a fresh install. See [security](48-security.md).
 
