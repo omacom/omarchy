@@ -172,7 +172,7 @@ Panel {
 
   function setProfile(profile) {
     if (!profile || actionProc.running) return
-    actionProc.command = ["omarchy-powerprofiles-set", root.discharging ? "battery" : "ac", profile]
+    actionProc.command = ["omarchy-powerprofiles-set", root.discharging ? "battery" : "autodetect", profile]
     actionProc.running = true
   }
 
