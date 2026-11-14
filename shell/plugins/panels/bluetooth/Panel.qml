@@ -274,9 +274,11 @@ Panel {
     Quickshell.execDetached(deviceCommand(action, device.address))
   }
 
+  // Trust is not a bond: a device left trusted by a pair that failed has no
+  // keys, and connecting it only repeats the failure. Pair it again instead.
   function connectDevice(device) {
     if (!device || device.connected) return
-    if (device.paired || device.bonded || device.trusted) runDeviceAction(device, "connect", "connecting")
+    if (device.paired || device.bonded) runDeviceAction(device, "connect", "connecting")
     else runDeviceAction(device, "pair", "connecting")
   }
 
