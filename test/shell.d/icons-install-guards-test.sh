@@ -119,7 +119,13 @@ pass "installing never replaces a cloned icon set that has local changes"
 real_home="$test_tmp/real-home"
 real_sets="$real_home/.config/omarchy/icons"
 upstream="$test_tmp/omarchy-real-icons"
-real_git() { git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main "$@"; }
+# Git reads none of the contributor's own settings here, so signing, hooks and
+# the like can't fail a fixture commit or ask for a password.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+real_git() {
+  git -c user.name=test -c user.email=test@example.com -c init.defaultBranch=main \
+    -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"
+}
 real_git init -q "$upstream"
 printf '<svg/>\n' >"$upstream/mpv.svg"
 real_git -C "$upstream" add mpv.svg
