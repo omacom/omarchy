@@ -9,3 +9,8 @@ hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" 
 -- 2 suits the high-density displays Omarchy assumes; a scale chosen in the
 -- display panel replaces it with one following the lowest monitor scale.
 hl.env("GDK_SCALE", "2")
+
+-- Scale X11 buffers back to logical pixels when the compositor supports it.
+if hl.get_config("xwayland.scale") ~= nil then
+  hl.config({ xwayland = { scale = 2 } })
+end

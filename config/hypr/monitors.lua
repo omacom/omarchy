@@ -35,3 +35,9 @@
 
 -- Variable refresh rate (0 = off, 1 = always, 2 = fullscreen only).
 -- hl.config({ misc = { vrr = 0 } })
+
+-- If overriding GDK_SCALE, use that same number for X11 buffer scaling on
+-- a compositor that supports it:
+-- if hl.get_config("xwayland.scale") ~= nil then
+--   hl.config({ xwayland = { scale = 1 } })
+-- end

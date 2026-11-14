@@ -22,6 +22,7 @@ package.path = os.getenv("ROOT") .. "/?.lua;" .. package.path
 applied, env, handlers, monitors, identities = {}, {}, {}, {}, {}
 
 hl = {
+  get_config = function() return nil end,
   get_monitors = function() return monitors end,
   monitor = function(spec) applied[#applied + 1] = spec end,
   env = function(name, value) env[name] = value end,
@@ -184,3 +185,16 @@ run_lua "apple = false $wide_gamut_rules"'
 check(applied[1].cm == nil and applied[2].cm == nil, "changes no rule off Apple Silicon")
 ' || fail "monitors keep sRGB off Apple Silicon"
 pass "monitors get EDID color only on Apple Silicon"
+
+# Supported compositors keep buffer scaling in step with the selected GDK scale.
+printf '%s\t%s\t%s\t%s\n' "" "" "1.6" "LG Display 0x0804" >"$settings"
+run_lua '
+plug("eDP-1", "LG Display 0x0804", { scale = 1 })
+local configured
+hl.get_config = function(name) if name == "xwayland.scale" then return 0 end end
+hl.config = function(spec) configured = spec.xwayland.scale end
+load_module()
+check(env.GDK_SCALE == "2", "uses the saved scale, rounded to 2")
+check(configured == 2, "sets X11 buffer scale to 2, got " .. tostring(configured))
+' || fail "monitor settings synchronize X11 buffer scale"
+pass "monitor settings synchronize X11 buffer scale"
