@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Apple Broadcom Bluetooth warm-reboot recovery
+# omarchy:hidden=true
+
+# Hardware setup and the migration both come through here so the unit and the
+# resume hook cannot drift. Absent hardware, including every Apple Silicon Mac,
+# is a success: this must be safe to run on a machine that does not have the chip.
+
+set -euo pipefail
+
+if omarchy-hw-aarch64-apple; then
+  exit 0
+fi
+
+if ! omarchy-hw-apple-bluetooth >/dev/null; then
+  exit 0
+fi
+
+unit_src="${OMARCHY_APPLE_BT_UNIT_SRC:-$OMARCHY_PATH/default/systemd/system/omarchy-apple-broadcom-bluetooth.service}"
+unit_dst="${OMARCHY_APPLE_BT_UNIT_DST:-/etc/systemd/system/omarchy-apple-broadcom-bluetooth.service}"
+sleep_src="${OMARCHY_APPLE_BT_SLEEP_SRC:-$OMARCHY_PATH/default/systemd/system-sleep/apple-broadcom-bluetooth}"
+sleep_dst="${OMARCHY_APPLE_BT_SLEEP_DST:-/usr/lib/systemd/system-sleep/apple-broadcom-bluetooth}"
+
+echo "Apple Broadcom Bluetooth detected; installing the warm-reboot recovery"
+
+if [[ ! -e $unit_dst ]]; then
+  sudo install -Dm644 "$unit_src" "$unit_dst"
+fi
+
+if [[ ! -e $sleep_dst ]]; then
+  sudo install -Dm755 "$sleep_src" "$sleep_dst"
+fi
+
+sudo systemctl daemon-reload
+sudo systemctl enable omarchy-apple-broadcom-bluetooth.service
+
+# An image's first boot runs hardware setup after multi-user.target has already
+# started, so a newly enabled oneshot would otherwise wait for the next boot.
+# Starting it is also what recovers an existing install during the migration.
+sudo systemctl start --no-block omarchy-apple-broadcom-bluetooth.service || true

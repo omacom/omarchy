@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# omarchy:summary=Recover an Apple Broadcom Bluetooth controller after a warm reboot
+# omarchy:hidden=true
+
+# The chip stays powered across the reboot an update performs, then ignores
+# btusb's first HCI commands (dmesg: "BCM: Reset failed (-110)") and BlueZ
+# reports no adapter. Cutting xHCI port power is a real reset; the following
+# device reset is what brings HCI up afterwards. Writing the sysfs reset
+# attribute calls the same usb_reset_device() as usbreset, without pulling in
+# usbutils, which is not part of the base install.
+#
+# No-op when the controller is already up, so a boot where the probe succeeded
+# does not drop a working adapter. This kernel does not expose hci0/address;
+# "bluetoothctl show" printing a Controller line is the signal.
+
+set -u
+
+probe_wait="${OMARCHY_APPLE_BT_PROBE_WAIT:-6}"
+recover_wait="${OMARCHY_APPLE_BT_RECOVER_WAIT:-8}"
+settle="${OMARCHY_APPLE_BT_SETTLE:-3}"
+
+dir=${BASH_SOURCE[0]%/*}
+[[ $dir != "${BASH_SOURCE[0]}" ]] || dir=.
+
+log() {
+  logger -t omarchy-apple-bt -- "$*" 2>/dev/null || true
+  printf '%s\n' "$*"
+}
+
+controller_ok() {
+  timeout 3s bluetoothctl show 2>/dev/null | grep -q '^Controller '
+}
+
+wait_ok() {
+  local seconds=$1
+  local i
+
+  controller_ok && return 0
+  for ((i = 0; i < seconds * 2; i++)); do
+    sleep 0.5
+    controller_ok && return 0
+  done
+  return 1
+}
+
+port_power_cycle() {
+  local dev=$1
+  local port
+
+  port=$(readlink -f "$dev/port") || return 1
+  log "Cutting power on $(basename "$port")"
+  echo 1 >"$port/disable"
+  sleep "$settle"
+  echo 0 >"$port/disable"
+}
+
+bring_up() {
+  omarchy-bluetooth-power on || true
+}
+
+dev=$("$dir/omarchy-hw-apple-bluetooth") || exit 0
+
+if wait_ok "$probe_wait"; then
+  log "Adapter already up"
+  exit 0
+fi
+
+port_power_cycle "$dev" || log "Port power cycle failed"
+if wait_ok "$recover_wait"; then
+  log "Adapter recovered after port power cycle"
+  bring_up
+  exit 0
+fi
+
+dev=$("$dir/omarchy-hw-apple-bluetooth") || {
+  log "Apple Bluetooth controller disappeared after the power cycle"
+  exit 1
+}
+
+log "Resetting $(basename "$dev")"
+echo 1 >"$dev/reset" || log "Device reset failed"
+if wait_ok "$recover_wait"; then
+  log "Adapter recovered after device reset"
+  bring_up
+  exit 0
+fi
+
+log "Adapter still down"
+exit 1
