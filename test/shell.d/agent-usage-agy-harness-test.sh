@@ -62,13 +62,19 @@ def pi_login(token, expires, email, directory=None):
              {"google-antigravity": {"type": "oauth", "access": token, "refresh": "r", "expires": expires, "email": email}})
 
 
-# Google answers every token in `accepted` and refuses the rest.
+# Google answers every token in `accepted` and refuses the rest; loadCodeAssist
+# returns the paid tier only when the request names the ANTIGRAVITY IDE.
 def agy(*accepted):
   def answer(request):
     token = request.get_header("Authorization").removeprefix("Bearer ")
     if token not in accepted:
       return 403
-    return ANSWERS[request.full_url.rsplit(":", 1)[1]]
+    endpoint = request.full_url.rsplit(":", 1)[1]
+    if endpoint == "loadCodeAssist":
+      body = json.loads((request.data or b"{}").decode())
+      if body != {"metadata": {"ideType": "ANTIGRAVITY"}}:
+        return {"currentTier": {"id": "free-tier", "name": "Antigravity"}}
+    return ANSWERS[endpoint]
   with FakeHttp({"v1internal:": answer}) as http:
     record = collect("agy", "--force")
   asked = sorted({r["headers"]["authorization"].removeprefix("Bearer ") for r in http.requests})
@@ -134,6 +140,29 @@ expect("Antigravity collector takes omp's limits from omp usage, sending omp's l
        [[], False, "", "", [("Session", 0.6), ("Weekly", 0.3), ("Claude/GPT Weekly", 0.1)]], record)
 
 check("omp usage runs with nothing on its stdin", not (home() / "omp-stdin").exists())
+
+# When `omp usage` renews the lapsed token in agent.db, the collector asks
+# loadCodeAssist with the renewed token and the ANTIGRAVITY metadata to get
+# the paid tier.
+(home() / "bin" / "omp").write_text(
+  '#!/bin/bash\n'
+  '[[ "$*" == "usage --json --provider google-antigravity" ]] || exit 2\n'
+  'python3 -c \'import json, os, sqlite3, time; conn = sqlite3.connect(os.path.expanduser("~/.omp/agent/agent.db")); '
+  'conn.execute("UPDATE auth_credentials SET data = ? WHERE disabled_cause IS NULL", '
+  '(json.dumps({"access": "renewed-token", "refresh": "r", "expires": int((time.time() + 3600) * 1000), "email": "other@example.com"}),)); '
+  'conn.commit(); conn.close()\'\n'
+  'cat "$HOME/omp-report.json" 2>/dev/null\n'
+)
+record, asked = agy("renewed-token")
+expect("Antigravity collector asks loadCodeAssist with the token omp usage just renewed",
+       [asked, record["tierLabel"], record["limitsStale"]],
+       [["renewed-token"], "Pro", False], record)
+omp_login("other-token", ms_in(-60), "other@example.com")
+(home() / "bin" / "omp").write_text(
+  '#!/bin/bash\n'
+  '[[ "$*" == "usage --json --provider google-antigravity" ]] || exit 2\n'
+  'cat "$HOME/omp-report.json" 2>/dev/null\n'
+)
 
 # An omp report of another shape is no answer: the kept limits stand, stale.
 report = {"provider": "google-antigravity", "metadata": {"email": "other@example.com"}}

@@ -289,12 +289,12 @@ def listed(data, key):
 
 
 # The Gemini group's 5-hour and weekly buckets are the plan's own limits; the
-# other groups (Claude and GPT models) are scoped allowances, shown once
-# they have been touched. An answer that lists its buckets without groups
-# lists the Gemini ones. An answer of another shape (not an object, an error,
-# groups or the Gemini buckets that aren't a list) is None, a failed check
-# rather than a plan without quotas; another group's buckets of the wrong
-# shape skip that group.
+# other groups (Claude/GPT, Argon) are scoped allowances, shown once they have
+# been touched. An answer that lists its buckets without groups lists the
+# Gemini ones. An answer of another shape (not an object, an error, groups or
+# the Gemini buckets that aren't a list) is None, a failed check rather than a
+# plan without quotas; another group's buckets of the wrong shape skip that
+# group.
 def extract_limits(data):
   if not isinstance(data, dict) or "error" in data or not listed(data, "groups") or not listed(data, "buckets"):
     return None
@@ -303,7 +303,9 @@ def extract_limits(data):
     groups = [{"displayName": "Gemini", "buckets": data["buckets"]}]
   if not groups:
     return []
-  gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower()), groups[0])
+  gemini = next((g for g in groups if str(g.get("displayName") or "").strip().lower() in ("gemini models", "gemini")), None)
+  if gemini is None:
+    gemini = next((g for g in groups if "gemini" in str(g.get("displayName") or "").lower() and "argon" not in str(g.get("displayName") or "").lower()), groups[0])
   if not listed(gemini, "buckets"):
     return None
 
@@ -339,15 +341,23 @@ def extract_limits(data):
 
 # The bearer token goes wherever CLOUD_CODE_URL points, so a destination
 # named there is taken only over https, and anything else is Google's own.
+# Google's quota summary returns the Gemini Models and Argon groups only when
+# the User-Agent names the Antigravity CLI (antigravity/cli/... with
+# aidev_client), and loadCodeAssist returns the paid tier and Companion
+# project only when the request names the ANTIGRAVITY IDE.
 def post(endpoint, token, body=None):
   base = (os.environ.get("CLOUD_CODE_URL") or DEFAULT_CLOUD_CODE_URL).rstrip("/")
   if not base.startswith("https://"):
     base = DEFAULT_CLOUD_CODE_URL
   request = urllib.request.Request(
     f"{base}/v1internal:{endpoint}", data=json.dumps(body or {}).encode(),
-    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "antigravity"},
+    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "antigravity/cli/1.5.0 (aidev_client)"},
   )
   return open_json(request, timeout=8)
+
+
+def load_code_assist(token):
+  return post("loadCodeAssist", token, {"metadata": {"ideType": "ANTIGRAVITY"}})
 
 
 def kept_tier(entry):
@@ -420,7 +430,7 @@ def collect_limits(entries, force):
   refused, failure = [], None
   for entry in fresh:
     try:
-      assist = post("loadCodeAssist", entry["accessToken"])
+      assist = load_code_assist(entry["accessToken"])
       tier = extract_tier(assist)
       limits = extract_limits(post("retrieveUserQuotaSummary", entry["accessToken"], project_body(assist)))
       if limits is None:
@@ -523,7 +533,7 @@ def omp_answer(omp, entries):
   tier = ""
   if token_fresh(entry, time.time()):
     try:
-      tier = extract_tier(post("loadCodeAssist", entry["accessToken"]))
+      tier = extract_tier(load_code_assist(entry["accessToken"]))
     except HttpError:
       pass
   return entry, tier, extract_limits(quota)
