@@ -209,6 +209,42 @@ if grep -Fq $'SUPER + SHIFT + D\tDocker' <<<"$missing_lazydocker_output"; then
 fi
 pass "missing Lazydocker skips its Docker shortcut"
 
+# Herdr is optional, so a removed Herdr must not fail at every login.
+run_autostart() {
+  HOME="$1" XDG_CONFIG_HOME="$1/.config" XDG_STATE_HOME="$1/.local/state" OMARCHY_PATH="$ROOT" lua - <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+
+local start
+hl = {
+  on = function(event, callback)
+    if event == "hyprland.start" then start = callback end
+  end,
+  exec_cmd = function(command) print(command) end,
+}
+
+require("default.hypr.helpers")
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/autostart.lua")
+start()
+LUA
+}
+
+herdr_bin="$tmpdir/herdr-bin"
+mkdir -p "$herdr_bin"
+touch "$herdr_bin/herdr"
+chmod +x "$herdr_bin/herdr"
+herdr_output=$(PATH="$herdr_bin:$PATH" run_autostart "$fresh_home") ||
+  fail "installed Herdr starts its server with the session"
+grep -Fq 'herdr server' <<<"$herdr_output" ||
+  fail "installed Herdr starts its server with the session"
+pass "installed Herdr starts its server with the session"
+
+missing_herdr_output=$(PATH="$missing_bin" run_autostart "$fresh_home") ||
+  fail "missing Herdr skips its server at session start"
+if grep -Fq 'herdr' <<<"$missing_herdr_output"; then
+  fail "missing Herdr skips its server at session start"
+fi
+pass "missing Herdr skips its server at session start"
+
 # The original scratchpad stays separate from the Quake console.
 scratchpad_home="$tmpdir/scratchpad-home"
 mkdir -p "$scratchpad_home"
