@@ -219,25 +219,32 @@ assertEqual(remoteStats({}), '', 'a host that reports nothing gives no stats lin
 JS
 
 # The panel has no terminal for sudo: a detached setup missing its packages
-# installs them in one first, and otherwise starts at once.
+# installs them through polkit first, and otherwise starts at once.
 wrapper_dir=$(mktemp -d)
 trap 'rm -rf "$wrapper_dir"' EXIT
 for stub in omarchy-hw-nvidia omarchy-pkg-add omarchy-local-ai omarchy-launch-floating-terminal-with-presentation; do
   printf '#!/bin/bash\nprintf "%%s\\n" "%s $*" >>"%s/calls"\n' "$stub" "$wrapper_dir" >"$wrapper_dir/$stub"
 done
 printf '#!/bin/bash\nexit 1\n' >"$wrapper_dir/omarchy-hw-nvidia"
-chmod +x "$wrapper_dir"/omarchy-*
+# pkexec installs the packages unless its dialog is dismissed (126).
+printf '#!/bin/bash\nprintf "%%s\\n" "pkexec $*" >>"%s/calls"\nstatus=$(cat "%s/pkexec-status")\n(( status == 0 )) && touch "%s/installed"\nexit $status\n' "$wrapper_dir" "$wrapper_dir" "$wrapper_dir" >"$wrapper_dir/pkexec"
+chmod +x "$wrapper_dir"/omarchy-* "$wrapper_dir/pkexec"
 run_wrapper() {
-  rm -f "$wrapper_dir/calls"
-  printf '#!/bin/bash\nexit %s\n' "$1" >"$wrapper_dir/omarchy-pkg-missing"
+  rm -f "$wrapper_dir/calls" "$wrapper_dir/installed"
+  printf '#!/bin/bash\n[[ -e "%s/installed" ]] && exit 1\nexit %s\n' "$wrapper_dir" "$1" >"$wrapper_dir/omarchy-pkg-missing"
   chmod +x "$wrapper_dir/omarchy-pkg-missing"
   shift
-  PATH="$wrapper_dir:$PATH" "$ROOT/bin/omarchy-agent-local" "$@"
+  PATH="$wrapper_dir:$PATH" "$ROOT/bin/omarchy-agent-local" "$@" >/dev/null || printf 'exit %s\n' "$?" >>"$wrapper_dir/calls"
   cat "$wrapper_dir/calls"
 }
+echo 0 >"$wrapper_dir/pkexec-status"
 calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == "omarchy-launch-floating-terminal-with-presentation omarchy-pkg-add podman crun && omarchy-local-ai 'use' '--detach' 'nemotron-3.5-bolt-tensorfold'" ]] || fail "a detached setup missing its packages installs them in a terminal first" "$calls"
-pass "a detached setup missing its packages installs them in a terminal first"
+[[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nomarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold' ]] || fail "a detached setup missing its packages installs them through polkit first" "$calls"
+pass "a detached setup missing its packages installs them through polkit first"
+echo 126 >"$wrapper_dir/pkexec-status"
+calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
+[[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nexit 126' ]] || fail "a dismissed password dialog stops the setup as cancelled" "$calls"
+pass "a dismissed password dialog stops the setup as cancelled"
 calls=$(run_wrapper 1 use --detach nemotron-3.5-bolt-tensorfold)
 [[ $calls == "omarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold" ]] || fail "a detached setup with its packages starts without a terminal" "$calls"
 pass "a detached setup with its packages starts without a terminal"
@@ -259,6 +266,38 @@ printf '#!/bin/bash\nexit 0\n' >"$wrapper_dir/systemctl"
 calls=$(run_wrapper 1 share nemotron-3.5-bolt-tensorfold </dev/null)
 [[ $calls == "omarchy-local-ai share nemotron-3.5-bolt-tensorfold" ]] || fail "sharing with the SSH server running shares at once" "$calls"
 pass "sharing with the SSH server running shares at once"
+
+# A setup from the panel has its line before status.json lists it: starting,
+# then installing Podman once the command says so, and a failure stays with
+# its reason, while a dismissed password dialog just brings the offer back.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const names = ['setupLine', 'finishSetup', 'setupRow', 'pairFailureMessage']
+const scope = { I18n: { t: key => key } }
+for (const name of names)
+  scope[name] = new Function('scope', 'with (scope) { return ' + source.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))[0] + ' }')(scope)
+const start = () => Object.assign(scope, { setupOutput: '', setupFailure: null, settingUp: { recipe: 'm', name: 'M', vendor: 'v', since_ms: 1, installing: false } })
+
+start()
+assertEqual(scope.setupRow().install.phase, 'starting', 'a setup starts out as starting, never claiming an install it may not need')
+scope.setupLine('Installing podman crun')
+assertEqual(scope.setupRow().install.phase, 'dependencies', 'it shows the install once the command announces it')
+scope.finishSetup(126)
+assertEqual(scope.setupRow(), null, 'a dismissed password dialog leaves no line, so the offer comes back')
+
+start()
+scope.setupLine('Installing podman crun')
+scope.setupLine("Error: Couldn't install podman crun")
+scope.finishSetup(1)
+const failed = scope.setupRow()
+assertEqual(failed.install.phase, 'failed', 'a failed install keeps its line')
+assertEqual(failed.error, "Couldn't install podman crun", 'with the reason the command gave')
+
+start()
+scope.finishSetup(0)
+assertEqual(scope.setupRow(), null, 'a setup handed to the background leaves its line to status.json')
+JS
 
 # Hosted and local rows share ordering, including positions saved while hidden.
 run_node_test <<'JS'

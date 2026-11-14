@@ -79,8 +79,9 @@ Panel {
   }
 
   function showLocalLogs(model) {
-    var failure = pairFailure(model)
-    // A pairing's output is all there is of it, so the terminal shows that
+    var failure = model.panelSetup ? { output: model.output } : pairFailure(model)
+    // A pairing's output is all there is of it, and so is that of a setup
+    // that failed before its download began, so the terminal shows that
     // again and closes as failed, the way a pairing in a terminal ended.
     var command = failure ? "printf %s " + Util.shellQuote(String(failure.output)) + "; false"
       : "omarchy-agent-local logs " + Util.shellQuote(String(model.recipe))
@@ -158,7 +159,8 @@ Panel {
   }
 
   // The setup runs on in the background and reports to status.json, where it
-  // becomes the model's own line, which draws the download as it goes.
+  // becomes the model's own line, which draws the download as it goes. A
+  // first one installs Podman before that, on the same line.
   function downloadLocal(recipe) {
     // A Spark cabled to this one: its setup asks for the other machine's password once, so it
     // runs in a terminal.
@@ -167,7 +169,7 @@ Panel {
       root.close()
       return
     }
-    Util.execArgv(["omarchy-agent-local", "use", "--detach", String(recipe.id)])
+    usage.setUp(recipe)
   }
 
   function linkTitle(link) {
@@ -187,7 +189,10 @@ Panel {
   }
 
   property double loadNowMs: Date.now()
-  readonly property bool localLoading: providers.some(function(p) { return p.localModel && ["activating", "deactivating", "removing"].indexOf(p.localModel.unit) >= 0 })
+  readonly property bool localLoading: providers.some(function(p) {
+    var model = p.localModel
+    return model && (["activating", "deactivating", "removing"].indexOf(model.unit) >= 0 || (model.install && model.install.phase === "dependencies"))
+  })
   Timer {
     interval: 250
     running: root.opened && root.localLoading
@@ -207,7 +212,10 @@ Panel {
     var target = deleteTarget
     deleteTarget = null
     if (!target) return
-    if (target.localModel && !target.localModel.host) {
+    if (target.localModel && target.localModel.panelSetup) {
+      // Not set up yet, so nothing to remove: a failure is just forgotten.
+      if (target.localModel.install.phase === "failed") usage.dismissSetupFailure()
+    } else if (target.localModel && !target.localModel.host) {
       Util.execArgv(["omarchy-agent-local", "remove", target.localModel.recipe])
     } else if (bar && bar.shell) {
       var next = JSON.parse(JSON.stringify(settings || {}))
@@ -572,8 +580,8 @@ Panel {
   }
 
   // Local AI offers the catalog's recipes that fit this machine and aren't
-  // set up yet, recommended first. Each downloads tens of GB, so setting one
-  // up runs in a terminal that shows its progress.
+  // set up yet, recommended first. Each downloads tens of GB in the
+  // background, its line here showing how far along it is.
   readonly property bool localFits: (usage.localRecipes || []).some(function(recipe) { return recipe && recipe.available })
   readonly property var localAddRecipes: {
     var models = usage.localModel && usage.localModel.models ? usage.localModel.models : {}
@@ -606,9 +614,8 @@ Panel {
 
   function setUpLocal(recipe) {
     if (!recipe) return
-    Util.execArgv(["omarchy-launch-floating-terminal-with-presentation", "omarchy-agent-local use " + Util.shellQuote(String(recipe.id))])
+    usage.setUp(recipe)
     cancelAdd()
-    root.close()
   }
   property string addStage: ""
   property string addProvider: ""
@@ -1993,7 +2000,9 @@ Panel {
     // A first setup: downloading, or failed with its reason.
     readonly property bool installing: !!model && model.unit === "installing"
     readonly property var install: installing && model.install ? model.install : ({})
-    readonly property bool downloadShown: installing && install.phase !== "failed"
+    // Before the download, a first setup installs Podman to run it in.
+    readonly property bool preparing: installing && install.phase === "dependencies"
+    readonly property bool downloadShown: installing && !preparing && install.phase !== "failed"
     readonly property real totalBytes: Number(install.total_bytes) || 0
     readonly property real doneBytes: Number(install.done_bytes) || 0
     readonly property real rateBytes: Number(install.rate_bytes_s) || 0
@@ -2261,7 +2270,7 @@ Panel {
     // time), or why it couldn't start. A network model shows its stats while
     // it runs instead: its memory is its host's business.
     Item {
-      visible: section.downloadShown || (section.running && !section.remote) || section.loadingShown || section.stoppingShown || section.removing
+      visible: section.preparing || section.downloadShown || (section.running && !section.remote) || section.loadingShown || section.stoppingShown || section.removing
       width: parent.width
       implicitHeight: Math.max(localMeterTitle.implicitHeight, localMeterValue.implicitHeight)
 
@@ -2270,7 +2279,8 @@ Panel {
         width: parent.width * 0.3
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: section.downloadShown ? Commons.I18n.t("agents.localDownloadingMeter")
+        text: section.preparing ? Commons.I18n.t("agents.localInstallingMeter")
+          : section.downloadShown ? Commons.I18n.t("agents.localDownloadingMeter")
           : section.removing ? Commons.I18n.t("agents.localRemovingMeter")
           : section.loadingShown ? Commons.I18n.t("agents.localLoadingMeter")
           : section.stoppingShown ? Commons.I18n.t("agents.localStoppingMeter")
@@ -2285,7 +2295,8 @@ Panel {
         anchors.right: localMeterValue.left
         anchors.rightMargin: Style.space(20)
         anchors.verticalCenter: parent.verticalCenter
-        value: section.downloadShown ? (section.totalBytes > 0 ? section.doneBytes / section.totalBytes : 0)
+        value: section.preparing ? root.phaseProgress(section.elapsed, 30)
+          : section.downloadShown ? (section.totalBytes > 0 ? section.doneBytes / section.totalBytes : 0)
           : section.finishing !== "" ? 1 : section.loading || section.stopping || section.removing ? root.phaseProgress(section.elapsed, section.phaseSeconds)
           : section.ramTotal > 0 ? section.memory / section.ramTotal : 0
       }
@@ -2310,7 +2321,7 @@ Panel {
         textFormat: Text.PlainText
         horizontalAlignment: Text.AlignRight
         text: section.downloadShown ? root.downloadRate(section.rateBytes)
-          : section.loadingShown || section.stoppingShown || section.removing ? ""
+          : section.preparing || section.loadingShown || section.stoppingShown || section.removing ? ""
           : Commons.I18n.t("agents.localMemoryValue").arg(Commons.I18n.formatNumber(Math.round(section.memory)))
         color: root.dim
         font.family: root.fontFamily

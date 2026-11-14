@@ -177,6 +177,67 @@ Item {
     }
   }
 
+  // Setting a model up runs here too, never in a terminal: a first one
+  // installs Podman, asking for the password through polkit, before its
+  // download starts in the background. Until status.json lists the setup,
+  // the panel draws its line from this: installing, or why it failed.
+  property var settingUp: null
+  property var setupFailure: null
+
+  property string setupOutput: ""
+
+  function setUp(recipe) {
+    if (setupProcess.running || !recipe) return
+    setupFailure = null
+    setupOutput = ""
+    settingUp = { recipe: String(recipe.id), name: recipe.name || String(recipe.id), vendor: recipe.vendor || "", since_ms: Date.now(), installing: false }
+    setupProcess.command = ["bash", "-c", "exec omarchy-agent-local use --detach \"$1\" 2>&1", "use", String(recipe.id)]
+    setupProcess.running = true
+  }
+
+  // omarchy-agent-local says "Installing …" before it asks for the password,
+  // and only on a first setup: until then the line just says it's starting.
+  function setupLine(line) {
+    setupOutput += line + "\n"
+    if (settingUp && !settingUp.installing && line.indexOf("Installing ") === 0)
+      settingUp = Object.assign({}, settingUp, { installing: true })
+  }
+
+  // A dismissed password dialog (pkexec's 126) is a change of mind, not a
+  // failure: the offer comes back as it was.
+  function finishSetup(exitCode) {
+    if (exitCode !== 0 && exitCode !== 126 && settingUp)
+      setupFailure = Object.assign({}, settingUp, { message: pairFailureMessage(setupOutput) || I18n.t("agents.localSetupFailed"), output: setupOutput })
+    settingUp = null
+  }
+
+  function dismissSetupFailure() {
+    setupFailure = null
+  }
+
+  // The line a setup has before status.json lists it, shaped like the
+  // installing row omarchy-local-ai writes.
+  function setupRow() {
+    var setup = settingUp || setupFailure
+    if (!setup) return null
+    var failed = !settingUp
+    return {
+      recipe: setup.recipe, name: setup.name, vendor: setup.vendor, unit: "installing", fits: true,
+      since_ms: setup.since_ms, error: failed ? setup.message : "", output: failed ? setup.output : "",
+      panelSetup: true, install: { phase: failed ? "failed" : setup.installing ? "dependencies" : "starting" }
+    }
+  }
+
+  Process {
+    id: setupProcess
+    stdout: SplitParser { onRead: function(line) { root.setupLine(line) } }
+    onExited: function(exitCode) {
+      root.finishSetup(exitCode)
+      localModelFile.reload()
+      root.refreshLocal()
+    }
+  }
+
   function parseNetwork(content) {
     try {
       var parsed = JSON.parse(content)
@@ -460,6 +521,13 @@ Item {
     var models = localModel.models || {}
     for (var id in models)
       list.push({ providerId: "local:" + id, localModel: models[id] })
+    var setup = setupRow()
+    if (setup && !models[setup.recipe]) {
+      list.push({ providerId: "local:" + setup.recipe, localModel: setup })
+      // A setup under way is this machine's model already: no offer beside it.
+      models = Object.assign({}, models)
+      models[setup.recipe] = setup
+    }
     // The tailnet's models line up with this machine's own, hidden ones aside.
     var network = networkModels || {}
     for (var nid in network)
