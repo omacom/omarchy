@@ -4,7 +4,9 @@
 # omarchy:args=[terminal-pid]
 # omarchy:hidden=true
 
-terminal_pid=${1:-$(hyprctl activewindow | awk '/pid:/ {print $2}')}
+# The JSON form: the text form opens with "Window <address> -> <title>:", so a
+# title ending in "pid" (a directory named ~/rapid) matches '/pid:/' as well.
+terminal_pid=${1:-$(hyprctl activewindow -j 2>/dev/null | jq -r '.pid // empty' 2>/dev/null)}
 kitty_socket="$XDG_RUNTIME_DIR/omarchy-kitty-$terminal_pid"
 cwd=""
 
