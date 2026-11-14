@@ -53,6 +53,18 @@ PanelWindow {
   }).length : 0
   readonly property bool collapsePins: !!dock && dock.collapsePinned && pinnedLauncherCount > 0
   property bool pinsExpanded: false
+  property bool launcherHoverLocked: false
+  property point launcherHoverPoint
+  onPinsExpandedChanged: if (!pinsExpanded) launcherHoverLocked = false
+
+  function releaseLauncherHover(point) {
+    if (launcherHoverLocked && Math.hypot(point.x - launcherHoverPoint.x, point.y - launcherHoverPoint.y) > Style.space(4)) launcherHoverLocked = false
+  }
+
+  function launcherClickAt(point) {
+    releaseLauncherHover(point)
+    return launcherHoverLocked
+  }
   readonly property bool pinsHeldOpen: pinsExpanded || dragging || insertIndex >= 0
   property bool pinPressActive: false
   property real pressedPinsProgress: 0
@@ -70,7 +82,7 @@ PanelWindow {
     id: collapseTimer
     interval: 175
     onTriggered: {
-      if (!bodyHover.hovered && !window.dragging && !window.menuOpen && window.insertIndex < 0)
+      if (!pinsHover.hovered && !bodyHover.hovered && !pinGapHover.hovered && !window.dragging && !window.menuOpen && window.insertIndex < 0)
         window.pinsExpanded = false
     }
   }
@@ -262,6 +274,7 @@ PanelWindow {
     item: window.contentShown ? body : null
 
     Region { item: window.shown && window.autohide ? edgeTrigger : null }
+    Region { item: window.contentShown && window.collapsePins && window.pinsExpanded ? pinGap : null }
     Region { item: menu.visible ? menu : null }
   }
 
@@ -272,7 +285,7 @@ PanelWindow {
     // Long enough to cross a gap between the edge and the icons, no longer.
     interval: 150
     onTriggered: {
-      if (!bodyHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging) window.revealed = false
+      if (!pinsHover.hovered && !bodyHover.hovered && !pinGapHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging) window.revealed = false
     }
   }
 
@@ -280,7 +293,7 @@ PanelWindow {
   Item {
     id: edgeTrigger
 
-    readonly property int depth: window.gap + Style.spacing.xxs
+    readonly property real depth: window.gap + Style.spacing.xxs
 
     x: window.position === "left" ? 0 : window.position === "right" ? window.width - depth : body.x
     y: window.position === "top" ? 0 : window.position === "bottom" ? window.height - depth : body.y
@@ -292,6 +305,41 @@ PanelWindow {
       onHoveredChanged: {
         if (hovered) window.revealed = true
         else hideTimer.restart()
+      }
+    }
+  }
+
+  // Keep expanded pins open across the gap between the dock and its edge.
+  // The gap cannot open pins: it joins the input mask only after expansion.
+  Item {
+    id: pinGap
+    x: window.position === "left" ? 0 : window.position === "right" ? body.x + body.width : body.x
+    y: window.position === "top" ? 0 : window.position === "bottom" ? body.y + body.height : body.y
+    width: window.position === "left" ? Math.max(0, body.x)
+      : window.position === "right" ? Math.max(0, window.width - x) : body.width
+    height: window.position === "top" ? Math.max(0, body.y)
+      : window.position === "bottom" ? Math.max(0, window.height - y) : body.height
+
+    HoverHandler {
+      id: pinGapHover
+      onHoveredChanged: {
+        if (hovered) collapseTimer.stop()
+        else {
+          collapseTimer.restart()
+          if (window.autohide) hideTimer.restart()
+        }
+      }
+    }
+  }
+
+  HoverHandler {
+    id: pinsHover
+    parent: window.contentItem
+    onHoveredChanged: {
+      if (hovered) collapseTimer.stop()
+      else {
+        window.launcherHoverLocked = false
+        collapseTimer.restart()
       }
     }
   }
@@ -310,9 +358,6 @@ PanelWindow {
     LayoutMirroring.enabled: false
     LayoutMirroring.childrenInherit: true
 
-    readonly property real foldedLength: ((window.dock ? window.dock.items.length : 0) + 1 - window.pinnedLauncherCount) * window.slotSize
-    readonly property real unfoldedLength: ((window.dock ? window.dock.items.length : 0) + 1) * window.slotSize
-    readonly property real pinnedAnchor: DockModel.pinnedOrigin(window.vertical ? window.height : window.width, foldedLength, unfoldedLength, window.gap)
     width: slots.implicitWidth
     height: slots.implicitHeight
     // How far the dock is tucked past its edge. Auto-hide slides it, but only
@@ -326,6 +371,7 @@ PanelWindow {
       id: tuckMotion
       enabled: window.shown
       NumberAnimation {
+        id: tuckSlide
         duration: Style.duration(tuckMotion.targetValue > 0 ? 120 : 180)
         easing.type: Easing.OutCubic
       }
@@ -333,10 +379,10 @@ PanelWindow {
 
     x: window.position === "left" ? window.gap - tuck
       : window.position === "right" ? window.width - width - window.gap + tuck
-      : window.collapsePins ? pinnedAnchor : (window.width - width) / 2
+      : (window.width - width) / 2
     y: window.position === "top" ? window.gap - tuck
       : window.position === "bottom" ? window.height - height - window.gap + tuck
-      : window.collapsePins ? pinnedAnchor : (window.height - height) / 2
+      : (window.height - height) / 2
     // Switching between tiled and floating workspaces shows and hides the dock
     // at once, with nothing to watch in between. Hidden by opacity rather than
     // visibility, so the icons keep their textures and are drawn on the first
@@ -413,13 +459,31 @@ PanelWindow {
       hoverEnabled: true
       cursorShape: Qt.PointingHandCursor
       acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
+      onPositionChanged: function(event) {
+        window.releaseLauncherHover(mouse.mapToItem(window.contentItem, event.x, event.y))
+      }
     }
   }
 
   component AppsSlot: Slot {
     id: appsSlot
 
-    mouse.onEntered: if (window.collapsePins && !window.menuOpen) window.pinsExpanded = true
+    function revealPinsOnHover() {
+      Qt.callLater(function() {
+        if (!window.collapsePins || window.menuOpen || tuckSlide.running || !appsSlot.mouse.containsMouse) return
+        if (!window.pinsExpanded) {
+          window.launcherHoverPoint = appsSlot.mouse.mapToItem(window.contentItem, appsSlot.mouse.mouseX, appsSlot.mouse.mouseY)
+          window.launcherHoverLocked = true
+        }
+        collapseTimer.stop()
+        window.pinsExpanded = true
+      })
+    }
+    mouse.onEntered: revealPinsOnHover()
+    Connections {
+      target: tuckSlide
+      function onFinished() { appsSlot.revealPinsOnHover() }
+    }
 
     property real displayedShift: window.insertIndex >= 0 ? -window.slotSize / 2 : 0
 
@@ -528,6 +592,7 @@ PanelWindow {
     }
 
     mouse.onPositionChanged: function(event) {
+      window.releaseLauncherHover(appSlot.mouse.mapToItem(window.contentItem, event.x, event.y))
       if (!(appSlot.mouse.pressedButtons & Qt.LeftButton)) return
       var point = appSlot.bodyPoint(event)
       var delta = window.vertical ? point.y - appSlot.pressPoint.y : point.x - appSlot.pressPoint.x
@@ -567,6 +632,11 @@ PanelWindow {
       // A drag ends in a release over the app, which is not a click on it.
       if (appSlot.dragged) {
         appSlot.dragged = false
+        return
+      }
+      if (event.button !== Qt.RightButton && window.launcherClickAt(appSlot.mouse.mapToItem(window.contentItem, event.x, event.y))) {
+        window.closeMenu()
+        if (window.dock) window.dock.openApps()
         return
       }
       if (event.button === Qt.RightButton) {
