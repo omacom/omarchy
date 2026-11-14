@@ -1,22 +1,52 @@
 // weather.json holds {"name": ..., "latitude": ..., "longitude": ...} (see
 // omarchy-weather-location, which owns the format). Missing, blank, or
 // unparseable means the location is auto-detected (see isAutoLocation).
-function parseLocationFile(raw) {
-  var unset = { name: "", latitude: null, longitude: null }
+// A location set on Wi-Fi is a "networks" entry that adds the network's SSID
+// and gateway; on that network (see parseNetwork) it wins over the top level.
+function parseLocationFile(raw, network) {
   try {
     var data = JSON.parse(String(raw || ""))
-    if (!data || typeof data !== "object") return unset
-
-    var latitude = parseFloat(data.latitude)
-    var longitude = parseFloat(data.longitude)
-    var hasCoordinates = !isNaN(latitude) && !isNaN(longitude)
-    return {
-      name: typeof data.name === "string" ? data.name.replace(/^\s+|\s+$/g, "") : "",
-      latitude: hasCoordinates ? latitude : null,
-      longitude: hasCoordinates ? longitude : null
-    }
+    var own = parseLocation(networkEntry(data, network))
+    return isAutoLocation(own) ? parseLocation(data) : own
   } catch (e) {
-    return unset
+    return parseLocation(null)
+  }
+}
+
+// omarchy-weather-location --network prints {"ssid": ..., "gateway": ...} on
+// Wi-Fi, the gateway empty until it resolves, and nothing off Wi-Fi.
+function parseNetwork(raw) {
+  try {
+    var data = JSON.parse(String(raw || ""))
+    if (!data || typeof data.ssid !== "string") return null
+    return { ssid: data.ssid, gateway: typeof data.gateway === "string" ? data.gateway : "" }
+  } catch (e) {
+    return null
+  }
+}
+
+// An entry matches on both the SSID and the gateway's hardware address: hotel
+// chains and neighbours reuse names, while one router's bands and repeaters
+// share a gateway. A network whose gateway is unknown matches none.
+function networkEntry(data, network) {
+  var entries = data && Array.isArray(data.networks) ? data.networks : []
+  for (var i = 0; network && network.gateway && i < entries.length; i++) {
+    var entry = entries[i]
+    if (entry && entry.ssid === network.ssid && entry.gateway === network.gateway) return entry
+  }
+  return null
+}
+
+function parseLocation(data) {
+  if (!data || typeof data !== "object") return { name: "", latitude: null, longitude: null }
+
+  var latitude = parseFloat(data.latitude)
+  var longitude = parseFloat(data.longitude)
+  var hasCoordinates = !isNaN(latitude) && !isNaN(longitude)
+  return {
+    name: typeof data.name === "string" ? data.name.replace(/^\s+|\s+$/g, "") : "",
+    latitude: hasCoordinates ? latitude : null,
+    longitude: hasCoordinates ? longitude : null
   }
 }
 
@@ -288,6 +318,7 @@ function iconForCode(code, night) {
 if (typeof module !== "undefined") {
   module.exports = {
     parseLocationFile: parseLocationFile,
+    parseNetwork: parseNetwork,
     isAutoLocation: isAutoLocation,
     effectiveLocation: effectiveLocation,
     wttrLocationQuery: wttrLocationQuery,
