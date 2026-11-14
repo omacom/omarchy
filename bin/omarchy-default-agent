@@ -89,20 +89,117 @@ if [[ -n ${agent_installer:-} ]]; then
   agent_present() { "$agent_installer" --check; }
   agent_install() { "$agent_installer" --now; }
 else
-  # omarchy-mise-install's wrappers run `mise use` and `mise x`, current ones on
-  # lines of their own and older ones after an inline variable; either way
-  # running one installs the tool it wraps. A symlink is the user's own install.
+  # Omarchy wrappers activate the selected mise package before `mise x`,
+  # `mise exec` or a direct exec; the oldest only ran an inline `mise use -g`.
+  # Match the package, not unrelated dependencies in the user's own launcher.
+  # Read through symlinks and ignore comments mentioning mise commands.
   mise_wrapper() {
-    [[ ! -L $1 ]] && head -c 4096 "$1" | grep -qaE 'mise (use|x) '
+    [[ -f $1 ]] || return 1
+    local package_list
+    local -a packages=("$agent_package" "$agent_tool")
+    # Historical backend spellings from migration 1791382872.sh still name the
+    # same agent. Other tools used as dependencies must not count as wrappers.
+    case "$agent" in
+    codex) packages+=(aqua:openai/codex npm:@openai/codex) ;;
+    claude) packages+=(aqua:anthropics/claude-code) ;;
+    crush) packages+=(aqua:charmbracelet/crush) ;;
+    agy) packages+=(aqua:google-antigravity/antigravity-cli gemini npm:@google/gemini-cli) ;;
+    copilot) packages+=(aqua:github/copilot-cli github:github/copilot-cli npm:@github/copilot) ;;
+    opencode) packages+=(aqua:anomalyco/opencode) ;;
+    pi) packages+=(aqua:earendil-works/pi github:earendil-works/pi npm:@earendil-works/pi-coding-agent) ;;
+    omp) packages+=(github:can1357/oh-my-pi) ;;
+    grok) packages+=(npm:@xai-official/grok) ;;
+    ori) packages+=(github:OpenRouterLabs/ori-releases) ;;
+    muse) packages+=('http:muse[url=https://api.meta.ai/muse-launcher.sh,bin=muse,version_list_url=https://api.meta.ai/muse-code/channels/muse-stable,version_json_path=.version]') ;;
+    esac
+    printf -v package_list '%s\n' "${packages[@]}"
+    head -c 4096 "$1" | awk -v packages="$package_list" -v binary="$agent" '
+      BEGIN {
+        split(packages, names, "\n")
+        for (i in names) if (names[i] != "") known[names[i]] = 1
+      }
+      function argument(rest,    quote, end, parts) {
+        quote = substr(rest, 1, 1)
+        if (quote == "\"" || quote == "\047") {
+          rest = substr(rest, 2)
+          end = index(rest, quote)
+          if (!end) return ""
+          return substr(rest, 1, end - 1)
+        }
+        split(rest, parts, /[[:space:]]+/)
+        return parts[1]
+      }
+      function selected(rest) { return (argument(rest) in known) }
+      /^[[:space:]]*(MISE_MINIMUM_RELEASE_AGE=[^[:space:]]+[[:space:]]+)?mise[[:space:]]+use[[:space:]]+-g[[:space:]]+/ {
+        legacy = $0 ~ /^[[:space:]]*MISE_MINIMUM_RELEASE_AGE=/
+        line = $0
+        sub(/^[[:space:]]*(MISE_MINIMUM_RELEASE_AGE=[^[:space:]]+[[:space:]]+)?mise[[:space:]]+use[[:space:]]+-g[[:space:]]+/, "", line)
+        sub(/^--quiet[[:space:]]+/, "", line)
+        if (selected(line)) {
+          if (legacy) legacy_use = 1
+          else uses_mise = 1
+        }
+      }
+      /^[[:space:]]*exec[[:space:]]+mise[[:space:]]+(x|exec)[[:space:]]+/ {
+        line = $0
+        sub(/^[[:space:]]*exec[[:space:]]+mise[[:space:]]+(x|exec)[[:space:]]+/, "", line)
+        if (selected(line)) execs_mise = 1
+      }
+      /^[[:space:]]*exec[[:space:]]+/ {
+        line = $0
+        sub(/^[[:space:]]*exec[[:space:]]+/, "", line)
+        if (argument(line) == binary) execs_agent = 1
+      }
+      END { exit !(legacy_use || (uses_mise && (execs_mise || execs_agent))) }
+    '
   }
 
-  # Anything at the wrapper's path other than the wrapper is the user's own
-  # install, such as the symlink Cursor's installer leaves. A mise copy would
-  # only shadow it, since the mise shims precede ~/.local/bin on PATH.
-  user_install() {
-    [[ -x $HOME/.local/bin/$agent ]] && ! mise_wrapper "$HOME/.local/bin/$agent"
+  # Native mise shims can forward disabled tools to external commands, but an
+  # older Omarchy wrapper runs `mise use` instead. The first non-shim entry on
+  # PATH must be external; a wrapper cannot be skipped for one farther down.
+  agent_external() {
+    local executable mise_binary
+    mise_binary=$(type -P mise) || return 1
+    while IFS= read -r executable; do
+      [[ $executable -ef $mise_binary ]] && continue
+      ! mise_wrapper "$executable"
+      return
+    done < <(type -aP "$agent")
+    return 1
   }
-  agent_present() { user_install || mise where "$agent_tool" &>/dev/null; }
+  # After Remove Preinstalls, a leftover wrapper must not trigger a fresh
+  # install when it shadows the external command the user intended to select.
+  agent_shadowed_external() {
+    local executable mise_binary wrapped=false
+    mise_binary=$(type -P mise) || return 1
+    while IFS= read -r executable; do
+      [[ $executable -ef $mise_binary ]] && continue
+      if [[ $wrapped == true ]]; then
+        ! mise_wrapper "$executable" && return 0
+      elif mise_wrapper "$executable"; then
+        wrapped=true
+      else
+        return 1
+      fi
+    done < <(type -aP "$agent")
+    return 1
+  }
+  agent_disabled() {
+    local disabled
+    disabled=$(MISE_OFFLINE=1 mise settings disable_tools --json) || return 1
+    jq -e --arg tool "$agent_tool" 'index($tool) != null' <<<"$disabled" >/dev/null
+  }
+
+  # A cold offline cache can leave `latest` unresolved and absent from `mise
+  # ls`. Query the raw requests so that only an actual opt-out is unmanaged.
+  agent_unconfigured() {
+    local requests
+    requests=$(MISE_OFFLINE=1 mise tool "$agent_tool" --requested --json) || return 1
+    jq -e '. == null or . == []' <<<"$requests" >/dev/null
+  }
+  # A missing lazy or project version remains a selection, not an opt-out.
+  agent_unmanaged() { agent_unconfigured && agent_external; }
+  agent_present() { agent_unmanaged || mise where "$agent_tool" &>/dev/null; }
   # Omarchy declares the default agents as mise tools, so installing one is
   # enough and leaves the user's config alone. A user who removed the
   # preinstalls, like one without Omarchy's declarations, selects it instead.
@@ -112,7 +209,7 @@ else
     [[ $1 == npm:* || $(mise tool "${1%%\[*}" --backend 2>/dev/null) == npm:* ]]
   }
   agent_install() {
-    user_install && return
+    agent_unmanaged && return
     if omarchy-mise-default-tools declares "$agent_tool"; then
       if npm_backed "$agent_tool"; then
         mise install node "$agent_tool"
@@ -130,6 +227,17 @@ else
       fi
     fi
   }
+
+  # A mise opt-out must not turn an unavailable command into a valid default.
+  # Reject it before saving the selection, including on the --install path.
+  if agent_disabled && ! agent_external; then
+    printf '%s is disabled in mise but %s does not resolve to an external command on PATH\n' "$name" "$agent" >&2
+    exit 1
+  fi
+  if agent_shadowed_external && agent_unconfigured; then
+    printf '%s is shadowed by an old mise wrapper on PATH; remove the wrapper to use the external command\n' "$agent" >&2
+    exit 1
+  fi
 fi
 
 if [[ $installing == "false" ]] && ! agent_present; then
