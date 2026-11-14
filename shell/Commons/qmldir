@@ -5,6 +5,7 @@ singleton Color 1.0 Color.qml
 singleton I18n 1.0 I18n.qml
 singleton InputDevices 1.0 InputDevices.qml
 singleton IpcRegistry 1.0 IpcRegistry.qml
+singleton NetworkStatus 1.0 NetworkStatus.qml
 singleton InputMethodState 1.0 InputMethodState.qml
 singleton Style 1.0 Style.qml
 singleton UntypedInput 1.0 UntypedInput.qml
