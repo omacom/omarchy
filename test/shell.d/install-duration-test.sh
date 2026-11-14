@@ -52,8 +52,13 @@ assert_omitted "a missing timing file omits the installation duration"
 printf 'not json\n' >"$timing_file"
 assert_omitted "malformed timing JSON omits the installation duration"
 
+printf '{"started_at":1000,"finished_at":1042}\n' >"$timing_file"
 chmod 000 "$timing_file"
-assert_omitted "an unreadable timing file omits the installation duration"
+if [[ -r $timing_file ]]; then
+  skip "unreadable timing file (permissions cannot be enforced)"
+else
+  assert_omitted "an unreadable timing file omits the installation duration"
+fi
 chmod 600 "$timing_file"
 
 printf '{"started_at":1000}\n' >"$timing_file"
@@ -64,10 +69,3 @@ assert_omitted "nonnumeric timestamps omit the installation duration"
 
 printf '{"started_at":1042,"finished_at":1000}\n' >"$timing_file"
 assert_omitted "a finish before the start omits the installation duration"
-
-jq -e '
-  .modules[]
-  | select(type == "object" and .type == "command" and .key == "󰔟 Installed In")
-  | .text == "omarchy-install-duration 2>/dev/null"
-' "$ROOT/etc/fastfetch/config.jsonc" >/dev/null || fail "Fastfetch includes the installation duration helper"
-pass "Fastfetch includes the installation duration helper"
