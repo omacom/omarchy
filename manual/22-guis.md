@@ -12,6 +12,10 @@ Double-clicking follows sensible defaults: images open in imv, video in mpv, PDF
 
 When the drive fills up and you have no idea what's eating it, launch [Disktree](https://github.com/tobi/disktree) from the app launcher (`Super + Space`). It shows a graphical treemap of your home directory. Larger blocks take up more space; walk into directories with the keyboard or mouse, mark what should go, and review your selections before removing anything. Run `disktree --disk` to scan the whole disk.
 
+## Rex
+
+Rex is Omarchy's regular expression workbench. It tests patterns against the real engines of many languages, explains them, finds what makes them slow, steps through matching, and teaches the whole subject in thirty lessons, all offline. Launch it from the app launcher (`Super + Space`). See [Rex, the Regular Expression Workbench](52-rex.md).
+
 ## Obsidian
 
 [Obsidian](https://obsidian.md/) is a free and highly extensible note taking application that uses simple Markdown files for storage.

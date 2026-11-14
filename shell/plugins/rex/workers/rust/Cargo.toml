@@ -1,0 +1,10 @@
+[package]
+name = "rex-worker"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+regex = "1"
+
+[profile.release]
+opt-level = 3
