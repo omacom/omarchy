@@ -23,6 +23,7 @@ extension_id() {
 # would orphan the same things, so the ids that shipped stay pinned here.
 declare -A shipped_id=(
   [copy-url]=bgpiichlckmfanooecilcjemknkcpngb
+  [omareader]=mcijladoahfdoapchpmbphlibdgplpdi
   [whatsapp-slim]=amhpgjbcfakkmkeojmoaoiochhifohdi
   [yt-dlp]=dedjgknigfeelejglamclffonmophnfl
 )
@@ -165,4 +166,69 @@ JS
   pass "WhatsApp follows the system theme through its slim extension"
 else
   skip "node is not installed; skipping the WhatsApp Slim content script check"
+fi
+
+# --- Omareader ---
+
+# Color parsing, palette mapping and CSS value rewriting are pure functions the
+# content script and popup share.
+if command -v node >/dev/null; then
+  if output=$(node --test "$SHELL_TEST_DIR/omareader/unit.test.cjs" 2>&1); then
+    pass "Omareader maps page colors onto the Omarchy palette"
+  else
+    fail "Omareader maps page colors onto the Omarchy palette" "$output"
+  fi
+else
+  skip "node is not installed; skipping the Omareader mapping checks"
+fi
+
+# The host reads the current theme from Omarchy's state dir, and a user theme of
+# the same name wins over the one Omarchy ships.
+omareader_home="$test_tmp/omareader-home"
+mkdir -p "$omareader_home/.local/state/omarchy/current/theme" "$omareader_home/.config/omarchy/themes/catppuccin"
+cp "$ROOT/themes/catppuccin-latte/colors.toml" "$omareader_home/.local/state/omarchy/current/theme/"
+echo "catppuccin-latte" >"$omareader_home/.local/state/omarchy/current/theme.name"
+printf 'background = "#123456"\nforeground = "#abcdef"\n' >"$omareader_home/.config/omarchy/themes/catppuccin/colors.toml"
+dump=$(env -i HOME="$omareader_home" PATH=/usr/bin "$ROOT/bin/omarchy-chromium-omareader-host" --dump) ||
+  fail "Omareader host dumps the palette"
+[[ $(jq -r '.current.name + " " + .current.colors.mode' <<<"$dump") == "catppuccin-latte light" ]] ||
+  fail "Omareader host reads the current theme from the state dir" "$(jq -c .current <<<"$dump")"
+[[ $(jq -r '.themes["catppuccin"].background' <<<"$dump") == "#123456" ]] ||
+  fail "Omareader host lets a user theme override the shipped one"
+[[ $(jq -r '.themes["tokyo-night"].background' <<<"$dump") != null ]] ||
+  fail "Omareader host finds the shipped themes without OMARCHY_PATH"
+pass "Omareader host streams the current Omarchy palette"
+
+# A theme switch reaches the extension without polling: the host watches the
+# state dir and pushes a new palette once omarchy-theme-set has moved the new
+# theme in and written its name.
+if command -v inotifywait >/dev/null; then
+  mkfifo "$test_tmp/omareader-in"
+  env -i HOME="$omareader_home" PATH=/usr/bin "$ROOT/bin/omarchy-chromium-omareader-host" \
+    <"$test_tmp/omareader-in" >"$test_tmp/omareader-out" &
+  omareader_host=$!
+  exec {omareader_in}>"$test_tmp/omareader-in"
+  for _ in {1..50}; do
+    grep -aq '"name":"catppuccin-latte"' "$test_tmp/omareader-out" && break
+    sleep 0.1
+  done
+  grep -aq '"name":"catppuccin-latte"' "$test_tmp/omareader-out" || fail "Omareader host sends the palette when the extension connects"
+
+  current="$omareader_home/.local/state/omarchy/current"
+  mkdir "$current/next-theme"
+  cp "$ROOT/themes/gruvbox/colors.toml" "$current/next-theme/"
+  rm -rf "$current/theme"
+  mv "$current/next-theme" "$current/theme"
+  echo "gruvbox" >"$current/theme.name"
+  for _ in {1..50}; do
+    grep -aq '"name":"gruvbox"' "$test_tmp/omareader-out" && break
+    sleep 0.1
+  done
+  grep -aq '"name":"gruvbox"' "$test_tmp/omareader-out" || fail "Omareader host pushes the palette after a theme switch"
+
+  exec {omareader_in}>&-
+  wait "$omareader_host" || fail "Omareader host exits when the browser closes the port"
+  pass "Omareader host pushes theme switches to the extension"
+else
+  skip "inotifywait is not installed; skipping the Omareader live switch check"
 fi

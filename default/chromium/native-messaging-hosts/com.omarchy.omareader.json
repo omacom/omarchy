@@ -1,0 +1,9 @@
+{
+  "name": "com.omarchy.omareader",
+  "description": "Omarchy Omareader theme palette host",
+  "path": "__HOST_PATH__",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://mcijladoahfdoapchpmbphlibdgplpdi/"
+  ]
+}

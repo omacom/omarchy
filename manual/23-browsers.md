@@ -28,6 +28,18 @@ Both extensions talk to Omarchy through a small native messaging host, which get
 
 These are Chromium-family only. Firefox and Zen don't get them.
 
+## Omareader
+
+**Omareader** repaints web pages in your Omarchy theme. It starts out off, so pages look the way their sites made them until you turn it on. Click its toolbar button and pick a mode under _All sites_:
+
+- **Normal** leaves pages as they are.
+- **Dark** gives every page a pitch-black background and keeps the page's own colors for links and highlights.
+- **Follow Omarchy** paints pages in your current theme: backgrounds and text take the theme's colors, links its blue, errors its red. Light themes keep pages light. Switch your theme and open tabs repaint within about a second, no reload needed.
+
+The row below picks a mode for the site you're on, so YouTube can stay Dark while everything else follows Omarchy. `Alt + Shift + O` flips the current site between its theme and Normal. Images and video are never touched.
+
+Like the extensions above, it gets your theme's colors through a small native messaging host, and it's Chromium-family only.
+
 ## Firefox and Zen
 
 Firefox and Zen are a different family, so they get different treatment: Omarchy installs a policies file for sensible defaults and switches them into native Wayland mode, which you want for fractional scaling and smooth trackpad scrolling.
