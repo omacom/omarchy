@@ -117,7 +117,10 @@ Item {
         list.forceActiveFocus()
         for (var index = 1; index < data.count; index++) {
           keyClick(Qt.Key_Down)
-          // DIAGNOSTIC, temporary: nothing runs until the walk has already stalled.
+          // A press that leaves the selection behind fails here now and then in
+          // CI and nowhere else. Say what the list looked like when it did: who
+          // has focus, which row the pointer is over, and whether another
+          // press gets through.
           if (list.currentIndex !== index) {
             var hovered = []
             var rows = list.contentItem.children
