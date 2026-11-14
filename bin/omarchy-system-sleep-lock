@@ -110,6 +110,13 @@ report_unsecured() {
 request_lock
 sync_clamshell
 
+# Reset the keyboard layout to the first one, so a multi-layout user typing a
+# non-Latin layout when the lid closed is not locked out of the lock screen's
+# password prompt. The manual lock (omarchy-system-lock) does the same. Bounded
+# and best-effort, since this path must respect its deadline and a lid
+# transition can stall Hyprland IPC.
+timeout --kill-after=0.1s 0.5s hyprctl switchxkblayout all 0 >/dev/null 2>&1 || true
+
 # The trailing sleep can overshoot the deadline by one interval, which is well
 # inside the reserve derive_budget_ms already held back for logind.
 while (( $(remaining_ms) > 0 )); do
