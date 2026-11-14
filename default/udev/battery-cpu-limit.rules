@@ -1,0 +1,17 @@
+# On a T2 MacBook a big parallel build can spike the CPU past what the power
+# source sustains: the voltage droops until the BMS cuts all power (a hard
+# shutdown with nothing in the journal). power-saver only hints EPP, it never
+# caps frequency or package power, so cap the package while discharging and
+# clamp it on AC. Installed on T2 MacBooks only, and the helper exits quietly
+# anywhere else.
+
+# Plug/unplug on a barrel (Mains) or USB-C (USB) supply. No args: the helper
+# re-reads the whole machine's state, since one supply going offline does not
+# mean another is not still charging.
+SUBSYSTEM=="power_supply", ATTR{type}=="Mains|USB", ACTION=="change", RUN+="/usr/bin/omarchy-battery-cpu-limit"
+
+# Boot: the Mains add event (udev coldplug) fires before intel_rapl_common
+# registers the package zone (~2s earlier on a MacBookPro16,1), leaving the
+# PL1/PL2 writes without a target, so the firmware limits stayed in force for
+# the whole boot. Apply the cap once the zone exists instead.
+SUBSYSTEM=="powercap", KERNEL=="intel-rapl:0", ACTION=="add", RUN+="/usr/bin/omarchy-battery-cpu-limit"
