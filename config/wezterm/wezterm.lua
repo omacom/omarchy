@@ -12,7 +12,8 @@ if home_dir and home_dir ~= "" then
   if theme_chunk then
     local ok, colors = pcall(theme_chunk)
     if ok and type(colors) == "table" then
-      config.colors = colors
+      -- A malformed palette must not discard font, window and key settings.
+      pcall(function() config.colors = colors end)
     end
   end
 end
