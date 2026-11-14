@@ -5,7 +5,12 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
+event_pid=""
+trap 'if [[ -n $event_pid ]]; then
+  kill "$event_pid" 2>/dev/null || true
+  wait "$event_pid" 2>/dev/null || true
+fi
+rm -rf "$TMPDIR"' EXIT
 
 mkdir -p "$TMPDIR/bin"
 SYSTEMCTL_LOG="$TMPDIR/systemctl-log"
@@ -47,24 +52,66 @@ pass "crash capture toggle re-enables the watcher"
 
 require_command jq
 
-# The per-program mute, driven through the real watcher with a stubbed journal:
-# these prove what a person sees -- a toast arriving or not -- where asserting
-# that a flag file was read would prove only that a flag file was read.
+# The watcher's announcements and the per-program mute, driven through the real
+# watcher with stubbed events and journal: these prove what a person sees -- a
+# toast arriving or not, carrying which words -- where asserting that a flag
+# file was read would prove only that a flag file was read.
 watch_bin="$TMPDIR/watch-bin"
 watch_home="$TMPDIR/watch-home"
 NOTIFY_LOG="$TMPDIR/notify-log"
+QUERY_LOG="$TMPDIR/query-log"
 JOURNAL_ENTRIES="$TMPDIR/journal-entries"
+FAIL_COUNT="$TMPDIR/fail-count"
 
 mkdir -p "$watch_bin" "$watch_home"
+: >"$NOTIFY_LOG"
+: >"$QUERY_LOG"
+: >"$JOURNAL_ENTRIES"
+printf '0\n' >"$FAIL_COUNT"
 
+# One event name per line, unchanged, and only for the directory the watcher
+# watches.
+cat >"$watch_bin/inotifywait" <<'SH'
+#!/bin/bash
+[[ ${!#} == "/run/omarchy-crash-events" ]] || exit 1
+printf '%s\n' "$WATCH_ITEMS"
+SH
+
+# Only the requested invocation is returned, never a reused PID. Invocation 5001
+# is delayed twice so a journal delivery retry is observable.
 cat >"$watch_bin/journalctl" <<'SH'
 #!/bin/bash
-cat "$JOURNAL_ENTRIES"
+printf '%s\n' "$*" >>"$QUERY_LOG"
+for arg in "$@"; do
+  case $arg in
+    -f|--follow) exit 1 ;;
+    MESSAGE_ID=*) message_id=${arg#*=} ;;
+    _SYSTEMD_INVOCATION_ID=*) invocation=${arg#*=} ;;
+  esac
+done
+[[ ${message_id:-} == "fc2e22bc6ee647b6b90729ab34a250b1" ]] || exit 1
+[[ -n ${invocation:-} ]] || exit 1
+if [[ $invocation == "00000000000000000000000000001389" ]]; then
+  fails=$(cat "$FAIL_COUNT")
+  if (( fails < 2 )); then
+    printf '%s\n' "$((fails + 1))" >"$FAIL_COUNT"
+    exit 1
+  fi
+fi
+jq -c --arg invocation "$invocation" \
+  'select(._SYSTEMD_INVOCATION_ID == $invocation)' "$JOURNAL_ENTRIES"
+SH
+
+# The toast as the argv it was sent, so a name holding a space or a tab stays one
+# argument and each diagnosis word can be asserted in its own slot.
+cat >"$watch_bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+jq -cn --args '$ARGS.positional' -- "$@" >>"$NOTIFY_LOG"
 SH
 
 cat >"$watch_bin/omarchy-default-agent" <<'SH'
 #!/bin/bash
-echo claude
+[[ ${NO_AGENT:-0} == 0 ]] && printf '%s\n' claude
 SH
 
 cat >"$watch_bin/omarchy-notification-wait" <<'SH'
@@ -72,45 +119,65 @@ cat >"$watch_bin/omarchy-notification-wait" <<'SH'
 exit 0
 SH
 
-cat >"$watch_bin/omarchy-notification-send" <<'SH'
+cat >"$watch_bin/sleep" <<'SH'
 #!/bin/bash
-printf '%s\n' "$*" >>"$NOTIFY_LOG"
+exit 0
 SH
 
-chmod +x "$watch_bin/journalctl" "$watch_bin/omarchy-default-agent" \
-  "$watch_bin/omarchy-notification-wait" "$watch_bin/omarchy-notification-send"
+chmod +x "$watch_bin"/*
 
 reset_entries() {
   : >"$JOURNAL_ENTRIES"
 }
 
-# One core dump as systemd-coredump journals it. The UID must be this user's, or
-# the watcher discards it as somebody else's crash before anything under test.
-crash_entry() {
-  local comm="$1" exe="$2"
-
-  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
-    '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
-      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
+events() {
+  printf '%032x\n' "$@"
 }
 
-# The stubbed journalctl ends after the entries, so the watcher's loop ends too.
-# Its exit status is asserted rather than discarded: a watcher that dies on a
-# muted crash notifies about nothing afterwards, which every assertion below
-# that expects silence would otherwise read as success.
-run_watch() {
-  local status=0
+# One core dump as systemd-coredump journals it, with the invocation, pid,
+# executable, signal and uid given, so a test can pin a reused PID, a missing
+# executable, or another user's crash. The UID must be this user's unless the
+# test means somebody else's, or the watcher discards the entry before anything
+# under test.
+journal_entry() { # invocation comm pid exe signal [uid]
+  jq -cn --arg invocation "$(events "$1")" --arg comm "$2" --arg pid "$3" \
+    --arg exe "$4" --arg signal "$5" --arg uid "${6:-$UID}" \
+    '{_SYSTEMD_INVOCATION_ID: $invocation, COREDUMP_UID: $uid, COREDUMP_COMM: $comm,
+      COREDUMP_PID: $pid, COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: $signal}' \
+    >>"$JOURNAL_ENTRIES"
+}
+
+# A crash the mute tests only need by name: one invocation per entry appended.
+crash_entry() { # comm exe
+  journal_entry "$(( $(wc -l <"$JOURNAL_ENTRIES") + 1 ))" "$1" 4242 "$2" SIGSEGV
+}
+
+# The stubbed inotifywait ends after the events, so the watcher's loop ends too.
+# Its exit status is asserted rather than discarded: a watcher that dies on one
+# event notifies about nothing afterwards, which every assertion below that
+# expects silence would otherwise read as success. Without explicit event names
+# every journaled crash is replayed, one event per entry.
+run_watch() { # [event names] [VAR=value ...]
+  local items=${1-} status=0
+  if (( $# )); then shift; fi
+  [[ -n $items ]] || items=$(jq -r '._SYSTEMD_INVOCATION_ID' "$JOURNAL_ENTRIES")
 
   : >"$NOTIFY_LOG"
 
-  PATH="$watch_bin:$ROOT/bin:$PATH" \
-  JOURNAL_ENTRIES="$JOURNAL_ENTRIES" \
-  NOTIFY_LOG="$NOTIFY_LOG" \
-  HOME="$watch_home" \
-    "$ROOT/bin/omarchy-crash-watch" || status=$?
+  (
+    export PATH="$watch_bin:$ROOT/bin:$PATH"
+    export WATCH_ITEMS="$items" NOTIFY_LOG="$NOTIFY_LOG" QUERY_LOG="$QUERY_LOG"
+    export JOURNAL_ENTRIES="$JOURNAL_ENTRIES" FAIL_COUNT="$FAIL_COUNT" HOME="$watch_home"
+    for kv in "$@"; do export "$kv"; done
+    timeout 5 "$ROOT/bin/omarchy-crash-watch"
+  ) || status=$?
 
   (( status == 0 )) ||
-    fail "the watcher exited $status rather than carrying on, so a mute takes the service down with it"
+    fail "the watcher exited $status rather than carrying on, so one event takes the service down with it"
+}
+
+notify_count() {
+  wc -l <"$NOTIFY_LOG"
 }
 
 # Through the real command rather than writing the flag by hand: these assertions
@@ -121,8 +188,18 @@ mute() {
     "$ROOT/bin/omarchy-crash-mute" "$1" "$2" >/dev/null
 }
 
+# The summary the toast shows, in the slot the sender's argv gives it.
 announced() {
-  grep -Fq "Process crashed: $1" "$NOTIFY_LOG"
+  jq -es --arg name "$1" \
+    'any(.[]; .[4] == ("Process crashed: " + $name))' "$NOTIFY_LOG" >/dev/null
+}
+
+# Every word the diagnosis would hand the agent, so a crash whose name holds a
+# space or a tab is proven to arrive as one argument in the slot it belongs in.
+diagnosis_is() { # pid name exe signal
+  jq -es --arg pid "$1" --arg name "$2" --arg exe "$3" --arg signal "$4" \
+    'any(.[]; .[7:] == ["omarchy-agent-crash", $pid, $name, $exe, $signal])' \
+    "$NOTIFY_LOG" >/dev/null
 }
 
 reset_entries
@@ -171,14 +248,14 @@ run_watch
 pass "muting the announced name silences a program whose COMM was truncated"
 
 # A muted crash must not end the watcher. Restart=always would paper over it
-# with a five-second gap, and the watcher restarts on `journalctl -n 0`, which
-# never replays the crashes it missed while it was away.
+# with a five-second gap, and inotify never replays the crashes it missed while
+# it was away.
 reset_entries
 crash_entry chromium-browse /usr/lib/chromium/chromium-browser
 crash_entry nautilus /usr/bin/nautilus
 run_watch
 announced nautilus ||
-  fail "a muted crash stops the watcher reading the journal, losing every crash after it"
+  fail "a muted crash stops the watcher reading events, losing every crash after it"
 pass "a muted crash does not stop the watcher reading the next one"
 
 # A process can set its own comm to anything prctl takes, slashes included, and
@@ -219,7 +296,7 @@ run_watch
 announced unknown ||
   fail "a crash whose comm is empty is dropped instead of announced, because the empty field shifted every field after it"
 announced nautilus ||
-  fail "an empty comm derails the rest of the journal entry"
+  fail "an empty comm derails the next crash event"
 pass "an empty comm is announced rather than parsed into the next field"
 
 # Only "." and ".." are special. A leading dot is an ordinary filename, and
@@ -233,6 +310,16 @@ for dotted_comm in .hidden ...; do
 done
 pass "a leading dot is an ordinary name rather than a special component"
 
+reset_entries
+crash_entry "foo bar" -
+run_watch
+announced "foo bar" || fail "a space in the original comm splits the name"
+mute "foo bar" on
+run_watch
+! announced "foo bar" || fail "a space-containing name cannot be muted"
+mute "foo bar" off
+pass "a space-containing comm is announced and muted under its original name"
+
 # And the name it settles on is mutable like any other.
 mute unknown on
 reset_entries
@@ -242,6 +329,161 @@ run_watch
   fail "the fallback name cannot be muted, so the one crash most likely to repeat is the one that cannot be silenced"
 pass "the fallback name can be muted like any other"
 mute unknown off
+
+# What the watcher announces, event by event, with the journal as the only
+# source of truth. Each case appends the entries it needs and names the events
+# the stubbed inotifywait delivers, so an event without an entry and an entry
+# without an event are both expressible.
+reset_entries
+journal_entry 1001 foo-bar 1001 /usr/bin/foo-bar-real SIGSEGV
+journal_entry 1002 other 1002 /usr/bin/other-real SIGABRT
+journal_entry 1004 omarchy-agent-foo 1004 /usr/bin/omarchy-agent-foo SIGSEGV
+journal_entry 1005 sigonly 1005 "" SIGABRT
+journal_entry 1006 "" 1006 "" SIGSEGV
+journal_entry 1007 .hidden 1007 "" SIGSEGV
+journal_entry 1008 "foo bar" 1008 "" SIGABRT
+journal_entry 1009 $'foo\tbar' 1009 "" SIGSEGV
+journal_entry 3001 alien 3001 /usr/bin/alien SIGSEGV 424242
+journal_entry 5001 slowcore 5001 /usr/bin/slowcore-real SIGABRT
+journal_entry 6000 previous 5001 /usr/bin/previous SIGSEGV
+
+run_watch "$(events 1001 1002)"
+(( $(notify_count) == 2 )) ||
+  fail "one toast per crash" "got: $(notify_count) toasts"
+announced foo-bar-real ||
+  fail "toast uses the executable basename, not the 15-char comm"
+announced other-real ||
+  fail "toast for the second crash"
+diagnosis_is 1001 foo-bar-real /usr/bin/foo-bar-real SIGSEGV ||
+  fail "diagnosis command carries pid, name, executable, and signal"
+diagnosis_is 1002 other-real /usr/bin/other-real SIGABRT ||
+  fail "diagnosis command for the second crash"
+! announced foo-bar ||
+  fail "truncated comm never reaches the toast when the executable is known"
+pass "watcher announces crashes without core files, preserving SIG-prefixed signals"
+
+run_watch "$(events 3001 1004 1002)" OMARCHY_CRASH_DEDUPE_SECONDS=0
+(( $(notify_count) == 1 )) ||
+  fail "foreign-uid and omarchy-own crashes are skipped" "got: $(notify_count) toasts"
+announced other-real ||
+  fail "the remaining crash is still announced"
+pass "watcher skips other users' and its own crashes"
+
+run_watch "$(events 1001 1002)" OMARCHY_CRASH_IGNORE='foo'
+(( $(notify_count) == 1 )) ||
+  fail "ignored patterns are not announced" "got: $(notify_count) toasts"
+announced other-real ||
+  fail "non-ignored crashes are still announced"
+pass "watcher honors the ignore pattern"
+
+run_watch "$(events 1001 1001)" OMARCHY_CRASH_DEDUPE_SECONDS=3600
+(( $(notify_count) == 1 )) ||
+  fail "duplicate events within the dedupe window are announced once" "got: $(notify_count) toasts"
+pass "watcher dedupes crash loops per window"
+
+run_watch "$(events 1001 1001)" OMARCHY_CRASH_DEDUPE_SECONDS=0
+(( $(notify_count) == 2 )) ||
+  fail "a zero dedupe window announces every event" "got: $(notify_count) toasts"
+pass "watcher announces again outside the dedupe window"
+
+# An event whose journal entry has not arrived yet: the toast cannot say what
+# crashed, and the retries have to end so the next event is still read.
+: >"$QUERY_LOG"
+run_watch "$(events 9999 1002)" 2>"$TMPDIR/warnings"
+(( $(notify_count) == 1 )) || fail "missing metadata stops the next event"
+grep -Fq "No crash details for coredump invocation $(events 9999)" "$TMPDIR/warnings" ||
+  fail "an event with no journal metadata is dropped silently"
+(( $(wc -l <"$QUERY_LOG") == 21 )) || fail "missing metadata retries are not bounded"
+pass "watcher logs missing metadata, bounds retries, and processes the next event"
+
+# A PID reused within the same boot: entry 6000 carries the pid of entry 5001,
+# and only the invocation the handler emitted may be announced.
+printf '0\n' >"$FAIL_COUNT"
+: >"$QUERY_LOG"
+run_watch "$(events 5001)" OMARCHY_CRASH_IGNORE='previous'
+(( $(notify_count) == 1 )) ||
+  fail "crash whose journal entry lands late is still announced" "got: $(notify_count) toasts"
+diagnosis_is 5001 slowcore-real /usr/bin/slowcore-real SIGABRT ||
+  fail "a reused PID selected the previous program instead of the new invocation"
+(( $(wc -l <"$QUERY_LOG") == 3 )) || fail "late journal delivery did not retry twice"
+pass "watcher waits for the exact invocation despite PID reuse within the same boot"
+
+run_watch "$(events 1006 1002)"
+(( $(notify_count) == 2 )) || fail "an empty comm shifts or drops crash fields"
+diagnosis_is 1006 unknown unknown SIGSEGV || fail "an empty comm shifts diagnosis fields"
+pass "watcher announces an empty comm without shifting fields or dropping the next crash"
+
+run_watch "$(events 1005)"
+(( $(notify_count) == 1 )) ||
+  fail "a crash with no executable is still announced" "got: $(notify_count) toasts"
+diagnosis_is 1005 sigonly unknown SIGABRT ||
+  fail "a missing executable does not shift the signal into its place"
+pass "watcher keeps the signal when the executable is missing"
+
+run_watch "$(events 1007 1008 1009)"
+(( $(notify_count) == 3 )) || fail "original process names are split or lost"
+diagnosis_is 1007 .hidden unknown SIGSEGV || fail "a leading dot becomes a filename escape"
+diagnosis_is 1008 "foo bar" unknown SIGABRT || fail "a space splits a diagnosis argument"
+diagnosis_is 1009 $'foo\tbar' unknown SIGSEGV || fail "a tab splits a diagnosis argument"
+pass "watcher preserves original names and argument boundaries without filename decoding"
+
+# An event name that is not an InvocationID is not a journal lookup.
+: >"$QUERY_LOG"
+run_watch $'../bad\nfoo bar\n'"$(events 1002)"
+(( $(notify_count) == 1 && $(wc -l <"$QUERY_LOG") == 1 )) ||
+  fail "a malformed event name reaches the journal lookup"
+pass "watcher only queries valid InvocationID events"
+
+: >"$QUERY_LOG"
+run_watch "$(events 1001)" NO_AGENT=1
+[[ ! -s $NOTIFY_LOG && ! -s $QUERY_LOG ]] || fail "a watcher without an agent queries crashes"
+pass "watcher skips lookups and notifications until an agent is selected"
+
+# The completion hook itself: its ExecStopPost commands run against a scratch
+# directory with real inotify, so the event the watcher listens for is the one a
+# coredump would produce. This installs no unit, changes no host state and
+# triggers no crash.
+dropin="$ROOT/etc/systemd/system/systemd-coredump@.service.d/10-omarchy-crash-events.conf"
+
+if "$ROOT/bin/omarchy-cmd-present" inotifywait; then
+  mkdir "$TMPDIR/events"
+  inotifywait --timeout 3 -e create --format '%f' "$TMPDIR/events" \
+    >"$TMPDIR/event-name" 2>"$TMPDIR/event-log" &
+  event_pid=$!
+  for attempt in {1..50}; do
+    grep -Fq 'Watches established.' "$TMPDIR/event-log" && break
+    sleep 0.02
+  done
+  grep -Fq 'Watches established.' "$TMPDIR/event-log" ||
+    fail "the marker test never established its watch"
+
+  while IFS= read -r command; do
+    INVOCATION_ID="$(events 1001)" bash -euc \
+      "${command//\/run\/omarchy-crash-events/$TMPDIR/events}"
+  done < <(sed -n 's/^ExecStopPost=-//p' "$dropin")
+
+  wait "$event_pid" || fail "an ephemeral marker produces no inotify event"
+  event_pid=""
+  [[ $(cat "$TMPDIR/event-name") == "$(events 1001)" ]] || fail "the event loses its InvocationID"
+  [[ ! -e $TMPDIR/events/$(events 1001) ]] || fail "the hook leaves a marker behind"
+  pass "the completion hook emits a real inotify event without retaining a marker or a core"
+else
+  skip "inotifywait not installed; skipping native marker event check"
+fi
+
+unit=/usr/lib/systemd/system/systemd-coredump@.service
+if "$ROOT/bin/omarchy-cmd-present" systemd-analyze && [[ -r $unit ]]; then
+  cp "$unit" "$TMPDIR/"
+  mkdir "$TMPDIR/systemd-coredump@.service.d"
+  cp "$dropin" "$TMPDIR/systemd-coredump@.service.d/"
+  SYSTEMD_UNIT_PATH="$TMPDIR:/usr/lib/systemd/system" \
+    systemd-analyze --man=no --generators=no verify "$TMPDIR/systemd-coredump@.service" \
+    >"$TMPDIR/unit-check" 2>&1 ||
+    fail "the coredump drop-in is invalid" "$(cat "$TMPDIR/unit-check")"
+  pass "systemd accepts the completion drop-in with the installed coredump service"
+else
+  skip "systemd-analyze or coredump unit unavailable; skipping native unit validation"
+fi
 
 # What omarchy-crash-mute does on its own. That it agrees with the watcher is
 # already covered above, which drives it for every mute it makes.
