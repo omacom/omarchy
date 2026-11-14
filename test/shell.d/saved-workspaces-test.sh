@@ -122,6 +122,69 @@ with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'XDG_DA
   with patch.object(m, 'query', side_effect=[before, before + [unrelated, opened]]), patch.object(m, 'execute'), patch.object(m.socket, 'socket', return_value=MagicMock()):
     check(m.launch_window({'argv': web_argv, 'class': app_class}, {'0xexisting'}, 8)['address'] == '0xapp', 'forwarded web-app restores select only a new window of the exact app/profile, leaving existing browser windows alone')
 
+# Firefox session snapshots preserve the current navigation, order and active tab.
+firefox_data = {'windows': [
+  {'selected': 2, 'tabs': [
+    {'index': 2, 'entries': [{'url': 'https://example.org/old', 'title': 'Old'}, {'url': 'https://example.org/current', 'title': 'Current'}]},
+    {'index': 1, 'entries': [{'url': 'https://example.org/second', 'title': 'Second'}]}
+  ]},
+  {'selected': 1, 'tabs': [{'entries': [{'url': 'about:blank', 'title': 'New Tab'}]}]},
+  {'isPrivate': True, 'tabs': [{'entries': [{'url': 'https://private.example/', 'title': 'Private'}]}]}
+]}
+firefox_records = m.firefox_session_windows(firefox_data)
+check(len(firefox_records) == 2 and firefox_records[0]['urls'] == ['https://example.org/current', 'https://example.org/second'] and firefox_records[0]['active'] == 1, 'Firefox captures current tab navigations in order with the selected tab, excluding private windows')
+check(m.firefox_session_windows({'windows': [{'tabs': [{'entries': [{'url': 'javascript:bad'}]}]}]}) == [], 'Firefox session URLs cannot become executable launch arguments')
+
+with tempfile.TemporaryDirectory() as directory:
+  profile = Path(directory)
+  import ctypes
+  contents = json.dumps(firefox_data).encode()
+  library = ctypes.CDLL('liblz4.so.1')
+  library.LZ4_compressBound.argtypes = [ctypes.c_int]
+  library.LZ4_compress_default.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+  compressed = ctypes.create_string_buffer(library.LZ4_compressBound(len(contents)))
+  length = library.LZ4_compress_default(contents, compressed, len(contents), len(compressed))
+  path = profile / 'recovery.jsonlz4'
+  path.write_bytes(b'mozLz40\0' + struct.pack('<I', len(contents)) + compressed.raw[:length])
+  check(m.read_firefox_session(path) == firefox_data, 'Firefox session compression decodes using the real bounded LZ4 reader')
+  path.write_bytes(b'mozLz40\0' + struct.pack('<I', 0xffffffff) + b'bad')
+  try:
+    m.read_firefox_session(path)
+  except ValueError:
+    print('ok - oversized Firefox sessions are rejected before allocating their declared size')
+  else:
+    raise AssertionError('oversized Firefox session accepted')
+  window = {'pid': 42, 'title': 'Second — Mozilla Firefox', 'class': 'firefox'}
+  info = {'argv': ['firefox', '--new-window', 'https://example.org/original']}
+  cache = {'firefox:' + directory: firefox_records}
+  with patch.object(m, 'firefox_profile', return_value=profile):
+    state = m.capture_app_state(window, info, cache)
+    check(state['urls'] == firefox_records[0]['urls'] and state['active'] == 1 and state['profile'] == directory, 'Firefox matches the requested window instead of its process launch URLs')
+    current = m.capture_app_state({**window, 'title': 'Current — Mozilla Firefox'}, info, cache)
+    check(current['active'] == 0, 'the live Firefox title supplies the current selected tab when the session file selection is stale')
+    blank = {'urls': ['about:blank'], 'titles': ['about:blank'], 'active': 0, 'title': 'about:blank'}
+    blank_state = m.capture_app_state({**window, 'title': 'Mozilla Firefox'}, info, {'firefox:' + directory: [blank]})
+    check(blank_state['urls'] == ['about:blank'] and blank_state['active'] == 0, 'untitled blank Firefox tabs match the live browser-only title')
+    argv = m.state_command({'appState': state}, ['firefox', '-P', 'Old', '--new-window', 'https://example.org/stale'])
+    check(argv == ['firefox', '--profile', directory, '--new-window', *state['urls']], 'Firefox restores the captured profile and current tabs, replacing stale profile selectors and launch URLs')
+    with patch.object(m, 'dispatch') as shortcut, patch.object(m.time, 'sleep'):
+      m.select_firefox_tab({'address': '0xnew'}, state)
+      check(next(call.args for call in shortcut.call_args_list if call.args[0] == 'send_key_state') == ('send_key_state', {'mods': 'ALT', 'key': '2', 'window': 'address:0xnew', 'state': 'down'}), 'active-tab selection targets only the identified new Firefox window')
+    duplicate = copy.deepcopy(firefox_records[0]);duplicate['urls'][0] = 'https://different.example/'
+    try:
+      m.capture_app_state(window, info, {'firefox:' + directory: [firefox_records[0], duplicate]})
+    except m.WorkspaceError:
+      print('ok - ambiguous Firefox windows never capture another window\'s different tabs')
+    else:
+      raise AssertionError('ambiguous Firefox windows accepted')
+    try:
+      m.capture_app_state({**window, 'title': 'Second — Mozilla Firefox (Private Browsing)'}, info, cache)
+    except m.WorkspaceError:
+      print('ok - private Firefox windows are rejected even when the visible page also exists in a normal window')
+    else:
+      raise AssertionError('private Firefox window accepted')
+check(m.firefox_tab_keys(10, 12) == [('ALT', '9'), ('CTRL', 'Prior')], 'Firefox active tabs beyond shortcut eight use a bounded path from the nearest end')
+
 firefox_other = {'address': '0xother', 'class': 'firefox', 'title': 'Focused work — Mozilla Firefox', 'tags': []}
 firefox_ours = {'address': '0xours', 'class': 'firefox', 'title': 'Focused work' + chr(0x2063) + chr(0xFE0A) + chr(0xFE0B) + ' — Mozilla Firefox', 'tags': []}
 with patch.object(m.uuid, 'uuid4', return_value=SimpleNamespace(hex='ab')), patch.object(m, 'query', side_effect=[[], [firefox_other], [firefox_other, firefox_ours]]), patch.object(m, 'execute') as launch, patch.object(m.socket, 'socket', return_value=MagicMock()):

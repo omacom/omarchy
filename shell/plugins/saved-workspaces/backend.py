@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import configparser
+import ctypes
 import fcntl
 import json
 import html
@@ -274,11 +275,133 @@ def firefox_launch_parts(argv):
   for arg in argv:
     if arg in {"--new-window", "-new-window", "--new-tab", "-new-tab", "--url", "-url"}:
       continue
-    if re.match(r"^(https?://|file:|about:|data:)", arg):
+    if re.match(r"^(https?://|file:|about:|data:|moz-extension://|view-source:)", arg):
       urls.append(arg)
     else:
       options.append(arg)
   return options, urls or ["about:blank"]
+
+
+def firefox_profile(window, info):
+  # The browser keeps its profile databases/lock open, including when launched
+  # without -profile or when -P selected a profile other than the default.
+  candidates = set()
+  with contextlib.suppress(OSError):
+    for descriptor in (Path("/proc") / str(window["pid"]) / "fd").iterdir():
+      with contextlib.suppress(OSError):
+        target = descriptor.resolve(strict=True)
+        if target.name in {".parentlock", "parent.lock", "places.sqlite", "cookies.sqlite", "favicons.sqlite"}:
+          candidates.add(target.parent)
+  if len(candidates) == 1:
+    return candidates.pop()
+  argv = info["argv"]
+  path = argument_value(argv, "--profile", argument_value(argv, "-profile"))
+  if path:
+    profile = Path(path).expanduser()
+    if not profile.is_absolute():
+      profile = Path(info.get("cwd", str(HOME))) / profile
+    if profile.is_dir():
+      return profile.resolve()
+  raise WorkspaceError("Firefox's active profile isn't available yet. Try saving after Firefox finishes starting.")
+
+
+def read_firefox_session(path):
+  raw = path.read_bytes()
+  if len(raw) > 32 * 1024 * 1024 or raw[:8] != b"mozLz40\0" or len(raw) < 12:
+    raise ValueError("Invalid Firefox session header")
+  size = struct.unpack_from("<I", raw, 8)[0]
+  if not 0 < size <= 32 * 1024 * 1024:
+    raise ValueError("Firefox session is too large")
+  library = ctypes.CDLL("liblz4.so.1")
+  library.LZ4_decompress_safe.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int]
+  library.LZ4_decompress_safe.restype = ctypes.c_int
+  output = ctypes.create_string_buffer(size)
+  if library.LZ4_decompress_safe(raw[12:], output, len(raw) - 12, size) != size:
+    raise ValueError("Invalid Firefox session compression")
+  return json.loads(output.raw)
+
+
+def firefox_session_windows(data):
+  result = []
+  if not isinstance(data, dict) or not isinstance(data.get("windows"), list):
+    return result
+  for window in data["windows"]:
+    if not isinstance(window, dict) or window.get("isPrivate") or not isinstance(window.get("tabs"), list):
+      continue
+    urls, titles = [], []
+    tabs = window["tabs"]
+    if not 0 < len(tabs) <= 200 or any(not isinstance(tab, dict) or tab.get("isPrivate") for tab in tabs):
+      continue
+    for tab in tabs:
+      entries = tab.get("entries", [])
+      index = tab.get("index", len(entries))
+      if not isinstance(entries, list) or type(index) is not int or not 1 <= index <= len(entries):
+        break
+      entry = entries[index - 1]
+      if not isinstance(entry, dict):
+        break
+      url = entry.get("url", "")
+      if not isinstance(url, str) or not re.match(r"^(https?://|file://|about:|moz-extension://|view-source:https?://)", url) or "\0" in url:
+        break
+      urls.append(url)
+      titles.append(entry.get("title") if isinstance(entry.get("title"), str) and entry["title"] else url)
+    selected = window.get("selected", 1)
+    if len(urls) == len(tabs) and type(selected) is int and 1 <= selected <= len(urls):
+      result.append({"urls": urls, "titles": titles, "active": selected - 1,
+             "title": window["title"] if isinstance(window.get("title"), str) and window["title"] else titles[selected - 1]})
+  return result
+
+
+def capture_firefox_state(window, info, cache):
+  if any(a in {"-private", "--private", "-private-window", "--private-window"} for a in info["argv"]) or re.search(r"private browsing", window.get("title", ""), re.I):
+    raise WorkspaceError("Private Firefox windows cannot be saved in Scenes.")
+  profile = firefox_profile(window, info)
+  key = "firefox:" + str(profile)
+  if key not in cache:
+    paths = [profile / "sessionstore-backups/recovery.jsonlz4", profile / "sessionstore-backups/recovery.baklz4", profile / "sessionstore.jsonlz4"]
+    path = next((p for p in paths if p.is_file()), None)
+    try:
+      if path is None:
+        raise ValueError("No Firefox session yet")
+      cache[key] = firefox_session_windows(read_firefox_session(path))
+    except (OSError, ValueError, TypeError, KeyError):
+      raise WorkspaceError("Firefox hasn't written its current tabs yet. Wait a moment and try saving again.") from None
+  title = window.get("title", "")
+  plain = re.sub(r" [—-] (?:Mozilla )?Firefox(?: ESR| Nightly| Developer Edition)?$", "", title)
+  # Selecting a tab does not schedule a session-file write in Firefox. The
+  # live window title identifies its current selection, even if the file's
+  # selected index still describes the previously active tab.
+  states = set()
+  for record in cache[key]:
+    selected = [i for i, tab_title in enumerate(record["titles"]) if tab_title in {title, plain} or record["urls"][i] in {title, plain}
+                or (record["urls"][i] == "about:blank" and title in {"Mozilla Firefox", "Firefox"})]
+    for index in selected:
+      states.add((tuple(record["urls"]), index))
+  # Identical copies are interchangeable; different tab sets or duplicate tab
+  # titles must not silently select another window or another tab position.
+  if len(states) != 1:
+    raise WorkspaceError("Firefox's tabs couldn't be matched to this window. Select a distinct tab, wait a moment, and save again.")
+  urls, active = states.pop()
+  return {"kind": "firefox", "urls": list(urls), "active": active, "profile": str(profile)}
+
+
+def firefox_tab_keys(index, count):
+  if index < 8:
+    return [("ALT", str(index + 1))]
+  if count - 1 - index < index - 7:
+    return [("ALT", "9")] + [("CTRL", "Prior")] * (count - 1 - index)
+  return [("ALT", "8")] + [("CTRL", "Next")] * (index - 7)
+
+
+def select_firefox_tab(window, state):
+  urls, index = state["urls"], state["active"]
+  focus(window["address"])
+  time.sleep(.1)
+  for mods, key in firefox_tab_keys(index, len(urls)):
+    target = {"mods": mods, "key": key, "window": "address:" + window["address"]}
+    dispatch("send_key_state", {**target, "state": "down"})
+    time.sleep(.05)
+    dispatch("send_key_state", {**target, "state": "up"})
 
 
 def chromium_webapp_argv(window, info):
@@ -453,6 +576,8 @@ def capture_app_state(window, info, cache):
     if len(matches) != 1:
       raise WorkspaceError("This browser window's tabs aren't available yet. Try saving again after a moment. Private windows aren't supported.")
     return {"kind": "browser", "urls": matches[0]["urls"][:200]}
+  if app in {"firefox", "firefox-bin"}:
+    return capture_firefox_state(window, info, cache)
   if app == "spotify" or window["class"].lower() == "spotify":
     paths = (HOME / ".cache/spotify/Users").glob("*/list_player_play_request")
     for path in sorted(paths, key=lambda p: p.stat().st_mtime, reverse=True):
@@ -465,6 +590,24 @@ def capture_app_state(window, info, cache):
 
 def state_command(window, argv):
   state = window.get("appState") or {}
+  if state.get("kind") == "firefox":
+    urls, active, profile = state.get("urls"), state.get("active"), state.get("profile")
+    if not isinstance(urls, list) or not 0 < len(urls) <= 200 or type(active) is not int or not 0 <= active < len(urls) or not all(isinstance(u, str) and re.match(r"^(https?://|file://|about:|moz-extension://|view-source:https?://)", u) and "\0" not in u for u in urls):
+      raise WorkspaceError("The saved Firefox tabs are invalid.")
+    if not isinstance(profile, str) or "\0" in profile or not Path(profile).is_absolute() or not Path(profile).is_dir():
+      raise WorkspaceError("The saved Firefox profile is no longer available.")
+    if not argv or Path(argv[0]).name.lower() not in {"firefox", "firefox-bin"}:
+      raise WorkspaceError("The saved Firefox launch command is invalid.")
+    options, _ = firefox_launch_parts(argv)
+    cleaned, skip = [], False
+    for arg in options:
+      if skip:
+        skip = False
+      elif arg in {"--profile", "-profile", "-P", "-p"}:
+        skip = True
+      elif not arg.startswith(("--profile=", "-profile=", "-P=", "-p=")):
+        cleaned.append(arg)
+    return cleaned + ["--profile", profile, "--new-window", *urls]
   if state.get("kind") == "browser":
     urls = state.get("urls", [])
     if not urls or len(urls) > 200 or not all(isinstance(u, str) and re.match(r"^(https?://|file://|about:|chrome://|chrome-extension://)", u) and "\0" not in u for u in urls):
@@ -572,7 +715,7 @@ def launch_window(saved, known, workspace):
   elif firefox:
     # Firefox has no --window-name for forwarded requests. A short-lived blank
     # page supplies the identity, then restores the first saved launch URL.
-    # No keyboard input, extensions, remote debugging or background service.
+    # No extensions, remote debugging or background service.
     options, urls = firefox_launch_parts(argv)
     original_argv = options + ["--new-window", *urls]
     destination = json.dumps(urls[0]).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
@@ -607,6 +750,11 @@ def launch_window(saved, known, workspace):
       if len(candidates) == 1:
         if token in [t.rstrip("*") for t in candidates[0].get("tags", [])]:
           dispatch("window.tag", {"window": "address:" + candidates[0]["address"], "tag": "-" + token})
+        if firefox and (saved.get("appState") or {}).get("kind") == "firefox":
+          # Forwarded requests can ignore launch placement. Put the owned new
+          # window on its destination before activating its saved tab.
+          dispatch("window.move", {"window": "address:" + candidates[0]["address"], "workspace": str(workspace), "follow": False})
+          select_firefox_tab(candidates[0], saved["appState"])
         return candidates[0]
       try:
         event.recv(8192)

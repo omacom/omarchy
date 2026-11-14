@@ -91,6 +91,8 @@ Panel {
     feedback = ""
     operation.command = ["omarchy-saved-workspaces", command, String(value)]
     if (extra !== undefined) operation.command = operation.command.concat([String(extra)])
+    // Release the panel's keyboard grab before newly opened apps take focus.
+    if (command === "restore") root.close()
     operation.running = true
   }
 
@@ -144,7 +146,10 @@ Panel {
     }
     onExited: {
       stateFile.reload()
-      if (!succeeded) return
+      if (!succeeded) {
+        if (root.action === "restore") root.opened = true
+        return
+      }
       if (root.action === "restore") {
         root.close()
         if (otherWorkspace > 0) Util.execArgv(["omarchy-notification-send", Commons.I18n.t("scenes.title"), Commons.I18n.t("scenes.otherWindows").arg(Commons.I18n.formatNumber(otherWorkspace))])
