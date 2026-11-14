@@ -23,6 +23,59 @@ assertEqual(menu.summonAction("omarchy-shell shell summon omarchy.speedtest && e
 assertEqual(menu.summonAction(`omarchy-shell shell summon omarchy.x "$(id)"`), null, 'menu leaves shell-expanded payloads to bash')
 assertEqual(menu.summonAction("omarchy-theme-set nord"), null, 'menu leaves ordinary actions to bash')
 
+// Hints must identify actions rather than translated or duplicate labels.
+const hintsMenu = menu.mergeMenuSources(menu.parseMenuJsonc(`{
+  "system": {"label":"System"},
+  "learn.keys": {"label":"Clavier","action":"omarchy-menu-keybindings"},
+  "learn.other": {"label":"Keybindings","action":"other-command"},
+  "tools": {"target":"system"},
+  "clipboard": {"action":"omarchy-shell shell summon omarchy.clipboard"}
+}`), [])
+const shortcuts = menu.shortcutIndex([
+  'SUPER + K → Keybindings\texec\tomarchy menu-keybindings',
+  'SUPER + ESCAPE → System menu\tlua\thl.dsp.global("omarchy:menu.system")',
+  'SUPER CTRL + V → Clipboard\tlua\thl.dsp.global("omarchy:panel.omarchy.clipboard")',
+  'SUPER + J → Another binding\texec\tomarchy-menu-keybindings',
+  'SUPER + X → Unknown callback\t__lua\t42'
+].join('\n'))
+const hints = menu.shortcutHints(hintsMenu.items, hintsMenu.itemOrder, shortcuts)
+assertEqual(hints['learn.keys'], '⌘K', 'hint matches command despite translated label and displays one shortcut')
+assertEqual(hints['learn.other'], undefined, 'same label does not imply same action')
+assertEqual(hints.system, '⌘Esc', 'global Lua menu binding matches submenu')
+assertEqual(hints.tools, '⌘Esc', 'link shares the target submenu shortcut')
+assertEqual(hints.clipboard, '⌘⌃V', 'global panel binding matches summon action')
+assertEqual(menu.shortcutCommand("echo a && echo b"), '', 'compound command is not mistaken for a simple action')
+assertEqual(menu.shortcutCommand('echo "$VALUE"'), '', 'expanded command is opaque')
+assertEqual(menu.shortcutCommand("omarchy-menu summon 'system'"), menu.shortcutCommand('omarchy menu summon system'), 'CLI and binary routes agree')
+assertEqual(menu.shortcutChord('SUPER SHIFT + RETURN / XF86Calculator'), '⌘⇧↵', 'only first alternative is displayed')
+
+const appItems = {
+  terminal: {id: 'terminal', kind: 'app', appId: 'foot', appCommand: ['foot']},
+  browser: {id: 'browser', kind: 'app', appId: 'chromium', appCommand: ['chromium', '%U']},
+  calculator: {id: 'calculator', kind: 'app', appId: 'omacalc', appCommand: ['/usr/bin/omacalc', '%F']},
+  chat: {id: 'chat', kind: 'app', appId: 'ChatGPT', appCommand: ['omarchy-launch-webapp', 'https://chatgpt.com/']},
+  otherChat: {id: 'otherChat', kind: 'app', appId: 'Other', appCommand: ['omarchy-launch-webapp', 'https://example.com/']},
+  obsidian: {id: 'obsidian', kind: 'app', appId: 'obsidian', appCommand: ['/usr/bin/obsidian', '%U']},
+  signal: {id: 'signal', kind: 'app', appId: 'signal', appCommand: ['signal-desktop', '--', '%u']}
+}
+const appIndex = menu.shortcutIndex([
+  'SUPER + RETURN → Terminal\tdesktop\tfoot.desktop',
+  'SUPER SHIFT + RETURN → Browser\tdesktop\tchromium.desktop',
+  'SUPER SHIFT + Q → Calculator\texec\tomacalc',
+  "SUPER SHIFT + A → ChatGPT\texec\tomarchy-launch-webapp 'https://chatgpt.com'",
+  "SUPER SHIFT + O → Obsidian\texec\tomarchy-launch-or-focus '^obsidian$' 'uwsm-app -- obsidian'",
+  'SUPER SHIFT + G → Signal\texec\tomarchy-launch-signal'
+].join('\n'))
+const appHints = menu.shortcutHints(appItems, Object.keys(appItems), appIndex)
+assertEqual(appHints.terminal, '⌘↵', 'app matches configured terminal desktop ID')
+assertEqual(appHints.browser, '⌘⇧↵', 'app matches configured browser desktop ID')
+assertEqual(appHints.calculator, '⌘⇧Q', 'desktop app matches launch command with path and field codes')
+assertEqual(appHints.chat, '⌘⇧A', 'web app matches URL with optional root slash')
+assertEqual(appHints.otherChat, undefined, 'different web app does not inherit shortcut')
+assertEqual(appHints.obsidian, '⌘⇧O', 'focus wrapper resolves to application command')
+assertEqual(appHints.signal, '⌘⇧G', 'built-in app launcher matches desktop command')
+assert(menu.shortcutAppCommand('chromium --incognito') !== menu.shortcutAppCommand(['chromium', '%U']), 'private launch stays distinct from plain browser')
+
 const parsed = menu.parseMenuJsonc(`
 {
   // comment

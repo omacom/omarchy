@@ -5,6 +5,9 @@
 # Hyprland's Lua config provider currently reports Lua binds as dispatcher
 # __lua in `hyprctl binds`. Keep a lightweight source-derived cache so the
 # menu can still show and dispatch those bindings.
+global_only=false
+[[ $1 == "--records" ]] && global_only=true
+
 declare -A LUA_BIND_KEY_MAP
 declare -A LUA_BIND_DISPATCHER_MAP
 declare -A LUA_BIND_ARG_MAP
@@ -396,10 +399,11 @@ dynamic_bindings() {
   # Parse the plain `hyprctl binds` output rather than `hyprctl -j binds`:
   # Hyprland 0.56.0 emits invalid JSON for binds (misaligned fields in
   # bindsRequest), and older versions broke on quotes in bind args.
-  hyprctl binds | awk '
+  hyprctl binds | awk -v global_only="$global_only" '
     function emit() {
       if (!seen) return
       seen = 0
+      if (global_only == "true" && (f["submap"] != "" || f["catchall"] == "true")) return
       printf "%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n", f["modmask"], f["key"], f["keycode"], f["description"], f["dispatcher"], f["arg"]
     }
     /^bind/ { emit(); seen = 1; delete f; next }
@@ -808,7 +812,38 @@ dispatch_binding() {
   esac
 }
 
-if [[ $1 == "--print" || $1 == "-p" ]]; then
+# Resolve configurable launchers once in the background, alongside the binding
+# scan. App rows can then match desktop IDs without running a process on open.
+output_shortcut_records() {
+  local records browser terminal editor display dispatcher arg
+  records=$(output_binding_records_uncached) || return 1
+  printf '%s\n' "$records"
+  if [[ $records == *$'\texec\tomarchy-launch-browser'* ]]; then
+    browser=$(omarchy-cmd-default-browser)
+  fi
+  if [[ $records == *$'\texec\tomarchy-launch-terminal'* ]]; then
+    terminal=$(xdg-terminal-exec --print-id 2>/dev/null)
+    terminal=${terminal%%:*}
+  fi
+  if [[ $records == *$'\texec\tomarchy-launch-editor'* ]]; then
+    editor=$(omarchy-default-editor)
+  fi
+  while IFS=$'\t' read -r display dispatcher arg; do
+    [[ $dispatcher == "exec" ]] || continue
+    case "$arg" in
+      omarchy-launch-browser) [[ -z $browser ]] || printf '%s\tdesktop\t%s\n' "$display" "$browser" ;;
+      omarchy-launch-terminal) [[ -z $terminal ]] || printf '%s\tdesktop\t%s\n' "$display" "$terminal" ;;
+      omarchy-launch-editor) [[ -z $editor ]] || printf '%s\tapp-command\t%s\n' "$display" "$editor" ;;
+    esac
+  done <<<"$records"
+  return 0
+}
+
+if [[ $1 == "--records" ]]; then
+  # Called asynchronously on config reload. Re-scan Lua even if Hyprland
+  # reports the same opaque callback ids for commands whose source changed.
+  output_shortcut_records
+elif [[ $1 == "--print" || $1 == "-p" ]]; then
   output_keybindings
 else
   records=$(output_binding_records)
