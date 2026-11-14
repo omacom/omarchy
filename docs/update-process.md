@@ -257,6 +257,8 @@ Exit codes:
 The widget runs this check on shell startup and every six hours. Clicking the
 update icon launches `omarchy-update` in a floating terminal.
 
+After an update into a feature release, the same icon offers that release's what's-new tour until it has been seen; see [`whats-new.md`](whats-new.md).
+
 ## Channels and versions
 
 Updates install whatever the active channel points at. `omarchy-channel-set

@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# omarchy:summary=Show what's new in this Omarchy release
+# omarchy:args=[release]
+# omarchy:examples=omarchy update whats new | omarchy update whats new 4.5
+
+set -euo pipefail
+
+if (( $# > 0 )); then
+  if [[ ! $1 =~ ^[0-9]+\.[0-9]+$ ]]; then
+    echo "Usage: omarchy-update-whats-new [release]" >&2
+    exit 2
+  fi
+  omarchy-shell shell summon omarchy.whats-new "$(jq -cn --arg release "$1" '{release: $release}')"
+else
+  omarchy-shell shell summon omarchy.whats-new
+fi

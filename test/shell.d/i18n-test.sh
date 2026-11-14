@@ -86,6 +86,7 @@ function assertCatalogMirrors(kind, english, catalog, code) {
 const enShell = readJson('en/shell.json')
 const enCli = readJson('en/cli.json')
 const enKeybindings = readJson('en/keybindings.json')
+const enWhatsNew = readJson('en/whats-new.json')
 const readOptional = (rel) => fs.existsSync(path.join(i18nDir, rel)) ? readJson(rel) : {}
 for (const code of codes) {
   if (code === 'en') continue
@@ -93,6 +94,7 @@ for (const code of codes) {
   assertCatalogMirrors('shell', enShell, readJson(`${code}/shell.json`), code)
   assertCatalogMirrors('cli', enCli, readJson(`${code}/cli.json`), code)
   assertCatalogMirrors('keybindings', enKeybindings, readOptional(`${code}/keybindings.json`), code)
+  assertCatalogMirrors('whats-new', enWhatsNew, readOptional(`${code}/whats-new.json`), code)
 }
 
 // Every catalog key must be referenced by the code that displays it, and
@@ -503,6 +505,8 @@ fi
 extract_candidates=$(python3 "$ROOT/scripts/i18n-sync.py" extract-scan | jq -c '.candidates | length')
 keybindings_stale=$(python3 "$ROOT/scripts/i18n-sync.py" extract-scan | jq -c '.keybindingsCatalogStale')
 assert_bash_equal "$keybindings_stale" "false" "the English keybindings catalog matches the Hyprland bindings"
+whats_new_stale=$(python3 "$ROOT/scripts/i18n-sync.py" extract-scan | jq -c '.whatsNewCatalogStale')
+assert_bash_equal "$whats_new_stale" "false" "the English what's-new catalog matches the release notes"
 assert_bash_equal "$extract_candidates" "0" "no embedded English literals await extraction"
 
 # A miniature tree exercises staleness: one key changed in English, one
