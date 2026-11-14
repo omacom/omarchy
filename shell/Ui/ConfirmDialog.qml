@@ -40,6 +40,8 @@ Item {
   }
 
   visible: opened
+  // The prompt card's own height, so a short host can grow to hold it.
+  implicitHeight: card.height
 
   Rectangle {
     anchors.fill: parent
@@ -81,7 +83,24 @@ Item {
           wrapMode: Text.WordWrap
         }
 
+        TextMetrics { id: cancelMetrics; font.family: root.fontFamily; font.pixelSize: Style.font.caption; text: root.cancelText }
+        TextMetrics { id: confirmMetrics; font.family: root.fontFamily; font.pixelSize: Style.font.caption; text: root.confirmText }
+
         Row {
+          id: buttons
+
+          // Each button fits its label, never narrower than the usual 88. When
+          // the card is too narrow for both, the longer label gives way first
+          // and elides, so the buttons never overlap or leave the card.
+          readonly property var natural: [cancelMetrics.advanceWidth, confirmMetrics.advanceWidth].map(function(width) {
+            return Math.max(Style.space(88), Math.ceil(width) + Style.space(24))
+          })
+          readonly property real room: parent.width - spacing
+
+          function buttonWidth(index) {
+            return Math.min(natural[index], Math.max(room / 2, room - natural[1 - index]))
+          }
+
           anchors.right: parent.right
           anchors.bottom: parent.bottom
           spacing: Style.space(10)
@@ -96,7 +115,7 @@ Item {
               readonly property bool selected: root.selectedIndex === index
               readonly property bool destructive: index === 1
 
-              width: Style.space(88)
+              width: buttons.buttonWidth(index)
               height: Style.space(34)
               color: selected
                 ? (destructive ? Util.alpha(Commons.Color.urgent, 0.22) : root.selectedBackground)
@@ -109,6 +128,8 @@ Item {
               Text {
                 textFormat: Text.PlainText
                 anchors.centerIn: parent
+                width: Math.min(implicitWidth, parent.width - Style.space(12))
+                elide: Text.ElideRight
                 text: modelData
                 color: destructive ? (selected ? Commons.Color.urgent : root.foreground) : (selected ? root.selectedText : root.foreground)
                 font.family: root.fontFamily
