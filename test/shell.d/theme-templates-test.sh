@@ -334,3 +334,20 @@ else
   (( status != 124 )) || fail "omarchy-theme-color hangs when --file has no value"
 fi
 pass "omarchy-theme-color fails cleanly when --file lacks a value"
+
+# Installing a terminal can fill one newly introduced file in the current
+# theme without regenerating unrelated app configs or staging a theme swap.
+current="$test_tmp/current-theme"
+mkdir -p "$current"
+cp "$ROOT/themes/tokyo-night/colors.toml" "$current/colors.toml"
+printf 'custom foot settings\n' >"$current/foot.ini"
+HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" --file wezterm.lua "$current"
+grep -Fq 'background = "#1a1b26"' "$current/wezterm.lua" || fail "single-file rendering uses the selected theme palette"
+[[ ! -e $current/alacritty.toml && ! -e $current/shell.toml ]] || fail "single-file rendering leaves unrelated templates alone"
+[[ $(<"$current/foot.ini") == "custom foot settings" ]] || fail "single-file rendering keeps existing app settings"
+printf 'custom colors\n' >"$current/wezterm.lua"
+HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" \
+  "$ROOT/bin/omarchy-theme-set-templates" --file wezterm.lua "$current"
+[[ $(<"$current/wezterm.lua") == "custom colors" ]] || fail "single-file rendering preserves an existing generated file"
+pass "single-file rendering fills a missing current-theme config without a theme refresh"
