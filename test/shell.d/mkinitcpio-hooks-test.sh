@@ -100,10 +100,14 @@ compose() {
   ' -- "$config"
 }
 
+# thunderbolt_hook.conf sorts after every drop-in here and adds its hook to
+# whatever line they compose, so each expected line ends with it.
+thunderbolt_hook=omarchy-thunderbolt
+
 assert_composed() {
   local description="$1" platform="$2" hooks="$3" modules="$4" files="$5"
   local expected actual
-  expected=$(printf 'HOOKS=%s\nMODULES=%s\nFILES=%s\n' "$hooks" "$modules" "$files")
+  expected=$(printf 'HOOKS=%s\nMODULES=%s\nFILES=%s\n' "$hooks $thunderbolt_hook" "$modules" "$files")
   actual=$(compose "$platform") || fail "$description" "the drop-ins do not source cleanly"
   [[ $actual == "$expected" ]] ||
     fail "$description" "expected:"$'\n'"$expected"$'\n'"actual:"$'\n'"$actual"
@@ -111,7 +115,7 @@ assert_composed() {
 }
 
 assert_hooks() {
-  local description="$1" platform="$2" expected="$3" actual
+  local description="$1" platform="$2" expected="$3 $thunderbolt_hook" actual
   actual=$(compose "$platform") || fail "$description" "the drop-ins do not source cleanly"
   actual=$(sed -n 's/^HOOKS=//p' <<<"$actual")
   [[ $actual == "$expected" ]] ||

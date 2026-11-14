@@ -1,0 +1,14 @@
+[Unit]
+Description=Rebuild the boot image when Bolt's Thunderbolt approvals change
+# The omarchy-thunderbolt mkinitcpio hook copies Bolt's approvals into the
+# image. Bolt rewrites a device record when it stores, forgets or changes the
+# device, and boltd.conf when its auth mode changes. Connecting and authorizing
+# a device only record times, in a directory of their own, so a rebuild follows
+# a decision about a device, not each time it is plugged in.
+
+[Path]
+PathChanged=/var/lib/boltd/devices
+PathChanged=/var/lib/boltd/boltd.conf
+
+[Install]
+WantedBy=paths.target

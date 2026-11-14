@@ -1,0 +1,6 @@
+[Unit]
+Description=Rebuild the boot image for Bolt's Thunderbolt approvals
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-thunderbolt-boot-rebuild

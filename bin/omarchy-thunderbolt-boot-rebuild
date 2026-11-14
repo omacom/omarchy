@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# omarchy:summary=Rebuild the boot image after Bolt's Thunderbolt approvals change
+# omarchy:hidden=true
+
+# omarchy-thunderbolt-boot.path runs this as root whenever Bolt stores, forgets
+# or changes a device, or its auth mode changes. The omarchy-thunderbolt
+# mkinitcpio hook copies Bolt's approvals into the image when it is built, so
+# without a rebuild a forgotten device would still be authorized at the next
+# disk unlock prompt, and a newly approved one would wait for a kernel update.
+
+set -euo pipefail
+
+store=${OMARCHY_BOLT_STORE:-/var/lib/boltd}
+pacman_lock=${OMARCHY_PACMAN_LOCK:-/var/lib/pacman/db.lck}
+
+# Bolt's config and every device record with its name, to tell whether the
+# store changed while an image was being built. Either may be missing.
+store_state() {
+  { grep -rs '' "$store/boltd.conf" "$store/devices" || true; } | sha256sum
+}
+
+rebuild() {
+  local log status
+
+  log=$(mktemp)
+  if omarchy-cmd-present limine-mkinitcpio; then
+    limine-mkinitcpio 2>&1 | tee "$log"
+  else
+    mkinitcpio -P 2>&1 | tee "$log"
+  fi
+  status=("${PIPESTATUS[@]}")
+
+  # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+  if (( status[0] != 0 || status[1] != 0 )) || grep -q 'mkinitcpio failed for kernel' "$log"; then
+    rm -f "$log"
+    echo "Could not rebuild the boot image; Thunderbolt devices at the disk unlock prompt follow Bolt again once it rebuilds." >&2
+    exit 1
+  fi
+  rm -f "$log"
+}
+
+# A package transaction may be building the same images. Its own rebuild can
+# have read the store before this change, so wait for it and build after.
+for _ in {1..900}; do
+  [[ -e $pacman_lock ]] || break
+  sleep 1
+done
+if [[ -e $pacman_lock ]]; then
+  echo "A pacman transaction is still running; the boot image was not rebuilt." >&2
+  exit 1
+fi
+
+# Bolt can write again while an image is being built, after the hook read the
+# store. Build until an image saw the store as it is.
+for _ in {1..5}; do
+  before=$(store_state)
+  rebuild
+  [[ $(store_state) == $before ]] && exit 0
+done
