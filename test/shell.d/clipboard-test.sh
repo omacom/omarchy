@@ -410,14 +410,14 @@ pass "clipboard file paste helper copy-only copies file content"
 [[ ! -e "$TMPDIR/wtype" ]] || fail "clipboard file paste helper copy-only skips paste keystroke"
 pass "clipboard file paste helper copy-only skips paste keystroke"
 
-jq -n --arg url 'https://example.com/docs' --arg text "$(printf 'plain text\nsecond line')" --arg image "$TMPDIR/image.png" \
+jq -n --arg url 'See https://example.com/docs and https://example.org/guide' --arg text "$(printf 'plain text\nsecond line')" --arg image "$TMPDIR/image.png" \
   '[{type:"text", text:$url}, {type:"text", text:$text}, {type:"image", mime:"image/png", path:$image}]' >"$TMPDIR/home/.local/state/omarchy/clipboard-history.json"
 
 BROWSER_OUT="$TMPDIR/browser" HOME="$TMPDIR/home" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-open" --history-index 0
 
-[[ $(<"$TMPDIR/browser") == "https://example.com/docs" ]] || fail "clipboard open helper opens URL entries in browser"
-pass "clipboard open helper opens URL entries in browser"
+[[ $(<"$TMPDIR/browser") == "https://example.com/docs" ]] || fail "clipboard open helper opens only the first URL in browser"
+pass "clipboard open helper opens only the first URL in browser"
 
 EDITOR_PATH_OUT="$TMPDIR/editor-path" EDITOR_TEXT_OUT="$TMPDIR/editor-text" HOME="$TMPDIR/home" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" \
   "$ROOT/bin/omarchy-clipboard-open" --history-index 1
