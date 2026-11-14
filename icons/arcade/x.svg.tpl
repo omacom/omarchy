@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" shape-rendering="crispEdges">
+  <title>X</title>
+  <desc>X's logo in pixels: a heavy stroke in the highlight crossed by a light one in the main color.</desc>
+  <!-- A 16 by 16 grid of 28 unit pixels. Each color is one path of rectangles,
+       with a hairline stroke of its own so no seam shows between neighbors. -->
+  <path fill="{{ icon_shadow }}" stroke="{{ icon_shadow }}" d="M60 32h84v28h-84zM368 32h56v28h-56zM32 60h28v28h-28zM144 60h28v28h-28zM340 60h28v28h-28zM424 60h28v28h-28zM60 88h28v28h-28zM172 88h28v28h-28zM312 88h28v28h-28zM396 88h28v28h-28zM88 116h28v28h-28zM200 116h28v28h-28zM284 116h28v28h-28zM368 116h28v28h-28zM116 144h28v28h-28zM228 144h56v28h-56zM340 144h28v28h-28zM144 172h28v28h-28zM312 172h28v28h-28zM172 200h28v56h-28zM284 200h28v28h-28zM312 228h28v28h-28zM144 256h28v28h-28zM228 256h28v28h-28zM340 256h28v28h-28zM116 284h28v28h-28zM200 284h28v28h-28zM256 284h28v28h-28zM368 284h28v28h-28zM88 312h28v28h-28zM172 312h28v28h-28zM284 312h28v28h-28zM396 312h28v28h-28zM60 340h28v28h-28zM144 340h28v28h-28zM312 340h28v28h-28zM424 340h28v28h-28zM32 368h28v28h-28zM116 368h28v28h-28zM340 368h28v28h-28zM452 368h28v28h-28zM60 396h56v28h-56zM368 396h84v28h-84z"/>
+  <path fill="{{ icon_main }}" stroke="{{ icon_main }}" d="M368 60h56v28h-56zM340 88h56v28h-56zM312 116h56v28h-56zM284 144h56v28h-56zM256 172h56v28h-56zM200 228h28v56h-28zM172 256h28v56h-28zM144 284h28v56h-28zM116 312h28v56h-28zM88 340h28v56h-28zM60 368h28v28h-28z"/>
+  <path fill="{{ icon_mark }}" stroke="{{ icon_mark }}" d="M60 60h84v28h-84zM88 88h84v28h-84zM116 116h84v28h-84zM144 144h84v28h-84zM172 172h84v28h-84zM200 200h84v28h-84zM228 228h84v28h-84zM256 256h84v28h-84zM284 284h84v28h-84zM312 312h84v28h-84zM340 340h84v28h-84zM368 368h84v28h-84z"/>
+</svg>

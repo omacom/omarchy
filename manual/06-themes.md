@@ -69,7 +69,7 @@ _White_
 
 The icons in the app launcher and dock are drawn in the colors of your theme, so they change along with it. They come from an icon set, which you pick separately from the theme under _Appearance > Icons_:
 
-- _Papercraft_ is the default: Omarchy's own apps and the other apps that come installed, all drawn in one style.
+- _Papercraft_ is the default: everything that comes installed, drawn in one style. Apps known by their logo, like Chrome, HEY, or YouTube, keep its shape and take on the theme's colors.
 - _Arcade_ draws the same apps as 8-bit pixel art, like an old game console would.
 - _Original_ shows every app with the icon its maker gave it.
 
