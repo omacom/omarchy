@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# snapper plugin: pins a new root snapshot to the boot image current when it
+# was taken and has omarchy-boot-sync publish its entry; a deleted snapshot's
+# entry goes too. Does nothing on a machine still booting Limine.
+#
+# snapper(8): plugins must not call snapper and must finish within seconds, so
+# the pin (one small file) happens here and the image build runs in
+# omarchy-boot-sync.service. `omarchy-snapshot create` waits for it.
+
+action=$1 subvolume=$2 number=${4:-}
+
+[[ $subvolume == / ]] || exit 0
+[[ $(/usr/bin/omarchy-boot-backend) == systemd-boot ]] || exit 0
+
+case $action in
+create-snapshot-post)
+  OMARCHY_BOOT_LOCK_WAIT=20 /usr/bin/omarchy-boot-sync pin "$number" >/dev/null 2>&1 ||
+    logger -t omarchy-boot "could not pin snapshot $number to a boot image"
+  systemctl start --no-block omarchy-boot-sync.service
+  ;;
+delete-snapshot-post)
+  systemctl start --no-block omarchy-boot-sync.service
+  ;;
+esac
+exit 0

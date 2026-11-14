@@ -1,0 +1,15 @@
+#!/bin/bash
+
+build() {
+  add_module btrfs
+  add_module overlay
+  add_binary btrfs
+  add_runscript
+}
+
+help() {
+  cat <<HELPEOF
+Boots a read-only btrfs snapshot (rootflags=subvol=.../.snapshots/N/snapshot)
+with a tmpfs overlay on top, so it runs writable. Changes are lost on reboot.
+HELPEOF
+}

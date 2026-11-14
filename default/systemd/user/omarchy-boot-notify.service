@@ -1,0 +1,10 @@
+[Unit]
+Description=Tell the user about the boot loader switch, snapshot restores and snapshot boots
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/omarchy-boot-notify
+
+[Install]
+WantedBy=graphical-session.target

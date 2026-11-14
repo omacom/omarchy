@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# omarchy:summary=Tell the user at login about the boot loader switch, snapshot restores and snapshot boots
+# omarchy:hidden=true
+
+# Runs once per login from omarchy-boot-notify.service. The root side
+# (omarchy-boot-switch confirm, at boot) leaves a notice in the boot store;
+# this shows each notice once per user. Booted into a snapshot, it offers the
+# restore.
+
+set -euo pipefail
+
+STORE=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
+seen_file=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/boot-notice-seen
+
+state_get() {
+  sed -n "s/^$1=//p" "$STORE/state" 2>/dev/null | tail -1
+}
+
+snapshot=$(sed -n 's#.*rootflags=[^ ]*subvol=[^ ,]*/\.snapshots/\([0-9]*\)/snapshot.*#\1#p' /proc/cmdline)
+notice_id=$(state_get notice_id)
+
+[[ -n $snapshot || (-n $notice_id && $(cat "$seen_file" 2>/dev/null) != "$notice_id") ]] || exit 0
+
+omarchy-notification-wait || true
+
+if [[ -n $snapshot ]]; then
+  omarchy-notification-send -u critical --transient -g "󰁯" "Running snapshot $snapshot" \
+    "Changes made now are discarded at the next reboot. Click to make this snapshot the system." \
+    --exec omarchy-launch-floating-terminal-with-presentation omarchy-snapshot restore "$snapshot"
+fi
+
+if [[ -n $notice_id && $(cat "$seen_file" 2>/dev/null) != "$notice_id" ]]; then
+  omarchy-notification-send -g "󰋊" "$(state_get notice_title)" "$(state_get notice_body)"
+  mkdir -p "$(dirname "$seen_file")"
+  echo "$notice_id" >"$seen_file"
+fi
