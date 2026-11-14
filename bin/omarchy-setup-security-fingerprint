@@ -241,7 +241,8 @@ if (( enroll_status == 0 )); then
       exit 1
     fi
     echo -e "\e[32m\nPerfect! Fingerprint authentication is now configured.\e[0m"
-    echo "You can use your fingerprint for sudo, polkit, and lock screen (Super + Ctrl + L)."
+    lock_shortcut=$(omarchy-hyprland-bind-label "Lock system" || true)
+    echo "You can use your fingerprint for sudo, polkit, and lock screen${lock_shortcut:+ ($lock_shortcut)}."
   else
     echo -e "\e[31m\nVerification failed. You may want to try enrolling again.\e[0m"
     exit 1

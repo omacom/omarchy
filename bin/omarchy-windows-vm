@@ -1359,7 +1359,8 @@ EOF
   echo "Installation is running in the background."
   echo "You can monitor progress at: http://127.0.0.1:8006"
   echo ""
-  echo "Once finished, launch 'Windows' via Super + Space"
+  launcher_shortcut=$(omarchy-hyprland-bind-label Apps || true)
+  echo "Once finished, launch 'Windows' from the app launcher${launcher_shortcut:+ ($launcher_shortcut)}"
   echo ""
   echo "To stop the VM: omarchy-windows-vm stop"
   echo ""
