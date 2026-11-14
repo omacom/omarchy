@@ -19,7 +19,7 @@ ShellRoot {
   // rather than re-importing them as singletons — relative-path imports do
   // not share singleton state, which silently leaves consumers with their
   // own empty copies.
-  property PluginRegistry pluginRegistry: PluginRegistry { }
+  property PluginRegistry pluginRegistry: PluginRegistry { holdRescan: shell.startupDeferring }
   property BarWidgetRegistry barWidgetRegistry: BarWidgetRegistry { }
   property AppLibrary appLibrary: AppLibrary { }
   property BrightnessKeys brightnessKeys: BrightnessKeys { host: shell }
@@ -1087,11 +1087,16 @@ ShellRoot {
     }
   }
 
+  // Services first: loading one waits for every widget component still
+  // compiling, and the background has to answer OWE while the login waits.
   Connections {
     target: shell.pluginRegistry
     function onPluginsChanged() {
       shell.syncPluginApis()
-      if (!shell.pluginReloading) shell._syncServices()
+      if (shell.pluginReloading) return
+      shell._syncServices()
+      shell.syncPluginWidgets()
+      shell.syncPanelEntries()
     }
   }
 
@@ -1237,6 +1242,12 @@ ShellRoot {
       return hidden === true
     }
     invokeIfLoaded(id, "close", null)
+    // A summon still waiting for its panel to load is withdrawn with it.
+    if (pendingPayloads[id]) {
+      var pending = ({})
+      for (var p in pendingPayloads) if (p !== id) pending[p] = pendingPayloads[p]
+      pendingPayloads = pending
+    }
     if (!openPanelIds[id]) return true
     var next = ({})
     for (var k in openPanelIds) if (k !== id) next[k] = openPanelIds[k]
@@ -1340,6 +1351,19 @@ ShellRoot {
   // the model in unloadPanels, so panels still rebuild from fresh code then.
   ListModel { id: panelEntryModel }
 
+  // A login waits for the bar before it reveals, so the menus and overlays
+  // kept loaded, which open only when summoned, load once the cover has
+  // lifted, or after three seconds without a reveal. Summoning one loads it
+  // at once. Panels such as the OSD answer IPC of their own and load as before.
+  property bool startupDeferralOver: false
+  readonly property bool startupDeferring: bootIntro.startupPending && !startupDeferralOver
+
+  Timer {
+    interval: 3000
+    running: shell.startupDeferring
+    onTriggered: shell.startupDeferralOver = true
+  }
+
   function syncPanelEntries() {
     var wanted = ({})
     var order = []
@@ -1388,11 +1412,6 @@ ShellRoot {
     return out
   }
 
-  Connections {
-    target: shell.pluginRegistry
-    function onPluginsChanged() { if (!shell.pluginReloading) shell.syncPanelEntries() }
-  }
-
   Instantiator {
     model: panelEntryModel
     active: true
@@ -1408,7 +1427,7 @@ ShellRoot {
 
       property Loader panelLoader: Loader {
         source: panelEntry.sourceUrl
-        active: panelEntry.sourceUrl !== "" && (panelEntry.keepLoaded || shell.openPanelIds[panelEntry.pluginId] === true)
+        active: panelEntry.sourceUrl !== "" && ((panelEntry.keepLoaded && !(shell.startupDeferring && panelEntry.entryKind !== "panel")) || shell.openPanelIds[panelEntry.pluginId] === true)
         asynchronous: true
         onLoaded: {
           if (!item) return
@@ -1445,12 +1464,14 @@ ShellRoot {
   // Each enabled plugin with kind "bar-widget" gets a Component created from
   // its manifest entry point and registered under its manifest id. Built-in
   // widgets use the same first-party manifest contract as third-party widgets.
-  Connections {
-    target: shell.pluginRegistry
-    function onPluginsChanged() { if (!shell.pluginReloading) shell.syncPluginWidgets() }
-  }
 
   property var pluginWidgetComponents: ({})
+  // No bar widget is still compiling, so the bar shows every widget it has.
+  readonly property bool pluginWidgetsLoaded: {
+    for (var id in pluginWidgetComponents)
+      if (pluginWidgetComponents[id] && !pluginWidgetComponents[id].component) return false
+    return true
+  }
 
   function syncPluginWidgets() {
     var plugins = shell.pluginRegistry.installedPlugins

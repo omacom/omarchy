@@ -73,8 +73,15 @@ BarWidget {
   //      bar-widget root.
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
 
+  // The popup compiles in the background; asking for it before it is done
+  // finishes it on the spot.
+  function popup() {
+    if (!panelLoader.item) panelLoader.asynchronous = false
+    return panelLoader.item
+  }
+
   function open() {
-    if (panelLoader.item) panelLoader.item.open()
+    if (popup()) panelLoader.item.open()
   }
 
   function close() {
@@ -82,11 +89,11 @@ BarWidget {
   }
 
   function togglePanel() {
-    if (panelLoader.item) panelLoader.item.toggle()
+    if (popup()) panelLoader.item.toggle()
   }
 
   function toggleWeekStart() {
-    if (panelLoader.item) panelLoader.item.toggleWeekStart()
+    if (popup()) panelLoader.item.toggleWeekStart()
   }
 
   // The clock fills more slot than it paints a mark for, at both
@@ -127,9 +134,11 @@ BarWidget {
     onDateChanged: root.displayDate = date
   }
 
+  // Compiled off the GUI thread, so the popup does not hold up the bar.
   Loader {
     id: panelLoader
     active: true
+    asynchronous: true
     source: Qt.resolvedUrl("Panel.qml")
     visible: false
     onLoaded: {

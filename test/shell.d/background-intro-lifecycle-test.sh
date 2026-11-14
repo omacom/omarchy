@@ -136,3 +136,61 @@ clip="$switch/media/intros/new.mp4"
 snapshot=$(sed -n 's/.*SNAPSHOT //p' <<<"$output")
 [[ -n $snapshot && ! -e $snapshot ]] || fail "the playing frame's snapshot is removed once the cut has finished" "$snapshot"
 pass "background changes play intros, cut from a playing one, and reload Hyprland after a theme's intro"
+
+# A launcher that reports the intro's first frame: the cover lifts on its
+# "shown" line, OWE is never polled for frames, and the held clip is played.
+shown="$stage/shown"
+mkdir -p "$shown/services" "$shown/bin" "$shown/home"
+cp "$ROOT/shell/services/BackgroundIntro.qml" "$shown/services/"
+ln -s "$ROOT/shell/Commons" "$shown/Commons"
+cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/shown-reveal.qml" "$shown/shell.qml"
+cat >"$shown/bin/omarchy-theme-bg-boot-intro" <<'SH'
+#!/bin/bash
+echo intro
+for (( i = 0; i < 80; i++ )); do
+  [[ -e $INTRO_TEST_SHOWN ]] && break
+  sleep 0.05
+done
+echo shown
+sleep 2
+SH
+cat >"$shown/bin/owe" <<'SH'
+#!/bin/bash
+printf 'owe %s\n' "$*" >>"$SHOWN_LOG"
+[[ $1 == render-status ]] && echo '{"kind":"video","ready":true,"has_transition":false,"time_pos":0.05}'
+true
+SH
+cat >"$shown/bin/hyprctl" <<'SH'
+#!/bin/bash
+echo '{"bool":true}'
+SH
+chmod +x "$shown/bin/"*
+touch "$shown/log"
+output=$(HOME="$shown/home" PATH="$shown/bin:$PATH" INTRO_TEST_SHOWN="$shown/frame-shown" SHOWN_LOG="$shown/log" \
+  timeout 10 quickshell -p "$shown" --no-color 2>&1) || fail "shown reveal fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "shown reveal assertions pass" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
+  fail "shown reveal fixture has no QML errors" "$output"
+fi
+log=$(<"$shown/log")
+! grep -q '^owe render-status' <<<"$log" || fail "a reported first frame needs no frame poll" "$log"
+grep -qx 'owe intro-play' <<<"$log" || fail "the reveal plays the held intro" "$log"
+pass "a login reveals on the launcher's reported first frame, without polling OWE, and plays the held intro"
+
+# A launcher that never reports the first frame it announced: the cover falls back to the frame poll.
+cp "$SHELL_TEST_DIR/fixtures/background-intro-lifecycle/shown-missing.qml" "$shown/shell.qml"
+cat >"$shown/bin/omarchy-theme-bg-boot-intro" <<'SH'
+#!/bin/bash
+echo intro
+sleep 4
+SH
+chmod +x "$shown/bin/omarchy-theme-bg-boot-intro"
+: >"$shown/log"
+output=$(HOME="$shown/home" PATH="$shown/bin:$PATH" SHOWN_LOG="$shown/log" timeout 10 quickshell -p "$shown" --no-color 2>&1) ||
+  fail "missing report fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "missing report assertions pass" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
+  fail "missing report fixture has no QML errors" "$output"
+fi
+grep -q '^owe render-status' "$shown/log" || fail "a missing report falls back to the frame poll" "$(cat "$shown/log")"
+pass "a login whose first frame is never reported still reveals by polling OWE"
