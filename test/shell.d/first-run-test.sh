@@ -26,6 +26,8 @@ HOME="$test_tmp/home" PATH="$mock_bin:$PATH" OMARCHY_TEST_FINALIZE_CALLED="$fina
 grep -F 'First-run already complete' "$test_tmp/output" >/dev/null || fail "completed first-run reports its lifecycle gate"
 
 pass "completed first-run exits at its lifecycle gate"
+grep -F 'first-run/chromium-copy-url.sh' "$ROOT/bin/omarchy-provision-first-run" >/dev/null ||
+  fail "first-run does not repair the Copy URL shortcut after install-time migration stamping"
 
 # systemctl enables none of a list when one unit in it is unknown, so a unit
 # missing from a build must cost first-run only that unit.
