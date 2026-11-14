@@ -101,6 +101,12 @@ cat >"$tmp/attempt.sh" <<'SH'
 set -euo pipefail
 
 source "$ROOT/install/provisioning/luks-rekey.sh"
+OMARCHY_FORM_DEFAULTS=$TMP/no-defaults
+source "$ROOT/install/provisioning/setup-form.sh"
+initial_language() { language=en; }
+language_form() { :; }
+fit_console_font() { :; }
+load_tips() { :; }
 source "$TMP/unlock.sh"
 source <(sed -n '/^luks_boot_layout() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" | sed "s|/etc/|$TMP/etc/|g")
 declare -F luks_boot_layout >/dev/null
@@ -236,8 +242,10 @@ setup_functions() {
   FINALIZE_WARNING_FLAG=$TMP/finalize-warning
   username=owner hostname="" timezone=""
   create_user() { :; }
+  record_eula() { :; }
   install_authorized_keys() { :; }
   configure_login() { :; }
+  configure_language() { :; }
   configure_hostname() { :; }
   configure_timezone() { :; }
   finalize_user() { :; }
@@ -265,6 +273,7 @@ attempt() {
   keyboard_form() { :; }
   user_form() { :; }
   confirm_form() { :; }
+  eula_form() { :; }
   notice() {
     printf 'refused: %s\n' "$1" >>"$TMP/screen"
     exit 3
@@ -272,6 +281,7 @@ attempt() {
   set_now() { NOW=0; }
   render_setup_static() { :; }
   render_setup_dynamic() { :; }
+  render_setup_finish() { :; }
   SHOW_CURSOR=""
   run_setup
 }
@@ -378,7 +388,9 @@ enroll_tokens() {
   printf '{"type":"systemd-tpm2","keyslots":["%s"],"tpm2-blob":"AA==","tpm2-pcrs":[7],"tpm2-pcr-bank":"sha256","tpm2-primary-alg":"ecc","tpm2-policy-hash":"00","tpm2-pin":false}' "$slot" |
     cryptsetup token import --disable-external-tokens "$device" || return 1
   cryptsetup token add --key-description "$description" --key-slot "$slot" "$device" >/dev/null || return 1
-  LC_ALL=C cryptsetup open --test-passphrase --verbose --key-file <(printf 'not-a-key') "$device" 2>&1 | grep -qx "Key slot $slot unlocked."
+  local unlocked
+  unlocked=$(LC_ALL=C cryptsetup open --test-passphrase --verbose --key-file <(printf 'not-a-key') "$device" 2>&1) || return 1
+  grep -qx "Key slot $slot unlocked." <<<"$unlocked"
 }
 
 unlock_files_present() {

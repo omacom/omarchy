@@ -45,7 +45,7 @@ Item {
   // the right; the knob, ticks, and pointer are placed by x, so they flip here.
   readonly property bool mirrored: LayoutMirroring.enabled
   function trackX(fraction) {
-    return track.width * (root.mirrored ? 1 - fraction : fraction)
+    return track.x + track.width * (root.mirrored ? 1 - fraction : fraction)
   }
 
   Rectangle {
@@ -53,6 +53,8 @@ Item {
     anchors.verticalCenter: parent.verticalCenter
     anchors.left: parent.left
     anchors.right: parent.right
+    anchors.leftMargin: root.knobSize / 2
+    anchors.rightMargin: root.knobSize / 2
     height: root.trackHeight
     radius: height / 2
     color: root.trackColor
@@ -82,8 +84,7 @@ Item {
       radius: 1
       color: root.tickColor
       anchors.verticalCenter: track.verticalCenter
-      x: Math.max(0, Math.min(track.width - width,
-                              root.trackX(index / (root.tickCount - 1)) - width / 2))
+      x: root.trackX(index / (root.tickCount - 1)) - width / 2
     }
   }
 
@@ -95,7 +96,7 @@ Item {
     color: root.knobColor
     borderSpec: Border.flat(root.bar ? root.bar.background : "#101315", Math.max(1, Style.space(2)))
     anchors.verticalCenter: track.verticalCenter
-    x: Math.max(0, Math.min(track.width - width, root.trackX(root.progress) - width / 2))
+    x: root.trackX(root.progress) - width / 2
     scale: root._hot ? 1.15 : 1.0
 
     Behavior on x {
@@ -116,8 +117,10 @@ Item {
     acceptedButtons: Qt.LeftButton | Qt.RightButton
 
     function valueFromX(x) {
-      var clamped = Math.max(0, Math.min(track.width, root.mirrored ? track.width - x : x))
-      var raw = root.minimum + (clamped / track.width) * root.range
+      if (track.width <= 0) return root.minimum
+      var fraction = Math.max(0, Math.min(1, (x - track.x) / track.width))
+      if (root.mirrored) fraction = 1 - fraction
+      var raw = root.minimum + fraction * root.range
       if (root.integer) raw = Math.round(raw)
       return Math.max(root.minimum, Math.min(root.maximum, raw))
     }

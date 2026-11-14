@@ -1,0 +1,19 @@
+{
+  "name": "setup",
+  "kind": "setup",
+  "context": "From the ISO's boot menu please do the following:\n\n- The screen is shown again after every action, so keep acting and looking at it.\n- the install writes for a long time; keep taking images rather than waiting.\n- if the ISO's boot menu shows again after the reboot, choose the entry that boots the installed disk, not the installer.\n- Super+Enter is <M-ENTER> and Super+W is <M-w>.\n- the package download needs a few seconds; keep taking images until the prompt returns.",
+  "steps": [
+    "Boot the installer and take the default for every question except the ones below.",
+    "Create the user with the username prime. Exactly prime: all lowercase, nothing else.",
+    "Set the password to prime. Exactly prime: all lowercase, nothing else.",
+    "If the installer asks for a disk encryption passphrase, it is prime as well.",
+    "Do not use the mouse on the Omarchy installer. The mouse is only available after the account is created and the machine has rebooted.",
+    "When you see the green Reboot Now button, press Enter. Do not click it.",
+    "After that reboot, answer prime to the passphrase or login prompt and reach the desktop.",
+    "On the desktop, press Super+Enter. A terminal opens.",
+    "In the terminal, type `omarchy-pkg-add qemu-guest-agent && sudo systemctl start qemu-guest-agent; systemctl is-active qemu-guest-agent` and press Enter. When sudo asks for the password, type prime and press Enter. The last line printed is `active`.",
+    "Press Super+W. The terminal closes.",
+    "Once the desktop is confirmed, leave it showing. Do not shut down, reboot or log out: the machine is kept running, as it is, after the last step."
+  ],
+  "proof": "* On success\n** Screendumps of the installer's user step showing the username prime, and of the desktop after the reboot, logged in as prime\n** The terminal printing `active` after the qemu-guest-agent install, and the desktop after it closed\n* If unsuccessful\n** the screen where the install stopped, and the serial dump"
+}

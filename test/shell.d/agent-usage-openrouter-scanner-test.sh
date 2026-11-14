@@ -108,6 +108,19 @@ expect("activity folds prompt and completion tokens per model, with its active d
 expect("activity counts reasoning inside the completion tokens, once, as output",
        [activity["modelUsage"]["gpt-4.1-2025-04-14"]["inputTokens"], activity["modelUsage"]["gpt-4.1-2025-04-14"]["outputTokens"],
         activity["modelUsage"]["gpt-4o-mini"]["outputTokens"]], [50, 125, 4], activity)
+expect("activity's rated usage is the last 30 days' account spend, by day, and an older row adds none", activity["spend"],
+       {"amount": 0.015, "cap": 0.0, "currency": "USD", "days": [0.0] * 29 + [0.015], "estimated": False}, activity)
+# The window's first day counts and the day before it does not; an amount
+# that is no number counts as nothing rather than failing the record.
+first_day, day_before = ((TODAY - timedelta(days=offset)).strftime("%Y-%m-%d") for offset in (29, 30))
+spend = module.summarize_activity([
+  {"date": first_day, "model": "x/y-model", "usage": 2.0},
+  {"date": day_before, "model": "x/y-model", "usage": 9.0},
+  {"date": TODAY.strftime("%Y-%m-%d"), "model": "x/y-model", "usage": "n/a"},
+  {"date": TODAY.strftime("%Y-%m-%d"), "model": "x/y-model", "usage": True},
+], TODAY)["spend"]
+expect("activity spend starts on the window's first day, and an unreadable amount adds none",
+       [spend["amount"], spend["days"][0], spend["days"][-1]], [2.0, 2.0, 0.0], spend)
 expect("a key without a credit limit has no meter, and one with a limit names its period, not a reset time",
        [module.key_limit_meter({"limit": None, "limit_remaining": None}), module.key_limit_meter({"limit": 10, "limit_remaining": 4, "limit_reset": "weekly"})],
        [[], [{"label": "Weekly key limit", "title": "Weekly key limit", "percent": 0.6, "resetsAt": ""}]])

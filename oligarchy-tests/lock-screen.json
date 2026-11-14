@@ -1,0 +1,11 @@
+{
+  "name": "lock-screen",
+  "kind": "resume",
+  "context": "From the desktop please do the following:\n\n- Super+Escape is `<M-ESC>`. Password is `prime`.\n- The lock screen turns black 5 seconds after the last key. Keys still reach the password field. Press Shift to bring it back. Do not report a missing clock.",
+  "steps": [
+    "Press Super+Escape. The System menu opens.",
+    "Click Lock. Use the mouse only. The screen locks.",
+    "Type `prime` and press Enter. The desktop returns."
+  ],
+  "proof": "* On success\n** Final screen: the desktop as it was before the lock, with no lock screen or password box over it\n** Supporting: earlier screens show the open System menu, Lock clicked with the mouse, and the lock screen's password box\n* If unsuccessful\n** The lock screen still up after `prime`, a desktop that never locked, or the crash dialog"
+}

@@ -26,10 +26,10 @@ assert_packages() {
 }
 
 assert_packages "ARM GSP selection uses native packages" aarch64 gsp \
-  'nvidia-open-dkms nvidia-utils libva-nvidia-driver'
+  'linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver'
 assert_packages "ARM legacy selection omits x86 multilib" aarch64 legacy \
   'nvidia-580xx-dkms nvidia-580xx-utils'
-assert_packages "x86 GSP package selection stays unchanged" x86_64 gsp \
-  'nvidia-open-dkms nvidia-utils lib32-nvidia-utils libva-nvidia-driver'
+assert_packages "x86 GSP package selection adds multilib" x86_64 gsp \
+  'linux-omarchy-nvidia-open nvidia-utils lib32-nvidia-utils libva-nvidia-driver'
 assert_packages "x86 legacy package selection stays unchanged" x86_64 legacy \
   'nvidia-580xx-dkms nvidia-580xx-utils lib32-nvidia-580xx-utils'

@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# omarchy:summary=Link every agent harness's global instructions to ~/.agents/AGENTS.md
+# omarchy:args=[--edit] [harness...]
+# omarchy:examples=omarchy agent instructions | omarchy agent instructions --edit | omarchy agent instructions codex
+
+# One set of personal agent rules, kept in ~/.agents/AGENTS.md beside the
+# shared skills in ~/.agents/skills, and linked into the place each harness
+# reads its global instructions from. Without harness names, only harnesses
+# whose config directory already exists are linked, so nothing is created for
+# agents that were never used; naming one links it regardless, which is how
+# picking a default agent sets it up before its first launch.
+#
+# Some harnesses need no link: omp, kimi and dsh read ~/.agents/AGENTS.md
+# themselves, and crush and amp read ~/.config/AGENTS.md, linked here once
+# for both. Devin and Muse also read ~/.claude/CLAUDE.md, so a link of their
+# own would load the rules twice. OpenClaw's and Hermes' global files are the
+# agent's persona rather than coding rules, Cursor keeps user rules in its
+# cloud dashboard, and Ori has no global file.
+
+set -euo pipefail
+
+edit=false
+if [[ ${1:-} == "--edit" ]]; then
+  edit=true
+  shift
+fi
+
+canonical="$HOME/.agents/AGENTS.md"
+header="<!-- Your instructions for every coding agent. Omarchy links this file into each agent harness (Claude Code, Codex, Pi, OpenCode, and the rest), so what you write here applies to all of them. -->"
+config="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+# harness id -> link path. The directory holding the link must exist for an
+# unnamed run to touch it; freebuff reads a dotfile straight from $HOME, so it
+# is linked only when named or already linked. Claude, Codex and Grok are
+# linked in their primary homes even when CLAUDE_CONFIG_DIR, CODEX_HOME or
+# GROK_HOME select an added account: each account home links that file back
+# to the primary one (omarchy-agent-account-state's shared_files).
+declare -A links=(
+  [config]="$config/AGENTS.md"
+  [claude]="$HOME/.claude/CLAUDE.md"
+  [codex]="$HOME/.codex/AGENTS.md"
+  [pi]="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/AGENTS.md"
+  [opencode]="${OPENCODE_CONFIG_DIR:-$config/opencode}/AGENTS.md"
+  [agy]="$HOME/.gemini/config/AGENTS.md"
+  [grok]="$HOME/.grok/AGENTS.md"
+  [copilot]="${COPILOT_HOME:-$HOME/.copilot}/copilot-instructions.md"
+  [qwen]="${QWEN_HOME:-$HOME/.qwen}/AGENTS.md"
+  [mcode]="${MINIMAX_DATA_DIR:-$HOME/.minimax}/AGENTS.md"
+  [kiro-cli]="$HOME/.kiro/steering/AGENTS.md"
+  [kilo]="$config/kilo/AGENTS.md"
+  [commandcode]="$HOME/.commandcode/AGENTS.md"
+  [freebuff]="$HOME/.AGENTS.md"
+)
+
+backups=()
+
+# Nothing but the explanatory header, or nothing at all, counts as no rules yet.
+blank() {
+  [[ -z $(tr -d '[:space:]' 2>/dev/null <"$canonical") || $(<"$canonical") == "$header" ]]
+}
+
+# A file already there, or a link to one such as a dotfiles checkout, holds
+# rules someone wrote. The first one found becomes the shared file when there
+# is none yet, a link staying pointed at its file; one that matches it is
+# replaced by the link; any other is kept beside it as .bak.
+link() {
+  local target=$1
+  [[ $target -ef $canonical ]] && return
+  if [[ -f $target ]]; then
+    if blank; then
+      if [[ -L $target ]]; then
+        ln -sfn "$(readlink -f "$target")" "$canonical"
+      else
+        mv "$target" "$canonical"
+      fi
+    elif ! cmp -s "$target" "$canonical"; then
+      local backup="$target.bak"
+      [[ -e $backup || -L $backup ]] && backup="$target.$(date +%Y%m%d%H%M%S).bak"
+      mv "$target" "$backup"
+      backups+=("$backup")
+      echo "Kept your previous instructions as $backup" >&2
+    fi
+  elif [[ -e $target || -L $target ]]; then
+    echo "Skipping $target: not a file" >&2
+    return
+  fi
+  mkdir -p "$(dirname "$target")"
+  ln -sfn "$canonical" "$target"
+  echo "Linked $target"
+}
+
+mkdir -p "$(dirname "$canonical")"
+blank && printf '%s\n' "$header" >"$canonical"
+
+if (($#)); then
+  for harness in "$@"; do
+    case "$harness" in
+    omp | kimi | dsh) ;;
+    crush | amp) link "${links[config]}" ;;
+    *) [[ -n ${links[$harness]:-} ]] && link "${links[$harness]}" ;;
+    esac
+  done
+else
+  for harness in "${!links[@]}"; do
+    target=${links[$harness]}
+    if [[ $harness == "freebuff" ]]; then
+      [[ -L $target ]] && link "$target"
+    elif [[ -d $(dirname "$target") ]]; then
+      link "$target"
+    fi
+  done
+fi
+
+if ((${#backups[@]})); then
+  omarchy-notification-send "$(omarchy-i18n agents.instructionsBackedUp)" "$(printf '%s\n' "${backups[@]/#$HOME/\~}")" || true
+fi
+
+if [[ $edit == "true" ]]; then
+  exec omarchy-launch-config-editor "$canonical"
+fi

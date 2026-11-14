@@ -32,5 +32,5 @@ voxtype setup systemd
 systemctl --user enable --now voxtype.service
 
 omarchy-dictation-use voxtype
-hyprctl reload >/dev/null
+omarchy-restart-hyprctl
 omarchy-notification-send -g  "$(omarchy-i18n dictation.voxtypeReady)" "$(omarchy-i18n dictation.hint)" -t 10000

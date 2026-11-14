@@ -1,21 +1,24 @@
 # Gearrthaisce Aontaithe & Stair
 
-De ghnáth ar Linux, teastaíonn `Ctrl + Shift + C/V` uait chun cóipeáil is greamú a dhéanamh sa teirminéal agus `Ctrl + C/V` chun é a dhéanamh i ngach áit eile. Is deacair dul i dtaithí air sin do dhuine ar bith nár rugadh is nár tógadh ar Linux! Mar an gcéanna leis an athrú ó super go ctrl, má tá tú ag teacht ón Mac.
+De ghnáth ar Linux, teastaíonn `Ctrl + Shift + C/V` uait chun cóipeáil is greamú a dhéanamh sa teirminéal agus `Ctrl + C/V` chun é a dhéanamh i ngach áit eile. Is deacair dul i dtaithí air sin d'aon duine nár rugadh agus nár tógadh ar Linux! Is amhlaidh freisin don athrú ó super go ctrl, má tá tú ag teacht ón Mac.
 
-Tugann Omarchy aghaidh ar an dá fhadhb le heochracha gasta gearrthaisce aontaithe a oibríonn (beagnach) i ngach áit. Is iad seo iad:
+Téann Omarchy i ngleic leis an dá fhadhb le haicearraí gearrthaisce aontaithe a oibríonn (beagnach) i ngach áit. Seo iad:
 
-| Eochair ghasta | Ordú |
+| Aicearra | Ordú |
 | ------- | ----------- |
+| Super + A | Roghnaigh gach rud |
 | Super + C | Cóipeáil |
 | Super + X | Gearr |
 | Super + V | Greamaigh |
-| Super + Ctrl + V | Stair ghearrthaisce |
+| Super + Ctrl + V | Stair na gearrthaisce |
 
-_Tabhair faoi deara go n-úsáidfidh formhór na n-úmach gníomhairí `Ctrl + V` chun íomhánna a ghreamú, ach `Super + V` chun téacs a ghreamú._
+_Tabhair faoi deara go n-úsáidfidh formhór na n-úimacha gníomhairí `Ctrl + V` chun íomhánna a ghreamú, ach `Super + V` chun téacs a ghreamú._
 
-### Stair ghearrthaisce
+Úsáid `Super + A`, ansin `Super + C` chun gach rud a chóipeáil i réimse téacs atá i bhfócas nó in aip eile a thacaíonn le `Ctrl + A`. Sa teirminéal, bogann `Ctrl + A` go dtí tús na líne ordaithe in ionad a téacs a roghnú.
 
-Soláthraíonn blaosc Omarchy stair na gearrthaisce agus oibríonn sí do théacs agus d'íomhánna araon. Spreagann tú í le `Super + Ctrl + V`, roghnaíonn tú d'iontráil le return, agus ansin cuirfear sin ar an ngearrthaisce réidh le greamú ar `Super + V`.
+### Stair na gearrthaisce
+
+Is é blaosc Omarchy a sholáthraíonn stair na gearrthaisce agus oibríonn sí do théacs agus d'íomhánna araon. Gníomhaíonn tú í le `Super + Ctrl + V`, roghnaíonn tú d'iontráil le return, agus ansin cuirfear sin ar an ngearrrthaisce réidh le greamú ar `Super + V`.
 
  ![clipboard-history](images/clipboard-history.webp)
 

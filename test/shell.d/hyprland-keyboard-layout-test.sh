@@ -7,7 +7,7 @@ require_command xkbcli
 
 resolved_input_for() {
   local module="$1"
-  OMARCHY_PATH="$ROOT" OMARCHY_MODULE="$module" OMARCHY_VCONSOLE="${2-}" lua <<'LUA'
+  OMARCHY_PATH="$ROOT" OMARCHY_MODULE="$module" OMARCHY_VCONSOLE="${2-}" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local vconsole = os.getenv("OMARCHY_VCONSOLE")
@@ -77,9 +77,9 @@ assert_resolved_input() {
   local actual
 
   if (( $# > 3 )); then
-    actual=$("$resolver" "$4")
+    actual=$("$resolver" "$4") || fail "$description" "$actual"
   else
-    actual=$("$resolver")
+    actual=$("$resolver") || fail "$description" "$actual"
   fi
 
   [[ $actual == "$expected" ]] ||

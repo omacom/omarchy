@@ -51,7 +51,7 @@ recover_modeless() {
       reloaded=0
       # Reloading into half-replaced package config is what the guard prevents.
       if (( state == 0 )) && ! omarchy-hyprland-reload-guard paused; then
-        hyprctl reload >/dev/null 2>&1 || true
+        omarchy-restart-hyprctl
         reloaded=1
       fi
 

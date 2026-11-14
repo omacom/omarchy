@@ -5,6 +5,8 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 export PATH="$ROOT/bin:$PATH"
+# Reload this session's Hyprland, as a desktop does, even when run over ssh.
+export HYPRLAND_INSTANCE_SIGNATURE=test
 
 require_command jq
 require_command lua
@@ -107,6 +109,7 @@ package_defaults = [
   ("default/systemd/user/omarchy-tailscale-receive.service", "/usr/lib/systemd/user/omarchy-tailscale-receive.service", "systemd/user/omarchy-tailscale-receive.service"),
   ("default/systemd/user/omarchy-fcitx5.service", "/usr/lib/systemd/user/omarchy-fcitx5.service", "systemd/user/omarchy-fcitx5.service"),
   ("default/systemd/user/omarchy-crash-watch.service", "/usr/lib/systemd/user/omarchy-crash-watch.service", "systemd/user/omarchy-crash-watch.service"),
+  ("default/systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf", "/usr/lib/systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf", "systemd/user/wireplumber.service.d/10-omarchy-camera-access.conf"),
   ("default/systemd/zram-generator.conf.d/90-omarchy.conf", "/usr/lib/systemd/zram-generator.conf.d/90-omarchy.conf", "systemd/zram-generator.conf.d/90-omarchy.conf"),
   ("default/systemd/timesyncd.conf.d/10-omarchy.conf", "/usr/lib/systemd/timesyncd.conf.d/10-omarchy.conf", "systemd/timesyncd.conf.d/10-omarchy.conf"),
   ("default/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "/usr/lib/systemd/system/plocate-updatedb.service.d/10-omarchy.conf", "systemd/system/plocate-updatedb.service.d/10-omarchy.conf"),
@@ -180,7 +183,7 @@ else
   skip "package-owned defaults live outside config: needs the omarchy-pkgs checkout; set OMARCHY_PKGS_PATH to it"
 fi
 
-OMARCHY_PATH="$ROOT" lua <<'LUA'
+OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "Hyprland bootstrap reloads cached Omarchy config modules"
 package.loaded["default.hypr.omarchy"] = true
 package.loaded["default.hypr.require_optional"] = true
 package.loaded["hypr.looknfeel"] = true

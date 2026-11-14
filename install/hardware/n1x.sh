@@ -97,14 +97,6 @@ printf '%s\n' \
   'BOOT_ORDER="linux-omarchy, linux-omarchy-fallback, *, Snapshots"' \
   > /etc/limine-entry-tool.d/zz-omarchy-n1x-boot-order.conf
 
-mapfile -t n1x_pkgbase_files < <(grep -lFx linux-omarchy /usr/lib/modules/*/pkgbase 2>/dev/null || true)
-if (( ${#n1x_pkgbase_files[@]} != 1 )); then
-  echo "Error: expected one installed linux-omarchy module tree, found ${#n1x_pkgbase_files[@]}" >&2
-  return 1
-fi
-n1x_kernel_version=${n1x_pkgbase_files[0]#/usr/lib/modules/}
-n1x_kernel_version=${n1x_kernel_version%/pkgbase}
-
 # GPU policy, decided by the system firmware version.
 #
 # Dell's pre-release firmware (0.x, e.g. 0.60.1) leaves the GPU's secure boot
@@ -122,22 +114,9 @@ n1x_kernel_version=${n1x_kernel_version%/pkgbase}
 # eDP-1 at 1920x1200@120 with nothing else configured.
 bios_version=$(cat /sys/class/dmi/id/bios_version 2>/dev/null || true)
 rm -f /etc/modprobe.d/nvidia.conf /etc/mkinitcpio.conf.d/nvidia.conf /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf
-n1x_gpu_driver=unloaded
 if [[ ! $bios_version =~ ^0\. ]]; then
-  omarchy-pkg-add nvidia-open-dkms nvidia-utils libva-nvidia-driver
-  # Early KMS lists the NVIDIA modules in the initramfs, so a DKMS build that
-  # failed for this kernel would fail every UKI build. Fall back to the
-  # firmware framebuffer instead: a software-rendered desktop beats no boot.
-  if modinfo -k "$n1x_kernel_version" nvidia nvidia_modeset nvidia_uvm nvidia_drm &>/dev/null; then
-    n1x_gpu_driver=nvidia
-  else
-    echo "WARNING: no NVIDIA DKMS modules for $n1x_kernel_version; keeping the NVIDIA stack unloaded" >&2
-  fi
-else
-  echo "N1x firmware $bios_version: GPU firmware cannot boot on this BIOS; keeping the NVIDIA stack unloaded"
-fi
-if [[ $n1x_gpu_driver == nvidia ]]; then
   echo "N1x firmware $bios_version: GPU drives the panel"
+  omarchy-pkg-add linux-omarchy-nvidia-open nvidia-utils libva-nvidia-driver
   cat > /etc/modprobe.d/nvidia.conf <<'CONF'
 options nvidia_drm modeset=1 fbdev=1
 CONF
@@ -194,6 +173,7 @@ HOOKS=("${_omarchy_n1x_hooks[@]}")
 unset _omarchy_n1x_hooks _omarchy_n1x_hook
 CONF
 else
+  echo "N1x firmware $bios_version: GPU firmware cannot boot on this BIOS; keeping the NVIDIA stack unloaded"
   rm -f /etc/limine-entry-tool.d/00-omarchy-n1x-gpu.conf \
     /etc/mkinitcpio.conf.d/zz-omarchy-n1x-boot-brightness.conf
   cat > /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf <<'CONF'

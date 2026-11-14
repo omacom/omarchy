@@ -1,8 +1,7 @@
 #!/bin/bash
 
-# The DeepSeek collector's prepaid balance: DeepSeek's balance answer, the
-# estimated ledger a funded amount adds, and the balance kept past a failed
-# check. A balance has no windows, so check_limits_contract (which holds
+# The DeepSeek collector's prepaid balance: DeepSeek's balance answer, with
+# no funded figure, and the balance kept past a failed check. A balance has no windows, so check_limits_contract (which holds
 # limits) doesn't apply; the same contract is held for the balance here. The
 # unused-machine record is held centrally by the partition test, the limits
 # cache's mechanics by the shared test, and the scan cache by the scanner
@@ -62,12 +61,13 @@ answer["total"] = "40.00"
 record, http = deepseek()
 expect("DeepSeek collector --force asks past the reuse window", [http.count, record["balance"]["remaining"]], [1, 40.0], record)
 
-# The estimated ledger comes from fundedAmount, applied to a kept balance too.
+# DeepSeek never says what was bought, and a funding figure left in the old
+# deepseek.json is no longer read: the balance is what is left, alone.
 write_json(config_home() / "omarchy" / "agents" / "deepseek.json", {"fundedAmount": 50})
 answer.update(total="8.15", currency="USD")
 record, _ = deepseek()
-expect("DeepSeek collector derives the estimated ledger from fundedAmount",
-       record["balance"], {"remaining": 8.15, "funded": 50.0, "spent": 41.85, "currency": "USD", "estimated": True}, record)
+expect("DeepSeek collector shows the remaining balance with no funded figure",
+       record["balance"], {"remaining": 8.15, "funded": 0.0, "spent": 0.0, "currency": "USD", "estimated": False}, record)
 fetched_at = record["limitsFetchedAt"]
 
 # A failed check keeps the last good balance, marked stale with when it was
@@ -83,7 +83,7 @@ cases = {
 for name, (mode, retry, help_text, status) in cases.items():
   record, _ = deepseek(mode)
   check(f"DeepSeek collector keeps the last balance, stale, when DeepSeek {name}",
-        record["balance"]["remaining"] == 8.15 and record["balance"]["estimated"] is True and record["limitsStale"] is True
+        record["balance"]["remaining"] == 8.15 and record["limitsStale"] is True
         and record["limitsFetchedAt"] == fetched_at and record["usageStatusText"] == status
         and bool(record.get("retryAdvised")) is retry and help_text in record["authHelpText"], record)
 

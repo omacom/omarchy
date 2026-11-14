@@ -296,13 +296,65 @@ grep -Fq "Choose default agent with" "$test_tmp/no-agent-output" ||
 [[ ! -s $launch_log ]] || fail "agent launcher starts nothing without a default"
 pass "agent launcher refuses to launch without a default"
 
+# The agents panel launches a running local model whether or not a default was
+# chosen; it opens in an agent with an overlay all the same.
+cat >"$mock_bin/omarchy-agent-local" <<'SH'
+#!/bin/bash
+[[ $1 == "overlay" ]] && printf '%s\n' "/overlays/$2-local.config" omarchy-local test-model
+SH
+chmod +x "$mock_bin/omarchy-agent-local"
+: >"$launch_log"
+omarchy-agent --local-model test-model >"$test_tmp/local-output" 2>&1 ||
+  fail "agent launcher opens a local model without a default: $(<"$test_tmp/local-output")"
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"/overlays/"*"-local.config"* ]] ||
+  fail "agent launcher points the local model's agent at its overlay: ${launch_args[*]}"
+rm "$mock_bin/omarchy-agent-local"
+pass "agent launcher opens a local model without a default"
+
+# Qwen Code opens on a local model from an omarchy-local-ai that writes its
+# overlay: the endpoint and model as flags, the key read from its file inside
+# the terminal, never on a command line. An older one leaves it to pi.
+printf 'local-secret-key' >"$test_tmp/local-key"
+cat >"$mock_bin/omarchy-agent-local" <<'SH'
+#!/bin/bash
+if [[ $1 == "overlay" && $2 == "--help" ]]; then
+  [[ -n ${OMARCHY_TEST_QWEN_OVERLAY:-} ]] && echo "agent {opencode,pi,qwen}" || echo "agent {opencode,pi}"
+elif [[ $1 == "overlay" && $2 == "qwen" ]]; then
+  printf '{"baseUrl": "http://127.0.0.1:11435/v1", "model": "test-model", "keyFile": "%s"}\n' "$OMARCHY_TEST_KEY_FILE" >"$OMARCHY_TEST_QWEN_FILE"
+  printf '%s\n' "$OMARCHY_TEST_QWEN_FILE" omarchy-local test-model
+elif [[ $1 == "overlay" ]]; then
+  printf '%s\n' "/overlays/$2-local.config" omarchy-local test-model
+fi
+SH
+chmod +x "$mock_bin/omarchy-agent-local"
+printf '#!/bin/bash\nprintf "key=%%s args=%%s\\n" "$OPENAI_API_KEY" "$*"\n' >"$mock_bin/qwen"
+chmod +x "$mock_bin/qwen"
+: >"$launch_log"
+OMARCHY_TEST_QWEN_OVERLAY=1 OMARCHY_TEST_KEY_FILE="$test_tmp/local-key" OMARCHY_TEST_QWEN_FILE="$test_tmp/qwen-overlay.json" \
+  omarchy-agent --agent qwen --local-model test-model >"$test_tmp/qwen-local-output" 2>&1 ||
+  fail "agent launcher opens Qwen Code on a local model: $(<"$test_tmp/qwen-local-output")"
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} != *"local-secret-key"* ]] || fail "agent launcher keeps the local key off Qwen Code's command line"
+qwen_output=$("${launch_args[@]:1}")
+[[ $qwen_output == "key=local-secret-key args=--yolo --auth-type openai --openai-base-url http://127.0.0.1:11435/v1 --model test-model" ]] ||
+  fail "Qwen Code gets the local endpoint and model as flags and the key in its environment: $qwen_output"
+: >"$launch_log"
+OMARCHY_TEST_KEY_FILE="$test_tmp/local-key" omarchy-agent --agent qwen --local-model test-model >"$test_tmp/qwen-old-output" 2>&1 ||
+  fail "agent launcher falls back from Qwen Code on an older omarchy-local-ai: $(<"$test_tmp/qwen-old-output")"
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == *"/overlays/"*"-local.config"* && ${launch_args[*]} != *"--auth-type"* ]] ||
+  fail "an omarchy-local-ai without Qwen Code's overlay opens the local model in pi or OpenCode: ${launch_args[*]}"
+rm "$mock_bin/omarchy-agent-local" "$mock_bin/qwen" "$test_tmp/local-key"
+pass "agent launcher opens Qwen Code on a local model, keeping its key off the command line"
+
 # The keybinding uses --pick, where an error on stderr nobody sees would make
 # the keypress look broken. It offers the choice instead.
 : >"$launch_log"
 : >"$menu_log"
 omarchy-agent --pick
 mapfile -d '' -t menu_args <"$menu_log"
-[[ ${menu_args[*]} == "summon setup.default.agent" ]] ||
+[[ ${menu_args[*]} == "summon agent.harness" ]] ||
   fail "--pick opens the agent defaults menu when none is set"
 [[ ! -s $launch_log ]] || fail "--pick starts nothing when no agent is set"
 pass "--pick opens the agent defaults menu when none is set"
@@ -461,6 +513,50 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
 [[ ${#agent_open_args[@]} == 2 && ${agent_open_args[0]} == "omarchy-agent" && ${agent_open_args[1]} == "--inline" ]] ||
   fail "newly installed agent opens in the installation terminal"
 pass "missing agents install visibly and open in the same terminal"
+
+rm "$mock_bin/hyprctl"
+cat >"$mock_bin/hyprctl" <<SH
+#!/bin/bash
+if [[ \$1 == "clients" ]]; then
+  echo '[{"pid": $$, "address": "0xc0ffee", "workspace": {"name": "special:qconsole"}}]'
+else
+  printf '%s\n' "\$*" >>"$test_tmp/dispatch"
+fi
+SH
+chmod +x "$mock_bin/hyprctl"
+: >"$agent_open_log"
+omarchy-default-agent --install github-copilot >/dev/null
+[[ ! -s $agent_open_log ]] || fail "an install from the Quake console leaves its floating terminal"
+grep -qF 'hl.dsp.exec_cmd("omarchy-agent --prefer-local", { workspace = "special:qconsole silent" })' "$test_tmp/dispatch" ||
+  fail "an install from the Quake console opens the agent tiled in the console"
+grep -qF 'window = "address:0xc0ffee"' "$test_tmp/dispatch" ||
+  fail "an install from the Quake console closes its floating terminal"
+pass "an agent installed from the Quake console opens tiled in the console"
+
+# A terminal serving every window from one process matches them all by PID, so
+# the installer names its own window. The mock applies whatever title the
+# installer printed to the console window alone, as the terminal would.
+cat >"$mock_bin/hyprctl" <<SH
+#!/bin/bash
+if [[ \$1 == "clients" ]]; then
+  title=\$(grep -ao 'omarchy-default-agent-[0-9]*' "$test_tmp/installer-tty" 2>/dev/null | head -n1)
+  echo "[{\"pid\": $$, \"address\": \"0xdead\", \"title\": \"shell\", \"workspace\": {\"name\": \"1\"}},
+        {\"pid\": $$, \"address\": \"0xc0ffee\", \"title\": \"\$title\", \"workspace\": {\"name\": \"special:qconsole\"}}]"
+else
+  printf '%s\n' "\$*" >>"$test_tmp/dispatch"
+fi
+SH
+: >"$test_tmp/dispatch"
+: >"$agent_open_log"
+omarchy-default-agent --install github-copilot >"$test_tmp/installer-tty"
+[[ ! -s $agent_open_log ]] || fail "an install from a shared terminal process leaves its floating terminal"
+grep -qF 'window = "address:0xc0ffee"' "$test_tmp/dispatch" ||
+  fail "an install from a shared terminal process closes its own window"
+! grep -qF 'address:0xdead' "$test_tmp/dispatch" ||
+  fail "an install from a shared terminal process leaves the terminal's other windows alone"
+rm "$mock_bin/hyprctl"
+ln -s omarchy-test-noop "$mock_bin/hyprctl"
+pass "an install from a terminal sharing one process across windows finds its own window"
 
 : >"$notification_history"
 : >"$agent_open_log"
@@ -822,6 +918,53 @@ mapfile -d '' -t launch_args <"$launch_log"
   fail "--pick launches once an agent is chosen"
 [[ ! -s $menu_log ]] || fail "--pick opens no menu once an agent is chosen"
 pass "--pick launches once an agent is chosen"
+
+# The Quake console seeds with --prefer-local: the local model when one is
+# running, the usual agent otherwise. The mock reports whatever status the test
+# writes to OMARCHY_TEST_LOCAL_STATUS, and no status at all when it is unset.
+cat >"$mock_bin/omarchy-agent-local" <<'SH'
+#!/bin/bash
+case $1 in
+status) [[ -n ${OMARCHY_TEST_LOCAL_STATUS:-} ]] && printf '%s\n' "$OMARCHY_TEST_LOCAL_STATUS" || exit 1 ;;
+overlay) printf '%s\n' "/overlays/$2-${3:-last}.config" omarchy-local "${3:-last}" ;;
+esac
+SH
+chmod +x "$mock_bin/omarchy-agent-local"
+prefer_local_launch() {
+  : >"$launch_log"
+  OMARCHY_TEST_LOCAL_STATUS=$1 omarchy-agent --pick --prefer-local
+  mapfile -d '' -t launch_args <"$launch_log"
+}
+
+prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}'
+[[ ${launch_args[*]} == *"OPENCODE_CONFIG=/overlays/opencode-big.config"*"opencode --auto --standalone" ]] ||
+  fail "--prefer-local opens the running local model: ${launch_args[*]}"
+
+prefer_local_launch '{"last":"big","models":{"big":{"unit":"inactive","sub_state":"dead"},"small":{"unit":"active","sub_state":"running"}}}'
+[[ ${launch_args[*]} == *"/overlays/opencode-small.config"* ]] ||
+  fail "--prefer-local opens whichever model is running when the last one is stopped: ${launch_args[*]}"
+
+prefer_local_launch '{"last":"big","models":{"big":{"unit":"activating","sub_state":"start"}}}'
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
+  fail "--prefer-local opens the usual agent while the model is still loading: ${launch_args[*]}"
+
+prefer_local_launch ''
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
+  fail "--prefer-local opens the usual agent without a local model: ${launch_args[*]}"
+
+# A default that can't take the overlay, with no pi or OpenCode to stand in,
+# still opens rather than failing as --local would.
+printf '%s\n' "codex" >"$agent_file"
+: >"$notification_history"
+printf '#!/bin/bash\nexit 1\n' >"$mock_bin/omarchy-cmd-present"
+chmod +x "$mock_bin/omarchy-cmd-present"
+prefer_local_launch '{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}'
+[[ ${launch_args[*]} == *"codex --approve-for-me" && ${launch_args[*]} != *overlays* ]] ||
+  fail "--prefer-local falls back to a default that can't take the overlay: ${launch_args[*]}"
+[[ ! -s $notification_history ]] || fail "--prefer-local falling back raises no notification"
+printf '%s\n' "opencode" >"$agent_file"
+rm "$mock_bin/omarchy-agent-local" "$mock_bin/omarchy-cmd-present"
+pass "--prefer-local opens the running local model, and the usual agent otherwise"
 
 : >"$launch_log"
 omarchy agent prompt "Review this project"

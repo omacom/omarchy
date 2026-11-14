@@ -2,35 +2,62 @@
 
 ### Ich habe mein System mit einem Update kaputt gemacht!
 
-Versuche zuerst, [dein System auf die Version zurückzusetzen](47-system-snapshots.md), die vor deinem letzten Update lief. Wenn das nicht funktioniert, teile dein Problem mit `omarchy-debug` unter #omarchy-help im Discord. Und wenn alles fehlschlägt, kannst du die Standard-Konfigurationen und -Pakete mit `omarchy-reinstall` neu installieren.
+Versuche zuerst, [dein System zurückzusetzen](47-system-snapshots.md) auf die Version vor deinem letzten Update. Wenn das nicht funktioniert, nutze `omarchy-debug`, um dein Problem auf #omarchy-help im Discord zu teilen. Und wenn das alles fehlschlägt, kannst du die Standard-Konfigurationen und -Pakete mit `omarchy-reinstall` neu installieren.
 
 ### Warum sind manche Apps auf meinem Display so groß?
 
-Omarchy geht von einem 2x-Display mit hoher Auflösung aus, wofür `GDK_SCALE` in `~/.config/hypr/monitors.lua` auf 2 gesetzt werden muss. Aber wenn du ein 1x-Display hast, kannst du `local omarchy_gdk_scale = 2` in 1 ändern (und dann jede übergroße App neu starten). Siehe [das Handbuch zu Monitoren](33-monitors.md).
+Omarchy geht von einem 2x-Display mit hoher Auflösung aus, also setzt es `GDK_SCALE` auf 2, bis du im Monitor-Panel eine Skalierung auswählst. Wenn du ein 1x-Display hast und GTK- oder X11-Apps überdimensioniert dargestellt werden, wähle im Monitor-Panel 1x dafür aus, oder füge `hl.env("GDK_SCALE", "1")` zu `~/.config/hypr/monitors.lua` hinzu (und starte dann jede überdimensionierte App neu). Siehe [das Handbuch zu Monitoren](33-monitors.md).
 
-Bei Spotify kannst du die Oberfläche mit `Ctrl + Minus` verkleinern (und mit `Ctrl + Plus` vergrößern).
+Für Spotify kannst du `Ctrl + Minus` verwenden, um die UI zu verkleinern (und `Ctrl + Plus`, um sie zu vergrößern).
 
-### Mein WLAN, Bluetooth, Audio oder Trackpad hat einfach aufgehört zu funktionieren
+### Warum funktionieren alle meine Super-Tastenbindungen nicht mehr?
 
-Versuche vor einem Neustart, das betroffene Subsystem für sich neu zu starten. Unter _Aktualisieren > Hardware_ im Omarchy-Menü findest du Wi-Fi, Bluetooth, Audio und Trackpad, und eines davon neu zu laden löst die meisten Situationen der Art „vor fünf Minuten ging es noch“ — ein Bluetooth-Headset, das sich nicht wieder verbindet, ein Trackpad, das nach einem Standby tot ist, Ton, der verschwunden ist, als du einen Monitor ausgesteckt hast.
+Bei manchen ASUS ROG- und TUF-Laptops ist `Fn + Super` eine leicht zu übersehende Tastenkombination, die eine Firmware-Sperre für die Windows-Taste umschaltet (gedacht für Gaming, damit du ein Spiel nicht versehentlich verlässt). Nichts auf dem Bildschirm zeigt dir an, dass das passiert ist. Solange die Sperre aktiv ist, sendet Super überhaupt nichts — also hört jede Omarchy-Bindung, die Super verwendet, einfach auf zu funktionieren, und es sieht so aus, als wäre Hyprland kaputt.
 
-### Warum spielen meine externen Lautsprecher nicht?
+Drücke einmal `Fn + Super`, bevor du dich in `~/.config/hypr/` vertiefst, und wenn das Super nicht zurückbringt, drücke es erneut, damit du die Sperre nicht aktiviert lässt. Das ist nicht die Fn-Sperre, die nur ändert, was die F-Tastenreihe tut.
 
-Wahrscheinlich, weil sie nicht als primäre Ausgabe gesetzt sind. Klicke auf das Lautsprechersymbol auf der rechten Seite der Leiste, und es öffnet sich das Lautstärke-Popup, in dem du das Ausgabegerät wählen kannst (und auch die Lautstärke pro App mischen).
+### Mein Wi-Fi, Bluetooth, Audio oder Trackpad funktioniert plötzlich nicht mehr
+
+Bevor du neu startest, versuche, das betroffene Subsystem einzeln neu zu starten. _Update > Hardware_ im Omarchy-Menü hat Wi-Fi, Bluetooth, Audio und Trackpad, und das Neuladen eines davon behebt die Mehrheit der „vor fünf Minuten hat es noch funktioniert“-Situationen — ein Bluetooth-Headset, das sich nicht wiederverbindet, ein Trackpad, das nach einem Suspend tot ist, Ton, der verschwunden ist, als du einen Monitor abgesteckt hast.
+
+### Warum spielen meine externen Lautsprecher nichts ab?
+
+Wahrscheinlich, weil sie nicht als primäre Ausgabe gesetzt sind. Klicke auf das Lautsprecher-Symbol auf der rechten Seite der Leiste, dann öffnet sich das Lautstärke-Popup, in dem du das Ausgabegerät auswählen kannst (und auch die Lautstärke pro App mischen kannst).
 
 ### Meine Laptop-Lautsprecher klingen komisch
 
-Auf manchen Laptops wendet Omarchy automatisch eine Lautsprecher-Abstimmung an, die den Frequenzgang der eingebauten Lautsprecher korrigiert. `omarchy audio tuning status` sagt dir, ob auf deinem Rechner eine aktiv ist, und `omarchy audio tuning off` schaltet sie aus, wenn du die Lautsprecher lieber roh hören willst.
+Bei manchen Laptops wendet Omarchy automatisch ein Lautsprecher-Tuning an, das den Frequenzgang der eingebauten Lautsprecher korrigiert. `omarchy audio tuning status` zeigt dir, ob eines auf deinem Gerät aktiv ist, und `omarchy audio tuning off` schaltet es aus, wenn du die Lautsprecher lieber unverfälscht hören willst.
 
-### Warum kann ich mich mit meinem Passwort nicht anmelden oder sudo nutzen?
+### Warum kann ich mich nicht einloggen oder sudo mit meinem Passwort verwenden?
 
-Du hast es wahrscheinlich zu oft falsch eingegeben und wurdest ausgesperrt. Wenn das auf dem Sperrbildschirm passiert, drücke `CTRL + ALT + F2`, um ein neues TTY zu starten, in dem du dich als root anmelden kannst, und führe dann `faillock --reset --user [your-username]` aus. Damit wird die Sperre zurückgesetzt, und du kannst weiterarbeiten.
+Du hast es wahrscheinlich zu oft falsch eingegeben und wurdest ausgesperrt. Wenn das auf dem Sperrbildschirm passiert, kannst du `CTRL + ALT + F2` drücken, um eine neue TTY zu starten, in der du dich als root einloggen und dann `faillock --reset --user [your-username]` ausführen kannst. Das setzt die Sperre zurück, und du kannst weitermachen.
 
-### Warum erscheinen meine 1Password-Autorisierungsabfragen für 1Password SSH Agent / CLI nicht?
+### Mein Passwort wird akzeptiert, aber ich lande wieder auf dem Login-Bildschirm
 
-Das kann aus 2 Gründen passieren:
+Eine kaputte Sitzungs-Umgebungsdatei kann verhindern, dass der Desktop startet, selbst wenn dein Passwort korrekt ist. Das ist besonders dann einen Blick wert, wenn du `~/.config/uwsm/env.d/` bearbeitet hast.
 
-Damit die ausführliche Genehmigungsabfrage erscheint, muss Settings > Advanced > Use Hardware Acceleration eingeschaltet sein. _Hinweis: Das erfordert einen Neustart, um zu wirken._
+Drücke `Ctrl + Alt + F2`, logge dich mit deinem normalen Benutzernamen und Passwort ein und schau dir das User-Journal des aktuellen Boots an:
+
+```bash
+journalctl --user -b -t uwsm_env-preloader --no-pager
+```
+
+Suche nach einem Fehler, der eine deiner Umgebungsdateien nennt, wie `bad substitution`, kurz vor einer Meldung, dass die Env-Output-Markierung nicht gefunden wurde. Verschiebe diese Datei aus `env.d`, bevor du versuchst, dich erneut einzuloggen. Wenn der Fehler zum Beispiel `99-custom` nennt:
+
+```bash
+mkdir -p ~/.config/uwsm/disabled
+mv -i ~/.config/uwsm/env.d/99-custom ~/.config/uwsm/disabled/
+```
+
+UWSM überspringt eine Datei mit einem Syntaxfehler, aber ein fataler Fehler, der erst beim Ausführen der Datei auftritt, wie `bad substitution`, kann trotzdem verhindern, dass der Desktop startet. Ein Rollback auf einen System-Snapshot repariert diese Dateien nicht, weil `/home` nicht zurückgesetzt wird.
+
+Sobald du dich einloggen kannst, repariere die gespeicherte Kopie, bevor du sie zurückverschiebst. `sh -n` erkennt Syntaxfehler, ohne die Datei auszuführen, kann aber nicht jeden Fehler erkennen, der auftritt, wenn sie eingelesen wird. Lass ein funktionierendes Terminal offen, während du Änderungen testest.
+
+### Warum erscheinen meine 1Password-Autorisierungsabfragen für den 1Password SSH Agent / die CLI nicht?
+
+Das kann 2 Gründe haben:
+
+Damit die ausführliche Genehmigungsabfrage erscheint, muss Settings > Advanced > Use Hardware Acceleration eingeschaltet sein. _Hinweis: Das erfordert einen Neustart, um zu funktionieren._
 
  ![troubleshooting-1password](images/troubleshooting-1password.webp)
 

@@ -6,12 +6,15 @@ Omarchy tackles both problems with unified clipboard hotkeys that work (almost) 
 
 | Hotkey | Command |
 | ------- | ----------- |
+| Super + A | Select all |
 | Super + C | Copy |
 | Super + X | Cut |
 | Super + V | Paste |
 | Super + Ctrl + V | Clipboard history |
 
 _Note that most agent harnesses will use `Ctrl + V` for pasting images, but `Super + V` for pasting text._
+
+Use `Super + A`, then `Super + C` to copy everything in a focused text field or other app that supports `Ctrl + A`. In a terminal, `Ctrl + A` moves to the start of the command line instead of selecting its text.
 
 ### Clipboard history
 

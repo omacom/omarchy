@@ -27,4 +27,4 @@ echo "Theme changed to: $THEME_NAME"
 # Add custom actions here
 ```
 
-Update-related hooks run as your user after Omarchy invalidates its sudo timestamp, behind the no-update wrapper. A hook that invokes `sudo` must therefore request its own explicit authorization, and Omarchy revokes the timestamp again before continuing. `post-update` runs after every sudo-capable update stage. `pre-refresh-pacman` runs after `omarchy refresh pacman` re-syncs the package config and before the package transaction, so custom repositories and `IgnorePkg` entries shape that transaction; every later privileged command still authenticates without publishing a reusable timestamp, so a detached child left behind by the hook has nothing to wait for.
+Update-related hooks run as your user with your PATH, inside the update's sudo authorization, so a hook that invokes `sudo` does not prompt again. `post-update` runs after the system packages, migrations and service restarts. `pre-refresh-pacman` runs after `omarchy refresh pacman` re-syncs the package config and before the package transaction, so custom repositories and `IgnorePkg` entries shape that transaction.

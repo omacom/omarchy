@@ -27,6 +27,12 @@ assert(tray.ownedByOmarchy({ id: 'superwhisper' }, { left: [], center: [], right
 assert(!tray.ownedByOmarchy({ id: 'superwhisper' }, { left: [], center: [], right: [] }), 'tray keeps superwhisper when its panel widget is absent')
 assert(tray.ownedByOmarchy({ id: 'dropbox' }, { left: [], center: [], right: [{ id: 'omarchy.tray' }], tray: [{ id: 'omarchy.dropbox' }] }), 'tray suppresses dropbox when its widget is in the tray section')
 
+// Wine needs a double-click's second activate to see a double-click; a native
+// app that toggles its window on each activate would close again.
+assert(tray.activatesOnDoubleClick({ id: 'wine-0x200d4-0' }), 'a double-click activates a Wine item again')
+assert(!tray.activatesOnDoubleClick({ id: 'qbittorrent' }), 'a double-click activates a native item once')
+assert(!tray.activatesOnDoubleClick({ id: 'wine-0x200d4-0', onlyMenu: true }), 'a double-click on a menu-only Wine item activates nothing more')
+
 // The bar outlines as much of the tray section as the sliding drawer shows,
 // never past the drawer.
 assertDeepEqual(tray.shownSpan(0, 100, 20, 30), { start: 20, length: 30 }, 'a section inside the open drawer shows whole')
