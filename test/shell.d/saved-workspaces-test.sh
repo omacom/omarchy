@@ -158,6 +158,28 @@ with patch.object(m, 'query', return_value=[custom_window, {'pid': 42, 'class': 
   check(state['urls'] == ['https://omarchy.org/'], 'custom ordinary browser classes remain eligible for the sole-session fallback alongside a web app')
 check(m.state_command({'class': 'chromium'}, ['chromium', '--app=https://x.com/', '--new-window']) == ['chromium', '--new-window'], 'existing scene browser commands cannot reopen as a web app')
 
+# Chromium profiles share a process but keep distinct session directories.
+with tempfile.TemporaryDirectory() as directory:
+  for name in ['Default', 'Profile 1']:
+    (Path(directory) / name / 'Sessions').mkdir(parents=True)
+  process = {'argv': ['chromium', '--user-data-dir=' + directory]}
+  first = {'class': 'chromium', 'title': 'Personal - Chromium', 'pid': 42}
+  second = {'class': 'chromium', 'title': 'Work - Chromium', 'pid': 42}
+  cache = {directory + '/Default/Sessions': [{'title': 'Personal', 'urls': ['https://personal.example/']}], directory + '/Profile 1/Sessions': [{'title': 'Work', 'urls': ['https://work.example/']}]}
+  with patch.object(m, 'query', return_value=[first, second]):
+    personal = m.capture_app_state(first, process, cache)
+    work = m.capture_app_state(second, process, cache)
+  check(personal['profile'] == 'Default' and work['profile'] == 'Profile 1' and work['urls'] == ['https://work.example/'], 'normal browser windows from different profiles save independently while sharing a process')
+  argv = m.state_command({'class': 'chromium', 'appState': work}, ['chromium', '--profile-directory=Default', '--user-data-dir=/old', '--new-window'])
+  check('--profile-directory=Profile 1' in argv and '--user-data-dir=' + directory in argv and argv[-1] == 'https://work.example/', 'restoring a browser window uses its own profile and data directory instead of the first process profile')
+  with patch.object(m, 'query', return_value=[first, second, {**second, 'address': 'private'}]):
+    try:
+      m.capture_app_state(second, process, cache)
+    except m.WorkspaceError:
+      print('ok - collecting multiple browser profiles does not weaken private-window exclusion')
+    else:
+      raise AssertionError('private window bypassed multi-profile check')
+
 # Private sessions must never reuse the normal session's matching page title.
 for flag in ['--incognito', '--guest']:
   try:

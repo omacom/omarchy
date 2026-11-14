@@ -693,17 +693,19 @@ def capture_app_state(window, info, cache):
     defaults = {"chromium": "chromium", "chrome": "google-chrome", "google-chrome": "google-chrome", "brave": "BraveSoftware/Brave-Browser", "brave-browser": "BraveSoftware/Brave-Browser"}
     directory = Path(argument_value(argv, "--user-data-dir", str(HOME / ".config" / defaults[app])))
     profile = argument_value(argv, "--profile-directory", "Default")
-    location = directory / profile / "Sessions"
-    if str(location) not in cache:
-      cache[str(location)] = []
-      for path in sorted(location.glob("Session_*"), key=lambda p: p.stat().st_mtime, reverse=True)[:2]:
-        if path.stat().st_size > 32 * 1024 * 1024:
-          continue
-        records = chromium_sessions(path.read_bytes())
-        if records:
-          cache[str(location)] = records
-          break
-    records = cache[str(location)]
+    if not directory.is_absolute():
+      directory = Path(info.get("cwd", str(HOME))) / directory
+    profiles = {profile} | {path.parent.name for path in directory.glob("*/Sessions") if path.is_dir()}
+    records = []
+    # All profiles in this browser share a process. Include each current
+    # session in the private-window count, then retain the matched profile.
+    for name in sorted(profiles):
+      location = directory / name / "Sessions"
+      if str(location) not in cache:
+        paths = sorted(location.glob("Session_*"), key=lambda path: path.stat().st_mtime, reverse=True)
+        path = paths[0] if paths else None
+        cache[str(location)] = chromium_sessions(path.read_bytes()) if path and path.stat().st_size <= 32 * 1024 * 1024 else []
+      records += [{**record, "profile": name} for record in cache[str(location)]]
     live = [w for w in query("clients") if w["pid"] == window["pid"] and w.get("mapped", True)
         and not chromium_webapp_class(w)]
     # Forwarded private windows can share normal process flags and titles.
@@ -722,7 +724,7 @@ def capture_app_state(window, info, cache):
         matches = records
     if len(matches) != 1:
       raise WorkspaceError("This browser window's tabs aren't available yet. Try saving again after a moment. Private windows aren't supported.")
-    return {"kind": "browser", "urls": matches[0]["urls"][:200]}
+    return {"kind": "browser", "urls": matches[0]["urls"][:200], "profile": matches[0]["profile"], "userDataDir": str(directory)}
   if app in {"firefox", "firefox-bin"}:
     return capture_firefox_state(window, info, cache)
   if app == "spotify" or window["class"].lower() == "spotify":
@@ -761,6 +763,22 @@ def state_command(window, argv):
     if not urls or len(urls) > 200 or not all(isinstance(u, str) and re.match(r"^(https?://|file://|about:|chrome://|chrome-extension://)", u) and "\0" not in u for u in urls):
       raise WorkspaceError("The saved browser tabs are invalid.")
     argv = [a for a in argv if not re.match(r"^(https?://|file://|about:|chrome://|chrome-extension://)", a)]
+    for flag, value in [("--profile-directory", state.get("profile")), ("--user-data-dir", state.get("userDataDir"))]:
+      if value is None:
+        continue  # Older scenes did not store per-window profile context.
+      if not isinstance(value, str) or not value or "\0" in value or (flag == "--profile-directory" and (Path(value).name != value or value in {".", ".."})) or (flag == "--user-data-dir" and not Path(value).is_absolute()):
+        raise WorkspaceError("The saved browser profile is invalid.")
+      if argument_value(argv, flag, "Default" if flag == "--profile-directory" else None) == value:
+        continue
+      cleaned, skip = [], False
+      for arg in argv:
+        if skip:
+          skip = False
+        elif arg == flag:
+          skip = True
+        elif not arg.startswith(flag + "="):
+          cleaned.append(arg)
+      argv = cleaned + [flag + "=" + value]
     return argv + urls
   if state.get("kind") == "spotify":
     uri = state.get("uri", "")
