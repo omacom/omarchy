@@ -27,6 +27,7 @@ CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "omarchy/sh
 WIDGET = "omarchy.saved-workspaces"
 MODES = {"dwindle", "floating", "scrolling"}
 MAX_WINDOWS = 100
+CHROMIUM_WINDOW_CLASSES = {"chromium", "google-chrome", "chrome", "brave", "brave-browser"}
 
 
 class WorkspaceError(Exception):
@@ -450,8 +451,24 @@ def chromium_webapp_argv(window, info):
   return None
 
 
+def chromium_window_argv(window, argv):
+  # Web apps can start the shared browser process. Its app flags describe
+  # that first window, not ordinary browser windows opened later.
+  if window.get("class", "").lower() not in CHROMIUM_WINDOW_CLASSES:
+    return argv
+  result, skip = [], False
+  for arg in argv:
+    if skip:
+      skip = False
+    elif arg in {"--app", "--app-id"}:
+      skip = True
+    elif not arg.startswith(("--app=", "--app-id=")):
+      result.append(arg)
+  return result
+
+
 def command_for(window, info):
-  argv = info["argv"]
+  argv = chromium_window_argv(window, info["argv"])
   if not argv:
     raise WorkspaceError("A window's launch command is unavailable. Try saving again after the app starts.")
   app = Path(argv[0]).name.lower()
@@ -544,7 +561,7 @@ def argument_value(argv, flag, default=None):
 
 
 def capture_app_state(window, info, cache):
-  argv = info["argv"]
+  argv = chromium_window_argv(window, info["argv"])
   app = Path(argv[0]).name.lower() if argv else ""
   if app in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"} and not any(a.startswith(("--app=", "--app-id=")) for a in argv):
     if chromium_webapp_argv(window, info):
@@ -570,7 +587,8 @@ def capture_app_state(window, info, cache):
       title = re.sub(r" - (Chromium|Google Chrome|Brave)$", "", title)
       matches = [record for record in records if record["title"] == title or record.get("activeUrl") == title]
     if not matches and len(records) == 1 and not any(a in {"--incognito", "--guest"} for a in argv) and not re.search(r"incognito|private", window["title"], re.I):
-      live = [w for w in query("clients") if w["pid"] == window["pid"] and w.get("mapped", True)]
+      live = [w for w in query("clients") if w["pid"] == window["pid"] and w.get("mapped", True)
+          and w.get("class", "").lower() in CHROMIUM_WINDOW_CLASSES]
       if len(live) == 1:
         matches = records
     if len(matches) != 1:
@@ -589,6 +607,7 @@ def capture_app_state(window, info, cache):
 
 
 def state_command(window, argv):
+  argv = chromium_window_argv(window, argv)
   state = window.get("appState") or {}
   if state.get("kind") == "firefox":
     urls, active, profile = state.get("urls"), state.get("active"), state.get("profile")

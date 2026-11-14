@@ -122,6 +122,20 @@ with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'XDG_DA
   with patch.object(m, 'query', side_effect=[before, before + [unrelated, opened]]), patch.object(m, 'execute'), patch.object(m.socket, 'socket', return_value=MagicMock()):
     check(m.launch_window({'argv': web_argv, 'class': app_class}, {'0xexisting'}, 8)['address'] == '0xapp', 'forwarded web-app restores select only a new window of the exact app/profile, leaving existing browser windows alone')
 
+# A web app can also be the first window, so the process itself has --app.
+for flags in [['--app=https://x.com/'], ['--app', 'https://x.com/'], ['--app-id=installed-x']]:
+  process = {'argv': ['chromium', '--user-data-dir=/unused', *flags]}
+  window = {'class': 'chromium', 'title': 'Browser work - Chromium', 'pid': 42}
+  cache = {'/unused/Default/Sessions': [{'title': 'Browser work', 'urls': ['https://omarchy.org/']}]}
+  state = m.capture_app_state(window, process, cache)
+  command = m.state_command({'class': 'chromium', 'appState': state}, m.command_for(window, process))
+  check(state['urls'] == ['https://omarchy.org/'] and command == ['chromium', '--user-data-dir=/unused', '--new-window', 'https://omarchy.org/'], 'ordinary browser tabs are restored independently when a web app started their shared process: ' + str(flags))
+  check(m.chromium_window_argv({'class': 'chrome-x.com__-Default'}, process['argv']) == process['argv'], 'web-app launch flags remain intact for the actual web-app window')
+with patch.object(m, 'query', return_value=[window, {'pid': 42, 'class': 'chrome-x.com__-Default'}]):
+  state = m.capture_app_state(window, process, {'/unused/Default/Sessions': [{'title': '', 'urls': ['https://omarchy.org/']}]})
+  check(state['urls'] == ['https://omarchy.org/'], 'a sole ordinary browser session can be captured while a same-process web app is open and its page title has not been written yet')
+check(m.state_command({'class': 'chromium'}, ['chromium', '--app=https://x.com/', '--new-window']) == ['chromium', '--new-window'], 'existing scene browser commands cannot reopen as a web app')
+
 # Firefox session snapshots preserve the current navigation, order and active tab.
 firefox_data = {'windows': [
   {'selected': 2, 'tabs': [
