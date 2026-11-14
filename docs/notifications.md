@@ -210,7 +210,12 @@ Everything goes through the same sender contract, so the pieces are small:
   critical toast whose click runs `omarchy-agent-crash` (via `--exec`, so a
   hostile process name stays a discrete argument). It waits for the
   server first: a shell crash takes the notification server down with it, and
-  that crash is the one most worth reporting.
+  that crash is the one most worth reporting. A diagnosis runs with
+  `OMARCHY_CRASH_DIAGNOSIS=<pid>:<start>` in its environment, inherited by
+  everything the agent starts (a nested `omarchy agent` launch included), and
+  for `OMARCHY_CRASH_DIAGNOSIS_MAX_SECONDS` (an hour) a crash carrying it, or a
+  crash of a program whose diagnosis is still under way, is announced without
+  the diagnose action so one diagnosis never chains another.
 - **Pending migrations** — `omarchy-migrate-notify` (from its user service
   after `graphical-session.target`) waits for the server, then sends a
   critical toast whose click opens a terminal running `omarchy-migrate`,
