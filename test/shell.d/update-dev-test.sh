@@ -103,3 +103,12 @@ fi
 grep -F "OMARCHY_PATH is not a git checkout: $checkout" "$test_tmp/invalid.err" >/dev/null ||
   fail "invalid dev checkout reports the configured path" "$(cat "$test_tmp/invalid.err")"
 pass "invalid dev checkout fails with a useful error"
+
+if /usr/bin/readlink -e / >/dev/null 2>&1; then
+  : >"$git_log"
+  env -u OMARCHY_PATH TEST_GIT_LOG="$git_log" PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-update-dev" ||
+    fail "an update with no OMARCHY_PATH still runs"
+  grep -F -- "-C $ROOT pull --ff-only" "$git_log" >/dev/null ||
+    fail "an update with no OMARCHY_PATH uses the script's own checkout" "$(cat "$git_log")"
+  pass "an update with no OMARCHY_PATH uses the script's own checkout"
+fi

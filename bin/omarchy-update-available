@@ -6,6 +6,9 @@ set -euo pipefail
 
 updates=()
 
+source "${BASH_SOURCE[0]%/*}/omarchy-security-functions"
+omarchy_security_adopt_root "${BASH_SOURCE[0]}" || OMARCHY_PATH=/usr/share/omarchy
+
 if [[ $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
   upstream=$(git -C "$OMARCHY_PATH" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)
   if [[ -n $upstream ]]; then
