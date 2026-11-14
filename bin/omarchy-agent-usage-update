@@ -20,8 +20,13 @@ while (( $# > 0 )); do
   case "$1" in
   --force | --limits-only) flags+=("$1") ;;
   --except)
-    excluded[$2]=1
-    shift
+    if [[ -z ${2:-} ]]; then
+      echo "--except needs an agent" >&2
+      exit 1
+    else
+      excluded[$2]=1
+      shift
+    fi
     ;;
   *) only+=("$1") ;;
   esac
