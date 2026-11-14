@@ -135,3 +135,51 @@ for virt in vm none; do
   fi
 done
 pass "a VM install starts without animations and with opaque windows"
+
+# Turning management back on reloads Hyprland, so hyprctl is stubbed to keep this
+# off a live compositor.
+management_bin="$TMPDIR/management-bin"
+reload_log="$TMPDIR/reloads"
+mkdir -p "$management_bin"
+cat >"$management_bin/hyprctl" <<'SH'
+#!/bin/bash
+[[ $* == *reload* ]] && printf 'reload\n' >>"$OMARCHY_TEST_RELOAD_LOG"
+exit 0
+SH
+chmod +x "$management_bin/hyprctl"
+
+toggle_management() {
+  HOME="$test_home" PATH="$management_bin:$PATH" OMARCHY_TEST_RELOAD_LOG="$reload_log" \
+    omarchy toggle monitor-management "$@"
+}
+
+reloads() {
+  if [[ -f $reload_log ]]; then
+    wc -l <"$reload_log"
+  else
+    echo 0
+  fi
+}
+
+management_off_flag="$test_home/.local/state/omarchy/toggles/monitor-management-off"
+toggle_management off
+[[ -f $management_off_flag ]] || fail "monitor management off sets its off flag"
+(( $(reloads) == 0 )) || fail "handing monitors to another manager does not reload Hyprland"
+
+toggle_management on
+[[ ! -e $management_off_flag ]] || fail "monitor management on clears its off flag"
+(( $(reloads) == 1 )) || fail "taking monitors back reloads Hyprland once" "$(reloads)"
+
+toggle_management on
+(( $(reloads) == 1 )) || fail "monitor management on while already on does not reload Hyprland" "$(reloads)"
+
+toggle_management
+[[ -f $management_off_flag ]] || fail "monitor management flips off from its default"
+toggle_management
+[[ ! -e $management_off_flag ]] || fail "monitor management flips back on"
+(( $(reloads) == 2 )) || fail "flipping monitor management back on reloads Hyprland" "$(reloads)"
+
+if HOME="$test_home" omarchy-toggle-monitor-management sideways 2>/dev/null; then
+  fail "monitor management refuses an unknown action"
+fi
+pass "omarchy toggle monitor-management hands monitors over and reloads to take them back"
