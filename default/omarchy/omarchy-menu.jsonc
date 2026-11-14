@@ -272,6 +272,7 @@
   "setup.network.dns.custom": {"icon":"","label":"Custom","checked":"[[ \"$(omarchy-dns)\" == \"Custom\" ]]","action":"omarchy-launch-floating-terminal-with-presentation 'omarchy-dns Custom'"},
   "setup.network.qr": {"icon":"󰐲","label":"QR Code","aliases":["wifi-qr"],"when":"omarchy-network-wifi-connected","action":"omarchy-shell shell summon omarchy.wifiqr"},
   "setup.direct-boot": {"icon":"","label":"Direct Boot","when":"! omarchy-hw-aarch64-apple && [[ ! -f /etc/limine-entry-tool.d/zz-omarchy-dgx-spark.conf ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-direct-boot"},
+  "setup.dual-boot": {"icon":"󰋊","label":"Dual Boot","when":"! omarchy-hw-aarch64-apple","action":"omarchy-launch-floating-terminal-with-presentation omarchy-setup-dual-boot"},
   "setup.reset": {"icon":"󰑓","label":"Reset Computer","when":"[[ $(findmnt -no FSTYPE /) == btrfs ]]","action":"omarchy-launch-floating-terminal-with-presentation omarchy-system-factory-reset"},
 
   // Install
