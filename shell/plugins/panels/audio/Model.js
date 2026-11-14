@@ -8,6 +8,39 @@ function isPlaybackStream(node) {
     || mediaClass.indexOf("Output") !== -1
 }
 
+// Quickshell's PwNodePeakMonitor cannot meter a node whose channels carry no
+// speaker position: its capture stream negotiates FL/FR, then finds nothing to
+// match those against in the node's channel list and drops every buffer. ALSA
+// labels every pro-audio profile channel AUX0, AUX1, ..., so that is most USB
+// interfaces and mixers. `channels` is the node's PwAudioChannel list and
+// `auxRangeStart` is PwAudioChannel.AuxRangeStart, passed in because this file
+// has no access to the enum. An empty list means the node is not bound yet.
+function needsProcessMeter(channels, auxRangeStart) {
+  if (!channels || channels.length === 0) return false
+  for (var i = 0; i < channels.length; i++) {
+    var channel = Number(channels[i])
+    if (channel === 0 || channel >= auxRangeStart) return true
+  }
+  return false
+}
+
+// One line of input-peak, a captured peak per channel with that channel's
+// volume already applied, on PwNodePeakMonitor's scale: cube-root each, divide
+// its channel's volume back out, keep the largest. -1 for a line with no values.
+function processMeterPeak(line, volumes) {
+  var values = String(line).trim().split(/\s+/)
+  var peak = -1
+  for (var i = 0; i < values.length; i++) {
+    var raw = parseFloat(values[i])
+    if (!isFinite(raw)) continue
+    var volume = volumes && i < volumes.length ? volumes[i] : 1
+    var visual = Math.cbrt(Math.max(0, raw))
+    if (volume > 0.001) visual /= volume
+    peak = Math.max(peak, visual)
+  }
+  return peak
+}
+
 function isAudioSource(node) {
   if (!node) return false
   if (node.audio) return true
@@ -277,6 +310,8 @@ if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
     isAudioSource: isAudioSource,
+    needsProcessMeter: needsProcessMeter,
+    processMeterPeak: processMeterPeak,
     nodeRow: nodeRow,
     rowSnapshot: rowSnapshot,
     outputVolumeName: outputVolumeName,
