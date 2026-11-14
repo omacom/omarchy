@@ -52,14 +52,28 @@ hyprctl_monitors_log="$test_tmp/hyprctl-monitors.log"
 run_pop \
   '{"address":"0xabc","pinned":false,"monitor":2}' \
   '[{"id":1,"width":1920,"height":1080,"scale":1,"transform":0,"reserved":[0,0,0,0]},{"id":2,"width":3840,"height":2160,"scale":2,"transform":0,"reserved":[0,30,0,40]}]'
-assert_resize 'hl.dsp.window.resize({ window = "address:0xabc", x = 1536, y = 808 })'
+assert_resize 'hl.dsp.window.resize({ window = "address:0xabc", x = 1300, y = 808 })'
+
+>"$hyprctl_log"
+>"$hyprctl_monitors_log"
+run_pop \
+  '{"address":"0xlarge","pinned":false,"monitor":5}' \
+  '[{"id":5,"width":3840,"height":2160,"scale":1,"transform":0,"reserved":[0,0,0,0]}]'
+assert_resize 'hl.dsp.window.resize({ window = "address:0xlarge", x = 1300, y = 900 })'
 
 >"$hyprctl_log"
 >"$hyprctl_monitors_log"
 run_pop \
   '{"address":"0xdef","pinned":false,"monitor":3}' \
   '[{"id":3,"width":2160,"height":3840,"scale":2,"transform":1,"reserved":[40,10,20,30]}]'
-assert_resize 'hl.dsp.window.resize({ window = "address:0xdef", x = 1488, y = 832 })'
+assert_resize 'hl.dsp.window.resize({ window = "address:0xdef", x = 1300, y = 832 })'
+
+>"$hyprctl_log"
+>"$hyprctl_monitors_log"
+run_pop \
+  '{"address":"0xsmall","pinned":false,"monitor":6}' \
+  '[{"id":6,"width":1280,"height":800,"scale":2,"transform":0,"reserved":[0,26,0,0]}]'
+assert_resize 'hl.dsp.window.resize({ window = "address:0xsmall", x = 512, y = 299 })'
 
 >"$hyprctl_log"
 >"$hyprctl_monitors_log"
@@ -72,3 +86,13 @@ grep -Fq 'dispatch hl.dsp.window.move({ window = "address:0x123", x = 123, y = 4
 pass "explicit position is preserved"
 [[ ! -s $hyprctl_monitors_log ]] || fail "explicit dimensions do not query monitor geometry" "$(<"$hyprctl_monitors_log")"
 pass "explicit dimensions do not query monitor geometry"
+
+>"$hyprctl_log"
+>"$hyprctl_monitors_log"
+run_pop \
+  '{"address":"0xpartial","pinned":false,"monitor":7}' \
+  '[]' \
+  700
+assert_resize 'hl.dsp.window.resize({ window = "address:0xpartial", x = 700, y = 900 })'
+[[ ! -s $hyprctl_monitors_log ]] || fail "partial dimensions do not query monitor geometry" "$(<"$hyprctl_monitors_log")"
+pass "partial dimensions keep the existing fallback without querying monitor geometry"
