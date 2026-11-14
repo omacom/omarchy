@@ -1,0 +1,3 @@
+module qs.Ui
+BorderSurface 1.0 BorderSurface.qml
+OpticalGlyph 1.0 OpticalGlyph.qml
