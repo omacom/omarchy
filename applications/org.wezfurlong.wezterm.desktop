@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 TryExec=wezterm
-Exec=wezterm start
+Exec=wezterm start --always-new-process
 Icon=org.wezfurlong.wezterm
 Terminal=false
 Categories=System;TerminalEmulator;
@@ -17,4 +17,4 @@ X-TerminalArgDir=--cwd=
 
 [Desktop Action New]
 Name=New Terminal
-Exec=wezterm start
+Exec=wezterm start --always-new-process
