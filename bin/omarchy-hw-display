@@ -41,11 +41,13 @@ while IFS= read -r name; do
   fi
 done < <(ls -1 "$backlight_path" 2>/dev/null)
 
-# gmux comes first: apple-gmux only registers when the kernel has already picked it, and on
+# The LP8545 fallback only registers on MacBookPro8,2 with the AMD GPU hidden
+# by firmware. Its direct I2C control replaces the ineffective gmux PWM there.
+# Otherwise gmux comes first: apple-gmux only registers when the kernel has already picked it, and on
 # dual-GPU Macs the GPU's own PWM stops driving the panel once that GPU suspends. The
 # platform's preferred backlights follow, then the GPU and ACPI ones.
 # Glob the candidates in the loop list: [[ ]] does not do pathname expansion.
-for candidate in "$backlight_path"/gmux_backlight "${prefers[@]/#/$backlight_path/}" "$backlight_path"/amdgpu_bl* "$backlight_path"/intel_backlight "$backlight_path"/acpi_video*; do
+for candidate in "$backlight_path"/lp8545_backlight "$backlight_path"/gmux_backlight "${prefers[@]/#/$backlight_path/}" "$backlight_path"/amdgpu_bl* "$backlight_path"/intel_backlight "$backlight_path"/acpi_video*; do
   if [[ -e $candidate ]] && usable "${candidate##*/}"; then
     device="${candidate##*/}"
     break
