@@ -3,9 +3,13 @@
 # omarchy:summary=Install the T3 Code desktop app from its AppImage release
 # omarchy:args=<stable|nightly>
 # omarchy:hidden=true
-# omarchy:requires-sudo=true
 
 set -euo pipefail
+
+if (( EUID == 0 )); then
+  echo "Run this command as your desktop user, without sudo." >&2
+  exit 1
+fi
 
 channel=${1:-}
 if [[ $channel != "stable" && $channel != "nightly" ]]; then
