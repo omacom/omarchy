@@ -44,6 +44,16 @@ Every subscription on one page, limits first.
   report the account's own figures; DeepSeek, Kimchi, Ollama Cloud, and
   OpenRouter without a management key add up the costs pi and opencode wrote
   beside each reply on this machine, and mark the amount ≈ as an estimate.
+- **Tokens by model** — under each agent whose collector keeps daily history
+  (the `history` field), a stacked bar per day split by model, the most used
+  model at the bottom, with a 7d / 30d toggle. Hovering a bar lists that
+  day's models. Below it, the window's top models with their token totals and
+  a dot in the color the chart gives them; a model keeps its color when the
+  toggle changes. The toggle is one choice for the whole panel and is kept
+  while the panel stays loaded. The chart reaches back as far as the agent's
+  own logs do, so a tool that prunes old sessions shows less than 30 days.
+  The panel grows to fit its content, up to the height of the screen, and
+  scrolls past that.
 - **Make something cool** — starter prompts (a new theme, plugin, or app) that
   start the default agent on the task through `omarchy agent prompt`.
 - **Adding a subscription** — the + in the hero's corner swaps the page for
@@ -342,7 +352,7 @@ hide a subscription that is installed. Disabled agents are also skipped when
 the records regenerate.
 
 With `syncMode` on, every `*.json` snapshot in `syncDir` is merged, so today,
-the last 7 days, and the all-time totals cover every machine you code on —
+the last 7 days, the all-time totals, and each chart's daily history cover every machine you code on —
 active days are unioned by date rather than summed. Rate limits stay
 per-account and are never merged. A record may declare `"scope": "account"`
 when its stats are account-global rather than machine-local (Fireworks'

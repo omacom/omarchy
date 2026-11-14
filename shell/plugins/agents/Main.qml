@@ -612,6 +612,8 @@ Item {
       totalSessions: synced ? numberValue(stats.totalSessions) : numberValue(record.totalSessions),
       activeDays: synced ? numberValue(stats.activeDays) : numberValue(record.activeDays),
       modelUsage: synced ? (stats.modelUsage || ({})) : (record.modelUsage || ({})),
+      // Tokens by model for every day a collector kept, for the panel's charts.
+      history: synced ? (stats.history || ({})) : (record.history || ({})),
       hasLocalStats: synced ? (stats.hasLocalStats !== false) : (record.hasLocalStats !== false),
       hasPromptStats: synced ? (stats.hasPromptStats !== false) : (record.hasPromptStats !== false),
 
@@ -918,6 +920,7 @@ Item {
         activeDays: 0,
         activeDates: ({}),
         modelUsage: ({}),
+        history: ({}),
         devices: ({})
       }
       return providers[id]
@@ -966,6 +969,15 @@ Item {
           if (!bucket) bucket = acc.modelUsage[modelId] = emptyTokenBucket()
           combineObjectNumbers(additive, bucket, usage[modelId] || {})
         }
+
+        // Tokens by day and model, merged like the model totals. Snapshots
+        // from before the field existed carry none and add nothing.
+        var history = stats.history || {}
+        for (var historyDay in history) {
+          var dayModels = acc.history[historyDay]
+          if (!dayModels) dayModels = acc.history[historyDay] = ({})
+          combineObjectNumbers(additive, dayModels, history[historyDay] || {})
+        }
       }
     }
 
@@ -990,6 +1002,7 @@ Item {
         totalSessions: acc.totalSessions,
         activeDays: Math.max(acc.activeDays, Object.keys(acc.activeDates).length),
         modelUsage: acc.modelUsage,
+        history: acc.history,
         deviceCount: providerDevices.length,
         devices: providerDevices
       }
@@ -1024,7 +1037,8 @@ Item {
       totalSessions: numberValue(record.totalSessions),
       activeDays: numberValue(record.activeDays),
       activeDates: cloneValue(record.activeDates, []),
-      modelUsage: cloneValue(record.modelUsage, ({}))
+      modelUsage: cloneValue(record.modelUsage, ({})),
+      history: cloneValue(record.history, ({}))
     }
   }
 
