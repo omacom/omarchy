@@ -69,6 +69,35 @@ check(m.restore_destination(3, clients) == 5, 'occupied workspaces are skipped t
 check(m.restore_destination(3, clients + [{'workspace': {'id': -99}, 'tags': ['omarchy-minimized-from-5']}]) == 7, 'minimized apps reserve their original workspace')
 check(m.restore_destination(3, [{'workspace': {'id': 3}, 'mapped': False}]) == 3, 'unmapped windows do not occupy a workspace')
 
+check(m.restore_destination(10, [{'workspace': {'id': 10}}]) == 1, 'the last workspace wraps within the same monitor block')
+check(m.restore_destination(20, [{'workspace': {'id': 20}}]) == 11, 'the second monitor wraps inside its own block')
+try:
+    m.restore_destination(10, [{'workspace': {'id': i}} for i in range(1, 11)])
+except m.WorkspaceError:
+    print('ok - a full monitor block never steals another monitor workspace')
+else:
+    raise AssertionError('a full block crossed a monitor boundary')
+
+# A class match alone never authorizes moving an unrelated window.
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+unrelated = {'address': '0xother', 'class': 'Terminal', 'workspace': {'id': 2}, 'tags': []}
+launched = {'address': '0xours', 'class': 'Terminal', 'workspace': {'id': 8}, 'tags': ['omarchy-scene-proof*']}
+with patch.object(m.uuid, 'uuid4', return_value=SimpleNamespace(hex='proof')), patch.object(m, 'query', side_effect=[[], [unrelated], [unrelated, launched]]), patch.object(m, 'execute') as launch, patch.object(m, 'dispatch') as dispatch, patch.object(m.socket, 'socket', return_value=MagicMock()):
+    check(m.launch_window({'argv': ['/bin/true'], 'class': 'Terminal'}, set(), 8)['address'] == '0xours', 'only the per-launch tagged window is claimed, even if another app window appears first')
+    dispatch.assert_called_once_with('window.tag', {'window': 'address:0xours', 'tag': '-omarchy-scene-proof'})
+
+browser_other = {'address': '0xother', 'class': 'chromium', 'title': 'Unrelated browser', 'tags': []}
+browser_ours = {'address': '0xours', 'class': 'chromium', 'title': 'Focused work', 'tags': []}
+with patch.object(m, 'query', side_effect=[[], [browser_other], [browser_other, browser_ours]]), patch.object(m, 'execute') as launch, patch.object(m.socket, 'socket', return_value=MagicMock()):
+    check(m.launch_window({'argv': ['chromium', '--new-window', 'about:blank'], 'class': 'chromium', 'sceneName': 'Focused work'}, set(), 8)['address'] == '0xours', 'single-instance browsers match the launch-specific window name instead of their shared process/class')
+    check('--window-name=Focused work' in launch.call_args.args[0], 'the named browser window is explicitly requested by this launch')
+
+name = b'Focused work'
+user_title = struct.pack('<ii', 1, len(name)) + name + b'\0' * ((-len(name)) % 4)
+named = m.chromium_sessions(raw + record(31, struct.pack('<i', len(user_title)) + user_title))
+check(named[0]['title'] == 'Focused work' and named[0]['urls'] == records[0]['urls'], 'named browser windows retain their own current tabs when a scene is updated')
+
 # A missing app must launch only after the current workspace has its saved mode.
 events = []
 class LaunchObserved(Exception):
@@ -127,6 +156,22 @@ with tempfile.TemporaryDirectory() as directory:
         m.atomic_json(m.STATE / 'workspaces.json', data)
         m.configure(False)
         check(not m.enabled() and json.loads(m.CONFIG.read_text())['bar']['layout']['centerBegin'] == [{'id': 'omarchy.clock'}] and json.loads((m.STATE / 'workspaces.json').read_text()) == data, 'turning the feature off hides its button and preserves saved layouts')
+    with patch.object(m.subprocess, 'run'):
+        current = json.loads(m.CONFIG.read_text())
+        current['bar']['layout']['right'] = [{'id': m.WIDGET}]
+        current['savedWorkspaces'] = {'enabled': False}
+        m.atomic_json(m.CONFIG, current)
+        check(m.enabled(), 'placing the widget through other controls determines the enabled state')
+        m.CONFIG.unlink()
+        defaults = json.loads((Path(sys.argv[1]) / 'config/omarchy/shell.json').read_text())
+        m.configure(True)
+        fresh = json.loads(m.CONFIG.read_text())
+        check(fresh['bar']['layout']['left'] == defaults['bar']['layout']['left'] and fresh['bar']['layout']['center'] == defaults['bar']['layout']['center'], 'first enable preserves the default menu, workspaces and clock')
+    from subprocess import CompletedProcess
+    effective = {'version': 1, 'bar': {'layout': {'center': [{'id': 'omarchy.clock'}]}}}
+    with patch.object(m.subprocess, 'run', side_effect=[CompletedProcess([], 0, json.dumps(effective), ''), CompletedProcess([], 0, 'ok', '')]) as rpc:
+        m.configure(True)
+        check(rpc.call_args.args[0][3] == 'putBarWidget', 'a running shell owns configuration changes through its existing placement API')
     m.CONFIG, m.STATE = old_config, old_state
 
 with tempfile.TemporaryDirectory() as directory:
