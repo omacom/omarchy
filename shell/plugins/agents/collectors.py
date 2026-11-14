@@ -818,7 +818,8 @@ def _pi_parse(entry: Any) -> list | None:
 
 def _pi_spent(usage: dict) -> list:
   """[tokens, cost] one session line's usage spent: tokens [input, output,
-  cacheRead, cacheWrite], or None when it spent none."""
+  cacheRead, cacheWrite], or None when it spent none, and the cost, None
+  when it can't be read."""
   input_tokens = usage_tokens(usage, "input", "inputTokens", "input_tokens")
   # pi's `reasoning` and omp's `reasoningTokens` are the part of output that
   # was thinking, already in it, so they are never added again.
@@ -830,7 +831,12 @@ def _pi_spent(usage: dict) -> list:
     # Some writers keep only the total; it was still spent.
     input_tokens = usage_tokens(usage, "totalTokens", "total_tokens")
     tokens = [input_tokens, 0, 0, 0] if input_tokens else None
-  return [tokens, dollars(obj(usage.get("cost")).get("total"))]
+  try:
+    cost = dollars(obj(usage.get("cost")).get("total"))
+  except OverflowError:
+    # An integer too large for a float: _pi_rows() skips the line's row.
+    cost = None
+  return [tokens, cost]
 
 
 def _pi_reference(provider: str, model: str, api: Any) -> dict[str, Any]:
@@ -969,6 +975,10 @@ def _pi_rows(path: str, lines: list[tuple[int, list]], accept: Accept) -> Iterat
         reference = _pi_reference(provider, model, api)
         if kind == "r":
           context = (provider, model, reference)
+      if cost is None:
+        # A cost that can't be read costs the line its row, though a reply
+        # still says the model the session is on.
+        continue
       counted = _pi_row(spec, timestamp, path, provider, model, tokens, cost, int(kind == "r" and not typed))
       answered: list[tuple] = []
       if kind == "r":
@@ -1017,6 +1027,9 @@ PI_SESSION_INDEX_VERSION = 1
 # whose a summary or a prompt no reply answered is.
 _PI_SWITCH = r'"type"\s*:\s*"model_change"'
 _PI_CONTEXT = r'"type"\s*:\s*"(compaction|branch_summary)"|"role"\s*:\s*"toolResult".*"usage"\s*:\s*\{|"role"\s*:\s*"(user|assistant)"|' + _PI_SWITCH
+# The typed prompts, whose ids say whether a fork tree's other file holds a
+# copy of one a collector booked.
+_PI_PROMPT = r'"role"\s*:\s*"user"'
 
 # The length of each kind of line _pi_parse() makes and of each dedup key, so
 # an index line of another shape is never folded.
@@ -1051,7 +1064,7 @@ def _pi_index_line_valid(item: Any) -> bool:
   tokens, cost = (line[6], line[7]) if kind != "u" else (line[3], line[4])
   if tokens is not None and not (type(tokens) is list and len(tokens) == 4 and all(type(n) is int for n in tokens)):
     return False
-  return type(cost) is float and (kind != "r" or type(line[8]) is bool)
+  return (cost is None or type(cost) is float) and (kind != "r" or type(line[8]) is bool)
 
 
 def _pi_index_entry_valid(entry: Any) -> bool:
@@ -1063,6 +1076,7 @@ def _pi_index_entry_valid(entry: Any) -> bool:
       and type(entry["head"]) is str and type(entry["match"]) is bool
       and (entry["parent"] is None or type(entry["parent"]) is str)
       and all(items is None or (type(items) is list and all(_pi_index_line_valid(item) for item in items)) for items in (entry["switches"], entry["lines"]))
+      and (entry["prompts"] is None or (type(entry["prompts"]) is list and all(type(prompt) is str for prompt in entry["prompts"])))
     )
   except (KeyError, TypeError):
     return False
@@ -1121,8 +1135,12 @@ def _pi_rg(rg: str, args: list[str], targets: list[bytes], broke: Callable[[list
       continue
     stdin = None
     # A file, not a pipe: rg can name more unreadable files than a pipe holds
-    # while this reads its output.
-    errors = tempfile.TemporaryFile()
+    # while this reads its output. Without one, a failure costs its batch.
+    errors: Any = None
+    try:
+      errors = tempfile.TemporaryFile()
+    except OSError:
+      pass
     try:
       if start is not None:
         stdin = open(batch[0], "rb")
@@ -1132,12 +1150,12 @@ def _pi_rg(rg: str, args: list[str], targets: list[bytes], broke: Callable[[list
       # would otherwise hide every session file and count zero usage.
       proc = subprocess.Popen(
         [rg, "--no-ignore", "--hidden", *args, "--", *([b"-"] if stdin else batch)],
-        stdin=stdin or subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=errors, env=runtime_env(),
+        stdin=stdin or subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=errors or subprocess.DEVNULL, env=runtime_env(),
       )
     except OSError:
-      if stdin:
-        stdin.close()
-      errors.close()
+      for handle in (stdin, errors):
+        if handle:
+          handle.close()
       broke(batch)
       continue
     assert proc.stdout is not None
@@ -1147,18 +1165,21 @@ def _pi_rg(rg: str, args: list[str], targets: list[bytes], broke: Callable[[list
     finally:
       if stdin:
         stdin.close()
-    with errors:
-      try:
-        # rg exits 1 for no match and 2 when it couldn't read something,
-        # which it names as "rg: <path>: <why>" and reads every other file.
-        if proc.wait(timeout=5) not in (0, 1):
+    try:
+      # rg exits 1 for no match and 2 when it couldn't read something,
+      # which it names as "rg: <path>: <why>" and reads every other file.
+      if proc.wait(timeout=5) not in (0, 1):
+        said = b""
+        if errors and not stdin:
           errors.seek(0)
           said = errors.read()
-          named = [] if stdin else [target for target in batch if b"rg: " + target + b": " in said]
-          broke(named or batch)
-      except subprocess.TimeoutExpired:
-        proc.kill()
-        broke(batch)
+        broke([target for target in batch if b"rg: " + target + b": " in said] or batch)
+    except subprocess.TimeoutExpired:
+      proc.kill()
+      broke(batch)
+    finally:
+      if errors:
+        errors.close()
 
 
 def _pi_events(rg: str, patterns: list[str], targets: list[bytes], broke: Callable[[list[bytes]], None], start: int | None = None) -> Iterator[tuple[str, int, Any]]:
@@ -1338,7 +1359,7 @@ def _pi_scan(
       offset = _pi_read_through(path, info.st_size)
       entry = {
         "size": info.st_size, "mtime": info.st_mtime_ns, "file": identity, "head": _claude_code_digest(Path(path), offset), "offset": offset,
-        "parent": _pi_header_parent(path), "match": False, "switches": None, "lines": None,
+        "parent": _pi_header_parent(path), "match": False, "switches": None, "lines": None, "prompts": None,
       }
       # Only the same file, grown past what was read with what was read
       # still in place, is an append.
@@ -1389,6 +1410,12 @@ def _pi_scan(
         line = _pi_parse(line_entry)
         if line is not None:
           entry["lines"].append([position, line])
+    elif old["prompts"] is not None:
+      entry["prompts"] = list(old["prompts"])
+      for _, _, line_entry in _pi_events(rg, [_PI_PROMPT], target, broke, start):
+        line = _pi_parse(line_entry)
+        if line is not None and line[0] == "p" and line[1][0] == "E":
+          entry["prompts"].append(line[1][1])
 
   def read_lines(wanted: list[str]) -> None:
     """Read in the lines of the files in `wanted` the index lacks, every one
@@ -1478,10 +1505,23 @@ def _pi_scan(
   others = sorted(path for path in family - read if os.path.isfile(path) and any(Path(path).is_relative_to(root) for root in roots))
 
   def books(lines: list[list]) -> bool:
-    # A file holding none of those prompts holds no copy, and is not parsed.
     return any(line[0] == "p" and line[1][0] == "E" and line[1][1] in ids for _, line in lines)
 
-  read_lines([path for path in others if path in current])
+  # A file holding none of those prompts holds no copy, and is not parsed:
+  # the index keeps the ids of its typed prompts instead of its lines, so
+  # another scan, booking other prompts, still reads nothing to tell.
+  indexed = [path for path in others if path in current]
+  unknown = [path for path in indexed if current[path]["lines"] is None and current[path]["prompts"] is None]
+  if unknown:
+    stale()
+    typed: dict[str, list[str]] = {path: [] for path in unknown}
+    for path, _, entry in _pi_events(rg, [_PI_PROMPT], sorted(os.fsencode(path) for path in unknown), broke):
+      line = _pi_parse(entry)
+      if line is not None and line[0] == "p" and line[1][0] == "E" and path in typed:
+        typed[path].append(line[1][1])
+    for path in unknown:
+      current[path] = {**current[path], "prompts": typed[path]}
+  read_lines([path for path in indexed if current[path]["lines"] is None and ids.intersection(current[path]["prompts"])])
   outside: dict[str, list[list]] = {}
   if any(path not in current for path in others):
     # A parent the listing doesn't hold (one not named *.jsonl) is read every
@@ -1493,7 +1533,7 @@ def _pi_scan(
       if line is not None:
         outside.setdefault(path, []).append([position, line])
   for path in others:
-    lines = current[path]["lines"] if path in current else outside.get(path, [])
+    lines = (current[path]["lines"] or []) if path in current else outside.get(path, [])
     if books(lines):
       fold(None, path, lines)
   owner = {ask: min(candidates, key=lambda candidate: candidate[:4])[-1] for ask, candidates in bookings.items()}

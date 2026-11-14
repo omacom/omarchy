@@ -432,4 +432,45 @@ finally:
 entries = json.loads(demo_index(partial).read_text())["files"]
 check("an unfinished listing drops the entries of files that are gone",
       not complete and not any(name.endswith("/gone.jsonl") for name in entries) and any(name.endswith("/kept.jsonl") for name in entries), json.dumps(sorted(entries)))
+
+# The fork tree above, where `late` owns one fork's reply and no other file
+# holds its prompt: those files' lines are neither parsed nor kept, and the
+# next scan still reads no file to tell.
+late = r'"provider"\s*:\s*"late"'
+index_scan("late", forks)
+entries = json.loads(collectors.pi_session_index_path(late, collectors.canonical_roots([forks])).read_text())["files"]
+with_lines = sorted(Path(name).name for name, entry in entries.items() if entry["lines"] is not None)
+ok, names, fed = same("late", forks)
+check("a fork tree's files holding none of a collector's prompts keep no lines in its index",
+      with_lines == ["fork-5.jsonl"] and ok and not names and not fed, json.dumps({"with_lines": with_lines, "names": sorted(names), "fed": fed}))
+
+# Nowhere to keep rg's messages costs a failed run its batch, never the scan.
+saved = tempfile.tempdir
+tempfile.tempdir = str(work / "no-tmp")
+try:
+  ok, names, _ = same("demo", indexed)
+except OSError as exc:
+  ok, names = False, {repr(exc)}
+finally:
+  tempfile.tempdir = saved
+check("a scan with no temp directory still answers", ok and not names, json.dumps(sorted(names)))
+
+# A reply whose cost no float holds costs its row, read whole or appended,
+# never the scan; its prompt still counts, unanswered, on its model.
+def damaged(tag):
+  prompt, reply = exchange(tag, "demo", 900)
+  reply["message"]["usage"]["cost"]["total"] = 10 ** 400
+  return [prompt, reply]
+
+
+costly = work / "indexed-costly"
+write(costly / "s.jsonl", session("s", "demo", *damaged("x1"), *exchange("x2", "demo", 200)))
+try:
+  first, _ = index_scan("demo", costly)
+  append(costly / "s.jsonl", "".join(json.dumps(line) + "\n" for line in damaged("x3")))
+  rows, complete = index_scan("demo", costly)
+  got = sorted((row.input_tokens, row.prompts) for row in rows)
+except OverflowError as exc:
+  first, got, complete = [], repr(exc), False
+check("a damaged cost costs only its row", complete and len(first) == 2 and got == [(0, 1), (0, 1), (200, 1)], json.dumps(got))
 PY
