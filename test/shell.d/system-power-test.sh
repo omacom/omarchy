@@ -8,7 +8,8 @@ trap 'rm -rf "$test_tmp"' EXIT
 mock_bin="$test_tmp/bin"
 call_log="$test_tmp/calls.log"
 mkdir -p "$mock_bin"
-export PATH="$mock_bin:$PATH" CALL_LOG="$call_log" OMARCHY_PATH="$ROOT"
+export PATH="$mock_bin:$ROOT/bin:$PATH" CALL_LOG="$call_log" OMARCHY_PATH="$ROOT"
+export OMARCHY_LANGUAGE_FILE=/dev/null
 export HYPRLAND_INSTANCE_SIGNATURE="test-session"
 export EXPECTED_PATH="$PATH" EXPECTED_OMARCHY_PATH="$OMARCHY_PATH"
 
@@ -69,7 +70,7 @@ case $command in
     ;;
   uwsm | systemctl)
     [[ -f $CALL_LOG.grace ]] || exit 2
-    if [[ $1 == "poweroff" ]]; then
+    if [[ $command == "systemctl" ]]; then
       [[ -f $CALL_LOG.inhibited ]] || exit 2
     fi
     touch "$CALL_LOG.poweroff"
@@ -95,6 +96,10 @@ for action in reboot logout; do
   grep -q -- '--property=RuntimeMaxSec=30s' "$CALL_LOG" || fail "$action bounds the worker lifetime"
   PATH=/stale/bin OMARCHY_PATH=/stale/checkout HYPRLAND_INSTANCE_SIGNATURE=stale /bin/bash "$CALL_LOG.worker" || fail "$action worker succeeds"
   [[ -f $CALL_LOG.environment ]] || fail "$action forwards the caller environment over stale manager values"
+  if [[ $action == "logout" ]]; then
+    ! grep -q '^systemd-inhibit ' "$CALL_LOG" || fail "logout does not inhibit sleep or lid handling"
+    ! grep -q '^omarchy-state ' "$CALL_LOG" || fail "logout preserves restart state"
+  fi
   grep -q '^timeout 2s omarchy-hyprland-window-close-all --wait$' "$CALL_LOG" || fail "$action waits for application exit with a deadline"
   ! grep -q '^sleep ' "$CALL_LOG" || fail "$action has no fixed sleep"
   rm -f "$CALL_LOG.grace"
@@ -204,3 +209,52 @@ for action in logout reboot shutdown; do
 done
 "$ROOT/bin/omarchy" system lock --help | grep -q 'omarchy-system-lock' || fail "system lock remains routed to its own command"
 pass "existing system subcommands keep their routes"
+
+# Last: this overwrites the shared worker file the sections above reuse.
+for action in reboot; do
+  expected_command="systemctl reboot --no-wall"
+  run_power_command "$action" || fail "$action service is scheduled"
+  PATH=/stale/bin OMARCHY_PATH=/stale/checkout HYPRLAND_INSTANCE_SIGNATURE=stale /bin/bash "$CALL_LOG.worker" || fail "protected $action succeeds"
+  [[ -f $CALL_LOG.environment ]] || fail "$action forwards the caller environment over stale manager values"
+  grep -q '^systemd-inhibit --what=sleep:idle:handle-lid-switch --who=Omarchy --why=Rebooting --mode=block .* --inhibited$' "$CALL_LOG" || fail "$action blocks sleep and lid handling with the reboot reason"
+  inhibit_line=$(grep -n '^systemd-inhibit ' "$CALL_LOG" | cut -d: -f1)
+  for preparation in omarchy-osd omarchy-state omarchy-hyprland-window-close-all; do
+    preparation_line=$(grep -n "^$preparation " "$CALL_LOG" | cut -d: -f1)
+    [[ -n $preparation_line ]] && (( inhibit_line < preparation_line )) || fail "$action inhibits before $preparation"
+  done
+  grep -q '^omarchy-state clear re\*-required$' "$CALL_LOG" || fail "$action clears restart state"
+  grep -Fqx "$expected_command" "$CALL_LOG" || fail "$action requests the intended reboot while inhibited"
+  [[ ! -f $CALL_LOG.inhibited ]] || fail "$action releases inhibition after the request"
+  ! grep -q '^omarchy-notification-send ' "$CALL_LOG" || fail "$action succeeds without a failure notification"
+  pass "$action stays inhibited from preparation through the reboot request"
+
+  : >"$call_log"
+  rm -f "$CALL_LOG.grace" "$CALL_LOG.poweroff"
+  BLOCK_WINDOW_CLOSE=true bash "$CALL_LOG.worker" || fail "$action proceeds after the close deadline"
+  [[ -f $CALL_LOG.poweroff && ! -f $CALL_LOG.inhibited ]] || fail "$action reaches reboot and releases inhibition after the close deadline"
+  ! grep -q '^omarchy-notification-send ' "$CALL_LOG" || fail "$action does not report a close timeout as failure"
+  pass "$action stays protected when window closing times out"
+
+  for failure in FAIL_INHIBIT FAIL_EXIT; do
+    : >"$call_log"
+    rm -f "$CALL_LOG.grace" "$CALL_LOG.poweroff"
+    env "$failure=true" bash "$CALL_LOG.worker"
+    status=$?
+    expected_status=1
+    [[ $failure == "FAIL_INHIBIT" ]] && expected_status=17
+    (( status == expected_status )) || fail "$action $failure propagates to the service"
+    grep -Fqx 'omarchy-notification-send -u critical Reboot failed Could not complete reboot. Please try again.' "$CALL_LOG" || fail "$action $failure reports the reboot failure"
+    [[ ! -f $CALL_LOG.inhibited ]] || fail "$action $failure leaves no inhibitor behind"
+    if [[ $failure == "FAIL_INHIBIT" ]]; then
+      (( $(wc -l <"$call_log") == 2 )) || fail "$action inhibitor failure leaves applications and power untouched"
+    else
+      grep -Fqx "$expected_command" "$CALL_LOG" || fail "$action rejection test reaches the intended reboot"
+    fi
+    pass "$action $failure reports failure and releases inhibition"
+  done
+
+  : >"$call_log"
+  FAIL_INHIBIT=true FAIL_NOTIFICATION=true bash "$CALL_LOG.worker"
+  [[ $? == 17 ]] || fail "notification failure preserves the $action error"
+  pass "notification failure preserves the $action error"
+done

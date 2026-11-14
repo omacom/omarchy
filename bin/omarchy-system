@@ -57,10 +57,10 @@ exit_session() {
 if [[ ${2:-} == "--inhibited" ]]; then
   exit_session
 elif [[ ${2:-} == "--execute" ]]; then
-  if [[ $action == "shutdown" ]]; then
+  if [[ $action != "logout" ]]; then
     # Block lid handling explicitly: it ignores high-level sleep inhibitors.
     systemd-inhibit --what=sleep:idle:handle-lid-switch \
-      --who=Omarchy --why="Shutdown in progress" --mode=block \
+      --who=Omarchy --why="$message" --mode=block \
       "$0" "$action" --inhibited
   else
     exit_session
