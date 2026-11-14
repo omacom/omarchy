@@ -104,10 +104,10 @@ for ending in [' - Chromium', ' - Google Chrome', ' - Brave']:
   state = m.capture_app_state({'title': title, 'class': 'chromium', 'pid': 42}, {'argv': ['chromium', '--user-data-dir=/unused']}, cache)
   check(state['urls'] == ['https://example.org/exact'], 'an exact saved window name wins over a browser-suffix fallback: ' + ending)
 
-firefox_other = {'address': '0xother', 'class': 'firefox', 'title': 'Unrelated — Mozilla Firefox', 'tags': []}
-firefox_ours = {'address': '0xours', 'class': 'firefox', 'title': 'Focused work — Mozilla Firefox', 'tags': []}
-with patch.object(m, 'query', side_effect=[[], [firefox_other], [firefox_other, firefox_ours]]), patch.object(m, 'execute') as launch, patch.object(m.socket, 'socket', return_value=MagicMock()):
-  check(m.launch_window({'argv': ['firefox', '--new-window', 'about:blank'], 'class': 'firefox', 'sceneName': 'Focused work'}, set(), 8)['address'] == '0xours', 'forwarded Firefox requests identify their own launch page instead of claiming another window')
+firefox_other = {'address': '0xother', 'class': 'firefox', 'title': 'Focused work — Mozilla Firefox', 'tags': []}
+firefox_ours = {'address': '0xours', 'class': 'firefox', 'title': 'Focused work' + chr(0x2063) + chr(0xFE0A) + chr(0xFE0B) + ' — Mozilla Firefox', 'tags': []}
+with patch.object(m.uuid, 'uuid4', return_value=SimpleNamespace(hex='ab')), patch.object(m, 'query', side_effect=[[], [firefox_other], [firefox_other, firefox_ours]]), patch.object(m, 'execute') as launch, patch.object(m.socket, 'socket', return_value=MagicMock()):
+  check(m.launch_window({'argv': ['firefox', '--new-window', 'about:blank'], 'class': 'firefox', 'sceneName': 'Focused work'}, set(), 8)['address'] == '0xours', 'forwarded Firefox requests reject an unrelated window with the same visible title and claim only their per-launch identity')
   check('file://' in launch.call_args.args[0] and '--new-window' in launch.call_args.args[0], 'forwarded Firefox requests explicitly open their own launch page')
 
 # Firefox retains launch URIs and never grows extra blank tabs on repeated saves.
@@ -133,7 +133,7 @@ def observe_firefox_launch(code):
   contents = page.read_text()
   observed['target'] = json.loads(re.search(r'location.replace\((.*?)\),2000', contents).group(1))
   check(contents.count('</script>') == 1, 'saved Firefox URLs cannot inject markup into the temporary launch page')
-with patch.object(m, 'query', side_effect=[[], [firefox_ours]]), patch.object(m, 'execute', side_effect=observe_firefox_launch), patch.object(m.socket, 'socket', return_value=MagicMock()):
+with patch.object(m.uuid, 'uuid4', return_value=SimpleNamespace(hex='ab')), patch.object(m, 'query', side_effect=[[], [firefox_ours]]), patch.object(m, 'execute', side_effect=observe_firefox_launch), patch.object(m.socket, 'socket', return_value=MagicMock()):
   m.launch_window({'argv': ['firefox', '--new-window', first_url, 'https://example.org/two'], 'class': 'firefox', 'sceneName': 'Focused work'}, set(), 8)
 check(observed['target'] == first_url and observed['args'][-1] == 'https://example.org/two' and '--new-window' not in observed['args'], 'one forwarded Firefox window retains all launch URLs in order, with its marker standing in for the first URL')
 check(not observed['page'].exists(), 'the private launch page is removed after its window is identified')
