@@ -75,7 +75,7 @@ machine() {
 }
 
 setup() {
-  env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="$uuid" \
+  env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="${SWAP_UUID-$uuid}" \
     DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" REBUILD_RESULT="${REBUILD_RESULT:-ok}" \
     bash "$rtmp/setup" "$@" >"$rtmp/out" 2>&1
 }
@@ -105,6 +105,19 @@ for line in 'KERNEL_CMDLINE[default]+=" resume=/dev/nvme1n1p2 resume_offset=4242
   (( $(wc -l <"$rtmp/rebuilds") == builds )) || fail "a second rerun leaves a renamed drop-in alone"
 done
 pass "a rerun renames a kernel-name resume device once"
+
+empty_device_line='KERNEL_CMDLINE[default]+=" resume= resume_offset=4242"'
+machine "$empty_device_line"
+SWAP_SOURCE="/dev/sda2[/@]" setup || fail "setup repairs an empty resume device" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == "$uuid_line" && $(<"$rtmp/rebuilds") == "$uuid_line" ]] ||
+  fail "setup rebuilds from the repaired resume device"
+machine "$empty_device_line"
+if SWAP_SOURCE="" SWAP_UUID="" setup; then
+  fail "setup reports success without a resume device"
+fi
+[[ $(<"$drop_in") == "$empty_device_line" && ! -s $rtmp/rebuilds ]] ||
+  fail "setup leaves the drop-in untouched when the resume device is unknown"
+pass "setup repairs an empty device only when it can find a stable replacement"
 
 # If a kernel's image is not rebuilt, or the rebuild is interrupted, the drop-in
 # is already renamed; the next run sees the pending rebuild and does it, once.
