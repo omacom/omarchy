@@ -45,6 +45,11 @@
 --   },
 -- })
 
+-- Replace the brief the top bar shows for a keyboard layout. Key by layout, or
+-- by layout and variant joined with a colon; three letters show, so a variant
+-- like dvorak gets its own label:
+-- o.keyboard_brief({ us = "US", ["us:dvorak"] = "DV" })
+
 -- App-specific touchpad scroll speeds.
 -- o.window("(Alacritty|kitty)", { scroll_touchpad = 1.5 })
 -- o.window("foot", { scroll_touchpad = 2.0 })

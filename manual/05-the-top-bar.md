@@ -10,6 +10,8 @@ The bar has three sections. On the left sits the Omarchy logo (the menu launcher
 
 A few of those only show up when they have something to say. The keyboard layout appears only if you've configured more than one layout. The update badge appears only when there's an Omarchy update waiting. And the agents icon appears the first time Omarchy finds AI coding usage on the machine (see [AI](17-ai.md)).
 
+The keyboard layout shows a brief, usually a language code like EN or DA, for the layout you're typing on. Two layouts of the same language, Dvorak and QWERTY on a `us` layout say, read the same — give one its own brief with `o.keyboard_brief({ us = "US", ["us:dvorak"] = "DV" })` in `~/.config/hypr/input.lua`, keyed by layout, or by layout and variant joined with a colon. The brief is cut to three letters, and removing the call brings the default back on the next reload.
+
 ## Clicking around
 
 Nearly every widget does something on left, right, and middle click, and several respond to scrolling. This is the part people miss — the right and middle buttons are where a lot of the good stuff hides.
