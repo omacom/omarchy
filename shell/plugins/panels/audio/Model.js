@@ -273,6 +273,14 @@ function isUntypedSource(node, sourceAvailability) {
   return name !== "" && !!sourceAvailability && Object.prototype.hasOwnProperty.call(sourceAvailability, name)
 }
 
+// Topmost cursor row in a panel section: its mute switch (-2), its slider
+// (-1), or its first device row (0). A hidden switch is not a row, so the
+// cursor can never land on or stay on one.
+function sectionCursorFloor(hasSlider, hasSwitch) {
+  if (!hasSlider) return 0
+  return hasSwitch ? -2 : -1
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
@@ -299,6 +307,7 @@ if (typeof module !== "undefined") {
     unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
     streamLabel: streamLabel,
     streamRepresentsPlayer: streamRepresentsPlayer,
-    isUntypedSource: isUntypedSource
+    isUntypedSource: isUntypedSource,
+    sectionCursorFloor: sectionCursorFloor
   }
 }

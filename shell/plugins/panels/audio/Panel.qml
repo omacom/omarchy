@@ -216,6 +216,7 @@ Panel {
   //   "input"   — input slider + source device list
   //   "streams" — per-app playback streams
   // selectedIndex semantics within a section:
+  //   -2            → on the section's mute switch (m/Enter mute)
   //   -1            → on the slider row (h/l adjusts volume, m/Enter mute)
   //   0..N-1        → on the Nth device/stream row
   // Visuals derive from hasCursor/current via CursorSurface, never
@@ -225,16 +226,11 @@ Panel {
   property int selectedIndex: -1
   property bool cursorActive: false
 
-  // "header" is a virtual section for the hero output mute toggle; it sits
-  // above the output section so the speaker can be muted from the keyboard.
-  readonly property bool headerHasCursor: cursorActive && focusSection === "header"
-  // Only channels that actually exist get a vote. A box with no default source
-  // would otherwise report "input unmuted" forever, leaving the hero switch
-  // able to mute but never to unmute.
   readonly property bool hasOutput: !!(volumeSink && volumeSink.audio)
   readonly property bool hasInput: !!(source && source.audio) || (inputViaWpctl && UntypedInput.known)
-  readonly property bool anyAudible: (hasOutput && !outputMuted) || (hasInput && !inputMuted)
-  readonly property string toggleHint: anyAudible ? Commons.I18n.t("audio.mute") : Commons.I18n.t("audio.unmute")
+  // A section switch hides with its channel; move a cursor off it at once.
+  onHasOutputChanged: clampCursor()
+  onHasInputChanged: clampCursor()
 
   readonly property color hoverFill: bar
     ? Style.hoverFillFor(bar.foreground, Commons.Color.accent)
@@ -263,6 +259,18 @@ Panel {
     return false  // stream rows carry their own sliders inline; not a section-level slider
   }
 
+  // Mirrors each section switch's visible binding, so keyboard navigation
+  // skips a switch that is hidden because its channel is gone.
+  function sectionHasSwitch(section) {
+    if (section === "output") return hasOutput
+    if (section === "input") return hasInput
+    return false
+  }
+
+  function sectionFloor(section) {
+    return Model.sectionCursorFloor(sectionHasSlider(section), sectionHasSwitch(section))
+  }
+
   // Order of visible sections, recomputed reactively so dropping a section
   // (e.g. no input devices) doesn't leave the cursor pointing at it.
   readonly property var visibleSections: {
@@ -276,24 +284,19 @@ Panel {
   function moveCursor(delta) {
     var sections = visibleSections
     if (sections.length === 0) return
-    if (focusSection === "header") {
-      if (delta > 0) { focusSection = sections[0]; selectedIndex = sectionHasSlider(sections[0]) ? -1 : 0 }
-      return
-    }
     var sIdx = sections.indexOf(focusSection)
-    if (sIdx < 0) { focusSection = sections[0]; selectedIndex = sectionHasSlider(focusSection) ? -1 : 0; return }
+    if (sIdx < 0) { focusSection = sections[0]; selectedIndex = sectionFloor(focusSection); return }
 
     var idx = selectedIndex
     var max = sectionCount(focusSection) - 1  // last device index
-    var hasSlider = sectionHasSlider(focusSection)
-    var floor = hasSlider ? -1 : 0  // -1 = slider row
+    var floor = sectionFloor(focusSection)  // switch, slider, then devices
 
     if (delta > 0) {
       if (idx < max) { selectedIndex = idx + 1; return }
       // Fall through to next section.
       if (sIdx < sections.length - 1) {
         focusSection = sections[sIdx + 1]
-        selectedIndex = sectionHasSlider(focusSection) ? -1 : 0
+        selectedIndex = sectionFloor(focusSection)
       }
     } else {
       if (idx > floor) { selectedIndex = idx - 1; return }
@@ -302,16 +305,14 @@ Panel {
         focusSection = sections[sIdx - 1]
         var prevMax = sectionCount(focusSection) - 1
         selectedIndex = prevMax >= 0 ? prevMax : (sectionHasSlider(focusSection) ? -1 : 0)
-      } else {
-        focusSection = "header"
       }
     }
   }
 
-  function setHeaderCursor() {
+  function setMuteCursor(section) {
     cursorActive = true
-    focusSection = "header"
-    selectedIndex = -1
+    focusSection = section
+    selectedIndex = -2
   }
 
   function moveSection(delta) {
@@ -321,7 +322,7 @@ Panel {
     if (current < 0) current = delta > 0 ? -1 : 0
     var next = (current + delta + sections.length) % sections.length
     focusSection = sections[next]
-    selectedIndex = sectionHasSlider(focusSection) ? -1 : 0
+    selectedIndex = sectionFloor(focusSection)
     cursorActive = true
   }
 
@@ -348,15 +349,14 @@ Panel {
 
   // Enter/Space: activate whatever the cursor is on.
   function activateCursor() {
-    if (focusSection === "header") { toggleAllMuted(); return }
     if (focusSection === "output") {
-      if (selectedIndex === -1) { toggleOutputMute(); return }
+      if (selectedIndex < 0) { toggleOutputMute(); return }
       var sink = nodeFor(displayAudioSinks[selectedIndex])
       if (sink) setDefaultSink(sink)
       return
     }
     if (focusSection === "input") {
-      if (selectedIndex === -1) { toggleInputMute(); return }
+      if (selectedIndex < 0) { toggleInputMute(); return }
       var src = nodeFor(displayAudioSources[selectedIndex])
       if (src) setDefaultSource(src)
       return
@@ -439,7 +439,7 @@ Panel {
     if (!flick || flick.contentY === undefined) return
     var margin = 6
     var maxY = Math.max(0, (flick.contentHeight || 0) - flick.height)
-    if (maxY <= Style.space(24) || (root.focusSection === "output" && root.selectedIndex === -1)) {
+    if (maxY <= Style.space(24) || (root.focusSection === "output" && root.selectedIndex < 0)) {
       flick.contentY = 0
       return
     }
@@ -456,18 +456,13 @@ Panel {
   function clampCursor() {
     var sections = visibleSections
     if (!sections || !sections.length) return
-    // "header" is virtual and never appears in visibleSections, so it has to
-    // be let through: muting republishes the PipeWire snapshot, and clamping
-    // would knock the cursor off the hero switch on every toggle.
-    if (focusSection === "header") return
     if (sections.indexOf(focusSection) < 0) {
       focusSection = visibleSections[0]
-      selectedIndex = sectionHasSlider(focusSection) ? -1 : 0
+      selectedIndex = sectionFloor(focusSection)
       return
     }
     var count = sectionCount(focusSection)
-    var hasSlider = sectionHasSlider(focusSection)
-    var floor = hasSlider ? -1 : 0
+    var floor = sectionFloor(focusSection)
     if (selectedIndex > count - 1) selectedIndex = Math.max(floor, count - 1)
     if (selectedIndex < floor) selectedIndex = floor
   }
@@ -529,16 +524,6 @@ Panel {
       if (UntypedInput.known) UntypedInput.setMuted(!UntypedInput.muted)
     }
     else if (source && source.audio) source.audio.muted = !source.audio.muted
-  }
-
-  // The hero switch is the whole panel's on/off, so it carries both channels
-  // at once. It reads as on while anything is still audible, which keeps
-  // muting a single channel from the row below flipping the master switch.
-  function toggleAllMuted() {
-    var mute = anyAudible
-    if (hasOutput) volumeSink.audio.muted = mute
-    if (hasInput && inputViaWpctl) UntypedInput.setMuted(mute)
-    else if (hasInput) source.audio.muted = mute
   }
 
   function setDefaultSink(node) {
@@ -739,7 +724,7 @@ Panel {
     bar: root.bar
     text: root.outputIcon()
     onPressed: function(b) {
-      if (b === Qt.RightButton) root.toggleAllMuted()
+      if (b === Qt.RightButton) root.toggleOutputMute()
       else root.toggle()
     }
 
@@ -814,9 +799,9 @@ Panel {
           Item {
             id: heroItem
             width: parent.width
-            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, powerSwitch.implicitHeight)
+            implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight)
 
-            // Status only — the switch owns muting, mouse and keyboard alike.
+            // Status only — each section's switch owns its own mute state.
             Text {
               id: heroIcon
               textFormat: Text.PlainText
@@ -829,32 +814,11 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
             }
 
-            // Compact on/off switch on the trailing edge of the hero, and the
-            // header's only cursor target. Checked means something is still
-            // audible, so muting everything reads as switching audio off.
-            ToggleSwitch {
-              id: powerSwitch
-              checked: root.anyAudible
-              hasCursor: root.headerHasCursor
-              foreground: root.bar.foreground
-              anchors.right: parent.right
-              anchors.verticalCenter: parent.verticalCenter
-              onHovered: function(on) { if (on) root.setHeaderCursor() }
-              onToggled: root.toggleAllMuted()
-
-              PanelToolTip {
-                visible: powerSwitch.containsMouse
-                text: root.toggleHint
-                fontFamily: root.bar.fontFamily
-              }
-            }
-
             Column {
               id: heroLabels
               anchors.left: heroIcon.right
               anchors.leftMargin: Style.space(14)
               anchors.right: parent.right
-              anchors.rightMargin: powerSwitch.width + Style.space(12)
               anchors.verticalCenter: parent.verticalCenter
               spacing: Style.space(2)
 
@@ -897,15 +861,32 @@ Panel {
             spacing: Style.space(6)
 
             Item {
+              id: outputSectionHeader
               width: parent.width
-              implicitHeight: Math.max(outputHeader.implicitHeight, outputPercent.implicitHeight)
+              implicitHeight: Math.max(outputHeader.implicitHeight, outputPercent.implicitHeight, outputMuteSwitch.implicitHeight)
+
+              Text {
+                id: outputMuteGlyph
+                textFormat: Text.PlainText
+                text: root.hasOutput && !root.outputMuted ? "󰓃" : ""
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.title
+                // Reserve the same glyph overshoot the section headers do
+                // (PanelSectionHeader), so this glyph's painted outline lines
+                // up with the header text beside it.
+                topPadding: Math.ceil(Style.font.title * 0.15)
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
 
               PanelSectionHeader {
                 id: outputHeader
                 text: Commons.I18n.t("audio.output")
                 foreground: root.bar.foreground
                 fontFamily: root.bar.fontFamily
-                anchors.left: parent.left
+                anchors.left: outputMuteGlyph.right
+                anchors.leftMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
               }
 
@@ -917,10 +898,30 @@ Panel {
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
+                anchors.right: root.hasOutput ? outputMuteSwitch.left : parent.right
+                anchors.rightMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                opacity: root.outputMuted ? 0.5 : 1.0
+              }
+
+              ToggleSwitch {
+                id: outputMuteSwitch
+                checked: root.hasOutput && !root.outputMuted
+                visible: root.hasOutput
+                hasCursor: root.cursorActive && root.focusSection === "output" && root.selectedIndex === -2
+                onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(outputSectionHeader)
+                foreground: root.bar.foreground
                 anchors.right: parent.right
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
-                opacity: root.outputMuted ? 0.5 : 1.0
+                onHovered: function(on) { if (on) root.setMuteCursor("output") }
+                onToggled: root.toggleOutputMute()
+
+                PanelToolTip {
+                  visible: outputMuteSwitch.containsMouse
+                  text: root.outputMuted ? Commons.I18n.t("audio.unmuteOutput") : Commons.I18n.t("audio.muteOutput")
+                  fontFamily: root.bar.fontFamily
+                }
               }
             }
 
@@ -984,15 +985,32 @@ Panel {
             visible: root.displayAudioSources.length > 0 || !!root.source
 
             Item {
+              id: inputSectionHeader
               width: parent.width
-              implicitHeight: Math.max(microphoneHeader.implicitHeight, microphonePercent.implicitHeight)
+              implicitHeight: Math.max(microphoneHeader.implicitHeight, microphonePercent.implicitHeight, inputMuteSwitch.implicitHeight)
+
+              Text {
+                id: inputMuteGlyph
+                textFormat: Text.PlainText
+                text: root.hasInput && !root.inputMuted ? "󰍬" : "󰍭"
+                color: root.bar.foreground
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.title
+                // Reserve the same glyph overshoot the section headers do
+                // (PanelSectionHeader), so this glyph's painted outline lines
+                // up with the header text beside it.
+                topPadding: Math.ceil(Style.font.title * 0.15)
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
 
               PanelSectionHeader {
                 id: microphoneHeader
                 text: Commons.I18n.t("audio.input")
                 foreground: root.bar.foreground
                 fontFamily: root.bar.fontFamily
-                anchors.left: parent.left
+                anchors.left: inputMuteGlyph.right
+                anchors.leftMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
               }
 
@@ -1004,10 +1022,30 @@ Panel {
                 font.family: root.bar.fontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
+                anchors.right: root.hasInput ? inputMuteSwitch.left : parent.right
+                anchors.rightMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                opacity: root.inputMuted ? 0.5 : 1.0
+              }
+
+              ToggleSwitch {
+                id: inputMuteSwitch
+                checked: root.hasInput && !root.inputMuted
+                visible: root.hasInput
+                hasCursor: root.cursorActive && root.focusSection === "input" && root.selectedIndex === -2
+                onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(inputSectionHeader)
+                foreground: root.bar.foreground
                 anchors.right: parent.right
                 anchors.rightMargin: Style.space(6)
                 anchors.verticalCenter: parent.verticalCenter
-                opacity: root.inputMuted ? 0.5 : 1.0
+                onHovered: function(on) { if (on) root.setMuteCursor("input") }
+                onToggled: root.toggleInputMute()
+
+                PanelToolTip {
+                  visible: inputMuteSwitch.containsMouse
+                  text: root.inputMuted ? Commons.I18n.t("audio.unmuteMicrophone") : Commons.I18n.t("audio.muteMicrophone")
+                  fontFamily: root.bar.fontFamily
+                }
               }
             }
 
