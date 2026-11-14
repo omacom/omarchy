@@ -86,6 +86,11 @@ assertEqual(merged.items['style.theme'].label, 'Theme picker', 'menu user entrie
 assertEqual(merged.items['style.theme'].order, 2, 'menu preserves original order on override')
 assert(merged.items.root, 'menu injects root when merging sources')
 
+// The extension template promises an override keeps the fields it doesn't set.
+const kept = menu.mergeMenuSources(parsed, menu.parseMenuJsonc('{"style.theme": {"action": "custom-theme"}}')).items['style.theme']
+assertEqual(kept.action, 'custom-theme', 'menu override replaces the field it sets')
+assertDeepEqual([kept.label, kept.aliases, kept.description], ['Themes', ['theme'], 'appearance colors'], 'menu override keeps the fields it leaves out')
+
 assertEqual(menu.slugify('Power Saver!'), 'power-saver', 'menu slugifies provider rows')
 assertEqual(menu.pathFor(merged.items, 'style.theme'), 'Style › Theme picker', 'menu builds item paths')
 assertEqual(menu.parentPathFor(merged.items, 'style.theme'), 'Style', 'menu builds parent paths')

@@ -20,7 +20,7 @@ function normalizeItem(id, raw) {
 
   var kind = value.action ? "action" : (value.target ? "link" : "menu")
 
-  return {
+  var item = {
     id: id,
     parent: parent,
     kind: kind,
@@ -41,6 +41,10 @@ function normalizeItem(id, raw) {
     checked: value.checked || "",
     disabled: value.disabled || ""
   }
+  // The fields the file actually set, so an override that names a few of a
+  // stock row's fields keeps the rest instead of blanking them.
+  Object.defineProperty(item, "given", { value: Object.keys(value) })
+  return item
 }
 
 function parseMenuJsonc(raw) {
@@ -100,10 +104,14 @@ function mergeMenuSources(defaultItems, userItems, rootLabel) {
       var entry = src[i]
       if (!entry || !entry.id) continue
       if (!nextItems[entry.id]) nextOrder.push(entry.id)
-      var prior = nextItems[entry.id] || {}
+      var prior = nextItems[entry.id]
       var merged = {}
       for (var k in prior) merged[k] = prior[k]
-      for (var k2 in entry) merged[k2] = entry[k2]
+      var keys = prior && entry.given ? entry.given : Object.keys(entry)
+      for (var k2 = 0; k2 < keys.length; k2++) {
+        if (keys[k2] in entry) merged[keys[k2]] = entry[keys[k2]]
+      }
+      if (prior) merged.kind = merged.action ? "action" : (merged.target ? "link" : "menu")
       merged.id = entry.id
       nextItems[entry.id] = merged
     }
