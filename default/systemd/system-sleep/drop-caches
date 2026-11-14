@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Omarchy: speed up hibernate entry by dropping clean caches before the
+# snapshot allocation, and by letting image compression use more than the
+# default three threads.
+#
+# Dropping the cache first leaves the allocator less to reclaim, and less
+# clean cache to compress on the way into the image. Reading mm/vmscan.c
+# suggests the compress half is what matters here: Omarchy runs
+# vm.swappiness=150, where reclaim favours anonymous pages over file cache, so
+# "the kernel would discard clean caches anyway" is not what the gain comes
+# from. That is reasoning from the kernel source, not a measurement; the
+# measured effect is in the PR discussion, along with the remaining entry time,
+# which is anonymous pages being evicted into zram.
+#
+# Dropping level 3 also frees reclaimable dentries and inodes, which cost
+# something to rebuild after resume - see the vfs_cache_pressure note in
+# etc/sysctl.d. Kept at 3 because that is the measured configuration.
+
+sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
+
+if [[ $1 == "pre" && $sleep_action == "hibernate" ]]; then
+  # Writes nproc, which the kernel clamps to num_online_cpus()-1, so this asks
+  # for one thread fewer than nproc and replaces any lower value a
+  # hibernate_compression_threads= boot parameter set. The knob exists from
+  # Linux 6.19; older kernels skip it here and keep the default. It does not
+  # persist across boots, so it is reapplied whenever hibernation runs.
+  if [[ -w /sys/power/hibernate_compression_threads ]]; then
+    nproc=$(nproc 2>/dev/null || echo 0)
+    if [[ $nproc -gt 0 ]]; then
+      echo "$nproc" > /sys/power/hibernate_compression_threads 2>/dev/null || true
+    fi
+  fi
+
+  sync
+  echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
+fi
