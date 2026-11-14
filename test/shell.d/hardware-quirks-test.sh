@@ -321,6 +321,7 @@ run_leaf() {
     OMARCHY_DMI_PRODUCT_SKU="$hw/dmi/product_sku" \
     OMARCHY_SYNAPTIC_INPUT_DEVICES="$hw/input-devices" \
     OMARCHY_SURFACE_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ASPIRE_16_AI_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
@@ -352,6 +353,7 @@ leaves=(
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
   hardware/asus/fix-asus-proart-pz13-speakers.sh
   hardware/acer/fix-acer-aspire-16-ai-speakers.sh
+  hardware/acer/fix-acer-aspire-16-ai-boot.sh
   hardware/asus/fix-asus-zenbook-a16-firmware.sh
   hardware/asus/fix-asus-zenbook-a16-boot.sh
   hardware/asus/fix-asus-vivobook-s15-boot.sh
@@ -419,6 +421,11 @@ hardware/acer/fix-acer-aspire-16-ai-speakers.sh|aspire-16-ai|0|pkg-add acer-aspi
 hardware/acer/fix-acer-aspire-16-ai-speakers.sh|aspire-16-ai+unreadable|0
 hardware/acer/fix-acer-aspire-16-ai-speakers.sh|aspire-16-ai-not-qualcomm|0
 hardware/acer/fix-acer-aspire-16-ai-speakers.sh|yoga-slim7x|0
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|aspire-16-ai|0|wrote etc/mkinitcpio.conf.d/aspire-16-ai-initramfs.conf
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|aspire-16-ai+unreadable|0
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|aspire-16-ai-not-qualcomm|0
+# The Aspire 14 AI shares the tree's display outputs and is untested.
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|snapdragon-unpackaged|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16|0|pkg-add asus-zenbook-a16-firmware
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16-not-qualcomm|0
