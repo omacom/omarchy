@@ -38,6 +38,64 @@ function parseProfiles(raw, previousIndex) {
   }
 }
 
+function parseChargeLimit(raw) {
+  var info = parseKeyValue(raw)
+  var state = info.state
+  if (state !== "on" && state !== "off" && state !== "mixed" && state !== "unsupported") return null
+
+  var policy = info.policy
+  var start = Number(info.start) || 0
+  var end = Number(info.end) || 0
+  var percentage = function(value) { return Number.isInteger(value) && value > 0 && value < 100 }
+  if (state === "unsupported") policy = "unknown"
+  if (policy === "range" && !(percentage(start) && percentage(end) && start < end)) policy = "unknown"
+  if (policy === "end" && !percentage(end)) policy = "unknown"
+  if (policy !== "range" && policy !== "end" && policy !== "firmware" && policy !== "different") policy = "unknown"
+  return { state: state, policy: policy, start: policy === "range" ? start : 0, end: policy === "range" || policy === "end" ? end : 0 }
+}
+
+// stdout completion and process exit can arrive in either order. An empty
+// failed read must not replace the last good state with "unsupported".
+function chargeLimitReadResult(raw, exitCode) {
+  if (raw === null || exitCode === null) return null
+  var info = exitCode === 0 ? parseChargeLimit(raw) : null
+  return { failed: info === null, info: info }
+}
+
+function chargeLimitDescription(info, tr, fmt) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var number = typeof fmt === "function" ? fmt : String
+  var limit = info || {}
+  if (limit.state === "unsupported") return ""
+  if (limit.state === "mixed") return t("power.chargeLimitMixed", "Enabled on some batteries")
+  if (limit.policy === "range") {
+    var range = t("power.chargeLimitRange", "Start below %1% · stop at %2%")
+    return range.replace("%1", number(limit.start)).replace("%2", number(limit.end))
+  }
+  if (limit.policy === "end") {
+    var end = t("power.chargeLimitEnd", "Maximum %1%")
+    return end.replace("%1", number(limit.end))
+  }
+  if (limit.policy === "different") {
+    return t("power.chargeLimitDifferent", "Separate limits per battery")
+  }
+  return t("power.chargeLimitDefault", "Device default")
+}
+
+function movePowerCursor(cursor, dx, dy, chargeLimitAvailable, profiles) {
+  var focused = chargeLimitAvailable && cursor.chargeFocused
+  var index = cursor.profileIndex
+  var action = ""
+  if (chargeLimitAvailable && dy !== 0) focused = dy > 0
+  else if (focused && dx !== 0) action = dx > 0 ? "on" : "off"
+  else if (!focused) index = selectProfileIndex(index, dx !== 0 ? dx : dy, profiles)
+  return { chargeFocused: !!focused, profileIndex: index, chargeAction: action }
+}
+
+function chargeLimitEvent(line) {
+  return /Charge(?:Start|End)?Threshold|\b(?:IsPresent|PowerSupply|Type)\b|\.Device(?:Added|Removed)\b|owned by/.test(String(line || ""))
+}
+
 function profileIcon(name) {
   if (name === "power-saver") return "󰌪"
   if (name === "balanced") return "󰊚"
@@ -116,6 +174,11 @@ if (typeof module !== "undefined") {
     selectProfileIndex: selectProfileIndex,
     parseKeyValue: parseKeyValue,
     parseProfiles: parseProfiles,
+    parseChargeLimit: parseChargeLimit,
+    chargeLimitReadResult: chargeLimitReadResult,
+    chargeLimitDescription: chargeLimitDescription,
+    movePowerCursor: movePowerCursor,
+    chargeLimitEvent: chargeLimitEvent,
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
