@@ -41,6 +41,15 @@ assertEqual(subscribed({ ...historyOnly, tierLabel: 'X Premium+' }), true, 'a pl
 assertEqual(subscribed({ ...historyOnly, limits: [{ label: 'Weekly', percent: 0.04 }] }), true, 'kept limits earn a section')
 assertEqual(subscribed({ ...historyOnly, spend: { amount: 1.25, days: [] } }), true, 'spend alone earns a section')
 
+const balanceAlarming = new Function(panelSource.match(/function balanceAlarming\([^]*?\n  \}/)[0] + '\nreturn balanceAlarming')()
+const toppedUp = { funded: 100, remaining: 5 }
+assert(!balanceAlarming({ providerId: 'openrouter', balance: toppedUp }),
+  'a positive OpenRouter balance clears the warning despite high lifetime spend')
+assert(balanceAlarming({ providerId: 'openrouter', balance: { funded: 100, remaining: 0 } }),
+  'an exhausted OpenRouter balance still warns')
+assert(balanceAlarming({ providerId: 'fireworks', balance: toppedUp }),
+  'a current prepaid fund still warns in its last ten percent')
+
 // A reworded collector line would silently fall back to English, so every
 // fixed help line the collectors cache must still be one the panel maps.
 for (const name of ['claude', 'codex', 'grok', 'fireworks']) {
