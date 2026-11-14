@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle the focused window's split where the layout has one
+
+set -euo pipefail
+
+# togglesplit is a dwindle message. A scrolling workspace rejects it, and
+# Hyprland reports the rejection as a Lua runtime error, so only send it where
+# the workspace has a split to toggle.
+[[ $(omarchy-hyprland-workspace-layout-current) == "dwindle" ]] || exit 0
+
+hyprctl dispatch 'hl.dsp.layout("togglesplit")' >/dev/null 2>&1 || \
+  hyprctl dispatch layoutmsg togglesplit >/dev/null
