@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=ArchyPie
+Comment=RetroPie-style emulator launcher for Arch
+Icon=archypie
+Exec=uwsm-app -- gnome-terminal --full-screen --hide-menubar -e "sudo %s/archypie_setup.sh" %
+Categories=Games;Emulator;
