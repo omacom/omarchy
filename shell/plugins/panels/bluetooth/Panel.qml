@@ -22,6 +22,28 @@ Panel {
   // this map only keeps the panel responsive while BlueZ catches up.
   property var pendingActions: ({})
 
+  // BlueZ discovery and outgoing connections compete on some adapters. Keep
+  // the address as primitives while discovery stops, then run one observed
+  // pair/connect process so failures can make it back into the panel.
+  property var queuedConnectionAction: null
+  property string activeConnectionAction: ""
+  property string activeConnectionAddress: ""
+  property bool discoveryPausedForAction: false
+  // The action that last failed ("pair" | "connect"); translated where shown.
+  property string actionFailure: ""
+
+  // Every per-monitor instance shares the adapter, so a pair/connect started
+  // from one holds discovery and new connections off in all of them,
+  // including a panel reopened on another monitor while the helper runs.
+  readonly property bool connectionActionRunning: {
+    if (discoveryPausedForAction) return true
+    var items = bar && typeof bar.moduleWidgets === "function" ? bar.moduleWidgets(moduleName) : []
+    for (var i = 0; i < items.length; i++) {
+      if (items[i] && items[i] !== root && items[i].discoveryPausedForAction === true) return true
+    }
+    return false
+  }
+
   readonly property var adapter: Bluetooth.defaultAdapter
 
   // True while this instance owes BlueZ a StopDiscovery: set when it starts
@@ -55,6 +77,7 @@ Panel {
   readonly property var connectedDevices: deviceGroups.connected || []
   readonly property var knownDevices: deviceGroups.known || []
   readonly property var discoveredDevices: deviceGroups.discovered || []
+  readonly property bool showDiscoveredDevices: adapter && (adapter.discovering || connectionActionRunning)
 
   readonly property string icon: {
     if (!adapter) return ""
@@ -121,12 +144,12 @@ Panel {
   function sectionVisible(section) {
     if (section === "connected") return connectedDevices.length > 0
     if (section === "known") return knownDevices.length > 0
-    if (section === "discovered") return adapter && adapter.discovering && discoveredDevices.length > 0
+    if (section === "discovered") return showDiscoveredDevices && discoveredDevices.length > 0
     return false
   }
 
   readonly property var visibleSections: {
-    return Model.visibleSections(deviceGroups, adapter && adapter.discovering)
+    return Model.visibleSections(deviceGroups, showDiscoveredDevices)
   }
 
   function devicesForSection(section) {
@@ -162,7 +185,10 @@ Panel {
   // property declaration), so it is iterated directly.
   function deviceFor(row) {
     if (!row || !row.dev) return null
-    var addr = row.dev.address || ""
+    return deviceForAddress(row.dev.address || "")
+  }
+
+  function deviceForAddress(addr) {
     var devs = devices || []
     for (var i = 0; i < devs.length; i++) {
       if ((devs[i].address || "") === addr) return devs[i]
@@ -274,10 +300,60 @@ Panel {
     Quickshell.execDetached(deviceCommand(action, device.address))
   }
 
+  function runConnectionAction(device, action) {
+    if (!device || !device.address || connectionActionRunning) return
+
+    actionFailure = ""
+    failureTimer.stop()
+    setPendingAction(device.address, "connecting")
+    queuedConnectionAction = { action: action, address: device.address }
+    discoveryPausedForAction = true
+
+    if (adapter && adapter.discovering) {
+      adapter.discovering = false
+      connectionStartTimeout.restart()
+    } else {
+      startQueuedConnectionAction()
+    }
+  }
+
+  function startQueuedConnectionAction() {
+    if (!queuedConnectionAction || connectionProc.running) return
+    connectionStartTimeout.stop()
+    var queued = queuedConnectionAction
+    queuedConnectionAction = null
+    activeConnectionAction = queued.action
+    activeConnectionAddress = queued.address
+    connectionProc.command = deviceCommand(queued.action, queued.address)
+    connectionProc.running = true
+  }
+
+  function finishConnectionAction(exitCode) {
+    if (exitCode !== 0) {
+      setPendingAction(activeConnectionAddress, "")
+      actionFailure = Model.failedConnectionStep(activeConnectionAction, deviceForAddress(activeConnectionAddress))
+      failureTimer.restart()
+    } else {
+      syncPendingActions()
+      // The timeout passed over this row while the helper ran; give it a fresh
+      // one in case BlueZ never reports the device connected.
+      if (pendingAction(activeConnectionAddress)) pendingTimeout.restart()
+    }
+
+    activeConnectionAction = ""
+    activeConnectionAddress = ""
+    discoveryPausedForAction = false
+
+    if (opened && adapter && adapter.enabled && !adapter.discovering) {
+      owesDiscoveryStop = true
+      adapter.discovering = true
+    }
+  }
+
   function connectDevice(device) {
     if (!device || device.connected) return
-    if (device.paired || device.bonded || device.trusted) runDeviceAction(device, "connect", "connecting")
-    else runDeviceAction(device, "pair", "connecting")
+    if (device.paired || device.bonded || device.trusted) runConnectionAction(device, "connect")
+    else runConnectionAction(device, "pair")
   }
 
   function disconnectDevice(device) {
@@ -510,7 +586,7 @@ Panel {
     interval: 1000
     repeat: true
     triggeredOnStart: true
-    running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering
+    running: root.opened && root.adapter !== null && root.adapter.enabled && !root.adapter.discovering && !root.connectionActionRunning
     onTriggered: {
       root.owesDiscoveryStop = true
       root.adapter.discovering = true
@@ -562,6 +638,11 @@ Panel {
     target: root.adapter
     function onDiscoveringChanged() {
       if (!root.adapter.discovering) root.owesDiscoveryStop = false
+      // A start fired before the click can be confirmed after it; stop it
+      // rather than let it scan through the pair/connect.
+      else if (root.discoveryPausedForAction) root.adapter.discovering = false
+      if (!root.adapter.discovering && root.discoveryPausedForAction && root.queuedConnectionAction)
+        root.startQueuedConnectionAction()
     }
   }
 
@@ -582,7 +663,31 @@ Panel {
     id: pendingTimeout
     interval: 20000
     repeat: false
-    onTriggered: root.pendingActions = ({})
+    onTriggered: root.pendingActions = Model.expirePendingActions(root.pendingActions, connectionProc.running ? root.activeConnectionAddress : "")
+  }
+
+  Process {
+    id: connectionProc
+    command: []
+    onExited: function(exitCode) { root.finishConnectionAction(exitCode) }
+    // A helper that fails to start never emits exited, only running going false.
+    onRunningChanged: if (!running && root.activeConnectionAddress !== "") root.finishConnectionAction(-1)
+  }
+
+  Timer {
+    id: connectionStartTimeout
+    // A failed StopDiscovery must not strand the row in "Connecting…". The
+    // command still gets its attempt after the adapter had a chance to settle.
+    interval: 1000
+    repeat: false
+    onTriggered: root.startQueuedConnectionAction()
+  }
+
+  Timer {
+    id: failureTimer
+    interval: 8000
+    repeat: false
+    onTriggered: root.actionFailure = ""
   }
 
   Timer {
@@ -870,11 +975,22 @@ Panel {
 
         Text {
           textFormat: Text.PlainText
-          visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0
+          visible: root.connectedDevices.length === 0 && root.scrollRows.length === 0 && root.actionFailure === ""
           text: !root.adapter ? Commons.I18n.t("bluetooth.noBluetoothAdapter")
               : !root.adapter.enabled ? Commons.I18n.t("bluetooth.turnOnToScan")
               : Commons.I18n.t("bluetooth.scanning")
           color: Qt.darker(root.bar.foreground, 1.5)
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          wrapMode: Text.WordWrap
+          width: parent.width
+        }
+
+        Text {
+          textFormat: Text.PlainText
+          visible: root.actionFailure !== ""
+          text: root.actionFailure === "pair" ? Commons.I18n.t("bluetooth.pairingFailed") : Commons.I18n.t("bluetooth.connectionFailed")
+          color: root.bar.urgent
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.bodySmall
           wrapMode: Text.WordWrap
@@ -899,6 +1015,8 @@ Panel {
     readonly property string actionTooltip: {
       if (!dev) return ""
       if (isConnected) return Commons.I18n.t("bluetooth.disconnect")
+      // Clicks wait out a running pair/connect, so don't offer one meanwhile.
+      if (root.connectionActionRunning) return ""
       if (isDiscovered) return Commons.I18n.t("bluetooth.pair")
       return Commons.I18n.t("bluetooth.connect")
     }
@@ -939,7 +1057,7 @@ Panel {
       anchors.fill: parent
       hoverEnabled: true
       acceptedButtons: Qt.LeftButton | Qt.RightButton
-      cursorShape: row.dev ? Qt.PointingHandCursor : Qt.ArrowCursor
+      cursorShape: row.actionTooltip !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
 
       onContainsMouseChanged: if (containsMouse) {
         root.cursorActive = true
