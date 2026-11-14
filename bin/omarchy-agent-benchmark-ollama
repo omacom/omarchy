@@ -1,0 +1,125 @@
+#!/bin/bash
+
+# omarchy:summary=Measure local Ollama loading time and generation speed
+# omarchy:args=<model> [--runs <1-5>] [--tokens <1-1024>] [--json]
+# omarchy:examples=omarchy agent benchmark ollama gemma4 --runs 3 --json
+
+exec python3 - "$@" <<'PY'
+import argparse
+import http.client
+import json
+import math
+import statistics
+import sys
+
+
+def request(endpoint, data=None, timeout=10):
+  connection = http.client.HTTPConnection("127.0.0.1", 11434, timeout=timeout)
+  try:
+    connection.request(
+      "GET" if data is None else "POST",
+      "/api/" + endpoint,
+      body=None if data is None else json.dumps(data),
+      headers={"Content-Type": "application/json"},
+    )
+    response = connection.getresponse()
+    raw = response.read(2 * 1024 * 1024 + 1)
+    if len(raw) > 2 * 1024 * 1024:
+      raise ValueError("Ollama returned an oversized response")
+    result = json.loads(raw)
+    if response.status != 200 or not isinstance(result, dict) or result.get("error"):
+      raise ValueError("Ollama could not complete the request")
+    return result
+  finally:
+    connection.close()
+
+
+def metric(result, key, positive=False):
+  value = result.get(key)
+  if (
+    isinstance(value, bool)
+    or not isinstance(value, (int, float))
+    or not math.isfinite(value)
+    or value < 0
+    or (positive and value == 0)
+  ):
+    raise ValueError(f"Ollama returned no usable {key} measurement")
+  return value
+
+
+def main():
+  parser = argparse.ArgumentParser(
+    description="Benchmark a downloaded text model locally; no prompts or results leave this machine."
+  )
+  parser.add_argument("model")
+  parser.add_argument("--runs", type=int, default=3)
+  parser.add_argument("--tokens", type=int, default=128)
+  parser.add_argument("--json", action="store_true")
+  args = parser.parse_args()
+  if not 1 <= args.runs <= 5 or not 1 <= args.tokens <= 1024:
+    parser.error("use 1-5 runs and 1-1024 tokens")
+  models = request("tags").get("models", [])
+  model = next((item for item in models if item.get("name") in (args.model, args.model + ":latest")), None)
+  if model is None:
+    raise ValueError("Model is not installed; download it with Ollama first")
+  name = model["name"]
+  info = request("show", {"model": name})
+  if any(item.get(key) for item in (model, info) for key in ("remote_host", "remote_model")):
+    raise ValueError("Choose a local model to measure this machine's speed")
+  if "completion" not in info.get("capabilities", []):
+    raise ValueError("Choose a model with text completion support")
+  # Empty-prompt load responses omit timing fields. A one-token generation
+  # returns load_duration without contributing to the measured throughput.
+  warm = request(
+    "generate",
+    {
+      "model": name,
+      "prompt": "Reply with one word: ready.",
+      "stream": False,
+      "keep_alive": "5m",
+      "options": {"num_predict": 1, "temperature": 0, "seed": 42},
+    },
+    timeout=600,
+  )
+  if warm.get("done") is not True:
+    raise ValueError("The warm-up did not finish")
+  load_seconds = metric(warm, "load_duration") / 1e9
+  runs = []
+  for _ in range(args.runs):
+    result = request(
+      "generate",
+      {
+        "model": name,
+        "prompt": "Explain how a bicycle works in clear, complete sentences.",
+        "stream": False,
+        "keep_alive": "5m",
+        "options": {"num_predict": args.tokens, "temperature": 0, "seed": 42},
+      },
+      timeout=600,
+    )
+    if result.get("done") is not True:
+      raise ValueError("A benchmark generation did not finish")
+    count = metric(result, "eval_count", positive=True)
+    duration = metric(result, "eval_duration", positive=True)
+    runs.append({"tokens": count, "generation_seconds": duration / 1e9, "tokens_per_second": count * 1e9 / duration})
+  report = {
+    "model": name,
+    "load_seconds": load_seconds,
+    "runs": runs,
+    "median_tokens_per_second": statistics.median(run["tokens_per_second"] for run in runs),
+  }
+  if args.json:
+    print(json.dumps(report, allow_nan=False))
+  else:
+    print(
+      f"{name}: load {load_seconds:.2f}s; median generation {report['median_tokens_per_second']:.2f} tokens/s ({args.runs} runs)"
+    )
+    print("Server-reported generation throughput excludes loading and prompt processing.")
+
+
+try:
+  main()
+except (OSError, ValueError, http.client.HTTPException) as error:
+  print(f"omarchy-agent-benchmark-ollama: {error}", file=sys.stderr)
+  sys.exit(1)
+PY
