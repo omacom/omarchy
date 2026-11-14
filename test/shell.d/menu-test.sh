@@ -424,3 +424,24 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+require_command jq
+
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
+mkdir -p "$TMPDIR/bin"
+
+# Records the menu it was asked to summon and closes it with nothing picked.
+cat >"$TMPDIR/bin/omarchy-shell" <<'SH'
+#!/bin/bash
+printf '%s\n' "$4" >"$SUMMONED"
+touch "$(jq -r .doneFile <<<"$4")"
+SH
+chmod +x "$TMPDIR/bin/omarchy-shell"
+
+SUMMONED="$TMPDIR/summoned" PATH="$TMPDIR/bin:$PATH" \
+  "$ROOT/bin/omarchy-menu-select" "Select file" </dev/null || true
+
+[[ -e $TMPDIR/summoned && $(jq -c .options "$TMPDIR/summoned") == "[]" ]] || fail "menu select opens with no options when its piped input is empty"
+pass "menu select opens with no options when its piped input is empty"
