@@ -145,6 +145,14 @@ if [[ -z $dev_checkout && $OMARCHY_PATH != "/usr/share/omarchy" ]]; then
   leaving_dev=1
 fi
 
+# Read while the previous channel's repository is still the configured one.
+# Its default packages stay: edge ships some before stable does, and nothing
+# reinstalls a removed one. Without the departing tree's defaults, offer nothing.
+previous_channel_packages=()
+if departing_defaults=$("$OMARCHY_PATH/bin/omarchy-pkg-defaults" "$platform"); then
+  mapfile -t previous_channel_packages < <(pacman -Slq omarchy 2>/dev/null | grep -vxFf <(printf '%s\n' "$departing_defaults"))
+fi
+
 if [[ -n $dev_checkout ]]; then
   link_dev_checkout "$dev_checkout"
   export OMARCHY_PATH="$dev_checkout"
@@ -172,6 +180,21 @@ if [[ -z $dev_checkout ]]; then
     omarchy-state set reboot-required
   fi
   export OMARCHY_PATH=/usr/share/omarchy
+fi
+
+# Packages only the previous channel published are now foreign: nothing updates
+# them, and the AUR update can mistake an unrelated AUR package of the same name
+# for their upgrade. Offer to remove exactly those. Other foreign packages, like
+# the user's own AUR builds, were never in that repository and stay.
+mapfile -t left_behind < <(pacman -Qmq | grep -xFf <(printf '%s\n' "${previous_channel_packages[@]}"))
+if (( ${#left_behind[@]} > 0 )); then
+  echo -e "\nThe $channel channel doesn't provide these Omarchy packages:"
+  printf '  %s\n' "${left_behind[@]}"
+  if gum confirm --default=false "Remove ${#left_behind[@]} left-behind package(s)?"; then
+    omarchy-pkg-drop "${left_behind[@]}" || echo "Could not remove them. Try again with: omarchy-pkg-drop ${left_behind[*]}" >&2
+  else
+    echo "Keeping them. Remove them later with: omarchy-pkg-drop ${left_behind[*]}"
+  fi
 fi
 
 # The switch was already confirmed, but the user is still here: keep the
