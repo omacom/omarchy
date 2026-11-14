@@ -192,6 +192,6 @@ config["input.kb_layout"], config["input.kb_variant"] = "us", "3l"
 check(binds["SUPER + A"], "CTRL", 41)
 -- A custom Dvorak keymap wins over conflicting global layout/variant/options.
 config["input.kb_file"] = os.getenv("TEST_CLIPBOARD_KEYMAP")
-check(binds["SUPER + C"], "CTRL", 31)
+check(binds["SUPER + X"], "CTRL", 56)
 LUA
 pass "clipboard injection uses primary-layout keys with paired releases"
