@@ -32,6 +32,8 @@ steps=(
   omarchy-shell
   omarchy-update-available
   omarchy-update-restart
+  omarchy-toggle-enabled
+  omarchy-plugin-update
 )
 
 for step in "${steps[@]}"; do
@@ -50,6 +52,13 @@ if [[ ${0##*/} == "omarchy-update-orphan-pkgs" ]]; then
 fi
 if [[ ${0##*/} == "omarchy-shell" ]]; then
   printf '%s\n' "$*" >"$STEP_LOG.shell-args"
+fi
+if [[ ${0##*/} == "omarchy-toggle-enabled" ]]; then
+  printf '%s\n' "$*" >"$STEP_LOG.toggle-args"
+  [[ ${PLUGIN_UPDATES:-} == 1 ]] || exit 1
+fi
+if [[ ${0##*/} == "omarchy-plugin-update" ]]; then
+  printf '%s\n' "$*" >"$STEP_LOG.plugin-args"
 fi
 [[ ${FAILING_STEP:-} != "${0##*/}" ]] || exit 1
 STUB
@@ -72,7 +81,8 @@ steps_run() {
 }
 
 # Every step of a whole update, in order. $1 asks for the one a person confirms;
-# an empty $2 leaves out the shell restart, for an update with nothing to migrate.
+# an empty $2 leaves out the shell restart, for an update with nothing to migrate;
+# $3 asks for the plugin update a person opted into.
 # Stay Awake bookends the work, so it is here twice.
 expected_steps() {
   printf '%s\n' \
@@ -91,6 +101,8 @@ expected_steps() {
     omarchy-update-orphan-pkgs \
     omarchy-update-analyze-logs \
     omarchy-shell \
+    omarchy-toggle-enabled \
+    ${3:+omarchy-plugin-update} \
     omarchy-update-restart \
     omarchy-hook \
     omarchy-update-mise \
@@ -146,3 +158,35 @@ diff <(expected_steps) <(steps_run) >"$test_tmp/order" ||
   fail "a failed mise update skips later update steps" "$(cat "$test_tmp/order")"
 grep -q "omarchy update mise" "$test_tmp/err" || fail "the tool update failure has no retry guidance"
 pass "a mise failure still finishes the update, offers a reboot and explains how to retry"
+
+# Plugins are third-party code, so the update leaves them alone unless the
+# person opted in. When they did, plugins update before the shell restart so the
+# restart loads the new code, and a plugin failure never fails the system update.
+run_update -y || fail "an update without plugin updates reports a failure"
+[[ $(cat "$test_tmp/steps.toggle-args") == "update-plugins" ]] ||
+  fail "the update checks the wrong toggle for plugin updates" "$(cat "$test_tmp/steps.toggle-args")"
+if grep -q '^omarchy-plugin-update ' "$test_tmp/steps"; then
+  fail "an update updates plugins nobody opted into"
+fi
+pass "an update leaves plugins alone unless the person opted in"
+
+PLUGIN_UPDATES=1 run_update -y || fail "an opted-in unattended update reports a failure"
+diff <(expected_steps "" omarchy-restart-shell plugins) <(steps_run) >"$test_tmp/order" ||
+  fail "an opted-in update does not update plugins before the shell restart" "$(cat "$test_tmp/order")"
+[[ $(cat "$test_tmp/steps.plugin-args") == "--yes" ]] ||
+  fail "an unattended update still asks to review plugin changes" "$(cat "$test_tmp/steps.plugin-args")"
+pass "an opted-in unattended update approves plugin updates before the shell restart"
+
+PLUGIN_UPDATES=1 run_update </dev/null || fail "an opted-in confirmed update reports a failure"
+diff <(expected_steps confirmed omarchy-restart-shell plugins) <(steps_run) >"$test_tmp/order" ||
+  fail "an opted-in confirmed update runs a different set of steps" "$(cat "$test_tmp/order")"
+[[ -z $(cat "$test_tmp/steps.plugin-args") ]] ||
+  fail "a confirmed update skips the plugin change review" "$(cat "$test_tmp/steps.plugin-args")"
+pass "an opted-in confirmed update lets the person review each plugin change"
+
+PLUGIN_UPDATES=1 FAILING_STEP=omarchy-plugin-update run_update -y ||
+  fail "a failed plugin update fails the system update"
+diff <(expected_steps "" omarchy-restart-shell plugins) <(steps_run) >"$test_tmp/order" ||
+  fail "a failed plugin update skips later update steps" "$(cat "$test_tmp/order")"
+grep -q "omarchy plugin update" "$test_tmp/err" || fail "the plugin update failure has no retry guidance"
+pass "a plugin failure still finishes the update and explains how to retry"
