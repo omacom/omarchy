@@ -377,7 +377,7 @@ finalization. It sources:
   device-specific kernel modules, udev rules, microcode, wireless regdom,
   ASUS / Framework / Intel / Apple / Lenovo quirks.
 - `install/login/all.sh` — SDDM theme/session config.
-- `install/post-install/all.sh` — final pacman/udev/localdb passes.
+- `install/post-install/all.sh` — final pacman and udev passes; the `plocate-updatedb` timer builds the locate database after first boot.
 
 Logging goes to `/var/log/omarchy-install.log` via
 `install/helpers/logging.sh`.
