@@ -324,6 +324,12 @@
   "trigger.toggle.crash-capture-off": {
     "label": "Crash Capture Off"
   },
+  "trigger.toggle.windows-mru-on": {
+    "label": "Windows Tab On"
+  },
+  "trigger.toggle.windows-mru-off": {
+    "label": "Windows Tab Off"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },
