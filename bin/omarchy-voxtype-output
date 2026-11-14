@@ -14,20 +14,31 @@
 
 marker="${XDG_RUNTIME_DIR:-/tmp}/omarchy-voxtype-output"
 
+# The marker holds the id systemd gave this run of the daemon. One left behind
+# by a Voxtype that stopped between the two hooks must not arm a paste for the
+# next run, whose first recording may be cancelled.
+daemon_run() {
+  systemctl --user show voxtype.service --property=InvocationID --value 2>/dev/null
+}
+
 case "${1:-}" in
   begin)
     if [[ $(voxtype config get output.mode) == "clipboard" ]]; then
-      : >"$marker"
+      daemon_run >"$marker"
     else
       rm -f "$marker"
     fi
     ;;
   end)
     if [[ -e $marker ]]; then
+      armed_run=$(<"$marker")
       rm -f "$marker"
-      # Voxtype's own paste mode gives the clipboard as long to settle.
-      sleep 0.1
-      omarchy-hyprland-send-shortcut SHIFT Insert
+
+      if [[ $armed_run == "$(daemon_run)" ]]; then
+        # Voxtype's own paste mode gives the clipboard as long to settle.
+        sleep 0.1
+        omarchy-hyprland-send-shortcut SHIFT Insert
+      fi
     fi
     ;;
   *)

@@ -427,8 +427,12 @@ cat > "$test_tmp/bin/voxtype" <<'SH'
 #!/bin/bash
 [[ $* == "config get output.mode" ]] && echo "$VOXTYPE_MODE"
 SH
-chmod +x "$test_tmp/bin/voxtype"
-export XDG_RUNTIME_DIR="$test_tmp/run"
+cat > "$test_tmp/bin/systemctl" <<'SH'
+#!/bin/bash
+[[ $* == "--user show voxtype.service --property=InvocationID --value" ]] && echo "$VOXTYPE_RUN"
+SH
+chmod +x "$test_tmp/bin/voxtype" "$test_tmp/bin/systemctl"
+export XDG_RUNTIME_DIR="$test_tmp/run" VOXTYPE_RUN=first
 mkdir -p "$XDG_RUNTIME_DIR"
 : > "$DICTATION_LOG"
 VOXTYPE_MODE=clipboard omarchy-voxtype-output end
@@ -436,6 +440,9 @@ VOXTYPE_MODE=clipboard omarchy-voxtype-output end
 VOXTYPE_MODE=type omarchy-voxtype-output begin
 omarchy-voxtype-output end
 [[ ! -s $DICTATION_LOG ]] || fail "type mode must not paste over the typed transcript"
+VOXTYPE_MODE=clipboard omarchy-voxtype-output begin
+VOXTYPE_RUN=second omarchy-voxtype-output end
+[[ ! -s $DICTATION_LOG ]] || fail "a recording cancelled after Voxtype restarts must not paste the clipboard"
 VOXTYPE_MODE=clipboard omarchy-voxtype-output begin
 omarchy-voxtype-output end
 omarchy-voxtype-output end
