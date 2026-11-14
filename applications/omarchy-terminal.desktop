@@ -7,3 +7,4 @@ Icon=omarchy-terminal
 Terminal=false
 Type=Application
 Categories=System;
+X-Omarchy-Dock-Click=new
