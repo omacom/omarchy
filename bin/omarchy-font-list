@@ -3,4 +3,9 @@
 # omarchy:summary=List available monospace fonts
 # omarchy:examples=omarchy font list | omarchy font set "CaskaydiaMono Nerd Font"
 
-fc-list :spacing=100 -f "%{family[0]}\n" | grep -v -i -E 'emoji|signwriting|omarchy' | sort -u
+# Dual-width fonts (spacing 90) are monospace too: their Latin glyphs are one
+# cell wide and their CJK glyphs exactly two, which is how a terminal draws CJK.
+{
+  fc-list :spacing=100 -f "%{family[0]}\n"
+  fc-list :spacing=90 -f "%{family[0]}\n"
+} | grep -v -i -E 'emoji|signwriting|omarchy' | sort -u
