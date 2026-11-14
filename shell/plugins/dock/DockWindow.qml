@@ -351,14 +351,14 @@ PanelWindow {
     // where it belongs at once.
     property real tuck: window.tucked ? window.slotSize + window.gap : 0
 
-    // Tucking away is quicker than coming back. A gentler curve than
-    // Style.easeOut, which crosses the short slide in a frame or two.
+    // Tucking away is quicker than coming back; both use the shared curve.
     Behavior on tuck {
       id: tuckMotion
       enabled: window.shown && !window.positionChanging
       NumberAnimation {
         duration: Style.duration(tuckMotion.targetValue > 0 ? 160 : 240)
-        easing.type: Easing.OutCubic
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Style.easeOut
       }
     }
 
