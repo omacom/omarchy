@@ -51,7 +51,7 @@ assertDeepEqual(arrayLikeLists.discovered.map(bluetooth.deviceLabel), ['Gamepad'
 
 assertDeepEqual(
   bluetooth.deviceRow({ name: 'Deadbeef', address: '1', connected: false }),
-  { address: '1', name: 'Deadbeef', deviceName: '', connected: false, state: -1, batteryAvailable: false, battery: 0, pairing: false },
+  { address: '1', name: 'Deadbeef', deviceName: '', connected: false, paired: false, state: -1, batteryAvailable: false, battery: 0, pairing: false },
   'bluetooth projects device rows with primitives only'
 )
 assertEqual(
@@ -66,6 +66,25 @@ assertDeepEqual(
   'bluetooth adds pending actions immutably'
 )
 assertDeepEqual(bluetooth.withPendingAction({ a: 'connecting' }, 'a', ''), {}, 'bluetooth clears pending actions immutably')
+
+// Rows hold still while the panel is open: a device that connects keeps its row, newcomers go last.
+const scanned = bluetooth.deviceLists([{ name: 'Bose', address: 'b' }, { name: 'Jabra', address: 'j' }])
+const drawn = bluetooth.steadyLists(scanned, null, true)
+const afterConnect = bluetooth.steadyLists(bluetooth.deviceLists([
+  { name: 'Anker', address: 'a' },
+  { name: 'Bose', address: 'b', connected: true, paired: true },
+  { name: 'Jabra', address: 'j' }
+]), drawn, true)
+assertDeepEqual(afterConnect.connected.map(bluetooth.deviceLabel), [], 'bluetooth keeps a device that connects in the row it was clicked in')
+assertDeepEqual(afterConnect.discovered.map(bluetooth.deviceLabel), ['Bose', 'Jabra', 'Anker'], 'bluetooth adds devices found mid-scan after the rows already drawn')
+const remembered = bluetooth.steadyLists(bluetooth.deviceLists([
+  { name: 'Bose', address: 'b' },
+  { name: 'AirPods', address: 'p', paired: true },
+  { name: 'Jabra', address: 'j' }
+]), drawn, true)
+assertDeepEqual(remembered.known.map(bluetooth.deviceLabel), [], 'bluetooth keeps a remembered device found mid-scan from pushing the scan rows down')
+const reopened = bluetooth.steadyLists(bluetooth.deviceLists([{ name: 'Bose', address: 'b', connected: true, paired: true }]), null, true)
+assertDeepEqual(reopened.connected.map(bluetooth.deviceLabel), ['Bose'], 'bluetooth sorts devices into their sections afresh on open')
 
 const bluetoothSink = {
   isSink: true,
@@ -114,6 +133,7 @@ cat >"$mock_bin/bluetoothctl" <<'SH'
 
 printf '%s\n' "$*" >>"$BLUETOOTHCTL_LOG"
 [[ $1 == "power" && $2 == "on" ]] && echo yes >"$POWERED_FILE"
+[[ $1 == "connect" && -n ${MOCK_CONNECT_FAILS:-} ]] && exit 1
 [[ $1 == "list" ]] &&
   for c in ${MOCK_CONTROLLERS:-AA:BB:CC:DD:EE:FF}; do printf 'Controller %s mock\n' "$c"; done
 # Per-controller state where a test set it, the shared file otherwise.
@@ -219,6 +239,12 @@ pass "bluetooth lifts the block before connecting"
 grep -qx "connect AA:BB:CC:DD:EE:FF" "$unpowered_log" ||
   fail "bluetooth connects once the adapter is up" "$(cat "$unpowered_log")"
 pass "bluetooth connects once the adapter is up"
+
+# The panel tells a failed connect from a slow one by this status.
+MOCK_CONNECT_FAILS=1 PATH="$mock_bin:$ROOT/bin:$PATH" BLUETOOTHCTL_LOG="$device_tmp/log" OMARCHY_BLUETOOTH_POWER_WAIT_SECONDS=0 \
+  "$ROOT/bin/omarchy-bluetooth-device" connect AA:BB:CC:DD:EE:FF &&
+  fail "bluetooth reports a connect that failed"
+pass "bluetooth reports a connect that failed"
 
 # Blocking hits every radio at once, so the read has to span them too. A bare
 # bluetoothctl show reports the default controller and misses a powered dongle.
