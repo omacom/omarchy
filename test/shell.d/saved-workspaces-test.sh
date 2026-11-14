@@ -175,6 +175,13 @@ with patch.object(m, 'query', return_value=[private_window, {**private_window, '
   else:
     raise AssertionError('forwarded private window accepted')
 
+for executable, flag in [('alacritty', '--working-directory'), ('ghostty', '--working-directory'), ('kitty', '--directory'), ('foot', '--working-directory')]:
+  for old in [[flag + '=/old'], [flag, '/old']]:
+    command = m.command_for({'class': executable}, {'argv': [executable, *old, '-e', 'program', flag + '=/program-data'], 'cwd': '/current'})
+    check(command == [executable, *([flag + '=/current'] if len(old) == 1 else [flag, '/current']), '-e', 'program', flag + '=/program-data'], 'terminal directory flags use the captured cwd without changing executed program arguments: ' + executable + str(old))
+check(m.state_command({'class': 'Alacritty', 'cwd': '/current'}, ['alacritty', '--working-directory=/old']) == ['alacritty', '--working-directory=/current'], 'existing terminal scenes also prefer their captured cwd during restore')
+check(m.terminal_directory_argv(['kitty', '--title', 'Work', '-d', '/old', 'program', '--directory=/program-data'], '/current') == ['kitty', '--title', 'Work', '-d', '/current', 'program', '--directory=/program-data'], 'implicit terminal commands retain their own directory arguments')
+
 # Firefox session snapshots preserve the current navigation, order and active tab.
 firefox_data = {'windows': [
   {'selected': 2, 'tabs': [
