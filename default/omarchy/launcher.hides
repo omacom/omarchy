@@ -32,6 +32,7 @@ org.fcitx.fcitx5-config-qt
 org.fcitx.fcitx5-migrator
 org.fcitx.fcitx5-qt5-gui-wrapper
 org.fcitx.fcitx5-qt6-gui-wrapper
+org.gnome.Papers
 qv4l2
 qvidcap
 uuctl
