@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Ui
 
 ShellRoot {
   id: root
@@ -115,6 +116,10 @@ ShellRoot {
 
   Item { id: host }
 
+  // A bar object with no barSize, as a plugin may hand a popup.
+  QtObject { id: sizelessBar; property string position: "top" }
+  PopupCard { id: sizelessPopup; anchorItem: host; bar: sizelessBar }
+
   QtObject {
     id: mockShell
     property var bar: fakeBar
@@ -154,6 +159,7 @@ ShellRoot {
     onTriggered: {
       var entries = widgets()
       root.assertTrue(entries.length > 0, "bar widget list is not empty")
+      root.assertEqual(sizelessPopup.barThickness, 0, "a popup whose bar has no size reads a bar thickness of 0")
       for (var i = 0; i < entries.length; i++) root.loadWidget(entries[i])
 
       Qt.callLater(function() {
