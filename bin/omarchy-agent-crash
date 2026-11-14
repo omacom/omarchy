@@ -49,4 +49,13 @@ mechanism, read the skill files directly and follow them instead:
 PROMPT
 )
 
-exec omarchy-agent --prompt "$prompt"
+# Match the watcher's announced name so a reproduction during diagnosis does
+# not open another toast (and another agent) for the same program.
+name=$comm
+[[ $exe == /* ]] && name=${exe##*/}
+name=${name##*/}
+[[ -n $name && $name != "-" && $name != "." && $name != ".." ]] || name=unknown
+
+# Run the session guard inside the terminal so its lifetime follows the agent,
+# rather than the detached terminal launcher.
+exec omarchy-launch-tui --app-id=org.omarchy.agent omarchy-agent-crash-session "$name" "$prompt"
