@@ -90,12 +90,13 @@ Item {
       anchors.fill: parent
       focus: true
       Keys.onPressed: function(event) {
-        if (event.key === Qt.Key_Escape) root.close()
-        else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) root.choose(root.selectedIndex)
-        else if (root.windows.length && [Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down, Qt.Key_Tab].indexOf(event.key) >= 0) {
-          var step = event.key === Qt.Key_Up ? -layout.columns : event.key === Qt.Key_Down ? layout.columns
-            : event.key === Qt.Key_Left || (event.key === Qt.Key_Tab && event.modifiers & Qt.ShiftModifier) ? -1 : 1
-          root.selectedIndex = (root.selectedIndex + step + root.windows.length) % root.windows.length
+        var key = Util.readingKey(event)
+        if (key === Qt.Key_Escape) root.close()
+        else if (key === Qt.Key_Return || key === Qt.Key_Enter) root.choose(root.selectedIndex)
+        else if (root.windows.length && [Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down, Qt.Key_Tab].indexOf(key) >= 0) {
+          var step = key === Qt.Key_Up ? -layout.columns : key === Qt.Key_Down ? layout.columns
+            : key === Qt.Key_Left || (key === Qt.Key_Tab && event.modifiers & Qt.ShiftModifier) ? -1 : 1
+          root.selectedIndex = OverviewModel.moveSelection(root.selectedIndex, step, root.windows.length)
         } else return
         event.accepted = true
       }

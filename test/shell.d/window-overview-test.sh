@@ -4,6 +4,8 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const overview = requireFromRoot('shell/plugins/window-overview/OverviewModel.js')
+assertEqual(overview.moveSelection(0, -3, 2), 1, 'Up with more columns than windows keeps a valid selection')
+assertEqual(overview.moveSelection(0, -11, 2), 1, 'large backward steps wrap without a negative remainder')
 const windows = [
   {address: 'a', workspace: {id: 2}, wayland: {title: 'One'}},
   {address: 'b', workspace: {id: 2}, wayland: {title: 'Two'}},
@@ -43,7 +45,7 @@ pass "middle-click is opt-in and overview preserves tiled workspace input"
 mkdir -p "$HOME/.local/state/omarchy/toggles"
 touch "$HOME/.local/state/omarchy/toggles/window-overview-middle-click"
 ROOT="$ROOT" lua <<'LUA'
-local floating, binds, unbinds = false, 0, 0
+local floating, binds, enabled = false, 0, nil
 local callback, up, fourUp, dispatched
 local events, timers = {}, {}
 local function flush()
@@ -61,7 +63,7 @@ hl = {
   timer = function(fn) table.insert(timers, fn) end,
   bind = function()
     binds = binds + 1
-    return { unbind = function() unbinds = unbinds + 1 end }
+    return { set_enabled = function(_, value) enabled = value end, unbind = function() error("must not unbind user shortcuts") end }
   end,
   gesture = function(spec)
     if spec.fingers == 3 and spec.direction == "up" then up = spec end
@@ -71,19 +73,19 @@ hl = {
   dsp = { exec_cmd = function(command) return command end, workspace = { toggle_special = function(name) return name end } },
 }
 dofile(os.getenv("ROOT") .. "/default/hypr/window-overview.lua")
-assert(binds == 0, "tiled workspace keeps middle-click")
+assert(binds == 1 and enabled == false, "tiled workspace keeps the overview binding disabled")
 floating = true; callback(); callback(); flush()
 assert(binds == 1, "floating workspace binds once")
 floating = false; callback(); flush()
-assert(unbinds == 1, "leaving floating releases middle-click")
+assert(enabled == false and binds == 1, "leaving floating disables only the overview handle")
 -- Workspace and monitor events precede the new focused state.
 events["workspace.active"](); events["monitor.focused"]()
 assert(#timers == 1, "focus events coalesce into one deferred update")
 floating = true; flush()
-assert(binds == 2, "entering floating binds using destination state")
+assert(binds == 1 and enabled == true, "entering floating reuses the existing handle")
 events["monitor.focused"](); events["workspace.active"]()
 floating = false; flush()
-assert(unbinds == 2, "entering tiled releases using destination state")
+assert(enabled == false, "entering tiled disables using destination state")
 dofile(os.getenv("ROOT") .. "/default/hypr/gestures.lua")
 assert(up.action == "special" and up.workspace_name == "qconsole", "three-finger up preserves the console")
 assert(fourUp and type(fourUp.action) == "function", "four-finger up is available without a toggle")

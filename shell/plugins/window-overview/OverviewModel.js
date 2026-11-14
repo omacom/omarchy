@@ -16,4 +16,8 @@ function selectionAfterChange(previous, selected, windows) {
   return Math.max(0, Math.min(selected, windows.length - 1))
 }
 
-if (typeof module !== "undefined") module.exports = { windowsOnWorkspace: windowsOnWorkspace, selectionAfterChange: selectionAfterChange }
+function moveSelection(selected, step, count) {
+  return count > 0 ? ((selected + step) % count + count) % count : -1
+}
+
+if (typeof module !== "undefined") module.exports = { windowsOnWorkspace: windowsOnWorkspace, selectionAfterChange: selectionAfterChange, moveSelection: moveSelection }
