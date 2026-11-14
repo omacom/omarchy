@@ -16,6 +16,7 @@ file first, if one exists.
 ├── post-boot.d/            # After the desktop starts
 ├── post-update.d/          # At the end of `omarchy update`, after privileged work
 ├── pre-refresh-pacman.d/   # After `omarchy refresh pacman` re-syncs the package config, before it updates packages
+├── screenrecord.d/         # Screen recording started or stopped (`start` or `stop` in $1)
 └── theme-set.d/            # After theme change (theme slug in $1)
 ```
 

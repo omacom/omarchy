@@ -24,6 +24,12 @@
 # it is installed. wf-recorder encodes on the CPU and captures one audio
 # device, so desktop and microphone audio together go through a temporary null
 # sink. Portal capture and --resolution are gpu-screen-recorder only.
+#
+# Hook: `omarchy-hook screenrecord start` runs once a recording is running,
+# `omarchy-hook screenrecord stop` once it has stopped or its start was
+# cancelled, so other tools (a voice assistant, a notification filter) can
+# keep quiet while the screen is recorded. A recorder that dies on its own
+# runs no stop hook.
 
 [[ -f ~/.config/user-dirs.dirs ]] && source ~/.config/user-dirs.dirs
 OUTPUT_DIR="${OMARCHY_SCREENRECORD_DIR:-${XDG_VIDEOS_DIR:-$HOME/Videos}}"
@@ -382,6 +388,7 @@ start_screenrecording() {
       echo "$pid" >"$REC_PID_FILE"
       echo "$filename" >"$RECORDING_FILE"
       toggle_screenrecording_indicator
+      omarchy-hook screenrecord start 9>&-
       return 0
     fi
 
@@ -419,6 +426,7 @@ stop_screenrecording() {
   done
 
   toggle_screenrecording_indicator
+  omarchy-hook screenrecord stop 9>&-
   cleanup_webcam
   wf_audio_cleanup
 
@@ -602,6 +610,7 @@ fi
           cleanup_webcam
           rm -f "$(<"$RECORDING_FILE")" "$REC_PID_FILE" "$RECORDING_FILE"
           toggle_screenrecording_indicator
+          omarchy-hook screenrecord stop 9>&-
           rm -f "$CANCEL_FILE"
         fi
         # A request after that check is left for its requester, who stops this
