@@ -161,3 +161,9 @@ chmod +x "$test_tmp/bin/curl"
 [[ $(PATH="$test_tmp/bin:$PATH" weather_location) == "Amsterdam" ]] || fail "weather location names the place geo.omarchy.org detected"
 [[ $(cat "$test_tmp/curl-urls") == "https://geo.omarchy.org/" ]] || fail "weather location asks only geo.omarchy.org" "$(cat "$test_tmp/curl-urls")"
 pass "weather location names the place geo.omarchy.org detected when none is stored"
+
+: >"$test_tmp/curl-urls"
+HOME="$test_tmp" OMARCHY_PATH="$ROOT" PATH="$test_tmp/bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-weather-status" >/dev/null
+grep -qxF 'https://wttr.in/52.37403,4.88969?format=%t|%w' "$test_tmp/curl-urls" ||
+  fail "weather status asks wttr.in for the location's coordinates" "$(cat "$test_tmp/curl-urls")"
+pass "weather status asks wttr.in for the location's coordinates, not a name other towns share"

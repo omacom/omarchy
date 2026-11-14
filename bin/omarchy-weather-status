@@ -2,14 +2,17 @@
 
 # omarchy:summary=Returns a formatted weather status string with temperature and wind speed.
 
-place=$(omarchy-weather-location 2>/dev/null)
+location=$(omarchy-weather-location --json 2>/dev/null)
+place=$(jq -r '.name' <<<"$location" 2>/dev/null)
 
 if [[ -z $place ]]; then
   omarchy-i18n weather.unavailable
   exit 1
 fi
 
-query=$(jq -rn --arg place "$place" '$place | @uri')
+# Coordinates when the location has them, as the weather panel asks: wttr.in
+# reads a bare name as the best-known town of that name, so Perth is Australia.
+query=$(jq -r '[.latitude, .longitude | tonumber?] as $at | if ($at | length) == 2 then "\($at[0]),\($at[1])" else .name | @uri end' <<<"$location")
 weather=$(curl -fsS --max-time 4 "https://wttr.in/${query}?format=%t|%w" 2>/dev/null | tr -d '\n')
 
 if [[ -z $weather ]]; then
