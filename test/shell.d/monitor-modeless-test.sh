@@ -292,3 +292,32 @@ sleep 0.6
 pass "a healthy machine is never reloaded"
 
 stop_watcher
+
+# Without a session runtime dir the locks must not be fixed names in /tmp.
+fallback_home="$test_tmp/fallback-home"
+mkdir -p "$fallback_home"
+: >"$reload_log"
+rm -f "$events"
+mkfifo "$events"
+PATH="$fake_bin:$PATH" \
+  env -u XDG_RUNTIME_DIR HOME="$fallback_home" XDG_STATE_HOME="$test_tmp/fallback-state" \
+  HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_EVENTS="$events" \
+  OMARCHY_TEST_MONITORS_FILE="$monitors_file" \
+  OMARCHY_TEST_RELOAD_LOG="$reload_log" \
+  OMARCHY_TEST_RECOVERED_MONITORS="$recovered" \
+  OMARCHY_TEST_GUARD_PAUSED=0 \
+  OMARCHY_TEST_HYPRCTL_FAIL_FLAG="$hyprctl_fail" \
+  "$ROOT/bin/omarchy-hyprland-monitor-watch" &
+watch_pid=$!
+exec {events_fd}>"$events"
+for _ in {1..50}; do
+  [[ -e $test_tmp/fallback-state/omarchy/omarchy-monitor-clamshell.lock && -e $test_tmp/fallback-state/omarchy/omarchy-monitor-modeless.lock ]] && break
+  sleep 0.05
+done
+[[ -e $test_tmp/fallback-state/omarchy/omarchy-monitor-clamshell.lock && ! -L $test_tmp/fallback-state/omarchy/omarchy-monitor-clamshell.lock ]] ||
+  fail "clamshell lock is kept in the private state dir"
+[[ -e $test_tmp/fallback-state/omarchy/omarchy-monitor-modeless.lock && ! -L $test_tmp/fallback-state/omarchy/omarchy-monitor-modeless.lock ]] ||
+  fail "modeless lock is kept in the private state dir"
+pass "monitor recovery locks stay out of /tmp"
+stop_watcher
