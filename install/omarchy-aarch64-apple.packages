@@ -17,6 +17,9 @@ asahi-bless
 avd-fw
 libva-v4l2_request-avd
 
+# Temporal noise filtering for the built-in apple-isp camera.
+aurora-camera-denoise
+
 # Widevine for DRM streaming.
 widevine
 
