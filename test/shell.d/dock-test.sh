@@ -29,6 +29,12 @@ const isLaunching = new Function('root', 'key', pulseBody)
 assert(isLaunching(launchingRoot, 'org.example.App::window::0xabc'), 'window-instance launch feedback resolves the shared app identity')
 assert(!isLaunching(launchingRoot, 'org.example.Other::window::0xdef'), 'launch feedback does not pulse another app')
 
+assertEqual(dock.workspaceBadgeNumber(1), 1, 'first-monitor workspace badges keep their number')
+assertEqual(dock.workspaceBadgeNumber(10), 10, 'the tenth workspace never becomes a zero badge')
+assertEqual(dock.workspaceBadgeNumber(11), 21, 'monitor two workspace one is labelled 21')
+assertEqual(dock.workspaceBadgeNumber(12), 22, 'monitor two workspace two is labelled 22')
+assertEqual(dock.workspaceBadgeNumber(20), 30, 'the second block keeps the previous complete numbering')
+
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
 assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')
@@ -187,6 +193,7 @@ assertDeepEqual(dock.orderItems([liveA, held, liveB], ['A', 'M', 'B'], true).map
 assert(instances[1].appPinned && !instances[1].pinned, 'a pinned app instance keeps its menu pin state separate from launcher placement')
 
 assert(dock.isMinimizedWorkspace('special:minimized'), 'legacy minimized windows remain recognized')
+assert(dock.isMinimizedWorkspace('special:minimized-output-1'), 'a staged restore stays in the dock')
 assert(!dock.isMinimizedWorkspace('special:scratchpad'), 'other special workspaces stay excluded')
 
 JS
@@ -202,6 +209,9 @@ local calls, timers = {}, {}
 local function dispatch(kind) return function(args) return { kind = kind, args = args } end end
 hl = {
   get_window = function(target) return windows[target] end,
+  get_workspace = function() return nil end,
+  window_rule = function() end,
+  workspace_rule = function() end,
   dispatch = function(call) table.insert(calls, call) end,
   timer = function(callback) table.insert(timers, callback) end,
   dsp = { workspace = { move = dispatch("workspace-move") }, focus = dispatch("focus"), window = { move = dispatch("move"), tag = dispatch("tag"), alter_zorder = dispatch("raise") } },
@@ -221,6 +231,43 @@ o.dock.activate("0xb", 3, "focus")
 local count = #calls
 timers[1]()
 assert(#calls == count, "a stale restore callback cannot steal focus from a newer click")
+
+-- Cross-monitor restores settle while hidden, then use the normal reveal.
+calls, timers = {}, {}
+local destination = { id = 1, name = "eDP-1" }
+hl.get_workspace = function() return { monitor = destination } end
+windows["address:0xa"].monitor = { id = 2, name = "DP-2" }
+hl.dispatch = function(call)
+  table.insert(calls, call)
+  if call.kind == "move" then
+    windows[call.args.window].workspace = { name = call.args.workspace }
+  end
+end
+o.dock.activate("0xa", 2, "focus")
+assert(calls[1].kind == "tag" and calls[1].args.tag == "+omarchy-dock-restore", "placement disables motion only for the restoring window")
+assert(calls[2].args.workspace == "special:minimized-output-1", "cross-monitor placement happens on a hidden destination workspace")
+timers[1]()
+assert(calls[3].args.tag == "-omarchy-dock-restore" and calls[4].args.workspace == "2", "normal animations return before the window is revealed")
+timers[2]()
+assert(calls[5].kind == "focus" and calls[6].kind == "raise", "restored window receives focus after placement")
+
+calls, timers = {}, {}
+windows["address:0xa"].workspace = { name = "special:minimized" }
+o.dock.activate("0xa", 2, "focus")
+o.dock.activate("0xa", 3, "focus")
+local before = #calls
+timers[1]()
+assert(#calls == before, "an older placement cannot override a second restore click")
+timers[2]()
+assert(calls[#calls].args.workspace == "3", "the latest restore destination wins")
+
+calls, timers = {}, {}
+windows["address:0xa"].workspace = { name = "special:minimized" }
+o.dock.activate("0xa", 2, "focus")
+windows["address:0xa"].workspace = { name = "4" }
+timers[1]()
+assert(calls[#calls].args.tag == "-omarchy-dock-restore", "a manual move cancels placement and restores animation rules")
+
 
 LUA
 pass "dock clicks use compositor state and discard stale focus callbacks"

@@ -628,7 +628,7 @@ PanelWindow {
         Text {
           id: workspaceText
           anchors.centerIn: parent
-          text: Commons.I18n.formatNumber(appSlot.otherWorkspace % 10)
+          text: Commons.I18n.formatNumber(DockModel.workspaceBadgeNumber(appSlot.otherWorkspace))
           textFormat: Text.PlainText
           color: Commons.Color.foreground
           font.family: Style.font.family

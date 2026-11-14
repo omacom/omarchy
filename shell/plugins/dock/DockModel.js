@@ -45,7 +45,7 @@ function isDockWindow(window) {
 var MINIMIZED_WORKSPACE = "special:minimized"
 
 function isMinimizedWorkspace(name) {
-  return String(name || "") === MINIMIZED_WORKSPACE
+  return String(name || "") === MINIMIZED_WORKSPACE || /^special:minimized-output-\d+$/.test(String(name || ""))
 }
 
 // A terminal app's window carries the app id its launcher gave the terminal,
@@ -242,9 +242,15 @@ function fitSlots(icon, inset, count, length, extra) {
   return { iconSize: Math.min(icon, limit), iconLimit: limit, inset: padding }
 }
 
+// Preserve monitor-distinguishing labels: the second block starts at 21.
+function workspaceBadgeNumber(id) {
+  return id > 10 ? id + 10 : id
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     fitSlots: fitSlots,
+    workspaceBadgeNumber: workspaceBadgeNumber,
     normalizePosition: normalizePosition,
     isVertical: isVertical,
     normalizeId: normalizeId,
