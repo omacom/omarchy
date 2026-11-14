@@ -69,3 +69,45 @@ if "$ROOT/bin/omarchy-cmd-present" kitty && kitty --version >/dev/null 2>&1; the
 else
   skip "Kitty not installed; skipping native config parser checks"
 fi
+
+# The regional default must not reach the live session, even when terminals
+# are visible from the install chroot. Keep the real setter and record IPC.
+export OMARCHY_TEST_SESSION_LOG="$test_dir/session-log"
+for command in pkill pgrep omarchy-restart-shell omarchy-notification-send; do
+  cat >"$test_dir/bin/$command" <<'SH'
+#!/bin/bash
+printf '%s\n' "${0##*/} $*" >>"$OMARCHY_TEST_SESSION_LOG"
+SH
+done
+cat >"$test_dir/bin/fc-list" <<'SH'
+#!/bin/bash
+printf '%s\n' "${OMARCHY_TEST_FONTS:-Test Font}"
+SH
+
+for terminal in alacritty foot ghostty; do
+  mkdir -p "$test_home/.config/$terminal"
+  cp "$ROOT/config/$terminal/"* "$test_home/.config/$terminal/"
+done
+
+before=$(tar -C "$test_home" -cf - .config | sha256sum)
+OMARCHY_TEST_FONTS='Maple Mono NF CN Extra' run_command omarchy-region-font cn
+OMARCHY_TEST_FONTS='Maple Mono NF CN' run_command omarchy-region-font us
+[[ $(tar -C "$test_home" -cf - .config | sha256sum) == "$before" ]] || fail "missing exact font or profile leaves all font settings alone"
+pass "a fallback or partial font match never replaces the user's font"
+
+for context in iso-chroot provision-owner; do
+  OMARCHY_TEST_FONTS='Maple Mono NF CN,Maple Mono' OMARCHY_SETUP_CONTEXT="$context" run_command omarchy-region-font cn
+  grep -qx 'font_family Maple Mono NF CN' "$kitty_config" || fail "regional font reaches Kitty"
+  grep -qx 'font=Maple Mono NF CN:size=9' "$test_home/.config/foot/foot.ini" || fail "regional font reaches foot"
+  grep -qF 'family = "Maple Mono NF CN"' "$test_home/.config/alacritty/alacritty.toml" || fail "regional font reaches Alacritty"
+  grep -qx 'font-family = "Maple Mono NF CN"' "$test_home/.config/ghostty/config" || fail "regional font reaches Ghostty"
+  grep -q '<string>Maple Mono NF CN</string>' "$test_home/.config/fontconfig/fonts.conf" || fail "regional font becomes the system monospace default"
+  [[ ! -s $OMARCHY_TEST_SESSION_LOG ]] || fail "headless setup sends no terminal signals or desktop IPC" "$(cat "$OMARCHY_TEST_SESSION_LOG")"
+done
+pass "install and first-boot owner setup write the regional font without reaching a session"
+
+run_command omarchy-font-set 'Test Font'
+grep -qx 'pkill -USR1 kitty' "$OMARCHY_TEST_SESSION_LOG" || fail "interactive font changes still reload Kitty"
+grep -qx 'pkill -SIGUSR2 ghostty' "$OMARCHY_TEST_SESSION_LOG" || fail "interactive font changes still reload Ghostty"
+grep -qx 'omarchy-restart-shell ' "$OMARCHY_TEST_SESSION_LOG" || fail "interactive font changes still refresh the shell"
+pass "interactive font changes retain their session refreshes"

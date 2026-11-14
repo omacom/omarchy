@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# omarchy:summary=Set this user's regional default font when it is installed
+# omarchy:args=<region>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+region=${1:-}
+if [[ ! $region =~ ^[a-z]{2}$ ]]; then
+  echo "Usage: omarchy-region-font <region>" >&2
+  exit 1
+fi
+
+profile="$OMARCHY_PATH/default/regions/$region"
+if [[ -r $profile/font ]]; then
+  font=$(<"$profile/font")
+  # Match an installed family, not a substring or fontconfig's fallback.
+  if [[ -n $font ]] && grep -qxF -- "$font" <<<"$(fc-list : family | tr ',' '\n')"; then
+    headless=0
+    [[ ${OMARCHY_SETUP_CONTEXT:-runtime} == "runtime" ]] || headless=1
+    OMARCHY_FONT_HEADLESS=$headless omarchy-font-set "$font"
+  fi
+fi
