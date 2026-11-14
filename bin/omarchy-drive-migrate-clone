@@ -1,0 +1,679 @@
+#!/bin/bash
+
+# omarchy:summary=Wipe a destination drive and clone the running system onto it. Used by omarchy-drive-migrate.
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+gib=1073741824
+
+human_size() {
+  if (( $1 == 0 )); then
+    printf '0B\n'
+  else
+    numfmt --to=iec-i --suffix=B --format='%.1f' "$1" 2>/dev/null || printf '%s B\n' "$1"
+  fi
+}
+
+disk_size() {
+  local size
+  size=$(lsblk -bdno SIZE "$1" 2>/dev/null | tr -d '[:space:]')
+  [[ $size =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$size"
+}
+
+log_msg() {
+  local msg=$1
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $msg" | tee -a "$LOG_FILE"
+}
+
+# The physical disk underneath a block device, however many partition, LUKS,
+# LVM or RAID layers sit between them.
+disk_for_source() {
+  local source=${1%%[*} disk
+  disk=$(lsblk -s -n -r -p -o NAME,TYPE "$source" 2>/dev/null |
+    awk '$2 == "disk" { print $1; exit }')
+  [[ -n $disk ]] || return 1
+  readlink -f -- "$disk"
+}
+
+# Every disk the running installation needs, not just the one below /. A
+# separate /boot or ESP counts too, so neither can be offered as the target.
+current_installation_disks() {
+  local mount source disk
+  local -a disks=()
+
+  for mount in / /boot /boot/efi; do
+    source=$(findmnt -no SOURCE "$mount" 2>/dev/null) || continue
+    disk=$(disk_for_source "$source") || continue
+    if [[ " ${disks[*]-} " != *" $disk "* ]]; then
+      disks+=("$disk")
+    fi
+  done
+
+  ((${#disks[@]} > 0)) || return 1
+  printf '%s\n' "${disks[@]}"
+}
+
+is_source_disk() {
+  local check src
+  check=$(readlink -f -- "$1")
+  while read -r src; do
+    [[ $(readlink -f -- "$src") == $check ]] && return 0
+  done < <(current_installation_disks 2>/dev/null)
+  return 1
+}
+
+# Destination partition device names: nvme0n1 becomes nvme0n1p1, sda becomes
+# sda1.
+partition_device() {
+  local disk=$1 number=$2
+  if [[ $disk == *[0-9] ]]; then
+    printf '%s\n' "${disk}p${number}"
+  else
+    printf '%s\n' "${disk}${number}"
+  fi
+}
+
+# Subvolume name from a findmnt SOURCE such as /dev/mapper/root[/@home],
+# without the leading slash findmnt includes.
+subvol_from_source() {
+  local source=${1%%]*}
+  if [[ $source == *\[* ]]; then
+    source=${source#*[}
+    source=${source#/}
+    [[ -n $source ]] || return 1
+    printf '%s\n' "$source"
+  else
+    return 1
+  fi
+}
+
+# The kernel cmdline for the new disk: cryptdevice=DEV:name keeps its mapper
+# name and a UUID/PARTUUID root= moves to the new root partition. The seds use
+# # as delimiter because the patterns contain the | of ERE alternation.
+rewrite_cmdline() {
+  local cmdline=$1 new_spec=$2
+  cmdline=$(printf '%s\n' "$cmdline" | sed -E "s#(cryptdevice=)[^ :]+#\1$new_spec#")
+  printf '%s\n' "$cmdline" | sed -E "s#(root=)(UUID|PARTUUID)=[^ ]+#\1$new_spec#"
+}
+
+# The partition backing /: the crypto_LUKS partition when the root is
+# encrypted, the plain partition otherwise.
+source_root_partition() {
+  local src part
+  src=$(findmnt -no SOURCE /) || return 1
+  src=${src%%[*}
+  part=$(lsblk -nsrpo NAME,TYPE,FSTYPE "$src" 2>/dev/null |
+    awk '$2 == "part" { print $1; exit }')
+  [[ -n $part ]] || return 1
+  printf '%s\n' "$part"
+}
+
+# Whether the running root sits on a LUKS container. LVM and RAID stacks in
+# between are not supported and are detected as such.
+root_encryption() {
+  local src
+  src=$(findmnt -no SOURCE /) || return 1
+  src=${src%%[*}
+  local line
+  while read -r line; do
+    if [[ $line == *" LVM2_member"* || $line == *"linux_raid_member"* ]]; then
+      echo "unsupported"
+      return 0
+    fi
+  done < <(lsblk -nsrpo NAME,TYPE,FSTYPE "$src" 2>/dev/null)
+  if lsblk -nsrpo NAME,TYPE,FSTYPE "$src" 2>/dev/null |
+    awk '$2 == "part" && $3 == "crypto_LUKS" { found = 1 } END { exit found ? 0 : 1 }'; then
+    echo "luks"
+  else
+    echo "none"
+  fi
+}
+
+# The ESP partition device, taken from the /boot mount so it is found even
+# when it lives on a separate disk.
+source_esp_partition() {
+  local source
+  source=$(findmnt -no SOURCE /boot 2>/dev/null) || return 1
+  source=${source%%[*}
+  [[ -b $source ]] || return 1
+  printf '%s\n' "$source"
+}
+
+# Mounted btrfs subvolumes of the running root filesystem as "subvol
+# mountpoint" lines, parents before children.
+btrfs_source_subvolumes() {
+  local base source target subvol
+  base=$(findmnt -no SOURCE /)
+  base=${base%%[*}
+  while read -r source target; do
+    subvol=$(subvol_from_source "$source") || continue
+    printf '%s\n' "$subvol $target"
+  done < <(findmnt -t btrfs -lno SOURCE,TARGET 2>/dev/null | grep -F "$base[") |
+    awk '{ printf "%d %s %s\n", length($1), $1, $2 }' | sort -n | cut -d' ' -f2-
+}
+
+# Refuse layouts the copy cannot reproduce: a real filesystem mounted under
+# the system tree from a device that is neither the root filesystem nor the
+# ESP. Its data would be silently skipped by rsync -x.
+unsupported_separate_mounts() {
+  local base boot_source target source
+  base=$(findmnt -no SOURCE /)
+  base=${base%%[*}
+  boot_source=$(findmnt -no SOURCE /boot 2>/dev/null || true)
+  boot_source=${boot_source%%[*}
+  while read -r target source; do
+    source=${source%%[*}
+    if [[ $source != "$base" && $source != "$boot_source" &&
+      $target != /boot* && $target != /run/* && $target != /mnt/* && $target != /media/* ]]; then
+      printf '%s (%s)\n' "$target" "$source"
+    fi
+  done < <(findmnt -rn -o TARGET,SOURCE -t ext2,ext3,ext4,btrfs,xfs,f2fs,vfat 2>/dev/null)
+}
+
+wipe_destination() {
+  local dest=$1
+  log_msg "Wiping destination: removing signatures and zapping partition tables on $dest"
+  # Remove all filesystem/partition signatures first (works even on corrupted GPT).
+  wipefs -a "$dest" 2>&1 | tee -a "$LOG_FILE" || true
+  # Zap partition table (best effort; may fail on already-corrupted GPT, which
+  # is fine because we zero the start of the disk next).
+  sgdisk --zap-all "$dest" 2>&1 | tee -a "$LOG_FILE" || log_msg "sgdisk zap failed (continuing; disk will be zeroed)"
+  # Zero the first 10 MiB to guarantee a clean slate for GPT creation.
+  log_msg "Zeroing the first 10 MiB of $dest"
+  ionice -c 2 -n 7 nice -n 10 dd if=/dev/zero of="$dest" bs=1M count=10 conv=fsync status=progress 2>&1 | tee -a "$LOG_FILE"
+  partprobe "$dest" 2>&1 | tee -a "$LOG_FILE"
+  udevadm settle
+  log_msg "Destination wiped"
+}
+
+create_partitions() {
+  local dest=$1 esp_mib
+  esp_mib=$((SRC_ESP_BYTES / 1048576))
+  if (( esp_mib <= 0 )); then
+    esp_mib=1024
+  fi
+  log_msg "Creating GPT on $dest: ESP of $esp_mib MiB, root in the rest"
+
+  sgdisk --clear "$dest" 2>&1 | tee -a "$LOG_FILE"
+  sgdisk --new=1:0:+${esp_mib}M --typecode=1:ef00 --change-name=1:"EFI System" "$dest" 2>&1 | tee -a "$LOG_FILE"
+  sgdisk --new=2:0:0 --typecode=2:"$ROOT_TYPECODE" --change-name=2:"Linux root" "$dest" 2>&1 | tee -a "$LOG_FILE"
+  partprobe "$dest" 2>&1 | tee -a "$LOG_FILE"
+  udevadm settle
+
+  local waited=0
+  until [[ -b $DST_ESP && -b $DST_ROOT ]]; do
+    if (( waited >= 10 )); then
+      log_msg "ERROR: new partitions $DST_ESP/$DST_ROOT did not appear"
+      return 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  DST_PARTUUID=$(blkid -s PARTUUID -o value "$DST_ROOT" 2>/dev/null || echo "")
+  log_msg "Partitions created: $DST_ESP (ESP), $DST_ROOT (root)"
+}
+
+# Ask for the passphrase of the new drive before anything is destroyed, so a
+# user who cannot decide keeps their destination data. The passphrase lives
+# only in a variable and is passed through stdin, never on a command line.
+ask_luks_passphrase() {
+  local first second attempts=0
+  while (( attempts < 3 )); do
+    first=$(gum input --password --header "Choose a passphrase to unlock the new drive at boot") || {
+      echo "Migration cancelled."
+      exit 1
+    }
+    if [[ -z $first ]]; then
+      echo "The passphrase cannot be empty."
+      attempts=$((attempts + 1))
+      continue
+    fi
+    second=$(gum input --password --header "Repeat the passphrase") || {
+      echo "Migration cancelled."
+      exit 1
+    }
+    if [[ $first == "$second" ]]; then
+      LUKS_PASSPHRASE=$first
+      return 0
+    fi
+    echo "The passphrases do not match."
+    attempts=$((attempts + 1))
+  done
+  echo "Too many mismatches. Migration cancelled."
+  exit 1
+}
+
+prepare_destination_root() {
+  if [[ $ROOT_ENCRYPTION == "luks" ]]; then
+    log_msg "Creating the new LUKS2 container on $DST_ROOT"
+    printf '%s' "$LUKS_PASSPHRASE" | cryptsetup luksFormat --batch-mode --type luks2 --key-file - "$DST_ROOT" 2>&1 | tee -a "$LOG_FILE"
+    printf '%s' "$LUKS_PASSPHRASE" | cryptsetup open --key-file - "$DST_ROOT" "$MAPPER" 2>&1 | tee -a "$LOG_FILE"
+    NEW_ROOT_DEV="/dev/mapper/$MAPPER"
+    NEW_LUKS_UUID=$(blkid -s UUID -o value "$DST_ROOT" 2>/dev/null || echo "")
+    log_msg "New LUKS container opened as $NEW_ROOT_DEV"
+  else
+    NEW_ROOT_DEV=$DST_ROOT
+    NEW_LUKS_UUID=""
+  fi
+
+  log_msg "Creating $ROOT_FSTYPE on $NEW_ROOT_DEV"
+  if [[ $ROOT_FSTYPE == "btrfs" ]]; then
+    if [[ -n $ROOT_LABEL ]]; then
+      mkfs.btrfs -L "$ROOT_LABEL" "$NEW_ROOT_DEV" 2>&1 | tee -a "$LOG_FILE"
+    else
+      mkfs.btrfs "$NEW_ROOT_DEV" 2>&1 | tee -a "$LOG_FILE"
+    fi
+    mount -o "subvolid=5${ROOT_COMPRESS:+,$ROOT_COMPRESS}" "$NEW_ROOT_DEV" "$WORK/root"
+  else
+    if [[ -n $ROOT_LABEL ]]; then
+      mkfs."$ROOT_FSTYPE" -L "$ROOT_LABEL" "$NEW_ROOT_DEV" 2>&1 | tee -a "$LOG_FILE"
+    else
+      mkfs."$ROOT_FSTYPE" "$NEW_ROOT_DEV" 2>&1 | tee -a "$LOG_FILE"
+    fi
+    mount "$NEW_ROOT_DEV" "$WORK/root"
+  fi
+}
+
+copy_data() {
+  local subvol target line swap_dir
+  local -a subvolumes=()
+  mapfile -t subvolumes < <(btrfs_source_subvolumes)
+
+  if [[ $ROOT_FSTYPE == "btrfs" ]]; then
+    if ((${#subvolumes[@]} == 0)); then
+      # A subvolume-less btrfs root: copy the filesystem as it is.
+      log_msg "Copying / to the new root (no subvolumes)"
+      rsync -aAXHx --numeric-ids --info=progress2 \
+        --exclude={"/dev/*","/proc/*","/sys/*","/run/*","/tmp/*","/swap/*","/.snapshots/*"} \
+        / "$WORK/root"/ 2>&1 | tee -a "$LOG_FILE"
+    fi
+    for line in "${subvolumes[@]}"; do
+      read -r subvol target <<<"$line"
+      log_msg "Creating subvolume $subvol and copying $target"
+      btrfs subvolume create "$WORK/root/$subvol" 2>&1 | tee -a "$LOG_FILE"
+      ionice -c 2 -n 7 nice -n 10 rsync -aAXHx --numeric-ids --info=progress2 \
+        --exclude={"/dev/*","/proc/*","/sys/*","/run/*","/tmp/*","/swap/*","/.snapshots/*"} \
+        "$target"/ "$WORK/root/$subvol"/ 2>&1 | tee -a "$LOG_FILE"
+    done
+
+    # A btrfs swapfile must be recreated, not copied: it needs NOCOW extents
+    # at fresh physical offsets, which rsync cannot produce.
+    if [[ -e /swap/swapfile ]]; then
+      swap_dir="$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}swap"
+      if [[ -d $swap_dir ]]; then
+        log_msg "Recreating the $(human_size "$(stat -c %s /swap/swapfile)") swapfile on the new root"
+        if ! btrfs filesystem mkswapfile --size "$(stat -c %s /swap/swapfile)" "$swap_dir/swapfile" 2>&1 | tee -a "$LOG_FILE"; then
+          log_msg "WARNING: swapfile recreation failed; hibernation will be unavailable until it is recreated"
+        fi
+      fi
+    fi
+  else
+    log_msg "Copying / to the new root"
+    ionice -c 2 -n 7 nice -n 10 rsync -aAXHx --numeric-ids --info=progress2 \
+      --exclude={"/dev/*","/proc/*","/sys/*","/run/*","/tmp/*","/swap/*"} \
+      / "$WORK/root"/ 2>&1 | tee -a "$LOG_FILE"
+  fi
+
+  log_msg "Formatting $DST_ESP as FAT32 and copying /boot"
+  mkfs.fat -F32 -n "$ESP_LABEL" "$DST_ESP" 2>&1 | tee -a "$LOG_FILE"
+  mount "$DST_ESP" "$WORK/esp"
+  ionice -c 2 -n 7 nice -n 10 rsync -rt --info=progress2 /boot/ "$WORK/esp/" 2>&1 | tee -a "$LOG_FILE"
+  log_msg "Data copy finished"
+}
+
+update_configuration() {
+  local old_root_uuid new_root_uuid old_esp_uuid new_esp_uuid new_root_spec
+  local fstab cmdline
+
+  old_root_uuid=$(blkid -s UUID -o value "$SRC_ROOT_DEV")
+  new_root_uuid=$(blkid -s UUID -o value "$NEW_ROOT_DEV")
+  old_esp_uuid=$(blkid -s UUID -o value "$SRC_ESP")
+  new_esp_uuid=$(blkid -s UUID -o value "$DST_ESP")
+  new_root_spec="PARTUUID=$(blkid -s PARTUUID -o value "$DST_ROOT")"
+  log_msg "UUIDs: root $old_root_uuid -> $new_root_uuid, ESP $old_esp_uuid -> $new_esp_uuid, root partition $new_root_spec"
+
+  fstab="$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}etc/fstab"
+  if [[ -f $fstab ]]; then
+    sed -i "s/$old_root_uuid/$new_root_uuid/g; s/$old_esp_uuid/$new_esp_uuid/g" "$fstab"
+    log_msg "fstab updated with the new UUIDs"
+  else
+    log_msg "ERROR: no fstab found at $fstab"
+    return 1
+  fi
+
+  if [[ $ROOT_ENCRYPTION == "luks" && -f "$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}etc/crypttab" ]]; then
+    sed -i "s/$(blkid -s UUID -o value "$SRC_ROOT_PART")/$(blkid -s UUID -o value "$DST_ROOT")/g" \
+      "$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}etc/crypttab"
+    log_msg "crypttab updated with the new LUKS UUID"
+  fi
+
+  cmdline="$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}etc/kernel/cmdline"
+  if [[ -f $cmdline ]]; then
+    local cmdline_new
+    rewrite_cmdline "$(cat "$cmdline")" "$new_root_spec" > "$cmdline.new"
+    mv "$cmdline.new" "$cmdline"
+    log_msg "kernel cmdline updated: $(cat "$cmdline")"
+  else
+    log_msg "WARNING: /etc/kernel/cmdline not found; the new system may not unlock its root"
+  fi
+
+  # /etc/default/limine holds KERNEL_CMDLINE[default] which limine-mkinitcpio
+  # actually reads (not /etc/kernel/cmdline). Update the cryptdevice PARTUUID.
+  local limine_default="$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}etc/default/limine"
+  if [[ -f $limine_default ]]; then
+    # Update cryptdevice PARTUUID (LUKS) and root= argument (plain roots).
+    sed -i "s|PARTUUID=[0-9a-fA-F-]*:root|PARTUUID=${new_root_spec#PARTUUID=}:root|g" "$limine_default"
+    sed -i -E "s|(root=)(UUID|PARTUUID)=[^ \"']+|\1${new_root_spec}|" "$limine_default"
+    log_msg "updated /etc/default/limine with new PARTUUID/root spec"
+  fi
+
+  # Recompute resume_offset for the recreated swapfile and update resume=UUID.
+  local resume_conf="$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}etc/limine-entry-tool.d/resume.conf"
+  local swapfile="$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}swap/swapfile"
+  if [[ -e $swapfile ]]; then
+    local new_offset
+    new_offset=$(btrfs inspect-internal map-swapfile "$swapfile" 2>/dev/null | \
+      awk '/Resume offset:/ {print $3; exit}')
+    if [[ -n $new_offset && -f $resume_conf ]]; then
+      sed -i "s|resume_offset=[0-9]*|resume_offset=$new_offset|" "$resume_conf"
+      log_msg "updated resume_offset to $new_offset in resume.conf"
+    fi
+    # Update resume=UUID in /etc/default/limine (btrfs UUID changes).
+    if [[ -f "$limine_default" ]]; then
+      sed -i "s|resume=/dev/mapper/root resume_offset=[0-9]*|resume=/dev/mapper/root resume_offset=${new_offset:-0}|" "$limine_default" 2>/dev/null || true
+    fi
+  fi
+}
+
+rebuild_boot() {
+  log_msg "Rebuilding Limine and UKIs on the new ESP"
+
+  if [[ -n $ROOT_SUBVOL ]]; then
+    mount -o "subvol=$ROOT_SUBVOL" "$NEW_ROOT_DEV" "$WORK/system"
+  else
+    mount "$NEW_ROOT_DEV" "$WORK/system"
+  fi
+  mkdir -p "$WORK/system/boot" "$WORK/system/proc" "$WORK/system/sys" "$WORK/system/dev"
+  mount --bind "$WORK/esp" "$WORK/system/boot"
+  # Replace limine.conf with the default template (like omarchy-refresh-limine),
+  # so limine-update regenerates boot entries from the updated /etc/kernel/cmdline
+  # instead of merging with the stale (source) config.
+  if [[ -f "$OMARCHY_PATH/default/limine/limine.conf" ]]; then
+    cp "$OMARCHY_PATH/default/limine/limine.conf" "$WORK/system/boot/limine.conf"
+  fi
+  mount -t proc proc "$WORK/system/proc"
+  mount -t sysfs sys "$WORK/system/sys"
+  mount --rbind /dev "$WORK/system/dev"
+
+  chroot "$WORK/system" /usr/bin/env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ionice -c 2 -n 7 nice -n 10 limine-update 2>&1 | tee -a "$LOG_FILE"
+  if ! chroot "$WORK/system" /usr/bin/env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin limine-snapper-sync 2>&1 | tee -a "$LOG_FILE"; then
+    log_msg "WARNING: limine-snapper-sync failed; snapshot boot entries are missing"
+  fi
+
+  # Unmount without spamming the terminal (errors go to the log only).
+  umount -R "$WORK/system" >/dev/null 2>&1 || umount -lR "$WORK/system" >/dev/null 2>&1 || true
+  log_msg "Boot filesystems unmounted"
+  log_msg "Boot files rebuilt"
+}
+
+verify_migration() {
+  local failures=0
+  local fstab="$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}etc/fstab"
+  local cmdline="$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}etc/kernel/cmdline"
+  local system_root="$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}"
+
+  if ! grep -q "$(blkid -s UUID -o value "$NEW_ROOT_DEV")" "$fstab"; then
+    log_msg "VERIFICATION FAILED: new root UUID missing from fstab"
+    failures=$((failures + 1))
+  fi
+  if ! grep -q "$(blkid -s UUID -o value "$DST_ESP")" "$fstab"; then
+    log_msg "VERIFICATION FAILED: new ESP UUID missing from fstab"
+    failures=$((failures + 1))
+  fi
+  if [[ -f $cmdline ]] && ! grep -q "PARTUUID=$(blkid -s PARTUUID -o value "$DST_ROOT")" "$cmdline"; then
+    log_msg "VERIFICATION FAILED: new root partition missing from kernel cmdline"
+    failures=$((failures + 1))
+  fi
+  # Check for any UKI matching the installed kernels, not just two fixed names.
+  if ! find "$WORK/esp/EFI/Linux" -maxdepth 1 -name 'omarchy_linux*.efi' -print -quit 2>/dev/null | grep -q .; then
+    log_msg "VERIFICATION FAILED: no kernel UKI found on the new ESP"
+    failures=$((failures + 1))
+  fi
+  if [[ ! -e $system_root/usr/bin/bash ]]; then
+    log_msg "VERIFICATION FAILED: new root filesystem is not populated"
+    failures=$((failures + 1))
+  fi
+
+  if (( failures > 0 )); then
+    return 1
+  fi
+  log_msg "Verification passed: fstab, cmdline, UKIs and root filesystem are in place"
+}
+
+cleanup() {
+  if [[ -n ${WORK:-} && -d $WORK ]]; then
+    # Unmount leaf-first with lazy fallback.
+    for target in "$WORK/system/dev" "$WORK/system/sys" "$WORK/system/proc" \
+                 "$WORK/system/boot" "$WORK/system" "$WORK/esp" "$WORK/root"; do
+      while mountpoint -q "$target" 2>/dev/null; do
+        umount "$target" 2>/dev/null || umount -l "$target" 2>/dev/null || break
+      done
+    done
+    # Only remove if nothing is still mounted below WORK.
+    if ! find "$WORK" -mindepth 1 -type d -exec mountpoint -q {} \; -print 2>/dev/null | grep -q .; then
+      rm -rf "$WORK" 2>/dev/null || true
+    else
+      log_msg "WARNING: mounts remain under $WORK; leaving directory in place"
+    fi
+  fi
+  if [[ -n ${MAPPER:-} ]]; then
+    cryptsetup close "$MAPPER" 2>/dev/null || true
+  fi
+}
+
+on_error() {
+  log_msg "Migration FAILED. The source disk is untouched; the destination is incomplete."
+  echo "Migration failed. The log has the details: $LOG_FILE" >&2
+}
+
+main() {
+  if (( EUID != 0 )); then
+    echo "Error: omarchy-drive-migrate-clone must run as root" >&2
+    exit 1
+  fi
+
+  local destination=${1:-}
+  local used=${2:-0}
+
+  if [[ -z $destination || ! -b $destination || $(lsblk -dno TYPE "$destination" 2>/dev/null) != "disk" ]]; then
+    echo "Usage: omarchy-drive-migrate-clone <destination-disk> [used-bytes]" >&2
+    exit 1
+  fi
+
+  export PATH="${OMARCHY_PATH:-/usr/share/omarchy}/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
+
+  LOG_FILE="/var/log/omarchy-drive-migrate-$(date +%Y%m%dT%H%M%S).log"
+  trap on_error ERR
+  trap cleanup EXIT
+
+  log_msg "=== Migration started ==="
+  log_msg "Destination: $destination (data to copy: $(human_size "$used"))"
+  log_msg "Source disks: $(current_installation_disks | tr '\n' ' ')"
+
+  if is_source_disk "$destination"; then
+    log_msg "FATAL: $destination is a source disk; refusing to wipe it"
+    echo "ERROR: $destination is a source disk. Cannot proceed." >&2
+    exit 1
+  fi
+
+  if lsblk -nrno MOUNTPOINTS "$destination" | grep -q .; then
+    log_msg "FATAL: $destination or one of its partitions is mounted"
+    echo "ERROR: $destination is in use (mounted). Unmount it and retry." >&2
+    exit 1
+  fi
+
+  if (( used > 0 )); then
+    local destination_bytes
+    destination_bytes=$(disk_size "$destination") || destination_bytes=0
+    if (( destination_bytes > 0 && destination_bytes < used )); then
+      log_msg "FATAL: $destination cannot hold the $(human_size "$used") of data in use"
+      echo "ERROR: $destination is too small for the $(human_size "$used") of data in use." >&2
+      exit 1
+    fi
+  fi
+
+  local unsupported
+  unsupported=$(unsupported_separate_mounts)
+  if [[ -n $unsupported ]]; then
+    log_msg "FATAL: separate-disk mounts under the system tree: $unsupported"
+    echo "ERROR: these mounts live on other disks and would not be copied:" >&2
+    echo "$unsupported" >&2
+    exit 1
+  fi
+
+  # Detect the source layout before touching anything.
+  ROOT_ENCRYPTION=$(root_encryption)
+  if [[ $ROOT_ENCRYPTION == "unsupported" ]]; then
+    log_msg "FATAL: root sits on LVM or RAID, which this tool cannot clone"
+    echo "ERROR: LVM/RAID root layouts are not supported." >&2
+    exit 1
+  fi
+  SRC_ROOT_PART=$(source_root_partition)
+  ROOT_TYPECODE=$(lsblk -no PARTTYPE "$SRC_ROOT_PART" 2>/dev/null | tr -d '[:space:]' || true)
+  if [[ $ROOT_ENCRYPTION == "luks" ]]; then
+    SRC_ROOT_DEV=$(findmnt -no SOURCE /)
+    SRC_ROOT_DEV=${SRC_ROOT_DEV%%[*}
+    [[ -n $ROOT_TYPECODE ]] || ROOT_TYPECODE=8309
+  else
+    SRC_ROOT_DEV=$SRC_ROOT_PART
+    [[ -n $ROOT_TYPECODE ]] || ROOT_TYPECODE=8304
+  fi
+  SRC_ESP=$(source_esp_partition) || {
+    echo "ERROR: cannot find the ESP (nothing mounted at /boot)." >&2
+    exit 1
+  }
+  SRC_ESP_BYTES=$(disk_size "$SRC_ESP") || SRC_ESP_BYTES=$gib
+  ROOT_FSTYPE=$(findmnt -no FSTYPE /)
+  ROOT_SUBVOL=$(subvol_from_source "$(findmnt -no SOURCE /)") || ROOT_SUBVOL=""
+  if [[ $ROOT_FSTYPE == "btrfs" ]]; then
+    ROOT_LABEL=$(btrfs filesystem label / 2>/dev/null || true)
+    local root_options
+    root_options=$(findmnt -no OPTIONS /)
+    if [[ $root_options =~ (compress=[^,]+) ]]; then
+      ROOT_COMPRESS=${BASH_REMATCH[1]}
+    fi
+  else
+    ROOT_LABEL=""
+    ROOT_COMPRESS=""
+  fi
+  ESP_LABEL=$(lsblk -dno LABEL "$SRC_ESP" 2>/dev/null | tr -d '[:space:]' || true)
+  if [[ -z $ESP_LABEL ]] || (( ${#ESP_LABEL} > 11 )); then
+    ESP_LABEL=ESP
+  fi
+
+  log_msg "Layout: root $ROOT_FSTYPE${ROOT_SUBVOL:+ (subvol $ROOT_SUBVOL)}, encryption: $ROOT_ENCRYPTION, ESP: $SRC_ESP ($(human_size "$SRC_ESP_BYTES"))"
+
+  if [[ ${OMARCHY_DRIVE_MIGRATE_CONFIRMED:-} != "1" ]]; then
+    gum confirm --default=false \
+      "This will ERASE ALL DATA on $(basename "$destination") and copy the system there. Continue?" \
+      --affirmative="Yes, proceed" \
+      --negative="No, cancel" || {
+      log_msg "Migration cancelled by user"
+      echo "Migration cancelled."
+      exit 0
+    }
+  fi
+  log_msg "User confirmed the wipe of $destination"
+
+  LUKS_PASSPHRASE=""
+  if [[ $ROOT_ENCRYPTION == "luks" ]]; then
+    ask_luks_passphrase
+    log_msg "LUKS passphrase collected"
+  fi
+
+  MAPPER=""
+  WORK=$(mktemp -d)
+  mkdir -p "$WORK/root" "$WORK/esp" "$WORK/system"
+  DST_ESP=$(partition_device "$destination" 1)
+  DST_ROOT=$(partition_device "$destination" 2)
+  DST_PARTUUID=""
+  NEW_LUKS_UUID=""
+
+  wipe_destination "$destination"
+  create_partitions "$destination"
+
+  if [[ $ROOT_ENCRYPTION == "luks" ]]; then
+    MAPPER="omarchy-migrate-root"
+    cryptsetup close "$MAPPER" 2>/dev/null || true
+  fi
+  prepare_destination_root
+  copy_data
+  update_configuration
+  rebuild_boot
+  verify_migration
+
+  # Write migration state and install the verification service on the
+  # DESTINATION (before unmounting), so the new drive can self-verify on
+  # first boot.
+  log_msg "Writing migration state and verification service to destination"
+  src_esp_pu=$(blkid -s PARTUUID -o value "$SRC_ESP" 2>/dev/null || echo "")
+  dest_state_dir="$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}var/lib/omarchy"
+  mkdir -p "$dest_state_dir"
+  jq -n \
+    --arg ts "$(date -Is)" \
+    --arg src "$SRC_ROOT_PART" \
+    --arg src_esp "$src_esp_pu" \
+    --arg dst "$destination" \
+    --arg pu "$DST_PARTUUID" \
+    --arg luks "$NEW_LUKS_UUID" \
+    --arg lf "$LOG_FILE" \
+    '{version:1, timestamp:$ts, source_disk:$src, source_esp_partuuid:$src_esp,
+      dest_disk:$dst, dest_partuuid:$pu, dest_luks_uuid:$luks, log_file:$lf,
+      status:"pending", boot_option_set:"no", old_bootnum:"", new_bootnum:"",
+      usb_bootnums:[], source_partuuid:$src_esp}' \
+    > "$dest_state_dir/drive-migration.state"
+  chmod 644 "$dest_state_dir/drive-migration.state" 2>/dev/null || true
+
+  dest_svc_dir="$WORK/root/${ROOT_SUBVOL:+$ROOT_SUBVOL/}etc/systemd/system"
+  dest_wants_dir="$dest_svc_dir/multi-user.target.wants"
+  mkdir -p "$dest_svc_dir" "$dest_wants_dir"
+  cat > "$dest_svc_dir/omarchy-drive-migrate-verify.service" <<'SVCEOF'
+[Unit]
+Description=Verify Omarchy drive migration on first boot
+ConditionPathExists=/var/lib/omarchy/drive-migration.state
+After=graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/share/omarchy/bin/omarchy-drive-migrate --verify
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical.target
+SVCEOF
+  ln -sf /etc/systemd/system/omarchy-drive-migrate-verify.service \
+    "$dest_wants_dir/omarchy-drive-migrate-verify.service" 2>/dev/null || true
+  log_msg "State and verification service written to destination"
+
+  trap - ERR
+  log_msg "=== Migration completed successfully ==="
+
+  gum style --border normal --padding "1 2" \
+    "Migration Complete!" \
+    "" \
+    "The system has been copied to $destination." \
+    "" \
+    "Log saved to: $LOG_FILE" \
+    "" \
+    "The old drive is untouched. Reboot and select the new drive in the boot menu."
+
+  echo "Migration complete. Reboot to start from the new drive."
+}
+
+if [[ ${BASH_SOURCE[0]} == $0 ]]; then
+  main "$@"
+fi
