@@ -28,8 +28,16 @@ entry "$scratch/system/applications/other-section.desktop" $'Name=Visible\n[Desk
 entry "$scratch/system/applications/quote\" app.desktop" 'NoDisplay=true'
 entry "$scratch/ven[dor]*/applications/vendor.desktop" 'Hidden=true'
 entry "$HOME/.nix-profile/share/applications/nix.desktop" 'NoDisplay=true'
+entry "$HOME/.local/share/applications/agent.desktop" 'X-Omarchy-Dock-Click=new'
+entry "$scratch/system/applications/agent.desktop" 'X-Omarchy-Dock-Click=workspace'
+entry "$scratch/system/applications/files.desktop" $'NoDisplay=true\nX-Omarchy-Dock-Click=workspace'
 
-actual=$(bash "$ROOT/shell/services/hidden-entries.sh" 'Hyprland:Omarchy')
-expected=$'user-hidden\nnested-deeper-app\nnested-space name\nnot-hyprland\nquote" app\nvendor\nnix'
-[[ $actual == "$expected" ]] || fail "hidden entries changed IDs, directory precedence, or desktop visibility: $actual"
+actual=$(bash "$ROOT/shell/services/desktop-entries.sh" 'Hyprland:Omarchy')
+hidden=$(awk -F'\t' '$1 == "hidden" { print $2 }' <<<"$actual")
+expected=$'user-hidden\nfiles\nnested-deeper-app\nnested-space name\nnot-hyprland\nquote" app\nvendor\nnix'
+[[ $hidden == "$expected" ]] || fail "hidden entries changed IDs, directory precedence, or desktop visibility: $hidden"
 pass "hidden entries preserve nested IDs, unusual filenames, overrides, and desktop filters"
+
+clicks=$(awk -F'\t' '$1 == "dock-click" { print $2 " " $3 }' <<<"$actual")
+[[ $clicks == $'new agent\nworkspace files' ]] || fail "dock click modes ignore X-Omarchy-Dock-Click or its overrides: $clicks"
+pass "dock click modes come from X-Omarchy-Dock-Click, with the user's entry winning"

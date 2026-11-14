@@ -172,15 +172,16 @@ Item {
 
   function activate(item) {
     if (!item) return
-    if (item.windows.length === 0) {
+    var monitor = Hyprland.focusedMonitor
+    var workspaceId = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
+    var mode = root.appLibrary ? root.appLibrary.dockClickMode(item.key) : ""
+    var index = DockModel.pickClickWindow(mode, item.windows.map(function(window) {
+      return { workspaceId: window.workspaceId, minimized: window.minimized, activated: window.toplevel.activated }
+    }), workspaceId)
+    if (index < 0) {
       root.launch(item)
       return
     }
-    var monitor = Hyprland.focusedMonitor
-    var workspaceId = monitor && monitor.activeWorkspace ? monitor.activeWorkspace.id : -1
-    var index = DockModel.pickWindow(item.windows.map(function(window) {
-      return { workspaceId: window.workspaceId, minimized: window.minimized, activated: window.toplevel.activated }
-    }), workspaceId)
     root.bringForward(item.windows[index])
   }
 
