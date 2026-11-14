@@ -26,6 +26,52 @@ case "$command" in
 esac
 
 mkdir -p "$HOME/.local/bin"
+target="$HOME/.local/bin/$command"
+
+# Every form this script has written, rebuilt from the package the file names
+# and the bin being installed, which no caller changes. Anything else is the
+# user's own.
+is_mise_wrapper() {
+  local contents named_package named_bin exec_line form
+  # One argument as this script quotes it: in double quotes, or as %q leaves it.
+  local token='^("[^"$`\\!]*"|([A-Za-z0-9_@%+=:,./-]|\\.)+)$'
+
+  [[ -f $1 ]] && (($(stat -c%s "$1") <= 4096)) || return 1
+  contents=$(<"$1")
+
+  named_package=$(sed -n 's/^mise use -g \(--quiet \)\{0,1\}\(.*\)$/\2/p' <<<"$contents")
+  named_package=${named_package% || exit 1}
+  exec_line=$(sed -n 's/^exec \(.*\) "\$@"$/\1/p' <<<"$contents")
+  named_bin=${exec_line#mise x "$named_package" -- }
+  named_bin=${named_bin#mise exec "$named_package" -- }
+  [[ $named_package =~ $token ]] || return 1
+  [[ $named_bin == "\"$bin\"" || $named_bin == "$(printf '%q' "$bin")" ]] || return 1
+
+  for form in \
+    "export MISE_MINIMUM_RELEASE_AGE=0"$'\n'"mise use -g --quiet $named_package || exit 1"$'\n'"exec mise x $named_package -- $named_bin \"\$@\"" \
+    "export MISE_MINIMUM_RELEASE_AGE=0"$'\n'"mise use -g $named_package || exit 1"$'\n'"exec mise x $named_package -- $named_bin \"\$@\"" \
+    "mise use -g $named_package || exit 1"$'\n'"exec mise x $named_package -- $named_bin \"\$@\"" \
+    "mise use -g $named_package"$'\n'"exec mise exec $named_package -- $named_bin \"\$@\"" \
+    "mise use -g $named_package"$'\n'"exec $named_bin \"\$@\""; do
+    [[ $contents == "#!/bin/bash"$'\n'"$form" ]] && return 0
+  done
+
+  return 1
+}
+
+# `cat >` would write through a symlink into the real binary behind it (issue
+# #6618), so a link is dropped rather than followed. A user's own command at the
+# same path keeps precedence, and leaving it is a success, so a migration
+# installing this command does not stop every migration after it.
+if [[ -L $target ]] || is_mise_wrapper "$target"; then
+  rm -f "$target"
+elif [[ -f $target ]]; then
+  echo "omarchy-mise-install: leaving $target alone, it is not a mise wrapper" >&2
+  exit 0
+elif [[ -e $target ]]; then
+  echo "omarchy-mise-install: $target is in the way and is not a file" >&2
+  exit 1
+fi
 
 # The heredoc below is unquoted, so whatever these hold is written into the
 # wrapper as shell source. Quote them the way omarchy-install-and-launch does, so
@@ -48,7 +94,6 @@ esac
 # hold a new version back for days after it ships. Exported rather than set on
 # the install line alone, so resolving the version to execute agrees with the
 # one just installed.
-rm -f "$HOME/.local/bin/$command"
 cat >"$HOME/.local/bin/$command" <<EOF
 #!/bin/bash
 export MISE_MINIMUM_RELEASE_AGE=0
