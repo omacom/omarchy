@@ -63,28 +63,57 @@ function chargeThresholdActive(device, onBattery, states) {
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
-function batteryIcon(device, onBattery, states) {
+// Firmware is unreliable for a while after the adapter goes in: some batteries
+// flap between charging, discharging and not charging for half a minute, and
+// the rate UPower works out stays at zero until it has two readings. A charge
+// limit is a steady state, so the panel only reports one that has held through
+// both; going back to charging shows at once.
+var thresholdSteadyMs = 10000
+var thresholdAfterPlugMs = 60000
+
+function thresholdSettleDelay(nowMs, pluggedInAtMs) {
+  var sincePlug = Number(nowMs) - Number(pluggedInAtMs || 0)
+  return Math.max(thresholdSteadyMs, thresholdAfterPlugMs - sincePlug)
+}
+
+// Some chargers drop out for a few seconds just after they go in, while USB-C
+// renegotiates its power: the kernel reports the adapter offline and UPower
+// says on battery. Losing power that soon after a plug-in is only shown once it
+// lasts; an unplug at any other time shows at once.
+var unplugBounceWindowMs = 15000
+var unplugBounceHoldMs = 6000
+
+function unplugSettleDelay(nowMs, pluggedInAtMs) {
+  var sincePlug = Number(nowMs) - Number(pluggedInAtMs || 0)
+  return sincePlug < unplugBounceWindowMs ? unplugBounceHoldMs : 0
+}
+
+// threshold, when given, is the panel's settled charge-limit verdict; without
+// it the device's current reading decides.
+function thresholdFor(device, onBattery, states, threshold) {
+  return typeof threshold === "boolean" ? threshold : chargeThresholdActive(device, onBattery, states)
+}
+
+function batteryIcon(device, onBattery, states, threshold) {
   var d = device || {}
   if (!d.isPresent) return ""
 
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
   var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
-  var threshold = chargeThresholdActive(d, onBattery, states)
-
-  if (threshold) return defaultIcons[index]
-  if (d.state === states.FullyCharged) return "󰂅"
+  if (thresholdFor(d, onBattery, states, threshold)) return defaultIcons[index]
+  if (d.state === states.FullyCharged && batteryFraction(d) >= 0.99) return "󰂅"
   if (!onBattery) return chargingIcons[index]
   return defaultIcons[index]
 }
 
-function modeLabel(device, onBattery, states, tr) {
+function modeLabel(device, onBattery, states, tr, threshold) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   if (!d.isPresent) return ""
 
   var percentage = d.isPresent ? d.percentage : 0
-  if (chargeThresholdActive(d, onBattery, states)) return t("power.threshold", "Threshold")
+  if (thresholdFor(d, onBattery, states, threshold)) return t("power.threshold", "Threshold")
   if (onBattery) return t("power.onBattery", "On battery")
   if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")
@@ -119,6 +148,8 @@ if (typeof module !== "undefined") {
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
+    thresholdSettleDelay: thresholdSettleDelay,
+    unplugSettleDelay: unplugSettleDelay,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
     profileLabel: profileLabel,

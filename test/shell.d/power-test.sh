@@ -23,6 +23,31 @@ assertEqual(power.batteryFraction({ isPresent: true, percentage: 1.5 }), 1, 'pow
 
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states), 'power detects threshold by pending charge state')
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0.1, timeToFull: 120 }, false, states), 'power detects threshold by stalled charging')
+
+// Right after plugging in, firmware flaps through not-charging and stalled
+// readings; the panel's settled verdict keeps the charging icon and label.
+for (const reading of [
+  { state: states.PendingCharge },
+  { state: states.Discharging },
+  { state: states.FullyCharged },
+  { state: states.Charging, changeRate: 0, timeToFull: 0 }
+]) {
+  const flapping = { isPresent: true, percentage: 0.16, ...reading }
+  const charging = { isPresent: true, percentage: 0.16, state: states.Charging, changeRate: 13.5, timeToFull: 9360 }
+  assertEqual(power.modeLabel(flapping, false, states, undefined, false), 'Charging', 'power keeps charging label while the reading settles')
+  assertEqual(power.batteryIcon(flapping, false, states, false), power.batteryIcon(charging, false, states), 'power keeps charging icon while the reading settles')
+}
+assertEqual(power.modeLabel({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states, undefined, true), 'Threshold', 'power labels a settled threshold')
+
+assertEqual(power.thresholdSettleDelay(1000, 1000), 60000, 'power waits a minute after plug-in before reporting a threshold')
+assertEqual(power.thresholdSettleDelay(1000 + 55000, 1000), 10000, 'power still wants a steady reading late in the plug-in window')
+assertEqual(power.thresholdSettleDelay(1000 + 600000, 1000), 10000, 'power needs a steady reading long after plug-in')
+assertEqual(power.thresholdSettleDelay(5000000, 0), 10000, 'power needs a steady reading when it never saw the plug-in')
+
+// A USB-C charger can drop out for a few seconds right after it goes in.
+assertEqual(power.unplugSettleDelay(1000 + 5500, 1000), 6000, 'power waits out a charger dropout just after plug-in')
+assertEqual(power.unplugSettleDelay(1000 + 20000, 1000), 0, 'power shows an unplug at once outside the plug-in window')
+assertEqual(power.unplugSettleDelay(5000000, 0), 0, 'power shows an unplug at once when it never saw the plug-in')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states), 'power does not flag active charging as threshold')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'power does not flag discharging as threshold')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 1, state: states.FullyCharged }, false, states), 'Fully charged', 'power labels full battery')
