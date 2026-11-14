@@ -70,6 +70,10 @@ close_workspace = "prefix+shift+k"
 previous_workspace = ["prefix+shift+p", "alt+up"]
 next_workspace = ["prefix+shift+n", "alt+down"]
 
+# Agents
+previous_agent = "alt+shift+up"
+next_agent = "alt+shift+down"
+
 [ui]
 accent = "blue"
 
