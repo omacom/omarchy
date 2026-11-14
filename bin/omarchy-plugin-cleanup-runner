@@ -1,0 +1,38 @@
+#!/usr/bin/python3
+# omarchy:summary=Run cleanup with a private environment and record normal completion
+# omarchy:group=plugin
+# omarchy:args=<executable> <completion-file>
+# omarchy:hidden=true
+
+import os
+import subprocess
+import sys
+
+
+def main():
+  if len(sys.argv) != 3:
+    print("usage: omarchy-plugin-cleanup-runner <executable> <completion-file>", file=sys.stderr)
+    return 1
+
+  # The supervisor passes env -0 through stdin, never argv or unit properties.
+  # Keep bytes intact, including newlines and non-UTF-8 environment values.
+  environment = dict(entry.split(b"=", 1) for entry in sys.stdin.buffer.read().split(b"\0") if entry)
+  result = subprocess.run([sys.argv[1]], env=environment, stdin=subprocess.DEVNULL)
+  if result.returncode != 0:
+    print(f"cleanup executable did not exit normally with zero (status {result.returncode})", file=sys.stderr)
+    return result.returncode if result.returncode > 0 else 1
+
+  # systemd also calls some signal deaths successful. Only this receipt proves
+  # the hook returned zero; killing this runner before completion cannot do so.
+  fd = os.open(sys.argv[2], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+  with os.fdopen(fd, "wb") as receipt:
+    receipt.write(b"ok\n")
+  return 0
+
+
+if __name__ == "__main__":
+  try:
+    sys.exit(main())
+  except (OSError, ValueError) as error:
+    print(f"omarchy-plugin-cleanup-runner: {error}", file=sys.stderr)
+    sys.exit(1)
