@@ -84,6 +84,8 @@ All widgets work in `top`, `bottom`, `left`, and `right` positions. Popups ancho
 
 Use `BarIconButton` from `qs.Ui` for bar icons. It fits the visible glyph bounds to `Style.bar.iconSize` and centers them on both axes. It preserves each glyph's aspect ratio. Set `labelText` for an adjacent text label, such as the battery percentage.
 
+`BarIconButton`'s `text` is for a single glyph. The whole string is scaled to fit the icon target, so a multi-character readout such as `CPU 5%  GPU 44%` shrinks until it is unreadable. Put text beside an icon in `labelText`, which draws at normal size to the left of the icon, or use `WidgetButton` with `text` and `fontSize` for a readout that mixes text and glyphs, as the clock widget does.
+
 The `[bar]` section of a theme's `shell.toml` supplies the shared dimensions. `icon-size` sets the visual target, with a default of 12 logical pixels. `icon-canvas` sets the canvas, with a default of 16 logical pixels. `icon-slot` and `status-slot` set the button extent. These dimensions follow the font scale unless `scale-with-font` is false.
 
 Custom `iconComponent` content also fits the shared target. Its source dimensions can be 15px or another size. The bar measures its glyph, image, or vector bounds and applies one scale without changing its aspect ratio. A source `iconSize` override does not change the rendered target. Image padding remains part of an application's tray asset.
