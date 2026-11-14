@@ -208,6 +208,12 @@ Item {
   property bool expanded: false
   property string openDeck: ""
   property string hoverKey: ""     // the card under the pointer, when open
+  // The deck of that card. A deck opens a few pixels before its first card
+  // is under the pointer; until then the card keeps its buttons.
+  readonly property string hoverDeck: {
+    var at = rowIndexFor(hoverKey)
+    return at < 0 ? "" : Layout.groupKeyFor(toasts.get(at))
+  }
   property real hoverX: -1         // where it is, in the deck's coordinates
   property real hoverY: -1
 
@@ -1593,7 +1599,9 @@ Item {
                 var h = pl.height || Style.space(58)
                 if (y >= pl.y && y <= pl.y + h) { found = key; break }
               }
-              service.hoverKey = found
+              // Between cards the last one keeps hover: letting it go hid its
+              // buttons, and the cards below moved up under the pointer.
+              if (found) service.hoverKey = found
             }
 
             // Cards move under a still pointer after a dismissal: re-hit-test
