@@ -84,7 +84,7 @@ pass "clone updates identity without replacing the manifest"
 
 grep -qx 'omarchy-plugin-enable tester.clock' "$CALLS" ||
   fail "clone does not enable the editable copy"
-grep -qx 'omarchy-notification-send -g 󰐱 Editing Cloned Plugin Original plugin has been replace by clone.' "$CALLS" ||
+grep -qx 'omarchy-notification-send -g 󰐱 Editing Cloned Plugin Original plugin has been replaced by clone.' "$CALLS" ||
   fail "clone does not notify that the editable clone is active"
 pass "clone enables bar widgets and confirms the editable clone"
 
