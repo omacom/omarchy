@@ -9,7 +9,6 @@ linux-omarchy-headers
 linux-omarchy-nvidia-open
 nvidia-utils
 libva-nvidia-driver
-# GPU containers for local models (CDI).
 nvidia-container-toolkit
 # omarchy-n1x-probe uses lspci.
 pciutils
