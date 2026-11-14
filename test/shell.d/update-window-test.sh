@@ -142,8 +142,15 @@ while IFS= read -r command; do
   if culprit=$(interactive "${command%% *}" 0); then
     fail "installs opened in the update window ask nothing it cannot show" "${command%% *} reaches $culprit, which draws a picker, a wizard or a TUI, or waits for a sign-in; leave it in the terminal"
   fi
+  # The window reads the exit status, so an installer that ends in
+  # `gum confirm ... && reboot` reports a declined reboot as a failed install.
+  script="$ROOT/bin/${command%% *}"
+  if [[ -f $script && $(grep -vE '^\s*(#|$)' "$script" | tail -1) =~ ^[[:space:]]*gum\ confirm.*\&\& ]]; then
+    fail 'declining an optional reboot does not fail an install' "${command%% *} ends in a gum confirm chained with &&; put the reboot in an if"
+  fi
 done < <(grep -o '"action":"omarchy-launch-install [^"]*"' "$ROOT/default/omarchy/omarchy-menu.jsonc" | sed "s/^\"action\":\"omarchy-launch-install //; s/\"\$//; s/'//g")
 pass 'installs opened in the update window ask nothing it cannot show'
+pass 'declining an optional reboot does not fail an install'
 
 # A preview that could not ask the AUR says so, as one that could not ask the
 # repositories does, instead of passing for up to date.
