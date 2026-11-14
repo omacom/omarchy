@@ -270,15 +270,15 @@ def match_source_names(provider: str, registry: dict[str, Any], copied: list[tup
 
 def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> list[str]:
   accounts.recover(provider)
-  orig_primary_token = accounts.current_primary_token(provider) if provider == "agy" else None
-  orig_main_token = accounts.read_json(accounts.agy_main_token_path()) if provider == "agy" else None
   backups = {}
   backup_dirs = []
   created = []
   results = []
   copied = []
-  try:
-    with accounts.Locked(provider) as registry:
+  with accounts.Locked(provider, save_on_exit=False) as registry:
+    orig_primary_token = accounts.current_primary_token(provider) if provider == "agy" else None
+    orig_main_token = accounts.read_json(accounts.agy_main_token_path()) if provider == "agy" else None
+    try:
       for a in registry["accounts"]:
         for name in FILES[provider]:
           cleanup_transfers(file_path(provider, accounts.account_home(provider, a), name).parent)
@@ -353,36 +353,43 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
           registry["switch"] = incoming["switch"]
         registry["threshold"] = max(50, min(100, int(incoming.get("threshold", 95))))
       registry["alert"] = ""
-  except BaseException:
-    if provider == "agy":
-      if orig_primary_token is not None:
-        accounts.apply_token_to_primary(provider, orig_primary_token)
-      else:
-        accounts.clear_primary_token(provider)
-      if orig_main_token is not None:
-        accounts.write_token_file(accounts.agy_main_token_path(), orig_main_token)
-        main_dir = accounts.accounts_root() / "agy" / "main"
-        if main_dir.is_dir():
-          accounts.write_token_file(main_dir / "antigravity-oauth-token", orig_main_token)
-      else:
-        accounts.agy_main_token_path().unlink(missing_ok=True)
-        shutil.rmtree(accounts.accounts_root() / "agy" / "main", ignore_errors=True)
-    for home in created:
-      shutil.rmtree(home, ignore_errors=True)
-    for path, original in backups.items():
-      if original is None:
-        path.unlink(missing_ok=True)
-      else:
-        os.replace(original, path)
-    for folder in backup_dirs:
-      shutil.rmtree(folder)
-    raise
+      accounts.save(provider, registry)
+      if provider == "agy":
+        curr_active = accounts.active(registry)
+        if curr_active.get("primary"):
+          active_token = accounts.read_json(accounts.agy_main_token_path()) or accounts.read_json(accounts.primary_home("agy") / "antigravity-oauth-token")
+        else:
+          active_token = accounts.read_json(accounts.account_home(provider, curr_active) / "antigravity-oauth-token")
+        if active_token:
+          accounts.apply_token_to_primary(provider, active_token)
+    except BaseException:
+      if provider == "agy":
+        if orig_primary_token is not None:
+          accounts.apply_token_to_primary(provider, orig_primary_token)
+        else:
+          accounts.clear_primary_token(provider)
+        if orig_main_token is not None:
+          accounts.write_token_file(accounts.agy_main_token_path(), orig_main_token)
+          main_dir = accounts.accounts_root() / "agy" / "main"
+          if main_dir.is_dir():
+            accounts.write_token_file(main_dir / "antigravity-oauth-token", orig_main_token)
+        else:
+          accounts.agy_main_token_path().unlink(missing_ok=True)
+          shutil.rmtree(accounts.accounts_root() / "agy" / "main", ignore_errors=True)
+      for home in created:
+        shutil.rmtree(home, ignore_errors=True)
+      for path, original in backups.items():
+        if original is None:
+          path.unlink(missing_ok=True)
+        else:
+          os.replace(original, path)
+      for folder in backup_dirs:
+        shutil.rmtree(folder)
+      raise
   for home in created:
     (home / accounts.LOGIN_RECEIPT).unlink(missing_ok=True)
   for folder in backup_dirs:
     shutil.rmtree(folder)
-  if provider == "agy":
-    accounts.sync_credentials(provider)
   return [
     f"{accounts.PROVIDERS[provider]['name']}: kept {a['label']} (already present)" if action == "kept"
     else f"{accounts.PROVIDERS[provider]['name']}: copied {a['label']} ({a['email']})"

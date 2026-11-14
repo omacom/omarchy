@@ -365,8 +365,10 @@ def backup_main(provider: str) -> None:
   reg_file = registry_path(provider)
   if reg_file.is_file():
     reg = read_json(reg_file)
-    if isinstance(reg, dict) and reg.get("active") and reg.get("active") != "main":
-      return
+    if isinstance(reg, dict):
+      norm = normalized(provider, reg)
+      if not active(norm).get("primary"):
+        return
   token = current_primary_token(provider)
   if token:
     write_token_file(agy_main_token_path(), token)
@@ -374,6 +376,33 @@ def backup_main(provider: str) -> None:
     main_home.mkdir(parents=True, exist_ok=True)
     link_shared(provider, main_home)
     write_token_file(main_home / "antigravity-oauth-token", token)
+
+
+def save_main_token(provider: str) -> None:
+  if provider != "agy":
+    return
+  reg_file = registry_path(provider)
+  active_is_primary = True
+  if reg_file.is_file():
+    reg = read_json(reg_file)
+    if isinstance(reg, dict):
+      norm = normalized(provider, reg)
+      active_is_primary = bool(active(norm).get("primary"))
+
+  main_dir = accounts_root() / "agy" / "main"
+  main_file = main_dir / "antigravity-oauth-token"
+  token = None
+  if not active_is_primary and main_file.is_file():
+    token = read_json(main_file)
+  if not token:
+    token = current_primary_token(provider)
+  if token:
+    write_token_file(agy_main_token_path(), token)
+    main_dir.mkdir(parents=True, exist_ok=True)
+    link_shared("agy", main_dir)
+    write_token_file(main_file, token)
+    if active_is_primary:
+      apply_token_to_primary(provider, token)
 
 
 def switch_credentials(provider: str, from_account: dict[str, Any] | None, to_account: dict[str, Any]) -> None:
@@ -1359,17 +1388,26 @@ def main(argv: list[str]) -> int:
         print(normalized(provider, registry)["active"])
       else:
         print("main")
+    elif command == "active-primary":
+      provider = provider_arg(args)
+      registry = read_json(registry_path(provider))
+      if registry:
+        norm = normalized(provider, registry)
+        print("1" if active(norm).get("primary") else "0")
+      else:
+        print("1")
     elif command == "main-home":
       provider = provider_arg(args)
       if provider == "agy":
         main_dir = accounts_root() / "agy" / "main"
-        if (main_dir / "antigravity-oauth-token").is_file():
-          print(main_dir)
-        elif agy_main_token_path().is_file():
-          main_dir.mkdir(parents=True, exist_ok=True)
-          link_shared("agy", main_dir)
-          write_token_file(main_dir / "antigravity-oauth-token", read_json(agy_main_token_path()))
-          print(main_dir)
+        main_dir.mkdir(parents=True, exist_ok=True)
+        link_shared("agy", main_dir)
+        if not (main_dir / "antigravity-oauth-token").is_file():
+          if agy_main_token_path().is_file():
+            write_token_file(main_dir / "antigravity-oauth-token", read_json(agy_main_token_path()))
+          elif current_primary_token("agy"):
+            write_token_file(main_dir / "antigravity-oauth-token", current_primary_token("agy"))
+        print(main_dir)
     elif command == "login":
       provider = provider_arg(args)
       if len(args) < 2:
@@ -1384,6 +1422,11 @@ def main(argv: list[str]) -> int:
       if provider == "agy":
         with Locked(provider, save_on_exit=False):
           backup_main(provider)
+    elif command == "save-main-token":
+      provider = provider_arg(args)
+      if provider == "agy":
+        with Locked(provider, save_on_exit=False):
+          save_main_token(provider)
     elif command == "sync":
       provider = provider_arg(args)
       if provider == "agy":

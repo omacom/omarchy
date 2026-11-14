@@ -127,9 +127,9 @@ trap 'pkill -TERM -P $$; exit 130' TERM INT
 
 backup_agy_login() {
   if [[ $provider == "agy" ]]; then
-    local active_account
-    active_account=$(omarchy-agent-account-state active agy 2>/dev/null || echo "main")
-    if [[ $active_account == "main" ]]; then
+    local is_primary
+    is_primary=$(omarchy-agent-account-state active-primary agy 2>/dev/null || echo "1")
+    if [[ $is_primary == "1" ]]; then
       if [[ -f "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" ]]; then
         backup_agy_token=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/agy-token-backup.XXXXXX")
         cp -f "$HOME/.gemini/antigravity-cli/antigravity-oauth-token" "$backup_agy_token"
@@ -178,7 +178,7 @@ esac
 # The CLI's own home, whatever this shell has pointed it at.
 login() {
   backup_agy_login
-  interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME -u AGY_DIR "OMARCHY_AGENT_${provider^^}_HOME=" "${login_command[@]}"
+  interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME -u AGY_DIR OMARCHY_AGENT_LOGIN=1 "OMARCHY_AGENT_${provider^^}_HOME=" "${login_command[@]}"
 }
 
 # Signing an account that's already here in again, where it lives: the
@@ -213,7 +213,7 @@ if [[ -n $reauth ]]; then
     login || fail "$(omarchy-i18n agents.signInFailed "$name")"
     login_succeeded=true
     if [[ $provider == "agy" ]]; then
-      omarchy-agent-account-state backup-main agy
+      omarchy-agent-account-state save-main-token agy
       omarchy-agent-account-state sync agy
     fi
   else
@@ -240,7 +240,7 @@ if ! primary_signed_in "$provider"; then
   if login && primary_signed_in "$provider"; then
     login_succeeded=true
     if [[ $provider == "agy" ]]; then
-      omarchy-agent-account-state backup-main agy
+      omarchy-agent-account-state save-main-token agy
     fi
     # The first agent signed in on a machine with none chosen becomes the
     # default, so `omarchy agent` and the panel's starter prompts have one to

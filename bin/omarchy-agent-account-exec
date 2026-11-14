@@ -37,9 +37,9 @@ if [[ -z ${!account_env:-} ]]; then
   export "OMARCHY_AGENT_${provider^^}_HOME=$account_home"
   if [[ -n $account_home ]]; then
     export "$account_env=$account_home"
-  elif [[ $provider == "agy" && -v $account_pin ]]; then
-    active_now=$(omarchy-agent-account-state active agy 2>/dev/null || echo "main")
-    if [[ $active_now != "main" ]]; then
+  elif [[ $provider == "agy" && -v $account_pin && -z ${OMARCHY_AGENT_LOGIN:-} ]]; then
+    is_primary=$(omarchy-agent-account-state active-primary agy 2>/dev/null || echo "1")
+    if [[ $is_primary != "1" ]]; then
       main_home=$(omarchy-agent-account-state main-home agy 2>/dev/null || true)
       if [[ -n $main_home ]]; then
         export "$account_env=$main_home"
