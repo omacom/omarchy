@@ -18,6 +18,7 @@ BACKGROUND_TRANSITION_CACHE="$HOME/.cache/omarchy/background-transitions"
 THEME_SET_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set.lock"
 THEME_SET_LOG="$HOME/.local/state/omarchy/theme-set.log"
 THEME_RETINT_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-retint.lock"
+THEME_VISIBLE_LOCK="${XDG_RUNTIME_DIR:-/tmp}/omarchy-theme-set-visible.lock"
 THEME_GENERATION_PATH="$HOME/.local/state/omarchy/current/theme.generation"
 USER_THEMES_PATH="$HOME/.config/omarchy/themes"
 OMARCHY_THEMES_PATH="$OMARCHY_PATH/themes"
@@ -519,8 +520,15 @@ else
 fi
 
 # The shared staging/current symlinks are updated and the shell has accepted
-# the transition. Let another theme selection queue only behind that critical
-# section, not behind slower app-retint hooks and selector cache warmups.
+# the transition. Let another theme selection in now, so it waits only for
+# this critical section and the previous switch's visible retints below, not
+# for slower app-retint hooks and selector cache warmups. Taking the
+# visible-retint lock before letting it in runs its visible batch after this
+# one, so an older theme never lands last. A hung visible retint (a frozen
+# terminal) would otherwise hold up every later switch, so give up waiting
+# after ten seconds and retint unordered, as before this lock.
+exec 7>"$THEME_VISIBLE_LOCK"
+flock -w 10 7 || true
 flock -u 9
 
 # What the user is looking at: the terminals and the programs drawn inside
@@ -619,6 +627,7 @@ if [[ $THEME_HEADLESS != "1" ]]; then
     visible_theme_commands+=(omarchy-restart-hyprctl)
   fi
   run_parallel "${visible_theme_commands[@]}"
+  flock -u 7
 
   # A switch from the theme picker, the menu or a script returns once what is
   # on screen has changed and leaves the rest running behind it, with its
