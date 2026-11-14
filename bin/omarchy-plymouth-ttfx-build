@@ -1,0 +1,149 @@
+#!/bin/bash
+
+# omarchy:summary=Build or stage the native TTFX Plymouth module
+# omarchy:args=<build --output FILE|stage --module FILE --destdir DIR>
+# omarchy:hidden=true
+
+set -euo pipefail
+
+readonly supported_abi=26.134.222
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+build_temporary=
+build_target_dir=
+
+cleanup_build() {
+  [[ -z $build_temporary || ! -e $build_temporary ]] || rm -f -- "$build_temporary"
+  [[ -z $build_target_dir || ! -e $build_target_dir ]] || rm -rf -- "$build_target_dir"
+  build_temporary=
+  build_target_dir=
+}
+
+usage() {
+  echo "Usage: omarchy-plymouth-ttfx-build build --output FILE" >&2
+  echo "       omarchy-plymouth-ttfx-build stage --module FILE --destdir DIR" >&2
+  exit 2
+}
+
+check_abi() {
+  local package_version versions version
+
+  package_version=$(pacman -Q plymouth)
+  package_version=${package_version#plymouth }
+  if [[ $package_version != "$supported_abi" && $package_version != "$supported_abi-"* ]]; then
+    printf 'omarchy-plymouth-ttfx-build: unsupported Plymouth ABI %s (requires %s, package release suffix allowed)\n' "$package_version" "$supported_abi" >&2
+    return 1
+  fi
+
+  versions=$(pkgconf --modversion ply-splash-core ply-splash-graphics)
+  while IFS= read -r version; do
+    if [[ $version != "$supported_abi" ]]; then
+      printf 'omarchy-plymouth-ttfx-build: unsupported Plymouth header/library ABI %s (requires %s)\n' "$version" "$supported_abi" >&2
+      return 1
+    fi
+  done <<<"$versions"
+  (( $(wc -l <<<"$versions") == 2 )) || {
+    printf 'omarchy-plymouth-ttfx-build: expected both Plymouth pkg-config modules\n' >&2
+    return 1
+  }
+}
+
+inspect_module() {
+  local module=$1 exports dependencies
+
+  [[ -f $module && ! -L $module ]] || { printf 'missing regular module: %s\n' "$module" >&2; return 1; }
+  file "$module" | grep -q 'ELF .* shared object' || { printf 'module is not an ELF shared object: %s\n' "$module" >&2; return 1; }
+  exports=$(nm -D --defined-only --format=posix "$module" | awk '{print $1}')
+  [[ $exports == "ply_boot_splash_plugin_get_interface" ]] || { printf 'unexpected dynamic exports in %s\n' "$module" >&2; return 1; }
+  ! nm -D "$module" | grep -q 'ttfx_engine_' || { printf 'Rust engine symbol leaked from %s\n' "$module" >&2; return 1; }
+  readelf -lW "$module" | grep -q GNU_RELRO || { printf 'module lacks GNU_RELRO: %s\n' "$module" >&2; return 1; }
+  readelf -dW "$module" | grep -Eq 'BIND_NOW|FLAGS.*NOW' || { printf 'module lacks immediate binding: %s\n' "$module" >&2; return 1; }
+  ! readelf -SW "$module" | grep -q '\.debug' || { printf 'module contains debug sections: %s\n' "$module" >&2; return 1; }
+  dependencies=$(ldd "$module")
+  ! grep -q 'not found' <<<"$dependencies" || { printf 'module has unresolved dependencies:\n%s\n' "$dependencies" >&2; return 1; }
+}
+
+stage_module() {
+  local module=$1 destdir=$2 theme_source theme_dest recovery_dest
+
+  check_abi
+  inspect_module "$module"
+  [[ $destdir == /* ]] || { printf 'destdir must be absolute\n' >&2; return 1; }
+  mkdir -p -- "$destdir/usr/lib/plymouth"
+  install -m 0755 -- "$module" "$destdir/usr/lib/plymouth/ttfx-plymouth.so"
+
+  theme_source="$root/default/plymouth"
+  theme_dest="$destdir/usr/share/plymouth/themes/omarchy"
+  recovery_dest="$destdir/usr/share/plymouth/themes/omarchy-static"
+  mkdir -p -- "$theme_dest" "$recovery_dest"
+  cp -a -- "$theme_source/." "$theme_dest/"
+  cp -a -- "$theme_source/." "$recovery_dest/"
+  sed -i 's/^ModuleName=.*/ModuleName=ttfx-plymouth/' "$theme_dest/omarchy.plymouth"
+  mv -- "$recovery_dest/omarchy.plymouth" "$recovery_dest/omarchy-static.plymouth"
+  sed -i \
+    -e 's/^ModuleName=.*/ModuleName=script/' \
+    -e "s|^ImageDir=.*|ImageDir=/usr/share/plymouth/themes/omarchy-static|" \
+    -e "s|^ScriptFile=.*|ScriptFile=/usr/share/plymouth/themes/omarchy-static/omarchy.script|" \
+    "$recovery_dest/omarchy-static.plymouth"
+  find "$theme_dest" "$recovery_dest" -type f -exec chmod 0644 -- {} +
+}
+
+build_module() {
+  local output=$1 plugin_root engine_root archive flags
+  local -a cflags libs
+
+  check_abi
+  [[ $output == /* ]] || { printf 'output must be absolute\n' >&2; return 1; }
+  plugin_root="$root/native/plymouth-ttfx-plugin"
+  engine_root="$root/native/plymouth-ttfx-engine"
+  "$plugin_root/generate-embedded-logo.py" --check
+  mkdir -p -- "${output%/*}"
+  build_target_dir=$(mktemp -d --tmpdir="${output%/*}" '.ttfx-plymouth-target.XXXXXXXX')
+  trap cleanup_build EXIT RETURN
+  (cd "$engine_root" && CARGO_TARGET_DIR="$build_target_dir" cargo build --locked --offline --profile plymouth)
+  archive="$build_target_dir/plymouth/libttfx_plymouth.a"
+  [[ -f $archive ]] || { printf 'Rust build did not produce %s\n' "$archive" >&2; return 1; }
+
+  # Plymouth headers are not -Wpedantic clean on every gcc; include them as
+  # system headers so -Werror only applies to our sources.
+  cflags=()
+  for flag in $(pkgconf --cflags ply-splash-core ply-splash-graphics); do
+    if [[ $flag == -I* ]]; then
+      cflags+=("-isystem" "${flag#-I}")
+    else
+      cflags+=("$flag")
+    fi
+  done
+  flags=$(pkgconf --libs ply-splash-core ply-splash-graphics)
+  read -r -a libs <<<"$flags"
+  mkdir -p -- "${output%/*}"
+  build_temporary=$(mktemp --tmpdir="${output%/*}" '.ttfx-plymouth.so.XXXXXXXX')
+  gcc -std=c11 -fPIC -shared -fvisibility=hidden -Wall -Wextra -Wpedantic -Werror \
+    -Wl,-z,defs -Wl,-z,relro,-z,now -Wl,--exclude-libs,ALL \
+    -Wl,--version-script="$plugin_root/exports.map" \
+    "${cflags[@]}" -I"$plugin_root" -I"$engine_root/include" \
+    "$plugin_root/plugin.c" "$plugin_root/state.c" "$archive" "${libs[@]}" \
+    -ldl -lpthread -lm -o "$build_temporary"
+  strip --strip-unneeded "$build_temporary"
+  chmod 0755 "$build_temporary"
+  inspect_module "$build_temporary"
+  mv -fT -- "$build_temporary" "$output"
+  build_temporary=
+  cleanup_build
+  trap - EXIT RETURN
+  printf 'module: %s\n' "$output"
+}
+
+(( $# > 0 )) || usage
+operation=$1
+shift
+case "$operation" in
+stage)
+  [[ ${1:-} == "--module" && -n ${2:-} && ${3:-} == "--destdir" && -n ${4:-} && $# == 4 ]] || usage
+  stage_module "$2" "$4"
+  ;;
+build)
+  [[ ${1:-} == "--output" && -n ${2:-} && $# == 2 ]] || usage
+  build_module "$2"
+  ;;
+*) usage ;;
+esac

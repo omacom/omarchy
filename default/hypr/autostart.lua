@@ -3,7 +3,9 @@ hl.on("hyprland.start", function()
   -- starting session services.
   hl.exec_cmd("dbus-update-activation-environment --systemd --all")
 
-  hl.exec_cmd("omarchy-launch-shell")
+  -- Claim the boot handoff before starting Quickshell, so its service cannot
+  -- race the seeded controller for the singleton lock.
+  hl.exec_cmd("omarchy-plymouth-handoff --launch-shell")
   hl.exec_cmd("omarchy-provision-first-run")
   hl.exec_cmd("omarchy-powerprofiles-init")
   hl.exec_cmd("omarchy-hyprland-software-rendering")

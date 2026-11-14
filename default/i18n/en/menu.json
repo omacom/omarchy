@@ -291,6 +291,18 @@
   "appearance.unlock": {
     "label": "Unlock"
   },
+  "appearance.bootloader": {
+    "label": "Bootloader"
+  },
+  "appearance.bootloader.full-animated": {
+    "label": "Full Animated"
+  },
+  "appearance.bootloader.input-only": {
+    "label": "Input Only"
+  },
+  "appearance.bootloader.effect": {
+    "label": "Effect"
+  },
   "trigger.toggle": {
     "label": "Toggle"
   },

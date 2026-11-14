@@ -4,11 +4,12 @@ set -uo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/base-test.sh"
 
-test_tmp=$(mktemp -d)
+test_tmp=$(mktemp -d "${TMPDIR:-/var/tmp}/ttfx-test.XXXXXXXX")
 [[ -n $test_tmp && -d $test_tmp ]] ||
   fail "the test creates its own scratch directory before touching anything"
 secret="$test_tmp/secret"
-trap 'chmod 0600 "$secret" 2>/dev/null || true; rm -rf -- "$test_tmp"' EXIT
+trap 'chmod 0600 "$secret" 2>/dev/null || true' EXIT
+printf 'Test fixtures: %s\n' "$test_tmp"
 
 plymouth_theme_assets=(
   bullet.png
@@ -20,6 +21,7 @@ plymouth_theme_assets=(
   preview-unlock.png
   progress_bar.png
   progress_box.png
+  ttfx-effects.txt
 )
 plymouth_default_assets=("${plymouth_theme_assets[@]}" logos/oma.png)
 sddm_theme_assets=(Main.qml bullet.png entry-failed.png entry.png lock-failed.png lock.png logo.png)
@@ -33,6 +35,12 @@ allowlisted_plymouth_assets=$(printf '%s\n' "${plymouth_default_assets[@]}" | LC
 [[ $packaged_plymouth_assets == "$allowlisted_plymouth_assets" ]] ||
   fail "Plymouth refresh allowlist differs from the packaged asset set" "$packaged_plymouth_assets"
 pass "Plymouth refresh allowlist covers every packaged asset"
+
+for entry in 'Enabled=true' 'Mode=fixed' 'Effect=decrypt' 'Seed=22321466108495961' 'PlaybackMode=submit-to-finish'; do
+  grep -Fx "$entry" "$ROOT/default/plymouth/omarchy.plymouth" >/dev/null ||
+    fail "packaged Plymouth default is exact decrypt tuple: $entry"
+done
+pass "packaged Plymouth default matches ttfx --frame-rate 240 decrypt selection"
 
 # SDDM reset is also a fixed-file publication contract. New packaged files
 # must fail this test until their trust and reset behavior are reviewed.
@@ -113,7 +121,7 @@ STUB
 # Run the real presentation wrapper while replacing only its terminal launcher.
 # The launcher stub executes the final `bash -c` locally instead of opening a
 # terminal window.
-ln -s "$ROOT/bin/omarchy-launch-floating-terminal-with-presentation" "$stub_dir/omarchy-launch-floating-terminal-with-presentation"
+cp -- "$ROOT/bin/omarchy-launch-floating-terminal-with-presentation" "$stub_dir/omarchy-launch-floating-terminal-with-presentation"
 
 cat >"$stub_dir/omarchy-restart-gum" <<'STUB'
 #!/bin/bash
@@ -210,9 +218,14 @@ case "$1" in
   # simulation only, substitute trusted tools and map fixed system destinations
   # under the disposable fake root.
   code=${code/PATH=\/usr\/bin:\/bin/PATH=$TEST_ROOT_TOOLS:\/usr\/bin:\/bin}
+  code=${code/native_module=\/usr\/lib\/plymouth\/ttfx-plymouth.so/native_module=$TEST_FAKE_ROOT\/usr\/lib\/plymouth\/ttfx-plymouth.so}
   code=${code/omarchy_conf=\/etc\/omarchy.conf/omarchy_conf=$TEST_OMARCHY_CONF}
   code=${code/theme_dir=\/usr\/share\/plymouth\/themes\/omarchy/theme_dir=$TEST_FAKE_ROOT\/usr\/share\/plymouth\/themes\/omarchy}
   code=${code/sddm_dir=\/usr\/share\/sddm\/themes\/omarchy/sddm_dir=$TEST_FAKE_ROOT\/usr\/share\/sddm\/themes\/omarchy}
+  code=${code/\/run\/lock\/omarchy-plymouth.lock/$TEST_LOCK_FILE}
+  code=${code//\/usr\/bin\/plymouth-set-default-theme/$TEST_ROOT_TOOLS\/plymouth-set-default-theme}
+  code=${code//\/usr\/bin\/limine-mkinitcpio/$TEST_ROOT_TOOLS\/limine-mkinitcpio}
+  code=${code//\/usr\/bin\/mkinitcpio/$TEST_ROOT_TOOLS\/mkinitcpio}
 
   # Each rewrite above silently no-ops if the production text drifts, which
   # would point this simulation at the real /usr/share. Refuse instead.
@@ -220,6 +233,7 @@ case "$1" in
   [[ $code == *"omarchy_conf=$TEST_OMARCHY_CONF"* ]] || exit 94
   [[ $code == *"theme_dir=$TEST_FAKE_ROOT/usr/share/plymouth/themes/omarchy"* ]] || exit 94
   [[ $code == *"sddm_dir=$TEST_FAKE_ROOT/usr/share/sddm/themes/omarchy"* ]] || exit 94
+  [[ $code == *"$TEST_LOCK_FILE"* ]] || exit 94
 
   PATH="$TEST_ROOT_TOOLS:/usr/bin:/bin" \
     /bin/bash -c "$code" "$shell_name" "$@"
@@ -247,7 +261,12 @@ if [[ ${1:-} == -c && ${2:-} == %u ]]; then
   printf '0\n'
   exit 0
 fi
-if [[ ${1:-} == -c && ${2:-} == %a && $last == /tmp ]]; then
+if [[ ${1:-} == -c && ${2:-} == %a && ($last == /tmp || $last == /var/tmp) ]]; then
+  printf '755\n'
+  exit 0
+fi
+if [[ ${1:-} == -c && ${2:-} == %a && -n ${TEST_SOURCE_ROOT:-} &&
+      ($last == "$TEST_SOURCE_ROOT"* || $TEST_SOURCE_ROOT == "$last"*) ]]; then
   printf '755\n'
   exit 0
 fi
@@ -257,15 +276,20 @@ SH
 cat >"$root_tools/chown" <<'SH'
 #!/bin/bash
 last=${!#}
-[[ $last == "$TEST_FAKE_ROOT"* || $last == /tmp/omarchy-plymouth.* ]] || exit 93
+[[ $last == "$TEST_FAKE_ROOT"* || $last == /var/tmp/omarchy-plymouth.* ]] || exit 93
 exit 0
 SH
 
 cat >"$root_tools/install" <<'SH'
 #!/bin/bash
 mode=
+directory=false
 while (( $# )); do
   case "$1" in
+  -d)
+    directory=true
+    shift
+    ;;
   -o | -g)
     shift 2
     ;;
@@ -283,10 +307,17 @@ while (( $# )); do
   esac
 done
 
+if $directory; then
+  (( $# == 1 )) || exit 96
+  [[ $mode == "0755" ]] || exit 96
+  [[ $1 == "$TEST_FAKE_ROOT"* ]] || exit 93
+  exec /usr/bin/install -d -m "$mode" -- "$1"
+fi
+
 (( $# == 2 )) || exit 96
 [[ $mode == "0600" || $mode == "0644" ]] || exit 96
 destination=$2
-[[ $destination == "$TEST_FAKE_ROOT"* || $destination == /tmp/omarchy-plymouth.* ]] || exit 93
+[[ $destination == "$TEST_FAKE_ROOT"* || $destination == /var/tmp/omarchy-plymouth.* ]] || exit 93
 exec /usr/bin/install -m "$mode" -- "$1" "$destination"
 SH
 
@@ -295,6 +326,71 @@ cat >"$root_tools/magick" <<'SH'
 source=$1
 destination=${@: -1}
 [[ $source == "$destination" ]] || /usr/bin/cp -- "$source" "$destination"
+SH
+
+cat >"$root_tools/cp" <<'SH'
+#!/bin/bash
+destination=${@: -1}
+if [[ -n ${TEST_FAIL_SDDM_BACKUP_ONCE:-} && $destination == */backup/sddm/* &&
+      ! -e $TEST_FAIL_SDDM_BACKUP_ONCE ]]; then
+  : >"$TEST_FAIL_SDDM_BACKUP_ONCE"
+  exit 72
+fi
+exec /usr/bin/cp "$@"
+SH
+
+cat >"$root_tools/plymouth-set-default-theme" <<'SH'
+#!/bin/bash
+if (( $# == 0 )); then
+  cat "$TEST_PLYMOUTH_THEME_STATE"
+  exit 0
+fi
+printf 'command plymouth-set-default-theme %s\n' "$*" >>"$TEST_SUDO_LOG"
+# A fresh open of the lock file conflicts with the transaction's lock while it holds it.
+if /usr/bin/flock -n "$TEST_LOCK_FILE" true; then
+  printf '%s lock free\n' "${0##*/}" >>"$TEST_LOCK_LOG"
+else
+  printf '%s lock held\n' "${0##*/}" >>"$TEST_LOCK_LOG"
+fi
+printf '%s\n' "$1" >"$TEST_PLYMOUTH_THEME_STATE"
+if [[ -n ${TEST_SIGNAL_DURING_ACTIVATION:-} && ! -e $TEST_SIGNAL_DURING_ACTIVATION ]]; then
+  : >"$TEST_SIGNAL_DURING_ACTIVATION"
+  kill -TERM "$PPID"
+fi
+SH
+
+cat >"$root_tools/mkinitcpio" <<'SH'
+#!/bin/bash
+printf 'command mkinitcpio %s\n' "$*" >>"$TEST_SUDO_LOG"
+# A fresh open of the lock file conflicts with the transaction's lock while it holds it.
+if /usr/bin/flock -n "$TEST_LOCK_FILE" true; then
+  printf '%s lock free\n' "${0##*/}" >>"$TEST_LOCK_LOG"
+else
+  printf '%s lock held\n' "${0##*/}" >>"$TEST_LOCK_LOG"
+fi
+if [[ -n ${TEST_FAIL_MKINITCPIO_ONCE:-} && ! -e $TEST_FAIL_MKINITCPIO_ONCE ]]; then
+  : >"$TEST_FAIL_MKINITCPIO_ONCE"
+  exit 71
+fi
+if [[ -n ${TEST_SIGNAL_AFTER_REBUILD_ONCE:-} && ! -e $TEST_SIGNAL_AFTER_REBUILD_ONCE ]]; then
+  : >"$TEST_SIGNAL_AFTER_REBUILD_ONCE"
+  kill -TERM "$PPID"
+fi
+SH
+
+cat >"$root_tools/flock" <<'SH'
+#!/bin/bash
+[[ -z ${TEST_FLOCK_LOG:-} ]] || printf 'flock %s\n' "$*" >>"$TEST_FLOCK_LOG"
+exec /usr/bin/flock "$@"
+SH
+
+cat >"$root_tools/rm" <<'SH'
+#!/bin/bash
+if [[ -n ${TEST_SIGNAL_DURING_COMMIT:-} && $* == *'/backup'* && ! -e $TEST_SIGNAL_DURING_COMMIT ]]; then
+  : >"$TEST_SIGNAL_DURING_COMMIT"
+  kill -TERM "$PPID"
+fi
+exec /usr/bin/rm "$@"
 SH
 
 cat >"$fake_bin/omarchy-cmd-present" <<'SH'
@@ -312,16 +408,19 @@ setup_run() {
   sudo_log="$run_dir/sudo.log"
   leak_log="$run_dir/leaked-stage-path.log"
   omarchy_conf="$run_dir/omarchy.conf"
+  plymouth_theme_state="$run_dir/plymouth-theme-state"
   theme="$fake_root/usr/share/plymouth/themes/omarchy"
   sddm="$fake_root/usr/share/sddm/themes/omarchy"
 
-  mkdir -p "$theme/logos" "$sddm"
+  mkdir -p "$theme/animation" "$theme/logos" "$sddm"
   chmod 0755 \
+    "$fake_root" \
     "$fake_root/usr" \
     "$fake_root/usr/share" \
     "$fake_root/usr/share/plymouth" \
     "$fake_root/usr/share/plymouth/themes" \
     "$theme" \
+    "$theme/animation" \
     "$theme/logos" \
     "$fake_root/usr/share/sddm" \
     "$fake_root/usr/share/sddm/themes" \
@@ -346,6 +445,7 @@ setup_run() {
   printf 'SDDM VICTIM\n' >"$sddm_victim"
   printf 'LEGACY VICTIM\n' >"$legacy_victim"
   chmod 0600 "$plymouth_victim" "$sddm_victim" "$legacy_victim"
+  printf 'spinner\n' >"$plymouth_theme_state"
 
   rm -f "$theme/omarchy.script" "$sddm/Main.qml"
   ln -s "$plymouth_victim" "$theme/omarchy.script"
@@ -378,11 +478,15 @@ run_in_fake_root() {
     PATH="$fake_bin:$ROOT/bin:$PATH" \
       TMPDIR="$stages" \
       OMARCHY_PATH="$ROOT" \
+      TEST_SOURCE_ROOT="$ROOT" \
       TEST_FAKE_ROOT="$fake_root" \
       TEST_STAGES="$stages" \
       TEST_ROOT_TOOLS="$root_tools" \
       TEST_OMARCHY_CONF="$omarchy_conf" \
+      TEST_LOCK_FILE="$run_dir/plymouth.lock" \
+      TEST_PLYMOUTH_THEME_STATE="$plymouth_theme_state" \
       TEST_SUDO_LOG="$sudo_log" \
+      TEST_LOCK_LOG="$run_dir/lock.log" \
       TEST_LEAK_LOG="$leak_log" \
       "$@"
   )
@@ -403,6 +507,10 @@ run_set() {
 
 run_refresh_plymouth() {
   run_in_fake_root 022 "$@" /bin/bash "$ROOT/bin/omarchy-refresh-plymouth"
+}
+
+run_refresh_plymouth_script() {
+  run_in_fake_root 022 "$@" /bin/bash "$ROOT/bin/omarchy-plymouth-set" --refresh-script
 }
 
 run_refresh_sddm() {
@@ -454,7 +562,7 @@ for requested_umask in 022 027 077; do
   cmp -s "$test_tmp/logo.png" "$theme/logo.png" || fail "Plymouth receives the selected logo under umask $requested_umask"
   cmp -s "$test_tmp/logo.png" "$sddm/logo.png" || fail "SDDM receives the selected logo under umask $requested_umask"
   grep -Fq '#1d2021' "$sddm/Main.qml" || fail "SDDM Main.qml receives the selected background under umask $requested_umask"
-  grep -Fq 'Window.SetBackgroundTopColor(0.114, 0.125, 0.129);' "$theme/omarchy.script" || fail "Plymouth script receives the selected background under umask $requested_umask"
+  grep -Fq 'Window.SetBackgroundTopColor(0.114, 0.125, 0.129);' "$theme/omarchy.script" || fail "Plymouth script receives the selected background under umask $requested_umask" "$(sed -n '1,8p' "$theme/omarchy.script")"
 
   cmp -s "$ROOT/default/plymouth/logos/oma.png" "$theme/logos/oma.png" || fail "theme set leaves the packaged nested logo unchanged"
   cmp -s "$ROOT/default/sddm/omarchy/metadata.desktop" "$sddm/metadata.desktop" || fail "theme set leaves packaged SDDM metadata unchanged"
@@ -467,6 +575,36 @@ for requested_umask in 022 027 077; do
 done
 
 pass "a fresh installation receives complete mode-0644 Plymouth and SDDM theme files across restrictive umasks"
+
+# Another Plymouth writer holds the shared machine lock: publication must wait
+# for it, and activation and the rebuild must run while it is still held.
+setup_fresh_run
+lock_log="$run_dir/lock.log"
+flock_log="$run_dir/flock.log"
+locked_out="$run_dir/locked.out"
+: >"$lock_log"
+: >"$flock_log"
+exec 8>"$run_dir/plymouth.lock"
+flock -x 8
+run_set 022 env TEST_FLOCK_LOG="$flock_log" >"$locked_out" 2>&1 8>&- &
+publisher=$!
+for _ in {1..250}; do
+  [[ -s $flock_log ]] && break
+  sleep 0.02
+done
+[[ -s $flock_log ]] || fail "Plymouth publisher asks for the machine lock" "$(<"$locked_out")"
+sleep 0.3
+kill -0 "$publisher" 2>/dev/null || fail "Plymouth publisher waits while another writer holds the machine lock" "$(<"$locked_out")"
+cmp -s "$ROOT/default/plymouth/logo.png" "$theme/logo.png" || fail "Plymouth publisher publishes nothing while the machine lock is held"
+if [[ -s $sudo_log ]] && grep -vFxq 'root transaction' "$sudo_log"; then
+  fail "Plymouth publisher activates and rebuilds nothing while the machine lock is held" "$(<"$sudo_log")"
+fi
+exec 8>&-
+wait "$publisher" || fail "Plymouth publisher completes once the machine lock is released" "$(<"$locked_out")"
+cmp -s "$test_tmp/logo.png" "$theme/logo.png" || fail "Plymouth publisher publishes after the machine lock is released"
+[[ $(<"$lock_log") == $'plymouth-set-default-theme lock held\nmkinitcpio lock held' ]] ||
+  fail "Plymouth activation and the UKI rebuild run inside the locked root transaction" "$(<"$lock_log")"
+pass "static Plymouth publication waits for the machine lock and holds it through the rebuild"
 
 # An upgraded machine may already contain restrictive modes, destination
 # symlinks, and the legacy SDDM logo. Setting a theme must replace only the
@@ -863,6 +1001,65 @@ grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "Plymouth refresh rebuilds 
 
 pass "refresh safely publishes its complete fixed asset set, including logos/oma.png"
 
+# The static recovery script can be upgraded without resetting an existing
+# installation's selected logo, colors, or other branding assets.
+setup_run
+[[ ! -e $theme/animation ]] || mv -- "$theme/animation" "$theme/animation-retired-${RANDOM}"
+output=$(run_refresh_plymouth_script 2>&1)
+status=$?
+(( status == 0 )) || fail "Plymouth script-only refresh succeeds through the safe publisher" "$output"
+cmp -s "$ROOT/default/plymouth/omarchy.script" "$theme/omarchy.script" ||
+  fail "Plymouth script-only refresh publishes the new packaged script"
+[[ ! -e $theme/animation && ! -L $theme/animation ]] ||
+  fail "Plymouth script-only refresh does not recreate the obsolete PNG animation directory"
+[[ $(<"$theme/logo.png") == 'old plymouth logo.png' ]] ||
+  fail "Plymouth script-only refresh preserves the selected logo"
+[[ $(<"$theme/bullet.png") == 'old plymouth bullet.png' ]] ||
+  fail "Plymouth script-only refresh preserves unrelated assets"
+grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "Plymouth script-only refresh rebuilds the initramfs"
+pass "Plymouth script-only refresh preserves existing branding"
+
+# Upgrades must retain the background colors embedded by a previous theme
+# selection while replacing the static recovery script logic.
+setup_fresh_run
+sed -i \
+  -e 's/^Window.SetBackgroundTopColor.*/Window.SetBackgroundTopColor(0.200, 0.300, 0.400);/' \
+  -e 's/^Window.SetBackgroundBottomColor.*/Window.SetBackgroundBottomColor(0.500, 0.600, 0.700);/' \
+  "$theme/omarchy.script"
+output=$(run_refresh_plymouth_script 2>&1)
+status=$?
+(( status == 0 )) || fail "Plymouth script-only refresh preserves customized colors" "$output"
+grep -Fxq 'Window.SetBackgroundTopColor(0.200, 0.300, 0.400);' "$theme/omarchy.script" ||
+  fail "Plymouth script-only refresh preserves the customized top color"
+grep -Fxq 'Window.SetBackgroundBottomColor(0.500, 0.600, 0.700);' "$theme/omarchy.script" ||
+  fail "Plymouth script-only refresh preserves the customized bottom color"
+pass "Plymouth script-only refresh preserves customized colors"
+
+# Script-only refresh is also the package update path. Once TTFX support exists,
+# a later packaged script revision must still replace its logic while retaining
+# current colors.
+[[ ! -e $theme/animation ]] || mv -- "$theme/animation" "$theme/animation-retired-${RANDOM}"
+updated_source_root=$(mktemp -d "$test_tmp/updated-source.XXXXXXXX")
+updated_source_root=$(realpath -e -- "$updated_source_root")
+mkdir -p "$updated_source_root/default"
+cp -a "$ROOT/default/plymouth" "$updated_source_root/default/"
+printf '\n# updated Plymouth recovery logic\n' >>"$updated_source_root/default/plymouth/omarchy.script"
+printf 'export OMARCHY_PATH="%s"\n' "$updated_source_root" >"$omarchy_conf"
+chmod 0644 "$omarchy_conf"
+: >"$sudo_log"
+output=$(run_refresh_plymouth_script env OMARCHY_PATH="$updated_source_root" TEST_UNTRUSTED_SOURCE="$updated_source_root" 2>&1)
+status=$?
+(( status == 0 )) || fail "a later packaged Plymouth script revision is published" "$output"
+grep -Fq '# updated Plymouth recovery logic' "$theme/omarchy.script" ||
+  fail "native TTFX installations still receive later recovery script updates"
+grep -Fxq 'Window.SetBackgroundTopColor(0.200, 0.300, 0.400);' "$theme/omarchy.script" ||
+  fail "a later script update preserves customized colors"
+[[ ! -e $theme/animation && ! -L $theme/animation ]] ||
+  fail "a later recovery script update does not recreate PNG animation metadata"
+grep -Fq 'command mkinitcpio -P' "$sudo_log" || fail "a later script update rebuilds the UKI"
+: >"$omarchy_conf"
+pass "Plymouth script refresh detects later packaged logic revisions"
+
 # SDDM refresh has the same fixed-file contract but must leave Plymouth and the
 # boot image alone. It also replaces legacy destination symlinks without
 # changing their victims.
@@ -966,3 +1163,197 @@ status=$?
 assert_no_temporary_files "$fake_root"
 
 pass "a reset refusal cannot fall through to an unhardened SDDM copy"
+
+# Branding and refresh operations update native colors while preserving the
+# requested effect mode, resolved effect, and seed. Legacy PNG frames are
+# ignored by the native module and are left for the dedicated removal phase.
+setup_fresh_run
+sed -i \
+  -e 's/^Enabled=.*/Enabled=true/' \
+  -e 's/^Mode=.*/Mode=random/' \
+  -e 's/^Effect=.*/Effect=waves/' \
+  -e 's/^Seed=.*/Seed=99/' \
+  "$theme/omarchy.plymouth"
+printf '\n# local branding marker\n' >>"$theme/omarchy.plymouth"
+for index in $(seq -w 00 02); do
+  cp -- "$ROOT/default/plymouth/logo.png" "$theme/animation/frame-$index.png"
+done
+
+output=$(run_set 022 env 2>&1)
+status=$?
+(( status == 0 )) || fail "branding preserves native effect state" "$output"
+grep -Fxq 'Enabled=true' "$theme/omarchy.plymouth" || fail "branding preserves Enabled"
+grep -Fxq 'Mode=random' "$theme/omarchy.plymouth" || fail "branding preserves Mode"
+grep -Fxq 'Effect=waves' "$theme/omarchy.plymouth" || fail "branding preserves resolved Effect"
+grep -Fxq 'Seed=99' "$theme/omarchy.plymouth" || fail "branding preserves Seed"
+grep -Fxq 'BackgroundColor=1d2021' "$theme/omarchy.plymouth" || fail "branding updates native background"
+grep -Fxq 'TextColor=ebdbb2' "$theme/omarchy.plymouth" || fail "branding updates native text"
+grep -Fxq 'MessageColor=ebdbb2' "$theme/omarchy.plymouth" || fail "branding updates native message"
+[[ -f $theme/animation/frame-00.png ]] || fail "branding does not nontransactionally delete legacy frames"
+pass "branding preserves native selection and updates native colors"
+
+
+output=$(run_refresh_plymouth 2>&1)
+status=$?
+(( status == 0 )) || fail "refresh-default preserves native effect state" "$output"
+grep -Fxq 'Mode=random' "$theme/omarchy.plymouth" || fail "refresh-default preserves Mode"
+grep -Fxq 'Effect=waves' "$theme/omarchy.plymouth" || fail "refresh-default preserves Effect"
+grep -Fxq 'Seed=99' "$theme/omarchy.plymouth" || fail "refresh-default preserves Seed"
+pass "refresh-default preserves native effect state"
+
+output=$(run_refresh_plymouth_script 2>&1)
+status=$?
+(( status == 0 )) || fail "refresh-script preserves native effect state" "$output"
+grep -Fxq 'Mode=random' "$theme/omarchy.plymouth" || fail "refresh-script preserves Mode"
+grep -Fxq 'Effect=waves' "$theme/omarchy.plymouth" || fail "refresh-script preserves Effect"
+grep -Fxq 'Seed=99' "$theme/omarchy.plymouth" || fail "refresh-script preserves Seed"
+pass "refresh-script preserves native effect state"
+
+# An explicit user choice of off is a valid persisted selector, not a missing
+# default. Theme application and both refresh paths must retain it.
+sed -i \
+  -e 's/^Enabled=.*/Enabled=false/' \
+  -e 's/^Mode=.*/Mode=off/' \
+  -e 's/^Effect=.*/Effect=off/' \
+  -e 's/^Seed=.*/Seed=0/' \
+  "$theme/omarchy.plymouth"
+output=$(run_set 022 env 2>&1)
+(( $? == 0 )) || fail "branding preserves explicit off selection" "$output"
+output=$(run_refresh_plymouth 2>&1)
+(( $? == 0 )) || fail "refresh-default preserves explicit off selection" "$output"
+output=$(run_refresh_plymouth_script 2>&1)
+(( $? == 0 )) || fail "refresh-script preserves explicit off selection" "$output"
+for entry in 'Enabled=false' 'Mode=off' 'Effect=off' 'Seed=0'; do
+  grep -Fxq "$entry" "$theme/omarchy.plymouth" || fail "theme changes preserve explicit off: $entry"
+done
+pass "theme and refresh operations preserve explicit off selection"
+
+# A missing animation directory is live Plymouth state. If a later SDDM backup
+# fails, the transaction must not leave that newly created directory behind;
+# an animation directory that predated the operation must remain untouched.
+setup_fresh_run
+[[ ! -e $theme/animation ]] || mv -- "$theme/animation" "$theme/animation-retired-${RANDOM}"
+sddm_backup_failure="$run_dir/fail-sddm-backup-once"
+output=$(run_set 022 env TEST_FAIL_SDDM_BACKUP_ONCE="$sddm_backup_failure" 2>&1)
+status=$?
+[[ -e $sddm_backup_failure ]] || fail "the pre-transaction SDDM backup failure was injected"
+(( status != 0 )) || fail "a failed SDDM backup makes branding fail" "$output"
+[[ ! -e $theme/animation && ! -L $theme/animation ]] ||
+  fail "a failed SDDM backup removes an animation directory absent before the operation"
+
+setup_fresh_run
+sddm_backup_failure="$run_dir/fail-sddm-backup-once"
+output=$(run_set 022 env TEST_FAIL_SDDM_BACKUP_ONCE="$sddm_backup_failure" 2>&1)
+status=$?
+[[ -e $sddm_backup_failure ]] || fail "the existing-directory SDDM backup failure was injected"
+(( status != 0 )) || fail "a failed SDDM backup with an existing animation directory makes branding fail" "$output"
+[[ -d $theme/animation && ! -L $theme/animation ]] ||
+  fail "a failed SDDM backup preserves an animation directory that existed before the operation"
+pass "pre-transaction backup failure preserves animation directory ancestry"
+
+# Once the first native destination is replaced, every later error is a failed
+# boot-state transaction. Restore every Plymouth entry and the prior active
+# theme, then rebuild the UKI from that restored state before returning failure.
+setup_fresh_run
+printf 'prior bullet\n' >"$theme/bullet.png"
+printf '\n# prior native keyfile\n' >>"$theme/omarchy.plymouth"
+rm -f -- "$sddm/bullet.png" "$sddm/Main.qml"
+ln -s -- "$sddm_victim" "$sddm/Main.qml"
+ln -s -- "$legacy_victim" "$sddm/logo.svg"
+plymouth_before="$run_dir/plymouth-before"
+sddm_before="$run_dir/sddm-before"
+cp -a -- "$theme" "$plymouth_before"
+cp -a -- "$sddm" "$sddm_before"
+rebuild_failure="$run_dir/fail-mkinitcpio-once"
+output=$(run_set 022 env TEST_FAIL_MKINITCPIO_ONCE="$rebuild_failure" 2>&1)
+status=$?
+(( status != 0 )) || fail "a failed UKI rebuild makes branding fail" "$output"
+diff -r --no-dereference "$plymouth_before" "$theme" >/dev/null ||
+  fail "failed branding restores every prior Plymouth asset" "$(diff -r --no-dereference "$plymouth_before" "$theme")"
+diff -r --no-dereference "$sddm_before" "$sddm" >/dev/null ||
+  fail "failed branding restores every prior SDDM entry" "$(diff -r --no-dereference "$sddm_before" "$sddm")"
+[[ $(<"$plymouth_theme_state") == spinner ]] || fail "failed branding restores the previously active Plymouth theme"
+[[ $(grep -c '^command mkinitcpio -P$' "$sudo_log") == 2 ]] ||
+  fail "failed branding rebuilds the UKI again after restoring Plymouth" "$(<"$sudo_log")"
+pass "failed native publication restores all Plymouth state and rebuilds its UKI"
+
+# Cancellation has the same rollback contract. Deliver TERM from the activation
+# tool after all native files are live, and require a nonzero result plus a
+# complete restored-state rebuild rather than cleanup-only partial publication.
+setup_fresh_run
+printf 'prior logo\n' >"$theme/logo.png"
+printf '\n# prior signal keyfile\n' >>"$theme/omarchy.plymouth"
+rm -f -- "$sddm/entry.png" "$sddm/Main.qml"
+ln -s -- "$sddm_victim" "$sddm/Main.qml"
+printf 'legacy svg\n' >"$sddm/logo.svg"
+plymouth_before="$run_dir/plymouth-before"
+sddm_before="$run_dir/sddm-before"
+cp -a -- "$theme" "$plymouth_before"
+cp -a -- "$sddm" "$sddm_before"
+signal_marker="$run_dir/signal-during-activation"
+output=$(run_set 022 env TEST_SIGNAL_DURING_ACTIVATION="$signal_marker" 2>&1)
+status=$?
+(( status != 0 )) || fail "a signal during native activation makes branding fail" "$output"
+diff -r --no-dereference "$plymouth_before" "$theme" >/dev/null ||
+  fail "signalled branding restores every prior Plymouth asset" "$(diff -r --no-dereference "$plymouth_before" "$theme")"
+diff -r --no-dereference "$sddm_before" "$sddm" >/dev/null ||
+  fail "signalled branding restores every prior SDDM entry" "$(diff -r --no-dereference "$sddm_before" "$sddm")"
+[[ $(<"$plymouth_theme_state") == spinner ]] || fail "signalled branding restores the previously active Plymouth theme"
+[[ $(grep -c '^command mkinitcpio -P$' "$sudo_log") == 1 ]] ||
+  fail "signalled branding rebuilds the restored Plymouth state" "$(<"$sudo_log")"
+pass "signal rollback restores all Plymouth and SDDM state and rebuilds its UKI"
+
+# A TERM delivered after the rebuild tool has completed but before the commit
+# boundary is cancellation: restore both brands, reactivate the old theme, and
+# rebuild that restored Plymouth state.
+setup_fresh_run
+printf 'pre-commit Plymouth\n' >"$theme/logo.png"
+printf 'pre-commit SDDM\n' >"$sddm/logo.png"
+plymouth_before="$run_dir/plymouth-before"
+sddm_before="$run_dir/sddm-before"
+cp -a -- "$theme" "$plymouth_before"
+cp -a -- "$sddm" "$sddm_before"
+post_rebuild_marker="$run_dir/signal-after-rebuild"
+output=$(run_set 022 env TEST_SIGNAL_AFTER_REBUILD_ONCE="$post_rebuild_marker" 2>&1)
+status=$?
+[[ -e $post_rebuild_marker ]] || fail "the pre-commit post-rebuild signal was injected"
+(( status != 0 )) || fail "cancellation before the commit boundary returns nonzero" "$output"
+diff -r --no-dereference "$plymouth_before" "$theme" >/dev/null ||
+  fail "pre-commit cancellation restores Plymouth"
+diff -r --no-dereference "$sddm_before" "$sddm" >/dev/null ||
+  fail "pre-commit cancellation restores SDDM"
+[[ $(<"$plymouth_theme_state") == spinner ]] || fail "pre-commit cancellation restores the active theme"
+[[ $(grep -c '^command mkinitcpio -P$' "$sudo_log") == 2 ]] ||
+  fail "pre-commit cancellation rebuilds new then restored Plymouth state" "$(<"$sudo_log")"
+pass "post-rebuild cancellation before commit rolls back"
+
+# Once the successful rebuild crosses the commit boundary, TERM cannot report a
+# false cancellation or roll back the exact state represented by that UKI.
+setup_fresh_run
+commit_signal_marker="$run_dir/signal-during-commit"
+output=$(run_set 022 env TEST_SIGNAL_DURING_COMMIT="$commit_signal_marker" 2>&1)
+status=$?
+[[ -e $commit_signal_marker ]] || fail "the post-rebuild commit signal was injected"
+(( status == 0 )) || fail "a signal during committed-state bookkeeping reports success" "$output"
+cmp -s "$test_tmp/logo.png" "$theme/logo.png" || fail "committed Plymouth branding remains published"
+cmp -s "$test_tmp/logo.png" "$sddm/logo.png" || fail "committed SDDM branding remains published"
+[[ $(<"$plymouth_theme_state") == omarchy ]] || fail "committed branding keeps the rebuilt active theme"
+[[ $(grep -c '^command mkinitcpio -P$' "$sudo_log") == 1 ]] ||
+  fail "committed branding is not falsely rolled back and rebuilt" "$(<"$sudo_log")"
+pass "post-rebuild commit boundary is signal-safe"
+
+# Package defaults stay usable without the optional native payload.
+grep -Fxq 'ModuleName=script' "$ROOT/default/plymouth/omarchy.plymouth" || fail "packaged default remains script-safe"
+setup_fresh_run
+sed -i 's/^ModuleName=.*/ModuleName=ttfx-plymouth/; s/^PlaybackMode=.*/PlaybackMode=continuous/' "$theme/omarchy.plymouth"
+mkdir -p "$fake_root/usr/lib/plymouth"
+printf native-module >"$fake_root/usr/lib/plymouth/ttfx-plymouth.so"
+output=$(run_refresh_plymouth 2>&1)
+(( $? == 0 )) || fail "refresh retains a provisioned native renderer" "$output"
+grep -Fxq 'ModuleName=ttfx-plymouth' "$theme/omarchy.plymouth" || fail "refresh does not disable an installed native renderer"
+grep -Fxq 'PlaybackMode=continuous' "$theme/omarchy.plymouth" || fail "refresh preserves Full Animated playback"
+mv -- "$fake_root/usr/lib/plymouth/ttfx-plymouth.so" "$run_dir/retired-module"
+output=$(run_refresh_plymouth 2>&1)
+(( $? == 0 )) || fail "refresh falls back safely after module removal" "$output"
+grep -Fxq 'ModuleName=script' "$theme/omarchy.plymouth" || fail "refresh cannot select an absent native renderer"
+pass "refresh preserves installed native playback and safely handles a missing module"

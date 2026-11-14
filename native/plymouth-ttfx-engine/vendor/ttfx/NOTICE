@@ -1,0 +1,16 @@
+ttfx is a port of TerminalTextEffects (TTE).
+
+    TerminalTextEffects
+    https://github.com/ChrisBuilds/terminaltexteffects
+    MIT License, Copyright (c) 2023 ChrisBuilds
+
+Every effect in this program, the animation engine's architecture, and the
+command-line interface are that project's design. This port translates the
+work to Rust and reproduces its rendering exactly — frame for frame, byte for
+byte — but originates none of the art.
+
+The parity test suite compares against upstream at commit
+7a91dd9ca6ee0c4f4b1484efee0ecac1bb84104e (v0.15.0). That source is not
+vendored here; tools/parity/fetch_reference.sh clones it on demand.
+
+If you enjoy these effects, the credit belongs upstream.

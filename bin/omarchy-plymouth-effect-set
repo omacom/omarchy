@@ -1,0 +1,378 @@
+#!/bin/bash
+
+# omarchy:summary=Select the native TTFX Plymouth boot-logo effect
+# omarchy:args=<effect|random|off|current|resolved> | playback <full-animated|input-only|current>
+# omarchy:examples=omarchy plymouth effect set decrypt | omarchy plymouth effect set random | omarchy plymouth effect set playback input-only
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-plymouth-effect-set <effect|random|off|current|resolved> | playback <full-animated|input-only|current>" >&2
+  exit 1
+}
+
+playback_request=false
+if (( $# == 2 )) && [[ $1 == playback ]]; then
+  playback_request=true
+  selection=$2
+elif (( $# == 1 )); then
+  selection=$1
+else
+  usage
+fi
+theme_file=${OMARCHY_PLYMOUTH_THEME_FILE:-/usr/share/plymouth/themes/omarchy/omarchy.plymouth}
+
+read_state_value() {
+  local key=$1
+  awk -F= -v wanted="$key" '
+    /^\[ttfx\][[:space:]]*$/ { in_section=1; next }
+    /^\[/ { in_section=0 }
+    in_section && $1 == wanted { value=substr($0, index($0, "=") + 1) }
+    END { if (value != "") print value }
+  ' "$theme_file"
+}
+
+valid_uint64() {
+  local value=$1
+  [[ $value =~ ^(0|[1-9][0-9]{0,19})$ ]] || return 1
+  if (( ${#value} < 20 )); then
+    return 0
+  fi
+  [[ $value < "18446744073709551615" || $value == "18446744073709551615" ]]
+}
+
+read_current_state() {
+  [[ -f $theme_file && ! -L $theme_file ]] || return 1
+  current_enabled=$(read_state_value Enabled)
+  current_mode=$(read_state_value Mode)
+  current_effect=$(read_state_value Effect)
+  current_seed=$(read_state_value Seed)
+  current_playback=$(read_state_value PlaybackMode)
+  [[ -n $current_playback ]] || current_playback=submit-to-finish
+  [[ $current_enabled == "true" || $current_enabled == "false" ]] || return 1
+  [[ $current_mode == "fixed" || $current_mode == "random" || $current_mode == "off" ]] || return 1
+  valid_uint64 "$current_seed" || return 1
+  [[ $current_playback == "submit-to-finish" || $current_playback == "continuous" ]] || return 1
+  if [[ $current_mode == "off" ]]; then
+    [[ $current_enabled == "false" && $current_effect == "off" && $current_seed == "0" ]] || return 1
+  else
+    [[ $current_enabled == "true" && $current_effect =~ ^[a-z][a-z0-9-]*$ && $current_effect != "off" ]] || return 1
+  fi
+}
+
+if $playback_request; then
+  read_current_state || {
+    echo "Invalid or missing native TTFX state in $theme_file" >&2
+    exit 1
+  }
+  case "$selection" in
+  current)
+    [[ $current_playback == continuous ]] && printf 'full-animated\n' || printf 'input-only\n'
+    exit 0
+    ;;
+  full-animated) playback=continuous ;;
+  input-only) playback=submit-to-finish ;;
+  *) usage ;;
+  esac
+  mode=$current_mode
+  effect=$current_effect
+  seed=$current_seed
+  enabled=$current_enabled
+fi
+
+if ! $playback_request && [[ $selection == "current" || $selection == "resolved" ]]; then
+  if ! read_current_state; then
+    echo "Invalid or missing native TTFX state in $theme_file" >&2
+    exit 1
+  fi
+  if [[ $selection == "current" ]]; then
+    if [[ $current_mode == "fixed" ]]; then
+      printf '%s\n' "$current_effect"
+    else
+      printf '%s\n' "$current_mode"
+    fi
+  else
+    printf 'mode=%s\neffect=%s\nseed=%s\n' "$current_mode" "$current_effect" "$current_seed"
+  fi
+  exit 0
+fi
+
+if ! $playback_request; then
+  mapfile -t available_effects < <(omarchy-plymouth-effect-list)
+  (( ${#available_effects[@]} > 0 )) || {
+    echo "No TTFX effects are available." >&2
+    exit 1
+  }
+
+  case "$selection" in
+  random)
+    mode=random
+    effect=$(printf '%s\n' "${available_effects[@]}" | "${SHUF_BIN:-shuf}" -n 1)
+    ;;
+  off)
+    mode=off
+    effect=off
+    ;;
+  *)
+    mode=fixed
+    effect=$selection
+    valid=false
+    for available in "${available_effects[@]}"; do
+      if [[ $effect == "$available" ]]; then
+        valid=true
+        break
+      fi
+    done
+    if ! $valid; then
+      echo "Unknown TTFX effect: $effect" >&2
+      exit 1
+    fi
+    ;;
+  esac
+
+  if [[ $mode == "off" ]]; then
+    enabled=false
+    seed=0
+  else
+    enabled=true
+    if [[ -n ${OMARCHY_PLYMOUTH_SEED_TOOL:-} ]]; then
+      seed=$("$OMARCHY_PLYMOUTH_SEED_TOOL")
+    else
+      seed=$(od -An -N8 -tu8 /dev/urandom)
+      seed=${seed//[[:space:]]/}
+    fi
+    if ! valid_uint64 "$seed"; then
+      echo "Invalid uint64 seed: $seed" >&2
+      exit 1
+    fi
+  fi
+
+  if read_current_state; then
+    playback=$current_playback
+  else
+    playback=submit-to-finish
+  fi
+fi
+
+publish_state() {
+  printf '%s\n%s\n%s\n%s\n%s\n' "$mode" "$effect" "$seed" "$enabled" "$playback" | sudo /bin/bash -c '
+    set -eEuo pipefail
+    PATH=/usr/bin:/bin
+    export PATH
+    LC_ALL=C
+    export LC_ALL
+    umask 077
+    exec 9>/run/lock/omarchy-plymouth.lock
+    flock -x 9
+
+    theme_file=/usr/share/plymouth/themes/omarchy/omarchy.plymouth
+    effects_file=/usr/share/plymouth/themes/omarchy/ttfx-effects.txt
+    module_file=/usr/lib/plymouth/ttfx-plymouth.so
+    staging=
+    backup=
+    transaction_active=false
+    restore_required=false
+
+    rebuild_initramfs() {
+      if [[ -x /usr/bin/limine-mkinitcpio ]]; then
+        /usr/bin/limine-mkinitcpio
+      else
+        /usr/bin/mkinitcpio -P
+      fi
+    }
+
+    validate_trusted_directory() {
+      local directory=$1 canonical uid directory_mode
+      canonical=$(realpath -e -- "$directory")
+      [[ $canonical == "$directory" && -d $directory && ! -L $directory ]]
+      while :; do
+        uid=$(stat -c %u -- "$directory")
+        directory_mode=$(stat -c %a -- "$directory")
+        (( uid == 0 ))
+        (( (8#$directory_mode & 0022) == 0 ))
+        [[ $directory == "/" ]] && break
+        directory=${directory%/*}
+        [[ -n $directory ]] || directory=/
+      done
+    }
+
+    rollback() {
+      local rollback_status=0
+      set +e
+      if $transaction_active; then
+        if [[ -n $backup && -f $backup && ! -L $backup ]]; then
+          mv --exchange -T -- "$backup" "$theme_file" || rollback_status=1
+          staging=$backup
+          backup=
+          sync -f -- "$theme_file" || rollback_status=1
+          sync -f -- "${theme_file%/*}" || rollback_status=1
+        else
+          rollback_status=1
+        fi
+        transaction_active=false
+        if $restore_required; then
+          plymouth-set-default-theme omarchy || rollback_status=1
+          rebuild_initramfs || rollback_status=1
+        fi
+      fi
+      return "$rollback_status"
+    }
+
+    finish() {
+      local status=$?
+      trap - EXIT HUP INT TERM
+      if (( status != 0 )) || $transaction_active; then
+        rollback || true
+      fi
+      [[ -z $staging || ! -e $staging ]] || rm -f -- "$staging"
+      [[ -z $backup || ! -e $backup ]] || rm -f -- "$backup"
+      exit "$status"
+    }
+    trap finish EXIT
+    trap "exit 129" HUP
+    trap "exit 130" INT
+    trap "exit 143" TERM
+
+    IFS= read -r mode
+    IFS= read -r effect
+    IFS= read -r seed
+    IFS= read -r enabled
+    IFS= read -r playback
+    [[ $mode == "fixed" || $mode == "random" || $mode == "off" ]]
+    [[ $enabled == "true" || $enabled == "false" ]]
+    [[ $playback == "submit-to-finish" || $playback == "continuous" ]]
+    [[ $seed =~ ^(0|[1-9][0-9]{0,19})$ ]]
+    (( ${#seed} < 20 )) || [[ $seed < "18446744073709551615" || $seed == "18446744073709551615" ]]
+    if [[ $mode == "off" ]]; then
+      [[ $effect == "off" && $seed == "0" && $enabled == "false" ]]
+    else
+      [[ $effect =~ ^[a-z][a-z0-9-]*$ && ${#effect} -le 127 && $enabled == "true" ]]
+
+      [[ -f $effects_file && ! -L $effects_file ]]
+      [[ $(realpath -e -- "$effects_file") == "$effects_file" ]]
+      validate_trusted_directory "${effects_file%/*}"
+      (( $(stat -c %u -- "$effects_file") == 0 ))
+      (( $(stat -c %g -- "$effects_file") == 0 ))
+      effects_mode=$(stat -c %a -- "$effects_file")
+      (( (8#$effects_mode & 0022) == 0 ))
+      effects_size=$(stat -c %s -- "$effects_file")
+      (( effects_size > 0 && effects_size <= 64 * 1024 ))
+
+      previous_effect=
+      effect_found=false
+      while IFS= read -r available_effect; do
+        [[ $available_effect =~ ^[a-z][a-z0-9-]*$ && ${#available_effect} -le 127 ]]
+        [[ -z $previous_effect || $previous_effect < $available_effect ]]
+        [[ $effect != "$available_effect" ]] || effect_found=true
+        previous_effect=$available_effect
+      done <"$effects_file"
+      [[ -n $previous_effect ]]
+      $effect_found
+    fi
+
+    [[ -f $theme_file && ! -L $theme_file ]]
+    [[ $(realpath -e -- "$theme_file") == "$theme_file" ]]
+    validate_trusted_directory "${theme_file%/*}"
+    (( $(stat -c %u -- "$theme_file") == 0 ))
+    (( $(stat -c %g -- "$theme_file") == 0 ))
+    file_mode=$(stat -c %a -- "$theme_file")
+    (( (8#$file_mode & 0022) == 0 ))
+    size=$(stat -c %s -- "$theme_file")
+    (( size > 0 && size <= 64 * 1024 ))
+
+    [[ -f $module_file && ! -L $module_file && -s $module_file ]] || {
+      echo "Native TTFX Plymouth module is not installed; install it before selecting an effect." >&2
+      exit 1
+    }
+    [[ $(realpath -e -- "$module_file") == "$module_file" ]]
+    validate_trusted_directory "${module_file%/*}"
+    (( $(stat -c %u -- "$module_file") == 0 ))
+    module_mode=$(stat -c %a -- "$module_file")
+    (( (8#$module_mode & 0022) == 0 ))
+
+    staging=$(mktemp --tmpdir="${theme_file%/*}" .omarchy.plymouth.omarchy-new.XXXXXXXX)
+    awk -v mode="$mode" -v effect="$effect" -v seed="$seed" -v enabled="$enabled" -v playback="$playback" '\''
+      function missing(section) {
+        if (section == "theme" && !seen_module) print "ModuleName=ttfx-plymouth"
+        if (section == "ttfx") {
+          if (!seen_image) print "ImageDir=/usr/share/plymouth/themes/omarchy"
+          if (!seen_enabled) print "Enabled=" enabled
+          if (!seen_mode) print "Mode=" mode
+          if (!seen_effect) print "Effect=" effect
+          if (!seen_seed) print "Seed=" seed
+          if (!seen_playback) print "PlaybackMode=" playback
+          if (!seen_background) print "BackgroundColor=1a1b26"
+          if (!seen_text) print "TextColor=ffffff"
+          if (!seen_message) print "MessageColor=b8bec9"
+        }
+      }
+      /^\[/ {
+        missing(section)
+        section="other"
+        if ($0 ~ /^\[Plymouth Theme\][[:space:]]*$/) { section="theme"; have_theme=1 }
+        if ($0 ~ /^\[ttfx\][[:space:]]*$/) { section="ttfx"; have_ttfx=1 }
+        print
+        next
+      }
+      section == "theme" && $0 ~ /^ModuleName=/ {
+        if (!seen_module) print "ModuleName=ttfx-plymouth"
+        seen_module=1
+        next
+      }
+      section == "ttfx" && $0 ~ /^ImageDir=/ { seen_image=1; print; next }
+      section == "ttfx" && $0 ~ /^Enabled=/ { if (!seen_enabled) print "Enabled=" enabled; seen_enabled=1; next }
+      section == "ttfx" && $0 ~ /^Mode=/ { if (!seen_mode) print "Mode=" mode; seen_mode=1; next }
+      section == "ttfx" && $0 ~ /^Effect=/ { if (!seen_effect) print "Effect=" effect; seen_effect=1; next }
+      section == "ttfx" && $0 ~ /^Seed=/ { if (!seen_seed) print "Seed=" seed; seen_seed=1; next }
+      section == "ttfx" && $0 ~ /^PlaybackMode=/ { if (!seen_playback) print "PlaybackMode=" playback; seen_playback=1; next }
+      section == "ttfx" && $0 ~ /^BackgroundColor=/ { seen_background=1; print; next }
+      section == "ttfx" && $0 ~ /^TextColor=/ { seen_text=1; print; next }
+      section == "ttfx" && $0 ~ /^MessageColor=/ { seen_message=1; print; next }
+      { print }
+      END {
+        missing(section)
+        if (!have_theme) print "\n[Plymouth Theme]\nModuleName=ttfx-plymouth"
+        if (!have_ttfx) {
+          print "\n[ttfx]"
+          print "ImageDir=/usr/share/plymouth/themes/omarchy"
+          print "Enabled=" enabled
+          print "Mode=" mode
+          print "Effect=" effect
+          print "Seed=" seed
+          print "PlaybackMode=" playback
+          print "BackgroundColor=1a1b26"
+          print "TextColor=ffffff"
+          print "MessageColor=b8bec9"
+        }
+      }
+    '\'' "$theme_file" >"$staging"
+    chown 0:0 -- "$staging"
+    chmod 0644 -- "$staging"
+    sync -f -- "$staging"
+
+    trap ":" HUP INT TERM
+    mv --exchange -T -- "$staging" "$theme_file"
+    backup=$staging
+    staging=
+    transaction_active=true
+    restore_required=true
+    trap "exit 129" HUP
+    trap "exit 130" INT
+    trap "exit 143" TERM
+    sync -f -- "$theme_file"
+    sync -f -- "${theme_file%/*}"
+
+    plymouth-set-default-theme omarchy
+    rebuild_initramfs
+
+    trap ":" HUP INT TERM
+    rm -f -- "$backup"
+    backup=
+    restore_required=false
+    transaction_active=false
+  '
+}
+
+publish_state
+echo "Plymouth boot logo effect: $mode/$effect (seed $seed)"
