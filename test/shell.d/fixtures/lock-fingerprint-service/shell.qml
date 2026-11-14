@@ -21,7 +21,7 @@ ShellRoot {
   function timer(service, interval, repeat) {
     var objects = service.data || []
     for (var i = 0; i < objects.length; i++) {
-      if (objects[i].interval === interval && objects[i].repeat === repeat && objects[i].ticksLeft === undefined) return objects[i]
+      if (objects[i].interval === interval && objects[i].repeat === repeat && objects[i].ticksLeft === undefined && !objects[i].objectName) return objects[i]
     }
     throw new Error("Missing timer: " + interval + ", repeat=" + repeat)
   }
