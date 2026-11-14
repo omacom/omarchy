@@ -378,31 +378,16 @@ def backup_main(provider: str) -> None:
     write_token_file(main_home / "antigravity-oauth-token", token)
 
 
-def save_main_token(provider: str) -> None:
+def save_renewed_main(provider: str) -> None:
   if provider != "agy":
     return
-  reg_file = registry_path(provider)
-  active_is_primary = True
-  if reg_file.is_file():
-    reg = read_json(reg_file)
-    if isinstance(reg, dict):
-      norm = normalized(provider, reg)
-      active_is_primary = bool(active(norm).get("primary"))
-
-  main_dir = accounts_root() / "agy" / "main"
-  main_file = main_dir / "antigravity-oauth-token"
-  token = None
-  if not active_is_primary and main_file.is_file():
-    token = read_json(main_file)
-  if not token:
-    token = current_primary_token(provider)
+  token = current_primary_token(provider)
   if token:
     write_token_file(agy_main_token_path(), token)
-    main_dir.mkdir(parents=True, exist_ok=True)
-    link_shared("agy", main_dir)
-    write_token_file(main_file, token)
-    if active_is_primary:
-      apply_token_to_primary(provider, token)
+    main_home = accounts_root() / provider / "main"
+    main_home.mkdir(parents=True, exist_ok=True)
+    link_shared(provider, main_home)
+    write_token_file(main_home / "antigravity-oauth-token", token)
 
 
 def switch_credentials(provider: str, from_account: dict[str, Any] | None, to_account: dict[str, Any]) -> None:
@@ -1422,11 +1407,11 @@ def main(argv: list[str]) -> int:
       if provider == "agy":
         with Locked(provider, save_on_exit=False):
           backup_main(provider)
-    elif command == "save-main-token":
+    elif command in ("save-main-token", "save-renewed-main"):
       provider = provider_arg(args)
       if provider == "agy":
         with Locked(provider, save_on_exit=False):
-          save_main_token(provider)
+          save_renewed_main(provider)
     elif command == "sync":
       provider = provider_arg(args)
       if provider == "agy":

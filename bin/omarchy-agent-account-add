@@ -213,8 +213,11 @@ if [[ -n $reauth ]]; then
     login || fail "$(omarchy-i18n agents.signInFailed "$name")"
     login_succeeded=true
     if [[ $provider == "agy" ]]; then
-      omarchy-agent-account-state save-main-token agy
-      omarchy-agent-account-state sync agy
+      omarchy-agent-account-state save-renewed-main agy
+      is_primary=$(omarchy-agent-account-state active-primary agy 2>/dev/null || echo "1")
+      if [[ $is_primary != "1" ]]; then
+        omarchy-agent-account-state sync agy
+      fi
     fi
   else
     say "$(omarchy-i18n agents.signInAgainPrivate)"
@@ -240,7 +243,7 @@ if ! primary_signed_in "$provider"; then
   if login && primary_signed_in "$provider"; then
     login_succeeded=true
     if [[ $provider == "agy" ]]; then
-      omarchy-agent-account-state save-main-token agy
+      omarchy-agent-account-state save-renewed-main agy
     fi
     # The first agent signed in on a machine with none chosen becomes the
     # default, so `omarchy agent` and the panel's starter prompts have one to

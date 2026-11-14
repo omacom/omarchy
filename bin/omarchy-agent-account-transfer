@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import copy
 import importlib.machinery
 import importlib.util
 import json
@@ -276,6 +277,7 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
   results = []
   copied = []
   with accounts.Locked(provider, save_on_exit=False) as registry:
+    orig_registry = copy.deepcopy(registry)
     orig_primary_token = accounts.current_primary_token(provider) if provider == "agy" else None
     orig_main_token = accounts.read_json(accounts.agy_main_token_path()) if provider == "agy" else None
     try:
@@ -353,15 +355,16 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
           registry["switch"] = incoming["switch"]
         registry["threshold"] = max(50, min(100, int(incoming.get("threshold", 95))))
       registry["alert"] = ""
-      accounts.save(provider, registry)
-      if provider == "agy":
-        curr_active = accounts.active(registry)
+      curr_active = accounts.active(registry)
+      active_replaced = any(action == "copied" and a["id"] == curr_active["id"] for action, a in results)
+      if provider == "agy" and (was_empty or active_replaced):
         if curr_active.get("primary"):
           active_token = accounts.read_json(accounts.agy_main_token_path()) or accounts.read_json(accounts.primary_home("agy") / "antigravity-oauth-token")
         else:
           active_token = accounts.read_json(accounts.account_home(provider, curr_active) / "antigravity-oauth-token")
         if active_token:
           accounts.apply_token_to_primary(provider, active_token)
+      accounts.save(provider, registry)
     except BaseException:
       if provider == "agy":
         if orig_primary_token is not None:
@@ -385,6 +388,10 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
           os.replace(original, path)
       for folder in backup_dirs:
         shutil.rmtree(folder)
+      try:
+        accounts.save(provider, orig_registry)
+      except Exception:
+        pass
       raise
   for home in created:
     (home / accounts.LOGIN_RECEIPT).unlink(missing_ok=True)
