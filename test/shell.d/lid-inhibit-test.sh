@@ -333,11 +333,13 @@ exit 0
 SH
 done
 
-cat >"$fake_bin/omarchy-hyprland-monitor-modeless" <<'SH'
+for command in omarchy-hyprland-monitor-modeless omarchy-hw-external-monitors; do
+  cat >"$fake_bin/$command" <<'SH'
 #!/bin/bash
 
 exit 1
 SH
+done
 
 # Each sync the watcher runs is logged, so the test can wait for its retries
 # and poll to have run rather than for a time.
