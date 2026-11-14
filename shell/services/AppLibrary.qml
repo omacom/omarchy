@@ -281,6 +281,12 @@ Item {
     onTriggered: if (!iconIndexScan.running) iconIndexScan.running = true
   }
 
+  Timer {
+    id: hiddenEntryDebounce
+    interval: 750
+    onTriggered: if (!hiddenEntryScan.running) hiddenEntryScan.running = true
+  }
+
   FileView {
     path: root.home + "/.local/state/omarchy/current/icons.revision"
     watchChanges: true
@@ -329,7 +335,7 @@ Item {
   Connections {
     target: DesktopEntries.applications
     function onValuesChanged() {
-      hiddenEntryScan.running = true
+      hiddenEntryDebounce.restart()
       iconIndexDebounce.restart()
       root.appsChanged()
     }
