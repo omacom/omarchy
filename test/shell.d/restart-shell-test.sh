@@ -9,7 +9,7 @@ restart_pid_one=""
 restart_pid_two=""
 
 cleanup() {
-  [[ -n $restart_pid_one ]] && kill "$restart_pid_one" 2>/dev/null || true
+  [[ -n $restart_pid_one ]] && kill -KILL "$restart_pid_one" 2>/dev/null || true
   [[ -n $restart_pid_two ]] && kill "$restart_pid_two" 2>/dev/null || true
   rm -rf "$test_tmp"
 }
@@ -329,3 +329,44 @@ wait "$restart_pid_one" 2>/dev/null || true
 restart_pid_one=""
 [[ $(<"$restart_state") == 303 ]] || fail "restart with a worktree shell leaves one fresh session shell"
 pass "restart stops a worktree's shell and leaves other Quickshell configs alone"
+
+# A shell whose event loop is wedged answers no IPC kill, and one whose
+# instance.lock is gone is missing from the registry too, so only its argv finds
+# it. A restart signals it away and drops its runtime state with it.
+wedged_bin="$test_tmp/wedged"
+quickshell_runtime="$runtime_dir/quickshell"
+mkdir -p "$wedged_bin" "$quickshell_runtime/by-id/wedged" "$quickshell_runtime/by-id/live" "$quickshell_runtime/by-pid"
+printf '#!/bin/bash\nkill -STOP $$\n' >"$wedged_bin/quickshell"
+chmod +x "$wedged_bin/quickshell"
+"$wedged_bin/quickshell" -p "$restart_root/shell" &
+restart_pid_one=$!
+for (( attempt = 0; attempt < 100; attempt++ )); do
+  [[ $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") == "T" ]] && break
+  sleep 0.01
+done
+[[ $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") == "T" ]] || fail "wedged shell fixture stops itself"
+ln -s ../by-id/wedged "$quickshell_runtime/by-pid/$restart_pid_one"
+ln -s ../by-id/live "$quickshell_runtime/by-pid/$$"
+: >"$restart_state"
+rm -f "$test_tmp/strays"
+
+PATH="$restart_bin:$PATH" \
+OMARCHY_PATH="$restart_root" \
+XDG_RUNTIME_DIR="$runtime_dir" \
+OMARCHY_TEST_QS_STATE="$restart_state" \
+OMARCHY_TEST_QS_LOG="$restart_log" \
+OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+OMARCHY_TEST_IPC_LOG="$ipc_log" \
+OMARCHY_TEST_SESSION_PATH="$restart_root" \
+  timeout 10 "$ROOT/bin/omarchy-restart-shell" 2>/dev/null || fail "restart with a wedged shell succeeds"
+
+if [[ -d /proc/$restart_pid_one && $(awk '{ print $3 }' "/proc/$restart_pid_one/stat") != "Z" ]]; then
+  fail "restart stops a wedged shell missing from the registry"
+fi
+[[ ! -e $quickshell_runtime/by-id/wedged && ! -L $quickshell_runtime/by-pid/$restart_pid_one ]] || fail "restart drops a stopped shell's runtime state"
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ -d $quickshell_runtime/by-id/live ]] || fail "restart keeps a live instance's runtime state"
+[[ $(<"$restart_state") == 303 ]] || fail "restart with a wedged shell leaves one fresh session shell"
+pass "restart signals away a wedged shell and its runtime state"

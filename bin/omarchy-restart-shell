@@ -105,6 +105,70 @@ while (( SECONDS < deadline )) && [[ -n $(omarchy_shell_dirs) ]]; do
   sleep 0.1
 done
 
+# A shell whose event loop is wedged never answers the kills above, and the
+# fresh shell refuses to start beside it, so whatever is left gets signals.
+# The registry finds a crash-relaunched shell with no -p left in its argv; argv
+# finds a shell whose instance.lock is gone and so is missing from the registry.
+leftover_shell_pids() {
+  local pid dir arg previous
+
+  while read -r pid dir; do
+    [[ -x ${dir%/shell}/bin/omarchy-launch-shell ]] && printf '%s\n' "$pid"
+  done < <(quickshell list -a -j 2>/dev/null |
+    jq -r '.[] | select(.config_path | endswith("/shell/shell.qml")) | "\(.pid) \(.config_path | rtrimstr("/shell.qml"))"' 2>/dev/null)
+
+  for pid in $(pgrep -x quickshell); do
+    previous=""
+    while IFS= read -r -d '' arg; do
+      [[ $previous == "-p" && ${arg%/} == "$CONFIG_DIR" ]] && printf '%s\n' "$pid"
+      previous=$arg
+    done <"/proc/$pid/cmdline"
+  done 2>/dev/null
+}
+
+# A full tmpfs leaves a registry record with pid 0, and kill 0 would signal this
+# script's own process group, so only a live quickshell process is signalled.
+shell_pid_alive() {
+  [[ $1 =~ ^[0-9]+$ ]] && (( $1 > 1 )) && [[ $(cat "/proc/$1/comm" 2>/dev/null) == "quickshell" && $(awk '{ print $3 }' "/proc/$1/stat" 2>/dev/null) != "Z" ]]
+}
+
+mapfile -t leftover_pids < <(leftover_shell_pids | sort -un)
+signalled_pids=()
+for pid in "${leftover_pids[@]}"; do
+  shell_pid_alive "$pid" && signalled_pids+=("$pid")
+done
+
+if (( ${#signalled_pids[@]} > 0 )); then
+  echo "Shell did not answer the IPC kill, stopping it with signals." >&2
+  for signal in TERM KILL; do
+    kill -"$signal" "${signalled_pids[@]}" 2>/dev/null
+    for (( attempt = 0; attempt < 20; attempt++ )); do
+      alive_pids=()
+      for pid in "${signalled_pids[@]}"; do
+        shell_pid_alive "$pid" && alive_pids+=("$pid")
+      done
+      signalled_pids=("${alive_pids[@]}")
+      (( ${#signalled_pids[@]} > 0 )) || break 2
+      sleep 0.1
+    done
+  done
+fi
+
+# A spinning shell can fill the tmpfs with its log, and the fresh shell then
+# cannot write its instance.lock, so drop the runtime state of exited instances.
+runtime_dir=$(realpath -e "${XDG_RUNTIME_DIR:-/run/user/$UID}/quickshell" 2>/dev/null)
+if [[ -n $runtime_dir ]]; then
+  for link in "$runtime_dir"/by-pid/*; do
+    pid=${link##*/}
+    [[ $pid =~ ^[0-9]+$ ]] || continue
+    [[ -d /proc/$pid && $(awk '{ print $3 }' "/proc/$pid/stat" 2>/dev/null) != "Z" ]] && continue
+    instance_dir=$(realpath -e "$link" 2>/dev/null)
+    [[ $instance_dir == "$runtime_dir"/by-id/* ]] && rm -rf "$instance_dir"
+    rm -f "$link"
+  done
+  find "$runtime_dir/by-shell" -xtype l -delete 2>/dev/null
+fi
+
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.
 hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-launch-shell")' >/dev/null
