@@ -127,6 +127,7 @@ compose() {
     pinyin) wtype "nihao"; wtype -k space ;;
     chewing) wtype "su3cl3" ;;
     cangjie5) wtype "a"; wtype -k space ;;
+    bamboo) wtype "tiengsvieetj" ;;
   esac
   sleep 1
 }
@@ -135,13 +136,14 @@ verify_text() {
   case "$method" in
     mozc) grep -Fxq "日本語" "$work/result" || fail "$1 commits Japanese" ;;
     hangul) grep -Fxq "한글" "$work/result" || fail "$1 commits Korean" ;;
+    bamboo) grep -E -q "Tiếng Việt|tiếng việt" "$work/result" || fail "$1 commits Vietnamese" ;;
     *) python -c 'import pathlib,sys; assert any("\u4e00" <= c <= "\u9fff" for c in pathlib.Path(sys.argv[1]).read_text())' "$work/result" || fail "$1 commits Han characters" ;;
   esac
   pass "$1 commits composed text"
 }
 
 installed=()
-for method in mozc hangul pinyin chewing cangjie5; do
+for method in mozc hangul pinyin chewing cangjie5 bamboo; do
   omarchy-setup-input "$method" > "$ARTIFACTS/setup-input-$method.log" 2>&1 ||
     fail "$method setup completes" "$(cat "$ARTIFACTS/setup-input-$method.log")"
   group=$(fcitx5-remote -q)

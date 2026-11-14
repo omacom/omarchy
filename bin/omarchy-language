@@ -126,6 +126,7 @@ seed_typing() {
   ko) method=hangul ;;
   zh-CN) method=pinyin ;;
   zh-TW) method=chewing ;;
+  vi) method=bamboo ;;
   *) return 0 ;;
   esac
   /usr/bin/python3 "$OMARCHY_PATH/default/input-methods/typing_setup.py" seed-language "$method" || true
