@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Rebind the Broadcom Wi-Fi device around system sleep. The brcmfmac firmware
+# on these parts does not reliably survive a long suspend: after wake it stops
+# answering msgbuf commands (the kernel logs "Timeout on response for query
+# command" for every request), the interface never recovers, and only a reboot
+# brings Wi-Fi back. Unbinding before sleep and rebinding after wake forces the
+# firmware to reload cleanly, so NetworkManager sees a fresh interface and
+# reconnects on its own.
+
+driver=/sys/bus/pci/drivers/brcmfmac
+state_file=${OMARCHY_BRCMFMAC_SLEEP_STATE:-/run/omarchy-brcmfmac-sleep}
+
+case "$1" in
+  pre)
+    : > "$state_file"
+    for bound in "$driver"/0000:*; do
+      [[ -L $bound ]] || continue
+      device=$(basename "$bound")
+      echo "$device" > "$driver/unbind" 2>/dev/null && echo "$device" >> "$state_file"
+    done
+    ;;
+  post)
+    [[ -f $state_file ]] || exit 0
+    while read -r device; do
+      echo "$device" > "$driver/bind" 2>/dev/null || true
+    done < "$state_file"
+    rm -f "$state_file"
+    ;;
+esac
