@@ -69,6 +69,13 @@ assert(!audio.isUntypedSource({ name: 'virtual_mic', isSink: false, isStream: tr
 assert(!audio.isUntypedSource({ name: '', isSink: false, isStream: false }, { '': true }), 'a nameless node is never an untyped source')
 assert(!audio.isUntypedSource({ name: 'virtual_mic', isSink: false, isStream: false }, {}), 'nothing is untyped before the listing')
 
+// An unplugged jack input leaves the list unless it is the current one.
+const mic = { name: 'alsa_input.mic' }
+const headset = { name: 'alsa_input.headset' }
+const jacks = { 'alsa_input.mic': true, 'alsa_input.headset': false }
+assertDeepEqual(audio.availableDevices([mic, headset], jacks, mic), [mic], 'audio leaves out an unplugged headset microphone')
+assertDeepEqual(audio.availableDevices([mic, headset], jacks, headset), [headset, mic], 'audio keeps the current device even when unplugged')
+
 const nodes = requireFromRoot('shell/Commons/AudioNodesModel.js')
 
 for (const name of ['quickshell', 'quickshell-peak-monitor'])

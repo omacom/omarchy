@@ -273,6 +273,18 @@ function isUntypedSource(node, sourceAvailability) {
   return name !== "" && !!sourceAvailability && Object.prototype.hasOwnProperty.call(sourceAvailability, name)
 }
 
+// A device whose ports are all unplugged, like a headset microphone with nothing
+// in the jack, stays out of the list. The current device always stays, first.
+function availableDevices(candidates, availability, current) {
+  var list = []
+  for (var i = 0; i < candidates.length; i++) {
+    var name = candidates[i] && candidates[i].name
+    if (!name || !availability || availability[String(name)] !== false) list.push(candidates[i])
+  }
+  if (current && list.indexOf(current) < 0) list.unshift(current)
+  return list
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
@@ -299,6 +311,7 @@ if (typeof module !== "undefined") {
     unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
     streamLabel: streamLabel,
     streamRepresentsPlayer: streamRepresentsPlayer,
-    isUntypedSource: isUntypedSource
+    isUntypedSource: isUntypedSource,
+    availableDevices: availableDevices
   }
 }
