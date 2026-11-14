@@ -1,0 +1,93 @@
+#!/bin/bash
+# Says, without loading the Secure Enclave driver, whether Touch ID can be set
+# up here: "none" (no sensor), "available", "ready", or "unsupported:<reason>".
+# With "sensor" it prints the sensor's device-tree node instead.
+#
+# omarchy-mac installs its copy at /usr/lib/omarchy-mac/touchid-eligibility.
+# This is the Omarchy source for that check. M1-family boards are not
+# unsupported: the sensor node plus /dev/sep-bio means the reader can enrol.
+
+tree=${OMARCHY_MAC_TOUCHID_TREE:-/proc/device-tree}
+firmware=${OMARCHY_MAC_TOUCHID_FIRMWARE:-/usr/lib/firmware}
+extractors=${OMARCHY_MAC_TOUCHID_EXTRACTORS:-/usr/lib/linux-aurora}
+python=${OMARCHY_MAC_TOUCHID_PYTHON:-python3}
+esp=${OMARCHY_MAC_TOUCHID_ESP:-/boot/efi}
+sep_bio=${OMARCHY_MAC_TOUCHID_SEP_BIO:-/dev/sep-bio}
+omarchy-hw-apple-silicon || exit 0
+
+compatible() {
+  [[ -r $tree/compatible ]] && tr '\0' '\n' <"$tree/compatible" | grep -Fxq "$1"
+}
+
+installed() {
+  local directory
+  for directory in "$firmware" "$firmware/vendor" "$firmware/updates"; do
+    if [[ -f $directory/$1 ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# The extractors are Python, which linux-aurora only suggests.
+can_extract() {
+  [[ -x $extractors/$1 ]] && command -v "$python" >/dev/null
+}
+
+sensor=""
+for node in "$tree"/soc/*/fingerprint@*; do
+  if [[ -r $node/compatible ]] && tr '\0' '\n' <"$node/compatible" | grep -Fxq apple,mesa-fingerprint &&
+    [[ ! -r $node/status || $(tr -d '\0' <"$node/status") == "okay" ]]; then
+    sensor=$node
+    break
+  fi
+done
+if [[ ${1:-} == "sensor" ]]; then
+  printf '%s\n' "$sensor"
+  exit 0
+elif [[ -z $sensor ]]; then
+  echo none
+  exit 0
+fi
+
+# M1, M1 Pro, and M1 Max match on this hardware. The sensor node is already
+# required above. /dev/sep-bio means the enclave driver is up, so the reader
+# can enrol (ready). Without that node the owner can still turn it on
+# (available). This used to return unsupported:m1-family and hide setup.
+if compatible apple,t8103 || compatible apple,t6000 || compatible apple,t6001; then
+  if [[ -e $sep_bio ]]; then
+    echo ready
+  else
+    echo available
+  fi
+  exit 0
+elif ! compatible apple,t8112 && ! compatible apple,t6020 && ! compatible apple,t6021 && ! compatible apple,t8140 &&
+  ! { compatible apple,t8122 && { compatible apple,j613 || compatible apple,j615; }; }; then
+  echo unsupported:board
+  exit 0
+fi
+
+# m1n1's forwarded identity selects this install's own lane in the enclave.
+if [[ ! -r $tree/chosen/apfs-preboot-uuid ]]; then
+  echo unsupported:no-os-identity
+  exit 0
+fi
+
+# The Neo's calibration must be the sealed form its installer writes; the
+# other boards' can be carved from the iBoot System Container at enable time.
+calibration=apple/mesa_calibration.bin
+if [[ -r $sensor/firmware-name ]]; then
+  calibration=$(tr -d '\0' <"$sensor/firmware-name")
+fi
+if ! installed "$calibration" && { compatible apple,t8140 || ! can_extract extract-mesa-calibration; }; then
+  echo unsupported:no-calibration
+  exit 0
+fi
+# The Neo's sensor key is rebuilt once the owner agrees, by touchid-root-key
+# (Python), from the factory records asahi-installer leaves on the ESP.
+if compatible apple,t8140 && ! installed apple/msrk-j700.bin &&
+  { [[ ! -r $esp/asahi/all_firmware.tar.gz ]] || ! command -v "$python" >/dev/null; }; then
+  echo unsupported:no-root-key
+  exit 0
+fi
+echo available
