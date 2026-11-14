@@ -104,8 +104,27 @@ Panel {
 
   function moveSelection(delta) {
     if (!entries.length) return
+    deletingId = ""
     selectedIndex = selectedIndex < 0 ? (delta > 0 ? 0 : entries.length - 1) : (selectedIndex + delta + entries.length) % entries.length
     if (panel.loadedContent) panel.loadedContent.revealSelection(selectedIndex)
+  }
+
+  function selectedEntry() {
+    return selectedIndex >= 0 && selectedIndex < entries.length ? entries[selectedIndex] : null
+  }
+
+  function textAction(text, modifiers) {
+    if (busy || editingName || (modifiers & (Qt.AltModifier | Qt.MetaModifier))) return
+    var key = text.toLowerCase()
+    if (deletingId !== "") {
+      if (key === "y") perform("delete", deletingId)
+      else if (key === "n") deletingId = ""
+      return
+    }
+    var entry = selectedEntry()
+    if (key === "n") beginSave()
+    else if (entry && key === "r") beginRename(entry)
+    else if (entry && key === "u") perform("update", entry.id)
   }
 
   FileView {
@@ -210,8 +229,13 @@ Panel {
       anchors.fill: parent
       blocked: root.editingName
       onMoveRequested: function(dx, dy) { if (dy) root.moveSelection(dy) }
-      onActivateRequested: if (root.selectedIndex >= 0 && root.entries.length) root.perform("restore", root.entries[root.selectedIndex].id)
-      onCloseRequested: root.close()
+      onActivateRequested: if (!root.busy && root.deletingId === "" && root.selectedIndex >= 0 && root.entries.length) root.perform("restore", root.entries[root.selectedIndex].id)
+      onCloseRequested: root.deletingId !== "" ? root.deletingId = "" : root.close()
+      onDeleteRequested: {
+        var entry = root.selectedEntry()
+        if (!root.busy && entry) root.deletingId = entry.id
+      }
+      onTextKey: function(text, modifiers) { root.textAction(text, modifiers) }
       onTabRequested: function(direction) { root.switchPanel(direction) }
       function revealSelection(index) {
         var item = savedRows.itemAt(index)
@@ -269,7 +293,7 @@ Panel {
               fontSize: Style.font.caption
               height: Style.space(28)
               enabled: !root.busy
-              tooltipText: Commons.I18n.t("scenes.save.current")
+              tooltipText: Commons.I18n.t("scenes.save.current") + " (N)"
               onClicked: root.beginSave()
             }
           }
@@ -336,7 +360,7 @@ Panel {
                       width: Style.space(26); height: Style.space(28)
                       iconText: "\uf040"
                       horizontalPadding: 0
-                      tooltipText: Commons.I18n.t("scenes.rename")
+                      tooltipText: Commons.I18n.t("scenes.rename") + " (R)"
                       enabled: !root.busy
                       onClicked: root.beginRename(savedRow.modelData)
                     }
@@ -344,7 +368,7 @@ Panel {
                       width: Style.space(26); height: Style.space(28)
                       iconText: "\uf021"
                       horizontalPadding: 0
-                      tooltipText: Commons.I18n.t("scenes.update.hint")
+                      tooltipText: Commons.I18n.t("scenes.update.hint") + " (U)"
                       enabled: !root.busy
                       onClicked: root.perform("update", savedRow.modelData.id)
                     }
@@ -352,7 +376,7 @@ Panel {
                       width: Style.space(26); height: Style.space(28)
                       iconText: "\uf1f8"
                       horizontalPadding: 0
-                      tooltipText: Commons.I18n.t("scenes.delete")
+                      tooltipText: Commons.I18n.t("scenes.delete") + " (Delete)"
                       enabled: !root.busy
                       onClicked: root.deletingId = savedRow.modelData.id
                     }
@@ -371,8 +395,8 @@ Panel {
                     height: Style.space(28)
                     verticalAlignment: Text.AlignVCenter
                   }
-                  LinkButton { text: Commons.I18n.t("scenes.yes"); fontSize: Style.font.caption; height: Style.space(28); enabled: !root.busy; onClicked: root.perform("delete", savedRow.modelData.id) }
-                  LinkButton { text: Commons.I18n.t("scenes.no"); fontSize: Style.font.caption; height: Style.space(28); onClicked: root.deletingId = "" }
+                  LinkButton { text: Commons.I18n.t("scenes.yes"); fontSize: Style.font.caption; height: Style.space(28); enabled: !root.busy; tooltipText: "Y"; onClicked: root.perform("delete", savedRow.modelData.id) }
+                  LinkButton { text: Commons.I18n.t("scenes.no"); fontSize: Style.font.caption; height: Style.space(28); tooltipText: "N / Esc"; onClicked: root.deletingId = "" }
                 }
               }
             }
