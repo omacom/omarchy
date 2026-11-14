@@ -316,7 +316,7 @@ PanelWindow {
       // Only a real move clears it: the release itself reports the pointer too.
       onPointChanged: {
         if (!window.hoverStale || window.dragging) return
-        var at = point.position
+        var at = hitStrip.mapToItem(window.contentItem, point.position.x, point.position.y)
         if (Math.hypot(at.x - window.dropPoint.x, at.y - window.dropPoint.y) > Style.space(4)) window.hoverStale = false
       }
     }
@@ -495,7 +495,7 @@ PanelWindow {
 
     mouse.onReleased: function(event) {
       if (!appSlot.lifted) return
-      window.dropPoint = appSlot.mapToItem(body, event.x, event.y)
+      window.dropPoint = appSlot.mouse.mapToItem(window.contentItem, event.x, event.y)
       var from = window.dragIndex
       var to = window.dropIndex
       appSlot.dragged = true
