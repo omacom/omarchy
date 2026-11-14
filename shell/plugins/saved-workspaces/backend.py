@@ -558,8 +558,39 @@ def chromium_window_argv(window, argv):
   return result
 
 
+def terminal_directory_argv(argv, cwd):
+  app = Path(argv[0]).name.lower() if argv else ""
+  flags = {"alacritty": {"--working-directory"}, "kitty": {"--directory", "-d"},
+       "foot": {"--working-directory", "-D"}, "ghostty": {"--working-directory"}}.get(app)
+  if not flags:
+    return argv
+  result, index = [argv[0]], 1
+  while index < len(argv):
+    arg = argv[index]
+    if arg in {"-e", "--execute", "--command", "--"}:
+      result += argv[index:]
+      break
+    if app in {"kitty", "foot"} and not arg.startswith("-"):
+      result += argv[index:]
+      break
+    if arg in {"--title", "-T", "--app-id", "--class", "--name", "--config", "-c", "--override", "-o", "--font", "-f", "--listen-on", "--session"} and index + 1 < len(argv):
+      result += argv[index:index + 2]
+      index += 2
+      continue
+    if arg in flags and index + 1 < len(argv):
+      result += [arg, cwd]
+      index += 2
+      continue
+    if any(arg.startswith(flag + "=") for flag in flags):
+      result.append(arg.split("=", 1)[0] + "=" + cwd)
+    else:
+      result.append(arg)
+    index += 1
+  return result
+
+
 def command_for(window, info):
-  argv = chromium_window_argv(window, info["argv"])
+  argv = terminal_directory_argv(chromium_window_argv(window, info["argv"]), info.get("cwd", str(HOME)))
   if not argv:
     raise WorkspaceError("A window's launch command is unavailable. Try saving again after the app starts.")
   app = Path(argv[0]).name.lower()
@@ -705,7 +736,7 @@ def capture_app_state(window, info, cache):
 
 
 def state_command(window, argv):
-  argv = chromium_window_argv(window, argv)
+  argv = terminal_directory_argv(chromium_window_argv(window, argv), window.get("cwd", str(HOME)))
   state = window.get("appState") or {}
   if state.get("kind") == "firefox":
     urls, active, profile = state.get("urls"), state.get("active"), state.get("profile")
