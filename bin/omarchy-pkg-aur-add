@@ -4,7 +4,28 @@
 # omarchy:args=<packages...>
 
 if omarchy-pkg-missing "$@"; then
-  yay -S --noconfirm --needed -- "$@" || exit 1
+  if (( EUID == 0 )); then
+    YAY_CMD=(yay -S --noconfirm --needed -- "$@")
+  else
+    YAY_CMD=(yay -S --noconfirm --needed -- "$@")
+  fi
+
+  if ! "${YAY_CMD[@]}"; then
+    echo -e "\n\033[33mInstallation failed. This usually happens when package databases are out of date (e.g., 404 errors).\033[0m" >&2
+    if [[ -t 0 && -t 1 && -z ${OMARCHY_UPDATE_LOGGED:-} && -z ${OMARCHY_TESTING:-} ]]; then
+      read -p "Would you like to run a full system update (omarchy update) now? (y/N) " -n 1 -r
+      echo
+      if [[ $REPLY =~ ^[Yy]$ ]]; then
+        omarchy update
+        "${YAY_CMD[@]}" || exit 1
+      else
+        exit 1
+      fi
+    else
+      echo -e "To fix this safely, run: \033[1momarchy update\033[0m, then try again." >&2
+      exit 1
+    fi
+  fi
 fi
 
 for pkg in "$@"; do
