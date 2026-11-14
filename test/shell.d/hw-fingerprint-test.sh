@@ -146,6 +146,88 @@ write_platform_readers "sep/*.sep/diag/touchid ready" "$tmp_dir/sep/*.sep/diag/t
   "$tmp_dir/sep/*.sep/diag/touchid ready now" "#$tmp_dir/sep/*.sep/diag/touchid ready"
 assert_rejects "relative paths, a missing value, an extra word and comments name no reader"
 
+# A live guard prevents a stale ready status from advertising the reader.
+write_platform_readers "$tmp_dir/sep/*.sep/diag/touchid ready $tmp_dir/sep/*.sep/diag/host_store ready"
+printf 'ready\n' >"$tmp_dir/sep/396400000.sep/diag/host_store"
+assert_detects "a guarded platform reader is detected while host storage is ready"
+printf 'unavailable\n' >"$tmp_dir/sep/396400000.sep/diag/host_store"
+assert_rejects "a poisoned host store suppresses a stale ready status"
+printf 'unknown\n' >"$tmp_dir/sep/396400000.sep/diag/host_store"
+assert_rejects "an unknown guard value cannot advertise readiness"
+rm "$tmp_dir/sep/396400000.sep/diag/host_store"
+assert_rejects "a missing guard cannot advertise readiness"
+printf 'ready\n' >"$tmp_dir/sep/396400000.sep/diag/host_store"
+mkdir -p "$tmp_dir/sep/other.sep/diag"
+printf 'ready\n' >"$tmp_dir/sep/other.sep/diag/host_store"
+assert_rejects "ambiguous multiple guard files cannot advertise readiness"
+rm -rf "$tmp_dir/sep/other.sep"
+
+printf 'usable\n' >"$tmp_dir/sep/396400000.sep/diag/matching"
+printf 'enabled\n' >"$tmp_dir/sep/396400000.sep/diag/xart"
+write_platform_readers "$tmp_dir/sep/*.sep/diag/touchid ready $tmp_dir/sep/*.sep/diag/host_store ready $tmp_dir/sep/*.sep/diag/matching usable $tmp_dir/sep/*.sep/diag/xart enabled"
+assert_detects "all live guard conditions permit the cached reader"
+printf 'blocked\n' >"$tmp_dir/sep/396400000.sep/diag/matching"
+assert_rejects "one failed guard prevents cached readiness"
+printf 'usable\n' >"$tmp_dir/sep/396400000.sep/diag/matching"
+printf 'disabled\n' >"$tmp_dir/sep/396400000.sep/diag/xart"
+assert_rejects "a later failed guard prevents cached readiness"
+printf 'enabled\n' >"$tmp_dir/sep/396400000.sep/diag/xart"
+assert_detects "reader detection recovers once all guards recover"
+write_platform_readers "$tmp_dir/sep/*.sep/diag/touchid ready $tmp_dir/sep/*.sep/diag/host_store ready $tmp_dir/sep/*.sep/diag/matching"
+assert_rejects "an incomplete additional guard is rejected"
+write_platform_readers "$tmp_dir/sep/*.sep/diag/touchid ready +exists:$tmp_dir/sensor-node"
+assert_rejects "a missing existence guard prevents detection"
+mkfifo "$tmp_dir/sensor-node"
+timeout 2 env OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" "$tmp_dir/bin/omarchy-hw-fingerprint" ||
+  fail "a FIFO existence guard is checked without opening it"
+rm "$tmp_dir/sensor-node"
+ln -s "$tmp_dir/absent-target" "$tmp_dir/sensor-node"
+assert_rejects "a dangling existence guard is unavailable"
+rm "$tmp_dir/sensor-node"
+pass "existence guards never open device-like paths"
+
+# Value reads must reject blocking/malformed input and still reach USB fallback.
+guard="$tmp_dir/value-guard"
+write_sep 396400000 ready
+write_platform_readers "$tmp_dir/sep/*.sep/diag/touchid ready $guard ready"
+bounded_detection() {
+  timeout 2 env OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" "$tmp_dir/bin/omarchy-hw-fingerprint"
+}
+for value_case in fifo oversized nul; do
+  rm -f "$guard"
+  case $value_case in
+  fifo) mkfifo "$guard" ;;
+  oversized) { printf ready; printf '\n%.0s' {1..300}; } >"$guard" ;;
+  nul) printf 'ready\0\n' >"$guard" ;;
+  esac
+  write_usb_devices '1234:5678:Generic USB Device'
+  status=0
+  bounded_detection || status=$?
+  (( status == 1 )) || fail "$value_case guard rejects promptly without a reader" "$status"
+  write_usb_devices '27c6:1234'
+  bounded_detection || fail "$value_case guard preserves USB detection"
+done
+rm "$guard"
+printf 'ready\n' >"$guard"
+export BLOCKED_VALUE="$guard" REAL_HEAD="$(command -v head)"
+cat >"$tmp_dir/bin/head" <<'STUB'
+#!/bin/bash
+if [[ ${!#} == "$BLOCKED_VALUE" ]]; then
+  exec sleep 10
+fi
+exec "$REAL_HEAD" "$@"
+STUB
+chmod +x "$tmp_dir/bin/head"
+write_usb_devices '1234:5678:Generic USB Device'
+status=0
+PATH="$tmp_dir/bin:$PATH" bounded_detection || status=$?
+(( status == 1 )) || fail "a stalled value read reaches its own deadline" "$status"
+write_usb_devices '27c6:1234'
+PATH="$tmp_dir/bin:$PATH" bounded_detection || fail "a stalled value read preserves USB fallback"
+rm "$tmp_dir/bin/head" "$guard"
+unset BLOCKED_VALUE REAL_HEAD
+pass "value guards reject blocking, oversized and NUL-containing values without hiding USB readers"
+
 # A platform file that matches nothing never hides a USB reader on the same
 # machine: the USB scan still runs after it.
 write_usb_devices '1234:5678:Goodix Fingerprint USB Device'
