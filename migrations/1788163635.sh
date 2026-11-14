@@ -1,9 +1,28 @@
 echo "Remove legacy temporary passwordless sudo grants"
 
 # Migration queues are per-user; the privileged repair is once per machine.
-# The helper beside this migration: the package's /usr/bin copy on an install,
-# and under a dev link the checkout's, which may be newer than the package.
-helper="$OMARCHY_PATH/bin/omarchy-sudo-passwordless"
+# The helper is a packaged program. A dev link may authorize a checkout's copy
+# through the root-owned /etc/omarchy.conf; otherwise use the installed path,
+# so a caller cannot put a program in $OMARCHY_PATH and have sudo run it.
+helper=/usr/bin/omarchy-sudo-passwordless
+conf_owner=
+conf_mode=
+if [[ -f /etc/omarchy.conf && ! -L /etc/omarchy.conf ]] &&
+  read -r conf_owner conf_mode < <(/usr/bin/stat -Lc '%u %a' /etc/omarchy.conf 2>/dev/null) &&
+  [[ $conf_owner == 0 && $conf_mode =~ ^[0-7]+$ ]] && ! ((8#$conf_mode & 022)); then
+  quoted_root=$OMARCHY_PATH
+  quoted_root=${quoted_root//\\/\\\\}
+  quoted_root=${quoted_root//\"/\\\"}
+  quoted_root=${quoted_root//\$/\\\$}
+  quoted_root=${quoted_root//\`/\\\`}
+  mapfile -t dev_link < /etc/omarchy.conf
+  dev_helper="$OMARCHY_PATH/bin/omarchy-sudo-passwordless"
+  if (( ${#dev_link[@]} == 1 )) && [[ ${dev_link[0]} == "export OMARCHY_PATH=\"$quoted_root\"" ]] &&
+    [[ -x $dev_helper ]]; then
+    helper=$dev_helper
+  fi
+fi
+
 if ! "$helper" __migration-complete; then
   sudo "$helper" __migrate
 fi
