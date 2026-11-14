@@ -110,6 +110,49 @@ with patch.object(m, 'query', side_effect=[[], [firefox_other], [firefox_other, 
   check(m.launch_window({'argv': ['firefox', '--new-window', 'about:blank'], 'class': 'firefox', 'sceneName': 'Focused work'}, set(), 8)['address'] == '0xours', 'forwarded Firefox requests identify their own launch page instead of claiming another window')
   check('file://' in launch.call_args.args[0] and '--new-window' in launch.call_args.args[0], 'forwarded Firefox requests explicitly open their own launch page')
 
+# Firefox retains launch URIs and never grows extra blank tabs on repeated saves.
+firefox_argv = ['firefox', '--profile', '/tmp/scene-profile', '--new-window', 'https://example.org/one', 'file:///tmp/document.pdf']
+options, urls = m.firefox_launch_parts(firefox_argv)
+check(options == ['firefox', '--profile', '/tmp/scene-profile'] and urls == ['https://example.org/one', 'file:///tmp/document.pdf'], 'Firefox launch parsing preserves profile options and both website/document URIs')
+for _ in range(3):
+  firefox_argv = m.command_for({'class': 'firefox'}, {'argv': firefox_argv})
+check(firefox_argv.count('--new-window') == 1 and firefox_argv[-2:] == urls, 'repeated Firefox saves preserve their launch URLs without accumulating blank tabs')
+
+# Observe the actual launch page and command, including safe script quoting.
+import shlex, urllib.parse, re
+observed = {}
+first_url = 'https://example.org/</script>?a=<&b=>'
+def observe_firefox_launch(code):
+  command, _ = json.JSONDecoder().raw_decode(code[len('hl.exec_cmd('):])
+  args = shlex.split(command)
+  executable = args.index('firefox')
+  observed['args'] = args[executable:]
+  uri = next(arg for arg in observed['args'] if arg.startswith('file://'))
+  page = Path(urllib.parse.unquote(urllib.parse.urlsplit(uri).path))
+  observed['page'] = page
+  contents = page.read_text()
+  observed['target'] = json.loads(re.search(r'location.replace\((.*?)\),2000', contents).group(1))
+  check(contents.count('</script>') == 1, 'saved Firefox URLs cannot inject markup into the temporary launch page')
+with patch.object(m, 'query', side_effect=[[], [firefox_ours]]), patch.object(m, 'execute', side_effect=observe_firefox_launch), patch.object(m.socket, 'socket', return_value=MagicMock()):
+  m.launch_window({'argv': ['firefox', '--new-window', first_url, 'https://example.org/two'], 'class': 'firefox', 'sceneName': 'Focused work'}, set(), 8)
+check(observed['target'] == first_url and observed['args'][-1] == 'https://example.org/two' and '--new-window' not in observed['args'], 'one forwarded Firefox window retains all launch URLs in order, with its marker standing in for the first URL')
+check(not observed['page'].exists(), 'the private launch page is removed after its window is identified')
+
+# A newly launched Firefox process exposes its original arguments for later saves.
+with tempfile.TemporaryDirectory() as directory:
+  base = Path(directory)
+  executable = base / 'firefox'; executable.write_text('')
+  proc = base / 'proc' / '42'; proc.mkdir(parents=True)
+  (proc / 'exe').symlink_to(executable)
+  (proc / 'cwd').symlink_to(base)
+  (proc / 'cmdline').write_bytes(str(executable).encode() + b'\0--new-window\0file:///tmp/omarchy-scene-ephemeral.html\0')
+  original = [str(executable), '--new-window', 'https://example.org/original']
+  (proc / 'environ').write_bytes(b'OMARCHY_SCENE_ORIGINAL_ARGV=' + json.dumps(original).encode() + b'\0')
+  (proc / 'stat').write_text('42 (firefox) ' + ' '.join(['0'] * 19 + ['birth']))
+  real_path = Path
+  with patch.object(m, 'Path', side_effect=lambda path: base / 'proc' if str(path) == '/proc' else real_path(path)):
+    check(m.process_info(42)['argv'] == original, 'later scene updates retain Firefox launch context instead of a deleted temporary page')
+
 # A missing app must launch only after the current workspace has its saved mode.
 events = []
 class LaunchObserved(Exception):
