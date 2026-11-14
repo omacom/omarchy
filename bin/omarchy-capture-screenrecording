@@ -532,16 +532,37 @@ finalize_recording() {
     video_codec=(-c:v libx264 -preset veryfast -crf 20)
   fi
 
-  # Trim the first frame, and normalize audio to -14 LUFS if present, in a single pass
+  # Trim the first frame, and bring audio to -14 LUFS if present
   local args=(-y -ss 0.1 -i "$latest" "${video_codec[@]}")
   if ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "$latest" 2>/dev/null | grep -q audio; then
     # Hard-mute the first 400ms to drop the PipeWire capture-open pop (a near-clipping
     # transient around 130-200ms that a gentle fade-in can't attenuate enough), then a
-    # 50ms fade avoids a click at the boundary before loudnorm normalizes the rest.
-    #
-    # loudnorm declares 192 kHz output, so without -ar the AAC encoder writes
-    # 96 kHz from a 48 kHz recording.
-    args+=(-ar 48000 -af "volume=enable='lt(t,0.4)':volume=0,afade=t=in:st=0.4:d=0.05,loudnorm=I=-14:TP=-1.5:LRA=11")
+    # 50ms fade avoids a click at the boundary before the gain lifts the rest.
+    local pre="volume=enable='lt(t,0.4)':volume=0,afade=t=in:st=0.4:d=0.05"
+
+    # One fixed gain, not single-pass loudnorm: without measured values loudnorm runs in
+    # dynamic mode, which leaves a recording that opens on silence far too quiet and then
+    # climbs for about a minute. The gain comes from the median 3 s loudness of the louder
+    # part (within 12 LU of the 90th percentile), so silence, room noise or one loud bang
+    # can't skew it, and stops at +36 dB, which a quiet raw microphone can need. A clip
+    # shorter than 3 s has no such reading, so it uses the 400 ms readings instead.
+    local typical gain=0
+    typical=$(ffmpeg -hide_banner -nostats -ss 0.1 -i "$latest" -map 0:a:0 -af "$pre,ebur128=metadata=1,ametadata=print:key=lavfi.r128.S,ametadata=print:key=lavfi.r128.M" -f null - 2>&1 |
+      LC_ALL=C awk -F= '/lavfi\.r128\.[SM]=-?[0-9]/ && $NF > -70 { if (/\.S=/) s[++ns] = $NF; else m[++nm] = $NF }
+        END { if (ns) for (i = 1; i <= ns; i++) print s[i]; else for (i = 1; i <= nm; i++) print m[i] }' | LC_ALL=C sort -g |
+      LC_ALL=C awk '{ v[NR] = $1 } END {
+        if (!NR) exit
+        p90 = int(NR * 0.9); if (p90 < 1) p90 = 1
+        lo = 1; while (v[lo] <= v[p90] - 12) lo++
+        print v[int((lo + NR) / 2)]
+      }')
+    if [[ -n $typical ]]; then
+      gain=$(LC_ALL=C awk -v t="$typical" 'BEGIN { g = -14 - t; if (g > 36) g = 36; printf "%.2f", g }')
+    fi
+
+    # A limiter holds the peaks the gain lifts under -2 dBFS. It runs at 4x the rate so
+    # peaks between samples are caught too, and -ar brings the audio back to 48 kHz.
+    args+=(-ar 48000 -af "$pre,volume=${gain}dB,aresample=192000,alimiter=limit=0.79:attack=5:release=80:level=disabled")
   fi
 
   local processed="${latest%.mp4}-processed.mp4"
