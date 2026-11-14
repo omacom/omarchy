@@ -39,7 +39,10 @@ stub_hyprctl() {
     echo 'BINDS'
     echo '  ;;'
     echo '  devices) echo "active keymap: English (US)" ;;'
-    echo '  -j) [[ $2 == getoption ]] && cat "'"$stub_bin"'/option-${3#input:}" 2>/dev/null ;;'
+    echo '  -j) case "$2" in'
+    echo '        getoption) cat "'"$stub_bin"'/option-${3#input:}" 2>/dev/null ;;'
+    echo '        devices) cat "'"$stub_bin"'/devices.json" 2>/dev/null ;;'
+    echo '      esac ;;'
     echo 'esac'
   } >"$stub_bin/hyprctl"
   chmod +x "$stub_bin/hyprctl"
@@ -167,6 +170,28 @@ grep -q 'SUPER + MINUS  *→ Expand window left' <<<"$rendered" &&
   grep -q 'SUPER + ^  *→ Shrink window left' <<<"$rendered" ||
   fail "a keycode is named by what the leading layout prints on it" "$rendered"
 pass "a keycode is named by what the leading layout prints on it"
+
+# Binds fire by the physical key, so while the second layout is active a letter
+# chord is the key that layout prints, and a key it prints no letter on keeps
+# its name. The first layout is named as before.
+echo '{"keyboards": [{"main": true, "layout": "us,gr", "variant": "", "active_layout_index": 1}]}' >"$stub_bin/devices.json"
+stub_hyprctl <<BINDS
+$(lua_bind 64 "SUPER + K" "Keybindings")
+$(lua_bind 64 "SUPER + RETURN" "Terminal")
+$(lua_bind 0 "J" "Pseudo window")
+BINDS
+
+rendered=$(keybindings "$menu" "$tmpdir/cache-greek")
+grep -q 'SUPER + Κ  *→ Keybindings' <<<"$rendered" &&
+  grep -q 'SUPER + RETURN  *→ Terminal' <<<"$rendered" &&
+  grep -q '^Ξ  *→ Pseudo window' <<<"$rendered" ||
+  fail "a letter chord is named after the active layout" "$rendered"
+echo '{"keyboards": [{"main": true, "layout": "us,gr", "variant": "", "active_layout_index": 0}]}' >"$stub_bin/devices.json"
+rendered=$(keybindings "$menu" "$tmpdir/cache-first")
+rm "$stub_bin/devices.json"
+grep -q 'SUPER + K  *→ Keybindings' <<<"$rendered" ||
+  fail "the first layout still names its own keys" "$rendered"
+pass "a letter chord is named after the active layout"
 
 # A chord refused for width opens a row of its own, and the next chord tries
 # that row rather than reaching back past it and printing out of order.

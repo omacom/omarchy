@@ -659,6 +659,103 @@ dedupe_binding_records() {
   awk '!seen[$0]++'
 }
 
+# The layout and variant of the group the main keyboard is typing in right now,
+# when that is not the first one. Nothing when the first is active, or when
+# binds are matched by symbol: then a letter chord follows the active layout
+# and the leading layout is the one that names it.
+active_keyboard() {
+  local by_symbol layout variant
+
+  by_symbol=$(hyprctl -j getoption input:resolve_binds_by_sym 2>/dev/null | jq -r '.bool // false' 2>/dev/null)
+  if [[ $by_symbol == "true" ]]; then
+    return
+  fi
+
+  IFS=$'\t' read -r layout variant < <(
+    hyprctl -j devices 2>/dev/null | jq -r '
+      .keyboards[] | select(.main) | .active_layout_index as $group | select($group > 0)
+      | [(.layout | split(",")[$group] // ""), (.variant | split(",")[$group] // "")] | @tsv
+    ' 2>/dev/null
+  )
+
+  # Only names XKB could know pass, since they end up on a command line.
+  [[ $layout =~ ^[A-Za-z0-9_-]+$ ]] || return
+  [[ $variant =~ ^[A-Za-z0-9_-]*$ ]] || variant=""
+  printf '%s\t%s\n' "$layout" "$variant"
+}
+
+# Binds fire by the physical key, resolved through the leading layout, so
+# "SUPER + K" is the key that prints a kappa while Greek is active. Name each
+# letter key after what the active layout prints on it. Display only: it runs
+# once the order is settled, and touches nothing after the arrow, so what a row
+# runs and how it sorts and pads is unchanged. Only Greek is spelled out; a key
+# the active layout prints as anything else keeps its Latin name.
+display_active_layout() {
+  local lead_layout lead_variant layout variant
+
+  { read -r lead_layout; read -r lead_variant; } < <(leading_keyboard)
+  IFS=$'\t' read -r layout variant < <(active_keyboard)
+
+  if [[ -z $layout ]]; then
+    cat
+    return
+  fi
+
+  awk -v lead_layout="$lead_layout" -v lead_variant="$lead_variant" -v layout="$layout" -v variant="$variant" '
+    # The first keysym of every key, by keycode, as a layout compiles it.
+    function keymap(layout, variant, symbols,   command, line, section, code_by_name, sym_by_name, name) {
+      command = "xkbcli compile-keymap"
+      if (layout != "") command = command " --layout " layout
+      if (layout != "" && variant != "") command = command " --variant " variant
+      command = command " </dev/null"
+      section = ""
+      while ((command | getline line) > 0) {
+        if (line ~ /xkb_keycodes/) { section = "codes"; continue }
+        if (line ~ /xkb_symbols/)  { section = "syms";  continue }
+        if (section == "codes" && match(line, /<([A-Za-z0-9_]+)>\s*=\s*([0-9]+)\s*;/, m)) code_by_name[m[1]] = m[2]
+        if (section == "syms" && match(line, /key\s*<([A-Za-z0-9_]+)>\s*\{\s*\[\s*([^, \]]+)/, m)) sym_by_name[m[1]] = m[2]
+      }
+      close(command)
+      for (name in code_by_name) {
+        if (name in sym_by_name) symbols[code_by_name[name]] = sym_by_name[name]
+      }
+    }
+
+    BEGIN {
+      # Capital letters, except the final sigma: its capital reads as the S key.
+      split("alpha:Α beta:Β gamma:Γ delta:Δ epsilon:Ε zeta:Ζ eta:Η theta:Θ iota:Ι kappa:Κ lamda:Λ mu:Μ nu:Ν xi:Ξ omicron:Ο pi:Π rho:Ρ sigma:Σ tau:Τ upsilon:Υ phi:Φ chi:Χ psi:Ψ omega:Ω finalsmallsigma:ς", pairs, " ")
+      for (i in pairs) {
+        split(pairs[i], pair, ":")
+        greek["Greek_" pair[1]] = pair[2]
+      }
+
+      keymap(lead_layout, lead_variant, leading)
+      keymap(layout, variant, active)
+
+      for (code in leading) {
+        if (leading[code] ~ /^[a-z]$/) letter_code[toupper(leading[code])] = code
+      }
+    }
+
+    {
+      arrow = index($0, " → ")
+      if (arrow == 0) { print; next }
+
+      chords = substr($0, 1, arrow - 1)
+      shown = ""
+      while (match(chords, /(^|\+ )([A-Z])( |$)/, parts)) {
+        letter = parts[2]
+        name = active[letter_code[letter]]
+        if (name in greek) letter = greek[name]
+        shown = shown substr(chords, 1, RSTART - 1) parts[1] letter parts[3]
+        chords = substr(chords, RSTART + RLENGTH)
+      }
+
+      print shown chords substr($0, arrow)
+    }
+  '
+}
+
 output_binding_records_uncached() {
   local dynamic
 
@@ -673,6 +770,7 @@ output_binding_records_uncached() {
     parse_keycodes |
     parse_binding_records |
     prioritize_entries |
+    display_active_layout |
     translate_binding_records
 
   # Fail when Hyprland reported no binds so the fallout of a broken hyprctl
@@ -682,8 +780,9 @@ output_binding_records_uncached() {
 
 keybindings_cache_key() {
   {
-    printf 'v19\n'
+    printf 'v20\n'
     leading_keyboard
+    active_keyboard
     omarchy-language 2>/dev/null
     cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
     hyprctl devices 2>/dev/null | grep -F 'active keymap:'
