@@ -7,7 +7,10 @@ function normalizeEntry(value) {
   var type = String(value.type || value.kind || "")
   if (type === "text") {
     var text = String(value.text || "")
-    return text.trim().length > 0 ? { type: "text", text: text } : null
+    if (text.trim().length === 0) return null
+    var textEntry = { type: "text", text: text }
+    if (value.pinned === true) textEntry.pinned = true
+    return textEntry
   }
 
   if (type === "image") {
@@ -20,6 +23,7 @@ function normalizeEntry(value) {
     }
     if (value.capturedAt !== undefined && value.capturedAt !== null)
       entry.capturedAt = String(value.capturedAt)
+    if (value.pinned === true) entry.pinned = true
     return entry
   }
 
@@ -50,23 +54,75 @@ function parseHistory(raw) {
 
 function addEntry(history, entry, limit) {
   var normalized = normalizeEntry(entry)
+  var values = Array.isArray(history) ? history : []
+  if (!normalized) return trimHistory(values, limit)
+
+  var key = entryKey(normalized)
+  var next = []
+  for (var i = 0; i < values.length; i++) {
+    var existing = normalizeEntry(values[i])
+    if (!existing) continue
+    if (entryKey(existing) === key) {
+      if (existing.pinned) normalized.pinned = true
+    } else {
+      next.push(existing)
+    }
+  }
+  next.unshift(normalized)
+  return trimHistory(next, limit)
+}
+
+// Pins have their own small limit and never consume the ordinary history quota.
+var pinLimit = 10
+
+function pinnedCount(history) {
+  return (Array.isArray(history) ? history : []).filter(function(entry) { return entry.pinned === true }).length
+}
+
+function trimHistory(history, limit) {
   var max = limit === undefined || limit === null ? 100 : Number(limit)
   if (isNaN(max)) max = 100
   max = Math.max(0, max)
-  if (!normalized) return Array.isArray(history) ? history.slice(0, max) : []
-  if (max === 0) return []
-
-  var key = entryKey(normalized)
-  var next = [normalized]
+  var next = []
   var values = Array.isArray(history) ? history : []
-
-  for (var i = 0; i < values.length && next.length < max; i++) {
-    var existing = normalizeEntry(values[i])
-    if (!existing || entryKey(existing) === key) continue
-    next.push(existing)
+  var ordinaryCount = 0
+  for (var i = 0; i < values.length; i++) {
+    var entry = normalizeEntry(values[i])
+    if (!entry) continue
+    if (entry.pinned || ordinaryCount < max) {
+      next.push(entry)
+      if (!entry.pinned) ordinaryCount++
+    }
   }
-
   return next
+}
+
+function pinEntry(history, entry, limit) {
+  var values = Array.isArray(history) ? history : []
+  var normalized = normalizeEntry(entry)
+  if (!normalized) return { status: "invalid", history: values.slice() }
+  var key = entryKey(normalized)
+  for (var i = 0; i < values.length; i++) {
+    if (entryKey(values[i]) === key && values[i].pinned)
+      return { status: "already-pinned", history: values.slice() }
+  }
+  if (pinnedCount(values) >= pinLimit) return { status: "limit", history: values.slice() }
+  normalized.pinned = true
+  return { status: "pinned", history: addEntry(values, normalized, limit) }
+}
+
+function togglePinnedAt(history, index, limit) {
+  var values = Array.isArray(history) ? history : []
+  var target = Number(index)
+  if (!Number.isInteger(target) || target < 0 || target >= values.length)
+    return { status: "invalid", history: values.slice() }
+  if (!values[target].pinned) return pinEntry(values, values[target], limit)
+  var next = values.slice()
+  var released = normalizeEntry(next.splice(target, 1)[0])
+  delete released.pinned
+  // Give a released pin a fresh history slot instead of evicting it at capacity.
+  next.unshift(released)
+  return { status: "unpinned", history: trimHistory(next, limit) }
 }
 
 function removeEntryAt(history, index) {
@@ -195,7 +251,14 @@ function displayRows(history, query, limit, tr, trn, fmt) {
 
   var rows = []
 
-  for (var i = 0; i < values.length; i++) {
+  // Sort indexes rather than history itself: paste/open helpers address the
+  // on-disk history by index, including when searching or showing pins first.
+  var indexes = []
+  for (var p = 0; p < values.length; p++) if (values[p].pinned) indexes.push(p)
+  for (var u = 0; u < values.length; u++) if (!values[u].pinned) indexes.push(u)
+
+  for (var n = 0; n < indexes.length; n++) {
+    var i = indexes[n]
     var entry = cappedEntry(normalizeEntry(values[i]))
     if (!entry) continue
     if (needle && searchableText(entry).toLowerCase().indexOf(needle) < 0) continue
@@ -211,6 +274,7 @@ function displayRows(history, query, limit, tr, trn, fmt) {
       previewImage: previewPath,
       path: isImage ? String(entry.path || "") : (isFile && paths.length === 1 ? paths[0] : ""),
       mime: isImage ? String(entry.mime || "image/png") : "text/plain",
+      pinned: values[i].pinned === true,
       index: i
     })
     if (rows.length >= max) break
@@ -225,6 +289,11 @@ if (typeof module !== "undefined") {
     entryKey: entryKey,
     parseHistory: parseHistory,
     addEntry: addEntry,
+    pinLimit: pinLimit,
+    pinnedCount: pinnedCount,
+    trimHistory: trimHistory,
+    pinEntry: pinEntry,
+    togglePinnedAt: togglePinnedAt,
     removeEntryAt: removeEntryAt,
     clearHistory: clearHistory,
     parseEntryJson: parseEntryJson,
