@@ -7,6 +7,11 @@ if not keyboard.jis() then
   return
 end
 
+-- The key in the US grave position sends Zenkaku_Hankaku on JIS keyboards,
+-- so the grave shortcuts cannot open or move windows to the Quake console.
+o.bind("SUPER + Zenkaku_Hankaku", "Toggle Quake console", hl.dsp.workspace.toggle_special("qconsole"))
+o.bind("SUPER + SHIFT + Zenkaku_Hankaku", "Move window to Quake console", hl.dsp.window.move({ workspace = "special:qconsole", follow = false }))
+
 -- Same down/up split as the universal clipboard shortcuts in clipboard.lua.
 local function send_shortcut_once(mods, key)
   hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))

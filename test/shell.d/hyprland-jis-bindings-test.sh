@@ -58,6 +58,14 @@ end
 
 hl = {
   dsp = {
+    workspace = {
+      toggle_special = function(name) return "togglespecialworkspace " .. name end,
+    },
+    window = {
+      move = function(options)
+        return ("movetoworkspace%s %s"):format(options.follow == false and "silent" or "", options.workspace)
+      end,
+    },
     send_key_state = function(key)
       return ("send %s %s %s"):format(key.mods, key.key, key.state)
     end,
@@ -74,6 +82,10 @@ require("default.hypr.bindings.input-method")
 require("default.hypr.bindings.jis")
 
 local bind = binds[os.getenv("TEST_KEYS")]
+if not bind then
+  print("unbound")
+  return
+end
 if bind.options.non_consuming then
   print("non_consuming")
 end
@@ -97,6 +109,18 @@ assert_fires() {
 }
 
 zoom="CTRL + SHIFT + semicolon"
+assert_fires "Super + the JIS half/full-width key toggles the Quake console" \
+  "exec togglespecialworkspace qconsole" "SUPER + Zenkaku_Hankaku" "foot"
+assert_fires "Super + Shift + the JIS half/full-width key moves a window without following it" \
+  "exec movetoworkspacesilent special:qconsole" "SUPER + SHIFT + Zenkaku_Hankaku" "foot"
+for layout in us us,jp; do
+  for keys in "SUPER + Zenkaku_Hankaku" "SUPER + SHIFT + Zenkaku_Hankaku"; do
+    TEST_LAYOUT="$layout" assert_fires "JIS Quake shortcuts are absent when $layout leads" "unbound" "$keys" "foot"
+  done
+done
+TEST_LAYOUT=jp,us assert_fires "the Quake shortcut applies when Japanese leads multiple layouts" \
+  "exec togglespecialworkspace qconsole" "SUPER + Zenkaku_Hankaku" "foot"
+
 assert_fires "the JIS + key zooms in with Ctrl + keypad plus" \
   $'send CTRL KP_Add down\nsend CTRL KP_Add up' "$zoom" "chromium"
 assert_fires "the JIS + key zooms in windows without a class" \
