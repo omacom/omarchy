@@ -9,6 +9,7 @@ require_command jq
 test_tmp=$(mktemp -d)
 watch_pid=""
 events_fd=""
+relight_pid=""
 
 # The watcher forks delayed clamshell retries and the recovery loop. Orphaning
 # those would leave them running against a deleted test tree.
@@ -41,8 +42,28 @@ stop_watcher() {
   return 0
 }
 
+# A relight run on its own waits on a monitor that will not wake, so a failed
+# assertion would otherwise leave it running against a deleted test tree.
+stop_relight() {
+  local child descendants
+
+  if [[ -n $relight_pid ]]; then
+    descendants=$(pgrep -P "$relight_pid" 2>/dev/null || true)
+    for child in $descendants; do
+      descendants+=" $(pgrep -P "$child" 2>/dev/null || true)"
+    done
+
+    kill -KILL "$relight_pid" $descendants 2>/dev/null || true
+    wait "$relight_pid" 2>/dev/null || true
+    relight_pid=""
+  fi
+
+  return 0
+}
+
 cleanup() {
   stop_watcher
+  stop_relight
   rm -rf "$test_tmp"
 }
 trap cleanup EXIT
@@ -523,3 +544,4 @@ pass "a second monitor is tried while one that will not wake stays dark"
 write_connector DP-1 connected enabled
 write_connector DP-2 connected enabled
 wait "$relight_pid" || true
+relight_pid=""
