@@ -1,0 +1,10 @@
+﻿[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = omarchy-settings
+
+[Action]
+Description = Set mpv hwdec based on nouveau detection (GH #17210)
+When = PostTransaction
+Exec = /usr/bin/python3 /usr/share/omarchy/scripts/mpv-setup.py
