@@ -14,3 +14,6 @@
 
 # Edit the current image in Omasnap and quit the viewer
 <Ctrl+e> = exec omasnap "$imv_current_file" & ; quit
+
+# Copy the current image to the clipboard
+<Ctrl+c> = exec magick "$imv_current_file" png:- | wl-copy --type image/png
