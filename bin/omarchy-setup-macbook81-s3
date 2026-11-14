@@ -1,0 +1,82 @@
+#!/bin/bash
+
+# omarchy:summary=Install or remove opt-in MacBook8,1 deep-S3 SPI recovery
+# omarchy:args=[status|enable|disable]
+# omarchy:examples=omarchy setup macbook81-s3 status | omarchy setup macbook81-s3 enable | omarchy setup macbook81-s3 disable
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+HOOK=/usr/lib/systemd/system-sleep/omarchy-macbook81-s3
+LIB=/usr/local/lib/omarchy/macbook81-s3/lpss.py
+SOURCE_HOOK="$OMARCHY_PATH/default/systemd/system-sleep/omarchy-macbook81-s3"
+SOURCE_LIB="$OMARCHY_PATH/default/apple/macbook81-lpss.py"
+
+fail() { echo "MacBook8,1 S3: $*" >&2; exit 1; }
+require_model() {
+  [[ $(cat /sys/class/dmi/id/product_name 2>/dev/null) == "MacBook8,1" ]] || fail 'Only MacBook8,1 is supported'
+}
+require_root() { (( EUID == 0 )) || fail 'Run via omarchy setup macbook81-s3 (sudo required)'; }
+require_pio() {
+  grep -Eq '(^|[[:space:]])initcall_blacklist=dw_pci_driver_init([[:space:]]|$)' /proc/cmdline ||
+    fail 'SPI PIO kernel workaround missing; see omacom/omarchy#9735'
+}
+require_no_collisions() {
+  if [[ -e $HOOK ]] && ! cmp -s "$HOOK" "$SOURCE_HOOK"; then
+    fail "$HOOK already exists and differs (possibly from the all-in-one PoC); not replacing it"
+  fi
+  if [[ -e $LIB ]] && ! cmp -s "$LIB" "$SOURCE_LIB"; then
+    fail "$LIB already exists and differs; not replacing it"
+  fi
+}
+show_status() {
+  echo "Model: $(cat /sys/class/dmi/id/product_name 2>/dev/null || echo unknown)"
+  echo "Sleep: $(cat /sys/power/mem_sleep 2>/dev/null || echo unavailable)"
+  if grep -Eq '(^|[[:space:]])initcall_blacklist=dw_pci_driver_init([[:space:]]|$)' /proc/cmdline; then
+    echo 'SPI PIO: present'
+  else
+    echo 'SPI PIO: absent'
+  fi
+  if [[ -f $HOOK ]]; then
+    echo "Hook: present ($HOOK)"
+  else
+    echo 'Hook: absent'
+  fi
+}
+
+case "${1:-status}" in
+  status) show_status ;;
+  enable)
+    require_model
+    require_root
+    require_pio
+    [[ -r /sys/power/mem_sleep ]] && grep -qw 'deep' /sys/power/mem_sleep ||
+      fail 'This kernel does not report deep sleep support'
+    [[ -f $SOURCE_HOOK && -f $SOURCE_LIB ]] || fail 'Packaged S3 support files missing'
+    require_no_collisions
+    install -Dm644 "$SOURCE_LIB" "$LIB"
+    install -Dm755 "$SOURCE_HOOK" "$HOOK"
+    echo 'S3 recovery hook installed; sleep mode NOT changed.'
+    echo 'For one manual S3 test: echo deep | sudo tee /sys/power/mem_sleep; sudo systemctl suspend'
+    ;;
+  disable)
+    require_model
+    require_root
+    # Do not leave boot-time deep mode enabled without a restore hook.
+    if grep -RsEq 'mem_sleep_default=deep' /etc/limine-entry-tool.d /etc/kernel 2>/dev/null; then
+      fail 'Persistent mem_sleep_default=deep found; remove/disable it and rebuild the boot image BEFORE removing the S3 hook'
+    fi
+    if [[ -e $HOOK ]] && ! cmp -s "$HOOK" "$SOURCE_HOOK"; then
+      fail 'Installed hook differs from this package; not removing a manually managed hook'
+    fi
+    if [[ -e $LIB ]] && ! cmp -s "$LIB" "$SOURCE_LIB"; then
+      fail 'Installed LPSS utility differs from this package; not removing a manually managed utility'
+    fi
+    if [[ -w /sys/power/mem_sleep ]]; then
+      echo s2idle > /sys/power/mem_sleep
+    fi
+    rm -f "$HOOK" "$LIB"
+    echo 'S3 hook removed; use s2idle. Persistent boot parameters were not modified.'
+    ;;
+  *) echo 'Usage: omarchy setup macbook81-s3 [status|enable|disable]' >&2; exit 2 ;;
+esac

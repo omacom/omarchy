@@ -1,0 +1,87 @@
+#!/bin/bash
+# MacBook8,1 SPI LPSS register restore for opt-in deep S3 sleep.
+# Not installed or enabled by default. See omarchy-setup-macbook81-s3.
+# This deliberately excludes optional Bluetooth UART/MMIO recovery.
+
+set -o pipefail
+
+SPI=0000:00:15.4
+SPI_DRIVER=/sys/bus/pci/drivers/pxa2xx_spi_pci
+RUN=/run/omarchy-macbook81-s3
+LPSS=/usr/local/lib/omarchy/macbook81-s3/lpss.py
+
+log() { logger -t omarchy-macbook81-s3 -- "$*"; }
+
+[[ $(cat /sys/class/dmi/id/product_name 2>/dev/null) == "MacBook8,1" ]] || exit 0
+case "${2:-}" in suspend|hybrid-sleep|suspend-then-hibernate) ;; *) exit 0 ;; esac
+[[ -r /sys/power/mem_sleep ]] && grep -Fq '[deep]' /sys/power/mem_sleep || exit 0
+
+# This hook is intended for the PIO workaround from omacom/omarchy#9735.
+if ! grep -Eq '(^|[[:space:]])initcall_blacklist=dw_pci_driver_init([[:space:]]|$)' /proc/cmdline; then
+  log 'SPI PIO workaround is absent; falling back to s2idle'
+  [[ ${1:-} != pre ]] || echo s2idle > /sys/power/mem_sleep || true
+  exit 0
+fi
+
+spi_ok() { grep -Fq 'Apple SPI Keyboard' /proc/bus/input/devices 2>/dev/null; }
+
+case "${1:-}" in
+  pre)
+    mkdir -p "$RUN"
+    rm -f "$RUN/prepared" "$RUN/spi.regs"
+    if ! modprobe -r applespi; then
+      log 'Cannot unload applespi before S3; falling back to s2idle'
+      echo s2idle > /sys/power/mem_sleep || true
+      exit 0
+    fi
+    if [[ -L /sys/bus/pci/devices/$SPI/driver ]]; then
+      if ! echo "$SPI" > "$SPI_DRIVER/unbind"; then
+        log 'SPI unbind failed; falling back to s2idle'
+        modprobe applespi || true
+        echo s2idle > /sys/power/mem_sleep || true
+        exit 0
+      fi
+    fi
+    if ! python3 "$LPSS" save "$SPI" "$RUN/spi.regs" 2>&1 | logger -t omarchy-macbook81-s3; then
+      log 'Cannot snapshot LPSS registers; falling back to s2idle'
+      echo "$SPI" > "$SPI_DRIVER/bind" 2>/dev/null || true
+      modprobe applespi || true
+      echo s2idle > /sys/power/mem_sleep || true
+      exit 0
+    fi
+    if ! touch "$RUN/prepared"; then
+      log 'Cannot mark prepared state; falling back to s2idle'
+      echo "$SPI" > "$SPI_DRIVER/bind" 2>/dev/null || true
+      modprobe applespi || true
+      echo s2idle > /sys/power/mem_sleep || true
+      exit 0
+    fi
+    log 'S3 LPSS context saved'
+    ;;
+  post)
+    [[ -f $RUN/prepared ]] || exit 0
+    rm -f "$RUN/prepared"
+    # Restore the SPI PCI memory decode so resource0 is accessible after S3.
+    setpci -s "${SPI#0000:}" COMMAND.w=0006 || log 'setpci failed'
+    if ! python3 "$LPSS" restore "$SPI" "$RUN/spi.regs" 2>&1 | logger -t omarchy-macbook81-s3; then
+      log 'SPI LPSS restore failed; switching to s2idle until next reboot'
+      echo s2idle > /sys/power/mem_sleep || true
+    fi
+    if [[ ! -L /sys/bus/pci/devices/$SPI/driver ]]; then
+      echo "$SPI" > "$SPI_DRIVER/bind" || log 'SPI rebind failed'
+    fi
+    modprobe applespi || log 'applespi reload failed'
+    restored=0
+    for n in {1..12}; do
+      if spi_ok; then restored=1; break; fi
+      sleep 0.25
+    done
+    if (( restored )); then
+      log 'applespi OK after deep S3'
+    else
+      log 'applespi did not return; switching to s2idle until next reboot'
+      echo s2idle > /sys/power/mem_sleep || true
+    fi
+    ;;
+esac
+exit 0
