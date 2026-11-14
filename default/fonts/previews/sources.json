@@ -1,0 +1,45 @@
+{
+  "cascadia": {
+    "url": "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.4.0/CascadiaMono.tar.xz",
+    "archiveMember": "CaskaydiaMonoNerdFont-Regular.ttf",
+    "licenseMember": "LICENSE",
+    "sourceSha256": "3076cdde3a97bfa2c7c389efc8ca57e6f68d8b406c95cae460549058bf2c5622",
+    "sourceFamily": "CaskaydiaMono Nerd Font",
+    "previewFamily": "Omarchy Preview cascadia"
+  },
+  "meslo": {
+    "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/Meslo/L/Regular/MesloLGLNerdFont-Regular.ttf",
+    "licenseUrl": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/Meslo/L/Regular/LICENSE.txt",
+    "sourceSha256": "5343e2b5f9f0e520f6bffa58d6db13043ac7736458a1bf9aceb6a9fd94b1f0c0",
+    "sourceFamily": "MesloLGL Nerd Font",
+    "previewFamily": "Omarchy Preview meslo"
+  },
+  "fira": {
+    "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/FiraCode/Regular/FiraCodeNerdFont-Regular.ttf",
+    "licenseUrl": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/FiraCode/Regular/LICENSE",
+    "sourceSha256": "29b619655612cb273e034737408b9508a04beb63c1ddbdfaa9a6846c409c7a2e",
+    "sourceFamily": "FiraCode Nerd Font",
+    "previewFamily": "Omarchy Preview fira"
+  },
+  "victor": {
+    "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/VictorMono/Regular/VictorMonoNerdFont-Regular.ttf",
+    "licenseUrl": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/VictorMono/Regular/LICENSE.txt",
+    "sourceSha256": "25ed11f747edf0599af464a51e0b05180ba2b9710da48fa8a4a5593d60ad76b2",
+    "sourceFamily": "VictorMono Nerd Font",
+    "previewFamily": "Omarchy Preview victor"
+  },
+  "bitstream": {
+    "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/BitstreamVeraSansMono/Regular/BitstromWeraNerdFont-Regular.ttf",
+    "licenseUrl": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/BitstreamVeraSansMono/Regular/Bitstream%20Vera%20License.txt",
+    "sourceSha256": "3c23e1014418e8aca8cad97176f0c27e0e2f2c2a768b98104708d23aaa631c45",
+    "sourceFamily": "BitstromWera Nerd Font",
+    "previewFamily": "Omarchy Preview bitstream"
+  },
+  "iosevka": {
+    "url": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/Iosevka/IosevkaNerdFontMono-Regular.ttf",
+    "licenseUrl": "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/v3.4.0/patched-fonts/Iosevka/LICENSE.md",
+    "sourceSha256": "208be07f3155b7f1d0b33deaff4d675ae1fa1f59fb7d660b39279e21bcecf06a",
+    "sourceFamily": "Iosevka Nerd Font Mono",
+    "previewFamily": "Omarchy Preview iosevka"
+  }
+}
