@@ -44,11 +44,12 @@ announce_network() {
     until nm-online -q -t 86400; do :; done
   fi
 
-  # Both setups install packages, so they wait for the link rather than for the
+  # Optional setup invitations wait for the link rather than for the
   # first update. Each invites only once, and only when there is something to
   # set up.
   bash "$OMARCHY_PATH/install/user/first-run/setup-agent.hook"
   bash "$OMARCHY_PATH/install/user/first-run/setup-fingerprint.hook"
+  bash "$OMARCHY_PATH/install/user/first-run/setup-rog-ally.hook"
 
   # A fresh install from current media has nothing to update, and a toast
   # that leads nowhere teaches people to dismiss the next one.

@@ -1,6 +1,7 @@
 # Fix audio volume on Asus ROG laptops by using a soft mixer.
 
-if omarchy-hw-asus-rog; then
+# RC71L is a handheld; do not apply the ROG laptop setup.
+if omarchy-hw-asus-rog && ! omarchy-hw-rog-ally; then
   mkdir -p ~/.config/wireplumber/wireplumber.conf.d/
   cp "$OMARCHY_PATH/default/wireplumber/wireplumber.conf.d/alsa-soft-mixer.conf" ~/.config/wireplumber/wireplumber.conf.d/
   rm -rf ~/.local/state/wireplumber/default-routes

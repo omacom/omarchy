@@ -2,7 +2,8 @@
 # The mic boost is way too high by default, causing clipping.
 # Sets levels and stores ALSA state so it persists across reboots.
 
-if omarchy-hw-asus-rog; then
+# RC71L is a handheld; do not apply the ROG laptop setup.
+if omarchy-hw-asus-rog && ! omarchy-hw-rog-ally; then
   for card in /proc/asound/card*/codec*; do
     if grep -q "ALC285" "$card" 2>/dev/null; then
       cardnum=$(echo "$card" | grep -oP 'card\K\d+')
