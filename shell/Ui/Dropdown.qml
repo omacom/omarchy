@@ -150,6 +150,11 @@ Item {
 
       Popup {
         id: popup
+        readonly property var shadowInsets: Shadow.surfaceSpec("popups")
+        leftMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.left) : margins
+        rightMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.right) : margins
+        topMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.top) : margins
+        bottomMargin: shadowInsets.enabled ? Math.max(margins, shadowInsets.bottom) : margins
         x: 0
         y: trigger.height + Style.spacing.xxs
         closePolicy: Popup.CloseOnPressOutsideParent | Popup.CloseOnEscape
@@ -165,6 +170,7 @@ Item {
         focus: true
 
         background: BorderSurface {
+          shadowSection: "popups"
           color: root.background
           borderSpec: root.popupBorderSpec
           radius: Style.cornerRadius

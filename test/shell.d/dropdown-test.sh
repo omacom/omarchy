@@ -22,7 +22,9 @@ trap 'rm -rf "$fixture"' EXIT
 mkdir -p "$fixture/qs/Commons" "$fixture/qs/Ui" "$fixture/home"
 cp "$SHELL_TEST_DIR/dropdown/Commons/"* "$fixture/qs/Commons/"
 cp "$ROOT/shell/Commons/Border.qml" "$ROOT/shell/Commons/BorderGeometry.js" "$fixture/qs/Commons/"
-cp "$ROOT/shell/Ui/Dropdown.qml" "$ROOT/shell/Ui/BorderSurface.qml" "$ROOT/shell/Ui/BorderOverlay.qml" "$fixture/qs/Ui/"
+cp "$ROOT/shell/Commons/Shadow.qml" "$ROOT/shell/Commons/ShadowGeometry.js" "$fixture/qs/Commons/"
+printf 'singleton Shadow 1.0 Shadow.qml\n' >>"$fixture/qs/Commons/qmldir"
+cp "$ROOT/shell/Ui/Dropdown.qml" "$ROOT/shell/Ui/BorderSurface.qml" "$ROOT/shell/Ui/BorderOverlay.qml" "$ROOT/shell/Ui/SurfaceShadow.qml" "$fixture/qs/Ui/"
 cp "$SHELL_TEST_DIR/dropdown/qml/"* "$fixture/"
 
 output=$(HOME="$fixture/home" XDG_CONFIG_HOME="$fixture/home/.config" XDG_STATE_HOME="$fixture/home/.state" \

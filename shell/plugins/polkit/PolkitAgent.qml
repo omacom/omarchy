@@ -245,6 +245,7 @@ Item {
 
     BorderSurface {
       id: card
+      shadowSection: "polkit"
       width: root.cardWidth
       height: root.cardHeight
       radius: root.cornerRadius
