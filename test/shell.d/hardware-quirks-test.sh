@@ -399,7 +399,7 @@ hardware/surface.sh|surface-intel|0|pkg-add linux-firmware-marvell
 hardware/surface.sh|surface-intel+unreadable|0
 hardware/surface.sh|surface-snapdragon|0
 hardware/fix-surface-keyboard.sh|surface-intel|0|wrote etc/mkinitcpio.conf.d/surface_device_modules.conf
-hardware/fix-surface-keyboard.sh|surface-intel-no-pinctrl|0
+hardware/fix-surface-keyboard.sh|surface-intel-no-pinctrl|0|wrote etc/mkinitcpio.conf.d/surface_device_modules.conf
 hardware/fix-surface-keyboard.sh|surface-snapdragon|0
 hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n1|0|pkg-add pipewire-libcamera|wrote etc/udev/rules.d/70-thinkpad-t14s-camera.rules
 hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n2|0|pkg-add pipewire-libcamera|wrote etc/udev/rules.d/70-thinkpad-t14s-camera.rules
@@ -495,7 +495,7 @@ pass "hardware quirks apply on their own hardware and nowhere else"
 
 machine surface-intel
 run_leaf hardware/fix-surface-keyboard.sh >/dev/null
-[[ $(<"$root/etc/mkinitcpio.conf.d/surface_device_modules.conf") == "MODULES=(pinctrl_tigerlake "*")" ]] ||
+[[ $(<"$root/etc/mkinitcpio.conf.d/surface_device_modules.conf") == "MODULES+=(pinctrl_tigerlake "*")" ]] ||
   fail "Surface keyboard setup lists the detected pinctrl module first" "$(<"$root/etc/mkinitcpio.conf.d/surface_device_modules.conf")"
 pass "Surface keyboard setup builds its module list around the detected pinctrl module"
 
