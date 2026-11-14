@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "omarchy.camera",
+  "name": "Camera",
+  "version": "1.0.0",
+  "author": "Omarchy",
+  "description": "Webcam presence and in-use indicator",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Camera.qml"
+  },
+  "barWidget": {
+    "displayName": "Camera",
+    "description": "Webcam presence and in-use indicator",
+    "category": "Video",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  },
+  "omarchy": {
+    "clonePaths": [
+      {
+        "source": "camera-busy.sh",
+        "target": "camera-busy.sh"
+      }
+    ]
+  }
+}
