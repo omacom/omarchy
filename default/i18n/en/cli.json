@@ -249,6 +249,7 @@
   "ownerSetup.tip.workspaces": "Super + 1 through 0 switches workspaces, add Shift to bring the window",
   "ownerSetup.tipLine": "Tip: %1",
   "perplexity.deleteData": "Also delete your Perplexity data (%1: logins, settings, secret vault and device identity)?",
+  "pkg.removing": "Removing %1",
   "plugin.barSection": "Place %1 in which bar section?",
   "plugin.cloneTitle": "Clone plugin",
   "plugin.confirmAdd": "Clone and add this plugin?",
