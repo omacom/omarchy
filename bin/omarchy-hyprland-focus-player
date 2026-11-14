@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# omarchy:summary=Focus the Hyprland window of an MPRIS media player
+# omarchy:args=<mpris-bus-name> [track-title]
+# omarchy:examples=omarchy hyprland focus player org.mpris.MediaPlayer2.chromium.instance4242 "Song title"
+
+usage() {
+  echo "Usage: omarchy-hyprland-focus-player <mpris-bus-name> [track-title]" >&2
+  exit 1
+}
+
+bus_name=${1:-}
+track_title=${2:-}
+[[ $bus_name == org.mpris.MediaPlayer2.* ]] || usage
+
+# Browsers and most Electron apps report CanRaise=false over MPRIS, so the
+# media popup can't ask them to show themselves. Find the window instead: the
+# player's bus name resolves to the PID that owns it, and Hyprland knows which
+# windows belong to that PID. A browser shares one PID across every window, so
+# prefer the one whose title carries the current track (the playing tab's
+# title), then the window focused last.
+pid=$(busctl --user status "$bus_name" 2>/dev/null | sed -n 's/^PID=\([0-9][0-9]*\)$/\1/p')
+[[ -n $pid ]] || exit 1
+
+address=$(
+  hyprctl clients -j 2>/dev/null |
+    jq -r --argjson pid "$pid" --arg title "$track_title" \
+      '[.[] | select(.pid == $pid)] | sort_by(.focusHistoryID) |
+       first(
+         (.[] | select($title != "" and ((.title // "") | ascii_downcase | contains($title | ascii_downcase)))),
+         .[]
+       ).address // empty'
+)
+
+[[ -n $address ]] || exit 1
+
+hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || \
+  hyprctl dispatch focuswindow "address:$address" >/dev/null

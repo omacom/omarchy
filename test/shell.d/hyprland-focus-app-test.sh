@@ -70,3 +70,32 @@ grep -F 'hl.dsp.focus({ window = "address:0xrecent" })' "$dispatch_log" >/dev/nu
   fail "app focus picks the window focused last"
 
 pass "app focus picks the window focused last among several"
+
+cat >"$mock_bin/busctl" <<'SH2'
+#!/bin/bash
+[[ $1 == "--user" && $2 == "status" && $3 == "org.mpris.MediaPlayer2.brave.instance42" ]] && echo "PID=42"
+SH2
+chmod +x "$mock_bin/busctl"
+
+# A browser owns every one of its windows under one PID; the playing tab's
+# window carries the track in its title even when another was focused later.
+clients_json='[
+  {"address":"0xother","pid":7,"title":"Mr. Crowley","focusHistoryID":0},
+  {"address":"0xmail","pid":42,"title":"Inbox - Mail","focusHistoryID":1},
+  {"address":"0xmusic","pid":42,"title":"Mr. Crowley - Apple Music","focusHistoryID":3}
+]'
+PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
+  OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" \
+  bash "$ROOT/bin/omarchy-hyprland-focus-player" org.mpris.MediaPlayer2.brave.instance42 "mr. crowley"
+
+grep -F 'hl.dsp.focus({ window = "address:0xmusic" })' "$dispatch_log" >/dev/null || \
+  fail "player focus picks the player's window showing the track"
+
+PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
+  OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" \
+  bash "$ROOT/bin/omarchy-hyprland-focus-player" org.mpris.MediaPlayer2.brave.instance42 "Unlisted song"
+
+grep -F 'hl.dsp.focus({ window = "address:0xmail" })' "$dispatch_log" >/dev/null || \
+  fail "player focus falls back to the player's window focused last"
+
+pass "player focus finds the playing window among a browser's windows"

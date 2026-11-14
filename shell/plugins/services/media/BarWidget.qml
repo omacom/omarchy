@@ -23,6 +23,15 @@ BarWidget {
   function close() { popupOpen = false }
   property real maxLabelWidth: 180
 
+  // Browsers and most Electron apps report CanRaise=false over MPRIS, so
+  // fall back to finding the player's Hyprland window by its owning PID.
+  function focusActivePlayer() {
+    if (!activePlayer || !activePlayer.dbusName) return
+    if (activePlayer.canRaise) activePlayer.raise()
+    else Util.execArgv(["omarchy-hyprland-focus-player", String(activePlayer.dbusName), String(activePlayer.trackTitle || "")])
+    popupOpen = false
+  }
+
   visible: hasMedia
   implicitWidth: hasMedia ? row.implicitWidth + Style.space(14) : 0
   implicitHeight: barSize
@@ -154,7 +163,7 @@ BarWidget {
 
         Column {
           spacing: Style.space(4)
-          width: parent.width - Style.space(74)
+          width: parent.width - Style.space(74) - (goToPlayer.visible ? goToPlayer.width + parent.spacing : 0)
 
           Text {
             textFormat: Text.PlainText
@@ -188,6 +197,17 @@ BarWidget {
             width: parent.width
             visible: text !== ""
           }
+        }
+
+        Button {
+          id: goToPlayer
+          iconText: "󰏌"
+          tooltipText: I18n.t("media.goToPlayer")
+          foreground: root.bar.foreground
+          horizontalPadding: Style.spacing.controlPaddingY
+          verticalPadding: Style.spacing.controlPaddingY
+          visible: !!root.activePlayer && !!root.activePlayer.dbusName
+          onClicked: root.focusActivePlayer()
         }
       }
 
