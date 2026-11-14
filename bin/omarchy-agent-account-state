@@ -160,13 +160,20 @@ def identity(provider: str, home: Path) -> dict[str, str]:
   if provider == "grok":
     return grok_identity(home)
 
-  auth = read_json(home / "auth.json") or {}
+  return codex_identity(read_json(home / "auth.json") or {})
+
+
+def codex_identity(auth: dict[str, Any]) -> dict[str, str]:
   tokens = auth.get("tokens") or {}
   claims = jwt_claims(str(tokens.get("id_token") or ""))
   openai = claims.get("https://api.openai.com/auth") or {}
   plan = str(openai.get("chatgpt_plan_type") or "")
+  workspace = str(tokens.get("account_id") or openai.get("chatgpt_account_id") or "")
+  user = str(openai.get("chatgpt_user_id") or openai.get("user_id") or "")
   return {
-    "accountId": str(tokens.get("account_id") or openai.get("chatgpt_account_id") or ""),
+    # A business workspace has several members, each with their own limits.
+    # Keep older logins without a user claim readable, as workspace-only.
+    "accountId": f"{workspace}\n{user}" if workspace and user else workspace,
     "email": str(claims.get("email") or ""),
     "org": "",
     "plan": plan[0].upper() + plan[1:] if plan else "",

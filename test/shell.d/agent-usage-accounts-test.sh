@@ -119,23 +119,31 @@ PY
 
 home=$(new_home codex)
 accounts="$home/.local/state/omarchy/agents/accounts"
-mkdir -p "$home/.codex/sessions" "$accounts/codex/side"
-touch "$home/.codex/auth.json" "$accounts/codex/side/auth.json"
-cat >"$accounts/codex.json" <<JSON
-{
-  "active": "main",
-  "accounts": [
-    {"id": "main", "label": "Main", "home": "", "primary": true},
-    {"id": "side", "label": "Side", "home": "$accounts/codex/side", "primary": false}
-  ]
-}
-JSON
+mkdir -p "$home/.codex/sessions"
+HOME="$home" XDG_STATE_HOME="$home/.local/state" python3 - <<'PY'
+import importlib.machinery, importlib.util
+from agent_usage_fixtures import *
+
+loader = importlib.machinery.SourceFileLoader("accounts", str(ROOT / "bin/omarchy-agent-account-state"))
+spec = importlib.util.spec_from_loader(loader.name, loader)
+state = importlib.util.module_from_spec(spec)
+loader.exec_module(state)
+
+def login(directory, workspace, user, email):
+  write_json(directory / "auth.json", {"tokens": {"account_id": workspace, "id_token": jwt({"email": email, "https://api.openai.com/auth": {"chatgpt_user_id": user}})}})
+
+login(Path.home() / ".codex", "business", "first", "me@example.com")
+for label, workspace, user, email in [("Side", "business", "second", "side@example.com"), ("University", "university", "first", "me@example.com")]:
+  pending = state.begin("codex", label)
+  login(pending, workspace, user, email)
+  state.register("codex", label, pending)
+PY
 
 # A stand-in app-server that answers for whichever home it was started in.
 stub_cli "$home" codex >/dev/null <<PY
 #!$(command -v python3)
 import json, os, sys
-used = 91 if os.environ.get("CODEX_HOME", "").endswith("/side") else 40
+used = 91 if os.environ.get("CODEX_HOME", "").endswith("/side") else 65 if os.environ.get("CODEX_HOME", "").endswith("/university") else 40
 for line in sys.stdin:
   message = json.loads(line)
   if "id" not in message:
@@ -148,18 +156,26 @@ PY
 
 record=$(run_collector "$home" codex)
 expect_jq "Codex record asks each account's own app-server" '[.accounts[] | {id, active, used: .limits[0].percent}]' \
-  '[{"id":"main","active":true,"used":0.4},{"id":"side","active":false,"used":0.91}]' "$record"
+  '[{"id":"main","active":true,"used":0.4},{"id":"side","active":false,"used":0.91},{"id":"university","active":false,"used":0.65}]' "$record"
+expect_jq "Codex rows distinguish workspace members and keep same-email workspaces" '[.accounts[] | .email]' \
+  '["me@example.com","side@example.com","me@example.com"]' "$record"
 expect_jq "Codex record's own limits describe the active account" '.limits[0].percent' '0.4' "$record"
 
 record=$(run_collector "$home" codex CODEX_HOME="$accounts/codex/side")
-expect_jq "Main's Codex limits come from ~/.codex whatever CODEX_HOME says" '[.accounts[] | .limits[0].percent]' '[0.4,0.91]' "$record"
+expect_jq "Main's Codex limits come from ~/.codex whatever CODEX_HOME says" '[.accounts[] | .limits[0].percent]' '[0.4,0.91,0.65]' "$record"
+
+jq '.active = "side"' "$accounts/codex.json" >"$home/switched.json"
+mv "$home/switched.json" "$accounts/codex.json"
+record=$(run_collector "$home" codex)
+expect_jq "switching a workspace member updates the panel's active row and top-level limits" '[.limits[0].percent, [.accounts[] | .active]]' \
+  '[0.91,[false,true,false]]' "$record"
 
 # A secondary home nobody signed in to is waiting for auth, even while
 # ~/.codex holds a login, and its app-server is never started.
 rm "$accounts/codex/side/auth.json"
 record=$(run_collector "$home" codex)
 expect_jq "a signed-out Codex home waits for auth on its own" '[.accounts[] | {id, used: .limits[0].percent, status: .usageStatusText}]' \
-  '[{"id":"main","used":0.4,"status":""},{"id":"side","used":null,"status":"Waiting for auth"}]' "$record"
+  '[{"id":"main","used":0.4,"status":""},{"id":"side","used":null,"status":"Waiting for auth"},{"id":"university","used":0.65,"status":""}]' "$record"
 
 # ------------------------------------------------------------------ harness
 

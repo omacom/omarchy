@@ -49,7 +49,7 @@ cat >"$mock_bin/codex" <<'SH'
 #!/bin/bash
 if [[ ${1:-} == "login" ]]; then
   "${BROWSER:-omarchy-test-default-browser}" "https://auth.openai.com/oauth/authorize"
-  claims=$(printf '{"email":"%s","https://api.openai.com/auth":{"chatgpt_plan_type":"pro"}}' "$OMARCHY_TEST_LOGIN_EMAIL" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+  claims=$(printf '{"email":"%s","https://api.openai.com/auth":{"chatgpt_plan_type":"pro","chatgpt_user_id":"%s"}}' "$OMARCHY_TEST_LOGIN_EMAIL" "${OMARCHY_TEST_LOGIN_USER:-}" | base64 -w0 | tr '+/' '-_' | tr -d '=')
   printf '{"auth_mode":"chatgpt","tokens":{"account_id":"%s","id_token":"h.%s.s"}}\n' "$OMARCHY_TEST_LOGIN_UUID" "$claims" >"${CODEX_HOME:-$HOME/.codex}/auth.json"
   exit 0
 fi
@@ -210,7 +210,7 @@ grep -qx "default https://auth.openai.com/oauth/authorize" "$OMARCHY_TEST_BROWSE
 [[ ! -e $HOME/.config/omarchy/defaults/agent ]] || fail "a first sign-in leaves an existing default agent alone"
 pass "the first account of a provider signs in to its own home in the normal browser"
 
-OMARCHY_TEST_LOGIN_UUID=acct-2 OMARCHY_TEST_LOGIN_EMAIL=side@example.com \
+OMARCHY_TEST_LOGIN_UUID=acct-2 OMARCHY_TEST_LOGIN_USER=user-side OMARCHY_TEST_LOGIN_EMAIL=side@example.com \
   omarchy-agent-account-add codex Side </dev/null >/dev/null
 [[ $(omarchy-agent-account-list codex --json | jq -c '.[0].accounts[1] | {id, email, plan}') == '{"id":"side","email":"side@example.com","plan":"Pro"}' ]] ||
   fail "a Codex account reads its identity from the login's token claims"
@@ -218,6 +218,23 @@ OMARCHY_TEST_LOGIN_UUID=acct-2 OMARCHY_TEST_LOGIN_EMAIL=side@example.com \
 grep -qx -- "--private https://auth.openai.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" ||
   fail "a Codex login opens in a private window" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
 pass "Codex accounts are added the same way"
+
+# Refresh old workspace-only registry identities before comparing logins.
+jq '(.accounts[] | select(.id == "side")).accountId = "acct-2"' "$accounts/codex.json" >"$test_tmp/legacy-codex.json"
+mv "$test_tmp/legacy-codex.json" "$accounts/codex.json"
+OMARCHY_TEST_LOGIN_UUID=acct-2 OMARCHY_TEST_LOGIN_USER=user-other OMARCHY_TEST_LOGIN_EMAIL=other@example.com \
+  omarchy-agent-account-add codex Colleague </dev/null >/dev/null
+OMARCHY_TEST_LOGIN_UUID=acct-3 OMARCHY_TEST_LOGIN_USER=user-side OMARCHY_TEST_LOGIN_EMAIL=side@example.com \
+  omarchy-agent-account-add codex University </dev/null >/dev/null
+if OMARCHY_TEST_LOGIN_UUID=acct-2 OMARCHY_TEST_LOGIN_USER=user-side OMARCHY_TEST_LOGIN_EMAIL=renamed@example.com \
+  omarchy-agent-account-add codex Duplicate </dev/null >"$test_tmp/codex-duplicate" 2>&1; then
+  fail "the same Codex member and workspace cannot be added twice"
+fi
+grep -q "That's Side" "$test_tmp/codex-duplicate" || fail "a duplicate Codex login names the existing member"
+[[ $(omarchy-agent-account-list codex --json | jq '.[0].accounts | length') == 4 ]] || fail "Codex keeps workspace members and same-email workspaces separate"
+omarchy-agent-account-remove codex colleague </dev/null >/dev/null
+omarchy-agent-account-remove codex university </dev/null >/dev/null
+pass "Codex distinguishes users within a workspace and workspaces for one user"
 
 OMARCHY_TEST_DEFAULT_AGENT="" omarchy-agent-account-add grok </dev/null >/dev/null
 [[ $(cat "$HOME/.config/omarchy/defaults/agent") == "grok" ]] ||
