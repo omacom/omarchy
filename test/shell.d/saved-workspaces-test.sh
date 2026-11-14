@@ -122,6 +122,22 @@ with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'XDG_DA
   with patch.object(m, 'query', side_effect=[before, before + [unrelated, opened]]), patch.object(m, 'execute'), patch.object(m.socket, 'socket', return_value=MagicMock()):
     check(m.launch_window({'argv': web_argv, 'class': app_class}, {'0xexisting'}, 8)['address'] == '0xapp', 'forwarded web-app restores select only a new window of the exact app/profile, leaving existing browser windows alone')
 
+# Desktop-entry escaping and launcher options survive web-app recovery.
+with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {'XDG_DATA_HOME': directory, 'XDG_DATA_DIRS': directory + '/system'}):
+  applications = Path(directory) / 'applications';applications.mkdir()
+  path = applications / 'Escaped.desktop'
+  window = {'class': 'chrome-example.org__-Default', 'title': 'Example', 'pid': 42}
+  process = {'argv': ['chromium', '--user-data-dir=/unused']}
+  url = 'https://example.org/?q=hello%20world&price=$5&label=`literal`'
+  path.write_text('[Desktop Entry]\nStartupWMClass=' + window['class'] + '\nExec=omarchy-launch-webapp "https://example.org/?q=hello%%20world&price=\\\\$5&label=\\\\`literal\\\\`" --ignore-certificate-errors "--proxy-server=http://localhost:8080"\n')
+  command = m.command_for(window, process)
+  check('--app=' + url in command, 'desktop Exec percent and quoted dollar/backtick escapes decode exactly once without changing the URL')
+  check('--ignore-certificate-errors' in command and '--proxy-server=http://localhost:8080' in command, 'web-app helper launchers preserve their additional browser options')
+  path.write_text('[Desktop Entry]\nStartupWMClass=' + window['class'] + '\nExec=chromium --app="https://example.org/hello%%20world" --ignore-certificate-errors --profile-directory="Profile 2" %U\n')
+  command = m.command_for(window, process)
+  check('--app=https://example.org/hello%20world' in command and '--ignore-certificate-errors' in command and '--profile-directory=Profile 2' in command and '%U' not in command, 'direct browser launchers retain flags and explicit profiles while dropping empty file/URL field codes')
+  check(m.desktop_exec({'Exec': r'chromium "--app=file:///tmp/a\\\\b"'}, path) == ['chromium', '--app=file:///tmp/a\\b'], 'desktop string and argument escape layers preserve a literal backslash')
+
 # A web app can also be the first window, so the process itself has --app.
 for flags in [['--app=https://x.com/'], ['--app', 'https://x.com/'], ['--app-id=installed-x']]:
   process = {'argv': ['chromium', '--user-data-dir=/unused', *flags]}
@@ -134,6 +150,10 @@ for flags in [['--app=https://x.com/'], ['--app', 'https://x.com/'], ['--app-id=
 with patch.object(m, 'query', return_value=[window, {'pid': 42, 'class': 'chrome-x.com__-Default'}]):
   state = m.capture_app_state(window, process, {'/unused/Default/Sessions': [{'title': '', 'urls': ['https://omarchy.org/']}]})
   check(state['urls'] == ['https://omarchy.org/'], 'a sole ordinary browser session can be captured while a same-process web app is open and its page title has not been written yet')
+custom_window = {**window, 'class': 'SavedBrowser'}
+with patch.object(m, 'query', return_value=[custom_window, {'pid': 42, 'class': 'chrome-x.com__-Default'}]):
+  state = m.capture_app_state(custom_window, process, {'/unused/Default/Sessions': [{'title': '', 'urls': ['https://omarchy.org/']}]})
+  check(state['urls'] == ['https://omarchy.org/'], 'custom ordinary browser classes remain eligible for the sole-session fallback alongside a web app')
 check(m.state_command({'class': 'chromium'}, ['chromium', '--app=https://x.com/', '--new-window']) == ['chromium', '--new-window'], 'existing scene browser commands cannot reopen as a web app')
 
 # Firefox session snapshots preserve the current navigation, order and active tab.
@@ -168,15 +188,20 @@ with tempfile.TemporaryDirectory() as directory:
     print('ok - oversized Firefox sessions are rejected before allocating their declared size')
   else:
     raise AssertionError('oversized Firefox session accepted')
-  window = {'pid': 42, 'title': 'Second — Mozilla Firefox', 'class': 'firefox'}
+  window = {'address': '0xfirst', 'pid': 42, 'title': 'Second — Mozilla Firefox', 'class': 'firefox'}
   info = {'argv': ['firefox', '--new-window', 'https://example.org/original']}
   cache = {'firefox:' + directory: firefox_records}
-  with patch.object(m, 'firefox_profile', return_value=profile):
+  with patch.object(m, 'firefox_profile', return_value=profile), patch.object(m, 'query') as live_windows:
+    blank_window = {**window, 'address': '0xblank', 'title': 'New Tab — Mozilla Firefox'}
+    live_windows.return_value = [window, blank_window]
     state = m.capture_app_state(window, info, cache)
     check(state['urls'] == firefox_records[0]['urls'] and state['active'] == 1 and state['profile'] == directory, 'Firefox matches the requested window instead of its process launch URLs')
-    current = m.capture_app_state({**window, 'title': 'Current — Mozilla Firefox'}, info, cache)
+    current_window = {**window, 'title': 'Current — Mozilla Firefox'}
+    live_windows.return_value = [current_window, blank_window]
+    current = m.capture_app_state(current_window, info, cache)
     check(current['active'] == 0, 'the live Firefox title supplies the current selected tab when the session file selection is stale')
     blank = {'urls': ['about:blank'], 'titles': ['about:blank'], 'active': 0, 'title': 'about:blank'}
+    live_windows.return_value = [{**window, 'title': 'Mozilla Firefox'}]
     blank_state = m.capture_app_state({**window, 'title': 'Mozilla Firefox'}, info, {'firefox:' + directory: [blank]})
     check(blank_state['urls'] == ['about:blank'] and blank_state['active'] == 0, 'untitled blank Firefox tabs match the live browser-only title')
     argv = m.state_command({'appState': state}, ['firefox', '-P', 'Old', '--new-window', 'https://example.org/stale'])
@@ -185,12 +210,28 @@ with tempfile.TemporaryDirectory() as directory:
       m.select_firefox_tab({'address': '0xnew'}, state)
       check(next(call.args for call in shortcut.call_args_list if call.args[0] == 'send_key_state') == ('send_key_state', {'mods': 'ALT', 'key': '2', 'window': 'address:0xnew', 'state': 'down'}), 'active-tab selection targets only the identified new Firefox window')
     duplicate = copy.deepcopy(firefox_records[0]);duplicate['urls'][0] = 'https://different.example/'
+    live_windows.return_value = [window, {**window, 'address': '0xsecond'}]
     try:
       m.capture_app_state(window, info, {'firefox:' + directory: [firefox_records[0], duplicate]})
     except m.WorkspaceError:
       print('ok - ambiguous Firefox windows never capture another window\'s different tabs')
     else:
       raise AssertionError('ambiguous Firefox windows accepted')
+    # The requested window navigated to a title from an inactive tab elsewhere.
+    # The other live window still owns that record; borrowing it must fail.
+    stale = {'urls': ['https://old.example/'], 'titles': ['Old page'], 'active': 0, 'title': 'Old page'}
+    other = {'urls': ['https://active.example/', 'https://new.example/'], 'titles': ['Other active', 'New page'], 'active': 0, 'title': 'Other active'}
+    navigated = {**window, 'title': 'New page — Mozilla Firefox'}
+    live_windows.return_value = [navigated, {**window, 'address': '0xother', 'title': 'Other active — Mozilla Firefox'}]
+    try:
+      m.capture_app_state(navigated, info, {'firefox:' + directory: [stale, other]})
+    except m.WorkspaceError:
+      print('ok - a stale navigation cannot borrow an inactive tab from another Firefox window')
+    else:
+      raise AssertionError('borrowed another Firefox window after a stale navigation')
+    written = {'urls': ['https://new.example/'], 'titles': ['New page'], 'active': 0, 'title': 'New page'}
+    captured = m.capture_app_state(navigated, info, {'firefox:' + directory: [written, other]})
+    check(captured['urls'] == written['urls'], 'whole-profile matching identifies the right Firefox window once its own navigation is written')
     try:
       m.capture_app_state({**window, 'title': 'Second — Mozilla Firefox (Private Browsing)'}, info, cache)
     except m.WorkspaceError:

@@ -367,23 +367,49 @@ def capture_firefox_state(window, info, cache):
       cache[key] = firefox_session_windows(read_firefox_session(path))
     except (OSError, ValueError, TypeError, KeyError):
       raise WorkspaceError("Firefox hasn't written its current tabs yet. Wait a moment and try saving again.") from None
-  title = window.get("title", "")
-  plain = re.sub(r" [—-] (?:Mozilla )?Firefox(?: ESR| Nightly| Developer Edition)?$", "", title)
-  # Selecting a tab does not schedule a session-file write in Firefox. The
-  # live window title identifies its current selection, even if the file's
-  # selected index still describes the previously active tab.
+  records = cache[key]
+  # A page title alone cannot identify a window: it may be an inactive tab
+  # elsewhere while this window's latest navigation has not reached disk.
+  # Require a complete one-to-one match of the profile's live normal windows
+  # to its saved records. Then accept only one possible tab set/selection for
+  # this window, allowing interchangeable copies with identical tab sets.
+  live = [w for w in query("clients") if w["pid"] == window["pid"] and w.get("mapped", True)
+      and not re.search(r"private browsing", w.get("title", ""), re.I)
+      and not w.get("class", "").lower().endswith("-private")]
+  if not window.get("address") or len(live) != len(records) or len(live) > MAX_WINDOWS:
+    raise WorkspaceError("Firefox's current windows haven't all been written yet. Wait a moment and save again.")
+  target = next((i for i, w in enumerate(live) if w["address"] == window["address"]), None)
+  if target is None:
+    raise WorkspaceError("The Firefox window is no longer available.")
+  choices = [[firefox_title_tabs(w.get("title", ""), record) for record in records] for w in live]
   states = set()
-  for record in cache[key]:
-    selected = [i for i, tab_title in enumerate(record["titles"]) if tab_title in {title, plain} or record["urls"][i] in {title, plain}
-                or (record["urls"][i] == "about:blank" and title in {"Mozilla Firefox", "Firefox"})]
-    for index in selected:
-      states.add((tuple(record["urls"]), index))
-  # Identical copies are interchangeable; different tab sets or duplicate tab
-  # titles must not silently select another window or another tab position.
+  for reserved, tabs in enumerate(choices[target]):
+    if not tabs:
+      continue
+    assigned = {reserved: target}
+    def assign(index, seen):
+      for record, positions in enumerate(choices[index]):
+        if not positions or record in seen or record == reserved:
+          continue
+        seen.add(record)
+        if record not in assigned or assign(assigned[record], seen):
+          assigned[record] = index
+          return True
+      return False
+    if all(assign(i, set()) for i in range(len(live)) if i != target):
+      states.update((tuple(records[reserved]["urls"]), position) for position in tabs)
   if len(states) != 1:
     raise WorkspaceError("Firefox's tabs couldn't be matched to this window. Select a distinct tab, wait a moment, and save again.")
   urls, active = states.pop()
   return {"kind": "firefox", "urls": list(urls), "active": active, "profile": str(profile)}
+
+
+def firefox_title_tabs(title, record):
+  # Tab selection does not schedule a session-file write. Use the live title
+  # for selection after establishing the window-to-record relationship.
+  plain = re.sub(r" [—-] (?:Mozilla )?Firefox(?: ESR| Nightly| Developer Edition)?$", "", title)
+  return [i for i, tab_title in enumerate(record["titles"]) if tab_title in {title, plain} or record["urls"][i] in {title, plain}
+      or (record["urls"][i] == "about:blank" and title in {"Mozilla Firefox", "Firefox"})]
 
 
 def firefox_tab_keys(index, count):
@@ -405,11 +431,70 @@ def select_firefox_tab(window, state):
     dispatch("send_key_state", {**target, "state": "up"})
 
 
+def desktop_value(value):
+  escapes = {"s": " ", "n": "\n", "t": "\t", "r": "\r", "\\": "\\"}
+  return re.sub(r"\\([sntr\\])", lambda match: escapes[match[1]], value)
+
+
+def desktop_exec(entry, path):
+  # Desktop entries have two escaping layers, then one field-code expansion.
+  # This is argument parsing only: shell variables and substitutions stay text.
+  value = desktop_value(entry.get("Exec", ""))
+  args, word, quoted, started = [], [], False, False
+  index = 0
+  while index < len(value):
+    char = value[index]
+    if char == '"':
+      quoted = not quoted
+      started = True
+    elif char == "\\":
+      index += 1
+      if index == len(value):
+        raise ValueError("Incomplete desktop Exec escape")
+      word.append(value[index])
+      started = True
+    elif char.isspace() and not quoted:
+      if started:
+        args.append("".join(word))
+        word, started = [], False
+    else:
+      word.append(char)
+      started = True
+    index += 1
+  if quoted:
+    raise ValueError("Unclosed desktop Exec quote")
+  if started:
+    args.append("".join(word))
+  result = []
+  for arg in args:
+    if arg in {"%f", "%F", "%u", "%U", "%d", "%D", "%n", "%N", "%v", "%m"}:
+      continue
+    if arg == "%i":
+      if entry.get("Icon"):
+        result += ["--icon", desktop_value(entry["Icon"])]
+      continue
+    def expand(match):
+      code = match[1]
+      if code == "%":
+        return "%"
+      if code == "c":
+        return desktop_value(entry.get("Name", ""))
+      if code == "k":
+        return str(path)
+      raise ValueError("Unsupported desktop Exec field code")
+    result.append(re.sub(r"%(.)", expand, arg))
+  return result
+
+
+def chromium_webapp_class(window):
+  return re.fullmatch(r"(?:chrome|chromium|brave)-.+-(?:Default|Profile_\d+)", window.get("class", ""), re.I)
+
+
 def chromium_webapp_argv(window, info):
   # A forwarded web app shares the browser PID and its ordinary launch command.
   # Recover its own URL/profile from the matching desktop launcher instead.
   app_class = window.get("class", "")
-  if not re.fullmatch(r"(?:chrome|chromium|brave)-.+-(?:Default|Profile_\d+)", app_class, re.I):
+  if not chromium_webapp_class(window):
     return None
   argv = info.get("argv", [])
   if not argv or Path(argv[0]).name.lower() not in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"}:
@@ -426,25 +511,31 @@ def chromium_webapp_argv(window, info):
         entry = configparser.ConfigParser(interpolation=None, strict=False)
         entry.read_string(path.read_text())
         entry = entry["Desktop Entry"]
-        if entry.get("Hidden", "false").lower() == "true" or entry.get("StartupWMClass", "").casefold() != app_class.casefold():
+        if entry.get("Hidden", "false").lower() == "true" or desktop_value(entry.get("StartupWMClass", "")).casefold() != app_class.casefold():
           continue
-        command = shlex.split(entry.get("Exec", ""))
+        command = desktop_exec(entry, path)
         if not command:
           continue
         if Path(command[0]).name == "omarchy-launch-webapp" and len(command) > 1:
           url = command[1]
-        else:
+          result = [argv[0], *command[2:]]
+        elif Path(command[0]).name.lower() in CHROMIUM_WINDOW_CLASSES:
           url = argument_value(command, "--app")
+          result = [argv[0], *command[1:]]
+        else:
+          continue
         if not isinstance(url, str) or not re.match(r"^(https?://|file://)", url):
           continue
-        result = [argv[0]]
         user_data = argument_value(command, "--user-data-dir", argument_value(argv, "--user-data-dir"))
-        if user_data:
+        if user_data and argument_value(command, "--user-data-dir") is None:
           result.append("--user-data-dir=" + user_data)
         profile = argument_value(command, "--profile-directory")
         if not profile:
           profile = re.search(r"-(Default|Profile_\d+)$", app_class, re.I).group(1).replace("_", " ")
-        result += ["--profile-directory=" + profile, "--app=" + url]
+        if argument_value(command, "--profile-directory") is None:
+          result.append("--profile-directory=" + profile)
+        if Path(command[0]).name == "omarchy-launch-webapp":
+          result.append("--app=" + url)
         return result
       except (OSError, UnicodeError, ValueError, KeyError, configparser.Error):
         continue
@@ -454,7 +545,7 @@ def chromium_webapp_argv(window, info):
 def chromium_window_argv(window, argv):
   # Web apps can start the shared browser process. Its app flags describe
   # that first window, not ordinary browser windows opened later.
-  if window.get("class", "").lower() not in CHROMIUM_WINDOW_CLASSES:
+  if not argv or Path(argv[0]).name.lower() not in CHROMIUM_WINDOW_CLASSES or chromium_webapp_class(window):
     return argv
   result, skip = [], False
   for arg in argv:
@@ -588,7 +679,7 @@ def capture_app_state(window, info, cache):
       matches = [record for record in records if record["title"] == title or record.get("activeUrl") == title]
     if not matches and len(records) == 1 and not any(a in {"--incognito", "--guest"} for a in argv) and not re.search(r"incognito|private", window["title"], re.I):
       live = [w for w in query("clients") if w["pid"] == window["pid"] and w.get("mapped", True)
-          and w.get("class", "").lower() in CHROMIUM_WINDOW_CLASSES]
+          and not chromium_webapp_class(w)]
       if len(live) == 1:
         matches = records
     if len(matches) != 1:
