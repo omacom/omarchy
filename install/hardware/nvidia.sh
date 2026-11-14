@@ -26,6 +26,12 @@ elif lspci | grep -qi 'nvidia'; then
 
   omarchy-pkg-add "${PACKAGES[@]}"
 
+  # Enable Dynamic Boost on x86 laptops exposing NVIDIA's platform controller.
+  # The GB10 desktops expose the same ACPI ID, but Dynamic Boost is x86-only.
+  if omarchy-hw-x86 && grep -qx 'NVDA0820' /sys/bus/acpi/devices/*/hid 2>/dev/null; then
+    systemctl enable nvidia-powerd
+  fi
+
   # Per-session Hyprland NVIDIA env vars are handled by default/hypr/nvidia.lua.
 
   # Configure modprobe for early KMS
