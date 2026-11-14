@@ -59,8 +59,16 @@ app launcher.
 
 EOF
 
-  log="/tmp/omarchy-battlenet-installer.log"
-  setsid -f sh -c "umu-run '$installer' >'$log' 2>&1" </dev/null >/dev/null 2>&1
+  # The installer log used to be a fixed name in /tmp, so another local account
+  # could plant it and the redirect would follow the symlink. The path was also
+  # spliced into a shell string, which breaks open on a single quote in $HOME.
+  log_dir="${XDG_RUNTIME_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy}"
+  if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+    mkdir -p "$log_dir" || exit 1
+    chmod 700 "$log_dir" || exit 1
+  fi
+  log="$log_dir/omarchy-battlenet-installer.log"
+  setsid -f umu-run "$installer" </dev/null >"$log" 2>&1
   echo "Installer log: $log"
   launched_installer=1
 fi
