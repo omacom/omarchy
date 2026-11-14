@@ -12,4 +12,6 @@ Turning off _Appearance > Animations_ also turns off background intros. Omarchy 
 
 You can find a huge collection of cool curated backgrounds in [dharmx/walls](https://github.com/dharmx/walls).
 
+You can also right-click any image in Files and pick _Set as Background_. That sets it right away and adds a copy to the current theme's backgrounds, so it shows up in the background switcher too.
+
 The lock screen shows a still frame of a video background, the same way it shows a still frame of an animated GIF.
