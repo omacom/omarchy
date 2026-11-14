@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# omarchy:summary=Point model and dataset caches at a second drive mounted on /data
+# omarchy:args=[--print|apply]
+
+set -euo pipefail
+
+root="${OMARCHY_ML_DATA_ROOT:-/data}"
+mode="${1:-apply}"
+
+print_plan() {
+  cat <<EOF
+HF_HOME=$root/huggingface
+HF_HUB_CACHE=$root/huggingface/hub
+TORCH_HOME=$root/torch
+PIP_CACHE_DIR=$root/pip
+UV_CACHE_DIR=$root/uv
+OLLAMA_MODELS=$root/models/ollama
+EOF
+}
+
+if [[ ! -d $root ]]; then
+  print_plan
+  echo "Mount a second drive at $root, then run this again."
+  echo "  sudo mkdir -p $root"
+  echo "  sudo mount /dev/disk/by-label/data $root"
+  exit 1
+fi
+
+print_plan
+if [[ $mode == "--print" ]]; then
+  exit 0
+fi
+
+mkdir -p \
+  "$root/huggingface/hub" \
+  "$root/torch" \
+  "$root/pip" \
+  "$root/uv" \
+  "$root/models/ollama"
+
+config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/environment.d"
+mkdir -p "$config_dir"
+cat > "$config_dir/omarchy-ml-data.conf" <<EOF
+HF_HOME=$root/huggingface
+HF_HUB_CACHE=$root/huggingface/hub
+TORCH_HOME=$root/torch
+PIP_CACHE_DIR=$root/pip
+UV_CACHE_DIR=$root/uv
+OLLAMA_MODELS=$root/models/ollama
+EOF
+
+echo "Caches will use $root after you log in again."

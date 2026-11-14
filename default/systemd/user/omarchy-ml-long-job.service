@@ -1,0 +1,13 @@
+[Unit]
+Description=Hold sleep and the lid while a GPU job is running
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/omarchy-ml-long-job watch
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=graphical-session.target
