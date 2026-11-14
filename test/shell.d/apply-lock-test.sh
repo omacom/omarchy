@@ -29,6 +29,77 @@ if grep -F 'omarchy-cmd-present fprintd-list' "$apply_lock" >/dev/null ||
 fi
 pass "the lock helper pins fprintd-list to its packaged system path"
 
+# Model an unprivileged caller whose privileged probe can traverse PAM's parent.
+if (( EUID != 0 )); then
+  python3 - "$apply_lock" "$ROOT" <<'PYCODE'
+import os, pathlib, subprocess, sys, tempfile
+source = pathlib.Path(sys.argv[1]).read_text()
+with tempfile.TemporaryDirectory(prefix="pam-protected-") as tmp:
+    root = pathlib.Path(tmp); protected = root / "protected"; protected.mkdir()
+    password = protected / "password"; finger = protected / "fingerprint"
+    bindir = root / "bin"; bindir.mkdir()
+    sudo = bindir / "sudo"
+    sudo.write_text("""#!/bin/bash
+chmod 700 "$PROTECTED_DIR"
+if [[ -e $SUDO_FAIL_ONCE ]]; then rm "$SUDO_FAIL_ONCE"; chmod 000 "$PROTECTED_DIR"; exit 1; fi
+if [[ $1 == systemctl ]]; then exit_code=0
+elif [[ $1 == install && $3 == -o && $5 == -g ]]; then /usr/bin/install "$2" "$7" "$8"; exit_code=$?
+else "$@"; exit_code=$?; fi
+chmod 000 "$PROTECTED_DIR"
+exit "$exit_code"
+""")
+    sudo.chmod(0o755)
+    probe = root / "fprintd-list"
+    probe.write_text('#!/bin/bash\nprintf "%s\\n" "$TEST_RESULT"\n'); probe.chmod(0o755)
+    replacements = {
+        "/etc/pam.d/omarchy-lock-password": str(password),
+        "/etc/pam.d/omarchy-lock-fingerprint": str(finger),
+        "/usr/bin/fprintd-list": str(probe),
+        "/usr/lib/systemd/system-sleep/fprintd-resume": str(root / "resume"),
+        "/etc/systemd/system/fprintd.service.d/10-stop-timeout.conf": str(root / "timeout"),
+        "if omarchy-shell lock status >/dev/null 2>&1; then": "if false; then",
+    }
+    for old, new in replacements.items():
+        assert old in source
+        source = source.replace(old, new)
+    script = root / "apply"; script.write_text(source)
+    env = dict(os.environ, PATH=str(bindir) + os.pathsep + os.environ["PATH"],
+               OMARCHY_PATH=sys.argv[2], PROTECTED_DIR=str(protected), SUDO_FAIL_ONCE=str(root / "fail-once"))
+    password.write_text("auth required pam_deny.so\n")
+    finger.write_text("auth required pam_exec.so /custom/gate\n")
+    before = (password.read_bytes(), finger.read_bytes())
+    (root / "fail-once").touch()
+    os.chmod(protected, 0)
+    try:
+        run = subprocess.run(["/bin/bash", str(script)], env=dict(env, TEST_RESULT=" - #0: finger"), capture_output=True, text=True)
+    finally:
+        os.chmod(protected, 0o700)
+    assert run.returncode != 0 and (password.read_bytes(), finger.read_bytes()) == before
+
+    for result in (" - #0: right-index-finger", "User x has no fingers enrolled"):
+        password.write_text("auth required pam_deny.so\n")
+        finger.write_text("auth required pam_exec.so /custom/gate\n")
+        before = (password.read_bytes(), finger.read_bytes())
+        os.chmod(protected, 0)
+        try:
+            run = subprocess.run(["/bin/bash", str(script)], env=dict(env, TEST_RESULT=result), capture_output=True, text=True)
+        finally:
+            os.chmod(protected, 0o700)
+        assert run.returncode == 0, run.stderr
+        assert (password.read_bytes(), finger.read_bytes()) == before
+        finger.unlink(); finger.symlink_to(root / "missing")
+        os.chmod(protected, 0)
+        try:
+            run = subprocess.run(["/bin/bash", str(script)], env=dict(env, TEST_RESULT=result), capture_output=True, text=True)
+        finally:
+            os.chmod(protected, 0o700)
+        assert run.returncode == 0, run.stderr
+        assert finger.is_symlink() and not (root / "missing").exists()
+        finger.unlink()
+PYCODE
+  pass "protected custom PAM policies and symlinks survive enrollment and removal"
+fi
+
 # Exercise the helper as real root when the suite already has it, or as root in
 # an unprivileged user namespace otherwise. A hardened kernel can disable user
 # namespaces, so preserve the static coverage above and skip only this probe.
@@ -75,7 +146,7 @@ mkdir -p "$poison_bin" "$trusted_root_bin"
 
 # The runtime copy pins to this isolated root path. It contains every bare
 # command the exercised helper needs, but deliberately no fprintd-list.
-for helper in grep rm tee install rmdir dirname; do
+for helper in grep rm tee install rmdir dirname cat cmp python3; do
   ln -s "/usr/bin/$helper" "$trusted_root_bin/$helper"
 done
 
@@ -274,6 +345,94 @@ for source in "$hook_source" "$timeout_source"; do
   mv "$source.saved" "$source"
 done
 pass "failed recovery installation cannot create fingerprint PAM"
+
+# A provider or administrator can add a readiness/account policy that the
+# generic helper must neither replace on a match nor erase on an empty probe.
+run_as_root "$patched_helper" "restore default enrollment before custom policy"
+printf 'auth requisite pam_exec.so quiet /usr/lib/example/ready\n' >>"$fingerprint_pam"
+printf 'account required pam_access.so\n' >>"$password_pam"
+printf '# custom recovery\n' >"$test_tmp/system-sleep/fprintd-resume"
+cp "$fingerprint_pam" "$test_tmp/custom-fingerprint"
+cp "$password_pam" "$test_tmp/custom-password"
+for result in ' - #0: right-index-finger' 'User alice has no fingers enrolled' 'Could not activate remote peer'; do
+  TEST_FPRINTD_OUTPUT="$result" run_as_root "$patched_helper" "custom authentication survives the probe"
+  cmp -s "$fingerprint_pam" "$test_tmp/custom-fingerprint" || fail "keeps custom fingerprint requirements"
+  cmp -s "$password_pam" "$test_tmp/custom-password" || fail "keeps custom password requirements"
+  [[ $(<"$test_tmp/system-sleep/fprintd-resume") == '# custom recovery' ]] || fail "keeps custom recovery beside custom authentication"
+done
+pass "custom authentication and recovery survive enrolled, empty and unavailable probes"
+
+# Recovery is customized on its own. A managed fingerprint PAM file must not
+# overwrite or delete it, and a stock sibling stays managed.
+rm -f "$fingerprint_pam" "$password_pam" \
+  "$test_tmp/system-sleep/fprintd-resume" \
+  "$test_tmp/fprintd.service.d/10-stop-timeout.conf"
+TEST_FPRINTD_OUTPUT=' - #0: right-index-finger' \
+  run_as_root "$patched_helper" "restore managed enrollment before custom recovery"
+cp "$fingerprint_pam" "$test_tmp/managed-fingerprint"
+printf '# custom hook\n' >"$test_tmp/system-sleep/fprintd-resume"
+printf '# custom timeout\n' >"$test_tmp/fprintd.service.d/10-stop-timeout.conf"
+rm -f "$fingerprint_pam"
+TEST_FPRINTD_OUTPUT=' - #0: right-index-finger' \
+  run_as_root "$patched_helper" "enrolled probe keeps custom recovery beside managed PAM"
+[[ $(<"$test_tmp/system-sleep/fprintd-resume") == '# custom hook' ]] ||
+  fail "enrolled probe overwrites a custom resume hook when PAM is managed"
+[[ $(<"$test_tmp/fprintd.service.d/10-stop-timeout.conf") == '# custom timeout' ]] ||
+  fail "enrolled probe overwrites a custom stop timeout when PAM is managed"
+cmp -s "$fingerprint_pam" "$test_tmp/managed-fingerprint" ||
+  fail "managed fingerprint PAM is still written beside custom recovery"
+TEST_FPRINTD_OUTPUT='User alice has no fingers enrolled' \
+  run_as_root "$patched_helper" "empty probe keeps custom recovery beside managed PAM"
+[[ $(<"$test_tmp/system-sleep/fprintd-resume") == '# custom hook' ]] ||
+  fail "empty enrollment removes a custom resume hook when PAM is managed"
+[[ $(<"$test_tmp/fprintd.service.d/10-stop-timeout.conf") == '# custom timeout' ]] ||
+  fail "empty enrollment removes a custom stop timeout when PAM is managed"
+[[ ! -e $fingerprint_pam ]] ||
+  fail "empty enrollment still removes managed fingerprint PAM when recovery is custom"
+
+# One custom recovery file does not freeze its stock sibling.
+cp "$hook_source" "$test_tmp/system-sleep/fprintd-resume"
+TEST_FPRINTD_OUTPUT='User alice has no fingers enrolled' \
+  run_as_root "$patched_helper" "empty probe removes a stock hook beside a custom timeout"
+[[ ! -e $test_tmp/system-sleep/fprintd-resume ]] ||
+  fail "empty enrollment removes a stock resume hook beside a custom stop timeout"
+[[ $(<"$test_tmp/fprintd.service.d/10-stop-timeout.conf") == '# custom timeout' ]] ||
+  fail "empty enrollment keeps a custom stop timeout beside a stock resume hook"
+printf '# custom hook\n' >"$test_tmp/system-sleep/fprintd-resume"
+rm -f "$test_tmp/fprintd.service.d/10-stop-timeout.conf"
+TEST_FPRINTD_OUTPUT=' - #0: right-index-finger' \
+  run_as_root "$patched_helper" "enrolled probe installs a stock timeout beside a custom hook"
+[[ $(<"$test_tmp/system-sleep/fprintd-resume") == '# custom hook' ]] ||
+  fail "a custom resume hook survives beside a stock stop timeout"
+cmp -s "$test_tmp/fprintd.service.d/10-stop-timeout.conf" "$timeout_source" ||
+  fail "a stock stop timeout is still installed beside a custom resume hook"
+
+# A recovery symlink is configuration, and install must not replace it.
+rm -f "$test_tmp/system-sleep/fprintd-resume"
+printf 'kept\n' >"$test_tmp/custom-hook-target"
+ln -s "$test_tmp/custom-hook-target" "$test_tmp/system-sleep/fprintd-resume"
+for result in ' - #0: right-index-finger' 'User alice has no fingers enrolled'; do
+  TEST_FPRINTD_OUTPUT="$result" \
+    run_as_root "$patched_helper" "custom recovery symlink survives the probe"
+  [[ -L $test_tmp/system-sleep/fprintd-resume && $(<"$test_tmp/custom-hook-target") == 'kept' ]] ||
+    fail "does not replace a custom resume hook symlink"
+done
+rm -f "$test_tmp/system-sleep/fprintd-resume" "$test_tmp/custom-hook-target" \
+  "$test_tmp/fprintd.service.d/10-stop-timeout.conf"
+TEST_FPRINTD_OUTPUT=' - #0: right-index-finger' \
+  run_as_root "$patched_helper" "restore managed recovery after custom recovery probes"
+pass "custom recovery survives enrolled and empty probes when PAM is managed"
+
+# Links are configuration too, and a dangling link must not create its target.
+rm "$fingerprint_pam" "$password_pam"
+cp "$test_tmp/custom-fingerprint" "$test_tmp/link-original"
+ln -s "$test_tmp/custom-fingerprint" "$fingerprint_pam"
+ln -s "$test_tmp/missing-password" "$password_pam"
+run_as_root "$patched_helper" "custom PAM symlinks remain intact"
+[[ -L $fingerprint_pam && -L $password_pam && ! -e $test_tmp/missing-password ]] || fail "does not follow custom PAM links"
+cmp -s "$test_tmp/link-original" "$fingerprint_pam" || fail "linked custom fingerprint policy stays intact"
+pass "PAM links and dangling links are preserved"
+reset_runtime_files
 
 run_as_root "$patched_helper" "restore enrollment before removing fprintd-list"
 rm -f "$trusted_fprintd"
