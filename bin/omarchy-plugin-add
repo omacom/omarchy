@@ -2,7 +2,7 @@
 
 # omarchy:summary=Add a shell plugin from git
 # omarchy:group=plugin
-# omarchy:args=[git-url] [--enable] [--yes]
+# omarchy:args=[git-url] [--archive] [--enable] [--yes]
 # omarchy:examples=omarchy plugin add https://github.com/acme/omarchy-weather.git --enable
 # omarchy:alias=omarchy plugin install
 
@@ -13,6 +13,7 @@ export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}"
 
 PLUGINS_DIR="$HOME/.config/omarchy/plugins"
 ASSUME_YES=0
+ARCHIVE=0
 
 fail() {
   echo "omarchy-plugin-add: $*" >&2
@@ -64,6 +65,10 @@ enable_after=""
 
 while (( $# > 0 )); do
   case "$1" in
+  --archive)
+    ARCHIVE=1
+    shift
+    ;;
   --enable)
     enable_after=true
     shift
@@ -73,7 +78,7 @@ while (( $# > 0 )); do
     shift
     ;;
   -h | --help)
-    echo "Usage: omarchy plugin add [git-url] [--enable] [--yes]"
+    echo "Usage: omarchy plugin add [git-url] [--archive] [--enable] [--yes]"
     exit 0
     ;;
   -*)
@@ -118,12 +123,25 @@ mkdir -p "$PLUGINS_DIR"
 
 stage="$PLUGINS_DIR/.add.tmp.$$"
 rm -rf "$stage"
-if ! git clone -- "$url" "$stage"; then
+clone_options=()
+if (( ARCHIVE )); then
+  clone_options=(--depth=1 --no-checkout)
+fi
+if ! git clone "${clone_options[@]}" -- "$url" "$stage"; then
   rm -rf "$stage"
   fail "failed to clone $url"
 fi
 
-if ! omarchy-plugin-validate "$stage"; then
+if (( ARCHIVE )); then
+  source "$OMARCHY_PATH/install/helpers/plugin-archive.sh"
+  package=$(mktemp -d "$PLUGINS_DIR/.archive.tmp.XXXXXX")
+  trap 'rm -rf "$stage" "$package"' EXIT
+  plugin_archive_export "$stage" "$package" "$url" || fail "refusing to add: archive validation failed"
+  rm -rf "$stage"
+  stage="$package"
+fi
+
+if (( ! ARCHIVE )) && ! omarchy-plugin-validate "$stage"; then
   rm -rf "$stage"
   fail "refusing to add: validation failed"
 fi

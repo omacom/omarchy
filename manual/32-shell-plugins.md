@@ -50,13 +50,49 @@ omarchy plugin update acme.weather
 omarchy plugin update
 ```
 
-With no id it updates every git-managed plugin you have. It shows you the diff before applying it, refuses to update if you've got local changes it can't fast-forward past, and rolls back if the new revision fails validation.
+With no id it updates every managed plugin you have. It shows you the diff before applying it, refuses to update if you've got local changes it can't fast-forward past, and rolls back if the new revision fails validation.
 
 ```
 omarchy plugin remove acme.weather
 ```
 
 Removal disables the plugin first, then deletes it if it's a git checkout (the repo is still upstream) or unlinks it if it's a symlink. A hand-made plugin folder with no git repo gets moved to a timestamped backup inside the plugins directory instead of being deleted outright.
+
+
+### Installing only the exported files
+
+Add `--archive` to install the files selected by the author's committed `.gitattributes`:
+
+```sh
+omarchy plugin add https://github.com/acme/omarchy-weather.git --archive --enable
+```
+
+This uses `git archive` to honor `export-ignore`, validates the exported plugin, and discards the temporary checkout. The installed folder contains the exported files and an installer-owned `.omarchy-package.json` recording the source URL, commit and file checksum. The usual install command still creates a full Git checkout, and existing installations keep their format.
+
+`omarchy plugin update` updates either format. For archives, it stages and validates a fresh export before replacing the installed files. A failed export leaves the installed plugin intact, and a failed replacement restores it. Updates refuse local file additions, deletions, content changes or permission changes. Keep personal configuration outside the plugin folder; use a normal checkout for development. Removal preserves the existing backup behavior for non-checkout plugins, including the archive metadata.
+
+Archive mode reduces the installed files, not the source download: it still clones the repository into temporary storage before exporting. It follows the repository's current default-branch HEAD, just like checkout installation; recording a commit is not marketplace approval of that commit.
+
+For plugin authors, commit exclusions such as:
+
+```gitattributes
+/tests export-ignore
+/.github export-ignore
+/docs/development export-ignore
+```
+
+Keep the manifest, README, license, imported QML, helpers, configuration and runtime assets in the export. Do not use `.omarchy-package.json` in your plugin; that filename belongs to the installer. Review the package from the exact commit you intend to publish:
+
+```sh
+commit=$(git rev-parse HEAD)
+git archive --format=tar --output=/tmp/plugin-package.tar "$commit"
+tar -tf /tmp/plugin-package.tar
+stage=$(mktemp -d)
+tar -xf /tmp/plugin-package.tar -C "$stage"
+omarchy plugin validate "$stage"
+```
+
+Run the plugin's tests against that staged directory too: manifest validation checks declared entry points, but cannot discover every dynamically loaded helper or asset. Keep tests and source review available in the repository even when they are omitted from the installation.
 
 ## Cloning a built-in to modify it
 
