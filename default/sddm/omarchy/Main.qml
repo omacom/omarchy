@@ -105,6 +105,11 @@ Rectangle {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
               sddm.login(root.currentUser, password.text, root.sessionIndex)
               event.accepted = true
+            } else if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && (event.key === Qt.Key_U || event.key === Qt.Key_Backspace))) {
+              // Password echo mode has no word boundaries, so Ctrl+Backspace
+              // would do nothing; clear the whole field instead.
+              password.text = ""
+              event.accepted = true
             }
           }
         }
