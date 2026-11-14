@@ -73,14 +73,14 @@ PanelWindow {
     enabled: window.shown && !window.pinPressActive
     NumberAnimation {
       id: pinsMotion
-      duration: Style.duration(window.pinsHeldOpen ? 250 : 160)
+      duration: Style.duration(window.pinsHeldOpen ? 250 : 170)
       easing.type: Easing.Bezier
       easing.bezierCurve: Style.easeOut
     }
   }
   Timer {
     id: collapseTimer
-    interval: 175
+    interval: 225
     onTriggered: {
       if (!pinsHover.hovered && !bodyHover.hovered && !pinGapHover.hovered && !window.dragging && !window.menuOpen && window.insertIndex < 0)
         window.pinsExpanded = false
@@ -283,7 +283,7 @@ PanelWindow {
   Timer {
     id: hideTimer
     // Long enough to cross a gap between the edge and the icons, no longer.
-    interval: 150
+    interval: 225
     onTriggered: {
       if (!pinsHover.hovered && !bodyHover.hovered && !pinGapHover.hovered && !edgeHover.hovered && !window.menuOpen && !window.dragging) window.revealed = false
     }
@@ -365,15 +365,15 @@ PanelWindow {
     // where it belongs at once.
     property real tuck: window.tucked ? window.slotSize + window.gap : 0
 
-    // Tucking away is quicker than coming back. A gentler curve than
-    // Style.easeOut, which crosses the short slide in a frame or two.
+    // Tucking away is quicker than coming back, using the shared motion curve.
     Behavior on tuck {
       id: tuckMotion
       enabled: window.shown
       NumberAnimation {
         id: tuckSlide
-        duration: Style.duration(tuckMotion.targetValue > 0 ? 120 : 180)
-        easing.type: Easing.OutCubic
+        duration: Style.duration(tuckMotion.targetValue > 0 ? 170 : 250)
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Style.easeOut
       }
     }
 
