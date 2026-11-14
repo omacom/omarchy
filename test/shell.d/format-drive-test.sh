@@ -20,24 +20,10 @@ sudo() {
   return 0
 }
 
-# Any real block device works, since the stub keeps every command off it; skip
-# the device-backed assertions on a machine that exposes none.
-device=""
-for candidate in /dev/loop[0-9]* /dev/zram[0-9]* /dev/vd[a-z] /dev/sd[a-z] /dev/nvme[0-9]n[0-9] /dev/mmcblk[0-9]; do
-  if [[ -b $candidate ]]; then
-    device=$candidate
-    break
-  fi
-done
-
 run_format() {
   rc=0
   printf 'y\n' | format-drive "$@" >"$work/out" 2>"$work/err" || rc=$?
 }
-
-if [[ -z $device ]]; then
-  skip "format-drive: no block device on this machine for the device-backed assertions"
-else
 
 # A missing or ordinary path is refused before anything runs, instead of
 # reporting success (the old dd even created a regular file under /dev).
@@ -53,6 +39,20 @@ pass "format-drive explains the refusal"
 
 grep -q "formatted" "$work/out" && fail "format-drive reports no success for a refused device" "$(cat "$work/out")"
 pass "format-drive reports no success for a refused device"
+
+# Any real block device works, since the stub keeps every command off it; skip
+# the device-backed assertions on a machine that exposes none.
+device=""
+for candidate in /dev/loop[0-9]* /dev/zram[0-9]* /dev/vd[a-z] /dev/sd[a-z] /dev/nvme[0-9]n[0-9] /dev/mmcblk[0-9]; do
+  if [[ -b $candidate ]]; then
+    device=$candidate
+    break
+  fi
+done
+
+if [[ -z $device ]]; then
+  skip "format-drive: no block device on this machine for the device-backed assertions"
+else
 
 # A failing step stops the sequence instead of running on.
 : >"$log"
