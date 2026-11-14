@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# omarchy:summary=Install whisper.cpp dictation
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+if omarchy-cmd-missing whisper-cli; then
+  if gum confirm "Install whisper.cpp and a speech model (~150MB)?"; then
+    omarchy-pkg-add whisper-cpp wtype
+  else
+    exit 0
+  fi
+fi
+
+if omarchy-cmd-missing whisper-cli && omarchy-cmd-present whisper-cpp; then
+  mkdir -p "$HOME/.local/bin"
+  ln -sfn "$(command -v whisper-cpp)" "$HOME/.local/bin/whisper-cli"
+fi
+
+model_dir="${XDG_DATA_HOME:-$HOME/.local/share}/omarchy/whisper"
+model="$model_dir/ggml-base.en.bin"
+mkdir -p "$model_dir"
+if [[ ! -s $model ]]; then
+  curl -fL --retry 3 -o "$model.partial" \
+    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+  mv "$model.partial" "$model"
+fi
+
+omarchy-dictation-use whisper-cli
+hyprctl reload >/dev/null
+omarchy-notification-send -g  "$(omarchy-i18n ml.whisperReady)" "$(omarchy-i18n ml.whisperHold)" -t 10000
