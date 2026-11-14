@@ -4,6 +4,9 @@
 # two conflict, so the swap has to happen inside one --ask 4 transaction, and a
 # rerun with everything installed must not touch pacman at all. The real
 # omarchy-pkg-missing runs; pacman and the privileged calls are stubbed.
+#
+# Foreign providers (e.g., libfprint-tod from AUR) are explicitly exempted
+# inside the transaction block to safeguard vendor-specific downstream drivers.
 
 set -euo pipefail
 
@@ -42,6 +45,13 @@ case "$1" in
       shift
     fi
     grep -qx -- "$1" <<< "${INSTALLED:-}"
+    ;;
+  -Qqm)
+    if [[ ${MOCK_FOREIGN_LIBFPRINT:-0} == "1" ]]; then
+      echo "libfprint-tod"
+      exit 0
+    fi
+    exit 1
     ;;
   -S)
     printf 'pacman %s\n' "$*" >> "$CALL_LOG"
@@ -114,6 +124,10 @@ assert_installs() {
   (( $(grep -c '^pacman ' "$CALL_LOG") == 1 )) || fail "$1: one pacman transaction"
 }
 
+assert_framework_installs() {
+  grep -qx 'pacman -S --needed --noconfirm -- fprintd usbutils' "$CALL_LOG" || fail "$1"
+  (( $(grep -c '^pacman ' "$CALL_LOG") == 1 )) || fail "$1: one framework pacman transaction"
+}
 run_setup
 assert_installs "a fresh machine installs libfprint-git, fprintd and usbutils"
 grep -qx enroll "$CALL_LOG" || fail "installation is followed by enrollment"
@@ -129,6 +143,13 @@ if grep -q '^pacman' "$CALL_LOG"; then
 fi
 grep -qx enroll "$CALL_LOG" || fail "a rerun with everything installed reaches enrollment"
 pass "a rerun with everything installed goes straight to enrollment"
+
+# Test scenario: User has a custom foreign libfprint driver (e.g., libfprint-tod), 
+# but fprintd and usbutils are missing. The transaction must preserve the driver 
+# and only provision the missing framework.
+MOCK_FOREIGN_LIBFPRINT=1 run_setup
+assert_framework_installs "a machine with a foreign driver installs only missing framework packages"
+pass "foreign libfprint providers are preserved and exempt from replacement"
 
 INSTALL_STATUS=1 run_setup
 if grep -qx enroll "$CALL_LOG"; then
