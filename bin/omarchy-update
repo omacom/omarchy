@@ -54,8 +54,10 @@ cleanup_update() {
 }
 
 if [[ -z ${OMARCHY_UPDATE_LOGGED:-} ]]; then
+  update_log="${OMARCHY_UPDATE_LOG:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/update.log}"
+  mkdir -p "$(dirname "$update_log")"
   script_command=$(printf '%q ' "$0" "$@")
-  exec env OMARCHY_UPDATE_LOGGED=1 script -qefc "$script_command" "/tmp/omarchy-update.log"
+  exec env OMARCHY_UPDATE_LOGGED=1 OMARCHY_UPDATE_LOG="$update_log" script -qefc "$script_command" "$update_log"
 fi
 
 if ! omarchy-update-lock held; then
