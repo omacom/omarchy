@@ -42,6 +42,8 @@ Groups:
   ...
 ```
 
+Diagnostics come from the `omarchy-debug` binary on PATH: `omarchy-debug --no-sudo --print` writes `/tmp/omarchy-debug.log` without a sudo prompt. `omarchy debug` is listed under Common commands but is not a dispatched subcommand.
+
 And you can dive deeper on every group:
 
 ```
