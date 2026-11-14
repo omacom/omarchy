@@ -24,3 +24,19 @@ assert(
   'lock, isLocked and status decide from the current lock state'
 )
 JS
+
+# A bound key like volume lights the panel without reaching the lock surface,
+# so only compositor-wide idle can blank it again.
+run_node_test <<'JS'
+const fs = require('fs')
+const serviceQml = fs.readFileSync(path.join(root, 'shell/plugins/lock/Service.qml'), 'utf8')
+const monitor = serviceQml.match(/IdleMonitor \{[\s\S]*?\n  \}/)
+
+assert(monitor, 'the lock watches compositor idle, not just its own surface')
+assert(
+  /enabled: root\.lockRequested/.test(monitor[0])
+    && /respectInhibitors: false/.test(monitor[0])
+    && /isIdle && root\.lockRequested && !root\.authenticatingPassword && !idleBlankTimer\.running\) root\.runBlank\(\)/.test(monitor[0]),
+  'quiet input blanks a lit lock unless a password check or a run-up is pending'
+)
+JS
