@@ -77,6 +77,9 @@ omarchy-cmd-present magick || fallback
 if [[ -z $background_path ]]; then
   background_path=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null || true)
 fi
+# A playing theme loop stands for its still.
+source omarchy-theme-bg-companions
+background_path=$(theme_bg_still_for "$background_path")
 [[ -f $background_path ]] || fallback
 
 if [[ -z $screen_size ]]; then

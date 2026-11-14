@@ -25,6 +25,9 @@ startup_wallpaper="$test_tmp/Selected wallpaper.webp"
 mkdir -p "$fake_bin" "$shell_root/shell" "$launch_home/.local/state/omarchy/current"
 touch "$startup_wallpaper"
 ln -s "$startup_wallpaper" "$launch_home/.local/state/omarchy/current/background"
+# The launcher resolves the startup still with this checkout's loop helper,
+# whatever checkout the machine itself runs.
+ln -s "$ROOT/bin/omarchy-theme-bg-loop-apply" "$ROOT/bin/omarchy-theme-bg-companions" "$fake_bin/"
 
 # Run a scratch copy of the supervisor with its 1s relaunch backoff and
 # 0.5s compositor probe shortened; the scenarios only need the waiting
@@ -161,6 +164,7 @@ pass "a compositor too busy to answer is not mistaken for one that is gone"
 : >"$logger_log"
 
 PATH="$fake_bin:$PATH" \
+HOME="$launch_home" \
 OMARCHY_PATH="$shell_root" \
 OMARCHY_TEST_QS_LOG="$qs_log" \
 OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
@@ -190,6 +194,7 @@ pass "a signal during backoff stops the supervisor before it relaunches"
 rm -f "$qs_terminated"
 
 PATH="$fake_bin:$PATH" \
+HOME="$launch_home" \
 OMARCHY_PATH="$shell_root" \
 OMARCHY_TEST_QS_LOG="$qs_log" \
 OMARCHY_TEST_QS_ENV_LOG="$qs_env_log" \
