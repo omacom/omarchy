@@ -80,21 +80,74 @@ function sortedByLabel(devices) {
   return list
 }
 
+// UPower exposes the kernel's HID batteries with a nativePath shaped
+// "hid-<address>-battery-<report id>". BlueZ only publishes org.bluez.Battery1
+// for peripherals that report battery over GATT, so a classic-HID device such
+// as a Magic Mouse has a perfectly good reading in the kernel that never
+// reaches BluetoothDevice.batteryAvailable. Pull the address back out so those
+// readings can be matched to a BlueZ device.
+function hidBatteryAddress(nativePath) {
+  var match = /^hid-((?:[0-9a-f]{2}:){5}[0-9a-f]{2})-battery/i.exec(String(nativePath || "").trim())
+  return match ? normalizedAddress(match[1]) : ""
+}
+
+// UPowerDevice.percentage and BluetoothDevice.battery both run 0..1, so this
+// only has to reject the junk: absent devices report 0, and a reading that has
+// not landed yet can arrive as NaN.
+function normalizedBattery(value) {
+  var level = Number(value)
+  if (!isFinite(level) || level <= 0) return 0
+  return level > 1 ? 1 : level
+}
+
+// address -> 0..1 level, for every UPower device that is a kernel HID battery.
+function hidBatteryMap(upowerDevices) {
+  var values = toArray(upowerDevices)
+  var map = ({})
+
+  for (var i = 0; i < values.length; i++) {
+    var d = values[i]
+    if (!d || d.ready === false) continue
+
+    var address = hidBatteryAddress(d.nativePath)
+    if (address === "") continue
+
+    var level = normalizedBattery(d.percentage)
+    if (level > 0) map[address] = level
+  }
+
+  return map
+}
+
 // Primitives-only projection of a BlueZ device for list-model rows. Holding
 // the Device QObject in model data puts a live wrapper into every delegate's
 // var property, and BlueZ churn (discovery timeouts, unpair) can destroy the
 // object while a delegate is still incubating, which segfaults quickshell.
 // Actions resolve the backend object via Panel.deviceFor().
-function deviceRow(d) {
+function deviceRow(d, hidBatteries) {
   if (!d) return null
+
+  var batteryAvailable = !!d.batteryAvailable
+  var battery = d.battery !== undefined ? d.battery : 0
+
+  // BlueZ has nothing to say about this device's battery, so fall back to the
+  // kernel HID reading if one exists for the same address.
+  if (!batteryAvailable && hidBatteries) {
+    var fallback = normalizedBattery(hidBatteries[normalizedAddress(d.address)])
+    if (fallback > 0) {
+      batteryAvailable = true
+      battery = fallback
+    }
+  }
+
   return {
     address: d.address || "",
     name: d.name || "",
     deviceName: d.deviceName || "",
     connected: !!d.connected,
     state: d.state !== undefined ? d.state : -1,
-    batteryAvailable: !!d.batteryAvailable,
-    battery: d.battery !== undefined ? d.battery : 0,
+    batteryAvailable: batteryAvailable,
+    battery: battery,
     pairing: !!d.pairing
   }
 }
@@ -165,6 +218,9 @@ if (typeof module !== "undefined") {
     nodeProps: nodeProps,
     nodeText: nodeText,
     bluetoothSinkMatchesDevice: bluetoothSinkMatchesDevice,
+    hidBatteryAddress: hidBatteryAddress,
+    normalizedBattery: normalizedBattery,
+    hidBatteryMap: hidBatteryMap,
     sortedByLabel: sortedByLabel,
     deviceRow: deviceRow,
     deviceLists: deviceLists,
