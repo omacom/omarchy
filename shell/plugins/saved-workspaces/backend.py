@@ -207,6 +207,15 @@ def process_info(pid):
   try:
     executable = str((root / "exe").resolve(strict=True))
     argv = recover_argv((root / "cmdline").read_bytes(), executable)
+    if Path(executable).name.lower() in {"firefox", "firefox-bin"}:
+      # A scene's short-lived launch page is not the app's saved launch context.
+      with contextlib.suppress(OSError, ValueError):
+        for entry in (root / "environ").read_bytes().split(b"\0"):
+          if entry.startswith(b"OMARCHY_SCENE_ORIGINAL_ARGV="):
+            original = json.loads(entry.split(b"=", 1)[1])
+            if isinstance(original, list) and 0 < len(original) <= 256 and all(isinstance(a, str) and "\0" not in a for a in original):
+              argv = original
+            break
     cwd = str((root / "cwd").resolve(strict=True))
     birth = (root / "stat").read_text().rsplit(")", 1)[1].split()[19]
     # A terminal's shell tracks the current directory, unlike its GUI process.
@@ -258,6 +267,19 @@ def split_tree(windows, bounds):
       "first": split_tree(before, first), "second": split_tree(after, second)}
 
 
+def firefox_launch_parts(argv):
+  urls = []
+  options = []
+  for arg in argv:
+    if arg in {"--new-window", "-new-window", "--new-tab", "-new-tab", "--url", "-url"}:
+      continue
+    if re.match(r"^(https?://|file:|about:|data:)", arg):
+      urls.append(arg)
+    else:
+      options.append(arg)
+  return options, urls or ["about:blank"]
+
+
 def command_for(window, info):
   argv = info["argv"]
   if not argv:
@@ -269,7 +291,8 @@ def command_for(window, info):
     if not any(a.startswith(("http:", "https:", "file:", "about:", "--app=")) for a in argv[1:]):
       argv.append("about:blank")
   elif app in {"firefox", "firefox-bin"}:
-    argv += ["--new-window", "about:blank"]
+    options, urls = firefox_launch_parts(argv)
+    argv = options + ["--new-window", *urls]
   return argv
 
 
@@ -491,16 +514,23 @@ def launch_window(saved, known, workspace):
     argv = cleaned + ["--window-name=" + browser_name]
   elif firefox:
     # Firefox has no --window-name for forwarded requests. A short-lived blank
-    # page supplies the identity, then replaces itself with the normal blank tab.
+    # page supplies the identity, then restores the first saved launch URL.
     # No keyboard input, extensions, remote debugging or background service.
-    page = '<meta name="color-scheme" content="dark light"><title>' + html.escape(browser_name) + '</title><script>setTimeout(()=>location.replace("about:blank"),2000)</script>'
-    argv = [a for a in argv if a != "--new-window" and not re.match(r"^(https?://|file:|about:|data:)", a)]
+    options, urls = firefox_launch_parts(argv)
+    original_argv = options + ["--new-window", *urls]
+    destination = json.dumps(urls[0]).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    page = '<meta name="color-scheme" content="dark light"><title>' + html.escape(browser_name) + '</title><script>setTimeout(()=>location.replace(' + destination + '),2000)</script>'
     fd, path = tempfile.mkstemp(prefix="omarchy-scene-", suffix=".html")
     launch_page = Path(path)
     with os.fdopen(fd, "w") as stream:
       stream.write(page)
-    argv += ["--new-window", launch_page.as_uri()]
-  command = shlex.join(["env", "OMARCHY_SAVED_WORKSPACE_LAUNCH=" + token, *argv])
+    # Multiple positional URLs create one fresh Firefox window. An explicit
+    # --new-window consumes only one URL and can split the others into another.
+    argv = options + (["--new-window"] if len(urls) == 1 else []) + [launch_page.as_uri(), *urls[1:]]
+  environment = ["OMARCHY_SAVED_WORKSPACE_LAUNCH=" + token]
+  if firefox:
+    environment.append("OMARCHY_SCENE_ORIGINAL_ARGV=" + json.dumps(original_argv))
+  command = shlex.join(["env", *environment, *argv])
   launch_command = "hl.exec_cmd(" + lua_string("cd " + shlex.quote(cwd) + " && exec " + command) + ", " + lua({"workspace": str(workspace), "tag": "+" + token}) + ")"
   deadline = time.monotonic() + 18
   signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
