@@ -32,6 +32,7 @@ nvidia-580xx-utils
 nvidia-utils
 lib32-nvidia-580xx-utils
 lib32-nvidia-utils
+nvidia-container-toolkit
 pipewire
 pipewire-alsa
 pipewire-jack

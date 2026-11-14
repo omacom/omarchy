@@ -9,5 +9,6 @@ linux-omarchy-headers
 linux-omarchy-nvidia-open
 nvidia-utils
 libva-nvidia-driver
+nvidia-container-toolkit
 # omarchy-n1x-probe uses lspci.
 pciutils
