@@ -103,7 +103,7 @@ omarchy-install-editor-*)
   printf 'editor:%s\n' "$editor" >>"$OMARCHY_TEST_INSTALL_LOG"
   case $editor in
   vscode) command=code ;;
-  zed) command=zeditor ;;
+  zed) command=zed ;;
   helix) command=helix ;;
   emacs) command=emacs ;;
   esac
@@ -181,7 +181,7 @@ editor_cases=(
   'plain plain pkg:plain'
   'code code editor:vscode'
   'cursor cursor pkg:cursor-bin'
-  'zed zeditor editor:zed'
+  'zed zed editor:zed'
   'sublime_text subl pkg:sublime-text-4'
   'helix helix editor:helix'
   'vim vim pkg:vim'
