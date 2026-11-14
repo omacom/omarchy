@@ -19,7 +19,8 @@ assertDeepEqual(
 )
 
 assertEqual(tailscale.cleanDnsName('work.tailnet.ts.net.'), 'work.tailnet.ts.net', 'tailscale strips trailing DNS dot')
-assertEqual(tailscale.displayHostName('localhost', 'work.tailnet.ts.net.'), 'work', 'tailscale falls back from localhost to short DNS name')
+assertEqual(tailscale.displayHostName('old-hostname', 'renamed-machine.tailnet.ts.net.'), 'renamed-machine', 'tailscale prefers renamed machine DNS name')
+assertEqual(tailscale.displayHostName('workstation', ''), 'workstation', 'tailscale falls back to OS hostname without a DNS name')
 
 const status = tailscale.parseStatus(JSON.stringify({
   BackendState: 'Running',
@@ -83,7 +84,8 @@ const status = tailscale.parseStatus(JSON.stringify({
 
 assert(status.ok && status.running, 'tailscale parses running status')
 assertEqual(status.selfIp, '100.74.97.73', 'tailscale parses self IP')
-assertDeepEqual(status.peers.map(peer => peer.HostName), ['alpha', 'zed'], 'tailscale filters offline and Mullvad peers and sorts online peers')
+assertDeepEqual(status.peers.map(peer => peer.HostName), ['alpha', 'zed', 'mbu-ser9', 'offline'], 'tailscale lists offline peers after online ones, each group alphabetical, and skips Mullvad')
+assertDeepEqual(status.peers.map(peer => peer.Online), [true, true, false, false], 'tailscale records which peers are online')
 assertDeepEqual(status.peers[0].TailscaleIPv6, ['fd7a:115c:a1e0::1901:334b'], 'tailscale preserves peer IPv6 addresses for copy menu')
 assert(status.peers[1].ExitNodeOption && status.peers[1].ExitNode, 'tailscale preserves exit node flags')
 assertDeepEqual(status.exitNodes.map(peer => peer.HostName), ['zed'], 'tailscale lists only online tailnet exit nodes')
@@ -91,13 +93,13 @@ assert(tailscale.isMullvadPeer({ HostName: 'al-tia-wg-003', DNSName: 'al-tia-wg-
 
 assert(status.fileSharing, 'tailscale reads Taildrop capability from the status capability map')
 assertEqual(status.selfUserId, '1001', 'tailscale records the owning user of this machine')
-assertDeepEqual(status.peers.map(peer => peer.UserID), ['1001', '1002'], 'tailscale records the owning user of each peer')
+assertDeepEqual(status.peers.map(peer => peer.UserID), ['1001', '1002', '', ''], 'tailscale records the owning user of each peer')
 assert(
   tailscale.hasFileSharing({ Capabilities: ['https://tailscale.com/cap/file-sharing'] }),
   'tailscale reads Taildrop capability from the legacy capability list'
 )
 assert(!tailscale.hasFileSharing({ CapMap: { funnel: null } }), 'tailscale reports no Taildrop without the capability')
-assertDeepEqual(status.peers.map(peer => peer.TaildropTarget), [1, 5], 'tailscale records how Tailscale grades each Taildrop target')
+assertDeepEqual(status.peers.map(peer => peer.TaildropTarget), [1, 5, 0, 0], 'tailscale records how Tailscale grades each Taildrop target')
 assert(tailscale.isTaildropTarget({ TaildropTarget: 1, UserID: '1001' }, '2002'), 'tailscale trusts an available Taildrop target')
 assert(!tailscale.isTaildropTarget({ TaildropTarget: 7, UserID: '1001' }, '1001'), 'tailscale skips peers Tailscale rules out')
 assert(tailscale.isTaildropTarget({ UserID: '1001' }, '1001'), 'tailscale falls back to same-owner peers without a grade')
@@ -263,4 +265,96 @@ assertEqual(runPlan(tailscale.renamePlan('dd11', 'dd11', 'Fail')).status, 23, 'i
 
 assertDeepEqual(tailscale.parseStatus('{'), { ok: false, unavailable: true, message: 'Status error', error: 'Failed to parse tailscale status' }, 'tailscale reports invalid status JSON')
 assertDeepEqual(tailscale.parseAccounts('{'), { accounts: [], selectedAccountId: '', selectedAccountLabel: '' }, 'tailscale handles invalid account JSON')
+
+// Regression: OS hostnames differ from the admin-console machine names.
+for (const [host, dns, expected] of [
+  ['iPhone 17 Pro Max', 'iris.tailnet.ts.net.', 'iris'],
+  ['Atlas', 'atlas.tailnet.ts.net', 'atlas'],
+  ['localhost', 'work.tailnet.ts.net.', 'work'],
+  ['', 'renamed.tailnet.ts.net.', 'renamed'],
+  ['workstation', '', 'workstation'],
+  ['workstation', undefined, 'workstation'],
+  ['', '', 'Unknown'],
+  [undefined, undefined, 'Unknown']
+]) {
+  assertEqual(tailscale.displayHostName(host, dns), expected, `machine name fallback: ${host} / ${dns}`)
+}
+const renamed = tailscale.parseStatus(JSON.stringify({
+  BackendState: 'Running',
+  Self: { HostName: 'old-self', DNSName: 'new-self.tailnet.ts.net.' },
+  Peer: {
+    a: { HostName: 'AAA', DNSName: 'zulu.tailnet.ts.net.', Online: true, ExitNodeOption: true },
+    b: { HostName: 'ZZZ', DNSName: 'alpha.tailnet.ts.net.', Online: true, ExitNodeOption: true },
+    c: { HostName: 'sleeping', DNSName: 'aardvark.tailnet.ts.net.', Online: false, ExitNodeOption: true },
+    d: { HostName: 'unknown-status', DNSName: 'unknown.tailnet.ts.net.' },
+    e: { HostName: 'provider', DNSName: 'provider.mullvad.ts.net.', Online: false }
+  }
+}))
+assertEqual(renamed.selfName, 'new-self', 'header uses the registered machine name')
+assertDeepEqual(renamed.peers.map(p => p.DisplayName), ['alpha', 'zulu', 'aardvark', 'unknown'], 'peers sort by registered name with offline peers last')
+assertDeepEqual(renamed.exitNodes.map(p => p.DisplayName), ['alpha', 'zulu'], 'exit nodes use registered names and exclude offline machines')
+assertEqual(renamed.peers[0].DNSName, 'alpha.tailnet.ts.net', 'full DNS address remains available for copying and actions')
+for (const option of [undefined, false, null, 'true', 1]) {
+  assertDeepEqual(tailscale.visiblePeers(renamed.peers, option).map(p => p.DisplayName), ['alpha', 'zulu'], `offline visibility requires explicit boolean true: ${option}`)
+}
+assertDeepEqual(tailscale.visiblePeers(renamed.peers, true).map(p => p.DisplayName), ['alpha', 'zulu', 'aardvark', 'unknown'], 'opt-in includes offline and unknown-status peers but not Mullvad')
+assertDeepEqual(tailscale.visiblePeers(renamed.peers, false).map(p => p.DisplayName), ['alpha', 'zulu'], 'turning the setting off re-filters the same snapshot')
+assertEqual(renamed.peers.length, 4, 'filtering does not mutate cached peers')
+assertDeepEqual(tailscale.visiblePeers([], true), [], 'empty tailnets remain empty')
+assertDeepEqual(tailscale.visiblePeers(renamed.peers.slice(2), false), [], 'offline-only tailnets are empty by default')
+
 JS
+
+# The panel checks below need a live compositor; the model checks above run headlessly.
+require_compositor "Tailscale peer settings runtime test"
+require_command quickshell
+
+stage=$(mktemp -d)
+trap 'rm -rf -- "$stage"' EXIT
+mkdir -p "$stage/tailscale" "$stage/bin" "$stage/home"
+ln -s "$ROOT/shell/Ui" "$stage/Ui"
+ln -s "$ROOT/shell/Commons" "$stage/Commons"
+cp "$SHELL_TEST_DIR/fixtures/tailscale-peers/shell.qml" "$stage/shell.qml"
+cp "$ROOT/shell/plugins/panels/tailscale/"{Model.js,TailscaleIcon.qml} "$stage/tailscale/"
+node - "$ROOT" "$stage" <<'JS'
+const fs = require('fs')
+const [root, stage] = process.argv.slice(2)
+const source = root + '/shell/plugins/panels/tailscale/'
+let panel = fs.readFileSync(source + 'Panel.qml', 'utf8')
+// The panel's content is built lazily, so its private IDs are exposed from
+// the content root and mirrored on the panel once the test builds it.
+panel = panel.replace('      id: keyCatcher\n', '      id: keyCatcher\n      property alias testOfflineSwitch: offlineSwitch\n')
+panel = panel.replace('  id: root', `  id: root
+  property alias testService: tailscale
+  function testEnsureContent() { return panel.ensureContent() }
+  readonly property Item testOfflineSwitch: panel.loadedContent ? panel.loadedContent.testOfflineSwitch : null
+  readonly property Item testKeys: panel.loadedContent`)
+fs.writeFileSync(stage + '/tailscale/Panel.qml', panel)
+// Disable automatic polling in the disposable fixture. Tests feed status into
+// the real parser; no daemon, account, routing or file-transfer command runs.
+let service = fs.readFileSync(source + 'Service.qml', 'utf8')
+service = service.replaceAll('running: true', 'running: false')
+fs.writeFileSync(stage + '/tailscale/Service.qml', service)
+JS
+cat > "$stage/bin/wl-copy" <<'COPY'
+#!/bin/bash
+value=$(cat)
+printf '%s\n' "$value" >> "$TAILSCALE_TEST_COPY_LOG"
+COPY
+cat > "$stage/bin/omarchy-tailscale-send" <<'SEND'
+#!/bin/bash
+printf '%s\n' "$@" >> "$TAILSCALE_TEST_SEND_LOG"
+SEND
+chmod +x "$stage/bin/"*
+output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" \
+  TAILSCALE_TEST_COPY_LOG="$stage/copy.log" TAILSCALE_TEST_SEND_LOG="$stage/send.log" \
+  timeout 20 quickshell -p "$stage" --no-color 2>&1) || fail "Tailscale peer fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "Tailscale peer runtime assertions pass" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<< "$output"; then
+  fail "Tailscale peer fixture has no QML errors" "$output"
+fi
+[[ ! -e $stage/send.log ]] || fail "offline send never launches a transfer"
+for expected in laptop laptop.tailnet.ts.net 100.64.0.3; do
+  rg -qxF "$expected" "$stage/copy.log" || fail "offline copy includes $expected"
+done
+pass "Tailscale settings, keyboard focus, offline copy, transfer guards and stale-state clearing work in QML"
