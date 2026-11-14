@@ -6,10 +6,10 @@
 
 # The engine and its recipes come in omarchy-local-ai, on every machine so the
 # agents panel knows which models fit. Podman, which runs them, is a base
-# package too; a machine installed without it, or an NVIDIA one without the
-# container toolkit, gets what's missing when a model is first set up. An
-# NVIDIA GPU reaches the containers through the CDI spec nvidia-container-toolkit
-# writes on install and again at every boot.
+# package too, and an NVIDIA machine gets nvidia-container-toolkit with its
+# driver; a machine installed without them gets what's missing when a model is
+# first set up. An NVIDIA GPU reaches the containers through the CDI spec the
+# toolkit writes on install and again at every boot.
 run=(omarchy-local-ai "$@")
 
 if [[ ${1:-} == "use" ]]; then
