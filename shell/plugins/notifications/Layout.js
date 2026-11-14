@@ -12,6 +12,45 @@ function groupKeyFor(row) {
   return String(row.groupKey || row.source || row.app || "?")
 }
 
+// The cards compute() puts in front, one per deck, worked out from row order
+// alone. A card asks this rather than its placement: showing its buttons
+// changes its height, and a placement depends on every card's height.
+function fronts(rows) {
+  var out = {}, seen = {}
+  for (var i = 0; i < rows.length; i++) {
+    var key = groupKeyFor(rows[i])
+    if (!seen[key]) { seen[key] = true; out[rows[i].key] = true }
+  }
+  return out
+}
+
+// Which card in each deck shows its buttons: the card under the pointer or
+// keyboard if one in that deck is active; otherwise the front card. A card
+// with nothing to put in the bar cannot take it: taking it would hide the
+// front card's buttons and shorten the deck while showing nothing.
+function deedHolders(rows, activeKey, hasDeeds) {
+  var out = fronts(rows)
+  if (!activeKey) return out
+  if (hasDeeds && !hasDeeds(activeKey)) return out
+
+  var activeDeck = ""
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].key === activeKey) {
+      activeDeck = groupKeyFor(rows[i])
+      break
+    }
+  }
+  if (!activeDeck) return out
+
+  for (var j = 0; j < rows.length; j++) {
+    if (groupKeyFor(rows[j]) === activeDeck) {
+      delete out[rows[j].key]
+    }
+  }
+  out[activeKey] = true
+  return out
+}
+
 // Rows are newest-first. Returns:
 //   decks:      [{ key, rows: [row...] }] in display order, newest deck first
 //   placements: { rowKey: { y, height, scale, opacity, z, front, hidden } }

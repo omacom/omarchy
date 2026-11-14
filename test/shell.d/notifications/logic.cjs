@@ -300,6 +300,50 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
     assert.deepEqual({ ...Delivery.deckMargins(position, thickness, 10) }, { top, right }, position)
 }
 
+// -------------------------------------------------------------------- layout
+{ // Cards read fronts() to show their buttons; it must agree with compute().
+  const rows = [['a1', 'A'], ['b1', 'B'], ['a2', 'A'], ['c1', 'C'], ['b2', 'B'], ['a3', 'A']]
+    .map(([key, app]) => ({ key, app }))
+  for (const opts of [{}, { expanded: true }, { expanded: true, openDeck: 'B' }]) {
+    const placed = Layout.compute(rows, opts).placements
+    const front = Object.keys(placed).filter(key => placed[key].front)
+    assert.deepEqual(Object.keys(Layout.fronts(rows)), front, JSON.stringify(opts))
+  }
+
+  // deedHolders() defaults to fronts when unhovered, and delegates deeds to an
+  // active card only within that card's own deck.
+  assert.deepEqual({ ...Layout.deedHolders(rows, '') }, { a1: true, b1: true, c1: true })
+  assert.deepEqual({ ...Layout.deedHolders(rows, 'b2') }, { a1: true, b2: true, c1: true })
+  assert.deepEqual({ ...Layout.deedHolders(rows, 'a3') }, { a3: true, b1: true, c1: true })
+  assert.deepEqual({ ...Layout.deedHolders(rows, 'c1') }, { a1: true, b1: true, c1: true })
+  assert.deepEqual({ ...Layout.deedHolders(rows, 'nonexistent') }, { a1: true, b1: true, c1: true })
+
+  // A hovered card with an empty bar cannot take the buttons from the front
+  // card. Taking them hides the front's bar and shortens the deck while
+  // showing nothing, and the shorter deck no longer reaches the pointer that
+  // is holding it open: the hover drops, the bar returns, the deck grows back,
+  // and the pair repeat as a visible pulse.
+  const deck = [{ key: 'front', app: 'Chat' }, { key: 'plain', app: 'Chat' }]
+  const hasDeeds = key => key !== 'plain'
+  assert.deepEqual({ ...Layout.deedHolders(deck, 'plain', hasDeeds) }, { front: true })
+  // A card that does have buttons still takes them, and only for its own deck.
+  assert.deepEqual({ ...Layout.deedHolders(deck, 'front', hasDeeds) }, { front: true })
+
+  // Hovering the buttonless card must leave the deck's height alone, which is
+  // what keeps the region under the pointer. The bar is 44px, a card 56px.
+  const bar = 44
+  const heightWith = holders => key => 56 + (holders[key] ? bar : 0)
+  const resting = Layout.compute(deck, { expanded: true, heightOf: heightWith(Layout.deedHolders(deck, '')) })
+  const hovered = Layout.compute(deck, { expanded: true, heightOf: heightWith(Layout.deedHolders(deck, 'plain', hasDeeds)) })
+  assert.equal(hovered.height, resting.height)
+
+  // A lone card is its own deck's front card, so clearing the hover cannot
+  // take its buttons away: the pulse this branch started with.
+  const solo = [{ key: 'solo', app: 'Solo' }]
+  assert.deepEqual({ ...Layout.deedHolders(solo, '') }, { solo: true })
+  assert.deepEqual({ ...Layout.deedHolders(solo, 'solo') }, { solo: true })
+}
+
 // --------------------------------------------------- Service.qml functions
 const source = fs.readFileSync(load.dir + '/Service.qml', 'utf8')
 // One function from Service.qml by name: its own line when that balances,
@@ -574,7 +618,7 @@ const summaries = rows => Array.from(rows, row => row.summary)
   s.admit(other, ...[1, 2, 3, 4, 5].map(id => s.fakeNotification(id, 'Card ' + id)))
   Object.assign(s, { Layout, gap: 6, targetDisplayName: 'fixture-display', marginsFor: () => ({ top: 10, right: 10 }),
     Quickshell: { screens: [{ name: 'fixture-display', height: 300 }] }, keyboardMode: true, keyboardRejected: {} })
-  runIn(s, 'layoutWith', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
+  runIn(s, 'layoutWith', 'liveRows', 'reachable', 'moveSelection', 'keepSelectionInReach', 'keyboardOrder')
   for (const row of s.toasts.rows) s.heights[row.key] = 100
   Object.defineProperty(s, 'layout', { get: () => s.layoutWith(true, s.openDeck) })
   s.selectCard = key => { s.keyboardKey = key; s.openDeck = Layout.groupKeyFor(s.toasts.get(s.rowIndexFor(key))) }
