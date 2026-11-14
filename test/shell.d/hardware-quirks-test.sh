@@ -257,6 +257,9 @@ machine() {
     t14s-21n2) dmi product_name 21N20000US; FAKE_PLATFORM=aarch64-qualcomm ;;
     t14s-21n1-not-qualcomm) dmi product_name 21N10000US; FAKE_PLATFORM=aarch64 ;;
     t14-gen4) dmi product_name 21F60000US ;;
+    t480) dmi product_name 20L5000UUS; dmi product_family "ThinkPad T480" ;;
+    t480s) dmi product_name 20L7000UUS; dmi product_family "ThinkPad T480s" ;;
+    t580) dmi product_name 20L9000UUS; dmi product_family "ThinkPad T580" ;;
     yoga-slim7x) dmi product_name 83ED; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,yoga-slim7x qcom,x1e80100" ;;
     zenbook-a16) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-a16-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook A16 UX3607OA"; FAKE_PLATFORM=aarch64 ;;
@@ -320,6 +323,7 @@ run_leaf() {
     OMARCHY_QCOM_FIRMWARE_MANIFEST="$hw/qcom-firmware-manifest" \
     OMARCHY_DMI_PRODUCT_SKU="$hw/dmi/product_sku" \
     OMARCHY_SYNAPTIC_INPUT_DEVICES="$hw/input-devices" \
+    OMARCHY_TRACKPOINT_MODPROBE_DIR="$root/etc/modprobe.d" \
     OMARCHY_SURFACE_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
@@ -349,6 +353,7 @@ leaves=(
   hardware/surface.sh
   hardware/fix-surface-keyboard.sh
   hardware/lenovo/thinkpad-t14s-camera.sh
+  hardware/lenovo/fix-thinkpad-t480-trackpoint.sh
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
   hardware/asus/fix-asus-proart-pz13-speakers.sh
   hardware/acer/fix-acer-aspire-16-ai-speakers.sh
@@ -407,6 +412,10 @@ hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n1+unreadable|0
 hardware/lenovo/thinkpad-t14s-camera.sh|t14s-21n1-not-qualcomm|0
 hardware/lenovo/thinkpad-t14s-camera.sh|t14-gen4|0
 hardware/lenovo/thinkpad-t14s-camera.sh|yoga-slim7x|0
+hardware/lenovo/fix-thinkpad-t480-trackpoint.sh|t480|0|wrote etc/modprobe.d/omarchy-thinkpad-t480-trackpoint.conf
+# The T480s and T580 share the model prefix but keep their own transport.
+hardware/lenovo/fix-thinkpad-t480-trackpoint.sh|t480s|0
+hardware/lenovo/fix-thinkpad-t480-trackpoint.sh|t580|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16|0|pkg-add asus-zenbook-a16-audio
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-speakers.sh|zenbook-a16-not-qualcomm|0
@@ -498,6 +507,15 @@ run_leaf hardware/fix-surface-keyboard.sh >/dev/null
 [[ $(<"$root/etc/mkinitcpio.conf.d/surface_device_modules.conf") == "MODULES=(pinctrl_tigerlake "*")" ]] ||
   fail "Surface keyboard setup lists the detected pinctrl module first" "$(<"$root/etc/mkinitcpio.conf.d/surface_device_modules.conf")"
 pass "Surface keyboard setup builds its module list around the detected pinctrl module"
+
+# A T480 that already chose a psmouse transport keeps it.
+machine t480
+mkdir -p "$root/etc/modprobe.d"
+echo 'options psmouse synaptics_intertouch=1' >"$root/etc/modprobe.d/psmouse.conf"
+run_leaf hardware/lenovo/fix-thinkpad-t480-trackpoint.sh >/dev/null
+[[ ! -e "$root/etc/modprobe.d/omarchy-thinkpad-t480-trackpoint.conf" ]] ||
+  fail "the T480 TrackPoint quirk leaves an existing psmouse transport alone"
+pass "the T480 TrackPoint quirk leaves an existing psmouse transport alone"
 
 machine t14s-21n1
 rule="$root/etc/udev/rules.d/70-thinkpad-t14s-camera.rules"
