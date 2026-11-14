@@ -63,31 +63,41 @@ function chargeThresholdActive(device, onBattery, states) {
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
-function batteryIcon(device, onBattery, states) {
+function batteryIcon(device, onBattery, states, thresholdActive) {
   var d = device || {}
   if (!d.isPresent) return ""
 
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
   var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
-  var threshold = chargeThresholdActive(d, onBattery, states)
 
-  if (threshold) return defaultIcons[index]
-  if (d.state === states.FullyCharged) return "󰂅"
+  if (thresholdActive) return defaultIcons[index]
+  // Some gas gauges report FullyCharged at an arbitrary percentage right after an AC transition.
+  if (d.state === states.FullyCharged && d.percentage >= 0.99) return "󰂅"
   if (!onBattery) return chargingIcons[index]
   return defaultIcons[index]
 }
 
-function modeLabel(device, onBattery, states, tr) {
+function modeLabel(device, onBattery, states, thresholdActive, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   if (!d.isPresent) return ""
 
   var percentage = d.isPresent ? d.percentage : 0
-  if (chargeThresholdActive(d, onBattery, states)) return t("power.threshold", "Threshold")
+  if (thresholdActive) return t("power.threshold", "Threshold")
   if (onBattery) return t("power.onBattery", "On battery")
   if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")
+}
+
+// Debounces a noisy raw boolean: confirmed flips true only after raw holds
+// continuously for confirmDelayMs, and drops instantly on any false reading.
+// activeSince is caller-tracked state (null, or the run's start time) — pass
+// back what this returns on the next call.
+function nextChargeThresholdState(raw, activeSince, nowMs, confirmDelayMs) {
+  if (!raw) return { activeSince: null, confirmed: false }
+  var since = activeSince === null || activeSince === undefined ? nowMs : activeSince
+  return { activeSince: since, confirmed: (nowMs - since) >= confirmDelayMs }
 }
 
 // omarchy-battery-status --shell answers in plain digits with the unit
@@ -119,6 +129,7 @@ if (typeof module !== "undefined") {
     profileIcon: profileIcon,
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
+    nextChargeThresholdState: nextChargeThresholdState,
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
     profileLabel: profileLabel,
