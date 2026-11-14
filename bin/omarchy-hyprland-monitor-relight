@@ -147,23 +147,34 @@ relight() {
 # A wake that is still being modeset looks the same for a moment.
 sleep "$SETTLE"
 
-for (( try = 1; try <= TRIES; try++ )); do
-  connectors=$(omarchy-hyprland-monitor-unlit) || break
+# Tries are counted for each monitor, so one that will not wake neither uses up
+# another's nor keeps it waiting. A monitor these tries could not bring back is
+# left dark with its config restored, and this stays running until it is
+# blanked, unplugged or lit, so the watcher does not start over on it every few
+# seconds for as long as it stays that way.
+declare -A tries=()
 
-  for connector in $connectors; do
-    relight "$connector"
+while connectors=$(omarchy-hyprland-monitor-unlit); do
+  # A monitor that is no longer unlit starts afresh if it ends up here again.
+  for connector in "${!tries[@]}"; do
+    grep -qxF -- "$connector" <<<"$connectors" || unset "tries[$connector]"
   done
 
-  # Give the reload's modeset time to land before judging it.
-  sleep 3
-done
+  tried=0
+  for connector in $connectors; do
+    (( ${tries[$connector]:-0} >= TRIES )) && continue
 
-# A monitor these tries could not bring back is left dark with its config
-# restored. Hold on until it is blanked, unplugged or lit, so the watcher does
-# not start over on the same monitor every few seconds for as long as it stays
-# that way.
-while omarchy-hyprland-monitor-unlit >/dev/null; do
-  sleep 10
+    tries[$connector]=$(( ${tries[$connector]:-0} + 1 ))
+    relight "$connector"
+    tried=1
+  done
+
+  if (( tried )); then
+    # Give the reload's modeset time to land before judging it.
+    sleep 3
+  else
+    sleep 10
+  fi
 done
 
 exit 0

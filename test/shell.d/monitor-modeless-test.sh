@@ -492,3 +492,34 @@ run_relight
   fail "the wake mode is one both the kernel and Hyprland have, at the rate nearest 60 Hz" "$(<"$eval_log")"
 pass "the wake mode is one both the kernel and Hyprland have, at the rate nearest 60 Hz"
 unset OMARCHY_TEST_WAKES_CONNECTOR
+
+# One monitor that will not wake must not keep a second from being tried. The
+# relight stays running for the first, and the watcher starts no other while it
+# does, so the second has only this one to rely on.
+two_monitors='[{"name":"DP-1","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1920x1080@60.00Hz"]},
+{"name":"DP-2","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1920x1080@60.00Hz"]}]'
+lit_monitor=$two_monitors
+run_relight &
+relight_pid=$!
+
+evals_for() {
+  grep -c "output = \"$1\"" "$eval_log" || true
+}
+
+for (( waited = 0; waited < 400 && $(evals_for DP-1) < 3; waited++ )); do
+  sleep 0.5
+done
+(( $(evals_for DP-1) == 3 )) || fail "a monitor that will not wake is tried three times" "$(<"$eval_log")"
+
+write_connector DP-2 connected disabled
+for (( waited = 0; waited < 400 && $(evals_for DP-2) < 1; waited++ )); do
+  sleep 0.5
+done
+(( $(evals_for DP-2) >= 1 )) || fail "a second monitor is tried while the first stays dark" "$(<"$eval_log")"
+(( $(evals_for DP-1) == 3 )) || fail "the monitor already given up on is not tried again" "$(<"$eval_log")"
+pass "a second monitor is tried while one that will not wake stays dark"
+
+# Let the relight see both driven and finish, so it does not outlive the test.
+write_connector DP-1 connected enabled
+write_connector DP-2 connected enabled
+wait "$relight_pid" || true
