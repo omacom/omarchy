@@ -71,10 +71,26 @@ elif [[ ${2:-} == "--execute" ]]; then
     exit "$status"
   fi
 elif [[ -z ${2:-} ]]; then
-  # Survive closing the terminal that requested the session exit.
-  systemd-run --user --collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s \
-    --setenv=PATH --setenv=HYPRLAND_INSTANCE_SIGNATURE --setenv=OMARCHY_PATH \
-    "$0" "$action" --execute
+  # tmux/SSH/bare TTY often drop the session bus even when a graphical session exists.
+  if [[ -z ${XDG_RUNTIME_DIR:-} ]]; then
+    export XDG_RUNTIME_DIR=/run/user/$(id -u)
+  fi
+  if [[ -z ${DBUS_SESSION_BUS_ADDRESS:-} && -S $XDG_RUNTIME_DIR/bus ]]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+  fi
+
+  # Survive closing the terminal that requested the session exit. Without a user
+  # manager, reboot and shutdown fall back to the system one; logout needs the session.
+  service=(--collect --quiet --property=Type=exec --property=RuntimeMaxSec=30s
+    --setenv=PATH --setenv=HYPRLAND_INSTANCE_SIGNATURE --setenv=OMARCHY_PATH
+    "$0" "$action" --execute)
+  if ! systemd-run --user "${service[@]}"; then
+    if [[ $action == "logout" ]]; then
+      exit 1
+    else
+      systemd-run --system "${service[@]}"
+    fi
+  fi
 else
   echo "$usage" >&2
   exit 2
