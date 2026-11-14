@@ -25,3 +25,43 @@ The clipboard history is provided by the Omarchy shell and works for both text a
 You can also search the history just by starting to type:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)
+
+The picker recognises text, images, files, links, email addresses and colours, and can filter by those types with `Ctrl + P`.
+
+### Clipboard history keys
+
+| Key | Action |
+| --- | ------ |
+| Return | Paste the selected entry |
+| Ctrl + Return | Copy it without pasting |
+| Alt + Return | Open a link, email, file or image |
+| Ctrl + K | Open the action panel |
+| Ctrl + P | Cycle the type filter |
+| Ctrl + . | Pin or unpin the selection |
+| Ctrl + E | Rename the selection |
+| Ctrl + O | Open the selected link, email, file or image |
+| Delete | Delete the selected entry |
+| Shift + Delete | Delete the whole history after confirmation |
+| Escape | Clear the search, then close the picker |
+
+The action panel adds copy-text-from-image (OCR), copy-text-from-QR-code, colour format copies, edit content, delete recent entries by time window and a shortcut to the settings file.
+
+Pinned entries stay at the top and are exempt from retention.
+
+### Clipboard history settings
+
+The picker writes its settings to `~/.config/omarchy/clipboard.json`. Open it from the action panel's **Open Settings** row.
+
+```json
+{
+  "retentionDays": 0,
+  "maxEntries": 500,
+  "primaryAction": "paste",
+  "textRecognition": true,
+  "disabledApps": ["KeePassXC", "org.keepassxc.KeePassXC", "Bitwarden", "1Password"]
+}
+```
+
+`retentionDays` is `0` for unlimited. `maxEntries` caps unpinned entries; `0` is unlimited. Set `primaryAction` to `"copy"` if Return should copy instead of paste. `textRecognition` runs Tesseract on new images so their text is searchable. `disabledApps` lists Hyprland window classes that are never recorded; apps that mark the clipboard as sensitive are always skipped.
+
+Deleting the whole history, or entries from a recent time window, first writes a backup to `~/.local/state/omarchy/clipboard-history.json.bak`.

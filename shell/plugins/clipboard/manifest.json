@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "omarchy.clipboard",
   "name": "Clipboard",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "Omarchy",
-  "description": "A clipboard manager to view and paste history",
+  "description": "Clipboard history with pins, type filters, colours, links and OCR",
   "kinds": [
     "overlay"
   ],
