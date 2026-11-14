@@ -11,10 +11,10 @@
     <!-- The terminal; one hard shadow, as Hype's slides. -->
     <rect x="84" y="84" width="344" height="344" rx="26" fill="{{ icon_shadow }}" transform="translate(0 8)"/>
     <rect x="84" y="84" width="344" height="344" rx="26" fill="{{ icon_body }}" stroke="{{ icon_edge }}" stroke-width="3"/>
-    <!-- The logo's own drawing, laid out on its 96 unit square. -->
-    <g transform="translate(84 84) scale(3.5833333) translate(-16 -16)">
+    <!-- The logo's own drawing, enlarged to fill the window. -->
+    <g transform="translate(256 256) scale(5.4) translate(-46.6 -46.2)">
       <!-- The footprint, as the prompt. -->
-      <g fill="{{ icon_shadow }}" transform="translate(0 2)">
+      <g fill="{{ icon_shadow }}" transform="translate(0 1.5)">
         <g transform="matrix(.85714209 0 0 .85714209 3.4285132 -145.99985)">
           <path d="M37.0057 207.12866c-.9539-.24232-1.8766-.41748-2.7117-.49721-4.1121-.39258-5.433-.0326-7.5067 2.04908-2.8434 2.85385-2.2667 6.90676 1.4644 10.38038 8.0896 7.53109 8.2202 12.581.4808 18.2752-3.1863 2.34409-5.492 7.85321-4.4994 10.73911 1.2501 3.63469 6.0098 5.02447 10.1635 2.97341 3.8964-1.92373 8.3104-8.49971 11.3208-16.36234.2509-.65526.4966-1.31942.7268-1.9912.6909-2.01525 1.2796-4.09527 1.7466-6.17933 1.4109-6.29466 1.0666-11.19321-.9956-14.13789-1.287-1.83788-6.056-4.19923-10.1892-5.24924z"/>
           <g transform="translate(-1890.6933 -335.56903)">
@@ -39,7 +39,7 @@
         </g>
       </g>
       <!-- The cursor. -->
-      <rect x="48" y="63" width="22" height="5" rx="2.5" fill="{{ icon_shadow }}" transform="translate(0 2)"/>
+      <rect x="48" y="63" width="22" height="5" rx="2.5" fill="{{ icon_shadow }}" transform="translate(0 1.5)"/>
       <rect x="48" y="63" width="22" height="5" rx="2.5" fill="{{ icon_mark }}"/>
     </g>
   </g>
