@@ -122,7 +122,8 @@ PanelWindow {
 
   // The slot a point along the dock falls before, counting from the first app.
   function slotIndexAt(point) {
-    var along = window.vertical ? point.y : point.x
+    var at = body.mapToItem(slots, point.x, point.y)
+    var along = window.vertical ? at.y : at.x
     var first = window.slotSize
     var count = window.dock ? window.dock.itemModel.count : 0
     return Math.max(0, Math.min(count, Math.round((along - first) / window.slotSize)))
