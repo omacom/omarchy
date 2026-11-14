@@ -23,6 +23,29 @@ readonly ignore_pattern=${OMARCHY_CRASH_IGNORE:-}
 
 declare -A last_notified
 
+main_process_running() {
+  local target_exe=$1 target_comm=$2
+  local comm args
+
+  while read -r comm args; do
+    # When an executable path is available, match it specifically instead of
+    # letting an unrelated binary sharing the same comm (e.g. Brave Origin and
+    # Brave) satisfy the check.
+    if [[ $target_exe == /* ]]; then
+      if [[ $args != "$target_exe" && $args != "$target_exe "* ]]; then
+        continue
+      fi
+    elif [[ $comm != "$target_comm" ]]; then
+      continue
+    fi
+
+    # Skip internal helper processes.
+    [[ $args != *"--type="* ]] && return 0
+  done < <(ps -u "$UID" -o comm=,args= 2>/dev/null)
+
+  return 1
+}
+
 announce() {
   local comm=$1 pid=$2 exe=$3 signal=$4
 
@@ -52,13 +75,16 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # IFS whitespace, so an empty field collapses into the next delimiter and
     # every field after it shifts along one. A process can set its own comm to
     # nothing, and that crash used to be read as somebody else's and dropped.
-    IFS=$'\t' read -r uid comm pid exe signal < <(
+    IFS=$'\t' read -r uid comm pid exe signal is_zygote has_type < <(
       jq -r 'def field: if . == null or . == "" then "-" else . end;
+             def flag: if . then "1" else "0" end;
              [(._UID | field),
               (.COREDUMP_COMM | field),
               (.COREDUMP_PID | field),
               (.COREDUMP_EXE | field),
-              (.COREDUMP_SIGNAL_NAME | field)] | @tsv' <<<"$entry" 2>/dev/null
+              (.COREDUMP_SIGNAL_NAME | field),
+              ((.COREDUMP_CMDLINE // "") | test("(^|\\s)--type=zygote(\\s|$)") | flag),
+              ((.COREDUMP_CMDLINE // "") | test("(^|\\s)--type=") | flag)] | @tsv' <<<"$entry" 2>/dev/null
     )
 
     [[ $pid =~ ^[0-9]+$ ]] || continue
@@ -71,6 +97,17 @@ journalctl -f -n 0 -o json "MESSAGE_ID=$COREDUMP_MESSAGE_ID" 2>/dev/null |
     # Only this user's crashes; a daemon dumping core is a sysadmin's problem.
     [[ $uid =~ ^[0-9]+$ ]] || continue
     ((uid == UID)) || continue
+
+    # Chromium/Electron zygote processes are internal fork servers with no user
+    # state; an abort when their parent exits (such as policy refresh during
+    # theme changes) is harmless and not a user-facing crash.
+    [[ $is_zygote == "1" ]] && continue
+
+    # Recoverable child processes (--type=gpu-process, --type=utility, etc.)
+    # are transparently restarted while their main application remains alive.
+    if [[ $has_type == "1" ]] && main_process_running "$exe" "$comm"; then
+      continue
+    fi
 
     # comm is truncated to 15 characters, so prefer the executable's basename.
     name=$comm
