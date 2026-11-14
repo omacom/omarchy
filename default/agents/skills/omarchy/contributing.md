@@ -27,7 +27,9 @@ omarchy debug --no-sudo --print
 
 # Interactive variant: `omarchy debug` offers to upload the log to
 # logs.omarchy.org (expires after 24h) and prints a shareable URL to
-# include in the issue.
+# include in the issue. The upload drops credential-like values; the local
+# `/tmp/omarchy-debug.log` is left intact. `omarchy upload-log this-boot`
+# sends warnings and errors, and `--full` opts into the complete journal.
 ```
 
 **Capture the problem on screen.** A screenshot or short recording of the bug
