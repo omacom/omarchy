@@ -163,6 +163,22 @@ hl = {
     local address = selector:match("^address:(.+)$")
     return world.windows[address] and { address = address } or nil
   end,
+  get_windows = function()
+    local list = {}
+    for address, window in pairs(world.windows) do
+      local workspace = workspace_numbered(window.workspace)
+      list[#list + 1] = {
+        address = address,
+        floating = window.floating,
+        fullscreen = window.fullscreen or 0,
+        at = window.at,
+        size = window.size,
+        workspace = workspace_object(workspace),
+        monitor = workspace and monitor_object(monitor_named(workspace.monitor)),
+      }
+    end
+    return list
+  end,
   dsp = {
     focus = function(spec)
       return function()
@@ -216,6 +232,10 @@ hl = {
     window = {
       move = function(spec)
         return function()
+          if spec.x then
+            world.windows[spec.window:match("^address:(.+)$")].at = { x = spec.x, y = spec.y }
+            return
+          end
           if spec.monitor then
             local target = monitor_named(spec.monitor)
             if not target then error("Invalid monitor / monitor doesn't exist") end
@@ -251,8 +271,14 @@ function load_module()
   return require("default.hypr.monitor-workspaces")
 end
 
-function plug(name, id, description, active)
-  world.monitors[#world.monitors + 1] = { name = name, id = id, description = description, active = active }
+-- Monitors sit side by side in the order of their ids unless a place is given.
+function plug(name, id, description, active, place)
+  place = place or {}
+  world.monitors[#world.monitors + 1] = {
+    name = name, id = id, description = description, active = active,
+    x = place.x or id * 1920, y = place.y or 0, width = place.width or 1920, height = place.height or 1080,
+    scale = place.scale or 1, transform = place.transform or 0, reserved = place.reserved,
+  }
   if not workspace_numbered(active) then create(active, name) end
 end
 
@@ -272,6 +298,14 @@ end
 function window(address, id)
   if not workspace_numbered(id) then create(id, world.focused) end
   world.windows[address] = { workspace = id }
+end
+
+-- A floating window, which has a place of its own in the layout.
+function floating(address, id, x, y, width, height)
+  window(address, id)
+  local placed = world.windows[address]
+  placed.floating, placed.at, placed.size = true, { x = x, y = y }, { x = width or 1100, y = height or 734 }
+  return placed
 end
 
 function on(id)
@@ -660,3 +694,58 @@ hl.dispatch(m.move_to_monitor("u"))
 check(world.windows["0xa"].workspace == 11 and world.focused == "DP-1", "a move toward no monitor did something")
 ' || fail "a window moves to the monitor in a direction, and nowhere when there is none"
 pass "a window moves to the monitor in a direction, and nowhere when there is none"
+
+run_lua floating '
+-- A laptop panel to the right of the display, with the bar along its top.
+plug("eDP-1", 0, "Panel", 1, { x = 1920, reserved = { top = 26 } })
+plug("DP-1", 1, "LG", 11, { x = 0 })
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+local kept = floating("0xa", 1, 2300, 200)
+world.focused = "DP-1"
+local carried = floating("0xb", 11, 410, 173)
+local low = floating("0xc", 11, 1500, 900)
+local large = floating("0xd", 11, 100, 100, 2400, 1400)
+local maximized = floating("0xe", 11, 300, 300)
+maximized.fullscreen = 1
+window("0xf", 11)
+world.focused = "eDP-1"
+
+-- Hyprland keeps each window where it was once the display it was on is gone.
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(world.windows["0xb"].workspace == 2 and on(2) == "eDP-1", "the workspace joined the panel")
+check(carried.at.x == 2330 and carried.at.y == 173, "the carried window has the place it had, on the panel, not " .. carried.at.x .. "," .. carried.at.y)
+check(low.at.x == 2740 and low.at.y == 346, "a window too far right and down is pulled inside the panel, not " .. low.at.x .. "," .. low.at.y)
+check(large.at.x == 1920 and large.at.y == 26, "one larger than the panel starts at its corner, below the bar, not " .. large.at.x .. "," .. large.at.y)
+check(maximized.at.x == 300 and maximized.at.y == 300, "a maximized window is left to Hyprland")
+check(kept.at.x == 2300 and kept.at.y == 200, "a window already on the panel stays where it was put")
+
+-- On another monitor than its workspace is, a window is still in sight.
+kept.at = { x = 1300, y = 200 }
+plug("DP-3", 3, "LG", 13, { x = 0 })
+world.handlers["monitor.added"]({ name = "DP-3" })
+check(kept.at.x == 1300 and kept.at.y == 200, "a window in sight on another monitor was moved to " .. kept.at.x .. "," .. kept.at.y)
+' || fail "floating windows left on no monitor by an unplug come back on screen"
+pass "floating windows left on no monitor by an unplug come back on screen"
+
+run_lua floating_offset '
+-- A panel beside a wider display, so it starts partway into its own width,
+-- and below the top of the layout.
+plug("eDP-1", 0, "Panel", 1, { x = 2560, y = 360 })
+plug("DP-1", 1, "LG", 11, { x = 0, width = 2560, height = 1440 })
+world.focused = "DP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+-- Hyprland left what remains of each position once the panel size is taken out.
+local carried = floating("0xa", 11, 100, 50, 400, 300)
+world.focused = "eDP-1"
+
+unplug("DP-1")
+world.handlers["monitor.removed"]({ name = "DP-1" })
+fire_timers()
+check(carried.at.x == 2660 and carried.at.y == 410, "the window is as far into the panel as it was into the display, not at " .. carried.at.x .. "," .. carried.at.y)
+' || fail "a window comes back at its own place on a monitor that starts anywhere"
+pass "a window comes back at its own place on a monitor that starts anywhere"
