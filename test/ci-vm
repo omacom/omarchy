@@ -111,6 +111,12 @@ until ssh_vm 'systemctl --user show-environment | grep -q ^HYPRLAND_INSTANCE_SIG
 done
 echo "test/ci-vm: sources copied and desktop up after $(seconds) s"
 
+# The release image lazily installs Node through mise. Resolve and install it
+# once before the parallel JavaScript tests compete for that first download.
+# Tool setup gets a network timeout; the unit tests should only execute Node.
+ssh_vm 'systemd-run --user --quiet --collect --wait -E MISE_FETCH_REMOTE_VERSIONS_TIMEOUT=30s mise install node'
+echo "test/ci-vm: Node ready after $(seconds) s"
+
 # Nobody touches this machine, and after a few minutes without input Omarchy
 # turns the screen off. The tests that read the screen then read black.
 if ! ssh_vm 'systemd-run --user --quiet --collect --wait omarchy-toggle-idle stay-awake' >/dev/null; then
