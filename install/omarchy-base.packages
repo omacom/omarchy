@@ -16,6 +16,7 @@ brightnessctl
 btop
 cliamp
 cmake
+crun
 cups
 cups-filters
 cups-pk-helper
@@ -115,6 +116,7 @@ pinta
 plain
 plocate
 plymouth
+podman
 postgresql-libs
 python-gobject
 python-poetry-core

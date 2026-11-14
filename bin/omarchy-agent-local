@@ -5,9 +5,11 @@
 # omarchy:examples=omarchy agent local use best | omarchy agent local use qwen3.8-27b-gufo | omarchy agent local stop | omarchy-agent-local use --help
 
 # The engine and its recipes come in omarchy-local-ai, on every machine so the
-# agents panel knows which models fit. Podman, which runs them, only comes when
-# a model is first set up. An NVIDIA GPU reaches the containers through the CDI
-# spec nvidia-container-toolkit writes on install and again at every boot.
+# agents panel knows which models fit. Podman, which runs them, is a base
+# package too; a machine installed without it, or an NVIDIA one without the
+# container toolkit, gets what's missing when a model is first set up. An
+# NVIDIA GPU reaches the containers through the CDI spec nvidia-container-toolkit
+# writes on install and again at every boot.
 run=(omarchy-local-ai "$@")
 
 if [[ ${1:-} == "use" ]]; then
