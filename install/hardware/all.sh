@@ -7,6 +7,7 @@ run_logged "$OMARCHY_INSTALL/hardware/gb10/cpuidle.sh"
 run_logged "$OMARCHY_INSTALL/hardware/nvidia/dgx-spark-boot.sh"
 
 run_logged "$OMARCHY_INSTALL/hardware/network.sh"
+run_logged "$OMARCHY_INSTALL/hardware/wifi-direct.sh"
 run_logged "$OMARCHY_INSTALL/hardware/set-wireless-regdom.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-ath12k-board-data.sh"
 run_logged "$OMARCHY_INSTALL/hardware/fix-fkeys.sh"
