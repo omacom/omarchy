@@ -35,8 +35,11 @@ BarWidget {
   readonly property string displayText: formatted(displayDate)
   readonly property var verticalLines: displayText.split("\n")
 
+  // Re-arming as well as repainting: a tick armed before a suspend would
+  // otherwise still miss the next minute by however long the machine slept.
   function refresh() {
-    displayDate = new Date()
+    clock.sync()
+    displayDate = clock.date
     if (panelLoader.item && panelLoader.item.refresh) panelLoader.item.refresh()
   }
 
