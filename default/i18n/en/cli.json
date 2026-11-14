@@ -62,6 +62,7 @@
   "battlenet.removeProton": "Also remove GE-Proton runtimes downloaded by umu?",
   "battlenet.removeUmu": "Also remove umu-launcher? It's only used by this command.",
   "battlenet.wipePartial": "Wipe the partial prefix and start fresh?",
+  "bluetooth.importWindows": "Use the Windows keys for these devices, so they work in both systems without pairing again?",
   "branding.pickAboutImage": "Pick PNG or SVG for About",
   "branding.pickScreensaverImage": "Pick PNG or SVG for screensaver",
   "browser.notFound": "No default browser found",
