@@ -1139,19 +1139,19 @@
     "label": "Usuario"
   },
   "trigger.toggle.crash-capture-off": {
-    "label": "Captura de fallos desactivada"
+    "label": "Desactivar captura de fallos"
   },
   "trigger.hardware.laptop-display-on": {
-    "label": "Pantalla de la laptop activada"
+    "label": "Activar pantalla de la laptop"
   },
   "trigger.hardware.laptop-display-off": {
-    "label": "Pantalla de la laptop desactivada"
+    "label": "Desactivar pantalla de la laptop"
   },
   "trigger.hardware.mirror-display-on": {
-    "label": "Duplicación de pantalla activada"
+    "label": "Activar duplicación de pantalla"
   },
   "trigger.hardware.mirror-display-off": {
-    "label": "Duplicación de pantalla desactivada"
+    "label": "Desactivar duplicación de pantalla"
   },
   "trigger.hardware.hybrid-gpu-on": {
     "label": "Cambiar a GPU híbrida"
