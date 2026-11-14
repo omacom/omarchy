@@ -182,6 +182,20 @@ The two halves follow the click-command rule. An action's own words are literals
 
 The buttons ride as the `omarchy-actions` hint (`[{"label", "argv"}]`, each argv checked like `omarchy-exec-argv`), and the first action's argv is also set as the click command. Like the click, they are not libnotify actions: the shell runs them itself and stores them with the row, so the sender exits at once and a card restored after a shell restart, or brought back from history, keeps its buttons. The card shows them as a bar along its bottom edge while it is the front card of its deck, or, once a deck is open, only while it is the card hovered or selected.
 
+## Startup ordering
+
+An autostart app is anything launched through `o.launch_on_start` in `~/.config/hypr/autostart.lua`. It fires on `hyprland.start`, the same event that launches the shell, and the shell needs a few seconds to load its plugins before they claim their bus names: `shell/plugins/notifications/Service.qml` claims `org.freedesktop.Notifications`, and the bar's tray widget claims `org.kde.StatusNotifierWatcher` a moment later. Apps that probe for a name once at process start keep a missing answer for their whole lifetime. Chromium (and every web app) and Electron check for the notification name and then draw their own bare popup windows for the rest of the session instead of sending toasts here; Electron's tray icon checks for the watcher once and never registers if it is missing, so Slack or any other Electron app comes up without its tray icon until it is restarted.
+
+So `o.launch_on_start` routes through `bin/omarchy-launch-autostart`, which waits with `gdbus wait` for the notification service and then for the tray watcher, within one shared budget of 15 s, and then execs `uwsm-app -- <command>` unchanged. In the normal case both names are on the bus within a couple of seconds, a quarter second apart. Past the deadline the app launches anyway and one `omarchy-autostart` line in the journal per missing service names it, so a disabled feature costs a slower login, never a missing app. Keybind launches (`o.launch`, `o.bind` with a command) run in an established session and stay immediate. An `autostart.lua` with no `o.launch_on_start` entries never waits at all.
+
+A leading Hyprland exec rule such as `[workspace 4 silent]` stays in front of the helper in the exec string, where Hyprland consumes it; anywhere later it would reach the launched program as an argument. Hyprland keeps an exec rule for a minute, so the wait fits inside it.
+
+When `~/.config/omarchy/shell.json` lists `omarchy.notifications` under `disabledPlugins[]`, the notification wait adds `--activate`, which starts a D-Bus-activatable daemon (mako, dunst and swaync all ship a service file for the name) so the wait ends at once. With the plugin enabled it never activates anything: an installed daemon would otherwise start during the shell's own startup, claim the name first, and take every app's notifications away from the shell. A daemon started from `autostart.lua` instead would wait for the name it is about to claim itself, so it must use the no-wait form `o.exec_on_start(o.launch("mako"))`; the same form suits any launch that must not wait.
+
+The tray watcher exists only while a bar widget imports Quickshell's system tray service, so the tray wait is skipped when `shell.json` has a bar layout and none of its widget ids ends in `.tray`. That suffix covers the stock `omarchy.tray` and forks of it kept under another id. A missing or unreadable `shell.json` means the default layout, which has a tray, so the helper waits.
+
+
+
 ## Helper commands
 
 - `omarchy-notification-wait [timeout]` — polls until the shell answers IPC
