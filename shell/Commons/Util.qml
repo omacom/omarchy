@@ -18,6 +18,13 @@ QtObject {
     return true
   }
 
+  // Device pixels a logical length covers at an output scale. Fractional
+  // scales are whole 1/120ths that arrive as inexact floats, so snap the scale
+  // and round: rounding up turned 1440 at 4/3 into 1921.
+  function devicePixels(length, scale) {
+    return Math.round(length * Math.round(scale * 120) / 120)
+  }
+
   function clamp(value, min, max) {
     var n = Number(value)
     if (!isFinite(n)) return min

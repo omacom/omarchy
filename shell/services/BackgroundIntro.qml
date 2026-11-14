@@ -346,6 +346,22 @@ Item {
       WlrLayershell.layer: WlrLayer.Bottom
       WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
       WlrLayershell.namespace: "omarchy-background"
+      // This screen in device pixels. A window being mapped passes through a
+      // placeholder size and scale first, so it is measured only once the
+      // window fills its screen, and kept while the cover is hidden so the
+      // next one starts decoding before it maps. The size is set before the
+      // flag that lets the image load: the other way round, the image starts
+      // on the old size and decodes twice.
+      property size screenPixels: Qt.size(0, 0)
+      property bool measured: false
+      function measure() {
+        if (width <= 0 || height <= 0 || width !== modelData.width || height !== modelData.height) return
+        screenPixels = Qt.size(Util.devicePixels(width, devicePixelRatio), Util.devicePixels(height, devicePixelRatio))
+        measured = true
+      }
+      onWidthChanged: measure()
+      onHeightChanged: measure()
+      onDevicePixelRatioChanged: measure()
 
       Rectangle {
         anchors.fill: parent
@@ -356,12 +372,15 @@ Item {
       Image {
         id: outgoingFrame
         anchors.fill: parent
-        source: root.themeBackground ? Util.fileUrl(root.themeBackground) : ""
+        source: root.themeBackground && panel.measured ? Util.fileUrl(root.themeBackground) : ""
+        // At the window's own fractional scale, as the wallpaper under it is
+        // decoded, so the cover is exactly as sharp. The screen's scale is a
+        // whole number on Wayland (2 at 1.5).
         sourceSize: {
-          var w = Math.ceil((parent.width || modelData.width) * modelData.devicePixelRatio)
-          var h = Math.ceil((parent.height || modelData.height) * modelData.devicePixelRatio)
+          var w = panel.screenPixels.width
+          var h = panel.screenPixels.height
           var native = root.themeNativeSize
-          return native && (native.width < w || native.height < h) ? Qt.size(native.width, native.height) : Qt.size(w, h)
+          return native && native.width > 0 && (native.width < w || native.height < h) ? Qt.size(native.width, native.height) : Qt.size(w, h)
         }
         fillMode: Image.PreserveAspectCrop
         opacity: root.themeOpacity

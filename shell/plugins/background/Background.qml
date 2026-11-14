@@ -432,16 +432,23 @@ Item {
       // the window's size and the wallpaper's native size so nothing is ever
       // decoded at native size first, and a wallpaper smaller than the screen
       // is decoded at its own size rather than scaled up to cover the screen.
-      readonly property bool sized: width > 0 && height > 0
-      readonly property int decodeWidth: sized ? Math.ceil(width * screen.devicePixelRatio) : 0
-      readonly property int decodeHeight: sized ? Math.ceil(height * screen.devicePixelRatio) : 0
+      // The window's own scale, not the screen's: on Wayland a screen reports
+      // a whole-number scale (2 at 1.5), so a 1920x1080 panel at 1.5 decoded
+      // the wallpaper at 2560x1440 and had the GPU shrink it again, softer and
+      // with more memory. The window follows the output's fractional scale.
+      // A window being mapped passes through a placeholder size and scale
+      // first, so wait until it fills its screen. Width and height are one
+      // value: as two, a remap briefly asked for 1920x0 and decoded twice.
+      readonly property size decodePixels: width > 0 && height > 0 && width === screen.width && height === screen.height
+        ? Qt.size(Util.devicePixels(width, devicePixelRatio), Util.devicePixels(height, devicePixelRatio))
+        : Qt.size(0, 0)
 
       function decodeSize(path) {
-        if (!sized || !path) return Qt.size(0, 0)
+        if (decodePixels.width <= 0 || !path) return Qt.size(0, 0)
         var native = root.nativeSizes[path]
         if (native === undefined) return Qt.size(0, 0)
-        if (native.width > 0 && (native.width < decodeWidth || native.height < decodeHeight)) return Qt.size(native.width, native.height)
-        return Qt.size(decodeWidth, decodeHeight)
+        if (native.width > 0 && (native.width < decodePixels.width || native.height < decodePixels.height)) return Qt.size(native.width, native.height)
+        return decodePixels
       }
 
       function maybeStartReveal() {
