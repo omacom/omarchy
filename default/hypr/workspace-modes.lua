@@ -48,6 +48,15 @@ local function set_on_floating_workspace(window, on)
   hl.dispatch(hl.dsp.window.tag({ tag = (on and "+" or "-") .. WORKSPACE_TAG, window = window }))
 end
 
+local function has_tag(window, tag)
+  for _, candidate in ipairs(window.tags or {}) do
+    if candidate == tag or candidate == tag .. "*" then
+      return true
+    end
+  end
+  return false
+end
+
 local function claimed()
   local addresses = {}
 
@@ -135,14 +144,17 @@ local function float_for_mode(windows)
     set_on_floating_workspace(window, true)
 
     if not window.floating and (window.fullscreen or 0) == 0 then
+      local first_time = not (window.tags and has_tag(window, FLOATED_TAG))
       set_claimed(window, true)
-      table.insert(claiming, window)
+      table.insert(claiming, { window = window, first_time = first_time })
     end
   end
 
-  for _, window in ipairs(claiming) do
-    set_floating(window, true)
-    place(window)
+  for _, entry in ipairs(claiming) do
+    set_floating(entry.window, true)
+    if entry.first_time then
+      place(entry.window)
+    end
   end
 end
 
