@@ -123,7 +123,7 @@ function deviceLists(devices) {
 
 // Keeps every device in the section and position it was last drawn in, so rows
 // never slide under the pointer; newcomers go last. `previous` null sorts afresh.
-function steadyLists(lists, previous, discovering) {
+function steadyLists(lists, previous, scanShown) {
   var sections = ["connected", "known", "discovered"]
   var byAddress = {}
   var natural = {}
@@ -149,16 +149,16 @@ function steadyLists(lists, previous, discovering) {
       for (var j = 0; j < before.length; j++) {
         var address = typeof before[j] === "string" ? before[j] : (before[j] && before[j].address)
         if (!address || !byAddress[address] || placed[address]) continue
-        // A forget removes the row; a stopped scan hides its section, so nothing stays in it.
+        // A forget removes the row; hidden scan results take nothing with them.
         if (section !== "discovered" && natural[address] === "discovered") continue
-        if (section === "discovered" && !discovering && natural[address] !== "discovered") continue
+        if (section === "discovered" && !scanShown && natural[address] !== "discovered") continue
         place(section, address)
       }
     }
   }
 
   // Mid-scan newcomers go to the bottom of the list, whatever they are, so no row moves down.
-  var last = previous && discovering ? "discovered" : ""
+  var last = previous && scanShown ? "discovered" : ""
   for (var n = 0; n < sections.length; n++) {
     var fresh = (lists && lists[sections[n]]) || []
     for (var k = 0; k < fresh.length; k++) {

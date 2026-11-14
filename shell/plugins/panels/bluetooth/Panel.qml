@@ -60,9 +60,12 @@ Panel {
   readonly property var naturalGroups: Model.deviceLists(devices)
   // What is drawn: naturalGroups re-sorted only on open, so rows hold still while the panel is up.
   property var deviceGroups: ({ connected: [], known: [], discovered: [] })
+  // Scan results show while the adapter is on, not only while discovering, so a restarted scan moves nothing; BlueZ prunes stale ones.
+  readonly property bool scanShown: adapter !== null && adapter.enabled
   function regroup(fresh) {
-    deviceGroups = Model.steadyLists(naturalGroups, opened && !fresh ? deviceGroups : null, adapter !== null && adapter.discovering)
+    deviceGroups = Model.steadyLists(naturalGroups, opened && !fresh ? deviceGroups : null, scanShown)
   }
+  onScanShownChanged: regroup(false)
   onNaturalGroupsChanged: regroup(false)
   Component.onCompleted: regroup(true)
   readonly property var connectedDevices: deviceGroups.connected || []
@@ -134,12 +137,12 @@ Panel {
   function sectionVisible(section) {
     if (section === "connected") return connectedDevices.length > 0
     if (section === "known") return knownDevices.length > 0
-    if (section === "discovered") return adapter && adapter.discovering && discoveredDevices.length > 0
+    if (section === "discovered") return scanShown && discoveredDevices.length > 0
     return false
   }
 
   readonly property var visibleSections: {
-    return Model.visibleSections(deviceGroups, adapter && adapter.discovering)
+    return Model.visibleSections(deviceGroups, scanShown)
   }
 
   function devicesForSection(section) {
@@ -616,7 +619,6 @@ Panel {
     target: root.adapter
     function onDiscoveringChanged() {
       if (!root.adapter.discovering) root.owesDiscoveryStop = false
-      root.regroup(false)
     }
   }
 
