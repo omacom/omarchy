@@ -10,7 +10,9 @@ if omarchy-default-dictation >/dev/null 2>&1 && [[ -f $bindings ]]; then
     legacy+=$'  o.bind_hold("F9", "Start dictation (push-to-talk)", "omarchy-dictation start", "Stop dictation (push-to-talk)", "omarchy-dictation stop")\n'
   fi
 
-  if [[ -n $legacy ]]; then
+  if [[ -n $legacy ]] && omarchy-config-symlinked "$bindings"; then
+    echo "Preserving symlink-managed Hyprland bindings: $bindings"
+  elif [[ -n $legacy ]]; then
     {
       printf '\n-- Dictation keys from before Alt + Space and Right Alt became the defaults.\n'
       printf -- '-- Remove these lines to give the keys back to applications.\n'

@@ -1,7 +1,9 @@
 echo "Add an example for opting applications in to transparency"
 
 looknfeel="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/looknfeel.lua"
-if [[ -f $looknfeel ]] && ! rg -Fq 'o.transparent_window("my-app")' "$looknfeel"; then
+if omarchy-config-symlinked "$looknfeel"; then
+  echo "Preserving symlink-managed Hyprland config: $looknfeel"
+elif [[ -f $looknfeel ]] && ! rg -Fq 'o.transparent_window("my-app")' "$looknfeel"; then
   cat >>"$looknfeel" <<'LUA'
 
 -- Opt another application in to Omarchy's standard transparency.

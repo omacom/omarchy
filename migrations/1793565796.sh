@@ -6,7 +6,9 @@ echo "Open OpenCode 2 with the Omarchy theme"
 config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
 cli_config="$config_dir/cli.json"
 
-if [[ -f $cli_config ]]; then
+if omarchy-config-symlinked "$cli_config"; then
+  echo "Preserving symlink-managed OpenCode config: $cli_config"
+elif [[ -f $cli_config ]]; then
   if updated=$(jq 'if has("theme") then empty else .theme = {name: "system"} end' "$cli_config" 2>/dev/null) && [[ -n $updated ]]; then
     printf '%s\n' "$updated" >"$cli_config.tmp"
     chmod 600 "$cli_config.tmp"

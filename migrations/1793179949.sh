@@ -14,5 +14,9 @@ grep -RqE --include='*.lua' '^[[:space:]]*hl\.gesture[[:space:]]*\(' "$hypr_dir"
 # that requires them, however that is spelled, or at the top of the file.
 line=$(grep -nE -m1 "^[[:space:]]*require[[:space:]]*\(?[[:space:]]*[\"']default\.hypr\.omarchy[\"']" "$hyprland" | cut -d: -f1 || true)
 
-# Follow a symlink into a dotfiles repo rather than replacing it with a copy.
-sed -i --follow-symlinks "${line:-1}i -- Your own gestures replace Omarchy's defaults.\nomarchy_default_gestures = false\n" "$hyprland"
+if omarchy-config-symlinked "$hyprland"; then
+  echo "Preserving symlink-managed Hyprland config: $hyprland"
+  echo "Add omarchy_default_gestures = false above the line that requires default.hypr.omarchy to keep your own gestures."
+else
+  sed -i --follow-symlinks "${line:-1}i -- Your own gestures replace Omarchy's defaults.\nomarchy_default_gestures = false\n" "$hyprland"
+fi
