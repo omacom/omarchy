@@ -110,6 +110,12 @@ function selectKeyboard(typed, namedByEvent) {
   }, keyboards[0])
 }
 
+function inputSelection(state) {
+  // Keep the method and layout from one confirmed reading, including while
+  // the compositor resets to the base layout before an engine accepts a switch.
+  return state && state.switch && state.switch.key ? Object.assign({}, state, state.switch) : (state || {})
+}
+
 function inputLabel(state, fallback) {
   if (!state || !state.current || state.current.indexOf("keyboard-") === 0) return fallback
   if (state.label) return String(state.label).substring(0, 3)
@@ -139,6 +145,7 @@ if (typeof module !== "undefined") {
     layoutBriefs: layoutBriefs,
     selectKeyboard: selectKeyboard,
     shortLabel: shortLabel,
+    inputSelection: inputSelection,
     inputLabel: inputLabel,
     inputTooltip: inputTooltip,
     showIndicator: showIndicator
