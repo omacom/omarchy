@@ -4,6 +4,7 @@
 import QtQuick
 import QtQuick.Effects
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -32,6 +33,21 @@ Item {
   // their buttons work out what is under it themselves.
   property real hoverX: -1
   property real hoverY: -1
+  // The deck's hover region lies over every card, so the cursor a card's
+  // own parts set never shows. The deck shows this one for them.
+  readonly property int pointerCursor: {
+    if (!hovered || localHoverX < 0) return Qt.ArrowCursor
+    if (shut.visible && shut.hot) return Qt.PointingHandCursor
+    if (deedArea.shown)
+      for (var i = 0; i < deeds.count; i++)
+        if (deeds.itemAt(i) && deeds.itemAt(i).hot) return Qt.PointingHandCursor
+    if (bodyBox.visible) {
+      var at = bodyBox.mapFromItem(card, localHoverX, localHoverY)
+      if (bodyBox.linkAt(at.x, at.y) !== "") return Qt.PointingHandCursor
+    }
+    if (dragUrl) return dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+    return Qt.PointingHandCursor
+  }
   readonly property real localHoverX: hoverX - x
   readonly property real localHoverY: hoverY - y
 
@@ -115,6 +131,29 @@ Item {
   // Buttons an Omarchy sender asked for (--action), as commands the shell runs.
   readonly property var execActions: Security.parseExecActions(row.execActions) || []
 
+  // ------------------------------------------------ drag a screenshot out
+  //
+  // An omasnap card names the saved file in its Open action. omasnap has
+  // already written it to disk before notifying, so dragging only hands apps
+  // a file:// link to it: the shot stays in ~/Pictures/Screenshots whatever
+  // happens to the drop.
+  readonly property string dragPath: {
+    if (String(row.app || "") !== "omasnap") return ""
+    var acts = execActions
+    for (var i = 0; i < acts.length; i++) {
+      var argv = acts[i].argv || []
+      var last = String(argv[argv.length - 1] || "")
+      if (/\.(png|jpe?g|webp)$/i.test(last)) {
+        var safe = Security.localImagePath(last)
+        if (safe) return safe
+      }
+    }
+    return ""
+  }
+  readonly property string dragUrl: dragPath ? Security.localImageUrl(dragPath) : ""
+  // True from the moment the pointer pulls the card until the drop lands.
+  property bool dragging: false
+
   // Every button, in Delivery.deeds' order, with the code labels translated.
   readonly property var allDeeds: {
     var out = Delivery.deeds(row, actions)
@@ -151,7 +190,7 @@ Item {
   // time, and gets a fresh display period of its own duration. Its picture
   // may be new at the same path, so the image is read again too.
   property real remaining: Number(row.duration || 0)
-  readonly property bool ticking: Number(row.duration || 0) > 0 && !paused
+  readonly property bool ticking: Number(row.duration || 0) > 0 && !paused && !dragging
   readonly property string arrival: String(row.ts) + ":" + String(row.duration)
   property bool reloading: false
   onArrivalChanged: {
@@ -553,6 +592,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: card.fade; easing.type: Easing.InOutQuad } }
 
         Repeater {
+          id: deeds
           model: card.allDeeds
           DeedButton {
             required property var modelData
@@ -582,16 +622,94 @@ Item {
     // Under the content (z: -1) so buttons get their clicks first; anything
     // that does not accept a click falls through to here.
     MouseArea {
+      id: cardMouse
       anchors.fill: parent
       z: -1
       // Not hoverEnabled: a card taking hover would starve the deck's region.
       hoverEnabled: false
       acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
-      cursorShape: Qt.PointingHandCursor
+      cursorShape: card.dragUrl ? (drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
+                                : Qt.PointingHandCursor
+
+      // A screenshot card drags as its file; a press without movement is
+      // still a click.
+      drag.target: card.dragUrl ? dragProxy : null
+      drag.threshold: Style.space(6)
+
+      onPressed: function(mouse) {
+        if (!card.dragUrl || mouse.button !== Qt.LeftButton) return
+        dragProxy.x = mouse.x
+        dragProxy.y = mouse.y
+      }
 
       onClicked: function(mouse) {
         if (mouse.button === Qt.LeftButton) card.activated()
         else card.dismissed()
+      }
+    }
+
+    // What the pointer carries. Drag.Automatic hands it to the compositor as
+    // a real Wayland drag, so any window under the cursor can take the drop.
+    Item {
+      id: dragProxy
+      width: 1
+      height: 1
+      visible: false
+      readonly property bool pulling: cardMouse.drag.active && card.dragUrl !== ""
+      onPullingChanged: if (pulling) card.dragging = true
+
+      Drag.active: pulling
+      Drag.dragType: Drag.Automatic
+      Drag.supportedActions: Qt.CopyAction
+      Drag.proposedAction: Qt.CopyAction
+      Drag.mimeData: card.dragUrl ? ({
+        "text/uri-list": card.dragUrl + "\r\n",
+        "text/plain": card.dragPath
+      }) : ({})
+      Drag.imageSource: card.dragUrl
+      Drag.imageSourceSize: Qt.size(Style.space(160), Style.space(160))
+      Drag.hotSpot.x: Style.space(20)
+      Drag.hotSpot.y: Style.space(20)
+
+      // Dropped on a window: the card has done its job. Dropped on the
+      // desktop or back on the card: it stays, and its clock picks up where
+      // it left off. Qt on Wayland reports IgnoreAction even for a drop an
+      // app took, so a window under the pointer is the evidence instead.
+      Drag.onDragFinished: function(dropAction) {
+        if (dropAction !== Qt.IgnoreAction) { card.dragging = false; card.dismissed(); return }
+        // The deck in its surface's coordinates, so a drop back on the
+        // notifications is not mistaken for one on the window beneath them.
+        // Only this card's monitor counts: the surfaces on the others let
+        // input through to the windows under them.
+        var deck = card.parent
+        var at = deck.mapToItem(null, 0, 0)
+        dropCheck.environment = ({
+          DECK: JSON.stringify([at.x, at.y, deck.width, deck.height]),
+          MONITOR: String(card.Screen.name || "")
+        })
+        dropCheck.running = true
+      }
+    }
+
+    // Prints true when the pointer sits on a mapped window on a visible
+    // workspace, and not on the notification deck above it.
+    Process {
+      id: dropCheck
+      command: ["sh", "-c",
+        "c=$(hyprctl cursorpos -j) || exit; " +
+        "hyprctl layers -j | jq -e --argjson c \"$c\" --argjson d \"$DECK\" --arg m \"$MONITOR\" " +
+        "'any(.[$m] // empty | .levels[] | .[]; .namespace == \"omarchy-notifications\" " +
+        "and $c.x >= .x + $d[0] and $c.x < .x + $d[0] + $d[2] and $c.y >= .y + $d[1] and $c.y < .y + $d[1] + $d[3])' " +
+        ">/dev/null && { echo false; exit; }; " +
+        "ws=$(hyprctl monitors -j | jq -c '[.[] | .activeWorkspace.id, .specialWorkspace.id]') && " +
+        "hyprctl clients -j | jq --argjson c \"$c\" --argjson ws \"$ws\" " +
+        "'any(.[]; .mapped and (.workspace.id as $w | $ws | index($w) != null) " +
+        "and $c.x >= .at[0] and $c.x < .at[0] + .size[0] and $c.y >= .at[1] and $c.y < .at[1] + .size[1])'"]
+      stdout: StdioCollector {
+        onStreamFinished: {
+          card.dragging = false
+          if (text.trim() === "true") card.dismissed()
+        }
       }
     }
   }
