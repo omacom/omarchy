@@ -31,6 +31,14 @@ backlight_brightness() {
 
 [[ -n $monitor ]] || monitor="$(omarchy-hyprland-monitor-focused 2>/dev/null || true)"
 
+# A connector name is one token. A slash, a glob or a metacharacter must not
+# reach the DRM glob or a child command.
+if [[ -n $monitor ]]; then
+  if [[ ! $monitor =~ ^[A-Za-z0-9_.-]+$ || $monitor == "." || $monitor == ".." || $monitor == *..* ]]; then
+    exit 1
+  fi
+fi
+
 monitor_is_internal() {
   [[ $monitor =~ ^(eDP|LVDS|DSI)- ]]
 }
@@ -98,8 +106,13 @@ fi
 
 # Drop overlapping brightness key events so concurrent invocations do not race.
 # Hardware key repeat present on some devices can otherwise glitch OSD rendering.
-exec {lock_fd}>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-brightness-display.lock"
-flock -n "$lock_fd" || exit 0
+# The lock stays in the user-private runtime dir. With no such dir, skip it:
+# a predictable world-writable /tmp path can be pre-created by another user,
+# and opening it would follow a symlink or block on a FIFO.
+if [[ -n ${XDG_RUNTIME_DIR:-} && -d ${XDG_RUNTIME_DIR} ]]; then
+  exec {lock_fd}>"${XDG_RUNTIME_DIR}/omarchy-brightness-display.lock"
+  flock -n "$lock_fd" || exit 0
+fi
 
 if use_apple_display; then
   if (( no_osd )); then

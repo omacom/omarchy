@@ -16,4 +16,15 @@ const steps = [
 for (const [action, current, target] of steps) {
   assertEqual(model.brightnessKeyTarget(action, current), target, `brightness ${action} from ${current}% lands on ${target}%`)
 }
+
+assertEqual(model.backlightDeviceName('intel_backlight'), 'intel_backlight', 'a backlight device name is one path segment')
+assertEqual(model.backlightSysfsPath('intel_backlight'), '/sys/class/backlight/intel_backlight', 'a backlight path stays under sysfs')
+assertEqual(model.backlightDeviceName('../intel_backlight'), '', 'a backlight name with a slash is rejected')
+assertEqual(model.backlightDeviceName('..'), '', 'a backlight name of .. is rejected')
+assertEqual(model.backlightDeviceName('intel backlight'), '', 'a backlight name with a space is rejected')
+assertEqual(model.backlightSysfsPath('../etc/passwd'), '', 'a rejected backlight name builds no path')
+assertEqual(model.backlightReading('62\n'), 62, 'a backlight read is the raw value')
+assertEqual(model.backlightReading('0'), 0, 'a backlight value of zero stays zero')
+assertEqual(Number.isNaN(model.backlightReading('')), true, 'an empty backlight read is not zero')
+assertEqual(Number.isNaN(model.backlightReading('   ')), true, 'a blank backlight read is not zero')
 JS
