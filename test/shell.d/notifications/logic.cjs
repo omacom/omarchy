@@ -143,6 +143,14 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   }
 }
 
+{ // A code is read whole across its keyword's window, and counts only when it starts inside it.
+  for (const [summary, body, codes] of [['123456', 'Your verification code is 123456', '123456'],
+      ['AB12CD34', 'Use the sign-in code AB12CD34', 'AB12CD34'],
+      ['Sign in', 'Your code is below. It expires in ten minutes, so please use it right away: 48291375', '48291375'],
+      ['Sign in', '12345678' + '.'.repeat(20) + 'code A9F3K2', 'A9F3K2']])
+    assert.equal(D.scan(summary, body).codes, codes, summary + ' / ' + body)
+}
+
 { // Restore recomputes the link from the text under today's policy, never
   // trusting the field on the stored entry.
   const entry = body => ({ key: 'n1', app: 'Chat', summary: 'New message', body, rawBody: body, urgency: 1 })
