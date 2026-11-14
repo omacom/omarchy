@@ -19,8 +19,8 @@ end
 
 config.term = "xterm-256color"
 
--- Font
-config.font = wezterm.font("JetBrainsMono Nerd Font", { weight = "Regular" })
+-- Fontconfig carries the user's selected monospace family.
+config.font = wezterm.font("monospace", { weight = "Regular" })
 config.font_size = 9
 
 -- Window
@@ -34,12 +34,18 @@ config.default_cursor_style = "SteadyBlock"
 
 -- Keybindings
 config.keys = {
+  -- Leave Omarchy's tmux split and resize chords to the application.
+  { key = "Enter", mods = "ALT", action = act.DisableDefaultAssignment },
+  { key = "LeftArrow", mods = "CTRL|ALT|SHIFT", action = act.DisableDefaultAssignment },
+  { key = "RightArrow", mods = "CTRL|ALT|SHIFT", action = act.DisableDefaultAssignment },
+  { key = "UpArrow", mods = "CTRL|ALT|SHIFT", action = act.DisableDefaultAssignment },
+  { key = "DownArrow", mods = "CTRL|ALT|SHIFT", action = act.DisableDefaultAssignment },
   { key = "Insert", mods = "CTRL", action = act.CopyTo("Clipboard") },
   { key = "Insert", mods = "SHIFT", action = act.PasteFrom("Clipboard") },
   -- Send Shift+Enter as CSI-u so TUIs can distinguish it from Enter.
-  { key = "Enter", mods = "SHIFT", action = act.SendString("\x1b[13;2u") },
+  { key = "Enter", mods = "SHIFT", action = act.SendString("\27[13;2u") },
   -- Legacy encoding sends Alt+Shift+Enter the same as Alt+Enter; send CSI-u so tmux can match M-S-Enter.
-  { key = "Enter", mods = "ALT|SHIFT", action = act.SendString("\x1b[13;4u") },
+  { key = "Enter", mods = "ALT|SHIFT", action = act.SendString("\27[13;4u") },
 }
 
 return config
