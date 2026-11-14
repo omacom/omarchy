@@ -17,6 +17,14 @@ Panel {
   // permits — needed for the toggleBluetooth method below.
   manageIpc: false
 
+  // An instance being torn down (its monitor went away) drops its hold first,
+  // so the siblings that outlive it, and its own gate, settle without it: a
+  // parent's destruction runs before its children's. The IPC holds live in
+  // Commons.BluetoothPairing, shared by every instance, so a pairing survives
+  // the instance that took its hold.
+  property bool destroying: false
+  readonly property bool pairingHeld: !destroying && (opened || Commons.BluetoothPairing.holds > 0)
+
   // Address -> "connecting" | "disconnecting" | "forgetting".
   // The actual Bluetooth sequencing lives in bin/omarchy-bluetooth-device;
   // this map only keeps the panel responsive while BlueZ catches up.
@@ -434,6 +442,18 @@ Panel {
     return null
   }
 
+  // Like openSibling, for the pairable gate: it reads the same pairingHeld the
+  // gates use, so every instance computes one answer.
+  function heldSibling() {
+    if (!bar || typeof bar.moduleWidgets !== "function") return null
+    var items = bar.moduleWidgets(moduleName)
+    for (var i = 0; i < items.length; i++) {
+      if (items[i] && items[i] !== root && items[i].pairingHeld === true) return items[i]
+    }
+    return null
+  }
+
+
   function updateFocusedAddress() {
     var d = deviceAt(focusSection, selectedIndex)
     focusedDeviceAddress = d ? (d.address || "") : ""
@@ -570,12 +590,32 @@ Panel {
   // confirmed after this object is gone — and only writes the stop directly
   // when it is the last one standing.
   Component.onDestruction: {
+    destroying = true
     if (!owesDiscoveryStop) return
     var items = bar && typeof bar.moduleWidgets === "function" ? bar.moduleWidgets(moduleName) : []
     for (var i = 0; i < items.length; i++) {
       if (items[i] && items[i] !== root) { items[i].owesDiscoveryStop = true; return }
     }
     if (adapter !== null && adapter.discovering) adapter.discovering = false
+  }
+
+  // Pairing is only possible while this panel is on screen or a pairing this
+  // machine started is under way: the pairing agent auto-accepts, and BlueZ
+  // leaves adapters pairable by default. omarchy-bluetooth-device holds it
+  // over IPC for the pairings it runs, from the panel or the command line, so
+  // closing the panel mid-pair cannot stop a Low Energy device from bonding;
+  // Commons.BluetoothPairing keeps those holds across widget instances.
+  // Every controller gets a gate, not just the default one the panel shows:
+  // the agent answers for a USB dongle too. The adapter is handed over only
+  // once the bar has injected itself, since heldSibling reads the bar's
+  // widget list and a first apply before that would not see a holder.
+  Instantiator {
+    model: Bluetooth.adapters ? Bluetooth.adapters.values : []
+    delegate: PairableGate {
+      adapter: root.bar ? modelData : null
+      open: root.pairingHeld
+      siblingOpen: function() { return root.heldSibling() !== null }
+    }
   }
 
   Timer {
@@ -647,6 +687,8 @@ Panel {
     function hide() { root.close() }
     function toggle() { root.toggle() }
     function toggleBluetooth() { root.toggleBluetooth() }
+    function holdPairing(): string { return Commons.BluetoothPairing.hold() }
+    function releasePairing(token: string): string { return Commons.BluetoothPairing.release(token) }
   }
 
   BarIconButton {
