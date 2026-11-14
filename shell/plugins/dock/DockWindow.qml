@@ -54,9 +54,11 @@ PanelWindow {
   readonly property bool collapsePins: !!dock && dock.collapsePinned && pinnedLauncherCount > 0
   property bool pinsExpanded: false
   readonly property bool pinsHeldOpen: pinsExpanded || dragging || insertIndex >= 0
-  property real pinsProgress: !collapsePins || pinsHeldOpen ? 1 : 0
+  property bool pinPressActive: false
+  property real pressedPinsProgress: 0
+  property real pinsProgress: pinPressActive ? pressedPinsProgress : (!collapsePins || pinsHeldOpen ? 1 : 0)
   Behavior on pinsProgress {
-    enabled: window.shown
+    enabled: window.shown && !window.pinPressActive
     NumberAnimation {
       id: pinsMotion
       duration: Style.duration(window.pinsHeldOpen ? 500 : 250)
@@ -151,15 +153,26 @@ PanelWindow {
 
   // The slot a point along the dock falls before, counting from the first app.
   function slotIndexAt(point) {
-    var along = window.vertical ? point.y : point.x
+    var at = body.mapToItem(slots, point.x, point.y)
+    var along = window.vertical ? at.y : at.x
     for (var i = 0; i < appRepeater.count; i++) {
       var slot = appRepeater.itemAt(i)
-      if (!slot || !slot.visible) continue
-      var start = window.vertical ? slot.y : slot.x
-      var size = window.vertical ? slot.height : slot.width
-      if (along < start + size / 2) return i
+      if (slot && slot.reveal > 0.95) {
+        var center = window.vertical ? slot.y + slot.height / 2 : slot.x + slot.width / 2
+        if (along < center) return i
+      }
     }
     return appRepeater.count
+  }
+
+  function dragDestination(index, delta) {
+    var geometry = []
+    for (var i = 0; i < appRepeater.count; i++) {
+      var slot = appRepeater.itemAt(i)
+      if (slot) geometry.push({ index: i, enabled: slot.reveal > 0.95,
+        center: (window.vertical ? slot.y : slot.x) + window.slotSize / 2 })
+    }
+    return DockModel.nearestDropIndex(index, delta, geometry)
   }
   property var menuItem: null
   property Item menuSlot: null
@@ -357,6 +370,7 @@ PanelWindow {
 
         delegate: Item {
           id: slotContainer
+          z: window.dragIndex === index ? 1 : 0
           required property int index
           required property string key
           readonly property var entry: window.dock ? window.dock.itemFor(key) : null
@@ -367,7 +381,7 @@ PanelWindow {
           height: window.slotSize * (window.vertical ? reveal : 1)
           opacity: reveal
           // Clip partially revealed pins without shrinking their artwork or hit targets.
-          clip: folding && reveal < 1
+          clip: folding && reveal < 1 && window.dragIndex !== index
           AppSlot {
             enabled: slotContainer.reveal > 0.95
             index: slotContainer.index
@@ -503,7 +517,11 @@ PanelWindow {
 
     mouse.onPressed: function(event) {
       appSlot.dragged = false
-      if (event.button === Qt.LeftButton) appSlot.pressPoint = appSlot.bodyPoint(event)
+      if (event.button === Qt.LeftButton) {
+        window.pressedPinsProgress = window.pinsProgress
+        window.pinPressActive = true
+        appSlot.pressPoint = appSlot.bodyPoint(event)
+      }
     }
 
     mouse.onPositionChanged: function(event) {
@@ -523,20 +541,24 @@ PanelWindow {
       }
       if (!appSlot.lifted) return
       window.dragOffset = delta
-      window.dropIndex = DockModel.dropIndex(appSlot.index, delta, window.slotSize, appRepeater.count)
+      window.dropIndex = window.dragDestination(appSlot.index, delta)
     }
 
     mouse.onReleased: function(event) {
-      if (!appSlot.lifted) return
+      if (!appSlot.lifted) { window.pinPressActive = false; return }
       window.dropPoint = appSlot.mapToItem(body, event.x, event.y)
       var from = window.dragIndex
       var to = window.dropIndex
       appSlot.dragged = true
       window.endDrag()
       window.dock.moveItem(from, to)
+      window.pinPressActive = false
     }
 
-    mouse.onCanceled: if (appSlot.lifted) window.endDrag()
+    mouse.onCanceled: {
+      if (appSlot.lifted) window.endDrag()
+      window.pinPressActive = false
+    }
 
     mouse.onClicked: function(event) {
       // A drag ends in a release over the app, which is not a click on it.

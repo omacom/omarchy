@@ -116,6 +116,18 @@ assertEqual(dock.pickWindow(foot, 3), 1, 'dock restores a minimized window befor
 assertEqual(dock.pickWindow(foot.map((w, i) => Object.assign({}, w, { activated: i === 2 })), 4), 1, 'dock cycles from the window here to the minimized one')
 assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app that is not running')
 
+const folded = [
+  { index: 0, center: 24, enabled: false },
+  { index: 1, center: 24, enabled: false },
+  { index: 2, center: 24, enabled: true },
+  { index: 3, center: 72, enabled: true }
+]
+assertEqual(dock.nearestDropIndex(2, 48, folded), 3, 'dragging beside collapsed pins lands on the visible next app')
+assertEqual(dock.nearestDropIndex(2, -500, folded), 2, 'dragging across hidden pins cannot save an invisible landing slot')
+assertEqual(dock.nearestDropIndex(3, -48, folded), 2, 'backward dragging uses actual visible slot centers')
+const expanded = folded.map((slot, i) => ({ index: i, center: i * 48 + 24, enabled: true }))
+assertEqual(dock.nearestDropIndex(3, -144, expanded), 0, 'expanded launchers retain normal full-row drag destinations')
+
 JS
 
 home="$TMPDIR/home"
