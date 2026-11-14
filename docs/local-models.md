@@ -6,7 +6,7 @@ Local models run open models on the machine for the coding agents. The work happ
 
 | Path | Role |
 |---|---|
-| `bin/omarchy-agent-local` | The routed command (`omarchy agent local <command>`). Runs `omarchy-local-ai`; `use` installs Podman and crun, plus nvidia-container-toolkit where `omarchy-hw-nvidia` finds a GPU, with `omarchy-pkg-add` first when they're missing |
+| `bin/omarchy-agent-local` | The routed command (`omarchy agent local <command>`). Runs `omarchy-local-ai`; `use` installs Podman and crun, plus nvidia-container-toolkit where `omarchy-hw-nvidia` finds a GPU, first when they're missing: with `omarchy-pkg-add` in a terminal, or through `pkexec` for `use --detach`, which the agents panel runs with no terminal and follows on the setup's own line |
 | `shell/plugins/agents/Main.qml` | Watches the engine's `status.json` (`localModel`) and `list.json` (`localRecipes`) |
 | `shell/plugins/agents/Panel.qml` | Model lines (play/pause, terminal, memory meter, loading, stopping and removing bars, errors, Delete to remove) and Add another › Local AI, offered only when `list.json` has a recipe that fits this machine, and greyed out once every fitting recipe is set up |
 | `bin/omarchy-agent` | `--local` and `--local-model <recipe>` ask `omarchy-agent-local overlay` for the agent's launch overlay; `--prefer-local` does so only while a model is running (the Quake console seeds with it), and otherwise launches the usual agent |
