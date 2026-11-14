@@ -35,23 +35,78 @@ if [[ -n ${OMARCHY_TEST_PACKAGE_CALLS:-} ]]; then
   } >>"$OMARCHY_TEST_PACKAGE_CALLS"
 fi
 
-if [[ $1 == "-S" ]]; then
-  exit 0
-elif [[ $1 != "-Q" ]]; then
-  exit 2
-fi
-shift
-
-if [[ -n ${OMARCHY_TEST_PACKAGE_CALLS:-} ]]; then
-  exit 0
-elif [[ ${1:-} == "--" ]]; then
-  shift
-  [[ ${1:-} == "installed" ]]
-elif [[ ${1:-} == "--help" ]]; then
-  exit 0
-else
-  [[ ${1:-} == "installed" ]]
-fi
+case "$1" in
+  -T)
+    shift
+    if [[ ${1:-} == "--help" ]]; then
+      exit 0
+    fi
+    if [[ ${1:-} == "--" ]]; then
+      shift
+    fi
+    if [[ -n ${OMARCHY_TEST_PACKAGE_CALLS:-} && -z ${SATISFIED:-} && -z ${INSTALLED:-} ]]; then
+      printf '%s\n' "$@"
+      exit 127
+    fi
+    unsatisfied=0
+    for dep in "$@"; do
+      if [[ -n ${SATISFIED:-} ]] && grep -qxF -- "$dep" <<< "$SATISFIED"; then
+        continue
+      fi
+      if [[ -n ${INSTALLED:-} ]] && grep -qxF -- "$dep" <<< "$INSTALLED"; then
+        continue
+      fi
+      if [[ -n ${NOW_INSTALLED:-} && -f $NOW_INSTALLED ]] && grep -qxF -- "$dep" "$NOW_INSTALLED"; then
+        continue
+      fi
+      printf '%s\n' "$dep"
+      unsatisfied=1
+    done
+    (( unsatisfied )) && exit 127
+    exit 0
+    ;;
+  -Q)
+    shift
+    if [[ -n ${OMARCHY_TEST_PACKAGE_CALLS:-} ]]; then
+      exit 0
+    elif [[ ${1:-} == "--help" ]]; then
+      exit 0
+    fi
+    if [[ ${1:-} == "--" ]]; then
+      shift
+    fi
+    if [[ -n ${SATISFIED:-} ]] && grep -qxF -- "$1" <<< "$SATISFIED"; then
+      exit 0
+    fi
+    if [[ -n ${INSTALLED:-} ]] && grep -qxF -- "$1" <<< "$INSTALLED"; then
+      exit 0
+    fi
+    if [[ -n ${NOW_INSTALLED:-} && -f $NOW_INSTALLED ]] && grep -qxF -- "$1" "$NOW_INSTALLED"; then
+      exit 0
+    fi
+    [[ ${1:-} == "installed" ]]
+    ;;
+  -S)
+    if [[ -n ${CALL_LOG:-} ]]; then
+      printf 'pacman %s\n' "$*" >> "$CALL_LOG"
+    fi
+    shift
+    while [[ $# -gt 0 && $1 != "--" ]]; do
+      shift
+    done
+    [[ ${1:-} == "--" ]] && shift
+    if [[ -n ${NOW_INSTALLED:-} ]]; then
+      printf '%s\n' "$@" >> "$NOW_INSTALLED"
+    fi
+    exit "${INSTALL_STATUS:-0}"
+    ;;
+  *)
+    if [[ -n ${CALL_LOG:-} ]]; then
+      printf 'pacman %s\n' "$*" >> "$CALL_LOG"
+    fi
+    exit 2
+    ;;
+esac
 STUB
 chmod +x "$mock_bin/pacman"
 
@@ -77,7 +132,16 @@ STUB
 cat >"$mock_bin/sudo" <<'STUB'
 #!/bin/bash
 
-exec "$@"
+case "$1" in
+  pacman) exec "$@" ;;
+  *)
+    if [[ -n ${CALL_LOG:-} ]]; then
+      echo "Unexpected privileged call: $*" >> "$CALL_LOG"
+      exit 99
+    fi
+    exec "$@"
+    ;;
+esac
 STUB
 cat >"$mock_bin/yay" <<'STUB'
 #!/bin/bash
@@ -95,6 +159,8 @@ chmod +x "$mock_bin/omarchy-pkg-missing" "$mock_bin/sudo" "$mock_bin/yay"
 PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_PACKAGE_CALLS="$package_calls" \
   "$ROOT/bin/omarchy-pkg-add" --hookdir=/tmp/hooks
 
+grep -Fx 'pacman <-T> <--> <--hookdir=/tmp/hooks>' "$package_calls" >/dev/null ||
+  fail "pkg-add separates dependency operands from pacman options" "$(<"$package_calls")"
 grep -Fx 'pacman <-S> <--noconfirm> <--needed> <--> <--hookdir=/tmp/hooks>' "$package_calls" >/dev/null ||
   fail "pkg-add separates package operands from pacman options" "$(<"$package_calls")"
 grep -Fx 'pacman <-Q> <--> <--hookdir=/tmp/hooks>' "$package_calls" >/dev/null ||
@@ -110,6 +176,64 @@ grep -Fx 'yay <-S> <--noconfirm> <--needed> <--> <--hookdir=/tmp/hooks>' "$packa
 grep -Fx 'pacman <-Q> <--> <--hookdir=/tmp/hooks>' "$package_calls" >/dev/null ||
   fail "pkg-aur-add verifies an option-shaped package name literally" "$(<"$package_calls")"
 pass "pkg-aur-add keeps option-shaped package names out of package-manager option parsing"
+
+rm -f "$mock_bin/omarchy-pkg-missing"
+
+call_log="$test_tmp/calls"
+now_installed="$test_tmp/installed-now"
+output="$test_tmp/output"
+
+run_pkg_add() {
+  : >"$call_log"
+  rm -f "$now_installed"
+  pkg_add_status=0
+  CALL_LOG="$call_log" NOW_INSTALLED="$now_installed" INSTALL_STATUS="${INSTALL_STATUS:-0}" \
+    INSTALLED="${INSTALLED:-}" SATISFIED="${SATISFIED:-}" \
+    PATH="$mock_bin:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-pkg-add" "$@" >"$output" 2>&1 ||
+    pkg_add_status=$?
+}
+
+mozc_args=(fcitx5-mozc fcitx5-hangul fcitx5-chinese-addons fcitx5-chewing)
+
+# The issue's state: the -ut pair installed (its fcitx5-mozc provide answers
+# pacman -Q), the other three input-method packages missing.
+INSTALLED=$'mozc-ut\nfcitx5-mozc-ut' SATISFIED='fcitx5-mozc' run_pkg_add "${mozc_args[@]}"
+[[ $pkg_add_status == 0 ]] || fail "the mozc-ut machine installs the missing input methods" "$(<"$output")"
+(( $(grep -c '^pacman -S ' "$call_log") == 1 )) || fail "the mozc-ut machine runs one transaction" "$(<"$call_log")"
+grep -qxF 'pacman -S --noconfirm --needed -- fcitx5-hangul fcitx5-chinese-addons fcitx5-chewing' "$call_log" ||
+  fail "a provided name stays out of the transaction" "$(<"$call_log")"
+! grep -qF 'fcitx5-mozc' <(grep '^pacman -S ' "$call_log") ||
+  fail "the conflicting provided name never reaches pacman" "$(<"$call_log")"
+pass "a provided name stays out of the transaction; the missing names still install"
+
+# Everything already provided: nothing to do, pacman is not touched at all.
+INSTALLED=$'mozc-ut\nfcitx5-mozc-ut' SATISFIED=$'fcitx5-mozc\nfcitx5-hangul\nfcitx5-chinese-addons\nfcitx5-chewing' \
+  run_pkg_add "${mozc_args[@]}"
+[[ $pkg_add_status == 0 ]] || fail "an all-provided request succeeds" "$(<"$output")"
+[[ ! -s $call_log ]] || fail "an all-provided request runs no transaction" "$(<"$call_log")"
+pass "an all-provided request succeeds without touching pacman"
+
+# A fresh machine still installs everything it was asked for.
+run_pkg_add "${mozc_args[@]}"
+[[ $pkg_add_status == 0 ]] || fail "a fresh machine installs all requested packages" "$(<"$output")"
+grep -qxF 'pacman -S --noconfirm --needed -- fcitx5-mozc fcitx5-hangul fcitx5-chinese-addons fcitx5-chewing' "$call_log" ||
+  fail "a fresh machine's transaction keeps every requested package" "$(<"$call_log")"
+pass "a fresh machine installs every requested package"
+
+# An exactly-installed target stays out of the transaction on its own name,
+# not only through --needed.
+INSTALLED='fcitx5-hangul' run_pkg_add "${mozc_args[@]}"
+[[ $pkg_add_status == 0 ]] || fail "a partly installed request succeeds" "$(<"$output")"
+grep -qxF 'pacman -S --noconfirm --needed -- fcitx5-mozc fcitx5-chinese-addons fcitx5-chewing' "$call_log" ||
+  fail "an installed target stays out of the transaction" "$(<"$call_log")"
+! grep -qF 'fcitx5-hangul' <(grep '^pacman -S ' "$call_log") ||
+  fail "an installed target never reaches pacman" "$(<"$call_log")"
+pass "an installed target stays out of the transaction"
+
+# A failed transaction still fails the command.
+INSTALL_STATUS=1 run_pkg_add "${mozc_args[@]}"
+[[ $pkg_add_status == 1 ]] || fail "a failed transaction fails the command" "$(<"$output")"
+pass "a failed transaction still fails the command"
 
 cat >"$mock_bin/grep" <<'STUB'
 #!/bin/bash
