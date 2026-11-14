@@ -973,6 +973,12 @@ ShellRoot {
         // import retains their lifetime without adding a traversable property
         // or QObject parent back to the host shell.
         AuthServiceStore.put(key, inst)
+        if (key === "omarchy.lock" && manifest.__isFirstParty) {
+          inst.sessionUnlocked.connect(function() {
+            var idle = shell.serviceFor("omarchy.idle")
+            if (idle && typeof idle.handleSessionUnlocked === "function") idle.handleSessionUnlocked()
+          })
+        }
       } else {
         var snext = ({})
         for (var sk in _services) snext[sk] = _services[sk]
