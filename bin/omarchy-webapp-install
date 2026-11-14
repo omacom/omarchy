@@ -80,6 +80,14 @@ require_http_url() {
     echo "Error: web app URL must be http or https." >&2
     exit 1
   fi
+
+  local authority=${url#*://}
+  authority=${authority%%[/?#]*}
+  local host_port=${authority##*@}
+  if [[ -z $host_port || $host_port == :* ]]; then
+    echo "Error: web app URL must include a hostname." >&2
+    exit 1
+  fi
 }
 
 fetch_site_icon() {
