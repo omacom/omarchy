@@ -48,6 +48,7 @@ If a default doesn't suit you (say you want `Super + Shift + S` for screenshots 
 | `Super + P`               | Toggle pseudo window style (natural v stretch) |
 | `Super + F`                 | Go full screen              |
 | `Super + Alt + F`                 | Go full width              |
+| `Super + Alt + V`                 | Go full height (dwindle)              |
 | `Super + Ctrl + F`                 | Go full screen inside window              |
 | `Super + 1/2/3/4`         | Jump to specific workspace on the focused monitor |
 | `Super + Tab` | Jump to next workspace on the focused monitor |
