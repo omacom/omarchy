@@ -11,6 +11,7 @@ file first, if one exists.
 
 ```
 ~/.config/omarchy/hooks/
+├── agent-launch.d/         # Before `omarchy agent` replaces itself (harness in $1, cwd in $2)
 ├── battery-low.d/          # Low battery (percentage in $1)
 ├── font-set.d/             # After font change (font name in $1)
 ├── post-boot.d/            # After the desktop starts
@@ -18,6 +19,8 @@ file first, if one exists.
 ├── pre-refresh-pacman.d/   # After `omarchy refresh pacman` re-syncs the package config, before it updates packages
 └── theme-set.d/            # After theme change (theme slug in $1)
 ```
+
+`agent-launch` has a five-second deadline for the whole run, including the flat hook and every script in `agent-launch.d` in sequence. A hook that ignores termination is killed one second later; later scripts may never run. Keep these hooks short or hand longer work to a background service. Hook stdout and stderr are discarded so background work can keep its output descriptors without blocking launch or being terminated by a closed logging pipe. Failed hook runs and timeouts produce a status diagnostic in the system journal under `omarchy-agent-hook`; read those with `journalctl -t omarchy-agent-hook`. For successful-hook troubleshooting, write explicitly to your own log or use `logger` inside the hook. Hook input is isolated from the agent terminal, and failures still allow the agent to start.
 
 Example hook script:
 ```bash
