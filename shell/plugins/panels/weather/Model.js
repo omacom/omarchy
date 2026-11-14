@@ -131,6 +131,14 @@ function countryUsesImperial(countryName) {
   return false
 }
 
+
+function nextTempUnitOverride(current) {
+  var unit = String(current || "")
+  if (unit === "metric") return "imperial"
+  if (unit === "imperial") return ""
+  return "metric"
+}
+
 function shouldUseImperial(unitOverride, localeName, countryName) {
   var unit = normalizedUnit(unitOverride)
   if (unit === "imperial") return true
@@ -301,6 +309,7 @@ if (typeof module !== "undefined") {
     localeUsesImperial: localeUsesImperial,
     countryUsesImperial: countryUsesImperial,
     shouldUseImperial: shouldUseImperial,
+    nextTempUnitOverride: nextTempUnitOverride,
     dayName: dayName,
     openMeteoForecastDays: openMeteoForecastDays,
     openMeteoCurrentCondition: openMeteoCurrentCondition,

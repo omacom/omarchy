@@ -50,12 +50,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.batteryInfo.threshold)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t)
+    return Model.modeLabel(device, root.discharging, upowerStates(), root.batteryInfo.threshold, Commons.I18n.t)
   }
 
   function profileIcon(name) {
@@ -72,10 +72,14 @@ Panel {
   }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.batteryInfo.threshold)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
-  readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
+  readonly property bool pendingCharge: {
+    var device = UPower.displayDevice
+    return !!(device && device.isPresent && !UPower.onBattery && device.state === UPowerDeviceState.PendingCharge)
+  }
+  readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive || pendingCharge
 
   // 0..1 charge level, used by the visual progress bar.
   readonly property real batteryFraction: {
@@ -457,8 +461,8 @@ Panel {
               value: root.chargeThresholdActive ? (root.reading(root.batteryInfo.threshold) || "-") : (root.batteryFlowIdle ? "-" : (root.batteryInfo.time || "—"))
             }
             InfoPair {
-              label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
-              value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
+              label: (root.chargeThresholdActive || root.pendingCharge) ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
+              value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.pendingCharge ? Commons.I18n.t("power.notCharging") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate)))
             }
           }
         }

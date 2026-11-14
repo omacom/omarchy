@@ -507,6 +507,7 @@
   "power.dischargingPhrase8": "Guzzling volts",
   "power.dischargingPhrase9": "Munching reserves",
   "power.fullyCharged": "Fully charged",
+  "power.notCharging": "Not charging",
   "power.holding": "Holding",
   "power.onBattery": "On battery",
   "power.powerProfile": "POWER PROFILE",

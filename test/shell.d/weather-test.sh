@@ -111,6 +111,7 @@ assert(weather.dayIcon({ openMeteoWeatherCode: 95 }).length > 0, 'weather maps O
 assertEqual(weather.currentIcon({ openMeteoWeatherCode: 0, isDay: 1 }, ''), weather.iconForOpenMeteoCode(0), 'weather uses the current Open-Meteo icon with current values')
 assertEqual(weather.currentIcon({ openMeteoWeatherCode: 0, isDay: 0 }, ''), weather.iconForCode(113, true), 'weather uses the nighttime Open-Meteo icon after sunset')
 assert(weather.iconForOpenMeteoCode(45, true) !== weather.iconForOpenMeteoCode(45, false), 'weather distinguishes nighttime fog from daytime fog')
+assert(weather.iconForCode(248, true) !== weather.iconForCode(248, false), 'weather distinguishes nighttime fog from daytime fog by wttr code')
 assertEqual(weather.provisionalCurrentIcon({ weatherCode: 113 }, ''), weather.iconForCode(113, false), 'weather uses wttr to fill an empty initial icon')
 assertEqual(weather.provisionalCurrentIcon({ weatherCode: 113 }, 'night'), 'night', 'weather refresh preserves a resolved day-night icon')
 assert(!weather.weatherResponseCompletesSave(true, 'wttr'), 'weather keeps the spinner through a non-authoritative pinned-location response')
@@ -121,6 +122,16 @@ assertEqual(
   weather.iconForCode(389, false),
   'weather picks hourly forecast icon nearest noon'
 )
+const widgetSource = require('node:fs').readFileSync(path.join(root, 'shell/plugins/panels/weather/BarWidget.qml'), 'utf8')
+const panelSource = require('node:fs').readFileSync(path.join(root, 'shell/plugins/panels/weather/Panel.qml'), 'utf8')
+const injectedPanel = {moduleName: 'omarchy.weather', settings: {}, hostWidget: null, bar: null, anchorItem: null}
+const clone = {moduleName: 'custom.weather', settings: {unit: 'metric'}, bar: {shell: {updateEntryInline(id, entry) { assert(id === clone.moduleName, 'clone persists through its own scoped identity'); assertEqual(entry.unit, 'imperial', 'clone unit is saved')}}}}
+const inject = widgetSource.match(/function injectPanel\(\) \{[\s\S]*?\n  \}/)[0]
+new Function('root', 'panelLoader', 'button', inject + '; injectPanel()')(clone, {item: injectedPanel}, {})
+assertEqual(injectedPanel.moduleName, clone.moduleName, 'weather panel receives the clone identity')
+const persist = panelSource.match(/function persistSettings\(values\) \{[\s\S]*?\n  \}/)[0]
+new Function('root', persist + '; persistSettings({unit:"imperial"})')(injectedPanel)
+
 JS
 
 test_tmp=$(mktemp -d)
@@ -161,3 +172,72 @@ chmod +x "$test_tmp/bin/curl"
 [[ $(PATH="$test_tmp/bin:$PATH" weather_location) == "Amsterdam" ]] || fail "weather location names the place geo.omarchy.org detected"
 [[ $(cat "$test_tmp/curl-urls") == "https://geo.omarchy.org/" ]] || fail "weather location asks only geo.omarchy.org" "$(cat "$test_tmp/curl-urls")"
 pass "weather location names the place geo.omarchy.org detected when none is stored"
+
+stub_bin="$test_tmp/bin"
+mkdir -p "$stub_bin"
+
+# wttr.in's j1 payload, cut down to the three fields omarchy-weather-icon reads.
+cat >"$stub_bin/curl" <<'SH'
+#!/bin/bash
+
+jq -n --arg code "$OMARCHY_TEST_WEATHER_CODE" '{
+  current_condition: [{ weatherCode: $code }],
+  weather: [{ astronomy: [{ sunrise: "6:00 AM", sunset: "8:00 PM" }] }]
+}'
+SH
+
+# A fixed clock, so which side of sunset a run lands on is decided here rather
+# than by whenever the suite happens to be running. Seconds into the day stand
+# in for epochs: the script only compares the three values against each other.
+cat >"$stub_bin/date" <<'SH'
+#!/bin/bash
+
+if [[ ${1:-} == "-d" ]]; then
+  case "$2" in
+  "today 6:00 AM") printf '%s\n' 21600 ;;
+  "today 8:00 PM") printf '%s\n' 72000 ;;
+  *) exit 1 ;;
+  esac
+  exit 0
+fi
+
+printf '%s\n' "$OMARCHY_TEST_NOW"
+SH
+
+chmod +x "$stub_bin/curl" "$stub_bin/date"
+
+weather_icon() {
+  PATH="$stub_bin:$PATH" HOME="$test_tmp" OMARCHY_TEST_NOW="$1" OMARCHY_TEST_WEATHER_CODE="$2" \
+    "$ROOT/bin/omarchy-weather-icon"
+}
+
+# The panel resolves the same wttr code through Model.iconForCode, so ask that
+# mapping for the expected glyph instead of pinning a second copy of it here.
+model_icon() {
+  node -e '
+    const model = require(process.env.ROOT + "/shell/plugins/panels/weather/Model.js")
+    process.stdout.write(model.iconForCode(Number(process.argv[1]), process.argv[2] === "night"))
+  ' "$1" "$2"
+}
+
+# One code from every arm of the case statement, all three fog codes, and one
+# the mapping does not know so the fallback is covered too.
+icon_mismatches() {
+  local phase=$1 now=$2 code actual expected mismatches=""
+
+  for code in 113 116 119 122 143 176 179 182 200 248 260 266 329 999; do
+    actual=$(weather_icon "$now" "$code")
+    expected=$(model_icon "$code" "$phase")
+    [[ $actual == "$expected" ]] || mismatches+="code $code: $actual != $expected"$'\n'
+  done
+
+  printf '%s' "$mismatches"
+}
+
+mismatched=$(icon_mismatches day 43200)
+[[ -z $mismatched ]] || fail "weather icon matches the panel's daytime glyphs" "$mismatched"
+pass "weather icon matches the panel's daytime glyphs"
+
+mismatched=$(icon_mismatches night 79200)
+[[ -z $mismatched ]] || fail "weather icon matches the panel's nighttime glyphs" "$mismatched"
+pass "weather icon matches the panel's nighttime glyphs"
