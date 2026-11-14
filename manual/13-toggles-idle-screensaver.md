@@ -28,10 +28,10 @@ _Appearance_ holds the menu bar and animations, plus a few things that aren't `o
 
 When Hyprland has no GPU to draw with and renders on the CPU instead (llvmpipe), as on Macs whose GPU isn't supported yet, in most virtual machines, or when a graphics driver fails to load, Omarchy turns off animations, blur and shadows for that session and tells you so once with a notification. _Appearance > Animations On_ brings them back, and Omarchy remembers that for later sessions too.
 
-Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If you want to branch on one in a script, `omarchy-toggle-enabled` gives you an exit code instead of making you go looking:
+Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If you want to branch on one in a script, `omarchy toggle enabled` gives you an exit code instead of making you go looking:
 
 ```bash
-omarchy-toggle-enabled screensaver-off && echo "screensaver is off"
+omarchy toggle enabled screensaver-off && echo "screensaver is off"
 ```
 
 The flags are named for the off state — `screensaver-off`, `suspend-off`, `bar-off` — so their presence means the feature is disabled.

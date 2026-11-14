@@ -1,6 +1,6 @@
 # System snapshots
 
-We create snapshots automatically on every Omarchy update, but should you want to create your own, you can use `omarchy-snapshot create`.
+We create snapshots automatically on every Omarchy update, but should you want to create your own, you can use `omarchy snapshot create`.
 
 To boot and restore a snapshot, you select it from the Limine boot loader. (If you're currently booting straight into the Omarchy decryption screen, you'll need to select Limine as a boot option via the BIOS first).
 
@@ -8,7 +8,7 @@ From that screen, choose the snapshot you'd like to boot into based on the date 
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-When you arrive inside, a notification will popup notifying you that you're in a bootable snapshot and if you click it, will start the restoration process. Alternatively, you can utilize `omarchy-snapshot restore`.
+When you arrive inside, a notification will popup notifying you that you're in a bootable snapshot and if you click it, will start the restoration process. Alternatively, you can utilize `omarchy snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
