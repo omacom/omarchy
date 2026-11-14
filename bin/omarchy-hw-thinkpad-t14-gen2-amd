@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# omarchy:summary=Match the ThinkPad T14 Gen 2a / P14s Gen 2a (AMD) whose Synaptics touchpad needs the ASF SMBus Host Notify driver.
+
+acpi_devices="${OMARCHY_ACPI_DEVICES:-/sys/bus/acpi/devices}"
+serio_devices="${OMARCHY_SERIO_DEVICES:-/sys/bus/serio/devices}"
+
+# The DMI family names the machine; the ACPI SMB0001 node is the AMD FCH SMBus
+# port the driver takes its ASF resources from; LEN2073 is the touchpad the
+# patches are written for. All three, or the package has nothing to do.
+{ omarchy-hw-match "T14 Gen 2a" || omarchy-hw-match "P14s Gen 2a"; } &&
+  [[ -e "$acpi_devices/SMB0001:00" ]] &&
+  grep -qs "LEN2073" "$serio_devices"/serio*/firmware_id
