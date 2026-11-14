@@ -4,6 +4,7 @@ from __future__ import annotations
 import contextlib
 import fcntl
 import json
+import html
 import math
 import os
 from pathlib import Path
@@ -364,8 +365,12 @@ def capture_app_state(window, info, cache):
           cache[str(location)] = records
           break
     records = cache[str(location)]
-    title = re.sub(r" - (Chromium|Google Chrome|Brave)$", "", window["title"])
+    # Named windows may themselves end in a browser suffix: exact titles win.
+    title = window["title"]
     matches = [record for record in records if record["title"] == title or record.get("activeUrl") == title]
+    if not matches:
+      title = re.sub(r" - (Chromium|Google Chrome|Brave)$", "", title)
+      matches = [record for record in records if record["title"] == title or record.get("activeUrl") == title]
     if not matches and len(records) == 1 and not any(a in {"--incognito", "--guest"} for a in argv) and not re.search(r"incognito|private", window["title"], re.I):
       live = [w for w in query("clients") if w["pid"] == window["pid"] and w.get("mapped", True)]
       if len(live) == 1:
@@ -457,16 +462,23 @@ def launch_window(saved, known, workspace):
     cwd = str(HOME)
   token = "omarchy-scene-" + uuid.uuid4().hex
   browser_name = None
-  if Path(argv[0]).name.lower() in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"} and not any(a.startswith(("--app=", "--app-id=")) for a in argv):
-    # A browser can forward its launch to an existing process. A meaningful,
-    # unique window name identifies that request without claiming another tab/window.
+  launch_page = None
+  app = Path(argv[0]).name.lower()
+  chromium = app in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"} and not any(a.startswith(("--app=", "--app-id=")) for a in argv)
+  firefox = app in {"firefox", "firefox-bin"}
+  if chromium or firefox:
+    # Browser requests may be forwarded to an existing process, so give the
+    # requested window its own meaningful identity instead of using its PID/class.
     base = str(saved.get("sceneName") or saved.get("title") or "Scene")
     titles = {w.get("title", "") for w in before}
+    if firefox:
+      titles.update(re.sub(r" [—-] (?:Mozilla )?Firefox(?: ESR)?$", "", title) for title in list(titles))
     browser_name = base
     copy = 2
     while browser_name in titles:
       browser_name = base + " (" + str(copy) + ")"
       copy += 1
+  if chromium:
     cleaned = []
     skip = False
     for arg in argv:
@@ -477,8 +489,19 @@ def launch_window(saved, known, workspace):
       elif not arg.startswith("--window-name="):
         cleaned.append(arg)
     argv = cleaned + ["--window-name=" + browser_name]
+  elif firefox:
+    # Firefox has no --window-name for forwarded requests. A short-lived blank
+    # page supplies the identity, then replaces itself with the normal blank tab.
+    # No keyboard input, extensions, remote debugging or background service.
+    page = '<meta name="color-scheme" content="dark light"><title>' + html.escape(browser_name) + '</title><script>setTimeout(()=>location.replace("about:blank"),2000)</script>'
+    argv = [a for a in argv if a != "--new-window" and not re.match(r"^(https?://|file:|about:|data:)", a)]
+    fd, path = tempfile.mkstemp(prefix="omarchy-scene-", suffix=".html")
+    launch_page = Path(path)
+    with os.fdopen(fd, "w") as stream:
+      stream.write(page)
+    argv += ["--new-window", launch_page.as_uri()]
   command = shlex.join(["env", "OMARCHY_SAVED_WORKSPACE_LAUNCH=" + token, *argv])
-  execute("hl.exec_cmd(" + lua_string("cd " + shlex.quote(cwd) + " && exec " + command) + ", " + lua({"workspace": str(workspace), "tag": "+" + token}) + ")")
+  launch_command = "hl.exec_cmd(" + lua_string("cd " + shlex.quote(cwd) + " && exec " + command) + ", " + lua({"workspace": str(workspace), "tag": "+" + token}) + ")"
   deadline = time.monotonic() + 18
   signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
   runtime = Path(os.environ.get("XDG_RUNTIME_DIR", "/run/user/" + str(os.getuid())))
@@ -487,10 +510,11 @@ def launch_window(saved, known, workspace):
     event.connect(str(runtime / "hypr" / signature / ".socket2.sock"))
   event.settimeout(.25)
   try:
+    execute(launch_command)
     while time.monotonic() < deadline:
       clients = query("clients")
       candidates = [w for w in clients if w["address"] not in known and w["class"].casefold() == saved["class"].casefold()
-                    and (w.get("title") == browser_name if browser_name else token in [t.rstrip("*") for t in w.get("tags", [])])]
+                    and ((w.get("title") == browser_name or (firefox and w.get("title") in {browser_name + " — Mozilla Firefox", browser_name + " - Mozilla Firefox", browser_name + " — Firefox", browser_name + " — Mozilla Firefox ESR"})) if browser_name else token in [t.rstrip("*") for t in w.get("tags", [])])]
       if len(candidates) == 1:
         if token in [t.rstrip("*") for t in candidates[0].get("tags", [])]:
           dispatch("window.tag", {"window": "address:" + candidates[0]["address"], "tag": "-" + token})
@@ -501,6 +525,8 @@ def launch_window(saved, known, workspace):
         time.sleep(.1)
   finally:
     event.close()
+    if launch_page:
+      launch_page.unlink(missing_ok=True)
   raise WorkspaceError("The app did not open an identifiable new window: " + saved["class"])
 
 

@@ -98,6 +98,18 @@ user_title = struct.pack('<ii', 1, len(name)) + name + b'\0' * ((-len(name)) % 4
 named = m.chromium_sessions(raw + record(31, struct.pack('<i', len(user_title)) + user_title))
 check(named[0]['title'] == 'Focused work' and named[0]['urls'] == records[0]['urls'], 'named browser windows retain their own current tabs when a scene is updated')
 
+for ending in [' - Chromium', ' - Google Chrome', ' - Brave']:
+    title = 'Focused work' + ending
+    cache = {'/unused/Default/Sessions': [{'title': title, 'urls': ['https://example.org/exact']}, {'title': 'Focused work', 'urls': ['https://example.org/other']}]}
+    state = m.capture_app_state({'title': title, 'class': 'chromium', 'pid': 42}, {'argv': ['chromium', '--user-data-dir=/unused']}, cache)
+    check(state['urls'] == ['https://example.org/exact'], 'an exact saved window name wins over a browser-suffix fallback: ' + ending)
+
+firefox_other = {'address': '0xother', 'class': 'firefox', 'title': 'Unrelated — Mozilla Firefox', 'tags': []}
+firefox_ours = {'address': '0xours', 'class': 'firefox', 'title': 'Focused work — Mozilla Firefox', 'tags': []}
+with patch.object(m, 'query', side_effect=[[], [firefox_other], [firefox_other, firefox_ours]]), patch.object(m, 'execute') as launch, patch.object(m.socket, 'socket', return_value=MagicMock()):
+    check(m.launch_window({'argv': ['firefox', '--new-window', 'about:blank'], 'class': 'firefox', 'sceneName': 'Focused work'}, set(), 8)['address'] == '0xours', 'forwarded Firefox requests identify their own launch page instead of claiming another window')
+    check('file://' in launch.call_args.args[0] and '--new-window' in launch.call_args.args[0], 'forwarded Firefox requests explicitly open their own launch page')
+
 # A missing app must launch only after the current workspace has its saved mode.
 events = []
 class LaunchObserved(Exception):
