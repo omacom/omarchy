@@ -96,6 +96,18 @@ rm "$miserc"
 [[ ! -e $miserc ]] || fail "opting back in removes a miserc that held only the opt-out"
 pass "opting out is idempotent and reversible"
 
+# Without mise the opt-out is still recorded, so Omarchy's tools stay off once
+# mise is back.
+no_mise_bin="$test_tmp/usr-bin-without-mise"
+mkdir "$no_mise_bin"
+ln -s "$(realpath /usr/bin)"/* "$no_mise_bin/"
+rm -f "$no_mise_bin/mise"
+! PATH="$ROOT/bin:$no_mise_bin" command -v mise >/dev/null || fail "the PATH built for a machine without mise still finds one"
+PATH="$ROOT/bin:$no_mise_bin" "$ROOT/bin/omarchy-mise-default-tools" disable >/dev/null || fail "opting out without mise succeeds"
+[[ $(<"$miserc") == "$ignore_line" ]] || fail "opting out without mise records the opt-out" "$(<"$miserc")"
+rm "$miserc"
+pass "opting out without mise records the opt-out"
+
 # A list the user wrote is theirs to edit. Once it names the file, both
 # directions agree that the user has opted out.
 printf 'ignored_config_paths = ["~/old"]\n' >"$miserc"

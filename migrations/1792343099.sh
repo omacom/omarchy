@@ -4,7 +4,8 @@ echo "Leave Node to Omarchy's mise declaration instead of the user's config"
 # ships as a lazy default in /etc/mise/conf.d, and that entry would outrank it.
 # Drop only the exact latest request, since a pinned version is the user's
 # choice, and keep the install for the declaration to reuse. After an opt-out
-# the entry is what still provides Node, so it stays.
-if omarchy-mise-default-tools declares node; then
+# the entry is what still provides Node, so it stays. Only mise can edit its
+# config, so without it the entry stays too.
+if omarchy-cmd-present mise && omarchy-mise-default-tools declares node; then
   mise unuse -g --no-prune node@latest
 fi
