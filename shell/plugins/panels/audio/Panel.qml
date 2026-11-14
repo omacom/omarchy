@@ -473,16 +473,17 @@ Panel {
   }
 
   function outputIcon(volume) {
-    // Match the old Waybar pulseaudio glyph set. The Material Design speaker
-    // icons render visually smaller in JetBrainsMono Nerd Font.
-    if (!sink || !sink.audio) return ""
+    // Material Design volume glyphs: their metrics and the distance-field
+    // render agree across nerd fonts, so the ink-centered icon stays level.
+    // The old Font Awesome set sits 1-2px high on fonts like BlexMono (#18388).
+    if (!sink || !sink.audio) return "󰖁"
     if (isHeadphones(sink)) return "󰋋"
-    if (outputMuted) return ""
+    if (outputMuted) return "󰖁"
     var v = volume === undefined ? outputVolume : volume
-    if (v >= 0.67) return ""
-    if (v >= 0.34) return ""
-    if (v > 0) return ""
-    return ""
+    if (v >= 0.67) return "󰕾"
+    if (v >= 0.34) return "󰖀"
+    if (v > 0) return "󰕿"
+    return "󰖁"
   }
 
   function inputIcon() {
