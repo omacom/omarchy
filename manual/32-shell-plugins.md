@@ -87,6 +87,8 @@ A plugin is a directory with a `manifest.json` and some QML. The manifest declar
 
 A plugin can declare several kinds at once — the media plugin is both a `service` and a `bar-widget`. Bar widgets get an extra `barWidget` block with a display name, a category, an optional `defaultSection`, and `allowMultiple`, which says whether it makes sense to have more than one on the bar. Most widgets set it to `false`; spacers and indicators set it to `true`.
 
+Name the `id` the way the built-ins and clones are named: your username or organization, a dot, then the plugin's name in lowercase with hyphens, like `acme.weather` or `dhh.cool-clock`. Letters, digits, dots, hyphens and underscores are allowed, and `omarchy.` is taken. The id is also the folder `omarchy plugin add` installs into, so pick it once and keep it.
+
 Before you publish anything, check it:
 
 ```

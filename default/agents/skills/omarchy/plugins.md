@@ -17,6 +17,8 @@ changes. `idle.screensaver` and `idle.lock` are seconds since user idle began.
 
 **Commands:** `omarchy restart shell`, `omarchy refresh shell`
 
+A plugin id is `<owner>.<name>`: the author's username or organization, then a lowercase, hyphenated name (`acme.weather`, or `<username>.clock` for a clone). The `omarchy.` namespace is reserved for built-ins; the shell and `omarchy plugin validate` reject any other plugin that uses it.
+
 ## Plugin UI Safety
 
 Plugins run inside Omarchy's long-lived, unsandboxed shell. Treat text from network responses, files, IPC, settings, environment variables, and command output as untrusted.
