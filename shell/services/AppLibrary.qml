@@ -45,6 +45,8 @@ Item {
   // it: the OSD shows with duration 0, so only closeLaunchFeedback() takes it
   // down.
   property bool launchOsdOpen: false
+  property bool launchOsdShowPending: false
+  property bool launchOsdCloseQueued: false
   property string launchOsdMessage: ""
 
   // Emitted whenever the visible application set may have changed: desktop
@@ -211,12 +213,20 @@ Item {
     launchTimeout.restart()
   }
 
+  function showLaunchOsd() {
+    root.launchOsdOpen = true
+    root.launchOsdShowPending = true
+    launchOsdShow.command = ["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })]
+    launchOsdShow.running = true
+  }
+
   function closeLaunchFeedback(serial) {
     if (serial !== root.launchSerial) return
     launchDelay.stop()
     launchTimeout.stop()
     if (root.launchOsdOpen) {
-      Quickshell.execDetached(["omarchy-shell", "osd", "close"])
+      if (root.launchOsdShowPending) root.launchOsdCloseQueued = true
+      else Quickshell.execDetached(["omarchy-shell", "osd", "close"])
       root.launchOsdOpen = false
     }
   }
@@ -315,8 +325,7 @@ Item {
     interval: 2000
     onTriggered: {
       if (root.toplevelCount() > root.launchToplevelCount || ToplevelManager.activeToplevel !== root.launchActiveToplevel) return
-      root.launchOsdOpen = true
-      Quickshell.execDetached(["omarchy-shell", "osd", "show", JSON.stringify({ icon: "󱓞", message: root.launchOsdMessage, duration: 0 })])
+      root.showLaunchOsd()
     }
   }
 
@@ -324,6 +333,19 @@ Item {
     id: launchTimeout
     interval: 15000
     onTriggered: root.closeLaunchFeedback(root.launchSerial)
+  }
+
+  // Show and close are separate omarchy-shell calls. Close waits for show to
+  // finish, so a close cannot reach the OSD first and leave it open forever.
+  // launchOsdShowPending covers the gap before `running` turns true.
+  Process {
+    id: launchOsdShow
+    onExited: {
+      root.launchOsdShowPending = false
+      if (!root.launchOsdCloseQueued) return
+      root.launchOsdCloseQueued = false
+      Quickshell.execDetached(["omarchy-shell", "osd", "close"])
+    }
   }
 
   Connections {
