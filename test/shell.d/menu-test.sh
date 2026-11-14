@@ -160,6 +160,7 @@ const rankBase = menu.mergeMenuSources(defaultItems, [])
 const ranked = menu.mergeAppRows(rankBase.items, rankBase.itemOrder, [
   { id: 'apps.brave', parent: 'apps', kind: 'app', label: 'Brave', description: '', aliases: [] },
   { id: 'apps.fontforge', parent: 'apps', kind: 'app', label: 'FontForge', description: '', aliases: [] },
+  { id: 'apps.rustdesk', parent: 'apps', kind: 'app', label: 'RustDesk', description: '', aliases: [] },
   { id: 'apps.zen', parent: 'apps', kind: 'app', label: 'Zen Browser', description: '', aliases: [] }
 ])
 const rankScore = (id, query) => menu.searchScore(ranked.items, ranked.items[id], query)
@@ -178,6 +179,38 @@ assert(
 assert(
   rankScore('appearance.font', 'font') < rankScore('apps.fontforge', 'font'),
   'menu keeps a better-matching menu entry above a weaker app match'
+)
+assert(
+  rankScore('apps.rustdesk', 'rust') < rankScore('remove.development.rust', 'rust'),
+  'menu keeps a destructive exact match below an app prefix match'
+)
+assert(
+  rankScore('install.development.go', 'go') < rankScore('setup.network.dns.google', 'go'),
+  'menu keeps an exact install match above a menu prefix match'
+)
+
+// Management rows are named after their target, so "edg" prefix-matches
+// Remove > Browser > Edge while it only substring-matches Microsoft Edge.
+const managed = menu.mergeAppRows(rankBase.items, rankBase.itemOrder, [
+  { id: 'apps.google-chrome', parent: 'apps', kind: 'app', label: 'Google Chrome', description: '', aliases: [] },
+  { id: 'apps.microsoft-edge', parent: 'apps', kind: 'app', label: 'Microsoft Edge', description: '', aliases: [] }
+])
+const managedScore = (id, query, active) => menu.searchScore(managed.items, managed.items[id], query, active)
+assert(
+  ['install.browser.edge', 'remove.browser.edge', 'setup.default.browser.edge', 'update.channel.edge'].every(
+    id => managedScore('apps.microsoft-edge', 'edg') < managedScore(id, 'edg')
+  ) && ['install.browser.chrome', 'remove.browser.chrome', 'setup.default.browser.chrome'].every(
+    id => managedScore('apps.google-chrome', 'chr') < managedScore(id, 'chr')
+  ),
+  'menu ranks an installed app above the management rows named after it'
+)
+assert(
+  managedScore('update.hardware.audio', 'audio') < managedScore('trigger.capture.screenrecord.no-audio', 'audio'),
+  'menu leaves management rows alone when no app named after them is installed'
+)
+assert(
+  managedScore('install.browser.edge', 'e', 'install.browser') < managedScore('install.browser.brave', 'e', 'install.browser'),
+  'menu keeps management rows in match order where the app is not listed'
 )
 
 // Routing: htop ships `Keywords=system;...`, which app rows carry as aliases.
