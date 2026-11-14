@@ -566,6 +566,8 @@ set_up_floating = function()
     hl.config({ decoration = { shadow = { enabled = true, range = 16, render_power = 3, color = "rgba(00000035)" } } })
     o.window(".*", { no_shadow = true })
     o.window({ tag = WORKSPACE_TAG }, { no_shadow = false })
+    -- A maximized window keeps the tag, and its shadow would fall over the bar.
+    o.window({ fullscreen_state_internal = 1 }, { no_shadow = true })
   end
 
   -- Glassy windows are see-through everywhere, floating workspaces included.
