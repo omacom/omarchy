@@ -399,6 +399,18 @@ ShellRoot {
     return targets.indexOf(String(requestedId || "")) !== -1
   }
 
+  // The first-party services a built-in's own code reads, so a clone of it
+  // keeps working toggles instead of finding every service missing.
+  function pluginCloneFirstPartyServices(manifest) {
+    var metadata = manifest && Util.isPlainObject(manifest.omarchy) ? manifest.omarchy : null
+    var sourceId = metadata ? String(metadata.clonedFrom || "") : ""
+    var allowed = {
+      "omarchy.audio": ["omarchy.media"],
+      "omarchy.indicators": ["omarchy.idle", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
+    }
+    return allowed[sourceId] || []
+  }
+
   function pluginOwnsTarget(pluginId, requestedId) {
     var caller = String(pluginId || "")
     if (!caller) return false
@@ -568,7 +580,8 @@ ShellRoot {
     return [
       allowOwnService ? "own-service" : "no-own-service",
       barCapabilities ? "bar" : "no-bar",
-      shell.manifestHasKind(manifest, "menu") ? "menu" : "no-menu"
+      shell.manifestHasKind(manifest, "menu") ? "menu" : "no-menu",
+      "clone-services:" + shell.pluginCloneFirstPartyServices(manifest).join(",")
     ].join("|")
   }
 
@@ -631,12 +644,12 @@ ShellRoot {
     // makes QML re-enter the binding and report a loop on the caller's service
     // property, even though the resulting proxy is otherwise acyclic.
     var firstPartyServices = ({})
-    if (barCapabilities) {
-      var serviceIds = ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
-      for (var i = 0; i < serviceIds.length; i++) {
-        var serviceId = serviceIds[i]
-        firstPartyServices[serviceId] = shell.pluginFirstPartyServiceFor(cacheKey, key, serviceId)
-      }
+    var serviceIds = barCapabilities
+      ? ["omarchy.idle", "omarchy.media", "omarchy.nightlight", "omarchy.notifications", "omarchy.remote-session"]
+      : shell.pluginCloneFirstPartyServices(manifest)
+    for (var i = 0; i < serviceIds.length; i++) {
+      var serviceId = serviceIds[i]
+      firstPartyServices[serviceId] = shell.pluginFirstPartyServiceFor(cacheKey, key, serviceId)
     }
 
     var api = pluginShellApiComponent.createObject(null, {
@@ -652,7 +665,10 @@ ShellRoot {
       _firstPartyServiceLookup: function(requestedId) {
         if (allowOwnService && shell.pluginOwnsTarget(key, requestedId))
           return shell.pluginServiceFor(key, requestedId)
-        return hasCurrentBarCapabilities() ? (firstPartyServices[requestedId] || null) : null
+        if (hasCurrentBarCapabilities()
+            || shell.pluginCloneFirstPartyServices(currentManifest()).indexOf(requestedId) !== -1)
+          return firstPartyServices[requestedId] || null
+        return null
       },
       _barEntryShellLookup: function(ownerId, moduleName) {
         return hasCurrentBarCapabilities()

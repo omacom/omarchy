@@ -31,8 +31,9 @@ QtObject {
     return _serviceLookup ? _serviceLookup(String(id || "")) : null
   }
 
-  // Only full-bar facades receive narrow proxies for the specific
-  // non-authentication services used by the built-in bar widgets.
+  // Full-bar facades receive narrow proxies for the non-authentication
+  // services the built-in bar widgets use; a built-in clone receives only the
+  // ones its source reads.
   function firstPartyServiceFor(id) {
     return _firstPartyServiceLookup
       ? _firstPartyServiceLookup(String(id || "")) : null
