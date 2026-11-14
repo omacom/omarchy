@@ -24,6 +24,8 @@ Agent CLIs also set `auto_update = "4h"`, so mise upgrades them before they run 
 codex = { version = "latest", lazy = true, auto_update = "4h", minimum_release_age = "0s" }
 ```
 
+A registry tool whose first backend is npm and whose registry entry lists its commands also goes in `auto_install_disable_tools`, in the same file's `[settings]`. A shim installs such a tool on its own, without Node, which is lazy too, so its first run fails. Kept out of that automatic install, its first run is the lazy install, which installs Node with it. `mise registry --json <name>` shows the backends and commands, and `test/shell.d/mise-provision-test.sh` checks the list against them.
+
 Do not add handwritten wrappers for ordinary tools. Hermes keeps its custom installer because it needs Python 3.13 and must defer to Hermes Desktop when that app owns the command.
 
 ## Choose the registry name
