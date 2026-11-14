@@ -523,7 +523,8 @@ Panel {
   readonly property var addProviders: [
     { providerId: "claude", providerName: "Claude Code" },
     { providerId: "codex", providerName: "Codex" },
-    { providerId: "grok", providerName: "Grok" }
+    { providerId: "grok", providerName: "Grok" },
+    { providerId: "agy", providerName: "Antigravity" }
   ].concat(localFits ? [{ providerId: "local", providerName: Commons.I18n.t("agents.localAi") }] : [])
    .concat(networkAddModels.length > 0 ? [{ providerId: "network", providerName: Commons.I18n.t("agents.networkModels") }] : [])
 
@@ -656,10 +657,10 @@ Panel {
     addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
-    // Claude's login offers pasting a code back whenever its page shows one,
-    // and its prompt for it has no newline to read it by, so the field is
+    // Claude and Antigravity logins offer pasting a code back from their OAuth page,
+    // and their prompt for it has no newline to read it by, so the field is
     // there from the start.
-    addNeedsPaste = addProvider === "claude"
+    addNeedsPaste = addProvider === "claude" || addProvider === "agy"
     addResult = ""
     addStage = "running"
     addProcess.command = ["omarchy-agent-account-add", "--events", addProvider].concat(label !== "" ? [label] : [])
@@ -686,13 +687,13 @@ Panel {
   // talking, and only two things in it matter here: a code to confirm in the
   // browser (Grok), and an invitation to paste one back (Claude).
   function handleAddLine(line) {
-    var text = String(line).replace(/\u001b\[[0-9;]*m/g, "")
-    var tagged = text.match(/^@@omarchy (status|done|error) (.*)$/)
+    var text = String(line).replace(/\u001b\[[0-9;?]*[a-zA-Z]/g, "").replace(/\r/g, "")
+    var tagged = text.match(/(?:^|@)@omarchy (status|done|error) (.*)$/)
     if (tagged) {
       if (tagged[1] === "status") {
-        addStatus = tagged[2]
+        addStatus = tagged[2].trim()
       } else {
-        addResult = tagged[2]
+        addResult = tagged[2].trim()
         addStage = tagged[1]
         if (tagged[1] === "done") {
           usage.refreshLimits()
@@ -708,7 +709,7 @@ Panel {
     }
     var code = text.match(/^\s*([A-Z0-9]{4}-[A-Z0-9]{4})\s*$/)
     if (code) addCode = code[1]
-    if (/paste code/i.test(text)) addNeedsPaste = true
+    if (/paste.*code/i.test(text) || /authorization code/i.test(text)) addNeedsPaste = true
     var url = text.match(/(https:\/\/\S+)/)
     if (url && addUrl === "") addUrl = url[1]
   }
@@ -850,10 +851,10 @@ Panel {
     addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
-    // Claude's login offers pasting a code back whenever its page shows one,
-    // and its prompt for it has no newline to read it by, so the field is
+    // Claude and Antigravity logins offer pasting a code back from their OAuth page,
+    // and their prompt for it has no newline to read it by, so the field is
     // there from the start.
-    addNeedsPaste = addProvider === "claude"
+    addNeedsPaste = addProvider === "claude" || addProvider === "agy"
     addResult = ""
     addStage = "running"
     addProcess.command = ["omarchy-agent-account-add", "--events", "--reauth",
@@ -1010,12 +1011,18 @@ Panel {
   }
 
   // The window that decides how much room is left — the fullest one, since
-  // that is what stops the next prompt.
+  // that is what stops the next prompt. A model-scoped allowance ("Fable",
+  // "Claude/GPT") only stops that model, so general windows come first.
   function bindingWindow(p) {
     var windows = limitWindows(p)
-    var best = null
+    var general = []
     for (var i = 0; i < windows.length; i++) {
-      if (!best || windows[i].percent > best.percent) best = windows[i]
+      if (!scopedPart(windows[i].title)) general.push(windows[i])
+    }
+    var candidates = general.length > 0 ? general : windows
+    var best = null
+    for (var j = 0; j < candidates.length; j++) {
+      if (!best || candidates[j].percent > best.percent) best = candidates[j]
     }
     return best
   }

@@ -81,7 +81,7 @@ done
 # Fresh limits are when switching accounts near a limit gets decided. A switch
 # changes which account the record's own limits describe, so that record is
 # collected once more; the limits probes it repeats are still cached.
-for agent in claude codex grok; do
+for agent in claude codex grok agy; do
   if wanted "$agent" && [[ -f $accounts_dir/$agent.json ]]; then
     switched=$("$OMARCHY_PATH/bin/omarchy-agent-account-state" autoswitch "$agent")
     if [[ -n $switched ]]; then

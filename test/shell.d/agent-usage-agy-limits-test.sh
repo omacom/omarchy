@@ -221,4 +221,47 @@ for path in limits_cache_files("agy"):
 record, _ = agy("down")
 expect("Antigravity collector invents no limits when it has never reached Google",
        [record["limits"], record["usageStatusText"], record["retryAdvised"]], [[], "Antigravity limits unavailable", True], record)
+
+# ------------------------------------------------------------- accounts
+
+sandbox()
+machine()
+sign_in(token="token-main", id_token=ME)
+side = state_home() / "omarchy" / "agents" / "accounts" / "agy" / "side"
+side.mkdir(parents=True, exist_ok=True)
+write_json(side / "antigravity-oauth-token", {
+  "auth_method": "consumer",
+  "id_token": OTHER,
+  "token": {"access_token": "token-side", "refresh_token": "refresh-side", "expiry": iso_in(3600)},
+})
+registry("agy", [
+  {"id": "main", "label": "Main", "home": "", "primary": True},
+  {"id": "side", "label": "Side", "home": str(side), "primary": False},
+], active="side", switch="auto", threshold=90)
+
+ANSWER_SIDE = {
+  TIER: {"paidTier": {"id": "g1-ultra-tier", "name": "Google AI Ultra"}},
+  QUOTA: {"groups": [{"displayName": "Gemini Models", "buckets": [{"window": "5h", "remainingFraction": 0.5, "resetTime": iso_in(3 * 3600)}]}]},
+}
+
+routes = {
+  TIER: lambda req: ANSWER_SIDE[TIER] if "token-side" in (req.get_header("Authorization") or "") else ANSWER[TIER],
+  QUOTA: lambda req: ANSWER_SIDE[QUOTA] if "token-side" in (req.get_header("Authorization") or "") else ANSWER[QUOTA],
+}
+
+record, _ = agy(routes=routes)
+expect("every Antigravity account reports its own plan and limits, top level matching active", {
+  "tierLabel": record["tierLabel"],
+  "first": record["limits"][0]["percent"],
+  "accounts": [{"id": a["id"], "active": a["active"], "plan": a["plan"], "percent": a["limits"][0]["percent"]} for a in record["accounts"]],
+  "switch": record["accountSwitch"],
+}, {
+  "tierLabel": "Ultra",
+  "first": 0.5,
+  "accounts": [
+    {"id": "main", "active": False, "plan": "Pro", "percent": 0.25},
+    {"id": "side", "active": True, "plan": "Ultra", "percent": 0.5},
+  ],
+  "switch": {"mode": "auto", "threshold": 90},
+}, record)
 PY

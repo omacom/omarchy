@@ -25,6 +25,7 @@ import fcntl
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -59,13 +60,20 @@ PROVIDERS = {
     "shared_files": ["config.toml", "AGENTS.md", "settings.json", "lsp.json", "pager.toml", "sandbox.toml", "trusted_folders.toml", "statusline.sh", "worktrees.db"],
     "carried_keys": [],
   },
+  "agy": {
+    "name": "Antigravity",
+    "home_env": "AGY_DIR",
+    "shared_dirs": ["conversations", "brain", "annotations", "implicit", "knowledge", "log", "mcp", "plugin_data", "crashes"],
+    "shared_files": ["settings.json", "history.jsonl", "conversation_summaries.db", "jetbox_summaries_proto.pb", "jetski_state.pbtxt", "installation_id"],
+    "carried_keys": [],
+  },
 }
 
 DEFAULT_THRESHOLD = 95
 # Ids an account can't take because something else already answers to them:
 # `use next` cycles, a provider name is read as the provider when it comes
 # first, and the menu's Add Account row is `.add`.
-RESERVED_IDS = {"next", "add", "claude", "codex", "grok", "primary"}
+RESERVED_IDS = {"next", "add", "claude", "codex", "grok", "agy", "primary"}
 SWITCH_MODES = ("manual", "auto")
 LOGIN_RECEIPT = ".omarchy-login.json"
 
@@ -99,6 +107,8 @@ def usage_record_path(provider: str) -> Path:
 # those are how an added account is selected, so honoring them here would make
 # whichever account launched this command look like the primary.
 def primary_home(provider: str) -> Path:
+  if provider == "agy":
+    return Path.home() / ".gemini" / "antigravity-cli"
   return Path.home() / f".{provider}"
 
 
@@ -160,6 +170,9 @@ def identity(provider: str, home: Path) -> dict[str, str]:
   if provider == "grok":
     return grok_identity(home)
 
+  if provider == "agy":
+    return agy_identity(home)
+
   auth = read_json(home / "auth.json") or {}
   tokens = auth.get("tokens") or {}
   claims = jwt_claims(str(tokens.get("id_token") or ""))
@@ -187,6 +200,91 @@ def grok_identity(home: Path) -> dict[str, str]:
     "email": str(login.get("email") or ""),
     "org": "",
     "plan": str((settings if isinstance(settings, dict) else {}).get("subscription_tier_display") or ""),
+  }
+
+
+def primary_token_backup(provider: str) -> Path:
+  return accounts_root() / provider / "main" / "antigravity-oauth-token"
+
+
+def secondary_account_active(provider: str) -> bool:
+  reg = read_json(accounts_root() / f"{provider}.json")
+  if not isinstance(reg, dict):
+    return False
+  act_id = reg.get("active")
+  accounts = reg.get("accounts") or []
+  acc = next((a for a in accounts if isinstance(a, dict) and a.get("id") == act_id), None)
+  return bool(acc and not acc.get("primary"))
+
+
+def token_data_email(data: dict[str, Any]) -> str:
+  if not isinstance(data, dict):
+    return ""
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  claims = jwt_claims(str(data.get("id_token") or token.get("id_token") or ""))
+  return str(data.get("id_token_email") or claims.get("email") or claims.get("sub") or "")
+
+
+def agy_identity(home: Path) -> dict[str, str]:
+  data = None
+  if home == primary_home("agy"):
+    reg = read_json(accounts_root() / "agy.json") or {}
+    sec_active = False
+    secondary_accounts: list[dict[str, Any]] = []
+    if isinstance(reg, dict):
+      act_id = reg.get("active")
+      accounts = reg.get("accounts") or []
+      secondary_accounts = [a for a in accounts if isinstance(a, dict) and not a.get("primary")]
+      act_acc = next((a for a in accounts if isinstance(a, dict) and a.get("id") == act_id), None)
+      sec_active = bool(act_acc and not act_acc.get("primary"))
+    if sec_active:
+      main_backup = primary_token_backup("agy")
+      if main_backup.is_file():
+        data = read_json(main_backup)
+    if not isinstance(data, dict):
+      candidate = read_json(home / "antigravity-oauth-token")
+      if isinstance(candidate, dict):
+        cand_email = token_data_email(candidate)
+        if any((a.get("email") and cand_email == a.get("email")) or (a.get("accountId") and cand_email == a.get("accountId")) for a in secondary_accounts):
+          candidate = None
+      if isinstance(candidate, dict):
+        data = candidate
+    if not isinstance(data, dict):
+      try:
+        raw = subprocess.check_output(
+          ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
+          text=True, stderr=subprocess.DEVNULL, timeout=3,
+        )
+        if raw.strip():
+          parsed = json.loads(raw)
+          if isinstance(parsed, dict):
+            cand_email = token_data_email(parsed)
+            if not any((a.get("email") and cand_email == a.get("email")) or (a.get("accountId") and cand_email == a.get("accountId")) for a in secondary_accounts):
+              data = parsed
+      except Exception:
+        data = None
+    if not isinstance(data, dict):
+      main_backup = primary_token_backup("agy")
+      if main_backup.is_file():
+        data = read_json(main_backup)
+  else:
+    data = read_json(home / "antigravity-oauth-token")
+  if not isinstance(data, dict):
+    data = {}
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  claims = jwt_claims(str(data.get("id_token") or token.get("id_token") or ""))
+  email = str(data.get("id_token_email") or claims.get("email") or "")
+  auth_method = str(data.get("auth_method") or "consumer").lower()
+  plan = "Pro"
+  if auth_method == "enterprise":
+    plan = "Enterprise"
+  elif auth_method in ("cloud", "vertex"):
+    plan = "Cloud"
+  return {
+    "accountId": email or str(claims.get("sub") or ""),
+    "email": email,
+    "org": str(claims.get("hd") or ""),
+    "plan": plan,
   }
 
 
@@ -297,6 +395,13 @@ def link_shared(provider: str, home: Path) -> None:
   primary = primary_home(provider)
   home.mkdir(parents=True, exist_ok=True)
   os.chmod(home, 0o700)
+  if provider == "agy":
+    dot_gemini = home / ".gemini"
+    dot_gemini.mkdir(parents=True, exist_ok=True)
+    cli_link = dot_gemini / "antigravity-cli"
+    if cli_link.is_symlink() or cli_link.exists():
+      cli_link.unlink()
+    cli_link.symlink_to("..")
   for name in spec["shared_dirs"]:
     shared = primary / name
     # A dangling symlink is the person's own setup, such as a dotfiles link
@@ -528,8 +633,420 @@ def rename(provider: str, target: str, label: str) -> dict[str, Any]:
 def refresh(provider: str) -> None:
   recover(provider)
   with Locked(provider) as registry:
+    if provider == "agy" and not secondary_account_active("agy"):
+      curr = current_primary_token()
+      curr_ident = agy_token_identity(curr)
+      secondary_accounts = [a for a in registry.get("accounts", []) if not a.get("primary")]
+      if curr and not any(
+        (a.get("accountId") and curr_ident.get("accountId") == a.get("accountId")) or
+        (a.get("email") and curr_ident.get("email") == a.get("email"))
+        for a in secondary_accounts
+      ):
+        save_main_token(curr)
     for account in registry["accounts"]:
       account.update(identity(provider, account_home(provider, account)))
+
+
+def save_main_token(content: str) -> None:
+  if not content:
+    return
+  backup = primary_token_backup("agy")
+  backup.parent.mkdir(parents=True, exist_ok=True)
+  os.chmod(backup.parent, 0o700)
+  backup.write_text(content, encoding="utf-8")
+  os.chmod(backup, 0o600)
+
+
+
+def token_expiry(raw: str) -> float:
+  if not raw:
+    return 0.0
+  try:
+    data = json.loads(raw)
+  except Exception:
+    return 0.0
+  if not isinstance(data, dict):
+    return 0.0
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  val = token.get("expiry") or data.get("expiry")
+  if val is None or val == "" or isinstance(val, bool):
+    return 0.0
+  try:
+    if isinstance(val, (int, float)) or str(val).isdigit():
+      stamp = float(val)
+      return stamp / 1000.0 if stamp > 1e12 else stamp
+    return dt.datetime.fromisoformat(str(val).replace("Z", "+00:00")).timestamp()
+  except Exception:
+    return 0.0
+
+
+def current_primary_token() -> str:
+  keyring_token = ""
+  if shutil.which("secret-tool"):
+    try:
+      raw = subprocess.check_output(
+        ["secret-tool", "lookup", "service", "gemini", "username", "antigravity"],
+        text=True, stderr=subprocess.DEVNULL, timeout=3,
+      ).strip()
+      if raw:
+        keyring_token = raw
+    except Exception:
+      pass
+  primary_file = primary_home("agy") / "antigravity-oauth-token"
+  file_token = primary_file.read_text(encoding="utf-8").strip() if primary_file.is_file() else ""
+  if keyring_token and file_token:
+    k_ident = agy_token_identity(keyring_token)
+    f_ident = agy_token_identity(file_token)
+    k_id = k_ident.get("accountId") or k_ident.get("email")
+    f_id = f_ident.get("accountId") or f_ident.get("email")
+    if k_id and k_id == f_id:
+      return keyring_token if token_expiry(keyring_token) >= token_expiry(file_token) else file_token
+    return file_token
+  return file_token or keyring_token
+
+
+def load_main_token() -> str:
+  backup = primary_token_backup("agy")
+  if backup.is_file():
+    return backup.read_text(encoding="utf-8")
+  curr = current_primary_token()
+  if curr:
+    save_main_token(curr)
+    return curr
+  return ""
+
+
+def apply_token_to_primary(content: str) -> None:
+  if not content:
+    return
+  primary_dir = primary_home("agy")
+  primary_file = primary_dir / "antigravity-oauth-token"
+  primary_dir.mkdir(parents=True, exist_ok=True)
+  primary_file.write_text(content, encoding="utf-8")
+  os.chmod(primary_file, 0o600)
+  if shutil.which("secret-tool"):
+    try:
+      proc = subprocess.Popen(
+        ["secret-tool", "store", "--label=Antigravity", "service", "gemini", "username", "antigravity"],
+        stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+      )
+      proc.communicate(input=content.encode("utf-8"), timeout=3)
+    except Exception:
+      pass
+
+
+def agy_token_identity(raw: str) -> dict[str, str]:
+  if not raw:
+    return {}
+  try:
+    data = json.loads(raw)
+  except Exception:
+    return {}
+  if not isinstance(data, dict):
+    return {}
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  claims = jwt_claims(str(data.get("id_token") or token.get("id_token") or ""))
+  email = str(data.get("id_token_email") or claims.get("email") or "")
+  return {
+    "accountId": email or str(claims.get("sub") or ""),
+    "email": email,
+  }
+
+
+
+def switch_credentials(
+  provider: str,
+  from_account: dict[str, Any] | None,
+  to_account: dict[str, Any],
+) -> None:
+  if provider != "agy":
+    return
+  if from_account is not None:
+    curr = current_primary_token()
+    if curr:
+      curr_ident = agy_token_identity(curr)
+      from_id = from_account.get("accountId") or from_account.get("email")
+      matches_from = bool(not from_id or
+        curr_ident.get("accountId") == from_id or
+        (from_account.get("email") and curr_ident.get("email") == from_account.get("email")))
+      if matches_from:
+        if from_account.get("primary"):
+          save_main_token(curr)
+        else:
+          from_home = account_home("agy", from_account)
+          from_home.mkdir(parents=True, exist_ok=True)
+          (from_home / "antigravity-oauth-token").write_text(curr, encoding="utf-8")
+  if to_account.get("primary"):
+    token = load_main_token()
+    apply_token_to_primary(token)
+  else:
+    to_home = account_home("agy", to_account)
+    token_file = to_home / "antigravity-oauth-token"
+    if token_file.is_file():
+      apply_token_to_primary(token_file.read_text(encoding="utf-8"))
+
+
+def sync_credentials(provider: str, target_home: Path | None = None) -> None:
+  if provider != "agy":
+    return
+  with Locked(provider, save_on_exit=False) as registry:
+    acc = active(registry)
+    curr = current_primary_token()
+    curr_ident = agy_token_identity(curr)
+    if acc.get("primary"):
+      main_saved = load_main_token()
+      main_ident = agy_token_identity(main_saved)
+      secondary_accounts = [a for a in registry.get("accounts", []) if not a.get("primary")]
+      curr_belongs_to_secondary = bool(
+        curr and any(
+          (a.get("accountId") and curr_ident.get("accountId") == a.get("accountId")) or
+          (a.get("email") and curr_ident.get("email") == a.get("email"))
+          for a in secondary_accounts
+        )
+      )
+      if curr_belongs_to_secondary:
+        if main_saved:
+          apply_token_to_primary(main_saved)
+      elif curr:
+        account_id = acc.get("accountId") or acc.get("email") or main_ident.get("accountId")
+        matches_main = bool(not account_id or
+          curr_ident.get("accountId") == account_id or
+          (acc.get("email") and curr_ident.get("email") == acc.get("email")))
+        if matches_main:
+          exp_curr = token_expiry(curr)
+          exp_saved = token_expiry(main_saved)
+          if main_saved and exp_saved > exp_curr:
+            apply_token_to_primary(main_saved)
+          elif curr != main_saved:
+            save_main_token(curr)
+        else:
+          save_main_token(curr)
+          acc.update(curr_ident)
+          save(provider, registry)
+      elif main_saved:
+        apply_token_to_primary(main_saved)
+    else:
+      home = account_home("agy", acc)
+      token_file = home / "antigravity-oauth-token"
+      saved_text = token_file.read_text(encoding="utf-8") if token_file.is_file() else ""
+      account_id = acc.get("accountId") or acc.get("email")
+      matches_curr = bool(curr and account_id and (
+        curr_ident.get("accountId") == account_id or
+        (acc.get("email") and curr_ident.get("email") == acc.get("email"))))
+      if matches_curr:
+        exp_curr = token_expiry(curr)
+        exp_saved = token_expiry(saved_text)
+        if saved_text and exp_saved > exp_curr:
+          apply_token_to_primary(saved_text)
+        elif saved_text and exp_curr > exp_saved:
+          home.mkdir(parents=True, exist_ok=True)
+          token_file.write_text(curr, encoding="utf-8")
+        elif curr != saved_text:
+          primary_file = primary_home("agy") / "antigravity-oauth-token"
+          if token_file.is_file() and primary_file.is_file() and token_file.stat().st_mtime > primary_file.stat().st_mtime:
+            apply_token_to_primary(saved_text)
+          else:
+            home.mkdir(parents=True, exist_ok=True)
+            token_file.write_text(curr, encoding="utf-8")
+      elif saved_text:
+        apply_token_to_primary(saved_text)
+
+
+def run_agy_login(home: Path, private: bool = False, timeout_sec: int = 300) -> int:
+  import pty
+  import select
+  import signal
+  import time
+
+  home = home.resolve()
+  token_file = home / "antigravity-oauth-token"
+  home.mkdir(parents=True, exist_ok=True)
+  dot_gemini = home / ".gemini"
+  dot_gemini.mkdir(parents=True, exist_ok=True)
+  cli_link = dot_gemini / "antigravity-cli"
+  if cli_link.is_symlink() or cli_link.exists():
+    cli_link.unlink()
+  cli_link.symlink_to("..")
+
+  # Capture desktop environment to restore in the browser child wrapper.
+  # agy runs isolated with its account directory as HOME and no session bus so
+  # it cannot touch the desktop keyring, but omarchy-launch-browser needs the
+  # desktop HOME for settings and a live session bus for systemd-run --user.
+  desktop_vars = [
+    "HOME",
+    "DBUS_SESSION_BUS_ADDRESS",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_STATE_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_RUNTIME_DIR",
+    "XDG_DATA_DIRS",
+    "XDG_CONFIG_DIRS",
+    "PATH",
+  ]
+  restore_stmts = []
+  for var in desktop_vars:
+    if var in os.environ:
+      restore_stmts.append(f"export {var}={shlex.quote(os.environ[var])}")
+    else:
+      restore_stmts.append(f"unset {var}")
+  restore_stmts.append("unset AGY_DIR")
+  restore_stmts.append("unset OMARCHY_AGENT_LOGIN")
+  if "BROWSER" in os.environ:
+    restore_stmts.append(f"export BROWSER={shlex.quote(os.environ['BROWSER'])}")
+  else:
+    restore_stmts.append("unset BROWSER")
+  restore_block = "\n".join(restore_stmts)
+
+  # Prepare temporary wrapper for xdg-open so browser opens in requested mode
+  # and prints the full URL for the panel / terminal.
+  tmp_bin = tempfile.mkdtemp(prefix="omarchy-agy-login-")
+  wrapper_path = Path(tmp_bin) / "xdg-open"
+  browser_cmd = "omarchy-launch-browser --private \"$1\"" if private else "omarchy-launch-browser \"$1\""
+  wrapper_path.write_text(f"#!/bin/bash\nprintf '%s\\n' \"$1\"\n{restore_block}\nexec {browser_cmd}\n")
+  wrapper_path.chmod(0o755)
+
+  # Filter out mise command-wrappers so we launch the real agy CLI directly
+  # without invoking omarchy-agent-account-exec and account synchronization.
+  clean_path = ":".join(p for p in os.environ.get("PATH", "").split(":") if "command-wrappers" not in p)
+  agy_bin = shutil.which("agy", path=clean_path) or "agy"
+
+  env = os.environ.copy()
+  env["HOME"] = str(home)
+  env["AGY_DIR"] = str(home)
+  env["BROWSER"] = str(wrapper_path)
+  # Prevent agy from reading or modifying the host Secret Service keyring
+  env["DBUS_SESSION_BUS_ADDRESS"] = "unix:path=/dev/null"
+  env["PATH"] = f"{tmp_bin}:{clean_path}"
+  env["OMARCHY_AGENT_LOGIN"] = "1"
+
+  master, slave = pty.openpty()
+  pid = os.fork()
+  if pid == 0:
+    os.close(master)
+    os.setsid()
+    os.dup2(slave, 0)
+    os.dup2(slave, 1)
+    os.dup2(slave, 2)
+    os.close(slave)
+    os.execvpe(agy_bin, ["agy"], env)
+    os._exit(1)
+
+  os.close(slave)
+
+  def cleanup_child(signum: int | None = None, frame: Any = None) -> None:
+    try:
+      os.kill(pid, signal.SIGTERM)
+      time.sleep(0.1)
+      os.kill(pid, signal.SIGKILL)
+    except Exception:
+      pass
+    shutil.rmtree(tmp_bin, ignore_errors=True)
+    if signum is not None:
+      sys.exit(130)
+
+  orig_sigterm = signal.getsignal(signal.SIGTERM)
+  orig_sigint = signal.getsignal(signal.SIGINT)
+  signal.signal(signal.SIGTERM, cleanup_child)
+  signal.signal(signal.SIGINT, cleanup_child)
+
+  selected_method = False
+  start_time = time.time()
+  buffer = b""
+
+  orig_stdin_fileno: int | None = None
+  try:
+    orig_stdin_fileno = sys.stdin.fileno()
+  except Exception:
+    pass
+
+  def finish_success() -> int:
+    try:
+      sys.stdout.buffer.write(b"\n")
+      sys.stdout.buffer.flush()
+    except Exception:
+      pass
+    return 0
+
+  try:
+    while time.time() - start_time < timeout_sec:
+      if token_file.is_file() and token_file.stat().st_size > 0:
+        try:
+          data = json.loads(token_file.read_text(encoding="utf-8"))
+          if isinstance(data, dict) and (data.get("token") or data.get("id_token_email")):
+            time.sleep(0.3)
+            return finish_success()
+        except Exception:
+          pass
+
+      try:
+        pid_res, status = os.waitpid(pid, os.WNOHANG)
+        if pid_res != 0:
+          time.sleep(0.2)
+          if token_file.is_file() and token_file.stat().st_size > 0:
+            return finish_success()
+          code = os.waitstatus_to_exitcode(status) if hasattr(os, "waitstatus_to_exitcode") else (status >> 8)
+          return code if code != 0 else 1
+      except ChildProcessError:
+        if token_file.is_file() and token_file.stat().st_size > 0:
+          return finish_success()
+        return 1
+
+      r_list = [master]
+      if orig_stdin_fileno is not None:
+        r_list.append(orig_stdin_fileno)
+
+      r, _, _ = select.select(r_list, [], [], 0.3)
+
+      if master in r:
+        try:
+          data = os.read(master, 1024)
+        except OSError:
+          data = b""
+        if not data:
+          time.sleep(0.2)
+          if token_file.is_file() and token_file.stat().st_size > 0:
+            return finish_success()
+          break
+        buffer += data
+        try:
+          sys.stdout.buffer.write(data)
+          sys.stdout.buffer.flush()
+        except Exception:
+          pass
+
+        if not selected_method and (b"Select login method" in buffer or b"1. Google OAuth" in buffer):
+          time.sleep(0.2)
+          try:
+            os.write(master, b"\r")
+          except OSError:
+            pass
+          selected_method = True
+          buffer = b""
+
+        if b"Got an error: token exchange failed" in buffer:
+          return 1
+
+      if orig_stdin_fileno is not None and orig_stdin_fileno in r:
+        try:
+          inp = os.read(orig_stdin_fileno, 1024)
+        except OSError:
+          inp = b""
+        if not inp:
+          orig_stdin_fileno = None
+        else:
+          inp = inp.replace(b"\n", b"\r")
+          try:
+            os.write(master, inp)
+          except OSError:
+            pass
+
+    return finish_success() if (token_file.is_file() and token_file.stat().st_size > 0) else 1
+
+  finally:
+    cleanup_child()
+    signal.signal(signal.SIGTERM, orig_sigterm)
+    signal.signal(signal.SIGINT, orig_sigint)
 
 
 def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -543,8 +1060,11 @@ def use(provider: str, target: str) -> tuple[dict[str, Any], dict[str, Any]]:
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
     registry["active"] = account["id"]
     registry["alert"] = ""
+    target_home = account_home(provider, account)
     if not account.get("primary"):
-      link_shared(provider, account_home(provider, account))
+      link_shared(provider, target_home)
+    if provider == "agy":
+      switch_credentials("agy", previous, account)
     return previous, account
 
 
@@ -580,7 +1100,10 @@ def remove(provider: str, target: str) -> dict[str, Any]:
       shutil.rmtree(home, ignore_errors=True)
     registry["accounts"] = [a for a in registry["accounts"] if a["id"] != account["id"]]
     if registry["active"] == account["id"]:
-      registry["active"] = registry["accounts"][0]["id"]
+      new_active = registry["accounts"][0]
+      registry["active"] = new_active["id"]
+      if provider == "agy":
+        switch_credentials("agy", None, new_active)
     return account
 
 
@@ -601,6 +1124,29 @@ def set_mode(provider: str, mode: str, threshold: str | None) -> dict[str, Any]:
 # ------------------------------------------------------------- autoswitch
 
 
+SCOPED_WINDOW_RE = re.compile(r"^.+ (Session|Weekly|Monthly)$")
+
+
+def is_scoped_limit(limit: dict[str, Any]) -> bool:
+  if limit.get("scoped") is True:
+    return True
+  title = str(limit.get("title") or "")
+  if SCOPED_WINDOW_RE.match(title):
+    return True
+  label = str(limit.get("label") or "")
+  if SCOPED_WINDOW_RE.match(label):
+    return True
+  return False
+
+
+def core_limits(limits: Any) -> list[dict[str, Any]]:
+  if not isinstance(limits, list):
+    return []
+  known = [l for l in limits if isinstance(l, dict) and isinstance(l.get("percent"), (int, float))]
+  general = [l for l in known if not is_scoped_limit(l)]
+  return general if general else known
+
+
 def window_open(limit: dict[str, Any], now: dt.datetime) -> bool:
   raw = str(limit.get("resetsAt") or "")
   if not raw:
@@ -616,21 +1162,23 @@ def window_open(limit: dict[str, Any], now: dt.datetime) -> bool:
 
 # How spent an account is: its fullest window that hasn't reset yet, in
 # percent. A window whose reset has passed counts as empty even when the
-# numbers are stale, since that's exactly what a reset means. None when
-# nothing is known at all.
+# numbers are stale, since that's exactly what a reset means. A model-scoped
+# allowance (such as Claude/GPT in Antigravity) does not exhaust the account
+# when general plan windows still have room. None when nothing is known at all.
 def peak(limits: Any, now: dt.datetime) -> float | None:
   if not isinstance(limits, list):
     return None
-  known = [l for l in limits if isinstance(l, dict) and isinstance(l.get("percent"), (int, float))]
-  if not known:
+  candidates = core_limits(limits)
+  if not candidates:
     return None
-  open_windows = [float(l["percent"]) * 100 for l in known if window_open(l, now)]
+  open_windows = [float(l["percent"]) * 100 for l in candidates if window_open(l, now)]
   return max(open_windows) if open_windows else 0.0
 
 
 def next_reset(limits: Any, now: dt.datetime) -> dt.datetime | None:
   times = []
-  for limit in limits if isinstance(limits, list) else []:
+  candidates = core_limits(limits) if isinstance(limits, list) else []
+  for limit in candidates:
     try:
       when = dt.datetime.fromisoformat(str(limit.get("resetsAt") or "").replace("Z", "+00:00"))
     except Exception:
@@ -645,12 +1193,12 @@ def next_reset(limits: Any, now: dt.datetime) -> dt.datetime | None:
 # When an account over the threshold drops back under it: once every window
 # holding it there has reset, which is the latest of those resets. A 10%
 # session resetting in an hour doesn't help an account whose weekly window is
-# full for six more days. None when a blocking window never says.
+# full for six more days. Scoped allowances on other models are ignored.
+# None when a blocking window never says.
 def available_at(limits: Any, threshold: float, now: dt.datetime) -> dt.datetime | None:
   latest = None
-  for limit in limits if isinstance(limits, list) else []:
-    if not isinstance(limit, dict) or not isinstance(limit.get("percent"), (int, float)):
-      continue
+  candidates = core_limits(limits) if isinstance(limits, list) else []
+  for limit in candidates:
     if float(limit["percent"]) * 100 < threshold or not window_open(limit, now):
       continue
     try:
@@ -800,8 +1348,11 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
     headline = tr("omarchy-i18n agents.atLimit", "%1 is at %2% of a %3 limit", source["label"], round(decision["fromPeak"]), name)
     if decision["action"] == "switch":
       registry["active"] = target["id"]
+      target_home = account_home(provider, target)
       if not target.get("primary"):
-        link_shared(provider, account_home(provider, target))
+        link_shared(provider, target_home)
+      if provider == "agy":
+        switch_credentials("agy", source, target)
       notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), source["label"]))
       return True
     notify(
@@ -817,7 +1368,7 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
 
 def provider_arg(args: list[str]) -> str:
   if not args or args[0] not in PROVIDERS:
-    raise AccountError("Name a provider: claude, codex, or grok")
+    raise AccountError("Name a provider: claude, codex, grok, or agy")
   return args[0]
 
 
@@ -868,7 +1419,22 @@ def main(argv: list[str]) -> int:
       provider = provider_arg(args)
       registry = load(provider)
       for account in registry["accounts"]:
-        print("\t".join([account["id"], str(account_home(provider, account)), "1" if account["id"] == registry["active"] else "0"]))
+        print("\t".join([
+          account["id"],
+          str(account_home(provider, account)),
+          "1" if account["id"] == registry["active"] else "0",
+          "1" if account.get("primary") else "0",
+        ]))
+    elif command == "backup-main":
+      provider = provider_arg(args)
+      if provider == "agy":
+        curr = current_primary_token()
+        if curr:
+          save_main_token(curr)
+          with Locked(provider) as registry:
+            primary_acc = next((a for a in registry.get("accounts", []) if a.get("primary")), None)
+            if primary_acc:
+              primary_acc.update(identity(provider, primary_home("agy")))
     elif command == "refresh":
       for provider in ([provider_arg(args)] if args else list(PROVIDERS)):
         if registry_path(provider).exists() or (accounts_root() / provider).is_dir():
@@ -904,6 +1470,18 @@ def main(argv: list[str]) -> int:
     elif command == "link":
       provider = provider_arg(args)
       link_shared(provider, Path(args[1]))
+    elif command == "sync":
+      provider = provider_arg(args)
+      sync_credentials(provider)
+    elif command == "login":
+      provider = provider_arg(args)
+      if len(args) < 2:
+        raise AccountError("login <provider> <home> [--private]")
+      home = Path(args[1]).expanduser()
+      private = "--private" in args[2:]
+      if provider == "agy":
+        return run_agy_login(home, private=private)
+      raise AccountError(f"Provider '{provider}' does not require login helper")
     elif command == "autoswitch":
       # Prints each provider whose active account changed, so the caller
       # knows which usage records to collect again.
