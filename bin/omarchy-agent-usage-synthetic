@@ -7,7 +7,7 @@
 Local stats come from pi/omp sessions and opencode messages that ran on the
 synthetic provider, and from Claude Code, MiniMax Code and Codex sessions sent
 to Synthetic's API. The account's allowances (the rolling five-hour request
-limit, the weekly credits, search and free tool calls) come from Synthetic's
+limit, the weekly credits or plan, search and free tool calls) come from Synthetic's
 documented GET https://api.synthetic.new/v2/quotas, which doesn't count
 against them. The agents panel only ever reads the JSON this prints.
 """
@@ -201,9 +201,14 @@ def parse_quotas(payload):
   weekly = finite(obj(payload.get("weeklyTokenLimit")).get("percentRemaining"))
   if weekly is not None:
     limits.append({"label": "Weekly credits", "percent": max(0.0, min(1.0, 1.0 - weekly / 100.0)), "resetsAt": ""})
+  # Plans after the credit system report the weekly allowance as
+  # planWeeklyLimit, a percentage that regenerates the same way.
+  plan = finite(obj(payload.get("planWeeklyLimit")).get("percentRemaining"))
+  if plan is not None:
+    limits.append({"label": "Weekly plan", "percent": max(0.0, min(1.0, 1.0 - plan / 100.0)), "resetsAt": ""})
 
-  # The documented bucket. Accounts on the credit system still receive it, at
-  # zero, so it stands in only when neither of those parsed.
+  # The documented bucket. Accounts on the credit system or a weekly plan
+  # still receive it, at zero, so it stands in only when none of those parsed.
   if not limits:
     window = request_window("Subscription requests", payload.get("subscription"))
     if window:
