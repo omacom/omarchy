@@ -18,6 +18,13 @@ address=${2:-}
 [[ $action == "pair" || $action == "connect" || $action == "disconnect" || $action == "forget" ]] || usage
 [[ $address =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] || usage
 
+# Pair and connect share a lock, including calls from different bar instances.
+# Disconnect remains available so the user can cancel a pending connection.
+if [[ $action == "pair" || $action == "connect" ]]; then
+  exec 9>"${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-bluetooth-connect-${address^^}.lock"
+  flock -n 9 || exit 0
+fi
+
 power_on() {
   [[ $(timeout 2s bluetoothctl show 2>/dev/null) == *"Powered: yes"* ]] && return
   # Not bluetoothctl directly: Bluetooth is turned off by an rfkill soft block,
@@ -29,17 +36,31 @@ trust_device() {
   bluetoothctl trust "$address" >/dev/null 2>&1 || true
 }
 
+connect_device() {
+  local output status
+  if output=$(timeout 20s bluetoothctl connect "$address" 2>&1); then
+    return 0
+  else
+    status=$?
+    printf '%s\n' "$output" >&2
+    logger -t omarchy-bluetooth-device -- "connect $address failed ($status): $output" || true
+    omarchy-notification-send "Bluetooth connection failed" \
+      "Could not connect to $address. Check that the device is available." || true
+    return "$status"
+  fi
+}
+
 case "$action" in
   pair)
     power_on
     timeout 20s bluetoothctl pair "$address" >/dev/null 2>&1 || true
     trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    connect_device
     ;;
   connect)
     power_on
     trust_device
-    timeout 20s bluetoothctl connect "$address" >/dev/null 2>&1 || true
+    connect_device
     ;;
   disconnect)
     timeout 10s bluetoothctl disconnect "$address" >/dev/null 2>&1 || true
