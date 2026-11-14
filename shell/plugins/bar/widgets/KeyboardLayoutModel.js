@@ -33,6 +33,68 @@ function layoutBriefs(text) {
   return briefs
 }
 
+// An override the user set with o.keyboard_brief() replaces xkb's own brief.
+// Keys point back at how the user named the layout: description -> layout, or
+// layout and variant joined with a colon, from the same xkb listing the brief
+// came from.
+function layoutKeys(text) {
+  var keys = {}
+  var layout = ""
+  var variant = ""
+
+  String(text || "").split("\n").forEach(function (line) {
+    if (/^\s*- /.test(line)) {
+      layout = ""
+      variant = ""
+    }
+
+    var start = line.match(/^\s*- layout: (.*)$/)
+    if (start) layout = start[1].replace(/^'|'$/g, "")
+
+    var field = line.match(/^  (variant|description): (.*)$/)
+    if (!field) return
+
+    if (field[1] === "variant") {
+      variant = field[2].replace(/^'|'$/g, "")
+    } else if (layout) {
+      keys[field[2]] = variant ? layout + ":" + variant : layout
+    }
+  })
+
+  return keys
+}
+
+// The variant's own brief first, then what the layout carries for the rest of
+// it. Descriptions the xkb listing never described (a custom layout from
+// /etc/xkb, say) carry no key, so nothing can override them.
+function briefOverride(description, keys, overrides) {
+  if (!overrides) return ""
+
+  var key = (keys || {})[description]
+  if (!key) return ""
+
+  var brief = overrides[key]
+  if (typeof brief === "string" && brief) return brief
+
+  var layout = key.split(":")[0]
+  if (layout === key) return ""
+
+  brief = overrides[layout]
+  return typeof brief === "string" && brief ? brief : ""
+}
+
+// The overrides file, one tab-separated line per brief, as the config wrote it.
+function briefOverrides(text) {
+  var overrides = {}
+
+  String(text || "").split("\n").forEach(function (line) {
+    var fields = line.split("\t")
+    if (fields.length === 2 && fields[0] !== "" && fields[1] !== "") overrides[fields[0]] = fields[1]
+  })
+
+  return overrides
+}
+
 // The brief is a short language code rather than a country one, which keeps the
 // label sensible for the layouts named after a language: Esperanto reads EO and
 // Arabic reads AR. It is the same code GNOME shows in its own indicator.
@@ -44,8 +106,14 @@ function layoutBriefs(text) {
 // (Burmese (Zawgyi) is my-zwg) and the custom layout's is a word, so drop the
 // script and cap the result at the same three characters the fallback gets.
 // The widget sits between fixed neighbours on the bar and has no room to grow.
-function shortLabel(description, briefs) {
+//
+// An override the user set replaces the table's brief outright: it is what they
+// typed, so it keeps its own hyphens and takes only the width cap.
+function shortLabel(description, briefs, keys, overrides) {
   if (!description) return ""
+
+  var override = briefOverride(description, keys, overrides)
+  if (override) return override.substring(0, 3).toUpperCase()
 
   // A description like "constructor" reaches an inherited member rather than a
   // brief, so take the lookup only when it hands back the string it promises.
@@ -137,6 +205,9 @@ if (typeof module !== "undefined") {
     eventKeyboardName: eventKeyboardName,
     isTypedKeyboard: isTypedKeyboard,
     layoutBriefs: layoutBriefs,
+    layoutKeys: layoutKeys,
+    briefOverride: briefOverride,
+    briefOverrides: briefOverrides,
     selectKeyboard: selectKeyboard,
     shortLabel: shortLabel,
     inputLabel: inputLabel,
