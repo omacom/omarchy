@@ -128,6 +128,24 @@ ShellRoot {
   function disconnectedChecks() {
     check(panel.kind === "disconnected" && !panel.hasCaptivePortal, "disconnect clears stale portal")
     check(!panel.testButton.visible && panel.icon === "󰤮", "disconnected icon not portal icon")
+    // The setting goes on before the portal shows, as it would from shell.json;
+    // the mock still reports the portal from before the disconnect, so the
+    // reconnect alone brings it back.
+    panel.settings = ({ autoSignIn: true })
+    NetworkMock.network.connected = true
+    NetworkMock.wifi.connected = true
+    Qt.callLater(autoSignInChecks)
+  }
+
+  // The runner counts browser launches: the button above made one, this
+  // portal makes the second with no click, and the earlier portals made none
+  // before the setting was on. The setting turned on again while the portal
+  // is already up, as at shell start, makes the third.
+  function autoSignInChecks() {
+    check(panel.autoSignIn, "auto sign-in reads its inline setting")
+    check(panel.hasCaptivePortal, "auto sign-in portal is detected")
+    panel.settings = ({})
+    panel.settings = ({ autoSignIn: true })
     if (failed) { Qt.quit(); return }
     console.log("RESULT pass")
     var preview = Quickshell.env("NETWORK_TEST_PREVIEW")
