@@ -5,6 +5,10 @@
 # omarchy:name=wake
 # omarchy:examples=omarchy system wake
 
+# The bar clock's tick stood still through any suspend, so bring it to the
+# wall clock before the displays light up rather than up to a minute later.
+omarchy-shell -q omarchy.clock refresh
+
 omarchy-brightness-display on
 omarchy-brightness-keyboard restore
 omarchy-hyprland-monitor-clamshell >/dev/null 2>&1 || true
