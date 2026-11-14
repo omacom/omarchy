@@ -225,4 +225,16 @@ assert(!calendar.clockNeedsSeconds("HH:mm's"), 'clock reads a trailing untermina
 assert(calendar.clockNeedsSeconds("''s"), 'clock still sees seconds after an escaped apostrophe')
 assert(!calendar.clockNeedsSeconds(''), 'clock sees no seconds in an empty format')
 assert(!calendar.clockNeedsSeconds(null), 'clock sees no seconds in a missing format')
+
+// ---- Resync after a wall-clock step. A tick is expected to find `interval`
+//      gone; only the deviation from that says the clock was stepped rather than
+//      advanced. Testing the elapsed time against the threshold instead would
+//      fire on every ordinary tick.
+const wallclock = requireFromRoot('shell/Commons/WallclockMath.js')
+assert(!wallclock.isDiscontinuity(1000, 1000, 3000), 'an on-time tick is not a step')
+assert(!wallclock.isDiscontinuity(1400, 1000, 3000), 'a tick running late under load is not a step')
+assert(!wallclock.isDiscontinuity(3999, 1000, 3000), 'a gap just under the threshold is not a step')
+assert(wallclock.isDiscontinuity(4000, 1000, 3000), 'a gap at the threshold is a step')
+assert(wallclock.isDiscontinuity(8 * 60 * 60 * 1000, 1000, 3000), 'waking from an eight-hour suspend is a step')
+assert(wallclock.isDiscontinuity(-5000, 1000, 3000), 'a clock stepped backwards is a step')
 JS
