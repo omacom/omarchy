@@ -221,6 +221,7 @@
   "bluetooth.turnOn": "Turn Bluetooth on",
   "bluetooth.turnOnToScan": "Turn Bluetooth on to scan",
   "bluetooth.turnedOff": "Turned Off",
+  "clipboard.copied": "Copied",
   "clipboard.deleteHistory": "Delete entire clipboard history?",
   "clipboard.empty": "Clipboard is empty",
   "clipboard.files": {
@@ -228,6 +229,7 @@
     "other": "%1 files"
   },
   "clipboard.image": "Image",
+  "clipboard.imageCopied": "Image copied",
   "clipboard.imageFrom": "Image from %1",
   "clipboard.screenshotFrom": "Screenshot from %1",
   "clipboard.search": "Search clipboard…",
