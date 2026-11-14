@@ -34,6 +34,19 @@ if [[ ${1:-} == "--status" ]]; then
   exit 0
 fi
 
+if [[ ${1:-} == "--reapply" ]]; then
+  # A resume drops the compositor's colour transform while hyprsunset keeps its
+  # temperature, so nothing applies it again: the screen comes back untinted
+  # while the bar still reports night light as on (#16052). Pushing the value it
+  # already holds is not a change, so nudge it: T+1 then T applies the transform.
+  temp=$(current_temp)
+  [[ $temp =~ ^[0-9]+$ ]] || exit 0
+  (( temp < IDENTITY_TEMP )) || exit 0
+  hyprctl hyprsunset temperature $((temp + 1)) >/dev/null 2>&1
+  hyprctl hyprsunset temperature "$temp" >/dev/null 2>&1
+  exit 0
+fi
+
 # Ensure hyprsunset is running. One a few seconds old may still be booting,
 # such as one started at login, so it counts as just started too.
 STARTING=false
