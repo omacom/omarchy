@@ -161,3 +161,68 @@ chmod +x "$test_tmp/bin/curl"
 [[ $(PATH="$test_tmp/bin:$PATH" weather_location) == "Amsterdam" ]] || fail "weather location names the place geo.omarchy.org detected"
 [[ $(cat "$test_tmp/curl-urls") == "https://geo.omarchy.org/" ]] || fail "weather location asks only geo.omarchy.org" "$(cat "$test_tmp/curl-urls")"
 pass "weather location names the place geo.omarchy.org detected when none is stored"
+
+# Exercise the actual panel with synthetic GeoIP and forecast responses; the
+# disposable HOME and curl stub prevent any host state or network access.
+require_compositor "weather panel runtime test"
+require_command quickshell
+stage="$test_tmp/runtime"
+mkdir -p "$stage/weather" "$stage/mocks" "$stage/bin" "$stage/home"
+ln -s "$ROOT/shell/Ui" "$stage/Ui"
+ln -s "$ROOT/shell/Commons" "$stage/Commons"
+cp "$SHELL_TEST_DIR/fixtures/weather/shell.qml" "$stage/shell.qml"
+cp "$SHELL_TEST_DIR/fixtures/weather/NetworkMock.qml" "$stage/mocks/NetworkMock.qml"
+printf 'singleton NetworkMock 1.0 NetworkMock.qml\n' >"$stage/mocks/qmldir"
+cp "$ROOT/shell/plugins/panels/weather/Model.js" "$stage/weather/Model.js"
+node - "$ROOT" "$stage" <<'JS'
+const fs = require('fs')
+const [root, stage] = process.argv.slice(2)
+let source = fs.readFileSync(`${root}/shell/plugins/panels/weather/Panel.qml`, 'utf8')
+source = source.replace('import Quickshell.Networking', 'import Quickshell.Networking\nimport "../mocks"')
+source = source.replace(/\bNetworking\./g, 'NetworkMock.')
+fs.writeFileSync(`${stage}/weather/Panel.qml`, source)
+JS
+cat >"$stage/bin/curl" <<'SH'
+#!/bin/bash
+url=${@: -1}
+printf '%s\n' "$url" >>"$HOME/requests"
+case $url in
+  https://geo.omarchy.org/)
+    response=$(<"$HOME/geo-response")
+    if [[ $response == "FAIL" ]]; then exit 1; fi
+    if [[ $response == HOLD:* ]]; then
+      while [[ ! -e "$HOME/release-geo" ]]; do sleep 0.05; done
+      response=${response#HOLD:}
+    fi
+    printf '%s\n' "$response" ;;
+  https://wttr.in/*)
+    if [[ -e $HOME/hold-forecast && $url == *"7.29,80.63"* ]]; then
+      stale_wttr() { printf '%s\n' '{"current_condition":[{"temp_C":"11"}]}'; exit 0; }
+      trap stale_wttr TERM
+      while :; do sleep 0.05; done
+    fi
+    temp=22
+    [[ $url == *"6.93,79.86"* ]] && temp=29
+    [[ $url == *"1,2"* ]] && temp=11
+    printf '{"current_condition":[{"temp_C":"%s"}]}\n' "$temp" ;;
+  https://api.open-meteo.com/*)
+    if [[ -e $HOME/hold-forecast && $url == *"latitude=7.29&longitude=80.63"* ]]; then
+      stale_meteo() { printf '%s\n' '{"current":{"temperature_2m":11}}'; exit 0; }
+      trap stale_meteo TERM
+      while :; do sleep 0.05; done
+    fi
+    temp=22
+    [[ $url == *"latitude=6.93&longitude=79.86"* ]] && temp=29
+    [[ $url == *"latitude=1&longitude=2"* ]] && temp=11
+    printf '{"current":{"temperature_2m":%s}}\n' "$temp" ;;
+  *) exit 1 ;;
+esac
+SH
+chmod +x "$stage/bin/curl"
+printf '%s\n' '{"name":"Bukit Jalil","latitude":3.05,"longitude":101.69}' >"$stage/home/geo-response"
+output=$(HOME="$stage/home" OMARCHY_PATH="$ROOT" PATH="$stage/bin:$PATH" timeout 25 quickshell -p "$stage" --no-color 2>&1) || fail "weather runtime fixture exits cleanly" "$output"
+[[ $output == *"RESULT pass"* ]] || fail "weather runtime assertions pass" "$output"
+if rg -q 'RESULT fail|ReferenceError|TypeError|Error:|Unable to assign|Binding loop' <<<"$output"; then
+  fail "weather runtime has no QML errors" "$output"
+fi
+pass "weather refreshes automatic location on open and network change, retains it on failure, and respects pinned locations"

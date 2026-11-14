@@ -67,6 +67,54 @@ Panel {
   // same shape. Kept when a later lookup fails.
   property var detectedLocationState: ({ name: "", latitude: null, longitude: null })
   property bool detectingLocation: false
+  property bool locationRefreshPending: false
+
+  // Observe connection identity, not scan results or signal-strength changes.
+  property string networkFingerprint: ""
+  readonly property string observedNetworkFingerprint: {
+    var devices = Networking.devices ? Networking.devices.values : []
+    var connections = []
+    for (var i = 0; i < devices.length; i++) {
+      var device = devices[i]
+      if (!device.connected) continue
+      var names = []
+      var networks = device.networks ? device.networks.values : []
+      for (var j = 0; j < networks.length; j++) {
+        if (networks[j].connected) names.push(networks[j].name)
+      }
+      connections.push([device.name, names.sort()])
+    }
+    return connections.length ? JSON.stringify(connections.sort()) : ""
+  }
+  onObservedNetworkFingerprintChanged: {
+    var previous = JSON.parse(networkFingerprint || "[]")
+    var connections = JSON.parse(observedNetworkFingerprint || "[]")
+    for (var i = 0; i < connections.length; i++) {
+      if (connections[i][1].length) continue
+      // OWE networks can vanish from AvailableConnections between scans
+      // while the device stays connected. Keep its last identity until an
+      // actual disconnect or a different connected network is observed.
+      for (var j = 0; j < previous.length; j++) {
+        if (previous[j][0] === connections[i][0]) {
+          connections[i][1] = previous[j][1]
+          break
+        }
+      }
+    }
+    networkFingerprint = connections.length ? JSON.stringify(connections) : ""
+  }
+  onNetworkFingerprintChanged: {
+    if (!autoLocation) return
+    // Let an old request finish, but never apply its answer to a new network.
+    if (detectingLocation) locationRefreshPending = true
+    networkRefreshTimer.restart()
+  }
+
+  Timer {
+    id: networkRefreshTimer
+    interval: 300
+    onTriggered: if (root.autoLocation && root.networkFingerprint !== "") root.refresh()
+  }
   readonly property bool autoLocation: Model.isAutoLocation(configuredLocationState)
   onAutoLocationChanged: if (autoLocation) detectLocation()
 
@@ -76,16 +124,18 @@ Panel {
   readonly property var locationState: Model.effectiveLocation(configuredLocationState, detectedLocationState)
   readonly property string locationQuery: Model.wttrLocationQuery(locationState.name, locationState.latitude, locationState.longitude)
 
-  // Keep the previous report visible while the new location loads. The
-  // editor remains open with a spinner, so stale data is never presented
-  // under the newly configured location label.
+  // Never show the previous city's conditions under a newly detected name.
   onLocationQueryChanged: {
     if (savingLocation) savingLocationQueryStarted = true
     forecastRetries = 0
     dailyForecastRetries = 0
+    forecastRetryTimer.stop()
+    dailyForecastRetryTimer.stop()
     forecastProc.running = false
     dailyForecastProc.running = false
-    Qt.callLater(refresh)
+    report = null
+    dailyForecastReport = null
+    Qt.callLater(refreshWeather)
   }
 
   property FileView locationFile: FileView {
@@ -151,6 +201,11 @@ Panel {
   }
 
   function refresh() {
+    if (autoLocation) detectLocation()
+    else refreshWeather()
+  }
+
+  function refreshWeather() {
     // Each full refresh cycle gets a fresh retry budget, so an earlier
     // exhausted round (e.g. waking with the network still down) doesn't
     // starve retries for the rest of the session.
@@ -168,7 +223,7 @@ Panel {
   }
 
   function detectLocation() {
-    if (locationProc.running) return
+    if (!autoLocation || detectingLocation) return
     detectingLocation = true
     locationProc.running = true
   }
@@ -352,10 +407,16 @@ Panel {
 
   Process {
     id: forecastProc
+    property string requestedQuery: ""
+    onStarted: requestedQuery = root.locationQuery
+    // Cancellation is asynchronous: the first refresh may still find this
+    // process running. Start the new query once the old process has exited.
+    onExited: if (requestedQuery !== root.locationQuery) Qt.callLater(root.refreshWeather)
     command: ["curl", "-fsS", "--max-time", "10", "https://wttr.in/" + root.locationQuery + "?format=j1"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (forecastProc.requestedQuery !== root.locationQuery) return
         var raw = String(text || "").trim()
         if (!raw) {
           root.scheduleForecastRetry()
@@ -413,9 +474,15 @@ Panel {
 
   Process {
     id: dailyForecastProc
+    property string requestedQuery: ""
+    onStarted: requestedQuery = root.locationQuery
+    // Cancellation is asynchronous: the first refresh may still find this
+    // process running. Start the new query once the old process has exited.
+    onExited: if (requestedQuery !== root.locationQuery) Qt.callLater(root.refreshWeather)
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
+        if (dailyForecastProc.requestedQuery !== root.locationQuery) return
         var raw = String(text || "").trim()
         if (!raw) {
           root.scheduleDailyForecastRetry()
@@ -469,7 +536,7 @@ Panel {
         root.dailyForecastRetries = 0
         forecastProc.running = false
         dailyForecastProc.running = false
-        Qt.callLater(root.refresh)
+        Qt.callLater(root.refreshWeather)
       }
     }
   }
@@ -483,15 +550,20 @@ Panel {
       waitForEnd: true
       onStreamFinished: {
         root.detectingLocation = false
+        if (root.locationRefreshPending) {
+          root.locationRefreshPending = false
+          networkRefreshTimer.restart()
+          return
+        }
+        if (!root.autoLocation) return
         var detected = Model.parseLocationFile(text)
         var query = Model.wttrLocationQuery(detected.name, detected.latitude, detected.longitude)
         // A new place changes locationQuery, which refreshes. An unchanged
-        // one was already fetched; a failure keeps the last place, or with
-        // none falls back to wttr.in's own lookup.
+        // or failed lookup still refreshes the last good place.
         if (query !== "" && query !== root.locationQuery)
           root.detectedLocationState = detected
-        else if (root.locationQuery === "")
-          root.refresh()
+        else
+          root.refreshWeather()
       }
     }
   }
@@ -509,10 +581,7 @@ Panel {
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: {
-      if (root.autoLocation) root.detectLocation()
-      root.refresh()
-    }
+    onTriggered: root.refresh()
   }
 
   ShellIpc {
