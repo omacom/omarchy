@@ -375,7 +375,13 @@ def oauth_login(claude_dir: Path) -> tuple[str, int, int, str]:
   tier = profile_tier(claude_dir)
   if not re.search(r"max_(\d+x)", tier, re.IGNORECASE):
     tier = str(login.get("rateLimitTier") or "")
-  plan = plan_label(tier, str(login.get("subscriptionType") or ""))
+  subscription = str(login.get("subscriptionType") or "")
+  plan = plan_label(tier, subscription)
+  # Anthropic renamed Max 20x to Ultra without changing the raw fields: the
+  # tier still reads max_20x and the subscription max. The profile's display
+  # name follows the rename, so a Max-family plan reads it when it has one.
+  if subscription.lower() == "max":
+    plan = profile_plan_name(claude_dir) or plan
   return (
     str(login.get("accessToken") or ""),
     number(login.get("expiresAt")),
@@ -399,6 +405,19 @@ def profile_tier(claude_dir: Path) -> str:
     if tier:
       return tier
   return ""
+
+
+# The plan's name as Claude Code itself shows it, kept short and printable
+# since it travels into the record.
+def profile_plan_name(claude_dir: Path) -> str:
+  account = read_json(profile_path(claude_dir)).get("oauthAccount")
+  if not isinstance(account, dict):
+    return ""
+  name = account.get("planDisplayName")
+  if not isinstance(name, str):
+    return ""
+  name = " ".join(name.split())
+  return name if 0 < len(name) <= 32 and name.isprintable() else ""
 
 
 # The CLI's profile for a config home: a legacy .config.json inside it, else

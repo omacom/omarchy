@@ -379,6 +379,23 @@ assert found["plan"] == "" and found["email"] == "odd@example.com", found
 PY
 pass "a Grok settings cache of the wrong shape reads as no plan"
 
+# Max 20x is now called Ultra; the raw fields still say max, the profile's name says Ultra.
+STATE="$ROOT/bin/omarchy-agent-account-state" python3 - <<'PY' || fail "a Claude Max plan reads the profile's plan name"
+import importlib.machinery, importlib.util, json, os, tempfile
+from pathlib import Path
+loader = importlib.machinery.SourceFileLoader("state", os.environ["STATE"])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+state = importlib.util.module_from_spec(spec)
+loader.exec_module(state)
+
+home = Path(tempfile.mkdtemp(dir=os.environ["HOME"]))
+(home / ".credentials.json").write_text(json.dumps({"claudeAiOauth": {"rateLimitTier": "default_claude_max_20x", "subscriptionType": "max"}}))
+state.claude_account_file(home).write_text(json.dumps({"oauthAccount": {"accountUuid": "u-ultra", "planDisplayName": "Ultra"}}))
+found = state.identity("claude", home)
+assert found["plan"] == "Ultra", found
+PY
+pass "a Claude Max plan reads the profile's plan name"
+
 # ------------------------------------------------------------ panel add flow
 
 [[ $(omarchy-agent-account-add --check) == $'claude additional\ncodex additional\ngrok additional' ]] ||
