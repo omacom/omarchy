@@ -32,6 +32,7 @@ SH
 # unit named in OMARCHY_TEST_STOP_FAIL.
 cat >"$mock_bin/systemctl" <<'SH'
 #!/bin/bash
+[[ -z ${OMARCHY_TEST_MANAGER_UNREACHABLE:-} ]] || exit 1
 case "$2" in
   stop)
     printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
@@ -43,9 +44,19 @@ case "$2" in
     [[ -z ${OMARCHY_TEST_SYSTEMCTL_START_FAIL:-} ]] || exit 1
     touch "$HOME/active-$3"
     ;;
-  is-active) [[ -e $HOME/active-$4 ]] && ! [[ $4 == openclaw-gateway.service && -s $HOME/gateway-restarting ]] ;;
+  is-active)
+    state=inactive
+    if [[ -e $HOME/active-${*: -1} ]] && ! [[ ${*: -1} == "openclaw-gateway.service" && -s $HOME/gateway-restarting ]]; then
+      state=active
+    fi
+    [[ $3 == "--quiet" ]] || echo "$state"
+    [[ $state == "active" ]]
+    ;;
   show)
-    if [[ $4 == ExecStart && -n ${OMARCHY_TEST_DROPIN_EXEC:-} ]]; then
+    [[ -z ${OMARCHY_TEST_SHOW_FAIL:-} ]] || exit 1
+    if [[ $4 == ExecStart && -n ${OMARCHY_TEST_STALE_MANAGER:-} && ! -e $HOME/reloaded ]]; then
+      echo "{ path=/usr/bin/node ; argv[]=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js node run ; ignore_errors=no }"
+    elif [[ $4 == ExecStart && -n ${OMARCHY_TEST_DROPIN_EXEC:-} ]]; then
       echo "{ path=${OMARCHY_TEST_DROPIN_EXEC%% *} ; argv[]=$OMARCHY_TEST_DROPIN_EXEC ; ignore_errors=no }"
     elif [[ $4 == ExecStart ]]; then
       for dir in "$HOME/.config/systemd/user" "$HOME/Unit Files/systemd/user" "$HOME/.local/share/systemd/user"; do
@@ -60,8 +71,22 @@ case "$2" in
     else echo failed
     fi
     ;;
-  is-enabled) [[ -e $HOME/enabled-$4 ]] ;;
+  is-enabled)
+    state=disabled
+    [[ ! -e $HOME/enabled-${*: -1} ]] || state=enabled
+    [[ $3 == "--quiet" ]] || echo "$state"
+    [[ $state == "enabled" ]]
+    ;;
+  daemon-reload)
+    printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+    touch "$HOME/reloaded"
+    ;;
+  enable)
+    printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
+    touch "$HOME/enabled-$3"
+    ;;
   disable)
+    [[ -z ${OMARCHY_TEST_DISABLE_FAIL:-} ]] || exit 1
     printf 'systemctl %s\n' "$*" >>"$OMARCHY_TEST_ROOT/events"
     rm -f "$HOME/enabled-$3"
     ;;
@@ -87,6 +112,14 @@ SH
 cat >"$mock_bin/systemd-analyze" <<'SH'
 #!/bin/bash
 printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user" "${XDG_DATA_HOME:-$HOME/.local/share}/systemd/user"
+SH
+# Observe contention without replacing flock's actual locking behavior.
+cat >"$mock_bin/flock" <<'SH'
+#!/bin/bash
+if [[ -n ${OMARCHY_TEST_OBSERVE_WAIT:-} ]] && ! "$OMARCHY_TEST_ROOT/tools/flock" -n "$@"; then
+  printf 'waiting\n' >"$OMARCHY_TEST_ROOT/concurrent-events"
+fi
+exec "$OMARCHY_TEST_ROOT/tools/flock" "$@"
 SH
 # Waiting on a gateway takes no time here.
 printf '#!/bin/bash\n' >"$mock_bin/sleep"
@@ -132,6 +165,14 @@ if [[ \${2:-} == "install" ]]; then
   printf 'ExecStart=%s $prefix/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js %s\n' "\$node" "\$1" >"\$unit"
   [[ -z "\${OMARCHY_TEST_START_FAIL:-}" || ( "\$OMARCHY_TEST_START_FAIL" != 1 && "\$OMARCHY_TEST_START_FAIL" != "\$1" ) ]] || exit 1
   touch "\$HOME/active-openclaw-\$1.service" "\$HOME/enabled-openclaw-\$1.service"
+  # Interrupt only the Omarchy caller, after a successful pinned service install.
+  if [[ \${OMARCHY_TEST_INTERRUPT_AFTER_INSTALL:-} == "\$1" && \${4:-} == "--runtime-path" ]]; then
+    kill -KILL "\$PPID"
+  fi
+  if [[ -n \${OMARCHY_TEST_PAUSE_AFTER_INSTALL:-} && \${4:-} == "--runtime-path" ]]; then
+    printf 'installed\n' >"\$OMARCHY_TEST_ROOT/concurrent-events"
+    read -r -t 10 _ <"\$OMARCHY_TEST_ROOT/concurrent-release"
+  fi
   [[ ! -e "\$HOME/restarts-after-install" ]] || mv "\$HOME/restarts-after-install" "\$HOME/gateway-restarting"
 fi
 case "\${1:-}" in
@@ -194,7 +235,7 @@ new_home() {
 # test can drop another openclaw. The system's commands come from a directory
 # of their own, so an openclaw on the machine running this is never found.
 mkdir -p "$test_tmp/usr-bin" "$test_tmp/tools"
-for tool in bash cat chmod cp cut env grep head jq ln mkdir mv readlink realpath rm sed sha256sum stat timeout touch true; do
+for tool in bash cat chmod cp cut env flock grep head jq ln mkdir mv readlink realpath rm sed sha256sum stat timeout touch true; do
   ln -s "$(type -P "$tool")" "$test_tmp/tools/$tool"
 done
 run() {
@@ -421,6 +462,129 @@ runs=$(sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "$test_home/.config/systemd/user/o
 [[ $runs == "$test_home/.openclaw/tools/node-v24.19.0/bin/node" && ! -e $test_home/active-openclaw-gateway.service && ! -e $test_home/enabled-openclaw-gateway.service ]] ||
   fail "--now moves a dormant gateway and leaves it stopped and disabled" "$(cat "$events")"
 pass "a gateway the user left stopped and disabled is moved and stays that way"
+
+# A successful upstream service install starts and enables the service. If the
+# caller stops there, its retry must use the original state, not that result.
+for role in gateway node; do
+  for initial in stopped-disabled stopped-enabled running-disabled running-enabled; do
+    new_home "interrupted-$role-$initial"
+    mkdir -p "$test_home/.config/systemd/user"
+    printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js %s\n' "$role" >"$test_home/.config/systemd/user/openclaw-$role.service"
+    [[ $initial != running-* ]] || touch "$test_home/active-openclaw-$role.service"
+    [[ $initial != *-enabled ]] || touch "$test_home/enabled-openclaw-$role.service"
+    status=0
+    OMARCHY_TEST_INTERRUPT_AFTER_INSTALL=$role run omarchy-install-openclaw-cli --now || status=$?
+    (( status == 137 )) || fail "the $role move was interrupted after service installation" "$(cat "$test_tmp/output")"
+    run omarchy-install-openclaw-cli --now || fail "retry finishes the $role move" "$(cat "$test_tmp/output")"
+    final=stopped
+    [[ ! -e $test_home/active-openclaw-$role.service ]] || final=running
+    if [[ -e $test_home/enabled-openclaw-$role.service ]]; then final+=-enabled; else final+=-disabled; fi
+    [[ $final == "$initial" ]] || fail "retry restores the $role's $initial state" "got $final; $(cat "$events")"
+    [[ ! -e $test_home/.local/state/omarchy/openclaw-stopped/$role && ! -e $test_home/.local/state/omarchy/openclaw-stopped/$role.state ]] ||
+      fail "a restored $role drops its recovery records"
+  done
+done
+pass "an interrupted service installation preserves the original running and enabled state on retry"
+
+# A second install must not consume the first caller's saved state while that
+# caller is still moving its service. Both commands and rendezvous are bounded.
+(
+  new_home overlapping-installs
+  mkdir -p "$test_home/.config/systemd/user"
+  printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js gateway\n' >"$test_home/.config/systemd/user/openclaw-gateway.service"
+  mkfifo "$test_tmp/concurrent-events" "$test_tmp/concurrent-release"
+  exec {event_fd}<>"$test_tmp/concurrent-events" {release_fd}<>"$test_tmp/concurrent-release"
+  first="" second=""
+  trap 'printf "continue\n" >&"$release_fd"; wait "$first" "$second" 2>/dev/null || true' EXIT
+  OMARCHY_TEST_PAUSE_AFTER_INSTALL=1 run timeout 15 omarchy-install-openclaw-cli --now & first=$!
+  read -r -t 5 -u "$event_fd" phase && [[ $phase == "installed" ]] || fail "first install reaches its service installation barrier"
+  (
+    status=0
+    OMARCHY_TEST_OBSERVE_WAIT=1 run timeout 15 omarchy-install-openclaw-cli --now || status=$?
+    printf 'finished\n' >"$test_tmp/concurrent-events"
+    exit "$status"
+  ) & second=$!
+  read -r -t 5 -u "$event_fd" phase || fail "second install either waits or finishes"
+  printf 'continue\n' >&"$release_fd"
+  if ! wait "$first" || ! wait "$second"; then
+    fail "both overlapping installs complete" "$(cat "$events")"
+  fi
+  trap - EXIT
+  [[ ! -e $test_home/active-openclaw-gateway.service && ! -e $test_home/enabled-openclaw-gateway.service ]] ||
+    fail "overlapping installs preserve the gateway's stopped and disabled state" "$(cat "$events")"
+  [[ $phase == "waiting" && ! -e $test_home/.local/state/omarchy/openclaw-stopped/gateway.state ]] ||
+    fail "the second install waits for completed service restoration"
+)
+pass "overlapping installs preserve the original service state"
+
+# An unreachable manager must not be remembered as stopped and disabled.
+new_home snapshot-manager-down
+mkdir -p "$test_home/.config/systemd/user"
+printf 'ExecStart=/usr/bin/node /usr/lib/node_modules/openclaw/dist/index.js node run\n' >"$test_home/.config/systemd/user/openclaw-node.service"
+touch "$test_home/active-openclaw-node.service" "$test_home/enabled-openclaw-node.service"
+OMARCHY_TEST_MANAGER_UNREACHABLE=1 run omarchy-install-openclaw-cli --now && fail "an unavailable manager fails state capture"
+[[ ! -e $test_home/.local/state/omarchy/openclaw-stopped/node.state ]] || fail "an unavailable manager does not create a false stopped and disabled snapshot"
+run omarchy-install-openclaw-cli --now || fail "retry captures the original state once the manager answers" "$(cat "$test_tmp/output")"
+[[ -e $test_home/active-openclaw-node.service && -e $test_home/enabled-openclaw-node.service ]] || fail "retry preserves running and enabled state after a failed query"
+pass "a service's original state is recorded only after the manager answers"
+
+# Failed restoration retains the snapshot, including when the manager cannot
+# identify the command. A removed or user-replaced service instead retires it.
+for case in stop-fails disable-fails unknown-command replaced removed relocated; do
+  new_home "saved-state-$case"
+  run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+  units="$test_home/.config/systemd/user"
+  records="$test_home/.local/state/omarchy/openclaw-stopped"
+  mkdir -p "$units" "$records"
+  printf 'ExecStart=%s/.openclaw/tools/node-v24.19.0/bin/node %s/.openclaw/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js node run\n' "$test_home" "$test_home" >"$units/openclaw-node.service"
+  printf 'false false\n' >"$records/node.state"
+  touch "$test_home/active-openclaw-node.service" "$test_home/enabled-openclaw-node.service"
+  options=()
+  case "$case" in
+  stop-fails) options=(OMARCHY_TEST_STOP_FAIL=openclaw-node.service) ;;
+  disable-fails) options=(OMARCHY_TEST_DISABLE_FAIL=1) ;;
+  unknown-command) options=(OMARCHY_TEST_SHOW_FAIL=1) ;;
+  replaced)
+    printf 'ExecStart=/opt/node /opt/openclaw/dist/index.js node run\n' >"$units/openclaw-node.service"
+    touch "$records/node"
+    ;;
+  removed) rm "$units/openclaw-node.service" ;;
+  relocated)
+    mkdir -p "$test_home/.local/share/systemd/user"
+    mv "$units/openclaw-node.service" "$test_home/.local/share/systemd/user/openclaw-node.service"
+    ;;
+  esac
+  : >"$events"
+  if (( ${#options[@]} )); then
+    run env "${options[@]}" omarchy-install-openclaw-cli --now && fail "failed restoration is reported ($case)"
+    [[ -e $records/node.state ]] || fail "failed restoration keeps the original state ($case)"
+  fi
+  run omarchy-install-openclaw-cli --now || fail "retry reconciles saved state ($case)" "$(cat "$test_tmp/output")"
+  [[ ! -e $records/node && ! -e $records/node.state ]] || fail "reconciled state drops both records ($case)"
+  if [[ $case == "replaced" || $case == "removed" ]]; then
+    ! grep -q '^systemctl ' "$events" || fail "a removed or user-replaced service is not changed ($case)" "$(cat "$events")"
+  else
+    [[ ! -e $test_home/active-openclaw-node.service && ! -e $test_home/enabled-openclaw-node.service ]] || fail "retry restores stopped and disabled state ($case)"
+  fi
+done
+pass "saved service state survives restoration failures and follows relocated units without changing replacements"
+
+# An installer stopped after writing the unit but before reloading leaves the
+# manager on the old command; the retry reloads it rather than failing for good.
+new_home saved-state-stale-manager
+run omarchy-install-openclaw-cli --now || fail "--now sets OpenClaw up" "$(cat "$test_tmp/output")"
+units="$test_home/.config/systemd/user"
+records="$test_home/.local/state/omarchy/openclaw-stopped"
+mkdir -p "$units" "$records"
+printf 'ExecStart=%s/.openclaw/tools/node-v24.19.0/bin/node %s/.openclaw/tools/node-v24.19.0/lib/node_modules/openclaw/dist/index.js node run\n' "$test_home" "$test_home" >"$units/openclaw-node.service"
+printf 'false false\n' >"$records/node.state"
+touch "$test_home/active-openclaw-node.service" "$test_home/enabled-openclaw-node.service"
+: >"$events"
+OMARCHY_TEST_STALE_MANAGER=1 run omarchy-install-openclaw-cli --now || fail "a stale manager is reloaded before recovery gives up" "$(cat "$test_tmp/output")"
+grep -q '^systemctl --user daemon-reload' "$events" || fail "a stale manager is reloaded" "$(cat "$events")"
+[[ ! -e $test_home/active-openclaw-node.service && ! -e $test_home/enabled-openclaw-node.service && ! -e $records/node.state ]] ||
+  fail "a reloaded manager restores the original state" "$(cat "$events")"
+pass "a manager left on the old command by an interrupted install is reloaded and the original state restored"
 
 new_home stop-fails
 mkdir -p "$test_home/.config/systemd/user"
