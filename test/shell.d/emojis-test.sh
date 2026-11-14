@@ -44,6 +44,52 @@ assertEqual(
   '\u{1F602}',
   'emoji filtering finds face with tears of joy'
 )
+
+const named = name => data.find(item => item.n === name)
+const groupIds = emojis.GROUPS.map(group => group.id)
+assert(data.every(item => item.e && item.n && groupIds.includes(item.g)), 'every emoji has a name and a known group')
+assert(data.every(item => !item.t || item.t.length === 5), 'skin-tone variants come as a full set')
+assert(groupIds.every(id => data.some(item => item.g === id)), 'every group has emoji')
+
+assertEqual(emojis.rankEmojis(data, 'pickle')[0].n, 'pickle', 'ranking puts the exact name first')
+assertEqual(emojis.rankEmojis(data, 'thumbs up')[0].e, '\u{1F44D}', 'ranking matches every word of the query')
+assert(emojis.rankEmojis(data, 'dill').some(item => item.n === 'pickle'), 'ranking searches keywords too')
+assertDeepEqual(emojis.rankEmojis(data, 'pickle zebra'), [], 'ranking needs every word to match')
+
+const thumbs = named('thumbs up')
+assertEqual(emojis.displayEmoji(thumbs, 3), '\u{1F44D}\u{1F3FD}', 'a skin tone picks its variant')
+assertEqual(emojis.displayEmoji(named('pickle'), 3), named('pickle').e, 'emoji without tones ignore the tone')
+assertEqual(emojis.buildLookup(data)['\u{1F44D}\u{1F3FD}'], thumbs, 'toned emoji look up their entry')
+
+const title = (id, count) => id + ':' + count
+const empty = { recent: [], favorites: [], tone: 0 }
+let built = emojis.buildRows(data, empty, '', 8, 0, title)
+assertDeepEqual(built.sections.map(s => s.id), groupIds, 'empty favorites and recents get no section')
+assert(built.rows.every(row => row.cells.length >= 1 && row.cells.length <= 8), 'rows hold at most a row of emoji')
+
+built = emojis.buildRows(data, { recent: ['\u{1FAE0}'], favorites: ['\u{1F44D}', '\u{1F355}'], tone: 0 }, '', 8, 0, title)
+assertDeepEqual(built.sections.slice(0, 2).map(s => s.title), ['favorites:2', 'recent:1'], 'favorites then recents lead the grid')
+assertDeepEqual(built.rows[0].cells, ['\u{1F44D}', '\u{1F355}'], 'favorites keep their order')
+
+built = emojis.buildRows(data, empty, 'thumbs', 8, 5, title)
+assertDeepEqual(built.sections.map(s => s.id), [emojis.RESULTS_ID], 'searching shows one results section')
+assert(built.rows[0].cells.includes('\u{1F44D}\u{1F3FF}'), 'results follow the skin tone')
+
+let prefs = empty
+for (let i = 0; i < 40; i++) prefs = emojis.withRecent(prefs, data[i].e)
+prefs = emojis.withRecent(prefs, data[39].e)
+assertEqual(prefs.recent.length, emojis.RECENT_LIMIT, 'recents are capped')
+assertEqual(prefs.recent[0], data[39].e, 'the newest recent comes first')
+assertEqual(new Set(prefs.recent).size, prefs.recent.length, 'recents hold no duplicates')
+
+prefs = emojis.withFavoriteToggled(empty, '\u{1F355}')
+assertDeepEqual(prefs.favorites, ['\u{1F355}'], 'favoriting adds')
+assertDeepEqual(emojis.withFavoriteToggled(prefs, '\u{1F355}').favorites, [], 'favoriting again removes')
+
+assertDeepEqual(emojis.parsePrefs('{'), empty, 'unreadable prefs start empty')
+assertDeepEqual(emojis.parsePrefs('{"recent":[1,"\u{1F355}"],"tone":9}'), { recent: ['\u{1F355}'], favorites: [], tone: 0 }, 'prefs drop junk')
+const saved = { recent: ['\u{1F355}'], favorites: ['\u{1F44D}\u{1F3FD}'], tone: 3 }
+assertDeepEqual(emojis.parsePrefs(emojis.serializePrefs(saved)), saved, 'prefs round-trip')
 JS
 
 TMPDIR=$(mktemp -d)
