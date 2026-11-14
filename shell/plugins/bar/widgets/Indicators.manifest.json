@@ -21,7 +21,7 @@
         "key": "items",
         "type": "multiselect",
         "label": "Indicators",
-        "description": "Choose which indicators this widget instance should show. Leave empty to show all indicators.",
+        "description": "Choose which indicators this widget instance should show. Leave empty to show all indicators. In shell.json an entry may also be an object {\"id\", \"plugin\", \"source\"} that loads the indicator QML from another installed plugin.",
         "noSelectionText": "All indicators",
         "placeholderText": "Search indicators...",
         "emptyText": "No indicators",
