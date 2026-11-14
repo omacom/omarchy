@@ -10,12 +10,10 @@ local binding = nil
 local function update()
   local workspace = hl.get_active_workspace()
   local floating = workspace and modes.is_floating(workspace.id)
-  if floating and not binding then
+  if not binding then
     binding = hl.bind("mouse:274", hl.dsp.exec_cmd("omarchy-hyprland-window-overview"))
-  elseif not floating and binding then
-    binding:unbind()
-    binding = nil
   end
+  binding:set_enabled(floating == true)
 end
 
 -- Focus events can arrive before the active monitor/workspace is committed.
