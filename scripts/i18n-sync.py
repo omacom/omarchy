@@ -35,7 +35,7 @@ RETRIES = 2
 MAX_ITEMS = 20
 MAX_CHARS = 8000
 PLACEHOLDERS = re.compile(r"%(\d)")
-URL_RE = re.compile(r"https?://[^\s)`]+")
+URL_RE = re.compile(r"https?://[^\s)]+")
 SENTENCE_END = ".,;:!?"
 HEADING_RE = re.compile(r"^#{1,6} ", re.M)
 
@@ -501,6 +501,7 @@ def validate_catalog_value(source, value, categories=None):
 FENCE_RE = re.compile(r"```[^\n]*\n(.*?)```", re.S)
 INLINE_RE = re.compile(r"`([^`\n]+)`")
 REL_DEST_RE = re.compile(r"\]\((?!<?https?://)([^)\s]+)")
+DEST_URL_RE = re.compile(r"\]\(\s*<?(https?://[^\s)]+)")
 
 
 def protected_inline(text):
@@ -519,10 +520,16 @@ def protected_inline(text):
 
 
 def urls_of(text):
-    # The published manual's autolinks leave trailing ASCII punctuation out
-    # of a bare URL but keep 。 or । in it, and a (destination) keeps it all.
-    return [m.group() if text[:m.start()].endswith("(") else m.group().rstrip(SENTENCE_END)
-            for m in URL_RE.finditer(text)]
+    # Marked drops trailing ASCII punctuation from a bare URL, not 。 or । or a ](destination)'s;
+    # a URL in inline code is compared as written, so misread backticks hide no changed link.
+    code = []
+    def code_span(m):
+        if not re.search(r"https?://", m.group(1)):
+            return m.group()
+        code.extend(URL_RE.findall(m.group(1)))
+        return ""
+    prose = INLINE_RE.sub(code_span, DEST_URL_RE.sub("", text))
+    return DEST_URL_RE.findall(text) + [url.rstrip(SENTENCE_END) for url in URL_RE.findall(prose)] + code
 
 
 def validate_manual(source, value):
