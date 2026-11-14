@@ -1,0 +1,29 @@
+#!/bin/bash
+# Temporary, kernel-version-specific recovery. No daemon or driver restart.
+set -euo pipefail
+export PATH=/usr/bin:/bin
+module=/usr/local/lib/touchbar-panel-wake/$(uname -r)/touchbar_panel_wake.ko
+log() { logger -t touchbar-panel-wake -- "$*"; echo "touchbar-panel-wake: $*"; }
+if [[ ! -r $module ]]; then
+ log "INACTIVE: no recovery module for $(uname -r); rebuild required"
+ exit 0
+fi
+exec 9>/run/lock/touchbar-panel-wake.lock
+flock -n 9 || exit 0
+if [[ -e /sys/module/touchbar_panel_wake ]]; then
+ log 'SKIPPED: an existing recovery module is loaded'
+ exit 0
+fi
+cleanup() {
+ if [[ -e /sys/module/touchbar_panel_wake ]]; then
+  rmmod touchbar_panel_wake || log 'WARNING: could not unload recovery helper'
+ fi
+}
+trap cleanup EXIT
+before=$(awk '/adp-fe/ { for (i=2; i<=9; i++) n+=$i; print n }' /proc/interrupts)
+insmod "$module" wake_panel=1
+result=$(cat /sys/module/touchbar_panel_wake/parameters/wake_result)
+rmmod touchbar_panel_wake
+after=$(awk '/adp-fe/ { for (i=2; i<=9; i++) n+=$i; print n }' /proc/interrupts)
+log "DCS exit-sleep result=$result IRQ-before=$before IRQ-after=$after; frame recovery requires subsequent display activity"
+[[ $result == "0" ]]
