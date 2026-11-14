@@ -11,16 +11,32 @@ cleanup_freeze() {
 }
 trap cleanup_freeze EXIT
 
-hyprpicker -r -z >/dev/null 2>&1 &
-PID=$!
-sleep .1
-SELECTION=$(slurp 2>/dev/null)
+capture() {
+  hyprpicker -r -z >/dev/null 2>&1 9>&- &
+  PID=$!
+  sleep .1
+  SELECTION=$(slurp 2>/dev/null)
 
-[[ -z $SELECTION ]] && exit 0
+  [[ -z $SELECTION ]] && exit 0
 
-TEXT=$(grim -g "$SELECTION" - | tesseract stdin stdout --oem 1 --psm 6 -l "${OMARCHY_OCR_LANGS:-eng}" --dpi 300 -c preserve_interword_spaces=1 2>/dev/null) || exit 1
+  TEXT=$(grim -g "$SELECTION" - | tesseract stdin stdout --oem 1 --psm 6 -l "${OMARCHY_OCR_LANGS:-eng}" --dpi 300 -c preserve_interword_spaces=1 2>/dev/null) || exit 1
 
-[[ -z $TEXT ]] && exit 1
+  # The screen is live again, so the next capture may start. wl-copy stays
+  # behind to own the clipboard and must not hold the lock while it does.
+  cleanup_freeze
+  PID=""
+  exec 9>&-
 
-printf "%s" "$TEXT" | wl-copy
-omarchy-notification-send -g 󰴑 "$(omarchy-i18n capture.textCopied)"
+  [[ -z $TEXT ]] && exit 1
+
+  printf "%s" "$TEXT" | wl-copy
+  omarchy-notification-send -g 󰴑 "$(omarchy-i18n capture.textCopied)"
+}
+
+# A capture already under way owns the frozen screen; another one would stack a
+# second freeze over it. The lock is this session's and is held from before the
+# freeze starts until the screen is live again.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/omarchy-capture-text.lock"
+if flock -n 9; then
+  capture
+fi
