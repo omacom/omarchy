@@ -185,7 +185,7 @@ PanelWindow {
   // Place the menu inward of the dock at the actual click, including gaps.
   function popupX(slot, popup) {
     if (!slot) return 0
-    var center = window.menuPoint.x
+    var center = slot === body ? window.menuPoint.x : body.x + slots.x + slot.x + slot.width / 2
     if (window.position === "left") return body.x + body.width + window.gap
     if (window.position === "right") return body.x - window.gap - popup.width
     return Math.max(window.gap, Math.min(window.width - popup.width - window.gap, center - popup.width / 2))
@@ -193,7 +193,7 @@ PanelWindow {
 
   function popupY(slot, popup) {
     if (!slot) return 0
-    var center = window.menuPoint.y
+    var center = slot === body ? window.menuPoint.y : body.y + slots.y + slot.y + slot.height / 2
     if (window.position === "top") return body.y + body.height + window.gap
     if (window.position === "bottom") return body.y - window.gap - popup.height
     return Math.max(window.gap, Math.min(window.height - popup.height - window.gap, center - popup.height / 2))
@@ -342,11 +342,12 @@ PanelWindow {
     property bool hovered: mouse.containsMouse && !window.hoverStale && !window.dragging
     property bool pressed: mouse.pressed
     property alias mouse: mouse
+    property Item artwork: null
 
     function iconContains(point) {
-      return point.x >= window.iconInset && point.y >= window.iconInset
-        && point.x < window.iconInset + window.iconSize
-        && point.y < window.iconInset + window.iconSize
+      if (!artwork) return false
+      var at = slot.mapToItem(artwork, point.x, point.y)
+      return at.x >= 0 && at.y >= 0 && at.x < artwork.width && at.y < artwork.height
     }
 
     width: window.slotSize
@@ -363,6 +364,7 @@ PanelWindow {
 
   component AppsSlot: Slot {
     id: appsSlot
+    artwork: launcherArtwork
 
     property real displayedShift: window.insertIndex >= 0 ? -window.slotSize / 2 : 0
 
@@ -393,6 +395,7 @@ PanelWindow {
     // rather than taken from a font, so its edges stay crisp on the
     // transparent dock and it fills its slot like the app icons beside it.
     Item {
+      id: launcherArtwork
       x: window.iconInset
       y: window.iconInset
       width: window.iconSize
@@ -429,6 +432,7 @@ PanelWindow {
 
   component AppSlot: Slot {
     id: appSlot
+    artwork: appArtwork
 
     required property int index
     required property string key
@@ -523,6 +527,7 @@ PanelWindow {
 
     // Apps are drawn in full, running or not, and one that is starting pulses.
     AppIcon {
+      id: appArtwork
       x: window.iconInset
       y: window.iconInset
       width: window.iconSize
