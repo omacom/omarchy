@@ -1,17 +1,78 @@
 #!/bin/bash
 
-# omarchy:summary=Install the Tailscale mesh VPN service and a web app for the Tailscale Admin Console.
+# omarchy:summary=Install Tailscale with an optional self-hosted coordination server and admin web app.
 # omarchy:requires-sudo=true
 
+# Hosted Tailscale is the default, so an ordinary install is unchanged.
+# OMARCHY_TAILSCALE_LOGIN_SERVER joins a self-hosted coordination server
+# (Headscale) instead of waiting on login.tailscale.com.
+# OMARCHY_TAILSCALE_AUTH_KEY supplies a pre-auth key, which self-hosted joins
+# usually need in place of the browser login.
+# OMARCHY_TAILSCALE_ADMIN_URL is the web app address when the coordination
+# server is not Tailscale's hosted admin console.
+
+login_server=${OMARCHY_TAILSCALE_LOGIN_SERVER:-}
+auth_key=${OMARCHY_TAILSCALE_AUTH_KEY:-}
+unset OMARCHY_TAILSCALE_AUTH_KEY
+admin_url=${OMARCHY_TAILSCALE_ADMIN_URL:-}
+admin_icon="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/tailscale-light.png"
+
+valid_http_url() {
+  python - "$1" <<'PY'
+import sys
+from urllib.parse import urlsplit
+
+url = sys.argv[1]
+try:
+    parsed = urlsplit(url)
+    valid = parsed.scheme in ("http", "https") and bool(parsed.hostname)
+    valid = valid and not any(char.isspace() or ord(char) < 32 for char in url)
+    parsed.port  # Reject malformed and out-of-range ports too.
+except ValueError:
+    valid = False
+sys.exit(0 if valid else 1)
+PY
+}
+
+if [[ -n $login_server ]] && ! valid_http_url "$login_server"; then
+  echo "OMARCHY_TAILSCALE_LOGIN_SERVER must be an http(s) URL, for example https://headscale.example.com." >&2
+  exit 1
+fi
+
+if [[ -n $auth_key && $auth_key =~ [[:space:]] ]]; then
+  echo "OMARCHY_TAILSCALE_AUTH_KEY must not contain whitespace." >&2
+  exit 1
+fi
+
+if [[ -n $admin_url ]] && ! valid_http_url "$admin_url"; then
+  echo "OMARCHY_TAILSCALE_ADMIN_URL must be an http(s) URL." >&2
+  exit 1
+fi
+
+operator=$(id -un) || exit 1
+
 echo -e "\nInstalling Tailscale..."
-omarchy-pkg-add tailscale
+omarchy-pkg-add tailscale || exit 1
 
 echo -e "\nStarting Tailscale..."
-sudo systemctl enable --now tailscaled.service
-sudo tailscale up --accept-routes
+sudo systemctl enable --now tailscaled.service || exit 1
 
-echo -e "\nAllowing $USER to manage Tailscale..."
-sudo tailscale set --operator="$USER"
+# Name the operator on every up call, including retries after an earlier
+# install set it. sudo's USER is root, not the user running this installer.
+up_args=(--accept-routes --operator="$operator")
+if [[ -n $login_server ]]; then
+  echo "Coordination server: $login_server"
+  up_args+=(--login-server="$login_server")
+fi
+if [[ -n $auth_key ]]; then
+  # Tailscale supports file: keys. Read from the pipe instead of placing the
+  # key in sudo's command arguments or leaving a temporary secret on disk.
+  up_args+=(--auth-key=file:/dev/stdin)
+  printf '%s' "$auth_key" | sudo tailscale up "${up_args[@]}" || exit 1
+else
+  sudo tailscale up "${up_args[@]}" || exit 1
+fi
+unset auth_key
 
 echo -e "\nReceiving Taildrop files in $HOME/Downloads..."
 systemctl --user enable --now omarchy-tailscale-receive.service
@@ -19,4 +80,17 @@ systemctl --user enable --now omarchy-tailscale-receive.service
 echo -e "\nAdding Tailscale to the bar..."
 omarchy-plugin-enable omarchy.tailscale
 
-omarchy-webapp-install "Tailscale" "https://login.tailscale.com/admin/machines" https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/tailscale-light.png
+if [[ -n $admin_url ]]; then
+  omarchy-webapp-install "Tailscale" "$admin_url" "$admin_icon"
+elif [[ -z $login_server ]]; then
+  omarchy-webapp-install "Tailscale" "https://login.tailscale.com/admin/machines" "$admin_icon"
+else
+  # A previous hosted install may have created this launcher. Remove only
+  # that known web app; leave custom launchers with the same name alone.
+  desktop_file="$HOME/.local/share/applications/Tailscale.desktop"
+  if [[ -f $desktop_file ]] && grep -Eq '^Exec=omarchy-(launch-webapp|webapp-handler) "?https://login\.tailscale\.com/admin/machines"?$' "$desktop_file"; then
+    rm -f -- "$desktop_file" || exit 1
+    update-desktop-database "$HOME/.local/share/applications" &>/dev/null
+  fi
+  echo "Skipping the hosted Tailscale admin web app. Set OMARCHY_TAILSCALE_ADMIN_URL if this coordination server has one."
+fi
