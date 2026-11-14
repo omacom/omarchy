@@ -37,6 +37,9 @@ Item {
     var max = readNumber(maxFile)
     if (!(max > 0)) return false
     var current = Math.round(100 * readNumber(brightnessFile) / max)
+    // At the panel's floor the script drives the gamma range, so hand the
+    // press back to it.
+    if (BrightnessModel.atBacklightFloor(current)) return false
 
     setProc.command = ["brightnessctl", "-q", "-d", device, "set", BrightnessModel.brightnessKeyTarget(action, current) + "%"]
     setProc.running = true
