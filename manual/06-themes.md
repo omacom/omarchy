@@ -72,9 +72,9 @@ The icons in the app launcher and dock are drawn in the colors of your theme, so
 - _Papercraft_ is the default: Omarchy's own apps and the other apps that come installed, all drawn in one style.
 - _Original_ shows every app with the icon its maker gave it.
 
-You can install an icon set someone else has made with _Install > Style > Icons_ (or `omarchy icons install <git url>`), and remove it again under _Remove > Icons_. An icon set can also come as a package, in which case it shows up under _Appearance > Icons_ as soon as the package is installed.
+You can install an icon set someone else has made with _Install > Style > Icons_ (or `omarchy icons install <git url>`), and remove it again under _Remove > Icons_.
 
-To make your own, put your icons in `~/.config/omarchy/icons/<name>/`, one file per app, named after the `Icon=` line of the app's `.desktop` file. A file ending in `.svg` is shown as it is. A file ending in `.svg.tpl` is drawn in the theme's colors: write `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` or `{{ icon_shadow }}` where a color goes. The default set in `/usr/share/omarchy/icons/papercraft/` is a good place to start from. To change a single icon of the default set, put your version in `~/.config/omarchy/icons/papercraft/`. To share a set as a package, have the package install its icons into `/usr/share/omarchy/icons/<name>/`.
+To make your own, put your icons in `~/.config/omarchy/icons/<name>/`, one file per app, named after the `Icon=` line of the app's `.desktop` file. A file ending in `.svg` is shown as it is. A file ending in `.svg.tpl` is drawn in the theme's colors: write `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` or `{{ icon_shadow }}` where a color goes. The default set in `/usr/share/omarchy/icons/papercraft/` is a good place to start from. To change a single icon of the default set, put your version in `~/.config/omarchy/icons/papercraft/`.
 
 ### Unlocks
 

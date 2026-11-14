@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Remove an icon set from ~/.config/omarchy/icons
+# omarchy:summary=Remove a user-installed icon set
 # omarchy:args=[icon-set-name]
 # omarchy:examples=omarchy icons remove "Example"
 
@@ -36,10 +36,10 @@ fi
 rm -rf "$SET_PATH"
 
 # The set in use is drawn again without what was removed. A set of the user's
-# own is gone, so the default takes over; one laid over an installed set leaves
-# that set as it was installed.
+# own is gone, so the default takes over; one laid over a built-in set leaves
+# that set as Omarchy ships it.
 if [[ $(omarchy-icons-current --id) == "$SET_NAME" ]]; then
-  omarchy-icons-dir "$SET_NAME" >/dev/null || rm -f "$HOME/.local/state/omarchy/current/icons.name"
+  [[ -d $OMARCHY_PATH/icons/$SET_NAME ]] || rm -f "$HOME/.local/state/omarchy/current/icons.name"
   omarchy-theme-set-icons
 fi
 

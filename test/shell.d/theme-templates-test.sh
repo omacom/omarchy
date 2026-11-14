@@ -134,9 +134,7 @@ ln -s "$test_tmp/gone/omacalc.svg" "$apps/omacalc.svg"
 mkdir -p "$test_tmp/stubs"
 printf '#!/bin/bash\nexit 0\n' >"$test_tmp/stubs/omarchy-notification-send"
 chmod +x "$test_tmp/stubs/omarchy-notification-send"
-packaged="$test_tmp/packaged"
-mkdir -p "$packaged"
-icons() { HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" OMARCHY_PACKAGED_ICONS_PATH="$packaged" PATH="$test_tmp/stubs:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-$1" "${@:2}"; }
+icons() { HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" PATH="$test_tmp/stubs:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-$1" "${@:2}"; }
 set_icons() { icons theme-set-icons; }
 set_icons
 for tpl in "$ROOT"/icons/papercraft/*.tpl; do
@@ -188,31 +186,6 @@ icons icons-set Original
 ! icons icons-set "../themes" >/dev/null 2>&1 || fail "an icon set name can't climb out of the sets dir"
 [[ $(icons icons-current --id) == "original" ]] || fail "a refused icon set leaves the current one in use"
 pass "the Original icon set shows every app's own icon"
-
-# A package installs an icon set beside Omarchy's own. It is listed and picked
-# like any other, the user's set of its name lies over it, and Omarchy's own
-# tree is read ahead of a packaged copy of one of its sets. A directory named
-# for Original never makes it draw.
-mkdir -p "$packaged/neon" "$packaged/papercraft" "$packaged/original" "$sets/original"
-printf '<svg>{{ icon_main }}</svg>\n' >"$packaged/neon/firefox.svg.tpl"
-printf 'neon\n' >"$packaged/neon/mpv.svg"
-printf 'stale\n' >"$packaged/papercraft/zzz.svg"
-printf 'never\n' >"$packaged/original/mpv.svg"
-printf 'never\n' >"$sets/original/mpv.svg"
-[[ $(icons icons-list) == $'Mine\nNeon\nOriginal\nPapercraft' ]] || fail "icon sets list the ones packages installed"
-[[ $(icons icons-dir neon) == "$packaged/neon" && $(icons icons-dir papercraft) == "$ROOT/icons/papercraft" ]] || fail "Omarchy's own icon sets are read ahead of packaged copies"
-icons icons-set Neon
-[[ $(<"$apps/firefox.svg") == "<svg>#"* && $(<"$apps/mpv.svg") == "neon" ]] || fail "a packaged icon set draws its icons in the theme's colors"
-mkdir -p "$sets/neon"
-printf 'my neon\n' >"$sets/neon/mpv.svg"
-icons theme-set-icons
-[[ $(<"$apps/mpv.svg") == "my neon" && $(<"$apps/firefox.svg") == "<svg>#"* ]] || fail "a user's icon set lies over the packaged one of its name"
-icons icons-remove Neon >/dev/null
-[[ $(icons icons-current --id) == "neon" && $(<"$apps/mpv.svg") == "neon" ]] || fail "removing the user's layer leaves the packaged icon set in use"
-icons icons-set Original
-[[ -z $(ls "$state/icons") && ! -e $apps/mpv.svg ]] || fail "a directory named for Original never makes it draw"
-rm -r "$sets/original"
-pass "a package installs an icon set that is listed, picked and layered like any other"
 
 # Removing the set in use falls back to the default one.
 icons icons-set Mine
