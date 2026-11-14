@@ -1163,6 +1163,7 @@ Panel {
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(panel.loadedContentHeight)
+    scrollOverflow: true
 
     // Catches all unhandled keys for keyboard navigation. AfterItem priority
     // lets the passphrase TextField (a child via focus chain) get its keys
@@ -1312,6 +1313,7 @@ Panel {
             fontFamily: root.bar.fontFamily
             fontSize: Style.font.subtitle * 1.5
             hasCursor: root.qrHeaderHasCursor
+            onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
             Layout.alignment: Qt.AlignVCenter
             onHovered: function(on) { if (on) root.setHeaderCursor(root.qrHeaderIndex) }
             onClicked: root.summonWifiQr()
@@ -1326,6 +1328,7 @@ Panel {
             fontFamily: root.bar.fontFamily
             fontSize: Style.font.subtitle * 1.5
             hasCursor: root.speedHeaderHasCursor
+            onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
             Layout.alignment: Qt.AlignVCenter
             onHovered: function(on) { if (on) root.setHeaderCursor(root.speedHeaderIndex) }
             onClicked: root.summonSpeedTest()
@@ -1336,6 +1339,7 @@ Panel {
             visible: root.canToggleWifi
             checked: Networking.wifiEnabled
             hasCursor: root.toggleHeaderHasCursor
+            onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
             foreground: root.bar.foreground
             Layout.alignment: Qt.AlignVCenter
             onHovered: function(on) { if (on) root.setHeaderCursor(root.toggleHeaderIndex) }
@@ -1425,6 +1429,7 @@ Panel {
         bordered: true
         active: true
         hasCursor: root.cursorActive && root.focusSection === "portal"
+        onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
         onHovered: function(on) {
           if (!on) return
           root.cursorActive = true
@@ -1541,6 +1546,7 @@ Panel {
               checked: !root.bandPinned
               busy: root.bandBusy
               hasCursor: root.cursorActive && root.focusSection === "band" && root.bandAutoFocused
+              onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
               foreground: root.bar.foreground
               onToggled: root.toggleBandAuto()
 
@@ -1706,7 +1712,10 @@ Panel {
 
         model: root.wifiStationAvailable ? root.wifiNetworks : []
         currentIndex: root.selectedIndex
-        onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+        onCurrentIndexChanged: if (currentIndex >= 0) {
+          positionViewAtIndex(currentIndex, ListView.Contain)
+          Qt.callLater(function() { panel.ensureItemVisible(networkList.currentItem) })
+        }
 
         // Wrapper takes the required props from ListView's delegate context
         // (which doesn't bind into nested `component` declarations like
@@ -1766,6 +1775,7 @@ Panel {
     selected: root.bandEffective === band
     hasCursor: root.cursorActive && root.focusSection === "band"
       && !root.bandAutoFocused && root.bandIndex === slot
+    onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
 
     onClicked: root.setBand(band)
 
@@ -1798,6 +1808,7 @@ Panel {
     // up `hasCursor`.
     active: root.dnsEffective === provider
     hasCursor: root.cursorActive && root.focusSection === "dns" && root.dnsIndex === index
+    onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
 
     onHovered: function(isHovered) {
       if (!isHovered) return
@@ -1828,6 +1839,7 @@ Panel {
     readonly property bool forgetVisible: canForget && (!requiresCredentials || forgetFocused || rightMouse.containsMouse)
 
     hasCursor: root.cursorActive && isSelected && !root.wifiActionFocused
+    onHasCursorChanged: if (hasCursor) Qt.callLater(panel.ensureItemVisible, this)
     current: isConnected
     foreground: root.bar.foreground
     fill: root.hoverFill

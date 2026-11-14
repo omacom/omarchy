@@ -9,6 +9,24 @@ const fs = require('fs')
 const network = requireFromRoot('shell/plugins/panels/network/Model.js')
 const panelSource = fs.readFileSync(root + '/shell/plugins/panels/network/Panel.qml', 'utf8')
 
+// Execute the complete binding, including its continuation lines.
+const bandPill = panelSource.slice(panelSource.indexOf('component BandPill:'))
+const bandCursor = bandPill.match(/hasCursor: ([\s\S]*?)\n\s*onHasCursorChanged:/)
+assert(bandCursor, 'band pill has a complete cursor binding before its handler')
+const bandHasCursor = new Function('root', 'slot', 'return (' + bandCursor[1] + ')')
+for (const active of [false, true]) {
+  for (const section of ['band', 'dns']) {
+    for (const auto of [false, true]) {
+      for (let index = 0; index < 3; index++) {
+        const state = {cursorActive: active, focusSection: section, bandAutoFocused: auto, bandIndex: index}
+        const lit = [0, 1, 2].filter(slot => bandHasCursor(state, slot))
+        assertDeepEqual(lit, active && section === 'band' && !auto ? [index] : [],
+          'only the selected manual band has the keyboard cursor')
+      }
+    }
+  }
+}
+
 // scannerEnabled lives on a shared WifiDevice with no reference counting, so
 // the panel has to own what it enabled. Run the helper's own JavaScript against
 // stand-in devices: the two invariants it carries are that a closed panel never
