@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# omarchy:summary=Start a terminal session with automatic unattended-task animations
+# omarchy:group=screensaver
+# omarchy:name=auto
+# omarchy:args=[--shell <bash|zsh>] [--idle-after <seconds>] [--install-opencode]
+# omarchy:examples=omarchy screensaver auto | omarchy screensaver auto --install-opencode
+
+exec python3 "$OMARCHY_PATH/default/omarchy/screensaver-auto.py" "$@"
