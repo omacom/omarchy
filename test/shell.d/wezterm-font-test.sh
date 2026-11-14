@@ -28,7 +28,7 @@ cp "$ROOT/config/wezterm/wezterm.lua" "$test_home/.config/wezterm/wezterm.lua"
 for font_name in 'Test Font' 'Ampersand & Font' 'Slash/Font' 'Quoted "Font"' 'Back\slash & / "Font"' 'Final Font'; do
   env HOME="$test_home" OMARCHY_PATH="$ROOT" PATH="$mock_bin:$PATH" WEZTERM_TEST_FONT="$font_name" \
     "$ROOT/bin/omarchy-font-set" "$font_name"
-  env HOME="$test_home" WEZTERM_TEST_FONT="$font_name" lua <<'LUA'
+  env HOME="$test_home" WEZTERM_TEST_FONT="$font_name" lua - <<'LUA'
 package.preload.wezterm = function()
   return {
     config_builder = function() return {} end,
