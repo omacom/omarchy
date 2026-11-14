@@ -292,6 +292,7 @@ PanelWindow {
 
     HoverHandler {
       id: bodyHover
+      parent: window.contentItem
       onHoveredChanged: if (!hovered && window.autohide) hideTimer.restart()
       // Only a real move clears it: the release itself reports the pointer too.
       onPointChanged: {
@@ -332,7 +333,9 @@ PanelWindow {
       if (!bodyHover.hovered || window.hoverStale || window.dragging
           || window.insertIndex >= 0 || !window.contentShown) return 0
       var pointer = bodyHover.point.position
-      var center = slot.mapToItem(body, slot.width / 2, slot.height / 2)
+      if (menu.visible && pointer.x >= menu.x && pointer.x <= menu.x + menu.width
+          && pointer.y >= menu.y && pointer.y <= menu.y + menu.height) return 0
+      var center = slot.mapToItem(window.contentItem, slot.width / 2, slot.height / 2)
       var distance = Math.abs(window.vertical ? pointer.y - center.y : pointer.x - center.x)
       var reach = window.slotSize * 2
       return DockModel.hoverInfluence(distance, reach)
@@ -479,7 +482,7 @@ PanelWindow {
 
     mouse.onReleased: function(event) {
       if (!appSlot.lifted) return
-      window.dropPoint = appSlot.mapToItem(body, event.x, event.y)
+      window.dropPoint = appSlot.mouse.mapToItem(window.contentItem, event.x, event.y)
       var from = window.dragIndex
       var to = window.dropIndex
       appSlot.dragged = true
