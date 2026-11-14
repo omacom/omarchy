@@ -16,5 +16,13 @@
     "description": "Workspace number indicators",
     "category": "Compositor",
     "allowMultiple": false
+  },
+  "omarchy": {
+    "clonePaths": [
+      {
+        "source": "WorkspacesModel.js",
+        "target": "WorkspacesModel.js"
+      }
+    ]
   }
 }
