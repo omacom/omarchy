@@ -324,6 +324,14 @@
   "trigger.toggle.crash-capture-off": {
     "label": "Crash Capture Off"
   },
+  "trigger.toggle.monitor-workspaces-on": {
+    "label": "Monitor Workspaces",
+    "description": "Give each monitor its own workspaces 1–10"
+  },
+  "trigger.toggle.monitor-workspaces-off": {
+    "label": "Global Workspaces",
+    "description": "Use one set of workspace numbers across all monitors"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },
