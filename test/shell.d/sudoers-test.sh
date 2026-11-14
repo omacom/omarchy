@@ -18,6 +18,7 @@ trap 'rm -rf "$test_tmp"' EXIT
 declare -A expected=(
   [omarchy-dns]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-dns Cloudflare, /usr/bin/omarchy-dns Google, /usr/bin/omarchy-dns DHCP'
   [omarchy-locale-generate]="%wheel ALL=(root) NOPASSWD: $(jq -r 'keys | sort | map("/usr/bin/omarchy-locale-generate " + .) | join(", ")' "$registry")"
+  [omarchy-restart-wifi]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-restart-wifi "", /usr/bin/omarchy-restart-wifi --interface *'
   [omarchy-passwd-tries]='Defaults passwd_tries=10'
   [omarchy-sudo-timeout]='Defaults timestamp_timeout=10'
   [omarchy-theme-browser]='%wheel ALL=(root) NOPASSWD: /usr/bin/omarchy-theme-set-browser-policy [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'
