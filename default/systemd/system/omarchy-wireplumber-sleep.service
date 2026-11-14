@@ -1,0 +1,15 @@
+[Unit]
+Description=Pause WirePlumber across Bluetooth controller reset
+Before=sleep.target
+StopWhenUnneeded=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/omarchy-system-sleep-wireplumber pre
+ExecStopPost=/usr/bin/omarchy-system-sleep-wireplumber post
+TimeoutStartSec=2min
+TimeoutStopSec=2min
+
+[Install]
+WantedBy=sleep.target
