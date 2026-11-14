@@ -208,6 +208,25 @@ function nearestDropIndex(from, delta, slots) {
   return result
 }
 
+// The window a click on the app brings forward, or -1 to launch it instead.
+// The mode is the app's X-Omarchy-Dock-Click: "new" launches, since each
+// window is wanted fresh, and "workspace" brings back a window only from the
+// workspace in front of the user, since one elsewhere was opened for other
+// work. Either way a minimized window comes back first, since the dock is
+// the only way back to it. Any other mode picks among all the app's windows.
+function pickClickWindow(mode, windows, workspaceId) {
+  var list = windows || []
+  if (mode !== "new" && mode !== "workspace") return pickWindow(list, workspaceId)
+
+  var candidates = []
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].minimized || (mode === "workspace" && list[i].workspaceId === workspaceId)) candidates.push(i)
+  }
+  var picked = pickWindow(candidates.map(function(index) { return list[index] }), workspaceId)
+  return picked < 0 ? -1 : candidates[picked]
+
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     normalizePosition: normalizePosition,
@@ -224,6 +243,7 @@ if (typeof module !== "undefined") {
     dropIndex: dropIndex,
     nearestDropIndex: nearestDropIndex,
     pinsInOrder: pinsInOrder,
-    pickWindow: pickWindow
+    pickWindow: pickWindow,
+    pickClickWindow: pickClickWindow
   }
 }

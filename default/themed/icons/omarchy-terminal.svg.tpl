@@ -9,8 +9,8 @@
   </defs>
   <g transform="translate(256 256) scale(1.2) translate(-256 -256)">
     <!-- The window; one hard shadow, as Hype's slides. -->
-    <rect x="76" y="100" width="360" height="312" rx="20" fill="{{ icon_shadow }}" transform="translate(0 8)"/>
-    <rect x="76" y="100" width="360" height="312" rx="20" fill="{{ icon_body }}" stroke="{{ icon_edge }}" stroke-width="3"/>
+    <rect x="76" y="92" width="360" height="328" rx="22" fill="{{ icon_shadow }}" transform="translate(0 8)"/>
+    <rect x="76" y="92" width="360" height="328" rx="22" fill="{{ icon_body }}" stroke="{{ icon_edge }}" stroke-width="3"/>
     <!-- The prompt. -->
     <path d="M140 176L234 252L140 328" fill="none" stroke="{{ icon_shadow }}" stroke-width="44" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 8)"/>
     <path d="M140 176L234 252L140 328" fill="none" stroke="url(#main)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>

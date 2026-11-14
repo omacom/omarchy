@@ -242,6 +242,7 @@ setup_functions() {
   FINALIZE_WARNING_FLAG=$TMP/finalize-warning
   username=owner hostname="" timezone=""
   create_user() { :; }
+  record_eula() { :; }
   install_authorized_keys() { :; }
   configure_login() { :; }
   configure_language() { :; }
@@ -272,6 +273,7 @@ attempt() {
   keyboard_form() { :; }
   user_form() { :; }
   confirm_form() { :; }
+  eula_form() { :; }
   notice() {
     printf 'refused: %s\n' "$1" >>"$TMP/screen"
     exit 3
