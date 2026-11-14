@@ -966,3 +966,10 @@ status=$?
 assert_no_temporary_files "$fake_root"
 
 pass "a reset refusal cannot fall through to an unhardened SDDM copy"
+
+# plymouthd derives a daemon-wide device scale from the panel DPI, which halves
+# the window size the theme script centres with. The packaged config pins 1.
+grep -qx 'DeviceScale=1' "$ROOT/etc/plymouth/plymouthd.conf" ||
+  fail "the packaged plymouthd.conf pins DeviceScale=1 so the theme stays centred on HiDPI panels"
+
+pass "plymouthd.conf pins DeviceScale=1"
