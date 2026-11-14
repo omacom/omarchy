@@ -14,7 +14,12 @@ o.window({ tag = "chromium-based-browser", title = "^Meet - .+" }, {
   float = true,
   pin = true,
   size = { 600, 338 },
+  move = { "(monitor_w-window_w-40)", "(monitor_h-window_h-40)" },
+})
+
+-- A regular browser tab can also change its title to "Meet - ...". Only
+-- decorate the floating PiP window, not the tiled browser window.
+o.window({ tag = "chromium-based-browser", title = "^Meet - .+", float = true }, {
   keep_aspect_ratio = true,
   border_size = 0,
-  move = { "(monitor_w-window_w-40)", "(monitor_h-window_h-40)" },
 })
