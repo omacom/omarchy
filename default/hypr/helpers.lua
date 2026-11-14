@@ -356,3 +356,31 @@ end
 function o.transparent_window(match, opacity)
   o.window(match, { opacity = opacity or "0.985 0.96", tag = "+transparent-window" })
 end
+
+-- Collect keyboard brief overrides for the top bar's keyboard layout widget.
+-- The user calls this from hypr/input.lua with a table keyed by layout, or by
+-- layout and variant joined with a colon, and the brief the bar should show:
+--
+--   o.keyboard_brief({ us = "US", ["us:dvorak"] = "DV" })
+--
+-- A variant without its own brief inherits the one its layout carries. The
+-- table starts empty on every config load, so an override the user's input.lua
+-- stops collecting disappears with the next reload.
+o.keyboard_briefs = {}
+
+function o.keyboard_brief(overrides)
+  if type(overrides) ~= "table" then
+    return
+  end
+
+  -- The state file is one tab-separated line per override, and a brief with
+  -- nothing printable on it would blank the label. Drop entries that could not
+  -- survive the write rather than corrupting the file for the rest.
+  for key, brief in pairs(overrides) do
+    if type(key) == "string" and type(brief) == "string"
+      and key ~= "" and brief ~= ""
+      and not key:find("%c") and not brief:find("%c") then
+      o.keyboard_briefs[key] = brief
+    end
+  end
+end
