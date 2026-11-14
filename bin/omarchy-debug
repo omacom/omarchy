@@ -26,7 +26,9 @@ while (( $# > 0 )); do
   esac
 done
 
-LOG_FILE="/tmp/omarchy-debug.log"
+work_dir=$(mktemp -d -t omarchy-debug.XXXXXX) || exit 1
+trap 'rm -rf -- "$work_dir"' EXIT
+LOG_FILE="$work_dir/omarchy-debug.log"
 
 if [[ $NO_SUDO = "true" ]]; then
   DMESG_OUTPUT="(skipped - --no-sudo flag used)"
@@ -90,7 +92,11 @@ case "$ACTION" in
     less "$LOG_FILE"
     ;;
   "Save in current directory")
-    cp "$LOG_FILE" "./omarchy-debug.log"
-    echo "✓ Log saved to $(pwd)/omarchy-debug.log"
+    if cp "$LOG_FILE" "./omarchy-debug.log"; then
+      echo "✓ Log saved to $(pwd)/omarchy-debug.log"
+    else
+      echo "Error: Failed to save log file"
+      exit 1
+    fi
     ;;
 esac
