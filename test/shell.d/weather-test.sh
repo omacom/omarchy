@@ -113,6 +113,15 @@ assertEqual(weather.currentIcon({ openMeteoWeatherCode: 0, isDay: 0 }, ''), weat
 assert(weather.iconForOpenMeteoCode(45, true) !== weather.iconForOpenMeteoCode(45, false), 'weather distinguishes nighttime fog from daytime fog')
 assertEqual(weather.provisionalCurrentIcon({ weatherCode: 113 }, ''), weather.iconForCode(113, false), 'weather uses wttr to fill an empty initial icon')
 assertEqual(weather.provisionalCurrentIcon({ weatherCode: 113 }, 'night'), 'night', 'weather refresh preserves a resolved day-night icon')
+
+// The bar shows whichever source answers first; Open-Meteo's icon wins either way.
+const wttrNow = { weatherCode: 113 }
+const meteoNow = { openMeteoWeatherCode: 0, isDay: 0 }
+const wttrIcon = weather.iconForCode(113, false)
+const meteoIcon = weather.iconForOpenMeteoCode(0, true)
+assertEqual(weather.barIconAfterResponse('wttr', wttrNow, ''), wttrIcon, 'weather bar shows wttr.in while Open-Meteo has not answered')
+assertEqual(weather.barIconAfterResponse('open-meteo', meteoNow, weather.barIconAfterResponse('wttr', wttrNow, '')), meteoIcon, 'weather bar takes Open-Meteo after wttr.in')
+assertEqual(weather.barIconAfterResponse('wttr', wttrNow, weather.barIconAfterResponse('open-meteo', meteoNow, '')), meteoIcon, 'weather bar keeps Open-Meteo when wttr.in answers later')
 assert(!weather.weatherResponseCompletesSave(true, 'wttr'), 'weather keeps the spinner through a non-authoritative pinned-location response')
 assert(weather.weatherResponseCompletesSave(true, 'open-meteo'), 'weather completes a pinned-location save with Open-Meteo data')
 assert(weather.weatherResponseCompletesSave(false, 'wttr'), 'weather completes a name-only location save with wttr data')
