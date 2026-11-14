@@ -71,6 +71,21 @@ function claimingEntryId(appId, entries) {
   return ""
 }
 
+// T3 Code names a hidden link-handler entry after its window's app id, so a
+// lookup by app id finds it instead of the launcher the user pins, which names
+// that id as its StartupWMClass. That launcher claims the window; with none, or
+// more than one, the lookup stands.
+function launcherIdForHiddenEntry(appId, entry, launchers) {
+  if (!entry || !entry.noDisplay) return ""
+  var found = ""
+  for (var i = 0; i < (launchers || []).length; i++) {
+    if (launchers[i].startupClass !== appId) continue
+    if (found) return ""
+    found = launchers[i].id
+  }
+  return found
+}
+
 // The launcher's Terminal and Browser open the default terminal and browser,
 // whose windows carry that app's own id. A pinned Terminal or Browser claims
 // the windows of any app in its category, unless that app is pinned itself.
@@ -217,6 +232,7 @@ if (typeof module !== "undefined") {
     isDockWindow: isDockWindow,
     isMinimizedWorkspace: isMinimizedWorkspace,
     claimingEntryId: claimingEntryId,
+    launcherIdForHiddenEntry: launcherIdForHiddenEntry,
     standInKey: standInKey,
     buildItems: buildItems,
     orderItems: orderItems,
