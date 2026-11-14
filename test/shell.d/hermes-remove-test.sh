@@ -184,6 +184,17 @@ remove || fail "remove succeeds with a wrapper pointing at a sibling directory"
   fail "a wrapper pointing at ~/xhermes is not mistaken for one pointing into ~/.hermes"
 pass "removal matches the runtime path as a plain string"
 
+# A bare prefix would also claim a wrapper pointing at a sibling that only
+# shares the start of the name.
+seed_install
+prefix_body="#!/bin/bash
+exec $test_home/.hermes-old/venv/bin/hermes \"\$@\""
+printf '%s\n' "$prefix_body" >"$test_home/.local/bin/hermes"
+remove || fail "remove succeeds with a wrapper pointing at ~/.hermes-old"
+[[ -f $test_home/.local/bin/hermes && $(cat "$test_home/.local/bin/hermes") == "$prefix_body" ]] ||
+  fail "a wrapper pointing at ~/.hermes-old is not mistaken for one pointing into ~/.hermes"
+pass "removal matches the runtime path with its trailing slash"
+
 # On a terminal the user is asked, default no: declining leaves every piece of
 # data where it was.
 seed_install

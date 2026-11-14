@@ -183,13 +183,14 @@ if [[ -f $HOME/.hermes/hermes-agent/.hermes-bootstrap-complete ]]; then
     "$HOME/.hermes/bin" \
     "$HOME/.hermes/node"
 
-  # Only the wrappers pointing into ~/.hermes, matched as a plain string: the
-  # path carries a dot, so an unanchored pattern would also claim a wrapper
-  # pointing at a sibling like ~/xhermes.
+  # Only the wrappers pointing into ~/.hermes, matched as a plain string with
+  # its trailing slash like the installer's: the path carries a dot, so a
+  # pattern would also claim a wrapper pointing at a sibling like ~/xhermes,
+  # and a bare prefix one pointing at ~/.hermes-old.
   for command in hermes hermes-agent hermes-acp; do
     wrapper="$HOME/.local/bin/$command"
 
-    if [[ -f $wrapper && ! -L $wrapper ]] && grep -qF "$HOME/.hermes" "$wrapper"; then
+    if [[ -f $wrapper && ! -L $wrapper ]] && grep -qF "$HOME/.hermes/" "$wrapper"; then
       rm -f "$wrapper"
     fi
   done
