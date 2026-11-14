@@ -105,6 +105,7 @@
   "crash.captureDisabled": "Crash capture disabled",
   "crash.captureEnabled": "Crash capture enabled",
   "crash.diagnose": "Click to diagnose with AI",
+  "crash.fsVanished": "Its files vanished mid-run (AppImage mount died). Click to diagnose",
   "crash.processCrashed": "Process crashed: %1",
   "default.browserSet": "%1 is now the default browser",
   "default.editorSet": "%1 is now the default editor",

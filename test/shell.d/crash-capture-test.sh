@@ -87,11 +87,11 @@ reset_entries() {
 # One core dump as systemd-coredump journals it. The UID must be this user's, or
 # the watcher discards it as somebody else's crash before anything under test.
 crash_entry() {
-  local comm="$1" exe="$2"
+  local comm="$1" exe="$2" signal="${3:-SIGSEGV}"
 
-  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" \
+  jq -cn --arg uid "$UID" --arg comm "$comm" --arg exe "$exe" --arg signal "$signal" \
     '{_UID: $uid, COREDUMP_COMM: $comm, COREDUMP_PID: "4242",
-      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: "SIGSEGV"}' >>"$JOURNAL_ENTRIES"
+      COREDUMP_EXE: $exe, COREDUMP_SIGNAL_NAME: $signal}' >>"$JOURNAL_ENTRIES"
 }
 
 # The stubbed journalctl ends after the entries, so the watcher's loop ends too.
@@ -242,6 +242,43 @@ run_watch
   fail "the fallback name cannot be muted, so the one crash most likely to repeat is the one that cannot be silenced"
 pass "the fallback name can be muted like any other"
 mute unknown off
+
+# A SIGBUS from a binary that no longer exists ran off a filesystem that
+# vanished under it -- an AppImage whose /tmp/.mount_* fuse mount died while the
+# app was live, in practice. The toast must say so: a diagnosis pointed into the
+# app's own code walks the wrong trail from the first step. The recorded exe
+# carries no /tmp/.mount_ prefix, because the mount was already gone when
+# systemd-coredump wrote the field, so the vanished file is the tell.
+reset_entries
+crash_entry appbin /appbin SIGBUS
+run_watch
+announced appbin || fail "a vanished-mount SIGBUS crash is not announced at all"
+grep -Fq "Its files vanished mid-run" "$NOTIFY_LOG" ||
+  fail "a SIGBUS from a vanished binary gets the generic body, sending the diagnosis into the app's own code"
+pass "a SIGBUS from a vanished binary says the filesystem went, not the app"
+
+# Only the combination says it. A SIGBUS from a binary still on disk is the
+# program's own bus error, and a vanished binary under another signal was
+# deleted or replaced, not unmounted.
+# The announced name is the executable's basename, so the fixture binary is
+# named for what it is and announced under that name.
+present_exe="$TMPDIR/binary-still-on-disk"
+touch "$present_exe"
+reset_entries
+crash_entry present "$present_exe" SIGBUS
+run_watch
+announced binary-still-on-disk || fail "a SIGBUS from a binary still on disk is not announced"
+! grep -Fq "Its files vanished mid-run" "$NOTIFY_LOG" ||
+  fail "a SIGBUS from a binary still on disk gets the vanished-mount body, but nothing unmounted it"
+pass "a SIGBUS from a binary still on disk keeps the generic body"
+
+reset_entries
+crash_entry nautilus /usr/bin/nautilus
+run_watch
+announced nautilus || fail "a SIGSEGV from a vanished binary is not announced"
+grep -Fq "Click to diagnose" "$NOTIFY_LOG" ||
+  fail "a SIGSEGV from a vanished binary gets the vanished-mount body reserved for SIGBUS"
+pass "a vanished binary under another signal keeps the generic body"
 
 # What omarchy-crash-mute does on its own. That it agrees with the watcher is
 # already covered above, which drives it for every mute it makes.
