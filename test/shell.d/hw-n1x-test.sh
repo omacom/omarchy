@@ -59,6 +59,9 @@ assert_succeeds hw_n1x "MediaTek I2C controllers (NVDA0200) identify N1x"
 write_sysfs "PNP0C0D:00" "0x10de:0x2e06"
 assert_succeeds hw_n1x "GB20B GPU 10de:2e06 identifies N1x"
 
+write_sysfs "PNP0C0D:00" "0x10de:0x2e03"
+assert_succeeds hw_n1x "GB20B GPU 10de:2e03 (Lenovo Pro 9) identifies N1x"
+
 write_sysfs "PNP0C0D:00 NVDA0301:00" "0x10de:0x2e12"
 assert_fails hw_n1x "a Spark (2e12, Tegra I2C ids) is not N1x"
 
