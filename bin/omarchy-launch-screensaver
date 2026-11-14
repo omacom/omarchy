@@ -3,7 +3,7 @@
 # omarchy:summary=Launch the Omarchy screensaver in the default terminal on the system with the correct font configuration.
 
 # Exit early if screensaver is already running
-pgrep -f '[o]rg.omarchy.screensaver' && exit 0
+pgrep -f '^([^ ]*/)?(alacritty|ghostty|foot|kitty) .*--(class|app-id)=org\.omarchy\.screensaver( |$)' && exit 0
 
 # Allow screensaver to be turned off but also force started
 if omarchy-toggle-enabled screensaver-off && [[ $1 != "force" ]]; then
