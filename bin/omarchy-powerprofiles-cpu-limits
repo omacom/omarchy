@@ -1,0 +1,283 @@
+#!/bin/bash
+
+# omarchy:summary=Lower the CPU power limits of AMD Raven, Picasso, and Dali laptops while the power-saver profile is active.
+# omarchy:args=[apply|watch|status]
+# omarchy:requires-sudo=true
+
+# Why: these APUs use acpi-cpufreq, which has no energy-performance hint, so
+# power-profiles-daemon falls back to its placeholder driver and power-saver
+# changes nothing about the CPU. Firmware typically lets the package burst to
+# 25 W, which is where the heat and battery drain of light use comes from.
+#
+# How: the package limits (STAPM, fast and slow PPT) are set by messages to the
+# SMU, AMD's on-die power controller, through the SMN index/data registers at
+# 0xB8/0xBC of the host bridge's PCI config space. That needs root and setpci
+# (pciutils) and nothing else: no kernel module and no ryzenadj. The mailbox
+# addresses and message IDs are RyzenAdj's (github.com/FlyGoat/RyzenAdj) for
+# this family.
+#
+# Restoring: leaving power-saver must put back the limits the firmware chose,
+# and those can only be read from the SMU's PM table, which sits in ACPI NVS
+# memory that CONFIG_IO_STRICT_DEVMEM keeps out of /dev/mem. Booting once with
+# iomem=relaxed lets this command record them, per power source, the first
+# time it sees them. Without a record, leaving power-saver keeps the cap until
+# the firmware resets the limits (many do on AC changes) or the next boot.
+#
+#   apply   match the limits to the active profile (the default)
+#   watch   apply now, then again on profile, AC and resume changes
+#   status  show the cap, the recorded stock limits and, when readable, the live ones
+
+action=${1:-apply}
+
+# Unprivileged tests run the real logic against a fake SMU: setpci comes from
+# their PATH, and state, lock and physical memory live under this directory.
+# Root never honours it.
+if (( EUID != 0 )) && [[ -n ${OMARCHY_CPU_LIMITS_SIMULATE_DIR:-} ]]; then
+  simulate=$OMARCHY_CPU_LIMITS_SIMULATE_DIR
+  state_dir="$simulate/state"
+  run_dir="$simulate/run"
+  memory="$simulate/mem"
+else
+  simulate=""
+  state_dir=/var/lib/omarchy/cpu-limits
+  run_dir=/run/omarchy-cpu-limits
+  memory=/dev/mem
+fi
+
+# The cap applied in power-saver, in mW.
+cap_stapm=12000
+cap_fast=15000
+cap_slow=12000
+
+# SMN addresses of the MP1 and PSMU mailboxes: message, response, first argument.
+mp1=($((0x3B10528)) $((0x3B10564)) $((0x3B10998)))
+psmu=($((0x3B10A20)) $((0x3B10A80)) $((0x3B10A88)))
+msg_stapm=$((0x1a))
+msg_fast=$((0x1b))
+msg_slow=$((0x1c))
+msg_table_addr=$((0xb))
+msg_table_transfer=$((0x3d))
+
+usage() {
+  echo "Usage: omarchy-powerprofiles-cpu-limits [apply|watch|status]" >&2
+  exit 1
+}
+
+[[ $action =~ ^(apply|watch|status)$ ]] || usage
+
+if ! omarchy-hw-amd-raven; then
+  [[ $action == "status" ]] && echo "Not supported: this needs an AMD Raven, Picasso, or Dali APU."
+  exit 0
+fi
+
+if (( EUID != 0 )) && [[ -z $simulate ]]; then
+  echo "omarchy-powerprofiles-cpu-limits must run as root" >&2
+  exit 1
+fi
+
+smn_read() {
+  setpci -s 00:00.0 0xB8.L="$(printf '%08x' $(( $1 & ~3 )))"
+  echo $(( 16#$(setpci -s 00:00.0 0xBC.L) ))
+}
+
+smn_write() {
+  setpci -s 00:00.0 0xB8.L="$(printf '%08x' "$1")"
+  setpci -s 00:00.0 0xBC.L="$(printf '%08x' "$2")"
+}
+
+# smu_request <msg> <response> <arg> <id> [arg0]: prints "<response> <arg0 after>".
+# A response of 1 is OK; 0xFE unknown message, 0xFD rejected, 0xFC busy, 0xFF failed.
+smu_request() {
+  local msg=$1 response=$2 arg=$3 id=$4 arg0=${5:-0} i result=0 deadline
+
+  smn_write "$response" 0
+  smn_write "$arg" "$arg0"
+  for i in 1 2 3 4 5; do smn_write $(( arg + 4 * i )) 0; done
+  smn_write "$msg" "$id"
+
+  # The SMU answers within milliseconds; give up after a second. EPOCHREALTIME
+  # always has six decimals, so its digits alone are the time in microseconds.
+  deadline=$(( ${EPOCHREALTIME//[!0-9]/} + 1000000 ))
+  while true; do
+    result=$(smn_read "$response")
+    (( result == 0 && ${EPOCHREALTIME//[!0-9]/} < deadline )) || break
+    sleep 0.002
+  done
+
+  echo "$result $(smn_read "$arg")"
+}
+
+active_profile() {
+  busctl get-property net.hadess.PowerProfiles /net/hadess/PowerProfiles net.hadess.PowerProfiles ActiveProfile 2>/dev/null | awk -F'"' '{ print $2 }'
+}
+
+power_source() {
+  if omarchy-power-present; then
+    echo ac
+  else
+    echo battery
+  fi
+}
+
+watts_to_mw() {
+  awk -v watts="$1" 'BEGIN { printf "%d", watts * 1000 + 0.5 }'
+}
+
+# Prints the live "stapm fast slow" limits in watts, or fails when the PM table is unreadable.
+read_limits() {
+  local result addr table i
+
+  read -r result addr < <(smu_request "${psmu[@]}" $msg_table_addr 3)
+  (( result == 1 && addr != 0 )) || return 1
+
+  # Raven-family SMUs skip the refresh on the first transfer after boot, so
+  # transfer twice, and trust the table only when both transfers succeeded.
+  for i in 1 2; do
+    read -r result _ < <(smu_request "${psmu[@]}" $msg_table_transfer 3)
+    (( result == 1 )) || return 1
+    sleep 0.01
+  done
+
+  # The table opens with stapm limit, stapm value, fast limit, fast value, slow limit, slow value.
+  # od wraps at four floats a line, so join the lines before splitting.
+  table=$(dd if="$memory" bs=4096 skip=$(( addr / 4096 )) count=1 status=none 2>/dev/null | od -An -v -t f4 -j $(( addr % 4096 )) -N 24 | tr '\n' ' ')
+  read -r -a table <<<"$table"
+  (( ${#table[@]} == 6 )) || return 1
+
+  # An unrefreshed or unreadable table holds zeros or junk, never real limits.
+  awk -v a="${table[0]}" -v b="${table[2]}" -v c="${table[4]}" \
+    'BEGIN { exit !(a >= 5 && a <= 60 && b >= 5 && b <= 60 && c >= 5 && c <= 60) }' || return 1
+
+  echo "${table[0]} ${table[2]} ${table[4]}"
+}
+
+is_cap() {
+  awk -v stapm="$1" -v fast="$2" -v slow="$3" -v cs=$cap_stapm -v cf=$cap_fast -v cl=$cap_slow '
+    function near(watts, mw) { return (watts * 1000 - mw) ^ 2 < 500 ^ 2 }
+    BEGIN { exit !(near(stapm, cs) && near(fast, cf) && near(slow, cl)) }'
+}
+
+# Record the firmware's limits for the current power source, once, when they can be read.
+record_stock() {
+  local source stapm fast slow limits
+
+  source=$(power_source)
+  [[ -s $state_dir/stock-$source ]] && return 0
+
+  limits=$(read_limits) || return 0
+  read -r stapm fast slow <<<"$limits"
+  is_cap "$stapm" "$fast" "$slow" && return 0
+
+  mkdir -p "$state_dir"
+  echo "$(watts_to_mw "$stapm") $(watts_to_mw "$fast") $(watts_to_mw "$slow")" >"$state_dir/stock-$source"
+  logger -t omarchy-cpu-limits "Recorded the stock $source limits: STAPM ${stapm} W, fast ${fast} W, slow ${slow} W"
+}
+
+# Any response other than 1 is a failure, including 0, which means the SMU never answered.
+set_limits() {
+  local msg value result failures=""
+
+  for msg in "$msg_stapm $1" "$msg_fast $2" "$msg_slow $3"; do
+    read -r msg value <<<"$msg"
+    read -r result _ < <(smu_request "${mp1[@]}" "$msg" "$value")
+    (( result == 1 )) || failures+=" $(printf '0x%x' "$msg")=$(printf '0x%x' "$result")"
+  done
+
+  if [[ -n $failures ]]; then
+    logger -t omarchy-cpu-limits "The SMU did not accept every power limit (message=response:$failures; 0x0 is a timeout)"
+    return 1
+  fi
+}
+
+# The SMN index/data pair is shared state: hold this around every SMU access.
+lock_hardware() {
+  mkdir -p "$run_dir"
+  exec 9>"$run_dir/lock"
+  flock 9
+}
+
+unlock_hardware() {
+  exec 9>&-
+}
+
+apply() {
+  local stock stapm fast slow
+
+  lock_hardware
+  record_stock
+
+  if [[ $(active_profile) == "power-saver" ]]; then
+    # Mark before writing: if only some limits are accepted, leaving power-saver must still restore.
+    touch "$run_dir/capped"
+    set_limits $cap_stapm $cap_fast $cap_slow
+  elif [[ -e $run_dir/capped ]]; then
+    # Only this power source's own record: AC and battery limits can differ.
+    stock="$state_dir/stock-$(power_source)"
+
+    if [[ -s $stock ]]; then
+      read -r stapm fast slow <"$stock"
+      set_limits "$stapm" "$fast" "$slow" && rm -f "$run_dir/capped"
+    else
+      logger -t omarchy-cpu-limits "No recorded stock $(power_source) limits, so the power-saver cap stays until the firmware resets it"
+    fi
+  fi
+
+  unlock_hardware
+}
+
+watch() {
+  apply
+
+  {
+    gdbus monitor --system --dest net.hadess.PowerProfiles --object-path /net/hadess/PowerProfiles &
+    gdbus monitor --system --dest org.freedesktop.UPower --object-path /org/freedesktop/UPower &
+    gdbus monitor --system --dest org.freedesktop.login1 --object-path /org/freedesktop/login1 &
+    wait
+  } | while read -r line; do
+    case $line in
+      *ActiveProfile*) apply ;;
+      # Firmware may restore its own limits when AC is plugged or pulled, just after the event.
+      *OnBattery*)
+        sleep 2
+        apply
+        ;;
+      # Firmware restores its own limits during resume, after logind reports it; apply once it has.
+      *PrepareForSleep*false*)
+        sleep 5
+        apply
+        ;;
+    esac
+  done
+}
+
+status() {
+  local source limits stapm fast slow
+
+  echo "Profile:  $(active_profile)"
+  echo "Power:    $(power_source)"
+  echo "Cap:      STAPM $(( cap_stapm / 1000 )) W, fast $(( cap_fast / 1000 )) W, slow $(( cap_slow / 1000 )) W ($([[ -e $run_dir/capped ]] && echo applied || echo "not applied"))"
+
+  for source in ac battery; do
+    if [[ -s $state_dir/stock-$source ]]; then
+      read -r stapm fast slow <"$state_dir/stock-$source"
+      echo "Stock $source: STAPM $(( stapm / 1000 )) W, fast $(( fast / 1000 )) W, slow $(( slow / 1000 )) W"
+    else
+      echo "Stock $source: not recorded (boot once with iomem=relaxed to record it)"
+    fi
+  done
+
+  lock_hardware
+  if limits=$(read_limits); then
+    read -r stapm fast slow <<<"$limits"
+    echo "Live:     STAPM ${stapm} W, fast ${fast} W, slow ${slow} W"
+  else
+    echo "Live:     unreadable without iomem=relaxed"
+  fi
+  unlock_hardware
+}
+
+case $action in
+  apply) apply ;;
+  watch) watch ;;
+  status) status ;;
+esac
