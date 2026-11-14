@@ -103,7 +103,7 @@ runs inside the long-lived `omarchy-shell` process, replacing the old
 
 App dock shown on floating workspaces, and hidden on tiled ones and behind a fullscreen window. Floating is not a Hyprland layout, so the dock reads each workspace's mode through `omarchy-hyprland-workspace-layout-current`, caches it, and is told to read again over `omarchy-shell omarchy.dock refresh` by the layout commands. `omarchy-shell omarchy.dock apps` toggles its grid of every app.
 
-Its settings live in the `dock:` subtree of `shell.json`: `position` (`top`, `bottom`, `left` or `right`) and `pinned` (desktop ids). A `shell.json` without pins uses the defaults. `omarchy dock` sets both.
+Its settings live in the `dock:` subtree of `shell.json`: `position` (`top`, `bottom`, `left` or `right`), `background` (`opaque`, `glassy` or `none`, the default) and `pinned` (desktop ids). A `shell.json` without pins uses the defaults. `omarchy dock` sets them.
 
 ## Omarchy menu
 
