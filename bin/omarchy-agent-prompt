@@ -15,7 +15,7 @@ if [[ ${1:-} == "--inline" ]]; then
   shift
 fi
 
-if (($# == 0)); then
+if [[ -z $* ]]; then
   echo "Usage: omarchy agent prompt [--inline] <prompt...>" >&2
   exit 1
 fi
