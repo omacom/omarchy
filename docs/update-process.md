@@ -121,6 +121,8 @@ omarchy-update
   │    └─ abort below the configured free-space threshold on /
   ├─ confirm unless -y
   ├─ authorize sudo once, then keep the timestamp fresh in the background
+  ├─ resolve lifecycle update-prepare
+  │    └─ run registered preflight; stop on detection, required-tool or check failure
   ├─ omarchy-update-pkg-prune
   │    └─ trim the pacman cache to two versions per package, deliberately
   │       before the snapshot since the cache lives on the snapshotted subvolume
@@ -160,7 +162,8 @@ Important behavior:
   `omarchy-migrate` after pacman finishes.
 - A failure should leave enough output in `/tmp/omarchy-update.log` and the
   terminal transcript to debug.
-- The boot check is the [lifecycle dispatch](lifecycle-dispatch.md) operation `update-verify`, a no-op on platforms whose boot chain needs no handling of its own, x86 included: nothing runs and nothing asks for root. It is the last sudo-capable step, after AUR packages, so it also covers the initramfs rebuilds they trigger. When it fails, the update finishes its remaining steps, then exits non-zero without the reboot prompt: the update is not finished. A machine without its platform's boot package at all predates it: the update warns that its boot files were not verified and finishes. There is no check before the packages change: where `omarchy-hw-platform` can't tell the platform, the update installs its packages, and the update then fails verification, without the reboot prompt.
+- Before pruning the package cache or changing packages, the update resolves the [lifecycle dispatch](lifecycle-dispatch.md) operation `update-prepare` and runs any registered preflight. Pi 4 requires this check; missing Pi tooling or a failed check stops the update. A platform-detection failure also stops resolution before packages change. Platforms with no registered preflight continue through the shared update path.
+- The final boot check is lifecycle `update-verify`, a no-op where no platform boot handling is registered, including x86. It is the last sudo-capable step, after AUR packages, so it covers their initramfs rebuilds. A failed check makes the update exit nonzero without a reboot prompt. The legacy missing-boot-package warning applies to older Apple Silicon installations; Pi tooling is required and fails closed.
 
 ## Path 2: direct `sudo pacman -Syu` attempt
 
@@ -349,3 +352,9 @@ scripts.
 2. **Pacnew/pacsave handling is still missing**
    - Package-backed Omarchy should warn about or help process `.pacnew` and
      `.pacsave` files after updates.
+
+## Raspberry Pi 4 package compatibility
+
+The installed target package list selects `raspberrypi-4-desktop`; the live ISO selects `raspberrypi-4-support` so its checks do not pull in a desktop runtime. The desktop package retains `omarchy-pi-runtime=1` and an exact version of support, which requires `linux-omarchy-pi4=1`. These are pacman dependencies: an upgrade that drops a required capability fails dependency preparation before package files are replaced. Lifecycle `update-prepare` and `update-verify` checks remain necessary to check the ESP, installed kernel and UKI. Capability metadata does not certify peripherals or physical reboot success.
+
+The capability-bearing kernel, matching headers/NVIDIA packages, runtime/settings source pair and support/desktop packages must be published together through the existing upstream package channels. Keep temporary holds on older Pi installations until that complete set is available and qualified; this patch does not establish that public updates already work. Install the desktop contract explicitly during the coordinated transition, since changing a default package list does not add it to an existing installation. Retain the preceding compatible package set for rollback; older packages without the capabilities cannot satisfy the new dependencies. No separate permanent Pi update repository is required.

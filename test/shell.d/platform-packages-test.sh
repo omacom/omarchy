@@ -18,7 +18,7 @@ names() {
 base=$(names "$ROOT/install/omarchy-base.packages")
 aarch64=$(names "$ROOT/install/omarchy-aarch64.packages")
 
-for platform in aarch64-apple aarch64 x86; do
+for platform in aarch64-apple aarch64-raspberrypi aarch64 x86; do
   fake_platform "$work/$platform" "$platform"
   defaults=$(OMARCHY_PROC_ROOT="$work/$platform/proc" PATH="$work/$platform/bin:$ROOT/bin:$PATH" omarchy-pkg-defaults)
   [[ $defaults == "$(omarchy-pkg-defaults "$platform")" ]] ||
@@ -78,7 +78,7 @@ pass "a platform list joins only its own platform's set"
 # Snapdragon, the N1x and the GB10 add their own lists after the aarch64
 # additions; no other platform gets them.
 names_of() { sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$ROOT/install/omarchy-$1.packages"; }
-for family in aarch64-qualcomm aarch64-n1x aarch64-gb10; do
+for family in aarch64-qualcomm aarch64-n1x aarch64-gb10 aarch64-raspberrypi; do
   defaults=$(OMARCHY_PATH="$ROOT" omarchy-pkg-defaults "$family")
   [[ $(tail -n "$(names_of "$family" | wc -l)" <<<"$defaults") == "$(names_of "$family")" ]] ||
     fail "$family's own list comes last" "$defaults"
@@ -143,7 +143,7 @@ cat >"$work/stubs/pacman" <<'SH'
 SH
 chmod +x "$work/stubs/"*
 
-for platform in aarch64 x86; do
+for platform in aarch64-raspberrypi aarch64 x86; do
   export STUB_LOG="$work/$platform.log"
   : >"$STUB_LOG"
   OMARCHY_PROC_ROOT="$work/$platform/proc" PATH="$work/stubs:$work/$platform/bin:$ROOT/bin:$PATH" \

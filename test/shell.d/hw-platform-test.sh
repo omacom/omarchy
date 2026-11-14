@@ -21,7 +21,7 @@ if (( EUID != 0 )); then
 fi
 if (( EUID == 0 )) || unshare --user --map-root-user true 2>/dev/null; then
   live=$("${root_runner[@]}" "$detector") || fail "root detects the live platform"
-  [[ $live =~ ^(aarch64-apple|aarch64-qualcomm|aarch64-n1x|aarch64-gb10|aarch64|x86)$ ]] || fail "root detects the live platform" "live: $live"
+  [[ $live =~ ^(aarch64-apple|aarch64-qualcomm|aarch64-n1x|aarch64-gb10|aarch64-raspberrypi|aarch64|x86)$ ]] || fail "root detects the live platform" "live: $live"
   for platform in aarch64-apple aarch64 x86; do
     fixture="$test_tmp/$platform"
     if [[ -f $fixture/proc/device-tree/compatible ]]; then
@@ -41,7 +41,7 @@ fi
 
 # -p in the shebang is what keeps exported functions and BASH_ENV out, so an
 # ordinary Bash launch with a decoy -p argument is refused before it reads anything.
-for command in omarchy-hw-platform omarchy-hw-aarch64-apple omarchy-hw-apple-silicon omarchy-hw-aarch64-qualcomm omarchy-hw-aarch64-n1x omarchy-hw-n1x omarchy-hw-aarch64-gb10; do
+for command in omarchy-hw-platform omarchy-hw-aarch64-apple omarchy-hw-apple-silicon omarchy-hw-aarch64-qualcomm omarchy-hw-aarch64-n1x omarchy-hw-n1x omarchy-hw-aarch64-gb10 omarchy-hw-aarch64-raspberrypi; do
   if /usr/bin/bash "$ROOT/bin/$command" -p >/dev/null 2>"$test_tmp/error"; then
     fail "$command refuses an ordinary Bash launch"
   fi
@@ -119,6 +119,16 @@ expect_contradiction() {
   fi
   grep -Fq "contradictory platform identity" "$test_tmp/error" || fail "$description explains itself" "$(cat "$test_tmp/error")"
 }
+
+write_tree pi4 proc raspberrypi,4-model-b brcm,bcm2711
+expect pi4 aarch64 aarch64-raspberrypi "Pi 4 Model B gets its tooling package"
+expect_contradiction pi4 x86_64 "Pi 4 identity disagrees with an x86 CPU"
+write_tree pi4-mixed proc raspberrypi,4-model-b qcom,x1e80100
+expect_contradiction pi4-mixed aarch64 "Pi 4 and Qualcomm evidence cannot be combined"
+mkdir -p "$test_tmp/cases/pi4-acpi/sys/class/dmi/id"
+echo 'Raspberry Pi 4 Model B' >"$test_tmp/cases/pi4-acpi/sys/class/dmi/id/product_name"
+expect pi4-acpi aarch64 aarch64-raspberrypi "ACPI-only Pi 4 remains identifiable for the install refusal"
+pass "Pi 4 DT and UEFI identities are recognized without enabling Pi 5"
 
 # Real boards: the M1 Pro and M2 Max test Macs, an M1 Mac mini, and the
 # Snapdragon X laptops Dragon supports.

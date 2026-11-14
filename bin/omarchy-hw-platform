@@ -1,11 +1,12 @@
 #!/bin/bash -p
 
-# omarchy:summary=Print the hardware platform: x86, aarch64, aarch64-apple, aarch64-qualcomm, aarch64-n1x or aarch64-gb10.
+# omarchy:summary=Print the CPU architecture and hardware family.
 
 # Platform names are the CPU architecture, then the hardware family when it
 # needs handling of its own: x86, aarch64 (every ARM machine without one),
 # aarch64-apple (Apple Silicon), aarch64-qualcomm (Snapdragon), aarch64-n1x
-# (NVIDIA N1x) and aarch64-gb10 (NVIDIA GB10 desktops). A later family is
+# (NVIDIA N1x), aarch64-gb10 (NVIDIA GB10 desktops), and
+# aarch64-raspberrypi (Pi 4 Model B). A later family is
 # aarch64-<family>, so "aarch64*" always means ARM (AGENTS.md, Platforms).
 #
 # Device-tree ARM laptops have no DMI, so the board identity is the root node of
@@ -147,7 +148,7 @@ image_platform() {
     generic) platform=x86 ;;
     qualcomm) platform=aarch64-qualcomm ;;
   esac
-  if [[ ! $platform =~ ^(x86|aarch64|aarch64-apple|aarch64-qualcomm|aarch64-n1x|aarch64-gb10)$ ]]; then
+  if [[ ! $platform =~ ^(x86|aarch64|aarch64-apple|aarch64-qualcomm|aarch64-n1x|aarch64-gb10|aarch64-raspberrypi)$ ]]; then
     echo "Error: the image manifest $manifest names no known platform: ${platform:-none}" >&2
     return 1
   fi
@@ -173,18 +174,22 @@ for source in "${sources[@]}"; do
 
   apple=0
   qcom=0
+  raspberrypi=0
   mapfile -d '' -t tokens <"$source"
   for token in "${tokens[@]}"; do
     [[ $token == "apple,"* ]] && apple=1
     [[ $token == "qcom,"* ]] && qcom=1
+    [[ $token == "raspberrypi,4-model-b" ]] && raspberrypi=1
   done
 
-  if (( apple && qcom )); then
-    contradiction "$source names both Apple and Qualcomm hardware"
+  if (( apple + qcom + raspberrypi > 1 )); then
+    contradiction "$source names more than one hardware family"
   elif (( apple )); then
     found=apple
   elif (( qcom )); then
     found=qcom
+  elif (( raspberrypi )); then
+    found=raspberrypi
   else
     found=none
   fi
@@ -195,6 +200,17 @@ for source in "${sources[@]}"; do
   vendor=$found
   vendor_source=$source
 done
+
+# Pi UEFI also boots in ACPI mode, where no device tree reaches Linux. Keep
+# that board identifiable so installation can explain the required DT mode.
+if [[ -n $sys && -r $sys/class/dmi/id/product_name ]]; then
+  read -r product <"$sys/class/dmi/id/product_name" || product=""
+  if [[ $product == "Raspberry Pi 4 Model B" || $product == "Raspberry Pi 4 Model B Rev "* ]]; then
+    [[ -z $vendor || $vendor == "none" || $vendor == "raspberrypi" ]] || contradiction "Pi 4 DMI disagrees with $vendor_source"
+    vendor=raspberrypi
+    vendor_source=$sys/class/dmi/id/product_name
+  fi
+fi
 
 # An NVIDIA N1x: ACPI NVDA0200, or PCI 10de:2e06.
 n1x_source=""
@@ -228,7 +244,7 @@ if [[ -n $n1x_source && -n $gb10_source ]]; then
 fi
 
 if [[ -n $n1x_source ]]; then
-  [[ $vendor != apple && $vendor != qcom ]] ||
+  [[ $vendor != apple && $vendor != qcom && $vendor != raspberrypi ]] ||
     contradiction "$vendor_source names $vendor hardware but $n1x_source is an NVIDIA N1x"
   [[ $machine == "aarch64" ]] || contradiction "$n1x_source is an NVIDIA N1x but the CPU is $machine"
   echo aarch64-n1x
@@ -236,7 +252,7 @@ if [[ -n $n1x_source ]]; then
 fi
 
 if [[ -n $gb10_source ]]; then
-  [[ $vendor != apple && $vendor != qcom ]] ||
+  [[ $vendor != apple && $vendor != qcom && $vendor != raspberrypi ]] ||
     contradiction "$vendor_source names $vendor hardware but $gb10_source is an NVIDIA GB10"
   [[ $machine == "aarch64" ]] || contradiction "$gb10_source is an NVIDIA GB10 but the CPU is $machine"
   echo aarch64-gb10
@@ -244,12 +260,14 @@ if [[ -n $gb10_source ]]; then
 fi
 
 case $vendor in
-  apple | qcom)
+  apple | qcom | raspberrypi)
     [[ $machine == "aarch64" ]] || contradiction "$vendor_source names $vendor hardware but the CPU is $machine"
     if [[ $vendor == "apple" ]]; then
       echo aarch64-apple
-    else
+    elif [[ $vendor == "qcom" ]]; then
       echo aarch64-qualcomm
+    else
+      echo aarch64-raspberrypi
     fi
     ;;
   *)

@@ -120,3 +120,29 @@ run_update aarch64-apple "$tmp/older"
 grep -q 'which omarchy-mac-boot 20260921-10 does not provide; update omarchy-mac-boot' "$tmp/err" ||
   fail "apple: a boot package without update-verify is named with its version" "$(cat "$tmp/err")"
 pass "apple: a boot package without update-verify fails the update and asks for its update"
+
+fake_platform "$tmp/aarch64-raspberrypi" aarch64-raspberrypi
+mkdir -p "$tmp/pi/usr/lib/omarchy/pi"
+for operation in update-prepare update-verify; do
+  printf '#!/bin/bash\necho %s >>%q\nexit "$(cat %q)"\n' "$operation" "$tmp/boot-ran" "$tmp/$operation-status" \
+    >"$tmp/pi/usr/lib/omarchy/pi/$operation"
+  chmod 755 "$tmp/pi/usr/lib/omarchy/pi/$operation"
+  echo 0 >"$tmp/$operation-status"
+done
+chmod -R go-w "$tmp/pi"
+run_update aarch64-raspberrypi "$tmp/pi"
+(( status == 0 )) && reboot_offered || fail "Pi: a verified update completes"
+prepare=$(at 'sudo omarchy-lifecycle-dispatch update-prepare') packages=$(at 'step:omarchy-update-system-pkgs')
+verify=$(at 'sudo omarchy-lifecycle-dispatch update-verify')
+(( prepare < packages && packages < verify )) || fail "Pi: checks surround the package changes"
+echo 1 >"$tmp/update-prepare-status"
+run_update aarch64-raspberrypi "$tmp/pi"
+(( status != 0 )) && ! reboot_offered || fail "Pi: a failed preflight stops the update"
+! grep -q 'step:omarchy-update-system-pkgs' "$SUDO_TEST_LOG" || fail "Pi: a failed preflight changes no packages"
+echo 0 >"$tmp/update-prepare-status"
+echo 1 >"$tmp/update-verify-status"
+run_update aarch64-raspberrypi "$tmp/pi"
+(( status == 1 )) && ! reboot_offered || fail "Pi: failed boot verification offers no reboot"
+run_update aarch64-raspberrypi "$tmp/none"
+(( status != 0 )) && ! reboot_offered || fail "Pi: missing tooling cannot use the legacy warning path"
+pass "Pi preflight stops package changes, and boot verification gates the reboot offer"
