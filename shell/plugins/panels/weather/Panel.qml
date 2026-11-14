@@ -557,6 +557,7 @@ Panel {
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         interactive: contentHeight > height
+        WheelScroll { flickable: weatherScroll }
 
         Column {
           id: weatherColumn

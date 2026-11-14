@@ -344,8 +344,14 @@ Item {
           anchors.margins: Style.space(18)
           clip: true
           ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+          // WheelScroll joins the content, and ScrollView only measures content
+          // that is a single item, so the size is stated.
+          contentWidth: availableWidth
+          contentHeight: galleryColumn.implicitHeight
+          WheelScroll { flickable: scrollArea.contentItem }
 
         Column {
+          id: galleryColumn
           width: scrollArea.availableWidth
           spacing: Style.space(22)
 

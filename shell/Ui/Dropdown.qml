@@ -197,6 +197,7 @@ Item {
           boundsBehavior: Flickable.StopAtBounds
           model: root.options
           currentIndex: -1
+          WheelScroll { flickable: optionList }
 
           function indexOfValue(v) {
             for (var i = 0; i < root.options.length; i++)

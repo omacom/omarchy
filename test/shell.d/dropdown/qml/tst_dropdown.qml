@@ -127,5 +127,29 @@ Item {
         }, 2000, "keyboard selection keeps the last row visible")
       }
     }
+
+    // Flickable drops what one wheel event still had to travel when the next
+    // arrives, which a high-resolution wheel does several times per notch.
+    function test_wheel_distance_data() {
+      return [
+        {tag: "high-resolution notch", deltas: [30, 15, 15, 15, 15, 15, 15], notches: 1},
+        {tag: "quick notches", deltas: [120, 120, 120], notches: 3}
+      ]
+    }
+
+    function test_wheel_distance(data) {
+      Commons.Color.shellValues = {}
+      var options = []
+      for (var i = 0; i < 40; i++) options.push("Option " + (i + 1))
+      dropdown.options = options
+      dropdown.value = options[0]
+      dropdown.open()
+      tryCompare(dropdown, "popupOpen", true)
+      var list = findPopup(dropdown).contentItem
+      tryCompare(list, "count", options.length)
+      for (var d = 0; d < data.deltas.length; d++) mouseWheel(list, 20, list.height / 2, 0, -data.deltas[d])
+      tryCompare(list, "moving", false)
+      compare(list.contentY, data.notches * Application.styleHints.wheelScrollLines * 24)
+    }
   }
 }

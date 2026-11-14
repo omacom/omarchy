@@ -518,6 +518,7 @@ Item {
               model: root.filtered
               currentIndex: -1
               keyNavigationEnabled: false
+              WheelScroll { flickable: resultList }
 
               function toggleCurrent() {
                 if (currentIndex < 0 || currentIndex >= root.filtered.length) return

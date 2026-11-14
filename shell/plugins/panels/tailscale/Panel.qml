@@ -604,6 +604,7 @@ Panel {
         flickableDirection: Flickable.VerticalFlick
         interactive: contentHeight > height
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        WheelScroll { flickable: panelFlick }
 
         Column {
           id: column
@@ -959,6 +960,7 @@ Panel {
                 policy: ScrollBar.AsNeeded
                 onPressedChanged: if (!pressed) peerList.rememberPosition()
               }
+              WheelScroll { flickable: peerList }
 
               delegate: PeerRow {
                 required property var modelData

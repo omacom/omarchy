@@ -469,6 +469,7 @@ Item {
                 clip: true
                 spacing: Style.space(4)
                 boundsBehavior: Flickable.StopAtBounds
+                WheelScroll { flickable: resultList }
 
                 delegate: Rectangle {
                   id: row

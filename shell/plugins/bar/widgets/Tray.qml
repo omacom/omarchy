@@ -699,6 +699,7 @@ BarWidget {
         interactive: contentHeight > height
 
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        WheelScroll { flickable: trayMenuFlick }
 
         Column {
           id: trayMenuColumn
