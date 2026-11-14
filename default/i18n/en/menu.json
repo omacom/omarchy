@@ -200,6 +200,15 @@
   "appearance.windows.corners.rounded": {
     "label": "Rounded Corners"
   },
+  "appearance.windows.focus": {
+    "label": "Window Focus"
+  },
+  "appearance.windows.focus.theme": {
+    "label": "Theme Borders"
+  },
+  "appearance.windows.focus.dim": {
+    "label": "Dim Inactive"
+  },
   "appearance.windows.transparency": {
     "label": "Window Opacity"
   },
