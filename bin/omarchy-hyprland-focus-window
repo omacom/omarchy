@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# omarchy:summary=Focus a window, switching to its monitor and workspace first
+# omarchy:args=<window-address>
+# omarchy:hidden=true
+
+address=${1:-}
+if [[ -z $address ]]; then
+  echo "Usage: omarchy-hyprland-focus-window <window-address>" >&2
+  exit 1
+fi
+
+# Focusing a window alone is applied on the focused monitor, so a window that
+# lives on another one is never brought forward. Reach its monitor and
+# workspace first, in the order monitor-workspaces.lua uses.
+placement=$(
+  hyprctl clients -j 2>/dev/null |
+    jq -r --arg address "$address" '
+      first(.[] | select(.address == $address)) // {}
+      | "\(.monitor // "")\t\(.workspace.name // (.workspace.id // "" | tostring))"' 2>/dev/null
+)
+
+monitor_name=""
+workspace=""
+if [[ -n $placement ]]; then
+  monitor_id=${placement%%$'\t'*}
+  workspace=${placement#*$'\t'}
+  # Clients name their monitor by id; the dispatcher takes the connector name.
+  if [[ $monitor_id =~ ^[0-9]+$ ]]; then
+    monitor_name=$(
+      hyprctl monitors -j 2>/dev/null |
+        jq -r --argjson id "$monitor_id" 'first(.[] | select(.id == $id)).name // ""' 2>/dev/null
+    )
+  fi
+fi
+
+# A workspace can be named anything, quotes and backslashes included, and the
+# name goes into a quoted Lua string.
+lua_string() {
+  local value=$1
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  printf '%s' "$value"
+}
+
+if [[ -n $monitor_name ]]; then
+  hyprctl dispatch "hl.dsp.focus({ monitor = \"$(lua_string "$monitor_name")\" })" >/dev/null 2>&1
+fi
+
+if [[ -n $workspace ]]; then
+  hyprctl dispatch "hl.dsp.focus({ workspace = \"$(lua_string "$workspace")\" })" >/dev/null 2>&1
+fi
+
+hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 ||
+  hyprctl dispatch focuswindow "address:$address" >/dev/null 2>&1
