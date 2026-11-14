@@ -23,6 +23,8 @@ ShellRoot {
   property var shown: null
   // The slot the pointer is holding.
   property var held: null
+  // The empty bar area, which double-clicks and moves the bar.
+  property var gesture: null
   property string counts: ""
   property var steps: []
   property int step: 0
@@ -56,6 +58,16 @@ ShellRoot {
 
   function slotOf(name, region) {
     return slotsOf(name).filter(function(slot) { return slot.region === region })[0] || null
+  }
+
+  function findItem(item, matches) {
+    if (!item) return null
+    if (matches(item)) return item
+    for (var i = 0; i < item.children.length; i++) {
+      var found = findItem(item.children[i], matches)
+      if (found) return found
+    }
+    return null
   }
 
   function along(item) {
@@ -171,6 +183,10 @@ ShellRoot {
     when: false
   }
 
+  TestEvent {
+    id: events
+  }
+
   FileView {
     id: result
     path: root.resultPath
@@ -254,6 +270,33 @@ ShellRoot {
       [function() {
         var inner = root.slotsOf("test.inner")[0]
         root.check(inner && inner.activeItem.fixedEdge === "start", "moved to the left section, the tray has them grow from its start: " + (inner ? inner.activeItem.fixedEdge : "none shown"))
+
+        // A double-click on the empty bar cycles its background, which can
+        // warp the cursor while the second press is still down. The pointer
+        // jumping to the left edge before that release moves no bar.
+        root.gesture = root.findItem(root.surface.contentItem, function(item) {
+          return "suppressClick" in item && "pressedX" in item && !("heldTarget" in item)
+        })
+        root.check(!!root.gesture, "the bar has an empty area to double-click")
+        if (!root.gesture) return
+        // Between the left section and the clock, clear of any widget.
+        var x = root.gesture.width * 0.3
+        var y = root.gesture.height / 2
+        tc.mousePress(root.gesture, x, y)
+        tc.mouseRelease(root.gesture, x, y)
+        tc.mousePress(root.gesture, x, y)
+        // TestCase sends a double-click only with its release; Qt sends it
+        // with the second press still down.
+        events.mouseDoubleClick(root.gesture, x, y, Qt.LeftButton, Qt.NoModifier, -1)
+        var edge = root.gesture.mapFromItem(null, 4, root.surface.screen.height / 2)
+        tc.mouseMove(root.gesture, edge.x, edge.y, -1, Qt.LeftButton)
+      }, 300],
+      [function() {
+        var edge = root.gesture.mapFromItem(null, 4, root.surface.screen.height / 2)
+        tc.mouseRelease(root.gesture, edge.x, edge.y)
+      }, 300],
+      [function() {
+        root.check(host.config.bar.position === "top", "a double-click's pointer jumping before its release leaves the bar where it was: " + host.config.bar.position)
       }, 100]
     ]
     stepper.start()

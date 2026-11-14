@@ -2403,6 +2403,10 @@ Item {
 
     property bool dragging: false
     property bool suppressClick: false
+    // The second press of a double-click that cycled the background. Until its
+    // release it moves no bar: cycling the glass can warp the cursor (Hyprland
+    // re-focusing a window), which would read as a drag to the nearest edge.
+    property bool cycledOnPress: false
     property real pressedX: 0
     property real pressedY: 0
     readonly property real dragThreshold: Style.space(4)
@@ -2412,7 +2416,7 @@ Item {
     pressAndHoldInterval: 200
 
     function startDrag(x, y) {
-      if (dragging) return
+      if (dragging || cycledOnPress) return
       dragging = true
       root.beginBarMove(root.targetWindow(gestureArea))
       var scenePoint = gestureArea.mapToItem(null, x, y)
@@ -2422,6 +2426,7 @@ Item {
     onPressed: function(mouse) {
       dragging = false
       suppressClick = false
+      cycledOnPress = false
       pressedX = mouse.x
       pressedY = mouse.y
     }
@@ -2448,6 +2453,7 @@ Item {
     }
 
     onReleased: function(mouse) {
+      cycledOnPress = false
       if (!dragging) return
       dragging = false
       suppressClick = true
@@ -2458,6 +2464,7 @@ Item {
     onCanceled: {
       dragging = false
       suppressClick = false
+      cycledOnPress = false
       root.clearBarMove()
     }
 
@@ -2474,6 +2481,7 @@ Item {
         return
       }
       if (mouse.button === Qt.LeftButton) {
+        cycledOnPress = true
         root.cycleBackground()
         mouse.accepted = true
       }
