@@ -89,6 +89,24 @@ hl.config({
   },
 })
 
+-- Caps Lock raises no Hyprland event, so tell the bar's keyboard indicator to
+-- read the lock again whenever the key is let go (see shell/Commons/CapsLock.qml).
+-- The bind ignores modifiers, since Shift + Caps Lock is the compose key, never
+-- takes the key from apps, and has no description, so the keybindings menu
+-- leaves it out. A toggle it missed would stay wrong until something else asked,
+-- so it also fires on the lock screen, under apps that inhibit shortcuts, and in
+-- every submap. It lives here rather than with the default bindings because
+-- it keeps the bar honest instead of being a shortcut someone would turn off.
+o.bind("Caps_Lock", nil, hl.dsp.global("omarchy:caps-lock"), {
+  release = true,
+  transparent = true,
+  ignore_mods = true,
+  non_consuming = true,
+  locked = true,
+  dont_inhibit = true,
+  submap_universal = true,
+})
+
 -- Scroll nicely in the terminal. TUIs launched under their own app-id
 -- (org.omarchy.agent in the console, org.omarchy.btop, TUI.float, ...) no longer
 -- carry the terminal's class, but their initial title is still the terminal's
