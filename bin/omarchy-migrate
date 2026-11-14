@@ -83,6 +83,16 @@ wait_for_pacman_transaction() {
 wait_for_pacman_transaction
 
 mkdir -p "$STATE_DIR"
+
+# The login notification and omarchy-update can each start a run. Let one
+# finish before another checks the markers, or both run the same migration
+# at once. Migrations don't inherit the lock, so a program one starts can't
+# keep it held.
+exec 9>"$STATE_DIR/.lock"
+if ! flock -n 9; then
+  echo "Waiting for another Omarchy migration run to finish..."
+  flock 9
+fi
 [[ -d $MIGRATIONS_DIR ]] || exit 0
 
 while IFS=$'\t' read -r name file marker <&3; do
@@ -90,7 +100,7 @@ while IFS=$'\t' read -r name file marker <&3; do
 
   if [[ ! -f $marker ]]; then
     echo -e "\e[32m\nRunning migration (${name%.sh})\e[0m"
-    OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&-
+    OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail "$file" 3<&- 9>&-
     mkdir -p "$(dirname "$marker")"
     touch "$marker"
   fi
