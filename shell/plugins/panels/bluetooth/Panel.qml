@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Bluetooth
 import Quickshell.Services.Pipewire
+import Quickshell.Services.UPower
 import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
@@ -919,6 +920,8 @@ Panel {
       if (action === "disconnecting" || devState === 2) return Commons.I18n.t("bluetooth.disconnecting")
       if (isConnected) {
         if (dev.batteryAvailable) return Commons.I18n.formatNumber(Math.round(dev.battery * 100)) + "%"
+        var upowerBattery = Model.upowerBatteryForAddress(UPower.devices ? UPower.devices.values : [], dev.address)
+        if (!isNaN(upowerBattery)) return Commons.I18n.formatNumber(Math.round(upowerBattery * 100)) + "%"
         return sectionName === "connected" ? "" : Commons.I18n.t("bluetooth.connectedStatus")
       }
       if (action === "connecting" || devState === 3 || dev.pairing === true) return Commons.I18n.t("bluetooth.connecting")
