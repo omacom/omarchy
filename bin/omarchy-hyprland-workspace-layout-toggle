@@ -20,17 +20,36 @@ if [[ $DIRECTION != "next" && $DIRECTION != "back" ]]; then
   exit 1
 fi
 
-ACTIVE_WORKSPACE=$(hyprctl activeworkspace -j | jq -r '.id')
+# A special workspace shown on the focused monitor is what the user is looking
+# at, but hyprctl activeworkspace only reports the regular workspace underneath
+# it, so a layout toggled with the scratchpad open would reconfigure a workspace
+# the user cannot see. hyprctl monitors names the special one instead.
+ACTIVE_WORKSPACE=$(hyprctl monitors -j 2>/dev/null | jq -r 'first(.[] | select(.focused == true) | .specialWorkspace.name | select(length > 0)) // empty' 2>/dev/null) || true
+if [[ -z $ACTIVE_WORKSPACE ]]; then
+  ACTIVE_WORKSPACE=$(hyprctl activeworkspace -j | jq -r '.id')
+fi
 # Named workspaces report a negative id, and Hyprland reads a leading "-" as a
 # selector relative to the current workspace: targeting one lands on workspace 1
-# and reconfigures that instead.
-[[ $ACTIVE_WORKSPACE =~ ^[0-9]+$ ]] || exit 1
+# and reconfigures that instead. Special workspaces are reached by their
+# "special:name" reference instead. Only letters, digits, "_" and "-" are safe
+# in that name: it goes into a Lua string here, and the saved file is loaded by
+# require, which reads a dot as a directory separator. Any other name is left
+# alone like the named ones.
+[[ $ACTIVE_WORKSPACE =~ ^[0-9]+$ || $ACTIVE_WORKSPACE =~ ^special:[A-Za-z0-9_-]+$ ]] || exit 1
 MODES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/workspace-layouts"
 MODE_FILE="$MODES_DIR/$ACTIVE_WORKSPACE.lua"
 
-CURRENT_MODE=$(omarchy-hyprland-workspace-layout-current)
+CURRENT_MODE=$(omarchy-hyprland-workspace-layout-current "$ACTIVE_WORKSPACE")
 
-if [[ $DIRECTION == "back" ]]; then
+if [[ $ACTIVE_WORKSPACE == special:* ]]; then
+  # Floating is Omarchy's own machinery layered over regular workspaces, and it
+  # deliberately leaves the windows of special ones alone, so a special
+  # workspace only alternates between the two tiled layouts.
+  case "$CURRENT_MODE" in
+    scrolling) NEW_MODE=dwindle ;;
+    *) NEW_MODE=scrolling ;;
+  esac
+elif [[ $DIRECTION == "back" ]]; then
   case "$CURRENT_MODE" in
     dwindle) NEW_MODE=floating ;;
     floating) NEW_MODE=scrolling ;;
