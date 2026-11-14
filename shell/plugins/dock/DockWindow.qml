@@ -47,6 +47,36 @@ PanelWindow {
   readonly property bool tucked: autohide && !(revealed || menuOpen || dragging || insertIndex >= 0)
   readonly property bool contentShown: shown && !tucked
 
+  // Preserve the model and all window delegates; only launcher slots fold away.
+  readonly property int pinnedLauncherCount: dock ? dock.items.filter(function(item) {
+    return item.pinned && item.windows.length === 0
+  }).length : 0
+  readonly property bool collapsePins: !!dock && dock.collapsePinned && pinnedLauncherCount > 0
+  property bool pinsExpanded: false
+  readonly property bool pinsHeldOpen: pinsExpanded || dragging || insertIndex >= 0
+  property bool pinPressActive: false
+  property real pressedPinsProgress: 0
+  property real pinsProgress: pinPressActive ? pressedPinsProgress : (!collapsePins || pinsHeldOpen ? 1 : 0)
+  Behavior on pinsProgress {
+    enabled: window.shown && !window.pinPressActive
+    NumberAnimation {
+      id: pinsMotion
+      duration: Style.duration(window.pinsHeldOpen ? 250 : 160)
+      easing.type: Easing.Bezier
+      easing.bezierCurve: Style.easeOut
+    }
+  }
+  Timer {
+    id: collapseTimer
+    interval: 175
+    onTriggered: {
+      if (!bodyHover.hovered && !window.dragging && !window.menuOpen && window.insertIndex < 0)
+        window.pinsExpanded = false
+    }
+  }
+  onContentShownChanged: if (!contentShown) pinsExpanded = false
+  onCollapsePinsChanged: pinsExpanded = false
+
   readonly property int gap: Style.spacing.xs
   readonly property int iconSize: Math.round(36 * Style.fontScale)
   // Each app has a square slot with its icon in the middle, and the slots run
@@ -117,20 +147,40 @@ PanelWindow {
 
   function endExternalDrag() {
     window.insertIndex = -1
+    collapseTimer.restart()
     if (window.autohide) hideTimer.restart()
   }
 
   // The slot a point along the dock falls before, counting from the first app.
   function slotIndexAt(point) {
-    var along = window.vertical ? point.y : point.x
-    var first = window.slotSize
-    var count = window.dock ? window.dock.itemModel.count : 0
-    return Math.max(0, Math.min(count, Math.round((along - first) / window.slotSize)))
+    var at = body.mapToItem(slots, point.x, point.y)
+    var along = window.vertical ? at.y : at.x
+    for (var i = 0; i < appRepeater.count; i++) {
+      var slot = appRepeater.itemAt(i)
+      if (slot && slot.reveal > 0.95) {
+        var center = window.vertical ? slot.y + slot.height / 2 : slot.x + slot.width / 2
+        if (along < center) return i
+      }
+    }
+    return appRepeater.count
+  }
+
+  function dragDestination(index, delta) {
+    var geometry = []
+    for (var i = 0; i < appRepeater.count; i++) {
+      var slot = appRepeater.itemAt(i)
+      if (slot) geometry.push({ index: i, enabled: slot.reveal > 0.95,
+        center: (window.vertical ? slot.y : slot.x) + window.slotSize / 2 })
+    }
+    return DockModel.nearestDropIndex(index, delta, geometry)
   }
   property var menuItem: null
   property Item menuSlot: null
   // The apps button's menu: where the dock sits and whether it hides.
   property bool settingsMenu: false
+
+  onMenuOpenChanged: if (!menuOpen) collapseTimer.restart()
+  onDraggingChanged: if (!dragging) collapseTimer.restart()
 
   onWorkspaceIdChanged: if (dock) dock.readMode(workspaceId)
   onShownChanged: {
@@ -280,10 +330,10 @@ PanelWindow {
 
     x: window.position === "left" ? window.gap - tuck
       : window.position === "right" ? window.width - width - window.gap + tuck
-      : Math.round((window.width - width) / 2)
+      : (window.width - width) / 2
     y: window.position === "top" ? window.gap - tuck
       : window.position === "bottom" ? window.height - height - window.gap + tuck
-      : Math.round((window.height - height) / 2)
+      : (window.height - height) / 2
     // Switching between tiled and floating workspaces shows and hides the dock
     // at once, with nothing to watch in between. Hidden by opacity rather than
     // visibility, so the icons keep their textures and are drawn on the first
@@ -292,7 +342,13 @@ PanelWindow {
 
     HoverHandler {
       id: bodyHover
-      onHoveredChanged: if (!hovered && window.autohide) hideTimer.restart()
+      onHoveredChanged: {
+        if (hovered) collapseTimer.stop()
+        else {
+          collapseTimer.restart()
+          if (window.autohide) hideTimer.restart()
+        }
+      }
       // Only a real move clears it: the release itself reports the pointer too.
       onPointChanged: {
         if (!window.hoverStale || window.dragging) return
@@ -312,7 +368,26 @@ PanelWindow {
         id: appRepeater
         model: window.dock ? window.dock.itemModel : null
 
-        delegate: AppSlot {}
+        delegate: Item {
+          id: slotContainer
+          z: window.dragIndex === index ? 1 : 0
+          required property int index
+          required property string key
+          readonly property var entry: window.dock ? window.dock.itemFor(key) : null
+          readonly property bool folding: !!entry && entry.pinned && entry.windows.length === 0
+          readonly property real reveal: folding ? window.pinsProgress : 1
+          visible: reveal > 0
+          width: window.slotSize * (window.vertical ? 1 : reveal)
+          height: window.slotSize * (window.vertical ? reveal : 1)
+          opacity: reveal
+          // Clip partially revealed pins without shrinking their artwork or hit targets.
+          clip: folding && reveal < 1 && window.dragIndex !== index
+          AppSlot {
+            enabled: slotContainer.reveal > 0.95
+            index: slotContainer.index
+            key: slotContainer.key
+          }
+        }
       }
     }
   }
@@ -340,6 +415,8 @@ PanelWindow {
 
   component AppsSlot: Slot {
     id: appsSlot
+
+    mouse.onEntered: if (window.collapsePins && !window.menuOpen) window.pinsExpanded = true
 
     property real displayedShift: window.insertIndex >= 0 ? -window.slotSize / 2 : 0
 
@@ -440,7 +517,11 @@ PanelWindow {
 
     mouse.onPressed: function(event) {
       appSlot.dragged = false
-      if (event.button === Qt.LeftButton) appSlot.pressPoint = appSlot.bodyPoint(event)
+      if (event.button === Qt.LeftButton) {
+        window.pressedPinsProgress = window.pinsProgress
+        window.pinPressActive = true
+        appSlot.pressPoint = appSlot.bodyPoint(event)
+      }
     }
 
     mouse.onPositionChanged: function(event) {
@@ -460,20 +541,24 @@ PanelWindow {
       }
       if (!appSlot.lifted) return
       window.dragOffset = delta
-      window.dropIndex = DockModel.dropIndex(appSlot.index, delta, window.slotSize, appRepeater.count)
+      window.dropIndex = window.dragDestination(appSlot.index, delta)
     }
 
     mouse.onReleased: function(event) {
-      if (!appSlot.lifted) return
+      if (!appSlot.lifted) { window.pinPressActive = false; return }
       window.dropPoint = appSlot.mapToItem(body, event.x, event.y)
       var from = window.dragIndex
       var to = window.dropIndex
       appSlot.dragged = true
       window.endDrag()
       window.dock.moveItem(from, to)
+      window.pinPressActive = false
     }
 
-    mouse.onCanceled: if (appSlot.lifted) window.endDrag()
+    mouse.onCanceled: {
+      if (appSlot.lifted) window.endDrag()
+      window.pinPressActive = false
+    }
 
     mouse.onClicked: function(event) {
       // A drag ends in a release over the app, which is not a click on it.

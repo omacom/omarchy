@@ -190,6 +190,24 @@ function pickWindow(windows, workspaceId) {
 }
 
 
+// Land on an actual visible slot, not a model index hidden by folded pins.
+function nearestDropIndex(from, delta, slots) {
+  var source = slots.filter(function(slot) { return slot.index === from })[0]
+  if (!source) return from
+  var target = source.center + delta
+  var result = from
+  var distance = Infinity
+  for (var i = 0; i < slots.length; i++) {
+    var slot = slots[i]
+    if (!slot.enabled) continue
+    if (Math.abs(target - slot.center) < distance) {
+      result = slot.index
+      distance = Math.abs(target - slot.center)
+    }
+  }
+  return result
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     normalizePosition: normalizePosition,
@@ -204,6 +222,7 @@ if (typeof module !== "undefined") {
     orderItems: orderItems,
     orderWithKeyAt: orderWithKeyAt,
     dropIndex: dropIndex,
+    nearestDropIndex: nearestDropIndex,
     pinsInOrder: pinsInOrder,
     pickWindow: pickWindow
   }

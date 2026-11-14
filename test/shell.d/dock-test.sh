@@ -116,6 +116,18 @@ assertEqual(dock.pickWindow(foot, 3), 1, 'dock restores a minimized window befor
 assertEqual(dock.pickWindow(foot.map((w, i) => Object.assign({}, w, { activated: i === 2 })), 4), 1, 'dock cycles from the window here to the minimized one')
 assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app that is not running')
 
+const folded = [
+  { index: 0, center: 24, enabled: false },
+  { index: 1, center: 24, enabled: false },
+  { index: 2, center: 24, enabled: true },
+  { index: 3, center: 72, enabled: true }
+]
+assertEqual(dock.nearestDropIndex(2, 48, folded), 3, 'dragging beside collapsed pins lands on the visible next app')
+assertEqual(dock.nearestDropIndex(2, -500, folded), 2, 'dragging across hidden pins cannot save an invisible landing slot')
+assertEqual(dock.nearestDropIndex(3, -48, folded), 2, 'backward dragging uses actual visible slot centers')
+const expanded = folded.map((slot, i) => ({ index: i, center: i * 48 + 24, enabled: true }))
+assertEqual(dock.nearestDropIndex(3, -144, expanded), 0, 'expanded launchers retain normal full-row drag destinations')
+
 JS
 
 home="$TMPDIR/home"
@@ -165,6 +177,15 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
   fail "dock auto-hide takes only on, off, or toggle"
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
+
+[[ $(omarchy_dock collapse-pinned) == "off" ]] || fail "pin collapse starts off"
+omarchy_dock collapse-pinned toggle >/dev/null
+[[ $(omarchy_dock collapse-pinned) == "on" ]] || fail "pin collapse toggles on"
+omarchy_dock collapse-pinned off >/dev/null
+[[ $(omarchy_dock collapse-pinned) == "off" ]] || fail "pin collapse turns off"
+if omarchy_dock collapse-pinned invalid 2>/dev/null; then fail "invalid collapse value accepted"; fi
+if omarchy_dock collapse-pinned on off 2>/dev/null; then fail "extra collapse argument accepted"; fi
+pass "pin collapse validates and persists independently"
 
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and

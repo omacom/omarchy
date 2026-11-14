@@ -149,6 +149,7 @@
   "appearance.dock.position.bottom": {"icon":"󰁅","label":"Bottom Dock","checked":"[[ $(omarchy-dock position) == \"bottom\" ]]","action":"omarchy-dock position bottom"},
   "appearance.dock.position.left": {"icon":"󰁍","label":"Left Dock","checked":"[[ $(omarchy-dock position) == \"left\" ]]","action":"omarchy-dock position left"},
   "appearance.dock.position.right": {"icon":"󰁔","label":"Right Dock","checked":"[[ $(omarchy-dock position) == \"right\" ]]","action":"omarchy-dock position right"},
+  "appearance.dock.collapse-pinned": {"icon":"󰓩","label":"Collapse Pinned","checked":"[[ $(omarchy-dock collapse-pinned) == \"on\" ]]","action":"omarchy-dock collapse-pinned toggle"},
   "appearance.workspace-layout": {"icon":"󱂬","label":"Workspace Layout","title":"Default Workspace Layout"},
   "appearance.workspace-layout.dwindle": {"icon":"󱓻","label":"Tiling","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"dwindle\" ]]","action":"omarchy-hyprland-workspace-layout-default dwindle"},
   "appearance.workspace-layout.scrolling": {"icon":"󰝥","label":"Scrolling","checked":"[[ $(omarchy-hyprland-workspace-layout-default) == \"scrolling\" ]]","action":"omarchy-hyprland-workspace-layout-default scrolling"},
