@@ -8,10 +8,20 @@
 # agents panel knows which models fit. Podman, which runs them, only comes when
 # a model is first set up, from the terminal that setup runs in. An NVIDIA GPU
 # reaches the containers through the CDI spec nvidia-container-toolkit writes
-# on install and again at every boot.
+# on install and again at every boot. Asking for help sets nothing up.
+wants_help() {
+  local arg
+
+  for arg in "$@"; do
+    [[ $arg == "-h" || $arg == "--help" ]] && return 0
+  done
+
+  return 1
+}
+
 run=(omarchy-local-ai "$@")
 
-if [[ ${1:-} == "use" ]]; then
+if [[ ${1:-} == "use" ]] && ! wants_help "${@:2}"; then
   packages=(podman crun)
   if omarchy-hw-nvidia; then
     packages+=(nvidia-container-toolkit)
