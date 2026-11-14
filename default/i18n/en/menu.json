@@ -324,6 +324,12 @@
   "trigger.toggle.crash-capture-off": {
     "label": "Crash Capture Off"
   },
+  "trigger.toggle.keyboard-backlight-auto-on": {
+    "label": "Auto Keyboard Backlight On"
+  },
+  "trigger.toggle.keyboard-backlight-auto-off": {
+    "label": "Auto Keyboard Backlight Off"
+  },
   "trigger.emoji": {
     "label": "Emoji"
   },
