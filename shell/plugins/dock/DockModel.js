@@ -94,7 +94,17 @@ function standInKey(key, categories, pinned) {
 // that are not pinned follow in the order their first window appeared. Each
 // window is { key, hasEntry, workspaceId, ... } where key is the desktop id of
 // the entry that claims it.
-function buildItems(pinned, windows) {
+function buildItems(pinned, windows, instances) {
+  if (instances) {
+    var separate = (pinned || []).filter(Boolean).map(function(key) {
+      return { key: key, appKey: key, pinned: true, windows: [] }
+    })
+    for (var w = 0; w < (windows || []).length; w++) {
+      var win = windows[w]
+      if (isDockWindow(win)) separate.push({ key: win.key + "::window::" + win.address, appKey: win.key, pinned: false, appPinned: (pinned || []).indexOf(win.key) >= 0, windows: [win] })
+    }
+    return separate
+  }
   var items = []
   var byKey = {}
 
@@ -122,7 +132,7 @@ function buildItems(pinned, windows) {
 // session: an app keeps its slot while it stays in the dock, and an app that
 // joins goes at the end. Items the order does not know yet follow in the order
 // buildItems gave them.
-function orderItems(items, order) {
+function orderItems(items, order, instances) {
   var byKey = {}
   for (var i = 0; i < (items || []).length; i++) byKey[items[i].key] = items[i]
   var result = []
@@ -136,6 +146,20 @@ function orderItems(items, order) {
   }
   for (var k = 0; k < (items || []).length; k++) {
     if (!placed[items[k].key]) result.push(items[k])
+  }
+  if (instances) {
+    var launchers = result.filter(function(item) { return item.windows.length === 0 })
+    var windows = result.filter(function(item) { return item.windows.length > 0 })
+    // Sort live windows into the non-minimized slots, preserving the latter.
+    var rank = {}
+    for (var w = 0; w < windows.length; w++) rank[windows[w].key] = w
+    var live = windows.filter(function(item) { return !item.windows[0].minimized })
+    live.sort(function(a, b) {
+      return a.windows[0].workspaceId - b.windows[0].workspaceId || rank[a.key] - rank[b.key]
+    })
+    var next = 0
+    windows = windows.map(function(item) { return item.windows[0].minimized ? item : live[next++] })
+    return launchers.concat(windows)
   }
   return result
 }
