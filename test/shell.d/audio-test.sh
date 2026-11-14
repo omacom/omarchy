@@ -146,4 +146,144 @@ const panel = read('shell/plugins/panels/audio/Panel.qml')
   finished(state, 'alsa_output.speakers\n')
   assertEqual(state.volumeSinkName, 'alsa_output.usb-headset', 'a script read that predates a switch to hardware cannot overwrite it')
 }
+const mediaPlayer = {
+  trackTitle: 'Moonshot',
+  trackArtist: 'The Murder Capital',
+  isPlaying: true,
+  canGoPrevious: true,
+  canTogglePlaying: true,
+  canGoNext: true
+}
+const shownFresh = (player) => audio.mediaPresentation(audio.emptyMediaCache(), audio.mediaLiveState(player, 'p'), ['p'])
+assert(shownFresh(mediaPlayer).visible, 'audio shows media with live metadata')
+assert(shownFresh({ trackTitle: 'Title only', isPlaying: false }).visible, 'audio shows title-only paused media')
+assert(shownFresh({ trackArtist: 'Artist only', isPlaying: false }).visible, 'audio shows artist-only paused media')
+assert(!shownFresh({ isPlaying: false }).visible, 'audio hides blank media without cache')
+assert(!shownFresh(null).visible, 'audio hides media without a player')
+
+// The media handoff on a fake clock: the panel's own step function, with its
+// two timers fired the way Qt's are (restart reschedules, stop cancels).
+function mediaHandoff() {
+  const delays = audio.mediaHandoffDelays()
+  const sim = { now: 0, cache: audio.emptyMediaCache(), player: null, open: [], due: { commit: null, clear: null } }
+  const live = () => audio.mediaLiveState(sim.player, sim.player && sim.player.key)
+  const step = (event) => {
+    const result = audio.mediaHandoffStep(sim.cache, live(), event)
+    for (const [timer, command] of [['commit', result.commitTimer], ['clear', result.clearTimer]]) {
+      if (command === 'restart') sim.due[timer] = sim.now + delays[timer]
+      else if (command === 'stop') sim.due[timer] = null
+    }
+    sim.cache = result.cache
+  }
+  const handoff = {
+    play(player) {
+      sim.player = player
+      if (player && !sim.open.includes(player.key)) sim.open.push(player.key)
+      step('sync')
+      return handoff
+    },
+    close() {
+      sim.open = sim.open.filter(key => !sim.player || key !== sim.player.key)
+      sim.player = null
+      step('sync')
+      return handoff
+    },
+    metadata(fields) { Object.assign(sim.player, fields); step('sync'); return handoff },
+    playback(fields) { Object.assign(sim.player, fields); step('refresh'); return handoff },
+    openElsewhere(key) { sim.open.push(key); return handoff },
+    advance(ms) {
+      const until = sim.now + ms
+      for (;;) {
+        const next = ['commit', 'clear']
+          .filter(timer => sim.due[timer] !== null && sim.due[timer] <= until)
+          .sort((a, b) => sim.due[a] - sim.due[b])[0]
+        if (!next) break
+        sim.now = sim.due[next]
+        sim.due[next] = null
+        step(next === 'commit' ? 'commit' : 'clearExpired')
+      }
+      sim.now = until
+      return handoff
+    },
+    shown: () => audio.mediaPresentation(sim.cache, live(), sim.open)
+  }
+  return handoff
+}
+const track = (key, title, artist, extra) => Object.assign(
+  { key, trackTitle: title, trackArtist: artist, isPlaying: true, canGoPrevious: true, canTogglePlaying: true, canGoNext: true },
+  extra || {}
+)
+const showing = (handoff) => [handoff.shown().title, handoff.shown().artist].join(' / ')
+const { commit: commitDelay, clear: clearDelay } = audio.mediaHandoffDelays()
+
+{
+  const h = mediaHandoff().play(track('spotify', 'Moonshot', 'The Murder Capital')).advance(commitDelay)
+  h.metadata({ trackTitle: 'Ethel' }).advance(30).metadata({ trackArtist: 'Fontaines D.C.' })
+  assertEqual(showing(h), 'Moonshot / The Murder Capital', 'a track change is held until its fields settle')
+  h.advance(commitDelay - 1)
+  assertEqual(showing(h), 'Moonshot / The Murder Capital', 'the settling window restarts with each field')
+  h.advance(1)
+  assertEqual(showing(h), 'Ethel / Fontaines D.C.', 'title and artist change together once settled')
+}
+{
+  const h = mediaHandoff().play(track('chromium.instance1', 'Song A', 'Artist A')).advance(commitDelay)
+  h.close().advance(400)
+  assert(h.shown().visible && showing(h) === 'Song A / Artist A', 'a Chromium skip keeps the last track through the gap')
+  assert(!h.shown().canPlayPause && !h.shown().canGoNext, 'controls under the gap are disabled while their player is gone')
+  h.play(track('chromium.instance2', '', '')).advance(300)
+  assertEqual(showing(h), 'Song A / Artist A', 'a replacement player with blank metadata keeps the last track')
+  h.metadata({ trackTitle: 'Song B', trackArtist: 'Artist B' }).advance(commitDelay)
+  assertEqual(showing(h), 'Song B / Artist B', 'the replacement track shows once its metadata settles')
+  assert(h.shown().live && h.shown().canGoNext && h.shown().targetKey === 'chromium.instance2', 'controls act on the replacement player')
+  h.advance(clearDelay)
+  assert(h.shown().visible, 'a gap that ended does not clear the section later')
+}
+{
+  const h = mediaHandoff().play(track('spotify', 'Moonshot', 'The Murder Capital')).advance(commitDelay)
+  h.openElsewhere('firefox').close().advance(clearDelay - 1)
+  assert(h.shown().visible, 'the last track stays until the handoff window ends')
+  assert(!h.shown().canPlayPause, 'cached controls do not fall through to another open player')
+  h.advance(1)
+  assert(!h.shown().visible && showing(h) === ' / ', 'a gap that outlasts the handoff window clears the section')
+}
+{
+  const h = mediaHandoff().play(track('mpv', 'Intro', 'Band')).advance(commitDelay)
+  h.metadata({ trackTitle: '', trackArtist: '' }).advance(clearDelay)
+  assert(!h.shown().visible, 'a player that stays blank clears the section')
+}
+{
+  const h = mediaHandoff().play(track('spotify', 'Moonshot', 'The Murder Capital')).advance(commitDelay)
+  h.playback({ isPlaying: false, canGoNext: false })
+  assert(!h.shown().playing && !h.shown().canGoNext, 'playback changes reach the section at once')
+  h.close().advance(10)
+  assert(!h.shown().playing && showing(h) === 'Moonshot / The Murder Capital', 'the gap keeps the last playback state')
+}
+{
+  const h = mediaHandoff().play(track('spotify', 'Moonshot', 'The Murder Capital')).advance(commitDelay)
+  h.openElsewhere('spotify')
+  h.metadata({ trackTitle: '', trackArtist: '' }).advance(10)
+  assert(h.shown().canPlayPause && h.shown().targetKey === 'spotify', 'cached controls act while their player is still open')
+}
+{
+  const live = audio.mediaLiveState(track('spotify', 'Late', 'Arrival'), 'spotify')
+  const result = audio.mediaHandoffStep(audio.emptyMediaCache(), live, 'clearExpired')
+  assertEqual([result.cache.title, result.cache.artist].join(' / '), 'Late / Arrival', 'an expired gap with a live track commits it instead of clearing')
+}
+assert(audio.mediaTargetAvailable(true, '', []), 'live media controls act on the shown player')
+assert(audio.mediaTargetAvailable(false, 'spotify', ['firefox', 'spotify']), 'cached media controls act while their player is open')
+assert(!audio.mediaTargetAvailable(false, 'spotify', ['firefox']), 'cached media controls stop once their player closes')
+assert(!audio.mediaTargetAvailable(false, '', ['firefox']), 'cached media controls without a player act on nothing')
+assert(!audio.mediaTargetAvailable(false, 'spotify', undefined), 'cached media controls act on nothing before players load')
+assertEqual(audio.firstEnabledMediaControl(mediaPlayer), 1, 'audio enters media controls on play/pause')
+assertDeepEqual(audio.mediaActionNames(), ['previous', 'playPause', 'next'], 'audio uses canonical media action order')
+const actionNames = audio.mediaActionNames()
+actionNames.reverse()
+assertDeepEqual(audio.mediaActionNames(), ['previous', 'playPause', 'next'], 'audio returns a copy of canonical media actions')
+assertEqual(audio.firstEnabledMediaControl({ canGoPrevious: true }), 0, 'audio falls back to previous control')
+assertEqual(audio.firstEnabledMediaControl({ canGoNext: true }), 2, 'audio falls back to next control')
+assertEqual(audio.mediaActions({ canGoPrevious: true, canGoNext: true }).map(control => control.enabled).join(','), 'true,false,true', 'audio disables unsupported controls independently')
+assertEqual(audio.nextEnabledMediaControl({ canGoPrevious: true, canGoNext: true }, 0, 1), 2, 'audio skips unsupported controls')
+assertEqual(audio.nextEnabledMediaControl({ canGoPrevious: true, canGoNext: true }, 2, 1), 2, 'audio clamps at the next control')
+assertEqual(audio.nextEnabledMediaControl({ canGoPrevious: true, canGoNext: true }, 0, -1), 0, 'audio clamps at the previous control')
+assertEqual(audio.nextEnabledMediaControl({}, 1, 1), 1, 'audio safely keeps focus when no controls are enabled')
 JS
