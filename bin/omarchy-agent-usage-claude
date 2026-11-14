@@ -43,6 +43,7 @@ from collectors import (  # noqa: E402
   claude_code_index_path,
   claude_code_owner,
   claude_code_scan_match,
+  claude_code_transcripts,
   emit,
   empty_bucket,
   number,
@@ -153,7 +154,7 @@ def history_prompt(display: Any) -> bool:
 
 def has_transcripts(projects: Path) -> bool:
   try:
-    return next(projects.rglob("*.jsonl"), None) is not None
+    return next(claude_code_transcripts(projects), None) is not None
   except OSError:
     return False
 
