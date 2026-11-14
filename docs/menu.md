@@ -184,3 +184,5 @@ Pass `-- --multiple` to `omarchy-menu-select` for a multi-select request. Repeat
 With `--on-change <JSON command array>`, each toggle runs that command with the proposed selection JSON appended as its final argument, and no Apply row is shown. The checkbox changes only after the command succeeds; a failed command retains the previous selection. Changes persist when the menu closes. The typing selectors use this mode.
 
 For immediate multi-select requests, `--change-key <key>` identifies the setting being changed across picker openings. The menu keeps queued selections for that key when reopened, so a new toggle cannot discard a change still being saved. Without a key, the command array identifies the setting.
+
+Pass `-- --anchor <x,y,width,height>` (payload `anchor: {x, y, width, height}`) to center the menu on a rectangle in the focused monitor's logical coordinates instead of on the screen, such as the window the menu acts on. The menu still stays on the screen, and it ignores the anchor outside select and input modes.
