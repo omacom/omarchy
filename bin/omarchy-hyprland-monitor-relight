@@ -14,6 +14,8 @@
 
 SETTLE=4
 TRIES=3
+RETURN=45
+HOLD=5
 
 # Sizes nearly every monitor offers awake and asleep, largest first. The mode has
 # to be in the kernel's list for the kernel to accept it and in Hyprland's older
@@ -36,6 +38,24 @@ fallback_mode() {
 # last well under a second before the second, so both count.
 woke() {
   [[ $(<$1/enabled) == "enabled" || $(<$1/status) != "connected" ]]
+}
+
+# A waking monitor is driven for a moment and then usually drops off the bus to
+# come back announcing its real modes, so one glimpse of it lit proves nothing.
+# Only a picture that is back and holds counts.
+holds() {
+  local waited held
+
+  for (( waited = 0, held = 0; waited < RETURN + HOLD && held < HOLD; waited++ )); do
+    if [[ $(<$1/status) == "connected" && $(<$1/enabled) == "enabled" ]]; then
+      (( held++ ))
+    else
+      held=0
+    fi
+    sleep 1
+  done
+
+  (( held >= HOLD ))
 }
 
 # The small mode is a runtime monitor rule that outlives the attempt, so every
@@ -91,7 +111,22 @@ relight() {
   done
 
   restore_config
-  echo "$name woke, restored its configured mode"
+
+  if holds "$connector"; then
+    echo "$name woke, restored its configured mode"
+    return 0
+  fi
+
+  # A monitor that left the bus and stayed away cannot be modeset back, and
+  # only root can ask the kernel to look for it again. It is no longer unlit as
+  # far as omarchy-hyprland-monitor-unlit can tell, so this is the last word on it.
+  if [[ $(<$connector/status) != "connected" ]]; then
+    echo "$name dropped off the bus while waking and did not come back, replug its cable"
+    return 1
+  fi
+
+  echo "$name came back but is still not driven"
+  return 1
 }
 
 # A wake that is still being modeset looks the same for a moment.

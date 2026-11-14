@@ -86,6 +86,20 @@ elif [[ ${1:-} == "eval" ]]; then
     printf 'enabled\n' >"$OMARCHY_TEST_WAKES_CONNECTOR/enabled"
     printf '5120x1440\n1920x1080\n' >"$OMARCHY_TEST_WAKES_CONNECTOR/modes"
   fi
+  # A waking monitor usually leaves the bus a moment after it is first driven.
+  # Most come back within seconds. One was seen never to.
+  if [[ -n ${OMARCHY_TEST_DROPS_CONNECTOR:-} ]]; then
+    (
+      sleep 2
+      printf 'disconnected\n' >"$OMARCHY_TEST_DROPS_CONNECTOR/status"
+      printf 'disabled\n' >"$OMARCHY_TEST_DROPS_CONNECTOR/enabled"
+      if [[ ${OMARCHY_TEST_DROP_RETURNS:-0} == 1 ]]; then
+        sleep 4
+        printf 'connected\n' >"$OMARCHY_TEST_DROPS_CONNECTOR/status"
+        printf 'enabled\n' >"$OMARCHY_TEST_DROPS_CONNECTOR/enabled"
+      fi
+    ) >/dev/null 2>&1 &
+  fi
 fi
 SH
 
@@ -432,3 +446,36 @@ flock -w 10 "$unlit_lock" -c true || fail "the relight stops once the monitor is
 
 stop_watcher
 
+# The relight on its own, so what it reports can be read.
+run_relight() {
+  rm -rf "$drm_path"
+  write_connector DP-1 connected disabled
+  printf '%s' "$lit_monitor" >"$monitors_file"
+  : >"$reload_log"
+
+  PATH="$fake_bin:$PATH" OMARCHY_DRM_PATH="$drm_path" OMARCHY_TEST_EVAL_LOG="$eval_log" \
+  OMARCHY_TEST_MONITORS_FILE="$monitors_file" OMARCHY_TEST_RELOAD_LOG="$reload_log" \
+  OMARCHY_TEST_RECOVERED_MONITORS="$recovered" OMARCHY_TEST_HYPRCTL_FAIL_FLAG="$hyprctl_fail" \
+    "$ROOT/bin/omarchy-hyprland-monitor-relight" >"$test_tmp/relight.out" 2>&1
+}
+
+export OMARCHY_TEST_WAKES_CONNECTOR="$drm_path/card1-DP-1" OMARCHY_TEST_DROPS_CONNECTOR="$drm_path/card1-DP-1"
+
+# The usual wake: driven for a moment, off the bus, then back for good.
+OMARCHY_TEST_DROP_RETURNS=1 run_relight
+grep -q "DP-1 woke, restored its configured mode" "$test_tmp/relight.out" ||
+  fail "a monitor that drops off the bus and returns is reported woken" "$(<"$test_tmp/relight.out")"
+pass "a monitor that drops off the bus and returns is reported woken"
+
+# The same wake, except the monitor never comes back. Being driven for that
+# first moment is not a wake, and saying so would hide a monitor that needs
+# its cable pulled.
+run_relight
+! grep -q "woke" "$test_tmp/relight.out" ||
+  fail "a monitor that drops off the bus for good is not reported woken" "$(<"$test_tmp/relight.out")"
+grep -q "DP-1 dropped off the bus while waking and did not come back" "$test_tmp/relight.out" ||
+  fail "a monitor that drops off the bus for good is reported lost" "$(<"$test_tmp/relight.out")"
+(( $(reloads) == 1 )) || fail "a lost monitor still gets its config restored, once" "$(<"$reload_log")"
+pass "a monitor that drops off the bus for good is reported lost, with its config restored"
+
+unset OMARCHY_TEST_WAKES_CONNECTOR OMARCHY_TEST_DROPS_CONNECTOR
