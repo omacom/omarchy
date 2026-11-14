@@ -9,7 +9,7 @@ require_platform_fixtures "the composed mkinitcpio HOOKS"
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
 
-for platform in aarch64-apple aarch64-qualcomm aarch64 x86; do
+for platform in aarch64-apple aarch64-qualcomm aarch64-n1x aarch64 x86; do
   fake_platform "$test_tmp/platforms/$platform" "$platform"
 done
 # omarchy-settings without the runtime package: no detector on PATH.
@@ -28,17 +28,20 @@ nvidia_modules="nvidia nvidia_modeset nvidia_uvm nvidia_drm"
 
 # The kernel being built, as modinfo answers for it: KERNEL_MODULES names its
 # modules (thunderbolt, as on x86 and Aurora, unless a case says otherwise) and
-# KERNEL_BUILTINS the ones built in.
+# KERNEL_BUILTINS the ones built in. Like modinfo, it fails when any module
+# asked for is missing.
 cat >"$test_tmp/modinfo" <<'SH'
 #!/bin/bash
-[[ $1 == -k && $2 == "$KERNELVERSION" && $3 == -F && $4 == filename ]] || exit 1
-if [[ " ${KERNEL_MODULES-thunderbolt} " == *" $5 "* ]]; then
-  printf '/usr/lib/modules/%s/kernel/%s.ko.zst\n' "$KERNELVERSION" "$5"
-elif [[ " ${KERNEL_BUILTINS-} " == *" $5 "* ]]; then
-  printf '(builtin)\n'
-else
-  exit 1
-fi
+[[ $1 == -k && $2 == "$KERNELVERSION" && $3 == -F && $4 == filename && $# -gt 4 ]] || exit 1
+for module in "${@:5}"; do
+  if [[ " ${KERNEL_MODULES-thunderbolt} " == *" $module "* ]]; then
+    printf '/usr/lib/modules/%s/kernel/%s.ko.zst\n' "$KERNELVERSION" "$module"
+  elif [[ " ${KERNEL_BUILTINS-} " == *" $module "* ]]; then
+    printf '(builtin)\n'
+  else
+    exit 1
+  fi
+done
 SH
 chmod +x "$test_tmp/modinfo"
 for fixture in "$test_tmp"/platforms/*; do
@@ -94,7 +97,7 @@ compose() {
 
   local path="$fixture/bin:$ROOT/bin:$PATH"
   [[ $1 != "no-detector" ]] || path="$fixture/bin"
-  KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_PCI_DEVICES_PATH="$devices" PATH="$path" "$BASH" -c '
+  KERNELVERSION=6.99.0-test OMARCHY_PROC_ROOT="$fixture/proc" OMARCHY_SYS_ROOT="$fixture/sys" OMARCHY_PCI_DEVICES_PATH="$devices" PATH="$path" "$BASH" -c '
     . "$1" || exit 1
     printf "HOOKS=%s\nMODULES=%s\nFILES=%s\n" "${HOOKS[*]}" "${MODULES[*]}" "${FILES[*]}"
   ' -- "$config"
@@ -209,7 +212,25 @@ assert_composed "hybrid graphics keeps kms for the iGPU" x86 \
 
 new_etc
 pci_devices 0x10de:0x030000
-assert_composed "NVIDIA-only without early nvidia_drm keeps kms" x86 \
+assert_composed "NVIDIA-only on a kernel without the NVIDIA modules keeps kms" x86 \
+  "$omarchy_hooks" "thunderbolt" ""
+
+# nvidia_module.conf early-loads the driver where nvidia.conf is missing, as on
+# a machine that got its NVIDIA GPU or driver after installation.
+new_etc
+pci_devices 0x10de:0x030000
+KERNEL_MODULES="thunderbolt $nvidia_modules" assert_composed "NVIDIA-only without nvidia.conf early-loads the driver and drops kms" x86 \
+  "$omarchy_hooks_without_kms" "$nvidia_modules thunderbolt" ""
+
+new_etc
+drop_in nvidia.conf <<<"MODULES+=($nvidia_modules)"
+pci_devices 0x10de:0x030000
+KERNEL_MODULES="thunderbolt $nvidia_modules" assert_composed "nvidia.conf and nvidia_module.conf list the modules once" x86 \
+  "$omarchy_hooks_without_kms" "$nvidia_modules thunderbolt" ""
+
+new_etc
+pci_devices 0x10de:0x030000
+KERNEL_MODULES="thunderbolt $nvidia_modules" assert_composed "an N1x laptop is left to install/hardware/n1x.sh" aarch64-n1x \
   "$omarchy_hooks" "thunderbolt" ""
 
 new_etc

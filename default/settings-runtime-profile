@@ -6,6 +6,8 @@
 # etc/mkinitcpio.conf.d/00-omarchy-hooks.conf
 #   Sets each platform's HOOKS baseline (omarchy-hw-platform), and leaves alone
 #   a Mac whose own mkinitcpio.conf carries asahi or busybox encrypt.
+# etc/mkinitcpio.conf.d/nvidia_module.conf
+#   Adds the NVIDIA modules only where modinfo finds them, and never on N1x.
 # etc/mkinitcpio.conf.d/omarchy_hooks.conf
 #   Only filters kms for NVIDIA and handles the vconsole hooks, from the
 #   machine's own devices and configuration.
