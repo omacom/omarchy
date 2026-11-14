@@ -48,7 +48,7 @@ pass "startup validation rejects ordinary Bash before authorization"
   source "$library"
   enable_locked 1000 15
   read_grant 1000
-  [[ $GRANT_NAME == audituser && $(stat -c '%a' "$(rule_file 1000)") == 440 ]]
+  [[ $GRANT_UID == 1000 && $(stat -c '%a' "$(rule_file 1000)") == 440 ]]
   /usr/sbin/visudo -cf "$(rule_file 1000)" >/dev/null
   expiry=$(sed -n 's/^systemd-run .*--on-calendar=@\([0-9]*\).*$/\1/p' "$test_tmp/commands" | tail -1)
   [[ $GRANT_DEADLINE == "$(/usr/bin/date -u -d "@$expiry" +%Y%m%d%H%M%SZ)" ]]
@@ -74,6 +74,28 @@ pass "startup validation rejects ordinary Bash before authorization"
   ! compgen -G "$test_tmp/etc/sudoers.d/.omarchy-nopasswd.*"
 )
 pass "one complete mode-0440 sudoers rule holds the deadline with no separate grant state"
+
+if [[ -n ${OMARCHY_TEST_SUDOERS:-} ]]; then
+  (
+    source "$library"
+    printf 'root:x:0:0:root:/root:/bin/bash\naudituser:x:1000:1000:Test:/nonexistent:/bin/bash\nAUDITUSER:x:1001:1001:Other:/nonexistent:/bin/bash\n' >"$test_tmp/passwd"
+    printf 'root:x:0:\naudituser:x:1000:\nAUDITUSER:x:1001:\n' >"$test_tmp/group"
+    for duration in 15 permanent; do
+      enable_locked 1000 "$duration"
+      policy=$(rule_file 1000 "$duration")
+      "$OMARCHY_TEST_SUDOERS" -p "$test_tmp/passwd" -P "$test_tmp/group" audituser /usr/bin/true <"$policy" >"$test_tmp/policy-result"
+      ! grep -q 'Password required' "$test_tmp/policy-result" || fail "grant owner must retain passwordless access"
+      if "$OMARCHY_TEST_SUDOERS" -p "$test_tmp/passwd" -P "$test_tmp/group" AUDITUSER /usr/bin/true <"$policy" >"$test_tmp/policy-result"; then
+        fail "case-colliding UID received the $duration grant"
+      fi
+      grep -Eq '^Command (unmatched|denied)$' "$test_tmp/policy-result" || fail "native evaluator did not refuse the other UID"
+    done
+    enable_locked 1000 15
+  )
+  pass "native sudoers evaluation confines timed and permanent grants to the authenticated UID"
+else
+  skip "native sudoers UID isolation needs OMARCHY_TEST_SUDOERS pointing to sudo's testsudoers executable"
+fi
 
 (
   source "$library"
@@ -155,7 +177,7 @@ cp "$ROOT/default/libalpm/hooks/05-omarchy-passwordless-revoke.hook" "$test_tmp/
   source "$library"
   TEST_ACCOUNT='buildbot$' enable_locked 1000 15
   read_grant 1000
-  [[ $GRANT_NAME == 'buildbot$' ]]
+  [[ $GRANT_UID == 1000 ]]
   /usr/sbin/visudo -cf "$(rule_file 1000)" >/dev/null
   cleanup_uid_locked 1000
   [[ ! -e $(rule_file 1000) ]]
@@ -171,7 +193,7 @@ reset_grant
   ! valid_duration forever || fail "invalid duration was accepted"
   enable_locked 1000 permanent
   read_grant 1000
-  [[ $GRANT_NAME == audituser && -z $GRANT_DEADLINE ]]
+  [[ $GRANT_UID == 1000 && -z $GRANT_DEADLINE ]]
   [[ $(stat -c '%a' "$(rule_file 1000 permanent)") == 440 ]]
   /usr/sbin/visudo -cf "$(rule_file 1000 permanent)" >/dev/null
   ! grep -q '^systemd-run ' "$test_tmp/commands" || fail "permanent grant started a timer"
@@ -331,16 +353,16 @@ reset_grant
   source "$library"
   enable_locked 1000 permanent
   timed=$(rule_file 1000)
-  printf 'otheruser ALL=(ALL) NOTAFTER=99991231235959Z NOPASSWD: ALL\n' >"$timed"
+  printf '#1001 ALL=(ALL) NOTAFTER=99991231235959Z NOPASSWD: ALL\n' >"$timed"
   assert_status 2 read_grant 1000
   assert_status 1 enable_locked 1000 15
-  printf 'audituser ALL=(ALL) NOTAFTER=99991231235959Z NOPASSWD: ALL\n' >"$timed"
+  printf '#1000 ALL=(ALL) NOTAFTER=99991231235959Z NOPASSWD: ALL\n' >"$timed"
   TEST_BAD_PATH="$timed" assert_status 2 read_grant 1000
   rm "$timed"
   ln -s "$(rule_file 1000 permanent)" "$timed"
   assert_status 2 read_grant 1000
   rm "$timed"
-  printf 'audituser ALL=(ALL) NOTAFTER=99991231235959Z NOPASSWD: ALL\n' >"$timed"
+  printf '#1000 ALL=(ALL) NOTAFTER=99991231235959Z NOPASSWD: ALL\n' >"$timed"
   enable_locked 1000 15
   [[ -f $timed && ! -e $(rule_file 1000 permanent) ]]
 )
