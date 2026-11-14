@@ -6,13 +6,16 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command lua
 
+test_dir=$(mktemp -d)
+trap 'rm -rf "$test_dir"' EXIT
+
 shortcuts="$ROOT/default/omarchy/shortcuts"
 
 # Load the helpers and every default binding against a stub hl, and print one
 # line per binding: "global <name>" for a global shortcut, "exec <command>" for
 # a command, then its description.
 list_bindings() {
-  HOME="$(mktemp -d)" OMARCHY_PATH="$ROOT" lua - <<'LUA'
+  HOME="$test_dir" OMARCHY_PATH="$ROOT" lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
@@ -128,11 +131,16 @@ pass "every shortcut menu route resolves in the menu"
 # Exercise real XKB resolution: a non-Latin group must not turn clipboard
 # injection into an active-group keysym lookup, nor pin other layouts to US.
 require_command xkbcli
-OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "clipboard injection uses primary-layout keys with paired releases"
+HOME="$test_dir" xkbcli compile-keymap --layout us,il --variant dvorak, >"$test_dir/custom keymap.xkb"
+HOME="$test_dir" TEST_CLIPBOARD_KEYMAP="$test_dir/custom keymap.xkb" OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "clipboard injection uses primary-layout keys with paired releases"
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 local binds, events, pending = {}, {}, nil
 local window
-local config = { ["input.kb_layout"] = "us,il" }
+local config = {
+  ["input.kb_layout"] = "us,il",
+  ["input.kb_variant"] = ",",
+  ["input.kb_options"] = "omarchy:shift_caps_compose,grp:alts_toggle",
+}
 hl = {
   get_config = function(key) return config[key] end,
   get_active_window = function() return window end,
@@ -182,5 +190,8 @@ config["input.kb_layout"], config["input.kb_variant"] = "fr,il", ""
 check(binds["SUPER + A"], "CTRL", 24)
 config["input.kb_layout"], config["input.kb_variant"] = "us", "3l"
 check(binds["SUPER + A"], "CTRL", 41)
+-- A custom Dvorak keymap wins over conflicting global layout/variant/options.
+config["input.kb_file"] = os.getenv("TEST_CLIPBOARD_KEYMAP")
+check(binds["SUPER + C"], "CTRL", 31)
 LUA
 pass "clipboard injection uses primary-layout keys with paired releases"

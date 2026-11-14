@@ -8,15 +8,22 @@
 local keycodes = {}
 
 -- Named injection scans the active group, which may have no Latin letters.
--- Resolve the primary layout's unmodified letter instead of assuming QWERTY
--- positions: A/C/V/X also move on AZERTY, Dvorak, and Colemak layouts.
+-- Injection delivers the key in group 0, so resolve the primary layout's
+-- unmodified letter instead of assuming QWERTY positions: A/C/V/X also move
+-- on AZERTY, Dvorak, and Colemak-DH layouts.
 local function shortcut_keycode(key)
   local command = { "xkbcli how-to-type --disable-compose --keysym" }
-  for _, option in ipairs({ "layout", "variant", "model", "options", "rules", "file" }) do
-    local value = hl.get_config("input.kb_" .. option) or ""
-    if value ~= "" then
-      local flag = option == "file" and "keymap" or option
-      table.insert(command, "--" .. flag .. " " .. o.shell_quote(value))
+  local keymap = hl.get_config("input.kb_file") or ""
+  if keymap ~= "" then
+    -- A keymap replaces RMLVO; xkbcli rejects combining the two. Its optional
+    -- file argument also requires the equals form rather than a separate word.
+    table.insert(command, "--keymap=" .. o.shell_quote(keymap))
+  else
+    for _, option in ipairs({ "layout", "variant", "model", "options", "rules" }) do
+      local value = hl.get_config("input.kb_" .. option) or ""
+      if value ~= "" then
+        table.insert(command, "--" .. option .. " " .. o.shell_quote(value))
+      end
     end
   end
   table.insert(command, o.shell_quote(key:lower()))
