@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# omarchy:summary=Recover a supervised shell whose event loop stops responding
+# omarchy:hidden=true
+
+# QML writes to this pipe every ten seconds. Waiting here needs no recurring
+# process launches, and EOF means the shell stopped deliberately. Allow extra
+# time for the first heartbeat while plugins are loading.
+wait_seconds=60
+while true; do
+  if IFS= read -r -t "$wait_seconds"; then
+    wait_seconds=30
+  else
+    status=$?
+    (( status > 128 )) || exit 0
+
+    # A delayed timer alone is not a hung shell. Confirm that IPC is stuck too.
+    if OMARCHY_SHELL_IPC_TIMEOUT=2s omarchy-shell shell ping >/dev/null 2>&1; then
+      continue
+    fi
+
+    # Run outside the shell's process tree: stopping Quickshell also stops
+    # its Process children, but recovery must finish and restore a held lock.
+    logger -t omarchy-shell "Shell heartbeat and IPC timed out; restarting."
+    systemd-run --user --collect --unit=omarchy-shell-watchdog-recovery \
+      "$OMARCHY_PATH/bin/omarchy-restart-shell"
+    # If the request failed or a responsive lock refused it, keep watching.
+    # A completed restart closes our input and the next read exits normally.
+    wait_seconds=60
+  fi
+done

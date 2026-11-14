@@ -37,6 +37,29 @@ ShellRoot {
   readonly property string defaultsPath: omarchyPath + "/config/omarchy/shell.json"
   readonly property string userConfigPath: home + "/.config/omarchy/shell.json"
 
+  // A render thread stuck after resume can block the GUI thread as well.
+  // The launcher sees no exit in that case. Feed one sleeping child instead
+  // of spawning health probes while idle; it checks IPC only if beats stop.
+  Process {
+    id: watchdog
+    command: [shell.omarchyPath + "/bin/omarchy-shell-watchdog"]
+    running: Quickshell.env("OMARCHY_SHELL_WATCHDOG") === "1"
+    stdinEnabled: true
+  }
+
+  Timer {
+    interval: 10000
+    repeat: true
+    running: watchdog.running
+    triggeredOnStart: true
+    onTriggered: watchdog.write("\n")
+  }
+
+  property ShellOutputRecovery outputRecovery: ShellOutputRecovery {
+    omarchyPath: shell.omarchyPath
+    enabled: Quickshell.env("OMARCHY_SHELL_WATCHDOG") === "1"
+  }
+
   // Bundled fallback so the shell can start even when the default shell.json is
   // missing or unreadable. The bar config here mirrors the on-disk defaults
   // closely enough to render a usable bar; not authoritative.
