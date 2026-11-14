@@ -64,7 +64,7 @@ Item {
   property var menuCatalog: ({})
   readonly property string languagePath: Quickshell.env("OMARCHY_LANGUAGE_FILE") || ((Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/omarchy/language")
   property var defaultMenuItems: []
-  property var userMenuItems: []
+  property var userMenuDefinition: ({ items: [], order: [] })
   // Whether each file has answered once, loaded or (the user's) missing. At
   // startup both arrive separately, and evaluating guards for the first alone
   // would run the whole batch twice; an open before then evaluates anyway.
@@ -298,7 +298,7 @@ Item {
     // "Go" label comes from the catalog's root entry; the merge only uses
     // it for the injected row, never over a user-supplied heading.
     var rootCatalog = root.menuCatalog.root
-    var mergedMenu = MenuModel.mergeMenuSources(translatedDefaults, root.userMenuItems, rootCatalog && rootCatalog.label)
+    var mergedMenu = MenuModel.mergeMenuSources(translatedDefaults, root.userMenuDefinition.items, rootCatalog && rootCatalog.label, root.userMenuDefinition.order)
     root.providerRevision += 1
     root.providersLoaded = ({})
     root.providerQueue = []
@@ -1162,8 +1162,8 @@ Item {
     path: root.userMenuPath
     watchChanges: true
     printErrors: false
-    onLoaded: { root.userMenuItems = MenuModel.keepMenuRows(root.userMenuItems, text(), false); root.userMenuSettled = true; root.rebuildItemsFromSources() }
-    onLoadFailed: { root.userMenuItems = []; root.userMenuSettled = true; root.rebuildItemsFromSources() }
+    onLoaded: { root.userMenuDefinition = MenuModel.keepMenuDefinition(root.userMenuDefinition, text()); root.userMenuSettled = true; root.rebuildItemsFromSources() }
+    onLoadFailed: { root.userMenuDefinition = { items: [], order: [] }; root.userMenuSettled = true; root.rebuildItemsFromSources() }
     onFileChanged: reload()
   }
 

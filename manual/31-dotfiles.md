@@ -58,6 +58,14 @@ The Omarchy menu (`Super + Space`) can be extended with your own rows by editing
 
 Reuse an existing id and you override that row instead of adding a new one. The file ships with all the available fields documented as comments.
 
+To change the order of the top-level menu, add an `order` list to the same file:
+
+```jsonc
+"order": ["apps", "install", "remove", "learn"],
+```
+
+This puts Apps, Install, Remove, and Learn first. The remaining entries keep their relative order afterward. You can list only the entries you want to move; unknown ids and duplicates are ignored. Remove the list to restore the usual order. The menu picks up edits automatically, and your extension stays in place across updates.
+
 ### Adding your own shell exports, functions, and aliases
 
 Omarchy ships with a bunch of ergonomic aliases and helpful functions, but it's very common to want to add your own. You should add both aliases, functions, and exports in `~/.bashrc`. This file will not be overwritten on updates. If you want to change any of the Omarchy defaults, you can also safely add them here.
