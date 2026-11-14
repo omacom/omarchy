@@ -3,7 +3,13 @@
 # omarchy:summary=Launch the default browser as determined by xdg-settings.
 # omarchy:args=[url]
 
-default_browser=$(omarchy-cmd-default-browser)
+set -euo pipefail
+
+default_browser=$(omarchy-cmd-default-browser || true)
+
+if [[ $default_browser != *.desktop || $default_browser == */* || $default_browser == *..* ]]; then
+  default_browser=chromium.desktop
+fi
 
 # Read Exec= from the same data dirs omarchy-cmd-default-browser searched, in
 # the same order, so the command always comes from the entry that was checked.
@@ -29,7 +35,7 @@ fi
 # leave their arguments as they are.
 private_flag="--private"
 if [[ " $* " == *" --private "* ]]; then
-  if $browser_exec --help 2>/dev/null | grep -q MOZ_LOG; then
+  if "$browser_exec" --help 2>/dev/null | grep -q MOZ_LOG; then
     private_flag="--private-window"
   elif [[ $browser_exec =~ edge ]]; then
     private_flag="--inprivate"
@@ -38,19 +44,35 @@ if [[ " $* " == *" --private "* ]]; then
   fi
 fi
 
-if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
-  systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
-    --property=StandardOutput=null --property=StandardError=null \
-    uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
-fi
-
+launch_args=()
 url=""
 for argument in "$@"; do
-  if [[ $argument != "--private" ]]; then
-    url=$argument
-    break
+  if [[ $argument == --private ]]; then
+    launch_args+=("$private_flag")
+    continue
   fi
+  if [[ $argument == --* ]]; then
+    echo "Error: browser launcher only accepts a URL and --private." >&2
+    exit 1
+  fi
+  if [[ -n $url ]]; then
+    echo "Error: browser launcher accepts a single URL." >&2
+    exit 1
+  fi
+  url_lc=$(printf '%s' "$argument" | tr '[:upper:]' '[:lower:]')
+  if [[ $argument =~ [[:space:]] ]] || [[ ! $url_lc =~ ^https?:// ]]; then
+    echo "Error: browser URL must be http or https." >&2
+    exit 1
+  fi
+  url=$argument
+  launch_args+=("$url")
 done
+
+if ! omarchy-cmd-browser-handoff "$browser_exec" "${launch_args[@]}"; then
+  systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+    --property=StandardOutput=null --property=StandardError=null \
+    uwsm-app -- "$browser_exec" "${launch_args[@]}"
+fi
 
 if [[ -n $url && -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
   omarchy-hyprland-focus-app "^$(basename "$browser_exec" -stable).*$" || true
