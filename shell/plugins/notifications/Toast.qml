@@ -345,7 +345,7 @@ Item {
           // Constant, so the slot resizing never reloads the image.
           sourceSize.width: thumb.slot * Screen.devicePixelRatio
           sourceSize.height: thumb.slot * Screen.devicePixelRatio
-          asynchronous: true
+          asynchronous: Util.loadsOffThread(source)
           // A sender may write each picture to the same path (cover art, say).
           cache: !(thumb.photo && thumb.best.indexOf("file:") === 0)
           // A one-colour icon is brightened to a silhouette and tinted with the

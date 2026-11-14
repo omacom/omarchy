@@ -12,6 +12,16 @@ trap 'rm -rf "$TMPDIR"' EXIT
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
+const util = require('fs').readFileSync(root + '/shell/Commons/Util.qml', 'utf8')
+const loadBody = util.match(/function loadsOffThread\(url\) \{([\s\S]*?)\n  \}/)[1]
+const loadsOffThread = new Function('url', loadBody)
+for (const url of ['image://icon/dialog-information', 'image://icon/steam?path=/opt/steam',
+                   'image://icon/missing?fallback=application-x-executable', 'image://qspixmap/12/3'])
+  assert(!loadsOffThread(url), 'pixmap providers stay on the GUI thread: ' + url)
+for (const url of ['', undefined, 'file:///tmp/cover.png', 'https://example.com/art.png',
+                   'data:image/png;base64,AAAA', 'image://qsimage/12/3'])
+  assert(loadsOffThread(url), 'other images can still decode asynchronously: ' + url)
+
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
 assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')
