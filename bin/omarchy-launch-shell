@@ -14,10 +14,24 @@
 # A package upgrade rewriting $OMARCHY_PATH/shell would otherwise reload it
 # against a half-written tree, and that failed reload leaves a second engine
 # generation behind that turns the next restart's IPC kill into a crash.
+#
+# Quickshell allocates through jemalloc. With transparent huge pages always
+# on, as Arch ships them, its arenas are backed by 2 MB pages that are mostly
+# never touched, and it only returns freed pages to the system while the
+# program keeps allocating, which an idle shell does not; its background
+# thread sleeps until there are pages to return. Together that is about 85 MB
+# of an idle shell. Omarchy's quickshell package compiles these in along with
+# a single arena, which must not go here: programs the shell starts inherit
+# MALLOC_CONF, and one arena halves the speed of a multithreaded jemalloc
+# program like fd, where these two cost nothing. Setting them here as well
+# covers a quickshell built elsewhere. A MALLOC_CONF already set still wins:
+# jemalloc applies options in order, so it goes last.
+shell_malloc_conf="thp:never,background_thread:true${MALLOC_CONF:+,$MALLOC_CONF}"
+
 run_shell() {
   local startup_background
   startup_background=$(readlink -f "$HOME/.local/state/omarchy/current/background" 2>/dev/null)
-  OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 \
+  OMARCHY_STARTUP_BACKGROUND="$startup_background" QS_DISABLE_FILE_WATCHER=1 QS_NO_RELOAD_POPUP=1 MALLOC_CONF="$shell_malloc_conf" \
     systemd-cat -t omarchy-shell -- quickshell -n -p "$OMARCHY_PATH/shell" &
   shell_pid=$!
 
