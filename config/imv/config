@@ -1,7 +1,7 @@
 [binds]
 
 # Print the current image file
-<Ctrl+p> = exec lp "$imv_current_file"
+<Ctrl+p> = exec omarchy-print "$imv_current_file"
 
 # Trash the current image and quit the viewer (recoverable from Trash)
 <Ctrl+x> = exec gio trash -- "$imv_current_file"; quit
