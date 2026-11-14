@@ -101,11 +101,13 @@ parse_placement() {
       --before)
         PLACEMENT_BEFORE="${2:-}"
         [[ -n $PLACEMENT_BEFORE ]] || fail "--before requires a widget id"
+        PLACEMENT_BEFORE=$(omarchy-plugin-id resolve "$PLACEMENT_BEFORE")
         shift 2
         ;;
       --after)
         PLACEMENT_AFTER="${2:-}"
         [[ -n $PLACEMENT_AFTER ]] || fail "--after requires a widget id"
+        PLACEMENT_AFTER=$(omarchy-plugin-id resolve "$PLACEMENT_AFTER")
         shift 2
         ;;
       --from-section)
@@ -158,6 +160,7 @@ cmd_use() {
   if [[ $plugin == "default" || $plugin == "built-in" ]]; then
     plugin="omarchy.bar"
   fi
+  plugin=$(omarchy-plugin-id resolve "$plugin")
   bar_option_exists "$plugin" || fail "$plugin is not a known bar option; run 'omarchy plugin list'"
 
   if [[ $plugin == "omarchy.bar" ]]; then
@@ -359,6 +362,7 @@ ask_to_put() {
 cmd_put() {
   local id="${1:-}"
   [[ -n $id ]] || fail "put requires a widget id"
+  id=$(omarchy-plugin-id resolve "$id")
   shift
 
   local positional_section=""
@@ -397,6 +401,7 @@ cmd_put() {
 cmd_move() {
   local id="${1:-}"
   [[ -n $id ]] || fail "move requires a widget id"
+  id=$(omarchy-plugin-id resolve "$id")
   shift
 
   local positional_section=""
@@ -428,6 +433,7 @@ cmd_set() {
   local key="${2:-}"
   local value="${3:-}"
   [[ -n $id ]] || fail "set requires a widget id"
+  id=$(omarchy-plugin-id resolve "$id")
   [[ -n $key ]] || fail "set requires a setting key"
   (( $# >= 3 )) || fail "set requires a value"
   shift 3
@@ -461,6 +467,7 @@ cmd_get() {
   local id="${1:-}"
   local key="${2:-}"
   [[ -n $id ]] || fail "get requires a widget id"
+  id=$(omarchy-plugin-id resolve "$id")
   [[ -n $key ]] || fail "get requires a setting key"
   (( $# == 2 )) || fail "get takes a widget id and a setting key"
 

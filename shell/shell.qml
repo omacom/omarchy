@@ -1979,15 +1979,15 @@ ShellRoot {
     }
 
     function summon(id: string, payloadJson: string): string {
-      return shell.summon(id, payloadJson) ? "ok" : "unknown"
+      return shell.summon(shell.pluginRegistry.resolveMigratedId(id), payloadJson) ? "ok" : "unknown"
     }
 
     function hide(id: string): void {
-      shell.hide(id)
+      shell.hide(shell.pluginRegistry.resolveMigratedId(id))
     }
 
     function toggle(id: string, payloadJson: string): void {
-      shell.toggle(id, payloadJson)
+      shell.toggle(shell.pluginRegistry.resolveMigratedId(id), payloadJson)
     }
 
     // A bar section's panels answer to their position as well as their id, so a
@@ -2004,7 +2004,7 @@ ShellRoot {
     }
 
     function call(id: string, method: string, arg: string): string {
-      return shell.callIfLoaded(id, method, arg)
+      return shell.callIfLoaded(shell.pluginRegistry.resolveMigratedId(id), method, arg)
     }
   }
 }
