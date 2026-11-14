@@ -36,7 +36,7 @@ local M = { slots = SLOTS }
 local blocks = {}
 local written = nil
 
--- Connector -> identity for the monitors plugged in now.
+-- Connector -> identity of the last monitor seen on it, unplugged ones included.
 local current = {}
 
 local function load_blocks()
@@ -59,6 +59,61 @@ local function load_blocks()
 end
 
 load_blocks()
+
+-- The connectors in `current`, kept in a file of their own so that identical
+-- twins unplugged together still get their own identities back after a config
+-- reload. The state file can't hold them: the bar reads its connectors as the
+-- monitors plugged in now.
+local CONNECTORS_FILE = STATE_DIR .. "/workspaces-connectors"
+local connectors_written = nil
+
+local function load_connectors()
+  local file = io.open(CONNECTORS_FILE, "r")
+  if not file then
+    return
+  end
+
+  connectors_written = file:read("a")
+  file:close()
+
+  for connector, identity in connectors_written:gmatch("([^\t\n]+)\t([^\n]+)\n") do
+    if not current[connector] then
+      current[connector] = identity
+    end
+  end
+end
+
+load_connectors()
+
+local function save_connectors()
+  local names = {}
+  for connector in pairs(current) do
+    names[#names + 1] = connector
+  end
+  table.sort(names)
+
+  local lines = {}
+  for _, connector in ipairs(names) do
+    lines[#lines + 1] = connector .. "\t" .. current[connector] .. "\n"
+  end
+  local content = table.concat(lines)
+
+  if content == connectors_written then
+    return
+  end
+
+  local file = io.open(CONNECTORS_FILE, "w")
+  if not file then
+    os.execute("mkdir -p " .. o.shell_quote(STATE_DIR))
+    file = io.open(CONNECTORS_FILE, "w")
+  end
+
+  if file then
+    file:write(content)
+    file:close()
+    connectors_written = content
+  end
+end
 
 -- Workspace id -> where it came from, { id, identity }, for each workspace that
 -- joined another monitor's block while its own monitor was unplugged. Kept in a
@@ -225,6 +280,7 @@ local function identities_of(monitors)
     end
   end
   current = remembered
+  save_connectors()
 
   return identities
 end

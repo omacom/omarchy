@@ -548,6 +548,8 @@ fire_timers()
 unplug("DP-2")
 world.handlers["monitor.removed"]({ name = "DP-2" })
 fire_timers()
+m = load_module()
+world.handlers["config.reloaded"]()
 
 plug("DP-2", 3, "LG", 5)
 world.handlers["monitor.added"]({ name = "DP-2" })
