@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # omarchy:summary=Show current icon set
-# omarchy:examples=omarchy icons current
 
 # Papercraft, the default set, is in use until another is picked. --id prints the name the
 # set's directory has, for the commands that read it.

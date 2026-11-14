@@ -18,7 +18,8 @@ mkdir -p "$mock_bin"
 cat >"$mock_bin/git" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_GIT_CALLS"
-[[ $1 == "clone" ]] && mkdir -p "${*: -1}"
+[[ -z ${OMARCHY_TEST_GIT_FAILS:-} ]] || exit 1
+[[ $1 == "clone" ]] && mkdir -p "${*: -1}/.git" && printf 'cloned\n' >"${*: -1}/mpv.svg"
 exit 0
 SH
 
@@ -30,6 +31,7 @@ SH
 printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"$OMARCHY_TEST_SET_CALLS"\nexit 0\n' >"$mock_bin/omarchy-icons-set"
 chmod +x "$mock_bin"/*
 
+sets="$test_tmp/home/.config/omarchy/icons"
 git_calls="$test_tmp/git-calls"
 set_calls="$test_tmp/set-calls"
 
@@ -73,10 +75,38 @@ pass "a URL whose name would climb out, be shell syntax or shadow Original never
 
 install_icons "https://github.com/example/omarchy-cool-icons.git" || fail "omarchy-icons-install clones a normal URL"
 grep -Fq -- "-- https://github.com/example/omarchy-cool-icons.git" "$git_calls" || fail "omarchy-icons-install passes the URL after --" "$(cat "$git_calls")"
-grep -Fq "/.config/omarchy/icons/cool" "$git_calls" || fail "omarchy-icons-install derives the icon set name" "$(cat "$git_calls")"
+[[ $(<"$sets/cool/mpv.svg") == "cloned" ]] || fail "omarchy-icons-install puts the set under the name derived from the URL" "$(cat "$git_calls")"
 grep -Fxq "cool" "$set_calls" || fail "omarchy-icons-install applies the icon set it installed" "$(cat "$set_calls")"
 
 install_icons "git@example.com:omarchy-blue-icons.git" || fail "omarchy-icons-install accepts a home-relative scp-style URL"
-grep -Fq "/icons/blue" "$git_calls" || fail "omarchy-icons-install names the set after the repo, not the whole URL" "$(cat "$git_calls")"
+[[ -d $sets/blue ]] || fail "omarchy-icons-install names the set after the repo, not the whole URL" "$(cat "$git_calls")"
 
 pass "an ordinary icon set URL still clones and applies"
+
+# The set that is there outlives a clone that fails, and is only replaced once
+# its successor is whole.
+printf 'mine\n' >"$sets/cool/mpv.svg"
+if OMARCHY_TEST_GIT_FAILS=1 install_icons "https://github.com/example/omarchy-cool-icons.git"; then
+  fail "omarchy-icons-install reports a clone that failed"
+fi
+[[ $(<"$sets/cool/mpv.svg") == "mine" ]] || fail "a failed clone leaves the installed icon set as it was"
+[[ ! -s $set_calls ]] || fail "a failed clone applies nothing" "$(cat "$set_calls")"
+[[ -z $(find "$test_tmp/home/.config/omarchy" -maxdepth 1 -name '.icons-install.*') ]] || fail "a failed clone leaves no staging dir behind"
+install_icons "https://github.com/example/omarchy-cool-icons.git" || fail "omarchy-icons-install replaces a set it cloned before"
+[[ $(<"$sets/cool/mpv.svg") == "cloned" ]] || fail "reinstalling replaces the cloned icon set"
+
+pass "a failed clone leaves the installed icon set in place"
+
+# A set the user wrote, or a working copy they linked in, is never replaced.
+mkdir -p "$sets/handmade" "$test_tmp/working/.git"
+printf 'drawn by hand\n' >"$sets/handmade/mpv.svg"
+ln -s "$test_tmp/working" "$sets/linked"
+for name in handmade linked; do
+  if install_icons "https://github.com/example/omarchy-$name-icons.git"; then
+    fail "omarchy-icons-install refuses to replace the user's own set '$name'"
+  fi
+  [[ ! -s $git_calls ]] || fail "omarchy-icons-install refuses '$name' before running git" "$(cat "$git_calls")"
+done
+[[ $(<"$sets/handmade/mpv.svg") == "drawn by hand" && -L $sets/linked ]] || fail "the user's own icon sets are left as they were"
+
+pass "installing never replaces an icon set the user wrote or linked in"

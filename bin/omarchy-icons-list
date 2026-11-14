@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # omarchy:summary=List available icon sets
-# omarchy:examples=omarchy icons list | omarchy icons set "Original"
 
 # Original is the set with nothing in it: every app shows its own icon.
 {

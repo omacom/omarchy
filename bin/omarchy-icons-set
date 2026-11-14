@@ -25,11 +25,17 @@ if [[ $SET_NAME != "original" && ! -d $HOME/.config/omarchy/icons/$SET_NAME && !
   exit 1
 fi
 
-# Written beside its old value and renamed, so a draw already under way reads
-# one name or the other.
+# The name is written under the lock omarchy-theme-set-icons draws under, so a
+# draw reads the set it is about to draw, and through a file of this run's own,
+# so two picks at once never move each other's. The lock is let go before the
+# draw below takes it.
 mkdir -p "$CURRENT"
-printf '%s\n' "$SET_NAME" >"$CURRENT/icons.name.next"
-mv -f "$CURRENT/icons.name.next" "$CURRENT/icons.name"
+exec 7>"$CURRENT/.icons.lock"
+flock 7
+next=$(mktemp "$CURRENT/.icons.name.XXXXXX")
+printf '%s\n' "$SET_NAME" >"$next"
+mv -f "$next" "$CURRENT/icons.name"
+exec 7>&-
 
 # The theme in use supplies the colors the set is drawn in.
 omarchy-theme-set-icons

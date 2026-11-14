@@ -29,9 +29,9 @@ REPO_PATH="$REPO_URL"
 SET_NAME=$(basename -- "$REPO_PATH" .git | sed -E 's/^omarchy-//; s/-icons$//' | tr '[:upper:]' '[:lower:]')
 SET_PATH="$SETS_DIR/$SET_NAME"
 
-# The name comes from the URL and is joined into a path that is about to be
-# removed, so it is held to the characters a set name needs: a repo called `..`
-# would take ~/.config/omarchy with it. The locale is pinned so the bracket
+# The name comes from the URL and is joined into a path that is replaced, so
+# it is held to the characters a set name needs: a repo called `..` would take
+# ~/.config/omarchy with it. The locale is pinned so the bracket
 # ranges are the ASCII ones written here. A set may not take the name of
 # `original`, which always means no icon set at all.
 if ! (LC_ALL=C; [[ $SET_NAME =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]) || [[ $SET_NAME == "original" ]]; then
@@ -39,16 +39,26 @@ if ! (LC_ALL=C; [[ $SET_NAME =~ ^[a-z0-9_][a-z0-9._+-]*$ ]]) || [[ $SET_NAME == 
   exit 1
 fi
 
-# Remove existing set if present
-if [[ -d $SET_PATH ]]; then
-  rm -rf "$SET_PATH"
+# Only a set this command cloned is replaced. One the user wrote, or a working
+# copy they linked in, is theirs: it is left alone and the install refused.
+if [[ -e $SET_PATH || -L $SET_PATH ]] && [[ -L $SET_PATH || ! -d $SET_PATH/.git ]]; then
+  echo "Error: icon set '$SET_NAME' already exists and was not installed from git. Remove it first."
+  exit 1
 fi
 
+# Cloned beside the sets and moved into place once it is whole, so a clone that
+# fails leaves the set that was there as it was.
 mkdir -p "$SETS_DIR"
-if ! git clone -- "$REPO_URL" "$SET_PATH"; then
+staging=$(mktemp -d "$HOME/.config/omarchy/.icons-install.XXXXXX")
+trap 'rm -rf "$staging"' EXIT
+
+if ! git clone -- "$REPO_URL" "$staging/$SET_NAME"; then
   echo "Error: Failed to clone icon set repo."
   exit 1
 fi
+
+rm -rf "$SET_PATH"
+mv "$staging/$SET_NAME" "$SET_PATH"
 
 # Only the set's icons are ever read, and they are drawings: nothing in the
 # repo is run.

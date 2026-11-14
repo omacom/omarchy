@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # omarchy:summary=List the user-installed icon sets that came from a git clone
-# omarchy:examples=omarchy icons extras
 
 # Exits nonzero when there are none, so a caller can ask whether any exist
 # without reading the list. A symlinked set is someone's working copy and a

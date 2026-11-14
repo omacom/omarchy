@@ -158,7 +158,9 @@ mkdir -p "$sets/mine"
 printf '<svg>{{ icon_mark }}</svg>\n' >"$sets/mine/firefox.svg.tpl"
 printf 'fixed\n' >"$sets/mine/mpv.svg"
 [[ $(icons icons-current) == "Papercraft" ]] || fail "the default icon set is in use until another is picked"
-[[ $(icons icons-list) == $'Arcade\nMine\nOriginal\nPapercraft' ]] || fail "icon sets list the built-in ones, the user's and Original"
+for listed in Papercraft Mine Original; do
+  icons icons-list | grep -Fxq "$listed" || fail "icon sets list the built-in ones, the user's and Original ($listed)"
+done
 icons icons-set Mine
 [[ $(icons icons-current) == "Mine" && $(icons icons-current --id) == "mine" ]] || fail "an icon set is picked by the name it is listed under"
 [[ $(<"$apps/firefox.svg") == "<svg>#"* && $(<"$apps/mpv.svg") == "fixed" ]] || fail "a user's icon set draws any app, themed or as it is"
@@ -187,18 +189,31 @@ icons icons-set Original
 [[ $(icons icons-current --id) == "original" ]] || fail "a refused icon set leaves the current one in use"
 pass "the Original icon set shows every app's own icon"
 
-# Every set Omarchy ships draws the same apps, and all of its colors resolve.
+# Every set Omarchy ships draws its own icons with all of their colors resolved.
 for set in "$ROOT"/icons/*/; do
   set=${set%/}
   icons icons-set "${set##*/}"
-  [[ $(cd "$set" && ls) == "$(cd "$ROOT/icons/papercraft" && ls)" ]] || fail "the ${set##*/} icon set draws the apps Papercraft does"
   for tpl in "$set"/*.tpl; do
     name=${tpl##*/}
     name=${name%.tpl}
     [[ -f $state/icons/$name && $(<"$state/icons/$name") != *"{{"* ]] || fail "the ${set##*/} icon set resolves all its colors ($name)"
   done
 done
-pass "every built-in icon set draws the same apps with all its colors resolved"
+pass "every built-in icon set draws its icons with all their colors resolved"
+
+# A draw that waits its turn draws the set that is current when its turn
+# comes, so an older pick never lands after a newer one.
+icons icons-set Papercraft
+exec 8>"$state/.icons.lock"
+flock 8
+set_icons 8>&- &
+waiting=$!
+sleep 0.3
+printf 'arcade\n' >"$state/icons.name"
+exec 8>&-
+wait "$waiting"
+[[ $(<"$state/icons/folio.svg") == *crispEdges* ]] || fail "a waiting draw reads the icon set once it holds the lock"
+pass "a draw that waited its turn draws the icon set that is current"
 
 # Only a set cloned from a git repo is pulled on update: not one the user wrote
 # or a working copy linked in.

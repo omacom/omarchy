@@ -33,17 +33,20 @@ CURRENT="$HOME/.local/state/omarchy/current"
 THEME="$CURRENT/theme"
 ICONS="$CURRENT/icons"
 LINKS="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
-SET=$(omarchy-icons-current --id)
-BUILT_IN_SET="$OMARCHY_PATH/icons/$SET"
-USER_SET="$HOME/.config/omarchy/icons/$SET"
 
 shopt -s nullglob
 
-# Quick switches can start runs that overlap. One at a time, the last one to
-# run reads the current theme and set, so an older one never lands last.
+# Quick switches can start runs that overlap. One at a time, and the set and
+# theme are read once the lock is held, so the last one to run draws what is
+# current and an older choice never lands last. omarchy-icons-set writes the
+# set's name under the same lock.
 mkdir -p "$CURRENT"
 exec 7>"$CURRENT/.icons.lock"
 flock 7
+
+SET=$(omarchy-icons-current --id)
+BUILT_IN_SET="$OMARCHY_PATH/icons/$SET"
+USER_SET="$HOME/.config/omarchy/icons/$SET"
 
 scratch=$(mktemp -d "$CURRENT/.icons.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
