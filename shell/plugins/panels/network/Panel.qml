@@ -204,7 +204,11 @@ Panel {
   property string hotspotSecurity: "mixed"
   property string hotspotError: ""
   property string hotspotStatusError: ""
-  readonly property string hotspotMessage: hotspotError !== "" ? hotspotError : hotspotStatusError
+  // A save the running AP has not picked up (its firewall step or restart
+  // did not finish): the saved name and password are not what is on air, so
+  // the join QR is withheld and the panel says how to finish.
+  readonly property bool hotspotRestartPending: hotspotActive && hotspot.pending === "1"
+  readonly property string hotspotMessage: hotspotError !== "" ? hotspotError : (hotspotStatusError !== "" ? hotspotStatusError : (hotspotRestartPending ? Commons.I18n.t("network.hotspotRestartPending") : ""))
   // The credential fields hide behind a cog so the section stays compact.
   property bool hotspotSetupOpen: false
   // Reveal the passphrase in the setup dropdown (eye toggle).
@@ -269,8 +273,10 @@ Panel {
   // unlimited and is passed explicitly, so a stale default can never clear a
   // limit the profile still has.
   readonly property string hotspotLimitArgument: hotspotMaxClients === "" ? "unlimited" : hotspotMaxClients
-  // Keyboard cycle is toggle / cog, plus QR only while the AP is on air.
-  readonly property int hotspotFocusMax: hotspotActive ? 2 : 1
+  // Keyboard cycle is toggle / cog, plus QR only while the AP is on air
+  // with the saved settings.
+  readonly property int hotspotFocusMax: hotspotActive && !hotspotRestartPending ? 2 : 1
+  onHotspotFocusMaxChanged: if (hotspotFocusIndex > hotspotFocusMax) hotspotFocusIndex = hotspotFocusMax
 
   onHotspotActiveChanged: {
     if (hotspotFocusIndex > hotspotFocusMax) hotspotFocusIndex = hotspotFocusMax
@@ -1302,7 +1308,7 @@ Panel {
     // that interface, so the card shows the hotspot's join QR while it runs.
     // Hidden while the AP is down: the same iface would otherwise QR the
     // station network the radio is joined to.
-    if (!hotspotActive) return
+    if (!hotspotActive || hotspotRestartPending) return
     controller.hide()
     cancelPasswordPrompt()
     var payload = {}
@@ -2275,7 +2281,7 @@ Panel {
 
           Button {
             id: hotspotQrButton
-            visible: root.hotspotActive
+            visible: root.hotspotActive && !root.hotspotRestartPending
             anchors.right: hotspotToggle.left
             anchors.rightMargin: visible ? Style.space(8) : 0
             anchors.verticalCenter: parent.verticalCenter

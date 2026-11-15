@@ -361,8 +361,14 @@ function panelBinding(name) {
 const hotspotMessage = panelBinding('hotspotMessage')
 assertEqual(hotspotMessage({ hotspotError: 'start failed', hotspotStatusError: 'status failed' }), 'start failed', 'network shows an action error ahead of a status error')
 assertEqual(hotspotMessage({ hotspotError: '', hotspotStatusError: 'status failed' }), 'status failed', 'network falls back to the status error')
+assertEqual(hotspotMessage({ hotspotError: '', hotspotStatusError: '', hotspotRestartPending: false }), '', 'network shows no hotspot message when nothing is wrong')
+assert(hotspotMessage({ hotspotError: '', hotspotStatusError: '', hotspotRestartPending: true, Commons: englishCommons }).includes('Save again'), 'network says how to finish a save the running hotspot has not picked up')
+const hotspotRestartPending = panelBinding('hotspotRestartPending')
+assert(hotspotRestartPending({ hotspotActive: true, hotspot: network.parseHotspotStatus('active\t1\npending\t1\n') }), 'network reads a pending restart from the hotspot status')
+assert(!hotspotRestartPending({ hotspotActive: true, hotspot: network.parseHotspotStatus('active\t1\npending\t0\n') }), 'network reads no pending restart when the status has none')
 const hotspotFocusMax = panelBinding('hotspotFocusMax')
-assert(hotspotFocusMax({ hotspotActive: true }) > hotspotFocusMax({ hotspotActive: false }), 'network adds the QR button to the keyboard cycle only while the AP is on')
+assert(hotspotFocusMax({ hotspotActive: true, hotspotRestartPending: false }) > hotspotFocusMax({ hotspotActive: false, hotspotRestartPending: false }), 'network adds the QR button to the keyboard cycle only while the AP is on')
+assertEqual(hotspotFocusMax({ hotspotActive: true, hotspotRestartPending: true }), hotspotFocusMax({ hotspotActive: false, hotspotRestartPending: false }), 'network withholds the QR button while a restart is pending')
 
 // The Wi-Fi list hides only for the radio hosting the AP: with one adapter
 // the list is the AP's own radio, with two the upstream adapter keeps its

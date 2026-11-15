@@ -473,6 +473,7 @@
   "network.hotspotSaveDataNever": "Never",
   "network.hotspotSaveDataNeverTooltip": "Never tell joining devices to save data",
   "network.hotspotSaving": "SAVING…",
+  "network.hotspotRestartPending": "The hotspot is still using its previous settings. Save again to restart it with the new ones.",
   "network.hotspotSecurityHeading": "Security",
   "network.hotspotSecurityMixedTooltip": "WPA3 for devices that support it, WPA2 for the rest",
   "network.hotspotSecurityWpa2Tooltip": "WPA2 only, for devices that struggle with WPA3",

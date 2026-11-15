@@ -1380,9 +1380,9 @@ FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
 export NMCLI_UP_SUCCEED=0
 # The new range is what changed on the live AP, so apply restarts it.
-live=old
-profile_live_settings() { printf '%s\n' "$live"; }
-save_profile() { apply_participant_limit 1 4; live=new; }
+printf '%s\n' old >"$TEST_TMP/live-settings"
+profile_live_settings() { cat "$TEST_TMP/live-settings"; }
+save_profile() { apply_participant_limit 1 4; printf '%s\n' new >"$TEST_TMP/live-settings"; }
 firewall_ensure() { :; }
 apply Hotspot 2.4 4
 DRIVER
@@ -1405,15 +1405,16 @@ cat >"$TEST_TMP/apply-live-driver.sh" <<'DRIVER'
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
-live=old
-profile_live_settings() { printf '%s\n' "$live"; }
-save_profile() { live=$NEXT_LIVE; }
+# apply runs the save in a subshell, so the stand-in keeps its state in a file.
+printf '%s\n' old >"$TEST_TMP/live-settings"
+profile_live_settings() { cat "$TEST_TMP/live-settings"; }
+save_profile() { printf '%s\n' "$NEXT_LIVE" >"$TEST_TMP/live-settings"; }
 firewall_ensure() { printf '%s\n' firewall >>"$NMCLI_UP_LOG"; }
 forwarding_ensure() { :; }
 NEXT_LIVE=new apply Hotspot 2.4
 [[ $(<"$NMCLI_UP_LOG") == $'firewall\nup' ]] || { echo "changed save ran: $(<"$NMCLI_UP_LOG")" >&2; exit 1; }
 : >"$NMCLI_UP_LOG"
-live=old
+printf '%s\n' old >"$TEST_TMP/live-settings"
 NEXT_LIVE=old apply Hotspot 2.4
 [[ ! -s $NMCLI_UP_LOG ]] || { echo "unchanged save ran: $(<"$NMCLI_UP_LOG")" >&2; exit 1; }
 DRIVER
@@ -1455,6 +1456,46 @@ run_isolated "$TEST_TMP/apply-retry-driver.sh" || fail "retrying the same save s
 run_isolated "$TEST_TMP/apply-retry-driver.sh" || fail "a third identical save succeeds"
 [[ ! -s $NMCLI_UP_LOG ]] || fail "with nothing pending, an identical save restarts nothing" "$(<"$NMCLI_UP_LOG")"
 pass "a save interrupted at the firewall step is finished by retrying it"
+
+# A save rejected before it wrote anything leaves nothing pending, so the
+# next save does not restart the AP for it. A restart that fails keeps the
+# mark until the AP is confirmed down.
+reset_firewall_fixture
+rm -f "$TEST_TMP/hotspot.pending"
+touch "$PROFILE_STATE" "$TEST_TMP/nmcli-active"
+printf '%s\n' old >"$TEST_TMP/live-settings"
+cat >"$TEST_TMP/apply-rejected-driver.sh" <<'DRIVER'
+profile_live_settings() { cat "$TEST_TMP/live-settings"; }
+save_profile() { fail "password must be 8-63 characters"; }
+apply Hotspot 2.4
+DRIVER
+set +e
+rejected_output=$(run_isolated "$TEST_TMP/apply-rejected-driver.sh" 2>&1)
+rejected_status=$?
+set -e
+(( rejected_status != 0 )) || fail "a rejected save fails"
+[[ $rejected_output == *"password must be 8-63 characters"* ]] || fail "a rejected save keeps its reason" "$rejected_output"
+[[ ! -e $TEST_TMP/hotspot.pending ]] || fail "a save rejected before writing leaves no restart pending"
+pass "a rejected save leaves no restart pending"
+
+reset_firewall_fixture
+touch "$PROFILE_STATE" "$TEST_TMP/nmcli-active"
+printf '%s\n' old >"$TEST_TMP/live-settings"
+cat >"$TEST_TMP/apply-stuck-driver.sh" <<'DRIVER'
+export NMCLI_UP_SUCCEED=0 NMCLI_DOWN_SUCCEED=0
+profile_live_settings() { cat "$TEST_TMP/live-settings"; }
+save_profile() { printf '%s\n' new >"$TEST_TMP/live-settings"; }
+firewall_ensure() { :; }
+apply Hotspot 2.4
+DRIVER
+set +e
+run_isolated "$TEST_TMP/apply-stuck-driver.sh" >/dev/null 2>&1
+stuck_status=$?
+set -e
+(( stuck_status != 0 )) || fail "a restart that fails with the AP still up is reported"
+[[ -e $TEST_TMP/hotspot.pending ]] || fail "a failed restart keeps the pending mark while the AP is still up"
+rm -f "$TEST_TMP/hotspot.pending"
+pass "a failed restart stays pending until the AP is down"
 
 # Root owns the real shared lock; these drivers stand in for root's step and
 # for the ownership check, so they run unprivileged.
