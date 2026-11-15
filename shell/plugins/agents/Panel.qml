@@ -273,6 +273,9 @@ Panel {
           if (providers[o].localOffer) rows.push([{ kind: "localDownload", index: o }])
     } else if (addStage === "local" || addStage === "network") {
       for (var r = 0; r < addRows.length; r++) rows.push([{ kind: "localAdd", index: r }])
+    } else if (addStage === "running") {
+      if (pasteLinkShown) rows.push([{ kind: "pasteCode", index: 0 }])
+      if (addUrl !== "") rows.push([{ kind: "reopenSignIn", index: 0 }])
     } else if (addStage === "") {
       // Accounts count in the same order as accountEntries. Only what can be
       // done is a stop: one that isn't active offers Autoswitch beside Use, a
@@ -636,6 +639,21 @@ Panel {
   property bool addDownloading: false
   property real addDoneBytes: 0
   property real addTotalBytes: 0
+  // Where a sign-in is, as a setup flow: getting the CLI, then signing in.
+  property string addPhase: ""
+  property bool addReauth: false
+  // Signing in takes over the hero: the provider's mark and name, with the
+  // step it's on below.
+  readonly property bool setupShown: (addStage === "running" || addStage === "done") && addProviderEntry !== null
+  readonly property int setupStep: addStage === "done" ? 3 : addPhase === "signin" ? 2 : 1
+  readonly property var addProviderEntry: {
+    for (var i = 0; i < addProviders.length; i++)
+      if (addProviders[i].providerId === addProvider) return addProviders[i]
+    return null
+  }
+  // Claude only needs a code pasted back when its page shows one, so the
+  // field waits behind a link until then.
+  readonly property bool pasteLinkShown: addProvider === "claude" && !addNeedsPaste && !addDownloading
   // Whether the sign-in in progress opened a private window, so reopening its
   // page does too.
   property bool addPrivate: false
@@ -679,6 +697,8 @@ Panel {
     // newline to read it by, so the field stays a link away the whole time.
     addNeedsPaste = false
     addDownloading = false
+    addPhase = ""
+    addReauth = false
     addResult = ""
     addStage = "running"
     addProcess.command = ["omarchy-agent-account-add", "--events", addProvider].concat(label !== "" ? [label] : [])
@@ -713,9 +733,13 @@ Panel {
         addDoneBytes = Number(bytes[0]) || 0
         addTotalBytes = Number(bytes[1]) || 0
         addDownloading = true
+        addPhase = "get"
       } else if (tagged[1] === "status") {
+        // A download's progress follows its status at once; any other
+        // status is the sign-in's.
         addStatus = tagged[2]
         addDownloading = false
+        addPhase = "signin"
       } else {
         addDownloading = false
         addResult = tagged[2]
@@ -737,6 +761,12 @@ Panel {
     if (/paste code/i.test(text)) addNeedsPaste = true
     var url = text.match(/(https:\/\/\S+)/)
     if (url && addUrl === "") addUrl = url[1]
+  }
+
+  // The field takes the keys from here, so the cursor lets go of the links.
+  function openPasteField() {
+    addNeedsPaste = true
+    cursorActive = false
   }
 
   function reopenSignIn() {
@@ -810,6 +840,8 @@ Panel {
     else if (target.kind === "add") addStage !== "" ? cancelAdd() : addAccount()
     else if (target.kind === "choice") chooseAddProvider(addProviders[target.index].providerId)
     else if (target.kind === "localAdd") chooseAddRow(target.index)
+    else if (target.kind === "pasteCode") openPasteField()
+    else if (target.kind === "reopenSignIn") reopenSignIn()
     else if (["modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare"].indexOf(target.kind) >= 0)
       runLocalAction(providers[target.index].localModel, { modelToggle: "toggle", modelLaunch: "launch", modelPair: "pair", modelDisconnect: "disconnect", modelShare: "share" }[target.kind])
     else if (target.kind === "localDownload") downloadLocal(providers[target.index].localOffer)
@@ -881,6 +913,8 @@ Panel {
     // newline to read it by, so the field stays a link away the whole time.
     addNeedsPaste = false
     addDownloading = false
+    addPhase = ""
+    addReauth = true
     addResult = ""
     addStage = "running"
     addProcess.command = ["omarchy-agent-account-add", "--events", "--reauth",
@@ -1329,7 +1363,9 @@ Panel {
   readonly property bool addButtonShown: !blankSlate || !picking
 
   // Adding takes over the hero's line, and the cursor starts over.
-  readonly property string addHeading: picking || addProvider === ""
+  readonly property string addHeading: setupShown
+    ? (addStage === "done" ? Commons.I18n.t("agents.stepReady") : Commons.I18n.t("agents.setupStep").arg(setupStep).arg(3))
+    : picking || addProvider === ""
     ? (blankSlate ? Commons.I18n.t("agents.addAccount") : Commons.I18n.t("agents.addAnother"))
     : Commons.I18n.t("agents.addProviderAccount").arg(addProviderName(addProvider))
   onAddStageChanged: {
@@ -1544,8 +1580,9 @@ Panel {
       onReorderRequested: function(dy) { root.reorderProvider(dy) }
 
       onMoveRequested: function(dx, dy) {
-        // Naming and signing in have their own fields; there the arrows scroll.
-        if (root.addStage === "" || root.addStage === "local" || root.addStage === "network" || root.picking) root.moveKey(dx, dy)
+        // Naming has its own field; there the arrows scroll. Signing in walks
+        // its links, and a code field takes its own keys once it's open.
+        if (root.addStage === "" || root.addStage === "local" || root.addStage === "network" || root.addStage === "running" || root.picking) root.moveKey(dx, dy)
         else if (dy !== 0)
           panelFlick.contentY = root.clamp(panelFlick.contentY + dy * Style.space(56), 0,
                                            Math.max(0, panelFlick.contentHeight - panelFlick.height))
@@ -1598,18 +1635,34 @@ Panel {
           PanelHero {
             id: hero
             width: parent.width
-            title: Commons.I18n.t("agents.title")
+            title: root.setupShown
+              ? (root.addReauth ? Commons.I18n.t("agents.signInAgainTitle") : Commons.I18n.t("agents.setupTitle")).arg(root.addProviderEntry.providerName)
+              : Commons.I18n.t("agents.title")
             meta: root.heroPhrase
             foreground: root.foreground
             fontFamily: root.fontFamily
 
             iconComponent: Component {
-              Text {
-                textFormat: Text.PlainText
-                text: button.text
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.display
+              Item {
+                implicitWidth: root.setupShown ? setupMark.width : agentsGlyph.implicitWidth
+                implicitHeight: root.setupShown ? setupMark.height : agentsGlyph.implicitHeight
+
+                Text {
+                  id: agentsGlyph
+                  visible: !root.setupShown
+                  textFormat: Text.PlainText
+                  text: button.text
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.display
+                }
+
+                ProviderIcon {
+                  id: setupMark
+                  visible: root.setupShown
+                  provider: root.addProviderEntry
+                  size: Style.font.display * 1.2
+                }
               }
             }
 
@@ -1916,123 +1969,128 @@ Panel {
       }
     }
 
-    // Running: what's happening, and whatever the sign-in needs from you.
+    // Signing in, as a setup flow: get the CLI, sign in, done. Only the
+    // current step says more, and only what it needs from you.
     Column {
-      visible: root.addStage === "running"
+      visible: root.addStage === "running" || root.addStage === "done"
       width: parent.width
-      spacing: Style.space(12)
+      spacing: Style.space(14)
 
-      Text {
-        width: parent.width
-        textFormat: Text.PlainText
-        text: root.addStatus
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        wrapMode: Text.WordWrap
-      }
-
-      // The CLI downloading, before its sign-in can start.
-      Item {
-        visible: root.addDownloading
-        width: parent.width
-        implicitHeight: addDownloadValue.implicitHeight
+      SetupStep {
+        number: 1
+        label: Commons.I18n.t("agents.stepGet").arg(root.addProviderEntry ? root.addProviderEntry.providerName : "")
+        phase: root.addStage === "done" || root.addPhase === "signin" ? "done" : "now"
 
         Meter {
-          anchors.left: parent.left
-          anchors.right: addDownloadValue.left
-          anchors.rightMargin: Style.space(20)
-          anchors.verticalCenter: parent.verticalCenter
+          visible: root.addDownloading
+          width: parent.width
           value: root.addTotalBytes > 0 ? root.addDoneBytes / root.addTotalBytes : 0
         }
 
         Text {
-          id: addDownloadValue
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
-          textFormat: Text.PlainText
-          horizontalAlignment: Text.AlignRight
-          text: root.addTotalBytes > 0
-            ? Commons.I18n.t("agents.cliDownloadValue")
-                .arg(Commons.I18n.formatNumber(Math.round(root.addDoneBytes / 1e6), 0))
-                .arg(Commons.I18n.formatNumber(Math.round(root.addTotalBytes / 1e6), 0))
-            : ""
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-        }
-      }
-
-      Column {
-        visible: root.addCode !== ""
-        width: parent.width
-        spacing: Style.space(4)
-
-        Text {
-          text: Commons.I18n.t("agents.confirmCode")
-          textFormat: Text.PlainText
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-        }
-
-        Text {
-          textFormat: Text.PlainText
-          text: root.addCode
-          color: Commons.Color.accent
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.display
-          font.bold: true
-          font.letterSpacing: 2
-        }
-      }
-
-      Column {
-        visible: root.addNeedsPaste
-        width: parent.width
-        spacing: Style.space(6)
-
-        Text {
+          visible: root.addDownloading
           width: parent.width
-          text: Commons.I18n.t("agents.pasteCode")
           textFormat: Text.PlainText
+          text: Commons.I18n.t("agents.stepGetNote")
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
           wrapMode: Text.WordWrap
         }
+      }
 
-        TextField {
-          id: pasteField
+      SetupStep {
+        number: 2
+        label: Commons.I18n.t("agents.stepSignIn")
+        phase: root.addStage === "done" ? "done" : root.addPhase === "signin" ? "now" : "next"
+
+        Text {
           width: parent.width
-          placeholderText: Commons.I18n.t("agents.placeholderCode")
-          foreground: root.foreground
+          textFormat: Text.PlainText
+          text: root.addStatus
+          color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.body
-          onAccepted: { root.submitPaste(text); text = "" }
-          onVisibleChanged: if (visible) forceActiveFocus()
-          Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
+          font.pixelSize: Style.font.bodySmall
+          wrapMode: Text.WordWrap
+        }
+
+        Column {
+          visible: root.addCode !== ""
+          width: parent.width
+          spacing: Style.space(4)
+
+          Text {
+            text: Commons.I18n.t("agents.confirmCode")
+            textFormat: Text.PlainText
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            text: root.addCode
+            color: Commons.Color.accent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.display
+            font.bold: true
+            font.letterSpacing: 2
+          }
+        }
+
+        Column {
+          visible: root.addNeedsPaste
+          width: parent.width
+          spacing: Style.space(6)
+
+          Text {
+            width: parent.width
+            text: Commons.I18n.t("agents.pasteCode")
+            textFormat: Text.PlainText
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.WordWrap
+          }
+
+          TextField {
+            id: pasteField
+            width: parent.width
+            placeholderText: Commons.I18n.t("agents.placeholderCode")
+            foreground: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            onAccepted: { root.submitPaste(text); text = "" }
+            onVisibleChanged: if (visible) forceActiveFocus()
+            Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
+          }
+        }
+
+        TextLink {
+          visible: root.pasteLinkShown
+          picked: root.hasKey("pasteCode")
+          text: Commons.I18n.t("agents.pasteCodeLink")
+          onClicked: root.openPasteField()
+        }
+
+        TextLink {
+          visible: root.addUrl !== ""
+          picked: root.hasKey("reopenSignIn")
+          text: Commons.I18n.t("agents.reopenSignIn")
+          onClicked: root.reopenSignIn()
         }
       }
 
-      // Claude only needs a code pasted back when its page shows one, so the
-      // field waits behind this until then.
-      TextLink {
-        visible: root.addProvider === "claude" && !root.addNeedsPaste && !root.addDownloading
-        text: Commons.I18n.t("agents.pasteCodeLink")
-        onClicked: root.addNeedsPaste = true
-      }
-
-      TextLink {
-        visible: root.addUrl !== ""
-        text: Commons.I18n.t("agents.reopenSignIn")
-        onClicked: root.reopenSignIn()
+      SetupStep {
+        number: 3
+        label: root.addStage === "done" ? root.addResult : Commons.I18n.t("agents.stepReady")
+        phase: root.addStage === "done" ? "done" : "next"
       }
     }
 
-    // Done or failed.
+    // Failed.
     Text {
-      visible: root.addStage === "done" || root.addStage === "error"
+      visible: root.addStage === "error"
       width: parent.width
       textFormat: Text.PlainText
       text: root.addResult
@@ -2681,6 +2739,68 @@ Panel {
   }
 
   // A provider's mark, falling back to the bar glyph when it ships none.
+  // One step of a setup: a numbered dot that becomes a check once the step is
+  // done, its name, and, while it's the current step, what it needs from you.
+  component SetupStep: Item {
+    id: step
+    property int number: 1
+    property string label: ""
+    // "done", "now", or "next".
+    property string phase: "next"
+    default property alias details: stepDetails.data
+
+    width: parent ? parent.width : 0
+    implicitHeight: Math.max(stepDot.height, stepBody.implicitHeight)
+
+    Rectangle {
+      id: stepDot
+      width: Style.space(22)
+      height: width
+      radius: width / 2
+      color: step.phase === "done" ? Commons.Color.accent : "transparent"
+      border.width: step.phase === "done" ? 0 : Math.max(1, Style.hoverBorderWidth)
+      border.color: step.phase === "now" ? Commons.Color.accent : root.dim
+
+      Text {
+        anchors.centerIn: parent
+        textFormat: Text.PlainText
+        text: step.phase === "done" ? "\uf00c" : String(step.number)
+        color: step.phase === "done" ? root.surface : step.phase === "now" ? Commons.Color.accent : root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+      }
+    }
+
+    Column {
+      id: stepBody
+      anchors.left: stepDot.right
+      anchors.leftMargin: Style.space(12)
+      anchors.right: parent.right
+      spacing: Style.space(8)
+
+      Text {
+        width: parent.width
+        height: Math.max(implicitHeight, stepDot.height)
+        verticalAlignment: Text.AlignVCenter
+        textFormat: Text.PlainText
+        text: step.label
+        color: step.phase === "now" ? root.foreground : root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        font.bold: step.phase === "now"
+        wrapMode: Text.WordWrap
+      }
+
+      Column {
+        id: stepDetails
+        visible: step.phase === "now" && children.length > 0
+        width: parent.width
+        spacing: Style.space(8)
+      }
+    }
+  }
+
   component ProviderIcon: Item {
     id: mark
     property var provider: null
