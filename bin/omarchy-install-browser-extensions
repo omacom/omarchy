@@ -57,11 +57,17 @@ hosts_current() {
   done
 }
 
+# The --load-extension value Chromium honors: the last such switch on any
+# uncommented line, which may carry other switches beside it.
+loaded_flag_extensions() {
+  awk '!/^[[:space:]]*#/ { for (i = 1; i <= NF; i++) if ($i ~ /^--load-extension=/) last = substr($i, 18) } END { print last }' "$flags_file"
+}
+
 # The extensions the flags file loads but doesn't list yet, one per line.
 missing_flag_extensions() {
   local loaded extension
 
-  loaded=$(sed -n 's/^--load-extension=//p' "$flags_file" 2>/dev/null | tr ',' '\n')
+  loaded=$(loaded_flag_extensions | tr ',' '\n')
   while read -r extension; do
     grep -Fxq -- "$extension" <<<"$loaded" || printf '%s\n' "$extension"
   done < <(tr ',' '\n' <<<"$shipped_extensions")
@@ -73,7 +79,7 @@ flags_current() {
 
 # Add only the missing extensions, keeping the user's own flags and extensions.
 repair_flags() {
-  local missing
+  local missing repaired
 
   if [[ ! -f $flags_file ]]; then
     mkdir -p "$(dirname "$flags_file")"
@@ -84,8 +90,27 @@ repair_flags() {
   missing=$(missing_flag_extensions | paste -sd,)
   [[ -n $missing ]] || return 0
 
-  if grep -q '^--load-extension=' "$flags_file"; then
-    sed -i --follow-symlinks "s|^--load-extension=\(.*\)$|--load-extension=\1,$missing|" "$flags_file"
+  # Extend the last --load-extension switch in place, leaving any other
+  # switches on its line alone. Writing through the redirect keeps a symlinked
+  # flags file a symlink.
+  if repaired=$(awk -v missing="$missing" '
+    FNR == NR {
+      if (!/^[[:space:]]*#/ && /(^|[[:space:]])--load-extension=/) target = FNR
+      next
+    }
+    FNR == target {
+      rest = $0
+      offset = 0
+      while (match(rest, /(^|[[:space:]])--load-extension=[^[:space:]]*/)) {
+        offset += RSTART + RLENGTH - 1
+        rest = substr($0, offset + 1)
+      }
+      $0 = substr($0, 1, offset) "," missing substr($0, offset + 1)
+    }
+    { print }
+    END { exit !target }
+  ' "$flags_file" "$flags_file"); then
+    printf '%s\n' "$repaired" >"$flags_file"
   else
     [[ -z $(tail -c1 "$flags_file") ]] || echo >>"$flags_file"
     echo "--load-extension=$missing" >>"$flags_file"

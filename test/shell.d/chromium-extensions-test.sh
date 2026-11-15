@@ -145,7 +145,7 @@ pass "a fresh install registers every native messaging host for Chromium and Bra
 home="$test_tmp/repair-home"
 flags_file=$home/.config/brave-origin-flags.conf
 mkdir -p "$home/.config"
-printf -- '--force-dark-mode\n--load-extension=/home/me/my-extension,/usr/share/omarchy/default/chromium/extensions/copy-url' >"$flags_file"
+printf -- '--force-dark-mode\n--load-extension=/home/me/my-extension,/usr/share/omarchy/default/chromium/extensions/copy-url --ozone-platform=wayland' >"$flags_file"
 repair() {
   HOME="$home" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH" "$ROOT/bin/omarchy-install-browser-extensions" "$@"
 }
@@ -155,8 +155,10 @@ fi
 repair brave-origin || fail "a browser's bundled extensions can be repaired without root"
 repair --check brave-origin || fail "a repaired browser's bundled extensions are reported current"
 grep -Fxq -- '--force-dark-mode' "$flags_file" || fail "the repair keeps the user's own flags"
-[[ $(grep -c '^--load-extension=' "$flags_file") == 1 ]] || fail "the repair keeps a single --load-extension line"
-loaded=$(sed -n 's/^--load-extension=//p' "$flags_file" | tr ',' '\n')
+[[ $(grep -c -- '--load-extension=' "$flags_file") == 1 ]] || fail "the repair keeps a single --load-extension switch"
+[[ $(grep -o -- '--ozone-platform=[^[:space:]]*' "$flags_file") == "--ozone-platform=wayland" ]] ||
+  fail "the repair leaves other switches on the --load-extension line alone" "$(<"$flags_file")"
+loaded=$(grep -o -- '--load-extension=[^[:space:]]*' "$flags_file" | sed 's/^--load-extension=//' | tr ',' '\n')
 grep -Fxq /home/me/my-extension <<<"$loaded" || fail "the repair keeps the user's own extensions"
 while read -r extension; do
   [[ $(grep -cFx -- "$extension" <<<"$loaded") == 1 ]] || fail "the repair loads $extension exactly once"
