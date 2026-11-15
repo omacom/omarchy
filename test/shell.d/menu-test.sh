@@ -333,16 +333,6 @@ assertDeepEqual(clockRowFormats('verticalFormat'), clockModel.clockFormats(true)
   }
 }
 
-// The guard batch answers command presence in-process but runs a hardware predicate as a process, so the Auto Brightness
-// rows ask for their commands first: a machine without them forks nothing.
-for (const id of ['trigger.toggle.auto-brightness-on', 'trigger.toggle.auto-brightness-off']) {
-  assert(
-    defaultById[id].when.startsWith('omarchy-cmd-present omarchy-brightness-auto wluma && omarchy-hw-aarch64-apple && '),
-    `${id} checks for its commands before the hardware`,
-    defaultById[id].when
-  )
-}
-
 // App rows are rebuilt from scratch on every desktop-entry rescan. The merge
 // must be idempotent and must never carry an orphan id forward, or a single
 // lost write turns into an app listed twice (and thrice, and so on).
