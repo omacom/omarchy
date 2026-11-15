@@ -59,14 +59,25 @@ exit_session() {
     fi
   fi
 
-  omarchy-osd -i "${action/firmware/reboot}" -m "$message" -d 5000
+  # Only show the OSD once the exit has taken 2 seconds, so a quick one doesn't flash it.
+  { sleep 2; omarchy-osd -i "${action/firmware/reboot}" -m "$message" -d 0; } &
+  local osd_pid=$!
+
   if [[ $action != "logout" ]]; then
     omarchy-state clear re*-required
   fi
 
   # Proceed as soon as apps exit, with a bound for unresponsive windows.
   timeout 2s omarchy-hyprland-window-close-all --wait
-  "${command[@]}"
+  if "${command[@]}"; then
+    # The unit kills the delayed OSD when this script exits, so stay until the session goes down.
+    wait "$osd_pid"
+  else
+    local status=$?
+    kill "$osd_pid" 2>/dev/null
+    omarchy-shell -q osd close
+    return "$status"
+  fi
 }
 
 if [[ ${2:-} == "--inhibited" ]]; then
