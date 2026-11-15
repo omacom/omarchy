@@ -5,7 +5,9 @@
 
 set -e
 
-pkill -x chatgpt || true
+# The app rewrites ~/.config/Codex for as long as it runs, so a removal that
+# leaves it running deletes the directory and watches it come straight back.
+pkill -x ChatGPT || true
 
 omarchy-pkg-drop openai-codex-desktop
 
