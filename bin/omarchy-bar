@@ -2,7 +2,7 @@
 
 # omarchy:summary=Configure the bar and its widget layout
 # omarchy:group=bar
-# omarchy:args=use <id> | reset | defaults | position [top|bottom|left|right] | background [opaque|glassy|none|cycle] | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement] | get <id> <key>
+# omarchy:args=use <id> | reset | defaults | position [top|bottom|left|right] | autohide [on|off|toggle] | background [opaque|glassy|none|cycle] | put <id> [placement] | move <id> [placement] | set <id> <key> <value> [--json] [placement] | get <id> <key>
 # omarchy:examples=omarchy bar use local.neon-bar | omarchy bar put omarchy.keyboard-layout --after omarchy.clock | omarchy bar move omarchy.weather --section centerBegin --index 0 | omarchy bar set omarchy.clock format HH:mm
 
 set -euo pipefail
@@ -18,6 +18,9 @@ Usage: omarchy bar <command> [args...]
   defaults                             Restore the default bar and service widgets
   position [top|bottom|left|right]     Bar position; prints the current one
                                        when given none
+  autohide [on|off|toggle]             Hide the bar until the pointer reaches
+                                       its edge; prints on or off when given
+                                       none
   background [opaque|glassy|none|cycle]
                                        Bar background: glassy shows what is
                                        behind the bar blurred, cycle steps
@@ -217,6 +220,33 @@ cmd_position() {
   [[ $position =~ ^(top|bottom|left|right)$ ]] || fail "position must be top, bottom, left, or right"
   commit "$NORMALIZE | .bar.position = \$position" --arg position "$position"
   echo "Bar position set to $position"
+}
+
+# Auto-hide keeps no space reserved for the bar and slides it in from its screen
+# edge. Off by default: the key is absent from shell.json until it is set, as
+# the dock's is.
+current_autohide() {
+  jq -r 'if .bar.autohide == true then "on" else "off" end' "$(source_file)"
+}
+
+cmd_autohide() {
+  if (( $# == 0 )); then
+    current_autohide
+    return
+  fi
+
+  local value="$1"
+  (( $# == 1 )) || fail "autohide takes a single value"
+  if [[ $value == "toggle" ]]; then
+    if [[ $(current_autohide) == "on" ]]; then
+      value=off
+    else
+      value=on
+    fi
+  fi
+  [[ $value =~ ^(on|off)$ ]] || fail "autohide must be on, off, or toggle"
+  commit "$NORMALIZE | .bar.autohide = (\$value == \"on\")" --arg value "$value"
+  echo "Bar auto-hide turned $value"
 }
 
 # The bar background is opaque, glassy, or none. A shell.json from before it
@@ -488,6 +518,9 @@ case "$command" in
     ;;
   position)
     cmd_position "$@"
+    ;;
+  autohide)
+    cmd_autohide "$@"
     ;;
   transparent)
     cmd_transparent "$@"
