@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Detect the Chuwi MiniBook X (Intel N100/N150 convertible).
+
+grep -qi "^CHUWI" /sys/class/dmi/id/sys_vendor 2>/dev/null &&
+  grep -qx "MiniBook X" /sys/class/dmi/id/product_name 2>/dev/null

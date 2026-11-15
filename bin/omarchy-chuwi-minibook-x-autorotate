@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# omarchy:summary=Rotate the Chuwi MiniBook X display and touchscreen to follow the accelerometer
+# omarchy:hidden=true
+
+# Runs as omarchy-chuwi-minibook-x-autorotate.service. iio-sensor-proxy reports
+# the lid sensor's orientation; the panel is natively portrait, so laptop use
+# (keyboard down) is transform 3:
+#   normal -> 0, left-up -> 1, bottom-up -> 2, right-up -> 3
+# The current transform is recorded so default/hypr/chuwi-minibook-x.lua keeps
+# it across config reloads. While rotation is locked
+# (omarchy-toggle-rotation-lock) orientation changes are ignored.
+
+set -o pipefail
+
+monitor="DSI-1"
+state_dir="$HOME/.local/state/omarchy/chuwi-minibook-x"
+
+omarchy-hw-chuwi-minibook-x || exit 0
+
+apply_transform() {
+  local transform=$1 scale
+
+  omarchy-toggle-enabled rotation-lock && return
+
+  scale=$(hyprctl monitors -j 2>/dev/null | jq -r --arg m "$monitor" '.[] | select(.name == $m) | .scale' | head -1)
+  [[ $scale =~ ^[0-9.]+$ ]] || scale="1.5"
+
+  hyprctl eval "hl.monitor({ output = '$monitor', mode = 'preferred', position = 'auto', scale = $scale, transform = $transform })" >/dev/null
+  hyprctl eval "hl.config({ input = { touchdevice = { output = '$monitor', transform = $transform } } })" >/dev/null
+
+  mkdir -p "$state_dir"
+  printf '%s\n' "$transform" >"$state_dir/rotation"
+}
+
+# monitor-sensor block-buffers its output when piped, so force line buffering.
+stdbuf -oL monitor-sensor --accel 2>/dev/null | while read -r line; do
+  case $line in
+    *"orientation: normal"* | *"orientation changed: normal"*) apply_transform 0 ;;
+    *"orientation: left-up"* | *"orientation changed: left-up"*) apply_transform 1 ;;
+    *"orientation: bottom-up"* | *"orientation changed: bottom-up"*) apply_transform 2 ;;
+    *"orientation: right-up"* | *"orientation changed: right-up"*) apply_transform 3 ;;
+  esac
+done
+
+# monitor-sensor runs until it fails, so reaching here is a failure: exit
+# non-zero for Restart=on-failure to start it again.
+exit 1

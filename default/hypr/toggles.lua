@@ -22,6 +22,9 @@ disabled_input_device("touchscreen")
 
 require("default.hypr.workspace-layouts")
 
+-- Chuwi MiniBook X panel rotation and tablet mode; a no-op on other machines.
+require("default.hypr.chuwi-minibook-x")
+
 -- After hypr/monitors.lua, so each monitor's mode, position and scale as
 -- chosen in the display panel win over a rule written there.
 require("default.hypr.monitor-settings")
