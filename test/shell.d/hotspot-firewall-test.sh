@@ -872,6 +872,8 @@ if unshare --user --map-root-user true 2>/dev/null; then
   : >"$PRIVILEGED_LOG"
   cat >"$TEST_TMP/root-path-driver.sh" <<'DRIVER'
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+# This path skips $TEST_PATHS, so pin the sysctl config here too.
+SYSCTL_CONFIG_FILES=()
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
 export UFW_SHOW_ALLOWED=1
@@ -1375,7 +1377,11 @@ HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
 export NMCLI_UP_SUCCEED=0
-save_profile() { apply_participant_limit 1 4; }
+# The new range is what changed on the live AP, so apply restarts it.
+live=old
+profile_live_settings() { printf '%s\n' "$live"; }
+save_profile() { apply_participant_limit 1 4; live=new; }
+firewall_ensure() { :; }
 apply Hotspot 2.4 4
 DRIVER
 set +e
@@ -1387,6 +1393,30 @@ set -e
 grep -q ' release$' "$PRIVILEGED_LOG" || fail "a failed restart releases the hotspot's host state" "$(<"$PRIVILEGED_LOG")"
 [[ ! -e $FORWARDING_STATE && $(<"$FORWARDING_STATE_VALUE") == "0" ]] || fail "a failed restart restores forwarding"
 pass "a limit change that cannot restart the AP releases its host state"
+
+# A save that changes what a live AP runs on brings the firewall in line
+# before reactivating, as start does, so a new subnet is allowed before
+# clients get leases on it; a save that changes none of it restarts nothing.
+reset_firewall_fixture
+touch "$PROFILE_STATE" "$TEST_TMP/nmcli-active"
+cat >"$TEST_TMP/apply-live-driver.sh" <<'DRIVER'
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+live=old
+profile_live_settings() { printf '%s\n' "$live"; }
+save_profile() { live=$NEXT_LIVE; }
+firewall_ensure() { printf '%s\n' firewall >>"$NMCLI_UP_LOG"; }
+forwarding_ensure() { :; }
+NEXT_LIVE=new apply Hotspot 2.4
+[[ $(<"$NMCLI_UP_LOG") == $'firewall\nup' ]] || { echo "changed save ran: $(<"$NMCLI_UP_LOG")" >&2; exit 1; }
+: >"$NMCLI_UP_LOG"
+live=old
+NEXT_LIVE=old apply Hotspot 2.4
+[[ ! -s $NMCLI_UP_LOG ]] || { echo "unchanged save ran: $(<"$NMCLI_UP_LOG")" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/apply-live-driver.sh"
+pass "a live save updates the firewall before restarting, and only when the AP's settings changed"
 
 # Root owns the real shared lock; these drivers stand in for root's step and
 # for the ownership check, so they run unprivileged.
