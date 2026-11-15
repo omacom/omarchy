@@ -111,3 +111,25 @@ cd omarchy
 ```
 
 Follow the repository's own `AGENTS.md` for style, testing, and commit conventions — it is the authority on contributions. Keep commits atomic, run `./test/all` before pushing, and open the PR with `gh pr create`. A PR that fixes a visual problem or adds a visual feature includes screenshots or a screencast of it, before and after when something changed, attached with `gh pr create --attach './before.png#Before' --attach './after.png#After'`.
+
+## AI Agent & Maintainer PR Triage
+
+Automated maintenance agents and contributors can audit open pull requests using:
+
+```bash
+# Audit open pull requests with ANSI formatted status table
+omarchy dev pr audit
+
+# Filter by state
+omarchy dev pr audit --conflicts-only
+omarchy dev pr audit --failing-only
+omarchy dev pr audit --missing-tests-only
+
+# Structured JSON for automated agent processing
+omarchy dev pr audit --json
+```
+
+PR labels are synchronized with Greptile review summaries:
+- `greptile:5/5`: AI confidence score 5/5, clean review, ready for merge evaluation
+- `greptile:needs-fixes`: review identified open findings
+- `impact:critical`, `impact:high`, `impact:medium`, `impact:low`: impact rating of open findings
