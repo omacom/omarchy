@@ -1,12 +1,12 @@
 # Mandhari
 
-Omarchy inakuja na mandhari ishirini na mbili nzuri. Unaweza kuchagua kati yazo kupitia _Muonekano > Mandhari_ katika Menyu ya Omarchy (`Super + Space`) au kwenda moja kwa moja hadi kwenye kichagua mandhari kwa kutumia `Super + Ctrl + T`.
+Omarchy huja na mandhari ishirini na mbili nzuri. Unaweza kuchagua kati yake kupitia _Muonekano > Mandhari_ katika Menyu ya Omarchy (`Super + Space`) au kwenda moja kwa moja kwenye kichagua mandhari kwa kutumia `Super + Ctrl + T`.
 
-Kila mandhari huweka mtindo kwenye eneo-kazi, terminali, neovim, skrini ya shughuli (btop), Chromium, na ganda zima la Omarchy: upau wa juu, menyu, arifa, OSD, na skrini ya kufunga. (Kwa Obsidian, lazima uchague mwenyewe mandhari ya Omarchy kupitia _Muonekano > Mandhari_ ndani ya programu).
+Kila mandhari huweka mtindo kwenye eneo-kazi, terminali, neovim, skrini ya shughuli (btop), Chromium, na shell nzima ya Omarchy: upau wa juu, menyu, arifa, OSD, na skrini ya kufunga. (Kwa Obsidian, lazima uchague mwenyewe mandhari ya Omarchy kupitia _Muonekano > Mandhari_ ndani ya programu).
 
-Mandhari zina seti ya picha za usuli ambazo unaweza kuchagua kati yazo kwa kutumia `Super + Ctrl + W`.
+Mandhari zina seti ya picha za usuli unazoweza kuchagua kati yake kwa kutumia `Super + Ctrl + W`.
 
-Unaweza kupata mandhari zaidi zaidi kwenye [ukurasa wa mandhari za ziada](https://omarchy.org/themes/) au hata [kutengeneza mandhari yako mwenyewe](43-making-your-own-theme.md).
+Unaweza kupata mandhari zaidi zaidi kwenye [ukurasa wa mandhari za ziada](https://omarchy.org/themes/) au hata [tengeneza mandhari yako mwenyewe](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Miundo ya Kufungua
+### Ikoni za programu
 
-Mandhari zinaweza pia kuwa na muundo maalum wa kufungua, ambao hutumika kwa mchakato wa kusimbua wakati wa kuwasha. Unaweza kuchagua mojawapo ya hizi chini ya _Muonekano > Kufungua_. Zinaonekana kama hivi:
+Ikoni katika kizindua programu na dock huchorwa kwa rangi za mandhari yako, kwa hivyo hubadilika pamoja nayo. Hutoka kwenye seti ya ikoni, ambayo huichagua kando na mandhari chini ya _Muonekano > Ikoni_:
+
+- _Papercraft_ ndiyo chaguo-msingi: kila kitu kilichosakinishwa, kimechorwa kwa mtindo mmoja. Programu zinazofahamika kwa nembo zake, kama Chrome, HEY, au YouTube, hubaki na umbo lake na kuchukua rangi za mandhari.
+- _Arcade_ huchora programu hizo hizo kama sanaa ya pikseli ya 8-bit, kama console ya zamani ya michezo ingefanya.
+- _Original_ huonyesha kila programu ikiwa na ikoni ambayo mtengenezaji wake aliipa.
+
+Unaweza kusakinisha seti ya ikoni ambayo mtu mwingine ametengeneza kwa _Sakinisha > Mtindo > Ikoni_ (au `omarchy icons install <git url>`), na kuiondoa tena chini ya _Ondoa > Ikoni_. _Sasisha > Ikoni za Ziada_ huleta toleo jipya zaidi la seti ulizosakinisha.
+
+Ili kutengeneza yako mwenyewe, weka ikoni zako katika `~/.config/omarchy/icons/<name>/`, faili moja kwa kila programu, iliyopewa jina kulingana na mstari wa `Icon=` wa faili ya `.desktop` ya programu. Faili inayoishia na `.svg` huonyeshwa kama ilivyo. Faili inayoishia na `.svg.tpl` huchorwa kwa rangi za mandhari: andika `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` au `{{ icon_shadow }}` pale rangi inapowekwa. Seti chaguo-msingi katika `/usr/share/omarchy/icons/papercraft/` ni mahali pazuri pa kuanzia. Ili kubadilisha ikoni moja ya seti chaguo-msingi, weka toleo lako katika `~/.config/omarchy/icons/papercraft/`.
+
+### Miundo ya kufungua
+
+Mandhari pia zinaweza kuwa na muundo maalum wa kufungua, ambao hutumika kwa mchakato wa kusimbua wakati wa kuwasha. Unaweza kuchagua mojawapo ya hizi chini ya _Muonekano > Kufungua_. Zinaonekana hivi:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

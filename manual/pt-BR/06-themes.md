@@ -1,8 +1,8 @@
 # Temas
 
-O Omarchy vem com vinte e dois temas lindos. Você pode alternar entre eles em _Aparência > Tema_ no Menu do Omarchy (`Super + Space`) ou ir direto para o seletor de temas usando `Super + Ctrl + T`.
+O Omarchy vem com vinte e dois temas lindos. Você pode escolher entre eles via _Aparência > Tema_ no Menu do Omarchy (`Super + Space`) ou ir direto para o seletor de temas usando `Super + Ctrl + T`.
 
-Cada tema estiliza a área de trabalho, o terminal, o neovim, a tela de atividades (btop), o Chromium e todo o shell do Omarchy: barra superior, menu, notificações, OSD e a tela de bloqueio. (No Obsidian, você deve selecionar manualmente o tema do Omarchy em _Aparência > Temas_ dentro do aplicativo).
+Cada tema estiliza a área de trabalho, o terminal, o Neovim, a tela de atividade (btop), o Chromium e todo o shell do Omarchy: barra superior, menu, notificações, OSD e a tela de bloqueio. (Para o Obsidian, você precisa selecionar manualmente o tema do Omarchy via _Aparência > Temas_ dentro do aplicativo).
 
 Os temas têm um conjunto de imagens de fundo entre as quais você pode escolher usando `Super + Ctrl + W`.
 
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### Ícones de aplicativos
+
+Os ícones no lançador de aplicativos e no dock são desenhados nas cores do seu tema, então mudam junto com ele. Eles vêm de um conjunto de ícones, que você escolhe separadamente do tema em _Aparência > Ícones_:
+
+- _Papercraft_ é o padrão: tudo o que vem instalado, desenhado em um único estilo. Aplicativos conhecidos pelo seu logotipo, como Chrome, HEY ou YouTube, mantêm sua forma e assumem as cores do tema.
+- _Arcade_ desenha os mesmos aplicativos como pixel art de 8 bits, como faria um console de jogos antigo.
+- _Original_ mostra cada aplicativo com o ícone que seu criador lhe deu.
+
+Você pode instalar um conjunto de ícones que outra pessoa fez com _Instalar > Estilo > Ícones_ (ou `omarchy icons install <git url>`), e removê-lo novamente em _Remover > Ícones_. _Atualizar > Ícones Extras_ busca a versão mais recente dos conjuntos que você instalou.
+
+Para criar o seu próprio, coloque seus ícones em `~/.config/omarchy/icons/<name>/`, um arquivo por aplicativo, nomeado de acordo com a linha `Icon=` do arquivo `.desktop` do aplicativo. Um arquivo que termina em `.svg` é mostrado como está. Um arquivo que termina em `.svg.tpl` é desenhado nas cores do tema: escreva `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` ou `{{ icon_shadow }}` onde vai uma cor. O conjunto padrão em `/usr/share/omarchy/icons/papercraft/` é um bom ponto de partida. Para alterar um único ícone do conjunto padrão, coloque sua versão em `~/.config/omarchy/icons/papercraft/`.
+
 ### Desbloqueios
 
-Os temas também podem ter um design de desbloqueio personalizado, que é usado no processo de descriptografia na inicialização. Você pode selecionar um deles em _Aparência > Desbloqueio_. Eles têm esta aparência:
+Os temas também podem ter um design de desbloqueio personalizado, que é usado no processo de descriptografia da inicialização. Você pode selecionar um deles em _Aparência > Desbloqueio_. Eles são assim:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

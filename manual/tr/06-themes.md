@@ -1,12 +1,12 @@
 # Temalar
 
-Omarchy yirmi iki güzel temayla birlikte gelir. Bunlar arasında Omarchy Menüsü'ndeki (`Super + Space`) _Appearance > Theme_ üzerinden seçim yapabilir veya `Super + Ctrl + T` kullanarak doğrudan tema seçiciye atlayabilirsiniz.
+Omarchy yirmi iki güzel temayla birlikte gelir. Bunlar arasından Omarchy Menüsü'ndeki (`Super + Space`) _Görünüm > Tema_ üzerinden seçim yapabilir ya da `Super + Ctrl + T` kullanarak doğrudan tema seçicisine atlayabilirsiniz.
 
-Her tema masaüstünü, terminali, neovim'i, etkinlik ekranını (btop), Chromium'u ve tüm Omarchy kabuğunu biçimlendirir: üst çubuk, menü, bildirimler, OSD ve kilit ekranı. (Obsidian için, uygulama içindeki _Appearance > Themes_ üzerinden Omarchy temasını manuel olarak seçmelisiniz).
+Her tema masaüstünü, terminali, neovim'i, etkinlik ekranını (btop), Chromium'u ve tüm Omarchy kabuğunu şekillendirir: üst çubuk, menü, bildirimler, OSD ve kilit ekranı. (Obsidian için, Omarchy temasını uygulama içindeki _Görünüm > Temalar_ üzerinden elle seçmeniz gerekir).
 
-Temaların, `Super + Ctrl + W` kullanarak aralarında seçim yapabileceğiniz bir dizi arka plan görseli vardır.
+Temaların, `Super + Ctrl + W` kullanarak aralarından seçim yapabileceğiniz bir dizi arka plan görseli vardır.
 
-Daha da fazla temayı [ek temalar sayfasında](https://omarchy.org/themes/) bulabilir, hatta [kendi temanızı yapabilirsiniz](43-making-your-own-theme.md).
+Daha da fazla temayı [ekstra temalar sayfasında](https://omarchy.org/themes/) bulabilir, hatta [kendi temanızı yapabilirsiniz](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Kilit Açma Ekranları
+### Uygulama simgeleri
 
-Temaların ayrıca önyükleme şifre çözme işlemi için kullanılan özel bir kilit açma tasarımı da olabilir. Bunlardan birini _Appearance > Unlock_ altında seçebilirsiniz. Şöyle görünürler:
+Uygulama başlatıcısındaki ve dock'taki simgeler temanızın renkleriyle çizilir, bu yüzden temayla birlikte değişirler. Bunlar, temadan ayrı olarak _Görünüm > Simgeler_ altından seçtiğiniz bir simge setinden gelir:
+
+- _Papercraft_ varsayılandır: kurulu gelen her şey, tek bir tarzda çizilmiştir. Chrome, HEY veya YouTube gibi logosuyla tanınan uygulamalar şeklini korur ve temanın renklerini alır.
+- _Arcade_ aynı uygulamaları, eski bir oyun konsolunun yapacağı gibi 8-bit piksel sanatı olarak çizer.
+- _Original_ her uygulamayı, yaratıcısının ona verdiği simgeyle gösterir.
+
+Bir başkasının yaptığı bir simge setini _Kur > Stil > Simgeler_ ile (ya da `omarchy icons install <git url>`) kurabilir, _Kaldır > Simgeler_ altından tekrar kaldırabilirsiniz. _Güncelle > Ekstra Simgeler_, kurduğunuz setlerin en son sürümünü getirir.
+
+Kendi setinizi yapmak için simgelerinizi `~/.config/omarchy/icons/<name>/` içine, uygulama başına bir dosya olacak şekilde, uygulamanın `.desktop` dosyasının `Icon=` satırına göre adlandırarak koyun. `.svg` ile biten bir dosya olduğu gibi gösterilir. `.svg.tpl` ile biten bir dosya temanın renkleriyle çizilir: bir rengin geleceği yere `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` veya `{{ icon_shadow }}` yazın. `/usr/share/omarchy/icons/papercraft/` içindeki varsayılan set, başlamak için iyi bir yerdir. Varsayılan setin tek bir simgesini değiştirmek için kendi sürümünüzü `~/.config/omarchy/icons/papercraft/` içine koyun.
+
+### Kilit Açma Tasarımları
+
+Temaların, önyükleme şifre çözme işlemi için kullanılan özel bir kilit açma tasarımı da olabilir. Bunlardan birini _Görünüm > Kilit Açma_ altından seçebilirsiniz. Şöyle görünürler:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

@@ -1,12 +1,12 @@
 # Motivy
 
-Omarchy přichází s dvaadvaceti krásnými motivy. Vybírat mezi nimi můžete přes _Vzhled > Motiv_ v Omarchy Menu (`Super + Space`) nebo přejít rovnou na výběr motivu pomocí `Super + Ctrl + T`.
+Omarchy obsahuje dvacet dva krásných motivů. Vybrat si mezi nimi můžete přes _Vzhled > Motiv_ v Omarchy Menu (`Super + Space`), nebo skočit rovnou do výběru motivu pomocí `Super + Ctrl + T`.
 
-Každý motiv upravuje vzhled plochy, terminálu, neovim, obrazovky aktivity (btop), Chromium a celého shellu Omarchy: horní lišty, nabídky, oznámení, OSD a zamykací obrazovky. (U Obsidianu musíte motiv Omarchy vybrat ručně přes _Vzhled > Motivy_ uvnitř aplikace).
+Každý motiv nastyluje plochu, terminál, neovim, obrazovku aktivity (btop), Chromium a celé prostředí Omarchy: horní lištu, menu, oznámení, OSD a zamykací obrazovku. (U Obsidian musíte motiv Omarchy vybrat ručně přes _Vzhled > Motivy_ přímo v aplikaci).
 
 Motivy mají sadu obrázků na pozadí, mezi kterými můžete vybírat pomocí `Super + Ctrl + W`.
 
-Ještě více motivů najdete na [stránce s dalšími motivy](https://omarchy.org/themes/) nebo si dokonce [vytvořte vlastní motiv](43-making-your-own-theme.md).
+Ještě více motivů najdete na [stránce s dalšími motivy](https://omarchy.org/themes/), nebo si dokonce můžete [vytvořit vlastní motiv](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Odemknutí
+### Ikony aplikací
 
-Motivy mohou mít také vlastní design odemknutí, který se používá pro proces dešifrování při spouštění. Jeden z nich si můžete vybrat pod _Vzhled > Odemknutí_. Vypadají takto:
+Ikony ve spouštěči aplikací a v docku jsou vykreslené v barvách vašeho motivu, takže se mění spolu s ním. Pocházejí ze sady ikon, kterou si vybíráte odděleně od motivu pod _Vzhled > Ikony_:
+
+- _Papercraft_ je výchozí: všechno, co je nainstalované, nakreslené v jednom stylu. Aplikace známé svým logem, jako Chrome, HEY nebo YouTube, si zachovávají svůj tvar a přebírají barvy motivu.
+- _Arcade_ vykresluje stejné aplikace jako 8bitový pixel art, jako by to dělala stará herní konzole.
+- _Original_ zobrazuje každou aplikaci s ikonou, kterou jí dal její tvůrce.
+
+Sadu ikon, kterou vytvořil někdo jiný, můžete nainstalovat přes _Instalovat > Styl > Ikony_ (nebo `omarchy icons install <git url>`) a znovu ji odebrat pod _Odebrat > Ikony_. _Aktualizovat > Další ikony_ stáhne nejnovější verzi sad, které máte nainstalované.
+
+Chcete-li si vytvořit vlastní, umístěte své ikony do `~/.config/omarchy/icons/<name>/`, jeden soubor pro každou aplikaci, pojmenovaný podle řádku `Icon=` v souboru `.desktop` dané aplikace. Soubor končící na `.svg` se zobrazí tak, jak je. Soubor končící na `.svg.tpl` se vykreslí v barvách motivu: tam, kam patří barva, napište `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` nebo `{{ icon_shadow }}`. Dobrým výchozím bodem je výchozí sada v `/usr/share/omarchy/icons/papercraft/`. Chcete-li změnit jednu ikonu z výchozí sady, umístěte svou verzi do `~/.config/omarchy/icons/papercraft/`.
+
+### Odemykání
+
+Motivy mohou mít také vlastní design odemykání, který se používá při dešifrování při spouštění. Vybrat si ho můžete pod _Vzhled > Odemykání_. Vypadají takto:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

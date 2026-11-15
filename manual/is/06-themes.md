@@ -1,8 +1,8 @@
 # Þemu
 
-Omarchy kemur með tuttugu og tvö falleg þemu. Þú getur valið á milli þeirra í gegnum _Útlit > Þema_ í Omarchy-valmyndinni (`Super + Space`) eða farið beint í þemavalið með `Super + Ctrl + T`.
+Omarchy kemur með tuttugu og tveimur fallegum þemum. Þú getur valið á milli þeirra í gegnum _Útlit > Þema_ í Omarchy-valmyndinni (`Super + Space`) eða farið beint í þemavalið með `Super + Ctrl + T`.
 
-Hvert þema stílar skjáborðið, útstöðina, neovim, virkniskjáinn (btop), Chromium og alla Omarchy-skelina: efstu stikuna, valmyndina, tilkynningar, OSD og læsiskjáinn. (Í Obsidian verður þú að velja Omarchy-þemað handvirkt í gegnum _Útlit > Þemu_ inni í forritinu).
+Hvert þema stílsetur skjáborðið, flugstöðina, neovim, virkniskjáinn (btop), Chromium og alla Omarchy-skelina: efstu stikuna, valmyndina, tilkynningar, OSD og læsiskjáinn. (Fyrir Obsidian þarftu að velja Omarchy-þemað handvirkt í gegnum _Útlit > Þemu_ inni í forritinu).
 
 Þemu eru með safn bakgrunnsmynda sem þú getur valið á milli með `Super + Ctrl + W`.
 
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Aflæsingar
+### Forritatákn
 
-Þemu geta líka verið með sérsniðna aflæsingarhönnun sem er notuð við afkóðun við ræsingu. Þú getur valið eina slíka undir _Útlit > Aflæsing_. Þær líta svona út:
+Táknin í forritaræsinum og bryggjunni eru teiknuð í litum þemans þíns, svo þau breytast með því. Þau koma úr táknasetti, sem þú velur aðskilið frá þemanu undir _Útlit > Tákn_:
+
+- _Papercraft_ er sjálfgefið: allt sem kemur uppsett, teiknað í einum stíl. Forrit sem þekkjast á merki sínu, eins og Chrome, HEY eða YouTube, halda lögun sinni og taka á sig liti þemans.
+- _Arcade_ teiknar sömu forrit sem 8-bita pixlalist, eins og gömul leikjatölva myndi gera.
+- _Original_ sýnir hvert forrit með tákninu sem framleiðandi þess gaf því.
+
+Þú getur sett upp táknasett sem einhver annar hefur búið til með _Setja upp > Stíll > Tákn_ (eða `omarchy icons install <git url>`) og fjarlægt það aftur undir _Fjarlægja > Tákn_. _Uppfæra > Aukatákn_ sækir nýjustu útgáfuna af settunum sem þú hefur sett upp.
+
+Til að búa til þitt eigið skaltu setja táknin þín í `~/.config/omarchy/icons/<name>/`, eina skrá fyrir hvert forrit, nefnda eftir `Icon=` línunni í `.desktop` skrá forritsins. Skrá sem endar á `.svg` er sýnd eins og hún er. Skrá sem endar á `.svg.tpl` er teiknuð í litum þemans: skrifaðu `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` eða `{{ icon_shadow }}` þar sem litur á að fara. Sjálfgefna settið í `/usr/share/omarchy/icons/papercraft/` er góður staður til að byrja á. Til að breyta einu tákni úr sjálfgefna settinu skaltu setja þína útgáfu í `~/.config/omarchy/icons/papercraft/`.
+
+### Opnanir
+
+Þemu geta einnig haft sérsniðna opnunarhönnun, sem er notuð í afkóðunarferlinu við ræsingu. Þú getur valið eina af þeim undir _Útlit > Opnun_. Þær líta svona út:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

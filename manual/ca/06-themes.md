@@ -1,8 +1,8 @@
 # Temes
 
-Omarchy inclou vint-i-dos temes preciosos. Pots triar entre ells a través d'_Aspecte > Tema_ al menú d'Omarchy (`Super + Space`) o anar directament al selector de temes amb `Super + Ctrl + T`.
+Omarchy inclou vint-i-dos temes preciosos. Pots triar entre ells mitjançant _Aparença > Tema_ al menú d'Omarchy (`Super + Space`) o anar directament al selector de temes amb `Super + Ctrl + T`.
 
-Cada tema dona estil a l'escriptori, el terminal, neovim, la pantalla d'activitat (btop), Chromium i tota la interfície d'Omarchy: la barra superior, el menú, les notificacions, l'OSD i la pantalla de bloqueig. (Per a Obsidian, has de seleccionar manualment el tema d'Omarchy a través d'_Aspecte > Temes_ dins de l'aplicació).
+Cada tema aplica un estil a l'escriptori, el terminal, neovim, la pantalla d'activitat (btop), Chromium i tot l'entorn d'Omarchy: la barra superior, el menú, les notificacions, l'OSD i la pantalla de bloqueig. (Per a Obsidian, has de seleccionar manualment el tema d'Omarchy mitjançant _Aparença > Temes_ dins de l'aplicació).
 
 Els temes tenen un conjunt d'imatges de fons entre les quals pots triar amb `Super + Ctrl + W`.
 
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### Icones d'aplicacions
+
+Les icones del llançador d'aplicacions i del dock es dibuixen amb els colors del teu tema, de manera que canvien juntament amb ell. Provenen d'un conjunt d'icones, que tries separadament del tema a _Aparença > Icones_:
+
+- _Papercraft_ és l'opció predeterminada: tot el que ve instal·lat, dibuixat amb un mateix estil. Les aplicacions conegudes pel seu logotip, com Chrome, HEY o YouTube, en conserven la forma i adopten els colors del tema.
+- _Arcade_ dibuixa les mateixes aplicacions com a art de píxels de 8 bits, com ho faria una consola de jocs antiga.
+- _Original_ mostra cada aplicació amb la icona que li va donar el seu creador.
+
+Pots instal·lar un conjunt d'icones que hagi fet algú altre amb _Instal·la > Estil > Icones_ (o `omarchy icons install <git url>`), i tornar-lo a eliminar a _Elimina > Icones_. _Actualitza > Icones addicionals_ obté la versió més recent dels conjunts que tens instal·lats.
+
+Per crear-ne un de propi, posa les teves icones a `~/.config/omarchy/icons/<name>/`, un fitxer per a cada aplicació, amb el nom segons la línia `Icon=` del fitxer `.desktop` de l'aplicació. Un fitxer que acaba en `.svg` es mostra tal com és. Un fitxer que acaba en `.svg.tpl` es dibuixa amb els colors del tema: escriu `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` o `{{ icon_shadow }}` on vagi un color. El conjunt predeterminat de `/usr/share/omarchy/icons/papercraft/` és un bon punt de partida. Per canviar una sola icona del conjunt predeterminat, posa la teva versió a `~/.config/omarchy/icons/papercraft/`.
+
 ### Desbloquejos
 
-Els temes també poden tenir un disseny de desbloqueig personalitzat, que s'utilitza per al procés de desxifratge d'arrencada. Pots seleccionar-ne un a _Aspecte > Desbloqueig_. Tenen aquest aspecte:
+Els temes també poden tenir un disseny de desbloqueig personalitzat, que s'utilitza per al procés de desxifratge a l'arrencada. Pots seleccionar-ne un a _Aparença > Desbloqueig_. Es veuen així:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

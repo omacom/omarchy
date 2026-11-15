@@ -1,12 +1,12 @@
 # 主題
 
-Omarchy 內建二十二套精美的主題。你可以透過 Omarchy Menu（`Super + Space`）中的 _Appearance > Theme_ 在它們之間做選擇，或使用 `Super + Ctrl + T` 直接跳到主題選擇器。
+Omarchy 附帶二十二套美麗的主題。你可以透過 Omarchy 選單（`Super + Space`）中的 _外觀 > 主題_ 在它們之間選擇，或使用 `Super + Ctrl + T` 直接跳到主題選擇器。
 
-每套主題都會為桌面、終端機、neovim、活動畫面（btop）、Chromium 以及整個 Omarchy shell 設定樣式：頂部列、選單、通知、OSD 和鎖定畫面。（對於 Obsidian，你必須在應用程式內透過 _Appearance > Themes_ 手動選取 Omarchy 主題）。
+每套主題都會為桌面、終端機、neovim、活動畫面（btop）、Chromium，以及整個 Omarchy shell 設定樣式：頂部列、選單、通知、OSD 和鎖定畫面。（如果是 Obsidian，你必須在應用程式內透過 _外觀 > 主題_ 手動選擇 Omarchy 主題）。
 
 主題都有一組背景圖片，你可以使用 `Super + Ctrl + W` 在其中挑選。
 
-你在[額外主題頁面](https://omarchy.org/themes/)上可以找到更多主題，甚至可以[製作你自己的主題](43-making-your-own-theme.md)。
+你可以在[額外主題頁面](https://omarchy.org/themes/)找到更多主題，甚至可以[製作你自己的主題](43-making-your-own-theme.md)。
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### 應用程式圖示
+
+應用程式啟動器和 dock 中的圖示會以你主題的顏色繪製，因此會隨主題一起改變。它們來自一組圖示集，你可以在 _外觀 > 圖示_ 下與主題分開挑選：
+
+- _Papercraft_ 是預設值：所有隨附安裝的內容，都以同一種風格繪製。像 Chrome、HEY 或 YouTube 這類以其標誌為人所知的應用程式，會保留它的形狀，並換上主題的顏色。
+- _Arcade_ 會把相同的應用程式繪製成 8-bit 像素藝術，就像舊式遊戲主機會呈現的那樣。
+- _Original_ 會以其製作者提供的圖示顯示每個應用程式。
+
+你可以使用 _安裝 > 樣式 > 圖示_（或 `omarchy icons install <git url>`）安裝別人製作的圖示集，並在 _移除 > 圖示_ 下再次將它移除。_更新 > 額外圖示_ 會取得你已安裝圖示集的最新版本。
+
+若要製作你自己的圖示集，請把你的圖示放在 `~/.config/omarchy/icons/<name>/`，每個應用程式一個檔案，並以該應用程式 `.desktop` 檔案的 `Icon=` 行來命名。以 `.svg` 結尾的檔案會原樣顯示。以 `.svg.tpl` 結尾的檔案會以主題的顏色繪製：在需要填入顏色的地方寫上 `{{ icon_main }}`、`{{ icon_mark }}`、`{{ icon_paper }}`、`{{ icon_body }}`、`{{ icon_edge }}`、`{{ icon_ink }}` 或 `{{ icon_shadow }}`。位於 `/usr/share/omarchy/icons/papercraft/` 的預設圖示集是很好的出發點。若要更改預設圖示集中的單一圖示，請把你的版本放在 `~/.config/omarchy/icons/papercraft/`。
+
 ### 解鎖畫面
 
-主題也可以有自訂的解鎖設計，用於開機解密程序。你可以在 _Appearance > Unlock_ 底下選取其中一套。它們看起來像這樣：
+主題也可以有自訂的解鎖設計，用於開機解密過程。你可以在 _外觀 > 解鎖畫面_ 下選擇其中一種。它們看起來像這樣：
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
