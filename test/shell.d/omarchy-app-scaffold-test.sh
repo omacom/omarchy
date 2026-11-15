@@ -14,13 +14,19 @@ scaffold=$ROOT/default/agents/skills/omarchy-app/scaffold
 # The scaffold reads its files out of templates.md by heading, so a template
 # heading or fence written differently would drop a file without an error.
 mkdir -p "$test_tmp/tally"
-output=$(cd "$test_tmp/tally" && HOME=$test_tmp "$scaffold" tally "Tally" --no-build)
+output=$(cd "$test_tmp/tally" && HOME=$test_tmp "$scaffold" tally "Tally Counter" --no-build)
 for path in CMakeLists.txt bin/build bin/test .github/workflows/test.yml src/main.cpp src/theme.h src/theme.cpp \
   src/translator.h src/translator.cpp src/backend.h src/backend.cpp src/Main.qml src/resources.qrc \
   src/i18n/en.json src/i18n/da.json tests/tally_tests.cpp share/tally.desktop share/tally.svg .gitignore LICENSE; do
   [[ -s $test_tmp/tally/$path ]] || fail "the scaffold writes $path" "$output"
 done
 pass "the scaffold writes every starter file"
+
+# The display name also names the test class, and a display name with a space
+# must still give a C++ identifier, or the untouched starter fails to build.
+grep -q "^class TallyCounterTests : public QObject" "$test_tmp/tally/tests/tally_tests.cpp" ||
+  fail "a display name with a space gives a valid test class name" "$(grep -n 'Tests' "$test_tmp/tally/tests/tally_tests.cpp" | head -3)"
+pass "a display name with a space gives a valid test class name"
 
 if leftover=$(grep -rln -e '<name>' -e '<Name>' -e '<code>' "$test_tmp/tally" --exclude-dir=.git); then
   fail "the scaffold fills in every placeholder" "$leftover"

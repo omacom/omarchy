@@ -49,7 +49,15 @@ for line in open(os.path.join(here, "templates.md"), encoding="utf-8"):
 flush()
 
 
+# The display name also names the test class, which must be a C++ identifier:
+# "Flash Cards" becomes FlashCardsTests.
+identifier = re.sub(r"[^0-9A-Za-z]", "", display.title() if " " in display else display) or "App"
+if identifier[0].isdigit():
+    identifier = "App" + identifier
+
+
 def fill(text):
+    text = text.replace("<Name>Tests", identifier + "Tests")
     return text.replace("<name>", name).replace("<Name>", display)
 
 
@@ -102,7 +110,10 @@ for path in sorted(written):
 
 if "--no-build" not in sys.argv:
     result = subprocess.run(["bin/test"], capture_output=True, text=True)
-    tail = "\n".join((result.stdout + result.stderr).strip().splitlines()[-15:])
+    lines = (result.stdout + result.stderr).strip().splitlines()
+    # The errors first: a build's last lines are often warnings that came after.
+    errors = [line for line in lines if re.search(r"\berror\b|FAIL", line)]
+    tail = "\n".join(errors[:15] or lines[-15:])
     if result.returncode == 0:
         print(f"\nbin/test passes. The starter is a counter: replace Backend's count with the app's own state,\n"
               f"Main.qml's layout with the app's, and the tests with the app's behaviors, keeping bin/test green.")
