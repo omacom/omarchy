@@ -29,6 +29,7 @@ export SYSCTL_LOG="$TEST_TMP/sysctl-log"
 export PRIVILEGED_LOG="$TEST_TMP/privileged-log"
 export UFW_SHOW_ALLOWED=0
 export OMARCHY_HOTSPOT_LOCK_FILE="$TEST_TMP/hotspot.lock" OMARCHY_HOTSPOT_LOCK_WAIT=2
+export OMARCHY_HOTSPOT_PENDING_FILE="$TEST_TMP/hotspot.pending"
 export OMARCHY_HOTSPOT_UFW_RULES="$UFW_RULES_FILE"
 : >"$UFW_STATE"
 : >"$UFW_LOG"
@@ -303,6 +304,7 @@ done <"$ROOT/bin/omarchy-hotspot" >"$FUNCTIONS"
   printf 'HOTSPOT_LOCK_WAIT=%q\n' "$OMARCHY_HOTSPOT_LOCK_WAIT"
   # The host's own sysctl config must not decide whether forwarding is kept.
   printf 'SYSCTL_CONFIG_FILES=()\n'
+  printf 'HOTSPOT_PENDING_FILE=%q\n' "$TEST_TMP/hotspot.pending"
 } >"$TEST_PATHS"
 
 run_isolated() {
@@ -1368,6 +1370,42 @@ NEXT_LIVE=old apply Hotspot 2.4
 DRIVER
 run_isolated "$TEST_TMP/apply-live-driver.sh"
 pass "a live save updates the firewall before restarting, and only when the AP's settings changed"
+
+# The firewall step can stop at a cancelled password prompt after the profile
+# is written. Retrying the same save then finds nothing changed, so a pending
+# mark carries the restart over to it.
+reset_firewall_fixture
+rm -f "$TEST_TMP/hotspot.pending"
+touch "$PROFILE_STATE" "$TEST_TMP/nmcli-active"
+printf '%s\n' old >"$TEST_TMP/live-settings"
+cat >"$TEST_TMP/apply-retry-driver.sh" <<'DRIVER'
+HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
+FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
+FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+profile_live_settings() { cat "$TEST_TMP/live-settings"; }
+save_profile() { printf '%s\n' new >"$TEST_TMP/live-settings"; }
+if [[ ${FIREWALL_CANCELLED:-0} == 1 ]]; then
+  firewall_ensure() { fail "could not apply hotspot firewall rules"; }
+else
+  firewall_ensure() { printf '%s\n' firewall >>"$NMCLI_UP_LOG"; }
+fi
+forwarding_ensure() { :; }
+apply Hotspot 2.4
+DRIVER
+set +e
+FIREWALL_CANCELLED=1 run_isolated "$TEST_TMP/apply-retry-driver.sh" >/dev/null 2>&1
+cancelled_status=$?
+set -e
+(( cancelled_status != 0 )) || fail "a cancelled firewall step fails the save"
+[[ ! -s $NMCLI_UP_LOG ]] || fail "a cancelled firewall step does not restart the AP" "$(<"$NMCLI_UP_LOG")"
+[[ -e $TEST_TMP/hotspot.pending ]] || fail "a cancelled firewall step leaves the restart pending"
+run_isolated "$TEST_TMP/apply-retry-driver.sh" || fail "retrying the same save succeeds"
+[[ $(<"$NMCLI_UP_LOG") == $'firewall\nup' ]] || fail "retrying the same save finishes the firewall step and the restart" "$(<"$NMCLI_UP_LOG")"
+[[ ! -e $TEST_TMP/hotspot.pending ]] || fail "a finished restart clears the pending mark"
+: >"$NMCLI_UP_LOG"
+run_isolated "$TEST_TMP/apply-retry-driver.sh" || fail "a third identical save succeeds"
+[[ ! -s $NMCLI_UP_LOG ]] || fail "with nothing pending, an identical save restarts nothing" "$(<"$NMCLI_UP_LOG")"
+pass "a save interrupted at the firewall step is finished by retrying it"
 
 # Root owns the real shared lock; these drivers stand in for root's step and
 # for the ownership check, so they run unprivileged.
