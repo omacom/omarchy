@@ -38,6 +38,16 @@ def cli_signed_in(user="u-main", expires_in=3600):
   write_json(config_home() / "cursor" / "auth.json", {"accessToken": jwt({"sub": user, "exp": time.time() + expires_in})})
 
 
+# The Grok Bot app's sign-in: its accounts kept as a JSON string, one active.
+def app_signed_in(user="u-app", expires_in=3600):
+  accounts = {"active": "slot", "accounts": {"slot": {"cursor-access-token": jwt({"sub": user, "exp": time.time() + expires_in})}}}
+  write_json(config_home() / "Grok Bot" / "sand-secrets.json", {"version": 1, "cursor-accounts": json.dumps(accounts)})
+
+
+def asked_as():
+  return [collectors.account_key(request["headers"]["authorization"].removeprefix("Bearer ")) for request in grokbot.requests]
+
+
 def grokbot(*args, mode="up"):
   with FakeHttp(ROUTES, mode=mode) as http:
     record = collect("grokbot", *(args or ("--force",)))
@@ -124,4 +134,23 @@ grokbot()
 expect("Grok Bot asks as the sign-in the Cursor collector reads",
        [request["headers"]["authorization"] for request in grokbot.requests], ["Bearer " + collectors.cursor_token()])
 expect("which is the CLI's over the editor's", collectors.account_key(collectors.cursor_token()), "p-cli")
+
+# With no Cursor sign-in, the Grok Bot app's own is asked as instead.
+sandbox()
+app_signed_in()
+record = grokbot()
+expect("with no Cursor sign-in, Grok Bot asks as the app's sign-in", [asked_as(), limit(record)], [["u-app"], {"ready": True, "stale": False, "percent": 0.425}], record)
+
+cli_signed_in("u-cli")
+grokbot()
+expect("a Cursor sign-in comes before the app's", asked_as(), ["u-cli"])
+
+cli_signed_in("u-cli", expires_in=-60)
+grokbot()
+expect("a lapsed Cursor sign-in gives way to the app's", asked_as(), ["u-app"])
+
+sandbox()
+write_json(config_home() / "Grok Bot" / "sand-secrets.json", {"cursor-accounts": "{not json"})
+record = grokbot()
+expect("an unreadable app sign-in is no sign-in", [len(grokbot.requests), record["ready"]], [0, False], record)
 PY
