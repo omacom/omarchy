@@ -1746,6 +1746,10 @@ Item {
     property var overflowHidden: ({})
     property var overflowTrayKeys: []
     property int overflowRevision: 0
+    // Bumped whenever the split or the slot geometry is recomputed. Coverage
+    // bindings read it so a rotation or a layout change re-evaluates them even
+    // when the drawer stays open at the same reveal length.
+    property int overflowGeometryRevision: 0
     property var widgetPool: null
 
     // The narrow view a first-party widget needs to show the overflow its
@@ -1817,7 +1821,7 @@ Item {
     // geometry changes as it animates open, and the bindings need those reads
     // to re-evaluate when it reaches the center.
     readonly property bool overflowCoversCenterNow:
-      overflowApi.drawerOpen && overflowApi.coverLength > 0 && overflowCoversCenter()
+      overflowGeometryRevision >= 0 && overflowApi.drawerOpen && overflowApi.coverLength > 0 && overflowCoversCenter()
 
     function sectionKeys(region) {
       var keys = root.layoutWidgets.sections[region] || []
@@ -1846,6 +1850,7 @@ Item {
     }
 
     function recomputeOverflow() {
+      overflowGeometryRevision++
       if (!widgetPool) return
       // A drag rearranges the sections by the layout it started with; folding
       // widgets under the pointer would move the room it is aiming at. The
@@ -2444,14 +2449,14 @@ Item {
     keys: window ? window.sectionKeys("left") : root.layoutWidgets.sections.left
     region: "left"
     fixedEdge: "start"
-    concealed: window ? window.overflowApi.drawerOpen && window.overflowApi.coverLength > 0 && window.overflowCoversRegion("left") : false
+    concealed: window ? window.overflowGeometryRevision >= 0 && window.overflowApi.drawerOpen && window.overflowApi.coverLength > 0 && window.overflowCoversRegion("left") : false
   }
 
   component RightModules: ModuleList {
     keys: window ? window.sectionKeys("right") : root.layoutWidgets.sections.right
     region: "right"
     fixedEdge: "end"
-    concealed: window ? window.overflowApi.drawerOpen && window.overflowApi.coverLength > 0 && window.overflowCoversRegion("right") : false
+    concealed: window ? window.overflowGeometryRevision >= 0 && window.overflowApi.drawerOpen && window.overflowApi.coverLength > 0 && window.overflowCoversRegion("right") : false
   }
 
   // The gesture area under the whole bar, with the center sections drawn over
