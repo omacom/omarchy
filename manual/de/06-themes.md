@@ -1,12 +1,12 @@
 # Themen
 
-Omarchy liefert zweiundzwanzig wunderschöne Themen mit. Du kannst über _Aussehen > Thema_ im Omarchy-Menü (`Super + Space`) zwischen ihnen wählen oder mit `Super + Ctrl + T` direkt zur Themenauswahl springen.
+Omarchy kommt mit zweiundzwanzig wunderschönen Themen. Du kannst über _Darstellung > Theme_ im Omarchy-Menü (`Super + Space`) zwischen ihnen wählen oder mit `Super + Ctrl + T` direkt zur Theme-Auswahl springen.
 
-Jedes Thema gestaltet den Desktop, das Terminal, Neovim, den Aktivitätsbildschirm (btop), Chromium und die gesamte Omarchy-Shell: obere Leiste, Menü, Benachrichtigungen, OSD und den Sperrbildschirm. (Für Obsidian musst du das Omarchy-Thema manuell über _Aussehen > Themen_ in der App auswählen).
+Jedes Theme gestaltet den Desktop, das Terminal, neovim, den Aktivitätsbildschirm (btop), Chromium und die gesamte Omarchy-Shell: Top Bar, Menü, Benachrichtigungen, OSD und den Sperrbildschirm. (Für Obsidian musst du das Omarchy-Theme manuell über _Darstellung > Themes_ in der App auswählen).
 
-Themen bringen eine Reihe von Hintergrundbildern mit, zwischen denen du mit `Super + Ctrl + W` wählen kannst.
+Themen haben eine Auswahl an Hintergrundbildern, zwischen denen du mit `Super + Ctrl + W` wählen kannst.
 
-Noch mehr Themen findest du auf [der Seite mit zusätzlichen Themen](https://omarchy.org/themes/) oder du kannst sogar [dein eigenes Thema erstellen](43-making-your-own-theme.md).
+Noch mehr Themen findest du auf [der Seite mit zusätzlichen Themen](https://omarchy.org/themes/) oder du kannst sogar [dein eigenes Theme erstellen](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,21 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### App-Symbole
+### App-Icons
 
-Die Symbole im App-Launcher und im Dock werden in den Farben deines Themas gezeichnet, sie ändern sich also mit ihm. Sie stammen aus einem Symbolsatz, den du getrennt vom Thema unter _Aussehen > Symbole_ auswählst:
+Die Icons im App-Launcher und im Dock werden in den Farben deines Themes gezeichnet, sie ändern sich also mit ihm. Sie stammen aus einem Icon-Set, das du getrennt vom Theme unter _Darstellung > Icons_ auswählst, anhand von Vorschauen jedes Sets, auf dieselbe Weise, wie du ein Theme auswählst:
 
-- _Papercraft_ ist die Voreinstellung: alles, was installiert mitkommt, in einem Stil gezeichnet. Apps, die man an ihrem Logo erkennt, wie Chrome, HEY oder YouTube, behalten ihre Form und übernehmen die Farben des Themas.
-- _Arcade_ zeichnet dieselben Apps als 8-Bit-Pixelkunst, wie es eine alte Spielekonsole tun würde.
-- _Original_ zeigt jede App mit dem Symbol, das ihr Hersteller ihr gegeben hat.
+- _Papercraft_ ist der Standard: alles, was installiert mitkommt, in einem Stil gezeichnet. Apps, die man an ihrem Logo erkennt, wie Chrome, HEY oder YouTube, behalten ihre Form und nehmen die Farben des Themes an.
+- _Arcade_ zeichnet dieselben Apps als 8-Bit-Pixel-Art, wie es eine alte Spielekonsole tun würde.
+- _Original_ zeigt jede App mit dem Icon, das ihr ihr Hersteller gegeben hat.
 
-Du kannst einen Symbolsatz, den jemand anders erstellt hat, mit _Installieren > Stil > Symbole_ (oder `omarchy icons install <git url>`) installieren und ihn unter _Entfernen > Symbole_ wieder entfernen. _Aktualisieren > Zusätzliche Symbole_ holt die neueste Version der von dir installierten Sätze.
+Du kannst ein Icon-Set, das jemand anderes erstellt hat, mit _Installieren > Stil > Icons_ (oder `omarchy icons install <git url>`) installieren und es unter _Entfernen > Icons_ wieder entfernen. _Aktualisieren > Zusätzliche Icons_ holt die neueste Version der Sets, die du installiert hast.
 
-Um deinen eigenen zu erstellen, lege deine Symbole in `~/.config/omarchy/icons/<name>/` ab, eine Datei pro App, benannt nach der `Icon=`-Zeile der `.desktop`-Datei der App. Eine Datei, die auf `.svg` endet, wird so angezeigt, wie sie ist. Eine Datei, die auf `.svg.tpl` endet, wird in den Farben des Themas gezeichnet: Schreibe `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` oder `{{ icon_shadow }}` dorthin, wo eine Farbe hingehört. Der Standardsatz in `/usr/share/omarchy/icons/papercraft/` ist ein guter Ausgangspunkt. Um ein einzelnes Symbol des Standardsatzes zu ändern, lege deine Version in `~/.config/omarchy/icons/papercraft/` ab.
+Um dein eigenes zu erstellen, lege deine Icons in `~/.config/omarchy/icons/<name>/` ab, eine Datei pro App, benannt nach der `Icon=`-Zeile der `.desktop`-Datei der App. Eine Datei, die auf `.svg` endet, wird so gezeigt, wie sie ist. Eine Datei, die auf `.svg.tpl` endet, wird in den Farben des Themes gezeichnet: Schreibe `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` oder `{{ icon_shadow }}` dorthin, wo eine Farbe hingehört. Das Standard-Set in `/usr/share/omarchy/icons/papercraft/` ist ein guter Ausgangspunkt. Füge eine `preview.png` hinzu, um dein Set in der Auswahl anzuzeigen; ohne eine solche Datei zeichnet Omarchy eine Vorschau aus deinen Icons. Um ein einzelnes Icon des Standard-Sets zu ändern, lege deine Version in `~/.config/omarchy/icons/papercraft/` ab.
 
 ### Entsperr-Designs
 
-Themen können auch ein eigenes Entsperr-Design haben, das für den Entschlüsselungsvorgang beim Booten verwendet wird. Du kannst eines davon unter _Aussehen > Entsperren_ auswählen. Sie sehen so aus:
+Themen können auch ein eigenes Entsperr-Design haben, das für die Entschlüsselung beim Booten verwendet wird. Du kannst eines davon unter _Darstellung > Entsperrung_ auswählen. Sie sehen so aus:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

@@ -67,19 +67,19 @@ _White_
 
 ### Appikoner
 
-Ikonerne i appstarteren og docken er tegnet i dit temas farver, så de ændrer sig sammen med det. De kommer fra et ikonsæt, som du vælger adskilt fra temaet under _Udseende > Ikoner_:
+Ikonerne i appstarteren og docken tegnes i dit temas farver, så de ændrer sig sammen med det. De kommer fra et ikonsæt, som du vælger adskilt fra temaet under _Udseende > Ikoner_, ud fra forhåndsvisninger af hvert sæt, på samme måde som du vælger et tema:
 
-- _Papercraft_ er standarden: alt, hvad der er installeret, tegnet i én stil. Apps, der kendes på deres logo, som Chrome, HEY eller YouTube, beholder dets form og får temaets farver.
-- _Arcade_ tegner de samme apps som 8-bit pixel art, som en gammel spillekonsol ville gøre.
+- _Papercraft_ er standarden: alt, hvad der kommer installeret, tegnet i én stil. Apps, der kendes på deres logo, som Chrome, HEY eller YouTube, beholder deres form og får temaets farver.
+- _Arcade_ tegner de samme apps som 8-bit pixel art, som en gammel spillekonsol ville gøre det.
 - _Original_ viser hver app med det ikon, dens skaber gav den.
 
-Du kan installere et ikonsæt, som en anden har lavet, med _Installér > Stil > Ikoner_ (eller `omarchy icons install <git url>`), og fjerne det igen under _Fjern > Ikoner_. _Opdatér > Ekstra ikoner_ henter den nyeste version af de sæt, du har installeret.
+Du kan installere et ikonsæt, som en anden har lavet, med _Installer > Stil > Ikoner_ (eller `omarchy icons install <git url>`), og fjerne det igen under _Fjern > Ikoner_. _Opdater > Ekstra ikoner_ henter den nyeste version af de sæt, du har installeret.
 
-For at lave dit eget skal du lægge dine ikoner i `~/.config/omarchy/icons/<name>/`, én fil pr. app, opkaldt efter `Icon=`-linjen i appens `.desktop`-fil. En fil, der ender på `.svg`, vises, som den er. En fil, der ender på `.svg.tpl`, tegnes i temaets farver: skriv `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` eller `{{ icon_shadow }}`, hvor en farve skal være. Standardsættet i `/usr/share/omarchy/icons/papercraft/` er et godt sted at starte. For at ændre et enkelt ikon i standardsættet skal du lægge din version i `~/.config/omarchy/icons/papercraft/`.
+For at lave dit eget skal du lægge dine ikoner i `~/.config/omarchy/icons/<name>/`, én fil pr. app, opkaldt efter `Icon=`-linjen i appens `.desktop`-fil. En fil, der ender på `.svg`, vises, som den er. En fil, der ender på `.svg.tpl`, tegnes i temaets farver: skriv `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` eller `{{ icon_shadow }}`, hvor en farve skal være. Standardsættet i `/usr/share/omarchy/icons/papercraft/` er et godt sted at starte fra. Tilføj en `preview.png` for at vise dit sæt i vælgeren; uden en tegner Omarchy en forhåndsvisning ud fra dine ikoner. For at ændre et enkelt ikon i standardsættet skal du lægge din version i `~/.config/omarchy/icons/papercraft/`.
 
 ### Oplåsninger
 
-Temaer kan også have et brugerdefineret oplåsningsdesign, som bruges til dekrypteringsprocessen under opstart. Du kan vælge et af disse under _Udseende > Oplåsning_. De ser sådan ud:
+Temaer kan også have et tilpasset oplåsningsdesign, som bruges til dekrypteringsprocessen ved opstart. Du kan vælge et af disse under _Udseende > Oplåsning_. De ser sådan ud:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

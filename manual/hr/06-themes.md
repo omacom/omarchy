@@ -1,10 +1,10 @@
 # Teme
 
-Omarchy dolazi s dvadeset i dvije prekrasne teme. Među njima možete birati putem _Appearance > Theme_ u izborniku Omarchy Menu (`Super + Space`) ili izravno otići na izbornik tema pomoću `Super + Ctrl + T`.
+Omarchy uključuje dvadeset i dvije prekrasne teme. Možete birati između njih putem _Izgled > Tema_ u izborniku Omarchy (`Super + Space`) ili izravno prijeći na alat za odabir teme pomoću `Super + Ctrl + T`.
 
-Svaka tema oblikuje radnu površinu, terminal, neovim, zaslon aktivnosti (btop), Chromium i cijelu ljusku Omarchy: gornju traku, izbornik, obavijesti, OSD i zaključani zaslon. (Za Obsidian morate ručno odabrati temu Omarchy putem _Appearance > Themes_ unutar aplikacije).
+Svaka tema oblikuje radnu površinu, terminal, neovim, zaslon aktivnosti (btop), Chromium i cijelu ljusku Omarchyja: gornju traku, izbornik, obavijesti, OSD i zaslon za zaključavanje. (Za Obsidian morate ručno odabrati temu Omarchy putem _Izgled > Teme_ unutar aplikacije).
 
-Teme imaju skup pozadinskih slika među kojima možete birati pomoću `Super + Ctrl + W`.
+Teme imaju skup pozadinskih slika između kojih možete birati pomoću `Super + Ctrl + W`.
 
 Još više tema možete pronaći na [stranici s dodatnim temama](https://omarchy.org/themes/) ili čak [izraditi vlastitu temu](43-making-your-own-theme.md).
 
@@ -67,19 +67,19 @@ _White_
 
 ### Ikone aplikacija
 
-Ikone u pokretaču aplikacija i na docku nacrtane su u bojama vaše teme, pa se mijenjaju zajedno s njom. Dolaze iz skupa ikona, koji birate odvojeno od teme pod _Appearance > Icons_:
+Ikone u pokretaču aplikacija i na docku nacrtane su u bojama vaše teme, pa se mijenjaju zajedno s njom. Dolaze iz skupa ikona, koji birate odvojeno od teme pod _Izgled > Ikone_, iz pregleda svakog skupa, na isti način na koji birate temu:
 
-- _Papercraft_ je zadani: sve što dolazi instalirano, nacrtano u jednom stilu. Aplikacije poznate po svom logotipu, poput Chrome, HEY ili YouTube, zadržavaju svoj oblik i poprimaju boje teme.
-- _Arcade_ iste aplikacije crta kao 8-bitnu piksel grafiku, kako bi to učinila stara igraća konzola.
-- _Original_ svaku aplikaciju prikazuje s ikonom koju joj je dao njezin tvorac.
+- _Papercraft_ je zadani: sve što dolazi instalirano, nacrtano u jednom stilu. Aplikacije poznate po svojem logotipu, kao što su Chrome, HEY ili YouTube, zadržavaju njegov oblik i preuzimaju boje teme.
+- _Arcade_ iste aplikacije crta kao 8-bitni pixel art, kao što bi to radila stara igraća konzola.
+- _Original_ prikazuje svaku aplikaciju s ikonom koju joj je dao njezin tvorac.
 
-Skup ikona koji je izradio netko drugi možete instalirati pomoću _Install > Style > Icons_ (ili `omarchy icons install <git url>`), a ponovno ga ukloniti pod _Remove > Icons_. _Update > Extra Icons_ dohvaća najnoviju verziju skupova koje ste instalirali.
+Skup ikona koji je izradio netko drugi možete instalirati putem _Instaliraj > Stil > Ikone_ (ili `omarchy icons install <git url>`), a ponovno ga ukloniti pod _Ukloni > Ikone_. _Ažuriraj > Dodatne ikone_ dohvaća najnoviju verziju skupova koje ste instalirali.
 
-Da biste izradili vlastiti, stavite svoje ikone u `~/.config/omarchy/icons/<name>/`, po jednu datoteku za svaku aplikaciju, nazvanu prema retku `Icon=` u `.desktop` datoteci aplikacije. Datoteka koja završava na `.svg` prikazuje se kakva jest. Datoteka koja završava na `.svg.tpl` crta se u bojama teme: napišite `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` ili `{{ icon_shadow }}` tamo gdje ide boja. Zadani skup u `/usr/share/omarchy/icons/papercraft/` dobro je mjesto za početak. Da biste promijenili jednu ikonu zadanog skupa, stavite svoju verziju u `~/.config/omarchy/icons/papercraft/`.
+Da biste izradili vlastiti, stavite svoje ikone u `~/.config/omarchy/icons/<name>/`, jednu datoteku po aplikaciji, nazvanu prema retku `Icon=` u `.desktop` datoteci aplikacije. Datoteka koja završava s `.svg` prikazuje se takva kakva jest. Datoteka koja završava s `.svg.tpl` crta se u bojama teme: napišite `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` ili `{{ icon_shadow }}` tamo gdje ide boja. Zadani skup u `/usr/share/omarchy/icons/papercraft/` dobro je mjesto za početak. Dodajte `preview.png` kako biste svoj skup prikazali u alatu za odabir; bez njega Omarchy crta pregled od vaših ikona. Da biste promijenili jednu ikonu zadanog skupa, stavite svoju verziju u `~/.config/omarchy/icons/papercraft/`.
 
 ### Otključavanja
 
-Teme mogu imati i prilagođeni dizajn otključavanja, koji se koristi za postupak dešifriranja pri pokretanju sustava. Jedan od njih možete odabrati pod _Appearance > Unlock_. Izgledaju ovako:
+Teme mogu imati i prilagođeni dizajn otključavanja, koji se koristi za dešifriranje pri pokretanju sustava. Jedan od njih možete odabrati pod _Izgled > Otključavanje_. Izgledaju ovako:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

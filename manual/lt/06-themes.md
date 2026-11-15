@@ -1,12 +1,12 @@
 # Temos
 
-Omarchy pateikiama su dvidešimt dviem gražiomis temomis. Jas galite pasirinkti per _Išvaizda > Tema_ Omarchy meniu (`Super + Space`) arba pereiti tiesiai prie temų pasirinkimo naudodami `Super + Ctrl + T`.
+Omarchy pateikiama su dvidešimt dviem gražiomis temomis. Galite rinktis iš jų per _Išvaizda > Tema_ Omarchy meniu (`Super + Space`) arba pereiti tiesiai prie temų pasirinkimo naudodami `Super + Ctrl + T`.
 
-Kiekviena tema suteikia stilių darbalaukiui, terminalui, neovim, aktyvumo ekranui (btop), Chromium ir visai Omarchy aplinkai: viršutinei juostai, meniu, pranešimams, OSD ir užrakinimo ekranui. (Obsidian programoje Omarchy temą turite pasirinkti rankiniu būdu per _Išvaizda > Temos_ pačioje programoje).
+Kiekviena tema stilizuoja darbalaukį, terminalą, neovim, veiklos ekraną (btop), Chromium ir visą Omarchy aplinką: viršutinę juostą, meniu, pranešimus, OSD ir užrakinimo ekraną. (Obsidian programoje Omarchy temą turite rankiniu būdu pasirinkti per _Išvaizda > Temos_ pačioje programoje).
 
-Temos turi fono vaizdų rinkinį, iš kurių galite rinktis naudodami `Super + Ctrl + W`.
+Temos turi foninių paveikslėlių rinkinį, iš kurio galite rinktis naudodami `Super + Ctrl + W`.
 
-Dar daugiau temų galite rasti [papildomų temų puslapyje](https://omarchy.org/themes/) arba net [susikurti savo temą](43-making-your-own-theme.md).
+Dar daugiau temų rasite [papildomų temų puslapyje](https://omarchy.org/themes/) arba netgi galite [sukurti savo temą](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,21 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Programėlių piktogramos
+### Programų piktogramos
 
-Programėlių paleidyklėje ir doke esančios piktogramos piešiamos jūsų temos spalvomis, todėl keičiasi kartu su ja. Jos gaunamos iš piktogramų rinkinio, kurį pasirenkate atskirai nuo temos skiltyje _Išvaizda > Piktogramos_:
+Programų paleidimo priemonėje ir doke esančios piktogramos piešiamos jūsų temos spalvomis, todėl keičiasi kartu su ja. Jos yra iš piktogramų rinkinio, kurį pasirenkate atskirai nuo temos per _Išvaizda > Piktogramos_, iš kiekvieno rinkinio peržiūrų, taip pat, kaip renkatės temą:
 
-- _Papercraft_ yra numatytasis: viskas, kas įdiegta, nupiešta vienu stiliumi. Programėlės, atpažįstamos iš logotipo, pavyzdžiui, Chrome, HEY ar YouTube, išlaiko savo formą ir įgauna temos spalvas.
-- _Arcade_ tas pačias programėles piešia kaip 8 bitų pikselių grafiką, kokią rodytų sena žaidimų konsolė.
-- _Original_ rodo kiekvieną programėlę su piktograma, kurią jai suteikė jos kūrėjas.
+- _Papercraft_ yra numatytasis: viskas, kas įdiegta, nupiešta vienu stiliumi. Programos, atpažįstamos iš savo logotipo, pavyzdžiui, Chrome, HEY ar YouTube, išlaiko savo formą ir įgauna temos spalvas.
+- _Arcade_ tas pačias programas piešia kaip 8 bitų pikselių grafiką, kaip tai darytų sena žaidimų konsolė.
+- _Original_ kiekvieną programą rodo su piktograma, kurią jai suteikė jos kūrėjas.
 
-Kito sukurto piktogramų rinkinį galite įdiegti per _Diegti > Stilius > Piktogramos_ (arba `omarchy icons install <git url>`), o pašalinti vėl galite skiltyje _Šalinti > Piktogramos_. _Atnaujinti > Papildomos piktogramos_ atsisiunčia naujausią jūsų įdiegtų rinkinių versiją.
+Kito sukurta piktogramų rinkinį galite įdiegti per _Įdiegti > Stilius > Piktogramos_ (arba `omarchy icons install <git url>`), o pašalinti vėl per _Pašalinti > Piktogramos_. _Atnaujinti > Papildomos piktogramos_ atsisiunčia naujausią jūsų įdiegtų rinkinių versiją.
 
-Norėdami sukurti savo, įdėkite piktogramas į `~/.config/omarchy/icons/<name>/`, po vieną failą kiekvienai programėlei, pavadintą pagal programėlės `.desktop` failo eilutę `Icon=`. Failas, besibaigiantis `.svg`, rodomas toks, koks yra. Failas, besibaigiantis `.svg.tpl`, piešiamas temos spalvomis: ten, kur turi būti spalva, rašykite `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` arba `{{ icon_shadow }}`. Numatytasis rinkinys `/usr/share/omarchy/icons/papercraft/` yra gera vieta pradėti. Norėdami pakeisti vieną numatytojo rinkinio piktogramą, įdėkite savo versiją į `~/.config/omarchy/icons/papercraft/`.
+Norėdami sukurti savo, įkelkite savo piktogramas į `~/.config/omarchy/icons/<name>/`, po vieną failą kiekvienai programai, pavadintą pagal programos `.desktop` failo `Icon=` eilutę. Failas, besibaigiantis `.svg`, rodomas toks, koks yra. Failas, besibaigiantis `.svg.tpl`, piešiamas temos spalvomis: rašykite `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` arba `{{ icon_shadow }}` ten, kur turi būti spalva. Numatytasis rinkinys `/usr/share/omarchy/icons/papercraft/` yra gera vieta pradėti. Pridėkite `preview.png`, kad jūsų rinkinys būtų rodomas pasirinkimo priemonėje; be jo Omarchy nupieš peržiūrą iš jūsų piktogramų. Norėdami pakeisti vieną numatytojo rinkinio piktogramą, įkelkite savo versiją į `~/.config/omarchy/icons/papercraft/`.
 
 ### Atrakinimo ekranai
 
-Temos taip pat gali turėti tinkintą atrakinimo dizainą, naudojamą įkrovos iššifravimo procese. Vieną jų galite pasirinkti skiltyje _Išvaizda > Atrakinimas_. Jie atrodo taip:
+Temos taip pat gali turėti pasirinktinį atrakinimo dizainą, kuris naudojamas įkrovos iššifravimo procesui. Vieną iš jų galite pasirinkti per _Išvaizda > Atrakinimas_. Jie atrodo taip:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
