@@ -334,7 +334,15 @@ local function update_input()
 
   input.floating = active
 
-  hl.config({ input = { follow_mouse = active and 2 or input.follow_mouse } })
+  -- float_switch_override_focus would still focus on hover whenever the pointer
+  -- crosses between a tiled window and a floating one, such as coming in from a
+  -- tiled window on another monitor.
+  hl.config({
+    input = {
+      follow_mouse = active and 2 or input.follow_mouse,
+      float_switch_override_focus = active and 0 or input.float_switch_override_focus,
+    },
+  })
 end
 
 -- Windows arrive by opening and by being carried in, and a window rule only ever
@@ -348,6 +356,7 @@ local function watch()
   watching = true
 
   input.follow_mouse = hl.get_config("input.follow_mouse")
+  input.float_switch_override_focus = hl.get_config("input.float_switch_override_focus")
 
   hl.on("window.open", function(window)
     claim_opened(window)
