@@ -151,6 +151,10 @@ STUB
 cat >"$STUB_BIN/nmcli" <<'STUB'
 #!/bin/bash
 printf '%s\n' "$*" >>"$NMCLI_LOG"
+# With SSID_STATE set, the saved name follows what apply writes.
+if [[ -n ${SSID_STATE:-} && ${1:-} == "connection" && ${2:-} == "modify" && ${4:-} == "ssid" ]]; then
+  printf '%s\n' "$5" >"$SSID_STATE"
+fi
 if [[ ${1:-} == "-t" && ${2:-} == "-f" && ${3:-} == "DEVICE,TYPE" ]]; then
   printf '%s\n' 'p2p-dev-wlan9:wifi' 'wlan0:wifi' 'wlan1:wifi'
   exit 0
@@ -175,7 +179,11 @@ case "$*" in
     [[ -e $PROFILE_STATE ]] && printf '%s\n' "${SAVED_INTERFACE:-wlan0}"
     ;;
   '-e no -g 802-11-wireless.ssid connection show omarchy-hotspot')
-    [[ -e $PROFILE_STATE ]] && printf '%s\n' 'Shared Hotspot'
+    if [[ -n ${SSID_STATE:-} && -e $SSID_STATE ]]; then
+      cat "$SSID_STATE"
+    else
+      [[ -e $PROFILE_STATE ]] && printf '%s\n' 'Shared Hotspot'
+    fi
     ;;
   '-e no -g 802-11-wireless.band connection show omarchy-hotspot')
     [[ -e $PROFILE_STATE ]] && printf '%s\n' 'bg'
@@ -190,13 +198,28 @@ esac
 exit 0
 STUB
 
-# Forwarding is already on, so a restart never reaches the privileged helper.
+# Forwarding is already on and no firewall service runs, so a restart never
+# reaches the privileged helper; escalating at all fails the test.
 cat >"$STUB_BIN/sysctl" <<'STUB'
 #!/bin/bash
 printf '%s\n' 1
 STUB
+cat >"$STUB_BIN/systemctl" <<'STUB'
+#!/bin/bash
+exit 3
+STUB
+cat >"$STUB_BIN/nft" <<'STUB'
+#!/bin/bash
+exit 1
+STUB
+cat >"$STUB_BIN/sudo" <<'STUB'
+#!/bin/bash
+printf 'escalated: %s\n' "$*" >&2
+exit 97
+STUB
+cp "$STUB_BIN/sudo" "$STUB_BIN/pkexec"
 
-chmod +x "$STUB_BIN/iw" "$STUB_BIN/nmcli" "$STUB_BIN/sysctl"
+chmod +x "$STUB_BIN/iw" "$STUB_BIN/nmcli" "$STUB_BIN/sysctl" "$STUB_BIN/systemctl" "$STUB_BIN/nft" "$STUB_BIN/sudo" "$STUB_BIN/pkexec"
 
 NMCLI_LOG="$TEST_TMP/nmcli.log"
 PROFILE_STATE="$TEST_TMP/profile"
@@ -259,16 +282,28 @@ if (( EUID != 0 )); then
 
   # NetworkManager keeps an active connection on the settings it started
   # with, while status and the QR read the saved profile. Saving while the AP
-  # is down leaves it down; saving while it is up puts the new settings on air.
+  # is down leaves it down; saving a change while it is up puts it on air;
+  # saving with nothing the AP runs on changed leaves its clients connected.
   [[ $nmcli_log != *"connection up omarchy-hotspot"* ]] || fail "saving while the hotspot is off does not start it" "$nmcli_log"
+  export SSID_STATE="$TEST_TMP/ssid"
+  printf '%s\n' 'Shared Hotspot' >"$SSID_STATE"
   : >"$NMCLI_LOG"
-  printf '%s\n' newpassword | HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" apply Renamed 2.4 >"$TEST_TMP/live.out" 2>"$TEST_TMP/live.err" ||
+  printf '%s\n' savedpassword | HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" apply Renamed 2.4 >"$TEST_TMP/live.out" 2>"$TEST_TMP/live.err" ||
     fail "saving while the hotspot is on succeeds" "$(<"$TEST_TMP/live.err")"
   live_log=$(<"$NMCLI_LOG")
   [[ $live_log == *"connection modify omarchy-hotspot ssid Renamed "* ]] || fail "saving while the hotspot is on writes the profile" "$live_log"
   [[ $live_log == *"connection up omarchy-hotspot"* ]] || fail "saving while the hotspot is on restarts it with the new settings" "$live_log"
   [[ ${live_log#*connection modify omarchy-hotspot ssid Renamed} == *"connection up omarchy-hotspot"* ]] || fail "the restart comes after the save" "$live_log"
-  pass "saving while the hotspot is on puts the new settings on air"
+  pass "saving a change while the hotspot is on puts it on air"
+
+  : >"$NMCLI_LOG"
+  printf '%s\n' savedpassword | HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" apply Renamed 2.4 >"$TEST_TMP/same.out" 2>"$TEST_TMP/same.err" ||
+    fail "saving unchanged settings while the hotspot is on succeeds" "$(<"$TEST_TMP/same.err")"
+  same_log=$(<"$NMCLI_LOG")
+  [[ $same_log == *"connection modify omarchy-hotspot ssid Renamed "* ]] || fail "an unchanged save still writes the profile" "$same_log"
+  [[ $same_log != *"connection up omarchy-hotspot"* ]] || fail "an unchanged save does not restart the hotspot" "$same_log"
+  pass "saving nothing the hotspot runs on leaves its clients connected"
+  unset SSID_STATE
 else
   skip "running as root; apply would take the host hotspot lock"
   # Stand in for the profile apply would have saved; later tests read it.
