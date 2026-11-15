@@ -365,7 +365,7 @@ pass "picking a Chromium-based browser repairs its bundled extensions when they 
 # user's mimeapps.list, replacing what was there and keeping everything else.
 mimeapps="$test_home/.config/mimeapps.list"
 dotfiles_list="$test_tmp/dotfiles-mimeapps.list"
-printf '[Added Associations]\ntext/plain=nvim.desktop;\n\n[Default Applications]\nimage/png=imv.desktop\ntext/plain=nvim.desktop\ntext/x-tex=code.desktop\n' >"$dotfiles_list"
+printf '[Added Associations]\ntext/plain=nvim.desktop;\n\n[Default Applications]\nimage/png=omaview.desktop\ntext/plain=nvim.desktop\ntext/x-tex=code.desktop\n' >"$dotfiles_list"
 ln -sf "$dotfiles_list" "$mimeapps"
 omarchy-default-editor vim
 handler_types=$(sed -n 's/^MimeType=//p' "$ROOT/applications/omarchy-launch-editor.desktop" | tr ';' '\n' | sed '/^$/d')
@@ -374,7 +374,7 @@ while read -r type; do
 done <<<"$handler_types"
 ! grep -qxF "text/plain=nvim.desktop" "$mimeapps" || fail "picking an editor replaces the old text/plain default"
 ! grep -qxF "text/x-tex=code.desktop" "$mimeapps" || fail "picking an editor replaces an app chosen for a text type"
-grep -qxF "image/png=imv.desktop" "$mimeapps" || fail "picking an editor keeps other types' defaults"
+grep -qxF "image/png=omaview.desktop" "$mimeapps" || fail "picking an editor keeps other types' defaults"
 grep -qxF "text/plain=nvim.desktop;" "$mimeapps" || fail "picking an editor leaves added associations alone"
 [[ -L $mimeapps ]] || fail "picking an editor keeps a symlinked mimeapps.list a symlink"
 [[ -f $test_home/.local/share/applications/omarchy-launch-editor.desktop ]] || fail "picking an editor installs the editor handler"
