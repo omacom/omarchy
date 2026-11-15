@@ -66,6 +66,7 @@ mkdir -p "$scratch/dtbs"
 : >"$scratch/dtbs/mahua-test.dtb"
 : >"$scratch/dtbs/kalambo-test.dtb"
 : >"$scratch/dtbs/purwa-test.dtb"
+: >"$scratch/dtbs/sc8180x-test.dtb"
 cat >"$scratch/uki.conf" <<'CONF'
 [UKI]
 SecureBootPrivateKey=/secure/db.key
@@ -104,6 +105,8 @@ grep -Fq "$scratch/dtbs/purwa-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the Purwa device trees"
 grep -Fq "$scratch/dtbs/kalambo-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the Kalambo device trees"
+grep -Fq "$scratch/dtbs/sc8180x-test.dtb" "$scratch/uki.conf" ||
+  fail "Snapdragon DTB setup lists the 8cx device trees"
 if grep -Fq 'x1e80100-test-el2.dtb' "$scratch/uki.conf"; then
   fail "Snapdragon DTB setup excludes EL2-only device trees"
 fi
