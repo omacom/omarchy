@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# omarchy:summary=Draw a preview image of an icon set
+# omarchy:args=<icon-set-dir> <preview.png> [theme-dir]
+# omarchy:hidden=true
+
+# A sheet of every icon in the set, drawn in a theme's colors on its background,
+# at the size the icon picker shows. The sets Omarchy ships keep theirs as
+# preview.png, drawn in Tokyo Night; the picker draws one in the current theme
+# for a set that came without.
+
+SET_DIR="${1:-}"
+PREVIEW="${2:-}"
+THEME="${3:-$HOME/.local/state/omarchy/current/theme}"
+WIDTH=1536
+HEIGHT=950
+COLUMNS=9
+
+if [[ ! -d $SET_DIR || -z $PREVIEW ]]; then
+  echo "Usage: omarchy-icons-preview <icon-set-dir> <preview.png> [theme-dir]" >&2
+  exit 1
+fi
+
+omarchy-cmd-present rsvg-convert magick || exit 1
+
+shopt -s nullglob
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir "$work/svg" "$work/png"
+
+# As omarchy-theme-set-icons reads a set: its drawings as they are, and its
+# templates in the theme's colors.
+for icon in "$SET_DIR"/*.svg; do
+  [[ -f $icon && ! -L $icon ]] && cp "$icon" "$work/svg/"
+done
+omarchy-theme-set-templates --icons "$THEME" "$work/svg" "$SET_DIR"
+
+icons=()
+for icon in "$work/svg"/*.svg; do
+  name=${icon##*/}
+  if rsvg-convert -w 128 -h 128 "$icon" -o "$work/png/${name%.svg}.png" 2>/dev/null; then
+    icons+=("$work/png/${name%.svg}.png")
+  fi
+done
+
+(( ${#icons[@]} > 0 )) || exit 1
+
+background=$(omarchy-theme-color --file "$THEME/colors.toml" background "#1a1b26")
+
+mkdir -p "$(dirname "$PREVIEW")"
+magick montage "${icons[@]}" -background "$background" -geometry +22+14 -tile "${COLUMNS}x" miff:- |
+  magick - -background "$background" -resize "$(( WIDTH - 96 ))x$(( HEIGHT - 72 ))" -gravity center -extent "${WIDTH}x${HEIGHT}" -strip -colors 255 "PNG8:$PREVIEW"

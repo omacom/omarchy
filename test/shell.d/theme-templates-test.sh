@@ -194,6 +194,8 @@ for set in "$ROOT"/icons/*/; do
   set=${set%/}
   icons icons-set "${set##*/}"
   for tpl in "$set"/*.tpl; do
+    # Original holds a preview and no icons.
+    [[ -e $tpl ]] || continue
     name=${tpl##*/}
     name=${name%.tpl}
     [[ -f $state/icons/$name && $(<"$state/icons/$name") != *"{{"* ]] || fail "the ${set##*/} icon set resolves all its colors ($name)"
@@ -233,6 +235,31 @@ icons icons-remove Mine >/dev/null
 [[ ! -d $sets/mine && $(icons icons-current --id) == "papercraft" && -L $apps/omawrite.svg && ! -e $apps/firefox.svg ]] || fail "removing the icon set in use falls back to the default"
 ! icons icons-remove "../themes" >/dev/null 2>&1 || fail "removing an icon set can't climb out of the sets dir"
 pass "removing the icon set in use falls back to the default"
+
+# The icon switcher is the theme switcher's picker over one preview per set: a
+# set's own preview.png, the user's ahead of the built-in set of its name, and
+# for a set that came without one a sheet of its icons drawn in the theme. It
+# opens on the set in use.
+printf '#!/bin/bash\nprintf "%%s\\n" "$@" >"%s"\nls "${@: -1}" >"%s"\necho arcade\n' "$test_tmp/picker-args" "$test_tmp/picker-previews" >"$test_tmp/stubs/omarchy-menu-images"
+chmod +x "$test_tmp/stubs/omarchy-menu-images"
+mkdir -p "$sets/papercraft" "$sets/drawn"
+printf 'mine\n' >"$sets/papercraft/preview.png"
+printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" fill="{{ icon_main }}"/></svg>\n' >"$sets/drawn/mpv.svg.tpl"
+icons icons-set Papercraft
+picked=$(XDG_CACHE_HOME="$test_tmp/cache" icons icons-switcher)
+previews="$test_tmp/cache/omarchy/icons-selector/previews"
+[[ $picked == "arcade" ]] || fail "the icon switcher prints the set that was picked"
+[[ $(readlink "$previews/arcade.png") == "$ROOT/icons/arcade/preview.png" && $(readlink "$previews/original.png") == "$ROOT/icons/original/preview.png" ]] || fail "the icon switcher shows each built-in set's preview"
+[[ $(<"$previews/papercraft.png") == "mine" ]] || fail "a user's preview goes ahead of the built-in set's"
+grep -Fxq -- "$previews/papercraft.png" "$test_tmp/picker-args" && grep -Fxq -- "--print-name" "$test_tmp/picker-args" || fail "the icon switcher opens the picker on the set in use"
+if command -v rsvg-convert >/dev/null && command -v magick >/dev/null; then
+  [[ $(file -b --mime-type "$(readlink -f "$previews/drawn.png")") == "image/png" ]] || fail "a set without a preview gets one drawn from its icons"
+  pass "the icon switcher draws a preview for a set that came without one"
+else
+  skip "no rsvg-convert or magick; skipping the drawn icon set preview"
+fi
+rm -r "$sets/drawn" "$sets/papercraft/preview.png"
+pass "the icon switcher shows one preview per set and opens on the set in use"
 
 # A set picked while another is being removed is kept. The stand-in for
 # omarchy-icons-current answers with the set being removed and, as a second
