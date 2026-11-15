@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# omarchy:summary=Apply ~/.config/omarchy/touchpad.json to the running Hyprland session
+# omarchy:args=[--reload]
+# omarchy:hidden=true
+
+# Settings that were only added or changed apply live: the touchpad module
+# re-reads the file and swaps its gestures and window rules in place. Removing
+# a setting needs --reload, since Hyprland cannot unset an option back to
+# whatever the rest of the config would have chosen without re-running it.
+if [[ ${1-} == "--reload" ]]; then
+  output=$(hyprctl reload 2>&1)
+else
+  output=$(hyprctl eval 'require("default.hypr.touchpad").apply()' 2>&1)
+fi
+status=$?
+
+# hyprctl reports Lua and config errors on stdout.
+if (( status != 0 )) || [[ $output == error* ]]; then
+  printf '%s\n' "$output" >&2
+  exit 1
+fi
