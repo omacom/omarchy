@@ -20,7 +20,9 @@ Omarchy's own apps are dead simple on purpose: one window, one job, driven from 
 
 ## Before writing code
 
-Ask what the app should do if it isn't clear, and settle the one job it does. Pick a short lowercase name (`tally`, `pomo`); it is the binary, the package, the `.desktop` file, the icon, and the Wayland app id all at once. Create the project in `~/Work/<name>` unless the user says otherwise, and `git init` it.
+Ask what the app should do if it isn't clear, and settle the one job it does. Pick a short lowercase name (`tally`, `pomo`); it is the binary, the package, the `.desktop` file, the icon, and the Wayland app id all at once. Create the project in `~/Work/<name>` unless the user says otherwise.
+
+Start every app from the scaffold, never by retyping the templates: in the empty project directory, run `scaffold <name> "<Display Name>"` from this skill's directory. It writes every file in `templates.md` with the name filled in, the LICENSE, and `git init`, then builds and runs the tests, which pass. The starter is a working counter app: change it into the app one piece at a time (the backend's state and actions, then `Main.qml`, then the tests), running `bin/test` after each piece so it stays green. Read the template for a file in `templates.md` only when you change that file.
 
 Everything an app needs is part of Omarchy: `cmake`, `make`, a C++ compiler, Qt's base, declarative, multimedia, SVG, and Wayland modules, and `ffmpeg`. If `cmake` is missing, install the set with `omarchy-pkg-add base-devel cmake qt6-base qt6-declarative qt6-multimedia qt6-svg qt6-wayland ffmpeg`.
 
