@@ -1458,17 +1458,39 @@ save_profile() {
   fi
 }
 
-# Save the settings, and put them on air when the AP is already up.
-# NetworkManager keeps an active connection on the settings it started with,
-# while status and the QR card read the saved profile, so without a
-# reactivation the panel would show a name, band and join code the radio is
-# not using. Clients drop and rejoin, which they must do anyway for a new
-# name or password.
+# What the running AP is built from: anything here only reaches the radio,
+# dnsmasq or the firewall on a reactivation. Kept in memory only, since it
+# includes the passphrase.
+profile_live_settings() {
+  local field
+  profile_ssid
+  profile_band
+  for field in 802-11-wireless.channel connection.interface-name ipv4.addresses ipv4.shared-dhcp-range; do
+    nm_get "$field" connection show "$PROFILE"
+  done
+  profile_secret
+}
+
+# Save the settings, and put them on air when the AP is already up and they
+# changed what it runs on. NetworkManager keeps an active connection on the
+# settings it started with, while status and the QR card read the saved
+# profile, so without a reactivation the panel would show a name, band and
+# join code the radio is not using. Clients drop and rejoin, which they must
+# do anyway for a new name or password; a save that changes none of these
+# (a preference that waits for the next start) leaves them connected. The
+# firewall is brought in line first, as start does, so a new subnet is
+# allowed before clients get leases on it.
 apply() {
-  local nm_up_error=""
+  local nm_up_error="" before="" after=""
   hotspot_lock
+  if profile_active; then
+    before=$(profile_live_settings)
+  fi
   save_profile "$@"
   profile_active || return 0
+  after=$(profile_live_settings)
+  [[ $after != "$before" ]] || return 0
+  firewall_ensure
   if ! nm_up_error=$(nmcli connection up "$PROFILE" 2>&1 >/dev/null); then
     # The AP is down for good: give back the firewall rules and forwarding it
     # was holding, as turning it off would.
