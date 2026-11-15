@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Google Calendar Theme",
+  "version": "1.0",
+  "description": "Color Google Calendar with the current Omarchy theme, this extension is installed by Omarchy",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhYPtSgjxqsWeSASHeyScIE5inkOCr0DKe74X2BHgvRK4tusts8zrcoda1NCvbJQDpkFFl0il/zjbNxTnUCDphpE/0JUu9EdiA1Bw++DIxqmnoFjYQfrmk0hYRy9HRsIsWzX8vD9zdIkZBNsI1mwVvE0JdQqhNMJHNHPC22Er1uVyYnyb0K3kGPsqzklXdRutFVS7/4S92Q3m5MWJvcJpvI9w1qpvBSdVX6mNyslHwduND5gjh3nJaQe5NhhVzZPXl7b5YtJYkMhWxhmrMsfZ35GgvggwmAYZyIFp6Dskz3Jcz58l1MG12z2uSeNEUP68m0aNsEk9BbVfyDTFWykyNwIDAQAB",
+  "permissions": ["nativeMessaging", "storage"],
+  "background": {"service_worker": "background.js"},
+  "minimum_chrome_version": "111",
+  "content_scripts": [
+    {
+      "matches": ["https://calendar.google.com/*"],
+      "js": ["sheet-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://calendar.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

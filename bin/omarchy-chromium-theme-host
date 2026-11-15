@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# omarchy:summary=Native messaging host: stream the current theme palette to the Chromium theme extensions
+# omarchy:hidden=true
+
+set -euo pipefail
+
+STATE_DIR="$HOME/.local/state/omarchy/current"
+
+# Every installed theme's accent, one per line. A calendar color picked as one
+# theme's accent then follows the accent of whichever theme is current.
+theme_accents() {
+  local files
+
+  shopt -s nullglob
+  files=("$OMARCHY_PATH"/themes/*/colors.toml "$HOME"/.config/omarchy/themes/*/colors.toml)
+  shopt -u nullglob
+  (( ${#files[@]} > 0 )) || return 0
+
+  awk -F'"' '/^[[:space:]]*accent[[:space:]]*=/ && $2 ~ /^#[0-9a-fA-F]{6}$/ { print tolower($2) }' "${files[@]}" | sort -u
+}
+
+# The resolved palette (aliases and fallbacks applied, as the templates see it),
+# keeping only the hex colors a page can use. Prints nothing unless the theme
+# resolves a background and foreground: omarchy-theme-color succeeds even on a
+# missing colors.toml.
+palette_json() {
+  local theme=""
+
+  [[ -f $STATE_DIR/theme.name ]] && theme=$(<"$STATE_DIR/theme.name")
+
+  omarchy-theme-color --file "$STATE_DIR/theme/colors.toml" --all |
+    jq -cRn --arg theme "$theme" --arg accents "$(theme_accents)" '
+      [inputs | split("\t") | select(length == 2) | {(.[0]): .[1]}] | add // {} |
+      {
+        type: "palette",
+        theme: $theme,
+        mode: (.mode // "dark"),
+        colors: with_entries(select(.value | test("^#[0-9a-fA-F]{6}$")) | .value |= ascii_downcase),
+        accents: ($accents | split("\n") | map(select(length > 0)))
+      } |
+      select(.colors.background and .colors.foreground)'
+}
+
+# Native messaging frame: 4-byte little-endian length prefix, then UTF-8 JSON.
+send_message() {
+  local message=$1 header length
+  local LC_ALL=C
+
+  length=${#message}
+  printf -v header '\\x%02x\\x%02x\\x%02x\\x%02x' \
+    $(( length & 255 )) $(( length >> 8 & 255 )) $(( length >> 16 & 255 )) $(( length >> 24 & 255 ))
+  printf "$header%s" "$message"
+}
+
+# A theme that fails to resolve, such as one missing or caught mid-swap, sends
+# nothing, so the page and storage keep the last good palette.
+send_palette() {
+  local palette
+
+  if palette=$(palette_json 2>/dev/null) && [[ -n $palette ]]; then
+    send_message "$palette"
+  fi
+}
+
+main() {
+  local events watcher file
+
+  # The browser may kill a host that is slow to exit, which skips the cleanup
+  # below; the parent-death signal takes the watcher down with us regardless,
+  # and the loop then reads EOF and exits too.
+  exec {events}< <(exec setpriv --pdeathsig TERM inotifywait -m -e close_write,moved_to --format %f "$STATE_DIR" 2>&1)
+  watcher=$!
+
+  # Without -q, inotifywait reports when its watch is in place. Waiting for that
+  # before the first send leaves no gap for a theme change to fall into.
+  while read -r -u "$events" file && [[ $file != "Watches established." ]]; do :; done
+
+  send_palette
+
+  # omarchy-theme-set writes theme.name once the new theme is fully in place.
+  while read -r -u "$events" file; do
+    if [[ $file == "theme.name" ]]; then
+      send_palette
+    fi
+  done &
+
+  # Chromium closes stdin when the extension disconnects, or right after the
+  # first reply to a one-shot message.
+  cat >/dev/null || true
+  kill "$watcher" 2>/dev/null || true
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi
