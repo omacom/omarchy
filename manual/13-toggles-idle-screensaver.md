@@ -13,6 +13,7 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Night light | — | `omarchy toggle nightlight` |
 | Silence notifications | `Super + Ctrl + Alt + ,` | `omarchy toggle notification silencing` |
 | Stay awake (no idle lock) | `Super + Ctrl + I` | `omarchy toggle idle` |
+| Presentation | — | `omarchy toggle presentation` |
 | Crash capture | — | `omarchy toggle crash-capture` |
 | Screensaver | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) theme sync | — | `omarchy toggle theme sync` |
