@@ -138,8 +138,9 @@ case "$*" in
     printf '%s\n' "${FORWARDING_AFTER_UP:-1}" >"$FORWARDING_STATE_VALUE"
     ;;
   'connection down omarchy-hotspot')
-    rm -f "$NMCLI_ACTIVE"
+    # A refused deactivation leaves the AP up.
     (( ${NMCLI_DOWN_SUCCEED:-1} == 1 )) || exit 1
+    rm -f "$NMCLI_ACTIVE"
     if [[ ${KEEP_FORWARDING_ON_DOWN:-0} == 1 ]]; then
       :
     else
@@ -1429,6 +1430,27 @@ set -e
 [[ ! -e $TEST_TMP/hotspot.pending ]] || fail "a save rejected before writing leaves no restart pending"
 pass "a rejected save leaves no restart pending"
 
+# A save step that fails without calling fail() still stops the save before
+# the writes after it: apply must not run save_profile where bash ignores
+# errexit (left of || or in an if).
+reset_firewall_fixture
+rm -f "$TEST_TMP/hotspot.pending" "$TEST_TMP/save-wrote"
+touch "$PROFILE_STATE" "$TEST_TMP/nmcli-active"
+printf '%s\n' old >"$TEST_TMP/live-settings"
+cat >"$TEST_TMP/apply-errexit-driver.sh" <<'DRIVER'
+profile_live_settings() { cat "$TEST_TMP/live-settings"; }
+save_profile() { false; printf '%s\n' wrote >"$TEST_TMP/save-wrote"; }
+apply Hotspot 2.4
+DRIVER
+set +e
+run_isolated "$TEST_TMP/apply-errexit-driver.sh" >/dev/null 2>&1
+errexit_status=$?
+set -e
+(( errexit_status != 0 )) || fail "a save step that fails fails the save"
+[[ ! -e $TEST_TMP/save-wrote ]] || fail "a failing save step stops the save before the writes after it"
+[[ ! -e $TEST_TMP/hotspot.pending ]] || fail "a save stopped before writing leaves no restart pending"
+pass "a failing save step stops the save before it writes"
+
 reset_firewall_fixture
 touch "$PROFILE_STATE" "$TEST_TMP/nmcli-active"
 printf '%s\n' old >"$TEST_TMP/live-settings"
@@ -1444,6 +1466,7 @@ run_isolated "$TEST_TMP/apply-stuck-driver.sh" >/dev/null 2>&1
 stuck_status=$?
 set -e
 (( stuck_status != 0 )) || fail "a restart that fails with the AP still up is reported"
+[[ -e $TEST_TMP/nmcli-active ]] || fail "the stuck AP is still up after the failed stop"
 [[ -e $TEST_TMP/hotspot.pending ]] || fail "a failed restart keeps the pending mark while the AP is still up"
 rm -f "$TEST_TMP/hotspot.pending"
 pass "a failed restart stays pending until the AP is down"
