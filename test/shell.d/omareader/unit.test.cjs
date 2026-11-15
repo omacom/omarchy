@@ -7,6 +7,27 @@ const C = globalThis.OmareaderColor;
 const T = globalThis.OmareaderTheme;
 const X = globalThis.OmareaderTransform;
 
+// Every theme Omarchy ships, read by the native host itself so the tests see what the
+// extension gets. An empty HOME keeps the user's own themes out.
+function shippedThemes() {
+  const { execFileSync } = require('node:child_process');
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const root = path.join(__dirname, '../../..');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'omareader-test-'));
+  try {
+    const out = execFileSync(path.join(root, 'bin/omarchy-chromium-omareader-host'), ['--dump'], {
+      env: { ...process.env, HOME: home, OMARCHY_PATH: root, OMAREADER_STATE_DIR: path.join(home, 'state') },
+    });
+    const themes = JSON.parse(out).themes;
+    const dirs = fs.readdirSync(path.join(root, 'themes')).filter((d) => fs.existsSync(path.join(root, 'themes', d, 'colors.toml')));
+    assert.deepEqual(Object.keys(themes).sort(), dirs.sort(), 'the host reads every shipped theme');
+    return themes;
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+}
+
 const LIFTOFF = {
   mode: 'dark', accent: '#F3B77B', selection: '#334D5D', muted: '#88979F', background: '#151E26',
   dark_background: '#10171E', darker_background: '#0B1117', lighter_background: '#253440',
@@ -181,13 +202,7 @@ test('roles', () => {
 });
 
 test('every installed Omarchy theme yields a readable mapping', () => {
-  let presets;
-  try {
-    presets = require('../extension/presets.json');
-  } catch {
-    return;
-  }
-  for (const [name, raw] of Object.entries(presets.themes)) {
+  for (const [name, raw] of Object.entries(shippedThemes())) {
     const p = T.normalize(raw);
     const m = T.createMapper(p);
     const bg = m.map(C.parse('#ffffff'), 'bg');
@@ -239,13 +254,7 @@ test('raw declaration scan recovers var() shorthands', () => {
 });
 
 test('text keeps its contrast class on every installed theme', () => {
-  let presets;
-  try {
-    presets = require('../extension/presets.json');
-  } catch {
-    return;
-  }
-  for (const [name, raw] of Object.entries(presets.themes)) {
+  for (const [name, raw] of Object.entries(shippedThemes())) {
     const p = T.normalize(raw);
     const m = T.createMapper(p);
     const bg = C.parse(p.bg);

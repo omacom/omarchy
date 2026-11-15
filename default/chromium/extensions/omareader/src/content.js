@@ -101,7 +101,13 @@
   const ours = new WeakSet();
   const scopes = new Map();
   const entries = new WeakMap();
+  // Fetched cross-origin sheets by URL. A long-lived page that keeps swapping stylesheets
+  // would otherwise keep every one it ever used; past the budget, sheets no render has
+  // touched for a minute are dropped (and fetched again if a page brings them back).
   const remote = new Map();
+  const REMOTE_BUDGET = 16 * 1024 * 1024;
+  const REMOTE_IDLE_MS = 60000;
+  let remoteBytes = 0;
   const remoteText = new WeakMap();
   const rawIndex = new WeakMap();
   const ordinals = new WeakMap();
@@ -289,6 +295,7 @@
       return '';
     }
     if (entry.state !== 'done') return '';
+    entry.used = performance.now();
     let out = '';
     for (const imp of entry.imports) {
       let inner = renderRemote(imp.url, seen);
@@ -351,12 +358,27 @@
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(body);
       remoteText.set(sheet, body);
-      remote.set(href, { state: 'done', sheet, imports, base: res.url || href });
+      remote.set(href, { state: 'done', sheet, imports, base: res.url || href, size: body.length, used: performance.now() });
+      remoteBytes += body.length;
+      pruneRemote();
     } catch {
       remote.set(href, { state: 'failed' });
     }
     remoteVersion++;
     scheduleScan();
+  }
+
+  // Only idle sheets go, so a page whose live sheets alone exceed the budget keeps them
+  // instead of refetching in a loop.
+  function pruneRemote() {
+    if (remoteBytes <= REMOTE_BUDGET) return;
+    const cutoff = performance.now() - REMOTE_IDLE_MS;
+    const idle = [...remote].filter(([, e]) => e.state === 'done' && e.used < cutoff).sort((a, b) => a[1].used - b[1].used);
+    for (const [href, e] of idle) {
+      if (remoteBytes <= REMOTE_BUDGET) break;
+      remote.delete(href);
+      remoteBytes -= e.size;
+    }
   }
 
   // Override sheets apply on screen only: printing keeps the page's own colors.
@@ -822,7 +844,10 @@
     for (const [prop, v, prio] of decls) {
       seen.add(prop);
       const rec = state.get(prop);
-      if (rec && v === rec.mapped) continue;
+      if (rec && v === rec.mapped) {
+        rec.prio = prio;
+        continue;
+      }
       const mapped = canvasBackground && prop === 'background-color' ? canvasBackground : X.transformValue(v, X.roleOf(prop), ctx);
       if (mapped === v) {
         state.delete(prop);
@@ -1571,32 +1596,3 @@ mark{background-color:${s.mark};color:${s.fg}}
     });
   } catch {}
 })();
-// OMAREADER-DIAG-BEGIN
-(() => {
-  if (!/^read\.amazon\./.test(location.hostname)) return;
-  const dump = () => {
-    const out = [];
-    const vw = innerWidth, vh = innerHeight;
-    const walk = (root, depth) => {
-      for (const el of root.querySelectorAll('*')) {
-        const r = el.getBoundingClientRect();
-        if (r.width < 40 || r.height < 40) continue;
-        const cs = getComputedStyle(el);
-        const interesting = r.width * r.height > vw * vh * 0.15 || /^(IMG|CANVAS|SVG|IFRAME)$/i.test(el.tagName);
-        if (interesting) out.push({
-          tag: el.tagName, id: el.id, cls: String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className).slice(0, 80),
-          box: [r.x, r.y, r.width, r.height].map(Math.round), z: cs.zIndex, pos: cs.position, op: cs.opacity, filt: cs.filter,
-          blend: cs.mixBlendMode, bg: cs.backgroundColor, bgi: cs.backgroundImage.slice(0, 80), color: cs.color, vis: cs.visibility,
-          mask: cs.maskImage, bdf: cs.backdropFilter, attrVars: (el.getAttribute('data-omareader-vars') || '').slice(0, 200),
-          style: (el.getAttribute('style') || '').slice(0, 300), src: (el.currentSrc || el.src || '').slice(0, 60),
-        });
-        if (el.shadowRoot) walk(el.shadowRoot, depth + 1);
-      }
-    };
-    walk(document, 0);
-    const body = JSON.stringify({ h: location.pathname.slice(0, 30), top: self === top, n: out.length, out }).replace(/[^\x20-\x7e]/g, '?');
-    try { top.document.title = (/^DIAG/.test(top.document.title) ? top.document.title : 'DIAG') + ' || ' + body; } catch {}
-  };
-  for (const t of [6000, 14000]) setTimeout(dump, t);
-})();
-// OMAREADER-DIAG-END

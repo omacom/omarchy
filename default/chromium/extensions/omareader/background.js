@@ -74,6 +74,31 @@ function originHost(sender) {
   }
 }
 
+// The body as UTF-8 text (as res.text() decodes it), or null once it passes `limit` bytes.
+async function readCapped(res, limit) {
+  if (!res.body) return '';
+  const reader = res.body.getReader();
+  const chunks = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 async function fetchCssOnce(url, allowPrivate) {
   const target = new URL(url);
   if (!/^https?:$/.test(target.protocol)) return { ok: false, error: 'unsupported scheme' };
@@ -91,8 +116,10 @@ async function fetchCssOnce(url, allowPrivate) {
     const type = (res.headers.get('content-type') || '').toLowerCase();
     if (!type.startsWith('text/css')) return { ok: false, error: `not CSS (${type || 'no type'})` };
     if (Number(res.headers.get('content-length')) > CSS_MAX_BYTES) return { ok: false, error: 'too large' };
-    const text = await res.text();
-    if (text.length > CSS_MAX_BYTES) return { ok: false, error: 'too large' };
+    // Content-Length can be absent, or describe a compressed body that expands past the
+    // cap, so count the bytes as they arrive and stop at the cap.
+    const text = await readCapped(res, CSS_MAX_BYTES);
+    if (text === null) return { ok: false, error: 'too large' };
     return { ok: true, text, url: res.url };
   } catch (e) {
     return { ok: false, error: String(e) };
