@@ -31,6 +31,10 @@ o.window("org.omarchy.about", { size = { 920, 480 } })
 -- to fit the screen.
 o.window("folio-preview", { float = true })
 
+-- Files is the file chooser other apps get through the portal (see
+-- hyprland-portals.conf), and its dialogs float as the GTK ones did.
+o.window("folio-chooser", { tag = "+floating-window" })
+
 o.window("omacalc", { float = true })
 
 -- Popped window rounding.
