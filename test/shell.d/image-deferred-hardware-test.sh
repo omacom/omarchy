@@ -454,8 +454,16 @@ mkdir -p "$root/etc/pacman.d/gnupg"
 touch "$root/etc/pacman.d/gnupg/image-leftover"
 hold=$test_tmp/keyring-hold
 mkfifo "$hold"
+# A failure before the hold is released stops the held job and finalization
+# rather than leaving them running.
+finalizing=""
+stop_keyring_jobs() {
+  [[ -z $finalizing ]] || kill "$finalizing" 2>/dev/null || true
+  timeout 1 bash -c 'echo >"$1"' bash "$hold" 2>/dev/null || true
+}
+trap 'stop_keyring_jobs; rm -rf "$test_tmp"' EXIT
 KEYRING_HOLD=$hold start_keyring "$root" aarch64 1 || fail "a first install starts its keyring"
-finalize "$root" aarch64 &
+finalize "$root" aarch64 >"$test_tmp/finalize.log" 2>&1 &
 finalizing=$!
 # Finalization installs the keyring package just before it takes the keyring;
 # once it has, it must wait for the one still being made.
@@ -466,7 +474,9 @@ done
 sleep 0.3
 kill -0 "$finalizing" 2>/dev/null || fail "finalization waits for the keyring still being made" "$(cat "$KEYRING")"
 timeout 5 bash -c 'echo >"$1"' bash "$hold" || fail "the background keyring reached --populate"
-wait "$finalizing" || fail "finalization takes the keyring started for it"
+wait "$finalizing" || fail "finalization takes the keyring started for it" "$(cat "$test_tmp/finalize.log")"
+finalizing=""
+trap 'rm -rf "$test_tmp"' EXIT
 next=$(next_keyring "$root")
 grep -Fxq "pacman-key --gpgdir $next --init" "$KEYRING" && grep -Fxq "pacman-key --gpgdir $next --populate" "$KEYRING" ||
   fail "the keyring is made in a directory of its own" "$(cat "$KEYRING")"
