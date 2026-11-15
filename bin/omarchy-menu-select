@@ -3,7 +3,7 @@
 # omarchy:summary=Pick one or multiple options from a menu
 # omarchy:group=menu
 # omarchy:name=select
-# omarchy:args=prompt [option...] [-- --multiple --selected <value> --on-change <command-json> --change-key <key> --width <pixels> --maxheight <pixels>]
+# omarchy:args=prompt [option...] [-- --multiple --selected <value> --on-change <command-json> --change-key <key> --confirm <message> --confirm-label <text> --width <pixels> --maxheight <pixels>]
 # omarchy:examples=omarchy menu select Format jpg png|omarchy-menu-select Resolution 4k 1080p 720p -- --width 400
 
 # An option may lead with an icon, as "<glyph><TAB><label>", and may trail a
@@ -17,6 +17,11 @@
 # JSON appended, applies immediately, and needs no Apply row. A successful
 # command may print a JSON array of actual selections to update the checkmarks.
 # --selected takes a returned value (label plus any subtext), and can be repeated.
+
+# --confirm asks before a pick returns, in the same menu: the message (%1 is
+# the picked label) with Cancel focused and a button named by --confirm-label.
+# Cancel, Escape or a click outside it goes back to the list. It cannot be
+# combined with --multiple.
 
 set -euo pipefail
 
@@ -35,6 +40,8 @@ multiple=0
 on_change="[]"
 change_key=""
 selected=()
+confirm=""
+confirm_label=""
 
 while (( $# > 0 )); do
   if [[ $1 == "--" ]]; then
@@ -59,6 +66,19 @@ while (( $# > 0 )); do
           ;;
         --multiple)
           multiple=1
+          ;;
+        --confirm|--confirm-label)
+          arg="$1"
+          shift
+          if (( $# == 0 )); then
+            echo "omarchy-menu-select: $arg requires a value" >&2
+            exit 1
+          fi
+          if [[ $arg == "--confirm" ]]; then
+            confirm="$1"
+          else
+            confirm_label="$1"
+          fi
           ;;
         --selected)
           shift
@@ -104,6 +124,11 @@ if (( ${#options[@]} == 0 )); then
   exit 1
 fi
 
+if (( multiple )) && [[ -n $confirm ]]; then
+  echo "omarchy-menu-select: --confirm cannot be combined with --multiple" >&2
+  exit 1
+fi
+
 selection_file=$(mktemp)
 done_file=$(mktemp)
 rm -f "$done_file"
@@ -125,8 +150,10 @@ payload=$(perl -MEncode=decode -MJSON::PP=encode_json,decode_json -e '
   };
   $payload->{width} = int($ARGV[4]) if length($ARGV[4] // "");
   $payload->{maxHeight} = int($ARGV[5]) if length($ARGV[5] // "");
+  $payload->{confirm} = decode("UTF-8", $ARGV[10]) if length($ARGV[10] // "");
+  $payload->{confirmLabel} = decode("UTF-8", $ARGV[11]) if length($ARGV[11] // "");
   print encode_json($payload)
-' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$multiple" "$selected_json" "$on_change" "$change_key")
+' "$prompt" "$options_json" "$selection_file" "$done_file" "$menu_width" "$menu_maxheight" "$multiple" "$selected_json" "$on_change" "$change_key" "$confirm" "$confirm_label")
 
 omarchy-shell shell summon omarchy.menu "$payload" >/dev/null || exit 2
 

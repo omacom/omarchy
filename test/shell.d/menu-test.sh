@@ -424,3 +424,42 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+require_command jq
+
+SELECT_TMP=$(mktemp -d)
+trap 'rm -rf "$SELECT_TMP"' EXIT
+
+# Stands in for the shell: keeps the summon payload and answers the request.
+cat >"$SELECT_TMP/omarchy-shell" <<'STUB'
+#!/bin/bash
+printf '%s' "$4" >"$PAYLOAD"
+printf 'Firefox\n' >"$(jq -r .selectionFile <<<"$4")"
+: >"$(jq -r .doneFile <<<"$4")"
+STUB
+chmod +x "$SELECT_TMP/omarchy-shell"
+
+select_payload() {
+  PATH="$SELECT_TMP:$PATH" PAYLOAD="$SELECT_TMP/payload" "$ROOT/bin/omarchy-menu-select" "$@" >/dev/null
+  cat "$SELECT_TMP/payload"
+}
+
+payload=$(select_payload "Force Quit" $'\tFirefox' -- --confirm "Force quit %1?" --confirm-label "Force Quit" --width 520)
+if jq -e '.confirm == "Force quit %1?" and .confirmLabel == "Force Quit" and .width == 520 and .options == ["\tFirefox"]' <<<"$payload" >/dev/null; then
+  pass "menu select passes its confirm prompt to the menu"
+else
+  fail "menu select passes its confirm prompt to the menu" "$payload"
+fi
+
+payload=$(select_payload "Pick" a b)
+if jq -e 'has("confirm") or has("confirmLabel") | not' <<<"$payload" >/dev/null; then
+  pass "menu select asks no confirm unless told to"
+else
+  fail "menu select asks no confirm unless told to" "$payload"
+fi
+
+if PATH="$SELECT_TMP:$PATH" PAYLOAD="$SELECT_TMP/payload" "$ROOT/bin/omarchy-menu-select" "Pick" a b -- --multiple --confirm "Sure?" >/dev/null 2>&1; then
+  fail "menu select rejects --confirm with --multiple"
+else
+  pass "menu select rejects --confirm with --multiple"
+fi
