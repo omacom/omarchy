@@ -849,10 +849,16 @@ case "$*" in
   '-e no -g NAME connection show') printf '%s\n' 'omarchy-hotspot' ;;
   '-e no -g GENERAL.DEVICE connection show omarchy-hotspot') printf '%s\n' 'wlan1' ;;
   '-e no -g ipv4.addresses connection show omarchy-hotspot') printf '%s\n' '10.42.0.1/24' ;;
+  '-t -f NAME connection show --active') [[ ${HOTSPOT_ACTIVE:-0} == 1 ]] && printf '%s\n' 'omarchy-hotspot' ;;
 esac
 exit 0
 STUB
-chmod +x "$APPLY_BIN/iw" "$APPLY_BIN/nmcli"
+# A restart would check the firewall; keep that off the host's services.
+printf '#!/bin/bash\nexit 3\n' >"$APPLY_BIN/systemctl"
+printf '#!/bin/bash\nexit 1\n' >"$APPLY_BIN/nft"
+printf '#!/bin/bash\necho "escalated: $*" >&2\nexit 97\n' >"$APPLY_BIN/sudo"
+cp "$APPLY_BIN/sudo" "$APPLY_BIN/pkexec"
+chmod +x "$APPLY_BIN/iw" "$APPLY_BIN/nmcli" "$APPLY_BIN/systemctl" "$APPLY_BIN/nft" "$APPLY_BIN/sudo" "$APPLY_BIN/pkexec"
 
 hotspot_apply() {
   : >"$TEST_TMP/nmcli.log"
@@ -872,6 +878,14 @@ hotspot_apply --save-data never || fail "apply accepts --save-data with a separa
 grep -qx "connection modify omarchy-hotspot connection.metered no" "$TEST_TMP/nmcli.log" ||
   fail "apply reads a separate --save-data value" "$(<"$TEST_TMP/nmcli.log")"
 pass "apply takes --save-data after its operands"
+
+# The choice waits for the next start: saving only it while the hotspot runs
+# writes the profile but leaves joined devices connected.
+HOTSPOT_ACTIVE=1 hotspot_apply --save-data=never || fail "apply saves a save-data choice while the hotspot runs" "$(<"$TEST_TMP/apply.out")"
+grep -qx "connection modify omarchy-hotspot connection.metered no" "$TEST_TMP/nmcli.log" ||
+  fail "a live save-data choice is written to the profile" "$(<"$TEST_TMP/nmcli.log")"
+! grep -q "connection up" "$TEST_TMP/nmcli.log" || fail "saving only the save-data choice does not restart the hotspot" "$(<"$TEST_TMP/nmcli.log")"
+pass "saving only the save-data choice leaves a running hotspot's devices connected"
 
 hotspot_apply || fail "apply without a save-data choice still succeeds" "$(<"$TEST_TMP/apply.out")"
 ! grep -q "connection.metered" "$TEST_TMP/nmcli.log" || fail "apply without a choice overwrites the saved one"
