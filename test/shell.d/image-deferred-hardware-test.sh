@@ -581,6 +581,24 @@ first_boot "$root" >/dev/null || fail "the first boot finishes the deferred hard
   fail "the first boot records that the boot image is the machine's own"
 pass "the first boot of an image rebuilds the boot image for the machine"
 
+# A first boot that stopped between retiring the manifest and asking for the
+# rebuild still owes it: the machine booted an image, so the boot image it
+# carries is the builder's until a rebuild lands.
+reset_logs
+root=$(new_root interrupted)
+write_manifest "$root"
+build "$root" >/dev/null || fail "the fixture image builds"
+printf '%s\n' install/hardware/c.sh >"$root/var/lib/omarchy/image/deferred-steps"
+# The interruption: the manifest is retired and the request that follows it is lost.
+mv "$root/var/lib/omarchy/image/target" "$root/var/lib/omarchy/image/target.booted"
+rm -f "$root/var/lib/omarchy/image/boot-rebuild"
+first_boot "$root" >/dev/null || fail "the next boot finishes the deferred hardware setup"
+[[ $(cat "$REBUILDS" 2>/dev/null) == "mkinitcpio -P" ]] ||
+  fail "a first boot that lost its rebuild request still rebuilds the boot image" "$(cat "$REBUILDS" 2>/dev/null)"
+[[ -e $root/var/lib/omarchy/image/boot-image-rebuilt ]] ||
+  fail "the rebuild that landed records the boot image as the machine's own"
+pass "a first boot that lost its rebuild request still rebuilds the boot image"
+
 # A rebuild that reports a kernel it could not build is no rebuild, even
 # though the command says nothing wrong with its exit status: the machine
 # keeps the boot image it had, and the rebuild stays owed.
