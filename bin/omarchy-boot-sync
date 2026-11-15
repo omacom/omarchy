@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Build and publish the boot images systemd-boot starts, with a menu entry per snapshot
-# omarchy:args=sync | import PKGBASE KVER VMLINUZ INITRAMFS | pin NUMBER | cmdline | verify | status | restore-stage SNAPSHOT|backup | restore-commit | restore-cancel
+# omarchy:args=sync | import PKGBASE KVER VMLINUZ INITRAMFS | pin NUMBER | prefer PKGBASE | preferred | cmdline | verify | status | restore-stage SNAPSHOT|backup | restore-commit | restore-cancel
 # omarchy:hidden=true
 # omarchy:requires-sudo=true
 
@@ -522,6 +522,14 @@ gc_images() {
 
 # Fails when an installed kernel has no published live entry: rebooting then
 # would boot an image that doesn't match the installed modules.
+# The kernel the machine boots by default (omarchy-kernel set).
+cmd_prefer() {
+  (($# == 1)) || die "usage: prefer PKGBASE"
+  [[ -L $STORE/current/$1 ]] || die "no boot image is stored for $1"
+  state_set preferred "$1"
+  cmd_sync
+}
+
 cmd_verify() {
   check_store
   local ns pkgbase kver image file status=0
@@ -749,6 +757,8 @@ sync) with_lock; cmd_sync ;;
 import) shift; with_lock; check_store; cmd_import "$@" ;;
 pin) shift; with_lock; check_store; mount_top; cmd_pin "$@" ;;
 cmdline) assemble_cmdline / ; echo ;;
+prefer) shift; with_lock; check_store; cmd_prefer "$@" ;;
+preferred) preferred_kernel / ;;
 verify) cmd_verify ;;
 status) cmd_status ;;
 restore-stage) shift; with_lock; cmd_restore_stage "$@" ;;
