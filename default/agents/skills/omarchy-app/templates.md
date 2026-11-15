@@ -140,9 +140,12 @@ jobs:
 
 #include <QGuiApplication>
 #include <QIcon>
+#include <QKeySequence>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickStyle>
+#include <QQuickWindow>
+#include <QTimer>
 #include <QUrl>
 
 #include "backend.h"
@@ -178,6 +181,31 @@ int main(int argc, char *argv[]) {
     engine.load(QUrl("qrc:/Main.qml"));
     if (engine.rootObjects().isEmpty())
         return 1;
+
+    // `omarchy agent look app` runs the app offscreen with these set, to see
+    // the window without a display: press the keys in OMARCHY_LOOK_KEYS
+    // through the window's Shortcuts, save it once it has settled, and quit.
+    if (const QString shot = qEnvironmentVariable("OMARCHY_LOOK_SCREENSHOT"); !shot.isEmpty()) {
+        const QStringList keys = qEnvironmentVariable("OMARCHY_LOOK_KEYS").split(' ', Qt::SkipEmptyParts);
+        for (int i = 0; i < keys.size(); ++i) {
+            QTimer::singleShot(800 + i * 300, &app, [&engine, key = QKeySequence(keys[i])] {
+                for (QObject *shortcut : engine.rootObjects().constFirst()->findChildren<QObject *>()) {
+                    if (qstrcmp(shortcut->metaObject()->className(), "QQuickShortcut") == 0
+                        && shortcut->property("enabled").toBool()
+                        && QKeySequence(shortcut->property("sequence").toString()) == key) {
+                        QMetaObject::invokeMethod(shortcut, "activated");
+                        break;
+                    }
+                }
+            });
+        }
+        const int delay = qEnvironmentVariableIsSet("OMARCHY_LOOK_DELAY_MS") ? qEnvironmentVariableIntValue("OMARCHY_LOOK_DELAY_MS") : 1500;
+        QTimer::singleShot(800 + keys.size() * 300 + delay, &app, [&engine, shot] {
+            if (auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst()))
+                window->grabWindow().save(shot);
+            QCoreApplication::quit();
+        });
+    }
 
     return app.exec();
 }

@@ -1,20 +1,25 @@
 #!/bin/bash
 
 # omarchy:summary=Screenshot a desktop program an agent built, then close it
-# omarchy:args=[--after seconds] [--size WxH] [--out file.png] -- <command> [args...]
-# omarchy:examples=omarchy agent look app -- ./build/tally | omarchy agent look app --after 4 -- ./build/tally --demo
+# omarchy:args=[--keys "Down Return"] [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]
+# omarchy:examples=omarchy agent look app -- ./build/tally | omarchy agent look app --keys "N" -- ./build/tally
 
-# Starts the program as a floating window that never takes the keyboard
-# focus, so what the user is typing can't land in it, captures that window
-# alone, and closes it. An agent sees its window without a program blocking
-# its shell forever or a screenshot of the user's whole desktop. Prints the
-# screenshot's path and whatever the program printed.
+# An Omarchy app started from the omarchy-app scaffold draws itself offscreen
+# when OMARCHY_LOOK_SCREENSHOT names a file: it presses the keys in
+# OMARCHY_LOOK_KEYS through its window's Shortcuts, saves the window, and
+# quits. That needs no display, takes no focus, and shows nothing on the
+# user's screen. Any other program is started as a floating window that never
+# takes the keyboard focus, captured alone, and closed, which needs the
+# display to be on. Either way an agent sees its window without a program
+# blocking its shell forever. Prints the screenshot's path and whatever the
+# program printed.
 
 set -uo pipefail
 
-after=2 size="1280, 800" out=""
+keys="" after=2 size="1280, 800" out=""
 while (( $# )) && [[ $1 != "--" ]]; do
   case $1 in
+    --keys) keys=$2; shift 2 ;;
     --after) after=$2; shift 2 ;;
     --size) size="${2/x/, }"; shift 2 ;;
     --out) out=$2; shift 2 ;;
@@ -23,16 +28,43 @@ while (( $# )) && [[ $1 != "--" ]]; do
 done
 [[ ${1:-} == "--" ]] && shift
 if (( $# == 0 )); then
-  echo "Usage: omarchy agent look app [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]" >&2
+  echo "Usage: omarchy agent look app [--keys \"Down Return\"] [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]" >&2
   exit 2
 fi
 [[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
+rm -f "$out"
+log=$(mktemp)
+
+finish() {
+  magick "$out" -resize '1280x>' "$out"
+  echo "screenshot: $out"
+  if [[ -s $log ]]; then
+    echo "program output:"
+    head -40 "$log"
+  fi
+  rm -f "$log"
+  exit 0
+}
+
+OMARCHY_LOOK_SCREENSHOT=$out OMARCHY_LOOK_KEYS=$keys OMARCHY_LOOK_DELAY_MS=$(( after * 1000 )) \
+  QT_QPA_PLATFORM=offscreen timeout $(( after + 30 )) "$@" >"$log" 2>&1 </dev/null
+[[ -s $out ]] && finish
+
+# Not a scaffolded app, or one without the hook: capture its window on screen.
+if [[ -n $keys ]]; then
+  echo "This program can't press keys for a screenshot: --keys needs the OMARCHY_LOOK_KEYS handling in the omarchy-app template's main.cpp." >&2
+fi
+if ! hyprctl monitors -j | jq -e 'any(.[]; .dpmsStatus)' >/dev/null; then
+  echo "The display is off, so the window can't be captured on screen, and this program didn't draw itself offscreen (the omarchy-app template's main.cpp does, on OMARCHY_LOOK_SCREENSHOT). It printed:" >&2
+  head -40 "$log" >&2
+  rm -f "$log"
+  exit 1
+fi
 
 window_ids() {
   hyprctl clients -j | jq -r '.[].stableId'
 }
 
-log=$(mktemp)
 before=$(window_ids | sort)
 # Hyprland starts the program with the session's environment, so pass on the
 # caller's directory, home and PATH: an agent working in another home sees
@@ -54,14 +86,18 @@ if [[ -z $id ]]; then
 fi
 
 sleep "$after"
-grim -T "$id" "$out"
+# Capturing a window waits for its next frame, which a window that isn't
+# animating never draws; its area on screen shows the same thing, since it
+# floats on the current workspace.
+if ! timeout 5 grim -T "$id" "$out"; then
+  geometry=$(hyprctl clients -j | jq -r --arg id "$id" '.[] | select((.stableId | tostring) == $id) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"')
+  timeout 5 grim -g "$geometry" "$out"
+fi
 pid=$(hyprctl clients -j | jq -r --arg id "$id" '.[] | select((.stableId | tostring) == $id) | .pid')
 [[ -n $pid ]] && kill "$pid" 2>/dev/null
-
-magick "$out" -resize '1280x>' "$out"
-echo "screenshot: $out"
-if [[ -s $log ]]; then
-  echo "program output:"
-  head -40 "$log"
+if [[ ! -s $out ]]; then
+  echo "The window couldn't be captured." >&2
+  rm -f "$log"
+  exit 1
 fi
-rm -f "$log"
+finish
