@@ -722,6 +722,15 @@ function autohideCallsOut(engaged, underFullscreen) {
   return engaged === true && underFullscreen !== true
 }
 
+// Whether autohide shows the bar on a screen: it may be called out there, and
+// something needs it — the pointer (`revealed`, the flag the bar's hover and
+// its edge strip set) or a panel the user opened from it. The bar's own tuck
+// reads this, so one definition parks the bar both when the pointer leaves and
+// when autohide turns on under a panel that is already open.
+function autohideShows(engaged, revealed, keepOpen, underFullscreen) {
+  return autohideCallsOut(engaged, underFullscreen) && (revealed === true || keepOpen === true)
+}
+
 // Whether the grace timer parks the bar. Asked again every time it fires, so a
 // panel closed while the pointer is elsewhere still parks the bar instead of
 // leaving it out for good, and a window that goes fullscreen pushes the bar
@@ -756,6 +765,7 @@ if (typeof module !== "undefined") {
     autohideHolds: autohideHolds,
     autohidePanelOpen: autohidePanelOpen,
     autohideCallsOut: autohideCallsOut,
+    autohideShows: autohideShows,
     autohideParks: autohideParks,
     screenFlag: screenFlag,
     withScreenFlag: withScreenFlag,

@@ -1759,12 +1759,12 @@ Item {
     // thick a notch floor makes it. Autohide parks the layer the same way by
     // a margin, never by opacity, so the strip and any glass Hyprland draws on
     // this surface move together.
-    // A panel open while the pointer is elsewhere holds the bar out too, so
-    // turning autohide on with a panel up cannot slide the bar out from under
-    // it; the grace timer and this read the same hold.
+    // A panel open while the pointer is elsewhere holds the bar out through
+    // `revealed` (autohideShows), so turning autohide on with a panel up
+    // cannot slide the bar out from under it.
     // Writable on purpose: the Behavior below animates it, and a read-only
     // property fails the whole component to load.
-    property real autohideTuck: root.autohideEngaged && !barWindow.revealed && !root.autohideKeepOpen ? surfaceThickness : 0
+    property real autohideTuck: root.autohideEngaged && !barWindow.revealed ? surfaceThickness : 0
     Behavior on autohideTuck {
       id: autohideMotion
       NumberAnimation {
@@ -1926,11 +1926,15 @@ Item {
     }
 
     // Whether autohide has this screen's bar out. Hide Bar still wins through
-    // autohideEngaged, and a real fullscreen window parks it at once: the flag
-    // alone would leave the bar out over the window while the pointer never
-    // moves, since no hover change would start the grace timer.
-    readonly property bool revealed: root.autohideEngaged && !barWindow.underFullscreen &&
-      BarModel.screenFlag(root.autohideRevealed, screen ? screen.name : "")
+    // autohideEngaged, a real fullscreen window parks it, and a panel the user
+    // opened holds it: one rule, read here by the tuck and by the grace timer.
+    readonly property bool revealed: BarModel.autohideShows(root.autohideEngaged,
+      BarModel.screenFlag(root.autohideRevealed, screen ? screen.name : ""), root.autohideKeepOpen, barWindow.underFullscreen)
+
+    // A fullscreen window takes the bar away with the flag: the pointer cannot
+    // reach the parked bar to leave it, so nothing would clear the flag, and the
+    // bar would come back out on its own the moment fullscreen ended.
+    onUnderFullscreenChanged: if (barWindow.underFullscreen) root.setAutohideRevealed(barWindow.screen, false)
 
     // Hides the bar a moment after the pointer leaves both the bar and its edge
     // strip, unless a panel still needs it. Single-shot and restarted by the

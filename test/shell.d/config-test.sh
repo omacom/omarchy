@@ -308,11 +308,17 @@ bar_autohide toggle >/dev/null
 jq -e '.bar.autohide == true and .bar.position == "bottom"' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null ||
   fail "bar auto-hide toggles on and leaves the rest of the config alone" "$(cat "$TMPDIR/home/.config/omarchy/shell.json")"
 [[ $(bar_autohide) == "on" ]] || fail "bar auto-hide reads back"
+bar_autohide toggle >/dev/null
+jq -e '.bar.autohide == false' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null ||
+  fail "bar auto-hide toggles off from on" "$(cat "$TMPDIR/home/.config/omarchy/shell.json")"
 bar_autohide off >/dev/null
 jq -e '.bar.autohide == false' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null ||
   fail "bar auto-hide turns off" "$(cat "$TMPDIR/home/.config/omarchy/shell.json")"
 if bar_autohide sometimes 2>/dev/null; then
   fail "bar auto-hide takes only on, off, or toggle"
+fi
+if bar_autohide on off 2>/dev/null; then
+  fail "bar auto-hide takes a single value"
 fi
 pass "bar auto-hide is set through omarchy-bar autohide"
 

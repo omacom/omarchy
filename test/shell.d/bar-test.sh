@@ -517,6 +517,15 @@ assertEqual(bar.autohideCallsOut(true, false), true, 'the edge calls the bar out
 assertEqual(bar.autohideCallsOut(true, true), false, 'the edge calls no bar over a fullscreen window')
 assertEqual(bar.autohideCallsOut(false, false), false, 'the edge calls no bar when autohide is off')
 
+// Autohide shows the bar when it may be called out and something needs it: the
+// pointer through the reveal flag, or a panel the user opened, which the flag
+// alone misses when autohide turns on under an open panel.
+assertEqual(bar.autohideShows(true, true, false, false), true, 'the pointer holds the bar out')
+assertEqual(bar.autohideShows(true, false, true, false), true, 'an open panel holds the bar out with the pointer elsewhere')
+assertEqual(bar.autohideShows(true, false, false, false), false, 'nothing holding the bar leaves it parked')
+assertEqual(bar.autohideShows(true, true, true, true), false, 'a fullscreen window parks the bar whatever holds it')
+assertEqual(bar.autohideShows(false, true, true, false), false, 'a bar with autohide off never comes out')
+
 // Anything the user is on or opened keeps the bar out; otherwise the grace
 // timer parks it an instant after the pointer leaves.
 assertEqual(bar.autohideHolds(true, false, false), true, 'the pointer on the bar holds it out')
