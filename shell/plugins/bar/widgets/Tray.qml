@@ -27,31 +27,28 @@ BarWidget {
   // Opening a normal drawer over hover is fine, but if overflow appears while
   // it is open the drawer was opened by hover and would stay open under the
   // pointer. Close it so the click-to-open mode starts from a clean state.
-  Component.onCompleted: previousOverflowCount = overflowCount
+  // While the overflow drawer is open, the sections it reaches hide so they
+  // do not draw through it. The bar keeps its normal background; the drawer
+  // itself paints none. Push the state when the API arrives and whenever the
+  // drawer moves; a Binding whose target starts null can miss the injection.
+  function syncOverflowApi() {
+    if (!barOverflow) return
+    barOverflow.drawerOpen = overflowCount > 0 && revealProgress > 0
+    barOverflow.coverStart = drawerCoverStart
+    barOverflow.coverLength = drawerCoverLength
+  }
+  onBarOverflowChanged: syncOverflowApi()
+  onRevealProgressChanged: syncOverflowApi()
+  onDrawerCoverStartChanged: syncOverflowApi()
+  onDrawerCoverLengthChanged: syncOverflowApi()
+  Component.onCompleted: {
+    previousOverflowCount = overflowCount
+    syncOverflowApi()
+  }
   onOverflowCountChanged: {
     if (previousOverflowCount === 0 && overflowCount > 0) expanded = false
     previousOverflowCount = overflowCount
-  }
-  // While the overflow drawer is open, the sections it reaches hide so they
-  // do not draw through it. The bar keeps its normal background; the drawer
-  // itself paints none.
-  Binding {
-    target: root.barOverflow
-    property: "drawerOpen"
-    value: root.overflowCount > 0 && root.revealProgress > 0
-    when: root.barOverflow !== null
-  }
-  Binding {
-    target: root.barOverflow
-    property: "coverStart"
-    value: root.drawerCoverStart
-    when: root.barOverflow !== null
-  }
-  Binding {
-    target: root.barOverflow
-    property: "coverLength"
-    value: root.drawerCoverLength
-    when: root.barOverflow !== null
+    syncOverflowApi()
   }
   Component.onDestruction: {
     if (!root.barOverflow) return
