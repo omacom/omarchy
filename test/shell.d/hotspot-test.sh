@@ -203,7 +203,13 @@ esac
 exit 0
 STUB
 
-chmod +x "$STUB_BIN/iw" "$STUB_BIN/nmcli"
+# Forwarding is already on, so a restart never reaches the privileged helper.
+cat >"$STUB_BIN/sysctl" <<'STUB'
+#!/bin/bash
+printf '%s\n' 1
+STUB
+
+chmod +x "$STUB_BIN/iw" "$STUB_BIN/nmcli" "$STUB_BIN/sysctl"
 
 NMCLI_LOG="$TEST_TMP/nmcli.log"
 PROFILE_STATE="$TEST_TMP/profile"
@@ -263,6 +269,19 @@ if (( EUID != 0 )); then
   # The PSK reaches nmcli on stdin only: argv shows in ps to every user.
   [[ $nmcli_log != *savedpassword* ]] || fail "the hotspot PSK never appears on nmcli's argv" "$nmcli_log"
   pass "the hotspot PSK never appears on nmcli's argv"
+
+  # NetworkManager keeps an active connection on the settings it started
+  # with, while status and the QR read the saved profile. Saving while the AP
+  # is down leaves it down; saving while it is up puts the new settings on air.
+  [[ $nmcli_log != *"connection up omarchy-hotspot"* ]] || fail "saving while the hotspot is off does not start it" "$nmcli_log"
+  : >"$NMCLI_LOG"
+  printf '%s\n' newpassword | HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" apply Renamed 2.4 >"$TEST_TMP/live.out" 2>"$TEST_TMP/live.err" ||
+    fail "saving while the hotspot is on succeeds" "$(<"$TEST_TMP/live.err")"
+  live_log=$(<"$NMCLI_LOG")
+  [[ $live_log == *"connection modify omarchy-hotspot ssid Renamed "* ]] || fail "saving while the hotspot is on writes the profile" "$live_log"
+  [[ $live_log == *"connection up omarchy-hotspot"* ]] || fail "saving while the hotspot is on restarts it with the new settings" "$live_log"
+  [[ ${live_log#*connection modify omarchy-hotspot ssid Renamed} == *"connection up omarchy-hotspot"* ]] || fail "the restart comes after the save" "$live_log"
+  pass "saving while the hotspot is on puts the new settings on air"
 else
   skip "running as root; apply would take the host hotspot lock"
   # Stand in for the profile apply would have saved; later tests read it.

@@ -1177,8 +1177,11 @@ Panel {
     if ((next.active === "1") !== wasActive) syncWifiNetworks()
   }
 
+  // Start and Save send the whole draft. A reopen keeps the last draft until
+  // the first status read refreshes it, so acting before then would send
+  // settings changed elsewhere (the CLI, another session) back as stale ones.
   function startHotspot() {
-    if (hotspotBusy) return
+    if (hotspotBusy || !hotspotLoaded) return
     var err = Model.hotspotCredentialsError(hotspotSsid, hotspotPassword, Commons.I18n.t)
     if (err !== "") { hotspotError = err; return }
     hotspotActionKind = "start"
@@ -1220,7 +1223,7 @@ Panel {
   // without starting the AP, so edits survive restarts on their own. The
   // profile is the single source of truth; no plaintext copy is kept.
   function applyHotspot() {
-    if (hotspotBusy) return
+    if (hotspotBusy || !hotspotLoaded) return
     var err = Model.hotspotCredentialsError(hotspotSsid, hotspotPassword, Commons.I18n.t)
     if (err !== "") { hotspotError = err; return }
     hotspotActionKind = "apply"
@@ -2476,6 +2479,7 @@ Panel {
               horizontalPadding: 0
               verticalPadding: 0
               bordered: true
+              enabled: root.hotspotLoaded && !root.hotspotBusy
               onClicked: root.applyHotspot()
             }
           }

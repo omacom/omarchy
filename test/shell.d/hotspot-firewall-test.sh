@@ -301,6 +301,8 @@ done <"$ROOT/bin/omarchy-hotspot" >"$FUNCTIONS"
   printf 'FORWARDING_STATE_FILE=%q\n' "$TEST_STATE_DIR/forwarding.state"
   printf 'HOTSPOT_LOCK_FILE=%q\n' "$OMARCHY_HOTSPOT_LOCK_FILE"
   printf 'HOTSPOT_LOCK_WAIT=%q\n' "$OMARCHY_HOTSPOT_LOCK_WAIT"
+  # The host's own sysctl config must not decide whether forwarding is kept.
+  printf 'SYSCTL_CONFIG_FILES=()\n'
 } >"$TEST_PATHS"
 
 run_isolated() {
@@ -470,7 +472,7 @@ for backend in firewalld nftables; do
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
-apply() { :; }
+save_profile() { :; }
 start Hotspot 2.4
 DRIVER
   : >"$NMCLI_UP_LOG"
@@ -856,7 +858,8 @@ for action in firewall-apply firewall-rollback forwarding-enable forwarding-rest
   mapped=$(bash -c 'source "$1"; privileged_function "$2"' _ "$TEST_TMP/privileged-function.sh" "$action") ||
     fail "privileged action $action has a function mapping"
   [[ $mapped == "${action//-/_}" ]] || fail "privileged action $action maps to its own function name" "$mapped"
-  grep -q "^${mapped}() {" "$ROOT/bin/omarchy-hotspot" || fail "the root path resolves a defined function for $action" "$mapped"
+  bash -c 'source "$1"; declare -F "$2" >/dev/null' _ "$FUNCTIONS" "$mapped" ||
+    fail "the root path resolves a defined function for $action" "$mapped"
 done
 unknown_status=0
 mapped=$(bash -c 'source "$1"; privileged_function firewall-explode' _ "$TEST_TMP/privileged-function.sh" 2>/dev/null) || unknown_status=$?
@@ -1090,9 +1093,10 @@ require_privileged() { :; }
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+SYSCTL_CONFIG_FILES=("$TEST_STATE_DIR"/sysctl.d/*.conf)
 forwarding_restore
 DRIVER
-for router in container vm-bridge shared-connection; do
+for router in container vm-bridge shared-connection wireguard tailscale sysctl-config; do
   reset_firewall_fixture
   printf '%s\n' 1 >"$FORWARDING_STATE_VALUE"
   printf '%s\n' enabled >"$FORWARDING_STATE"
@@ -1100,9 +1104,16 @@ for router in container vm-bridge shared-connection; do
     container) export ROUTING_LINK=docker0 ;;
     vm-bridge) export ROUTING_LINK=virbr0 ;;
     shared-connection) export OTHER_SHARED_CONNECTION="Ethernet share" ;;
+    wireguard) export ROUTING_LINK=wg0 ;;
+    tailscale) export ROUTING_LINK=tailscale0 ;;
+    sysctl-config)
+      mkdir -p "$TEST_STATE_DIR/sysctl.d"
+      printf '%s\n' '# router' 'net.ipv4.ip_forward = 1' >"$TEST_STATE_DIR/sysctl.d/30-router.conf"
+      ;;
   esac
   output=$(run_isolated "$TEST_TMP/forwarding-shared-driver.sh" 2>&1) || fail "forwarding restore succeeds while another router needs forwarding ($router)" "$output"
   unset ROUTING_LINK OTHER_SHARED_CONNECTION
+  rm -rf "$TEST_STATE_DIR/sysctl.d"
   [[ $(<"$FORWARDING_STATE_VALUE") == 1 ]] || fail "forwarding stays on for another router ($router)"
   [[ ! -e $FORWARDING_STATE ]] || fail "the hotspot still gives up its forwarding claim ($router)"
   [[ $output == *"leaving IPv4 forwarding on"* ]] || fail "keeping forwarding on is explained ($router)" "$output"
@@ -1112,7 +1123,7 @@ printf '%s\n' 1 >"$FORWARDING_STATE_VALUE"
 printf '%s\n' enabled >"$FORWARDING_STATE"
 run_isolated "$TEST_TMP/forwarding-shared-driver.sh"
 [[ $(<"$FORWARDING_STATE_VALUE") == 0 ]] || fail "forwarding is restored when nothing else routes"
-pass "releasing forwarding leaves it on while a container, VM bridge or other shared connection routes"
+pass "releasing forwarding leaves it on while a container, VM bridge, VPN tunnel, other shared connection or sysctl config routes"
 
 reset_firewall_fixture
 run_isolated "$TEST_TMP/seed-complete-driver.sh"
@@ -1332,12 +1343,12 @@ DRIVER
 run_isolated "$TEST_TMP/shared-lock-driver.sh"
 pass "hotspot actions take the user lock, then the shared lock"
 
-# start hands the chosen participant limit to apply, and leaves the saved
-# range alone when no limit is given.
+# start hands the chosen participant limit to the profile save, and leaves
+# the saved range alone when no limit is given.
 reset_firewall_fixture
 cat >"$TEST_TMP/start-limit-driver.sh" <<'DRIVER'
-# The stub parses as apply does and records the operands it ends up with.
-apply() { parse_hotspot_args "$@"; printf '%s\n' "${#HOTSPOT_OPERANDS[@]}" "${HOTSPOT_OPERANDS[@]}" "save=$HOTSPOT_SAVE_DATA" >"$TEST_TMP/apply-args"; }
+# The stub parses as save_profile does and records the operands it ends up with.
+save_profile() { parse_hotspot_args "$@"; printf '%s\n' "${#HOTSPOT_OPERANDS[@]}" "${HOTSPOT_OPERANDS[@]}" "save=$HOTSPOT_SAVE_DATA" >"$TEST_TMP/apply-args"; }
 firewall_ensure() { :; }
 forwarding_ensure() { :; }
 ipv4_forwarding_enabled() { :; }
@@ -1353,7 +1364,8 @@ run_isolated "$TEST_TMP/start-limit-driver.sh"
 pass "start applies the chosen participant limit"
 
 # A live limit change that cannot bring the AP back gives back the host
-# state the AP held, as turning it off would.
+# state the AP held, as turning it off would. apply() restarts the AP after
+# the save; the stand-in save changes only the limit.
 reset_firewall_fixture
 touch "$PROFILE_STATE" "$TEST_TMP/nmcli-active"
 printf '%s\n' 1 >"$FORWARDING_STATE_VALUE"
@@ -1363,7 +1375,8 @@ HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
 export NMCLI_UP_SUCCEED=0
-apply_participant_limit 1 4
+save_profile() { apply_participant_limit 1 4; }
+apply Hotspot 2.4 4
 DRIVER
 set +e
 limit_restart_output=$(run_isolated "$TEST_TMP/limit-restart-driver.sh" 2>&1)
@@ -1409,7 +1422,7 @@ cat >"$TEST_TMP/first-start-driver.sh" <<'DRIVER'
 (( $(id -u) != 0 )) || exit 0
 LOCK_CASE=first-start
 source "$TEST_TMP/shared-lock-common.sh"
-apply() {
+save_profile() {
   echo apply >>"$calls"
   shared_lock_free && { echo "apply ran without the shared lock" >&2; exit 1; }
   exit 0
