@@ -1895,6 +1895,7 @@ Item {
         keys.push(finish.hidden[i])
       }
 
+      console.log("overflow debug", JSON.stringify({ screenW: screen ? screen.width : -1, screenH: screen ? screen.height : -1, begin: begin, box: box, end: end, startBudget: startBudget, endBudget: endBudget, startHidden: start.hidden, finishHidden: finish.hidden, right: (root.layoutWidgets.sections.right || []).map(function(key) { return key + ":" + lengthOf(key, "right") }) })) // TEMP overflow debug
       if (keys.length === 0) {
         clearOverflow()
         return
@@ -2971,6 +2972,10 @@ Item {
       inTraySection = owner.region === "tray"
       placed = true
       rememberSideLength()
+      // The widget's bar surface can change with the slot (a rotation or a
+      // rebuilt panel). Re-inject so barOverflow and the host pointers follow
+      // the surface the widget is actually drawn on.
+      Qt.callLater(injectProps)
     }
     onWidgetWidthChanged: {
       if (pool) pool.hostSizeChanged()
