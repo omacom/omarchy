@@ -58,6 +58,15 @@ ShellRoot {
     tc.mouseClick(item, item.width / 2, item.height / 2)
   }
 
+  // A real key press into the menu's window, where the focused search line
+  // hands it on. Sent from inside that window: a layer surface need not be
+  // the application's focus window.
+  property var keys: null
+  function press(key) {
+    if (!keys) keys = Qt.createQmlObject('import QtTest; TestCase { when: false }', root.surface)
+    keys.keyClick(key)
+  }
+
   // A corner of the fullscreen surface, well past the centered card.
   function clickOutside() {
     tc.mouseClick(root.surface, 3, 3)
@@ -162,10 +171,16 @@ ShellRoot {
         root.check(root.menu.filterText === "ol" && root.searchField.text === "ol", "Cancel keeps the search: " + root.menu.filterText)
         root.check(root.searchField.activeFocus && !root.searchField.readOnly, "Cancel gives the keyboard back to the search line")
         root.menu.activateIndex(0)
-        root.dialog.handleKey({ key: Qt.Key_Escape, text: "" })
-        root.check(!root.menu.confirmOpen && root.menu.opened && root.menu.requestActive, "Escape goes back to the list")
       }, 300],
+      [function() { root.press(Qt.Key_Return) }, 300],
       [function() {
+        root.check(!root.menu.confirmOpen && root.menu.opened && root.menu.requestActive, "Enter takes the prompt's focused Cancel back to the list, with no pick")
+        root.check(root.menu.filterText === "ol" && root.searchField.activeFocus, "Enter on Cancel keeps the search and its focus")
+        root.menu.activateIndex(0)
+      }, 300],
+      [function() { root.press(Qt.Key_Escape) }, 300],
+      [function() {
+        root.check(!root.menu.confirmOpen && root.menu.opened && root.menu.requestActive, "Escape goes back to the list")
         root.check(root.menu.filterText === "ol" && root.searchField.activeFocus, "Escape keeps the search and its focus")
         root.menu.activateIndex(0)
       }, 300],
