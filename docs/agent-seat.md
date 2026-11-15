@@ -233,7 +233,7 @@ Agent apps share your network namespace, so besides the internet they reach ever
 
 **Can the agent read my clipboard?** No. An app reads it only while your keyboard is in it and you acted last, and sets it only from your own input. Once you click into an agent app, though, a page in it can read what you copied.
 
-**Can I use the agent's browser myself?** Yes. Jump there with `Super + Ctrl + Alt + A` or _Trigger > Agents > Agent Seat_ and use it with your own mouse and keyboard. The menu row also opens your default browser on the seat when nothing is on it.
+**Can I use the agent's browser myself?** Yes. Jump there with `Super + Ctrl + Alt + A` or _Agent > Agent Seat_ and use it with your own mouse and keyboard. The menu row also opens your default browser on the seat when nothing is on it.
 
 **Why are logins my job?** Agent apps never see your own browser profile, so a site starts logged out until someone signs in to it on the seat, and passwords, captchas and two-factor prompts need your hands. The skill tells agents to hand those to you on the seat. Don't take over an agent app with a secret on your clipboard.
 
@@ -249,7 +249,7 @@ Agent apps share your network namespace, so besides the internet they reach ever
 
 **How do I move the workspace?** Add `require("default.hypr.agent-workspaces").set({ seat = 8 })` to `~/.config/hypr/hyprland.lua`, or `set({ per_monitor = 10 })` for one per monitor. It applies to apps that open afterwards.
 
-**How do I stop everything?** `omarchy agent seat stop`, or _Trigger > Agents > Stop Agent Seat_. It ends the broker and every process in every sandbox.
+**How do I stop everything?** `omarchy agent seat stop`, or _Agent > Stop Agent Seat_. It ends the broker and every process in every sandbox.
 
 **What happens if the broker dies?** Agent apps lose their display, and most exit with it; their sandboxes end when they do. Anything in a sandbox that doesn't need the display keeps running until `omarchy agent seat stop`, which works from the lifecycle records without a broker. The next `run` starts a new broker over the old sockets and launches its app only once that broker answers, so the app never gets the dead broker's socket; if no broker answers within 10 seconds, `run` fails and points at `broker.log`. A broker that is alive but does not answer within three seconds is never replaced: `run` fails and names `omarchy agent seat stop`, which ends it and its apps, so running apps keep their broker and their window numbers.
 

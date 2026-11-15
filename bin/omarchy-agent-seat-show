@@ -26,9 +26,8 @@ newest_window() {
 # A broker that did not answer is alive, only hung, and its apps stay with it.
 # Only stop ends it, so say so rather than open or focus anything.
 broker_hung() {
-  local notice="The agent seat broker is running but did not answer within 10 seconds; end it and its apps with: omarchy agent seat stop"
-  echo "$notice" >&2
-  omarchy-notification-send -g 󱚤 "Agent seat" "$notice"
+  echo "The agent seat broker is running but did not answer within 10 seconds; end it and its apps with: omarchy agent seat stop" >&2
+  omarchy-notification-send -g 󱚤 "$(omarchy-i18n agentSeat.title)" "$(omarchy-i18n agentSeat.brokerHung 10)"
   exit 1
 }
 
@@ -83,7 +82,7 @@ split_exec() {
 }
 
 address=$(newest_window) || broker_hung
-notice="Nothing is running on the agent seat"
+notice=$(omarchy-i18n agentSeat.nothingRunning)
 
 if [[ -z $address && $1 == "--start" ]]; then
   default_browser=$(omarchy-cmd-default-browser)
@@ -103,9 +102,9 @@ if [[ -z $address && $1 == "--start" ]]; then
   # The run helper reads a leading dash as one of its own options, which an
   # entry must not be able to pass it (--share, say).
   if (( ${#exec_words[@]} == 0 )) || [[ ${exec_words[0]} == -* ]]; then
-    notice="No default browser to open on the agent seat"
+    notice=$(omarchy-i18n agentSeat.noDefaultBrowser)
   elif ! omarchy-agent-seat-run "${exec_words[@]}" >/dev/null; then
-    notice="The browser didn't open on the agent seat"
+    notice=$(omarchy-i18n agentSeat.browserDidNotOpen)
   else
     # Hyprland can map the window a moment after the broker has it.
     for _ in {1..20}; do
@@ -119,5 +118,5 @@ fi
 if [[ -n $address ]]; then
   hyprctl dispatch "hl.dsp.focus({ window = \"address:$address\" })" >/dev/null 2>&1 || hyprctl dispatch focuswindow "address:$address" >/dev/null
 else
-  omarchy-notification-send -g 󱚤 "Agent seat" "$notice"
+  omarchy-notification-send -g 󱚤 "$(omarchy-i18n agentSeat.title)" "$notice"
 fi
