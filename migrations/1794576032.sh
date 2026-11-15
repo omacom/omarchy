@@ -13,6 +13,14 @@ echo "Rebuild the boot image a prebuilt image brought from the machine that buil
 
 image_dir=/var/lib/omarchy/image
 
+as_root() {
+  if (( EUID == 0 )); then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
 # A machine that never booted a prebuilt image has a boot image of its own.
 if [[ ! -e $image_dir/target.booted ]]; then
   exit 0
@@ -26,14 +34,21 @@ fi
 rebuild_log=$(mktemp)
 trap 'rm -f "$rebuild_log"' EXIT
 
+# The same rebuild the first boot makes: Limine's where the machine has it,
+# mkinitcpio's presets where it does not.
 rebuild_status=0
-sudo limine-mkinitcpio </dev/null 2>&1 | tee "$rebuild_log" || rebuild_status=$?
+if omarchy-cmd-present limine-mkinitcpio; then
+  as_root limine-mkinitcpio </dev/null 2>&1 | tee "$rebuild_log" || rebuild_status=$?
+else
+  as_root mkinitcpio -P </dev/null 2>&1 | tee "$rebuild_log" || rebuild_status=$?
+fi
 
-# limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+# limine-mkinitcpio reports a kernel it could not rebuild and still exits 0,
+# so its output decides whether the rebuild landed.
 if (( rebuild_status != 0 )) || grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
   echo "A boot image was not rebuilt. Fix the error above, then run omarchy-migrate again before rebooting." >&2
   exit 1
 fi
 
-sudo install -Dm644 /dev/null "$image_dir/boot-image-rebuilt" || exit 1
+as_root install -Dm644 /dev/null "$image_dir/boot-image-rebuilt"
 omarchy-state set reboot-required
