@@ -32,14 +32,18 @@ STORE=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
 ESP=${OMARCHY_BOOT_ESP:-/boot}
 TOP=${OMARCHY_BOOT_TOP:-/run/omarchy-boot/top}
 LOCK=${OMARCHY_BOOT_LOCK:-/run/omarchy-boot.lock}
-STUB=${OMARCHY_BOOT_STUB:-/usr/lib/systemd/boot/efi/linuxx64.efi.stub}
+# ukify picks the stub for the machine's architecture. The image itself reads
+# /etc/kernel/uki.conf, where Snapdragon machines list their device trees
+# (omarchy-update-qualcomm-device-trees); profiles read nothing, so the trees
+# are carried once rather than copied into every profile.
+UKI_CONFIG=${OMARCHY_BOOT_UKI_CONFIG:-/etc/kernel/uki.conf}
 SPLASH_SOURCE=${OMARCHY_BOOT_SPLASH_SOURCE:-/usr/share/plymouth/themes/omarchy/logo.png}
 MAX_SNAPSHOTS=${OMARCHY_BOOT_MAX_SNAPSHOTS:-6}
 MACHINE_ID_FILE=${OMARCHY_BOOT_MACHINE_ID:-/etc/machine-id}
 LOADER_GUID=4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
 
 # Bumped when the image layout changes, so published images get rebuilt.
-FORMAT=2
+FORMAT=3
 
 die() {
   echo "omarchy-boot-sync: $*" >&2
@@ -313,7 +317,13 @@ build_uki() {
   kver=$(image_get "$image" KVER)
   work=$(mktemp -d "$STORE/tmp/build.XXXXXX")
 
+  : >"$work/empty.conf"
   local args=(build --linux="$dir/vmlinuz" --initrd="$dir/initramfs.img" --uname="$kver")
+  if [[ -r $UKI_CONFIG ]]; then
+    args+=(--config="$UKI_CONFIG")
+  else
+    args+=(--config="$work/empty.conf")
+  fi
   splash_file=$(splash)
   [[ -n $splash_file ]] && args+=(--splash="$splash_file")
 
@@ -330,7 +340,7 @@ build_uki() {
     if ((n == 1)); then
       args+=(--profile="@$work/profile-$n" --os-release="@$work/osrel-$n" --cmdline="@$work/cmdline-$n")
     else
-      ukify build --profile="@$work/profile-$n" --os-release="@$work/osrel-$n" \
+      ukify build --config="$work/empty.conf" --profile="@$work/profile-$n" --os-release="@$work/osrel-$n" \
         --cmdline="@$work/cmdline-$n" --output="$work/profile-$n.efi" >/dev/null
       args+=(--join-profile="$work/profile-$n.efi")
     fi

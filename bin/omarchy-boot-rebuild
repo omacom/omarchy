@@ -37,9 +37,28 @@ rebuild_limine() {
   return "$status"
 }
 
+# The boot hooks Limine's entry tool runs before it builds an image, kept as
+# the contract: Snapdragon's device tree list refreshes there
+# (install/hardware/qualcomm/dtb-uki.sh). Exit codes 100 and up stop the build.
+run_pre_hooks() {
+  local hook status
+  for hook in "${OMARCHY_BOOT_HOOKS_DIR:-/etc/boot/hooks/pre.d}"/*; do
+    [[ -x $hook && $hook != *.disabled ]] || continue
+    # Limine's own hooks (config enrollment) are Limine's business.
+    [[ $(readlink -f "$hook") == */limine-* ]] && continue
+    status=0
+    HOOK_CALLER=omarchy-boot-rebuild "$hook" || status=$?
+    if ((status >= 100)); then
+      echo "Boot hook $hook failed ($status); not building boot images" >&2
+      return 1
+    fi
+  done
+}
+
 rebuild_systemd_boot() {
   local -a only=("$@")
   local pkgbase kver initramfs failed=0 built=0
+  run_pre_hooks || return 1
   while read -r pkgbase kver; do
     if ((${#only[@]})) && [[ " ${only[*]} " != *" $pkgbase "* ]]; then
       continue

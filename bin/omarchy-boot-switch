@@ -30,8 +30,15 @@ set -euo pipefail
 
 STORE=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}
 ESP=${OMARCHY_BOOT_ESP:-/boot}
-LOADER_SOURCE=/usr/lib/systemd/boot/efi/systemd-bootx64.efi
-LOADER_PATH='\EFI\systemd\systemd-bootx64.efi'
+# The EFI architecture names the loader and the firmware's fallback path.
+if omarchy-hw-aarch64; then
+  EFI_ARCH=aa64
+else
+  EFI_ARCH=x64
+fi
+LOADER_SOURCE=/usr/lib/systemd/boot/efi/systemd-boot$EFI_ARCH.efi
+LOADER_PATH="\\EFI\\systemd\\systemd-boot$EFI_ARCH.efi"
+FALLBACK=EFI/BOOT/BOOT${EFI_ARCH^^}.EFI
 LOADER_LABEL="Omarchy Boot"
 BOOT_DEFAULTS=${OMARCHY_PATH:-/usr/share/omarchy}/default/boot
 LOADER_GUID=4a67b082-0a4c-41cf-b6c7-440b29bb8c4f
@@ -320,7 +327,7 @@ stage_package() {
 }
 
 install_loader() {
-  install -Dm644 "$LOADER_SOURCE" "$ESP/EFI/systemd/systemd-bootx64.efi"
+  install -Dm644 "$LOADER_SOURCE" "$ESP/EFI/systemd/systemd-boot$EFI_ARCH.efi"
   mkdir -p "$ESP/loader"
   if [[ ! -f $ESP/loader/loader.conf ]] || ! grep -q omarchy-boot-switch "$ESP/loader/loader.conf"; then
     cp "$BOOT_DEFAULTS/loader.conf" "$ESP/loader/loader.conf"
@@ -364,7 +371,7 @@ stage() {
   [[ -n $(state_get boot_order) ]] || state_set boot_order "$(boot_order)"
   [[ -n $(state_get limine_entry) ]] || state_set limine_entry "$current"
   [[ -n $(state_get limine_fallback_sha) ]] ||
-    state_set limine_fallback_sha "$(sha256sum <"$ESP/EFI/BOOT/BOOTX64.EFI" 2>/dev/null | cut -d' ' -f1)"
+    state_set limine_fallback_sha "$(sha256sum <"$ESP/$FALLBACK" 2>/dev/null | cut -d' ' -f1)"
   state_set signing "$(state_get signing | grep -x required || echo off)"
 
   say "Fetching packages"
@@ -471,11 +478,11 @@ finalize() {
     rm -rf "$ESP/$(cat /etc/machine-id)/limine_history"
     rmdir "$ESP/$(cat /etc/machine-id)" 2>/dev/null || true
     rm -f "$ESP"/EFI/Linux/omarchy_*.efi "$ESP/EFI/Linux/$(cat /etc/machine-id)"_*.efi
-    if [[ -f $ESP/EFI/BOOT/BOOTX64.EFI && $(sha256sum <"$ESP/EFI/BOOT/BOOTX64.EFI" | cut -d' ' -f1) == "$(state_get limine_fallback_sha)" ]]; then
-      install -m644 "$LOADER_SOURCE" "$ESP/EFI/BOOT/BOOTX64.EFI"
+    if [[ -f $ESP/$FALLBACK && $(sha256sum <"$ESP/$FALLBACK" | cut -d' ' -f1) == "$(state_get limine_fallback_sha)" ]]; then
+      install -m644 "$LOADER_SOURCE" "$ESP/$FALLBACK"
     fi
     local limine_entry
-    limine_entry=$(boot_entry_for '\EFI\limine\limine_x64.efi')
+    limine_entry=$(boot_entry_for '\EFI\limine\')
     [[ -n $limine_entry ]] && efibootmgr --quiet --delete-bootnum --bootnum "$limine_entry"
     state_set final_step esp
     step=esp
