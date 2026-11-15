@@ -6,21 +6,23 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 # Resume device: the real command, with every system path it writes moved into
 # a scratch directory, so these cases run without hibernation on the machine.
+# The kernel parameters go through the real omarchy-boot-cmdline and
+# omarchy-boot-rebuild on a Limine machine, pointed at the scratch directory.
 rtmp=$(mktemp -d)
 trap 'rm -rf "$rtmp"' EXIT
 mkdir -p "$rtmp/bin" "$rtmp/sys" "$rtmp/sleep"
 sed -e "s|/sys/power/|$rtmp/sys/|g" \
   -e "s|/etc/mkinitcpio.conf.d|$rtmp/mkinitcpio.conf.d|g" \
-  -e "s|/etc/limine-entry-tool.d|$rtmp/limine-entry-tool.d|g" \
   -e "s|/etc/fstab|$rtmp/fstab|g" \
   -e "s|/swap/swapfile|$rtmp/swapfile|g" \
   -e "s|/usr/lib/systemd/system-sleep|$rtmp/sleep|g" \
   -e "s|/var/lib/omarchy|$rtmp/var-lib|g" \
   "$ROOT/bin/omarchy-hibernation-setup" >"$rtmp/setup"
 
-for command in omarchy-hw-aarch64-apple omarchy-sleep-disabled omarchy-cmd-missing gum; do
+for command in omarchy-hw-aarch64-apple omarchy-sleep-disabled gum; do
   printf '#!/bin/bash\nexit 1\n' >"$rtmp/bin/$command"
 done
+printf '#!/bin/bash\necho limine\n' >"$rtmp/bin/omarchy-boot-backend"
 printf '#!/bin/bash\nexit 0\n' >"$rtmp/bin/swaplabel"
 printf '#!/bin/bash\n[[ $1 == --show ]] && echo "$SWAP_FILE_PATH"\nexit 0\n' >"$rtmp/bin/swapon"
 printf '#!/bin/bash\n[[ $1 == inspect-internal ]] && echo 4242\nexit 0\n' >"$rtmp/bin/btrfs"
@@ -43,8 +45,8 @@ exec "$@"
 SH
 
 # Records the drop-in each build reads. limine-mkinitcpio 1.40 reports a kernel
-# whose image failed to build and still exits 0; "interrupt" kills setup in the
-# middle of the build, as closing the update terminal does.
+# whose image failed to build and still exits 0; "interrupt" kills the rebuild
+# midway, as closing the update terminal does.
 cat >"$rtmp/bin/limine-mkinitcpio" <<'SH'
 #!/bin/bash
 case ${REBUILD_RESULT:-ok} in
@@ -75,7 +77,8 @@ machine() {
 }
 
 setup() {
-  env PATH="$rtmp/bin:$PATH" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="$uuid" \
+  env PATH="$rtmp/bin:$ROOT/bin:$PATH" SWAP_FILE_PATH="$rtmp/swapfile" SWAP_SOURCE="$SWAP_SOURCE" SWAP_UUID="$uuid" \
+    OMARCHY_BOOT_LIMINE_DROPINS="$rtmp/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$rtmp/cmdline.d" \
     DROP_IN="$drop_in" REBUILD_LOG="$rtmp/rebuilds" REBUILD_RESULT="${REBUILD_RESULT:-ok}" \
     bash "$rtmp/setup" "$@" >"$rtmp/out" 2>&1
 }
@@ -142,9 +145,9 @@ tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 mkdir -p "$tmpdir/bin"
 
-cat >"$tmpdir/bin/omarchy-cmd-missing" <<'EOF'
+cat >"$tmpdir/bin/omarchy-boot-backend" <<'EOF'
 #!/bin/bash
-exit 1
+echo limine
 EOF
 
 cat >"$tmpdir/bin/grep" <<'EOF'

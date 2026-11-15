@@ -11,6 +11,15 @@ if omarchy-hw-aarch64-apple; then
   exit 1
 fi
 
+# Direct Boot exists to skip Limine's menu. systemd-boot shows none unless asked,
+# and its snapshot entries are only reachable through it, so a firmware entry
+# for one image would only lose them. omarchy-boot-switch refuses to switch
+# while Direct Boot is on, so there is no entry left to remove either.
+if [[ $(omarchy-boot-backend) == systemd-boot ]]; then
+  echo "Error: Direct Boot isn't needed with systemd-boot, which already starts Omarchy without showing a menu. Snapshots are in its menu: hold Space while starting." >&2
+  exit 1
+fi
+
 if [[ ! -d /sys/firmware/efi ]]; then
   echo "Error: System is not booted in UEFI mode" >&2
   exit 1

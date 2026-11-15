@@ -11,7 +11,7 @@
 
 state=${OMARCHY_BOOT_STORE:-/var/lib/omarchy/boot}/state
 phase=$(sed -n 's/^phase=//p' "$state" 2>/dev/null | tail -1)
-has_limine() { command -v limine-entry-tool >/dev/null; }
+has_limine() { omarchy-cmd-present limine-entry-tool; }
 
 case $phase in
 promoted | active)

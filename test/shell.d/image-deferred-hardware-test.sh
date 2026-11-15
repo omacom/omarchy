@@ -44,11 +44,11 @@ SH
   chmod +x "$stub_bin/$1"
 }
 stub_rebuild mkinitcpio
-# Only the stubs count as present, so a machine with Limine never runs its own
-# limine-mkinitcpio here.
-cat >"$stub_bin/omarchy-cmd-present" <<SH
+# Limine counts as installed only while its stub is, so a machine with Limine
+# never runs its own limine-mkinitcpio here.
+cat >"$stub_bin/omarchy-boot-backend" <<SH
 #!/bin/bash
-[[ -x $stub_bin/\$1 ]]
+if [[ -x $stub_bin/limine-mkinitcpio ]]; then echo limine; else echo none; fi
 SH
 chmod +x "$stub_bin"/*
 export LEAF_CALLS="$test_tmp/leaf-calls" REBUILDS="$test_tmp/rebuilds"
@@ -324,22 +324,24 @@ first_boot "$root" >/dev/null || fail "the next boot finishes the deferred hardw
   fail "a step that changed the initramfs and then failed still gets it rebuilt" "$(cat "$REBUILDS" 2>/dev/null)"
 pass "a step that changed the initramfs and then failed still gets it rebuilt"
 
-# A step that only adds to the kernel command line Limine's entry tool builds
-# (as intel/fred.sh does) gets the rebuild too.
-reset_logs
-root=$(new_root cmdline)
-write_manifest "$root"
-build "$root" >/dev/null || fail "the fixture image builds"
-cat >"$fixture/install/hardware/cmdline.sh" <<'SH'
-mkdir -p "$OMARCHY_IMAGE_ROOT/etc/limine-entry-tool.d"
-echo 'KERNEL_CMDLINE[default]+=" example=on"' >"$OMARCHY_IMAGE_ROOT/etc/limine-entry-tool.d/example.conf"
+# A step that only adds to the kernel command line (as intel/fred.sh does),
+# in Limine's drop-ins or systemd-boot's, gets the rebuild too.
+for drop_in in limine-entry-tool.d/example.conf cmdline.d/example.conf; do
+  reset_logs
+  root=$(new_root "cmdline-${drop_in%%/*}")
+  write_manifest "$root"
+  build "$root" >/dev/null || fail "the fixture image builds"
+  cat >"$fixture/install/hardware/cmdline.sh" <<SH
+mkdir -p "\$OMARCHY_IMAGE_ROOT/etc/${drop_in%/*}"
+echo 'example=on' >"\$OMARCHY_IMAGE_ROOT/etc/$drop_in"
 SH
-printf '%s\n' install/hardware/cmdline.sh >"$root/var/lib/omarchy/image/deferred-steps"
-first_boot "$root" >/dev/null || fail "a step that changes the kernel command line finishes"
-[[ $(cat "$REBUILDS" 2>/dev/null) == "mkinitcpio -P" ]] ||
-  fail "a step that only changed Limine's kernel command line gets the rebuild" "$(cat "$REBUILDS" 2>/dev/null)"
-rm -f "$fixture/install/hardware/cmdline.sh"
-pass "a step that only changed Limine's kernel command line gets the rebuild"
+  printf '%s\n' install/hardware/cmdline.sh >"$root/var/lib/omarchy/image/deferred-steps"
+  first_boot "$root" >/dev/null || fail "a step that changes the kernel command line finishes"
+  [[ $(cat "$REBUILDS" 2>/dev/null) == "mkinitcpio -P" ]] ||
+    fail "a step that only changed /etc/$drop_in gets the rebuild" "$(cat "$REBUILDS" 2>/dev/null)"
+  rm -f "$fixture/install/hardware/cmdline.sh"
+done
+pass "a step that only changed the kernel command line gets the rebuild"
 
 # Module options reach the initramfs through mkinitcpio's modconf hook, so a
 # step that only writes /etc/modprobe.d (as nvidia.sh does) gets the rebuild too.

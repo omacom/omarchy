@@ -3,17 +3,23 @@
 # omarchy:summary=Overwrite the user config for the Limine bootloader and rebuild it.
 # omarchy:requires-sudo=true
 
-legacy_uki="/boot/EFI/Linux/$(cat /etc/machine-id)_linux.efi"
+# After the switch to systemd-boot, Limine no longer starts this machine, and
+# omarchy-boot-sync writes systemd-boot's entries itself.
+if [[ $(omarchy-boot-backend) == systemd-boot ]]; then
+  echo "This machine boots with systemd-boot, so there is no Limine config to reset"
+else
+  legacy_uki="/boot/EFI/Linux/$(cat /etc/machine-id)_linux.efi"
 
-if sudo test -f /boot/EFI/Linux/omarchy_linux.efi && sudo test -f "$legacy_uki"; then
-  echo "Cleanup extra UKI"
-  sudo rm -f "$legacy_uki"
+  if sudo test -f /boot/EFI/Linux/omarchy_linux.efi && sudo test -f "$legacy_uki"; then
+    echo "Cleanup extra UKI"
+    sudo rm -f "$legacy_uki"
+  fi
+  echo "Resetting limine config"
+
+  sudo mv /boot/limine.conf /boot/limine.conf.bak
+
+  sudo cp "$OMARCHY_PATH/default/limine/limine.conf" /boot/limine.conf
+
+  sudo limine-update
+  sudo limine-snapper-sync
 fi
-echo "Resetting limine config"
-
-sudo mv /boot/limine.conf /boot/limine.conf.bak
-
-sudo cp "$OMARCHY_PATH/default/limine/limine.conf" /boot/limine.conf
-
-sudo limine-update
-sudo limine-snapper-sync

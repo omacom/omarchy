@@ -373,9 +373,9 @@ fi
 if [[ $mode != "refresh-sddm" ]]; then
   sudo plymouth-set-default-theme omarchy
 
-  if omarchy-cmd-present limine-mkinitcpio; then
-    sudo limine-mkinitcpio
-  else
+  if [[ $(omarchy-boot-backend) == none ]]; then
     sudo mkinitcpio -P
+  else
+    sudo omarchy-boot-rebuild
   fi
 fi

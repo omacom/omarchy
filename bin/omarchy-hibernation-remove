@@ -44,11 +44,13 @@ if grep -Fq "$SWAP_FILE" /etc/fstab; then
   sudo sed -i '/^# Btrfs swapfile for system hibernation$/d' /etc/fstab
 fi
 
-# Remove mkinitcpio resume hook
+# Remove mkinitcpio resume hook and the kernel parameters setup added
 echo "Removing resume hook"
 sudo rm "$MKINITCPIO_CONF"
+sudo omarchy-boot-cmdline unset resume
+sudo omarchy-boot-cmdline unset rtc-alarm
 
 echo "Regenerating initramfs..."
-sudo limine-mkinitcpio
+sudo omarchy-boot-rebuild
 
 echo "Hibernation removed"

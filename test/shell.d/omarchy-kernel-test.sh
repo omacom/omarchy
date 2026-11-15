@@ -48,6 +48,20 @@ printf 'BootCurrent: 0000\nBoot0000* Limine\tHD(1,GPT)/\\EFI\\limine\\limine_x64
 SH
 done
 
+# Both halves ask which boot loader runs; systemd-boot's kernel choice belongs
+# to omarchy-boot-sync, which records what it was asked.
+for dir in bin root-bin; do
+  cat > "$scratch/$dir/omarchy-boot-backend" <<'SH'
+#!/bin/bash
+echo "${BOOT_BACKEND:-limine}"
+SH
+  cat > "$scratch/$dir/omarchy-boot-sync" <<'SH'
+#!/bin/bash
+printf 'omarchy-boot-sync %s\n' "$*" >> "$CALL_LOG"
+[[ $1 != preferred ]] || echo linux-omarchy
+SH
+done
+
 # Root side: the boot menu lives in a file. A rebuild moves its kernel to the
 # front, as limine-entry-tool's BOOT_ORDER sort does when that kernel leads the
 # order, unless the build is skipped; it can also fail afterwards, as a post
@@ -121,6 +135,10 @@ reset_fixture
 printf '%s\n' 'BOOT_ORDER="linux-omarchy-*, linux, *"' >> "$OMARCHY_KERNEL_LIMINE_CONF"
 [[ -z $("$command" get) ]] || fail "a wildcard first match names no kernel, so no menu row is checked"
 pass "get does not guess when a wildcard decides"
+
+reset_fixture
+[[ $(BOOT_BACKEND=systemd-boot "$command" get) == "linux-omarchy" ]] || fail "on systemd-boot, get reports the kernel omarchy-boot-sync prefers"
+pass "on systemd-boot, get asks omarchy-boot-sync"
 
 reset_fixture
 if "$command" set linux-lts 2> "$scratch/output"; then
@@ -236,3 +254,9 @@ fi
 cmp -s "$OMARCHY_KERNEL_LIMINE_CONF" "$scratch/original-limine" || fail "a refused root switch leaves the boot order alone"
 ! grep -q '^limine-mkinitcpio' "$CALL_LOG" || fail "a refused root switch rebuilds nothing"
 pass "sudo omarchy-kernel set is refused under Direct Boot as well"
+
+reset_fixture
+BOOT_BACKEND=systemd-boot as_root "$command" set linux
+[[ $(<"$CALL_LOG") == "omarchy-boot-sync prefer linux" ]] || fail "on systemd-boot, the root half has omarchy-boot-sync prefer the kernel" "$(<"$CALL_LOG")"
+cmp -s "$OMARCHY_KERNEL_LIMINE_CONF" "$scratch/original-limine" || fail "on systemd-boot, Limine's boot order is left alone"
+pass "on systemd-boot, the root half sets the preferred kernel through omarchy-boot-sync"
