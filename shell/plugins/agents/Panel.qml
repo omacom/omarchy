@@ -538,7 +538,7 @@ Panel {
 
   // Local AI is offered only on a machine some recipe fits.
   readonly property var addProviders: [
-    { providerId: "claude", providerName: "Claude Code" },
+    { providerId: "claude", providerName: "Claude" },
     { providerId: "codex", providerName: "Codex" },
     { providerId: "grok", providerName: "Grok" }
   ].concat(localFits ? [{ providerId: "local", providerName: Commons.I18n.t("agents.localAi") }] : [])
@@ -2291,7 +2291,7 @@ Panel {
         font.bold: true
       }
 
-      // The plan reads as part of the name: Claude Code Max 20x.
+      // The plan reads as part of the name: Claude Max 20x.
       Text {
         id: sectionPlan
         anchors.left: sectionName.right
