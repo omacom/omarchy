@@ -106,6 +106,36 @@ assertEqual(model.shortLabel('English (US)', {}), 'ENG', 'the label survives an 
 assertEqual(model.shortLabel('constructor', {}), 'CON', 'a description naming a built-in still falls back')
 assertEqual(model.shortLabel('', briefs), '', 'no keymap means no label')
 
+// The listing also says which layout, and which variant of it, each
+// description belongs to, so an override can be keyed the way the user names
+// the layout in kb_layout and kb_variant.
+const keys = model.layoutKeys(listing)
+assertEqual(keys['English (US)'], 'us', 'a bare layout keys by layout')
+assertEqual(keys['English (US, intl., with dead keys)'], 'us:intl', 'a variant keys by layout and variant joined with a colon')
+assertEqual(keys['Burmese (Zawgyi)'], 'mm:zawgyi', 'a layout of its own keeps its variant in the key')
+assertEqual(keys['Generic 105-key PC'], undefined, 'keyboard models carry no layout to key by')
+assertEqual(keys['Switching to another layout'], undefined, 'option groups carry no layout to key by')
+
+// An override replaces the table's brief, the variant's own key winning over
+// the bare layout's, and nothing being overridden when no key describes the
+// description.
+const overrides = { us: 'US', 'us:intl': 'INTL' }
+assertEqual(model.shortLabel('English (US)', briefs, keys, overrides), 'US', 'an override replaces the table brief')
+assertEqual(model.shortLabel('English (US, intl., with dead keys)', briefs, keys, overrides), 'INT', 'a variant override beats the layout one')
+assertEqual(model.shortLabel('Portuguese (Brazil)', briefs, keys, overrides), 'PT', 'a layout nobody overrode keeps the table brief')
+assertEqual(model.shortLabel('Elvish (Tengwar)', briefs, keys, overrides), 'ELV', 'a description the listing never named stays unoverridden')
+assertEqual(model.shortLabel('English (US)', briefs, keys, { us: '' }), 'EN', 'an empty override leaves the table brief standing')
+assertEqual(model.shortLabel('English (US)', briefs, keys, {}), 'EN', 'no overrides leave the table brief standing')
+assertEqual(model.shortLabel('English (US)', {}, {}, { us: 'us' }), 'ENG', 'an override waits for the keys the listing provides')
+assertEqual(model.briefOverride('English (US)', keys, undefined), '', 'a missing override file overrides nothing')
+
+// The overrides file, as the config writes it.
+const fileOverrides = model.briefOverrides('us\tUS\nus:dvorak\tDV\n')
+assertEqual(fileOverrides.us, 'US', 'the file reads a bare layout brief')
+assertEqual(fileOverrides['us:dvorak'], 'DV', 'the file reads a variant brief')
+assertEqual(model.briefOverrides('us\t\n\tUS\nonly-key').us, undefined, 'the file skips lines without a brief')
+assertEqual(Object.keys(model.briefOverrides('')).length, 0, 'an empty file holds nothing')
+
 // The seat as hyprctl reports it, virtual keyboards already filtered out: the
 // buttons libinput calls keyboards sit beside the one being typed on, and the
 // main flag lands on either, or on the virtual keyboard that isn't here.

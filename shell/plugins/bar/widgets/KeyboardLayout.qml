@@ -33,6 +33,12 @@ BarWidget {
   // Short language code per layout description ("English (US)": "en"), read from
   // xkb's own table rather than maintained by hand.
   property var layoutBriefs: ({})
+  // Description -> the layout, or layout and variant joined with a colon, the
+  // way the user named it in kb_layout and kb_variant.
+  property var layoutKeys: ({})
+  // Briefs the user overrode with o.keyboard_brief() in hypr/input.lua, keyed
+  // the same way, read from the file the config flushes them to.
+  property var briefOverrides: ({})
   // The table is only needed once the widget shows a label, which a seat with
   // one layout and one input method never does, so it's read on first need.
   property bool layoutsRead: false
@@ -45,7 +51,7 @@ BarWidget {
     briefsRequested = true
     briefsProc.running = true
   }
-  readonly property string layoutLabel: KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs)
+  readonly property string layoutLabel: KeyboardLayoutModel.shortLabel(layoutFull, layoutBriefs, layoutKeys, briefOverrides)
   readonly property var inputState: InputMethodState.state
   readonly property bool multipleInputs: (inputState.methods || []).length > 1
   readonly property string inputLabel: KeyboardLayoutModel.inputLabel(inputState, layoutLabel)
@@ -208,8 +214,23 @@ BarWidget {
     command: ["xkbcli", "list", "--load-exotic"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.layoutBriefs = KeyboardLayoutModel.layoutBriefs(text)
+      onStreamFinished: {
+        root.layoutBriefs = KeyboardLayoutModel.layoutBriefs(text)
+        root.layoutKeys = KeyboardLayoutModel.layoutKeys(text)
+      }
     }
+  }
+
+  // Overrides live in a file the config rewrites on every load, so a FileView
+  // watching it keeps the label in step with hypr/input.lua without the shell
+  // parsing that file itself.
+  FileView {
+    path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/keyboard/briefs"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.briefOverrides = KeyboardLayoutModel.briefOverrides(text())
+    onLoadFailed: root.briefOverrides = ({})
   }
 
   Timer {

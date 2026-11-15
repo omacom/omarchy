@@ -186,3 +186,51 @@ TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,fr\nXKBVARIANT=intl,\n' assert_input "men
 TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,fr\nXKBVARIANT=intl,\n' assert_greeter_input "menu selections leave the greeter keyboard unchanged" "[jp] [] []" $'XKBLAYOUT=jp\n'
 
 TEST_KEYBOARD_SELECTION=$'XKBLAYOUT=us,ru\nXKBVARIANT=,phonetic\n' assert_input "saved non-Latin selections retain the layout shortcut" "[us,ru] [,phonetic] [$toggle_options]" $'XKBLAYOUT=us\n'
+
+# The briefs o.keyboard_brief() collects from hypr/input.lua flush to state for
+# the top bar's keyboard layout widget: one tab-separated line per override,
+# sorted, entries a line could not carry dropped, and the file gone once
+# nothing is collected.
+flush_briefs() {
+  OMARCHY_PATH="$ROOT" XDG_STATE_HOME="$briefs_state" lua - "$1" <<'LUA'
+package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
+
+require("default.hypr.helpers")
+
+if select("#", ...) < 1 or (...) == "" then
+  require("default.hypr.keyboard-briefs")
+  return
+end
+
+o.keyboard_brief({
+  us = "US",
+  ["us:dvorak"] = "DV",
+  blank = "",
+  ["tab\tkey"] = "x",
+  nl = "y\n",
+  numbered = 5,
+})
+require("default.hypr.keyboard-briefs")
+LUA
+}
+
+briefs_state="$(mktemp -d)"
+briefs_file="$briefs_state/omarchy/keyboard/briefs"
+
+flush_briefs collected
+briefs_content="$(cat "$briefs_file")" || fail "the brief overrides reach state"
+[[ $briefs_content == $'us\tUS\nus:dvorak\tDV' ]] ||
+  fail "brief overrides flush sorted and tab-separated, entries a line cannot carry dropped" "$briefs_content"
+pass "brief overrides flush sorted and tab-separated, unusable entries dropped"
+
+flush_briefs
+[[ ! -e $briefs_file ]] || fail "brief overrides a reload stopped collecting are cleared" "$(cat "$briefs_file" 2>/dev/null)"
+pass "brief overrides a reload stopped collecting are cleared"
+
+flush_briefs collected
+flush_briefs collected
+[[ $(cat "$briefs_file") == $'us\tUS\nus:dvorak\tDV' ]] ||
+  fail "a repeated flush keeps the file" "$(cat "$briefs_file")"
+pass "a repeated flush keeps the file"
+
+rm -rf "$briefs_state"
