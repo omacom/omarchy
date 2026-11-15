@@ -58,9 +58,9 @@ if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
 fi
 
 case "${1:-}" in
-claude) provider="claude"; name="Claude"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
-codex) provider="codex"; name="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
-grok) provider="grok"; name="Grok"; site="x.ai"; package="grok"; home_env="GROK_HOME" ;;
+claude) provider="claude"; name="Claude"; app="Claude Code"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
+codex) provider="codex"; name="Codex"; app="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
+grok) provider="grok"; name="Grok"; app="Grok Build"; site="x.ai"; package="grok"; home_env="GROK_HOME" ;;
 *)
   echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok] [label]" >&2
   exit 1
@@ -76,10 +76,28 @@ say() {
   fi
 }
 
+# A signed-in agent gets a launcher of its own beside Agent, drawn by the
+# icon set: Claude Code, Codex, or Grok Build, whatever the default agent is.
+install_launcher() {
+  local entry="omarchy-agent-$provider.desktop"
+  mkdir -p "$HOME/.local/share/applications"
+  install -m 644 "$OMARCHY_PATH/default/applications/$entry" "$HOME/.local/share/applications/$entry"
+  update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+}
+
+# A first sign-in announces the agent as ready, and clicking it starts one;
+# any other says which account it was.
 finish() {
+  install_launcher
   if [[ $events == "true" ]]; then
     printf '@@omarchy done %s\n' "$1"
-    omarchy-notification-send -g 󰚩 "$1"
+    if [[ ${2:-} == "ready" ]]; then
+      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+        "$(omarchy-i18n agents.readyToCode "$app")" "$(omarchy-i18n agents.readyToCodeBody)" \
+        --exec omarchy-agent --agent "$provider" --app-id="org.omarchy.$provider"
+    else
+      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" "$1"
+    fi
   else
     echo
     echo "$1"
@@ -89,7 +107,7 @@ finish() {
 fail() {
   if [[ $events == "true" ]]; then
     printf '@@omarchy error %s\n' "$1"
-    omarchy-notification-send -g 󰚩 -u critical "$(omarchy-i18n agents.addFailed "$name")" "$1"
+    omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" -u critical "$(omarchy-i18n agents.addFailed "$name")" "$1"
   else
     echo "$1" >&2
   fi
@@ -247,7 +265,7 @@ if ! primary_signed_in "$provider"; then
       printf '%s\n' "$provider" >"$HOME/.config/omarchy/defaults/agent"
     fi
     omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
-    finish "$(omarchy-i18n agents.signedIn "$name")"
+    finish "$(omarchy-i18n agents.signedIn "$name")" ready
   else
     fail "$(omarchy-i18n agents.signInFailed "$name")"
   fi
