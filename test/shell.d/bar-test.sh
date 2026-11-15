@@ -475,6 +475,17 @@ assertDeepEqual(
   { region: 'right', index: 4, home: false },
   'a drop after the last drawn widget still reaches the end of the folded span'
 )
+const foldedByRegion = (region, key) => region === 'right' ? key === 'tray' || key === 'c' : true
+assertDeepEqual(
+  bar.dropRoom({ slot: { widgetKey: 'c', region: 'right' }, after: false }, { key: 'x', region: 'right' }, foldedSections, foldedByRegion),
+  { region: 'right', index: 1, home: false },
+  'a drop before the first visible widget after a folded span lands after the last visible one'
+)
+assertDeepEqual(
+  bar.sectionRows(['tray', 'c'], [1], {}).map(row => row.kind + ':' + (row.place === undefined ? row.key : row.place)),
+  ['widget:tray', 'spacer:1', 'widget:c'],
+  'that room opens after the last visible widget, not inside the folded span'
+)
 
 // A layout places items on whole pixels, so the places get whole lengths
 // that add up to the rounded room, however it is split between them.

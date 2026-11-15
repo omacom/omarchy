@@ -1140,14 +1140,18 @@ Item {
     roomFader.start()
   }
 
-  // The keys of the widgets a bar surface draws, as they are now.
+  // Which widgets a bar surface draws in a section, as they are now. Keyed by
+  // section too, so a widget folded into the tray's drawer does not count as
+  // drawn in the side section it came from: a drop past the folded span must
+  // land in the side section, not among the hidden widgets.
   function drawnKeys(window) {
     var drawn = {}
     for (var i = 0; i < moduleSlots.length; i++) {
       var slot = moduleSlots[i]
-      if (slot && slot.visible && slot.widgetWidth > 0 && slot.widgetHeight > 0 && sameWindow(slotWindow(slot), window)) drawn[slot.widgetKey] = true
+      if (slot && slot.visible && slot.widgetWidth > 0 && slot.widgetHeight > 0 && sameWindow(slotWindow(slot), window))
+        drawn[slot.region + "\n" + slot.widgetKey] = true
     }
-    return drawn
+    return function(region, key) { return drawn[region + "\n" + key] === true }
   }
 
   function dragShareKey(room) {

@@ -321,9 +321,16 @@ function traySectionDropTarget(candidates, zone, point, vertical, source) {
 // `home`. No drop, the pointer off the bar, is home too.
 function dropRoom(drop, source, sections, drawn) {
   var keys = sections || {}
+  // `drawn` is either the set the bar has always passed, keyed by widget, or
+  // a function (region, key) for a surface where a widget can be drawn in
+  // another section, as a folded one is in the tray's drawer. A folded widget
+  // is not drawn in the section it came from, so the room counts past it.
+  function isDrawn(region, key) {
+    return typeof drawn === "function" ? drawn(region, key) === true : !drawn || drawn[key] === true
+  }
   function place(region, index) {
     var list = keys[region] || []
-    while (index > 0 && (list[index - 1] === source.key || (drawn && !drawn[list[index - 1]]))) index--
+    while (index > 0 && (list[index - 1] === source.key || !isDrawn(region, list[index - 1]))) index--
     return index
   }
   var home = { region: source.region, index: place(source.region, (keys[source.region] || []).indexOf(source.key)), home: true }
