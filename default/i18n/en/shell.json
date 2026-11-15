@@ -93,7 +93,6 @@
   "agents.localSetupFailed": "Setup failed",
   "agents.localDownloadValue": "%1 of %2 GB",
   "agents.localDownloadRate": "%1 MB/s",
-  "agents.loadingLimits": "Signed in. Loading your limits…",
   "agents.loginBrowser": "Log in through your browser",
   "agents.localHideOfferConfirm": "Hide %1 from the panel? Add another › Local AI still sets it up.",
   "agents.linkOffer": "%1 is cabled to this Spark",

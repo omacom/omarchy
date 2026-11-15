@@ -645,7 +645,7 @@ Panel {
   property bool addReauth: false
   // Signing in takes over the hero: the provider's mark and name, with what's
   // being set up below.
-  readonly property bool setupShown: (addStage === "running" || addStage === "done") && addProviderEntry !== null
+  readonly property bool setupShown: addStage === "running" && addProviderEntry !== null
   readonly property var addProviderEntry: {
     for (var i = 0; i < addProviders.length; i++)
       if (addProviders[i].providerId === addProvider) return addProviders[i]
@@ -711,10 +711,6 @@ Panel {
     root.focusKeys()
   }
 
-  // A first sign-in holds its setup until its limits arrive, rather than
-  // flashing the choices again while the record is written.
-  onBlankSlateChanged: if (!blankSlate && addStage === "done") addStage = ""
-
   function submitPaste(code) {
     if (!addProcess.running || code.trim() === "") return
     addProcess.write(code.trim() + "\n")
@@ -745,12 +741,11 @@ Panel {
         addDownloading = false
         addResult = tagged[2]
         // A sign-in that finishes goes straight back to the page, where the
-        // account now shows. A first one has nothing to show there until its
-        // limits arrive, so it holds the setup until then.
-        addStage = tagged[1] === "done" && !blankSlate ? "" : tagged[1]
+        // account shows once its limits arrive.
+        addStage = tagged[1] === "done" ? "" : tagged[1]
         if (tagged[1] === "done") {
           usage.refreshLimits()
-          if (addStage === "") root.focusKeys()
+          root.focusKeys()
           // Nothing to show yet means the sign-in is what counts as set up.
           if (usage.enabledProviders.length === 0 && !checkProcess.running) {
             addChecks = ({})
@@ -1968,7 +1963,7 @@ Panel {
     // Setting up a subscription: the CLI installing, in the same row a model
     // downloads in, then logging in through the browser.
     Column {
-      visible: root.addStage === "running" || root.addStage === "done"
+      visible: root.addStage === "running"
       width: parent.width
       spacing: Style.space(12)
 
@@ -2114,19 +2109,6 @@ Panel {
           text: Commons.I18n.t("agents.reopenSignIn")
           onClicked: root.reopenSignIn()
         }
-      }
-
-      // A first subscription holds here until its limits arrive, with
-      // nothing on the page behind it yet to go back to.
-      Text {
-        visible: root.addStage === "done"
-        width: parent.width
-        textFormat: Text.PlainText
-        text: Commons.I18n.t("agents.loadingLimits")
-        color: root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        wrapMode: Text.WordWrap
       }
     }
 
