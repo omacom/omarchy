@@ -22,26 +22,11 @@ if [[ -d $applications ]]; then
   update-desktop-database "$applications"
 fi
 
-# A mimeapps.list line naming imv.desktop or mpv.desktop stops resolving once
-# they're gone, and Omarchy's default, Omaview, opens those files instead. A
-# package the user installed that needs one (Celluloid needs mpv) keeps it, so
-# the removal can't fail and hold back the migrations after this one.
-drop_unless_needed() {
-  local installed=() pkg
-
-  for pkg in "$@"; do
-    if omarchy-pkg-present "$pkg"; then
-      installed+=("$pkg")
-    fi
-  done
-  (( ${#installed[@]} )) || return 0
-
-  if pacman -Rs --print "${installed[@]}" >/dev/null 2>&1; then
-    omarchy-pkg-drop "${installed[@]}"
-  else
-    echo "Keeping ${installed[*]}, which another installed package needs"
-  fi
-}
-
-drop_unless_needed imv
-drop_unless_needed mpv-mpris mpv
+# imv and mpv-mpris go. mpv goes too, unless something installed still needs
+# it: Omarchy's own wallpaper engine, owe, plays video wallpapers through it, as
+# would a player the user added like Celluloid. A mimeapps.list line naming
+# imv.desktop stops resolving, and Omarchy's default, Omaview, opens those files
+# instead; one naming mpv.desktop where mpv stays is the user's to keep.
+omarchy-pkg-drop --unless-needed imv
+omarchy-pkg-drop --unless-needed mpv-mpris
+omarchy-pkg-drop --unless-needed mpv

@@ -12,6 +12,13 @@ mkdir -p "$mock_path"
 
 cat >"$mock_path/pacman" <<'EOF'
 #!/bin/bash
+if [[ $1 == "-Rns" && $2 == "--print" ]]; then
+  echo "error: invalid option: --nosave and --print may not be used together" >&2
+  exit 1
+fi
+if [[ $1 == "-Rs" && $2 == "--print" ]]; then
+  exit "${TEST_NEEDED_STATUS:-0}"
+fi
 if [[ $1 == "-Qq" ]]; then
   if [[ ${TEST_PACKAGES_EMPTY:-0} == "0" ]]; then
     printf '%s\n' exact-package provider-package
@@ -53,3 +60,20 @@ if PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" TEST_REMOVE_STATUS=1 \
   fail "failed package transaction must fail removal"
 fi
 pass "package removal propagates transaction failures"
+
+# --unless-needed removes them as usual when nothing else needs them, and
+# keeps them all, successfully, when something installed still does.
+rm -f "$test_tmp/pkg-drop-command"
+PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" \
+  "$ROOT/bin/omarchy-pkg-drop" --unless-needed exact-package virtual-package
+[[ $(<"$test_tmp/pkg-drop-command") == "pacman -Rns --noconfirm exact-package" ]] ||
+  fail "--unless-needed removes packages nothing else needs"
+pass "--unless-needed removes packages nothing else needs"
+
+rm "$test_tmp/pkg-drop-command"
+PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" TEST_NEEDED_STATUS=1 \
+  "$ROOT/bin/omarchy-pkg-drop" --unless-needed exact-package provider-package >"$test_tmp/output"
+[[ ! -e $test_tmp/pkg-drop-command ]] || fail "--unless-needed must not remove packages another one needs"
+grep -q "Keeping exact-package provider-package" "$test_tmp/output" ||
+  fail "--unless-needed says what it kept" "$(cat "$test_tmp/output")"
+pass "--unless-needed keeps packages another installed package needs"

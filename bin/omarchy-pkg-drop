@@ -1,8 +1,17 @@
 #!/bin/bash
 
 # omarchy:summary=Remove all the named packages from the system if they're installed (otherwise ignore).
-# omarchy:args=<packages...>
+# omarchy:args=[--unless-needed] <packages...>
 # omarchy:requires-sudo=true
+
+# --unless-needed keeps them all when a package still installed depends on one
+# of them, as when the user's Celluloid needs mpv, rather than failing the
+# removal, which in a migration would hold back every migration after it.
+unless_needed=false
+if [[ ${1:-} == "--unless-needed" ]]; then
+  unless_needed=true
+  shift
+fi
 
 installed=()
 declare -A installed_exact=()
@@ -27,6 +36,12 @@ for pkg in "$@"; do
 done
 
 if (( ${#installed[@]} > 0 )); then
+  # A dry run needs no privileges, and says whether anything else needs them
+  # (pacman refuses --print with -n, which the dry run needs no more than -s).
+  if $unless_needed && ! pacman -Rs --print "${installed[@]}" >/dev/null 2>&1; then
+    echo "Keeping ${installed[*]}, which another installed package needs"
+    exit 0
+  fi
   if (( EUID == 0 )); then
     pacman -Rns --noconfirm "${installed[@]}"
   else
