@@ -131,6 +131,14 @@ else
     if ! chrome_policy_current; then
       browser_policy_setup_dir "$chrome_policy_dir"
       omarchy-theme-set-browser
+
+      # The theme command only refreshes Chrome when the color changed, so ask a
+      # running Chrome to load the new extension policy either way.
+      if pgrep -x chrome >/dev/null; then
+        chrome_command=google-chrome-stable
+        omarchy-cmd-present "$chrome_command" || chrome_command=google-chrome
+        "$chrome_command" --refresh-platform-policy --no-startup-window &>/dev/null || true
+      fi
     fi
   else
     repair_flags
