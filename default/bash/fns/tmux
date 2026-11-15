@@ -100,7 +100,14 @@ tsl() {
   [[ -z $TMUX ]] && { echo "You must start tmux to use tsl."; return 1; }
 
   local count="$1"
-  local cmd="$2"
+  shift
+  local cmd
+  if (( $# == 1 )); then
+    cmd="$1"
+  else
+    printf -v cmd '%q ' "$@"
+    cmd="${cmd% }"
+  fi
   local current_dir="${PWD}"
   local -a panes
 
