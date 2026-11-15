@@ -541,6 +541,15 @@
   "setup.security.fingerprint": {
     "label": "Fingerabdruck"
   },
+  "setup.security.encrypt-drive": {
+    "label": "Disk verschlüsseln"
+  },
+  "setup.security.decrypt-drive": {
+    "label": "Disk entschlüsseln"
+  },
+  "setup.security.unlock-drive": {
+    "label": "Disk entsperren"
+  },
   "setup.security.fido2": {
     "label": "Fido2"
   },

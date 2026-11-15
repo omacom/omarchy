@@ -12,6 +12,14 @@ Omarchy takes security extremely seriously. This is meant to be an operating sys
 
 You have two passwords on an encrypted install: the one that unlocks the drive at boot, and the one you log in and `sudo` with. Setup makes them the same. Both can be changed under _Update > Password_ in the Omarchy menu — _Drive Encryption_ for the first, _User_ for the second. Changing the drive password asks for the current one first, so have it handy. If a change is interrupted, run _Drive Encryption_ again: it asks for the password that unlocks the drive now and finishes the change.
 
+## Encrypting additional drives
+
+The installer only encrypts the drive Omarchy is installed on. A second internal drive stays an open book until you encrypt it too, with _Setup > Security > Encrypt Drive_ in the Omarchy menu. The drive is converted where it stands, so your files stay put, but every block on it has to be rewritten, and on a big drive that takes hours. You get an estimate before anything starts. Make a backup first, keep the window open, and keep a laptop plugged in. If the conversion gets cut short anyway — a power loss, say — run _Encrypt Drive_ again and it carries on from where it stopped. It works on drives formatted with Btrfs, ext4, or NTFS, and it needs your system drive to be encrypted, since that's where the key lives.
+
+You pick a password for the drive along the way, but you won't be typing it day to day: the drive is unlocked at boot by a key kept on your encrypted system drive, so there's still just the one password to enter. The drive's own password is for the day that key is gone — after a reinstall, or with the drive moved to another computer. _Setup > Security > Unlock Drive_ then asks for it once and sets the drive up to unlock by itself again.
+
+_Setup > Security > Decrypt Drive_ takes the encryption off again, the same way and just as slowly. The menu only shows the entries that apply to the drives you have. USB drives aren't among them: plug in an encrypted one and you're asked for its password right there.
+
 ## Passing on a machine you've already used
 
 If you're handing your machine over to someone else, you don't have to reinstall it. Run _Setup > Reset Computer_ in the Omarchy menu, type `reset` to confirm, and reboot. That wipes every user account and everything in `/home`, throws away all the packages and system changes you made since installation, and clears the machine's identity — network connections, host keys, and all. What comes back up is the setup wizard from the first boot, ready for its new owner to enter their own name, password, and encryption password.
