@@ -2115,6 +2115,19 @@ Panel {
           onClicked: root.reopenSignIn()
         }
       }
+
+      // A first subscription holds here until its limits arrive, with
+      // nothing on the page behind it yet to go back to.
+      Text {
+        visible: root.addStage === "done"
+        width: parent.width
+        textFormat: Text.PlainText
+        text: Commons.I18n.t("agents.loadingLimits")
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        wrapMode: Text.WordWrap
+      }
     }
 
     // Failed.
