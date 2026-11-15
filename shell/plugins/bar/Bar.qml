@@ -76,10 +76,6 @@ Item {
   property bool foregroundAnimationEnabled: true
   property color background: Commons.Color.bar.background
   readonly property color glassBackground: Qt.rgba(background.r, background.g, background.b, Math.min(background.a, 0.35))
-  // What the bar strip actually paints behind its widgets. The tray's drawer
-  // repeats it while it is open, so the centered widgets underneath do not
-  // show through the applets it reveals.
-  readonly property color barSurfaceColor: transparent ? "transparent" : (glassy ? glassBackground : background)
   property color urgent: Commons.Color.bar.active
 
   // A theme change cross-fades the bar's colors. Cycling the background
@@ -126,6 +122,10 @@ Item {
   // A widget is being dragged that could go into the tray section, so the
   // tray's drawer opens to show where.
   readonly property bool traySectionDragActive: !!barDragSource && !barDragSource.hostsTraySection
+  // The tray's overflow drawer is open over the center sections. They hide
+  // while it is open so their content does not draw through the revealed
+  // applets; the bar's own background remains, unlike an opaque patch.
+  property bool overflowDrawerOpen: false
   // An open panel from a widget in the tray section keeps the tray's drawer
   // open, so the panel's widget stays on screen under it.
   readonly property bool traySectionPopoutOpen: {
@@ -1916,7 +1916,7 @@ Item {
 
       Rectangle {
         anchors.fill: parent
-        color: root.barSurfaceColor
+        color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
       }
 
       Loader {
@@ -2031,6 +2031,7 @@ Item {
           window: barWindow
           pool: horizontalPool
           drawn: !barWindow.centerBesideRight
+          sectionsHidden: root.overflowDrawerOpen
         }
 
         LeftModules {
@@ -2060,6 +2061,7 @@ Item {
           pool: horizontalPool
           active: barWindow.centerBesideRight
           besideRight: true
+          visible: !root.overflowDrawerOpen
           anchors.right: rightModules.left
           anchors.rightMargin: Style.space(4)
           anchors.top: parent.top
@@ -2097,6 +2099,7 @@ Item {
           anchors.fill: parent
           window: barWindow
           pool: verticalPool
+          sectionsHidden: root.overflowDrawerOpen
         }
 
         LeftModules {
@@ -2391,6 +2394,8 @@ Item {
     // False where a display notch has moved the center sections beside the
     // right one.
     property bool drawn: true
+    // The overflow drawer reaches over the center sections while it is open.
+    property bool sectionsHidden: false
 
     CenterGestureArea { anchors.fill: parent }
 
@@ -2399,6 +2404,7 @@ Item {
       window: centerRoot.window
       pool: centerRoot.pool
       active: centerRoot.drawn
+      visible: !centerRoot.sectionsHidden
     }
   }
 
