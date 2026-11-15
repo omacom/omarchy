@@ -116,9 +116,10 @@ interruptible() {
   wait $!
 }
 
-# The panel follows a CLI's download as `@@omarchy progress <done> <total>`
-# lines, in bytes, read off mise's own progress, which it keeps printing every
-# few seconds without a terminal too, as `… 12.3/166.8 MB · 6.1 MB/s`.
+# The panel follows a CLI's download as `@@omarchy progress <done> <total>
+# <rate>` lines, in bytes and bytes a second, read off mise's own progress,
+# which it keeps printing every few seconds without a terminal too, as
+# `… 12.3/166.8 MB · 6.1 MB/s`.
 # Nothing between mise and awk may buffer, or the lines all arrive at the end.
 # The install runs in the background behind a `wait`, like a login, so Cancel
 # stops it at once; the parser is waited for so its last line lands before
@@ -130,7 +131,7 @@ install_cli() {
   fi
 
   local progress progress_pid status
-  printf '@@omarchy progress 0 0\n'
+  printf '@@omarchy progress 0 0 0\n'
   exec {progress}> >(awk -v RS='[\r\n]+' '
     function bytes(n, unit) {
       return n * (unit == "GB" ? 1e9 : unit == "MB" ? 1e6 : unit ~ /^[kK]B$/ ? 1e3 : 1)
@@ -140,7 +141,12 @@ install_cli() {
       unit = part[n]
       done = n == 4 ? bytes(part[1], part[2]) : bytes(part[1], unit)
       total = bytes(part[n - 1], unit)
-      printf "@@omarchy progress %d %d\n", done, total
+      rate = 0
+      if (match($0, /[0-9.]+ [kKMG]?B\/s/)) {
+        split(substr($0, RSTART, RLENGTH), speed, /[ \/]/)
+        rate = bytes(speed[1], speed[2])
+      }
+      printf "@@omarchy progress %d %d %d\n", done, total, rate
       fflush()
     }')
   progress_pid=$!

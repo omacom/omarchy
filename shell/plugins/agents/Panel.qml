@@ -639,13 +639,13 @@ Panel {
   property bool addDownloading: false
   property real addDoneBytes: 0
   property real addTotalBytes: 0
+  property real addRateBytes: 0
   // Where a sign-in is, as a setup flow: getting the CLI, then signing in.
   property string addPhase: ""
   property bool addReauth: false
-  // Signing in takes over the hero: the provider's mark and name, with the
-  // step it's on below.
+  // Signing in takes over the hero: the provider's mark and name, with what's
+  // being set up below.
   readonly property bool setupShown: (addStage === "running" || addStage === "done") && addProviderEntry !== null
-  readonly property int setupStep: addStage === "done" ? 3 : addPhase === "signin" ? 2 : 1
   readonly property var addProviderEntry: {
     for (var i = 0; i < addProviders.length; i++)
       if (addProviders[i].providerId === addProvider) return addProviders[i]
@@ -732,6 +732,7 @@ Panel {
         var bytes = tagged[2].split(" ")
         addDoneBytes = Number(bytes[0]) || 0
         addTotalBytes = Number(bytes[1]) || 0
+        addRateBytes = Number(bytes[2]) || 0
         addDownloading = true
         addPhase = "get"
       } else if (tagged[1] === "status") {
@@ -1364,7 +1365,7 @@ Panel {
 
   // Adding takes over the hero's line, and the cursor starts over.
   readonly property string addHeading: setupShown
-    ? (addStage === "done" ? Commons.I18n.t("agents.stepReady") : Commons.I18n.t("agents.setupStep").arg(setupStep).arg(3))
+    ? (addReauth ? Commons.I18n.t("agents.signingInAgain") : Commons.I18n.t("agents.settingUpSubscription"))
     : picking || addProvider === ""
     ? (blankSlate ? Commons.I18n.t("agents.addAccount") : Commons.I18n.t("agents.addAnother"))
     : Commons.I18n.t("agents.addProviderAccount").arg(addProviderName(addProvider))
@@ -1635,9 +1636,7 @@ Panel {
           PanelHero {
             id: hero
             width: parent.width
-            title: root.setupShown
-              ? (root.addReauth ? Commons.I18n.t("agents.signInAgainTitle") : Commons.I18n.t("agents.setupTitle")).arg(root.addProviderEntry.providerName)
-              : Commons.I18n.t("agents.title")
+            title: root.setupShown ? root.addProviderEntry.providerName : Commons.I18n.t("agents.title")
             meta: root.heroPhrase
             foreground: root.foreground
             fontFamily: root.fontFamily
@@ -1969,42 +1968,81 @@ Panel {
       }
     }
 
-    // Signing in, as a setup flow: get the CLI, sign in, done. Only the
-    // current step says more, and only what it needs from you.
+    // Setting up a subscription: the CLI installing, in the same row a model
+    // downloads in, then logging in through the browser.
     Column {
       visible: root.addStage === "running" || root.addStage === "done"
       width: parent.width
-      spacing: Style.space(14)
+      spacing: Style.space(12)
 
-      SetupStep {
-        number: 1
-        label: Commons.I18n.t("agents.stepGet").arg(root.addProviderEntry ? root.addProviderEntry.providerName : "")
-        phase: root.addStage === "done" || root.addPhase === "signin" ? "done" : "now"
+      Text {
+        visible: root.addStage === "running" && root.addPhase === ""
+        width: parent.width
+        textFormat: Text.PlainText
+        text: root.addStatus
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        wrapMode: Text.WordWrap
+      }
+
+      Item {
+        visible: root.addStage === "running" && root.addPhase === "get"
+        width: parent.width
+        implicitHeight: Math.max(installTitle.implicitHeight, installRate.implicitHeight)
+
+        Text {
+          id: installTitle
+          width: parent.width * 0.3
+          anchors.verticalCenter: parent.verticalCenter
+          textFormat: Text.PlainText
+          text: Commons.I18n.t("agents.localInstallingMeter")
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
 
         Meter {
-          visible: root.addDownloading
-          width: parent.width
+          anchors.left: installTitle.right
+          anchors.right: installRate.left
+          anchors.rightMargin: Style.space(20)
+          anchors.verticalCenter: parent.verticalCenter
           value: root.addTotalBytes > 0 ? root.addDoneBytes / root.addTotalBytes : 0
         }
 
         Text {
-          visible: root.addDownloading
-          width: parent.width
+          id: installRate
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
           textFormat: Text.PlainText
-          text: Commons.I18n.t("agents.stepGetNote")
+          horizontalAlignment: Text.AlignRight
+          text: root.downloadRate(root.addRateBytes)
           color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
-          wrapMode: Text.WordWrap
+          font.pixelSize: Style.font.bodySmall
         }
       }
 
-      SetupStep {
-        number: 2
-        label: Commons.I18n.t("agents.stepSignIn")
-        phase: root.addStage === "done" ? "done" : root.addPhase === "signin" ? "now" : "next"
+      Column {
+        visible: root.addStage === "running" && root.addPhase === "signin"
+        width: parent.width
+        spacing: Style.space(10)
 
         Text {
+          width: parent.width
+          textFormat: Text.PlainText
+          text: Commons.I18n.t("agents.loginBrowser")
+          color: root.foreground
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.body
+          font.bold: true
+          wrapMode: Text.WordWrap
+        }
+
+        // Only what the plain line doesn't say: which window to use when it's
+        // a private one, or that a pasted code is being checked.
+        Text {
+          visible: root.addPrivate || root.addStatus === Commons.I18n.t("agents.checkingCode")
           width: parent.width
           textFormat: Text.PlainText
           text: root.addStatus
@@ -2081,10 +2119,15 @@ Panel {
         }
       }
 
-      SetupStep {
-        number: 3
-        label: root.addStage === "done" ? root.addResult : Commons.I18n.t("agents.stepReady")
-        phase: root.addStage === "done" ? "done" : "next"
+      Text {
+        visible: root.addStage === "done"
+        width: parent.width
+        textFormat: Text.PlainText
+        text: root.addResult
+        color: root.foreground
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        wrapMode: Text.WordWrap
       }
     }
 
@@ -2739,68 +2782,6 @@ Panel {
   }
 
   // A provider's mark, falling back to the bar glyph when it ships none.
-  // One step of a setup: a numbered dot that becomes a check once the step is
-  // done, its name, and, while it's the current step, what it needs from you.
-  component SetupStep: Item {
-    id: step
-    property int number: 1
-    property string label: ""
-    // "done", "now", or "next".
-    property string phase: "next"
-    default property alias details: stepDetails.data
-
-    width: parent ? parent.width : 0
-    implicitHeight: Math.max(stepDot.height, stepBody.implicitHeight)
-
-    Rectangle {
-      id: stepDot
-      width: Style.space(22)
-      height: width
-      radius: width / 2
-      color: step.phase === "done" ? Commons.Color.accent : "transparent"
-      border.width: step.phase === "done" ? 0 : Math.max(1, Style.hoverBorderWidth)
-      border.color: step.phase === "now" ? Commons.Color.accent : root.dim
-
-      Text {
-        anchors.centerIn: parent
-        textFormat: Text.PlainText
-        text: step.phase === "done" ? "\uf00c" : String(step.number)
-        color: step.phase === "done" ? root.surface : step.phase === "now" ? Commons.Color.accent : root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
-        font.bold: true
-      }
-    }
-
-    Column {
-      id: stepBody
-      anchors.left: stepDot.right
-      anchors.leftMargin: Style.space(12)
-      anchors.right: parent.right
-      spacing: Style.space(8)
-
-      Text {
-        width: parent.width
-        height: Math.max(implicitHeight, stepDot.height)
-        verticalAlignment: Text.AlignVCenter
-        textFormat: Text.PlainText
-        text: step.label
-        color: step.phase === "now" ? root.foreground : root.dim
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        font.bold: step.phase === "now"
-        wrapMode: Text.WordWrap
-      }
-
-      Column {
-        id: stepDetails
-        visible: step.phase === "now" && children.length > 0
-        width: parent.width
-        spacing: Style.space(8)
-      }
-    }
-  }
-
   component ProviderIcon: Item {
     id: mark
     property var provider: null

@@ -473,8 +473,8 @@ fi
 : >"$test_tmp/lazy-log"
 OMARCHY_TEST_LOGIN_UUID=u-lazy OMARCHY_TEST_LOGIN_EMAIL=lazy@example.com add_lazy Lazy >"$test_tmp/lazy-output" 2>&1 ||
   fail "adding an account installs a lazy CLI first" "$(cat "$test_tmp/lazy-output")"
-[[ $(grep '^@@omarchy \(status\|progress\)' "$test_tmp/lazy-output" | head -5) == $'@@omarchy status Installing the Codex CLI…\n@@omarchy progress 0 0\n@@omarchy progress 512000 194400000\n@@omarchy progress 157100000 194400000\n@@omarchy status Sign in as the account you\'re adding in the private window that opens.' ]] ||
-  fail "a lazy CLI's download is reported as progress in bytes, before the sign-in" "$(cat "$test_tmp/lazy-output")"
+[[ $(grep '^@@omarchy \(status\|progress\)' "$test_tmp/lazy-output" | head -5) == $'@@omarchy status Installing the Codex CLI…\n@@omarchy progress 0 0 0\n@@omarchy progress 512000 194400000 3100000\n@@omarchy progress 157100000 194400000 52400000\n@@omarchy status Sign in as the account you\'re adding in the private window that opens.' ]] ||
+  fail "a lazy CLI's download is reported as progress and speed in bytes, before the sign-in" "$(cat "$test_tmp/lazy-output")"
 [[ $(cat "$test_tmp/lazy-log") == $'install codex\nrun codex login' ]] ||
   fail "a lazy CLI is installed before its login runs" "$(cat "$test_tmp/lazy-log")"
 grep -qx "@@omarchy done Added Lazy (lazy@example.com)." "$test_tmp/lazy-output" ||
