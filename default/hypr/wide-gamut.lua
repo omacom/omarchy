@@ -58,14 +58,31 @@ local function covers(output, monitor)
   return output == "" or monitor.name == output
 end
 
--- Whether every monitor a rule covers has a gamut.
-local function gamut_for_rule(output)
+-- The color mapping for a rule. "edid" when every monitor it covers has a
+-- gamut. A Mac's built-in panel is always P3, so a built-in panel that reports
+-- no primaries gets "dp3", which needs no EDID: sRGB there would show the
+-- panel's native gamut oversaturated. Any other monitor without primaries (or
+-- one sharing the rule with such a panel) gets no mapping, which is sRGB.
+local function cm_for_rule(output)
+  local builtin_without, other = false, false
   for _, monitor in ipairs(hl.get_monitors()) do
-    if covers(output, monitor) and not edid_has_gamut(monitor.name) then
-      return false
+    if covers(output, monitor) then
+      local builtin = monitor.name:match("^eDP") ~= nil
+      if not edid_has_gamut(monitor.name) then
+        if not builtin then
+          return nil
+        end
+        builtin_without = true
+      elseif not builtin then
+        other = true
+      end
     end
   end
-  return true
+
+  if not builtin_without then
+    return "edid"
+  end
+  return (not other) and "dp3" or nil
 end
 
 local function chosen_for(output)
@@ -97,7 +114,7 @@ if o.shell_succeeds(o.shell_quote(paths.omarchy_path .. "/bin/omarchy-hw-aarch64
       if rule.cm ~= nil then
         chosen[output] = rule.cm
       else
-        rule.cm = chosen_for(output) or (gamut_for_rule(output) and "edid" or nil)
+        rule.cm = chosen_for(output) or cm_for_rule(output)
       end
     end
 
