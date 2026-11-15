@@ -253,7 +253,33 @@ previews="$test_tmp/cache/omarchy/icons-selector/previews"
 [[ $(<"$previews/papercraft.png") == "mine" ]] || fail "a user's preview goes ahead of the built-in set's"
 grep -Fxq -- "$previews/papercraft.png" "$test_tmp/picker-args" && grep -Fxq -- "--print-name" "$test_tmp/picker-args" || fail "the icon switcher opens the picker on the set in use"
 if command -v rsvg-convert >/dev/null && command -v magick >/dev/null; then
-  [[ $(file -b --mime-type "$(readlink -f "$previews/drawn.png")") == "image/png" ]] || fail "a set without a preview gets one drawn from its icons"
+  switcher() { XDG_CACHE_HOME="$test_tmp/cache" icons icons-switcher >/dev/null; }
+  drawn=$(readlink -f "$previews/drawn.png")
+  [[ $(file -b --mime-type "$drawn") == "image/png" ]] || fail "a set without a preview gets one drawn from its icons"
+
+  # The drawn preview is kept while nothing it was made from changes, and drawn
+  # again when an icon is edited in place or the theme's colors change under
+  # the same name.
+  cp "$drawn" "$test_tmp/drawn-first.png"
+  touch -d '2001-01-01' "$drawn"
+  switcher
+  [[ $(stat -c '%Y' "$drawn") == "$(date -d '2001-01-01' +%s)" ]] || fail "a drawn preview is kept while its set and theme are as they were"
+  printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="{{ icon_main }}"/></svg>\n' >"$sets/drawn/mpv.svg.tpl"
+  touch -d '2001-01-01' "$sets/drawn"
+  switcher
+  ! cmp -s "$drawn" "$test_tmp/drawn-first.png" || fail "a drawn preview is drawn again when an icon is edited in place"
+  cp "$drawn" "$test_tmp/drawn-second.png"
+  sed -i 's/^accent = .*/accent = "#00ff00"/' "$state/theme/colors.toml"
+  switcher
+  ! cmp -s "$drawn" "$test_tmp/drawn-second.png" || fail "a drawn preview is drawn again when the theme's colors change"
+  sed -i 's/^accent = .*/accent = "#ff0000"/' "$state/theme/colors.toml"
+
+  # A set the user wrote may link to its icons, as it may when it is drawn.
+  mkdir -p "$sets/linked-icons"
+  ln -s "$sets/drawn/mpv.svg.tpl" "$sets/linked-icons/mpv.svg.tpl"
+  switcher
+  [[ $(file -b --mime-type "$(readlink -f "$previews/linked-icons.png")") == "image/png" ]] || fail "a set of linked icons still gets a preview and shows in the picker"
+  rm -r "$sets/linked-icons"
   pass "the icon switcher draws a preview for a set that came without one"
 else
   skip "no rsvg-convert or magick; skipping the drawn icon set preview"

@@ -25,20 +25,27 @@ if [[ ! -d $SET_DIR || -z $PREVIEW ]]; then
   exit 1
 fi
 
-omarchy-cmd-present rsvg-convert magick || exit 1
+omarchy-cmd-present rsvg-convert || exit 1
 
 shopt -s nullglob
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-mkdir "$work/svg" "$work/png"
+mkdir "$work/set" "$work/svg" "$work/png"
 
-# As omarchy-theme-set-icons reads a set: its drawings as they are, and its
-# templates in the theme's colors.
-for icon in "$SET_DIR"/*.svg; do
-  [[ -f $icon && ! -L $icon ]] && cp "$icon" "$work/svg/"
+# As omarchy-theme-set-icons reads a set: its drawings as they are and its
+# templates in the theme's colors, with the symlinks of a set cloned from a git
+# repo left out and those of a set the user wrote kept.
+for icon in "$SET_DIR"/*.svg "$SET_DIR"/*.svg.tpl; do
+  [[ -f $icon ]] || continue
+  [[ -L $icon && -e $SET_DIR/.git ]] && continue
+  cp "$icon" "$work/set/"
 done
-omarchy-theme-set-templates --icons "$THEME" "$work/svg" "$SET_DIR"
+
+for icon in "$work/set"/*.svg; do
+  mv "$icon" "$work/svg/"
+done
+omarchy-theme-set-templates --icons "$THEME" "$work/svg" "$work/set"
 
 icons=()
 for icon in "$work/svg"/*.svg; do
