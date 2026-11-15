@@ -756,6 +756,13 @@ local steam = window("0xF", { class = "steam", pid = 3 })
 click(steam)
 click(maximized)
 assert(not steam.allowed_over_fullscreen, "an app floating on its own account stayed over the maximized window")
+
+-- Nor is another window of the maximized window's own process that the mode
+-- floated, such as a second browser window.
+local sibling = window("0x10", { pid = 1, tags = { "omarchy-mode-floated" } })
+click(sibling)
+click(maximized)
+assert(not sibling.allowed_over_fullscreen, "a second window of the same app stayed over the maximized window")
 LUA
 
 if ! HOME="$home_dir" XDG_STATE_HOME="$home_dir/.local/state" OMARCHY_PATH="$ROOT" \

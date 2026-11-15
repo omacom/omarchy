@@ -347,28 +347,34 @@ end
 
 -- A dialog belongs over the maximized window it was opened from, which its app
 -- may block until it closes. Hyprland tells nothing of which window owns which,
--- so a dialog is a window of the same process, or one of the portal's, which
--- shows the file pickers and prompts of other apps and nothing else. Floating on
--- its own account is no sign of one: Steam, a calculator and a password manager
--- float by rule and are apps of their own.
-local function dialog_of(window, other)
+-- so a dialog is a window floating on its own account that is of the same
+-- process, or one of the portal's, which shows the file pickers and prompts of
+-- other apps and nothing else. A window the mode floated opened as a window of
+-- its own, such as a second browser window, whatever process it is of. Floating
+-- on its own account is no sign of a dialog either: Steam, a calculator and a
+-- password manager float by rule and are apps of their own.
+local function dialog_of(window, other, mine)
+  if mine[other.address] then
+    return false
+  end
+
   local pid = window.pid or 0
   return (pid > 0 and other.pid == pid) or (other.class or ""):find("^xdg%-desktop%-portal") ~= nil
 end
 
 -- Brings a maximized window to the front, as a click on it does on Windows:
--- every other app's windows wait behind it until they are brought forward. Its
--- dialogs stay over it, and are put back above it for the clicks on them.
+-- every other window waits behind it until it is brought forward. Its dialogs
+-- stay over it, and are put back above it for the clicks on them.
 local function bring_forward(window)
-  local over = drawn_over(window)
+  local over, mine = drawn_over(window), claimed()
   for index = #over, 1, -1 do
-    if not dialog_of(window, over[index]) then
+    if not dialog_of(window, over[index], mine) then
       restack(over[index], "bottom")
     end
   end
 
   for _, other in ipairs(over) do
-    if dialog_of(window, other) then
+    if dialog_of(window, other, mine) then
       restack(other, "top")
     end
   end
