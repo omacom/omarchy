@@ -15,8 +15,10 @@ fi
 
 if ! grep -qx "WantedBy=graphical.target" "$unit"; then
   sudo install -Dm644 "$OMARCHY_PATH/default/systemd/system/omarchy-powerprofiles-floor.service" "$unit"
-  sudo systemctl daemon-reload
-  sudo systemctl reenable omarchy-powerprofiles-floor.service
 fi
+
+# Outside the check so a run interrupted after the install still moves the link
+sudo systemctl daemon-reload
+sudo systemctl reenable omarchy-powerprofiles-floor.service
 
 sudo systemctl start omarchy-powerprofiles-floor.service
