@@ -76,6 +76,10 @@ Item {
   property bool foregroundAnimationEnabled: true
   property color background: Commons.Color.bar.background
   readonly property color glassBackground: Qt.rgba(background.r, background.g, background.b, Math.min(background.a, 0.35))
+  // What the bar strip actually paints behind its widgets. The tray's drawer
+  // repeats it while it is open, so the centered widgets underneath do not
+  // show through the applets it reveals.
+  readonly property color barSurfaceColor: transparent ? "transparent" : (glassy ? glassBackground : background)
   property color urgent: Commons.Color.bar.active
 
   // A theme change cross-fades the bar's colors. Cycling the background
@@ -1912,7 +1916,7 @@ Item {
 
       Rectangle {
         anchors.fill: parent
-        color: root.transparent ? "transparent" : (root.glassy ? root.glassBackground : root.background)
+        color: root.barSurfaceColor
       }
 
       Loader {

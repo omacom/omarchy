@@ -24,6 +24,17 @@ BarWidget {
   property var activeTrayItem: null
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+  // The bar's own strip, repeated behind the drawer while it is open so the
+  // centered widgets it reaches over do not draw through the applets.
+  readonly property color drawerBackground: {
+    if (!bar || bar.transparent) return "transparent"
+    var source = bar.background !== undefined ? bar.background
+      : (bar.barSurfaceColor !== undefined ? bar.barSurfaceColor : "#000000")
+    // The bar's own background can be translucent over the wallpaper; the
+    // open drawer needs an opaque patch so the centered widgets underneath
+    // do not show through the applets it reveals.
+    return Qt.rgba(source.r, source.g, source.b, 1)
+  }
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property var pinnedIds: settings.pinned instanceof Array ? settings.pinned : []
   readonly property var hiddenIds: settings.hidden instanceof Array ? settings.hidden : []
@@ -298,6 +309,11 @@ BarWidget {
         height: root.barSize
         visible: root.hasDrawer
 
+        Rectangle {
+          anchors.fill: parent
+          color: root.drawerBackground
+        }
+
         HoverHandler {
           onHoveredChanged: root.expanded = hovered
         }
@@ -387,6 +403,11 @@ BarWidget {
         width: root.barSize
         height: verticalTrayRoot.chevronHeight + root.revealExtent
         visible: root.hasDrawer
+
+        Rectangle {
+          anchors.fill: parent
+          color: root.drawerBackground
+        }
 
         HoverHandler {
           onHoveredChanged: root.expanded = hovered
