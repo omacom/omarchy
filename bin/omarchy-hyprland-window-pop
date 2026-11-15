@@ -12,6 +12,7 @@ active=$(hyprctl activewindow -j)
 pinned=$(echo "$active" | jq ".pinned")
 addr=$(echo "$active" | jq -r ".address")
 window="address:$addr"
+geometry_file="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/windows/pop-${addr}-geometry"
 
 hypr_dispatch() {
   local lua="$1"
@@ -22,10 +23,38 @@ hypr_dispatch() {
 
 if [[ $pinned == "true" ]]; then
   hypr_dispatch "hl.dsp.window.pin({ window = \"$window\" })" pin "$window"
-  hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
   hypr_dispatch "hl.dsp.window.tag({ window = \"$window\", tag = \"-pop\" })" tagwindow -pop "$window"
+
+  if [[ -f $geometry_file ]]; then
+    read -r saved_width saved_height saved_x saved_y <"$geometry_file"
+    rm -f "$geometry_file"
+
+    if [[ $saved_width =~ ^[0-9]+$ && $saved_height =~ ^[0-9]+$ && $saved_x =~ ^-?[0-9]+$ && $saved_y =~ ^-?[0-9]+$ ]]; then
+      hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"on\" })" togglefloating "$window"
+      hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $saved_width, y = $saved_height })" resizeactive exact "$saved_width" "$saved_height" "$window"
+      hypr_dispatch "hl.dsp.window.move({ window = \"$window\", x = $saved_x, y = $saved_y })" moveactive "$saved_x" "$saved_y" "$window"
+    else
+      hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"off\" })" togglefloating "$window"
+    fi
+  else
+    hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"off\" })" togglefloating "$window"
+  fi
 elif [[ -n $addr ]]; then
-  hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" togglefloating "$window"
+  if [[ $(echo "$active" | jq ".floating") == "true" ]]; then
+    saved_width=$(echo "$active" | jq -r ".size[0] // empty")
+    saved_height=$(echo "$active" | jq -r ".size[1] // empty")
+    saved_x=$(echo "$active" | jq -r ".at[0] // empty")
+    saved_y=$(echo "$active" | jq -r ".at[1] // empty")
+
+    if [[ $saved_width =~ ^[0-9]+$ && $saved_height =~ ^[0-9]+$ && $saved_x =~ ^-?[0-9]+$ && $saved_y =~ ^-?[0-9]+$ ]]; then
+      mkdir -p "$(dirname "$geometry_file")"
+      printf '%s %s %s %s\n' "$saved_width" "$saved_height" "$saved_x" "$saved_y" >"$geometry_file"
+    fi
+  else
+    rm -f "$geometry_file"
+  fi
+
+  hypr_dispatch "hl.dsp.window.float({ window = \"$window\", action = \"on\" })" togglefloating "$window"
   hypr_dispatch "hl.dsp.window.resize({ window = \"$window\", x = $width, y = $height })" resizeactive exact "$width" "$height" "$window"
 
   if [[ -n $x && -n $y ]]; then
