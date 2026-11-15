@@ -1,4 +1,4 @@
-echo "Make Omaview the default picture viewer and media player"
+echo "Replace imv and mpv with Omaview"
 
 omarchy-pkg-add omaview
 
@@ -22,6 +22,26 @@ if [[ -d $applications ]]; then
   update-desktop-database "$applications"
 fi
 
-# imv stays installed, unlike Satty when Omasnap replaced it: an imv.desktop
-# line in the user's mimeapps.list may be their choice, and imv's own launchers
-# are already kept out of the app grid.
+# A mimeapps.list line naming imv.desktop or mpv.desktop stops resolving once
+# they're gone, and Omarchy's default, Omaview, opens those files instead. A
+# package the user installed that needs one (Celluloid needs mpv) keeps it, so
+# the removal can't fail and hold back the migrations after this one.
+drop_unless_needed() {
+  local installed=() pkg
+
+  for pkg in "$@"; do
+    if omarchy-pkg-present "$pkg"; then
+      installed+=("$pkg")
+    fi
+  done
+  (( ${#installed[@]} )) || return 0
+
+  if pacman -Rs --print "${installed[@]}" >/dev/null 2>&1; then
+    omarchy-pkg-drop "${installed[@]}"
+  else
+    echo "Keeping ${installed[*]}, which another installed package needs"
+  fi
+}
+
+drop_unless_needed imv
+drop_unless_needed mpv-mpris mpv

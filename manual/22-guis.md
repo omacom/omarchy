@@ -93,7 +93,7 @@ You start Signal with `Super + Shift + G`. It's not part of the base install, so
 
 Press `F` for fullscreen, `E` to edit a picture in Omasnap or trim a video in Omacut, `Ctrl + P` to print a picture, and `Delete` to move a file to the Trash (`Ctrl + Z` brings it back). Press `?` inside it to see every shortcut.
 
-You start Omaview as _Media Viewer_ via the application launcher (`Super + Space`), or just double-click a picture, video, or song in the file manager. [mpv](https://mpv.io/) is still installed for playing anything from the terminal.
+You start Omaview as _Media Viewer_ via the application launcher (`Super + Space`), or just double-click a picture, video, or song in the file manager.
 
 ## Omacut
 
