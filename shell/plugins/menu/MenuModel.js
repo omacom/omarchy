@@ -628,6 +628,40 @@ function summonAction(action) {
 }
 
 
+// A select option is a string ("label", "glyph\tlabel", or
+// "glyph\tlabel\tsubtext") or a heading, {"heading": "Text"}, which groups the
+// options after it and is never returned.
+function isDmenuHeading(option) {
+  return !!option && typeof option === "object" && typeof option.heading === "string"
+}
+
+// The rows a select request shows for a filter: options that match, each
+// heading only when something under it survives, so a search never leaves a
+// heading standing over nothing.
+function dmenuRows(options, query) {
+  var rows = []
+  var heading = null
+  var needle = String(query || "").trim().toLowerCase()
+  for (var i = 0; i < options.length; i++) {
+    if (isDmenuHeading(options[i])) {
+      heading = options[i].heading
+      continue
+    }
+    var parts = String(options[i] || "").split("\t")
+    var icon = parts.length > 1 ? parts.shift() : ""
+    var label = parts.shift() || ""
+    var detail = parts.join("\t")
+    if (needle && label.toLowerCase().indexOf(needle) < 0
+        && detail.toLowerCase().indexOf(needle) < 0) continue
+    if (heading !== null) {
+      rows.push({ heading: true, label: heading, index: -1 })
+      heading = null
+    }
+    rows.push({ heading: false, icon: icon, label: label, detail: detail, index: i })
+  }
+  return rows
+}
+
 // Multi-select requests return stable values, without icons, in option order.
 function dmenuValue(option) {
   var parts = String(option || "").split("\t")
@@ -636,7 +670,7 @@ function dmenuValue(option) {
 }
 
 function dmenuSelections(options, selected, preserveOrder) {
-  var available = options.map(dmenuValue)
+  var available = options.filter(function(option) { return !isDmenuHeading(option) }).map(dmenuValue)
   return (preserveOrder ? selected : available).filter(function(value, index, values) {
     return available.indexOf(value) !== -1 && selected.indexOf(value) !== -1 && values.indexOf(value) === index
   })
@@ -715,6 +749,7 @@ if (typeof module !== "undefined") {
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
+    dmenuRows: dmenuRows,
     dmenuValue: dmenuValue,
     dmenuSelections: dmenuSelections,
     toggleDmenuSelection: toggleDmenuSelection,
