@@ -46,8 +46,5 @@ CONF
 
   # Plymouth leaves the panel black at the unlock prompt, so ask for the
   # passphrase on the text console instead.
-  mkdir -p "$limine_config_dir"
-  cat >"$limine_config_dir/zenbook-a16.conf" <<'CONF'
-KERNEL_CMDLINE[default]+=" console=tty0 plymouth.enable=0"
-CONF
+  OMARCHY_BOOT_LIMINE_DROPINS=$limine_config_dir omarchy-boot-cmdline set zenbook-a16 console=tty0 plymouth.enable=0
 fi
