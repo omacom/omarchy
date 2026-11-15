@@ -84,7 +84,7 @@ stderr: $(<"$TEST_TMP/status.err")"
 
 declare -A values=()
 declare -A seen=()
-expected=(ap_capable ap_bands active configured iface ssid band password freq ip client_count clients max_clients upstream save_data save_data_on_air)
+expected=(ap_capable ap_bands active configured iface ssid band password freq ip client_count clients max_clients pending upstream save_data save_data_on_air)
 index=0
 while IFS=$'\t' read -r key value; do
   [[ -n $key ]] || continue
@@ -250,6 +250,18 @@ done <"$TEST_TMP/radio-status.out"
 [[ ${radio_status[ap_bands]} == "2.4,5" ]] || fail "status bands stay scoped to the selected PHY" "${radio_status[ap_bands]}"
 [[ ${radio_status[ap_bands]} != *"6"* ]] || fail "status does not aggregate bands from another PHY" "${radio_status[ap_bands]}"
 pass "status derives capability and bands from one selected PHY"
+
+# A save the running AP has not picked up is reported, so the panel can
+# withhold the join QR; with the AP down nothing is on air to disagree with.
+touch "$OMARCHY_HOTSPOT_PENDING_FILE" "$PROFILE_STATE"
+pending_on=$(HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status 2>/dev/null)
+pending_down=$(PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status 2>/dev/null)
+rm -f "$OMARCHY_HOTSPOT_PENDING_FILE" "$PROFILE_STATE"
+pending_clear=$(HOTSPOT_ACTIVE=1 PATH="$STUB_BIN:$PATH" OMARCHY_PATH="$ROOT" bash "$ROOT/bin/omarchy-hotspot" status 2>/dev/null)
+grep -qx $'pending\t1' <<<"$pending_on" || fail "status reports a pending restart on a running hotspot" "$pending_on"
+grep -qx $'pending\t0' <<<"$pending_down" || fail "status reports nothing pending while the hotspot is down" "$pending_down"
+grep -qx $'pending\t0' <<<"$pending_clear" || fail "status reports nothing pending without the mark" "$pending_clear"
+pass "status reports a save the running hotspot has not picked up"
 
 # apply takes the hotspot lock, and a root process ignores the test lock
 # override, so these would contend with the host lock under sudo.
