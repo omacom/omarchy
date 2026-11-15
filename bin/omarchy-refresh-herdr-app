@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# omarchy:summary=Overwrite the Herdr desktop app's keys with the Omarchy default (backs up your version).
+
+set -euo pipefail
+
+app_home="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"
+default_keys="$OMARCHY_PATH/default/herdr-app/keys.json"
+user_keys="$app_home/keys.json"
+
+# Herdr reloads keys.json live. It also treats any keys file it didn't write as
+# the person's own and stops adding new default shortcuts to it, so the Omarchy
+# file is Herdr's full default keymap with the terminal herdr bindings on top.
+mkdir -p "$app_home"
+
+if [[ -L $user_keys ]]; then
+  echo "Preserving symlink-managed Herdr keys: $user_keys"
+elif [[ -f $user_keys ]] && cmp -s "$default_keys" "$user_keys"; then
+  exit 0
+else
+  if [[ -f $user_keys ]]; then
+    backup_keys="$user_keys.bak.$(date +%s)"
+    cp -f "$user_keys" "$backup_keys"
+    echo "Replaced $user_keys with the Omarchy default. Saved backup as $backup_keys."
+  fi
+  cp -f "$default_keys" "$user_keys"
+fi
