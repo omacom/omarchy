@@ -1788,11 +1788,11 @@ Item {
       }
 
       var total = root.vertical ? screen.height : screen.width
-      function lengthOf(key) { return widgetPool.lengthOf(key) }
+      function lengthOf(key, region) { return widgetPool.lengthOf(key, region) }
       function sum(region) {
         var keys = root.layoutWidgets.sections[region] || []
         var length = 0
-        for (var i = 0; i < keys.length; i++) length += lengthOf(keys[i])
+        for (var i = 0; i < keys.length; i++) length += lengthOf(keys[i], region)
         return length
       }
 
@@ -1807,8 +1807,8 @@ Item {
       var keep = {}
       keep[tray] = true
 
-      var start = BarModel.foldSection(root.layoutWidgets.sections.left, lengthOf, startBudget, keep, false)
-      var finish = BarModel.foldSection(root.layoutWidgets.sections.right, lengthOf, endBudget, keep, true)
+      var start = BarModel.foldSection(root.layoutWidgets.sections.left, function(key) { return lengthOf(key, "left") }, startBudget, keep, false)
+      var finish = BarModel.foldSection(root.layoutWidgets.sections.right, function(key) { return lengthOf(key, "right") }, endBudget, keep, true)
       var hidden = ({})
       var keys = []
       var i
@@ -1826,8 +1826,10 @@ Item {
         return
       }
       if (keys.join("\n") === overflowTrayKeys.join("\n")) return
-      overflowHidden = hidden
+      // Let the drawer claim the widgets before their side sections let go,
+      // so no host is left without an owner between the two updates.
       overflowTrayKeys = keys
+      overflowHidden = hidden
       overflowRevision++
     }
 
@@ -2740,9 +2742,17 @@ Item {
     // drawer that is open grows the widget only while the pointer holds it;
     // the section budget uses the collapsed length so hovering the tray does
     // not fold more widgets.
-    function lengthOf(key) {
+    //
+    // A side widget that is folded into the drawer is measured at the length
+    // it had on the bar, not at the size it takes once `inTraySection` makes
+    // it reveal more (the indicators, for one). Measuring the drawer size
+    // would make the widget keep itself folded.
+    function lengthOf(key, layoutRegion) {
       var host = hosts[key]
       if (!host) return 0
+      var region = host.owner ? host.owner.region : ""
+      if ((layoutRegion === "left" || layoutRegion === "right") && region !== layoutRegion && host.sideLength > 0)
+        return host.sideLength
       var length = root.vertical ? host.widgetHeight : host.widgetWidth
       var item = host.activeItem
       if (item && item.revealExtent > 0) length -= item.revealExtent
@@ -2817,6 +2827,10 @@ Item {
     property string fixedEdge: "center"
     // Whether that slot is in the tray's drawer.
     property bool inTraySection: false
+    // Its length the last time it sat in a side section, before a fold moved
+    // it into the drawer. The overflow budget measures a folded widget by
+    // this, so a widget that grows in the drawer does not keep itself folded.
+    property real sideLength: 0
     readonly property string moduleName: root.entryId(entry)
     readonly property var moduleSettings: root.entrySettings(entry)
     readonly property string customType: root.customModuleType(entry)
@@ -2866,9 +2880,22 @@ Item {
       fixedEdge = owner.fixedEdge
       inTraySection = owner.region === "tray"
       placed = true
+      rememberSideLength()
     }
-    onWidgetWidthChanged: if (pool) pool.hostSizeChanged()
-    onWidgetHeightChanged: if (pool) pool.hostSizeChanged()
+    onWidgetWidthChanged: {
+      if (pool) pool.hostSizeChanged()
+      rememberSideLength()
+    }
+    onWidgetHeightChanged: {
+      if (pool) pool.hostSizeChanged()
+      rememberSideLength()
+    }
+
+    function rememberSideLength() {
+      if (!owner || (owner.region !== "left" && owner.region !== "right")) return
+      var length = root.vertical ? widgetHeight : widgetWidth
+      if (length > 0) sideLength = length
+    }
     // One no slot takes up again by the time the update is over, as one in
     // the tray's drawer while the tray is off the bar, is unloaded rather
     // than left running where nothing shows it, and loaded again when a slot
