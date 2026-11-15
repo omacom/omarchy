@@ -396,6 +396,35 @@ if HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar set omarchy.bluetooth br
 fi
 pass "bar set rejects multiple JSON values"
 
+# A clone standing in for a built-in takes the built-in's calls, the way
+# move --after and put --after follow clones.
+clock_clone_dir="$TMPDIR/home/.config/omarchy/plugins/local.clock-clone"
+mkdir -p "$clock_clone_dir"
+cat >"$clock_clone_dir/manifest.json" <<'JSON'
+{
+  "schemaVersion": 1,
+  "id": "local.clock-clone",
+  "name": "Clock clone",
+  "version": "1.0.0",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "omarchy": { "clonedFrom": "omarchy.clock" }
+}
+JSON
+touch "$clock_clone_dir/BarWidget.qml"
+jq '.bar.layout.center = [{ "id": "local.clock-clone", "format": "H:mm" }]' \
+  "$TMPDIR/home/.config/omarchy/shell.json" >"$TMPDIR/cloned.json" &&
+  mv "$TMPDIR/cloned.json" "$TMPDIR/home/.config/omarchy/shell.json"
+
+[[ $(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar get omarchy.clock format) == "H:mm" ]] ||
+  fail "bar get does not follow the enabled clone standing in for the built-in"
+pass "bar get follows the enabled clone standing in for the built-in"
+
+if HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar get omarchy.menu format 2>/dev/null; then
+  fail "bar get answered for a key no entry sets"
+fi
+pass "bar get without a clone still fails when the key is not set"
+
 mock_bin="$TMPDIR/mock-bin"
 mkdir -p "$mock_bin"
 
