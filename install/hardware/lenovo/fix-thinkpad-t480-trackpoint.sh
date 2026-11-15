@@ -17,12 +17,15 @@
 # release learns to reset the RMI4 passthrough on its own; a psmouse option the
 # administrator already set is left alone.
 # See https://github.com/omacom/omarchy/issues/16252.
+#
+# The write is privileged so that a migration can run this same leaf for a
+# machine that was set up before it shipped.
 modprobe_dir="${OMARCHY_TRACKPOINT_MODPROBE_DIR:-/etc/modprobe.d}"
 psmouse_options='^[[:space:]]*options[[:space:]]+psmouse[[:space:]].*synaptics_intertouch'
 
 if omarchy-hw-match '^20L[56]' && ! grep -qsE "$psmouse_options" "$modprobe_dir"/*.conf; then
-  mkdir -p "$modprobe_dir"
-  cat >"$modprobe_dir/omarchy-thinkpad-t480-trackpoint.conf" <<'CONF'
+  sudo mkdir -p "$modprobe_dir"
+  sudo install -Dm644 /dev/stdin "$modprobe_dir/omarchy-thinkpad-t480-trackpoint.conf" <<'CONF'
 # Keep the TrackPoint on i8042 so psmouse can recover it after a PS/2 desync.
 # See install/hardware/lenovo/fix-thinkpad-t480-trackpoint.sh.
 options psmouse synaptics_intertouch=0
