@@ -1,8 +1,15 @@
-echo "Point Google Chrome at the bundled extensions' current ids"
+echo "Give Snapdragon power profiles a CPU frequency floor for bursty work"
 
-# Moving the CRX signing keys to 1Password gave the extensions new ids. Machines
-# that installed Chrome's policy before that still force-install the old ids,
-# which updates.xml no longer lists, so Chrome installs none of them.
-omarchy-pkg-present google-chrome || exit 0
+# See bin/omarchy-powerprofiles-floor. Another user's run has already enabled
+# the service, so it is only started.
+if ! omarchy-hw-aarch64-qualcomm; then
+  exit 0
+fi
 
-omarchy-install-browser-extensions chrome
+if [[ ! -e /etc/systemd/system/omarchy-powerprofiles-floor.service ]]; then
+  sudo env PATH="$PATH" OMARCHY_PATH="$OMARCHY_PATH" bash -euo pipefail -c '
+    source "$OMARCHY_PATH/install/hardware/qualcomm/powerprofiles-floor.sh"
+  '
+fi
+
+sudo systemctl start omarchy-powerprofiles-floor.service
