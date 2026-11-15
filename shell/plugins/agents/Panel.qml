@@ -674,10 +674,10 @@ Panel {
     addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
-    // Claude's login offers pasting a code back whenever its page shows one,
-    // and its prompt for it has no newline to read it by, so the field is
-    // there from the start.
-    addNeedsPaste = addProvider === "claude"
+    // Claude's login usually finishes on its own once the browser hands back
+    // to it. When its page shows a code instead, its prompt for it has no
+    // newline to read it by, so the field stays a link away the whole time.
+    addNeedsPaste = false
     addDownloading = false
     addResult = ""
     addStage = "running"
@@ -876,10 +876,10 @@ Panel {
     addStatus = Commons.I18n.t("agents.starting")
     addCode = ""
     addUrl = ""
-    // Claude's login offers pasting a code back whenever its page shows one,
-    // and its prompt for it has no newline to read it by, so the field is
-    // there from the start.
-    addNeedsPaste = addProvider === "claude"
+    // Claude's login usually finishes on its own once the browser hands back
+    // to it. When its page shows a code instead, its prompt for it has no
+    // newline to read it by, so the field stays a link away the whole time.
+    addNeedsPaste = false
     addDownloading = false
     addResult = ""
     addStage = "running"
@@ -2010,8 +2010,17 @@ Panel {
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
           onAccepted: { root.submitPaste(text); text = "" }
+          onVisibleChanged: if (visible) forceActiveFocus()
           Keys.onEscapePressed: function(event) { root.cancelAdd(); event.accepted = true }
         }
+      }
+
+      // Claude only needs a code pasted back when its page shows one, so the
+      // field waits behind this until then.
+      TextLink {
+        visible: root.addProvider === "claude" && !root.addNeedsPaste && !root.addDownloading
+        text: Commons.I18n.t("agents.pasteCodeLink")
+        onClicked: root.addNeedsPaste = true
       }
 
       TextLink {
