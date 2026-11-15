@@ -501,6 +501,9 @@ Item {
     if (!plan) return
     _renameOutput = ""
     _renameError = ""
+    lastError = ""
+    actionStatus = ""
+    actionStatusTimer.stop()
     renamingAccountId = String(id || "")
     renameProcess.command = plan.command
     renameProcess.running = true
@@ -543,10 +546,7 @@ Item {
   }
 
   function timedCommand(command) {
-    // Bound finite CLI requests, including a child that ignores termination.
-    // This does not cancel work already accepted by tailscaled.
-    // Keep the supervisor alive when it must kill the CLI, so QML receives 137.
-    return ["timeout", "--foreground", "--kill-after=2s", "20s"].concat(command)
+    return Model.timedCommand(command)
   }
 
   function showActionError(exitCode, output, fallback) {
@@ -885,9 +885,7 @@ Item {
       var stdout = String(renameStdout.text || root._renameOutput || "")
       var stderr = String(renameStderr.text || root._renameError || "")
       if (exitCode !== 0) {
-        root.lastError = elideStatus(stderr || stdout || I18n.t("tailscale.renameFailed"))
-        root.actionStatus = root.lastError
-        actionStatusTimer.restart()
+        root.showActionError(exitCode, stderr || stdout, I18n.t("tailscale.renameFailed"))
       } else {
         root.lastError = ""
         root.actionStatus = ""

@@ -15,7 +15,7 @@ const vm = require('vm')
 // Translate through the English catalog, as the shell does by default.
 const english = JSON.parse(fs.readFileSync(root + '/default/i18n/en/shell.json', 'utf8'))
 const I18n = { t: key => english[key] }
-const context = { I18n, elideStatus: text => String(text || '').trim(), actionStatusTimer: { stop() {}, restart() {} } }
+const context = { I18n, Model: tailscale, elideStatus: text => String(text || '').trim(), actionStatusTimer: { stop() {}, restart() {} } }
 for (const name of ['timedCommand', 'showActionError']) {
   const body = serviceSource.match(new RegExp('  function ' + name + '\\([^]*?\\n  \\}'))
   assert(body, 'tailscale defines ' + name)
@@ -35,12 +35,12 @@ assertEqual(context.lastError, 'daemon unavailable', 'tailscale preserves ordina
 assert(errorTimerRestarted, 'ordinary errors still start the transient-message timer')
 context.showActionError(1, '', 'fallback')
 assertEqual(context.lastError, 'fallback', 'tailscale supplies a fallback for empty command errors')
-for (const process of ['actionProcess', 'loginProcess', 'switchProcess', 'exitNodeProcess']) {
+for (const process of ['actionProcess', 'loginProcess', 'switchProcess', 'renameProcess', 'exitNodeProcess']) {
   let refreshed = false
   Object.assign(context, {
     root: context, _desired: 1, _loginInProgress: true, _loginUrlOpened: false, _loginTimedOut: false,
-    switchingAccountId: 'pending', settingExitNodeId: 'pending',
-    actionStdout: {}, actionStderr: {}, switchStdout: {}, switchStderr: {}, exitNodeStdout: {}, exitNodeStderr: {},
+    switchingAccountId: 'pending', renamingAccountId: 'pending', settingExitNodeId: 'pending',
+    actionStdout: {}, actionStderr: {}, switchStdout: {}, switchStderr: {}, renameStdout: {}, renameStderr: {}, exitNodeStdout: {}, exitNodeStderr: {},
     loginTimeoutTimer: { stop() {} }, connectTimeoutTimer: { stop() {} },
     delayedRefresh: { restart() { refreshed = true } }
   })
@@ -51,6 +51,7 @@ for (const process of ['actionProcess', 'loginProcess', 'switchProcess', 'exitNo
   if (process === 'actionProcess' || process === 'loginProcess') assertEqual(context._desired, -1, process + ' drops optimistic state')
   if (process === 'loginProcess') assert(!context._loginInProgress, 'login timeout clears the pending login')
   if (process === 'switchProcess') assertEqual(context.switchingAccountId, '', 'account timeout clears pending selection')
+  if (process === 'renameProcess') assertEqual(context.renamingAccountId, '', 'rename timeout clears the pending rename')
   if (process === 'exitNodeProcess') assertEqual(context.settingExitNodeId, '', 'exit-node timeout clears pending selection')
 }
 
@@ -62,7 +63,7 @@ const loginTransition = {
   I18n, Model: tailscale, installed: true, _desired: 1, _loginInProgress: false,
   _loginUrlOpened: false, _loginTimedOut: false, _preLoginAuthUrl: '',
   loginProcess: { running: true, command: [] }, mullvadRegions: [], selectedAccountId: '',
-  actionProcess: { running: false }, switchProcess: { running: false }, renameProcess: { running: false }, exitNodeProcess: { running: false },
+  actionProcess: { running: false }, switchProcess: { running: false }, renameProcess: { running: false, command: [] }, exitNodeProcess: { running: false },
   actionStatusTimer: timer(), connectTimeoutTimer: timer(), loginTimeoutTimer: timer(),
   stateWatchRefreshTimer: { restart() { statusRefreshes++ } }, timedCommand: context.timedCommand,
   exitNodeTarget: () => 'test-peer', authUrlOpened() {},
@@ -70,7 +71,7 @@ const loginTransition = {
   Quickshell: { execDetached(args) { openedLoginUrl = args[1]; browserOpens++ } }
 }
 loginTransition.root = loginTransition
-for (const name of ['parseStatus', 'loginOrUp', 'openAuthUrl', 'down', 'runAction', 'handleStateWatchData', 'switchAccount', 'setExitNode', 'handleLoginOutput']) {
+for (const name of ['parseStatus', 'loginOrUp', 'openAuthUrl', 'down', 'runAction', 'handleStateWatchData', 'switchAccount', 'renameAccount', 'setExitNode', 'handleLoginOutput']) {
   const body = serviceSource.match(new RegExp('  function ' + name + '\\([^]*?\\n  \\}'))[0]
   vm.runInNewContext(body, loginTransition)
 }
@@ -98,18 +99,18 @@ loginTransition.parseStatus(JSON.stringify({ BackendState: 'Running' }))
 assertEqual(loginTransition.statusText, 'Connected', 'background login completion still updates connection state')
 assertEqual(openedLoginUrl, '', 'background login completion does not launch another browser')
 
-for (const retry of [() => loginTransition.loginOrUp(), () => loginTransition.runAction(['tailscale', 'down']), () => loginTransition.switchAccount('other'), () => loginTransition.setExitNode({ id: 'peer' })]) {
+for (const retry of [() => loginTransition.loginOrUp(), () => loginTransition.runAction(['tailscale', 'down']), () => loginTransition.switchAccount('other'), () => { loginTransition.selectedAccountId = 'self'; loginTransition.renameAccount('self', 'Home'); loginTransition.selectedAccountId = '' }, () => loginTransition.setExitNode({ id: 'peer' })]) {
   loginTransition.lastError = loginTransition.actionStatus = 'old timeout'
   loginTransition.actionStatusTimer.restart()
   // The previous retry's command has finished; account switches and exit-node
   // changes refuse to start while the other one is in flight.
-  loginTransition.switchProcess.running = loginTransition.exitNodeProcess.running = false
+  loginTransition.switchProcess.running = loginTransition.renameProcess.running = loginTransition.exitNodeProcess.running = false
   retry()
   assertEqual(loginTransition.lastError, '', 'retry clears the previous error')
   assertEqual(loginTransition.actionStatus, '', 'retry clears the previous timeout message')
   assert(!loginTransition.actionStatusTimer.running, 'retry stops the previous message timer')
 }
-for (const process of ['loginProcess', 'actionProcess', 'switchProcess', 'exitNodeProcess']) {
+for (const process of ['loginProcess', 'actionProcess', 'switchProcess', 'renameProcess', 'exitNodeProcess']) {
   assertEqual(loginTransition[process].command[0], 'timeout', 'tailscale bounds ' + process)
 }
 loginTransition.loginProcess.running = false
@@ -511,17 +512,17 @@ assert(
 
 assertDeepEqual(
   tailscale.renamePlan('dd11', 'dd11', 'Home'),
-  { command: ['bash', '-c', 'tailscale set --nickname=Home'] },
+  { command: ['timeout', '--foreground', '--kill-after=2s', '20s', 'tailscale', 'set', '--nickname=Home'] },
   'tailscale renames the selected connection in place'
 )
 assertDeepEqual(
   tailscale.renamePlan('dd30', 'dd11', 'Home'),
-  { command: ['bash', '-c', "r=0; s=0; tailscale switch dd30 || r=$?; if (( r == 0 )); then tailscale set --nickname=Home || r=$?; fi; tailscale switch dd11 || s=$?; (( r == 0 )) && r=$s; exit $r"] },
-  'tailscale renames another connection by switching there and back'
+  { command: ['bash', '-c', "r=0; s=0; timeout --foreground --kill-after=2s 20s tailscale switch dd30 || r=$?; if (( r == 0 )); then timeout --foreground --kill-after=2s 20s tailscale set --nickname=Home || r=$?; fi; timeout --foreground --kill-after=2s 20s tailscale switch dd11 || s=$?; (( r == 0 )) && r=$s; exit $r"] },
+  'tailscale renames another connection by switching there and back, each step under its own deadline'
 )
 assertEqual(
   tailscale.renamePlan('dd30', 'dd11', "Dave's tailnet").command[2],
-  "r=0; s=0; tailscale switch dd30 || r=$?; if (( r == 0 )); then tailscale set --nickname='Dave'\\''s tailnet' || r=$?; fi; tailscale switch dd11 || s=$?; (( r == 0 )) && r=$s; exit $r",
+  "r=0; s=0; timeout --foreground --kill-after=2s 20s tailscale switch dd30 || r=$?; if (( r == 0 )); then timeout --foreground --kill-after=2s 20s tailscale set --nickname='Dave'\\''s tailnet' || r=$?; fi; timeout --foreground --kill-after=2s 20s tailscale switch dd11 || s=$?; (( r == 0 )) && r=$s; exit $r",
   'tailscale quotes nicknames that need shell escaping'
 )
 assertEqual(tailscale.renamePlan('dd11', 'dd11', '  '), null, 'tailscale refuses empty rename nicknames')
