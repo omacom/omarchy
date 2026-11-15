@@ -1635,7 +1635,7 @@ save_profile() {
   if (( limit_given )); then
     case "$limit" in
       "" | unlimited) ;;
-      *) dhcp_range_for "$limit" >/dev/null ;;
+      *) dhcp_range_for "$limit" >/dev/null || return 1 ;;
     esac
   fi
   nm_band=$(nm_band_for "$band") || fail "unknown band '$band' (use 2.4, 5 or 6)"
@@ -1694,7 +1694,9 @@ apply_participant_limit() {
 
   case "$requested" in
     "" | unlimited) new_range="" ;;
-    *) new_range=$(dhcp_range_for "$requested") ;;
+    # Checked here too, not left to errexit: an empty range means unlimited,
+    # so a failed calculation read as one would clear the saved limit.
+    *) new_range=$(dhcp_range_for "$requested") || return 1 ;;
   esac
 
   if [[ -z $new_range ]]; then
