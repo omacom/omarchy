@@ -18,7 +18,7 @@ if ! grep -qx '\[preferred\]' "$portal_config"; then
 fi
 
 # Files first, GTK where Files doesn't provide the chooser yet.
-sed -i '/^\[preferred\]$/a org.freedesktop.impl.portal.FileChooser=folio;gtk' "$portal_config"
+sed --follow-symlinks -i '/^\[preferred\]$/a org.freedesktop.impl.portal.FileChooser=folio;gtk' "$portal_config"
 
 # Activate it immediately in a live desktop
 if systemctl --user is-active --quiet xdg-desktop-portal.service 2>/dev/null; then
