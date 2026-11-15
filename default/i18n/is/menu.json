@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Aukatákn"
+  },
+  "system.firmware": {
+    "label": "Endurræsa í BIOS",
+    "description": "Endurræsa í UEFI-vélbúnaðaruppsetningu"
   }
 }

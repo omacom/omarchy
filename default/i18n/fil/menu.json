@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Dagdag na Mga Icon"
+  },
+  "system.firmware": {
+    "label": "I-reboot sa BIOS",
+    "description": "Mag-restart sa UEFI firmware setup"
   }
 }

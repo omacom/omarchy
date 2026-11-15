@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Lisaikoonid"
+  },
+  "system.firmware": {
+    "label": "BIOS-i taaskäivitus",
+    "description": "Taaskäivita UEFI püsivara seadistusse"
   }
 }

@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Ikony navíc"
+  },
+  "system.firmware": {
+    "label": "Restart do BIOSu",
+    "description": "Restartovat do nastavení firmwaru UEFI"
   }
 }

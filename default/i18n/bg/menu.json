@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Допълнителни икони"
+  },
+  "system.firmware": {
+    "label": "Рестартиране в BIOS",
+    "description": "Рестартиране в настройките на UEFI фърмуера"
   }
 }

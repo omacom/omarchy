@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Додаткові іконки"
+  },
+  "system.firmware": {
+    "label": "Перезавантажити в BIOS",
+    "description": "Перезапуск у налаштування прошивки UEFI"
   }
 }

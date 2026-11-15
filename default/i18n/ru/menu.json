@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Дополнительные значки"
+  },
+  "system.firmware": {
+    "label": "Перезагрузка в BIOS",
+    "description": "Перезагрузка в настройки прошивки UEFI"
   }
 }

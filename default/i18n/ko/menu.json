@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "추가 아이콘"
+  },
+  "system.firmware": {
+    "label": "BIOS로 재시작",
+    "description": "UEFI 펌웨어 설정으로 재시작"
   }
 }

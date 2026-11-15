@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Icone aggiuntive"
+  },
+  "system.firmware": {
+    "label": "Riavvia nel BIOS",
+    "description": "Riavvia nelle impostazioni del firmware UEFI"
   }
 }

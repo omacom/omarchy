@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Papildomos piktogramos"
+  },
+  "system.firmware": {
+    "label": "Perkrauti į BIOS",
+    "description": "Paleisti iš naujo į UEFI programinės įrangos nustatymus"
   }
 }

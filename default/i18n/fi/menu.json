@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Lisäkuvakkeet"
+  },
+  "system.firmware": {
+    "label": "Käynnistä BIOSiin",
+    "description": "Käynnistä uudelleen UEFI-laiteohjelmiston asetuksiin"
   }
 }

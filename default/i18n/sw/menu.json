@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Ikoni za ziada"
+  },
+  "system.firmware": {
+    "label": "Washa upya hadi BIOS",
+    "description": "Washa upya hadi mipangilio ya firmware ya UEFI"
   }
 }

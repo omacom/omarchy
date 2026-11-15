@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Extra ikonok"
+  },
+  "system.firmware": {
+    "label": "Újraindítás BIOS-ba",
+    "description": "Újraindítás az UEFI firmware-beállításba"
   }
 }

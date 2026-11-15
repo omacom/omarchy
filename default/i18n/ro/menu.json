@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Pictograme suplimentare"
+  },
+  "system.firmware": {
+    "label": "Repornire în BIOS",
+    "description": "Repornește în configurarea firmware UEFI"
   }
 }

@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Dodatne ikone"
+  },
+  "system.firmware": {
+    "label": "Ponovno pokretanje u BIOS",
+    "description": "Ponovno pokretanje u postavke UEFI firmvera"
   }
 }

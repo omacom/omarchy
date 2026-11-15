@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Extra-Icons"
+  },
+  "system.firmware": {
+    "label": "Neustart ins BIOS",
+    "description": "Ins UEFI-Firmware-Setup neu starten"
   }
 }

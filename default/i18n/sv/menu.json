@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Extra ikoner"
+  },
+  "system.firmware": {
+    "label": "Starta om till BIOS",
+    "description": "Starta om till UEFI-firmwareinställningarna"
   }
 }

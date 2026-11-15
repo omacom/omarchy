@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Icones extra"
+  },
+  "system.firmware": {
+    "label": "Reiniciar a la BIOS",
+    "description": "Reiniciar a la configuració del microprogramari UEFI"
   }
 }

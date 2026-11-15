@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Icônes supplémentaires"
+  },
+  "system.firmware": {
+    "label": "Redémarrer vers le BIOS",
+    "description": "Redémarrer dans la configuration du firmware UEFI"
   }
 }

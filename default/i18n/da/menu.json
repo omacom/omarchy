@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Ekstra ikoner"
+  },
+  "system.firmware": {
+    "label": "Genstart til BIOS",
+    "description": "Genstart til UEFI-firmwareopsætningen"
   }
 }

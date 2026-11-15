@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "額外圖示"
+  },
+  "system.firmware": {
+    "label": "重新啟動至 BIOS",
+    "description": "重新啟動並進入 UEFI 韌體設定"
   }
 }

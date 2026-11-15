@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "追加アイコン"
+  },
+  "system.firmware": {
+    "label": "BIOSへ再起動",
+    "description": "UEFIファームウェア設定で再起動"
   }
 }

@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "අමතර අයිකන"
+  },
+  "system.firmware": {
+    "label": "BIOS වෙත නැවත අරඹන්න",
+    "description": "UEFI ස්ථිරාංග සැකසුම් වෙත නැවත අරඹන්න"
   }
 }
