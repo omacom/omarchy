@@ -12,6 +12,13 @@ bash -n "$setup" || fail "Surface Laptop 7 hardware script has valid syntax"
 
 require_platform_fixtures "the Surface Laptop 7 setup"
 
+# The installer is offline, so the ISO's mirror must carry what the setup adds.
+
+for package in microsoft-surface-snapdragon-addresses iptsd; do
+  grep -Fxq "$package" "$ROOT/install/omarchy-other.packages" ||
+    fail "the ISO can supply $package offline"
+done
+
 run_setup() (
   set -eE
   local dir=$1
