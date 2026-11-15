@@ -19,7 +19,8 @@ if omarchy-cmd-missing snapper; then
   exit 127 # omarchy-update can use this to just ignore if snapper is not available
 fi
 
-backend=$(omarchy-boot-backend)
+# Without the boot commands (an older install), snapshots work as on Limine.
+backend=$(omarchy-boot-backend 2>/dev/null || echo limine)
 
 # The snapshot the running system was booted from, if any.
 booted_snapshot() {

@@ -53,6 +53,13 @@
   "system.shutdown": {
     "label": "Shutdown"
   },
+  "system.snapshots": {
+    "label": "Snapshots",
+    "title": "Boot Into Snapshot"
+  },
+  "system.snapshot-restore": {
+    "label": "Restore This Snapshot"
+  },
   "learn.keybindings": {
     "label": "Keybindings"
   },
@@ -709,6 +716,9 @@
   },
   "setup.direct-boot": {
     "label": "Direct Boot"
+  },
+  "setup.boot-loader": {
+    "label": "Switch to systemd-boot"
   },
   "setup.reset": {
     "label": "Reset Computer"
