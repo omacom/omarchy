@@ -31,6 +31,12 @@ else
   HOTSPOT_LOCK_FILE="${OMARCHY_HOTSPOT_LOCK_FILE:-}"
   HOTSPOT_LOCK_WAIT="${OMARCHY_HOTSPOT_LOCK_WAIT:-30}"
 fi
+# Marks a save the running AP has not picked up yet (see apply).
+if (( EUID == 0 )); then
+  HOTSPOT_PENDING_FILE=""
+else
+  HOTSPOT_PENDING_FILE="${OMARCHY_HOTSPOT_PENDING_FILE:-${XDG_RUNTIME_DIR:-/run/user/$EUID}/omarchy-hotspot.pending}"
+fi
 HOTSPOT_LOCK_HELD=0
 HOTSPOT_SHARED_LOCK_HELD=0
 FIREWALL_STATE_FILE="$HOTSPOT_STATE_DIR/firewall.state"
@@ -1362,6 +1368,8 @@ start() {
   if ! nm_up_error=$(nmcli connection up "$PROFILE" 2>&1 >/dev/null); then
     rollback_start "could not start hotspot (does this adapter allow AP mode on band '$band'?): $nm_up_error" 1
   fi
+  # The AP now runs the saved settings.
+  hotspot_pending_clear
   if ! ipv4_forwarding_enabled; then
     rollback_start "IPv4 forwarding is not enabled after hotspot activation" 1
   fi
@@ -1515,6 +1523,8 @@ hotspot_release() {
 stop() {
   hotspot_lock
   ap_down || return 1
+  # Down, the AP runs nothing; the next start uses the saved settings.
+  hotspot_pending_clear
   # A first start elsewhere may have created the shared lock after this stop
   # took its locks. Wait for that start under the shared lock, then take down
   # whatever it brought up before releasing the host state it owns.
@@ -1713,6 +1723,20 @@ profile_live_settings() {
   profile_secret
 }
 
+hotspot_pending_set() {
+  [[ -n $HOTSPOT_PENDING_FILE ]] || return 0
+  : >"$HOTSPOT_PENDING_FILE" 2>/dev/null || true
+}
+
+hotspot_pending_clear() {
+  [[ -n $HOTSPOT_PENDING_FILE ]] || return 0
+  rm -f "$HOTSPOT_PENDING_FILE"
+}
+
+hotspot_pending() {
+  [[ -n $HOTSPOT_PENDING_FILE && -e $HOTSPOT_PENDING_FILE ]]
+}
+
 # Save the settings, and put them on air when the AP is already up and they
 # changed what it runs on. NetworkManager keeps an active connection on the
 # settings it started with, while status and the QR card read the saved
@@ -1722,23 +1746,38 @@ profile_live_settings() {
 # (a preference that waits for the next start) leaves them connected. The
 # firewall is brought in line first, as start does, so a new subnet is
 # allowed before clients get leases on it.
+# The profile is written before the firewall step, which can stop at a
+# cancelled password prompt. A pending mark, set before the write and cleared
+# only once the AP runs the saved settings (or is down), lets a retry of the
+# same save finish the restart instead of finding nothing changed.
 apply() {
-  local nm_up_error="" before="" after=""
+  local nm_up_error="" before="" after="" pending=0
   hotspot_lock
+  hotspot_pending && pending=1
   if profile_active; then
     before=$(profile_live_settings)
+    hotspot_pending_set
   fi
   save_profile "$@"
-  profile_active || return 0
+  if ! profile_active; then
+    hotspot_pending_clear
+    return 0
+  fi
   after=$(profile_live_settings)
-  [[ $after != "$before" ]] || return 0
+  if [[ $after == "$before" ]] && (( pending == 0 )); then
+    hotspot_pending_clear
+    return 0
+  fi
   firewall_ensure
   if ! nm_up_error=$(nmcli connection up "$PROFILE" 2>&1 >/dev/null); then
     # The AP is down for good: give back the firewall rules and forwarding it
-    # was holding, as turning it off would.
+    # was holding, as turning it off would. The next start uses the saved
+    # settings, so nothing is pending any more.
+    hotspot_pending_clear
     stop || fail "saved the hotspot settings, but the hotspot did not come back up and releasing its host state failed: $nm_up_error"
     fail "saved the hotspot settings, but the hotspot did not come back up: $nm_up_error"
   fi
+  hotspot_pending_clear
   forwarding_ensure || fail "hotspot restarted, but IPv4 forwarding is not enabled"
 }
 
