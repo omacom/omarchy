@@ -574,7 +574,7 @@ for (const [name, verb] of [['startHotspot', 'start'], ['applyHotspot', 'apply']
   assert(source, 'network has ' + name)
   if (!source) continue
   const state = {
-    hotspotBusy: false, hotspotSsid: ' Cafe ', hotspotPassword: 'longenough', hotspotBand: '5', hotspotLimitArgument: '4',
+    hotspotBusy: false, hotspotLoaded: true, hotspotSsid: ' Cafe ', hotspotPassword: 'longenough', hotspotBand: '5', hotspotLimitArgument: '4',
     hotspotCommand: 'omarchy-hotspot', hotspotError: '', hotspotActionKind: '',
     hotspotActionProc: {}, Model: network, Commons: englishCommons,
   }
