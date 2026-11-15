@@ -89,8 +89,9 @@ update_snapshot_marker="$test_tmp/update-snapshot-started"
 write_stub omarchy-snapshot 'echo "snapshot for $TEST_MARKER"; echo started >"$TEST_MARKER"; sleep 0.8; exit 0'
 
 # Both updates start fresh, as a user would, through the real script(1): the
-# second has to stop before script(1) opens, and truncates, the running
-# update's transcript.
+# second opens the transcript before it reaches the lock, and must not wipe the
+# running update's log. A previous run's transcript is still cleared.
+printf 'previous update\n' >"$test_tmp/omarchy-update.log"
 TEST_MARKER="$update_snapshot_marker" run_with_lock_env "$SUDO_TEST_ROOT/bin/omarchy-update" -y </dev/null >"$test_tmp/update-first.out" 2>&1 &
 update_pid=$!
 
@@ -108,6 +109,7 @@ set -e
 wait "$update_pid"
 
 grep -q "snapshot for $update_snapshot_marker" "$test_tmp/omarchy-update.log" || fail "second omarchy-update left the running update's transcript alone"
+! grep -q "previous update" "$test_tmp/omarchy-update.log" || fail "update started its transcript afresh"
 [[ $update_second_status -ne 0 ]] || fail "second omarchy-update exits non-zero while update lock is held"
 grep -q "already running" "$test_tmp/update-second.out" || fail "second omarchy-update reports held update lock"
 [[ ! -f $test_tmp/update-second-snapshot-started ]] || fail "second omarchy-update did not snapshot while lock was held"

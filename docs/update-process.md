@@ -114,11 +114,11 @@ High-level flow:
 
 ```text
 omarchy-update
-  ├─ omarchy-update-lock free
-  │    └─ stop if an update is running, before script(1) can truncate its log
   ├─ ensure transcript logging through script(1) → /tmp/omarchy-update.log
+  │    └─ appending, so a second update cannot wipe a running update's log
   ├─ omarchy-update-lock
   │    └─ acquire the update lock and run omarchy-update inside it
+  ├─ start the transcript afresh, now that this update holds the lock
   ├─ omarchy-update-requires-free-space
   │    └─ abort below the configured free-space threshold on /
   ├─ confirm unless -y

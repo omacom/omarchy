@@ -11,7 +11,7 @@ copy_boundary_file bin/omarchy-update
 cat >"$SUDO_TEST_ROOT/bin/script" <<'STUB'
 #!/bin/bash
 printf 'logged-reexec\n' >>"$SUDO_TEST_LOG"
-[[ $1 == "-qefc" ]] || exit 90
+[[ $1 == "-qaefc" ]] || exit 90
 exec /usr/bin/bash -c "$2"
 STUB
 rm "$SUDO_TEST_ROOT/bin/omarchy-update-lock"

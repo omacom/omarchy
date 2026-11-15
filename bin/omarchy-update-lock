@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Run a command while holding the Omarchy update lock
-# omarchy:args=<held|free|run> [command] [args...]
+# omarchy:args=<held|run> [command] [args...]
 # omarchy:hidden=true
 
 set -e
@@ -19,26 +19,9 @@ lock_is_held() {
     flock -n "$OMARCHY_UPDATE_LOCK_FD"
 }
 
-report_holder() {
-  local owner_pid=""
-  echo "An Omarchy update is already running."
-  read -r owner_pid <"$lock_path" || true
-  if [[ $owner_pid =~ ^[0-9]+$ ]]; then
-    echo "Update lock acquired by PID $owner_pid."
-  fi
-}
-
 case "${1:-}" in
   held)
     lock_is_held
-    ;;
-  free)
-    # A probe only: the caller still takes the lock with run.
-    [[ -e $lock_path ]] || exit 0
-    exec {probe_fd}<"$lock_path"
-    flock -n "$probe_fd" && exit 0
-    report_holder
-    exit 1
     ;;
   run)
     shift
@@ -51,7 +34,12 @@ case "${1:-}" in
     # Opening a contender must not erase the holder's diagnostic PID.
     exec {OMARCHY_UPDATE_LOCK_FD}<>"$lock_path"
     if ! flock -n "$OMARCHY_UPDATE_LOCK_FD"; then
-      report_holder
+      echo "An Omarchy update is already running."
+      owner_pid=""
+      read -r owner_pid <"$lock_path" || true
+      if [[ $owner_pid =~ ^[0-9]+$ ]]; then
+        echo "Update lock acquired by PID $owner_pid."
+      fi
       exit 1
     fi
 
@@ -62,7 +50,7 @@ case "${1:-}" in
     exec "$@"
     ;;
   *)
-    echo "Usage: omarchy-update-lock <held|free|run> [command] [args...]" >&2
+    echo "Usage: omarchy-update-lock <held|run> [command] [args...]" >&2
     exit 2
     ;;
 esac
