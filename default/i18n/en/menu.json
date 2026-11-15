@@ -99,6 +99,12 @@
   "appearance.top-bar.show": {
     "label": "Show Bar"
   },
+  "appearance.top-bar.autohide": {
+    "label": "Auto-hide Bar"
+  },
+  "appearance.top-bar.always-on": {
+    "label": "Always-on Bar"
+  },
   "appearance.top-bar.position": {
     "label": "Position Bar"
   },
