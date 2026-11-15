@@ -5,6 +5,8 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 setup="$ROOT/install/hardware/lenovo/yoga-slim7x.sh"
+# The setup writes its kernel parameters through omarchy-boot-cmdline.
+export PATH="$ROOT/bin:$PATH"
 starter="$ROOT/install/hardware/lenovo/start-yoga-slim7x-remoteprocs.sh"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT

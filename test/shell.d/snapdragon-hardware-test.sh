@@ -322,8 +322,8 @@ run_leaves_on() (
   findmnt() { printf '/dev/mapper/root\n'; }
   lsblk() { printf 'nvme\n'; }
 
-  # kernel-params.sh writes a fixed path, so run a copy that writes the fixture.
-  sed "s|/etc/limine-entry-tool.d|$out/limine-entry-tool.d|g" "$kernel_params_setup" >"$out/kernel-params.sh"
+  # kernel-params.sh writes through omarchy-boot-cmdline; point it at the fixture.
+  export OMARCHY_BOOT_LIMINE_DROPINS="$out/limine-entry-tool.d" OMARCHY_BOOT_CMDLINE_DIR="$out/cmdline.d"
 
   OMARCHY_QUALCOMM_MODPROBE_DIR="$out/modprobe.d"
   OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs"
@@ -334,7 +334,7 @@ run_leaves_on() (
   OMARCHY_QUALCOMM_SYSTEM_CONF_DIR="$out/system.conf.d"
   source "$firmware_setup"
   source "$dtb_setup"
-  source "$out/kernel-params.sh"
+  source "$kernel_params_setup"
   source "$initramfs_setup"
   source "$reboot_watchdog_setup"
 )
