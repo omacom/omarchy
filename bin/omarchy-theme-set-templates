@@ -45,9 +45,9 @@ resolve_theme_ref() {
   local ref="$1"
   local fallback="${2:-}"
 
-  if [[ -n ${THEME_COLORS[$ref]+_} ]]; then
+  if [[ -n $ref && -n ${THEME_COLORS[$ref]:-} ]]; then
     REPLY="${THEME_COLORS[$ref]}"
-  elif [[ -n $fallback && -n ${THEME_COLORS[$fallback]+_} ]]; then
+  elif [[ -n $fallback && -n ${THEME_COLORS[$fallback]:-} ]]; then
     REPLY="${THEME_COLORS[$fallback]}"
   elif [[ -n $fallback ]]; then
     REPLY="$fallback"
@@ -58,7 +58,7 @@ resolve_theme_ref() {
 
 resolve_gradient_color() {
   trim "$1"
-  if [[ -n ${THEME_COLORS[$REPLY]+_} ]]; then
+  if [[ -n $REPLY && -n ${THEME_COLORS[$REPLY]:-} ]]; then
     REPLY="${THEME_COLORS[$REPLY]}"
   fi
 }
