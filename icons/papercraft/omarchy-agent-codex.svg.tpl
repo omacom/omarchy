@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <title>Codex</title>
-  <desc>Codex's cloud in a terminal window, as Herdr's ram, its prompt cut out to the highlight, with hard shadows.</desc>
+  <desc>Codex's cloud in a terminal window, as Herdr's ram, its prompt cut out in white, as on the logo, with hard shadows.</desc>
   <defs>
     <linearGradient id="main" x1="0" y1="0" x2="1" y2="1">
       <stop stop-color="{{ icon_main }}"/>
@@ -15,7 +15,7 @@
     <g transform="translate(124 124) scale(11)">
       <use href="#logo" fill="{{ icon_shadow }}" transform="translate(0 0.7273)"/>
       <!-- Shows through the prompt cut into the cloud. -->
-      <rect x="6" y="8.5" width="12" height="7.5" fill="{{ icon_mark }}"/>
+      <rect x="6" y="8.5" width="12" height="7.5" fill="#ffffff"/>
       <use href="#logo" fill="url(#main)"/>
     </g>
   </g>
