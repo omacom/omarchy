@@ -425,6 +425,9 @@ stop_screenrecording() {
   if omarchy-capture-screenrecording-process "${RECORDER[@]}"; then
     omarchy-capture-screenrecording-process "${RECORDER[@]}" --signal KILL
     omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingError)" "$(omarchy-i18n capture.recordingKilled)"
+  elif [[ ! -f $(cat "$RECORDING_FILE" 2>/dev/null) ]]; then
+    # No recording to finalize or show, as when stopping a recorder this script did not start.
+    :
   else
     local filename=$(cat "$RECORDING_FILE" 2>/dev/null)
     local preview="$RUNTIME_DIR/omarchy-screenrecord-preview-$$.png"

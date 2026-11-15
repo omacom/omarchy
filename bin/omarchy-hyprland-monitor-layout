@@ -1,0 +1,135 @@
+#!/bin/bash
+
+# omarchy:summary=Arrange monitors by placing each at a position in the layout
+# omarchy:args=NAME=XxY [NAME=XxY...] | --resized NAME OLD_MODE OLD_SCALE NEW_MODE NEW_SCALE
+# omarchy:examples=omarchy hyprland monitor layout eDP-1=0x0 DP-1=1280x0 | omarchy hyprland monitor layout --resized DP-1 6016x3384 2 5120x2880 2
+# omarchy:hidden=true
+
+# Positions are in Hyprland's layout space: logical pixels, after each
+# monitor's scale. Every position is applied in one eval, so the monitors never
+# pass through a half-moved arrangement, and then saved for each monitor.
+
+usage() {
+  echo "Usage: omarchy-hyprland-monitor-layout NAME=XxY [NAME=XxY...]"
+  echo "       omarchy-hyprland-monitor-layout --resized NAME OLD_SIZE OLD_SCALE NEW_SIZE NEW_SCALE [MODE [TRANSFORM]]"
+}
+
+monitors_json=$(hyprctl monitors -j)
+resized_name=""
+resized_scale=""
+resized_mode=""
+resized_transform=""
+
+# A monitor whose mode or scale changed keeps its corner, and every monitor to
+# its right or below it shifts by however much it grew or shrank, so the
+# monitors that touched it still do. Otherwise a smaller monitor leaves a gap
+# beside it, and a larger one overlaps its neighbour. Shifting sideways and
+# down at once can push two neighbours onto each other, so while any overlap
+# remains, a shifted monitor goes back where it was whenever that spot is free,
+# the overlapping ones first and then any whose return frees the way for them;
+# a gap is better than a pile-up. If overlaps still remain, the monitors keep
+# their old places when those are clear.
+#
+# Given the MODE, the resized monitor takes its new mode and scale in the same
+# eval as its neighbours move, ordered so no step overlaps: the ones moving away
+# from it first, farthest first, then it, then the ones closing in, nearest
+# first, so none moves into a spot another hasn't left. Resized on its own first, a
+# monitor that grew would sit over a neighbour until it moved, and Hyprland
+# warns about the overlap. Given a TRANSFORM too, it turns in the same eval; a
+# quarter turn's swapped size comes in as its NEW_SIZE.
+if [[ ${1:-} == "--resized" ]]; then
+  if (( $# < 6 || $# > 8 )) || [[ ! $3 =~ ^[0-9]+x[0-9]+$ || ! $5 =~ ^[0-9]+x[0-9]+$ ]] ||
+    [[ ! $4 =~ ^[0-9]+([.][0-9]+)?$ || ! $6 =~ ^[0-9]+([.][0-9]+)?$ ]] ||
+    [[ -n ${7:-} && ! $7 =~ ^[0-9]+x[0-9]+(@[0-9.]+)?$ ]] ||
+    [[ -n ${8:-} && ! $8 =~ ^[0-7]$ ]]; then
+    usage >&2
+    exit 1
+  fi
+  resized_mode="${7:-}"
+  resized_transform="${8:-}"
+  mapfile -t positions < <(jq -r --arg name "$2" \
+    --argjson ow "${3%x*}" --argjson oh "${3#*x}" --argjson os "$4" \
+    --argjson nw "${5%x*}" --argjson nh "${5#*x}" --argjson ns "$6" '
+    def logical($w; $h; $s; $t): [($w / $s | round), ($h / $s | round)] | if ($t % 2) == 1 then reverse else . end;
+    def overlaps($a; $b): $a.x < $b.x + $b.w and $b.x < $a.x + $a.w and $a.y < $b.y + $b.h and $b.y < $a.y + $a.h;
+    def piled: . as $r | any(range(0; length) as $i | range($i + 1; $r | length) as $j | overlaps($r[$i]; $r[$j]));
+    def unpile:
+      . as $r
+      | if ($r | piled | not) then $r else
+        [range(0; $r | length) as $i | $r[$i] as $a
+         | select($a.x != $a.ox or $a.y != $a.oy)
+         | ($a | .x = .ox | .y = .oy) as $back
+         | select(all($r[]; .name == $a.name or (overlaps($back; .) | not)))
+         | {i: $i, overlapping: any($r[]; .name != $a.name and overlaps($a; .))}]
+        | (map(select(.overlapping)) + map(select(.overlapping | not))) as $movable
+        | if ($movable | length) == 0 then $r else ($r | .[$movable[0].i] |= (.x = .ox | .y = .oy) | unpile) end
+      end;
+    (map(select(.name == $name))[0]) as $m
+    | if $m == null then empty else
+      logical($ow; $oh; $os; $m.transform // 0) as $old
+      | logical($nw; $nh; $ns; $m.transform // 0) as $new
+      | [.[] | select((.mirrorOf // "none") == "none")
+        | (if .name == $name then $new else logical(.width; .height; .scale; .transform // 0) end) as $size
+        | {name, ox: .x, oy: .y, w: $size[0], h: $size[1],
+           x: (if .name != $name and .x >= $m.x + $old[0] then .x + $new[0] - $old[0] else .x end),
+           y: (if .name != $name and .y >= $m.y + $old[1] then .y + $new[1] - $old[1] else .y end)}]
+      | unpile
+      | (map(.x = .ox | .y = .oy)) as $old
+      | if piled and ($old | piled | not) then $old else . end
+      | sort_by(if .name == $name then [1, 0]
+          elif .x > .ox or .y > .oy then [0, -(.ox + .oy)]
+          else [2, .ox + .oy] end)
+      | .[] | "\(.name)=\(.x)x\(.y)"
+    end' <<<"$monitors_json")
+  resized_name="$2"
+  resized_scale="$6"
+  set -- "${positions[@]}"
+fi
+
+if (( $# == 0 )); then
+  usage >&2
+  exit 1
+fi
+
+names=()
+positions=()
+expr=""
+
+for arg in "$@"; do
+  # The name is written into the Lua string eval'd below, so only a plain
+  # connector name may pass; a hostile one could execute otherwise.
+  if [[ ! $arg =~ ^([A-Za-z0-9._-]+)=(-?[0-9]+x-?[0-9]+)$ ]]; then
+    usage >&2
+    exit 1
+  fi
+  name="${BASH_REMATCH[1]}"
+  position="${BASH_REMATCH[2]}"
+
+  if ! jq -e --arg name "$name" 'any(.[]; .name == $name)' <<<"$monitors_json" >/dev/null; then
+    echo "No such monitor: $name" >&2
+    exit 1
+  fi
+
+  names+=("$name")
+  positions+=("$position")
+  if [[ $name == "$resized_name" && -n $resized_mode ]]; then
+    turn=""
+    [[ -n $resized_transform ]] && turn=", transform = $resized_transform"
+    expr+="hl.monitor({ output = \"$name\", mode = \"$resized_mode\", position = \"$position\", scale = $resized_scale$turn }) "
+  else
+    expr+="hl.monitor({ output = \"$name\", position = \"$position\" }) "
+  fi
+done
+
+hyprctl eval "$expr" >/dev/null
+
+for i in "${!names[@]}"; do
+  # The resized monitor saves the scale it was given, not one read back from
+  # Hyprland, so it can't race the change it follows.
+  if [[ ${names[i]} == "$resized_name" ]]; then
+    scale="$resized_scale"
+  else
+    scale=$(jq -r --arg name "${names[i]}" '.[] | select(.name == $name) | .scale' <<<"$monitors_json")
+  fi
+  omarchy-hyprland-monitor-persist "${names[i]}" "$scale" "" "${positions[i]}"
+done
