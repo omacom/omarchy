@@ -112,7 +112,7 @@ trap 'pkill -TERM -P $$; exit 130' TERM INT
 # `wait` lets Cancel stop it at once. It keeps this script's stdin, where the
 # panel sends a pasted code.
 interruptible() {
-  "$@" <&0 &
+  "$@" <&0 8>&- &
   wait $!
 }
 
@@ -148,6 +148,13 @@ login() {
 # Signing an account that's already here in again, where it lives: the
 # primary home through the normal browser, an added one through a private
 # window. Its home is never recreated or removed.
+# Switching accounts trades logins between homes, so none is traded while a
+# home is chosen and signed in to, by any of the sign-ins below.
+# Only this script holds it: nothing it starts inherits the descriptor, so a
+# CLI's helper or a background refresh can't keep it past the sign-in.
+signin_lock="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/accounts/.$provider.signin.lock"
+mkdir -p "${signin_lock%/*}" && exec 8>"$signin_lock" && flock 8 || fail "$(omarchy-i18n agents.homeFailed)"
+
 if [[ -n $reauth ]]; then
   if [[ $reauth == ":primary" ]]; then
     account_home="$HOME/.$provider"
@@ -165,7 +172,7 @@ if [[ -n $reauth ]]; then
     interruptible env BROWSER="$browser" "$home_env=$account_home" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
   fi
 
-  omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+  omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 8>&- &
   finish "$(omarchy-i18n agents.signedInAgain "$name")"
   exit 0
 fi
@@ -182,7 +189,7 @@ if ! primary_signed_in "$provider"; then
       mkdir -p "$HOME/.config/omarchy/defaults"
       printf '%s\n' "$provider" >"$HOME/.config/omarchy/defaults/agent"
     fi
-    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 8>&- &
     finish "$(omarchy-i18n agents.signedIn "$name")"
   else
     fail "$(omarchy-i18n agents.signInFailed "$name")"
@@ -193,7 +200,7 @@ else
   if recovered=$(omarchy-agent-account-state recover "$provider"); then
     if [[ $(jq 'length' <<<"$recovered") != "0" ]]; then
       added=$(jq -r 'map(.label + (if .email != "" then " (" + .email + ")" else "" end)) | join(", ")' <<<"$recovered")
-      omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+      omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 8>&- &
       finish "$(omarchy-i18n agents.added "$added")"
       exit 0
     fi
@@ -226,7 +233,7 @@ EOF
   if account=$(omarchy-agent-account-state register "$provider" "$label" "$home" 2>&1); then
     home=""
     added=$(jq -r '.label + (if .email != "" then " (" + .email + ")" else "" end)' <<<"$account")
-    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 8>&- &
     if [[ $events == "true" ]]; then
       finish "$(omarchy-i18n agents.added "$added")"
     else
