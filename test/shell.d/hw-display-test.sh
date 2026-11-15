@@ -67,6 +67,11 @@ device=$(hw_display)
 [[ $device == "gmux_backlight" ]] || fail "gmux outranks the GPU backlights on dual-GPU Macs" "actual: $device"
 pass "gmux outranks the GPU backlights on dual-GPU Macs"
 
+write_backlights gmux_backlight intel_backlight lp8545_backlight
+device=$(hw_display)
+[[ $device == "lp8545_backlight" ]] || fail "the direct LP8545 fallback beats ineffective gmux PWM" "actual: $device"
+pass "the direct LP8545 fallback beats ineffective gmux PWM"
+
 write_backlights
 if hw_display >/dev/null 2>&1; then
   fail "no backlight device reports failure"

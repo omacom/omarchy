@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Apply an internal Apple panel profile from a local display override archive
+# omarchy:args=[--archive ZIP] [--dry-run|--generate-only ICC|--remove] [--output CONNECTOR]
+# omarchy:examples=omarchy setup apple-display-profile --archive ~/Downloads/overrides.zip --dry-run
+
+exec /usr/bin/python3 "$OMARCHY_PATH/default/color/apple-display-profile.py" "$@"
