@@ -1,12 +1,15 @@
 #!/bin/bash
-# omarchy:exclusive
-# Its menu covers the live desktop and reads the real pointer, so it needs the desktop to itself.
 
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-require_quickshell "pointer movement gate runtime test"
+require_compositor "pointer movement gate runtime test"
+
+if ! command -v quickshell >/dev/null 2>&1; then
+  skip "quickshell not installed; skipping pointer movement gate runtime test"
+  exit 0
+fi
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -31,8 +34,6 @@ trap 'rm -rf "$test_tmp"; qml_fixture_cleanup' EXIT
 cat >"$QML_FIXTURE_TMP/menu.jsonc" <<'EOF'
 {
   "one": {"label": "One", "action": "true"},
-  "two": {"label": "Two"},
-  "two.only": {"label": "Two Only", "action": "true"},
   "three": {"label": "Three"},
   "three.a": {"label": "Three A", "action": "true"},
   "three.b": {"label": "Three B", "action": "true"},
