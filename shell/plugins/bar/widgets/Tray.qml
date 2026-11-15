@@ -21,16 +21,44 @@ BarWidget {
   property var barOverflow: null
   readonly property var overflowKeys: barOverflow ? barOverflow.keys : []
   readonly property int overflowCount: overflowKeys.length
-  // While the overflow drawer is open, hide the center sections so they do not
-  // draw through it. The bar keeps its normal background; the drawer itself
-  // paints none.
-  Binding {
-    target: root.bar
-    property: "overflowDrawerOpen"
-    value: root.overflowCount > 0 && root.revealProgress > 0
-    when: root.bar !== null && root.bar.overflowDrawerOpen !== undefined
+  readonly property real drawerCoverStart: trayContent.item ? trayContent.item.drawerCoverStart : 0
+  readonly property real drawerCoverLength: trayContent.item ? trayContent.item.drawerCoverLength : 0
+  property int previousOverflowCount: 0
+  // Opening a normal drawer over hover is fine, but if overflow appears while
+  // it is open the drawer was opened by hover and would stay open under the
+  // pointer. Close it so the click-to-open mode starts from a clean state.
+  Component.onCompleted: previousOverflowCount = overflowCount
+  onOverflowCountChanged: {
+    if (previousOverflowCount === 0 && overflowCount > 0) expanded = false
+    previousOverflowCount = overflowCount
   }
-  Component.onDestruction: if (root.bar && root.bar.overflowDrawerOpen !== undefined) root.bar.overflowDrawerOpen = false
+  // While the overflow drawer is open, the sections it reaches hide so they
+  // do not draw through it. The bar keeps its normal background; the drawer
+  // itself paints none.
+  Binding {
+    target: root.barOverflow
+    property: "drawerOpen"
+    value: root.overflowCount > 0 && root.revealProgress > 0
+    when: root.barOverflow !== null
+  }
+  Binding {
+    target: root.barOverflow
+    property: "coverStart"
+    value: root.drawerCoverStart
+    when: root.barOverflow !== null
+  }
+  Binding {
+    target: root.barOverflow
+    property: "coverLength"
+    value: root.drawerCoverLength
+    when: root.barOverflow !== null
+  }
+  Component.onDestruction: {
+    if (!root.barOverflow) return
+    root.barOverflow.drawerOpen = false
+    root.barOverflow.coverStart = 0
+    root.barOverflow.coverLength = 0
+  }
   property var activeTrayItem: null
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
@@ -296,6 +324,8 @@ BarWidget {
       id: horizontalTrayRoot
 
       readonly property int chevronWidth: root.hasDrawer ? expandIcon.implicitWidth : 0
+      readonly property real drawerCoverStart: drawerArea.x
+      readonly property real drawerCoverLength: drawerArea.width
       readonly property var sectionShown: root.shownSection(drawerArea.x + trayClip.x, trayClip.width, drawerArea.x + trayClip.x + drawerContent.x + section.x, section.width)
 
       implicitWidth: pinnedRow.implicitWidth + chevronWidth + root.revealExtent
@@ -391,6 +421,8 @@ BarWidget {
       id: verticalTrayRoot
 
       readonly property int chevronHeight: root.hasDrawer ? expandIcon.implicitHeight : 0
+      readonly property real drawerCoverStart: drawerArea.y
+      readonly property real drawerCoverLength: drawerArea.height
       readonly property var sectionShown: root.shownSection(drawerArea.y + trayClip.y, trayClip.height, drawerArea.y + trayClip.y + drawerContent.y + section.y, section.height)
 
       implicitWidth: root.barSize

@@ -122,10 +122,6 @@ Item {
   // A widget is being dragged that could go into the tray section, so the
   // tray's drawer opens to show where.
   readonly property bool traySectionDragActive: !!barDragSource && !barDragSource.hostsTraySection
-  // The tray's overflow drawer is open over the center sections. They hide
-  // while it is open so their content does not draw through the revealed
-  // applets; the bar's own background remains, unlike an opaque patch.
-  property bool overflowDrawerOpen: false
   // An open panel from a widget in the tray section keeps the tray's drawer
   // open, so the panel's widget stays on screen under it.
   readonly property bool traySectionPopoutOpen: {
@@ -825,6 +821,11 @@ Item {
     var regions = BarModel.navigationRegions(region)
     var slots = []
     for (var r = 0; r < regions.length; r++) {
+      // The center sections are hidden under the open overflow drawer; do not
+      // tab into a panel the user cannot see.
+      if (window && window.overflowCoversCenter &&
+          (regions[r] === "centerBegin" || regions[r] === "center" || regions[r] === "centerEnd") &&
+          window.overflowCoversCenter()) continue
       var entries = layoutEntries(regions[r])
       for (var i = 0; i < entries.length; i++) {
         var id = entryId(entries[i])
@@ -1751,7 +1752,72 @@ Item {
     // section's budget could not hold. Third-party widgets do not receive it.
     readonly property QtObject overflowApi: QtObject {
       property var keys: barWindow.overflowTrayKeys
+      // Set by the first-party tray while its overflow drawer is open. The
+      // geometry is in the tray widget's own coordinates, along the bar.
+      property bool drawerOpen: false
+      property real coverStart: 0
+      property real coverLength: 0
     }
+
+    function traySlotOnWindow() {
+      for (var i = 0; i < moduleSlots.length; i++) {
+        var slot = moduleSlots[i]
+        if (!slot || slot.moduleName !== "omarchy.tray" || !sameWindow(slotWindow(slot), barWindow)) continue
+        if (slot.activeItem && slot.activeItem.overflowCount > 0) return slot
+      }
+      return null
+    }
+
+    // Whether the open overflow drawer reaches this section on this surface.
+    // The drawer paints no patch of its own, so the sections it covers hide
+    // and let the bar's normal background through.
+    function overflowCoversRegion(region) {
+      if (!overflowApi.drawerOpen || overflowApi.coverLength <= 0) return false
+      var tray = traySlotOnWindow()
+      if (!tray || tray.region === region) return false
+
+      var vertical = root.vertical
+      var slots = []
+      for (var i = 0; i < moduleSlots.length; i++) {
+        var slot = moduleSlots[i]
+        if (!slot || slot.region !== region || !slot.visible || slot.widgetWidth <= 0 || slot.widgetHeight <= 0) continue
+        if (!sameWindow(slotWindow(slot), barWindow)) continue
+        slots.push(slot)
+      }
+      if (slots.length === 0) return false
+
+      var trayPoint = { x: tray.x, y: tray.y }
+      try {
+        trayPoint = tray.mapToItem(null, 0, 0)
+      } catch (e) {
+      }
+      var start = (vertical ? trayPoint.y : trayPoint.x) + overflowApi.coverStart
+      var end = start + overflowApi.coverLength
+
+      for (var j = 0; j < slots.length; j++) {
+        var point = { x: slots[j].x, y: slots[j].y }
+        try {
+          point = slots[j].mapToItem(null, 0, 0)
+        } catch (e) {
+        }
+        var slotStart = vertical ? point.y : point.x
+        var slotEnd = slotStart + (vertical ? slots[j].height : slots[j].width)
+        if (Math.min(end, slotEnd) > Math.max(start, slotStart)) return true
+      }
+      return false
+    }
+
+    function overflowCoversCenter() {
+      var tray = traySlotOnWindow()
+      if (tray && (tray.region === "centerBegin" || tray.region === "center" || tray.region === "centerEnd")) return false
+      return overflowCoversRegion("centerBegin") || overflowCoversRegion("center") || overflowCoversRegion("centerEnd")
+    }
+
+    // A property, not a bare function call in each binding: the drawer's own
+    // geometry changes as it animates open, and the bindings need those reads
+    // to re-evaluate when it reaches the center.
+    readonly property bool overflowCoversCenterNow:
+      overflowApi.drawerOpen && overflowApi.coverLength > 0 && overflowCoversCenter()
 
     function sectionKeys(region) {
       var keys = root.layoutWidgets.sections[region] || []
@@ -2031,7 +2097,7 @@ Item {
           window: barWindow
           pool: horizontalPool
           drawn: !barWindow.centerBesideRight
-          sectionsHidden: root.overflowDrawerOpen
+          sectionsHidden: barWindow.overflowCoversCenterNow
         }
 
         LeftModules {
@@ -2061,7 +2127,8 @@ Item {
           pool: horizontalPool
           active: barWindow.centerBesideRight
           besideRight: true
-          visible: !root.overflowDrawerOpen
+          opacity: barWindow.overflowCoversCenterNow ? 0 : 1
+          enabled: !barWindow.overflowCoversCenterNow
           anchors.right: rightModules.left
           anchors.rightMargin: Style.space(4)
           anchors.top: parent.top
@@ -2099,7 +2166,7 @@ Item {
           anchors.fill: parent
           window: barWindow
           pool: verticalPool
-          sectionsHidden: root.overflowDrawerOpen
+          sectionsHidden: barWindow.overflowCoversCenterNow
         }
 
         LeftModules {
@@ -2376,12 +2443,14 @@ Item {
     keys: window ? window.sectionKeys("left") : root.layoutWidgets.sections.left
     region: "left"
     fixedEdge: "start"
+    concealed: window ? window.overflowApi.drawerOpen && window.overflowApi.coverLength > 0 && window.overflowCoversRegion("left") : false
   }
 
   component RightModules: ModuleList {
     keys: window ? window.sectionKeys("right") : root.layoutWidgets.sections.right
     region: "right"
     fixedEdge: "end"
+    concealed: window ? window.overflowApi.drawerOpen && window.overflowApi.coverLength > 0 && window.overflowCoversRegion("right") : false
   }
 
   // The gesture area under the whole bar, with the center sections drawn over
@@ -2404,7 +2473,8 @@ Item {
       window: centerRoot.window
       pool: centerRoot.pool
       active: centerRoot.drawn
-      visible: !centerRoot.sectionsHidden
+      opacity: centerRoot.sectionsHidden ? 0 : 1
+      enabled: !centerRoot.sectionsHidden
     }
   }
 
@@ -2681,8 +2751,14 @@ Item {
     // is shown (BarModel.sectionRows).
     property var rowMemo: ({})
     readonly property var listRows: BarModel.sectionRows(keys, root.sectionSpacers(region, window), rowMemo)
+    // A section the open overflow drawer reaches blanks so its applets do not
+    // draw through the drawer. The bar's own background shows instead. Keep it
+    // laid out: collapsing it would move the drawer coverage and flicker.
+    property bool concealed: false
 
     visible: listRows.length > 0
+    opacity: concealed ? 0 : 1
+    enabled: !concealed
     flow: root.vertical ? GridLayout.TopToBottom : GridLayout.LeftToRight
     rowSpacing: 0
     columnSpacing: 0
