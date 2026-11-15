@@ -432,6 +432,20 @@ pass "minimize leaves windows on a tiled workspace alone"
 
 # Exercise the production release handler and model synchronization against a
 # real Qt Quick Grid: deferred model moves must not replay after a manual drop.
+# /usr/bin/qmltestrunner may be Qt 5; use the same Qt 6 lookup as other shell tests.
+qml_test_runner=""
+for candidate in /usr/lib/qt6/bin/qmltestrunner /usr/lib/qt6/qmltestrunner; do
+  if [[ -x $candidate ]]; then
+    qml_test_runner=$candidate
+    break
+  fi
+done
+
+if [[ -z $qml_test_runner ]]; then
+  skip "qt6 qmltestrunner not found; skipping dock release geometry test"
+  exit 0
+fi
+
 ROOT="$ROOT" TEST_TMP="$TMPDIR" python - <<'PY'
 from pathlib import Path
 import os,re
@@ -514,5 +528,5 @@ Item {
 qml=qml.replace('METHODS',method(window,'settleShifts')+'\n'+method(window,'endDrag')).replace('HANDLER',release).replace('SYNC',method(dock,'syncItemModel'))
 (dest/'tst_dock_release.qml').write_text(qml)
 PY
-QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input "$TMPDIR/tst_dock_release.qml"
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software "$qml_test_runner" -input "$TMPDIR/tst_dock_release.qml"
 pass "manual dock release commits grid positions before deferred motion resumes"
