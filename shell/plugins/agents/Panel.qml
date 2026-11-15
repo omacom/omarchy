@@ -1312,7 +1312,7 @@ Panel {
   property string shownPhrase: ""
   readonly property string heroPhrase: addStage !== "" || blankSlate
     ? addHeading
-    : (shownPhrase !== "" ? shownPhrase : Commons.I18n.t("agents.subscriptions"))
+    : (shownPhrase !== "" ? shownPhrase : Commons.I18n.t("agents.letsMakeSomethingCool"))
 
   function showPhrase() {
     var n = summaryPhrases.length
@@ -1395,7 +1395,7 @@ Panel {
   readonly property string addHeading: setupShown
     ? (addReauth ? Commons.I18n.t("agents.signingInAgain") : Commons.I18n.t("agents.settingUp"))
     : picking || addProvider === ""
-    ? (blankSlate ? Commons.I18n.t("agents.addAccount") : Commons.I18n.t("agents.addAnother"))
+    ? (blankSlate ? Commons.I18n.t("agents.letTheTokensFlow") : Commons.I18n.t("agents.addAnother"))
     : Commons.I18n.t("agents.addProviderAccount").arg(addProviderName(addProvider))
   onAddStageChanged: {
     phraseSwap.stop()
@@ -1785,17 +1785,6 @@ Panel {
     spacing: Style.space(14)
 
     PanelSeparator { foreground: root.foreground }
-
-    Text {
-      visible: root.blankSlate && root.picking
-      width: parent.width
-      text: Commons.I18n.t("agents.signInIntro")
-      textFormat: Text.PlainText
-      color: root.dim
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
-      wrapMode: Text.WordWrap
-    }
 
     // Pick: each agent by a large mark over its name, three across.
     Row {
