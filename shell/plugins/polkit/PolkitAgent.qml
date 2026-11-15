@@ -35,7 +35,7 @@ Item {
   property bool errorFlash: false
   // The private authentication store opens this only after lock discovery.
   // Keep the agent registered so locked-session requests are rejected here.
-  property bool authenticationBlocked: true
+  property alias authenticationBlocked: authenticationGate.blocked
   // pam_fprintd appears in the polkit PAM stack (a sensor is enrolled).
   property bool fingerprintConfigured: false
   // Lid shut right now — the reader is physically unreachable, so we fall back
@@ -132,17 +132,17 @@ Item {
   }
 
   function rejectBlockedRequest() {
-    if (!authenticationBlocked) return false
-    var flow = polkitAgent.flow
-    if (flow) flow.cancelAuthenticationRequest()
-    closeTimer.stop()
-    closing = false
-    resetSnapshot()
-    return true
+    return authenticationGate.rejectBlockedRequest()
   }
 
-  onAuthenticationBlockedChanged: {
-    if (authenticationBlocked) rejectBlockedRequest()
+  AuthenticationGate {
+    id: authenticationGate
+    flow: polkitAgent.flow
+    onRejected: {
+      closeTimer.stop()
+      root.closing = false
+      root.resetSnapshot()
+    }
   }
 
   function triggerFailureFeedback() {

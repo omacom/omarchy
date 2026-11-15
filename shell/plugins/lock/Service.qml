@@ -73,6 +73,8 @@ Item {
   readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
   // A prompt clears the unavailable notice before the attempt finishes.
   readonly property bool fingerprintUnavailable: FingerprintModel.isUnavailable(fingerprintProbeStreak) || (fingerprintConfigured && (!fingerprintAttemptReachedDevice || fingerprintAttemptFastError) && FingerprintModel.isUnavailable(fingerprintUnreachedStreak))
+  // Enrollment alone does not mean this PAM conversation owns the reader.
+  readonly property bool fingerprintReady: fingerprintConfigured && fingerprintAuthenticating && fingerprintAttemptReachedDevice && !fingerprintAttemptFastError
 
   function realScreenCount() {
     var screens = Quickshell.screens || []
@@ -513,6 +515,7 @@ Item {
         backgroundVersion: root.backgroundVersion
         fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
         fingerprintUnavailable: root.fingerprintUnavailable
+        fingerprintReady: root.fingerprintReady
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
@@ -549,6 +552,7 @@ Item {
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
       fingerprintUnavailable: root.fingerprintUnavailable
+      fingerprintReady: root.fingerprintReady
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0
@@ -898,6 +902,7 @@ Item {
         passwordPam: root.passwordPamConfigured,
         fingerprint: root.fingerprintConfigured,
         fingerprintUnavailable: root.fingerprintUnavailable,
+        fingerprintReady: root.fingerprintReady,
         authenticating: root.authenticating,
         lastEvent: root.lastEvent,
         lastEventAt: root.lastEventAt

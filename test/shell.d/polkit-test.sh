@@ -103,3 +103,6 @@ store.put('custom.lock', lockSource(false))
 replacement.setBlocked(true)
 assert(!agent.authenticationBlocked, 'replacing a lock disconnects the old state producer')
 JS
+
+require_quickshell "Polkit cancellation lifecycle"
+run_qml_fixture polkit-authentication-gate "Polkit gate cancels active and newly arriving locked requests"

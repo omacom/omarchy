@@ -135,6 +135,7 @@ fi
 
 # Configure PAM
 setup_pam_config
+sudo env OMARCHY_PATH="$OMARCHY_PATH" "$OMARCHY_PATH/bin/omarchy-apply-polkit"
 
 # Test with sudo
 echo -e "\nTesting FIDO2 authentication with sudo..."

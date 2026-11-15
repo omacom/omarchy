@@ -192,6 +192,11 @@ case "${1:-}" in
       reject "$@"
     fi
     ;;
+  env)
+    if (( $# != 3 )) || [[ $2 != "OMARCHY_PATH=$OMARCHY_PATH" || $3 != "$OMARCHY_PATH/bin/omarchy-apply-polkit" ]]; then
+      reject "$@"
+    fi
+    ;;
   echo)
     if (( $# != 2 )) || [[ $2 != "FIDO2 authentication test successful" ]]; then
       reject "$@"
