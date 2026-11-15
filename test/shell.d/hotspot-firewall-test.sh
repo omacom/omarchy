@@ -1368,6 +1368,24 @@ DRIVER
 run_isolated "$TEST_TMP/start-limit-driver.sh"
 pass "start applies the chosen participant limit"
 
+# A limit whose range cannot be worked out (a subnet the hotspot cannot size,
+# such as a /16) fails instead of reading as unlimited, and leaves the saved
+# range alone, even where errexit is off.
+reset_firewall_fixture
+touch "$PROFILE_STATE"
+: >"$NMCLI_LOG"
+cat >"$TEST_TMP/limit-subnet-driver.sh" <<'DRIVER'
+shared_base() { echo "hotspot subnet must be a /24" >&2; return 1; }
+set +e
+apply_participant_limit 1 4
+status=$?
+set -e
+(( status != 0 )) || { echo "an unsizable subnet was accepted" >&2; exit 1; }
+DRIVER
+run_isolated "$TEST_TMP/limit-subnet-driver.sh" 2>/dev/null || fail "a limit whose range cannot be worked out is refused"
+! grep -q 'connection modify .*shared-dhcp-range' "$NMCLI_LOG" || fail "a refused limit leaves the saved range alone" "$(<"$NMCLI_LOG")"
+pass "a limit whose range cannot be worked out fails without clearing the saved range"
+
 # A live limit change that cannot bring the AP back gives back the host
 # state the AP held, as turning it off would. apply() restarts the AP after
 # the save; the stand-in save changes only the limit.
