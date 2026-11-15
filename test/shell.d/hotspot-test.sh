@@ -921,6 +921,14 @@ grep -qx "connection modify omarchy-hotspot wifi-sec.key-mgmt sae wifi-sec.pmf r
   fail "apply reads a separate --security value" "$(<"$TEST_TMP/nmcli.log")"
 pass "apply takes --security after its operands"
 
+# The mode waits for the next start, as the panel says: saving only it while
+# the hotspot runs writes the profile but leaves joined devices connected.
+HOTSPOT_ACTIVE=1 hotspot_apply --security=wpa3 || fail "apply saves a security choice while the hotspot runs" "$(<"$TEST_TMP/apply.out")"
+grep -q "connection modify omarchy-hotspot wifi-sec.key-mgmt sae" "$TEST_TMP/nmcli.log" ||
+  fail "a live security choice is written to the profile" "$(<"$TEST_TMP/nmcli.log")"
+! grep -q "connection up" "$TEST_TMP/nmcli.log" || fail "saving only the security choice does not restart the hotspot" "$(<"$TEST_TMP/nmcli.log")"
+pass "saving only the security choice leaves a running hotspot's devices connected"
+
 hotspot_apply || fail "apply without a security choice still succeeds" "$(<"$TEST_TMP/apply.out")"
 grep -qx "connection modify omarchy-hotspot wifi-sec.key-mgmt wpa-psk wifi-sec.pmf optional $pinned" "$TEST_TMP/nmcli.log" ||
   fail "apply without a choice re-pins the saved mode" "$(<"$TEST_TMP/nmcli.log")"
