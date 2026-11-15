@@ -1,40 +1,68 @@
 # Flýtilyklar
 
-Þú getur séð allar helstu lyklaborðsbindingar með `Super + K` (Tmux bindingar með `Super + Alt + K` og Herdr bindingar með `Super + Ctrl + K`).
+Þú getur séð allar helstu lykilbindingar með `Super + K` (Tmux bindingar með `Super + Alt + K` og Herdr bindingar með `Super + Ctrl + K`).
+
+## Hvernig flýtilyklar eru skipulagðir
+
+Sérhver flýtilykill situr á plani, sem breytulyklarnir ákvarða, og hvert plan hefur eitt hlutverk. Það heldur flýtilyklunum frá því að renna saman, og það þýðir að þú getur yfirleitt giskað á hvar eitthvað býr.
+
+| Plan | Hvað býr þar | Dæmi |
+| --- | --- | --- |
+| `Super + key` | Kerfið: gluggar, vinnusvæði, framsetningar og kjarnavalmyndir | `Super + Space` Omarchy valmynd, `Super + W` loka glugga, `Super + F` fullur skjár |
+| `Super + Shift + key` | Forrit | `Super + Shift + B` vafri, `Super + Shift + E` tölvupóstur, `Super + Shift + N` ritill |
+| `Super + Ctrl + key` | Spjöld og kerfisvalmyndir | `Super + Ctrl + A` hljóð, `Super + Ctrl + N` net, `Super + Ctrl + C` upptökuvalmynd |
+| `Super + Ctrl + Alt + key` | Flýtiaðgerðir og tilkynningar | `Super + Ctrl + Alt + T` sýna tíma, `Super + Ctrl + Alt + B` rafhlaða, `Super + Ctrl + Alt + C` skjámynd |
+
+Að bæta `Alt` við flýtilykil gefur þér afbrigði af sama hlutnum, aldrei eitthvað óskylt:
+
+- `Super + Shift + B` opnar vafrann; `Super + Shift + Alt + B` opnar einkaglugga
+- `Super + Shift + E` opnar tölvupóst; `Super + Shift + Alt + E` byrjar nýjan
+- `Super + F` fer á fullan skjá; `Super + Alt + F` fer í fulla breidd
+- `Super + Ctrl + C` opnar upptökuvalmyndina; `Super + Ctrl + Alt + C` sleppir valmyndinni og tekur skjámynd
+
+Þegar þú bætir við flýtilykli:
+
+1. Veldu planið út frá því hvað hann gerir, veldu síðan lykilinn.
+2. Ekki færa núverandi flýtilykil til að búa til pláss. Finndu lausan lykil á rétta planinu.
+3. Notaðu `Alt` aðeins fyrir afbrigði af flýtilyklinum án hans.
+
+Nokkrir flýtilyklar brjóta þessar reglur af því að þeir eru þægilegir. `Shift` með ör eða `Tab` færir eða snýr við í stað þess að opna forrit, og `Print`, miðlunarlyklarnir, `Alt + Tab` og `Ctrl + Alt + Del` virka eins og þeir gera alls staðar annars staðar. Þeir eru undantekningar, ekki mynstur til að afrita.
+
+Ef sjálfgefinn lykill hentar þér ekki (segjum að þú viljir `Super + Shift + S` fyrir skjámyndir eins og á Windows), endurbindu hann í `~/.config/hypr/bindings.lua`.
 
 ## Að fara um
 
 | Flýtilykill                  | Virkni              |
 | ----------------------- | --------------------- |
 | `Super + Space`           | Omarchy valmynd (forrit og allt annað)    |
-| `Super + Alt + Space` | Forritarist |
-| `Super + Escape` | Kerfisvalmynd (sofna, endurræsa, o.s.frv.)  |
+| `Super + Alt + Space` | Forritayfirlit |
+| `Super + Escape` | Kerfisvalmynd (svæfa, endurræsa o.s.frv.)  |
 | `Super + Ctrl + L` | Læsa tölvu |
-| `Super + W` eða `Super + Q` | Loka glugga             |
+| `Super + W` or `Super + Q` | Loka glugga             |
 | `Ctrl + Alt + Del` | Loka öllum gluggum |
-| `Super + T`               | Víxla glugga á milli flísa/fljótandi             |
-| `Super + J` | Víxla stöðu glugga (lárétt/lóðrétt) |
-| `Super + O`               | Víxla því að gluggi skjótist upp í klístraða og fljótandi stöðu |
-| `Super + L`               | Fletta í gegnum dwindle, scrolling og floating skipulögin |
-| `Super + Alt + L`         | Fletta í gegnum skipulögin í öfugri röð |
-| `Super + P`               | Víxla gerviglugga stíl (náttúrulegur á móti teygður) |
-| `Super + F`                 | Fara í fullan skjá              |
+| `Super + T`               | Skipta glugga á milli flísalagningar/fljótandi             |
+| `Super + J` | Skipta stöðu glugga (lárétt/lóðrétt) |
+| `Super + O`               | Skipta glugga í límandi og fljótandi |
+| `Super + L`               | Fara í gegnum dwindle, scrolling og floating framsetningarnar |
+| `Super + Alt + L`         | Fara í gegnum framsetningarnar í öfugri röð |
+| `Super + P`               | Skipta á milli pseudo gluggastíls (náttúrulegur á móti teygður) |
+| `Super + F`                 | Fara á fullan skjá              |
 | `Super + Alt + F`                 | Fara í fulla breidd              |
-| `Super + Ctrl + F`                 | Fara í fullan skjá inni í glugga              |
-| `Super + 1/2/3/4`         | Hoppa á tiltekið vinnusvæði á skjánum sem er í fókus |
-| `Super + Tab` | Hoppa á næsta vinnusvæði á skjánum sem er í fókus |
-| `Super + Shift + Tab` | Hoppa á fyrra vinnusvæði á skjánum sem er í fókus |
-| `Super + Ctrl + Tab` | Hoppa á vinnusvæðið sem var áður á skjánum sem er í fókus |
-| `Super + Shift + 1/2/3/4` | Færa glugga á vinnusvæði á skjánum sem er í fókus |
-| `Super + Shift + Alt + 1/2/3/4` | Færa glugga á vinnusvæði á skjánum sem er í fókus án þess að fylgja eftir |
-| `Super + S` | Víxla fullri kladdasíðu |
+| `Super + Ctrl + F`                 | Fara á fullan skjá inni í glugga              |
+| `Super + 1/2/3/4`         | Fara á tiltekið vinnusvæði á virkum skjá |
+| `Super + Tab` | Fara á næsta vinnusvæði á virkum skjá |
+| `Super + Shift + Tab` | Fara á fyrra vinnusvæði á virkum skjá |
+| `Super + Ctrl + Tab` | Fara á áður notað vinnusvæði á virkum skjá |
+| `Super + Shift + 1/2/3/4` | Færa glugga á vinnusvæði á virkum skjá |
+| `Super + Shift + Alt + 1/2/3/4` | Færa glugga á vinnusvæði á virkum skjá án þess að fylgja á eftir |
+| `Super + S` | Kveikja/slökkva á fullri kladdasíðu |
 | `Super + Alt + S` | Færa glugga á fulla kladdasíðu |
-| `Super + Grave` | Víxla Quake stjórnborði |
+| `Super + Grave` | Kveikja/slökkva á Quake stjórnborði |
 | `Super + Shift + Grave` | Færa glugga á Quake stjórnborð |
 | `Super + Shift + Ctrl + Arrows` | Færa glugga á skjáinn í þá átt |
 | `Super + Shift + Alt + Arrows` | Færa vinnusvæði á skjáinn í þá átt |
-| `Super + Arrow`  | Færa fókus á glugga í átt örvarinnar, farið yfir á skjáinn þeim megin við jaðar skjásins |
-| `Super + Shift + Arrow`  | Skipta glugga við annan í átt örvarinnar, þar með talinn glugga á skjánum þeim megin |
+| `Super + Arrow`  | Færa fókus á glugga í átt örvarinnar, fara yfir á skjáinn þeim megin við jaðar skjásins |
+| `Super + Shift + Arrow`  | Skipta á glugga og öðrum í átt örvarinnar, þar á meðal einum á skjánum þeim megin |
 | `Super + Minus` | Stækka glugga til vinstri |
 | `Super + Equal` | Minnka glugga til vinstri |
 | `Super + Shift + Minus` | Minnka glugga upp |
@@ -43,58 +71,59 @@
 | `Super + Ctrl + Minus/Equal` | Sama stærðarbreyting í stærri skrefum |
 | `Super + Alt + Home` | Vista breidd glugga |
 | `Super + Home` | Endurheimta vistaða breidd glugga |
-| `Super + Left Mouse` | Draga glugga til |
+| `Super + Left Mouse` | Draga glugga um |
 | `Super + Right Mouse` | Breyta stærð glugga |
-| `Super + Scroll Wheel` | Skruna í gegnum vinnusvæði á skjánum sem er í fókus |
-| `Super + G`               | Víxla hópun glugga      |
-| `Super + Alt + G`               | Færa glugga út úr hópun      |
-| `Super + Alt + Tab`               | Fletta á milli glugga í hópun      |
-| `Super + Alt + Shift + Tab`               | Fletta afturábak á milli glugga í hópun      |
-| `Super + Alt + Scroll Wheel` | Fletta á milli glugga í hópun |
-| `Super + Alt + 1/2/3/4/5`               | Hoppa á tiltekinn glugga í hópun      |
-| `Super + Alt + Arrow`  | Færa glugga inn í hópun í átt örvarinnar, þar með talinn glugga á skjánum þeim megin |
+| `Super + Scroll Wheel` | Skruna í gegnum vinnusvæði á virkum skjá |
+| `Super + G`               | Kveikja/slökkva á gluggahópun      |
+| `Super + Alt + G`               | Færa glugga úr hópun      |
+| `Super + Alt + Tab`               | Fara á milli glugga í hópun      |
+| `Super + Alt + Shift + Tab`               | Fara aftur á bak á milli glugga í hópun      |
+| `Super + Alt + Scroll Wheel` | Fara á milli glugga í hópun |
+| `Super + Alt + 1/2/3/4/5`               | Fara á tiltekinn glugga í hópun      |
+| `Super + Alt + Arrow`  | Færa glugga inn í hópun í átt örvarinnar, þar á meðal einn á skjánum þeim megin |
 | `Super + Ctrl + Left/Right`  | Fara á milli glugga inni í flísahópi |
-| `Super + Ctrl + Z` | Þysja inn á skjá (endurtaktu fyrir meiri þysjun) |
-| `Super + Ctrl + Alt + Z` | Þysja alveg út af skjá |
-| `Super + /` | Fara áfram í gegnum valkosti fyrir kvörðun skjás |
-| `Super + Alt + /` | Fara afturábak í gegnum valkosti fyrir kvörðun skjás |
-| `Alt + Tab` | Fletta áfram í gegnum glugga á virka vinnusvæðinu |
-| `Alt + Shift + Tab` | Fletta afturábak í gegnum glugga á virka vinnusvæðinu |
-| `Ctrl + Alt + Tab`| Fletta fókus áfram í gegnum skjái |
-| `Ctrl + Alt + Shift + Tab`| Fletta fókus afturábak í gegnum skjái |
+| `Super + Ctrl + Z` | Þysja inn á skjáinn (endurtaktu fyrir meiri þysjun) |
+| `Super + Ctrl + Alt + Z` | Þysja alveg út af skjánum |
+| `Super + /` | Fara áfram í gegnum kvörðunarkosti skjás |
+| `Super + Alt + /` | Fara aftur á bak í gegnum kvörðunarkosti skjás |
+| `Alt + Tab` | Fara áfram í gegnum glugga á virku vinnusvæði |
+| `Alt + Shift + Tab` | Fara aftur á bak í gegnum glugga á virku vinnusvæði |
+| `Ctrl + Alt + Tab`| Færa fókus áfram í gegnum skjái |
+| `Ctrl + Alt + Shift + Tab`| Færa fókus aftur á bak í gegnum skjái |
 
-Flýtilyklar fyrir stærðarbreytingu nota efnislega lyklana `code:20` og `code:21` (XKB `<AE11>` og `<AE12>`), óháð því hvaða stafir eru prentaðir á lyklaborðið. Á bandarískum lyklaborðum eru þessir lyklar `-` og `=`; á japönskum (JIS) lyklaborðum eru þeir `-` og `^`; á spænskum lyklaborðum eru þeir `'` og `¡`. Á JIS er `Super + ^` það sama og `Super + Equal`, en `Super + Shift + -` (sem skrifar `=`) er `Super + Shift + Minus`.
+Stærðarbreytingarflýtilyklar nota eðlislyklana `code:20` og `code:21` (XKB `<AE11>` og `<AE12>`), óháð stöfunum sem prentaðir eru á lyklaborðið. Á bandarískum lyklaborðum eru þessir lyklar `-` og `=`; á japönskum (JIS) lyklaborðum eru þeir `-` og `^`; á spænskum lyklaborðum eru þeir `'` og `¡`. Á JIS er `Super + ^` það sama og `Super + Equal`, en `Super + Shift + -` (sem skrifar `=`) er `Super + Shift + Minus`.
 
 ## Kerfisstýringar
 
 | Flýtilykill                  | Virkni              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + A`           | Hljóðborð    |
-| `Super + Ctrl + B`           | Bluetooth borð    |
-| `Super + Ctrl + N`           | Wi-Fi/netborð    |
-| `Super + Ctrl + D`           | Skjáborð    |
-| `Super + Ctrl + P`           | Orkuborð    |
-| `Super + Ctrl + Alt + D`           | Dagatalsborð    |
-| `Super + Ctrl + Alt + E`           | Heimsklukkuborð    |
-| `Super + Ctrl + 1-9`           | Víxla borði á stikunni eftir stöðu    |
-| `Super + Ctrl + S` | Deilivalmynd (í gegnum LocalSend) |
-| `Super + Ctrl + C` | Töku stýringar (skjámynd/-upptaka/veljari) |
-| `Super + Ctrl + O` | Víxla valmynd |
+| `Super + Ctrl + A`           | Hljóðspjald    |
+| `Super + Ctrl + B`           | Bluetooth spjald    |
+| `Super + Ctrl + N`           | Wi-Fi/netspjald    |
+| `Super + Ctrl + D`           | Skjáspjald    |
+| `Super + Ctrl + P`           | Aflspjald    |
+| `Super + Ctrl + X`           | Agents spjald    |
+| `Super + Ctrl + Alt + D`           | Dagatalsspjald    |
+| `Super + Ctrl + Alt + E`           | Heimsklukkuspjald    |
+| `Super + Ctrl + 1-9`           | Kveikja/slökkva á spjaldi á stikunni eftir stöðu    |
+| `Super + Ctrl + S` | Deilingarvalmynd (í gegnum LocalSend) |
+| `Super + Ctrl + C` | Upptökustýringar (skjámynd/-upptaka/veljari) |
+| `Super + Ctrl + O` | Rofavalmynd |
 | `Super + Ctrl + H` | Vélbúnaðarvalmynd |
-| `Super + Ctrl + E` | Broskallaveljari |
-| `Super + Ctrl + .` | Kóða miðla yfir |
-| `Super + Shift + Ctrl + A` | Velja AI umboðsmann |
+| `Super + Ctrl + E` | Emoji veljari |
+| `Super + Ctrl + .` | Umkóða miðla |
+| `Super + Shift + Ctrl + A` | Velja AI agent |
 
 ## Stillingar
 
 | Flýtilykill                  | Virkni              |
 | ----------------------- | --------------------- |
-| `Shift + Brightness Up` | Hámarks birta skjás |
-| `Shift + Brightness Down` | Lágmarks birta skjás |
-| `Alt + Brightness Up/Down` | Nákvæmar 1% breytingar á birtu |
-| `Alt + Volume Up/Down` | Nákvæmar 1% breytingar á hljóðstyrk |
-| `Keyboard Brightness Up/Down` | Baklýsing lyklaborðs bjartari/deyfðari |
-| `Keyboard Backlight` | Fletta í gegnum stig baklýsingar lyklaborðs |
+| `Shift + Brightness Up` | Hámarksbirta skjás |
+| `Shift + Brightness Down` | Lágmarksbirta skjás |
+| `Alt + Brightness Up/Down` | Nákvæmar 1% birtubreytingar |
+| `Alt + Volume Up/Down` | Nákvæmar 1% hljóðstyrksbreytingar |
+| `Keyboard Brightness Up/Down` | Baklýsing lyklaborðs bjartari/dekkri |
+| `Keyboard Backlight` | Fara í gegnum stig baklýsingar lyklaborðs |
 | `Alt + Play` | Næsta lag |
 | `Alt + Shift + Play` | Fyrra lag |
 
@@ -102,13 +131,13 @@ Flýtilyklar fyrir stærðarbreytingu nota efnislega lyklana `code:20` og `code:
 
 | Flýtilykill                  | Virkni              |
 | ----------------------- | --------------------- |
-| `Super + Return`           | Flugstöð    |
-| `Super + Alt + Return` | Tmux flugstöð |
-| `Super + Ctrl + Return` | Herdr (umboðsstjóri) |
+| `Super + Return`           | Útstöð    |
+| `Super + Alt + Return` | Tmux útstöð |
+| `Super + Ctrl + Return` | Herdr (agent manager) |
 | `Super + Shift + Return`           | Vafri    |
 | `Super + Shift + Alt + B`           | Vafri (einka/huliðs)    |
 | `Super + Shift + F`           | Skráarstjóri    |
-| `Super + Shift + Alt + F`           | Skráarstjóri í cwd flugstöðvarinnar    |
+| `Super + Shift + Alt + F`           | Skráarstjóri í cwd útstöðvarinnar    |
 | `Super + Shift + M`           | Tónlist (Spotify)    |
 | `Super + Shift + Alt + M`           | Tónlist (cliamp)    |
 | `Super + Shift + /`           | Lykilorðastjóri (1password)    |
@@ -139,43 +168,43 @@ Breyttu/bættu við bindingum í `~/.config/hypr/bindings.lua`.
 | ----------------------- | --------------------- |
 | `Super + A`           | Velja allt í forritum sem styðja `Ctrl + A`    |
 | `Super + C`           | Afrita    |
-| `Super + X`           | Klippa (ekki í flugstöð)    |
+| `Super + X`           | Klippa (ekki í útstöð)    |
 | `Super + V`           | Líma    |
 | `Super + Ctrl + V`           | Klippiborðsstjóri    |
 
-Venjulega á Linux þarft þú `Ctrl + Shift + C/V` til að afrita og líma í flugstöðinni og `Ctrl + C/V` til að gera það alls staðar annars staðar. Þessir sameinuðu klippiborðsflýtilyklar Omarchy virka alls staðar.
+Venjulega á Linux þarftu `Ctrl + Shift + C/V` til að afrita og líma í útstöðinni og `Ctrl + C/V` til að gera það alls staðar annars staðar. Þessir sameinuðu klippiborðsflýtilyklar Omarchy virka alls staðar.
 
-## Taka
+## Upptaka
 
 | Flýtilykill              | Virkni                       |
 | ------------------- | ------------------------------ |
 | `Print Screen`            | Skjámynd                      |
 | `Super + Ctrl + Alt + C`            | Skjámynd (sama mynd, fyrir lyklaborð án Print Screen lykils) |
-| `Super + Ctrl + C` | Tökuvalmynd |
+| `Super + Ctrl + C` | Upptökuvalmynd |
 | `Alt + Print Screen`            | Skjáupptaka                     |
 | `Super + Print Screen` | Litaveljari |
 | `Super + Ctrl + Print Screen` | Textaútdráttur á klippiborð |
-| `Super + Alt + [` | Gera yfirlögn vefmyndavélar minni meðan á upptöku stendur |
-| `Super + Alt + ]` | Gera yfirlögn vefmyndavélar stærri meðan á upptöku stendur |
-| `Alt + Shift + L` | Afrita núverandi URL úr vefforriti eða Chromium |
+| `Super + Alt + [` | Minnka yfirlag vefmyndavélar meðan á upptöku stendur |
+| `Super + Alt + ]` | Stækka yfirlag vefmyndavélar meðan á upptöku stendur |
+| `Alt + Shift + L` | Afrita núverandi URL úr vefforriti eða vafra |
 | `Alt + Shift + D` | Sækja myndbandið á núverandi síðu í `~/Videos` |
-| `Alt + Space` | Byrja/stöðva upplestur (krefst _Uppsetning > Sjálfgefið > Upplestur_) |
-| `Right Alt` | Haltu inni til að lesa upp (krefst _Uppsetning > Sjálfgefið > Upplestur_) |
+| `Alt + Space` | Hefja/stöðva inntal (þarfnast _Uppsetning > Sjálfgefið > Inntal_) |
+| `Right Alt` | Haltu inni til að tala inn (þarfnast _Uppsetning > Sjálfgefið > Inntal_) |
 
-Með skjáupptökum spyr flýtilykillinn fyrst hvaða hljóð þú vilt, byrjar síðan upptökuna. Ýttu á hann aftur til að stöðva. Sjá [skjámyndir og upptöku](12-screenshots-recording.md) fyrir nánari upplýsingar.
+Með skjáupptökum spyr flýtilykillinn fyrst hvaða hljóð þú vilt, byrjar síðan upptöku. Ýttu á hann aftur til að stöðva. Sjá [skjámyndir og upptaka](12-screenshots-recording.md) fyrir nánari upplýsingar.
 
-Allir tökuvalkostir eru líka aðgengilegir undir _Kveikja > Taka_ í Omarchy valmyndinni (`Super + Space`).
+Allir upptökuvalkostir eru einnig aðgengilegir undir _Kveikja > Upptaka_ í Omarchy valmyndinni (`Super + Space`).
 
 ## Tilkynningar
 
 | Flýtilykill                  | Virkni              |
 | ----------------------- | --------------------- |
-| `Super + ,` | Bregðast við nýjustu tilkynningu: opna hana eða ýta á eina hnappinn hennar, velja úr valkostum hennar, eða hunsa hana þegar hún hefur enga  |
+| `Super + ,` | Bregðast við nýjustu tilkynningu: opna hana eða ýta á eina hnappinn hennar, velja úr valkostum hennar eða hunsa hana þegar hún hefur enga  |
 | `Super + Shift + ,` | Hunsa allar tilkynningar |
 | `Super + Ctrl + ,` | Stjórna tilkynningum með lyklaborðinu  |
 | `Super + Alt + ,` | Hunsa nýjustu tilkynningu  |
 | `Super + Shift + Alt + ,` | Opna tilkynningasögu  |
-| `Super + Ctrl + Alt + ,` | Víxla þöggun tilkynninga  |
+| `Super + Ctrl + Alt + ,` | Kveikja/slökkva á þöggun tilkynninga  |
 
 ## Stíll
 
@@ -183,25 +212,25 @@ Allir tökuvalkostir eru líka aðgengilegir undir _Kveikja > Taka_ í Omarchy v
 | ----------------------- | --------------------- |
 | `Super + Ctrl + T` | Velja nýtt þema (einnig `Super + Ctrl + Shift + Space`) |
 | `Super + Ctrl + W` | Velja bakgrunn þema (einnig `Super + Ctrl + Space`) |
-| `Super + Backspace` | Víxla gegnsæi á glugga |
-| `Super + Ctrl + Backspace` | Víxla ferköntuðu hlutfalli fyrir einn glugga |
+| `Super + Backspace` | Kveikja/slökkva á gegnsæi á glugga |
+| `Super + Ctrl + Backspace` | Kveikja/slökkva á ferköntuðu hlutfalli fyrir einn glugga |
 
-Aukamyndir fyrir bakgrunn eru í `~/.config/omarchy/backgrounds/<theme name>`. Einnig aðgengilegt í gegnum _Setja upp > Stíll > Bakgrunnur_ í Omarchy valmyndinni.
+Aukabakgrunnsmyndir búa í `~/.config/omarchy/backgrounds/<theme name>`. Einnig aðgengilegt í gegnum _Setja upp > Stíll > Bakgrunnur_ í Omarchy valmyndinni.
 
-Allir stílvalkostir eru líka aðgengilegir undir _Stíll_ í Omarchy valmyndinni (`Super + Space`).
+Allir stílvalkostir eru einnig aðgengilegir undir _Stíll_ í Omarchy valmyndinni (`Super + Space`).
 
-## Víxlar
+## Rofar
 
 | Flýtilykill                  | Virkni              |
 | ----------------------- | --------------------- |
-| `Super + Ctrl + I` | Víxla læsingu í aðgerðaleysi |
+| `Super + Ctrl + I` | Kveikja/slökkva á læsingu við aðgerðaleysi |
 | `Super + Ctrl + Delete` | Kveikja/slökkva á skjá fartölvu |
-| `Super + Ctrl + Alt + Delete` | Víxla speglun á skjá fartölvu |
-| `Super + Shift + Space` | Víxla efstu stikunni  |
+| `Super + Ctrl + Alt + Delete` | Kveikja/slökkva á speglun skjás fartölvu |
+| `Super + Shift + Space` | Kveikja/slökkva á efstu stikunni  |
 | `Shift + Mute` | Skipta yfir í næsta hljóðúttak |
 | `Shift + Play` | Skipta yfir í næsta miðlagjafa |
-| `Super + Shift + Backspace` | Víxla gluggabilum |
-| `Super + Ctrl + Alt + F` | Víxla fullskjá skjáborði (efsta stika + gluggabil) |
+| `Super + Shift + Backspace` | Kveikja/slökkva á gluggabilum |
+| `Super + Ctrl + Alt + F` | Kveikja/slökkva á skjáborði á fullum skjá (efsta stika + gluggabil) |
 
 ## Áminningar
 
@@ -211,13 +240,13 @@ Allir stílvalkostir eru líka aðgengilegir undir _Stíll_ í Omarchy valmyndin
 | `Super + Ctrl + Alt + R` | Sjá allar áminningar  |
 | `Super + Ctrl + Shift + R` | Hreinsa allar áminningar  |
 
-## Ábendingar
+## Smátilkynningar
 
 | Flýtilykill                  | Virkni              |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Alt + T` | Sýna tíma sem tilkynningu  |
 | `Super + Ctrl + Alt + B` | Sýna rafhlöðu sem tilkynningu  |
-| `Super + Ctrl + Alt + W` | Víxla veðri sem tilkynningu  |
+| `Super + Ctrl + Alt + W` | Kveikja/slökkva á veðri sem tilkynningu  |
 
 ## Tmux
 
@@ -230,10 +259,10 @@ Forskeytislykillinn er `Ctrl + Space` (`Ctrl + B` virkar líka). Þú getur brey
 | `Prefix + v` | Skipta rúðu við hliðina (lóðrétt) |
 | `Prefix + h` | Skipta rúðu fyrir neðan (lárétt) |
 | `Prefix + x` | Drepa rúðu |
-| `Prefix + z` | Víxla þysjun rúðu (fullur skjár) |
-| `Alt + Enter` | Skipta rúðu fyrir neðan (ekkert forskeyti) |
-| `Alt + Shift + Enter` | Skipta rúðu við hliðina (ekkert forskeyti) |
-| `Alt + Escape` | Drepa rúðu (ekkert forskeyti) |
+| `Prefix + z` | Kveikja/slökkva á þysjun rúðu (fullur skjár) |
+| `Alt + Enter` | Skipta rúðu fyrir neðan (án forskeytis) |
+| `Alt + Shift + Enter` | Skipta rúðu við hliðina (án forskeytis) |
+| `Alt + Escape` | Drepa rúðu (án forskeytis) |
 | `Ctrl + Alt + Arrows` | Fara á milli rúða |
 | `Ctrl + Alt + Shift + Arrows` | Breyta stærð rúða |
 
@@ -274,22 +303,22 @@ Forskeytislykillinn er `Ctrl + Space` (`Ctrl + B` virkar líka). Þú getur brey
 | Flýtilykill                  | Virkni              |
 | ----------------------- | --------------------- |
 | `Prefix + q` | Endurhlaða stillingum |
-| `Prefix + ?` | Sýna Tmux lyklabindingar |
+| `Prefix + ?` | Sýna Tmux lykilbindingar |
 | `Prefix + :` | Skipanalína |
 
-### Tmux skipulagsföll
+### Tmux framsetningaraðgerðir
 
-Þessi föll verður að keyra inni í Tmux setu.
+Þessar aðgerðir verður að keyra inni í Tmux setu.
 
 | Skipun | Virkni |
 | ------- | -------- |
-| `tdl <ai> [<second_ai>]` | Búa til þróunarskipulag með ritli, AI og flugstöð |
-| `tdlm <ai> [<second_ai>]` | Búa til þróunarskipulag fyrir hverja undirmöppu |
-| `tsl <count> <command>` | Búa til margrúðu sveimskipulag |
+| `tdl <ai> [<second_ai>]` | Búa til þróunarframsetningu með ritli, AI og útstöð |
+| `tdlm <ai> [<second_ai>]` | Búa til þróunarframsetningu fyrir hverja undirmöppu |
+| `tsl <count> <command>` | Búa til margra rúðu sveimframsetningu |
 
-## Ghostty Terminal
+## Ghostty útstöð
 
-Ghostty flugstöð er sett upp með _Setja upp > Flugstöð_ í gegnum Omarchy valmyndina.
+Ghostty útstöð er sett upp með _Setja upp > Útstöð_ í gegnum Omarchy valmyndina.
 
 | Flýtilykill                  | Virkni              |
 | ----------------------- | --------------------- |
@@ -301,7 +330,7 @@ Ghostty flugstöð er sett upp með _Setja upp > Flugstöð_ í gegnum Omarchy v
 | `Ctrl + Shift + T` | Nýr flipi  |
 | `Ctrl + Shift + Arrows` | Fara á milli flipa |
 | `Alt + Numbers` | Fara á tiltekinn flipa |
-| `Shift + Pg Up/Down` | Skruna söguna |
+| `Shift + Pg Up/Down` | Skruna í gegnum söguna |
 | `Ctrl + Left mouse` | Opna tengil í vafra |
 
 ## Skráarstjóri
@@ -309,18 +338,18 @@ Ghostty flugstöð er sett upp með _Setja upp > Flugstöð_ í gegnum Omarchy v
 | Flýtilykill              | Virkni                       |
 | ------------------- | ------------------------------ |
 | `Ctrl + L`            | Fara á slóð                     |
-| `Space`               | Forskoða skrá (örvar fletta) |
+| `Space`               | Forskoða skrá (örvar færa á milli) |
 | `Alt + Up`       | Fara upp í yfirmöppu        |
 
-## Neovim (w/ lazyvim)
+## Neovim (með lazyvim)
 
-### Leiðsögn
+### Að fara um
 
 | Flýtilykill                   | Virkni                        |
 | ------------------------ | ------------------------------- |
 | `Space`                    | Sýna skipunavalkosti            |
 | `Space Space`              | Opna skrá með óskýrri leit      |
-| `Space E`                  | Víxla hliðarstiku                  |
+| `Space E`                  | Kveikja/slökkva á hliðarstiku                  |
 | `Space G G`                | Sýna git stýringar               |
 | `Space S G`                | Leita í innihaldi skráa             |
 | `Ctrl + W W`               | Hoppa á milli hliðarstiku og ritils |
@@ -329,7 +358,7 @@ Ghostty flugstöð er sett upp með _Setja upp > Flugstöð_ í gegnum Omarchy v
 | `Shift + L`                      | Fara á skráarflipa til hægri            |
 | `Space B D`                | Loka skráarflipa                  |
 
-### Í hliðarstiku
+### Á meðan þú ert í hliðarstikunni
 
 | Flýtilykill                   | Virkni                        |
 | ------------------------ | ------------------------------- |
@@ -340,11 +369,11 @@ Ghostty flugstöð er sett upp með _Setja upp > Flugstöð_ í gegnum Omarchy v
 | `R`                        | Endurnefna merkta skrá/möppu     |
 | `?`                        | Sýna hjálp fyrir allar skipanir      |
 
-[Sjáðu alla Neovim flýtilykla sem LazyVim stillir](https://www.lazyvim.org/keymaps).
+[Sjá alla Neovim flýtilykla sem LazyVim stillir](https://www.lazyvim.org/keymaps).
 
-## Flýtibroskallar
+## Flýtitjáningartákn
 
-Þú getur notað `Super + Ctrl + E` til að sýna heildstæðan broskallaveljara sem setur valið á klippiborðið, eða þú getur notað þessa flýtivalkosti.
+Þú getur notað `Super + Ctrl + E` til að sýna heildstæðan emoji veljara sem setur valið á klippiborðið, eða þú getur notað þessa flýtiaðgangskosti.
 
 | Flýtilykill       | EM | Vísbending       |
 | ------------ | -- | ---------- |
@@ -355,29 +384,29 @@ Ghostty flugstöð er sett upp með _Setja upp > Flugstöð_ í gegnum Omarchy v
 | `Shift + CapsLock M H` | ❤️ | hjarta      |
 | `Shift + CapsLock M Y` | 👍 | já        |
 | `Shift + CapsLock M N` | 👎 | nei         |
-| `Shift + CapsLock M F` | 🖕 | langputti       |
+| `Shift + CapsLock M F` | 🖕 | fuck       |
 | `Shift + CapsLock M W` | 🤞 | ósk       |
 | `Shift + CapsLock M R` | 🤘 | rokk       |
 | `Shift + CapsLock M K` | 😘 | koss       |
-| `Shift + CapsLock M E` | 🙄 | augnvelta    |
+| `Shift + CapsLock M E` | 🙄 | augnrull    |
 | `Shift + CapsLock M I` | 😉 | blikk       |
-| `Shift + CapsLock M P` | 🙏 | biðja |
-| `Shift + CapsLock M D` | 🤤 | slef      |
+| `Shift + CapsLock M P` | 🙏 | bænir |
+| `Shift + CapsLock M D` | 🤤 | slefa      |
 | `Shift + CapsLock M M` | 💰 | peningar      |
-| `Shift + CapsLock M X` | 🎉 | fagna |
+| `Shift + CapsLock M X` | 🎉 | xellebrate |
 | `Shift + CapsLock M 1` | 💯 | 100%       |
 | `Shift + CapsLock M T` | 🥂 | skál      |
-| `Shift + CapsLock M O` |👌 | í lagi |
+| `Shift + CapsLock M O` |👌 | ok |
 | `Shift + CapsLock M G` |👋 | kveðja |
-| `Shift + CapsLock M A` |💪 | handleggur |
-| `Shift + CapsLock M B` |🤯 | sprengja |
+| `Shift + CapsLock M A` |💪 | armur |
+| `Shift + CapsLock M B` |🤯 | blástur |
 
 ## Flýtifyllingar
 
 | Flýtilykill       | Fylling       |
 | ------------ |  ---------- |
-| `Shift + CapsLock Space Space` | — (langt strik)   |
+| `Shift + CapsLock Space Space` | — (mdash)   |
 | `Shift + CapsLock Space N` | Nafnið þitt (eins og það var slegið inn við uppsetningu)  |
 | `Shift + CapsLock Space E` | Netfangið þitt (eins og það var slegið inn við uppsetningu)  |
 
-Þú getur bætt við fleiri sjálfur með því að breyta `~/.XCompose`, keyrðu síðan `omarchy-restart-xcompose` í flugstöðinni til að breytingarnar taki gildi.
+Þú getur bætt við fleiri eigin með því að breyta `~/.XCompose` og keyra síðan `omarchy-restart-xcompose` í útstöðinni til að breytingarnar taki gildi.

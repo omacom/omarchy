@@ -37,5 +37,5 @@ for mode in sharp rounded; do
   [[ $mode == "$1" ]] || rm -f "$TOGGLES_DIR/corners-$mode.lua" || exit 1
 done
 
-hyprctl reload >/dev/null || exit 1
+omarchy-restart-hyprctl
 omarchy-notification-send -g 󰘇 "$LABEL"
