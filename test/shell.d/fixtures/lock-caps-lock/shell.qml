@@ -7,6 +7,7 @@ ShellRoot {
   readonly property string resultPath: Quickshell.env("OMARCHY_QML_TEST_RESULT")
   readonly property string rootPath: Quickshell.env("OMARCHY_PATH")
   property var failures: []
+  property var queuedService: null
 
   function fail(message) {
     failures.push(String(message))
@@ -74,11 +75,41 @@ ShellRoot {
         view.destroy()
 
         checkService()
+        checkQueuedRefresh()
       } catch (error) {
         root.fail("lock caps lock fixture threw: " + error)
       } finally {
-        root.writeResult()
+        if (!root.queuedService) root.writeResult()
       }
+    }
+  }
+
+  // The stub hyprctl's first read is slow and reads off; the second reads on.
+  function checkQueuedRefresh() {
+    var component = Qt.createComponent("file://" + root.rootPath + "/shell/plugins/lock/Service.qml", Component.PreferSynchronous)
+    var service = component.createObject(host, { omarchyPath: root.rootPath })
+    if (!service) {
+      root.fail("Service failed to instantiate: " + component.errorString())
+      return
+    }
+    service.refreshCapsLock()
+    service.refreshCapsLock()
+    root.queuedService = service
+    queuedRefreshWatch.start()
+  }
+
+  Timer {
+    id: queuedRefreshWatch
+    interval: 50
+    repeat: true
+    property int ticks: 0
+    onTriggered: {
+      ticks += 1
+      if (!root.queuedService.capsLockOn && ticks < 60) return
+      stop()
+      root.assertTrue(root.queuedService.capsLockOn, "a refresh asked for during a read runs once that read exits")
+      root.queuedService.destroy()
+      root.writeResult()
     }
   }
 
