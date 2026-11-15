@@ -628,11 +628,36 @@ function summonAction(action) {
 }
 
 
+// A select option is "<label>", "<glyph>\t<label>", "<glyph>\t<label>\t<subtext>"
+// or "<glyph>\t<label>\t<subtext>\t<search terms>". The glyph never comes back
+// with the selection. The subtext renders under the label and returns with it
+// as a stable key for same-named rows. The search terms are never shown or
+// returned: they only let a row be found by words its label does not say.
+function dmenuOption(option) {
+  var parts = String(option || "").split("\t")
+  var icon = parts.length > 1 ? parts.shift() : ""
+  return { icon: icon, label: parts.shift() || "", detail: parts.shift() || "", searchTerms: parts.join("\t") }
+}
+
 // Multi-select requests return stable values, without icons, in option order.
 function dmenuValue(option) {
-  var parts = String(option || "").split("\t")
-  if (parts.length > 1) parts.shift()
-  return parts.join("\t")
+  var parsed = dmenuOption(option)
+  return parsed.detail ? parsed.label + "\t" + parsed.detail : parsed.label
+}
+
+// The indexes of the options a query keeps, in option order: first the ones
+// that say it in their label or subtext, then the ones only their search terms
+// find, so a row found by what it is called always leads.
+function dmenuMatches(options, query) {
+  var needle = String(query || "").trim().toLowerCase()
+  var named = []
+  var found = []
+  for (var i = 0; i < options.length; i++) {
+    var option = dmenuOption(options[i])
+    if (!needle || option.label.toLowerCase().indexOf(needle) >= 0 || option.detail.toLowerCase().indexOf(needle) >= 0) named.push(i)
+    else if (option.searchTerms.toLowerCase().indexOf(needle) >= 0) found.push(i)
+  }
+  return named.concat(found)
 }
 
 function dmenuSelections(options, selected, preserveOrder) {
@@ -715,7 +740,9 @@ if (typeof module !== "undefined") {
     descriptionTextMatches: descriptionTextMatches,
     matchesQuery: matchesQuery,
     searchScore: searchScore,
+    dmenuOption: dmenuOption,
     dmenuValue: dmenuValue,
+    dmenuMatches: dmenuMatches,
     dmenuSelections: dmenuSelections,
     toggleDmenuSelection: toggleDmenuSelection,
     displayRow: displayRow,

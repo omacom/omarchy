@@ -256,6 +256,16 @@ grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
 
+# A label says what a bind is for, not which app answers it, so the menu hands
+# the command along as search terms: typing the app's name finds its bind.
+eval "$(sed -n '/^menu_options()/,/^}/p' "$ROOT/bin/omarchy-menu-keybindings")"
+options=$(printf '%s\n' \
+  $'SUPER SHIFT + M → Music\texec\tomarchy-launch-spotify' \
+  $'SUPER + W → Close window\tlua\thl.dsp.window.close()' | menu_options)
+[[ $options == $'\tSUPER SHIFT + M → Music\t\tomarchy-launch-spotify\n\tSUPER + W → Close window\t\t' ]] ||
+  fail "the menu is searchable by the command a bind runs, and by nothing else it does not show" "$options"
+pass "the menu is searchable by the command a bind runs"
+
 # A plugin that walks the window list while it loads must not wedge the scan,
 # and the binds after it must still be recovered from the Lua source.
 {

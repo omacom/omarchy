@@ -423,4 +423,14 @@ const missingGlyphs = fontGlyphRows
   .filter(({ code }) => !fontRanges.some(([start, end = start]) => code >= start && code <= end))
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
+
+// A select option's fourth field finds its row without being shown or
+// returned, and a row found only that way lists after the ones named for the
+// query.
+const selectOptions = ['\tSUPER SHIFT + M → Music\t\tomarchy-launch-spotify', 'x\tSpotify settings\tAudio', 'Files']
+assertDeepEqual(menu.dmenuMatches(selectOptions, ' Spotify '), [1, 0], 'a select row named for the query leads one only its search terms find')
+assertDeepEqual(menu.dmenuMatches(selectOptions, 'audio'), [1], 'a select row is still found by its subtext')
+assertDeepEqual(menu.dmenuMatches(selectOptions, ''), [0, 1, 2], 'an empty query keeps every select row in order')
+assertEqual(menu.dmenuValue(selectOptions[0]), 'SUPER SHIFT + M → Music', 'search terms never come back with a selection')
+assertEqual(menu.dmenuOption(selectOptions[0]).detail, '', 'search terms are not shown as subtext')
 JS

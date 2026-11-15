@@ -729,6 +729,20 @@ output_keybindings() {
   output_binding_records | cut -f1
 }
 
+# The rows as the select menu takes them: no glyph, the row itself, no subtext,
+# then the command an exec bind runs as search terms. A label says what a bind
+# is for and not which app answers it, so this is what finds Music by typing
+# "spotify" and Passwords by typing "1password".
+menu_options() {
+  awk -F '\t' '{
+    terms = ""
+    if ($2 == "exec") {
+      for (i = 3; i <= NF; i++) terms = terms (i > 3 ? " " : "") $i
+    }
+    printf "\t%s\t\t%s\n", $1, terms
+  }'
+}
+
 trim() {
   local value="$1"
 
@@ -812,7 +826,7 @@ if [[ $1 == "--print" || $1 == "-p" ]]; then
   output_keybindings
 else
   records=$(output_binding_records)
-  selection=$(cut -f1 <<<"$records" |
+  selection=$(menu_options <<<"$records" |
     omarchy-menu-select "$(omarchy-i18n keybindings.title)" -- --width 800 --height 500)
 
   if [[ -n $selection ]]; then
