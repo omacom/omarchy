@@ -264,8 +264,10 @@ if command -v rsvg-convert >/dev/null && command -v magick >/dev/null; then
   touch -d '2001-01-01' "$drawn"
   switcher
   [[ $(stat -c '%Y' "$drawn") == "$(date -d '2001-01-01' +%s)" ]] || fail "a drawn preview is kept while its set and theme are as they were"
+  # Writing over an icon leaves its directory's time as it was.
+  set_time=$(stat -c '%Y' "$sets/drawn")
   printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4" fill="{{ icon_main }}"/></svg>\n' >"$sets/drawn/mpv.svg.tpl"
-  touch -d '2001-01-01' "$sets/drawn"
+  [[ $(stat -c '%Y' "$sets/drawn") == "$set_time" ]] || fail "the test edits an icon in place"
   switcher
   ! cmp -s "$drawn" "$test_tmp/drawn-first.png" || fail "a drawn preview is drawn again when an icon is edited in place"
   cp "$drawn" "$test_tmp/drawn-second.png"
@@ -276,7 +278,8 @@ if command -v rsvg-convert >/dev/null && command -v magick >/dev/null; then
 
   # A set the user wrote may link to its icons, as it may when it is drawn.
   mkdir -p "$sets/linked-icons"
-  ln -s "$sets/drawn/mpv.svg.tpl" "$sets/linked-icons/mpv.svg.tpl"
+  printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" fill="#123456"/></svg>\n' >"$test_tmp/linked-target.svg"
+  ln -s "$test_tmp/linked-target.svg" "$sets/linked-icons/mpv.svg"
   switcher
   [[ $(file -b --mime-type "$(readlink -f "$previews/linked-icons.png")") == "image/png" ]] || fail "a set of linked icons still gets a preview and shows in the picker"
   rm -r "$sets/linked-icons"
