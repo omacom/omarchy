@@ -37,6 +37,8 @@
   "agents.signInBrowser": "Sign in to %1 in the browser window that opens.",
   "agents.signInFailed": "The %1 sign-in didn't finish.",
   "agents.signInPrivate": "Sign in as the account you're adding in the private window that opens.",
+  "agents.readyToCode": "%1 is ready",
+  "agents.readyToCodeBody": "Make something cool",
   "agents.signedIn": "Signed in to %1.",
   "agents.signedInAgain": "Signed in to %1 again.",
   "agents.stayingOn": "Staying on %1.",
