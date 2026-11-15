@@ -464,6 +464,17 @@ assertDeepEqual(
   ['room:0'],
   'an empty section holds just the spacer'
 )
+assertDeepEqual(
+  bar.sectionRows(['tray', 'c'], [4], {}).map(row => row.kind + ':' + (row.place === undefined ? row.key : row.place)),
+  ['widget:tray', 'widget:c', 'spacer:4'],
+  'a room past the last drawn widget still shows at the end'
+)
+const foldedSections = { left: [], centerBegin: [], center: [], centerEnd: [], right: ['tray', 'a', 'b', 'c'], tray: [] }
+assertDeepEqual(
+  bar.dropRoom({ slot: { widgetKey: 'c', region: 'right' }, after: true }, { key: 'x', region: 'right' }, foldedSections, { tray: true, c: true }),
+  { region: 'right', index: 4, home: false },
+  'a drop after the last drawn widget still reaches the end of the folded span'
+)
 
 // A layout places items on whole pixels, so the places get whole lengths
 // that add up to the rounded room, however it is split between them.
@@ -517,7 +528,7 @@ assertDeepEqual(
 assertDeepEqual(
   bar.foldSection(['a', 'b', 'c'], slotLength, 56, {}, true),
   { visible: ['b', 'c'], hidden: ['a'] },
-  'without a tray the section still keeps its outer widgets'
+  'without a widget to keep, the section still keeps its outer widgets'
 )
 assertDeepEqual(bar.foldSection([], slotLength, 0, {}, true), { visible: [], hidden: [] }, 'an empty section folds nothing')
 assertDeepEqual(bar.foldSection(null, slotLength, 10, {}, true), { visible: [], hidden: [] }, 'a missing section folds nothing')

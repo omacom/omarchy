@@ -449,7 +449,14 @@ function sectionRows(keys, places, memo) {
   for (var i = 0; i <= list.length; i++) {
     for (; g < gaps.length && gaps[g] <= i; g++)
       show("room:" + gaps[g], { key: "room:" + gaps[g], kind: "spacer", place: gaps[g] })
-    if (i === list.length) break
+    if (i === list.length) {
+      // A folded span at the end of a section leaves the room's layout index
+      // past the widgets actually drawn. Show it at the end rather than
+      // dropping it, or a drop there has nowhere to land.
+      for (; g < gaps.length; g++)
+        show("room:" + gaps[g], { key: "room:" + gaps[g], kind: "spacer", place: gaps[g] })
+      break
+    }
     show(String(list[i]), { key: String(list[i]), kind: "widget" })
   }
   state.rows = next
