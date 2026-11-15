@@ -207,8 +207,11 @@ Item {
           function selectCurrent() {
             if (currentIndex < 0 || currentIndex >= root.options.length) return
             var v = root.optionValue(root.options[currentIndex])
-            root.value = v
+            // Tell the owner first: an owner that binds value takes the pick
+            // through its binding, and writing value here would cut that
+            // binding. Only an owner that ignores changed gets it written.
             root.changed(v)
+            if (root.value !== v) root.value = v
             popup.close()
           }
 
