@@ -543,3 +543,19 @@ run_leaf user/hardware/fix-nouveau-cursor.sh >/dev/null
 (( $(grep -c 'no_hardware_cursors = true' "$root/home/.config/hypr/looknfeel.lua") == 1 )) ||
   fail "nouveau cursor setup enables software cursors once however often it runs"
 pass "nouveau cursor setup is idempotent"
+
+# The N1x firmware filter wraps mkinitcpio's add_firmware: Turing's GSP
+# firmware stays out, everything else goes through, and the status of what it
+# did add still reaches add_module, which warns about missing firmware with it.
+n1x_firmware_conf=$(sed -n "/omarchy-n1x-nvidia-firmware.conf <<'CONF'/,/^CONF\$/p" "$ROOT/install/hardware/n1x.sh" | sed '1d;$d')
+filtered=$(bash -c '
+  add_firmware() { printf "%s\n" "$@"; [[ $* != *missing* ]]; }
+  eval "$1"
+  eval "$1"
+  add_firmware nvidia/615/gsp_tu10x.bin nvidia/615/ucodes_tu10x.bin; echo "status $?"
+  add_firmware nvidia/615/gsp_ga10x.bin nvidia/615/ucodes_tu10x.bin nvidia/615/ucodes_ga10x.bin; echo "status $?"
+  add_firmware renesas_missing.mem; echo "status $?"
+' bash "$n1x_firmware_conf" | paste -sd ' ')
+[[ $filtered == "status 0 nvidia/615/gsp_ga10x.bin nvidia/615/ucodes_ga10x.bin status 0 renesas_missing.mem status 1" ]] ||
+  fail "N1x initramfs leaves out only Turing's NVIDIA firmware" "$filtered"
+pass "N1x initramfs leaves out only Turing's NVIDIA firmware"

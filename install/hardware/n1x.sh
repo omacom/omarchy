@@ -123,6 +123,31 @@ CONF
   cat > /etc/mkinitcpio.conf.d/nvidia.conf <<'CONF'
 MODULES+=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)
 CONF
+  cat > /etc/mkinitcpio.conf.d/omarchy-n1x-nvidia-firmware.conf <<'CONF'
+# N1x: the Blackwell GPU boots its GSP from the ga10x firmware. The nvidia
+# module also lists Turing's (tu10x), which only Turing GPUs load: leave it out
+# of the initramfs, about 32 MB. mkinitcpio sources this file again after the
+# hooks run, so add_firmware is wrapped only once. It returns the status of the
+# firmware it did add, which add_module reads to warn about missing firmware.
+if declare -F add_firmware >/dev/null && ! declare -F _omarchy_n1x_add_firmware >/dev/null; then
+  eval "_omarchy_n1x_$(declare -f add_firmware)"
+  add_firmware() {
+    local fw
+    local -a kept=()
+    local -i status=0
+    for fw; do
+      case $fw in
+        nvidia/*/gsp_tu10x.bin | nvidia/*/ucodes_tu10x.bin) ;;
+        *) kept+=("$fw") ;;
+      esac
+    done
+    if ((${#kept[@]})); then
+      _omarchy_n1x_add_firmware "${kept[@]}" || status=$?
+    fi
+    return "$status"
+  }
+fi
+CONF
   printf '%s\n' \
     '# N1x on firmware >= 1.0: the GPU owns the panel; drop the firmware' \
     '# framebuffer so Hyprland sees one DRM device.' \
@@ -175,7 +200,8 @@ CONF
 else
   echo "N1x firmware $bios_version: GPU firmware cannot boot on this BIOS; keeping the NVIDIA stack unloaded"
   rm -f /etc/limine-entry-tool.d/00-omarchy-n1x-gpu.conf \
-    /etc/mkinitcpio.conf.d/zz-omarchy-n1x-boot-brightness.conf
+    /etc/mkinitcpio.conf.d/zz-omarchy-n1x-boot-brightness.conf \
+    /etc/mkinitcpio.conf.d/omarchy-n1x-nvidia-firmware.conf
   cat > /etc/modprobe.d/omarchy-n1x-nvidia-disable.conf <<'CONF'
 # N1x: the NVIDIA stack cannot drive this panel here; see install/hardware/n1x.sh.
 blacklist nvidia
