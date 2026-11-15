@@ -150,11 +150,17 @@ assert_output_contains "the flags-only command keeps its own help" "$output" "om
 output=$("$CLI" menu --help)
 assert_output_contains "menu group includes share fallback route" "$output" "omarchy menu share"
 
-output=$("$CLI" share)
+status=0
+output=$("$CLI" share) || status=$?
+(( status == 1 )) || fail "bare required-arg alias exits 1"
+pass "bare required-arg alias exits 1"
 assert_output_contains "bare required-arg alias renders CLI help" "$output" "Usage:"
 assert_output_contains "bare share help uses canonical route" "$output" "omarchy share <clipboard|file|folder> [path...]"
 
-output=$("$CLI" menu share)
+status=0
+output=$("$CLI" menu share) || status=$?
+(( status == 1 )) || fail "bare required-arg filename route exits 1"
+pass "bare required-arg filename route exits 1"
 assert_output_contains "bare required-arg filename route renders CLI help" "$output" "omarchy share <clipboard|file|folder> [path...]"
 
 CLI="$CLI" python3 <<'PY'
