@@ -349,6 +349,14 @@ Item {
       volatile: true,
       actionFor: function(value) { return "omarchy-kernel set " + Util.shellQuote(value) }
     },
+    // systemd-boot's snapshot entries, newest first, as omarchy-boot-sync
+    // published them. Picking one boots it once; it can be restored from there.
+    "snapshots": {
+      script: "omarchy-snapshot list 2>/dev/null | while IFS=$'\\t' read -r n title; do [[ -z $n ]] && continue; printf '%s\\t%s\\t\\n' \"$title\" \"$n\"; done",
+      icon: "\udb80\udc6f",
+      volatile: true,
+      actionFor: function(value) { return "omarchy-launch-floating-terminal-with-presentation omarchy-snapshot boot " + Util.shellQuote(value) }
+    },
     // Rows carry a fourth field (the English name) so searching "danish"
     // finds the row labeled with its native name; mergeProviderRows turns
     // it into an alias.
