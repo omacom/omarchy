@@ -274,27 +274,22 @@ Item {
       }
     }
 
-    Column {
+    // The crossed-out icon has no meaning to a user who has never seen it — it
+    // is not intuitive that it signals a broken reader — so the words carry the
+    // explanation and the icon only reinforces it.
+    Text {
+      objectName: "fingerprintUnavailableNotice"
+      textFormat: Text.PlainText
       anchors.top: inputField.bottom
       anchors.topMargin: 18
       anchors.horizontalCenter: inputField.horizontalCenter
-      spacing: 8
-
-      // The crossed-out icon has no meaning to a user who has never seen it — it
-      // is not intuitive that it signals a broken reader — so the words carry the
-      // explanation and the icon only reinforces it.
-      Text {
-        objectName: "fingerprintUnavailableNotice"
-        textFormat: Text.PlainText
-        anchors.horizontalCenter: parent.horizontalCenter
-        visible: root.fingerprintConfigured && root.fingerprintUnavailable
-        text: Commons.I18n.t("lock.fingerprintUnavailable")
-        color: Commons.Color.lock.textError
-        font.family: Style.font.family
-        font.pixelSize: Style.font.heading
-        font.italic: true
-        horizontalAlignment: Text.AlignHCenter
-      }
+      visible: root.fingerprintConfigured && root.fingerprintUnavailable
+      text: Commons.I18n.t("lock.fingerprintUnavailable")
+      color: Commons.Color.lock.textError
+      font.family: Style.font.family
+      font.pixelSize: Style.font.heading
+      font.italic: true
+      horizontalAlignment: Text.AlignHCenter
     }
   }
 }
