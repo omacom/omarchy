@@ -1,12 +1,12 @@
 # Teemad
 
-Omarchyga on kaasas kakskümmend kaks ilusat teemat. Saad nende vahel valida Omarchy menüüs (`Super + Space`) valiku _Välimus > Teema_ kaudu või hüpata otse teemavalijasse, kasutades klahve `Super + Ctrl + T`.
+Omarchyga on kaasas kakskümmend kaks ilusat teemat. Saate nende vahel valida Omarchy menüüs _Välimus > Teema_ (`Super + Space`) või hüpata otse teemavalijasse, kasutades `Super + Ctrl + T`.
 
-Iga teema kujundab töölaua, terminali, neovimi, tegevusekraani (btop), Chromiumi ja kogu Omarchy kesta: ülemise riba, menüü, teavitused, OSD ja lukustuskuva. (Obsidiani puhul pead Omarchy teema käsitsi valima rakendusesiseselt valiku _Välimus > Teemad_ kaudu).
+Iga teema kujundab töölauda, terminali, Neovimi, tegevuskuva (btop), Chromiumi ja kogu Omarchy kesta: ülemist riba, menüüd, teavitusi, OSD-d ja lukustuskuva. (Obsidiani puhul peate Omarchy teema rakenduse sees käsitsi valima _Välimus > Teemad_ alt).
 
-Teemadel on hulk taustapilte, mille vahel saad valida, kasutades klahve `Super + Ctrl + W`.
+Teemadel on taustapiltide komplekt, mille vahel saate valida, kasutades `Super + Ctrl + W`.
 
-Veel rohkem teemasid leiad [lisateemade lehelt](https://omarchy.org/themes/) või võid isegi [oma teema teha](43-making-your-own-theme.md).
+Veel teemasid leiate [lisateemade lehelt](https://omarchy.org/themes/) või võite isegi [luua oma teema](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### Rakenduste ikoonid
+
+Rakenduste käivitis ja dokis olevad ikoonid on joonistatud teie teema värvides, seega muutuvad need koos teemaga. Need pärinevad ikoonikomplektist, mille valite teemast eraldi _Välimus > Ikoonid_ alt:
+
+- _Papercraft_ on vaikimisi: kõik, mis on paigaldatud, on joonistatud ühes stiilis. Rakendused, mis on tuntud oma logo järgi, nagu Chrome, HEY või YouTube, säilitavad oma kuju ja võtavad teema värvid.
+- _Arcade_ joonistab samad rakendused 8-bitise pikselkunstina, nagu vana mängukonsool teeks.
+- _Original_ näitab iga rakendust ikooniga, mille selle looja sellele andis.
+
+Saate paigaldada kellegi teise tehtud ikoonikomplekti valikuga _Paigalda > Stiil > Ikoonid_ (või `omarchy icons install <git url>`) ja eemaldada selle uuesti valiku _Eemalda > Ikoonid_ alt. _Värskenda > Lisaikoonid_ toob teie paigaldatud komplektide uusima versiooni.
+
+Enda ikoonide tegemiseks pange ikoonid kausta `~/.config/omarchy/icons/<name>/`, üks fail iga rakenduse kohta, nimega rakenduse `.desktop` faili `Icon=` rea järgi. `.svg`-lõpuline fail kuvatakse sellisena, nagu see on. `.svg.tpl`-lõpuline fail joonistatakse teema värvides: kirjutage `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` või `{{ icon_shadow }}` sinna, kuhu värv kuulub. Vaikekomplekt kaustas `/usr/share/omarchy/icons/papercraft/` on hea koht alustamiseks. Vaikekomplekti üksiku ikooni muutmiseks pange oma versioon kausta `~/.config/omarchy/icons/papercraft/`.
+
 ### Avamiskujundused
 
-Teemadel võib olla ka kohandatud avamiskujundus, mida kasutatakse alglaadimise dekrüpteerimise protsessis. Saad ühe neist valida valiku _Välimus > Avamine_ alt. Need näevad välja sellised:
+Teemadel võib olla ka kohandatud avamiskujundus, mida kasutatakse käivitusaegse dekrüpteerimise protsessiks. Saate ühe neist valida _Välimus > Avamine_ alt. Need näevad välja sellised:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

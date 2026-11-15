@@ -1,8 +1,8 @@
 # Témák
 
-Az Omarchy huszonkét gyönyörű témával érkezik. Közülük az Omarchy menü (`Super + Space`) _Megjelenés > Téma_ pontjában választhatsz, vagy közvetlenül a témaválasztóhoz ugorhatsz a `Super + Ctrl + T` billentyűkombinációval.
+Az Omarchy huszonkét gyönyörű témával érkezik. Közülük az Omarchy Menu _Megjelenés > Téma_ pontjában választhatsz (`Super + Space`), vagy a `Super + Ctrl + T` billentyűkombinációval közvetlenül a témaválasztóhoz ugorhatsz.
 
-Minden téma formázza az asztalt, a terminált, a neovimt, a tevékenységképernyőt (btop), a Chromiumot és a teljes Omarchy felületet: a felső sávot, a menüt, az értesítéseket, az OSD-t és a zárolási képernyőt. (Az Obsidian esetében manuálisan kell kiválasztanod az Omarchy témát az alkalmazáson belül a _Megjelenés > Témák_ alatt).
+Mindegyik téma formálja az asztal, a terminál, a neovim, a tevékenységképernyő (btop), a Chromium és a teljes Omarchy felület megjelenését: a felső sávot, a menüt, az értesítéseket, az OSD-t és a zárolási képernyőt. (Az Obsidianban kézzel kell kiválasztanod az Omarchy témát az alkalmazáson belüli _Megjelenés > Témák_ pontban).
 
 A témákhoz háttérképek készlete tartozik, amelyek közül a `Super + Ctrl + W` billentyűkombinációval választhatsz.
 
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Feloldóképernyők
+### Alkalmazásikonok
 
-A témák egyéni feloldási dizájnnal is rendelkezhetnek, amelyet a rendszerindításkori visszafejtési folyamat használ. Ezek közül a _Megjelenés > Feloldás_ alatt választhatsz egyet. Így néznek ki:
+Az alkalmazásindítóban és a dokkon látható ikonok a témád színeiben rajzolódnak ki, így azzal együtt változnak. Egy ikonkészletből származnak, amelyet a témától külön választhatsz ki a _Megjelenés > Ikonok_ pontban:
+
+- A _Papercraft_ az alapértelmezett: minden, ami telepítve érkezik, egységes stílusban megrajzolva. A logójukról ismert alkalmazások, mint a Chrome, a HEY vagy a YouTube, megtartják az alakjukat, és felveszik a téma színeit.
+- Az _Arcade_ ugyanezeket az alkalmazásokat 8 bites pixelgrafikaként rajzolja meg, ahogy egy régi játékkonzol tenné.
+- Az _Original_ minden alkalmazást azzal az ikonnal mutat, amelyet a készítője adott neki.
+
+Telepíthetsz más által készített ikonkészletet a _Telepítés > Stílus > Ikonok_ pontban (vagy az `omarchy icons install <git url>` paranccsal), és az _Eltávolítás > Ikonok_ pontban távolíthatod el újra. A _Frissítés > Extra ikonok_ pont letölti a telepített készleteid legújabb verzióját.
+
+Saját készítéséhez tedd az ikonjaidat a `~/.config/omarchy/icons/<name>/` könyvtárba, alkalmazásonként egy fájlt, az alkalmazás `.desktop` fájljának `Icon=` sora után elnevezve. Az `.svg` végződésű fájl úgy jelenik meg, ahogy van. Az `.svg.tpl` végződésű fájl a téma színeiben rajzolódik ki: írj `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` vagy `{{ icon_shadow }}` értéket oda, ahová szín kerül. Az alapértelmezett készlet a `/usr/share/omarchy/icons/papercraft/` könyvtárban jó kiindulópont. Az alapértelmezett készlet egyetlen ikonjának megváltoztatásához tedd a saját verziódat a `~/.config/omarchy/icons/papercraft/` könyvtárba.
+
+### Feloldások
+
+A témáknak egyedi feloldási megjelenésük is lehet, amelyet a rendszerindítási visszafejtési folyamat használ. Ezek közül a _Megjelenés > Feloldás_ pontban választhatsz egyet. Így néznek ki:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

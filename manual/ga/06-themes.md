@@ -1,12 +1,12 @@
 # Téamaí
 
-Tagann Omarchy le dhá théama is fiche álainne. Is féidir leat roghnú eatarthu trí _Dealramh > Téama_ sa Roghchlár Omarchy (`Super + Space`) nó léim go díreach chuig an roghnóir téamaí le `Super + Ctrl + T`.
+Tagann fiche a dó téama álainn le Omarchy. Is féidir leat roghnú eatarthu trí _Cuma > Téama_ i Roghchlár Omarchy (`Super + Space`) nó léim go díreach chuig an roghnóir téamaí ag úsáid `Super + Ctrl + T`.
 
-Déanann gach téama stíliú ar an deasc, ar an teirminéal, ar neovim, ar an scáileán gníomhaíochta (btop), ar Chromium, agus ar bhlaosc iomlán Omarchy: an barra uachtarach, an roghchlár, na fógraí, an OSD, agus an scáileán glais. (Maidir le Obsidian, ní mór duit téama Omarchy a roghnú de láimh trí _Dealramh > Téamaí_ laistigh den aip).
+Déanann gach téama stíliú ar an deasc, an teirminéal, neovim, an scáileán gníomhaíochta (btop), Chromium, agus blaosc iomlán Omarchy: an barra uachtarach, an roghchlár, na fógraí, OSD, agus an scáileán glais. (I gcás Obsidian, ní mór duit téama Omarchy a roghnú de láimh trí _Cuma > Téamaí_ taobh istigh den aip).
 
-Tá sraith íomhánna cúlra ag téamaí ar féidir leat roghnú eatarthu le `Super + Ctrl + W`.
+Tá sraith íomhánna cúlra ag téamaí ar féidir leat roghnú eatarthu ag úsáid `Super + Ctrl + W`.
 
-Is féidir leat níos mó téamaí fós a aimsiú ar [an leathanach téamaí breise](https://omarchy.org/themes/) nó fiú [do théama féin a dhéanamh](43-making-your-own-theme.md).
+Is féidir leat níos mó téamaí fós a fháil ar [an leathanach téamaí breise](https://omarchy.org/themes/) nó fiú [do théama féin a dhéanamh](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
+### Deilbhíní aipe
+
+Tarraingítear na deilbhíní sa lainseálaí aipeanna agus sa duga i ndathanna do théama, mar sin athraíonn siad in éineacht leis. Tagann siad ó shraith deilbhíní, a roghnaíonn tú ar leithligh ón téama faoi _Cuma > Deilbhíní_:
+
+- _Papercraft_ an réamhshocrú: gach rud a thagann suiteáilte, tarraingthe i stíl amháin. Coinníonn aipeanna a bhfuil aithne orthu de bharr a lógó, cosúil le Chrome, HEY, nó YouTube, a gcruth agus glacann siad dathanna an téama chucu.
+- _Arcade_ tarraingíonn sé na haipeanna céanna mar ealaín picteilíní 8-giotán, mar a dhéanfadh sean-chonsól cluichí.
+- _Original_ taispeánann sé gach aip leis an deilbhín a thug a déantóir di.
+
+Is féidir leat sraith deilbhíní a rinne duine eile a shuiteáil le _Suiteáil > Stíl > Deilbhíní_ (nó `omarchy icons install <git url>`), agus í a bhaint arís faoi _Bain > Deilbhíní_. Faigheann _Nuashonraigh > Deilbhíní Breise_ an leagan is déanaí de na sraitheanna atá suiteáilte agat.
+
+Chun do chuid féin a dhéanamh, cuir do dheilbhíní i `~/.config/omarchy/icons/<name>/`, comhad amháin in aghaidh na haipe, ainmnithe i ndiaidh líne `Icon=` chomhad `.desktop` na haipe. Taispeántar comhad dar críoch `.svg` mar atá sé. Tarraingítear comhad dar críoch `.svg.tpl` i ndathanna an téama: scríobh `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` nó `{{ icon_shadow }}` san áit a dtéann dath. Is áit mhaith tosaithe an tsraith réamhshocraithe in `/usr/share/omarchy/icons/papercraft/`. Chun deilbhín aonair den tsraith réamhshocraithe a athrú, cuir do leagan féin i `~/.config/omarchy/icons/papercraft/`.
+
 ### Díghlasálacha
 
-Is féidir dearadh díghlasála saincheaptha a bheith ag téamaí freisin, a úsáidtear don phróiseas díchriptithe ag am tosaithe. Is féidir leat ceann acu seo a roghnú faoi _Dealramh > Díghlasáil_. Seo mar a bhreathnaíonn siad:
+Is féidir dearadh díghlasála saincheaptha a bheith ag téamaí freisin, a úsáidtear don phróiseas díchriptithe tosaithe. Is féidir leat ceann acu seo a roghnú faoi _Cuma > Díghlasáil_. Seo mar a fhéachann siad:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
