@@ -389,7 +389,10 @@ start_screenrecording() {
     rm -f "$filename"
   done
 
-  omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingFailed)"
+  # A cancel can land while the last recorder is being stopped after its timeout.
+  start_cancelled && return 1
+
+  omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingFailed)" "$(omarchy-i18n capture.recordingFailedDebug)"
   return 2
 }
 

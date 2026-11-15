@@ -78,6 +78,7 @@
   "capture.recordingDetails": "%1 · %2",
   "capture.recordingError": "Screen recording error",
   "capture.recordingFailed": "Screen recording failed to start",
+  "capture.recordingFailedDebug": "Set OMARCHY_SCREENRECORD_DEBUG=true and retry to log why.",
   "capture.recordingKilled": "Recording process had to be force-killed. Video may be corrupted.",
   "capture.recordingLength": "%1:%2",
   "capture.recordingLengthHours": "%1:%2:%3",
