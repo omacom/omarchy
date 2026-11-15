@@ -384,6 +384,10 @@ for command in pacman-key omarchy-pkg-add gpgconf; do
 printf '%s %s\n' "${0##*/}" "$*" >>"$KEYRING"
 [[ ${0##*/} != "pacman-key" || ! -e $KEYRING_FAIL ]] || exit 1
 [[ ${0##*/} != "pacman-key" || -z ${KEYRING_FAIL_NEXT:-} || $* != *omarchy-next* ]] || exit 1
+# A test holds the background keyring's --populate until it releases it.
+if [[ ${0##*/} == "pacman-key" && -n ${KEYRING_HOLD:-} && $2 == *omarchy-next && $3 == "--populate" ]]; then
+  read -r _ <"$KEYRING_HOLD"
+fi
 if [[ ${0##*/} == "pacman-key" && $1 == "--gpgdir" && $3 == "--init" ]]; then
   mkdir -p "$2"
   touch "$2/master-key"
@@ -448,8 +452,21 @@ rm -f "$KEYRING"
 root=$(new_root first-install-aarch64)
 mkdir -p "$root/etc/pacman.d/gnupg"
 touch "$root/etc/pacman.d/gnupg/image-leftover"
-start_keyring "$root" aarch64 1 || fail "a first install starts its keyring"
-finalize "$root" aarch64 || fail "finalization takes the keyring started for it"
+hold=$test_tmp/keyring-hold
+mkfifo "$hold"
+KEYRING_HOLD=$hold start_keyring "$root" aarch64 1 || fail "a first install starts its keyring"
+finalize "$root" aarch64 &
+finalizing=$!
+# Finalization installs the keyring package just before it takes the keyring;
+# once it has, it must wait for the one still being made.
+for _ in {1..100}; do
+  (( $(grep -c '^omarchy-pkg-add' "$KEYRING") >= 2 )) && break
+  sleep 0.05
+done
+sleep 0.3
+kill -0 "$finalizing" 2>/dev/null || fail "finalization waits for the keyring still being made" "$(cat "$KEYRING")"
+timeout 5 bash -c 'echo >"$1"' bash "$hold" || fail "the background keyring reached --populate"
+wait "$finalizing" || fail "finalization takes the keyring started for it"
 next=$(next_keyring "$root")
 grep -Fxq "pacman-key --gpgdir $next --init" "$KEYRING" && grep -Fxq "pacman-key --gpgdir $next --populate" "$KEYRING" ||
   fail "the keyring is made in a directory of its own" "$(cat "$KEYRING")"
