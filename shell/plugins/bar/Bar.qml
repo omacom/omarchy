@@ -1730,6 +1730,130 @@ Item {
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
 
+    // Widgets folded off the left/top and right/bottom sections while the
+    // bar is too short. The tray, whose drawer carries them, is never
+    // folded; without a tray the bar has nowhere to put them and leaves the
+    // sections as they are.
+    property var overflowHidden: ({})
+    property var overflowTrayKeys: []
+    property int overflowRevision: 0
+    property var widgetPool: null
+
+    // The narrow view a first-party widget needs to show the overflow its
+    // section's budget could not hold. Third-party widgets do not receive it.
+    readonly property QtObject overflowApi: QtObject {
+      property var keys: barWindow.overflowTrayKeys
+    }
+
+    function sectionKeys(region) {
+      var keys = root.layoutWidgets.sections[region] || []
+      if (!overflowRevision) return keys
+      var hidden = overflowHidden
+      return keys.filter(function(key) { return hidden[key] !== true })
+    }
+
+    function trayKey() {
+      var keys = root.layoutWidgets.keys || []
+      for (var i = 0; i < keys.length; i++) {
+        if (root.entryId(root.layoutWidgets.entries[keys[i]]) === "omarchy.tray") return keys[i]
+      }
+      return ""
+    }
+
+    function clearOverflow() {
+      if (overflowTrayKeys.length === 0 && overflowRevision === 0) return
+      overflowHidden = ({})
+      overflowTrayKeys = []
+      overflowRevision++
+    }
+
+    function scheduleOverflow() {
+      overflowSchedule.restart()
+    }
+
+    function recomputeOverflow() {
+      if (!widgetPool) return
+      // A drag rearranges the sections by the layout it started with; folding
+      // widgets under the pointer would move the room it is aiming at. The
+      // drag's end schedules the next split.
+      if (root.barDragSource || root.barMoveActive) return
+      if (!screen || centerBesideRight) {
+        clearOverflow()
+        return
+      }
+      var tray = trayKey()
+      if (!tray) {
+        clearOverflow()
+        return
+      }
+
+      var total = root.vertical ? screen.height : screen.width
+      function lengthOf(key) { return widgetPool.lengthOf(key) }
+      function sum(region) {
+        var keys = root.layoutWidgets.sections[region] || []
+        var length = 0
+        for (var i = 0; i < keys.length; i++) length += lengthOf(keys[i])
+        return length
+      }
+
+      var begin = sum("centerBegin")
+      var box = sum("center")
+      var end = sum("centerEnd")
+      var margin = Style.space(8)
+      var gap = Style.space(4)
+      var half = total / 2 - box / 2
+      var startBudget = Math.max(0, half - begin - margin - gap)
+      var endBudget = Math.max(0, half - end - margin - gap)
+      var keep = {}
+      keep[tray] = true
+
+      var start = BarModel.foldSection(root.layoutWidgets.sections.left, lengthOf, startBudget, keep, false)
+      var finish = BarModel.foldSection(root.layoutWidgets.sections.right, lengthOf, endBudget, keep, true)
+      var hidden = ({})
+      var keys = []
+      var i
+      for (i = 0; i < start.hidden.length; i++) {
+        hidden[start.hidden[i]] = true
+        keys.push(start.hidden[i])
+      }
+      for (i = 0; i < finish.hidden.length; i++) {
+        hidden[finish.hidden[i]] = true
+        keys.push(finish.hidden[i])
+      }
+
+      if (keys.length === 0) {
+        clearOverflow()
+        return
+      }
+      if (keys.join("\n") === overflowTrayKeys.join("\n")) return
+      overflowHidden = hidden
+      overflowTrayKeys = keys
+      overflowRevision++
+    }
+
+    Timer {
+      id: overflowSchedule
+      interval: 0
+      onTriggered: barWindow.recomputeOverflow()
+    }
+
+    Connections {
+      target: root
+
+      function onLayoutWidgetsChanged() { barWindow.scheduleOverflow() }
+      function onBarDragSourceChanged() { barWindow.scheduleOverflow() }
+      function onBarMoveActiveChanged() { barWindow.scheduleOverflow() }
+    }
+
+    Connections {
+      target: barWindow.screen
+
+      function onWidthChanged() { barWindow.scheduleOverflow() }
+      function onHeightChanged() { barWindow.scheduleOverflow() }
+    }
+
+    onScreenChanged: scheduleOverflow()
+
     // The surface spans its screen at all times, transparent past the strip
     // it paints; a drag toggles only its input region. Growing the surface
     // for a drag instead flashes the strip's stale buffer stretched across
@@ -1873,7 +1997,24 @@ Item {
       Item {
         anchors.fill: parent
 
+        Component.onCompleted: {
+          barWindow.widgetPool = horizontalPool
+          barWindow.clearOverflow()
+          barWindow.scheduleOverflow()
+        }
+        Component.onDestruction: {
+          if (barWindow.widgetPool === horizontalPool) {
+            barWindow.widgetPool = null
+            barWindow.clearOverflow()
+          }
+        }
+
         WidgetPool { id: horizontalPool }
+
+        Connections {
+          target: horizontalPool
+          function onHostSizeChanged() { barWindow.scheduleOverflow() }
+        }
 
         CenterModules {
           anchors.fill: parent
@@ -1923,7 +2064,24 @@ Item {
       Item {
         anchors.fill: parent
 
+        Component.onCompleted: {
+          barWindow.widgetPool = verticalPool
+          barWindow.clearOverflow()
+          barWindow.scheduleOverflow()
+        }
+        Component.onDestruction: {
+          if (barWindow.widgetPool === verticalPool) {
+            barWindow.widgetPool = null
+            barWindow.clearOverflow()
+          }
+        }
+
         WidgetPool { id: verticalPool }
+
+        Connections {
+          target: verticalPool
+          function onHostSizeChanged() { barWindow.scheduleOverflow() }
+        }
 
         CenterModules {
           anchors.fill: parent
@@ -2202,13 +2360,13 @@ Item {
   }
 
   component LeftModules: ModuleList {
-    keys: root.layoutWidgets.sections.left
+    keys: window ? window.sectionKeys("left") : root.layoutWidgets.sections.left
     region: "left"
     fixedEdge: "start"
   }
 
   component RightModules: ModuleList {
-    keys: root.layoutWidgets.sections.right
+    keys: window ? window.sectionKeys("right") : root.layoutWidgets.sections.right
     region: "right"
     fixedEdge: "end"
   }
@@ -2576,6 +2734,21 @@ Item {
     property var hosts: ({})
     property var slots: ({})
 
+    signal hostSizeChanged()
+
+    // A widget's length along the bar, as the section would lay it out. A
+    // drawer that is open grows the widget only while the pointer holds it;
+    // the section budget uses the collapsed length so hovering the tray does
+    // not fold more widgets.
+    function lengthOf(key) {
+      var host = hosts[key]
+      if (!host) return 0
+      var length = root.vertical ? host.widgetHeight : host.widgetWidth
+      var item = host.activeItem
+      if (item && item.revealExtent > 0) length -= item.revealExtent
+      return Math.max(0, length)
+    }
+
     width: 0
     height: 0
     clip: true
@@ -2605,6 +2778,7 @@ Item {
       var slot = slots[host.key] || null
       host.owner = slot
       if (slot) slot.host = host
+      hostSizeChanged()
     }
 
     function removeHost(host) {
@@ -2612,6 +2786,7 @@ Item {
       delete hosts[host.key]
       var slot = slots[host.key]
       if (slot) slot.host = null
+      hostSizeChanged()
     }
 
     // Keys alone, in a fixed order: a widget's row never moves or changes,
@@ -2692,6 +2867,8 @@ Item {
       inTraySection = owner.region === "tray"
       placed = true
     }
+    onWidgetWidthChanged: if (pool) pool.hostSizeChanged()
+    onWidgetHeightChanged: if (pool) pool.hostSizeChanged()
     // One no slot takes up again by the time the update is over, as one in
     // the tray's drawer while the tray is off the bar, is unloaded rather
     // than left running where nothing shows it, and loaded again when a slot
@@ -2757,6 +2934,7 @@ Item {
       // a bar, as the indicators do by reporting which are already active.
       if ("fixedEdge" in target) target.fixedEdge = fixedEdge
       if ("inTraySection" in target) target.inTraySection = inTraySection
+      if ("barOverflow" in target && firstParty) target.barOverflow = owner ? owner.window.overflowApi : null
       if ("bar" in target) target.bar = firstParty
         ? root : root.pluginBarApiFor(pluginApiId, moduleName, registered)
       if ("moduleName" in target) target.moduleName = moduleName
@@ -2781,10 +2959,23 @@ Item {
     property var pool: null
     // The bar surface its section is drawn on.
     property var window: null
+    // A widget folded off a side section sits in the tray drawer without
+    // being a tray-section entry; it stays clickable, but a drag out of the
+    // drawer would write it into the tray's own layout, so it cannot reorder.
+    readonly property bool trayLayoutEntry: (root.layoutWidgets.sections.tray || []).indexOf(widgetKey) !== -1
+    readonly property bool reorderable: region !== "tray" || trayLayoutEntry
     // The widget, while the slot holds it (WidgetPool.claim).
     property var host: null
     readonly property var entry: host ? host.entry : null
     readonly property string moduleName: host ? host.moduleName : ""
+    // The tray section's list, with the widgets folded off the side sections
+    // appended. The fold is recomputed per bar surface, so the slots follow
+    // the window they are drawn on.
+    readonly property var traySectionKeys: {
+      var base = root.layoutWidgets.sections.tray || []
+      var extra = window ? window.overflowTrayKeys : []
+      return extra.length === 0 ? base : base.concat(extra)
+    }
     readonly property var activeItem: host ? host.activeItem : null
     readonly property bool hovered: moduleHover.hovered
     readonly property bool dragSource: root.barDragSource === slot
@@ -2979,6 +3170,7 @@ Item {
     }
     Binding { target: traySectionLoader.item; property: "window"; value: slot.window }
     Binding { target: traySectionLoader.item; property: "pool"; value: slot.pool }
+    Binding { target: traySectionLoader.item; property: "keys"; value: slot.traySectionKeys }
     // Its widgets grow from the edge the tray anchors the section by.
     Binding { target: traySectionLoader.item; property: "fixedEdge"; value: slot.hostsTraySection && slot.activeItem.sectionEdge || "center" }
 
@@ -2992,7 +3184,7 @@ Item {
       property var heldTarget: null
       property real pressedX: 0
       property real pressedY: 0
-      readonly property bool canReorder: root.shell && typeof root.shell.mutateShellConfig === "function"
+      readonly property bool canReorder: root.shell && typeof root.shell.mutateShellConfig === "function" && slot.reorderable
       readonly property real dragThreshold: Style.space(4)
 
       anchors.fill: parent

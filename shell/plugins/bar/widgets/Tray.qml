@@ -15,6 +15,12 @@ BarWidget {
   property bool expanded: false
   property bool managePopupOpen: false
   property bool trayMenuOpen: false
+  // Injected by the bar. Widgets folded off a side section while the bar is
+  // too short appear in this drawer after the tray section, so the chevron
+  // reaches them in every bar position.
+  property var barOverflow: null
+  readonly property var overflowKeys: barOverflow ? barOverflow.keys : []
+  readonly property int overflowCount: overflowKeys.length
   property var activeTrayItem: null
   property var activeTrayAnchor: null
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
@@ -39,7 +45,7 @@ BarWidget {
   readonly property var sectionShown: trayContent.item ? trayContent.item.sectionShown : null
   readonly property int sectionCount: bar && bar.layoutConfig && Array.isArray(bar.layoutConfig.tray) ? bar.layoutConfig.tray.length : 0
   readonly property real sectionExtent: sectionHost ? (vertical ? sectionHost.implicitHeight : sectionHost.implicitWidth) : 0
-  readonly property bool hasDrawer: allItems.length > 0 || sectionCount > 0 || barDragging
+  readonly property bool hasDrawer: allItems.length > 0 || sectionCount > 0 || overflowCount > 0 || barDragging
   readonly property int drawerExtent: drawerCount * trayItemExtent + Math.max(0, drawerCount - 1) * trayItemGap + sectionExtent
   // A widget being dragged along the bar opens the drawer, to show where it
   // can go, and so does any panel open from the tray or the tray section.

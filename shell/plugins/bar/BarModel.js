@@ -57,6 +57,40 @@ function slotEdge(count, index, fixedEdge, firstEdge, lastEdge) {
   return fixedEdge
 }
 
+// The widgets a side section can show in `budget` units of bar length.
+// Entries in `keep` (the tray, whose drawer shows the overflow) never fold.
+// A section keeps the edge it is anchored by and folds the entries nearest
+// the centre, where it runs into the centre box: `foldFromStart` for the
+// right/bottom section, false for the left/top one. Returns the keys still
+// shown and the keys folded away, both in layout order.
+function foldSection(keys, lengthOf, budget, keep, foldFromStart) {
+  var list = Array.isArray(keys) ? keys.slice() : []
+  var kept = keep || {}
+  var hidden = Object.create(null)
+  var total = 0
+  var i
+  for (i = 0; i < list.length; i++) total += Math.max(0, Number(lengthOf(list[i])) || 0)
+  var room = Math.max(0, Number(budget) || 0)
+  if (total <= room) return { visible: list, hidden: [] }
+
+  var order = []
+  if (foldFromStart) {
+    for (i = 0; i < list.length; i++) if (!kept[list[i]]) order.push(i)
+  } else {
+    for (i = list.length - 1; i >= 0; i--) if (!kept[list[i]]) order.push(i)
+  }
+  for (i = 0; i < order.length && total > room; i++) {
+    var index = order[i]
+    total -= Math.max(0, Number(lengthOf(list[index])) || 0)
+    hidden[index] = true
+  }
+
+  var visible = []
+  var removed = []
+  for (i = 0; i < list.length; i++) (hidden[i] ? removed : visible).push(list[i])
+  return { visible: visible, hidden: removed }
+}
+
 function expandPath(value, home) {
   var path = String(value || "")
   if (path === "") return ""
@@ -695,6 +729,7 @@ if (typeof module !== "undefined") {
     dragDistanceOutside: dragDistanceOutside,
     navigationRegions: navigationRegions,
     slotEdge: slotEdge,
+    foldSection: foldSection,
     sections: sections,
     normalizePosition: normalizePosition,
     entrySettings: entrySettings,
