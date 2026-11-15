@@ -2386,8 +2386,18 @@ Panel {
         // reading motion like the media title's marquee, not a UI transition,
         // so it moves at a steady 30px/s on a linear curve rather than within
         // the 300ms transition budget.
-        Repeater {
+        ListView {
           model: hotspotClientModel
+          // Capped and scrollable like the Wi-Fi list: the card's height is
+          // capped, its contents are not, so a crowded hotspot would push the
+          // lower rows off a short screen.
+          visible: count > 0
+          width: parent.width
+          height: Math.min(contentHeight, Style.space(120))
+          clip: true
+          interactive: contentHeight > height
+          boundsBehavior: Flickable.StopAtBounds
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
           delegate: Item {
             id: hotspotClientRow
             required property string label
