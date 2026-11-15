@@ -429,3 +429,90 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
+
+# Exercise the production release handler and model synchronization against a
+# real Qt Quick Grid: deferred model moves must not replay after a manual drop.
+ROOT="$ROOT" TEST_TMP="$TMPDIR" python - <<'PY'
+from pathlib import Path
+import os,re
+root=Path(os.environ['ROOT']);dest=Path(os.environ['TEST_TMP'])
+window=(root/'shell/plugins/dock/DockWindow.qml').read_text()
+dock=(root/'shell/plugins/dock/Dock.qml').read_text()
+def method(source,name):
+  return re.search(r'  function '+name+r'\([^)]*\) \{[\s\S]*?\n  \}',source).group()
+release=window.split('    mouse.onReleased: function(event) {',1)[1].split('\n    }',1)[0]
+qml='''import QtQuick
+import QtTest
+Item {
+  id: window
+  width: 240; height: 60
+  property var dock: root
+  property bool animateShifts: true
+  property bool hoverStale: false
+  property int dragIndex: -1
+  property int dropIndex: -1
+  property real dragOffset: 0
+  property point dropPoint
+  property bool pinPressActive: false
+  readonly property bool dragging: dragIndex >= 0
+  METHODS
+  Item { id: body }
+  function release() { var appSlot=appRepeater.itemAt(0); var event={x:0,y:0}; HANDLER }
+  Item {
+    id: root
+    property var items: [{key:"a"},{key:"b"},{key:"c"},{key:"d"}]
+    property bool instances: false
+    property var order: []
+    property alias itemModel: itemModel
+    ListModel {id:itemModel}
+    onItemsChanged: Qt.callLater(root.syncItemModel)
+    function settleLaunches() {}
+    function pruneWindowWorkspaces() {}
+    function moveItem(from,to) {
+      var next=items.slice(); next.splice(to,0,next.splice(from,1)[0]); items=next
+    }
+    SYNC
+  }
+  Grid {
+    id: slots
+    columns: 4
+    move: Transition {
+      enabled: !window.dragging && window.animateShifts
+      NumberAnimation {properties:"x,y"; duration:250}
+    }
+    Repeater {
+      id: appRepeater
+      model: root.itemModel
+      delegate: Item {
+        required property int index
+        required property string key
+        readonly property bool lifted: window.dragIndex===index
+        property bool dragged: false
+        property var mouse: QtObject {function mapToItem(item,x,y) {return Qt.point(x,y)}}
+        width:40; height:40
+      }
+    }
+  }
+  TestCase {
+    name: "DockRelease"
+    when: windowShown
+    function test_drop_commits_before_animations_resume() {
+      root.syncItemModel(); slots.forceLayout(); wait(300)
+      window.dragIndex=0; window.dropIndex=3; window.dragOffset=120
+      window.release()
+      compare(root.itemModel.get(3).key,"a")
+      compare(appRepeater.itemAt(3).x,120)
+      wait(50)
+      compare(appRepeater.itemAt(3).x,120)
+      compare(appRepeater.itemAt(0).x,0)
+      wait(300)
+      compare(appRepeater.itemAt(3).x,120)
+    }
+  }
+}
+'''
+qml=qml.replace('METHODS',method(window,'settleShifts')+'\n'+method(window,'endDrag')).replace('HANDLER',release).replace('SYNC',method(dock,'syncItemModel'))
+(dest/'tst_dock_release.qml').write_text(qml)
+PY
+QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input "$TMPDIR/tst_dock_release.qml"
+pass "manual dock release commits grid positions before deferred motion resumes"

@@ -554,6 +554,10 @@ PanelWindow {
       appSlot.dragged = true
       window.endDrag()
       window.dock.moveItem(from, to)
+      // Commit both models while shift animations are still suppressed. The
+      // normal deferred sync would otherwise replay the reorder after release.
+      window.dock.syncItemModel()
+      slots.forceLayout()
     }
 
     mouse.onCanceled: if (appSlot.lifted) window.endDrag()
