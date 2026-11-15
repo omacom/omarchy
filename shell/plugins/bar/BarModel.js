@@ -715,28 +715,21 @@ function autohidePanelOpen(sections, entries, isOpen) {
   return false
 }
 
-// Whether the edge strip calls the bar out: only while autohide is engaged and
-// no real fullscreen window owns that screen. The strip takes input exactly
-// when it can call the bar out, so this is its input region too.
+// Whether autohide may act on a screen: the mode is on and the screen holds no
+// real fullscreen window. The edge strip takes input exactly when it may act,
+// so this is its input region too.
 function autohideCallsOut(engaged, underFullscreen) {
-  return engaged === true && underFullscreen !== true
+  return engaged === true && underFullscreen === false
 }
 
-// Whether autohide shows the bar on a screen: it may be called out there, and
-// something needs it — the pointer (`revealed`, the flag the bar's hover and
-// its edge strip set) or a panel the user opened from it. The bar's own tuck
-// reads this, so one definition parks the bar both when the pointer leaves and
-// when autohide turns on under a panel that is already open.
-function autohideShows(engaged, revealed, keepOpen, underFullscreen) {
-  return autohideCallsOut(engaged, underFullscreen) && (revealed === true || keepOpen === true)
-}
-
-// Whether the grace timer parks the bar. Asked again every time it fires, so a
-// panel closed while the pointer is elsewhere still parks the bar instead of
-// leaving it out for good, and a window that goes fullscreen pushes the bar
-// back at once.
-function autohideParks(engaged, holds, underFullscreen) {
-  return engaged !== true || holds !== true || underFullscreen === true
+// Whether autohide shows the bar on a screen: it may act there and something
+// needs the bar — the pointer on it or on its edge strip, or a panel the user
+// opened from a widget on it (autohideHolds). The bar's tuck, its reveal and
+// the grace timer all read this one rule, and the timer asks it again every
+// time it fires, so a panel closed while the pointer is elsewhere still parks
+// the bar instead of leaving it out for good.
+function autohideShows(engaged, needed, underFullscreen) {
+  return autohideCallsOut(engaged, underFullscreen) && needed === true
 }
 
 // A screen's flag in an autohide state map.
@@ -766,7 +759,6 @@ if (typeof module !== "undefined") {
     autohidePanelOpen: autohidePanelOpen,
     autohideCallsOut: autohideCallsOut,
     autohideShows: autohideShows,
-    autohideParks: autohideParks,
     screenFlag: screenFlag,
     withScreenFlag: withScreenFlag,
     centerBesideRight: centerBesideRight,
