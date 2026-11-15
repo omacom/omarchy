@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# omarchy:summary=Screenshot a desktop program an agent built, then close it
+# omarchy:args=[--after seconds] [--size WxH] [--out file.png] -- <command> [args...]
+# omarchy:examples=omarchy agent look app -- ./build/tally | omarchy agent look app --after 4 -- ./build/tally --demo
+
+# Starts the program as a floating window that never takes the keyboard
+# focus, so what the user is typing can't land in it, captures that window
+# alone, and closes it. An agent sees its window without a program blocking
+# its shell forever or a screenshot of the user's whole desktop. Prints the
+# screenshot's path and whatever the program printed.
+
+set -uo pipefail
+
+after=2 size="1280, 800" out=""
+while (( $# )) && [[ $1 != "--" ]]; do
+  case $1 in
+    --after) after=$2; shift 2 ;;
+    --size) size="${2/x/, }"; shift 2 ;;
+    --out) out=$2; shift 2 ;;
+    *) echo "Unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+[[ ${1:-} == "--" ]] && shift
+if (( $# == 0 )); then
+  echo "Usage: omarchy agent look app [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]" >&2
+  exit 2
+fi
+[[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
+
+window_ids() {
+  hyprctl clients -j | jq -r '.[].stableId'
+}
+
+log=$(mktemp)
+before=$(window_ids | sort)
+# Hyprland starts the program with the session's environment, so pass on the
+# caller's directory, home and PATH: an agent working in another home sees
+# its own files.
+command="cd ${PWD@Q} && export HOME=${HOME@Q} PATH=${PATH@Q} && exec ${*@Q} >${log@Q} 2>&1"
+hyprctl dispatch "hl.dsp.exec_cmd($(jq -Rn --arg c "bash -c ${command@Q}" '$c'), { float = true, no_initial_focus = true, size = { $size } })" >/dev/null
+
+id=""
+for _ in {1..30}; do
+  id=$(comm -13 <(echo "$before") <(window_ids | sort) | head -1)
+  [[ -n $id ]] && break
+  sleep 0.5
+done
+if [[ -z $id ]]; then
+  echo "No window appeared within 15 seconds. The program printed:" >&2
+  head -40 "$log" >&2
+  rm -f "$log"
+  exit 1
+fi
+
+sleep "$after"
+grim -T "$id" "$out"
+pid=$(hyprctl clients -j | jq -r --arg id "$id" '.[] | select((.stableId | tostring) == $id) | .pid')
+[[ -n $pid ]] && kill "$pid" 2>/dev/null
+
+magick "$out" -resize '1280x>' "$out"
+echo "screenshot: $out"
+if [[ -s $log ]]; then
+  echo "program output:"
+  head -40 "$log"
+fi
+rm -f "$log"
