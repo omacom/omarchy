@@ -270,7 +270,7 @@ cmd_pin() {
 }
 
 info_field() {
-  sed -n "s:.*<$2>\(.*\)</$2>.*:\1:p" "$1" | head -1
+  sed -n "s:.*<$2>\(.*\)</$2>.*:\1:p" "$1" | sed -n 1p
 }
 
 # Snapshot numbers with a pin whose image still exists, newest first.
@@ -580,11 +580,11 @@ cmd_status() {
 # --- restore ---------------------------------------------------------------------------
 
 subvol_uuid() {
-  btrfs subvolume show "$1" 2>/dev/null | sed -n 's/^[[:space:]]*UUID:[[:space:]]*//p' | head -1
+  btrfs subvolume show "$1" 2>/dev/null | sed -n 's/^[[:space:]]*UUID:[[:space:]]*//p' | sed -n 1p
 }
 
 subvol_id() {
-  btrfs subvolume show "$1" 2>/dev/null | sed -n 's/^[[:space:]]*Subvolume ID:[[:space:]]*//p' | head -1
+  btrfs subvolume show "$1" 2>/dev/null | sed -n 's/^[[:space:]]*Subvolume ID:[[:space:]]*//p' | sed -n 1p
 }
 
 # The subvolumes directly inside @ (.snapshots, swap, var/lib/machines, ...),
