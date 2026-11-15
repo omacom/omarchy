@@ -20,6 +20,35 @@ PROVISIONING_DIR=/var/lib/omarchy/provisioning
 OMARCHY_PATH="${OMARCHY_PATH:-/usr/share/omarchy}"
 LOG_FILE=/var/log/omarchy-provision-owner.log
 
+usage() {
+  cat <<USAGE
+Usage: omarchy-provision-owner [--attempt]
+
+Runs first-boot provisioning on tty1 when /var/lib/omarchy/provisioning/pending
+exists: creates the user, finalizes it offline, re-keys LUKS from the throwaway
+install passphrase to the user's password, and hands off to SDDM.
+
+--attempt is internal: it runs a single setup attempt without the greeter.
+USAGE
+}
+
+while (($#)); do
+  case "$1" in
+    --attempt)
+      break
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
 if (( EUID != 0 )); then
   echo "Error: omarchy-provision-owner must run as root" >&2
   exit 1
