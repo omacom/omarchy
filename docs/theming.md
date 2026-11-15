@@ -390,7 +390,7 @@ The icon theme lives in the config rather than the theme, so `omarchy-theme-set-
 
 ## App icons
 
-The launcher and dock show an **icon set**: a directory of app icons, picked on its own with `omarchy icons set <name>` or _Appearance > Icons_. A set and a theme are separate choices. The set says what each icon looks like, the theme says which colors it is drawn in, and a theme ships no icons of its own.
+The launcher and dock show an **icon set**: a directory of app icons, picked on its own with `omarchy icons set <name>` or _Appearance > Icons_, which opens the picker the theme switcher uses over one large preview per set (`omarchy-icons-switcher`). A set and a theme are separate choices. The set says what each icon looks like, the theme says which colors it is drawn in, and a theme ships no icons of its own.
 
 Each file in a set is named after the `Icon=` of the desktop entry it is for, so a set may draw any app:
 
@@ -407,6 +407,8 @@ Print Settings asks for the `printer` device icon, so its file is `printer.svg.t
 | the user's own | `~/.config/omarchy/icons/<name>/` | Whatever it holds. Written by hand, or cloned by `omarchy icons install <git url>`, which names the set after the repo without a leading `omarchy-` and a trailing `-icons`. |
 
 A set draws only what it holds; an app it has no file for shows its packaged icon. A user's set with the name of a built-in one is laid over it icon by icon, so `~/.config/omarchy/icons/papercraft/plain.svg.tpl` redraws just Plain in the default set, and a finished `.svg` there replaces the built-in template of that name. `omarchy icons list` lists the sets, `omarchy icons current` names the one in use (`~/.local/state/omarchy/current/icons.name`; the default until one is picked), and `omarchy icons remove` deletes one of the user's, falling back to the default when it was in use. Custom sets are handled the way custom themes are: `omarchy icons install` clones a git repo into `~/.config/omarchy/icons/` (through a staging dir, so a clone that fails leaves the set that was there; it replaces only a set it cloned before that holds no work of the user's own (uncommitted or stashed changes, or commits no remote has, on a branch or a detached `HEAD`), and refuses one the user wrote or linked in), `omarchy icons extras` lists the cloned ones, and `omarchy icons update` (_Update > Extra Icons_) pulls them and draws the set in use again. The default set is not a package of its own; it ships in `icons/` with the rest of Omarchy.
+
+A set shows in the picker by its `preview.png` (or `.jpg`, `.jpeg`, `.webp`), 2560 by 1440 in full color for the built-in ones, as a theme's preview is, with the icons kept to the middle since the picker fills its frame and crops the sides; the user's goes ahead of the built-in set of its name. A set that came without one gets a sheet of its icons drawn in the current theme by `omarchy-icons-preview`, cached under `~/.cache/omarchy/icons-selector/` until an icon of the set or a color of the theme changes. The built-in previews are drawn the same way, in Tokyo Night: `omarchy-icons-preview icons/<set> icons/<set>/preview.png themes/tokyo-night`. Original's shows the apps' own icons.
 
 Nothing in a set is run: only its `*.svg` and `*.svg.tpl` files are read, and templates only have their color tokens filled in. A set cloned from a git repo (one with a `.git` directory, as with themes) has its symlinks left out, since they point wherever its author chose.
 
