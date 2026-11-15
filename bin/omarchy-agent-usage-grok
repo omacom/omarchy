@@ -290,12 +290,13 @@ def collect_limits(home, key, force):
     weekly = credits_limit(credits)
     if weekly is None:
       monthly = open_json(urllib.request.Request(MONTHLY_URL, headers=headers), timeout=8)
-      try:
-        limits = [monthly_limit(monthly)]
-      except (KeyError, TypeError, ValueError):
-        # A new unified-billing account answers a monthly quota of zero; its
-        # weekly window, with nothing used yet, is the limit it has.
+      # A new unified-billing account answers a monthly quota of zero; its
+      # weekly window, with nothing used yet, is the limit it has. Any other
+      # answer that can't be read is no answer, keeping the last as stale.
+      if amount(monthly["config"]["monthlyLimit"]) <= 0:
         limits = [credits_limit(credits, unified=False)]
+      else:
+        limits = [monthly_limit(monthly)]
     else:
       limits = [weekly]
       # A unified-billing account can carry both: the weekly credits and the
