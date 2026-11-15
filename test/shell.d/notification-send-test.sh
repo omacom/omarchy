@@ -130,15 +130,15 @@ has_hint omarchy-exec-argv && fail "notification wrapper adds no click hint with
 [[ ${args[11]} == "Plain" ]] || fail "notification wrapper still sends a plain toast"
 pass "notification wrapper omits the click hint when no command is given"
 
-# -h/--help prints usage and sends nothing, before the headline or after it.
-for help_case in "--help" "-u critical -h" "Head --help"; do
-  read -ra help_args <<<"$help_case"
-  : >"$args_file"
-  output=$(send "${help_args[@]}" 2>/dev/null) || fail "notification wrapper exits 0 for: $help_case"
-  [[ $output == "Usage: omarchy-notification-send"* ]] || fail "notification wrapper prints usage for: $help_case" "$output"
-  [[ -s $args_file ]] && fail "notification wrapper sends nothing for: $help_case"
-done
-pass "notification wrapper prints usage for -h/--help and sends nothing"
+# --help before the headline prints usage and sends nothing; after it, it is the
+# description, so a reminder whose message is "--help" is still sent.
+: >"$args_file"
+output=$(send --help 2>/dev/null) || fail "notification wrapper exits 0 for --help"
+[[ $output == "Usage: omarchy-notification-send"* && ! -s $args_file ]] || fail "notification wrapper prints usage for --help and sends nothing" "$output"
+send "Reminder" --help >/dev/null
+load
+[[ ${args[12]-} == "--help" ]] || fail "notification wrapper sends --help after the headline as the description" "${args[12]-}"
+pass "notification wrapper prints usage for a leading --help and sends one after the headline"
 
 # ------------------------------------------------ rest-of-line --exec is literal
 : >"$args_file"
