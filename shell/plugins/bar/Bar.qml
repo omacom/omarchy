@@ -1815,7 +1815,8 @@ Item {
     // autohideEngaged, a real fullscreen window parks it, and a panel the user
     // opened holds it: one rule, read here by the tuck and by the grace timer.
     readonly property bool revealed: BarModel.autohideShows(root.autohideEngaged,
-      BarModel.screenFlag(root.autohideRevealed, screen ? screen.name : ""), root.autohideKeepOpen, barWindow.underFullscreen)
+      BarModel.screenFlag(root.autohideRevealed, screen ? screen.name : "") || root.autohideKeepOpen,
+      barWindow.underFullscreen)
 
     // A fullscreen window takes the bar away with the flag: the pointer cannot
     // reach the parked bar to leave it, so nothing would clear the flag, and the
@@ -1835,7 +1836,7 @@ Item {
       onTriggered: {
         var holds = BarModel.autohideHolds(autohideBarHover.hovered,
           BarModel.screenFlag(root.autohideEdgeHovered, screen ? screen.name : ""), root.autohideKeepOpen)
-        if (!BarModel.autohideParks(root.autohideEngaged, holds, barWindow.underFullscreen)) return
+        if (BarModel.autohideShows(root.autohideEngaged, holds, barWindow.underFullscreen)) return
         root.setAutohideRevealed(barWindow.screen, false)
       }
     }
