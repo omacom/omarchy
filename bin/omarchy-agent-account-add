@@ -116,13 +116,48 @@ interruptible() {
   wait $!
 }
 
-if omarchy-cmd-missing "$provider"; then
-  say "$(omarchy-i18n agents.installingCli "$name")"
-  if [[ $events == "true" ]]; then
-    mise use -g "$package" >/dev/null 2>&1 || fail "$(omarchy-i18n agents.installCliFailed "$name")"
-  else
-    mise use -g "$package" || exit 1
+# The panel follows a CLI's download as `@@omarchy progress <done> <total>`
+# lines, in bytes, read off mise's own progress, which it keeps printing every
+# few seconds without a terminal too, as `… 12.3/166.8 MB · 6.1 MB/s`.
+# Nothing between mise and awk may buffer, or the lines all arrive at the end.
+install_cli() {
+  if [[ $events != "true" ]]; then
+    "$@"
+    return
   fi
+
+  printf '@@omarchy progress 0 0\n'
+  "$@" 2>&1 | awk -v RS='[\r\n]+' '
+    function bytes(n, unit) {
+      return n * (unit == "GB" ? 1e9 : unit == "MB" ? 1e6 : unit ~ /^[kK]B$/ ? 1e3 : 1)
+    }
+    match($0, /[0-9.]+( [kKMG]?B)?\/[0-9.]+ [kKMG]?B/) {
+      n = split(substr($0, RSTART, RLENGTH), part, /[\/ ]/)
+      unit = part[n]
+      done = n == 4 ? bytes(part[1], part[2]) : bytes(part[1], unit)
+      total = bytes(part[n - 1], unit)
+      printf "@@omarchy progress %d %d\n", done, total
+      fflush()
+    }'
+}
+
+# Omarchy declares the agent CLIs as lazy mise tools: their command is on PATH
+# before they're installed, and the first run downloads them, silently. Left
+# to the login, that download looks like the sign-in hanging, so it happens
+# here, where the panel can show it. Installing a declared tool leaves the
+# user's config alone; a user who opted out of the defaults selects it instead.
+cli_missing() {
+  omarchy-cmd-missing "$provider" && return 0
+  [[ $(readlink -f "$(command -v "$provider")") == */mise ]] && ! mise where "$package" &>/dev/null
+}
+
+if cli_missing; then
+  say "$(omarchy-i18n agents.installingCli "$name")"
+  if omarchy-mise-default-tools declares "$package"; then
+    install_cli env MISE_MINIMUM_RELEASE_AGE=0 mise install "$package"
+  else
+    install_cli env MISE_MINIMUM_RELEASE_AGE=0 mise use -g "$package"
+  fi || fail "$(omarchy-i18n agents.installCliFailed "$name")"
 fi
 
 # Your main browser is almost certainly signed in to the account you already

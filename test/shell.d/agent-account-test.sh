@@ -400,6 +400,61 @@ fi
 grep -q "^@@omarchy error That's Events" "$test_tmp/events-dup" || fail "--events reports a failure as a tagged line" "$(cat "$test_tmp/events-dup")"
 pass "--events reports progress and results for the panel"
 
+# A lazy mise tool's command is on PATH before the CLI is: a wrapper that
+# downloads it on first run. That download happens before the login, with its
+# progress reported, rather than silently inside it.
+lazy_bin="$test_tmp/lazy"
+mkdir -p "$lazy_bin"
+cat >"$lazy_bin/mise" <<SH
+#!/bin/bash
+if [[ \$(basename "\$0") == "codex" ]]; then
+  echo "run codex \$1" >>"$test_tmp/lazy-log"
+  exec "$mock_bin/codex" "\$@"
+fi
+case "\$1" in
+where) [[ -e $test_tmp/lazy-installed ]] ;;
+install)
+  echo "install \$2" >>"$test_tmp/lazy-log"
+  printf '  codex@1.0.0  downloading  3.0s  512.0 kB/194.4 MB · 3.1 MB/s\r' >&2
+  printf '  codex@1.0.0  downloading  6.0s  157.1/194.4 MB · 52.4 MB/s\n' >&2
+  [[ -z \${OMARCHY_TEST_MISE_INSTALL_FAILS:-} ]] || exit 1
+  touch "$test_tmp/lazy-installed"
+  ;;
+*) exit 2 ;;
+esac
+SH
+chmod +x "$lazy_bin/mise"
+ln -s mise "$lazy_bin/codex"
+printf '[tools]\ncodex = { version = "latest", lazy = true }\n' >"$test_tmp/omarchy-tools.toml"
+export OMARCHY_MISE_CONFIG_PATH="$test_tmp/omarchy-tools.toml"
+
+if PATH="$lazy_bin:$PATH" OMARCHY_TEST_MISE_INSTALL_FAILS=1 \
+  omarchy-agent-account-add --events codex Lazy </dev/null >"$test_tmp/lazy-failed" 2>&1; then
+  fail "a CLI download that fails stops the add"
+fi
+grep -qx "@@omarchy error Installing the Codex CLI didn't finish." "$test_tmp/lazy-failed" ||
+  fail "a failed CLI download is reported as a tagged error" "$(cat "$test_tmp/lazy-failed")"
+grep -q "^run codex" "$test_tmp/lazy-log" && fail "a failed CLI download never starts the login" "$(cat "$test_tmp/lazy-log")"
+
+: >"$test_tmp/lazy-log"
+PATH="$lazy_bin:$PATH" OMARCHY_TEST_LOGIN_UUID=u-lazy OMARCHY_TEST_LOGIN_EMAIL=lazy@example.com \
+  omarchy-agent-account-add --events codex Lazy </dev/null >"$test_tmp/lazy-output" 2>&1 ||
+  fail "adding an account installs a lazy CLI first" "$(cat "$test_tmp/lazy-output")"
+[[ $(grep '^@@omarchy \(status\|progress\)' "$test_tmp/lazy-output" | head -4) == $'@@omarchy status Installing the Codex CLI…\n@@omarchy progress 0 0\n@@omarchy progress 512000 194400000\n@@omarchy progress 157100000 194400000' ]] ||
+  fail "a lazy CLI's download is reported as progress in bytes" "$(cat "$test_tmp/lazy-output")"
+[[ $(cat "$test_tmp/lazy-log") == $'install codex\nrun codex login' ]] ||
+  fail "a lazy CLI is installed before its login runs" "$(cat "$test_tmp/lazy-log")"
+grep -qx "@@omarchy done Added Lazy (lazy@example.com)." "$test_tmp/lazy-output" ||
+  fail "a sign-in after a lazy install finishes as usual" "$(cat "$test_tmp/lazy-output")"
+
+: >"$test_tmp/lazy-log"
+PATH="$lazy_bin:$PATH" OMARCHY_TEST_LOGIN_UUID=u-lazy-2 OMARCHY_TEST_LOGIN_EMAIL=lazy2@example.com \
+  omarchy-agent-account-add --events codex Lazier </dev/null >"$test_tmp/lazy-again" 2>&1 ||
+  fail "an installed CLI signs in directly" "$(cat "$test_tmp/lazy-again")"
+grep -q "^@@omarchy progress" "$test_tmp/lazy-again" && fail "an installed CLI isn't downloaded again" "$(cat "$test_tmp/lazy-again")"
+[[ $(cat "$test_tmp/lazy-log") == "run codex login" ]] || fail "an installed CLI isn't installed again" "$(cat "$test_tmp/lazy-log")"
+pass "a lazy CLI is downloaded, with progress, before its sign-in"
+
 # ------------------------------------------------------------------- reauth
 
 : >"$OMARCHY_TEST_BROWSER_LOG"

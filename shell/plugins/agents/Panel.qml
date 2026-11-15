@@ -631,6 +631,11 @@ Panel {
   property string addUrl: ""
   property bool addNeedsPaste: false
   property string addResult: ""
+  // The CLI's own download, when it isn't installed yet: the first sign-in
+  // installs it before the browser opens.
+  property bool addDownloading: false
+  property real addDoneBytes: 0
+  property real addTotalBytes: 0
   // Whether the sign-in in progress opened a private window, so reopening its
   // page does too.
   property bool addPrivate: false
@@ -673,6 +678,7 @@ Panel {
     // and its prompt for it has no newline to read it by, so the field is
     // there from the start.
     addNeedsPaste = addProvider === "claude"
+    addDownloading = false
     addResult = ""
     addStage = "running"
     addProcess.command = ["omarchy-agent-account-add", "--events", addProvider].concat(label !== "" ? [label] : [])
@@ -700,11 +706,18 @@ Panel {
   // browser (Grok), and an invitation to paste one back (Claude).
   function handleAddLine(line) {
     var text = String(line).replace(/\u001b\[[0-9;]*m/g, "")
-    var tagged = text.match(/^@@omarchy (status|done|error) (.*)$/)
+    var tagged = text.match(/^@@omarchy (status|progress|done|error) (.*)$/)
     if (tagged) {
-      if (tagged[1] === "status") {
+      if (tagged[1] === "progress") {
+        var bytes = tagged[2].split(" ")
+        addDoneBytes = Number(bytes[0]) || 0
+        addTotalBytes = Number(bytes[1]) || 0
+        addDownloading = true
+      } else if (tagged[1] === "status") {
         addStatus = tagged[2]
+        addDownloading = false
       } else {
+        addDownloading = false
         addResult = tagged[2]
         addStage = tagged[1]
         if (tagged[1] === "done") {
@@ -867,6 +880,7 @@ Panel {
     // and its prompt for it has no newline to read it by, so the field is
     // there from the start.
     addNeedsPaste = addProvider === "claude"
+    addDownloading = false
     addResult = ""
     addStage = "running"
     addProcess.command = ["omarchy-agent-account-add", "--events", "--reauth",
@@ -1916,6 +1930,37 @@ Panel {
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
         wrapMode: Text.WordWrap
+      }
+
+      // The CLI downloading, before its sign-in can start.
+      Item {
+        visible: root.addDownloading
+        width: parent.width
+        implicitHeight: addDownloadValue.implicitHeight
+
+        Meter {
+          anchors.left: parent.left
+          anchors.right: addDownloadValue.left
+          anchors.rightMargin: Style.space(20)
+          anchors.verticalCenter: parent.verticalCenter
+          value: root.addTotalBytes > 0 ? root.addDoneBytes / root.addTotalBytes : 0
+        }
+
+        Text {
+          id: addDownloadValue
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          textFormat: Text.PlainText
+          horizontalAlignment: Text.AlignRight
+          text: root.addTotalBytes > 0
+            ? Commons.I18n.t("agents.cliDownloadValue")
+                .arg(Commons.I18n.formatNumber(Math.round(root.addDoneBytes / 1e6), 0))
+                .arg(Commons.I18n.formatNumber(Math.round(root.addTotalBytes / 1e6), 0))
+            : ""
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+        }
       }
 
       Column {
