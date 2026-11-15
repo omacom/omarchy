@@ -163,6 +163,18 @@ grep -Fxq /home/me/my-extension <<<"$loaded" || fail "the repair keeps the user'
 while read -r extension; do
   [[ $(grep -cFx -- "$extension" <<<"$loaded") == 1 ]] || fail "the repair loads $extension exactly once"
 done < <(sed -n 's/^--load-extension=//p' "$ROOT/config/chromium-flags.conf" | tr ',' '\n')
+
+# A switch inside a trailing comment loads nothing, so it is stale and the
+# repair adds a live switch rather than extending the comment.
+printf -- '--force-dark-mode # --load-extension=/old\n' >"$flags_file"
+if repair --check brave-origin; then
+  fail "a --load-extension switch inside a comment is reported stale"
+fi
+repair brave-origin || fail "a commented-out --load-extension switch can be repaired"
+[[ $(head -n1 "$flags_file") == "--force-dark-mode # --load-extension=/old" ]] ||
+  fail "the repair leaves the comment alone" "$(<"$flags_file")"
+[[ $(sed -n 2p "$flags_file") == "--load-extension=$(sed -n 's/^--load-extension=//p' "$ROOT/config/chromium-flags.conf")" ]] ||
+  fail "the repair adds a live --load-extension switch" "$(<"$flags_file")"
 pass "switching to a browser repairs the bundled extensions it lacks and keeps the user's own"
 
 # --- WhatsApp Slim ---
