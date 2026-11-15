@@ -1327,5 +1327,17 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Значки"
+  },
+  "install.style.icons": {
+    "label": "Значки"
+  },
+  "remove.icons": {
+    "label": "Значки"
+  },
+  "update.icons": {
+    "label": "Дополнительные значки"
   }
 }

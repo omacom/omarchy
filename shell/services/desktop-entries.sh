@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# Reads what the shell needs from desktop entries beyond what Quickshell
+# parses, one line per finding:
+#   hidden<TAB><id>
+#     the entry stays out of the launcher
+#   dock-click<TAB><mode><TAB><id>
+#     its X-Omarchy-Dock-Click: how a dock click on the running app answers,
+#     with a new window (new) or one on this workspace if any (workspace)
+
 desktop_names=${1:-}
 
 declare -A seen_ids
@@ -24,13 +32,15 @@ desktop_matches() {
   return 1
 }
 
-is_hidden_desktop_file() {
+# Sets hidden and dock_click for one file.
+read_desktop_file() {
   local file=$1
   local in_desktop_entry=0
-  local hidden=false
   local only_show_in=
   local not_show_in=
   local line key value
+  hidden=false
+  dock_click=
 
   while IFS= read -r line || [[ -n $line ]]; do
     line=${line%$'\r'}
@@ -56,14 +66,15 @@ is_hidden_desktop_file() {
       NotShowIn)
         not_show_in=$value
         ;;
+      X-Omarchy-Dock-Click)
+        dock_click=$value
+        ;;
     esac
   done < "$file"
 
-  [[ $hidden == "true" ]] && return 0
-  [[ -n $only_show_in ]] && ! desktop_matches "$only_show_in" && return 0
-  [[ -n $not_show_in ]] && desktop_matches "$not_show_in" && return 0
-
-  return 1
+  [[ -n $only_show_in ]] && ! desktop_matches "$only_show_in" && hidden=true
+  [[ -n $not_show_in ]] && desktop_matches "$not_show_in" && hidden=true
+  return 0
 }
 
 scan_dir() {
@@ -79,8 +90,12 @@ scan_dir() {
     [[ -n ${seen_ids[$id]+set} ]] && continue
     seen_ids[$id]=1
 
-    if is_hidden_desktop_file "$file"; then
-      printf '%s\n' "$id"
+    read_desktop_file "$file"
+    if [[ $hidden == "true" ]]; then
+      printf 'hidden\t%s\n' "$id"
+    fi
+    if [[ -n $dock_click ]]; then
+      printf 'dock-click\t%s\t%s\n' "$dock_click" "$id"
     fi
   done < <(find "$dir" -type f -name '*.desktop' -print0 2>/dev/null | sort -z)
 }

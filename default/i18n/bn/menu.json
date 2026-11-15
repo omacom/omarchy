@@ -1327,5 +1327,17 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "আইকন"
+  },
+  "install.style.icons": {
+    "label": "আইকন"
+  },
+  "remove.icons": {
+    "label": "আইকন"
+  },
+  "update.icons": {
+    "label": "অতিরিক্ত আইকন"
   }
 }
