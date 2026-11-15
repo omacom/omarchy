@@ -39,6 +39,16 @@ Item {
     root.cancel()
   }
 
+  // Callers may time out after another picker has replaced them. Never hide
+  // the newer request when cleaning up the old one.
+  function cancelRequest(payloadJson) {
+    var payload = ({})
+    try { payload = JSON.parse(payloadJson || "{}") } catch (e) { return "invalid" }
+    if (!root.requestActive || !payload.doneFile || payload.doneFile !== root.doneFile) return "stale"
+    root.cancel()
+    return "ok"
+  }
+
   function refresh() {
     defaultMenuFile.reload()
     userMenuFile.reload()
@@ -94,7 +104,6 @@ Item {
   property int selectedIndex: 0
   property bool cursorActive: false
   property int requestSerial: 0
-  property int applySerial: 0
   property var items: ({})
   property var itemOrder: []
   property var navStack: []
@@ -143,7 +152,6 @@ Item {
 
   function finishRequest(selection) {
     if (!root.requestActive || !root.doneFile) {
-      root.opened = false
       return
     }
 
@@ -154,12 +162,13 @@ Item {
     root.doneFile = ""
 
     if (selection === null || selection === undefined) {
-      resultProc.command = ["bash", "-c", ": > " + Util.shellQuote(activeDoneFile)]
+      Quickshell.execDetached(["bash", "-c", "{ : > \"$1\"; } 2>/dev/null", "menu-result", activeDoneFile])
     } else {
-      resultProc.command = ["bash", "-c", "printf '%s\\n' " + Util.shellQuote(selection) + " > " + Util.shellQuote(activeSelectionFile) + "; : > " + Util.shellQuote(activeDoneFile)]
+      Quickshell.execDetached(["bash", "-c", "{ if ! printf '%s\\n' \"$3\" > \"$2\"; then rm -f -- \"$2\"; fi; : > \"$1\"; } 2>/dev/null", "menu-result", activeDoneFile, activeSelectionFile, selection])
     }
-    resultProc.running = true
   }
+
+  Component.onDestruction: root.finishRequest(null)
 
   function runAction(action) {
     var command = String(action || "")
@@ -893,7 +902,6 @@ Item {
     } else if (row.kind === "app") {
       var appId = row.appId
       var label = row.label
-      applySerial = requestSerial
       opened = false
       filterText = ""
       if (root.appLibrary) root.appLibrary.launch(appId, label)
@@ -929,7 +937,6 @@ Item {
   }
 
   function applyDmenuSelection(value) {
-    applySerial = requestSerial
     opened = false
     filterText = ""
     root.finishRequest(value)
@@ -938,7 +945,6 @@ Item {
   function applySelected(id, action) {
     if (!id) { cancel(); return }
 
-    applySerial = requestSerial
     opened = false
     filterText = ""
     root.runAction(action)
@@ -951,6 +957,7 @@ Item {
   }
 
   function openExistingMenu(initialMenu) {
+    root.finishRequest(null)
     requestSerial += 1
     mode = "menu"
     requestActive = false
@@ -975,6 +982,7 @@ Item {
   }
 
   function openDmenu(payload) {
+    root.finishRequest(null)
     requestSerial += 1
     mode = payload.mode === "input" ? "input" : "select"
     dmenuPrompt = String(payload.prompt || (mode === "input" ? Commons.I18n.t("menu.inputPrompt") : Commons.I18n.t("menu.selectPrompt")))
@@ -1120,14 +1128,6 @@ Item {
         root.updateDmenuChecks()
       }
       startNext()
-    }
-  }
-
-  Process {
-    id: resultProc
-    onExited: {
-      if (root.applySerial === root.requestSerial)
-        root.opened = false
     }
   }
 
