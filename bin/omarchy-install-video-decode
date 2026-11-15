@@ -49,16 +49,20 @@ append_line() {
   printf '%s\n' "$2" >>"$1"
 }
 
-# A --use-angle the user set stays as it is.
+# A --use-angle the user set stays as it is. Chrome and Chromium each read
+# their own flags file, and one that can't be written doesn't hold back the other.
 setup_chromium() {
-  local conf=~/.config/chromium-flags.conf
-  [[ -f $conf ]] || return 0
+  local conf status=0
 
-  if ! chromium_args "$conf" | grep -E -- '(^|[[:space:]])--use-angle=' >/dev/null; then
-    append_line "$conf" '--use-angle=gles-egl' || return
-  fi
+  for conf in ~/.config/chromium-flags.conf ~/.config/chrome-flags.conf; do
+    [[ -f $conf ]] || continue
+    if ! chromium_args "$conf" | grep -E -- '(^|[[:space:]])--use-angle=' >/dev/null; then
+      append_line "$conf" '--use-angle=gles-egl' || status=$?
+    fi
+  done
 
-  omarchy-chromium-add-feature AcceleratedVideoDecoder
+  omarchy-chromium-add-feature AcceleratedVideoDecoder || status=$?
+  return "$status"
 }
 
 if omarchy-hw-aarch64-qualcomm; then
