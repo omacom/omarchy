@@ -6,6 +6,7 @@ import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import "FingerprintModel.js" as FingerprintModel
+import "../bar/widgets/KeyboardLayoutModel.js" as KeyboardLayoutModel
 
 Item {
   id: root
@@ -370,13 +371,13 @@ Item {
     } catch (error) {
       return
     }
+    // The main flag can sit on fcitx5's virtual keyboard or a power button, so
+    // ask every keyboard someone types on. That also covers a laptop with an
+    // external keyboard.
     var keyboards = devices && Array.isArray(devices.keyboards) ? devices.keyboards : []
-    for (var i = 0; i < keyboards.length; i++) {
-      if (keyboards[i] && keyboards[i].main) {
-        capsLockOn = !!keyboards[i].capsLock
-        return
-      }
-    }
+    capsLockOn = keyboards.some(function(keyboard) {
+      return !!keyboard && KeyboardLayoutModel.isTypedKeyboard(keyboard.name) && !!keyboard.capsLock
+    })
   }
 
   function submitPassword(value) {
