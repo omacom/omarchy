@@ -301,6 +301,8 @@ done <"$ROOT/bin/omarchy-hotspot" >"$FUNCTIONS"
   printf 'FORWARDING_STATE_FILE=%q\n' "$TEST_STATE_DIR/forwarding.state"
   printf 'HOTSPOT_LOCK_FILE=%q\n' "$OMARCHY_HOTSPOT_LOCK_FILE"
   printf 'HOTSPOT_LOCK_WAIT=%q\n' "$OMARCHY_HOTSPOT_LOCK_WAIT"
+  # The host's own sysctl config must not decide whether forwarding is kept.
+  printf 'SYSCTL_CONFIG_FILES=()\n'
 } >"$TEST_PATHS"
 
 run_isolated() {
@@ -470,7 +472,7 @@ for backend in firewalld nftables; do
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
-apply() { :; }
+save_profile() { :; }
 start Hotspot 2.4
 DRIVER
   : >"$NMCLI_UP_LOG"
@@ -1090,9 +1092,10 @@ require_privileged() { :; }
 HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
+SYSCTL_CONFIG_FILES=("$TEST_STATE_DIR"/sysctl.d/*.conf)
 forwarding_restore
 DRIVER
-for router in container vm-bridge shared-connection; do
+for router in container vm-bridge shared-connection wireguard tailscale sysctl-config; do
   reset_firewall_fixture
   printf '%s\n' 1 >"$FORWARDING_STATE_VALUE"
   printf '%s\n' enabled >"$FORWARDING_STATE"
@@ -1100,9 +1103,16 @@ for router in container vm-bridge shared-connection; do
     container) export ROUTING_LINK=docker0 ;;
     vm-bridge) export ROUTING_LINK=virbr0 ;;
     shared-connection) export OTHER_SHARED_CONNECTION="Ethernet share" ;;
+    wireguard) export ROUTING_LINK=wg0 ;;
+    tailscale) export ROUTING_LINK=tailscale0 ;;
+    sysctl-config)
+      mkdir -p "$TEST_STATE_DIR/sysctl.d"
+      printf '%s\n' '# router' 'net.ipv4.ip_forward = 1' >"$TEST_STATE_DIR/sysctl.d/30-router.conf"
+      ;;
   esac
   output=$(run_isolated "$TEST_TMP/forwarding-shared-driver.sh" 2>&1) || fail "forwarding restore succeeds while another router needs forwarding ($router)" "$output"
   unset ROUTING_LINK OTHER_SHARED_CONNECTION
+  rm -rf "$TEST_STATE_DIR/sysctl.d"
   [[ $(<"$FORWARDING_STATE_VALUE") == 1 ]] || fail "forwarding stays on for another router ($router)"
   [[ ! -e $FORWARDING_STATE ]] || fail "the hotspot still gives up its forwarding claim ($router)"
   [[ $output == *"leaving IPv4 forwarding on"* ]] || fail "keeping forwarding on is explained ($router)" "$output"
@@ -1112,7 +1122,7 @@ printf '%s\n' 1 >"$FORWARDING_STATE_VALUE"
 printf '%s\n' enabled >"$FORWARDING_STATE"
 run_isolated "$TEST_TMP/forwarding-shared-driver.sh"
 [[ $(<"$FORWARDING_STATE_VALUE") == 0 ]] || fail "forwarding is restored when nothing else routes"
-pass "releasing forwarding leaves it on while a container, VM bridge or other shared connection routes"
+pass "releasing forwarding leaves it on while a container, VM bridge, VPN tunnel, other shared connection or sysctl config routes"
 
 reset_firewall_fixture
 run_isolated "$TEST_TMP/seed-complete-driver.sh"
@@ -1366,7 +1376,7 @@ cat >"$TEST_TMP/first-start-driver.sh" <<'DRIVER'
 (( $(id -u) != 0 )) || exit 0
 LOCK_CASE=first-start
 source "$TEST_TMP/shared-lock-common.sh"
-apply() {
+save_profile() {
   echo apply >>"$calls"
   shared_lock_free && { echo "apply ran without the shared lock" >&2; exit 1; }
   exit 0

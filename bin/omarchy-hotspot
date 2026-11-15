@@ -9,8 +9,8 @@
 # this machine and route through its upstream connection. The NM profile is
 # the single source of truth for the credentials (SSID, band, passphrase);
 # nothing is stored in a sidecar config file, so there is no plaintext secret
-# outside the root-owned profile. `apply` writes the profile without starting
-# the AP; `start` writes it and brings the AP up. `setup` installs the
+# outside the root-owned profile. `apply` writes the profile, and restarts the
+# AP only if it is already up; `start` writes it and brings the AP up. `setup` installs the
 # firewall rules a shared connection needs and runs lazily on first start
 # (privileged via sudo/pkexec); `teardown` reverses it.
 
@@ -964,11 +964,25 @@ forwarding_enable() {
   fi
 }
 
+SYSCTL_CONFIG_FILES=(/etc/sysctl.conf /etc/sysctl.d/*.conf /run/sysctl.d/*.conf /usr/lib/sysctl.d/*.conf)
+
 # Another router that may have come up after the hotspot claimed forwarding:
-# a second NetworkManager shared connection, or a container/VM bridge. The
-# hotspot's marker only says who turned forwarding on first.
+# a sysctl config asking for forwarding at boot, a second NetworkManager
+# shared connection, a container/VM bridge, or a VPN or overlay tunnel
+# (WireGuard, OpenVPN, Tailscale, ZeroTier) that may route for others. The
+# kernel does not record who needs forwarding, and the hotspot's marker only
+# says who turned it on first, so anything that looks like a router keeps it
+# on: leaving it on costs nothing a later reboot would not, while turning it
+# off cuts off whoever was routing.
 forwarding_other_user() {
-  local name method link
+  local name method link file
+  for file in "${SYSCTL_CONFIG_FILES[@]}"; do
+    [[ -r $file ]] || continue
+    if grep -Eq '^[[:space:]]*net[./]ipv4[./]ip_forward[[:space:]]*=[[:space:]]*1[[:space:]]*$' "$file"; then
+      printf 'the sysctl setting in %s\n' "$file"
+      return 0
+    fi
+  done
   while IFS= read -r name; do
     [[ -n $name && $name != "$PROFILE" ]] || continue
     for method in ipv4.method ipv6.method; do
@@ -980,7 +994,7 @@ forwarding_other_user() {
   done < <(LC_ALL=C nmcli -e no -g NAME connection show --active 2>/dev/null || true)
   while IFS= read -r link; do
     case $link in
-      docker* | br-* | virbr* | podman* | cni* | lxcbr* | incusbr* | lxdbr*)
+      docker* | br-* | virbr* | podman* | cni* | lxcbr* | incusbr* | lxdbr* | wg* | tun* | tap* | tailscale* | zt*)
         printf 'interface %s\n' "$link"
         return 0
         ;;
@@ -1035,12 +1049,12 @@ generate_password() {
 }
 
 # Password arrives on stdin (never argv). band is optional, default 2.4.
-# apply() writes the profile; start() writes it the same way, then brings the AP up.
+# save_profile() writes the profile; start() then brings the AP up.
 start() {
   local ssid=$1 band=${2:-2.4} nm_up_error=""
   hotspot_lock --shared
 
-  apply "$ssid" "$band"
+  save_profile "$ssid" "$band"
   firewall_ensure
   if ! forwarding_ensure; then
     rollback_start "could not enable IPv4 forwarding for hotspot" 0
@@ -1272,9 +1286,10 @@ qr() {
 
 # Persist credentials to the NetworkManager profile without starting the AP.
 # Password arrives on stdin (never argv). Edits survive shell restarts even
-# when the user never turns the hotspot on. `apply` is idempotent: it creates
-# the profile on first use, then updates it. start() reuses this path.
-apply() {
+# when the user never turns the hotspot on. Idempotent: it creates the profile
+# on first use, then updates it. start() saves through here and brings the AP
+# up itself.
+save_profile() {
   local ssid=$1 band=${2:-2.4} password device nm_band nm_channel
   hotspot_lock
 
@@ -1317,6 +1332,26 @@ apply() {
       nmcli connection edit "$PROFILE" >/dev/null 2>&1 ||
       fail "could not set hotspot password"
   fi
+}
+
+# Save the settings, and put them on air when the AP is already up.
+# NetworkManager keeps an active connection on the settings it started with,
+# while status and the QR card read the saved profile, so without a
+# reactivation the panel would show a name, band and join code the radio is
+# not using. Clients drop and rejoin, which they must do anyway for a new
+# name or password.
+apply() {
+  local nm_up_error=""
+  hotspot_lock
+  save_profile "$@"
+  profile_active || return 0
+  if ! nm_up_error=$(nmcli connection up "$PROFILE" 2>&1 >/dev/null); then
+    # The AP is down for good: give back the firewall rules and forwarding it
+    # was holding, as turning it off would.
+    stop || fail "saved the hotspot settings, but the hotspot did not come back up and releasing its host state failed: $nm_up_error"
+    fail "saved the hotspot settings, but the hotspot did not come back up: $nm_up_error"
+  fi
+  forwarding_ensure || fail "hotspot restarted, but IPv4 forwarding is not enabled"
 }
 
 # Reversible counterpart to setup: drop the firewall rules (and the AP if it
