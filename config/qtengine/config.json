@@ -1,7 +1,7 @@
 {
   "theme": {
     "colorScheme": "~/.local/state/omarchy/current/theme/qtengine.colors",
-    "iconTheme": "Yaru-blue",
+    "iconTheme": "Adwaita",
     "style": "Fusion",
     "quickStyle": "Fusion",
     "font": {

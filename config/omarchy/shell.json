@@ -72,12 +72,13 @@
     "position": "bottom",
     "pinned": [
       "folio",
-      "chromium",
-      "foot",
+      "omarchy-browser",
+      "omarchy-terminal",
       "omacalc",
       "omawrite",
-      "X",
-      "YouTube"
+      "hype",
+      "monologue",
+      "cliamp"
     ]
   },
   "plugins": []

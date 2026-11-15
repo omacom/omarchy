@@ -61,4 +61,10 @@ fi
 mkdir -p "$(dirname "$editor_file")"
 printf '%s\n' "$editor" >"$editor_file"
 
+# Files and other apps open a text file with what mimeapps.list names for
+# its type, not Omarchy's own default. Point every text type at the editor
+# handler, which opens the editor recorded above, so the choice made here is
+# the one every app follows.
+omarchy-cmd-editor-mimetypes
+
 omarchy-notification-send -g $glyph "$(omarchy-i18n default.editorSet "$name")"

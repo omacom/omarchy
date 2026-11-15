@@ -15,6 +15,14 @@ if [[ -f $shell_json ]] && grep -q '"org.gnome.Nautilus"' "$shell_json"; then
   sed --follow-symlinks -i 's/"org\.gnome\.Nautilus"/"folio"/' "$shell_json"
 fi
 
-# Nautilus goes, with its extensions, its previewer and the LocalSearch
-# indexer it brings along. nautilus-dropbox depends on it, so it goes too.
-omarchy-pkg-drop nautilus nautilus-python nautilus-dropbox sushi
+# Nautilus goes, with its extensions and its previewer. nautilus-dropbox
+# depends on it, so it goes too. Only these: removing their dependencies as
+# well (pacman -s) would take whatever arrived with them first, which on some
+# installs is Papers and xdg-user-dirs, both Omarchy defaults.
+nautilus_packages=()
+for package_name in nautilus nautilus-python nautilus-dropbox sushi; do
+  pacman -Qq "$package_name" &>/dev/null && nautilus_packages+=("$package_name")
+done
+if ((${#nautilus_packages[@]})); then
+  sudo pacman -Rn --noconfirm "${nautilus_packages[@]}"
+fi
