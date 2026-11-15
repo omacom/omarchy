@@ -280,20 +280,6 @@ Item {
       anchors.horizontalCenter: inputField.horizontalCenter
       spacing: 8
 
-      // A password typed with Caps Lock on fails with no hint why, so say so
-      // before the user burns through attempts.
-      Text {
-        objectName: "capsLockNotice"
-        textFormat: Text.PlainText
-        anchors.horizontalCenter: parent.horizontalCenter
-        visible: root.showCapsLock
-        text: Commons.I18n.t("lock.capsLockOn")
-        color: Commons.Color.lock.textError
-        font.family: Style.font.family
-        font.pixelSize: Style.font.heading
-        horizontalAlignment: Text.AlignHCenter
-      }
-
       // The crossed-out icon has no meaning to a user who has never seen it — it
       // is not intuitive that it signals a broken reader — so the words carry the
       // explanation and the icon only reinforces it.

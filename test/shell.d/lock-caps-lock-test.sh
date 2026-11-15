@@ -67,7 +67,7 @@ if ! jq -e '.ok == true' "$result" >/dev/null; then
   jq . "$result" >&2
   printf 'Lock caps lock log:\n' >&2
   sed -n '1,220p' "$log" >&2
-  fail "caps lock notice tracks the keyboard state"
+  fail "caps lock icon tracks the keyboard state"
 fi
 
-pass "caps lock notice tracks the keyboard state"
+pass "caps lock icon tracks the keyboard state"

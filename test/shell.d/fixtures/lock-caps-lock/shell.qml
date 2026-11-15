@@ -51,42 +51,24 @@ ShellRoot {
           return
         }
 
-        var notice = findByObjectName(view, "capsLockNotice")
-        root.assertTrue(notice !== null, "caps lock notice exists in the lock view")
+        var icon = findByObjectName(view, "capsLockIndicator")
+        root.assertTrue(icon !== null, "caps lock icon exists in the lock view")
 
-        if (notice) {
-          root.assertTrue(!notice.visible, "notice is hidden while Caps Lock is off")
-
-          var icon = findByObjectName(view, "capsLockIndicator")
-          root.assertTrue(icon !== null && !icon.visible, "icon is hidden while Caps Lock is off")
+        if (icon) {
+          root.assertTrue(!icon.visible, "icon is hidden while Caps Lock is off")
           root.assertTrue(view.iconReserve === 0, "no icon space is reserved while Caps Lock is off")
 
           view.capsLockOn = true
-          root.assertTrue(notice.visible, "notice appears when Caps Lock is on")
-          root.assertTrue(icon !== null && icon.visible, "icon appears when Caps Lock is on")
-          root.assertTrue(view.iconReserve > (icon ? icon.width : 0), "dots keep clear of the icon")
+          root.assertTrue(icon.visible, "icon appears when Caps Lock is on")
+          root.assertTrue(view.iconReserve > icon.width, "dots keep clear of the icon")
 
           // The preview cannot take a password, so it has nothing to warn about.
           view.inputEnabled = false
-          root.assertTrue(!notice.visible, "notice is hidden when the field takes no input")
+          root.assertTrue(!icon.visible, "icon is hidden when the field takes no input")
           view.inputEnabled = true
 
-          // Both notices can show at once and must not overlap.
-          view.fingerprintConfigured = true
-          view.fingerprintUnavailable = true
-          var fingerprintNotice = findByObjectName(view, "fingerprintUnavailableNotice")
-          root.assertTrue(fingerprintNotice !== null && fingerprintNotice.visible, "fingerprint notice shows alongside")
-          if (fingerprintNotice) {
-            // Column positions its children on the next polish; settle it now.
-            notice.parent.forceLayout()
-            var capsBox = notice.mapToItem(view, 0, 0, notice.width, notice.height)
-            var fingerprintBox = fingerprintNotice.mapToItem(view, 0, 0, fingerprintNotice.width, fingerprintNotice.height)
-            root.assertTrue(capsBox.y + capsBox.height <= fingerprintBox.y || fingerprintBox.y + fingerprintBox.height <= capsBox.y,
-              "caps lock and fingerprint notices do not overlap")
-          }
-
           view.capsLockOn = false
-          root.assertTrue(!notice.visible, "notice clears when Caps Lock turns off")
+          root.assertTrue(!icon.visible, "icon clears when Caps Lock turns off")
         }
 
         view.destroy()
