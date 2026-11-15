@@ -402,6 +402,28 @@ for (const method of menuNetworkCalls) {
   assertEqual(calls.join(','), method, 'the menu call ' + method + ' reaches the panel method of that name')
 }
 
+// Start and Save send the whole draft, so neither runs before the first
+// status read of this open has refreshed it.
+for (const action of ['startHotspot', 'applyHotspot']) {
+  const source = panelSource.match(new RegExp('function ' + action + '\\(\\) \\{[\\s\\S]*?\\n {2}\\}'))
+  assert(source, 'network has ' + action)
+  if (!source) continue
+  const state = {
+    hotspotBusy: false, hotspotLoaded: false, hotspotError: '',
+    hotspotSsid: 'Old Name', hotspotPassword: 'oldpassword', hotspotBand: '2.4',
+    hotspotLimitArgument: 'unlimited', hotspotCommand: 'omarchy-hotspot', hotspotActionKind: '',
+    hotspotActionProc: { running: false },
+    Model: { hotspotCredentialsError: () => '' },
+    Commons: englishCommons,
+  }
+  const run = new Function('state', 'with (state) {\n' + source[0] + '\n' + action + '()\n}')
+  run(state)
+  assert(!state.hotspotActionProc.running && !state.hotspotBusy, action + ' waits for the first status read')
+  state.hotspotLoaded = true
+  run(state)
+  assert(state.hotspotActionProc.running, action + ' runs once the status has loaded')
+}
+
 const updateHotspotSource = panelSource.match(/function updateHotspot\(raw, exitCode, errorOutput\) \{[\s\S]*?\n {2}\}/)
 assert(updateHotspotSource, 'network accepts a hotspot process result')
 if (updateHotspotSource) {
