@@ -42,6 +42,57 @@ Item {
   // killing the entire shell. Hidden panels stay mapped but park off-screen
   // without an exclusion zone; updated by the FileView watcher further down.
   property bool barHidden: false
+
+  // Hover bar (autohide, `bar.autohide`): with it on, the bar keeps no reserved
+  // space and slides in over the windows when the pointer reaches its screen
+  // edge, then leaves again. Off by default and absent from shell.json; Hide
+  // Bar still wins over it. The rule itself is BarModel's, so the bar, its edge
+  // strip and the tests read one definition.
+  readonly property bool autohideEngaged: BarModel.autohideEngaged(root.barConfig, root.barHidden)
+  // Each screen's revealed state and edge hover, keyed by screen name: the bar
+  // surface and the strip that calls it are separate windows on one screen.
+  property var autohideRevealed: ({})
+  property var autohideEdgeHovered: ({})
+  onAutohideEngagedChanged: {
+    root.autohideRevealed = ({})
+    root.autohideEdgeHovered = ({})
+  }
+
+  // A panel, popup or menu open from a bar widget still needs the bar on
+  // screen. A panel is a live item the bar tracks as activePopout; a menu is a
+  // window of the shell, so it is asked for by its layout id. Read as one
+  // binding, so closing it while the pointer is elsewhere is what lets the bar
+  // go, instead of leaving it out for good.
+  readonly property bool autohideKeepOpen: {
+    if (root.activePopout !== null) return true
+    if (!root.shell || typeof root.shell.isPluginOpen !== "function") return false
+    var shown = root.layoutWidgets.sections
+    for (var section in shown) {
+      var keys = shown[section] || []
+      for (var i = 0; i < keys.length; i++) {
+        var id = root.entryId(root.layoutWidgets.entries[keys[i]])
+        if (id && root.shell.isPluginOpen(id)) return true
+      }
+    }
+    return false
+  }
+
+  function setAutohideRevealed(screen, value) {
+    root.autohideRevealed = BarModel.withScreenFlag(root.autohideRevealed, screen ? screen.name : "", value)
+  }
+
+  function setAutohideEdgeHovered(screen, value) {
+    root.autohideEdgeHovered = BarModel.withScreenFlag(root.autohideEdgeHovered, screen ? screen.name : "", value)
+  }
+
+  // Whether the active workspace on a screen holds a real fullscreen window.
+  // The bar drops its input under one and its edge strip never calls it out.
+  function underFullscreenOn(screen) {
+    var monitor = Hyprland.monitorFor(screen)
+    var workspace = monitor ? monitor.activeWorkspace : null
+    return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
+  }
+
   property string home: Quickshell.env("HOME")
   property string stateHome: home + "/.local/state"
   property string omarchyConfigDir: home + "/.config/omarchy"
@@ -1625,6 +1676,20 @@ Item {
     }
   }
 
+  // One edge strip per screen, outside the bar surface: the parked bar is off
+  // screen and cannot take the pointer at the edge.
+  Variants {
+    model: Quickshell.screens
+
+    delegate: Component {
+      BarEdgePanel {
+        required property var modelData
+
+        screen: modelData
+      }
+    }
+  }
+
   Variants {
     model: Quickshell.screens
 
@@ -1678,9 +1743,11 @@ Item {
     // good: when the mode settles it, or after two seconds without one.
     visible: cutoutWaitOver || !cutoutPending
     // An explicit zone instead of Auto: the reserved area stays the strip's
-    // thickness though the window spans its screen.
-    exclusionMode: root.barHidden ? ExclusionMode.Ignore : ExclusionMode.Normal
-    exclusiveZone: thickness
+    // thickness though the window spans its screen. Autohide gives that space
+    // back for good — the bar rides over the windows, out or in — so nothing
+    // resizes when it slides in.
+    exclusionMode: (root.barHidden || root.autohideEngaged) ? ExclusionMode.Ignore : ExclusionMode.Normal
+    exclusiveZone: root.autohideEngaged ? 0 : thickness
 
     // While this window's widget or bar-move drag is live, the whole surface
     // takes input (mask below), so the pointer never leaves the bar surface
@@ -1698,11 +1765,29 @@ Item {
     // stays on screen: not the strip, however thick a notch floor makes it,
     // nor the clear rest that a drag takes input on.
     readonly property real parkDistance: root.vertical ? implicitWidth : implicitHeight
+    // Autohide parks the layer exactly one thickness past its edge, so the
+    // strip goes with it and so does the glass Hyprland draws on this surface.
+    // Parked by a margin, never by opacity: the glass would stay behind. Hide
+    // Bar keeps its own deeper park, which also carries the clear rest of the
+    // surface away so a drag can still start there.
+    // Writable on purpose: the Behavior below animates it, and a read-only
+    // property fails the whole component to load.
+    property real autohideTuck: root.autohideEngaged && !barWindow.revealed ? thickness : 0
+    Behavior on autohideTuck {
+      id: autohideMotion
+      NumberAnimation {
+        // Away quicker than back, as the dock leaves: 120 ms out, 180 ms in,
+        // and instant when the user has animations off (Style.duration is 0).
+        duration: Style.duration(autohideMotion.targetValue > 0 ? 120 : 180)
+        easing.type: Easing.Bezier
+        easing.bezierCurve: Style.easeOut
+      }
+    }
     margins {
-      top: root.barHidden && root.position === "top" ? -barWindow.parkDistance : 0
-      bottom: root.barHidden && root.position === "bottom" ? -barWindow.parkDistance : 0
-      left: root.barHidden && root.position === "left" ? -barWindow.parkDistance : 0
-      right: root.barHidden && root.position === "right" ? -barWindow.parkDistance : 0
+      top: root.position === "top" ? (root.barHidden ? -barWindow.parkDistance : -barWindow.autohideTuck) : 0
+      bottom: root.position === "bottom" ? (root.barHidden ? -barWindow.parkDistance : -barWindow.autohideTuck) : 0
+      left: root.position === "left" ? (root.barHidden ? -barWindow.parkDistance : -barWindow.autohideTuck) : 0
+      right: root.position === "right" ? (root.barHidden ? -barWindow.parkDistance : -barWindow.autohideTuck) : 0
     }
 
     anchors {
@@ -1730,6 +1815,36 @@ Item {
     // The same thickness the bar publishes for its screen (screenBarSizes).
     readonly property int thickness: root.thicknessFor(screen)
 
+    // Whether autohide has this screen's bar out. Hide Bar still wins through
+    // autohideEngaged, so a bar it parked never comes out.
+    readonly property bool revealed: root.autohideEngaged && BarModel.screenFlag(root.autohideRevealed, screen ? screen.name : "")
+
+    // Hides the bar a moment after the pointer leaves both the bar and its edge
+    // strip, unless a panel still needs it. Single-shot and restarted by the
+    // pointer, not polled: the dock's grace, and nothing runs while the bar is
+    // out and still. The strip is a window of its own and cannot reach this
+    // timer, so its leave arrives through the Connections below.
+    Timer {
+      id: autohideGrace
+      // Long enough to cross the gap between the bar and its edge strip, no
+      // longer.
+      interval: 150
+      onTriggered: {
+        var holds = BarModel.autohideHolds(autohideBarHover.hovered,
+          BarModel.screenFlag(root.autohideEdgeHovered, screen ? screen.name : ""), root.autohideKeepOpen)
+        if (!BarModel.autohideParks(root.autohideEngaged, holds, barWindow.underFullscreen)) return
+        root.setAutohideRevealed(barWindow.screen, false)
+      }
+    }
+
+    Connections {
+      target: root
+      function onAutohideEdgeHoveredChanged() { if (barWindow.revealed) autohideGrace.restart() }
+      // A panel closing while the pointer is elsewhere is the one that would
+      // otherwise leave the bar out for good.
+      function onAutohideKeepOpenChanged() { if (barWindow.revealed) autohideGrace.restart() }
+    }
+
     // The surface spans its screen at all times, transparent past the strip
     // it paints; a drag toggles only its input region. Growing the surface
     // for a drag instead flashes the strip's stale buffer stretched across
@@ -1747,11 +1862,7 @@ Item {
 
     // Whether the active workspace on this screen holds a real fullscreen
     // window, which fades the bar out.
-    readonly property bool underFullscreen: {
-      var monitor = Hyprland.monitorFor(screen)
-      var workspace = monitor ? monitor.activeWorkspace : null
-      return !!workspace && BarModel.fullscreenOn(Hyprland.toplevels.values, workspace.id)
-    }
+    readonly property bool underFullscreen: root.underFullscreenOn(screen)
 
     // Idle, only the strip takes input, so the clear expanse passes clicks
     // through to the windows and desktop below. Under a fullscreen window
@@ -1788,6 +1899,21 @@ Item {
       Loader {
         anchors.fill: parent
         sourceComponent: root.vertical ? verticalBar : horizontalBar
+      }
+
+      // With autohide on, the bar holds itself while the pointer is anywhere on
+      // it, so coming back from a panel does not make it slide away. A child of
+      // the strip stays hovered while the pointer is over a widget; the clear
+      // rest of the surface, past the strip, is not the bar.
+      HoverHandler {
+        id: autohideBarHover
+        onHoveredChanged: {
+          if (hovered) root.setAutohideRevealed(barWindow.screen, true)
+          else if (barWindow.revealed) autohideGrace.restart()
+        }
+        // Unplugging a monitor destroys its bar without a leave event, which
+        // would leave this screen counted as held for good.
+        Component.onDestruction: root.setAutohideRevealed(barWindow.screen, false)
       }
     }
 
@@ -1951,6 +2077,63 @@ Item {
   }
 
   Component { id: emptyModuleComponent; Item { implicitWidth: 0; implicitHeight: 0; visible: false } }
+
+  // The strip along the screen edge that calls an auto-hidden bar back. It is a
+  // surface of its own because the parked bar is off screen and cannot take the
+  // pointer there. Its namespace is deliberately not "omarchy-bar": Hyprland
+  // draws the bar's glass on that layer, and this strip stays unlit.
+  component BarEdgePanel: PanelWindow {
+    id: edgeWindow
+
+    // Only while autohide is on and Hide Bar has not parked the bar.
+    visible: root.autohideEngaged
+    color: "transparent"
+    surfaceFormat.opaque: false
+    WlrLayershell.namespace: "omarchy-bar-edge"
+    WlrLayershell.layer: WlrLayer.Top
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    // Like the bar it calls: no room reserved, so nothing resizes.
+    exclusionMode: ExclusionMode.Ignore
+    exclusiveZone: 0
+
+    readonly property bool underFullscreen: root.underFullscreenOn(screen)
+    // Three logical pixels: enough to catch the pointer at the edge, too little
+    // to take a click meant for a window.
+    readonly property int depth: Style.spacing.xs
+
+    anchors {
+      top: root.position === "top" || root.vertical
+      bottom: root.position === "bottom" || root.vertical
+      left: root.position === "left" || !root.vertical
+      right: root.position === "right" || !root.vertical
+    }
+
+    implicitWidth: root.vertical ? depth : 0
+    implicitHeight: root.vertical ? 0 : depth
+
+    // The strip keeps its edge at all times while autohide is on — it is the
+    // affordance that calls the bar back — except under a fullscreen window,
+    // where it must not swallow clicks meant for the window.
+    mask: BarModel.autohideCallsOut(root.autohideEngaged, underFullscreen) ? null : emptyEdgeRegion
+
+    Region { id: emptyEdgeRegion }
+
+    Item {
+      // Fills the surface, like the bar strip does: parent is the content item.
+      width: parent.width
+      height: parent.height
+
+      HoverHandler {
+        onHoveredChanged: {
+          root.setAutohideEdgeHovered(edgeWindow.screen, hovered)
+          if (hovered) root.setAutohideRevealed(edgeWindow.screen, true)
+        }
+        // Unplugging a monitor destroys this surface without a leave event,
+        // which would leave the bar waiting on a hover that never ends.
+        Component.onDestruction: root.setAutohideEdgeHovered(edgeWindow.screen, false)
+      }
+    }
+  }
 
   component DragGhostPanel: PanelWindow {
     id: ghostWindow
