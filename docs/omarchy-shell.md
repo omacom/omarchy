@@ -93,8 +93,8 @@ You can still install by hand: drop a plugin into
 `~/.config/omarchy/plugins/<id>/`, run `omarchy-shell shell rescanPlugins`, then
 `omarchy plugin enable <id>`. A bar widget starts in its declared default
 section; enabling a full bar replaces the one in use. `omarchy bar` drives the
-bar from the CLI — `use | reset | defaults | position | background | put |
-move | set | get`, with placement flags such as `--section` and `--index`.
+bar from the CLI — `use | reset | defaults | position | autohide | background |
+put | move | set | get`, with placement flags such as `--section` and `--index`.
 The lower-level IPC methods remain available through `omarchy-shell shell ...`.
 
 ## Keeping the clock current
