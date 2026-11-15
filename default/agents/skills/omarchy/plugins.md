@@ -69,10 +69,11 @@ BarWidget {
 - Run commands with `root.bar.run("omarchy-notification-send 'Counter' 'Reached 100'")`.
 - `$OMARCHY_PATH/shell/plugins/panels/clock/BarWidget.qml` is the reference for anything more: a popup panel, settings from `shell.json`, and IPC.
 
-Then check it and put it on the bar; saving any file under the plugin folder reloads it:
+Then check it, look at it, and put it on the bar. `omarchy agent look plugin <dir>` renders the widget in a bar strip with the current theme, without touching the running bar, and lists the QML errors it logged; open the image it prints and fix what looks wrong. Saving any file under the plugin folder reloads it on the bar:
 
 ```bash
 omarchy plugin validate ~/.config/omarchy/plugins/alice.counter
+omarchy agent look plugin ~/.config/omarchy/plugins/alice.counter
 omarchy bar put alice.counter --section right
 ```
 

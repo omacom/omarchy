@@ -37,12 +37,7 @@ A theme is a directory in `~/.config/omarchy/themes/<slug>/` (the slug becomes t
    ```
 
    Open `/tmp/candidates.png` and look at it. Copy the two to four that fit the theme's mood and colors into `backgrounds/` as `1-<name>.jpg`, `2-<name>.jpg`, and so on.
-3. Look at the result before calling it done: the first background beside the palette. Fix any color that clashes with it:
-
-   ```bash
-   magick -size 120x120 $(grep -oE '#[0-9a-fA-F]{6}' colors.toml | sed 's/^/xc:/') +append -resize 1440x /tmp/palette.png
-   magick backgrounds/1-* -resize 1440x810^ -extent 1440x810 /tmp/palette.png -gravity center -append /tmp/theme.png
-   ```
+3. Look at the result before calling it done. `omarchy agent look theme ~/.config/omarchy/themes/<slug>` draws the theme as a desktop (the first background, the bar, a terminal and a window in its colors) without applying it, checks the palette's keys and contrast and the backgrounds' size, and prints the image's path. Open the image, fix every problem it lists and any color that clashes with the background, and run it again until it's clean.
 4. When done with the theme, run `omarchy theme set "Name of new theme"`.
 
 Additional user backgrounds for any theme (stock or custom) go in
