@@ -109,7 +109,7 @@ JS
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const state = { localModel: {} }
+const state = { localModel: {}, noteReadyModels: () => {} }
 const parse = new Function('root', source.match(/function parseLocalModel\([^]*?\n  \}/)[0] + '\nreturn parseLocalModel')(state)
 const running = { models: { 'model-a': { recipe: 'model-a', unit: 'active', endpoint: 'http://127.0.0.1:11435/v1' }, 'model-b': { recipe: 'model-b', unit: 'activating' } }, ram_total_gib: 125.1 }
 parse(JSON.stringify(running))
@@ -314,6 +314,29 @@ assertEqual(scope.finishSetup(0).recipe, 'n', 'the next one starts once the firs
 scope.setUp({ id: 'o' })
 scope.finishSetup(126)
 assertDeepEqual(phases(), [], 'a declined password drops those waiting, which would stop there too')
+JS
+
+# A model set up here announces itself once it has loaded, and only then:
+# starting one already set up is quiet, and one left stopped isn't ready.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+const ready = []
+const scope = { installingModels: {}, notifyModelReady: model => ready.push(model.recipe) }
+scope.noteReadyModels = new Function('scope', 'with (scope) { return ' + source.match(/function noteReadyModels\([^]*?\n  \}/)[0] + ' }')(scope)
+const model = (recipe, unit, sub_state) => ({ [recipe]: { recipe, unit, sub_state } })
+scope.noteReadyModels(model('m', 'installing'))
+scope.noteReadyModels(model('m', 'activating', 'start'))
+assertDeepEqual(ready, [], 'a model still loading is not ready yet')
+scope.noteReadyModels(model('m', 'active', 'running'))
+assertDeepEqual(ready, ['m'], 'a model set up here is ready once it runs')
+scope.noteReadyModels(model('m', 'inactive', 'dead'))
+scope.noteReadyModels(model('m', 'active', 'running'))
+assertDeepEqual(ready, ['m'], 'starting it again later says nothing')
+scope.noteReadyModels(model('n', 'installing'))
+scope.noteReadyModels(model('n', 'inactive', 'dead'))
+scope.noteReadyModels(model('n', 'active', 'running'))
+assertDeepEqual(ready, ['m'], 'one installed but left stopped is not announced when started by hand')
 JS
 
 # Hosted and local rows share ordering, including positions saved while hidden.
