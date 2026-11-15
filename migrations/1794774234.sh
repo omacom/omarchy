@@ -1,6 +1,6 @@
 echo "Make Omaview the default picture viewer and media player"
 
-omarchy-pkg-add omaview kimageformats
+omarchy-pkg-add omaview
 
 # Omarchy's own Image Viewer (imv) and Media Player (mpv) launchers give way to
 # Omaview's Media Viewer. Only a copy still as Omarchy shipped it goes, so one

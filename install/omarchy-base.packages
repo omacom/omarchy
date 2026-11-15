@@ -72,7 +72,6 @@ inxi
 networkmanager
 jq
 kernel-modules-hook
-kimageformats
 lazygit
 less
 libsecret
