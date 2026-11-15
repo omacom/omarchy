@@ -70,12 +70,9 @@ add_theme_preview() {
     [[ $background =~ ^#[0-9A-Fa-f]{6}$ ]] || background="#000000"
   fi
 
-  magick -size 1536x864 "xc:$background" "$preview_dir/$theme_name.png" 2>/dev/null || {
+  if ! magick -size 1536x864 "xc:$background" "$preview_dir/$theme_name.png" 2>/dev/null; then
     rm -f "$preview_dir/$theme_name.png"
-    local fallback
-    fallback=$(find -L "$OMARCHY_THEMES_PATH" -mindepth 2 -maxdepth 2 -type f -iname 'preview.png' -print -quit 2>/dev/null)
-    [[ -n $fallback ]] && ln -s "$fallback" "$preview_dir/$theme_name.png"
-  }
+  fi
 }
 
 fast_signature="v3"$'\n'
@@ -85,12 +82,6 @@ for theme_dir in "$USER_THEMES_PATH" "$OMARCHY_THEMES_PATH"; do
 
     while IFS= read -r -d '' theme_path; do
       fast_signature+="$theme_path:$(stat -Lc '%Y' "$theme_path")"$'\n'
-
-      # A colours-only theme's preview is drawn from colors.toml, which an
-      # in-place edit changes without touching the folder.
-      if [[ -f $theme_path/colors.toml ]]; then
-        fast_signature+="$theme_path/colors.toml:$(stat -Lc '%s:%Y' "$theme_path/colors.toml")"$'\n'
-      fi
     done < <(find -L "$theme_dir" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print0 2>/dev/null | sort -z)
   fi
 done
