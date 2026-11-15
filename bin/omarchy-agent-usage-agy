@@ -40,6 +40,7 @@ from collectors import (  # noqa: E402
   HttpError,
   LimitsCache,
   Stats,
+  account_entry,
   base_record,
   cached_scan,
   canonical_roots,
@@ -51,6 +52,7 @@ from collectors import (  # noqa: E402
   opencode_db,
   pi_session_roots,
   read_json,
+  registered_accounts,
   scan_max_age,
   scan_opencode,
   scan_pi_sessions,
@@ -333,7 +335,7 @@ def extract_limits(data):
     for bucket in buckets if isinstance(buckets, list) else []:
       if isinstance(bucket, dict) and (used(bucket) or 0) > 0:
         title = f"{short} {'Weekly' if 'week' in str(bucket.get('window') or '').lower() else 'Session'}"
-        limits.append({"label": title, "title": title, "percent": used(bucket), "resetsAt": reset_of(bucket)})
+        limits.append({"label": title, "title": title, "percent": used(bucket), "resetsAt": reset_of(bucket), "auxiliary": True})
   return limits
 
 
@@ -343,9 +345,15 @@ def post(endpoint, token, body=None):
   base = (os.environ.get("CLOUD_CODE_URL") or DEFAULT_CLOUD_CODE_URL).rstrip("/")
   if not base.startswith("https://"):
     base = DEFAULT_CLOUD_CODE_URL
+  if body is None and endpoint == "loadCodeAssist":
+    body = {"metadata": {"ideType": "ANTIGRAVITY"}}
   request = urllib.request.Request(
     f"{base}/v1internal:{endpoint}", data=json.dumps(body or {}).encode(),
-    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "antigravity"},
+    headers={
+      "Authorization": f"Bearer {token}",
+      "Content-Type": "application/json",
+      "User-Agent": "antigravity/cli/1.5.3",
+    },
   )
   return open_json(request, timeout=8)
 
@@ -732,6 +740,45 @@ def cached_local_stats(root, max_age):
   return cached_scan(AGENT_ID, [root, opencode_db(), *session_roots()], max_age, scan)
 
 
+def account_login(account):
+  if account.get("active"):
+    return login()
+  data = None
+  if account.get("primary") and not account.get("active"):
+    state_home = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local/state"))
+    main_token = state_home / "omarchy/agents/accounts/agy/.main-token.json"
+    if main_token.is_file():
+      data = read_json(main_token)
+  if not isinstance(data, dict):
+    home = Path(account["home"]) if account.get("home") else app_root()
+    token_file = home / "antigravity-oauth-token"
+    data = read_json(token_file) if token_file.is_file() else None
+  if not isinstance(data, dict):
+    return None
+  token = data.get("token") if isinstance(data.get("token"), dict) else {}
+  expires = parse_time(token.get("expiry") or data.get("expiry"))
+  return {
+    "source": "agy",
+    "accessToken": str(token.get("access_token") or data.get("access_token") or ""),
+    "expiresAt": expires.timestamp() if expires else 0,
+    "refresh": str(token.get("refresh_token") or data.get("refresh_token") or ""),
+    "authMethod": str(data.get("auth_method") or "consumer"),
+    "email": str(data.get("id_token_email") or token.get("id_token_email") or email_of(data.get("id_token") or token.get("id_token")) or account.get("email") or ""),
+  }
+
+
+def account_limits(account, force):
+  entry = account_login(account)
+  entries = [entry] if entry else []
+  limits = collect_limits(entries, force)
+  tier = limits.get("tierLabel") or account.get("plan") or ""
+  if not tier and entry and entry["authMethod"] == "enterprise":
+    tier = "Enterprise"
+  elif not tier and entry and entry["authMethod"] in ("cloud", "vertex"):
+    tier = "Cloud"
+  return account_entry(account, limits, tier)
+
+
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--force", action="store_true")
@@ -740,19 +787,29 @@ def main():
 
   stats = cached_local_stats(app_root(), scan_max_age(args.force, args.limits_only))
 
-  # Nobody signed in to Antigravity here and no local history: no limits and
-  # no plan, and the panel skips the record.
-  entries = logins()
-  ready = bool(entries) or bool(stats.get("hasLocalStats"))
-  limits = collect_limits(entries, args.force) if ready else {
-    "limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
-  }
-  tier = limits["tierLabel"]
-  agy = next((e for e in entries if e["source"] == "agy"), None)
-  if not tier and agy and agy["authMethod"] == "enterprise":
-    tier = "Enterprise"
-  elif not tier and agy and agy["authMethod"] in ("cloud", "vertex"):
-    tier = "Cloud"
+  registered = registered_accounts(AGENT_ID)
+  accounts = [account_limits(account, args.force) for account in registered]
+  current = next((a for a in accounts if a["active"]), accounts[0] if accounts else None)
+
+  if current:
+    tier = current["plan"]
+    limits = {key: current[key] for key in ("limits", "usageStatusText", "authHelpText", "retryAdvised")}
+    stale, fetched_at = current["stale"], current["fetchedAt"]
+    entries = []
+  else:
+    entries = logins()
+    limits = collect_limits(entries, args.force) if (entries or stats.get("hasLocalStats")) else {
+      "limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "live": False, "fetchedAtMs": 0, "retryAdvised": False,
+    }
+    tier = limits["tierLabel"]
+    agy = next((e for e in entries if e["source"] == "agy"), None)
+    if not tier and agy and agy["authMethod"] == "enterprise":
+      tier = "Enterprise"
+    elif not tier and agy and agy["authMethod"] in ("cloud", "vertex"):
+      tier = "Cloud"
+    stale, fetched_at = not limits["live"] and bool(limits["limits"]), limits["fetchedAtMs"]
+
+  ready = bool(accounts) or bool(entries) or bool(stats.get("hasLocalStats"))
 
   record = base_record(
     AGENT_ID, AGENT_NAME,
@@ -761,12 +818,13 @@ def main():
     usageStatusText=limits["usageStatusText"],
     authHelpText=limits["authHelpText"],
     limits=limits["limits"],
-    # Stale says limits were kept past a failed check; with none kept there
-    # is nothing to be stale.
-    limitsStale=not limits["live"] and bool(limits["limits"]),
-    limitsFetchedAt=limits["fetchedAtMs"],
-    retryAdvised=limits["retryAdvised"],
+    limitsStale=stale,
+    limitsFetchedAt=fetched_at,
+    retryAdvised=limits.get("retryAdvised", False),
   )
+  if accounts:
+    record["accountSwitch"] = registered[0]["switch"]
+    record["accounts"] = accounts
   record.update(stats)
   emit(record)
 
