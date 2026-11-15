@@ -1,6 +1,5 @@
 {
   "agents.active": "ĐANG DÙNG",
-  "agents.addAccount": "Thêm tài khoản",
   "agents.addAnother": "Thêm nữa",
   "agents.addProviderAccount": "Thêm tài khoản %1",
   "agents.app": "Ứng dụng",
@@ -36,6 +35,8 @@
   "agents.lastUpdatedJustNow": "Cập nhật lần cuối chưa đầy một phút trước",
   "agents.lastUpdatedUnknown": "Chưa có thời gian cập nhật lần cuối",
   "agents.launchHarness": "Khởi chạy %1",
+  "agents.letTheTokensFlow": "Cứ để token tuôn trào",
+  "agents.letsMakeSomethingCool": "Cùng làm gì đó thật ngầu nào",
   "agents.limitsPaused": "Giới hạn đã tạm dừng",
   "agents.linkHideConfirm": "Ẩn %1 khỏi bảng? omarchy agent local link setup vẫn sẽ thiết lập nó.",
   "agents.linkOffer": "%1 đã nối cáp với Spark này",
@@ -66,6 +67,7 @@
   "agents.localStart": "Khởi động",
   "agents.localStop": "Dừng",
   "agents.localStoppingMeter": "Đang dừng",
+  "agents.loginBrowser": "Đăng nhập qua trình duyệt",
   "agents.makeSomethingCool": "HÃY TẠO ĐIỀU TUYỆT VỜI",
   "agents.merged": {
     "other": "Đã gộp từ %1 thiết bị"
@@ -97,6 +99,7 @@
   "agents.networkStopSharing": "Đã chia sẻ trên tailnet · dừng chia sẻ",
   "agents.outOfCredits": "Hết tín dụng",
   "agents.pasteCode": "Nếu trang hiện mã thay vì hoàn tất, hãy dán mã vào đây.",
+  "agents.pasteCodeLink": "Trang lại hiển thị mã?",
   "agents.placeholderCode": "Mã",
   "agents.placeholderWork": "Công việc",
   "agents.plugin": "Plugin",
@@ -113,12 +116,13 @@
   "agents.sessionsToday": {
     "other": "%1 phiên hôm nay"
   },
+  "agents.settingUp": "Đang thiết lập",
   "agents.signInAgainAccount": "Đăng nhập lại vào tài khoản này",
   "agents.signInAgainProvider": "Đăng nhập lại vào %1",
   "agents.signInExpired": "Đăng nhập đã hết hạn",
-  "agents.signInIntro": "Đăng nhập vào gói AI hỗ trợ lập trình, và bảng này sẽ theo dõi mức dùng còn lại của bạn.",
   "agents.signInRequired": "Cần đăng nhập",
   "agents.signInUnfinished": "Đăng nhập chưa hoàn tất.",
+  "agents.signingInAgain": "Đang đăng nhập lại",
   "agents.spendEstimated": "≈ %1",
   "agents.spendLast30Days": "30 ngày qua",
   "agents.spendOfCap": "%1 trên %2",
@@ -127,7 +131,6 @@
   "agents.startOnNew": "Chạy agent mặc định trên %1 mới",
   "agents.starting": "Đang khởi động…",
   "agents.stopAutoSwitch": "Dừng tự động chuyển đổi",
-  "agents.subscriptions": "Gói đăng ký",
   "agents.switchAutoAt": "Tự động chuyển sang đây khi đạt %1%",
   "agents.syncMkdirFailed": "Đồng bộ mức dùng: lỗi mkdir",
   "agents.syncScanFailed": "Đồng bộ mức dùng: lỗi quét",

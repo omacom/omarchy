@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 %%2 seviyesinde. Yeni oturumları buna geçirmek için tıklayın.",
   "agents.promptOnClipboard": "%1 başlangıç istemi almıyor",
   "agents.promptOnClipboardBody": "İsteminiz panoda. Oturuma yapıştırın.",
+  "agents.readyToCode": "%1 hazır",
+  "agents.readyToCodeBody": "Harika bir şeyler yapın",
   "agents.runningStayOn": "Çalışan oturumlar %1 üzerinde kalır.",
   "agents.sameAccount": "Bu, %1 (zaten ekli). Tekrar deneyin ve gizli pencerede diğer hesapla oturum açın.",
   "agents.sameAccountEmail": "Bu, %1 (%2). Tekrar deneyin ve gizli pencerede diğer hesapla oturum açın.",

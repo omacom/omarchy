@@ -1,6 +1,5 @@
 {
   "agents.active": "AKTIF",
-  "agents.addAccount": "Tambah akaun",
   "agents.addAnother": "Tambah lagi",
   "agents.addProviderAccount": "Tambah akaun %1",
   "agents.app": "Apl",
@@ -36,6 +35,8 @@
   "agents.lastUpdatedJustNow": "Terakhir dikemas kini kurang daripada seminit lalu",
   "agents.lastUpdatedUnknown": "Masa kemas kini terakhir tidak tersedia",
   "agents.launchHarness": "Mulakan %1",
+  "agents.letTheTokensFlow": "Biarkan token mengalir",
+  "agents.letsMakeSomethingCool": "Jom buat sesuatu yang menarik",
   "agents.limitsPaused": "Had dijeda",
   "agents.linkHideConfirm": "Sembunyikan %1 daripada panel? omarchy agent local link setup tetap akan menyediakannya.",
   "agents.linkOffer": "%1 disambung kabel ke Spark ini",
@@ -66,6 +67,7 @@
   "agents.localStart": "Mulakan",
   "agents.localStop": "Hentikan",
   "agents.localStoppingMeter": "Menghentikan",
+  "agents.loginBrowser": "Log masuk melalui penyemak imbas anda",
   "agents.makeSomethingCool": "BUAT SESUATU YANG HEBAT",
   "agents.merged": {
     "other": "Digabungkan daripada %1 peranti"
@@ -97,6 +99,7 @@
   "agents.networkStopSharing": "Dikongsi pada tailnet anda · berhenti berkongsi",
   "agents.outOfCredits": "Kehabisan kredit",
   "agents.pasteCode": "Jika halaman menunjukkan kod dan bukannya selesai, tampalkannya di sini.",
+  "agents.pasteCodeLink": "Halaman memaparkan kod pula?",
   "agents.placeholderCode": "Kod",
   "agents.placeholderWork": "Kerja",
   "agents.plugin": "Pemalam",
@@ -113,12 +116,13 @@
   "agents.sessionsToday": {
     "other": "%1 sesi hari ini"
   },
+  "agents.settingUp": "Menyediakan",
   "agents.signInAgainAccount": "Log masuk ke akaun ini semula",
   "agents.signInAgainProvider": "Log masuk ke %1 semula",
   "agents.signInExpired": "Log masuk tamat tempoh",
-  "agents.signInIntro": "Log masuk ke langganan pengekodan AI, dan panel ini menjejaki jumlah baki yang anda tinggal.",
   "agents.signInRequired": "Log masuk diperlukan",
   "agents.signInUnfinished": "Log masuk tidak selesai.",
+  "agents.signingInAgain": "Log masuk semula",
   "agents.spendEstimated": "≈ %1",
   "agents.spendLast30Days": "30 hari terakhir",
   "agents.spendOfCap": "%1 daripada %2",
@@ -127,7 +131,6 @@
   "agents.startOnNew": "Mulakan ejen lalai anda pada %1 baharu",
   "agents.starting": "Memulakan…",
   "agents.stopAutoSwitch": "Hentikan pertukaran automatik",
-  "agents.subscriptions": "Langganan",
   "agents.switchAutoAt": "Bertukar ke sini secara automatik pada %1%",
   "agents.syncMkdirFailed": "Segerak penggunaan: mkdir gagal",
   "agents.syncScanFailed": "Segerak penggunaan: imbasan gagal",

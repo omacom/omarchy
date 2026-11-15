@@ -30,6 +30,8 @@
   "agents.offerSwitch": "%1 је на %2%. Кликните да пребаците нове сесије на њега.",
   "agents.promptOnClipboard": "%1 не прима почетни упит",
   "agents.promptOnClipboardBody": "Ваш упит је у клипборду. Налепите га у сесију.",
+  "agents.readyToCode": "%1 је спреман",
+  "agents.readyToCodeBody": "Направите нешто кул",
   "agents.runningStayOn": "Покренуте сесије остају на %1.",
   "agents.sameAccount": "То је %1 (већ додат). Покушајте поново и пријавите се као други налог у приватном прозору.",
   "agents.sameAccountEmail": "То је %1 (%2). Покушајте поново и пријавите се као други налог у приватном прозору.",

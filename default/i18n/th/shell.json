@@ -1,6 +1,5 @@
 {
   "agents.active": "ใช้งานอยู่",
-  "agents.addAccount": "เพิ่มบัญชี",
   "agents.addAnother": "เพิ่มอีก",
   "agents.addProviderAccount": "เพิ่มบัญชี %1",
   "agents.app": "แอป",
@@ -36,6 +35,8 @@
   "agents.lastUpdatedJustNow": "อัปเดตล่าสุดเมื่อไม่ถึง 1 นาทีที่แล้ว",
   "agents.lastUpdatedUnknown": "ไม่มีข้อมูลเวลาอัปเดตล่าสุด",
   "agents.launchHarness": "เริ่ม %1",
+  "agents.letTheTokensFlow": "ปล่อยให้โทเค็นไหล",
+  "agents.letsMakeSomethingCool": "มาสร้างอะไรเจ๋ง ๆ กันเถอะ",
   "agents.limitsPaused": "ขีดจำกัดหยุดชั่วคราว",
   "agents.linkHideConfirm": "ซ่อน %1 จากแผงหรือไม่? omarchy agent local link setup ยังคงตั้งค่าให้อยู่",
   "agents.linkOffer": "%1 ต่อสายอยู่กับ Spark เครื่องนี้",
@@ -66,6 +67,7 @@
   "agents.localStart": "เริ่ม",
   "agents.localStop": "หยุด",
   "agents.localStoppingMeter": "กำลังหยุด",
+  "agents.loginBrowser": "เข้าสู่ระบบผ่านเบราว์เซอร์",
   "agents.makeSomethingCool": "สร้างสิ่งเจ๋งๆ",
   "agents.merged": {
     "other": "รวมจาก %1 อุปกรณ์"
@@ -97,6 +99,7 @@
   "agents.networkStopSharing": "แชร์บน tailnet ของคุณแล้ว · หยุดแชร์",
   "agents.outOfCredits": "เครดิตหมด",
   "agents.pasteCode": "หากหน้าเว็บแสดงรหัสแทนที่จะเสร็จสิ้น ให้วางรหัสที่นี่",
+  "agents.pasteCodeLink": "หน้าเว็บแสดงโค้ดแทนใช่ไหม?",
   "agents.placeholderCode": "รหัส",
   "agents.placeholderWork": "งาน",
   "agents.plugin": "ปลั๊กอิน",
@@ -113,12 +116,13 @@
   "agents.sessionsToday": {
     "other": "วันนี้ %1 เซสชัน"
   },
+  "agents.settingUp": "กำลังตั้งค่า",
   "agents.signInAgainAccount": "เข้าสู่ระบบบัญชีนี้อีกครั้ง",
   "agents.signInAgainProvider": "เข้าสู่ระบบ %1 อีกครั้ง",
   "agents.signInExpired": "การเข้าสู่ระบบหมดอายุ",
-  "agents.signInIntro": "เข้าสู่ระบบบริการ AI สำหรับเขียนโค้ด แล้วแผงนี้จะติดตามว่าคุณเหลือยอดใช้งานเท่าใด",
   "agents.signInRequired": "ต้องเข้าสู่ระบบ",
   "agents.signInUnfinished": "การเข้าสู่ระบบไม่เสร็จสิ้น",
+  "agents.signingInAgain": "กำลังเข้าสู่ระบบอีกครั้ง",
   "agents.spendEstimated": "≈ %1",
   "agents.spendLast30Days": "30 วันที่ผ่านมา",
   "agents.spendOfCap": "%1 จาก %2",
@@ -127,7 +131,6 @@
   "agents.startOnNew": "เริ่มเอเจนต์เริ่มต้นของคุณบน %1 ใหม่",
   "agents.starting": "กำลังเริ่ม…",
   "agents.stopAutoSwitch": "หยุดสลับอัตโนมัติ",
-  "agents.subscriptions": "การสมัครสมาชิก",
   "agents.switchAutoAt": "สลับมาที่นี่อัตโนมัติที่ %1%",
   "agents.syncMkdirFailed": "ซิงค์ยอดใช้งาน: mkdir ล้มเหลว",
   "agents.syncScanFailed": "ซิงค์ยอดใช้งาน: สแกนล้มเหลว",

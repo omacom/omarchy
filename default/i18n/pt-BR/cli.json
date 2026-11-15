@@ -30,6 +30,8 @@
   "agents.offerSwitch": "%1 está em %2%. Clique para mudar as novas sessões para ela.",
   "agents.promptOnClipboard": "%1 não aceita prompt inicial",
   "agents.promptOnClipboardBody": "Seu prompt está na área de transferência. Cole-o na sessão.",
+  "agents.readyToCode": "%1 está pronto",
+  "agents.readyToCodeBody": "Faça algo legal",
   "agents.runningStayOn": "As sessões em execução permanecem em %1.",
   "agents.sameAccount": "Essa é %1 (já adicionada). Tente de novo e entre com a outra conta na janela privativa.",
   "agents.sameAccountEmail": "Essa é %1 (%2). Tente de novo e entre com a outra conta na janela privativa.",

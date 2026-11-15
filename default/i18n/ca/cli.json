@@ -30,6 +30,8 @@
   "agents.offerSwitch": "%1 és al %2%. Fes clic per passar-hi les sessions noves.",
   "agents.promptOnClipboard": "%1 no admet cap prompt inicial",
   "agents.promptOnClipboardBody": "El teu prompt és al porta-retalls. Enganxa'l a la sessió.",
+  "agents.readyToCode": "%1 ja està a punt",
+  "agents.readyToCodeBody": "Fes alguna cosa genial",
   "agents.runningStayOn": "Les sessions en curs continuen amb %1.",
   "agents.sameAccount": "És %1 (ja afegit). Torna-ho a provar i inicia la sessió amb l'altre compte a la finestra privada.",
   "agents.sameAccountEmail": "És %1 (%2). Torna-ho a provar i inicia la sessió amb l'altre compte a la finestra privada.",

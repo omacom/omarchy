@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 %2%-on áll. Kattints az új munkamenetek erre váltásához.",
   "agents.promptOnClipboard": "%1 nem fogad kezdő promptot",
   "agents.promptOnClipboardBody": "A promptod a vágólapon van. Illeszd be a munkamenetbe.",
+  "agents.readyToCode": "%1 készen áll",
+  "agents.readyToCodeBody": "Alkoss valami menőt",
   "agents.runningStayOn": "A futó munkamenetek ezen maradnak: %1.",
   "agents.sameAccount": "Ez %1 (már hozzáadva). Próbáld újra, és jelentkezz be a másik fiókkal a privát ablakban.",
   "agents.sameAccountEmail": "Ez %1 (%2). Próbáld újra, és jelentkezz be a másik fiókkal a privát ablakban.",

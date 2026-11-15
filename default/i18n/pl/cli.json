@@ -31,6 +31,8 @@
   "agents.offerSwitch": "%1 jest na poziomie %2%. Kliknij, aby przełączyć nowe sesje na to konto.",
   "agents.promptOnClipboard": "%1 nie przyjmuje początkowego promptu",
   "agents.promptOnClipboardBody": "Twój prompt jest w schowku. Wklej go do sesji.",
+  "agents.readyToCode": "%1 jest gotowy",
+  "agents.readyToCodeBody": "Zrób coś fajnego",
   "agents.runningStayOn": "Działające sesje pozostają na %1.",
   "agents.sameAccount": "To %1 (już dodane). Spróbuj ponownie i zaloguj się na inne konto w oknie prywatnym.",
   "agents.sameAccountEmail": "To %1 (%2). Spróbuj ponownie i zaloguj się na inne konto w oknie prywatnym.",

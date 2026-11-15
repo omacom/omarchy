@@ -28,6 +28,8 @@
   "agents.offerSwitch": "%1 berada pada %2%. Klik untuk menukar sesi baharu kepadanya.",
   "agents.promptOnClipboard": "%1 tidak menerima prompt permulaan",
   "agents.promptOnClipboardBody": "Prompt anda berada pada papan keratan. Tampalkannya ke dalam sesi.",
+  "agents.readyToCode": "%1 sedia",
+  "agents.readyToCodeBody": "Buat sesuatu yang menarik",
   "agents.runningStayOn": "Sesi yang sedang berjalan kekal pada %1.",
   "agents.sameAccount": "Itu ialah %1 (sudah ditambah). Cuba lagi, dan log masuk sebagai akaun lain dalam tetingkap peribadi.",
   "agents.sameAccountEmail": "Itu ialah %1 (%2). Cuba lagi, dan log masuk sebagai akaun lain dalam tetingkap peribadi.",

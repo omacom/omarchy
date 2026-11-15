@@ -29,6 +29,8 @@
   "agents.offerSwitch": "Nasa %2% ang %1. I-click upang ilipat dito ang mga bagong session.",
   "agents.promptOnClipboard": "Hindi tumatanggap ang %1 ng panimulang prompt",
   "agents.promptOnClipboardBody": "Nasa clipboard ang prompt mo. I-paste ito sa session.",
+  "agents.readyToCode": "Handa na ang %1",
+  "agents.readyToCodeBody": "Gumawa ng astig na bagay",
   "agents.runningStayOn": "Mananatili sa %1 ang mga tumatakbong session.",
   "agents.sameAccount": "Iyan ang %1 (naidagdag na). Subukan ulit, at mag-sign in bilang kabilang account sa private window.",
   "agents.sameAccountEmail": "Iyan ang %1 (%2). Subukan ulit, at mag-sign in bilang kabilang account sa private window.",

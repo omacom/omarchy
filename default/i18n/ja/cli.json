@@ -28,6 +28,8 @@
   "agents.offerSwitch": "%1 は %2% です。クリックすると新しいセッションがこれに切り替わります。",
   "agents.promptOnClipboard": "%1 は開始プロンプトを受け付けません",
   "agents.promptOnClipboardBody": "プロンプトはクリップボードにあります。セッションに貼り付けてください。",
+  "agents.readyToCode": "%1 の準備ができました",
+  "agents.readyToCodeBody": "何か面白いものを作りましょう",
   "agents.runningStayOn": "実行中のセッションは %1 のままです。",
   "agents.sameAccount": "それは %1 です（すでに追加済み）。もう一度試し、プライベートウィンドウで別のアカウントとしてサインインしてください。",
   "agents.sameAccountEmail": "それは %1（%2）です。もう一度試し、プライベートウィンドウで別のアカウントとしてサインインしてください。",

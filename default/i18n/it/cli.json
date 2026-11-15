@@ -30,6 +30,8 @@
   "agents.offerSwitch": "%1 è al %2%. Fai clic per usarlo per le nuove sessioni.",
   "agents.promptOnClipboard": "%1 non accetta un prompt iniziale",
   "agents.promptOnClipboardBody": "Il tuo prompt è negli appunti. Incollalo nella sessione.",
+  "agents.readyToCode": "%1 è pronto",
+  "agents.readyToCodeBody": "Crea qualcosa di fantastico",
   "agents.runningStayOn": "Le sessioni in corso restano su %1.",
   "agents.sameAccount": "È %1 (già aggiunto). Riprova e accedi con l'altro account nella finestra privata.",
   "agents.sameAccountEmail": "È %1 (%2). Riprova e accedi con l'altro account nella finestra privata.",

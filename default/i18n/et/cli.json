@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 on %2% juures. Klõpsa, et uued seansid sellele lülitada.",
   "agents.promptOnClipboard": "%1 ei võta algusviipa vastu",
   "agents.promptOnClipboardBody": "Viip on lõikelaual. Kleebi see seanssi.",
+  "agents.readyToCode": "%1 on valmis",
+  "agents.readyToCodeBody": "Tee midagi lahedat",
   "agents.runningStayOn": "Käimasolevad seansid jäävad kasutama %1.",
   "agents.sameAccount": "See on %1 (juba lisatud). Proovi uuesti ja logi privaatses aknas teise kontona sisse.",
   "agents.sameAccountEmail": "See on %1 (%2). Proovi uuesti ja logi privaatses aknas teise kontona sisse.",

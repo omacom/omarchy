@@ -30,6 +30,8 @@
   "agents.offerSwitch": "%1 je na %2%. Kliknutím prepnete nové relácie naň.",
   "agents.promptOnClipboard": "%1 nepodporuje úvodný prompt",
   "agents.promptOnClipboardBody": "Váš prompt je v schránke. Vložte ho do relácie.",
+  "agents.readyToCode": "%1 je pripravený",
+  "agents.readyToCodeBody": "Vytvorte niečo skvelé",
   "agents.runningStayOn": "Bežiace relácie zostanú na %1.",
   "agents.sameAccount": "To je %1 (už pridaný). Skúste to znova a v súkromnom okne sa prihláste ako druhý účet.",
   "agents.sameAccountEmail": "To je %1 (%2). Skúste to znova a v súkromnom okne sa prihláste ako druhý účet.",

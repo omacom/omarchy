@@ -30,6 +30,8 @@
   "agents.offerSwitch": "%1 ב-%2%. לחצו כדי להעביר אליו הפעלות חדשות.",
   "agents.promptOnClipboard": "%1 לא מקבל הנחיית פתיחה",
   "agents.promptOnClipboardBody": "ההנחיה שלכם נמצאת בלוח. הדביקו אותה בהפעלה.",
+  "agents.readyToCode": "%1 מוכן",
+  "agents.readyToCodeBody": "צרו משהו מגניב",
   "agents.runningStayOn": "הפעלות פעילות יישארו ב-%1.",
   "agents.sameAccount": "זה %1 (כבר נוסף). נסו שוב והתחברו כחשבון האחר בחלון הפרטי.",
   "agents.sameAccountEmail": "זה %1 (%2). נסו שוב והתחברו כחשבון האחר בחלון הפרטי.",
