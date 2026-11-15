@@ -71,8 +71,8 @@
   "system.suspend": {"icon":"󰒲","label":"Suspend","when":"! omarchy-toggle-enabled suspend-off && ! omarchy-sleep-disabled","action":"systemctl suspend"},
   "system.hibernate": {"icon":"󰤁","label":"Hibernate","when":"omarchy-hibernation-available && ! omarchy-sleep-disabled","action":"systemctl hibernate"},
   "system.logout": {"icon":"󰍃","label":"Logout","action":"omarchy-system logout"},
-  "system.reboot": {"icon":"󰜉","label":"Reboot","shift":"system.firmware","action":"omarchy-system reboot"},
-  // Stands in for Reboot while Shift is held.
+  "system.reboot": {"icon":"󰜉","label":"Reboot","alt":"system.firmware","action":"omarchy-system reboot"},
+  // Stands in for Reboot while Alt is held.
   "system.firmware": {"icon":"󰘚","label":"Reboot to BIOS","description":"Restart into the UEFI firmware setup","when":"[[ -d /sys/firmware/efi ]]","action":"omarchy-system firmware"},
   "system.shutdown": {"icon":"󰐥","label":"Shutdown","action":"omarchy-system shutdown"},
 
