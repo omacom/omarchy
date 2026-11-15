@@ -5,7 +5,9 @@
 if omarchy-hw-aarch64-qualcomm; then
   install -Dm644 "$OMARCHY_PATH/default/systemd/system/omarchy-powerprofiles-floor.service" \
     /etc/systemd/system/omarchy-powerprofiles-floor.service
-  systemctl enable omarchy-powerprofiles-floor.service
+  # reenable, so an install that enabled the unit under its earlier target
+  # loses that link.
+  systemctl reenable omarchy-powerprofiles-floor.service
 
   # An image's first boot runs this after the boot's start jobs are queued, so
   # the newly enabled service would wait for the next boot. Only there, as in

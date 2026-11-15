@@ -15,4 +15,8 @@ ProtectHome=yes
 ProtectSystem=strict
 
 [Install]
-WantedBy=multi-user.target
+# power-profiles-daemon.service is ordered after multi-user.target, and a
+# target starts after everything it wants. Wanted by multi-user.target, this
+# unit would have to start both before that target and after it, and systemd
+# breaks the cycle at boot by dropping this unit's start.
+WantedBy=graphical.target
