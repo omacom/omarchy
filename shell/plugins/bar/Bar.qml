@@ -200,6 +200,7 @@ Item {
   // itself (WidgetHost), which its slot borrows from its surface's pool.
   property var moduleSlots: []
   property var widgetHosts: []
+  property var barPanels: []
   property var centerBoxes: []
   property var pluginBarApis: ({})
   // target -> { target, pluginId, clickTarget, popout }. Keyed by object so a
@@ -459,6 +460,15 @@ Item {
   function unregisterModuleSlot(slot) {
     var next = moduleSlots.filter(function(item) { return item !== slot })
     moduleSlots = next
+  }
+
+  function registerBarPanel(panel) {
+    if (!panel || barPanels.indexOf(panel) !== -1) return
+    barPanels = barPanels.concat([panel])
+  }
+
+  function unregisterBarPanel(panel) {
+    barPanels = barPanels.filter(function(item) { return item !== panel })
   }
 
   function registerWidgetHost(host) {
@@ -826,12 +836,23 @@ Item {
       if (window && window.overflowCoversCenter &&
           (regions[r] === "centerBegin" || regions[r] === "center" || regions[r] === "centerEnd") &&
           window.overflowCoversCenter()) continue
-      var entries = layoutEntries(regions[r])
-      for (var i = 0; i < entries.length; i++) {
-        var id = entryId(entries[i])
+
+      // The tray's drawer shows the saved tray entries plus the folded ones,
+      // so its tab order is the keys it actually displays, not the saved list.
+      var keys = null
+      if (regions[r] === "tray") {
+        keys = (root.layoutWidgets.sections.tray || []).slice()
+        if (window && window.overflowTrayKeys) keys = keys.concat(window.overflowTrayKeys)
+      }
+      var entries = keys ? [] : layoutEntries(regions[r])
+      var count = keys ? keys.length : entries.length
+      for (var i = 0; i < count; i++) {
+        var key = keys ? keys[i] : ""
+        var id = keys ? "" : entryId(entries[i])
         for (var j = 0; j < moduleSlots.length; j++) {
           var slot = moduleSlots[j]
-          if (!slot || slot.region !== regions[r] || slot.moduleName !== id) continue
+          if (!slot || slot.region !== regions[r]) continue
+          if (keys ? slot.widgetKey !== key : slot.moduleName !== id) continue
           if (window && !sameWindow(slotWindow(slot), window)) continue
           var item = slot.activeItem
           if (!item || item.visible !== true || slot.visible !== true || slot.width <= 0 || slot.height <= 0) continue
@@ -854,9 +875,20 @@ Item {
   // one layout, and summoning the id routes through pickPanelSlot, which opens
   // the focused monitor's copy whichever surface was counted.
   function panelWidgetIdAt(region, index) {
-    var slots = panelNavigationSlots(String(region || ""), null)
+    var window = barPanelForScreenName(focusedScreenName())
+    var slots = panelNavigationSlots(String(region || ""), window)
     var slot = slots[Math.round(Number(index)) - 1]
     return slot ? String(slot.moduleName || "") : ""
+  }
+
+  function barPanelForScreenName(name) {
+    var wanted = String(name || "")
+    if (!wanted) return null
+    for (var i = 0; i < barPanels.length; i++) {
+      var panel = barPanels[i]
+      if (panel && panel.screen && String(panel.screen.name || "") === wanted) return panel
+    }
+    return null
   }
 
   function switchPanelFrom(owner, direction) {
@@ -1027,6 +1059,10 @@ Item {
       if (!slot || !slot.visible || slot.widgetWidth <= 0 || slot.widgetHeight <= 0) continue
       if (sourceWindow && !root.sameWindow(root.slotWindow(slot), sourceWindow)) continue
       if (slot.region === "tray" && !intoTraySection) continue
+      // A folded widget is drawn in the drawer but is not a saved tray entry;
+      // a drop on it would have no place in the saved layout. Let the drawer
+      // zone put the drop at the end of the saved tray section instead.
+      if (slot.region === "tray" && !slot.trayLayoutEntry) continue
       if (intoTraySection && slot.hostsTraySection) traySlot = slot
 
       var slotPoint = { x: slot.x, y: slot.y }
@@ -1728,7 +1764,11 @@ Item {
     readonly property bool cutoutPending: BarModel.cutoutPending(root.displayCutouts, root.position, screen.name, screen.width, screen.height, screen.devicePixelRatio, panelMode)
     property bool cutoutWaitOver: false
     onCutoutPendingChanged: if (!cutoutPending) cutoutWaitOver = true
-    Component.onCompleted: if (!cutoutPending) cutoutWaitOver = true
+    Component.onCompleted: {
+      root.registerBarPanel(barWindow)
+      if (!cutoutPending) cutoutWaitOver = true
+    }
+    Component.onDestruction: root.unregisterBarPanel(barWindow)
 
     Timer {
       interval: 2000
@@ -1900,7 +1940,6 @@ Item {
         keys.push(finish.hidden[i])
       }
 
-      console.log("overflow debug", JSON.stringify({ screenW: screen ? screen.width : -1, screenH: screen ? screen.height : -1, begin: begin, box: box, end: end, startBudget: startBudget, endBudget: endBudget, startHidden: start.hidden, finishHidden: finish.hidden, right: (root.layoutWidgets.sections.right || []).map(function(key) { return key + ":" + lengthOf(key, "right") }) })) // TEMP overflow debug
       if (keys.length === 0) {
         clearOverflow()
         return
