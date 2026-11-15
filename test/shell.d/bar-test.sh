@@ -501,6 +501,43 @@ assertEqual(
   '/home/dhh/.config/omarchy/bar/modules/local.weather.qml',
   'bar builds default custom module paths'
 )
+
+// Autohide is off by default, and off means the key is absent, as the dock's
+// is. Hide Bar wins over it: a bar parked by the flag never comes out.
+assertEqual(bar.autohideEngaged({ autohide: true }, false), true, 'autohide is engaged when the mode is on')
+assertEqual(bar.autohideEngaged({}, false), false, 'autohide is off when the key is absent')
+assertEqual(bar.autohideEngaged({ autohide: false }, false), false, 'autohide is off when it is set off')
+assertEqual(bar.autohideEngaged({ autohide: 'true' }, false), false, 'autohide takes a real boolean, not its spelling')
+assertEqual(bar.autohideEngaged({ autohide: true }, true), false, 'Hide Bar wins over autohide')
+assertEqual(bar.autohideEngaged(null, false), false, 'a bar with no config has no autohide')
+
+// The pointer at the edge calls the bar out, but never over a fullscreen
+// window, which owns that edge and the clicks along it.
+assertEqual(bar.autohideCallsOut(true, false), true, 'the edge calls the bar out')
+assertEqual(bar.autohideCallsOut(true, true), false, 'the edge calls no bar over a fullscreen window')
+assertEqual(bar.autohideCallsOut(false, false), false, 'the edge calls no bar when autohide is off')
+
+// Anything the user is on or opened keeps the bar out; otherwise the grace
+// timer parks it an instant after the pointer leaves.
+assertEqual(bar.autohideHolds(true, false, false), true, 'the pointer on the bar holds it out')
+assertEqual(bar.autohideHolds(false, true, false), true, 'the pointer on the edge strip holds it out')
+assertEqual(bar.autohideHolds(false, false, true), true, 'a panel kept open holds it out')
+assertEqual(bar.autohideHolds(false, false, false), false, 'nothing holds the bar out once the pointer and the panels are gone')
+assertEqual(bar.autohideParks(true, false, false), true, 'the bar parks a moment after the pointer leaves')
+assertEqual(bar.autohideParks(true, true, false), false, 'the bar stays out while something holds it')
+assertEqual(bar.autohideParks(true, true, true), true, 'a window going fullscreen pushes the bar back at once')
+assertEqual(bar.autohideParks(false, false, false), true, 'a bar with autohide off never comes out')
+
+// Each screen's state is a flag in a map, so the bar surface and its edge
+// strip, separate windows on one screen, read the same one.
+assertEqual(bar.screenFlag({ 'eDP-1': true }, 'eDP-1'), true, 'a screen reads its own flag')
+assertEqual(bar.screenFlag({ 'eDP-1': true }, 'DP-1'), false, 'a screen does not read another one\'s flag')
+assertEqual(bar.screenFlag({}, ''), false, 'a screen with no name has no flag')
+assertDeepEqual(bar.withScreenFlag({}, 'eDP-1', true), { 'eDP-1': true }, 'a flag set on one screen')
+assertDeepEqual(bar.withScreenFlag({ 'eDP-1': true, 'DP-1': true }, 'eDP-1', false), { 'DP-1': true }, 'a flag cleared leaves the other screens alone')
+assertDeepEqual(bar.withScreenFlag({ 'eDP-1': true }, '', false), { 'eDP-1': true }, 'a screen with no name changes nothing')
+const held = { 'eDP-1': true }
+assert(bar.withScreenFlag(held, 'eDP-1', true) !== held, 'a flag change is a new map, so the property holding it notifies')
 JS
 
 put_tmp=$(mktemp -d)

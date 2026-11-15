@@ -674,10 +674,71 @@ function fullscreenOn(toplevels, workspaceId, hasFullscreen, specialWorkspaceNam
   return false
 }
 
+// With `bar.autohide` on, the bar keeps no reserved space and slides in over
+// the windows when the pointer reaches its screen edge, then leaves again. The
+// mode is off by default and absent from shell.json, as the dock's is, and Hide
+// Bar still wins over it. The rule lives here, as one definition, so the bar
+// surface, the edge strip that calls it and the tests all read the same one.
+//
+// The bar surface and its edge strip are separate windows on one screen, so
+// each screen's state is a flag in a map keyed by screen name.
+
+// Whether autohide is engaged: the mode is on and Hide Bar has not parked the
+// bar. `hidden` is the bar's own Hide Bar flag.
+function autohideEngaged(config, hidden) {
+  return isPlainObject(config) && config.autohide === true && hidden !== true
+}
+
+// Whether something still needs the bar out: the pointer on the bar, the
+// pointer on its edge strip, or a panel, popup or menu open from a widget on
+// it. Anything else lets the grace timer park it.
+function autohideHolds(barHovered, edgeHovered, keepOpen) {
+  return barHovered === true || edgeHovered === true || keepOpen === true
+}
+
+// Whether the edge strip calls the bar out: only while autohide is engaged and
+// no real fullscreen window owns that screen. The strip takes input exactly
+// when it can call the bar out, so this is its input region too.
+function autohideCallsOut(engaged, underFullscreen) {
+  return engaged === true && underFullscreen !== true
+}
+
+// Whether the grace timer parks the bar. Asked again every time it fires, so a
+// panel closed while the pointer is elsewhere still parks the bar instead of
+// leaving it out for good, and a window that goes fullscreen pushes the bar
+// back at once.
+function autohideParks(engaged, holds, underFullscreen) {
+  return engaged !== true || holds !== true || underFullscreen === true
+}
+
+// A screen's flag in an autohide state map.
+function screenFlag(map, screenName) {
+  var key = String(screenName || "")
+  return !!key && !!map && map[key] === true
+}
+
+// That map with one screen's flag set or cleared. A fresh object, so the
+// property holding it notifies.
+function withScreenFlag(map, screenName, value) {
+  var key = String(screenName || "")
+  if (!key) return map
+  var next = {}
+  for (var name in map || {}) next[name] = map[name]
+  if (value) next[key] = true
+  else delete next[key]
+  return next
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     barSizeFor: barSizeFor,
     fullscreenOn: fullscreenOn,
+    autohideEngaged: autohideEngaged,
+    autohideHolds: autohideHolds,
+    autohideCallsOut: autohideCallsOut,
+    autohideParks: autohideParks,
+    screenFlag: screenFlag,
+    withScreenFlag: withScreenFlag,
     centerBesideRight: centerBesideRight,
     cutoutPending: cutoutPending,
     cutoutTop: cutoutTop,
