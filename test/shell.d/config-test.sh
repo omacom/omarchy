@@ -412,18 +412,70 @@ cat >"$clock_clone_dir/manifest.json" <<'JSON'
 }
 JSON
 touch "$clock_clone_dir/BarWidget.qml"
-jq '.bar.layout.center = [{ "id": "local.clock-clone", "format": "H:mm" }]' \
-  "$TMPDIR/home/.config/omarchy/shell.json" >"$TMPDIR/cloned.json" &&
+
+power_clone_dir="$TMPDIR/home/.config/omarchy/plugins/local.power-clone"
+mkdir -p "$power_clone_dir"
+cat >"$power_clone_dir/manifest.json" <<'JSON'
+{
+  "schemaVersion": 1,
+  "id": "local.power-clone",
+  "name": "Power clone",
+  "version": "1.0.0",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "omarchy": { "clonedFrom": "omarchy.power" }
+}
+JSON
+touch "$power_clone_dir/BarWidget.qml"
+
+jq '
+  .bar.layout.center = [{ "id": "local.clock-clone", "format": "H:mm", "customFlag": false }]
+  | .bar.layout.right = [
+      { "id": "omarchy.power", "showPercentage": false },
+      { "id": "local.power-clone", "showPercentage": true }
+    ]
+' "$TMPDIR/home/.config/omarchy/shell.json" >"$TMPDIR/cloned.json" &&
   mv "$TMPDIR/cloned.json" "$TMPDIR/home/.config/omarchy/shell.json"
 
 [[ $(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar get omarchy.clock format) == "H:mm" ]] ||
   fail "bar get does not follow the enabled clone standing in for the built-in"
 pass "bar get follows the enabled clone standing in for the built-in"
 
+[[ $(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar get omarchy.clock customFlag) == "false" ]] ||
+  fail "bar get does not follow clone value when set to false"
+pass "bar get follows a clone setting a boolean false"
+
+power_val=$(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar get omarchy.power showPercentage) ||
+  fail "bar get failed on exact entry setting false"
+[[ $power_val == "false" ]] ||
+  fail "bar get answered from clone ($power_val) instead of exact entry (false)"
+pass "bar get returns false for an exact entry setting a boolean false"
+
+mock_catalog_dir="$TMPDIR/mock-catalog-bin"
+mkdir -p "$mock_catalog_dir"
+cat >"$mock_catalog_dir/omarchy-plugin-catalog" <<'SH'
+#!/bin/bash
+echo "catalog-called" >> "$TMPDIR/catalog-called"
+exec "$OMARCHY_PATH/bin/omarchy-plugin-catalog" "$@"
+SH
+chmod +x "$mock_catalog_dir/omarchy-plugin-catalog"
+
+rm -f "$TMPDIR/catalog-called"
+PATH="$mock_catalog_dir:$PATH" HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" \
+  omarchy-bar get omarchy.power showPercentage >/dev/null || fail "bar get exact failed"
+[[ ! -f $TMPDIR/catalog-called ]] || fail "bar get exact queried the plugin catalog"
+pass "bar get with exact id match does not query the plugin catalog"
+rm -rf "$mock_catalog_dir" "$TMPDIR/catalog-called"
+
 if HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar get omarchy.menu format 2>/dev/null; then
   fail "bar get answered for a key no entry sets"
 fi
 pass "bar get without a clone still fails when the key is not set"
+
+if HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar get omarchy.power absentKey 2>/dev/null; then
+  fail "bar get answered for a key absent from exact entry"
+fi
+pass "bar get fails when exact entry does not set key"
 
 mock_bin="$TMPDIR/mock-bin"
 mkdir -p "$mock_bin"
