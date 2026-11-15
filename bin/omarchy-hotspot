@@ -319,6 +319,13 @@ status() {
   printf 'ip\t%s\n' "$ip"
   printf 'client_count\t%d\n' "$client_count"
   printf 'clients\t%s\n' "$clients"
+  # A save the running AP has not picked up: the saved name and password
+  # here are not what is on air until a retried save restarts it.
+  if ((active)) && hotspot_pending; then
+    printf 'pending\t1\n'
+  else
+    printf 'pending\t0\n'
+  fi
   printf 'upstream\t%s\n' "$upstream"
 }
 
@@ -1312,7 +1319,7 @@ profile_live_settings() {
 
 hotspot_pending_set() {
   [[ -n $HOTSPOT_PENDING_FILE ]] || return 0
-  : >"$HOTSPOT_PENDING_FILE" 2>/dev/null || true
+  { : >"$HOTSPOT_PENDING_FILE"; } 2>/dev/null || true
 }
 
 hotspot_pending_clear() {
@@ -1336,16 +1343,29 @@ hotspot_pending() {
 # The profile is written before the firewall step, which can stop at a
 # cancelled password prompt. A pending mark, set before the write and cleared
 # only once the AP runs the saved settings (or is down), lets a retry of the
-# same save finish the restart instead of finding nothing changed.
+# same save finish the restart instead of finding nothing changed. The mark
+# is the only record of that: NetworkManager's applied connection can be read
+# back, but it never includes the passphrase, so a password-only change
+# cannot be told from the running settings.
 apply() {
-  local nm_up_error="" before="" after="" pending=0
+  local nm_up_error="" before="" after="" pending=0 save_status=0
   hotspot_lock
   hotspot_pending && pending=1
   if profile_active; then
     before=$(profile_live_settings)
     hotspot_pending_set
   fi
-  save_profile "$@"
+  # A subshell, so a save that fail()s comes back here: one rejected before
+  # it wrote anything (a short password, an unsupported band) leaves the AP
+  # on its saved settings, and must not leave a restart pending for the next
+  # save to trip over.
+  (save_profile "$@") || save_status=$?
+  if (( save_status != 0 )); then
+    if (( pending == 0 )) && [[ $(profile_live_settings) == "$before" ]]; then
+      hotspot_pending_clear
+    fi
+    exit "$save_status"
+  fi
   if ! profile_active; then
     hotspot_pending_clear
     return 0
@@ -1358,9 +1378,9 @@ apply() {
   firewall_ensure
   if ! nm_up_error=$(nmcli connection up "$PROFILE" 2>&1 >/dev/null); then
     # The AP is down for good: give back the firewall rules and forwarding it
-    # was holding, as turning it off would. The next start uses the saved
-    # settings, so nothing is pending any more.
-    hotspot_pending_clear
+    # was holding, as turning it off would. stop clears the pending mark
+    # once the AP is confirmed down; if that fails the AP may still be up on
+    # its old settings, so the mark stays.
     stop || fail "saved the hotspot settings, but the hotspot did not come back up and releasing its host state failed: $nm_up_error"
     fail "saved the hotspot settings, but the hotspot did not come back up: $nm_up_error"
   fi
