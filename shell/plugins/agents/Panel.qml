@@ -711,7 +711,7 @@ Panel {
     root.focusKeys()
   }
 
-  // A first sign-in keeps saying so until its limits arrive, rather than
+  // A first sign-in holds its setup until its limits arrive, rather than
   // flashing the choices again while the record is written.
   onBlankSlateChanged: if (!blankSlate && addStage === "done") addStage = ""
 
@@ -744,10 +744,13 @@ Panel {
       } else {
         addDownloading = false
         addResult = tagged[2]
-        addStage = tagged[1]
+        // A sign-in that finishes goes straight back to the page, where the
+        // account now shows. A first one has nothing to show there until its
+        // limits arrive, so it holds the setup until then.
+        addStage = tagged[1] === "done" && !blankSlate ? "" : tagged[1]
         if (tagged[1] === "done") {
           usage.refreshLimits()
-          addDoneTimer.restart()
+          if (addStage === "") root.focusKeys()
           // Nothing to show yet means the sign-in is what counts as set up.
           if (usage.enabledProviders.length === 0 && !checkProcess.running) {
             addChecks = ({})
@@ -1464,12 +1467,6 @@ Panel {
     }
   }
 
-  Timer {
-    id: addDoneTimer
-    interval: 2500
-    onTriggered: if (root.addStage === "done" && !root.blankSlate) root.addStage = ""
-  }
-
   // Cheap enough to keep running: it only re-evaluates text bindings, and a
   // stale "resets in 2h" on a panel that is open is worse than a timer.
   Timer {
@@ -2117,17 +2114,6 @@ Panel {
           text: Commons.I18n.t("agents.reopenSignIn")
           onClicked: root.reopenSignIn()
         }
-      }
-
-      Text {
-        visible: root.addStage === "done"
-        width: parent.width
-        textFormat: Text.PlainText
-        text: root.addResult
-        color: root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: Style.font.bodySmall
-        wrapMode: Text.WordWrap
       }
     }
 
