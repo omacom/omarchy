@@ -66,13 +66,13 @@ hyprland-preview-share-picker
 hyprpicker
 hyprsunset
 imagemagick
-imv
 inetutils
 inotify-tools
 inxi
 networkmanager
 jq
 kernel-modules-hook
+kimageformats
 lazygit
 less
 libsecret
@@ -97,6 +97,7 @@ nvim
 obsidian
 omacalc
 omacut
+omaview
 omawrite
 omarchy-nvim
 omarchy-hyprland-titlebars

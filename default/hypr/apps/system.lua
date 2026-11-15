@@ -4,7 +4,7 @@ o.window({ tag = "floating-window" }, { center = true })
 o.window({ tag = "floating-window" }, { size = { 875, 600 } })
 
 o.window(
-  "(org.omarchy.btop|org.omarchy.terminal|org.omarchy.bash|org.codeberg.dnkl.foot|org.gnome.NautilusPreviewer|org.gnome.Papers|Omarchy|About|TUI.float|imv|mpv)",
+  "(org.omarchy.btop|org.omarchy.terminal|org.omarchy.bash|org.codeberg.dnkl.foot|org.gnome.NautilusPreviewer|org.gnome.Papers|Omarchy|About|TUI.float|mpv)",
   {
     tag = "+floating-window",
   }
@@ -32,6 +32,11 @@ o.window("org.omarchy.about", { size = { 920, 480 } })
 o.window("folio-preview", { float = true })
 
 o.window("omacalc", { float = true })
+
+-- Omaview sizes its window to the picture or video it opens, so it floats and
+-- centers without the standard float's fixed size.
+o.window("omaview", { float = true })
+o.window("omaview", { center = true })
 
 -- Popped window rounding.
 o.window({ tag = "pop" }, { rounding = 8 })
