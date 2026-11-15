@@ -33,13 +33,30 @@ if [[ ! -d $SET_PATH ]]; then
   exit 1
 fi
 
+# The set goes, and the selection is checked and cleared, under the lock
+# omarchy-icons-set picks under and omarchy-theme-set-icons draws under. A pick
+# made at the same moment then lands before this or after it, never between
+# the check and the clear, where it would be wiped. The lock is let go before
+# the draw below takes it.
+CURRENT="$HOME/.local/state/omarchy/current"
+mkdir -p "$CURRENT"
+exec 7>"$CURRENT/.icons.lock"
+flock 7
+
 rm -rf "$SET_PATH"
 
 # The set in use is drawn again without what was removed. A set of the user's
 # own is gone, so the default takes over; one laid over a built-in set leaves
 # that set as Omarchy ships it.
+redraw=false
 if [[ $(omarchy-icons-current --id) == "$SET_NAME" ]]; then
-  [[ -d $OMARCHY_PATH/icons/$SET_NAME ]] || rm -f "$HOME/.local/state/omarchy/current/icons.name"
+  [[ -d $OMARCHY_PATH/icons/$SET_NAME ]] || rm -f "$CURRENT/icons.name"
+  redraw=true
+fi
+
+exec 7>&-
+
+if [[ $redraw == "true" ]]; then
   omarchy-theme-set-icons
 fi
 

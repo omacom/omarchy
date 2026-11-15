@@ -234,6 +234,37 @@ icons icons-remove Mine >/dev/null
 ! icons icons-remove "../themes" >/dev/null 2>&1 || fail "removing an icon set can't climb out of the sets dir"
 pass "removing the icon set in use falls back to the default"
 
+# A set picked while another is being removed is kept. The stand-in for
+# omarchy-icons-current answers with the set being removed and, as a second
+# command would at that moment, picks Arcade under the lock: at once if the lock
+# is free, or as soon as it is. A removal that holds the lock from its check to
+# its clear makes that pick wait, so it lands after the clear and stands.
+mkdir -p "$sets/going" "$test_tmp/racing"
+printf 'going\n' >"$state/icons.name"
+cat >"$test_tmp/racing/omarchy-icons-current" <<SH
+#!/bin/bash
+# Only the removal's own question is answered this way; the draw after it asks
+# the real command.
+[[ ! -e $test_tmp/racing/asked ]] || exec "$ROOT/bin/omarchy-icons-current" "\$@"
+touch "$test_tmp/racing/asked"
+if flock -n 9; then
+  printf 'arcade\\n' >"$state/icons.name"
+else
+  ( exec 7>&-; flock 9; printf 'arcade\\n' >"$state/icons.name" ) >/dev/null 2>&1 &
+fi 9>"$state/.icons.lock"
+echo going
+SH
+chmod +x "$test_tmp/racing/omarchy-icons-current"
+HOME="$home" XDG_DATA_HOME="$home/.local/share" OMARCHY_PATH="$ROOT" PATH="$test_tmp/racing:$test_tmp/stubs:$ROOT/bin:$PATH" "$ROOT/bin/omarchy-icons-remove" Going >/dev/null
+for _ in {1..40}; do
+  [[ $(cat "$state/icons.name" 2>/dev/null) == "arcade" ]] && break
+  sleep 0.05
+done
+[[ $(cat "$state/icons.name" 2>/dev/null) == "arcade" ]] || fail "a set picked while another is removed is kept"
+[[ ! -d $sets/going ]] || fail "the icon set is still removed when another is picked meanwhile"
+icons icons-set Papercraft
+pass "removing an icon set never wipes one picked at the same moment"
+
 printf 'accent = "nope"\nbackground = "#1a1b26"\nforeground = "#a9b1d6"\n' >"$state/theme/colors.toml"
 set_icons
 [[ ! -e $state/icons/omawrite.svg && ! -L $apps/omawrite.svg ]] || fail "a theme that can't draw app icons brings the packaged ones back"
