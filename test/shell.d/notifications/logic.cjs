@@ -241,6 +241,9 @@ for (const body of ['Your verification code is 938271', 'Your code is 938 271', 
   // A hostname-looking app is not a site unless a browser lifted it.
   same(Icons.candidates({ app: 'example.com', source: 'example.com', groupKey: 'app:example-com' }).themed, ['example.com'])
   same(Icons.candidates({}), { themed: [], entries: [] })
+  // An anonymous sender names no app, so its glyph is not covered by the logo.
+  same(Icons.candidates(snap({ appName: 'omarchy-action', summary: 'Reminder', hints: { 'omarchy-glyph': '\u{f088c}' } })), { themed: [], entries: [] })
+  same(Icons.candidates(snap({ appName: 'notify-send', appIcon: 'dialog-information', summary: 'Hi' })).themed, ['dialog-information'])
   assert.equal(Icons.slug('  Google Chrome!! '), 'google-chrome')
   assert.equal(Icons.slug('../../etc/passwd'), 'etc-passwd')
   // One-colour icons go by their freedesktop name, as a theme name or a file.
@@ -344,8 +347,8 @@ function runIn(scope, ...names) {
 // signals, the deferred event loop and external effects are faked.
 const capacityFunctions = ['pinDeckDisplay', 'showsOn', 'fullscreenOn',
   'durationFor', 'liveCount', 'reserveLive', 'releaseLive',
-  'nextKey', 'rowIndexFor', 'keyForOriginal', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
-  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'dismissOne',
+  'nextKey', 'rowIndexFor', 'keyForOriginal', 'keyForDuplicate', 'handleNotification', 'watchNotification', 'showRow', 'release', 'closeToast',
+  'closeToasts', 'unmarkLeaving', 'finishDeparted', 'newestLive', 'finishLeaving', 'finishClose', 'clearAll', 'dismissNewest', 'releaseHeld', 'restoreRows', 'actionsOf', 'senderActions', 'dismissOne',
   'deedsFor', 'runDeed', 'invokeAction', 'invokeSenderAction', 'actOnNewest', 'act', 'clickable', 'activate', 'openWindows', 'windowForPid', 'focusWindow',
   'storePut', 'storeClose', 'storeDrop', 'storeRecord', 'saveSoon', 'loadLive']
 
@@ -382,6 +385,9 @@ function newCapacityScope() {
   s.service = s
   runIn(s, ...capacityFunctions)
   s.drainCallLater = () => { while (later.length) later.shift()() }
+  // Each fake says something of its own: word for word the same, two arriving
+  // together would be one card.
+  let serial = 0
   s.fakeNotification = (id = 0, summary = 'Synthetic', urgency = 1) => {
     let tracked = false, destroyed = false
     const signal = () => {
@@ -397,7 +403,7 @@ function newCapacityScope() {
       else n.dismissals++
       n.closed.emit()
     }
-    const n = { id, summary, body: 'Synthetic body: ' + summary, urgency, appName: 'Fixture',
+    const n = { id, summary, body: 'Synthetic body ' + (++serial) + ': ' + summary, urgency, appName: 'Fixture',
       actions: [{ identifier: 'open', text: summary }], dismissals: 0, expiries: 0,
       closeAttempts: 0, destroyedCloseAttempts: 0, closed: signal(),
       get tracked() { return tracked },
@@ -1020,6 +1026,57 @@ const eq = (actual, expected, message) => assert.deepEqual(plain(actual), plain(
   update.replace({ hints: { transient: true } })
   s.drainCallLater()
   assert.equal(s.liveEntries.length, 0)
+}
+
+{ // One reminder from a web app open in two tabs arrives as two notifications
+  // in the same moment, each with its own id and its own copy of the picture.
+  // It is one card: the copy takes over the slot, like a replaces_id update.
+  const s = newCapacityScope()
+  const reminder = (id, site = 'app.hey.com') => Object.assign(s.fakeNotification(id, 'Træning', 2), { appName: 'Chromium',
+    body: '<a href="https://' + site + '/">' + site + '</a>\n\nToday, 10:00 AM', image: '/tmp/.org.chromium.Chromium.' + id + '/icon.png' })
+  const first = reminder(9), second = reminder(10), third = reminder(11)
+  // The second lands while the first still waits to be shown; the third, on the shown card.
+  s.handleNotification(first)
+  s.handleNotification(second)
+  s.drainCallLater()
+  eq([s.toasts.count, s.liveCount(), s.liveEntries.length, s.toasts.get(0).originalId], [1, 1, 1, 10])
+  const key = s.toasts.get(0).key
+  s.admit(third)
+  eq([s.toasts.count, s.liveCount(), s.liveEntries.length, s.toasts.get(0).originalId], [1, 1, 1, 11])
+  assert.equal(s.toasts.get(0).key, key)
+  // The copies it superseded are closed at the sender; the last one answers a click.
+  eq([first, second, third].map(n => [n.tracked, n.dismissals]), [[false, 1], [false, 1], [true, 0]])
+  assert.equal(s.refs[key], third)
+  // Another site saying the same, or the same toast opening another file, is its own card.
+  s.admit(reminder(12, 'calendar.example.com'))
+  assert.equal(s.toasts.count, 2)
+  const shot = file => Object.assign(s.fakeNotification(0, 'Screenshot saved'), { appName: 'omarchy-action', body: '3,840 × 2,160',
+    hints: { 'omarchy-exec-argv': JSON.stringify(['xdg-open', file]) } })
+  s.admit(shot('/tmp/one.png'), shot('/tmp/two.png'))
+  assert.equal(s.toasts.count, 4)
+  // Each of those unnamed toasts is its own deck, grouped by the key it ended up with.
+  eq(s.toasts.rows.slice(0, 2).map(r => r.groupKey), s.toasts.rows.slice(0, 2).map(r => 'toast:' + r.key))
+  // The same words after the moment has passed are a second message, not a copy.
+  s.toasts.get(s.rowIndexFor(key)).ts -= 10
+  s.admit(reminder(13))
+  assert.equal(s.toasts.count, 5)
+  // A card on its way out is not brought back by a copy of itself.
+  const leavingKey = s.toasts.get(0).key
+  s.closeToast(leavingKey, 'dismissed')
+  s.admit(reminder(14))
+  eq([s.toasts.count, s.rowIndexFor(leavingKey) >= 0, !!s.leaving[leavingKey]], [6, true, true])
+  // The same words offering different buttons are two cards, each keeping its own.
+  const call = (id, button) => Object.assign(s.fakeNotification(id, 'Standup'), { body: 'Starting now',
+    actions: [{ identifier: button.toLowerCase(), text: button }] })
+  const before = s.toasts.count
+  s.admit(call(20, 'Reply'), call(21, 'Join'), call(22, 'Join'))
+  assert.equal(s.toasts.count, before + 2)
+  eq(s.toasts.rows.slice(0, 2).map(r => [r.originalId, s.actionsOf(r.key).map(a => a.text)]), [[22, ['Join']], [20, ['Reply']]])
+  // One card, one history entry.
+  const t = newCapacityScope()
+  t.admit(Object.assign(t.fakeNotification(1, 'Twice'), { body: 'Same' }), Object.assign(t.fakeNotification(2, 'Twice'), { body: 'Same' }))
+  t.finishClose(t.toasts.get(0).key, 'dismissed')
+  eq([t.toasts.count, t.liveEntries.length, t.historyEntries.length], [0, 0, 1])
 }
 
 { // A pending card silenced before it showed leaves nothing to restore.
