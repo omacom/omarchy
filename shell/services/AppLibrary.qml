@@ -344,6 +344,12 @@ Item {
   // Coalesces bursts of app-list changes (a package install touches many
   // entries) into a single rescan.
   Timer {
+    id: desktopEntryDebounce
+    interval: 750
+    onTriggered: root.refreshDesktopEntries()
+  }
+
+  Timer {
     id: iconIndexDebounce
     interval: 750
     onTriggered: root.refreshIcons()
@@ -414,7 +420,7 @@ Item {
   Connections {
     target: DesktopEntries.applications
     function onValuesChanged() {
-      root.refreshDesktopEntries()
+      desktopEntryDebounce.restart()
       iconIndexDebounce.restart()
       root.appsChanged()
     }
