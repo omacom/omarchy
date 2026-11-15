@@ -1327,5 +1327,17 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "圖示"
+  },
+  "install.style.icons": {
+    "label": "圖示"
+  },
+  "remove.icons": {
+    "label": "圖示"
+  },
+  "update.icons": {
+    "label": "額外圖示"
   }
 }

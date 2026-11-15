@@ -2,38 +2,38 @@
 
 ## Lazygit
 
-[Lazygit](https://github.com/jesseduffield/lazygit) to fantastyczna alternatywa dla czegoś takiego jak aplikacja GitHub Desktop, a do tego działa w terminalu.
+[Lazygit](https://github.com/jesseduffield/lazygit) to zachwycająca alternatywa dla czegoś takiego jak aplikacja GitHub Desktop, a działa wewnątrz terminala.
 
-Możesz uruchomić go bezpośrednio, przechodząc do dowolnego katalogu zarządzanego przez git i wpisując `lazygit`. Możesz też uruchomić go w Neovim, gdzie startuje po naciśnięciu `Space G G`.
+Możesz uruchomić go bezpośrednio, przechodząc do dowolnego katalogu zarządzanego przez git i uruchamiając `lazygit`. Możesz też uruchomić go wewnątrz Neovim, gdzie możesz go uruchomić za pomocą `Space G G`.
 
-Między poszczególnymi panelami przeskakujesz klawiszem `Tab`. W panelu Files klawiszem `Space` zaznaczasz pliki do dodania do staging, a potem klawiszem `c` tworzysz nowy commit. Wszystkie dostępne polecenia zobaczysz po naciśnięciu `?`.
+Między poszczególnymi panelami przeskakujesz za pomocą `Tab`. W panelu Files wybierasz pliki do umieszczenia w indeksie za pomocą `Space`, a potem możesz utworzyć nowy commit za pomocą `c`. Wszystkie dostępne polecenia możesz zobaczyć za pomocą `?`.
 
 ## Btop
 
-[Btop](https://github.com/aristocratos/btop) to piękny menedżer zasobów, który pokazuje zużycie pamięci, CPU, dysku i sieci. Wyświetla też listę wszystkich aktywnych procesów i pozwala nimi zarządzać.
+[Btop](https://github.com/aristocratos/btop) to piękny menedżer zasobów, który pokazuje zużycie pamięci, CPU, dysku i sieci. Wyświetla też wszystkie aktywne procesy i pozwala nimi zarządzać.
 
-Omarchy nazywa go Activity Monitor, a uruchomisz go z launchera aplikacji albo naciskając `Super + Shift + T`. Otwiera się jako pływające okno, które możesz przekształcić w okno kafelkowe kombinacją `Super + T`.
+Omarchy nazywa go Activity Monitor, a uruchamiasz go z launchera aplikacji lub naciskając `Super + Shift + T`. Otwiera się jako pływające okno, które możesz ułożyć w układzie kafelkowym za pomocą `Super + T`.
 
 ## Herdr
 
-[Herdr](https://github.com/omacom-io/herdr) to menedżer przestrzeni roboczej w terminalu, który daje Ci przestrzenie robocze, karty i panele oraz utrzymuje je wszystkie w trwałej sesji, od której możesz się odłączyć i wrócić do niej później.
+[Herdr](https://github.com/omacom-io/herdr) to terminalowy menedżer przestrzeni roboczych, który zapewnia przestrzenie robocze, karty i panele, a wszystkie działają w trwałej sesji, od której możesz się odłączyć i do której możesz później wrócić.
 
-Uruchomisz go (albo ponownie podepniesz się do istniejącej sesji) kombinacją `Super + Ctrl + Return`. Omarchy dostarcza konfigurację Herdr odzwierciedlającą jego konfigurację Tmux, więc klawisz prefiksu to tutaj również `Ctrl + Space`. Wszystkie skróty klawiszowe przejrzysz kombinacją `Super + Ctrl + K`.
+Uruchamiasz go (lub ponownie podłączasz się do istniejącej sesji) z launchera aplikacji lub za pomocą `Super + Ctrl + Return`. Omarchy dostarcza konfigurację Herdr, która odzwierciedla jego konfigurację Tmux, więc klawisz prefiksu to tutaj również `Ctrl + Space`. Wszystkie skróty klawiszowe możesz przejrzeć za pomocą `Super + Ctrl + K`.
 
 ## Fastfetch
 
-[Fastfetch](https://github.com/fastfetch-cli/fastfetch) pokazuje informacje o systemie, takie jak wersja jądra, czas pracy, motyw, CPU, pamięć i wiele więcej. To następca popularnego narzędzia neofetch.
+[Fastfetch](https://github.com/fastfetch-cli/fastfetch) pokazuje informacje o systemie, takie jak wersja jądra, czas działania, motyw, CPU, pamięć i wiele więcej. Jest następcą popularnego narzędzia neofetch.
 
-Omarchy umieściło to w menu Omarchy (`Super + Space`) pod nazwą _About_.
+Omarchy umieściło to jako _Informacje_ w menu Omarchy (`Super + Space`).
 
 ## Cliamp
 
-[Cliamp](https://www.cliamp.stream/) to odtwarzacz muzyki w terminalu w stylu retro, inspirowany Winamp 2.x, z wbudowanymi stacjami radiowymi z bitami lo-fi. Uruchomisz go kombinacją `Super + Shift + Alt + M` albo z menu Omarchy w sekcji _Apps_. Naciśnij `?`, żeby zobaczyć pełną listę skrótów klawiszowych.
+[Cliamp](https://www.cliamp.stream/) to odtwarzacz muzyki w terminalu w stylu retro, inspirowany Winamp 2.x, wraz z wbudowanymi stacjami radiowymi z bitami lo-fi. Uruchomisz go za pomocą `Super + Shift + Alt + M` lub z menu Omarchy w sekcji _Aplikacje_. Naciśnij `?`, aby wyświetlić pełną listę skrótów klawiszowych.
 
 ## A co z Wi-Fi i Bluetooth?
 
-Nie znajdziesz TUI do Wi-Fi ani Bluetooth — te zadania należą do powłoki Omarchy. Kliknij ikonę Wi-Fi na górnym pasku (albo naciśnij `Super + Ctrl + N`), żeby zobaczyć sieci i się połączyć, oraz kliknij ikonę Bluetooth (albo naciśnij `Super + Ctrl + B`), żeby sparować i połączyć urządzenia. Całą historię znajdziesz w sekcji [sieć](35-networking.md).
+Nie znajdziesz TUI dla Wi-Fi i Bluetooth — te zadania należą do powłoki Omarchy. Kliknij ikonę Wi-Fi na górnym pasku (lub naciśnij `Super + Ctrl + N`), aby zobaczyć sieci i nawiązać połączenie, a następnie kliknij ikonę Bluetooth (lub naciśnij `Super + Ctrl + B`), aby sparować i połączyć urządzenia. Zobacz [sieć](35-networking.md), aby poznać pełną historię.
 
 ## Dodawanie własnych
 
-Każdy program terminalowy może zostać potraktowany jak pełnoprawna aplikacja. Przejdź do _Install > TUI_ w menu Omarchy (`Super + Space`), nadaj mu nazwę, polecenie uruchamiania, styl okna i ikonę, a pojawi się w launcherze aplikacji jak każda inna aplikacja. Możesz go ponownie usunąć w sekcji _Remove > TUI_.
+Każdy program terminalowy może zostać potraktowany jak pełnoprawna aplikacja. Przejdź do _Zainstaluj > TUI_ w menu Omarchy (`Super + Space`), nadaj mu nazwę, polecenie uruchamiania, styl okna i ikonę, a pojawi się w launcherze aplikacji jak każda inna aplikacja. Możesz go ponownie usunąć w sekcji _Usuń > TUI_.

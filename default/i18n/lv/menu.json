@@ -1327,5 +1327,17 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonas"
+  },
+  "install.style.icons": {
+    "label": "Ikonas"
+  },
+  "remove.icons": {
+    "label": "Ikonas"
+  },
+  "update.icons": {
+    "label": "Papildu ikonas"
   }
 }
