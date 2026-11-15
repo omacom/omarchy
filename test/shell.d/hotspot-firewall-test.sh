@@ -858,7 +858,8 @@ for action in firewall-apply firewall-rollback forwarding-enable forwarding-rest
   mapped=$(bash -c 'source "$1"; privileged_function "$2"' _ "$TEST_TMP/privileged-function.sh" "$action") ||
     fail "privileged action $action has a function mapping"
   [[ $mapped == "${action//-/_}" ]] || fail "privileged action $action maps to its own function name" "$mapped"
-  grep -q "^${mapped}() {" "$ROOT/bin/omarchy-hotspot" || fail "the root path resolves a defined function for $action" "$mapped"
+  bash -c 'source "$1"; declare -F "$2" >/dev/null' _ "$FUNCTIONS" "$mapped" ||
+    fail "the root path resolves a defined function for $action" "$mapped"
 done
 unknown_status=0
 mapped=$(bash -c 'source "$1"; privileged_function firewall-explode' _ "$TEST_TMP/privileged-function.sh" 2>/dev/null) || unknown_status=$?
