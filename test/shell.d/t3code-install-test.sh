@@ -108,11 +108,13 @@ OMARCHY_TEST_GUM_PICK=Stable run_installer || fail "installing stable succeeds" 
 [[ $(cat "$test_tmp/channel") == "stable" ]] || fail "Stable at the prompt installs the stable channel"
 pass "the prompt chooses between the stable and nightly channels"
 
-# Preserve an already rendered palette, including a user-supplied color.
-jq '.accent = "#abcdef"' "$state/theme/t3code.json" >"$test_tmp/palette.json"
+# Preserve an already rendered palette, including a user-supplied color and CSS.
+jq '.accent = "#abcdef" | .css = ".theme-own { color: red; }"' "$state/theme/t3code.json" >"$test_tmp/palette.json"
 cp "$test_tmp/palette.json" "$state/theme/t3code.json"
 run_installer stable || fail "installing with an existing palette succeeds" "$(cat "$test_tmp/output")"
-[[ $(jq -S . "$test_tmp/palette.json") == "$(jq -S 'del(.css)' "$palette")" ]] || fail "an existing palette is published without re-staging"
+[[ $(jq -S 'del(.css)' "$test_tmp/palette.json") == "$(jq -S 'del(.css)' "$palette")" ]] || fail "an existing palette is published without re-staging"
+jq -e '.css | startswith(":root { --omarchy-radius: ") and endswith("\n.theme-own { color: red; }")' "$palette" >/dev/null ||
+  fail "a theme's own T3 CSS is kept after Omarchy's chrome"
 pass "an existing palette is used without refreshing the current theme"
 
 rm -f "$test_tmp/channel"

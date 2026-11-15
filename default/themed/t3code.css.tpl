@@ -65,6 +65,37 @@ html, body { font-family: var(--font-sans) !important; }
   box-shadow: inset 0 0 0 1px {{ accent }} !important;
 }
 
+/* Segmented groups: separate framed buttons, as the shell's button group. */
+[data-slot="toggle-group"][data-variant="segmented"] {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  gap: 6px !important;
+}
+[data-slot="toggle-group"][data-variant="segmented"] [data-slot="separator"] {
+  display: none !important;
+}
+[data-slot="toggle-group"][data-variant="segmented"] [data-slot="toggle"] {
+  background: {{ mix background foreground 4% }} !important;
+  color: {{ foreground }} !important;
+  border: 1px solid {{ mix background foreground 40% }} !important;
+  border-radius: var(--omarchy-radius) !important;
+  box-shadow: none !important;
+}
+[data-slot="toggle-group"][data-variant="segmented"] [data-slot="toggle"]::before {
+  box-shadow: none !important;
+}
+[data-slot="toggle-group"][data-variant="segmented"] [data-slot="toggle"]:hover:not([data-pressed]) {
+  background: {{ mix background foreground 8% }} !important;
+  border-color: {{ mix background foreground 25% }} !important;
+}
+[data-slot="toggle-group"][data-variant="segmented"] [data-slot="toggle"][data-pressed] {
+  background: {{ mix background foreground 18% }} !important;
+  border-color: {{ mix background foreground 18% }} !important;
+  font-weight: 700;
+}
+
 [data-user-message-bubble] {
   border: 1px solid {{ mix background foreground 25% }} !important;
 }
