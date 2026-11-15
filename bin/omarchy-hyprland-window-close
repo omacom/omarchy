@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# omarchy:summary=Close a window, confirming before interrupting a Foot session
+# omarchy:args=[--policy <always|conditional|never>] [address]
+
+exec python3 "$OMARCHY_PATH/default/hypr/terminal-close.py" "$@"
