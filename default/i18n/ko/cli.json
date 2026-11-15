@@ -28,6 +28,8 @@
   "agents.offerSwitch": "%1은(는) %2%입니다. 클릭하여 새 세션을 이 계정으로 전환하세요.",
   "agents.promptOnClipboard": "%1은(는) 시작 프롬프트를 받지 않습니다",
   "agents.promptOnClipboardBody": "프롬프트가 클립보드에 있습니다. 세션에 붙여넣으세요.",
+  "agents.readyToCode": "%1 준비 완료",
+  "agents.readyToCodeBody": "멋진 걸 만들어 보세요",
   "agents.runningStayOn": "실행 중인 세션은 %1을(를) 계속 사용합니다.",
   "agents.sameAccount": "%1 계정입니다 (이미 추가됨). 다시 시도하고, 비공개 창에서 다른 계정으로 로그인하세요.",
   "agents.sameAccountEmail": "%1 계정입니다 (%2). 다시 시도하고, 비공개 창에서 다른 계정으로 로그인하세요.",

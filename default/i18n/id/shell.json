@@ -1,6 +1,5 @@
 {
   "agents.active": "AKTIF",
-  "agents.addAccount": "Tambahkan akun",
   "agents.addAnother": "Tambahkan lagi",
   "agents.addProviderAccount": "Tambahkan akun %1",
   "agents.app": "Aplikasi",
@@ -36,6 +35,8 @@
   "agents.lastUpdatedJustNow": "Terakhir diperbarui kurang dari semenit yang lalu",
   "agents.lastUpdatedUnknown": "Waktu pembaruan terakhir tidak tersedia",
   "agents.launchHarness": "Mulai %1",
+  "agents.letTheTokensFlow": "Biarkan token mengalir",
+  "agents.letsMakeSomethingCool": "Ayo buat sesuatu yang keren",
   "agents.limitsPaused": "Batas dijeda",
   "agents.linkHideConfirm": "Sembunyikan %1 dari panel? omarchy agent local link setup tetap akan menyiapkannya.",
   "agents.linkOffer": "%1 terhubung dengan kabel ke Spark ini",
@@ -66,6 +67,7 @@
   "agents.localStart": "Mulai",
   "agents.localStop": "Hentikan",
   "agents.localStoppingMeter": "Menghentikan",
+  "agents.loginBrowser": "Masuk melalui browser Anda",
   "agents.makeSomethingCool": "BUAT SESUATU YANG KEREN",
   "agents.merged": {
     "other": "Digabungkan dari %1 perangkat"
@@ -97,6 +99,7 @@
   "agents.networkStopSharing": "Dibagikan di tailnet Anda · berhenti berbagi",
   "agents.outOfCredits": "Kredit habis",
   "agents.pasteCode": "Jika halaman menampilkan kode alih-alih selesai, tempelkan di sini.",
+  "agents.pasteCodeLink": "Halaman malah menampilkan kode?",
   "agents.placeholderCode": "Kode",
   "agents.placeholderWork": "Kerja",
   "agents.plugin": "Plugin",
@@ -113,12 +116,13 @@
   "agents.sessionsToday": {
     "other": "%1 sesi hari ini"
   },
+  "agents.settingUp": "Menyiapkan",
   "agents.signInAgainAccount": "Masuk lagi ke akun ini",
   "agents.signInAgainProvider": "Masuk lagi ke %1",
   "agents.signInExpired": "Sesi masuk kedaluwarsa",
-  "agents.signInIntro": "Masuk ke langganan coding AI, dan panel ini memantau sisa kuota Anda.",
   "agents.signInRequired": "Perlu masuk",
   "agents.signInUnfinished": "Proses masuk tidak selesai.",
+  "agents.signingInAgain": "Masuk lagi",
   "agents.spendEstimated": "≈ %1",
   "agents.spendLast30Days": "30 hari terakhir",
   "agents.spendOfCap": "%1 dari %2",
@@ -127,7 +131,6 @@
   "agents.startOnNew": "Jalankan agen bawaan Anda pada %1 baru",
   "agents.starting": "Memulai…",
   "agents.stopAutoSwitch": "Berhenti beralih otomatis",
-  "agents.subscriptions": "Langganan",
   "agents.switchAutoAt": "Beralih otomatis ke sini pada %1%",
   "agents.syncMkdirFailed": "Sinkronisasi penggunaan: mkdir gagal",
   "agents.syncScanFailed": "Sinkronisasi penggunaan: pemindaian gagal",

@@ -31,6 +31,8 @@
   "agents.offerSwitch": "%1 je pri %2 %. Kliknite, da nanj preklopite nove seje.",
   "agents.promptOnClipboard": "%1 ne sprejme začetnega poziva",
   "agents.promptOnClipboardBody": "Poziv je v odložišču. Prilepite ga v sejo.",
+  "agents.readyToCode": "%1 je pripravljen",
+  "agents.readyToCodeBody": "Ustvarite nekaj kul",
   "agents.runningStayOn": "Aktivne seje ostanejo na %1.",
   "agents.sameAccount": "To je %1 (že dodan). Poskusite znova in se v zasebnem oknu prijavite z drugim računom.",
   "agents.sameAccountEmail": "To je %1 (%2). Poskusite znova in se v zasebnem oknu prijavite z drugim računom.",

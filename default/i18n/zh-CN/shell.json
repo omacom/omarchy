@@ -1,6 +1,5 @@
 {
   "agents.active": "活跃",
-  "agents.addAccount": "添加账户",
   "agents.addAnother": "再添加一个",
   "agents.addProviderAccount": "添加 %1 账户",
   "agents.app": "应用",
@@ -36,6 +35,8 @@
   "agents.lastUpdatedJustNow": "上次更新于不到一分钟前",
   "agents.lastUpdatedUnknown": "上次更新时间不可用",
   "agents.launchHarness": "启动 %1",
+  "agents.letTheTokensFlow": "让 token 流动起来",
+  "agents.letsMakeSomethingCool": "一起做点酷的吧",
   "agents.limitsPaused": "额度已暂停",
   "agents.linkHideConfirm": "从面板中隐藏 %1？omarchy agent local link setup 仍会对其进行设置。",
   "agents.linkOffer": "%1 已通过线缆连接至此 Spark",
@@ -66,6 +67,7 @@
   "agents.localStart": "启动",
   "agents.localStop": "停止",
   "agents.localStoppingMeter": "停止中",
+  "agents.loginBrowser": "通过浏览器登录",
   "agents.makeSomethingCool": "做点酷的东西",
   "agents.merged": {
     "other": "合并自 %1 台设备"
@@ -97,6 +99,7 @@
   "agents.networkStopSharing": "已在 tailnet 上共享 · 停止共享",
   "agents.outOfCredits": "额度已用完",
   "agents.pasteCode": "如果页面显示代码而未完成，请将其粘贴到此处。",
+  "agents.pasteCodeLink": "页面显示的是代码？",
   "agents.placeholderCode": "代码",
   "agents.placeholderWork": "工作",
   "agents.plugin": "插件",
@@ -113,12 +116,13 @@
   "agents.sessionsToday": {
     "other": "今天 %1 个会话"
   },
+  "agents.settingUp": "正在设置",
   "agents.signInAgainAccount": "重新登录此账户",
   "agents.signInAgainProvider": "重新登录 %1",
   "agents.signInExpired": "登录已过期",
-  "agents.signInIntro": "登录 AI 编程订阅，此面板会跟踪你的剩余额度。",
   "agents.signInRequired": "需要登录",
   "agents.signInUnfinished": "登录未完成。",
+  "agents.signingInAgain": "正在重新登录",
   "agents.spendEstimated": "≈ %1",
   "agents.spendLast30Days": "最近 30 天",
   "agents.spendOfCap": "%1，共 %2",
@@ -127,7 +131,6 @@
   "agents.startOnNew": "在新的 %1 上启动默认智能体",
   "agents.starting": "正在启动…",
   "agents.stopAutoSwitch": "停止自动切换",
-  "agents.subscriptions": "订阅",
   "agents.switchAutoAt": "在 %1% 时自动切换至此处",
   "agents.syncMkdirFailed": "用量同步 mkdir 失败",
   "agents.syncScanFailed": "用量同步扫描失败",

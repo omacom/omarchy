@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 %2% پر ہے۔ نئے سیشنز اس پر منتقل کرنے کے لیے کلک کریں۔",
   "agents.promptOnClipboard": "%1 کوئی ابتدائی پرامپٹ نہیں لیتا",
   "agents.promptOnClipboardBody": "آپ کا پرامپٹ کلپ بورڈ پر ہے۔ اسے سیشن میں پیسٹ کریں۔",
+  "agents.readyToCode": "%1 تیار ہے",
+  "agents.readyToCodeBody": "کچھ زبردست بنائیں",
   "agents.runningStayOn": "چل رہے سیشنز %1 پر ہی رہیں گے۔",
   "agents.sameAccount": "یہ %1 ہے (پہلے سے شامل ہے)۔ دوبارہ کوشش کریں، اور نجی ونڈو میں دوسرے اکاؤنٹ کے طور پر سائن ان کریں۔",
   "agents.sameAccountEmail": "یہ %1 (%2) ہے۔ دوبارہ کوشش کریں، اور نجی ونڈو میں دوسرے اکاؤنٹ کے طور پر سائن ان کریں۔",

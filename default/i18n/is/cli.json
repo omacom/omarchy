@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 er á %2%. Smelltu til að færa nýjar lotur yfir á hann.",
   "agents.promptOnClipboard": "%1 tekur ekki við upphafsfyrirmælum",
   "agents.promptOnClipboardBody": "Fyrirmælin þín eru á klippiborðinu. Límdu þau inn í lotuna.",
+  "agents.readyToCode": "%1 er tilbúið",
+  "agents.readyToCodeBody": "Gerðu eitthvað flott",
   "agents.runningStayOn": "Lotur í gangi halda áfram á %1.",
   "agents.sameAccount": "Það er %1 (þegar bætt við). Reyndu aftur og skráðu þig inn á hinn reikninginn í huliðsglugganum.",
   "agents.sameAccountEmail": "Það er %1 (%2). Reyndu aftur og skráðu þig inn á hinn reikninginn í huliðsglugganum.",

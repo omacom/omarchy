@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 liegt bei %2%. Klicke, um neue Sitzungen dorthin zu wechseln.",
   "agents.promptOnClipboard": "%1 unterstützt keinen Start-Prompt",
   "agents.promptOnClipboardBody": "Dein Prompt liegt in der Zwischenablage. Füge ihn in die Sitzung ein.",
+  "agents.readyToCode": "%1 ist bereit",
+  "agents.readyToCodeBody": "Mach etwas Cooles",
   "agents.runningStayOn": "Laufende Sitzungen bleiben auf %1.",
   "agents.sameAccount": "Das ist %1 (bereits hinzugefügt). Erneut versuchen und im privaten Fenster mit dem anderen Konto anmelden.",
   "agents.sameAccountEmail": "Das ist %1 (%2). Erneut versuchen und im privaten Fenster mit dem anderen Konto anmelden.",

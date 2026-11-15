@@ -32,6 +32,8 @@
   "agents.offerSwitch": "Tá %1 ag %2%. Cliceáil chun seisiúin nua a athrú chuige.",
   "agents.promptOnClipboard": "Ní ghlacann %1 le pras tosaigh",
   "agents.promptOnClipboardBody": "Tá do phras ar an ngearrthaisce. Greamaigh é isteach sa seisiún.",
+  "agents.readyToCode": "Tá %1 réidh",
+  "agents.readyToCodeBody": "Déan rud éigin iontach",
   "agents.runningStayOn": "Fanann seisiúin atá ar siúl ar %1.",
   "agents.sameAccount": "Sin %1 (curtha leis cheana). Bain triail eile as, agus sínigh isteach mar an cuntas eile san fhuinneog phríobháideach.",
   "agents.sameAccountEmail": "Sin %1 (%2). Bain triail eile as, agus sínigh isteach mar an cuntas eile san fhuinneog phríobháideach.",

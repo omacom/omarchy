@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 در %2% است. کلیک کنید تا نشست‌های جدید به آن منتقل شوند.",
   "agents.promptOnClipboard": "%1 پرامپت شروع نمی‌گیرد",
   "agents.promptOnClipboardBody": "پرامپت شما روی کلیپ‌بورد است. آن را در نشست جای‌گذاری کنید.",
+  "agents.readyToCode": "%1 آماده است",
+  "agents.readyToCodeBody": "چیزی جالب بسازید",
   "agents.runningStayOn": "نشست‌های در حال اجرا روی %1 باقی می‌مانند.",
   "agents.sameAccount": "این %1 است (قبلاً اضافه شده). دوباره تلاش کنید و در پنجره خصوصی با حساب دیگر وارد شوید.",
   "agents.sameAccountEmail": "این %1 (%2) است. دوباره تلاش کنید و در پنجره خصوصی با حساب دیگر وارد شوید.",

@@ -30,6 +30,8 @@
   "agents.offerSwitch": "%1 ir %2%. Noklikšķiniet, lai jaunas sesijas pārslēgtu uz to.",
   "agents.promptOnClipboard": "%1 nepieņem sākuma uzvedni",
   "agents.promptOnClipboardBody": "Jūsu uzvedne ir starpliktuvē. Ielīmējiet to sesijā.",
+  "agents.readyToCode": "%1 ir gatavs",
+  "agents.readyToCodeBody": "Radi kaut ko foršu",
   "agents.runningStayOn": "Aktīvās sesijas turpina izmantot %1.",
   "agents.sameAccount": "Tas ir %1 (jau pievienots). Mēģiniet vēlreiz un privātajā logā pierakstieties ar otru kontu.",
   "agents.sameAccountEmail": "Tas ir %1 (%2). Mēģiniet vēlreiz un privātajā logā pierakstieties ar otru kontu.",

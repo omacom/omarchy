@@ -30,6 +30,8 @@
   "agents.offerSwitch": "%1 est à %2%. Cliquez pour y basculer les nouvelles sessions.",
   "agents.promptOnClipboard": "%1 ne prend aucun prompt de départ",
   "agents.promptOnClipboardBody": "Votre prompt est dans le presse-papiers. Collez-le dans la session.",
+  "agents.readyToCode": "%1 est prêt",
+  "agents.readyToCodeBody": "Créez quelque chose de génial",
   "agents.runningStayOn": "Les sessions en cours restent sur %1.",
   "agents.sameAccount": "C'est %1 (déjà ajouté). Réessayez et connectez-vous avec l'autre compte dans la fenêtre privée.",
   "agents.sameAccountEmail": "C'est %1 (%2). Réessayez et connectez-vous avec l'autre compte dans la fenêtre privée.",

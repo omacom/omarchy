@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 är på %2%. Klicka för att byta nya sessioner till det.",
   "agents.promptOnClipboard": "%1 tar ingen startprompt",
   "agents.promptOnClipboardBody": "Din prompt finns i urklippet. Klistra in den i sessionen.",
+  "agents.readyToCode": "%1 är redo",
+  "agents.readyToCodeBody": "Skapa något coolt",
   "agents.runningStayOn": "Pågående sessioner stannar på %1.",
   "agents.sameAccount": "Det är %1 (redan tillagt). Försök igen och logga in som det andra kontot i det privata fönstret.",
   "agents.sameAccountEmail": "Det är %1 (%2). Försök igen och logga in som det andra kontot i det privata fönstret.",

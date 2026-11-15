@@ -28,6 +28,8 @@
   "agents.offerSwitch": "%1 目前為 %2%。點按以將新工作階段切換至此帳號。",
   "agents.promptOnClipboard": "%1 不接受起始提示詞",
   "agents.promptOnClipboardBody": "你的提示詞已在剪貼簿中。請貼入工作階段。",
+  "agents.readyToCode": "%1 已準備就緒",
+  "agents.readyToCodeBody": "來做點酷東西",
   "agents.runningStayOn": "執行中的工作階段仍使用 %1。",
   "agents.sameAccount": "這是 %1（已新增）。請重試，並在私密視窗中以另一個帳號登入。",
   "agents.sameAccountEmail": "這是 %1（%2）。請重試，並在私密視窗中以另一個帳號登入。",

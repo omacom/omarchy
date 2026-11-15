@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 %2% पर है। नए सत्रों को इस पर स्विच करने के लिए क्लिक करें।",
   "agents.promptOnClipboard": "%1 कोई शुरुआती प्रॉम्प्ट नहीं लेता",
   "agents.promptOnClipboardBody": "आपका प्रॉम्प्ट क्लिपबोर्ड पर है। इसे सत्र में पेस्ट करें।",
+  "agents.readyToCode": "%1 तैयार है",
+  "agents.readyToCodeBody": "कुछ बढ़िया बनाएं",
   "agents.runningStayOn": "चल रहे सत्र %1 पर ही रहेंगे।",
   "agents.sameAccount": "यह %1 है (पहले से जोड़ा गया)। पुनः प्रयास करें, और निजी विंडो में दूसरे खाते से साइन इन करें।",
   "agents.sameAccountEmail": "यह %1 है (%2)। पुनः प्रयास करें, और निजी विंडो में दूसरे खाते से साइन इन करें।",

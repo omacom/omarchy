@@ -33,6 +33,8 @@
   "agents.offerSwitch": "%1 عند %2%. انقر لتبديل الجلسات الجديدة إليه.",
   "agents.promptOnClipboard": "لا يقبل %1 موجّه بدء",
   "agents.promptOnClipboardBody": "موجّهك في الحافظة. الصقه في الجلسة.",
+  "agents.readyToCode": "%1 جاهز",
+  "agents.readyToCodeBody": "اصنع شيئًا رائعًا",
   "agents.runningStayOn": "ستبقى الجلسات الجارية على %1.",
   "agents.sameAccount": "هذا %1 (مُضاف بالفعل). حاول مجددًا، وسجّل الدخول بالحساب الآخر في النافذة الخاصة.",
   "agents.sameAccountEmail": "هذا %1 (%2). حاول مجددًا، وسجّل الدخول بالحساب الآخر في النافذة الخاصة.",

@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 staat op %2%. Klik om nieuwe sessies hiernaar over te zetten.",
   "agents.promptOnClipboard": "%1 accepteert geen startprompt",
   "agents.promptOnClipboardBody": "Je prompt staat op het klembord. Plak deze in de sessie.",
+  "agents.readyToCode": "%1 is klaar",
+  "agents.readyToCodeBody": "Maak iets gaafs",
   "agents.runningStayOn": "Actieve sessies blijven op %1.",
   "agents.sameAccount": "Dat is %1 (al toegevoegd). Probeer opnieuw en meld je in het privévenster aan als het andere account.",
   "agents.sameAccountEmail": "Dat is %1 (%2). Probeer opnieuw en meld je in het privévenster aan als het andere account.",

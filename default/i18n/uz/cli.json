@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 %2% da. Yangi sessiyalarni unga oʻtkazish uchun bosing.",
   "agents.promptOnClipboard": "%1 boshlangʻich soʻrov qabul qilmaydi",
   "agents.promptOnClipboardBody": "Soʻrovingiz buferda. Uni sessiyaga joylashtiring.",
+  "agents.readyToCode": "%1 tayyor",
+  "agents.readyToCodeBody": "Ajoyib narsa yarating",
   "agents.runningStayOn": "Ishlayotgan sessiyalar %1 da qoladi.",
   "agents.sameAccount": "Bu %1 (allaqachon qoʻshilgan). Qayta urinib koʻring va maxfiy oynada boshqa hisob bilan kiring.",
   "agents.sameAccountEmail": "Bu %1 (%2). Qayta urinib koʻring va maxfiy oynada boshqa hisob bilan kiring.",

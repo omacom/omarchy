@@ -28,6 +28,8 @@
   "agents.offerSwitch": "%1 当前为 %2%。点击将新会话切换到该账户。",
   "agents.promptOnClipboard": "%1 不接受启动提示词",
   "agents.promptOnClipboardBody": "提示词已复制到剪贴板。将其粘贴到会话中。",
+  "agents.readyToCode": "%1 已就绪",
+  "agents.readyToCodeBody": "做点酷的东西吧",
   "agents.runningStayOn": "正在运行的会话将继续使用 %1。",
   "agents.sameAccount": "这是 %1（已添加）。请重试，并在隐私窗口中登录另一个账户。",
   "agents.sameAccountEmail": "这是 %1（%2）。请重试，并在隐私窗口中登录另一个账户。",

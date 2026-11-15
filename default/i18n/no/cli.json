@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 er på %2%. Klikk for å bytte nye økter til den.",
   "agents.promptOnClipboard": "%1 tar ingen startprompt",
   "agents.promptOnClipboardBody": "Prompten din er på utklippstavlen. Lim den inn i økten.",
+  "agents.readyToCode": "%1 er klar",
+  "agents.readyToCodeBody": "Lag noe kult",
   "agents.runningStayOn": "Kjørende økter blir værende på %1.",
   "agents.sameAccount": "Det er %1 (allerede lagt til). Prøv igjen, og logg inn som den andre kontoen i det private vinduet.",
   "agents.sameAccountEmail": "Det er %1 (%2). Prøv igjen, og logg inn som den andre kontoen i det private vinduet.",

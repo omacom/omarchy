@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 е на %2%. Щракни, за да превключиш новите сесии към него.",
   "agents.promptOnClipboard": "%1 не приема начална подкана",
   "agents.promptOnClipboardBody": "Подканата ви е в клипборда. Поставете я в сесията.",
+  "agents.readyToCode": "%1 е готов",
+  "agents.readyToCodeBody": "Направете нещо яко",
   "agents.runningStayOn": "Работещите сесии остават на %1.",
   "agents.sameAccount": "Това е %1 (вече добавен). Опитайте отново и влезте с другия профил в частния прозорец.",
   "agents.sameAccountEmail": "Това е %1 (%2). Опитайте отново и влезте с другия профил в частния прозорец.",

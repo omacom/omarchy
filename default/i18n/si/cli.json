@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 දැනට %2% කිනි. අලුත් සැසි එයට මාරු කිරීමට ක්ලික් කරන්න.",
   "agents.promptOnClipboard": "%1 ආරම්භක prompt එකක් නොගනී",
   "agents.promptOnClipboardBody": "ඔබේ prompt එක ක්ලිප්බෝඩයේ ඇත. එය සැසියට අලවන්න.",
+  "agents.readyToCode": "%1 සූදානම්",
+  "agents.readyToCodeBody": "අපූරු දෙයක් හදන්න",
   "agents.runningStayOn": "ධාවනය වන සැසි %1 මතම පවතී.",
   "agents.sameAccount": "එය %1 ය (දැනටමත් එක් කර ඇත). නැවත උත්සාහ කර, පෞද්ගලික කවුළුවේ අනිත් ගිණුම ලෙස පිවිසෙන්න.",
   "agents.sameAccountEmail": "එය %1 (%2) ය. නැවත උත්සාහ කර, පෞද්ගලික කවුළුවේ අනිත් ගිණුම ලෙස පිවිසෙන්න.",

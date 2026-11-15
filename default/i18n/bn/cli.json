@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 %2%-এ রয়েছে। নতুন সেশন এতে বদলাতে ক্লিক করুন।",
   "agents.promptOnClipboard": "%1 কোনো শুরুর প্রম্পট নেয় না",
   "agents.promptOnClipboardBody": "আপনার প্রম্পট ক্লিপবোর্ডে আছে। সেশনে পেস্ট করুন।",
+  "agents.readyToCode": "%1 প্রস্তুত",
+  "agents.readyToCodeBody": "দারুণ কিছু বানান",
   "agents.runningStayOn": "চলমান সেশনগুলো %1-এই থাকবে।",
   "agents.sameAccount": "এটি %1 (আগেই যোগ করা হয়েছে)। আবার চেষ্টা করুন এবং প্রাইভেট উইন্ডোতে অন্য অ্যাকাউন্টে সাইন ইন করুন।",
   "agents.sameAccountEmail": "এটি %1 (%2)। আবার চেষ্টা করুন এবং প্রাইভেট উইন্ডোতে অন্য অ্যাকাউন্টে সাইন ইন করুন।",

@@ -28,6 +28,8 @@
   "agents.offerSwitch": "%1 đang ở mức %2%. Nhấp để dùng tài khoản này cho phiên mới.",
   "agents.promptOnClipboard": "%1 không nhận prompt khởi đầu",
   "agents.promptOnClipboardBody": "Prompt của bạn đang ở trong bảng nhớ tạm. Hãy dán vào phiên.",
+  "agents.readyToCode": "%1 đã sẵn sàng",
+  "agents.readyToCodeBody": "Làm gì đó thật ngầu",
   "agents.runningStayOn": "Phiên đang chạy vẫn dùng %1.",
   "agents.sameAccount": "Đó là %1 (đã thêm rồi). Thử lại và đăng nhập bằng tài khoản còn lại trong cửa sổ riêng tư.",
   "agents.sameAccountEmail": "Đó là %1 (%2). Thử lại và đăng nhập bằng tài khoản còn lại trong cửa sổ riêng tư.",

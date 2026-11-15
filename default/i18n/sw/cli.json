@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 iko %2%. Bofya kubadili vipindi vipya vitumie hiyo.",
   "agents.promptOnClipboard": "%1 haichukui kidokezo cha kuanzia",
   "agents.promptOnClipboardBody": "Kidokezo chako kiko kwenye ubao wa kunakili. Kibandike kwenye kipindi.",
+  "agents.readyToCode": "%1 iko tayari",
+  "agents.readyToCodeBody": "Tengeneza kitu kizuri",
   "agents.runningStayOn": "Vipindi vinavyoendelea hubaki kwenye %1.",
   "agents.sameAccount": "Hiyo ni %1 (tayari imeongezwa). Jaribu tena, na uingie kama akaunti nyingine kwenye dirisha la faragha.",
   "agents.sameAccountEmail": "Hiyo ni %1 (%2). Jaribu tena, na uingie kama akaunti nyingine kwenye dirisha la faragha.",

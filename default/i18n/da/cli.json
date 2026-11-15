@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 er på %2%. Klik for at skifte nye sessioner til den.",
   "agents.promptOnClipboard": "%1 tager ingen startprompt",
   "agents.promptOnClipboardBody": "Din prompt er i udklipsholderen. Indsæt den i sessionen.",
+  "agents.readyToCode": "%1 er klar",
+  "agents.readyToCodeBody": "Lav noget fedt",
   "agents.runningStayOn": "Kørende sessioner forbliver på %1.",
   "agents.sameAccount": "Det er %1 (allerede tilføjet). Prøv igen, og log ind med den anden konto i det private vindue.",
   "agents.sameAccountEmail": "Det er %1 (%2). Prøv igen, og log ind med den anden konto i det private vindue.",

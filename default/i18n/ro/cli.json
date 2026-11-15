@@ -30,6 +30,8 @@
   "agents.offerSwitch": "%1 este la %2%. Fă clic pentru a trece sesiunile noi pe acesta.",
   "agents.promptOnClipboard": "%1 nu acceptă un prompt de pornire",
   "agents.promptOnClipboardBody": "Promptul tău este în clipboard. Lipește-l în sesiune.",
+  "agents.readyToCode": "%1 este gata",
+  "agents.readyToCodeBody": "Fă ceva tare",
   "agents.runningStayOn": "Sesiunile în curs rămân pe %1.",
   "agents.sameAccount": "Acesta este %1 (adăugat deja). Încearcă din nou și conectează-te cu celălalt cont în fereastra privată.",
   "agents.sameAccountEmail": "Acesta este %1 (%2). Încearcă din nou și conectează-te cu celălalt cont în fereastra privată.",

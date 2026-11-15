@@ -30,6 +30,8 @@
   "agents.offerSwitch": "%1 yra ties %2%. Spustelėkite, kad nauji seansai būtų perjungti į ją.",
   "agents.promptOnClipboard": "%1 nepriima pradinės užklausos",
   "agents.promptOnClipboardBody": "Jūsų užklausa yra iškarpinėje. Įklijuokite ją į seansą.",
+  "agents.readyToCode": "%1 paruošta",
+  "agents.readyToCodeBody": "Sukurkite ką nors šaunaus",
   "agents.runningStayOn": "Veikiantys seansai lieka su %1.",
   "agents.sameAccount": "Tai %1 (jau pridėta). Bandykite dar kartą ir prisijunkite kaip kita paskyra privačiame lange.",
   "agents.sameAccountEmail": "Tai %1 (%2). Bandykite dar kartą ir prisijunkite kaip kita paskyra privačiame lange.",

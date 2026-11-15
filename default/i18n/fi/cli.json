@@ -29,6 +29,8 @@
   "agents.offerSwitch": "%1 on %2 %:ssa. Napsauta vaihtaaksesi uudet istunnot siihen.",
   "agents.promptOnClipboard": "%1 ei ota vastaan aloituskehotetta",
   "agents.promptOnClipboardBody": "Kehotteesi on leikepöydällä. Liitä se istuntoon.",
+  "agents.readyToCode": "%1 on valmis",
+  "agents.readyToCodeBody": "Tee jotain siistiä",
   "agents.runningStayOn": "Käynnissä olevat istunnot pysyvät tilillä %1.",
   "agents.sameAccount": "Se on %1 (jo lisätty). Yritä uudelleen ja kirjaudu toisella tilillä yksityisessä ikkunassa.",
   "agents.sameAccountEmail": "Se on %1 (%2). Yritä uudelleen ja kirjaudu toisella tilillä yksityisessä ikkunassa.",
