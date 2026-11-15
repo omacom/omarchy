@@ -117,7 +117,7 @@ class TypingSetupTest(unittest.TestCase):
     with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}):
       with patch.object(typing.setup, "live_group", side_effect=subprocess.CalledProcessError(1, "busctl")), patch("sys.stderr") as error:
         typing.seed_language("pinyin")
-      self.assertIn("Setup > Typing > Input Methods", "".join(call.args[0] for call in error.write.call_args_list))
+      self.assertIn("Setup > Keyboard > Input Methods", "".join(call.args[0] for call in error.write.call_args_list))
       self.assertIn("Noto Sans CJK SC", (Path(temporary) / "fontconfig/conf.d/50-omarchy-input-method.conf").read_text())
 
   def test_failed_font_write_restores_the_input_group(self):

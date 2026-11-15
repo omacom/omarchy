@@ -1,6 +1,6 @@
 # Klaviatuur, hiir, puuteplaat
 
-Hyprland võimaldab sul kõiki sisendeid väga üksikasjalikult seadistada. Saad muuta klaviatuuri korduse ülehelikiirusel kiireks või panna puuteplaadi kasutama loomulikku kerimist. Kõike seda muudad failis `~/.config/hypr/input.lua`, kuhu pääsed ka Omarchy menüüs (`Super + Space`) valiku _Seadistus > Sisend_ kaudu. Kõik, mis sa seal määrad, asendab Omarchy vaikesätted.
+Hyprland võimaldab sul kõiki sisendeid väga üksikasjalikult seadistada. Saad muuta klaviatuuri korduse ülikiireks või panna puuteplaadi kasutama loomulikku kerimist. Kõike seda muudad failis `~/.config/hypr/input.lua`, kuhu pääsed ka Omarchy menüüs valiku _Setup > Input_ kaudu (`Super + Space`). Kõik, mis sa seal määrad, asendab Omarchy vaikeseaded.
 
 Siin on näide:
 
@@ -35,9 +35,9 @@ hl.config({
 o.window("(Alacritty|kitty|foot)", { scroll_touchpad = 1.5 })
 ```
 
-Kõiki sisendivalikuid saad [vaadata Hyprlandi wikist](https://wiki.hypr.land/Configuring/Basics/Variables/#input) sisendite kohta.
+Kõiki sisendivalikuid näed [Hyprlandi wikis sisendite kohta](https://wiki.hypr.land/Configuring/Basics/Variables/#input).
 
-CapsLock töötab tavalise Caps Lock klahvina ja `Shift + CapsLock` on koostamisklahv [kiirete emojide](07-hotkeys.md#quick-emojis) ja [muude täienduste](07-hotkeys.md#quick-completions) jaoks. Kui eelistad koostamisklahvi mujale, asenda `kb_options` all `omarchy:shift_caps_compose`. Näiteks see liigutab koostamisklahvi Right Alt peale:
+CapsLock toimib tavalise Caps Lockina ja `Shift + CapsLock` on koosteklahv [kiirete emotikonide](07-hotkeys.md#quick-emojis) ja [muude täienduste](07-hotkeys.md#quick-completions) jaoks. Kui eelistad koosteklahvi mujal, asenda `kb_options` väärtuses `omarchy:shift_caps_compose`. Näiteks liigutab see koosteklahvi klahvile Right Alt:
 
 ```lua
 hl.config({
@@ -47,46 +47,50 @@ hl.config({
 })
 ```
 
+### Funktsiooniklahvid
+
+Sülearvuti klaviatuuri ülemine rida saadab vaikimisi meediumiklahve (helitugevus, heledus jne) ja `Fn` all hoidmine annab F1-F12; `Fn + Esc` lukustab selle teistpidi, kuni vajutad seda uuesti. Enamik klaviatuure jätab selle luku ise meelde. ASUS-e sülearvutid ja Apple'i stiilis klaviatuurid jätavad selle Linuxi hooleks, mis käivitab need igal alglaadimisel meediumiklahvidel. Et need käivituksid hoopis F1-F12 klahvidel, käivita `omarchy keyboard toprow fnkeys` (ja tagasi minekuks `omarchy keyboard toprow mediakeys`); mõnel sülearvutil jõustub see pärast taaskäivitust. Apple Silicon Macid säilitavad oma seade.
+
 ### Puuteplaadi žestid
 
-Libista puuteplaadil, et töölaual ringi liikuda:
+Libista puuteplaadil, et töölaual liikuda:
 
 | Žest | Toiming |
 | --- | --- |
 | Kolm sõrme vasakule / paremale | Eelmine / järgmine tööala, sealhulgas tühjad |
-| Kolm sõrme üles | AI-konsooli sisse-/väljalülitamine |
-| Kolm sõrme alla | Omarchy menüü avamine |
-| Neli sõrme vasakule / paremale | Aktiivse akna liigutamine eelmisele / järgmisele tööalale |
-| Neli sõrme alla | Täisekraani sisse-/väljalülitamine |
+| Kolm sõrme üles | Lülita AI-konsool ümber |
+| Kolm sõrme alla | Ava Omarchy menüü |
+| Neli sõrme vasakule / paremale | Teisalda aktiivne aken eelmisele / järgmisele tööalale |
+| Neli sõrme alla | Lülita täisekraanvaade ümber |
 
-Žesti muutmiseks tühista see kõigepealt failis `~/.config/hypr/input.lua`, enne kui lisad oma [puuteplaadi žesti](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/), sest Hyprland ei võta vastu kahte žesti samade sõrmede ja sama suunaga:
+Et üht muuta, tühista see failis `~/.config/hypr/input.lua` enne oma [puuteplaadi žesti](https://wiki.hypr.land/Configuring/Advanced-and-Cool/Gestures/) lisamist, sest Hyprland ei luba kahte žesti samade sõrmede ja suunaga:
 
 ```lua
 hl.gesture({ fingers = 3, direction = "up", action = "unset" })
 hl.gesture({ fingers = 3, direction = "up", action = "fullscreen" })
 ```
 
-Kõigi Omarchy žestide väljalülitamiseks määra `omarchy_default_gestures = false` faili `~/.config/hypr/hyprland.lua` alguse lähedal, enne kui Omarchy vaikesätted laaditakse.
+Et kõik Omarchy žestid välja lülitada, määra `omarchy_default_gestures = false` faili `~/.config/hypr/hyprland.lua` ülaosa lähedal, enne kui Omarchy vaikeseaded laaditakse.
 
-Haptilise puuteplaadiga Dell XPS sülearvutitel saad klõpsu tugevuseks määrata ka madala, keskmise või kõrge valiku _Käivitaja > Riistvara > Puuteplaadi haptika_ all.
+Haptilise puuteplaadiga Dell XPS sülearvutitel saad klõpsu tugevuse määrata ka madalaks, keskmiseks või kõrgeks valiku _Trigger > Hardware > Touchpad Haptics_ all.
 
-### Tippimine hiina, jaapani ja muudes keeltes
+### Hiina, jaapani ja teistes keeltes tippimine
 
-Vali jaapani, korea, hiina (lihtsustatud, Pinyin), Taiwani (Zhuyin) või Hongkongi (Cangjie), kui installer küsib sinu klaviatuuri kohta. Omarchy seadistab klaviatuuri ja sobiva sisestusmootori automaatselt, sealhulgas võrguühenduseta esmakäivituse seadistuse ajal. Jaapani keel kasutab Mozc mootorit, korea keel tavalist kaherealist Hangul paigutust, lihtsustatud hiina keel Pinyin paigutust, Taiwan Chewingi tavalist Zhuyin paigutust ja Hongkong Cangjie paigutust koos Hongkongi märgivormidega. Jaapani (US klaviatuur) pakub Mozc mootorit koos US klaviatuuripaigutusega. Hangul, Zhuyin ja Cangjie klahvid jäävad oma tavalistele kohtadele isegi siis, kui tipid ladina tähti Dvorak, Colemak või AZERTY paigutusega. Kui lisasid Hangul või Chewing enne seda, tühista selle valik ja vali see uuesti valiku _Seadistus > Tippimine > Sisestusmeetodid_ all, et selle klahvid sinna liigutada; Omarchy jätab mootori, millega sa juba tipid, rahule.
+Vali jaapani, korea, hiina (lihtsustatud, Pinyin), Taiwani (Zhuyin) või Hongkongi (Cangjie), kui installer küsib sinu klaviatuuri. Omarchy seadistab klaviatuuri ja sobiva sisendmootori automaatselt, sealhulgas võrguühenduseta esmakäivituse seadistuse ajal. Jaapani keel kasutab Mozc'i, korea keel tavalist kahest komplektist koosnevat Hangulit, lihtsustatud hiina keel Pinyini, Taiwan Chewingi tavalist Zhuyini paigutust ja Hongkong Cangjied koos Hongkongi märgivormidega. Japanese (US keyboard) pakub Mozc'i koos US klaviatuuripaigutusega. Hanguli, Zhuyini ja Cangjie klahvid jäävad oma tavapärastele kohtadele isegi siis, kui tipid ladina tähti Dvoraki, Colemaki või AZERTYga. Kui lisasid Hanguli või Chewingi enne seda, tühista selle valik ja vali see uuesti valiku _Setup > Keyboard > Input Methods_ all, et selle klahvid sinna liigutada; Omarchy jätab mootori, millega sa juba tipid, rahule.
 
-Tippimine algab ladina režiimis. Vajuta `Super + I`, et liikuda seadistatud sisestusmeetodite vahel edasi, ja `Super + Shift + I`, et liikuda tagasi. Puuduta `Shift` klahvi eraldi, et astuda sisestusmeetodist nagu Pinyin välja ladina tähtede juurde, ja puuduta seda uuesti, et tagasi minna, samamoodi nagu Sogou, Microsoft Pinyin ja macOS töötavad; `Shift` koos tähega tipib ikka suurtähe. Jaapani klaviatuuridel lülitab 全角/半角 sisestust, 変換 lülitab selle sisse ja 無変換 lülitab selle välja. Korea keele puhul vahetab 한/영 Hangul paigutust ja 한자 teisendab Hanja märkideks, olenemata sellest, kas sinu klaviatuuril on selleks eraldi klahvid või saadab see nende asemel Right Alt ja Right Ctrl, nagu paljud sülearvutid teevad, nii et Right Alt ja Right Ctrl ei ole seal tavalised muuteklahvid; dikteerimine lülitub selle asemel Alt + Space abil. `Ctrl + Space` jääb Tmux ja Herdr jaoks saadaval; `Shift + CapsLock` jääb koostamisklahviks.
+Tippimine algab ladina režiimis. Vajuta `Super + I`, et liikuda järjest läbi seadistatud sisendmeetodite, ja `Super + Shift + I`, et liikuda tagasi. Puuduta üksinda `Shift`, et astuda sisendmeetodist nagu Pinyin välja ladina tähtedele, ja puuduta seda uuesti, et tagasi minna, nii nagu Sogou, Microsoft Pinyin ja macOS töötavad; `Shift` koos tähega tipib ikka suurtähe. Jaapani klaviatuuridel lülitab 全角/半角 sisendit ümber, 変換 lülitab selle sisse ja 無変換 lülitab selle välja. Korea keelega vahetab 한/영 Hangulit ja 한자 teisendab Hanjaks, olenemata sellest, kas sinu klaviatuuril on spetsiaalsed klahvid või saadab nende jaoks Right Alt ja Right Ctrl, nagu paljud sülearvutid teevad, nii et Right Alt ja Right Ctrl ei ole seal tavalised modifikaatorid; dikteerimine lülitub hoopis Alt + Space'iga ümber. `Ctrl + Space` jääb kättesaadavaks Tmuxi ja Herdri jaoks; `Shift + CapsLock` jääb koosteklahviks.
 
-Klaviatuuriindikaator ilmub riba paremale poole, kui sul on mitu klaviatuuripaigutust või sisestusmeetodit. Klõpsa seda, et sisestuskeeli vahetada; jaapani keele puhul kuvatakse hiragana tähistamiseks あ. Jaapani märkide valimiseks vaheta jaapani keelele, tipi sõna nagu `nihongo` ja vajuta seejärel kaks korda Space. Valiku kinnitamiseks vajuta Enter. Kui sul on ka mitu klaviatuuripaigutust, tee indikaatoril paremklõps, et nende vahel liikuda.
+Klaviatuuriindikaator ilmub riba paremale küljele, kui sul on mitu klaviatuuripaigutust või sisendmeetodit. Klõpsa seda, et sisendkeeli vahetada; jaapani keel kuvab hiragana jaoks あ. Jaapani märgivalikute jaoks vaheta jaapani keelele, tipi sõna nagu `nihongo`, seejärel vajuta kaks korda Space. Valiku kinnitamiseks vajuta Enter. Kui sul on ka mitu klaviatuuripaigutust, paremklõpsa indikaatorit, et nende vahel järjest liikuda.
 
-Valiku _Seadistus > Tippimine > Klaviatuuripaigutused_ abil saad valida paigutusi nagu inglise ja prantsuse keel samade valikute seast, mida pakuti installimise ajal. Valiku _Seadistus > Tippimine > Sisestusmeetodid_ abil saad valida, millised koostamismootorid on aktiivsed. Mõlemad valijad avanevad Omarchy menüü sees ja sinu praegused valikud on märgitud. Valiku ümberlülitamiseks klõpsa seda või vajuta Enter; iga muudatus rakendub kohe. Sisestusmeetodi valiku tühistamine eemaldab selle tsüklist ilma seda desinstallimata; klaviatuur jääb saadaval.
+Kasuta valikut _Setup > Keyboard > Keyboard Inputs_, et valida paigutusi nagu inglise ja prantsuse keel, samade valikute seast, mida pakutakse installimise ajal. Kasuta valikut _Setup > Keyboard > Input Methods_, et valida, millised koostamismootorid on aktiivsed. Mõlemad valijad avanevad Omarchy menüüs, sinu praegused valikud on märgistatud. Valiku lülitamiseks klõpsa või vajuta Enter; iga muudatus rakendub kohe. Sisendmeetodi valiku tühistamine eemaldab selle tsüklist ilma seda desinstallimata; klaviatuur jääb kättesaadavaks.
 
-Käivita `omarchy setup keyboard` või `omarchy setup input`, et samad valijad avada. Ühe keele lisamiseks käsurealt kasuta käsku `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` või `cangjie5`. Quick, Boshiamy ja Array on samas paketis nagu Cangjie ja ilmuvad Sisestusmeetodite valijas. Sinu kohandatud vahetusklahvid säilivad. Alternatiivsete mootoripaigutuste või klahvide jaoks installi `fcitx5-configtool` käsuga `omarchy pkg add fcitx5-configtool` ja käivita see terminalist. Sisestuskeele valimine ei muuda töölaua keelt. Jaapani, korea või hiina keele valimine valiku _Seadistus > Keel_ all lisab selle sisestusmeetodi, kui sul veel ühtegi ei ole.
+Käivita `omarchy setup keyboard` või `omarchy setup input`, et avada samad valijad. Ühe keele lisamiseks käsurealt kasuta `omarchy setup input mozc`, `hangul`, `pinyin`, `chewing` või `cangjie5`. Quick, Boshiamy ja Array on Cangjie'ga samas paketis ja ilmuvad Input Methods valijas. Sinu kohandatud vahetusklahvid säilitatakse. Alternatiivsete mootoripaigutuste või klahvide jaoks installi `fcitx5-configtool` käsuga `omarchy pkg add fcitx5-configtool` ja käivita see terminalist. Sisendkeele valimine ei muuda töölaua keelt. Jaapani, korea või hiina keele valimine valiku _Setup > Language_ all lisab selle sisendmeetodi, kui sul veel ühtki ei ole.
 
-Kasuta `Super + I`, et liikuda sisestusmeetodite või klaviatuuripaigutuste vahel edasi, ja `Super + Shift + I`, et minna teistpidi tagasi, nii saad kolme seadistatud valiku puhul liikuda kahe naabri vahel. Sisestusindikaator ilmub riba paremale poole ainult siis, kui seadistatud on rohkem kui üks sisestusmeetod või paigutus. See töölaua kiirklahv töötab koos sinu olemasolevate Fcitx vahetusklahvidega; saad selle failis `~/.config/hypr/bindings.lua` üle kirjutada. Sisestusmootorid ja koostamisjadad kasutavad [Fcitx5](https://fcitx-im.org/) teenust, mis juba töötab igas sessioonis.
+Kasuta `Super + I`, et liikuda järjest läbi sisendmeetodite või klaviatuuripaigutuste, ja `Super + Shift + I`, et minna teist teed tagasi, nii et kolme seadistatu korral saad liikuda kahe naabri vahel. Sisendiindikaator ilmub riba paremale küljele ainult siis, kui seadistatud on rohkem kui üks sisendmeetod või paigutus. See töölaua sidumine töötab koos sinu olemasolevate Fcitx vahetusklahvidega; saad selle alistada failis `~/.config/hypr/bindings.lua`. Sisendmootorid ja koostejadad kasutavad [Fcitx5](https://fcitx-im.org/) teenust, mis juba töötab igas seansis.
 
-### ALT kasutamine SUPER asemel
+### ALT kasutamine SUPERina
 
-Mõnel klaviatuuril ei ole mugav kasutada peamist metaklahvi (Windows/cmd klahvi) SUPER klahvina. Saad selle selle muudatusega hoopis ALT klahviks muuta:
+Mõnel klaviatuuril ei ole mugav kasutada peamist metaklahvi (Windowsi/cmd klahvi) SUPERina. Saad selle muuta hoopis ALTiks, kasutades seda muudatust:
 
 ```lua
 hl.config({
