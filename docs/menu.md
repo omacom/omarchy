@@ -42,11 +42,16 @@ submenu. The fields:
 | `aliases` | Alternate `omarchy menu summon <name>` routes; also searchable |
 | `description` | Subtitle shown while searching, and extra search text matched by whole word |
 | `when` / `checked` / `disabled` | Shell conditions (see Guards) |
+| `shift` | Id of another action entry that stands in for this row while Shift is held |
 
 Do not add `aliases` to new entries. They are reserved for established
 alternate names users already type (`power-menu`, `settings`), kept for
 compatibility — see `AGENTS.md`. Search does not need them: labels, the last
 id segment, and descriptions are all searchable.
+
+## Shift variants
+
+An action row can name another entry with `shift:` to stand in for it while Shift is held: System > Reboot carries `"shift":"system.firmware"`, so holding Shift turns it into Reboot to BIOS, and Enter or a Shift-click runs that instead. The stand-in is an ordinary entry with its own label, icon, guards, and translation, so it stays searchable and routable (`omarchy menu summon system.firmware`); it is only left out of its submenu's list, where it would duplicate the row it replaces. When its `when:` fails, the row stays as it is. `shiftVariant` and `shiftVariantIds` in `MenuModel.js` hold the logic; `Menu.qml` tracks Shift from the key events it already receives, so a Shift held down before the menu opened only counts once another key or a click reports it.
 
 ## Load and merge
 

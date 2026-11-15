@@ -93,6 +93,8 @@ Item {
   onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
   property int selectedIndex: 0
   property bool cursorActive: false
+  // Rows with a `shift:` stand-in show and run it while this holds.
+  property bool shiftHeld: false
   property int requestSerial: 0
   property int applySerial: 0
   property var items: ({})
@@ -748,9 +750,12 @@ Item {
       }
       rows = currentRows.concat(drilldownRows)
     } else {
+      // A Shift stand-in shows in place of its row, never beside it.
+      var shiftVariants = MenuModel.shiftVariantIds(root.items, root.itemOrder)
       for (var j = 0; j < root.itemOrder.length; j++) {
         var child = root.item(root.itemOrder[j])
         if (!child || child.parent !== active) continue
+        if (shiftVariants[child.id]) continue
         if (!root.isVisible(child)) continue
         rows.push(root.displayRow(child, child.description, child.order))
       }
@@ -898,8 +903,14 @@ Item {
       filterText = ""
       if (root.appLibrary) root.appLibrary.launch(appId, label)
     } else {
-      root.applySelected(row.itemId, row.action)
+      var variant = root.shiftHeld ? root.shiftVariantFor(row.itemId) : null
+      if (variant) root.applySelected(variant.id, variant.action)
+      else root.applySelected(row.itemId, row.action)
     }
+  }
+
+  function shiftVariantFor(id) {
+    return MenuModel.shiftVariant(root.items, root.whenResults, root.item(id))
   }
 
   function requestDeleteSelected() {
@@ -948,9 +959,11 @@ Item {
     if (root.dmenuActive) root.finishRequest(null)
     opened = false
     filterText = ""
+    shiftHeld = false
   }
 
   function openExistingMenu(initialMenu) {
+    shiftHeld = false
     requestSerial += 1
     mode = "menu"
     requestActive = false
@@ -1323,7 +1336,13 @@ Item {
         z: root.deleteConfirmOpen ? 20 : 0
 
         // Focus is on filterInput, which forwards every key here first.
+        Keys.onReleased: function(event) {
+          if (event.key === Qt.Key_Shift) root.shiftHeld = false
+        }
+
         Keys.onPressed: function(event) {
+          root.shiftHeld = event.key === Qt.Key_Shift || (event.modifiers & Qt.ShiftModifier) !== 0
+
           if (root.deleteConfirmOpen) {
             // Swallow the rest too, or it would type into the search line behind the dialog.
             deleteConfirm.handleKey(event)
@@ -1497,6 +1516,8 @@ Item {
               // Faded: the row is here to say the software is already
               // installed, not to be picked.
               opacity: row.disabled ? 0.4 : 1
+              // The entry standing in for this row while Shift is held.
+              readonly property var shiftVariant: root.shiftHeld && row.kind === "action" ? root.shiftVariantFor(row.itemId) : null
               radius: root.cornerRadius
               color: row.hasCursor ? root.selectedBackground : "transparent"
               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
@@ -1516,9 +1537,10 @@ Item {
                 id: iconText
                 textFormat: Text.PlainText
                 visible: row.hasIcon && !row.isApp
-                text: row.icon
+                readonly property string glyphFont: row.shiftVariant ? row.shiftVariant.iconFont : row.iconFont
+                text: row.shiftVariant ? row.shiftVariant.icon : row.icon
                 color: row.hasCursor ? root.selectedText : root.foreground
-                font.family: row.iconFont.length > 0 ? row.iconFont : root.fontFamily
+                font.family: glyphFont.length > 0 ? glyphFont : root.fontFamily
                 font.pixelSize: Style.font.iconLarge
                 width: Style.space(36)
                 horizontalAlignment: Text.AlignHCenter
@@ -1558,7 +1580,7 @@ Item {
                   id: labelText
                   textFormat: Text.PlainText
                   width: parent.width
-                  text: row.label
+                  text: row.shiftVariant ? root.labelFor(row.shiftVariant) : row.label
                   color: row.hasCursor ? root.selectedText : root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.heading
@@ -1623,8 +1645,9 @@ Item {
                 onPositionChanged: function(mouse) {
                   root.selectFromPointer(row.index, row, mouse)
                 }
-                onClicked: {
+                onClicked: function(mouse) {
                   if (row.disabled) return
+                  root.shiftHeld = (mouse.modifiers & Qt.ShiftModifier) !== 0
                   root.cursorActive = true
                   root.selectedIndex = row.index
                   root.activateIndex(row.index, true)

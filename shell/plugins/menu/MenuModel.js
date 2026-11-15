@@ -39,7 +39,8 @@ function normalizeItem(id, raw) {
     searchTerms: normalizeAliases(value.searchTerms),
     when: value.when || "",
     checked: value.checked || "",
-    disabled: value.disabled || ""
+    disabled: value.disabled || "",
+    shift: value.shift || ""
   }
 }
 
@@ -110,7 +111,7 @@ function mergeMenuSources(defaultItems, userItems, rootLabel) {
   }
 
   if (!nextItems.root) {
-    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: (typeof rootLabel === "string" && rootLabel) ? rootLabel : "Go", title: "", target: "", description: "", aliases: [], searchTerms: [], when: "", checked: "", disabled: "", action: "", provider: "" }
+    nextItems.root = { id: "root", parent: "", kind: "menu", icon: "", iconFont: "", label: (typeof rootLabel === "string" && rootLabel) ? rootLabel : "Go", title: "", target: "", description: "", aliases: [], searchTerms: [], when: "", checked: "", disabled: "", action: "", provider: "", shift: "" }
     nextOrder.unshift("root")
   }
   for (var k3 = 0; k3 < nextOrder.length; k3++) nextItems[nextOrder[k3]].order = k3
@@ -276,6 +277,29 @@ function childCount(items, itemOrder, id) {
     if (entry && entry.parent === id) count += 1
   }
   return count
+}
+
+// `shift:` names another action entry that stands in for this row while
+// Shift is held: Reboot becomes Reboot to BIOS. The stand-in is an ordinary
+// entry, so it translates, searches, and routes like any other; it is only
+// kept out of its submenu's list, where it would duplicate the row it
+// replaces. A stand-in whose `when:` fails leaves the row as it is.
+function shiftVariant(items, whenResults, entry) {
+  if (!entry || !entry.shift) return null
+  var variant = item(items, entry.shift)
+  if (!variant || variant.kind !== "action") return null
+  if (variant.when && whenResults && whenResults[variant.id] === false) return null
+  return variant
+}
+
+function shiftVariantIds(items, itemOrder) {
+  var ids = {}
+  var order = Array.isArray(itemOrder) ? itemOrder : []
+  for (var i = 0; i < order.length; i++) {
+    var entry = item(items, order[i])
+    if (entry && entry.shift) ids[entry.shift] = true
+  }
+  return ids
 }
 
 function isVisible(items, itemOrder, whenResults, entry, depth) {
@@ -706,6 +730,8 @@ if (typeof module !== "undefined") {
     isDescendantOf: isDescendantOf,
     childCount: childCount,
     isVisible: isVisible,
+    shiftVariant: shiftVariant,
+    shiftVariantIds: shiftVariantIds,
     isDisabled: isDisabled,
     labelFor: labelFor,
     searchableToken: searchableToken,

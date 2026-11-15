@@ -58,7 +58,8 @@ assertDeepEqual(
     searchTerms: [],
     when: '',
     checked: '',
-    disabled: ''
+    disabled: '',
+    shift: ''
   },
   'menu normalizes parsed items'
 )
@@ -116,6 +117,19 @@ assert(menu.isVisible({ 'install.browser.zen': installed }, ['install.browser.ze
 assert(menu.isDisabled({ 'install.browser.zen': true }, installed), 'menu disables a row whose disabled: succeeded')
 assert(!menu.isDisabled({ 'install.browser.zen': false }, installed), 'menu leaves a row selectable when its disabled: failed')
 assert(!menu.isDisabled({ 'install.browser.zen': true }, visibilityItems.laptop), 'menu never disables a row that declares no disabled:')
+
+// `shift:` swaps a row for another entry while Shift is held, unless that
+// entry's own guard rules it out on this machine.
+const shiftItems = {
+  'system.reboot': menu.normalizeItem('system.reboot', { label: 'Reboot', shift: 'system.firmware', action: 'reboot' }),
+  'system.firmware': menu.normalizeItem('system.firmware', { label: 'Reboot to BIOS', when: 'uefi', action: 'firmware' }),
+  'system.lock': menu.normalizeItem('system.lock', { label: 'Lock', shift: 'system', action: 'lock' }),
+  system: menu.normalizeItem('system', { label: 'System' })
+}
+assertEqual(menu.shiftVariant(shiftItems, { 'system.firmware': true }, shiftItems['system.reboot']).id, 'system.firmware', 'menu swaps a row for its shift stand-in')
+assertEqual(menu.shiftVariant(shiftItems, { 'system.firmware': false }, shiftItems['system.reboot']), null, 'menu keeps the row when the stand-in is guarded out')
+assertEqual(menu.shiftVariant(shiftItems, {}, shiftItems['system.lock']), null, 'menu only swaps a row for an action')
+assertDeepEqual(menu.shiftVariantIds(shiftItems, Object.keys(shiftItems)), { 'system.firmware': true, system: true }, 'menu knows which entries only stand in for another row')
 assert(
   menu.displayRow({ 'install.browser.zen': installed }, ['install.browser.zen'], {}, { 'install.browser.zen': true }, installed, '', 0).disabled,
   'menu display rows carry their disabled state'

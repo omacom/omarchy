@@ -50,6 +50,10 @@
   "system.reboot": {
     "label": "Reboot"
   },
+  "system.firmware": {
+    "label": "Reboot to BIOS",
+    "description": "Restart into the UEFI firmware setup"
+  },
   "system.shutdown": {
     "label": "Shutdown"
   },

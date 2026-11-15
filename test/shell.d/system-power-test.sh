@@ -204,3 +204,21 @@ for action in logout reboot shutdown; do
 done
 "$ROOT/bin/omarchy" system lock --help | grep -q 'omarchy-system-lock' || fail "system lock remains routed to its own command"
 pass "existing system subcommands keep their routes"
+
+cat >"$mock_bin/busctl" <<'SH'
+#!/bin/bash
+
+printf 'busctl %s\n' "$*" >>"$CALL_LOG"
+printf 's "%s"\n' "${FIRMWARE_SETUP:-yes}"
+SH
+chmod +x "$mock_bin/busctl"
+run_power_command firmware || fail "firmware reboot service is scheduled"
+if FIRMWARE_SETUP=no bash "$CALL_LOG.worker"; then
+  fail "firmware reboot fails without firmware setup support"
+fi
+! grep -q 'omarchy-hyprland-window-close-all' "$CALL_LOG" || fail "unsupported firmware reboot leaves applications open"
+grep -q '^omarchy-notification-send -u critical Reboot to BIOS failed ' "$CALL_LOG" || fail "unsupported firmware reboot is reported"
+: >"$call_log"
+FIRMWARE_SETUP=yes bash "$CALL_LOG.worker" || fail "supported firmware reboot succeeds"
+grep -q '^systemctl reboot --firmware-setup --no-wall$' "$CALL_LOG" || fail "firmware reboot asks for the firmware setup"
+pass "firmware reboot checks support before closing applications"
