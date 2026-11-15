@@ -23,10 +23,6 @@ BarWidget {
   readonly property int overflowCount: overflowKeys.length
   readonly property real drawerCoverStart: trayContent.item ? trayContent.item.drawerCoverStart : 0
   readonly property real drawerCoverLength: trayContent.item ? trayContent.item.drawerCoverLength : 0
-  property int previousOverflowCount: 0
-  // Opening a normal drawer over hover is fine, but if overflow appears while
-  // it is open the drawer was opened by hover and would stay open under the
-  // pointer. Close it so the click-to-open mode starts from a clean state.
   // While the overflow drawer is open, the sections it reaches hide so they
   // do not draw through it. The bar keeps its normal background; the drawer
   // itself paints none. Push the state when the API arrives and whenever the
@@ -41,15 +37,8 @@ BarWidget {
   onRevealProgressChanged: syncOverflowApi()
   onDrawerCoverStartChanged: syncOverflowApi()
   onDrawerCoverLengthChanged: syncOverflowApi()
-  Component.onCompleted: {
-    previousOverflowCount = overflowCount
-    syncOverflowApi()
-  }
-  onOverflowCountChanged: {
-    if (previousOverflowCount === 0 && overflowCount > 0) expanded = false
-    previousOverflowCount = overflowCount
-    syncOverflowApi()
-  }
+  Component.onCompleted: syncOverflowApi()
+  onOverflowCountChanged: syncOverflowApi()
   Component.onDestruction: {
     if (!root.barOverflow) return
     root.barOverflow.drawerOpen = false
@@ -335,14 +324,6 @@ BarWidget {
         height: root.barSize
         visible: root.hasDrawer
 
-        HoverHandler {
-          // An overflow drawer is large enough to cover the center; opening
-          // it under the pointer was jarring. It waits for a click. The
-          // normal tray drawer keeps its hover reveal.
-          enabled: root.overflowCount === 0
-          onHoveredChanged: if (enabled) root.expanded = hovered
-        }
-
         BarIconButton {
           id: expandIcon
           bar: root.bar
@@ -352,7 +333,7 @@ BarWidget {
           text: root.fixedAtStart ? "\uf054" : "\uf053"
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
-            else if (button === Qt.LeftButton && root.overflowCount > 0) root.expanded = !root.expanded
+            else if (button === Qt.LeftButton) root.expanded = !root.expanded
           }
         }
 
@@ -432,12 +413,6 @@ BarWidget {
         height: verticalTrayRoot.chevronHeight + root.revealExtent
         visible: root.hasDrawer
 
-        HoverHandler {
-          // The overflow drawer waits for a click; see the horizontal drawer.
-          enabled: root.overflowCount === 0
-          onHoveredChanged: if (enabled) root.expanded = hovered
-        }
-
         BarIconButton {
           id: expandIcon
           bar: root.bar
@@ -448,7 +423,7 @@ BarWidget {
           textRotation: 90
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
-            else if (button === Qt.LeftButton && root.overflowCount > 0) root.expanded = !root.expanded
+            else if (button === Qt.LeftButton) root.expanded = !root.expanded
           }
         }
 
