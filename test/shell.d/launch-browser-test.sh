@@ -38,6 +38,18 @@ SH
 cat >"$mock_bin/systemd-run" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >"$OMARCHY_TEST_BROWSER_LAUNCH"
+if [[ -n ${OMARCHY_TEST_BROWSER_FILE:-} ]]; then
+  same_dir=false
+  while [[ $1 != "uwsm-app" ]]; do
+    [[ $1 != "--same-dir" ]] || same_dir=true
+    shift
+  done
+  shift 2
+  if [[ $same_dir == "false" ]]; then
+    cd "$HOME"
+  fi
+  "$@"
+fi
 SH
 cp "$mock_bin/systemd-run" "$mock_bin/uwsm-app"
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
@@ -120,6 +132,22 @@ launch --private
 [[ -s $help_log ]] || fail "a private launch probes the browser's private flag"
 grep -F -- 'chromium --incognito' "$launch_log" >/dev/null || fail "a private launch passes the browser's private flag"
 pass "a private launch passes the browser's private flag"
+
+# Model the user manager's default cwd; the browser must still read a local
+# file relative to the directory the launcher was called from.
+cat >"$mock_bin/chromium" <<'SH'
+#!/bin/bash
+cat -- "$1" >"$OMARCHY_TEST_BROWSER_FILE"
+SH
+mkdir -p "$test_tmp/pages"
+printf 'local page\n' >"$test_tmp/pages/page #1.html"
+(
+  cd "$test_tmp/pages"
+  OMARCHY_TEST_BROWSER_FILE="$test_tmp/page-content" launch "page #1.html"
+)
+[[ $(cat "$test_tmp/page-content") == "local page" ]] ||
+  fail "browser launcher opens a file relative to the caller's directory"
+pass "browser launcher opens a file relative to the caller's directory"
 
 # The resolver reads every XDG data dir, so the launcher has to read Exec=
 # from the same ones; a browser outside ~/.local and /usr used to resolve and

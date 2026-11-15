@@ -39,7 +39,7 @@ if [[ " $* " == *" --private "* ]]; then
 fi
 
 if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
-  systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+  systemd-run --user --quiet --collect --same-dir --unit="omarchy-browser-$(date +%s%N)" \
     --property=StandardOutput=null --property=StandardError=null \
     uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
 fi
