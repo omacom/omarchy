@@ -14,9 +14,16 @@ function parseNetworkStatus(raw) {
   }
 }
 
+// NetworkManager turns dBm into its 0-100 strength with two formulas: scan
+// results map -100..-40 dBm linearly onto 0..100, and the connected access
+// point's station refresh uses dBm + 120 (floor 30 at -90 dBm). The same link
+// reads 83 after a scan and 70 between scans at -50 dBm. The two only meet at
+// -70 dBm, so every cut-off leaves a few dB where they disagree; these keep
+// those bands to about 4 dB: full from -60 dBm (-64 for scan results), three
+// from -70, two from -80 (-76), one down to about -90.
 function wifiIconFor(strength) {
   var icons = ["󰤯", "󰤟", "󰤢", "󰤥", "󰤨"]
-  var index = Math.max(0, Math.min(4, Math.ceil(strength / 20) - 1))
+  var index = strength >= 60 ? 4 : strength >= 50 ? 3 : strength >= 40 ? 2 : strength >= 15 ? 1 : 0
   return icons[index]
 }
 
@@ -46,12 +53,14 @@ function parseActiveApSignal(raw) {
 // login page. Never execute or automatically open an untrusted Location header.
 var captivePortalUrl = "http://ping.omacom.io/nm-check.txt"
 
-function connectivityState(kind, connectivity, states, checksEnabled) {
+function connectivityState(kind, connectivity, states, checksEnabled, limitedSettled) {
   if (kind === "disconnected") return "none"
   // Ignore stale cached results when the operator has disabled probing.
   if (!checksEnabled) return "unknown"
   if (connectivity === states.Portal) return "portal"
-  if (connectivity === states.Limited) return "limited"
+  // NetworkManager reports Limited for every fresh link until its first probe
+  // answers, so it is only an outage once it has held.
+  if (connectivity === states.Limited) return limitedSettled ? "limited" : "unknown"
   if (connectivity === states.Full) return "full"
   if (connectivity === states.None) return "none"
   return "unknown"
@@ -342,6 +351,18 @@ function wifiRow(network) {
   }
 }
 
+// Every listed network's state as one comparable value. A network can connect,
+// drop, be saved or be forgotten without the list itself changing.
+function wifiStateKey(networks) {
+  var list = networks || []
+  var keys = []
+  for (var i = 0; i < list.length; i++) {
+    var n = list[i]
+    if (n) keys.push([n.name || "", !!n.connected, !!n.known, !!n.stateChanging, n.security].join("\u001f"))
+  }
+  return keys.sort().join("\u001e")
+}
+
 function sortWifiRows(rows) {
   var nets = Array.isArray(rows) ? rows.slice() : []
   nets.sort(function(a, b) {
@@ -441,6 +462,7 @@ if (typeof module !== "undefined") {
     formatRate: formatRate,
     formatPingLatency: formatPingLatency,
     wifiRow: wifiRow,
+    wifiStateKey: wifiStateKey,
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,

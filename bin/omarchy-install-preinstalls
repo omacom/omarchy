@@ -22,7 +22,6 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     libreoffice-fresh \
     pinta \
     obsidian \
-    moonlight-qt \
     omacut \
     monologue \
     omacalc \

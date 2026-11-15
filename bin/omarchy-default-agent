@@ -154,6 +154,9 @@ fi
 mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' "$agent" >"$agent_file"
 
+# The harness reads the shared ~/.agents/AGENTS.md from its first session.
+omarchy-agent-instructions "$agent" >/dev/null || true
+
 if [[ $installing == "true" ]]; then
   # The installer's own window: the nearest ancestor Hyprland knows as a client.
   installer=""
