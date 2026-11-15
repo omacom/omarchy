@@ -14,9 +14,22 @@ omarchy theme install <url>     # Install from git repo
 
 ## Making a New Theme
 
-1. Create a directory under `~/.config/omarchy/themes`.
-2. See how an existing theme is done via `/usr/share/omarchy/themes/catppuccin`.
-3. Download a matching background (or several) from the internet and put them in `~/.config/omarchy/themes/<name-of-new-theme>/backgrounds/`.
+A theme is a directory in `~/.config/omarchy/themes/<slug>/` (the slug becomes the name: `tea-house` shows as "Tea House") with two things in it:
+
+- `colors.toml`, the palette. Omarchy generates every app's colors from it when the theme is applied: terminals, btop, Hyprland borders, Neovim, VS Code, the shell, the keyboard backlight, and the rest (from `$OMARCHY_PATH/default/themed/*.tpl`). Don't write those files; a file the theme ships replaces the generated one, so write one only to override it.
+- `backgrounds/`, two to four wallpapers named `1-<name>.jpg`, `2-<name>.jpg`, and so on, each at least 1920x1080.
+
+1. Copy the `colors.toml` of a stock theme with the same `mode` (dark or light) from `/usr/share/omarchy/themes/` and change its values. It must keep every key: `mode`, `accent`, `selection`, `muted`, `background`, `dark_background`, `darker_background`, `lighter_background`, `foreground`, `dark_foreground`, `light_foreground`, `bright_foreground`, `red`, `yellow`, `green`, `cyan`, `blue`, `magenta`, `orange`, `brown`, and `bright_` versions of red through magenta. Keep body text readable: `foreground` on `background` at 7:1 contrast or more, `accent` and the colors at 3:1 or more.
+2. Download photographs or artwork for the backgrounds. Never draw them with ImageMagick or code: generated scenes come out as blurry blobs. Wallhaven's API searches wallpapers by short tag, and needs no key:
+
+   ```bash
+   curl -s 'https://wallhaven.cc/api/v1/search?q=lantern+night&categories=110&purity=100&atleast=1920x1080&ratios=landscape&sorting=relevance' \
+     | jq -r '.data[].path' | head -10
+   curl -sLo backgrounds/1-lanterns.jpg '<one of those paths>'
+   ```
+
+   Use one or two words per query (`lantern night`, `misty forest`), and try a few queries. Open every downloaded image and look at it; keep only the ones that fit the theme's mood and colors, and delete the rest.
+3. Look at the result before calling it done: the backgrounds with the palette's colors beside them. Fix any color that clashes with the backgrounds.
 4. When done with the theme, run `omarchy theme set "Name of new theme"`.
 
 Additional user backgrounds for any theme (stock or custom) go in
