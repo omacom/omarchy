@@ -135,6 +135,10 @@ if (( ${#dead_packs[@]} > 0 )); then
       live_energy_full=0
       break
     fi
+    # energy_now and energy_full are separate reads, so a capacity update in
+    # between can leave a pack holding more than its full; cap it so the
+    # headline stays at or under 100% and time to full never goes negative.
+    (( energy > full )) && energy=$full
     live_energy=$((live_energy + energy))
     live_energy_full=$((live_energy_full + full))
   done

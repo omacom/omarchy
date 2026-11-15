@@ -167,3 +167,15 @@ grep -Fx $'size\t20Wh' <<<"$shell_output" >/dev/null || fail "capacity counts on
 grep -Fx $'time\t14m' <<<"$shell_output" >/dev/null || fail "time to full is not stretched by a dead pack's capacity" "$shell_output"
 
 pass "a dead pack's advertised capacity does not drag down the headline figures"
+
+# energy_now and energy_full are read separately, so a capacity update in
+# between can leave the live pack reporting more than its full. The headline
+# caps at 100% and time to full does not go negative.
+printf '21100000\n' >"$tmp_dir/power3/BAT1/energy_now"
+
+shell_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power3" PATH="$tmp_dir/bin3:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+
+grep -Fx $'percentage\t100%' <<<"$shell_output" >/dev/null || fail "a pack reading above its full caps the percentage at 100%" "$shell_output"
+grep -Fx $'time\t0m' <<<"$shell_output" >/dev/null || fail "a pack reading above its full gives no negative time to full" "$shell_output"
+
+pass "a pack reading above its full stays within bounds"
