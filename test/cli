@@ -473,6 +473,13 @@ if rg -q '\{\{[^}]+\}\}' "$LEGACY_NEXT_THEME"; then
 fi
 pass "legacy short palette renders the complete generated theme"
 
+touch "$PI_TMPDIR/1-my-background.jpg"
+ln -s "$PI_TMPDIR/1-my-background.jpg" "$PI_TMPDIR/.local/state/omarchy/current/background"
+# The marker keeps the final newline, which $(...) would otherwise strip.
+bg_current=$(HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-bg-current"; printf 'x')
+[[ $bg_current == $'My Background\nx' ]] || fail "theme bg current prints the background name on its own line"
+pass "theme bg current prints the background name on its own line"
+
 osc_summary=$("$ROOT/bin/omarchy-theme-osc" "$NEXT_THEME/colors.toml" | python -c 'import sys; data = sys.stdin.buffer.read(); print(data.count(b"]4;"), b"]4;1;#ff0000" in data, b"]4;7;#ffffff" in data, b"]4;15;#eeeeee" in data, b"]12;#eeeeee" in data, b"]17;#808080" in data, b"]19;#eeeeee" in data)')
 [[ $osc_summary == "16 True True True True True True" ]] || fail "theme OSC aliases semantic colors to ANSI palette"
 pass "theme OSC aliases semantic colors to ANSI palette"
