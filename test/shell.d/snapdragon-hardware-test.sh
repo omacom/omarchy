@@ -370,6 +370,7 @@ run_slim5x_setup() (
   OMARCHY_PROC_ROOT="$dir/proc" \
     OMARCHY_IDEAPAD_SLIM5X_DRM_ROOT="$dir/drm" \
     OMARCHY_IDEAPAD_SLIM5X_UKI_CONFIG="$dir/kernel/uki.conf" \
+    OMARCHY_IDEAPAD_SLIM5X_MKINITCPIO_DIR="$dir/mkinitcpio.conf.d" \
     OMARCHY_QUALCOMM_DTB_ROOT="$dir/dtbs" \
     source "$slim5x_setup"
 )
@@ -406,6 +407,12 @@ run_slim5x_setup "$lcd" >/dev/null
   fail "the shared device-tree list is replaced, since the models share an SMBIOS identity"
 grep -Fxq 'Cmdline=@/etc/kernel/cmdline' "$lcd/kernel/uki.conf" ||
   fail "unrelated UKI settings are preserved"
+(
+  MODULES=()
+  source "$lcd/mkinitcpio.conf.d/ideapad-slim-5x-initramfs.conf"
+  [[ " ${MODULES[*]} " == *" msm? "* && " ${MODULES[*]} " == *" pmic_glink_altmode? "* ]] ||
+    fail "the Slim 5x loads the display chain before disk unlock"
+)
 
 # Any other panel, here a Samsung one.
 oled="$scratch/oled"
