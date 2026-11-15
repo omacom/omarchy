@@ -1343,12 +1343,12 @@ DRIVER
 run_isolated "$TEST_TMP/shared-lock-driver.sh"
 pass "hotspot actions take the user lock, then the shared lock"
 
-# start hands the chosen participant limit to apply, and leaves the saved
-# range alone when no limit is given.
+# start hands the chosen participant limit to the profile save, and leaves
+# the saved range alone when no limit is given.
 reset_firewall_fixture
 cat >"$TEST_TMP/start-limit-driver.sh" <<'DRIVER'
-# The stub parses as apply does and records the operands it ends up with.
-apply() { parse_hotspot_args "$@"; printf '%s\n' "${#HOTSPOT_OPERANDS[@]}" "${HOTSPOT_OPERANDS[@]}" "save=$HOTSPOT_SAVE_DATA" >"$TEST_TMP/apply-args"; }
+# The stub parses as save_profile does and records the operands it ends up with.
+save_profile() { parse_hotspot_args "$@"; printf '%s\n' "${#HOTSPOT_OPERANDS[@]}" "${HOTSPOT_OPERANDS[@]}" "save=$HOTSPOT_SAVE_DATA" >"$TEST_TMP/apply-args"; }
 firewall_ensure() { :; }
 forwarding_ensure() { :; }
 ipv4_forwarding_enabled() { :; }
@@ -1364,7 +1364,8 @@ run_isolated "$TEST_TMP/start-limit-driver.sh"
 pass "start applies the chosen participant limit"
 
 # A live limit change that cannot bring the AP back gives back the host
-# state the AP held, as turning it off would.
+# state the AP held, as turning it off would. apply() restarts the AP after
+# the save; the stand-in save changes only the limit.
 reset_firewall_fixture
 touch "$PROFILE_STATE" "$TEST_TMP/nmcli-active"
 printf '%s\n' 1 >"$FORWARDING_STATE_VALUE"
@@ -1374,7 +1375,8 @@ HOTSPOT_STATE_DIR="$TEST_STATE_DIR"
 FIREWALL_STATE_FILE="$TEST_STATE_DIR/firewall.state"
 FORWARDING_STATE_FILE="$TEST_STATE_DIR/forwarding.state"
 export NMCLI_UP_SUCCEED=0
-apply_participant_limit 1 4
+save_profile() { apply_participant_limit 1 4; }
+apply Hotspot 2.4 4
 DRIVER
 set +e
 limit_restart_output=$(run_isolated "$TEST_TMP/limit-restart-driver.sh" 2>&1)

@@ -411,7 +411,7 @@ for (const action of ['startHotspot', 'applyHotspot']) {
   const state = {
     hotspotBusy: false, hotspotLoaded: false, hotspotError: '',
     hotspotSsid: 'Old Name', hotspotPassword: 'oldpassword', hotspotBand: '2.4',
-    hotspotLimitArgument: 'unlimited', hotspotCommand: 'omarchy-hotspot', hotspotActionKind: '',
+    hotspotLimitArgument: 'unlimited', hotspotSaveData: 'auto', hotspotCommand: 'omarchy-hotspot', hotspotActionKind: '',
     hotspotActionProc: { running: false },
     Model: { hotspotCredentialsError: () => '' },
     Commons: englishCommons,
@@ -652,7 +652,7 @@ for (const [name, verb] of [['startHotspot', 'start'], ['applyHotspot', 'apply']
   assert(source, 'network has ' + name)
   if (!source) continue
   const state = {
-    hotspotBusy: false, hotspotSsid: ' -Cafe ', hotspotPassword: 'longenough', hotspotBand: '5', hotspotLimitArgument: '4', hotspotSaveData: 'never',
+    hotspotBusy: false, hotspotLoaded: true, hotspotSsid: ' -Cafe ', hotspotPassword: 'longenough', hotspotBand: '5', hotspotLimitArgument: '4', hotspotSaveData: 'never',
     hotspotCommand: 'omarchy-hotspot', hotspotError: '', hotspotActionKind: '',
     hotspotActionProc: {}, Model: network, Commons: englishCommons,
   }
