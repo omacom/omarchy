@@ -309,7 +309,11 @@ BarWidget {
         visible: root.hasDrawer
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          // An overflow drawer is large enough to cover the center; opening
+          // it under the pointer was jarring. It waits for a click. The
+          // normal tray drawer keeps its hover reveal.
+          enabled: root.overflowCount === 0
+          onHoveredChanged: if (enabled) root.expanded = hovered
         }
 
         BarIconButton {
@@ -321,6 +325,7 @@ BarWidget {
           text: root.fixedAtStart ? "\uf054" : "\uf053"
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            else if (button === Qt.LeftButton && root.overflowCount > 0) root.expanded = !root.expanded
           }
         }
 
@@ -399,7 +404,9 @@ BarWidget {
         visible: root.hasDrawer
 
         HoverHandler {
-          onHoveredChanged: root.expanded = hovered
+          // The overflow drawer waits for a click; see the horizontal drawer.
+          enabled: root.overflowCount === 0
+          onHoveredChanged: if (enabled) root.expanded = hovered
         }
 
         BarIconButton {
@@ -412,6 +419,7 @@ BarWidget {
           textRotation: 90
           onPressed: function(button) {
             if (button === Qt.RightButton) root.managePopupOpen = !root.managePopupOpen
+            else if (button === Qt.LeftButton && root.overflowCount > 0) root.expanded = !root.expanded
           }
         }
 
