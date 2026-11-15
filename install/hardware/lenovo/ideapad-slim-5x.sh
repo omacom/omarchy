@@ -17,8 +17,9 @@ if omarchy-hw-aarch64-qualcomm &&
   echo "Detected Lenovo IdeaPad Slim 5x, applying board-specific support..."
 
   ideapad_slim5x_lcd=0
+  # sysfs gives the EDID a size of 0, so a read tells whether it holds one.
   for edid in "$drm_root"/card*-eDP-*/edid; do
-    if [[ -s $edid ]]; then
+    if [[ -r $edid ]]; then
       case $(od -An -v -tx1 -j8 -N4 "$edid" | tr -d ' \n') in
         0dae7614) ideapad_slim5x_lcd=1 ;;
       esac
