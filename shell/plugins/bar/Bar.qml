@@ -827,13 +827,14 @@ Item {
   // sections taken as one. Scoped to a single bar surface so tabbing walks the
   // bar the open panel belongs to instead of hopping the panel to another
   // monitor's copy of the same widget.
-  function panelNavigationSlots(region, window) {
+  function panelNavigationSlots(region, window, skipCoveredCenter) {
     var regions = BarModel.navigationRegions(region)
     var slots = []
     for (var r = 0; r < regions.length; r++) {
-      // The center sections are hidden under the open overflow drawer; do not
-      // tab into a panel the user cannot see.
-      if (window && window.overflowCoversCenter &&
+      // The center sections are hidden under the open overflow drawer; tabbing
+      // must not enter a panel the user cannot see. Numbered hotkeys pass
+      // false, so they still count the center panels.
+      if (skipCoveredCenter && window && window.overflowCoversCenter &&
           (regions[r] === "centerBegin" || regions[r] === "center" || regions[r] === "centerEnd") &&
           window.overflowCoversCenter()) continue
 
@@ -904,7 +905,7 @@ Item {
     }
     if (!currentSlot) return false
 
-    var slots = panelNavigationSlots(currentSlot.region, slotWindow(currentSlot))
+    var slots = panelNavigationSlots(currentSlot.region, slotWindow(currentSlot), true)
     if (slots.length < 2) return false
 
     var currentIndex = -1
