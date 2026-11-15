@@ -58,7 +58,11 @@ if installed and (bundle.get("accounts") or {}).get("namePolicy") == "source":
     capabilities = json.loads(probe.stdout) if probe.returncode == 0 else {}
   except ValueError:
     capabilities = {}
-  use_installed = isinstance(capabilities, dict) and capabilities.get("sourceNames") is True
+  # A receiver without organizations takes two organizations of one Claude
+  # user for one account; the bundled receiver keeps them apart.
+  providers = bundle["accounts"].get("providers")
+  claude = isinstance(providers, dict) and "claude" in providers
+  use_installed = isinstance(capabilities, dict) and capabilities.get("sourceNames") is True and (capabilities.get("organizations") is True or not claude)
   if not use_installed:
     root = os.environ.get("OMARCHY_PATH")
     local_backend = pathlib.Path(root) / "bin/omarchy-agent-account-state" if root else None
@@ -120,6 +124,16 @@ def same_identity(left: dict[str, Any], right: dict[str, Any]) -> bool:
   left_org = str(left.get("orgId") or "")
   right_org = str(right.get("orgId") or "")
   return not left_org or not right_org or left_org == right_org
+
+
+# The destination's own backend may predate organizations and leave orgId
+# out. Its Claude account file names the organization all the same.
+def home_identity(provider: str, home: Path) -> dict[str, str]:
+  found = accounts.identity(provider, home)
+  if provider == "claude" and not found.get("orgId"):
+    oauth = (accounts.read_json(file_path(provider, home, ".claude.json")) or {}).get("oauthAccount")
+    found["orgId"] = str(oauth.get("organizationUuid") or "") if isinstance(oauth, dict) else ""
+  return found
 
 
 def export_accounts(providers: list[str]) -> dict[str, Any]:
@@ -300,7 +314,7 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
       was_empty = not any(accounts.identity(provider, accounts.account_home(provider, a))["accountId"] and login_files(provider, accounts.account_home(provider, a)) for a in registry["accounts"])
       for entry in incoming["accounts"]:
         incoming_identity = entry_identity(provider, entry)
-        existing = next((a for a in registry["accounts"] if same_identity(accounts.identity(provider, accounts.account_home(provider, a)), incoming_identity)), None)
+        existing = next((a for a in registry["accounts"] if same_identity(home_identity(provider, accounts.account_home(provider, a)), incoming_identity)), None)
         if existing and login_files(provider, accounts.account_home(provider, existing)) and not replace:
           copied.append((entry, existing))
           results.append(("kept", existing))
@@ -346,7 +360,7 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
             current.update(data)
             data = current
           write_json(path, data)
-        found = accounts.identity(provider, home)
+        found = home_identity(provider, home)
         if not same_identity(found, incoming_identity) or not login_files(provider, home):
           raise accounts.AccountError("Transferred credentials do not match their account identity")
         if not account.get("primary"):
@@ -388,7 +402,7 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
 def main(args: list[str]) -> int:
   try:
     if args == ["capabilities"]:
-      print(json.dumps({"streamVersion": 1, "sourceNames": True}))
+      print(json.dumps({"streamVersion": 1, "sourceNames": True, "organizations": True}))
     elif args in (["receiver-command"], ["receiver-command", "--replace"]):
       command = "/usr/bin/python3 -I -c " + shlex.quote(RECEIVER_BOOTSTRAP)
       if "--replace" in args:

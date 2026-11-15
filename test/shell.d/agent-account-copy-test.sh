@@ -409,7 +409,7 @@ pass "replacement can appear after the host"
 cat >"$test_tmp/bin/omarchy-agent-account-transfer" <<'SH'
 #!/bin/bash
 if [[ $1 == "capabilities" ]]; then
-  printf '{"streamVersion":1,"sourceNames":true}\n'
+  printf '{"streamVersion":1,"sourceNames":true,"organizations":true}\n'
   exit 0
 fi
 printf '%s\n' "$*" >"$OMARCHY_TEST_ROOT/preferred-receiver"
@@ -430,7 +430,7 @@ pass "installed receiver is preferred"
 # One user's two Claude organizations are separate subscriptions, so a copy
 # carries both instead of treating the second as a duplicate.
 python3 - <<'PY' || fail "two Claude organizations survive a copy"
-import copy, importlib.machinery, importlib.util, json, os
+import copy, importlib.machinery, importlib.util, json, os, subprocess
 from pathlib import Path
 
 loader = importlib.machinery.SourceFileLoader("transfer", str(Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-agent-account-transfer"))
@@ -513,5 +513,34 @@ except state.AccountError:
   pass
 else:
   raise AssertionError("an entry without an organization must not validate beside its user's other one")
+
+# A destination on an earlier release has an installed receiver without
+# organizations, and a backend whose identity() leaves orgId out. The copy
+# bypasses that receiver and still keeps the two organizations apart.
+older_root = root / "org-older-omarchy"
+(older_root / "bin").mkdir(parents=True)
+older_source = (Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-agent-account-state").read_text()
+org_line = '      "orgId": str(account.get("organizationUuid") or ""),\n'
+assert org_line in older_source
+(older_root / "bin/omarchy-agent-account-state").write_text(older_source.replace(org_line, ""))
+installed = root / "org-older-bin"
+installed.mkdir()
+(installed / "omarchy-agent-account-transfer").write_text("""#!/bin/bash
+if [[ $1 == "capabilities" ]]; then
+  printf '{"streamVersion":1,"sourceNames":true}\\n'
+else
+  exit 1
+fi
+""")
+(installed / "omarchy-agent-account-transfer").chmod(0o755)
+bundle = {"version": 1, "backend": "raise RuntimeError('sender backend must not run')", "receiver": Path(transfer.__file__).read_text(), "accounts": payload}
+machine("org-older-destination")
+transfer.write_json(Path.home() / ".claude.json", {})
+older_env = dict(os.environ, OMARCHY_PATH=str(older_root), PATH=str(installed) + ":" + str(root / "bin"))
+for args in ([], ["--replace"]):
+  result = subprocess.run(["/usr/bin/python3", "-I", "-c", transfer.RECEIVER_BOOTSTRAP, *args], input=json.dumps(bundle), text=True, capture_output=True, env=older_env)
+  assert result.returncode == 0, result.stderr
+  logins = {a["label"]: state.read_json(state.account_home("claude", a) / ".credentials.json")["claudeAiOauth"]["accessToken"] for a in state.load("claude")["accounts"] if a["label"] != "Main"}
+  assert logins == {"Org A": "fake-org-a", "Org B": "fake-org-b"}, (args, logins)
 PY
 pass "two Claude organizations survive a copy"
