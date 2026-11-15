@@ -202,6 +202,7 @@ machine() {
   synaptics() { printf '%s\n' 'N: Name="SynPS/2 Synaptics TouchPad"' >"$hw/input-devices"; }
   surface() { dmi sys_vendor "Microsoft Corporation"; dmi product_name "$1"; }
   vivobook_s15() { dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_family "ASUS Vivobook S 15"; dmi product_name "ASUS Vivobook S 15 S5507QA_$1"; }
+  vivobook_s16() { dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_family "ASUS Vivobook S 16"; dmi product_name "ASUS Vivobook S 16 S3607QA_S3607QA"; }
   # A Qualcomm Wi-Fi card bound to ath12k, or to ath11k for the WCN6855 (1103); with "board-data",
   # the board data the package installed for it.
   ath12k() {
@@ -264,17 +265,23 @@ machine() {
     # The X Plus model shares the family name but has another device tree and is untested.
     vivobook-s15-x-plus) vivobook_s15 S5507QA; FAKE_PLATFORM=aarch64-qualcomm ;;
     vivobook-s15-not-qualcomm) vivobook_s15 S5507QAD; FAKE_PLATFORM=aarch64 ;;
+    vivobook-s16) vivobook_s16; FAKE_PLATFORM=aarch64-qualcomm ;;
+    vivobook-s16-not-qualcomm) vivobook_s16; FAKE_PLATFORM=aarch64 ;;
     omnibook-x14) dmi sys_vendor HP; dmi product_name "HP OmniBook X Laptop 14-fe0xxx"; FAKE_PLATFORM=aarch64-qualcomm ;;
     omnibook-x14-not-qualcomm) dmi sys_vendor HP; dmi product_name "HP OmniBook X Laptop 14-fe0xxx"; FAKE_PLATFORM=aarch64 ;;
     proart-pz13) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; dmi product_family "ProArt PZ13"; FAKE_PLATFORM=aarch64-qualcomm ;;
     proart-pz13-not-qualcomm) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; FAKE_PLATFORM=aarch64 ;;
     aspire-16-ai) dmi sys_vendor Acer; dmi product_name "Aspire A16-11M"; dmi product_family "Aspire 16 AI"; FAKE_PLATFORM=aarch64-qualcomm ;;
     aspire-16-ai-not-qualcomm) dmi sys_vendor Acer; dmi product_name "Aspire A16-11M"; FAKE_PLATFORM=aarch64 ;;
+    omnibook-3-14) dmi sys_vendor HP; dmi product_name "HP OmniBook 3 Laptop 14-hz0xxx"; dmi product_family "103C_5335KV HP OmniBook 3"; FAKE_PLATFORM=aarch64-qualcomm ;;
+    omnibook-3-14-not-qualcomm) dmi sys_vendor HP; dmi product_name "HP OmniBook 3 Laptop 14-hz0xxx"; FAKE_PLATFORM=aarch64 ;;
     omnibook-ultra-14) dmi sys_vendor HP; dmi product_name "HP OmniBook Ultra Laptop 14-kg0xxx"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="hp,omnibook-ultra-kg0xxx qcom,glymur" ;;
     anduril-bluechip) dmi sys_vendor Anduril; dmi product_name "Qualcomm Glymur"; FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
     glymur-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="anduril,bluechip qcom,glymur" ;;
     # A Mahua tree's root names qcom,mahua and never qcom,glymur.
     t14s-gen7) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,thinkpad-t14s-gen7-lcd lenovo,thinkpad-t14s-gen7 qcom,mahua" ;;
+    # Kalambo is Mahua with fewer cores, and its trees name only qcom,kalambo.
+    thinkbook-14-gen9) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="lenovo,thinkbook-14-gen9 qcom,kalambo" ;;
     zenbook-14-ux3480qa) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; dmi product_family "Zenbook 14"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-14-ux3480qa-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; FAKE_PLATFORM=aarch64 ;;
     xps13-ptl) xps13; FAKE_LSPCI="00:02.0 VGA compatible controller: Intel Corporation Panther Lake [Intel Graphics]" ;;
@@ -321,10 +328,12 @@ run_leaf() {
     OMARCHY_DMI_PRODUCT_SKU="$hw/dmi/product_sku" \
     OMARCHY_SYNAPTIC_INPUT_DEVICES="$hw/input-devices" \
     OMARCHY_SURFACE_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ASPIRE_16_AI_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_VIVOBOOK_S15_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_VIVOBOOK_S16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_OMNIBOOK_X14_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_QUALCOMM_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
@@ -352,9 +361,12 @@ leaves=(
   hardware/asus/fix-asus-zenbook-a16-speakers.sh
   hardware/asus/fix-asus-proart-pz13-speakers.sh
   hardware/acer/fix-acer-aspire-16-ai-speakers.sh
+  hardware/acer/fix-acer-aspire-16-ai-boot.sh
+  hardware/hp/fix-hp-omnibook-3-speakers.sh
   hardware/asus/fix-asus-zenbook-a16-firmware.sh
   hardware/asus/fix-asus-zenbook-a16-boot.sh
   hardware/asus/fix-asus-vivobook-s15-boot.sh
+  hardware/asus/fix-asus-vivobook-s16-boot.sh
   hardware/hp/fix-hp-omnibook-x14-boot.sh
   hardware/qualcomm/glymur-display.sh
   hardware/qualcomm/oem-firmware.sh
@@ -419,6 +431,15 @@ hardware/acer/fix-acer-aspire-16-ai-speakers.sh|aspire-16-ai|0|pkg-add acer-aspi
 hardware/acer/fix-acer-aspire-16-ai-speakers.sh|aspire-16-ai+unreadable|0
 hardware/acer/fix-acer-aspire-16-ai-speakers.sh|aspire-16-ai-not-qualcomm|0
 hardware/acer/fix-acer-aspire-16-ai-speakers.sh|yoga-slim7x|0
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|aspire-16-ai|0|wrote etc/mkinitcpio.conf.d/aspire-16-ai-initramfs.conf
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|aspire-16-ai+unreadable|0
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|aspire-16-ai-not-qualcomm|0
+# The Aspire 14 AI shares the tree's display outputs and is untested.
+hardware/acer/fix-acer-aspire-16-ai-boot.sh|snapdragon-unpackaged|0
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-3-14|0|pkg-add hp-omnibook-3-audio
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-3-14+unreadable|0
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-3-14-not-qualcomm|0
+hardware/hp/fix-hp-omnibook-3-speakers.sh|omnibook-x14|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16|0|pkg-add asus-zenbook-a16-firmware
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16+unreadable|0
 hardware/asus/fix-asus-zenbook-a16-firmware.sh|zenbook-a16-not-qualcomm|0
@@ -439,6 +460,10 @@ hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15+unreadable|0
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15-x-plus|0
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15-not-qualcomm|0
 hardware/asus/fix-asus-vivobook-s15-boot.sh|zenbook-a16|0
+hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s16|0|wrote etc/mkinitcpio.conf.d/vivobook-s16-initramfs.conf
+hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s16+unreadable|0
+hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s16-not-qualcomm|0
+hardware/asus/fix-asus-vivobook-s16-boot.sh|vivobook-s15|0
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14|0|wrote etc/mkinitcpio.conf.d/omnibook-x14-initramfs.conf
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14+unreadable|0
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14-not-qualcomm|0
@@ -448,6 +473,7 @@ hardware/qualcomm/glymur-display.sh|omnibook-ultra-14|0|wrote etc/mkinitcpio.con
 hardware/qualcomm/glymur-display.sh|omnibook-ultra-14+unreadable|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
 hardware/qualcomm/glymur-display.sh|anduril-bluechip|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
 hardware/qualcomm/glymur-display.sh|t14s-gen7|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
+hardware/qualcomm/glymur-display.sh|thinkbook-14-gen9|0|wrote etc/mkinitcpio.conf.d/qualcomm-glymur-display.conf
 hardware/qualcomm/glymur-display.sh|glymur-not-qualcomm|0
 hardware/qualcomm/glymur-display.sh|yoga-slim7x|0
 hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh|zenbook-14-ux3480qa|0|wrote etc/systemd/sleep.conf.d/zenbook-14-ux3480qa.conf|wrote etc/mkinitcpio.conf.d/zenbook-14-ux3480qa-initramfs.conf

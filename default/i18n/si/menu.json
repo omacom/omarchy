@@ -1327,5 +1327,17 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "අයිකන"
+  },
+  "install.style.icons": {
+    "label": "අයිකන"
+  },
+  "remove.icons": {
+    "label": "අයිකන"
+  },
+  "update.icons": {
+    "label": "අමතර අයිකන"
   }
 }
