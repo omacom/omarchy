@@ -107,10 +107,12 @@ boot_entry_for() {
   partuuid=$(lsblk -no PARTUUID "$(findmnt -n -o SOURCE --mountpoint "$ESP")")
   # Through ENVIRON: awk -v would read the backslashes in the path as escapes.
   [[ -n $partuuid ]] || return 0
+  # awk reads to the end: leaving early could kill efibootmgr with SIGPIPE,
+  # which pipefail turns into a silent exit of the whole switch.
   efibootmgr -v | OMARCHY_UUID=${partuuid,,} OMARCHY_LOADER=${path,,} awk '
-    $1 ~ /^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]\*?$/ &&
+    !found && $1 ~ /^Boot[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]\*?$/ &&
       index(tolower($0), ENVIRON["OMARCHY_UUID"]) && index(tolower($0), ENVIRON["OMARCHY_LOADER"]) {
-      sub(/^Boot/, "", $1); sub(/\*$/, "", $1); print $1; exit
+      sub(/^Boot/, "", $1); sub(/\*$/, "", $1); print $1; found = 1
     }'
 }
 
@@ -163,7 +165,7 @@ preferred_limine_kernel() {
   local pkgbase
   for pkgbase in /usr/lib/modules/*/pkgbase; do
     [[ -f $pkgbase ]] && cat "$pkgbase"
-  done | grep -x linux-omarchy || cat /usr/lib/modules/*/pkgbase 2>/dev/null | head -1
+  done | grep -x linux-omarchy || cat /usr/lib/modules/*/pkgbase 2>/dev/null | sed -n 1p
 }
 
 preflight() {
@@ -271,7 +273,7 @@ create_store() {
   [[ -d $TOP/@omarchy-boot ]] || btrfs -q subvolume create "$TOP/@omarchy-boot" >/dev/null
 
   if ! grep -qE '[[:space:]]/var/lib/omarchy/boot[[:space:]]' /etc/fstab; then
-    fstab_line=$(awk '$2 == "/" && $3 == "btrfs"' /etc/fstab | head -1)
+    fstab_line=$(awk '$2 == "/" && $3 == "btrfs"' /etc/fstab | sed -n 1p)
     [[ -n $fstab_line ]] || die "/etc/fstab has no btrfs root line to copy the store's mount from."
     fstab_line=$(awk 'BEGIN { OFS = "\t" } { $2 = "/var/lib/omarchy/boot"; gsub(/subvol=\/?@(,|$)/, "subvol=/@omarchy-boot,", $4); sub(/,$/, "", $4); $6 = 0; print }' <<<"$fstab_line")
     printf '# Omarchy boot images (omarchy-boot-switch)\n%s\n' "$fstab_line" >>/etc/fstab
@@ -355,10 +357,13 @@ register_trial() {
       die "The firmware refused a new boot entry. Nothing that boots has changed; run omarchy-boot-switch revert to clean up."
     num=$(boot_entry_for "$LOADER_PATH")
     [[ -n $num ]] || die "The firmware didn't keep the new boot entry. Run omarchy-boot-switch revert to clean up."
-    # efibootmgr puts a new entry first; Limine stays first until the trial.
-    [[ -n $order ]] && efibootmgr --quiet --bootorder "$order"
   fi
   state_set loader_entry "$num"
+  # efibootmgr puts a new entry first. Until the trial has booted, the boot
+  # order stays the one the machine had, Limine first, also on a rerun after
+  # an interrupted one.
+  order=$(state_get boot_order)
+  [[ -n $order ]] && efibootmgr --quiet --bootorder "$order"
   efibootmgr --quiet --bootnext "$num"
 }
 
@@ -441,7 +446,7 @@ finalize() {
 
   if [[ -z $step ]]; then
     local package
-    package=$(ls -t "$STORE"/packages/omarchy-boot-systemd-*.pkg.tar.* 2>/dev/null | grep -v '\.sig$' | head -1)
+    package=$(ls -t "$STORE"/packages/omarchy-boot-systemd-*.pkg.tar.* 2>/dev/null | grep -v '\.sig$' | sed -n 1p)
     [[ -n $package ]] || { notice "Finishing the switch failed" "The omarchy-boot-systemd package isn't in the boot store. Run omarchy-boot-switch again."; return 1; }
     # Installing it removes the Limine packages it conflicts with; their
     # pacman hook is replaced by the one this package owns.
