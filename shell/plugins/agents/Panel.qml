@@ -642,6 +642,23 @@ Panel {
   property real addRateBytes: 0
   // Where a sign-in is, as a setup flow: getting the CLI, then signing in.
   property string addPhase: ""
+  // When the download ends its bar fills to the end before the sign-in takes
+  // its place, so one that took a second still reads as done, not skipped.
+  property bool addFetched: false
+  property string addHeldStatus: ""
+  Timer {
+    id: addFetchTimer
+    interval: Style.duration(450)
+    onTriggered: root.beginSignIn(root.addHeldStatus)
+  }
+
+  function beginSignIn(status) {
+    addFetchTimer.stop()
+    addFetched = false
+    addStatus = status
+    addDownloading = false
+    addPhase = "signin"
+  }
   property bool addReauth: false
   // Signing in takes over the hero: the provider's mark and name, with what's
   // being set up below.
@@ -698,6 +715,8 @@ Panel {
     addNeedsPaste = false
     addDownloading = false
     addPhase = ""
+    addFetched = false
+    addFetchTimer.stop()
     addReauth = false
     addResult = ""
     addStage = "running"
@@ -707,6 +726,7 @@ Panel {
 
   function cancelAdd() {
     if (addProcess.running) addProcess.signal(15)
+    addFetchTimer.stop()
     addStage = ""
     root.focusKeys()
   }
@@ -733,11 +753,19 @@ Panel {
         addPhase = "get"
       } else if (tagged[1] === "status") {
         // A download's progress follows its status at once; any other
-        // status is the sign-in's.
-        addStatus = tagged[2]
-        addDownloading = false
-        addPhase = "signin"
+        // status is the sign-in's, held while a finished download's bar fills.
+        if (addPhase === "get" && !addFetched) {
+          addFetched = true
+          addHeldStatus = tagged[2]
+          addFetchTimer.restart()
+        } else if (addFetched) {
+          addHeldStatus = tagged[2]
+        } else {
+          beginSignIn(tagged[2])
+        }
       } else {
+        addFetchTimer.stop()
+        addFetched = false
         addDownloading = false
         addResult = tagged[2]
         // A sign-in that finishes goes straight back to the page, where the
@@ -913,6 +941,8 @@ Panel {
     addNeedsPaste = false
     addDownloading = false
     addPhase = ""
+    addFetched = false
+    addFetchTimer.stop()
     addReauth = true
     addResult = ""
     addStage = "running"
@@ -1999,7 +2029,7 @@ Panel {
           anchors.right: installRate.left
           anchors.rightMargin: Style.space(20)
           anchors.verticalCenter: parent.verticalCenter
-          value: root.addTotalBytes > 0 ? root.addDoneBytes / root.addTotalBytes : 0
+          value: root.addFetched ? 1 : root.addTotalBytes > 0 ? root.addDoneBytes / root.addTotalBytes : 0
         }
 
         Text {
