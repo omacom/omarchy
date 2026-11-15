@@ -14,9 +14,9 @@ stay_awake_enabled() {
 
 print_status() {
   if stay_awake_enabled; then
-    printf '{"enabled":true,"class":"enabled","tooltip":"Allow Idle Lock & Screensaver"}\n'
-  else
     printf '{"enabled":false,"class":"disabled","tooltip":"Stay Awake"}\n'
+  else
+    printf '{"enabled":true,"class":"enabled","tooltip":"Allow Idle Lock & Screensaver"}\n'
   fi
 }
 
