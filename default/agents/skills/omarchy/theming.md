@@ -16,20 +16,33 @@ omarchy theme install <url>     # Install from git repo
 
 A theme is a directory in `~/.config/omarchy/themes/<slug>/` (the slug becomes the name: `tea-house` shows as "Tea House") with two things in it:
 
-- `colors.toml`, the palette. Omarchy generates every app's colors from it when the theme is applied: terminals, btop, Hyprland borders, Neovim, VS Code, the shell, the keyboard backlight, and the rest (from `$OMARCHY_PATH/default/themed/*.tpl`). Don't write those files; a file the theme ships replaces the generated one, so write one only to override it.
+- `colors.toml`, the palette. Omarchy generates every app's colors from it when the theme is applied: terminals, btop, Hyprland borders, Neovim, VS Code, the shell, the keyboard backlight, and the rest (from `$OMARCHY_PATH/default/themed/*.tpl`). Don't write those files; a file the theme ships replaces the generated one, so write one only to override it. (Stock themes ship `neovim.lua` and `vscode.json` because each names a published Neovim or VS Code color scheme of the same name; a new theme has none, so it leaves them out.)
 - `backgrounds/`, two to four wallpapers named `1-<name>.jpg`, `2-<name>.jpg`, and so on, each at least 1920x1080.
 
 1. Copy the `colors.toml` of a stock theme with the same `mode` (dark or light) from `/usr/share/omarchy/themes/` and change its values. It must keep every key: `mode`, `accent`, `selection`, `muted`, `background`, `dark_background`, `darker_background`, `lighter_background`, `foreground`, `dark_foreground`, `light_foreground`, `bright_foreground`, `red`, `yellow`, `green`, `cyan`, `blue`, `magenta`, `orange`, `brown`, and `bright_` versions of red through magenta. Keep body text readable: `foreground` on `background` at 7:1 contrast or more, `accent` and the colors at 3:1 or more.
-2. Download photographs or artwork for the backgrounds. Never draw them with ImageMagick or code: generated scenes come out as blurry blobs. Wallhaven's API searches wallpapers by short tag, and needs no key:
+2. Download photographs or artwork for the backgrounds. Never draw them with ImageMagick or code: generated scenes come out as blurry blobs. Wallhaven's API searches wallpapers by short tag and needs no key; `categories=100` keeps to general images (no anime), and `+` joins words:
 
    ```bash
-   curl -s 'https://wallhaven.cc/api/v1/search?q=lantern+night&categories=110&purity=100&atleast=1920x1080&ratios=landscape&sorting=relevance' \
-     | jq -r '.data[].path' | head -10
-   curl -sLo backgrounds/1-lanterns.jpg '<one of those paths>'
+   mkdir -p /tmp/candidates && cd /tmp/candidates
+   for q in lantern+night misty+temple paper+lantern; do
+     curl -s "https://wallhaven.cc/api/v1/search?q=$q&categories=100&purity=100&atleast=1920x1080&ratios=landscape&sorting=relevance" \
+       | jq -r '.data[:4][].path'
+   done | while read -r url; do curl -sLO "$url"; done
    ```
 
-   Use one or two words per query (`lantern night`, `misty forest`), and try a few queries. Open every downloaded image and look at it; keep only the ones that fit the theme's mood and colors, and delete the rest.
-3. Look at the result before calling it done: the backgrounds with the palette's colors beside them. Fix any color that clashes with the backgrounds.
+   Use one or two words per query, and change the queries until the results fit. Then look at all the candidates at once, with each file's name under it, and pick by eye. Numbers like brightness can't tell a lantern from a cartoon:
+
+   ```bash
+   magick montage -font "$(fc-match -f '%{file}' sans)" -label '%f' /tmp/candidates/* -resize 480x270^ -gravity center -extent 480x270 -geometry +4+4 -tile 4x /tmp/candidates.png
+   ```
+
+   Open `/tmp/candidates.png` and look at it. Copy the two to four that fit the theme's mood and colors into `backgrounds/` as `1-<name>.jpg`, `2-<name>.jpg`, and so on.
+3. Look at the result before calling it done: the first background beside the palette. Fix any color that clashes with it:
+
+   ```bash
+   magick -size 120x120 $(grep -oE '#[0-9a-fA-F]{6}' colors.toml | sed 's/^/xc:/') +append -resize 1440x /tmp/palette.png
+   magick backgrounds/1-* -resize 1440x810^ -extent 1440x810 /tmp/palette.png -gravity center -append /tmp/theme.png
+   ```
 4. When done with the theme, run `omarchy theme set "Name of new theme"`.
 
 Additional user backgrounds for any theme (stock or custom) go in
