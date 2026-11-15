@@ -27,6 +27,4 @@ fi
 # would a player the user added like Celluloid. A mimeapps.list line naming
 # imv.desktop stops resolving, and Omarchy's default, Omaview, opens those files
 # instead; one naming mpv.desktop where mpv stays is the user's to keep.
-omarchy-pkg-drop --unless-needed imv
-omarchy-pkg-drop --unless-needed mpv-mpris
-omarchy-pkg-drop --unless-needed mpv
+omarchy-pkg-drop --unless-needed imv mpv-mpris mpv
