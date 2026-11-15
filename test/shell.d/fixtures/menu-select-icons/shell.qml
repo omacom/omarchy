@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "services"
 
 // Drives the real menu through a select request whose rows ask for app icons:
 // each name resolves to an app the way the dock matches windows, and the row
@@ -54,10 +55,10 @@ ShellRoot {
     return component.status === Component.Ready ? component.createObject(root, properties || {}) : null
   }
 
-  // The menu gets a shell with no app library, as a third-party menu could.
+  // The shell's own app library, which turns a row's icon name into an image.
   QtObject {
     id: host
-    property var appLibrary: null
+    property var appLibrary: AppLibrary { }
     function summon() { return false }
   }
 
@@ -108,6 +109,12 @@ ShellRoot {
         var glyph = root.row("Glyph")
         root.check(docker && docker.isApp && docker.appIcon === "docker" && docker.icon === "", "an app: row draws the app's icon like an Apps row")
         root.check(glyph && !glyph.isApp && glyph.icon === "", "a glyph row keeps its glyph")
+
+        // The row's image loads the app's own icon file, not a blank or the generic icon.
+        var image = root.find(root.row("Direct"), function(item) { return item.sourceSize !== undefined && item.visible })
+        var source = image ? String(image.source) : ""
+        root.check(image && image.status === Image.Ready && /\/fixture-direct-icon\.svg(\?|$)/.test(source),
+          "an app: row loads the app's icon image: " + source + " status " + (image && image.status))
 
         // Only rows that pass the filter are drawn, and resolved.
         root.menu.setFilter("dock")

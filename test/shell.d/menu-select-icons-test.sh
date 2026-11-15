@@ -17,6 +17,9 @@ applications="$QML_FIXTURE_TMP/home/.local/share/applications"
 mkdir -p "$applications"
 cp "$ROOT/default/applications/Docker.desktop" "$applications/"
 printf '[Desktop Entry]\nType=Application\nName=Fixture Direct\nExec=fixture-direct\nIcon=fixture-direct-icon\nStartupWMClass=FixtureClass\n' >"$applications/fixture-direct.desktop"
+icons="$QML_FIXTURE_TMP/home/.local/share/icons/hicolor/scalable/apps"
+mkdir -p "$icons"
+printf '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16"/></svg>\n' >"$icons/fixture-direct-icon.svg"
 printf '[Desktop Entry]\nType=Application\nName=Fixture Top\nExec=fixturetop\nTerminal=true\nIcon=fixture-top\n' >"$applications/fixture-top.desktop"
 
 # A cloned dock is copied out of the shell tree and gets no app library. Its
@@ -32,4 +35,4 @@ cp "$ROOT/shell/plugins/dock/"*.js "$clone/"
   printf '}\n'
 } >"$clone/DockMatch.qml"
 
-run_qml_fixture menu-select-icons "menu select draws app icons matched like the dock, cloned docks included" Ui Commons
+run_qml_fixture menu-select-icons "menu select draws app icons matched like the dock, cloned docks included" Ui Commons services
