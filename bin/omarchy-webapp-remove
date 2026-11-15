@@ -21,16 +21,23 @@ while IFS= read -r -d '' file; do
   fi
 done < <(find "$DESKTOP_DIR" -name '*.desktop' -print0 2>/dev/null)
 
-# The launcher matching a chosen name, or empty when nothing was indexed under
-# it (an app removed between the scan and the pick, say).
+# The launcher matching a chosen name, top-level before a nested namesake, or
+# empty when nothing was indexed under it (an app removed since the scan, say).
 path_for_web_app() {
-  local wanted="$1" i
+  local wanted="$1" found="" i
   for i in "${!WEB_APPS[@]}"; do
     if [[ ${WEB_APPS[$i]} == "$wanted" ]]; then
-      printf '%s\n' "${WEB_APP_PATHS[$i]}"
-      return 0
+      if [[ ${WEB_APP_PATHS[$i]} == "$DESKTOP_DIR$wanted.desktop" ]]; then
+        printf '%s\n' "${WEB_APP_PATHS[$i]}"
+        return 0
+      fi
+      found=${found:-${WEB_APP_PATHS[$i]}}
     fi
   done
+
+  if [[ -n $found ]]; then
+    printf '%s\n' "$found"
+  fi
 }
 
 if (( $# == 0 )); then
@@ -53,7 +60,7 @@ fi
 desktop_file=$(path_for_web_app "$APP_NAME")
 
 if [[ -z $desktop_file ]]; then
-  echo "Web app not found: $APP_NAME"
+  echo "Web app not found: $APP_NAME" >&2
   exit 1
 fi
 

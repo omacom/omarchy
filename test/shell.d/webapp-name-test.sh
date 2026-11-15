@@ -117,14 +117,15 @@ run_remove "127.0.0.1:4000" >/dev/null
   fail "webapp remove deletes a launcher left nested by an older install"
 pass "webapp remove reaches a nested legacy launcher"
 
-# Removing by name on a machine with no applications directory yet must stay
-# quiet: omarchy-remove-gaming-xbox-cloud calls it without hiding stderr.
+# Removing by name on a machine with no applications directory yet must say only
+# that the app is not there: omarchy-remove-gaming-xbox-cloud calls it without
+# hiding stderr, so a find error would reach the user too.
 noise=$(HOME="$tmp_dir/empty" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
   "$ROOT/bin/omarchy-webapp-remove" "Xbox Cloud Gaming" 2>&1 >/dev/null) &&
   fail "webapp remove refuses a name with no applications directory"
-[[ -n $noise ]] &&
-  fail "webapp remove stays quiet with no applications directory" "$noise"
-pass "webapp remove stays quiet when there is no applications directory"
+[[ $noise == "Web app not found: Xbox Cloud Gaming" ]] ||
+  fail "webapp remove says only that the app is missing with no applications directory" "$noise"
+pass "webapp remove says only that the app is missing when there is no applications directory"
 
 # A name that is not an installed web app or TUI used to rebuild a path from the
 # name and delete whatever launcher sat there, then report it removed.
@@ -136,11 +137,40 @@ Type=Application
 DESKTOP
 for remover in omarchy-webapp-remove omarchy-tui-remove; do
   output=$(HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
-    "$ROOT/bin/$remover" "Notes" 2>&1) &&
+    "$ROOT/bin/$remover" "Notes" 2>&1 >/dev/null) &&
     fail "$remover refuses a name that is not installed"
   [[ $output == *"not found: Notes"* ]] ||
-    fail "$remover says the name was not found" "$output"
+    fail "$remover says on stderr that the name was not found" "$output"
   [[ -f "$apps_dir/Notes.desktop" ]] ||
     fail "$remover leaves a same-named plain launcher alone"
 done
 pass "webapp and TUI remove refuse a name that is not installed"
+
+# The launcher's own remove action names the top-level entry, so a nested legacy
+# launcher sharing its name must not be the one deleted, whichever find meets first.
+for remover in omarchy-webapp-remove omarchy-tui-remove; do
+  if [[ $remover == "omarchy-webapp-remove" ]]; then
+    exec_line="Exec=omarchy-launch-webapp https://example.com"
+  else
+    exec_line="Exec=xdg-terminal-exec --app-id=TUI.tile -e lazydocker"
+  fi
+  for order in "top-first" "nested-first"; do
+    if [[ $order == "top-first" ]]; then
+      launchers=("$apps_dir/Twin.desktop" "$apps_dir/legacy/Twin.desktop")
+    else
+      launchers=("$apps_dir/legacy/Twin.desktop" "$apps_dir/Twin.desktop")
+    fi
+    for launcher in "${launchers[@]}"; do
+      mkdir -p "$(dirname "$launcher")"
+      printf '[Desktop Entry]\nName=Twin\n%s\nType=Application\n' "$exec_line" >"$launcher"
+    done
+    HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" OMARCHY_REMOVE_NOTIFY=false \
+      "$ROOT/bin/$remover" "Twin" >/dev/null
+    [[ -f "$apps_dir/Twin.desktop" ]] &&
+      fail "$remover deletes the top-level launcher it was named for ($order)"
+    [[ -f "$apps_dir/legacy/Twin.desktop" ]] ||
+      fail "$remover leaves a nested launcher of the same name alone ($order)"
+    rm -rf "$apps_dir/legacy"
+  done
+done
+pass "webapp and TUI remove prefer the top-level launcher over a nested namesake"
