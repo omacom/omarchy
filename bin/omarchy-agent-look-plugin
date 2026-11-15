@@ -95,12 +95,18 @@ ShellRoot {
 EOF
 
 # Hyprland starts the window with the session's environment, so pass on the
-# caller's home: an agent in a sandbox sees its own plugin and theme.
-# Hyprland starts the window with the session's environment, so pass on the
 # caller's home: an agent working in another home sees its own plugin and
-# theme.
-command="export HOME=${HOME@Q} OMARCHY_PATH=${OMARCHY_PATH@Q} QT_QPA_PLATFORMTHEME= QT_STYLE_OVERRIDE=; exec timeout 20 quickshell -p ${work@Q}/config --no-color >${work@Q}/log 2>&1"
-hyprctl dispatch "hl.dsp.exec_cmd($(jq -Rn --arg c "bash -c ${command@Q}" '$c'), { float = true, no_initial_focus = true })" >/dev/null
+# theme. While the display is off nothing on screen draws, so render
+# offscreen instead, which works for any widget without a popup panel.
+offscreen=false
+hyprctl monitors -j | jq -e 'any(.[]; .dpmsStatus)' >/dev/null || offscreen=true
+if [[ $offscreen == "true" ]]; then
+  QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_QPA_PLATFORMTHEME= QT_STYLE_OVERRIDE= \
+    timeout 20 quickshell -p "$work/config" --no-color >"$work/log" 2>&1 </dev/null &
+else
+  command="export HOME=${HOME@Q} OMARCHY_PATH=${OMARCHY_PATH@Q} QT_QPA_PLATFORMTHEME= QT_STYLE_OVERRIDE=; exec timeout 20 quickshell -p ${work@Q}/config --no-color >${work@Q}/log 2>&1"
+  hyprctl dispatch "hl.dsp.exec_cmd($(jq -Rn --arg c "bash -c ${command@Q}" '$c'), { float = true, no_initial_focus = true })" >/dev/null
+fi
 for _ in {1..50}; do
   grep -qE "PREVIEW_SAVED|PREVIEW_ERROR" "$work/log" 2>/dev/null && break
   sleep 0.5
@@ -113,6 +119,9 @@ problems=$( (grep -E "WARN|ERROR" "$work/log" | grep -F "$plugin"; grep "PREVIEW
   | sed -E 's/^ *(WARN|ERROR)[^:]*: //' | sort -u | head -20)
 if [[ ! -s $work/shot.png ]]; then
   echo "The widget didn't render." >&2
+  if [[ $offscreen == "true" ]] && grep -q "No PanelWindow backend" "$work/log"; then
+    echo "The display is off, and a widget with a popup panel can only be drawn on screen; the errors below other than the panel's are real." >&2
+  fi
   [[ -n $problems ]] && echo "$problems" >&2
   exit 1
 fi
