@@ -528,6 +528,19 @@ assertEqual(bar.autohideParks(true, true, false), false, 'the bar stays out whil
 assertEqual(bar.autohideParks(true, true, true), true, 'a window going fullscreen pushes the bar back at once')
 assertEqual(bar.autohideParks(false, false, false), true, 'a bar with autohide off never comes out')
 
+// A panel or menu opened from a widget on the bar holds it out, found by the
+// widget ids the layout shows: a menu is a window of the shell, not a live
+// item, so its id is the only handle the bar has on it.
+const shownSections = { left: ['t.menu'], center: ['t.clock'], tray: ['t.tray'] }
+const shownEntries = { 't.menu': { id: 't.menu' }, 't.clock': { id: 't.clock' }, 't.tray': { id: 't.tray' } }
+const openIds = ids => id => ids.indexOf(id) !== -1
+assertEqual(bar.autohidePanelOpen(shownSections, shownEntries, openIds(['t.clock'])), true, 'a panel open from a widget holds the bar out')
+assertEqual(bar.autohidePanelOpen(shownSections, shownEntries, openIds(['t.menu'])), true, 'a menu open from the first section holds the bar out')
+assertEqual(bar.autohidePanelOpen(shownSections, shownEntries, openIds([])), false, 'nothing open lets the bar go')
+assertEqual(bar.autohidePanelOpen({}, {}, openIds(['t.clock'])), false, 'an empty bar holds nothing open')
+assertEqual(bar.autohidePanelOpen(shownSections, shownEntries, null), false, 'a shell that cannot say what is open holds nothing')
+assertEqual(bar.autohidePanelOpen({ left: ['gone#1'] }, {}, openIds(['t.clock'])), false, 'a key the layout no longer holds is skipped')
+
 // Each screen's state is a flag in a map, so the bar surface and its edge
 // strip, separate windows on one screen, read the same one.
 assertEqual(bar.screenFlag({ 'eDP-1': true }, 'eDP-1'), true, 'a screen reads its own flag')

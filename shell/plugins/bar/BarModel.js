@@ -696,6 +696,25 @@ function autohideHolds(barHovered, edgeHovered, keepOpen) {
   return barHovered === true || edgeHovered === true || keepOpen === true
 }
 
+// Whether a panel, popup or menu is open from a widget on the bar:
+// `sections` and `entries` as layoutWidgets gives them, each section's keys and
+// the entry each key holds, and `isOpen` answering whether a widget id is open.
+// A menu is a window of the shell rather than a live item, so it is asked for
+// by its id the same way, which is what lets the bar know it must stay out
+// while something the user opened is still using it.
+function autohidePanelOpen(sections, entries, isOpen) {
+  if (typeof isOpen !== "function") return false
+  var shown = sections || {}
+  for (var name in shown) {
+    var keys = shown[name] || []
+    for (var i = 0; i < keys.length; i++) {
+      var id = entryId(entries ? entries[keys[i]] : null)
+      if (id && isOpen(id) === true) return true
+    }
+  }
+  return false
+}
+
 // Whether the edge strip calls the bar out: only while autohide is engaged and
 // no real fullscreen window owns that screen. The strip takes input exactly
 // when it can call the bar out, so this is its input region too.
@@ -735,6 +754,7 @@ if (typeof module !== "undefined") {
     fullscreenOn: fullscreenOn,
     autohideEngaged: autohideEngaged,
     autohideHolds: autohideHolds,
+    autohidePanelOpen: autohidePanelOpen,
     autohideCallsOut: autohideCallsOut,
     autohideParks: autohideParks,
     screenFlag: screenFlag,
