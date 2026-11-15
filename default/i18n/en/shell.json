@@ -452,6 +452,7 @@
   "network.hotspotPasswordTooLong": "Password can't exceed 63 characters",
   "network.hotspotPasswordTooShort": "Password needs 8+ characters",
   "network.hotspotSaving": "SAVING…",
+  "network.hotspotRestartPending": "The hotspot is still using its previous settings. Save again to restart it with the new ones.",
   "network.hotspotSettings": "Hotspot settings",
   "network.hotspotShare": "Share my internet",
   "network.hotspotSharing": "Sharing my internet",
