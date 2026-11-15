@@ -48,6 +48,8 @@ alternate names users already type (`power-menu`, `settings`), kept for
 compatibility — see `AGENTS.md`. Search does not need them: labels, the last
 id segment, and descriptions are all searchable.
 
+A search that finds nothing runs again forgiving typos in name words: one in a term of four letters or more, two from eight, with a swapped pair counting as one. Descriptions still need the whole word, and a search that finds anything never shows typo matches.
+
 ## Load and merge
 
 `mergeMenuSources` overlays user entries on the defaults per key: reusing a
