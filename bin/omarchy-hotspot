@@ -1529,8 +1529,14 @@ apply() {
   # A subshell, so a save that fail()s comes back here: one rejected before
   # it wrote anything (a short password, an unsupported band) leaves the AP
   # on its saved settings, and must not leave a restart pending for the next
-  # save to trip over.
-  (save_profile "$@") || save_status=$?
+  # save to trip over. It runs as a plain command with errexit back on
+  # inside, never left of || or in an if: bash ignores errexit there,
+  # subshells included, so a failing step would no longer stop the save
+  # before the writes after it.
+  set +e
+  (set -e; save_profile "$@")
+  save_status=$?
+  set -e
   if (( save_status != 0 )); then
     if (( pending == 0 )) && [[ $(profile_live_settings) == "$before" ]]; then
       hotspot_pending_clear
