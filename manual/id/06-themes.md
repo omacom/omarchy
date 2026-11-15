@@ -1,12 +1,12 @@
 # Tema
 
-Omarchy dilengkapi dengan dua puluh dua tema yang indah. Anda dapat memilih di antaranya melalui _Tampilan > Tema_ di Menu Omarchy (`Super + Space`) atau langsung membuka pemilih tema menggunakan `Super + Ctrl + T`.
+Omarchy hadir dengan dua puluh dua tema yang indah. Anda dapat memilih di antaranya melalui _Appearance > Theme_ di Omarchy Menu (`Super + Space`) atau langsung menuju pemilih tema menggunakan `Super + Ctrl + T`.
 
-Setiap tema menata desktop, terminal, neovim, layar aktivitas (btop), Chromium, dan seluruh shell Omarchy: bilah atas, menu, notifikasi, OSD, dan layar kunci. (Untuk Obsidian, Anda harus memilih tema Omarchy secara manual melalui _Tampilan > Tema_ di dalam aplikasi).
+Setiap tema menata desktop, terminal, neovim, layar aktivitas (btop), Chromium, dan seluruh shell Omarchy: bar atas, menu, notifikasi, OSD, dan layar kunci. (Untuk Obsidian, Anda harus memilih tema Omarchy secara manual melalui _Appearance > Themes_ di dalam aplikasi tersebut).
 
-Tema memiliki serangkaian gambar latar belakang yang dapat Anda pilih di antaranya menggunakan `Super + Ctrl + W`.
+Tema memiliki serangkaian gambar latar belakang yang dapat Anda pilih dengan menggunakan `Super + Ctrl + W`.
 
-Anda dapat menemukan lebih banyak tema di [halaman tema tambahan](https://omarchy.org/themes/) atau bahkan [membuat tema Anda sendiri](43-making-your-own-theme.md).
+Anda dapat menemukan lebih banyak tema lagi di [halaman tema tambahan](https://omarchy.org/themes/) atau bahkan [membuat tema Anda sendiri](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,19 +67,19 @@ _White_
 
 ### Ikon aplikasi
 
-Ikon di peluncur aplikasi dan dock digambar dengan warna tema Anda, sehingga ikon-ikon itu ikut berubah bersamanya. Ikon-ikon itu berasal dari satu set ikon, yang Anda pilih secara terpisah dari tema di bawah _Tampilan > Ikon_:
+Ikon di peluncur aplikasi dan dock digambar dengan warna tema Anda, jadi ikon-ikon tersebut ikut berubah bersamanya. Ikon-ikon tersebut berasal dari satu set ikon, yang Anda pilih secara terpisah dari tema di bawah _Appearance > Icons_, dari pratinjau setiap set, dengan cara yang sama seperti Anda memilih tema:
 
-- _Papercraft_ adalah default-nya: semua yang terinstal, digambar dalam satu gaya. Aplikasi yang dikenal dari logonya, seperti Chrome, HEY, atau YouTube, tetap mempertahankan bentuknya dan memakai warna tema.
+- _Papercraft_ adalah default-nya: semua yang terpasang, digambar dalam satu gaya. Aplikasi yang dikenal dari logonya, seperti Chrome, HEY, atau YouTube, mempertahankan bentuknya dan mengambil warna tema.
 - _Arcade_ menggambar aplikasi yang sama sebagai seni piksel 8-bit, seperti yang akan dilakukan konsol game lama.
 - _Original_ menampilkan setiap aplikasi dengan ikon yang diberikan oleh pembuatnya.
 
-Anda dapat menginstal set ikon buatan orang lain dengan _Install > Style > Icons_ (atau `omarchy icons install <git url>`), dan menghapusnya lagi di bawah _Remove > Icons_. _Update > Extra Icons_ mengambil versi terbaru dari set yang telah Anda instal.
+Anda dapat memasang set ikon buatan orang lain dengan _Install > Style > Icons_ (atau `omarchy icons install <git url>`), dan menghapusnya lagi di bawah _Remove > Icons_. _Update > Extra Icons_ mengambil versi terbaru dari set yang telah Anda pasang.
 
-Untuk membuat set ikon Anda sendiri, letakkan ikon-ikon Anda di `~/.config/omarchy/icons/<name>/`, satu file per aplikasi, diberi nama sesuai baris `Icon=` pada file `.desktop` aplikasi tersebut. File yang berakhiran `.svg` ditampilkan apa adanya. File yang berakhiran `.svg.tpl` digambar dengan warna tema: tulis `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` atau `{{ icon_shadow }}` di tempat warna seharusnya berada. Set default di `/usr/share/omarchy/icons/papercraft/` adalah tempat yang baik untuk memulai. Untuk mengubah satu ikon dari set default, letakkan versi Anda di `~/.config/omarchy/icons/papercraft/`.
+Untuk membuat set Anda sendiri, letakkan ikon Anda di `~/.config/omarchy/icons/<name>/`, satu file per aplikasi, dinamai sesuai baris `Icon=` pada file `.desktop` aplikasi tersebut. File yang berakhiran `.svg` ditampilkan apa adanya. File yang berakhiran `.svg.tpl` digambar dengan warna tema: tulis `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` atau `{{ icon_shadow }}` di tempat warna berada. Set default di `/usr/share/omarchy/icons/papercraft/` adalah tempat yang baik untuk memulai. Tambahkan `preview.png` untuk menampilkan set Anda di pemilih; tanpa file tersebut, Omarchy menggambar pratinjau dari ikon-ikon Anda. Untuk mengubah satu ikon saja dari set default, letakkan versi Anda di `~/.config/omarchy/icons/papercraft/`.
 
 ### Buka kunci
 
-Tema juga dapat memiliki desain buka kunci khusus, yang digunakan untuk proses dekripsi saat boot. Anda dapat memilih salah satunya di bawah _Tampilan > Buka Kunci_. Tampilannya seperti ini:
+Tema juga dapat memiliki desain buka kunci khusus, yang digunakan untuk proses dekripsi saat boot. Anda dapat memilih salah satunya di bawah _Appearance > Unlock_. Tampilannya seperti ini:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

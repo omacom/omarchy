@@ -1,12 +1,12 @@
 # Temi
 
-Omarchy viene fornito con ventidue bellissimi temi. Puoi scegliere tra di essi tramite _Aspetto > Tema_ nel Menu di Omarchy (`Super + Space`) oppure passare direttamente al selettore dei temi usando `Super + Ctrl + T`.
+Omarchy include ventidue bellissimi temi. Puoi scegliere tra di essi tramite _Aspetto > Tema_ nel Menu Omarchy (`Super + Space`) o passare direttamente al selettore dei temi usando `Super + Ctrl + T`.
 
-Ogni tema definisce lo stile del desktop, del terminale, di neovim, della schermata delle attività (btop), di Chromium e dell'intera shell di Omarchy: barra superiore, menu, notifiche, OSD e schermata di blocco. (Per Obsidian, devi selezionare manualmente il tema di Omarchy tramite _Aspetto > Temi_ all'interno dell'app).
+Ogni tema personalizza il desktop, il terminale, neovim, la schermata delle attività (btop), Chromium e l'intera shell di Omarchy: barra superiore, menu, notifiche, OSD e schermata di blocco. (Per Obsidian, devi selezionare manualmente il tema Omarchy tramite _Aspetto > Temi_ all'interno dell'app).
 
-I temi hanno un set di immagini di sfondo tra cui puoi scegliere usando `Super + Ctrl + W`.
+I temi hanno una serie di immagini di sfondo tra cui puoi scegliere usando `Super + Ctrl + W`.
 
-Puoi trovare ancora più temi sulla [pagina dei temi extra](https://omarchy.org/themes/) o persino [creare il tuo tema](43-making-your-own-theme.md).
+Puoi trovare ancora più temi sulla [pagina dei temi extra](https://omarchy.org/themes/) o persino [creare un tema tutto tuo](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,19 +67,19 @@ _White_
 
 ### Icone delle app
 
-Le icone nel launcher delle app e nel dock sono disegnate con i colori del tuo tema, quindi cambiano insieme a esso. Provengono da un set di icone, che scegli separatamente dal tema in _Aspetto > Icone_:
+Le icone nel launcher delle app e nel dock sono disegnate con i colori del tuo tema, quindi cambiano insieme a esso. Provengono da un set di icone, che scegli separatamente dal tema in _Aspetto > Icone_, dalle anteprime di ciascun set, nello stesso modo in cui scegli un tema:
 
-- _Papercraft_ è l'impostazione predefinita: tutto ciò che viene installato, disegnato in un unico stile. Le app conosciute per il loro logo, come Chrome, HEY o YouTube, ne conservano la forma e assumono i colori del tema.
-- _Arcade_ disegna le stesse app come pixel art a 8 bit, come farebbe una vecchia console di gioco.
+- _Papercraft_ è il set predefinito: tutto ciò che viene installato, disegnato in un unico stile. Le app conosciute per il loro logo, come Chrome, HEY o YouTube, ne mantengono la forma e assumono i colori del tema.
+- _Arcade_ disegna le stesse app in pixel art a 8 bit, come farebbe una vecchia console da gioco.
 - _Original_ mostra ogni app con l'icona che le ha dato il suo creatore.
 
-Puoi installare un set di icone realizzato da qualcun altro con _Installa > Stile > Icone_ (oppure `omarchy icons install <git url>`), e rimuoverlo di nuovo da _Rimuovi > Icone_. _Aggiorna > Icone extra_ recupera l'ultima versione dei set che hai installato.
+Puoi installare un set di icone creato da qualcun altro con _Installa > Stile > Icone_ (oppure `omarchy icons install <git url>`), e rimuoverlo di nuovo da _Rimuovi > Icone_. _Aggiorna > Icone extra_ recupera l'ultima versione dei set che hai installato.
 
-Per crearne uno tuo, metti le tue icone in `~/.config/omarchy/icons/<name>/`, un file per app, denominato in base alla riga `Icon=` del file `.desktop` dell'app. Un file che termina in `.svg` viene mostrato così com'è. Un file che termina in `.svg.tpl` viene disegnato con i colori del tema: scrivi `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` oppure `{{ icon_shadow }}` dove va un colore. Il set predefinito in `/usr/share/omarchy/icons/papercraft/` è un buon punto da cui partire. Per cambiare una singola icona del set predefinito, metti la tua versione in `~/.config/omarchy/icons/papercraft/`.
+Per creare il tuo set, inserisci le tue icone in `~/.config/omarchy/icons/<name>/`, un file per app, con il nome tratto dalla riga `Icon=` del file `.desktop` dell'app. Un file che termina con `.svg` viene mostrato così com'è. Un file che termina con `.svg.tpl` viene disegnato con i colori del tema: scrivi `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` o `{{ icon_shadow }}` dove va un colore. Il set predefinito in `/usr/share/omarchy/icons/papercraft/` è un buon punto di partenza. Aggiungi un `preview.png` per mostrare il tuo set nel selettore; senza di esso, Omarchy disegna un'anteprima a partire dalle tue icone. Per cambiare una singola icona del set predefinito, inserisci la tua versione in `~/.config/omarchy/icons/papercraft/`.
 
-### Sblocchi
+### Sblocco
 
-I temi possono anche avere un design di sblocco personalizzato, che viene utilizzato per il processo di decrittazione all'avvio. Puoi selezionarne uno in _Aspetto > Sblocco_. Si presentano così:
+I temi possono anche avere un design di sblocco personalizzato, usato per il processo di decrittazione all'avvio. Puoi selezionarne uno in _Aspetto > Sblocco_. Ecco come appaiono:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

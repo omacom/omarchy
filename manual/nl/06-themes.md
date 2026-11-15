@@ -1,12 +1,12 @@
 # Thema's
 
-Omarchy wordt geleverd met tweeëntwintig prachtige thema's. Je kunt er een kiezen via _Uiterlijk > Thema_ in het Omarchy Menu (`Super + Space`) of direct naar de themakiezer springen met `Super + Ctrl + T`.
+Omarchy wordt geleverd met tweeëntwintig prachtige thema's. Je kunt ertussen kiezen via _Uiterlijk > Thema_ in het Omarchy Menu (`Super + Space`) of direct naar de themakiezer springen met `Super + Ctrl + T`.
 
-Elk thema geeft stijl aan het bureaublad, de terminal, neovim, het activiteitenscherm (btop), Chromium en de volledige Omarchy-shell: bovenbalk, menu, meldingen, OSD en het vergrendelscherm. (Voor Obsidian moet je het Omarchy-thema handmatig selecteren via _Uiterlijk > Thema's_ in de app).
+Elk thema bepaalt de stijl van het bureaublad, de terminal, neovim, het activiteitenscherm (btop), Chromium en de volledige Omarchy-shell: bovenbalk, menu, meldingen, OSD en het vergrendelscherm. (Voor Obsidian moet je het Omarchy-thema handmatig selecteren via _Uiterlijk > Thema's_ in de app).
 
 Thema's hebben een set achtergrondafbeeldingen waaruit je kunt kiezen met `Super + Ctrl + W`.
 
-Je vindt nog meer thema's op [de pagina met extra thema's](https://omarchy.org/themes/) of je kunt zelfs [je eigen thema maken](43-making-your-own-theme.md).
+Je vindt nog meer thema's op [de pagina met extra thema's](https://omarchy.org/themes/) of kunt zelfs [je eigen thema maken](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,21 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### App-pictogrammen
+### App-iconen
 
-De pictogrammen in de app-launcher en het dock worden getekend in de kleuren van je thema, dus ze veranderen mee. Ze komen uit een pictogrammenset, die je los van het thema kiest onder _Uiterlijk > Pictogrammen_:
+De iconen in de appstarter en het dock worden getekend in de kleuren van je thema, dus ze veranderen mee. Ze komen uit een iconenset, die je los van het thema kiest onder _Uiterlijk > Iconen_, via voorbeelden van elke set, op dezelfde manier als je een thema kiest:
 
-- _Papercraft_ is de standaard: alles wat geïnstalleerd wordt meegeleverd, getekend in één stijl. Apps die bekendstaan om hun logo, zoals Chrome, HEY of YouTube, behouden hun vorm en nemen de kleuren van het thema aan.
+- _Papercraft_ is de standaard: alles wat meegeleverd wordt geïnstalleerd, getekend in één stijl. Apps die bekendstaan om hun logo, zoals Chrome, HEY of YouTube, behouden hun vorm en nemen de kleuren van het thema over.
 - _Arcade_ tekent dezelfde apps als 8-bit pixelart, zoals een oude gameconsole dat zou doen.
-- _Original_ toont elke app met het pictogram dat de maker ervan heeft meegegeven.
+- _Original_ toont elke app met het icoon dat de maker eraan heeft gegeven.
 
-Je kunt een pictogrammenset die iemand anders heeft gemaakt installeren met _Installeren > Stijl > Pictogrammen_ (of `omarchy icons install <git url>`), en hem weer verwijderen onder _Verwijderen > Pictogrammen_. _Bijwerken > Extra pictogrammen_ haalt de nieuwste versie op van de sets die je hebt geïnstalleerd.
+Je kunt een iconenset die iemand anders heeft gemaakt installeren met _Installeren > Stijl > Iconen_ (of `omarchy icons install <git url>`), en deze weer verwijderen onder _Verwijderen > Iconen_. _Bijwerken > Extra iconen_ haalt de nieuwste versie op van de sets die je hebt geïnstalleerd.
 
-Om je eigen set te maken, zet je je pictogrammen in `~/.config/omarchy/icons/<name>/`, één bestand per app, vernoemd naar de `Icon=`-regel van het `.desktop`-bestand van de app. Een bestand dat eindigt op `.svg` wordt weergegeven zoals het is. Een bestand dat eindigt op `.svg.tpl` wordt getekend in de kleuren van het thema: schrijf `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` of `{{ icon_shadow }}` waar een kleur hoort. De standaardset in `/usr/share/omarchy/icons/papercraft/` is een goed beginpunt. Om één pictogram van de standaardset te wijzigen, zet je jouw versie in `~/.config/omarchy/icons/papercraft/`.
+Om je eigen set te maken, plaats je je iconen in `~/.config/omarchy/icons/<name>/`, één bestand per app, genoemd naar de `Icon=`-regel van het `.desktop`-bestand van de app. Een bestand dat eindigt op `.svg` wordt getoond zoals het is. Een bestand dat eindigt op `.svg.tpl` wordt getekend in de kleuren van het thema: schrijf `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` of `{{ icon_shadow }}` waar een kleur moet komen. De standaardset in `/usr/share/omarchy/icons/papercraft/` is een goede plek om vanuit te vertrekken. Voeg een `preview.png` toe om je set in de kiezer te tonen; zonder zo'n bestand tekent Omarchy een voorbeeld op basis van je iconen. Om één enkel icoon van de standaardset te wijzigen, plaats je jouw versie in `~/.config/omarchy/icons/papercraft/`.
 
-### Ontgrendelingen
+### Ontgrendelontwerpen
 
-Thema's kunnen ook een aangepast ontgrendelingsontwerp hebben, dat wordt gebruikt voor het ontsleutelingsproces tijdens het opstarten. Je kunt er een selecteren onder _Uiterlijk > Ontgrendeling_. Ze zien er zo uit:
+Thema's kunnen ook een aangepast ontgrendelontwerp hebben, dat wordt gebruikt voor het ontsleutelingsproces tijdens het opstarten. Je kunt er een selecteren onder _Uiterlijk > Ontgrendeling_. Ze zien er zo uit:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

@@ -1,10 +1,10 @@
 # Chủ đề
 
-Omarchy đi kèm với hai mươi hai chủ đề tuyệt đẹp. Bạn có thể chọn giữa chúng qua _Appearance > Theme_ trong Omarchy Menu (`Super + Space`) hoặc nhảy thẳng tới trình chọn chủ đề bằng `Super + Ctrl + T`.
+Omarchy đi kèm với hai mươi hai chủ đề tuyệt đẹp. Bạn có thể lựa chọn giữa chúng qua _Giao diện > Chủ đề_ trong Omarchy Menu (`Super + Space`) hoặc nhảy thẳng tới bộ chọn chủ đề bằng `Super + Ctrl + T`.
 
-Mỗi chủ đề định kiểu cho desktop, terminal, neovim, màn hình hoạt động (btop), Chromium, và toàn bộ Omarchy shell: thanh trên cùng, menu, thông báo, OSD, và màn hình khóa. (Đối với Obsidian, bạn phải tự chọn chủ đề Omarchy qua _Appearance > Themes_ bên trong ứng dụng).
+Mỗi chủ đề định kiểu cho màn hình nền, terminal, neovim, màn hình hoạt động (btop), Chromium, và toàn bộ lớp vỏ Omarchy: thanh trên cùng, menu, thông báo, OSD, và màn hình khóa. (Đối với Obsidian, bạn phải tự chọn chủ đề Omarchy qua _Giao diện > Chủ đề_ bên trong ứng dụng).
 
-Các chủ đề có một bộ hình nền mà bạn có thể chọn qua lại bằng `Super + Ctrl + W`.
+Các chủ đề có một tập hợp hình nền mà bạn có thể lựa chọn giữa chúng bằng `Super + Ctrl + W`.
 
 Bạn có thể tìm thêm nhiều chủ đề nữa trên [trang chủ đề bổ sung](https://omarchy.org/themes/) hoặc thậm chí [tự tạo chủ đề của riêng bạn](43-making-your-own-theme.md).
 
@@ -67,19 +67,19 @@ _White_
 
 ### Biểu tượng ứng dụng
 
-Các biểu tượng trong trình khởi chạy ứng dụng và dock được vẽ theo màu của chủ đề của bạn, vì vậy chúng thay đổi cùng với chủ đề. Chúng đến từ một bộ biểu tượng, mà bạn chọn tách riêng khỏi chủ đề trong _Appearance > Icons_:
+Các biểu tượng trong trình khởi chạy ứng dụng và dock được vẽ theo màu sắc của chủ đề của bạn, vì vậy chúng thay đổi theo chủ đề. Chúng đến từ một bộ biểu tượng, mà bạn chọn riêng biệt với chủ đề dưới _Giao diện > Biểu tượng_, từ các bản xem trước của mỗi bộ, giống như cách bạn chọn một chủ đề:
 
-- _Papercraft_ là mặc định: mọi thứ được cài sẵn, được vẽ theo cùng một phong cách. Các ứng dụng được nhận biết qua logo của chúng, như Chrome, HEY, hay YouTube, giữ nguyên hình dạng và khoác lên màu sắc của chủ đề.
-- _Arcade_ vẽ các ứng dụng tương tự dưới dạng pixel art 8-bit, như một máy chơi game console cũ sẽ làm.
-- _Original_ hiển thị mọi ứng dụng với biểu tượng mà nhà sản xuất của nó đã tạo cho nó.
+- _Papercraft_ là mặc định: mọi thứ được cài đặt sẵn, được vẽ theo một phong cách duy nhất. Các ứng dụng được biết đến qua logo của chúng, như Chrome, HEY, hay YouTube, giữ nguyên hình dạng của chúng và khoác lên màu sắc của chủ đề.
+- _Arcade_ vẽ cùng các ứng dụng đó dưới dạng nghệ thuật điểm ảnh 8-bit, như một máy chơi game console cũ sẽ vẽ.
+- _Original_ hiển thị mọi ứng dụng với biểu tượng mà người tạo ra nó đã gán cho nó.
 
-Bạn có thể cài đặt một bộ biểu tượng do người khác tạo bằng _Install > Style > Icons_ (hoặc `omarchy icons install <git url>`), và gỡ bỏ nó một lần nữa trong _Remove > Icons_. _Update > Extra Icons_ sẽ lấy phiên bản mới nhất của các bộ bạn đã cài đặt.
+Bạn có thể cài đặt một bộ biểu tượng do người khác tạo bằng _Cài đặt > Phong cách > Biểu tượng_ (hoặc `omarchy icons install <git url>`), và gỡ bỏ nó lại dưới _Gỡ bỏ > Biểu tượng_. _Cập nhật > Biểu tượng bổ sung_ sẽ tải phiên bản mới nhất của các bộ bạn đã cài đặt.
 
-Để tự tạo bộ của riêng bạn, hãy đặt các biểu tượng của bạn vào `~/.config/omarchy/icons/<name>/`, mỗi ứng dụng một tệp, được đặt tên theo dòng `Icon=` của tệp `.desktop` của ứng dụng. Tệp kết thúc bằng `.svg` sẽ được hiển thị nguyên trạng. Tệp kết thúc bằng `.svg.tpl` sẽ được vẽ theo màu của chủ đề: hãy viết `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` hoặc `{{ icon_shadow }}` ở vị trí đặt màu. Bộ mặc định trong `/usr/share/omarchy/icons/papercraft/` là một nơi tốt để bắt đầu. Để thay đổi một biểu tượng đơn lẻ của bộ mặc định, hãy đặt phiên bản của bạn vào `~/.config/omarchy/icons/papercraft/`.
+Để tự tạo bộ của riêng bạn, hãy đặt các biểu tượng của bạn vào `~/.config/omarchy/icons/<name>/`, mỗi ứng dụng một tệp, được đặt tên theo dòng `Icon=` trong tệp `.desktop` của ứng dụng. Một tệp kết thúc bằng `.svg` sẽ được hiển thị nguyên như vậy. Một tệp kết thúc bằng `.svg.tpl` sẽ được vẽ theo màu sắc của chủ đề: hãy viết `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` hoặc `{{ icon_shadow }}` tại vị trí cần đặt một màu. Bộ mặc định trong `/usr/share/omarchy/icons/papercraft/` là một điểm khởi đầu tốt. Hãy thêm một tệp `preview.png` để hiển thị bộ của bạn trong bộ chọn; nếu không có, Omarchy sẽ vẽ một bản xem trước từ các biểu tượng của bạn. Để thay đổi một biểu tượng duy nhất của bộ mặc định, hãy đặt phiên bản của bạn vào `~/.config/omarchy/icons/papercraft/`.
 
 ### Mở khóa
 
-Các chủ đề cũng có thể có thiết kế mở khóa tùy chỉnh, được dùng cho quá trình giải mã khi khởi động. Bạn có thể chọn một thiết kế trong số này trong _Appearance > Unlock_. Chúng trông như thế này:
+Các chủ đề cũng có thể có một thiết kế mở khóa tùy chỉnh, được sử dụng cho quá trình giải mã khi khởi động. Bạn có thể chọn một trong số chúng dưới _Giao diện > Mở khóa_. Chúng trông như thế này:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

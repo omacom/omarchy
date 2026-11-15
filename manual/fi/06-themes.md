@@ -1,12 +1,12 @@
 # Teemat
 
-Omarchyn mukana tulee kaksikymmentäkaksi upeaa teemaa. Voit valita niiden välillä Omarchy-valikon kohdasta _Ulkoasu > Teema_ (`Super + Space`) tai siirtyä suoraan teeman valitsimeen näppäinyhdistelmällä `Super + Ctrl + T`.
+Omarchyn mukana tulee kaksikymmentäkaksi upeaa teemaa. Voit valita niiden välillä Omarchy Menu -valikossa kohdasta _Appearance > Theme_ (`Super + Space`) tai hypätä suoraan teemanvalitsimeen näppäinyhdistelmällä `Super + Ctrl + T`.
 
-Jokainen teema tyylittelee työpöydän, terminaalin, neovimin, aktiivisuusnäytön (btop), Chromiumin ja koko Omarchy-kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusnäytön. (Obsidianissa sinun täytyy valita Omarchy-teema manuaalisesti sovelluksen sisältä kohdasta _Ulkoasu > Teemat_).
+Jokainen teema tyylittää työpöydän, terminaalin, neovimin, aktiviteettinäytön (btop), Chromiumin ja koko Omarchy-kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusnäytön. (Obsidianissa sinun on valittava Omarchy-teema manuaalisesti sovelluksen sisältä kohdasta _Appearance > Themes_).
 
 Teemoissa on joukko taustakuvia, joiden välillä voit valita näppäinyhdistelmällä `Super + Ctrl + W`.
 
-Löydät vielä enemmän teemoja [lisäteemasivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
+Löydät vielä enemmän teemoja [lisäteemojen sivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -67,19 +67,19 @@ _White_
 
 ### Sovelluskuvakkeet
 
-Sovelluskäynnistimen ja telakan kuvakkeet on piirretty teemasi väreillä, joten ne muuttuvat sen mukana. Ne tulevat kuvakejoukosta, jonka valitset erillään teemasta kohdasta _Ulkoasu > Kuvakkeet_:
+Sovelluskäynnistimen ja telakan kuvakkeet piirretään teemasi väreissä, joten ne muuttuvat sen mukana. Ne tulevat kuvakejoukosta, jonka valitset erillään teemasta kohdasta _Appearance > Icons_ kunkin joukon esikatselujen perusteella samalla tavalla kuin valitset teeman:
 
 - _Papercraft_ on oletus: kaikki asennettuna tuleva, piirrettynä yhdellä tyylillä. Logostaan tunnetut sovellukset, kuten Chrome, HEY tai YouTube, säilyttävät muotonsa ja saavat teeman värit.
-- _Arcade_ piirtää samat sovellukset 8-bittisenä pikselitaiteena, niin kuin vanha pelikonsoli tekisi.
-- _Original_ näyttää jokaisen sovelluksen kuvakkeella, jonka sen tekijä sille antoi.
+- _Arcade_ piirtää samat sovellukset 8-bittisenä pikselitaiteena, kuten vanha pelikonsoli tekisi.
+- _Original_ näyttää jokaisen sovelluksen sen tekijän sille antamalla kuvakkeella.
 
-Voit asentaa jonkun toisen tekemän kuvakejoukon kohdasta _Asenna > Tyyli > Kuvakkeet_ (tai komennolla `omarchy icons install <git url>`) ja poistaa sen uudelleen kohdasta _Poista > Kuvakkeet_. _Päivitä > Lisäkuvakkeet_ hakee asentamiesi joukkojen uusimman version.
+Voit asentaa jonkun toisen tekemän kuvakejoukon kohdasta _Install > Style > Icons_ (tai komennolla `omarchy icons install <git url>`) ja poistaa sen taas kohdasta _Remove > Icons_. _Update > Extra Icons_ hakee asentamiesi joukkojen uusimman version.
 
-Tee omasi laittamalla kuvakkeesi hakemistoon `~/.config/omarchy/icons/<name>/`, yksi tiedosto sovellusta kohden, nimettynä sovelluksen `.desktop`-tiedoston `Icon=`-rivin mukaan. `.svg`-päätteinen tiedosto näytetään sellaisenaan. `.svg.tpl`-päätteinen tiedosto piirretään teeman väreillä: kirjoita `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` tai `{{ icon_shadow }}` kohtaan, johon väri kuuluu. Oletusjoukko hakemistossa `/usr/share/omarchy/icons/papercraft/` on hyvä paikka aloittaa. Muuta oletusjoukon yksittäistä kuvaketta laittamalla oma versiosi hakemistoon `~/.config/omarchy/icons/papercraft/`.
+Tehdäksesi oman joukkosi laita kuvakkeesi hakemistoon `~/.config/omarchy/icons/<name>/`, yksi tiedosto sovellusta kohden, nimetty sovelluksen `.desktop`-tiedoston `Icon=`-rivin mukaan. `.svg`-päätteinen tiedosto näytetään sellaisenaan. `.svg.tpl`-päätteinen tiedosto piirretään teeman väreissä: kirjoita `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` tai `{{ icon_shadow }}` kohtaan, johon väri tulee. Oletusjoukko hakemistossa `/usr/share/omarchy/icons/papercraft/` on hyvä lähtökohta. Lisää `preview.png` näyttääksesi joukkosi valitsimessa; ilman sitä Omarchy piirtää esikatselun kuvakkeistasi. Muuttaaksesi oletusjoukon yksittäistä kuvaketta laita oma versiosi hakemistoon `~/.config/omarchy/icons/papercraft/`.
 
 ### Lukituksen avaus
 
-Teemoilla voi olla myös oma lukituksen avauksen ulkoasu, jota käytetään käynnistyksen salauksen purkuprosessissa. Voit valita sellaisen kohdasta _Ulkoasu > Lukituksen avaus_. Ne näyttävät tältä:
+Teemoilla voi myös olla oma avausmuotoilunsa, jota käytetään käynnistyksen salauksen purkamiseen. Voit valita sellaisen kohdasta _Appearance > Unlock_. Ne näyttävät tältä:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
