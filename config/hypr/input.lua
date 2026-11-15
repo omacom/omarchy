@@ -45,13 +45,21 @@
 --       -- Make taps only click: a tap followed by a touch-and-move no longer
 --       -- starts a drag or a text selection.
 --       tap_and_drag = false,
+--
+--       -- Swap the two- and three-finger taps: two fingers give a middle click
+--       -- and three a right click. For touchpads that take the start of a
+--       -- two-finger scroll for a tap, which right-clicks (and pastes in some
+--       -- terminal apps). Combine with the bind below so the two-finger tap
+--       -- does nothing at all. A two-finger press still right-clicks.
+--       tap_button_map = "lmr",
 --     },
 --   },
 -- })
 
--- Ignore the touchpad's three-finger tap. It is a middle click, which pastes
--- the last selected text in most apps. Limited to the touchpad, so a mouse's
--- middle button keeps working. Find your touchpad's name with: hyprctl devices
+-- Ignore the touchpad's three-finger tap (its two-finger tap with
+-- tap_button_map = "lmr"). It is a middle click, which pastes the last
+-- selected text in most apps. Limited to the touchpad, so a mouse's middle
+-- button keeps working. Find your touchpad's name with: hyprctl devices
 -- hl.bind("mouse:274", function() end, {
 --   device = { inclusive = true, list = { "your-touchpad-name" } },
 -- })
