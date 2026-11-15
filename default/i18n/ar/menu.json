@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "الأيقونات الإضافية"
+  },
+  "system.firmware": {
+    "label": "إعادة التشغيل إلى BIOS",
+    "description": "إعادة التشغيل إلى إعدادات برنامج UEFI الثابت"
   }
 }

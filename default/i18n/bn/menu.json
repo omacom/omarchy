@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "অতিরিক্ত আইকন"
+  },
+  "system.firmware": {
+    "label": "BIOS-এ রিবুট",
+    "description": "UEFI ফার্মওয়্যার সেটআপে রিস্টার্ট করুন"
   }
 }

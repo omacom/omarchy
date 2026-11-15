@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Deilbhíní Breise"
+  },
+  "system.firmware": {
+    "label": "Atosaigh go BIOS",
+    "description": "Atosaigh isteach sa socrú firmware UEFI"
   }
 }

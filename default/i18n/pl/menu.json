@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Dodatkowe ikony"
+  },
+  "system.firmware": {
+    "label": "Uruchom ponownie do BIOS",
+    "description": "Uruchom ponownie w ustawieniach oprogramowania układowego UEFI"
   }
 }

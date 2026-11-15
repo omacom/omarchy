@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Ekstra ikoner"
+  },
+  "system.firmware": {
+    "label": "Omstart til BIOS",
+    "description": "Start på nytt til UEFI-fastvareoppsettet"
   }
 }

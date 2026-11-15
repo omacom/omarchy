@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Ícones Extra"
+  },
+  "system.firmware": {
+    "label": "Reiniciar para o BIOS",
+    "description": "Reiniciar para a configuração do firmware UEFI"
   }
 }

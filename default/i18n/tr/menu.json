@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Ek Simgeler"
+  },
+  "system.firmware": {
+    "label": "BIOS'a Yeniden Başlat",
+    "description": "UEFI aygıt yazılımı ayarlarına yeniden başlat"
   }
 }

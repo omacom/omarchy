@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Extra pictogrammen"
+  },
+  "system.firmware": {
+    "label": "Herstart naar BIOS",
+    "description": "Herstart in de UEFI-firmware-instellingen"
   }
 }

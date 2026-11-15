@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "آیکون‌های اضافی"
+  },
+  "system.firmware": {
+    "label": "راه‌اندازی مجدد به BIOS",
+    "description": "راه‌اندازی مجدد به تنظیمات میان‌افزار UEFI"
   }
 }

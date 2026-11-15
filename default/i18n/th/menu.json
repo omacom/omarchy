@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "ไอคอนเพิ่มเติม"
+  },
+  "system.firmware": {
+    "label": "รีบูตเข้า BIOS",
+    "description": "รีสตาร์ทเข้าการตั้งค่าเฟิร์มแวร์ UEFI"
   }
 }

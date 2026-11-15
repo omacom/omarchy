@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Biểu tượng thêm"
+  },
+  "system.firmware": {
+    "label": "Khởi động lại vào BIOS",
+    "description": "Khởi động lại vào thiết lập firmware UEFI"
   }
 }

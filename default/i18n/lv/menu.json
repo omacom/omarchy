@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Papildu ikonas"
+  },
+  "system.firmware": {
+    "label": "Restartēt uz BIOS",
+    "description": "Restartēt UEFI aparātprogrammatūras iestatījumos"
   }
 }

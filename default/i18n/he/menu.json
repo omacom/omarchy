@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "אייקונים נוספים"
+  },
+  "system.firmware": {
+    "label": "הפעלה מחדש ל-BIOS",
+    "description": "הפעלה מחדש להגדרות קושחת UEFI"
   }
 }

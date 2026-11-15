@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Qo‘shimcha ikonkalar"
+  },
+  "system.firmware": {
+    "label": "BIOSga qayta yuklash",
+    "description": "UEFI firmware sozlamalariga qayta yuklash"
   }
 }

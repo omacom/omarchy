@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Ďalšie ikony"
+  },
+  "system.firmware": {
+    "label": "Reštart do BIOS",
+    "description": "Reštart do nastavenia firmvéru UEFI"
   }
 }

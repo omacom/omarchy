@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "اضافی آئیکنز"
+  },
+  "system.firmware": {
+    "label": "BIOS میں ری بوٹ",
+    "description": "UEFI فرم ویئر سیٹ اپ میں ری اسٹارٹ کریں"
   }
 }
