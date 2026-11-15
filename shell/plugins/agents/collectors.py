@@ -2689,10 +2689,59 @@ def read_codex_rollout(path: Path, stat_result: os.stat_result, previous: dict[s
   return record
 
 
-# How long a refresh's start, as omarchy-agent-usage-update hands it to the
-# collectors it runs, speaks for a forced read: longer than any refresh takes,
-# so a stamp inherited from elsewhere soon stops standing in for --force.
+# How long a refresh stamp, on its own, speaks for a forced read. A capped
+# refresh can run longer than this. OMARCHY_AGENT_USAGE_REFRESH_PID keeps the
+# same stamp valid while the updater that published it is still running this
+# collector. Past the window, a stamp with no such parent stops standing in
+# for --force, including one inherited from another environment.
 CODEX_REFRESH_SECONDS = 300
+
+
+def _parent_pid(pid: int) -> int | None:
+  """The parent of `pid`, or None when this machine will not say."""
+  try:
+    with open(f"/proc/{pid}/stat", "rb") as handle:
+      tail = handle.read().rsplit(b")", 1)
+    if len(tail) == 2:
+      fields = tail[1].split()
+      if len(fields) >= 2:
+        return int(fields[1])
+  except (OSError, ValueError):
+    pass
+  try:
+    result = subprocess.run(["ps", "-o", "ppid=", "-p", str(pid)], check=False, capture_output=True, text=True)
+  except OSError:
+    return None
+  if result.returncode != 0:
+    return None
+  try:
+    return int(result.stdout.strip())
+  except ValueError:
+    return None
+
+
+def _refresh_coordinator_running() -> bool:
+  """Whether OMARCHY_AGENT_USAGE_REFRESH_PID is this process or one that
+  started it. A live pid that is not an ancestor does not count: the number
+  can have been reused, or inherited beside a stamp from another run."""
+  try:
+    pid = int(os.environ.get("OMARCHY_AGENT_USAGE_REFRESH_PID", ""))
+  except ValueError:
+    return False
+  # pid 0 is this process group, and pid 1 is an ancestor of every process.
+  if pid <= 1:
+    return False
+  current = os.getpid()
+  seen: set[int] = set()
+  while current > 1 and current not in seen:
+    if current == pid:
+      return True
+    seen.add(current)
+    parent = _parent_pid(current)
+    if parent is None or parent <= 0 or parent == current:
+      return False
+    current = parent
+  return current == pid
 
 
 def _codex_refresh_started(now: float) -> float:
@@ -2701,7 +2750,13 @@ def _codex_refresh_started(now: float) -> float:
     started = float(os.environ.get("OMARCHY_AGENT_USAGE_REFRESH_AT", ""))
   except ValueError:
     return now
-  return started if now - CODEX_REFRESH_SECONDS <= started <= now else now
+  if not math.isfinite(started) or started <= 0 or started > now:
+    return now
+  if now - CODEX_REFRESH_SECONDS <= started:
+    return started
+  if _refresh_coordinator_running():
+    return started
+  return now
 
 
 def codex_rollout_cache(agent_id: str | None = None) -> Path | None:
@@ -2727,8 +2782,10 @@ def codex_rollouts(cache_file: Path | None, reuse: bool = True, native: bool = F
   cached record cannot have grown a turn since, and one that grew is read on
   from where its record stopped; `reuse=False` reads them all again, but
   takes what another forced read wrote since this one or its refresh
-  (OMARCHY_AGENT_USAGE_REFRESH_AT) began, so the collectors one refresh
-  forces read every rollout once between them, whenever each starts. A
+  (OMARCHY_AGENT_USAGE_REFRESH_AT) began, and keeps doing so past that
+  stamp's own window while OMARCHY_AGENT_USAGE_REFRESH_PID is still running
+  this collector, so the collectors one refresh forces read every rollout
+  once between them, whenever each starts. A
   record keeps every turn whatever its provider, so the caller decides which
   providers and models are its own, and every caller shares the cache
   codex_rollout_cache() names: any `cache_file` stands for it, and None

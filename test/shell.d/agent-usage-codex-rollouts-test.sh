@@ -16,6 +16,7 @@ agent_sandbox
 python3 - <<'PY'
 import json
 import os
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -279,7 +280,10 @@ expect("a forced read after theirs parses every rollout again", again, files)
 # the refresh began, as omarchy-agent-usage-update tells them, the later ones
 # take what the earlier one read: only the built-in rollout it skipped is
 # read again, for the one that needs it. A refresh stamp from long ago forces
-# as --force alone does.
+# as --force alone does. One that old still shares the scan while the process
+# running the refresh is this collector or its parent, which a capped refresh
+# still is after the stamp's own window. A pid that is not that process does
+# not, even while something else is alive under the number.
 cache = collectors.codex_rollout_cache()
 
 
@@ -290,14 +294,57 @@ def forced_reads(native=False):
 
 
 collectors.read_codex_rollout = reader
+unrelated = subprocess.Popen(["sleep", "30"])
 try:
+  os.environ.pop("OMARCHY_AGENT_USAGE_REFRESH_PID", None)
   os.environ["OMARCHY_AGENT_USAGE_REFRESH_AT"] = str(time.time())
   first, second, built_in = forced_reads(), forced_reads(), forced_reads(native=True)
   os.environ["OMARCHY_AGENT_USAGE_REFRESH_AT"] = str(time.time() - collectors.CODEX_REFRESH_SECONDS - 1)
   stale = forced_reads()
+  os.environ["OMARCHY_AGENT_USAGE_REFRESH_PID"] = str(os.getpid())
+  held = forced_reads()
+  child_probe = subprocess.run(
+    [
+      sys.executable,
+      "-c",
+      "import json, sys; sys.path.insert(0, sys.argv[1]); import collectors; "
+      "reads = []; real = collectors.read_codex_rollout; "
+      "collectors.read_codex_rollout = lambda p, *a: (reads.append(str(p)), real(p, *a))[1]; "
+      "collectors.codex_rollouts(collectors.codex_rollout_cache(), reuse=False); "
+      "print(json.dumps(sorted(reads)))",
+      str(Path(os.environ["OMARCHY_PATH"]) / "shell/plugins/agents"),
+    ],
+    check=True,
+    capture_output=True,
+    text=True,
+  )
+  parent_held = json.loads(child_probe.stdout)
+  bad_stamps = []
+  for bogus in ("nan", "-inf", "0"):
+    os.environ["OMARCHY_AGENT_USAGE_REFRESH_AT"] = bogus
+    bad_stamps.append(forced_reads())
+  os.environ["OMARCHY_AGENT_USAGE_REFRESH_AT"] = str(time.time() - collectors.CODEX_REFRESH_SECONDS - 1)
+  os.environ["OMARCHY_AGENT_USAGE_REFRESH_PID"] = str(unrelated.pid)
+  other = forced_reads()
+  dead_pid = unrelated.pid
+  unrelated.kill()
+  unrelated.wait()
+  os.environ["OMARCHY_AGENT_USAGE_REFRESH_PID"] = str(dead_pid)
+  dead = forced_reads()
+  os.environ["OMARCHY_AGENT_USAGE_REFRESH_PID"] = "0"
+  zero = forced_reads()
 finally:
   collectors.read_codex_rollout = real_reader
-  del os.environ["OMARCHY_AGENT_USAGE_REFRESH_AT"]
+  os.environ.pop("OMARCHY_AGENT_USAGE_REFRESH_AT", None)
+  os.environ.pop("OMARCHY_AGENT_USAGE_REFRESH_PID", None)
+  if unrelated.poll() is None:
+    unrelated.kill()
+    unrelated.wait()
 expect("one refresh's forced reads, one after another, parse each rollout once between them", [first, second, built_in], [files, [], [str(native)]])
 expect("a refresh stamp from long ago parses every rollout again", stale, files)
+expect("a refresh older than that window still shares its scan while its coordinator is running", [held, parent_held], [[], []])
+expect("non-finite or non-positive refresh stamps do not reuse an older cache", bad_stamps, [files, files, files])
+expect("a live process that did not start this collector does not keep that scan", other, files)
+expect("a coordinator that has exited does not keep that scan", dead, files)
+expect("a coordinator pid of 0 does not keep that scan", zero, files)
 PY
