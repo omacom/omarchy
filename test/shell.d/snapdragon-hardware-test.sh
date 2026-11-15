@@ -64,6 +64,9 @@ mkdir -p "$scratch/dtbs"
 : >"$scratch/dtbs/x1e80100-test.dtb"
 : >"$scratch/dtbs/x1e80100-test-el2.dtb"
 : >"$scratch/dtbs/mahua-test.dtb"
+: >"$scratch/dtbs/kalambo-test.dtb"
+: >"$scratch/dtbs/purwa-test.dtb"
+: >"$scratch/dtbs/sc8180x-test.dtb"
 cat >"$scratch/uki.conf" <<'CONF'
 [UKI]
 SecureBootPrivateKey=/secure/db.key
@@ -75,6 +78,7 @@ run_dtb_setup() (
   omarchy-pkg-add() { :; }
 
   PATH="$ROOT/bin:$PATH"
+  OMARCHY_PROC_ROOT="$scratch/no-proc"
   OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs"
   OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/uki.conf"
   OMARCHY_QUALCOMM_BOOT_HOOKS_DIR="$scratch/boot-hooks"
@@ -97,6 +101,12 @@ grep -Fq "DeviceTreeAuto=$scratch/dtbs/x1e80100-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the matching device tree"
 grep -Fq "$scratch/dtbs/mahua-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the Mahua device trees"
+grep -Fq "$scratch/dtbs/purwa-test.dtb" "$scratch/uki.conf" ||
+  fail "Snapdragon DTB setup lists the Purwa device trees"
+grep -Fq "$scratch/dtbs/kalambo-test.dtb" "$scratch/uki.conf" ||
+  fail "Snapdragon DTB setup lists the Kalambo device trees"
+grep -Fq "$scratch/dtbs/sc8180x-test.dtb" "$scratch/uki.conf" ||
+  fail "Snapdragon DTB setup lists the 8cx device trees"
 if grep -Fq 'x1e80100-test-el2.dtb' "$scratch/uki.conf"; then
   fail "Snapdragon DTB setup excludes EL2-only device trees"
 fi
@@ -120,12 +130,12 @@ refresh="$ROOT/bin/omarchy-update-qualcomm-device-trees"
 [[ $(readlink "$scratch/boot-hooks/20-omarchy-qualcomm-device-trees") == "/usr/bin/omarchy-update-qualcomm-device-trees" ]] ||
   fail "Snapdragon DTB setup refreshes the list before every boot image build"
 : >"$scratch/dtbs/glymur-update.dtb"
-OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/uki.conf" "$refresh" >/dev/null
+OMARCHY_PROC_ROOT="$scratch/no-proc" OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/uki.conf" "$refresh" >/dev/null
 grep -Fq "$scratch/dtbs/glymur-update.dtb" "$scratch/uki.conf" ||
   fail "a device tree a kernel update brings reaches the list"
 printf '[UKI]\nDeviceTree=/boot/dtbs/qcom/pinned.dtb\n' >"$scratch/pinned.conf"
 cp -p "$scratch/pinned.conf" "$scratch/pinned-before.conf"
-OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/pinned.conf" "$refresh" ||
+OMARCHY_PROC_ROOT="$scratch/no-proc" OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/pinned.conf" "$refresh" ||
   fail "the device tree refresh never stops a boot image build"
 cmp -s "$scratch/pinned.conf" "$scratch/pinned-before.conf" ||
   fail "the device tree refresh leaves a configuration without Omarchy's list alone"
@@ -134,7 +144,7 @@ cmp -s "$scratch/pinned.conf" "$scratch/pinned-before.conf" ||
 if (( EUID != 0 )); then
   cp -p "$scratch/uki.conf" "$scratch/locked.conf"
   chmod 000 "$scratch/locked.conf"
-  OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/locked.conf" "$refresh" --install 2>/dev/null ||
+  OMARCHY_PROC_ROOT="$scratch/no-proc" OMARCHY_QUALCOMM_DTB_DIR="$scratch/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/locked.conf" "$refresh" --install 2>/dev/null ||
     fail "a failed device tree list write never stops a boot image build"
   chmod 600 "$scratch/locked.conf"
   cmp -s "$scratch/locked.conf" "$scratch/uki.conf" ||
@@ -151,6 +161,7 @@ run_dtb_root_setup() (
   omarchy-pkg-add() { :; }
 
   PATH="$ROOT/bin:$PATH"
+  OMARCHY_PROC_ROOT="$scratch/no-proc"
   OMARCHY_QUALCOMM_DTB_ROOT="$scratch/dtbroot"
   OMARCHY_QUALCOMM_UKI_CONFIG="$scratch/uki-root.conf"
   OMARCHY_QUALCOMM_BOOT_HOOKS_DIR="$scratch/boot-hooks"
@@ -159,10 +170,78 @@ run_dtb_root_setup() (
 run_dtb_root_setup
 grep -Fq "DeviceTreeAuto=$scratch/dtbroot/linux-omarchy/qcom/x1e80100-own.dtb" "$scratch/uki-root.conf" ||
   fail "Snapdragon DTB setup takes the device trees of Omarchy's own kernel first"
+# A second kernel named after it, as a test build is, sorts ahead of it.
+mkdir -p "$scratch/dtbroot/linux-omarchy-test/qcom"
+: >"$scratch/dtbroot/linux-omarchy-test/qcom/x1e80100-test-kernel.dtb"
+run_dtb_root_setup
+grep -Fq "DeviceTreeAuto=$scratch/dtbroot/linux-omarchy/qcom/x1e80100-own.dtb" "$scratch/uki-root.conf" ||
+  fail "Snapdragon DTB setup takes linux-omarchy's device trees before another linux-omarchy kernel's"
 rm -r "$scratch/dtbroot/linux-omarchy"
+run_dtb_root_setup
+grep -Fq "DeviceTreeAuto=$scratch/dtbroot/linux-omarchy-test/qcom/x1e80100-test-kernel.dtb" "$scratch/uki-root.conf" ||
+  fail "Snapdragon DTB setup takes another linux-omarchy kernel's device trees when linux-omarchy has none"
+rm -r "$scratch/dtbroot/linux-omarchy-test"
 run_dtb_root_setup
 grep -Fq "DeviceTreeAuto=$scratch/dtbroot/qcom/x1e80100-stock.dtb" "$scratch/uki-root.conf" ||
   fail "Snapdragon DTB setup falls back to Arch Linux ARM's device trees"
+
+# An installed machine embeds its own tree beside the list, the one whose root
+# compatible is the running device tree's byte for byte, for systemd-stub to
+# fall back on when no hardware ID matches. The Acer tree also names the
+# ThinkPad T14s, as a fallback, so the T14s's list must not match inside it.
+own="$scratch/own"
+mkdir -p "$own/proc/device-tree" "$own/dtbs"
+acer='acer,swift-go14-01\0lenovo,thinkpad-t14s\0qcom,x1p42100\0qcom,x1e80100\0'
+t14s='lenovo,thinkpad-t14s\0qcom,x1e78100\0qcom,x1e80100\0'
+# A tree's compatible property: its token, length and name offset, then the
+# strings. Offset 10 is a newline byte, as a real tree's can be.
+fake_dtb() {
+  printf "\xd0\x0d\xfe\xed\0\0\0\x03\0\0\0\x$(printf "$2" | wc -c | xargs printf %02x)\0\0\0\x0a$2\0\0\0\x09" >"$1"
+}
+fake_dtb "$own/dtbs/x1p42100-acer-swift-go14-01.dtb" "$acer"
+fake_dtb "$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb" "$t14s"
+run_own_dtb_setup() (
+  omarchy-hw-aarch64-qualcomm() { return 0; }
+  omarchy-pkg-add() { :; }
+
+  PATH="$ROOT/bin:$PATH"
+  OMARCHY_PROC_ROOT="$own/proc"
+  OMARCHY_QUALCOMM_DTB_DIR="$own/dtbs"
+  OMARCHY_QUALCOMM_UKI_CONFIG="$own/uki.conf"
+  OMARCHY_QUALCOMM_BOOT_HOOKS_DIR="$own/boot-hooks"
+  source "$dtb_setup"
+)
+printf "$acer" >"$own/proc/device-tree/compatible"
+run_own_dtb_setup
+grep -qx "DeviceTree=$own/dtbs/x1p42100-acer-swift-go14-01.dtb" "$own/uki.conf" ||
+  fail "an installed Snapdragon machine embeds its own device tree"
+grep -qx "DeviceTreeAuto=$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb $own/dtbs/x1p42100-acer-swift-go14-01.dtb" "$own/uki.conf" ||
+  fail "a machine with its own device tree keeps the list, so its hardware IDs still choose"
+# The refresh before every boot image build follows a kernel update that
+# renames the machine's tree.
+mv "$own/dtbs/x1p42100-acer-swift-go14-01.dtb" "$own/dtbs/x1p42100-acer-swift-go14.dtb"
+OMARCHY_PROC_ROOT="$own/proc" OMARCHY_QUALCOMM_DTB_DIR="$own/dtbs" OMARCHY_QUALCOMM_UKI_CONFIG="$own/uki.conf" "$refresh" >/dev/null
+grep -qx "DeviceTree=$own/dtbs/x1p42100-acer-swift-go14.dtb" "$own/uki.conf" ||
+  fail "the refresh before a boot image build keeps the machine's own tree when a kernel update renames it"
+mv "$own/dtbs/x1p42100-acer-swift-go14.dtb" "$own/dtbs/x1p42100-acer-swift-go14-01.dtb"
+printf "$t14s" >"$own/proc/device-tree/compatible"
+run_own_dtb_setup
+grep -qx "DeviceTree=$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb" "$own/uki.conf" ||
+  fail "a compatible another tree names as a fallback still finds its own tree"
+cp "$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb" "$own/dtbs/x1e78100-lenovo-thinkpad-t14s-copy.dtb"
+run_own_dtb_setup
+grep -q '^DeviceTreeAuto=' "$own/uki.conf" && ! grep -q '^DeviceTree=' "$own/uki.conf" ||
+  fail "two trees with the machine's compatible leave the choice to systemd-stub"
+rm "$own/dtbs/x1e78100-lenovo-thinkpad-t14s-copy.dtb"
+fake_dtb "$own/dtbs/x1e80100-microsoft-denali-oled.dtb" 'microsoft,denali-oled\0microsoft,denali\0qcom,x1e80100\0'
+printf 'microsoft,denali\0qcom,x1e80100\0' >"$own/proc/device-tree/compatible"
+run_own_dtb_setup
+grep -q '^DeviceTreeAuto=' "$own/uki.conf" && ! grep -q '^DeviceTree=' "$own/uki.conf" ||
+  fail "a machine without its own tree does not take one whose longer list ends with its own"
+rm "$own/proc/device-tree/compatible"
+run_own_dtb_setup
+grep -q '^DeviceTreeAuto=' "$own/uki.conf" && ! grep -q '^DeviceTree=' "$own/uki.conf" ||
+  fail "a machine with no running device tree keeps every tree"
 
 pass "Snapdragon setup tolerates missing firmware and preserves UKI settings"
 
@@ -278,3 +357,70 @@ for platform in aarch64 aarch64-apple x86; do
   done
 done
 pass "Snapdragon setup follows the real platform detector"
+
+slim5x_setup="$ROOT/install/hardware/lenovo/ideapad-slim-5x.sh"
+bash -n "$slim5x_setup" || fail "the IdeaPad Slim 5x setup has valid syntax"
+
+run_slim5x_setup() (
+  set -eE
+  local dir=$1
+  PATH="$ROOT/bin:$PATH"
+  omarchy-hw-aarch64-qualcomm() { return 0; }
+
+  OMARCHY_PROC_ROOT="$dir/proc" \
+    OMARCHY_IDEAPAD_SLIM5X_DRM_ROOT="$dir/drm" \
+    OMARCHY_IDEAPAD_SLIM5X_UKI_CONFIG="$dir/kernel/uki.conf" \
+    OMARCHY_QUALCOMM_DTB_ROOT="$dir/dtbs" \
+    source "$slim5x_setup"
+)
+
+# The LCD and OLED IdeaPad Slim 5x share their SMBIOS identity, so the board
+# setup tells them apart by the panel. A Slim 5x booted on the OLED tree, with
+# the panel whose manufacturer and product code are given in hex.
+slim5x_board() {
+  local dir=$1 panel=$2
+  mkdir -p "$dir/proc/device-tree" "$dir/drm/card1-eDP-1" "$dir/dtbs/linux-omarchy/qcom" "$dir/kernel"
+  printf 'lenovo,ideapad-slim5x-oled\0qcom,x1p42100\0' >"$dir/proc/device-tree/compatible"
+  printf "\\x00\\xff\\xff\\xff\\xff\\xff\\xff\\x00$panel\\x00\\x00\\x00\\x00" >"$dir/drm/card1-eDP-1/edid"
+  : >"$dir/dtbs/linux-omarchy/qcom/x1p42100-lenovo-ideapad-slim5x-lcd.dtb"
+  : >"$dir/dtbs/linux-omarchy/qcom/x1p42100-lenovo-ideapad-slim5x-oled.dtb"
+  cat >"$dir/kernel/uki.conf" <<'CONF'
+[UKI]
+Cmdline=@/etc/kernel/cmdline
+# BEGIN OMARCHY QUALCOMM DEVICE TREES
+[UKI]
+DeviceTreeAuto=/boot/dtbs/linux-omarchy/qcom/x1p42100-lenovo-ideapad-slim5x-oled.dtb
+# END OMARCHY QUALCOMM DEVICE TREES
+CONF
+}
+
+# CMN N140JCE-EL1, the 83HL's 1920x1200 LCD.
+lcd="$scratch/lcd"
+slim5x_board "$lcd" '\x0d\xae\x76\x14'
+run_slim5x_setup "$lcd" >/dev/null
+printf 'lenovo,ideapad-slim5x-lcd\0qcom,x1p42100\0' >"$lcd/proc/device-tree/compatible"
+run_slim5x_setup "$lcd" >/dev/null
+(( $(grep -c "^DeviceTree=$lcd/dtbs/linux-omarchy/qcom/x1p42100-lenovo-ideapad-slim5x-lcd.dtb\$" "$lcd/kernel/uki.conf") == 1 )) ||
+  fail "the LCD model gets the LCD tree, once across reruns on either tree"
+! grep -q 'DeviceTreeAuto' "$lcd/kernel/uki.conf" ||
+  fail "the shared device-tree list is replaced, since the models share an SMBIOS identity"
+grep -Fxq 'Cmdline=@/etc/kernel/cmdline' "$lcd/kernel/uki.conf" ||
+  fail "unrelated UKI settings are preserved"
+
+# Any other panel, here a Samsung one.
+oled="$scratch/oled"
+slim5x_board "$oled" '\x4c\x83\x65\x41'
+cp -p "$oled/kernel/uki.conf" "$scratch/oled-uki.conf"
+run_slim5x_setup "$oled" >/dev/null
+cmp -s "$scratch/oled-uki.conf" "$oled/kernel/uki.conf" ||
+  fail "another panel keeps the device-tree list"
+
+other="$scratch/other"
+slim5x_board "$other" '\x0d\xae\x76\x14'
+printf 'lenovo,yoga-slim7x\0qcom,x1e80100\0' >"$other/proc/device-tree/compatible"
+cp -p "$other/kernel/uki.conf" "$scratch/other-uki.conf"
+run_slim5x_setup "$other" >/dev/null
+cmp -s "$scratch/other-uki.conf" "$other/kernel/uki.conf" ||
+  fail "other boards are left unchanged, even with the same panel"
+
+pass "IdeaPad Slim 5x setup boots the LCD model on the LCD tree"

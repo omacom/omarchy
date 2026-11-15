@@ -104,23 +104,24 @@ start_webcam_overlay() {
 
   # Try preferred 16:9 resolutions in order, use first available
   local preferred_resolutions=("640x360" "1280x720" "1920x1080")
-  local capture_options="framerate=30"
+  local capture_options=(-framerate 30)
   local available_formats=$(v4l2-ctl --list-formats-ext -d "$WEBCAM_DEVICE" 2>/dev/null)
 
   for resolution in "${preferred_resolutions[@]}"; do
     if echo "$available_formats" | grep -q "$resolution"; then
-      capture_options="video_size=$resolution,$capture_options"
+      capture_options=(-video_size "$resolution" "${capture_options[@]}")
       break
     fi
   done
 
-  mpv "av://v4l2:$WEBCAM_DEVICE" \
-    --profile=low-latency --untimed --no-cache \
-    --demuxer-lavf-o="$capture_options" \
-    '--vf=lavfi=[crop=ih*8/9:ih]' \
-    --title="WebcamOverlay" --wayland-app-id="WebcamOverlay-$WEBCAM_SIZE" \
-    --no-border --no-audio --no-osc --osd-level=0 \
-    --really-quiet 9>&- &>/dev/null &
+  # ffplay's SDL window takes its Wayland app id from the environment, which the
+  # overlay's window rules match on.
+  SDL_VIDEO_WAYLAND_WMCLASS="WebcamOverlay-$WEBCAM_SIZE" SDL_APP_ID="WebcamOverlay-$WEBCAM_SIZE" \
+    ffplay -f v4l2 "${capture_options[@]}" -i "$WEBCAM_DEVICE" \
+    -fflags nobuffer -flags low_delay -framedrop -sync ext \
+    -vf 'crop=ih*8/9:ih' \
+    -window_title WebcamOverlay -noborder -an \
+    -loglevel quiet 9>&- &>/dev/null &
 
   # The move has to settle before gpu-screen-recorder starts, or the camera is
   # recorded sliding into its corner. Waiting for the map is what the blind
@@ -453,7 +454,7 @@ stop_screenrecording() {
 
     omarchy-notification-send "$(omarchy-i18n capture.recordingSaved)" "$(recording_details "$filename")" \
       -t 10000 "${image_args[@]}" \
-      --action "$(omarchy-i18n capture.recordingOpen)" mpv -- \
+      --action "$(omarchy-i18n capture.recordingOpen)" omaview open \
       --action "$(omarchy-i18n capture.recordingCut)" omacut \
       --with "$filename"
 

@@ -494,6 +494,9 @@ local function titlebars()
     },
   })
 
+  -- A titlebar over an app's own frame would be a second header.
+  hl.window_rule({ match = { class = o.self_framed_apps }, ["hyprbars:no_bar"] = true })
+
   for _, button in ipairs({
     { icon = "×", action = "hyprctl dispatch 'hl.dsp.window.close({ " .. window .. " })'" },
     { icon = "□", action = "hyprctl dispatch 'hl.dsp.window.fullscreen({ mode = \"maximized\", action = \"toggle\", " .. window .. " })'" },

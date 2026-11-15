@@ -102,6 +102,7 @@ Resize shortcuts use physical keys `code:20` and `code:21` (XKB `<AE11>` and `<A
 | `Super + Ctrl + N`           | Wifi/network panel    |
 | `Super + Ctrl + D`           | Display panel    |
 | `Super + Ctrl + P`           | Power panel    |
+| `Super + Ctrl + X`           | Agents panel    |
 | `Super + Ctrl + Alt + D`           | Calendar panel    |
 | `Super + Ctrl + Alt + E`           | World clock panel    |
 | `Super + Ctrl + 1-9`           | Toggle bar panel by position    |
@@ -185,7 +186,7 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Super + Ctrl + Print Screen` | Text extraction to clipboard |
 | `Super + Alt + [` | Make webcam overlay smaller while recording |
 | `Super + Alt + ]` | Make webcam overlay larger while recording |
-| `Alt + Shift + L` | Copy current URL from webapp or Chromium |
+| `Alt + Shift + L` | Copy current URL from webapp or browser |
 | `Alt + Shift + D` | Download the video on the current page to `~/Videos` |
 | `Alt + Space` | Start/stop dictation (requires _Setup > Defaults > Dictation_) |
 | `Right Alt` | Hold to dictate (requires _Setup > Defaults > Dictation_) |
