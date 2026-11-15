@@ -133,7 +133,7 @@
   "agents.spendThisMonth": "This month",
   "agents.startOnNew": "Start your default agent on a new %1",
   "agents.startLocalOnNew": "Start %2 on a new %1",
-  "agents.settingUpSubscription": "Setting up subscription",
+  "agents.settingUp": "Setting up",
   "agents.signingInAgain": "Signing in again",
   "agents.starting": "Starting…",
   "agents.stopAutoSwitch": "Stop switching automatically",
