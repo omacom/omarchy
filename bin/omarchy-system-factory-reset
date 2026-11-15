@@ -713,6 +713,13 @@ require_factory_snapshot() {
 }
 
 main() {
+  # The reset rebuilds and verifies the factory root's Limine boot entries.
+  # Nothing does that yet for systemd-boot's boot images, including the ones a
+  # switch still on trial keeps current next to Limine's.
+  if [[ $(omarchy-boot-backend --managed) == *systemd-boot* ]]; then
+    fail "factory reset isn't available after switching to systemd-boot yet"
+  fi
+
   omarchy-cmd-present btrfs || { echo "Error: btrfs-progs is required" >&2; exit 1; }
 
   root_is_btrfs_at || fail "reset requires the standard Omarchy Btrfs layout (subvol=@)"

@@ -292,7 +292,7 @@ snapshot_details() {
 
 splash() {
   local bmp=$STORE/splash.bmp
-  if [[ ! -s $bmp && -f $SPLASH_SOURCE ]] && command -v magick >/dev/null; then
+  if [[ ! -s $bmp && -f $SPLASH_SOURCE ]] && omarchy-cmd-present magick; then
     magick "$SPLASH_SOURCE" -background black -flatten -type TrueColor "BMP3:$bmp.new" 2>/dev/null &&
       mv -f "$bmp.new" "$bmp"
   fi

@@ -224,7 +224,7 @@ case "$1" in
   PATH="$TEST_ROOT_TOOLS:/usr/bin:/bin" \
     /bin/bash -c "$code" "$shell_name" "$@"
   ;;
-plymouth-set-default-theme | limine-mkinitcpio | mkinitcpio)
+plymouth-set-default-theme | omarchy-boot-rebuild | mkinitcpio)
   printf 'command %s\n' "$*" >>"$TEST_SUDO_LOG"
   exit 0
   ;;
@@ -297,9 +297,9 @@ destination=${@: -1}
 [[ $source == "$destination" ]] || /usr/bin/cp -- "$source" "$destination"
 SH
 
-cat >"$fake_bin/omarchy-cmd-present" <<'SH'
+cat >"$fake_bin/omarchy-boot-backend" <<'SH'
 #!/bin/bash
-exit 1
+echo none
 SH
 
 chmod +x "$fake_bin"/* "$root_tools"/*

@@ -28,6 +28,9 @@ shift 2
 [[ $name =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "Invalid group name: $name" >&2; exit 2; }
 
 mapfile -t backends < <(omarchy-boot-backend --managed)
+# Before any boot loader tooling is installed (the installer writes hardware
+# parameters early), the machine is about to get Limine: write its format.
+[[ ${backends[*]} == none || ${#backends[@]} == 0 ]] && backends=(limine)
 
 case $action in
 set)
