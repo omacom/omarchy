@@ -1,18 +1,8 @@
 #!/bin/bash
 
 # omarchy:summary=Remove all the named packages from the system if they're installed (otherwise ignore).
-# omarchy:args=[--unless-needed] <packages...>
+# omarchy:args=<packages...>
 # omarchy:requires-sudo=true
-
-# --unless-needed keeps any of them a package not being removed still depends
-# on, as owe or the user's Celluloid needs mpv, and removes the rest, rather
-# than failing the removal, which in a migration would hold back every
-# migration after it.
-unless_needed=false
-if [[ ${1:-} == "--unless-needed" ]]; then
-  unless_needed=true
-  shift
-fi
 
 installed=()
 declare -A installed_exact=()
@@ -35,50 +25,6 @@ for pkg in "$@"; do
     selected[$pkg]=1
   fi
 done
-
-# The packages that depend on one, from its Required By, which pacman wraps
-# across lines when there are many.
-required_by() {
-  LC_ALL=C pacman -Qi "$1" 2>/dev/null | awk '
-    /^Required By/ { found = 1; sub(/^Required By *: */, ""); print; next }
-    found && /^[A-Za-z][A-Za-z ]* *: / { exit }
-    found { print }
-  ' | tr -s ' ' '\n' | grep -vx -e '' -e None
-}
-
-# A dry run needs no privileges, and says whether the removal would go through
-# (pacman refuses --print with -n, which the dry run needs no more than -s).
-removable() {
-  pacman -Rs --print "$@" >/dev/null 2>&1
-}
-
-if $unless_needed; then
-  # What a package outside the removal needs stays; keeping it can make another
-  # it needs stay too, so this goes round until nothing more has to.
-  while (( ${#installed[@]} > 0 )) && ! removable "${installed[@]}"; do
-    remaining=()
-    for pkg in "${installed[@]}"; do
-      needed=false
-      while IFS= read -r dependent; do
-        if [[ -z ${selected[$dependent]} ]]; then
-          needed=true
-          echo "Keeping $pkg, which $dependent needs"
-          break
-        fi
-      done < <(required_by "$pkg")
-      if $needed; then
-        unset "selected[$pkg]"
-      else
-        remaining+=("$pkg")
-      fi
-    done
-    if (( ${#remaining[@]} == ${#installed[@]} )); then
-      echo "Keeping ${installed[*]}, which can't be removed"
-      exit 0
-    fi
-    installed=("${remaining[@]}")
-  done
-fi
 
 if (( ${#installed[@]} > 0 )); then
   if (( EUID == 0 )); then

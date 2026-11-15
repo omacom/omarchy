@@ -12,24 +12,6 @@ mkdir -p "$mock_path"
 
 cat >"$mock_path/pacman" <<'EOF'
 #!/bin/bash
-if [[ $1 == "-Rns" && $2 == "--print" ]]; then
-  echo "error: invalid option: --nosave and --print may not be used together" >&2
-  exit 1
-fi
-# With TEST_NEEDED set, provider-package is needed by outside-package, which
-# isn't being removed, so a dry run that includes it fails.
-if [[ $1 == "-Rs" && $2 == "--print" ]]; then
-  [[ -n ${TEST_NEEDED:-} && " $* " == *" provider-package "* ]] && exit 1
-  exit 0
-fi
-if [[ $1 == "-Qi" ]]; then
-  if [[ -n ${TEST_NEEDED:-} && $2 == "provider-package" ]]; then
-    printf 'Name            : provider-package\nRequired By     : outside-package\nOptional For    : None\n'
-  else
-    printf 'Name            : %s\nRequired By     : None\nOptional For    : None\n' "$2"
-  fi
-  exit 0
-fi
 if [[ $1 == "-Qq" ]]; then
   if [[ ${TEST_PACKAGES_EMPTY:-0} == "0" ]]; then
     printf '%s\n' exact-package provider-package
@@ -71,21 +53,3 @@ if PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" TEST_REMOVE_STATUS=1 \
   fail "failed package transaction must fail removal"
 fi
 pass "package removal propagates transaction failures"
-
-# --unless-needed removes them as usual when nothing else needs them, and
-# keeps them all, successfully, when something installed still does.
-rm -f "$test_tmp/pkg-drop-command"
-PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" \
-  "$ROOT/bin/omarchy-pkg-drop" --unless-needed exact-package virtual-package
-[[ $(<"$test_tmp/pkg-drop-command") == "pacman -Rns --noconfirm exact-package" ]] ||
-  fail "--unless-needed removes packages nothing else needs"
-pass "--unless-needed removes packages nothing else needs"
-
-rm "$test_tmp/pkg-drop-command"
-PATH="$mock_path:$PATH" TEST_TMP="$test_tmp" TEST_NEEDED=1 \
-  "$ROOT/bin/omarchy-pkg-drop" --unless-needed exact-package provider-package >"$test_tmp/output"
-[[ $(<"$test_tmp/pkg-drop-command") == "pacman -Rns --noconfirm exact-package" ]] ||
-  fail "--unless-needed removes the rest when one is needed" "$(cat "$test_tmp/pkg-drop-command")"
-grep -q "Keeping provider-package, which outside-package needs" "$test_tmp/output" ||
-  fail "--unless-needed says what it kept and why" "$(cat "$test_tmp/output")"
-pass "--unless-needed keeps only what another installed package needs"

@@ -22,9 +22,7 @@ if [[ -d $applications ]]; then
   update-desktop-database "$applications"
 fi
 
-# imv and mpv-mpris go. mpv goes too, unless something installed still needs
-# it: Omarchy's own wallpaper engine, owe, plays video wallpapers through it, as
-# would a player the user added like Celluloid. A mimeapps.list line naming
-# imv.desktop stops resolving, and Omarchy's default, Omaview, opens those files
-# instead; one naming mpv.desktop where mpv stays is the user's to keep.
-omarchy-pkg-drop --unless-needed imv mpv-mpris mpv
+# imv and mpv-mpris go. mpv stays, as Omarchy's wallpaper engine, owe, plays
+# video wallpapers through it. A mimeapps.list line naming imv.desktop stops
+# resolving, and Omarchy's default, Omaview, opens those files instead.
+omarchy-pkg-drop imv mpv-mpris
