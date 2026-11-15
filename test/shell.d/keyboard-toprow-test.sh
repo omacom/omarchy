@@ -84,3 +84,30 @@ REBUILD_FAILS=1 toprow mediakeys >/dev/null 2>&1 && fail "toprow fails when the 
 sys_module="$test_tmp/unplugged-sys-module" toprow mediakeys >/dev/null
 [[ $(<"$calls") == "rebuild" && ! -e $test_tmp/rebuild-pending ]] || fail "toprow retries an owed rebuild after the keyboard is unplugged" "$(cat "$calls")"
 pass "toprow retries a failed rebuild"
+
+# The install chroot has a read-only /sys. Use a real read-only mount so tee
+# fails as it does there, without touching the host's keyboard or mounts.
+if unshare --user --map-root-user --mount true 2>/dev/null; then
+  printf '2\n' >"$apple_only/hid_apple/parameters/fnmode"
+  rm -f "$conf"
+  : >"$calls"
+  OMARCHY_MODPROBE_DIR="$modprobe_dir" OMARCHY_SYS_MODULE="$apple_only" \
+    OMARCHY_TOPROW_REBUILD_PENDING="$test_tmp/rebuild-pending" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
+    unshare --user --map-root-user --mount bash -euc '
+      mount --bind "$1" "$1"
+      mount -o remount,bind,ro "$1"
+      bash "$2" mediakeys --no-rebuild
+      bash "$2" mediakeys --no-rebuild
+    ' -- "$apple_only" "$ROOT/bin/omarchy-keyboard-toprow" >"$test_tmp/readonly-output" ||
+    fail "toprow saves the boot mode when sysfs is read-only"
+  grep -qx 'options hid_apple fnmode=1' "$conf" || fail "toprow persists the Apple boot mode with read-only sysfs"
+  [[ $(<"$apple_only/hid_apple/parameters/fnmode") == "2" && ! -s $calls ]] ||
+    fail "toprow leaves the live mode and boot image alone during install"
+  grep -q 'from the next boot' "$test_tmp/readonly-output" || fail "toprow reports the deferred live change"
+  if grep -q 'already sends' "$test_tmp/readonly-output"; then
+    fail "toprow still reports the deferred change when the boot configuration already matches"
+  fi
+  pass "toprow saves the boot mode when sysfs is read-only"
+else
+  skip "read-only sysfs regression needs unprivileged mount namespaces"
+fi
