@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Open a config file in the user's editor and surface a toast
+# omarchy:summary=Open a config file in the user's editor
 # omarchy:args=<path>
 # omarchy:examples=omarchy launch config-editor ~/.config/hypr/hyprland.lua
 
@@ -11,5 +11,4 @@ if [[ -z $path ]]; then
   exit 1
 fi
 
-omarchy-notification-send -u low "$(omarchy-i18n config.editing)" "$path"
 exec omarchy-launch-editor "$path"
