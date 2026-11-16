@@ -24,6 +24,15 @@ assertEqual(power.batteryFraction({ isPresent: true, percentage: 1.5 }), 1, 'pow
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states), 'power detects threshold by pending charge state')
 assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0.1, timeToFull: 120 }, false, states), 'power detects threshold by stalled charging')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states), 'power does not flag active charging as threshold')
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, false), 'power does not read a rate from before the charger arrived as a threshold')
+assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, true), 'power detects threshold by stalled charging once the rate is fresh')
+assert(power.chargeThresholdActive({ isPresent: true, percentage: 0.8, state: states.PendingCharge }, false, states, false), 'power detects threshold by pending charge state before the rate is fresh')
+assertEqual(
+  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging, changeRate: 0, timeToFull: 0 }, false, states, false),
+  power.batteryIcon({ isPresent: true, percentage: 0.4, state: states.Charging, changeRate: 1.0, timeToFull: 120 }, false, states),
+  'power shows charging icon while the charge rate is not fresh yet'
+)
+assertEqual(power.modeLabel({ isPresent: true, percentage: 0.4, state: states.Charging, changeRate: 0 }, false, states, undefined, false), 'Charging', 'power labels charging while the charge rate is not fresh yet')
 assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.5, state: states.Discharging }, false, states), 'power does not flag discharging as threshold')
 
 // The battery service's kernel percentage stands in for a latched UPower
@@ -32,12 +41,12 @@ assertEqual(power.batteryFraction({ isPresent: true, percentage: 0.106 }, 99), 0
 assertEqual(power.batteryFraction({ isPresent: true, percentage: 0.106 }, -1), 0.106, 'power keeps UPower\'s percentage without a kernel one')
 assertEqual(power.batteryFraction({ isPresent: false, percentage: 0.5 }, 99), 0, 'power reads no battery as empty whatever the kernel says')
 assertEqual(
-  power.batteryIcon({ isPresent: true, percentage: 0.106, state: states.Charging, changeRate: 3.2 }, false, states, 99),
+  power.batteryIcon({ isPresent: true, percentage: 0.106, state: states.Charging, changeRate: 3.2 }, false, states, true, 99),
   power.batteryIcon({ isPresent: true, percentage: 0.99, state: states.Charging, changeRate: 3.2 }, false, states),
   'power draws the bar icon at the kernel percentage past a latch'
 )
-assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.106, state: states.Charging, changeRate: 3.2, timeToFull: 9 * 60 * 60 }, false, states, 99), 'power does not hold a battery the kernel reads as full')
-assertEqual(power.modeLabel({ isPresent: true, percentage: 0.106, state: states.Charging, changeRate: 3.2 }, false, states, undefined, 99), 'Charging', 'power labels charging at the kernel percentage past a latch')
+assert(!power.chargeThresholdActive({ isPresent: true, percentage: 0.106, state: states.Charging, changeRate: 3.2, timeToFull: 9 * 60 * 60 }, false, states, true, 99), 'power does not hold a battery the kernel reads as full')
+assertEqual(power.modeLabel({ isPresent: true, percentage: 0.106, state: states.Charging, changeRate: 3.2 }, false, states, undefined, true, 99), 'Charging', 'power labels charging at the kernel percentage past a latch')
 assertEqual(power.modeLabel({ isPresent: true, percentage: 1, state: states.FullyCharged }, false, states), 'Fully charged', 'power labels full battery')
 assertEqual(power.localizeReading('13.1W'), '13.1W', 'power keeps battery readings in English digits by default')
 assertEqual(power.localizeReading('75-80%', function(v, d) { return '<' + v + '>' }), '<75>-<80>%', 'power localizes every number in a battery reading')

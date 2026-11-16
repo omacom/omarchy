@@ -5,6 +5,8 @@ local require_optional = require("default.hypr.require_optional")
 
 -- Use Omarchy defaults, but don't edit these directly.
 require("default.hypr.autostart")
+-- Before any monitor rule, so every one of them passes through it.
+require("default.hypr.wide-gamut")
 require("default.hypr.monitors")
 require("default.hypr.monitor-workspaces")
 if _G.omarchy_default_bindings ~= false then

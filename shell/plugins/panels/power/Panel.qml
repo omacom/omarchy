@@ -54,12 +54,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates(), root.kernelPercentage)
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeRateFresh, root.kernelPercentage)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.kernelPercentage)
+    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.chargeRateFresh, root.kernelPercentage)
   }
 
   function profileIcon(name) {
@@ -74,9 +74,23 @@ Panel {
     var device = UPower.displayDevice
     return !!(device && device.isPresent && UPower.onBattery)
   }
+  // False from the moment external power arrives until the battery has had
+  // time to report a charge rate measured with it. Some batteries refresh
+  // the rate only every half minute, and until then it reads 0 W.
+  property bool chargeRateFresh: true
+  onDischargingChanged: {
+    chargeRateFresh = discharging
+    if (discharging) chargeRateSettle.stop()
+    else chargeRateSettle.restart()
+  }
+  Timer {
+    id: chargeRateSettle
+    interval: 90000
+    onTriggered: root.chargeRateFresh = true
+  }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.kernelPercentage)
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.chargeRateFresh, root.kernelPercentage)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive

@@ -53,7 +53,10 @@ function batteryFraction(device, kernelLevel) {
   return Math.max(0, Math.min(1, fraction))
 }
 
-function chargeThresholdActive(device, onBattery, states, kernelLevel) {
+// rateFresh is false while the charge rate still dates from before external
+// power arrived. A battery that reports its rate every half minute reads
+// "charging at 0 W" until then, which is not a threshold holding it.
+function chargeThresholdActive(device, onBattery, states, rateFresh, kernelLevel) {
   var d = device || {}
   var s = states || {}
   if (!(d && d.isPresent && !onBattery)) return false
@@ -63,18 +66,19 @@ function chargeThresholdActive(device, onBattery, states, kernelLevel) {
   if (d.state === s.PendingCharge) return true
   if (d.state === s.FullyCharged && fraction < 0.99) return true
   if (d.state !== s.Charging || fraction >= 0.99) return false
+  if (rateFresh === false) return false
 
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
-function batteryIcon(device, onBattery, states, kernelLevel) {
+function batteryIcon(device, onBattery, states, rateFresh, kernelLevel) {
   var d = device || {}
   if (!d.isPresent) return ""
 
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
   var index = Math.max(0, Math.min(9, Math.floor(batteryFraction(d, kernelLevel) * 10)))
-  var threshold = chargeThresholdActive(d, onBattery, states, kernelLevel)
+  var threshold = chargeThresholdActive(d, onBattery, states, rateFresh, kernelLevel)
 
   if (threshold) return defaultIcons[index]
   if (d.state === states.FullyCharged) return "󰂅"
@@ -82,13 +86,13 @@ function batteryIcon(device, onBattery, states, kernelLevel) {
   return defaultIcons[index]
 }
 
-function modeLabel(device, onBattery, states, tr, kernelLevel) {
+function modeLabel(device, onBattery, states, tr, rateFresh, kernelLevel) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   if (!d.isPresent) return ""
 
   var percentage = batteryFraction(d, kernelLevel)
-  if (chargeThresholdActive(d, onBattery, states, kernelLevel)) return t("power.threshold", "Threshold")
+  if (chargeThresholdActive(d, onBattery, states, rateFresh, kernelLevel)) return t("power.threshold", "Threshold")
   if (onBattery) return t("power.onBattery", "On battery")
   if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
   return t("power.charging", "Charging")
