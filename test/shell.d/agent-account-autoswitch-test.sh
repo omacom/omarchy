@@ -200,3 +200,31 @@ jq -nc --arg later "$later" '{
 autoswitch >/dev/null
 [[ $(active) == "work" ]] || fail "a stale account with room wins over a fresh one near the limit" "$(active)"
 pass "a stale account with room wins over a fresh one near the limit"
+
+# ------------------------------------------------------------- chosen by hand
+
+# Choosing an account by hand overrules auto mode, however full it is: the
+# usage refresh that follows the choice must not switch straight back.
+registry work auto
+record 0.99 "$later" 0.12 "$soon"
+omarchy-agent-account-state use claude main >/dev/null
+[[ -z $(autoswitch) && $(active) == "main" && ! -s $notifications ]] || fail "an account chosen by hand stays, however full" "$(active) $(cat "$notifications")"
+pass "an account chosen by hand stays, however full"
+
+# The hold lasts until the account has room again, then auto mode resumes.
+record 0.20 "$later" 0.12 "$soon"
+autoswitch >/dev/null
+[[ $(jq -r .held "$accounts/claude.json") == "" ]] || fail "room again releases the hold"
+record 0.97 "$later" 0.12 "$soon"
+[[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "auto mode resumes once the hold is released" "$(active)"
+pass "the hold lasts only until the account has room again"
+
+# A signed-out or unchecked account says nothing about room, so it keeps the hold.
+registry work auto
+omarchy-agent-account-state use claude main >/dev/null
+record 0.99 "$later" 0.12 "$soon"
+jq '.accounts[0].limits = null' "$usage/claude.json" >"$test_tmp/record.json"
+mv "$test_tmp/record.json" "$usage/claude.json"
+autoswitch >/dev/null
+[[ $(jq -r .held "$accounts/claude.json") == "main" ]] || fail "unknown usage keeps the hold"
+pass "unknown usage keeps the hold"
