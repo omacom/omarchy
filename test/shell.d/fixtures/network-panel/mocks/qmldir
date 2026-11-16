@@ -1,1 +1,2 @@
 singleton NetworkMock 1.0 NetworkMock.qml
+singleton NetworkVpnMock 1.0 NetworkVpnMock.qml

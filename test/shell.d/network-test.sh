@@ -259,4 +259,47 @@ assertDeepEqual(
 
 assertEqual(network.headerDetail({ type: 'wifi', freq: '5745' }), '', 'network keeps wifi band state out of the hero')
 assertEqual(network.headerDetail({ type: 'ethernet', speed: '100' }), '100mbit', 'network keeps ethernet speed in the hero')
+
+// A VPN locks the icon the bar already shows instead of adding another one:
+// every strength keeps its own bars, a portal still wins, and Ethernet changes.
+for (const strength of [0, 20, 45, 55, 90]) {
+  assert(network.connectionIcon('wifi', strength, 'full', true) !== network.connectionIcon('wifi', strength, 'full', false), `network locks the ${strength}% wifi icon while a VPN is up`)
+}
+assertEqual(new Set([0, 20, 45, 55, 90].map((strength) => network.wifiIconFor(strength, true))).size, 5, 'network keeps the signal bars in the locked wifi icon')
+assertEqual(network.connectionIcon('wifi', 90, 'portal', true), network.connectionIcon('wifi', 90, 'portal', false), 'network shows a captive portal over a VPN')
+assert(network.connectionIcon('ethernet', -1, 'full', true) !== network.connectionIcon('ethernet', -1, 'full', false), 'network marks a VPN over ethernet')
+assertEqual(network.connectionTooltip(false, false, ['Office', 'Home lab']), 'VPN: Office, Home lab', 'network names the active VPNs in the bar tooltip')
+assertEqual(network.connectionTooltip(false, false, []), '', 'network has no bar tooltip without a VPN or restriction')
+assertEqual(network.connectionTooltip(false, true, ['Office']), 'Limited internet access', 'network keeps the limited-access tooltip over a VPN')
+
+const idleProfile = [{ name: 'Office', uuid: '1f0e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f', type: 'vpn', state: '' }]
+assert(!network.vpnSectionVisible('disconnected', idleProfile), 'network offers VPN profiles only once there is a connection to carry them')
+assert(network.vpnSectionVisible('wifi', idleProfile) && network.vpnSectionVisible('ethernet', idleProfile), 'network offers VPN profiles over Wi-Fi and Ethernet')
+assert(network.vpnSectionVisible('disconnected', [{ ...idleProfile[0], state: 'deactivating' }]), 'network keeps a VPN that is still up listed after the link drops')
+assert(!network.vpnSectionVisible('wifi', []), 'network has no VPN section without profiles')
+
+const vpn = requireFromRoot('shell/Commons/NetworkVpnModel.js')
+assertDeepEqual(
+  vpn.parseVpnConnections([
+    'Home Wi-Fi:6a1c0c2e-5f0e-4d8a-9d55-3c1f7d1c1a01:802-11-wireless:activated',
+    'Office\\: Paris:1f0e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f:vpn:activated',
+    'lab\\\\wg:0e1d2c3b-4a59-4687-9a6b-5c4d3e2f1a0b:wireguard:',
+    'Backup:9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d:vpn:activating',
+    ''
+  ].join('\n')),
+  [
+    { name: 'Backup', uuid: '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d', type: 'vpn', state: 'activating' },
+    { name: 'lab\\wg', uuid: '0e1d2c3b-4a59-4687-9a6b-5c4d3e2f1a0b', type: 'wireguard', state: '' },
+    { name: 'Office: Paris', uuid: '1f0e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f', type: 'vpn', state: 'activated' }
+  ],
+  'network vpn keeps VPN and WireGuard profiles, unescapes nmcli terse names, and orders them by name'
+)
+assertDeepEqual(
+  vpn.activeVpnNames(vpn.parseVpnConnections('A:9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d:vpn:activating\nB:1f0e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f:vpn:activated\n')),
+  ['B'],
+  'network vpn counts a profile as up only once it is activated'
+)
+assert(!vpn.isUuid('x; rm -rf ~'), 'network vpn refuses a non-UUID before building the terminal command')
+assert(vpn.needsSecrets("Error: Connection activation failed: Secrets were required, but not provided"), 'network vpn recognizes a connect that needs a password')
+assert(!vpn.needsSecrets('Error: Connection activation failed: The VPN service stopped unexpectedly.'), 'network vpn reports other connect failures as failures')
 JS

@@ -140,9 +140,9 @@ Panel {
   property bool cursorActive: false
 
   // Keyboard focus zone for the panel. j/k crosses row boundaries:
-  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks. h/l move
-  // within header actions, band pills, or DNS providers.
-  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "wifi"
+  // header actions ⇄ portal ⇄ band ⇄ DNS row ⇄ Wi-Fi networks ⇄ VPN profiles.
+  // h/l move within header actions, band pills, or DNS providers.
+  property string focusSection: "dns"  // "header" | "portal" | "band" | "dns" | "vpn" | "wifi"
   property int headerIndex: 0
   readonly property bool canDisconnect: !!connectedWifiNetwork
   readonly property bool headerHasDisconnect: false
@@ -161,6 +161,10 @@ Panel {
   readonly property string toggleHint: Networking.wifiEnabled ? Commons.I18n.t("network.turnWifiOff") : Commons.I18n.t("network.turnWifiOn")
   readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
   property int dnsIndex: 0
+  // NetworkManager's VPN and WireGuard profiles, shared across monitors.
+  readonly property var vpnConnections: Commons.NetworkVpn.connections
+  readonly property bool vpnVisible: Model.vpnSectionVisible(kind, vpnConnections)
+  property int vpnIndex: 0
   // ["2.4", "5", ...], or empty when there is nothing to choose between.
   // Wi-Fi only: on Ethernet the band of a secondary radio is not what the
   // panel is describing.
@@ -193,6 +197,29 @@ Panel {
   property bool bandAutoFocused: true
 
   onHeaderActionCountChanged: clampHeaderIndex()
+
+  // Profiles come and go with NetworkManager, so keep the cursor on a row
+  // that still exists, and off the section once it has none.
+  onVpnConnectionsChanged: {
+    if (vpnIndex > vpnConnections.length - 1) vpnIndex = Math.max(0, vpnConnections.length - 1)
+  }
+  onVpnVisibleChanged: if (!vpnVisible && focusSection === "vpn") focusSection = wifiNetworks.length > 0 ? "wifi" : "dns"
+
+  // A connect that needs a password continues in a terminal, which can only
+  // take the keyboard once this panel lets go of it.
+  Connections {
+    target: Commons.NetworkVpn
+    function onSecretsRequested(uuid) { if (root.opened) root.close() }
+  }
+
+  function selectVpnByDelta(delta) {
+    vpnIndex = Math.max(0, Math.min(vpnConnections.length - 1, vpnIndex + delta))
+  }
+
+  function activateVpn() {
+    var connection = vpnConnections[vpnIndex]
+    if (connection) Commons.NetworkVpn.toggle(connection.uuid)
+  }
 
   // Availability shifts as scans land, so the option list can shrink out from
   // under the cursor. Clamp the index and evacuate the section before it
@@ -543,7 +570,7 @@ Panel {
   }
   readonly property bool hasCaptivePortal: connectivity === "portal"
   readonly property bool restricted: hasCaptivePortal || connectivity === "limited"
-  readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity)
+  readonly property string icon: Model.connectionIcon(kind, signalStrength, connectivity, Commons.NetworkVpn.active)
   // Keyed on the device rather than the SSID: on an OWE transition-mode
   // network the listed network comes and goes with every scan while the link
   // stays up, and a real network switch already passes through "disconnected".
@@ -1150,8 +1177,7 @@ Panel {
     bar: root.bar
     text: root.icon
     active: root.restricted
-    tooltipText: root.hasCaptivePortal ? Commons.I18n.t("network.signInToNetwork")
-      : (root.restricted ? Commons.I18n.t("network.limitedAccess") : "")
+    tooltipText: Model.connectionTooltip(root.hasCaptivePortal, root.restricted, Commons.NetworkVpn.activeNames, Commons.I18n.t)
 
     onPressed: function(b) {
       if (root.opened) root.close()
@@ -1251,12 +1277,34 @@ Panel {
             } else if (root.wifiNetworks.length > 0) {
               root.focusSection = "wifi"
               if (root.selectedIndex < 0) root.selectedIndex = 0
+            } else if (root.vpnVisible) {
+              root.focusSection = "vpn"
+              root.vpnIndex = 0
+            }
+          } else if (root.focusSection === "vpn") {
+            // The profiles close the panel, below the Wi-Fi list: k from the
+            // first one climbs back into it.
+            if (dy < 0 && root.vpnIndex <= 0) {
+              if (root.wifiNetworks.length > 0) {
+                root.focusSection = "wifi"
+                root.selectedIndex = root.wifiNetworks.length - 1
+                root.wifiActionFocused = false
+              } else {
+                root.focusSection = "dns"
+              }
+            } else {
+              root.selectVpnByDelta(dy)
             }
           } else {  // wifi
             // k from the top row escapes back up to the DNS row rather than
-            // wrapping around to the bottom of the list.
+            // wrapping around to the bottom of the list; j from the bottom row
+            // carries on into the VPN profiles.
             if (dy < 0 && root.selectedIndex <= 0) {
               root.focusSection = "dns"
+              root.wifiActionFocused = false
+            } else if (dy > 0 && root.selectedIndex >= root.wifiNetworks.length - 1 && root.vpnVisible) {
+              root.focusSection = "vpn"
+              root.vpnIndex = 0
               root.wifiActionFocused = false
             }
             else root.selectByDelta(dy)
@@ -1275,6 +1323,7 @@ Panel {
           else if (root.focusSection === "portal") root.openCaptivePortal()
           else if (root.focusSection === "band") root.activateBand()
           else if (root.focusSection === "dns") root.activateDns()
+          else if (root.focusSection === "vpn") root.activateVpn()
           else root.activateSelected()
         }
       }
@@ -1695,7 +1744,6 @@ Panel {
         }
       }
 
-
       // Wi-Fi networks (only if a Wi-Fi station is available).
       PanelSeparator {
         visible: root.wifiStationAvailable
@@ -1769,6 +1817,38 @@ Panel {
           }
         }
       }
+
+      // VPN and WireGuard profiles from NetworkManager, offered once there is
+      // a connection for them to ride on, so below the networks that make one.
+      // Clicking one connects it, or disconnects it when it is up.
+      PanelSeparator {
+        visible: root.vpnVisible
+        foreground: root.bar.foreground
+      }
+
+      Column {
+        visible: root.vpnVisible
+        width: parent.width
+        spacing: Style.space(4)
+
+        PanelSectionHeader {
+          text: Commons.I18n.t("network.vpn")
+          foreground: root.bar.foreground
+          fontFamily: root.bar.fontFamily
+        }
+
+        Repeater {
+          model: root.vpnConnections
+
+          delegate: VpnRow {
+            required property var modelData
+            required property int index
+            width: parent.width
+            connection: modelData
+            slot: index
+          }
+        }
+      }
     }
     }
   }
@@ -1833,6 +1913,108 @@ Panel {
       root.cursorActive = true
       root.focusSection = "dns"
       root.dnsIndex = pill.index
+    }
+  }
+
+  // One VPN profile. The icon locks once it is up; the second line carries
+  // NetworkManager's progress, or the shell's own while its nmcli runs.
+  component VpnRow: CursorSurface {
+    id: vpnRow
+    required property var connection
+    required property int slot
+
+    // Not `state`: that is Item's own states-machine property.
+    readonly property string nmState: connection ? connection.state : ""
+    readonly property bool isConnected: nmState === "activated"
+    readonly property bool isPending: !!connection && Commons.NetworkVpn.pendingUuid === connection.uuid
+    readonly property bool isConnecting: nmState === "activating" || (isPending && Commons.NetworkVpn.pendingAction === "up")
+    readonly property bool isDisconnecting: nmState === "deactivating" || (isPending && Commons.NetworkVpn.pendingAction === "down")
+    readonly property bool isFailed: !!connection && Commons.NetworkVpn.failedUuid === connection.uuid
+
+    readonly property string statusText: {
+      if (isDisconnecting) return Commons.I18n.t("network.disconnecting")
+      if (isConnecting) return Commons.I18n.t("network.connecting")
+      if (isConnected) return Commons.I18n.t("network.connected")
+      if (isFailed) return Commons.I18n.t("network.failedToConnect")
+      return ""
+    }
+    readonly property color statusColor: {
+      if (isFailed && !isConnecting) return root.bar.urgent
+      if (isConnected || isConnecting || isDisconnecting) return root.bar.foreground
+      return Qt.darker(root.bar.foreground, 1.5)
+    }
+
+    hasCursor: root.cursorActive && root.focusSection === "vpn" && root.vpnIndex === slot
+    current: isConnected
+    foreground: root.bar.foreground
+    fill: root.hoverFill
+    currentFill: root.selectedFill
+    implicitHeight: vpnBody.implicitHeight
+
+    MouseArea {
+      anchors.fill: parent
+      hoverEnabled: true
+      acceptedButtons: Qt.LeftButton
+      cursorShape: Qt.PointingHandCursor
+      enabled: !Commons.NetworkVpn.busy
+      onContainsMouseChanged: if (containsMouse) { root.cursorActive = true; root.focusSection = "vpn"; root.vpnIndex = vpnRow.slot }
+      onClicked: {
+        root.cursorActive = true
+        root.focusSection = "vpn"
+        root.vpnIndex = vpnRow.slot
+        if (vpnRow.connection) Commons.NetworkVpn.toggle(vpnRow.connection.uuid)
+      }
+    }
+
+    Item {
+      id: vpnBody
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.top: parent.top
+      anchors.leftMargin: Style.space(10)
+      anchors.rightMargin: Style.space(10)
+      implicitHeight: Math.max(vpnIcon.implicitHeight, vpnInfo.implicitHeight) + Style.spacing.rowPaddingX
+
+      Text {
+        id: vpnIcon
+        textFormat: Text.PlainText
+        text: vpnRow.isConnected ? "󰦝" : "󰒙"
+        color: vpnRow.statusColor
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.title
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
+      Column {
+        id: vpnInfo
+        spacing: Style.space(1)
+        anchors.left: vpnIcon.right
+        anchors.leftMargin: Style.space(10)
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+
+        Text {
+          textFormat: Text.PlainText
+          text: vpnRow.connection ? vpnRow.connection.name : ""
+          color: root.bar.foreground
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.body
+          elide: Text.ElideRight
+          width: parent.width
+        }
+        Text {
+          textFormat: Text.PlainText
+          text: vpnRow.statusText
+          visible: vpnRow.statusText !== ""
+          height: visible ? implicitHeight : 0
+          color: vpnRow.statusColor
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
+          width: parent.width
+        }
+      }
     }
   }
 

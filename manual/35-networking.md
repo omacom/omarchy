@@ -32,6 +32,12 @@ The firewall is on by default and blocks all incoming traffic, with one exceptio
 
 SSH is off until you turn it on with _Setup > Security > SSHD_, which starts the daemon, opens port 22 rate-limited against brute force, and authorizes a key. Docker is locked down too, so containers can't accidentally expose themselves to the world. See [security](48-security.md) for the whole story.
 
+## VPN
+
+VPNs you set up in NetworkManager show up in the network panel under _VPN_. Click one to connect it, and again to disconnect. While a VPN is up, the network icon in the bar gets a lock, and hovering it names the VPN.
+
+WireGuard works out of the box: `nmcli connection import type wireguard file wg0.conf` brings in a config. For OpenVPN, install the plugin with `omarchy pkg add networkmanager-openvpn`, then `nmcli connection import type openvpn file work.ovpn`. If the profile doesn't keep its password, connecting opens a terminal that asks for it.
+
 ## Tailscale
 
 [Tailscale](https://tailscale.com/) is a mesh VPN that makes reaching all your computers and servers over the internet simple and secure. Install it with _Install > Service > Tailscale_.
