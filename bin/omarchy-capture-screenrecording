@@ -63,7 +63,6 @@ READY_TIMEOUT_TICKS=75
 LOG_FILE=$([[ ${OMARCHY_SCREENRECORD_DEBUG:-false} == "true" ]] && echo "$RUNTIME_DIR/omarchy-screenrecord.log" || echo "/dev/null")
 # The second try of a failed start, and each recorder that failed it with what it said.
 RETRYING=false
-AUDIO_WARNED=""
 FAILED_RECORDERS=()
 RECORDER_ERRORS=()
 
@@ -244,9 +243,6 @@ wf_audio_device() {
 }
 
 wf_audio_unavailable() {
-  # The second try of a failed start repeats no notice the first one gave.
-  [[ " $AUDIO_WARNED " == *" $1 "* ]] && return
-  AUDIO_WARNED+=" $1"
   omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingWithoutAudio "$1")" "$(omarchy-i18n capture.audioNotAdded "$1")" >/dev/null 2>&1
 }
 
