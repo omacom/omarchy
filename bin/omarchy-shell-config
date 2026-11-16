@@ -26,8 +26,9 @@ source_file() {
 }
 
 # jq pipeline that normalizes shell.json into a well-shaped object with
-# version=1, bar.layout.{left,center,right} arrays, and plugins array. Every
-# mutation pipes through this so downstream jq can assume structure.
+# version=1, bar.layout.{left,centerBegin,center,centerEnd,right} arrays, and
+# plugins array. Every mutation pipes through this so downstream jq can assume
+# structure.
 NORMALIZE='
   def object_or_empty: if type == "object" then . else {} end;
   def array_or_empty: if type == "array" then . else [] end;
@@ -36,7 +37,9 @@ NORMALIZE='
   | .bar = (.bar | object_or_empty)
   | .bar.layout = (.bar.layout | object_or_empty)
   | .bar.layout.left = (.bar.layout.left | array_or_empty)
+  | .bar.layout.centerBegin = (.bar.layout.centerBegin | array_or_empty)
   | .bar.layout.center = (.bar.layout.center | array_or_empty)
+  | .bar.layout.centerEnd = (.bar.layout.centerEnd | array_or_empty)
   | .bar.layout.right = (.bar.layout.right | array_or_empty)
   | .plugins = (.plugins | array_or_empty)
 '

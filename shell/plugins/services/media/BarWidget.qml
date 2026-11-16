@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 
 BarWidget {
   id: root
@@ -12,6 +13,7 @@ BarWidget {
   readonly property var sourcePlayers: mediaService ? mediaService.sourcePlayers : []
 
   readonly property bool hasMedia: activePlayer !== null && (activePlayer.trackTitle || activePlayer.trackArtist)
+  readonly property bool isPlaying: !!activePlayer && !!activePlayer.isPlaying
   readonly property string playIcon: activePlayer && activePlayer.isPlaying ? "󰏤" : "󰐊"
   readonly property string title: activePlayer ? (activePlayer.trackTitle || "") : ""
   readonly property string artist: activePlayer ? (activePlayer.trackArtist || "") : ""
@@ -32,6 +34,7 @@ BarWidget {
 
     Text {
       id: glyph
+      textFormat: Text.PlainText
       anchors.verticalCenter: parent.verticalCenter
       text: root.playIcon
       color: activePlayer && activePlayer.isPlaying ? root.bar.barForeground : Qt.darker(root.bar.barForeground, 1.5)
@@ -39,7 +42,7 @@ BarWidget {
       font.pixelSize: Style.font.body
       Behavior on color {
         enabled: !root.bar || root.bar.foregroundAnimationEnabled
-        ColorAnimation { duration: 160 }
+        ColorAnimation { duration: Style.duration(160) }
       }
     }
 
@@ -53,6 +56,7 @@ BarWidget {
 
       Text {
         id: labelText
+        textFormat: Text.PlainText
         text: root.title + (root.artist ? "  ·  " + root.artist : "")
         color: root.bar.barForeground
         font.family: root.bar.fontFamily
@@ -61,11 +65,15 @@ BarWidget {
 
         property bool needsScroll: implicitWidth > scrollClip.width
 
+        // Each frame of the scroll redraws the bar, so it only runs while the
+        // track is playing and the bar is on screen to show it.
         NumberAnimation on x {
           id: scrollAnim
-          running: labelText.needsScroll && !root.popupOpen && !root.bar.vertical
+          running: labelText.needsScroll && root.isPlaying && root.visible && !root.bar.barHidden && !root.popupOpen && !root.bar.vertical && !Style.reduceMotion
+          // Stopped, the title reads from its start again.
+          onRunningChanged: if (!running) labelText.x = 0
           loops: Animation.Infinite
-          duration: Math.max(6000, labelText.implicitWidth * 25)
+          duration: Style.duration(Math.max(6000, labelText.implicitWidth * 25))
           from: scrollClip.width
           to: -labelText.implicitWidth
           easing.type: Easing.Linear
@@ -121,16 +129,17 @@ BarWidget {
           width: Style.space(64)
           height: Style.space(64)
           radius: Style.spacing.labelGap
-          color: Style.normalFillFor(root.bar.foreground, Color.accent)
-          borderSpec: Border.controlSpec("normal", root.bar.foreground, Color.accent)
+          color: Style.normalFillFor(root.bar.foreground, Commons.Color.accent)
+          borderSpec: Border.controlSpec("normal", root.bar.foreground, Commons.Color.accent)
 
-          Image {
+          // Decode the art at the size it is drawn, not the size the player
+          // serves it at. The popup is built on every monitor at startup.
+          SizedImage {
             anchors.fill: parent
             anchors.margins: Style.space(2)
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
-            source: root.activePlayer && root.activePlayer.trackArtUrl ? root.activePlayer.trackArtUrl : ""
-            visible: source !== ""
+            crop: true
+            url: root.activePlayer && root.activePlayer.trackArtUrl ? root.activePlayer.trackArtUrl : ""
+            visible: url != ""
           }
 
           Text {
@@ -148,7 +157,8 @@ BarWidget {
           width: parent.width - Style.space(74)
 
           Text {
-            text: root.title || "Nothing playing"
+            textFormat: Text.PlainText
+            text: root.title || I18n.t("media.nothingPlaying")
             color: root.bar.foreground
             font.family: root.bar.fontFamily
             font.pixelSize: Style.font.subtitle
@@ -158,6 +168,7 @@ BarWidget {
           }
 
           Text {
+            textFormat: Text.PlainText
             text: root.artist
             color: Qt.darker(root.bar.foreground, 1.3)
             font.family: root.bar.fontFamily
@@ -168,6 +179,7 @@ BarWidget {
           }
 
           Text {
+            textFormat: Text.PlainText
             text: root.activePlayer && root.activePlayer.trackAlbum ? root.activePlayer.trackAlbum : ""
             color: Qt.darker(root.bar.foreground, 1.6)
             font.family: root.bar.fontFamily
@@ -182,6 +194,10 @@ BarWidget {
       Row {
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: Style.space(6)
+        // Transport controls keep previous, play, next in every language,
+        // matching their glyphs; media controls are not mirrored.
+        LayoutMirroring.enabled: false
+        LayoutMirroring.childrenInherit: true
 
         Button {
           iconText: "󰒮"
@@ -236,14 +252,14 @@ BarWidget {
             readonly property var player: modelData
             readonly property bool selected: root.activePlayer && player
               && root.mediaService.playerKey(root.activePlayer) === root.mediaService.playerKey(player)
-            readonly property string sourceTitle: player ? (player.trackTitle || player.identity || player.desktopEntry || "Media source") : "Media source"
+            readonly property string sourceTitle: player ? (player.trackTitle || player.identity || player.desktopEntry || I18n.t("media.mediaSource")) : I18n.t("media.mediaSource")
             readonly property string sourceDetail: player && player.trackArtist ? player.trackArtist : (player && player.identity ? player.identity : "")
 
             width: sourceList.width
             height: sourceInner.implicitHeight + Style.space(10)
             radius: Style.spacing.labelGap
-            color: selected ? Style.selectedFillFor(root.bar.foreground, Color.accent) : "transparent"
-            borderSpec: selected ? Border.controlSpec("normal", root.bar.foreground, Color.accent) : Border.none()
+            color: selected ? Style.selectedFillFor(root.bar.foreground, Commons.Color.accent) : "transparent"
+            borderSpec: selected ? Border.controlSpec("normal", root.bar.foreground, Commons.Color.accent) : Border.none()
 
             Row {
               id: sourceInner
@@ -255,6 +271,7 @@ BarWidget {
               spacing: Style.space(8)
 
               Text {
+                textFormat: Text.PlainText
                 text: sourceRow.player && sourceRow.player.isPlaying ? "󰏤" : "󰐊"
                 color: root.bar.foreground
                 font.family: root.bar.fontFamily
@@ -270,6 +287,7 @@ BarWidget {
                 anchors.verticalCenter: parent.verticalCenter
 
                 Text {
+                  textFormat: Text.PlainText
                   text: sourceRow.sourceTitle
                   color: root.bar.foreground
                   font.family: root.bar.fontFamily
@@ -280,6 +298,7 @@ BarWidget {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   text: sourceRow.sourceDetail
                   color: Qt.darker(root.bar.foreground, 1.5)
                   font.family: root.bar.fontFamily

@@ -14,9 +14,9 @@ the shell for its whole session.
 
 ## Customizing
 
-The bar config lives under the `bar:` key of [`~/.config/omarchy/shell.json`](../../README.md#shelljson-shape). Out of the box the shell uses [`config/omarchy/shell.json`](../../../config/omarchy/shell.json). Once you customize anything via the bar gestures, `omarchy bar ...`, or by editing shell.json directly, your file is canonical — there is no deep-merge.
+The bar config lives under the `bar:` key of [`~/.config/omarchy/shell.json`](../../../docs/omarchy-shell.md#shelljson). Out of the box the shell uses [`config/omarchy/shell.json`](../../../config/omarchy/shell.json). Once you customize anything via the bar gestures, `omarchy bar ...`, or by editing shell.json directly, your file is canonical — there is no deep-merge.
 
-The bar is configured directly on the bar itself: drag empty bar space (or click-and-hold) to move the bar to another screen edge, double-left-click empty center-bar space to toggle transparency, and drag widgets to reorder them. The `omarchy bar position`, `omarchy bar transparent`, `omarchy bar move`, and `omarchy bar set` commands do the same from scripts. Enable or disable widgets with `omarchy plugin enable` and `omarchy plugin disable` (widget ids come from `omarchy plugin list`).
+The bar is configured directly on the bar itself: drag empty bar space (or click-and-hold) to move the bar to another screen edge, double-left-click empty center-bar space to cycle the bar background from clear to glassy to opaque, and drag widgets to reorder them. The `omarchy bar position`, `omarchy bar background`, `omarchy bar move`, and `omarchy bar set` commands do the same from scripts. Enable or disable widgets with `omarchy plugin enable` and `omarchy plugin disable` (widget ids come from `omarchy plugin list`).
 
 Example `shell.json` (bar subtree only shown):
 
@@ -25,18 +25,20 @@ Example `shell.json` (bar subtree only shown):
   "version": 1,
   "bar": {
     "position": "top",
-    "transparent": false,
-    "centerAnchor": "omarchy.clock",
+    "background": "opaque",
     "layout": {
       "left": [
         { "id": "omarchy.menu" },
         { "id": "omarchy.spacer", "size": 12 },
         { "id": "omarchy.workspaces" }
       ],
+      "centerBegin": [
+        { "id": "omarchy.media" }
+      ],
       "center": [
-        { "id": "omarchy.media" },
         { "id": "omarchy.clock", "format": "HH:mm" }
       ],
+      "centerEnd": [],
       "right": [
         { "id": "omarchy.audio" },
         { "id": "omarchy.power" }
@@ -46,7 +48,7 @@ Example `shell.json` (bar subtree only shown):
 }
 ```
 
-`centerAnchor` pins one center module to the exact horizontal/vertical center and flanks others around it. Set to an empty string to disable anchoring (the center list is centered as a group).
+`center` is a box in the middle of the bar whose modules are centered as one group on the exact horizontal/vertical center. `centerBegin` and `centerEnd` hang off the box's two edges and move out as it grows; with the box empty they meet in the middle of the bar.
 
 ## Module catalogue
 
@@ -55,7 +57,7 @@ Example `shell.json` (bar subtree only shown):
 | Name | What it does | Interactions |
 |---|---|---|
 | `omarchy.menu` | Omarchy menu launcher | left = menu · right = terminal |
-| `omarchy.workspaces` | Hyprland workspace switcher | left = focus workspace |
+| `omarchy.workspaces` | Hyprland workspace switcher; the focused workspace shows its layout | left = focus workspace, or cycle the focused one's layout |
 | `omarchy.clock` | Date/time label + popup with a month grid, ISO week numbers, and month stepping | left = popup · right = cycle label format · middle = timezone selector |
 | `omarchy.media` | MPRIS now-playing — scrolling track + artist, cover-art popup | left = play/pause · middle = next · scroll = prev/next · right = popup |
 | `omarchy.indicators` | Manual state indicators | left = indicator action |
@@ -77,6 +79,18 @@ The `omarchy.indicators` widget loads individual bar indicators from `indicators
 ## Orientation
 
 All widgets work in `top`, `bottom`, `left`, and `right` positions. Popups anchor on the side opposite the bar edge, sliding into the workspace. Vertical bars use 28px width; widgets that show text fall back to compact icon-only forms (e.g. `media` hides its scrolling label).
+
+## Icon geometry
+
+Use `BarIconButton` from `qs.Ui` for bar icons. It fits the visible glyph bounds to `Style.bar.iconSize` and centers them on both axes. It preserves each glyph's aspect ratio. Set `labelText` for an adjacent text label, such as the battery percentage.
+
+The `[bar]` section of a theme's `shell.toml` supplies the shared dimensions. `icon-size` sets the visual target, with a default of 12 logical pixels. `icon-canvas` sets the canvas, with a default of 16 logical pixels. `icon-slot` and `status-slot` set the button extent. These dimensions follow the font scale unless `scale-with-font` is false.
+
+Custom `iconComponent` content also fits the shared target. Its source dimensions can be 15px or another size. The bar measures its glyph, image, or vector bounds and applies one scale without changing its aspect ratio. A source `iconSize` override does not change the rendered target. Image padding remains part of an application's tray asset.
+
+Custom text bounds include text alignment and padding. The bar applies each shape's fill mode and alignment to `Shape.boundingRect`. Canvas and shader icons use their item bounds. Set their item size to match their artwork.
+
+`WidgetButton` also uses the shared renderer for a single icon glyph. This covers custom command widgets and existing plugins that use `WidgetButton` with a different `fontSize`. Text labels retain their text size. Custom widgets must use `WidgetButton` or `BarIconButton` for this icon contract.
 
 ## Custom user modules
 
@@ -153,7 +167,7 @@ Item {
 
 ## Bar properties available to widgets
 
-Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (object) injected at load time. The bar exposes:
+Widgets receive `bar` (the shell root), `moduleName` (string), and `settings` (object) injected at load time. A widget that declares `fixedEdge` also gets the edge of it that stays put when it grows: `"start"` (left, or top on a vertical bar), `"end"`, or `"center"` when it grows both ways, following the section it sits in. When the center box holds more than one widget, its first gets `"end"` and its last `"start"`, like `centerBegin`'s and `centerEnd`'s. A widget that grows, like the tray's drawer or the indicator peek, can lay its content out against that edge so it doesn't shift. A widget moved to another section keeps running, and its `fixedEdge` and `settings` change in place, so bind to them rather than reading them once. The bar exposes:
 
 - `bar.foreground`, `bar.background`, `bar.urgent` — theme colors (live-updated)
 - `bar.fontFamily` — current monospace family
@@ -172,9 +186,4 @@ richer popup plugins live in feature directories such as `../panels/audio/`,
 `manifest.json`. Bar layout ids are namespaced, e.g. `omarchy.audio`,
 `omarchy.network`, and `omarchy.clock`.
 
-Third-party widgets ship as separate plugins under
-`~/.config/omarchy/plugins/<plugin-id>/` with their own `manifest.json`
-declaring `kinds: ["bar-widget"]` and a `barWidget` entry point. See
-[../../README.md](../../README.md) for the manifest schema. Rescan, enable,
-and place third-party plugins with `omarchy-shell shell rescanPlugins`,
-`omarchy plugin enable`, and `omarchy bar move`.
+Third-party widgets ship as separate plugins under `~/.config/omarchy/plugins/<plugin-id>/` with their own `manifest.json` declaring `kinds: ["bar-widget"]` and a `barWidget` entry point. See the [shell reference](../../../docs/omarchy-shell.md#plugin-manifest) for the manifest schema. Rescan, enable, and place third-party plugins with `omarchy-shell shell rescanPlugins`, `omarchy plugin enable`, and `omarchy bar move`.

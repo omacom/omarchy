@@ -36,7 +36,9 @@ screen_contains() {
   local text="$1"
   local snapshot="/tmp/omarchy-acceptance-ocr-$$.png"
 
-  if ! timeout 10 grim "$snapshot" 2>/dev/null; then
+  # Capture at 2x scale: tesseract routinely drops small caption text at
+  # native resolution (the weather panel's detail labels, for one).
+  if ! timeout 10 grim -s 2 "$snapshot" 2>/dev/null; then
     rm -f "$snapshot"
     return 1
   fi
@@ -77,6 +79,11 @@ layer_present() {
 
 layer_absent() {
   ! layer_present "$1"
+}
+
+# Fullscreen overlays map on the overlay layer and unmap when closed.
+layer_on_overlay() {
+  hyprctl -j layers | jq -e --arg ns "$1" '[.[].levels["3"][]? | select(.namespace == $ns)] | length > 0'
 }
 
 # A layer can be mapped but parked off the monitor: the bar hides that way so
