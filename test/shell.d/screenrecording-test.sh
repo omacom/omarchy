@@ -482,6 +482,36 @@ mode=$(stat -c '%a' "$state_home/omarchy" 2>/dev/null || stat -f '%Lp' "$state_h
 [[ $mode == "700" ]] || fail "fallback directory is private even when it already existed" "mode: $mode"
 pass "fallback directory is private even when it already existed"
 
+# A Polaris GPU hangs its VCE encoder mid-recording (#9555), so it records on
+# the CPU; any other GPU, AMD's included, keeps hardware encoding.
+cat >"$stub_bin/gpu-screen-recorder" <<'SH'
+#!/bin/bash
+printf '%s\n' "$@" >"$OMARCHY_TEST_GSR_ARGS"
+for i in "$@"; do
+  [[ -n ${take_next:-} ]] && { : >"$i"; break; }
+  [[ $i == "-o" ]] && take_next=1
+done
+sleep 5
+SH
+chmod +x "$stub_bin/gpu-screen-recorder"
+
+recorder_args_for_amd_gpu() {
+  local run="$tmp_dir/amd-$1"
+  mkdir -p "$run/pci/0000:01:00.0" "$run/recordings"
+  echo 0x1002 >"$run/pci/0000:01:00.0/vendor"
+  echo "0x$1" >"$run/pci/0000:01:00.0/device"
+  XDG_RUNTIME_DIR="$run" OMARCHY_PCI_DEVICES_PATH="$run/pci" OMARCHY_SCREENRECORD_DIR="$run/recordings" OMARCHY_TEST_GSR_ARGS="$run/args" \
+    "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1
+  pkill -f "$stub_bin/gpu-screen-recorder" 2>/dev/null || true
+  cat "$run/args" 2>/dev/null || true
+}
+
+polaris_args=$(recorder_args_for_amd_gpu 67df)
+[[ $polaris_args == *$'\n-encoder\ncpu\n'* ]] || fail "a Polaris GPU records on the CPU" "$polaris_args"
+navi_args=$(recorder_args_for_amd_gpu 73df)
+[[ -n $navi_args && $navi_args != *-encoder* ]] || fail "other AMD GPUs keep hardware encoding" "$navi_args"
+pass "only a Polaris GPU records on the CPU"
+
 # gpu-screen-recorder aborts before recording on a GPU it does not know, such
 # as Apple Silicon's. wf-recorder takes over when it is installed, on the same
 # monitor, and its pid is the one stop and status act on.

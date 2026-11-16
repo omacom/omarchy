@@ -101,3 +101,36 @@ assert(enabled_picker_binds() == 0, "the picker closes cleanly after a chord is 
 LUA
 
 pass "screenshot picker leaves the user's binds on its keys alone"
+
+# A bare click on a monitor other than the focused one snaps to that monitor.
+stub_bin=$(mktemp -d)
+trap 'rm -rf "$stub_bin"' EXIT
+
+cat >"$stub_bin/hyprctl" <<'STUB'
+#!/bin/bash
+case $1 in
+monitors)
+  echo '[
+    {"name": "eDP-1", "focused": true, "x": 0, "y": 0, "width": 1920, "height": 1200, "scale": 1, "transform": 0, "mirrorOf": "none", "activeWorkspace": {"id": 1}},
+    {"name": "DP-1", "focused": false, "x": 1920, "y": 0, "width": 2560, "height": 1440, "scale": 1, "transform": 0, "mirrorOf": "none", "activeWorkspace": {"id": 2}}
+  ]'
+  ;;
+clients)
+  echo '[
+    {"at": [2000, 100], "size": [800, 600], "hidden": false, "workspace": {"id": 2}},
+    {"at": [2100, 200], "size": [300, 300], "hidden": false, "workspace": {"id": 3}}
+  ]'
+  ;;
+esac
+STUB
+printf '#!/bin/bash\ncat >"$SLURP_RECTS"\necho "$SLURP_OUT"\n' >"$stub_bin/slurp"
+printf '#!/bin/bash\n' >"$stub_bin/hyprpicker"
+chmod +x "$stub_bin"/*
+
+picked=$(SLURP_OUT="2200,300 1x1" SLURP_RECTS="$stub_bin/rects" PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-capture-region" smart --match-monitor)
+[[ $picked == "monitor:DP-1" ]] || fail "a bare click on an unfocused monitor snaps to it (got: $picked)"
+
+rects=$(<"$stub_bin/rects")
+[[ $rects == *"2000,100 800x600"* && $rects != *"2100,200 300x300"* ]] || fail "the picker hints windows on every visible workspace and no hidden one (got: $rects)"
+
+pass "capture picker snaps a bare click on any monitor"
