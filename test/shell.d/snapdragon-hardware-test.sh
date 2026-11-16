@@ -71,6 +71,8 @@ mkdir -p "$scratch/dtbs"
 : >"$scratch/dtbs/msm8998-lenovo-test.dtb"
 : >"$scratch/dtbs/sc7180-acer-test.dtb"
 : >"$scratch/dtbs/sc7180-trogdor-test.dtb"
+: >"$scratch/dtbs/sc7280-samsung-test.dtb"
+: >"$scratch/dtbs/sc7280-herobrine-test.dtb"
 cat >"$scratch/uki.conf" <<'CONF'
 [UKI]
 SecureBootPrivateKey=/secure/db.key
@@ -111,11 +113,12 @@ grep -Fq "$scratch/dtbs/kalambo-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the Kalambo device trees"
 grep -Fq "$scratch/dtbs/sc8180x-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the 8cx device trees"
-for family in sdm850 msm8998-lenovo sc7180-acer; do
+for family in sdm850 msm8998-lenovo sc7180-acer sc7280-samsung; do
   grep -Fq "$scratch/dtbs/$family-test.dtb" "$scratch/uki.conf" ||
     fail "Snapdragon DTB setup lists the $family device trees"
 done
-! grep -Fq "$scratch/dtbs/sc7180-trogdor-test.dtb" "$scratch/uki.conf" ||
+! grep -Fq "$scratch/dtbs/sc7180-trogdor-test.dtb" "$scratch/uki.conf" &&
+  ! grep -Fq "$scratch/dtbs/sc7280-herobrine-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup leaves out the 7c Chromebooks' trees"
 if grep -Fq 'x1e80100-test-el2.dtb' "$scratch/uki.conf"; then
   fail "Snapdragon DTB setup excludes EL2-only device trees"
