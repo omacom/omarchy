@@ -28,6 +28,15 @@ assertEqual(audio.outputVolumeName(0, false), 'Silenced', 'audio labels silent o
 assertEqual(audio.outputVolumeName(0.9, false), 'Party mode', 'audio labels loud output')
 assertEqual(audio.outputVolumeName(0.5, true), 'Muted', 'audio labels muted output')
 
+for (const v of [0, 0.004])
+  assertEqual(audio.speakerVolumeGlyph(v), '\ueee8', 'audio uses muted glyph below 1%: ' + v)
+for (const v of [0.005, 0.01, 0.33, 0.334])
+  assertEqual(audio.speakerVolumeGlyph(v), '\uf027', 'audio uses 1-wave speaker for 1-33%: ' + v)
+for (const v of [0.335, 22282 / 65536, 0.5, 0.66, 0.664])
+  assertEqual(audio.speakerVolumeGlyph(v), '\uefcf', 'audio uses 2-wave speaker for 34-66%: ' + v)
+for (const v of [0.665, 43909 / 65536, 0.67, 1])
+  assertEqual(audio.speakerVolumeGlyph(v), '\uf028', 'audio uses 3-wave speaker for 67-100%: ' + v)
+
 assertDeepEqual(audio.parseSinkAvailability('alsa_output\t1\nhdmi_output\t0\n'), { alsa_output: true, hdmi_output: false }, 'audio parses sink availability')
 assertEqual(audio.friendlyDeviceLabel('Built-in Audio Speakers Output'), 'Speakers', 'audio cleans device labels')
 assertEqual(
