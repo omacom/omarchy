@@ -16,8 +16,8 @@ fi
 export PATH=/usr/bin:/bin
 umask 022
 method=${1:-}
-if (( $# > 1 )) || [[ -n $method && $method != "--fingerprint" && $method != "--fido2" ]]; then
-  echo "Usage: omarchy-apply-polkit [--fingerprint|--fido2]" >&2
+if (( $# > 1 )) || [[ -n $method && $method != "--fingerprint" && $method != "--fido2" && $method != "--remove-fingerprint" && $method != "--remove-fido2" ]]; then
+  echo "Usage: omarchy-apply-polkit [--fingerprint|--fido2|--remove-fingerprint|--remove-fido2]" >&2
   exit 1
 fi
 # The root-owned directory is also a stable lock inode; no file in a shared

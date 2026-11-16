@@ -16,7 +16,10 @@ output="$test_tmp/output"
   fail "fingerprint removal has one fixed deletion path"
 sed -e "s|/etc/pam.d/|$test_tmp/etc/pam.d/|g" \
   -e "s|/var/lib/fprint/|$test_tmp/fprint/|g" \
+  -e "s|/usr/lib/systemd/system-sleep/|$test_tmp/system-sleep/|g" \
+  -e "s|/etc/systemd/system/fprintd.service.d|$test_tmp/fprintd.service.d|g" \
   -e "s|/usr/bin/id|$test_tmp/trusted-id|g" "$remove" >"$copy"
+touch "$test_tmp/etc/pam.d/sudo"
 
 cat >"$test_tmp/trusted-id" <<'SH'
 #!/bin/bash
@@ -43,6 +46,9 @@ case $1 in
   -v) printf 'sudo -v\n' >>"$TEST_LOG"; exit "${TEST_SUDO_V_FAIL:-0}" ;;
 esac
 printf 'sudo %s\n' "$*" >>"$TEST_LOG"
+if [[ $1 == env && $2 == "OMARCHY_PATH=$OMARCHY_PATH" && $3 == "$OMARCHY_PATH/bin/omarchy-apply-polkit" && $4 == "--remove-fingerprint" && $# == 4 ]]; then
+  exit 0
+fi
 if [[ $* == "fprintd-delete $TEST_EXPECTED_USER" ]]; then
   (( ${TEST_PRINTS_FAIL:-0} == 0 )) || echo "${TEST_PRINTS_OUTPUT:-delete failed}"
   exit "${TEST_PRINTS_FAIL:-0}"
@@ -99,7 +105,7 @@ run_remove() {
     "TEST_PRINTS_OUTPUT=${prints_output:-}" "TEST_SUDO_CACHED=${sudo_cached:-0}" "TEST_SUDO_V_FAIL=${sudo_v_fail:-0}"
     "TEST_HOOK_FAIL=${hook_fail:-0}" "TEST_RESOLVE_FAIL=${resolve_fail:-0}"
     "TEST_DISABLE_HOOK=${disable_hook-/usr/lib/omarchy/mac/disable-fingerprint}"
-    "USER=spoofed" "SUDO_USER=spoofed"
+    "USER=spoofed" "SUDO_USER=spoofed" "OMARCHY_PATH=$ROOT"
     "PATH=$test_tmp/bin:/usr/bin:/bin"
   )
   if (( EUID == 0 )); then

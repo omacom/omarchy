@@ -40,6 +40,12 @@ with tempfile.TemporaryDirectory() as directory:
     assert rendered.count('pam_fprintd.so') == 1
     assert policy['render'](rendered, method) == rendered
   assert rendered.count('pam_u2f.so') == 1
+  removed = policy['render'](rendered, 'remove-fingerprint')
+  assert 'pam_fprintd.so' not in removed and 'omarchy-hw-laptop-closed' not in removed
+  assert 'default=2]' not in removed and 'pam_u2f.so' in removed
+  removed = policy['render'](removed, 'remove-fido2')
+  assert 'pam_u2f.so' not in removed and 'default=1]' not in removed
+  assert removed == 'account requisite pam_omarchy_lock.so\n' + body
   before = target.read_bytes()
   try:
     policy['publish'](target, vendor, 'unknown')

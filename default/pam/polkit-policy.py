@@ -51,6 +51,10 @@ def render(body, method=None):
   elif method == "fido2":
     if not any(module(line) == "pam_u2f.so" for line in lines):
       lines.insert(0, "auth sufficient pam_u2f.so cue authfile=/etc/fido2/fido2\n")
+  elif method == "remove-fingerprint":
+    lines = [line for line in lines if module(line) != "pam_fprintd.so" and not clamshell(line)]
+  elif method == "remove-fido2":
+    lines = [line for line in lines if module(line) != "pam_u2f.so"]
   elif method is not None:
     raise ValueError("unknown authentication method")
 
