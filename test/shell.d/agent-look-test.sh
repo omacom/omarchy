@@ -100,3 +100,15 @@ if output=$(look_page "http://localhost:1/game.html" --keys "Space"); then
 fi
 [[ $output == *"--keys only works on a local file"* ]] || fail "look page says why --keys needs a file" "$output"
 pass "look page refuses --keys for a URL"
+
+# When the browser fails, an image left at --out by an earlier look must not
+# be reported as this one.
+mkdir -p "$test_tmp/broken"
+printf '#!/bin/bash\nexit 7\n' >"$test_tmp/broken/google-chrome-stable"
+chmod +x "$test_tmp/broken/google-chrome-stable"
+[[ -s $test_tmp/page.png ]] || fail "the earlier look left a screenshot to go stale"
+if output=$(PATH="$test_tmp/broken:$PATH" look_page "$test_tmp/keys.html" --out "$test_tmp/page.png"); then
+  fail "look page fails when the browser does" "$output"
+fi
+[[ $output != *"screenshot:"* && ! -e $test_tmp/page.png ]] || fail "look page doesn't report an earlier screenshot" "$output"
+pass "look page never reports an earlier screenshot as a new one"

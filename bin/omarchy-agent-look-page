@@ -31,6 +31,8 @@ while (( $# )); do
   esac
 done
 [[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
+# An image left from an earlier look must never pass for this one.
+rm -f "$out"
 
 if [[ -n $keys && ! -f $target ]]; then
   echo "--keys only works on a local file, where the presses can be added to a copy of the page: pass the page's .html file instead of $target." >&2
