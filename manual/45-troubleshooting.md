@@ -16,6 +16,33 @@ On some ASUS ROG and TUF laptops, `Fn + Super` is an easy-to-miss chord that tog
 
 Press `Fn + Super` once before you dig into `~/.config/hypr/`, and if that doesn't bring Super back, press it again so you don't leave the lock on. This is not Fn-lock, which only changes what the F-key row does.
 
+### The bar and launcher stopped responding after unlocking
+
+If the pointer moves and `Super + Return` still opens a terminal, but bar clicks and `Super + Space` do nothing, the Omarchy shell may have stopped responding while Hyprland is still running. This can happen after a suspend and successful unlock; it does not necessarily mean your keyboard or mouse failed.
+
+From the terminal, check the shell and save the current boot's user logs before restarting it:
+
+```bash
+omarchy-shell shell ping
+journalctl --user -b --no-pager > ~/omarchy-shell-journal.txt
+omarchy restart shell
+omarchy-shell shell ping
+```
+
+A healthy shell answers `ok`. Restarting the shell restores its bar and launcher without logging out of your applications. If the restart refuses because the session is locked, do not bypass that refusal: the shell also owns the lock screen.
+
+If the shell remains hung and the restart cannot finish, collect the process list for support:
+
+```bash
+ps -C quickshell -o pid,stat,wchan:30,pcpu,args
+omarchy-hyprland-session-locked
+echo $?
+```
+
+The last command prints `0` if the compositor is locked, `1` if it is unlocked, or `2` if the state could not be determined. Only after confirming `1`, an advanced recovery is to terminate the specific hung Quickshell PID whose command points at the active Omarchy shell configuration (`kill -KILL PID`), then run `omarchy restart shell` and check `omarchy-shell shell ping` again. Do not kill every Quickshell process or terminate a locker when the result is `0` or `2`.
+
+Forcefully stopping the shell discards its transient UI state and notifications. It is a recovery measure, not a fix for the cause of a hang. If the problem returns, share the saved journal through Omarchy support after reviewing it for personal information, together with your GPU and driver version, connected monitors, custom shell plugins, and whether password entry succeeded before the desktop became unresponsive.
+
 ### My Wi-Fi, Bluetooth, audio, or trackpad just stopped working
 
 Before you reboot, try restarting the offending subsystem on its own. _Update > Hardware_ in the Omarchy menu has Wi-Fi, Bluetooth, Audio, and Trackpad, and reloading one of those clears up the majority of "it worked five minutes ago" situations — a Bluetooth headset that won't reconnect, a trackpad that went dead after a suspend, sound that vanished when you unplugged a monitor.
