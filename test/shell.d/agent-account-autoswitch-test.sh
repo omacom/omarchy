@@ -228,3 +228,23 @@ mv "$test_tmp/record.json" "$usage/claude.json"
 autoswitch >/dev/null
 [[ $(jq -r .held "$accounts/claude.json") == "main" ]] || fail "unknown usage keeps the hold"
 pass "unknown usage keeps the hold"
+
+# A stale reading may predate the choice, so only a fresh one releases the hold.
+registry work auto
+omarchy-agent-account-state use claude main >/dev/null
+record 0.20 "$later" 0.12 "$soon"
+jq '.accounts[0].stale = true' "$usage/claude.json" >"$test_tmp/record.json"
+mv "$test_tmp/record.json" "$usage/claude.json"
+autoswitch >/dev/null
+[[ $(jq -r .held "$accounts/claude.json") == "main" ]] || fail "a stale reading keeps the hold"
+pass "only a fresh reading releases the hold"
+
+# Renaming the held account keeps it held.
+registry work auto
+omarchy-agent-account-state use claude work >/dev/null
+omarchy-agent-account-state rename claude work Office >/dev/null
+record 0.12 "$soon" 0.99 "$later"
+jq '.accounts[1].id = "office"' "$usage/claude.json" >"$test_tmp/record.json"
+mv "$test_tmp/record.json" "$usage/claude.json"
+[[ -z $(autoswitch) && $(active) == "office" ]] || fail "renaming the held account keeps it held" "$(active)"
+pass "renaming the held account keeps it held"

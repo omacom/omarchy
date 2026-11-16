@@ -516,6 +516,8 @@ def rename(provider: str, target: str, label: str) -> dict[str, Any]:
       account["home"] = str(account_home(provider, account))
     if registry["active"] == account["id"]:
       registry["active"] = new_id
+    if registry["held"] == account["id"]:
+      registry["held"] = new_id
     registry["alert"] = ""
     account["id"] = new_id
     account["label"] = label
@@ -692,14 +694,14 @@ def duration(delta: dt.timedelta) -> str:
 # however fresh its numbers are.
 #
 # An account chosen by hand is held there however full it is, and nothing is
-# offered or announced about it, until a check sees it under the threshold
-# again; from then on it switches like any other.
+# offered or announced about it, until a fresh check sees it under the
+# threshold again; from then on it switches like any other.
 def decide(registry: dict[str, Any], usage: dict[str, Any], now: dt.datetime, stale: frozenset[str] = frozenset()) -> dict[str, Any] | None:
   threshold = float(registry["threshold"])
   current = active(registry)
   current_peak = peak(usage.get(current["id"]), now)
   if current_peak is None or current_peak < threshold:
-    release = current_peak is not None and bool(registry.get("held"))
+    release = current_peak is not None and current["id"] not in stale and bool(registry.get("held"))
     return {"action": "clear", "release": release} if registry.get("alert") or release else None
   if registry.get("held") == current["id"]:
     return None
@@ -784,6 +786,7 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
   name = PROVIDERS[provider]["name"]
   with Locked(provider) as registry:
     if len(registry["accounts"]) < 2:
+      registry["held"] = ""
       return False
     usage, stale = usage_by_account(provider)
     decision = decide(registry, usage, now, stale)
