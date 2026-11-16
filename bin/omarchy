@@ -1157,7 +1157,11 @@ dispatch_or_help() {
   if [[ ${args[0]} == "debug" ]] && binary_path=$(type -P omarchy-debug); then
     if remaining_has_help_flag "${args[@]:1}"; then
       register_command "$binary_path"
-      show_command_help omarchy-debug
+      if remaining_has_json_flag "${args[@]:1}"; then
+        show_command_json omarchy-debug
+      else
+        show_command_help omarchy-debug
+      fi
       return 0
     fi
 
