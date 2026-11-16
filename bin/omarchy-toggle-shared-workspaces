@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# omarchy:summary=Toggle one set of workspaces shared by every monitor, as in xmonad, instead of workspaces per monitor
+# omarchy:args=[toggle|on|off]
+# omarchy:examples=omarchy toggle shared-workspaces | omarchy toggle shared-workspaces on | omarchy toggle shared-workspaces off
+
+# default/hypr/monitor-workspaces.lua and the bar read the flag under
+# XDG_STATE_HOME, beside the monitors' workspace blocks, so it is written there
+# rather than through omarchy-toggle, which always uses ~/.local/state.
+flag="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/shared-workspaces"
+
+case ${1:-toggle} in
+toggle)
+  if [[ -f $flag ]]; then
+    shared=off
+  else
+    shared=on
+  fi
+  ;;
+on | off) shared=$1 ;;
+*)
+  echo "Usage: omarchy-toggle-shared-workspaces [toggle|on|off]" >&2
+  exit 1
+  ;;
+esac
+
+if [[ $shared == "on" ]]; then
+  mkdir -p "${flag%/*}"
+  touch "$flag"
+else
+  rm -f "$flag"
+fi
+
+# The reload has default/hypr/monitor-workspaces.lua renumber the workspaces
+# for the new mode, and the bar reads the flag again.
+omarchy-restart-hyprctl
+
+if [[ -f $flag ]]; then
+  omarchy-notification-send -g 󰍺 "$(omarchy-i18n workspaces.shared)"
+else
+  omarchy-notification-send -g 󰍺 "$(omarchy-i18n workspaces.perMonitor)"
+fi

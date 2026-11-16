@@ -57,9 +57,22 @@ BarWidget {
     return root.monitor && root.monitor.activeWorkspace ? root.monitor.activeWorkspace.id : -1
   }
 
+  // With `omarchy toggle shared-workspaces` every monitor shares workspaces
+  // 1-10, as in xmonad, so every bar shows the first block.
+  property bool shared: false
+
+  FileView {
+    id: sharedFlag
+    path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/toggles/shared-workspaces"
+    printErrors: false
+    onLoaded: root.shared = true
+    onLoadFailed: root.shared = false
+  }
+
   // Until Hyprland has written the file, the workspace a monitor shows is in
   // its own block.
   readonly property int block: {
+    if (root.shared) return 0
     var block = root.blocks[root.monitorName]
     if (block !== undefined) return block
     var active = root.activeWorkspaceId()
@@ -197,7 +210,11 @@ BarWidget {
     target: Hyprland
     function onRawEvent(event) {
       var name = event ? String(event.name) : ""
-      if (name === "configreloaded") root.refresh()
+      // The toggle reloads Hyprland after creating or removing the flag.
+      if (name === "configreloaded") {
+        sharedFlag.reload()
+        root.refresh()
+      }
       // Quickshell credits every workspace switch to the focused monitor, as
       // the event doesn't say which one switched, and misses the workspace a
       // monitor falls back to when its own is moved away. Moving workspaces
