@@ -1718,6 +1718,13 @@ Panel {
           width: ListView.view.width
           height: delegateColumn.implicitHeight
 
+          // Opening the passphrase prompt grows the row, which can push the
+          // field below the list's clip on the bottom rows; scroll it in.
+          function revealPrompt() {
+            if (row.isPasswordOpen) networkList.positionViewAtIndex(index, ListView.Contain)
+          }
+          onHeightChanged: if (row.isPasswordOpen) Qt.callLater(revealPrompt)
+
           Column {
             id: delegateColumn
             width: parent.width
