@@ -81,14 +81,9 @@ layer_absent() {
   ! layer_present "$1"
 }
 
-# The image selector stays mapped between opens, parked on the bottom layer, so
-# it keeps its textures and fractional scale. Showing means on the overlay.
+# Fullscreen overlays map on the overlay layer and unmap when closed.
 layer_on_overlay() {
   hyprctl -j layers | jq -e --arg ns "$1" '[.[].levels["3"][]? | select(.namespace == $ns)] | length > 0'
-}
-
-layer_off_overlay() {
-  ! layer_on_overlay "$1"
 }
 
 # A layer can be mapped but parked off the monitor: the bar hides that way so

@@ -19,6 +19,21 @@ function shouldWarnLowBattery(device, onBattery, dischargingState, threshold, al
   }
 }
 
+function parseActiveProfile(text) {
+  // busctl --json=short prints {"type":"s","data":"balanced"}; an empty or
+  // malformed reply (daemon not running) reads as no active profile.
+  try {
+    return String(JSON.parse(text).data || "").trim()
+  } catch (e) {
+    return ""
+  }
+}
+
+function profileAfterRead(current, replyText, signalsAtStart, signalsNow) {
+  // A change signal that arrived during the read is newer than its reply.
+  return signalsAtStart === signalsNow ? parseActiveProfile(replyText) : current
+}
+
 function gateStartupWarning(state, alreadyNotified, checksReady) {
   if (checksReady) {
     return state
@@ -36,6 +51,8 @@ if (typeof module !== "undefined") {
     batteryPercentage: batteryPercentage,
     isDischarging: isDischarging,
     shouldWarnLowBattery: shouldWarnLowBattery,
+    parseActiveProfile: parseActiveProfile,
+    profileAfterRead: profileAfterRead,
     gateStartupWarning: gateStartupWarning
   }
 }

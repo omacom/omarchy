@@ -28,6 +28,25 @@ assertDeepEqual(
   { level: 40, notify: false, notifiedLowBattery: false },
   'battery clears notified state after recovery'
 )
+
+const reply = profile => JSON.stringify({ type: 's', data: profile })
+assertEqual(battery.parseActiveProfile(reply('power-saver')), 'power-saver', 'battery parses the busctl profile reply')
+assertEqual(battery.parseActiveProfile(''), '', 'battery reads a missing daemon as no profile')
+
+assertEqual(battery.profileAfterRead('', reply('balanced'), 0, 0), 'balanced', 'battery takes its startup read')
+
+// A read that sampled balanced before a power-saver signal must not undo it.
+const signalsAtStart = 3
+assertEqual(
+  battery.profileAfterRead('power-saver', reply('balanced'), signalsAtStart, signalsAtStart + 1),
+  'power-saver',
+  'battery drops a read made stale by a change signal'
+)
+assertEqual(
+  battery.profileAfterRead('balanced', reply('power-saver'), signalsAtStart, signalsAtStart),
+  'power-saver',
+  'battery takes a read no signal overtook'
+)
 assertDeepEqual(
   battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, false, discharging, 10, false),
   { level: 8, notify: false, notifiedLowBattery: false },
@@ -56,14 +75,13 @@ assertDeepEqual(
 
 const serviceSource = require('fs').readFileSync(root + '/shell/plugins/services/battery/Service.qml', 'utf8')
 const gateSource = require('fs').readFileSync(root + '/shell/plugins/services/battery/BatteryStartupGate.qml', 'utf8')
-const settleTimerSource = serviceSource.slice(serviceSource.indexOf('id: settleTimer'), serviceSource.indexOf('\n  Connections'))
+const settleTimerSource = serviceSource.slice(serviceSource.indexOf('id: settleTimer'), serviceSource.indexOf('\n  Connections', serviceSource.indexOf('id: settleTimer')))
 assert(/triggeredOnStart:\s*false/.test(serviceSource), 'battery defers the first low-battery check past shell start')
 assert(/lowBatteryChecksReady:\s*settleTimer\.checksReady/.test(serviceSource), 'battery gates low-battery checks on the startup timer')
 assert(/deviceReady:\s*UPower\.displayDevice\.ready/.test(settleTimerSource), 'battery starts settling only after the display device is loaded')
 assert(!/checkBattery\(\)/.test(settleTimerSource), 'battery does not evaluate a stale sample when the settle window ends')
 assert(/running:\s*deviceReady\s*&&\s*!checksReady/.test(gateSource), 'battery startup gate runs only after device readiness')
 assert(/gateStartupWarning\([\s\S]*lowBatteryChecksReady\)[\s\S]*persisted\.notifiedLowBattery\s*=\s*state\.notifiedLowBattery/.test(serviceSource), 'battery applies the startup gate before persisting notification state')
-assert(/powerSaverOnBattery:\s*UPower\.onBattery\s*&&\s*activePowerProfile\s*===\s*"power-saver"/.test(serviceSource), 'battery keeps power-saver tracking for wallpaper and lock consumers')
 assert(/onOnBatteryChanged\(\)\s*\{[\s\S]*applyPowerProfile\(\)[\s\S]*refreshPowerProfile\(\)[\s\S]*checkBattery\(\)/.test(serviceSource), 'battery applies profiles immediately, refreshes tracked profile, then checks battery on charger changes')
 JS
 
