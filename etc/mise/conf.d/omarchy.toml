@@ -3,6 +3,10 @@
 [settings]
 upgrade.auto_prune = false
 
+# The packaged .NET runtime exports a root-owned DOTNET_ROOT. Keep mise SDKs
+# in their version directories, including when that system root is inherited.
+dotnet.isolated = true
+
 # Keep Cursor optional while applying these options whenever mise installs it.
 # Expose only its launcher so the bundled Node cannot shadow the user's Node.
 [tool_alias]
