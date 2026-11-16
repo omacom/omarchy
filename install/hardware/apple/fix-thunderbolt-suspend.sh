@@ -24,7 +24,7 @@
 if omarchy-hw-macbookpro14-1; then
   echo "Detected MacBookPro14,1; fixing Thunderbolt suspend"
 
-  omarchy-pkg-add linux-headers tb-ar-shim-dkms
+  omarchy-pkg-add tb-ar-shim-dkms
 
   # The module autoloads by PCI modalias at boot, but on a live system that
   # coldplug event has already passed — load it now so the first suspend
