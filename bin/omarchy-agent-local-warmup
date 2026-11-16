@@ -160,20 +160,16 @@ measure() {
   rows=${size% *}
   cols=${size#* }
   (( rows > 0 && cols > 0 )) || { rows=24; cols=80; }
-  # The field leaves room for the title above and the two lines below, and
+  # The field leaves room for the title above and the line below, and
   # goes when the terminal is too small to hold it.
   width=$(( cols - 6 < 72 ? cols - 6 : 72 ))
-  height=$(( rows - 9 < 11 ? rows - 9 : 11 ))
+  height=$(( rows - 8 < 11 ? rows - 8 : 11 ))
   (( width < 20 || height < 3 )) && height=0
-  top=$(( (rows - height - 7) / 2 ))
+  top=$(( (rows - height - 6) / 2 ))
   (( top < 0 )) && top=0
   left=$(( (cols - width - 2) / 2 ))
   (( left < 0 )) && left=0
   printf '\e[2J'
-}
-
-mmss() {
-  printf '%d:%02d' $(( $1 / 60 )) $(( $1 % 60 ))
 }
 
 center() {
@@ -270,7 +266,7 @@ field() {
 }
 
 draw() {
-  local elapsed_ms=$(( $(now_ms) - started_ms )) quip percent timing spinner i
+  local elapsed_ms=$(( $(now_ms) - started_ms )) quip percent spinner i
   (( elapsed_ms < 0 )) && elapsed_ms=0
 
   # Straight to nine tenths over the time the last load took, then creeping:
@@ -297,20 +293,10 @@ draw() {
 
   if (( flash )); then
     center "$name is ready" "$PEAK$name is ready$RESET"
-    center "" ""
   else
     quip=${QUIPS[(elapsed_ms / 4000 + quip_offset) % ${#QUIPS[@]}]}
     spinner=${SPINNER[(tick / 2) & 3]}
     center "$spinner $quip... $percent%" "$EDGE$spinner$RESET $quip... $BOLD$percent%$RESET"
-    timing="$(mmss $(( elapsed_ms / 1000 )))"
-    if (( expected_ms == 0 )); then
-      timing+=" so far"
-    elif (( elapsed_ms < expected_ms )); then
-      timing+=" of about $(mmss $(( expected_ms / 1000 )))"
-    else
-      timing+=", any moment now"
-    fi
-    center "$timing" "$DIM$timing$RESET"
   fi
   frame+=$'\e[J'
   printf '%s' "$frame"

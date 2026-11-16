@@ -164,8 +164,8 @@ SH
   script -qec "stty rows 30 cols 100; omarchy-agent-local-warmup qwen-fast" "$test_tmp/show" </dev/null >/dev/null ||
     fail "the warm-up's show ends well once the model is up"
   show=$(sed -E $'s/\e\\[[0-9;?]*[A-Za-z]//g' "$test_tmp/show")
-  [[ $show == *"Q W E N 3 . 8   F L A S H   N E X T"* && $show == *"of about 1:16"* && $show == *"Qwen3.8 Flash Next is ready"* ]] ||
-    fail "the show names the model, says how long it takes and when it is ready"
+  [[ $show == *"Q W E N 3 . 8   F L A S H   N E X T"* && $show == *"... 1%"* && $show == *"Qwen3.8 Flash Next is ready"* ]] ||
+    fail "the show names the model, how far along it is and when it is ready"
   grep -q $'\e\\[?1049h' "$test_tmp/show" && grep -q $'\e\\[?25h\e\\[?1049l' "$test_tmp/show" ||
     fail "the show takes the alternate screen and gives the terminal back"
   pass "the warm-up puts on a show in a terminal"
