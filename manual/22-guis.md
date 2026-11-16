@@ -75,6 +75,12 @@ You start Hype via the application launcher (`Super + Space`). Press `?` inside 
 
 You start Signed via the application launcher (`Super + Space`), or open a PDF with it from the file manager.
 
+## Checkmate
+
+[Checkmate](https://github.com/omacom/checkmate) is Omarchy's own 3D chess game. Play a friend on the same computer or the built-in opponent at three levels, on four sculpted sets that each move in their own manner: orbital craft, carved wood and ivory, woodland creatures, and candy. Games have no clock and save after every move.
+
+You start Checkmate via the application launcher (`Super + Space`). Press `?` inside it to see every shortcut.
+
 ## Omacalc
 
 [Omacalc](https://github.com/omacom-io/omacalc) is Omarchy's own dead-simple calculator, which opens in a floating window.
