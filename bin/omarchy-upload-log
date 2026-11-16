@@ -5,8 +5,10 @@
 # omarchy:hidden=true
 
 LOG_TYPE="${1:-install}"
-TEMP_LOG="/tmp/upload-log.txt"
-SYSTEM_INFO="/tmp/system-info.txt"
+work_dir=$(mktemp -d -t omarchy-upload-log.XXXXXX) || exit 1
+trap 'rm -rf -- "$work_dir"' EXIT
+TEMP_LOG="$work_dir/upload-log.txt"
+SYSTEM_INFO="$work_dir/system-info.txt"
 
 # Get system information if fastfetch is available
 if omarchy-cmd-present fastfetch; then
