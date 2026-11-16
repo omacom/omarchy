@@ -542,17 +542,26 @@ assertEqual(bar.autohideHolds(false, false, false, false), false, 'the end of th
 assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, false, true), true), false, 'a fullscreen window still parks the bar under a drag')
 
 // A panel or menu opened from a widget on the bar holds it out, found by the
-// widget ids the layout shows: a menu is a window of the shell, not a live
-// item, so its id is the only handle the bar has on it.
+// widget ids the layout shows. A panel is a live item in a slot on one screen's
+// bar, so it holds that bar and no other: the bar answers for its own screen
+// from its own slots, and the shell's own answer is one open panel away from the
+// whole desktop. A menu has no slot anywhere — it is a window of the shell — so
+// it keeps its old reach over every screen. An empty bar, a closed panel and a
+// key the layout no longer holds all hold nothing.
 const shownSections = { left: ['t.menu'], center: ['t.clock'], tray: ['t.tray'] }
 const shownEntries = { 't.menu': { id: 't.menu' }, 't.clock': { id: 't.clock' }, 't.tray': { id: 't.tray' } }
 const openIds = ids => id => ids.indexOf(id) !== -1
-assertEqual(bar.autohidePanelOpen(shownSections, shownEntries, openIds(['t.clock'])), true, 'a panel open from a widget holds the bar out')
-assertEqual(bar.autohidePanelOpen(shownSections, shownEntries, openIds(['t.menu'])), true, 'a menu open from the first section holds the bar out')
-assertEqual(bar.autohidePanelOpen(shownSections, shownEntries, openIds([])), false, 'nothing open lets the bar go')
-assertEqual(bar.autohidePanelOpen({}, {}, openIds(['t.clock'])), false, 'an empty bar holds nothing open')
-assertEqual(bar.autohidePanelOpen(shownSections, shownEntries, null), false, 'a shell that cannot say what is open holds nothing')
-assertEqual(bar.autohidePanelOpen({ left: ['gone#1'] }, {}, openIds(['t.clock'])), false, 'a key the layout no longer holds is skipped')
+const panelHere = opened => id => (id === 't.clock' ? opened : undefined)
+const noPanelSlot = () => undefined
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, panelHere(true), openIds([])), true, 'a panel open from a widget holds the bar out')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, panelHere(true), openIds(['t.clock'])), true, 'a panel holds the bar on its own screen')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, panelHere(false), openIds(['t.clock'])), false, 'a panel open on another screen leaves this bar alone')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, noPanelSlot, openIds(['t.menu'])), true, 'a menu open from the first section holds the bar out')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, panelHere(false), openIds(['t.menu'])), true, 'a menu holds every screen, with no slot to place it')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, noPanelSlot, openIds([])), false, 'nothing open lets the bar go')
+assertEqual(bar.autohidePanelOpenOn({}, {}, noPanelSlot, openIds(['t.clock'])), false, 'an empty bar holds nothing open')
+assertEqual(bar.autohidePanelOpenOn(shownSections, shownEntries, null, openIds(['t.clock'])), false, 'a bar that cannot say what is open here holds nothing')
+assertEqual(bar.autohidePanelOpenOn({ left: ['gone#1'] }, {}, noPanelSlot, openIds(['t.clock'])), false, 'a key the layout no longer holds is skipped')
 
 // Each screen's state is a flag in a map, so the bar surface and its edge
 // strip, separate windows on one screen, read the same one.

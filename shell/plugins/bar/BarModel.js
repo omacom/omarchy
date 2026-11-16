@@ -699,20 +699,27 @@ function autohideHolds(barHovered, edgeHovered, keepOpen, dragging) {
   return barHovered === true || edgeHovered === true || keepOpen === true || dragging === true
 }
 
-// Whether a panel, popup or menu is open from a widget on the bar:
-// `sections` and `entries` as layoutWidgets gives them, each section's keys and
-// the entry each key holds, and `isOpen` answering whether a widget id is open.
-// A menu is a window of the shell rather than a live item, so it is asked for
-// by its id the same way, which is what lets the bar know it must stay out
-// while something the user opened is still using it.
-function autohidePanelOpen(sections, entries, isOpen) {
-  if (typeof isOpen !== "function") return false
+// Whether a panel, popup or menu open from a widget on one screen's bar still
+// needs that bar out, with the reach each kind really has. `isOpenHere(id)` is
+// that bar's own answer for its screen, read from the slots it holds: `true` or
+// `false` while a panel copy of the id lives on it, `undefined` when none does.
+// A panel is that copy — a live item in a slot on one screen — so it holds that
+// screen alone. A menu is a window of the shell, placed by the shell, with no
+// slot on the bar to say which screen it opened on, so it falls back to
+// `isOpenAnywhere(id)` and holds every screen: never a screen the bar cannot
+// name.
+function autohidePanelOpenOn(sections, entries, isOpenHere, isOpenAnywhere) {
+  if (typeof isOpenHere !== "function") return false
   var shown = sections || {}
   for (var name in shown) {
     var keys = shown[name] || []
     for (var i = 0; i < keys.length; i++) {
       var id = entryId(entries ? entries[keys[i]] : null)
-      if (id && isOpen(id) === true) return true
+      if (!id) continue
+      var here = isOpenHere(id)
+      if (here === true) return true
+      if (here === false) continue
+      if (typeof isOpenAnywhere === "function" && isOpenAnywhere(id) === true) return true
     }
   }
   return false
@@ -759,7 +766,7 @@ if (typeof module !== "undefined") {
     fullscreenOn: fullscreenOn,
     autohideEngaged: autohideEngaged,
     autohideHolds: autohideHolds,
-    autohidePanelOpen: autohidePanelOpen,
+    autohidePanelOpenOn: autohidePanelOpenOn,
     autohideCallsOut: autohideCallsOut,
     autohideShows: autohideShows,
     screenFlag: screenFlag,

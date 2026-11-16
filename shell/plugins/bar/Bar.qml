@@ -58,16 +58,54 @@ Item {
     root.autohideEdgeHovered = ({})
   }
 
-  // A panel, popup or menu open from a bar widget still needs the bar on
-  // screen. A panel is a live item the bar tracks as activePopout; a menu is a
-  // window of the shell, so it is asked for by its layout id. Read as one
-  // binding, so closing it while the pointer is elsewhere is what lets the bar
-  // go, instead of leaving it out for good.
-  readonly property bool autohideKeepOpen: {
-    if (root.activePopout !== null) return true
-    if (!root.shell || typeof root.shell.isPluginOpen !== "function") return false
-    return BarModel.autohidePanelOpen(root.layoutWidgets.sections, root.layoutWidgets.entries,
-      function(id) { return root.shell.isPluginOpen(id) })
+  // What still needs this screen's bar out, asked per screen and read as a
+  // binding by each bar surface, so a panel open on one monitor no longer holds
+  // the whole desktop. Two things hold it: the panel the bar tracks as
+  // activePopout, on the screen of the window that carries it, and — through
+  // autohidePanelOpenOn — a panel copy in one of this bar's own slots or a menu,
+  // which is a window of the shell with no slot to place it on one screen and
+  // so holds every screen. Closing the panel is what lets the bar go, instead
+  // of leaving it out for good.
+  function autohideKeepOpen(screen) {
+    if (autohidePanelHoldsScreen(screen)) return true
+    return BarModel.autohidePanelOpenOn(root.layoutWidgets.sections, root.layoutWidgets.entries,
+      function(id) { return autohidePanelOpenOnScreen(id, screen) },
+      function(id) {
+        return root.shell && typeof root.shell.isPluginOpen === "function"
+          ? root.shell.isPluginOpen(id) === true : false
+      })
+  }
+
+  // Whether the open popout holds this screen's bar: it sits on the screen of
+  // the window that carries it, read the way slotWindow reads a slot. A bar
+  // widget hands over its slot's window; a panel window names its own screen,
+  // taken from the bar surface it anchors to (KeyboardPanel.qml:130,139). A
+  // popout whose screen cannot be named holds every bar, as a menu does: better
+  // a bar out than one parked under a popup the user has open.
+  function autohidePanelHoldsScreen(screen) {
+    var owner = root.activePopout
+    if (owner === null || owner === undefined) return false
+    var window = targetWindow(owner)
+    var ownerScreen = window && window.screen ? window.screen : owner.screen
+    if (!ownerScreen || !ownerScreen.name) return true
+    return sameScreen(ownerScreen, screen)
+  }
+
+  // Whether this bar holds `id` open, answered from its own slots on `screen`:
+  // a panel copy of a widget is a live item in a slot, `opened` or not. Undefined
+  // when no panel copy of the id lives on the bar at all, which is what sends a
+  // menu to the shell's answer over every screen.
+  function autohidePanelOpenOnScreen(id, screen) {
+    var found = false
+    for (var i = 0; i < moduleSlots.length; i++) {
+      var slot = moduleSlots[i]
+      var item = slot ? slot.activeItem : null
+      if (!item || slot.moduleName !== id || item.opened === undefined) continue
+      found = true
+      var window = slotWindow(slot)
+      if (sameScreen(window ? window.screen : null, screen) && item.opened === true) return true
+    }
+    return found ? false : undefined
   }
 
   function setAutohideRevealed(screen, value) {
@@ -1925,12 +1963,18 @@ Item {
       }
     }
 
+    // What holds this screen's bar out: a panel open from a widget on this
+    // screen, or a menu no slot can place. Read as a binding so closing the
+    // panel lets this bar go; the grace timer's restart below is what turns
+    // that into a park instead of leaving the bar out for good.
+    readonly property bool keepOpen: root.autohideKeepOpen(screen)
+
     // Whether autohide has this screen's bar out. Hide Bar still wins through
     // autohideEngaged, a real fullscreen window parks it, a drag in flight
     // holds it, and a panel the user opened holds it: one rule, read here by
     // the tuck and by the grace timer.
     readonly property bool revealed: BarModel.autohideShows(root.autohideEngaged,
-      BarModel.screenFlag(root.autohideRevealed, screen ? screen.name : "") || root.autohideKeepOpen || barWindow.dragActive,
+      BarModel.screenFlag(root.autohideRevealed, screen ? screen.name : "") || barWindow.keepOpen || barWindow.dragActive,
       barWindow.underFullscreen)
 
     // A fullscreen window takes the bar away with the flag: the pointer cannot
@@ -1942,6 +1986,12 @@ Item {
     // hands the bar back to the grace timer: the pointer may have left it, and
     // nothing else would ever count the grace out again.
     onDragActiveChanged: if (!dragActive && barWindow.revealed) autohideGrace.restart()
+
+    // A panel closing while the pointer is elsewhere is the one that would
+    // otherwise leave this bar out for good. Read on this window, not through
+    // the root: the hold is this screen's, and another screen's panel closing
+    // has nothing to restart here.
+    onKeepOpenChanged: if (barWindow.revealed) autohideGrace.restart()
 
     // Hides the bar a moment after the pointer leaves both the bar and its edge
     // strip, unless a panel or a drag still needs it. Single-shot and restarted
@@ -1955,7 +2005,7 @@ Item {
       interval: 150
       onTriggered: {
         var holds = BarModel.autohideHolds(autohideBarHover.hovered,
-          BarModel.screenFlag(root.autohideEdgeHovered, screen ? screen.name : ""), root.autohideKeepOpen,
+          BarModel.screenFlag(root.autohideEdgeHovered, screen ? screen.name : ""), barWindow.keepOpen,
           barWindow.dragActive)
         if (BarModel.autohideShows(root.autohideEngaged, holds, barWindow.underFullscreen)) return
         root.setAutohideRevealed(barWindow.screen, false)
@@ -1965,9 +2015,6 @@ Item {
     Connections {
       target: root
       function onAutohideEdgeHoveredChanged() { if (barWindow.revealed) autohideGrace.restart() }
-      // A panel closing while the pointer is elsewhere is the one that would
-      // otherwise leave the bar out for good.
-      function onAutohideKeepOpenChanged() { if (barWindow.revealed) autohideGrace.restart() }
     }
     color: "transparent"
     surfaceFormat.opaque: false
