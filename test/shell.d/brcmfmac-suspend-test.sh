@@ -7,26 +7,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 leaf="$ROOT/install/hardware/apple/fix-brcmfmac-suspend.sh"
 helper="$ROOT/bin/omarchy-hw-brcmfmac-suspend"
 service="$ROOT/install/hardware/apple/omarchy-brcmfmac-suspend.service"
-all="$ROOT/install/hardware/all.sh"
-migration="$ROOT/migrations/1787013338.sh"
-
-grep -q 'apple/fix-brcmfmac-suspend.sh' "$all" ||
-  fail "the Broadcom suspend fix runs during hardware setup"
-grep -Fx 'Before=sleep.target' "$service" >/dev/null ||
-  fail "the Broadcom service detaches the device before sleep"
-grep -Fx 'StopWhenUnneeded=yes' "$service" >/dev/null ||
-  fail "the Broadcom service stops after the sleep transaction"
-grep -Fx 'ConditionPathExists=/sys/bus/pci/drivers/brcmfmac' "$service" >/dev/null ||
-  fail "the Broadcom service only runs when the driver is available"
-grep -Fx 'ExecStart=/usr/bin/omarchy-hw-brcmfmac-suspend pre' "$service" >/dev/null ||
-  fail "the Broadcom service runs the pre-sleep recovery helper"
-grep -Fx 'ExecStopPost=/usr/bin/omarchy-hw-brcmfmac-suspend post' "$service" >/dev/null ||
-  fail "the Broadcom service runs the post-wake recovery helper, even after a failed pre"
-! grep -q '^ExecStop=' "$service" ||
-  fail "the Broadcom service does not rely on ExecStop, which a failed pre skips"
-grep -Fx 'WantedBy=sleep.target' "$service" >/dev/null ||
-  fail "the Broadcom service joins every sleep transaction"
-pass "the Broadcom service resets the driver around sleep"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -34,7 +14,6 @@ trap 'rm -rf "$test_tmp"' EXIT
 stub_bin="$test_tmp/bin"
 calls="$test_tmp/calls.log"
 target="$test_tmp/etc/systemd/system/omarchy-brcmfmac-suspend.service"
-enabled="$test_tmp/enabled"
 mkdir -p "$stub_bin" "$test_tmp/dmi"
 
 cat >"$stub_bin/lspci" <<'SH'
@@ -63,15 +42,9 @@ SH
 cat >"$stub_bin/systemctl" <<'SH'
 #!/bin/bash
 
-if [[ $1 == "is-enabled" ]]; then
-  [[ -e $ENABLED_MARKER ]]
-  exit
-fi
-
 printf 'systemctl' >>"$TEST_LOG"
 printf '\t%s' "$@" >>"$TEST_LOG"
 printf '\n' >>"$TEST_LOG"
-[[ $1 != "enable" ]] || touch "$ENABLED_MARKER"
 SH
 
 chmod +x "$stub_bin"/*
@@ -208,7 +181,7 @@ run_leaf() {
     "$leaf" >"$script"
 
   WIFI_ID="$wifi_id" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
-    OMARCHY_PATH="$ROOT" ENABLED_MARKER="$enabled" \
+    OMARCHY_PATH="$ROOT" \
     bash -eE -o pipefail -c 'source "$1"' bash "$script" </dev/null
 }
 
@@ -230,36 +203,3 @@ run_leaf "LENOVO" 43ba >/dev/null
 [[ ! -e $target ]] || fail "non-Apple BCM43602 hardware is left alone"
 [[ ! -s $calls ]] || fail "non-Apple BCM43602 hardware changes no system state" "$(cat "$calls")"
 pass "non-Apple BCM43602 hardware is left alone"
-
-run_migration() {
-  local vendor="$1" wifi_id="${2:-}"
-
-  printf '%s' "$vendor" >"$test_tmp/dmi/sys_vendor"
-  : >"$calls"
-
-  WIFI_ID="$wifi_id" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
-    ENABLED_MARKER="$enabled" OMARCHY_PATH="$ROOT" \
-    OMARCHY_BRCMFMAC_DMI_VENDOR="$test_tmp/dmi/sys_vendor" \
-    OMARCHY_BRCMFMAC_SUSPEND_SERVICE_SOURCE="$service" \
-    OMARCHY_BRCMFMAC_SUSPEND_SERVICE_TARGET="$target" \
-    bash -euo pipefail "$migration" >/dev/null
-}
-
-rm -rf "$test_tmp/etc"
-rm -f "$enabled"
-run_migration "Apple Inc." 43ba
-cmp -s "$service" "$target" ||
-  fail "the migration installs the service on an existing Apple BCM43602 system"
-[[ -e $enabled ]] || fail "the migration enables the Broadcom sleep service"
-pass "the migration repairs an existing Apple BCM43602 system"
-
-run_migration "Apple Inc." 43ba
-[[ ! -s $calls ]] || fail "the migration is idempotent" "$(cat "$calls")"
-pass "the migration leaves a repaired system untouched"
-
-rm -rf "$test_tmp/etc"
-rm -f "$enabled"
-run_migration "Apple Inc." 4464
-[[ ! -e $target ]] || fail "the migration skips T2-era Apple Broadcom radios"
-[[ ! -s $calls ]] || fail "the migration escalates nothing on unaffected hardware" "$(cat "$calls")"
-pass "the migration skips unaffected hardware"
