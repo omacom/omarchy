@@ -254,17 +254,26 @@ done
 # no flag. Once the external display is unplugged, the recovery's rule update
 # has to say disabled = false, or the panel stays off behind Hyprland's
 # FALLBACK (#16307). While an external display or a headless output is still
-# there, the choice to run on it alone stands, since the docked poll reaches
-# this every two seconds.
+# there, the choice to run on it alone stands, and the docked poll reaches this
+# every two seconds: it applies nothing, as a rule by connector name would turn
+# back on a panel that a desc: rule turned off (#19176).
 OMARCHY_TEST_OTHER_OUTPUT=FALLBACK \
   expect_sync "clamshell recovery turns a panel-disabled display back on once nothing external is connected" off - \
   'hl.monitor({ output = "eDP-1", disabled = false, mode = "preferred", position = "0x0", scale = 1.25 })' <<<"$internal_config"
 OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=DP-1 \
   expect_sync "clamshell recovery leaves a panel-disabled display off while an external display is connected" off - \
-  'scale = 1.25' '!disabled = false' <<<"$internal_config"
+  '!hl.monitor(' <<<"$internal_config"
 OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=HEADLESS-1 \
   expect_sync "clamshell recovery leaves a panel-disabled display off while a headless output is enabled" off - \
-  'scale = 1.25' '!disabled = false' <<<"$internal_config"
+  '!hl.monitor(' <<<"$internal_config"
+
+# The lid opening beside an external display is this script's own flag to
+# undo, and the panel still reports as off right after the reload.
+mkdir -p "$state_dir"
+printf 'hl.monitor({ output = "eDP-1", disabled = true })\n' >"$state_dir/internal-monitor-clamshell.lua"
+OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=DP-1 \
+  expect_sync "clamshell recovery brings back a panel it turned off itself beside an external display" off - \
+  'scale = 1.25' <<<"$internal_config"
 
 # The display panel's choices for the panel win over monitors.lua, as
 # default/hypr/monitor-settings.lua applies them over it, so a scale chosen
