@@ -65,7 +65,7 @@ BarWidget {
 }
 ```
 
-- Keep state in QML properties and drive time with a `Timer` that runs only while something is counting; an idle widget starts no timers or processes.
+- Keep state in QML properties and drive time with a `Timer` that runs only while something is counting; an idle widget starts no timers or processes. Don't name a property after one every item already has (`state`, `visible`, `enabled`, `width`, `opacity`): `property int state` collides with the item's own `state`, and assigning to it fails.
 - Run commands with `root.bar.run("omarchy-notification-send 'Counter' 'Reached 100'")`.
 - Icons are Nerd Font glyphs written straight into the label text, as the built-in widgets do (`text: "󰐊"`). Find one by name in Nerd Fonts' table rather than by drawing the font, preferring the `md-` (Material Design) set the bar uses, then look at the widget to check it:
 
