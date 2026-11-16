@@ -103,6 +103,10 @@ for skill in "$OMARCHY_PATH"/default/agents/skills/*/; do
   fi
 done
 
+# Personal agent rules live in ~/.agents/AGENTS.md beside the skills, linked
+# into each harness that reads its own global instructions file.
+"$OMARCHY_PATH/bin/omarchy-agent-instructions" >/dev/null || true
+
 # Follow user-dirs.dirs rather than assuming the default names. Creating
 # ~/Pictures beside a relocated picture directory leaves an empty duplicate
 # behind and bookmarks the wrong one. xdg-user-dir echoes $HOME for a directory
@@ -165,14 +169,18 @@ bookmark_dir "$videos_dir" Videos
 source "$OMARCHY_INSTALL/user/all.sh"
 
 omarchy-refresh-applications
-env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser chromium.desktop
+env -u BROWSER XDG_CURRENT_DESKTOP= xdg-settings set default-web-browser google-chrome.desktop
 xdg-mime default HEY.desktop x-scheme-handler/mailto
 
 if (( first_install )); then
   mkdir -p "$state_dir/migrations"
-  for migration in "$OMARCHY_PATH"/migrations/*.sh; do
-    [[ -f $migration ]] && touch "$state_dir/migrations/$(basename "$migration")"
-  done
+  # One touch for all of them: a basename and a touch per migration were over
+  # 500 processes, 1.4s on an N1x.
+  migrations=("$OMARCHY_PATH"/migrations/*.sh)
+  if [[ -f ${migrations[0]} ]]; then
+    migrations=("${migrations[@]##*/}")
+    touch "${migrations[@]/#/$state_dir/migrations/}"
+  fi
 fi
 
 omarchy-done mark finalize-user

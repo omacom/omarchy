@@ -1,16 +1,16 @@
-# GUI
+# GUI aplikácie
 
-## Súbory
+## Files
 
-Súbory (Nautilus) je grafický správca súborov. Otvára sa pomocou `Super + Shift + F` a pomocou `Super + Shift + Alt + F` sa otvorí v adresári, v ktorom sa nachádza tvoj terminál, čo šetrí množstvo klikania. Pomocou `Ctrl + L` môžeš zadať cestu a stlačenie `Space` na ľubovoľnom súbore ti poskytne rýchly náhľad bez toho, aby si niečo otváral.
+Files (Nautilus) je grafický správca súborov. `Super + Shift + F` ho otvorí a `Super + Shift + Alt + F` ho otvorí v priečinku, v ktorom sa práve nachádza váš terminál, čo ušetrí veľa klikania. `Ctrl + L` vám umožní zadať cestu a stlačením `Space` na ľubovoľnom súbore získate rýchly náhľad bez toho, aby ste čokoľvek otvárali.
 
-Zapoj USB kľúč alebo SD kartu a automaticky sa pripojí, takže sa jednoducho objaví v bočnom paneli. Na čokoľvek náročnejšie — formátovanie jednotky, kontrolu stavu SMART, vytváranie oddielov — spusti _Disky_ zo spúšťača aplikácií (`Super + Space`).
+Zapojte USB kľúč alebo SD kartu a automaticky sa pripojí, takže sa jednoducho zobrazí v bočnom paneli. Na čokoľvek zložitejšie — formátovanie disku, kontrolu stavu SMART, vytváranie oddielov — spustite _Disks_ zo spúšťača aplikácií (`Super + Space`).
 
-Dvojklik sa riadi rozumnými predvolenými nastaveniami: obrázky sa otvárajú v imv, video v mpv, PDF v programe Document Viewer a obyčajný text v editore Neovim.
+Dvojklik funguje podľa rozumných predvolených nastavení: obrázky, videá a hudba sa otvárajú v Omaview, PDF v Document Viewer, Markdown v Omawrite a obyčajný text v editore vybranom v časti _Setup > Default > Editor_.
 
 ## Disktree
 
-Keď sa jednotka zaplní a ty netušíš, čo ju požiera, spusti [Disktree](https://github.com/tobi/disktree) zo spúšťača aplikácií (`Super + Space`). Zobrazí grafickú stromovú mapu tvojho domovského adresára. Väčšie bloky zaberajú viac miesta; prechádzaj do adresárov klávesnicou alebo myšou, označ, čo má ísť preč, a pred odstránením čohokoľvek si skontroluj svoj výber. Spustením `disktree --disk` naskenuješ celý disk.
+Keď sa disk zaplní a vy netušíte, čo ho zapĺňa, spustite [Disktree](https://github.com/tobi/disktree) zo spúšťača aplikácií (`Super + Space`). Zobrazuje grafickú stromovú mapu vášho domovského priečinka. Väčšie bloky zaberajú viac miesta; prechádzajte priečinkami pomocou klávesnice alebo myši, označte, čo má ísť preč, a pred odstránením čohokoľvek skontrolujte svoj výber. Spustite `disktree --disk`, ak chcete preskenovať celý disk.
 
 ## Obsidian
 
@@ -20,89 +20,97 @@ Obsidian je bezplatný na všetky účely vrátane osobného, komerčného a nez
 
 Obsidian ponúka aj [komerčný doplnok na synchronizáciu](https://obsidian.md/sync) s mobilnými aplikáciami pre iOS a Android. (https://obsidian.md/pricing).
 
-Obsidian spúšťaš pomocou `Super + Shift + O`. Ak chceš používať synchronizáciu témy, musíš v nastaveniach vybrať tému `Omarchy`.
+Obsidian spustíte pomocou `Super + Shift + O`. Ak chcete používať synchronizáciu tém, musíte v nastaveniach vybrať tému `Omarchy`.
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) je vlastná, úplne jednoduchá aplikácia Omarchy na písanie v Markdowne. Žiadne sejfy, žiadne pluginy, len ty a slová.
+[Omawrite](https://github.com/omacom-io/omawrite) je vlastná, úplne jednoduchá aplikácia Omarchy na písanie v Markdowne. Žiadne vaulty, žiadne pluginy, len vy a slová.
 
-Omawrite spúšťaš pomocou `Super + Shift + W`.
+Omawrite spustíte pomocou `Super + Shift + W`.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) je základný nástroj na úpravu obrázkov, ktorý je skvelý na orezávanie, zmenu veľkosti a ďalšie základné úpravy. Len nečakaj alternatívu k Photoshopu. Ale stále má čarovnú paličku (Magic Wand) a vrstvy!
+[Pinta](https://www.pinta-project.com/) je základný nástroj na úpravu obrázkov, ktorý je skvelý na orezávanie, zmenu veľkosti a ďalšie základné úpravy. Len nečakajte alternatívu k Photoshopu. Stále však má Magic Wand a vrstvy!
 
-Pintu spúšťaš prostredníctvom spúšťača aplikácií (`Super + Space`).
+Pintu spustíte cez spúšťač aplikácií (`Super + Space`).
 
 ## Aether
 
-[Aether](https://github.com/bjarneo/aether) je aplikácia na tvorbu tém, ktorá dokáže extrahovať farby z obrázka pozadia a premeniť ich na kompletnú, súvislú tému. Je to najjednoduchší spôsob, ako si [vytvoriť vlastnú tému](43-making-your-own-theme.md).
+[Aether](https://github.com/bjarneo/aether) je aplikácia na tvorbu tém, ktorá dokáže extrahovať farby z obrázka na pozadí a premeniť ich na kompletnú, súdržnú tému. Je to najjednoduchší spôsob, ako si [vytvoriť vlastnú tému](43-making-your-own-theme.md).
 
-Aether spúšťaš prostredníctvom spúšťača aplikácií (`Super + Space`).
+Aether spustíte cez spúšťač aplikácií (`Super + Space`).
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) ti umožňuje odosielať súbory do iných zariadení v tej istej sieti, na ktorých beží táto aplikácia, podobne ako AirDrop od Apple. Je však multiplatformový, takže súbory môžeš odosielať do systému Windows, macOS, Android, iOS a samozrejme Linuxu a z nich.
+[LocalSend](https://localsend.org/) vám umožňuje posielať súbory do iných zariadení v rovnakej sieti, v ktorých beží táto aplikácia, podobne ako AirDrop od Apple. Je však multiplatformový, takže môžete posielať súbory do a zo systémov Windows, macOS, Android, iOS a, samozrejme, Linux.
 
-Menu Zdieľať môžeš otvoriť pomocou `Super + Ctrl + S` alebo v časti _Akcie > Zdieľať_ v menu Omarchy. Poskytuje ti štyri možnosti:
+Ponuku Share môžete otvoriť pomocou `Super + Ctrl + S` alebo v ponuke Omarchy v časti _Trigger > Share_. Ponúka vám štyri možnosti:
 
-- **Schránka** odošle všetko, čo si skopíroval, ako textový súbor. Skvelé na to, ako dostať odkaz alebo útržok do telefónu bez toho, aby si si posielal e-mail.
-- **Súbor** otvorí výber súborov, kde ich môžeš vybrať niekoľko naraz.
-- **Priečinok** odošle celý adresár.
-- **Prijať** otvorí samotný LocalSend, aby ti iné zariadenie mohlo niečo poslať.
+- **Clipboard** odošle všetko, čo ste skopírovali, ako textový súbor. Skvelé, keď chcete dostať odkaz alebo úryvok do telefónu bez toho, aby ste si posielali e-mail.
+- **File** otvorí výber súborov, kde môžete vybrať aj niekoľko naraz.
+- **Folder** odošle celý priečinok.
+- **Receive** otvorí samotný LocalSend, aby vám iné zariadenie mohlo niečo poslať.
 
-Rovnaká vec funguje z terminálu pomocou `omarchy share clipboard`, `omarchy share file [path]` a `omarchy share folder [path]`. Ak cestu vynecháš, dostaneš výber.
+To isté funguje z terminálu pomocou `omarchy share clipboard`, `omarchy share file [path]` a `omarchy share folder [path]`. Vynechajte cestu a zobrazí sa vám výber súborov.
 
-Odosielať môžeš aj priamo zo správcu súborov: klikni pravým tlačidlom myši na ľubovoľný výber v programe Nautilus a vyber _Send via LocalSend_.
+Posielať môžete aj priamo zo správcu súborov: kliknite pravým tlačidlom myši na ľubovoľný výber v Nautilus a vyberte _Send via LocalSend_.
 
-Brána firewall v Omarchy je predvolene zatvorená s výnimkou portu LocalSend, takže to funguje hneď po čerstvej inštalácii. Pozri si časť [zabezpečenie](48-security.md).
+Firewall v Omarchy je predvolene zatvorený s výnimkou portu LocalSend, takže to na čerstvej inštalácii funguje bez ďalšieho nastavovania. Pozrite si [zabezpečenie](48-security.md).
 
 ## LibreOffice
 
-[LibreOffice](https://www.libreoffice.org/) je kompletný kancelársky balík s textovým procesorom, tabuľkovým kalkulátorom, prezentáciami, aplikáciou na kreslenie a ďalšími. Je kompatibilný so súbormi z balíka Microsoft Office, takže je to skvelý spôsob, ako môžeš otvárať dokumenty Wordu.
+[LibreOffice](https://www.libreoffice.org/) je kompletný kancelársky balík s textovým procesorom, tabuľkovým procesorom, prezentáciami, aplikáciou na kreslenie a ďalšími nástrojmi. Je kompatibilný so súbormi z Microsoft Office, takže je to skvelý spôsob, ako otvárať tie dokumenty z Wordu.
 
-LibreOffice spúšťaš prostredníctvom spúšťača aplikácií (`Super + Space`).
+LibreOffice spustíte cez spúšťač aplikácií (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) je vlastná, úplne jednoduchá prezentačná aplikácia Omarchy. Tvoja prezentácia je jediný súbor Markdown s obrázkami a videami vedľa neho: každú snímku píšeš pod živým náhľadom, snímky presúvaš do poradia a potom prezentuješ na celú obrazovku alebo exportuješ do PDF a PowerPointu. Dokonca preberie aj tvoju tému Omarchy.
+[Hype](https://github.com/omacom/hype) je vlastná, úplne jednoduchá prezentačná aplikácia Omarchy. Vaša prezentácia je jeden súbor Markdown s obrázkami a videami vedľa neho: každú snímku píšete pod živým náhľadom, snímky presúvate do požadovaného poradia a potom prezentujete na celú obrazovku alebo exportujete do PDF a PowerPoint. Dokonca preberie aj vašu tému Omarchy.
 
-Hype spúšťaš prostredníctvom spúšťača aplikácií (`Super + Space`). Stlačením `?` v ňom zobrazíš každú skratku.
+Hype spustíte cez spúšťač aplikácií (`Super + Space`). Stlačte `?` vnútri aplikácie, ak chcete zobraziť všetky skratky.
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) je vlastný, úplne jednoduchý spôsob Omarchy, ako podpisovať PDF a vypĺňať ich. Umiestni svoj uložený podpis, text a dnešný dátum kdekoľvek na stránku a potom ulož podpísanú kópiu vedľa originálu. Ako na to, nájdeš v časti [Vypĺňanie PDF](27-filling-out-pdfs.md).
+[Signed](https://github.com/omacom/signed) je vlastný, úplne jednoduchý spôsob Omarchy, ako podpisovať PDF súbory a vyplňovať ich. Umiestnite svoj uložený podpis, text a dnešný dátum kamkoľvek na stránku a potom uložte podpísanú kópiu vedľa originálu. Ako na to, nájdete v časti [Vyplňovanie PDF súborov](27-filling-out-pdfs.md).
 
-Signed spúšťaš prostredníctvom spúšťača aplikácií (`Super + Space`) alebo pomocou neho otvoríš PDF zo správcu súborov.
+Signed spustíte cez spúšťač aplikácií (`Super + Space`) alebo s ním otvorte PDF zo správcu súborov.
+
+## Checkmate
+
+[Checkmate](https://github.com/omacom/checkmate) je vlastná 3D šachová hra Omarchy. Hrajte s priateľom na tom istom počítači alebo proti vstavanému súperovi na troch úrovniach, na štyroch tvarovaných súpravách, z ktorých každá sa pohybuje vlastným spôsobom: orbitálne plavidlá, vyrezávané drevo a slonovina, lesné bytosti a cukríky. Hry nemajú hodiny a ukladajú sa po každom ťahu.
+
+Checkmate spustíte cez spúšťač aplikácií (`Super + Space`), kde je uvedená ako Chess. Stlačte `?` vnútri aplikácie, ak chcete zobraziť všetky skratky.
 
 ## Omacalc
 
 [Omacalc](https://github.com/omacom-io/omacalc) je vlastná, úplne jednoduchá kalkulačka Omarchy, ktorá sa otvára v plávajúcom okne.
 
-Omacalc spúšťaš pomocou `Super + Ctrl + Q` (alebo klávesu kalkulačky, ak ho tvoja klávesnica má).
+Omacalc spustíte pomocou `Super + Shift + Q` (alebo klávesom kalkulačky, ak ho vaša klávesnica má).
 
 ## Signal
 
-[Signal](https://signal.org/) je priekopníkom správ so šifrovaním E2E a skvelou možnosťou komunikácie pre každého, kto by radšej nešiel cez niektorý z veľkých technologických konglomerátov.
+[Signal](https://signal.org/) je priekopníkom šifrovanej komunikácie E2E a skvelou možnosťou komunikácie pre každého, kto by radšej nešiel cez jeden z veľkých technologických konglomerátov.
 
-Signal spúšťaš pomocou `Super + Shift + G`. Nie je súčasťou základnej inštalácie, takže keď to stlačíš prvýkrát, Omarchy ti ponúkne jeho inštaláciu (je aj v časti _Inštalovať > Služba_ v menu Omarchy).
+Signal spustíte pomocou `Super + Shift + G`. Nie je súčasťou základnej inštalácie, takže keď to stlačíte prvýkrát, Omarchy vám ponúkne, že vám ho nainštaluje (nachádza sa aj v ponuke Omarchy v časti _Install > Service_).
 
-## mpv
+## Omaview
 
-[mpv](https://mpv.io/) je jednoduchý, rýchly prehrávač médií, ktorý prehrá takmer čokoľvek z akéhokoľvek zdroja. Skvelý na sledovanie videí.
+[Omaview](https://github.com/omacom/omaview) je vlastný, úplne jednoduchý prehliadač obrázkov a prehrávač médií Omarchy: jedno okno pre vaše fotografie, videá a hudbu. Otvorte fotografiu a klávesy so šípkami prechádzajú zvyškom jej priečinka, `N` a `P` to robia pre čokoľvek a `Ctrl + M` zobrazí celý priečinok ako mriežku. Zobrazuje aj fotografie HEIC, AVIF a JPEG XL a pri čomkoľvek dlhom pokračuje tam, kde ste skončili.
 
-mpv spúšťaš prostredníctvom spúšťača aplikácií (`Super + Space`) alebo jednoducho dvojitým kliknutím na video v správcovi súborov.
+Stlačte `F` pre zobrazenie na celú obrazovku, `E`, ak chcete upraviť obrázok v Omasnap alebo zostrihať video v Omacut, `Ctrl + P`, ak chcete vytlačiť obrázok, a `Delete`, ak chcete presunúť súbor do Trash (`Ctrl + Z` ho vráti späť). Stlačte `?` vnútri aplikácie, ak chcete zobraziť všetky skratky.
+
+Omaview spustíte ako _Media Viewer_ cez spúšťač aplikácií (`Super + Space`) alebo jednoducho dvakrát kliknite na obrázok, video alebo skladbu v správcovi súborov.
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) je vlastný, úplne jednoduchý strihač videa od Omarchy. Keď potrebuješ len odrezať začiatok a koniec klipu, poráža spúšťanie plnohodnotného editora videa.
+[Omacut](https://github.com/omacom-io/omacut) je vlastný, úplne jednoduchý strihač videa Omarchy. Keď potrebujete len odrezať začiatok a koniec klipu, je to lepšie ako spúšťať plnohodnotný editor videa.
 
-Omacut spúšťaš prostredníctvom spúšťača aplikácií (`Super + Space`).
+Omacut spustíte cez spúšťač aplikácií (`Super + Space`).
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) je vlastný, úplne jednoduchý rekordér webkamery od Omarchy. Raz si vyber kameru a mikrofón, potom stlač `Space`, aby si nahrával, a znova, aby si ten istý záber pozastavil a obnovil. Vždy nahráva v najvyššom rozlíšení tvojej kamery, so živým meračom mikrofónu, aby si si pred začatím mohol skontrolovať úrovne.
+[Monologue](https://github.com/omacom/monologue) je vlastný, úplne jednoduchý záznamník z webkamery Omarchy. Raz si vyberte kameru a mikrofón, potom stlačte `Space` na nahrávanie a znova na pozastavenie a pokračovanie toho istého záberu. Vždy nahráva v najvyššom rozlíšení vašej kamery, so živým ukazovateľom úrovne mikrofónu, takže si pred začatím môžete skontrolovať úrovne.
 
-Zastav záber a okamžite sa otvorí vo vstavanom editore. Dvojitým kliknutím na klip ho rozdelíš, potiahnutím rukovätí orežeš každý kúsok a odstrániš časti, ktoré nechceš. Potom ho ulož ako MP4. Tvoja pôvodná nahrávka sa uchováva, kým ju nezahodíš, takže sa k nej môžeš vždy vrátiť a zostrihať ju inak.
+Keď záber zastavíte, hneď sa otvorí vo vstavanom editore. Dvojitým kliknutím klip rozdelíte, potiahnutím úchytov orežete každú časť a odstránite časti, ktoré nechcete. Potom ho uložte ako MP4. Vaša pôvodná nahrávka zostane zachovaná, kým ju nezahodíte, takže sa k nej môžete vždy vrátiť a zostrihať ju inak.
 
-Monologue spúšťaš prostredníctvom spúšťača aplikácií (`Super + Space`).
+Monologue spustíte cez spúšťač aplikácií (`Super + Space`).

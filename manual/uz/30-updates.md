@@ -1,37 +1,43 @@
 # Yangilanishlar
 
-Omarchy va paketlaringiz Omarchy menyusidagi (`Super + Space`) _Yangilash > Omarchy_ orqali yangilab turiladi.
+Omarchy va paketlaringiz Omarchy menyusidagi _Update > Omarchy_ (`Super + Space`) orqali yangilab turiladi.
 
-Omarchy ning oʻzi [Omarchy Package Repository](https://github.com/omacom-io/omarchy-pkgs) dan oddiy pacman paketlari sifatida oʻrnatilgan, shuning uchun yangilash [eng soʻnggi Omarchy relizi](https://github.com/omacom/omarchy/releases) ni oʻrnatadi, tizimingizni eng soʻnggisi bilan sinxron qilish uchun kutilayotgan har qanday migratsiyalarni ishga tushiradi va [Omarchy Arch Mirror](https://github.com/omacom-io/omarchy-mirror) va [AUR](https://aur.archlinux.org/) dan (agar biror AUR paketlarini oʻrnatgan boʻlsangiz) barcha tizim paketlarini yangilaydi.
+Omarchy'ning o'zi [Omarchy paketlar repozitoriyasi](https://github.com/omacom-io/omarchy-pkgs)dan oddiy pacman paketlari sifatida o'rnatiladi, shuning uchun yangilanish [eng so'nggi Omarchy relizini](https://github.com/omacom/omarchy/releases) o'rnatadi, tizimingizni eng so'nggi versiya bilan sinxron holatga keltirish uchun barcha kutilayotgan migratsiyalarni ishga tushiradi va [Omarchy Arch Mirror](https://github.com/omacom-io/omarchy-mirror) hamda [AUR](https://aur.archlinux.org/)dan (agar biror AUR paketlarini o'rnatgan bo'lsangiz) barcha tizim paketlarini yangilaydi.
 
-Yangi relizlar chiqarilganda, soatingizning oʻng tomonida doira strelka piktogrammasi paydo boʻladi. Uni bosing va yangilash jarayoni boshlanadi.
+Yangi relizlar chiqqanda, soatingizning o'ng tomonida doiraviy strelka belgisi paydo bo'ladi. Uni bosing va yangilash jarayoni boshlanadi.
 
 ![update-available](images/update-available.webp)
 
-### Toʻrtta kanal
+### To'rtta kanal
 
-Omarchy toʻrtta kanal boʻylab yangilanadi: stable, RC, edge va dev. Yangi oʻrnatishlar [rasmiy relizlar](https://github.com/omacom/omarchy/releases/) ni, shuningdek eng soʻnggisidan bir oy orqada ishlaydigan [barqaror Omarchy Arch oynasi](https://github.com/omacom-io/omarchy-mirror) ni kuzatuvchi stable kanalda boshlanadi, shunday qilib biz konfiguratsiya oʻzgarishlarini talab qiluvchi har qanday yangi mos kelmasliklarni ular odamlarga muammo tugʻdirishidan oldin tuta olamiz.
+Omarchy to'rtta kanal bo'ylab yangilanadi: stable, RC, edge va dev. Yangi o'rnatishlar stable kanalidan boshlanadi, u [rasmiy relizlarni](https://github.com/omacom/omarchy/releases/), shuningdek eng so'nggisidan bir oy orqada yuradigan [barqaror Omarchy Arch mirror](https://github.com/omacom-io/omarchy-mirror)ni kuzatib boradi, shu tariqa biz konfiguratsiya o'zgarishlarini talab qiladigan yangi nomuvofiqliklarni odamlar uchun muammo tug'dirishidan oldin aniqlay olamiz.
 
-Lekin oʻsha mumkin boʻlgan muammolarni aniqlashga yordam bermoqchi boʻlsangiz, edge kanalda ishlashingiz mumkin. Bu Omarchy paketlaringizni eng soʻnggi dasturlash yigʻmalarini kuzatib turishga majbur qiladi va eng soʻnggi Arch paketlari mavjud boʻlishi bilanoq yangilash imkonini beradi. Buni faqat Linux bilan tajribangiz boʻlsa va muammolari bor tizimni qanday tiklashni bilsangiz qilishingiz kerak.
+Ammo agar siz o'sha ehtimoliy muammolarni aniqlashga yordam bermoqchi bo'lsangiz, edge kanalida ishlashingiz mumkin. Bu Omarchy paketlaringizni eng so'nggi development build'larni kuzatib boradigan qilib qo'yadi va Arch paketlari paydo bo'lishi bilanoq eng so'nggilariga yangilash imkonini beradi. Buni faqat Linux bilan tajribangiz bo'lsa va muammoga uchragan tizimni qanday tiklashni bilsangizgina qilishingiz kerak.
 
-Har qanday yangi yirik relizdan oldin biz RC kanali yordamida yakuniy tekshiruv qilamiz. Agar yakuniy sayqallashga yordam berish bilan qiziqsangiz, Discord dagi #omarchy-release-candidates ga keling.
+Har qanday yangi yirik relizdan oldin, yakuniy tekshiruvni RC kanali yordamida amalga oshiramiz. Agar yakuniy sayqal berishda yordam berishga qiziqsangiz, Discord'dagi #omarchy-release-candidates kanaliga keling.
 
-Nihoyat, dev kanali bor, u Omarchy ni toʻgʻridan-toʻgʻri `~/omarchy` dagi manba kodining git checkout iga, edge paketlari bilan birgalikda bogʻlaydi. Bu kanaldan faqat tajribali Linux foydalanuvchisi boʻlsangiz, toʻgʻridan-toʻgʻri Omarchy da ishlasangiz va buzilishga chidashga tayyor boʻlsangiz foydalanishingiz kerak.
+Nihoyat, dev kanali ham bor, u Omarchy'ni to'g'ridan-to'g'ri `~/omarchy`dagi manba kodining git checkout'iga, edge paketlari bilan birgalikda bog'laydi. Bu kanaldan faqat tajribali Linux foydalanuvchisi bo'lsangiz, to'g'ridan-to'g'ri Omarchy ustida ishlayotgan bo'lsangiz va buzilishlarga chidashga tayyor bo'lsangizgina foydalanishingiz kerak.
 
-Kanallar orasida Omarchy menyusidagi _Yangilash > Channel_ yordamida (yoki terminalda `omarchy-channel-set` bilan) almashishingiz mumkin.
+Kanallar o'rtasida Omarchy menyusidagi _Update > Channel_ orqali (yoki terminalda `omarchy-channel-set`) almashishingiz mumkin.
 
-### Proshivka yangilanishlari
+### Yadrolarni almashtirish
 
-Paketlaringiz eskiradigan yagona narsa emas. Koʻplab noutbuklar va periferik qurilmalar BIOS, SSD va dock proshivkasini Linux Vendor Firmware Service orqali yetkazadi va Omarchy menyusidagi _Yangilash > Firmware_ uskunangizda kutib turgan har qanday narsani olib kelib oʻrnatadi. U birinchi marta ishga tushirganingizda `fwupd` ni oʻrnatadi. Koʻp proshivka faqat qayta yuklash davomida yozilishi mumkin, shuning uchun bittasi soʻralishiga hayron boʻlmang.
+Omarchy o'zining `linux-omarchy` yadrosini yuklaydi, ammo uning yonida boshqalarini ham o'rnatib qo'yishingiz mumkin, masalan standart Arch `linux` yadrosi yoki siz sinayotgan eksperimental build. Bittadan ortiq yadro bo'lganda, Omarchy menyusidagi _Update > Kernel_ ularni ro'yxat qiladi va sukut bo'yicha yuklanadiganining yoniga belgi qo'yadi. Boshqasini tanlang, parolingizni bir marta kiriting va u keyingi qayta yuklashdan keyin yuklanadi. Boshqa yadrolar yuklash menyusida qoladi, shuning uchun yangi sukut bo'yicha variant sizga muammo tug'dirsa, birini qo'lda tanlashingiz ham mumkin. Terminalda, joriy sukut bo'yicha variantni ko'rish uchun `omarchy-kernel`, nima o'rnatilganini ko'rish uchun `omarchy-kernel list` va almashish uchun `omarchy-kernel set <kernel>`.
 
-### Toʻgʻridan-toʻgʻri pacman/yay yangilanishlari haqida ogohlantirish
+### Firmware yangilanishlari
 
-Agar Arch bilan allaqachon tanish boʻlsangiz, shunchaki oʻzingiz `pacman -Syu` yoki `yay -Syu` ni ishga tushirish vasvasasiga tushishingiz mumkin, lekin agar shunday qilsangiz, Omarchy yangi paketlar bilan birga ishga tushiradigan snapshot, migratsiyalar va konfiguratsiya yangilanishlarini oʻtkazib yuborasiz. Shuning uchun Omarchy aslida toʻgʻridan-toʻgʻri tizim yangilashini toʻxtatadi va uning oʻrniga sizni `omarchy update` ga yoʻnaltiradi. (Agar haqiqatan ham nima qilayotganingizni bilsangiz, himoya sizga uni bitta tranzaksiya uchun qanday chetlab oʻtishni aytadi.)
+Eskirib qoladigan narsa faqat paketlaringiz emas. Ko'plab noutbuklar va periferiya qurilmalari BIOS, SSD va dok firmware'ini Linux Vendor Firmware Service orqali yetkazib beradi va Omarchy menyusidagi _Update > Firmware_ qurilmangizda kutilayotgan narsalarning hammasini olib kelib o'rnatadi. U birinchi marta ishga tushirganingizda `fwupd`ni o'rnatadi. Ko'plab firmware'lar faqat qayta yuklash vaqtida yozilishi mumkin, shuning uchun sizdan qayta yuklash so'ralsa, hayron bo'lmang.
 
-### Yomon yangilanishlarni qaytarish
+BIOS'ning o'zida biror sozlamani o'zgartirishingiz kerak bo'lganda, tizim menyusida (`Super + Escape`) `Alt`ni bosib turing va _Reboot_ _Reboot to BIOS_ga aylanadi, u yuklash paytida kerakli tugmani bosishga ulgurishga harakat qilmasdan to'g'ridan-to'g'ri firmware sozlamalariga qayta yuklanadi. Terminaldan bu `omarchy system firmware`.
 
-Yangilanishni qilgandan keyin qachonlardir muammoga duch kelsangiz, tizimingizni yangilanishdan oldin olingan snapshotga qaytarishingiz mumkin. Shunchaki qayta ishga tushiring va yangilanishni boshlashingizdan oldingi yuklash menyusida snapshotni tanlang.
+### To'g'ridan-to'g'ri pacman/yay yangilanishlari haqida ogohlantirish
+
+Agar Arch bilan allaqachon tanish bo'lsangiz, shunchaki `pacman -Syu` yoki `yay -Syu`ni o'zingiz ishga tushirishga vasvasaga tushishingiz mumkin, ammo agar shunday qilsangiz, Omarchy yangi paketlar bilan birgalikda ishga tushiradigan snapshot, migratsiyalar va konfiguratsiya yangilanishlarini o'tkazib yuborasiz. Shuning uchun Omarchy to'g'ridan-to'g'ri tizim yangilanishini aslida to'xtatadi va buning o'rniga sizni `omarchy update`ga yo'naltiradi. (Agar chindan ham nima qilayotganingizni bilsangiz, himoya bitta tranzaksiya uchun uni qanday chetlab o'tishni aytib beradi.)
+
+### Muvaffaqiyatsiz yangilanishlarni orqaga qaytarish
+
+Agar yangilanish qilganingizdan keyin biror muammoga duch kelsangiz, tizimingizni yangilanishdan oldin olingan snapshot holatiga qaytarishingiz mumkin. Shunchaki qayta yuklang va yuklash menyusidan yangilanishni boshlashingizdan oldingi snapshotni tanlang.
 
 ![bootloader](images/bootloader.webp)
 
-Agar qandaydir tarzda konfiguratsiya fayllaringiz buzilgan boʻlsa, terminalda `omarchy reinstall` yordamida Omarchy qayta oʻrnatishini ham bajarishingiz mumkin. Bu barcha standart Omarchy paketlarini qayta oʻrnatadi, sizni stable ga qoʻyadi va juda yangi boʻlgan har qanday paketlarni pasaytiradi hamda barcha konfiguratsiya fayllarini tiklaydi. Eʼtibor bering, buni qilish orqali Omarchy standartlariga barcha foydalanuvchi konfiguratsiya oʻzgarishlaringiz ustiga yoziladi!
+Agar qandaydir tarzda konfiguratsiya fayllaringiz buzilgan bo'lsa, terminalda `omarchy reinstall` orqali Omarchy'ni qayta o'rnatishni ham amalga oshirishingiz mumkin. Bu barcha standart Omarchy paketlarini qayta o'rnatadi, sizni stable kanaliga o'tkazadi va juda yangi bo'lgan barcha paketlarni pasaytiradi hamda barcha konfiguratsiya fayllarini tiklaydi. E'tibor bering, buni qilishda Omarchy standartlariga kiritgan barcha foydalanuvchi konfiguratsiya o'zgarishlaringiz ustidan yozib yuboriladi!

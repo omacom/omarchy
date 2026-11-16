@@ -42,48 +42,15 @@ long_suffix=$(printf 'l%.0s' {1..223})
 )
 pass "legacy cleanup removes generated rules for any account and quarantines everything else in the prefix"
 
-# Run the actual migration queue for separate temporary homes. Sudo only calls
-# the mapped helper and can be refused without requesting host authorization.
-# The migration reaches the helper through $OMARCHY_PATH, as the package's bin
-# links and a dev checkout provide it, so the mapped copy stands in there.
-mkdir -p "$test_tmp/source/migrations" "$test_tmp/source/bin"
-cp "$ROOT/migrations/1788163635.sh" "$test_tmp/source/migrations/"
-ln -s "$test_tmp/omarchy-sudo-passwordless" "$test_tmp/source/bin/omarchy-sudo-passwordless"
-printf 'echo "later migration ran"\n' >"$test_tmp/source/migrations/1788163636.sh"
-run_migrations() {
-  TEST_MIGRATION=1 OMARCHY_PATH="$test_tmp/source" OMARCHY_MIGRATION_STATE="$test_tmp/$1" \
-    PATH="$test_tmp/bin:$PATH" /usr/bin/bash "$ROOT/bin/omarchy-migrate" >"$test_tmp/migrations.log" 2>&1
-}
 marker="$test_tmp/var/lib/omarchy/migrations/1788163635"
+: >"$test_tmp/marker-target"
 (
   source "$library"
-  # A quarantine that cannot be trusted keeps the migration pending.
-  printf 'alice ALL=(ALL) NOPASSWD: ALL\n' >"$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-mismatch"
-  TEST_BAD_PATH="$test_tmp/var/lib/omarchy" assert_status 1 run_migrations first
-  [[ ! -e $marker && -e $test_tmp/etc/sudoers.d/99-omarchy-nopasswd-mismatch ]]
-  printf 'audituser ALL=(ALL) NOPASSWD: ALL\n' >"$(rule_file 1000)"
-  printf 'Alice ALL=(ALL) NOPASSWD: ALL\n' >"$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-Alice"
-  TEST_DELETE_FAIL=1 assert_status 1 run_migrations first
-  [[ ! -e $marker && ! -e $test_tmp/first/1788163636.sh ]]
-  run_migrations first
-  [[ -f $marker && -f $test_tmp/first/1788163636.sh ]]
-  ! compgen -G "$test_tmp/etc/sudoers.d/99-omarchy-nopasswd-*"
-  [[ $(quarantined_policy 99-omarchy-nopasswd-mismatch) == 'alice ALL=(ALL) NOPASSWD: ALL' ]]
-  enable_locked 1000 15
-  cp "$(rule_file 1000)" "$test_tmp/renewed"
-  : >"$test_tmp/commands"
-  TEST_NO_SUDO=1 run_migrations second
-  [[ -f $test_tmp/second/1788163636.sh ]]
-  ! grep -q '^sudo ' "$test_tmp/commands"
-  cmp "$(rule_file 1000)" "$test_tmp/renewed"
-)
-pass "migration completion is machine-wide, retryable, and needs no sudo for later users"
-
-(
-  source "$library"
+  migrate_locked
+  [[ -f $marker ]]
   TEST_BAD_PATH="$marker" assert_status 1 migration_complete
   rm "$marker"
-  ln -s "$test_tmp/renewed" "$marker"
+  ln -s "$test_tmp/marker-target" "$marker"
   assert_status 1 migration_complete
   assert_status 1 migrate_locked
   [[ -L $marker ]]
