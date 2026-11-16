@@ -175,3 +175,27 @@ chmod +x "$test_tmp/bin/curl"
 [[ $(PATH="$test_tmp/bin:$PATH" weather_location) == "Amsterdam" ]] || fail "weather location names the place geo.omarchy.org detected"
 [[ $(cat "$test_tmp/curl-urls") == "https://geo.omarchy.org/" ]] || fail "weather location asks only geo.omarchy.org" "$(cat "$test_tmp/curl-urls")"
 pass "weather location names the place geo.omarchy.org detected when none is stored"
+
+run_node_test <<'JS'
+const fs = require('fs')
+const src = fs.readFileSync(path.join(root, 'shell/plugins/panels/weather/Panel.qml'), 'utf8')
+
+// Open-Meteo's API 403s curl's default User-Agent, hiding the bar widget
+// whenever coordinates are set. Both Open-Meteo fetches must identify
+// themselves; the wttr.in and geo.omarchy.org fetches are untouched.
+const uaProperty = src.match(/readonly property string openMeteoUserAgent: "([^"]+)"/)
+assert(uaProperty !== null, "weather defines its Open-Meteo User-Agent once on the panel")
+assert(uaProperty[1].includes("omarchy"), "the Open-Meteo User-Agent identifies the caller as omarchy", uaProperty[1])
+
+const dailyCommand = src.match(/dailyForecastProc\.command = \[[^\]]*\]/)
+assert(dailyCommand !== null, "the daily forecast fetch builds a curl command array")
+assert(dailyCommand[0].includes('"-A"'), "the daily forecast fetch sends a User-Agent to Open-Meteo", dailyCommand[0])
+
+const geocodeCommand = src.match(/geocodeProc\.command = \[[\s\S]*?\]\n/)
+assert(geocodeCommand !== null, "the geocode fetch builds a curl command array")
+assert(geocodeCommand[0].includes('"-A"'), "the geocode fetch sends a User-Agent to Open-Meteo", geocodeCommand[0])
+
+const wttrCommand = src.match(/command: \["curl", "-fsS", "--max-time", "10", "https:\/\/wttr\.in\/"[\s\S]*?\]\n/)
+assert(wttrCommand !== null, "the wttr fetch builds a curl command array")
+assert(!wttrCommand[0].includes('"-A"'), "the wttr fetch keeps no User-Agent override")
+JS

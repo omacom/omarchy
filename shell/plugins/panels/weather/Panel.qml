@@ -24,6 +24,11 @@ Panel {
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
 
+  // Open-Meteo's API answers curl's default User-Agent with 403 Forbidden,
+  // which leaves the forecast fetch failing and the bar widget hidden.
+  // Identify the caller the way the API asks and the same query answers 200.
+  readonly property string openMeteoUserAgent: "omarchy-shell (+https://github.com/omacom/omarchy)"
+
   function open() {
     openedFromHotkey = false
     root.controller.show()
@@ -193,7 +198,7 @@ Panel {
       + "&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code,is_day"
       + "&forecast_days=4"
       + "&timezone=auto"
-    dailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", url]
+    dailyForecastProc.command = ["curl", "-fsS", "--max-time", "5", "-A", root.openMeteoUserAgent, url]
     dailyForecastProc.running = true
   }
 
@@ -293,7 +298,7 @@ Panel {
 
   function startGeocode() {
     geocodeActiveQuery = geocodePendingQuery
-    geocodeProc.command = ["curl", "-fsS", "--max-time", "5",
+    geocodeProc.command = ["curl", "-fsS", "--max-time", "5", "-A", root.openMeteoUserAgent,
       "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(geocodeActiveQuery) + "&count=5&language=en&format=json"]
     geocodeProc.running = true
   }
