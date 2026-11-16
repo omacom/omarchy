@@ -1,23 +1,26 @@
 #!/bin/bash
 
-# omarchy:summary=Save a monitor's scale, and optionally its mode and position, for that monitor
-# omarchy:args=OUTPUT SCALE [MODE] [POSITION]
+# omarchy:summary=Save a monitor's scale, and optionally its mode, position and rotation, for that monitor
+# omarchy:args=OUTPUT SCALE [MODE] [POSITION] [TRANSFORM]
 # omarchy:hidden=true
 
 # Saves the settings by the physical monitor rather than its connector, since a
 # dock renames connectors between plugs: one line per monitor in
 # $XDG_STATE_HOME/omarchy/monitors/settings, which default/hypr/monitor-settings.lua
-# applies whenever the config loads or the monitor arrives. An empty MODE or
-# POSITION keeps the saved one. hypr/monitors.lua is the user's and is never
+# applies whenever the config loads or the monitor arrives. Each line holds the
+# mode, position, scale and transform, then the monitor's identity last; lines
+# saved before rotation was saved lack the transform. An empty MODE, POSITION
+# or TRANSFORM keeps the saved one. hypr/monitors.lua is the user's and is never
 # written here.
 
 output="${1:-}"
 scale="${2:-}"
 mode="${3:-}"
 position="${4:-}"
+transform="${5:-}"
 
 if [[ -z $output || -z $scale ]]; then
-  echo "Usage: omarchy-hyprland-monitor-persist OUTPUT SCALE [MODE] [POSITION]" >&2
+  echo "Usage: omarchy-hyprland-monitor-persist OUTPUT SCALE [MODE] [POSITION] [TRANSFORM]" >&2
   exit 1
 fi
 
@@ -25,7 +28,8 @@ fi
 # monitor misconfigured on every load.
 if [[ ! $output =~ ^[A-Za-z0-9._-]+$ || ! $scale =~ ^[0-9]+([.][0-9]+)?$ ]] ||
   [[ -n $mode && ! $mode =~ ^[0-9]+x[0-9]+(@[0-9.]+)?$ ]] ||
-  [[ -n $position && ! $position =~ ^-?[0-9]+x-?[0-9]+$ ]]; then
+  [[ -n $position && ! $position =~ ^-?[0-9]+x-?[0-9]+$ ]] ||
+  [[ -n $transform && ! $transform =~ ^[0-7]$ ]]; then
   echo "Refusing to save an unsafe monitor setting: $*" >&2
   exit 1
 fi
@@ -36,14 +40,15 @@ identity=$(omarchy-hyprland-monitor-identity "$output")
 mkdir -p "${settings%/*}"
 touch "$settings"
 tmp=$(mktemp "$settings.XXXXXX")
-awk -F'\t' -v OFS='\t' -v identity="$identity" -v mode="$mode" -v position="$position" -v scale="$scale" '
-  $4 == identity {
+awk -F'\t' -v OFS='\t' -v identity="$identity" -v mode="$mode" -v position="$position" -v scale="$scale" -v transform="$transform" '
+  $NF == identity {
     if (mode == "") mode = $1
     if (position == "") position = $2
+    if (transform == "" && NF > 4) transform = $4
     next
   }
   { print }
-  END { print mode, position, scale, identity }
+  END { print mode, position, scale, transform, identity }
 ' "$settings" >"$tmp"
 mv "$tmp" "$settings"
 

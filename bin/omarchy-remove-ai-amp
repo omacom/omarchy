@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# omarchy:summary=Remove the Amp desktop app along with its configuration and caches.
+# omarchy:requires-sudo=true
+
+# -u so an unset HOME is an error rather than a set of rm -rf paths rooted at /.
+set -euo pipefail
+
+# The app rewrites its config directory for as long as it runs, so a removal
+# that leaves it running deletes the directory and watches it come straight back.
+pkill -x amp-desktop || true
+
+omarchy-pkg-drop amp-desktop-bin
+
+# Not ~/.config/amp, ~/.local/share/amp, or ~/.cache/amp: those belong to the
+# Amp CLI, which is installed and used on its own. The desktop app pins its
+# Electron state to ~/.config/amp-desktop, and its updater caches beside it.
+rm -rf \
+  "$HOME/.config/amp-desktop" \
+  "$HOME/.cache/amp-desktop-updater"
+
+echo ""
+echo "Amp has been removed."

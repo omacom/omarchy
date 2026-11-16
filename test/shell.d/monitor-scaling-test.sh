@@ -46,9 +46,13 @@ fresh() {
   printf '%s\n' 'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 2 })' >"$monitor_lua"
 }
 
-# A monitor's saved mode|position|scale, by identity.
+# A monitor's saved mode|position|scale, and its transform, by identity.
 setting() {
-  awk -F'\t' -v identity="$1" '$4 == identity { print $1 "|" $2 "|" $3 }' "$settings_file" 2>/dev/null
+  awk -F'\t' -v identity="$1" '$NF == identity { print $1 "|" $2 "|" $3 }' "$settings_file" 2>/dev/null
+}
+
+saved_transform() {
+  awk -F'\t' -v identity="$1" '$NF == identity && NF > 4 { print $4 }' "$settings_file" 2>/dev/null
 }
 
 run_scaling() {
@@ -262,6 +266,42 @@ OMARCHY_TEST_MONITORS_JSON="$row" run_layout --resized DP-1 200x100 1 100x100 1 
 grep -F 'position = "0x0", scale = 1 }) hl.monitor({ output = "DP-2", position = "100x0" }) hl.monitor({ output = "DP-3", position = "200x0" })' "$eval_out" >/dev/null ||
   fail "monitor layout closes in the nearest neighbour first" "actual: $(<"$eval_out")"
 pass "monitor layout orders a row's moves so none overlaps"
+
+run_rotate() {
+  HOME="$home_dir" \
+    PATH="$stub_bin:$ROOT/bin:$PATH" \
+    OMARCHY_TEST_HYPRCTL_EVAL_OUT="$eval_out" \
+    "$ROOT/bin/omarchy-hyprland-monitor-rotate" "$@"
+}
+
+# A quarter turn stands the monitor on its side, and its neighbour closes in on
+# the narrower monitor in the same eval: 2880x1800 at 2x spans 1440 across,
+# turned it spans 900. The rotation is saved with the monitor's settings.
+fresh
+OMARCHY_TEST_OTHER_MONITOR_SCALE=1 run_rotate 90
+grep -F 'hl.monitor({ output = "eDP-1", mode = "2880x1800@120.0", position = "0x0", scale = 2, transform = 1 }) hl.monitor({ output = "DP-1", position = "900x0" })' "$eval_out" >/dev/null ||
+  fail "monitor rotate turns a monitor and closes up around it in one step" "actual: $(<"$eval_out")"
+[[ $(saved_transform eDP-1) == "1" ]] || fail "monitor rotate saves the rotation" "actual: $(<"$settings_file")"
+pass "monitor rotate turns a monitor beside another"
+
+fresh
+run_rotate 270
+grep -F 'output = "eDP-1", mode = "2880x1800@120.0", position = "auto", scale = 2, transform = 3' "$eval_out" >/dev/null ||
+  fail "monitor rotate turns a monitor on its own" "actual: $(<"$eval_out")"
+rm -f "$eval_out"
+if run_rotate 45 2>/dev/null; then fail "monitor rotate refuses an angle that isn't a quarter turn"; fi
+[[ ! -e $eval_out ]] || fail "monitor rotate applies nothing it refuses"
+pass "monitor rotate turns a lone monitor and refuses other angles"
+
+# A line saved before rotation was saved still reads, and keeps what it had
+# when a rotation is added to it.
+fresh
+mkdir -p "${settings_file%/*}"
+printf '%s\t%s\t%s\t%s\n' "1920x1200@60" "0x0" "2" "eDP-1" >"$settings_file"
+run_rotate 180
+[[ $(setting eDP-1) == "1920x1200@60|0x0|2" && $(saved_transform eDP-1) == "2" ]] ||
+  fail "monitor rotate keeps an older line's settings" "actual: $(<"$settings_file")"
+pass "monitor rotate adds a rotation to an older saved line"
 
 # Two screens stacked on the left of a tall one: shrinking the top-left one
 # would pull the tall one left and the lower one up onto each other, so the one

@@ -77,6 +77,21 @@ assertEqual(monitor.resolutionLabel('6016x3384'), '6K', 'monitor names 6K')
 assertEqual(monitor.resolutionLabel('3840x2160'), '4K', 'monitor names 4K')
 assertEqual(monitor.resolutionLabel('2560x1440'), '1440p', 'monitor names smaller modes by height')
 
+// A gaming monitor advertises several rates at its resolution, and others at
+// smaller ones and below 60Hz.
+const gaming = ['2560x1440@143.98Hz', '2560x1440@120.00Hz', '2560x1440@59.95Hz', '2560x1440@60.00Hz',
+  '2560x1440@50.00Hz', '1920x1080@240.00Hz']
+assertDeepEqual(
+  monitor.refreshOptions(gaming, 2560, 1440),
+  [{ label: '60', rate: '60' }, { label: '120', rate: '120' }, { label: '144', rate: '143.98' }],
+  'monitor offers its resolution\'s rates from 60Hz up, one per whole rate, keeping the exact one'
+)
+assertDeepEqual(
+  monitor.refreshOptions(['3840x2160@60.00Hz', '3840x2160@59.94Hz', '3840x2160@30.00Hz'], 3840, 2160),
+  [],
+  'monitor offers no rates when none is faster than 60Hz'
+)
+
 assertEqual(monitor.displayTitle({ name: 'eDP-1', make: 'LG Display', model: '0x0804' }), 'Built-in Display', 'monitor names the built-in panel by what it is')
 assertEqual(monitor.displayTitle({ name: 'DP-1', make: 'Apple Computer Inc', model: 'ProDisplayXDR' }), 'ProDisplayXDR', 'monitor names an external display by its model')
 assertEqual(monitor.displayTitle({ name: 'HDMI-A-1', make: 'Dell Inc.', model: '0x40F3' }), 'Dell Inc.', 'monitor falls back to the make when the model is a code')
@@ -106,8 +121,26 @@ assertDeepEqual(
 )
 assert(monitor.sameLayout(monitor.normalizeLayout(desk), desk), 'monitor sees an unmoved layout as the same')
 
-assertEqual(monitor.brightnessName(96), 'Sun blast', 'monitor names very bright displays')
-assertEqual(monitor.brightnessName(12), 'Candlelit', 'monitor names dim displays')
+assertEqual(
+  monitor.displaySpecs({ width: 1920, height: 1200, physicalWidth: 300, physicalHeight: 190, refreshRate: 119.94 }),
+  '1920×1200 · 120 Hz · 161 ppi',
+  'monitor describes a display by resolution, rounded refresh rate, and pixel density'
+)
+assertEqual(
+  monitor.displaySpecs({ width: 1920, height: 1080, physicalWidth: 0, physicalHeight: 0, refreshRate: 60 }),
+  '1920×1080 · 60 Hz',
+  'monitor leaves out the density of a display that reports no size'
+)
+assertEqual(
+  monitor.displaySpecs({ width: 1920, height: 1080, physicalWidth: 600, physicalHeight: 150, refreshRate: 60 }),
+  '1920×1080 · 60 Hz',
+  'monitor leaves out the density of a display whose size disagrees with its shape'
+)
+assertEqual(
+  monitor.displaySpecs({ width: 3840, height: 2160, physicalWidth: 16000, physicalHeight: 9000, refreshRate: 60 }),
+  '3840×2160 · 60 Hz',
+  'monitor leaves out the density of a display that reports an implausible size'
+)
 
 assertDeepEqual(
   monitor.parseDisplays(JSON.stringify([

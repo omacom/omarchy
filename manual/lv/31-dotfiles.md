@@ -1,81 +1,85 @@
-# Dotfaili
+# Dotfiles
 
-Omarchy galvenokārt tiek konfigurēts, izmantojot tā sauktos dotfailus, kas atrodas `~/.config`. Tie tiek uzskatīti par taviem failiem tavām izmaiņām. Faili, kas atrodas `/usr/share/omarchy`, pieder pašam Omarchy, un ar tiem tev nevajadzētu jaukties. Ja tev kaut kas jāmaina `/usr/share/omarchy`, tā vietā tev vajadzētu pārrakstīt vērtību `~/.config`.
+Omarchy primāri tiek konfigurēts, izmantojot tā sauktos dotfailus, kas atrodas `~/.config`. Tos uzskata par taviem failiem tavām izmaiņām. Faili, kas atrodas `/usr/share/omarchy`, pieder pašam Omarchy, un tev nevajadzētu ar tiem ņemties. Ja tev nepieciešams kaut ko mainīt `/usr/share/omarchy`, tā vietā tev vajadzētu pārrakstīt vērtību `~/.config`.
 
-Galvenās konfigurācijas var rediģēt tieši no Omarchy izvēlnes (`Super + Space`), piemēram, _Setup > Keybindings_, _Setup > Input_ un _Setup > Config > [file]_. Šādi rīkojoties, jebkurš process, kam pēc konfigurācijas labojumiem nepieciešama restartēšana, automātiski tiks restartēts, kad aizvērsi redaktoru (pēc noklusējuma Neovim — `:wq`, atceries! —, bet to vari mainīt sadaļā _Setup > Defaults > Editor_).
+Galvenās konfigurācijas var rediģēt tieši no Omarchy izvēlnes (`Super + Space`), piemēram, _Setup > Keyboard > Keybindings_, _Setup > Input_ un _Setup > Config > [file]_. Kad tu to dari šādā veidā, jebkurš process, kas pēc konfigurācijas rediģēšanas ir jārestartē, automātiski tiks restartēts pēc tam, kad aizvērsi redaktoru (pēc noklusējuma Neovim — `:wq`, atceries! — bet tu to vari mainīt, izmantojot _Setup > Defaults > Editor_).
 
 Šeit ir saraksts ar galvenajiem failiem `~/.config` un to, ko tie kontrolē:
 
 | File                  | Purpose              |
 | ----------------------- | --------------------- |
-| `~/.config/hypr/hyprland.lua` | Galvenā Hyprland konfigurācija. Ielādē Omarchy noklusējumus un tavus zemāk esošos pārrakstīšanas failus. [Uzzini vairāk par Hyprland konfigurācijām](https://wiki.hypr.land/Configuring/).  |
-| `~/.config/hypr/bindings.lua` | Tavi paša taustiņu sasaistījumi un noklusējumu pārrakstījumi. |
-| `~/.config/hypr/monitors.lua` | Monitora iestatījumi, ko monitora panelis neaptver, piemēram, pagriešana, papildu režīmi vai monitora izslēgta atstāšana. |
+| `~/.config/hypr/hyprland.lua` | Galvenais Hyprland konfigurācijas fails. Ielādē Omarchy noklusējuma vērtības un tavus tālāk norādītos pārrakstīšanas failus. [Uzzini vairāk par Hyprland konfigurācijām](https://wiki.hypr.land/Configuring/).  |
+| `~/.config/hypr/bindings.lua` | Tavi paša taustiņsaistījumi un noklusējuma vērtību pārrakstījumi. |
+| `~/.config/hypr/monitors.lua` | Monitora iestatījumi, ko monitora panelis neaptver, piemēram, pagriešana, papildu režīmi vai monitora atstāšana izslēgtā stāvoklī. |
 | `~/.config/hypr/input.lua` | Kontrolē tavu tastatūras izkārtojumu, peles un skārienpaliktņa iestatījumus. |
 | `~/.config/hypr/looknfeel.lua` | Kontrolē atstarpes, apmales, animācijas un pārējo izskatu. |
-| `~/.config/hypr/autostart.lua` | Kontrolē papildu procesus, kas tiek palaisti kopā ar sesiju. |
+| `~/.config/hypr/autostart.lua` | Kontrolē papildu procesus, kas tiek startēti kopā ar sesiju. |
 | `~/.config/omarchy/shell.json` | Kontrolē Omarchy čaulu: joslas novietojumu, izkārtojumu un logrīkus, kā arī ekrānsaudzētāja, bloķēšanas un dīkstāves laikus. |
-| `~/.config/foot/foot.ini` | Kontrolē tavu termināli (pēc noklusējuma tas ir foot). |
-| `~/.XCompose` | Definē tavu ātras piekļuves emoji un vārda/e-pasta automātisko pabeigšanu. Pēc izmaiņu veikšanas noteikti palaid `omarchy-restart-xcompose`. |
+| `~/.config/foot/foot.ini` | Kontrolē tavu termināli (foot ir noklusējums). |
+| `~/.XCompose` | Definē tavu ātrās piekļuves emoji un vārda/e-pasta automātisko pabeigšanu. Pēc izmaiņu veikšanas noteikti palaid `omarchy-restart-xcompose`. |
 
-Ja galu galā veic daudz izmaiņu, lai pielāgotu savu iestatījumu, ir laba doma dublēt visus šos dotfailus. [Stow ir lielisks veids, kā to izdarīt](https://www.youtube.com/watch?v=NoFiYOqnC4o).
+Ja tu galu galā veic daudz izmaiņu, lai pielāgotu savu iestatījumu, ir laba doma dublēt visus šos dotfailus. [Stow ir lielisks veids, kā to izdarīt](https://www.youtube.com/watch?v=NoFiYOqnC4o).
 
-### Savu lietotņu palaišana kopā ar sesiju
+### Savu lietotņu startēšana kopā ar sesiju
 
-Ja gribi, lai kaut kas darbotos katru reizi, kad piesakies, — sinhronizācijas dēmons, tērzēšanas lietotne, tavs paša skripts — ieliec to `~/.config/hypr/autostart.lua`:
+Ja tu vēlies, lai kaut kas darbotos katru reizi, kad tu piesakies — sinhronizācijas dēmons, tērzēšanas lietotne, tavs paša skripts —, ieliec to `~/.config/hypr/autostart.lua`:
 
 ```lua
 o.launch_on_start("my-service")
 ```
 
-Tas palaiž komandu kā sesijas daļu, tāpēc tā tiek pienācīgi notīrīta, kad atkal izraksties.
+Tas startē komandu kā daļu no sesijas, tāpēc, kad tu atkal izrakstīsies, tā tiks pareizi iztīrīta.
 
-### Skriptu palaišana pie sistēmas notikumiem
+### Skriptu palaišana sistēmas notikumu laikā
 
-Omarchy palaiž āķus vairākos brīžos, un tu tiem vari piekabināt savus skriptus. Tie atrodas `~/.config/omarchy/hooks/<event>.d/`, pa vienai mapei katram notikumam, un katrs izpildāmais fails tajā tiek palaists, kad notikums notiek:
+Omarchy aktivizē āķus dažos mirkļos, un tu vari tiem piekabināt savus skriptus. Tie atrodas `~/.config/omarchy/hooks/<event>.d/` — viena direktorija katram notikumam —, un katrs tur esošais izpildāmais fails tiek palaists, kad notikums notiek:
 
 | Event | When it runs |
 | ----- | ------------ |
-| `post-boot` | Tūlīt pēc darbvirsmas palaišanās |
-| `post-update` | Tuvojoties `omarchy update` beigām, pēc pakotnēm, migrācijām un pakalpojumu restartēšanas, pirms mise rīku atjaunināšanas |
-| `pre-refresh-pacman` | Pēc tam, kad `omarchy refresh pacman` atkārtoti sinhronizē pakotņu konfigurāciju, pirms tā atjaunina pakotnes; kanāla maiņa to palaiž tajā pašā atsvaidzināšanas solī |
+| `post-boot` | Tūlīt pēc darbvirsmas startēšanas |
+| `post-update` | Gandrīz `omarchy update` beigās, pēc pakotnēm, migrācijām un pakalpojumu restartēšanas, pirms tiek atjaunināti mise rīki |
+| `pre-refresh-pacman` | Pēc tam, kad `omarchy refresh pacman` atkārtoti sinhronizē pakotņu konfigurāciju, pirms tas atjaunina pakotnes; kanāla maiņa to palaiž tā paša atsvaidzināšanas soļa laikā |
 | `theme-set` | Pēc motīva maiņas (motīva nosaukums `$1`) |
 | `font-set` | Pēc fonta maiņas (fonta nosaukums `$1`) |
-| `battery-low` | Kad akumulatora līmenis kļūst zems (procenti `$1`) |
+| `battery-low` | Kad akumulators kļūst zems (procenti `$1`) |
 
-`pre-refresh-pacman` āķis ir vieta, kur pieder pielāgoti repozitoriji vai `IgnorePkg` rindas, jo tas tiek palaists pirms pakotņu transakcijas. Abi ar atjaunināšanu saistītie āķi tiek palaisti kā tavs lietotājs pēc tam, kad Omarchy notīra savu kešoto sudo autorizāciju, tāpēc āķim, kas izmanto `sudo`, vajadzīga pašam sava autorizācija, un tas var prasīt tavu paroli.
+`pre-refresh-pacman` āķis ir vieta, kur pieder pielāgotām krātuvēm vai `IgnorePkg` rindām, jo tas tiek palaists pirms pakotņu transakcijas. Abi ar atjaunināšanu saistītie āķi darbojas ar tavu lietotāju pēc tam, kad Omarchy notīra savu kešoto sudo autorizāciju, tāpēc āķim, kas izmanto `sudo`, ir nepieciešama sava autorizācija un tas var prasīt tavu paroli.
 
-Katrā no šīm mapēm jau atrodas `.sample` fails, kas parāda āķa formu — noņem `.sample` no nosaukuma, lai to iedarbinātu. Lai instalētu skriptu, ko esi uzrakstījis citur, izmanto `omarchy hook install post-boot ~/my-hook`, kas to iekopē iekšā un padara izpildāmu.
+Katrā no šīm direktorijām jau ir `.sample` fails, kas parāda āķa formu — noņem `.sample` no nosaukuma, lai to liktu lietā. Lai instalētu skriptu, ko esi uzrakstījis citur, izmanto `omarchy hook install post-boot ~/my-hook`, kas to iekopē un padara izpildāmu.
 
 ### Savu izvēlnes ierakstu pievienošana
 
-Omarchy izvēlni (`Super + Space`) var paplašināt ar savām rindām, rediģējot `~/.config/omarchy/extensions/omarchy-menu.jsonc`. Ieraksti tiek apzīmēti ar punktotu id, un tieši id tos ievieto kokā, tāpēc `personal` parādās saknes izvēlnē, bet `personal.notes` parādās tās iekšienē:
+Omarchy izvēlni (`Super + Space`) var paplašināt ar savām rindām, rediģējot `~/.config/omarchy/extensions/omarchy-menu.jsonc`. Ieraksti tiek atslēgoti ar punktētu id, un id ir tas, kas tos ievieto kokā, tāpēc `personal` parādās saknes izvēlnē, bet `personal.notes` parādās tās iekšpusē:
 
 ```jsonc
 "personal": {"icon":"","label":"Personal"},
 "personal.notes": {"icon":"󰎞","label":"Notes","action":"omarchy-launch-editor ~/notes"},
 ```
 
-Izmantojot esošu id atkārtoti, tu pārraksti šo rindu, nevis pievieno jaunu. Failā visi pieejamie lauki ir dokumentēti kā komentāri.
+Izmanto esošu id vēlreiz, un tu pārrakstīsi šo rindu, nevis pievienosi jaunu. Fails tiek piegādāts ar visiem pieejamajiem laukiem, kas dokumentēti kā komentāri.
 
-### Savu čaulas eksportu, funkciju un aliasu pievienošana
+### Savu čaulas eksportu, funkciju un aizstājvārdu pievienošana
 
-Omarchy nāk ar kaudzi ergonomisku aliasu un noderīgu funkciju, bet ļoti bieži gribas pievienot savus. Gan aliasus, gan funkcijas, gan eksportus tev vajadzētu pievienot `~/.bashrc`. Šis fails atjaunināšanas laikā netiks pārrakstīts. Ja gribi mainīt kādu no Omarchy noklusējumiem, arī tos vari droši pievienot šeit.
+Omarchy tiek piegādāts ar virkni ergonomisku aizstājvārdu un noderīgu funkciju, bet ir ļoti ierasts vēlēties pievienot savējos. Gan aizstājvārdi, gan funkcijas, gan eksporti tev jāpievieno `~/.bashrc`. Šis fails atjaunināšanas laikā netiks pārrakstīts. Ja tu vēlies mainīt kādu no Omarchy noklusējuma vērtībām, tu tās vari droši pievienot arī šeit.
+
+### Vides mainīgo iestatīšana darbvirsmai
+
+Darbvirsmas sesijas eksporti pieder `~/.config/uwsm/env.d/`. Šie faili tiek palaisti pirms tavas darbvirsmas startēšanas, tāpēc čaulas kļūda var tevi aizsūtīt atpakaļ uz pieteikšanās ekrānu. Kamēr tos rediģē, turi atvērtu darbojošos termināli. Lai atspējotu pārrakstījumu, pārvieto to ārpus `env.d`. Skati [pieteikšanās atkopšanu](45-troubleshooting.md#my-password-is-accepted-but-i-return-to-the-login-screen), ja izmaiņas neļauj pieteikties.
 
 ### Iekšējo Omarchy failu mainīšana
 
-Skaties, šis ir tavs dators. Tu ar to vari darīt, ko vien gribi, bet es neieteiktu tieši mainīt failus `/usr/share/omarchy`. Tie pieder Omarchy pacman pakotnei, tāpēc tavas izmaiņas nākamajā atjaunināšanā vienkārši tiks pārrakstītas. Labāk tā vietā vienkārši pārraksti visas noklusējuma vērtības, kas tev nepatīk, `~/.config/*` mapē.
+Klausies, šis ir tavs dators. Tu ar to vari darīt, ko vien vēlies, bet es ieteiktu neveikt izmaiņas failos, kas atrodas `/usr/share/omarchy`, tieši. Tie pieder Omarchy pacman pakotnei, tāpēc tavas izmaiņas nākamajā atjaunināšanas reizē vienkārši tiks pārrakstītas. Tā vietā tev labāk vienkārši pārrakstīt visas noklusējuma vērtības, kas tev nepatīk, mapē `~/.config/*`.
 
-Šādi vari mainīt gandrīz visu, piemēram, noklusējuma taustiņu sasaistījumus. Vienkārši rediģē `~/.config/hypr/bindings.lua`, lai, teiksim, aizstātu [Obsidian](https://obsidian.md/) ar [Joplin](https://joplinapp.org/) (instalē ar `omarchy-pkg-add joplin-bin`):
+Šādi tu vari mainīt gandrīz visu, piemēram, noklusējuma taustiņsaistījumus. Vienkārši rediģē `~/.config/hypr/bindings.lua`, lai, teiksim, aizstātu [Obsidian](https://obsidian.md/) ar [Joplin](https://joplinapp.org/) (instalē ar `omarchy-pkg-add joplin-bin`):
 
 ```lua
 o.rebind("SUPER + SHIFT + O", "Joplin", "joplin-desktop")
 ```
 
-`o.rebind` noņem esošo sasaistījumu pirms tā aizstājēja pievienošanas. Tas pieņem tos pašus argumentus kā `o.bind`, ieskaitot palaišanas palīgfunkcijas un sasaistījumu opcijas. Izmanto `o.bind`, lai pievienotu sasaistījumu, vai `hl.unbind`, lai to noņemtu, neaizstājot.
+`o.rebind` noņem esošo saistījumu pirms tā aizstājēja pievienošanas. Tam ir tādi paši argumenti kā `o.bind`, ieskaitot palaišanas palīgus un saistījumu opcijas. Izmanto `o.bind`, lai pievienotu saistījumu, vai `hl.unbind`, lai to noņemtu, neaizstājot.
 
-Ja tomēr uzstāj uz rakņāšanos pa iekšējiem Omarchy failiem, pārslēdzies uz dev kanālu sadaļā _Update > Channel > Dev_. Tas saista Omarchy ar pirmkoda git izrakstīto kopiju `~/omarchy`, ko vari brīvi mainīt pēc sirds patikas. Šeit neviens tev neteiks, ko darīt!
+Ja tu uzstāj uz iekšējo Omarchy failu bakstīšanu, pārslēdzies uz dev kanālu, izmantojot _Update > Channel > Dev_. Tas saista Omarchy ar avota koda git izrakstu `~/omarchy`, ko tu vari brīvi mainīt, cik vien sirds kāro. Te nav neviena, kurš tev teiks, ko darīt!
 
-### Visu izmaiņu atiestatīšana
+### Jebkuru izmaiņu atiestatīšana
 
-Ja galu galā sajauc konfigurācijas haosā, tu tās vienmēr vari atgriezt pie noklusējumiem, izmantojot _Update > Config_ Omarchy izvēlnē. Vai arī palaižot `omarchy reinstall configs`, lai atiestatītu visu.
+Ja tu galu galā savas konfigurācijas saved nekārtībā, tu tās vienmēr vari atgriezt pie noklusējuma vērtībām, izmantojot _Update > Config_ Omarchy izvēlnē. Vai arī palaižot `omarchy reinstall configs`, lai atiestatītu visu.
