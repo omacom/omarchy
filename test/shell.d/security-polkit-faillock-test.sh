@@ -1,87 +1,32 @@
 #!/bin/bash
 
 set -euo pipefail
+
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-# Exercise the actual policy renderer/publication rather than setup heredocs:
-# preserve vendor faillock includes and never expose a method without its guard.
-python3 -B - "$ROOT/default/pam/polkit-policy.py" <<'PY'
-from pathlib import Path
-import runpy
-import sys
-import tempfile
-from unittest.mock import patch
+# The fingerprint and FIDO2 setup commands each create /etc/pam.d/polkit-1 from
+# scratch when the file does not already exist -- which is the normal case on
+# Arch, where the polkit package ships its PAM stack in /usr/lib/pam.d/polkit-1
+# and /etc/pam.d/polkit-1 is absent. A hand-rolled stack that lists pam_unix
+# directly instead of `include system-auth` silently drops pam_faillock, so
+# polkit prompts would have no brute-force lockout and their failures would not
+# count toward the shared tally. Assert the created stack defers to system-auth.
 
-policy = runpy.run_path(sys.argv[1])
-body = ''.join(f'{phase} include system-auth\n' for phase in ('auth', 'account', 'password', 'session'))
-with tempfile.TemporaryDirectory() as directory:
-  target = Path(directory) / 'polkit-1'
-  vendor = Path(directory) / 'vendor'
-  vendor.write_text(body)
-  (Path(directory) / 'system-auth').write_text('auth required pam_unix.so\n')
-  for method in ('fingerprint', 'fido2'):
-    old = target.read_bytes() if target.exists() else None
-    # Failure immediately before publication leaves the previous policy intact.
-    with patch('os.replace', side_effect=OSError('interrupted publication')):
-      try:
-        policy['publish'](target, vendor, method)
-      except OSError:
-        pass
-      else:
-        raise AssertionError('publication did not reach the failure point')
-    assert (target.read_bytes() if target.exists() else None) == old
-    policy['publish'](target, vendor, method)
-    rendered = target.read_text()
-    assert rendered.startswith('account requisite pam_omarchy_lock.so\n')
-    assert 'auth [success=ignore default=2] pam_omarchy_lock.so\nauth [success=1 default=ignore] pam_exec.so' in rendered
-    assert 'auth optional pam_omarchy_lock.so password\nauth include system-auth' in rendered
-    for line in body.splitlines():
-      assert line in rendered
-    assert rendered.count('pam_fprintd.so') == 1
-    assert policy['render'](rendered, method) == rendered
-  assert rendered.count('pam_u2f.so') == 1
-  removed = policy['render'](rendered, 'remove-fingerprint')
-  assert 'pam_fprintd.so' not in removed and 'omarchy-hw-laptop-closed' not in removed
-  assert 'default=2]' not in removed and 'pam_u2f.so' in removed
-  removed = policy['render'](removed, 'remove-fido2')
-  assert 'pam_u2f.so' not in removed and 'default=1]' not in removed
-  assert removed == 'account requisite pam_omarchy_lock.so\n' + body
-  before = target.read_bytes()
-  try:
-    policy['publish'](target, vendor, 'unknown')
-  except ValueError:
-    pass
-  else:
-    raise AssertionError('invalid method accepted')
-  assert target.read_bytes() == before
-  # Comments/blank lines are not entries in PAM's relative-jump accounting.
-  gate = 'AUTH [success=1 default=ignore] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-closed\n'
-  example = gate + '# reader\n\naccount include system-auth\nAUTH SUFFICIENT pam_fprintd.so\nauth include system-auth\n'
-  rendered = policy['render'](example)
-  spaced = policy['render'](example.replace('success=1 default=ignore', 'success = 1 default = ignore'))
-  assert 'default=2] pam_omarchy_lock.so' in spaced
-  assert rendered.index('default=2] pam_omarchy_lock.so') < rendered.index(gate)
-  assert 'default=1] pam_omarchy_lock.so' not in rendered
-  required = 'auth requisite pam_deny.so # coordinated with pam_omarchy_lock.so\n'
-  assert required in policy['render'](required + body)
-  comments = '# omarchy-hw-laptop-closed\n# pam_fprintd.so\n' + body
-  rendered = policy['render'](comments, 'fingerprint')
-  assert 'auth sufficient pam_fprintd.so' in rendered
-  for invalid in ('[auth] sufficient pam_fprintd.so\n', 'auth sufficient [pam_fprintd.so]\n', 'auth required pam_fprintd.so\n', 'auth sufficient \\\n pam_fprintd.so\n',
-                  'auth [success=1 default=ignore] pam_permit.so # omarchy-hw-laptop-closed\n'):
-    try:
-      policy['render'](invalid)
-    except ValueError:
-      pass
-    else:
-      raise AssertionError('unsupported stack accepted: ' + invalid)
-  (Path(directory) / 'system-auth').write_text('AUTH SUFFICIENT pam_fprintd.so\n')
-  try:
-    policy['publish'](target, vendor)
-  except ValueError:
-    pass
-  else:
-    raise AssertionError('included fingerprint factor treated as password-only')
-  assert target.read_bytes() == before
-print('ok - atomic biometric policy publication preserves faillock and guard ordering')
-PY
+for setup in omarchy-setup-security-fingerprint omarchy-setup-security-fido2; do
+  script="$ROOT/bin/$setup"
+
+  # Pull the here-doc body the setup writes to /etc/pam.d/polkit-1.
+  body=$(sed -n "/tee \/etc\/pam.d\/polkit-1/,/^EOF\$/p" "$script")
+
+  [[ -n $body ]] || fail "$setup writes a polkit-1 stack"
+
+  for phase in auth account password session; do
+    grep -qE "^${phase}[[:space:]]+include[[:space:]]+system-auth" <<<"$body" ||
+      fail "$setup polkit-1 $phase defers to system-auth (keeps faillock)" "$body"
+  done
+
+  ! grep -qE "^(account|password|session)[[:space:]]+required[[:space:]]+pam_unix" <<<"$body" ||
+    fail "$setup polkit-1 does not hand-roll a bare pam_unix stack" "$body"
+
+  pass "$setup creates a polkit-1 stack that includes system-auth"
+done

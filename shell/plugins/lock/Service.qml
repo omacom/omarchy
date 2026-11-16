@@ -556,7 +556,8 @@ Item {
       backgroundVersion: root.backgroundVersion
       fingerprintConfigured: root.fingerprintConfigured || root.fingerprintUnavailable
       fingerprintUnavailable: root.fingerprintUnavailable
-      fingerprintReady: root.fingerprintReady
+      // Preview does not start a PAM conversation.
+      fingerprintReady: root.fingerprintConfigured
       authenticatingPassword: false
       failureMessage: ""
       failedAttempts: 0

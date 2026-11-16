@@ -28,10 +28,6 @@ case "$1" in
   omarchy-lifecycle-dispatch) echo "dispatch ${*:2}" >> "$CALL_LOG"; exit "${ENABLE_STATUS:-0}" ;;
   sed) printf 'pam %s\n' "$*" >> "$CALL_LOG" ;;
   tee) printf 'pam %s\n' "$*" >> "$CALL_LOG"; cat >/dev/null ;;
-  env)
-    [[ $2 == "OMARCHY_PATH=$OMARCHY_PATH" && $3 == "$OMARCHY_PATH/bin/omarchy-apply-polkit" && $# == 4 && $4 == "--fingerprint" ]] || exit 99
-    echo apply-polkit >> "$CALL_LOG"
-    ;;
   *) echo "Unexpected privileged call: $*" >> "$CALL_LOG"; exit 99 ;;
 esac
 STUB
@@ -148,7 +144,7 @@ pass "missing hardware performs no package operations"
 : > "$CALL_LOG"
 OMARCHY_PATH="$scratch" ENROLL_STATUS=0 VERIFY_STATUS=0 \
   "$setup_script" > "$scratch/output" 2>&1 || fail "successful enrollment configures authentication"
-[[ $(grep -E '^(enroll|verify|apply-polkit|apply-lock)$' "$CALL_LOG") == $'enroll\nverify\napply-polkit\napply-lock' ]] ||
+[[ $(grep -E '^(enroll|verify|apply-lock)$' "$CALL_LOG") == $'enroll\nverify\napply-lock' ]] ||
   fail "setup configures lock recovery once, after enrollment and verification"
 pass "setup reuses apply-lock after enrollment and verification"
 

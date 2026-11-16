@@ -53,11 +53,6 @@ printf '\t%s' "$@" >>"$TEST_LOG"
 printf '\n' >>"$TEST_LOG"
 
 case "${1:-}" in
-  env)
-    if (( $# != 4 )) || [[ $2 != "OMARCHY_PATH=$OMARCHY_PATH" || $3 != "$OMARCHY_PATH/bin/omarchy-apply-polkit" || $4 != "--remove-fido2" ]]; then
-      reject "$@"
-    fi
-    ;;
   rm)
     if (( $# != 3 )) || [[ $2 != "-rf" || $3 != "$TEST_AUTHDIR" ]]; then
       reject "$@"
@@ -84,7 +79,7 @@ chmod +x "$stub_bin/sudo" "$stub_bin/omarchy-pkg-drop"
 
 invoke_remove() {
   : >"$calls"
-  TEST_AUTHDIR="$authdir" TEST_LOG="$calls" OMARCHY_PATH="$ROOT" \
+  TEST_AUTHDIR="$authdir" TEST_LOG="$calls" \
     PATH="$stub_bin:$ROOT/bin:$PATH" \
     bash "$remove_copy" </dev/null >/dev/null
 }

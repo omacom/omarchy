@@ -3,15 +3,28 @@ import QtQuick
 QtObject {
   property bool blocked: true
   property var flow: null
+  property var activeFlow: null
 
   signal rejected()
 
+  function pending(request) {
+    return request && !request.isCompleted && !request.isCancelled
+  }
+
   function rejectBlockedRequest() {
-    if (!blocked) return false
-    if (flow) {
-      console.log("omarchy polkit request rejected: session locked or lock state unavailable")
-      flow.cancelAuthenticationRequest()
+    var current = flow
+    var previous = activeFlow
+    var overlap = pending(current) && pending(previous) && current !== previous
+    if (!blocked && !overlap) {
+      activeFlow = pending(current) ? current : null
+      return false
     }
+    activeFlow = null
+    // Quickshell exposes only the newest request. Reject overlapping requests
+    // before an older completion can discard that flow without canceling it.
+    // Cancel the current flow first: completion clears Quickshell's active flow.
+    if (pending(current)) current.cancelAuthenticationRequest()
+    if (previous !== current && pending(previous)) previous.cancelAuthenticationRequest()
     rejected()
     return true
   }
