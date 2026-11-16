@@ -8,7 +8,7 @@ function o.dictation_installed()
   if pipe then
     pipe:close()
   end
-  return backend ~= nil and backend:match("^[%w%-]+$") ~= nil and not o.cmd_missing(backend)
+  return backend ~= nil and backend:match("^[%w%-]+$") ~= nil and not o.cmd_missing("omarchy-dictation-" .. backend)
 end
 
 if o.dictation_installed() then
