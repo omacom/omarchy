@@ -49,7 +49,7 @@ hyprctl clients -j 2>/dev/null \
 section "Screensaver detector"
 if hyprctl clients -j 2>/dev/null | jq -e '.[] | select(.class == "org.omarchy.screensaver" or .initialClass == "org.omarchy.screensaver")' >/dev/null; then
   echo "running-window"
-elif pgrep -f '[o]rg.omarchy.screensaver' >/dev/null; then
+elif pgrep -f '^([^ ]*/)?(alacritty|ghostty|foot|kitty) .*--(class|app-id)=org\.omarchy\.screensaver( |$)' >/dev/null; then
   echo "running-process"
 elif omarchy-toggle-enabled screensaver-off; then
   echo "disabled"

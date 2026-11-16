@@ -31,6 +31,6 @@ mapfile -t shutdown < <(rg '^(pkill|timeout) ' "$call_log")
   fail "system lock stops ttfx before closing its terminal" "calls: ${shutdown[*]}"
 [[ ${shutdown[1]} == "timeout 1s pidwait -x ttfx" ]] ||
   fail "system lock waits for ttfx to exit" "calls: ${shutdown[*]}"
-[[ ${shutdown[2]} == "pkill -f [o]rg.omarchy.screensaver" ]] ||
+[[ ${shutdown[2]} == "pkill -f ^([^ ]*/)?(alacritty|ghostty|foot|kitty) .*--(class|app-id)=org\.omarchy\.screensaver( |$)" ]] ||
   fail "system lock closes the screensaver terminal after ttfx exits" "calls: ${shutdown[*]}"
 pass "system lock waits for ttfx before closing its terminal"

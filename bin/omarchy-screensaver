@@ -7,9 +7,10 @@ screensaver_in_focus() {
 }
 
 exit_screensaver() {
-  hyprctl eval 'hl.config({ cursor = { invisible = false } })' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
+  # The startup reveal owns the cursor while it is still pending.
+  hyprctl eval 'if not omarchy_startup_cursor_pending then hl.config({ cursor = { invisible = false } }) end' &>/dev/null || hyprctl keyword cursor:invisible false &>/dev/null || true
   pkill -x ttfx 2>/dev/null
-  pkill -f '[o]rg.omarchy.screensaver' 2>/dev/null
+  pkill -f '^([^ ]*/)?(alacritty|ghostty|foot|kitty) .*--(class|app-id)=org\.omarchy\.screensaver( |$)' 2>/dev/null
   exit 0
 }
 
