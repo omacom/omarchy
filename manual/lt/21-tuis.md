@@ -1,39 +1,39 @@
-# TUI
+# TUIs
 
 ## Lazygit
 
-[Lazygit](https://github.com/jesseduffield/lazygit) yra maloni alternatyva kažkam panašaus į GitHub Desktop programą, ir jis veikia terminale.
+[Lazygit](https://github.com/jesseduffield/lazygit) yra puiki alternatyva tokioms programoms kaip „GitHub Desktop“, ir ji veikia terminale.
 
-Galite paleisti tiesiogiai: nueik į bet kurį git valdomą katalogą ir paleisk `lazygit`. Arba gali paleisti Neovim viduje, kur jį galima paleisti su `Space G G`.
+Ją paleisti galite tiesiogiai, nuėję į bet kurį aplanką, valdomą su git, ir paleidę `lazygit`. Arba galite ją paleisti Neovim viduje, kur ji paleidžiama paspaudus `Space G G`.
 
-Tarp skirtingų skydelių šokinėji naudodamas `Tab`. Files skydelyje failus ruošimui (staging) atrenki naudodamas `Space`, o tada gali sukurti naują commit naudodamas `c`. Visas prieinamas komandas gali pamatyti naudodamas `?`.
+Tarp skirtingų sekcijų šokinėjate naudodami `Tab`. Sekcijoje Files failus parengimui pasirinkti naudojate `Space`, o tada galite sukurti naują commit paspaudę `c`. Visas galimas komandas galite pamatyti paspaudę `?`.
 
 ## Btop
 
-[Btop](https://github.com/aristocratos/btop) yra gražus išteklių tvarkytuvas, rodantis atminties, CPU, disko ir tinklo naudojimą. Jis taip pat išvardija visus aktyvius procesus ir leidžia juos valdyti.
+[Btop](https://github.com/aristocratos/btop) yra gražus resursų tvarkytuvas, rodantis atminties, CPU, disko ir tinklo naudojimą. Jis taip pat išvardija visus aktyvius procesus ir leidžia juos valdyti.
 
-Omarchy jį vadina Activity ir paleidi jį paspausdamas `Super + Ctrl + T`. Jis atsidaro kaip plūduriuojantis langas, kurį gali išdėlioti plytelėmis su `Super + T`.
+Omarchy jį vadina Activity Monitor, o paleisti galite iš programų leistuvo arba paspaudę `Super + Shift + T`. Jis atsidaro kaip slankusis langas, kurį galite paversti plytele paspaudę `Super + T`.
 
 ## Herdr
 
-[Herdr](https://github.com/omacom-io/herdr) yra terminalo darbo sričių tvarkytuvas, suteikiantis darbo sritis, skirtukus ir skydelius bei laikantis juos visus veikiančius pastovioje sesijoje, nuo kurios gali atsijungti ir vėliau sugrįžti.
+[Herdr](https://github.com/omacom-io/herdr) yra terminalo darbo sričių tvarkytuvas, suteikiantis darbo sritis, korteles ir sekcijas ir išlaikantis jas visas veikiančias nuolatinėje sesijoje, nuo kurios galite atsijungti ir prie kurios galėsite grįžti vėliau.
 
-Jį paleidi (arba vėl prisijungi prie esamos sesijos) su `Super + Ctrl + Return`. Omarchy pristato Herdr konfigūraciją, atspindinčią jos Tmux konfigūraciją, tad priešdėlio klavišas čia taip pat yra `Ctrl + Space`. Visus klavišų susiejimus gali peržiūrėti su `Super + Ctrl + K`.
+Jį paleidžiate (arba vėl prisijungiate prie esamos sesijos) iš programų leistuvo arba paspaudę `Super + Ctrl + Return`. Omarchy pateikia Herdr konfigūraciją, atspindinčią jos Tmux konfigūraciją, todėl priešdėlio klavišas čia taip pat yra `Ctrl + Space`. Visus klavišų derinius galite peržiūrėti paspaudę `Super + Ctrl + K`.
 
 ## Fastfetch
 
-[Fastfetch](https://github.com/fastfetch-cli/fastfetch) rodo sistemos informaciją, pavyzdžiui, branduolio versiją, veikimo laiką, temą, CPU, atmintį ir daugiau. Tai populiaraus neofetch įrankio įpėdinis.
+[Fastfetch](https://github.com/fastfetch-cli/fastfetch) rodo sistemos informaciją, pavyzdžiui, branduolio versiją, veikimo laiką, temą, CPU, atmintį ir dar daugiau. Tai populiaraus neofetch įrankio įpėdinis.
 
-Omarchy tai supakavo kaip _Apie_ Omarchy meniu (`Super + Space`).
+Omarchy tai supakavo kaip _About_ Omarchy meniu (`Super + Space`).
 
 ## Cliamp
 
-[Cliamp](https://www.cliamp.stream/) yra retro terminalo muzikos grotuvas, įkvėptas Winamp 2.x, kartu su įtaisytosiomis radijo stotimis lo-fi ritmams. Paleisk jį su `Super + Shift + Alt + M` arba iš Omarchy meniu skiltyje _Programos_. Paspausk `?`, kad gautum visą klavišų susiejimų sąrašą.
+[Cliamp](https://www.cliamp.stream/) yra retro terminalo muzikos grotuvas, įkvėptas Winamp 2.x, su įtaisytomis radijo stotimis lo-fi ritmams. Paleiskite jį paspaudę `Super + Shift + Alt + M` arba iš Omarchy meniu skiltyje _Apps_. Paspauskite `?`, kad pamatytumėte visą klavišų derinių sąrašą.
 
-## O kaip Wi-Fi ir Bluetooth?
+## O kaip su Wi-Fi ir Bluetooth?
 
-Nerasi TUI, skirtų Wi-Fi ir Bluetooth — tie darbai priklauso Omarchy shell. Spustelėk Wi-Fi piktogramą meniu juostoje (arba paspausk `Super + Ctrl + W`), kad pamatytum tinklus ir prisijungtum, ir spustelėk Bluetooth piktogramą (arba paspausk `Super + Ctrl + B`), kad suporuotum ir prijungtum įrenginius. Žr. [tinklas](35-networking.md) visai istorijai sužinoti.
+TUIs, skirtų Wi-Fi ir Bluetooth, nerasite – tie darbai priklauso Omarchy apvalkalui. Spustelėkite Wi-Fi piktogramą viršutinėje juostoje (arba paspauskite `Super + Ctrl + N`), kad pamatytumėte tinklus ir prisijungtumėte, ir spustelėkite Bluetooth piktogramą (arba paspauskite `Super + Ctrl + B`), kad susietumėte ir prijungtumėte įrenginius. Visą istoriją rasite skyriuje [tinklas](35-networking.md).
 
-## Pridėti savo
+## Kaip pridėti savo
 
-Bet kuri terminalo programa gali gauti pilną programos traktavimą. Eik į _Įdiegti > TUI_ Omarchy meniu (`Super + Space`), suteik jai pavadinimą, paleidimo komandą, lango stilių ir piktogramą, ir ji atsiras programų paleidimo priemonėje kaip bet kuri kita programa. Gali ją vėl pašalinti skiltyje _Pašalinti > TUI_.
+Bet kuri terminalo programa gali gauti pilną programos statusą. Eikite į _Install > TUI_ Omarchy meniu (`Super + Space`), suteikite jai pavadinimą, paleidimo komandą, lango stilių ir piktogramą, ir ji atsiras programų leistuve kaip ir bet kuri kita programa. Vėl ją pašalinti galite skiltyje _Remove > TUI_.

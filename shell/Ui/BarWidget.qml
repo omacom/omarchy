@@ -11,6 +11,8 @@ import qs.Commons
 //                 "start" (left, or top on a vertical bar), "end", or
 //                 "center" when it grows both ways. Content laid out
 //                 against it stays put while the widget grows.
+//   inTraySection - whether it sits in the tray's drawer, which already
+//                   hides it until hovered.
 //
 // Widgets are free to add their own properties, signals, and child items.
 Item {
@@ -20,6 +22,7 @@ Item {
   property string moduleName: ""
   property var settings: ({})
   property string fixedEdge: "center"
+  property bool inTraySection: false
 
   // Bar geometry, lifted off the host. Widgets read these constantly to pick
   // between horizontal/vertical layouts; defining them on the base keeps the

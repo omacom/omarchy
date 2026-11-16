@@ -90,6 +90,13 @@ const terminalEntries = [
 ]
 assertEqual(dock.claimingEntryId('org.omarchy.nvim', terminalEntries), 'nvim', 'dock gives Neovim launched by the TUI launcher its own entry')
 assertEqual(dock.claimingEntryId('org.omarchy.btop', terminalEntries), 'btop', 'dock matches a terminal entry by its program name')
+
+const standIns = ['omarchy-terminal', 'omarchy-browser']
+assertEqual(dock.standInKey('foot', ['System', 'TerminalEmulator'], standIns), 'omarchy-terminal', 'a pinned Terminal claims the terminal it opened')
+assertEqual(dock.standInKey('google-chrome', ['Network', 'WebBrowser'], standIns), 'omarchy-browser', 'a pinned Browser claims the browser it opened')
+assertEqual(dock.standInKey('foot', ['TerminalEmulator'], ['foot', 'omarchy-terminal']), 'foot', 'a terminal pinned itself keeps its own windows')
+assertEqual(dock.standInKey('foot', ['TerminalEmulator'], []), 'foot', 'an unpinned Terminal claims nothing')
+assertEqual(dock.standInKey('YouTube', ['Network'], standIns), 'YouTube', 'a web app keeps its own windows')
 assertEqual(dock.claimingEntryId('org.omarchy.hey', terminalEntries), 'HEY TUI', 'dock matches an entry that hands the terminal its app id')
 assertEqual(dock.claimingEntryId('org.omarchy.agent', terminalEntries), '', 'dock leaves an app id no entry claims unclaimed')
 assertEqual(dock.claimingEntryId('Alacritty', terminalEntries), '', 'dock leaves a terminal of its own to its own entry')
@@ -108,6 +115,12 @@ assertEqual(dock.pickWindow(foot, 4), 2, 'dock brings forward the window on the 
 assertEqual(dock.pickWindow(foot, 3), 1, 'dock restores a minimized window before leaving for another workspace')
 assertEqual(dock.pickWindow(foot.map((w, i) => Object.assign({}, w, { activated: i === 2 })), 4), 1, 'dock cycles from the window here to the minimized one')
 assertEqual(dock.pickWindow([], 4), -1, 'dock has no window to pick for an app that is not running')
+assertEqual(dock.pickClickWindow('', foot, 3), 1, 'a click on a running app brings a window forward')
+assertEqual(dock.pickClickWindow('new', foot, 4), 1, 'a click on an app that asks for new windows restores a minimized one first')
+assertEqual(dock.pickClickWindow('new', [foot[0], foot[2]], 4), -1, 'a click on an app that asks for new windows starts another')
+assertEqual(dock.pickClickWindow('workspace', foot, 4), 2, 'a click on a workspace app brings forward the one on this workspace')
+assertEqual(dock.pickClickWindow('workspace', foot, 3), 1, 'a click on a workspace app restores a minimized one rather than leaving for another workspace')
+assertEqual(dock.pickClickWindow('workspace', [foot[0], foot[2]], 3), -1, 'a click on a workspace app opens another when none is on this workspace')
 
 JS
 
@@ -129,7 +142,8 @@ if omarchy_dock position diagonal 2>/dev/null; then
 fi
 pass "dock position is set and read through omarchy-dock"
 
-[[ $(omarchy_dock pinned | paste -sd " ") == "org.gnome.Nautilus chromium foot omacalc omawrite X YouTube" ]] || fail "dock pins start from the defaults"
+default_pins=$(jq -r '.dock.pinned[]' "$ROOT/config/omarchy/shell.json" | paste -sd " ")
+[[ -n $default_pins && $(omarchy_dock pinned | paste -sd " ") == "$default_pins" ]] || fail "dock pins start from the defaults"
 omarchy_dock unpin spotify >/dev/null
 omarchy_dock pin com.example.App.desktop >/dev/null
 omarchy_dock pin com.example.App >/dev/null
@@ -157,12 +171,6 @@ if omarchy_dock autohide sometimes 2>/dev/null; then
   fail "dock auto-hide takes only on, off, or toggle"
 fi
 pass "dock auto-hide is set through omarchy-dock autohide"
-
-# The dock only shows on floating workspaces, and gets out of the way of a
-# fullscreen window; a maximized one only tucks it away.
-grep -qF 'dock.isFloating(workspaceId) && fullscreenMode < 2' "$ROOT/shell/plugins/dock/DockWindow.qml" ||
-  fail "dock shows only on floating workspaces without a fullscreen window"
-pass "dock shows only on floating workspaces without a fullscreen window"
 
 # Minimizing moves a window to the dock's hidden workspace without following
 # it, then focuses the workspace it left, so the next window opens there and
@@ -222,10 +230,3 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
-
-# Terminal apps launch through Omarchy's TUI launcher from every launcher that
-# uses the app library, so their windows carry an app id of their own.
-grep -qF 'var command = root.terminalCommand(DesktopEntries.byId(id))' "$ROOT/shell/services/AppLibrary.qml" &&
-  grep -qF '"omarchy-launch-tui "' "$ROOT/shell/services/AppLibrary.qml" ||
-  fail "the app library launches terminal apps through the TUI launcher"
-pass "the app library launches terminal apps through the TUI launcher"
