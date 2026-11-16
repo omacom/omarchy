@@ -44,13 +44,15 @@ case "${1:-}" in
       exit 1
     fi
 
-    # Informational only: PIDs can be reused. Never use this value (or the
-    # file's existence) to decide to unlock.
-    printf '%s\n' "$$" >"$lock_path"
     export OMARCHY_UPDATE_LOCK_HOLDER="$$:$OMARCHY_UPDATE_LOCK_FD"
     # A closing terminal signals the whole group; hold the lock until the update's own cleanup finishes.
     trap : HUP TERM
-    "$@" {OMARCHY_UPDATE_LOCK_FD}>&-
+    (
+      # Record the command's PID, not ours, so killing it ends the update through its own traps.
+      # Informational only: PIDs can be reused. Never use this value (or the file's existence) to decide to unlock.
+      printf '%s\n' "$BASHPID" >"$lock_path"
+      exec "$@"
+    ) {OMARCHY_UPDATE_LOCK_FD}>&-
     ;;
   *)
     echo "Usage: omarchy-update-lock <held|run> [command] [args...]" >&2

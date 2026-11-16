@@ -115,11 +115,10 @@ read -r owner_pid <"$runtime_dir/$update_lock_name"
 [[ $owner_pid =~ ^[0-9]+$ ]] || fail "update lock records an acquiring PID"
 grep -q "Update lock acquired by PID $owner_pid\." "$test_tmp/update-second.out" ||
   fail "contender reports the holder without overwriting its PID"
-# A stale PID in the file must not prevent the next acquisition. The recorded
-# PID is the wrapper holding the flock, which is the command's parent.
+# A stale PID in the file must not prevent the next acquisition.
 printf '999999999\n' >"$runtime_dir/$update_lock_name"
 run_with_lock_env "$stub_bin/omarchy-update-lock" run /bin/bash -c \
-  'read -r owner <"$XDG_RUNTIME_DIR/'"$update_lock_name"'"; [[ $owner == "$PPID" ]]' ||
+  'read -r owner <"$XDG_RUNTIME_DIR/'"$update_lock_name"'"; [[ $owner == "$$" ]]' ||
   fail "free flock replaces a stale diagnostic PID"
 pass "update lock PID is diagnostic and survives rejected contenders"
 
