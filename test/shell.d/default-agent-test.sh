@@ -146,6 +146,9 @@ export OMARCHY_TEST_MUSE_LOGIN_LOG="$muse_login_log"
 export OMARCHY_TEST_CLIPBOARD="$clipboard_log"
 export OMARCHY_PATH="$ROOT"
 export OMARCHY_MISE_CONFIG_PATH="$test_tmp/etc/mise/config.toml"
+# Omarchy's agent wrappers export the cooldown override into agent sessions, so
+# a run from one would inherit the value the cooldown assertions look for.
+unset MISE_MINIMUM_RELEASE_AGE
 
 grok_package="grok"
 omp_package="oh-my-pi"
