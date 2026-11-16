@@ -48,8 +48,9 @@ end
 
 o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "A"))
 -- Terminals keep their Insert chords (matches Omarchy's terminal configs and
--- avoids the non-Latin keysym lookup issue); GUI apps use letter keys, which
--- resolve against the active layout (see #7027).
+-- avoids the non-Latin keysym lookup issue for terminals); GUI apps use
+-- letter keys resolving against the active layout (non-Latin remains a
+-- Hyprland-level issue, see #7027).
 o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL", "Insert"))
 -- Scripts paste the same way with `hyprctl dispatch 'o.universal_paste'`.
 o.universal_paste = universal_clipboard_shortcut("CTRL", "V", "SHIFT", "Insert")
