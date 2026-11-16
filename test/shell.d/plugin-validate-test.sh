@@ -115,3 +115,26 @@ output=$(validate "$dir") && fail "validate refuses an entry point file that is 
 grep -qF "entry point file not found" <<<"$output" \
   || fail "validate reports a missing file as a missing file" "$output"
 pass "validate refuses an entry point file that is not there"
+
+# Turkish collation puts dotted/dotless i outside [a-z]. Plugin ids that contain
+# "i" (including reverse-DNS io.github...) must still validate when LANG is tr_TR.
+dir="$TMPDIR/turkish-id"
+mkdir -p "$dir"
+cat >"$dir/manifest.json" <<'JSON'
+{
+  "schemaVersion": 1,
+  "id": "io.github.acme.alttab",
+  "name": "Alt Tab",
+  "version": "1.0.0",
+  "kinds": ["panel"],
+  "entryPoints": { "panel": "Main.qml" }
+}
+JSON
+touch "$dir/Main.qml"
+if locale -a 2>/dev/null | grep -qiE '^tr_TR(\.utf-?8)?$'; then
+  LANG=tr_TR.UTF-8 LC_ALL=tr_TR.UTF-8 validate "$dir" >/dev/null \
+    || fail "validate accepts an io.github id under tr_TR"
+  pass "validate accepts an io.github id under tr_TR"
+else
+  skip "tr_TR.UTF-8 locale not installed; skipping Turkish plugin id check"
+fi

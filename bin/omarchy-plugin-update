@@ -33,7 +33,8 @@ confirm() {
 }
 
 valid_plugin_id() {
-  [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]
+  # Pin C collation: under tr_TR, "i" is outside [a-z] (see omarchy-theme-install).
+  (LC_ALL=C; [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]])
 }
 
 update_one() {
