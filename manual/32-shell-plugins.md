@@ -95,10 +95,10 @@ omarchy plugin validate ./my-plugin
 
 That runs the same checks the shell does at load time: the schema version, the required fields, an id that isn't reserved, entry points that are safe relative paths and actually exist, an entry point for every kind you claimed, and no symlinks anywhere inside the folder.
 
-For the full picture, the source is the documentation: `shell/README.md` in the Omarchy repo covers the manifest schema, the shell's IPC contract, and the exact shape of `shell.json`, and `shell/plugins/README.md` lists every first-party plugin with its id, kinds, and entry points.
+For plugin development, see the [shell reference](https://github.com/omacom/omarchy/blob/quattro/docs/omarchy-shell.md) and [first-party plugin catalog](https://github.com/omacom/omarchy/blob/quattro/shell/plugins/README.md).
 
 ## Sharing yours with the world
 
 Once you've made something you like, put it in a public git repo. That's the whole distribution mechanism — anyone can then run `omarchy plugin add` against your URL and have it running in seconds.
 
-To help people actually find it, list it at [omarchyplugins.com](https://omarchyplugins.com). That's the community directory of Omarchy shell plugins, and it's the first place to look when you're wondering whether someone has already built the widget you're about to write. Browse it before you start!
+To help people actually find it, list it at [plugins.omarchy.org](https://plugins.omarchy.org). That's the marketplace for Omarchy shell plugins, and it's the first place to look when you're wondering whether someone has already built the widget you're about to write. Browse it before you start!

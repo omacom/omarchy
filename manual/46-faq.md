@@ -9,7 +9,7 @@ hl.config({
   input = {
     -- Use multiple keyboard layouts and switch between them with Left Alt + Right Alt
     kb_layout = "us,fr",
-    kb_options = "compose:caps,shift:both_capslock_cancel,grp:alts_toggle",
+    kb_options = "omarchy:shift_caps_compose,grp:alts_toggle",
   },
 })
 ```
@@ -38,10 +38,6 @@ Those all live in [networking](35-networking.md).
 
 _Trigger > Speed Test > Disk Speed Test_ measures live read and write speed on your drive, or `omarchy disk speedtest` from the terminal.
 
-### Why can't I sign into my Google account in Chromium?
-
-The plain open source Chromium build doesn't ship with the OAuth credentials that Google requires for account sign-in. Run _Install > Service > Chromium Account_ in the Omarchy menu to add them, restart the browser, and the sign-in will go through.
-
 ### How do I add a printer?
 
 Printing is set up and running out of the box, and you add each printer yourself from _Print Settings_ in the app launcher (`Super + Space`).
@@ -54,15 +50,15 @@ Automatic discovery, where printers on the network appear without being added, i
 
 ### How do I change where screenshots or screenrecordings are saved?
 
-If you want screenshots to be saved to `~/Pictures/Screenshots` instead of just `~/Pictures`, you can add this to a file under `~/.config/uwsm/env.d/` (like `~/.config/uwsm/env.d/capture`):
+Saved screenshots go to `~/Pictures/Screenshots` by default. To use another directory, add this to a file under `~/.config/uwsm/env.d/` (like `~/.config/uwsm/env.d/capture`):
 
 ```
-export OMARCHY_SCREENSHOT_DIR="$HOME/Pictures/Screenshots"
+export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
 You can do the same for screenrecordings using `OMARCHY_SCREENRECORD_DIR`.
 
-Just remember to create the directory you want to save to and restart Omarchy for this to take effect.
+Omasnap creates its screenshot directory automatically. Create the screenrecording directory yourself, then restart Omarchy for either environment change to take effect.
 
 ### How do I get the speakers + webcam working on my Apple Studio Display?
 

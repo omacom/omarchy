@@ -28,6 +28,8 @@ else
   expected_scope=""
 fi
 
+# The baseline has no locale override; forwarding is tested below.
+unset LC_ALL
 run_helper -Syu --noconfirm
 [[ $(cat "$test_tmp/call") == "env OMARCHY_UPDATE_PACMAN=1 ${expected_scope}pacman -Syu --noconfirm" ]] ||
   fail "helper composes the guarded pacman invocation" "$(cat "$test_tmp/call")"
