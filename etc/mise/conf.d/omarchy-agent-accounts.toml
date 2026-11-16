@@ -1,0 +1,13 @@
+# Resolve the active subscription at execution time, including in subprocesses.
+# User and project mise config can override these system defaults.
+[wrappers.claude]
+command = "omarchy-agent-account-exec"
+args = ["claude"]
+
+[wrappers.codex]
+command = "omarchy-agent-account-exec"
+args = ["codex"]
+
+[wrappers.grok]
+command = "omarchy-agent-account-exec"
+args = ["grok"]

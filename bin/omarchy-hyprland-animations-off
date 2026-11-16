@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# omarchy:summary=Check whether Hyprland's animations are off, by the toggle or because the session renders on the CPU
+# omarchy:hidden=true
+
+# A session that renders on the CPU turns them off by itself
+# (default/hypr/software-rendering.lua) until Appearance turns them back on,
+# unless the user's own looknfeel.lua already did, so ask Hyprland there.
+omarchy-hyprland-toggle-enabled no-animations ||
+  {
+    [[ -e $XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/omarchy-software-rendering ]] &&
+      ! omarchy-toggle-enabled animations-without-gpu &&
+      [[ $(hyprctl -j getoption animations:enabled 2>/dev/null | jq -r '.bool' 2>/dev/null) != "true" ]]
+  }

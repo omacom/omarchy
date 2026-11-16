@@ -5,6 +5,32 @@ set -euo pipefail
 source "$(dirname "$0")/base-test.sh"
 source "$ROOT/default/bash/fns/herdr"
 
+assert_invalid_pane_count() {
+  local function_name="$1"
+  local count="$2"
+  local expected="Usage: $function_name <pane_count> <command>"
+  local output status=0
+
+  if [[ $function_name == tsl ]]; then
+    output=$(TMUX= bash -c 'source "$1"; tsl "$2" echo' _ "$ROOT/default/bash/fns/tmux" "$count" 2>&1) || status=$?
+  else
+    output=$(HERDR_PANE_ID= bash -c 'source "$1"; hsl "$2" echo' _ "$ROOT/default/bash/fns/herdr" "$count" 2>&1) || status=$?
+  fi
+
+  (( status != 0 )) || fail "$function_name rejects an invalid pane count"
+  [[ $output == *"$expected"* ]] || fail "$function_name prints usage for an invalid pane count" "$output"
+  pass "$function_name rejects an invalid pane count"
+}
+
+assert_invalid_pane_count tsl not-a-number
+assert_invalid_pane_count tsl x
+assert_invalid_pane_count tsl 0
+assert_invalid_pane_count tsl -1
+assert_invalid_pane_count hsl not-a-number
+assert_invalid_pane_count hsl x
+assert_invalid_pane_count hsl 0
+assert_invalid_pane_count hsl -1
+
 test_dir=$(mktemp -d)
 trap 'rm -rf -- "$test_dir"' EXIT
 
@@ -46,3 +72,10 @@ expected_first=$(printf 'cd %q && hdl %q' "$test_dir/first project's files" "cod
 
 [[ ${commands[0]} == "$expected_first" ]] || fail "hdlm omits an absent second agent argument"
 pass "hdlm omits an absent second agent argument"
+
+: >"$log"
+HERDR_TAB_ID="tab" hsl 1 tail -f "/tmp/server log"
+mapfile -t commands <"$log"
+
+[[ ${commands[0]} == 'tail -f /tmp/server\ log' ]] || fail "hsl keeps the quoting of a command given as several arguments"
+pass "hsl keeps the quoting of a command given as several arguments"

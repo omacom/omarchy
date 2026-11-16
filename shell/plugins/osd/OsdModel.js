@@ -34,7 +34,10 @@ function iconFor(name, percent) {
   return ""
 }
 
-function stateForShow(iconName, rawMessage, rawValue, rawMax, rawProgressText, rawDuration) {
+// fmt(value) writes the percentage in the display language; QML passes
+// I18n.formatNumber, and without it the digits stay as they are.
+function stateForShow(iconName, rawMessage, rawValue, rawMax, rawProgressText, rawDuration, fmt) {
+  var number = typeof fmt === "function" ? fmt : function(v) { return String(v) }
   var maxValue = Math.max(1, parseInt(rawMax || "100", 10))
   var parsedValue = parseInt(rawValue || "0", 10)
   var hasProgress = rawValue !== "" && !isNaN(parsedValue) && rawMessage === ""
@@ -47,7 +50,7 @@ function stateForShow(iconName, rawMessage, rawValue, rawMax, rawProgressText, r
     maxValue: maxValue,
     hasProgress: hasProgress,
     value: value,
-    message: String(rawMessage || (hasProgress ? (rawProgressText || percent + "%") : "")),
+    message: String(rawMessage || (hasProgress ? (rawProgressText || number(percent) + "%") : "")),
     icon: iconFor(iconName, percent),
     duration: isNaN(parsedDuration) ? 1200 : Math.max(0, parsedDuration)
   }
