@@ -6,6 +6,8 @@
 # ccode=00 / regrev=245 defers channel legality to the host regulatory domain.
 # Omarchy already persists that from the timezone via set-wireless-regdom.sh.
 # The values below are otherwise this dump's calibration data; do not edit them.
+# swctrlmap_2g is the exception: the dump repeats the 5 GHz switch map there,
+# and 2.4 GHz joins then fail on MacBookPro14,2 (#7672).
 #
 # Lines starting with # are comments; the brcmfmac NVRAM parser ignores them.
 # macaddr= is a firmware key. The 00:90:4c value is Broadcom's placeholder,
@@ -32,7 +34,7 @@ boardflags2=0x00000002
 boardflags3=0xC0000303
 boardnum=62526
 
-swctrlmap_2g=0x08080808,0x04010401,0x08080808,0x00000000,0x000000ff
+swctrlmap_2g=0x02020202,0x01010101,0x02020202,0x00000000,0x000000ff
 swctrlmapext_2g=0x00000000,0x00000000,0x00000000,0x000000,0x003
 
 swctrlmap_5g=0x08080808,0x04010401,0x08080808,0x00000000,0x000000ff

@@ -26,6 +26,8 @@ grep -q '290569' "$nvram" || fail "NVRAM documents its bugzilla attachment"
 grep -qF 'https://bugzilla.kernel.org/attachment.cgi?id=290569' "$nvram" ||
   fail "NVRAM names the exact attachment it was vendored from"
 ! grep -q '^aa5g=1$' "$nvram" || fail "NVRAM is not the placeholder board file"
+grep -qx 'swctrlmap_2g=0x02020202,0x01010101,0x02020202,0x00000000,0x000000ff' "$nvram" ||
+  fail "NVRAM does not route 2.4 GHz through the 5 GHz switch map"
 pass "the vendored NVRAM has full 5 GHz calibration and provenance"
 
 grep -Fq '5 GHz board calibration on 2017 Touch Bar MacBook Pros' "$manual" ||
