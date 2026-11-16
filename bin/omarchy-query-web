@@ -18,6 +18,28 @@
 
 set -euo pipefail
 
+usage() {
+  cat <<'USAGE'
+Usage: omarchy-query-web [--print] [provider] <query>
+
+Open a web search (or URL) for the query in a web app.
+
+  provider  one of: google (default), duckduckgo, bing, amazon, youtube, github, wikipedia
+  query     the text to search for, or a bare URL to open directly
+  --print   print the resolved URL instead of opening it
+  --help    show this help
+USAGE
+}
+
+# Help is only read as the first argument. The menu always passes --print
+# first, so a typed "--help" after it is still searched for.
+case "${1:-}" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+esac
+
 print_only=0
 if [[ ${1:-} == "--print" ]]; then
   print_only=1
