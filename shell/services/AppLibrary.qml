@@ -187,6 +187,9 @@ Item {
     // paths by theme, format, base order and size: scalable first, then the
     // largest fixed size, since a name sort would pick 64x64 over 256x256.
     // Symbolic icons are dropped so the index cannot prefer a monochrome glyph.
+    //
+    // Omarchy's icon set links its icons into the user's hicolor, so they come
+    // first: otherwise Adwaita's printer would beat the set's own.
     return [
       'theme=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "\'");',
       ': "${theme:=hicolor}";',
@@ -210,6 +213,8 @@ Item {
       'visit "$theme"; order+=(hicolor);',
       'export ICON_ORDER=$(printf "%s\\n" "${order[@]}");',
       '{',
+      '  links="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps";',
+      '  for icon in "$HOME"/.local/state/omarchy/current/icons/*.svg; do [[ ! -e $links/${icon##*/} ]] || printf "0\\t0\\t0\\t0\\t%s\\n" "$links/${icon##*/}"; done;',
       '  base_index=0;',
       '  for base in "${dirs[@]}"; do',
       '    roots=(); for name in "${order[@]}"; do [[ ! -d $base/$name ]] || roots+=("$base/$name"); done;',

@@ -39,6 +39,14 @@ for (const [base, relative] of files) {
 
 fs.writeFileSync(path.join(home, '.icons/theme/index.theme'), '[Icon Theme]\nInherits=parent\n')
 
+// Omarchy's icon set links its drawn icons over hicolor; the selected theme also ships a printer.
+const setIcon = path.join(home, '.local/state/omarchy/current/icons/printer.svg')
+const setLink = path.join(home, '.local/share/icons/hicolor/scalable/apps/printer.svg')
+fs.mkdirSync(path.dirname(setIcon), { recursive: true })
+fs.mkdirSync(path.dirname(setLink), { recursive: true })
+fs.writeFileSync(setIcon, '')
+fs.symlinkSync(setIcon, setLink)
+
 // Redirect the fixed pixmaps path into the fixture; traverse real icon trees.
 const stubDir = path.join(scratch, 'bin')
 const calls = path.join(scratch, 'find-calls')
@@ -71,13 +79,15 @@ const result = spawnSync('bash', ['-c', command], {
 })
 assertEqual(result.status, 0, 'icon scan completes')
 const lines = result.stdout.trim().split('\n')
-assertEqual(lines.length, files.length - 2, 'scan includes selected and inherited app/device icons and excludes action and unrelated icons')
+assertEqual(lines.find(value => path.basename(value) === 'printer.svg'), setLink, "Omarchy's icon set wins over the selected theme's icon of the same name")
+// The icon set's link is listed first and again under hicolor.
+assertEqual(lines.length, files.length - 2 + 2, 'scan includes selected and inherited app/device icons and excludes action and unrelated icons')
 const themeLines = lines.filter(value => value.includes('/theme/'))
 const firstPng = themeLines.findIndex(value => value.endsWith('.png'))
 assert(themeLines.slice(0, firstPng).every(value => value.endsWith('.svg')), 'SVG icons are emitted before PNG icons within a theme')
 assert(themeLines.slice(firstPng).every(value => value.endsWith('.png')), 'no SVG icons follow PNG icons within a theme')
 const firstParent = lines.findIndex(value => value.includes('/parent/'))
-assert(lines.slice(0, firstParent).every(value => value.includes('/theme/')), 'selected theme is exhausted before inherited SVG icons')
+assert(lines.slice(0, firstParent).filter(value => value !== setLink).every(value => value.includes('/theme/')), 'selected theme is exhausted before inherited SVG icons')
 assert(lines.indexOf(path.join(system, 'icons/parent/apps/inherited.svg')) < lines.indexOf(path.join(pixmaps, 'fallback.png')), 'inherited icons precede pixmaps fallback')
 assert(!lines.some(value => value.includes('/unrelated/')), 'uninherited themes cannot select an application icon')
 const shared = themeLines.filter(value => path.basename(value).startsWith('shared.'))
