@@ -1,0 +1,37 @@
+name: Check translation structure
+
+# The pull-request gate for i18n: individual PRs only add the English side
+# (code plus English catalog entries), so this validates structure, not
+# completeness. Missing translations are pending work for the sync workflow.
+# It runs only for pull requests that touch what it checks. A required status
+# check must not be path-filtered, since a PR that skips it waits on it
+# forever, so this needs a job-level condition instead if it is ever made one.
+on:
+  pull_request:
+    paths:
+      - 'default/i18n/**'
+      - 'default/omarchy/omarchy-menu.jsonc'
+      - 'shell/**'
+      - 'bin/**'
+      - 'install/**'
+      - 'manual/**'
+      - 'scripts/i18n-sync.py'
+      - 'test/shell.d/i18n-test.sh'
+      - '.github/workflows/i18n-*'
+
+permissions:
+  contents: read
+
+jobs:
+  i18n-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Structural i18n test
+        run: I18N_STRUCTURAL=1 bash test/shell.d/i18n-test.sh
+      - name: No embedded English literals
+        run: python3 scripts/i18n-sync.py extract-scan --check

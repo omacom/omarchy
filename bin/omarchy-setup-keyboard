@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# omarchy:summary=Select the keyboard layouts available for switching
+
+set -euo pipefail
+
+/usr/bin/python3 "$OMARCHY_PATH/default/input-methods/typing_setup.py" keyboard
