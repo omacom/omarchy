@@ -39,7 +39,7 @@ assert_not_staged() {
 }
 
 assert_no_marker() {
-  ! grep -q "$marker" "$(staged "$1")" || fail "$2"
+  ! grep -qs "$marker" "$(staged "$1")" || fail "$2"
 }
 
 write_colors() {
@@ -245,8 +245,10 @@ printf 'os.execute("%s")\n' "$marker" >"$uppercase/HYPRLAND.LUA"
 printf '[terminal.shell]\nprogram = "%s"\n' "$marker" >"$uppercase/Alacritty.TOML"
 
 set_theme uppercase || fail "omarchy-theme-set applies a theme with uppercase filenames"
-assert_not_staged HYPRLAND.LUA "the .lua match is case-insensitive"
-assert_not_staged Alacritty.TOML "the denied names are matched case-insensitively"
+# Read for the marker rather than absence: on a casefold filesystem these paths
+# also open the generated lowercase file.
+assert_no_marker HYPRLAND.LUA "the .lua match is case-insensitive"
+assert_no_marker Alacritty.TOML "the denied names are matched case-insensitively"
 
 pass "denied files are matched without regard to case"
 
@@ -273,13 +275,13 @@ if [[ -n $turkish_locale ]]; then
 
   LC_ALL="$turkish_locale" set_theme dotless ||
     fail "omarchy-theme-set applies a theme under $turkish_locale"
-  assert_not_staged KITTY.CONF "a terminal config is denied when the locale folds I to a dotless i"
-  assert_not_staged FOOT.INI "foot.ini is denied when the locale folds I to a dotless i"
+  assert_no_marker KITTY.CONF "a terminal config is denied when the locale folds I to a dotless i"
+  assert_no_marker FOOT.INI "foot.ini is denied when the locale folds I to a dotless i"
   assert_staged ART.PNG "colour is still staged under $turkish_locale"
 
   pass "the denylist folds case under a fixed locale, not the caller's"
 else
-  pass "no Turkish or Azeri locale installed; skipping the case-fold locale check"
+  skip "no Turkish or Azeri locale installed; skipping the case-fold locale check"
 fi
 
 # omarchy-theme-list shows a folder's own name when it has capitals or spaces, and the picker passes folder names.
