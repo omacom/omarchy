@@ -1,0 +1,184 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+mkdir -p "$test_tmp/bin" "$test_tmp/backgrounds" "$test_tmp/generator-cache" "$test_tmp/direct-cache"
+printf 'not a real video\n' >"$test_tmp/backgrounds/sample.mp4"
+
+cat >"$test_tmp/bin/ffmpegthumbnailer" <<'SH'
+#!/bin/bash
+while (( $# > 0 )); do
+  case "$1" in
+    -i) input=$2; shift 2 ;;
+    -o) output=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+printf 'thumbnail for %s\n' "$input" >"$output"
+SH
+chmod +x "$test_tmp/bin/ffmpegthumbnailer"
+
+cat >"$test_tmp/bin/md5sum" <<'SH'
+#!/bin/bash
+if (( $# > 0 )); then
+  printf 'unexpected file hash: %s\n' "$*" >>"$MD5_FILE_CALLS"
+fi
+exec /usr/bin/md5sum "$@"
+SH
+chmod +x "$test_tmp/bin/md5sum"
+
+md5_file_calls="$test_tmp/md5-file-calls"
+PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$test_tmp/generator-cache" MD5_FILE_CALLS="$md5_file_calls" \
+  "$ROOT/bin/omarchy-menu-images" --prepare-only "$test_tmp/backgrounds"
+
+generator_thumbnail=$(find "$test_tmp/generator-cache/omarchy/image-selector" -maxdepth 1 -type f -name '*.jpg' -print -quit)
+[[ -s $generator_thumbnail ]] || fail "menu image generator creates a video thumbnail"
+
+generator_row=$(XDG_CACHE_HOME="$test_tmp/generator-cache" "$ROOT/shell/plugins/image-picker/list.sh" "$test_tmp/backgrounds")
+IFS=$'\t' read -r generator_row_path generator_row_thumbnail <<<"$generator_row"
+[[ $generator_row_path == "$test_tmp/backgrounds/sample.mp4" && $generator_row_thumbnail == "$generator_thumbnail" ]] || \
+  fail "direct picker consumes the menu image generator thumbnail" "$generator_row"
+
+row=$(PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$test_tmp/direct-cache" MD5_FILE_CALLS="$md5_file_calls" \
+  "$ROOT/shell/plugins/image-picker/list.sh" "$test_tmp/backgrounds")
+
+IFS=$'\t' read -r row_path row_thumbnail <<<"$row"
+[[ $row_path == "$test_tmp/backgrounds/sample.mp4" && $row_thumbnail == *.jpg && -s $row_thumbnail ]] || \
+  fail "image picker lists videos with their cached thumbnail" "$row"
+[[ ! -s $md5_file_calls ]] || fail "direct video scans avoid hashing the complete media file" "$(<"$md5_file_calls")"
+
+failed_backgrounds="$test_tmp/failed-backgrounds"
+failed_cache="$test_tmp/failed-cache"
+mkdir -p "$failed_backgrounds" "$failed_cache"
+printf 'broken video\n' >"$failed_backgrounds/broken.mp4"
+cat >"$test_tmp/bin/ffmpegthumbnailer" <<'SH'
+#!/bin/bash
+exit 1
+SH
+
+cached_row=$(PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$test_tmp/direct-cache" MD5_FILE_CALLS="$md5_file_calls" \
+  "$ROOT/shell/plugins/image-picker/list.sh" "$test_tmp/backgrounds")
+[[ $cached_row == "$row" ]] || fail "direct picker reuses its cached video thumbnail" "$cached_row"
+
+failed_rows=$(PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$failed_cache" MD5_FILE_CALLS="$md5_file_calls" \
+  "$ROOT/shell/plugins/image-picker/list.sh" "$failed_backgrounds")
+[[ -z $failed_rows ]] || fail "direct picker omits a video whose thumbnail fails" "$failed_rows"
+
+failed_marker=$(find "$failed_cache/omarchy/image-selector" -maxdepth 1 -type f -name '*.failed' -print -quit)
+[[ -n $failed_marker ]] || fail "direct picker remembers a video the converter rejected"
+
+thumbnailer_calls="$test_tmp/thumbnailer-calls"
+cat >"$test_tmp/bin/ffmpegthumbnailer" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$THUMBNAILER_CALLS"
+exit 1
+SH
+
+failed_rows=$(PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$failed_cache" THUMBNAILER_CALLS="$thumbnailer_calls" \
+  "$ROOT/shell/plugins/image-picker/list.sh" "$failed_backgrounds")
+[[ -z $failed_rows && ! -e $thumbnailer_calls ]] || fail "direct picker skips a rejected video on the next scan" "$(cat "$thumbnailer_calls" 2>/dev/null)"
+
+generator_failed_cache="$test_tmp/generator-failed-cache"
+PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$generator_failed_cache" THUMBNAILER_CALLS="$thumbnailer_calls" \
+  "$ROOT/bin/omarchy-menu-images" --prepare-only "$failed_backgrounds"
+[[ -s $thumbnailer_calls ]] || fail "menu image generator tries a video it has not seen"
+generator_marker=$(find "$generator_failed_cache/omarchy/image-selector" -maxdepth 1 -type f -name '*.failed' -print -quit)
+[[ -n $generator_marker ]] || fail "menu image generator remembers a video the converter rejected"
+rm -f "$thumbnailer_calls"
+PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$generator_failed_cache" THUMBNAILER_CALLS="$thumbnailer_calls" \
+  "$ROOT/bin/omarchy-menu-images" --prepare-only "$failed_backgrounds"
+[[ ! -e $thumbnailer_calls ]] || fail "menu image generator skips a rejected video on the next open" "$(<"$thumbnailer_calls")"
+
+# A repaired file gets a fresh key, so the old marker no longer applies, and
+# the rows are not cached over its absence, so an in-place repair that leaves
+# the directory's mtime alone is still noticed.
+touch -d '2 minutes' "$failed_backgrounds/broken.mp4"
+PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$generator_failed_cache" THUMBNAILER_CALLS="$thumbnailer_calls" \
+  "$ROOT/bin/omarchy-menu-images" --prepare-only "$failed_backgrounds"
+[[ -s $thumbnailer_calls ]] || fail "menu image generator retries a video that changed since it was rejected"
+
+timeout_backgrounds="$test_tmp/timeout-backgrounds"
+timeout_cache="$test_tmp/timeout-cache"
+mkdir -p "$timeout_backgrounds"
+printf 'slow video\n' >"$timeout_backgrounds/slow.mp4"
+cat >"$test_tmp/bin/ffmpegthumbnailer" <<'SH'
+#!/bin/bash
+exit 124
+SH
+timeout_rows=$(PATH="$test_tmp/bin:$PATH" XDG_CACHE_HOME="$timeout_cache" \
+  "$ROOT/shell/plugins/image-picker/list.sh" "$timeout_backgrounds")
+[[ -z $timeout_rows ]] || fail "direct picker omits a video whose thumbnail timed out" "$timeout_rows"
+timeout_marker=$(find "$timeout_cache/omarchy/image-selector" -maxdepth 1 -type f -name '*.failed' -print -quit)
+[[ -z $timeout_marker ]] || fail "a timed out video is left to retry rather than remembered as failed"
+
+# Qt Multimedia ships for building apps; the shell itself plays video through OWE.
+if grep -rqs 'import QtMultimedia' "$ROOT/shell"; then
+  fail "Qt Multimedia is no longer needed by the shell"
+fi
+
+pass "menu image generator creates thumbnails consumed by the picker"
+pass "direct picker generates and reuses still thumbnails"
+pass "direct picker omits videos whose thumbnails cannot be generated"
+pass "a rejected video is remembered so it costs nothing on the next open"
+pass "a timed out video is left to retry"
+
+source <(awk '
+  /^(is_video_path|snapshot_background_path|background_transition_uses_snapshots|choose_theme_background|choose_staged_theme_background|set_theme_background)\(\) \{/ { copying=1 }
+  copying { print }
+  copying && /^}$/ { copying=0 }
+' "$ROOT/bin/omarchy-theme-set")
+
+transition_home="$test_tmp/transition-home"
+CURRENT_THEME_PATH="$transition_home/.local/state/omarchy/current/theme"
+NEXT_THEME_PATH="$transition_home/.local/state/omarchy/current/next-theme"
+CURRENT_BACKGROUND_LINK="$transition_home/.local/state/omarchy/current/background"
+BACKGROUND_TRANSITION_CACHE="$transition_home/.cache/omarchy/background-transitions"
+THEME_NAME="video-test"
+PREVIOUS_THEME_NAME="$THEME_NAME"
+HOME="$transition_home"
+mkdir -p "$CURRENT_THEME_PATH/backgrounds" "$NEXT_THEME_PATH/backgrounds" "$HOME/.config/omarchy/backgrounds/$THEME_NAME"
+printf 'old image\n' >"$CURRENT_THEME_PATH/backgrounds/old.png"
+printf 'old image staged\n' >"$NEXT_THEME_PATH/backgrounds/old.png"
+printf 'new video\n' >"$NEXT_THEME_PATH/backgrounds/new.mp4"
+ln -s "$CURRENT_THEME_PATH/backgrounds/old.png" "$CURRENT_BACKGROUND_LINK"
+
+choose_staged_theme_background || fail "staged video background is selected before the theme swap"
+expected_staged_background="$CURRENT_THEME_PATH/backgrounds/new.mp4"
+[[ $CHOSEN_THEME_BACKGROUND == $expected_staged_background ]] || \
+  fail "staged background resolves to its durable post-swap path" "$CHOSEN_THEME_BACKGROUND"
+if background_transition_uses_snapshots "$CHOSEN_THEME_BACKGROUND"; then
+  fail "image to video theme transitions skip snapshots"
+fi
+background_transition_uses_snapshots "$CURRENT_THEME_PATH/backgrounds/new.png" || \
+  fail "image to image theme transitions retain snapshots"
+
+rm "$CURRENT_BACKGROUND_LINK"
+printf 'old video\n' >"$CURRENT_THEME_PATH/backgrounds/old.mp4"
+ln -s "$CURRENT_THEME_PATH/backgrounds/old.mp4" "$CURRENT_BACKGROUND_LINK"
+if background_transition_uses_snapshots "$CURRENT_THEME_PATH/backgrounds/new.png"; then
+  fail "video to image theme transitions skip snapshots"
+fi
+
+video_snapshot=$(snapshot_background_path "$CURRENT_THEME_PATH/backgrounds/old.mp4" "video")
+[[ -z $video_snapshot && ! -e $BACKGROUND_TRANSITION_CACHE ]] || fail "video files are never snapshotted"
+
+CHOSEN_THEME_BACKGROUND="$transition_home/disappeared.mp4"
+BACKGROUND_TRANSITION_SNAPSHOTS=false
+THEME_BACKGROUND_INTRO=""
+THEME_BACKGROUND_COVER=false
+OLD_BACKGROUND_SNAPSHOT=""
+PREPARED_BACKGROUND=""
+PREPARED_BACKGROUND_SNAPSHOT=""
+colors_payload=""
+shell_payload=""
+shell_ipc() { :; }
+set_theme_background
+[[ -f $CHOSEN_THEME_BACKGROUND && $(readlink "$CURRENT_BACKGROUND_LINK") == "$CHOSEN_THEME_BACKGROUND" ]] || \
+  fail "theme changes recover when a preselected background disappears" "$CHOSEN_THEME_BACKGROUND"
+
+pass "theme transitions skip snapshots whenever either side is a video"
+pass "theme changes recover from a missing preselected background"
