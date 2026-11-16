@@ -2,6 +2,22 @@
 
 # omarchy:summary=Disable the gcr-ssh-agent SSH agent and its environment override.
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-service-ssh-agent"
+    echo
+    echo "Disable the gcr-ssh-agent SSH agent and its environment override."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-service-ssh-agent: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 # The file goes before disable reloads the manager, or the environment generator keeps exporting it.
 rm -f "$HOME/.config/environment.d/90-gcr-ssh-agent.conf"
 systemctl --user disable --now gcr-ssh-agent.socket 2>/dev/null || true

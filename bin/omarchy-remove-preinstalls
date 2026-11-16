@@ -2,6 +2,22 @@
 
 # omarchy:summary=Remove preinstalled Omarchy applications (web apps, TUIs, and selected packages).
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-preinstalls"
+    echo
+    echo "Remove preinstalled Omarchy applications (web apps, TUIs, and selected packages)."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-preinstalls: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n preinstalls.confirmRemove)"; then
   echo -e "Removing preinstalled Omarchy applications...\n"
 

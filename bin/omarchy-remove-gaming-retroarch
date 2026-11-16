@@ -5,6 +5,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-gaming-retroarch"
+    echo
+    echo "Remove RetroArch, all libretro cores, and its config/saves. Leaves ~/Games/roms and ~/Games/bios alone."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-gaming-retroarch: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 omarchy-pkg-drop \
   retroarch \
   retroarch-assets-glui retroarch-assets-ozone retroarch-assets-xmb \

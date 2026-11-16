@@ -5,6 +5,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-security-sudoless-docker"
+    echo
+    echo "Disable sudoless Docker by removing your user from the docker group"
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-security-sudoless-docker: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 # Ask about the configured groups, not this session's: right after enabling,
 # sudoless Docker is on for the account even though the running session still
 # needs a prompt, and this command is what turns it back off.

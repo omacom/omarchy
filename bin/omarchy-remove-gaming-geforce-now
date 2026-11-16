@@ -6,6 +6,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-gaming-geforce-now"
+    echo
+    echo "Remove the GeForce NOW Flatpak app and its data."
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-gaming-geforce-now: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 if omarchy-cmd-present flatpak && flatpak info com.nvidia.geforcenow &>/dev/null; then
   flatpak uninstall -y --delete-data com.nvidia.geforcenow
 fi

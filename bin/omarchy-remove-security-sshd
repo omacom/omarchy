@@ -5,6 +5,22 @@
 
 set -e
 
+while (( $# > 0 )); do
+  case "$1" in
+  -h | --help | help)
+    echo "Usage: omarchy-remove-security-sshd"
+    echo
+    echo "Disable the OpenSSH server, remove standard firewall rules, and optionally remove authorized keys"
+    exit 0
+    ;;
+  *)
+    echo "omarchy-remove-security-sshd: unknown option '$1'. Try --help." >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
+
 AUTHORIZED_KEYS="$HOME/.ssh/authorized_keys"
 
 echo -e "\e[32mRemoving SSH server access.\n\e[0m"
