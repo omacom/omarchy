@@ -49,11 +49,17 @@ script = """<script>(() => {
   const code = k => k === " " || k === "Space" ? ["Space", " "] : k.length === 1 ? ["Key" + k.toUpperCase(), k] : [k, k];
   keys.forEach((k, i) => setTimeout(() => {
     const [c, key] = code(k);
-    for (const target of [window, document, document.body]) {
-      if (!target) continue;
-      target.dispatchEvent(new KeyboardEvent("keydown", { key, code: c, bubbles: true }));
-      target.dispatchEvent(new KeyboardEvent("keyup", { key, code: c, bubbles: true }));
-    }
+    // Sent once, where a real press lands, and bubbling from there to the
+    // document and window. Released after the next frame, so a loop reads it
+    // held, or before the next key when no frame comes, to whatever has the
+    // focus by then.
+    const send = type => (document.activeElement || document.body || document)
+      .dispatchEvent(new KeyboardEvent(type, { key, code: c, bubbles: true }));
+    let down = true;
+    const release = () => down && (down = false, send("keyup"));
+    send("keydown");
+    requestAnimationFrame(release);
+    setTimeout(release, 240);
   }, 800 + i * 250));
 })();</script>""" % json.dumps(keys.split())
 html = open(source, encoding="utf-8", errors="replace").read()
