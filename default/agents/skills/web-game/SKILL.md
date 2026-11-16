@@ -77,7 +77,9 @@ A plain version that works comes first. Then add these, checking the game after 
 - **Particles.** A `THREE.Points` cloud for speed streaks or stars rushing past, a trail behind the player, and a burst when something breaks or the player crashes.
 - **A difficulty curve.** Speed and density rise over time, and obstacles come in patterns (gaps to thread, walls with one opening, moving pieces) rather than at random, so the run has rhythm.
 - **Feedback.** Sound from the Web Audio API with oscillators and noise, made in code (no files), started on the first key press: a tone for points, a thud for hits. A near-miss bonus, the score popping when it rises, a short slow-motion on the crash.
-- **Readable at a glance.** Three or four colors that carry meaning (player, danger, reward), a big score, and a title screen that says the keys.
+- **Readable at a glance.** Three or four colors that carry meaning (player, danger, reward), a big score, and a title screen that says the keys, on a dark panel so the glow behind it can't wash the text out.
+
+Done is a playable game with most of these in place, each checked once. Add them in one or two passes rather than tuning numbers turn after turn; when they're in and the checks pass, stop and tell the user what you built and what could come next.
 
 ## Checking It
 
