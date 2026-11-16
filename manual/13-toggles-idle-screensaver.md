@@ -99,6 +99,16 @@ You can start it on demand from _System > Screensaver_ (`Super + Esc`), which fo
 
 The logo it draws is yours to change, under _Appearance > Branding > Screensaver_. Upload a png or svg and Omarchy converts it to ASCII. See [branding](41-branding.md).
 
+### A screensaver behind the lock
+
+The screensaver closes on any input, so anyone at the keyboard gets your desktop back. To have it take your password instead, run `omarchy toggle screensaver-locked on`. From then on the screensaver locks the session and runs inside the lock screen, and the displays stay on while it shows.
+
+Press and release any key to bring up the password prompt. Mouse movement and clicks don't, so a bumped desk doesn't wake it. Leave the prompt alone for five seconds and the screensaver comes back instead of the displays going dark. When the idle lock deadline passes, it becomes the normal lock screen, which blanks the displays. With stay awake on there's no deadline, so the screensaver stays up until you unlock.
+
+The screensaver lock takes only your password. Your fingerprint works again once it has become the normal lock screen.
+
+Behind the lock it draws your wallpaper, or `~/.config/omarchy/lock/Screensaver.qml` if you write one. That file is a QML `Item` that fills each display, and it runs inside the lock screen itself, so only put code you trust there. If it fails to load, you get the normal lock screen. `omarchy system lock --screensaver` starts the screensaver lock on demand, and `omarchy toggle screensaver-locked off` goes back to the plain screensaver.
+
 ### The lock screen
 
 `Super + Ctrl + L` locks the machine. That runs the lock screen from the Omarchy shell, blanks the display, resets your keyboard layout to the first one so you're not typing your password in the wrong alphabet, and — if you have it running — locks 1Password on the way out.
