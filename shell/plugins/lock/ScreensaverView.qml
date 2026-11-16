@@ -33,19 +33,27 @@ Item {
     }
   }
 
-  // Wait for release so a held wake key cannot repeat into the password.
+  // The artwork gives way when the first key pressed is released, so a held
+  // wake key cannot repeat into the password field behind it.
+  function pressKey(key, isAutoRepeat) {
+    if (active && !isAutoRepeat && dismissalKey === 0) dismissalKey = key
+  }
+
+  function releaseKey(key, isAutoRepeat) {
+    if (!active || isAutoRepeat || key !== dismissalKey) return
+    dismissalKey = 0
+    dismissed()
+  }
+
+  // Every key stops here, so Tab cannot move focus behind the artwork.
   Keys.priority: Keys.BeforeItem
   Keys.onPressed: function(event) {
     event.accepted = true
-    if (root.active && !event.isAutoRepeat && root.dismissalKey === 0)
-      root.dismissalKey = event.key
+    root.pressKey(event.key, event.isAutoRepeat)
   }
   Keys.onReleased: function(event) {
     event.accepted = true
-    if (root.active && !event.isAutoRepeat && event.key === root.dismissalKey) {
-      root.dismissalKey = 0
-      root.dismissed()
-    }
+    root.releaseKey(event.key, event.isAutoRepeat)
   }
 
   MouseArea {
