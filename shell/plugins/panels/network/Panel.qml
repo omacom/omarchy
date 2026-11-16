@@ -737,7 +737,7 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    nets = Model.sortWifiRows(nets)
+    nets = Model.sortWifiRows(nets, passwordSsid !== "" ? wifiNetworks : null)
     // A new model rebuilds every delegate, which takes focus from a passphrase
     // being typed, so identical rows are left in place.
     if (JSON.stringify(nets) === JSON.stringify(wifiNetworks)) return
@@ -1884,6 +1884,13 @@ Panel {
     }
 
     implicitHeight: rowBody.implicitHeight + (isPasswordOpen ? passwordPanel.implicitHeight + Style.spacing.md : 0)
+    // The prompt slides open and shut instead of jumping, cropped meanwhile.
+    // Both ways take the same time: moving the prompt to another row shrinks
+    // one while the other grows, so the list's total height holds still.
+    clip: true
+    Behavior on implicitHeight {
+      NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+    }
 
     MouseArea {
       id: rowMouse
@@ -2047,7 +2054,11 @@ Panel {
     // connect; Esc cancels back to the row.
     Item {
       id: passwordPanel
-      visible: row.isPasswordOpen
+      visible: opacity > 0
+      opacity: row.isPasswordOpen ? 1 : 0
+      Behavior on opacity {
+        NumberAnimation { duration: Style.duration(row.isPasswordOpen ? 180 : 90); easing.type: Easing.OutCubic }
+      }
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.top: rowMouse.bottom
