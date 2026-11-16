@@ -1,12 +1,12 @@
 # Teemad
 
-Omarchyga tuleb kaasa kakskümmend kaks ilusat teemat. Saad nende vahel valida Omarchy menüüs _Stiil > Teema_ kaudu (`Super + Space`) või hüpata otse teemavalija juurde `Super + Ctrl + Shift + Space` abil.
+Omarchyga on kaasas kakskümmend kaks kaunist teemat. Saad nende vahel valida Omarchy menüüs jaotise _Appearance > Theme_ kaudu (`Super + Space`) või hüpata otse teemavalijasse klahvikombinatsiooniga `Super + Ctrl + T`.
 
-Iga teema stiilib töölaua, terminali, neovimi, aktiivsusekraani (btop), Chromiumi ja kogu Omarchy kesta: menüüriba, menüü, teavitused, OSD ja lukuekraani. (Obsidiani puhul pead rakenduses käsitsi valima Omarchy teema _Appearance > Themes_ kaudu).
+Iga teema kujundab töölaua, terminali, neovimi, tegevusekraani (btop), Chromiumi ja kogu Omarchy kesta: ülemise riba, menüü, teavitused, OSD ja lukustuskuva. (Obsidiani puhul pead Omarchy teema rakenduse seest käsitsi valima jaotise _Appearance > Themes_ kaudu).
 
-Teemadel on taustapiltide kogum, mille vahel saad valida `Super + Ctrl + Space` abil.
+Teemadel on hulk taustapilte, mille vahel saad valida klahvikombinatsiooniga `Super + Ctrl + W`.
 
-Rohkem teemasid leiad [lisateemade lehelt](https://omarchy.org/themes/) või saad isegi [oma teema teha](43-making-your-own-theme.md).
+Veel teemasid leiad [lisateemade lehelt](https://omarchy.org/themes/) või võid isegi [oma teema teha](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Ava lukk kujundused
+### Rakenduste ikoonid
 
-Teemadel võib olla ka kohandatud luku avamise kujundus, mida kasutatakse käivitamise dekrüpteerimisprotsessiks. Saad ühe neist valida _Stiil > Ava lukk_ alt. Need näevad välja nii:
+Rakenduste käivitaja ja doki ikoonid on joonistatud sinu teema värvides, nii et need muutuvad koos teemaga. Need pärinevad ikoonikomplektist, mille valid teemast eraldi jaotise _Appearance > Icons_ alt iga komplekti eelvaadete järgi samamoodi, nagu valid teemat:
+
+- _Papercraft_ on vaikevalik: kõik, mis on paigaldatud, on joonistatud ühes stiilis. Oma logo järgi tuntud rakendused, nagu Chrome, HEY või YouTube, säilitavad oma kuju ja võtavad teema värvid.
+- _Arcade_ joonistab samad rakendused 8-bitise pikselgraafikana, nagu vana mängukonsool seda teeks.
+- _Original_ näitab iga rakendust ikooniga, mille selle looja on talle andnud.
+
+Kellegi teise tehtud ikoonikomplekti saad paigaldada valikuga _Install > Style > Icons_ (või käsuga `omarchy icons install <git url>`) ja selle uuesti eemaldada jaotise _Remove > Icons_ alt. _Update > Extra Icons_ toob sinu paigaldatud komplektide uusima versiooni.
+
+Oma komplekti tegemiseks pane ikoonid kausta `~/.config/omarchy/icons/<name>/`, üks fail iga rakenduse kohta, nimega rakenduse `.desktop` faili rea `Icon=` järgi. `.svg` lõpuga faili näidatakse nii, nagu see on. `.svg.tpl` lõpuga fail joonistatakse teema värvides: kirjuta värvi kohale `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` või `{{ icon_shadow }}`. Vaikekomplekt asukohas `/usr/share/omarchy/icons/papercraft/` on hea koht alustamiseks. Lisa `preview.png`, et oma komplekti valijas näidata; ilma selleta joonistab Omarchy eelvaate sinu ikoonidest. Vaikekomplekti ühe ikooni muutmiseks pane oma versioon kausta `~/.config/omarchy/icons/papercraft/`.
+
+### Avamiskujundused
+
+Teemadel võib olla ka kohandatud avamiskujundus, mida kasutatakse alglaadimise dekrüpteerimise protsessis. Neid saad valida jaotise _Appearance > Unlock_ alt. Need näevad välja sellised:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +102,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +119,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

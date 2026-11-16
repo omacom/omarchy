@@ -158,21 +158,45 @@ fi
 # Enroll first fingerprint
 # Authenticate sudo first, and say so: with fingerprint sudo already set up it
 # asks for a touch of its own, which must not pass for the first sample.
-if ! sudo -n true 2>/dev/null; then
-  echo -e "\nFirst, confirm it's you. Setup needs administrator rights to enroll."
-  if ! sudo -v; then
-    echo -e "\e[31mSetup needs administrator rights to enroll a fingerprint.\e[0m"
+authenticate() {
+  if ! sudo -n true 2>/dev/null; then
+    echo -e "\n$1 Setup needs administrator rights to enroll."
+    if ! sudo -v; then
+      echo -e "\e[31mSetup needs administrator rights to enroll a fingerprint.\e[0m"
+      exit 1
+    fi
+  fi
+}
+authenticate "First, confirm it's you."
+
+# A reader its platform keeps off until the owner agrees (a Mac's Touch ID)
+# is explained and turned on here, before fprintd is asked about it. Every
+# other platform has no such hook, so this is a no-op there. Resolving as the
+# user first runs nothing as root where there is nothing to run. Setup on a
+# platform that can't be told goes on as on one without a hook: a reader its
+# platform keeps off stays off, so fprintd doesn't find it, and any other
+# reader still enrolls.
+if ! enable_hook=$(omarchy-lifecycle-dispatch --resolve enable-fingerprint); then
+  echo -e "\e[33mThe fingerprint sensor's platform support couldn't be checked, so a reader the platform keeps off stays off.\e[0m"
+  enable_hook=
+fi
+if [[ -n $enable_hook ]]; then
+  if ! sudo omarchy-lifecycle-dispatch enable-fingerprint; then
+    echo -e "\e[31mThe fingerprint sensor was not turned on, so nothing was enrolled.\e[0m"
     exit 1
   fi
+  # The owner may have read past sudo's timeout before answering.
+  authenticate "Confirm it's you again."
 fi
 
 echo -e "\e[32m\nLet's set up your right index finger as the first fingerprint.\e[0m"
 # A press sensor needs a touch for each sample; a swipe sensor a moving finger.
-# When fprintd can't say which, the prompts name neither.
+# When fprintd can't say which, the prompts name neither. Each line stays short,
+# since the setup terminal wraps a long one mid-word.
 case $(fingerprint_reader scan-type) in
   press)
     start="Touch the sensor." again="Keep lifting your finger and touching the sensor."
-    echo -e "Touch the sensor, lift your finger and touch it again, and keep going until it says Enrolled. A step can take a few touches.\n"
+    echo -e "Touch the sensor, lift your finger and touch it again.\nKeep going until it says Enrolled. A step can take a few touches.\n"
     ;;
   swipe)
     start="Swipe your finger across the sensor." again="Swipe it again."
@@ -180,7 +204,7 @@ case $(fingerprint_reader scan-type) in
     ;;
   *)
     start="Touch or swipe the sensor." again="Touch or swipe it again."
-    echo -e "Touch or swipe the sensor, and keep going until it says Enrolled. A step can take a few tries.\n"
+    echo -e "Touch or swipe the sensor, and keep going until it says Enrolled.\nA step can take a few tries.\n"
     ;;
 esac
 

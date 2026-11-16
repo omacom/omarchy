@@ -7,7 +7,7 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E902` — OpenCode, from <https://opencode.ai/favicon-96x96-v3.png>
 - `U+E903` — omp, from <https://omp.sh/favicon.svg>
 - `U+E904` — Grok, from <https://grok.com/images/favicon.svg>
-- `U+E905` — Codex, from the OpenAI mark on <https://developers.openai.com/codex/>
+- `U+E905` — Codex, from <https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/codex.svg>, the Codex app's mark (the OpenAI blossom with `>_` cut in), since OpenAI publishes no SVG of it
 - `U+E906` — LM Studio, from <https://simpleicons.org/icons/lmstudio.svg>
 - `U+E907` — Ollama, from <https://simpleicons.org/icons/ollama.svg>
 - `U+E908` — T3 Code, traced from the app icon in <https://aur.archlinux.org/cgit/aur.git/plain/t3code-icon.png?h=t3code-bin>, since upstream publishes no monochrome SVG
@@ -18,6 +18,22 @@ The private-use glyphs in `omarchy.ttf` are:
 - `U+E90D` — Cursor, from <https://simpleicons.org/icons/cursor.svg>
 - `U+E90E` — Claude, from <https://simpleicons.org/icons/claude.svg>
 - `U+E90F` — Tailscale, from <https://simpleicons.org/icons/tailscale.svg>
+- `U+E910` — Qwen, from <https://simpleicons.org/icons/qwen.svg>
+- `U+E911` — DeepSeek, from <https://simpleicons.org/icons/deepseek.svg>
+- `U+E912` — MiniMax, from <https://simpleicons.org/icons/minimax.svg>
+- `U+E913` — Goose, from <https://github.com/aaif-goose/goose/blob/main/documentation/static/img/goose.svg>
+- `U+E914` — Kiro, from the ghost in <https://kiro.dev/icon.svg>, with its tile dropped
+- `U+E915` — Mistral AI, from <https://simpleicons.org/icons/mistralai.svg>
+- `U+E916` — Freebuff, from <https://freebuff.com/favicon.svg>, its rects joined into one path
+- `U+E917` — Kilo, from <https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/kilocode.svg>
+- `U+E918` — Devin, from the official mark published by Cognition at <https://github.com/club-cog/built-by-devin>
+- `U+E919` — Amp, the wordmark from <https://ampcode.com/logo-dark.svg> cut out of a rounded tile, laid out as in the app icon at <https://ampcode.com/app-icon.svg>
+- `U+E91A` — Command Code, from <https://commandcode.ai/favicon/2024/safari-pinned-tab.svg>, its traced paths joined into one
+- `U+E91B` — Phantombot, redrawn as a monochrome ghost silhouette from the project logo at <https://github.com/phantomyard/phantombot> (`www/assets/img/logo.png`), since upstream publishes no monochrome SVG
+- `U+E91C` — Antigravity, the arch from <https://antigravity.google/favicon.svg>
+- `U+E91D` — Kimi, from <https://simpleicons.org/icons/kimi.svg>
+- `U+E91E` — Crush, the heartbit from <https://github.com/charmbracelet/crush/blob/main/internal/oauth/callback/heartbit.svg>, its eyes and mouth cut out
+- `U+E91F` — Muse Code, from <https://simpleicons.org/icons/meta.svg>: Meta publishes no separate Muse mark and dev.meta.ai uses this one
 
 The agent marks are monochrome so the menu can render them using the active
 theme's foreground and selection colors.
