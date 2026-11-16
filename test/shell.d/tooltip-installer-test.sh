@@ -38,6 +38,8 @@ if [[ ${1:-} == --packagelist ]]; then printf '%s/new.pkg.tar\\n' "$PWD"; else t
 printf 'link %s\\n' "$1" >> "$TEST_LOG"
 if [[ $1 == */trial/omarchy && $FAULT == link ]]; then exit 44; fi
 printf 'export OMARCHY_PATH="%s"\\n' "$1" > "$TEST_SELECTION"
+# Like omarchy-dev-link, the selection is written before a later step fails.
+if [[ $1 != */trial/omarchy && $FAULT == restore-link ]]; then exit 45; fi
 ''')
     write(source/'bin/omarchy-dev-unlink', '''#!/bin/bash
 printf 'unlink\\n' >> "$TEST_LOG"
@@ -99,6 +101,33 @@ for d in ['backup','package','omarchy/shell','omarchy/test/shell.d']: (t/d).mkdi
             assert selection.read_text()==configured(selected)
             print('ok - uninstall recovers an unfinished tooltip installation')
         print('ok - tooltip installer transaction: '+fault)
+
+    # An uninstall that fails after restoring the selection can be run again.
+    work=base/'interrupted-uninstall'
+    stock=work/'cache/omarchy/tooltips/stock/quickshell-0.3.1-1-any.pkg.tar.xz'
+    stock.parent.mkdir(parents=True)
+    stock.touch()
+    selected=work/'selected'
+    (selected/'shell').mkdir(parents=True)
+    selection=work/'selection'
+    selection.write_text(configured(selected))
+    env={**os.environ, 'PATH':str(fake)+':'+os.environ['PATH'], 'HOME':str(work),
+         'XDG_STATE_HOME':str(work/'state'), 'XDG_DATA_HOME':str(work/'data'),
+         'XDG_CACHE_HOME':str(work/'cache'), 'XDG_CONFIG_HOME':str(work/'config'),
+         'OMARCHY_PATH':str(source), 'TEST_SELECTION':str(selection), 'TOOLTIP_OMARCHY_CONF':str(selection),
+         'FAULT':'none', 'TEST_LOG':str(work/'log')}
+    run=subprocess.run(['/bin/bash',str(root/'default/tooltips/install'),'--base',str(source)],env=env,capture_output=True,text=True)
+    assert run.returncode==0,(run.stdout,run.stderr)
+    state=work/'state/omarchy/tooltip-trial.json'
+    pending=state.with_name(state.name+'.pending')
+    failed=subprocess.run(['/bin/bash',str(root/'default/tooltips/install'),'--uninstall'],env={**env,'FAULT':'restore-link'},capture_output=True,text=True)
+    assert failed.returncode!=0,(failed.stdout,failed.stderr)
+    assert selection.read_text()==configured(selected) and pending.exists() and not state.exists()
+    retried=subprocess.run(['/bin/bash',str(root/'default/tooltips/install'),'--uninstall'],env=env,capture_output=True,text=True)
+    assert retried.returncode==0,(retried.stdout,retried.stderr)
+    assert not pending.exists() and not state.exists()
+    assert selection.read_text()==configured(selected)
+    print('ok - an interrupted tooltip uninstall can be run again')
 
     # Rollback needs the installed release, not another cached or newer one.
     work=base/'other-release'

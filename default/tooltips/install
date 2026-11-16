@@ -81,6 +81,14 @@ if (( remove )); then
     exit 1
   fi
   [[ -f $package ]] || { echo "Rollback package missing: $package" >&2; exit 1; }
+  # Removal is marked pending before anything changes. Restoring the selection
+  # can write it and then fail (omarchy-dev-link writes /etc/omarchy.conf before
+  # its sudoers file), and a pending record accepts the restored selection, so
+  # running uninstall again finishes the removal.
+  if [[ $record == "$state_file" ]]; then
+    mv "$state_file" "$state_file.pending"
+    record=$state_file.pending
+  fi
   sudo pacman -U --noconfirm "$package"
   restore_selection "$previous"
   mv "$record" "$state_file.removed"
@@ -89,7 +97,7 @@ if (( remove )); then
 fi
 
 if [[ -f $state_file.pending ]]; then
-  echo "An earlier tooltip installation did not finish: $state_file.pending" >&2
+  echo "An earlier tooltip installation or removal did not finish: $state_file.pending" >&2
   echo "Run 'omarchy install tooltips --uninstall' to restore the previous runtime and selection first." >&2
   exit 1
 fi
