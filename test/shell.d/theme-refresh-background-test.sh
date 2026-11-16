@@ -40,13 +40,11 @@ printf 'jpg image 0\n' >"$theme_dir/backgrounds/0-intro.jpg"
 printf 'jpg image 1\n' >"$theme_dir/backgrounds/1-cosmic.jpg"
 printf 'jpg image 2\n' >"$theme_dir/backgrounds/2-meadow.jpg"
 
-# Non-headless runs reach the session hooks, which signal terminals and change desktop settings.
-# The post-theme commands start through bash -lc, whose profile restores a dev-linked bin, so drop them.
+# Non-headless runs reach the retints and restarts, which signal terminals and reload Hyprland, so stub them.
 stub_bin="$test_tmp/bin"
 mkdir -p "$stub_bin"
-printf '#!/bin/bash\n[[ $1 == -lc ]] && exit 0\nexec /bin/bash "$@"\n' >"$stub_bin/bash"
-for command in omarchy-shell omarchy-hook omarchy-theme-set-herdr-machines omarchy-theme-bg-cache; do
-  printf '#!/bin/bash\nexit 0\n' >"$stub_bin/$command"
+for command in "$ROOT"/bin/omarchy-restart-* "$ROOT"/bin/omarchy-theme-set-* omarchy-shell omarchy-hook omarchy-theme-bg-cache; do
+  [[ ${command##*/} == "omarchy-theme-set-templates" ]] || printf '#!/bin/bash\nexit 0\n' >"$stub_bin/${command##*/}"
 done
 printf '#!/bin/bash\nprintf "%%s\\n" "$1" >>"%s"\n' "$test_tmp/notifications" >"$stub_bin/omarchy-notification-send"
 chmod +x "$stub_bin"/*
@@ -60,7 +58,7 @@ run_theme_set() {
 run_theme_refresh() {
   HOME="$home" OMARCHY_PATH="$mock_root" PATH="$stub_bin:$ROOT/bin:$PATH" \
     XDG_RUNTIME_DIR="$runtime_dir" \
-    OMARCHY_THEME_SKIP_BACKGROUND=1 \
+    OMARCHY_THEME_SKIP_BACKGROUND=1 OMARCHY_THEME_WAIT=1 \
     env "$@" bash "$ROOT/bin/omarchy-theme-set" "$theme_name" 2>"$test_tmp/stderr" || return $?
 }
 
