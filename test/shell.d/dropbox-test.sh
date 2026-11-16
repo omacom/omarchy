@@ -133,3 +133,14 @@ status=$(dropbox_status)
 jq -e '.usedBytes == 5 and ([.files[].name] | sort) == [".notes", "document.txt"]' <<<"$status" >/dev/null ||
   fail "dropbox excludes internal metadata and cache while retaining ordinary hidden files" "$status"
 pass "dropbox excludes internal metadata and cache while retaining ordinary hidden files"
+
+# A team account syncs into root_path; its member folder can sit empty while the team folders beside it sync.
+team="$test_tmp/home/Team Dropbox"
+mkdir -p "$team/Member" "$team/Team Folder" "$team/.dropbox.cache"
+printf 'plan' >"$team/Team Folder/plan.txt"
+printf 'cache' >"$team/.dropbox.cache/staged"
+jq -n --arg path "$team/Member" --arg root "$team" '{business: {path: $path, root_path: $root, subscription_type: "Business"}}' >"$test_tmp/home/.dropbox/info.json"
+status=$(dropbox_status)
+jq -e '.usedBytes == 4 and [.files[].folder] == ["Team Folder"]' <<<"$status" >/dev/null ||
+  fail "dropbox scans a team account from its root, not its member folder" "$status"
+pass "dropbox scans a team account from its root, not its member folder"
