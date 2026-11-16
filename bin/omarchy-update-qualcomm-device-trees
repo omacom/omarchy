@@ -45,7 +45,7 @@ for dtb in "$dtb_dir"/x1*.dtb "$dtb_dir"/hamoa*.dtb "$dtb_dir"/purwa*.dtb \
   "$dtb_dir"/glymur*.dtb "$dtb_dir"/mahua*.dtb "$dtb_dir"/kalambo*.dtb \
   "$dtb_dir"/sc8280xp*.dtb "$dtb_dir"/sc8180x*.dtb "$dtb_dir"/sdm850*.dtb \
   "$dtb_dir"/msm8998-{asus,hp,lenovo}*.dtb \
-  "$dtb_dir"/sc7180-{acer,apcsilmic,ecs,lenovo,samsung,tclcomm}*.dtb \
+  "$dtb_dir"/sc7180-{acer,apcsilmic,ecs,lenovo,samsung,tcl}*.dtb \
   "$dtb_dir"/sc7280-samsung*.dtb; do
   if [[ -f $dtb && $dtb != *-el2.dtb ]]; then
     dtbs+=("$dtb")
