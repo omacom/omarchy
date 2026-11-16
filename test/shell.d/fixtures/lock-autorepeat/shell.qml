@@ -63,6 +63,35 @@ ShellRoot {
         }
 
         view.destroy()
+
+        // The screensaver behind the lock gives way on the release of the first
+        // key, so a held wake key never repeats into the password field.
+        var saverComponent = Qt.createComponent("file://" + root.rootPath + "/shell/plugins/lock/ScreensaverView.qml", Component.PreferSynchronous)
+        if (saverComponent.status !== Component.Ready) {
+          root.fail("ScreensaverView failed to load: " + saverComponent.errorString())
+          return
+        }
+
+        var saver = saverComponent.createObject(host, { width: 800, height: 600, active: true })
+        var dismissals = 0
+        saver.dismissed.connect(function() { dismissals++ })
+
+        saver.pressKey(Qt.Key_A, false)
+        saver.pressKey(Qt.Key_A, true)
+        saver.releaseKey(Qt.Key_A, true)
+        root.assertTrue(dismissals === 0, "a held wake key does not dismiss the screensaver")
+        saver.pressKey(Qt.Key_B, false)
+        saver.releaseKey(Qt.Key_B, false)
+        root.assertTrue(dismissals === 0, "only the first key pressed dismisses the screensaver")
+        saver.releaseKey(Qt.Key_A, false)
+        root.assertTrue(dismissals === 1, "releasing the wake key dismisses the screensaver")
+
+        saver.active = false
+        saver.pressKey(Qt.Key_A, false)
+        saver.releaseKey(Qt.Key_A, false)
+        root.assertTrue(dismissals === 1, "keys do nothing while the screensaver is hidden")
+
+        saver.destroy()
       } catch (error) {
         root.fail("lock autorepeat fixture threw: " + error)
       } finally {
