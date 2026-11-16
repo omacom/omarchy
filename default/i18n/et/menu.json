@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikoonid"
+  },
+  "install.style.icons": {
+    "label": "Ikoonid"
+  },
+  "remove.icons": {
+    "label": "Ikoonid"
+  },
+  "update.icons": {
+    "label": "Lisaikoonid"
+  },
+  "system.firmware": {
+    "label": "BIOS-i taaskäivitus",
+    "description": "Taaskäivita UEFI püsivara seadistusse"
   }
 }

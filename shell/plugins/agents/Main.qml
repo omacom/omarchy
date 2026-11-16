@@ -298,10 +298,36 @@ Item {
         if (!model || model.recipe !== id || id === "") return
         if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
       }
+      root.noteReadyModels(parsed.models)
       root.localModel = parsed
     } catch (e) {
       // A missing or partially written file leaves the last good state intact.
     }
+  }
+
+  // A model set up here says so once it has downloaded and loaded, as an
+  // agent does once it's signed in, and clicking it opens an agent on it. Only
+  // a model seen installing counts, so starting one already set up is quiet;
+  // one that ends stopped (no memory to start it now) or failed isn't ready.
+  property var installingModels: ({})
+
+  function noteReadyModels(models) {
+    var installing = {}
+    for (var id in installingModels) {
+      var model = models[id]
+      if (!model) continue
+      if (model.unit === "active" && model.sub_state === "running") notifyModelReady(model)
+      else if (model.unit === "installing" || model.unit === "activating") installing[id] = true
+    }
+    for (var next in models)
+      if (models[next].unit === "installing") installing[next] = true
+    installingModels = installing
+  }
+
+  function notifyModelReady(model) {
+    Util.execArgv(["bash", "-c",
+      'exec omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$1")" "$(omarchy-i18n agents.readyToCode "$2")" "$(omarchy-i18n agents.readyToCodeBody)" --exec omarchy-agent --local-model "$3"',
+      "notify", String(model.vendor || "local"), String(model.name || model.recipe), String(model.recipe)])
   }
 
   // ------------------------------------------------------------- discovery

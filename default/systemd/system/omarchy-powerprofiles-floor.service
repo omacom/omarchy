@@ -15,4 +15,6 @@ ProtectHome=yes
 ProtectSystem=strict
 
 [Install]
-WantedBy=multi-user.target
+# power-profiles-daemon orders itself after multi-user.target, so wanting this
+# there made a cycle that systemd broke by dropping this start job every boot
+WantedBy=graphical.target

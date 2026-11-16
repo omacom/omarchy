@@ -1,12 +1,12 @@
 # Mavzular
 
-Omarchy bilan birga yigirma ikkita go'zal mavzu keladi. Ular orasidan Omarchy Menu (`Super + Space`) ichidagi _Tashqi ko'rinish > Mavzu_ orqali tanlashingiz yoki `Super + Ctrl + T` yordamida to'g'ridan-to'g'ri mavzu tanlagichga o'tishingiz mumkin.
+Omarchy yigirma ikkita chiroyli mavzu bilan birga keladi. Ular orasidan Omarchy Menu (`Super + Space`) ichidagi _Appearance > Theme_ orqali tanlashingiz yoki `Super + Ctrl + T` yordamida to'g'ridan-to'g'ri mavzu tanlagichga o'tishingiz mumkin.
 
-Har bir mavzu ish stolini, terminalni, neovim'ni, faollik ekranini (btop), Chromium'ni va butun Omarchy qobig'ini bezaydi: yuqori panel, menyu, bildirishnomalar, OSD va qulf ekrani. (Obsidian uchun Omarchy mavzusini ilova ichidagi _Tashqi ko'rinish > Mavzular_ orqali qo'lda tanlashingiz kerak).
+Har bir mavzu ish stolini, terminalni, neovim, faollik ekranini (btop), Chromium va butun Omarchy qobig'ini uslubaydi: yuqori panel, menyu, bildirishnomalar, OSD va qulf ekranini. (Obsidian uchun Omarchy mavzusini ilova ichidagi _Appearance > Themes_ orqali qo'lda tanlashingiz kerak).
 
-Mavzularda fon rasmlari to'plami bo'ladi, ular orasidan `Super + Ctrl + W` yordamida tanlashingiz mumkin.
+Mavzularda fon rasmlari to'plami mavjud bo'lib, ular orasidan `Super + Ctrl + W` yordamida tanlashingiz mumkin.
 
-Yanada ko'proq mavzularni [qo'shimcha mavzular sahifasida](https://omarchy.org/themes/) topishingiz yoki hatto [o'zingizning mavzuingizni yaratishingiz](43-making-your-own-theme.md) mumkin.
+Yanada ko'proq mavzularni [qo'shimcha mavzular sahifasida](https://omarchy.org/themes/) topishingiz yoki hatto [o'z mavzuingizni yaratishingiz](43-making-your-own-theme.md) ham mumkin.
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Qulf ekranlari
+### Ilova ikonalari
 
-Mavzularda yuklash paytidagi shifrni ochish jarayoni uchun ishlatiladigan maxsus qulfni ochish dizayni ham bo'lishi mumkin. Ulardan birini _Tashqi ko'rinish > Qulfni ochish_ bo'limida tanlashingiz mumkin. Ular quyidagicha ko'rinadi:
+Ilova ishga tushirgichi va dokdagi ikonalar mavzuingiz ranglarida chiziladi, shuning uchun ular u bilan birga o'zgaradi. Ular ikona to'plamidan keladi, uni mavzudan alohida _Appearance > Icons_ ostida, har bir to'plamning oldindan ko'rishlaridan, xuddi mavzu tanlaganingizdek tanlaysiz:
+
+- _Papercraft_ — standart to'plam: o'rnatilgan hamma narsa bitta uslubda chizilgan. Chrome, HEY yoki YouTube kabi logotipi bilan taniladigan ilovalar shaklini saqlab qoladi va mavzu ranglarini oladi.
+- _Arcade_ o'sha ilovalarni eski o'yin konsoli chizgandek 8-bitli piksel art sifatida chizadi.
+- _Original_ har bir ilovani uning yaratuvchisi bergan ikona bilan ko'rsatadi.
+
+Boshqa birov yaratgan ikona to'plamini _Install > Style > Icons_ (yoki `omarchy icons install <git url>`) bilan o'rnatishingiz va uni _Remove > Icons_ ostida yana olib tashlashingiz mumkin. _Update > Extra Icons_ siz o'rnatgan to'plamlarning eng so'nggi versiyasini olib keladi.
+
+O'zingiznikini yaratish uchun ikonalaringizni `~/.config/omarchy/icons/<name>/` ichiga qo'ying, har bir ilova uchun bitta fayldan, ilovaning `.desktop` faylidagi `Icon=` qatori nomi bilan nomlang. `.svg` bilan tugaydigan fayl qanday bo'lsa, shunday ko'rsatiladi. `.svg.tpl` bilan tugaydigan fayl mavzu ranglarida chiziladi: rang ketadigan joyga `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` yoki `{{ icon_shadow }}` deb yozing. `/usr/share/omarchy/icons/papercraft/` ichidagi standart to'plam boshlash uchun yaxshi joy. To'plamingizni tanlagichda ko'rsatish uchun `preview.png` qo'shing; usiz Omarchy ikonalaringizdan oldindan ko'rish chizadi. Standart to'plamning bitta ikonasini o'zgartirish uchun o'z versiyangizni `~/.config/omarchy/icons/papercraft/` ichiga qo'ying.
+
+### Qulf ochish ekranlari
+
+Mavzular yuklanishdagi shifrni ochish jarayoni uchun ishlatiladigan maxsus qulf ochish dizayniga ham ega bo'lishi mumkin. Ulardan birini _Appearance > Unlock_ ostida tanlashingiz mumkin. Ular shunday ko'rinadi:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

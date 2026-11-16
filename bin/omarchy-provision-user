@@ -134,9 +134,13 @@ xdg-mime default HEY.desktop x-scheme-handler/mailto
 
 if (( first_install )); then
   mkdir -p "$state_dir/migrations"
-  for migration in "$OMARCHY_PATH"/migrations/*.sh; do
-    [[ -f $migration ]] && touch "$state_dir/migrations/$(basename "$migration")"
-  done
+  # One touch for all of them: a basename and a touch per migration were over
+  # 500 processes, 1.4s on an N1x.
+  migrations=("$OMARCHY_PATH"/migrations/*.sh)
+  if [[ -f ${migrations[0]} ]]; then
+    migrations=("${migrations[@]##*/}")
+    touch "${migrations[@]/#/$state_dir/migrations/}"
+  fi
 fi
 
 omarchy-done mark finalize-user

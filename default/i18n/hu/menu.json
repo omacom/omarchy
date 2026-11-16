@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonok"
+  },
+  "install.style.icons": {
+    "label": "Ikonok"
+  },
+  "remove.icons": {
+    "label": "Ikonok"
+  },
+  "update.icons": {
+    "label": "Extra ikonok"
+  },
+  "system.firmware": {
+    "label": "Újraindítás BIOS-ba",
+    "description": "Újraindítás az UEFI firmware-beállításba"
   }
 }

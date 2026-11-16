@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "אייקונים"
+  },
+  "install.style.icons": {
+    "label": "אייקונים"
+  },
+  "remove.icons": {
+    "label": "אייקונים"
+  },
+  "update.icons": {
+    "label": "אייקונים נוספים"
+  },
+  "system.firmware": {
+    "label": "הפעלה מחדש ל-BIOS",
+    "description": "הפעלה מחדש להגדרות קושחת UEFI"
   }
 }

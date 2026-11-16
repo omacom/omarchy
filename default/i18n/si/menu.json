@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "අයිකන"
+  },
+  "install.style.icons": {
+    "label": "අයිකන"
+  },
+  "remove.icons": {
+    "label": "අයිකන"
+  },
+  "update.icons": {
+    "label": "අමතර අයිකන"
+  },
+  "system.firmware": {
+    "label": "BIOS වෙත නැවත අරඹන්න",
+    "description": "UEFI ස්ථිරාංග සැකසුම් වෙත නැවත අරඹන්න"
   }
 }
