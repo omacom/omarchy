@@ -299,6 +299,7 @@ Item {
         if (["installing", "active", "activating", "inactive", "failed", "deactivating", "removing"].indexOf(model.unit) < 0) return
       }
       root.noteReadyModels(parsed.models)
+      root.noteLaunchableModels(parsed.models)
       root.localModel = parsed
     } catch (e) {
       // A missing or partially written file leaves the last good state intact.
@@ -322,6 +323,26 @@ Item {
     for (var next in models)
       if (models[next].unit === "installing") installing[next] = true
     installingModels = installing
+  }
+
+  // A model that is set up has a launcher of its own, which
+  // omarchy-agent-local-launchers draws. omarchy-agent-local runs that after
+  // a setup or a removal it waited for, but a setup started here carries on
+  // in the background, so the launcher is added when the model stops
+  // installing. The first reading only notes what is there.
+  property var launchableModels: null
+
+  function noteLaunchableModels(models) {
+    var ids = []
+    for (var id in models)
+      if (models[id].unit !== "installing" && models[id].unit !== "removing") ids.push(id)
+    var key = ids.sort().join("\n")
+    if (launchableModels !== null && key !== launchableModels) syncLaunchers()
+    launchableModels = key
+  }
+
+  function syncLaunchers() {
+    Util.execArgv(["omarchy-agent-local-launchers"])
   }
 
   function notifyModelReady(model) {

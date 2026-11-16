@@ -952,6 +952,47 @@ prefer_local_launch ''
 [[ ${launch_args[*]} == "--app-id=org.omarchy.agent opencode --auto" ]] ||
   fail "--prefer-local opens the usual agent without a local model: ${launch_args[*]}"
 
+# A model that is set up but stopped, as one opened from its launcher may be,
+# is started in the agent's own terminal, where its loading shows: the launch
+# reruns itself inline there, and the inline run warms the model up before
+# the agent opens on it. A warm-up that fails opens nothing.
+stopped='{"last":"big","models":{"big":{"unit":"inactive","sub_state":"dead"}}}'
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent --local-model big --app-id=org.omarchy.local.big
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.local.big omarchy-agent --inline --local-model big --app-id=org.omarchy.local.big" ]] ||
+  fail "a stopped local model is opened by rerunning the launch inside its terminal: ${launch_args[*]}"
+
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent --local
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ${launch_args[*]} == "--app-id=org.omarchy.agent omarchy-agent --inline --local" ]] ||
+  fail "--local on a stopped model starts the one last used: ${launch_args[*]}"
+
+printf '#!/bin/bash\nprintf "%%s\\n" "warmup $*" >>"$OMARCHY_TEST_WARMUP_LOG"\nexit "${OMARCHY_TEST_WARMUP_STATUS:-0}"\n' >"$mock_bin/omarchy-agent-local-warmup"
+chmod +x "$mock_bin/omarchy-agent-local-warmup"
+export OMARCHY_TEST_WARMUP_LOG="$test_tmp/warmup"
+: >"$inline_log"
+OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent --inline --local-model big
+mapfile -d '' -t inline_args <"$inline_log"
+[[ $(<"$OMARCHY_TEST_WARMUP_LOG") == "warmup big" && ${inline_args[*]} == "opencode --auto --standalone" ]] ||
+  fail "an inline launch warms a stopped model up, then opens the agent on it: $(<"$OMARCHY_TEST_WARMUP_LOG") / ${inline_args[*]}"
+
+: >"$inline_log"
+if OMARCHY_TEST_WARMUP_STATUS=1 OMARCHY_TEST_LOCAL_STATUS=$stopped omarchy-agent --inline --local-model big; then
+  fail "a model that didn't start fails the launch"
+fi
+[[ ! -s $inline_log ]] || fail "a model that didn't start opens no agent"
+
+: >"$OMARCHY_TEST_WARMUP_LOG"
+: >"$launch_log"
+OMARCHY_TEST_LOCAL_STATUS='{"last":"big","models":{"big":{"unit":"active","sub_state":"running"}}}' omarchy-agent --local-model big
+mapfile -d '' -t launch_args <"$launch_log"
+[[ ! -s $OMARCHY_TEST_WARMUP_LOG && ${launch_args[*]} == *"/overlays/opencode-big.config"*"opencode --auto --standalone" ]] ||
+  fail "a running local model opens at once: ${launch_args[*]}"
+rm "$mock_bin/omarchy-agent-local-warmup"
+pass "a stopped local model is started in the agent's terminal before the agent opens"
+
 # A default that can't take the overlay, with no pi or OpenCode to stand in,
 # still opens rather than failing as --local would.
 printf '%s\n' "codex" >"$agent_file"
