@@ -2050,6 +2050,10 @@ Panel {
       implicitHeight: (idField.visible ? idField.implicitHeight + Style.space(4) : 0) + pwField.implicitHeight + Style.spacing.rowGap
       height: implicitHeight
 
+      // Show-password toggle; every prompt opens masked again.
+      property bool revealed: false
+      onVisibleChanged: if (!visible) revealed = false
+
       TextField {
         id: idField
         visible: row.isEnterprise && !row.isBusy && !row.isFailed
@@ -2083,6 +2087,7 @@ Panel {
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
         password: true
+        revealed: passwordPanel.revealed
         placeholderText: Commons.I18n.t("network.passphrase")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2123,13 +2128,13 @@ Panel {
         }
       }
 
-      // 22×22 right-anchored to line up with lockIndicator above. Esc closes
-      // the prompt (handled by pwField.Keys.onEscapePressed)
+      // Esc closes the prompt (handled by pwField.Keys.onEscapePressed)
       // so there's no separate cancel button.
       PanelActionButton {
         id: connectPwBtn
         visible: !row.isBusy && !row.isFailed
-        anchors.right: parent.right
+        anchors.right: revealPwBtn.left
+        anchors.rightMargin: Style.space(2)
         anchors.verticalCenter: parent.verticalCenter
         enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
         iconText: "󰄬"
@@ -2137,6 +2142,20 @@ Panel {
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
         onClicked: row.submitCredentials()
+      }
+
+      // 22×22 right-anchored to line up with lockIndicator above. Not a
+      // focus target, so typing carries on in pwField after a click.
+      PanelActionButton {
+        id: revealPwBtn
+        visible: connectPwBtn.visible
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        iconText: passwordPanel.revealed ? "󰈉" : "󰈈"
+        tooltipText: passwordPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onClicked: passwordPanel.revealed = !passwordPanel.revealed
       }
     }
   }
