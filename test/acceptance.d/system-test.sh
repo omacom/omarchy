@@ -24,6 +24,20 @@ verify_core_packages() {
   pass "all Omarchy core packages are installed (${#missing[@]} missing)"
 }
 
+verify_kernel_headers() {
+  local kernel=linux-omarchy
+  local release
+  release=$(uname -r)
+  omarchy-pkg-present linux-t2 && kernel=linux-t2
+
+  [[ $(cat "/usr/lib/modules/$release/pkgbase") == "$kernel" ]] ||
+    fail "the installed system boots the supported kernel" "$release is not $kernel"
+  omarchy-pkg-present "$kernel-headers" || fail "kernel headers are installed" "$kernel-headers is missing"
+  [[ $(cat "/usr/lib/modules/$release/build/include/config/kernel.release") == "$release" ]] ||
+    fail "headers match the running kernel" "$release has missing or mismatched headers"
+  pass "the running $kernel kernel has matching headers ($release)"
+}
+
 verify_defaults() {
   [[ $(omarchy-default-browser) == "chromium" ]] || fail "Chromium is the default browser"
   pass "Chromium is the default browser"
@@ -31,8 +45,8 @@ verify_defaults() {
   [[ $(omarchy-default-terminal) == "foot" ]] || fail "Foot is the default terminal"
   pass "Foot is the default terminal"
 
-  [[ $(omarchy-default-editor) == "nvim" ]] || fail "Neovim is the default editor"
-  pass "Neovim is the default editor"
+  [[ $(omarchy-default-editor) == "plain" ]] || fail "Plain is the default editor"
+  pass "Plain is the default editor"
 
   [[ $(omarchy-theme-current) != "Unknown" ]] || fail "a current theme is configured"
   pass "a current theme is configured"
@@ -44,7 +58,7 @@ verify_defaults() {
   pass "a monospace font is configured"
 
   [[ $(xdg-mime query default x-scheme-handler/http) == "chromium.desktop" ]] || fail "HTTP MIME handling uses Chromium"
-  [[ $(xdg-mime query default inode/directory) == "org.gnome.Nautilus.desktop" ]] || fail "directory MIME handling uses Nautilus"
+  [[ $(xdg-mime query default inode/directory) == "folio.desktop" ]] || fail "directory MIME handling uses Files"
   pass "desktop MIME handlers are configured"
 }
 
@@ -112,7 +126,7 @@ verify_user_setup() {
   pass "Omarchy user state and shell configuration exist"
 }
 
-for check in verify_core_packages verify_defaults verify_services verify_runtime_tools verify_user_setup; do
+for check in verify_core_packages verify_kernel_headers verify_defaults verify_services verify_runtime_tools verify_user_setup; do
   if ! ("$check"); then
     status=1
   fi

@@ -23,9 +23,9 @@ description with steps to reproduce, and diagnostics. Gather them:
 omarchy version
 
 # Generate the diagnostic log (also written to /tmp/omarchy-debug.log)
-omarchy debug --no-sudo --print
+omarchy-debug --no-sudo --print
 
-# Interactive variant: `omarchy debug` offers to upload the log to
+# Interactive variant: `omarchy-debug` offers to upload the log to
 # logs.omarchy.org (expires after 24h) and prints a shareable URL to
 # include in the issue.
 ```
@@ -38,7 +38,7 @@ drag-and-drop in the web form, so save the capture and hand the user the file
 path to attach (`gh` cannot upload media).
 
 For screen-recording failures specifically, rerun with
-`OMARCHY_SCREENRECORD_DEBUG=true` and attach `/tmp/omarchy-screenrecord.log`.
+`OMARCHY_SCREENRECORD_DEBUG=true` and attach `$XDG_RUNTIME_DIR/omarchy-screenrecord.log` (or `${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/omarchy-screenrecord.log` without a session runtime directory).
 
 File the issue with `gh` when available:
 

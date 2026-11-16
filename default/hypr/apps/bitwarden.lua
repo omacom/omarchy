@@ -1,6 +1,9 @@
-o.window("^(Bitwarden)$", { no_screen_share = true, tag = "+floating-window" })
+o.window("^([bB]itwarden)$", { no_screen_share = true, tag = "+floating-window" })
 
-o.window("chrome-nngceckbapebfimnlniiiahkandclblb-Default", {
+-- The extension's popout asks for the width set in its preferences and a height of its own,
+-- so float it without the shared 875x600. The class varies by browser, profile and popup path.
+o.window(".*nngceckbapebfimnlniiiahkandclblb.*", {
   no_screen_share = true,
-  tag = "+floating-window",
+  float = true,
+  center = true,
 })
