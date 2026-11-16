@@ -352,13 +352,8 @@ Item {
       required property var modelData
 
       screen: modelData
-      visible: !remapGuard.remapping
+      visible: !remapGuard.remapping && !root.suspended
       anchors { top: true; bottom: true; left: true; right: true }
-
-      // When OWE suspends this plugin its video layer covers the desktop
-      // visually, but the window stays mapped so the MouseArea below can
-      // still receive double-clicks to open the background/theme pickers.
-      readonly property bool contentVisible: !root.suspended
 
       ScreenMoveRemap {
         id: remapGuard
@@ -417,11 +412,9 @@ Item {
       exclusionMode: ExclusionMode.Ignore
 
       // OWE owns video backgrounds. This layer draws stills, and stays empty
-      // behind a video so OWE's own layer shows through. When suspended the
-      // content is hidden but the window remains mapped for input handling.
+      // behind a video so OWE's own layer shows through.
       BackgroundMedia {
         id: base
-        visible: panel.contentVisible
         anchors.fill: parent
         path: root.displayedBackground
         version: root.reloadVersion
@@ -453,14 +446,14 @@ Item {
         cache: false
         smooth: true
         mipmap: true
-        visible: panel.contentVisible && root.oldBackground !== "" && root.revealProgress < 1
+        visible: root.oldBackground !== "" && root.revealProgress < 1
         onStatusChanged: panel.maybeStartReveal()
       }
 
       Item {
         id: incomingLayer
         anchors.fill: parent
-        visible: panel.contentVisible && root.incomingBackground !== "" && incomingFrame.status === Image.Ready && (root.revealProgress >= 1 || panel.maskReady)
+        visible: root.incomingBackground !== "" && incomingFrame.status === Image.Ready && (root.revealProgress >= 1 || panel.maskReady)
         layer.enabled: root.incomingBackground !== "" && root.revealProgress < 1
         layer.smooth: true
         layer.effect: MultiEffect {
@@ -525,15 +518,41 @@ Item {
         }
       }
 
-      MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        onDoubleClicked: function(mouse) {
-          if (mouse.button === Qt.RightButton) root.openThemeSwitcher()
-          else root.openSelector()
-          mouse.accepted = true
-        }
-      }
+      DesktopClicks { service: root }
+    }
+  }
+
+  // OWE's video layer takes no clicks, and this service's own layer is hidden
+  // under it while a video plays. A clear layer above the video and below
+  // every window keeps the desktop's double-clicks working meanwhile.
+  Variants {
+    model: Quickshell.screens
+
+    PanelWindow {
+      required property var modelData
+
+      screen: modelData
+      visible: root.suspended
+      color: "transparent"
+      anchors { top: true; bottom: true; left: true; right: true }
+      exclusionMode: ExclusionMode.Ignore
+      WlrLayershell.namespace: "omarchy-background"
+      WlrLayershell.layer: WlrLayer.Bottom
+      WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+      DesktopClicks { service: root }
+    }
+  }
+
+  // Inline components do not see this file's ids, so each one is handed the service.
+  component DesktopClicks: MouseArea {
+    required property var service
+    anchors.fill: parent
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
+    onDoubleClicked: function(mouse) {
+      if (mouse.button === Qt.RightButton) service.openThemeSwitcher()
+      else service.openSelector()
+      mouse.accepted = true
     }
   }
 }
