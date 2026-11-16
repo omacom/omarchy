@@ -294,7 +294,7 @@ sync_glass() {
     rm -f "$flag" || return 1
   fi
 
-  hyprctl reload >/dev/null 2>&1 || true
+  omarchy-restart-hyprctl
 }
 
 # A running bar toggles from what it shows, theme defaults and its last pill
