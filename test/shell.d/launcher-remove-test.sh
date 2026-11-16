@@ -40,6 +40,8 @@ cat >"$tmp_dir/bin/pacman" <<'SCRIPT'
 #!/bin/bash
 if [[ $1 == "-Qqo" && $2 == */native.desktop ]]; then
   printf 'native-pkg\n'
+elif [[ $1 == "-Qqo" && $2 == */1password.desktop ]]; then
+  printf '1password\n'
 fi
 SCRIPT
 chmod +x "$tmp_dir/bin/pacman"
@@ -123,3 +125,15 @@ done
 [[ $(tail -n 1 "$TEST_LOG") == "terminal::omarchy-remove-service-1password" ]] || fail "launcher remove routes 1Password through its dedicated remover" "$(tail -n 1 "$TEST_LOG")"
 [[ $onepassword_output == "terminal" ]] || fail "launcher remove routes 1Password through its dedicated remover" "$onepassword_output"
 pass "launcher remove routes 1Password through its dedicated remover"
+
+cat >"$tmp_dir/data/applications/1password.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=1Password
+Exec=1password --silent
+DESKTOP
+
+"$ROOT/bin/omarchy-remove-launcher-entry" 1password.desktop 1Password
+
+[[ ! -e $tmp_dir/data/applications/1password.desktop ]] || fail "launcher remove deletes a user-owned 1Password entry without uninstalling 1Password"
+(( $(grep -c '^terminal:' "$TEST_LOG") == 2 )) || fail "launcher remove deletes a user-owned 1Password entry without uninstalling 1Password" "$(cat "$TEST_LOG")"
+pass "launcher remove deletes a user-owned 1Password entry without uninstalling 1Password"
