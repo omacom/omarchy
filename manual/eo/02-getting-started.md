@@ -2,7 +2,7 @@
 
 Omarchy estas instalata per ISO. Vi povas elekti inter instalo al tuta disko, kiu transprenas la tutan diskon, aŭ instalo en libera spaco, kiu metas Omarchy en la nealokitan parton de disko — ĉi tiel vi duobole startas Windows aŭ alian sistemon (vidu [duobla starto](50-dual-boot-install.md) — notu, ke vi unue devas malŝalti BitLocker-on en Windows). En ambaŭ kazoj la instalado defaŭlte inkluzivas ĉifradon, kaj la opcio por tuta disko viŝos la elektitan diskon, do certiĝu, ke vi faris sekurkopion antaŭ ol uzi ekzistantan!
 
-[Konsultu la Omarchy-ISO](https://omarchy.org/) unue, metu ĝin sur USB-memorilon (uzu [balenaEtcher](https://etcher.balena.io/) en Mac/Windows aŭ [caligula](https://github.com/ifd3f/caligula) en Linukso), kaj startu el la memorilo.
+[Konsultu la Omarchy-ISO](https://omarchy.org/) unue, metu ĝin sur USB-memorilon (uzu [Rufus](https://rufus.ie/) en Windows, [balenaEtcher](https://etcher.balena.io/) en Mac, aŭ [caligula](https://github.com/ifd3f/caligula) en Linukso), kaj startu el la memorilo.
 
 _Vi devas malŝalti Secure Boot kaj/aŭ TPM en la BIOS. Vi devas malŝalti ĉi tiujn por povi instali Omarchy. Ili estas sekurecaj schemoj de Microsoft, kreitaj por Windows kaj por Linuksaj distribuoj de Microsoft._
 

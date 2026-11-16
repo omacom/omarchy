@@ -116,7 +116,7 @@ for name in ("menu.json", "shell.json", "cli.json", "keybindings.json"):
     ]
     for key in changed:
         e = str(value_text(en[key])).replace("|", "\\|")
-        t = str(value_text(eo[key])).replace("|", "\\|")
+        t = str(value_text(eo.get(key, "[Missing translation]"))).replace("|", "\\|")
         lines.append(f"| `{key}` | {e} | {t} |")
     lines += ["", "</details>", ""]
 
