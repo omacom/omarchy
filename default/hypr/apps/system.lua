@@ -4,7 +4,7 @@ o.window({ tag = "floating-window" }, { center = true })
 o.window({ tag = "floating-window" }, { size = { 875, 600 } })
 
 o.window(
-  "(org.omarchy.btop|org.omarchy.terminal|org.omarchy.bash|org.codeberg.dnkl.foot|org.gnome.NautilusPreviewer|org.gnome.Evince|Omarchy|About|TUI.float|imv|mpv)",
+  "(org.omarchy.btop|org.omarchy.terminal|org.omarchy.bash|org.codeberg.dnkl.foot|org.gnome.NautilusPreviewer|org.gnome.Papers|Omarchy|About|TUI.float)",
   {
     tag = "+floating-window",
   }
@@ -27,15 +27,21 @@ o.window("org.omarchy.about", { float = true })
 o.window("org.omarchy.about", { center = true })
 o.window("org.omarchy.about", { size = { 920, 480 } })
 
+-- Files' Space preview floats over the file manager, at the size it picks
+-- to fit the screen.
+o.window("folio-preview", { float = true })
+
+-- Files is the file chooser other apps get through the portal (see
+-- hyprland-portals.conf), and its dialogs float as the GTK ones did.
+o.window("folio-chooser", { tag = "+floating-window" })
+
 o.window("omacalc", { float = true })
 
--- Fullscreen screensaver.
-o.window("org.omarchy.screensaver", { fullscreen = true })
-o.window("org.omarchy.screensaver", { float = true })
-o.window("org.omarchy.screensaver", { animation = "slide" })
--- The launcher picks each screensaver's workspace. A terminal mapped again as it closes lands out of sight instead,
--- where its fullscreen rule cannot take fullscreen from a window.
-o.window("org.omarchy.screensaver", { workspace = "special:screensaver silent" })
+-- Omaview sizes its window to the picture or video it opens, so it floats and
+-- centers without the standard float's fixed size.
+o.window("omaview", { float = true })
+o.window("omaview", { center = true })
+o.window("omaview", { no_anim = true })
 
 -- Popped window rounding.
 o.window({ tag = "pop" }, { rounding = 8 })

@@ -1,85 +1,85 @@
 # Žaidimai
 
-Omarchy skirta ne tik _pRoDUcTiVItY_, bet ir pramogoms, o kas smagiau nei žaidimai? Omarchy pristatoma su visu žaidimų pasirinkimų rinkiniu — Steam ir RetroArch native ir retro žaidimui, Battle.net, Lutris ir Heroic ne Steam parduotuvėms, Moonlight PC srautiniam perdavimui, Xbox Cloud Gaming + NVIDIA GeForce NOW debesiui, plius niekada nesenstančiu Minecraft.
+Omarchy skirta ne tik _pRoDUcTiVItY_, bet ir pramogoms, o kas smagiau už žaidimus? Omarchy pateikiama su visu žaidimų parinkčių rinkiniu — Steam ir RetroArch vietiniams ir retro žaidimams, Battle.net, Lutris ir Heroic parduotuvėms ne Steam, Moonlight transliavimui iš PC, Xbox Cloud Gaming + NVIDIA GeForce NOW debesies žaidimams ir dar amžinai žaliuojantis Minecraft.
 
-Valve neįtikėtino darbo su [proton suderinamumo sluoksniu](https://en.wikipedia.org/wiki/Proton_(software)) dėka dabar Linux galima žaisti dešimtis tūkstančių šiuolaikinių žaidimų. O, ir ar žinojai, kad [Steam Deck](https://store.steampowered.com/steamdeck/) iš tikrųjų veikia su Arch!
+Valve atlikto neįtikėtino darbo su [Proton suderinamumo sluoksniu](https://en.wikipedia.org/wiki/Proton_(software)) dėka Linux sistemoje dabar galima žaisti dešimtis tūkstančių šiuolaikinių žaidimų. O, ir ar žinojote, kad [Steam Deck](https://store.steampowered.com/steamdeck/) iš tikrųjų veikia su Arch!
 
-Visi žaidimų diegikliai gyvena Omarchy meniu skiltyje _Įdiegti > Gaming_ (`Super + Space`). Jei kada norėsi atšaukti vieną iš jų, naudok _Pašalinti > Gaming_.
+Visi žaidimų diegimo įrankiai yra Omarchy meniu skiltyje _Install > Gaming_ (`Super + Space`). Jei kada nors norėsite kurį nors iš jų atšaukti, naudokite _Remove > Gaming_.
 
 ## Steam
 
-Įdiek [Steam](https://store.steampowered.com/) pasirinkdamas _Įdiegti > Gaming > Steam_ iš Omarchy meniu (`Super + Space`).
+Įdiekite [Steam](https://store.steampowered.com/) Omarchy meniu (`Super + Space`) pasirinkdami _Install > Gaming > Steam_.
 
-Kai jį įdiegsi, Steam galėsi paleisti su `Super + Space`.
+Įdiegę galėsite paleisti Steam paspaudę `Super + Space`.
 
-Atmink, kad Steam gali užtrukti 10-20 sekundžių, kol pasileis, ir jis neteiks jokio vaizdinio grįžtamojo ryšio, kad kraunasi.
+Atkreipkite dėmesį, kad Steam paleidimas gali užtrukti 10-20 sekundžių ir ji nerodys jokio vaizdinio signalo, kad kraunasi.
 
  ![gaming-steam](images/gaming-steam.webp)
 
 ## RetroArch
 
-Įdiek [RetroArch](https://www.retroarch.com/) pasirinkdamas _Įdiegti > Gaming > RetroArch_ iš Omarchy meniu (`Super + Space`). Jis pristatomas su pilnu libretro branduolių rinkiniu, tad visos klasikinės sistemos aprėptos.
+Įdiekite [RetroArch](https://www.retroarch.com/) Omarchy meniu (`Super + Space`) pasirinkdami _Install > Gaming > RetroArch_. Ji pateikiama su visu libretro branduolių rinkiniu, taigi palaikomos visos klasikinės sistemos.
 
-RetroArch yra pilnai iš anksto sukonfigūruotas su gražiuoju CRT Royale shader tobulai retro išvaizdai.
+RetroArch yra visiškai iš anksto sukonfigūruota su gražiuoju CRT Royale šeideriu, kad tas tobulas retro vaizdas būtų pasiektas.
 
-Kad pradėtum:
+Norėdami pradėti:
 
-1. Numesk savo BIOS failus į `~/Games/bios`, o ROM į `~/Games/roms`.
-2. Paleisk RetroArch su `Super + Space` ir įvedęs `retro`.
-3. Nuskaityk katalogą `~/Games/roms` ir esi pasiruošęs žaisti.
+1. Įkelkite BIOS failus į `~/Games/bios`, o ROM failus į `~/Games/roms`.
+2. Paleiskite RetroArch paspaudę `Super + Space` ir įvedę `retro`.
+3. Nuskaitykite `~/Games/roms` katalogą ir galite žaisti.
 
-Taip pat gali mėgstamam žaidimui suteikti atskirą įrašą programų paleidimo priemonėje su _Įdiegti > Gaming > RetroArch Game Launcher_, kuris leidžia pasirinkti branduolį ir ROM bei šokti tiesiai į žaidimą iš `Super + Space`.
+Mėgstamiausiam žaidimui taip pat galite suteikti atskirą įrašą programų paleidyklėje naudodami _Install > Gaming > RetroArch Game Launcher_ — tai leis pasirinkti branduolį ir ROM ir iškart pereiti į žaidimą paspaudus `Super + Space`.
 
  ![gaming-retroarch](images/gaming-retroarch.webp)
 
 ## Xbox Cloud Gaming
 
-Įdiek Xbox Cloud Gaming žiniatinklio programą pasirinkdamas _Įdiegti > Gaming > Xbox Cloud Gaming_ iš Omarchy meniu (`Super + Space`). Tai "tiesiog" paslaugos žiniatinklio programa, bet ji greitai paleidžiama ir puikiai veikia 1080p.
+Įdiekite Xbox Cloud Gaming žiniatinklio programą Omarchy meniu (`Super + Space`) pasirinkdami _Install > Gaming > Xbox Cloud Gaming_. Tai „tik“ paslaugos žiniatinklio programa, bet ji greitai paleidžiama ir puikiai veikia 1080p raiška.
 
-Jei jau turi Xbox Game Pass, tai solidus būdas žaisti Fortnite ir kitus pavadinimus, kurių negali paleisti native Linux.
+Jei jau turite Xbox Game Pass, tai tvirtas būdas žaisti Fortnite ir kitus žaidimus, kurių negalite paleisti vietiškai Linux sistemoje.
 
  ![gaming-xbox-cloud](images/gaming-xbox-cloud.webp)
 
 ## NVIDIA GeForce Now
 
-Įdiek debesies žaidimų paslaugą [NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/) pasirinkdamas _Įdiegti > Gaming > NVIDIA GeForce NOW_ iš Omarchy meniu (`Super + Space`). Dar vienas puikus būdas žaisti pavadinimus, kurie neprieinami native Linux.
+Įdiekite debesies žaidimų paslaugą [NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/) Omarchy meniu (`Super + Space`) pasirinkdami _Install > Gaming > NVIDIA GeForce NOW_. Tai dar vienas puikus būdas žaisti žaidimus, kurių nėra vietiškai Linux sistemoje.
 
  ![gaming-geforce-now](images/gaming-geforce-now.webp)
 
 ## Minecraft
 
-Įdiek Minecraft pasirinkdamas _Įdiegti > Gaming > Minecraft_ iš Omarchy meniu (`Super + Space`).
+Įdiekite Minecraft Omarchy meniu (`Super + Space`) pasirinkdami _Install > Gaming > Minecraft_.
 
-Kaip ir Steam, atmink, kad po prisijungimo ar paleidimo gali užtrukti, kol pasirodys kitas ekranas, ir kol lauksi, negausi jokio grįžtamojo ryšio.
+Kaip ir Steam atveju, atkreipkite dėmesį, kad prisijungus ar paleidus gali praeiti šiek tiek laiko, kol pasirodys kitas ekranas, ir laukdami negausite jokio signalo.
 
  ![gaming-minecraft](images/gaming-minecraft.webp)
 
 ## Xbox valdikliai
 
-Įdiek Bluetooth Xbox valdiklių palaikymą pasirinkdamas _Įdiegti > Gaming > Xbox Controllers_ iš Omarchy meniu (`Super + Space`). Suporuok valdiklius per Bluetooth (`Super + Ctrl + B`) ir jie veiks visuose tavo žaidimuose. Tau to nereikia, jei valdiklis tiesiog prijungtas USB-C laidu.
+Įdiekite Bluetooth Xbox valdiklių palaikymą Omarchy meniu (`Super + Space`) pasirinkdami _Install > Gaming > Xbox Controllers_. Suporuokite valdiklius per Bluetooth (`Super + Ctrl + B`) ir jie veiks visuose jūsų žaidimuose. To nereikia, jei valdiklį tiesiog prijungiate USB-C kabeliu.
 
-## Moonlight (žaidimų srautinis perdavimas iš PC)
+## Moonlight (žaidimų transliavimas iš PC)
 
-[Moonlight klientas](https://github.com/moonlight-stream/moonlight-qt) pristatomas iš anksto įdiegtas su Omarchy, tad gali iškart srautiniu būdu perduoti žaidimus iš Windows PC, kuriame veikia [Sunshine](https://app.lizardbyte.dev/Sunshine/). Paleisk Moonlight per `Super + Space`.
+Įdiekite [Moonlight klientą](https://github.com/moonlight-stream/moonlight-qt) Omarchy meniu (`Super + Space`) pasirinkdami _Install > Gaming > Moonlight_ ir galėsite transliuoti žaidimus iš Windows PC, kuriame veikia [Sunshine](https://app.lizardbyte.dev/Sunshine/).
 
-Jei ir tavo Omarchy mašina, ir nuotolinis žaidimų PC yra laidiniai, patirtis neatskiriama nuo žaidimo vietoje. Pakelk raišką iki native, nustatyk atnaujinimą 120Hz ir maksimalų bitrate — tai geriausias būdas žaisti varžybinius šaudyklų žaidimus, pavyzdžiui, Fortnite, Linux sistemoje.
+Jei tiek jūsų Omarchy kompiuteris, tiek nuotolinis žaidimų PC yra prijungti kabeliu, potyris bus neatskiriamas nuo žaidimo vietoje. Padidinkite raišką iki vietinės, nustatykite atnaujinimo dažnį į 120Hz ir padidinkite bitų srautą iki maksimumo — tai geriausias būdas Linux sistemoje žaisti varžybines šaudyklės, tokias kaip Fortnite.
 
-Taip pat gali Omarchy mašiną paversti šeimininke paleidęs `omarchy install service sunshine`, kuris įdiegia Sunshine ir atveria Moonlight srautinio perdavimo portus tavo LAN ir Tailscale.
+Omarchy kompiuterį taip pat galite paversti pagrindiniu kompiuteriu paleidę `omarchy install service sunshine` — tai įdiegs Sunshine ir atvers Moonlight transliavimo prievadus jūsų LAN ir Tailscale tinklams.
 
 ## Battle.net
 
-Įdiek [Battle.net](https://eu.shop.battle.net/en-us) pasirinkdamas _Įdiegti > Gaming > Battle.net_ iš Omarchy meniu (`Super + Space`). Tai suteikia tokius pavadinimus kaip Diablo, Starcraft ir World of Warcraft kaip savarankišką diegimą, veikiantį su GE-Proton — nereikia Steam, Lutris ar Heroic.
+Įdiekite [Battle.net](https://eu.shop.battle.net/en-us) Omarchy meniu (`Super + Space`) pasirinkdami _Install > Gaming > Battle.net_. Taip gausite tokius žaidimus kaip Diablo, Starcraft ir World of Warcraft kaip atskirą diegimą, veikiantį su GE-Proton — nereikia nei Steam, nei Lutris, nei Heroic.
 
  ![gaming-starcraft](images/gaming-starcraft.webp)
 
 ## Lutris (Windows žaidimai)
 
-Įdiek [Lutris](https://lutris.net/) pasirinkdamas _Įdiegti > Gaming > Lutris_ iš Omarchy meniu (`Super + Space`). Lutris yra būdas žaisti Windows žaidimus iš parduotuvių, pavyzdžiui, EA ir Ubisoft Connect, kurios neturi savo diegiklio aukščiau.
+Įdiekite [Lutris](https://lutris.net/) Omarchy meniu (`Super + Space`) pasirinkdami _Install > Gaming > Lutris_. Lutris — tai būdas žaisti Windows žaidimus iš tokių parduotuvių kaip EA ir Ubisoft Connect, kurios neturi savo pirmiau paminėto diegimo įrankio.
 
-Diegimas yra šiek tiek netobulas ir kartais atrodo, kad niekas nevyksta — tiesiog būk kantrus, tai veikia fone.
+Diegimas vyksta šiek tiek kreivai ir kartais atrodo, kad nieko nevyksta — tiesiog būkite kantrūs, jis veikia fone.
 
 ## Heroic Launcher (Epic Games)
 
-Įdiek [Heroic Launcher](https://heroicgameslauncher.com/) pasirinkdamas _Įdiegti > Gaming > Heroic (Epic Games)_ iš Omarchy meniu (`Super + Space`). Heroic leidžia paleisti Epic Games pavadinimus, pavyzdžiui, OddSparks, kurie nesiremia anti-cheat — plius žaidimus iš GOG ir Amazon Prime Gaming. Deja, tai reiškia jokio Fortnite ir jokio Rocket League — kol Tim Sweeney neateis į Linux, tai arčiausiai, kiek galima.
+Įdiekite [Heroic Launcher](https://heroicgameslauncher.com/) Omarchy meniu (`Super + Space`) pasirinkdami _Install > Gaming > Heroic (Epic Games)_. Heroic leidžia paleisti Epic Games žaidimus, tokius kaip OddSparks, kurie nepriklauso nuo anti-cheat — taip pat žaidimus iš GOG ir Amazon Prime Gaming. Deja, tai reiškia jokio Fortnite ir jokio Rocket League — kol Tim Sweeney neateis į Linux, tai yra artimiausia, ką gausime.
 
-Kaip ir Lutris, diegiant žaidimus jis gali atrodyti lėtas ir netobulas. Duok jam laiko.
+Kaip ir Lutris, diegiant žaidimus jis gali atrodyti lėtas ir kreivas. Duokite jam laiko.

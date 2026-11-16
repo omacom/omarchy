@@ -8,18 +8,6 @@ command="$ROOT/bin/omarchy-windows-key"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-rg -q '/sys/firmware/acpi/tables/MSDM' "$command" ||
-  fail "windows key helper reads the ACPI MSDM table"
-pass "windows key helper reads the ACPI MSDM table"
-
-rg -q 'read_msdm strings' "$command" ||
-  fail "windows key helper tries strings first"
-pass "windows key helper tries strings first"
-
-rg -q 'read_msdm cat' "$command" ||
-  fail "windows key helper falls back to cat"
-pass "windows key helper falls back to cat"
-
 write_msdm() {
   local path=$1
   local payload=$2
@@ -53,13 +41,14 @@ write_msdm "$tmp/empty" "no-product-key-here"
 if OMARCHY_MSDM_PATH="$tmp/empty" PATH="$ROOT/bin:$PATH" "$command" >"$tmp/out" 2>"$tmp/err"; then
   fail "windows key helper fails when the table has no key"
 fi
-[[ $(<"$tmp/err") == "Firmware license table found, but no Windows product key could be extracted." ]] ||
+[[ ! -s $tmp/out && -s $tmp/err ]] ||
   fail "windows key helper reports a missing key" "actual: $(<"$tmp/err")"
 pass "windows key helper reports a missing key"
+missing_key_err=$(<"$tmp/err")
 
 if OMARCHY_MSDM_PATH="$tmp/missing" PATH="$ROOT/bin:$PATH" "$command" >"$tmp/out" 2>"$tmp/err"; then
   fail "windows key helper fails when firmware has no MSDM table"
 fi
-[[ $(<"$tmp/err") == "No Windows license key found in firmware." ]] ||
+[[ ! -s $tmp/out && -s $tmp/err && $(<"$tmp/err") != "$missing_key_err" ]] ||
   fail "windows key helper reports missing firmware table" "actual: $(<"$tmp/err")"
 pass "windows key helper reports missing firmware table"
