@@ -88,9 +88,8 @@ run_setup() {
   local root="$test_dir/$scenario/root"
 
   mkdir -p "$home" "$root"
-  if [[ -n ${HOME_MODE:-} ]]; then
-    chmod "$HOME_MODE" "$home"
-  fi
+  # Set explicitly so an ambient umask of 002 does not trip the writable-home guard.
+  chmod "${HOME_MODE:-755}" "$home"
   : >"$test_dir/$scenario.calls"
 
   HOME="$home" TEST_ROOT="$root" CALL_LOG="$test_dir/$scenario.calls" \
