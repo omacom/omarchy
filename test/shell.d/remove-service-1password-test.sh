@@ -28,7 +28,8 @@ touch "$tmp_dir/home/.config/1Password/settings.json"
 
 cat >"$tmp_dir/bin/sudo" <<'SCRIPT'
 #!/bin/bash
-if [[ $1 == rm ]]; then
+if [[ $1 == "rm" ]]; then
+  printf '%s\n' "$*" >>"${OMARCHY_TEST_SUDO_LOG:-/dev/null}"
   exit 0
 fi
 exec "$@"
@@ -42,12 +43,14 @@ SCRIPT
 
 chmod +x "$tmp_dir/bin/sudo" "$tmp_dir/bin/omarchy-pkg-drop"
 
-if OMARCHY_TEST_PKG_DROP_STATUS=1 OMARCHY_TEST_LOG="$tmp_dir/pkg-drop.log" HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" \
+if OMARCHY_TEST_PKG_DROP_STATUS=1 OMARCHY_TEST_SUDO_LOG="$tmp_dir/sudo.log" OMARCHY_TEST_LOG="$tmp_dir/pkg-drop.log" HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" \
   bash "$ROOT/bin/omarchy-remove-service-1password" >/dev/null; then
   fail "1Password removal reports a failed package removal"
 fi
 [[ -e "$tmp_dir/home/.config/chromium/NativeMessagingHosts/com.1password.1password.json" ]] ||
   fail "1Password removal keeps the browser integration when the packages stay"
+[[ ! -e "$tmp_dir/sudo.log" ]] ||
+  fail "1Password removal keeps the browser integration when the packages stay" "$(cat "$tmp_dir/sudo.log")"
 pass "1Password removal keeps the browser integration when the packages stay"
 
 OMARCHY_TEST_LOG="$tmp_dir/pkg-drop.log" HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" \
