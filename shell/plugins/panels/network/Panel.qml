@@ -737,7 +737,7 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    nets = Model.sortWifiRows(nets)
+    nets = Model.sortWifiRows(nets, passwordSsid !== "" ? wifiNetworks : null)
     // A new model rebuilds every delegate, which takes focus from a passphrase
     // being typed, so identical rows are left in place.
     if (JSON.stringify(nets) === JSON.stringify(wifiNetworks)) return
@@ -1718,6 +1718,13 @@ Panel {
           width: ListView.view.width
           height: delegateColumn.implicitHeight
 
+          // Opening the passphrase prompt grows the row, which can push the
+          // field below the list's clip on the bottom rows; scroll it in.
+          function revealPrompt() {
+            if (row.isPasswordOpen) networkList.positionViewAtIndex(index, ListView.Contain)
+          }
+          onHeightChanged: if (row.isPasswordOpen) Qt.callLater(revealPrompt)
+
           Column {
             id: delegateColumn
             width: parent.width
@@ -1877,6 +1884,13 @@ Panel {
     }
 
     implicitHeight: rowBody.implicitHeight + (isPasswordOpen ? passwordPanel.implicitHeight + Style.spacing.md : 0)
+    // The prompt slides open and shut instead of jumping, cropped meanwhile.
+    // Both ways take the same time: moving the prompt to another row shrinks
+    // one while the other grows, so the list's total height holds still.
+    clip: true
+    Behavior on implicitHeight {
+      NumberAnimation { duration: Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Style.easeOut }
+    }
 
     MouseArea {
       id: rowMouse
@@ -2040,7 +2054,11 @@ Panel {
     // connect; Esc cancels back to the row.
     Item {
       id: passwordPanel
-      visible: row.isPasswordOpen
+      visible: opacity > 0
+      opacity: row.isPasswordOpen ? 1 : 0
+      Behavior on opacity {
+        NumberAnimation { duration: Style.duration(row.isPasswordOpen ? 180 : 90); easing.type: Easing.OutCubic }
+      }
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.top: rowMouse.bottom
@@ -2049,6 +2067,12 @@ Panel {
       anchors.topMargin: Style.space(4)
       implicitHeight: (idField.visible ? idField.implicitHeight + Style.space(4) : 0) + pwField.implicitHeight + Style.spacing.rowGap
       height: implicitHeight
+
+      // Show-password toggle; every prompt opens masked again. Reset on
+      // close, not when the fade-out ends, or reopening mid-fade stays clear.
+      property bool revealed: false
+      readonly property bool open: row.isPasswordOpen
+      onOpenChanged: if (!open) revealed = false
 
       TextField {
         id: idField
@@ -2083,6 +2107,7 @@ Panel {
         anchors.bottomMargin: Style.spacing.rowGap / 2
         anchors.rightMargin: Style.space(6)
         password: true
+        revealed: passwordPanel.revealed
         placeholderText: Commons.I18n.t("network.passphrase")
         font.family: Style.font.family
         font.pixelSize: Style.font.body
@@ -2123,13 +2148,13 @@ Panel {
         }
       }
 
-      // 22×22 right-anchored to line up with lockIndicator above. Esc closes
-      // the prompt (handled by pwField.Keys.onEscapePressed)
+      // Esc closes the prompt (handled by pwField.Keys.onEscapePressed)
       // so there's no separate cancel button.
       PanelActionButton {
         id: connectPwBtn
         visible: !row.isBusy && !row.isFailed
-        anchors.right: parent.right
+        anchors.right: revealPwBtn.left
+        anchors.rightMargin: Style.space(2)
         anchors.verticalCenter: parent.verticalCenter
         enabled: row.net && pwField.text.length > 0 && (!row.isEnterprise || idField.text.length > 0)
         iconText: "󰄬"
@@ -2137,6 +2162,20 @@ Panel {
         foreground: root.bar.foreground
         fontFamily: root.bar.fontFamily
         onClicked: row.submitCredentials()
+      }
+
+      // 22×22 right-anchored to line up with lockIndicator above. Not a
+      // focus target, so typing carries on in pwField after a click.
+      PanelActionButton {
+        id: revealPwBtn
+        visible: connectPwBtn.visible
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        iconText: passwordPanel.revealed ? "󰈉" : "󰈈"
+        tooltipText: passwordPanel.revealed ? Commons.I18n.t("network.hidePassword") : Commons.I18n.t("network.showPassword")
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onClicked: passwordPanel.revealed = !passwordPanel.revealed
       }
     }
   }
