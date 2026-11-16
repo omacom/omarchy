@@ -3,6 +3,7 @@ import QtQuick.Controls
 import Quickshell
 import qs.Ui
 import qs.Commons
+import qs.Commons as Commons
 
 // Visual reference + live playground for omarchy-shell's common UI
 // components. Summon with `omarchy dev ui-preview`, or directly via:
@@ -66,10 +67,10 @@ Item {
   property var shell: null
 
   // ---- theme --------------------------------------------------------------
-  readonly property color foreground: Color.foreground
-  readonly property color background: Color.background
-  readonly property color accent: Color.accent
-  readonly property color urgent: Color.urgent
+  readonly property color foreground: Commons.Color.foreground
+  readonly property color background: Commons.Color.background
+  readonly property color accent: Commons.Color.accent
+  readonly property color urgent: Commons.Color.urgent
   readonly property string fontFamily: "monospace"
 
   // Fake `bar` for components that take a whole bar object (e.g. Slider).
@@ -519,12 +520,14 @@ Item {
                       width: Style.space(140)
                       spacing: Style.space(1)
                       Text {
+                        textFormat: Text.PlainText
                         text: "Style.font." + modelData.key
                         color: root.foreground
                         font.family: root.fontFamily
                         font.pixelSize: Style.font.bodySmall
                       }
                       Text {
+                        textFormat: Text.PlainText
                         text: modelData.size + " px"
                         color: Qt.darker(root.foreground, 1.5)
                         font.family: root.fontFamily
@@ -534,6 +537,7 @@ Item {
 
                     Text {
                       id: sampleText
+                      textFormat: Text.PlainText
                       anchors.left: metaCol.right
                       anchors.right: parent.right
                       anchors.verticalCenter: parent.verticalCenter
@@ -574,6 +578,7 @@ Item {
                     font.pixelSize: Style.font.bodySmall
                   }
                   Text {
+                    textFormat: Text.PlainText
                     text: Style.font.family
                     color: root.foreground
                     font.family: root.fontFamily
@@ -587,6 +592,7 @@ Item {
                     font.pixelSize: Style.font.bodySmall
                   }
                   Text {
+                    textFormat: Text.PlainText
                     text: Style.font.resolvedFamily
                     color: root.foreground
                     font.family: root.fontFamily
@@ -600,6 +606,7 @@ Item {
                     font.pixelSize: Style.font.bodySmall
                   }
                   Text {
+                    textFormat: Text.PlainText
                     text: Style.font.baseSize + " px"
                     color: root.foreground
                     font.family: root.fontFamily
@@ -613,6 +620,7 @@ Item {
                     font.pixelSize: Style.font.bodySmall
                   }
                   Text {
+                    textFormat: Text.PlainText
                     text: Style.bar.sizeHorizontal + " px"
                     color: root.foreground
                     font.family: root.fontFamily
@@ -626,6 +634,7 @@ Item {
                     font.pixelSize: Style.font.bodySmall
                   }
                   Text {
+                    textFormat: Text.PlainText
                     text: Style.bar.sizeVertical + " px"
                     color: root.foreground
                     font.family: root.fontFamily
@@ -639,6 +648,7 @@ Item {
                     font.pixelSize: Style.font.bodySmall
                   }
                   Text {
+                    textFormat: Text.PlainText
                     text: Style.spacing.scale.toFixed(2)
                     color: root.foreground
                     font.family: root.fontFamily
@@ -652,6 +662,7 @@ Item {
                     font.pixelSize: Style.font.bodySmall
                   }
                   Text {
+                    textFormat: Text.PlainText
                     text: Style.spacing.panelPadding + " px"
                     color: root.foreground
                     font.family: root.fontFamily
@@ -818,6 +829,7 @@ Item {
 
                     Text {
                       id: csLabel
+                      textFormat: Text.PlainText
                       anchors.left: parent.left
                       anchors.right: parent.right
                       anchors.verticalCenter: parent.verticalCenter
@@ -1273,6 +1285,7 @@ Item {
                 }
 
                 Text {
+                  textFormat: Text.PlainText
                   text: Math.round((demoSlider.dragging ? demoSlider.liveValue : sliderRow.demoVolume) * 100) + "%"
                   color: root.foreground
                   font.family: root.fontFamily
