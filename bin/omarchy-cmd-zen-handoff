@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# omarchy:summary=Hand a command line to a running Zen browser
+# omarchy:args=<browser-command> [browser-args...]
+# omarchy:hidden=true
+
+browser=$1
+shift
+for variable in MOZ_NEW_INSTANCE MOZ_NO_REMOTE XRE_PROFILE_PATH XRE_PROFILE_LOCAL_PATH MOZ_LEGACY_PROFILES MOZ_APP_REMOTINGNAME; do
+  [[ -n ${!variable} ]] && exit 1
+done
+for argument in "$@"; do
+  case $argument in
+  -new-window|--new-window|-new-tab|--new-tab|-private-window|--private-window|-blank-window|--blank-window|-url|--url|-search|--search|-osint|--osint) ;;
+  -*) exit 1 ;;
+  esac
+done
+
+# Zen keeps using its legacy directory when present, including after adopting
+# XDG_CONFIG_HOME. Leave profile selection to Zen unless it is unambiguous.
+if [[ -e $HOME/.zen ]]; then
+  root="$HOME/.zen"
+else
+  root="${XDG_CONFIG_HOME:-$HOME/.config}/zen"
+fi
+[[ -r $root/profiles.ini ]] || exit 1
+mapfile -t profile_info < <(awk '
+  { sub(/\r$/, "") }
+  /^[[:space:]]*([#;]|$)/ { next }
+  /^\[[^]]+\]$/ {
+    section = substr($0, 2, length($0) - 2)
+    if (seen[section]++) invalid = 1
+    if (section ~ /^Profile[0-9]+$/) profiles++
+    if (section ~ /^Install/) installs++
+    next
+  }
+  {
+    separator = index($0, "=")
+    if (!separator) { invalid = 1; next }
+    key = substr($0, 1, separator - 1)
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+    value = substr($0, separator + 1)
+    if (fields[section SUBSEP key]++) invalid = 1
+    if (section == "General" && key == "StartWithLastProfile") start = value
+    if (section ~ /^Profile[0-9]+$/ && key == "Path") path = value
+    if (section ~ /^Profile[0-9]+$/ && key == "IsRelative") relative = value
+    if (section ~ /^Install/ && key == "Default") defaults[++count] = value
+  }
+  END {
+    if (invalid || profiles != 1 || start != "1" || path == "" || relative !~ /^[01]$/ || installs != count) exit 1
+    print path
+    print relative
+    for (i = 1; i <= count; i++) print defaults[i]
+  }
+' "$root/profiles.ini")
+(( ${#profile_info[@]} >= 2 )) || exit 1
+profile=${profile_info[0]}
+if [[ ${profile_info[1]} == "1" ]]; then
+  profile="$root/$profile"
+else
+  [[ $profile == /* ]] || exit 1
+fi
+profile=$(realpath -ms -- "$profile") || exit 1
+[[ -d $profile ]] || exit 1
+for selected in "${profile_info[@]:2}"; do
+  [[ -n $selected ]] || exit 1
+  [[ $selected == /* ]] || selected="$root/$selected"
+  [[ $(realpath -ms -- "$selected") == "$profile" ]] || exit 1
+done
+
+encoded=$(printf '%s' "$profile" | base64 -w0 | LC_ALL=C tr -c 'A-Za-z0-9_' '_')
+destination="org.mozilla.zen.$encoded"
+destination=${destination:0:255}
+owner_reply=$(busctl --user --auto-start=no --timeout=0.5 call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus GetNameOwner s "$destination" 2>/dev/null) || exit 1
+owner_pattern='^s "(:[0-9]+\.[0-9]+)"$'
+[[ $owner_reply =~ $owner_pattern ]] || exit 1
+owner=${BASH_REMATCH[1]}
+pid_reply=$(busctl --user --auto-start=no --timeout=0.5 call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus GetConnectionUnixProcessID s "$owner" 2>/dev/null) || exit 1
+[[ $pid_reply =~ ^u\ ([0-9]+)$ ]] || exit 1
+pid=${BASH_REMATCH[1]}
+[[ -O /proc/$pid && /proc/$pid/exe -ef $browser ]] || exit 1
+
+# Mozilla RemoteUtils.cpp: little-endian argc and argv offsets, followed by
+# NUL-ended cwd/argv strings. Perl supplies byte packing without loading Gecko.
+# https://searchfox.org/firefox-main/source/toolkit/components/remote/RemoteUtils.cpp
+arg0=$browser
+token=${XDG_ACTIVATION_TOKEN:-${DESKTOP_STARTUP_ID:-}}
+[[ -n $token ]] && arg0+=" STARTUP_TOKEN=$token"
+payload=$(PERL5OPT= PERL_UNICODE=0 perl -e '
+  use strict;
+  use bytes;
+  my ($cwd, @args) = @ARGV;
+  my $strings = "$cwd\0";
+  my @header = (scalar @args);
+  for my $arg (@args) {
+    push @header, 4 * (1 + @args) + length($strings);
+    $strings .= "$arg\0";
+  }
+  my $buffer = pack("V*", @header) . $strings;
+  print length($buffer), " ", join(" ", unpack("C*", $buffer));
+' "$PWD" "$arg0" "$@") || exit 1
+read -r -a bytes <<<"$payload"
+
+# Bind to the verified unique owner; never auto-start a service. On a timeout
+# the request may already be queued, so do not replay it with another client.
+if error=$(LC_ALL=C busctl --user --auto-start=no --timeout=2 call "$owner" /org/mozilla/zen/Remote org.mozilla.zen OpenURL ay "${bytes[@]}" 2>&1); then
+  exit 0
+else
+  [[ $error == "Call failed: Connection timed out" || $error == "Call failed: Method call timed out" || $error == "Call timed out" ]]
+fi
