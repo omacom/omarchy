@@ -39,7 +39,7 @@ pass "numeric ports still reach the process-killing command"
 test_parent=$BASHPID
 pkill() { command pkill -P "$test_parent" "$@"; }
 for port in 18080 18081; do
-  bash -c 'exec -a "$1" sleep 30' _ "ssh -N -L $port:localhost:$port test-fixture" &
+  bash -c 'exec -a "$1" sleep 30' _ "ssh -N -L $port:localhost:$port test-fixture" >/dev/null 2>&1 &
   for attempt in {1..50}; do
     if pgrep -P "$test_parent" -f "^ssh -N -L $port:localhost:$port test-fixture" >/dev/null; then
       break
