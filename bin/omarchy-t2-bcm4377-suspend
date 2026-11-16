@@ -44,7 +44,9 @@ rfkill_state=${OMARCHY_T2_BCM4377_RFKILL_STATE:-/var/lib/systemd/rfkill}
 wifi_retry_sleep=${OMARCHY_T2_BCM4377_WIFI_RETRY_SLEEP:-0.4}
 d0_sleep=${OMARCHY_T2_BCM4377_D0_SLEEP:-0.1}
 d0_tries=${OMARCHY_T2_BCM4377_D0_TRIES:-50}
-iface_tries=${OMARCHY_T2_BCM4377_IFACE_TRIES:-20}
+# brcmfmac creates the netdev after an async firmware load and allows that
+# firmware 5s to come up, so a shorter wait tears down a load that worked.
+iface_tries=${OMARCHY_T2_BCM4377_IFACE_TRIES:-100}
 stamp=$run_root/omarchy-t2-bcm4377-unloaded
 wlan_off_stamp=$run_root/omarchy-t2-bcm4377-wlan-off
 released_stamp=$run_root/omarchy-t2-bcm4377-wifi-released
