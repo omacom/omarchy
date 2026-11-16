@@ -1,6 +1,6 @@
 # Omarchy CLI
 
-Omarchy зазвичай керують за допомогою гарячих клавіш і меню Omarchy (`Super + Space`). Але керувати нею можна також через CLI `omarchy`. Це особливо корисно, коли агент ШІ працює з вами над кастомізацією чи конфігурацією.
+Omarchy зазвичай керується через гарячі клавіші та меню Omarchy (`Super + Space`). Але ви також можете керувати ним через `omarchy` CLI. Це особливо корисно, коли AI-агент працює з вами над кастомізацією чи конфігурацією.
 
 CLI має доступ до всіх внутрішніх інструментів, які використовуються як через меню, так і в інший спосіб. Ви можете побачити все доступне, запустивши `omarchy` у терміналі.
 
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,7 +38,6 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
@@ -59,4 +58,4 @@ Capture commands — Screenshots and screen recording:
 
 ### Відкриття меню з термінала
 
-Меню Omarchy також можна скриптувати, що зручно для ваших власних прив'язок клавіш. `omarchy menu` відкриває його в корені, і ви можете переходити прямо до будь-якої точки дерева, назвавши її: `omarchy menu summon appearance.theme` веде прямо до вибору теми, `omarchy menu toggle system` відкриває системне меню і знову закриває його, якщо воно вже відкрите, а `omarchy menu close` прибирає його.
+Меню Omarchy також можна викликати скриптом, що зручно для ваших власних прив'язок клавіш. `omarchy menu` відкриває його в корені, а ви можете перейти прямо до будь-якої точки дерева, назвавши її: `omarchy menu summon appearance.theme` переходить прямо до вибору теми, `omarchy menu toggle system` відкриває системне меню й закриває його знову, якщо воно вже відкрите, а `omarchy menu close` прибирає його.

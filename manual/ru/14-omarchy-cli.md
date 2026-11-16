@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy обычно управляется через горячие клавиши и меню Omarchy (`Super + Space`). Но им также можно управлять через `omarchy` CLI. Это особенно полезно, когда вы работаете с AI-агентом над кастомизацией или конфигурацией.
+Omarchy обычно управляется через горячие клавиши и меню Omarchy (`Super + Space`). Но управлять им можно и через CLI `omarchy`. Это особенно полезно, когда вы вместе с AI-агентом работаете над кастомизацией или настройкой.
 
-CLI имеет доступ ко всему внутреннему инструментарию, который используется как через меню, так и иным образом. Вы можете увидеть всё, что доступно, запустив `omarchy` в терминале.
+У CLI есть доступ ко всему внутреннему инструментарию, который используется и через меню, и помимо него. Посмотреть всё, что доступно, можно, запустив `omarchy` в терминале.
 
 Выглядит это примерно так:
 
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,10 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-И по каждой группе можно углубиться:
+И по каждой группе можно копнуть глубже:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +54,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Каждая команда тоже принимает `--help`, независимо от того, спрашиваете ли вы целую группу (`omarchy capture --help`) или отдельную команду (`omarchy capture screenshot --help`).
+`--help` есть и у каждой команды, будь то целая группа (`omarchy capture --help`) или отдельная команда (`omarchy capture screenshot --help`).
 
 ### Открытие меню из терминала
 
-Меню Omarchy также можно вызывать из скриптов, что удобно для ваших собственных привязок клавиш. `omarchy menu` открывает его в корне, и вы можете перейти сразу к любому пункту дерева, назвав его: `omarchy menu summon appearance.theme` сразу переходит к выбору темы, `omarchy menu toggle system` открывает системное меню и снова закрывает его, если оно уже открыто, а `omarchy menu close` убирает его.
+Меню Omarchy тоже можно скриптовать, что удобно для ваших собственных сочетаний клавиш. `omarchy menu` открывает его в корне, а назвав точку дерева, можно сразу перейти прямо к ней: `omarchy menu summon appearance.theme` сразу открывает выбор темы, `omarchy menu toggle system` открывает системное меню и снова закрывает его, если оно уже открыто, а `omarchy menu close` убирает его.

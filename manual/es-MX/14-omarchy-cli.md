@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,7 +38,6 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
@@ -55,8 +54,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Todo comando también admite `--help`, ya sea que consultes un grupo completo (`omarchy capture --help`) o un solo comando (`omarchy capture screenshot --help`).
+Todos los comandos también aceptan `--help`, ya sea que lo pidas para un grupo completo (`omarchy capture --help`) o para un solo comando (`omarchy capture screenshot --help`).
 
 ### Abrir el menú desde la terminal
 
-El menú de Omarchy también se puede controlar mediante comandos, lo que viene bien para tus propios atajos de teclado. `omarchy menu` lo abre en la raíz, y puedes saltar directamente a cualquier punto del árbol nombrándolo: `omarchy menu summon appearance.theme` va directo al selector de temas, `omarchy menu toggle system` abre el menú del sistema y lo vuelve a cerrar si ya está abierto, y `omarchy menu close` lo oculta.
+El menú de Omarchy también se puede controlar mediante scripts, lo que es práctico para tus propios atajos de teclado. `omarchy menu` lo abre en la raíz, y puedes saltar directamente a cualquier punto del árbol nombrándolo: `omarchy menu summon appearance.theme` va directo al selector de temas, `omarchy menu toggle system` abre el menú del sistema y lo vuelve a cerrar si ya está abierto, y `omarchy menu close` lo oculta.

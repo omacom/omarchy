@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy viene di solito controllato tramite i tasti di scelta rapida e il menu di Omarchy (`Super + Space`). Ma puoi controllarlo anche tramite la CLI `omarchy`. Questo è particolarmente utile quando fai lavorare un agente AI insieme a te sulla personalizzazione o sulla configurazione.
+Omarchy viene di solito controllato tramite i tasti di scelta rapida e il menu Omarchy (`Super + Space`). Ma puoi controllarlo anche tramite la CLI `omarchy`. È particolarmente utile quando hai un agente AI che lavora con te alla personalizzazione o alla configurazione.
 
-La CLI ha accesso a tutta la strumentazione interna usata sia tramite il menu sia in altro modo. Puoi vedere tutto ciò che è disponibile eseguendo `omarchy` nel terminale.
+La CLI ha accesso a tutti gli strumenti interni utilizzati sia tramite il menu sia in altro modo. Puoi vedere tutto ciò che è disponibile eseguendo `omarchy` nel terminale.
 
-Ha un aspetto simile a questo:
+Si presenta più o meno così:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,10 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-E puoi approfondire ogni singolo gruppo:
+E puoi approfondire ogni gruppo:
 
 ```
 ~ ❯ omarchy capture
@@ -59,4 +58,4 @@ Ogni comando accetta anche `--help`, sia che tu lo chieda a un intero gruppo (`o
 
 ### Aprire il menu dal terminale
 
-Il menu di Omarchy è anche scriptabile, il che è comodo per le tue associazioni di tasti personalizzate. `omarchy menu` lo apre alla radice, e puoi saltare direttamente a qualsiasi punto dell'albero nominandolo: `omarchy menu summon appearance.theme` va dritto al selettore del tema, `omarchy menu toggle system` apre il menu di sistema e lo richiude se è già aperto, e `omarchy menu close` lo mette via.
+Anche il menu Omarchy è scriptabile, il che è comodo per le tue combinazioni di tasti personalizzate. `omarchy menu` lo apre alla radice, e puoi saltare direttamente a qualsiasi punto dell'albero nominandolo: `omarchy menu summon appearance.theme` va dritto al selettore del tema, `omarchy menu toggle system` apre il menu di sistema e lo richiude se è già aperto, e `omarchy menu close` lo fa sparire.

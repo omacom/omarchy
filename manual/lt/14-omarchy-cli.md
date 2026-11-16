@@ -1,6 +1,6 @@
 # Omarchy CLI
 
-Omarchy paprastai valdoma sparčiaisiais klavišais ir Omarchy meniu (`Super + Space`). Tačiau ją taip pat galima valdyti per `omarchy` CLI. Tai ypač naudinga, kai kartu su jumis pritaikymo ar konfigūravimo darbus atlieka AI agentas.
+Omarchy paprastai valdoma sparčiaisiais klavišais ir Omarchy meniu (`Super + Space`). Tačiau ją taip pat galite valdyti per `omarchy` CLI. Tai ypač naudinga, kai kartu su jumis tinkinimu ar konfigūravimu dirba AI agentas.
 
 CLI turi prieigą prie visų vidinių įrankių, kurie naudojami tiek per meniu, tiek kitais būdais. Viską, kas prieinama, galite pamatyti terminale paleidę `omarchy`.
 
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,7 +38,6 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
@@ -59,4 +58,4 @@ Kiekviena komanda taip pat priima `--help`, nesvarbu, ar klausiate visos grupės
 
 ### Meniu atidarymas iš terminalo
 
-Omarchy meniu taip pat galima valdyti scenarijais, o tai patogu jūsų pačių klavišų susiejimams. `omarchy menu` atidaro jį nuo šaknies, o jūs galite pereiti tiesiai į bet kurią medžio vietą ją įvardydami: `omarchy menu summon appearance.theme` nukelia tiesiai į temų pasirinkimą, `omarchy menu toggle system` atidaro sistemos meniu ir vėl jį uždaro, jei jis jau atidarytas, o `omarchy menu close` jį paslepia.
+Omarchy meniu taip pat galima valdyti scenarijais, o tai patogu jūsų pačių klavišų susiejimams. `omarchy menu` atidaro jį nuo šaknies, o jūs galite iš karto pereiti į bet kurią medžio vietą ją įvardydami: `omarchy menu summon appearance.theme` nukelia tiesiai į temų parinkiklį, `omarchy menu toggle system` atidaro sistemos meniu ir vėl jį uždaro, jei jis jau atidarytas, o `omarchy menu close` jį paslepia.
