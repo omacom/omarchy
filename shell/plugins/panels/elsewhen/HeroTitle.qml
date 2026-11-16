@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import "GlobeModel.js" as Solar
 
 // "World [globe] Clock" under an arched caption. The little globe is the door
@@ -10,7 +11,7 @@ Column {
   property string caption: ""
   property color captionColor: dim
   property bool captionClickable: false
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color dim: Qt.darker(foreground, 1.55)
   property string fontFamily: Style.font.family
 
@@ -72,7 +73,7 @@ Column {
     anchors.horizontalCenter: parent.horizontalCenter
     spacing: Style.space(9)
 
-    TitleWord { text: "World" }
+    TitleWord { text: Commons.I18n.t("elsewhen.world") }
 
     Item {
       id: heroIcon
@@ -137,7 +138,7 @@ Column {
         id: globeSpin
         target: heroIcon
         property: "spin"
-        duration: 1250
+        duration: Style.duration(1250)
         easing.type: Easing.OutQuart
       }
 
@@ -145,12 +146,12 @@ Column {
         id: focusSpin
         target: heroIcon
         property: "spin"
-        duration: 700
+        duration: Style.duration(700)
         easing.type: Easing.OutCubic
       }
     }
 
-    TitleWord { text: "Clock" }
+    TitleWord { text: Commons.I18n.t("elsewhen.clock") }
   }
 
   component TitleWord: Text {

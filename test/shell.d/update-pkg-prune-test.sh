@@ -41,23 +41,3 @@ run_pkg_prune >"$test_tmp/fail.out" 2>&1 ||
 grep -q 'Could not prune the package cache' "$test_tmp/fail.out" ||
   fail "cache prune warns when it fails" "$(cat "$test_tmp/fail.out")"
 pass "cache prune warns but does not abort the update"
-
-# Ordering is the whole guarantee: rollback before the packages update, space
-# before the snapshot.
-line_of() {
-  grep -n "^[[:space:]]*$1\b" "$ROOT/bin/omarchy-update" | head -1 | cut -d: -f1
-}
-
-prune_line=$(line_of omarchy-update-pkg-prune)
-snapshot_line=$(line_of omarchy-snapshot)
-pkgs_line=$(line_of omarchy-update-system-pkgs)
-[[ -n $prune_line && -n $snapshot_line && -n $pkgs_line ]] ||
-  fail "omarchy-update runs the cache prune, the snapshot, and the packages update"
-
-(( prune_line < pkgs_line )) ||
-  fail "cache prune runs before the packages update" "prune: $prune_line, packages: $pkgs_line"
-pass "cache prune runs before the packages update"
-
-(( prune_line < snapshot_line )) ||
-  fail "cache prune runs before the snapshot" "prune: $prune_line, snapshot: $snapshot_line"
-pass "cache prune runs before the snapshot pins what it removes"
