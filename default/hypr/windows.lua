@@ -16,10 +16,9 @@ o.window(
 )
 
 -- Java AWT tooltips/menus are real X11 windows that reuse the parent class
--- and title themselves win0, win1, ... A class-only tile/maximize rule
--- stretches them over the whole client. Float and keep them unfocused.
+-- and title themselves win0, win1, ... Float them so a floating workspace
+-- leaves their size alone, and keep them unfocused.
 o.window({
-  class = ".*",
   title = "^win[0-9]+$",
   xwayland = true,
 }, {

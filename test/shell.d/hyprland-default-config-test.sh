@@ -63,8 +63,9 @@ LUA
 run_omarchy_bindings() {
   local home="$1"
   local prelude="${2:-}"
+  local postlude="${3:-}"
 
-  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" lua - <<'LUA'
+  HOME="$home" XDG_CONFIG_HOME="$home/.config" XDG_STATE_HOME="$home/.local/state" OMARCHY_PATH="$ROOT" OMARCHY_BINDING_PRELUDE="$prelude" OMARCHY_BINDING_POSTLUDE="$postlude" lua - <<'LUA'
 package.path = os.getenv("HOME") .. "/.config/?.lua;" .. os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 
 local function proxy()
@@ -117,6 +118,11 @@ hl = setmetatable({
 })
 
 require("default.hypr.omarchy")
+
+local postlude = os.getenv("OMARCHY_BINDING_POSTLUDE") or ""
+if postlude ~= "" then
+  assert(load(postlude))()
+end
 LUA
 }
 
@@ -237,3 +243,20 @@ number_claims=$(cut -f1 <<<"$panels_output" | grep -cE '^SUPER \+ CTRL \+ code:1
 (( number_claims == 9 )) ||
   fail "only the bar panel hotkeys bind SUPER + CTRL + a number" "$number_claims"
 pass "bar panel hotkeys bind SUPER + CTRL + a number without a collision"
+
+# A floating workspace sizes every window but those a default rule floats, by
+# class or title: a rule naming every class would leave it sizing none of them.
+floating_home="$tmpdir/floating-home"
+mkdir -p "$floating_home"
+floating_output=$(run_omarchy_bindings "$floating_home" "" '
+for _, key in ipairs({ "class", "title" }) do
+  for _, pattern in ipairs(o.floating_apps[key]) do
+    print("floats " .. key .. "\t" .. pattern)
+  end
+end')
+grep -Fqx $'floats title\t^win[0-9]+$' <<<"$floating_output" ||
+  fail "a floating workspace passes over Java popups"
+if grep -Eqx $'floats class\t\^?\.[*+]\$?' <<<"$floating_output"; then
+  fail "no default float rule has a floating workspace pass over every app"
+fi
+pass "a floating workspace passes over Java popups without passing over every app"
