@@ -13,13 +13,11 @@ o.window("^WebcamOverlay-large$", {
   move = { "(monitor_w-monitor_h*3/10-40)", "(monitor_h-monitor_h*27/80-40)" },
 })
 
--- The dedicated app id keeps this out of mpv's generic centered floating rules,
+-- The dedicated app id keeps this out of the generic centered floating rules,
 -- so the camera appears at its final corner position.
 o.window({ class = "^WebcamOverlay-(small|medium|large)$", title = "^WebcamOverlay$" }, {
-  tag = "-default-opacity",
   float = true,
   pin = true,
   no_initial_focus = true,
   no_dim = true,
-  opacity = "1 1",
 })

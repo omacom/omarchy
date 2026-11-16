@@ -2,10 +2,12 @@
 
 # omarchy:summary=Open the Omarchy theme switcher
 
-preload=false
+print_rows=false
 
-if [[ $1 == "--preload" ]]; then
-  preload=true
+# The shell's picker opens from rows it already holds and runs this to refresh
+# them, so the theme list never waits on the index below.
+if [[ $1 == "--print-rows" ]]; then
+  print_rows=true
   shift
 fi
 
@@ -121,8 +123,8 @@ menu_args=(
   --selected "$selected_preview"
 )
 
-if [[ $preload == true ]]; then
-  menu_args+=(--preload)
+if [[ $print_rows == true ]]; then
+  menu_args+=(--print-rows)
 fi
 
 exec omarchy-menu-images "${menu_args[@]}" "$preview_dir"

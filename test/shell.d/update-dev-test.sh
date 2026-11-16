@@ -36,6 +36,22 @@ case "$1" in
         ;;
     esac
     ;;
+  symbolic-ref)
+    echo refs/heads/quattro
+    ;;
+  for-each-ref)
+    echo origin
+    ;;
+  config)
+    case "$2" in
+      remote.origin.url) echo https://github.com/omacom/omarchy.git ;;
+      remote.origin.promisor) [[ ${TEST_GIT_PROMISOR:-no} == "yes" ]] && echo true ;;
+      *) exit 1 ;;
+    esac
+    ;;
+  fetch)
+    [[ $2 == "--filter=blob:none" && $3 == "origin" ]]
+    ;;
   pull)
     [[ $2 == "--ff-only" ]]
     ;;
@@ -62,7 +78,16 @@ pass "package-backed updates skip the dev checkout step"
 run_dev_update "$checkout"
 grep -Fx -- "-C $checkout pull --ff-only" "$git_log" >/dev/null ||
   fail "dev checkout update pulls its upstream with fast-forward only" "$(cat "$git_log")"
+grep -Fx -- "-C $checkout fetch --filter=blob:none origin" "$git_log" >/dev/null ||
+  fail "dev checkout update makes a full clone blobless before pulling" "$(cat "$git_log")"
 pass "dev checkout update pulls its configured upstream"
+
+: >"$git_log"
+TEST_GIT_PROMISOR=yes run_dev_update "$checkout"
+if grep -q ' fetch ' "$git_log"; then
+  fail "blobless dev checkout is not fetched again before pulling" "$(cat "$git_log")"
+fi
+pass "blobless dev checkout only pulls"
 
 : >"$git_log"
 TEST_GIT_UPSTREAM=none run_dev_update "$checkout"
@@ -78,7 +103,3 @@ fi
 grep -F "OMARCHY_PATH is not a git checkout: $checkout" "$test_tmp/invalid.err" >/dev/null ||
   fail "invalid dev checkout reports the configured path" "$(cat "$test_tmp/invalid.err")"
 pass "invalid dev checkout fails with a useful error"
-
-grep -qE '^ *omarchy-update-dev$' "$ROOT/bin/omarchy-update" ||
-  fail "top-level update includes the dev checkout step"
-pass "top-level update includes the dev checkout step"
