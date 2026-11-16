@@ -166,17 +166,20 @@ grep -Fq $'modprobe\tfacetimehd' "$calls" && [[ ! -e $hook_marker ]] ||
   fail "the hook loads the camera driver again after resuming" "$(cat "$calls")"
 pass "the hook loads the camera driver again after resuming"
 
-hook_run pre hybrid-sleep
-grep -Fq $'modprobe\t-r\tfacetimehd' "$calls" ||
-  fail "the hook unloads the camera driver before hybrid sleep" "$(cat "$calls")"
-hook_run post hybrid-sleep
-pass "the hook unloads the camera driver before hybrid sleep"
+hook_cycle() {
+  hook_run pre "$@"
+  grep -Fq $'modprobe\t-r\tfacetimehd' "$calls" || return 1
+  hook_run post "$@"
+  grep -Fq $'modprobe\tfacetimehd' "$calls" && [[ ! -e $hook_marker ]]
+}
 
-hook_run pre hibernate suspend-then-hibernate
-grep -Fq $'modprobe\t-r\tfacetimehd' "$calls" ||
-  fail "the hook unloads the camera driver for suspend-then-hibernate's hibernation" "$(cat "$calls")"
-hook_run post hibernate suspend-then-hibernate
-pass "the hook unloads the camera driver for suspend-then-hibernate's hibernation"
+hook_cycle hybrid-sleep ||
+  fail "the hook unloads and reloads the camera driver across hybrid sleep" "$(cat "$calls")"
+pass "the hook unloads and reloads the camera driver across hybrid sleep"
+
+hook_cycle hibernate suspend-then-hibernate ||
+  fail "the hook unloads and reloads the camera driver across suspend-then-hibernate's hibernation" "$(cat "$calls")"
+pass "the hook unloads and reloads the camera driver across suspend-then-hibernate's hibernation"
 
 hook_run pre suspend
 [[ ! -s $calls ]] || fail "the hook leaves S3 alone" "$(cat "$calls")"
@@ -185,7 +188,10 @@ hook_run post suspend
 pass "the hook leaves S3 alone"
 
 rmdir "$hook_module"
-hook_run pre hibernate
-hook_run post hibernate
-[[ ! -s $calls ]] || fail "a camera driver the user unloaded stays unloaded after resume" "$(cat "$calls")"
+touch "$hook_marker" # left by a cycle whose post never ran
+for action in suspend hibernate; do
+  hook_run pre $action
+  hook_run post $action
+  [[ ! -s $calls ]] || fail "a camera driver the user unloaded stays unloaded after $action" "$(cat "$calls")"
+done
 pass "a camera driver the user unloaded stays unloaded after resume"

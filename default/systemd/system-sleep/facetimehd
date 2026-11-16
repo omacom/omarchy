@@ -13,6 +13,9 @@ sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
 
 case "$1" in
   pre)
+    # A marker only ever means this cycle unloaded the driver.
+    rm -f "$marker"
+
     # hybrid-sleep writes the same image as hibernate, so it freezes the same way.
     if [[ $sleep_action == "hibernate" || $sleep_action == "hybrid-sleep" ]] && [[ -d $module ]]; then
       if modprobe -r facetimehd 2>/dev/null; then
