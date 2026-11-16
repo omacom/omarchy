@@ -90,7 +90,7 @@ pass "toprow retries a failed rebuild"
 : >"$calls"
 chmod a-w "$apple_only/hid_apple/parameters/fnmode"
 if [[ ! -w $apple_only/hid_apple/parameters/fnmode ]]; then
-  if sys_module="$apple_only" toprow mediakeys --no-rebuild >"$test_tmp/write-error" 2>&1; then
+  if LC_ALL=C sys_module="$apple_only" toprow mediakeys --no-rebuild >"$test_tmp/write-error" 2>&1; then
     fail "toprow rejects a live parameter write failure on a writable mount"
   fi
   grep -q 'Permission denied' "$test_tmp/write-error" || fail "toprow reports the live parameter write failure"
@@ -105,7 +105,7 @@ chmod u+w "$apple_only/hid_apple/parameters/fnmode"
 # fails as it does there, without touching the host's keyboard or mounts.
 if unshare --user --map-root-user --mount true 2>/dev/null; then
   printf '2\n' >"$apple_only/hid_apple/parameters/fnmode"
-  rm -f "$conf"
+  rm -f "$conf" "$modprobe_dir/hid_asus.conf"
   : >"$calls"
   OMARCHY_MODPROBE_DIR="$modprobe_dir" OMARCHY_SYS_MODULE="$apple_only" \
     OMARCHY_TOPROW_REBUILD_PENDING="$test_tmp/rebuild-pending" PATH="$stub_bin:$ROOT/bin:$PATH" TEST_LOG="$calls" \
@@ -113,17 +113,22 @@ if unshare --user --map-root-user --mount true 2>/dev/null; then
       mount --bind "$1" "$1"
       mount -o remount,bind,ro "$1"
       bash "$3"
+      grep -qx "options hid_apple fnmode=1" "$OMARCHY_MODPROBE_DIR/omarchy-toprow.conf"
       bash "$2" mediakeys --no-rebuild
     ' -- "$apple_only" "$ROOT/bin/omarchy-keyboard-toprow" "$ROOT/install/hardware/fix-fkeys.sh" >"$test_tmp/readonly-output" ||
     fail "toprow saves the boot mode when sysfs is read-only"
   grep -qx 'options hid_apple fnmode=1' "$conf" || fail "toprow persists the Apple boot mode with read-only sysfs"
   [[ $(<"$apple_only/hid_apple/parameters/fnmode") == "2" && ! -s $calls ]] ||
     fail "toprow leaves the live mode and boot image alone during install"
-  grep -q 'from the next boot' "$test_tmp/readonly-output" || fail "toprow reports the deferred live change"
+  [[ $(grep -c 'from the next boot' "$test_tmp/readonly-output") == "2" ]] || fail "toprow reports the deferred live change on both calls"
   if grep -q 'already sends' "$test_tmp/readonly-output"; then
     fail "toprow still reports the deferred change when the boot configuration already matches"
   fi
   pass "toprow saves the boot mode when sysfs is read-only"
+  sys_module="$apple_only" toprow mediakeys --no-rebuild >"$test_tmp/writable-output"
+  [[ $(<"$apple_only/hid_apple/parameters/fnmode") == "1" && ! -s $calls ]] || fail "toprow applies the deferred mode once sysfs is writable"
+  grep -q 'already sends' "$test_tmp/writable-output" || fail "toprow no longer reports a deferred live change on writable sysfs"
+  pass "toprow applies the saved mode once sysfs is writable"
 else
   skip "read-only sysfs regression needs unprivileged mount namespaces"
 fi
