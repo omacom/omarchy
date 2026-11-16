@@ -67,6 +67,12 @@ BarWidget {
 
 - Keep state in QML properties and drive time with a `Timer` that runs only while something is counting; an idle widget starts no timers or processes.
 - Run commands with `root.bar.run("omarchy-notification-send 'Counter' 'Reached 100'")`.
+- Icons are Nerd Font glyphs written straight into the label text, as the built-in widgets do (`text: "󰐊"`). Find one by name in Nerd Fonts' table rather than by drawing the font, preferring the `md-` (Material Design) set the bar uses, then look at the widget to check it:
+
+  ```bash
+  curl -s https://raw.githubusercontent.com/ryanoasis/nerd-fonts/master/glyphnames.json \
+    | jq -r 'to_entries[] | select(.key | test("^md-.*timer")) | "\(.key) \(.value.char)"'
+  ```
 - `$OMARCHY_PATH/shell/plugins/panels/clock/BarWidget.qml` is the reference for anything more: a popup panel, settings from `shell.json`, and IPC.
 
 Then check it, look at it, and put it on the bar. `omarchy agent look plugin <dir>` renders the widget in a bar strip with the current theme, without touching the running bar, and lists the QML errors it logged; open the image it prints and fix what looks wrong. Saving any file under the plugin folder reloads it on the bar:
