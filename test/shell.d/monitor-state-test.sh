@@ -52,8 +52,8 @@ assert_line() {
 assert_line_count() {
   local description="$1"
 
-  (( ${#state_lines[@]} == 8 )) ||
-    fail "$description" "expected 8 lines, got ${#state_lines[@]}"
+  (( ${#state_lines[@]} == 9 )) ||
+    fail "$description" "expected 9 lines, got ${#state_lines[@]}"
 }
 
 extended='[
@@ -66,6 +66,12 @@ extended='[
 mirrored='[
   { "name": "eDP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 1920, "height": 1080 },
   { "name": "DP-1", "mirrorOf": "eDP-1", "disabled": false, "focused": false, "width": 1920, "height": 1080 }
+]'
+
+# What Hyprland actually sends: `mirrorOf` is the mirrored monitor's id.
+mirrored_by_id='[
+  { "id": 0, "name": "eDP-1", "mirrorOf": "none", "disabled": false, "focused": true, "width": 1920, "height": 1080 },
+  { "id": 1, "name": "DP-1", "mirrorOf": "0", "disabled": false, "focused": false, "width": 1920, "height": 1080 }
 ]'
 
 # A monitors.lua of the user's own can mirror the other way instead.
@@ -96,6 +102,11 @@ assert_line 4 DP-1 "monitor state names the mirroring external monitor"
 assert_line 5 eDP-1 "monitor state still reports the focused monitor while mirroring"
 pass "monitor state reports the external monitor when it mirrors the internal"
 
+monitor_state "$mirrored_by_id"
+[[ $(jq -r '.[] | select(.name == "DP-1").mirrorOf' <<<"${state_lines[7]-}") == "eDP-1" ]] ||
+  fail "monitor state names the mirrored monitor for the panel" "displays: ${state_lines[7]-<missing>}"
+pass "monitor state turns Hyprland's mirror id into the monitor's name"
+
 monitor_state "$reverse_mirrored"
 assert_line_count "monitor state answers every line while mirroring in reverse"
 assert_line 4 DP-1 "monitor state names the external monitor either way round"
@@ -108,10 +119,18 @@ assert_line 3 "" "monitor state reports the internal monitor disabled"
 assert_line 4 "" "monitor state reports no mirror while clamshelled"
 pass "monitor state separates a disabled internal monitor from a missing one"
 
+displays_are() {
+  jq -e --argjson expected "$1" 'map({name, enabled, focused, width, height}) == $expected' <<<"${state_lines[7]-}" >/dev/null ||
+    fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
+}
+
 monitor_state "$extended"
-[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":true,"focused":false,"width":1920,"height":1080},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
-  fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
+displays_are '[{"name":"eDP-1","enabled":true,"focused":false,"width":1920,"height":1080},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]'
 monitor_state "$clamshell"
-[[ ${state_lines[7]-} == '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]' ]] ||
-  fail "monitor state lists every display for the panel" "actual: ${state_lines[7]-<missing>}"
-pass "monitor state lists every display with its enabled and focused state"
+displays_are '[{"name":"eDP-1","enabled":false,"focused":false,"width":0,"height":0},{"name":"DP-1","enabled":true,"focused":true,"width":2560,"height":1440}]'
+pass "monitor state lists every display with its enabled and focused state and size"
+
+monitor_state "$clamshell"
+jq -e 'map(.brightness) == [null, 42]' <<<"${state_lines[7]-}" >/dev/null ||
+  fail "monitor state reads each enabled display's brightness" "actual: ${state_lines[7]-<missing>}"
+pass "monitor state reads each enabled display's brightness"
