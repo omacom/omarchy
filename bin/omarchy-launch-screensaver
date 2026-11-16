@@ -35,6 +35,12 @@ hypr_exec() {
 
 SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
 
+# Focusing each monitor moves the pointer, so the screensavers ignore pointer
+# movement while this marker exists.
+launching="$XDG_RUNTIME_DIR/omarchy-screensaver-launching"
+touch "$launching"
+trap 'rm -f "$launching"' EXIT
+
 # Open Hyprland's event stream before spawning anything, so a terminal that maps
 # quickly can't emit its openwindow event before we are listening for it.
 exec {events}< <(socat -U - "UNIX-CONNECT:$SOCKET")
@@ -74,6 +80,7 @@ while read -r m special; do
 done < <(hyprctl monitors -j | jq -r '.[] | "\(.name) \(.specialWorkspace.name)"')
 
 hypr_focus_monitor "$focused"
+rm -f "$launching"
 
 # Emptying a special workspace focuses its monitor, so the last screensaver to close would take focus
 # with it. Hand focus back to the monitor that had it once they are all gone.
