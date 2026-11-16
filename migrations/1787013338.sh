@@ -15,6 +15,7 @@ fi
 
 if ! cmp -s "$service_source" "$service_target"; then
   sudo install -Dm644 "$service_source" "$service_target"
+  sudo systemctl daemon-reload
 fi
 
 if ! systemctl is-enabled --quiet omarchy-brcmfmac-suspend.service 2>/dev/null; then
