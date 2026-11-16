@@ -67,11 +67,11 @@ Item {
     var values = DesktopEntries.applications.values || []
     var entries = []
     // Quickshell updates entries in place by id, so the fields consumers copy
-    // into their rows belong here too, or a renamed app keeps its old label.
+    // into their rows or search belong here too, or a renamed app keeps its old label.
     for (var i = 0; i < values.length; i++) {
       var entry = values[i]
       if (!entry) continue
-      entries.push([entry.id, entry.name, entry.genericName, entry.icon, AppSearch.keywordText(entry)].join("\u0002"))
+      entries.push([entry.id, entry.name, entry.genericName, entry.comment, entry.icon, AppSearch.keywordText(entry)].join("\u0002"))
     }
     entries.sort()
     return entries.join("\u0001")
