@@ -30,8 +30,9 @@ Item {
 
     if (payload.mode === "select" || payload.mode === "input") {
       root.openDmenu(payload)
+      return "ok"
     } else {
-      root.openRoute(payload.initialMenu || payload.menu || "root")
+      return root.openRoute(payload.initialMenu || payload.menu || "root")
     }
   }
 
@@ -1022,26 +1023,36 @@ Item {
   //
   // The menu is opened through the standard plugin lifecycle:
   // `omarchy-shell shell summon omarchy.menu '{"menu":"system"}'`.
-  // Callers may pass a real id (`system`, `setup.power`) or an alias declared
-  // in JSONC (`power`, `reminder-set`). Unknown strings fall through to the
-  // id-as-route behavior so misspellings still attempt to open the literal id.
+  // Callers may pass a real id (`system`) or an alias declared
+  // in JSONC (`power-menu`, `reminder-set`). Unknown strings are refused, so
+  // a misspelling never opens the root menu as if it were the requested one.
   function resolveRoute(input) {
     return MenuModel.resolveRoute(root.items, root.itemOrder, input)
   }
 
   function openRoute(initialMenu) {
     var id = root.resolveRoute(initialMenu)
+    if (!id || !root.items[id]) {
+      console.warn("openRoute: unknown menu route:", initialMenu)
+      return "error: unknown menu route '" + initialMenu + "'"
+    }
     var entry = root.items[id]
     // If the resolved id is an action (i.e. the user invoked an alias for
     // a leaf, e.g. `omarchy menu summon screenrecord-stop`), run it directly
     // instead of opening an action with no children.
-    if (entry && entry.kind === "action" && entry.action) {
+    if (entry.kind === "action" && entry.action) {
       root.cancel()
       root.runAction(entry.action)
       return "ok"
     }
     // If it's a link (a redirect to another menu), follow the link.
-    if (entry && entry.kind === "link" && entry.target) id = entry.target
+    if (entry.kind === "link" && entry.target) {
+      id = entry.target
+      if (!root.items[id]) {
+        console.warn("openRoute: unknown menu route:", initialMenu)
+        return "error: unknown menu route '" + initialMenu + "'"
+      }
+    }
     root.pendingInitialMenu = id
     root.openExistingMenu(id)
     return "ok"

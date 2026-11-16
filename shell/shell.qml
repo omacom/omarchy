@@ -1223,7 +1223,14 @@ ShellRoot {
     pendingPayloads = pending
 
     // If the plugin is keepLoaded and already mounted, deliver immediately.
-    deliverIfLoaded(id)
+    // A plugin that refuses the payload (a string starting with "error")
+    // was not summoned, so undo the open state it was just given.
+    if (!deliverIfLoaded(id)) {
+      var closed = ({})
+      for (var c in openPanelIds) if (c !== id) closed[c] = openPanelIds[c]
+      openPanelIds = closed
+      return false
+    }
     return true
   }
 
@@ -1270,7 +1277,11 @@ ShellRoot {
     for (var k in panelLoaders) next[k] = panelLoaders[k]
     next[pluginId] = loader
     panelLoaders = next
-    deliverIfLoaded(pluginId)
+    if (!deliverIfLoaded(pluginId)) {
+      var closed = ({})
+      for (var c in openPanelIds) if (c !== pluginId) closed[c] = openPanelIds[c]
+      openPanelIds = closed
+    }
   }
 
   function unregisterPanelLoader(pluginId) {
@@ -1290,12 +1301,16 @@ ShellRoot {
 
   function deliverIfLoaded(pluginId) {
     var loader = panelLoaders[pluginId]
-    if (!loader || !loader.item) return
+    if (!loader || !loader.item) return true
     var queue = pendingPayloads[pluginId]
-    if (!Array.isArray(queue) || queue.length === 0) return
+    if (!Array.isArray(queue) || queue.length === 0) return true
+    var delivered = true
     if (typeof loader.item.open === "function") {
       for (var i = 0; i < queue.length; i++) {
-        try { loader.item.open(queue[i]) } catch (e) {
+        try {
+          var result = loader.item.open(queue[i])
+          if (typeof result === "string" && result.indexOf("error") === 0) delivered = false
+        } catch (e) {
           console.warn("plugin " + pluginId + " open() threw:", e)
         }
       }
@@ -1303,6 +1318,7 @@ ShellRoot {
     var next = ({})
     for (var k in pendingPayloads) if (k !== pluginId) next[k] = pendingPayloads[k].slice()
     pendingPayloads = next
+    return delivered
   }
 
   function invokeIfLoaded(pluginId, method, arg) {
@@ -1986,8 +2002,8 @@ ShellRoot {
       shell.hide(id)
     }
 
-    function toggle(id: string, payloadJson: string): void {
-      shell.toggle(id, payloadJson)
+    function toggle(id: string, payloadJson: string): string {
+      return shell.toggle(id, payloadJson) ? "ok" : "unknown"
     }
 
     // A bar section's panels answer to their position as well as their id, so a
