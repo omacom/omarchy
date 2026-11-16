@@ -27,7 +27,7 @@ expected_log="$test_tmp/expected.log"
 cat >"$expected_log" <<'EOF'
 dispatch hl.dsp.window.close({ window = "address:0xabc" })
 dispatch hl.dsp.window.close({ window = "address:0xdef" })
-dispatch hl.dsp.focus({ workspace = "1" })
+dispatch o.workspaces.focus(1)
 EOF
 
 diff -u "$expected_log" "$hyprctl_log" || fail "close-all targets each window with the Lua dispatcher"

@@ -1,25 +1,27 @@
 # Sistemos momentinės kopijos
 
-Momentines kopijas automatiškai kuriame su kiekvienu Omarchy naujinimu, bet jei norėtum sukurti savų, gali naudoti `omarchy-snapshot create`.
+Momentines kopijas automatiškai sukuriame su kiekvienu Omarchy atnaujinimu, bet jei norite susikurti savąją, galite naudoti `omarchy-snapshot create`.
 
-Kad įkrautum ir atkurtum momentinę kopiją, ją pasirenki iš Limine įkroviklio. (Jei šiuo metu krauniesi tiesiai į Omarchy iššifravimo ekraną, pirmiausia turėsi per BIOS pasirinkti Limine kaip įkrovos parinktį).
+Norėdami paleisti ir atkurti momentinę kopiją, pasirinkite ją iš Limine įkrovos tvarkyklės. (Jei šiuo metu paleidžiate sistemą tiesiai į Omarchy iššifravimo ekraną, pirmiausia turėsite per BIOS pasirinkti Limine kaip įkrovos parinktį).
 
-Iš to ekrano pasirink momentinę kopiją, į kurią norėtum įkrauti, pagal datą ir versiją. Omarchy versiją momentinės kopijos metu gali pamatyti apatiniame kairiajame kampe.
+Tame ekrane pasirinkite momentinę kopiją, į kurią norite paleisti sistemą, pagal datą ir versiją. Omarchy versiją momentinės kopijos sukūrimo metu galima matyti apatiniame kairiajame kampe.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Kai atsidursi viduje, iššoks pranešimas, pranešantis, kad esi įkraunamoje momentinėje kopijoje, ir jei jį spustelėsi, jis pradės atkūrimo procesą. Arba gali panaudoti `omarchy-snapshot restore`.
+Kai pateksite į vidų, iššoks pranešimas, informuojantis, kad esate paleidžiamoje momentinėje kopijoje, ir jei jį spustelėsite, prasidės atkūrimo procesas. Arba galite naudoti `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Tai atkurs tavo šakninę failų sistemą, bet ne tavo `/home`. Taigi tai veikia sugedusiam sistemos naujinimui grąžinti, bet ne prarastiems asmeniniams failams atgauti.
+Tai atkurs jūsų šakninę failų sistemą, bet ne jūsų `/home`. Taigi tai tinka norint atšaukti sugadintą sistemos atnaujinimą, bet ne norint atkurti prarastus asmeninius failus.
 
-Tai taip pat reiškia, kad tavo `~/.config` katalogas paliekamas kaip yra. Todėl jei grįžti prie ankstesnės bibliotekos ar programos, kuri konfigūracijos failus saugo nauju formatu, versijos, tai turėsi sutvarkyti rankiniu būdu.
+Tai taip pat reiškia, kad jūsų `~/.config` katalogas lieka toks, koks yra. Taigi, jei grįžtate prie ankstesnės bibliotekos ar programos versijos, kuri saugo konfigūracijos failus nauju formatu, turėsite tai sutvarkyti rankiniu būdu.
 
-_Pastaba: ši funkcija prieinama tik įdiegimuose, naudojančiuose Limine įkroviklį, kuris yra numatytasis nuo Omarchy 2.0. Ji neprieinama, jei esi GRUB ar systemd-boot._
+Tas pats galioja ir pačios Omarchy įrašui apie tai, kurios migracijos jau įvykdytos: jis yra jūsų namų kataloge, todėl išlieka po atkūrimo. Migracijos, kurios buvo įvykdytos po momentinės kopijos sukūrimo, lieka pažymėtos kaip atliktos, nors jų atlikti pakeitimai šakninėje failų sistemoje buvo atšaukti, ir kitas `omarchy update` jų vėl nevykdys. Taigi, jei po atkūrimo vėl atnaujinsite ir vis tiek trūks kažko, ką buvo nustatęs ankstesnis atnaujinimas, greičiausiai priežastis yra būtent tai.
+
+_Pastaba: Ši funkcija prieinama tik tose instaliacijose, kurios naudoja Limine įkrovos tvarkyklę, kuri yra numatytoji nuo Omarchy 2.0. Ji neprieinama, jei naudojate GRUB arba systemd-boot._
 
 ### Įkrovos meniu praleidimas
 
-Jei įkrovos meniu niekad nelieti ir tiesiog nori, kad kompiuteris eitų tiesiai į iššifravimo ekraną, Omarchy meniu paleisk _Nuostatos > Tiesioginė įkrova_. Tai prideda EFI įrašą, rodantį tiesiai į Omarchy, todėl mikroprograminė įranga ją įkrauna nesustodama ties Limine.
+Jei niekada neliečiate įkrovos meniu ir tiesiog norite, kad kompiuteris eitų tiesiai į iššifravimo ekraną, Omarchy meniu paleiskite _Setup > Direct Boot_. Tai prideda EFI įrašą, nukreipiantį tiesiai į Omarchy, todėl programinė įranga ją paleidžia nesustodama ties Limine.
 
-Kompromisas yra tas, minėtas viršuje: su įjungta tiesiogine įkrova patekti prie momentinės kopijos reiškia pirmiausia BIOS įkrovos meniu pasirinkti Limine. Vėl paleisk _Nuostatos > Tiesioginė įkrova_, kad pašalintum įrašą ir grįžtum prie įkrovos per Limine. Kai kuri mikroprograminė įranga nemėgsta pasirinktinių EFI įrašų, todėl sąranka atsisako veikti American Megatrends ir Apple mikroprograminėje įrangoje.
+Kompromisas yra tas, kuris paminėtas viršuje: kai tiesioginė įkrova įjungta, norint patekti į momentinę kopiją, pirmiausia reikia BIOS įkrovos meniu pasirinkti Limine. Paleiskite _Setup > Direct Boot_ dar kartą, kad pašalintumėte įrašą ir grįžtumėte prie įkrovos per Limine. Kai kuri programinė įranga nemėgsta pasirinktinių EFI įrašų, todėl sąranka atsisako veikti su American Megatrends ir Apple programine įranga.

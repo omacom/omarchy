@@ -9,3 +9,6 @@ qcom-firmware-extract
 systemd-ukify
 # Adreno GPUs.
 vulkan-freedreno
+# The cameras run through libcamera, and apps reach them through this PipeWire
+# backend.
+pipewire-libcamera

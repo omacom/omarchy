@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Activity Monitor
+Comment=See what's using the CPU, memory, disk and network
+Exec=omarchy-launch-tui btop
+Icon=btop
+Terminal=false
+Type=Application
+Categories=System;Monitor;
+StartupWMClass=org.omarchy.btop

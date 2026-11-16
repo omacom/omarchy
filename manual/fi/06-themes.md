@@ -1,12 +1,12 @@
 # Teemat
 
-Omarchyssa on kaksikymmentäkaksi kaunista teemaa. Voit valita niiden välillä Omarchy-valikon kohdasta _Tyyli > Teema_ (`Super + Space`) tai hypätä suoraan teeman valitsimeen yhdistelmällä `Super + Ctrl + Shift + Space`.
+Omarchyn mukana tulee kaksikymmentäkaksi upeaa teemaa. Voit valita niiden välillä Omarchy Menu -valikossa kohdasta _Appearance > Theme_ (`Super + Space`) tai hypätä suoraan teemanvalitsimeen näppäinyhdistelmällä `Super + Ctrl + T`.
 
-Jokainen teema tyylittelee työpöydän, päätteen, neovimin, aktiivisuusnäytön (btop), Chromiumin ja koko Omarchyn kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusruudun. (Obsidianissa sinun on valittava Omarchy-teema manuaalisesti sovelluksen kohdasta _Ulkoasu > Teemat_.)
+Jokainen teema tyylittää työpöydän, terminaalin, neovimin, aktiviteettinäytön (btop), Chromiumin ja koko Omarchy-kuoren: yläpalkin, valikon, ilmoitukset, OSD:n ja lukitusnäytön. (Obsidianissa sinun on valittava Omarchy-teema manuaalisesti sovelluksen sisältä kohdasta _Appearance > Themes_).
 
-Teemoissa on joukko taustakuvia, joista voit valita yhdistelmällä `Super + Ctrl + Space`.
+Teemoissa on joukko taustakuvia, joiden välillä voit valita näppäinyhdistelmällä `Super + Ctrl + W`.
 
-Löydät vielä enemmän teemoja [lisäteemasivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
+Löydät vielä enemmän teemoja [lisäteemojen sivulta](https://omarchy.org/themes/) tai voit jopa [tehdä oman teemasi](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Salauksenpurku
+### Sovelluskuvakkeet
 
-Teemoissa voi olla myös mukautettu salauksenpurun malli, jota käytetään käynnistysajan salauksenpurkuprosessissa. Voit valita yhden näistä kohdasta _Tyyli > Salauksenpurku_. Ne näyttävät tältä:
+Sovelluskäynnistimen ja telakan kuvakkeet piirretään teemasi väreissä, joten ne muuttuvat sen mukana. Ne tulevat kuvakejoukosta, jonka valitset erillään teemasta kohdasta _Appearance > Icons_ kunkin joukon esikatselujen perusteella samalla tavalla kuin valitset teeman:
+
+- _Papercraft_ on oletus: kaikki asennettuna tuleva, piirrettynä yhdellä tyylillä. Logostaan tunnetut sovellukset, kuten Chrome, HEY tai YouTube, säilyttävät muotonsa ja saavat teeman värit.
+- _Arcade_ piirtää samat sovellukset 8-bittisenä pikselitaiteena, kuten vanha pelikonsoli tekisi.
+- _Original_ näyttää jokaisen sovelluksen sen tekijän sille antamalla kuvakkeella.
+
+Voit asentaa jonkun toisen tekemän kuvakejoukon kohdasta _Install > Style > Icons_ (tai komennolla `omarchy icons install <git url>`) ja poistaa sen taas kohdasta _Remove > Icons_. _Update > Extra Icons_ hakee asentamiesi joukkojen uusimman version.
+
+Tehdäksesi oman joukkosi laita kuvakkeesi hakemistoon `~/.config/omarchy/icons/<name>/`, yksi tiedosto sovellusta kohden, nimetty sovelluksen `.desktop`-tiedoston `Icon=`-rivin mukaan. `.svg`-päätteinen tiedosto näytetään sellaisenaan. `.svg.tpl`-päätteinen tiedosto piirretään teeman väreissä: kirjoita `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` tai `{{ icon_shadow }}` kohtaan, johon väri tulee. Oletusjoukko hakemistossa `/usr/share/omarchy/icons/papercraft/` on hyvä lähtökohta. Lisää `preview.png` näyttääksesi joukkosi valitsimessa; ilman sitä Omarchy piirtää esikatselun kuvakkeistasi. Muuttaaksesi oletusjoukon yksittäistä kuvaketta laita oma versiosi hakemistoon `~/.config/omarchy/icons/papercraft/`.
+
+### Lukituksen avaus
+
+Teemoilla voi myös olla oma avausmuotoilunsa, jota käytetään käynnistyksen salauksen purkamiseen. Voit valita sellaisen kohdasta _Appearance > Unlock_. Ne näyttävät tältä:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +102,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +119,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_
