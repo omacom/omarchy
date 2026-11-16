@@ -523,7 +523,8 @@ Item {
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
-        inputEnabled: root.lockRequested
+        // Typing waits for the input method switch, or it could compose the password in plain sight.
+        inputEnabled: root.lockRequested && !inputMethodOffProcess.running
         loadBackground: root.locked
         passwordText: root.enteredPassword
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
@@ -773,10 +774,15 @@ Item {
   // its own direct input, and switching it there would strand the app behind.
   Process {
     id: inputMethodOffProcess
-    command: ["bash", "-c", "grep -qx 'ShareInputState=All' \"${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5/config\" 2>/dev/null && [[ $(fcitx5-remote) == 2 ]] && fcitx5-remote -c && echo active || true"]
+    command: ["bash", "-c", "grep -qx 'ShareInputState=All' \"${XDG_CONFIG_HOME:-$HOME/.config}/fcitx5/config\" 2>/dev/null && [[ $(timeout 1 fcitx5-remote) == \"2\" ]] && timeout 1 fcitx5-remote -c && echo active || true"]
     stdout: StdioCollector {
       waitForEnd: true
-      onStreamFinished: root.restoreInputMethod = String(text || "").trim() === "active"
+      onStreamFinished: {
+        if (String(text || "").trim() !== "active") return
+        // An unlock that beat the switch (a fingerprint) hands the engine straight back.
+        if (root.lockRequested) root.restoreInputMethod = true
+        else inputMethodOnProcess.running = true
+      }
     }
   }
 
