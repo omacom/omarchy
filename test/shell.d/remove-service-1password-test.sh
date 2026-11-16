@@ -7,7 +7,11 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
-mkdir -p "$tmp_dir/bin" "$tmp_dir/home/.config/1Password"
+# Dotfile managers link ~/.config and browser profiles in from elsewhere.
+mkdir -p "$tmp_dir/bin" "$tmp_dir/dotfiles/config/1Password" "$tmp_dir/dotfiles/vivaldi/NativeMessagingHosts" "$tmp_dir/home"
+ln -s "$tmp_dir/dotfiles/config" "$tmp_dir/home/.config"
+ln -s "$tmp_dir/dotfiles/vivaldi" "$tmp_dir/home/.config/vivaldi"
+touch "$tmp_dir/dotfiles/vivaldi/Preferences"
 
 for browser_dir in \
   chromium/NativeMessagingHosts \
@@ -73,6 +77,8 @@ pass "1Password removal deletes stale native-messaging manifests"
   fail "1Password removal leaves unrelated configuration files alone"
 [[ -e "$tmp_dir/home/.config/1Password/settings.json" ]] ||
   fail "1Password removal preserves the user's 1Password data"
+[[ -e "$tmp_dir/dotfiles/vivaldi/Preferences" ]] ||
+  fail "1Password removal leaves a linked browser profile alone"
 pass "1Password removal leaves unrelated configuration files alone"
 
 grep -Fxq '1password 1password-cli' "$tmp_dir/pkg-drop.log" ||
