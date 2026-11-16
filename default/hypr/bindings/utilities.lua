@@ -40,13 +40,18 @@ o.bind("switch:off:Apple SMC power/lid events", nil, "omarchy-hyprland-monitor-c
 o.bind("switch:on:cros_ec_buttons", nil, "omarchy-system-lid-close", { locked = true })
 o.bind("switch:off:cros_ec_buttons", nil, "omarchy-hyprland-monitor-clamshell", { locked = true })
 
+-- Each Print Screen bind has a twin on Super + Ctrl + Alt, for keyboards with
+-- no Print Screen key (MacBooks among them).
 o.bind("PRINT", "Screenshot", "omarchy-capture-screenshot")
 o.bind("SUPER + CTRL + ALT + C", "Screenshot", "omarchy-capture-screenshot")
 o.bind("ALT + PRINT", "Screenrecording", "omarchy-capture-screenrecording --stop-recording || omarchy-menu toggle trigger.capture.screenrecord")
+o.bind("SUPER + CTRL + ALT + V", "Screenrecording", "omarchy-capture-screenrecording --stop-recording || omarchy-menu toggle trigger.capture.screenrecord")
 o.bind("SUPER + ALT + code:34", "Make webcam overlay smaller", "omarchy-capture-webcam-resize smaller")
 o.bind("SUPER + ALT + code:35", "Make webcam overlay larger", "omarchy-capture-webcam-resize larger")
 o.bind("SUPER + PRINT", "Color picker", "pkill hyprpicker || hyprpicker -a")
+o.bind("SUPER + CTRL + ALT + P", "Color picker", "pkill hyprpicker || hyprpicker -a")
 o.bind("SUPER + CTRL + PRINT", "Extract text (OCR) from screenshot", "omarchy-capture-text")
+o.bind("SUPER + CTRL + ALT + X", "Extract text (OCR) from screenshot", "omarchy-capture-text")
 
 -- Keyboard control for the slurp region picker (see omarchy-capture-region).
 -- The binds are enabled exactly as long as a selection layer is on screen
