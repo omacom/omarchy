@@ -4,7 +4,8 @@
 # Same logic as install/hardware/apple/fix-thunderbolt-suspend.sh; see
 # https://github.com/omacom/omarchy/issues/10593 for the investigation.
 
-if omarchy-hw-match "MacBookPro14,1" && lspci -n 2>/dev/null | grep -q "8086:1578"; then
+# Not grep -q: under the runner's pipefail, lspci dying of SIGPIPE skips the fix (see 1786137597).
+if omarchy-hw-match "MacBookPro14,1" && lspci -n 2>/dev/null | grep "8086:1578" >/dev/null; then
   echo "Detected MacBookPro14,1; fixing Thunderbolt suspend"
 
   omarchy-pkg-add linux-headers tb-ar-shim-dkms
