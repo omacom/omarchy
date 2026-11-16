@@ -38,7 +38,8 @@ cat >"$stub_bin/lsmod" <<'SH'
 #!/bin/bash
 if [[ ${THC_LOADED:-0} == 1 ]]; then echo 'intel_quicki2c 1 0'; fi
 SH
-printf '#!/bin/bash\n' >"$stub_bin/omarchy-toggle-input-device"
+# The Hyprland release succeeds unless the test says Hyprland has no touchpad.
+printf '#!/bin/bash\nexit "${CYCLE_STATUS:-0}"\n' >"$stub_bin/omarchy-toggle-input-device"
 chmod +x "$stub_bin"/*
 
 # An I2C HID device bound to i2c_hid_acpi, with one input device and what udev
@@ -61,14 +62,20 @@ expected=$'unbind i2c-DELL06CB:00\nbind i2c-DELL06CB:00'
   fail "only the touchpad is unbound and rebound" "$(<"$writes")"
 pass "only the touchpad is unbound and rebound"
 
-# No bound touchpad and no THC module must fail without privileged writes.
+# A touchpad only Hyprland can reset (bcm5974, i2c_hid_of) is still reset.
 empty_driver="$test_tmp/no-trackpad"
 mkdir -p "$empty_driver"
-if WRITES="$writes" OMARCHY_I2C_HID_DRIVER_PATH="$empty_driver" PATH="$stub_bin:$PATH" \
+WRITES="$writes" OMARCHY_I2C_HID_DRIVER_PATH="$empty_driver" PATH="$stub_bin:$PATH" \
+  bash "$restart" >/dev/null ||
+  fail "releasing the trackpad in Hyprland alone must succeed"
+pass "releasing the trackpad in Hyprland alone succeeds"
+
+# Nothing to release and no supported driver must fail without privileged writes.
+if WRITES="$writes" CYCLE_STATUS=1 OMARCHY_I2C_HID_DRIVER_PATH="$empty_driver" PATH="$stub_bin:$PATH" \
   bash "$restart" >"$test_tmp/output" 2>"$test_tmp/error"; then
   fail "a reset without a supported trackpad must fail"
 fi
-grep -F "No supported trackpad driver" "$test_tmp/error" >/dev/null ||
+grep -F "No trackpad found to reset" "$test_tmp/error" >/dev/null ||
   fail "an unsupported trackpad must be explained"
 [[ $(<"$writes") == "$expected" ]] || fail "unsupported hardware must not trigger privileged writes"
 pass "a missing supported trackpad fails clearly without privileged writes"
