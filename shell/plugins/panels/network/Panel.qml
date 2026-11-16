@@ -117,6 +117,18 @@ Panel {
   // disable themselves on this so clicks on the other rows don't silently
   // no-op against runNetworkAction's serialized guard.
   readonly property bool busy: actionKind !== ""
+  // Connecting to one network while another is up drops the first before the
+  // second comes in, and in between the panel would fall back to its
+  // disconnected layout: stats, band row and header gone, then back. Through
+  // the switch the hero names where it is going and the sections hold their
+  // place, reading "--" until the new link reports. A failed connect ends
+  // the action, so the panel still settles on the truth.
+  property bool switchingNetwork: false
+  // The hero buttons that were showing when the switch began keep their
+  // place, disabled, so the name beside them doesn't reflow twice.
+  property bool switchHeldQr: false
+  property bool switchHeldSpeed: false
+  onActionKindChanged: if (actionKind !== "connect") switchingNetwork = false
 
   // Index into `wifiNetworks` for keyboard navigation. -1 = no selection.
   property int selectedIndex: -1
@@ -158,7 +170,7 @@ Panel {
   // Worth showing when there is a real choice, or when a pin is in force even
   // though only one band answers right now -- otherwise the Automatic switch
   // vanishes and the pin becomes unclearable from the panel.
-  readonly property bool canSelectBand: (kind === "wifi" || bandBusy)
+  readonly property bool canSelectBand: (kind === "wifi" || bandBusy || switchingNetwork)
     && (bandAvailable.length > 1 || bandPinned)
   // While a change is in flight, show the state that was asked for rather than
   // the one still in force, so the row answers the click immediately instead of
@@ -765,7 +777,7 @@ Panel {
     // Mid-reconnect there is no connected station, so the command reports
     // nothing. Publishing that would empty the option list and unmount the
     // section on every toggle -- same guard as updateDetails.
-    if (bandBusy && status.available.length === 0) return
+    if ((bandBusy || switchingNetwork) && status.available.length === 0) return
 
     bandCurrent = status.band
     bandSelected = status.selected
@@ -850,6 +862,9 @@ Panel {
     if (actionKind !== "" || !network) return
     var ssid = network.name || ""
     actionSsid = ssid
+    switchingNetwork = kind === "connect" && root.kind !== "disconnected"
+    switchHeldQr = switchingNetwork && canShareWifi
+    switchHeldSpeed = switchingNetwork && canRunSpeedTest
     actionKind = kind
     failureSsid = ""
     failureReason = ""
@@ -1305,7 +1320,8 @@ Panel {
 
           PanelActionButton {
             id: qrAction
-            visible: root.canShareWifi
+            visible: root.canShareWifi || (root.switchingNetwork && root.switchHeldQr)
+            enabled: root.canShareWifi
             iconText: "󰐲"
             tooltipText: Commons.I18n.t("network.showQrCode")
             foreground: root.bar.foreground
@@ -1319,7 +1335,8 @@ Panel {
 
           PanelActionButton {
             id: speedAction
-            visible: root.canRunSpeedTest
+            visible: root.canRunSpeedTest || (root.switchingNetwork && root.switchHeldSpeed)
+            enabled: root.canRunSpeedTest
             iconText: "󰓅"
             tooltipText: Commons.I18n.t("network.runSpeedTest")
             foreground: root.bar.foreground
@@ -1366,6 +1383,7 @@ Panel {
             width: parent.width
 
             readonly property string title: {
+              if (root.switchingNetwork) return root.actionSsid || Commons.I18n.t("network.hidden")
               // The HTTP restriction does not undo association. Show the live
               // SSID even before route/details polling has returned anything.
               if (root.kind === "wifi" && root.connectedWifiNetwork) return root.connectedWifiNetwork.name || "Wi-Fi"
@@ -1373,7 +1391,7 @@ Panel {
               if (root.info.type === "ethernet") return Commons.I18n.t("network.ethernet")
               return root.info.iface || (root.kind === "disconnected" ? Commons.I18n.t("network.disconnected") : Commons.I18n.t("network.noConnection"))
             }
-            readonly property string detail: root.headerDetail()
+            readonly property string detail: root.switchingNetwork ? "" : root.headerDetail()
 
             text: heroSsid.detail !== "" ? heroSsid.title + " (" + heroSsid.detail + ")" : heroSsid.title
             color: root.bar.foreground
@@ -1389,6 +1407,7 @@ Panel {
             width: parent.width
             text: {
               // The sign-in button right below already says what a portal needs.
+              if (root.switchingNetwork) return Commons.I18n.t("network.connecting").toUpperCase()
               if (root.hasCaptivePortal) return ""
               if (root.restricted) return Commons.I18n.t("network.limitedAccessHeader")
               if (root.info.type === "wifi") {
@@ -1435,7 +1454,10 @@ Panel {
 
       // Connection details: transfer metrics first, then IP/Gateway.
       Column {
-        visible: !!root.info.iface
+        // Held while connected but before the details poll has answered
+        // (just opened, or a switch that has just landed) as well as through
+        // a switch, so the grid never drops out for a beat and comes back.
+        visible: !!root.info.iface || root.kind !== "disconnected" || root.switchingNetwork
         width: parent.width
         spacing: Style.spacing.labelGap
 
