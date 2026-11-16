@@ -380,6 +380,9 @@ Panel {
       var line = ["provider", "providerLaunch", "modelToggle", "modelLaunch", "modelPair", "modelDisconnect", "modelShare", "modelHeader", "localDownload"].indexOf(row[0].kind) >= 0
       keyColumn = use >= 0 ? use : line ? row.length - 1 : Math.min(keyColumn, row.length - 1)
     } else if (dx !== 0) {
+      // A row can go while the cursor is on it, like the starters when the
+      // last agent stops.
+      keyRow = clamp(keyRow, 0, keyRows.length - 1)
       keyColumn = clamp(Math.min(keyColumn, keyRows[keyRow].length - 1) + dx, 0, keyRows[keyRow].length - 1)
     }
   }
@@ -828,7 +831,7 @@ Panel {
   // that's running, or a signed-in subscription with a coding agent of its own.
   // A model still downloading or loading doesn't count yet.
   readonly property bool starterAgentReady: starterLocalModel !== null || providers.some(function(p) {
-    return !p.localModel && harnessFor(p) !== "" && !needsSignIn(p)
+    return !p.localModel && harnessFor(p) !== "" && !signedOut(p)
   })
   readonly property bool starterShown: addStage === "" && !blankSlate && starterAgentReady
 
@@ -919,6 +922,11 @@ Panel {
   // trouble is only reported.
   function needsSignIn(item) {
     if (item && item.providerId && !supportsSignIn(item)) return false
+    return signedOut(item)
+  }
+
+  // Whether its sign-in has lapsed, whether or not it can be fixed from here.
+  function signedOut(item) {
     var status = String(item && item.usageStatusText || "")
     return status === "Sign-in expired" || status === "Waiting for auth"
   }
