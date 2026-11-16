@@ -87,6 +87,17 @@ ShellRoot {
         compare(rich.loadedContent, null)
         passed++
       }
+      function test_hover_card_padding() {
+        mouseMove(source, source.width / 2, source.height / 2)
+        tryCompare(rich, "opened", true)
+        // Inside the card but outside its content: the border and padding.
+        mouseMove(rich.background, 2, 2)
+        wait(rich.closeDelay * 3)
+        verify(rich.visible, "resting on the card's padding keeps it open")
+        mouseMove(window.contentItem, 580, 430)
+        tryCompare(rich, "visible", false)
+        passed++
+      }
       function test_pointer_action() {
         mouseMove(source, source.width / 2, source.height / 2)
         tryCompare(rich, "opened", true)
@@ -155,7 +166,7 @@ ShellRoot {
       }
       function cleanupTestCase() {
         // A failed QtTest assertion throws before its scenario increments passed.
-        console.log("INPUT_RESULT " + (passed === 8 ? "pass" : "fail") + " passed=" + passed)
+        console.log("INPUT_RESULT " + (passed === 9 ? "pass" : "fail") + " passed=" + passed)
       }
     }
   }

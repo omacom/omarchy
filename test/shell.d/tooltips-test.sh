@@ -46,7 +46,7 @@ output=$(HOME="$stage" XDG_CONFIG_HOME="$stage/.config" OMARCHY_PATH="$ROOT" QT_
   QML_IMPORT_PATH="$ROOT/shell/styles${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}" \
   QT_QUICK_CONTROLS_STYLE=Omarchy QT_QUICK_CONTROLS_FALLBACK_STYLE=Fusion \
   timeout 20 "${TOOLTIP_QUICKSHELL:-quickshell}" -n -p "$stage" --no-color 2>&1) || fail "tooltip input fixture loads and exits cleanly" "$output"
-[[ $output == *"INPUT_RESULT pass passed=8"* ]] || fail "tooltip input events pass" "$output"
+[[ $output == *"INPUT_RESULT pass passed=9"* ]] || fail "tooltip input events pass" "$output"
 if rg -q 'INPUT_RESULT fail|ReferenceError|TypeError|Error:|Binding loop' <<< "$output"; then
   fail "tooltip input fixture has no QML errors" "$output"
 fi

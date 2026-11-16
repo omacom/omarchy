@@ -13,7 +13,8 @@ T.Popup {
   property int delay: 400
   property int closeDelay: 180
   readonly property Item loadedContent: body.item
-  readonly property bool containsMouse: hover.hovered
+  // The card's border and padding count as inside it, not just its content.
+  readonly property bool containsMouse: hover.hovered || cardHover.hovered
   property bool keyboardOpened: false
   property bool dismissed: false
 
@@ -60,6 +61,7 @@ T.Popup {
     color: Commons.Color.tooltip.background
     borderSpec: ToolTipStyle.borderSpec(Border.surfaceSpec("tooltip", "border", Commons.Color.tooltip.border, Style.normalBorderWidth))
     radius: ToolTipStyle.radius(Style.cornerRadius)
+    HoverHandler { id: cardHover }
   }
   contentItem: Loader {
     id: body
