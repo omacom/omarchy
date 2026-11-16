@@ -153,6 +153,15 @@ output=$(look_app --size 640x480 --out "$test_tmp/app.png" -- "$test_tmp/hooked"
 [[ $(<"$test_tmp/size") == "640x480" ]] || fail "look app passes --size to an app that draws itself" "$(<"$test_tmp/size")"
 pass "look app passes --size to an app that draws itself"
 
+# The wait is counted in whole seconds; half of one is refused by name.
+for wait in 0.5 08; do
+  if output=$(look_app --after "$wait" -- "$test_tmp/hooked"); then
+    fail "look app refuses an --after that isn't whole seconds: $wait" "$output"
+  fi
+done
+[[ $output == *"--after takes whole seconds"* ]] || fail "look app says what --after takes" "$output"
+pass "look app says when --after isn't whole seconds"
+
 # Any other program is started once, by the compositor, and captured on
 # screen. Its window belongs to a process it started, and another window
 # opening meanwhile is the user's: the stand-in compositor lists that first.

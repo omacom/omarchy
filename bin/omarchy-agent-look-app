@@ -27,6 +27,10 @@ while (( $# )) && [[ $1 != "--" ]]; do
   esac
 done
 [[ ${1:-} == "--" ]] && shift
+if [[ ! $after =~ ^(0|[1-9][0-9]*)$ ]]; then
+  echo "--after takes whole seconds, like 2" >&2
+  exit 2
+fi
 if [[ -n $size && ! $size =~ ^[0-9]+x[0-9]+$ ]]; then
   echo "--size takes a width and height, like 1280x800" >&2
   exit 2
