@@ -1,0 +1,107 @@
+#!/bin/bash
+
+# omarchy:summary=Repack the bundled browser extensions as signed CRX files for Google Chrome
+# omarchy:hidden=true
+
+# Google Chrome ignores --load-extension, so it gets the bundled extensions as
+# signed CRX files that policy installs from default/chromium/crx/updates.xml.
+# Run this after changing an extension, with its manifest version bumped:
+# Chrome only takes a CRX whose version is higher than the one it has.
+#
+# The CRX keys are Chrome's alone. Chromium keeps loading the unpacked
+# extensions under the ids their manifest keys pin, so the key is stripped from
+# the packed manifest and Chrome derives each id from its CRX key instead. The
+# private keys live in 1Password, never in the repository or on disk past this
+# run; losing one means a new id.
+
+set -euo pipefail
+
+extensions_dir="$OMARCHY_PATH/default/chromium/extensions"
+crx_dir="$OMARCHY_PATH/default/chromium/crx"
+export OP_ACCOUNT=${OP_ACCOUNT:-omarchy.1password.com}
+vault=${OMARCHY_CHROME_EXTENSION_KEYS_VAULT:-Shared}
+item="Omarchy Chrome extension keys"
+install_root=/usr/share/omarchy/default/chromium/crx
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+keys_dir=$work/keys
+mkdir -m 700 "$keys_dir"
+
+extension_id() {
+  openssl pkey -in "$1" -pubout -outform DER | sha256sum | cut -c1-32 | tr '0-9a-f' 'a-p'
+}
+
+# A new extension gets a key of its own, stored beside the others: 1Password
+# files "name.pem" as a pem file in a section named after the extension.
+store_key() {
+  if op item get "$item" --vault "$vault" >/dev/null 2>&1; then
+    op item edit "$item" --vault "$vault" "$1.pem[file]=$2" >/dev/null
+  else
+    op item create --category "Secure Note" --vault "$vault" --title "$item" "$1.pem[file]=$2" >/dev/null
+  fi
+}
+
+mkdir -p "$crx_dir"
+
+apps=""
+ids=()
+for source in "$extensions_dir"/*/; do
+  name=$(basename "$source")
+  key=$keys_dir/$name.pem
+  crx=$crx_dir/$name.crx
+  stage=$work/$name
+
+  if ! op read --no-newline --out-file "$key" "op://$vault/$item/$name/pem" >/dev/null 2>&1; then
+    if [[ -f $crx ]]; then
+      echo "The $name key is missing from \"$item\" in the $vault vault: $name.crx shipped with it, and a new key would give Chrome a new id." >&2
+      exit 1
+    fi
+    openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$key" 2>/dev/null
+    store_key "$name" "$key"
+  fi
+
+  # The icons are symlinks into the repository; a CRX carries the files.
+  cp -rL "$source" "$stage"
+  jq 'del(.key)' "$source/manifest.json" >"$stage/manifest.json"
+  version=$(jq -r .version "$stage/manifest.json")
+
+  if [[ -f $crx ]]; then
+    # bsdtar reads the zip after the CRX header from its central directory.
+    mkdir -p "$work/$name.shipped"
+    bsdtar -xf "$crx" -C "$work/$name.shipped"
+    if diff -r "$stage" "$work/$name.shipped" >/dev/null; then
+      echo "$name.crx is current"
+    elif [[ $(jq -r .version "$work/$name.shipped/manifest.json") == "$version" ]]; then
+      echo "$name changed without a version bump; Chrome would keep the old CRX. Bump the version in $name/manifest.json." >&2
+      exit 1
+    else
+      rm -f "$crx"
+    fi
+  fi
+
+  if [[ ! -f $crx ]]; then
+    google-chrome-stable --headless=new --no-first-run --user-data-dir="$work/profile" \
+      --pack-extension="$stage" --pack-extension-key="$key" >/dev/null 2>&1 || true
+    [[ -f $stage.crx ]] || { echo "Chrome did not pack $name" >&2; exit 1; }
+    install -m 644 "$stage.crx" "$crx"
+    echo "Packed $name $version"
+  fi
+
+  id=$(extension_id "$key")
+  apps+="  <app appid='$id'><updatecheck codebase='file://$install_root/$name.crx' version='$version' /></app>"$'\n'
+  ids+=("$id")
+done
+
+{
+  echo "<?xml version='1.0' encoding='UTF-8'?>"
+  echo "<gupdate xmlns='http://www.google.com/update2/response' protocol='2.0'>"
+  printf '%s' "$apps"
+  echo "</gupdate>"
+} >"$crx_dir/updates.xml"
+
+# Force-installed, as --load-extension makes them in Chromium: present in every
+# profile and kept current from updates.xml.
+printf '%s\n' "${ids[@]}" | jq -R . | jq -s --arg url "file://$install_root/updates.xml" \
+  '{ExtensionSettings: (map({key: ., value: {installation_mode: "force_installed", update_url: $url}}) | from_entries)}' \
+  >"$OMARCHY_PATH/default/chromium/policies/chrome-extensions.json"
