@@ -27,5 +27,10 @@ if [[ ${1:-} != "-y" ]] && ! gum confirm --default=false --affirmative "$(omarch
 fi
 
 echo -e "\e[32m\nRemoving orphan system packages\e[0m"
-omarchy-pkg-drop "${orphans[@]}"
+if omarchy-update-via-zap; then
+  # zap asks once more before removing, even after -y. Declining (130) keeps them.
+  ZAP_ELEVATE=sudo zap remove --recursive --nosave -- "${orphans[@]}" || (( $? == 130 ))
+else
+  omarchy-pkg-drop "${orphans[@]}"
+fi
 echo

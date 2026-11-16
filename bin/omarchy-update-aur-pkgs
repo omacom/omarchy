@@ -12,7 +12,12 @@ unset GOROOT GOBIN
 if pacman -Qem >/dev/null; then
   if omarchy-pkg-aur-accessible; then
     echo -e "\e[32m\nUpdate AUR packages\e[0m"
-    yay -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs || exit 1
+    # zap honors IgnorePkg in pacman.conf but has no --ignore of its own.
+    if omarchy-update-via-zap; then
+      ZAP_ELEVATE=sudo zap upgrade --aur --cleanafter || exit 1
+    else
+      yay -Sua --noconfirm --cleanafter --ignore gcc14,gcc14-libs || exit 1
+    fi
     echo
   else
     echo -e "\e[31m\nAUR is unavailable (so skipping updates)\e[0m"
