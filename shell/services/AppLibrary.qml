@@ -53,6 +53,11 @@ Item {
   // entries appeared or vanished, or the hidden-entry filters reloaded.
   signal appsChanged()
 
+  // Emitted when removing an entry has to open a terminal (a package
+  // uninstall asking for a password), so an open launcher can step aside.
+  // Other removals happen in place and the entry just drops out of the list.
+  signal removalNeedsTerminal()
+
   function entryName(entry) {
     return AppSearch.entryName(entry)
   }
@@ -132,7 +137,22 @@ Item {
   function remove(desktopId, name) {
     var id = String(desktopId || "")
     if (!id) return
-    Util.execDetached(Util.shellQuote(root.omarchyPath + "/bin/omarchy-remove-launcher-entry") + " " + Util.shellQuote(id) + " " + Util.shellQuote(String(name || id)))
+    // The login shell gives the removal commands the session PATH.
+    removal.createObject(root, {
+      command: ["bash", "-lc", 'exec "$@"', "bash", root.omarchyPath + "/bin/omarchy-remove-launcher-entry", id, String(name || id)],
+      running: true
+    })
+  }
+
+  Component {
+    id: removal
+
+    Process {
+      stdout: SplitParser {
+        onRead: function(line) { if (line === "terminal") root.removalNeedsTerminal() }
+      }
+      onExited: destroy()
+    }
   }
 
   function normalizeDesktopId(id) {
