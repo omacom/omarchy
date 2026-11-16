@@ -395,3 +395,24 @@ if force_restart 0 >"$test_tmp/wrong-config.out" 2>&1; then
 fi
 kill -0 "$restart_pid_one" || fail "forced restart killed another Quickshell configuration"
 pass "forced recovery refuses a live process whose configuration differs from its stale record"
+
+# Package upgrades atomically replace the binary while the old inode keeps
+# running. Exercise the real /proc suffix instead of faking readlink output.
+kill "$restart_pid_one" 2>/dev/null || true
+wait "$restart_pid_one" 2>/dev/null || true
+"$test_tmp/quickshell" -p "$restart_root/shell" &
+restart_pid_one=$!
+for attempt in {1..100}; do
+  [[ $(readlink "/proc/$restart_pid_one/exe") == "$test_tmp/quickshell" ]] && break
+  sleep 0.01
+done
+cp "$test_tmp/quickshell" "$test_tmp/quickshell.new"
+mv "$test_tmp/quickshell.new" "$test_tmp/quickshell"
+[[ $(readlink "/proc/$restart_pid_one/exe") == "$test_tmp/quickshell (deleted)" ]] || fail "fixture keeps running the replaced executable"
+printf '%s\n' "$restart_pid_one" >"$restart_state"
+force_restart 0 >"$test_tmp/replaced.out" 2>&1 || fail "forced recovery accepts a replaced Quickshell executable" "$(cat "$test_tmp/replaced.out")"
+if kill -0 "$restart_pid_one" 2>/dev/null; then fail "forced recovery left the replaced executable running"; fi
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$restart_state") == 303 ]] || fail "forced recovery replaces an upgraded shell"
+pass "forced recovery accepts the deleted executable left running after a package upgrade"

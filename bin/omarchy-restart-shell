@@ -126,7 +126,11 @@ if (( force )); then
   while read -r pid; do
     [[ $pid =~ ^[0-9]+$ ]] || continue
     [[ -d /proc/$pid ]] || continue
-    if [[ $(readlink "/proc/$pid/exe" 2>/dev/null) != */quickshell ]]; then
+    executable=$(readlink "/proc/$pid/exe" 2>/dev/null)
+    # Linux appends this suffix when an update replaces the running inode.
+    # Keep checking the original executable name and configuration arguments.
+    executable=${executable%" (deleted)"}
+    if [[ $executable != */quickshell ]]; then
       echo "Refusing forced restart: shell process identity changed." >&2
       exit 1
     fi
