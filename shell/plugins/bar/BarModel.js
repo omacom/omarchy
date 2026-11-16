@@ -690,10 +690,13 @@ function autohideEngaged(config, hidden) {
 }
 
 // Whether something still needs the bar out: the pointer on the bar, the
-// pointer on its edge strip, or a panel, popup or menu open from a widget on
-// it. Anything else lets the grace timer park it.
-function autohideHolds(barHovered, edgeHovered, keepOpen) {
-  return barHovered === true || edgeHovered === true || keepOpen === true
+// pointer on its edge strip, a panel, popup or menu open from a widget on it,
+// or a widget or bar-position drag in flight. Anything else lets the grace
+// timer park it. `dragging` is that drag: the pointer has left the bar looking
+// for a place to drop, so the bar and its drop targets have to stay, and the
+// timer takes over again from whatever the drag leaves behind.
+function autohideHolds(barHovered, edgeHovered, keepOpen, dragging) {
+  return barHovered === true || edgeHovered === true || keepOpen === true || dragging === true
 }
 
 // Whether a panel, popup or menu is open from a widget on the bar:

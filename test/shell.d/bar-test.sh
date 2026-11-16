@@ -532,6 +532,15 @@ assertEqual(bar.autohideHolds(false, false, true), true, 'a panel kept open hold
 assertEqual(bar.autohideHolds(false, false, false), false, 'nothing holds the bar out once the pointer and the panels are gone')
 assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, true), false), true, 'an open panel keeps the grace timer from parking the bar')
 
+// A widget or bar-position drag holds the bar out past the grace timer: the
+// pointer has left the bar looking for a place to drop, and the drop targets
+// have to still be there when it comes back. The drag ends, and the grace
+// timer takes over from what is left: the pointer, a panel, or nothing.
+assertEqual(bar.autohideHolds(false, false, false, true), true, 'a drag holds the bar out')
+assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, false, true), false), true, 'a drag keeps the grace timer from parking the bar')
+assertEqual(bar.autohideHolds(false, false, false, false), false, 'the end of the drag lets the bar go')
+assertEqual(bar.autohideShows(true, bar.autohideHolds(false, false, false, true), true), false, 'a fullscreen window still parks the bar under a drag')
+
 // A panel or menu opened from a widget on the bar holds it out, found by the
 // widget ids the layout shows: a menu is a window of the shell, not a live
 // item, so its id is the only handle the bar has on it.

@@ -1926,10 +1926,11 @@ Item {
     }
 
     // Whether autohide has this screen's bar out. Hide Bar still wins through
-    // autohideEngaged, a real fullscreen window parks it, and a panel the user
-    // opened holds it: one rule, read here by the tuck and by the grace timer.
+    // autohideEngaged, a real fullscreen window parks it, a drag in flight
+    // holds it, and a panel the user opened holds it: one rule, read here by
+    // the tuck and by the grace timer.
     readonly property bool revealed: BarModel.autohideShows(root.autohideEngaged,
-      BarModel.screenFlag(root.autohideRevealed, screen ? screen.name : "") || root.autohideKeepOpen,
+      BarModel.screenFlag(root.autohideRevealed, screen ? screen.name : "") || root.autohideKeepOpen || barWindow.dragActive,
       barWindow.underFullscreen)
 
     // A fullscreen window takes the bar away with the flag: the pointer cannot
@@ -1937,11 +1938,16 @@ Item {
     // bar would come back out on its own the moment fullscreen ended.
     onUnderFullscreenChanged: if (barWindow.underFullscreen) root.setAutohideRevealed(barWindow.screen, false)
 
+    // A drag keeps the bar out for as long as it lasts, so its end is what
+    // hands the bar back to the grace timer: the pointer may have left it, and
+    // nothing else would ever count the grace out again.
+    onDragActiveChanged: if (!dragActive && barWindow.revealed) autohideGrace.restart()
+
     // Hides the bar a moment after the pointer leaves both the bar and its edge
-    // strip, unless a panel still needs it. Single-shot and restarted by the
-    // pointer, not polled: the dock's grace, and nothing runs while the bar is
-    // out and still. The strip is a window of its own and cannot reach this
-    // timer, so its leave arrives through the Connections below.
+    // strip, unless a panel or a drag still needs it. Single-shot and restarted
+    // by the pointer, not polled: the dock's grace, and nothing runs while the
+    // bar is out and still. The strip is a window of its own and cannot reach
+    // this timer, so its leave arrives through the Connections below.
     Timer {
       id: autohideGrace
       // Long enough to cross the gap between the bar and its edge strip, no
@@ -1949,7 +1955,8 @@ Item {
       interval: 150
       onTriggered: {
         var holds = BarModel.autohideHolds(autohideBarHover.hovered,
-          BarModel.screenFlag(root.autohideEdgeHovered, screen ? screen.name : ""), root.autohideKeepOpen)
+          BarModel.screenFlag(root.autohideEdgeHovered, screen ? screen.name : ""), root.autohideKeepOpen,
+          barWindow.dragActive)
         if (BarModel.autohideShows(root.autohideEngaged, holds, barWindow.underFullscreen)) return
         root.setAutohideRevealed(barWindow.screen, false)
       }
