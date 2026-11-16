@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy styres normalt via genvejstasterne og Omarchy-menuen (`Super + Space`). Men du kan også styre det via `omarchy` CLI'en. Det er særligt nyttigt, når du har en AI-agent til at arbejde sammen med dig om tilpasning eller konfiguration.
+Omarchy styres normalt via genvejstasterne og Omarchy-menuen (`Super + Space`). Men du kan også styre den via `omarchy` CLI'en. Det er især nyttigt, når du har en AI-agent til at arbejde sammen med dig om tilpasning eller konfiguration.
 
-CLI'en har adgang til alle de interne værktøjer, der bruges både via menuen og på anden vis. Du kan se alt, hvad der er tilgængeligt, ved at køre `omarchy` i terminalen.
+CLI'en har adgang til alle de interne værktøjer, som bruges både via menuen og på anden vis. Du kan se alt, hvad der er tilgængeligt, ved at køre `omarchy` i terminalen.
 
 Det ser nogenlunde sådan her ud:
 
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,7 +38,6 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
@@ -55,8 +54,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Alle kommandoer tager også `--help`, uanset om du spørger en hel gruppe (`omarchy capture --help`) eller en enkelt kommando (`omarchy capture screenshot --help`).
+Hver kommando tager også `--help`, uanset om du spørger en hel gruppe (`omarchy capture --help`) eller en enkelt kommando (`omarchy capture screenshot --help`).
 
-### Åbning af menuen fra terminalen
+### Sådan åbner du menuen fra terminalen
 
-Omarchy-menuen kan også scriptes, hvilket er praktisk til dine egne genvejstaster. `omarchy menu` åbner den ved roden, og du kan springe direkte til ethvert punkt i træet ved at navngive det: `omarchy menu summon appearance.theme` går direkte til temavælgeren, `omarchy menu toggle system` åbner systemmenuen og lukker den igen, hvis den allerede er fremme, og `omarchy menu close` gemmer den væk.
+Omarchy-menuen kan også scriptes, hvilket er praktisk til dine egne tastebindinger. `omarchy menu` åbner den ved roden, og du kan springe direkte til ethvert punkt i træet ved at navngive det: `omarchy menu summon appearance.theme` går direkte til temavælgeren, `omarchy menu toggle system` åbner systemmenuen og lukker den igen, hvis den allerede er oppe, og `omarchy menu close` lukker den væk.

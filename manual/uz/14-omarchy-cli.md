@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy odatda tezkor tugmalar va Omarchy menyusi (`Super + Space`) orqali boshqariladi. Lekin uni `omarchy` CLI orqali ham boshqarishingiz mumkin. Bu, ayniqsa, moslashtirish yoki konfiguratsiya ustida siz bilan birga AI agent ishlayotganda juda qo‘l keladi.
+Omarchy odatda tezkor tugmalar va Omarchy menyusi (`Super + Space`) orqali boshqariladi. Lekin uni `omarchy` CLI orqali ham boshqarishingiz mumkin. Bu, ayniqsa, moslashtirish yoki sozlashda AI agent siz bilan birga ishlayotganida juda qulay.
 
-CLI menyu orqali ham, boshqa yo‘llar bilan ham ishlatiladigan barcha ichki vositalarga kirish imkoniga ega. Mavjud barcha narsani terminalda `omarchy` ni ishga tushirib ko‘rishingiz mumkin.
+CLI menyu orqali ham, boshqa yoʻllar bilan ham ishlatiladigan barcha ichki vositalarga kira oladi. Mavjud boʻlgan hamma narsani terminalda `omarchy` ni ishga tushirib koʻrishingiz mumkin.
 
-Bu taxminan shunday ko‘rinadi:
+U taxminan shunday koʻrinadi:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,10 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-Va har bir guruhga yanada chuqurroq kirishingiz mumkin:
+Va har bir guruhni yanada chuqurroq oʻrganishingiz mumkin:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +54,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Har bir buyruq `--help` ni ham qabul qiladi, xoh butun guruhni so‘rasangiz (`omarchy capture --help`), xoh bitta buyruqni so‘rasangiz (`omarchy capture screenshot --help`).
+Har bir buyruq `--help` ni ham qabul qiladi, xoh butun guruhni soʻrang (`omarchy capture --help`), xoh bitta buyruqni (`omarchy capture screenshot --help`).
 
 ### Menyuni terminaldan ochish
 
-Omarchy menyusini skript orqali ham boshqarish mumkin, bu o‘z tugmalar birikmalaringiz uchun qulay. `omarchy menu` uni ildizidan ochadi va uni nomlash orqali daraxtning istalgan nuqtasiga to‘g‘ridan-to‘g‘ri o‘tishingiz mumkin: `omarchy menu summon appearance.theme` to‘g‘ridan-to‘g‘ri mavzu tanlagichga o‘tadi, `omarchy menu toggle system` tizim menyusini ochadi va agar u allaqachon ochiq bo‘lsa, uni yana yopadi, `omarchy menu close` esa uni yopib qo‘yadi.
+Omarchy menyusini skript orqali ham boshqarish mumkin, bu oʻz tugma birikmalaringiz uchun qulay. `omarchy menu` uni ildizdan ochadi va siz nomini aytib, daraxtning istalgan nuqtasiga toʻgʻridan-toʻgʻri oʻtishingiz mumkin: `omarchy menu summon appearance.theme` toʻgʻridan-toʻgʻri tema tanlagichga oʻtadi, `omarchy menu toggle system` tizim menyusini ochadi va agar u allaqachon ochiq boʻlsa, uni yana yopadi, `omarchy menu close` esa uni yopib qoʻyadi.

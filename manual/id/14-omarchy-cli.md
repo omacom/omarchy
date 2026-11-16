@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy biasanya dikendalikan melalui hotkey dan menu Omarchy (`Super + Space`). Tapi kamu juga bisa mengendalikannya melalui CLI `omarchy`. Ini sangat membantu saat kamu meminta agen AI bekerja bersamamu dalam kustomisasi atau konfigurasi.
+Omarchy biasanya dikendalikan melalui hotkey dan menu Omarchy (`Super + Space`). Tetapi kamu juga bisa mengendalikannya melalui CLI `omarchy`. Ini sangat membantu ketika kamu meminta agent AI bekerja bersamamu dalam kustomisasi atau konfigurasi.
 
-CLI ini punya akses ke semua perkakas internal yang digunakan baik melalui menu maupun cara lain. Kamu bisa melihat semua yang tersedia dengan menjalankan `omarchy` di terminal.
+CLI ini memiliki akses ke semua tooling internal yang digunakan baik melalui menu maupun cara lainnya. Kamu bisa melihat semua yang tersedia dengan menjalankan `omarchy` di terminal.
 
 Tampilannya kurang lebih seperti ini:
 
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,10 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-Dan kamu bisa menyelami setiap grup lebih dalam:
+Dan kamu bisa menyelami lebih dalam setiap grup:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +54,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Setiap perintah juga menerima `--help`, baik saat kamu menanyakan seluruh grup (`omarchy capture --help`) maupun satu perintah saja (`omarchy capture screenshot --help`).
+Setiap perintah juga menerima `--help`, baik kamu menanyakan seluruh grup (`omarchy capture --help`) maupun satu perintah saja (`omarchy capture screenshot --help`).
 
 ### Membuka menu dari terminal
 
-Menu Omarchy juga bisa diskrip, yang berguna untuk keybinding kamu sendiri. `omarchy menu` membukanya di root, dan kamu bisa langsung lompat ke titik mana pun di pohonnya dengan menyebut namanya: `omarchy menu summon appearance.theme` langsung menuju pemilih tema, `omarchy menu toggle system` membuka menu sistem dan menutupnya lagi jika sudah terbuka, dan `omarchy menu close` menyingkirkannya.
+Menu Omarchy juga bisa di-script, yang berguna untuk keybinding kamu sendiri. `omarchy menu` membukanya di root, dan kamu bisa langsung melompat ke titik mana pun di tree dengan menyebut namanya: `omarchy menu summon appearance.theme` langsung menuju ke pemilih tema, `omarchy menu toggle system` membuka menu sistem dan menutupnya lagi jika sudah tampil, dan `omarchy menu close` menyembunyikannya.

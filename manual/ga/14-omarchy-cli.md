@@ -1,6 +1,6 @@
 # Omarchy CLI
 
-Rialaítear Omarchy de ghnáth trí na heochracha aicearra agus trí roghchlár Omarchy (`Super + Space`). Ach is féidir leat é a rialú freisin tríd an CLI `omarchy`. Tá sé seo an-chabhrach go háirithe nuair a bhíonn gníomhaire AI ag obair in éineacht leat ar shaincheapadh nó ar chumraíocht.
+De ghnáth rialaítear Omarchy trí na heochracha aicearra agus roghchlár Omarchy (`Super + Space`). Ach is féidir leat é a rialú tríd an `omarchy` CLI freisin. Tá sé seo an-chabhrach go háirithe nuair a bhíonn gníomhaire AI ag obair leat ar shaincheapadh nó ar chumraíocht.
 
 Tá rochtain ag an CLI ar an uirlisiú inmheánach go léir a úsáidtear tríd an roghchlár agus ar bhealaí eile araon. Is féidir leat gach rud atá ar fáil a fheiceáil trí `omarchy` a rith sa teirminéal.
 
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,7 +38,6 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
@@ -55,8 +54,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Glacann gach ordú le `--help` freisin, cibé acu a iarrann tú grúpa iomlán (`omarchy capture --help`) nó ordú aonair (`omarchy capture screenshot --help`).
+Glacann gach ordú le `--help` freisin, cibé a iarrann tú ar ghrúpa iomlán (`omarchy capture --help`) nó ar ordú aonair (`omarchy capture screenshot --help`).
 
 ### An roghchlár a oscailt ón teirminéal
 
-Is féidir roghchlár Omarchy a scripteáil freisin, rud atá áisiúil do do cheangail eochracha féin. Osclaíonn `omarchy menu` ag an bhfréamh é, agus is féidir leat léim díreach go dtí pointe ar bith sa chrann trína ainmniú: téann `omarchy menu summon appearance.theme` díreach chuig an roghnóir téama, osclaíonn `omarchy menu toggle system` an roghchlár córais agus dúnann sé arís é má tá sé aníos cheana, agus cuireann `omarchy menu close` ar shiúl é.
+Is féidir roghchlár Omarchy a scriptiú freisin, rud atá áisiúil do do cheangail eochrach féin. Osclaíonn `omarchy menu` é ag an bhfréamh, agus is féidir leat léim díreach chuig pointe ar bith sa chrann trína ainmniú: téann `omarchy menu summon appearance.theme` díreach chuig an roghnóir téama, osclaíonn `omarchy menu toggle system` roghchlár an chórais agus dúnann sé arís é má tá sé ar oscailt cheana, agus cuireann `omarchy menu close` ar shiúl é.

@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Normalment, Omarchy es controla amb les tecles d'accés ràpid i el menú d'Omarchy (`Super + Space`). Però també el pots controlar amb la CLI `omarchy`. Això és especialment útil quan tens un agent d'IA treballant amb tu en la personalització o la configuració.
+Omarchy normalment es controla mitjançant les tecles d'accés ràpid i el menú d'Omarchy (`Super + Space`). Però també el pots controlar mitjançant la CLI `omarchy`. Això és especialment útil quan tens un agent d'IA treballant amb tu en la personalització o la configuració.
 
-La CLI té accés a totes les eines internes que s'utilitzen tant des del menú com d'altres maneres. Pots veure tot el que hi ha disponible executant `omarchy` al terminal.
+La CLI té accés a totes les eines internes que s'utilitzen tant via el menú com d'altres maneres. Pots veure tot el que hi ha disponible executant `omarchy` al terminal.
 
-Té un aspecte semblant a aquest:
+És més o menys així:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,7 +38,6 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
@@ -59,4 +58,4 @@ Cada comanda també accepta `--help`, tant si preguntes per un grup sencer (`oma
 
 ### Obrir el menú des del terminal
 
-El menú d'Omarchy també es pot controlar amb scripts, cosa que va molt bé per a les teves pròpies assignacions de tecles. `omarchy menu` l'obre a l'arrel, i pots anar directament a qualsevol punt de l'arbre anomenant-lo: `omarchy menu summon appearance.theme` va directe al selector de temes, `omarchy menu toggle system` obre el menú del sistema i el torna a tancar si ja és obert, i `omarchy menu close` el tanca.
+El menú d'Omarchy també es pot controlar amb scripts, cosa que és pràctica per a les teves pròpies combinacions de tecles. `omarchy menu` l'obre a l'arrel, i pots saltar directament a qualsevol punt de l'arbre anomenant-lo: `omarchy menu summon appearance.theme` va directe al selector de temes, `omarchy menu toggle system` obre el menú del sistema i el torna a tancar si ja és obert, i `omarchy menu close` l'amaga.

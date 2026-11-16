@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Az Omarchyt általában a gyorsbillentyűkkel és az Omarchy menüvel (`Super + Space`) vezérled. De az `omarchy` CLI-n keresztül is vezérelheted. Ez különösen hasznos, amikor egy AI-ügynök dolgozik veled a testreszabáson vagy a konfiguráláson.
+Az Omarchy általában gyorsbillentyűkkel és az Omarchy menüvel (`Super + Space`) vezérelhető. De az `omarchy` CLI-n keresztül is vezérelheted. Ez különösen hasznos, amikor egy AI ügynök segít neked a testreszabásban vagy a konfigurációban.
 
-A CLI hozzáfér minden belső eszközhöz, amelyet a menün keresztül és más módokon is használ a rendszer. Minden elérhető lehetőséget megnézhetsz, ha futtatod az `omarchy` parancsot a terminálban.
+A CLI hozzáfér minden belső eszközhöz, amelyet a menün keresztül és egyéb módon is használnak. Mindent megnézhetsz, ami elérhető, ha futtatod az `omarchy` parancsot a terminálban.
 
 Valahogy így néz ki:
 
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,10 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-És minden csoportban mélyebbre is áshatsz:
+És minden csoportba mélyebben is beleáshatod magad:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +54,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Minden parancs elfogadja a `--help` kapcsolót is, akár egy egész csoportról kérdezel (`omarchy capture --help`), akár egyetlen parancsról (`omarchy capture screenshot --help`).
+Minden parancs elfogadja a `--help` kapcsolót is, akár egy egész csoportot kérdezel le (`omarchy capture --help`), akár egyetlen parancsot (`omarchy capture screenshot --help`).
 
 ### A menü megnyitása a terminálból
 
-Az Omarchy menü is szkriptelhető, ami jól jön a saját billentyűparancsaidhoz. Az `omarchy menu` a gyökérnél nyitja meg, és a fa bármely pontjára közvetlenül odaugorhatsz, ha megnevezed: az `omarchy menu summon appearance.theme` egyenesen a témaválasztóhoz visz, az `omarchy menu toggle system` megnyitja a rendszermenüt, és újra bezárja, ha már nyitva van, az `omarchy menu close` pedig eltünteti.
+Az Omarchy menü szkriptelhető is, ami jól jön a saját billentyűkiosztásaidhoz. Az `omarchy menu` a gyökérnél nyitja meg, és közvetlenül a fa bármely pontjára ugorhatsz, ha megnevezed: az `omarchy menu summon appearance.theme` egyenesen a témaválasztóhoz visz, az `omarchy menu toggle system` megnyitja a rendszermenüt, és újra bezárja, ha már nyitva van, az `omarchy menu close` pedig elteszi.

@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy பொதுவாக ஹாட்கீகள் மற்றும் Omarchy மெனு (`Super + Space`) வழியாகக் கட்டுப்படுத்தப்படுகிறது. ஆனால் `omarchy` CLI வழியாகவும் அதைக் கட்டுப்படுத்தலாம். தனிப்பயனாக்கம் அல்லது உள்ளமைவில் ஒரு AI agent உங்களுடன் இணைந்து பணியாற்றும்போது இது குறிப்பாகப் பயனுள்ளதாக இருக்கும்.
+Omarchy பொதுவாக hotkeys மற்றும் Omarchy menu (`Super + Space`) வழியாகக் கட்டுப்படுத்தப்படுகிறது. ஆனால் நீங்கள் அதை `omarchy` CLI வழியாகவும் கட்டுப்படுத்தலாம். தனிப்பயனாக்கம் அல்லது உள்ளமைவில் ஒரு AI agent உங்களுடன் பணிபுரியும்போது இது குறிப்பாக உதவியாக இருக்கும்.
 
-மெனு வழியாகவும் மற்றபடியும் பயன்படுத்தப்படும் அனைத்து உள் கருவிகளுக்கும் CLI அணுகலைக் கொண்டுள்ளது. டெர்மினலில் `omarchy` என இயக்குவதன் மூலம் கிடைக்கக்கூடிய அனைத்தையும் நீங்கள் காணலாம்.
+menu வழியாகவும் மற்றபடியும் பயன்படுத்தப்படும் அனைத்து உள் கருவிகளுக்கும் CLI-க்கு அணுகல் உள்ளது. terminal-இல் `omarchy` ஐ இயக்குவதன் மூலம் கிடைக்கக்கூடிய அனைத்தையும் நீங்கள் பார்க்கலாம்.
 
-இது இப்படி ஏதோ தோற்றமளிக்கும்:
+இது ஏறக்குறைய இப்படித் தெரியும்:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,7 +38,6 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
@@ -55,8 +54,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-ஒட்டுமொத்த குழுவிடம் (`omarchy capture --help`) கேட்டாலும் சரி, ஒரே ஒரு கட்டளையிடம் (`omarchy capture screenshot --help`) கேட்டாலும் சரி, ஒவ்வொரு கட்டளையும் `--help` ஐயும் ஏற்கும்.
+நீங்கள் முழுக் குழுவைக் கேட்டாலும் (`omarchy capture --help`) அல்லது ஒரு தனி கட்டளையைக் கேட்டாலும் (`omarchy capture screenshot --help`), ஒவ்வொரு கட்டளையும் `--help` ஐயும் ஏற்கிறது.
 
-### டெர்மினலில் இருந்து மெனுவைத் திறத்தல்
+### terminal-இலிருந்து menu-வைத் திறத்தல்
 
-Omarchy மெனுவையும் ஸ்கிரிப்ட் செய்யலாம்; உங்கள் சொந்த கீபைண்டிங்குகளுக்கு இது வசதியாக இருக்கும். `omarchy menu` அதை ரூட்டில் திறக்கும், மேலும் அதைப் பெயரிடுவதன் மூலம் மரத்தின் எந்தப் புள்ளிக்கும் நேரடியாகச் செல்லலாம்: `omarchy menu summon appearance.theme` நேராக தீம் பிக்கருக்குச் செல்கிறது, `omarchy menu toggle system` சிஸ்டம் மெனுவைத் திறக்கிறது, ஏற்கனவே அது திறந்திருந்தால் அதை மீண்டும் மூடுகிறது, மேலும் `omarchy menu close` அதை மூடி வைக்கிறது.
+Omarchy menu-வையும் script செய்ய முடியும், இது உங்கள் சொந்த keybindings-க்கு வசதியாக இருக்கும். `omarchy menu` அதை root-இல் திறக்கிறது, மேலும் அதன் பெயரைக் குறிப்பிடுவதன் மூலம் tree-யில் எந்தப் புள்ளிக்கும் நேரடியாகச் செல்லலாம்: `omarchy menu summon appearance.theme` நேரடியாக theme picker-க்குச் செல்கிறது, `omarchy menu toggle system` system menu-வைத் திறக்கிறது, ஏற்கனவே அது திறந்திருந்தால் அதை மீண்டும் மூடுகிறது, மேலும் `omarchy menu close` அதை மூடி வைக்கிறது.
