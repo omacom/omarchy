@@ -25,10 +25,12 @@ PanelWindow {
   }
 
   // Wait for fullscreen geometry as well as scale so no smaller opening frame
-  // is stretched across the output. Fractional scale uses units of 1/120;
-  // compare in those units to tolerate floating point rounding.
+  // is stretched across the output. Qt and the compositor can round a
+  // fractionally positioned output's logical size one pixel apart.
+  // Fractional scale uses units of 1/120; compare in those units to tolerate
+  // floating point rounding.
   readonly property bool contentReady: shown && backingWindowVisible && !!targetScreen
-    && width === targetScreen.width && height === targetScreen.height
+    && Math.abs(width - targetScreen.width) <= 1 && Math.abs(height - targetScreen.height) <= 1
     && !!targetMonitor && Math.round(devicePixelRatio * 120) === Math.round(targetMonitor.scale * 120)
   property bool contentRevealed: false
 
