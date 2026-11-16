@@ -461,13 +461,11 @@ Panel {
           Column {
             width: (parent.width - parent.spacing) / 2
             spacing: Style.spacing.labelGap
-            // The nameplate figure when the design capacity is known, with what
-            // the pack holds today and the ratio of the two under it. Without
-            // one the size is what it holds today, as before.
+            // The nameplate figure when the design capacity is known. Without one
+            // the size is what the pack holds today, as before.
             InfoPair { label: Commons.I18n.t("power.batterySize"); value: root.reading(root.hasHealthInfo ? root.batteryInfo.design : root.batteryInfo.size) }
+            InfoPair { label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "—" }
             InfoPair { visible: root.hasHealthInfo; label: Commons.I18n.t("power.currentCapacity"); value: root.reading(root.batteryInfo.size) }
-            InfoPair { visible: root.hasHealthInfo; label: Commons.I18n.t("power.batteryHealth"); value: root.reading(root.batteryInfo.health) }
-            InfoPair { visible: !root.hasHealthInfo; label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "-" }
           }
 
           Column {
@@ -481,8 +479,7 @@ Panel {
               label: root.chargeThresholdActive ? Commons.I18n.t("power.batteryState") : (root.discharging ? Commons.I18n.t("power.discharging") : Commons.I18n.t("power.charging"))
               value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
             }
-            // Cycles move over here to keep the two columns the same height.
-            InfoPair { visible: root.hasHealthInfo; label: Commons.I18n.t("power.chargeCycles"); value: root.reading(root.batteryInfo.cycles) || "-" }
+            InfoPair { visible: root.hasHealthInfo; label: Commons.I18n.t("power.batteryHealth"); value: root.reading(root.batteryInfo.health) }
           }
         }
 
