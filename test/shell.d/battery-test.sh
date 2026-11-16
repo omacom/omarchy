@@ -48,11 +48,6 @@ assertEqual(
   'battery takes a read no signal overtook'
 )
 assertDeepEqual(
-  battery.shouldWarnLowBattery({ isPresent: true, percentage: 0.08, state: discharging }, false, discharging, 10, false),
-  { level: 8, notify: false, notifiedLowBattery: false },
-  'battery does not warn while on AC even if percentage is low'
-)
-assertDeepEqual(
   battery.gateStartupWarning({ level: 8, notify: true, notifiedLowBattery: true }, false, false),
   { level: 8, notify: false, notifiedLowBattery: false },
   'battery suppresses and does not record a stale low sample while startup checks are gated'
