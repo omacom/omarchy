@@ -239,26 +239,22 @@ PanelWindow {
   // the output origin. A hidden bar reserves nothing, so an OSK alone insets
   // only the far edge.
   readonly property bool barReserved: insetOverlay && !(bar && bar.barHidden)
-  readonly property real originX: (barPos === "left" && barReserved) ? barW : 0
-  readonly property real originY: (barPos === "top" && barReserved) ? barH : 0
-  // ExclusionMode.Auto with all four anchors sets exclusiveZone 0: the
-  // compositor insets this overlay around the bar/OSK reserved bands.
-  // Prefer the surface size once mapped so a tall panel cannot extend
-  // into those bands; fall back to screen size while fullscreen.
-  readonly property real availableCardWidth: {
-    var surface = root.insetOverlay ? width : screenW
-    if (surface <= 0) return 0
-    // An inset surface already excludes the bar band; a fullscreen window
-    // still spans it, so keep the bar out of the card budget there.
-    var barReserve = (barPos === "left" || barPos === "right") && !root.insetOverlay ? barW + gap : 0
-    return Math.max(120, surface - barReserve - margin * 2)
-  }
-  readonly property real availableCardHeight: {
-    var surface = root.insetOverlay ? height : screenH
-    if (surface <= 0) return 0
-    var barReserve = (barPos === "top" || barPos === "bottom") && !root.insetOverlay ? barH + gap : 0
-    return Math.max(120, surface - barReserve - margin * 2)
-  }
+  readonly property real originX: (barPos === "left" && barReserved) ? barThickness : 0
+  readonly property real originY: (barPos === "top" && barReserved) ? barThickness : 0
+  // The surface the card is placed in. ExclusionMode.Auto with all four
+  // anchors insets it around the bar, an OSK and any reserved area once
+  // mapped; until then it is measured as the screen.
+  readonly property real surfaceW: insetOverlay ? width : screenW
+  readonly property real surfaceH: insetOverlay ? height : screenH
+  // How far the bar strip reaches into the surface from its edge: none when
+  // the bar reserves its space, its thickness when hidden or not yet inset.
+  readonly property real barInset: barReserved ? 0 : barThickness
+  readonly property real availableCardWidth: surfaceW > 0
+    ? Math.max(120, surfaceW - ((barPos === "left" || barPos === "right") ? barInset + gap + margin : margin * 2))
+    : 0
+  readonly property real availableCardHeight: surfaceH > 0
+    ? Math.max(120, surfaceH - ((barPos === "top" || barPos === "bottom") ? barInset + gap + margin : margin * 2))
+    : 0
   readonly property real verticalContentInset: padding * 2 + Border.top(borderSpec) + Border.bottom(borderSpec)
 
   function fittedContentWidth(width, cap) {
@@ -281,7 +277,7 @@ PanelWindow {
     return Math.round(Math.min(desired, maxHeight))
   }
 
-  // Desired top-left of the card in screen coordinates. For the
+  // Desired top-left of the card. For the
   // perpendicular axis (away-from-bar) we anchor to the bar strip's edge
   // directly — not the anchor item's y/x — because mapToItem(barContent)
   // returns coordinates in the bar's content space, which can be offset
@@ -300,40 +296,33 @@ PanelWindow {
   // bar-window content coordinates in barPoint() below.
   readonly property real barW: anchorWindow ? anchorWindow.width : screenW
   readonly property real barH: anchorWindow ? anchorWindow.height : 0
+  // In surface coordinates: along the bar, its content and this surface start
+  // at the same work-area edge, so the anchor's position carries straight over.
   readonly property point cardOrigin: {
     if (!anchorItem || !bar) return Qt.point(margin, margin)
     var x = 0, y = 0
     if (centerOnBar && (barPos === "top" || barPos === "bottom")) {
-      x = screenW / 2 - contentWidth / 2
-      y = barPos === "bottom" ? screenH - barThickness - drawnHeight - gap : barThickness + gap
+      x = surfaceW / 2 - contentWidth / 2
+      y = barPos === "bottom" ? surfaceH - barInset - drawnHeight - gap : barInset + gap
     } else if (centerOnBar) {
-      x = barPos === "left" ? barThickness + gap : screenW - barThickness - contentWidth - gap
-      y = screenH / 2 - drawnHeight / 2
+      x = barPos === "left" ? barInset + gap : surfaceW - barInset - contentWidth - gap
+      y = surfaceH / 2 - drawnHeight / 2
     } else if (barPos === "bottom") {
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = screenH - barThickness - drawnHeight - gap
+      y = surfaceH - barInset - drawnHeight - gap
     } else if (barPos === "left") {
-      x = barThickness + gap
+      x = barInset + gap
       y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else if (barPos === "right") {
-      x = screenW - barThickness - contentWidth - gap
+      x = surfaceW - barInset - contentWidth - gap
       y = anchorScreenPos.y + anchorH / 2 - drawnHeight / 2
     } else { // "top" (default)
       x = anchorScreenPos.x + anchorW / 2 - contentWidth / 2
-      y = barThickness + gap
+      y = barInset + gap
     }
-    x = Math.max(margin, Math.min(x, screenW - contentWidth - margin))
-    y = Math.max(margin, Math.min(y, screenH - contentHeight - margin))
-    // Screen-space origin is relative to the output. The inset Auto surface
-    // starts past the bar edge (see originX/originY); a fullscreen window
-    // shares the output origin so the translation is a no-op there.
-    var localX = x - root.originX
-    var localY = y - root.originY
-    var surfaceW = root.insetOverlay ? width : screenW
-    var surfaceH = root.insetOverlay ? height : screenH
-    localX = Math.max(margin, Math.min(localX, surfaceW - contentWidth - margin))
-    localY = Math.max(margin, Math.min(localY, surfaceH - contentHeight - margin))
-    return Qt.point(Math.round(localX), Math.round(localY))
+    x = Math.max(margin, Math.min(x, surfaceW - contentWidth - margin))
+    y = Math.max(margin, Math.min(y, surfaceH - drawnHeight - margin))
+    return Qt.point(Math.round(x), Math.round(y))
   }
 
   // Where the card grows from, in its own coordinates: the point on its
