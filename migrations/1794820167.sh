@@ -10,3 +10,7 @@ if omarchy-cmd-present ufw; then
 fi
 
 systemctl --user enable --now reach.service
+
+# Its bar icon stays hidden until Circle is up and another of your machines is
+# close by, so it can sit in every bar.
+omarchy-plugin-enable omarchy.reach --before omarchy.network >/dev/null 2>&1 || omarchy-plugin-enable omarchy.reach >/dev/null 2>&1 || true

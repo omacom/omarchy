@@ -1,7 +1,7 @@
-// Reach: one keyboard and mouse across your machines. This turns
-// `reach status --json` and `circle status --json` into the panel's state,
-// and works out the new row when a machine is added, moved or taken out.
-// The row runs left to right and holds this machine once anything else is in it.
+// Reach: one keyboard and mouse across your machines. This turns Reach's
+// state file into the panel's state, and works out the new row when a machine
+// is added, moved or taken out. The row runs left to right and holds this
+// machine once anything else is in it.
 
 var MAX_ITEMS = 64
 var MAX_TEXT = 255
@@ -28,26 +28,36 @@ function parseJson(raw) {
   }
 }
 
-// `reach status --json`: {"me": "...", "screens": [...], ...}.
-function parseReach(raw) {
+// `$XDG_RUNTIME_DIR/reach.json`: this machine, the row, the machines Reach is
+// connected to, and what Circle says about the rest, including which are close by.
+function parseStatus(raw) {
   var data = parseJson(raw)
   var me = data ? text(data.me) : ""
-  if (me === "") return { ok: false, me: "", screens: [] }
-  var screens = (Array.isArray(data.screens) ? data.screens.slice(0, MAX_ITEMS) : [])
-    .map(text)
-    .filter(function(s) { return s !== "" })
-  return { ok: true, me: me, screens: screens }
+  var status = { ok: false, me: "", screens: [], connected: [], circleUp: false, peers: [] }
+  if (me === "") return status
+  var circle = data.circle && typeof data.circle === "object" ? data.circle : {}
+  status.ok = true
+  status.me = me
+  status.screens = names(data.screens)
+  status.connected = names(data.connected)
+  status.circleUp = circle.up === true
+  status.peers = (Array.isArray(circle.peers) ? circle.peers.slice(0, MAX_ITEMS) : [])
+    .filter(function(p) { return p && typeof p === "object" && text(p.name) !== "" })
+    .map(function(p) { return { name: text(p.name), online: p.online === true, nearby: p.nearby === true } })
+  return status
 }
 
-// `circle status --json`: the other machines on Circle, by name, and whether
-// each is online. Empty when Circle isn't there, signed in, or on.
-function parseCircle(raw) {
-  var data = parseJson(raw)
-  if (!data || data.phase !== "running") return []
-  var peers = Array.isArray(data.peers) ? data.peers.slice(0, MAX_ITEMS) : []
-  return peers
-    .filter(function(p) { return p && typeof p === "object" && text(p.name) !== "" })
-    .map(function(p) { return { name: text(p.name), online: p.online === true } })
+function names(list) {
+  return (Array.isArray(list) ? list.slice(0, MAX_ITEMS) : [])
+    .map(text)
+    .filter(function(s) { return s !== "" })
+}
+
+// How many of the Circle machines are close by.
+function nearbyCount(peers) {
+  var n = 0
+  for (var i = 0; i < peers.length; i++) if (peers[i].nearby) n++
+  return n
 }
 
 function indexOf(screens, name) {
@@ -66,21 +76,28 @@ function ownRow(screens, me) {
 }
 
 // One tile per machine in the row, left to right. `online` is unknown (null)
-// for a machine Circle doesn't list.
-function tiles(screens, me, peers) {
+// for a machine Circle doesn't list; `connected` is whether Reach has it.
+function tiles(screens, me, peers, connected) {
+  var live = connected || []
   return ownRow(screens, me).map(function(name) {
     var self = sameHost(name, me)
     var peer = self ? null : findPeer(peers, name)
-    return { name: name, self: self, online: self ? true : (peer ? peer.online : null) }
+    return {
+      name: name,
+      self: self,
+      online: self ? true : (peer ? peer.online : null),
+      connected: self || indexOf(live, name) !== -1
+    }
   })
 }
 
-// The Circle machines not in the row yet: online ones first, then by name.
+// The Circle machines not in the row yet: close by first, then online, then by name.
 function addable(screens, me, peers) {
   var row = ownRow(screens, me)
   return peers
     .filter(function(p) { return indexOf(row, p.name) === -1 && !sameHost(p.name, me) })
     .sort(function(a, b) {
+      if (!!a.nearby !== !!b.nearby) return a.nearby ? -1 : 1
       if (a.online !== b.online) return a.online ? -1 : 1
       return a.name.localeCompare(b.name)
     })
@@ -132,8 +149,8 @@ function dropIndex(centers, from, centerX) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    parseReach: parseReach,
-    parseCircle: parseCircle,
+    parseStatus: parseStatus,
+    nearbyCount: nearbyCount,
     tiles: tiles,
     addable: addable,
     moveTo: moveTo,

@@ -23,6 +23,8 @@ Panel {
   property string me: ""
   property var screens: []
   property var peers: []
+  property var connected: []
+  property bool circleUp: false
   property string actionStatus: ""
   property int _desired: -1
 
@@ -37,7 +39,8 @@ Panel {
 
   readonly property bool active: _desired === -1 ? running : _desired === 1
   readonly property bool busy: controlProc.running
-  readonly property var tiles: Model.tiles(screens, me, peers)
+  readonly property var tiles: Model.tiles(screens, me, peers, connected)
+  readonly property int nearby: Model.nearbyCount(peers)
   readonly property var addList: Model.addable(screens, me, peers)
   readonly property bool arranged: tiles.length > 1
   readonly property bool arranging: available && active
@@ -46,9 +49,15 @@ Panel {
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property string glyph: String.fromCodePoint(0xF037D)
 
+  // Like Continuity: the icon only shows once Circle is up and one of your
+  // machines is close by, or a row is already set. Until then it's hidden, and
+  // nothing runs: Reach writes its state to a file this panel watches.
+  visible: opened || (available && circleUp && (nearby > 0 || arranged))
+
   readonly property string heroMeta: {
     if (!available) return Commons.I18n.t("reach.notInstalled")
     if (!active) return Commons.I18n.t("reach.offMeta")
+    if (!arranged && nearby > 0) return Commons.I18n.tn("reach.nearbyMeta", nearby).arg(Commons.I18n.formatNumber(nearby))
     if (!arranged) return Commons.I18n.t("reach.notArrangedMeta")
     return Commons.I18n.tn("reach.inRow", tiles.length).arg(Commons.I18n.formatNumber(tiles.length))
   }
@@ -114,22 +123,24 @@ Panel {
 
   // ---- state ----
 
+  // Re-read Reach's state file, and ask systemd whether Reach is running:
+  // the file stays behind when it's turned off.
   function refresh() {
-    if (!statusProc.running) statusProc.running = true
+    statusFile.reload()
+    if (!activeProc.running) activeProc.running = true
   }
 
   function applyStatus(raw) {
-    var parts = String(raw || "").split("\n---\n")
-    var head = parts[0].split("\n")
-    var s = Model.parseReach(head[0])
+    var s = Model.parseStatus(raw)
     available = s.ok
     if (!s.ok) return
+    // Reach wrote it, so it's running unless systemd says otherwise on open.
+    if (!opened) running = true
     me = s.me
-    running = (head[1] || "").trim() === "active"
+    circleUp = s.circleUp
     if (JSON.stringify(s.screens) !== JSON.stringify(screens)) screens = s.screens
-    var circlePeers = Model.parseCircle(parts[1] || "")
-    if (JSON.stringify(circlePeers) !== JSON.stringify(peers)) peers = circlePeers
-    if (_desired !== -1 && running === (_desired === 1)) _desired = -1
+    if (JSON.stringify(s.connected) !== JSON.stringify(connected)) connected = s.connected
+    if (JSON.stringify(s.peers) !== JSON.stringify(peers)) peers = s.peers
     clampCursor()
   }
 
@@ -208,30 +219,32 @@ Panel {
     }
   }
 
-  // Nothing here changes in a way the closed panel shows, so state is only
-  // read while it's open.
-  Timer {
-    interval: 3000
-    repeat: true
-    running: root.opened
-    onTriggered: root.refresh()
-  }
-
   Timer {
     id: actionStatusTimer
     interval: 2600
     onTriggered: root.actionStatus = ""
   }
 
+  // Reach keeps this current (the row, who's connected, which Circle machines
+  // are close by), and a FileView fires for any change in its directory too,
+  // so it sees the file appear whenever Reach starts.
+  FileView {
+    id: statusFile
+    path: Quickshell.env("XDG_RUNTIME_DIR") + "/reach.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.applyStatus(text())
+    onLoadFailed: root.available = false
+  }
+
   Process {
-    id: statusProc
-    // A missing `reach` fails the whole line; a missing or signed-out Circle
-    // just leaves nothing to add.
-    command: ["sh", "-c", "reach status --json && { systemctl --user is-active reach.service || true; } && echo --- && { circle status --json 2>/dev/null || true; }"]
-    stdout: StdioCollector { id: statusOut; waitForEnd: true }
-    onExited: function(exitCode) {
-      if (exitCode === 0) root.applyStatus(statusOut.text)
-      else root.available = false
+    id: activeProc
+    command: ["systemctl", "--user", "is-active", "reach.service"]
+    stdout: StdioCollector { id: activeOut; waitForEnd: true }
+    onExited: {
+      root.running = activeOut.text.trim() === "active"
+      if (root._desired !== -1 && root.running === (root._desired === 1)) root._desired = -1
     }
   }
 
@@ -505,7 +518,8 @@ Panel {
             horizontalAlignment: Text.AlignHCenter
             textFormat: Text.PlainText
             text: tile.modelData.self ? Commons.I18n.t("reach.thisMachine")
-              : tile.modelData.online === false ? Commons.I18n.t("reach.offline") : ""
+              : tile.modelData.online === false ? Commons.I18n.t("reach.offline")
+              : !tile.modelData.connected ? Commons.I18n.t("reach.notConnected") : ""
             visible: text !== ""
             color: root.dim
             font.family: root.fontFamily
@@ -618,7 +632,9 @@ Panel {
         Text {
           textFormat: Text.PlainText
           Layout.fillWidth: true
-          text: addRow.peer && addRow.peer.online ? Commons.I18n.t("reach.online") : Commons.I18n.t("reach.offline")
+          text: !addRow.peer ? ""
+            : addRow.peer.nearby ? Commons.I18n.t("reach.closeBy")
+            : addRow.peer.online ? Commons.I18n.t("reach.online") : Commons.I18n.t("reach.offline")
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

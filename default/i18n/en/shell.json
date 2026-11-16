@@ -527,14 +527,20 @@
   "reach.allPlaced": "All your Circle machines are in the row.",
   "reach.arrangeHint": "drag or ctrl+h/l to move · x to take out",
   "reach.arrangement": "ARRANGEMENT",
+  "reach.closeBy": "close by",
   "reach.commandFailed": "Reach could not do that.",
   "reach.inRow": {
     "one": "%1 machine in the row",
     "other": "%1 machines in the row"
   },
   "reach.installMessage": "Reach is not installed. Install it to use one keyboard and mouse across your Circle machines.",
+  "reach.nearbyMeta": {
+    "one": "%1 machine close by",
+    "other": "%1 machines close by"
+  },
   "reach.noCircle": "Sign in to Circle on your machines to add them here.",
   "reach.notArrangedMeta": "Not arranged yet",
+  "reach.notConnected": "Reach not running there",
   "reach.notInstalled": "Not installed",
   "reach.offMessage": "Turn on Reach to use one keyboard and mouse across your machines.",
   "reach.offMeta": "Reach is off",

@@ -7,45 +7,52 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const reach = requireFromRoot('shell/plugins/panels/reach/Model.js')
 
-assertDeepEqual(
-  reach.parseReach(JSON.stringify({ me: 'desk', screens: ['laptop', 'desk'], arranged: 5, port: 24850 })),
-  { ok: true, me: 'desk', screens: ['laptop', 'desk'] },
-  'reach parses its status'
-)
-for (const raw of ['', 'nope', 'null', '[]', JSON.stringify({ screens: ['a'] })]) {
-  assertEqual(reach.parseReach(raw).ok, false, `reach rejects status ${JSON.stringify(raw)}`)
-}
-
-const circle = JSON.stringify({
-  phase: 'running',
-  peers: [
-    { name: 'mini', online: false },
-    { name: 'laptop', online: true },
-    { name: 'spark', online: true },
-    { name: '' },
-  ],
+const status = JSON.stringify({
+  running: true,
+  me: 'desk',
+  screens: ['laptop', 'desk'],
+  connected: ['laptop'],
+  circle: {
+    up: true,
+    peers: [
+      { name: 'mini', online: false, nearby: false },
+      { name: 'laptop', online: true, nearby: true },
+      { name: 'spark', online: true, nearby: true },
+      { name: 'far', online: true, nearby: false },
+      { name: '' },
+    ],
+  },
 })
-const peers = reach.parseCircle(circle)
-assertDeepEqual(peers.map((p) => p.name), ['mini', 'laptop', 'spark'], 'reach reads Circle peers')
-assertDeepEqual(reach.parseCircle(JSON.stringify({ phase: 'stopped', peers: [{ name: 'a' }] })), [], 'reach ignores Circle when it is off')
-assertDeepEqual(reach.parseCircle('garbage'), [], 'reach ignores a missing Circle')
+const s = reach.parseStatus(status)
+assertEqual(s.ok, true, 'reach parses its status file')
+assertEqual(s.me, 'desk', 'reach reads this machine')
+assertDeepEqual(s.screens, ['laptop', 'desk'], 'reach reads the row')
+assertDeepEqual(s.connected, ['laptop'], 'reach reads who is connected')
+assertEqual(s.circleUp, true, 'reach reads whether Circle is up')
+const peers = s.peers
+assertDeepEqual(peers.map((p) => p.name), ['mini', 'laptop', 'spark', 'far'], 'reach reads the Circle machines')
+assertEqual(reach.nearbyCount(peers), 2, 'reach counts the machines close by')
+for (const raw of ['', 'nope', 'null', '[]', JSON.stringify({ screens: ['a'] })]) {
+  assertEqual(reach.parseStatus(raw).ok, false, `reach rejects status ${JSON.stringify(raw)}`)
+}
+assertEqual(reach.parseStatus(JSON.stringify({ me: 'desk' })).circleUp, false, 'reach treats a missing Circle as down')
 
 assertDeepEqual(
-  reach.tiles(['laptop', 'desk', 'gone'], 'desk', peers),
+  reach.tiles(['laptop', 'desk', 'gone'], 'desk', peers, ['laptop']),
   [
-    { name: 'laptop', self: false, online: true },
-    { name: 'desk', self: true, online: true },
-    { name: 'gone', self: false, online: null },
+    { name: 'laptop', self: false, online: true, connected: true },
+    { name: 'desk', self: true, online: true, connected: true },
+    { name: 'gone', self: false, online: null, connected: false },
   ],
   'reach builds one tile per machine in the row'
 )
-assertDeepEqual(reach.tiles([], 'desk', peers), [{ name: 'desk', self: true, online: true }], 'reach shows this machine alone without a row')
+assertDeepEqual(reach.tiles([], 'desk', peers), [{ name: 'desk', self: true, online: true, connected: true }], 'reach shows this machine alone without a row')
 assertDeepEqual(reach.tiles(['a', 'b'], 'desk', peers).map((t) => t.name), ['desk'], 'reach ignores a row without this machine')
 
 assertDeepEqual(
   reach.addable(['laptop', 'desk'], 'desk', peers).map((p) => p.name),
-  ['spark', 'mini'],
-  'reach offers the Circle machines not in the row, online first'
+  ['spark', 'far', 'mini'],
+  'reach offers the Circle machines not in the row, close by first, then online'
 )
 
 assertDeepEqual(reach.place([], 'desk', 'laptop', 'left'), ['laptop', 'desk'], 'reach starts a row')
