@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy se običajno upravlja z bližnjičnimi tipkami in menijem Omarchy (`Super + Space`). Lahko pa ga upravljate tudi prek CLI-ja `omarchy`. To je še posebej koristno, ko z vami pri prilagajanju ali konfiguraciji sodeluje agent umetne inteligence.
+Omarchy se običajno upravlja z bližnjicami na tipkovnici in menijem Omarchy (`Super + Space`). Lahko pa ga upravljate tudi prek CLI `omarchy`. To je še posebej priročno, ko vam agent z umetno inteligenco pomaga pri prilagajanju ali konfiguraciji.
 
-CLI ima dostop do vseh notranjih orodij, ki se uporabljajo tako prek menija kot sicer. Vse, kar je na voljo, si lahko ogledate tako, da v terminalu zaženete `omarchy`.
+CLI ima dostop do vseh notranjih orodij, ki se uporabljajo prek menija in drugje. Vse, kar je na voljo, si lahko ogledate tako, da v terminalu zaženete `omarchy`.
 
 Videti je nekako takole:
 
@@ -41,7 +41,9 @@ Groups:
   ...
 ```
 
-Poglobite pa se lahko v vsako skupino:
+Za diagnostiko neposredno zaženite `omarchy-debug --no-sudo --print`. Izpiše diagnostiko in zapiše `/tmp/omarchy-debug.log`, ne da bi zahteval sudo, tudi pri namestitvah paketov, kjer lahko `omarchy debug` odpove z napako "Unknown Omarchy command".
+
+V vsako skupino pa se lahko poglobite še bolj:
 
 ```
 ~ ❯ omarchy capture
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Vsak ukaz sprejme tudi `--help`, ne glede na to, ali vprašate celotno skupino (`omarchy capture --help`) ali posamezen ukaz (`omarchy capture screenshot --help`).
+Vsak ukaz sprejme tudi `--help`, ne glede na to, ali vprašate celo skupino (`omarchy capture --help`) ali en sam ukaz (`omarchy capture screenshot --help`).
 
 ### Odpiranje menija iz terminala
 
-Meni Omarchy je mogoče upravljati tudi skriptno, kar pride prav za vaše lastne vezave tipk. `omarchy menu` ga odpre v korenu, na katero koli točko v drevesu pa lahko skočite neposredno tako, da jo poimenujete: `omarchy menu summon appearance.theme` gre naravnost v izbirnik tem, `omarchy menu toggle system` odpre sistemski meni in ga znova zapre, če je že odprt, `omarchy menu close` pa ga pospravi.
+Tudi meni Omarchy je mogoče upravljati s skripti, kar je priročno za vaše lastne bližnjice na tipkovnici. `omarchy menu` ga odpre v korenu, z imenovanjem pa lahko skočite naravnost na katero koli točko v drevesu: `omarchy menu summon appearance.theme` gre naravnost v izbirnik tem, `omarchy menu toggle system` odpre sistemski meni in ga znova zapre, če je že odprt, `omarchy menu close` pa ga pospravi.

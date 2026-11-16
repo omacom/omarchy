@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy সাধারণত হটকি এবং Omarchy মেনুর মাধ্যমে নিয়ন্ত্রণ করা হয় (`Super + Space`)। কিন্তু আপনি এটি `omarchy` CLI-এর মাধ্যমেও নিয়ন্ত্রণ করতে পারেন। এটি বিশেষভাবে সহায়ক যখন আপনি কাস্টমাইজেশন বা কনফিগারেশনের কাজে কোনো AI agent-কে আপনার সাথে কাজ করাচ্ছেন।
+Omarchy সাধারণত hotkey এবং Omarchy মেনু (`Super + Space`) দিয়ে নিয়ন্ত্রণ করা হয়। তবে তুমি এটাকে `omarchy` CLI দিয়েও নিয়ন্ত্রণ করতে পারো। এটা বিশেষভাবে কাজে লাগে যখন তুমি কোনো AI agent-কে দিয়ে নিজের পছন্দমতো সাজানো বা configuration-এর কাজ করাচ্ছ।
 
-CLI-এর কাছে সমস্ত অভ্যন্তরীণ টুলিংয়ের অ্যাক্সেস আছে যা মেনুর মাধ্যমে এবং অন্যভাবেও ব্যবহৃত হয়। টার্মিনালে `omarchy` চালিয়ে আপনি উপলব্ধ সবকিছু দেখতে পাবেন।
+এই CLI-তে সেই সব internal tooling-এর access আছে, যেগুলো মেনু এবং অন্য সব জায়গায় ব্যবহার করা হয়। টার্মিনালে `omarchy` চালালেই তুমি দেখতে পাবে কী কী পাওয়া যায়।
 
-এটি দেখতে অনেকটা এরকম:
+এটা দেখতে অনেকটা এরকম:
 
 ```
 ~ ❯ omarchy
@@ -41,7 +41,9 @@ Groups:
   ...
 ```
 
-এবং আপনি প্রতিটি গ্রুপের আরও গভীরে ঢুকতে পারেন:
+Diagnostics-এর জন্য, সরাসরি `omarchy-debug --no-sudo --print` চালাও। এটা diagnostics print করে এবং sudo-র জন্য prompt না করেই `/tmp/omarchy-debug.log`-এ লিখে রাখে, এমনকি package install-এর ক্ষেত্রেও, যেখানে `omarchy debug` "Unknown Omarchy command" দিয়ে ব্যর্থ হতে পারে।
+
+আর তুমি প্রতিটা group-এর ভেতরে আরও গভীরে যেতে পারো:
 
 ```
 ~ ❯ omarchy capture
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-প্রতিটি কমান্ড `--help`-ও নেয়, আপনি পুরো একটি গ্রুপকে জিজ্ঞেস করুন (`omarchy capture --help`) বা একক কোনো কমান্ডকে (`omarchy capture screenshot --help`)।
+প্রতিটা command-ই `--help` নেয়, তুমি পুরো group (`omarchy capture --help`) জানতে চাও বা একটা নির্দিষ্ট command (`omarchy capture screenshot --help`) জানতে চাও।
 
 ### টার্মিনাল থেকে মেনু খোলা
 
-Omarchy মেনুটিও স্ক্রিপ্টযোগ্য, যা আপনার নিজের কীবাইন্ডিংয়ের জন্য সুবিধাজনক। `omarchy menu` এটিকে রুটে খোলে, এবং আপনি নাম ধরে সরাসরি ট্রির যেকোনো বিন্দুতে চলে যেতে পারেন: `omarchy menu summon appearance.theme` সরাসরি থিম পিকারে যায়, `omarchy menu toggle system` সিস্টেম মেনু খোলে এবং এটি ইতিমধ্যে খোলা থাকলে আবার বন্ধ করে দেয়, আর `omarchy menu close` এটিকে সরিয়ে দেয়।
+Omarchy মেনুটাও scriptable, যা তোমার নিজস্ব keybinding-এর জন্য বেশ কাজের। `omarchy menu` এটাকে root-এ খোলে, আর তুমি নাম ধরে tree-র যেকোনো জায়গায় সরাসরি চলে যেতে পারো: `omarchy menu summon appearance.theme` সোজা theme picker-এ নিয়ে যায়, `omarchy menu toggle system` system মেনু খোলে এবং ইতিমধ্যে খোলা থাকলে আবার বন্ধ করে দেয়, আর `omarchy menu close` এটাকে সরিয়ে ফেলে।

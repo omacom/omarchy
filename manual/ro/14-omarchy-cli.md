@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy este controlat de obicei prin tastele rapide și meniul Omarchy (`Super + Space`). Dar îl poți controla și prin CLI-ul `omarchy`. Acest lucru este deosebit de util atunci când ai un agent AI care lucrează cu tine la personalizare sau configurare.
+Omarchy este controlat de obicei prin tastele rapide și prin meniul Omarchy (`Super + Space`). Dar îl poți controla și prin CLI-ul `omarchy`. Acest lucru este deosebit de util atunci când ai un agent AI care lucrează cu tine la personalizare sau configurare.
 
-CLI-ul are acces la toate instrumentele interne care sunt folosite atât prin meniu, cât și în alte moduri. Poți vedea tot ce este disponibil rulând `omarchy` în terminal.
+CLI-ul are acces la toate instrumentele interne folosite atât prin meniu, cât și în alte moduri. Poți vedea tot ce este disponibil rulând `omarchy` în terminal.
 
 Arată cam așa:
 
@@ -41,6 +41,8 @@ Groups:
   ...
 ```
 
+Pentru diagnosticare, rulează direct `omarchy-debug --no-sudo --print`. Afișează diagnosticarea și scrie în `/tmp/omarchy-debug.log` fără să ceară sudo, inclusiv la instalările de pachete unde `omarchy debug` poate eșua cu "Unknown Omarchy command".
+
 Și poți aprofunda fiecare grup:
 
 ```
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Fiecare comandă acceptă și `--help`, indiferent dacă întrebi un întreg grup (`omarchy capture --help`) sau o singură comandă (`omarchy capture screenshot --help`).
+Fiecare comandă acceptă și `--help`, fie că întrebi un grup întreg (`omarchy capture --help`), fie o singură comandă (`omarchy capture screenshot --help`).
 
 ### Deschiderea meniului din terminal
 
-Meniul Omarchy poate fi controlat și prin scripturi, ceea ce este util pentru propriile tale combinații de taste. `omarchy menu` îl deschide la rădăcină și poți sări direct la orice punct din arbore numindu-l: `omarchy menu summon appearance.theme` merge direct la selectorul de teme, `omarchy menu toggle system` deschide meniul de sistem și îl închide din nou dacă este deja deschis, iar `omarchy menu close` îl ascunde.
+Meniul Omarchy poate fi folosit și în scripturi, ceea ce este util pentru propriile tale combinații de taste. `omarchy menu` îl deschide la rădăcină și poți sări direct la orice punct din arbore numindu-l: `omarchy menu summon appearance.theme` merge direct la selectorul de teme, `omarchy menu toggle system` deschide meniul de sistem și îl închide din nou dacă este deja deschis, iar `omarchy menu close` îl ascunde.

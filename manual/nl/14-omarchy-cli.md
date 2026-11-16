@@ -41,7 +41,9 @@ Groups:
   ...
 ```
 
-En je kunt dieper in elke groep duiken:
+Voer voor diagnostiek `omarchy-debug --no-sudo --print` rechtstreeks uit. Het print diagnostische gegevens en schrijft `/tmp/omarchy-debug.log` zonder om sudo te vragen, ook bij pakketinstallaties waarbij `omarchy debug` kan falen met "Unknown Omarchy command".
+
+En je kunt ook dieper in elke groep duiken:
 
 ```
 ~ ❯ omarchy capture
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Elke opdracht accepteert ook `--help`, of je nu een hele groep bevraagt (`omarchy capture --help`) of één enkele opdracht (`omarchy capture screenshot --help`).
+Elke opdracht accepteert ook `--help`, of je nu een hele groep vraagt (`omarchy capture --help`) of een enkele opdracht (`omarchy capture screenshot --help`).
 
 ### Het menu openen vanuit de terminal
 
-Het Omarchy-menu is ook scriptbaar, wat handig is voor je eigen toetsbindingen. `omarchy menu` opent het bij de root, en je kunt rechtstreeks naar elk punt in de boom springen door het te benoemen: `omarchy menu summon appearance.theme` gaat direct naar de themakiezer, `omarchy menu toggle system` opent het systeemmenu en sluit het weer als het al open staat, en `omarchy menu close` ruimt het op.
+Het Omarchy-menu is ook scriptbaar, wat handig is voor je eigen toetscombinaties. `omarchy menu` opent het bij de root, en je kunt rechtstreeks naar elk punt in de boom springen door het te benoemen: `omarchy menu summon appearance.theme` gaat direct naar de themakiezer, `omarchy menu toggle system` opent het systeemmenu en sluit het weer als het al openstaat, en `omarchy menu close` bergt het op.

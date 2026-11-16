@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy thường được điều khiển qua các phím tắt và menu Omarchy (`Super + Space`). Nhưng bạn cũng có thể điều khiển nó qua CLI `omarchy`. Điều này đặc biệt hữu ích khi bạn để một AI agent làm việc cùng bạn về tùy biến hoặc cấu hình.
+Omarchy thường được điều khiển qua các phím tắt và menu Omarchy (`Super + Space`). Nhưng bạn cũng có thể điều khiển nó qua CLI `omarchy`. Điều này đặc biệt hữu ích khi bạn để một AI agent làm việc cùng bạn về tùy chỉnh hoặc cấu hình.
 
-CLI có quyền truy cập vào toàn bộ công cụ nội bộ được dùng cả qua menu lẫn theo các cách khác. Bạn có thể xem mọi thứ có sẵn bằng cách chạy `omarchy` trong terminal.
+CLI có quyền truy cập vào toàn bộ công cụ nội bộ được dùng cả qua menu và theo những cách khác. Bạn có thể xem mọi thứ có sẵn bằng cách chạy `omarchy` trong terminal.
 
-Nó trông như thế này:
+Nó trông đại khái như thế này:
 
 ```
 ~ ❯ omarchy
@@ -41,7 +41,9 @@ Groups:
   ...
 ```
 
-Và bạn có thể đi sâu hơn vào từng nhóm:
+Để chẩn đoán, hãy chạy trực tiếp `omarchy-debug --no-sudo --print`. Nó in ra thông tin chẩn đoán và ghi vào `/tmp/omarchy-debug.log` mà không nhắc sudo, kể cả trên những bản cài đặt gói nơi `omarchy debug` có thể thất bại với "Unknown Omarchy command".
+
+Và bạn có thể đào sâu hơn vào từng nhóm:
 
 ```
 ~ ❯ omarchy capture
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Mọi lệnh cũng đều nhận `--help`, dù bạn hỏi cả một nhóm (`omarchy capture --help`) hay một lệnh đơn lẻ (`omarchy capture screenshot --help`).
+Mọi lệnh cũng đều nhận `--help`, dù bạn hỏi cả một nhóm (`omarchy capture --help`) hay một lệnh đơn (`omarchy capture screenshot --help`).
 
 ### Mở menu từ terminal
 
-Menu Omarchy cũng có thể được điều khiển bằng script, điều này rất tiện cho các keybinding của riêng bạn. `omarchy menu` mở nó ở gốc, và bạn có thể nhảy thẳng tới bất kỳ điểm nào trong cây bằng cách gọi tên nó: `omarchy menu summon appearance.theme` đi thẳng tới trình chọn theme, `omarchy menu toggle system` mở menu hệ thống và đóng lại nếu nó đã đang mở, và `omarchy menu close` đóng nó đi.
+Menu Omarchy cũng có thể điều khiển bằng script, rất tiện cho các keybinding của riêng bạn. `omarchy menu` mở nó ở gốc, và bạn có thể nhảy thẳng tới bất kỳ điểm nào trong cây bằng cách gọi tên nó: `omarchy menu summon appearance.theme` đi thẳng tới trình chọn theme, `omarchy menu toggle system` mở menu hệ thống và đóng lại nếu nó đã đang mở, và `omarchy menu close` đóng nó đi.

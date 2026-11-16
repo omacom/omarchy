@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy සාමාන්‍යයෙන් පාලනය කරන්නේ hotkeys සහ Omarchy menu (`Super + Space`) එක හරහාය. නමුත් ඔබට එය `omarchy` CLI එක හරහා ද පාලනය කළ හැකිය. ඔබ අභිරුචිකරණය හෝ වින්‍යාසය සම්බන්ධයෙන් AI agent කෙනෙකු ඔබ සමඟ වැඩ කරවන විට මෙය විශේෂයෙන්ම ප්‍රයෝජනවත් වේ.
+Omarchy සාමාන්‍යයෙන් පාලනය කරනු ලබන්නේ hotkeys සහ Omarchy මෙනුව (`Super + Space`) හරහාය. නමුත් ඔබට එය `omarchy` CLI එක හරහාද පාලනය කළ හැකිය. ඔබ අභිරුචිකරණය හෝ වින්‍යාසය සම්බන්ධයෙන් AI නියෝජිතයෙකු ඔබ සමඟ වැඩ කරවන විට මෙය විශේෂයෙන් ප්‍රයෝජනවත් වේ.
 
-CLI එකට menu එක හරහා සහ වෙනත් ආකාරවලින් භාවිතා වන සියලුම අභ්‍යන්තර මෙවලම් වෙත ප්‍රවේශය ඇත. terminal එකේ `omarchy` ධාවනය කිරීමෙන් ලබා ගත හැකි සියල්ල ඔබට දැක ගත හැකිය.
+මෙනුව හරහා සහ වෙනත් ආකාරවලින් භාවිතා කරන සියලුම අභ්‍යන්තර මෙවලම් වෙත CLI එකට ප්‍රවේශය ඇත. terminal එකේ `omarchy` ධාවනය කිරීමෙන් ලබා ගත හැකි සියල්ල ඔබට දැක ගත හැකිය.
 
 එය මේ වගේ දෙයක් ලෙස පෙනේ:
 
@@ -41,7 +41,9 @@ Groups:
   ...
 ```
 
-ඔබට සෑම group එකක් ගැනම තවදුරටත් ගැඹුරින් බැලිය හැකිය:
+රෝග විනිශ්චය සඳහා, `omarchy-debug --no-sudo --print` කෙලින්ම ධාවනය කරන්න. එය රෝග විනිශ්චය තොරතුරු මුද්‍රණය කරන අතර sudo සඳහා විමසීමකින් තොරව `/tmp/omarchy-debug.log` වෙත ලියයි, `omarchy debug` එක "Unknown Omarchy command" සමඟ අසාර්ථක විය හැකි package ස්ථාපනයන්හිදීද ඇතුළුව.
+
+ඔබට සෑම කණ්ඩායමක් ගැනම තවදුරටත් ගැඹුරින් සොයා බැලිය හැකිය:
 
 ```
 ~ ❯ omarchy capture
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-සෑම command එකක්ම `--help` ද ලබා ගනී, ඔබ සම්පූර්ණ group එකක් (`omarchy capture --help`) හෝ තනි command එකක් (`omarchy capture screenshot --help`) ඇසුවත්.
+සෑම විධානයක්ම `--help` ද ලබා ගනී, ඔබ සම්පූර්ණ කණ්ඩායමක් (`omarchy capture --help`) හෝ තනි විධානයක් (`omarchy capture screenshot --help`) ඇසුවත්.
 
-### terminal එකෙන් menu එක විවෘත කිරීම
+### terminal එකෙන් මෙනුව විවෘත කිරීම
 
-Omarchy menu එක script කළ හැකි ද වේ, එය ඔබේම keybindings සඳහා පහසු වේ. `omarchy menu` එය root එකේ විවෘත කරයි, ඔබට එය නම් කිරීමෙන් tree එකේ ඕනෑම ස්ථානයකට කෙලින්ම යා හැකිය: `omarchy menu summon appearance.theme` theme picker එකට කෙලින්ම යයි, `omarchy menu toggle system` system menu එක විවෘත කරන අතර එය දැනටමත් විවෘත නම් නැවත එය වසා දමයි, සහ `omarchy menu close` එය ඉවත් කරයි.
+Omarchy මෙනුව script කළ හැකි අතර, එය ඔබේම keybindings සඳහා පහසු වේ. `omarchy menu` එය මූලයේදී විවෘත කරයි, ඔබට එය නම් කිරීමෙන් ගසේ ඕනෑම ස්ථානයකට කෙලින්ම යා හැකිය: `omarchy menu summon appearance.theme` තේමා තෝරනය වෙත කෙලින්ම යයි, `omarchy menu toggle system` පද්ධති මෙනුව විවෘත කරන අතර එය දැනටමත් විවෘතව තිබේ නම් එය නැවත වසා දමයි, සහ `omarchy menu close` එය ඉවත් කරයි.
