@@ -22,18 +22,18 @@ Omarchy поставляется с эргономично оптимизиро�
 
 Так что `tdl c` запустит это (или просто `ic`):
 
- ![tmux-tdl](images/tmux-tdl.webp)
+ ![tmux-tdl](../images/tmux-tdl.webp)
 
 Также можно запустить второго агента через `tdl c cx` (opencode + claude) (или просто `icx`):
 
- ![tmux-tdl2](images/tmux-tdl2.webp)
+ ![tmux-tdl2](../images/tmux-tdl2.webp)
 
 Есть также `tds`, которая запускает четырёхсторонний квадрат с редактором вверху слева, живым наблюдателем diff вверху справа, терминалом внизу слева и opencode внизу справа.
 
 Эту конфигурацию раскладки также можно запустить для каждого подкаталога текущего каталога с помощью `tdlm [agent]`, затем перемещаться с помощью `alt + 1/2/3/4/5/...`:
 
- ![tmux-tdlm](images/tmux-tdlm.webp)
+ ![tmux-tdlm](../images/tmux-tdlm.webp)
 
 Наконец, можно запустить рой агентов с помощью `tsl [panes] [command]`. Так что `tsl 4 c` даст четырёхстороннюю сетку агентов opencode:
 
- ![tmux-tsl](images/tmux-tsl.webp)
+ ![tmux-tsl](../images/tmux-tsl.webp)

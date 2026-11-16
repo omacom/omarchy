@@ -14,7 +14,7 @@ Omarchy создан не только для _пРоИЗВоДИТеЛЬНоС�
 
 Учтите, что Steam может запускаться 10-20 секунд и при этом никак визуально не показывать, что загружается.
 
- ![gaming-steam](images/gaming-steam.webp)
+ ![gaming-steam](../images/gaming-steam.webp)
 
 ## RetroArch
 
@@ -30,7 +30,7 @@ RetroArch полностью преднастроен с красивым шей
 
 Вы также можете дать любимой игре отдельную запись в лаунчере приложений с помощью _Install > Gaming > RetroArch Game Launcher_: так можно выбрать ядро и ROM и запускать игру напрямую через `Super + Space`.
 
- ![gaming-retroarch](images/gaming-retroarch.webp)
+ ![gaming-retroarch](../images/gaming-retroarch.webp)
 
 ## Xbox Cloud Gaming
 
@@ -38,13 +38,13 @@ RetroArch полностью преднастроен с красивым шей
 
 Если у вас уже есть Xbox Game Pass, это надёжный способ играть в Fortnite и другие игры, которые нельзя запустить нативно на Linux.
 
- ![gaming-xbox-cloud](images/gaming-xbox-cloud.webp)
+ ![gaming-xbox-cloud](../images/gaming-xbox-cloud.webp)
 
 ## NVIDIA GeForce Now
 
 Установите облачный игровой сервис [NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/), выбрав _Install > Gaming > NVIDIA GeForce NOW_ в меню Omarchy (`Super + Space`). Ещё один отличный способ играть в игры, недоступные нативно на Linux.
 
- ![gaming-geforce-now](images/gaming-geforce-now.webp)
+ ![gaming-geforce-now](../images/gaming-geforce-now.webp)
 
 ## Minecraft
 
@@ -52,7 +52,7 @@ RetroArch полностью преднастроен с красивым шей
 
 Как и со Steam, учтите, что после входа или запуска следующий экран может появиться не сразу, и во время ожидания вы не получите никакой обратной связи.
 
- ![gaming-minecraft](images/gaming-minecraft.webp)
+ ![gaming-minecraft](../images/gaming-minecraft.webp)
 
 ## Контроллеры Xbox
 
@@ -70,7 +70,7 @@ RetroArch полностью преднастроен с красивым шей
 
 Установите [Battle.net](https://eu.shop.battle.net/en-us), выбрав _Install > Gaming > Battle.net_ в меню Omarchy (`Super + Space`). Это даст вам такие игры, как Diablo, Starcraft и World of Warcraft, в виде отдельной установки, работающей под GE-Proton, — без необходимости в Steam, Lutris или Heroic.
 
- ![gaming-starcraft](images/gaming-starcraft.webp)
+ ![gaming-starcraft](../images/gaming-starcraft.webp)
 
 ## Lutris (игры для Windows)
 
