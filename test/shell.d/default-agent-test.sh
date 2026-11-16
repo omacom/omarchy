@@ -168,6 +168,8 @@ amp_package="amp"
 commandcode_package="npm:command-code"
 cursor_agent_package="cursor-agent"
 muse_package="muse"
+zycode_tool="http:zycode"
+zycode_package="$zycode_tool[platforms_linux_x64_url=https://github.com/zy1233/pi-python/releases/download/v{{version}}/zycode-linux-x86_64-{{version}}.tar.gz,platforms_linux_arm64_url=https://github.com/zy1233/pi-python/releases/download/v{{version}}/zycode-linux-aarch64-{{version}}.tar.gz,version_list_url=https://api.github.com/repos/zy1233/pi-python/releases,version_json_path=.[].tag_name]"
 
 assert_lazy_stub() {
   local package=$1
@@ -229,6 +231,7 @@ declare -A declared_option_bins=(
   [mcode]='"mcode"'
   [kiro_cli]='"kiro-cli"'
   [devin]='"devin"'
+  [zycode]='"zypi"'
 )
 for agent in "${!declared_option_bins[@]}"; do
   tool_var="${agent}_tool"
@@ -242,12 +245,12 @@ for agent in "${!declared_option_bins[@]}"; do
       fail "user setup declares ${!tool_var} with ${option%%=*} inside its table"
   done
 done
-[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 21 ]] || fail "only the agent CLIs update themselves"
+[[ $(grep -c 'auto_update = "4h"' "$lazy_config") == 22 ]] || fail "only the agent CLIs update themselves"
 for tool in node uv; do
   grep -Eq "^$tool = \\{ version = \"latest\", lazy = true, minimum_release_age = \"0s\" \\}$" "$lazy_config" ||
     fail "user setup declares $tool as a native lazy tool"
 done
-[[ $(grep -c 'lazy = true' "$lazy_config") == 31 ]] || fail "user setup declares every default mise tool as lazy"
+[[ $(grep -c 'lazy = true' "$lazy_config") == 32 ]] || fail "user setup declares every default mise tool as lazy"
 grep -Fx "reshim --system" "$mise_history" >/dev/null || fail "user setup builds the system lazy bootstrap shims"
 pass "user setup configures system lazy tools from registry shorthands"
 : >"$stub_log"
@@ -424,6 +427,8 @@ declare -A expected_agents=(
   [muse]="muse"
   [muse-code]="muse"
   [musecode]="muse"
+  [zycode]="zycode"
+  [zypi]="zycode"
 )
 
 declare -A expected_packages=(
@@ -449,6 +454,7 @@ declare -A expected_packages=(
   [commandcode]="$commandcode_package"
   [cursor-agent]="$cursor_agent_package"
   [muse]="$muse_package"
+  [zycode]="$zycode_package"
 )
 
 for selection in "${!expected_agents[@]}"; do
@@ -727,7 +733,7 @@ mapfile -d '' -t agent_open_args <"$agent_open_log"
 pass "Muse installs visibly through mise and opens directly"
 
 saved_agent=$(<"$agent_file")
-for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
+for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode zycode; do
   tool_var="${agent//-/_}_tool"
   package_var="${agent//-/_}_package"
   declared_tool=${!tool_var:-${!package_var}}
@@ -735,7 +741,7 @@ for agent in qwen dsh mcode kiro-cli freebuff kilo devin amp commandcode; do
   omarchy-default-agent --install "$agent" >/dev/null
   # npm-backed agents bring node along, which a fresh machine doesn't have yet.
   case "$agent" in
-  kiro-cli | devin) expected_install="install $declared_tool" ;;
+  kiro-cli | devin | zycode) expected_install="install $declared_tool" ;;
   *) expected_install="install node $declared_tool" ;;
   esac
   grep -Fx "$expected_install" "$mise_history" >/dev/null || fail "visible $agent installation installs Omarchy's declaration (expected: $expected_install)"
@@ -862,6 +868,7 @@ assert_launch kilo kilo --auto "--prompt=Review this project"
 assert_launch devin devin --permission-mode dangerous --respect-workspace-trust false -- "Review this project"
 assert_launch amp bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "Review this project"
 assert_launch commandcode commandcode --yolo -- "Review this project"
+assert_launch zycode zypi --always-approve -- "Review this project"
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "Freebuff launcher puts the prompt on the clipboard"
 mapfile -d '' -t notification_args <"$notification_history"
 [[ ${notification_args[*]} == *"Freebuff takes no starting prompt"* ]] || fail "Freebuff launcher says where the prompt went"
@@ -905,6 +912,7 @@ assert_bypass kilo kilo --auto
 assert_bypass devin devin --permission-mode dangerous --respect-workspace-trust false
 assert_bypass amp amp --dangerously-allow-all
 assert_bypass commandcode commandcode --yolo
+assert_bypass zycode zypi --always-approve
 [[ ! -s $clipboard_log && ! -s $notification_history ]] || fail "Freebuff launcher leaves the clipboard alone without a prompt"
 pass "agent launcher skips permission prompts for every supported agent"
 
