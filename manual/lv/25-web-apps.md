@@ -1,91 +1,91 @@
 # Tīmekļa lietotnes
 
-Savējās tīmekļa lietotnes varat pievienot Omarchy izvēlnē (`Super + Space`) sadaļā _Instalēt > Web App_. Jums tiks prasīts lietotnes nosaukums, lietotnes vietrādis (URL) un ikonas vietrādis, ja to nevar iegūt ar vietnes ikonu (favicon). Lieliskas PNG ikonas daudzām populārām tīmekļa lietotnēm var atrast vietnē [Dashboard Icons](https://dashboardicons.com).
+Savas tīmekļa lietotnes vari pievienot Omarchy izvēlnē (`Super + Space`) ar _Instalēt > Tīmekļa lietotne_. Tas tev prasīs lietotnes nosaukumu, lietotnes URL un ikonas URL, ja to nevarēs iegūt caur favicon. Daudzām populārām tīmekļa lietotnēm lieliskas PNG ikonas vari iegūt vietnē [Dashboard Icons](https://dashboardicons.com).
 
-Tad tās būs pieejamas lietotņu palaidējā (`Super + Space`) un izmantos skaistu bezrāmja tīmekļa lietotnes logu.
+Pēc tam tās būs pieejamas caur lietotņu palaidēju (`Super + Space`) un izmantos skaisto bezrāmju tīmekļa lietotnes logu.
 
-Ja vēlaties tīmekļa lietotni noņemt, vienkārši Omarchy izvēlnē dodieties uz _Noņemt > Web App_.
+Ja vēlies kādu tīmekļa lietotni noņemt, Omarchy izvēlnē vienkārši dodies uz _Noņemt > Tīmekļa lietotne_.
 
-Vislabāk ir, ja pirms tīmekļa lietotņu saīsņu izmantošanas visos savos kontos pierakstāties parastā pārlūkprogrammā. Plānais ietvara rāmis ar 1password sadarbojas slikti, tāpēc vienkārši ir vieglāk jau iepriekš būt pierakstītam tieši.
+Vislabāk visos savos kontos vispirms ielogoties ar parasto pārlūkprogrammu, pirms sāc lietot tīmekļa lietotņu saīsnes. Plānais ietvara rāmis īsti labi nestrādā kopā ar 1password, tāpēc vienkārši vieglāk ir vispirms ielogoties pa tiešo.
 
-Visas šo tīmekļa lietotņu tastatūras saīsnes var mainīt failā `~/.config/hypr/bindings.lua`.
+Visus šo tīmekļa lietotņu tastatūras karstos taustiņus var mainīt failā `~/.config/hypr/bindings.lua`.
 
-Kad esat tīmekļa lietotnē, pašreizējo vietrādi starpliktuvē varat kopēt ar `Shift + Alt + L`.
+Kad esi tīmekļa lietotnē, pašreizējo URL starpliktuvē vari nokopēt ar `Shift + Alt + L`.
 
-Pēc noklusējuma Omarchy jau tiek piegādāts ar noklusējuma lietotņu sortimentu:
+Pēc noklusējuma Omarchy jau tiek piegādāts ar veselu klāstu noklusējuma lietotņu:
 
 ## HEY
 
-[HEY](https://www.hey.com/) ir e-pasta un kalendāra pakalpojums, kas kalpo kā lieliska alternatīva cilvēkiem, kuri noguruši no Gmail, Outlook vai Apple Mail. To izveidojis uzņēmums [37signals](https://37signals.com/), kur Omarchy radās.
+[HEY](https://www.hey.com/) ir e-pasta un kalendāra pakalpojums, kas ir lieliska alternatīva cilvēkiem, kuri ir noguruši no Gmail, Outlook vai Apple Mail. To ir izveidojis [37signals](https://37signals.com/), kur radās arī Omarchy.
 
-HEY Email varat palaist ar `Super + Shift + E`, pārlēkt tieši uz jaunas vēstules sastādīšanu ar `Super + Shift + Alt + E` un palaist HEY Calendar ar `Super + Shift + C`.
+HEY Email vari palaist ar `Super + Shift + E`, uzreiz pāriet pie jauna e-pasta rakstīšanas ar `Super + Shift + Alt + E` un palaist HEY Calendar ar `Super + Shift + C`.
 
 ## Basecamp
 
-[Basecamp](https://basecamp.com/) ir projektu pārvaldības pakalpojums, kas mazām komandām palīdz izdarīt darbu ātrāk un panākt lielāku progresu. Trello, Slack, Asana, Notion vai jebkāda cita raibuma vietā, ko lāpīt kopā, ar Basecamp visu var iegūt vienuviet. To izveidojis uzņēmums [37signals](https://37signals.com/), kur Omarchy radās.
+[Basecamp](https://basecamp.com/) ir projektu pārvaldības pakalpojums, kas palīdz mazām komandām strādāt ātrāk un paveikt vairāk. Tā vietā, lai lāpītu kopā mistrojumu no Trello, Slack, Asana, Notion vai kā tur vēl, ar Basecamp visu vari dabūt vienā vietā. To ir izveidojis [37signals](https://37signals.com/), kur radās arī Omarchy.
 
-Basecamp varat palaist ar lietotņu palaidēju (`Super + Space`)
+Basecamp vari palaist, izmantojot lietotņu palaidēju (`Super + Space`)
 
 ## ChatGPT
 
-[ChatGPT](https://chatgpt.com) ir populārākais mākslīgā intelekta tērzēšanas robots pasaulē.
+[ChatGPT](https://chatgpt.com) ir populārākais AI čatbots pasaulē.
 
-ChatGPT varat palaist ar `Super + Shift + A`.
+ChatGPT vari palaist ar `Super + Shift + A`.
 
 ## Grok
 
-[Grok](https://grok.com) ir uzņēmuma xAI tērzēšanas robots.
+[Grok](https://grok.com) ir xAI čatbots.
 
-Grok varat palaist ar `Super + Shift + Alt + A`.
+Grok vari palaist ar `Super + Shift + Alt + A`.
 
 ## WhatsApp
 
-[WhatsApp](https://www.whatsapp.com/) ir viens no populārākajiem ziņojumapmaiņas pakalpojumiem pasaulē, un tīmekļa versija Linux vidē ir lieliska iespēja.
+[WhatsApp](https://www.whatsapp.com/) ir viens no populārākajiem ziņojumapmaiņas pakalpojumiem pasaulē, un tīmekļa versija ir lieliska izvēle Linux.
 
-WhatsApp varat palaist ar `Super + Shift + Alt + G`.
+WhatsApp vari palaist ar `Super + Shift + Alt + G`.
 
 ## Google lietotnes
 
-Kā tīmekļa lietotnes ir iekļautas arī Google Messages, Google Photos, Google Maps un Google Contacts.
+Google Messages, Google Photos, Google Maps un Google Contacts arī ir iekļautas kā tīmekļa lietotnes.
 
-Google Messages varat palaist ar `Super + Shift + Ctrl + G`, Google Photos — ar `Super + Shift + P`, bet Google Maps — ar `Super + Shift + S`. Google Contacts ir pieejams lietotņu palaidējā (`Super + Space`).
+Google Messages vari palaist ar `Super + Shift + Ctrl + G`, Google Photos ar `Super + Shift + P` un Google Maps ar `Super + Shift + S`. Google Contacts ir pieejama caur lietotņu palaidēju (`Super + Space`).
 
 ## X
 
-X ir vieta, kur sākas ziņas.
+X ir vieta, kur ziņas parādās pirmās.
 
-X varat palaist ar `Super + Shift + X` un doties tieši uz jauna ieraksta rakstīšanu ar `Super + Shift + Alt + X`.
+X vari palaist ar `Super + Shift + X` un uzreiz pāriet pie jauna ieraksta rakstīšanas ar `Super + Shift + Alt + X`.
 
 ## YouTube
 
 [YouTube](https://youtube.com/) ir populārākā video platforma pasaulē.
 
-YouTube varat palaist ar `Super + Shift + Y`.
+YouTube vari palaist ar `Super + Shift + Y`.
 
 ## Zoom
 
-[Zoom](https://zoom.us/) ir populārākā video tērzēšanas sistēma, ko izmanto ASV. Lielisks savienojums visā pasaulē. Turklāt 40 minūšu sapulces var rīkot arī bez maksas konta. Omarchy ietver Zoom tīmekļa klientu, un Zoom sapulču saites atvērsies tieši tajā.
+[Zoom](https://zoom.us/) ir populārākā videočata sistēma, ko lieto ASV. Lieliski savienojumi visā pasaulē. Un 40 minūšu sapulces var rīkot arī bez maksas konta. Omarchy aptver Zoom tīmekļa klientu ar ietvaru, un Zoom sapulču saites atvērsies tieši tajā.
 
-Zoom palaižat ar lietotņu palaidēju (`Super + Space`).
+Zoom palaid, izmantojot lietotņu palaidēju (`Super + Space`).
 
 ## Discord
 
-[Discord](https://discord.com/) ir vieta, kur uzturas lielākā daļa spēļu un atvērtā pirmkoda kopienu, ieskaitot [pašu Omarchy kopienu](https://discord.gg/tXFUdasqhY).
+[Discord](https://discord.com/) ir vieta, kur uzturas lielākā daļa spēļu un atvērtā koda kopienu, tostarp [paša Omarchy](https://discord.gg/tXFUdasqhY).
 
-Discord palaižat ar lietotņu palaidēju (`Super + Space`).
+Discord palaid, izmantojot lietotņu palaidēju (`Super + Space`).
 
 ## Microsoft lietotnes
 
-Atlasiet _Instalēt > Service > Microsoft_, lai kā tīmekļa lietotnes pievienotu Outlook, Word, Excel, PowerPoint, Teams un OneDrive. Katrai lietotnei ir savs palaidējs, un tā atveras tieši, izmantojot komerciālos Microsoft 365 vietrāžus un jūsu esošo pārlūkprogrammas profilu. Tās atveras tajos pašos pārlūkprogrammas lietotņu logos, kuros darbojas citas Omarchy tīmekļa lietotnes; tās neinstalē atsevišķo Teams for Linux klientu.
+Izvēlies _Instalēt > Pakalpojums > Microsoft_, lai pievienotu Outlook, Word, Excel, PowerPoint, Teams un OneDrive kā tīmekļa lietotnes. Katrai lietotnei ir savs palaidējs, un tā atveras pa tiešo, izmantojot komerciālos Microsoft 365 URL un tavu esošo pārlūkprogrammas profilu. Tās atveras tajos pašos pārlūkprogrammas lietotņu logos kā pārējās Omarchy tīmekļa lietotnes; tās neinstalē atsevišķo Teams for Linux klientu.
 
-Komplektu noņemiet ar _Noņemt > Service > Microsoft_ vai atsevišķas lietotnes noņemiet ar _Noņemt > Web App_. Varat arī instalēt tikai vajadzīgās lietotnes caur _Instalēt > Web App_.
+Noņem komplektu ar _Noņemt > Pakalpojums > Microsoft_ vai noņem atsevišķas lietotnes ar _Noņemt > Tīmekļa lietotne_. Caur _Instalēt > Tīmekļa lietotne_ vari arī instalēt tikai tās lietotnes, kuras vēlies.
 
-Valdības vai suverēna mākoņa gadījumā rediģējiet vietrādi attiecīgā palaidēja rindā `Exec=` mapē `~/.local/share/applications/`, piemēram, `Microsoft Teams.desktop`, izmantojot jūsu organizācijas norādīto vietrādi. Katru burtisku `%` šajā rindā rakstiet kā `%%`. Izmaiņas stājas spēkā nākamajā palaišanā. Komplekta instalētāja atkārtota palaišana tā palaidējus aizstāj ar noklusējuma vietrāžiem.
+Valdības vai suverēnam mākonim rediģē URL attiecīgā palaidēja `Exec=` rindā mapē `~/.local/share/applications/`, piemēram, `Microsoft Teams.desktop`, izmantojot tavas organizācijas sniegto URL. Katru burtisku `%` šajā rindā raksti kā `%%`. Izmaiņas stāsies spēkā nākamajā palaišanas reizē. Ja komplekta instalētāju palaidīsi vēlreiz, tā palaidēji tiks aizstāti ar noklusējuma URL.
 
-Lai darba pierakstīšanās turētu atsevišķi, katra palaidēja rindai `Exec=` pievienojiet pārlūkprogrammas datu direktoriju:
+Lai darba pieteikšanās turētu atsevišķi, katra palaidēja `Exec=` rindai pievieno pārlūkprogrammas datu direktoriju:
 
 ```ini
 Exec=omarchy-launch-webapp "https://teams.cloud.microsoft/" --user-data-dir=/absolute/path/to/work-browser-profile
 ```
 
-Piemēra direktoriju aizstājiet ar paša izvēlētu absolūtu ceļu un izmantojiet vienotu ceļu visiem sešiem palaidējiem, lai tie koplietotu darba pierakstīšanās. Tīmekļa lietotnes izmanto Omarchy izvēlēto atbalstīto pārlūkprogrammu, bet, kad noklusējuma pārlūkprogramma netiek atbalstīta, atgriežas pie Chromium.
+Piemēra direktoriju aizstāj ar absolūtu ceļu pēc savas izvēles un visiem sešiem palaidējiem izmanto vienu un to pašu ceļu, lai darba pieteikšanās starp tiem būtu koplietota. Tīmekļa lietotnes izmanto Omarchy izvēlēto atbalstīto pārlūkprogrammu, un, ja noklusējuma pārlūkprogramma netiek atbalstīta, pāriet uz Chrome kā rezerves variantu.

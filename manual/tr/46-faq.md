@@ -1,8 +1,8 @@
 # SSS
 
-### Klavye düzeni arasında nasıl geçiş yaparım?
+### Klavye düzenleri arasında nasıl geçiş yaparım?
 
-`~/.config/hypr/input.lua` dosyanızı düzenleyin ve `Left Alt + Right Alt` ile düzenler arasında geçiş yapmak için bunu ekleyin:
+`~/.config/hypr/input.lua` dosyanızı düzenleyin ve düzenler arasında `Left Alt + Right Alt` ile geçiş yapmak için şunu ekleyin:
 
 ```
 hl.config({
@@ -14,72 +14,68 @@ hl.config({
 })
 ```
 
-Çubuk, birden fazla düzeni yapılandırdıktan sonra geçerli klavye düzeninizi otomatik olarak gösterecektir (ve geçiş yapmak için ona tıklayabilirsiniz de).
+Birden fazla düzen yapılandırdıktan sonra çubuk mevcut klavye düzeninizi otomatik olarak gösterir (ve geçiş yapmak için ona tıklayabilirsiniz de).
 
-### Saat biçimini 12 saate nasıl değiştiririm?
+### Saat formatını 12 saatlik formata nasıl değiştiririm?
 
-12 saatlik olanlar da dahil olmak üzere yaygın biçimler arasında geçiş yapmak için çubuktaki saate sağ tıklayın. Biçimi doğrudan da ayarlayabilirsiniz:
+Yaygın formatlar arasında, 12 saatlik olanlar da dahil olmak üzere geçiş yapmak için çubuktaki saate sağ tıklayın. Formatı doğrudan da ayarlayabilirsiniz:
 
 ```
 omarchy bar set omarchy.clock format "dddd h:mm AP"
 ```
 
-Bu, Pazar 10:55 AM gösterecektir.
+Bu, Pazar 10:55 AM olarak görüntüleyecektir.
 
 ### Saat dilimimi nasıl değiştiririm?
 
-Omarchy menüsünde _Güncelle > Saat Dilimi_ yolunu çalıştırın ve listeden seçin. Saat dilimi doğru ama saatin kendisi kaymışsa, _Güncelle > Saat_ zaman eşitlemesini sizin için yeniden başlatır.
+Omarchy menüsünde _Güncelle > Saat Dilimi_ çalıştırın ve listeden seçin. Saat dilimi doğruysa ancak saatin kendisi kaymışsa, _Güncelle > Saat_ sizin için saat senkronizasyonunu yeniden başlatır.
 
-### DNS'imi nasıl değiştiririm, Wi-Fi'imi nasıl paylaşırım veya bağlantı hızımı nasıl kontrol ederim?
+### DNS'imi nasıl değiştiririm, Wi-Fi'ımı nasıl paylaşırım veya bağlantı hızımı nasıl kontrol ederim?
 
-Bunların hepsi [ağ](35-networking.md) bölümünde yer alır.
+Bunların hepsi [ağ ayarları](35-networking.md) bölümünde bulunur.
 
 ### Diskimin ne kadar hızlı olduğunu nasıl kontrol ederim?
 
-_Tetikle > Hız Testi > Disk Hız Testi_ sürücünüzdeki canlı okuma ve yazma hızını ölçer veya terminalden `omarchy disk speedtest` komutunu kullanabilirsiniz.
-
-### Chromium'da neden Google hesabıma giriş yapamıyorum?
-
-Sade açık kaynaklı Chromium yapısı, Google'ın hesap girişi için istediği OAuth kimlik bilgileriyle birlikte gelmez. Bunları eklemek için Omarchy menüsünde _Kur > Servis > Chromium Hesabı_ yolunu çalıştırın, tarayıcıyı yeniden başlatın ve giriş tamamlanacaktır.
+_Tetikle > Hız Testi > Disk Hız Testi_, sürücünüzdeki canlı okuma ve yazma hızını ölçer veya terminalden `omarchy disk speedtest` çalıştırın.
 
 ### Nasıl yazıcı eklerim?
 
-Yazdırma kutudan çıktığı gibi kurulu ve çalışır durumdadır ve her yazıcıyı uygulama başlatıcıdaki (`Super + Space`) _Yazdırma Ayarları_ üzerinden kendiniz eklersiniz.
+Yazdırma, kutudan çıkar çıkmaz kurulu ve çalışır durumdadır ve her yazıcıyı uygulama başlatıcıdaki (`Super + Space`) _Yazdırma Ayarları_'ndan kendiniz eklersiniz.
 
-_Ekle_ seçeneğini seçin ve bakması için bir an verin: USB üzerinden takılı bir yazıcı ve çoğu ağ yazıcısı sizin için bulunur. Sizinkisi listede yoksa, _Ağ Yazıcısı > Internet Printing Protocol (ipp)_ seçeneğini seçin ve adresini girin — yazıcının kendi ekranı veya web sayfası bunun ne olduğunu söyler, genellikle `ipp/print` kuyruğuyla `192.168.1.50` gibi bir şeydir. _İleri_ ardından bir sürücü sunar; burada modern bir yazıcı sürücüsüz _IPP Everywhere_ profilinde en iyi sonucu verir ve daha eski biri modelin kendi sürücüsünü ister.
+_Ekle_'yi seçin ve bakması için ona biraz zaman tanıyın: USB üzerinden bağlanmış bir yazıcı ve çoğu ağ yazıcısı sizin için bulunur. Sizinki listede değilse, _Ağ Yazıcısı > Internet Printing Protocol (ipp)_ seçeneğini seçin ve adresini girin — yazıcının kendi ekranı veya web sayfası bunun ne olduğunu size söyler; genellikle `192.168.1.50` gibi, kuyruğu `ipp/print` olan bir şeydir. _İleri_ daha sonra bir sürücü sunar; burada modern bir yazıcı en iyi, sürücüsüz _IPP Everywhere_ profiliyle çalışırken daha eski bir yazıcı modelin kendi sürücüsünü ister.
 
-Bir yazıcıya sağ tıklayın ve uygulamalarınızın önce hangisine ulaşacağını seçmek için _Varsayılan Olarak Ayarla_ seçeneğini, kâğıt boyutunu, çift yönlü yazdırmayı ve kaliteyi ayarlamak için _Özellikler_ seçeneğini seçin.
+Bir yazıcıya sağ tıklayın ve uygulamalarınızın ilk olarak hangisine ulaşacağını seçmek için _Varsayılan Olarak Ayarla_'yı, kağıt boyutunu, çift taraflı yazdırmayı ve kaliteyi ayarlamak için de _Özellikler_'i seçin.
 
-Ağdaki yazıcıların eklenmeden göründüğü otomatik keşif, yeniden çalışılırken geçici olarak kapalıdır; bu yüzden yukarıdaki ilk adım otomatik yerine sizindir. Bir PDF dosyasına yazdırmak, hiç yazıcı olmadan çalışır.
+Ağdaki yazıcıların eklenmeden göründüğü otomatik keşif, üzerinde yeniden çalışılırken geçici olarak kapatılmıştır; bu yüzden yukarıdaki ilk adım otomatik değil, sizindir. Hiç yazıcı olmadan da bir PDF dosyasına yazdırabilirsiniz.
 
 ### Ekran görüntülerinin veya ekran kayıtlarının nereye kaydedileceğini nasıl değiştiririm?
 
-Kaydedilen ekran görüntüleri varsayılan olarak `~/Pictures/Screenshots` klasörüne gider. Başka bir dizin kullanmak için, bunu `~/.config/uwsm/env.d/` altında bir dosyaya (örneğin `~/.config/uwsm/env.d/capture` gibi) ekleyin:
+Kaydedilen ekran görüntüleri varsayılan olarak `~/Pictures/Screenshots` konumuna gider. Başka bir dizin kullanmak için, `~/.config/uwsm/env.d/` altında bir dosyaya (`~/.config/uwsm/env.d/capture` gibi) şunu ekleyin:
 
 ```
 export OMASNAP_SCREENSHOT_DIR="$HOME/Pictures/Captures"
 ```
 
-Aynısını ekran kayıtları için `OMARCHY_SCREENRECORD_DIR` kullanarak yapabilirsiniz.
+Aynı şeyi ekran kayıtları için `OMARCHY_SCREENRECORD_DIR` kullanarak da yapabilirsiniz.
 
-Omasnap ekran görüntüsü dizinini otomatik olarak oluşturur. Ekran kaydı dizinini kendiniz oluşturun, ardından herhangi bir ortam değişikliğinin etkili olması için Omarchy'yi yeniden başlatın.
+Omasnap, ekran görüntüsü dizinini otomatik olarak oluşturur. Ekran kaydı dizinini kendiniz oluşturun, ardından herhangi bir ortam değişikliğinin geçerli olması için Omarchy'yi yeniden başlatın.
 
-### Apple Studio Display'imde hoparlörleri + web kamerasını nasıl çalıştırabilirim?
+### Apple Studio Display'imde hoparlörleri + webcam'i nasıl çalıştırırım?
 
-Her şeyin yalnızca USB C takılarak çalışması gerektiğini düşünürsünüz, ancak ne yazık ki durum böyle değildir. Güvenilir şekilde çalışması için bulduğum çözüm [WJESOG DisplayPort + USB-A => USB-C kablosunu](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/) kullanmaktır. Ardından hoparlörler ve web kamerası kusursuz çalışır.
+USB C'yi takınca her şeyin çalışması gerektiğini düşünürsünüz, ama maalesef durum böyle değil. Güvenilir şekilde çalışmasını sağlamak için bulduğum çözüm, [WJESOG DisplayPort + USB-A => USB-C kablosunu](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/) kullanmaktır. O zaman hoparlörler ve webcam bir harika çalışıyor.
 
-Normal klavye parlaklık düğmelerini kullanarak Apple Ekranları (hem Studio hem de XDR) için Omarchy'de yerleşik parlaklık denetiminiz olduğunu unutmayın.
+Omarchy'de Apple ekranlar (hem Studio hem de XDR) için normal klavye parlaklık tuşlarını kullanarak yerleşik parlaklık kontrolüne sahip olduğunuzu unutmayın.
 
-### Tüm ekstra yazılımlardan nasıl kurtulurum?
+### Tüm fazladan yazılımlardan nasıl kurtulurum?
 
-Obsidian veya LibreOffice gibi programları veya önceden kurulu başka şeylerden hiçbirini istemiyorsanız, onları çok kolay bir şekilde kaldırabilirsiniz.
+Obsidian veya LibreOffice gibi programları veya önceden kurulmuş diğer şeylerden hiçbirini istemiyorsanız, bunları çok kolay bir şekilde kaldırabilirsiniz.
 
-Kurulu olan her paketi görmek için _Kaldır > Paket_ yolunu çalıştırın. Ardından kaldırmak istediğiniz herhangi bir paketi tab tuşuyla seçebilir ve return tuşuyla seçtiğiniz her şeyi kaldırmaya başlayabilirsiniz.
+Kurulu olan her paketi görmek için _Kaldır > Paket_ çalıştırın. Ardından tab ile kaldırmak istediğiniz herhangi bir paketi seçebilir ve return ile seçtiğiniz her şeyi kaldırmaya başlayabilirsiniz.
 
-Ve istemediğiniz önceden kurulu web uygulamalarından herhangi birini kaldırmak için Omarchy menüsünden _Kaldır > Web Uygulaması_ yolunu kullanabilirsiniz.
+Ve istemediğiniz önceden kurulmuş web uygulamalarından herhangi birini kaldırmak için Omarchy menüsünden _Kaldır > Web Uygulaması_'nı kullanabilirsiniz.
 
-Veya tüm önceden kurulu ekstraları — web uygulamaları, TUI'ler ve isteğe bağlı uygulamalar — tek seferde süpürmek için _Kaldır > Önceden Kurulanlar_ yolunu çalıştırın. Onları başlatan kısayollar onlarla birlikte gider, böylece `~/.config/hypr/bindings.lua` içinde kendinizinkilerle doldurmak üzere temiz bir bağlama sayfasıyla kalırsınız.
+Veya önceden kurulmuş tüm ekstraları — web uygulamaları, TUI'lar ve isteğe bağlı uygulamalar — tek seferde süpürüp atmak için _Kaldır > Önceden Kurulanlar_ çalıştırın. Onları başlatan kısayol tuşları da onlarla birlikte gider, böylece `~/.config/hypr/bindings.lua` içinde kendinizinkilerle dolduracağınız temiz bir bağlama sayfasıyla kalırsınız.
 
 ---
 
-Hatalar ve bozuk parçalar için [Sorun Giderme bölümüne](45-troubleshooting.md) bakın.
+Hatalar ve bozuk parçalar için bkz. [Sorun Giderme bölümü](45-troubleshooting.md).
