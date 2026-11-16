@@ -132,8 +132,8 @@ Name=1Password
 Exec=1password --silent
 DESKTOP
 
-"$ROOT/bin/omarchy-remove-launcher-entry" 1password.desktop 1Password
+user_onepassword_output="$("$ROOT/bin/omarchy-remove-launcher-entry" 1password.desktop 1Password)"
 
 [[ ! -e $tmp_dir/data/applications/1password.desktop ]] || fail "launcher remove deletes a user-owned 1Password entry without uninstalling 1Password"
-(( $(grep -c '^terminal:' "$TEST_LOG") == 2 )) || fail "launcher remove deletes a user-owned 1Password entry without uninstalling 1Password" "$(cat "$TEST_LOG")"
+[[ -z $user_onepassword_output ]] || fail "launcher remove deletes a user-owned 1Password entry without uninstalling 1Password" "$user_onepassword_output"
 pass "launcher remove deletes a user-owned 1Password entry without uninstalling 1Password"
