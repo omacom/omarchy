@@ -7,7 +7,7 @@ It ships with two built-in plugins (Calculator and Web search). **Anyone can add
 ## Shipped plugins
 
 - **Calculator** (`omarchy.query.calc`) — type an expression (`2+2`, `sqrt(9)`, `pi*2`, `2^10`) and the result appears as `2+2 = 4`. Enter copies the bare result (`4`) to the clipboard and closes the menu.
-- **Web search** (`omarchy.query.web`) — offered as a fallback for every query, including arithmetic, below the search matches. Enter opens it in your default browser as a web app. Bare `http(s)://` URLs pass straight through, so Enter opens the URL itself. Providers: `google` (default), `duckduckgo`, `bing`, `amazon`, `youtube`, `github`, `wikipedia` — e.g. `youtube omarchy` searches YouTube.
+- **Web search** (`omarchy.query.web`) — offered as a fallback for every query, including arithmetic, below the search matches. Enter opens it in your default browser as a web app. Bare `http(s)://` URLs pass straight through, so Enter opens the URL itself. Providers: `google` (default), `duckduckgo`, `bing`, `amazon`, `youtube`, `github`, `wikipedia` — e.g. `youtube omarchy` searches YouTube, and the row reads `YouTube: omarchy`.
 
 ## Writing your own plugin
 

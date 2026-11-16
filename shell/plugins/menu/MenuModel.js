@@ -780,6 +780,28 @@ function queryPluginLabel(plugin, lang) {
   return plugin.id
 }
 
+// Provider keywords omarchy-query-web accepts, with the name the row shows.
+// Keep this list in step with the script's provider case.
+var QUERY_WEB_PROVIDERS = {
+  google: "Google",
+  duckduckgo: "DuckDuckGo",
+  bing: "Bing",
+  amazon: "Amazon",
+  youtube: "YouTube",
+  github: "GitHub",
+  wikipedia: "Wikipedia"
+}
+
+// The provider a query's leading keyword selects, or null. Like the script,
+// a keyword counts only when more words follow it.
+function queryWebProvider(query) {
+  var m = /^(\S+)\s+(\S[\s\S]*)$/.exec(String(query || "").trim())
+  if (!m) return null
+  var key = m[1].toLowerCase()
+  if (!Object.prototype.hasOwnProperty.call(QUERY_WEB_PROVIDERS, key)) return null
+  return { id: key, name: QUERY_WEB_PROVIDERS[key], query: m[2] }
+}
+
 function queryEncode(s) {
   return encodeURIComponent(String(s || ""))
 }
@@ -817,6 +839,13 @@ function queryPluginRow(plugin, query, result, lang, tr) {
     if (!icon) icon = "search"
     var webLabel = plugin.builtin ? "" : queryPluginLabel(plugin, lang)
     if (webLabel === plugin.id) webLabel = ""
+    // The built-in search names the provider a leading keyword picks, the
+    // way omarchy-query-web resolves it ("youtube omarchy" -> "YouTube: omarchy").
+    var provider = plugin.builtin ? queryWebProvider(query) : null
+    if (provider) {
+      webLabel = provider.name
+      query = provider.query
+    }
     if (/^https?:\/\//.test(query)) label = query
     // Callbacks keep `$` sequences in the query or name literal.
     else if (webLabel) label = t("menu.queryPluginLabel", "%1: %2").replace(/%[12]/g, function(token) { return token === "%1" ? webLabel : query })
@@ -890,6 +919,8 @@ if (typeof module !== "undefined") {
     queryPluginsForQuery: queryPluginsForQuery,
     queryPluginLabel: queryPluginLabel,
     queryEncode: queryEncode,
+    queryWebProviders: QUERY_WEB_PROVIDERS,
+    queryWebProvider: queryWebProvider,
     queryPluginRow: queryPluginRow
   }
 }

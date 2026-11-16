@@ -470,6 +470,11 @@ assertDeepEqual([calcRow.kind, calcRow.label, calcRow.detail, calcRow.icon, calc
 assertEqual(menu.queryPluginRow(plugins['omarchy.query.calc'], '2+2', '', 'en').label, '2+2 = …', 'a pending calculator row shows an ellipsis')
 const webRow = menu.queryPluginRow(plugins['omarchy.query.web'], 'weather', 'https://x', 'en')
 assertDeepEqual([webRow.label, webRow.detail, webRow.section], ['Search: weather', 'Open', 'fallback'], 'a web row is a search below the search matches')
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'youtube omarchy', 'u', 'en').label, 'YouTube: omarchy', 'a provider keyword names the provider it searches')
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'GitHub  quickshell lsp', 'u', 'en').label, 'GitHub: quickshell lsp', 'a provider keyword is matched without case')
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'youtube', 'u', 'en').label, 'Search: youtube', 'a lone provider keyword is a plain search')
+assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'youtube https://example.com', 'u', 'en').label, 'https://example.com', 'a URL after a provider keyword shows the URL')
+assertEqual(menu.queryPluginRow(translate['com.example.tr'], 'youtube hola', 'u', 'en').label, 'Translate: youtube hola', 'a user web row keeps its own name')
 assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'https://example.com', 'https://example.com', 'en').label, 'https://example.com', 'a URL row shows the URL')
 assertEqual(menu.queryPluginRow(translate['com.example.tr'], 'tr hola', 'https://x', 'en').label, 'Translate: tr hola', 'a user web row names its plugin')
 assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'bash $$ $& %2', 'u', 'en').label, 'Search: bash $$ $& %2', 'a search label shows the query literally')
@@ -499,11 +504,18 @@ const helperCases = [
   ['omarchy-query-web', ['--print', 'youtube'], 'https://www.google.com/search?q=youtube'],
   ['omarchy-query-web', ['--print', 'hello', 'world'], 'https://www.google.com/search?q=hello%20world'],
   ['omarchy-query-web', ['--print', 'https://example.com'], 'https://example.com'],
+  ['omarchy-query-web', ['--print', '--help'], 'https://www.google.com/search?q=--help'],
 ]
 for (const [name, args, expected] of helperCases) {
   const result = run(name, args)
   assert(result.ok && result.out === expected, `${name} ${args.join(' ')} prints ${expected}`, `ok: ${result.ok}\nactual: ${result.out}`)
 }
+for (const id of Object.keys(menu.queryWebProviders)) {
+  const result = run('omarchy-query-web', ['--print', id + ' omarchy'])
+  assert(result.ok && !result.out.startsWith('https://www.google.com/') === (id !== 'google'), `omarchy-query-web knows the ${id} provider the menu names`, `ok: ${result.ok}\nactual: ${result.out}`)
+}
+const help = run('omarchy-query-web', ['--help'])
+assert(help.ok && help.out.startsWith('Usage: omarchy-query-web'), 'omarchy-query-web --help prints usage', help.out)
 for (const expr of ["os.system('id')", '9^9^9', '1/0']) {
   const result = run('omarchy-query-calc', [expr])
   assert(!result.ok && result.out === 'Error', `the calculator rejects ${expr}`, `ok: ${result.ok}\nactual: ${result.out}`)
