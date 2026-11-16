@@ -115,6 +115,7 @@ pinta
 plain
 plocate
 plymouth
+poppler
 postgresql-libs
 python-gobject
 python-poetry-core
