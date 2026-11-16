@@ -927,7 +927,11 @@ Item {
     root.deleteConfirmOpen = false
     root.deleteTarget = null
     if (!target) return
-    root.cancel()
+    // The menu stays open: the app drops out of the list once it is gone, and
+    // only an uninstall that needs a terminal closes it.
+    deleteConfirm.selectedIndex = 1
+    root.disarmPointer()
+    Qt.callLater(function() { filterInput.forceActiveFocus() })
     if (root.appLibrary) root.appLibrary.remove(target.appId, target.label)
   }
 
@@ -1151,6 +1155,9 @@ Item {
     target: root.appLibrary
     function onAppsChanged() {
       if (root.providersLoaded["apps"]) root.mergeAppRows()
+    }
+    function onRemovalNeedsTerminal() {
+      if (root.opened) root.cancel()
     }
   }
 
