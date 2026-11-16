@@ -8,6 +8,9 @@ firmware_setup="$ROOT/install/hardware/qualcomm/firmware.sh"
 dtb_setup="$ROOT/install/hardware/qualcomm/dtb-uki.sh"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
+# Every case runs without systemd-stub-omarchy unless it names a stub, also on
+# a Snapdragon machine that has the package installed.
+export OMARCHY_QUALCOMM_UKI_STUB="$scratch/no-stub/linuxaa64.efi.stub"
 
 for script in "$firmware_setup" "$dtb_setup"; do
   bash -n "$script" || fail "Snapdragon hardware scripts have valid syntax"
