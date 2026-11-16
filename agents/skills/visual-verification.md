@@ -30,6 +30,8 @@ The stop command prints the saved video path in the configured Videos
 directory. Review the recording before finishing, and keep it short and focused
 on the changed behavior.
 
+The pull request carries the evidence: put the before/after screenshots, and the recording when motion is involved, in the Screenshots section of `.github/pull_request_template.md`. `gh pr create --body` skips the template, so add that section yourself. The `Check visual evidence` workflow flags PRs touching the shell, configs, themes, or package lists that have neither captures nor a `No visible change: <reason>` line. Upload captures to the PR; never commit them.
+
 ## Checking motion frame by frame
 
 Motion goes wrong in a frame or two, too fast to see at full speed: two texts showing at once in a crossfade, a blank frame between two panels, a card that jumps instead of morphing, a panel growing from the wrong point. Record the change and read it a frame at a time. Follow [`motion.md`](motion.md) for what the motion should be.
