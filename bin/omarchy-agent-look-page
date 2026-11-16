@@ -7,7 +7,7 @@
 # Renders the page in a throwaway headless Chrome, so an agent can see what it
 # built and read the errors a browser console would show, without opening a
 # window on the user's desktop or leaving a browser running. --keys presses
-# each key in turn after the page loads, for games and anything else that
+# each key in turn after a local file loads, for games and anything else that
 # waits for input. Prints the screenshot's path and exits 1 when the page
 # logged errors.
 
@@ -31,6 +31,11 @@ while (( $# )); do
   esac
 done
 [[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
+
+if [[ -n $keys && ! -f $target ]]; then
+  echo "--keys only works on a local file, where the presses can be added to a copy of the page: pass the page's .html file instead of $target." >&2
+  exit 2
+fi
 
 url=$target
 injected=""

@@ -93,3 +93,10 @@ output=$(look_page "$test_tmp/keys.html" --keys "ArrowLeft ArrowRight" --out "$t
 [[ $output != *"frame=true"* || $output == *"frame=true read=true"* ]] || fail "a frame after the press reads the key held" "$output"
 [[ -z $(find "$test_tmp" -name '.look-*') ]] || fail "the copy with the key presses is removed"
 pass "look page presses each key once, holds it for a frame, and releases it"
+
+# The presses go into a copy of a local file, which a URL doesn't have.
+if output=$(look_page "http://localhost:1/game.html" --keys "Space"); then
+  fail "look page refuses --keys for a URL" "$output"
+fi
+[[ $output == *"--keys only works on a local file"* ]] || fail "look page says why --keys needs a file" "$output"
+pass "look page refuses --keys for a URL"
