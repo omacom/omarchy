@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = gpu-screen-recorder
+
+[Action]
+Description = Stripping file capabilities from gsr-kms-server...
+When = PostTransaction
+Depends = omarchy
+Exec = /usr/bin/omarchy-strip-gsr-kms-caps

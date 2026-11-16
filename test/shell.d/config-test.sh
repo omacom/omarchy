@@ -491,3 +491,17 @@ jq -e '
 ' "$TMPDIR/home/.config/omarchy/shell.json" >/dev/null
 [[ -f $TMPDIR/home/.local/state/omarchy/restart-shell-called ]] || fail "shell refresh restarts shell"
 pass "shell refresh places optional service widgets when services are available"
+
+[[ -f $ROOT/default/libalpm/hooks/90-omarchy-strip-gsr-kms-caps.hook ]] ||
+  fail "missing gsr-kms-server cap-strip pacman hook"
+[[ -x $ROOT/bin/omarchy-strip-gsr-kms-caps ]] || fail "missing omarchy-strip-gsr-kms-caps"
+grep -Fq 'Exec = /usr/bin/omarchy-strip-gsr-kms-caps' \
+  "$ROOT/default/libalpm/hooks/90-omarchy-strip-gsr-kms-caps.hook" ||
+  fail "gsr-kms-server cap-strip hook must call omarchy-strip-gsr-kms-caps"
+pass "gsr-kms-server capability strip hook and command are present"
+
+[[ -f $ROOT/default/libalpm/hooks/90-omarchy-strip-btop-caps.hook ]] || fail "missing btop cap-strip pacman hook"
+[[ -x $ROOT/bin/omarchy-strip-btop-caps ]] || fail "missing omarchy-strip-btop-caps"
+grep -Fq 'Exec = /usr/bin/omarchy-strip-btop-caps' "$ROOT/default/libalpm/hooks/90-omarchy-strip-btop-caps.hook" ||
+  fail "btop cap-strip hook must call omarchy-strip-btop-caps"
+pass "btop capability strip hook and command are present"
