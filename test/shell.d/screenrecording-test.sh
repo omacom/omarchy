@@ -530,11 +530,38 @@ none_runtime="$tmp_dir/none-runtime"
 none_recordings="$tmp_dir/none-recordings"
 mkdir -p "$none_runtime" "$none_recordings"
 echo 424242 >"$none_runtime/omarchy-screenrecord-pid"
+rm -f "$OMARCHY_TEST_NOTIFICATION_ARGS"
+status=0
 XDG_RUNTIME_DIR="$none_runtime" OMARCHY_SCREENRECORD_DIR="$none_recordings" \
-  "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1 || true
+  "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1 || status=$?
 [[ ! -e $none_runtime/omarchy-screenrecord-pid && ! -e $none_runtime/omarchy-screenrecord-filename ]] ||
   fail "a recorder that cannot start records no state, and clears a stale pid" "$(ls -a "$none_runtime")"
 pass "a recorder that cannot start records no state, and clears a stale pid"
+
+# It says why in the recorder's own words, taken from a second try with its stderr kept.
+(( status == 1 )) || fail "a recording that cannot start exits 1" "$status"
+grep -Fxq "Screen recording failed to start" "$OMARCHY_TEST_NOTIFICATION_ARGS" 2>/dev/null &&
+  grep -Fq "gsr error: unknown gpu vendor" "$OMARCHY_TEST_NOTIFICATION_ARGS" ||
+  fail "a recording that cannot start shows the recorder's error" "$(cat "$OMARCHY_TEST_NOTIFICATION_ARGS" 2>/dev/null)"
+pass "a recording that cannot start shows the recorder's error and exits 1"
+
+# A toggle that lands while the start is failing cancels it: no second try, no notification.
+cat >"$stub_bin/gpu-screen-recorder" <<'SH'
+#!/bin/bash
+touch "$XDG_RUNTIME_DIR/omarchy-screenrecord-cancel"
+echo "gsr error: unknown gpu vendor" >&2
+exit 1
+SH
+cancel_runtime="$tmp_dir/cancel-runtime"
+mkdir -p "$cancel_runtime"
+rm -f "$OMARCHY_TEST_NOTIFICATION_ARGS"
+XDG_RUNTIME_DIR="$cancel_runtime" OMARCHY_SCREENRECORD_DIR="$none_recordings" \
+  "$ROOT/bin/omarchy-capture-screenrecording" --fullscreen >/dev/null 2>&1 ||
+  fail "a start cancelled while failing exits 0"
+# The second try launches into the debug log, so its absence means there was none.
+[[ ! -e $cancel_runtime/omarchy-screenrecord.log && ! -e $OMARCHY_TEST_NOTIFICATION_ARGS ]] ||
+  fail "a start cancelled while failing is not retried or reported" "$(cat "$OMARCHY_TEST_NOTIFICATION_ARGS" 2>/dev/null)"
+pass "a start cancelled while failing stays silent"
 
 # Another recorder runs in both cases below: the helper answers for any
 # selection but a pid, and a stop by name ends it.

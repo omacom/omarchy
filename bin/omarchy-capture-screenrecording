@@ -16,7 +16,8 @@
 #
 # Env: OMARCHY_SCREENRECORD_DEBUG=true appends the recorder's stderr (and the
 # picker target it was launched with) to $XDG_RUNTIME_DIR/omarchy-screenrecord.log
-# so users can attach a log when reporting capture failures.
+# so users can attach a log when reporting capture failures. A start that fails
+# is tried once more with it on, and the failure shows what the recorder said.
 #
 # Backend: gpu-screen-recorder. Where it is not installed, or it exits before
 # the recording starts (it knows only NVIDIA, AMD, Intel and Broadcom GPUs, and
@@ -60,6 +61,10 @@ CANCEL_FILE="$RUNTIME_DIR/omarchy-screenrecord-cancel"
 # whose picker waits on the user.
 READY_TIMEOUT_TICKS=75
 LOG_FILE=$([[ ${OMARCHY_SCREENRECORD_DEBUG:-false} == "true" ]] && echo "$RUNTIME_DIR/omarchy-screenrecord.log" || echo "/dev/null")
+# The second try of a failed start, and each recorder that failed it with what it said.
+RETRYING=false
+FAILED_RECORDERS=()
+RECORDER_ERRORS=()
 
 for arg in "$@"; do
   case "$arg" in
@@ -238,6 +243,8 @@ wf_audio_device() {
 }
 
 wf_audio_unavailable() {
+  # The first try already said so.
+  [[ $RETRYING == "true" ]] && return
   omarchy-notification-send -u critical -t 5000 "$(omarchy-i18n capture.recordingWithoutAudio "$1")" "$(omarchy-i18n capture.audioNotAdded "$1")" >/dev/null 2>&1
 }
 
@@ -336,12 +343,35 @@ start_screenrecording() {
   [[ $WEBCAM == "true" ]] && start_webcam_overlay "$target"
   start_cancelled && return 1
 
+  launch_recorders
+  case $? in
+  0) return 0 ;;
+  2) return 1 ;;
+  esac
+
+  # Nothing started. Try once more with OMARCHY_SCREENRECORD_DEBUG's log on,
+  # so the failure can say why in the recorder's own words.
+  RETRYING=true
+  LOG_FILE="$RUNTIME_DIR/omarchy-screenrecord.log"
+  launch_recorders
+  case $? in
+  0) return 0 ;;
+  2) return 1 ;;
+  *) return 2 ;;
+  esac
+}
+
+# Starts the first recorder that comes up for $target and capture_args.
+# Returns 0 once one records, 2 when the start was cancelled, 1 when none came up.
+launch_recorders() {
   local filename="$OUTPUT_DIR/screenrecording-$(date +'%Y-%m-%d_%H-%M-%S').mp4"
-  local backend pid=""
+  local backend pid="" status log_start
 
   for backend in $(recorder_backends); do
     [[ $backend == "wf-recorder" && $target == "portal" ]] && continue
+    start_cancelled && return 2
     echo "===== $(date '+%F %T') args: $* backend: $backend target: $target =====" >>"$LOG_FILE"
+    log_start=$(stat -c %s "$LOG_FILE" 2>/dev/null)
 
     if [[ $backend == "wf-recorder" ]]; then
       launch_wf_recorder "$target" "$filename" || continue
@@ -371,6 +401,7 @@ start_screenrecording() {
         end_launched_recorder "$pid"
         wf_audio_cleanup
         rm -f "$filename"
+        note_failure "$backend" "$log_start"
         continue 2
       fi
       sleep 0.2
@@ -380,7 +411,7 @@ start_screenrecording() {
       end_launched_recorder "$pid"
       wf_audio_cleanup
       rm -f "$filename"
-      return 1
+      return 2
     fi
 
     if kill -0 $pid 2>/dev/null; then
@@ -390,11 +421,47 @@ start_screenrecording() {
       return 0
     fi
 
+    wait "$pid"
+    status=$?
     wf_audio_cleanup
     rm -f "$filename"
+    # gpu-screen-recorder's exit when the portal's picker was dismissed.
+    [[ $target == "portal" ]] && ((status == 60)) && return 2
+    note_failure "$backend" "$log_start"
   done
 
   return 1
+}
+
+# On the second try, keeps what a recorder that did not start wrote to the log.
+note_failure() {
+  [[ $RETRYING == "true" ]] || return 0
+  FAILED_RECORDERS+=("$1")
+  RECORDER_ERRORS+=("$(tail -c +$(($2 + 1)) "$LOG_FILE" | recorder_error)")
+}
+
+# The first lines of a recorder's stderr that read as errors, or its last line
+# when none do, without colours or progress.
+recorder_error() {
+  local lines
+  lines=$(tr '\r' '\n' | sed -E 's/\x1b\[[0-9;?]*[[:alpha:]]//g; s/[[:space:]]+$//' | grep -v '^[[:space:]]*$')
+  grep -iE 'error|fail|cannot|can.?t|couldn.?t|unable|invalid|not found|no such|denied|unsupported|not supported' <<<"$lines" |
+    grep -viE 'warning|info:' | head -n 2 | grep . || tail -n 1 <<<"$lines"
+}
+
+notify_start_failed() {
+  local i error body=""
+
+  for i in "${!FAILED_RECORDERS[@]}"; do
+    error=${RECORDER_ERRORS[i]}
+    [[ -n $error ]] || error=$(omarchy-i18n capture.recorderSaidNothing "${FAILED_RECORDERS[i]}")
+    ((${#error} > 300)) && error="${error:0:299}…"
+    # With more than one recorder tried, say which one each error came from.
+    ((${#FAILED_RECORDERS[@]} > 1)) && error="${FAILED_RECORDERS[i]}: $error"
+    body+="${body:+$'\n'}$error"
+  done
+
+  omarchy-notification-send -u critical "$(omarchy-i18n capture.recordingFailed)" "$body"
 }
 
 # Selects the recorder this script started, by the pid it saved. A saved pid
@@ -598,7 +665,9 @@ fi
     else
       rm -f "$CANCEL_FILE"
       echo $$ >"$STARTING_FILE"
-      if start_screenrecording; then
+      start_screenrecording
+      start_status=$?
+      if ((start_status == 0)); then
         rm -f "$STARTING_FILE"
         # Cancelled while the recording was being saved as started.
         if start_cancelled; then
@@ -615,7 +684,14 @@ fi
         rm -f "$STARTING_FILE"
         wf_audio_cleanup
         cleanup_webcam
-        rm -f "$CANCEL_FILE"
+        # A toggle that landed while the start was failing still cancels it.
+        if ((start_status == 2)) && ! start_cancelled; then
+          notify_start_failed
+          rm -f "$CANCEL_FILE"
+          exit 1
+        else
+          rm -f "$CANCEL_FILE"
+        fi
       fi
     fi
   fi
