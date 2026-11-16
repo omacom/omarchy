@@ -21,13 +21,17 @@ Use `HoverCard` only when a hint needs controls. Its content is loaded when show
 Button {
   id: source
   text: "Details"
+  focusable: true
   Keys.onReturnPressed: details.openForKeyboard()
+  // Omarchy's Button emits hovered(bool) as a signal; a HoverHandler gives
+  // the card a property to follow.
+  HoverHandler { id: sourceHover }
   HoverCard {
     id: details
     parent: source
-    sourceHovered: source.hovered
+    sourceHovered: sourceHover.hovered
     content: Component {
-      Button { text: "Open details"; onClicked: openDetails() }
+      Button { text: "Open details"; focusable: true; onClicked: openDetails() }
     }
   }
 }
