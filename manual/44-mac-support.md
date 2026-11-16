@@ -71,7 +71,6 @@ The Apple T2 Security Chip was introduced in 2017. The T2 chip was discontinued 
 - MacBook Pro 15-inch (2020) – Model: A1990
 
 On these models, the installer automatically sets up the patched `linux-t2` kernel, the T2 audio configuration, Apple's Broadcom Wi-Fi/Bluetooth firmware, and fan control via `t2fanrd`. The Touch Bar runs on the kernel's built-in Boot Camp-style support. Machines with the BCM4377 combo chip (including the 2020 MacBook Air) also get a boot-time Bluetooth rebind and a pre-sleep unload of Wi-Fi/Bluetooth, so the adapter comes up and the lid can sleep.
-On these models, the installer automatically sets up the patched `linux-t2` kernel, the T2 audio configuration, Apple's Broadcom Wi-Fi/Bluetooth firmware, and fan control via `t2fanrd`. The Touch Bar runs on the kernel's built-in Boot Camp-style support.
 
 #### iMac Retina 5K (2017)
 
