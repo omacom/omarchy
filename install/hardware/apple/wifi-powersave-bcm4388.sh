@@ -8,8 +8,10 @@
 # lower with power save on, and no spikes (60 pings to the router, at most
 # 4.7 ms on and 8.6 ms off). Only this part was measured, so only it is matched.
 #
-# NetworkManager reads conf.d in name order and the later file wins: "_" sorts
-# after ".", so this file comes after omarchy-wifi-powersave.conf.
+# The setting is bound to brcmfmac, which on Apple Silicon drives only the
+# built-in part: another adapter (a USB dongle) keeps the default. NetworkManager
+# reads conf.d in name order and the later file wins: "_" sorts after ".", so
+# this file comes after omarchy-wifi-powersave.conf.
 if ! omarchy-hw-aarch64-apple; then
   return 0
 fi
@@ -18,12 +20,14 @@ fi
 if lspci -nn | grep "14e4:4434" >/dev/null; then
   echo "Detected a BCM4388 on Apple Silicon; keeping Wi-Fi power save on"
 
-  mkdir -p /etc/NetworkManager/conf.d
-  cat > /etc/NetworkManager/conf.d/omarchy-wifi-powersave_bcm4388.conf <<'CONF'
+  sudo mkdir -p /etc/NetworkManager/conf.d
+  sudo tee /etc/NetworkManager/conf.d/omarchy-wifi-powersave_bcm4388.conf >/dev/null <<'CONF'
 # BCM4388 on Apple Silicon: power save on (see
 # install/hardware/apple/wifi-powersave-bcm4388.sh). Overrides
-# omarchy-wifi-powersave.conf, which sorts before this file.
-[connection]
-wifi.powersave = 3
+# omarchy-wifi-powersave.conf, which sorts before this file, for the built-in
+# Wi-Fi only.
+[connection-omarchy-bcm4388]
+match-device=driver:brcmfmac
+wifi.powersave=3
 CONF
 fi

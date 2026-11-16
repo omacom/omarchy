@@ -12,18 +12,22 @@ if [[ ! -f $conf ]]; then
   sudo tee "$conf" >/dev/null <<'CONF'
 # BCM4388 on Apple Silicon: power save on (see
 # install/hardware/apple/wifi-powersave-bcm4388.sh). Overrides
-# omarchy-wifi-powersave.conf, which sorts before this file.
-[connection]
-wifi.powersave = 3
+# omarchy-wifi-powersave.conf, which sorts before this file, for the built-in
+# Wi-Fi only.
+[connection-omarchy-bcm4388]
+match-device=driver:brcmfmac
+wifi.powersave=3
 CONF
 fi
 
 sudo nmcli general reload conf >/dev/null 2>&1 || true
 
 # NetworkManager only applies wifi.powersave when a connection activates, so
-# also switch it on directly for the running session.
+# also switch it on directly for the running session, on the BCM4388 only.
 shopt -s nullglob
 for wireless in /sys/class/net/*/wireless; do
+  dev=$(dirname "$wireless")/device
+  [[ $(cat "$dev/vendor" 2>/dev/null) == 0x14e4 && $(cat "$dev/device" 2>/dev/null) == 0x4434 ]] || continue
   iface=$(basename "$(dirname "$wireless")")
   sudo iw dev "$iface" set power_save on 2>/dev/null || true
 done
