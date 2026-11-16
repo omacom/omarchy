@@ -6,6 +6,7 @@
 # Arch Linux ARM's before its repositories replace the offline ones, and trust
 # every installed keyring before the first signed sync.
 source "$OMARCHY_PATH/install/helpers/pacman.sh"
+source "$OMARCHY_PATH/install/helpers/pacman-keyring.sh"
 source "$OMARCHY_PATH/install/helpers/image-target.sh"
 platform=$(omarchy-hw-platform)
 templates=$(omarchy_pacman_templates "$platform")
@@ -25,13 +26,14 @@ channel=${OMARCHY_MIRROR:-}
 "$OMARCHY_PATH/bin/omarchy-apply-pacman" "$channel"
 
 # An image build leaves the keyring to each machine's first boot, so no two
-# share a master key (install/helpers/image-target.sh).
+# share a master key (install/helpers/image-target.sh). An install's keyring
+# was started at the beginning of system setup (config/pacman-keyring.sh) and
+# lands here, or is made here when it wasn't.
 if (( alarm_keyring )); then
   if omarchy_image_init && omarchy_image_manifest_present; then
     install -m 0644 /dev/null "$omarchy_image_keyring_request"
   else
-    pacman-key --init
-    pacman-key --populate
+    omarchy_pacman_keyring_finish
   fi
 fi
 

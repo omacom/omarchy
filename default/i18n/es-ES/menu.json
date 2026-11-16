@@ -1130,7 +1130,7 @@
     "label": "Bluetooth"
   },
   "update.hardware.trackpad": {
-    "label": "Panel táctil"
+    "label": "Trackpad"
   },
   "update.password.drive": {
     "label": "Cifrado de unidad"
@@ -1301,7 +1301,7 @@
     "label": "Moonlight"
   },
   "setup.default.editor.plain": {
-    "label": "Simple"
+    "label": "Plain"
   },
   "agent.harness": {
     "label": "Harness",
@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Iconos"
+  },
+  "install.style.icons": {
+    "label": "Iconos"
+  },
+  "remove.icons": {
+    "label": "Iconos"
+  },
+  "update.icons": {
+    "label": "Iconos extra"
+  },
+  "system.firmware": {
+    "label": "Reiniciar en el BIOS",
+    "description": "Reiniciar en la configuración de firmware UEFI"
   }
 }

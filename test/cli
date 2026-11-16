@@ -155,11 +155,17 @@ assert_output_contains "the flags-only command keeps its own help" "$output" "om
 output=$("$CLI" menu --help)
 assert_output_contains "menu group includes share fallback route" "$output" "omarchy menu share"
 
-output=$("$CLI" share)
+status=0
+output=$("$CLI" share) || status=$?
+(( status == 1 )) || fail "bare required-arg alias exits 1"
+pass "bare required-arg alias exits 1"
 assert_output_contains "bare required-arg alias renders CLI help" "$output" "Usage:"
 assert_output_contains "bare share help uses canonical route" "$output" "omarchy share <clipboard|file|folder> [path...]"
 
-output=$("$CLI" menu share)
+status=0
+output=$("$CLI" menu share) || status=$?
+(( status == 1 )) || fail "bare required-arg filename route exits 1"
+pass "bare required-arg filename route exits 1"
 assert_output_contains "bare required-arg filename route renders CLI help" "$output" "omarchy share <clipboard|file|folder> [path...]"
 
 CLI="$CLI" python3 <<'PY'
@@ -477,6 +483,13 @@ if rg -q '\{\{[^}]+\}\}' "$LEGACY_NEXT_THEME"; then
   fail "legacy theme renders every template placeholder"
 fi
 pass "legacy short palette renders the complete generated theme"
+
+touch "$PI_TMPDIR/1-my-background.jpg"
+ln -s "$PI_TMPDIR/1-my-background.jpg" "$PI_TMPDIR/.local/state/omarchy/current/background"
+# The marker keeps the final newline, which $(...) would otherwise strip.
+bg_current=$(HOME="$PI_TMPDIR" "$ROOT/bin/omarchy-theme-bg-current"; printf 'x')
+[[ $bg_current == $'My Background\nx' ]] || fail "theme bg current prints the background name on its own line"
+pass "theme bg current prints the background name on its own line"
 
 osc_summary=$("$ROOT/bin/omarchy-theme-osc" "$NEXT_THEME/colors.toml" | python -c 'import sys; data = sys.stdin.buffer.read(); print(data.count(b"]4;"), b"]4;1;#ff0000" in data, b"]4;7;#ffffff" in data, b"]4;15;#eeeeee" in data, b"]12;#eeeeee" in data, b"]17;#808080" in data, b"]19;#eeeeee" in data)')
 [[ $osc_summary == "16 True True True True True True" ]] || fail "theme OSC aliases semantic colors to ANSI palette"

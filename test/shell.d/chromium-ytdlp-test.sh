@@ -59,8 +59,8 @@ expected=$(realpath -e -- "$good_file")
 pass "yt-dlp native host accepts a regular file in the download dir"
 
 host_fn resolve_download_file "--include=not-a-file" &&
-  fail "yt-dlp native host rejects a forged mpv option as the download path"
-pass "yt-dlp native host rejects a forged mpv option as the download path"
+  fail "yt-dlp native host rejects a forged option as the download path"
+pass "yt-dlp native host rejects a forged option as the download path"
 
 host_fn resolve_download_file "$TMPDIR/outside/secret" &&
   fail "yt-dlp native host rejects a path outside the download dir"
@@ -118,8 +118,8 @@ dash_title=$(host_fn title_from_file "$download_dir/--include.mp4")
 pass "yt-dlp native host does not pass a leading-dash title to the notifier"
 
 # The actions pass the path as a discrete --with argument (asserted
-# end-to-end below against the real download); `--` keeps mpv from parsing a
-# leading-dash filename as an option.
+# end-to-end below against the real download), and it is always absolute, so
+# Omaview never takes it for an option.
 
 parse_script="$TMPDIR/parse-ytdlp-lines.sh"
 cat >"$parse_script" <<'EOF'
@@ -236,9 +236,9 @@ grep -qF -- $'OMARCHY_FILE\t%(title)s' "$ytdlp_argv" &&
   fail "yt-dlp native host never prints the title into the file record" "$(cat "$ytdlp_argv")"
 pass "yt-dlp native host never prints the title into the file record"
 
-grep -qF -- "--action Open mpv -- --action Cut omacut --with $fake_file" "$notify_argv" ||
-  fail "yt-dlp native host offers Open in mpv and Cut in Omacut for the download" "$(cat "$notify_argv")"
-pass "yt-dlp native host offers Open in mpv and Cut in Omacut for the download"
+grep -qF -- "--action Open omaview open --action Cut omacut --with $fake_file" "$notify_argv" ||
+  fail "yt-dlp native host offers Open in Omaview and Cut in Omacut for the download" "$(cat "$notify_argv")"
+pass "yt-dlp native host offers Open in Omaview and Cut in Omacut for the download"
 
 grep -qF -- "Download complete My Great Clip" "$notify_argv" ||
   fail "yt-dlp native host toasts the page title, not the sanitised filename" "$(cat "$notify_argv")"

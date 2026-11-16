@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Icônes"
+  },
+  "install.style.icons": {
+    "label": "Icônes"
+  },
+  "remove.icons": {
+    "label": "Icônes"
+  },
+  "update.icons": {
+    "label": "Icônes supplémentaires"
+  },
+  "system.firmware": {
+    "label": "Redémarrer vers le BIOS",
+    "description": "Redémarrer dans la configuration du firmware UEFI"
   }
 }

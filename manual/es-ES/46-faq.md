@@ -64,9 +64,9 @@ Puedes hacer lo mismo para las grabaciones de pantalla con `OMARCHY_SCREENRECORD
 
 Omasnap crea su directorio de capturas de pantalla automáticamente. Crea tú mismo el directorio de grabaciones de pantalla y luego reinicia Omarchy para que cualquiera de los dos cambios de entorno surta efecto.
 
-### ¿Cómo hago funcionar los altavoces y la webcam de mi Apple Studio Display?
+### ¿Cómo hago funcionar los altavoces y la cámara web de mi Apple Studio Display?
 
-Pensarías que todo debería funcionar con solo enchufar el USB C, pero por desgracia no es así. La solución que he encontrado para que funcione de forma fiable es usar [el cable WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Con eso, los altavoces y la webcam funcionan de maravilla.
+Pensarías que todo debería funcionar con solo enchufar el USB C, pero por desgracia no es así. La solución que he encontrado para que funcione de forma fiable es usar [el cable WJESOG DisplayPort + USB-A => USB-C](https://www.amazon.com/WJESOG-DisplayPort-Adapter-Converter-Thunderbolt/dp/B0BNX7MS6N/). Con eso, los altavoces y la cámara web funcionan de maravilla.
 
 Recuerda que tienes control de brillo integrado en Omarchy para las pantallas Apple (tanto la Studio como la XDR) con los botones normales de brillo del teclado.
 

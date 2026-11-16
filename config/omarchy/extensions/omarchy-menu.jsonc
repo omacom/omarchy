@@ -15,6 +15,7 @@
   //   description Optional subtitle and extra search text.
   //   when        Shell condition; hide row when it fails.
   //   checked     Shell condition; append ✓ when it succeeds.
+  //   alt         Id of another action entry shown and run instead while Alt is held.
   //
   // Examples:
   // "personal": {"icon":"","label":"Personal"},
