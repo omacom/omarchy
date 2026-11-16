@@ -183,9 +183,13 @@ int main(int argc, char *argv[]) {
         return 1;
 
     // `omarchy agent look app` runs the app offscreen with these set, to see
-    // the window without a display: press the keys in OMARCHY_LOOK_KEYS
-    // through the window's Shortcuts, save it once it has settled, and quit.
+    // the window without a display: size it to OMARCHY_LOOK_SIZE when given,
+    // press the keys in OMARCHY_LOOK_KEYS through the window's Shortcuts,
+    // save it once it has settled, and quit.
     if (const QString shot = qEnvironmentVariable("OMARCHY_LOOK_SCREENSHOT"); !shot.isEmpty()) {
+        const QStringList size = qEnvironmentVariable("OMARCHY_LOOK_SIZE").split('x');
+        if (auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst()); window && size.size() == 2)
+            window->resize(size[0].toInt(), size[1].toInt());
         const QStringList keys = qEnvironmentVariable("OMARCHY_LOOK_KEYS").split(' ', Qt::SkipEmptyParts);
         for (int i = 0; i < keys.size(); ++i) {
             QTimer::singleShot(800 + i * 300, &app, [&engine, key = QKeySequence(keys[i])] {

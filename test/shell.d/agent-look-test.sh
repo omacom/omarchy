@@ -6,6 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 require_command python3
 require_command magick
+require_command jq
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -135,3 +136,19 @@ if grep -q -- --no-sandbox "$test_tmp/browser.log"; then
   fail "a page that fails where a blank one draws never runs without the sandbox" "$(<"$test_tmp/browser.log")"
 fi
 pass "look page runs without the browser's sandbox only where the browser can't start one"
+
+look_app() {
+  PATH="$test_tmp/bin:$PATH" "$ROOT/bin/omarchy-agent-look-app" "$@" 2>&1
+}
+
+# An app with the template's hook draws itself, at the size asked for.
+mkdir -p "$test_tmp/bin"
+cat >"$test_tmp/hooked" <<EOF
+#!/bin/bash
+echo "\$OMARCHY_LOOK_SIZE" >"$test_tmp/size"
+magick -size 8x8 xc:red "\$OMARCHY_LOOK_SCREENSHOT"
+EOF
+chmod +x "$test_tmp/hooked"
+output=$(look_app --size 640x480 --out "$test_tmp/app.png" -- "$test_tmp/hooked") || fail "look app captures an app that draws itself" "$output"
+[[ $(<"$test_tmp/size") == "640x480" ]] || fail "look app passes --size to an app that draws itself" "$(<"$test_tmp/size")"
+pass "look app passes --size to an app that draws itself"

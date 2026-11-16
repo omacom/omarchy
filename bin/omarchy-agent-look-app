@@ -16,17 +16,21 @@
 
 set -uo pipefail
 
-keys="" after=2 size="1280, 800" out=""
+keys="" after=2 size="" out=""
 while (( $# )) && [[ $1 != "--" ]]; do
   case $1 in
     --keys) keys=$2; shift 2 ;;
     --after) after=$2; shift 2 ;;
-    --size) size="${2/x/, }"; shift 2 ;;
+    --size) size=$2; shift 2 ;;
     --out) out=$2; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
 [[ ${1:-} == "--" ]] && shift
+if [[ -n $size && ! $size =~ ^[0-9]+x[0-9]+$ ]]; then
+  echo "--size takes a width and height, like 1280x800" >&2
+  exit 2
+fi
 if (( $# == 0 )); then
   echo "Usage: omarchy agent look app [--keys \"Down Return\"] [--after seconds] [--size WxH] [--out file.png] -- <command> [args...]" >&2
   exit 2
@@ -46,7 +50,7 @@ finish() {
   exit 0
 }
 
-OMARCHY_LOOK_SCREENSHOT=$out OMARCHY_LOOK_KEYS=$keys OMARCHY_LOOK_DELAY_MS=$(( after * 1000 )) \
+OMARCHY_LOOK_SCREENSHOT=$out OMARCHY_LOOK_KEYS=$keys OMARCHY_LOOK_SIZE=$size OMARCHY_LOOK_DELAY_MS=$(( after * 1000 )) \
   QT_QPA_PLATFORM=offscreen timeout -k 5 $(( after + 30 )) "$@" >"$log" 2>&1 </dev/null
 [[ -s $out ]] && finish
 
@@ -70,7 +74,8 @@ before=$(window_ids | sort)
 # caller's directory, home and PATH: an agent working in another home sees
 # its own files.
 command="cd ${PWD@Q} && export HOME=${HOME@Q} PATH=${PATH@Q} && exec ${*@Q} >${log@Q} 2>&1"
-hyprctl dispatch "hl.dsp.exec_cmd($(jq -Rn --arg c "bash -c ${command@Q}" '$c'), { float = true, no_initial_focus = true, size = { $size } })" >/dev/null
+[[ -n $size ]] || size=1280x800
+hyprctl dispatch "hl.dsp.exec_cmd($(jq -Rn --arg c "bash -c ${command@Q}" '$c'), { float = true, no_initial_focus = true, size = { ${size/x/, } } })" >/dev/null
 
 id=""
 for _ in {1..30}; do
