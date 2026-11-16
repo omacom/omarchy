@@ -3,7 +3,7 @@
 # omarchy:summary=Install VS Code and configure Omarchy defaults for secrets, updates, and theme
 
 echo "Installing VSCode..."
-omarchy-pkg-add visual-studio-code-bin
+omarchy-pkg-add visual-studio-code-bin || exit 1
 
 mkdir -p ~/.vscode ~/.config/Code/User
 

@@ -4,7 +4,7 @@
 # omarchy:requires-sudo=true
 
 echo "Installing all dependencies..."
-omarchy-pkg-add dropbox dropbox-cli libappindicator python-gpgme
+omarchy-pkg-add dropbox dropbox-cli libappindicator python-gpgme || exit 1
 
 echo "Adding Dropbox to the bar..."
 omarchy-plugin-enable omarchy.dropbox
