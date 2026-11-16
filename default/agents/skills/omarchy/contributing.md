@@ -39,10 +39,10 @@ description with steps to reproduce, and diagnostics. Gather them:
 omarchy version
 
 # Generate the diagnostic log (also written to /tmp/omarchy-debug.log)
-omarchy debug --no-sudo --print
+omarchy-debug --no-sudo --print
 
 # After the user explicitly approves uploading diagnostics, the interactive
-# variant (`omarchy debug`) can upload the log to logs.omarchy.org for 24 hours
+# variant (`omarchy-debug`) can upload the log to logs.omarchy.org for 24 hours
 # and print a shareable URL to include in the issue.
 ```
 

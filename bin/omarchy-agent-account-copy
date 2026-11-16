@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# omarchy:summary=Copy subscription account logins to another Omarchy machine over SSH
+# omarchy:args=[--replace] <ssh-host> [claude|codex|grok...]
+# omarchy:examples=omarchy agent account copy laptop | omarchy agent account copy user@desktop claude
+
+set -euo pipefail
+
+replace=""
+host=""
+providers=()
+while (( $# > 0 )); do
+  case "$1" in
+  --replace) replace=1 ;;
+  --*)
+    echo "Unknown account-copy option: $1" >&2
+    exit 1
+    ;;
+  *)
+    if [[ -z $host ]]; then
+      host=$1
+    else
+      providers+=("$1")
+    fi
+    ;;
+  esac
+  shift
+done
+
+if [[ -z $host || $host == -* ]]; then
+  echo "Usage: omarchy-agent-account-copy [--replace] <ssh-host> [claude|codex|grok...]" >&2
+  exit 1
+fi
+
+# Finish the export before connecting, so invalid input never reaches SSH.
+# The credentials stay in memory and stdin, never in command arguments.
+payload=$(omarchy-agent-account-transfer bundle "${providers[@]}")
+receiver=$(omarchy-agent-account-transfer receiver-command ${replace:+--replace})
+# Disable terminal allocation so SSH cannot echo the credential stream.
+printf '%s\n' "$payload" | ssh -T -- "$host" "$receiver"
