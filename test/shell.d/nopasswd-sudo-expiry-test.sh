@@ -29,12 +29,58 @@ for status in 1 2 3; do
   TEST_STATUS=$status /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" 15 >"$test_tmp/public.log" 2>&1 || result=$?
   if (( status == 3 )); then
     (( result == 0 )) && grep -q '^gum confirm ' "$test_tmp/commands" || fail "inactive status must allow confirmation"
+    grep -q 'execute ANY command as root WITHOUT a password for 15 minutes' "$test_tmp/public.log" || fail "interactive enable must retain its security warning"
   else
     (( result != 0 )) && ! grep -q '^gum ' "$test_tmp/commands" || fail "inspection errors must not offer enablement"
   fi
   grep -q '^sudo -n -l -l -- .* __status ' "$test_tmp/commands" || fail "status must inspect policy without authentication"
 done
 pass "public status distinguishes inactive from errors"
+
+for args in '--yes' '--yes permanent' '--yes 0' '--yes 1441' '--yes -1' '--yes 1m' '--yes 1.5' '--yes 18446744073709551617' '--yes --disable' '--yes --active' '--yes --status' '--disable --yes' '--active --yes' '--status --yes' '--yes 15 --disable' '--yes 15 --active' '--yes 15 --status' '--status 15' '15 --yes'; do
+  read -r -a arguments <<<"$args"
+  : >"$test_tmp/commands"
+  assert_status 1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" "${arguments[@]}" >"$test_tmp/public.log" 2>&1
+  [[ ! -s $test_tmp/commands ]] || fail "invalid --yes arguments reached authorization: $args"
+done
+pass "--yes rejects unbounded, permanent, missing, and combined arguments before authorization"
+
+for status in 0 3; do
+  for minutes in 1 1440 00015; do
+    : >"$test_tmp/commands"
+    TEST_STATUS=$status /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --yes "$minutes" >"$test_tmp/public.log" 2>&1
+    ! grep -q '^gum ' "$test_tmp/commands" || fail "--yes offered confirmation or a picker"
+    ! grep -q 'WARNING\|Anyone or anything' "$test_tmp/public.log" || fail "--yes scrolled the caller pane with a verbose warning"
+    grep -q 'Passwordless sudo has been ENABLED' "$test_tmp/public.log" || fail "--yes omitted the enable result"
+    if (( status == 3 )); then
+      grep -q "^sudo -k -- .* __enable .* $minutes$" "$test_tmp/commands" || fail "inactive --yes must ignore cached authorization for this command"
+    else
+      grep -q "^sudo -- .* __enable .* $minutes$" "$test_tmp/commands" || fail "active --yes must preserve renewal semantics"
+    fi
+    [[ $(grep -c ' __enable ' "$test_tmp/commands") == 1 ]] || fail "--yes must retain one password-capable enable action"
+    grep -q '^omarchy-shell -q omarchy.indicators refresh$' "$test_tmp/commands"
+    grep -q '^systemd-run --user .*omarchy.indicators refresh$' "$test_tmp/commands"
+  done
+done
+pass "--yes enables or renews bounded timed access without gum while preserving sudo and indicator expiry"
+
+for failure in TEST_ENABLE_FAIL TEST_STATUS; do
+  : >"$test_tmp/commands"
+  assert_status 1 env "$failure=1" /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --yes 15 >"$test_tmp/public.log" 2>&1
+  ! grep -q '^systemd-run --user ' "$test_tmp/commands" || fail "failed --yes enable scheduled expiry refresh"
+  if [[ $failure == "TEST_STATUS" ]]; then
+    ! grep -q '__enable ' "$test_tmp/commands" || fail "--yes bypassed an inspection error"
+  fi
+done
+pass "--yes propagates authentication and inspection failures without claiming success"
+
+for status in 0 1 2 3; do
+  : >"$test_tmp/commands"
+  assert_status "$status" env TEST_STATUS=$status /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --status
+  [[ $(wc -l <"$test_tmp/commands") == 1 ]] || fail "--status must only inspect the installed grant"
+  grep -q '^sudo -kn -- .* __status ' "$test_tmp/commands" || fail "--status must ignore cached authorization without prompting"
+done
+pass "transaction status preserves backend results and avoids policy-only probing or grant changes"
 
 printf ': >"$TEST_STARTUP_MARKER"\nset -o privileged\nunset BASH_ENV\n' >"$test_tmp/startup"
 : >"$test_tmp/commands"

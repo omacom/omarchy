@@ -80,7 +80,7 @@ case "$name" in
       exit 0
     fi
     if [[ ${1:-} == -n ]]; then shift; fi
-    if [[ ${1:-} == -kn ]]; then shift; fi
+    if [[ ${1:-} == -kn || ${1:-} == -k ]]; then shift; fi
     if [[ ${1:-} == -- ]]; then shift; fi
     [[ ${2:-} != __status ]] || exit "${TEST_STATUS:-3}"
     [[ ${2:-} != __enable || ${TEST_ENABLE_FAIL:-0} != 1 ]] || exit 1
