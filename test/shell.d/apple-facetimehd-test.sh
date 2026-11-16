@@ -143,21 +143,49 @@ pass "the migration leaves other hardware alone"
 # again after waking: the hang it avoids happens inside the device-freeze.
 hook="$ROOT/default/systemd/system-sleep/facetimehd"
 
+hook_module="$test_tmp/module"
+hook_marker="$test_tmp/unloaded"
+
 hook_run() {
+  local phase="$1" action="$2" verb="${3:-$2}"
   : >"$calls"
-  PATH="$stub_bin:$PATH" TEST_LOG="$calls" SYSTEMD_SLEEP_ACTION="${1:-}" bash "$hook" "$2" "${1:-}" >/dev/null 2>&1
+  PATH="$stub_bin:$PATH" TEST_LOG="$calls" SYSTEMD_SLEEP_ACTION="$action" \
+    OMARCHY_FACETIMEHD_MODULE="$hook_module" OMARCHY_FACETIMEHD_MARKER="$hook_marker" \
+    bash "$hook" "$phase" "$verb" >/dev/null 2>&1
 }
 
-hook_run hibernate pre
+mkdir -p "$hook_module"
+
+hook_run pre hibernate
 grep -Fq $'modprobe\t-r\tfacetimehd' "$calls" ||
   fail "the hook unloads the camera driver before hibernating" "$(cat "$calls")"
 pass "the hook unloads the camera driver before hibernating"
 
-hook_run suspend pre
+hook_run post hibernate
+grep -Fq $'modprobe\tfacetimehd' "$calls" && [[ ! -e $hook_marker ]] ||
+  fail "the hook loads the camera driver again after resuming" "$(cat "$calls")"
+pass "the hook loads the camera driver again after resuming"
+
+hook_run pre hybrid-sleep
+grep -Fq $'modprobe\t-r\tfacetimehd' "$calls" ||
+  fail "the hook unloads the camera driver before hybrid sleep" "$(cat "$calls")"
+hook_run post hybrid-sleep
+pass "the hook unloads the camera driver before hybrid sleep"
+
+hook_run pre hibernate suspend-then-hibernate
+grep -Fq $'modprobe\t-r\tfacetimehd' "$calls" ||
+  fail "the hook unloads the camera driver for suspend-then-hibernate's hibernation" "$(cat "$calls")"
+hook_run post hibernate suspend-then-hibernate
+pass "the hook unloads the camera driver for suspend-then-hibernate's hibernation"
+
+hook_run pre suspend
+[[ ! -s $calls ]] || fail "the hook leaves S3 alone" "$(cat "$calls")"
+hook_run post suspend
 [[ ! -s $calls ]] || fail "the hook leaves S3 alone" "$(cat "$calls")"
 pass "the hook leaves S3 alone"
 
-hook_run hibernate post
-grep -Fq $'modprobe\tfacetimehd' "$calls" ||
-  fail "the hook loads the camera driver again after resuming" "$(cat "$calls")"
-pass "the hook loads the camera driver again after resuming"
+rmdir "$hook_module"
+hook_run pre hibernate
+hook_run post hibernate
+[[ ! -s $calls ]] || fail "a camera driver the user unloaded stays unloaded after resume" "$(cat "$calls")"
+pass "a camera driver the user unloaded stays unloaded after resume"

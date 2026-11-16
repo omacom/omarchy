@@ -7,14 +7,24 @@
 # loading it again after resume avoids the hang; S3 does not need this, so it
 # is left alone there.
 
+module=${OMARCHY_FACETIMEHD_MODULE:-/sys/module/facetimehd}
+marker=${OMARCHY_FACETIMEHD_MARKER:-/run/omarchy-facetimehd-unloaded}
 sleep_action=${SYSTEMD_SLEEP_ACTION:-$2}
 
 case "$1" in
   pre)
-    [[ $sleep_action == "hibernate" ]] || exit 0
-    modprobe -r facetimehd 2>/dev/null || true
+    # hybrid-sleep writes the same image as hibernate, so it freezes the same way.
+    if [[ $sleep_action == "hibernate" || $sleep_action == "hybrid-sleep" ]] && [[ -d $module ]]; then
+      if modprobe -r facetimehd 2>/dev/null; then
+        touch "$marker"
+      fi
+    fi
     ;;
   post)
-    modprobe facetimehd 2>/dev/null || true
+    # Reload only what pre unloaded, so a driver the user removed stays removed.
+    if [[ -e $marker ]]; then
+      rm -f "$marker"
+      modprobe facetimehd 2>/dev/null || true
+    fi
     ;;
 esac
