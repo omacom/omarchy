@@ -22,8 +22,9 @@ fi
 
 # pactl reports the same percentage scale wpctl does (both are the raw volume
 # over PA_VOLUME_NORM), so the OSD reads identically either way.
+# pactl translates its labels and yes/no; parse them in the C locale.
 volume_percent() {
-  pactl get-sink-volume "$sink" 2>/dev/null |
+  LC_ALL=C pactl get-sink-volume "$sink" 2>/dev/null |
     awk 'NR == 1 {
       for (i = 1; i <= NF; i++)
         if ($i ~ /%$/) {sub("%", "", $i); print $i; exit}
@@ -31,7 +32,7 @@ volume_percent() {
 }
 
 volume_muted() {
-  [[ $(pactl get-sink-mute "$sink" 2>/dev/null) == *yes ]]
+  [[ $(LC_ALL=C pactl get-sink-mute "$sink" 2>/dev/null) == *yes ]]
 }
 
 case "$action" in

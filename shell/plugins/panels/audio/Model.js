@@ -18,21 +18,47 @@ function isAudioSource(node) {
     || mediaClass.indexOf("Source") !== -1
 }
 
-function listSnapshot(list) {
-  return list && list.slice ? list.slice() : []
+// Project a node list to the primitive rows a Repeater model can hold. A row
+// holding the PwNode itself is a QObject that Qt dereferences without a null
+// check while it builds the delegate, and PipeWire deletes nodes outright, so a
+// graph teardown segfaults the shell. Primitives cannot dangle, which is what
+// closes that race -- not the check below, since the node usually dies after the
+// snapshot is taken. That is also why filtering the list here never worked.
+//
+// The name rides along because PipeWire reuses object ids: without it a row
+// could resolve to whatever inherited its id. PwNode.name is CONSTANT, so it
+// identifies the node it was taken from for as long as that node lives.
+function nodeRow(node) {
+  if (!node) return null
+  var id = node.id
+  if (id === undefined || id === null) return null
+  return { id: id, name: String(node.name || "") }
 }
 
-function outputVolumeName(volume, muted) {
-  if (muted) return "Muted"
+function rowSnapshot(list) {
+  var values = list && list.length ? list : []
+  var rows = []
+  for (var i = 0; i < values.length; i++) {
+    var row = nodeRow(values[i])
+    if (row) rows.push(row)
+  }
+  return rows
+}
+
+// tr is an optional translate(key, english) from the QML side (I18n.t);
+// without it the English text stands, which is what the Node tests assert.
+function outputVolumeName(volume, muted, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (muted) return t("audio.level.muted", "Muted")
   var p = Math.round(volume * 100)
-  if (p === 0) return "Silenced"
-  if (p >= 100) return "Concert hall"
-  if (p >= 85) return "Party mode"
-  if (p >= 70) return "Cranked up"
-  if (p >= 50) return "Steady groove"
-  if (p >= 30) return "Easy listening"
-  if (p >= 15) return "Murmur"
-  return "Whisper"
+  if (p === 0) return t("audio.level.silenced", "Silenced")
+  if (p >= 100) return t("audio.level.concertHall", "Concert hall")
+  if (p >= 85) return t("audio.level.partyMode", "Party mode")
+  if (p >= 70) return t("audio.level.crankedUp", "Cranked up")
+  if (p >= 50) return t("audio.level.steadyGroove", "Steady groove")
+  if (p >= 30) return t("audio.level.easyListening", "Easy listening")
+  if (p >= 15) return t("audio.level.murmur", "Murmur")
+  return t("audio.level.whisper", "Whisper")
 }
 
 function parseSinkAvailability(raw) {
@@ -61,12 +87,14 @@ function nodeProps(node) {
   return node && node.ready && node.properties ? node.properties : {}
 }
 
-function nodeLabel(node) {
-  if (!node) return "Unknown"
+// tr as in outputVolumeName; only the fallback for a nameless device is UI copy.
+function nodeLabel(node, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (!node) return t("audio.unknownDevice", "Unknown")
   var p = nodeProps(node)
   var nickname = friendlyDeviceLabel(node.nickname || node.nick || p["node.nick"] || p["device.profile.description"] || "")
   if (nickname) return nickname
-  return friendlyDeviceLabel(node.description || p["node.description"] || node.name || "Unknown")
+  return friendlyDeviceLabel(node.description || p["node.description"] || node.name || t("audio.unknownDevice", "Unknown"))
 }
 
 function isHeadphones(node) {
@@ -215,12 +243,14 @@ function unmatchedMprisStreamLabel(label, players, streams) {
   })
 }
 
-function streamLabel(node, players, streams) {
-  if (!node) return "Stream"
+// Matching passes no tr, so a nameless stream compares as English everywhere.
+function streamLabel(node, players, streams, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  if (!node) return t("audio.stream", "Stream")
   var label = rawStreamLabel(node)
   return friendlyStreamLabel(matchingMprisStreamLabel(label, players)
     || unmatchedMprisStreamLabel(label, players, streams)
-    || label) || "Stream"
+    || label) || t("audio.stream", "Stream")
 }
 
 function streamRepresentsPlayer(node, player, players, streams) {
@@ -233,11 +263,22 @@ function streamRepresentsPlayer(node, player, players, streams) {
   return streamRepresentsMprisPlayer(streamLabel(node, players, streams), playerLabel)
 }
 
+// Quickshell types only exact media classes, so a virtual source (an
+// Audio/Source/Virtual, such as EasyEffects' or a platform's microphone
+// mapping) is a node with no PwNode.audio. PulseAudio lists it as a source, so
+// the source availability listing names it; a non-stream node it names is one.
+function isUntypedSource(node, sourceAvailability) {
+  if (!node || node.audio || node.isStream || node.isSink) return false
+  var name = String(node.name || "")
+  return name !== "" && !!sourceAvailability && Object.prototype.hasOwnProperty.call(sourceAvailability, name)
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     isPlaybackStream: isPlaybackStream,
     isAudioSource: isAudioSource,
-    listSnapshot: listSnapshot,
+    nodeRow: nodeRow,
+    rowSnapshot: rowSnapshot,
     outputVolumeName: outputVolumeName,
     parseSinkAvailability: parseSinkAvailability,
     friendlyDeviceLabel: friendlyDeviceLabel,
@@ -257,6 +298,7 @@ if (typeof module !== "undefined") {
     matchingMprisStreamLabel: matchingMprisStreamLabel,
     unmatchedMprisStreamLabel: unmatchedMprisStreamLabel,
     streamLabel: streamLabel,
-    streamRepresentsPlayer: streamRepresentsPlayer
+    streamRepresentsPlayer: streamRepresentsPlayer,
+    isUntypedSource: isUntypedSource
   }
 }
