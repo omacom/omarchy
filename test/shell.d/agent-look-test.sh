@@ -37,3 +37,21 @@ for problem in "colors.toml is missing" "foreground #2b1e13 on background" "unde
   [[ $output == *"$problem"* ]] || fail "the theme check reports: $problem" "$output"
 done
 pass "the theme check names missing keys, unreadable text, and small or flat backgrounds"
+
+# A color the preview can't read is drawn gray, so it has to be named, or the
+# check passes a theme while showing a color it never specified.
+cp -r "$ROOT/themes/kanagawa" "$test_tmp/typo"
+sed -i -E -e 's/^blue = .*/blue = "#GGGGGG"/' -e 's/^red = .*/red = "#ffffff-typo"/' "$test_tmp/typo/colors.toml"
+if output=$(look_theme "$test_tmp/typo"); then
+  fail "a theme with an unreadable color fails the theme check" "$output"
+fi
+[[ $output == *"aren't #rrggbb: "*"red #ffffff-typo"*"blue #GGGGGG"* ]] || fail "the theme check names the unreadable colors" "$output"
+
+# Omarchy reads a color between single quotes as well as double, and ignores
+# a comment after it.
+cp -r "$ROOT/themes/kanagawa" "$test_tmp/single"
+sed -i -E -e "s/^(accent = )\"(.*)\"/\\1'\\2'/" -e 's/^(blue = .*)$/\1 # the links/' "$test_tmp/single/colors.toml"
+grep -q "^accent = '#" "$test_tmp/single/colors.toml" && grep -q '^blue = "#.*" # the links$' "$test_tmp/single/colors.toml" ||
+  fail "the fixture has a single-quoted color and a commented one"
+output=$(look_theme "$test_tmp/single") || fail "a single-quoted or commented color is read as Omarchy reads it" "$output"
+pass "the theme check names a color that isn't #rrggbb"

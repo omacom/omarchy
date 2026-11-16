@@ -26,9 +26,10 @@ colors = {}
 path = os.path.join(theme, "colors.toml")
 if os.path.exists(path):
     for line in open(path, encoding="utf-8", errors="replace"):
-        m = re.match(r'\s*([a-z_]+)\s*=\s*"?([#A-Za-z0-9]+)"?', line)
+        # As omarchy-theme-color reads it: what is between the quotes.
+        m = re.match(r'\s*([a-z_]+)\s*=\s*(?:["\']([^"\']*)["\']|(.*?)\s*$)', line)
         if m:
-            colors[m.group(1)] = m.group(2)
+            colors[m.group(1)] = m.group(2) if m.group(2) is not None else m.group(3)
 
 problems = []
 missing = [k for k in REQUIRED if k not in colors]
@@ -38,9 +39,18 @@ elif missing:
     problems.append("colors.toml is missing: " + ", ".join(missing))
 
 
+def valid(key):
+    return re.fullmatch(r"#[0-9A-Fa-f]{6}", colors.get(key, "")) is not None
+
+
+# The preview draws gray for a color it can't read, so say which those are.
+invalid = [f"{k} {colors[k]}" for k in REQUIRED if k != "mode" and k in colors and not valid(k)]
+if invalid:
+    problems.append("colors.toml has colors that aren't #rrggbb: " + ", ".join(invalid))
+
+
 def c(key, fallback="#888888"):
-    v = colors.get(key, fallback)
-    return v if re.fullmatch(r"#[0-9A-Fa-f]{6}", v or "") else fallback
+    return colors[key] if valid(key) else fallback
 
 
 def luminance(hex_):
@@ -56,11 +66,11 @@ def contrast(a, b):
 
 bg = c("background", "#1e1e2e")
 for key, minimum in [("foreground", 7), ("accent", 3), ("dark_foreground", 3), ("red", 3), ("green", 3), ("yellow", 3), ("blue", 3)]:
-    if key in colors and c(key) != "#888888":
+    if valid(key):
         ratio = contrast(c(key), bg)
         if ratio < minimum:
             problems.append(f"{key} {c(key)} on background {bg} has contrast {ratio:.1f}:1, under {minimum}:1, so it is hard to read")
-if "selection" in colors and contrast(c("foreground"), c("selection")) < 4.5:
+if valid("selection") and contrast(c("foreground"), c("selection")) < 4.5:
     problems.append(f"foreground on selection has contrast {contrast(c('foreground'), c('selection')):.1f}:1, under 4.5:1")
 mode = colors.get("mode", "dark")
 if mode == "dark" and luminance(bg) > 0.2:
