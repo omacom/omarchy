@@ -125,6 +125,8 @@ Item {
   onFilterTextChanged: if (filterInput.text !== filterText) filterInput.text = filterText
   property int selectedIndex: 0
   property bool cursorActive: false
+  // Rows with a `alt:` stand-in show and run it while this holds.
+  property bool altHeld: false
   property int requestSerial: 0
   property int applySerial: 0
   property var items: ({})
@@ -810,9 +812,12 @@ Item {
       }
       rows = currentRows.concat(drilldownRows)
     } else {
+      // A Alt stand-in shows in place of its row, never beside it.
+      var altVariants = MenuModel.altVariantIds(root.items, root.itemOrder)
       for (var j = 0; j < root.itemOrder.length; j++) {
         var child = root.item(root.itemOrder[j])
         if (!child || child.parent !== active) continue
+        if (altVariants[child.id]) continue
         if (!root.isVisible(child)) continue
         rows.push(root.displayRow(child, child.description, child.order))
       }
@@ -980,8 +985,14 @@ Item {
       filterText = ""
       if (root.appLibrary) root.appLibrary.launch(appId, label)
     } else {
-      root.applySelected(row.itemId, row.action)
+      var variant = root.altHeld ? root.altVariantFor(row.itemId) : null
+      if (variant) root.applySelected(variant.id, variant.action)
+      else root.applySelected(row.itemId, row.action)
     }
+  }
+
+  function altVariantFor(id) {
+    return MenuModel.altVariant(root.items, root.whenResults, root.disabledResults, root.item(id))
   }
 
   function requestDeleteSelected() {
@@ -1030,6 +1041,7 @@ Item {
     if (root.dmenuActive) root.finishRequest(null)
     opened = false
     filterText = ""
+    altHeld = false
   }
 
   // ------------------------------------------------------------------
@@ -1298,6 +1310,7 @@ Item {
   }
 
   function openExistingMenu(initialMenu) {
+    altHeld = false
     requestSerial += 1
     mode = "menu"
     requestActive = false
@@ -1693,7 +1706,13 @@ Item {
         z: root.deleteConfirmOpen ? 20 : 0
 
         // Focus is on filterInput, which forwards every key here first.
+        Keys.onReleased: function(event) {
+          if (event.key === Qt.Key_Alt) root.altHeld = false
+        }
+
         Keys.onPressed: function(event) {
+          root.altHeld = event.key === Qt.Key_Alt || (event.modifiers & Qt.AltModifier) !== 0
+
           if (root.deleteConfirmOpen) {
             // Swallow the rest too, or it would type into the search line behind the dialog.
             deleteConfirm.handleKey(event)
@@ -1869,6 +1888,8 @@ Item {
               // Faded: the row is here to say the software is already
               // installed, not to be picked.
               opacity: row.disabled ? 0.4 : 1
+              // The entry standing in for this row while Alt is held.
+              readonly property var altVariant: root.altHeld && row.kind === "action" ? root.altVariantFor(row.itemId) : null
               radius: root.cornerRadius
               color: row.hasCursor ? root.selectedBackground : "transparent"
               borderSpec: row.hasCursor ? root.selectedBorderSpec : Border.none()
@@ -1888,9 +1909,10 @@ Item {
                 id: iconText
                 textFormat: Text.PlainText
                 visible: row.hasIcon && !iconImage.visible
-                text: row.icon
+                readonly property string glyphFont: row.altVariant ? row.altVariant.iconFont : row.iconFont
+                text: row.altVariant ? row.altVariant.icon : row.icon
                 color: row.hasCursor ? root.selectedText : root.foreground
-                font.family: row.iconFont.length > 0 ? row.iconFont : root.fontFamily
+                font.family: glyphFont.length > 0 ? glyphFont : root.fontFamily
                 font.pixelSize: Style.font.iconLarge
                 width: Style.space(36)
                 horizontalAlignment: Text.AlignHCenter
@@ -1938,7 +1960,7 @@ Item {
                   id: labelText
                   textFormat: Text.PlainText
                   width: parent.width
-                  text: row.label
+                  text: row.altVariant ? root.labelFor(row.altVariant) : row.label
                   color: row.hasCursor ? root.selectedText : root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.heading
@@ -2003,8 +2025,9 @@ Item {
                 onPositionChanged: function(mouse) {
                   root.selectFromPointer(row.index, row, mouse)
                 }
-                onClicked: {
+                onClicked: function(mouse) {
                   if (row.disabled) return
+                  root.altHeld = (mouse.modifiers & Qt.AltModifier) !== 0
                   root.cursorActive = true
                   root.selectedIndex = row.index
                   root.activateIndex(row.index, true)

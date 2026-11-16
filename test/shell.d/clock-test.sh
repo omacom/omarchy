@@ -154,6 +154,23 @@ if (previousTZ === undefined) delete process.env.TZ
 else process.env.TZ = previousTZ
 assertDeepEqual(apia[4].days.map(day => day.day), [26, 27, 28, 29, 30, 31, 1], 'calendar keeps a day the local zone skipped')
 
+// ---- tick scheduling across a daylight-saving fold
+// The fold instants are the second pass through the repeated hour (02:30:15
+// CET, 01:30:15 EST), where a delay worked out on local wall time lands an
+// hour back and goes negative.
+for (const [zone, at, minute, second] of [
+  ['Europe/Berlin', '2026-10-25T01:30:15Z', 45000, 1000],
+  ['America/New_York', '2026-11-01T06:30:15Z', 45000, 1000],
+  ['Europe/Berlin', '2026-10-26T11:00:15.250Z', 44750, 750],
+]) {
+  process.env.TZ = zone
+  const now = Date.parse(at)
+  assertEqual(calendar.msUntilNextTick(now, 60000), minute, `clock waits for the next minute at ${at} in ${zone}`)
+  assertEqual(calendar.msUntilNextTick(now, 1000), second, `clock waits for the next second at ${at} in ${zone}`)
+}
+if (previousTZ === undefined) delete process.env.TZ
+else process.env.TZ = previousTZ
+
 // ---- stepping
 assertDeepEqual(calendar.stepMonth(2026, 0, 1), { year: 2026, month: 1 }, 'calendar steps to the next month')
 assertDeepEqual(calendar.stepMonth(2026, 0, -1), { year: 2025, month: 11 }, 'calendar steps back across the new year')

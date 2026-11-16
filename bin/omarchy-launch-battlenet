@@ -37,6 +37,47 @@ if [[ ! -f $LAUNCHER ]]; then
   exit 1
 fi
 
+# Hyprland leaves XWayland apps unscaled (xwayland:force_zero_scaling), and Wine
+# reads its DPI from the prefix registry once at startup, so match it to the
+# focused monitor's scale on every launch. Skipped while the prefix is running:
+# the running launcher ignores it, and wineserver rewrites user.reg on exit.
+prefix_running() {
+  local pid prefix
+  for pid in $(pgrep -x wineserver); do
+    prefix=$(tr '\0' '\n' </proc/"$pid"/environ 2>/dev/null | sed -n 's/^WINEPREFIX=//p')
+    [[ -n $prefix && $(realpath "$prefix" 2>/dev/null) == "$(realpath "$PREFIX")" ]] && return 0
+  done
+  return 1
+}
+
+match_dpi_to_monitor_scale() {
+  local scale dpi registry
+  scale=$(hyprctl monitors -j 2>/dev/null | jq -r '.[] | select(.focused == true).scale')
+  [[ $scale =~ ^[0-9]+(\.[0-9]+)?$ ]] || return 0
+  dpi=$(awk -v scale="$scale" 'BEGIN { printf "%08x", scale * 96 + 0.5 }')
+
+  # Wine reads the DPI from [Control Panel\\Desktop], but a fresh prefix leaves
+  # it unset there, so add it after the key's #time line when it's missing. Each
+  # launch writes its own temp file, so two quick launches can't share one.
+  registry=$(mktemp "$PREFIX/user.reg.XXXXXX")
+  chmod --reference="$PREFIX/user.reg" "$registry"
+  awk -v value="\"LogPixels\"=dword:$dpi" '
+    /^\[/ { desktop = ($0 ~ /^\[Control Panel\\\\Desktop\]/) }
+    NR == FNR { if (desktop && /^"LogPixels"=/) has_value = 1; next }
+    pending && !/^#time=/ { print value; pending = 0 }
+    /^"LogPixels"=dword:[0-9a-f]+$/ { print value; next }
+    { print }
+    pending { print value; pending = 0 }
+    desktop && /^\[/ && !has_value { pending = 1 }
+    END { if (pending) print value }
+  ' "$PREFIX/user.reg" "$PREFIX/user.reg" >"$registry"
+  mv "$registry" "$PREFIX/user.reg"
+}
+
+if ! prefix_running; then
+  match_dpi_to_monitor_scale
+fi
+
 env_args=(
   WINEPREFIX="$PREFIX"
   PROTONPATH=GE-Proton

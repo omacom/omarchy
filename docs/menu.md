@@ -42,11 +42,16 @@ submenu. The fields:
 | `aliases` | Alternate `omarchy menu summon <name>` routes; also searchable |
 | `description` | Subtitle shown while searching, and extra search text matched by whole word |
 | `when` / `checked` / `disabled` | Shell conditions (see Guards) |
+| `alt` | Id of another action entry that stands in for this row while Alt is held |
 
 Do not add `aliases` to new entries. They are reserved for established
 alternate names users already type (`power-menu`, `settings`), kept for
 compatibility — see `AGENTS.md`. Search does not need them: labels, the last
 id segment, and descriptions are all searchable.
+
+## Alt variants
+
+An action row can name another entry with `alt:` to stand in for it while Alt is held: System > Reboot carries `"alt":"system.firmware"`, so holding Alt turns it into Reboot to BIOS, and Enter or an Alt-click runs that instead. The stand-in is an ordinary entry with its own label, icon, guards, and translation, so it stays searchable and routable (`omarchy menu summon system.firmware`); it is only left out of its submenu's list, where it would duplicate the row it replaces. When its `when:` fails or its `disabled:` succeeds, the row stays as it is, and an `alt:` that names a submenu or a missing id is ignored rather than hiding anything. `altVariant` and `altVariantIds` in `MenuModel.js` hold the logic; `Menu.qml` tracks Alt from the key events it already receives, so an Alt held down before the menu opened only counts once another key or a click reports it.
 
 ## Load and merge
 
