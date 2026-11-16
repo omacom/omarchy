@@ -366,6 +366,11 @@ image_path=$(jq -r '.path' <<<"$capture_output")
 jq -e '.mime == "image/jpeg"' <<<"$capture_output" >/dev/null && [[ $image_path == *.jpg ]] || fail "clipboard capture stores watched jpeg images with jpg extension"
 pass "clipboard capture stores watched jpeg images with jpg extension"
 
+capture_output=$(printf 'jpg-only-data' | WL_PASTE_TYPES="text/html\nimage/jpeg\n" XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" image)
+image_path=$(jq -r '.path' <<<"$capture_output")
+jq -e '.mime == "image/jpeg"' <<<"$capture_output" >/dev/null && [[ $image_path == *.jpg && $(<"$image_path") == "jpg-only-data" ]] || fail "clipboard capture records watched images offered only as jpeg"
+pass "clipboard capture records watched images offered only as jpeg"
+
 capture_output=$(printf 'secret' | CLIPBOARD_STATE=sensitive XDG_RUNTIME_DIR="$TMPDIR" XDG_STATE_HOME="$TMPDIR/state" PATH="$TMPDIR/bin:$PATH" "$ROOT/shell/plugins/clipboard/capture.sh" text)
 [[ -z $capture_output ]] || fail "clipboard capture ignores sensitive watched text"
 pass "clipboard capture ignores sensitive watched text"

@@ -98,12 +98,23 @@ emit_text() {
   ' <"$tmp"
 }
 
+image_types=(image/png image/jpeg image/webp image/gif image/bmp image/tiff)
+
 case "${1:-}" in
 text) emit_text cat; exit 0 ;;
 image/*) emit_image "$1" cat; exit 0 ;;
+image)
+  # wl-paste --type image hands over the first image type on offer. Keep that
+  # copy when it's a type history stores, else read one that is below.
+  offered=$(grep -m1 '^image/' <<<"$types")
+  if [[ " ${image_types[*]} " == *" $offered "* ]]; then
+    emit_image "$offered" cat
+    exit 0
+  fi
+  ;;
 esac
 
-for mime in image/png image/jpeg image/webp image/gif image/bmp image/tiff; do
+for mime in "${image_types[@]}"; do
   if grep -qx "$mime" <<<"$types"; then
     emit_image "$mime" wl-paste --type "$mime"
     exit 0
