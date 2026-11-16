@@ -55,7 +55,7 @@ i2c_device i2c-DELL06CB:00 "ID_INPUT_TOUCHPAD=1"
 i2c_device i2c-HIMX5200:00 "ID_INPUT_TOUCHSCREEN=1"
 i2c_device i2c-NCT9640:00 "ID_INPUT_KEYBOARD=1"
 
-WRITES="$writes" OMARCHY_I2C_HID_DRIVER_PATH="$driver" PATH="$stub_bin:$PATH" bash "$restart" >/dev/null
+WRITES="$writes" CYCLE_STATUS=1 OMARCHY_I2C_HID_DRIVER_PATH="$driver" PATH="$stub_bin:$PATH" bash "$restart" >/dev/null
 
 expected=$'unbind i2c-DELL06CB:00\nbind i2c-DELL06CB:00'
 [[ $(<"$writes") == "$expected" ]] ||
@@ -75,7 +75,7 @@ if WRITES="$writes" CYCLE_STATUS=1 OMARCHY_I2C_HID_DRIVER_PATH="$empty_driver" P
   bash "$restart" >"$test_tmp/output" 2>"$test_tmp/error"; then
   fail "a reset without a supported trackpad must fail"
 fi
-grep -F "No trackpad found to reset" "$test_tmp/error" >/dev/null ||
+grep -F "No trackpad was reset" "$test_tmp/error" >/dev/null ||
   fail "an unsupported trackpad must be explained"
 [[ $(<"$writes") == "$expected" ]] || fail "unsupported hardware must not trigger privileged writes"
 pass "a missing supported trackpad fails clearly without privileged writes"
@@ -96,7 +96,7 @@ for failure in "modprobe -r intel_quicki2c" "modprobe intel_quicki2c"; do
 done
 
 : > "$writes"
-WRITES="$writes" THC_LOADED=1 OMARCHY_I2C_HID_DRIVER_PATH="$empty_driver" \
+WRITES="$writes" CYCLE_STATUS=1 THC_LOADED=1 OMARCHY_I2C_HID_DRIVER_PATH="$empty_driver" \
   PATH="$stub_bin:$PATH" bash "$restart" >"$test_tmp/output"
 [[ $(<"$writes") == $'modprobe -r intel_quicki2c\nmodprobe intel_quicki2c' ]] ||
   fail "a successful THC reset must unload and reload the module"

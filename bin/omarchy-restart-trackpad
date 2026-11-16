@@ -50,6 +50,6 @@ if lsmod | grep -q intel_quicki2c; then
 fi
 
 if (( reset == 0 )); then
-  echo "No trackpad found to reset: Hyprland has no touchpad to release, and none is on i2c_hid_acpi or intel_quicki2c." >&2
+  echo "No trackpad was reset: Hyprland could not release one, and none is bound to i2c_hid_acpi or intel_quicki2c." >&2
   exit 1
 fi
