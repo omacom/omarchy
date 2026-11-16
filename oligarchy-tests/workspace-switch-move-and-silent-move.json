@@ -1,0 +1,18 @@
+{
+  "name": "workspace-switch-move-and-silent-move",
+  "kind": "resume",
+  "context": "From the desktop please do the following:\n\n- Super+0 is workspace 10.\n- Super+Shift+Alt+4 is `<M-S-A-4>`.\n- The workspace indicators sit right of the Omarchy logo. Workspaces 1–5 are always in the bar, dimmed when empty; 6–10 appear only while they are showing or hold a window. The focused workspace shows a symbol instead of its number, and workspace 10 is labelled `0`.",
+  "steps": [
+    "Press Super+Return. A terminal opens on workspace 1.",
+    "Type `echo MOVER` and press Return. The line `MOVER` appears and the bar marks workspace 1 as focused.",
+    "Press Super+Shift+2. The view moves to workspace 2. MOVER is there.",
+    "Press Super+Shift+0. The view moves to workspace 10. MOVER is there.",
+    "Press Super+Shift+1. The view moves to workspace 1. MOVER is there.",
+    "Press Super+Shift+3. The view moves to workspace 3 and MOVER follows.",
+    "Press Super+Shift+Alt+4. The view stays on workspace 3, MOVER leaves, and workspace 4 turns occupied in the bar.",
+    "Press Super+0. Workspace 10 is empty.",
+    "Press Super+4. Workspace 4 is showing with MOVER.",
+    "Type `echo \"RESULT ws=$(hyprctl activeworkspace -j | jq .id) windows=$(hyprctl clients -j | jq -c '[.[].workspace.id]')\"` and press Return. The line `RESULT ws=4 windows=[4]` appears."
+  ],
+  "proof": "* On success\n** The final screen shows MOVER on workspace 4 printing `RESULT ws=4 windows=[4]`\n** Supporting: MOVER follows moves to workspaces 2, 10, 1 and 3, the view stays on workspace 3 while MOVER moves silently to workspace 4, and workspace 10 is empty on Super+0\n* If unsuccessful\n** The final screen shows another workspace, more than one window, or MOVER elsewhere; or an earlier screen shows the view following the silent move, the wrong workspace focused, or MOVER in the wrong place after a chord"
+}
