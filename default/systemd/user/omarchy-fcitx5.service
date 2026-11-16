@@ -29,6 +29,8 @@ ConditionPathExists=/usr/bin/fcitx5
 [Service]
 Type=dbus
 BusName=org.fcitx.Fcitx5
+# Keep the home-visible table current before input clients read compose.
+ExecStartPre=/usr/bin/omarchy-refresh-xcompose
 # notificationitem duplicates the tray entry omarchy already renders itself.
 # --replace takes the bus name from a fcitx5 started outside the unit (a user
 # autostart, say), which would otherwise make every restart exit on arrival.
