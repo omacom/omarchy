@@ -87,8 +87,9 @@ class TypingSetupTest(unittest.TestCase):
     self.assertEqual(save.call_args.args[3], [["keyboard-us", ""], ["mozc", ""]])
 
   def test_an_uninstalled_engine_names_its_package_without_restarting(self):
-    absent = subprocess.CompletedProcess([], 1)
-    with patch.object(typing.setup, "live_group", return_value=("Default", "us", [["keyboard-us", ""]])), patch.object(typing.setup, "available_methods", return_value=[]), patch.object(typing.subprocess, "run", return_value=absent), patch.object(typing.setup, "run") as run, patch.object(typing, "set_inputs") as save:
+    real_run = subprocess.run
+    absent = lambda command, *args, **kwargs: subprocess.CompletedProcess(command, 1) if command[0] == "omarchy-pkg-present" else real_run(command, *args, **kwargs)
+    with patch.object(typing.setup, "live_group", return_value=("Default", "us", [["keyboard-us", ""]])), patch.object(typing.setup, "available_methods", return_value=[]), patch.object(typing.subprocess, "run", side_effect=absent), patch.object(typing.setup, "run") as run, patch.object(typing, "set_inputs") as save:
       with self.assertRaisesRegex(RuntimeError, "Install fcitx5-mozc to use Japanese"):
         typing.save_inputs(["mozc"])
     run.assert_not_called()
@@ -117,7 +118,7 @@ class TypingSetupTest(unittest.TestCase):
     with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {"XDG_CONFIG_HOME": temporary}):
       with patch.object(typing.setup, "live_group", side_effect=subprocess.CalledProcessError(1, "busctl")), patch("sys.stderr") as error:
         typing.seed_language("pinyin")
-      self.assertIn("Setup > Typing > Input Methods", "".join(call.args[0] for call in error.write.call_args_list))
+      self.assertIn("Setup > Keyboard > Input Methods", "".join(call.args[0] for call in error.write.call_args_list))
       self.assertIn("Noto Sans CJK SC", (Path(temporary) / "fontconfig/conf.d/50-omarchy-input-method.conf").read_text())
 
   def test_failed_font_write_restores_the_input_group(self):

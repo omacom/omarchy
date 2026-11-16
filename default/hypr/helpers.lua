@@ -10,6 +10,20 @@ end
 
 o.shell_quote = shell_quote
 
+-- Chromium-based browsers. Rule classes match the whole name, so their web apps
+-- (chrome-<host>_<path>-<profile>) aren't included.
+o.chromium_browsers = "((google-)?[cC]hrom(e|ium)|[bB]rave-browser|[mM]icrosoft-edge|Vivaldi-stable|helium)"
+
+-- Apps that draw their own header with a close button: those browsers and GNOME
+-- apps with a header bar. Floating workspaces give them no titlebar. Web apps
+-- keep theirs, having no tab strip to drag the window by.
+--
+-- Their maximize button stays off (GNOME's default button layout) and their
+-- maximize requests stay suppressed: Hyprland reports every app as maximized and
+-- takes any maximize request as a toggle, so Chrome's request to return to
+-- "maximized" after leaving fullscreen would maximize a normal window.
+o.self_framed_apps = "(" .. o.chromium_browsers .. "|org\\.gnome\\.(DiskUtility|Papers))"
+
 local function file_exists(path)
   local file = io.open(path, "r")
   if file then
@@ -269,6 +283,21 @@ end
 
 function o.notify(message)
   return "omarchy-notification-send -u low " .. shell_quote(message)
+end
+
+-- Whether this session gets default/hypr/software-rendering.lua's lighter look:
+-- it renders on the CPU (llvmpipe or softpipe), as
+-- omarchy-hyprland-software-rendering marks it once Hyprland is up, and the user
+-- hasn't turned animations back on there with omarchy-toggle-animations.
+function o.software_rendering_defaults()
+  local runtime = os.getenv("XDG_RUNTIME_DIR")
+  local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+  if not runtime or runtime == "" or not signature or signature == "" then
+    return false
+  end
+
+  return file_exists(runtime .. "/hypr/" .. signature .. "/omarchy-software-rendering")
+    and not file_exists(paths.home .. "/.local/state/omarchy/toggles/animations-without-gpu")
 end
 
 -- What makes apps float on their own account, so a floating workspace can
