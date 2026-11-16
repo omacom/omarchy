@@ -1089,7 +1089,7 @@ Item {
     }
   ])
 
-  // id -> { enabled, language } from the user prefs file.
+  // id -> { enabled?, language } from the user prefs file; enabled only when set there.
   property var queryPluginPrefs: ({})
   property var userQueryPlugins: []
   // id -> plugin definition merged from built-ins + user file + prefs.
@@ -1111,16 +1111,7 @@ Item {
   function loadQueryPluginPrefs(raw) {
     var prefs = ({})
     try {
-      var parsed = JSON.parse(root.stripJsonc(raw))
-      var entries = (parsed && parsed.plugins) || parsed || {}
-      var keys = Object.keys(entries)
-      for (var i = 0; i < keys.length; i++) {
-        var val = entries[keys[i]]
-        prefs[keys[i]] = {
-          enabled: val && typeof val.enabled === "boolean" ? val.enabled : true,
-          language: val && val.language ? String(val.language) : ""
-        }
-      }
+      prefs = MenuModel.queryPluginPrefs(JSON.parse(root.stripJsonc(raw)))
     } catch (e) { }
     root.queryPluginPrefs = prefs
     root.rebuildQueryPluginMap()

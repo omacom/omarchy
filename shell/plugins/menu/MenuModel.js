@@ -772,6 +772,23 @@ function queryPluginsForQuery(plugins, query) {
   return active
 }
 
+// id -> { enabled, language } from the parsed prefs file, which holds either
+// { plugins: { id: {...} } } or the id map itself. `enabled` is carried only
+// when the file sets it, so a pref that names just a language leaves a plugin
+// its own enabled state, including a user plugin defined disabled.
+function queryPluginPrefs(parsed) {
+  var prefs = {}
+  var entries = (parsed && parsed.plugins) || parsed || {}
+  var keys = Object.keys(entries)
+  for (var i = 0; i < keys.length; i++) {
+    var val = entries[keys[i]]
+    var pref = { language: val && val.language ? String(val.language) : "" }
+    if (val && typeof val.enabled === "boolean") pref.enabled = val.enabled
+    prefs[keys[i]] = pref
+  }
+  return prefs
+}
+
 // Localized label for a plugin. Falls back to the raw label, then the id.
 function queryPluginLabel(plugin, lang) {
   var l = lang || "en"
@@ -918,6 +935,7 @@ if (typeof module !== "undefined") {
     looksLikeMath: looksLikeMath,
     queryPluginsForQuery: queryPluginsForQuery,
     queryPluginLabel: queryPluginLabel,
+    queryPluginPrefs: queryPluginPrefs,
     queryEncode: queryEncode,
     queryWebProviders: QUERY_WEB_PROVIDERS,
     queryWebProvider: queryWebProvider,

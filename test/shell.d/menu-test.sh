@@ -483,6 +483,9 @@ const clipRow = menu.queryPluginRow(plugins['com.example.clip'], '> hi', 'hello\
 assertDeepEqual([clipRow.label, clipRow.detail, clipRow.icon], ['hello world', 'Clip', '󰅌'], 'a copy row shows its output on one line, its plugin name and its icon')
 const tr = (key, english) => '[' + key + '] ' + english
 assertEqual(menu.queryPluginRow(plugins['omarchy.query.web'], 'q', 'u', 'en', tr).label, '[menu.querySearch] Search: q', 'row text goes through the translator')
+assertDeepEqual(menu.queryPluginPrefs({ plugins: { 'com.example.off': { language: 'es' }, 'omarchy.query.web': { enabled: false } } }),
+  { 'com.example.off': { language: 'es' }, 'omarchy.query.web': { language: '', enabled: false } }, 'a pref carries enabled only when it sets it')
+assertDeepEqual(menu.queryPluginPrefs({ 'omarchy.query.calc': { enabled: true, language: 'de' } }), { 'omarchy.query.calc': { language: 'de', enabled: true } }, 'prefs may be the id map itself')
 assertEqual(menu.queryPluginLabel({ id: 'p', label: 'P', i18n: { es: 'P (es)' } }, 'es'), 'P (es)', 'a plugin name uses its i18n entry for the language')
 assertEqual(menu.queryPluginLabel({ id: 'p', label: 'P', i18n: { es: 'P (es)' } }, 'de'), 'P', 'a plugin name falls back to its label')
 
