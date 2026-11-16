@@ -275,7 +275,6 @@
   "reset.willErase": "Aceasta va șterge definitiv:",
   "screensaver.disabled": "Economizor ecran dezactivat",
   "screensaver.enabled": "Economizor ecran activat",
-  "screensaver.terminalOnly": "Economizorul de ecran rulează doar în Alacritty, Foot, Ghostty sau Kitty",
   "setupForm.confirmPlaceholder": "Tastează din nou aceeași parolă",
   "setupForm.confirmPrompt": "Confirmă> ",
   "setupForm.hostnameInvalid": "Numele gazdei: 1-63 litere, cifre sau cratime, fără cratimă la început sau sfârșit",

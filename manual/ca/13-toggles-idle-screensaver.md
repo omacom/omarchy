@@ -91,7 +91,7 @@ L'estalvi de pantalla d'Omarchy és art ASCII que passa per efectes de text alea
 
 El pots iniciar a demanda des de _Sistema > Estalvi de pantalla_ (`Super + Esc`), que el força a aparèixer encara que hagis desactivat l'estalvi de pantalla per inactivitat. Per defecte no hi ha cap tecla d'accés ràpid vinculada.
 
-`omarchy toggle screensaver` és el que desactiva el d'inactivitat, si prefereixes anar directament de treballar a bloquejat. Necessita un terminal que sàpiga configurar — Alacritty, Foot, Ghostty o Kitty — i t'ho dirà si el teu terminal predeterminat és una altra cosa.
+`omarchy toggle screensaver` és el que desactiva el d'inactivitat, si prefereixes passar directament de treballar a bloquejat. Qualsevol tecla, clic, desplaçament o moviment del ratolí el tanca.
 
 El logotip que dibuixa el pots canviar tu, a _Aparença > Imatge de marca > Estalvi de pantalla_. Puja un png o svg i Omarchy el converteix a ASCII. Consulta [imatge de marca](41-branding.md).
 

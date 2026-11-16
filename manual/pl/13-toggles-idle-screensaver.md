@@ -91,7 +91,7 @@ Wygaszacz ekranu Omarchy to grafika ASCII przechodząca przez losowe efekty teks
 
 Możesz uruchomić go na żądanie z _System > Screensaver_ (`Super + Esc`), co wymusza jego pojawienie się, nawet jeśli wyłączyłeś wygaszacz ekranu w bezczynności. Domyślnie nie jest do niego przypisany żaden skrót klawiszowy.
 
-`omarchy toggle screensaver` to polecenie, które wyłącza ten w bezczynności, jeśli wolisz przechodzić bezpośrednio od pracy do blokady. Potrzebuje terminala, który wie, jak skonfigurować — Alacritty, Foot, Ghostty albo Kitty — i powie ci o tym, jeśli twoim domyślnym terminalem jest coś innego.
+`omarchy toggle screensaver` wyłącza ten przy bezczynności, jeśli wolisz przechodzić prosto od pracy do blokady. Dowolny klawisz, kliknięcie, przewinięcie lub ruch myszy go zamyka.
 
 Logo, które rysuje, możesz zmienić w _Appearance > Branding > Screensaver_. Prześlij png lub svg, a Omarchy przekształci je w ASCII. Zobacz [identyfikację wizualną](41-branding.md).
 

@@ -91,7 +91,7 @@ Omarchy のスクリーンセーバーは、ランダムなテキストエフェ
 
 _System > Screensaver_（`Super + Esc`）からオンデマンドで起動でき、アイドル時のスクリーンセーバーをオフにしていても強制的に表示できる。デフォルトで割り当てられたホットキーはない。
 
-アイドル時のものをオフにして、作業状態から直接ロック状態に移りたい場合は `omarchy toggle screensaver` を使う。設定方法を把握しているターミナル、つまり Alacritty、Foot、Ghostty、Kitty のいずれかが必要で、デフォルトのターミナルがそれ以外であればその旨を教えてくれる。
+作業状態から直接ロック状態に移りたい場合にアイドル時のスクリーンセーバーをオフにするのが、`omarchy toggle screensaver` です。キー入力、クリック、スクロール、マウスの動きのいずれかで閉じます。
 
 描画されるロゴは _Appearance > Branding > Screensaver_ で変更できる。png または svg をアップロードすると、Omarchy が ASCII に変換する。[ブランディング](41-branding.md)を参照のこと。
 

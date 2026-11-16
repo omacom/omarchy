@@ -269,7 +269,6 @@
   "reset.willErase": "این موارد برای همیشه پاک خواهند شد:",
   "screensaver.disabled": "محافظ صفحه غیرفعال شد",
   "screensaver.enabled": "محافظ صفحه فعال شد",
-  "screensaver.terminalOnly": "محافظ صفحه فقط در Alacritty، Foot، Ghostty یا Kitty اجرا می‌شود",
   "setupForm.confirmPlaceholder": "باید با گذرواژه‌ای که تازه وارد کردید مطابقت داشته باشد",
   "setupForm.confirmPrompt": "تأیید> ",
   "setupForm.hostnameInvalid": "نام میزبان باید 1-63 حرف، رقم یا خط تیره باشد و نمی‌تواند با خط تیره شروع یا تمام شود",

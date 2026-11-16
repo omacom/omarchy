@@ -91,7 +91,7 @@ Trình bảo vệ màn hình của Omarchy là nghệ thuật ASCII chạy qua c
 
 Bạn có thể khởi động nó theo yêu cầu từ _System > Screensaver_ (`Super + Esc`), điều này buộc nó xuất hiện ngay cả khi bạn đã tắt trình bảo vệ màn hình idle. Theo mặc định, không có phím tắt nào được gán cho nó.
 
-`omarchy toggle screensaver` là thứ tắt trình bảo vệ màn hình idle, nếu bạn muốn đi thẳng từ làm việc đến bị khóa. Nó cần một terminal mà nó biết cách cấu hình — Alacritty, Foot, Ghostty, hoặc Kitty — và sẽ cho bạn biết nếu terminal mặc định của bạn là một thứ khác.
+`omarchy toggle screensaver` là lệnh tắt trình bảo vệ màn hình khi rảnh, nếu bạn muốn đi thẳng từ đang làm việc sang bị khóa. Bất kỳ phím nào, cú nhấp, cuộn hoặc chuyển động chuột nào cũng sẽ đóng nó.
 
 Logo mà nó vẽ là của bạn để thay đổi, dưới _Appearance > Branding > Screensaver_. Tải lên một png hoặc svg và Omarchy chuyển đổi nó thành ASCII. Xem [branding](41-branding.md).
 

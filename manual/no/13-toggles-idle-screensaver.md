@@ -91,7 +91,7 @@ Omarchys skjermsparer er ASCII-kunst som kjører gjennom tilfeldige teksteffekte
 
 Du kan starte den på forespørsel fra _System > Screensaver_ (`Super + Esc`), som tvinger den opp selv om du har slått den inaktive skjermspareren av. Det er ingen hurtigtast bundet til den som standard.
 
-`omarchy toggle screensaver` er det som slår den inaktive av, hvis du heller vil gå rett fra arbeid til låst. Den trenger en terminal den vet hvordan den skal konfigurere — Alacritty, Foot, Ghostty eller Kitty — og vil fortelle deg det hvis standardterminalen din er noe annet.
+`omarchy toggle screensaver` er det som slår av den ved inaktivitet, hvis du heller vil gå rett fra arbeid til låst. Enhver tast, klikk, rulling eller musebevegelse lukker den.
 
 Logoen den tegner, kan du endre, under _Appearance > Branding > Screensaver_. Last opp en png eller svg, og Omarchy konverterer den til ASCII. Se [profilering](41-branding.md).
 

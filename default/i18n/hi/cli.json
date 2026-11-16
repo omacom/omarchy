@@ -269,7 +269,6 @@
   "reset.willErase": "यह स्थायी रूप से मिटा देगा:",
   "screensaver.disabled": "स्क्रीनसेवर अक्षम किया गया",
   "screensaver.enabled": "स्क्रीनसेवर सक्षम किया गया",
-  "screensaver.terminalOnly": "स्क्रीनसेवर केवल Alacritty, Foot, Ghostty या Kitty में चलता है",
   "setupForm.confirmPlaceholder": "अभी टाइप किए पासवर्ड से मेल खाना चाहिए",
   "setupForm.confirmPrompt": "पुष्टि करें> ",
   "setupForm.hostnameInvalid": "होस्टनाम 1-63 अक्षर, अंक या डैश का होना चाहिए, और डैश से शुरू या ख़त्म नहीं हो सकता",

@@ -275,7 +275,6 @@
   "reset.willErase": "Això esborrarà permanentment:",
   "screensaver.disabled": "Salvapantalles desactivat",
   "screensaver.enabled": "Salvapantalles activat",
-  "screensaver.terminalOnly": "El salvapantalles només funciona a Alacritty, Foot, Ghostty o Kitty",
   "setupForm.confirmPlaceholder": "Ha de coincidir amb la contrasenya que has escrit",
   "setupForm.confirmPrompt": "Confirma> ",
   "setupForm.hostnameInvalid": "El nom ha de tenir d'1 a 63 lletres, xifres o guions, sense guió al principi ni al final",

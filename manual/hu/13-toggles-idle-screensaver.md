@@ -91,7 +91,7 @@ Az Omarchy képernyővédője véletlenszerű szövegeffektusokon átfutó ASCII
 
 Igény szerint elindíthatod a _System > Screensaver_ (`Super + Esc`) menüből, amely akkor is erővel előhozza, ha kikapcsoltad a tétlenségi képernyővédőt. Alapértelmezés szerint nincs hozzá gyorsbillentyű kötve.
 
-Az `omarchy toggle screensaver` kapcsolja ki a tétlenségit, ha inkább egyenesen a munkából a zárolt állapotba szeretnél jutni. Olyan terminálra van szüksége, amelyet tud konfigurálni — Alacritty, Foot, Ghostty vagy Kitty —, és szólni fog, ha az alapértelmezett terminálod valami más.
+Az `omarchy toggle screensaver` kapcsolja ki a tétlenségit, ha inkább közvetlenül a munkából mennél a zárolt állapotba. Bármely billentyű, kattintás, görgetés vagy egérmozdulat bezárja.
 
 Az általa rajzolt logó a tied, megváltoztathatod az _Appearance > Branding > Screensaver_ alatt. Tölts fel egy png vagy svg fájlt, és az Omarchy ASCII-vé alakítja. Lásd az [arculatot](41-branding.md).
 

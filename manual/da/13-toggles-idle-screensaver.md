@@ -91,7 +91,7 @@ Omarchys pauseskærm er ASCII-kunst, der kører gennem tilfældige teksteffekter
 
 Du kan starte den efter behov fra _System > Screensaver_ (`Super + Esc`), hvilket tvinger den frem, selv hvis du har slået pauseskærmen ved inaktivitet fra. Der er som standard ingen genvejstast bundet til den.
 
-`omarchy toggle screensaver` er det, der slår den ved inaktivitet fra, hvis du hellere vil gå direkte fra arbejde til låst. Den kræver en terminal, den ved, hvordan den skal konfigurere — Alacritty, Foot, Ghostty eller Kitty — og vil fortælle dig det, hvis din standardterminal er noget andet.
+`omarchy toggle screensaver` er det, der slår den ved inaktivitet fra, hvis du hellere vil gå direkte fra arbejde til låst. Enhver tast, klik, rulning eller musebevægelse lukker den.
 
 Logoet, den tegner, kan du selv ændre, under _Appearance > Branding > Screensaver_. Upload en png eller svg, og Omarchy konverterer den til ASCII. Se [branding](41-branding.md).
 

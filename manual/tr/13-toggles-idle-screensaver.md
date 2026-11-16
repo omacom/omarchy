@@ -91,7 +91,7 @@ Omarchy'nin ekran koruyucusu, rastgele metin efektlerinden geçen ASCII sanatıd
 
 Onu _System > Screensaver_ (`Super + Esc`) üzerinden isteğe bağlı başlatabilirsiniz; bu, boşta ekran koruyucuyu kapatmış olsanız bile onu zorla çıkarır. Varsayılan olarak ona bağlı bir kısayol tuşu yoktur.
 
-Çalışmaktan doğrudan kilitli duruma geçmeyi tercih ederseniz, boşta olanı kapatan şey `omarchy toggle screensaver` komutudur. Nasıl yapılandıracağını bildiği bir terminale ihtiyacı vardır — Alacritty, Foot, Ghostty ya da Kitty — ve varsayılan terminaliniz başka bir şeyse size bunu söyler.
+Çalışmaktan doğrudan kilitli duruma geçmeyi tercih ederseniz, boşta olanı kapatan şey `omarchy toggle screensaver` komutudur. Herhangi bir tuş, tıklama, kaydırma veya fare hareketi onu kapatır.
 
 Çizdiği logo değiştirmeniz için sizindir, _Appearance > Branding > Screensaver_ altındadır. Bir png ya da svg yükleyin, Omarchy onu ASCII'ye dönüştürür. Bkz. [markalama](41-branding.md).
 

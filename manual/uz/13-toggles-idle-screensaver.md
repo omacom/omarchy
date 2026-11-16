@@ -91,7 +91,7 @@ Omarchy ekran saqlovchisi tasodifiy matn effektlaridan o‘tadigan ASCII art bo�
 
 Uni _System > Screensaver_ (`Super + Esc`) dan talab bo‘yicha ishga tushirishingiz mumkin, bu bo‘sh turgandagi ekran saqlovchisini o‘chirib qo‘ygan bo‘lsangiz ham uni majburan chiqaradi. Standart holatda unga hech qanday tezkor tugma bog‘lanmagan.
 
-Agar ishlashdan to‘g‘ridan-to‘g‘ri qulflangan holatga o‘tishni afzal ko‘rsangiz, bo‘sh turgandagi ekran saqlovchisini `omarchy toggle screensaver` o‘chiradi. Unga qanday sozlashni biladigan terminal kerak — Alacritty, Foot, Ghostty yoki Kitty — va standart terminalingiz boshqa narsa bo‘lsa, sizga shuni aytadi.
+Agar ishlashdan to'g'ridan-to'g'ri qulflangan holatga o'tishni afzal ko'rsangiz, `omarchy toggle screensaver` bo'sh turgandagi ekran saqlagichini o'chiradi. Har qanday tugma, bosish, aylantirish yoki sichqoncha harakati uni yopadi.
 
 U chizadigan logotip sizniki va uni o‘zgartirishingiz mumkin, _Appearance > Branding > Screensaver_ ostida. png yoki svg yuklang va Omarchy uni ASCII ga aylantiradi. [brending](41-branding.md) ga qarang.
 

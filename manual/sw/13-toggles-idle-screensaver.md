@@ -91,7 +91,7 @@ Kiokoa skrini cha Omarchy ni sanaa ya ASCII inayoendeshwa kupitia athari za maan
 
 Unaweza kuianzisha unapotaka kutoka _System > Screensaver_ (`Super + Esc`), ambayo huilazimisha kuja hata kama umezima kiokoa skrini cha kutotenda. Hakuna kitufe cha mkato kilichofungwa kwake kwa chaguo-msingi.
 
-`omarchy toggle screensaver` ndicho kinachozima cha kutotenda, ikiwa ungependa kwenda moja kwa moja kutoka kufanya kazi hadi kufungiwa. Kinahitaji terminali ambayo kinajua jinsi ya kusanidi — Alacritty, Foot, Ghostty, au Kitty — na kitakuambia hivyo ikiwa terminali yako chaguo-msingi ni kitu kingine.
+`omarchy toggle screensaver` ndiyo huzima ile ya kutotumika, ikiwa ungependa kwenda moja kwa moja kutoka kufanya kazi hadi kufungwa. Kitufe chochote, kubofya, kusogeza au mwendo wa kipanya huifunga.
 
 Nembo inayochora ni yako kuibadilisha, chini ya _Appearance > Branding > Screensaver_. Pakia png au svg na Omarchy huibadilisha kuwa ASCII. Angalia [chapa](41-branding.md).
 

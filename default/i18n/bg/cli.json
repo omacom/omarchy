@@ -269,7 +269,6 @@
   "reset.willErase": "Това ще изтрие завинаги:",
   "screensaver.disabled": "Скрийнсейвърът е изключен",
   "screensaver.enabled": "Скрийнсейвърът е включен",
-  "screensaver.terminalOnly": "Скрийнсейвърът работи само в Alacritty, Foot, Ghostty или Kitty",
   "setupForm.confirmPlaceholder": "Трябва да съвпада с току-що въведената парола",
   "setupForm.confirmPrompt": "Потвърди> ",
   "setupForm.hostnameInvalid": "Името трябва да е 1–63 букви, цифри или тирета, без тире в началото или края",

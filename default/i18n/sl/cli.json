@@ -281,7 +281,6 @@
   "reset.willErase": "To bo trajno izbrisalo:",
   "screensaver.disabled": "Ohranjevalnik onemogočen",
   "screensaver.enabled": "Ohranjevalnik omogočen",
-  "screensaver.terminalOnly": "Ohranjevalnik deluje samo v Alacritty, Foot, Ghostty ali Kitty",
   "setupForm.confirmPlaceholder": "Znova vnesite isto geslo",
   "setupForm.confirmPrompt": "Potrdite> ",
   "setupForm.hostnameInvalid": "Ime: 1-63 črk, številk ali vezajev, ne sme se začeti ali končati z vezajem",

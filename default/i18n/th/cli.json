@@ -263,7 +263,6 @@
   "reset.willErase": "สิ่งต่อไปนี้จะถูกลบถาวร:",
   "screensaver.disabled": "ปิดโปรแกรมพักหน้าจอแล้ว",
   "screensaver.enabled": "เปิดโปรแกรมพักหน้าจอแล้ว",
-  "screensaver.terminalOnly": "โปรแกรมพักหน้าจอใช้ได้เฉพาะใน Alacritty, Foot, Ghostty หรือ Kitty",
   "setupForm.confirmPlaceholder": "ต้องตรงกับรหัสผ่านที่เพิ่งพิมพ์",
   "setupForm.confirmPrompt": "ยืนยัน> ",
   "setupForm.hostnameInvalid": "ชื่อเครื่องต้องยาว 1-63 ตัว เป็นตัวอักษร ตัวเลข หรือขีดกลาง และขึ้นต้นหรือลงท้ายด้วยขีดกลางไม่ได้",

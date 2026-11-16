@@ -91,7 +91,7 @@ Omarchy's schermbeveiliging is ASCII-kunst die door willekeurige teksteffecten l
 
 Je kunt hem op verzoek starten vanuit _System > Screensaver_ (`Super + Esc`), waarmee hij geforceerd verschijnt, zelfs als je de schermbeveiliging bij inactiviteit hebt uitgezet. Er is standaard geen sneltoets aan gebonden.
 
-`omarchy toggle screensaver` is wat de versie bij inactiviteit uitzet, als je liever rechtstreeks van werken naar vergrendeld gaat. Hij heeft een terminal nodig die hij weet te configureren — Alacritty, Foot, Ghostty of Kitty — en laat het je weten als je standaardterminal iets anders is.
+`omarchy toggle screensaver` is wat de inactieve variant uitzet, als je liever rechtstreeks van werken naar vergrendeld gaat. Elke toets, klik, scroll of muisbeweging sluit hem.
 
 Het logo dat hij tekent, kun je zelf veranderen, onder _Appearance > Branding > Screensaver_. Upload een png of svg en Omarchy zet hem om naar ASCII. Zie [branding](41-branding.md).
 

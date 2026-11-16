@@ -91,7 +91,7 @@ Lo screensaver di Omarchy è arte ASCII sottoposta a effetti di testo casuali, u
 
 Puoi avviarlo su richiesta da _System > Screensaver_ (`Super + Esc`), che lo forza anche se hai disattivato lo screensaver per inattività. Per impostazione predefinita non ha una scorciatoia associata.
 
-`omarchy toggle screensaver` è ciò che disattiva quello per inattività, se preferisci passare direttamente dal lavoro al blocco. Ha bisogno di un terminale che sa come configurare — Alacritty, Foot, Ghostty o Kitty — e te lo dirà se il tuo terminale predefinito è qualcos'altro.
+`omarchy toggle screensaver` è ciò che disattiva quello per inattività, se preferisci passare direttamente dal lavoro al blocco. Qualsiasi tasto, clic, scorrimento o movimento del mouse lo chiude.
 
 Il logo che disegna puoi cambiarlo tu, in _Appearance > Branding > Screensaver_. Carica un png o un svg e Omarchy lo converte in ASCII. Vedi [identità visiva](41-branding.md).
 

@@ -91,7 +91,7 @@ Omarchy ekraanisäästja on ASCII-kunst, mis jookseb läbi juhuslike tekstiefekt
 
 Saad selle nõudmisel käivitada jaotisest _System > Screensaver_ (`Super + Esc`), mis sunnib selle üles isegi siis, kui oled jõudeoleku ekraanisäästja välja lülitanud. Sellele ei ole vaikimisi kiirklahvi seotud.
 
-`omarchy toggle screensaver` on see, mis lülitab jõudeoleku oma välja, kui eelistad minna otse töötamisest lukustatud olekusse. See vajab terminali, mida ta oskab konfigureerida — Alacritty, Foot, Ghostty või Kitty — ja ütleb sulle nii, kui sinu vaiketerminal on midagi muud.
+`omarchy toggle screensaver` lülitab jõudeoleku oma välja, kui eelistad minna otse töötamiselt lukustatuks. Mis tahes klahv, klõps, kerimine või hiire liigutus sulgeb selle.
 
 Logo, mida see joonistab, saad ise muuta jaotises _Appearance > Branding > Screensaver_. Laadi üles png või svg ja Omarchy teisendab selle ASCII-ks. Vaata [bränding](41-branding.md).
 

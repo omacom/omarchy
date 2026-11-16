@@ -269,7 +269,6 @@
   "reset.willErase": "Bu işlem kalıcı olarak silecek:",
   "screensaver.disabled": "Ekran koruyucu devre dışı",
   "screensaver.enabled": "Ekran koruyucu etkin",
-  "screensaver.terminalOnly": "Ekran koruyucu yalnızca Alacritty, Foot, Ghostty veya Kitty içinde çalışır",
   "setupForm.confirmPlaceholder": "Az önce yazdığınız parolayla aynı olmalı",
   "setupForm.confirmPrompt": "Onayla> ",
   "setupForm.hostnameInvalid": "Bilgisayar adı 1-63 harf, rakam veya tire olmalı; tireyle başlayıp bitemez",

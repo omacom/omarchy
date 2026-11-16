@@ -91,7 +91,7 @@ Is ealaín ASCII é spárálaí scáileáin Omarchy a ritheann trí éifeachtaí
 
 Is féidir leat é a thosú ar éileamh ó _System > Screensaver_ (`Super + Esc`), a chuireann suas é fiú má tá spárálaí scáileáin an díomhaoin casta as agat. Níl aon aicearra eochrach ceangailte leis de réir réamhshocraithe.
 
-Casann `omarchy toggle screensaver` an ceann díomhaoin as, más fearr leat dul díreach ó bheith ag obair go bheith faoi ghlas. Teastaíonn teirminéal uaidh a bhfuil a fhios aige conas a chumrú — Alacritty, Foot, Ghostty, nó Kitty — agus inseoidh sé sin duit más rud éigin eile é do theirminéal réamhshocraithe.
+Is é `omarchy toggle screensaver` a chasann an ceann díomhaoin as, más fearr leat dul díreach ó bheith ag obair go bheith faoi ghlas. Dúnann aon eochair, cliceáil, scrolláil nó gluaiseacht luiche é.
 
 Is leatsa an lógó a tharraingíonn sé a athrú, faoi _Appearance > Branding > Screensaver_. Uaslódáil png nó svg agus tiontaíonn Omarchy go ASCII é. Féach [brandáil](41-branding.md).
 

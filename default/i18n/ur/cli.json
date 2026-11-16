@@ -269,7 +269,6 @@
   "reset.willErase": "اس سے مستقل طور پر مٹ جائے گا:",
   "screensaver.disabled": "اسکرین سیور بند",
   "screensaver.enabled": "اسکرین سیور آن",
-  "screensaver.terminalOnly": "اسکرین سیور صرف Alacritty، Foot، Ghostty یا Kitty میں چلتا ہے",
   "setupForm.confirmPlaceholder": "ابھی ٹائپ کیے گئے پاس ورڈ سے ملنا چاہیے",
   "setupForm.confirmPrompt": "تصدیق> ",
   "setupForm.hostnameInvalid": "ہوسٹ نام 1-63 حروف، ہندسوں یا ڈیش پر مشتمل ہو، اور ڈیش سے شروع یا ختم نہ ہو",

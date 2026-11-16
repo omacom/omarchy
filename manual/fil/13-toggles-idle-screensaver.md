@@ -91,7 +91,7 @@ Ang screensaver ng Omarchy ay ASCII art na dumadaan sa mga random na text effect
 
 Maaari mo itong simulan kapag gusto mo mula sa _System > Screensaver_ (`Super + Esc`), na pipilitin itong umakyat kahit naka-off mo ang idle screensaver. Walang hotkey na naka-bind dito bilang default.
 
-Ang `omarchy toggle screensaver` ang nag-o-off sa idle na isa, kung mas gusto mong dumiretso mula sa pagtatrabaho papunta sa naka-lock. Kailangan nito ng terminal na alam nitong i-configure — Alacritty, Foot, Ghostty, o Kitty — at sasabihin nito sa iyo kung iba ang default na terminal mo.
+Ang `omarchy toggle screensaver` ang nagpapatay sa idle na isa, kung mas gusto mong dumiretso mula sa pagtatrabaho patungo sa naka-lock. Anumang key, click, scroll o galaw ng mouse ang magsasara dito.
 
 Sa iyo ang logo na iginuguhit nito para baguhin, sa ilalim ng _Appearance > Branding > Screensaver_. Mag-upload ng png o svg at iko-convert ito ng Omarchy sa ASCII. Tingnan ang [branding](41-branding.md).
 

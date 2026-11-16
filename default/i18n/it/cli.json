@@ -275,7 +275,6 @@
   "reset.willErase": "Questo cancellerà definitivamente:",
   "screensaver.disabled": "Salvaschermo disattivato",
   "screensaver.enabled": "Salvaschermo attivato",
-  "screensaver.terminalOnly": "Il salvaschermo funziona solo in Alacritty, Foot, Ghostty o Kitty",
   "setupForm.confirmPlaceholder": "Deve coincidere con la password appena digitata",
   "setupForm.confirmPrompt": "Conferma> ",
   "setupForm.hostnameInvalid": "Il nome host deve avere 1-63 lettere, numeri o trattini, senza trattino iniziale o finale",

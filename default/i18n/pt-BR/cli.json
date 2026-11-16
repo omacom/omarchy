@@ -275,7 +275,6 @@
   "reset.willErase": "Isso apagará permanentemente:",
   "screensaver.disabled": "Proteção de tela desativada",
   "screensaver.enabled": "Proteção de tela ativada",
-  "screensaver.terminalOnly": "A proteção de tela só funciona no Alacritty, Foot, Ghostty ou Kitty",
   "setupForm.confirmPlaceholder": "Deve ser igual à senha que você digitou",
   "setupForm.confirmPrompt": "Confirmar> ",
   "setupForm.hostnameInvalid": "O nome deve ter de 1 a 63 letras, números ou hífens, sem hífen no início ou no fim",

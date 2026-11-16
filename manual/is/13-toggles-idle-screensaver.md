@@ -91,7 +91,7 @@ Skjáhvíla Omarchy er ASCII-list sem keyrir í gegnum slembin textaáhrif, eitt
 
 Þú getur ræst hana eftir þörfum úr _System > Screensaver_ (`Super + Esc`), sem þvingar hana upp jafnvel þó þú hafir slökkt á skjáhvílu við aðgerðaleysi. Enginn flýtilykill er sjálfgefið bundinn við hana.
 
-`omarchy toggle screensaver` er það sem slekkur á þeirri við aðgerðaleysi, ef þú vilt frekar fara beint úr vinnu í læst ástand. Hún þarf flugstöð sem hún veit hvernig á að stilla — Alacritty, Foot, Ghostty eða Kitty — og lætur þig vita ef sjálfgefna flugstöðin þín er eitthvað annað.
+`omarchy toggle screensaver` er það sem slekkur á aðgerðaleysis-skjávaranum, ef þú vilt frekar fara beint úr vinnu í læst ástand. Sérhver lykill, smellur, skrun eða hreyfing músar lokar honum.
 
 Merkið sem hún teiknar er þitt að breyta, undir _Appearance > Branding > Screensaver_. Hladdu upp png eða svg og Omarchy breytir því í ASCII. Sjá [vörumerki](41-branding.md).
 

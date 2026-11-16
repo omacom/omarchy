@@ -91,7 +91,7 @@ Omarchy 的螢幕保護程式是 ASCII 藝術，跑著隨機的文字效果，�
 
 你可以從 _System > Screensaver_（`Super + Esc`）隨需啟動它，就算你已經把閒置螢幕保護程式關掉，它也會強制出現。預設沒有綁定它的快捷鍵。
 
-`omarchy toggle screensaver` 才是關掉閒置螢幕保護程式的開關，如果你寧願從工作直接進入鎖定就用它。它需要一個它知道如何設定的終端機——Alacritty、Foot、Ghostty 或 Kitty——如果你的預設終端機是別的，它會告訴你。
+`omarchy toggle screensaver` 是用來關掉閒置那一個的，如果你寧願直接從工作跳到鎖定的話。任何按鍵、點擊、捲動或滑鼠移動都會關閉它。
 
 它畫的標誌可以由你更換，位在 _Appearance > Branding > Screensaver_ 底下。上傳一張 png 或 svg，Omarchy 就會把它轉成 ASCII。見[品牌標誌](41-branding.md)。
 

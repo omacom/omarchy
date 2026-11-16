@@ -275,7 +275,6 @@
   "reset.willErase": "Ceci effacera définitivement :",
   "screensaver.disabled": "Écran de veille désactivé",
   "screensaver.enabled": "Écran de veille activé",
-  "screensaver.terminalOnly": "L'écran de veille ne fonctionne que dans Alacritty, Foot, Ghostty ou Kitty",
   "setupForm.confirmPlaceholder": "Doit correspondre au mot de passe saisi",
   "setupForm.confirmPrompt": "Confirmer> ",
   "setupForm.hostnameInvalid": "Le nom d'hôte doit faire 1 à 63 lettres, chiffres ou tirets, sans tiret au début ni à la fin",

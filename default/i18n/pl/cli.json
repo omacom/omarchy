@@ -281,7 +281,6 @@
   "reset.willErase": "Spowoduje to trwałe usunięcie:",
   "screensaver.disabled": "Wygaszacz wyłączony",
   "screensaver.enabled": "Wygaszacz włączony",
-  "screensaver.terminalOnly": "Wygaszacz działa tylko w Alacritty, Foot, Ghostty lub Kitty",
   "setupForm.confirmPlaceholder": "Wpisz ponownie to samo hasło",
   "setupForm.confirmPrompt": "Potwierdź> ",
   "setupForm.hostnameInvalid": "Nazwa hosta: 1-63 litery, cyfry lub myślniki, bez myślnika na początku i końcu",

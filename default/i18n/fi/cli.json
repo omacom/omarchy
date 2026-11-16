@@ -269,7 +269,6 @@
   "reset.willErase": "Tämä poistaa pysyvästi:",
   "screensaver.disabled": "Näytönsäästäjä pois käytöstä",
   "screensaver.enabled": "Näytönsäästäjä käytössä",
-  "screensaver.terminalOnly": "Näytönsäästäjä toimii vain päätteissä Alacritty, Foot, Ghostty tai Kitty",
   "setupForm.confirmPlaceholder": "Kirjoita sama salasana uudelleen",
   "setupForm.confirmPrompt": "Vahvista> ",
   "setupForm.hostnameInvalid": "Koneen nimi: 1-63 kirjainta, numeroa tai yhdysmerkkiä, ei yhdysmerkkiä alussa tai lopussa",

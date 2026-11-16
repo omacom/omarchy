@@ -91,7 +91,7 @@ Omarchy ekrānsaudzētājs ir ASCII māksla, kas darbojas caur nejaušiem teksta
 
 Varat to palaist pēc pieprasījuma no _System > Screensaver_ (`Super + Esc`), kas to piespiež parādīties pat tad, ja esat izslēdzis dīkstāves ekrānsaudzētāju. Pēc noklusējuma tam nav piesaistīts neviens karstais taustiņš.
 
-`omarchy toggle screensaver` ir tas, kas izslēdz dīkstāves ekrānsaudzētāju, ja vēlaties doties tieši no darba pie bloķēta ekrāna. Tam nepieciešams terminālis, ko tas zina, kā konfigurēt — Alacritty, Foot, Ghostty, vai Kitty — un tas jums tā pateiks, ja jūsu noklusējuma terminālis ir kaut kas cits.
+`omarchy toggle screensaver` ir tas, kas izslēdz dīkstāves ekrānsaudzētāju, ja labāk gribi iet tieši no darba uz bloķētu stāvokli. Jebkurš taustiņš, klikšķis, ritināšana vai peles kustība to aizver.
 
 Logotips, ko tas zīmē, ir jūsu maināmais, sadaļā _Appearance > Branding > Screensaver_. Augšupielādējiet png vai svg, un Omarchy to pārveidos par ASCII. Skatiet [zīmolvedību](41-branding.md).
 

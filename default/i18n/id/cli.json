@@ -263,7 +263,6 @@
   "reset.willErase": "Ini akan menghapus secara permanen:",
   "screensaver.disabled": "Screensaver dinonaktifkan",
   "screensaver.enabled": "Screensaver diaktifkan",
-  "screensaver.terminalOnly": "Screensaver hanya berjalan di Alacritty, Foot, Ghostty, atau Kitty",
   "setupForm.confirmPlaceholder": "Harus sama dengan kata sandi yang baru Anda ketik",
   "setupForm.confirmPrompt": "Konfirmasi> ",
   "setupForm.hostnameInvalid": "Nama komputer 1-63 huruf, angka, atau tanda hubung, tidak diawali/diakhiri tanda hubung",

@@ -91,7 +91,7 @@ Spořič obrazovky Omarchy je ASCII art procházející náhodnými textovými e
 
 Můžete ho spustit na vyžádání ze _Systém > Spořič obrazovky_ (`Super + Esc`), což ho vynutí, i když jste spořič při nečinnosti vypnuli. Ve výchozím nastavení k němu není přiřazena žádná klávesová zkratka.
 
-`omarchy toggle screensaver` je to, co vypne ten při nečinnosti, pokud chcete raději jít rovnou z práce do zamčeného stavu. Potřebuje terminál, který umí nakonfigurovat — Alacritty, Foot, Ghostty nebo Kitty — a řekne vám to, pokud je váš výchozí terminál něco jiného.
+`omarchy toggle screensaver` je to, co vypne ten při nečinnosti, pokud chcete jít raději rovnou z práce na zamčenou obrazovku. Zavře ho jakákoli klávesa, kliknutí, scrollování nebo pohyb myši.
 
 Logo, které kreslí, si můžete změnit pod _Vzhled > Branding > Spořič obrazovky_. Nahrajte png nebo svg a Omarchy ho převede do ASCII. Viz [branding](41-branding.md).
 
