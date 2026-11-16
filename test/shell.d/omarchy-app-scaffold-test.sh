@@ -46,3 +46,12 @@ fi
 [[ $(cat "$test_tmp/busy/notes.txt") == "keep" && ! -e $test_tmp/busy/CMakeLists.txt ]] ||
   fail "the scaffold leaves a busy directory alone"
 pass "the scaffold refuses a directory that has files"
+
+# The display name goes into a QML string as it is, so one that would end the
+# string is refused before anything is written.
+mkdir -p "$test_tmp/quoted"
+if (cd "$test_tmp/quoted" && "$scaffold" notes 'My "Notes"' --no-build >/dev/null 2>&1); then
+  fail "the scaffold refuses a display name with a quote in it"
+fi
+[[ -z $(ls -A "$test_tmp/quoted") ]] || fail "a refused display name writes nothing" "$(ls -A "$test_tmp/quoted")"
+pass "the scaffold refuses a display name that would break the starter"

@@ -18,6 +18,9 @@ if not args or not re.fullmatch(r"[a-z][a-z0-9-]*", args[0]):
     sys.exit("usage: scaffold <name> [<Display Name>] [--no-build]  (name: lowercase letters, digits, dashes)")
 name = args[0]
 display = args[1] if len(args) > 1 else name.replace("-", " ").title()
+# The display name is written into a QML string and a .desktop line as it is.
+if re.search(r'["\\\x00-\x1f]', display):
+    sys.exit("scaffold: the display name can't contain quotes, backslashes or line breaks")
 
 existing = [p for p in os.listdir(".") if p not in (".git",)]
 if existing:
