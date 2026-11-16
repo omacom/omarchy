@@ -67,9 +67,9 @@ omarchy hyprland monitor resolution --monitor DP-1 3840x2160
 omarchy-hyprland-monitor-layout eDP-1=0x0 DP-1=1280x0   # logical pixels, after scale
 ```
 
-Edit `~/.config/hypr/monitors.lua` only for what those don't cover: rotation (`transform`), a mode the monitor panel doesn't offer, keeping a monitor off (`disabled = true`), 10-bit color, variable refresh rate, the default scale for monitors without a choice, or `GDK_SCALE`. The file ships with commented examples. If the user wants that file alone to set their monitors, overriding the monitor panel, add `omarchy_monitor_panel_settings = false` to it. Format:
+Edit `~/.config/hypr/monitors.lua` only for what those don't cover: a mode the monitor panel doesn't offer (it already sets resolution, refresh rate and rotation), keeping a monitor off (`disabled = true`), 10-bit color, variable refresh rate, the default scale for monitors without a choice, or `GDK_SCALE`. The file ships with commented examples. If the user wants that file alone to set their monitors, overriding the monitor panel, add `omarchy_monitor_panel_settings = false` to it. Format:
 ```lua
-hl.monitor({ output = "DP-2", mode = "preferred", position = "auto", scale = 1, transform = 1 })
+hl.monitor({ output = "DP-2", mode = "2560x1440@144", position = "auto", scale = 1.5 })
 ```
 
 List monitors and supported modes: `hyprctl monitors all`
