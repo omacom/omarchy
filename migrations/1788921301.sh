@@ -4,7 +4,7 @@
 # Same logic as install/hardware/apple/fix-thunderbolt-suspend.sh; see
 # https://github.com/omacom/omarchy/issues/10593 for the investigation.
 
-if omarchy-hw-macbookpro14-1; then
+if omarchy-hw-match "MacBookPro14,1" && lspci -n 2>/dev/null | grep -q "8086:1578"; then
   echo "Detected MacBookPro14,1; fixing Thunderbolt suspend"
 
   omarchy-pkg-add linux-headers tb-ar-shim-dkms

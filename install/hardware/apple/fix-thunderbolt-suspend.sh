@@ -21,7 +21,7 @@
 # MacBookPro14,2/14,3 share the controller but are unvalidated, so this gates
 # on the exact model.
 
-if omarchy-hw-macbookpro14-1; then
+if omarchy-hw-match "MacBookPro14,1" && lspci -n 2>/dev/null | grep -q "8086:1578"; then
   echo "Detected MacBookPro14,1; fixing Thunderbolt suspend"
 
   omarchy-pkg-add tb-ar-shim-dkms
