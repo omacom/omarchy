@@ -2,7 +2,7 @@
 
 ### Text Extraction
 
-Hit `Super + Ctrl + PrtScr` to select a region on the screen for text extraction. The tesseract open source OCR model will then quickly convert that selection into text and place it on the clipboard. Then you just hit `Super + V` to paste.
+Hit `Super + Ctrl + PrtScr` (or `Super + Ctrl + Alt + X` on a keyboard with no Print Screen key) to select a region on the screen for text extraction. The tesseract open source OCR model will then quickly convert that selection into text and place it on the clipboard. Then you just hit `Super + V` to paste.
 
 This is very helpful for grabbing addresses out of image footers or phone numbers embedded in website headlines.
 
