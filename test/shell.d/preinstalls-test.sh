@@ -131,7 +131,7 @@ for package in "${restored[@]}"; do
 done
 pass "every preinstall is shipped in omarchy-base.packages"
 
-for package in omacut monologue omacalc omawrite hype signed checkmate; do
+for package in omacut monologue omacalc omawrite hype signed checkmate cards; do
   grep -qxF "$package" <<<"$(printf '%s\n' "${restored[@]}")" ||
     fail "preinstalls cover the Omacom apps" "$package is missing"
 done
