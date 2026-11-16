@@ -12,6 +12,7 @@ The traps it avoids, each of which has cost an agent an hour:
 - **Show which mode the window is in by binding to one property** (`currentIndex: win.mode`), never by setting `visible` on several panes from different places.
 - **An empty list shows a message**, never a blank pane.
 - `padding` exists on controls (`Label`, `Popup`, `Control`), not on `Rectangle` or `Item`.
+- **A `highlighted` button's label can't be read on every accent** in Material's own color: give it a `contentItem` `Label` in `theme.accentForeground`, as the starter's Count button does.
 
 Check a layout by looking at it in each of its modes: `omarchy agent look app -- ./build/<name>` shows the window as it opens, and `--keys "Down Return"` presses keys through the window's `Shortcut`s first.
 
