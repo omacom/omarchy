@@ -317,6 +317,7 @@ Item {
       }
 
       Text {
+        textFormat: Text.PlainText
         x: peek.vertical ? Style.space(102) : 0
         y: peek.vertical ? 0 : parent.height - height - Style.space(5)
         width: peek.vertical ? parent.width - x : parent.width
