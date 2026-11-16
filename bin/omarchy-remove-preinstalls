@@ -51,5 +51,6 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
     omawrite \
     hype \
     signed \
-    checkmate
+    checkmate \
+    cards
 fi
