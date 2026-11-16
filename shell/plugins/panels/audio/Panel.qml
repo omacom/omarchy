@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
+import Quickshell.Hyprland
 import qs.Ui
 import qs.Commons
 import qs.Commons as Commons
@@ -14,10 +15,22 @@ Panel {
   moduleName: "omarchy.audio"
   ipcTarget: "omarchy.audio"
 
+  TextMetrics {
+    id: appPctMetrics
+    font.family: root.bar.fontFamily
+    font.pixelSize: Style.font.caption
+    font.bold: true
+    text: Commons.I18n.formatNumber(100) + "%"
+  }
+
   readonly property var sink: Pipewire.defaultAudioSink
   readonly property var source: Pipewire.defaultAudioSource
   readonly property var nodes: Pipewire.nodes ? Pipewire.nodes.values : []
   readonly property var mprisPlayers: Mpris.players ? Mpris.players.values : []
+  // Window-to-workspace projection, rebuilt when a window or its workspace
+  // changes. App rows resolve their streams against this, so a player moved to
+  // another workspace follows without reopening the panel.
+  readonly property var workspaceWindows: Model.workspaceWindows(Hyprland.toplevels ? Hyprland.toplevels.values : [])
   readonly property var mediaService: bar?.shell?.firstPartyServiceFor("omarchy.media")
   readonly property var activeMediaPlayer: mediaService ? mediaService.activePlayer : null
 
@@ -90,30 +103,52 @@ Panel {
     return Model.isAudioSource(node)
   }
 
-  property var cachedAudioSinks: []
-  property var cachedAudioSources: []
+  // A default sink/source can lag behind Pipewire.nodes while the graph is
+  // torn down; never let a stale QObject into a snapshot.
+  function nodePresent(node) {
+    if (!node) return false
+    for (var i = 0; i < nodes.length; i++)
+      if (nodes[i] === node) return true
+    return false
+  }
 
-  readonly property var rawAudioSinks: {
+  readonly property var audioSinks: {
     var list = []
     for (var i = 0; i < candidateSinks.length; i++)
       if (sinkAvailable(candidateSinks[i])) list.push(candidateSinks[i])
-    if (sink && list.indexOf(sink) < 0) list.unshift(sink)
+    if (sink && nodePresent(sink) && list.indexOf(sink) < 0) list.unshift(sink)
     return list
   }
 
-  readonly property var rawAudioSources: {
+  readonly property var audioSources: {
     var list = candidateSources.slice()
-    if (source && list.indexOf(source) < 0) list.unshift(source)
+    if (source && nodePresent(source) && list.indexOf(source) < 0) list.unshift(source)
     return list
   }
-
-  readonly property var audioSinks: rawAudioSinks.length > 0 ? rawAudioSinks : cachedAudioSinks
-  readonly property var audioSources: rawAudioSources.length > 0 ? rawAudioSources : cachedAudioSources
 
   readonly property var audioStreams: {
     var list = []
     for (var i = 0; i < candidateStreams.length; i++)
       if (candidateStreams[i].audio) list.push(candidateStreams[i])
+    return list
+  }
+
+  // The mixer's unit is the application, not the stream: a browser with two
+  // tabs playing, or a player that opens one stream per track, gets a single
+  // row so muting it does not leave a second copy of the same app behind.
+  // Each group keeps its stream nodes only for the live list; the Repeaters
+  // below receive the primitive snapshot instead.
+  readonly property var audioAppGroups: {
+    var groups = Model.groupStreamsByApp(audioStreams)
+    var list = []
+    for (var i = 0; i < groups.length; i++) {
+      var group = groups[i]
+      list.push({
+        key: group.key,
+        label: appLabelFor(group),
+        streams: group.streams
+      })
+    }
     return list
   }
 
@@ -126,7 +161,7 @@ Panel {
   // repeaters detached entirely.
   property var displayAudioSinks: []
   property var displayAudioSources: []
-  property var displayAudioStreams: []
+  property var displayAudioApps: []
 
   // A DSP sink -- a speaker tuning, or EasyEffects -- can be the selected output
   // without being where loudness lives: changing its volume alters the level going
@@ -208,16 +243,13 @@ Panel {
   readonly property var inputPeakNode: inputViaWpctl ? null : source
   readonly property bool inputLevelShown: !!inputPeakNode
 
-  onRawAudioSinksChanged: if (rawAudioSinks.length > 0) cachedAudioSinks = rawAudioSinks
-  onRawAudioSourcesChanged: if (rawAudioSources.length > 0) cachedAudioSources = rawAudioSources
-
   // Single cursor model shared by keyboard and mouse. Sections:
-  //   "output"  — output slider + sink device list
-  //   "input"   — input slider + source device list
-  //   "streams" — per-app playback streams
+  //   "output" — output slider + sink device list
+  //   "input"  — input slider + source device list
+  //   "apps"   — one row per application playing audio
   // selectedIndex semantics within a section:
   //   -1            → on the slider row (h/l adjusts volume, m/Enter mute)
-  //   0..N-1        → on the Nth device/stream row
+  //   0..N-1        → on the Nth device/app row
   // Visuals derive from hasCursor/current via CursorSurface, never
   // from containsMouse — that's what keeps the highlight unique across
   // keyboard + mouse like wifi does.
@@ -246,21 +278,21 @@ Panel {
   function sectionCount(section) {
     if (section === "output") return displayAudioSinks.length
     if (section === "input") return displayAudioSources.length
-    if (section === "streams") return displayAudioStreams.length
+    if (section === "apps") return displayAudioApps.length
     return 0
   }
 
   function sectionVisible(section) {
     if (section === "output") return true
     if (section === "input") return displayAudioSources.length > 0 || !!source
-    if (section === "streams") return displayAudioStreams.length > 0
+    if (section === "apps") return displayAudioApps.length > 0
     return false
   }
 
   function sectionHasSlider(section) {
     if (section === "output") return true
     if (section === "input") return !!source
-    return false  // stream rows carry their own sliders inline; not a section-level slider
+    return false  // app rows carry their own sliders inline; not a section-level slider
   }
 
   // Order of visible sections, recomputed reactively so dropping a section
@@ -269,7 +301,7 @@ Panel {
     var list = []
     if (sectionVisible("output")) list.push("output")
     if (sectionVisible("input")) list.push("input")
-    if (sectionVisible("streams")) list.push("streams")
+    if (sectionVisible("apps")) list.push("apps")
     return list
   }
 
@@ -314,6 +346,12 @@ Panel {
     selectedIndex = -1
   }
 
+  function setAppCursor(index) {
+    cursorActive = true
+    focusSection = "apps"
+    selectedIndex = index
+  }
+
   function moveSection(delta) {
     var sections = visibleSections
     if (sections.length === 0) return
@@ -340,9 +378,8 @@ Panel {
       setInputVolume(inputVolume + delta)
       return
     }
-    if (focusSection === "streams" && selectedIndex >= 0 && selectedIndex < displayAudioStreams.length) {
-      var s = nodeFor(displayAudioStreams[selectedIndex])
-      if (s && s.audio) s.audio.volume = Math.max(0, Math.min(1.5, s.audio.volume + delta))
+    if (focusSection === "apps" && selectedIndex >= 0 && selectedIndex < displayAudioApps.length) {
+      adjustAppVolume(displayAudioApps[selectedIndex], delta)
     }
   }
 
@@ -361,15 +398,15 @@ Panel {
       if (src) setDefaultSource(src)
       return
     }
-    if (focusSection === "streams" && selectedIndex >= 0) {
-      var st = nodeFor(displayAudioStreams[selectedIndex])
-      if (st && st.audio) st.audio.muted = !st.audio.muted
+    if (focusSection === "apps" && selectedIndex >= 0) {
+      toggleAppMuted(displayAudioApps[selectedIndex])
     }
   }
 
   onOpenedChanged: {
     if (opened) {
       refreshDisplayAudioModels()
+      routeTargetsProc.restart()
       focusSection = "output"
       selectedIndex = -1  // first keyboard cursor reveal starts on the output slider
       cursorActive = false
@@ -382,10 +419,13 @@ Panel {
   // Clamp / repair the cursor whenever any list refreshes underneath us.
   onAudioSinksChanged: scheduleDisplayAudioModelRefresh()
   onAudioSourcesChanged: scheduleDisplayAudioModelRefresh()
-  onAudioStreamsChanged: scheduleDisplayAudioModelRefresh()
+  onAudioAppGroupsChanged: {
+    scheduleDisplayAudioModelRefresh()
+    if (opened) routeTargetsProc.restart()
+  }
 
   function rowSnapshot(list) {
-    return Model.rowSnapshot(list)
+    return Model.rowSnapshot(list, nodes)
   }
 
   // A row that outlives its node resolves to null, or to a node PipeWire recreated
@@ -400,11 +440,197 @@ Panel {
     return null
   }
 
+  // Resolve every stream a grouped app row stands for. A stream that ended
+  // resolves to null and is dropped; the row keeps whatever is still playing.
+  function nodesForApp(app) {
+    var list = []
+    if (!app || !app.rows) return list
+    for (var i = 0; i < app.rows.length; i++) {
+      var node = nodeFor(app.rows[i])
+      if (node) list.push(node)
+    }
+    return list
+  }
+
+  // Every stream in a group moves by the same step, so streams that a player
+  // set at different levels keep their balance while the app row follows its
+  // loudest stream. Dragging the inline slider sets the whole group flat.
+  function adjustAppVolume(app, delta) {
+    var list = nodesForApp(app)
+    for (var i = 0; i < list.length; i++)
+      if (list[i].audio) list[i].audio.volume = Math.max(0, Math.min(1, list[i].audio.volume + delta))
+  }
+
+  function setAppVolume(app, volume) {
+    var list = nodesForApp(app)
+    var level = Math.max(0, Math.min(1, volume))
+    for (var i = 0; i < list.length; i++)
+      if (list[i].audio) list[i].audio.volume = level
+  }
+
+  // Mute means every stream is silent. One unmuted tab still plays, so the
+  // toggle mutes the group in that case and unmutes all only once it is quiet.
+  function toggleAppMuted(app) {
+    var list = nodesForApp(app)
+    var mute = !Model.groupMuted(list)
+    for (var i = 0; i < list.length; i++)
+      if (list[i].audio) list[i].audio.muted = mute
+  }
+
+  // ---- Per-application output routing ----
+  //
+  // Every stream in a group gets the same pin, so a browser's tabs move
+  // together and the choice survives the streams the application opens later.
+  // Writes are serialized: pw-metadata takes one node at a time, and a burst of
+  // clicks must end on the last target rather than race its predecessors.
+  property var routeTargets: ({})
+  property var pendingRoutes: ({})
+  property int routeGeneration: 0
+  property bool routeRefreshPending: false
+
+  function cycleAppRoute(app) {
+    var list = nodesForApp(app)
+    if (list.length === 0) return
+
+    var options = Model.routeOptions(audioSinks)
+    if (options.length <= 1) return
+    var current = Model.routeTargetOf(list[0], routeTargets)
+    var next = Model.nextRouteTarget(options, current)
+    var targets = Object.assign({}, routeTargets)
+    var pending = Object.assign({}, pendingRoutes)
+    for (var i = 0; i < list.length; i++) {
+      var id = String(list[i].id)
+      targets[id] = next
+      pending[id] = Model.queuedRoute(list[i], next)
+    }
+    routeTargets = targets
+    pendingRoutes = pending
+    routeGeneration++
+    runNextRoute()
+  }
+
+  function runNextRoute() {
+    if (routeWriteProc.running) return
+    var ids = Object.keys(pendingRoutes)
+    if (ids.length === 0) {
+      routeTargetsProc.restart()
+      return
+    }
+    var id = ids[0]
+    var pending = Object.assign({}, pendingRoutes)
+    var route = pending[id]
+    delete pending[id]
+    pendingRoutes = pending
+    if (!Model.queuedRouteIsCurrent(nodes, id, route)) {
+      runNextRoute()
+      return
+    }
+    routeWriteProc.command = Model.routeCommand(id, route.target)
+    routeWriteProc.running = true
+  }
+
+  function acceptRouteSnapshot(text, generation) {
+    if (generation !== routeGeneration || routeWriteProc.running || Object.keys(pendingRoutes).length > 0) return
+    routeTargets = Model.parseRouteTargets(text)
+  }
+
+  function routePinnedFor(nodes) {
+    for (var i = 0; i < nodes.length; i++)
+      if (Model.routeIsPinned(nodes[i], routeTargets)) return true
+    return false
+  }
+
+  function iconSourceFor(name) {
+    var value = String(name || "").trim()
+    if (!value) return ""
+    if (value.charAt(0) === "/") return Util.fileUrl(value)
+
+    var entry = DesktopEntries.heuristicLookup(value)
+    if (entry && entry.icon) {
+      var icon = String(entry.icon)
+      if (icon.charAt(0) === "/") return Util.fileUrl(icon)
+      var themed = Quickshell.iconPath(icon, true)
+      if (themed) return themed
+    }
+    return Quickshell.iconPath(value, true)
+  }
+
+  function desktopEntryFor(names) {
+    for (var i = 0; i < names.length; i++) {
+      var entry = DesktopEntries.heuristicLookup(names[i])
+      if (entry) return entry
+    }
+    return null
+  }
+
+  // The desktop entry's own name is what the app launcher shows, so a binary
+  // such as "chromium" reads as "Chromium" and an ALSA client's bridge name
+  // resolves to its real application.
+  //
+  // Group labels feed the Repeater model, so they must not depend on MPRIS
+  // playback state: pressing play or pause would rebuild every row (and
+  // interrupt a slider drag) even though the app did not move. The row resolves
+  // the richer MPRIS-aware label itself through appDisplayLabel().
+  function appLabelFor(group) {
+    var label = ""
+    if (group && group.streams && group.streams.length > 0)
+      label = Model.friendlyStreamLabel(Model.rawStreamLabel(group.streams[0]))
+    for (var i = 0; group && i < group.streams.length; i++) {
+      var entry = desktopEntryFor(Model.streamAppIconCandidates(group.streams[i]))
+      if (entry && String(entry.name || "").trim()) return String(entry.name).trim()
+    }
+    return label || String(group && group.key || "")
+  }
+
+  function appDisplayLabel(list) {
+    if (!list || list.length === 0) return ""
+    var label = Model.streamLabel(list[0], mprisPlayers, audioStreams, Commons.I18n.t)
+    for (var i = 0; i < list.length; i++) {
+      var entry = desktopEntryFor(Model.streamAppIconCandidates(list[i]))
+      if (entry && String(entry.name || "").trim()) return String(entry.name).trim()
+    }
+    return label
+  }
+
+  function playerForApp(list) {
+    for (var i = 0; i < list.length; i++)
+      for (var j = 0; j < mprisPlayers.length; j++)
+        if (streamRepresentsPlayer(list[i], mprisPlayers[j])) return mprisPlayers[j]
+    return null
+  }
+
+  // The track title belonged under the application it played from; the mixer
+  // now shows the application name alone so every row keeps one line.
+
+  // Try every stream in the group: the first one may be a generic stream while
+  // a later one carries the application icon. A media player with no icon of
+  // its own falls back to its MPRIS desktop entry; the row draws a monogram
+  // when nothing resolves.
+  function appIconSource(list) {
+    for (var i = 0; i < list.length; i++) {
+      var names = Model.streamAppIconCandidates(list[i])
+      for (var j = 0; j < names.length; j++) {
+        var source = iconSourceFor(names[j])
+        if (source) return source
+      }
+    }
+
+    var player = playerForApp(list)
+    if (player) {
+      var playerNames = [player.desktopEntry, player.identity]
+      for (var p = 0; p < playerNames.length; p++) {
+        var playerSource = iconSourceFor(playerNames[p])
+        if (playerSource) return playerSource
+      }
+    }
+    return ""
+  }
+
   function refreshDisplayAudioModels() {
     if (!opened) return
     displayAudioSinks = rowSnapshot(audioSinks)
     displayAudioSources = rowSnapshot(audioSources)
-    displayAudioStreams = rowSnapshot(audioStreams)
+    displayAudioApps = Model.appGroupSnapshot(audioAppGroups)
     clampCursor()
   }
 
@@ -417,12 +643,12 @@ Panel {
     audioModelRefreshTimer.stop()
     displayAudioSinks = []
     displayAudioSources = []
-    displayAudioStreams = []
+    displayAudioApps = []
   }
 
   // Keep the keyboard-focused row inside the visible viewport of the
   // ScrollView. Each cursor target (slider rows, SinkRow, SourceRow,
-  // StreamRow) calls this when it gains hasCursor. Without it, j/k can
+  // AppRow) calls this when it gains hasCursor. Without it, j/k can
   // walk the selection off-screen — wifi uses ListView.positionViewAtIndex
   // for this; we don't have that affordance with a multi-section Column.
   function resetScroll() {
@@ -644,13 +870,9 @@ Panel {
     return Model.unmatchedMprisStreamLabel(label, mprisPlayers, audioStreams)
   }
 
-  // These read the other streams' node properties, so they take the live list --
-  // displayAudioStreams carries primitives now, and resolving each row back
-  // would only rebuild what audioStreams already is.
-  function streamLabel(node) {
-    return Model.streamLabel(node, mprisPlayers, audioStreams, Commons.I18n.t)
-  }
-
+  // This reads the other streams' node properties, so it takes the live list --
+  // app rows carry primitives now, and resolving each one back would only
+  // rebuild what audioStreams already is.
   function streamRepresentsPlayer(node, player) {
     return Model.streamRepresentsPlayer(node, player, mprisPlayers, audioStreams)
   }
@@ -700,6 +922,60 @@ Panel {
       root.volumeSinkStale = false
       // Deferred: the process still reports running while it signals exit.
       Qt.callLater(root.resolveVolumeSink)
+    }
+  }
+
+  // Routing state lives in WirePlumber's default metadata object. The read is
+  // tied to the generation of the last click, so a slow snapshot cannot put an
+  // old target back on screen after a newer one was chosen.
+  Process {
+    id: routeWriteProc
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode !== 0 || exitStatus !== 0)
+        console.warn("audio route write failed", exitCode, exitStatus)
+      Qt.callLater(root.runNextRoute)
+    }
+  }
+
+  Process {
+    id: routeTargetsProc
+    property int generation: 0
+    property bool outputFinished: true
+    command: ["pw-metadata", "-n", "default"]
+    stdout: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        root.acceptRouteSnapshot(text, routeTargetsProc.generation)
+        routeTargetsProc.outputFinished = true
+        if (root.routeRefreshPending) Qt.callLater(routeTargetsProc.restart)
+      }
+    }
+    onExited: {
+      routeTargetsProc.outputFinished = true
+      if (root.routeRefreshPending) Qt.callLater(restart)
+    }
+
+    function restart() {
+      if (!root.opened || routeWriteProc.running || Object.keys(root.pendingRoutes).length > 0) return
+      if (running || !outputFinished) {
+        root.routeRefreshPending = true
+        return
+      }
+      root.routeRefreshPending = false
+      generation = root.routeGeneration
+      outputFinished = false
+      running = true
+    }
+  }
+
+  // Another mixer or a session manager handover can change a pin while the
+  // panel is open, so the labels follow the metadata instead of only our writes.
+  Process {
+    id: routeChangesProc
+    running: root.opened
+    command: ["pw-metadata", "-n", "default", "-m"]
+    stdout: SplitParser {
+      onRead: data => routeTargetsProc.restart()
     }
   }
 
@@ -761,7 +1037,7 @@ Panel {
     open: root.opened
     focusTarget: panel.loadedContent
     contentWidth: panel.fittedContentWidth(Style.space(380))
-    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(560))
+    contentHeight: panel.fittedContentHeight(panel.loadedContentHeight, Style.space(620))
 
     content: PanelKeyCatcher {
       id: keyCatcher
@@ -777,14 +1053,23 @@ Panel {
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) {
+        // 'o' sends the focused application to the next output device. The
+        // cycle starts with "follow default", so pressing it again is the way
+        // back to automatic routing.
+        if (t === "o" || t === "O") {
+          if (!root.cursorActive) return
+          if (root.focusSection === "apps" && root.selectedIndex >= 0
+              && root.selectedIndex < root.displayAudioApps.length)
+            root.cycleAppRoute(root.displayAudioApps[root.selectedIndex])
+          return
+        }
         // 'm' mutes whatever the cursor is on: focused section's slider
-        // for output/input, the focused stream for streams.
+        // for output/input, the focused application for apps.
         if (t === "m" || t === "M") {
           if (!root.cursorActive) return
-          if (root.focusSection === "streams" && root.selectedIndex >= 0
-              && root.selectedIndex < root.displayAudioStreams.length) {
-            var s = root.nodeFor(root.displayAudioStreams[root.selectedIndex])
-            if (s && s.audio) s.audio.muted = !s.audio.muted
+          if (root.focusSection === "apps" && root.selectedIndex >= 0
+              && root.selectedIndex < root.displayAudioApps.length) {
+            root.toggleAppMuted(root.displayAudioApps[root.selectedIndex])
           } else if (root.focusSection === "input") {
             root.toggleInputMute()
           } else {
@@ -798,7 +1083,7 @@ Panel {
         anchors.fill: parent
         clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-        ScrollBar.vertical.policy: panelColumn.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+        ScrollBar.vertical.policy: panelColumn.implicitHeight > height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
         Binding {
           target: scrollArea.contentItem
           property: "interactive"
@@ -807,7 +1092,10 @@ Panel {
 
         Column {
           id: panelColumn
-          width: scrollArea.availableWidth
+          // Keep the always-on bar off the rows when the panel overflows;
+          // mirrored, the bar is on the left.
+          width: scrollArea.availableWidth - (scrollArea.ScrollBar.vertical.policy === ScrollBar.AlwaysOn ? scrollArea.ScrollBar.vertical.width : 0)
+          x: scrollArea.mirrored ? scrollArea.availableWidth - width : 0
           spacing: Style.space(14)
 
           // ---------- Hero: speaker icon · title/status ----------
@@ -1085,31 +1373,50 @@ Panel {
             }
           }
 
-          // ---- Per-app streams ----
+          // ---- Applications playing audio ----
           PanelSeparator {
-            visible: root.displayAudioStreams.length > 0
+            visible: root.displayAudioApps.length > 0
             foreground: root.bar.foreground
           }
 
           Column {
             width: parent.width
             spacing: Style.space(10)
-            visible: root.displayAudioStreams.length > 0
+            visible: root.displayAudioApps.length > 0
 
-            PanelSectionHeader {
-              text: Commons.I18n.t("audio.sources")
-              foreground: root.bar.foreground
-              fontFamily: root.bar.fontFamily
+            Item {
+              width: parent.width
+              implicitHeight: appsHeader.implicitHeight
+
+              PanelSectionHeader {
+                id: appsHeader
+                text: Commons.I18n.t("audio.apps")
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                textFormat: Text.PlainText
+                text: Commons.I18n.formatNumber(root.displayAudioApps.length)
+                color: Qt.darker(root.bar.foreground, 1.4)
+                font.family: root.bar.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+              }
             }
 
             Repeater {
-              model: root.displayAudioStreams
+              model: root.displayAudioApps
 
-              StreamRow {
+              AppRow {
                 required property var modelData
                 required property int index
                 width: panelColumn.width
-                node: root.nodeFor(modelData)
+                app: modelData
                 rowIndex: index
               }
             }
@@ -1245,29 +1552,53 @@ Panel {
     }
   }
 
-  // Per-app stream row — cursor target inside the "streams" section.
-  // The stream has its own slider inline, so h/l from the keyboard
-  // adjusts THIS stream's volume (not the global output) when the cursor
-  // sits on this row. Enter/Space mutes the stream.
-  component StreamRow: CursorSurface {
-    id: streamRow
-    required property var node
+  // One application in the mixer — cursor target inside the "apps" section.
+  // The app has its own slider inline, so h/l from the keyboard adjusts the
+  // whole application (every stream it owns) when the cursor sits on this
+  // row. Enter/Space or the speaker glyph mutes the application.
+  component AppRow: CursorSurface {
+    id: appRow
+    required property var app
     required property int rowIndex
 
-    readonly property real streamVolume: node && node.audio ? node.audio.volume : 0
-    readonly property bool streamMuted: node && node.audio ? node.audio.muted : false
-    readonly property bool isActive: root.streamRepresentsPlayer(node, root.activeMediaPlayer)
+    readonly property var appNodes: root.nodesForApp(app)
+    readonly property real appVolume: Model.groupVolume(appNodes)
+    readonly property bool appMuted: Model.groupMuted(appNodes)
+    readonly property string appIcon: root.appIconSource(appNodes)
+    readonly property string appName: root.appDisplayLabel(appNodes)
+    readonly property var appWorkspaces: Model.groupWorkspaces(appNodes, root.workspaceWindows)
+    readonly property string appWorkspaceLabel: Model.workspaceShortLabel(appWorkspaces, Commons.I18n.formatNumber)
+    readonly property string appWorkspaceTip: Model.workspaceTooltip(appWorkspaces, Commons.I18n.t, Commons.I18n.formatNumber)
+    readonly property var primaryNode: appNodes.length > 0 ? appNodes[0] : null
+    readonly property bool routePinned: root.routePinnedFor(appNodes)
+    readonly property var linkedSink: appLinks.linkGroups.length > 0 ? appLinks.linkGroups[0].target : null
+    readonly property string routeLabel: Model.routeLabel(primaryNode, root.audioSinks, linkedSink, root.routeTargets, Commons.I18n.t)
+    readonly property string routeShortLabel: Model.routePinnedLabel(primaryNode, root.audioSinks, root.routeTargets, Commons.I18n.t)
+    readonly property string appInitial: {
+      var label = String(appName || "").trim()
+      return label ? label.charAt(0).toUpperCase() : "?"
+    }
+    readonly property bool isActive: {
+      for (var i = 0; i < appNodes.length; i++)
+        if (root.streamRepresentsPlayer(appNodes[i], root.activeMediaPlayer)) return true
+      return false
+    }
 
-    hasCursor: root.cursorActive && root.focusSection === "streams" && root.selectedIndex === rowIndex
-    onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(streamRow)
+    PwNodeLinkTracker {
+      id: appLinks
+      node: appRow.primaryNode
+    }
+
+    hasCursor: root.cursorActive && root.focusSection === "apps" && root.selectedIndex === rowIndex
+    onHasCursorChanged: if (hasCursor) root.ensureCursorVisible(appRow)
     current: isActive
     foreground: root.bar.foreground
     fill: root.hoverFill
     currentFill: root.selectedFill
-    implicitHeight: streamColumn.implicitHeight + Style.spacing.xl
+    implicitHeight: appColumn.implicitHeight + Style.spacing.xl
 
     Column {
-      id: streamColumn
+      id: appColumn
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.verticalCenter: parent.verticalCenter
@@ -1277,54 +1608,230 @@ Panel {
 
       Row {
         width: parent.width
-        spacing: Style.space(8)
+        spacing: Style.space(4)
 
-        Text {
-          id: streamMuteIcon
-          textFormat: Text.PlainText
-          text: streamRow.streamMuted ? "󰝟" : "󰕾"
-          color: root.bar.foreground
-          font.family: root.bar.fontFamily
-          font.pixelSize: Style.font.title
-          width: Style.space(22)
-          horizontalAlignment: Text.AlignHCenter
+        // Identity only: muting belongs to the speaker glyph at the end of the
+        // row, so clicking the artwork cannot silently silence an application.
+        Item {
+          id: appIconItem
+          width: Style.space(24)
+          height: Style.space(24)
           anchors.verticalCenter: parent.verticalCenter
-          opacity: streamRow.streamMuted ? 0.5 : 1.0
+          opacity: appRow.appMuted ? 0.5 : 1.0
 
-          MouseArea {
+          Image {
+            id: appIconImage
             anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              if (streamRow.node && streamRow.node.audio)
-                streamRow.node.audio.muted = !streamRow.node.audio.muted
+            source: appRow.appIcon
+            visible: appRow.appIcon !== ""
+            fillMode: Image.PreserveAspectFit
+            sourceSize.width: Math.round(Style.space(24) * 2)
+            sourceSize.height: Math.round(Style.space(24) * 2)
+            smooth: true
+          }
+
+          Rectangle {
+            anchors.fill: parent
+            visible: !appIconImage.visible
+            radius: Style.spacing.labelGap
+            color: Util.alpha(root.bar.foreground, 0.12)
+
+            Text {
+              anchors.centerIn: parent
+              textFormat: Text.PlainText
+              text: appRow.appInitial
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
             }
           }
         }
 
-        Text {
-          textFormat: Text.PlainText
-          text: root.streamLabel(streamRow.node)
-          color: root.bar.foreground
-          font.family: root.bar.fontFamily
-          font.pixelSize: Style.font.body
-          font.bold: streamRow.isActive
-          elide: Text.ElideRight
-          width: parent.width - streamMuteIcon.width - streamPct.width - Style.space(16)
+        Column {
+          id: appLabels
+          width: parent.width - appIconItem.width - appPct.width - appMute.width
+            - (appRoute.visible ? appRoute.width + Style.space(4) : 0) - Style.space(12)
           anchors.verticalCenter: parent.verticalCenter
+          spacing: Style.space(1)
+
+          // The name and the workspace it lives on read together; a drop to a
+          // second line only happens when the app has a track to name.
+          Row {
+            width: parent.width
+            spacing: Style.space(4)
+
+            Text {
+              id: appLabel
+              textFormat: Text.PlainText
+              text: appRow.appName
+              color: root.bar.foreground
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.body
+              font.bold: appRow.isActive
+              elide: Text.ElideRight
+              width: parent.width - (appWorkspace.visible ? appWorkspace.width + parent.spacing : 0)
+            }
+
+            // Where the application lives: a quiet workspace badge beside the
+            // name, so two players of the same name stay tellable apart.
+            Item {
+              id: appWorkspace
+              visible: appRow.appWorkspaceLabel !== ""
+              width: visible ? appWorkspaceRow.implicitWidth + Style.space(10) : 0
+              height: Style.space(16)
+              anchors.verticalCenter: parent.verticalCenter
+
+              Rectangle {
+                anchors.fill: parent
+                radius: height / 2
+                color: Util.alpha(root.bar.foreground, workspaceHover.hovered ? 0.12 : 0.07)
+
+                Behavior on color {
+                  ColorAnimation { duration: Style.duration(120); easing.type: Easing.InOutQuad }
+                }
+              }
+
+              Row {
+                id: appWorkspaceRow
+                anchors.centerIn: parent
+                spacing: Style.space(3)
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: "󱂬"
+                  color: Util.alpha(root.bar.foreground, 0.5)
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.caption
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: appRow.appWorkspaceLabel
+                  color: Util.alpha(root.bar.foreground, 0.7)
+                  font.family: root.bar.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                  anchors.verticalCenter: parent.verticalCenter
+                }
+              }
+
+              HoverHandler { id: workspaceHover }
+
+              PanelToolTip {
+                visible: workspaceHover.hovered
+                text: appRow.appWorkspaceTip
+                fontFamily: root.bar.fontFamily
+              }
+            }
+          }
+        }
+
+        // The route pill is the mouse's way to move this application between
+        // outputs. It stays compact so the row keeps one line; the tooltip
+        // spells out the full device name, which the pill may have to elide.
+        Item {
+          id: appRoute
+          visible: root.audioSinks.length > 1 || appRow.routePinned
+          width: visible ? Math.min(Style.space(112), routeRow.implicitWidth + Style.space(14)) : 0
+          height: Style.space(22)
+          anchors.verticalCenter: parent.verticalCenter
+
+          Rectangle {
+            anchors.fill: parent
+            radius: height / 2
+            color: appRow.routePinned
+              ? Util.alpha(root.bar.foreground, routeHover.hovered ? 0.2 : 0.14)
+              : Util.alpha(root.bar.foreground, routeHover.hovered ? 0.12 : 0.06)
+            border.width: appRow.routePinned ? Math.max(1, Style.space(1)) : 0
+            border.color: Util.alpha(root.bar.foreground, 0.35)
+
+            Behavior on color { ColorAnimation { duration: Style.duration(120) } }
+          }
+
+          Row {
+            id: routeRow
+            anchors.centerIn: parent
+            spacing: Style.space(4)
+
+            Text {
+              textFormat: Text.PlainText
+              text: appRow.routePinned ? "\udb81\udd31" : "\udb80\udc54"
+              color: Qt.darker(root.bar.foreground, appRow.routePinned ? 1.1 : 1.5)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+              anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              text: appRow.routeShortLabel
+              color: Qt.darker(root.bar.foreground, appRow.routePinned ? 1.1 : 1.5)
+              font.family: root.bar.fontFamily
+              font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
+              width: Math.min(implicitWidth, Style.space(72))
+              anchors.verticalCenter: parent.verticalCenter
+            }
+          }
+
+          HoverHandler {
+            id: routeHover
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.cycleAppRoute(appRow.app)
+          }
+
+          PanelToolTip {
+            visible: routeHover.hovered
+            text: appRow.routeLabel
+            fontFamily: root.bar.fontFamily
+          }
         }
 
         Text {
-          id: streamPct
+          id: appPct
           textFormat: Text.PlainText
-          text: Commons.I18n.formatNumber(Math.round(streamRow.streamVolume * 100)) + "%"
+          text: Commons.I18n.formatNumber(Math.round(appRow.appVolume * 100)) + "%"
           color: Qt.darker(root.bar.foreground, 1.5)
           font.family: root.bar.fontFamily
           font.pixelSize: Style.font.caption
           font.bold: true
-          width: Style.space(36)
-          horizontalAlignment: Text.AlignRight
+          width: Math.ceil(appPctMetrics.advanceWidth)
+          horizontalAlignment: Text.AlignLeft
           anchors.verticalCenter: parent.verticalCenter
-          opacity: streamRow.streamMuted ? 0.5 : 1.0
+          opacity: appRow.appMuted ? 0.5 : 1.0
+        }
+
+        Text {
+          id: appMute
+          textFormat: Text.PlainText
+          text: appRow.appMuted ? "󰝟" : "󰕾"
+          color: root.bar.foreground
+          font.family: root.bar.fontFamily
+          font.pixelSize: Style.font.title
+          width: Style.space(18)
+          horizontalAlignment: Text.AlignHCenter
+          anchors.verticalCenter: parent.verticalCenter
+          opacity: appRow.appMuted ? 0.5 : 1.0
+
+          MouseArea {
+            id: appMuteMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.toggleAppMuted(appRow.app)
+          }
+
+          PanelToolTip {
+            visible: appMuteMouse.containsMouse
+            text: appRow.appMuted ? Commons.I18n.t("audio.unmute") : Commons.I18n.t("audio.mute")
+            fontFamily: root.bar.fontFamily
+          }
         }
       }
 
@@ -1332,31 +1839,21 @@ Panel {
         bar: root.bar
         width: parent.width
         minimum: 0
-        maximum: 1.5
+        maximum: 1
         step: 0.05
-        value: streamRow.streamVolume
-        opacity: streamRow.streamMuted ? 0.5 : 1.0
+        value: appRow.appVolume
+        opacity: appRow.appMuted ? 0.5 : 1.0
 
-        onMoved: function(v) {
-          if (streamRow.node && streamRow.node.audio) streamRow.node.audio.volume = v
-        }
-        onRightClicked: {
-          if (streamRow.node && streamRow.node.audio)
-            streamRow.node.audio.muted = !streamRow.node.audio.muted
-        }
+        onMoved: function(v) { root.setAppVolume(appRow.app, v) }
+        onRightClicked: root.toggleAppMuted(appRow.app)
       }
     }
 
-    MouseArea {
-      anchors.fill: parent
-      hoverEnabled: true
-      acceptedButtons: Qt.NoButton
-      propagateComposedEvents: true
-      onContainsMouseChanged: if (containsMouse) {
-        root.cursorActive = true
-        root.focusSection = "streams"
-        root.selectedIndex = streamRow.rowIndex
-      }
+    // A handler rather than a row-sized MouseArea: an area declared after the
+    // inline slider sits on top of it and eats its press and drag, which is the
+    // bug the standalone slider rows already avoid by using HoverHandler.
+    HoverHandler {
+      onHoveredChanged: if (hovered) root.setAppCursor(appRow.rowIndex)
     }
   }
 }

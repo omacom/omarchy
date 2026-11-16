@@ -13,6 +13,11 @@ assertEqual(osd.iconFor('logout', 50), '󰍃', 'osd maps logout icon')
 assertEqual(osd.iconFor('custom-symbol', 50), 'custom-symbol', 'osd preserves unknown explicit icons')
 assertEqual(osd.widestIcon, osd.iconFor('volume-high', 100), 'osd sizes the icon column to a glyph it can show')
 
+for (const icon of ['volume-high', 'volume-muted', 'volume', 'mute', '', '', '', '', '󰋋'])
+  assert(osd.isVolumeIcon(icon), 'osd treats ' + icon + ' as a volume notification')
+for (const icon of ['brightness', 'microphone', 'media', 'logout', ''])
+  assert(!osd.isVolumeIcon(icon), 'osd does not treat ' + icon + ' as a volume notification')
+
 assertDeepEqual(
   osd.stateForShow('volume', '', '75', '100', '', '800'),
   {

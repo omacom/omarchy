@@ -11,6 +11,9 @@
   "appearance": {
     "label": "Appearance"
   },
+  "audio": {
+    "label": "Audio"
+  },
   "trigger": {
     "label": "Trigger"
   },

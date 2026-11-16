@@ -49,6 +49,15 @@ case ${1:-} in
 esac
 SH
 
+# Metadata is empty unless a case sets PINS/PIN_VALUE; the default-switch
+# cases below use it to prove pinned streams stay where they were put.
+cat >"$work/bin/pw-metadata" <<'SH'
+#!/bin/bash
+if [[ -n ${PINS:-} ]]; then
+  printf "update: id:%s key:'target.object' value:'%s' type:'Spa:String:JSON'\n" "$PINS" "${PIN_VALUE:--1}"
+fi
+SH
+
 # Every call is logged with the locale it ran in. Listings the cases below
 # vary come from $SOURCES, $SINKS and $OUTPUTS.
 cat >"$work/bin/pactl" <<'SH'
@@ -62,6 +71,7 @@ Sink Input #42
 	Properties:
 		application.name = "Firefox"
 		node.name = "Firefox"
+		object.id = "420"
 OUT
     ;;
   "-f json list sinks")
@@ -120,6 +130,18 @@ grep -qx 'C pactl list sink-inputs' "$CALLS" ||
 grep -q 'pactl move-sink-input 42 alsa_output.speakers' "$CALLS" ||
   fail 'audio-output-set-default moves streams' "$(calls)"
 pass 'audio-output-set-default reads sink-inputs in the C locale'
+
+: >"$CALLS"
+PINS=420 PIN_VALUE=101 omarchy-audio-output-set-default 42 alsa_output.speakers 2>/dev/null || true
+! grep -q 'move-sink-input' "$CALLS" ||
+  fail 'audio-output-set-default leaves a pinned stream alone' "$(calls)"
+pass 'audio-output-set-default preserves per-app pins'
+
+: >"$CALLS"
+PINS=420 PIN_VALUE=-1 omarchy-audio-output-set-default 42 alsa_output.speakers 2>/dev/null || true
+grep -q 'pactl move-sink-input 42 alsa_output.speakers' "$CALLS" ||
+  fail 'audio-output-set-default moves a stream after its pin is cleared' "$(calls)"
+pass 'audio-output-set-default follows the default after a pin is cleared'
 
 : >"$CALLS"
 LC_ALL=en_US.UTF-8 omarchy-audio-output-sink "virtual_sink" >/dev/null 2>&1

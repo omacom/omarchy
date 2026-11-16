@@ -24,6 +24,7 @@
   "apps": {"icon":"󰀻","label":"Apps","aliases":["app","applications"],"provider":"apps","action":"omarchy-shell omarchy.dock apps"},
   "agent": {"icon":"󰚩","label":"Agent"},
   "appearance": {"icon":"󰏘","label":"Appearance","aliases":["style"]},
+  "audio": {"icon":"󰓃","label":"Audio","action":"omarchy-shell omarchy.audio open"},
   "trigger": {"icon":"󱓞","label":"Trigger"},
   "setup": {"icon":"","label":"Setup","aliases":["settings"]},
   "install": {"icon":"󰉉","label":"Install"},

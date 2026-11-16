@@ -15,18 +15,45 @@ fi
 timeout 2 wpctl set-default "$node_id" 2>/dev/null || true
 timeout 2 pactl set-default-sink "$sink_name" 2>/dev/null || true
 
-# Move only real application streams. A DSP filter-chain's own output is also a
-# sink input but carries no application.name, and moving it would rewire the
-# processing itself -- onto headphones, or into its own virtual sink, which is a
-# cycle. EasyEffects' output stream must stay put for the same reason.
-# pactl translates its headers; parse them in the C locale.
-LC_ALL=C timeout 2 pactl list sink-inputs 2>/dev/null | awk '
-  /^Sink Input #/ {id = substr($3, 2)}
-  /application\.name = / {
-    app = $0
-    sub(/.*application\.name = "/, "", app)
-    sub(/"$/, "", app)
-    if (app != "EasyEffects") print id
+# A stream with a WirePlumber target.object pin keeps its explicit output;
+# changing the default must not drag it along. If the pins cannot be read,
+# leave stream movement to the session manager instead of guessing.
+metadata=$(timeout 2 pw-metadata -n default 2>/dev/null) || exit 0
+pinned_nodes=$(awk -F "'" '
+  $2 == "target.object" && $4 != "" && $4 != "-1" {
+    node = $1
+    sub(/.*id:/, "", node)
+    sub(/ .*/, "", node)
+    if (node ~ /^[0-9]+$/) print node
+  }' <<<"$metadata" | tr '\n' ' ')
+
+# Move only real application streams that follow the default. A DSP
+# filter-chain's own output is also a sink input but carries no
+# application.name, and moving it would rewire the processing itself -- onto
+# headphones, or into its own virtual sink, which is a cycle. EasyEffects'
+# output stream must stay put for the same reason. pactl translates its
+# headers; parse them in the C locale.
+LC_ALL=C timeout 2 pactl list sink-inputs 2>/dev/null | awk -v pins=" $pinned_nodes " '
+  BEGIN { RS = ""; FS = "\n" }
+  /^Sink Input #/ {
+    id = ""; app = ""; node = ""
+    for (i = 1; i <= NF; i++) {
+      line = $i
+      if (line ~ /^Sink Input #/) {
+        id = line
+        sub(/^Sink Input #/, "", id)
+      } else if (line ~ /application\.name = /) {
+        app = line
+        sub(/.*application\.name = "/, "", app)
+        sub(/"$/, "", app)
+      } else if (line ~ /object\.id = /) {
+        node = line
+        sub(/.*object\.id = "/, "", node)
+        sub(/"$/, "", node)
+      }
+    }
+    if (id != "" && app != "" && app != "EasyEffects" && node != "" && index(pins, " " node " ") == 0)
+      print id
   }' | while read -r input; do
   [[ -n $input ]] && timeout 2 pactl move-sink-input "$input" "$sink_name" 2>/dev/null || true
 done
