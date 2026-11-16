@@ -927,14 +927,16 @@ cp -a "$ROOT/bin/." "$ROUTER_BIN/"
   printf 'echo screenshot-stub-ran\n'
 } >"$ROUTER_BIN/omarchy-capture-screenshot"
 
+# Timed on /proc/uptime, which counts from boot: this suite runs in the first
+# minute of a CI VM, when time sync can step the wall clock EPOCHREALTIME reads.
 fastest_ms() {
   local best="" start end elapsed
 
   for _ in 1 2 3 4 5; do
-    start=$EPOCHREALTIME
+    read -r start _ </proc/uptime
     "$@" >/dev/null 2>&1
-    end=$EPOCHREALTIME
-    elapsed=$(( (${end/[.,]/} - ${start/[.,]/}) / 1000 ))
+    read -r end _ </proc/uptime
+    elapsed=$(( (${end/./} - ${start/./}) * 10 ))
     if [[ -z $best ]] || (( elapsed < best )); then
       best=$elapsed
     fi
