@@ -200,6 +200,8 @@ wf_audio_device() {
   local sink="" source="" m
   [[ $DESKTOP_AUDIO == "true" ]] && sink=$(pactl get-default-sink 2>/dev/null)
   [[ $MICROPHONE_AUDIO == "true" ]] && source=$(pactl get-default-source 2>/dev/null)
+  # With no default source pactl answers its own placeholder, never nothing.
+  [[ $source == "@DEFAULT_SOURCE@" ]] && source=""
 
   if [[ -n $sink && -n $source ]]; then
     if m=$(pactl load-module module-null-sink sink_name=omarchy_screenrec sink_properties=device.description=omarchy_screenrec 2>/dev/null); then
