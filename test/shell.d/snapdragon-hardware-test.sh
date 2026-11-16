@@ -71,6 +71,7 @@ mkdir -p "$scratch/dtbs"
 : >"$scratch/dtbs/msm8998-lenovo-test.dtb"
 : >"$scratch/dtbs/sc7180-acer-test.dtb"
 : >"$scratch/dtbs/sc7180-samsung-test.dtb"
+: >"$scratch/dtbs/sc7180-tcl-test.dtb"
 : >"$scratch/dtbs/sc7180-trogdor-test.dtb"
 : >"$scratch/dtbs/sc7280-samsung-test.dtb"
 : >"$scratch/dtbs/sc7280-herobrine-test.dtb"
@@ -114,7 +115,7 @@ grep -Fq "$scratch/dtbs/kalambo-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the Kalambo device trees"
 grep -Fq "$scratch/dtbs/sc8180x-test.dtb" "$scratch/uki.conf" ||
   fail "Snapdragon DTB setup lists the 8cx device trees"
-for family in sdm850 msm8998-lenovo sc7180-acer sc7180-samsung sc7280-samsung; do
+for family in sdm850 msm8998-lenovo sc7180-acer sc7180-samsung sc7180-tcl sc7280-samsung; do
   grep -Fq "$scratch/dtbs/$family-test.dtb" "$scratch/uki.conf" ||
     fail "Snapdragon DTB setup lists the $family device trees"
 done
