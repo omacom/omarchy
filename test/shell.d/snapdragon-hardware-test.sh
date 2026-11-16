@@ -8,6 +8,8 @@ firmware_setup="$ROOT/install/hardware/qualcomm/firmware.sh"
 dtb_setup="$ROOT/install/hardware/qualcomm/dtb-uki.sh"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
+# The cases below list every tree unless one names a hardware ID database.
+export OMARCHY_QUALCOMM_HWIDS_DIR="$scratch/no-hwids"
 
 for script in "$firmware_setup" "$dtb_setup"; do
   bash -n "$script" || fail "Snapdragon hardware scripts have valid syntax"
@@ -248,6 +250,18 @@ run_own_dtb_setup
 grep -q '^DeviceTreeAuto=' "$own/uki.conf" && ! grep -q '^DeviceTree=' "$own/uki.conf" ||
   fail "two trees with the machine's compatible leave the choice to systemd-stub"
 rm "$own/dtbs/x1e78100-lenovo-thinkpad-t14s-copy.dtb"
+
+# The list keeps the trees a hardware ID file names, as no SMBIOS data can
+# pick another, so the image stays within the stub's header space. The
+# machine's own tree still comes from all of them.
+mkdir -p "$own/hwids/linux-omarchy"
+printf '{"type": "devicetree", "compatible": "acer,swift-go14-01", "hwids": []}\n' \
+  >"$own/hwids/linux-omarchy/x1p42100-acer-swift-go14-01.json"
+OMARCHY_QUALCOMM_HWIDS_DIR="$own/hwids" run_own_dtb_setup
+grep -qx "DeviceTreeAuto=$own/dtbs/x1p42100-acer-swift-go14-01.dtb" "$own/uki.conf" ||
+  fail "the device tree list leaves out the trees no hardware ID file names"
+grep -qx "DeviceTree=$own/dtbs/x1e78100-lenovo-thinkpad-t14s.dtb" "$own/uki.conf" ||
+  fail "a machine whose tree no hardware ID file names still embeds its own tree"
 fake_dtb "$own/dtbs/x1e80100-microsoft-denali-oled.dtb" 'microsoft,denali-oled\0microsoft,denali\0qcom,x1e80100\0'
 printf 'microsoft,denali\0qcom,x1e80100\0' >"$own/proc/device-tree/compatible"
 run_own_dtb_setup

@@ -37,6 +37,7 @@ for kernel_dtb_dir in "$dtb_root"/linux-omarchy/qcom "$dtb_root"/linux-omarchy*/
   fi
 done
 dtb_dir=${OMARCHY_QUALCOMM_DTB_DIR:-$dtb_dir}
+hwids_dir=${OMARCHY_QUALCOMM_HWIDS_DIR:-/usr/lib/systemd/boot/hwids/aa64}
 
 # The 835 and 7c laptops are named by maker, so Arch Linux ARM's phone and
 # Chromebook trees of those families stay out.
@@ -52,6 +53,37 @@ for dtb in "$dtb_dir"/x1*.dtb "$dtb_dir"/hamoa*.dtb "$dtb_dir"/purwa*.dtb \
   fi
 done
 
+# Every tree is a PE section of its own, and the stub's header holds about 120
+# beside the image's other sections, so ukify stops with "Not enough header
+# space" once there are more. systemd-stub only picks a tree whose compatible
+# a hardware ID file names, so the list keeps those and drops the rest, which
+# no SMBIOS data can select. The machine's own tree below still comes from all
+# of them. Without the hardware ID database the list stays whole.
+all_dtbs=("${dtbs[@]}")
+if [[ -d $hwids_dir ]]; then
+  hwid_compatibles=$(grep -rhoE --include='*.json' '"compatible"[[:space:]]*:[[:space:]]*"[^"]+"' "$hwids_dir" |
+    sed -E 's/.*"([^"]+)"$/\1/' | sort -u)
+  if [[ -n $hwid_compatibles ]]; then
+    alternatives=$(while IFS= read -r compatible; do
+      printf '%s' "$compatible" | od -An -v -tx1 | tr -d '\n'
+      echo
+    done <<<"$hwid_compatibles" | sed 's/^ //' | paste -sd '|' -)
+    # A compatible string starts its property's value or follows another's
+    # terminating zero, and ends with one of its own.
+    named="( 00| 00 00 00 03( [0-9a-f]{2}){8}) (${alternatives}) 00"
+    dtbs=()
+    for dtb in "${all_dtbs[@]}"; do
+      if grep -qE "$named" <(od -An -v -tx1 "$dtb" | tr -d '\n'); then
+        dtbs+=("$dtb")
+      fi
+    done
+    # A list without any named tree would leave the image nothing to pick.
+    if (( ${#dtbs[@]} == 0 )); then
+      dtbs=("${all_dtbs[@]}")
+    fi
+  fi
+fi
+
 # An installed machine also gets the tree it runs on as DeviceTree, which
 # systemd-stub uses when no tree in the list matches the SMBIOS data. So a
 # machine whose hardware IDs systemd-stub doesn't know yet still boots, and
@@ -65,13 +97,13 @@ done
 # keeps a match on byte boundaries and the newline bytes out of grep's way.
 own_dtb=""
 running_compatible=${OMARCHY_PROC_ROOT:-/proc}/device-tree/compatible
-if (( ${#dtbs[@]} > 0 )) && [[ -s $running_compatible ]]; then
+if (( ${#all_dtbs[@]} > 0 )) && [[ -s $running_compatible ]]; then
   length=$(wc -c <"$running_compatible")
   pattern=$(printf ' 00 00 00 03 %02x %02x %02x %02x' $((length >> 24 & 255)) \
     $((length >> 16 & 255)) $((length >> 8 & 255)) $((length & 255)))
   pattern+="( [0-9a-f]{2}){4}$(od -An -v -tx1 "$running_compatible" | tr -d '\n')"
   matches=()
-  for dtb in "${dtbs[@]}"; do
+  for dtb in "${all_dtbs[@]}"; do
     if grep -qE "$pattern" <(od -An -v -tx1 "$dtb" | tr -d '\n'); then
       matches+=("$dtb")
     fi
@@ -84,7 +116,7 @@ fi
 if (( ! install )) && ! grep -Fqx "$managed_begin" "$uki_config" 2>/dev/null; then
   # Nothing of ours to refresh.
   exit 0
-elif (( ${#dtbs[@]} == 0 )); then
+elif (( ${#all_dtbs[@]} == 0 )); then
   # A kernel without trees keeps the last list rather than an empty one.
   echo "No Windows-on-ARM device trees under $dtb_dir; the UKI gets no .dtbauto sections" >&2
   exit 0
