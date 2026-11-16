@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# omarchy:summary=Match the 2016 15-inch MacBook Pro with Touch Bar (A1707, Apple T1)
+# omarchy:hidden=true
+
+# MacBookPro13,3 is the 2016 15" Touch Bar (A1707). Other T1 machines
+# (MacBookPro13,1/13,2 and 14,x) are left out: only this model is tested.
+product_name=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
+[[ $product_name == "MacBookPro13,3" ]] || exit 1
+
+# The T1 iBridge must be in its working configuration (05ac:8600), not
+# recovery (05ac:1281). Recovery means EFI/APPLE/EMBEDDEDOS was erased.
+usb_devices_path="${OMARCHY_USB_DEVICES_PATH:-/sys/bus/usb/devices}"
+for dev in "$usb_devices_path"/*; do
+  [[ -r $dev/idVendor && -r $dev/idProduct ]] || continue
+  [[ $(<"$dev/idVendor") == "05ac" && $(<"$dev/idProduct") == "8600" ]] && exit 0
+done
+exit 1

@@ -48,10 +48,16 @@ The Apple T1 chip was introduced in late 2016 and used exclusively in the first-
 - MacBook Pro 13-inch (2016, four Thunderbolt 3 ports) – Model: A1708
 - MacBook Pro 15-inch (2016) – Model: A1707
 
+On the **15-inch A1707** (`MacBookPro13,3`), the installer sets up speakers (Cirrus CS8409), the Touch Bar, and Touch ID. That path is gated on this exact DMI name and a live T1 iBridge (USB `05ac:8600`); it is a no-op on every other machine.
+
+Keep the small Apple EFI partition (`EFI/APPLE/EMBEDDEDOS`). It holds the T1 firmware and the machine-bound `FDRData` Touch ID needs. If that tree is erased, the T1 comes up as `05ac:1281` (recovery) and the Touch Bar, Touch ID and camera stay dead until macOS is reinstalled.
+
+Enroll Touch ID with _Setup > Security > Fingerprint_. On this model that keeps the T1Bridge libfprint/fprintd pair; the generic fingerprint packages would replace it and break the sensor.
+
 #### Known Issues
 
-- Touch Bar is non-functional
-- Sound is not functioning
+- Sleep/wake with the T1 is unreliable; a full power cycle recovers a wedged Touch Bar or Touch ID sensor
+- On the 13-inch T1 models (A1706, A1708): Touch Bar is non-functional, sound is not functioning
 
 #### Devices with T2 Chip
 

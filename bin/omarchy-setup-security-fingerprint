@@ -146,11 +146,21 @@ if ! omarchy-hw-fingerprint; then
   exit 1
 fi
 
-# libfprint-git tracks upstream ahead of the Arch release, so a new reader only
-# needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
-# --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
-# one transaction, so a failed install leaves the existing driver in place.
-if omarchy-pkg-missing libfprint-git fprintd usbutils; then
+# The 2016 15-inch MacBook Pro (A1707, T1) uses the matched T1Bridge
+# libfprint/fprintd pair from hardware setup. libfprint-git would replace
+# that pair and break Touch ID. Also skip the swap when that pair is already
+# installed, even if the T1 iBridge is temporarily in recovery.
+if omarchy-hw-macbookpro13-3 || ! omarchy-pkg-missing fprintd-t1bridge; then
+  if omarchy-pkg-missing t1bridge libfprint-t1bridge fprintd-t1bridge; then
+    echo -e "\e[31mTouch ID on this MacBook Pro (A1707, T1) needs the T1Bridge stack from hardware setup.\e[0m"
+    echo "Run: sudo omarchy apply hardware --install-user $USER"
+    exit 1
+  fi
+elif omarchy-pkg-missing libfprint-git fprintd usbutils; then
+  # libfprint-git tracks upstream ahead of the Arch release, so a new reader only
+  # needs a pin bump in omarchy-pkgs. It conflicts with stock libfprint, and
+  # --noconfirm answers that prompt with N; --ask 4 accepts the replacement in
+  # one transaction, so a failed install leaves the existing driver in place.
   echo "Installing required packages..."
   sudo pacman -S --needed --noconfirm --ask 4 -- libfprint-git fprintd usbutils
 fi

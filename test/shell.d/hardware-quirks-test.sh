@@ -228,6 +228,7 @@ machine() {
     plain) dmi sys_vendor LENOVO; dmi product_name 21HM0000US; dmi product_family "ThinkPad X1 Carbon Gen 11" ;;
     no-dmi) rm -rf "$hw/dmi" ;;
     macbookpro13) dmi product_name "MacBookPro13,2" ;;
+    macbookpro13-3) dmi product_name "MacBookPro13,3" ;;
     macbook8) dmi product_name "MacBook8,1" ;;
     macbookpro15) dmi product_name "MacBookPro15,1" ;;
     synaptics) synaptics ;;
@@ -366,6 +367,9 @@ run_leaf() {
 # standing between it and any other machine.
 leaves=(
   hardware/apple/fix-spi-keyboard.sh
+  hardware/apple/fix-a1707-t1-audio.sh
+  hardware/apple/fix-a1707-t1-touchbar.sh
+  hardware/apple/fix-a1707-t1-touchid.sh
   hardware/n1x.sh
   hardware/fix-synaptic-touchpad.sh
   hardware/surface.sh
@@ -588,3 +592,36 @@ filtered=$(bash -c '
 [[ $filtered == "status 0 nvidia/615/gsp_ga10x.bin nvidia/615/ucodes_ga10x.bin status 0 renesas_missing.mem status 1" ]] ||
   fail "N1x initramfs leaves out only Turing's NVIDIA firmware" "$filtered"
 pass "N1x initramfs leaves out only Turing's NVIDIA firmware"
+
+# A1707 (MacBookPro13,3) T1: DMI plus a live iBridge (05ac:8600), not recovery.
+a1707_usb() {
+  mkdir -p "$hw/usb/1-1"
+  printf '%s\n' "$1" >"$hw/usb/1-1/idVendor"
+  printf '%s\n' "$2" >"$hw/usb/1-1/idProduct"
+}
+run_a1707_hw() {
+  PATH="$stub_bin:$ROOT/bin:$PATH" FAKE_HW="$hw" OMARCHY_USB_DEVICES_PATH="$hw/usb" \
+    "$ROOT/bin/omarchy-hw-macbookpro13-3"
+}
+
+machine plain
+a1707_usb 05ac 8600
+if run_a1707_hw; then
+  fail "omarchy-hw-macbookpro13-3 ignores a T1 iBridge on another machine"
+fi
+machine macbookpro13
+a1707_usb 05ac 8600
+if run_a1707_hw; then
+  fail "omarchy-hw-macbookpro13-3 ignores other T1 MacBook Pro models"
+fi
+machine macbookpro13-3
+if run_a1707_hw; then
+  fail "omarchy-hw-macbookpro13-3 requires the T1 iBridge"
+fi
+a1707_usb 05ac 1281
+if run_a1707_hw; then
+  fail "omarchy-hw-macbookpro13-3 ignores a T1 in recovery"
+fi
+a1707_usb 05ac 8600
+run_a1707_hw || fail "omarchy-hw-macbookpro13-3 matches A1707 with a live T1"
+pass "omarchy-hw-macbookpro13-3 matches only A1707 with a live T1"

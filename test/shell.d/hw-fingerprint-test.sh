@@ -39,6 +39,10 @@ write_usb_devices() {
 platform_root="$tmp_dir/platform"
 mkdir -p "$platform_root" "$tmp_dir/bin"
 platform_root_copy "$ROOT/bin/omarchy-hw-fingerprint" "$tmp_dir/bin/omarchy-hw-fingerprint" "$platform_root"
+# The T1 A1707 branch reads this machine's DMI; pin it to a fixture so the
+# suite stays a no-op on a real MacBookPro13,3.
+printf 'generic\n' >"$tmp_dir/dmi-product-name"
+sed -i "s|/sys/class/dmi/id/product_name|$tmp_dir/dmi-product-name|g" "$tmp_dir/bin/omarchy-hw-fingerprint"
 
 hw_fingerprint() {
   OMARCHY_USB_DEVICES_PATH="$tmp_dir/devices" "$tmp_dir/bin/omarchy-hw-fingerprint"

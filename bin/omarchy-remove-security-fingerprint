@@ -90,7 +90,13 @@ if ! disable_hook=$(omarchy-lifecycle-dispatch --resolve disable-fingerprint) ||
   echo -e "\e[33mThe fingerprint reader may still be turned on at the next boot.\e[0m"
 fi
 
-echo "Removing fingerprint packages..."
-omarchy-pkg-drop fprintd libfprint libfprint-git
+# The 2016 15-inch MacBook Pro (A1707, T1) uses fprintd-t1bridge. Dropping
+# the generic fingerprint packages would replace that pair and break Touch ID.
+if omarchy-hw-macbookpro13-3; then
+  echo "Leaving the T1Bridge fingerprint packages installed; they are this Mac's Touch ID driver."
+else
+  echo "Removing fingerprint packages..."
+  omarchy-pkg-drop fprintd libfprint libfprint-git
+fi
 
 echo -e "\e[32mFingerprint authentication and $fingerprint_user's local saved fingerprints have been removed.\e[0m"

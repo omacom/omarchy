@@ -1,0 +1,158 @@
+diff --git i/README.md w/README.md
+index 17db3ec..679e5cd 100644
+--- i/README.md
++++ w/README.md
+@@ -18,6 +18,14 @@ Both halves work now, at the same time:
+ Tested on a MacBookPro13,2 running Omarchy (Arch), kernel 7.1.9, LUKS2+Btrfs,
+ SDDM + Hyprland.
+ 
++The shipped `kernel/appletbdrm.c` tracks stock Linux **7.2**. Linux 7.2 changed
++the DRM plane-helper API (`atomic_check`/`atomic_update` take a
++`drm_atomic_commit`, and the damage bookkeeping moved into `begin_fb_access`),
++so the 7.1-based file fails to build on 7.2 kernels with incompatible-pointer
++errors in the plane helper funcs. The T1 patch itself,
++`kernel/patches/appletbdrm-t1.patch`, is untouched by that change and applies
++to both the 7.1 and 7.2 stock sources.
++
+ ---
+ 
+ ## Why this was thought impossible
+@@ -191,6 +199,7 @@ to its defaults, so run it after editing.
+ |---|---|---|
+ | `pacman -Syu` / `omarchy update` | none — every installed file is unowned by any package | — |
+ | kernel update | DKMS rebuilds `appletbdrm-t1` | DKMS autoinstall |
++| kernel update changes a DRM or HID API | the DKMS build fails and the panel stays dark after the next boot | re-apply `kernel/patches/appletbdrm-t1.patch` to the new kernel's stock `drivers/gpu/drm/tiny/appletbdrm.c`, copy the result to `kernel/appletbdrm.c`, re-run `install.sh` |
+ | kernel update renumbers `MT_CLS_APPLE_TOUCHBAR` | would silently bind the wrong class | `touchbar-t1-setup` reads the value out of the installed `hid-multitouch` at runtime instead of hardcoding it |
+ | **systemd update** | our `71-seat.rules` shadows the new stock file and silently pins the old one | pacman hook regenerates it; `doctor.sh` flags staleness by mtime |
+ | distro packages `tiny-dfr` | would install `/usr/bin/tiny-dfr` unpatched, alongside ours in `/usr/local/bin` | `doctor.sh` checks the running binary carries the name patch |
+diff --git i/kernel/appletbdrm.c w/kernel/appletbdrm.c
+index 9690d64..b2d78c0 100644
+--- i/kernel/appletbdrm.c
++++ w/kernel/appletbdrm.c
+@@ -344,33 +344,16 @@ static const u32 appletbdrm_primary_plane_formats[] = {
+ 	DRM_FORMAT_XRGB8888, /* emulated */
+ };
+ 
+-static int appletbdrm_primary_plane_helper_atomic_check(struct drm_plane *plane,
+-						   struct drm_atomic_state *state)
++static int appletbdrm_primary_plane_helper_begin_fb_access(struct drm_plane *plane,
++							   struct drm_plane_state *new_plane_state)
+ {
+-	struct drm_plane_state *new_plane_state = drm_atomic_get_new_plane_state(state, plane);
+-	struct drm_plane_state *old_plane_state = drm_atomic_get_old_plane_state(state, plane);
+-	struct drm_crtc *new_crtc = new_plane_state->crtc;
+-	struct drm_crtc_state *new_crtc_state = NULL;
+ 	struct appletbdrm_plane_state *appletbdrm_state = to_appletbdrm_plane_state(new_plane_state);
++	size_t frames_size = 0;
+ 	struct drm_atomic_helper_damage_iter iter;
+ 	struct drm_rect damage;
+-	size_t frames_size = 0;
+ 	size_t request_size;
+-	int ret;
+ 
+-	if (new_crtc)
+-		new_crtc_state = drm_atomic_get_new_crtc_state(state, new_crtc);
+-
+-	ret = drm_atomic_helper_check_plane_state(new_plane_state, new_crtc_state,
+-						  DRM_PLANE_NO_SCALING,
+-						  DRM_PLANE_NO_SCALING,
+-						  false, false);
+-	if (ret)
+-		return ret;
+-	else if (!new_plane_state->visible)
+-		return 0;
+-
+-	drm_atomic_helper_damage_iter_init(&iter, old_plane_state, new_plane_state);
++	drm_atomic_helper_damage_iter_init(&iter, plane->state, new_plane_state);
+ 	drm_atomic_for_each_plane_damage(&iter, &damage) {
+ 		frames_size += struct_size((struct appletbdrm_frame *)0, buf, rect_size(&damage));
+ 	}
+@@ -395,6 +378,29 @@ static int appletbdrm_primary_plane_helper_atomic_check(struct drm_plane *plane,
+ 	appletbdrm_state->request_size = request_size;
+ 	appletbdrm_state->frames_size = frames_size;
+ 
++	return drm_gem_begin_shadow_fb_access(plane, new_plane_state);
++}
++
++static int appletbdrm_primary_plane_helper_atomic_check(struct drm_plane *plane,
++							struct drm_atomic_commit *state)
++{
++	struct drm_plane_state *new_plane_state = drm_atomic_get_new_plane_state(state, plane);
++	struct drm_crtc *new_crtc = new_plane_state->crtc;
++	struct drm_crtc_state *new_crtc_state = NULL;
++	int ret;
++
++	if (new_crtc)
++		new_crtc_state = drm_atomic_get_new_crtc_state(state, new_crtc);
++
++	ret = drm_atomic_helper_check_plane_state(new_plane_state, new_crtc_state,
++						  DRM_PLANE_NO_SCALING,
++						  DRM_PLANE_NO_SCALING,
++						  false, false);
++	if (ret)
++		return ret;
++	else if (!new_plane_state->visible)
++		return 0;
++
+ 	return 0;
+ }
+ 
+@@ -503,7 +509,7 @@ end_fb_cpu_access:
+ }
+ 
+ static void appletbdrm_primary_plane_helper_atomic_update(struct drm_plane *plane,
+-						     struct drm_atomic_state *old_state)
++							  struct drm_atomic_commit *old_state)
+ {
+ 	struct appletbdrm_device *adev = drm_to_adev(plane->dev);
+ 	struct drm_device *drm = plane->dev;
+@@ -520,7 +526,7 @@ static void appletbdrm_primary_plane_helper_atomic_update(struct drm_plane *plan
+ }
+ 
+ static void appletbdrm_primary_plane_helper_atomic_disable(struct drm_plane *plane,
+-							   struct drm_atomic_state *state)
++							   struct drm_atomic_commit *state)
+ {
+ 	struct drm_device *dev = plane->dev;
+ 	struct appletbdrm_device *adev = drm_to_adev(dev);
+@@ -587,7 +593,8 @@ static void appletbdrm_primary_plane_destroy_state(struct drm_plane *plane,
+ }
+ 
+ static const struct drm_plane_helper_funcs appletbdrm_primary_plane_helper_funcs = {
+-	DRM_GEM_SHADOW_PLANE_HELPER_FUNCS,
++	.begin_fb_access = appletbdrm_primary_plane_helper_begin_fb_access,
++	.end_fb_access = drm_gem_end_shadow_fb_access,
+ 	.atomic_check = appletbdrm_primary_plane_helper_atomic_check,
+ 	.atomic_update = appletbdrm_primary_plane_helper_atomic_update,
+ 	.atomic_disable = appletbdrm_primary_plane_helper_atomic_disable,
+diff --git i/kernel/patches/appletbdrm-t1.patch w/kernel/patches/appletbdrm-t1.patch
+index 1105360..9d91235 100644
+--- i/kernel/patches/appletbdrm-t1.patch
++++ w/kernel/patches/appletbdrm-t1.patch
+@@ -118,7 +118,7 @@
+  }
+  
+  static int appletbdrm_send_msg(struct appletbdrm_device *adev, __le32 msg)
+-@@ -455,9 +484,15 @@
++@@ -461,9 +490,15 @@
+  	if (ret)
+  		goto end_fb_cpu_access;
+  
+@@ -135,7 +135,7 @@
+  		goto end_fb_cpu_access;
+  	}
+  
+-@@ -761,6 +796,21 @@
++@@ -768,6 +803,21 @@
+  		drm_warn(drm, "buffer sharing not supported"); /* not an error */
+  	}
+  
+@@ -157,7 +157,7 @@
+  	ret = appletbdrm_get_information(adev);
+  	if (ret) {
+  		drm_err(drm, "Failed to get display information\n");
+-@@ -816,6 +866,8 @@
++@@ -823,6 +873,8 @@
+  
+  static const struct usb_device_id appletbdrm_usb_id_table[] = {
+  	{ USB_DEVICE_INTERFACE_CLASS(0x05ac, 0x8302, USB_CLASS_AUDIO_VIDEO) },

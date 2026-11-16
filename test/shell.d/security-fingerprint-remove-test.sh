@@ -70,6 +70,10 @@ cat >"$test_tmp/bin/omarchy-pkg-drop" <<'SH'
 printf 'package %s\n' "$*" >>"$TEST_LOG"
 [[ ${TEST_PACKAGE_FAIL:-0} == 0 ]]
 SH
+cat >"$test_tmp/bin/omarchy-hw-macbookpro13-3" <<'SH'
+#!/bin/bash
+[[ ${TEST_A1707:-0} == 1 ]]
+SH
 chmod +x "$test_tmp/bin/"* "$test_tmp/trusted-id"
 
 # Root test runs still exercise the ordinary caller branch as a real user.
@@ -99,6 +103,7 @@ run_remove() {
     "TEST_PRINTS_OUTPUT=${prints_output:-}" "TEST_SUDO_CACHED=${sudo_cached:-0}" "TEST_SUDO_V_FAIL=${sudo_v_fail:-0}"
     "TEST_HOOK_FAIL=${hook_fail:-0}" "TEST_RESOLVE_FAIL=${resolve_fail:-0}"
     "TEST_DISABLE_HOOK=${disable_hook-/usr/lib/omarchy/mac/disable-fingerprint}"
+    "TEST_A1707=${TEST_A1707:-0}"
     "USER=spoofed" "SUDO_USER=spoofed"
     "PATH=$test_tmp/bin:/usr/bin:/bin"
   )
@@ -294,3 +299,15 @@ fi
 
 [[ ! -e $test_tmp/untrusted-id-called ]] || fail "malicious PATH id was executed"
 pass "PATH id was never executed in any identity case"
+
+# A1707 Touch ID keeps the T1Bridge pair; dropping stock fprintd packages
+# would pull that pair apart.
+direct_user=alice sudo_user=alice expected=alice
+unset SUDO_UID
+mkdir -p "$test_tmp/fprint/alice"
+TEST_A1707=1
+run_remove || fail "A1707 removal succeeds" "$(cat "$output")"
+! grep -q '^package ' "$log" || fail "A1707 removal leaves T1Bridge packages" "$(cat "$log")"
+grep -q 'T1Bridge fingerprint packages' "$output" || fail "A1707 removal says why packages stay" "$(cat "$output")"
+unset TEST_A1707
+pass "A1707 removal leaves the T1Bridge fingerprint packages installed"

@@ -1,0 +1,131 @@
+# Per-application Touch Bar layouts, driven by the focused Hyprland window.
+#
+# Installed as /etc/tiny-dfr/layouts.toml and read by touchbar-t1-appmap, which
+# renders /etc/tiny-dfr/config.toml from it on every focus change. tiny-dfr
+# picks that file up through its own inotify watch - nothing is restarted.
+#
+# EDIT THIS FILE, NOT config.toml. config.toml is generated and overwritten.
+# Changes here are picked up live; no need to restart the service.
+#
+# ---------------------------------------------------------------------------
+# How a layout is built
+# ---------------------------------------------------------------------------
+# tiny-dfr merges three sources, later winning per key:
+#
+#   /usr/share/tiny-dfr/config.toml   its shipped defaults (F1-F12 + media keys)
+#   [base] below                      applied to every window
+#   [layout.<name>] below             applied when a rule matches
+#
+# The merge is per key, so a layout that sets only MediaLayerKeys keeps the
+# stock F1-F12 on the Fn layer. You never have to restate what you are not
+# changing.
+#
+# Two layers exist: the default layer, and the one shown while Fn is held.
+# MediaLayerDefault = false (below) keeps F1-F12 as the default and puts
+# media keys on Fn. Set it to true for macOS behaviour.
+#
+# Do NOT include an Esc button. tiny-dfr inserts one automatically at index 0
+# on panels 2170px wide or wider, which includes every T1 Touch Bar.
+#
+# Valid Action names are the input-linux key names:
+# https://docs.rs/input-linux/latest/input_linux/enum.Key.html
+# An Action may also be a combo: Action = [ "LeftAlt", "Left" ]
+# An invalid name makes tiny-dfr discard this whole configuration silently and
+# fall back to its shipped defaults, so run scripts/doctor.sh after editing.
+
+# ---------------------------------------------------------------------------
+# [base] - applied to every window, and used alone when no rule matches.
+# ---------------------------------------------------------------------------
+[base]
+# F1-F12 are the default layer; media keys appear while Fn is held.
+MediaLayerDefault = false
+
+# ---------------------------------------------------------------------------
+# [[rule]] - evaluated top to bottom, first match wins.
+#
+# "class" and "title" are Python regular expressions matched against the
+# focused window. Both are optional; when both are given, both must match.
+# A rule with neither matches everything, so put any catch-all last.
+#
+# Find the class and title of the window you want with:
+#     hyprctl activewindow -j | grep -E '"(class|title)"'
+#
+# If no rule matches, [base] is written unchanged - the default Touch Bar.
+# ---------------------------------------------------------------------------
+
+[[rule]]
+layout = "browser"
+class = "^(zen|firefox|librewolf|chromium|google-chrome|brave-browser|chrome-.*)$"
+
+[[rule]]
+layout = "terminal"
+class = "^(com\\.mitchellh\\.ghostty|Alacritty|foot|kitty|org\\.wezfurlong\\.wezterm)$"
+
+# ---------------------------------------------------------------------------
+# [layout.*] - the layouts the rules above select.
+# ---------------------------------------------------------------------------
+
+# Browsers: navigation on the left, media and volume on the right.
+# Alt+Left / Alt+Right are used instead of the dedicated Back/Forward keys
+# because every browser binds them, including under XWayland.
+[layout.browser]
+MediaLayerKeys = [
+    { Icon = "brightness_low",  Action = "BrightnessDown" },
+    { Icon = "brightness_high", Action = "BrightnessUp" },
+    { Text = "<",               Action = ["LeftAlt", "Left"] },
+    { Text = ">",               Action = ["LeftAlt", "Right"] },
+    { Text = "Reload",          Action = "Refresh" },
+    { Icon = "search",          Action = "Search" },
+    { Icon = "fast_rewind",     Action = "PreviousSong" },
+    { Icon = "play_pause",      Action = "PlayPause" },
+    { Icon = "fast_forward",    Action = "NextSong" },
+    { Icon = "volume_off",      Action = "Mute" },
+    { Icon = "volume_down",     Action = "VolumeDown" },
+    { Icon = "volume_up",       Action = "VolumeUp" },
+]
+
+# Terminals: keyboard backlight matters more than media transport here, so the
+# playback keys give way to the illumination pair and a wider volume block.
+[layout.terminal]
+MediaLayerKeys = [
+    { Icon = "brightness_low",  Action = "BrightnessDown" },
+    { Icon = "brightness_high", Action = "BrightnessUp" },
+    { Icon = "backlight_low",   Action = "IllumDown" },
+    { Icon = "backlight_high",  Action = "IllumUp" },
+    { Icon = "mic_off",         Action = "MicMute" },
+    { Icon = "search",          Action = "Search" },
+    { Icon = "play_pause",      Action = "PlayPause" },
+    { Icon = "volume_off",      Action = "Mute" },
+    { Icon = "volume_down",     Action = "VolumeDown", Stretch = 2 },
+    { Icon = "volume_up",       Action = "VolumeUp", Stretch = 2 },
+]
+
+# ---------------------------------------------------------------------------
+# More examples, commented out.
+# ---------------------------------------------------------------------------
+#
+# Match on title as well as class - a rule needs both to match:
+#
+# [[rule]]
+# layout = "video"
+# class = "^zen$"
+# title = "(?i)(youtube|mpv|netflix)"
+#
+# [layout.video]
+# MediaLayerKeys = [
+#     { Icon = "fast_rewind",  Action = "PreviousSong" },
+#     { Icon = "play_pause",   Action = "PlayPause", Stretch = 3 },
+#     { Icon = "fast_forward", Action = "NextSong" },
+#     { Icon = "volume_off",   Action = "Mute" },
+#     { Icon = "volume_down",  Action = "VolumeDown" },
+#     { Icon = "volume_up",    Action = "VolumeUp" },
+# ]
+#
+# Change the Fn layer instead of the default one:
+#
+# [layout.terminal]
+# PrimaryLayerKeys = [
+#     { Text = "F1", Action = "F1" },
+#     { Text = "F2", Action = "F2" },
+#     { Text = "Copy", Action = ["LeftCtrl", "LeftShift", "C"] },
+# ]

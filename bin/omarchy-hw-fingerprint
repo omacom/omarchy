@@ -27,6 +27,15 @@ if [[ -r $platform_readers ]]; then
   done <"$platform_readers"
 fi
 
+# T1 Touch ID on the 2016 15" MacBook Pro (A1707) is not a USB fingerprint
+# reader; fprintd-t1bridge talks to it over the T1 NCM link. Only advertise
+# the reader once that matched pair is installed, so the stock fingerprint
+# packages are never offered in its place.
+if [[ $(cat /sys/class/dmi/id/product_name 2>/dev/null || true) == "MacBookPro13,3" ]] &&
+  pacman -Q -- fprintd-t1bridge &>/dev/null; then
+  exit 0
+fi
+
 # libfprint drives every reader it supports from userspace over libusb, so a
 # real reader sits there with no kernel driver bound to any of its interfaces.
 # The other things these vendors build — Synaptics webcam bridges (usbio-bridge

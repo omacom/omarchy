@@ -1,0 +1,15 @@
+#!/bin/bash
+# Allow T1Bridge xART (IPv6 TCP 61500) only on the private T1 NCM link.
+# Invoked from udev when apple_t1_ncm creates an interface. Idempotent.
+# A1707 (MacBookPro13,3) only; never open this port on Wi-Fi or Ethernet.
+
+set -euo pipefail
+
+iface=${1:-}
+[[ -n $iface ]] || exit 0
+
+if ufw status 2>/dev/null | grep -q "61500"; then
+  exit 0
+fi
+
+ufw allow in on "$iface" from fe80::/10 proto tcp to any port 61500 comment 't1bridge xART, T1 link only'

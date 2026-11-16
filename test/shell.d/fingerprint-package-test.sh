@@ -19,6 +19,10 @@ cat > "$scratch/bin/omarchy-hw-fingerprint" <<'STUB'
 #!/bin/bash
 exit "${HARDWARE_STATUS:-0}"
 STUB
+cat > "$scratch/bin/omarchy-hw-macbookpro13-3" <<'STUB'
+#!/bin/bash
+exit "${A1707_STATUS:-1}"
+STUB
 cat > "$scratch/bin/sudo" <<'STUB'
 #!/bin/bash
 case "$1" in
@@ -314,6 +318,25 @@ INSTALLED=$'libfprint-git\nfprintd\nusbutils' SCAN_TYPE=press SUDO_V_STATUS=1 ru
 grep -qF "Setup needs administrator rights to enroll a fingerprint." "$scratch/output" && ! grep -qx enroll "$CALL_LOG" ||
   fail "a failed sudo stops setup with a reason" "$(cat "$scratch/output")"
 pass "a failed sudo stops setup with a reason, before enrolling"
+
+# A1707 T1 Touch ID already has the matched T1Bridge pair; libfprint-git would
+# replace it. Hardware setup installs that pair; this command only enrolls.
+: > "$CALL_LOG"
+A1707_STATUS=0 INSTALLED=$'t1bridge\nlibfprint-t1bridge\nfprintd-t1bridge' \
+  ENROLL_STATUS=0 VERIFY_STATUS=0 OMARCHY_PATH="$scratch" \
+  "$setup_script" > "$scratch/output" 2>&1 || fail "A1707 setup enrolls with the T1Bridge pair" "$(cat "$scratch/output")"
+if grep -q '^pacman' "$CALL_LOG"; then
+  fail "A1707 setup does not install libfprint-git" "$(cat "$CALL_LOG")"
+fi
+grep -qx enroll "$CALL_LOG" || fail "A1707 setup still enrolls" "$(cat "$CALL_LOG")"
+: > "$CALL_LOG"
+if A1707_STATUS=0 INSTALLED= OMARCHY_PATH="$scratch" \
+  "$setup_script" > "$scratch/output" 2>&1; then
+  fail "A1707 setup without T1Bridge stops"
+fi
+! grep -q '^pacman' "$CALL_LOG" && grep -q 'T1Bridge stack' "$scratch/output" ||
+  fail "A1707 setup without T1Bridge installs nothing and says why" "$(cat "$CALL_LOG"; cat "$scratch/output")"
+pass "A1707 Touch ID keeps the T1Bridge pair and does not install libfprint-git"
 
 # Every retry fprintd 1.94.5 can send keeps enrollment going; only a failure
 # says it stopped, and a result fprintd adds later is shown, not called a stop.

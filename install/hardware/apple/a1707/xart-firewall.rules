@@ -1,0 +1,2 @@
+# A1707 (MacBookPro13,3) T1: open xART on the private NCM link only.
+ACTION=="add", SUBSYSTEM=="net", ENV{ID_NET_DRIVER}=="apple_t1_ncm", RUN+="/usr/lib/udev/a1707-t1-xart-firewall %k"
