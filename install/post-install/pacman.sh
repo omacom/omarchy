@@ -43,5 +43,3 @@ if [[ -f $OMARCHY_PATH/etc-overrides/cups-cups-files.conf && -f /etc/cups/cups-f
   install -m 0640 -o root -g cups "$OMARCHY_PATH/etc-overrides/cups-cups-files.conf" /etc/cups/cups-files.conf
   rm -f /etc/cups/cups-files.conf.pacnew
 fi
-
-source "$OMARCHY_INSTALL/hardware/pacman.sh"
