@@ -112,3 +112,26 @@ if output=$(PATH="$test_tmp/broken:$PATH" look_page "$test_tmp/keys.html" --out 
 fi
 [[ $output != *"screenshot:"* && ! -e $test_tmp/page.png ]] || fail "look page doesn't report an earlier screenshot" "$output"
 pass "look page never reports an earlier screenshot as a new one"
+
+# The browser keeps its own sandbox wherever it can start with one. This
+# stand-in draws only when its arguments include what $DRAWS_FOR names.
+cat >"$test_tmp/broken/google-chrome-stable" <<EOF
+#!/bin/bash
+echo "\$*" >>"$test_tmp/browser.log"
+[[ " \$* " == *" \$DRAWS_FOR "* ]] || exit 1
+for argument; do
+  [[ \$argument != --screenshot=* ]] || magick -size 8x8 xc:red "\${argument#--screenshot=}"
+done
+EOF
+output=$(DRAWS_FOR=--no-sandbox PATH="$test_tmp/broken:$PATH" look_page "$test_tmp/keys.html" --out "$test_tmp/page.png") ||
+  fail "look page still draws where the browser can't start its sandbox" "$output"
+[[ $(head -1 "$test_tmp/browser.log") != *--no-sandbox* && $(tail -1 "$test_tmp/browser.log") == *"--no-sandbox"*"keys.html" ]] ||
+  fail "look page drops the sandbox only after the browser fails with it" "$(<"$test_tmp/browser.log")"
+: >"$test_tmp/browser.log"
+if output=$(DRAWS_FOR=about:blank PATH="$test_tmp/broken:$PATH" look_page "$test_tmp/keys.html" --out "$test_tmp/page.png"); then
+  fail "look page fails when only the page does" "$output"
+fi
+if grep -q -- --no-sandbox "$test_tmp/browser.log"; then
+  fail "a page that fails where a blank one draws never runs without the sandbox" "$(<"$test_tmp/browser.log")"
+fi
+pass "look page runs without the browser's sandbox only where the browser can't start one"

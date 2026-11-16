@@ -79,10 +79,29 @@ fi
 
 profile=$(mktemp -d)
 log=$(mktemp)
-timeout 60 google-chrome-stable --headless=new --no-sandbox --no-first-run --user-data-dir="$profile" \
-  --enable-unsafe-swiftshader --use-angle=swiftshader --window-size="$size" \
-  --enable-logging=stderr --v=0 --virtual-time-budget="$after" --screenshot="$out" "$url" >/dev/null 2>"$log"
+# Screenshots a URL to a file; anything further goes to Chrome.
+render() {
+  local url=$1 shot=$2
+  shift 2
+  timeout 60 google-chrome-stable --headless=new "$@" --no-first-run --user-data-dir="$profile" \
+    --enable-unsafe-swiftshader --use-angle=swiftshader --window-size="$size" \
+    --enable-logging=stderr --v=0 --virtual-time-budget="$after" --screenshot="$shot" "$url" >/dev/null 2>"$log"
+}
+render "$url" "$out" 2>/dev/null
 status=$?
+# Chrome won't start where it can't set up its sandbox, as inside an agent's
+# own sandbox or as root. A blank page in a profile of its own not drawing
+# either shows it is that, and nothing the page did, and only then does the
+# page run without one.
+if [[ ! -s $out ]]; then
+  blank=$(mktemp -d)
+  log=/dev/null profile=$blank render about:blank "$blank/blank.png" 2>/dev/null
+  if [[ ! -s $blank/blank.png ]]; then
+    render "$url" "$out" --no-sandbox
+    status=$?
+  fi
+  rm -rf "$blank"
+fi
 [[ -n $injected ]] && rm -f "$injected"
 rm -rf "$profile"
 
