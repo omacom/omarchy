@@ -2068,9 +2068,11 @@ Panel {
       implicitHeight: (idField.visible ? idField.implicitHeight + Style.space(4) : 0) + pwField.implicitHeight + Style.spacing.rowGap
       height: implicitHeight
 
-      // Show-password toggle; every prompt opens masked again.
+      // Show-password toggle; every prompt opens masked again. Reset on
+      // close, not when the fade-out ends, or reopening mid-fade stays clear.
       property bool revealed: false
-      onVisibleChanged: if (!visible) revealed = false
+      readonly property bool open: row.isPasswordOpen
+      onOpenChanged: if (!open) revealed = false
 
       TextField {
         id: idField

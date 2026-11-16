@@ -174,6 +174,16 @@ assertDeepEqual(
   ['Known:5', 'Strong:80', 'Weak:30', 'Fresh:99'],
   'network holds the wifi rows on screen in place, with their signal, while a passphrase prompt is open'
 )
+assertDeepEqual(
+  network.sortWifiRows([
+    { ssid: 'hasOwnProperty', connected: false, known: false, signal: 10 },
+    { ssid: 'Other', connected: false, known: false, signal: 90 }
+  ], [
+    { ssid: 'hasOwnProperty', connected: false, known: false, signal: 50 }
+  ]).map(row => row.ssid),
+  ['hasOwnProperty', 'Other'],
+  'network holds wifi rows whatever their SSID, even one named like an Object method'
+)
 assertEqual(network.wifiSectionTitle(rows, 0), 'KNOWN NETWORKS', 'network labels known wifi section')
 assertEqual(network.wifiSectionTitle(rows, 2), 'OTHER NETWORKS', 'network labels other wifi section')
 

@@ -370,13 +370,14 @@ function wifiStateKey(networks) {
 // so the section headers stay right.
 function sortWifiRows(rows, held) {
   var nets = Array.isArray(rows) ? rows.slice() : []
-  var place = {}
+  // No prototype, so an SSID like "hasOwnProperty" is just a key.
+  var place = Object.create(null)
   var heldList = Array.isArray(held) ? held : []
   for (var i = 0; i < heldList.length; i++) {
     if (heldList[i]) place[heldList[i].ssid] = i
   }
   nets = nets.map(function(row) {
-    if (!place.hasOwnProperty(row.ssid)) return row
+    if (!(row.ssid in place)) return row
     var copy = {}
     for (var key in row) copy[key] = row[key]
     copy.signal = heldList[place[row.ssid]].signal
@@ -385,8 +386,8 @@ function sortWifiRows(rows, held) {
   nets.sort(function(a, b) {
     if (a.connected !== b.connected) return a.connected ? -1 : 1
     if (a.known !== b.known) return a.known ? -1 : 1
-    var aHeld = place.hasOwnProperty(a.ssid)
-    var bHeld = place.hasOwnProperty(b.ssid)
+    var aHeld = a.ssid in place
+    var bHeld = b.ssid in place
     if (aHeld !== bHeld) return aHeld ? -1 : 1
     if (aHeld) return place[a.ssid] - place[b.ssid]
     return b.signal - a.signal
