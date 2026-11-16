@@ -29,3 +29,6 @@ bright_green = "#a6e3a1"
 bright_cyan = "#94e2d5"
 bright_blue = "#89b4fa"
 bright_magenta = "#f5c2e7"
+
+# Catppuccin's mauve, which the palette above has no key for, for the app icons.
+icon_mark = "#cba6f7"

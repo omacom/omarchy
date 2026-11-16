@@ -32,7 +32,7 @@ cleanup() {
     wait "$notification_monitor" 2>/dev/null || true
   fi
   close_windows '^org\.omarchy\.ime-test$'
-  close_windows '^org\.omarchy\.ime-test-gtk$|^org\.qt-project\.qml$|^chrome-.*_omarchy-ime-entry\.html-Default$'
+  close_windows '^org\.omarchy\.ime-test-gtk$|^org\.qt-project\.qml6?$|^chrome-.*_omarchy-ime-entry\.html-Default$'
   systemctl --user stop omarchy-fcitx5.service || status=1
   python "$ROOT/test/acceptance.d/input-method-state.py" restore "$work/state" || status=1
   busctl --user call org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus ReloadConfig >/dev/null || status=1
@@ -100,7 +100,23 @@ cat > "$work/omarchy-ime-entry.html" <<'HTML'
 <input autofocus style="font-size:32px;width:90%" aria-label="Input test">
 HTML
 
+# wtype sends each symbol through a keymap it makes up, so its keys have no
+# real position. An engine kept on QWERTY positions under another Latin layout
+# (Hangul under UK) has Fcitx read each key's position through the US keymap,
+# which turns wtype's "gksrmf" into Escape and digits; a physical keyboard is
+# unaffected. Have the engine read wtype's symbols; cleanup restores the saved
+# profile.
+read_symbols() {
+  local group info args
+  group=$(fcitx5-remote -q)
+  info=$(busctl --user --json=short call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 InputMethodGroupInfo s "$group")
+  jq -e --arg method "$method" '.data[1] | any(.[0] == $method and .[1] != "")' <<< "$info" >/dev/null || return 0
+  mapfile -t args < <(jq -r --arg method "$method" '.data[0], (.data[1] | length), (.data[1][] | .[0], if .[0] == $method then "" else .[1] end)' <<< "$info")
+  busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 SetInputMethodGroupInfo 'ssa(ss)' "$group" "${args[@]}"
+}
+
 compose() {
+  read_symbols
   fcitx5-remote -s "$method"
   fcitx5-remote -c
   # Use the controller for composition; wtype cannot prove global shortcuts.
@@ -110,6 +126,7 @@ compose() {
     hangul) wtype "gksrmf" ;;
     pinyin) wtype "nihao"; wtype -k space ;;
     chewing) wtype "su3cl3" ;;
+    cangjie5) wtype "a"; wtype -k space ;;
   esac
   sleep 1
 }
@@ -124,7 +141,7 @@ verify_text() {
 }
 
 installed=()
-for method in mozc hangul pinyin chewing; do
+for method in mozc hangul pinyin chewing cangjie5; do
   omarchy-setup-input "$method" > "$ARTIFACTS/setup-input-$method.log" 2>&1 ||
     fail "$method setup completes" "$(cat "$ARTIFACTS/setup-input-$method.log")"
   group=$(fcitx5-remote -q)
@@ -154,7 +171,7 @@ for method in mozc hangul pinyin chewing; do
   for toolkit in gtk qt browser; do
     case "$toolkit" in
       gtk) command="python $work/entry.py"; class='^org\.omarchy\.ime-test-gtk$' ;;
-      qt) command="qml6 $work/entry.qml"; class='^org\.qt-project\.qml$' ;;
+      qt) command="qml6 $work/entry.qml"; class='^org\.qt-project\.qml6?$' ;;
       browser) command="chromium --user-data-dir=$work/chromium --no-first-run --app=file://$work/omarchy-ime-entry.html"; class='^chrome-.*_omarchy-ime-entry\.html-Default$' ;;
     esac
     launch_app "uwsm app -- $command"

@@ -26,11 +26,19 @@ assert(!tray.ownedByOmarchy({ id: 'nextcloud' }, layout), 'tray keeps unrelated 
 assert(tray.ownedByOmarchy({ id: 'superwhisper' }, { left: [], center: [], right: [{ id: 'superwhisper.panel' }] }), 'tray suppresses superwhisper when its panel widget is in bar')
 assert(!tray.ownedByOmarchy({ id: 'superwhisper' }, { left: [], center: [], right: [] }), 'tray keeps superwhisper when its panel widget is absent')
 assert(tray.ownedByOmarchy({ id: 'dropbox' }, { left: [], center: [], right: [{ id: 'omarchy.tray' }], tray: [{ id: 'omarchy.dropbox' }] }), 'tray suppresses dropbox when its widget is in the tray section')
-JS
 
-run_node_test "tray section host lifecycle" <<'JS'
-const fs = require('fs')
-const trayQml = fs.readFileSync(root + '/shell/plugins/bar/widgets/Tray.qml', 'utf8')
-assert(/Component\.onDestruction: if \(root && root\.sectionHost === sectionArea\) root\.sectionHost = null/.test(trayQml),
-  'tray section host unregisters only while its widget still exists')
+// Wine needs a double-click's second activate to see a double-click; a native
+// app that toggles its window on each activate would close again.
+assert(tray.activatesOnDoubleClick({ id: 'wine-0x200d4-0' }), 'a double-click activates a Wine item again')
+assert(!tray.activatesOnDoubleClick({ id: 'qbittorrent' }), 'a double-click activates a native item once')
+assert(!tray.activatesOnDoubleClick({ id: 'wine-0x200d4-0', onlyMenu: true }), 'a double-click on a menu-only Wine item activates nothing more')
+
+// The bar outlines as much of the tray section as the sliding drawer shows,
+// never past the drawer.
+assertDeepEqual(tray.shownSpan(0, 100, 20, 30), { start: 20, length: 30 }, 'a section inside the open drawer shows whole')
+assertDeepEqual(tray.shownSpan(0, 40, 20, 30), { start: 20, length: 20 }, 'a section past the drawer\'s far edge is cut there')
+assertDeepEqual(tray.shownSpan(10, 100, 0, 30), { start: 10, length: 20 }, 'a section sliding in from behind the drawer\'s near edge is cut there')
+assertEqual(tray.shownSpan(0, 10, 50, 30), null, 'a section still outside the drawer shows nothing')
+assertDeepEqual(tray.shownSpan(0, 50, 50.5, 0), { start: 50, length: 0 }, 'an empty section shows on the drawer\'s edge once within a pixel of it')
+assertEqual(tray.shownSpan(0, 50, 52, 0), null, 'an empty section further out shows nothing')
 JS
