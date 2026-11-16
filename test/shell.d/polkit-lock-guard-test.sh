@@ -111,7 +111,7 @@ cc -Wall -Wextra -Werror -o "$scratch/transaction" \
   "$SHELL_TEST_DIR/fixtures/polkit-lock-guard/transaction.c" -lpam
 printf 'auth requisite %s/guard.so\naccount requisite %s/guard.so\n' "$scratch" "$scratch" >"$scratch/polkit-1"
 
-python3 - "$scratch" "$OMARCHY_POLKIT_GUARD_TEST_UID" <<'PY'
+python3 - "$scratch" "$OMARCHY_POLKIT_GUARD_TEST_UID" "$ROOT/default/pam/polkit-policy.py" <<'PY'
 import os
 from pathlib import Path
 import select
@@ -120,7 +120,7 @@ import subprocess
 import sys
 import time
 
-directory, uid = sys.argv[1:]
+directory, uid, policy_path = sys.argv[1:]
 
 if os.environ.get('OMARCHY_POLKIT_GUARD_TEST_LOCKED') == '1':
   p = subprocess.Popen([directory + '/transaction', uid, directory, 'account'],
@@ -129,6 +129,33 @@ if os.environ.get('OMARCHY_POLKIT_GUARD_TEST_LOCKED') == '1':
   assert p.stdout.readline().strip() != 'AUTH 0', 'PAM_USER=root must not bypass the initiating user lock'
   assert p.wait(timeout=4) == 1
   print('ok - native PAM checks the initiating UID even when authenticating root')
+  # An agent without a desktop must also respect the credential owner's lock.
+  import pwd
+  username = pwd.getpwuid(int(uid)).pw_name
+  other_uid = str(pwd.getpwnam('nobody').pw_uid)
+  p = subprocess.Popen([directory + '/transaction', other_uid, directory, 'account', username],
+    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  assert select.select([p.stdout], [], [], 5)[0], 'credential-owner check timed out'
+  assert p.stdout.readline().strip() != 'AUTH 0', 'a different agent UID bypassed the locked credential owner'
+  assert p.wait(timeout=4) == 1
+  print('ok - native PAM checks the locked credential owner across initiating UIDs')
+  # Use real PAM dispatch and permit/deny modules to model factor outcomes.
+  # PAM ignores blank/comment/account rows when counting auth jumps.
+  import runpy
+  render = runpy.run_path(policy_path)['render']
+  policy = render('AUTH [success=1 default=ignore] pam_exec.so quiet /usr/bin/omarchy-hw-laptop-closed\n'
+                  '# ignored by PAM auth\n\naccount required pam_permit.so\n'
+                  'AUTH SUFFICIENT pam_fprintd.so\nauth required pam_deny.so\n')
+  policy = policy.replace('pam_omarchy_lock.so', directory + '/guard.so')
+  policy = policy.replace('pam_exec.so quiet /usr/bin/omarchy-hw-laptop-closed', 'pam_permit.so')
+  policy = policy.replace('pam_fprintd.so', 'pam_permit.so')
+  Path(directory + '/polkit-1').write_text(policy)
+  p = subprocess.Popen([directory + '/transaction', uid, directory, 'account'],
+    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+  assert select.select([p.stdout], [], [], 5)[0], 'PAM jump test timed out'
+  assert p.stdout.readline().strip() != 'AUTH 0', 'clamshell jump bypassed the lock guard'
+  assert p.wait(timeout=4) == 1
+  print('ok - actual PAM jumps preserve the locked factor boundary across ignored rows')
   sys.exit(0)
 
 def start(mode):
@@ -167,9 +194,16 @@ p.stdin.flush()
 time.sleep(.1)
 assert p.poll() is None, 'buffered input is not cancellation'
 p.stdin.close()
-assert p.wait(timeout=4) == -signal.SIGTERM, 'agent disconnect must terminate the PAM helper'
+assert p.wait(timeout=4) == -signal.SIGKILL, 'agent disconnect must terminate the PAM helper'
 wait_gone(watcher)
 print('ok - native agent disconnect terminates only its helper and guardian')
+
+p = start('wait-ignored-signals')
+watcher = guardian(p)
+p.stdin.close()
+assert p.wait(timeout=4) == -signal.SIGKILL, 'inherited ignored signals prevented cancellation'
+wait_gone(watcher)
+print('ok - legacy ignored SIGTERM/SIGCHLD cannot defeat cancellation or cleanup')
 
 p = start('wait')
 watcher = guardian(p)

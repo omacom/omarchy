@@ -201,7 +201,7 @@ def refresh(clients, uid):
     client.roundtrip()
 
 
-def watch(uid):
+def watch(uids):
   import select
   import signal
 
@@ -224,7 +224,8 @@ def watch(uid):
 
   try:
     agent_connected()
-    refresh(clients, uid)
+    for uid in uids:
+      refresh(clients, uid)
     agent_connected()
     control.sendall(b"U")
     ready = True
@@ -248,14 +249,15 @@ def watch(uid):
           return 0
         if request != b"Q":
           raise Unavailable("invalid guard request")
-        refresh(clients, uid)
+        for uid in uids:
+          refresh(clients, uid)
         agent_connected()
         control.sendall(b"U")
   except (OSError, ValueError, Unavailable, Locked) as error:
     if ready:
       # Terminate only the pinned PAM helper that created this watcher.
       # The old authentication cannot survive a lock/unlock cycle.
-      signal.pidfd_send_signal(parent_fd, signal.SIGTERM)
+      signal.pidfd_send_signal(parent_fd, signal.SIGKILL)
     else:
       control.sendall(b"L" if isinstance(error, Locked) else b"E")
     return 1 if isinstance(error, Locked) else 2
@@ -268,15 +270,18 @@ def watch(uid):
 def main():
   if os.geteuid() != 0 or len(sys.argv) not in (2, 3):
     return 2
-  check_only = len(sys.argv) == 3 and sys.argv[1] == "--check"
-  raw_uid = sys.argv[-1]
-  if not raw_uid.isdecimal() or not 0 < int(raw_uid) < 2**32 - 1:
+  check_only = sys.argv[1] == "--check"
+  raw_uids = sys.argv[2:] if check_only else sys.argv[1:]
+  if not raw_uids or any(not uid.isdecimal() or not 0 <= int(uid) < 2**32 - 1 for uid in raw_uids):
     return 2
-  uid = int(raw_uid)
+  if not check_only and int(raw_uids[0]) == 0:
+    return 2
+  uids = set(int(uid) for uid in raw_uids) - {0}
   if not check_only:
-    return watch(uid)
+    return watch(uids)
   try:
-    refresh({}, uid)
+    for uid in uids:
+      refresh({}, uid)
     return 0
   except Locked:
     return 1

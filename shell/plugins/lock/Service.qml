@@ -246,6 +246,10 @@ Item {
     resetAuthenticationState()
     idleBlankTimer.stop()
     sessionLock.locked = false
+    // A successful authentication of our own lock resolves startup uncertainty,
+    // including discovery that exhausted its retry budget before this lock.
+    strandedLock = false
+    strandedLockResolved = true
     logEvent("unlocked")
     runWake()
   }

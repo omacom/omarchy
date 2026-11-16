@@ -50,6 +50,10 @@ ShellRoot {
       service.strandedLock = true
       check(agent.authenticationBlocked, "a stranded secure lock blocks Polkit during recovery")
       service.strandedLock = false
+      service.strandedLockResolved = false
+      service.lockRequested = true
+      service.finishUnlock()
+      check(service.strandedLockResolved && !agent.authenticationBlocked, "authenticated unlock recovers exhausted startup discovery")
       var retry = timer(service, 250, false)
       var reach = timer(service, 20000, false)
       var recheck = timer(service, 1000, false)

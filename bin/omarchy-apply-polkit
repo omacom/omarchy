@@ -15,60 +15,34 @@ fi
 # PAM loads only the root-owned installed copies, never a user checkout.
 export PATH=/usr/bin:/bin
 umask 022
+method=${1:-}
+if (( $# > 1 )) || [[ -n $method && $method != "--fingerprint" && $method != "--fido2" ]]; then
+  echo "Usage: omarchy-apply-polkit [--fingerprint|--fido2]" >&2
+  exit 1
+fi
 # The root-owned directory is also a stable lock inode; no file in a shared
 # writable runtime directory is opened with root's privileges.
 exec 9</etc/pam.d
 flock 9
 
-guard_dir=/usr/lib/omarchy
-if [[ -L $guard_dir || ( -e $guard_dir && ! -d $guard_dir ) ]]; then
-  echo "$guard_dir is not an installation directory" >&2
-  exit 1
-fi
-install -d -o root -g root -m 755 "$guard_dir"
-stage=$(mktemp -d "$guard_dir/.polkit.XXXXXX")
-trap 'rm -rf -- "$stage"' EXIT
+# Runtime code belongs to the architecture-specific omarchy-polkit package. Fail
+# before touching PAM if the matching package has not been installed yet.
+for runtime in /usr/lib/security/pam_omarchy_lock.so /usr/lib/omarchy/polkit-lock-guard; do
+  if [[ ! -f $runtime || -L $runtime ]]; then
+    echo "Missing packaged Polkit guard: $runtime. Update Omarchy first." >&2
+    exit 1
+  fi
+  owner=$(pacman -Qqo -- "$runtime")
+  if [[ $owner != "omarchy-polkit" ]]; then
+    echo "Polkit guard is not owned by omarchy-polkit: $runtime" >&2
+    exit 1
+  fi
+done
 
-# Build for the target architecture, including ARM. base-devel is part of the
-# default install; no compiler or package operation runs during authentication.
-env -i PATH=/usr/bin:/bin LANG=C /usr/bin/cc -fPIC -shared -O2 -Wall -Wextra -Werror \
-  -Wl,-z,relro,-z,now -o "$stage/pam_omarchy_lock.so" \
-  "$OMARCHY_PATH/default/pam/polkit-lock-guard.c" -lpam
-install -o root -g root -m 644 "$OMARCHY_PATH/default/pam/polkit-lock-guard.py" "$stage/polkit-lock-guard"
-chmod 644 "$stage/pam_omarchy_lock.so"
+/usr/bin/python3 -I - "$OMARCHY_PATH/default/pam/polkit-policy.py" "${method#--}" <<'PYTHON'
+import runpy
+import sys
 
-# Publish both dependencies before enabling the PAM entries. Existing PAM
-# transactions retain their already-running guardian across an upgrade.
-mv -Tf "$stage/pam_omarchy_lock.so" /usr/lib/security/pam_omarchy_lock.so
-mv -Tf "$stage/polkit-lock-guard" "$guard_dir/polkit-lock-guard"
-
-/usr/bin/python3 -I - <<'PY'
-import os
-from pathlib import Path
-import re
-import tempfile
-
-target = Path('/etc/pam.d/polkit-1')
-if target.is_symlink() or (target.exists() and not target.is_file()):
-  raise SystemExit('polkit-1 is not a regular PAM configuration file')
-source = target if target.exists() else Path('/usr/lib/pam.d/polkit-1')
-body = source.read_text()
-# Reapply after a biometric setup prepends a sufficient authentication method.
-# Account checking is also required: it closes transactions already in PAM.
-body = ''.join(line for line in body.splitlines(keepends=True)
-               if not re.match(r'^\s*-?(auth|account)\s+.*\bpam_omarchy_lock\.so(?:\s|$)', line))
-body = 'auth requisite pam_omarchy_lock.so\naccount requisite pam_omarchy_lock.so\n' + body
-if target.exists() and target.read_text() == body:
-  raise SystemExit(0)
-fd, name = tempfile.mkstemp(prefix='.polkit-1.', dir=target.parent)
-try:
-  with os.fdopen(fd, 'w') as output:
-    output.write(body)
-    output.flush()
-    os.fchmod(output.fileno(), 0o644)
-    os.fsync(output.fileno())
-  os.replace(name, target)
-finally:
-  if os.path.exists(name):
-    os.unlink(name)
-PY
+policy = runpy.run_path(sys.argv[1])
+policy["publish"]("/etc/pam.d/polkit-1", "/usr/lib/pam.d/polkit-1", sys.argv[2] or None)
+PYTHON

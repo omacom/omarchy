@@ -23,21 +23,8 @@ setup_pam_config() {
     sudo sed -i '1i auth    sufficient pam_u2f.so cue authfile=/etc/fido2/fido2' /etc/pam.d/sudo
   fi
 
-  # Configure polkit
-  if [[ -f /etc/pam.d/polkit-1 ]] && ! grep -q 'pam_u2f.so' /etc/pam.d/polkit-1; then
-    echo "Configuring polkit for FIDO2 authentication..."
-    sudo sed -i '1i auth      sufficient pam_u2f.so cue authfile=/etc/fido2/fido2' /etc/pam.d/polkit-1
-  elif [[ ! -f /etc/pam.d/polkit-1 ]]; then
-    echo "Creating polkit configuration with FIDO2 authentication..."
-    sudo tee /etc/pam.d/polkit-1 >/dev/null <<'EOF'
-auth      sufficient pam_u2f.so cue authfile=/etc/fido2/fido2
-auth      include system-auth
-
-account   include system-auth
-password  include system-auth
-session   include system-auth
-EOF
-  fi
+  # Publish the method and its lock guard together, after dependencies succeed.
+  sudo env OMARCHY_PATH="$OMARCHY_PATH" "$OMARCHY_PATH/bin/omarchy-apply-polkit" --fido2
 }
 
 echo -e "\e[32mSetting up FIDO2 device for authentication.\n\e[0m"
@@ -135,7 +122,6 @@ fi
 
 # Configure PAM
 setup_pam_config
-sudo env OMARCHY_PATH="$OMARCHY_PATH" "$OMARCHY_PATH/bin/omarchy-apply-polkit"
 
 # Test with sudo
 echo -e "\nTesting FIDO2 authentication with sudo..."

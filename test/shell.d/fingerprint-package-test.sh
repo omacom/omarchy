@@ -29,7 +29,7 @@ case "$1" in
   sed) printf 'pam %s\n' "$*" >> "$CALL_LOG" ;;
   tee) printf 'pam %s\n' "$*" >> "$CALL_LOG"; cat >/dev/null ;;
   env)
-    [[ $2 == "OMARCHY_PATH=$OMARCHY_PATH" && $3 == "$OMARCHY_PATH/bin/omarchy-apply-polkit" && $# == 3 ]] || exit 99
+    [[ $2 == "OMARCHY_PATH=$OMARCHY_PATH" && $3 == "$OMARCHY_PATH/bin/omarchy-apply-polkit" && $# == 4 && $4 == "--fingerprint" ]] || exit 99
     echo apply-polkit >> "$CALL_LOG"
     ;;
   *) echo "Unexpected privileged call: $*" >> "$CALL_LOG"; exit 99 ;;
