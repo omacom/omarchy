@@ -69,7 +69,7 @@ remove_source_monitor() {
 }
 
 omarchy-shell shell hide omarchy.menu >/dev/null
-wait_until "menu starts closed" 15 layer_absent "omarchy-menu"
+wait_until "menu starts closed" 15 layer_off_overlay "omarchy-menu"
 
 # A closed overlay must drop its old output and reopen on a connected one.
 create_source_monitor
@@ -78,14 +78,14 @@ wait_until "menu opens on temporary monitor" 15 menu_on_monitor "$virtual_monito
 wait_until "menu renders on temporary monitor" 15 monitor_contains "$virtual_monitor" "Apps"
 screenshot "success-overlay-monitor-01-closed-source"
 omarchy-shell shell hide omarchy.menu >/dev/null
-wait_until "menu unmaps before monitor removal" 15 layer_absent "omarchy-menu"
+wait_until "menu unmaps before monitor removal" 15 layer_off_overlay "omarchy-menu"
 remove_source_monitor
 omarchy-shell shell summon omarchy.menu '{"menu":"root"}' >/dev/null
 wait_until "closed menu reopens on remaining monitor" 15 menu_on_monitor "$remaining_monitor"
 wait_until "reopened menu renders on remaining monitor" 15 monitor_contains "$remaining_monitor" "Apps"
 screenshot "success-overlay-monitor-02-closed-recovered"
 omarchy-shell shell hide omarchy.menu >/dev/null
-wait_until "reopened menu closes" 15 layer_absent "omarchy-menu"
+wait_until "reopened menu closes" 15 layer_off_overlay "omarchy-menu"
 
 # Typing freezes the menu's position. Recovery onto a shorter screen must
 # unfreeze that position while preserving the search and keyboard handling.
@@ -104,4 +104,4 @@ screenshot "success-overlay-monitor-05-open-recovered"
 wtype -k Escape
 wait_until "recovered menu clears search through keyboard" 15 monitor_contains "$remaining_monitor" "Apps"
 wtype -k Escape
-wait_until "recovered menu closes through keyboard" 15 layer_absent "omarchy-menu"
+wait_until "recovered menu closes through keyboard" 15 layer_off_overlay "omarchy-menu"
