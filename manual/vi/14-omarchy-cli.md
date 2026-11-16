@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy thường được điều khiển qua các phím tắt và menu Omarchy (`Super + Space`). Nhưng bạn cũng có thể điều khiển nó qua CLI `omarchy`. Điều này đặc biệt hữu ích khi bạn có một AI agent làm việc cùng bạn về tùy chỉnh hoặc cấu hình.
+Omarchy thường được điều khiển qua các phím tắt và menu Omarchy (`Super + Space`). Nhưng bạn cũng có thể điều khiển nó qua CLI `omarchy`. Điều này đặc biệt hữu ích khi bạn để một AI agent làm việc cùng bạn về tùy chỉnh hoặc cấu hình.
 
-CLI có quyền truy cập vào mọi công cụ nội bộ được dùng cả qua menu và bằng cách khác. Bạn có thể xem mọi thứ khả dụng bằng cách chạy `omarchy` trong terminal.
+CLI có quyền truy cập vào toàn bộ công cụ nội bộ được dùng cả qua menu và theo những cách khác. Bạn có thể xem mọi thứ có sẵn bằng cách chạy `omarchy` trong terminal.
 
-Nó trông giống như thế này:
+Nó trông đại khái như thế này:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-Và bạn có thể đi sâu hơn vào mọi nhóm:
+Để chẩn đoán, hãy chạy trực tiếp `omarchy-debug --no-sudo --print`. Nó in ra thông tin chẩn đoán và ghi vào `/tmp/omarchy-debug.log` mà không nhắc sudo, kể cả trên những bản cài đặt gói nơi `omarchy debug` có thể thất bại với "Unknown Omarchy command".
+
+Và bạn có thể đào sâu hơn vào từng nhóm:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Mọi lệnh cũng nhận `--help`, dù bạn hỏi một nhóm toàn bộ (`omarchy capture --help`) hay một lệnh duy nhất (`omarchy capture screenshot --help`).
+Mọi lệnh cũng đều nhận `--help`, dù bạn hỏi cả một nhóm (`omarchy capture --help`) hay một lệnh đơn (`omarchy capture screenshot --help`).
 
 ### Mở menu từ terminal
 
-Menu Omarchy cũng có thể viết tập lệnh được, điều này tiện dụng cho các phím gán của riêng bạn. `omarchy menu` mở nó ở gốc, và bạn có thể nhảy thẳng tới bất kỳ điểm nào trong cây bằng cách đặt tên cho nó: `omarchy menu summon style.theme` đi thẳng tới bộ chọn chủ đề, `omarchy menu toggle system` mở menu hệ thống và đóng nó lại nếu nó đã hiển thị, và `omarchy menu close` cất nó đi.
+Menu Omarchy cũng có thể điều khiển bằng script, rất tiện cho các keybinding của riêng bạn. `omarchy menu` mở nó ở gốc, và bạn có thể nhảy thẳng tới bất kỳ điểm nào trong cây bằng cách gọi tên nó: `omarchy menu summon appearance.theme` đi thẳng tới trình chọn theme, `omarchy menu toggle system` mở menu hệ thống và đóng lại nếu nó đã đang mở, và `omarchy menu close` đóng nó đi.

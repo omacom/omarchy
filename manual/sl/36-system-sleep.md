@@ -1,19 +1,21 @@
 # Spanje sistema
 
-Omarchy privzeto omogoča Spanje in Mirovanje, če pa imate s katerim od njiju na vašem računalniku težave, ju lahko izklopite.
+Omarchy privzeto omogoča mirovanje in hibernacijo, če pa imate na svojem računalniku težave s katero od njiju, ju lahko izklopite.
 
-### Profili porabe energije
+Na računalnikih NVIDIA GB10, kot sta DGX Spark in ASUS Ascent GX10, sta mirovanje in hibernacija izklopljena, tako kot sta v sistemu NVIDIA DGX OS, ker za spanje na tej strojni opremi še ni bilo dokazano, da deluje. Enako velja za ASUS Zenbook A16 (UX3607OA), pri katerem mirovanje čipa še ne uspava v celoti in lahko čez noč zamrzne. Preklop mirovanja in nastavitev hibernacije tam ne veljata. Če želite spanje znova vklopiti, odstranite `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` z `sudo rm`; mirovanje se nato vrne v meni, hibernacijo pa lahko nastavite kot na drugih računalnikih. Zagon `sudo omarchy apply hardware --install-user "$USER"` datoteko vrne nazaj.
 
-Na prenosniku si Omarchy zapomni vaš profil porabe energije posebej za priklopljenost na napajanje in delovanje na baterijo ter med njima preklaplja, ko priklopite in odklopite. Takoj po namestitvi to pomeni zmogljivost na AC in uravnoteženo na baterijo.
+### Profili napajanja
 
-S `omarchy powerprofiles list` lahko vidite, kaj vaš računalnik ponuja, in s `omarchy powerprofiles set autodetect power-saver` nastavite tistega, ki ga želite za stanje, v katerem ste trenutno. Če želite nastaviti drugo stanje, ne da bi kaj odklopili, ga poimenujte neposredno: `omarchy powerprofiles set battery power-saver`. Kar koli izberete, to boste dobili nazaj naslednjič, ko boste v tem stanju.
+Na prenosniku si Omarchy zapomni vaš profil napajanja ločeno za delovanje ob priklopu na napajanje in delovanje na baterijo ter med njima preklaplja, ko napravo priklopite in odklopite. Takoj po namestitvi to pomeni performance na AC in balanced na bateriji.
 
-### Preklopi Spanje
+Kaj vaš računalnik ponuja, lahko vidite z `omarchy powerprofiles list`, profil, ki ga želite za stanje, v katerem ste trenutno, pa nastavite z `omarchy powerprofiles set autodetect power-saver`. Če želite nastaviti drugo stanje, ne da bi karkoli odklopili, ga neposredno poimenujte: `omarchy powerprofiles set battery power-saver`. Kar koli izberete, boste dobili nazaj ob naslednjem prehodu v to stanje.
 
-Spanje preklopite tako, da v terminalu zaženete `omarchy toggle suspend`. To samo prikaže/skrije možnost pod _Sistem_ (ali `Super + Esc`), nato pa lahko vidite, ali na vašem sistemu deluje dosledno. Če ne, jo lahko z istim ukazom spet skrijete.
+### Preklop mirovanja
 
-### Preklopi Mirovanje
+Mirovanje preklopite tako, da iz terminala zaženete `omarchy toggle suspend`. To samo razkrije/skrije možnost pod _System_ (ali `Super + Esc`), nato pa lahko preverite, ali na vašem sistemu deluje zanesljivo. Če ne, jo lahko z istim ukazom znova skrijete.
 
-Mirovanje nastavite tako, da v terminalu zaženete `omarchy hibernation setup`. Mirovanje ustvari podvolumen /swap na vašem zagonskem pogonu v velikosti vaše dodeljene fizične pomnilniške kapacitete RAM, zato poskrbite, da imate dovolj prostora. Na računalniku z 32 GB boste za ta volumen vedno potrebovali več kot 32 GB prostega prostora. Mirovanje zahteva tudi privzeti zagonski nalagalnik Limine.
+### Preklop hibernacije
 
-Ko je nastavljeno, boste možnost mirovanja videli pod _Sistem_ (ali `Super + Esc`) in nato lahko vidite, ali na vašem sistemu deluje dosledno. Če ne, jo lahko spet odstranite z `omarchy hibernation remove`.
+Hibernacijo nastavite tako, da iz terminala zaženete `omarchy hibernation setup`. Hibernacija na vašem zagonskem pogonu ustvari podzvezek /swap v velikosti dodeljenega fizičnega pomnilnika RAM, zato poskrbite, da imate na voljo dovolj prostora. Na računalniku z 32GB boste za ta zvezek vedno potrebovali 32GB+ prostega prostora. Hibernacija zahteva tudi privzeti zagonski nalagalnik Limine.
+
+Ko bo nastavljena, boste možnost hibernacije videli pod _System_ (ali `Super + Esc`), nato pa lahko preverite, ali na vašem sistemu deluje zanesljivo. Če ne, jo lahko znova odstranite z zagonom `omarchy hibernation remove`.

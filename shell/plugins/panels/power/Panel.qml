@@ -50,12 +50,12 @@ Panel {
 
   function batteryIcon() {
     var device = UPower.displayDevice
-    return Model.batteryIcon(device, root.discharging, upowerStates())
+    return Model.batteryIcon(device, root.discharging, upowerStates(), root.chargeRateFresh)
   }
 
   function modeLabel() {
     var device = UPower.displayDevice
-    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t)
+    return Model.modeLabel(device, root.discharging, upowerStates(), Commons.I18n.t, root.chargeRateFresh)
   }
 
   function profileIcon(name) {
@@ -70,9 +70,23 @@ Panel {
     var device = UPower.displayDevice
     return !!(device && device.isPresent && UPower.onBattery)
   }
+  // False from the moment external power arrives until the battery has had
+  // time to report a charge rate measured with it. Some batteries refresh
+  // the rate only every half minute, and until then it reads 0 W.
+  property bool chargeRateFresh: true
+  onDischargingChanged: {
+    chargeRateFresh = discharging
+    if (discharging) chargeRateSettle.stop()
+    else chargeRateSettle.restart()
+  }
+  Timer {
+    id: chargeRateSettle
+    interval: 90000
+    onTriggered: root.chargeRateFresh = true
+  }
   readonly property bool chargeThresholdActive: {
     var device = UPower.displayDevice
-    return Model.chargeThresholdActive(device, root.discharging, upowerStates())
+    return Model.chargeThresholdActive(device, root.discharging, upowerStates(), root.chargeRateFresh)
   }
   readonly property bool batteryFull: fullyCharged || (!root.discharging && batteryFraction >= 1)
   readonly property bool batteryFlowIdle: batteryFull || chargeThresholdActive
@@ -256,7 +270,7 @@ Panel {
     id: phraseSwap
     PropertyAnimation {
       target: panel.loadedContent ? panel.loadedContent.heroStatus : null; property: "opacity"
-      to: 0.0; duration: Style.duration(180); easing.type: Easing.OutQuad
+      to: 0.0; duration: Style.duration(150); easing.type: Easing.OutCubic
     }
     ScriptAction {
       script: {
@@ -266,7 +280,7 @@ Panel {
     }
     PropertyAnimation {
       target: panel.loadedContent ? panel.loadedContent.heroStatus : null; property: "opacity"
-      to: 1.0; duration: Style.duration(260); easing.type: Easing.InQuad
+      to: 1.0; duration: Style.duration(200); easing.type: Easing.OutCubic
     }
   }
 
@@ -425,8 +439,8 @@ Panel {
               running: root.charging && !root.fullyCharged && root.opened && !Style.reduceMotion
               loops: Animation.Infinite
               alwaysRunToEnd: true
-              NumberAnimation { from: 1.0; to: 0.55; duration: 950; easing.type: Easing.InOutSine }
-              NumberAnimation { from: 0.55; to: 1.0; duration: 950; easing.type: Easing.InOutSine }
+              NumberAnimation { from: 1.0; to: 0.55; duration: Style.duration(950); easing.type: Easing.InOutSine }
+              NumberAnimation { from: 0.55; to: 1.0; duration: Style.duration(950); easing.type: Easing.InOutSine }
             }
           }
         }
