@@ -47,9 +47,15 @@ for dir in "${desktop_dirs[@]}"; do
   fi
 done
 
-if [[ -z $desktop_file ]]; then
-  echo "Could not find launcher entry: $desktop_file_name" >&2
+# The launcher runs this detached, so stderr alone would never reach the user.
+fail() {
+  echo "$1" >&2
+  omarchy-notification-send -u critical "Couldn't uninstall ${entry_name:-$desktop_file_name}" "$1"
   exit 1
+}
+
+if [[ -z $desktop_file ]]; then
+  fail "Could not find launcher entry: $desktop_file_name"
 fi
 
 is_user_desktop_file() {
@@ -77,25 +83,45 @@ if [[ $exec_line =~ (^|[[:space:]])(\$TERMINAL|xdg-terminal-exec)[[:space:]].*-e
   exit 0
 fi
 
+# The same entry in a system data dir, which a user entry overrides.
+find_system_desktop_file() {
+  local dir
+
+  for dir in "${desktop_dirs[@]:${#user_desktop_dirs[@]}}"; do
+    if [[ -f $dir/$desktop_file_name ]]; then
+      echo "$dir/$desktop_file_name"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# A user entry that overrides an installed app's entry (Omarchy ships them for
+# mpv and imv) is removed after the app, or deleting it would leave the app.
+override_cleanup=""
 if is_user_desktop_file; then
-  display_name="${entry_name:-$desktop_name}"
-  rm -f "$desktop_file"
-  update-desktop-database "${desktop_file%/*}" &>/dev/null || true
-  exit 0
+  if system_desktop_file="$(find_system_desktop_file)"; then
+    override_cleanup=" && rm -f $(printf '%q' "$desktop_file")"
+    desktop_file="$system_desktop_file"
+  else
+    rm -f "$desktop_file"
+    update-desktop-database "${desktop_file%/*}" &>/dev/null || true
+    exit 0
+  fi
 fi
 
 if package_name="$(pacman -Qqo "$desktop_file" 2>/dev/null | head -1)" && [[ -n $package_name ]]; then
   display_name="${entry_name:-$desktop_name}"
   quoted_package="$(printf '%q' "$package_name")"
   quoted_display="$(printf '%q' "$display_name")"
-  exec omarchy-launch-floating-terminal-with-presentation "echo Uninstalling $quoted_display...; sudo pacman -Rns $quoted_package"
+  exec omarchy-launch-floating-terminal-with-presentation "echo Uninstalling $quoted_display...; sudo pacman -Rns $quoted_package$override_cleanup"
 fi
 
 if omarchy-cmd-present flatpak && flatpak info "${desktop_file_name%.desktop}" >/dev/null 2>&1; then
   flatpak_id="${desktop_file_name%.desktop}"
   quoted_flatpak="$(printf '%q' "$flatpak_id")"
-  exec omarchy-launch-floating-terminal-with-presentation "flatpak uninstall $quoted_flatpak"
+  exec omarchy-launch-floating-terminal-with-presentation "flatpak uninstall $quoted_flatpak$override_cleanup"
 fi
 
-echo "Don't know how to uninstall $desktop_file_name" >&2
-exit 1
+fail "Don't know how to uninstall $desktop_file_name"

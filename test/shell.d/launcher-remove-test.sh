@@ -40,6 +40,8 @@ cat >"$tmp_dir/bin/pacman" <<'SCRIPT'
 #!/bin/bash
 if [[ $1 == "-Qqo" && $2 == */native.desktop ]]; then
   printf 'native-pkg\n'
+elif [[ $1 == "-Qqo" && $2 == */system/applications/mpv.desktop ]]; then
+  printf 'mpv\n'
 fi
 SCRIPT
 chmod +x "$tmp_dir/bin/pacman"
@@ -94,3 +96,35 @@ pass "launcher remove deletes user-owned desktop files"
 
 (( ${#lines[@]} == 3 )) || fail "launcher remove does not notify for user-owned desktop files" "$(printf '%s\n' "${lines[@]}")"
 pass "launcher remove does not notify for user-owned desktop files"
+
+cat >"$tmp_dir/system/applications/mpv.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=mpv Media Player
+Exec=mpv --player-operation-mode=pseudo-gui -- %U
+DESKTOP
+cp "$tmp_dir/system/applications/mpv.desktop" "$tmp_dir/data/applications/mpv.desktop"
+
+cat >"$tmp_dir/system/applications/unowned.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=Unowned
+Exec=unowned
+DESKTOP
+
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-remove-launcher-entry" mpv.desktop mpv
+mapfile -t lines <"$TEST_LOG"
+
+[[ ${lines[0]-} == "terminal::echo Uninstalling mpv...; sudo pacman -Rns mpv && rm -f $(printf '%q' "$tmp_dir/data/applications/mpv.desktop")" ]] || fail "launcher remove uninstalls the package behind a user override" "${lines[0]-}"
+pass "launcher remove uninstalls the package behind a user override"
+
+[[ -e $tmp_dir/data/applications/mpv.desktop ]] || fail "launcher remove keeps a user override until its package is gone"
+pass "launcher remove keeps a user override until its package is gone"
+
+: >"$TEST_LOG"
+if "$ROOT/bin/omarchy-remove-launcher-entry" unowned.desktop Unowned 2>/dev/null; then
+  fail "launcher remove fails for entries it cannot uninstall"
+fi
+mapfile -t lines <"$TEST_LOG"
+
+[[ ${lines[0]} == "notify::-u critical Couldn't uninstall Unowned Don't know how to uninstall unowned.desktop" ]] || fail "launcher remove tells the user when it cannot uninstall" "${lines[0]-}"
+pass "launcher remove tells the user when it cannot uninstall"
