@@ -114,6 +114,29 @@ function profileLabel(name, tr) {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+// Health arrives as a display string ("72%"). 80% is the line most vendors
+// treat as a pack still being serviceable, and where capacity warranties tend
+// to stop; by 70% a round third of the pack is gone.
+function healthVerdict(health, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var level = parseInt(health, 10)
+  if (!(level > 0)) return ""
+  if (level >= 90) return t("power.healthGreat", "Great")
+  if (level >= 80) return t("power.healthNormal", "Normal")
+  if (level >= 70) return t("power.healthWorn", "Worn")
+  return t("power.healthBad", "Bad")
+}
+
+function healthAdvice(health, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var level = parseInt(health, 10)
+  if (!(level > 0)) return ""
+  if (level >= 90) return t("power.healthAdviceGreat", "Practically new")
+  if (level >= 80) return t("power.healthAdviceNormal", "Normal for its age")
+  if (level >= 70) return t("power.healthAdviceWorn", "Plan a replacement")
+  return t("power.healthAdviceBad", "Time to replace it")
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     clampIndex: clampIndex,
@@ -126,6 +149,8 @@ if (typeof module !== "undefined") {
     batteryIcon: batteryIcon,
     modeLabel: modeLabel,
     profileLabel: profileLabel,
-    localizeReading: localizeReading
+    localizeReading: localizeReading,
+    healthVerdict: healthVerdict,
+    healthAdvice: healthAdvice
   }
 }
