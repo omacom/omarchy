@@ -20,8 +20,5 @@
 # etc/sysctl.d/99-omarchy-sysctl.conf, etc/tmpfiles.d/omarchy-zswap.conf
 #   Swap on zram everywhere: the installer provides zram-generator on x86_64,
 #   install/omarchy-aarch64.packages on aarch64.
-# config/omarchy/defaults/dictation
-#   Presets Superwhisper, which has no aarch64 build; user setup removes the
-#   preset there (install/user/dictation-default.sh).
 # etc/modprobe.d/omarchy-usb-autosuspend.conf
 #   Applies where usbcore is a module; a kernel that builds it in ignores it.

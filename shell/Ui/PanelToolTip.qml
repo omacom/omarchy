@@ -42,6 +42,8 @@ ToolTip {
     color: root.panelForeground
     font.family: root.fontFamily
     font.pixelSize: root.fontSize
+    // Wraps only once an instance caps the tooltip's width.
+    wrapMode: Text.WordWrap
     leftPadding: Border.left(root.panelBorderSpec) + Style.spacing.controlPaddingX
     rightPadding: Border.right(root.panelBorderSpec) + Style.spacing.controlPaddingX
     topPadding: Border.top(root.panelBorderSpec) + Style.spacing.controlPaddingY

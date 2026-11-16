@@ -1,0 +1,473 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the MiniMax Token Plan usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect MiniMax usage into a display-ready JSON record.
+
+The 5-hour session and weekly windows come from MiniMax's Token Plan API with
+the key MiniMax's own `mmx` CLI, opencode, or pi saved. Each credential's last
+good limits are cached, so a failed check keeps showing them, marked stale,
+rather than dropping the section.
+
+Local stats come from MiniMax Code's own session files, and from pi/omp and
+opencode sessions that ran on a MiniMax provider. The agents panel only ever
+reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import math
+import os
+import sys
+import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  Stats,
+  base_record as shared_base_record,
+  cached_scan,
+  data_home,
+  emit,
+  open_json,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  routed_match,
+  routed_sources,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  scan_routed,
+  trusted_endpoint,
+  warn,
+)
+
+AGENT_ID = "minimax"
+AGENT_NAME = "MiniMax"
+DEFAULT_BASE_URL = "https://api.minimax.io"
+CN_BASE_URL = "https://api.minimaxi.com"
+AUTH_HELP = "Set MINIMAX_API_KEY, or sign in to MiniMax in opencode, to show Token Plan limits."
+AUTH_HELP_BAD_KEY = "MiniMax rejected the saved credentials. Set MINIMAX_API_KEY, or sign in to MiniMax again with `mmx` or opencode."
+# The plan the quota endpoint describes: only a Token Plan has these windows.
+TIER_LABEL = "Token Plan"
+# The pi/omp and opencode provider names MiniMax bills, by region. Exact
+# names: a custom gateway in front of MiniMax is not this account.
+PROVIDERS = ("minimax", "minimax-cn", "minimax-coding-plan", "minimax-cn-coding-plan")
+# base_resp codes MiniMax answers a bad key with: 1004 is an authentication
+# failure, 2049 an invalid API key.
+AUTH_STATUS_CODES = {1004, 2049}
+# The quota rows for MiniMax's media models ride on allowances of their own
+# (video and image generation, speech, vision) and are not the coding plan.
+MEDIA_MODEL_WORDS = ("video", "image", "audio", "vision")
+
+
+class MiniMaxError(Exception):
+  def __init__(self, message: str, transport: bool = False, rejected: bool = False) -> None:
+    super().__init__(message)
+    self.transport = transport
+    self.rejected = rejected
+
+
+def base_record(**overrides: Any) -> dict[str, Any]:
+  return shared_base_record(AGENT_ID, AGENT_NAME, **overrides)
+
+
+def limits_cache_paths(api_key: str, base_url: str) -> tuple[Path, Path]:
+  # Keyed by the credential and the host it signs in to: another key, or the
+  # same key in the other region, never shows this one's allowance.
+  cache = LimitsCache(AGENT_ID, base_url.rstrip("/"), api_key)
+  return cache.path, cache.lock_path
+
+
+# --------------------------------------------------------------------------
+# Credentials
+# --------------------------------------------------------------------------
+
+def mmx_config_dir() -> Path:
+  return Path(os.path.expandvars(os.path.expanduser(os.environ.get("MMX_CONFIG_DIR", "~/.mmx"))))
+
+
+def mmx_config() -> dict[str, Any]:
+  config_dir = mmx_config_dir()
+  parsed = read_json(config_dir / "config.json")
+  if parsed:
+    return parsed
+
+  # Older mmx releases documented YAML configuration. Only read the one scalar
+  # we need, avoiding a runtime YAML dependency in the base installation.
+  try:
+    for line in (config_dir / "config.yaml").read_text(encoding="utf-8").splitlines():
+      key, separator, value = line.partition(":")
+      if separator and key.strip() == "api_key":
+        return {"api_key": value.strip().strip("'\"")}
+  except Exception:
+    pass
+  return {}
+
+
+def config_key(config: dict[str, Any]) -> str:
+  value = config.get("api_key") or config.get("apiKey")
+  if isinstance(value, str) and value.strip():
+    return value.strip()
+
+  oauth = config.get("oauth")
+  if isinstance(oauth, dict):
+    token = oauth.get("access_token")
+    if isinstance(token, str) and token.strip():
+      return token.strip()
+  return ""
+
+
+def config_base_url(config: dict[str, Any]) -> str:
+  """The host mmx itself asks: its base_url, then the OAuth session's
+  resource_url, then the region (MINIMAX_REGION over the saved one)."""
+  oauth = config.get("oauth")
+  oauth = oauth if isinstance(oauth, dict) else {}
+  for value in (config.get("base_url"), oauth.get("resource_url")):
+    if isinstance(value, str) and value.strip():
+      return value.strip()
+  # mmx refuses a region it doesn't know; here one just doesn't decide.
+  for region in (os.environ.get("MINIMAX_REGION"), config.get("region"), oauth.get("region")):
+    if region in ("cn", "global"):
+      return CN_BASE_URL if region == "cn" else DEFAULT_BASE_URL
+  return DEFAULT_BASE_URL
+
+
+def pi_agent_dir() -> Path:
+  configured = os.environ.get("PI_CODING_AGENT_DIR", "").strip()
+  return Path(os.path.expanduser(configured)) if configured else Path.home() / ".pi" / "agent"
+
+
+def saved_key(path: Path, providers: tuple[str, ...]) -> tuple[str, str]:
+  """(key, provider) for the first provider `path` holds a literal key for."""
+  parsed = read_json(path)
+  for provider in providers:
+    entry = parsed.get(provider)
+    if isinstance(entry, dict):
+      value = entry.get("key") or entry.get("apiKey") or entry.get("token")
+      # A pi `$VAR` or `!command` entry is resolved by pi alone.
+      if isinstance(value, str) and value.strip() and not value.strip().startswith(("!", "$")):
+        return value.strip(), provider
+  return "", ""
+
+
+def credentials() -> tuple[str, str]:
+  """(key, host). A key only answers on its own region's host, so the host
+  follows wherever the key came from: mmx's region applies to mmx's key
+  alone. MINIMAX_BASE_URL overrides any of them."""
+  override = os.environ.get("MINIMAX_BASE_URL", "").strip()
+  env_key = os.environ.get("MINIMAX_API_KEY", "").strip()
+  if env_key:
+    return env_key, override or (CN_BASE_URL if os.environ.get("MINIMAX_REGION") == "cn" else DEFAULT_BASE_URL)
+
+  config = mmx_config()
+  if mmx_key := config_key(config):
+    return mmx_key, override or config_base_url(config)
+
+  # The key opencode or pi signed in to MiniMax with; a China-region
+  # provider's key only answers on the China host.
+  for path in (data_home() / "opencode" / "auth.json", pi_agent_dir() / "auth.json", Path.home() / ".omp" / "agent" / "auth.json"):
+    # Only the provider ids MiniMax bills: a key saved under any other
+    # name belongs to a gateway, and is never sent to MiniMax.
+    api_key, provider = saved_key(path, PROVIDERS)
+    if api_key:
+      return api_key, override or (CN_BASE_URL if provider.startswith("minimax-cn") else DEFAULT_BASE_URL)
+  return "", override or DEFAULT_BASE_URL
+
+
+# --------------------------------------------------------------------------
+# Token Plan limits
+# --------------------------------------------------------------------------
+
+def number(value: Any) -> float | None:
+  # Booleans are ints to Python; neither they nor NaN or infinity are numbers
+  # the quota API meant.
+  if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    return None
+  return float(value)
+
+
+def reset_at(entry: dict[str, Any], end_key: str, remains_key: str) -> str:
+  try:
+    end_ms = number(entry.get(end_key))
+    if end_ms and end_ms > 0:
+      return datetime.fromtimestamp(end_ms / 1000, timezone.utc).isoformat()
+    # Without an end time MiniMax still says how long the window has left,
+    # which places its own reset rather than guessing one.
+    remains_ms = number(entry.get(remains_key))
+    if remains_ms and remains_ms > 0:
+      return (datetime.now(timezone.utc) + timedelta(milliseconds=remains_ms)).isoformat()
+  except (OverflowError, OSError, ValueError):
+    pass
+  return ""
+
+
+def used_fraction(remaining: Any) -> float | None:
+  percent = number(remaining)
+  if percent is None:
+    return None
+  return max(0.0, min(1.0, 1.0 - percent / 100.0))
+
+
+def is_media_row(row: dict[str, Any]) -> bool:
+  name = str(row.get("model_name") or "").strip().lower()
+  return any(word in name for word in MEDIA_MODEL_WORDS)
+
+
+# current_*_status per window: 1 normal, 2 exhausted, 3 unlimited.
+STATUS_EXHAUSTED = 2
+STATUS_UNLIMITED = 3
+
+
+def not_in_plan(row: dict[str, Any]) -> bool:
+  """The shape mmx shows as "not in plan": both windows unlimited with
+  nothing allotted, a model the plan doesn't cover rather than a full one."""
+  return (
+    number(row.get("current_interval_total_count")) == 0 and number(row.get("current_weekly_total_count")) == 0
+    and number(row.get("current_interval_status")) == STATUS_UNLIMITED and number(row.get("current_weekly_status")) == STATUS_UNLIMITED
+  )
+
+
+def window_used(row: dict[str, Any], percent_key: str, status_key: str) -> float | None:
+  status = number(row.get(status_key))
+  # MiniMax's own status outranks the percentage: an exhausted window may
+  # omit it or keep a stale one, and an unlimited one has nothing to fill.
+  if status == STATUS_EXHAUSTED:
+    return 1.0
+  if status == STATUS_UNLIMITED:
+    return None
+  return used_fraction(row.get(percent_key))
+
+
+def quota_limits(payload: dict[str, Any]) -> list[dict[str, Any]]:
+  rows = payload.get("model_remains")
+  if not isinstance(rows, list):
+    raise MiniMaxError("MiniMax returned no Token Plan quotas")
+
+  # "general" is the language/agent quota. Without it the first row that
+  # isn't a media model's stands for the plan. A model outside the plan is
+  # never it.
+  rows = [row for row in rows if isinstance(row, dict) and not not_in_plan(row)]
+  general = next((row for row in rows if row.get("model_name") == "general"), None)
+  if general is None:
+    general = next((row for row in rows if not is_media_row(row)), None)
+  if general is None:
+    raise MiniMaxError("MiniMax returned no usable Token Plan quota")
+
+  limits = []
+  interval = window_used(general, "current_interval_remaining_percent", "current_interval_status")
+  weekly = window_used(general, "current_weekly_remaining_percent", "current_weekly_status")
+  if interval is not None:
+    limits.append({
+      "label": "Session (5-hour)",
+      "percent": interval,
+      "resetsAt": reset_at(general, "end_time", "remains_time"),
+    })
+  if weekly is not None:
+    limits.append({
+      "label": "Weekly (7-day)",
+      "percent": weekly,
+      "resetsAt": reset_at(general, "weekly_end_time", "weekly_remains_time"),
+    })
+  if not limits:
+    raise MiniMaxError("MiniMax returned no percentage-based Token Plan quotas")
+  return limits
+
+
+def fetch_quota(api_key: str, base_url: str) -> dict[str, Any]:
+  endpoint = base_url.rstrip("/") + "/v1/token_plan/remains"
+  # MINIMAX_BASE_URL, --base-url and mmx's own base_url or resource_url move
+  # the endpoint, never the key onto a connection anyone on the way can read.
+  if not trusted_endpoint(endpoint):
+    raise MiniMaxError("The MiniMax endpoint must use HTTPS (plain HTTP only for loopback); the key was not sent.")
+  request = urllib.request.Request(
+    endpoint,
+    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+  )
+  try:
+    payload = open_json(request, timeout=12)
+  except HttpError as error:
+    if error.status in (401, 403):
+      raise MiniMaxError(AUTH_HELP_BAD_KEY, rejected=True) from error
+    if 300 <= error.status < 400:
+      # A redirect would carry the bearer to whatever host it names.
+      raise MiniMaxError("MiniMax's quota endpoint redirected elsewhere; the key was not sent on.") from error
+    if error.status:
+      raise MiniMaxError(f"MiniMax's quota endpoint returned HTTP {error.status}.") from error
+    if error.transport:
+      # No answer from any server: no route, no DNS, a timeout, a reset.
+      raise MiniMaxError("Couldn't reach the MiniMax API. Retrying shortly.", transport=True) from error
+    raise MiniMaxError("MiniMax returned an invalid quota response.") from error
+
+  if not isinstance(payload, dict):
+    raise MiniMaxError("MiniMax returned an invalid quota response.")
+  base_response = payload.get("base_resp")
+  if isinstance(base_response, dict):
+    code = number(base_response.get("status_code"))
+    if code not in (None, 0):
+      if int(code) in AUTH_STATUS_CODES:
+        raise MiniMaxError(AUTH_HELP_BAD_KEY, rejected=True)
+      message = str(base_response.get("status_msg") or "MiniMax rejected the quota request")[:200]
+      raise MiniMaxError(message)
+  return payload
+
+
+def collect_limits(api_key: str, base_url: str, force: bool) -> dict[str, Any]:
+  """Fresh limits when a probe is due, else the last known ones.
+
+  `live` says whether the limits are this check's (or a probe recent enough
+  to stand in for one), and `fetchedAtMs` when they were measured.
+  """
+  result = {"limits": [], "usageStatusText": "", "authHelpText": "", "retryAdvised": False, "live": False, "fetchedAtMs": 0}
+  # Keyed by the credential and the host it signs in to: another key, or the
+  # same key in the other region, never shows this one's allowance.
+  cache = LimitsCache(AGENT_ID, base_url.rstrip("/"), api_key)
+
+  # --force is a person asking for fresh numbers, so it skips the reuse
+  # window; the interval absorbs repeated panel opens, not a refresh press.
+  if cache.fresh(force):
+    result.update(limits=cache.limits, live=True, fetchedAtMs=cache.fetched_at)
+    return result
+
+  with cache.lock():
+    if not force:
+      # Another run may have probed while this one waited for the lock.
+      cache.reload()
+      if cache.fresh(force):
+        result.update(limits=cache.limits, live=True, fetchedAtMs=cache.fetched_at)
+        return result
+    try:
+      limits = quota_limits(fetch_quota(api_key, base_url))
+    except MiniMaxError as error:
+      failure = error
+    except Exception as error:
+      # An answer shaped like nothing expected is still a failed check: the
+      # kept limits stand.
+      failure = MiniMaxError(f"MiniMax's quota check failed ({type(error).__name__}).")
+    else:
+      result.update(limits=limits, live=True, fetchedAtMs=cache.save(limits))
+      return result
+
+  # A transport failure reached no server — typically the seconds after login
+  # before the network is up — so ask the shell to retry sooner. A kept
+  # window whose reset has passed comes back at zero.
+  fallback, fetched_at = cache.kept()
+  result["retryAdvised"] = failure.transport
+  result["authHelpText"] = str(failure)
+  if fallback:
+    result.update(limits=fallback, fetchedAtMs=fetched_at)
+  if failure.rejected:
+    result["usageStatusText"] = "Sign-in expired"
+  elif not fallback:
+    result["usageStatusText"] = "MiniMax limits unavailable"
+  return result
+
+
+# --------------------------------------------------------------------------
+# Local session stats
+# --------------------------------------------------------------------------
+
+# pi, omp, and opencode name the provider alike. Exact names: a custom
+# gateway in front of MiniMax is not this account.
+def billed_here(provider: str, model: str, entry: dict) -> bool:
+  return provider in PROVIDERS
+
+
+def scan_sessions(reuse: bool = True) -> tuple[dict[str, Any], bool]:
+  stats = Stats()
+  # Every source runs, so one unreadable source still leaves the others.
+  # MiniMax Code on MiniMax's own routes or a custom provider at MiniMax's
+  # host, and Claude Code pointed at MiniMax or answered by a MiniMax model.
+  routed_rows, routed_complete = scan_routed(AGENT_ID, reuse)
+  for row in routed_rows:
+    stats.add_row(row, row.model or "minimax")
+  pattern = r'"provider"\s*:\s*"(' + "|".join(PROVIDERS) + r')"'
+  pi_rows, pi_complete = scan_pi_sessions(pattern, billed_here)
+  for row in pi_rows:
+    # pi counts each assistant turn as the prompt that asked for it.
+    stats.add_row(row, row.model or "minimax")
+  # The database's prefilter matches every MiniMax provider id.
+  db_rows, db_complete = scan_opencode(["minimax"], billed_here)
+  for row in db_rows:
+    stats.add_row(row, row.model.rstrip("/").split("/")[-1] or "minimax")
+  return stats.snapshot(), routed_complete and pi_complete and db_complete
+
+
+def cached_local_stats(max_age_seconds: float) -> dict[str, Any]:
+  # The digest covers every data path the scan reads.
+  sources = [opencode_db(), *pi_session_roots(), *routed_sources()]
+  # A forced scan reads every Codex rollout again too.
+  return cached_scan(AGENT_ID, sources, max_age_seconds, lambda: scan_sessions(reuse=max_age_seconds > 0), match=routed_match())
+
+
+# --------------------------------------------------------------------------
+# Record
+# --------------------------------------------------------------------------
+
+# Nobody using MiniMax here: an empty record, which the panel skips. With a
+# key, a failed check keeps the last good limits, marked stale; without one,
+# local usage still shows and the limits wait for a key.
+def collect(api_key: str, base_url: str, force: bool = False, stats: dict[str, Any] | None = None) -> dict[str, Any]:
+  record = base_record()
+  if stats:
+    record.update(stats)
+  has_stats = bool(record["modelUsage"]) or record["totalPrompts"] > 0
+  record["hasLocalStats"] = has_stats
+
+  if not api_key:
+    if has_stats:
+      record.update(ready=True, usageStatusText="Waiting for auth", authHelpText=AUTH_HELP)
+    return record
+
+  limits = collect_limits(api_key, base_url, force)
+  record.update(
+    ready=True,
+    tierLabel=TIER_LABEL if limits["limits"] else "",
+    limits=limits["limits"],
+    limitsStale=bool(limits["limits"]) and not limits["live"],
+    limitsFetchedAt=limits["fetchedAtMs"],
+    usageStatusText=limits["usageStatusText"],
+    authHelpText=limits["authHelpText"],
+  )
+  if limits["retryAdvised"]:
+    record["retryAdvised"] = True
+  return record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser(description="Print the MiniMax usage record as JSON")
+  # --force rescans and re-probes, ignoring both caches. --limits-only reuses
+  # a recent local scan (only the limits probe must be fresh); a bare run
+  # reuses a scan only long enough to dedup concurrent collector runs.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.add_argument("--base-url")
+  args = parser.parse_args()
+
+  try:
+    stats = cached_local_stats(scan_max_age(args.force, args.limits_only))
+  except Exception as error:
+    # Local stats are an addition; their failure must not cost the limits.
+    warn(f"local scan failed ({type(error).__name__})")
+    stats = None
+
+  try:
+    api_key, saved_base_url = credentials()
+    record = collect(api_key, args.base_url or saved_base_url, args.force, stats)
+  except Exception as error:
+    record = base_record(usageStatusText="MiniMax limits unavailable", authHelpText="MiniMax usage scan failed.")
+    warn(type(error).__name__)
+  emit(record, sort_keys=True)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

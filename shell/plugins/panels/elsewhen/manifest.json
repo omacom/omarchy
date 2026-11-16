@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "omarchy.elsewhen",
   "name": "Elsewhen",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Jason Fried",
   "license": "MIT",
   "description": "A world clock for the Omarchy shell: the time in several cities at once, with a spinnable globe.",
@@ -24,20 +24,12 @@
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "zones": "",
       "offsetMode": "home",
       "units": "",
       "globeEnabled": true,
-      "homeCity": "",
       "smoothMotion": true
     },
     "schema": [
-      {
-        "key": "zones",
-        "type": "string",
-        "label": "Zones (Label|IANA name, comma separated; blank seeds on first run)",
-        "defaultValue": ""
-      },
       {
         "key": "hour24",
         "type": "boolean",
@@ -60,12 +52,6 @@
         "type": "boolean",
         "label": "Globe mode (tap the hero globe)",
         "defaultValue": true
-      },
-      {
-        "key": "homeCity",
-        "type": "string",
-        "label": "Your city (blank = from the system time zone)",
-        "defaultValue": ""
       },
       {
         "key": "smoothMotion",
