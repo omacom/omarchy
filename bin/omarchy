@@ -1153,6 +1153,17 @@ dispatch_or_help() {
     return 0
   fi
 
+  # omarchy-settings installs omarchy-debug into /usr/bin, so a packaged /usr/share/omarchy/bin has no copy to route to.
+  if [[ ${args[0]} == "debug" ]] && binary_path=$(type -P omarchy-debug); then
+    if remaining_has_help_flag "${args[@]:1}"; then
+      register_command "$binary_path"
+      show_command_help omarchy-debug
+      return 0
+    fi
+
+    exec "$binary_path" "${args[@]:1}"
+  fi
+
   echo "Unknown Omarchy command: omarchy ${args[*]}" >&2
   suggestion=$(suggest_command "${args[0]}")
   if [[ -n $suggestion ]]; then

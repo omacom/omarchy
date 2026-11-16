@@ -791,6 +791,14 @@ assert_output_contains "partial metadata command dispatches" "$output" "partial-
 output=$("$TMPDIR/omarchy" body metadata test)
 assert_output_contains "body metadata command dispatches by filename" "$output" "body-metadata-ok"
 
+# A packaged /usr/share/omarchy/bin has no omarchy-debug: omarchy-settings installs it into /usr/bin.
+make_tmpdir DEBUG_PATH
+printf '#!/bin/bash\necho "debug-ran $*"\n' >"$DEBUG_PATH/omarchy-debug"
+chmod +x "$DEBUG_PATH/omarchy-debug"
+output=$(PATH="$DEBUG_PATH:$PATH" "$TMPDIR/omarchy" debug --no-sudo --print) || true
+[[ $output == "debug-ran --no-sudo --print" ]] || fail "omarchy debug runs omarchy-debug from PATH when its own folder has none"
+pass "omarchy debug runs omarchy-debug from PATH when its own folder has none"
+
 # A trailing --help must render help even when the route only partially
 # resolves, leaving unresolved words ahead of the flag (e.g. `update aur --help`
 # used to start a real update because only the first leftover token was checked).
