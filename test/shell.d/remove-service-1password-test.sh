@@ -11,7 +11,7 @@ mkdir -p "$tmp_dir/bin" "$tmp_dir/home/.config/1Password"
 
 for browser_dir in \
   chromium/NativeMessagingHosts \
-  google-chrome/Profile\ 1/NativeMessagingHosts \
+  "google-chrome/Profile 1/NativeMessagingHosts" \
   BraveSoftware/Brave-Browser/NativeMessagingHosts \
   microsoft-edge/NativeMessagingHosts \
   vivaldi/NativeMessagingHosts; do
@@ -34,16 +34,25 @@ SCRIPT
 cat >"$tmp_dir/bin/omarchy-pkg-drop" <<'SCRIPT'
 #!/bin/bash
 printf '%s\n' "$*" >"$OMARCHY_TEST_LOG"
+exit "${OMARCHY_TEST_PKG_DROP_STATUS:-0}"
 SCRIPT
 
 chmod +x "$tmp_dir/bin/sudo" "$tmp_dir/bin/omarchy-pkg-drop"
+
+if OMARCHY_TEST_PKG_DROP_STATUS=1 OMARCHY_TEST_LOG="$tmp_dir/pkg-drop.log" HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" \
+  bash "$ROOT/bin/omarchy-remove-service-1password" >/dev/null; then
+  fail "1Password removal reports a failed package removal"
+fi
+[[ -e "$tmp_dir/home/.config/chromium/NativeMessagingHosts/com.1password.1password.json" ]] ||
+  fail "1Password removal keeps the browser integration when the packages stay"
+pass "1Password removal keeps the browser integration when the packages stay"
 
 OMARCHY_TEST_LOG="$tmp_dir/pkg-drop.log" HOME="$tmp_dir/home" PATH="$tmp_dir/bin:$PATH" \
   bash "$ROOT/bin/omarchy-remove-service-1password"
 
 for browser_dir in \
   chromium/NativeMessagingHosts \
-  google-chrome/Profile\ 1/NativeMessagingHosts \
+  "google-chrome/Profile 1/NativeMessagingHosts" \
   BraveSoftware/Brave-Browser/NativeMessagingHosts \
   microsoft-edge/NativeMessagingHosts \
   vivaldi/NativeMessagingHosts; do
