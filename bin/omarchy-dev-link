@@ -119,5 +119,5 @@ echo "sudo now resolves omarchy-* from $target/bin"
 echo
 
 if (( prompt_reboot )) && gum confirm "Reboot now to activate?"; then
-  omarchy-system-reboot
+  omarchy-system reboot
 fi

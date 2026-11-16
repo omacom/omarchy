@@ -1,0 +1,755 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the Muse (Meta) usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect Muse (Meta Muse Spark) local usage plus subscription windows.
+
+Local metering (always available, no network): token counts, prompt and
+session counts, per-day and per-model breakdowns. Sources (all local):
+  - native `muse` CLI sessions in $XDG_DATA_HOME/muse/sessions, defaulting to
+    ~/.local/share/muse/sessions (`model_completed` events carry usage),
+    with the real prompt and session counts from the CLI's own
+    session-index.db beside them when it is there,
+  - opencode sessions with providerID == "meta" (any Muse Spark model).
+    Muse Spark served through OpenCode Zen (providerID == "opencode") is
+    Zen usage, and the opencode record counts it.
+  - pi/omp sessions on the `meta` provider, or omp's `muse-code` (its Muse
+    Code sign-in), in every session root (profiles and PI_CODING_AGENT_DIR
+    included).
+
+Subscription windows (additive, authoritative only): when the CLI is signed
+in via `muse login`, the collector probes the client's own key endpoint
+(`POST https://api.meta.ai/muse-code/key` with the OAuth token from
+`MUSE_AUTH_PATH`, else `~/.config/muse/auth.json`) for `subs_usage`
+session (5-hour) + weekly percents with reset times plus `subs_tier_name` —
+the same figures the TUI's `/usage` overlay shows. Minting is idempotent so
+polling is safe; the token travels only in the Authorization header and
+neither it nor the returned API key is persisted, and the login file is only
+ever read, never refreshed or rewritten. A failed check keeps the last good
+windows, marked stale. Pay-as-you-go accounts
+and active plans that return no `subs_usage` (e.g. Muse Code Power Usage)
+have no subscription windows, so limits stay empty — the plan name (none for
+pay-as-you-go) plus local metering still show. No estimated meters from manual caps: without an
+authoritative probe the panel shows measured usage only. The agents panel
+only ever reads the JSON this prints.
+"""
+
+import argparse
+import hashlib
+import json
+import math
+import os
+import re
+import sqlite3
+import sys
+import time
+import urllib.request
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  HttpError,
+  LimitsCache,
+  Stats,
+  account_key,
+  base_record,
+  cache_root,
+  cached_scan,
+  config_home,
+  data_home,
+  emit,
+  now_ms,
+  number,
+  open_json,
+  opencode_db,
+  pi_session_roots,
+  read_json,
+  scan_max_age,
+  scan_opencode,
+  scan_pi_sessions,
+  token_count,
+  trusted_endpoint,
+  warn,
+  write_json,
+)
+
+AGENT_ID = "muse"
+AGENT_NAME = "Muse"
+
+# Model ids and session files are read from local data but flow into the
+# panel JSON, so bound them: overlong model names fail the row closed, and
+# symlinked or gigantic session files are skipped instead of followed.
+MAX_MODEL_NAME_LEN = 120
+MAX_SESSION_BYTES = 512 * 1024 * 1024
+
+# What the scan counts, stored beside the shared scan cache's own version and
+# required to match on reuse. Bump when the counting changes so old caches
+# are rescanned instead of trusted. 3: prompts and sessions from the session
+# index. 4: pi/omp sessions counted. 5: native sessions the index hasn't seen
+# counted. 6: today's prompts from what each session's count grew by today.
+# 7: a child's calls known only from the session's usage attribution.
+CACHE_SCHEMA_VERSION = 7
+
+
+def key_endpoint() -> str:
+  # Overridable for tests, which point it at a local stub instead of Meta's
+  # key service.
+  return os.environ.get("MUSE_KEY_ENDPOINT") or "https://api.meta.ai/muse-code/key"
+
+
+def percent_number(value):
+  if isinstance(value, bool):
+    return -1.0
+  try:
+    parsed = float(value)
+  except (TypeError, ValueError):
+    return -1.0
+  return min(1.0, max(0.0, parsed / 100.0)) if math.isfinite(parsed) else -1.0
+
+
+def model_name(raw):
+  value = str(raw or "muse-spark").rstrip("/").split("/")[-1]
+  if not value:
+    value = "muse-spark"
+  # Model ids flow into the panel JSON: cap the length so a crafted session
+  # file or DB row cannot bloat the record or the UI. Callers skip the row
+  # when this returns None (fail closed).
+  if len(value) > MAX_MODEL_NAME_LEN:
+    return None
+  return value
+
+
+# Muse's own stores date rows in microseconds, which the shared reader of pi
+# and opencode times doesn't expect, and Muse can't have written before 2000
+# or from the future.
+def local_day(value):
+  """Normalize assorted timestamps to a local YYYY-MM-DD date string.
+
+  A stamp that isn't a plausible moment (missing, zero, negative, NaN, a
+  bool, far future, not a time at all) gives None, so the caller can fall
+  back or leave the row undated rather than file it under today.
+  """
+  if value is None or isinstance(value, bool):
+    return None
+  if isinstance(value, (int, float)):
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds <= 0:
+      return None
+    # Native muse recorded_at is microseconds; opencode created is millis;
+    # codex-style seconds also possible.
+    if seconds > 10_000_000_000_000:
+      seconds = seconds / 1_000_000
+    elif seconds > 10_000_000_000:
+      seconds = seconds / 1000
+  else:
+    text = str(value).strip()
+    try:
+      # Some writers emit the epoch as a string: route micro/milli/second
+      # magnitudes through the numeric branch instead of misfiling them.
+      return local_day(float(text))
+    except ValueError:
+      pass
+    try:
+      dt = datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
+      # A zoneless time at the edge of the calendar (year 1 or 9999) can't
+      # be placed in a zone off UTC.
+      if dt.tzinfo is None:
+        dt = dt.astimezone()
+      seconds = dt.timestamp()
+    except (OverflowError, OSError, ValueError):
+      return None
+  # Muse didn't exist before 2000 and can't write from the future.
+  if not 946_684_800 <= seconds <= time.time() + 2 * 86_400:
+    return None
+  try:
+    return datetime.fromtimestamp(seconds).astimezone().date().isoformat()
+  except (OverflowError, OSError, ValueError):
+    return None
+
+
+def muse_data_dir():
+  override = (os.environ.get("MUSE_DATA_DIR") or "").strip()
+  if override:
+    return Path(os.path.expandvars(os.path.expanduser(override)))
+  return data_home() / "muse"
+
+
+# The Muse CLI keeps one row per session in session-index.db with the number
+# of prompts typed into it, the real counts a completion tally can only
+# approximate (one prompt can run many model calls). Returns the ids of the
+# sessions the index has a row for, empty without an index, and whether it
+# could be read: an index that's there but unreadable falls back on
+# completions without caching that scan. A session nobody prompted isn't
+# counted, and a row whose creation time isn't a plausible moment counts in
+# the totals only.
+def scan_session_index(stats):
+  database = muse_data_dir() / "session-index.db"
+  if not database.is_file():
+    return set(), True
+  try:
+    conn = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return set(), False
+  try:
+    conn.execute("PRAGMA query_only = ON")
+    rows = conn.execute("SELECT session_id, created_at_us, prompt_count FROM sessions").fetchall()
+  except sqlite3.Error:
+    return set(), False
+  finally:
+    try:
+      conn.close()
+    except Exception:
+      pass
+  indexed = {str(session_id) for session_id, _, _ in rows}
+  counts, created = {}, {}
+  for session_id, created_at_us, prompt_count in rows:
+    prompts = token_count(prompt_count)
+    if not prompts:
+      continue
+    session_id = str(session_id)
+    counts[session_id] = prompts
+    # created_at_us is microseconds, which local_day recognises by size.
+    created[session_id] = local_day(created_at_us)
+  grown = prompts_today(database, counts, {key for key, day in created.items() if day == stats.today}, stats.today)
+  for session_id, prompts in counts.items():
+    # A session's prompts land on the day it was created, which may be
+    # unknown, apart from today's, which are what its count grew by today.
+    today_prompts = grown.get(session_id, 0)
+    stats.add_prompts(created[session_id], "muse-index:" + session_id, prompts - today_prompts)
+    if today_prompts:
+      stats.add_prompts(stats.today, "muse-index:" + session_id, today_prompts)
+  return indexed, True
+
+
+# The index keeps a session's running prompt count and the day it was
+# created, not when each prompt came, so a session carried on from an
+# earlier day would put every prompt on the day it began. Today's prompts are
+# instead what each count grew by since the last scan before today, which
+# this collector keeps in a file of its own; a session created today counts
+# whole. A session from before today that no earlier scan saw counts from
+# when it is first seen, since nothing says when its earlier prompts came;
+# so does every session after a gap of days since the last scan.
+def prompts_today(database, counts, created_today, today):
+  digest = hashlib.sha1(str(database).encode("utf-8")).hexdigest()[:16]
+  path = cache_root() / f"muse-prompts-{digest}.json"
+  kept = read_json(path)
+  day = kept.get("day") if isinstance(kept.get("day"), str) else ""
+  if day == today:
+    start = kept.get("start")
+  elif day == (date.fromisoformat(today) - timedelta(days=1)).isoformat():
+    start = kept.get("last")
+  else:
+    # Never scanned, kept from a clock that went back, or from before a gap
+    # of days: what a count grew by since then wasn't all typed today.
+    start = None
+  start = {str(key): token_count(value) for key, value in start.items()} if isinstance(start, dict) else {}
+  for session_id, prompts in counts.items():
+    if session_id not in start and session_id not in created_today:
+      start[session_id] = prompts
+  try:
+    write_json(path, {"day": today, "start": start, "last": counts})
+  except Exception as exc:
+    warn(f"could not keep the session prompt counts ({exc})")
+  grown = {}
+  for session_id, prompts in counts.items():
+    added = prompts - start.get(session_id, 0)
+    if added > 0:
+      grown[session_id] = added
+  return grown
+
+
+def muse_sessions_root():
+  return muse_data_dir() / "sessions"
+
+
+def iter_native_events(path):
+  """Yield (event_dict, recorded_at, event_id) tuples from a native session.jsonl file.
+
+  Handles both plain event lines and retained_frame wrappers whose children
+  carry record_json payloads. A file that can't be read raises OSError, so
+  the scan knows it is incomplete.
+  """
+  with path.open(errors="replace") as handle:
+    for raw in handle:
+      # Session logs run to hundreds of megabytes, mostly lines without
+      # usage. Only completions ("usage", escaped or not inside a
+      # retained frame) and the model records ("model_id") matter, so
+      # everything else skips the JSON parse.
+      if "usage" not in raw and "model_id" not in raw:
+        continue
+      raw = raw.strip()
+      if not raw:
+        continue
+      try:
+        entry = json.loads(raw)
+      except Exception:
+        continue
+      if not isinstance(entry, dict):
+        continue
+      candidates = [entry]
+      children = entry.get("children")
+      if isinstance(children, list):
+        for child in children:
+          if not isinstance(child, dict):
+            continue
+          nested = child.get("record_json")
+          if not nested:
+            continue
+          try:
+            parsed = json.loads(nested)
+          except Exception:
+            continue
+          if isinstance(parsed, dict):
+            candidates.append(parsed)
+      for event in candidates:
+        payload = event.get("payload") or {}
+        if not isinstance(payload, dict):
+          continue
+        yield payload, event.get("recorded_at"), event.get("id")
+
+
+# A session's log credits every billed run to its owner in a
+# goal_usage_attribution record: the main agent, and each child it ran, such
+# as the reminder agents that watch a prompt. Most children keep a log of
+# their own, whose completions are counted from it, but some (a skill
+# reminder among them) leave nothing but this record, the only trace of the
+# calls they made. Returns (input, output, cache read, cache write) for such a
+# child's record, once per usage id, and None for every other.
+def attributed_usage(record, logged, seen):
+  if not isinstance(record, dict):
+    return None
+  owner = record.get("owner") if isinstance(record.get("owner"), dict) else {}
+  quantity = record.get("quantity") if isinstance(record.get("quantity"), dict) else {}
+  owner_id = owner.get("owner_id")
+  usage_id = record.get("usage_id")
+  if not isinstance(owner_id, str) or owner.get("owner_type") == "main_root" or owner_id in logged:
+    return None
+  if quantity.get("unit") != "tokens" or quantity.get("reported") is False:
+    return None
+  if not isinstance(usage_id, str) or not usage_id or usage_id in seen:
+    return None
+  input_tokens = token_count(quantity.get("input_tokens"))
+  cache_read = min(input_tokens, token_count(quantity.get("cached_tokens")))
+  output_tokens = token_count(quantity.get("output_tokens"))
+  if not (input_tokens or output_tokens):
+    return None
+  seen.add(usage_id)
+  return input_tokens - cache_read, output_tokens, cache_read, 0
+
+
+def scan_native_muse_sessions(stats, indexed=frozenset()):
+  """Add native Muse session completions. Returns whether every session file
+  was read (safe to cache); a deliberately skipped one doesn't count."""
+  root = muse_sessions_root()
+  if not root.exists():
+    return True
+  # Full history, no mtime cutoff: all-time totals and active days need every
+  # session still on disk (the same tradeoff the claude collector makes).
+  # Session files are small JSONL and the scan cache dedups concurrent runs,
+  # so each refresh pays one linear pass at most.
+  try:
+    resolved_root = root.resolve()
+  except OSError:
+    return False
+  files = []
+  try:
+    # Session views contain copies of the same history. Check only paths
+    # below the sessions root, so a custom data parent is not excluded.
+    files = [p for p in root.rglob("session.jsonl")
+             if not any(part.startswith(".msp-view") for part in p.relative_to(root).parts[:-1])
+             and p.is_file()]
+  except OSError:
+    return False
+  complete = True
+  seen_event_ids = set()
+  # Every agent with a log of its own: a session and each subagent are named
+  # by their ids, so a child attributed usage without one is found here.
+  logged = {p.parent.name for p in files}
+  seen_usage_ids = set()
+  for path in files:
+    try:
+      # Fail closed on entries that could escape the sessions tree or stall
+      # the scan: symlinked files are never followed (even when their target
+      # sits inside the tree, so a link cannot double-count a session), files
+      # reached via a symlinked directory are rejected by the resolve check,
+      # and gigantic files are skipped.
+      if path.is_symlink():
+        continue
+      if not path.resolve().is_relative_to(resolved_root):
+        continue
+      st = path.stat()
+      if st.st_size > MAX_SESSION_BYTES:
+        continue
+      mtime_day = local_day(st.st_mtime)
+    except OSError:
+      complete = False
+      continue
+    # Session directories are named by the index's session id, and subagent
+    # trees roll up into their parent session: normalize both the main
+    # session.jsonl and any subagent/.../session.jsonl to the session
+    # directory, so one user session counts once however many subagents it
+    # spawned.
+    session_dir = re.sub(r"(/subagent/.*)?/session\.jsonl$", "", str(path))
+    counted = Path(session_dir).name not in indexed
+    current_model = ""
+    try:
+      for payload, recorded_at, event_id in iter_native_events(path):
+        kind = payload.get("kind")
+        if kind == "metadata":
+          record = payload.get("record") or {}
+          if isinstance(record, dict) and record.get("model_id"):
+            current_model = model_name(record.get("model_id"))
+          continue
+        if kind == "run_model":
+          record = payload.get("record") or {}
+          if isinstance(record, dict) and record.get("model_id"):
+            current_model = model_name(record.get("model_id"))
+          continue
+        # Older logs wrap a completion as payload kind "run"; current ones
+        # (record_type "event", payload_type "runtime.session") carry the event
+        # with no payload kind at all.
+        if kind not in ("run", None):
+          continue
+        event = payload.get("event") or {}
+        if not isinstance(event, dict):
+          continue
+        if event.get("kind") == "goal_usage_attribution":
+          attributed = attributed_usage(event.get("record"), logged, seen_usage_ids)
+          model = model_name(current_model) if current_model is not None else None
+          if attributed and model:
+            # A child's calls, on the session's model, answer no prompt.
+            stats.add(local_day(recorded_at) or mtime_day, "muse:" + session_dir if counted else None, model,
+                      *attributed, prompts=0)
+          continue
+        if event.get("kind") != "model_completed":
+          continue
+        usage = event.get("usage") or {}
+        if not isinstance(usage, dict):
+          continue
+        raw_model = event.get("model")
+        # An oversized metadata model is an explicit rejection, not a reason to
+        # silently put the following completion in the generic fallback bucket.
+        if not raw_model and current_model is None:
+          continue
+        model = model_name(raw_model or current_model)
+        if model is None:
+          continue
+        input_tokens = token_count(usage.get("input_tokens"))
+        # Native Muse reports reasoning as a subset of output_tokens.
+        output_tokens = token_count(usage.get("output_tokens"))
+        # Cached tokens are a subset of input: keep the split without double
+        # counting (same convention as the codex collector), and never let a
+        # cache figure claim more than the input it is part of.
+        cache_read = min(input_tokens, token_count(usage.get("cache_read_tokens", usage.get("cached_tokens"))))
+        cache_write = min(input_tokens - cache_read, token_count(usage.get("cache_write_tokens")))
+        input_tokens = input_tokens - cache_read - cache_write
+        if not (input_tokens or output_tokens or cache_read or cache_write):
+          continue
+        # Native record IDs survive copies and retained-frame wrapping. Claim
+        # only valid completions: metadata or malformed usage must not suppress
+        # a later usable record. Missing/malformed IDs cannot identify duplicates.
+        if isinstance(event_id, str) and event_id:
+          if event_id in seen_event_ids:
+            continue
+          seen_event_ids.add(event_id)
+        # An unusable stamp falls back on the file's own time.
+        day = local_day(recorded_at) or mtime_day
+        # A session the index has no row for yet counts its completions as
+        # prompts, as it would with no index at all. One it has a row for
+        # supplied its real prompt and session counts already: its tokens
+        # still count, but a completion is a model call, not a prompt, and its
+        # session is the index's. An undated completion counts in the totals
+        # only.
+        stats.add(day, "muse:" + session_dir if counted else None, model,
+                  input_tokens, output_tokens, cache_read, cache_write, prompts=1 if counted else 0)
+    except OSError:
+      # Whatever it yielded before failing still counts here, but a scan
+      # missing the rest of a session isn't kept.
+      complete = False
+  return complete
+
+
+# pi, omp, and opencode alike: the meta provider is Meta's own Muse Spark API
+# and only serves Muse Spark models, so any model on it counts (muse-spark
+# 1.1/1.2/1.3, ...), and so does omp's `muse-code`, the same API reached
+# through a Muse Code sign-in. Muse Spark through the Zen gateway
+# (providerID "opencode") is OpenCode usage, so the opencode record keeps it.
+PROVIDERS = ("meta", "muse-code")
+
+
+def billed_here(provider, model, entry):
+  return provider in PROVIDERS
+
+
+def scan_shared_stores(stats):
+  """pi/omp and opencode replies on Meta's providers. Returns whether every
+  source was read in full (safe to cache)."""
+  pi_rows, pi_complete = scan_pi_sessions(r'"provider"\s*:\s*"(' + "|".join(PROVIDERS) + r')"', billed_here)
+  # The closing quote makes the database's prefilter match the whole id.
+  db_rows, db_complete = scan_opencode([provider + '"' for provider in PROVIDERS], billed_here)
+  for row in db_rows + pi_rows:
+    model = model_name(row.model)
+    if model is not None:
+      stats.add_row(row, model)
+  return pi_complete and db_complete
+
+
+# ------------------------------------------------------------------ limits
+#
+# Additive subscription windows only. Local metering above always runs; this
+# section only fills `limits`/`tierLabel`/status when the authoritative key
+# probe answers. Pay-as-you-go and active plans without `subs_usage` have no
+# subscription windows: no token, a PAYG probe, or an active probe with no
+# subs_usage means limits stay empty (never estimated, never zeroed) and
+# local metering still shows. The OAuth token goes nowhere but
+# the Authorization header; only plan label + usage figures enter the record.
+
+
+def muse_config_dir() -> Path:
+  return config_home() / "muse"
+
+
+def read_access_token() -> str:
+  try:
+    raw = (os.environ.get("MUSE_AUTH_PATH") or "").strip()
+    path = Path(os.path.expandvars(os.path.expanduser(raw))) if raw else (muse_config_dir() / "auth.json")
+    data = json.loads(path.read_text(encoding="utf-8"))
+  except Exception:
+    return ""
+  # Every level checked: a login file that parses to a list, or whose
+  # `providers` is not an object, is a missing credential, not a crash.
+  if not isinstance(data, dict):
+    return ""
+  providers = data.get("providers")
+  if not isinstance(providers, dict):
+    return ""
+  login = providers.get("meta")
+  if not isinstance(login, dict):
+    return ""
+  return str(login.get("access_token") or "")
+
+
+def normalize_reset_at(value) -> str:
+  if value is None or isinstance(value, bool):
+    return ""
+  try:
+    ts = float(value)
+  except Exception:
+    # Some answers give the reset as an ISO time, which omp reads too.
+    try:
+      parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+    except ValueError:
+      return ""
+    return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).isoformat()
+  if ts <= 0:
+    return ""
+  # Epoch seconds; accept milliseconds too.
+  if ts >= 1e12:
+    ts = ts / 1000
+  try:
+    return datetime.fromtimestamp(ts, timezone.utc).isoformat()
+  except Exception:
+    return ""
+
+
+def probe_key(access_token: str) -> dict:
+  # MUSE_KEY_ENDPOINT moves the endpoint, never the token onto a connection
+  # anyone on the way can read.
+  if not trusted_endpoint(key_endpoint()):
+    return {"ok": False, "helpText": "MUSE_KEY_ENDPOINT must use HTTPS (plain HTTP only for loopback). Local Muse stats are still shown."}
+  request = urllib.request.Request(
+    key_endpoint(),
+    data=json.dumps({}).encode(),
+    method="POST",
+    headers={
+      "Authorization": "Bearer " + access_token,
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+    },
+  )
+  try:
+    payload = open_json(request, timeout=10)
+  except HttpError as error:
+    if error.status in (401, 403):
+      return {"ok": False, "expired": True,
+              "helpText": "Muse's saved sign-in was rejected. Run `muse login` to refresh it."}
+    if error.status:
+      return {"ok": False,
+              "helpText": f"Muse's usage endpoint returned status {error.status}. Local Muse stats are still shown."}
+    if error.transport:
+      return {"ok": False, "transport": True,
+              "helpText": "Couldn't reach Muse's usage endpoint. Retrying shortly. Local Muse stats are still shown."}
+    # The server answered but not with JSON: a shape change, not a network
+    # failure. No retryAdvised — re-asking won't fix the parser.
+    return {"ok": False, "helpText": "Muse's usage endpoint returned an unreadable response. Local Muse stats are still shown."}
+
+  usage = payload.get("subs_usage") if isinstance(payload, dict) else None
+  if not isinstance(usage, dict):
+    # PAYG account: key mints fine but there is no subscription window to
+    # meter (live shape: is_subs_active=false, subs_tier_name=null, no
+    # subs_usage). Local metering is the whole story — stay silent, not an
+    # error.
+    if isinstance(payload, dict) and payload.get("is_subs_active") is False:
+      return {"ok": False, "payg": True}
+    # Active plan without windows (live shape on Muse Code Power Usage:
+    # is_subs_active=true, subs_tier_name set, no subs_usage key at all).
+    # That is the steady answer, not a snapshot about to appear: keep the
+    # tier, show local metering only, stay silent like PAYG.
+    if isinstance(payload, dict) and payload.get("is_subs_active") is True:
+      tier_hint = str(payload.get("subs_tier_name") or "")
+      return {"ok": False, "silent": True, "tierLabel": tier_hint}
+    tier_hint = str(payload.get("subs_tier_name") or "") if isinstance(payload, dict) else ""
+    return {"ok": False, "tierLabel": tier_hint,
+            "helpText": "Muse's usage endpoint returned no usage. Local Muse stats are still shown."}
+
+  limits = []
+  window = usage.get("window") or {}
+  if isinstance(window, dict) and window.get("used_percent") is not None:
+    percent = percent_number(window.get("used_percent"))
+    if percent >= 0:
+      mins = number(window.get("window_duration_mins"))
+      if mins >= 60 and mins % 60 == 0:
+        label = f"Session ({mins // 60}-hour)"
+      else:
+        label = f"Session ({mins}m)" if mins > 0 else "Session"
+      limits.append({"label": label, "percent": percent, "resetsAt": normalize_reset_at(window.get("resets_at"))})
+  weekly = usage.get("weekly") or {}
+  if isinstance(weekly, dict) and weekly.get("used_percent") is not None:
+    percent = percent_number(weekly.get("used_percent"))
+    if percent >= 0:
+      limits.append({"label": "Weekly (7-day)", "percent": percent, "resetsAt": normalize_reset_at(weekly.get("resets_at"))})
+
+  if not limits:
+    tier_hint = str(payload.get("subs_tier_name") or "") if isinstance(payload, dict) else ""
+    return {"ok": False, "tierLabel": tier_hint,
+            "helpText": "Muse's usage endpoint returned no limits. Local Muse stats are still shown."}
+  tier = ""
+  if isinstance(payload, dict):
+    tier = str(payload.get("subs_tier_name") or "")
+  return {"ok": True, "limits": limits, "tierLabel": tier}
+
+
+def collect_limits(force: bool) -> dict:
+  result = {"limits": [], "tierLabel": "", "usageStatusText": "", "authHelpText": "", "stale": False, "fetchedAtMs": 0}
+
+  access_token = read_access_token()
+  if access_token == "":
+    # No login. Muse Spark used only through opencode's meta provider signs
+    # in with a Model API key, not `muse login`, so that alone is no reason
+    # to ask for one; the Muse CLI's own home on this machine is.
+    if muse_config_dir().is_dir() or muse_sessions_root().is_dir():
+      result["usageStatusText"] = "Waiting for auth"
+      result["authHelpText"] = "Run `muse login` to show Muse's session and weekly limits."
+    return result
+  result["signedIn"] = True
+
+  # Keyed by who the token signs in as (the JWT's subject when it is one), so
+  # a machine signed in to someone else never shows the last one's windows,
+  # and a refreshed token keeps the same cache. A window kept from an earlier
+  # check whose reset has passed comes back at zero: the period it measured
+  # is over.
+  try:
+    probe_cache = LimitsCache(AGENT_ID, account_key(access_token))
+    cached, fallback, fetched_at = probe_cache.data, probe_cache.limits, probe_cache.fetched_at
+  except Exception as exc:
+    warn(f"could not read limits cache ({exc})")
+    probe_cache, cached, fallback, fetched_at = None, {}, [], 0
+  result["tierLabel"] = str(cached.get("tierLabel") or "")
+
+  # The last good windows, marked stale, with when they were measured.
+  def keep_cached():
+    result["limits"] = fallback
+    result["stale"] = True
+    result["fetchedAtMs"] = fetched_at if fallback else 0
+
+  # Minting is idempotent and cheap (the same key comes back every call), so
+  # the reuse only absorbs repeated panel opens. A plan without windows is an
+  # answer too, and stands in like any other.
+  if probe_cache is not None and probe_cache.fresh(force, allow_empty=True):
+    result["limits"] = fallback
+    result["fetchedAtMs"] = fetched_at if fallback else 0
+    return result
+
+  probe = probe_key(access_token)
+  if probe["ok"]:
+    result["limits"] = probe["limits"]
+    result["tierLabel"] = probe.get("tierLabel") or result["tierLabel"]
+    if probe_cache is not None:
+      result["fetchedAtMs"] = probe_cache.save(probe["limits"], tierLabel=result["tierLabel"])
+    else:
+      result["fetchedAtMs"] = now_ms()
+    return result
+
+  if probe.get("transport"):
+    result["retryAdvised"] = True
+  if probe.get("payg") or probe.get("silent"):
+    # Authenticated PAYG names no plan; an active plan without windows keeps
+    # its name. Either way local metering stands alone, silent — not an
+    # error, not expired — and the cached windows go with the old plan, so
+    # a later failed check can't bring them back.
+    result["tierLabel"] = "" if probe.get("payg") else probe.get("tierLabel") or result["tierLabel"]
+    if probe_cache is not None:
+      probe_cache.save([], tierLabel=result["tierLabel"], noWindows=True)
+    return result
+  keep_cached()
+  if probe.get("expired"):
+    result["usageStatusText"] = "Sign-in expired"
+    result["authHelpText"] = probe["helpText"]
+  elif not fallback:
+    result["usageStatusText"] = "Muse limits unavailable"
+    result["authHelpText"] = probe["helpText"]
+    result["tierLabel"] = probe.get("tierLabel") or result["tierLabel"]
+  return result
+
+
+def scan_sources():
+  # The digest covers every data path the scan reads.
+  return [Path.home(), muse_sessions_root(), opencode_db(), *pi_session_roots()]
+
+
+def run_local_scans():
+  stats = Stats()
+  indexed, index_read = scan_session_index(stats)
+  native_read = scan_native_muse_sessions(stats, indexed)
+  complete = scan_shared_stores(stats)
+  return stats.snapshot(), complete and index_read and native_read
+
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--force", action="store_true", help="rescan sessions, ignoring caches")
+  parser.add_argument("--limits-only", action="store_true", help="reuse any recent scan; kept for CLI compatibility with the panel refresh")
+  args = parser.parse_args()
+
+  max_age = scan_max_age(args.force, args.limits_only)
+  stats = cached_scan(AGENT_ID, scan_sources(), max_age, run_local_scans, match={"museSchema": CACHE_SCHEMA_VERSION})
+  limits = collect_limits(args.force)
+
+  record = base_record(
+    AGENT_ID, AGENT_NAME,
+    # A sign-in shows even before its first session or window, and so does
+    # a Muse CLI waiting for one.
+    ready=number(stats.get("totalPrompts")) > 0 or len(limits["limits"]) > 0 or bool(limits.get("signedIn")) or limits["usageStatusText"] != "",
+    # A sign-in with no sessions here has no local stats to show.
+    hasLocalStats=number(stats.get("totalSessions")) > 0 or number(stats.get("totalPrompts")) > 0 or bool(stats.get("modelUsage")),
+    # Prompts and sessions are counted, so the panel shows them in tooltips.
+    hasPromptStats=True,
+    tierLabel=limits["tierLabel"],
+    limits=limits["limits"],
+    limitsStale=limits["stale"],
+    limitsFetchedAt=limits["fetchedAtMs"],
+    usageStatusText=limits["usageStatusText"],
+    authHelpText=limits["authHelpText"],
+  )
+  record.update(stats)
+  if limits.get("retryAdvised"):
+    record["retryAdvised"] = True
+  emit(record, sort_keys=True)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())
