@@ -1,25 +1,27 @@
 # Sistem anlık görüntüleri
 
-Her Omarchy güncelleştirmesinde otomatik olarak anlık görüntüler oluşturuyoruz, ancak kendi anlık görüntünüzü oluşturmak isterseniz, `omarchy-snapshot create` kullanabilirsiniz.
+Her Omarchy güncellemesinde otomatik olarak anlık görüntüler oluşturuyoruz, ancak kendinizinkini oluşturmak isterseniz `omarchy-snapshot create` komutunu kullanabilirsiniz.
 
-Bir anlık görüntüyü önyüklemek ve geri yüklemek için onu Limine önyükleyicisinden seçersiniz. (Şu anda doğrudan Omarchy şifre çözme ekranına önyükleme yapıyorsanız, önce BIOS aracılığıyla bir önyükleme seçeneği olarak Limine'yi seçmeniz gerekir).
+Bir anlık görüntüyü başlatmak ve geri yüklemek için onu Limine boot loader üzerinden seçersiniz. (Şu anda doğrudan Omarchy şifre çözme ekranına önyükleme yapıyorsanız, önce BIOS üzerinden Limine'yi bir önyükleme seçeneği olarak seçmeniz gerekir).
 
-O ekrandan, tarihe ve sürüme göre önyüklemek istediğiniz anlık görüntüyü seçin. Anlık görüntü sırasındaki Omarchy sürümü sol alt köşede görülebilir.
+Bu ekrandan, tarih ve sürüme göre önyükleme yapmak istediğiniz anlık görüntüyü seçin. Anlık görüntü alındığı sırada Omarchy'nin sürümü sol alt köşede görülebilir.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-İçeri vardığınızda, önyüklenebilir bir anlık görüntüde olduğunuzu bildiren bir bildirim açılır ve ona tıklarsanız, geri yükleme işlemini başlatır. Alternatif olarak, `omarchy-snapshot restore` kullanabilirsiniz.
+İçeri girdiğinizde, önyüklenebilir bir anlık görüntüde olduğunuzu bildiren bir bildirim açılır ve üzerine tıklarsanız geri yükleme işlemi başlar. Alternatif olarak `omarchy-snapshot restore` komutunu kullanabilirsiniz.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Bu, kök dosya sisteminizi geri yükleyecektir, ancak `/home` dizininizi değil. Yani bozuk bir sistem güncelleştirmesini geri almak için çalışır, ancak kayıp kişisel dosyaları kurtarmak için çalışmaz.
+Bu, kök dosya sisteminizi geri yükler, ancak `/home` dizininizi geri yüklemez. Yani bozuk bir sistem güncellemesini geri almak için işe yarar, ancak kaybolan kişisel dosyaları kurtarmak için işe yaramaz.
 
-Bu ayrıca `~/.config` dizininizin olduğu gibi tutulduğu anlamına gelir. Yani yapılandırma dosyalarını yeni bir biçimde saklayan bir kütüphanenin veya uygulamanın daha önceki bir sürümüne geri dönüyorsanız, bunu el ile halletmeniz gerekecektir.
+Bu aynı zamanda `~/.config` dizininizin olduğu gibi korunduğu anlamına gelir. Yani yapılandırma dosyalarını yeni bir formatta saklayan bir kütüphanenin veya uygulamanın daha eski bir sürümüne geri dönüyorsanız, bunu elle halletmeniz gerekir.
 
-_Not: Bu özellik yalnızca Omarchy 2.0'dan beri varsayılan olan Limine önyükleyicisini kullanan kurulumlarda kullanılabilir. GRUB veya systemd-boot kullanıyorsanız kullanılamaz._
+Aynı durum, hangi geçişlerin zaten çalıştırıldığına dair Omarchy'nin kendi kaydı için de geçerlidir: bu kayıt ev dizininizde yaşar, bu yüzden geri yüklemeden sağ çıkar. Anlık görüntü alındıktan sonra çalıştırılan geçişler, kök dosya sisteminde yaptıkları değişiklikler geri alınmış olsa bile tamamlandı olarak işaretli kalır ve bir sonraki `omarchy update` bunları tekrar çalıştırmaz. Bu yüzden bir geri yüklemeden sonra tekrar güncelleme yaparsanız ve daha önceki bir güncellemenin kurduğu bir şey hâlâ eksikse, muhtemel nedeni budur.
+
+_Not: Bu özellik yalnızca Limine boot loader kullanan kurulumlarda kullanılabilir; bu, Omarchy 2.0'dan beri varsayılandır. GRUB veya systemd-boot kullanıyorsanız kullanılamaz._
 
 ### Önyükleme menüsünü atlama
 
-Önyükleme menüsüne asla dokunmuyor ve yalnızca makinenin doğrudan şifre çözme ekranına gitmesini istiyorsanız, Omarchy menüsünde _Ayarlar > Doğrudan Önyükleme_ yolunu çalıştırın. Bu, doğrudan Omarchy'ye işaret eden bir EFI girişi ekler, böylece bellenim Limine'de durmadan onu önyükler.
+Önyükleme menüsüne hiç dokunmuyorsanız ve makinenin doğrudan şifre çözme ekranına gitmesini istiyorsanız, Omarchy menüsünde _Setup > Direct Boot_ seçeneğini çalıştırın. Bu, doğrudan Omarchy'yi işaret eden bir EFI girdisi ekler, böylece firmware Limine'de durmadan onu önyükler.
 
-Dezavantaj, en üstte söz edilenle aynıdır: doğrudan önyükleme açıkken, bir anlık görüntüye ulaşmak, önce BIOS önyükleme menünüzden Limine'yi seçmek anlamına gelir. Girişi kaldırmak ve Limine üzerinden önyüklemeye geri dönmek için _Ayarlar > Doğrudan Önyükleme_ yolunu tekrar çalıştırın. Bazı bellenimler özel EFI girişlerine iyi davranmaz, bu yüzden kurulum American Megatrends ve Apple belleniminde çalışmayı reddeder.
+Bunun karşılığında verilen ödün, en başta bahsedilen şeydir: direct boot açıkken bir anlık görüntüye ulaşmak, önce BIOS önyükleme menünüzden Limine'yi seçmek anlamına gelir. Girdiyi kaldırmak ve Limine üzerinden önyüklemeye geri dönmek için _Setup > Direct Boot_ seçeneğini tekrar çalıştırın. Bazı firmware'ler özel EFI girdilerinden pek hoşlanmaz, bu yüzden kurulum American Megatrends ve Apple firmware'lerinde çalışmayı reddeder.

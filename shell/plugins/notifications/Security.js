@@ -69,6 +69,27 @@ function parseExecArgv(value) {
   return parsed
 }
 
+// The omarchy-actions hint (omarchy-notification-send --action): up to three
+// buttons, each a label and an argv held to the same rules as the click.
+var MAX_EXEC_ACTIONS = 3
+function parseExecActions(value) {
+  var text = String(value || "")
+  if (!text || text.length > MAX_BODY) return null
+  var parsed
+  try { parsed = JSON.parse(text) } catch (e) { return null }
+  if (!Array.isArray(parsed) || parsed.length === 0 || parsed.length > MAX_EXEC_ACTIONS) return null
+  var out = []
+  for (var i = 0; i < parsed.length; i++) {
+    var entry = parsed[i]
+    if (!entry || typeof entry !== "object" || typeof entry.label !== "string") return null
+    var label = entry.label.slice(0, MAX_ACTION_LABEL)
+    var argv = parseExecArgv(entry.argv)
+    if (!label.trim() || !argv) return null
+    out.push({ label: label, argv: argv })
+  }
+  return out
+}
+
 // The omarchy-glyph hint: a few code points for the icon slot.
 function safeGlyph(value) {
   var text = typeof value === "string" ? value : ""

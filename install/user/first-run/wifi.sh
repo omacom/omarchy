@@ -1,5 +1,5 @@
 notify_update() {
-  omarchy-notification-send -u critical -g  "Update System" "Click to update the system." \
+  omarchy-notification-send -u critical -g  "$(omarchy-i18n firstRun.updateTitle)" "$(omarchy-i18n firstRun.updateBody)" \
     --exec omarchy-launch-floating-terminal-with-presentation omarchy-update
 }
 
@@ -23,7 +23,7 @@ update_pending() {
 }
 
 notify_wifi() {
-  omarchy-notification-send -u critical -g 󰖩 "Setup Wi-Fi" "Click to configure the wireless network." \
+  omarchy-notification-send -u critical -g 󰖩 "$(omarchy-i18n firstRun.wifiTitle)" "$(omarchy-i18n firstRun.wifiBody)" \
     --exec omarchy-shell shell toggle omarchy.network
 }
 
@@ -38,9 +38,17 @@ announce_network() {
   # a laptop with nothing to connect to gets prompted immediately.
   if ! nm-online -q -x -t 30; then
     notify_wifi
-    # Nothing to update against until a link lands, so hold that prompt.
-    nm-online -q -t 3600 || return
+    # Nothing to install or update until a link lands, so hold those prompts
+    # for however long that takes. nm-online has no "forever", so wait out its
+    # timeout as often as needed.
+    until nm-online -q -t 86400; do :; done
   fi
+
+  # Both setups install packages, so they wait for the link rather than for the
+  # first update. Each invites only once, and only when there is something to
+  # set up.
+  bash "$OMARCHY_PATH/install/user/first-run/setup-agent.hook"
+  bash "$OMARCHY_PATH/install/user/first-run/setup-fingerprint.hook"
 
   # A fresh install from current media has nothing to update, and a toast
   # that leads nowhere teaches people to dismiss the next one.

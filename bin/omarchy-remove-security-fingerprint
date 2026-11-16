@@ -83,6 +83,13 @@ remove_resume_hook
 
 sudo rm -rf -- "/var/lib/fprint/$fingerprint_user"
 
+# A platform that turned its reader on for setup turns it off again. Failing to
+# doesn't stop the removal, but the owner is told the reader may stay on.
+if ! disable_hook=$(omarchy-lifecycle-dispatch --resolve disable-fingerprint) ||
+  { [[ -n $disable_hook ]] && ! sudo omarchy-lifecycle-dispatch disable-fingerprint; }; then
+  echo -e "\e[33mThe fingerprint reader may still be turned on at the next boot.\e[0m"
+fi
+
 echo "Removing fingerprint packages..."
 omarchy-pkg-drop fprintd libfprint libfprint-git
 
