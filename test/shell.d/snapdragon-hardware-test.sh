@@ -407,12 +407,6 @@ run_slim5x_setup "$lcd" >/dev/null
   fail "the shared device-tree list is replaced, since the models share an SMBIOS identity"
 grep -Fxq 'Cmdline=@/etc/kernel/cmdline' "$lcd/kernel/uki.conf" ||
   fail "unrelated UKI settings are preserved"
-(
-  MODULES=()
-  source "$lcd/mkinitcpio.conf.d/ideapad-slim-5x-initramfs.conf"
-  [[ " ${MODULES[*]} " == *" msm? "* && " ${MODULES[*]} " == *" pmic_glink_altmode? "* ]] ||
-    fail "the Slim 5x loads the display chain before disk unlock"
-)
 
 # Any other panel, here a Samsung one.
 oled="$scratch/oled"
@@ -429,5 +423,7 @@ cp -p "$other/kernel/uki.conf" "$scratch/other-uki.conf"
 run_slim5x_setup "$other" >/dev/null
 cmp -s "$scratch/other-uki.conf" "$other/kernel/uki.conf" ||
   fail "other boards are left unchanged, even with the same panel"
+[[ ! -e $other/mkinitcpio.conf.d/ideapad-slim-5x-initramfs.conf ]] ||
+  fail "other boards get no Slim 5x initramfs drop-in"
 
 pass "IdeaPad Slim 5x setup boots the LCD model on the LCD tree"
