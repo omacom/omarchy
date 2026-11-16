@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" shape-rendering="crispEdges">
+  <title>Checkmate</title>
+  <desc>A chessboard in pixels: squares in the main color and a king in the highlight standing before it.</desc>
+  <!-- A 16 by 16 grid of 28 unit pixels. Each color is one path of rectangles,
+       with a hairline stroke of its own so no seam shows between neighbors. -->
+  <path fill="{{ icon_main }}" stroke="{{ icon_main }}" d="M88 88h84v28h-84zM284 88h56v28h-56zM88 116h84v28h-84zM312 116h28v28h-28zM88 144h84v28h-84zM284 144h56v28h-56zM340 172h84v28h-84zM340 200h84v28h-84zM172 228h28v28h-28zM340 228h84v28h-84zM88 256h84v28h-84zM312 256h28v28h-28zM88 284h84v28h-84zM312 284h28v28h-28zM88 312h84v28h-84zM312 312h28v28h-28zM340 340h84v28h-84zM368 368h56v28h-56zM368 396h56v28h-56z"/>
+  <path fill="{{ icon_mark }}" stroke="{{ icon_mark }}" d="M228 88h56v28h-56zM200 116h112v28h-112zM228 144h56v28h-56zM172 172h168v28h-168zM172 200h168v28h-168zM200 228h112v28h-112zM200 256h112v28h-112zM200 284h112v28h-112zM200 312h112v28h-112zM172 340h168v28h-168zM144 368h224v28h-224zM144 396h224v28h-224z"/>
+  <path fill="{{ icon_body }}" stroke="{{ icon_body }}" d="M172 88h56v28h-56zM340 88h84v28h-84zM172 116h28v28h-28zM340 116h84v28h-84zM172 144h56v28h-56zM340 144h84v28h-84zM88 172h84v28h-84zM88 200h84v28h-84zM88 228h84v28h-84zM312 228h28v28h-28zM172 256h28v28h-28zM340 256h84v28h-84zM172 284h28v28h-28zM340 284h84v28h-84zM172 312h28v28h-28zM340 312h84v28h-84zM88 340h84v28h-84zM88 368h56v28h-56zM88 396h56v28h-56z"/>
+  <path fill="{{ icon_edge }}" stroke="{{ icon_edge }}" d="M60 60h392v28h-392zM60 88h28v28h-28zM424 88h28v28h-28zM60 116h28v28h-28zM424 116h28v28h-28zM60 144h28v28h-28zM424 144h28v28h-28zM60 172h28v28h-28zM424 172h28v28h-28zM60 200h28v28h-28zM424 200h28v28h-28zM60 228h28v28h-28zM424 228h28v28h-28zM60 256h28v28h-28zM424 256h28v28h-28zM60 284h28v28h-28zM424 284h28v28h-28zM60 312h28v28h-28zM424 312h28v28h-28zM60 340h28v28h-28zM424 340h28v28h-28zM60 368h28v28h-28zM424 368h28v28h-28zM60 396h28v28h-28zM424 396h28v28h-28zM60 424h392v28h-392z"/>
+</svg>
