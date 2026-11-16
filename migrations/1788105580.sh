@@ -6,9 +6,18 @@ fi
 
 unit=/etc/systemd/system/omarchy-t2-prochot.service
 
+# Check every WantedBy link rather than is-enabled, which already says
+# "enabled" when an enable that failed part way left only some of them.
+override_enabled() {
+  local target
+  for target in multi-user suspend hibernate hybrid-sleep suspend-then-hibernate; do
+    [[ -L /etc/systemd/system/$target.target.wants/omarchy-t2-prochot.service ]] || return 1
+  done
+}
+
 # The unit present and enabled is the completion state another user's run
 # leaves; the file alone is what a run interrupted before enabling leaves.
-if [[ -f $unit ]] && systemctl is-enabled --quiet omarchy-t2-prochot.service; then
+if [[ -f $unit ]] && override_enabled; then
   exit 0
 fi
 
