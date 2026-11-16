@@ -15,6 +15,8 @@ Item {
 
   property var configuredHiddenEntryIds: ({})
   property var desktopHiddenEntryIds: ({})
+  // Desktop id -> X-Omarchy-Dock-Click, which Quickshell doesn't parse.
+  property var dockClickModes: ({})
 
   // Maps an icon name to a file on disk (e.g. "omacut" -> ".../apps/omacut.svg").
   // Used as a fallback for icons that Qt's themed lookup misses because they were
@@ -150,15 +152,24 @@ Item {
     root.appsChanged()
   }
 
-  function loadDesktopHiddenEntries(rawText) {
-    var next = ({})
+  function loadDesktopEntryScan(rawText) {
+    var hidden = ({})
+    var dockClicks = ({})
     var lines = String(rawText || "").split(/\n/)
     for (var i = 0; i < lines.length; i++) {
-      var id = root.normalizeDesktopId(lines[i])
-      if (id.length > 0) next[id] = true
+      var fields = lines[i].split("\t")
+      var id = root.normalizeDesktopId(fields[fields.length - 1])
+      if (id.length === 0) continue
+      if (fields[0] === "hidden") hidden[id] = true
+      else if (fields[0] === "dock-click") dockClicks[id] = fields[1]
     }
-    root.desktopHiddenEntryIds = next
+    root.desktopHiddenEntryIds = hidden
+    root.dockClickModes = dockClicks
     root.appsChanged()
+  }
+
+  function dockClickMode(desktopId) {
+    return root.dockClickModes[root.normalizeDesktopId(desktopId)] || ""
   }
 
   function iconIndexScanCommand() {
@@ -192,9 +203,9 @@ Item {
       root.pendingIconIndex[name] = value
   }
 
-  function hiddenEntryScanCommand() {
+  function desktopEntryScanCommand() {
     var desktop = [Quickshell.env("XDG_CURRENT_DESKTOP"), Quickshell.env("XDG_SESSION_DESKTOP"), Quickshell.env("DESKTOP_SESSION")].filter(function(v) { return String(v || "").length > 0 }).join(":")
-    var script = root.omarchyPath + "/shell/services/hidden-entries.sh"
+    var script = root.omarchyPath + "/shell/services/desktop-entries.sh"
     return Util.shellQuote(script) + " " + Util.shellQuote(desktop)
   }
 
@@ -228,7 +239,7 @@ Item {
   }
 
   QtObject {
-    id: hiddenEntryOutput
+    id: desktopEntryOutput
     property string text: ""
   }
 
@@ -237,11 +248,11 @@ Item {
   // directory the desktop-entry watcher monitors — so every scan would
   // trigger the next one, pinning a core at idle.
   Process {
-    id: hiddenEntryScan
-    command: ["bash", "-c", root.hiddenEntryScanCommand()]
-    stdout: SplitParser { onRead: function(line) { hiddenEntryOutput.text += line + "\n" } }
-    onStarted: hiddenEntryOutput.text = ""
-    onExited: root.loadDesktopHiddenEntries(hiddenEntryOutput.text)
+    id: desktopEntryScan
+    command: ["bash", "-c", root.desktopEntryScanCommand()]
+    stdout: SplitParser { onRead: function(line) { desktopEntryOutput.text += line + "\n" } }
+    onStarted: desktopEntryOutput.text = ""
+    onExited: root.loadDesktopEntryScan(desktopEntryOutput.text)
   }
 
   Process {
@@ -329,14 +340,14 @@ Item {
   Connections {
     target: DesktopEntries.applications
     function onValuesChanged() {
-      hiddenEntryScan.running = true
+      desktopEntryScan.running = true
       iconIndexDebounce.restart()
       root.appsChanged()
     }
   }
 
   Component.onCompleted: {
-    hiddenEntryScan.running = true
+    desktopEntryScan.running = true
     iconIndexScan.running = true
   }
 }

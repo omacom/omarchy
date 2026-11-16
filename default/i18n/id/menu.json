@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikon"
+  },
+  "install.style.icons": {
+    "label": "Ikon"
+  },
+  "remove.icons": {
+    "label": "Ikon"
+  },
+  "update.icons": {
+    "label": "Ikon Tambahan"
+  },
+  "system.firmware": {
+    "label": "Mulai ulang ke BIOS",
+    "description": "Mulai ulang ke pengaturan firmware UEFI"
   }
 }

@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Pictogrammen"
+  },
+  "install.style.icons": {
+    "label": "Pictogrammen"
+  },
+  "remove.icons": {
+    "label": "Pictogrammen"
+  },
+  "update.icons": {
+    "label": "Extra pictogrammen"
+  },
+  "system.firmware": {
+    "label": "Herstart naar BIOS",
+    "description": "Herstart in de UEFI-firmware-instellingen"
   }
 }
