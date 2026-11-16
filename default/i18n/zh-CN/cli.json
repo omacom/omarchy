@@ -100,7 +100,6 @@
   "common.enabled": "已启用",
   "common.no": "否",
   "common.yes": "是",
-  "config.editing": "正在编辑配置文件",
   "corners.followTheme": "边角跟随主题",
   "corners.rounded": "所有主题使用圆角",
   "corners.sharp": "所有主题使用直角",
