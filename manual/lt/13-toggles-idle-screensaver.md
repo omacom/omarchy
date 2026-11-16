@@ -91,7 +91,7 @@ Omarchy ekrano užsklanda yra ASCII menas, veikiantis per atsitiktinius teksto e
 
 Galite ją paleisti pagal poreikį iš _Sistema > Ekrano užsklanda_ (`Super + Esc`), kuris priverstinai ją paleidžia, net jei išjungėte neveiklos ekrano užsklandą. Pagal numatytuosius nustatymus su ja nesusietas joks spartusis klavišas.
 
-`omarchy toggle screensaver` išjungia neveiklos ekrano užsklandą, jei verčiau norite eiti tiesiai nuo darbo prie užrakinimo. Jai reikia terminalo, kurį ji moka konfigūruoti — Alacritty, Foot, Ghostty arba Kitty — ir ji jums tai pasakys, jei jūsų numatytasis terminalas yra kas nors kita.
+`omarchy toggle screensaver` išjungia neveiklumo ekrano užsklandą, jei verčiau norite iš karto nuo darbo pereiti prie užrakinto ekrano. Bet koks klavišas, spustelėjimas, slinkimas ar pelės judesys ją uždaro.
 
 Jos piešiamas logotipas yra jūsų keičiamas skiltyje _Išvaizda > Prekės ženklas > Ekrano užsklanda_. Įkelkite png arba svg ir Omarchy jį konvertuos į ASCII. Žr. [prekės ženklą](41-branding.md).
 

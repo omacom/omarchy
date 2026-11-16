@@ -91,7 +91,7 @@ Omarchyjev ohranjevalnik zaslona je umetnost ASCII, ki teče skozi naključne be
 
 Na zahtevo ga lahko zaženeš iz _System > Screensaver_ (`Super + Esc`), kar ga vsili navzgor, tudi če si ohranjevalnik ob nedejavnosti izklopil. Privzeto nanj ni vezana nobena bližnjica.
 
-`omarchy toggle screensaver` je tisto, kar izklopi tistega ob nedejavnosti, če raje greš naravnost iz dela v zaklenjeno stanje. Potrebuje terminal, ki ga zna konfigurirati — Alacritty, Foot, Ghostty ali Kitty — in ti bo to povedal, če je tvoj privzeti terminal kaj drugega.
+`omarchy toggle screensaver` izklopi tistega ob nedejavnosti, če greš raje naravnost od dela do zaklenjenega stanja. Vsaka tipka, klik, drsenje ali premik miške ga zapre.
 
 Logotip, ki ga riše, lahko spremeniš pod _Appearance > Branding > Screensaver_. Naloži png ali svg in Omarchy ga pretvori v ASCII. Glej [blagovno znamko](41-branding.md).
 

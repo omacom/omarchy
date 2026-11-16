@@ -91,7 +91,7 @@ Toto je o zamykaní a šetriči obrazovky, nie o napájaní. Pozastavenie a hibe
 
 Môžete ho spustiť na požiadanie zo _System > Screensaver_ (`Super + Esc`), čo ho vynúti aj vtedy, ak ste nečinný šetrič obrazovky vypli. Štandardne k nemu nie je viazaná žiadna klávesová skratka.
 
-`omarchy toggle screensaver` je to, čo vypne ten nečinný, ak chcete radšej ísť rovno z práce do zamknutého stavu. Potrebuje terminál, ktorý vie, ako nakonfigurovať — Alacritty, Foot, Ghostty alebo Kitty — a povie vám to, ak je váš predvolený terminál niečo iné.
+`omarchy toggle screensaver` je to, čo vypne ten pri nečinnosti, ak chcete ísť radšej rovno z práce na zamknutú obrazovku. Zatvorí ho akákoľvek klávesa, kliknutie, posun alebo pohyb myši.
 
 Logo, ktoré kreslí, si môžete zmeniť pod _Appearance > Branding > Screensaver_. Nahrajte png alebo svg a Omarchy ho prevedie na ASCII. Pozrite si [značku](41-branding.md).
 

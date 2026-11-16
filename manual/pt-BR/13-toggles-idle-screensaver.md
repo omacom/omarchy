@@ -91,7 +91,7 @@ O protetor de tela do Omarchy é arte ASCII passando por efeitos de texto aleat�
 
 Você pode iniciá-lo sob demanda em _Sistema > Protetor de tela_ (`Super + Esc`), o que o força a aparecer mesmo se você tiver desligado o protetor de tela por ociosidade. Não há tecla de atalho vinculada a ele por padrão.
 
-`omarchy toggle screensaver` é o que desliga o de ociosidade, se você preferir ir direto do trabalho para o bloqueio. Ele precisa de um terminal que saiba configurar — Alacritty, Foot, Ghostty ou Kitty — e vai avisar se o seu terminal padrão for outra coisa.
+`omarchy toggle screensaver` é o que desativa o de ociosidade, se você preferir ir direto do trabalho para bloqueado. Qualquer tecla, clique, rolagem ou movimento do mouse o fecha.
 
 O logo que ele desenha é seu para mudar, em _Aparência > Identidade visual > Protetor de tela_. Envie um png ou svg e o Omarchy o converte para ASCII. Veja [identidade visual](41-branding.md).
 

@@ -91,7 +91,7 @@ A proteção de ecrã do Omarchy é arte ASCII a correr através de efeitos de t
 
 Pode iniciá-la a pedido a partir de _Sistema > Proteção de Ecrã_ (`Super + Esc`), o que a força a surgir mesmo que tenha desligado a proteção de ecrã por inatividade. Não há nenhuma tecla de atalho associada por predefinição.
 
-`omarchy toggle screensaver` é o que desliga a de inatividade, se preferir ir direto do trabalho para o bloqueado. Precisa de um terminal que saiba configurar — Alacritty, Foot, Ghostty ou Kitty — e dir-lhe-á isso mesmo se o seu terminal predefinido for outro.
+É `omarchy toggle screensaver` que desliga a de inatividade, se preferires passar diretamente do trabalho para o bloqueio. Qualquer tecla, clique, deslocamento ou movimento do rato fecha-a.
 
 O logótipo que desenha é seu para alterar, em _Aspeto > Identidade Visual > Proteção de Ecrã_. Carregue um png ou svg e o Omarchy converte-o para ASCII. Consulte [identidade visual](41-branding.md).
 

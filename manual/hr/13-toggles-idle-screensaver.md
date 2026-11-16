@@ -91,7 +91,7 @@ Omarchyjev čuvar zaslona ASCII je umjetnost koja prolazi kroz nasumične tekstu
 
 Možete ga pokrenuti na zahtjev iz _System > Screensaver_ (`Super + Esc`), što ga prisilno pokreće čak i ako ste isključili čuvar zaslona u mirovanju. Prema zadanim postavkama nije vezan ni uz jedan tipkovni prečac.
 
-`omarchy toggle screensaver` ono je što isključuje onaj u mirovanju, ako biste radije izravno prešli iz rada u zaključano stanje. Treba mu terminal koji zna konfigurirati — Alacritty, Foot, Ghostty ili Kitty — i to će vam reći ako je vaš zadani terminal nešto drugo.
+`omarchy toggle screensaver` je ono što isključuje onaj u mirovanju, ako radije ideš ravno s posla na zaključano. Bilo koja tipka, klik, pomicanje kotačića ili pokret miša zatvara ga.
 
 Logotip koji crta možete promijeniti, pod _Appearance > Branding > Screensaver_. Prenesite png ili svg i Omarchy će ga pretvoriti u ASCII. Pogledajte [brendiranje](41-branding.md).
 

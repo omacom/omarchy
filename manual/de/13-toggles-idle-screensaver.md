@@ -91,7 +91,7 @@ Omarchys Bildschirmschoner ist ASCII-Kunst, die durch zufällige Texteffekte lä
 
 Du kannst ihn bei Bedarf über _System > Screensaver_ (`Super + Esc`) starten, was ihn erzwingt, selbst wenn du den Leerlauf-Bildschirmschoner ausgeschaltet hast. Standardmäßig ist keine Tastenkombination dafür gebunden.
 
-`omarchy toggle screensaver` ist der Befehl, der den Leerlauf-Bildschirmschoner ausschaltet, wenn du lieber direkt vom Arbeiten zum Gesperrtsein übergehen möchtest. Er braucht ein Terminal, das er zu konfigurieren weiß — Alacritty, Foot, Ghostty oder Kitty — und wird dir das sagen, wenn dein Standard-Terminal etwas anderes ist.
+Mit `omarchy toggle screensaver` schaltest du den Leerlauf-Bildschirmschoner aus, wenn du lieber direkt von der Arbeit zur Sperrung gehen willst. Jede Taste, jeder Klick, jedes Scrollen oder jede Mausbewegung schließt ihn.
 
 Das Logo, das er zeichnet, kannst du ändern, unter _Appearance > Branding > Screensaver_. Lade ein png oder svg hoch, und Omarchy wandelt es in ASCII um. Siehe [Branding](41-branding.md).
 

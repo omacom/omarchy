@@ -91,7 +91,7 @@ Penyelamat skrin Omarchy ialah seni ASCII yang berjalan melalui kesan teks rawak
 
 Anda boleh memulakannya atas permintaan dari _System > Screensaver_ (`Super + Esc`), yang memaksanya muncul walaupun anda telah mematikan penyelamat skrin melahu. Tiada kekunci pintas terikat padanya secara lalai.
 
-`omarchy toggle screensaver` ialah yang mematikan yang melahu itu, jika anda lebih suka terus dari bekerja kepada terkunci. Ia memerlukan terminal yang ia tahu cara mengkonfigurasinya — Alacritty, Foot, Ghostty, atau Kitty — dan akan memberitahu anda jika terminal lalai anda ialah yang lain.
+`omarchy toggle screensaver` ialah yang mematikan yang melahu itu, jika anda lebih suka terus dari bekerja kepada terkunci. Sebarang kekunci, klik, skrol atau pergerakan tetikus menutupnya.
 
 Logo yang dilukisnya boleh anda ubah, di bawah _Appearance > Branding > Screensaver_. Muat naik png atau svg dan Omarchy menukarnya kepada ASCII. Lihat [penjenamaan](41-branding.md).
 

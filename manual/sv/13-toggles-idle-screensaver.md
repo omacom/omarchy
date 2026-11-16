@@ -91,7 +91,7 @@ Omarchys skärmsläckare är ASCII-konst som körs genom slumpmässiga texteffek
 
 Du kan starta den på begäran från _System > Screensaver_ (`Super + Esc`), vilket tvingar upp den även om du har stängt av skärmsläckaren vid inaktivitet. Det finns inget kortkommando bundet till den som standard.
 
-`omarchy toggle screensaver` är det som stänger av den vid inaktivitet, om du hellre går direkt från arbete till låst. Den behöver en terminal den vet hur den ska konfigurera — Alacritty, Foot, Ghostty eller Kitty — och kommer att tala om det för dig om din standardterminal är något annat.
+`omarchy toggle screensaver` är det som stänger av den vid inaktivitet, om du hellre går direkt från arbete till låst. Vilken tangent, klick, rullning eller musrörelse som helst stänger den.
 
 Logotypen den ritar är din att ändra, under _Appearance > Branding > Screensaver_. Ladda upp en png eller svg så konverterar Omarchy den till ASCII. Se [varumärke](41-branding.md).
 

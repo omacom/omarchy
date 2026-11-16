@@ -91,7 +91,7 @@ El protector de pantalla de Omarchy es arte ASCII que pasa por efectos de texto 
 
 Puedes iniciarlo bajo demanda desde _Sistema > Protector de pantalla_ (`Super + Esc`), que lo fuerza a aparecer incluso si desactivaste el protector de pantalla por inactividad. No tiene una tecla de acceso rápido asignada de forma predeterminada.
 
-`omarchy toggle screensaver` es lo que desactiva el de inactividad, si prefieres ir directo del trabajo al bloqueo. Necesita una terminal que sepa cómo configurar —Alacritty, Foot, Ghostty o Kitty— y te lo dirá si tu terminal predeterminada es otra.
+`omarchy toggle screensaver` es lo que desactiva el de inactividad, si prefieres pasar directamente de trabajar a bloqueado. Cualquier tecla, clic, desplazamiento o movimiento del mouse lo cierra.
 
 El logotipo que dibuja puedes cambiarlo tú, en _Apariencia > Imagen de marca > Protector de pantalla_. Sube un png o svg y Omarchy lo convierte a ASCII. Consulta [imagen de marca](41-branding.md).
 

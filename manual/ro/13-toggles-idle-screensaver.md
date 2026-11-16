@@ -91,7 +91,7 @@ Screensaverul Omarchy este artă ASCII care rulează prin efecte de text aleator
 
 Îl poți porni la cerere din _System > Screensaver_ (`Super + Esc`), ceea ce îl forțează să apară chiar dacă ai oprit screensaverul la inactivitate. În mod implicit nu are nicio tastă rapidă asociată.
 
-`omarchy toggle screensaver` este cel care oprește pe cel de la inactivitate, dacă preferi să treci direct de la lucru la blocat. Are nevoie de un terminal pe care știe cum să îl configureze — Alacritty, Foot, Ghostty sau Kitty — și îți va spune asta dacă terminalul tău implicit este altceva.
+`omarchy toggle screensaver` este ceea ce îl oprește pe cel la inactivitate, dacă preferi să treci direct de la lucru la blocat. Orice tastă, clic, derulare sau mișcare a mouse-ului îl închide.
 
 Sigla pe care o desenează este a ta ca să o schimbi, sub _Appearance > Branding > Screensaver_. Încarcă un png sau svg și Omarchy îl convertește în ASCII. Vezi [branding](41-branding.md).
 

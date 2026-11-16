@@ -91,7 +91,7 @@ Omarchyn näytönsäästäjä on ASCII-taidetta, joka kulkee satunnaisten teksti
 
 Voit käynnistää sen tarvittaessa kohdasta _System > Screensaver_ (`Super + Esc`), mikä pakottaa sen esiin, vaikka olisit kytkenyt joutokäynnin näytönsäästäjän pois. Siihen ei ole oletuksena sidottu pikanäppäintä.
 
-`omarchy toggle screensaver` kytkee joutokäynnin näytönsäästäjän pois, jos haluat mieluummin siirtyä suoraan työskentelystä lukittuun tilaan. Se tarvitsee päätteen, jonka se osaa määrittää — Alacritty, Foot, Ghostty tai Kitty — ja kertoo sinulle, jos oletuspäätteesi on jotain muuta.
+`omarchy toggle screensaver` on se, mikä kytkee käyttämättömyyden näytönsäästäjän pois päältä, jos haluat mieluummin siirtyä suoraan työskentelystä lukittuun tilaan. Mikä tahansa näppäin, napsautus, vieritys tai hiiren liike sulkee sen.
 
 Sen piirtämä logo on sinun muutettavissasi kohdassa _Appearance > Branding > Screensaver_. Lataa png tai svg, niin Omarchy muuntaa sen ASCII:ksi. Katso [brändäys](41-branding.md).
 

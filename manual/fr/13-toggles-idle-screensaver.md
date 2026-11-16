@@ -91,7 +91,7 @@ L'économiseur d'écran d'Omarchy est de l'art ASCII passant par des effets de t
 
 Vous pouvez le démarrer à la demande depuis _Système > Économiseur d'écran_ (`Super + Esc`), ce qui le force à s'afficher même si vous avez désactivé l'économiseur d'écran d'inactivité. Aucun raccourci clavier ne lui est attribué par défaut.
 
-`omarchy toggle screensaver` est ce qui désactive celui d'inactivité, si vous préférez passer directement du travail au verrouillage. Il a besoin d'un terminal qu'il sait configurer — Alacritty, Foot, Ghostty ou Kitty — et vous le dira si votre terminal par défaut est autre chose.
+`omarchy toggle screensaver` est ce qui désactive celui en veille, si tu préfères passer directement du travail au verrouillage. N’importe quelle touche, n’importe quel clic, défilement ou mouvement de souris le ferme.
 
 Le logo qu'il dessine est à vous de changer, sous _Apparence > Image de marque > Économiseur d'écran_. Téléversez un png ou un svg et Omarchy le convertit en ASCII. Voir [l'image de marque](41-branding.md).
 
