@@ -9,7 +9,8 @@ After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate
 [Service]
 Type=oneshot
 ExecStartPre=/usr/bin/modprobe msr
-ExecStart=/bin/bash -c 'wrmsr -a 0x1fc $(( 0x$(rdmsr 0x1fc) & ~1 ))'
+# A failed read must not become a write of 0 to the whole register.
+ExecStart=/bin/bash -c 'value=$(rdmsr 0x1fc) && wrmsr -a 0x1fc $(( 0x$$value & ~1 ))'
 
 [Install]
 WantedBy=multi-user.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
