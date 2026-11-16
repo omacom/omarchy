@@ -86,7 +86,11 @@ if [[ ${TEST_ROLE:-} == "old-stop" && ! -e $TEST_STATE/checked ]]; then
 fi
 touch "${@: -3:1}"
 SH
-for command in omarchy-shell omarchy-notification-send ffprobe pkill; do
+cat >"$tmp/bin/omarchy-notification-send" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >>"$TEST_STATE/notifications"
+SH
+for command in omarchy-shell ffprobe pkill; do
   printf '#!/bin/bash\nexit 0\n' >"$tmp/bin/$command"
 done
 cat >"$tmp/bin/omarchy-shell" <<'SH'
@@ -155,22 +159,29 @@ pass "stale status cleanup cannot unload a concurrent new recording's audio"
 rm -f "$tmp/checked" "$tmp/lock-attempted"
 TEST_ROLE=old-stop "$record" --stop-recording >/dev/null 2>&1 & old=$!
 wait_for "$tmp/checked"
+grep -q 'Processing screen recording' "$tmp/notifications" || fail "stopping announces processing before ffmpeg finishes"
+rm "$tmp/notifications"
 rm "$tmp/recorder-pid"
 stop_locked=0
 if ! /usr/bin/flock -n "$XDG_RUNTIME_DIR/omarchy-screenrecord.lock" true; then stop_locked=1; fi
 TEST_ROLE=new-start "$record" --fullscreen --resolution=1280x800 --with-desktop-audio --with-microphone-audio >/dev/null 2>&1 & new=$!
 wait_for "$tmp/lock-attempted" "$tmp/recorder-pid"
-if (( ! stop_locked )); then
-  wait "$new" || fail "the concurrent recording starts while the old stop is paused"
-  new=""
-fi
+timeout 5 tail --pid="$new" -f /dev/null || fail "a toggle during processing returns without queueing"
+wait "$new" || fail "a toggle during processing reports the busy state"
+grep -q 'Please wait until processing finishes' "$tmp/notifications" || fail "a rejected toggle explains why recording cannot start"
+[[ ! -e $tmp/recorder-pid ]] || fail "a toggle during processing does not start a recorder"
+[[ ! -e $XDG_RUNTIME_DIR/omarchy-screenrecord-cancel ]] || fail "processing does not leave a queued cancellation"
+timeout 5 "$record" --stop-recording >/dev/null 2>&1 || fail "a repeated stop during processing returns"
+status=0
+"$record" --status >/dev/null 2>&1 || status=$?
+(( status == 1 )) || fail "processing is not reported as active capture"
 echo release >"$tmp/release"
 wait "$old" || fail "the old recording stops"
-if [[ -n $new ]]; then
-  wait "$new" || fail "another recording starts after stop"
-fi
+[[ ! -e $tmp/recorder-pid ]] || fail "no delayed recording starts after processing"
+[[ ! -e $XDG_RUNTIME_DIR/omarchy-screenrecord-processing ]] || fail "processing state is cleared"
+"$record" --fullscreen --resolution=1280x800 --with-desktop-audio --with-microphone-audio >/dev/null 2>&1 || fail "an explicit recording starts after processing"
 assert_recording
-pass "a finishing stop cannot remove a concurrent new recording's state"
+pass "processing rejects queued toggles and repeated stops without losing saved state"
 
 "$record" --stop-recording >/dev/null 2>&1 || fail "the earlier recording stops"
 
