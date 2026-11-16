@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy biasanya dikendalikan melalui hotkey dan menu Omarchy (`Super + Space`). Tetapi kamu juga bisa mengendalikannya melalui CLI `omarchy`. Ini sangat membantu ketika kamu meminta agent AI bekerja bersamamu dalam kustomisasi atau konfigurasi.
+Omarchy biasanya dikendalikan melalui hotkey dan menu Omarchy (`Super + Space`). Namun Anda juga bisa mengendalikannya melalui CLI `omarchy`. Ini sangat membantu ketika Anda sedang meminta agen AI bekerja bersama Anda untuk kustomisasi atau konfigurasi.
 
-CLI ini memiliki akses ke semua tooling internal yang digunakan baik melalui menu maupun cara lainnya. Kamu bisa melihat semua yang tersedia dengan menjalankan `omarchy` di terminal.
+CLI ini memiliki akses ke semua perkakas internal yang digunakan baik melalui menu maupun cara lainnya. Anda bisa melihat semua yang tersedia dengan menjalankan `omarchy` di terminal.
 
 Tampilannya kurang lebih seperti ini:
 
@@ -41,7 +41,9 @@ Groups:
   ...
 ```
 
-Dan kamu bisa menyelami lebih dalam setiap grup:
+Untuk diagnostik, jalankan `omarchy-debug --no-sudo --print` secara langsung. Perintah ini mencetak diagnostik dan menulis `/tmp/omarchy-debug.log` tanpa meminta sudo, termasuk pada instalasi paket di mana `omarchy debug` bisa gagal dengan "Unknown Omarchy command".
+
+Dan Anda bisa menggali lebih dalam pada setiap grup:
 
 ```
 ~ ❯ omarchy capture
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Setiap perintah juga menerima `--help`, baik kamu menanyakan seluruh grup (`omarchy capture --help`) maupun satu perintah saja (`omarchy capture screenshot --help`).
+Setiap perintah juga menerima `--help`, baik Anda menanyakan seluruh grup (`omarchy capture --help`) maupun satu perintah saja (`omarchy capture screenshot --help`).
 
 ### Membuka menu dari terminal
 
-Menu Omarchy juga bisa di-script, yang berguna untuk keybinding kamu sendiri. `omarchy menu` membukanya di root, dan kamu bisa langsung melompat ke titik mana pun di tree dengan menyebut namanya: `omarchy menu summon appearance.theme` langsung menuju ke pemilih tema, `omarchy menu toggle system` membuka menu sistem dan menutupnya lagi jika sudah tampil, dan `omarchy menu close` menyembunyikannya.
+Menu Omarchy juga bisa diskrip, yang berguna untuk keybinding Anda sendiri. `omarchy menu` membukanya di root, dan Anda bisa langsung melompat ke titik mana pun dalam pohonnya dengan menyebut namanya: `omarchy menu summon appearance.theme` langsung menuju pemilih tema, `omarchy menu toggle system` membuka menu sistem dan menutupnya lagi jika sudah terbuka, dan `omarchy menu close` menyingkirkannya.

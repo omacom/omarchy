@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy genellikle kısayol tuşları ve Omarchy menüsü (`Super + Space`) aracılığıyla kontrol edilir. Ancak onu `omarchy` CLI aracılığıyla da kontrol edebilirsiniz. Bu, özellikle bir AI agent ile birlikte özelleştirme veya yapılandırma üzerinde çalışırken faydalıdır.
+Omarchy genellikle kısayol tuşları ve Omarchy menüsü (`Super + Space`) üzerinden kontrol edilir. Ancak `omarchy` CLI üzerinden de kontrol edebilirsiniz. Bu, özellikle bir AI agent ile birlikte özelleştirme veya yapılandırma üzerinde çalışırken faydalıdır.
 
-CLI, hem menü aracılığıyla hem de başka şekillerde kullanılan tüm dahili araçlara erişime sahiptir. `omarchy` komutunu terminalde çalıştırarak mevcut olan her şeyi görebilirsiniz.
+CLI, hem menü üzerinden hem de başka yollarla kullanılan tüm dahili araçlara erişime sahiptir. Terminalde `omarchy` çalıştırarak mevcut olan her şeyi görebilirsiniz.
 
 Görünümü şuna benzer:
 
@@ -41,6 +41,8 @@ Groups:
   ...
 ```
 
+Tanılama için doğrudan `omarchy-debug --no-sudo --print` çalıştırın. Sudo istemeden tanılama çıktısını yazdırır ve `/tmp/omarchy-debug.log` dosyasına yazar; bu, `omarchy debug` komutunun "Unknown Omarchy command" hatasıyla başarısız olabildiği paket kurulumlarında da geçerlidir.
+
 Ve her grupta daha derine inebilirsiniz:
 
 ```
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Her komut da `--help` kabul eder, ister bir grubun tamamını sorun (`omarchy capture --help`) ister tek bir komutu (`omarchy capture screenshot --help`).
+Her komut `--help` de kabul eder; ister tüm bir grubu (`omarchy capture --help`) ister tek bir komutu (`omarchy capture screenshot --help`) sorgulayın.
 
 ### Menüyü terminalden açma
 
-Omarchy menüsü de scriptlenebilir, bu da kendi tuş atamalarınız için kullanışlıdır. `omarchy menu` onu kök düzeyde açar ve adını belirterek ağacın herhangi bir noktasına doğrudan atlayabilirsiniz: `omarchy menu summon appearance.theme` doğrudan tema seçiciye gider, `omarchy menu toggle system` sistem menüsünü açar ve zaten açıksa tekrar kapatır, `omarchy menu close` ise onu kapatır.
+Omarchy menüsü de scriptlenebilir, bu da kendi tuş atamalarınız için kullanışlıdır. `omarchy menu` menüyü kök düzeyde açar ve adını belirterek ağaçtaki herhangi bir noktaya doğrudan atlayabilirsiniz: `omarchy menu summon appearance.theme` doğrudan tema seçiciye gider, `omarchy menu toggle system` sistem menüsünü açar ve zaten açıksa tekrar kapatır, `omarchy menu close` ise menüyü kaldırır.

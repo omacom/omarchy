@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy wird normalerweise über die Tastenkürzel und das Omarchy-Menü (`Super + Space`) gesteuert. Du kannst es aber auch über die `omarchy` CLI steuern. Das ist besonders hilfreich, wenn ein KI-Agent mit dir an Anpassungen oder an der Konfiguration arbeitet.
+Omarchy wird üblicherweise über die Hotkeys und das Omarchy-Menü (`Super + Space`) gesteuert. Du kannst es aber auch über die `omarchy` CLI steuern. Das ist besonders hilfreich, wenn ein KI-Agent mit dir an Anpassungen oder an der Konfiguration arbeitet.
 
-Die CLI hat Zugriff auf alle internen Werkzeuge, die sowohl über das Menü als auch auf andere Weise verwendet werden. Du siehst alles, was verfügbar ist, indem du `omarchy` im Terminal ausführst.
+Die CLI hat Zugriff auf alle internen Tools, die sowohl über das Menü als auch anderweitig verwendet werden. Du kannst alles sehen, was verfügbar ist, indem du `omarchy` im Terminal ausführst.
 
 Das sieht ungefähr so aus:
 
@@ -41,7 +41,9 @@ Groups:
   ...
 ```
 
-Und du kannst bei jeder Gruppe tiefer einsteigen:
+Für die Diagnose führst du `omarchy-debug --no-sudo --print` direkt aus. Er gibt Diagnosedaten aus und schreibt `/tmp/omarchy-debug.log`, ohne nach sudo zu fragen, auch bei Paketinstallationen, bei denen `omarchy debug` mit "Unknown Omarchy command" fehlschlagen kann.
+
+Und in jede Gruppe kannst du tiefer eintauchen:
 
 ```
 ~ ❯ omarchy capture
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Jeder Befehl akzeptiert auch `--help`, egal ob du eine ganze Gruppe (`omarchy capture --help`) oder einen einzelnen Befehl (`omarchy capture screenshot --help`) abfragst.
+Jeder Befehl akzeptiert auch `--help`, egal ob du eine ganze Gruppe abfragst (`omarchy capture --help`) oder einen einzelnen Befehl (`omarchy capture screenshot --help`).
 
-### Das Menü vom Terminal aus öffnen
+### Das Menü über das Terminal öffnen
 
-Das Omarchy-Menü ist ebenfalls skriptbar, was für deine eigenen Tastenkombinationen praktisch ist. `omarchy menu` öffnet es an der Wurzel, und du kannst direkt zu jedem Punkt im Baum springen, indem du ihn benennst: `omarchy menu summon appearance.theme` geht direkt zur Theme-Auswahl, `omarchy menu toggle system` öffnet das Systemmenü und schließt es wieder, wenn es bereits geöffnet ist, und `omarchy menu close` schließt es.
+Das Omarchy-Menü ist ebenfalls skriptbar, was für deine eigenen Tastenkombinationen praktisch ist. `omarchy menu` öffnet es auf der obersten Ebene, und du kannst direkt zu jeder Stelle im Baum springen, indem du sie benennst: `omarchy menu summon appearance.theme` führt direkt zur Theme-Auswahl, `omarchy menu toggle system` öffnet das Systemmenü und schließt es wieder, wenn es bereits geöffnet ist, und `omarchy menu close` schließt es.

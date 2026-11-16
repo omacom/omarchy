@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy は通常、ホットキーと Omarchy メニュー（`Super + Space`）で操作する。でも `omarchy` CLI からも操作できる。これは、AI agent にカスタマイズや設定を手伝ってもらうときにとくに役立つ。
+Omarchy は通常、ホットキーと Omarchy メニュー（`Super + Space`）で操作する。だが、`omarchy` CLI からも操作できる。AI エージェントにカスタマイズや設定を手伝わせているときは特に便利だ。
 
-この CLI は、メニュー経由でもそれ以外でも使われる内部ツールをすべて使える。ターミナルで `omarchy` を実行すれば、使えるものがすべてわかる。
+この CLI は、メニュー経由でもそれ以外でも使われる内部ツールすべてにアクセスできる。利用可能なものはすべて、ターミナルで `omarchy` を実行すれば確認できる。
 
-こんな感じだ：
+こんな感じだ:
 
 ```
 ~ ❯ omarchy
@@ -41,7 +41,9 @@ Groups:
   ...
 ```
 
-すべてのグループをさらに深く見ていくこともできる：
+診断には、`omarchy-debug --no-sudo --print` を直接実行する。これで sudo の入力を求められることなく診断情報が表示され、`/tmp/omarchy-debug.log` に書き込まれる。パッケージのインストール時のように、`omarchy debug` が "Unknown Omarchy command" で失敗する場合でも使える。
+
+さらに、すべてのグループを掘り下げることもできる:
 
 ```
 ~ ❯ omarchy capture
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-すべてのコマンドで `--help` も使える。グループ全体に聞くことも（`omarchy capture --help`）、個別のコマンドに聞くことも（`omarchy capture screenshot --help`）できる。
+どのコマンドも `--help` に対応している。グループ全体に聞いても（`omarchy capture --help`）、単一のコマンドに聞いても（`omarchy capture screenshot --help`）使える。
 
 ### ターミナルからメニューを開く
 
-Omarchy メニューはスクリプトからも操作できる。自分のキーバインディングに使うときに便利だ。`omarchy menu` でルートを開き、名前を指定すればツリーの任意の場所に直接ジャンプできる：`omarchy menu summon appearance.theme` はテーマピッカーに直行し、`omarchy menu toggle system` はシステムメニューを開き、すでに開いていればもう一度閉じる。そして `omarchy menu close` でメニューを片付ける。
+Omarchy メニューはスクリプトからも操作できる。独自のキーバインドを作るときに便利だ。`omarchy menu` でルートから開き、名前を指定すればツリー内の任意の場所へ直接ジャンプできる: `omarchy menu summon appearance.theme` ならテーマピッカーへまっすぐ進み、`omarchy menu toggle system` ならシステムメニューを開き、すでに開いている場合は閉じ、`omarchy menu close` で片付ける。

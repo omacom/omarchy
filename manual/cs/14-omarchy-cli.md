@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy se obvykle ovládá prostřednictvím klávesových zkratek a nabídky Omarchy (`Super + Space`). Můžete ji ale ovládat také prostřednictvím CLI `omarchy`. To je obzvláště užitečné, když s vámi na úpravách nebo konfiguraci spolupracuje AI agent.
+Omarchy se obvykle ovládá pomocí klávesových zkratek a nabídky Omarchy (`Super + Space`). Ale můžete ho ovládat také přes CLI `omarchy`. To je obzvlášť užitečné, když s vámi na přizpůsobení nebo konfiguraci spolupracuje AI agent.
 
-CLI má přístup ke všem interním nástrojům, které se používají jak prostřednictvím nabídky, tak i jinak. Vše, co je k dispozici, si můžete prohlédnout spuštěním `omarchy` v terminálu.
+CLI má přístup ke všem interním nástrojům, které se používají jak přes nabídku, tak i jinak. Vše, co je k dispozici, uvidíte spuštěním příkazu `omarchy` v terminálu.
 
-Vypadá to přibližně takto:
+Vypadá to nějak takto:
 
 ```
 ~ ❯ omarchy
@@ -41,7 +41,9 @@ Groups:
   ...
 ```
 
-A u každé skupiny se můžete ponořit hlouběji:
+Pro diagnostiku spusťte přímo `omarchy-debug --no-sudo --print`. Vypíše diagnostiku a zapíše `/tmp/omarchy-debug.log` bez výzvy k zadání sudo, a to i u instalací balíčků, kde `omarchy debug` může selhat s chybou "Unknown Omarchy command".
+
+A u každé skupiny můžete jít ještě hlouběji:
 
 ```
 ~ ❯ omarchy capture
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Každý příkaz přijímá také `--help`, ať už se ptáte celé skupiny (`omarchy capture --help`), nebo jednoho příkazu (`omarchy capture screenshot --help`).
+Každý příkaz podporuje také `--help`, ať už se ptáte na celou skupinu (`omarchy capture --help`), nebo na jeden příkaz (`omarchy capture screenshot --help`).
 
 ### Otevření nabídky z terminálu
 
-Nabídku Omarchy lze také skriptovat, což se hodí pro vaše vlastní klávesové zkratky. `omarchy menu` ji otevře v kořenové úrovni a pojmenováním můžete přejít přímo na libovolné místo ve stromu: `omarchy menu summon appearance.theme` přejde rovnou do výběru motivu, `omarchy menu toggle system` otevře systémovou nabídku a zavře ji, pokud už je otevřená, a `omarchy menu close` ji schová.
+Nabídku Omarchy lze také skriptovat, což se hodí pro vaše vlastní klávesové zkratky. `omarchy menu` ji otevře v kořenové úrovni a pojmenováním můžete přejít rovnou na libovolné místo ve stromu: `omarchy menu summon appearance.theme` přejde přímo do výběru motivu, `omarchy menu toggle system` otevře systémovou nabídku a znovu ji zavře, pokud už je otevřená, a `omarchy menu close` ji zavře.

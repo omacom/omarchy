@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchyt juhitakse tavaliselt kiirklahvide ja Omarchy menüü (`Super + Space`) kaudu. Aga seda saab juhtida ka `omarchy` CLI kaudu. See on eriti kasulik, kui lased AI agendil endaga koos kohandusi või seadistusi teha.
+Omarchy juhtimine käib tavaliselt kiirklahvide ja Omarchy menüü (`Super + Space`) kaudu. Aga seda saab juhtida ka `omarchy` CLI kaudu. See on eriti abiks siis, kui AI agent töötab koos sinuga kohanduste või seadistuste kallal.
 
-CLI-l on juurdepääs kõigile sisemistele tööriistadele, mida kasutatakse nii menüü kaudu kui ka muul viisil. Kõike, mis on saadaval, näed, kui käivitad terminalis `omarchy`.
+CLI kaudu on ligipääs kõigile sisemistele tööriistadele, mida kasutatakse nii menüü kaudu kui ka muul viisil. Kõike, mis on saadaval, näed, kui käivitad terminalis `omarchy`.
 
-See näeb välja umbes nii:
+See näeb välja umbes selline:
 
 ```
 ~ ❯ omarchy
@@ -41,7 +41,9 @@ Groups:
   ...
 ```
 
-Ja iga rühma saad lähemalt uurida:
+Diagnostikaks käivita otse `omarchy-debug --no-sudo --print`. See prindib diagnostika ja kirjutab `/tmp/omarchy-debug.log` ilma sudo parooli küsimata, ka pakettide installide korral, kus `omarchy debug` võib nurjuda veaga "Unknown Omarchy command".
+
+Ja igasse rühma saad süveneda:
 
 ```
 ~ ❯ omarchy capture
@@ -54,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Iga käsk toetab ka `--help` valikut, olenemata sellest, kas küsid kogu rühma (`omarchy capture --help`) või üksikut käsku (`omarchy capture screenshot --help`).
+Iga käsk toetab ka `--help` valikut, olenemata sellest, kas küsid tervet rühma (`omarchy capture --help`) või ühte käsku (`omarchy capture screenshot --help`).
 
 ### Menüü avamine terminalist
 
-Ka Omarchy menüü on skriptitav, mis on mugav oma klahviseoste loomiseks. `omarchy menu` avab selle juurtasemel ja saad nime järgi hüpata otse ükskõik millisesse kohta puus: `omarchy menu summon appearance.theme` läheb otse teemavalijasse, `omarchy menu toggle system` avab süsteemimenüü ja sulgeb selle uuesti, kui see on juba avatud, ning `omarchy menu close` peidab selle ära.
+Omarchy menüü on samuti skriptitav, mis on mugav oma klahviseadete jaoks. `omarchy menu` avab selle juurtasemel ja saad hüpata otse ükskõik millisesse kohta puus, kui selle nimetad: `omarchy menu summon appearance.theme` viib otse teemavalijasse, `omarchy menu toggle system` avab süsteemimenüü ja sulgeb selle uuesti, kui see on juba avatud, ning `omarchy menu close` peidab selle.
