@@ -3,7 +3,7 @@
 if omarchy-hw-match "^HP ProDesk 600 G5 Desktop Mini$" &&
   grep -q "Vendor Id: 0x14f15098" /proc/asound/card*/codec* 2>/dev/null &&
   ! grep -qE '^[0-9]+-[0-9]+: HDMI' /proc/asound/pcm 2>/dev/null &&
-  [[ ! -e /etc/modprobe.d/hda-jack-retask.conf && ! -e /lib/firmware/hda-jack-retask.fw ]]; then
+  [[ ! -e /etc/modprobe.d/hda-jack-retask.conf ]]; then
   for codec in /proc/asound/card*/codec*; do
     if grep -q "Vendor Id: 0x8086280b" "$codec" &&
       grep -q "Subsystem Id: 0x80860101" "$codec" &&
@@ -11,6 +11,8 @@ if omarchy-hw-match "^HP ProDesk 600 G5 Desktop Mini$" &&
       [[ $(grep -c '  Devices: 0$' "$codec") == "3" ]]; then
       echo "Fix missing HDMI/DisplayPort audio on HP ProDesk 600 G5 Desktop Mini"
 
+      # The .conf is written last and is the only "done" marker, so a run that
+      # stopped after the .fw write is finished (and the .fw rewritten) next time.
       sudo mkdir -p /lib/firmware /etc/modprobe.d
       sudo tee /lib/firmware/hda-jack-retask.fw >/dev/null <<'EOF'
 [codec]
