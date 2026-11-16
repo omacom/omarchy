@@ -124,6 +124,10 @@ Panel {
   // place, reading "--" until the new link reports. A failed connect ends
   // the action, so the panel still settles on the truth.
   property bool switchingNetwork: false
+  // The hero buttons that were showing when the switch began keep their
+  // place, disabled, so the name beside them doesn't reflow twice.
+  property bool switchHeldQr: false
+  property bool switchHeldSpeed: false
   onActionKindChanged: if (actionKind !== "connect") switchingNetwork = false
 
   // Index into `wifiNetworks` for keyboard navigation. -1 = no selection.
@@ -859,6 +863,8 @@ Panel {
     var ssid = network.name || ""
     actionSsid = ssid
     switchingNetwork = kind === "connect" && root.kind !== "disconnected"
+    switchHeldQr = switchingNetwork && canShareWifi
+    switchHeldSpeed = switchingNetwork && canRunSpeedTest
     actionKind = kind
     failureSsid = ""
     failureReason = ""
@@ -1314,7 +1320,8 @@ Panel {
 
           PanelActionButton {
             id: qrAction
-            visible: root.canShareWifi
+            visible: root.canShareWifi || (root.switchingNetwork && root.switchHeldQr)
+            enabled: root.canShareWifi
             iconText: "󰐲"
             tooltipText: Commons.I18n.t("network.showQrCode")
             foreground: root.bar.foreground
@@ -1328,7 +1335,8 @@ Panel {
 
           PanelActionButton {
             id: speedAction
-            visible: root.canRunSpeedTest
+            visible: root.canRunSpeedTest || (root.switchingNetwork && root.switchHeldSpeed)
+            enabled: root.canRunSpeedTest
             iconText: "󰓅"
             tooltipText: Commons.I18n.t("network.runSpeedTest")
             foreground: root.bar.foreground
