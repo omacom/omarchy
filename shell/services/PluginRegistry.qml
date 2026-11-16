@@ -355,7 +355,7 @@ QtObject {
         delete target.after
       }
     }
-    if (setEnabled(id, true, target)) return ""
+    if (setEnabled(id, true, target, true)) return ""
     return lastEnableError || "unknown"
   }
 
@@ -497,7 +497,7 @@ QtObject {
     setCloneShouldRestoreSource(config, cloneId, false)
   }
 
-  function setEnabled(id, value, placement) {
+  function setEnabled(id, value, placement, keepExisting) {
     var key = Util.canonicalWidgetId(String(id))
     lastEnableError = ""
     if (!shellConfigMutator) {
@@ -517,6 +517,10 @@ QtObject {
     var clonedFrom = metadata ? Util.canonicalWidgetId(String(metadata.clonedFrom || "")) : ""
     var persisted = shellConfigMutator(function(config) {
       ensureConfigShape(config)
+
+      // put leaves a widget that is already on the bar where it is. Its own
+      // check read the cached config; this reads the file being changed.
+      if (value && keepExisting && findBarLocation(config, key, "").found) return
 
       // A placement that cannot be honoured is refused before anything
       // changes: a missing neighbour, or the tray asked into its own drawer.
