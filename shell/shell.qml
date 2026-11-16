@@ -1986,8 +1986,8 @@ ShellRoot {
       shell.hide(id)
     }
 
-    function toggle(id: string, payloadJson: string): void {
-      shell.toggle(id, payloadJson)
+    function toggle(id: string, payloadJson: string): string {
+      return shell.toggle(id, payloadJson) ? "ok" : "unknown"
     }
 
     // A bar section's panels answer to their position as well as their id, so a
