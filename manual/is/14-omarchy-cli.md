@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Omarchy er venjulega stjórnað með flýtilyklunum og Omarchy-valmyndinni (`Super + Space`). En þú getur líka stjórnað því gegnum `omarchy` CLI. Þetta er sérstaklega gagnlegt þegar þú ert að hafa AI agent að vinna með þér að sérstillingum eða uppsetningu.
+Omarchy er yfirleitt stjórnað með flýtilyklunum og Omarchy-valmyndinni (`Super + Space`). En þú getur líka stjórnað því með `omarchy` CLI-inu. Þetta er sérstaklega gagnlegt þegar þú lætur gervigreindarumboðsmann vinna með þér í að sérsníða eða stilla hluti.
 
-CLI hefur aðgang að öllum innri verkfærunum sem eru notuð bæði gegnum valmyndina og annars staðar. Þú getur séð allt sem er í boði með því að keyra `omarchy` í terminal.
+CLI-ið hefur aðgang að öllum innri verkfærunum sem eru notuð bæði í gegnum valmyndina og á annan hátt. Þú getur séð allt sem er í boði með því að keyra `omarchy` í útstöðinni.
 
 Það lítur einhvern veginn svona út:
 
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,9 +38,10 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
+
+Til greiningar skaltu keyra `omarchy-debug --no-sudo --print` beint. Það prentar út greiningarupplýsingar og skrifar í `/tmp/omarchy-debug.log` án þess að biðja um sudo, líka við pakkauppsetningar þar sem `omarchy debug` getur mistekist með "Unknown Omarchy command".
 
 Og þú getur kafað dýpra í hvern hóp:
 
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Sérhver skipun tekur líka `--help`, hvort sem þú spyrð heilan hóp (`omarchy capture --help`) eða eina skipun (`omarchy capture screenshot --help`).
+Sérhver skipun tekur líka við `--help`, hvort sem þú spyrð um heilan hóp (`omarchy capture --help`) eða eina skipun (`omarchy capture screenshot --help`).
 
-### Að opna valmyndina úr terminal
+### Að opna valmyndina frá útstöðinni
 
-Það er líka hægt að stýra Omarchy-valmyndinni með forskriftum, sem er þægilegt fyrir þína eigin flýtilykla. `omarchy menu` opnar hana við rótina og þú getur hoppað beint að hvaða stað sem er í trénu með því að nefna hann: `omarchy menu summon appearance.theme` fer beint í þemavalið, `omarchy menu toggle system` opnar kerfisvalmyndina og lokar henni aftur ef hún er þegar opin og `omarchy menu close` leggur hana í burtu.
+Omarchy-valmyndin er líka forskriftanleg, sem kemur sér vel fyrir þínar eigin lyklabindingar. `omarchy menu` opnar hana við rótina og þú getur hoppað beint á hvaða stað sem er í trénu með því að nefna hann: `omarchy menu summon appearance.theme` fer beint í þemavalinn, `omarchy menu toggle system` opnar kerfisvalmyndina og lokar henni aftur ef hún er þegar opin og `omarchy menu close` lokar henni.
