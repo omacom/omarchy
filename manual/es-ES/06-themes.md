@@ -2,7 +2,7 @@
 
 Omarchy incluye veintidós temas hermosos. Puedes elegir entre ellos desde _Apariencia > Tema_ en el menú de Omarchy (`Super + Space`) o ir directo al selector de temas con `Super + Ctrl + T`.
 
-Cada tema le da estilo al escritorio, la terminal, neovim, la pantalla de actividad (btop), Chromium y a toda la shell de Omarchy: barra superior, menú, notificaciones, OSD y pantalla de bloqueo. (En Obsidian, debes seleccionar manualmente el tema de Omarchy desde _Apariencia > Temas_ dentro de la app).
+Cada tema aplica su estilo al escritorio, la terminal, neovim, la pantalla de actividad (btop), Chromium y a todo el shell de Omarchy: barra superior, menú, notificaciones, OSD y pantalla de bloqueo. (En Obsidian, debes seleccionar manualmente el tema de Omarchy desde _Apariencia > Tema_ dentro de la app).
 
 Los temas tienen un conjunto de imágenes de fondo entre las que puedes elegir con `Super + Ctrl + W`.
 
@@ -67,7 +67,7 @@ _White_
 
 ### Desbloqueos
 
-Los temas también pueden tener un diseño de desbloqueo personalizado, que se usa para el proceso de descifrado al arrancar. Puedes seleccionar uno de estos en _Apariencia > Desbloqueo_. Se ven así:
+Los temas también pueden tener un diseño de desbloqueo personalizado, que se muestra durante el descifrado al arrancar. Puedes seleccionar uno de estos en _Apariencia > Desbloquear_. Se ven así:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

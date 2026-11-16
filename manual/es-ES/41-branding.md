@@ -1,6 +1,6 @@
 # Imagen de marca
 
-Omarchy te permite establecer el logo de tu empresa o una imagen personal tanto para el desbloqueo al arrancar, como para el protector de pantalla y la pantalla Acerca de.
+Omarchy te permite establecer el logo de tu empresa o una imagen personal para el desbloqueo al arrancar, el protector de pantalla y la pantalla Acerca de.
 
 ### Desbloqueo al arrancar
 
@@ -16,7 +16,7 @@ Luego aplica la configuración con `omarchy plymouth set '#1d2021' '#ebdbb2' log
 
 ### Protector de pantalla
 
-Puedes cambiar el logo usado para el protector de pantalla en _Apariencia > Imagen de marca > Protector de pantalla_. Es un logo en ASCII, así que puedes editar el texto directamente, pero también puedes darle una imagen png o svg, y nosotros la convertiremos a ASCII. Se ve bastante bien.
+Puedes cambiar el logo del protector de pantalla en _Apariencia > Marca > Protector de pantalla_. Es un logo en ASCII, así que puedes editar el texto directamente, pero también puedes darle una imagen png o svg, y nosotros la convertiremos a ASCII. Se ve bastante bien.
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
@@ -28,15 +28,15 @@ Hay tres entradas en ese menú:
 
 ### Pantalla Acerca de
 
-Las mismas tres opciones están en _Apariencia > Imagen de marca > Acerca de_ para la pantalla _Acerca de_ que obtienes desde el menú de Omarchy, y funcionan de forma idéntica — el archivo es `~/.config/omarchy/branding/about.txt`, y la ventana Acerca de aparece después de cada cambio. El arte de Acerca de se convierte a un tamaño más pequeño que el del protector de pantalla, ya que tiene que caber en una ventana en lugar de llenar tu pantalla.
+Las mismas tres opciones están en _Apariencia > Marca > Acerca de_ para la pantalla _Acerca de_ que obtienes desde el menú de Omarchy, y funcionan de forma idéntica — el archivo es `~/.config/omarchy/branding/about.txt`, y la ventana Acerca de aparece después de cada cambio. El arte de Acerca de se convierte a un tamaño más pequeño que el del protector de pantalla, ya que tiene que caber en una ventana en lugar de llenar tu pantalla.
 
-Mientras la ventana está abierta, un destello verde se desliza sobre el arte cada pocos segundos y luego lo vuelve a dejar quieto. Tu propio arte también lo recibe, siempre que cada carácter en él ocupe una sola columna — todo lo que produce _Establecer desde una imagen_ cumple con eso. El arte hecho con emoji o caracteres de doble ancho se queda quieto, en cambio, y también la pantalla si conservas una configuración de fastfetch propia: un logo quieto en esos casos es la animación haciéndose a un lado en lugar de fallar, ya que deslizar un destello sobre ellos dejaría el resto de la línea en el lugar equivocado.
+Mientras la ventana está abierta, un destello verde se desliza sobre el arte cada pocos segundos y luego lo vuelve a dejar quieto. Tu propio arte también lo recibe, siempre que cada carácter en él ocupe una sola columna — todo lo que produce _Establecer desde una imagen_ cumple con eso. El arte hecho con emoji o con caracteres de doble ancho se queda quieto, y la pantalla también si conservas tu propia configuración de fastfetch: en esos casos, un logo quieto significa que la animación se aparta a propósito en vez de fallar, porque pasar el destello por encima descolocaría el resto de la línea.
 
  ![branding-about](images/branding-about.webp)
 
 ### Convertir imágenes por tu cuenta
 
-Ambas opciones de _Establecer desde una imagen_ solo están llamando a `omarchy transcode ascii`, que puedes ejecutar directamente si quieres tener control sobre la conversión:
+Las dos opciones de _Establecer desde una imagen_ se limitan a llamar a `omarchy transcode ascii`, que puedes ejecutar directamente si quieres tener control sobre la conversión:
 
 ```
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
@@ -46,7 +46,7 @@ Toma `--width` y `--height` en columnas y filas de la terminal, un `--mode` de `
 
 ### Palabras en lugar de un logo
 
-`omarchy ascii` dibuja texto en Delta Corps Priest 1, la fuente FIGlet en la que está dibujado el propio wordmark de Omarchy, así que un protector de pantalla puede decir algo en lugar de mostrar una imagen:
+`omarchy ascii` dibuja texto en Delta Corps Priest 1, la fuente FIGlet con la que está dibujado el propio logotipo de Omarchy, así que un protector de pantalla puede decir algo en lugar de mostrar una imagen:
 
 ```
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt

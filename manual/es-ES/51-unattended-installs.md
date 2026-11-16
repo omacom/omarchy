@@ -18,15 +18,15 @@ Los archivos son exactamente los que escribe el propio asistente del instalador,
 
 Genera el hash de la contraseña para `user_credentials.json` con `openssl passwd -6 "yourpassword"`.
 
-El nombre y el correo para los commits de git no forman parte de la instalación. Configúralos una vez que la máquina esté en marcha, por SSH por ejemplo, con `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+El nombre y el correo para los commits de git no forman parte de la instalación. Configúralos en cuanto la máquina esté en marcha, por SSH por ejemplo, con `omarchy setup git --name "Jane Doe" --email jane@example.com`.
 
-También puedes poner un archivo vacío llamado `defer-provisioning` en lugar de `user_credentials.json`. Eso ejecuta la misma [instalación de preparación para otro propietario](02-getting-started.md) que puedes activar de forma interactiva: la máquina se instala sin datos personales, y quien la arranque primero elige su teclado y crea su usuario. Ese es el modo para los equipos de creación de imágenes, donde la unidad no debe llevar las credenciales de nadie.
+También puedes poner un archivo vacío llamado `defer-provisioning` en lugar de `user_credentials.json`. Eso ejecuta la misma [instalación de preparación para otro propietario](02-getting-started.md) que puedes activar de forma interactiva: la máquina se instala sin datos personales, y quien la arranque primero elige su teclado y crea su usuario. Ese es el modo para los equipos que preparan imágenes, donde la unidad no debe llevar las credenciales de nadie.
 
 ## Acceso por SSH
 
-Cuando `authorized_keys` está presente, la instalación configura las claves como el `~/.ssh/authorized_keys` del usuario, habilita `sshd` y abre el firewall para ello. (Una instalación estándar de Omarchy incluye openssh con el servicio deshabilitado y el puerto cerrado, así que una máquina desatendida sería inalcanzable de otro modo). La instalación solo agrega tus claves: no relaja ninguna otra configuración de autenticación del demonio de SSH.
+Cuando `authorized_keys` está presente, la instalación coloca las claves en el `~/.ssh/authorized_keys` del usuario, habilita `sshd` y abre el firewall para ello. (Una instalación estándar de Omarchy incluye openssh con el servicio deshabilitado y el puerto cerrado, así que una máquina desatendida sería inalcanzable de otro modo). La instalación solo añade tus claves: no relaja ninguna otra configuración de autenticación del demonio de SSH.
 
-Cuando `tailscale_authkey` está presente, la máquina se une a tu tailnet en el primer arranque: Tailscale se instala desde los paquetes incluidos en la ISO, el firewall permite la interfaz de la tailnet y un trabajo en segundo plano realiza la unión en cuanto la máquina tiene red, reintentándolo hasta que lo logra. Usa una clave reutilizable y preautorizada para que una sola imagen de unidad sirva para muchas máquinas.
+Cuando `tailscale_authkey` está presente, la máquina se une a tu tailnet en el primer arranque: Tailscale se instala desde los paquetes incluidos en la ISO, el firewall permite la interfaz de la tailnet y una tarea en segundo plano hace la unión en cuanto la máquina tiene red y lo reintenta hasta conseguirlo. Usa una clave reutilizable y preautorizada para que una sola imagen de unidad sirva para muchas máquinas.
 
 ## Cómo crear la unidad cidata
 
@@ -54,7 +54,7 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-El orden de arranque pone el disco primero a propósito: el disco vacío pasa de largo a la ISO en el primer arranque, y el sistema instalado arranca desde el disco para siempre después.
+El orden de arranque pone el disco primero a propósito: el disco vacío cede el turno a la ISO en el primer arranque, y a partir de ahí el sistema instalado arranca siempre desde el disco.
 
 ## Dos advertencias
 

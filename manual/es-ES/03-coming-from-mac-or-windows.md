@@ -6,25 +6,25 @@ Si llevas años en macOS o Windows, tus dedos saben cien cosas que tu cerebro ya
 
 Toda la memoria muscular que construiste alrededor de Cmd o de la tecla de Windows se transfiere a una sola tecla: Super. Es la tecla de Windows en un teclado de PC, y es el ancla de casi todos los atajos de teclado en Omarchy.
 
-Tu reflejo de Spotlight, Raycast o el menú Inicio se convierte en `Super + Space`. Eso abre el menú de Omarchy, que inicia aplicaciones, cambia ajustes, instala software, captura la pantalla: prácticamente todo. Empieza a escribir para filtrar. `Super + Alt + Space` muestra todas las aplicaciones en una sola cuadrícula, como lo hace Launchpad. Consulta [navegación](04-navigation.md).
+Tu reflejo de Spotlight, Raycast o el menú Inicio se convierte en `Super + Space`. Eso abre el menú de Omarchy, que lanza aplicaciones, cambia ajustes, instala software, captura la pantalla: prácticamente todo. Empieza a escribir para filtrar. `Super + Alt + Space` muestra todas las aplicaciones en una sola rejilla, como lo hace Launchpad. Consulta [navegación](04-navigation.md).
 
 ### No hay dock ni iconos en el escritorio
 
-Nada en lo que hacer clic para iniciar cosas, ni iconos que acomodar en el escritorio. Las aplicaciones se inician con un atajo de teclado (`Super + Return` para la terminal, `Super + Shift + Return` para el navegador y `Super + K` para una lista de todo lo que está asignado) o desde el menú. La única pieza persistente de la interfaz es [la barra superior](05-the-top-bar.md), que cubre lo que antes hacían por ti la barra de menús, la bandeja del sistema y el Centro de notificaciones, y casi todos los widgets que tiene hacen algo con clic izquierdo, derecho y central.
+Nada en lo que hacer clic para iniciar cosas, ni iconos que colocar en el escritorio. Las aplicaciones se lanzan con un atajo de teclado (`Super + Return` para la terminal, `Super + Shift + Return` para el navegador y `Super + K` para una lista de todo lo que está asignado) o desde el menú. La única pieza persistente de la interfaz es [la barra superior](05-the-top-bar.md), que cubre lo que antes hacían por ti la barra de menús, la bandeja del sistema y el Centro de notificaciones, y casi todos sus componentes responden al clic izquierdo, al derecho y al central.
 
 ### Las ventanas se colocan solas
 
-El mayor cambio de mentalidad: no arrastras ventanas ni las ajustas a mitades de la pantalla. Abres una ventana y ocupa toda la pantalla. Abres una segunda y se dividen la pantalla. Nunca tienes que pescar una ventana debajo de otra, porque las ventanas no se enciman.
+El mayor cambio de mentalidad: no arrastras ventanas ni las ajustas a mitades de la pantalla. Abres una ventana y ocupa toda la pantalla. Abres una segunda y se dividen la pantalla. Nunca tienes que sacar una ventana de debajo de otra, porque las ventanas no se solapan.
 
-Cuando de verdad necesitas una ventana flotante, `Super + T` saca la ventana activa del mosaico (y la regresa). Pero primero dale una oportunidad real al mosaico: es el corazón de todo esto. [Navegación](04-navigation.md) te guía paso a paso.
+Cuando de verdad necesitas una ventana flotante, `Super + T` saca la ventana activa del mosaico (y la devuelve). Pero primero dale una oportunidad real al mosaico: es el corazón de todo esto. [Navegación](04-navigation.md) te guía paso a paso.
 
-Los espacios de trabajo te resultarán familiares: son los Spaces de macOS o los escritorios virtuales de Windows, excepto que estos sí los vas a usar, porque `Super + 1/2/3/4` salta directo a uno y `Super + Shift + 1/2/3/4` envía ahí la ventana activa. Sin retraso de animación, solo saltos instantáneos. Esto significa que quizá ni siquiera necesites varios monitores, si antes estabas acostumbrado a eso.
+Los espacios de trabajo te resultarán familiares: son los Spaces de macOS o los escritorios virtuales de Windows, excepto que estos sí los vas a usar, porque `Super + 1/2/3/4` salta directo a uno y `Super + Shift + 1/2/3/4` envía ahí la ventana activa. Sin retraso de animación, solo saltos instantáneos. Esto significa que, si antes estabas acostumbrado a eso, quizá ni siquiera necesites varios monitores.
 
 ### Copiar y pegar simplemente funciona
 
-En Mac tenías Cmd + C en todas partes. En Windows tenías Ctrl + C en todas partes, excepto en la terminal, donde mata tu programa. Omarchy te da `Super + C`, `Super + X` y `Super + V`, y funcionan en todas partes, incluida la terminal. No tienes que aprender un reflejo aparte para la shell.
+En Mac tenías Cmd + C en todas partes. En Windows tenías Ctrl + C en todas partes, excepto en la terminal, donde mata tu programa. Omarchy te da `Super + C`, `Super + X` y `Super + V`, y funcionan en todas partes, incluida la terminal. No tienes que aprender un reflejo aparte para el shell.
 
-Para quienes vienen de Windows: su historial del portapapeles con Win + V vive en `Super + Ctrl + V`, y guarda imágenes además de texto. Consulta [portapapeles unificado e historial](08-unified-clipboard-history.md).
+Para quienes vienen de Windows: el historial del portapapeles de Win + V está en `Super + Ctrl + V`, y guarda imágenes además de texto. Consulta [portapapeles unificado e historial](08-unified-clipboard-history.md).
 
 ### La tabla de traducción
 
@@ -36,7 +36,7 @@ Para quienes vienen de Windows: su historial del portapapeles con Win + V vive e
 | Centro de notificaciones | Historial de notificaciones en `Super + Shift + Alt + ,` |
 | Time Machine (para el sistema) | [Instantáneas automáticas del sistema](47-system-snapshots.md) en cada actualización |
 | App Store / descargar un instalador | _Instalar_ en el menú, o `omarchy pkg add` — consulta [otros paquetes](29-other-packages.md) |
-| Configuración del sistema / Panel de control | _Configuración_ en el menú, que edita archivos de configuración en texto plano — consulta [dotfiles](31-dotfiles.md) |
+| Configuración del sistema / Panel de control | _Configurar_ en el menú, que edita archivos de configuración en texto plano — consulta [dotfiles](31-dotfiles.md) |
 
 ### Algunas cosas sí son diferentes de verdad
 
@@ -54,4 +54,4 @@ Omarchy funciona bien en Macs con Intel: consulta [compatibilidad con Mac](44-ma
 
 ### Dale dos semanas
 
-Los instintos se transfieren más rápido de lo que crees. Lee una vez el capítulo de [atajos de teclado](07-hotkeys.md), y cuando te quedes en blanco con una asignación, presiona `Super + K`: te muestra todas. Ese es el único atajo que de verdad tienes que memorizar.
+Los instintos se transfieren más rápido de lo que crees. Hojea una vez el capítulo de [atajos de teclado](07-hotkeys.md), y cuando te quedes en blanco con una combinación, pulsa `Super + K`: te muestra todas. Ese es el único atajo que de verdad tienes que memorizar.

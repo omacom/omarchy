@@ -1,8 +1,8 @@
 # Omarchy CLI
 
-Normalmente, Omarchy se controla mediante las teclas de acceso rápido y el menú de Omarchy (`Super + Space`). Pero también puedes controlarlo mediante la CLI `omarchy`. Esto es especialmente útil cuando tienes a un agente de IA trabajando contigo en la personalización o la configuración.
+Normalmente, Omarchy se controla mediante los atajos de teclado y el menú de Omarchy (`Super + Space`). Pero también puedes controlarlo mediante la CLI `omarchy`. Esto es especialmente útil cuando tienes a un agente de IA trabajando contigo en la personalización o la configuración.
 
-La CLI tiene acceso a todas las herramientas internas que se usan tanto desde el menú como por otros medios. Puedes ver todo lo que está disponible ejecutando `omarchy` en la terminal.
+La CLI da acceso a todas las herramientas internas que hay detrás del menú y de todo lo demás. Puedes ver todo lo que hay disponible con solo ejecutar `omarchy` en la terminal.
 
 Se ve más o menos así:
 
@@ -42,7 +42,7 @@ Groups:
   ...
 ```
 
-Y puedes profundizar en cada grupo:
+Y puedes entrar en el detalle de cada grupo:
 
 ```
 ~ ❯ omarchy capture
@@ -55,7 +55,7 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Todo comando también admite `--help`, ya sea que consultes un grupo completo (`omarchy capture --help`) o un solo comando (`omarchy capture screenshot --help`).
+Todo comando también admite `--help`, tanto si consultas un grupo completo (`omarchy capture --help`) como si buscas un solo comando (`omarchy capture screenshot --help`).
 
 ### Abrir el menú desde la terminal
 

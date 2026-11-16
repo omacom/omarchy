@@ -12,7 +12,7 @@ Cuando se publican nuevas versiones, aparecerá un icono de flecha circular a la
 
 Omarchy se actualiza a través de cuatro canales: stable, RC, edge y dev. Las instalaciones nuevas comienzan en el canal stable, que sigue las [versiones oficiales](https://github.com/omacom/omarchy/releases/), así como el [mirror estable de Arch de Omarchy](https://github.com/omacom-io/omarchy-mirror) que va un mes por detrás de lo más reciente, para que podamos detectar cualquier incompatibilidad nueva que requiera cambios de configuración antes de que cause problemas a la gente.
 
-Pero si quieres ayudar a detectar esos posibles problemas, puedes usar el canal edge. Eso hará que tus paquetes de Omarchy sigan las compilaciones de desarrollo más recientes y te permitirá actualizar a los paquetes más recientes de Arch en cuanto estén disponibles. Solo deberías hacer esto si tienes experiencia con Linux y sabes cómo recuperar un sistema que tiene problemas.
+Pero si quieres ayudar a detectar esos posibles problemas, puedes usar el canal edge. Eso hará que tus paquetes de Omarchy sigan las compilaciones de desarrollo más recientes y podrás actualizar a los paquetes más recientes de Arch en cuanto estén disponibles. Solo deberías hacer esto si tienes experiencia con Linux y sabes cómo recuperar un sistema que tiene problemas.
 
 Antes de cada nueva versión mayor, haremos la validación final usando el canal RC. Si te interesa ayudar con los últimos retoques, pásate por #omarchy-release-candidates en Discord.
 
@@ -22,15 +22,15 @@ Puedes cambiar entre canales usando _Actualizar > Canal_ desde el menú de Omarc
 
 ### Cambiar de kernel
 
-Omarchy arranca con su propio kernel `linux-omarchy`, pero puedes mantener otros instalados junto a él, como el kernel `linux` estándar de Arch o una compilación experimental que estés probando. Cuando hay más de uno, _Actualizar > Kernel_ en el menú de Omarchy los enumera con una marca junto al que arranca por defecto. Elige otro, ingresa tu contraseña una vez y arrancará después del próximo reinicio. Los demás kernels permanecen en el menú de arranque, así que aún puedes elegir uno manualmente si el nuevo predeterminado te da problemas. En la terminal, es `omarchy-kernel` para ver el predeterminado actual, `omarchy-kernel list` para ver qué está instalado y `omarchy-kernel set <kernel>` para cambiar.
+Omarchy arranca con su propio kernel `linux-omarchy`, pero puedes mantener otros instalados junto a él, como el kernel `linux` estándar de Arch o una compilación experimental que estés probando. Cuando hay más de uno, _Actualizar > Kernel_ en el menú de Omarchy los enumera con una marca junto al que arranca por defecto. Elige otro, introduce tu contraseña una vez y se usará tras el próximo reinicio. Los demás kernels permanecen en el menú de arranque, así que aún puedes elegir uno manualmente si el nuevo predeterminado te da problemas. En la terminal, es `omarchy-kernel` para ver el predeterminado actual, `omarchy-kernel list` para ver qué está instalado y `omarchy-kernel set <kernel>` para cambiar.
 
 ### Actualizaciones de firmware
 
-Tus paquetes no son lo único que se queda obsoleto. Muchas laptops y periféricos distribuyen firmware de BIOS, SSD y dock a través del Linux Vendor Firmware Service, y _Actualizar > Firmware_ en el menú de Omarchy descargará e instalará lo que tu hardware tenga pendiente. Instala `fwupd` la primera vez que lo ejecutas. Gran parte del firmware solo se puede escribir durante un reinicio, así que no te sorprendas si te pide uno.
+Tus paquetes no son lo único que se queda obsoleto. Muchos portátiles y periféricos distribuyen firmware de BIOS, SSD y dock a través del Linux Vendor Firmware Service, y _Actualizar > Firmware_ en el menú de Omarchy descargará e instalará lo que tu hardware tenga pendiente. La primera vez que lo ejecutes, instalará `fwupd`. Gran parte del firmware solo se puede escribir durante un reinicio, así que no te sorprendas si te pide uno.
 
 ### Advertencia sobre las actualizaciones directas con pacman/yay
 
-Si ya conoces Arch, podrías sentir la tentación de ejecutar simplemente `pacman -Syu` o `yay -Syu` por tu cuenta, pero si lo haces, te perderás la instantánea, las migraciones y las actualizaciones de configuración que Omarchy ejecuta junto con los paquetes nuevos. Por eso Omarchy en realidad detendrá una actualización directa del sistema y te indicará que uses `omarchy update` en su lugar. (Si de verdad sabes lo que estás haciendo, la protección te dirá cómo omitirla para una sola transacción).
+Si ya conoces Arch, podrías tener la tentación de ejecutar simplemente `pacman -Syu` o `yay -Syu` por tu cuenta, pero si lo haces, te perderás la instantánea, las migraciones y las actualizaciones de configuración que Omarchy ejecuta junto con los paquetes nuevos. Por eso Omarchy bloquea una actualización directa del sistema y te indicará que uses `omarchy update` en su lugar. (Si de verdad sabes lo que estás haciendo, la protección te dirá cómo omitirla para una sola transacción).
 
 ### Revertir actualizaciones problemáticas
 
@@ -38,4 +38,4 @@ Si alguna vez tienes un problema después de hacer una actualización, puedes re
 
 ![bootloader](images/bootloader.webp)
 
-Si por alguna razón tus archivos de configuración se han dañado, también puedes realizar una reinstalación de Omarchy usando `omarchy reinstall` en la terminal. Esto reinstalará todos los paquetes predeterminados de Omarchy, te pondrá en stable y bajará de versión cualquier paquete que sea demasiado nuevo, y restablecerá todos los archivos de configuración. ¡Ten en cuenta que al hacer esto se sobrescribirán todos los cambios de configuración de usuario que hayas hecho a los valores predeterminados de Omarchy!
+Si por alguna razón tus archivos de configuración se han dañado, también puedes realizar una reinstalación de Omarchy usando `omarchy reinstall` en la terminal. Esto reinstalará todos los paquetes predeterminados de Omarchy, te pondrá en stable y bajará de versión cualquier paquete que sea demasiado nuevo, y restablecerá todos los archivos de configuración. ¡Ojo: al hacerlo se sobrescribirán con los valores predeterminados de Omarchy todos los cambios de configuración que hayas hecho!

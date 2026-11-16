@@ -1,8 +1,8 @@
 # Soporte para Mac
 
-Omarchy incluye soporte integrado para **Macs con Intel**. Por el momento hay un par de limitaciones conocidas, pero mientras las conozcas y te parezcan aceptables; puedes darle nueva vida a tus Macs viejas instalando Omarchy.
+Omarchy incluye soporte integrado para **Macs con Intel**. Por el momento hay un par de limitaciones conocidas, pero siempre que las conozcas y te parezcan aceptables, puedes darle nueva vida a tus Macs viejas instalando Omarchy.
 
-Ten en cuenta que por ahora no hay soporte directo para instalar en una Mac con chip de la serie M. Puedes enterarte de más sobre el estado de esto en #omarchy-on-other en nuestro [Discord](https://discord.gg/tXFUdasqhY).
+Ten en cuenta que por ahora no hay soporte directo para instalar en una Mac con chip de la serie M. Puedes informarte mejor sobre cómo va el tema en #omarchy-on-other en nuestro [Discord](https://discord.gg/tXFUdasqhY).
 
 En una prueba sencilla, logramos un aumento de rendimiento del 36% solo por instalar Omarchy en una MacBook Pro de 2019.
 
@@ -10,28 +10,28 @@ En una prueba sencilla, logramos un aumento de rendimiento del 36% solo por inst
 
 ### Instalar Omarchy en Mac
 
-Por el momento, Omarchy solo admite ser el **único** sistema operativo instalado. Durante la instalación, se borrará el disco y MacOS ya no podrá arrancar.
+Por el momento, Omarchy solo puede ser el **único** sistema operativo instalado. Durante la instalación, se borrará el disco y macOS ya no podrá arrancar.
 
 Aun así, puedes restaurarlo después mediante Recuperación por Internet si quieres.
 
-Para esta parte, asumiremos que ya revisaste [Primeros pasos](02-getting-started.md) y tienes lista tu unidad USB. Si no, hazlo ahora.
+Para esta parte, damos por hecho que ya revisaste [Primeros pasos](02-getting-started.md) y tienes lista tu unidad USB. Si no, hazlo ahora.
 
 #### Desactivar Secure Boot
 
-Es necesario desactivar Secure Boot de Apple para poder arrancar desde la USB de arranque, así como el sistema operativo. Para desactivarlo, haz lo siguiente:
+Es necesario desactivar Secure Boot de Apple para poder arrancar desde el USB de instalación y para que arranque el sistema operativo. Para desactivarlo, haz lo siguiente:
 
 1. Apaga tu Mac
-2. Enciéndela e _inmediatamente_ mantén presionado Command-R hasta que veas aparecer la pantalla de carga
-3. Selecciona tu usuario e ingresa tu contraseña si se te pide
+2. Enciéndela e _inmediatamente_ mantén pulsado Command-R hasta que veas aparecer la pantalla de carga
+3. Selecciona tu usuario e introduce tu contraseña si se te pide
 4. Una vez en la pantalla de recuperación, elige **Utilidades > Utilidad de Seguridad de Arranque** desde la barra de menús
-5. Ingresa tu contraseña cuando se te pida para autenticarte
+5. Introduce tu contraseña cuando se te pida para autenticarte
 6. Elige "Sin seguridad" de las opciones de Secure Boot
 7. Elige "Permitir arrancar desde medios externos o extraíbles" de las opciones de Arranque Externo
 
 #### Iniciar la instalación
 
 1. Inserta la unidad USB
-2. Reinicia tu Mac e _inmediatamente_ mantén presionada la tecla Option hasta que veas una pantalla con dispositivos de arranque
+2. Reinicia tu Mac e _inmediatamente_ mantén pulsada la tecla Option hasta que veas una pantalla con dispositivos de arranque
 3. Selecciona el dispositivo EFI Boot naranja
 4. Continúa con la [instalación como de costumbre](02-getting-started.md)
 
@@ -55,7 +55,7 @@ El chip Apple T1 se presentó a finales de 2016 y se usó exclusivamente en los 
 
 #### Dispositivos con chip T2
 
-El chip de seguridad Apple T2 se presentó en 2017. El chip T2 se descontinuó con la transición a Apple silicon (chips de la serie M) a partir de 2020.
+El chip de seguridad Apple T2 se presentó en 2017. El chip T2 dejó de fabricarse con la transición a Apple silicon (chips de la serie M), que empezó en 2020.
 
 - iMac Pro (2017) – Modelo: A1862
 - MacBook Pro de 13 pulgadas (2018, cuatro puertos Thunderbolt 3) – Modelo: A1989
@@ -79,9 +79,9 @@ La iMac de 27 pulgadas de 2017 no tiene chip T2, así que el instalador la confi
 
 #### Problemas conocidos
 
-- La pantalla no funciona a su resolución nativa de 5120×2880: el panel está formado por dos mosaicos y el controlador de serie solo enciende uno
+- La pantalla no funciona a su resolución nativa de 5120×2880: el panel está formado por dos mosaicos y el controlador estándar solo enciende uno
 - El sonido no funciona
 - El control de brillo no tiene ningún efecto
-- La suspensión bloquea la máquina; solo se recupera apagándola y volviéndola a encender
+- La suspensión deja la máquina colgada; solo se recupera apagándola y volviéndola a encender
 
 Un parche de la comunidad para este modelo corrige la pantalla, el sonido y el brillo: [omarchy-imac18-3](https://github.com/ahmadtv/omarchy-imac18-3).

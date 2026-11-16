@@ -4,26 +4,26 @@ Puedes ver todas las combinaciones principales de teclas con `Super + K` (las co
 
 ## Cómo están organizados los atajos de teclado
 
-Cada atajo está en un plano, definido por sus modificadores, y cada plano tiene una función. Eso es lo que evita que los atajos se confundan entre sí, y significa que normalmente puedes adivinar dónde está cada cosa.
+Cada atajo está en un plano, definido por sus modificadores, y cada plano tiene una función. Eso es lo que evita que los atajos se confundan entre sí, así que normalmente puedes adivinar dónde está cada cosa.
 
-| Plano | Qué vive ahí | Ejemplos |
+| Plano | Qué hay ahí | Ejemplos |
 | --- | --- | --- |
 | `Super + key` | El sistema: ventanas, espacios de trabajo, diseños y menús principales | `Super + Space` menú de Omarchy, `Super + W` cerrar ventana, `Super + F` pantalla completa |
 | `Super + Shift + key` | Aplicaciones | `Super + Shift + B` navegador, `Super + Shift + E` correo electrónico, `Super + Shift + N` editor |
 | `Super + Ctrl + key` | Paneles y menús del sistema | `Super + Ctrl + A` audio, `Super + Ctrl + N` red, `Super + Ctrl + C` menú de captura |
 | `Super + Ctrl + Alt + key` | Acciones rápidas y avisos | `Super + Ctrl + Alt + T` mostrar la hora, `Super + Ctrl + Alt + B` batería, `Super + Ctrl + Alt + C` captura de pantalla |
 
-Agregar `Alt` a un atajo te da una variante de lo mismo, nunca algo sin relación:
+Si añades `Alt` a un atajo, obtienes una variante de ese mismo atajo, nunca algo sin relación:
 
 - `Super + Shift + B` abre el navegador; `Super + Shift + Alt + B` abre una ventana privada
 - `Super + Shift + E` abre el correo electrónico; `Super + Shift + Alt + E` empieza uno nuevo
 - `Super + F` pasa a pantalla completa; `Super + Alt + F` pasa a ancho completo
 - `Super + Ctrl + C` abre el menú de captura; `Super + Ctrl + Alt + C` se salta el menú y toma una captura de pantalla
 
-Al agregar un atajo:
+Cuando añadas un atajo:
 
 1. Elige el plano según lo que hace y luego elige la tecla.
-2. No muevas un atajo existente para hacer espacio. Encuentra una tecla libre en el plano correcto.
+2. No muevas un atajo existente para hacer sitio. Encuentra una tecla libre en el plano correcto.
 3. Usa `Alt` solo para una variante del atajo sin `Alt`.
 
 Algunos atajos rompen estas reglas porque son convenientes. `Shift` con una flecha o `Tab` mueve o invierte en lugar de abrir una aplicación, y `Print`, las teclas multimedia, `Alt + Tab` y `Ctrl + Alt + Del` funcionan como en cualquier otro lugar. Son excepciones, no patrones para copiar.
@@ -35,10 +35,10 @@ Si un atajo predeterminado no te conviene (digamos que quieres `Super + Shift + 
 | Atajo | Función |
 | ----------------------- | --------------------- |
 | `Super + Space` | Menú de Omarchy (aplicaciones y todo lo demás) |
-| `Super + Alt + Space` | Cuadrícula de aplicaciones |
+| `Super + Alt + Space` | Rejilla de aplicaciones |
 | `Super + Escape` | Menú del sistema (suspender, reiniciar, etc.) |
 | `Super + Ctrl + L` | Bloquear ordenador |
-| `Super + W` or `Super + Q` | Cerrar ventana |
+| `Super + W` o `Super + Q` | Cerrar ventana |
 | `Ctrl + Alt + Del` | Cerrar todas las ventanas |
 | `Super + T` | Alternar ventana entre mosaico/flotante |
 | `Super + J` | Alternar posición de la ventana (horizontal/vertical) |
@@ -61,14 +61,14 @@ Si un atajo predeterminado no te conviene (digamos que quieres `Super + Shift + 
 | `Super + Shift + Grave` | Mover ventana a la consola Quake |
 | `Super + Shift + Ctrl + Arrows` | Mover ventana al monitor en esa dirección |
 | `Super + Shift + Alt + Arrows` | Mover espacio de trabajo al monitor en esa dirección |
-| `Super + Arrow` | Mover el foco a la ventana en la dirección de la flecha, cruzando al monitor de ese lado en el borde de la pantalla |
+| `Super + Arrow` | Mover el foco a la ventana en la dirección de la flecha, cruzando al monitor de ese lado al llegar al borde de la pantalla |
 | `Super + Shift + Arrow` | Intercambiar ventana con otra en la dirección de la flecha, incluida una en el monitor de ese lado |
 | `Super + Minus` | Expandir ventana a la izquierda |
 | `Super + Equal` | Reducir ventana a la izquierda |
 | `Super + Shift + Minus` | Reducir ventana hacia arriba |
 | `Super + Shift + Equal` | Expandir ventana hacia abajo |
-| `Super + Alt + Minus/Equal` | El mismo redimensionamiento en pasos más pequeños |
-| `Super + Ctrl + Minus/Equal` | El mismo redimensionamiento en pasos más grandes |
+| `Super + Alt + Minus/Equal` | Redimensionar igual, pero en pasos más pequeños |
+| `Super + Ctrl + Minus/Equal` | Redimensionar igual, pero en pasos más grandes |
 | `Super + Alt + Home` | Guardar ancho de la ventana |
 | `Super + Home` | Restaurar ancho de ventana guardado |
 | `Super + Left Mouse` | Arrastrar ventana |
@@ -102,6 +102,7 @@ Los atajos de redimensionamiento usan las teclas físicas `code:20` y `code:21` 
 | `Super + Ctrl + N` | Panel de Wi-Fi/red |
 | `Super + Ctrl + D` | Panel de pantalla |
 | `Super + Ctrl + P` | Panel de energía |
+| `Super + Ctrl + X` | Panel de agentes |
 | `Super + Ctrl + Alt + D` | Panel de calendario |
 | `Super + Ctrl + Alt + E` | Panel de reloj mundial |
 | `Super + Ctrl + 1-9` | Alternar panel de la barra por posición |
@@ -139,7 +140,7 @@ Los atajos de redimensionamiento usan las teclas físicas `code:20` y `code:21` 
 | `Super + Shift + Alt + F` | Administrador de archivos en el cwd de la terminal |
 | `Super + Shift + M` | Música (Spotify) |
 | `Super + Shift + Alt + M` | Música (cliamp) |
-| `Super + Shift + /` | Administrador de contraseñas (1password) |
+| `Super + Shift + /` | Administrador de contraseñas (1Password) |
 | `Super + Shift + Q` | Calculadora (Omacalc) |
 | `Super + Shift + T` | Actividad (btop) |
 | `Super + Shift + N` | Editor (Neovim) |
@@ -159,7 +160,7 @@ Los atajos de redimensionamiento usan las teclas físicas `code:20` y `code:21` 
 | `Super + Shift + Alt + X` | X Compose |
 | `Super + Shift + Y` | YouTube |
 
-Cambia/agrega combinaciones en `~/.config/hypr/bindings.lua`.
+Cambia/añade combinaciones en `~/.config/hypr/bindings.lua`.
 
 ## Portapapeles universal
 
@@ -171,7 +172,7 @@ Cambia/agrega combinaciones en `~/.config/hypr/bindings.lua`.
 | `Super + V` | Pegar |
 | `Super + Ctrl + V` | Administrador del portapapeles |
 
-Normalmente en Linux, necesitas `Ctrl + Shift + C/V` para copiar y pegar en la terminal y `Ctrl + C/V` para hacerlo en cualquier otro lugar. Estos atajos unificados del portapapeles de Omarchy funcionan en todas partes.
+En Linux, normalmente necesitas `Ctrl + Shift + C/V` para copiar y pegar en la terminal y `Ctrl + C/V` para hacerlo en cualquier otro lugar. Estos atajos unificados del portapapeles de Omarchy funcionan en todas partes.
 
 ## Captura
 
@@ -183,14 +184,14 @@ Normalmente en Linux, necesitas `Ctrl + Shift + C/V` para copiar y pegar en la t
 | `Alt + Print Screen` | Grabación de pantalla |
 | `Super + Print Screen` | Selector de color |
 | `Super + Ctrl + Print Screen` | Extracción de texto al portapapeles |
-| `Super + Alt + [` | Hacer más pequeña la superposición de la webcam mientras grabas |
-| `Super + Alt + ]` | Hacer más grande la superposición de la webcam mientras grabas |
+| `Super + Alt + [` | Hacer más pequeña la superposición de la cámara web mientras grabas |
+| `Super + Alt + ]` | Hacer más grande la superposición de la cámara web mientras grabas |
 | `Alt + Shift + L` | Copiar la URL actual desde la webapp o Chromium |
-| `Alt + Shift + D` | Descargar el video de la página actual a `~/Videos` |
-| `Alt + Space` | Iniciar/detener el dictado (requiere _Configuración > Valores predeterminados > Dictado_) |
-| `Right Alt` | Mantener presionada para dictar (requiere _Configuración > Valores predeterminados > Dictado_) |
+| `Alt + Shift + D` | Descargar el vídeo de la página actual a `~/Videos` |
+| `Alt + Space` | Iniciar/detener el dictado (requiere _Configurar > Predeterminados > Dictado_) |
+| `Right Alt` | Mantener pulsada para dictar (requiere _Configurar > Predeterminados > Dictado_) |
 
-Con las grabaciones de pantalla, el atajo primero pregunta qué audio quieres y luego empieza a grabar. Presiónalo de nuevo para detener. Consulta [capturas de pantalla y grabación](12-screenshots-recording.md) para ver los detalles.
+Con las grabaciones de pantalla, el atajo primero pregunta qué audio quieres y luego empieza a grabar. Púlsalo de nuevo para detener. Consulta [capturas de pantalla y grabación](12-screenshots-recording.md) para ver los detalles.
 
 Todas las opciones de captura también están disponibles en _Activar > Captura_ en el menú de Omarchy (`Super + Space`).
 
@@ -198,7 +199,7 @@ Todas las opciones de captura también están disponibles en _Activar > Captura_
 
 | Atajo | Función |
 | ----------------------- | --------------------- |
-| `Super + ,` | Actuar sobre la última notificación: abrirla o presionar su único botón, elegir entre sus opciones o descartarla cuando no tenga ninguna |
+| `Super + ,` | Actuar sobre la última notificación: abrirla o pulsar su único botón, elegir entre sus opciones o descartarla cuando no tenga ninguna |
 | `Super + Shift + ,` | Descartar todas las notificaciones |
 | `Super + Ctrl + ,` | Controlar las notificaciones con el teclado |
 | `Super + Alt + ,` | Descartar la última notificación |
@@ -223,8 +224,8 @@ Todas las opciones de estilo también están disponibles en _Estilo_ en el menú
 | Atajo | Función |
 | ----------------------- | --------------------- |
 | `Super + Ctrl + I` | Alternar el bloqueo por inactividad |
-| `Super + Ctrl + Delete` | Encender/apagar la pantalla de la laptop |
-| `Super + Ctrl + Alt + Delete` | Alternar la duplicación de la pantalla de la laptop |
+| `Super + Ctrl + Delete` | Encender/apagar la pantalla del portátil |
+| `Super + Ctrl + Alt + Delete` | Alternar la duplicación de la pantalla del portátil |
 | `Super + Shift + Space` | Alternar la barra superior |
 | `Shift + Mute` | Cambiar a la siguiente salida de audio |
 | `Shift + Play` | Cambiar a la siguiente fuente multimedia |
@@ -245,7 +246,7 @@ Todas las opciones de estilo también están disponibles en _Estilo_ en el menú
 | ----------------------- | --------------------- |
 | `Super + Ctrl + Alt + T` | Mostrar la hora como notificación |
 | `Super + Ctrl + Alt + B` | Mostrar la batería como notificación |
-| `Super + Ctrl + Alt + W` | Alternar el clima como notificación |
+| `Super + Ctrl + Alt + W` | Alternar el tiempo como notificación |
 
 ## Tmux
 
@@ -361,8 +362,8 @@ La terminal Ghostty se instala con _Instalar > Terminal_ en el menú de Omarchy.
 
 | Atajo | Función |
 | ------------------------ | ------------------------------- |
-| `A` | Agregar un archivo nuevo en el directorio superior |
-| `Shift + A` | Agregar un subdirectorio nuevo en el directorio superior |
+| `A` | Añadir un archivo nuevo en el directorio superior |
+| `Shift + A` | Añadir un subdirectorio nuevo en el directorio superior |
 | `D` | Eliminar archivo/directorio resaltado |
 | `M` | Mover archivo/directorio resaltado |
 | `R` | Renombrar archivo/directorio resaltado |
@@ -372,7 +373,7 @@ La terminal Ghostty se instala con _Instalar > Terminal_ en el menú de Omarchy.
 
 ## Emojis rápidos
 
-Puedes usar `Super + Ctrl + E` para mostrar un selector completo de emojis que pondrá la selección en el portapapeles, o puedes usar estas opciones de acceso rápido.
+Puedes usar `Super + Ctrl + E` para mostrar un selector completo de emojis que pondrá la selección en el portapapeles, o puedes usar estos atajos rápidos.
 
 | Atajo | EM | Pista |
 | ------------ | -- | ---------- |
@@ -383,7 +384,7 @@ Puedes usar `Super + Ctrl + E` para mostrar un selector completo de emojis que p
 | `Shift + CapsLock M H` | ❤️ | corazón |
 | `Shift + CapsLock M Y` | 👍 | sí |
 | `Shift + CapsLock M N` | 👎 | no |
-| `Shift + CapsLock M F` | 🖕 | chingar |
+| `Shift + CapsLock M F` | 🖕 | corte de mangas |
 | `Shift + CapsLock M W` | 🤞 | deseo |
 | `Shift + CapsLock M R` | 🤘 | rock |
 | `Shift + CapsLock M K` | 😘 | beso |
@@ -405,7 +406,7 @@ Puedes usar `Super + Ctrl + E` para mostrar un selector completo de emojis que p
 | Atajo | Completado |
 | ------------ | ---------- |
 | `Shift + CapsLock Space Space` | — (raya) |
-| `Shift + CapsLock Space N` | Tu nombre (tal como lo ingresaste en la configuración) |
-| `Shift + CapsLock Space E` | Tu correo electrónico (tal como lo ingresaste en la configuración) |
+| `Shift + CapsLock Space N` | Tu nombre (tal como lo introdujiste en la configuración) |
+| `Shift + CapsLock Space E` | Tu correo electrónico (tal como lo introdujiste en la configuración) |
 
-Puedes agregar más por tu cuenta editando `~/.XCompose` y luego ejecutando `omarchy-restart-xcompose` en la terminal para que se apliquen los cambios.
+Puedes añadir más por tu cuenta editando `~/.XCompose` y luego ejecutando `omarchy-restart-xcompose` en la terminal para que se apliquen los cambios.
