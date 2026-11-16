@@ -124,6 +124,21 @@ assertEqual(menuPanel.cardTop, -1, 'moving an open menu off a disconnected outpu
 assertEqual(menuPanel.maxRowsHeight, -1, 'moving an open menu drops the old output row-height limit')
 assert(menuPanel.shown, 'resetting the layout keeps the menu open')
 
+// The menu asks for keyboard focus as it opens, before its fresh window has
+// mapped. Focus asked for then does not reach the new window, so typing and
+// Escape do nothing. Ask again once the window is mapped.
+const mapHandler = /onBackingWindowVisibleChanged: ([^\n]+)/.exec(menuQml)
+assert(mapHandler, 'the menu refocuses its search line when its window maps')
+if (mapHandler) {
+  const mapChanged = new Function('backingWindowVisible', 'filterInput', mapHandler[1])
+  let focusRequests = 0
+  const filterInput = { forceActiveFocus() { focusRequests++ } }
+  mapChanged(false, filterInput)
+  assertEqual(focusRequests, 0, 'an unmapped menu window does not ask for focus')
+  mapChanged(true, filterInput)
+  assertEqual(focusRequests, 1, 'a mapped menu window asks for focus on its search line')
+}
+
 // Fullscreen overlays open without an additional compositor animation.
 const shellRules = read('default/hypr/apps/omarchy-shell.lua')
 const noAnim = /namespace = "\^\(([^)]*)\)\$" \}, no_anim = true/.exec(shellRules)
