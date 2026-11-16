@@ -299,18 +299,27 @@ for cores in 1 2 8; do
       fail "contended refresh does not start another converter pool"
   done
 
+  changed_thumbnails=()
+  for changed in new 0; do
+    signature=$(stat -Lc '%s:%Y' "$lazy_images/$changed.png")
+    hash=$(printf '%s\t%s' "$lazy_images/$changed.png" "$signature" | md5sum | cut -d ' ' -f 1)
+    changed_thumbnails+=("$tmp/lazy-cache-$cores/omarchy/image-selector/$hash.jpg")
+  done
+
+  # The stub logs a conversion before generate_thumbnail moves its output into
+  # place, so wait for the thumbnails themselves, not only the count.
   touch "$lazy_state/gate"
   for attempt in {1..500}; do
-    if [[ -f $lazy_state/completed ]] && (( $(wc -l <"$lazy_state/completed") == 42 )); then break; fi
+    if [[ -f $lazy_state/completed ]] && (( $(wc -l <"$lazy_state/completed") == 42 )) &&
+      [[ -f ${changed_thumbnails[0]} && -f ${changed_thumbnails[1]} ]]; then
+      break
+    fi
     sleep 0.02
   done
   (( $(wc -l <"$lazy_state/completed") == 42 && $(<"$lazy_state/peak") == expected_workers )) ||
     fail "lazy image menu completes the queue after its parent and queue path are gone"
-  for changed in new 0; do
-    signature=$(stat -Lc '%s:%Y' "$lazy_images/$changed.png")
-    hash=$(printf '%s\t%s' "$lazy_images/$changed.png" "$signature" | md5sum | cut -d ' ' -f 1)
-    [[ -f $tmp/lazy-cache-$cores/omarchy/image-selector/$hash.jpg ]] ||
-      fail "lazy image menu retains new and changed jobs while its pool is busy"
+  for thumbnail in "${changed_thumbnails[@]}"; do
+    [[ -f $thumbnail ]] || fail "lazy image menu retains new and changed jobs while its pool is busy"
   done
   pass "lazy image menu workers finish every queued thumbnail after the caller exits"
 done
