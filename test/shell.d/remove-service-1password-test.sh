@@ -19,6 +19,9 @@ for browser_dir in \
   touch "$tmp_dir/home/.config/$browser_dir/com.1password.1password.json"
 done
 
+mkdir -p "$tmp_dir/home/.mozilla/native-messaging-hosts"
+touch "$tmp_dir/home/.mozilla/native-messaging-hosts/com.1password.1password.json"
+
 mkdir -p "$tmp_dir/home/.config/not-a-browser"
 touch "$tmp_dir/home/.config/not-a-browser/com.1password.1password.json"
 touch "$tmp_dir/home/.config/1Password/settings.json"
@@ -59,6 +62,8 @@ for browser_dir in \
   [[ ! -e "$tmp_dir/home/.config/$browser_dir/com.1password.1password.json" ]] ||
     fail "1Password removal deletes stale native-messaging manifests" "$browser_dir"
 done
+[[ ! -e "$tmp_dir/home/.mozilla/native-messaging-hosts/com.1password.1password.json" ]] ||
+  fail "1Password removal deletes stale native-messaging manifests" "firefox"
 pass "1Password removal deletes stale native-messaging manifests"
 
 [[ -e "$tmp_dir/home/.config/not-a-browser/com.1password.1password.json" ]] ||
