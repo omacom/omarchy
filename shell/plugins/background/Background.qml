@@ -52,6 +52,9 @@ Item {
   property string pendingShellRaw: ""
   property real revealProgress: 1
   readonly property bool ready: {
+    // The frame on screen is the old wallpaper until a pending instant switch
+    // displays its replacement, so a cover must not lift onto it.
+    if (pendingInstantBackground) return false
     if (isVideo(displayedBackground)) return true
     if (backgrounds.instances.length === 0) return false
     for (var panel of backgrounds.instances) {

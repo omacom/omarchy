@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -euo pipefail
-source "$(dirname "$0")/base-test.sh"
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 run_node_test <<'JS'
 const fs = require('fs')
@@ -41,6 +41,9 @@ function state(displayed = 'a.png') {
     },
   })
   Object.defineProperty(ctx, 'path', { get: () => ctx.sizeProbe.path })
+  const readyBody = background.match(/readonly property bool ready: \{([^]*?)^  }/m)[1]
+  ctx.backgrounds = { instances: [{ backgroundReady: true }] }
+  Object.defineProperty(ctx, 'ready', { get: () => vm.runInContext(`(function() {${readyBody}})()`, ctx) })
   const handler = background.match(/onExited: function\(exitCode\) \{([^]*?)^    }/m)[1]
   ctx.completeProbe = (text = '2560 1440', exitCode = 0) => {
     ctx.sizeProbeOut.text = text
@@ -56,7 +59,9 @@ s.setBackground('b.png', true)
 assertEqual(s.displayedBackground, 'a.png', 'cold instant switch keeps the old path while the header is read')
 assertEqual(s.currentBackground, 'b.png', 'the requested background is tracked while its header is pending')
 assertEqual(s.incomingBackground, '', 'instant switch does not start a wipe')
+assertEqual(s.ready, false, 'the old frame is not reported ready while its replacement is pending')
 s.completeProbe()
+assertEqual(s.ready, true, 'the background is ready again once the replacement is displayed')
 assertEqual(s.displayedBackground, 'b.png', 'the new path is displayed once its size is known')
 assertEqual(s.pendingInstantBackground, '', 'the completed instant request releases its pending path')
 
