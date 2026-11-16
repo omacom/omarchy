@@ -179,3 +179,11 @@ assert_nothing_exposed loose-home
 grep -q "group- or world-writable" "$test_dir/loose-home.output" ||
   fail "SSH setup explains why it refused to disable passwords"
 pass "SSH setup leaves passwords on when the home directory is group-writable"
+
+# sshd checks the directory a symlinked home resolves to, not the link's own mode.
+mkdir -p "$test_dir/linked-home/target"
+chmod 755 "$test_dir/linked-home/target"
+ln -s target "$test_dir/linked-home/home"
+run_setup linked-home >"$test_dir/linked-home.output" 2>&1 ||
+  fail "SSH setup hardens when the home directory is a symlink to a safe directory"
+pass "SSH setup follows a symlinked home directory to judge its permissions"

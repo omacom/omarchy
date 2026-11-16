@@ -169,7 +169,7 @@ disable_password_auth() {
   # Under StrictModes, sshd's default, a group- or world-writable home
   # directory makes sshd ignore authorized_keys. ~/.ssh and the keys file
   # are tightened in authorize_key; the home directory is not ours to change.
-  home_mode=$(stat -c '%a' "$HOME" 2>/dev/null) || {
+  home_mode=$(stat -L -c '%a' "$HOME" 2>/dev/null) || {
     echo -e "\e[31mCannot disable SSH password authentication: could not inspect the permissions on $HOME.\e[0m" >&2
     return 1
   }
