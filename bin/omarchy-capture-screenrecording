@@ -154,6 +154,28 @@ default_resolution() {
   fi
 }
 
+screenrecording_needs_cpu_encoder() {
+  # AMD Polaris GPUs can hang their VCE 3.4 encode ring mid-recording and lose
+  # compositor VRAM when the ensuing GPU reset fails (#9555). The recorder's
+  # fallback cannot recover from a GPU that has already hung, so avoid starting
+  # hardware encoding on Polaris altogether. The IDs are amdgpu's CHIP_POLARIS10,
+  # 11, 12 and CHIP_VEGAM, read from sysfs as lspci would wake a suspended dGPU.
+  local polaris=(
+    0x67c0 0x67c1 0x67c2 0x67c4 0x67c7 0x67c8 0x67c9 0x67ca 0x67cc 0x67cf 0x67d0 0x67d4 0x67df 0x6fdf
+    0x67e0 0x67e1 0x67e3 0x67e7 0x67e8 0x67e9 0x67eb 0x67ef 0x67ff
+    0x6980 0x6981 0x6985 0x6986 0x6987 0x698f 0x6995 0x6997 0x699f
+    0x694c 0x694e 0x694f
+  )
+  local device vendor id
+
+  for device in "${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"/*; do
+    [[ -r $device/device ]] && read -r vendor <"$device/vendor" && read -r id <"$device/device" || continue
+    [[ $vendor == "0x1002" && " ${polaris[*]} " == *" $id "* ]] && return 0
+  done
+
+  return 1
+}
+
 # Echoes "monitor:NAME" when the selection matches an entire monitor (prefer
 # -w <monitor> over a region capture — same kms backend, but no scaling math
 # and full native res), otherwise "region:WxH+X+Y". Returns non-zero if the
@@ -349,6 +371,11 @@ start_screenrecording() {
     else
       local audio_devices=""
       local audio_args=()
+      local encoder_args=()
+
+      if screenrecording_needs_cpu_encoder; then
+        encoder_args=(-encoder cpu)
+      fi
 
       [[ $DESKTOP_AUDIO == "true" ]] && audio_devices+="default_output"
 
@@ -360,7 +387,7 @@ start_screenrecording() {
 
       [[ -n $audio_devices ]] && audio_args+=(-a "$audio_devices" -ac aac)
 
-      gpu-screen-recorder "${capture_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 9>&- 2>>"$LOG_FILE" &
+      gpu-screen-recorder "${capture_args[@]}" "${encoder_args[@]}" -k auto -f 60 -fm cfr -fallback-cpu-encoding yes -o "$filename" "${audio_args[@]}" 9>&- 2>>"$LOG_FILE" &
       pid=$!
     fi
 
