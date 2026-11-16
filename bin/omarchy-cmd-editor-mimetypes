@@ -1,0 +1,129 @@
+#!/bin/bash
+
+# omarchy:summary=Open text files in the default editor from every app
+# omarchy:args=[--unless-chosen]
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# Points each type omarchy-launch-editor.desktop declares at that handler, in
+# the user's ~/.config/mimeapps.list, so every app opens text files in the
+# editor picked under Setup > Default > Editor. --unless-chosen leaves a type
+# alone when the user picked an app for it themselves, keeping only Omarchy's
+# own past defaults (Neovim, then Plain) to replace.
+
+handler=omarchy-launch-editor.desktop
+unless_chosen=false
+[[ ${1:-} == "--unless-chosen" ]] && unless_chosen=true
+
+# The handler itself, for an install that predates it.
+applications="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+if [[ ! -f $applications/$handler ]]; then
+  mkdir -p "$applications"
+  cp "$OMARCHY_PATH/applications/$handler" "$applications/"
+  command -v update-desktop-database >/dev/null && update-desktop-database "$applications" || true
+fi
+
+types=$(sed -n 's/^MimeType=//p' "$OMARCHY_PATH/applications/$handler" | tr ';' '\n' | sed '/^$/d')
+list="${XDG_CONFIG_HOME:-$HOME/.config}/mimeapps.list"
+mkdir -p "$(dirname "$list")"
+[[ -f $list ]] || printf '[Default Applications]\n' >"$list"
+# GLib also reads a header with spaces around it, or a list with CRLF endings.
+tr -d '\r' <"$list" | grep -qE '^[[:space:]]*\[Default Applications\][[:space:]]*$' ||
+  printf '\n[Default Applications]\n' >>"$list"
+
+# The older ~/.local/share list counts too, for a type ~/.config doesn't set:
+# a line here would hide what the user chose there.
+older="${XDG_DATA_HOME:-$HOME/.local/share}/applications/mimeapps.list"
+[[ -f $older ]] || older=/dev/null
+
+# One pass over both: drop the lines this replaces from ~/.config's
+# [Default Applications], then add the handler's right under its header.
+# Keys may have spaces around "=", and values are ;-separated lists whose
+# first entry is the default.
+# GLib treats a type and its aliases (application/xml and text/xml) as one,
+# so choices are weighed per canonical type.
+aliases=/usr/share/mime/aliases
+[[ -f $aliases ]] || aliases=/dev/null
+
+updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v older="$older" -v aliases="$aliases" '
+  function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+  function ours(app) { return app == "nvim.desktop" || app == "plain.desktop" || app == handler }
+  function canon(t) { return (t in alias) ? alias[t] : t }
+  BEGIN {
+    while ((getline pair < aliases) > 0) { split(pair, part, " "); alias[part[1]] = part[2] }
+    n = split(types, list, "\n")
+    for (i = 1; i <= n; i++) wanted[canon(list[i])] = 1
+  }
+  function header(line) { sub(/\r$/, "", line); return trim(line) }
+  FILENAME != current { current = FILENAME; file = (FILENAME == older ? 1 : 2); section = "" }
+  header($0) ~ /^\[/ { section = header($0) }
+  section != "[Default Applications]" || !/=/ {
+    if (file == 2) lines[FNR] = $0
+    next
+  }
+  {
+    type = $0; sub(/=.*/, "", type); type = trim(type)
+    app = $0; sub(/\r$/, "", app); sub(/^[^=]*=/, "", app); sub(/;.*/, "", app); app = trim(app)
+  }
+  # GLib reads a key by its last line, and among the names of one type
+  # (aliases) the one listed first decides, so record both orders.
+  file == 1 {
+    if (canon(type) in wanted) {
+      if (!(type in older_last)) older_keys[++older_count] = type
+      older_last[type] = app
+    }
+    next
+  }
+  {
+    lines[FNR] = $0
+    if (canon(type) in wanted) {
+      line_type[FNR] = canon(type)
+      if (!(type in last)) keys[++key_count] = type
+      last[type] = app
+    }
+  }
+  END {
+    for (k = 1; k <= key_count; k++) if (!(canon(keys[k]) in chosen)) chosen[canon(keys[k])] = !ours(last[keys[k]])
+    for (k = 1; k <= older_count; k++) if (!(canon(older_keys[k]) in older_choice)) older_choice[canon(older_keys[k])] = !ours(older_last[older_keys[k]])
+    if (unless_chosen == "true") {
+      for (type in chosen) if (chosen[type]) keep[type] = 1
+      for (type in older_choice) if (older_choice[type] && !(type in chosen)) keep[type] = 1
+    }
+    for (i = 1; i <= FNR; i++) {
+      if ((i in line_type) && !(line_type[i] in keep)) continue
+      print lines[i]
+      if (header(lines[i]) == "[Default Applications]" && !added) {
+        added = 1
+        for (j = 1; j <= n; j++) if (!(canon(list[j]) in keep)) print list[j] "=" handler
+      }
+    }
+  }
+' "$older" "$list")
+
+# Written through, so a symlinked list (a dotfiles repo) stays a symlink.
+printf '%s\n' "$updated" >"$list"
+
+# Apps read the desktop's own list before mimeapps.list, so a text type set
+# there would still win. Picking an editor clears those; the migration leaves
+# them, since a type set there is one the user chose. A desktop list that is
+# mimeapps.list itself (both linked to one file) already has the handler.
+desktop_list="${XDG_CONFIG_HOME:-$HOME/.config}/hyprland-mimeapps.list"
+if [[ $unless_chosen == false && -f $desktop_list && ! $desktop_list -ef $list ]]; then
+  cleared=$(awk -v types="$types" -v aliases="$aliases" '
+    function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    function canon(t) { return (t in alias) ? alias[t] : t }
+    BEGIN {
+      while ((getline pair < aliases) > 0) { split(pair, part, " "); alias[part[1]] = part[2] }
+      n = split(types, list, "\n"); for (i = 1; i <= n; i++) wanted[canon(list[i])] = 1
+    }
+    { line = $0; sub(/\r$/, "", line) }
+    trim(line) ~ /^\[/ { section = trim(line) }
+    section == "[Default Applications]" && line ~ /=/ {
+      type = line; sub(/=.*/, "", type)
+      if (canon(trim(type)) in wanted) next
+    }
+    { print }
+  ' "$desktop_list")
+  printf '%s\n' "$cleared" >"$desktop_list"
+fi
