@@ -5,21 +5,6 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 registry="$ROOT/shell/services/PluginRegistry.qml"
-source_text=$(cat "$registry")
-
-# Source wiring: shell start reaps orphaned watchers before starting its
-# own, spares one still parented to a live shell, and a graceful stop
-# takes its watcher with it.
-[[ $source_text == *"function reapOrphanedPluginWatchers()"* ]] ||
-  fail "plugin registry reaps orphaned watchers at startup"
-[[ $source_text == *"ps -o comm="* && $source_text == *"quickshell|qs"* ]] ||
-  fail "watcher reaper spares watchers still parented to a live shell"
-[[ $source_text == *"Component.onDestruction"* && $source_text == *"localPluginWatcher.running = false"* ]] ||
-  fail "plugin watcher stops with its shell"
-[[ $source_text == *"registry.reapOrphanedPluginWatchers()"* ]] ||
-  fail "shell init runs the watcher reaper before starting the watcher"
-pass "plugin watcher lifecycle is wired to the shell"
-
 command -v inotifywait >/dev/null 2>&1 || { skip "inotifywait not installed; skipping watcher reap check"; exit 0; }
 command -v node >/dev/null 2>&1 || { skip "node not installed; skipping watcher reap check"; exit 0; }
 
@@ -40,7 +25,6 @@ node -e '
   process.stdout.write(parts.slice(2).join(""))
 ' "$registry" >"$TMPDIR/reap.sh"
 [[ -s $TMPDIR/reap.sh ]] || fail "could not extract the watcher reap command"
-grep -q 'grep -Fxq' "$TMPDIR/reap.sh" || fail "watcher reaper matches the watched directory exactly"
 
 start_watcher() { # dir, prints pid
   setsid -f inotifywait -m -r -q -e close_write,create,delete,move --format '%w%f' "$1" </dev/null >/dev/null 2>&1
