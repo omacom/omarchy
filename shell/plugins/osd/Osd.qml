@@ -257,7 +257,11 @@ Item {
   }
 
   onCardHoveredChanged: if (cardHovered) pointerEngaged = true
-  onMixerOpenChanged: if (mixerOpen) pointerEngaged = true
+  onMixerOpenChanged: {
+    if (!mixerOpen) return
+    pointerEngaged = true
+    if (sourceScroll.contentItem) sourceScroll.contentItem.contentY = 0
+  }
 
   // Streams come and go while the card is up (a player closes, a tab starts),
   // and the mixer should follow them without waiting for the next volume key.
@@ -525,56 +529,92 @@ Item {
           }
         }
 
-        // The app list scrolls once a sixth card would exceed the cap. The
-        // scrollbar is thin and only appears when there is more to reach.
-        ScrollView {
-          id: sourceScroll
+        // The app list scrolls once a sixth card would exceed the cap. A row
+        // slider keeps the wheel for its own volume, so the wheel scrolls in the
+        // narrow gutters at either edge of the list instead.
+        Item {
+          id: sourceViewport
           visible: root.showSources
           width: parent.width
           height: visible ? Math.min(sourceList.implicitHeight, root.sourceListMaxHeight) : 0
-          clip: true
 
-          // A row slider owns its drag; the view only steals drags when there
-          // is actually more content to scroll.
-          Binding {
-            target: sourceScroll.contentItem
-            property: "interactive"
-            value: sourceList.implicitHeight > sourceScroll.height
-          }
+          ScrollView {
+            id: sourceScroll
+            anchors.fill: parent
+            clip: true
 
-          ScrollBar.horizontal: ScrollBar {
-            policy: ScrollBar.AlwaysOff
-          }
-
-          ScrollBar.vertical: ScrollBar {
-            id: sourceScrollBar
-            policy: sourceList.implicitHeight > sourceScroll.height
-              ? ScrollBar.AlwaysOn
-              : ScrollBar.AlwaysOff
-            width: Style.space(3)
-            padding: 0
-
-            contentItem: Rectangle {
-              implicitWidth: Style.space(3)
-              radius: width / 2
-              color: Util.alpha(Commons.Color.popups.text, sourceScrollBar.pressed ? 0.45 : 0.2)
+            // A row slider owns its drag; the view only steals drags when there
+            // is actually more content to scroll.
+            Binding {
+              target: sourceScroll.contentItem
+              property: "interactive"
+              value: sourceList.implicitHeight > sourceScroll.height
             }
 
-            background: Item {}
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+
+            Column {
+              id: sourceList
+              width: sourceScroll.availableWidth
+              spacing: root.sourceListSpacing
+
+              Repeater {
+                id: sourceRepeater
+                model: root.sourceRows
+
+                SourceRow {
+                  required property var modelData
+                  source: modelData
+                }
+              }
+            }
           }
 
-          Column {
-            id: sourceList
-            width: sourceScroll.availableWidth
-            spacing: root.sourceListSpacing
+          Item {
+            id: sourceLeftEdge
+            z: 2
+            visible: sourceList.implicitHeight > sourceScroll.height
+            anchors.left: parent.left
+            anchors.leftMargin: -root.pad
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: root.pad + Style.space(12)
 
-            Repeater {
-              id: sourceRepeater
-              model: root.sourceRows
+            MouseArea {
+              anchors.fill: parent
+              acceptedButtons: Qt.NoButton
 
-              SourceRow {
-                required property var modelData
-                source: modelData
+              onWheel: function(wheel) {
+                var flick = sourceScroll.contentItem
+                if (!flick) return
+                var delta = wheel.pixelDelta.y || wheel.angleDelta.y / 120 * root.sourceRowHeight * 2
+                flick.contentY = Math.max(0, Math.min(Math.max(0, flick.contentHeight - flick.height), flick.contentY - delta))
+                wheel.accepted = true
+              }
+            }
+          }
+
+          Item {
+            id: sourceRightEdge
+            z: 2
+            visible: sourceList.implicitHeight > sourceScroll.height
+            anchors.right: parent.right
+            anchors.rightMargin: -root.pad
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: root.pad + Style.space(12)
+
+            MouseArea {
+              anchors.fill: parent
+              acceptedButtons: Qt.NoButton
+
+              onWheel: function(wheel) {
+                var flick = sourceScroll.contentItem
+                if (!flick) return
+                var delta = wheel.pixelDelta.y || wheel.angleDelta.y / 120 * root.sourceRowHeight * 2
+                flick.contentY = Math.max(0, Math.min(Math.max(0, flick.contentHeight - flick.height), flick.contentY - delta))
+                wheel.accepted = true
               }
             }
           }
