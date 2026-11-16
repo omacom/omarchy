@@ -152,3 +152,52 @@ chmod +x "$test_tmp/hooked"
 output=$(look_app --size 640x480 --out "$test_tmp/app.png" -- "$test_tmp/hooked") || fail "look app captures an app that draws itself" "$output"
 [[ $(<"$test_tmp/size") == "640x480" ]] || fail "look app passes --size to an app that draws itself" "$(<"$test_tmp/size")"
 pass "look app passes --size to an app that draws itself"
+
+# Any other program is started once, by the compositor, and captured on
+# screen. Its window belongs to a process it started, and another window
+# opening meanwhile is the user's: the stand-in compositor lists that first.
+cat >"$test_tmp/plain" <<EOF
+#!/bin/bash
+echo started >>"$test_tmp/plain.runs"
+sleep 60 &
+echo \$! >"$test_tmp/plain.pid"
+wait
+EOF
+cat >"$test_tmp/bin/hyprctl" <<EOF
+#!/bin/bash
+case \$1 in
+  monitors) echo '[{"dpmsStatus":true}]' ;;
+  dispatch)
+    command=\$(python3 -I -c 'import json, sys; print(json.JSONDecoder().raw_decode(sys.argv[1][len("hl.dsp.exec_cmd("):])[0])' "\$2")
+    setsid bash -c "\$command" </dev/null >/dev/null 2>&1 &
+    ;;
+  clients)
+    if [[ -s "$test_tmp/plain.pid" ]]; then
+      printf '[{"stableId":"1001","pid":%s,"at":[0,0],"size":[8,8]},{"stableId":"2002","pid":%s,"at":[0,0],"size":[8,8]}]\n' "\$(<"$test_tmp/stranger.pid")" "\$(<"$test_tmp/plain.pid")"
+    else
+      echo '[]'
+    fi
+    ;;
+esac
+EOF
+cat >"$test_tmp/bin/grim" <<EOF
+#!/bin/bash
+echo "\$*" >>"$test_tmp/grim.log"
+magick -size 8x8 xc:red "\${@: -1}"
+EOF
+chmod +x "$test_tmp/plain" "$test_tmp/bin/hyprctl" "$test_tmp/bin/grim"
+sleep 60 &
+stranger=$!
+echo "$stranger" >"$test_tmp/stranger.pid"
+trap 'kill "$stranger" $(cat "$test_tmp/plain.pid" 2>/dev/null) 2>/dev/null; rm -rf "$test_tmp"' EXIT
+
+output=$(look_app --after 0 --out "$test_tmp/app.png" -- "$test_tmp/plain") || fail "look app captures a program on screen" "$output"
+[[ $(<"$test_tmp/plain.runs") == "started" ]] || fail "look app starts a program without the hook only as a floating window" "$(<"$test_tmp/plain.runs")"
+[[ $(<"$test_tmp/grim.log") == "-T 2002 "* ]] || fail "look app captures the program's own window, not another that opened" "$(<"$test_tmp/grim.log")"
+kill -0 "$stranger" 2>/dev/null || fail "look app leaves another window's program running"
+for _ in {1..20}; do
+  kill -0 "$(<"$test_tmp/plain.pid")" 2>/dev/null || break
+  sleep 0.1
+done
+kill -0 "$(<"$test_tmp/plain.pid")" 2>/dev/null && fail "look app closes the program it started"
+pass "look app captures and closes only the program it started"

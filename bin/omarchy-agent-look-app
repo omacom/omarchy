@@ -70,41 +70,62 @@ if ! hyprctl monitors -j | jq -e 'any(.[]; .dpmsStatus)' >/dev/null; then
   exit 1
 fi
 
-window_ids() {
-  hyprctl clients -j | jq -r '.[].stableId'
-}
-
-before=$(window_ids | sort)
 # Hyprland starts the program with the session's environment, so pass on the
 # caller's directory, home and PATH: an agent working in another home sees
-# its own files.
-command="cd ${PWD@Q} && export HOME=${HOME@Q} PATH=${PATH@Q} && exec ${*@Q} >${log@Q} 2>&1"
+# its own files. The program's pid is how its window is told from any other.
+pidfile=$(mktemp)
+command="echo \$\$ >${pidfile@Q}; cd ${PWD@Q} && export HOME=${HOME@Q} PATH=${PATH@Q} && exec ${*@Q} >${log@Q} 2>&1"
 [[ -n $size ]] || size=1280x800
 hyprctl dispatch "hl.dsp.exec_cmd($(jq -Rn --arg c "bash -c ${command@Q}" '$c'), { float = true, no_initial_focus = true, size = { ${size/x/, } } })" >/dev/null
 
-id=""
+# Whether a process is the launched program or one it started.
+launched() {
+  local pid=$1
+  while [[ -n $root && $pid =~ ^[0-9]+$ ]] && (( pid > 1 )); do
+    (( pid == root )) && return 0
+    pid=$(ps -o ppid= -p "$pid" | tr -d ' ')
+  done
+  return 1
+}
+
+# The launched program's own window. Anything else that opens meanwhile is
+# the user's, and is neither captured nor closed.
+own_window() {
+  local id pid
+  while read -r id pid; do
+    if launched "$pid"; then
+      echo "$id $pid"
+      return
+    fi
+  done < <(hyprctl clients -j | jq -r '.[] | "\(.stableId) \(.pid)"')
+}
+
+# Ends the launched program, whether or not its window ever came.
+stop() {
+  kill $root $pid 2>/dev/null
+  rm -f "$pidfile"
+}
+
+root="" id="" pid=""
 for _ in {1..30}; do
-  id=$(comm -13 <(echo "$before") <(window_ids | sort) | head -1)
+  root=$(<"$pidfile")
+  read -r id pid < <(own_window)
   [[ -n $id ]] && break
   sleep 0.5
 done
 if [[ -z $id ]]; then
-  echo "No window appeared within 15 seconds. The program printed:" >&2
+  echo "The program opened no window of its own within 15 seconds. It printed:" >&2
   head -40 "$log" >&2
+  stop
   rm -f "$log"
   exit 1
 fi
 
 sleep "$after"
-# Capturing a window waits for its next frame, which a window that isn't
-# animating never draws; its area on screen shows the same thing, since it
-# floats on the current workspace.
-if ! timeout 5 grim -T "$id" "$out"; then
-  geometry=$(hyprctl clients -j | jq -r --arg id "$id" '.[] | select((.stableId | tostring) == $id) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"')
-  timeout 5 grim -g "$geometry" "$out"
-fi
-pid=$(hyprctl clients -j | jq -r --arg id "$id" '.[] | select((.stableId | tostring) == $id) | .pid')
-[[ -n $pid ]] && kill "$pid" 2>/dev/null
+# The window itself, never its area of the screen: by now that could show
+# another workspace, or a window the user put in front.
+timeout 5 grim -T "$id" "$out"
+stop
 if [[ ! -s $out ]]; then
   echo "The window couldn't be captured." >&2
   rm -f "$log"
