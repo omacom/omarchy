@@ -5,11 +5,17 @@
 
 set -euo pipefail
 
-if command -v phux >/dev/null; then
+if omarchy-cmd-present phux; then
   # Undoes the theme hook, distro layer, and marked Hyprland blocks; restores the previous selection.
-  phux omarchy remove || true
-  phux service uninstall >/dev/null 2>&1 || true
-  phux kill --server >/dev/null 2>&1 || true
+  # Stop if this fails. Dropping the package would leave those binds and the
+  # autostart entry calling a command that is no longer installed.
+  if phux omarchy remove; then
+    phux service uninstall >/dev/null 2>&1 || true
+    phux kill --server >/dev/null 2>&1 || true
+  else
+    echo "Could not remove phux's Omarchy integration; phux was not removed." >&2
+    exit 1
+  fi
 fi
 
 # Not ~/.config/phux or ~/.local/share/phux: sessions and the user's own config stay
