@@ -441,12 +441,12 @@ note_failure() {
 }
 
 # The first lines of a recorder's stderr that read as errors, or its last line
-# when none do, without colours or progress.
+# when none do, without colours, progress, warnings or info.
 recorder_error() {
   local lines
-  lines=$(tr '\r' '\n' | sed -E 's/\x1b\[[0-9;?]*[[:alpha:]]//g; s/[[:space:]]+$//' | grep -v '^[[:space:]]*$')
+  lines=$(tr '\r' '\n' | sed -E 's/\x1b\[[0-9;?]*[[:alpha:]]//g; s/[[:space:]]+$//' | grep -v '^[[:space:]]*$' | grep -viE 'warning|info:')
   grep -iE 'error|fail|cannot|can.?t|couldn.?t|unable|invalid|not found|no such|denied|unsupported|not supported' <<<"$lines" |
-    grep -viE 'warning|info:' | head -n 2 | grep . || tail -n 1 <<<"$lines"
+    head -n 2 | grep . || tail -n 1 <<<"$lines"
 }
 
 notify_start_failed() {
