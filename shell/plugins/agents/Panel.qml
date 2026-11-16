@@ -311,7 +311,7 @@ Panel {
           if (row.length > 0) rows.push(row)
         }
       }
-      if (!blankSlate) {
+      if (starterShown) {
         var tiles = []
         for (var j = 0; j < starterPrompts.length; j++) tiles.push({ kind: "starter", index: j })
         rows.push(tiles)
@@ -823,6 +823,14 @@ Panel {
     if (up.length === 0) return null
     return models[up.indexOf(local.last) >= 0 ? local.last : up[0]]
   }
+
+  // The starters only show once something can take the task: a local model
+  // that's running, or a signed-in subscription with a coding agent of its own.
+  // A model still downloading or loading doesn't count yet.
+  readonly property bool starterAgentReady: starterLocalModel !== null || providers.some(function(p) {
+    return !p.localModel && harnessFor(p) !== "" && !needsSignIn(p)
+  })
+  readonly property bool starterShown: addStage === "" && !blankSlate && starterAgentReady
 
   function startPrompt(kind, modifiers) {
     root.close()
@@ -1725,12 +1733,12 @@ Panel {
 
           // ---------- Make something ----------
           PanelSeparator {
-            visible: root.addStage === "" && !root.blankSlate
+            visible: root.starterShown
             foreground: root.foreground
           }
 
           Column {
-            visible: root.addStage === "" && !root.blankSlate
+            visible: root.starterShown
             width: parent.width
             spacing: Style.space(12)
 
