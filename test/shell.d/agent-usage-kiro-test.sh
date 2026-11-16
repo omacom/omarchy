@@ -87,4 +87,20 @@ try:
           ", ".join(path.name for path in scan_cache_files("kiro")))
 finally:
   unreadable.chmod(0o644)
+
+# Nor one that couldn't list a workspace, whose logs would go missing unsaid.
+workspace = unreadable.parent.parent
+workspace.chmod(0)
+try:
+  if os.access(workspace, os.R_OK):
+    print("ok - Kiro does not cache a scan that could not list a workspace # SKIP running as root")
+  else:
+    for path in scan_cache_files("kiro"):
+      path.unlink()
+    with contextlib.redirect_stderr(io.StringIO()):
+      kiro()
+    check("Kiro does not cache a scan that could not list a workspace", not scan_cache_files("kiro"),
+          ", ".join(path.name for path in scan_cache_files("kiro")))
+finally:
+  workspace.chmod(0o755)
 PY

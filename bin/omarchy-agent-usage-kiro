@@ -39,12 +39,37 @@ def sessions_root():
   return Path.home() / ".kiro" / "sessions"
 
 
+def session_logs():
+  """Every session's messages.jsonl, and whether every directory could be
+  listed: Path.glob() skips an unreadable one without saying so."""
+  logs = []
+  complete = True
+  root = sessions_root()
+  try:
+    workspaces = [entry for entry in os.scandir(root) if entry.is_dir()]
+  except FileNotFoundError:
+    # Kiro CLI never ran here.
+    return logs, complete
+  except OSError as exc:
+    warn(f"could not list {root} ({exc})")
+    return logs, False
+  for workspace in workspaces:
+    try:
+      for entry in os.scandir(workspace.path):
+        if entry.name.startswith("sess_") and entry.is_dir():
+          logs.append(Path(entry.path) / "messages.jsonl")
+    except OSError as exc:
+      warn(f"could not list {workspace.name} ({exc})")
+      complete = False
+  return sorted(logs), complete
+
+
 def scan():
   """Every typed prompt in Kiro CLI's session logs. Returns (stats, complete);
   a scan that couldn't read every log is not cached."""
   stats = Stats()
-  complete = True
-  for path in sorted(sessions_root().glob("*/sess_*/messages.jsonl")):
+  logs, complete = session_logs()
+  for path in logs:
     session = "kiro:" + path.parent.name
     try:
       with path.open(errors="replace") as lines:
@@ -63,8 +88,11 @@ def scan():
           if day is None:
             continue
           stats.add_prompts(day, session)
+    except FileNotFoundError:
+      # A session directory that never wrote a log.
+      continue
     except OSError as exc:
-      warn(f"could not read {path.name} ({exc})")
+      warn(f"could not read {path.parent.name} ({exc})")
       complete = False
   return stats.snapshot(), complete
 
