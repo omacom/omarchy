@@ -7,6 +7,10 @@
 -- https://github.com/hyprwm/Hyprland/discussions/14099
 local function send_shortcut_once(mods, key)
   return function()
+    -- Force-release the physically held Super so it doesn't merge into the
+    -- synthetic chord (Hyprland #14674).
+    hl.dispatch(hl.dsp.send_key_state({ mods = "", key = "SUPER_L", state = "up" }))
+
     hl.dispatch(hl.dsp.send_key_state({ mods = mods, key = key, state = "down" }))
 
     hl.timer(function()
@@ -42,10 +46,13 @@ local function universal_clipboard_shortcut(default_mods, default_key, terminal_
   end
 end
 
-o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "A"))
-o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL SHIFT", "C"))
+o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "code:38"))
+-- Terminals keep their Insert chords (matches Omarchy's terminal configs and avoids
+-- non-Latin layout lookup issues); GUI apps use raw keycodes so non-Latin
+-- layouts resolve correctly (issue #7027 / #12570).
+o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "code:54", "CTRL", "Insert"))
 -- Scripts paste the same way with `hyprctl dispatch 'o.universal_paste'`.
-o.universal_paste = universal_clipboard_shortcut("CTRL", "V", "CTRL SHIFT", "V")
+o.universal_paste = universal_clipboard_shortcut("CTRL", "code:55", "SHIFT", "Insert")
 o.bind("SUPER + V", "Universal paste", o.universal_paste)
-o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "X"))
+o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "code:53"))
 o.bind("SUPER + CTRL + V", "Clipboard manager", { panel = "omarchy.clipboard" })
