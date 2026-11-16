@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 
 Item {
   id: root
@@ -8,7 +9,7 @@ Item {
   property string title: ""
   property string meta: ""
   property string detail: ""
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property string fontFamily: Style.font.family
   property real iconSize: Style.font.display
   property real iconOpacity: 1.0
@@ -48,6 +49,7 @@ Item {
       width: parent.width
 
       Text {
+        textFormat: Text.PlainText
         visible: root.title !== ""
         text: root.title
         width: Math.min(implicitWidth, Math.max(0, parent.width - (detailPill.visible ? detailPill.implicitWidth + Style.space(8) : 0)))
@@ -70,11 +72,12 @@ Item {
         implicitHeight: detailText.implicitHeight + Style.space(4)
         anchors.verticalCenter: parent.verticalCenter
         color: "transparent"
-        borderSpec: Border.controlSpec("normal", root.foreground, Color.accent)
+        borderSpec: Border.controlSpec("normal", root.foreground, Commons.Color.accent)
         radius: Style.cornerRadius
 
         Text {
           id: detailText
+          textFormat: Text.PlainText
           anchors.centerIn: parent
           text: root.detail
           color: root.dim
@@ -87,6 +90,7 @@ Item {
 
     Text {
       id: metaText
+      textFormat: Text.PlainText
       width: parent.width
       text: root.meta.toUpperCase()
       visible: text !== ""
