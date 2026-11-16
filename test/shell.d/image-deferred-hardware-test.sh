@@ -369,6 +369,7 @@ mkdir -p "$keyring_bin" "$fixture/install/post-install"
 # the root under test, never the host's /etc.
 cp "$ROOT/install/post-install/pacman.sh" "$fixture/install/post-install/pacman.sh"
 cp "$ROOT/install/helpers/pacman.sh" "$fixture/install/helpers/pacman.sh"
+cp "$ROOT/install/helpers/pacman-keyring.sh" "$fixture/install/helpers/pacman-keyring.sh"
 target_etc='etc="${2:-/}/etc"'
 grep -Fqx "  $target_etc" "$ROOT/bin/omarchy-apply-pacman" || fail "omarchy-apply-pacman still names its target etc"
 sed "s|^  $target_etc\$|  etc=\"\${2:-\$OMARCHY_IMAGE_ROOT}/etc\"|" "$ROOT/bin/omarchy-apply-pacman" >"$fixture/bin/omarchy-apply-pacman"
@@ -376,11 +377,21 @@ chmod +x "$fixture/bin/omarchy-apply-pacman"
 mkdir -p "$fixture/default"
 cp -r "$ROOT/default/pacman" "$ROOT/default/regions" "$fixture/default/"
 : >"$fixture/install/hardware/pacman.sh"
-for command in pacman-key omarchy-pkg-add; do
+# pacman-key makes the keyring directory it's given, as the real one does.
+for command in pacman-key omarchy-pkg-add gpgconf; do
   cat >"$keyring_bin/$command" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >>"$KEYRING"
-[[ ${0##*/} != "pacman-key" || ! -e $KEYRING_FAIL ]]
+[[ ${0##*/} != "pacman-key" || ! -e $KEYRING_FAIL ]] || exit 1
+[[ ${0##*/} != "pacman-key" || -z ${KEYRING_FAIL_NEXT:-} || $* != *omarchy-next* ]] || exit 1
+# A test holds the background keyring's --populate until it releases it.
+if [[ ${0##*/} == "pacman-key" && -n ${KEYRING_HOLD:-} && $2 == *omarchy-next && $3 == "--populate" ]]; then
+  read -r _ <"$KEYRING_HOLD"
+fi
+if [[ ${0##*/} == "pacman-key" && $1 == "--gpgdir" && $3 == "--init" ]]; then
+  mkdir -p "$2"
+  touch "$2/master-key"
+fi
 SH
 done
 printf '#!/bin/bash\necho "$PLATFORM"\n' >"$keyring_bin/omarchy-hw-platform"
@@ -426,6 +437,73 @@ for platform in aarch64-apple x86; do
   [[ ! -e $KEYRING && ! -e $root/$request ]] || fail "$platform: finalization leaves the keyring alone" "$(cat "$KEYRING" 2>/dev/null)"
 done
 pass "an image build on plain aarch64 leaves the pacman keyring to the first boot"
+
+# A first install starts its keyring at the beginning of system setup, in a
+# directory of its own, and finalization waits for it and moves it into place.
+start_keyring() {
+  OMARCHY_IMAGE_ROOT="$1" OMARCHY_PATH="$fixture" OMARCHY_INSTALL="$fixture/install" PLATFORM=$2 OMARCHY_FIRST_INSTALL=$3 \
+    PATH="$keyring_bin:$base_path" bash -e -c 'source "$1"; omarchy_pacman_keyring_start' bash "$fixture/install/helpers/pacman-keyring.sh"
+}
+next_keyring() {
+  printf '%s\n' "$1/etc/pacman.d/gnupg.omarchy-next"
+}
+
+rm -f "$KEYRING"
+root=$(new_root first-install-aarch64)
+mkdir -p "$root/etc/pacman.d/gnupg"
+touch "$root/etc/pacman.d/gnupg/image-leftover"
+hold=$test_tmp/keyring-hold
+mkfifo "$hold"
+# A failure before the hold is released stops the held job and finalization
+# rather than leaving them running.
+finalizing=""
+stop_keyring_jobs() {
+  [[ -z $finalizing ]] || kill "$finalizing" 2>/dev/null || true
+  timeout 1 bash -c 'echo >"$1"' bash "$hold" 2>/dev/null || true
+}
+trap 'stop_keyring_jobs; rm -rf "$test_tmp"' EXIT
+KEYRING_HOLD=$hold start_keyring "$root" aarch64 1 || fail "a first install starts its keyring"
+finalize "$root" aarch64 >"$test_tmp/finalize.log" 2>&1 &
+finalizing=$!
+# Finalization installs the keyring package just before it takes the keyring;
+# once it has, it must wait for the one still being made.
+for _ in {1..100}; do
+  (( $(grep -c '^omarchy-pkg-add' "$KEYRING") >= 2 )) && break
+  sleep 0.05
+done
+sleep 0.3
+kill -0 "$finalizing" 2>/dev/null || fail "finalization waits for the keyring still being made" "$(cat "$KEYRING")"
+timeout 5 bash -c 'echo >"$1"' bash "$hold" || fail "the background keyring reached --populate"
+wait "$finalizing" || fail "finalization takes the keyring started for it" "$(cat "$test_tmp/finalize.log")"
+finalizing=""
+trap 'rm -rf "$test_tmp"' EXIT
+next=$(next_keyring "$root")
+grep -Fxq "pacman-key --gpgdir $next --init" "$KEYRING" && grep -Fxq "pacman-key --gpgdir $next --populate" "$KEYRING" ||
+  fail "the keyring is made in a directory of its own" "$(cat "$KEYRING")"
+! grep -Fxq "pacman-key --init" "$KEYRING" || fail "finalization doesn't make a second keyring" "$(cat "$KEYRING")"
+[[ -f $root/etc/pacman.d/gnupg/master-key && ! -e $root/etc/pacman.d/gnupg/image-leftover ]] ||
+  fail "the new keyring replaces the image's"
+[[ ! -e $next && ! -e $next.lock && ! -e $next.done && ! -e $next.log ]] || fail "nothing is left of the keyring's making"
+pass "a first install makes its keyring in the background, and finalization moves it into place"
+
+rm -f "$KEYRING"
+root=$(new_root first-install-fails)
+mkdir -p "$root/etc/pacman.d/gnupg"
+touch "$root/etc/pacman.d/gnupg/image-leftover"
+KEYRING_FAIL_NEXT=1 start_keyring "$root" aarch64 1 || fail "a first install starts its keyring, even one that will fail"
+finalize "$root" aarch64 || fail "finalization succeeds when the background keyring failed"
+grep -Fxq "pacman-key --init" "$KEYRING" && grep -Fxq "pacman-key --populate" "$KEYRING" ||
+  fail "a keyring that failed in the background is made in finalization" "$(cat "$KEYRING")"
+next=$(next_keyring "$root")
+[[ -e $root/etc/pacman.d/gnupg/image-leftover && ! -e $next && ! -e $next.lock ]] ||
+  fail "a failed keyring isn't moved into place, and is cleared"
+pass "a keyring that fails in the background is made in finalization, as before"
+
+rm -f "$KEYRING"
+root=$(new_root upgrade-aarch64)
+start_keyring "$root" aarch64 0 || fail "an upgrade's system setup starts"
+[[ ! -e $KEYRING && ! -e $(next_keyring "$root").lock ]] || fail "an upgrade starts no keyring" "$(cat "$KEYRING" 2>/dev/null)"
+pass "an upgrade keeps its keyring, starting no new one"
 
 reset_logs
 rm -f "$KEYRING"
