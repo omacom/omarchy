@@ -82,11 +82,13 @@ Item {
   // a clipped row; the fallback is the same measurement before the first row
   // exists.
   readonly property int maxSourceRows: 5
-  readonly property real sourceRowHeight: sourceList.children.length > 0
-    ? sourceList.children[0].height
-    : Style.space(70)
+  readonly property int sourceListSpacing: Style.space(8)
+  readonly property real sourceRowHeight: {
+    var row = sourceRepeater && sourceRepeater.count > 0 ? sourceRepeater.itemAt(0) : null
+    return row && row.height > 0 ? row.height : Style.space(70)
+  }
   readonly property real sourceListMaxHeight: sourceRowHeight * maxSourceRows
-    + sourceList.spacing * (maxSourceRows - 1)
+    + root.sourceListSpacing * (maxSourceRows - 1)
   readonly property int contentWidth: root.mixerMenu
     ? Math.max(root.mainContentWidth, root.sourcesWidth)
     : root.mainContentWidth
@@ -564,9 +566,10 @@ Item {
           Column {
             id: sourceList
             width: sourceScroll.availableWidth
-            spacing: Style.space(8)
+            spacing: root.sourceListSpacing
 
             Repeater {
+              id: sourceRepeater
               model: root.sourceRows
 
               SourceRow {
@@ -582,8 +585,14 @@ Item {
         id: cardHover
         onHoveredChanged: {
           root.cardHovered = hovered
-          if (hovered) hideTimer.stop()
-          else if (root.opened) hideTimer.restart()
+          if (hovered) {
+            // Only the app mixer is meant to stay while the pointer is inside;
+            // brightness, microphone and media notifications keep their own
+            // duration.
+            if (root.mixerMenu) hideTimer.stop()
+          } else if (root.opened && root.mixerMenu) {
+            hideTimer.restart()
+          }
         }
       }
     }
