@@ -157,8 +157,11 @@ Item {
     resetPreview()
     list.currentIndex = selectedIndex
   }
-  // Closing the enlarged preview returns the keys to the card it came from.
-  onPreviewExpandedChanged: if (!previewExpanded) Qt.callLater(function() { search.forceActiveFocus() })
+  // The preview owns the keys while it is open, and hands them back after.
+  onPreviewExpandedChanged: {
+    if (previewExpanded) Qt.callLater(function() { expandedCard.forceActiveFocus() })
+    else Qt.callLater(function() { search.forceActiveFocus() })
+  }
 
   Process { id: result }
 
@@ -193,14 +196,6 @@ Item {
 
       Keys.priority: Keys.AfterItem
       Keys.onPressed: function(event) {
-        // The enlarged preview covers the card, so it owns the keys while it is
-        // open: Enter must not reach the plugin action it hides.
-        if (root.previewExpanded) {
-          if (event.key === Qt.Key_Escape) { root.previewExpanded = false; event.accepted = true }
-          else if (Util.readingKey(event) === Qt.Key_Left) { root.previousPreview(); event.accepted = true }
-          else if (Util.readingKey(event) === Qt.Key_Right) { root.nextPreview(); event.accepted = true }
-          return
-        }
         if (event.key === Qt.Key_Escape) { if (root.query) root.query = ""; else root.cancel(); event.accepted = true }
         else if (event.key === Qt.Key_Down) { root.move(1); event.accepted = true }
         else if (event.key === Qt.Key_Up) { root.move(-1); event.accepted = true }
@@ -389,6 +384,13 @@ Item {
         radius: Style.cornerRadius
         padding: Style.spacing.panelPadding
         MouseArea { anchors.fill: parent; onClicked: {} }
+        // The preview sits outside the card, so the card's Keys handler never
+        // sees these: taken here, Enter cannot reach the action underneath.
+        Keys.onPressed: function(event) {
+          if (event.key === Qt.Key_Escape) { root.previewExpanded = false; event.accepted = true }
+          else if (Util.readingKey(event) === Qt.Key_Left) { root.previousPreview(); event.accepted = true }
+          else if (Util.readingKey(event) === Qt.Key_Right) { root.nextPreview(); event.accepted = true }
+        }
         Image {
           id: expandedPreview
           anchors.fill: parent
