@@ -2175,6 +2175,8 @@ Panel {
 
   component InfoValue: Text {
     textFormat: Text.PlainText
+    clip: true
+    elide: Text.ElideRight
     color: root.bar.foreground
     font.family: root.bar.fontFamily
     font.pixelSize: Style.font.bodySmall
