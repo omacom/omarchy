@@ -22,7 +22,7 @@ Before you reboot, try restarting the offending subsystem on its own. _Update > 
 
 ### The screen froze when I rebooted
 
-A reboot that sits on the last frame for minutes can be caused by a kernel driver stuck in uninterruptible sleep, holding up shutdown. Unloading an audio, GPU, or Wi-Fi module that is still in use with `modprobe -r` is one way to get there. Wait it out, or hold the power button; don't try to unload the driver again.
+A reboot that sits on the last frame for minutes can be caused by a task stuck in uninterruptible sleep inside a kernel driver, holding up shutdown. Unloading an audio, GPU, or Wi-Fi module that is still in use with `modprobe -r` is one way to get there. Wait it out, or hold the power button; don't try to unload the driver again.
 
 Reboot with `omarchy system reboot` rather than a raw `systemctl reboot` (or `reboot`) from a terminal or coding agent. It asks apps to close first, and shows an on-screen notice if the reboot takes more than 2 seconds, so you can tell it has started.
 

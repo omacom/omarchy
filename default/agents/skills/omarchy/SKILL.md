@@ -210,7 +210,7 @@ omarchy system reboot           # Reboot
 
 `omarchy system reboot` and `omarchy system shutdown` schedule the action in the user systemd, ask application windows to close, and show an on-screen notice if the exit takes longer than 2 seconds. Use those. Do not run `systemctl reboot`, `reboot`, `shutdown`, or `poweroff` from an agent — they skip both, so apps get no graceful window-close request and Omarchy shows no notice while shutdown is held up. Do not wait for the session to die after scheduling the reboot.
 
-Do not `modprobe -r` in-use audio, GPU, or Wi-Fi drivers as a way to avoid a reboot. A module stuck in uninterruptible sleep (D-state) can stall shutdown for minutes, with the last frame still on screen, whichever reboot command is used.
+Do not `modprobe -r` in-use audio, GPU, or Wi-Fi drivers as a way to avoid a reboot. A driver whose teardown hangs can leave a task in uninterruptible sleep (D-state) and stall shutdown for minutes, with the last frame still on screen, whichever reboot command is used.
 
 **IMPORTANT:** Always run `omarchy-debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
 
