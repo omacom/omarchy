@@ -31,17 +31,25 @@ omarchy-shell shell ping
 
 A healthy shell answers `ok`. Restarting the shell restores its bar and launcher without logging out of your applications. If the restart refuses because the session is locked, do not bypass that refusal: the shell also owns the lock screen.
 
-If the shell remains hung and the restart cannot finish, collect the process list for support:
+If the shell remains hung and the restart cannot finish, run:
 
 ```bash
-ps -C quickshell -o pid,stat,wchan:30,pcpu,args
-omarchy-hyprland-session-locked
-echo $?
+omarchy restart shell --force
 ```
 
-The last command prints `0` if the compositor is locked, `1` if it is unlocked, or `2` if the state could not be determined. Only after confirming `1`, an advanced recovery is to terminate the specific hung Quickshell PID whose command points at the active Omarchy shell configuration (`kill -KILL PID`), then run `omarchy restart shell` and check `omarchy-shell shell ping` again. Do not kill every Quickshell process or terminate a locker when the result is `0` or `2`.
+Forced recovery verifies that the compositor is unlocked, then terminates only the identified Omarchy shell process before restarting. It refuses to proceed if lock state is locked or undetermined, or if the process no longer matches the registered shell configuration. It discards transient shell UI state and notifications. This recovers an unresponsive shell; it does not establish or fix the underlying cause of a hang.
 
-Forcefully stopping the shell discards its transient UI state and notifications. It is a recovery measure, not a fix for the cause of a hang. If the problem returns, share the saved journal through Omarchy support after reviewing it for personal information, together with your GPU and driver version, connected monitors, custom shell plugins, and whether password entry succeeded before the desktop became unresponsive.
+### The lock screen does not respond after waking with an NVIDIA GPU
+
+On x86 NVIDIA systems affected by kernel-notifier suspend hangs, try NVIDIA's service-based suspend path:
+
+```bash
+omarchy setup nvidia-suspend
+```
+
+This writes an NVIDIA module configuration, enables the GPU sleep services without starting them, and rebuilds installed Limine boot images. Reboot before testing suspend and unlock. The command is an opt-in workaround; it does not change the default suspend path on unaffected systems.
+
+If unlocking succeeds but the bar and launcher subsequently stop responding, use the shell recovery above. Save the journal before restarting so the original failure can be investigated. Include your GPU and driver version, monitor setup, and custom plugins when reporting recurring hangs.
 
 ### My Wi-Fi, Bluetooth, audio, or trackpad just stopped working
 
