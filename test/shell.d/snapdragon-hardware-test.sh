@@ -397,6 +397,7 @@ run_slim5x_setup() (
   OMARCHY_PROC_ROOT="$dir/proc" \
     OMARCHY_IDEAPAD_SLIM5X_DRM_ROOT="$dir/drm" \
     OMARCHY_IDEAPAD_SLIM5X_UKI_CONFIG="$dir/kernel/uki.conf" \
+    OMARCHY_IDEAPAD_SLIM5X_MKINITCPIO_DIR="$dir/mkinitcpio.conf.d" \
     OMARCHY_QUALCOMM_DTB_ROOT="$dir/dtbs" \
     source "$slim5x_setup"
 )
@@ -449,5 +450,7 @@ cp -p "$other/kernel/uki.conf" "$scratch/other-uki.conf"
 run_slim5x_setup "$other" >/dev/null
 cmp -s "$scratch/other-uki.conf" "$other/kernel/uki.conf" ||
   fail "other boards are left unchanged, even with the same panel"
+[[ ! -e $other/mkinitcpio.conf.d/ideapad-slim-5x-initramfs.conf ]] ||
+  fail "other boards get no Slim 5x initramfs drop-in"
 
 pass "IdeaPad Slim 5x setup boots the LCD model on the LCD tree"

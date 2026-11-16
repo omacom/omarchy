@@ -4,6 +4,7 @@
 uki_config=${OMARCHY_IDEAPAD_SLIM5X_UKI_CONFIG:-/etc/kernel/uki.conf}
 drm_root=${OMARCHY_IDEAPAD_SLIM5X_DRM_ROOT:-/sys/class/drm}
 dtb_root=${OMARCHY_QUALCOMM_DTB_ROOT:-/boot/dtbs}
+mkinitcpio_dir=${OMARCHY_IDEAPAD_SLIM5X_MKINITCPIO_DIR:-/etc/mkinitcpio.conf.d}
 
 # The models share their SMBIOS identity, and systemd's hardware IDs for it
 # came from an OLED unit, so systemd-stub boots the OLED tree on both. The LCD
@@ -15,6 +16,33 @@ dtb_root=${OMARCHY_QUALCOMM_DTB_ROOT:-/boot/dtbs}
 if omarchy-hw-aarch64-qualcomm &&
   omarchy-hw-match-device-tree lenovo,ideapad-slim5x-oled lenovo,ideapad-slim5x-lcd; then
   echo "Detected Lenovo IdeaPad Slim 5x, applying board-specific support..."
+
+  # Show the disk unlock prompt. The display driver binds only once every
+  # output's chain has loaded, and those modules load from the real root, so
+  # the prompt stays dark until the disk is unlocked. Load the eDP panel, the
+  # LCD's PWM backlight, the USB-C DisplayPort chain with its SBU muxes and
+  # eUSB2 repeaters, the HDMI bridge and connector, the IPC router and PD
+  # mapper pmic_glink needs, and the Adreno X1-45's microcode. As in
+  # qualcomm/initramfs.sh, the ? skips a module a kernel does not have.
+  mkdir -p "$mkinitcpio_dir"
+  cat >"$mkinitcpio_dir/ideapad-slim-5x-initramfs.conf" <<'CONF'
+MODULES+=(msm? dispcc_x1e80100? gpucc_x1p42100? phy_qcom_edp? panel_edp? pwm_bl?
+  leds_qcom_lpg? qcom_pbs? phy_qcom_qmp_combo? gpio_sbu_mux? phy_nxp_ptn3222? qrtr?
+  qcom_pd_mapper? pmic_glink? pmic_glink_altmode? display_connector? simple_bridge?)
+
+# The board-signed zap shader is included by qcom-firmware-extract.
+for firmware in qcom/gen71500_sqe.fw qcom/gen71500_gmu.bin; do
+  for suffix in '' .zst .xz; do
+    for directory in /usr/lib/firmware/updates /usr/lib/firmware; do
+      if [[ -f $directory/$firmware$suffix ]]; then
+        FILES+=("$directory/$firmware$suffix")
+        break 2
+      fi
+    done
+  done
+done
+unset firmware directory suffix
+CONF
 
   ideapad_slim5x_lcd=0
   # sysfs gives the EDID a size of 0, so a read tells whether it holds one.
