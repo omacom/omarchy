@@ -858,6 +858,11 @@ def launch_window(saved, known, workspace):
   chromium = app in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"} and not any(a.startswith(("--app=", "--app-id=")) for a in argv)
   firefox = app in {"firefox", "firefox-bin"}
   webapp = app in {"chromium", "google-chrome", "chrome", "brave", "brave-browser"} and any(a.startswith("--app=") for a in argv) and bool(re.fullmatch(r"(?:chrome|chromium|brave)-.+-(?:Default|Profile_\d+)", saved["class"], re.I))
+  classes = {saved["class"].casefold()}
+  if chromium and saved["class"].casefold() in {"chromium", "chromium-browser"}:
+    # Desktop-launched Chromium can forward a request under its desktop app ID.
+    # Keep the unique requested window name as the ownership check below.
+    classes.update({"chromium", "chromium-browser"})
   if chromium or firefox:
     # Browser requests may be forwarded to an existing process, so give the
     # requested window its own meaningful identity instead of using its PID/class.
@@ -918,7 +923,7 @@ def launch_window(saved, known, workspace):
       clients = query("clients")
       # App-mode Chromium ignores launch tags and window names. Its generated
       # class identifies the app URL and profile; only a new matching window is eligible.
-      candidates = [w for w in clients if w["address"] not in known and w["class"].casefold() == saved["class"].casefold()
+      candidates = [w for w in clients if w["address"] not in known and w["class"].casefold() in classes
                     and ((w.get("title") == browser_name or (firefox and w.get("title") in {browser_name + " — Mozilla Firefox", browser_name + " - Mozilla Firefox", browser_name + " — Firefox", browser_name + " — Mozilla Firefox ESR"})) if browser_name else webapp or token in [t.rstrip("*") for t in w.get("tags", [])])]
       if len(candidates) == 1:
         if token in [t.rstrip("*") for t in candidates[0].get("tags", [])]:

@@ -93,6 +93,14 @@ with patch.object(m, 'query', side_effect=[[], [browser_other], [browser_other, 
   check(m.launch_window({'argv': ['chromium', '--new-window', 'about:blank'], 'class': 'chromium', 'sceneName': 'Focused work'}, set(), 8)['address'] == '0xours', 'single-instance browsers match the launch-specific window name instead of their shared process/class')
   check('--window-name=Focused work' in launch.call_args.args[0], 'the named browser window is explicitly requested by this launch')
 
+# Chromium's Wayland application ID can differ when forwarding to an existing
+# browser launched through its desktop entry; both identify the same browser.
+for old_class, new_class in [('chromium', 'chromium-browser'), ('chromium-browser', 'chromium')]:
+  wrong_browser = {**browser_ours, 'address': '0xwrong', 'class': 'brave'}
+  renamed_browser = {**browser_ours, 'class': new_class}
+  with patch.object(m, 'query', side_effect=[[], [wrong_browser], [wrong_browser, renamed_browser]]), patch.object(m, 'execute'), patch.object(m.socket, 'socket', return_value=MagicMock()):
+    check(m.launch_window({'argv': ['chromium', '--new-window', 'about:blank'], 'class': old_class, 'sceneName': 'Focused work'}, set(), 8)['address'] == '0xours', 'forwarded Chromium restores tolerate its desktop-entry app ID without claiming a different browser: ' + old_class)
+
 name = b'Focused work'
 user_title = struct.pack('<ii', 1, len(name)) + name + b'\0' * ((-len(name)) % 4)
 named = m.chromium_sessions(raw + record(31, struct.pack('<i', len(user_title)) + user_title))
