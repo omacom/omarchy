@@ -15,18 +15,15 @@ if [[ $1 == "pre" ]]; then
 fi
 
 if [[ $1 == "post" ]]; then
-  # Run in background — user.slice is still frozen at this point, so a
-  # synchronous restart would block the thaw for up to 90 seconds.
-  (
-    sleep 5
-    for uid_dir in /run/user/*; do
-      uid=$(basename "$uid_dir")
-      if [[ -S $uid_dir/bus ]]; then
-        sudo -u "#$uid" env \
-          DBUS_SESSION_BUS_ADDRESS="unix:path=$uid_dir/bus" \
-          XDG_RUNTIME_DIR="$uid_dir" \
-          systemctl --user restart gvfs-daemon.service 2>/dev/null || true
-      fi
-    done
-  ) &
+  # Hand the restart to a timer unit: systemd kills anything this hook leaves behind when the
+  # sleep service ends, and user.slice stays frozen until the hook returns.
+  for uid_dir in /run/user/*; do
+    uid=$(basename "$uid_dir")
+    if [[ -S $uid_dir/bus ]]; then
+      systemd-run --quiet --no-block --collect --on-active=5 --timer-property=AccuracySec=1s --uid="$uid" \
+        --setenv=DBUS_SESSION_BUS_ADDRESS="unix:path=$uid_dir/bus" \
+        --setenv=XDG_RUNTIME_DIR="$uid_dir" \
+        systemctl --user restart gvfs-daemon.service 2>/dev/null || true
+    fi
+  done
 fi

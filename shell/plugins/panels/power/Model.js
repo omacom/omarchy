@@ -49,7 +49,10 @@ function batteryFraction(device) {
   return device && device.isPresent ? Math.max(0, Math.min(1, device.percentage)) : 0
 }
 
-function chargeThresholdActive(device, onBattery, states) {
+// rateFresh is false while the charge rate still dates from before external
+// power arrived. A battery that reports its rate every half minute reads
+// "charging at 0 W" until then, which is not a threshold holding it.
+function chargeThresholdActive(device, onBattery, states, rateFresh) {
   var d = device || {}
   var s = states || {}
   if (!(d && d.isPresent && !onBattery)) return false
@@ -59,18 +62,19 @@ function chargeThresholdActive(device, onBattery, states) {
   if (d.state === s.PendingCharge) return true
   if (d.state === s.FullyCharged && fraction < 0.99) return true
   if (d.state !== s.Charging || fraction >= 0.99) return false
+  if (rateFresh === false) return false
 
   return Number(d.changeRate || 0) <= 0.2 || Number(d.timeToFull || 0) >= 8 * 60 * 60
 }
 
-function batteryIcon(device, onBattery, states) {
+function batteryIcon(device, onBattery, states, rateFresh) {
   var d = device || {}
   if (!d.isPresent) return ""
 
   var chargingIcons = ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
   var defaultIcons = ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
   var index = Math.max(0, Math.min(9, Math.floor(d.percentage * 10)))
-  var threshold = chargeThresholdActive(d, onBattery, states)
+  var threshold = chargeThresholdActive(d, onBattery, states, rateFresh)
 
   if (threshold) return defaultIcons[index]
   if (d.state === states.FullyCharged) return "󰂅"
@@ -78,15 +82,36 @@ function batteryIcon(device, onBattery, states) {
   return defaultIcons[index]
 }
 
-function modeLabel(device, onBattery, states) {
+function modeLabel(device, onBattery, states, tr, rateFresh) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var d = device || {}
   if (!d.isPresent) return ""
 
   var percentage = d.isPresent ? d.percentage : 0
-  if (chargeThresholdActive(d, onBattery, states)) return "Threshold"
-  if (onBattery) return "On battery"
-  if (!onBattery && percentage >= 1) return "Fully charged"
-  return "Charging"
+  if (chargeThresholdActive(d, onBattery, states, rateFresh)) return t("power.threshold", "Threshold")
+  if (onBattery) return t("power.onBattery", "On battery")
+  if (!onBattery && percentage >= 1) return t("power.fullyCharged", "Fully charged")
+  return t("power.charging", "Charging")
+}
+
+// omarchy-battery-status --shell answers in plain digits with the unit
+// attached ("13.1W", "75-80%"); the panel writes each number in the
+// language's digits and decimal separator, keeping its decimals and unit.
+function localizeReading(raw, fmt) {
+  var f = typeof fmt === "function" ? fmt : function(v, d) { return d === undefined ? String(v) : Number(v).toFixed(d) }
+  return String(raw === undefined || raw === null ? "" : raw).replace(/\d+(?:\.\d+)?/g, function(number) {
+    var dot = number.indexOf(".")
+    return f(Number(number), dot < 0 ? undefined : number.length - dot - 1)
+  })
+}
+
+function profileLabel(name, tr) {
+  var t = typeof tr === "function" ? tr : function(key, english) { return english }
+  var value = String(name || "")
+  if (value === "power-saver") return t("power.profilePowerSaver", "Power-saver")
+  if (value === "balanced") return t("power.profileBalanced", "Balanced")
+  if (value === "performance") return t("power.profilePerformance", "Performance")
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 if (typeof module !== "undefined") {
@@ -99,6 +124,8 @@ if (typeof module !== "undefined") {
     batteryFraction: batteryFraction,
     chargeThresholdActive: chargeThresholdActive,
     batteryIcon: batteryIcon,
-    modeLabel: modeLabel
+    modeLabel: modeLabel,
+    profileLabel: profileLabel,
+    localizeReading: localizeReading
   }
 }

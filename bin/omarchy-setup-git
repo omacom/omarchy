@@ -1,0 +1,99 @@
+#!/bin/bash
+
+# omarchy:summary=Set the name and email for your git commits, and sign in to GitHub
+# omarchy:args=[--name <name>] [--email <email>]
+# omarchy:examples=omarchy setup git | omarchy setup git --name "Jane Doe" --email jane@example.com
+
+set -e
+
+usage() {
+  cat <<USAGE
+Usage: omarchy-setup-git [--name <name>] [--email <email>]
+
+Without options, asks for the name and email used for git commits and offers
+to sign in to GitHub. With either option, sets what was given and asks nothing.
+USAGE
+}
+
+name=$(git config --global user.name || true)
+email=$(git config --global user.email || true)
+interactive=1 set_name=0 set_email=0
+
+while (($#)); do
+  case "$1" in
+    --name)
+      [[ -n ${2:-} ]] || { usage >&2; exit 1; }
+      name=$2 interactive=0 set_name=1
+      shift 2
+      ;;
+    --email)
+      [[ -n ${2:-} ]] || { usage >&2; exit 1; }
+      email=$2 interactive=0 set_email=1
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if (( interactive )); then
+  omarchy-i18n gitSetup.intro
+  echo
+  name=$(gum input --no-show-help --value "$name" --placeholder "$(omarchy-i18n gitSetup.namePlaceholder)" --prompt "$(omarchy-i18n gitSetup.namePrompt)")
+  email=$(gum input --no-show-help --value "$email" --placeholder "you@example.com" --prompt "$(omarchy-i18n gitSetup.emailPrompt)")
+  set_name=1 set_email=1
+fi
+
+# Fill the Compose shortcuts (Compose, Space, n/e) the install used to seed,
+# leaving the rest of a hand-edited ~/.XCompose alone.
+set_compose_identity() {
+  local key=$1 value=$2
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+
+  local file
+  [[ -f ~/.XCompose ]] || return 0
+  # Write through a symlink, so a dotfiles-managed ~/.XCompose stays managed.
+  file=$(readlink -f ~/.XCompose)
+
+  KEY="<Multi_key> <space> <$key> :" LINE="<Multi_key> <space> <$key> : \"$value\"" \
+    awk 'index($0, ENVIRON["KEY"]) == 1 { print ENVIRON["LINE"]; found = 1; next } { print } END { if (!found) print ENVIRON["LINE"] }' \
+    "$file" >"$file.new"
+  # Rename into place so an interrupted write never leaves it partial, keeping its mode.
+  chmod --reference="$file" "$file.new"
+  mv "$file.new" "$file"
+}
+
+if (( set_name )) && [[ -n ${name//[[:space:]]/} ]]; then
+  git config --global user.name "$name"
+  set_compose_identity n "$name"
+fi
+
+if (( set_email )) && [[ -n ${email//[[:space:]]/} ]]; then
+  git config --global user.email "$email"
+  set_compose_identity e "$email"
+fi
+
+if [[ -f ~/.XCompose ]]; then
+  omarchy-restart-xcompose >/dev/null 2>&1 || true
+fi
+
+if (( interactive )); then
+  echo
+  if omarchy-cmd-missing gh; then
+    omarchy-i18n gitSetup.ghMissing
+  # Only a gh that has signed in before is asked, as running the lazy shim installs it.
+  elif grep -qs "^github.com:" "${GH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/gh}/hosts.yml" &&
+    gh auth status --hostname github.com >/dev/null 2>&1; then
+    omarchy-i18n gitSetup.ghSignedIn
+  elif gum confirm --no-show-help --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-i18n common.no)" "$(omarchy-i18n gitSetup.ghSignIn)"; then
+    gh auth login
+  fi
+fi

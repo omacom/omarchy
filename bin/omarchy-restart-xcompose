@@ -2,9 +2,30 @@
 
 # omarchy:summary=Restart the XCompose input method service (fcitx5) to apply new compose key settings.
 
+set -euo pipefail
+
 # A fcitx5 running outside the unit owns org.fcitx.Fcitx5, so the unit's
 # instance would exit on arrival and the stale process would keep serving the
 # old ~/.XCompose -- a restart that reports success and changes nothing.
 systemctl --user stop omarchy-fcitx5.service
-pkill -x fcitx5 >/dev/null 2>&1 || true
+pkill -u "$UID" -x fcitx5 >/dev/null 2>&1 || true
+for attempt in {1..50}; do
+  if ! pgrep -u "$UID" -x fcitx5 >/dev/null; then
+    break
+  fi
+  sleep 0.1
+done
+if pgrep -u "$UID" -x fcitx5 >/dev/null; then
+  # An activation concurrent with stop may have restarted the unit.
+  systemctl --user stop omarchy-fcitx5.service
+  pkill -u "$UID" -x fcitx5 >/dev/null 2>&1 || true
+  for attempt in {1..50}; do
+    if ! pgrep -u "$UID" -x fcitx5 >/dev/null; then break; fi
+    sleep 0.1
+  done
+fi
+if pgrep -u "$UID" -x fcitx5 >/dev/null; then
+  echo "Fcitx did not stop; input service was not restarted." >&2
+  exit 1
+fi
 systemctl --user start omarchy-fcitx5.service
