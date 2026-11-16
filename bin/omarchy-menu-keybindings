@@ -680,16 +680,30 @@ output_binding_records_uncached() {
   [[ -n $dynamic ]]
 }
 
+# The key is computed on every open, before the menu can show, so it asks
+# Hyprland for everything in one batch rather than one hyprctl per input.
+# Devices come last and only their active keymaps count: the rest of that
+# listing (device addresses, Caps Lock state) changes without changing a
+# binding. Should the "mice:" heading ever move, the whole listing is hashed,
+# which costs cache misses but never a stale menu. A batch that answers
+# nothing gives no key, since every such run would otherwise share one.
 keybindings_cache_key() {
-  {
-    printf 'v19\n'
-    leading_keyboard
-    omarchy-language 2>/dev/null
-    cat "$OMARCHY_PATH/default/i18n/$(omarchy-language 2>/dev/null)/keybindings.json" 2>/dev/null
-    hyprctl devices 2>/dev/null | grep -F 'active keymap:'
+  local language state sum
+
+  state=$(hyprctl --batch 'getoption input:kb_layout; getoption input:kb_variant; binds; devices' 2>/dev/null |
+    awk '/^mice:$/ { devices = 1 } !devices || /active keymap:/')
+  [[ -n $state ]] || return 1
+
+  language=$(omarchy-language 2>/dev/null)
+  sum=$({
+    printf 'v20\n'
+    printf '%s\n' "$language"
+    cat "$OMARCHY_PATH/default/i18n/$language/keybindings.json" 2>/dev/null
     cat "$key_names_file" 2>/dev/null
-    hyprctl binds 2>/dev/null
-  } | sha256sum | awk '{ print $1 }'
+    printf '%s\n' "$state"
+  } | sha256sum)
+
+  printf '%s\n' "${sum%% *}"
 }
 
 refresh_keybindings_cache() {
@@ -710,13 +724,16 @@ refresh_keybindings_cache() {
 }
 
 output_binding_records() {
-  local cache_dir cache_file cache_name
+  local cache_dir cache_file cache_name cache_key
 
   cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy"
-  cache_name="keybindings-$(keybindings_cache_key).records"
+  cache_key=$(keybindings_cache_key) || cache_key=""
+  cache_name="keybindings-$cache_key.records"
   cache_file="$cache_dir/$cache_name"
 
-  if [[ -s $cache_file ]]; then
+  if [[ -z $cache_key ]]; then
+    output_binding_records_uncached
+  elif [[ -s $cache_file ]]; then
     cat "$cache_file"
   elif mkdir -p "$cache_dir" 2>/dev/null && refresh_keybindings_cache "$cache_dir" "$cache_file" "$cache_name"; then
     cat "$cache_file"
