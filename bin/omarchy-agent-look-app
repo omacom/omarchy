@@ -50,13 +50,18 @@ finish() {
   exit 0
 }
 
-OMARCHY_LOOK_SCREENSHOT=$out OMARCHY_LOOK_KEYS=$keys OMARCHY_LOOK_SIZE=$size OMARCHY_LOOK_DELAY_MS=$(( after * 1000 )) \
-  QT_QPA_PLATFORM=offscreen timeout -k 5 $(( after + 30 )) "$@" >"$log" 2>&1 </dev/null
-[[ -s $out ]] && finish
+# Only a program carrying the template's hook draws itself offscreen: the
+# built binary, not a script that starts it. Run this way, any other would
+# open a focused window on the user's desktop.
+if grep -qa OMARCHY_LOOK_SCREENSHOT "$(type -P -- "$1")" 2>/dev/null; then
+  OMARCHY_LOOK_SCREENSHOT=$out OMARCHY_LOOK_KEYS=$keys OMARCHY_LOOK_SIZE=$size OMARCHY_LOOK_DELAY_MS=$(( after * 1000 )) \
+    QT_QPA_PLATFORM=offscreen timeout -k 5 $(( after + 30 )) "$@" >"$log" 2>&1 </dev/null
+  [[ -s $out ]] && finish
+fi
 
 # Not a scaffolded app, or one without the hook: capture its window on screen.
 if [[ -n $keys ]]; then
-  echo "This program can't press keys for a screenshot: --keys needs the OMARCHY_LOOK_KEYS handling in the omarchy-app template's main.cpp." >&2
+  echo "This program can't press keys for a screenshot: --keys needs the OMARCHY_LOOK_KEYS handling in the omarchy-app template's main.cpp, and the built binary itself as the command, not a script that starts it." >&2
 fi
 if ! hyprctl monitors -j | jq -e 'any(.[]; .dpmsStatus)' >/dev/null; then
   echo "The display is off, so the window can't be captured on screen, and this program didn't draw itself offscreen (the omarchy-app template's main.cpp does, on OMARCHY_LOOK_SCREENSHOT). It printed:" >&2
