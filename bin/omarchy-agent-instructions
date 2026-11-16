@@ -117,5 +117,5 @@ if ((${#backups[@]})); then
 fi
 
 if [[ $edit == "true" ]]; then
-  exec omarchy-launch-config-editor "$canonical"
+  exec omarchy-launch-editor "$canonical"
 fi
