@@ -483,7 +483,7 @@ Panel {
               value: root.chargeThresholdActive ? Commons.I18n.t("power.holding") : (root.batteryFull ? "-" : root.reading(root.batteryInfo.rate))
             }
             InfoPair { visible: root.hasHealthInfo; label: Commons.I18n.t("power.batteryHealth"); value: root.reading(root.batteryInfo.health) }
-            InfoValue { visible: root.hasHealthInfo; width: parent.width; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight; text: Model.healthAdvice(root.batteryInfo.health, Commons.I18n.t) }
+            InfoLabel { visible: root.hasHealthInfo; width: parent.width; elide: Text.ElideRight; text: Model.healthAdvice(root.batteryInfo.health, Commons.I18n.t) }
           }
         }
 
