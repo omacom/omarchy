@@ -79,7 +79,7 @@ You start Signed via the application launcher (`Super + Space`), or open a PDF w
 
 [Checkmate](https://github.com/omacom/checkmate) is Omarchy's own 3D chess game. Play a friend on the same computer or the built-in opponent at three levels, on four sculpted sets that each move in their own manner: orbital craft, carved wood and ivory, woodland creatures, and candy. Games have no clock and save after every move.
 
-You start Checkmate via the application launcher (`Super + Space`). Press `?` inside it to see every shortcut.
+You start Checkmate via the application launcher (`Super + Space`), where it is listed as Chess. Press `?` inside it to see every shortcut.
 
 ## Omacalc
 
