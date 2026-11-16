@@ -149,6 +149,11 @@ class LockNotification:
       self.receive()
 
 
+def peer_credentials(connection):
+  # Linux ucred contains signed pid_t followed by unsigned uid_t/gid_t.
+  return struct.unpack("=iII", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+
+
 def connect_compositor(pid, uid, runtime):
   # User-owned directories and lock files are routing hints, not authority.
   try:
@@ -182,7 +187,7 @@ def connect_compositor(pid, uid, runtime):
         connection.connect(f"/proc/self/fd/{runtime_fd}/{display}")
       finally:
         os.close(runtime_fd)
-      peer_pid, peer_uid, _ = struct.unpack("3i", connection.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+      peer_pid, peer_uid, _ = peer_credentials(connection)
       if peer_pid == pid and peer_uid == uid and trusted_executable(peer_pid):
         return LockNotification(connection)
       connection.close()

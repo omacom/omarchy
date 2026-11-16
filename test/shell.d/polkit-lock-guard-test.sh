@@ -78,6 +78,15 @@ class GuardTests(unittest.TestCase):
     with self.assertRaises(guard.Unavailable):
       client.receive()
 
+  def test_kernel_uid_and_gid_are_unsigned(self):
+    class Credentials:
+      def getsockopt(self, level, option, length):
+        self.request = (level, option, length)
+        return struct.pack("=iII", 123, 3_000_000_000, 4_000_000_000)
+    connection = Credentials()
+    self.assertEqual(guard.peer_credentials(connection), (123, 3_000_000_000, 4_000_000_000))
+    self.assertEqual(connection.request, (socket.SOL_SOCKET, socket.SO_PEERCRED, 12))
+
   def test_user_marker_cannot_identify_a_fake_compositor(self):
     with tempfile.TemporaryDirectory() as directory:
       runtime = Path(directory)
