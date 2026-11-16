@@ -20,6 +20,8 @@ Use `Super + A`, then `Super + C` to copy everything in a focused text field or 
 
 The clipboard history is provided by the Omarchy shell and works for both text and images. You trigger it by `Super + Ctrl + V`, select your entry with return, and then that'll be placed on the clipboard ready to paste on `Super + V`.
 
+Picking an image while a terminal is focused pastes its file path instead, which agent harnesses like OpenCode attach as an image.
+
  ![clipboard-history](images/clipboard-history.webp)
 
 You can also search the history just by starting to type:
