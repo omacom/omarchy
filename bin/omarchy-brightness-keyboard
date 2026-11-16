@@ -38,7 +38,10 @@ fi
 if [[ $direction == "off" ]]; then
   if [[ ! -s $saved ]]; then
     level="$(brightnessctl -d "$device" get)"
-    if [[ $level =~ ^[0-9]+$ ]] && ! echo "$level" >"$saved"; then
+    # A backlight that is already off has nothing to restore. Recording its 0
+    # would let the wake write 0 over a level set in the meantime, such as by
+    # a light-sensor service turning the keys back on as the screen wakes.
+    if [[ $level =~ ^[0-9]+$ ]] && (( level > 0 )) && ! echo "$level" >"$saved"; then
       rm -f "$saved"
     fi
   fi

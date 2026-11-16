@@ -70,6 +70,15 @@ run_keyboard restore
 [[ $(level) == "0" ]] || fail "a backlight that was off before the lock stays off (got $(level))"
 pass "a backlight that was off before blanking stays off"
 
+# A level set by someone else after a blank of a dark backlight, as a light
+# sensor service does when the screen wakes, is not turned off by the wake.
+echo 0 >"$level_file"
+run_keyboard off
+echo 2 >"$level_file"
+run_keyboard restore
+[[ $(level) == "2" ]] || fail "restore keeps a level set after a blank of a dark backlight (got $(level))"
+pass "a wake does not turn off a level set after a dark blank"
+
 # A restore the device rejects keeps the level for the next wake.
 echo 3 >"$level_file"
 run_keyboard off
