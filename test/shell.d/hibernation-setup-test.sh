@@ -119,6 +119,15 @@ fi
   fail "setup leaves the drop-in untouched when the resume device is unknown"
 pass "setup repairs an empty device only when it can find a stable replacement"
 
+# The factory reset runs setup in a chroot where findmnt finds no device.
+machine
+SWAP_SOURCE="" SWAP_UUID="" setup --force --no-rebuild || fail "setup without a resume device" "$(<"$rtmp/out")"
+[[ ! -e $drop_in && -f $rtmp/mkinitcpio.conf.d/omarchy_resume.conf ]] ||
+  fail "setup writes no empty resume device" "$(cat "$drop_in" 2>&1)"
+SWAP_SOURCE="/dev/sda2[/@]" setup --force --no-rebuild || fail "a rerun once the device is found" "$(<"$rtmp/out")"
+[[ $(<"$drop_in") == "$uuid_line" ]] || fail "a rerun adds the resume parameters" "$(cat "$drop_in" 2>&1)"
+pass "setup without a resume device finishes, and a rerun adds the parameters"
+
 # If a kernel's image is not rebuilt, or the rebuild is interrupted, the drop-in
 # is already renamed; the next run sees the pending rebuild and does it, once.
 for result in skip interrupt; do
