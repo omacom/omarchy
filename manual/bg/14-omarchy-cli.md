@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy обикновено се управлява чрез клавишните комбинации и менюто на Omarchy (`Super + Space`). Но можеш да го управляваш и чрез CLI-то `omarchy`. Това е особено полезно, когато AI агент работи с теб върху персонализиране или конфигурация.
+Omarchy обикновено се управлява чрез клавишните комбинации и менюто на Omarchy (`Super + Space`). Но можете да го управлявате и чрез `omarchy` CLI. Това е особено полезно, когато AI агент работи с вас по персонализиране или конфигуриране.
 
-CLI-то има достъп до всички вътрешни инструменти, които се използват както чрез менюто, така и иначе. Можеш да видиш всичко налично, като изпълниш `omarchy` в терминала.
+CLI има достъп до всички вътрешни инструменти, които се използват както чрез менюто, така и по друг начин. Можете да видите всичко налично, като изпълните `omarchy` в терминала.
 
-Изглежда нещо подобно:
+Изглежда приблизително така:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-И можеш да навлезеш по-дълбоко във всяка група:
+За диагностика изпълнете директно `omarchy-debug --no-sudo --print`. Той отпечатва диагностика и записва `/tmp/omarchy-debug.log`, без да изисква sudo, включително при инсталации на пакети, при които `omarchy debug` може да се провали с "Unknown Omarchy command".
+
+И можете да навлезете по-дълбоко във всяка група:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Всяка команда също приема `--help`, независимо дали питаш цяла група (`omarchy capture --help`) или единична команда (`omarchy capture screenshot --help`).
+Всяка команда приема и `--help`, независимо дали питате цяла група (`omarchy capture --help`) или отделна команда (`omarchy capture screenshot --help`).
 
 ### Отваряне на менюто от терминала
 
-Менюто на Omarchy също може да се скриптира, което е удобно за собствените ти клавишни комбинации. `omarchy menu` го отваря в корена и можеш да скочиш директно до всяка точка в дървото, като я назовеш: `omarchy menu summon style.theme` отива директно на селектора за теми, `omarchy menu toggle system` отваря системното меню и го затваря отново, ако вече е отворено, а `omarchy menu close` го прибира.
+Менюто на Omarchy също може да се скриптира, което е удобно за вашите собствени клавишни комбинации. `omarchy menu` го отваря в корена, а можете да прескочите директно до всяка точка в дървото, като я назовете: `omarchy menu summon appearance.theme` отива направо към избора на тема, `omarchy menu toggle system` отваря системното меню и го затваря отново, ако вече е отворено, а `omarchy menu close` го прибира.

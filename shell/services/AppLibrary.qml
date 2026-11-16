@@ -15,6 +15,8 @@ Item {
 
   property var configuredHiddenEntryIds: ({})
   property var desktopHiddenEntryIds: ({})
+  // Desktop id -> X-Omarchy-Dock-Click, which Quickshell doesn't parse.
+  property var dockClickModes: ({})
 
   // Maps an icon name to a file on disk (e.g. "omacut" -> ".../apps/omacut.svg").
   // Used as a fallback for icons that Qt's themed lookup misses because they were
@@ -22,6 +24,21 @@ Item {
   // whenever the app list changes, so newly installed apps get their icon live.
   property var iconIndex: ({})
   property var pendingIconIndex: ({})
+  property bool iconRescanQueued: false
+
+  // Omarchy's own app icons are linked into the user's icon dir and redrawn in
+  // place after each theme switch, which then writes icons.revision. The
+  // revision goes on their URLs to make images reload instead of showing the
+  // cached previous theme, and the rescan picks up links created for the first
+  // time.
+  readonly property string home: Quickshell.env("HOME")
+  readonly property string userIconsPath: (Quickshell.env("XDG_DATA_HOME") || home + "/.local/share") + "/icons/"
+  property int themeRevision: 0
+
+  // Maps a desktop id to the version of the package that owns it. Rescanned
+  // each time the app grid opens, since upgrades leave desktop entries alone.
+  property var versions: ({})
+  property var pendingVersions: ({})
 
   property int launchSerial: 0
   property int launchToplevelCount: 0
@@ -35,6 +52,11 @@ Item {
   // Emitted whenever the visible application set may have changed: desktop
   // entries appeared or vanished, or the hidden-entry filters reloaded.
   signal appsChanged()
+
+  // Emitted when removing an entry has to open a terminal (a package
+  // uninstall asking for a password), so an open launcher can step aside.
+  // Other removals happen in place and the entry just drops out of the list.
+  signal removalNeedsTerminal()
 
   function entryName(entry) {
     return AppSearch.entryName(entry)
@@ -62,7 +84,8 @@ Item {
     // Prefer the context-limited app/device index. An unconstrained themed
     // lookup can resolve an app name such as "zoom" to an action icon instead.
     var found = root.iconIndex[value]
-    if (found) return Util.fileUrl(found)
+    var revision = root.themeRevision
+    if (found) return Util.fileUrl(found) + (found.indexOf(root.userIconsPath) === 0 ? "?theme=" + revision : "")
     var themed = Quickshell.iconPath(value, true)
     if (themed.length > 0) return themed
     return Quickshell.iconPath("application-x-executable", true)
@@ -70,8 +93,19 @@ Item {
 
   // The shell may start before first-install packages have finished placing
   // their icons; consumers call this when they open so icons appear live.
+  // A request during a scan queues one more, since the running scan may have
+  // listed icons before they changed.
   function refreshIcons() {
-    if (!iconIndexScan.running) iconIndexScan.running = true
+    if (iconIndexScan.running) root.iconRescanQueued = true
+    else iconIndexScan.running = true
+  }
+
+  function refreshVersions() {
+    if (!versionScan.running) versionScan.running = true
+  }
+
+  function version(entry) {
+    return String(root.versions[String((entry && entry.id) || "")] || "")
   }
 
   function launch(desktopId, name) {
@@ -103,7 +137,22 @@ Item {
   function remove(desktopId, name) {
     var id = String(desktopId || "")
     if (!id) return
-    Util.execDetached(Util.shellQuote(root.omarchyPath + "/bin/omarchy-remove-launcher-entry") + " " + Util.shellQuote(id) + " " + Util.shellQuote(String(name || id)))
+    // The login shell gives the removal commands the session PATH.
+    removal.createObject(root, {
+      command: ["bash", "-lc", 'exec "$@"', "bash", root.omarchyPath + "/bin/omarchy-remove-launcher-entry", id, String(name || id)],
+      running: true
+    })
+  }
+
+  Component {
+    id: removal
+
+    Process {
+      stdout: SplitParser {
+        onRead: function(line) { if (line === "terminal") root.removalNeedsTerminal() }
+      }
+      onExited: destroy()
+    }
   }
 
   function normalizeDesktopId(id) {
@@ -123,15 +172,24 @@ Item {
     root.appsChanged()
   }
 
-  function loadDesktopHiddenEntries(rawText) {
-    var next = ({})
+  function loadDesktopEntryScan(rawText) {
+    var hidden = ({})
+    var dockClicks = ({})
     var lines = String(rawText || "").split(/\n/)
     for (var i = 0; i < lines.length; i++) {
-      var id = root.normalizeDesktopId(lines[i])
-      if (id.length > 0) next[id] = true
+      var fields = lines[i].split("\t")
+      var id = root.normalizeDesktopId(fields[fields.length - 1])
+      if (id.length === 0) continue
+      if (fields[0] === "hidden") hidden[id] = true
+      else if (fields[0] === "dock-click") dockClicks[id] = fields[1]
     }
-    root.desktopHiddenEntryIds = next
+    root.desktopHiddenEntryIds = hidden
+    root.dockClickModes = dockClicks
     root.appsChanged()
+  }
+
+  function dockClickMode(desktopId) {
+    return root.dockClickModes[root.normalizeDesktopId(desktopId)] || ""
   }
 
   function iconIndexScanCommand() {
@@ -139,15 +197,18 @@ Item {
     // "<path>" lines. Some desktop entries, such as Print Settings, use device
     // icons like "printer" instead of app icons. SVGs are emitted before PNGs
     // so the parser, which keeps the first hit per name, prefers scalable icons.
+    // Within each icon dir, PNGs go largest size first, so a 256x256 beats a 32x32.
     return [
-      'dirs="$HOME/.icons $HOME/.local/share/icons";',
+      'dirs="$HOME/.icons ${XDG_DATA_HOME:-$HOME/.local/share}/icons";',
       'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
       '{',
       '  for base in $dirs; do',
       '    [[ -d $base ]] && find "$base" \\( -path "*/apps/*" -o -path "*/devices/*" \\) \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null;',
+      '    echo;',
       '  done;',
       '  find /usr/share/pixmaps -maxdepth 1 \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null;',
-      '} | awk \'/\\.svg$/ { print; next } { png[++n] = $0 } END { for (i = 1; i <= n; i++) print png[i] }\''
+      '} | awk -v OFS="\\t" \'!length { dir++; next } /\\.svg$/ { print 0, 0, 0, $0; next } { print 1, dir, (match($0, /\\/[0-9]+x[0-9]+[@\\/]/) ? substr($0, RSTART + 1) + 0 : 0), $0 }\'',
+      '  | sort -s -t $\'\\t\' -k1,1n -k2,2n -k3,3nr | cut -f 4-'
     ].join(' ')
   }
 
@@ -162,9 +223,9 @@ Item {
       root.pendingIconIndex[name] = value
   }
 
-  function hiddenEntryScanCommand() {
+  function desktopEntryScanCommand() {
     var desktop = [Quickshell.env("XDG_CURRENT_DESKTOP"), Quickshell.env("XDG_SESSION_DESKTOP"), Quickshell.env("DESKTOP_SESSION")].filter(function(v) { return String(v || "").length > 0 }).join(":")
-    var script = root.omarchyPath + "/shell/services/hidden-entries.sh"
+    var script = root.omarchyPath + "/shell/services/desktop-entries.sh"
     return Util.shellQuote(script) + " " + Util.shellQuote(desktop)
   }
 
@@ -198,7 +259,7 @@ Item {
   }
 
   QtObject {
-    id: hiddenEntryOutput
+    id: desktopEntryOutput
     property string text: ""
   }
 
@@ -207,11 +268,11 @@ Item {
   // directory the desktop-entry watcher monitors — so every scan would
   // trigger the next one, pinning a core at idle.
   Process {
-    id: hiddenEntryScan
-    command: ["bash", "-c", root.hiddenEntryScanCommand()]
-    stdout: SplitParser { onRead: function(line) { hiddenEntryOutput.text += line + "\n" } }
-    onStarted: hiddenEntryOutput.text = ""
-    onExited: root.loadDesktopHiddenEntries(hiddenEntryOutput.text)
+    id: desktopEntryScan
+    command: ["bash", "-c", root.desktopEntryScanCommand()]
+    stdout: SplitParser { onRead: function(line) { desktopEntryOutput.text += line + "\n" } }
+    onStarted: desktopEntryOutput.text = ""
+    onExited: root.loadDesktopEntryScan(desktopEntryOutput.text)
   }
 
   Process {
@@ -221,7 +282,26 @@ Item {
     onStarted: root.pendingIconIndex = ({})
     // Swapping the property re-evaluates every iconSource() binding, so
     // newly found icons appear without rebuilding the list.
-    onExited: root.iconIndex = root.pendingIconIndex
+    onExited: {
+      root.iconIndex = root.pendingIconIndex
+      if (root.iconRescanQueued) {
+        root.iconRescanQueued = false
+        running = true
+      }
+    }
+  }
+
+  Process {
+    id: versionScan
+    command: [root.omarchyPath + "/bin/omarchy-launch-versions"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var tab = line.indexOf("\t")
+        if (tab > 0) root.pendingVersions[line.slice(0, tab)] = line.slice(tab + 1)
+      }
+    }
+    onStarted: root.pendingVersions = ({})
+    onExited: root.versions = root.pendingVersions
   }
 
   // Coalesces bursts of app-list changes (a package install touches many
@@ -230,6 +310,16 @@ Item {
     id: iconIndexDebounce
     interval: 750
     onTriggered: if (!iconIndexScan.running) iconIndexScan.running = true
+  }
+
+  FileView {
+    path: root.home + "/.local/state/omarchy/current/icons.revision"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: {
+      root.themeRevision++
+      root.refreshIcons()
+    }
   }
 
   FileView {
@@ -270,14 +360,14 @@ Item {
   Connections {
     target: DesktopEntries.applications
     function onValuesChanged() {
-      hiddenEntryScan.running = true
+      desktopEntryScan.running = true
       iconIndexDebounce.restart()
       root.appsChanged()
     }
   }
 
   Component.onCompleted: {
-    hiddenEntryScan.running = true
+    desktopEntryScan.running = true
     iconIndexScan.running = true
   }
 }

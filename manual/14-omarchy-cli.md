@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,9 +38,10 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
+
+For diagnostics, run `omarchy-debug --no-sudo --print` directly. It prints diagnostics and writes `/tmp/omarchy-debug.log` without prompting for sudo, including on package installs where `omarchy debug` can fail with "Unknown Omarchy command".
 
 And you can dive deeper on every group:
 

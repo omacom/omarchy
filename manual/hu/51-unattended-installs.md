@@ -1,36 +1,36 @@
 # Felügyelet nélküli telepítések
 
-Az Omarchy ISO a billentyűzetnél lévő személy nélkül is telepítheti önmagát. Ha a telepítő talál egy `cidata` címkéjű második meghajtót, amely a konfigurációs fájljait hordozza, lemásolja őket, teljesen kihagyja a beállításvarázslót, és magától újraindul a kész rendszerbe. Nincs különleges ISO-build, nincs extra rendszerindítási menübejegyzés — ha nincs ilyen meghajtó csatlakoztatva, semmi sem változik, és a normál varázslót kapod.
+Az Omarchy ISO képes önmagát telepíteni úgy, hogy senki sem ül a billentyűzetnél. Ha a telepítő talál egy második, `cidata` címkéjű meghajtót, amely a konfigurációs fájljait hordozza, lemásolja azokat, teljesen kihagyja a beállítási varázslót, és magától újraindul az elkészült rendszerbe. Nem kell hozzá külön ISO-build, sem extra rendszerindító menüpont — ha nincs ilyen meghajtó csatlakoztatva, semmi sem változik, és a szokásos varázslót kapod.
 
-Ez nagyszerűvé teszi az Omarchyt eldobható fejlesztői környezetek alapimage-ének: hozz létre egy VM-et Proxmoxban vagy Packerrel, indítsd el, sétálj el, SSH-zz be. A `cidata` a cloud-init `NoCloud` címkéje, így a szokásos virtualizációs eszközök mind tudják már, hogyan csatoljanak ilyen meghajtót.
+Ezzel az Omarchy remek alapképfájl eldobható fejlesztői környezetekhez: hozz létre egy VM-et Proxmoxban vagy Packerrel, indítsd el, sétálj el, majd lépj be SSH-val. A `cidata` a cloud-init `NoCloud` címkéje, így az összes elterjedt virtualizációs eszköz már tudja, hogyan kell ilyen meghajtót csatlakoztatni.
 
 ## A konfigurációs fájlok
 
-A fájlok pont azt jelentik, amit a telepítő saját varázslója ír, így a kiindulási készlet beszerzésének legegyszerűbb módja egy interaktív telepítés futtatása (mondjuk egy VM-ben) és a `/root` mappába írt tartalom másolása:
+A fájlok pontosan azok, amelyeket a telepítő saját varázslója ír ki, ezért a legegyszerűbben úgy juthatsz kiinduló készlethez, ha lefuttatsz egy interaktív telepítést (például egy VM-ben), és átmásolod, amit a `/root` könyvtárba írt:
 
 | Fájl | Kötelező | Cél |
 |------|----------|---------|
-| `user_configuration.json` | Igen | Lemez, hosztnév, időzóna, billentyűzet |
-| `user_credentials.json` | Igen | Felhasználónév és jelszó-hash |
-| `user_full_name.txt` | Nem | Git teljes név |
-| `user_email_address.txt` | Nem | Git e-mail |
-| `user_encrypt_installation.txt` | Nem | `true`, amikor a konfiguráció egy `disk_encryption` blokkot hordoz |
+| `user_configuration.json` | Igen | Lemez, gépnév, időzóna, billentyűzet |
+| `user_credentials.json` | Igen | Felhasználónév és jelszóhash |
+| `user_encrypt_installation.txt` | Nem | `true`, amikor a konfiguráció tartalmaz egy `disk_encryption` blokkot |
 | `authorized_keys` | Nem | SSH nyilvános kulcsok, soronként egy |
-| `tailscale_authkey` | Nem | Tailscale hitelesítési kulcs a tailnethez való csatlakozáshoz első indításkor |
+| `tailscale_authkey` | Nem | Tailscale hitelesítőkulcs a tailnethez való csatlakozáshoz az első rendszerindításkor |
 
-A `user_credentials.json` jelszó-hashét az `openssl passwd -6 "yourpassword"` paranccsal generáld.
+A `user_credentials.json` jelszóhashét az `openssl passwd -6 "yourpassword"` paranccsal állíthatod elő.
 
-A `user_credentials.json` helyébe egy üres, `defer-provisioning` nevű fájlt is dobhatsz. Ez ugyanazt a [másik tulajdonosnak való előkészítő telepítést](02-getting-started.md) futtatja, amelyet interaktívan is kiválthatsz: a gép személyes adatok nélkül települ, és aki először indítja el, az választja ki a billentyűzetét és hozza létre a felhasználóját. Ez az imaging-állomások módja, ahol a meghajtónak egyáltalán nem szabad senki hitelesítőadatait hordoznia.
+A git-commitetekhez használt név és e-mail-cím nem része a telepítésnek. Állítsd be őket, amint a gép felállt, például SSH-n keresztül, ezzel: `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+
+A `user_credentials.json` helyett betehetsz egy üres, `defer-provisioning` nevű fájlt is. Ez ugyanazt a [másik tulajdonosra felkészítő telepítést](02-getting-started.md) futtatja, amelyet interaktívan is elindíthatsz: a gép személyes adatok nélkül települ, és aki először elindítja, az választja ki a billentyűzetét és hozza létre a felhasználóját. Ez a mód képfájlkészítő gépekhez való, ahol a meghajtónak egyáltalán nem szabad senki hitelesítő adatait hordoznia.
 
 ## SSH-hozzáférés
 
-Amikor az `authorized_keys` jelen van, a telepítés beállítja a kulcsokat a felhasználó `~/.ssh/authorized_keys` fájljaként, engedélyezi az `sshd` szolgáltatást, és megnyitja hozzá a tűzfalat. (Egy stock Omarchy-telepítés az openssh-val érkezik, a szolgáltatás letiltva és a port lezárva, így egy felügyelet nélküli gép egyébként elérhetetlen lenne.) A telepítés csak hozzáadja a kulcsaidat — nem lazít az SSH-démon semmilyen más hitelesítési beállításán.
+Ha az `authorized_keys` jelen van, a telepítés beállítja a kulcsokat a felhasználó `~/.ssh/authorized_keys` fájljaként, engedélyezi az `sshd` szolgáltatást, és megnyitja hozzá a tűzfalat. (Egy gyári Omarchy-telepítés úgy szállítja az openssh csomagot, hogy a szolgáltatás le van tiltva és a port zárva van, így egy felügyelet nélküli gép egyébként elérhetetlen lenne.) A telepítés csak hozzáadja a kulcsaidat — az SSH-démon többi hitelesítési beállításán semmit sem lazít.
 
-Amikor a `tailscale_authkey` jelen van, a gép ehelyett első indításkor csatlakozik a tailnetedhez: a Tailscale az ISO mellékelt csomagjaiból települ, a tűzfal engedélyezi a tailnet-interfészt, és egy háttérfeladat futtatja a csatlakozást, amint a gépnek tényleg van hálózata, újrapróbálkozva, amíg sikerül. Használj újrafelhasználható, előengedélyezett kulcsot, hogy egy meghajtóimage sok gépet szolgálhasson ki.
+Ha a `tailscale_authkey` jelen van, a gép helyette az első rendszerindításkor csatlakozik a tailnetedhez: a Tailscale az ISO mellékelt csomagjaiból települ, a tűzfal engedélyezi a tailnet interfészt, és egy háttérfeladat végrehajtja a csatlakozást, amint a gépnek ténylegesen van hálózata, és sikerig újrapróbálkozik. Újrafelhasználható, előzetesen engedélyezett kulcsot használj, így egyetlen meghajtóképfájl sok gépet is ki tud szolgálni.
 
-## A cidata meghajtó építése
+## A cidata meghajtó elkészítése
 
-Minden fájlrendszer működik a helyes címkével. Egy apró ISO a könnyű mód:
+Bármilyen fájlrendszer működik a megfelelő címkével. Egy apró ISO a legegyszerűbb út:
 
 ```bash
 mkdir cidata
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Az indítási sorrend szándékosan a lemezt sorolja először: az üres lemez az első indításkor átadja a helyét az ISO-nak, és a telepített rendszer attól kezdve mindig lemezről indul.
+A rendszerindítási sorrend szándékosan sorolja előre a lemezt: az üres lemez az első indításkor továbbesik az ISO-ra, utána pedig a telepített rendszer örökre a lemezről indul.
 
-## Két megjegyzés
+## Két figyelmeztetés
 
-A titkosított felügyelet nélküli telepítések nem teljesen felügyelet nélküliek — valakinek továbbra is be kell írnia a LUKS-jelmondatot az első indításkor. És a `user_configuration.json` fájlban lévő `disk_encryption` blokk ezt a jelmondatot egyszerű szövegben hordozza, úgyhogy egy titkosított telepítésből épített cidata meghajtót kezeld annak a titoknak, ami.
+A titkosított felügyelet nélküli telepítések nem teljesen felügyelet nélküliek — valakinek továbbra is be kell gépelnie a LUKS-jelmondatot az első rendszerindításkor. És a `user_configuration.json` fájlban lévő `disk_encryption` blokk nyílt szövegként hordozza ezt a jelmondatot, ezért a titkosított telepítésből épített cidata meghajtót kezeld akkora titokként, amekkora valójában.

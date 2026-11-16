@@ -1,108 +1,116 @@
-# GUI ල
+# GUIs
 
 ## Files
 
-Files (Nautilus) යනු චිත්‍රක ගොනු කළමනාකරුවාය. `Super + Shift + F` මඟින් එය විවෘත කරයි, සහ `Super + Shift + Alt + F` මඟින් ඔබේ ටර්මිනලය පිහිටා ඇති නාමාවලියේ එය විවෘත කරයි, එය බොහෝ ක්ලික් කිරීම් ඉතිරි කරයි. `Ctrl + L` මඟින් ඔබට මාර්ගයක් ටයිප් කිරීමට ඉඩ සලසන අතර, ඕනෑම ගොනුවක් මත `Space` එබීමෙන් කිසිවක් විවෘත නොකර වේගවත් පූර්වදර්ශනයක් ඔබට ලබාදෙයි.
+Files (Nautilus) යනු චිත්‍රක ගොනු කළමනාකරුවයි. `Super + Shift + F` එය විවෘත කරයි, `Super + Shift + Alt + F` ඔබේ terminal එක දැනට සිටින directory එක තුළම එය විවෘත කරයි, එමඟින් ක්ලික් කිරීම් ගොඩක් ඉතිරි වේ. `Ctrl + L` මඟින් ඔබට path එකක් ටයිප් කළ හැකිය, ඕනෑම ගොනුවක් මත `Space` එබීමෙන් කිසිවක් විවෘත නොකර ඔබටම ඉක්මන් පෙරදසුනක් ලැබේ.
 
-USB ස්ටික් එකක් හෝ SD කාඩ්පතක් සම්බන්ධ කළ විට එය ස්වයංක්‍රීයව සවිකරනු ලබන බැවින්, එය පැතිතීරුවේ දිස්වේ. ඊට වඩා සම්බන්ධ ඕනෑම දෙයක් සඳහා — ධාවකයක් ආකෘතිකරණය කිරීම, SMART සෞඛ්‍යය පරීක්ෂා කිරීම, කොටස් නිර්මාණය කිරීම — යෙදුම් දියත් කරන්නාගෙන් (`Super + Space`) _Disks_ දියත් කරන්න.
+USB stick එකක් හෝ SD card එකක් ගැසූ සැණින් එය ස්වයංක්‍රීයවම mount වේ, එබැවින් එය sidebar එකේ නිකන්ම පෙනේ. ඊට වඩා සංකීර්ණ දෙයකට — drive එකක් format කිරීම, SMART health එක පරීක්ෂා කිරීම, partitions සෑදීම — app launcher එකෙන් (`Super + Space`) _Disks_ දියත් කරන්න.
 
-ද්විත්ව-ක්ලික් කිරීම සාධාරණ පෙරනිමි අනුගමනය කරයි: රූප imv හි, වීඩියෝ mpv හි, PDF Document Viewer හි, සහ සරල පෙළ Neovim හි විවෘත වේ.
+ද්වි-ක්ලික් කිරීම sensible defaults අනුගමනය කරයි: පින්තූර, වීඩියෝ සහ සංගීතය Omaview තුළද, PDFs Document Viewer තුළද, Markdown Omawrite තුළද, plain text _Setup > Default > Editor_ යටතේ තෝරාගත් editor එක තුළද විවෘත වේ.
 
 ## Disktree
 
-ධාවකය පිරී ගොස් එය කමින් සිටින්නේ කුමක්දැයි ඔබට අදහසක් නොමැති විට, යෙදුම් දියත් කරන්නාගෙන් (`Super + Space`) [Disktree](https://github.com/tobi/disktree) දියත් කරන්න. එය ඔබේ මුල් නාමාවලියේ චිත්‍රක ගස් සිතියමක් පෙන්වයි. විශාල බ්ලොක් වැඩි ඉඩක් ගනී; යතුරුපුවරුව හෝ මූසිකය සමඟ නාමාවලිවලට ඇවිදින්න, යා යුතු දේ සලකුණු කරන්න, සහ කිසිවක් ඉවත් කිරීමට පෙර ඔබේ තේරීම් සමාලෝචනය කරන්න. සම්පූර්ණ තැටිය පරිලෝකනය කිරීමට `disktree --disk` ක්‍රියාත්මක කරන්න.
+Drive එක පිරී, එය කා දමන්නේ කුමක්දැයි ඔබට කිසිම අදහසක් නැති විට, app launcher එකෙන් (`Super + Space`) [Disktree](https://github.com/tobi/disktree) දියත් කරන්න. එය ඔබේ home directory එකේ චිත්‍රක treemap එකක් පෙන්වයි. විශාල blocks වැඩි ඉඩක් ගනී; keyboard එකෙන් හෝ mouse එකෙන් directories තුළට යන්න, ඉවත් කළ යුතු දේ mark කරන්න, කිසිවක් ඉවත් කිරීමට පෙර ඔබේ තේරීම් සමාලෝචනය කරන්න. මුළු disk එකම scan කිරීමට `disktree --disk` ධාවනය කරන්න.
 
 ## Obsidian
 
-[Obsidian](https://obsidian.md/) යනු ගබඩා කිරීම සඳහා සරල Markdown ගොනු භාවිතා කරන නිදහස් සහ අතිශයින් දීර්ඝ කළ හැකි සටහන් ගැනීමේ යෙදුමකි.
+[Obsidian](https://obsidian.md/) යනු ගබඩා කිරීම සඳහා සරල Markdown ගොනු භාවිත කරන, නොමිලේ ලැබෙන සහ ඉතා පුළුල් කළ හැකි සටහන් ගැනීමේ application එකකි.
 
-Obsidian පුද්ගලික, වාණිජ, සහ සාමූහික භාවිතය ඇතුළු සියලු අරමුණු සඳහා නිදහස්ය.
+Obsidian පුද්ගලික, වාණිජ සහ ලාභ නොලබන භාවිතය ඇතුළුව සියලු අරමුණු සඳහා නොමිලේය.
 
-Obsidian විසින් iOS සහ Android හි ජංගම යෙදුම් සමඟ [සමමුහුර්ත කිරීමට වාණිජ ඇඩෝනයක්ද](https://obsidian.md/sync) ලබාදෙයි. (https://obsidian.md/pricing).
+Obsidian iOS සහ Android මත mobile apps සමඟ [සමමුහුර්ත කිරීම සඳහා වාණිජ add-on එකක්ද](https://obsidian.md/sync) ලබා දෙයි. (https://obsidian.md/pricing).
 
-ඔබ Obsidian `Super + Shift + O` සමඟ අරඹයි. තේමාව සමමුහුර්ත කිරීම භාවිතා කිරීමට, ඔබ සැකසීම් යටතේ `Omarchy` තේමාව තෝරාගත යුතුය.
+ඔබ Obsidian ආරම්භ කරන්නේ `Super + Shift + O` මගිනි. Theme syncing භාවිත කිරීමට, ඔබ settings යටතේ `Omarchy` theme එක තෝරාගත යුතුය.
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) යනු Omarchy හිම සරල මළ Markdown ලිවීමේ යෙදුමයි. සුරක්ෂිතාගාර නැත, ප්ලගින නැත, ඔබ සහ වචන පමණි.
+[Omawrite](https://github.com/omacom-io/omawrite) යනු Omarchy හිම අතිශයින් සරල Markdown ලිවීමේ app එකයි. Vaults නැත, plugins නැත, ඇත්තේ ඔබ සහ වචන පමණි.
 
-ඔබ Omawrite `Super + Shift + W` සමඟ අරඹයි.
+ඔබ Omawrite ආරම්භ කරන්නේ `Super + Shift + W` මගිනි.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) යනු කපනය කිරීම, ප්‍රමාණය වෙනස් කිරීම, සහ වෙනත් මූලික හැසිරවීම් සඳහා විශිෂ්ට මූලික රූප සංස්කරණ මෙවලමකි. Photoshop විකල්පයක් බලාපොරොත්තු නොවන්න. නමුත් එහි Magic Wand එකක් සහ ස්ථර තවමත් ඇත!
+[Pinta](https://www.pinta-project.com/) යනු cropping, resizing සහ අනෙකුත් මූලික හැසිරවීම් සඳහා විශිෂ්ට මූලික රූප සංස්කරණ මෙවලමකි. Photoshop විකල්පයක් බලාපොරොත්තු නොවන්න. නමුත් එහි තවමත් Magic Wand එකක් සහ layers තිබේ!
 
-ඔබ Pinta යෙදුම් දියත් කරන්නා හරහා (`Super + Space`) අරඹයි.
+ඔබ Pinta ආරම්භ කරන්නේ application launcher එක හරහාය (`Super + Space`).
 
 ## Aether
 
-[Aether](https://github.com/bjarneo/aether) යනු පසුබිම් රූපයකින් වර්ණ උකහාගෙන ඒවා සම්පූර්ණ, ඒකාබද්ධ තේමාවක් බවට පත් කළ හැකි තේමාකරණ යෙදුමකි. එය [ඔබේම තේමාවක් සෑදීමට](43-making-your-own-theme.md) පහසුම මාර්ගයයි.
+[Aether](https://github.com/bjarneo/aether) යනු background image එකකින් වර්ණ උකහා ගෙන ඒවා සම්පූර්ණ, සංගත theme එකක් බවට පත් කළ හැකි theming application එකකි. එය [ඔබේම තේමාව සාදා ගැනීමට](43-making-your-own-theme.md) ඇති පහසුම ක්‍රමයයි.
 
-ඔබ Aether යෙදුම් දියත් කරන්නා හරහා (`Super + Space`) අරඹයි.
+ඔබ Aether ආරම්භ කරන්නේ application launcher එක හරහාය (`Super + Space`).
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) මඟින් ඔබට Apple හි AirDrop මෙන්, යෙදුම ක්‍රියාත්මක වන එකම ජාලයේ වෙනත් උපාංගවලට ගොනු යැවීමට ඉඩ සලසයි. නමුත් එය ධාවක වේදිකා-හරහා වන බැවින්, ඔබට Windows, macOS, Android, iOS, සහ ඇත්ත වශයෙන්ම Linux වෙත සහ ඉන් ගොනු යැවිය හැක.
+[LocalSend](https://localsend.org/) මඟින් ඔබට Apple's AirDrop එක මෙන්, එම app එකම ධාවනය වන එකම network එකේ ඇති වෙනත් devices වෙත ගොනු යැවිය හැකිය. කෙසේ වෙතත් එය cross-platform ය, එබැවින් ඔබට Windows, macOS, Android, iOS සහ ඇත්තෙන්ම Linux වෙත සහ ඉන් පිටතට ගොනු යැවිය හැකිය.
 
-ඔබට Share මෙනුව `Super + Ctrl + S` මත හෝ Omarchy මෙනුවේ _ක්‍රියාත්මක > බෙදාගන්න_ යටතේ විවෘත කළ හැක. එය ඔබට විකල්ප හතරක් ලබාදෙයි:
+ඔබට Share menu එක `Super + Ctrl + S` මත හෝ Omarchy menu එකේ _Trigger > Share_ යටතේ විවෘත කළ හැකිය. එය ඔබට විකල්ප හතරක් දෙයි:
 
-- **Clipboard** මඟින් ඔබ පිටපත් කළ ඕනෑම දෙයක් පෙළ ගොනුවක් ලෙස යවයි. ඔබටම විද්‍යුත් තැපෑලක් නොයවා සබැඳියක් හෝ කොටසක් ඔබේ දුරකථනයට ලබාගැනීම සඳහා විශිෂ්ටයි.
-- **File** මඟින් ඔබට එකවර කිහිපයක් තෝරාගත හැකි ගොනු තේරීමක් විවෘත කරයි.
-- **Folder** මඟින් සම්පූර්ණ නාමාවලියක් යවයි.
-- **Receive** මඟින් LocalSend එකම විවෘත කරන බැවින් වෙනත් උපාංගයකට ඔබට යමක් යැවිය හැක.
+- **Clipboard** ඔබ පිටපත් කළ ඕනෑම දෙයක් text file එකක් ලෙස යවයි. ඔබටම email නොකර link එකක් හෝ snippet එකක් ඔබේ phone එකට ලබා ගැනීමට විශිෂ්ටයි.
+- **File** ඔබට එකවර කිහිපයක් තෝරාගත හැකි file picker එකක් විවෘත කරයි.
+- **Folder** සම්පූර්ණ directory එකක්ම යවයි.
+- **Receive** LocalSend proper විවෘත කරයි, එවිට වෙනත් device එකකට ඔබට යමක් එවිය හැකිය.
 
-එකම දෙය ටර්මිනලයෙන් `omarchy share clipboard`, `omarchy share file [path]`, සහ `omarchy share folder [path]` සමඟද ක්‍රියා කරයි. මාර්ගය අත්හරින්න එවිට ඔබට තේරීම ලැබෙනු ඇත.
+එම දෙයම terminal එකෙන් `omarchy share clipboard`, `omarchy share file [path]` සහ `omarchy share folder [path]` සමඟ ක්‍රියා කරයි. Path එක අත්හරින්න, ඔබට picker එක ලැබේ.
 
-ඔබට ගොනු කළමනාකරුවාගෙන්ද කෙලින්ම යැවිය හැක: Nautilus හි ඕනෑම තේරීමක් දකුණු-ක්ලික් කර _Send via LocalSend_ තෝරන්න.
+ඔබට file manager එකෙන් කෙළින්මද යැවිය හැකිය: Nautilus හි ඕනෑම තේරීමක් right-click කර _Send via LocalSend_ තෝරන්න.
 
-LocalSend හි තොටුපළ හැර Omarchy හි ෆයර්වෝලය පෙරනිමියෙන් වැසී ඇති බැවින්, මෙය නැවුම් ස්ථාපනයකදී පිටතින්ම ක්‍රියා කරයි. [ආරක්ෂාව](48-security.md) බලන්න.
+Omarchy හි firewall එක LocalSend හි port එක හැර පෙරනිමියෙන් වසා ඇති බැවින්, මෙය fresh install එකක out of the box ක්‍රියා කරයි. [ආරක්ෂාව](48-security.md) බලන්න.
 
 ## LibreOffice
 
-[LibreOffice](https://www.libreoffice.org/) යනු වචන සකසනය, පැතුරුම්පත, ඉදිරිපත් කිරීම්, ඇඳීමේ යෙදුම, සහ තවත් දේ සහිත සම්පූර්ණ කාර්යාල පැකේජයකි. එය Microsoft Office වෙතින් ලැබෙන ගොනු සමඟ ගැළපෙන බැවින්, එම Word ලේඛන විවෘත කිරීමට හැකි වීමට මෙය විශිෂ්ට ක්‍රමයකි.
+[LibreOffice](https://www.libreoffice.org/) යනු word processor, spreadsheet, presentations, drawing application සහ තවත් බොහෝ දේ සහිත සම්පූර්ණ office package එකකි. එය Microsoft Office වෙතින් ලැබෙන ගොනු සමඟ අනුකූලය, එබැවින් එම Word documents විවෘත කිරීමට හැකි වීමට මෙය විශිෂ්ට ක්‍රමයකි.
 
-ඔබ LibreOffice යෙදුම් දියත් කරන්නා හරහා (`Super + Space`) අරඹයි.
+ඔබ LibreOffice ආරම්භ කරන්නේ application launcher එක හරහාය (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) යනු Omarchy හිම සරල ඉදිරිපත් කිරීමේ යෙදුමයි. ඔබේ තට්ටුව එහි රූප සහ වීඩියෝ අසල ඇති තනි Markdown ගොනුවකි: සජීවී පූර්වදර්ශනයක් පහළින් සෑම ස්ලයිඩයක්ම ලියන්න, ස්ලයිඩ පිළිවෙළට අදින්න, ඉන්පසු සම්පූර්ණ තිරයේ ඉදිරිපත් කරන්න හෝ PDF සහ PowerPoint වෙත අපනයනය කරන්න. එය ඔබේ Omarchy තේමාව පවා ලබාගනී.
+[Hype](https://github.com/omacom/hype) යනු Omarchy හිම අතිශයින් සරල presentation app එකයි. ඔබේ deck එක එහි පින්තූර සහ වීඩියෝ ඊට යාබදව ඇති තනි Markdown ගොනුවකි: සජීවී පෙරදසුනක් යටතේ එක් එක් slide එක ලියන්න, slides අනුපිළිවෙළට drag කරන්න, ඉන්පසු fullscreen ඉදිරිපත් කරන්න හෝ PDF සහ PowerPoint වෙත export කරන්න. එය ඔබේ Omarchy theme එක පවා ලබා ගනී.
 
-ඔබ Hype යෙදුම් දියත් කරන්නා හරහා (`Super + Space`) අරඹයි. සෑම කෙටිමඟක්ම බැලීමට එහි ඇතුළත `?` ඔබන්න.
+ඔබ Hype ආරම්භ කරන්නේ application launcher එක හරහාය (`Super + Space`). සෑම shortcut එකක්ම බැලීමට එහි ඇතුළත `?` ඔබන්න.
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) යනු PDF අත්සන් කිරීමට සහ ඒවා පුරවාලීමට Omarchy හිම සරල ක්‍රමයයි. ඔබ සුරකින ලද අත්සන, පෙළ, සහ අද දිනය පිටුවක ඕනෑම තැනක තබන්න, ඉන්පසු අත්සන් කළ පිටපතක් මුල් එක අසල සුරකින්න. කෙසේද යන්න සඳහා [PDF පුරවාලීම](27-filling-out-pdfs.md) බලන්න.
+[Signed](https://github.com/omacom/signed) යනු PDFs අත්සන් කිරීමට සහ ඒවා පිරවීමට Omarchy හිම අතිශයින් සරල ක්‍රමයයි. ඔබ සුරකින ලද අත්සන, text එක සහ අද දිනය පිටුවක ඕනෑම තැනක තබන්න, ඉන්පසු මුල් පිටපත අසල අත්සන් කළ පිටපතක් save කරන්න. ආකාරය සඳහා [PDF පිරවීම](27-filling-out-pdfs.md) බලන්න.
 
-ඔබ Signed යෙදුම් දියත් කරන්නා හරහා (`Super + Space`) අරඹයි, නැතහොත් ගොනු කළමනාකරුවාගෙන් එය සමඟ PDF එකක් විවෘත කරන්න.
+ඔබ Signed ආරම්භ කරන්නේ application launcher එක හරහාය (`Super + Space`), නැතහොත් file manager එකෙන් PDF එකක් එය සමඟ විවෘත කරන්න.
+
+## Checkmate
+
+[Checkmate](https://github.com/omacom/checkmate) යනු Omarchy හිම 3D chess game එකයි. එකම computer එකේ මිතුරෙකු සමඟ හෝ මට්ටම් තුනකින් ඇති built-in opponent සමඟ ක්‍රීඩා කරන්න, ඒ ඒ ආකාරයෙන් චලනය වන මූර්තිමත් කට්ටල හතරක් මත: කක්ෂීය යානා, කැටයම් කළ ලී සහ ඇත්දළ, වනාන්තර ජීවීන් සහ රසකැවිලි. Games වලට clock එකක් නැත, සෑම move එකකින් පසු save වේ.
+
+ඔබ Checkmate ආරම්භ කරන්නේ application launcher එක හරහාය (`Super + Space`), එහි එය Chess ලෙස ලැයිස්තුගත කර ඇත. සෑම shortcut එකක්ම බැලීමට එහි ඇතුළත `?` ඔබන්න.
 
 ## Omacalc
 
-[Omacalc](https://github.com/omacom-io/omacalc) යනු Omarchy හිම සරල ගණක යන්ත්‍රයයි, එය උපයෝගී කවුළුවක් තුළ විවෘත වේ.
+[Omacalc](https://github.com/omacom-io/omacalc) යනු floating window එකක විවෘත වන, Omarchy හිම අතිශයින් සරල calculator එකයි.
 
-ඔබ Omacalc `Super + Ctrl + Q` සමඟ අරඹයි (හෝ ඔබේ යතුරුපුවරුවේ එකක් තිබේ නම් ගණක යන්ත්‍ර යතුර සමඟ).
+ඔබ Omacalc ආරම්භ කරන්නේ `Super + Shift + Q` මගිනි (හෝ ඔබේ keyboard එකේ calculator key එකක් තිබේ නම් එයින්).
 
 ## Signal
 
-[Signal](https://signal.org/) යනු E2E සංකේතනය කළ පණිවිඩකරණයේ පුරෝගාමියා වන අතර, විශාල තාක්ෂණ සමූහයක් හරහා නොයාමට කැමති ඕනෑම කෙනෙකු සඳහා විශිෂ්ට සන්නිවේදන විකල්පයකි.
+[Signal](https://signal.org/) යනු E2E encrypted messaging හි පුරෝගාමියා වන අතර, විශාල තාක්ෂණික සමාගම් සමූහයකින් එකක් හරහා යාමට අකමැති ඕනෑම අයෙකුට විශිෂ්ට සන්නිවේදන විකල්පයකි.
 
-ඔබ Signal `Super + Shift + G` සමඟ අරඹයි. එය පාදක ස්ථාපනයේ කොටසක් නොවන බැවින්, ඔබ පළමු වරට එය එබූ විට, Omarchy එය ඔබ වෙනුවෙන් ස්ථාපනය කිරීමට ඉදිරිපත් වනු ඇත (එය Omarchy මෙනුවේ _ස්ථාපනය > සේවාව_ යටතේද ඇත).
+ඔබ Signal ආරම්භ කරන්නේ `Super + Shift + G` මගිනි. එය base install එකේ කොටසක් නොවේ, එබැවින් ඔබ පළමු වරට එය එබූ විට, Omarchy එය ඔබ වෙනුවෙන් install කිරීමට ඉදිරිපත් වේ (එය Omarchy menu එකේ _Install > Service_ යටතේද ඇත).
 
-## mpv
+## Omaview
 
-[mpv](https://mpv.io/) යනු ඕනෑම මූලාශ්‍රයකින් ඕනෑම දෙයක් පාහේ වාදනය කරන සරල, වේගවත් මාධ්‍ය වාදකයෙකි. වීඩියෝ නැරඹීම සඳහා විශිෂ්ටයි.
+[Omaview](https://github.com/omacom/omaview) යනු Omarchy හිම අතිශයින් සරල picture viewer සහ media player එකයි: ඔබේ photos, videos සහ music සඳහා එකම window එකක්. Photo එකක් විවෘත කරන්න, arrow keys එහි folder එකේ ඉතිරිය හරහා පියවරෙන් පියවර යයි, `N` සහ `P` ඕනෑම දෙයක් සඳහා එය කරයි, `Ctrl + M` මුළු folder එකම grid එකක් ලෙස පෙන්වයි. එය HEIC, AVIF සහ JPEG XL photos ද පෙන්වයි, දිග ඕනෑම දෙයක ඔබ නැවතුණු තැනින් නැවත ලබා ගනී.
 
-ඔබ mpv යෙදුම් දියත් කරන්නා හරහා (`Super + Space`) අරඹයි නැතහොත් ගොනු කළමනාකරුවා තුළ වීඩියෝවක් මත ද්විත්ව-ක්ලික් කරන්න.
+Fullscreen සඳහා `F` ඔබන්න, Omasnap තුළ පින්තූරයක් සංස්කරණය කිරීමට හෝ Omacut තුළ වීඩියෝවක් trim කිරීමට `E`, පින්තූරයක් print කිරීමට `Ctrl + P`, ගොනුවක් Trash එකට යැවීමට `Delete` ඔබන්න (`Ctrl + Z` එය ආපසු ගෙන එයි). සෑම shortcut එකක්ම බැලීමට එහි ඇතුළත `?` ඔබන්න.
+
+ඔබ Omaview _Media Viewer_ ලෙස application launcher එක හරහා (`Super + Space`) ආරම්භ කරයි, නැතහොත් file manager එකේ පින්තූරයක්, වීඩියෝවක් හෝ ගීතයක් ද්වි-ක්ලික් කරන්න.
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) යනු Omarchy හිම සරල වීඩියෝ කපනය කරන්නාය. ඔබට අවශ්‍ය වන්නේ ක්ලිපියක ආරම්භය සහ අවසානය කපා හැරීම පමණක් නම්, එය සම්පූර්ණ වීඩියෝ සංස්කාරකයක් ආරම්භ කිරීම ජයගනී.
+[Omacut](https://github.com/omacom-io/omacut) යනු Omarchy හිම අතිශයින් සරල video trimmer එකයි. ඔබට අවශ්‍ය වන්නේ clip එකක ආරම්භය සහ අවසානය කපා හැරීම පමණක් වන විට, එය සම්පූර්ණ video editor එකක් දියත් කිරීමට වඩා හොඳය.
 
-ඔබ Omacut යෙදුම් දියත් කරන්නා හරහා (`Super + Space`) අරඹයි.
+ඔබ Omacut ආරම්භ කරන්නේ application launcher එක හරහාය (`Super + Space`).
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) යනු Omarchy හිම සරල වෙබ්කැම් පටිගත කරන්නාය. ඔබේ කැමරාව සහ මයික්‍රෆෝනය වරක් තෝරන්න, ඉන්පසු පටිගත කිරීමට `Space` ඔබන්න, සහ එම පටිගත කිරීමම නතර කිරීමට සහ නැවත ආරම්භ කිරීමට නැවත ඔබන්න. එය සෑම විටම ඔබේ කැමරාවේ ඉහළම විභේදනයෙන් පටිගත කරන අතර, ඔබ ආරම්භයට පෙර ඔබේ මට්ටම් පරීක්ෂා කළ හැකි වන පරිදි සජීවී මයික්‍රෆෝන මීටරයක් ඇත.
+[Monologue](https://github.com/omacom/monologue) යනු Omarchy හිම අතිශයින් සරල webcam recorder එකයි. ඔබේ camera එක සහ microphone එක එක් වරක් තෝරන්න, ඉන්පසු record කිරීමට `Space` ඔබන්න, එම take එකම pause කර නැවත ආරම්භ කිරීමට නැවත ඔබන්න. එය සැමවිටම ඔබේ camera එකේ ඉහළම resolution එකෙන් record කරයි, ඔබ ආරම්භ කිරීමට පෙර ඔබේ levels පරීක්ෂා කළ හැකි වන පරිදි සජීවී microphone meter එකක් සමඟ.
 
-පටිගත කිරීම නවත්තන්න එවිට එය සෘජුවම සාදන ලද සංස්කාරකය තුළ විවෘත වේ. එය බෙදීමට ක්ලිපියක් ද්විත්ව-ක්ලික් කරන්න, එක් එක් කැබැල්ල කපා හැරීමට හසුරුවල අදින්න, සහ ඔබට අවශ්‍ය නැති කොටස් ඉවත් කරන්න. ඉන්පසු එය MP4 ලෙස සුරකින්න. ඔබ එය ඉවත දමන තුරු ඔබේ මුල් පටිගත කිරීම තබාගනු ලබන බැවින්, ඔබට සෑම විටම ආපසු පැමිණ එය වෙනස් ලෙස කපාගත හැක.
+Take එක නවත්වන්න, එය built-in editor එකක වහාම විවෘත වේ. Clip එකක් බෙදීමට එය ද්වි-ක්ලික් කරන්න, එක් එක් කොටස trim කිරීමට handles drag කරන්න, ඔබට අනවශ්‍ය කොටස් ඉවත් කරන්න. ඉන්පසු එය MP4 එකක් ලෙස save කරන්න. ඔබ එය අත්හරින තුරු ඔබේ මුල් recording එක තබා ගනු ලැබේ, එබැවින් ඔබට සැමවිටම ආපසු පැමිණ එය වෙනස් ලෙස කපා ගත හැකිය.
 
-ඔබ Monologue යෙදුම් දියත් කරන්නා හරහා (`Super + Space`) අරඹයි.
+ඔබ Monologue ආරම්භ කරන්නේ application launcher එක හරහාය (`Super + Space`).
