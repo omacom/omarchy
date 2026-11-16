@@ -52,6 +52,7 @@
   "audio.micMuted": "Micròfon silenciat",
   "audio.micOn": "Micròfon activat",
   "audio.noDevices": "No s'han trobat dispositius d'àudio",
+  "audio.noMicrophone": "No s'ha trobat cap micròfon",
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",

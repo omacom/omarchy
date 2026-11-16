@@ -51,6 +51,7 @@
   "audio.micMuted": "Hljóðnemi þaggaður",
   "audio.micOn": "Hljóðnemi kveiktur",
   "audio.noDevices": "Engin hljóðtæki fundust",
+  "audio.noMicrophone": "Enginn hljóðnemi fannst",
   "battery.durationHours": "%1 klst",
   "battery.durationHoursMinutes": "%1 klst %2 mín",
   "battery.durationMinutes": "%1 mín",

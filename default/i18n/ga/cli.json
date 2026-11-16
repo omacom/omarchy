@@ -54,6 +54,7 @@
   "audio.micMuted": "Micreafón balbhaithe",
   "audio.micOn": "Micreafón ar siúl",
   "audio.noDevices": "Ní bhfuarthas aon ghléas fuaime",
+  "audio.noMicrophone": "Ní bhfuarthas aon mhicreafón",
   "battery.durationHours": "%1 u",
   "battery.durationHoursMinutes": "%1 u %2 n",
   "battery.durationMinutes": "%1 n",

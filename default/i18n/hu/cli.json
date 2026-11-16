@@ -51,6 +51,7 @@
   "audio.micMuted": "Mikrofon némítva",
   "audio.micOn": "Mikrofon be",
   "audio.noDevices": "Nem találhatók hangeszközök",
+  "audio.noMicrophone": "Nem található mikrofon",
   "battery.durationHours": "%1 ó",
   "battery.durationHoursMinutes": "%1 ó %2 p",
   "battery.durationMinutes": "%1 p",

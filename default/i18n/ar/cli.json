@@ -55,6 +55,7 @@
   "audio.micMuted": "الميكروفون مكتوم",
   "audio.micOn": "الميكروفون مفتوح",
   "audio.noDevices": "لم يُعثر على أجهزة صوتية",
+  "audio.noMicrophone": "لم يُعثر على ميكروفون",
   "battery.durationHours": "%1 س",
   "battery.durationHoursMinutes": "%1 س %2 د",
   "battery.durationMinutes": "%1 د",

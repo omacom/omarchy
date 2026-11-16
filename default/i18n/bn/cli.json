@@ -51,6 +51,7 @@
   "audio.micMuted": "মাইক্রোফোন মিউট করা",
   "audio.micOn": "মাইক্রোফোন চালু",
   "audio.noDevices": "কোনো অডিও ডিভাইস পাওয়া যায়নি",
+  "audio.noMicrophone": "কোনো মাইক্রোফোন পাওয়া যায়নি",
   "battery.durationHours": "%1 ঘ",
   "battery.durationHoursMinutes": "%1 ঘ %2 মি",
   "battery.durationMinutes": "%1 মি",

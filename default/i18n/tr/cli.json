@@ -51,6 +51,7 @@
   "audio.micMuted": "Mikrofon sessize alındı",
   "audio.micOn": "Mikrofon açık",
   "audio.noDevices": "Ses aygıtı bulunamadı",
+  "audio.noMicrophone": "Mikrofon bulunamadı",
   "battery.durationHours": "%1 sa",
   "battery.durationHoursMinutes": "%1 sa %2 dk",
   "battery.durationMinutes": "%1 dk",

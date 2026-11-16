@@ -52,6 +52,7 @@
   "audio.micMuted": "Mikrofón stlmený",
   "audio.micOn": "Mikrofón zapnutý",
   "audio.noDevices": "Nenašli sa žiadne zvukové zariadenia",
+  "audio.noMicrophone": "Nenašiel sa žiadny mikrofón",
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",

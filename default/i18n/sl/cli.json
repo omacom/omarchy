@@ -53,6 +53,7 @@
   "audio.micMuted": "Mikrofon utišan",
   "audio.micOn": "Mikrofon vklopljen",
   "audio.noDevices": "Ni zvočnih naprav",
+  "audio.noMicrophone": "Ni mikrofona",
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",

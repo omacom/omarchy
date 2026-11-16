@@ -51,6 +51,7 @@
   "audio.micMuted": "Mikrofon ovozi oʻchirildi",
   "audio.micOn": "Mikrofon yoqildi",
   "audio.noDevices": "Audio qurilmalar topilmadi",
+  "audio.noMicrophone": "Mikrofon topilmadi",
   "battery.durationHours": "%1 soat",
   "battery.durationHoursMinutes": "%1 soat %2 daq",
   "battery.durationMinutes": "%1 daq",

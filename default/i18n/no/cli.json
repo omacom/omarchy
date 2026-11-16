@@ -51,6 +51,7 @@
   "audio.micMuted": "Mikrofon dempet",
   "audio.micOn": "Mikrofon på",
   "audio.noDevices": "Ingen lydenheter funnet",
+  "audio.noMicrophone": "Ingen mikrofon funnet",
   "battery.durationHours": "%1 t",
   "battery.durationHoursMinutes": "%1 t %2 min",
   "battery.durationMinutes": "%1 min",

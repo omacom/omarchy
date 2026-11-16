@@ -51,6 +51,7 @@
   "audio.micMuted": "Naka-mute ang mikropono",
   "audio.micOn": "Naka-on ang mikropono",
   "audio.noDevices": "Walang nahanap na audio device",
+  "audio.noMicrophone": "Walang nahanap na mikropono",
   "battery.durationHours": "%1 o",
   "battery.durationHoursMinutes": "%1 o %2 m",
   "battery.durationMinutes": "%1 m",

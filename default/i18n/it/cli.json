@@ -52,6 +52,7 @@
   "audio.micMuted": "Microfono silenziato",
   "audio.micOn": "Microfono attivo",
   "audio.noDevices": "Nessun dispositivo audio trovato",
+  "audio.noMicrophone": "Nessun microfono trovato",
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",

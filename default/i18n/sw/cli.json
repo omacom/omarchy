@@ -51,6 +51,7 @@
   "audio.micMuted": "Maikrofoni imenyamazishwa",
   "audio.micOn": "Maikrofoni imewashwa",
   "audio.noDevices": "Hakuna vifaa vya sauti vilivyopatikana",
+  "audio.noMicrophone": "Hakuna maikrofoni iliyopatikana",
   "battery.durationHours": "saa %1",
   "battery.durationHoursMinutes": "saa %1 dak %2",
   "battery.durationMinutes": "dak %1",

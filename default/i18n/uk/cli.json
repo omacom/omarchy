@@ -53,6 +53,7 @@
   "audio.micMuted": "Мікрофон вимкнено",
   "audio.micOn": "Мікрофон увімкнено",
   "audio.noDevices": "Аудіопристроїв не знайдено",
+  "audio.noMicrophone": "Мікрофона не знайдено",
   "battery.durationHours": "%1 год",
   "battery.durationHoursMinutes": "%1 год %2 хв",
   "battery.durationMinutes": "%1 хв",
