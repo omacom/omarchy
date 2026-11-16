@@ -46,13 +46,13 @@ local function universal_clipboard_shortcut(default_mods, default_key, terminal_
   end
 end
 
-o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "code:38"))
--- Terminals keep their Insert chords (matches Omarchy's terminal configs and avoids
--- non-Latin layout lookup issues); GUI apps use raw keycodes so non-Latin
--- layouts resolve correctly (issue #7027 / #12570).
-o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "code:54", "CTRL", "Insert"))
+o.bind("SUPER + A", "Select all", send_shortcut_once("CTRL", "A"))
+-- Terminals keep their Insert chords (matches Omarchy's terminal configs and
+-- avoids the non-Latin keysym lookup issue); GUI apps use letter keys, which
+-- resolve against the active layout (see #7027).
+o.bind("SUPER + C", "Universal copy", universal_clipboard_shortcut("CTRL", "C", "CTRL", "Insert"))
 -- Scripts paste the same way with `hyprctl dispatch 'o.universal_paste'`.
-o.universal_paste = universal_clipboard_shortcut("CTRL", "code:55", "SHIFT", "Insert")
+o.universal_paste = universal_clipboard_shortcut("CTRL", "V", "SHIFT", "Insert")
 o.bind("SUPER + V", "Universal paste", o.universal_paste)
-o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "code:53"))
+o.bind("SUPER + X", "Universal cut", send_shortcut_once("CTRL", "X"))
 o.bind("SUPER + CTRL + V", "Clipboard manager", { panel = "omarchy.clipboard" })
