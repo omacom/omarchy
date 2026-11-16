@@ -7,7 +7,7 @@ function clampIndex(index, length) {
 // one run, stopping at either end.
 function moveCursor(profileIndex, limitIndex, delta, profileCount, limitCount) {
   var position = clampIndex((limitIndex >= 0 ? profileCount + limitIndex : profileIndex) + delta, profileCount + limitCount)
-  if (position < profileCount) return { profileIndex: position, limitIndex: -1 }
+  if (limitCount <= 0 || position < profileCount) return { profileIndex: position, limitIndex: -1 }
   return { profileIndex: profileIndex, limitIndex: position - profileCount }
 }
 

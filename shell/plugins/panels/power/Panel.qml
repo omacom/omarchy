@@ -51,7 +51,7 @@ Panel {
   }
 
   function activateSelectedProfile() {
-    if (limitIndex >= 0) {
+    if (limitSupported && limitIndex >= 0) {
       setLimit(limitIndex === 0)
       return
     }

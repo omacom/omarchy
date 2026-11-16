@@ -240,11 +240,13 @@ case "$*" in
   *"EnableChargeThreshold b true") [[ -z $FIRMWARE_OBEYS ]] || echo 80 >"$OMARCHY_POWER_SUPPLY_PATH/BAT0/charge_control_end_threshold" ;;
 esac
 STUB
-chmod +x "$tmp_dir/limit/bin/upower" "$tmp_dir/limit/bin/busctl"
+printf '#!/bin/bash\necho "$1" >"%s"\n' "$tmp_dir/limit/notified" >"$tmp_dir/limit/bin/omarchy-notification-send"
+chmod +x "$tmp_dir/limit/bin/upower" "$tmp_dir/limit/bin/busctl" "$tmp_dir/limit/bin/omarchy-notification-send"
 
 FIRMWARE_OBEYS=1 OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/limit/power" PATH="$tmp_dir/limit/bin:$PATH" "$ROOT/bin/omarchy-battery-limit" on || fail "battery limit succeeds once the battery holds the cap"
 printf '100\n' >"$tmp_dir/limit/power/BAT0/charge_control_end_threshold"
 if OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/limit/power" PATH="$tmp_dir/limit/bin:$PATH" "$ROOT/bin/omarchy-battery-limit" on 2>/dev/null; then
   fail "battery limit fails when the battery ignores the request"
 fi
+[[ -s $tmp_dir/limit/notified ]] || fail "battery limit says so on the desktop when no terminal can show the failure"
 pass "battery limit believes the battery, not the reply"
