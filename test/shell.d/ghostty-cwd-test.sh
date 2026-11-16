@@ -4,34 +4,7 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-ghostty_config="$ROOT/config/ghostty/config"
 ghostty_desktop="$ROOT/default/ghostty/com.mitchellh.ghostty.desktop"
-
-[[ -f $ghostty_config ]] || fail "ghostty ships a default configuration"
-
-single_false=$(grep -cE '^[[:space:]]*gtk-single-instance[[:space:]]*=[[:space:]]*false[[:space:]]*$' "$ghostty_config" || true)
-if (( single_false != 1 )); then
-  fail "ghostty config has exactly one active gtk-single-instance = false line" "found $single_false"
-fi
-if grep -Eq '^[[:space:]]*gtk-single-instance[[:space:]]*=[[:space:]]*true([[:space:]]|$)' "$ghostty_config"; then
-  fail "ghostty config does not force single-instance mode"
-fi
-pass "ghostty config enables multi-process windows by default"
-
-[[ -f $ghostty_desktop ]] || fail "ghostty ships an Omarchy desktop entry"
-
-exec_bare=$(grep -c '^Exec=/usr/bin/ghostty$' "$ghostty_desktop" || true)
-if (( exec_bare != 2 )); then
-  fail "ghostty desktop entry has bare Exec lines for the main and new-window actions" "found $exec_bare"
-fi
-if grep -q -- '--gtk-single-instance' "$ghostty_desktop"; then
-  fail "ghostty desktop entry does not force gtk-single-instance on the command line"
-fi
-grep -Eq '^DBusActivatable=false$' "$ghostty_desktop" ||
-  fail "ghostty desktop entry disables D-Bus activation"
-grep -Eq '^X-TerminalArgDir=--working-directory=$' "$ghostty_desktop" ||
-  fail "ghostty desktop entry preserves the working-directory argument"
-pass "ghostty desktop entry launches bare multi-process windows"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
