@@ -12,6 +12,29 @@ if [[ -z $node_id || -z $sink_name ]]; then
   exit 1
 fi
 
+# The audio panels start this without waiting for an earlier call, and an earlier
+# call that reaches the clear-default below last would erase a newer choice. So
+# calls take turns, and a call that finds a newer choice queued behind it leaves
+# the work to that one. Every command below gives up within seconds, the kernel
+# drops the lock when this exits, and a call that can't get it in 10 seconds
+# goes ahead anyway, unless a newer choice has been made meanwhile.
+state="${XDG_RUNTIME_DIR:-/tmp}/omarchy-audio-output-default-$UID"
+request="$BASHPID $EPOCHREALTIME"
+recorded=0
+if { printf '%s\n' "$request" >"$state.latest.$BASHPID"; } 2>/dev/null &&
+  mv -f "$state.latest.$BASHPID" "$state.latest" 2>/dev/null; then
+  recorded=1
+fi
+if { exec {lock_fd}>"$state.lock"; } 2>/dev/null; then
+  flock -w 10 "$lock_fd" || true
+fi
+if (( recorded )); then
+  latest=$(cat "$state.latest" 2>/dev/null)
+  if [[ -n $latest && $latest != "$request" ]]; then
+    exit 0
+  fi
+fi
+
 timeout 2 wpctl set-default "$node_id" 2>/dev/null || true
 timeout 2 pactl set-default-sink "$sink_name" 2>/dev/null || true
 

@@ -65,6 +65,14 @@ Sink Input #42
 OUT
     ;;
   "-f json list sinks")
+    # SINKS_HOLD parks this call mid-read until the test releases it.
+    if [[ -n ${SINKS_HOLD:-} ]]; then
+      touch "$SINKS_HOLD.reached"
+      for _ in {1..100}; do
+        [[ -e $SINKS_HOLD.release ]] && break
+        sleep 0.05
+      done
+    fi
     if [[ -n ${SINKS_JSON:-} ]]; then
       cat "$SINKS_JSON"
       exit 0
@@ -109,6 +117,8 @@ SH
 chmod +x "$work/bin"/*
 
 export MIC_STATE="$work/mic" CALLS="$work/calls" SOURCES="$work/sources" SINKS="$work/sinks" OUTPUTS="$work/outputs"
+export XDG_RUNTIME_DIR="$work/run"
+mkdir -p "$XDG_RUNTIME_DIR"
 export PATH="$work/bin:$ROOT/bin:$PATH"
 
 calls() {
@@ -170,6 +180,44 @@ sinks_json available 1000
 omarchy-audio-output-set-default 2 headphones
 ! cleared || fail 'a choice between outputs of equal priority stays saved' "$(calls)"
 pass 'a choice between outputs of equal priority stays saved'
+
+# Picks made while an earlier pick is still working. The headphones call is
+# parked reading the sinks; the display and then the speakers are picked behind
+# it. The speakers are the last pick, so they must end up saved: the headphones
+# call's clear-default may not land after them, and the display call, which a
+# newer pick overtook, does nothing.
+latest_request() {
+  cat "$XDG_RUNTIME_DIR/omarchy-audio-output-default-$UID.latest" 2>/dev/null || true
+}
+wait_for() {
+  local _
+  for _ in {1..100}; do
+    eval "$1" && return 0
+    sleep 0.05
+  done
+  fail "$2" "$(calls)"
+}
+sinks_json available 500
+: >"$CALLS"
+rm -f "$work/hold".*
+SINKS_HOLD="$work/hold" omarchy-audio-output-set-default 2 headphones &
+first=$!
+wait_for '[[ -e $work/hold.reached ]]' 'the first pick reaches the sink listing'
+before=$(latest_request)
+omarchy-audio-output-set-default 3 display &
+second=$!
+wait_for '[[ $(latest_request) != "$before" ]] || grep -qx "wpctl set-default 3" "$CALLS"' 'the second pick queues or runs'
+before=$(latest_request)
+omarchy-audio-output-set-default 1 speakers &
+third=$!
+wait_for '[[ $(latest_request) != "$before" ]] || grep -qx "wpctl set-default 1" "$CALLS"' 'the third pick queues or runs'
+touch "$work/hold.release"
+wait "$first" "$second" "$third"
+[[ $(grep '^wpctl ' "$CALLS" | tail -n 1) == "wpctl set-default 1" ]] ||
+  fail 'the last of several quick picks stays the default' "$(calls)"
+! grep -qx 'wpctl set-default 3' "$CALLS" ||
+  fail 'a pick overtaken by a newer one leaves it alone' "$(calls)"
+pass 'the last of several quick picks stays the default'
 unset SINKS_JSON
 
 : >"$CALLS"
