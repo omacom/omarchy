@@ -8,6 +8,7 @@
   "de": {"keyboard": "German", "timezone": "Europe/Berlin"},
   "el": {"keyboard": "Greek", "timezone": "Europe/Athens"},
   "en": {"keyboard": "English (US)"},
+  "es-ES": {"keyboard": "Spanish", "timezone": "Europe/Madrid"},
   "es-MX": {"keyboard": "Spanish (Latin American)", "timezone": "America/Mexico_City"},
   "et": {"keyboard": "Estonian", "timezone": "Europe/Tallinn"},
   "fa": {"keyboard": "English (US)", "timezone": "Asia/Tehran"},
