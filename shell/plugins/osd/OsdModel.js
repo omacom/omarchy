@@ -6,19 +6,6 @@ function clamp(value, min, max) {
 // column to it so the bar keeps its place as the icon changes.
 var widestIcon = ""
 
-// Volume OSDs carry the live mixer below the level bar. Callers name the
-// volume icon ("volume-high") or pass the speaker glyph the audio panel draws,
-// so both forms identify the same notification.
-var volumeGlyphs = ["", "", "", "", "󰋋", "󰕾", "󰝟"]
-
-function isVolumeIcon(name) {
-  var key = String(name || "")
-  var lower = key.toLowerCase()
-  if (lower.indexOf("volume") === 0) return true
-  if (lower === "mute" || lower === "muted") return true
-  return volumeGlyphs.indexOf(key) !== -1
-}
-
 function iconFor(name, percent) {
   var n = String(name || "").toLowerCase()
   if (n === "volume-muted" || n === "volume-mute" || n === "muted" || n === "mute") return ""
@@ -72,7 +59,6 @@ function stateForShow(iconName, rawMessage, rawValue, rawMax, rawProgressText, r
 if (typeof module !== "undefined") {
   module.exports = {
     widestIcon: widestIcon,
-    isVolumeIcon: isVolumeIcon,
     iconFor: iconFor,
     stateForShow: stateForShow
   }
