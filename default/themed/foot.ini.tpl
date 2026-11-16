@@ -1,4 +1,7 @@
-[colors-dark]
+[main]
+initial-color-theme={{ mode }}
+
+[colors-{{ mode }}]
 foreground={{ foreground_strip }}
 background={{ background_strip }}
 # Blur only applies while the background is see-through, as with Glassy windows,
