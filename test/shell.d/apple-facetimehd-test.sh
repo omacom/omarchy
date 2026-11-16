@@ -58,6 +58,16 @@ printf '\n' >>"$TEST_LOG"
 (( ${MODPROBE_FAIL:-0} == 0 ))
 SH
 
+# The sudo stub runs its command for real, so without this the hook install
+# reaches /usr/lib/systemd/system-sleep on the machine running the suite.
+cat >"$stub_bin/install" <<'SH'
+#!/bin/bash
+
+printf 'install' >>"$TEST_LOG"
+printf '\t%s' "$@" >>"$TEST_LOG"
+printf '\n' >>"$TEST_LOG"
+SH
+
 chmod +x "$stub_bin"/*
 
 run_leaf() {
