@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# omarchy:summary=Open a tray item's own context menu at the pointer
+# omarchy:args=<item-id>
+# omarchy:examples=omarchy tray context menu wine-0x200d4-0
+# omarchy:hidden=true
+
+# The bar runs this on right-click for tray items that publish no D-Bus menu,
+# such as Windows apps under Wine. Quickshell can only show D-Bus menus, so
+# this asks the app over StatusNotifierItem.ContextMenu to draw its own.
+
+want=${1:?item id required}
+
+# Find the item's bus name and object path by its Id. Every item is asked at
+# once, and each call gives up after a second, so apps that stopped answering
+# delay the menu by a second at most, not a second each.
+lookups=$(mktemp -d)
+trap 'rm -rf "$lookups"' EXIT
+
+items=()
+while IFS= read -r item; do
+  if [[ $item == */* ]]; then
+    items+=("${item%%/*} /${item#*/}")
+  else
+    items+=("$item /StatusNotifierItem")
+  fi
+done < <(busctl --user --timeout=1 --json=short get-property org.kde.StatusNotifierWatcher /StatusNotifierWatcher \
+  org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems | jq -r '.data[]')
+
+for i in "${!items[@]}"; do
+  read -r service path <<<"${items[i]}"
+  busctl --user --timeout=1 --json=short call "$service" "$path" \
+    org.freedesktop.DBus.Properties GetAll s org.kde.StatusNotifierItem >"$lookups/$i" 2>/dev/null &
+done
+wait
+
+# Wine builds Ids from window handles, so apps in two prefixes can share one,
+# and Quickshell gives no bus name to tell them apart. Don't guess: open
+# nothing when two items match, or when an item that didn't answer might be
+# another Wine app with this Id. Wine apps run Wine's loader (or an x86
+# emulator running it) whatever the Windows program is called, so only a
+# silent app proven to run something else is ruled out.
+matches=()
+silent_wine_apps=0
+for i in "${!items[@]}"; do
+  read -r service path <<<"${items[i]}"
+  if [[ -s $lookups/$i ]]; then
+    if [[ $(jq -r '.data[0].Id.data // empty' "$lookups/$i") == "$want" ]]; then
+      matches+=("$service $path")
+    fi
+  elif [[ $want == wine-* ]]; then
+    pid=$(busctl --user --timeout=1 call org.freedesktop.DBus /org/freedesktop/DBus \
+      org.freedesktop.DBus GetConnectionUnixProcessID s "$service" 2>/dev/null | awk '{ print $2 }')
+    exe=""
+    if [[ -n $pid ]]; then
+      exe=$(readlink "/proc/$pid/exe" 2>/dev/null)
+    fi
+    # A binary replaced by an update since the app started reads "... (deleted)".
+    exe=${exe% (deleted)}
+    case ${exe##*/} in
+      "" | wine | wine64 | wine-preloader | wine64-preloader | FEX* | box64 | box86)
+        silent_wine_apps=$(( silent_wine_apps + 1 ))
+        ;;
+    esac
+  fi
+done
+
+if (( ${#matches[@]} != 1 || silent_wine_apps > 0 )); then
+  echo "omarchy-tray-context-menu: ${#matches[@]} tray items have Id $want, $silent_wine_apps possible Wine apps didn't answer" >&2
+  exit 1
+fi
+read -r service path <<<"${matches[0]}"
+
+# Wine places the menu at the point it is given, in X11 root coordinates.
+# Convert the pointer from Hyprland's layout to the Xwayland output it is on.
+x=0 y=0
+read -r cx cy < <(hyprctl cursorpos -j | jq -r '"\(.x) \(.y)"')
+# Hyprland reports a mode's size before rotation, so a quarter turn (an odd
+# transform) swaps the width and height on screen.
+monitor=$(hyprctl monitors -j | jq -c --argjson cx "$cx" --argjson cy "$cy" '
+  first(.[]
+    | (if .transform % 2 == 1 then [.height, .width] else [.width, .height] end) as [$w, $h]
+    | .w = $w / .scale | .h = $h / .scale
+    | select($cx >= .x and $cy >= .y and $cx < .x + .w and $cy < .y + .h))')
+if [[ -n $monitor ]]; then
+  read -r name mx my mw <<<"$(jq -r '"\(.name) \(.x) \(.y) \(.w)"' <<<"$monitor")"
+  # xrandr lists outputs as "0: +NAME W/mmxH/mm+X+Y NAME".
+  geometry=$(xrandr --listmonitors 2>/dev/null | awk -v n="$name" '$NF == n { print $3 }')
+  if [[ $geometry =~ ^([0-9]+)/[0-9]+x([0-9]+)/[0-9]+\+([0-9]+)\+([0-9]+)$ ]]; then
+    read -r x y < <(awk -v cx="$cx" -v cy="$cy" -v mx="$mx" -v my="$my" -v mw="$mw" \
+      -v xw="${BASH_REMATCH[1]}" -v xx="${BASH_REMATCH[3]}" -v xy="${BASH_REMATCH[4]}" \
+      'BEGIN { s = xw / mw; printf "%d %d\n", xx + (cx - mx) * s, xy + (cy - my) * s }')
+  fi
+fi
+
+busctl --user --timeout=1 call "$service" "$path" org.kde.StatusNotifierItem ContextMenu ii "$x" "$y"

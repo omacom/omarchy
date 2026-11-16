@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# omarchy:summary=Returns true when the compositor holds a session lock no other locker is alive to own
+# omarchy:args=<own-pid>
+# omarchy:hidden=true
+
+# Hyprland lets any client take over a held lock (misc:allow_session_lock_restore),
+# so a shell that recovers a lock it merely sees can take the live lock screen of
+# another shell, and strand it when it exits. A lock is stranded only while no
+# other Quickshell or hyprlock is running; until then the answer is undetermined,
+# so the caller keeps asking until that locker exits or it gives up.
+#
+# Exits 0 stranded, 1 unlocked, 2 undetermined. The caller passes its own pid,
+# as a crash re-execs the shell in place.
+omarchy-hyprland-session-locked || exit
+
+if pgrep -u "$UID" -x 'quickshell|qs|hyprlock' | grep -qvxF "$1"; then
+  exit 2
+fi
