@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# omarchy:summary=Switch Claude, Codex, or Grok accounts automatically near a limit, or only notify
+# omarchy:args=[claude|codex|grok] [manual|auto] [threshold]
+# omarchy:examples=omarchy agent account mode auto | omarchy agent account mode auto 90 | omarchy agent account mode codex manual
+
+set -uo pipefail
+
+# The provider can be left out when it's your default agent:
+# `omarchy agent account use work`.
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+  default=$(omarchy-default-agent)
+  [[ $default == "claude" || $default == "codex" || $default == "grok" ]] && set -- "$default" "$@"
+fi
+
+if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
+  echo "Usage: omarchy-agent-account-mode [claude|codex|grok] [manual|auto] [threshold]" >&2
+  exit 1
+fi
+
+if [[ -n ${2:-} ]]; then
+  omarchy-agent-account-state mode "$@" || exit 1
+fi
+
+omarchy-agent-account-state registry "$1" | jq -r '
+  if .switch == "auto" then
+    "\(.name) switches new sessions to the account with the most headroom at \(.threshold)%."
+  else
+    "\(.name) notifies at \(.threshold)% and switches when you say so."
+  end'

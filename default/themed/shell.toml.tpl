@@ -224,12 +224,10 @@ selection        = "{{ accent }}"
 selection-alpha  = 0.45
 
 [image-picker]
-# Carousel-style picker. The picker has no card surface, so `scrim` is
-# the full-screen wash. Per-slice dim overlays and text outlines on top
-# of the scrim track the foundational background color directly.
+# Carousel-style picker shown directly over the desktop, with no card
+# surface or backdrop wash. Per-slice dim overlays and text outlines
+# track the foundational background color directly.
 # unselected-border-alpha softens carousel slices that aren't selected.
-scrim                   = "{{ background }}"
-scrim-alpha             = 0.5
 text                    = "{{ foreground }}"
 selected-border         = "{{ accent }}"
 selected-border-alpha   = 1.0

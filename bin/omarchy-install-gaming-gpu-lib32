@@ -7,6 +7,10 @@
 
 set -e
 
+# lib32 drivers come from Arch's multilib repository, which only exists on
+# x86_64. aarch64 runs Valve's native arm64 Steam client and needs none.
+omarchy-hw-x86 || exit 0
+
 echo "Installing lib32 graphics drivers..."
 
 PACKAGES=()
@@ -27,4 +31,6 @@ elif omarchy-hw-nvidia-without-gsp; then
   PACKAGES+=(lib32-nvidia-580xx-utils)
 fi
 
-(( ${#PACKAGES[@]} > 0 )) && omarchy-pkg-add "${PACKAGES[@]}"
+if (( ${#PACKAGES[@]} > 0 )); then
+  omarchy-pkg-add "${PACKAGES[@]}"
+fi

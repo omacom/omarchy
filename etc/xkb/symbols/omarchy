@@ -1,0 +1,11 @@
+// Caps Lock stays Caps Lock; Shift + Caps Lock is the Compose key. The actions
+// are explicit so the Shift level never inherits the key's Lock modifier,
+// which would toggle Caps Lock on every compose.
+partial modifier_keys
+xkb_symbols "shift_caps_compose" {
+  key <CAPS> {
+    type[Group1] = "TWO_LEVEL",
+    symbols[Group1] = [ Caps_Lock, Multi_key ],
+    actions[Group1] = [ LockMods(modifiers = Lock), NoAction() ]
+  };
+};

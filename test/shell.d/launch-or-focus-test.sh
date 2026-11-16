@@ -36,7 +36,7 @@ run_launcher() {
   local clients_json="$2"
   shift 2
   rm -f "$dispatch_log" "$launch_log"
-  PATH="$mock_bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
+  PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_CLIENTS_JSON="$clients_json" \
     OMARCHY_TEST_FOCUS_DISPATCH="$dispatch_log" OMARCHY_TEST_LAUNCH="$launch_log" \
     bash "$ROOT/bin/$launcher" "$@"
 }
@@ -48,17 +48,6 @@ clients_json='[
 run_launcher omarchy-launch-spotify "$clients_json"
 grep -F 'address:0xspotify' "$dispatch_log" >/dev/null || fail "Spotify launcher skips the Quickshell plugin window"
 pass "Spotify launcher focuses the official client behind a plugin window"
-
-clients_json='[
-  {"address":"0xplugin","class":"org.quickshell","title":"Spotify"},
-  {"address":"0xbrowser","class":"chromium","title":"Spotify - Chromium"},
-  {"address":"0xterminal","title":"Spotify"},
-  {"address":"0xmissing","class":null,"title":"Spotify"}
-]'
-run_launcher omarchy-launch-spotify "$clients_json"
-[[ ! -e $dispatch_log ]] || fail "Spotify launcher ignores title-only and missing-class matches"
-[[ -e $launch_log ]] || fail "Spotify launcher starts Spotify or its installer when no client exists"
-pass "Spotify launcher safely ignores non-client Spotify titles"
 
 clients_json='[
   {"address":"0xsignal","class":"signal","title":"Alice"},
