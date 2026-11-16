@@ -22,6 +22,10 @@ fi
 managed_begin="# BEGIN OMARCHY QUALCOMM DEVICE TREES"
 managed_end="# END OMARCHY QUALCOMM DEVICE TREES"
 uki_config=${OMARCHY_QUALCOMM_UKI_CONFIG:-/etc/kernel/uki.conf}
+# Each tree is a PE section of its own, and ukify writes every section's header
+# into the room the stub reserves. Arch Linux ARM's stub has room for about 119
+# trees; systemd-stub-omarchy's is the same release built with room for 1024.
+uki_stub=${OMARCHY_QUALCOMM_UKI_STUB:-/usr/lib/systemd-stub-omarchy/linuxaa64.efi.stub}
 
 # Arch Linux ARM's kernel keeps every board's device trees in /boot/dtbs.
 # Omarchy's own kernel keeps its Snapdragon ones under its package name, and
@@ -109,6 +113,11 @@ else
   chmod 0644 "$uki_tmp" || written=0
 fi
 
+uki_stub_line=""
+if [[ -f $uki_stub ]]; then
+  uki_stub_line="Stub=$uki_stub"
+fi
+
 if (( written )) && [[ -n $own_dtb ]]; then
   printf '%s\n' \
     "$managed_begin" \
@@ -117,6 +126,7 @@ if (( written )) && [[ -n $own_dtb ]]; then
     "# own, matched by its running compatible, when none fits. limine refreshes" \
     "# both before every boot image build (omarchy-update-qualcomm-device-trees)." \
     "[UKI]" \
+    ${uki_stub_line:+"$uki_stub_line"} \
     "DeviceTree=$own_dtb" \
     "DeviceTreeAuto=${dtbs[*]}" \
     "$managed_end" >>"$uki_tmp" || written=0
@@ -127,6 +137,7 @@ elif (( written )); then
     "# systemd-stub selects a device tree from SMBIOS data. limine refreshes" \
     "# this list before every boot image build (omarchy-update-qualcomm-device-trees)." \
     "[UKI]" \
+    ${uki_stub_line:+"$uki_stub_line"} \
     "DeviceTreeAuto=${dtbs[*]}" \
     "$managed_end" >>"$uki_tmp" || written=0
 fi

@@ -8,6 +8,9 @@ firmware_setup="$ROOT/install/hardware/qualcomm/firmware.sh"
 dtb_setup="$ROOT/install/hardware/qualcomm/dtb-uki.sh"
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
+# Every case runs without systemd-stub-omarchy unless it names a stub, also on
+# a Snapdragon machine that has the package installed.
+export OMARCHY_QUALCOMM_UKI_STUB="$scratch/no-stub/linuxaa64.efi.stub"
 
 for script in "$firmware_setup" "$dtb_setup"; do
   bash -n "$script" || fail "Snapdragon hardware scripts have valid syntax"
@@ -248,6 +251,15 @@ run_own_dtb_setup
 grep -q '^DeviceTreeAuto=' "$own/uki.conf" && ! grep -q '^DeviceTree=' "$own/uki.conf" ||
   fail "two trees with the machine's compatible leave the choice to systemd-stub"
 rm "$own/dtbs/x1e78100-lenovo-thinkpad-t14s-copy.dtb"
+
+# The UKI uses systemd-stub-omarchy's stub when it is installed, whose header
+# holds every tree's section, and systemd's own otherwise.
+grep -q '^Stub=' "$own/uki.conf" &&
+  fail "the UKI keeps systemd's stub when systemd-stub-omarchy isn't installed"
+: >"$own/linuxaa64.efi.stub"
+OMARCHY_QUALCOMM_UKI_STUB="$own/linuxaa64.efi.stub" run_own_dtb_setup
+grep -qx "Stub=$own/linuxaa64.efi.stub" "$own/uki.conf" ||
+  fail "the UKI uses systemd-stub-omarchy's stub when it is installed"
 fake_dtb "$own/dtbs/x1e80100-microsoft-denali-oled.dtb" 'microsoft,denali-oled\0microsoft,denali\0qcom,x1e80100\0'
 printf 'microsoft,denali\0qcom,x1e80100\0' >"$own/proc/device-tree/compatible"
 run_own_dtb_setup
