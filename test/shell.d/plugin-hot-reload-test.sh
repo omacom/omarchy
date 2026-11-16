@@ -55,4 +55,10 @@ assert(engineReloads === 1 && registryReloads === 1, 'non-source edits only resc
 auth.put('my.lock', { locked: true })
 assert(reload.flush(true, auth.hasActiveLock(), engine, registry), 'a private lock clone also defers reload')
 assert(engineReloads === 1, 'no engine reload occurs while any private lock is held')
+// The lock service's bound `locked` can miss a change; its currentlyLocked() is the truth.
+auth.destroyAll()
+auth.put('omarchy.lock', { locked: false, currentlyLocked: () => true })
+assert(auth.hasActiveLock(), 'a lock whose bound property went stale still defers reload')
+auth.put('omarchy.lock', { locked: true, currentlyLocked: () => false })
+assert(!auth.hasActiveLock(), 'a stale locked property does not hold a reload after unlock')
 JS
