@@ -1066,7 +1066,7 @@ dispatch_fast_or_help() {
         else
           show_command_help "$key"
         fi
-        return 0
+        return 1
       fi
     fi
 
@@ -1130,7 +1130,7 @@ dispatch_or_help() {
       else
         show_command_help "$key"
       fi
-      return 0
+      return 1
     fi
 
     exec "$binary_path" "${remaining[@]}"

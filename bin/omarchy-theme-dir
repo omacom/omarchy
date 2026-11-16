@@ -11,8 +11,18 @@ if [[ -z $theme ]]; then
   exit 1
 fi
 
+theme=$(echo "$theme" | sed -E 's/<[^>]+>//g' | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+
+if [[ -z $theme || $theme == .* || $theme == */* ]]; then
+  echo "Invalid theme name: $1" >&2
+  exit 1
+fi
+
 if [[ -d $HOME/.config/omarchy/themes/$theme ]]; then
   echo "$HOME/.config/omarchy/themes/$theme"
-else
+elif [[ -d $OMARCHY_PATH/themes/$theme ]]; then
   echo "$OMARCHY_PATH/themes/$theme"
+else
+  echo "Theme '$theme' does not exist" >&2
+  exit 1
 fi
