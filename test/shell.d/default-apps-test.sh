@@ -398,6 +398,42 @@ XDG_CACHE_HOME="$cache_home" "$ROOT/bin/omarchy-install-terminal" ghostty \
   fail "direct Ghostty install invalidates the cache while preserving a symlink"
 pass "direct Ghostty install preserves a dangling desktop symlink"
 
+refresh_bin="$test_tmp/refresh-bin"
+mkdir -p "$refresh_bin"
+cat >"$refresh_bin/omarchy-cmd-present" <<'SH'
+#!/bin/bash
+[[ $1 == "ghostty" ]]
+SH
+cat >"$refresh_bin/update-desktop-database" <<'SH'
+#!/bin/bash
+exit 0
+SH
+chmod +x "$refresh_bin"/*
+
+rm "$ghostty_desktop"
+cp "$ghostty_desktop_ref" "$ghostty_desktop"
+PATH="$refresh_bin:$PATH" omarchy-refresh-applications
+cmp -s "$ghostty_desktop_ref" "$ghostty_desktop" ||
+  fail "application refresh preserves an existing Ghostty desktop entry"
+pass "application refresh preserves an existing Ghostty desktop entry"
+
+rm "$ghostty_desktop"
+ln -s "$ghostty_symlink_target" "$ghostty_desktop"
+PATH="$refresh_bin:$PATH" omarchy-refresh-applications >"$ghostty_symlink_error" 2>&1
+[[ ! -s $ghostty_symlink_error ]] ||
+  fail "application refresh does not write through a dangling Ghostty desktop symlink" "$(<"$ghostty_symlink_error")"
+[[ -L $ghostty_desktop && $(readlink "$ghostty_desktop") == "$ghostty_symlink_target" ]] ||
+  fail "application refresh preserves a dangling Ghostty desktop symlink"
+[[ ! -e $ghostty_symlink_target ]] ||
+  fail "application refresh does not create a dangling Ghostty symlink target"
+pass "application refresh preserves a dangling Ghostty desktop symlink"
+
+rm "$ghostty_desktop"
+PATH="$refresh_bin:$PATH" omarchy-refresh-applications
+cmp -s "$ROOT/default/ghostty/com.mitchellh.ghostty.desktop" "$ghostty_desktop" ||
+  fail "application refresh installs the Ghostty desktop entry when missing"
+pass "application refresh installs the Ghostty desktop entry when missing"
+
 for entry in "${editor_cases[@]}"; do
   read -r selection command installer <<<"$entry"
   rm -f "$installed_dir/$command"
