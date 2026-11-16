@@ -33,7 +33,13 @@ Rectangle {
         capsLockTyped = !capsLockTyped
       return
     }
-    if (text.length !== 1 || text.toLowerCase() === text.toUpperCase())
+    // Only a letter whose two cases map to each other tells us anything. That
+    // drops AZERTY's Shift+* micro sign µ, whose capital is Greek Μ, and also
+    // that Μ, which Caps Lock turns the µ into.
+    var lower = text.toLowerCase()
+    var upper = text.toUpperCase()
+    if (text.length !== 1 || lower === upper || upper.toLowerCase() !== lower
+        || lower.toUpperCase() !== upper || upper === "Μ")
       return
     // A capital without Shift, or a lowercase letter with it, means Caps Lock.
     capsLockTyped = (text === text.toUpperCase()) !== ((modifiers & Qt.ShiftModifier) !== 0)

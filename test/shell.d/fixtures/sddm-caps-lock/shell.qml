@@ -116,8 +116,16 @@ ShellRoot {
           theme.trackCapsLock(Qt.Key_1, "1", none, false)
           root.assertTrue(!icon.visible, "a key with no case leaves the state alone")
 
+          // French AZERTY Shift+* types the micro sign, which Caps Lock turns
+          // into Greek capital mu; neither says anything about Caps Lock.
+          theme.trackCapsLock(Qt.Key_mu, "µ", shift, false)
+          root.assertTrue(!icon.visible, "AZERTY Shift+* micro sign leaves the icon off")
+
           theme.trackCapsLock(Qt.Key_CapsLock, "", none, false)
           root.assertTrue(icon.visible, "pressing Caps Lock again brings the icon back")
+
+          theme.trackCapsLock(0x039C, "Μ", shift, false)
+          root.assertTrue(icon.visible, "AZERTY Shift+* under Caps Lock leaves the icon on")
 
           theme.trackCapsLock(Qt.Key_A, "a", none, false)
           keyboard.capsLock = true
