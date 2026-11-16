@@ -45,9 +45,10 @@ printf 'jpg image 2\n' >"$theme_dir/backgrounds/2-meadow.jpg"
 stub_bin="$test_tmp/bin"
 mkdir -p "$stub_bin"
 printf '#!/bin/bash\n[[ $1 == -lc ]] && exit 0\nexec /bin/bash "$@"\n' >"$stub_bin/bash"
-for command in omarchy-shell omarchy-hook omarchy-notification-send omarchy-theme-set-herdr-machines omarchy-theme-bg-cache; do
+for command in omarchy-shell omarchy-hook omarchy-theme-set-herdr-machines omarchy-theme-bg-cache; do
   printf '#!/bin/bash\nexit 0\n' >"$stub_bin/$command"
 done
+printf '#!/bin/bash\nprintf "%%s\\n" "$1" >>"%s"\n' "$test_tmp/notifications" >"$stub_bin/omarchy-notification-send"
 chmod +x "$stub_bin"/*
 
 run_theme_set() {
@@ -110,3 +111,14 @@ headless_target=$(readlink -f "$bg_link")
 [[ -f $headless_target ]] || fail "headless healed background points to a valid file"
 
 pass "headless theme refresh repairs a dangling background symlink"
+
+# 6. A theme with no backgrounds left refreshes quietly rather than reporting it on every update.
+rm -f "$theme_dir/backgrounds/"*
+ln -nsf "$state/theme/backgrounds/1-cosmic.webp" "$bg_link"
+: >"$test_tmp/notifications"
+run_theme_refresh OMARCHY_THEME_HEADLESS=0 || fail "theme refresh succeeds without backgrounds"
+no_background=$(HOME="$home" OMARCHY_PATH="$mock_root" PATH="$ROOT/bin:$PATH" omarchy-i18n theme.noBackground)
+! grep -Fxq -- "$no_background" "$test_tmp/notifications" || \
+  fail "theme refresh without backgrounds does not report a missing background"
+
+pass "theme refresh without backgrounds stays quiet"
