@@ -224,7 +224,9 @@ Item {
 
     resetAuthenticationState()
     lockRequested = true
-    if (!inputMethodOffProcess.running) inputMethodOffProcess.running = true
+    // A restore from the last unlock still running would turn the engine back on after this
+    // check; it checks again when the restore ends.
+    if (!inputMethodOffProcess.running && !inputMethodOnProcess.running) inputMethodOffProcess.running = true
     armBlankTimer()
     logEvent("lock-requested")
     queueSessionLock()
@@ -524,7 +526,7 @@ Item {
         failureMessage: root.failureMessage
         failedAttempts: root.failedAttempts
         // Typing waits for the input method switch, or it could compose the password in plain sight.
-        inputEnabled: root.lockRequested && !inputMethodOffProcess.running
+        inputEnabled: root.lockRequested && !inputMethodOffProcess.running && !inputMethodOnProcess.running
         loadBackground: root.locked
         passwordText: root.enteredPassword
         onPasswordTextEdited: function(password) { root.enteredPassword = password }
@@ -788,7 +790,10 @@ Item {
 
   Process {
     id: inputMethodOnProcess
-    command: ["fcitx5-remote", "-o"]
+    command: ["timeout", "1", "fcitx5-remote", "-o"]
+    onExited: {
+      if (root.lockRequested && !inputMethodOffProcess.running) inputMethodOffProcess.running = true
+    }
   }
 
   Process {
