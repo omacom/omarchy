@@ -6,7 +6,7 @@ Files (Nautilus) is the graphical file manager. `Super + Shift + F` opens it, an
 
 Plug in a USB stick or an SD card and it's mounted automatically, so it just shows up in the sidebar. For anything more involved — formatting a drive, checking SMART health, creating partitions — launch _Disks_ from the app launcher (`Super + Space`).
 
-Double-clicking follows sensible defaults: pictures, videos, and music open in Omaview, PDFs in Document Viewer, and plain text in Neovim.
+Double-clicking follows sensible defaults: pictures, videos, and music open in Omaview, PDFs in Document Viewer, Markdown in Omawrite, and plain text in the editor picked under _Setup > Default > Editor_.
 
 ## Disktree
 
