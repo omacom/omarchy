@@ -50,6 +50,7 @@
   "audio.micMuted": "麥克風已靜音",
   "audio.micOn": "麥克風已開啟",
   "audio.noDevices": "找不到音訊裝置",
+  "audio.noMicrophone": "找不到麥克風",
   "battery.durationHours": "%1小時",
   "battery.durationHoursMinutes": "%1小時%2分鐘",
   "battery.durationMinutes": "%1分鐘",

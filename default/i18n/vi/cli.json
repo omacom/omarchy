@@ -50,6 +50,7 @@
   "audio.micMuted": "Đã tắt micrô",
   "audio.micOn": "Đã bật micrô",
   "audio.noDevices": "Không tìm thấy thiết bị âm thanh",
+  "audio.noMicrophone": "Không tìm thấy micrô",
   "battery.durationHours": "%1 giờ",
   "battery.durationHoursMinutes": "%1 giờ %2 phút",
   "battery.durationMinutes": "%1 phút",

@@ -50,6 +50,7 @@
   "audio.micMuted": "마이크 음소거",
   "audio.micOn": "마이크 켜짐",
   "audio.noDevices": "오디오 장치를 찾을 수 없음",
+  "audio.noMicrophone": "마이크를 찾을 수 없음",
   "battery.durationHours": "%1시간",
   "battery.durationHoursMinutes": "%1시간 %2분",
   "battery.durationMinutes": "%1분",

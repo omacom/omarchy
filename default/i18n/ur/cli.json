@@ -51,6 +51,7 @@
   "audio.micMuted": "مائیکروفون خاموش",
   "audio.micOn": "مائیکروفون آن",
   "audio.noDevices": "کوئی آڈیو ڈیوائس نہیں ملی",
+  "audio.noMicrophone": "کوئی مائیکروفون نہیں ملا",
   "battery.durationHours": "%1 گھ",
   "battery.durationHoursMinutes": "%1 گھ %2 م",
   "battery.durationMinutes": "%1 م",

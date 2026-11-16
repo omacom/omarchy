@@ -52,6 +52,7 @@
   "audio.micMuted": "המיקרופון מושתק",
   "audio.micOn": "המיקרופון פעיל",
   "audio.noDevices": "לא נמצאו התקני שמע",
+  "audio.noMicrophone": "לא נמצא מיקרופון",
   "battery.durationHours": "%1 ש׳",
   "battery.durationHoursMinutes": "%1 ש׳ %2 ד׳",
   "battery.durationMinutes": "%1 ד׳",

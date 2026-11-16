@@ -51,6 +51,7 @@
   "audio.micMuted": "Mikrofon stummgeschaltet",
   "audio.micOn": "Mikrofon ein",
   "audio.noDevices": "Keine Audiogeräte gefunden",
+  "audio.noMicrophone": "Kein Mikrofon gefunden",
   "battery.durationHours": "%1 Std.",
   "battery.durationHoursMinutes": "%1 Std. %2 Min.",
   "battery.durationMinutes": "%1 Min.",

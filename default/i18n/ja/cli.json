@@ -50,6 +50,7 @@
   "audio.micMuted": "マイク ミュート中",
   "audio.micOn": "マイク オン",
   "audio.noDevices": "オーディオデバイスが見つかりません",
+  "audio.noMicrophone": "マイクが見つかりません",
   "battery.durationHours": "%1時間",
   "battery.durationHoursMinutes": "%1時間%2分",
   "battery.durationMinutes": "%1分",

@@ -50,6 +50,7 @@
   "audio.micMuted": "Mikrofon dibisukan",
   "audio.micOn": "Mikrofon nyala",
   "audio.noDevices": "Tidak ada perangkat audio ditemukan",
+  "audio.noMicrophone": "Tidak ada mikrofon ditemukan",
   "battery.durationHours": "%1 j",
   "battery.durationHoursMinutes": "%1 j %2 m",
   "battery.durationMinutes": "%1 m",

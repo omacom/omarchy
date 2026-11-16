@@ -50,6 +50,7 @@
   "audio.micMuted": "ปิดไมค์แล้ว",
   "audio.micOn": "เปิดไมค์แล้ว",
   "audio.noDevices": "ไม่พบอุปกรณ์เสียง",
+  "audio.noMicrophone": "ไม่พบไมโครโฟน",
   "battery.durationHours": "%1 ชม.",
   "battery.durationHoursMinutes": "%1 ชม. %2 น.",
   "battery.durationMinutes": "%1 น.",

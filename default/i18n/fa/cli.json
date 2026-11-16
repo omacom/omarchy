@@ -51,6 +51,7 @@
   "audio.micMuted": "میکروفون بی‌صدا",
   "audio.micOn": "میکروفون روشن",
   "audio.noDevices": "دستگاه صوتی یافت نشد",
+  "audio.noMicrophone": "میکروفون یافت نشد",
   "battery.durationHours": "%1 ساعت",
   "battery.durationHoursMinutes": "%1 ساعت و %2 دقیقه",
   "battery.durationMinutes": "%1 دقیقه",

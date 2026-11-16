@@ -51,6 +51,7 @@
   "audio.micMuted": "මයික්‍රෆෝනය නිශ්ශබ්දයි",
   "audio.micOn": "මයික්‍රෆෝනය සක්‍රීයයි",
   "audio.noDevices": "ශ්‍රව්‍ය උපාංග කිසිවක් හමු නොවීය",
+  "audio.noMicrophone": "මයික්‍රෆෝනයක් හමු නොවීය",
   "battery.durationHours": "පැය %1",
   "battery.durationHoursMinutes": "පැය %1 මි. %2",
   "battery.durationMinutes": "මි. %1",

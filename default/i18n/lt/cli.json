@@ -52,6 +52,7 @@
   "audio.micMuted": "Mikrofonas nutildytas",
   "audio.micOn": "Mikrofonas įjungtas",
   "audio.noDevices": "Nerasta garso įrenginių",
+  "audio.noMicrophone": "Nerasta mikrofono",
   "battery.durationHours": "%1 val.",
   "battery.durationHoursMinutes": "%1 val. %2 min.",
   "battery.durationMinutes": "%1 min.",

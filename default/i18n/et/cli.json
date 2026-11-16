@@ -51,6 +51,7 @@
   "audio.micMuted": "Mikrofon vaigistatud",
   "audio.micOn": "Mikrofon sees",
   "audio.noDevices": "Heliseadmeid ei leitud",
+  "audio.noMicrophone": "Mikrofoni ei leitud",
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",

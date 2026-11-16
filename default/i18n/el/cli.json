@@ -51,6 +51,7 @@
   "audio.micMuted": "Μικρόφωνο σε σίγαση",
   "audio.micOn": "Μικρόφωνο ενεργό",
   "audio.noDevices": "Δεν βρέθηκαν συσκευές ήχου",
+  "audio.noMicrophone": "Δεν βρέθηκε μικρόφωνο",
   "battery.durationHours": "%1 ώ",
   "battery.durationHoursMinutes": "%1 ώ %2 λ",
   "battery.durationMinutes": "%1 λ",

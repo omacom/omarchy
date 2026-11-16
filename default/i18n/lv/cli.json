@@ -52,6 +52,7 @@
   "audio.micMuted": "Mikrofons izslēgts",
   "audio.micOn": "Mikrofons ieslēgts",
   "audio.noDevices": "Nav atrasta neviena audio ierīce",
+  "audio.noMicrophone": "Nav atrasts neviens mikrofons",
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",

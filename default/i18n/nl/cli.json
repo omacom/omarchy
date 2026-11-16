@@ -51,6 +51,7 @@
   "audio.micMuted": "Microfoon gedempt",
   "audio.micOn": "Microfoon aan",
   "audio.noDevices": "Geen audioapparaten gevonden",
+  "audio.noMicrophone": "Geen microfoon gevonden",
   "battery.durationHours": "%1 u",
   "battery.durationHoursMinutes": "%1 u %2 min",
   "battery.durationMinutes": "%1 min",

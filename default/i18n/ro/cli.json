@@ -52,6 +52,7 @@
   "audio.micMuted": "Microfon dezactivat",
   "audio.micOn": "Microfon activat",
   "audio.noDevices": "Nu s-au găsit dispozitive audio",
+  "audio.noMicrophone": "Nu s-a găsit niciun microfon",
   "battery.durationHours": "%1 h",
   "battery.durationHoursMinutes": "%1 h %2 min",
   "battery.durationMinutes": "%1 min",
