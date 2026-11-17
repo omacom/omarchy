@@ -49,7 +49,7 @@ hl.config({
 
 ### Funkční klávesy
 
-Horní řada klávesnice notebooku ve výchozím nastavení posílá multimediální klávesy (hlasitost, jas a podobně) a podržením `Fn` získáte F1–F12; `Fn + Esc` to přepne opačně, dokud klávesu znovu nestisknete. Většina klávesnic si tento zámek pamatuje sama. U notebooků ASUS a klávesnic ve stylu Apple to zůstává na Linuxu, který je při každém startu nastaví na multimediální klávesy. Chcete-li, aby místo toho začínaly na F1–F12, spusťte `omarchy keyboard toprow fnkeys` (a `omarchy keyboard toprow mediakeys` pro návrat); u některých notebooků se to projeví až po restartu. Počítače Mac s Apple Silicon mají vlastní nastavení.
+Horní řada klávesnice notebooku ve výchozím nastavení posílá multimediální klávesy (hlasitost, jas a podobně) a podržením `Fn` získáte F1–F12; `Fn + Esc` to přepne opačně, dokud klávesu znovu nestisknete. Většina klávesnic si tento zámek pamatuje sama. U notebooků ASUS a klávesnic ve stylu Apple to zůstává na Linuxu, který je při každém startu nastaví na multimediální klávesy. Chcete-li, aby místo toho začínaly na F1–F12, spusťte `omarchy device keyboard toprow fnkeys` (a `omarchy device keyboard toprow mediakeys` pro návrat); u některých notebooků se to projeví až po restartu. Počítače Mac s Apple Silicon mají vlastní nastavení.
 
 ### Gesta touchpadu
 

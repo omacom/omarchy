@@ -28,6 +28,8 @@ Omarchy bootuje své vlastní jádro `linux-omarchy`, ale vedle něj můžete m�
 
 Vaše balíčky nejsou to jediné, co zastarává. Mnoho notebooků a periferií dodává firmware pro BIOS, SSD a dok prostřednictvím Linux Vendor Firmware Service a položka _Aktualizovat > Firmware_ v nabídce Omarchy stáhne a nainstaluje vše, co na váš hardware čeká. Při prvním spuštění nainstaluje `fwupd`. Spoustu firmwaru lze zapsat jen během restartu, takže se nedivte, když o něj budete požádáni.
 
+Když potřebujete změnit nastavení přímo v BIOSu, podržte v systémové nabídce (`Super + Escape`) `Alt` a z položky _Restartovat_ se stane _Restartovat do BIOSu_, která počítač restartuje rovnou do nastavení firmwaru, aniž byste museli při startu trefit správnou klávesu. Z terminálu je to `omarchy system firmware`.
+
 ### Varování před přímými aktualizacemi přes pacman/yay
 
 Pokud jste již s Archem seznámeni, možná budete v pokušení jednoduše spustit sami příkaz `pacman -Syu` nebo `yay -Syu`, ale pokud to uděláte, přijdete o snímek, migrace a aktualizace konfigurace, které Omarchy spouští společně s novými balíčky. To je důvod, proč Omarchy ve skutečnosti zastaví přímou aktualizaci systému a nasměruje vás místo toho na příkaz `omarchy update`. (Pokud skutečně víte, co děláte, ochranná kontrola vám řekne, jak ji obejít pro jednu transakci.)

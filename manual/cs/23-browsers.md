@@ -1,8 +1,8 @@
 # Prohlížeče
 
-Omarchy je ve výchozím nastavení dodávána s prohlížečem [Chromium](https://www.chromium.org/). Je to prostá open source sestava, sladěná motivem se zbytkem vašeho systému. Otevírá ho klávesová zkratka `Super + Shift + Return` a běží v něm každá [webová aplikace](25-web-apps.md).
+Omarchy je ve výchozím nastavení dodávána s prohlížečem [Google Chrome](https://www.google.com/chrome/). Je sladěný motivem se zbytkem vašeho systému, otevírá ho klávesová zkratka `Super + Shift + Return` a běží v něm každá [webová aplikace](25-web-apps.md). Otevře se rovnou do okna prohlížeče: žádná uvítací obrazovka ani výzva k přihlášení, statistiky používání a hlášení o pádech se Googlu neposílají a výzvy k ochraně soukromí v reklamách jsou vypnuté. K účtu Google se kvůli synchronizaci můžete kdykoli přihlásit přes tlačítko profilu.
 
-Pokud vám Chromium nevyhovuje, nemusíte u něj zůstávat. V části _Instalovat > Prohlížeč_ v nabídce Omarchy najdete Chrome, Edge, Brave, Brave Origin, Firefox a [Zen](https://zen-browser.app/). Vyberte si jeden a Omarchy ho nainstaluje, nastaví jeho adresář zásad a použije na něj váš aktuální motiv.
+Pokud vám Chrome nevyhovuje, nemusíte u něj zůstávat. V části _Instalovat > Prohlížeč_ v nabídce Omarchy najdete [Chromium](https://www.chromium.org/) (prostou open source sestavu, ze které Chrome vzniká), Edge, Brave, Brave Origin, Firefox a [Zen](https://zen-browser.app/). Vyberte si jeden a Omarchy ho nainstaluje, nastaví jeho adresář zásad a použije na něj váš aktuální motiv.
 
 ## Nastavení výchozího prohlížeče
 
@@ -36,4 +36,4 @@ Nedostanou výše uvedená rozšíření pro Chromium a Omarchy na ně nepoužij
 
 ## Opětovné odebrání prohlížeče
 
-Cokoli, co jste takto nainstalovali, můžete znovu odebrat v části _Odebrat > Prohlížeč_. Chromium v tomto seznamu není — je součástí základního systému.
+Kterýkoli z těchto prohlížečů, včetně Chrome, můžete odebrat v části _Odebrat > Prohlížeč_. Odkazy se pak otevírají v Chrome nebo Chromiu, pokud vám ten druhý zůstal nainstalovaný.

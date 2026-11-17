@@ -88,4 +88,4 @@ Chcete-li pracovní přihlášení oddělit, připojte k řádku `Exec=` každé
 Exec=omarchy-launch-webapp "https://teams.cloud.microsoft/" --user-data-dir=/absolute/path/to/work-browser-profile
 ```
 
-Nahraďte ukázkový adresář absolutní cestou podle vlastního výběru a použijte stejnou cestu pro všech šest spouštěčů, chcete-li pracovní přihlášení mezi nimi sdílet. Webové aplikace používají zvolený prohlížeč, pokud ho Omarchy podporuje; jinak se použije Chromium.
+Nahraďte ukázkový adresář absolutní cestou podle vlastního výběru a použijte stejnou cestu pro všech šest spouštěčů, chcete-li pracovní přihlášení mezi nimi sdílet. Webové aplikace používají zvolený prohlížeč, pokud ho Omarchy podporuje; jinak se použije Chrome.

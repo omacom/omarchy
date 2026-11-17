@@ -74,7 +74,7 @@ Odstranění kterékoli služby stáhne její widget z lišty zase pryč.
 
 ## Ukazatele
 
-Malý shluk uprostřed je widget ukazatelů. Jsou to stavové glyfy pro režimy, které jste zapnuli: nerušit, noční světlo, naplánovaná [připomínka](09-reminders.md), aktivní nahrávání obrazovky, vypnuté zamykání a spořič a [diktování](11-text-extraction-dictation.md). Rozsvítí se, když je režim aktivní, a jinak zůstávají stranou — najeďte kamkoli na lištu, abyste se podívali na ty neaktivní. Kliknutí na ukazatel daný režim přepne. Jeden další je pouze stavový: vzdálená relace svítí červeně, zatímco je k tomuto stroji přes gliff někdo připojen.
+Malý shluk uprostřed je widget ukazatelů. Jsou to stavové glyfy pro režimy, které jste zapnuli: nerušit, noční světlo, naplánovaná [připomínka](09-reminders.md), aktivní nahrávání obrazovky, vypnuté zamykání a spořič a [diktování](11-text-extraction-dictation.md). Rozsvítí se, když je režim aktivní, a jinak zůstávají stranou — neaktivní uvidíte, když najedete hned vedle nich, tam, kde by stály. Kliknutí na ukazatel daný režim přepne. Jeden další je pouze stavový: vzdálená relace svítí červeně, zatímco je k tomuto stroji přes gliff někdo připojen.
 
 Pokud byste raději, aby byly vždy viditelné, nastavte u widgetu `alwaysShow` na `true`. A pokud vám záleží jen na některých z nich, uveďte ty, které chcete, v `items`: `["Dnd", "Reminder", "NightLight"]`. Widgetů ukazatelů můžete mít víc než jeden, takže různé sekce mohou zobrazovat různé podmnožiny.
 

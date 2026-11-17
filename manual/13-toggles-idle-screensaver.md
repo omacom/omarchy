@@ -17,14 +17,16 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Screensaver | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) theme sync | — | `omarchy toggle theme sync` |
 | Menu bar | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Touchscreen | — | `omarchy toggle touchscreen` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Touchscreen | — | `omarchy device touchscreen` |
 | Suspend | — | `omarchy toggle suspend` |
 | Hybrid GPU | — | `omarchy toggle hybrid gpu` |
 
 The touchpad, touchscreen, and hybrid GPU switches live under _Trigger > Hardware_ (`Super + Ctrl + H`) rather than under Toggle, since they only show up when you actually have that hardware. The touchpad and touchscreen ones survive a Hyprland reload — the disabled device's name is saved to a small state file that Hyprland reads on startup to disable it again.
 
 _Appearance_ holds the menu bar and animations, plus a few things that aren't `omarchy toggle` commands but behave the same: battery percentage in the bar, the default workspace layout, and under _Windows_, window gaps (`Super + Shift + Backspace`) and the 1-window square aspect (`Super + Ctrl + Backspace`).
+
+When Hyprland has no GPU to draw with and renders on the CPU instead (llvmpipe), as on Macs whose GPU isn't supported yet, in most virtual machines, or when a graphics driver fails to load, Omarchy turns off animations, blur and shadows for that session and tells you so once with a notification. _Appearance > Animations On_ brings them back, and Omarchy remembers that for later sessions too.
 
 Most of these are just a flag file under `~/.local/state/omarchy/toggles/`. If you want to branch on one in a script, `omarchy-toggle-enabled` gives you an exit code instead of making you go looking:
 

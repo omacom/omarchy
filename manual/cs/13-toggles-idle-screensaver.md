@@ -17,14 +17,16 @@ Z terminálu jsou tytéž přepínače `omarchy toggle <thing>`. Spusťte samotn
 | Spořič obrazovky | — | `omarchy toggle screensaver` |
 | Synchronizace motivu [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Horní lišta | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Dotyková obrazovka | — | `omarchy toggle touchscreen` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Dotyková obrazovka | — | `omarchy device touchscreen` |
 | Uspání | — | `omarchy toggle suspend` |
 | Hybridní GPU | — | `omarchy toggle hybrid gpu` |
 
 Přepínače touchpadu, dotykové obrazovky a hybridní GPU najdete v nabídce _Akce > Hardware_ (`Super + Ctrl + H`), a ne v nabídce _Přepnout_, protože se zobrazí jen tehdy, když ten hardware skutečně máte. Přepínače touchpadu a dotykové obrazovky přežijí opětovné načtení Hyprlandu — název vypnutého zařízení se uloží do malého stavového souboru, který Hyprland při spuštění přečte, aby ho znovu vypnul.
 
 _Vzhled_ obsahuje horní lištu a animace plus pár věcí, které nejsou příkazy `omarchy toggle`, ale chovají se stejně: procenta baterie v liště, výchozí rozložení pracovních ploch a pod _Okna_ mezery mezi okny (`Super + Shift + Backspace`) a čtvercový poměr stran pro 1 okno (`Super + Ctrl + Backspace`).
+
+Když Hyprland nemá GPU, kterým by kreslil, a vykresluje na CPU (llvmpipe), jako na Macích, jejichž GPU zatím není podporované, ve většině virtuálních počítačů nebo když se nenačte grafický ovladač, Omarchy pro danou relaci vypne animace, rozmazání a stíny a jednou vám to oznámí. _Vzhled > Zapnout animace_ je vrátí a Omarchy si to zapamatuje i pro další relace.
 
 Většina z nich je jen soubor s příznakem pod `~/.local/state/omarchy/toggles/`. Pokud se podle některého z nich chcete ve skriptu rozhodovat, `omarchy-toggle-enabled` vám dá návratový kód, místo abyste ho museli hledat:
 

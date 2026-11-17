@@ -12,17 +12,13 @@ Motiv, který si sami napíšete do `~/.config/omarchy/themes`, může obsahovat
 
 Motiv, který nainstalujete z cizího repozitáře pomocí `omarchy theme install`, si zachová vše, co se týká barev, a ztratí hrstku souborů, které by na vašem počítači spouštěly kód: jakýkoli soubor `.lua`, konfigurace terminálu (`alacritty.toml`, `foot.ini`, `ghostty.conf`, `kitty.conf`) a `vscode.json`. Soubor `hyprland.lua` motivu je Lua, kterou váš kompozitor spouští při přihlášení, konfigurace terminálu pojmenovává program, který váš terminál spustí, a `vscode.json` pojmenovává rozšíření VSCode, které se má nainstalovat. Instalace něčího motivu by měla změnit, jak vaše pracovní prostředí vypadá, nikdy ne to, co spouští.
 
-Vše ostatní dál funguje přesně tak, jak to autor motivu napsal — `btop.theme`, `chromium.theme`, `helix.toml`, `icons.theme`, `shell.toml`, pozadí i náhledy zůstanou zachovány. Pouze to, co bylo vynecháno, se na vašem počítači znovu vygeneruje z `colors.toml`.
+Vše ostatní dál funguje přesně tak, jak to autor motivu napsal — `btop.theme`, `chromium.theme`, `helix.toml`, `shell.toml`, pozadí i náhledy zůstanou zachovány. Pouze to, co bylo vynecháno, se na vašem počítači znovu vygeneruje z `colors.toml`.
 
 Omarchy oba typy odliší podle toho, zda má motiv uvnitř vlastní repozitář git, což je to, co příkaz `omarchy theme install` po naklonování zanechá. Vlastní motiv si tak můžete upravit podle sebe. U staženého motivu Omarchy vynechá výše uvedené soubory, které mohou spouštět kód.
 
 ### Světlý režim
 
 Pokud vytváříte světlý motiv, nastavte na začátek svého `colors.toml` hodnotu `mode = "light"`. Pak se automaticky spáruje se světlým režimem pro všechny aplikace. (Starý způsob, kdy se do kořene motivu vložil prázdný soubor s názvem `light.mode`, stále funguje také.)
-
-### Barvy ikon
-
-Pokud chcete barevně sladit ikony správce souborů se svým motivem, přidejte soubor s názvem `icons.theme` obsahující název sady ikon, kterou chcete použít. Ve výchozím nastavení jsou k dispozici tyto možnosti: `Yaru Yaru-blue Yaru-dark Yaru-magenta Yaru-olive Yaru-prussiangreen Yaru-purple Yaru-red Yaru-sage Yaru-wartybrown Yaru-yellow`.
 
 ### Obrázek odemykací obrazovky
 

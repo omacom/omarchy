@@ -47,7 +47,7 @@ Nahrávání běží na gpu-screen-recorder, který kóduje na GPU při 60 fps a
 
 Když nahráváte, objeví se na liště malý ukazatel. Klikněte na něj pro zastavení. Nahrávání můžete zastavit také opětovným stisknutím `Alt + Print Screen` nebo pomocí položky _Zastavit nahrávání_ pod _Akce > Zachytit > Nahrávání obrazovky_, která se zobrazí pouze tehdy, když něco skutečně nahrává.
 
-Po zastavení se z nahrávky odstraní první snímek. Pokud obsahuje zvuk, jeho hlasitost se normalizuje na -14 LUFS a ztlumí se lupnutí při zahájení záznamu přes PipeWire. Potom se zobrazí oznámení s náhledem nahrávky. Kliknutím na něj nahrávku přehrajete v mpv.
+Po zastavení se z nahrávky odstraní první snímek. Pokud obsahuje zvuk, jeho hlasitost se normalizuje na -14 LUFS a ztlumí se lupnutí při zahájení záznamu přes PipeWire. Potom se zobrazí oznámení s náhledem nahrávky. Kliknutím na něj nahrávku přehrajete v Omaview.
 
 ### Překryvná vrstva webkamery
 

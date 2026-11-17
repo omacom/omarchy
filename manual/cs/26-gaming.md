@@ -60,7 +60,7 @@ Nainstalujte podporu pro ovladače Xbox přes Bluetooth výběrem položky _Inst
 
 ## Moonlight (streamování her z počítače)
 
-[Klient Moonlight](https://github.com/moonlight-stream/moonlight-qt) je s Omarchy předinstalovaný, takže můžete okamžitě streamovat hry z počítače se systémem Windows, na kterém běží služba [Sunshine](https://app.lizardbyte.dev/Sunshine/). Moonlight spusťte prostřednictvím klávesové zkratky `Super + Space`.
+Nainstalujte [klienta Moonlight](https://github.com/moonlight-stream/moonlight-qt) výběrem _Instalovat > Hry > Moonlight_ v nabídce Omarchy (`Super + Space`) a můžete streamovat hry z počítače se systémem Windows, na kterém běží [Sunshine](https://app.lizardbyte.dev/Sunshine/).
 
 Pokud jsou počítač s Omarchy i vzdálený herní počítač připojené k síti kabelem, je zážitek k nerozeznání od místního hraní. Zvyšte rozlišení na nativní, nastavte obnovovací frekvenci na 120 Hz a maximalizujte přenosovou rychlost — toto je nejlepší způsob, jak v Linuxu hrát soutěžní střílečky, například Fortnite.
 

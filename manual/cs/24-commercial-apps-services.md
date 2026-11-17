@@ -14,9 +14,7 @@ Udržování hesel ve správci hesel je osvědčenou praxí. Dvojnásob to plat�
 
 ## Spotify
 
-[Spotify](https://spotify.com/) je nejoblíbenější služba pro streamování hudby na světě. A aplikace pro Linux poskytuje vše, co byste očekávali, včetně přehrávání offline.
-
-Spotify spustíte pomocí `Super + Shift + M`. Stejně jako u 1Password spustí klávesová zkratka nejprve instalaci, pokud Spotify ještě není nainstalované (nebo použijte položku _Instalovat > Služba > Spotify_ z nabídky Omarchy).
+[Spotify](https://spotify.com/) je nejoblíbenější služba pro streamování hudby na světě. Omarchy ho dodává jako webovou aplikaci, která nabízí celý přehrávač, multimediální klávesy i Spotify Connect, ale ne stahování pro poslech offline. Spustíte ho pomocí `Super + Shift + M`.
 
 ## Slack
 

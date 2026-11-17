@@ -38,10 +38,6 @@ To vše najdete v kapitole [Síťové připojení](35-networking.md).
 
 Volba _Akce > Test rychlosti > Test rychlosti disku_ měří aktuální rychlost čtení a zápisu na vašem disku, případně z terminálu příkaz `omarchy disk speedtest`.
 
-### Proč se nemohu v Chromiu přihlásit ke svému účtu Google?
-
-Běžná open source sestava Chromia se nedodává s přihlašovacími údaji OAuth, které Google pro přihlášení k účtu vyžaduje. V nabídce Omarchy spusťte volbu _Instalovat > Služba > Účet Chromium_, čímž je přidáte, restartujte prohlížeč a přihlášení proběhne.
-
 ### Jak přidám tiskárnu?
 
 Tisk je nastavený a funguje hned po instalaci; jednotlivé tiskárny si přidáváte sami v části _Print Settings_ ve spouštěči aplikací (`Super + Space`).

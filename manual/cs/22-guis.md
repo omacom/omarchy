@@ -6,7 +6,7 @@ Files (Nautilus) je grafický správce souborů. Pomocí `Super + Shift + F` ho 
 
 Zapojte USB disk nebo SD kartu a automaticky se připojí, takže se prostě objeví v postranním panelu. Pro cokoli složitějšího — formátování disku, kontrolu stavu SMART, vytváření oddílů — spusťte _Disky_ ze spouštěče aplikací (`Super + Space`).
 
-Dvojklik se řídí rozumnými výchozími nastaveními: obrázky se otevírají v imv, video v mpv, PDF v Prohlížeči dokumentů a prostý text v Neovimu.
+Dvojklik se řídí rozumnými výchozími nastaveními: obrázky, videa a hudba se otevírají v Omaview, PDF v Prohlížeči dokumentů, Markdown v Omawrite a prostý text v editoru vybraném pod _Nastavení > Výchozí > Editor_.
 
 ## Disktree
 
@@ -75,6 +75,18 @@ Hype spustíte přes spouštěč aplikací (`Super + Space`). Stisknutím `?` uv
 
 Signed spustíte přes spouštěč aplikací (`Super + Space`), nebo s ním otevřete PDF ze správce souborů.
 
+## Checkmate
+
+[Checkmate](https://github.com/omacom/checkmate) jsou vlastní 3D šachy Omarchy. Hrajte s kamarádem u jednoho počítače, nebo proti vestavěnému soupeři na třech úrovních, se čtyřmi vymodelovanými sadami figur, z nichž každá se pohybuje po svém: vesmírná plavidla, vyřezávané dřevo a slonovina, lesní zvířátka a bonbony. Partie nemají hodiny a ukládají se po každém tahu.
+
+Checkmate spustíte přes spouštěč aplikací (`Super + Space`), kde je uvedený jako Chess. Všechny zkratky uvidíte, když v něm stisknete `?`.
+
+## Cards
+
+[Cards](https://github.com/omacom/cards) je vlastní solitér Klondike od Omarchy. Hraje se s líznutím tří karet a bez omezení počtu průchodů balíčkem, se čtyřmi sadami karet: jednou kreslenou v barvách vašeho motivu a třemi s vlastním vzhledem. Klikněte na kartu a pak na místo, kam patří, přetáhněte ji, nebo ji dvojklikem pošlete na nejlepší místo. Hra se ukládá po každém tahu.
+
+Cards spustíte přes spouštěč aplikací (`Super + Space`). Všechny zkratky uvidíte, když kliknete na jeho název nebo stisknete `?`.
+
 ## Omacalc
 
 [Omacalc](https://github.com/omacom-io/omacalc) je vlastní, naprosto jednoduchá kalkulačka Omarchy, která se otevírá v plovoucím okně.
@@ -87,11 +99,13 @@ Omacalc spustíte pomocí `Super + Shift + Q` (nebo klávesou kalkulačky, pokud
 
 Signal spustíte pomocí `Super + Shift + G`. Není součástí základní instalace, takže když to poprvé stisknete, Omarchy vám nabídne, že ho za vás nainstaluje (najdete ho také pod _Instalovat > Služba_ v nabídce Omarchy).
 
-## mpv
+## Omaview
 
-[mpv](https://mpv.io/) je jednoduchý, rychlý přehrávač médií, který přehraje téměř cokoli z jakéhokoli zdroje. Skvělý na sledování videí.
+[Omaview](https://github.com/omacom/omaview) je vlastní naprosto jednoduchý prohlížeč obrázků a přehrávač médií od Omarchy: jedno okno pro vaše fotky, videa i hudbu. Otevřete fotku a šipkami procházíte zbytek její složky, `N` a `P` to udělají u čehokoli a `Ctrl + M` ukáže celou složku jako mřížku. Zobrazí i fotky HEIC, AVIF a JPEG XL a u všeho delšího pokračuje tam, kde jste skončili.
 
-mpv spustíte přes spouštěč aplikací (`Super + Space`), nebo prostě dvojklikem na video ve správci souborů.
+`F` přepne na celou obrazovku, `E` otevře obrázek k úpravě v Omasnap nebo video ke střihu v Omacut, `Ctrl + P` obrázek vytiskne a `Delete` přesune soubor do koše (`Ctrl + Z` ho vrátí). Všechny zkratky uvidíte, když v něm stisknete `?`.
+
+Omaview spustíte jako _Media Viewer_ přes spouštěč aplikací (`Super + Space`), nebo prostě dvojklikem na obrázek, video nebo skladbu ve správci souborů.
 
 ## Omacut
 

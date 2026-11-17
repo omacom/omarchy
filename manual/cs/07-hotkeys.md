@@ -2,6 +2,34 @@
 
 Všechny hlavní klávesové zkratky si můžete zobrazit pomocí `Super + K` (zkratky Tmux pomocí `Super + Alt + K` a zkratky Herdr pomocí `Super + Ctrl + K`).
 
+## Jak jsou klávesové zkratky uspořádané
+
+Každá klávesová zkratka patří do jedné roviny, kterou určují její modifikátory, a každá rovina má jeden účel. Díky tomu se zkratky nepletou a obvykle uhodnete, kde co najdete.
+
+| Rovina | Co do ní patří | Příklady |
+| --- | --- | --- |
+| `Super + key` | Systém: okna, pracovní plochy, rozložení a hlavní nabídky | `Super + Space` nabídka Omarchy, `Super + W` zavřít okno, `Super + F` celá obrazovka |
+| `Super + Shift + key` | Aplikace | `Super + Shift + B` prohlížeč, `Super + Shift + E` e-mail, `Super + Shift + N` editor |
+| `Super + Ctrl + key` | Panely a systémové nabídky | `Super + Ctrl + A` zvuk, `Super + Ctrl + N` síť, `Super + Ctrl + C` nabídka zachytávání |
+| `Super + Ctrl + Alt + key` | Rychlé akce a upozornění | `Super + Ctrl + Alt + T` zobrazit čas, `Super + Ctrl + Alt + B` baterie, `Super + Ctrl + Alt + C` snímek obrazovky |
+
+Přidaný `Alt` dává variantu téže zkratky, nikdy nic nesouvisejícího:
+
+- `Super + Shift + B` otevře prohlížeč; `Super + Shift + Alt + B` otevře anonymní okno
+- `Super + Shift + E` otevře e-mail; `Super + Shift + Alt + E` začne nový
+- `Super + F` přepne na celou obrazovku; `Super + Alt + F` na celou šířku
+- `Super + Ctrl + C` otevře nabídku zachytávání; `Super + Ctrl + Alt + C` nabídku přeskočí a pořídí snímek obrazovky
+
+Když přidáváte klávesovou zkratku:
+
+1. Podle toho, co dělá, vyberte rovinu, a teprve pak klávesu.
+2. Nepřesouvejte existující zkratku, abyste uvolnili místo. Najděte volnou klávesu ve správné rovině.
+3. `Alt` použijte jen pro variantu zkratky, která je bez něj.
+
+Několik zkratek tato pravidla porušuje, protože je to pohodlné. `Shift` se šipkou nebo s `Tab` přesouvá nebo obrací směr, místo aby otevíral aplikaci, a `Print`, multimediální klávesy, `Alt + Tab` a `Ctrl + Alt + Del` fungují jako všude jinde. Jsou to výjimky, ne vzor k napodobování.
+
+Pokud vám některá výchozí zkratka nevyhovuje (třeba chcete `Super + Shift + S` pro snímky obrazovky jako ve Windows), přemapujte ji v `~/.config/hypr/bindings.lua`.
+
 ## Navigace
 
 | Klávesová zkratka                  | Funkce              |
@@ -74,6 +102,7 @@ Zkratky pro změnu velikosti používají fyzické klávesy `code:20` a `code:21
 | `Super + Ctrl + N`           | Panel Wi-Fi/sítě    |
 | `Super + Ctrl + D`           | Panel displeje    |
 | `Super + Ctrl + P`           | Panel napájení    |
+| `Super + Ctrl + X`           | Panel agentů    |
 | `Super + Ctrl + Alt + D`           | Panel kalendáře    |
 | `Super + Ctrl + Alt + E`           | Panel světových hodin    |
 | `Super + Ctrl + 1-9`           | Přepnout panel lišty podle pozice    |
@@ -153,11 +182,12 @@ Na Linuxu obvykle potřebujete `Ctrl + Shift + C/V` ke kopírování a vkládán
 | `Super + Ctrl + Alt + C`            | Snímek obrazovky (tentýž snímek, pro klávesnice bez klávesy Print Screen) |
 | `Super + Ctrl + C` | Nabídka zachytávání |
 | `Alt + Print Screen`            | Nahrávání obrazovky                     |
+| `Super + Shift + Ctrl + Alt + C` | Nahrávání obrazovky bez zvuku, bez nabídky (dalším stiskem nahrávání zastavíte) |
 | `Super + Print Screen` | Výběr barvy |
 | `Super + Ctrl + Print Screen` | Extrakce textu do schránky |
 | `Super + Alt + [` | Zmenšit překryv webkamery během nahrávání |
 | `Super + Alt + ]` | Zvětšit překryv webkamery během nahrávání |
-| `Alt + Shift + L` | Zkopírovat aktuální URL z webové aplikace nebo Chromium |
+| `Alt + Shift + L` | Zkopírovat aktuální URL z webové aplikace nebo prohlížeče |
 | `Alt + Shift + D` | Stáhnout video na aktuální stránce do `~/Videos` |
 | `Alt + Space` | Spustit/zastavit diktování (vyžaduje _Nastavení > Výchozí > Diktování_) |
 | `Right Alt` | Diktovat po dobu podržení (vyžaduje _Nastavení > Výchozí > Diktování_) |

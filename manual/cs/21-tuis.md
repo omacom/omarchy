@@ -12,19 +12,19 @@ Mezi různými podokny přeskakujete pomocí `Tab`. V podokně Files vybíráte 
 
 [Btop](https://github.com/aristocratos/btop) je krásný správce prostředků, který ukazuje využití paměti, CPU, disku a sítě. Také vypisuje všechny aktivní procesy a umožňuje vám je spravovat.
 
-Omarchy ho nazývá Aktivita a spustíte ho stisknutím `Super + Shift + T`. Otevře se jako plovoucí okno, které můžete přepnout do dlaždic pomocí `Super + T`.
+Omarchy ho nazývá Activity Monitor a spustíte ho ze spouštěče aplikací nebo stisknutím `Super + Shift + T`. Otevře se jako plovoucí okno, které můžete přepnout do dlaždic pomocí `Super + T`.
 
 ## Herdr
 
 [Herdr](https://github.com/omacom-io/herdr) je správce pracovních prostorů pro terminál, který vám dává pracovní prostory, karty a podokna a nechává je všechny běžet v trvalé relaci, od které se můžete odpojit a později se k ní vrátit.
 
-Spustíte ho (nebo se znovu připojíte ke své existující relaci) pomocí `Super + Ctrl + Return`. Omarchy dodává konfiguraci Herdr, která zrcadlí její konfiguraci Tmux, takže klávesa prefixu je i tady `Ctrl + Space`. Všechny klávesové zkratky můžete procházet pomocí `Super + Ctrl + K`.
+Spustíte ho (nebo se znovu připojíte ke své existující relaci) ze spouštěče aplikací nebo pomocí `Super + Ctrl + Return`. Omarchy dodává konfiguraci Herdr, která zrcadlí její konfiguraci Tmux, takže klávesa prefixu je i tady `Ctrl + Space`. Všechny klávesové zkratky můžete procházet pomocí `Super + Ctrl + K`.
 
 ## Fastfetch
 
 [Fastfetch](https://github.com/fastfetch-cli/fastfetch) ukazuje informace o systému, jako je verze jádra, doba provozu, motiv, CPU, paměť a další. Je nástupcem oblíbeného nástroje neofetch.
 
-Omarchy ho zpřístupňuje jako _O aplikaci_ v nabídce Omarchy (`Super + Space`).
+Omarchy ho zpřístupňuje jako _Systém > O aplikaci_ v nabídce Omarchy (`Super + Space`).
 
 ## Cliamp
 
