@@ -1,0 +1,20 @@
+# Installs the region's default packages (default/regions/<region>/packages-add)
+# once the machine is online, retrying until it succeeds once. Enabled for
+# regional installs by install/config/region-packages.sh.
+[Unit]
+Description=Omarchy regional default packages
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/omarchy/region
+ConditionPathExists=!/var/lib/omarchy/region-packages-installed
+
+[Service]
+Type=oneshot
+Environment=OMARCHY_PATH=/usr/share/omarchy
+ExecStart=/usr/bin/omarchy-region-packages
+Restart=on-failure
+RestartSec=1min
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target

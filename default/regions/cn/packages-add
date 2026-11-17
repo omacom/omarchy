@@ -1,9 +1,4 @@
-# Regional package requirements, not an install instruction. No runtime or ISO
-# consumer installs this list yet; packages must be supplied separately.
+# Packages every install in this region gets, from the region's online mirrors
+# on first boot (bin/omarchy-region-packages). Other Chinese apps (QQ, Feishu,
+# DingTalk, WPS Office) are optional, under Install > Service.
 wechat-bin
-linuxqq
-wps-office-cn
-dingtalk-bin
-feishu-bin
-# Used when the regional default-font profile is also present.
-maplemono-nf-cn

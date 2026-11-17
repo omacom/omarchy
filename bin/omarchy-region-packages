@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# omarchy:summary=Install this machine's regional default packages from its online repositories
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+# omarchy-region-packages.service runs this at boot until it succeeds once. The
+# packages come from the region's online mirrors rather than the ISO, so the one
+# ISO stays the same size for every region; a region package that has no build
+# for this architecture is left out.
+region_file=${OMARCHY_REGION_FILE:-/etc/omarchy/region}
+done_file=${OMARCHY_REGION_PACKAGES_DONE:-/var/lib/omarchy/region-packages-installed}
+
+region=global
+if [[ -r $region_file ]]; then
+  region=$(<"$region_file")
+fi
+
+packages=()
+if [[ $region =~ ^[a-z]{2}$ && -r $OMARCHY_PATH/default/regions/$region/packages-add ]]; then
+  mapfile -t packages < <(sed -e 's/#.*//' -e 's/[[:space:]]//g' -e '/^$/d' "$OMARCHY_PATH/default/regions/$region/packages-add")
+fi
+
+if (( ${#packages[@]} )); then
+  # An offline install's package databases list only what the ISO carried.
+  pacman -Sy --noconfirm
+
+  available=()
+  for package in "${packages[@]}"; do
+    if pacman -Si -- "$package" >/dev/null 2>&1; then
+      available+=("$package")
+    else
+      echo "Skipping $package: no configured repository offers it for this architecture"
+    fi
+  done
+
+  if (( ${#available[@]} )); then
+    pacman -S --needed --noconfirm -- "${available[@]}"
+  fi
+fi
+
+# Initial defaults: once installed, a package the owner removes stays removed.
+mkdir -p "${done_file%/*}"
+touch "$done_file"
