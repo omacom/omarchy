@@ -18,10 +18,17 @@ local CONSOLE = "special:qconsole"
 -- at boot, so nothing is running until it is wanted. The exec rule has to pin
 -- the workspace itself: Hyprland only tags a spawn with the workspace it came
 -- from while misc.initial_workspace_tracking is on, and looknfeel turns it off.
--- Omarchy ships without a default agent, and omarchy-agent exits without
--- opening anything when none is set, so until one is picked this just opens an
--- empty console.
-local seed = "[workspace " .. CONSOLE .. " silent] omarchy-agent"
+-- Omarchy ships without a default agent, so --pick offers the choice instead
+-- of an empty console that explains nothing. One that has to be installed
+-- first does so in a floating terminal and then moves into the console; see
+-- omarchy-default-agent. A console created by moving a window onto it is not
+-- empty, and is left alone. --prefer-local opens the agent on the local model
+-- when one is running, and on the usual one otherwise.
+hl.on("workspace.created", function(ws)
+  if ws and ws.name == CONSOLE and ws.is_empty then
+    hl.exec_cmd("omarchy-agent --pick --prefer-local", { workspace = CONSOLE .. " silent" })
+  end
+end)
 
 -- Dimming only applies while a special workspace is open, so the console gets
 -- its separation from the workspace underneath without costing anything the
@@ -56,8 +63,6 @@ local function cover(side, bottom)
     -- open, and the active border reads as a stray frame around a panel that
     -- is already set apart by the dimming behind it.
     no_border = true,
-
-    on_created_empty = seed,
   })
 
   return true
@@ -194,4 +199,4 @@ hl.on("window.update_rules", recount)
 -- workspace goes: "slide top" drops it down into view, and "slide bottom"
 -- retracts it back up the way a Quake console does.
 hl.animation({ leaf = "specialWorkspaceIn", enabled = true, speed = 3, bezier = "easeOutQuint", style = "slide top" })
-hl.animation({ leaf = "specialWorkspaceOut", enabled = true, speed = 2, bezier = "easeInOutCubic", style = "slide bottom" })
+hl.animation({ leaf = "specialWorkspaceOut", enabled = true, speed = 2, bezier = "easeOutQuint", style = "slide bottom" })

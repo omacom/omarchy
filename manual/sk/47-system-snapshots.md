@@ -1,25 +1,27 @@
-# Snímky systému
+# Systémové snímky
 
-Snímky vytvárame automaticky pri každej aktualizácii Omarchy, ale ak by ste chceli vytvoriť vlastnú, môžete použiť `omarchy-snapshot create`.
+Snímky vytvárame automaticky pri každej aktualizácii Omarchy, ale ak si chcete vytvoriť vlastnú, môžete použiť `omarchy-snapshot create`.
 
-Ak chcete snímku zaviesť a obnoviť, vyberiete ju zo zavádzača Limine. (Ak momentálne zavádzate rovno na dešifrovaciu obrazovku Omarchy, budete musieť najskôr cez BIOS vybrať Limine ako možnosť zavádzania.)
+Ak chcete snímku spustiť a obnoviť, vyberiete ju zo zavádzača Limine. (Ak sa vám momentálne systém spúšťa rovno na obrazovku dešifrovania Omarchy, budete musieť najprv vybrať Limine ako možnosť spustenia cez BIOS).
 
-Na tej obrazovke vyberte snímku, do ktorej chcete zaviesť, na základe dátumu a verzie. Verziu Omarchy v čase snímky môžete vidieť v ľavom dolnom rohu.
+Na tejto obrazovke si vyberte snímku, do ktorej sa chcete spustiť, podľa dátumu a verzie. Verziu Omarchy v čase vytvorenia snímky vidíte v ľavom dolnom rohu.
 
  ![snapshots-bootloader](images/snapshots-bootloader.webp)
 
-Keď sa dostanete dnu, vyskočí upozornenie, ktoré vás informuje, že ste v zavádzateľnej snímke, a ak naň kliknete, spustí sa proces obnovy. Prípadne môžete využiť `omarchy-snapshot restore`.
+Keď sa dostanete dovnútra, vyskočí vám oznámenie, že sa nachádzate v spustiteľnej snímke, a ak naň kliknete, spustí sa proces obnovenia. Prípadne môžete použiť `omarchy-snapshot restore`.
 
  ![snapshots-restore](images/snapshots-restore.webp)
 
-Tým sa obnoví váš koreňový súborový systém, ale nie váš `/home`. Takže to funguje na vrátenie pokazenej aktualizácie systému, ale nie na obnovenie stratených osobných súborov.
+Týmto sa obnoví váš koreňový súborový systém, ale nie váš `/home`. Funguje to teda na vrátenie pokazenej aktualizácie systému, ale nie na obnovenie stratených osobných súborov.
 
-To tiež znamená, že váš adresár `~/.config` zostáva taký, aký je. Takže ak sa vraciate k skoršej verzii knižnice alebo aplikácie, ktorá ukladá konfiguračné súbory v novom formáte, budete to musieť vyriešiť ručne.
+Znamená to tiež, že váš adresár `~/.config` zostane tak, ako je. Ak sa teda vraciate k staršej verzii knižnice alebo aplikácie, ktorá ukladá konfiguračné súbory v novom formáte, budete si to musieť vyriešiť ručne.
 
-_Poznámka: Táto funkcia je dostupná len na inštaláciách používajúcich zavádzač Limine, ktorý je predvoleným od Omarchy 2.0. Nie je dostupná, ak používate GRUB alebo systemd-boot._
+To isté platí aj pre vlastný záznam Omarchy o tom, ktoré migrácie už prebehli: nachádza sa vo vašom domovskom adresári, takže obnovenie prežije. Migrácie, ktoré prebehli po vytvorení snímky, zostanú označené ako hotové, aj keď zmeny, ktoré vykonali v koreňovom súborovom systéme, boli vrátené späť, a ďalší príkaz `omarchy update` ich už znova nespustí. Ak teda po obnovení znova aktualizujete a niečo, čo nastavila skoršia aktualizácia, stále chýba, je to pravdepodobne dôvod.
 
-### Preskočenie ponuky zavádzania
+_Poznámka: Táto funkcia je k dispozícii iba na inštaláciách používajúcich zavádzač Limine, ktorý je predvolený od Omarchy 2.0. Nie je k dispozícii, ak používate GRUB alebo systemd-boot._
 
-Ak sa ponuky zavádzania nikdy nedotknete a chcete len, aby stroj prešiel rovno na dešifrovaciu obrazovku, spustite _Nastavenie > Direct Boot_ v ponuke Omarchy. Tým sa pridá záznam EFI ukazujúci priamo na Omarchy, takže ho firmvér zavedie bez zastavenia na Limine.
+### Preskočenie ponuky spustenia
 
-Kompromis je ten spomenutý na začiatku: so zapnutým priamym zavádzaním dostať sa k snímke znamená najskôr vybrať Limine z ponuky zavádzania BIOS-u. Spustite _Nastavenie > Direct Boot_ znova, ak chcete záznam odstrániť a vrátiť sa k zavádzaniu cez Limine. Niektorý firmvér nemá rád vlastné záznamy EFI, takže nastavenie sa odmietne spustiť na firmvéri American Megatrends a Apple.
+Ak sa ponuky spustenia nikdy nedotknete a chcete, aby počítač išiel rovno na obrazovku dešifrovania, spustite v ponuke Omarchy položku _Nastavenie > Priame spustenie_. Tým sa pridá položka EFI smerujúca priamo na Omarchy, takže ju firmvér spustí bez zastavenia v Limine.
+
+Kompromis je ten spomenutý na začiatku: pri zapnutom priamom spustení znamená dostať sa k snímke najprv vybrať Limine z ponuky spustenia BIOS. Ak chcete položku odstrániť a vrátiť sa k spúšťaniu cez Limine, spustite položku _Nastavenie > Priame spustenie_ znova. Niektorý firmvér nemá rád vlastné položky EFI, takže nastavenie sa odmietne spustiť na firmvéri American Megatrends a Apple.

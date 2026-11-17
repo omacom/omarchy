@@ -136,12 +136,12 @@ cat >"$work/stubs/omarchy-refresh-pacman" <<'SH'
 printf 'refresh %s\n' "$*" >>"$STUB_LOG"
 [[ -z ${REFRESH_FAILS:-} ]]
 SH
-# Installed package names come from $STUB_INSTALLED, and names other installed
-# packages provide from $STUB_PROVIDED; with neither, nothing is installed.
-# PACMAN_T_FAILS makes pacman -T fail the way a broken database does.
+# pacman -Q finds names in $INSTALLED, -Qq lists $STUB_INSTALLED, and -T also
+# counts $STUB_PROVIDED; PACMAN_T_FAILS fails -T the way a broken database does.
 cat >"$work/stubs/pacman" <<'SH'
 #!/bin/bash
 case $1 in
+  -Q) [[ $2 == "--" ]] && grep -Fxq "$3" <<<"${INSTALLED:-}" ;;
   -Qq) cat "${STUB_INSTALLED:-/dev/null}" ;;
   -T)
     [[ -z ${PACMAN_T_FAILS:-} ]] || { echo "error: failed to query" >&2; exit 1; }
@@ -192,6 +192,20 @@ if PACMAN_T_FAILS=1 OMARCHY_PROC_ROOT="$work/x86/proc" PATH="$work/stubs:$work/x
 fi
 ! grep -q -- '--needed' "$STUB_LOG" || fail "reinstall installs nothing when pacman -T fails" "$(cat "$STUB_LOG")"
 pass "omarchy-reinstall-pkgs stops when pacman -T fails"
+
+# A JACK server the ARM migration kept would be removed for pipewire-jack, so
+# it is left out there.
+grep -Fxq pipewire-jack "$work/aarch64.packages" || fail "aarch64 defaults include pipewire-jack"
+export STUB_LOG="$work/jack.log"
+expected="-Syu --noconfirm --ask 4 --needed $(grep -vx pipewire-jack "$work/aarch64.packages" | tr '\n' ' ')"
+for server in jack2 jack; do
+  : >"$STUB_LOG"
+  INSTALLED=$server OMARCHY_PROC_ROOT="$work/aarch64/proc" PATH="$work/stubs:$work/aarch64/bin:$ROOT/bin:$PATH" \
+    omarchy-reinstall-pkgs
+  [[ $(tail -n 1 "$STUB_LOG") == "${expected% }" ]] ||
+    fail "aarch64: reinstall keeps an installed $server" "$(tail -n 1 "$STUB_LOG")"
+done
+pass "omarchy-reinstall-pkgs leaves pipewire-jack out where jack or jack2 is installed"
 
 # Reinstall requests the platform's default channel explicitly; a failed refresh
 # stops the reinstall.
