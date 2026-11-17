@@ -388,7 +388,8 @@ for role in gateway node; do
     moving+=("$role")
     # Upgrading to the seed package restarts a running gateway into files that
     # are gone, so this can find it between restarts, activating and not active.
-    if [[ $(systemctl --user show -P ActiveState "openclaw-$role.service" 2>/dev/null) == @(active|activating) ]]; then
+    if systemctl --user is-active --quiet "openclaw-$role.service" ||
+      [[ $(systemctl --user show -P ActiveState "openclaw-$role.service" 2>/dev/null) == "activating" ]]; then
       running+=("$role")
     fi
     if systemctl --user is-enabled --quiet "openclaw-$role.service"; then
