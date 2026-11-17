@@ -10,62 +10,37 @@ set -euo pipefail
 # Omarchy shrinks it to the smallest option, so the GPU can map the rest of RAM
 # on demand for large local models; see omarchy-apply-amd-gpu-memory. If that
 # leaves a game or driver short of VRAM, pick a larger carveout here from the
-# options the firmware offers; it accepts no other size. Only firmware that
-# lets amdgpu change it has uma/carveout, and a new size, along with the GPU
-# memory cap sized for it, applies from the next boot.
-
-pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+# sizes the firmware offers; it accepts no other. Only firmware that lets Linux
+# change it offers any, and a new size, along with the GPU memory cap sized for
+# it, applies from the next boot.
 
 usage() {
   echo "Usage: omarchy-device-gpu-vram [list|set]" >&2
   exit 1
 }
 
-shopt -s nullglob
-gpu_device=""
-for device in "$pci_devices_path"/*; do
-  if [[ -f $device/uma/carveout && -f $device/uma/carveout_options ]]; then
-    gpu_device=$device
-    break
-  fi
-done
+case ${1:-} in
+  "") (( $# == 0 )) || usage ;;
+  list | set) (( $# == 1 )) || usage ;;
+  *) usage ;;
+esac
 
-if [[ -z $gpu_device ]]; then
-  echo "This machine's firmware doesn't let Linux change the GPU's dedicated VRAM." >&2
+# This boot's VRAM, the next boot's, then every size the firmware offers.
+mapfile -t options < <(sudo env PATH="$PATH" omarchy-apply-amd-gpu-memory --options)
+if (( ${#options[@]} < 3 )); then
   exit 1
 fi
-
-# The firmware's options, from lines like "0: Minimum (512 MB)", as parallel
-# lists of index and size; only these can be written to uma/carveout.
-indexes=() sizes=()
-while read -r option_index option_size; do
-  indexes+=("$option_index")
-  sizes+=("$option_size")
-done < <(awk 'match($0, /\([0-9]+ (MB|GB)\)/) { print $1 + 0, substr($0, RSTART + 1, RLENGTH - 2) }' "$gpu_device/uma/carveout_options")
-
-# The size of an option index, or nothing for one the firmware doesn't list.
-option_size() {
-  local i
-  for i in "${!indexes[@]}"; do
-    if [[ ${indexes[i]} == "$1" ]]; then
-      echo "${sizes[i]}"
-    fi
-  done
-}
-
-current=$(< "$gpu_device/uma/carveout")
-current_size=$(option_size "$current")
+current=${options[1]}
+sizes=("${options[@]:2}")
 
 case ${1:-} in
   "")
-    (( $# == 0 )) || usage
-    echo "Dedicated VRAM this boot: $(( $(< "$gpu_device/mem_info_vram_total") / 1024 / 1024 )) MB"
-    echo "Dedicated VRAM from the next boot: ${current_size:-unknown}"
+    echo "Dedicated VRAM this boot: ${options[0]}"
+    echo "Dedicated VRAM from the next boot: $current"
     ;;
   list)
-    (( $# == 1 )) || usage
     for size in "${sizes[@]}"; do
-      if [[ $size == "$current_size" ]]; then
+      if [[ $size == "$current" ]]; then
         echo "* $size"
       else
         echo "  $size"
@@ -73,18 +48,9 @@ case ${1:-} in
     done
     ;;
   set)
-    (( $# == 1 )) || usage
-    choice=$(gum choose --header "Dedicated VRAM from the next boot" --selected "$current_size" "${sizes[@]}") || exit 1
+    choice=$(gum choose --header "Dedicated VRAM from the next boot" --selected "$current" "${sizes[@]}") || exit 1
 
-    index=""
-    for i in "${!sizes[@]}"; do
-      if [[ ${sizes[i]} == "$choice" ]]; then
-        index=${indexes[i]}
-      fi
-    done
-    [[ -n $index ]] || exit 1
-
-    sudo env PATH="$PATH" omarchy-apply-amd-gpu-memory "$index"
+    sudo env PATH="$PATH" omarchy-apply-amd-gpu-memory "$choice"
 
     log=$(mktemp)
     trap 'rm -f "$log"' EXIT
@@ -104,5 +70,4 @@ case ${1:-} in
       omarchy-system reboot
     fi
     ;;
-  *) usage ;;
 esac
