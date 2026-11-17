@@ -326,6 +326,10 @@ disable_internal() {
   [[ -n $INTERNAL ]] || exit 0
   [[ -f $MANUAL_DISABLE_FLAG ]] && return 0
 
+  # A panel someone else already turned off is theirs to bring back: taking
+  # the flag would have the lid opening re-apply a rule to it.
+  [[ ! -f $CLAMSHELL_FLAG ]] && internal_off_beside_another_output && return 0
+
   mkdir -p "$TOGGLES_DIR"
   remember_internal_scale
 

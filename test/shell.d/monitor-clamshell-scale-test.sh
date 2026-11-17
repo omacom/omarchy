@@ -275,6 +275,18 @@ OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_T
   expect_sync "clamshell recovery brings back a panel it turned off itself beside an external display" off - \
   'scale = 1.25' <<<"$internal_config"
 
+# Closing the lid on a panel something else already turned off beside an
+# external display does not make it the script's own, so opening the lid again
+# applies no rule that would turn it back on (#19176).
+rm -f "$state_dir/internal-monitor-clamshell.lua"
+OMARCHY_TEST_CLAMSHELL=true OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=DP-1 \
+  expect_sync "clamshell leaves alone a panel already off when the lid closes" off - \
+  '!hl.monitor(' <<<"$internal_config"
+[[ ! -f $state_dir/internal-monitor-clamshell.lua ]] || fail "clamshell takes no flag for a panel already off"
+OMARCHY_TEST_EXTERNAL_CONNECTED=true OMARCHY_TEST_EXTERNAL_ACTIVE=true OMARCHY_TEST_OTHER_OUTPUT=DP-1 \
+  expect_sync "clamshell leaves a panel already off when the lid opens" off - \
+  '!hl.monitor(' <<<"$internal_config"
+
 # The display panel's choices for the panel win over monitors.lua, as
 # default/hypr/monitor-settings.lua applies them over it, so a scale chosen
 # there isn't corrected back to the catch-all's on every idle-wake, and the
