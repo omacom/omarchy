@@ -25,12 +25,13 @@ workspace_key() {
   jq -r '.workspace.id // .workspace.name // empty' <<<"$1"
 }
 
-# The id is a number to localize; a name is shown as typed, even one like "1942".
+# A numbered workspace's id is localized. Named and special workspaces report a
+# negative id, so they show their name as typed, even one like "1942".
 workspace_label() {
   local id
   id=$(jq -r '.workspace.id // empty' <<<"$1")
 
-  if [[ -n $id ]]; then
+  if [[ $id =~ ^[0-9]+$ ]] && (( id >= 1 )); then
     omarchy-i18n --number "$id"
   else
     jq -r '.workspace.name // empty' <<<"$1"
