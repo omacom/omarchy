@@ -65,7 +65,7 @@ SH
 chmod +x "$diagnose_bin/"*
 
 diagnose() {
-  CRASH_TIMESTAMP="$1" TZ=UTC OMARCHY_PATH="$ROOT" PATH="$diagnose_bin:$PATH" \
+  CRASH_TIMESTAMP="$1" LC_ALL=C TZ=UTC OMARCHY_PATH="$ROOT" PATH="$diagnose_bin:$PATH" \
     "$ROOT/bin/omarchy-agent-crash" 4242
 }
 prompt=$(diagnose 1790929127000000)
