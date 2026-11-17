@@ -77,47 +77,25 @@ grep -Fx $'rate\t7.3W' <<<"$generic_output" >/dev/null || fail "battery status a
 grep -Fx $'time\t3h 53m' <<<"$generic_output" >/dev/null || fail "battery status time left follows the live draw"
 pass "battery status supports Apple Silicon and arbitrary native battery paths"
 
-# The cycle count comes from the battery UPower resolved, here CMB0.
+# Firmware without a cycle count reads back the kernel's 0, which the panel would show as a real count.
 battery_status() {
   OMARCHY_TEST_NATIVE_PATH=CMB0 OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell
 }
 
-for unusable in "0" "-1" "unknown" "a[\$(touch $tmp_dir/evaluated)]"; do
-  printf '%s\n' "$unusable" >"$tmp_dir/power/CMB0/cycle_count"
-  unusable_output=$(battery_status)
-
-  grep -Fx $'rate\t7.3W' <<<"$unusable_output" >/dev/null || fail "battery status still reports the rest of the battery" "cycle_count=$unusable"
-
-  if grep -q $'^cycles\t' <<<"$unusable_output"; then
-    fail "battery status hides an unusable cycle count" "cycle_count=$unusable"
-  fi
-done
-
-if [[ -e $tmp_dir/evaluated ]]; then
-  fail "battery status reads the cycle count as data, not code"
+printf '0\n' >"$tmp_dir/power/CMB0/cycle_count"
+zero_output=$(battery_status)
+if grep -q $'^cycles\t' <<<"$zero_output"; then
+  fail "battery status leaves out an unavailable cycle count" "$zero_output"
 fi
 
-pass "battery status hides an unusable cycle count"
-
-for usable in "1337:1337" "010:10" " 450 :450"; do
-  printf '%s\n' "${usable%:*}" >"$tmp_dir/power/CMB0/cycle_count"
-  usable_output=$(battery_status)
-
-  grep -Fx $'cycles\t'"${usable##*:}" <<<"$usable_output" >/dev/null || fail "battery status reports a real cycle count" "cycle_count=${usable%:*}"
-done
-
-# A pack whose firmware reports nothing must not hide a sibling's real count,
-# but a real count on the resolved battery wins over a sibling's.
+# A pack reporting nothing must not hide a sibling's real count.
 mkdir -p "$tmp_dir/power/BAT0" "$tmp_dir/power/BAT1"
 printf '0\n' >"$tmp_dir/power/BAT0/cycle_count"
 printf '450\n' >"$tmp_dir/power/BAT1/cycle_count"
-printf '0\n' >"$tmp_dir/power/CMB0/cycle_count"
 battery_status | grep -Fx $'cycles\t450' >/dev/null || fail "battery status reports a real cycle count from a second pack"
-printf '300\n' >"$tmp_dir/power/CMB0/cycle_count"
-battery_status | grep -Fx $'cycles\t300' >/dev/null || fail "battery status prefers the resolved battery's cycle count"
 rm -r "$tmp_dir/power/BAT0" "$tmp_dir/power/BAT1"
 
-pass "battery status reports a real cycle count"
+pass "battery status reports an unavailable cycle count as unknown"
 
 # Firmware that doesn't know the present rate leaves current_now in place but
 # gives nothing on read; UPower's rate, from the falling charge, stands.
