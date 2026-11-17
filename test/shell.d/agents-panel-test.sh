@@ -354,16 +354,24 @@ JS
 
 # A setup the panel started finishes in the background, so the panel has the
 # launchers redrawn when the models that can be opened change: one done
-# installing, or one gone. What is there at startup already has its launcher.
+# installing, or one gone. A setup that finished while the shell wasn't
+# watching is caught by the first reading; no models at startup syncs nothing.
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
 let syncs = 0
-const scope = { launchableModels: null, syncLaunchers: () => syncs++ }
-scope.noteLaunchableModels = new Function('scope', 'with (scope) { return ' + source.match(/function noteLaunchableModels\([^]*?\n  \}/)[0] + ' }')(scope)
+const fresh = () => {
+  const scope = { launchableModels: '', syncLaunchers: () => syncs++ }
+  scope.noteLaunchableModels = new Function('scope', 'with (scope) { return ' + source.match(/function noteLaunchableModels\([^]*?\n  \}/)[0] + ' }')(scope)
+  return scope
+}
 const models = units => Object.fromEntries(Object.entries(units).map(([recipe, unit]) => [recipe, { recipe, unit }]))
+fresh().noteLaunchableModels(models({}))
+assertEqual(syncs, 0, 'a shell starting with no models has no launchers to sync')
+const scope = fresh()
 scope.noteLaunchableModels(models({ m: 'inactive' }))
-assertEqual(syncs, 0, 'the models there at startup already have their launchers')
+assertEqual(syncs, 1, 'a model set up while the shell was away gets its launcher at startup')
+syncs = 0
 scope.noteLaunchableModels(models({ m: 'active' }))
 scope.noteLaunchableModels(models({ m: 'active', n: 'installing' }))
 assertEqual(syncs, 0, 'starting a model, or one still installing, changes no launcher')

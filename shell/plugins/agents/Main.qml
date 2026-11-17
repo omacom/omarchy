@@ -329,15 +329,17 @@ Item {
   // omarchy-agent-local-launchers draws. omarchy-agent-local runs that after
   // a setup or a removal it waited for, but a setup started here carries on
   // in the background, so the launcher is added when the model stops
-  // installing. The first reading only notes what is there.
-  property var launchableModels: null
+  // installing. A setup that finished while the shell wasn't watching gets
+  // its launcher from the first reading; with no models there is nothing to
+  // sync.
+  property string launchableModels: ""
 
   function noteLaunchableModels(models) {
     var ids = []
     for (var id in models)
       if (models[id].unit !== "installing" && models[id].unit !== "removing") ids.push(id)
     var key = ids.sort().join("\n")
-    if (launchableModels !== null && key !== launchableModels) syncLaunchers()
+    if (key !== launchableModels) syncLaunchers()
     launchableModels = key
   }
 
