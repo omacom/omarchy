@@ -293,6 +293,57 @@ for status in 0 3; do
 done
 pass "explicit disable never enables access even when a displayed grant has expired"
 
+# sudo 1.9.17's long listing for a command names the rule that matched it.
+foreign=$'Sudoers entry: /etc/sudoers.d/99-tmp-agent\n    RunAsUsers: ALL\n    Options: !authenticate\n    Commands:\n\tALL'
+for args in --disable ''; do
+  : >"$test_tmp/commands"
+  rc=0
+  TEST_STATUS=3 TEST_POLICY="$foreign" /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" ${args:+"$args"} >"$test_tmp/public.log" 2>&1 || rc=$?
+  (( rc == 1 )) && grep -q 'still enabled by /etc/sudoers.d/99-tmp-agent' "$test_tmp/public.log" ||
+    fail "${args:-the toggle} must fail and name a NOPASSWD rule Omarchy didn't write" "$(cat "$test_tmp/public.log")"
+  ! grep -q 'DISABLED\|^gum\|__enable \|__disable ' "$test_tmp/public.log" "$test_tmp/commands" || fail "a foreign NOPASSWD rule was reported disabled or touched"
+done
+pass "a passwordless rule Omarchy didn't write is named, not reported disabled"
+
+# Revoking our grant leaves the other rule in force.
+: >"$test_tmp/commands"
+rc=0
+TEST_STATUS=0 TEST_POLICY_AFTER_DISABLE="$foreign" /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1 || rc=$?
+(( rc == 1 )) && grep -q '__disable ' "$test_tmp/commands" && grep -q 'still enabled by /etc/sudoers.d/99-tmp-agent' "$test_tmp/public.log" &&
+  ! grep -q 'DISABLED' "$test_tmp/public.log" ||
+  fail "disabling our grant must name a rule that still grants access" "$(cat "$test_tmp/public.log")"
+pass "disabling our grant names a rule that still grants access"
+
+# A grant of ours that expires between the two listings is nobody else's.
+own=$'Sudoers entry: /etc/sudoers.d/99-omarchy-nopasswd-1000\n    Options: !authenticate'
+for args in --disable ''; do
+  : >"$test_tmp/commands"
+  TEST_STATUS=3 TEST_POLICY="$own" TEST_POLICY_RELIST='    Options: authenticate' /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" ${args:+"$args"} >"$test_tmp/public.log" 2>&1 || true
+  ! grep -q 'still enabled' "$test_tmp/public.log" && { [[ -z $args ]] || grep -q 'already DISABLED' "$test_tmp/public.log"; } &&
+    { [[ -n $args ]] || grep -q '^gum choose ' "$test_tmp/commands"; } ||
+    fail "${args:-the toggle} blamed a grant of ours that expired between listings" "$(cat "$test_tmp/public.log")"
+done
+pass "a grant of ours that expires between listings is not blamed on another rule"
+
+# Where listing needs a password (listpw=always), only running status can tell.
+for args in --disable ''; do
+  : >"$test_tmp/commands"
+  rc=0
+  TEST_POLICY_FAILURE=1 TEST_STATUS=3 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" ${args:+"$args"} >"$test_tmp/public.log" 2>&1 || rc=$?
+  (( rc == 1 )) && grep -q 'still enabled by another sudoers rule' "$test_tmp/public.log" &&
+    ! grep -q 'DISABLED\|^gum\|__enable \|__disable ' "$test_tmp/public.log" "$test_tmp/commands" ||
+    fail "${args:-the toggle} must name an unlisted passwordless rule" "$(cat "$test_tmp/public.log")"
+done
+: >"$test_tmp/commands"
+rc=0
+TEST_POLICY_FAILURE=1 TEST_STATUS=0 TEST_STATUS_AFTER_DISABLE=3 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1 || rc=$?
+(( rc == 1 )) && grep -q '__disable ' "$test_tmp/commands" && grep -q 'still enabled by another sudoers rule' "$test_tmp/public.log" ||
+  fail "revoking our grant must name an unlisted rule that outlives it" "$(cat "$test_tmp/public.log")"
+# A cached timestamp alone is not a rule.
+TEST_POLICY_FAILURE=1 TEST_STATUS=3 TEST_STATUS_KN=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1
+grep -q 'already DISABLED' "$test_tmp/public.log" || fail "a cached timestamp was reported as another rule" "$(cat "$test_tmp/public.log")"
+pass "an unlisted passwordless rule is found by running status without the timestamp"
+
 : >"$test_tmp/commands"
 TEST_STATUS=3 TEST_CHOICE='15 minutes' TEST_CONFIRM_STATUS=0 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" >"$test_tmp/public.log" 2>&1
 [[ $(grep -c '^sudo -- ' "$test_tmp/commands") == 1 ]] || fail "enable must authenticate exactly one sudo call"

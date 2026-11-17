@@ -74,15 +74,30 @@ case "$name" in
   sudo)
     if [[ ${1:-} == -n && ${2:-} == -l ]]; then
       [[ ${TEST_POLICY_FAILURE:-0} != 1 ]] || exit 1
+      # Once our grant is revoked, the listing shows whatever policy is left.
+      if /usr/bin/grep -q '__disable ' "$TEST_GRANT_ROOT/commands"; then
+        printf '%s\n' "${TEST_POLICY_AFTER_DISABLE:-    Options: authenticate}"
+        exit 0
+      fi
+      # A later listing can differ from the first, as when a grant expires.
+      if [[ -n ${TEST_POLICY_RELIST:-} ]] && (( $(/usr/bin/grep -c '^sudo -n -l -l ' "$TEST_GRANT_ROOT/commands") > 1 )); then
+        printf '%s\n' "$TEST_POLICY_RELIST"
+        exit 0
+      fi
       default_policy='    Options: authenticate'
       [[ ${TEST_STATUS:-3} == 3 ]] || default_policy='    Options: !authenticate'
       printf '%s\n' "${TEST_POLICY:-$default_policy}"
       exit 0
     fi
     if [[ ${1:-} == -n ]]; then shift; fi
-    if [[ ${1:-} == -kn ]]; then shift; fi
+    status=${TEST_STATUS:-3}
+    # -k ignores a cached timestamp, so only a passwordless rule lets it run.
+    if [[ ${1:-} == -kn ]]; then shift; status=${TEST_STATUS_KN:-$status}; fi
     if [[ ${1:-} == -- ]]; then shift; fi
-    [[ ${2:-} != __status ]] || exit "${TEST_STATUS:-3}"
+    if [[ ${2:-} == __status && -n ${TEST_STATUS_AFTER_DISABLE:-} ]] && /usr/bin/grep -q '__disable ' "$TEST_GRANT_ROOT/commands"; then
+      exit "$TEST_STATUS_AFTER_DISABLE"
+    fi
+    [[ ${2:-} != __status ]] || exit "$status"
     [[ ${2:-} != __enable || ${TEST_ENABLE_FAIL:-0} != 1 ]] || exit 1
     ;;
   gum)
