@@ -1,5 +1,6 @@
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import "Agents" as Agents
 
 ShellRoot {
@@ -60,14 +61,34 @@ ShellRoot {
     }
   }
 
+  Process {
+    id: resumeEvent
+    command: ["timeout", "1", "bash", "-c", "echo '/org/freedesktop/login1: org.freedesktop.login1.Manager.PrepareForSleep (false,)' > \"$SLEEP_EVENTS\""]
+  }
+
   Timer {
     id: finish
     interval: 2000
+    property bool waking: false
     onTriggered: {
-      root.check(Object.keys(Agents.LimitResetNotifier.pendingLimitResets).length === 0, "new deadline fires without a manual refresh")
-      Agents.LimitResetNotifier.announcePassedLimitResets()
-      console.log("RESULT " + JSON.stringify({ ok: root.failures.length === 0, failures: root.failures }))
-      Qt.quit()
+      var notifier = Agents.LimitResetNotifier
+      if (!waking) {
+        root.check(Object.keys(notifier.pendingLimitResets).length === 0, "new deadline fires without a manual refresh")
+        root.deadline = Date.now() + 60000
+        notifier.owner.agents = root.records()
+        notifier.owner.recordsChanged()
+        // Advance the stored wall-clock deadline while its Qt timer remains armed.
+        for (var key in notifier.pendingLimitResets)
+          notifier.pendingLimitResets[key].deadline = Date.now() - 1
+        waking = true
+        resumeEvent.running = true
+        restart()
+      } else {
+        root.check(Object.keys(notifier.pendingLimitResets).length === 0, "resume announces overdue resets before the relative timer fires")
+        notifier.announcePassedLimitResets()
+        console.log("RESULT " + JSON.stringify({ ok: root.failures.length === 0, failures: root.failures }))
+        Qt.quit()
+      }
     }
   }
 }

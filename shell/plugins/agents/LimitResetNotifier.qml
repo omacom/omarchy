@@ -2,6 +2,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import qs.Commons as Commons
 import "LimitResetModel.js" as LimitResetModel
 
@@ -69,6 +70,20 @@ Item {
       // re-arms for the remaining time when the first interval expires.
       deadlineTimer.interval = Math.max(1, Math.min(2147483647, earliest - Date.now()))
       deadlineTimer.start()
+    }
+  }
+
+  // A relative Qt timer pauses during suspend. On resume, compare the
+  // stored wall-clock deadlines again, even if no usage file changed.
+  Process {
+    running: Object.keys(root.pendingLimitResets).length > 0
+    command: ["gdbus", "monitor", "--system", "--dest", "org.freedesktop.login1",
+      "--object-path", "/org/freedesktop/login1"]
+    stdout: SplitParser {
+      onRead: line => {
+        if (line.trim().endsWith("org.freedesktop.login1.Manager.PrepareForSleep (false,)"))
+          root.announcePassedLimitResets()
+      }
     }
   }
 

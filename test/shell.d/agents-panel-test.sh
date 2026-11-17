@@ -598,6 +598,16 @@ cat >"$test_tmp/bin/omarchy-notification-send" <<'SCRIPT'
 #!/bin/bash
 printf '%s\n' "$*" >>"$NOTIFICATION_LOG"
 SCRIPT
+mkfifo "$test_tmp/sleep-events"
+cat >"$test_tmp/bin/gdbus" <<'SCRIPT'
+#!/bin/bash
+if [[ $* == "monitor --system --dest org.freedesktop.login1 --object-path /org/freedesktop/login1" ]]; then
+  exec cat "$SLEEP_EVENTS"
+else
+  exec /usr/bin/gdbus "$@"
+fi
+SCRIPT
+export SLEEP_EVENTS="$test_tmp/sleep-events"
 chmod +x "$test_tmp/bin"/*
 
 # No desktop surfaces or provider requests: execute the real QML offscreen.
@@ -619,9 +629,9 @@ for _ in {1..50}; do
   [[ -s $test_tmp/notifications ]] && break
   sleep 0.02
 done
-[[ $(wc -l <"$test_tmp/notifications") == "1" ]] || fail "two widgets emit a single reset notification"
+[[ $(wc -l <"$test_tmp/notifications") == "2" ]] || fail "two widgets deliver each of the two resets exactly once"
 grep -F -- '--app-name Omarchy Agents' "$test_tmp/notifications" >/dev/null || fail "reset toast uses a DND-respecting app name"
-pass "real QML shares one reset owner, reconciles settings, and emits one DND-respecting notification"
+pass "real QML shares one owner and delivers timed and overdue wake notifications once each"
 
 # Exercise discovery and FileView transitions with real local usage records.
 usage_dir="$test_tmp/home/.local/state/omarchy/agents/usage"
