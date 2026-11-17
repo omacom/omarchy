@@ -457,3 +457,6 @@ const missingGlyphs = fontGlyphRows
   .map(({ id, code }) => `${id} U+${code.toString(16)}`)
 assertDeepEqual(missingGlyphs, [], 'every menu glyph drawn in the Omarchy font is one the font carries')
 JS
+
+require_quickshell "menu back navigation test"
+run_qml_fixture menu-back "going back puts the cursor on the row that was entered" Ui Commons
