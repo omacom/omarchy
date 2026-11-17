@@ -1,6 +1,6 @@
 # Overlay output recovery
 
-Run `bash test/shell.d/overlay-output-recovery-test.sh` from the checkout. The test loads the checkout's real `shell/Ui/OverlayWindow.qml` into a small Quickshell fixture inside a separate nested Hyprland compositor. It never removes, disables, or focuses an output in the parent desktop. Both child processes are stopped on success or failure.
+Run `bash test/shell.d/overlay-window-test.sh` from the checkout. The test loads the checkout's real `shell/Ui/OverlayWindow.qml` into a small Quickshell fixture inside a separate nested Hyprland compositor. It never removes, disables, or focuses an output in the parent desktop. Both child processes are stopped on success or failure.
 
 The test requires a reachable parent Hyprland compositor with Lua configuration, Quickshell, wtype, and Python. The shell wrapper reports a skip when the compositor or a required tool is unavailable. Once started, runtime failures fail the test. The nested compositor uses the Wayland backend (`AQ_DRM_DEVICES=/dev/null`); its removable Wayland outputs use the parent's buffer modifiers, avoiding NVIDIA's unsupported linear-buffer allocation for nested headless outputs.
 

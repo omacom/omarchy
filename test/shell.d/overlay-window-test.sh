@@ -139,3 +139,19 @@ for (const file of overlayFiles) {
   assert(namespace && unanimated.includes(namespace[1]), `${file} is exempt from Hyprland's layer animation`)
 }
 JS
+
+require_compositor "overlay output recovery runtime test"
+if [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+  skip "no parent Hyprland instance; skipping overlay output recovery runtime test"
+  exit 0
+fi
+
+for tool in Hyprland quickshell hyprctl wtype python; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    skip "$tool not installed; skipping overlay output recovery runtime test"
+    exit 0
+  fi
+done
+
+python "$SHELL_TEST_DIR/fixtures/overlay-output-recovery/run.py" "$ROOT"
+python "$SHELL_TEST_DIR/fixtures/overlay-output-recovery/run.py" "$ROOT" --zero-output-open
