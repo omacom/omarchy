@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy biasanya dikawal melalui kekunci pintas dan menu Omarchy (`Super + Space`). Tetapi anda juga boleh mengawalnya melalui CLI `omarchy`. Ini amat membantu apabila anda meminta ejen AI bekerjasama dengan anda untuk penyesuaian atau konfigurasi.
+Omarchy biasanya dikawal melalui kekunci pintas dan menu Omarchy (`Super + Space`). Tetapi anda juga boleh mengawalnya melalui CLI `omarchy`. Ini amat membantu apabila anda membiarkan ejen AI bekerjasama dengan anda dalam penyesuaian atau konfigurasi.
 
-CLI ini mempunyai akses kepada semua perkakas dalaman yang digunakan melalui menu dan juga sebaliknya. Anda boleh melihat semua yang tersedia dengan menjalankan `omarchy` dalam terminal.
+CLI ini mempunyai akses kepada semua peralatan dalaman yang digunakan melalui menu dan juga sebaliknya. Anda boleh melihat semua yang tersedia dengan menjalankan `omarchy` dalam terminal.
 
-Ia kelihatan lebih kurang seperti ini:
+Rupanya lebih kurang seperti ini:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-Dan anda boleh menyelami setiap kumpulan dengan lebih mendalam:
+Untuk diagnostik, jalankan `omarchy-debug --no-sudo --print` secara langsung. Ia mencetak diagnostik dan menulis `/tmp/omarchy-debug.log` tanpa meminta sudo, termasuk pada pemasangan pakej yang mana `omarchy debug` boleh gagal dengan "Unknown Omarchy command".
+
+Dan anda boleh mendalami setiap kumpulan dengan lebih lanjut:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Setiap arahan juga menerima `--help`, sama ada anda bertanya kepada keseluruhan kumpulan (`omarchy capture --help`) atau satu arahan sahaja (`omarchy capture screenshot --help`).
+Setiap perintah juga menerima `--help`, sama ada anda bertanya kepada keseluruhan kumpulan (`omarchy capture --help`) atau satu perintah sahaja (`omarchy capture screenshot --help`).
 
-### Membuka menu dari terminal
+### Membuka menu daripada terminal
 
-Menu Omarchy juga boleh diskrip, yang berguna untuk ikatan kekunci anda sendiri. `omarchy menu` membukanya pada peringkat akar, dan anda boleh melompat terus ke mana-mana titik dalam pepohon dengan menamakannya: `omarchy menu summon appearance.theme` terus pergi ke pemilih tema, `omarchy menu toggle system` membuka menu sistem dan menutupnya semula jika ia sudah terbuka, dan `omarchy menu close` menyimpannya.
+Menu Omarchy juga boleh diskrip, yang berguna untuk keybinding anda sendiri. `omarchy menu` membukanya pada akar, dan anda boleh melompat terus ke mana-mana titik dalam pepohon dengan menamakannya: `omarchy menu summon appearance.theme` terus pergi ke pemilih tema, `omarchy menu toggle system` membuka menu sistem dan menutupnya semula jika ia sudah terbuka, dan `omarchy menu close` menyimpannya.
