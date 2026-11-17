@@ -25,7 +25,7 @@ import tomllib
 try:
     with open(sys.argv[1], "rb") as config:
         print("set" if "update" in tomllib.load(config) else "unset")
-except (OSError, tomllib.TOMLDecodeError):
+except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
     print("unreadable")
 PY
 )
