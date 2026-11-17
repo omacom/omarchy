@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# omarchy:summary=Restore channel and regional pacman defaults in an installed target
+# omarchy:args=<stable|rc|edge> [target-root] | --render <stable|rc|edge> <output-dir> [target-root]
+# omarchy:requires-sudo=true
+# omarchy:hidden=true
+
+set -euo pipefail
+
+usage() {
+  echo "Usage: omarchy-apply-pacman <stable|rc|edge> [target-root]" >&2
+  echo "       omarchy-apply-pacman --render <stable|rc|edge> <output-dir> [target-root]" >&2
+  exit 1
+}
+
+# --render only builds the two files, so an unprivileged caller can hand root
+# nothing but plain copies of the finished result.
+render_dir=""
+if [[ ${1:-} == "--render" ]]; then
+  (( $# == 3 || $# == 4 )) || usage
+  channel="$2"
+  render_dir="$3"
+  [[ -d $render_dir ]] || { echo "Render directory not found: $render_dir" >&2; exit 1; }
+  etc="${4:-/}/etc"
+else
+  (( $# >= 1 && $# <= 2 )) || usage
+  channel="$1"
+  etc="${2:-/}/etc"
+fi
+
+case "$channel" in
+  stable|rc|edge) ;;
+  *) echo "Invalid pacman channel: $channel" >&2; exit 1 ;;
+esac
+
+# The ISO writes this plain-text marker before target finalization. Missing
+# markers keep existing installations global; never source it as shell code.
+region=global
+if [[ -e $etc/omarchy/region ]]; then
+  region=$(<"$etc/omarchy/region")
+fi
+case "$region" in
+  global|cn) ;;
+  *) echo "Unsupported region: $region (expected global or cn)" >&2; exit 1 ;;
+esac
+
+# Each platform has its own channel templates (install/helpers/pacman.sh).
+source "$OMARCHY_PATH/install/helpers/pacman.sh"
+platform=$(omarchy-hw-platform)
+templates=$(omarchy_pacman_templates "$platform")
+if [[ ! -f $templates/pacman-$channel.conf || ! -f $templates/mirrorlist-$channel ]]; then
+  echo "Omarchy has no $channel channel for $platform." >&2
+  exit 1
+fi
+
+# Build both files before replacing either. Explicit refreshes retain backups;
+# ordinary updates do not call this command or enforce regional defaults.
+if [[ -n $render_dir ]]; then
+  staging="$render_dir"
+else
+  staging=$(mktemp -d)
+  trap 'rm -rf "$staging"' EXIT
+fi
+# Regional profiles carry x86 mirrors only so far, so other platforms keep
+# their channel templates as they are.
+if [[ $region == "global" || $platform != "x86" ]]; then
+  cp "$templates/pacman-$channel.conf" "$staging/pacman.conf"
+  cp "$templates/mirrorlist-$channel" "$staging/mirrorlist"
+else
+  profile="$OMARCHY_PATH/default/regions/$region/pacman"
+  for fragment in "omarchy-$channel.prepend" "mirrorlist-$channel.prepend"; do
+    [[ -r $profile/$fragment ]] || { echo "Region $region lacks $profile/$fragment" >&2; exit 1; }
+  done
+  # pacman tries servers in order, so each regional mirror leads and the
+  # channel's own server stays as the fallback, for [omarchy] and for Arch.
+  awk -v fragment="$profile/omarchy-$channel.prepend" '
+    { print }
+    $0 == "[omarchy]" { while ((getline line < fragment) > 0) print line; found++ }
+    END { exit found == 1 ? 0 : 1 }
+  ' "$templates/pacman-$channel.conf" > "$staging/pacman.conf" ||
+    { echo "pacman-$channel.conf has no single [omarchy] section" >&2; exit 1; }
+  cat "$profile/mirrorlist-$channel.prepend" "$templates/mirrorlist-$channel" > "$staging/mirrorlist"
+fi
+
+if [[ -z $render_dir ]]; then
+  mkdir -p "$etc/pacman.d"
+  for file in pacman.conf pacman.d/mirrorlist; do
+    if [[ -e $etc/$file ]]; then
+      cp -f "$etc/$file" "$etc/$file.bak"
+    fi
+  done
+  # Copying over an existing file keeps its owner and mode, as refresh always has.
+  cp -f "$staging/pacman.conf" "$etc/pacman.conf"
+  cp -f "$staging/mirrorlist" "$etc/pacman.d/mirrorlist"
+fi

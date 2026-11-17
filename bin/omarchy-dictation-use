@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# omarchy:hidden=true
+# omarchy:summary=Save a configured dictation backend after stopping the previous backend
+# omarchy:args=<backend>
+
+set -e
+
+if (($# != 1)) || [[ ! $1 =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "Usage: omarchy-dictation-use <backend>" >&2
+  exit 1
+fi
+
+config="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/defaults/dictation"
+mkdir -p "${config%/*}"
+exec 9> "$config.lock"
+if ! flock -w 5 9; then
+  echo "Dictation is busy; try again." >&2
+  exit 1
+fi
+
+previous=$(omarchy-default-dictation 2>/dev/null) || previous=""
+if [[ -n $previous && $previous != "$1" ]] && omarchy-cmd-present "omarchy-dictation-$previous"; then
+  if ! "omarchy-dictation-$previous" stop 9>&-; then
+    echo "Could not stop $previous; keeping the existing dictation backend." >&2
+    exit 1
+  fi
+fi
+
+temporary=$(mktemp "$config.XXXXXX")
+trap 'rm -f "$temporary"' EXIT
+printf '%s\n' "$1" > "$temporary"
+mv -f "$temporary" "$config"
