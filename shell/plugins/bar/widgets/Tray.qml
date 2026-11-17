@@ -855,7 +855,8 @@ BarWidget {
     // keeps the source's lightness, so a dark fill stayed dark on a dark bar.
     Rectangle {
       anchors.fill: trayIconImage
-      color: root.foreground
+      // The bar's text color, so symbolic icons follow it on a transparent bar.
+      color: root.bar ? root.bar.barForeground : Commons.Color.foreground
       visible: trayIconRoot.symbolic
       layer.enabled: trayIconRoot.symbolic
       layer.effect: MultiEffect {
