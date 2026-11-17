@@ -415,6 +415,9 @@ printf '[Default Applications]\n' >"$mimeapps"
 omarchy-cmd-editor-mimetypes --unless-chosen
 ! grep -q "^text/x-java=" "$mimeapps" || fail "the migration keeps a choice saved in the older list"
 grep -qxF "text/x-tcl=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces Neovim saved in the older list"
+printf '[Default Applications]\ntext/x-java=vscodium-electron.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+! grep -qxF "text/x-java=omarchy-launch-editor.desktop" "$mimeapps" || fail "a line for an app that's gone doesn't hide a choice in the older list"
 rm -f "$test_home/.local/share/applications/mimeapps.list"
 pass "the migration keeps the user's own choices, while their apps are installed"
 

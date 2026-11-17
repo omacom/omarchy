@@ -33,8 +33,8 @@ mkdir -p "$(dirname "$list")"
 tr -d '\r' <"$list" | grep -qE '^[[:space:]]*\[Default Applications\][[:space:]]*$' ||
   printf '\n[Default Applications]\n' >>"$list"
 
-# The older ~/.local/share list counts too, for a type ~/.config doesn't set:
-# a line here would hide what the user chose there.
+# The older ~/.local/share list counts too, for a type ~/.config doesn't set to
+# an installed app: a line here would hide what the user chose there.
 older="${XDG_DATA_HOME:-$HOME/.local/share}/applications/mimeapps.list"
 [[ -f $older ]] || older=/dev/null
 
@@ -64,7 +64,6 @@ installed=$(
 updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v older="$older" -v aliases="$aliases" -v installed="$installed" '
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
   function ours(app) { return app == "nvim.desktop" || app == "plain.desktop" || app == handler }
-  function chose(app) { return !ours(app) && (app in present) }
   # The app a line opens: the first one it lists that is installed.
   function opens(value,   apps, count, i) {
     count = split(value, apps, ";")
@@ -108,8 +107,9 @@ updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_
     }
   }
   END {
-    for (k = 1; k <= key_count; k++) if (!(canon(keys[k]) in chosen)) chosen[canon(keys[k])] = chose(last[keys[k]])
-    for (k = 1; k <= older_count; k++) if (!(canon(older_keys[k]) in older_choice)) older_choice[canon(older_keys[k])] = chose(older_last[older_keys[k]])
+    # A line naming no installed app is one GLib reads past, so it decides nothing.
+    for (k = 1; k <= key_count; k++) if (!(canon(keys[k]) in chosen) && (last[keys[k]] in present)) chosen[canon(keys[k])] = !ours(last[keys[k]])
+    for (k = 1; k <= older_count; k++) if (!(canon(older_keys[k]) in older_choice) && (older_last[older_keys[k]] in present)) older_choice[canon(older_keys[k])] = !ours(older_last[older_keys[k]])
     if (unless_chosen == "true") {
       for (type in chosen) if (chosen[type]) keep[type] = 1
       for (type in older_choice) if (older_choice[type] && !(type in chosen)) keep[type] = 1
