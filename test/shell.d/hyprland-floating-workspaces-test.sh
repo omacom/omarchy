@@ -328,7 +328,7 @@ hl = {
   get_loaded_plugins = function()
     return os.getenv("HYPRBARS_RESIDENT") == "1" and { { name = "hyprbars" } } or {}
   end,
-  get_active_workspace = function() return active end,
+  get_active_workspace = function(monitor) return monitor and monitor.active_workspace or active end,
   get_config = function(key) return config[key] end,
   config = function(values)
     if values.plugin then
@@ -440,6 +440,9 @@ s.active.id = 2
 s.subscriptions["workspace.active"][1]()
 assert(s.config["input.follow_mouse"] == 1, "a tiled workspace lost the user focus setting")
 assert(s.config["input.float_switch_override_focus"] == 1, "a tiled workspace lost the user float switch setting")
+-- A monitor taking focus is not yet the focused one, so its own workspace decides.
+s.subscriptions["monitor.focused"][1]({ active_workspace = { id = 1 } })
+assert(s.config["input.follow_mouse"] == 2, "moving to a monitor showing a floating workspace kept the tiled focus setting")
 
 -- Shadows only for windows on floating workspaces, when the user has none.
 assert(s.config["decoration.shadow.enabled"] == true, "floating windows got no shadows to tell them apart")

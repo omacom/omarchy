@@ -324,8 +324,8 @@ end
 -- workspace keeps the user's own setting.
 local input = {}
 
-local function update_input()
-  local workspace = hl.get_active_workspace()
+local function update_input(monitor)
+  local workspace = hl.get_active_workspace(monitor)
   local active = workspace ~= nil and floating_workspace(workspace.id)
 
   if active == input.floating then
@@ -380,7 +380,10 @@ local function watch()
     end, { type = "oneshot", timeout = 1 })
   end)
 
-  hl.on("workspace.active", update_input)
+  hl.on("workspace.active", function()
+    update_input()
+  end)
+  -- This fires before Hyprland records the new monitor, so ask for its own workspace.
   hl.on("monitor.focused", update_input)
 end
 
