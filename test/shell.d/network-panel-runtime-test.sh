@@ -104,3 +104,7 @@ pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use ac
 stage_panel live-rows
 run_panel "network live rows"
 pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"
+
+stage_panel row-order-freeze
+run_panel "network row order freeze"
+pass "the Wi-Fi list keeps its row order while open, instead of reshuffling on every scan's signal noise"

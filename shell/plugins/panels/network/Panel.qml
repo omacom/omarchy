@@ -344,7 +344,9 @@ Panel {
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
     if (opened) {
-      refresh(true)
+      // The rows (and their held signal readings) may be a stale snapshot
+      // from before the panel was last closed; this open starts clean.
+      refresh(true, true)
       selectedIndex = wifiNetworks.length > 0 ? 0 : -1
       wifiActionFocused = false
       focusSection = hasCaptivePortal ? "portal" : (wifiNetworks.length > 0 ? "wifi" : "dns")
@@ -607,7 +609,7 @@ Panel {
     bar.shell.summon("omarchy.wifiqr", JSON.stringify(payload))
   }
 
-  function refresh(scanWifi) {
+  function refresh(scanWifi, freshWifiRows) {
     checkConnectivity()
     if (scanWifi === undefined) scanWifi = false
     if (!detailsProc.running) detailsProc.running = true
@@ -630,7 +632,7 @@ Panel {
         setScannerEnabled(true)
       }
     }
-    syncWifiNetworks()
+    syncWifiNetworks(freshWifiRows)
   }
 
   function formatHeaderSpeed(mbps) {
@@ -732,13 +734,16 @@ Panel {
     return null
   }
 
-  function syncWifiNetworks() {
-    rebuildWifiRows()
+  function syncWifiNetworks(fresh) {
+    rebuildWifiRows(fresh)
     wifiStationAvailable = !!wifiDevice
     scanning = false
   }
 
-  function rebuildWifiRows() {
+  // `fresh` skips the hold below, for the rebuild that opens the panel: a
+  // snapshot held over from before the panel was last closed is stale, not
+  // worth protecting from reshuffling.
+  function rebuildWifiRows(fresh) {
     var nets = []
     var networks = wifiNetworkObjects || []
 
@@ -749,7 +754,11 @@ Panel {
       var row = Model.wifiRow(network)
       if (row) nets.push(row)
     }
-    nets = Model.sortWifiRows(nets, passwordSsid !== "" ? wifiNetworks : null)
+    // Freeze order (and each row's displayed signal) against whatever's on
+    // screen whenever the panel is open, not just while a password prompt is
+    // up: rounding noise in signalStrength otherwise swaps neighboring rows'
+    // places on every scan tick.
+    nets = Model.sortWifiRows(nets, opened && !fresh ? wifiNetworks : null)
     // A new model rebuilds every delegate, which takes focus from a passphrase
     // being typed, so identical rows are left in place.
     if (JSON.stringify(nets) === JSON.stringify(wifiNetworks)) return
