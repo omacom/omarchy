@@ -97,6 +97,14 @@ java)
   ;;
 dotnet)
   echo -e "Removing .NET...\n"
+  # Shared installs leave a version symlink that isolated-mode uninstall only unlinks.
+  dotnet_installs=$(mise ls --installed --json dotnet) || exit 1
+  while IFS= read -r install; do
+    if [[ -L $install && -d $install/sdk/${install##*/} ]]; then
+      MISE_DOTNET_ISOLATED=false MISE_DOTNET_ROOT="$(readlink -f "$install")" \
+        mise uninstall "dotnet@${install##*/}" || exit 1
+    fi
+  done < <(jq -r '.[].install_path' <<<"$dotnet_installs")
   mise uninstall dotnet --all
   mise rm -g dotnet
   ;;

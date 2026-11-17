@@ -91,3 +91,42 @@ grep -q 'uv' "$mise_log" && fail "Python removal does not remove the independent
 [[ -e $test_home/.local/bin/uv && -e $test_home/.local/bin/uvx && -e $test_home/.cargo/bin/uv ]] ||
   fail "Python removal preserves uv commands"
 pass "Python removal preserves the default uv tool"
+
+# Old shared SDKs and new isolated SDKs need different mise uninstall modes.
+shared_root="$test_tmp/shared-dotnet"
+installs="$test_home/.local/share/mise/installs/dotnet"
+mkdir -p "$shared_root/sdk/10.0.100" "$installs/10.0.101/sdk/10.0.101"
+ln -s "$shared_root" "$installs/10.0.100"
+export OMARCHY_TEST_DOTNET_INSTALLS
+OMARCHY_TEST_DOTNET_INSTALLS=$(jq -nc --arg shared "$installs/10.0.100" --arg isolated "$installs/10.0.101" \
+  '[{install_path: $shared}, {install_path: $isolated}]')
+cat >"$mock_bin/mise" <<'SH'
+#!/bin/bash
+printf '%s|%s|%s\n' "${MISE_DOTNET_ISOLATED-unset}" "${MISE_DOTNET_ROOT-unset}" "$*" >>"$OMARCHY_TEST_MISE_LOG"
+if [[ $1 == "ls" ]]; then
+  printf '%s\n' "$OMARCHY_TEST_DOTNET_INSTALLS"
+elif [[ $2 == "dotnet@10.0.100" && ${OMARCHY_TEST_UNINSTALL_FAIL:-} == 1 ]]; then
+  exit 1
+fi
+SH
+: >"$mise_log"
+bash "$ROOT/bin/omarchy-remove-dev-env" dotnet >/dev/null
+grep -Fx "false|$shared_root|uninstall dotnet@10.0.100" "$mise_log" >/dev/null ||
+  fail ".NET removal uninstalls legacy SDKs in shared mode using their actual root"
+grep -Fx 'unset|unset|uninstall dotnet --all' "$mise_log" >/dev/null ||
+  fail ".NET removal leaves isolated SDKs to the normal uninstall"
+grep -Fx 'unset|unset|rm -g dotnet' "$mise_log" >/dev/null ||
+  fail ".NET removal removes the global tool declaration"
+if grep -F 'uninstall dotnet@10.0.101' "$mise_log" >/dev/null; then
+  fail ".NET removal does not treat a real isolated directory as shared"
+fi
+pass ".NET removal handles mixed shared and isolated SDKs"
+
+: >"$mise_log"
+if OMARCHY_TEST_UNINSTALL_FAIL=1 bash "$ROOT/bin/omarchy-remove-dev-env" dotnet >/dev/null 2>&1; then
+  fail ".NET removal reports a failed legacy uninstall"
+fi
+if grep -F 'rm -g dotnet' "$mise_log" >/dev/null; then
+  fail ".NET removal preserves the declaration when a legacy uninstall fails"
+fi
+pass ".NET removal stops when a legacy uninstall fails"
