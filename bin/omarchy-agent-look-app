@@ -76,16 +76,21 @@ fi
 
 # Hyprland starts the program with the session's environment, so pass on the
 # caller's directory, home and PATH: an agent working in another home sees
-# its own files. The program's pid is how its window is told from any other.
+# its own files. It runs in a session of its own, whose id is the pid it
+# records: that is how its window is told from any other, even one a wrapper
+# started in the background before exiting.
 pidfile=$(mktemp)
 command="echo \$\$ >${pidfile@Q}; cd ${PWD@Q} && export HOME=${HOME@Q} PATH=${PATH@Q} && exec ${*@Q} >${log@Q} 2>&1"
 [[ -n $size ]] || size=1280x800
-hyprctl dispatch "hl.dsp.exec_cmd($(jq -Rn --arg c "bash -c ${command@Q}" '$c'), { float = true, no_initial_focus = true, size = { ${size/x/, } } })" >/dev/null
+hyprctl dispatch "hl.dsp.exec_cmd($(jq -Rn --arg c "setsid bash -c ${command@Q}" '$c'), { float = true, no_initial_focus = true, size = { ${size/x/, } } })" >/dev/null
 
-# Whether a process is the launched program or one it started.
+# Whether a process is the launched program or one it started: in its
+# session, or, for one that started a session of its own, below it.
 launched() {
   local pid=$1
-  while [[ -n $root && $pid =~ ^[0-9]+$ ]] && (( pid > 1 )); do
+  [[ -n $root && $pid =~ ^[0-9]+$ ]] || return 1
+  [[ $(ps -o sid= -p "$pid" | tr -d ' ') == "$root" ]] && return 0
+  while [[ $pid =~ ^[0-9]+$ ]] && (( pid > 1 )); do
     (( pid == root )) && return 0
     pid=$(ps -o ppid= -p "$pid" | tr -d ' ')
   done

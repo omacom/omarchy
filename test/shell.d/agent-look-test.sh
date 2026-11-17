@@ -210,3 +210,18 @@ for _ in {1..20}; do
 done
 kill -0 "$(<"$test_tmp/plain.pid")" 2>/dev/null && fail "look app closes the program it started"
 pass "look app captures and closes only the program it started"
+
+# A wrapper that starts the program in the background and exits leaves its
+# window under another parent; it is still the program's own.
+cat >"$test_tmp/wrapper" <<EOF
+#!/bin/bash
+sleep 60 &
+echo \$! >"$test_tmp/plain.pid"
+EOF
+chmod +x "$test_tmp/wrapper"
+: >"$test_tmp/plain.pid"
+: >"$test_tmp/grim.log"
+output=$(look_app --after 0 --out "$test_tmp/app.png" -- "$test_tmp/wrapper") || fail "look app captures a window a wrapper started" "$output"
+[[ $(<"$test_tmp/grim.log") == "-T 2002 "* ]] || fail "look app captures the wrapped program's window, not another that opened" "$(<"$test_tmp/grim.log")"
+kill -0 "$stranger" 2>/dev/null || fail "look app leaves another window's program running after a wrapper"
+pass "look app finds a window a wrapper started before exiting"
