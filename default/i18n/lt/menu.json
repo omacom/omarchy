@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Piktogramos"
+  },
+  "install.style.icons": {
+    "label": "Piktogramos"
+  },
+  "remove.icons": {
+    "label": "Piktogramos"
+  },
+  "update.icons": {
+    "label": "Papildomos piktogramos"
+  },
+  "system.firmware": {
+    "label": "Perkrauti į BIOS",
+    "description": "Paleisti iš naujo į UEFI programinės įrangos nustatymus"
   }
 }

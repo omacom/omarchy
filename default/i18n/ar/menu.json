@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "الأيقونات"
+  },
+  "install.style.icons": {
+    "label": "الأيقونات"
+  },
+  "remove.icons": {
+    "label": "الأيقونات"
+  },
+  "update.icons": {
+    "label": "الأيقونات الإضافية"
+  },
+  "system.firmware": {
+    "label": "إعادة التشغيل إلى BIOS",
+    "description": "إعادة التشغيل إلى إعدادات برنامج UEFI الثابت"
   }
 }

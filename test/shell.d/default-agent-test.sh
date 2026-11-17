@@ -979,6 +979,12 @@ fi
 grep -F "omarchy agent prompt" "$test_tmp/positional-output" >/dev/null ||
   fail "omarchy agent points a positional prompt at the prompt route"
 [[ ! -s $launch_log ]] || fail "omarchy agent starts nothing for a positional prompt"
+if omarchy agent prompt '' >"$test_tmp/empty-prompt-output" 2>&1; then
+  fail "omarchy agent prompt rejects an empty prompt"
+fi
+[[ $(<"$test_tmp/empty-prompt-output") == "Usage: omarchy agent prompt [--inline] <prompt...>" ]] ||
+  fail "omarchy agent prompt answers an empty prompt with its usage" "$(<"$test_tmp/empty-prompt-output")"
+[[ ! -s $launch_log ]] || fail "omarchy agent prompt starts nothing for an empty prompt"
 pass "omarchy agent keeps prompts on the prompt route"
 
 printf '%s\n' "missing" >"$agent_file"

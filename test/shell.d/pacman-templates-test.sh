@@ -110,8 +110,6 @@ target_etc='etc="${2:-/}/etc"'
 grep -Fqx "  $target_etc" "$ROOT/bin/omarchy-apply-pacman" || fail "omarchy-apply-pacman still names its target etc"
 sed "s|^  $target_etc\$|  etc=\"\${2:-$work}/etc\"|" "$ROOT/bin/omarchy-apply-pacman" >"$finalize_root/bin/omarchy-apply-pacman"
 chmod +x "$finalize_root/bin/omarchy-apply-pacman"
-mkdir -p "$work/install/hardware"
-: >"$work/install/hardware/pacman.sh"
 
 # Finalization asks the image helper whether this is an image build, which root
 # answers from the real /var/lib/omarchy; everyone else from the test's root.

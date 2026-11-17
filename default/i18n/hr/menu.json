@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikone"
+  },
+  "install.style.icons": {
+    "label": "Ikone"
+  },
+  "remove.icons": {
+    "label": "Ikone"
+  },
+  "update.icons": {
+    "label": "Dodatne ikone"
+  },
+  "system.firmware": {
+    "label": "Ponovno pokretanje u BIOS",
+    "description": "Ponovno pokretanje u postavke UEFI firmvera"
   }
 }

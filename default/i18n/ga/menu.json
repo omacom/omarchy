@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Deilbhíní"
+  },
+  "install.style.icons": {
+    "label": "Deilbhíní"
+  },
+  "remove.icons": {
+    "label": "Deilbhíní"
+  },
+  "update.icons": {
+    "label": "Deilbhíní Breise"
+  },
+  "system.firmware": {
+    "label": "Atosaigh go BIOS",
+    "description": "Atosaigh isteach sa socrú firmware UEFI"
   }
 }

@@ -26,7 +26,7 @@ valid_url() {
 }
 
 # A printed path is only usable if it is a regular file inside DOWNLOAD_DIR.
-# Forged records (leading-dash mpv options, paths with control chars, or
+# Forged records (leading-dash options, paths with control chars, or
 # anything that escaped the download directory) must not reach the click command.
 resolve_download_file() {
   local candidate=$1 file_real dir_real
@@ -184,11 +184,12 @@ download_url() {
     # Best-effort: the download already succeeded, and under `set -e` a failed
     # toast would exit before the thumbnail cleanup below is ever scheduled.
     # Open plays it, Cut takes it into Omacut; clicking the card plays it too.
-    # `--` keeps mpv from parsing a leading-dash filename as an option; the path
-    # is one discrete --with argument, so it never reaches a shell.
+    # Omaview has no `--`, so the path it gets is always the absolute one
+    # resolve_download_file returned, which can't pass for an option; it is one
+    # discrete --with argument, so it never reaches a shell.
     omarchy-notification-send -g 󰄬 "$(omarchy-i18n download.complete)" "$title" \
       -t 10000 --image "${preview:-$filepath}" \
-      --action "$(omarchy-i18n download.open)" mpv -- \
+      --action "$(omarchy-i18n download.open)" omaview open \
       --action "$(omarchy-i18n download.cut)" omacut \
       --with "$filepath" || true
 
