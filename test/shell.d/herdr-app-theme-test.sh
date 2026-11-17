@@ -35,21 +35,29 @@ cmp -s "$current/herdr-app.json" "$HERDR_APP_HOME/themes/omarchy-dark.json" || f
 cmp -s "$test_tmp/latte.json" "$HERDR_APP_HOME/themes/omarchy-light.json" || fail "a dark theme must leave the light palette in place"
 pass "each switch publishes the current palette for its mode"
 
-# Activating in light mode selects light now and dark on the first dark switch, once.
+# Activating in light mode selects light now and dark on the first dark switch.
+# A closed window (the stub failing) keeps dark pending for the next dark switch.
 mkdir -p "$test_tmp/bin"
 printf '%s\n' '#!/bin/bash' \
-  'if [[ $1 == "--version" ]]; then echo "herdr-app 0.1.13"; else echo "$*" >>"$HERDR_APP_HOME/calls"; fi' \
+  '[[ $1 == "--version" ]] && { echo "herdr-app 0.1.13"; exit; }' \
+  'echo "$*" >>"$HERDR_APP_HOME/calls"' \
+  '[[ ! -e $HERDR_APP_HOME/closed ]]' \
   >"$test_tmp/bin/herdr-app"
 chmod +x "$test_tmp/bin/herdr-app"
-render_theme catppuccin-latte
-PATH="$test_tmp/bin:$PATH" omarchy-theme-set-herdr-app --activate
-for name in rose-pine nord tokyo-night; do
-  render_theme "$name"
-  PATH="$test_tmp/bin:$PATH" omarchy-theme-set-herdr-app
-done
+switch_to() {
+  render_theme "$1"
+  PATH="$test_tmp/bin:$PATH" omarchy-theme-set-herdr-app "${@:2}"
+}
+switch_to catppuccin-latte --activate
+touch "$HERDR_APP_HOME/closed"
+switch_to nord
+rm "$HERDR_APP_HOME/closed"
+switch_to tokyo-night
+switch_to rose-pine
+switch_to nord
 calls=$(<"$HERDR_APP_HOME/calls")
-[[ $calls == $'do app.theme --name omarchy-light\ndo app.theme --name omarchy-dark' ]] || fail "activation must select each mode once, got: $calls"
-pass "activation selects the other appearance on its first theme only"
+[[ $calls == $'do app.theme --name omarchy-light\ndo app.theme --name omarchy-dark\ndo app.theme --name omarchy-dark' ]] || fail "activation must select each mode until Herdr takes it, got: $calls"
+pass "activation selects the other appearance once Herdr can take it"
 
 cp "$HERDR_APP_HOME/themes/omarchy-dark.json" "$test_tmp/good-theme.json"
 for filter in '.background = "{{ unresolved }}"' '.ansi = []' '.unknown = true'; do
