@@ -124,7 +124,10 @@ scala)
 bend)
   echo -e "Removing Bend...\n"
   rm -rf "$HOME/.bend"
-  rm -f "$HOME/.local/bin/bend"
+  # Only remove the link the installer made, never a bend command the user owns.
+  if [[ $(readlink "$HOME/.local/bin/bend") == "$HOME/.bend/bin/bend" ]]; then
+    rm -f "$HOME/.local/bin/bend"
+  fi
   ;;
 *)
   echo "Unknown environment: $1"
