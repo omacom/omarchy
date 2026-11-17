@@ -2,7 +2,7 @@
 
 # omarchy:summary=Show, list, or set how much RAM the firmware sets aside as AMD GPU VRAM
 # omarchy:args=[list|set [size|index]]
-# omarchy:examples=omarchy gpu vram | omarchy gpu vram list | omarchy gpu vram set 4GB | omarchy gpu vram set 0
+# omarchy:examples=omarchy device gpu vram | omarchy device gpu vram list | omarchy device gpu vram set 4GB | omarchy device gpu vram set 0
 # omarchy:requires-sudo=true
 
 set -euo pipefail
@@ -17,7 +17,7 @@ set -euo pipefail
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
 
 usage() {
-  echo "Usage: omarchy-gpu-vram [list|set [size|index]]" >&2
+  echo "Usage: omarchy-device-gpu-vram [list|set [size|index]]" >&2
   exit 1
 }
 
@@ -101,7 +101,7 @@ case ${1:-} in
 
     # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
     if (( status[0] != 0 || status[1] != 0 )) || grep -q 'mkinitcpio failed for kernel' "$log"; then
-      echo "Could not rebuild the boot image; run omarchy-gpu-vram set $choice again once that is fixed." >&2
+      echo "Could not rebuild the boot image; run omarchy-device-gpu-vram set $choice again once that is fixed." >&2
       exit 1
     fi
 

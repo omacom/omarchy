@@ -18,10 +18,10 @@ set -euo pipefail
 # often 16 or 32 GB to suit Windows, and that RAM is lost to GTT. Where the
 # BIOS lets amdgpu change it (uma/carveout), shrink it to the smallest option,
 # as the "Tuning" tab in AMD Adrenalin would, or set the option given by index
-# (omarchy-gpu-vram passes the one the user picked). The cap is then sized for
-# the RAM the next boot will see, which is MemTotal plus the VRAM carved out
-# now, less the new carveout. A carveout large enough that the kernel's half is
-# as high drops the drop-in, so a stale cap can't outgrow RAM.
+# (omarchy-device-gpu-vram passes the one the user picked). The cap is then
+# sized for the RAM the next boot will see, which is MemTotal plus the VRAM
+# carved out now, less the new carveout. A carveout large enough that the
+# kernel's half is as high drops the drop-in, so a stale cap can't outgrow RAM.
 #
 # amdgpu sizes its GTT from the cap when it loads, so this writes a boot
 # setting and builds nothing; the caller rebuilds the boot image, and the new
@@ -73,7 +73,7 @@ for gpu_device in "${amd_gpus[@]}"; do
   read -r new_index new_kib < <(carveout_option "$uma/carveout_options" "$wanted_index") || true
   if [[ -z $new_index ]]; then
     if [[ -n $wanted_index ]]; then
-      echo "The AMD GPU has no dedicated VRAM option $wanted_index; see omarchy-gpu-vram list" >&2
+      echo "The AMD GPU has no dedicated VRAM option $wanted_index; see omarchy-device-gpu-vram list" >&2
       exit 1
     fi
     continue
