@@ -116,7 +116,7 @@ pass "Battle.net launch focuses an open window instead of starting another"
 
 # A windowless process whose command line reads like umu-run's, as pgrep sees it.
 start_tree() {
-  (exec -a "umu-run $1" sleep 60) &
+  (exec -a "umu-run $1" sleep 60) >/dev/null 2>&1 &
   hidden_pid=$!
   local i
   for (( i = 0; i < 50; i++ )); do
