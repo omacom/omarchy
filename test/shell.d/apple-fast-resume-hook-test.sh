@@ -32,3 +32,10 @@ pass "resume brings back the CPUs taken offline for sleep"
 
 [[ $(<"$cpus/cpu2/online") == "0" ]] || fail "resume leaves a CPU that was already offline off"
 pass "resume leaves a CPU that was already offline off"
+
+run_hook pre
+run_hook pre
+run_hook post
+[[ $(<"$cpus/cpu1/online") == "1" && $(<"$cpus/cpu3/online") == "1" ]] ||
+  fail "a sleep that never reached post still gets its CPUs back"
+pass "a sleep that never reached post still gets its CPUs back"
