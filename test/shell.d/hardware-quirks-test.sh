@@ -287,6 +287,9 @@ machine() {
     galaxy-book4-edge-14) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-14 samsung,galaxy-book4-edge qcom,x1e80100" ;;
     galaxy-book4-edge-14-not-qualcomm) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-14 samsung,galaxy-book4-edge qcom,x1e80100" ;;
     galaxy-book4-edge-16) FAKE_PLATFORM=aarch64-qualcomm; FAKE_COMPATIBLE="samsung,galaxy-book4-edge-16 samsung,galaxy-book4-edge qcom,x1e80100" ;;
+    raspberry-pi-4) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,4-model-b brcm,bcm2711" ;;
+    # The Pi 5 has another SoC and is untested.
+    raspberry-pi-5) FAKE_PLATFORM=aarch64; FAKE_COMPATIBLE="raspberrypi,5-model-b brcm,bcm2712" ;;
     zenbook-14-ux3480qa) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; dmi product_family "Zenbook 14"; FAKE_PLATFORM=aarch64-qualcomm ;;
     zenbook-14-ux3480qa-not-qualcomm) dmi sys_vendor ASUS; dmi product_name "Zenbook 14 UX3480QA"; FAKE_PLATFORM=aarch64 ;;
     zenbook-a14-qa) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ASUS Zenbook A14 UX3407QA_UX3407QA"; dmi product_family "ASUS Zenbook A14"; FAKE_PLATFORM=aarch64-qualcomm ;;
@@ -343,6 +346,7 @@ run_leaf() {
     OMARCHY_ZENBOOK_A14_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_A16_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_GALAXY_BOOK4_EDGE_14_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
+    OMARCHY_RASPBERRY_PI_4_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_ZENBOOK_A16_SLEEP_CONFIG_DIR="$root/etc/systemd/sleep.conf.d" \
     OMARCHY_VIVOBOOK_S15_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_VIVOBOOK_S16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
@@ -383,6 +387,7 @@ leaves=(
   hardware/hp/fix-hp-omnibook-x14-boot.sh
   hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh
   hardware/samsung/galaxy-book4-edge-14.sh
+  hardware/raspberrypi/raspberry-pi-4.sh
   hardware/qualcomm/glymur-display.sh
   hardware/qualcomm/oem-firmware.sh
   hardware/asus/fix-asus-zenbook-14-ux3480qa-boot.sh
@@ -474,6 +479,8 @@ hardware/asus/fix-asus-zenbook-a16-boot.sh|yoga-slim7x|0
 hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-14|0|wrote etc/limine-entry-tool.d/samsung-galaxy-book4-edge-14.conf
 hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-14-not-qualcomm|0
 hardware/samsung/galaxy-book4-edge-14.sh|galaxy-book4-edge-16|0
+hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-4|0|wrote etc/limine-entry-tool.d/raspberry-pi-4.conf
+hardware/raspberrypi/raspberry-pi-4.sh|raspberry-pi-5|0
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15|0|wrote etc/mkinitcpio.conf.d/vivobook-s15-initramfs.conf
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15+unreadable|0
 hardware/asus/fix-asus-vivobook-s15-boot.sh|vivobook-s15-x-plus|0

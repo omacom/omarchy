@@ -61,6 +61,7 @@ run_logged "$OMARCHY_INSTALL/hardware/apple/fix-brcmfmac-supplicant.sh"
 # final limine-update builds the UKIs, and an image's first boot rebuilds once
 # after its last step.
 run_logged "$OMARCHY_INSTALL/hardware/amd-gpu-memory.sh"
+run_logged "$OMARCHY_INSTALL/hardware/raspberrypi/raspberry-pi-4.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/dtb-uki.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/kernel-params.sh"
 run_logged "$OMARCHY_INSTALL/hardware/qualcomm/initramfs.sh"
