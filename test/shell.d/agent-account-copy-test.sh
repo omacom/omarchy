@@ -514,6 +514,23 @@ except state.AccountError:
 else:
   raise AssertionError("an entry without an organization must not validate beside its user's other one")
 
+# A login here that names no organization matches both incoming ones; landing
+# both on it would rename it and import neither, so the copy is refused.
+machine("org-destination-unknown")
+transfer.write_json(Path.home() / ".claude.json", {})
+pending = state.begin("claude", "Old")
+transfer.write_json(state.claude_account_file(pending), {"oauthAccount": {"accountUuid": "u-shared", "emailAddress": "shared@example.com"}})
+transfer.write_json(pending / ".credentials.json", {"claudeAiOauth": {"accessToken": "fake-old", "refreshToken": "fake-refresh", "subscriptionType": "max"}})
+state.register("claude", "Old", pending)
+before = state.load("claude")["accounts"]
+try:
+  transfer.import_provider("claude", payload["providers"]["claude"], False)
+except state.AccountError:
+  pass
+else:
+  raise AssertionError("two organizations must not land on one login without an organization")
+assert state.load("claude")["accounts"] == before, state.load("claude")["accounts"]
+
 # A destination on an earlier release has an installed receiver without
 # organizations, and a backend whose identity() leaves orgId out. The copy
 # bypasses that receiver and still keeps the two organizations apart.

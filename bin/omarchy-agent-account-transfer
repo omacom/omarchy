@@ -315,6 +315,10 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
       for entry in incoming["accounts"]:
         incoming_identity = entry_identity(provider, entry)
         existing = next((a for a in registry["accounts"] if same_identity(home_identity(provider, accounts.account_home(provider, a)), incoming_identity)), None)
+        # A login here with no organization matches each of its user's
+        # organizations, so two copied accounts could otherwise land on it.
+        if existing is not None and any(account is existing for _, account in copied):
+          raise accounts.AccountError(f"Two copied accounts match {existing['label']} here; copy with --replace to replace its login")
         if existing and login_files(provider, accounts.account_home(provider, existing)) and not replace:
           copied.append((entry, existing))
           results.append(("kept", existing))
