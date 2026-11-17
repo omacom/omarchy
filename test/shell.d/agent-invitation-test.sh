@@ -37,8 +37,8 @@ run_invitation_hook
 [[ -f $test_home/.local/state/omarchy/done/agent-setup-invitation ]] || fail "agent invitation records completion"
 [[ -f $hook_path ]] || fail "agent invitation keeps its hook installed"
 [[ $(grep -c '^notification$' "$log_file") -eq 1 ]] || fail "agent invitation sends one notification"
-grep -qx 'exec:omarchy menu summon setup.default.agent' "$log_file" ||
-  fail "agent invitation opens the agent defaults menu"
+grep -qx 'exec:omarchy menu summon agent.harness' "$log_file" ||
+  fail "agent invitation opens the agent harness menu"
 
 run_invitation_hook
 [[ $(grep -c '^notification$' "$log_file") -eq 1 ]] || fail "completed agent invitation does not notify again"

@@ -23,8 +23,8 @@ for command in omarchy-update omarchy-update-requires-free-space omarchy-update-
 done
 # The confirmation prompt reads its text from the English catalog.
 mkdir -p "$SUDO_TEST_ROOT/default/i18n/en"
-cp "$ROOT/default/i18n/en/cli.json" "$SUDO_TEST_ROOT/default/i18n/en/cli.json"
-cp "$ROOT/default/i18n/plural.jq" "$ROOT/default/i18n/locales.json" "$SUDO_TEST_ROOT/default/i18n/"
+/usr/bin/cp "$ROOT/default/i18n/en/cli.json" "$SUDO_TEST_ROOT/default/i18n/en/cli.json"
+/usr/bin/cp "$ROOT/default/i18n/plural.jq" "$ROOT/default/i18n/locales.json" "$SUDO_TEST_ROOT/default/i18n/"
 
 run_update() {
   SUDO_TEST_HOME="$test_home" \
@@ -86,6 +86,7 @@ for command in \
   omarchy-update-boot \
   omarchy-hook \
   omarchy-update-analyze-logs \
+  omarchy-restart-shell \
   omarchy-shell \
   omarchy-update-restart; do
   write_stub "$command" 'exit 0'

@@ -1,12 +1,12 @@
 # テーマ
 
-Omarchy には 22 の美しいテーマが付属しています。Omarchy メニューの _スタイル > テーマ_（`Super + Space`）から選ぶか、`Super + Ctrl + Shift + Space` でテーマセレクターへ直接ジャンプできます。
+Omarchy には22種類の美しいテーマが付属しています。Omarchy Menu（`Super + Space`）の _Appearance > Theme_ から選択することも、`Super + Ctrl + T` でテーマセレクターに直接移動することもできます。
 
-各テーマはデスクトップ、ターミナル、neovim、アクティビティ画面（btop）、Chromium、そして Omarchy シェル全体（トップバー、メニュー、通知、OSD、ロック画面）のスタイルを設定します。（Obsidian については、アプリ内の _Appearance > Themes_ から Omarchy テーマを手動で選ばなければなりません）。
+各テーマはデスクトップ、ターミナル、neovim、アクティビティ画面（btop）、Chromium、そしてトップバー、メニュー、通知、OSD、ロック画面を含む Omarchy シェル全体のスタイルを決定します。（Obsidian については、アプリ内の _Appearance > Themes_ から Omarchy テーマを手動で選択する必要があります）。
 
-テーマには背景画像のセットがあり、`Super + Ctrl + Space` で選べます。
+テーマには背景画像のセットがあり、`Super + Ctrl + W` を使って切り替えることができます。
 
-さらに多くのテーマは [追加テーマページ](https://omarchy.org/themes/) で見つけたり、[自分のテーマを作る](43-making-your-own-theme.md) ことさえできます。
+さらに多くのテーマは[追加テーマのページ](https://omarchy.org/themes/)で見つけることも、[自分でテーマを作成する](43-making-your-own-theme.md)こともできます。
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### アンロック
+### アプリアイコン
 
-テーマにはカスタムのアンロックデザインも用意でき、ブート時の復号プロセスに使われます。_スタイル > アンロック_ の下で 1 つ選べます。このような見た目です：
+アプリランチャーとドックのアイコンは使用中のテーマの色で描画されるため、テーマと一緒に変わります。これらはアイコンセットから提供され、_Appearance > Icons_ でテーマとは別に選択できます。各セットのプレビューから、テーマを選ぶのと同じ方法で選択します。
+
+- _Papercraft_ がデフォルトです。インストールされているすべてのものが1つのスタイルで描画されます。Chrome、HEY、YouTube のようにロゴで知られているアプリは、その形を維持したままテーマの色になります。
+- _Arcade_ は同じアプリを、昔のゲーム機のような8ビットのピクセルアートとして描画します。
+- _Original_ はすべてのアプリを、その製作者が用意したアイコンで表示します。
+
+他の人が作成したアイコンセットは _Install > Style > Icons_（または `omarchy icons install <git url>`）でインストールでき、_Remove > Icons_ で再び削除できます。_Update > Extra Icons_ はインストール済みのセットの最新バージョンを取得します。
+
+自分で作成するには、アイコンを `~/.config/omarchy/icons/<name>/` に配置します。アプリごとに1ファイルとし、アプリの `.desktop` ファイルの `Icon=` 行に合わせて名前を付けます。`.svg` で終わるファイルはそのまま表示されます。`.svg.tpl` で終わるファイルはテーマの色で描画されます。色を指定する場所に `{{ icon_main }}`、`{{ icon_mark }}`、`{{ icon_paper }}`、`{{ icon_body }}`、`{{ icon_edge }}`、`{{ icon_ink }}`、または `{{ icon_shadow }}` と記述します。`/usr/share/omarchy/icons/papercraft/` にあるデフォルトセットは、作成を始めるのに適した出発点です。`preview.png` を追加すると、ピッカーに自分のセットを表示できます。ない場合は、Omarchy があなたのアイコンからプレビューを描画します。デフォルトセットのアイコンを1つだけ変更するには、自分のバージョンを `~/.config/omarchy/icons/papercraft/` に配置します。
+
+### ロック解除
+
+テーマにはカスタムのロック解除デザインも用意でき、ブート時の復号プロセスに使用されます。これらは _Appearance > Unlock_ で選択できます。見た目は次のとおりです。
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +102,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +119,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

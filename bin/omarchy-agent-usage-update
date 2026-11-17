@@ -20,8 +20,13 @@ while (( $# > 0 )); do
   case "$1" in
   --force | --limits-only) flags+=("$1") ;;
   --except)
-    excluded[$2]=1
-    shift
+    if [[ -z ${2:-} ]]; then
+      echo "--except needs an agent" >&2
+      exit 1
+    else
+      excluded[$2]=1
+      shift
+    fi
     ;;
   *) only+=("$1") ;;
   esac
@@ -57,6 +62,11 @@ accounts_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/accounts"
 if [[ -d $accounts_dir ]]; then
   "$OMARCHY_PATH/bin/omarchy-agent-account-state" refresh
 fi
+
+# Collectors forced together read the Codex rollouts they share once between
+# them, whenever each gets to them, by knowing when this refresh began.
+# EPOCHREALTIME uses the locale's decimal separator, a comma in many.
+export OMARCHY_AGENT_USAGE_REFRESH_AT=${EPOCHREALTIME/,/.}
 
 pids=()
 for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
