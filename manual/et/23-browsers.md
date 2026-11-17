@@ -1,39 +1,39 @@
 # Brauserid
 
-Omarchy tuleb vaikebrauserina koos [Chromiumiga](https://www.chromium.org/). See on tavaline avatud lähtekoodiga versioon, teemaga sobitatud ülejäänud süsteemiga, ja see on see, mille avab `Super + Shift + Return` ja mille sees töötab iga [veebirakendus](25-web-apps.md).
+Omarchyga on vaikebrauserina kaasas [Google Chrome](https://www.google.com/chrome/). Selle välimus on kohandatud ülejäänud süsteemiga sobima, just selle avab `Super + Shift + Return` ja just selle sees töötab iga [veebirakendus](25-web-apps.md). See avaneb otse brauseriaknas: ei mingit tervituskuva ega sisselogimisviipa, kasutustatistikat ja kokkujooksmisarjandeid Google'ile ei saadeta ning reklaamiprivaatsuse viibad on välja lülitatud. Kui soovid sünkroonimist, saad profiilinupu kaudu siiski igal ajal oma Google'i kontosse sisse logida.
 
-Kui Chromium pole sinu maitsele, ei ole sa sellega kinni. Omarchy menüü jaotises _Paigalda > Browser_ leiad Chrome'i, Edge'i, Brave'i, Brave Origini, Firefoxi ja [Zen](https://zen-browser.app/) brauseri. Vali üks ja Omarchy paigaldab selle, seadistab selle poliitikakausta ja rakendab sellele sinu praeguse teema.
+Kui Chrome sulle ei meeldi, ei pea sa selle juurde pidama jääma. Omarchy menüüs leiad valiku _Paigalda > Brauser_ alt [Chromium](https://www.chromium.org/) (lihtsa avatud lähtekoodiga versiooni, mille põhjal Chrome on tehtud), Edge'i, Brave'i, Brave Origini, Firefoxi ja [Zen](https://zen-browser.app/). Vali üks ning Omarchy paigaldab selle, valmistab ette selle poliitikakataloogi ja rakendab sellele sinu praeguse teema.
 
-## Ühe vaikebrauseriks tegemine
+## Ühe vaikebrauseriks määramine
 
-Brauseri paigaldamine ei tee sellest vaikebrauserit. Kui see on masinas, mine jaotisesse _Seaded > Defaults > Browser_ ja vali see — menüü loetleb ainult brausereid, mis sul tegelikult paigaldatud on, ja märgib praeguse vaikeväärtuse linnukesega.
+Brauseri paigaldamine ei tee sellest vaikebrauserit. Kui see on masinas olemas, mine valiku _Seadistus > Vaikesätted > Brauser_ juurde ja vali see välja — menüü loetleb ainult brausereid, mis sul tegelikult paigaldatud on, ja tähistab praeguse vaikebrauseri linnukesega.
 
-Terminalist on see:
+Terminalist käib see nii:
 
 ```bash
 omarchy default browser firefox
 ```
 
-Käivita see ilma argumendita ja see ütleb praeguse vaikeväärtuse. See määrab XDG töötleja, nii et mitte ainult Omarchy kiirklahvid ei järgi seda — kõik, mis avab lingi, alates vestlusrakendusest kuni terminalikäsuni, läheb sinu valitud brauserisse.
+Käivita see ilma argumendita ja see ütleb sulle praeguse vaikebrauseri. See määrab XDG käsitleja, nii et kaasas ei käi ainult Omarchy kiirklahvid — kõik, mis avab lingi, alates vestlusrakendusest kuni terminalikäskluseni, läheb sinu valitud brauserisse.
 
 ## Copy URL ja Download Video
 
-Chromiumi perekonna brauserid (Chromium ise, Chrome, Edge ja Brave) tulevad kahe Omarchy laiendusega, mis ulatuvad brauserist välja ülejäänud süsteemi.
+Chromiumi perekonna brauseritega (Chromium ise, Chrome, Edge ja Brave) on kaasas kaks Omarchy laiendust, mis ulatuvad brauserist välja ülejäänud süsteemi.
 
-**Copy URL** paneb praeguse vahelehe aadressi sinu lõikelauale kombinatsiooniga `Alt + Shift + L`. See on kiirem kui aadressiribale klõpsamine ja kopeerimine ning kuna see läheb läbi süsteemi lõikelaua, mitte brauseri oma, saad Omarchy teavituse, mis seda kinnitab, ja URL on kohe saadaval [lõikelaua ajaloos](08-unified-clipboard-history.md) ja igas teises rakenduses. Samuti on tööriistariba nupp, kui eelistad klõpsata.
+**Copy URL** paneb praeguse vahekaardi aadressi `Alt + Shift + L` abil sinu lõikepuhvrisse. See on kiirem kui aadressiribale klõpsamine ja sealt kopeerimine, ning kuna see käib brauseri lõikepuhvri asemel süsteemi lõikepuhvri kaudu, saad kinnituseks Omarchy teavituse ja URL on kohe saadaval [lõikepuhvri ajaloos](08-unified-clipboard-history.md) ja igas teises rakenduses. Kui eelistad klõpsata, on olemas ka tööriistariba nupp.
 
-**Download Video** haarab vaadataval lehel mängiva video kombinatsiooniga `Alt + Shift + D`. See annab URL-i edasi tööriistale [yt-dlp](https://github.com/yt-dlp/yt-dlp), nii et see töötab palju rohkema kui ainult YouTube'i puhul, ja allalaadimine jõuab kausta `~/Videos`. Edenemine kuvatakse samas ekraanikuva elemendis, mida kasutavad helitugevus ja heledus, uueneb kohapeal, mitte ei kuhja teavitusi. Määra `OMARCHY_YTDLP_DIR`, kui eelistad, et failid läheksid mujale — vaata [KKK](46-faq.md), et teada saada, kuhu keskkonnamuutujaid panna.
+**Download Video** haarab `Alt + Shift + D` abil video, mis mängib sinu vaadataval lehel. See annab URL-i edasi [yt-dlp](https://github.com/yt-dlp/yt-dlp)-le, nii et see töötab palju enamaga kui ainult YouTube'iga, ning allalaadimine maandub kausta `~/Videos`. Edenemine kuvatakse samal ekraanikuval, mida kasutavad helitugevus ja heledus, ning see uueneb kohapeal, selle asemel et teavitusi kuhjata. Määra `OMARCHY_YTDLP_DIR`, kui eelistad, et failid läheksid kuhugi mujale — keskkonnamuutujate paigutamise kohta vaata [KKK](46-faq.md).
 
-Mõlemad laiendused suhtlevad Omarchyga väikese natiivse sõnumihosti kaudu, mis paigaldatakse sulle koos brauseriga. See on tükk, mis võimaldab veebilehe videol jõuda sinu kodukausta ja URL-il sinu lõikelaua haldurisse, mida tavaline laiendus üksi teha ei saa.
+Mõlemad laiendused suhtlevad Omarchyga väikese natiivse sõnumside hosti kaudu, mis paigaldatakse sinu eest koos brauseriga. Just see tükk laseb veebilehe videol sinu kodukataloogi ja URL-il sinu lõikepuhvri haldurisse jõuda, mida tavaline laiendus üksinda teha ei suuda.
 
 Need on ainult Chromiumi perekonnale. Firefox ja Zen neid ei saa.
 
 ## Firefox ja Zen
 
-Firefox ja Zen on teine perekond, nii et neid käsitletakse teisiti: Omarchy paigaldab mõistlike vaikeväärtuste jaoks poliitikafaili ja lülitab need natiivsesse Waylandi režiimi, mida soovid murdskaleerimise ja sujuva puuteplaadi kerimise jaoks.
+Firefox ja Zen on teine perekond, nii et neid koheldakse teisiti: Omarchy paigaldab mõistlike vaikesätetega poliitikafaili ja lülitab need natiivsesse Waylandi režiimi, mida sa tahad murdosalise skaleerimise ja sujuva puuteplaadi kerimise jaoks.
 
-Nad ei saa ülaltoodud Chromiumi laiendusi ega ole Omarchy poolt teemaga sobitatud, nii et need kogemuse osad tuleb sul endal seadistada.
+Nad ei saa ülaltoodud Chromiumi laiendusi ega kohanda Omarchy nende välimust, nii et need kogemuse osad jäävad sinu enda seadistada.
 
 ## Ühe uuesti eemaldamine
 
-Kõike siin paigaldatut saab uuesti eemaldada jaotises _Eemalda > Browser_. Chromium ei ole selles loendis — see on osa baassüsteemist.
+Kõiki neid brausereid, Chrome kaasa arvatud, saab valiku _Eemalda > Brauser_ alt uuesti maha võtta. Lingid lähevad seejärel Chrome'i või Chromiumi, kui teine neist on endiselt paigaldatud.

@@ -490,9 +490,8 @@ Panel {
     return inputMuted ? "󰍭" : "󰍬"
   }
 
-  // Playful mood-name for a given output volume. Mirrors the brightness
-  // panel's brightnessName ladder; bands are wide enough that small
-  // tweaks don't rename the room you're in.
+  // Playful mood-name for a given output volume; bands are wide enough
+  // that small tweaks don't rename the room you're in.
   function outputVolumeName(volume, muted) {
     return Model.outputVolumeName(volume, muted, Commons.I18n.t)
   }
