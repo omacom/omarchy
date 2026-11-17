@@ -120,6 +120,7 @@ run_theme_set() {
     USER="${USER:-omarchy}" \
     LANG=C.UTF-8 \
     OMARCHY_PATH="$ROOT" \
+    HYPRLAND_INSTANCE_SIGNATURE=test_1_1 \
     PATH="$stub_bin:$ROOT/bin:$tools_bin" \
     XDG_RUNTIME_DIR="$sandbox/run" \
     TMUX_TMPDIR="$sandbox/tmux" \
