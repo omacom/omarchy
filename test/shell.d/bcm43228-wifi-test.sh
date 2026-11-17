@@ -34,18 +34,24 @@ run_setup "00:1f.6 Ethernet controller [0200]: Intel I219-LM [8086:15b7]" >/dev/
 [[ -z $(actions) ]] ||
   fail "other network hardware installs no Broadcom driver" "$(actions)"
 
-run_migration() {
+# A subshell, so the sourced migration's variables and exits stay out of the test.
+run_migration() (
   local arch=$1
   local pci=$2
   local installed=$3
   rm -f "$scratch/actions"
   omarchy-hw-x86() { [[ $arch == x86 ]]; }
-  lspci() { printf '%s\n' "$pci"; }
+  lspci() {
+    [[ $pci != "fail" ]] || return 1
+    if [[ $pci == *"${@: -1}"* ]]; then
+      printf '%s\n' "$pci"
+    fi
+  }
   omarchy-pkg-missing() { [[ " $installed " != *" $1 "* ]]; }
   omarchy-pkg-add() { printf 'add %s\n' "$*" >>"$scratch/actions"; }
   omarchy-state() { printf 'state %s\n' "$*" >>"$scratch/actions"; }
   source "$migration"
-}
+)
 
 bcm43228="00:00.0 Network controller [0280]: Broadcom Inc. BCM43228 [14e4:4359]"
 
@@ -64,6 +70,12 @@ run_migration x86 "$bcm43228" "b43-firmware" >/dev/null
 run_migration aarch64 "$bcm43228" "" >/dev/null
 [[ -z $(actions) ]] ||
   fail "the migration asks for no x86-only driver on ARM" "$(actions)"
+
+if run_migration x86 fail "" >/dev/null 2>&1; then
+  fail "the migration stays pending when lspci fails"
+fi
+[[ -z $(actions) ]] ||
+  fail "the migration changes nothing when lspci fails" "$(actions)"
 
 run_migration x86 "$bcm43228" "" >/dev/null
 [[ $(actions) == $'add broadcom-wl-dkms\nstate set reboot-required' ]] ||
