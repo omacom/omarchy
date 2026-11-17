@@ -13,7 +13,9 @@ hl.on("hyprland.start", function()
   -- Start the herdr server inside the graphical session so its panes inherit
   -- WAYLAND_DISPLAY. Otherwise the first SSH login from a remote herdr starts
   -- it with a tty environment, and agents in its panes can't read the clipboard.
-  hl.exec_cmd(o.launch("herdr server"))
+  -- setsid makes it lead its own session, as when herdr starts it itself, so
+  -- remote clients don't ask to restart it on every attach.
+  hl.exec_cmd(o.launch("setsid herdr server"))
 
   -- Run post-boot hooks after startup config has loaded.
   hl.exec_cmd("sleep 2 && omarchy-hook post-boot")

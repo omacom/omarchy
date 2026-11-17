@@ -31,14 +31,19 @@ def credits(request):
     config["creditUsagePercent"] = USED[token]
   if answer["percent"] is not None:
     config["creditUsagePercent"] = answer["percent"]
-  if token == "token-unified":
+  if token in ("token-unified", "token-unified-new"):
     config["isUnifiedBillingUser"] = True
   return {"config": config}
 
 
+monthly_drops = set()
+
+
 def monthly(request):
-  return {"config": {"isUnifiedBillingUser": True, "billingPeriodStart": iso_in(-20 * 86400), "billingPeriodEnd": PERIOD_END,
-                     "monthlyLimit": {"val": 1000}, "used": {"val": 900}}}
+  quota, used = (0, 0) if request.get_header("Authorization").endswith("token-unified-new") else (1000, 900)
+  config = {"isUnifiedBillingUser": True, "billingPeriodStart": iso_in(-20 * 86400), "billingPeriodEnd": PERIOD_END,
+            "monthlyLimit": {"val": quota}, "used": {"val": used}}
+  return {"config": {key: value for key, value in config.items() if key not in monthly_drops}}
 
 
 ROUTES = {"cli-chat-proxy.grok.com/v1/billing?format=credits": credits, "cli-chat-proxy.grok.com/v1/billing": monthly}
@@ -184,6 +189,22 @@ record = grok()
 expect("a unified-billing account reads its monthly quota, not a confident 0%",
        [record["limits"][0]["label"], record["limits"][0]["percent"], record["limitsStale"], bool(record["limits"][0]["resetsAt"])],
        ["Monthly", 0.9, False, True], record)
+
+# A quota whose usage can't be read is no answer: the last numbers stay, as
+# stale, rather than a confident 0% that could switch onto a spent account.
+monthly_drops.add("used")
+record = grok()
+monthly_drops.clear()
+expect("a monthly answer without its usage keeps the last numbers, not 0%",
+       [record["limits"][0]["percent"], record["limitsStale"]], [0.9, True], record)
+
+# A new unified-billing account has no monthly quota yet, only its weekly
+# window with nothing used.
+sandbox()
+signed_in(grok_home(), token="token-unified-new")
+record = grok()
+expect("a new unified-billing account with no monthly quota shows its weekly window at 0%",
+       [[limit["label"], limit["percent"]] for limit in record["limits"]], [["Weekly", 0.0]], record)
 
 # A unified-billing account can also carry a weekly percentage on the credits
 # answer; Grok's /usage then shows the monthly included quota beside it.
