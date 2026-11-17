@@ -111,6 +111,11 @@ assert state.read_json(state.primary_home("claude") / ".credentials.json")["clau
 assert len(state.load("claude")["accounts"]) == 3
 
 # Copy names and ids exactly, even when destination names have been swapped.
+# Using an account moves its login into ~/.claude, so Main's is found where
+# it is now.
+def main_login():
+  registry = state.load("claude")
+  return state.login_home("claude", registry, next(a for a in registry["accounts"] if a["primary"])) / ".credentials.json"
 state.rename("claude", "main", "Holding")
 state.rename("claude", "work", "Personal")
 state.rename("claude", "holding", "Work")
@@ -119,7 +124,7 @@ transfer.import_provider("claude", payload["providers"]["claude"], False)
 registry = state.load("claude")
 assert [(a["id"], a["label"]) for a in registry["accounts"]] == [("main", "Personal"), ("work", "Work"), ("third", "Third")]
 assert registry["active"] == "work", "renaming preserves the selected identity"
-assert state.read_json(state.primary_home("claude") / ".credentials.json")["claudeAiOauth"]["accessToken"] == "destination-token"
+assert state.read_json(main_login())["claudeAiOauth"]["accessToken"] == "destination-token"
 
 # Explicit replacement rolls back credentials and new homes if commit fails.
 original_save = state.save
@@ -133,10 +138,10 @@ except OSError:
 else:
   raise AssertionError("expected registry commit failure")
 state.save = original_save
-assert state.read_json(state.primary_home("claude") / ".credentials.json")["claudeAiOauth"]["accessToken"] == "destination-token"
+assert state.read_json(main_login())["claudeAiOauth"]["accessToken"] == "destination-token"
 assert not list(Path.home().rglob(".account-copy-backup-*"))
 transfer.import_provider("claude", payload["providers"]["claude"], True)
-assert state.read_json(state.primary_home("claude") / ".credentials.json")["claudeAiOauth"]["accessToken"] == "fake-personal"
+assert state.read_json(main_login())["claudeAiOauth"]["accessToken"] == "fake-personal"
 
 # Detect a native CLI using the primary home without a config-dir variable.
 code = 'import ctypes,time; ctypes.CDLL(None).prctl(15,b"claude",0,0,0); print("ready",flush=True); time.sleep(30)'
@@ -227,7 +232,7 @@ folders = list(Path.home().rglob(".account-copy-backup-*"))
 assert folders and all(p.is_dir() and p.stat().st_mode & 0o777 == 0o700 for p in folders)
 transfer.import_provider("claude", payload["providers"]["claude"], False)
 assert not list(Path.home().rglob(".account-copy-backup-*"))
-assert state.read_json(state.primary_home("claude") / ".credentials.json")["claudeAiOauth"]["accessToken"] == "fake-personal"
+assert state.read_json(main_login())["claudeAiOauth"]["accessToken"] == "fake-personal"
 
 # A default Main with a different identity must free the source's main id.
 machine("default-existing")

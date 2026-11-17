@@ -686,7 +686,10 @@ def current_account_id(home: Path) -> str:
 
 
 def account_limits(account: dict[str, Any], force: bool) -> dict[str, Any]:
-  home = expand_path(account["home"]) if account.get("home") else expand_path("~/.claude")
+  # `login` is where the account's login is now: ~/.claude while it's the one
+  # sessions use, its own home while another is.
+  where = account.get("login") or account.get("home")
+  home = expand_path(where) if where else expand_path("~/.claude")
   access_token, expires_at_ms, refresh_expires_at_ms, plan = oauth_login(home)
   # Keyed by the subscription, not the label: forget "Work" and add a different
   # "Work", and the new one must never fall back on the old one's allowance.
