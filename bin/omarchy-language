@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Show or set the Omarchy language and the session's locale
-# omarchy:args=[<code>|list|locale [<code>]]
+# omarchy:args=[<code>|list|locale [<code>]|seed <code>]
 # omarchy:examples=omarchy language | omarchy language da | omarchy language list
 
 set -euo pipefail
@@ -101,14 +101,20 @@ generate_locale() {
   fi
 }
 
-# Sets LANG for the next login, and for the apps opened from now on: they
-# start from the systemd user environment, which takes the new value at once.
-# Apps already running keep the language they started with.
+# Sets LANG for the next login, and for the apps opened from now on. uwsm-app
+# runs apps in a scope, which keeps the environment of whatever launched it:
+# Hyprland for bindings, the shell for the launcher. So Hyprland takes the new
+# value, its third argument passing it on to the systemd and D-Bus activation
+# environments services start from, and the shell is respawned from Hyprland
+# to inherit it. Apps already running keep the language they started with.
 apply_session_locale() {
   local locale=$1
   mkdir -p "$(dirname "$session_env")"
   printf '# The session language, set by omarchy-language (Setup > Language).\nexport LANG=%s\n' "$locale" >"$session_env"
-  dbus-update-activation-environment --systemd "LANG=$locale" >/dev/null 2>&1 || true
+
+  if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && hyprctl eval "hl.env(\"LANG\", \"$locale\", true)" >/dev/null 2>&1; then
+    omarchy-restart-shell >/dev/null 2>&1 || true
+  fi
 }
 
 # A Chinese, Japanese or Korean language brings its input method and glyph
@@ -139,13 +145,13 @@ set_language() {
   name=$(name_for "$code")
 
   generate_locale "$code" "$locale"
-  apply_session_locale "$locale"
 
   # The choice is only persisted once the locale exists, so a cancelled
   # password prompt cannot leave the interface switched with LANG behind it.
   mkdir -p "$(dirname "$language_file")"
   echo "$code" >"$language_file"
   seed_typing "$code"
+  apply_session_locale "$locale"
 
   omarchy-notification-send -g  "$(omarchy-i18n language.changed "$name")" "$(omarchy-i18n language.newApps)"
 }
@@ -156,6 +162,20 @@ case "${1:-}" in
   ;;
 list)
   list_languages
+  ;;
+seed)
+  # Install finalization: the system step already generated the locale and
+  # there is no session yet, so only files are written, and a language the
+  # user already chose is kept: the preset is a default, never an override.
+  code=${2:-}
+  if ! known_language "$code"; then
+    echo "Unknown language code: $code" >&2
+    exit 1
+  fi
+  [[ -s $language_file ]] && exit 0
+  mkdir -p "$(dirname "$session_env")" "$(dirname "$language_file")"
+  printf '# The session language, set by omarchy-language (Setup > Language).\nexport LANG=%s\n' "$(locale_for "$code")" >"$session_env"
+  echo "$code" >"$language_file"
   ;;
 locale)
   code=${2:-$(current_language)}

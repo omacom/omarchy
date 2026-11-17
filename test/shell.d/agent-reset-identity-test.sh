@@ -20,7 +20,7 @@ import sys
 from unittest.mock import patch
 
 root, temporary = map(Path, sys.argv[1:])
-os.environ.update(HOME=str(temporary / "home"), XDG_STATE_HOME=str(temporary / "state"))
+os.environ.update(HOME=str(temporary / "home"), XDG_STATE_HOME=str(temporary / "state"), XDG_CACHE_HOME=str(temporary / "cache"))
 
 def load(name):
   loader = importlib.machinery.SourceFileLoader(name, str(root / "bin" / name))
@@ -49,12 +49,9 @@ for provider, collector in collectors.items():
   registry.save(provider, data)
   def record():
     registry.refresh(provider)
-    accounts = collector.registered_accounts()["accounts"]
-    if provider == "claude":
-      values = [collector.account_limits(a, True) for a in accounts]
-    else:
-      values = [collector.account_limits(a) for a in accounts]
-    return dict(id=provider, name=provider, accountRegistryStatus="available", accounts=values)
+    status, accounts = collector.account_registry(provider)
+    values = [collector.account_limits(a, True) for a in accounts]
+    return dict(id=provider, name=provider, accountRegistryStatus=status, accounts=values)
   original = record()
   for failure in ["permission", "truncated", "invalid-shape", "invalid-account-shape"]:
     path.write_text(json.dumps(credentials("original")))

@@ -1,12 +1,12 @@
 # السمات
 
-يأتي Omarchy مع اثنتين وعشرين سمة جميلة. يمكنك التحديد بينها عبر _النمط > السمة_ في قائمة Omarchy (`Super + Space`) أو القفز مباشرة إلى محدّد السمات باستخدام `Super + Ctrl + Shift + Space`.
+يأتي Omarchy مع اثنتين وعشرين سمة جميلة. يمكنك الاختيار بينها عبر _المظهر > السمة_ في قائمة Omarchy (`Super + Space`) أو الانتقال مباشرة إلى منتقي السمات باستخدام `Super + Ctrl + T`.
 
-تُنمّط كل سمة سطح المكتب والطرفية وneovim وشاشة النشاط (btop) وChromium وسطح Omarchy بأكمله: الشريط العلوي والقائمة والإشعارات وOSD وشاشة القفل. (بالنسبة لـ Obsidian، يجب تحديد سمة Omarchy يدويًا عبر _المظهر > السمات_ داخل التطبيق).
+تُنسّق كل سمة سطح المكتب والطرفية وneovim وشاشة النشاط (btop) وChromium وواجهة Omarchy بالكامل: الشريط العلوي والقائمة والإشعارات وOSD وشاشة القفل. (بالنسبة إلى Obsidian، يجب عليك اختيار سمة Omarchy يدويًا عبر _المظهر > السمات_ داخل التطبيق).
 
-للسمات مجموعة من صور الخلفية التي يمكنك الاختيار بينها باستخدام `Super + Ctrl + Space`.
+تحتوي السمات على مجموعة من صور الخلفية يمكنك الاختيار بينها باستخدام `Super + Ctrl + W`.
 
-يمكنك العثور على سمات أكثر على [صفحة السمات الإضافية](https://omarchy.org/themes/) أو حتى [صناعة سمتك الخاصة](43-making-your-own-theme.md).
+يمكنك العثور على مزيد من السمات على [صفحة السمات الإضافية](https://omarchy.org/themes/) أو حتى [صنع سمتك الخاصة](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -32,8 +32,8 @@ _Miasma_
  ![hackerman](../themes/hackerman/preview.png)
 _Hackerman_
 
- ![osaka-jade](../themes/osaka-jade/preview.png)
-_Osaka Jade_
+ ![jade-horse](../themes/jade-horse/preview.png)
+_Jade Horse_
 
  ![kanagawa](../themes/kanagawa/preview.png)
 _Kanagawa_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### فتحات القفل
+### أيقونات التطبيقات
 
-يمكن أن يكون للسمات أيضًا تصميم فتح مخصّص، يُستخدم لعملية فك تشفير الإقلاع. يمكنك تحديد واحدة من هذه تحت _النمط > فتح القفل_. تبدو على هذا النحو:
+تُرسم الأيقونات في مشغّل التطبيقات والرصيف بألوان سمتك، لذا تتغير معها. وهي تأتي من مجموعة أيقونات تختارها بشكل منفصل عن السمة ضمن _المظهر > الأيقونات_، من معاينات لكل مجموعة، بالطريقة نفسها التي تختار بها سمة:
+
+- _Papercraft_ هي الافتراضية: كل ما يأتي مثبّتًا، مرسوم بأسلوب واحد. التطبيقات المعروفة بشعارها، مثل Chrome وHEY وYouTube، تحتفظ بشكلها وتكتسب ألوان السمة.
+- _Arcade_ ترسم التطبيقات نفسها كفن بكسل 8-bit، كما كانت ستفعل وحدة تحكّم ألعاب قديمة.
+- _Original_ تعرض كل تطبيق بالأيقونة التي منحه إياها صانعه.
+
+يمكنك تثبيت مجموعة أيقونات صنعها شخص آخر عبر _تثبيت > النمط > الأيقونات_ (أو `omarchy icons install <git url>`)، وإزالتها مجددًا ضمن _إزالة > الأيقونات_. يجلب _تحديث > أيقونات إضافية_ أحدث إصدار من المجموعات التي ثبّتها.
+
+لصنع مجموعتك الخاصة، ضع أيقوناتك في `~/.config/omarchy/icons/<name>/`، ملفًا واحدًا لكل تطبيق، مسمّى تسمية سطر `Icon=` في ملف `.desktop` الخاص بالتطبيق. يُعرض الملف الذي ينتهي بـ `.svg` كما هو. أما الملف الذي ينتهي بـ `.svg.tpl` فيُرسم بألوان السمة: اكتب `{{ icon_main }}` أو `{{ icon_mark }}` أو `{{ icon_paper }}` أو `{{ icon_body }}` أو `{{ icon_edge }}` أو `{{ icon_ink }}` أو `{{ icon_shadow }}` حيث يوضع لون. المجموعة الافتراضية في `/usr/share/omarchy/icons/papercraft/` مكان جيد لتبدأ منه. أضف `preview.png` لعرض مجموعتك في المنتقي؛ وبدونه، يرسم Omarchy معاينة من أيقوناتك. لتغيير أيقونة واحدة من المجموعة الافتراضية، ضع نسختك في `~/.config/omarchy/icons/papercraft/`.
+
+### تصاميم إلغاء القفل
+
+يمكن أن تحتوي السمات أيضًا على تصميم مخصص لإلغاء القفل، يُستخدم في عملية فك تشفير الإقلاع. يمكنك اختيار أحدها ضمن _المظهر > إلغاء القفل_. وهي تبدو هكذا:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_
@@ -90,6 +102,9 @@ _Gruvbox_
  ![hackerman](../themes/hackerman/preview-unlock.png)
 _Hackerman_
 
+ ![jade-horse](../themes/jade-horse/preview-unlock.png)
+_Jade Horse_
+
  ![kanagawa](../themes/kanagawa/preview-unlock.png)
 _Kanagawa_
 
@@ -104,9 +119,6 @@ _Miasma_
 
  ![nord](../themes/nord/preview-unlock.png)
 _Nord_
-
- ![osaka-jade](../themes/osaka-jade/preview-unlock.png)
-_Osaka Jade_
 
  ![retro-82](../themes/retro-82/preview-unlock.png)
 _Retro 82_

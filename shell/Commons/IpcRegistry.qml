@@ -31,13 +31,36 @@ Singleton {
     return names
   }
 
+  // Bumped whenever a handler comes, goes or changes its target, so each
+  // ShellIpc re-checks whether it leads its target.
+  property int revision: 0
+
+  function touch() {
+    revision++
+  }
+
   function register(handler) {
     if (handlers.indexOf(handler) === -1) handlers.push(handler)
+    touch()
   }
 
   function unregister(handler) {
     var index = handlers.indexOf(handler)
     if (index !== -1) handlers.splice(index, 1)
+    touch()
+  }
+
+  // Whether `handler` is the first live handler for its target. One with no
+  // target, or not registered yet, doesn't lead, so it can't enable before
+  // the registry knows of it. `revision` is there only to make a binding
+  // re-check.
+  function leads(handler, revision) {
+    if (!handler.target || handlers.indexOf(handler) === -1) return false
+    for (var i = 0; i < handlers.length; i++) {
+      var other = handlers[i]
+      if (other && other.target === handler.target) return other === handler
+    }
+    return false
   }
 
   function handlerFor(target) {
