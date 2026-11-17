@@ -11,7 +11,10 @@ if (( EUID == 0 )); then
 fi
 
 echo "Installing asciipaper..."
-omarchy-pkg-add webkitgtk-6.0 python-gobject gtk4-layer-shell
+# WebKit draws custom HTML wallpapers; the native engine draws the built-in
+# presets at a fraction of the cost, so the build tools are part of the install.
+omarchy-pkg-add webkitgtk-6.0 python-gobject gtk4-layer-shell libadwaita ffmpeg \
+  gcc make pkgconf wayland wayland-protocols libglvnd pango
 
 # asciipaper is not packaged yet, so track its repository directly. The
 # checkout doubles as the data directory: the engine reads its wallpapers from
@@ -24,6 +27,13 @@ else
 fi
 
 install -Dm755 "$source_dir/asciipaper" "$HOME/.local/bin/asciipaper"
+
+if make -C "$source_dir/native" >/dev/null 2>&1; then
+  install -Dm755 "$source_dir/native/asciipaper-engine" "$HOME/.local/bin/asciipaper-engine"
+else
+  echo "note: the native engine did not build; the presets will render through WebKit instead."
+fi
+
 install -Dm644 "$source_dir/asciipaper.service" "$HOME/.config/systemd/user/asciipaper.service"
 
 systemctl --user daemon-reload
