@@ -518,9 +518,9 @@ QtObject {
     var persisted = shellConfigMutator(function(config) {
       ensureConfigShape(config)
 
-      // put leaves a widget that is already on the bar where it is. Its own
-      // check read the cached config; this reads the file being changed.
-      if (value && keepExisting && findBarLocation(config, key, "").found) return
+      // put leaves a widget, or the clone standing in for it, where it is. Its
+      // own check read the cached config; this reads the file being changed.
+      if (value && keepExisting && findRelativeBarLocation(config, key, "").found) return
 
       // A placement that cannot be honoured is refused before anything
       // changes: a missing neighbour, or the tray asked into its own drawer.

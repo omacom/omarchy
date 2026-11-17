@@ -380,6 +380,19 @@ ShellRoot {
       "put leaves a clone of the widget it was asked to place alone"
     )
 
+    root.config = { version: 1, bar: { layout: { left: [], center: [], right: [] } }, plugins: [] }
+    root.diskConfig = {
+      version: 1,
+      bar: { layout: { left: [], center: [{ id: "local.first-widget", size: 5 }], right: [] } },
+      plugins: []
+    }
+    root.assertEqual(registry.putBarWidget("omarchy.first-widget", {}), "", "put accepts a widget whose clone the file already has on the bar")
+    root.assertDeepEqual(
+      root.config.bar.layout.center,
+      [{ id: "local.first-widget", size: 5 }],
+      "put leaves a clone added on disk before the cache caught up alone"
+    )
+
     // Refusing an id the scan has not reached would fail the migration.
     root.config = { version: 1, bar: { layout: { left: [], center: [], centerEnd: [], right: [] } }, plugins: [] }
     registry.scanning = true
