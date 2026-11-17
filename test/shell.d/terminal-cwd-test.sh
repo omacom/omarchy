@@ -64,6 +64,10 @@ SH
 cat >"$mock_bin/herdr" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$OMARCHY_TEST_HERDR_LOG"
+if [[ -n ${OMARCHY_TEST_HERDR_ERROR:-} ]]; then
+  echo '{"error": {"message": "no such session"}}'
+  exit 0
+fi
 jq -n --arg unfocused "$OMARCHY_TEST_HERDR_DECOY" --arg focused "$OMARCHY_TEST_HERDR_PANE" \
   '{result: {panes: [{focused: false, cwd: $unfocused}, {focused: true, foreground_cwd: $focused, cwd: $unfocused}]}}'
 SH
@@ -242,6 +246,16 @@ pass "herdr answers with the focused pane"
 grep -Fq -- "--session work" "$herdr_log" ||
   fail "herdr is queried for the client's own session" "$(cat "$herdr_log")"
 pass "herdr is queried for the client's own session"
+
+# An error from herdr still leaves the client unable to answer for the pane.
+herdr_pidfile="$test_tmp/herdr-client.pid"
+start_terminal_window "cd '$test_tmp/launched' && bash -c \"OMARCHY_TEST_PIDFILE='$herdr_pidfile' OMARCHY_TEST_CLIENT_DIR='$test_tmp/client' '$fake_bin/herdr' '$test_tmp/idle' --session work; :\""
+wait_for_file "$herdr_pidfile" || fail "herdr client starts"
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window" OMARCHY_TEST_HERDR_LOG="$herdr_log" OMARCHY_TEST_HERDR_ERROR=1)
+[[ $resolved == "$test_tmp/launched" ]] ||
+  fail "a herdr error falls back to the terminal, not the client" "expected: $test_tmp/launched
+actual:   $resolved"
+pass "a herdr error falls back to the terminal, not the client"
 
 # A window that is not a terminal has no process attached to one, so its
 # children do not answer however readable their directories are.

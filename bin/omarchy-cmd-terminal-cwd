@@ -138,7 +138,7 @@ herdr_pane_cwd() {
   else
     timeout 1 herdr pane list 2>/dev/null
   fi |
-    jq -r 'first(.result.panes[] | select(.focused) | .foreground_cwd // .cwd) // empty' 2>/dev/null
+    jq -r 'first(.result.panes[] | select(.focused) | .foreground_cwd // .cwd) // empty' 2>/dev/null || true
 }
 
 # Succeeds for a multiplexer client, printing its focused pane's directory when
