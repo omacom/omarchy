@@ -203,6 +203,11 @@ function M.place(window, tile, monitor)
     if not current or placing[address] ~= token then
       return
     end
+    -- Moved to another monitor while this waited: the tile was for the old one.
+    if current.monitor and current.monitor.name ~= monitor.name then
+      placing[address] = nil
+      return
+    end
     local before = client_of(current)
     local restore_w, restore_h = before.w, before.h
     -- Snapped already: keep the size from before the first snap, unless it was

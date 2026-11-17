@@ -1275,6 +1275,27 @@ assert(not find("place"), "a window dropped onto a tiled workspace was resized")
 fi
 pass "dropped on another monitor, a window fits it, and only on a floating workspace"
 
+# A snap still waiting (a maximized window getting its own size back first) gives
+# up when the window is moved to another monitor meanwhile, instead of pulling
+# it back.
+if ! run_lua "$snap_setup$monitors_setup"'
+local queued = {}
+hl.timer = function(callback) table.insert(queued, callback) end
+local w = snap_window("0x1", 1)
+w.monitor, w.at, w.size, w.fullscreen = big, { x = 1600, y = 200 }, { x = 1100, y = 760 }, 1
+focused = w
+o.snap.key("left")
+local before = { x = w.at.x, y = w.at.y, w = w.size.x, h = w.size.y }
+w.monitor = laptop
+o.snap.carried(w.address, big, before)
+local carried = { x = w.at.x, y = w.at.y }
+while #queued > 0 do table.remove(queued, 1)() end
+assert(w.at.x < 1280 and w.at.x == carried.x and w.at.y == carried.y, "the waiting snap pulled the window back to the big monitor: " .. w.at.x .. "," .. w.at.y)
+'; then
+  fail "a snap still waiting gives up when its window moves to another monitor"
+fi
+pass "a snap still waiting gives up when its window moves to another monitor"
+
 # Closing a window whose titlebar differs from its neighbour's (a browser draws
 # its own frame) still gives its quarter back: its tile is found with either.
 if ! run_lua "$snap_setup"'
