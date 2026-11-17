@@ -86,12 +86,10 @@ Row {
 
   Keys.priority: Keys.BeforeItem
   Keys.onPressed: function(event) {
-    if (event.key === Qt.Key_Left || event.key === Qt.Key_H
-        || event.text === "h") {
+    if (Util.readingKey(event, true) === Qt.Key_Left) {
       _focusedIndex = Math.max(0, (_focusedIndex < 0 ? 0 : _focusedIndex) - 1)
       event.accepted = true
-    } else if (event.key === Qt.Key_Right || event.key === Qt.Key_L
-        || event.text === "l") {
+    } else if (Util.readingKey(event, true) === Qt.Key_Right) {
       var max = options.length - 1
       var next = (_focusedIndex < 0 ? 0 : _focusedIndex) + 1
       _focusedIndex = Math.min(max, next)

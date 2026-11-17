@@ -93,7 +93,7 @@ Omarchy is built on:
 
 ## Command Discovery
 
-Omarchy ships a single `omarchy` CLI that dispatches to all `omarchy-*` binaries via `omarchy <group> <action>`. Always prefer this form — it is self-documenting and stable. The underlying `omarchy-*` binaries still exist on `PATH` and remain safe to read for source.
+Omarchy ships a single `omarchy` CLI that dispatches to all `omarchy-*` binaries via `omarchy <group> <action>`. Always prefer this form — it is self-documenting and stable. The underlying `omarchy-*` binaries still exist on `PATH` and remain safe to read for source. The one exception is diagnostics: run `omarchy-debug --no-sudo --print` directly. On a package install it lives outside the directory the `omarchy` router searches, so `omarchy debug` can fail there with "Unknown Omarchy command".
 
 ```bash
 # List every documented command and its summary (--all includes hidden commands)
@@ -216,24 +216,18 @@ omarchy refresh hyprland
 ```bash
 omarchy update                  # Full system update
 omarchy version                 # Show Omarchy version
-omarchy-debug --no-sudo --print # Debug info
+omarchy-debug --no-sudo --print # Debug info (ALWAYS use these flags)
 omarchy system lock             # Lock screen
 omarchy system shutdown         # Shutdown
 omarchy system reboot           # Reboot
 ```
 
-**IMPORTANT:** Always pass `--no-sudo --print` to avoid interactive sudo
-prompts that will hang the terminal. Call the `omarchy-debug` binary directly —
-it works in every context. The `omarchy debug` route advertised by
-`omarchy --help` can fail with `Unknown Omarchy command`: the dispatcher only
-finds commands in the directory holding its own script, and `omarchy-debug` ships to
-`/usr/bin` in a separate package, so it is missing when the dispatcher runs as
-`/usr/share/omarchy/bin/omarchy`.
+**IMPORTANT:** Always run `omarchy-debug` with `--no-sudo --print` flags to avoid interactive sudo prompts that will hang the terminal.
 
 ## Troubleshooting
 
 ```bash
-# Get debug information (see the flag note under System Commands)
+# Get debug information (ALWAYS use these flags to avoid interactive prompts)
 omarchy-debug --no-sudo --print
 
 # Reset specific config to defaults
@@ -282,7 +276,7 @@ in scope — see [`contributing.md`](contributing.md).
 
 - "Change my theme to catppuccin" -> `omarchy theme set catppuccin`
 - "Add a keybinding for Super+E to open file manager" -> Check existing bindings first, then use `o.rebind` to replace one or `o.bind` to add one in `~/.config/hypr/bindings.lua`
-- "Configure my external monitor" -> Edit `~/.config/hypr/monitors.lua`
+- "Configure my external monitor" -> `omarchy hyprland monitor scaling|resolution --monitor <name> ...` for scale and resolution; edit `~/.config/hypr/monitors.lua` only for rotation and the other extras in hyprland.md
 - "Make the window gaps smaller" -> Edit `~/.config/hypr/looknfeel.lua`
 - "Turn on night light" -> `omarchy toggle nightlight` blind-toggles — check `omarchy toggle nightlight --status` first (for time-based schedules, edit `~/.config/hypr/hyprsunset.conf` profiles, then `omarchy restart hyprsunset`)
 - "Customize the catppuccin theme colors" -> Overlay: put an edited `colors.toml` in `~/.config/omarchy/themes/catppuccin/`, then re-apply the theme (see `theming.md`)

@@ -88,7 +88,7 @@ pass "an account under the threshold stays put"
 
 record 0.96 "$soon" 0.12 "$later"
 [[ $(autoswitch) == "claude" && $(active) == "work" ]] || fail "auto mode moves to the account with headroom"
-grep -q "New Claude sessions now use Work (12%). Running sessions stay on Main." "$notifications" ||
+grep -q "New Claude sessions now use Work (12%)\.$" "$notifications" && grep -qx "Running sessions stay on Main." "$notifications" ||
   fail "auto mode says where new sessions went" "$(cat "$notifications")"
 pass "auto mode switches at the threshold"
 

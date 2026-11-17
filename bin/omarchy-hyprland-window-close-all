@@ -1,12 +1,29 @@
 #!/bin/bash
 
 # omarchy:summary=Close all open windows
+# omarchy:args=[--wait]
 
-hyprctl clients -j | \
-  jq -r ".[].address" | \
+clients=$(hyprctl clients -j) || exit 1
+
+# Capture the owning processes before their windows disappear. Window closure
+# alone does not mean an application has finished writing its shutdown state.
+if [[ ${1:-} == "--wait" ]]; then
+  pids=$(jq -r '[.[].pid | select(. > 0)] | unique | join(",")' <<<"$clients")
+  if [[ -n $pids ]]; then
+    pidwait --euid "$UID" --pid "$pids" &
+    waiter=$!
+  fi
+fi
+
+jq -r ".[].address" <<<"$clients" | \
   while read -r addr; do
     hyprctl dispatch "hl.dsp.window.close({ window = \"address:$addr\" })" >/dev/null
   done
 
-# Move to first workspace
-hyprctl dispatch 'hl.dsp.focus({ workspace = "1" })' >/dev/null 2>&1 || hyprctl dispatch workspace 1
+# Move to the focused monitor's first workspace
+hyprctl dispatch 'o.workspaces.focus(1)' >/dev/null 2>&1 || hyprctl dispatch workspace 1
+
+if [[ -n ${waiter:-} ]]; then
+  # No matching process means the applications have already exited.
+  wait "$waiter" || (( $? == 1 ))
+fi

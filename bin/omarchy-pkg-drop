@@ -27,5 +27,9 @@ for pkg in "$@"; do
 done
 
 if (( ${#installed[@]} > 0 )); then
-  sudo pacman -Rns --noconfirm "${installed[@]}"
+  if (( EUID == 0 )); then
+    pacman -Rns --noconfirm "${installed[@]}"
+  else
+    sudo pacman -Rns --noconfirm "${installed[@]}"
+  fi
 fi

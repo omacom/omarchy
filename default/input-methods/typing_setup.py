@@ -10,6 +10,10 @@ import sys
 import configure as setup
 
 
+def localized(command, *args):
+  return subprocess.run(command.split() + list(args), text=True, capture_output=True, check=True).stdout.strip()
+
+
 def keyboard_catalog():
   # Read the same choices as the ISO and first-boot form, then convert console
   # keymaps through systemd's mapping, just as localectl does during install.
@@ -76,13 +80,14 @@ def input_catalog(items):
   return catalog, available
 
 
-def input_items(items, selected, overrides=None):
+def input_items(items, selected, overrides=None, layout="us"):
   if not any(item[0].startswith("keyboard-") for item in items):
     raise RuntimeError("The current input group has no keyboard input")
   # Retained entries keep their switching order; new engines follow them.
   kept = [item for item in items if item[0].startswith("keyboard-") or item[0] in selected]
   current = dict(items)
-  return kept + [[name, (overrides or {}).get(name, "")] for name in selected if name not in current]
+  return kept + [[name, (overrides or {}).get(name) or setup.engine_layout(name, layout)]
+                 for name in selected if name not in current]
 
 
 def set_inputs(group, layout, before, after):
@@ -112,7 +117,8 @@ def load_engines(names, catalog):
             if subprocess.run(["omarchy-pkg-present", package], capture_output=True).returncode]
   if absent or any(name not in setup.PRESETS for name in names):
     labels = ", ".join(catalog.get(name, name) for name in names)
-    raise RuntimeError(f"Install {' '.join(absent) or 'its engine'} to use {labels}")
+    missing = " ".join(absent) or "its engine"
+    raise RuntimeError(localized("omarchy-i18n input.installEngineToUse", missing, labels))
   # Fcitx discovers engines only at startup, so one installed while it was
   # running (by an update, say) needs a restart before it can be selected.
   setup.run(["omarchy-restart-xcompose"])
@@ -127,7 +133,7 @@ def save_inputs(selected, overrides=None):
   if missing:
     load_engines(missing, catalog)
     group, layout, items = setup.live_group()
-  set_inputs(group, layout, items, input_items(items, selected, overrides))
+  set_inputs(group, layout, items, input_items(items, selected, overrides, layout))
   # Only a saved engine claims the CJK font fallback, and a failed font write
   # returns the group so the menu's restored checks stay true.
   config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
@@ -147,9 +153,22 @@ def add_input(method):
     save_inputs(current + [method])
 
 
+def seed_language(method):
+  # A new CJK language brings its input method only to a group without one,
+  # so a Korean typist switching the interface to Japanese keeps Hangul.
+  try:
+    group, layout, items = setup.live_group()
+    if all(name.startswith("keyboard-") for name, override in items):
+      save_inputs([method])
+  except (OSError, ValueError, KeyError, IndexError, RuntimeError, subprocess.CalledProcessError) as error:
+    print(f"Add {setup.PRESETS[method]['label']} under Setup > Keyboard > Input Methods: {error}", file=sys.stderr)
+  config_home = Path(os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config"))
+  setup.font_default(config_home, method)
+
+
 def keyboard_values(selected):
   if not selected:
-    raise ValueError("Select at least one keyboard layout")
+    raise ValueError(localized("omarchy-i18n input.keyboardLayoutRequired"))
   parts = [value.split(":", 1) for value in selected]
   # Preserve the installer's Latin-leading rule for desktop keybindings.
   if parts[0][0] in setup.NON_LATIN:
@@ -176,7 +195,7 @@ def save_keyboard(selected):
     expected = [layout + (":" + variant if variant else "")
                 for layout, variant in zip(layouts.split(","), variants.split(","))]
     if keyboard_selection() != expected:
-      raise RuntimeError("Your personal keyboard layout override takes precedence over this selection")
+      raise RuntimeError(localized("omarchy-i18n input.keyboardLayoutOverride"))
     first_layout = layouts.split(",")[0]
     first_variant = variants.split(",")[0]
     group_layout = first_layout + ("-" + first_variant if first_variant else "")
@@ -184,7 +203,11 @@ def save_keyboard(selected):
     if primary is None:
       raise RuntimeError("The current input group has no keyboard input")
     keyboard = "keyboard-" + group_layout
-    after = [[keyboard, ""]] + [item for item in before if item[0] not in (primary, keyboard)]
+    # An engine kept on QWERTY for the old layout is re-decided for the new
+    # one; an override the user chose stays.
+    after = [[keyboard, ""]] + [
+      [name, setup.engine_layout(name, group_layout) if override == setup.engine_layout(name, old_layout) else override]
+      for name, override in before if name not in (primary, keyboard)]
     group_changed = True
     setup.live_set(group, group_layout, after)
     if setup.live_group() != (group, group_layout, after):
@@ -224,6 +247,9 @@ def apply_selection(kind, context, values):
 
 
 def main():
+  if sys.argv[1:2] == ["seed-language"] and len(sys.argv) == 3:
+    seed_language(sys.argv[2])
+    return
   if sys.argv[1:2] == ["add"] and len(sys.argv) == 3:
     try:
       add_input(sys.argv[2])
@@ -234,7 +260,7 @@ def main():
   kind = sys.argv[2] if applying else sys.argv[1] if len(sys.argv) == 2 else ""
   if kind not in ("input", "keyboard"):
     raise ValueError("Choose keyboard or input setup")
-  title = "Input methods" if kind == "input" else "Keyboard layouts"
+  failed = "omarchy-i18n input.inputMethodsFailed" if kind == "input" else "omarchy-i18n input.keyboardLayoutsFailed"
   try:
     if applying:
       apply_selection(kind, json.loads(sys.argv[3]), json.loads(sys.argv[4]))
@@ -243,7 +269,8 @@ def main():
     else:
       configure_keyboard()
   except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:
-    subprocess.run(["omarchy-notification-send", title + " could not be updated", str(error)], check=True)
+    title = subprocess.run(failed.split(), text=True, capture_output=True, check=True).stdout.strip()
+    subprocess.run(["omarchy-notification-send", title, str(error)], check=True)
     raise SystemExit(1)
 
 
