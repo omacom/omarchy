@@ -8,13 +8,13 @@
 pci_info=$(lspci -nn)
 
 if omarchy-hw-x86 && [[ $pci_info =~ \[14e4:(43a0|4331)\] ]]; then
-  if [[ $pci_info =~ \[14e4:4331\] ]]; then
+  if omarchy-pkg-present broadcom-wl-wpa3-dkms; then
+    echo "Broadcom WPA3 driver already installed"
+  elif omarchy-pkg-present broadcom-wl-dkms; then
+    echo "Broadcom stock driver already installed; keeping it"
+  elif [[ $pci_info =~ \[14e4:4331\] ]]; then
     echo "BCM4331 detected"
     omarchy-pkg-add broadcom-wl-dkms
-  elif omarchy-pkg-present broadcom-wl-wpa3-dkms; then
-    echo "BCM4360 WPA3 driver already installed"
-  elif omarchy-pkg-present broadcom-wl-dkms; then
-    echo "BCM4360 stock driver already installed; keeping it"
   elif pacman -Si broadcom-wl-wpa3-dkms >/dev/null 2>&1; then
     echo "BCM4360 detected; installing WPA3/PMF driver"
     omarchy-pkg-add broadcom-wl-wpa3-dkms

@@ -332,6 +332,8 @@ machine() {
     bcm4360-aarch64) machine bcm4360; FAKE_PLATFORM=aarch64 ;;
     bcm4331) FAKE_LSPCI="03:00.0 Network controller [0280]: Broadcom Inc. BCM4331 [14e4:4331]" ;;
     bcm-mixed) FAKE_LSPCI="03:00.0 Network controller [0280]: Broadcom Inc. BCM4360 [14e4:43a0]\n04:00.0 Network controller [0280]: Broadcom Inc. BCM4331 [14e4:4331]" ;;
+    bcm4331-stock-installed|bcm-mixed-stock-installed) machine "${name%-stock-installed}"; FAKE_INSTALLED_PKGS=broadcom-wl-dkms ;;
+    bcm4331-patched-installed|bcm-mixed-patched-installed) machine "${name%-patched-installed}"; FAKE_INSTALLED_PKGS=broadcom-wl-wpa3-dkms ;;
     nouveau) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau" ;;
     nouveau-proprietary) FAKE_LSPCI="01:00.0 VGA compatible controller: NVIDIA Corporation GK208B\n\tKernel driver in use: nouveau"; : >"$hw/nvidia.conf" ;;
     *) fail "hardware-quirks-test knows the machine '$name'" ;;
@@ -574,6 +576,10 @@ hardware/fix-bcm43xx.sh|bcm4360-patched-installed|0
 hardware/fix-bcm43xx.sh|bcm4360-aarch64|0
 hardware/fix-bcm43xx.sh|bcm4331|0|pkg-add broadcom-wl-dkms
 hardware/fix-bcm43xx.sh|bcm-mixed|0|pkg-add broadcom-wl-dkms
+hardware/fix-bcm43xx.sh|bcm4331-stock-installed|0
+hardware/fix-bcm43xx.sh|bcm4331-patched-installed|0
+hardware/fix-bcm43xx.sh|bcm-mixed-stock-installed|0
+hardware/fix-bcm43xx.sh|bcm-mixed-patched-installed|0
 hardware/fix-bcm43xx.sh|plain|0
 ROWS
 pass "hardware quirks apply on their own hardware and nowhere else"
