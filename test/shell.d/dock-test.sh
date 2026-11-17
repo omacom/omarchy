@@ -40,6 +40,7 @@ assert(!dock.coversDock([win({ at: [400, 500], hidden: true })], dockBox, { work
 const topDock = { x: 592, y: 4, width: 96, height: 48 }
 assert(dock.coversDock([win({ at: [400, 80], tags: ['omarchy-floating-workspace*'] })], topDock, { workspaceId: 1 }), 'a titlebar reaching over a dock at the top covers it')
 assert(!dock.coversDock([win({ at: [400, 80] })], topDock, { workspaceId: 1 }), 'a window without a titlebar below a dock at the top leaves it out')
+assert(!dock.coversDock([win({ at: [400, 80], tags: ['omarchy-floating-workspace*', 'omarchy-self-framed*'] })], topDock, { workspaceId: 1 }), 'an app drawing its own frame gets no titlebar, so it leaves a dock at the top out')
 
 const app = (key, id, extra) => Object.assign({ key, id, hasEntry: true, workspaceId: 3 }, extra)
 const items = dock.buildItems(['chromium', 'Alacritty'], [

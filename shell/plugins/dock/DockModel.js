@@ -62,7 +62,10 @@ function coversDock(windows, dockBox, on) {
     var w = windows[i]
     if (!w || !(w.workspaceId === on.workspaceId || (on.special && w.workspaceName === on.special))) continue
     if (!w.at || !w.size || w.hidden || w.mapped === false) continue
-    var titled = (w.tags || []).some(function(tag) { return String(tag).replace(/\*$/, "") === "omarchy-floating-workspace" })
+    // Windows on a floating workspace have a titlebar, except apps drawing their
+    // own frame, which window snapping tags (default/hypr/workspace-modes.lua).
+    var tags = (w.tags || []).map(function(tag) { return String(tag).replace(/\*$/, "") })
+    var titled = tags.indexOf("omarchy-floating-workspace") !== -1 && tags.indexOf("omarchy-self-framed") === -1
     var top = BORDER + (titled ? TITLEBAR_HEIGHT : 0)
     if (w.at[0] - BORDER < dockBox.x + dockBox.width && w.at[0] + w.size[0] + BORDER > dockBox.x
         && w.at[1] - top < dockBox.y + dockBox.height && w.at[1] + w.size[1] + BORDER > dockBox.y) return true
