@@ -16,7 +16,8 @@ shift
 
 if [[ $MODE == "clipboard" ]]; then
   TEMP_FILE=$(mktemp --suffix=.txt)
-  wl-paste >"$TEMP_FILE"
+  wl-paste --no-newline >"$TEMP_FILE" || exit 1
+  [[ -s $TEMP_FILE ]] || exit 1
   FILE_ARRAY=("$TEMP_FILE")
 elif (($# > 0)); then
   FILE_ARRAY=("$@")
@@ -41,10 +42,16 @@ else
   readarray -t FILE_ARRAY <<<"$picked"
 fi
 
+for path in "${FILE_ARRAY[@]}"; do
+  [[ -e $path ]] || exit 1
+done
+
+if pgrep -x localsend >/dev/null; then
+  exit 1
+fi
+
 # Run LocalSend in its own systemd service (detached from terminal)
 systemd-run --user --quiet --collect localsend --headless send "${FILE_ARRAY[@]}"
 
 # Note: Temporary file will remain until system cleanup for clipboard mode
 # This ensures the file content is available for the LocalSend GUI
-
-exit 0
