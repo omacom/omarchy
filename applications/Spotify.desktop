@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=Spotify
+Exec=omarchy-launch-webapp https://open.spotify.com/
+StartupWMClass=chrome-open.spotify.com__-Default
+Terminal=false
+Type=Application
+Icon=omarchy-spotify
+StartupNotify=true
