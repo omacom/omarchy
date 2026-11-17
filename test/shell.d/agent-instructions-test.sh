@@ -17,7 +17,7 @@ cat >"$stub_bin/omarchy-notification-send" <<'SH'
 #!/bin/bash
 exit 1
 SH
-cat >"$stub_bin/omarchy-launch-config-editor" <<'SH'
+cat >"$stub_bin/omarchy-launch-editor" <<'SH'
 #!/bin/bash
 echo "edit $1" >>"$HOME/editor.log"
 SH

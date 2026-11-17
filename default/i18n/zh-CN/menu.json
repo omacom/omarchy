@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "图标"
+  },
+  "install.style.icons": {
+    "label": "图标"
+  },
+  "remove.icons": {
+    "label": "图标"
+  },
+  "update.icons": {
+    "label": "额外图标"
+  },
+  "system.firmware": {
+    "label": "重启到 BIOS",
+    "description": "重启进入 UEFI 固件设置"
   }
 }

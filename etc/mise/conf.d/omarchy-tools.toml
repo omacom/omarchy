@@ -4,6 +4,8 @@
 locked_scopes = ["project", "global"]
 system_installs_dir = "~/.local/share/mise/installs"
 system_shims_dir = "~/.local/share/mise/shims"
+# mise installs these registry tools straight from npm on their first command, before Node, and fails; left to the lazy install, Node comes with them.
+auto_install_disable_tools = ["ghui", "opencode", "playwright", "qwen"]
 
 # Agent CLIs update themselves before they run, at most once every four hours (mise auto_update).
 # Backend options go inside a tool's table, never in a "tool[...]" key: mise drops bracket options from a

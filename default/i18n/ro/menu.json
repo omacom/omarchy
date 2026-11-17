@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Pictograme"
+  },
+  "install.style.icons": {
+    "label": "Pictograme"
+  },
+  "remove.icons": {
+    "label": "Pictograme"
+  },
+  "update.icons": {
+    "label": "Pictograme suplimentare"
+  },
+  "system.firmware": {
+    "label": "Repornire în BIOS",
+    "description": "Repornește în configurarea firmware UEFI"
   }
 }

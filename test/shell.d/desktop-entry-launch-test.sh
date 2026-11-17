@@ -256,7 +256,7 @@ cat >"$presentation_bin/omarchy-show-done" <<'SH'
 printf 'done:%s\n' "$1" >>"$OMARCHY_TEST_LOG"
 SH
 # omarchy-restart-gum is sourced, so it must not exit.
-for command in omarchy-restart-gum omarchy-show-logo omarchy-setup-slack; do
+for command in omarchy-restart-gum omarchy-show-logo; do
   printf '#!/bin/bash\n:\n' >"$presentation_bin/$command"
 done
 chmod +x "$presentation_bin"/*
@@ -266,8 +266,8 @@ present() {
   PATH="$presentation_bin:$PATH" bash "$ROOT/bin/omarchy-launch-floating-terminal-with-presentation" "$@"
 }
 
-present omarchy-install-service-slack
-[[ $(<"$OMARCHY_TEST_LOG") == $'pkg:slack-desktop\ndone:0\nlaunch:uwsm-app -- gtk-launch slack' ]] ||
+present omarchy-install-service-signal
+[[ $(<"$OMARCHY_TEST_LOG") == $'pkg:signal-desktop\ndone:0\nlaunch:uwsm-app -- /usr/bin/signal-desktop' ]] ||
   fail "an installed app opens only after the Done prompt" "$(<"$OMARCHY_TEST_LOG")"
 present 'omarchy-launch-after-done uwsm-app -- gtk-launch slack; false'
 [[ $(<"$OMARCHY_TEST_LOG") == $'done:1\nlaunch:uwsm-app -- gtk-launch slack' ]] ||

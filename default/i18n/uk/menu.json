@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Іконки"
+  },
+  "install.style.icons": {
+    "label": "Іконки"
+  },
+  "remove.icons": {
+    "label": "Іконки"
+  },
+  "update.icons": {
+    "label": "Додаткові іконки"
+  },
+  "system.firmware": {
+    "label": "Перезавантажити в BIOS",
+    "description": "Перезапуск у налаштування прошивки UEFI"
   }
 }
