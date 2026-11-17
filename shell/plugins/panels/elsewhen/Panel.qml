@@ -142,6 +142,8 @@ Panel {
       // Both live in the list, which the globe is about to knock away.
       if (hereSearch) hereSearch.stop()
       peopleEditIndex = -1
+    } else if (globeLoader && globeLoader.item) {
+      globeLoader.item.stopJump()
     }
     zoomDuration = (on ? 800 : 500) * (slow === true ? slowMotionFactor : 1)
     zoomEasing = on ? Easing.OutQuart : Easing.InOutCubic

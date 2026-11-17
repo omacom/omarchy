@@ -212,6 +212,12 @@ Item {
     jumpSearch.start()
   }
 
+  // The globe stays loaded through the closing zoom, so a geocoder answer
+  // landing then would still pick a city for a Return left pending.
+  function stopJump() {
+    if (jumpSearch.active) jumpSearch.stop()
+  }
+
   // Sub-pixel scale (spaceReal, not space) so thin strokes keep their weights.
   readonly property real uiScale: Style.spaceReal(1)
 
