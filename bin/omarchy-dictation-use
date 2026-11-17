@@ -28,11 +28,16 @@ if [[ -n $previous && $previous != "$1" ]]; then
     fi
   fi
 
-  # Only one backend should hold the microphone and memory. The adapters above
-  # stop recordings, not services, so disable the old unit and enable the new
-  # one here. Unknown backends have no unit; that is fine.
-  systemctl --user disable --now "$previous.service" 9>&- >/dev/null 2>&1 || true
-  systemctl --user enable --now "$1.service" 9>&- >/dev/null 2>&1 || true
+  # Adapters stop recordings, not services. Only manage the built-in units;
+  # add-on backends own their service lifecycle.
+  case "$previous" in
+    voxtype|superwhisper|hex)
+      systemctl --user show-environment 9>&- >/dev/null
+      if systemctl --user cat "$previous.service" 9>&- >/dev/null 2>&1; then
+        systemctl --user disable --now "$previous.service" 9>&- >/dev/null
+      fi
+      ;;
+  esac
 fi
 
 temporary=$(mktemp "$config.XXXXXX")
