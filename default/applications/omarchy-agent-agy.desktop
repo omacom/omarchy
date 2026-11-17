@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Antigravity
+Comment=Start Antigravity in a terminal
+Exec=omarchy-agent --agent agy --app-id=org.omarchy.agy
+Icon=omarchy-agent-agy
+StartupWMClass=org.omarchy.agy
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

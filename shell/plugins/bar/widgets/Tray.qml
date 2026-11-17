@@ -142,7 +142,17 @@ BarWidget {
   }
 
   function openTrayMenu(item, anchorItem, mouse) {
-    if (!item || !item.menu) {
+    if (!item) return
+
+    // Apps that draw their own context menu (Windows apps under Wine) publish
+    // no D-Bus menu, and Quickshell can only show D-Bus menus. Ask the app
+    // for its menu instead.
+    if (!item.hasMenu) {
+      Util.execArgv(["omarchy-tray-context-menu", item.id])
+      return
+    }
+
+    if (!item.menu) {
       var point = anchorItem.QsWindow.contentItem.mapFromItem(anchorItem, mouse.x, mouse.y)
       item.display(anchorItem.QsWindow.window, point.x, point.y)
       return
@@ -167,7 +177,7 @@ BarWidget {
     return String(icon || "")
   }
 
-  // Symbolic icons ship a fixed fill (often near-white) that the host is meant
+  // Symbolic icons ship a fixed fill (light or dark) that the host is meant
   // to recolor to its foreground; detect them by the freedesktop "-symbolic"
   // name suffix so they can be tinted instead of rendered as-is.
   function iconIsSymbolic(icon) {
@@ -841,12 +851,19 @@ BarWidget {
       layer.enabled: trayIconRoot.symbolic
     }
 
-    MultiEffect {
+    // Paint the foreground through the icon's alpha. MultiEffect's colorization
+    // keeps the source's lightness, so a dark fill stayed dark on a dark bar.
+    Rectangle {
       anchors.fill: trayIconImage
-      source: trayIconImage
+      color: root.foreground
       visible: trayIconRoot.symbolic
-      colorization: 1.0
-      colorizationColor: root.foreground
+      layer.enabled: trayIconRoot.symbolic
+      layer.effect: MultiEffect {
+        maskEnabled: true
+        maskSource: trayIconImage
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 1.0
+      }
     }
   }
 
@@ -878,8 +895,8 @@ BarWidget {
     }
 
     TrayIcon {
-      x: (parent.width - width) / 2
-      y: (parent.height - height) / 2
+      x: Math.round((parent.width - width) / 2)
+      y: Math.round((parent.height - height) / 2)
       width: Style.bar.iconSize
       height: Style.bar.iconSize
       icon: trayItemRoot.modelData.icon
@@ -909,6 +926,11 @@ BarWidget {
         } else {
           trayItemRoot.modelData.activate()
         }
+      }
+      // A double-click's second click lands here, not in onClicked.
+      onDoubleClicked: function(mouse) {
+        if (mouse.button === Qt.LeftButton && TrayModel.activatesOnDoubleClick(trayItemRoot.modelData))
+          trayItemRoot.modelData.activate()
       }
       onWheel: function(wheel) {
         trayItemRoot.modelData.scroll(wheel.angleDelta.y, false)
