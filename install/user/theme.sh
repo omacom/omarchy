@@ -5,13 +5,16 @@ if [[ ! -s $HOME/.local/state/omarchy/current/theme.name ]]; then
   # iso-chroot and provision-owner both run without a live session to notify.
   if [[ ${OMARCHY_SETUP_CONTEXT:-runtime} != "runtime" ]]; then
     OMARCHY_THEME_HEADLESS=1 omarchy-theme-set "Tokyo Night"
-    rm -f ~/.config/chromium/SingletonLock # otherwise archiso owns the Chromium singleton
+    rm -f ~/.config/google-chrome/SingletonLock ~/.config/chromium/SingletonLock # otherwise archiso owns the browser singleton
   else
     omarchy-theme-set "Tokyo Night"
   fi
 fi
 omarchy-theme-set-pi --activate
 omarchy-theme-set-fcitx5 --activate
+# A headless theme set skips the retints, so the seeded config would keep its
+# default icon theme until the first switch.
+omarchy-theme-set-qt
 
 # A see-through GTK app asks the compositor for blur through its gtk.css, which
 # follows the window mode, so a fresh install needs it written once too.
