@@ -160,7 +160,7 @@ seed_install
 mkdir -p "$test_home/.local/share/applications"
 printf '%s\n' "#!/bin/bash" "exec $test_home/.hermes/hermes-agent/venv/bin/hermes" >"$test_home/.local/bin/hermes"
 printf '[Desktop Entry]\nType=Application\nExec=/usr/local/bin/my-hermes desktop\n[Desktop Action managed]\nExec=%s desktop\n' "$test_home/.local/bin/hermes" >"$test_home/.local/share/applications/hermes.desktop"
-remove || fail "remove succeeds with a custom launcher"
+XDG_DATA_HOME= remove || fail "remove succeeds with a custom launcher"
 [[ -e $test_home/.local/share/applications/hermes.desktop ]] || fail "a launcher for a different command survives removal"
 pass "removal keeps a custom launcher even when an action uses the managed command"
 
