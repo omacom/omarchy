@@ -31,7 +31,9 @@ from __future__ import annotations
 
 import argparse
 import math
+import json
 import os
+import sqlite3
 import sys
 import urllib.request
 from datetime import datetime, timedelta
@@ -108,6 +110,34 @@ def read_opencode_key(path: Path) -> str:
   return str(entry.get("key") or "").strip()
 
 
+def read_opencode_store_key(db: Path) -> str:
+  # opencode V2 keeps the key in its database, and leaves auth.json (V1's
+  # store) as it was, so the active row there is the one opencode uses.
+  if not db.is_file():
+    return ""
+  try:
+    conn = sqlite3.connect(db.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+  except sqlite3.Error:
+    return ""
+  try:
+    conn.execute("PRAGMA query_only = ON")
+    rows = conn.execute(
+      "SELECT value FROM credential WHERE active = 1 AND integration_id = 'openrouter' ORDER BY time_updated DESC"
+    ).fetchall()
+  except sqlite3.Error:
+    return ""
+  finally:
+    conn.close()
+  for (raw,) in rows:
+    try:
+      value = json.loads(raw)
+    except Exception:
+      continue
+    if isinstance(value, dict) and value.get("type") == "key" and str(value.get("key") or "").strip():
+      return str(value["key"]).strip()
+  return ""
+
+
 def pi_agent_dir() -> Path:
   # PI_CODING_AGENT_DIR moves pi's agent dir, as pi itself reads it.
   configured = os.environ.get("PI_CODING_AGENT_DIR", "").strip()
@@ -126,6 +156,7 @@ def api_key(config: dict[str, Any]) -> str:
   # the last resort for headless/refresh-timer runs without any.
   return (
     str(os.environ.get("OPENROUTER_API_KEY", "")).strip()
+    or read_opencode_store_key(opencode_db())
     or read_opencode_key(data_home() / "opencode" / "auth.json")
     or read_pi_key(pi_agent_dir() / "auth.json")
     or read_pi_key(Path.home() / ".omp" / "agent" / "auth.json")
