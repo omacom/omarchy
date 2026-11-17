@@ -36,7 +36,7 @@ Check this group before editing a Lua file — several common requests are alrea
 commands. Full list: `omarchy hyprland --help`.
 
 ```bash
-omarchy hyprland monitor scaling [up|down|SCALE]      # Show, set, or adjust focused monitor scale
+omarchy hyprland monitor scaling [--monitor NAME] [up|down|SCALE]   # Show, set, or adjust scale (focused monitor by default)
 omarchy hyprland monitor internal <on|off|toggle|recover>
 omarchy hyprland monitor internal mirror <on|off|toggle|recover>
 omarchy hyprland window gaps toggle                   # No gaps / default gaps
@@ -50,8 +50,8 @@ omarchy hyprland toggle <flag-name> [on|off|toggle]   # Persistent Hyprland flag
 
 `toggle`, the commands built on it (`window gaps`, `monitor internal`, `monitor
 internal mirror`) and `workspace layout` persist their state under
-`~/.local/state/omarchy/`, and `monitor scaling` writes `monitors.lua` while it
-still has Omarchy's default monitor line — don't duplicate those in the Lua
+`~/.local/state/omarchy/`, and `monitor scaling` saves its choice for that
+physical monitor (see Display/Monitors below) — don't duplicate those in the Lua
 files. The rest act on the current session only.
 
 ## Lua API

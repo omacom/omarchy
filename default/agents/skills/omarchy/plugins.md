@@ -102,10 +102,11 @@ The `omarchy bar` group covers the whole widget layout. Full syntax (from
 
 ```bash
 omarchy bar position top                     # top|bottom|left|right
-omarchy bar transparent true                 # true|false|toggle
+omarchy bar background glassy                # opaque|glassy|none|cycle
 omarchy bar put omarchy.keyboard-layout --after omarchy.clock   # add if missing (--before/--after, never both); one already on the bar stays where it is
-omarchy bar move omarchy.clock --section center --index 0       # place by section (left|center|right), index, or --before/--after
+omarchy bar move omarchy.clock --section center --index 0       # place by section (left|centerBegin|center|centerEnd|tray|right), index, or --before/--after
 omarchy bar set omarchy.clock format HH:mm   # per-widget setting; --json passes the value as JSON
+omarchy bar get omarchy.clock format         # print a per-widget setting
 omarchy bar use local.neon-bar               # switch the active bar layout
 omarchy bar reset                            # return to the built-in Omarchy bar
 omarchy bar defaults                         # restore the default bar and service widgets
