@@ -210,4 +210,39 @@ assert(
   shellQml.includes('+ Qt.md5(shell.omarchyPath + "/shell\\n" + Quickshell.env("WAYLAND_DISPLAY")).slice(0, 16) + ".sock"'),
   'the shell names its socket after its config and display, as omarchy-shell does'
 )
+
+// Each bar builds its own copy of a widget, so a target has a handler per
+// monitor: only the first that wants it leads, and the next takes over when
+// that one goes, as when its monitor is unplugged.
+const leadsSource = registry.match(/function leads\(handler, revision\) \{[\s\S]*?\n  \}/)[0]
+const leadsWith = (handlers) => new Function('handlers', `${leadsSource}; return leads`)(handlers)
+const first = { target: 'omarchy.monitor' }
+const second = { target: 'omarchy.monitor' }
+const other = { target: 'omarchy.audio' }
+const handlers = [first, second, other]
+const leads = leadsWith(handlers)
+assert(leads(first, 0) && !leads(second, 0) && leads(other, 0), 'the first handler for each target leads')
+first.target = ''
+assert(!leads(first, 0) && leads(second, 0), 'a handler that gives up its target lets the next lead')
+first.target = 'omarchy.monitor'
+handlers.splice(0, 1)
+assert(leads(second, 0), 'the next handler takes over when the leader goes')
+assert(!leads(first, 0), 'a handler the registry no longer knows does not lead')
 JS
+
+# The same takeover in a real Quickshell: two ShellIpc handlers for one
+# target, as two bars build, where only the first answers, the second takes
+# over once the first is gone, and Quickshell never warns about the second.
+if compositor_reachable && command -v quickshell >/dev/null; then
+  ulimit -c 0 2>/dev/null || true
+  takeover=$(mktemp -d)
+  ln -s "$ROOT/shell/Commons" "$takeover/Commons"
+  cp "$SHELL_TEST_DIR/fixtures/shell-ipc-takeover/shell.qml" "$takeover/shell.qml"
+  output=$(timeout 10 quickshell -p "$takeover" --no-color 2>&1) || true
+  rm -rf "$takeover"
+  [[ $output == *"RESULT pass"* ]] || fail "a second ShellIpc for a target takes over when the first goes" "$output"
+  [[ $output != *"will not be used"* ]] || fail "Quickshell does not warn about a second ShellIpc for a target" "$output"
+  pass "a second ShellIpc for a target takes over when the first goes"
+else
+  skip "a second ShellIpc for a target takes over when the first goes (no compositor)"
+fi

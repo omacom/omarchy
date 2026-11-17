@@ -4,18 +4,20 @@ import qs.Commons as Commons
 
 // One row of a small popup menu, like the dock's right-click menu: a label,
 // a checkmark when `checked`, and `triggered()` on click. The menu owning it
-// closes itself in its handler.
+// closes itself in its handler. `highlighted` lights it as hover does, for a
+// menu walked with the keyboard.
 Rectangle {
   id: row
 
   property string text: ""
   property bool checked: false
+  property bool highlighted: false
   signal triggered()
 
   width: parent ? parent.width : 0
   height: visible ? Style.spacing.popupRowHeight : 0
   radius: Style.cornerRadius
-  color: rowMouse.containsMouse ? Style.hoverFill : "transparent"
+  color: rowMouse.containsMouse || highlighted ? Style.hoverFill : "transparent"
 
   Text {
     anchors.verticalCenter: parent.verticalCenter

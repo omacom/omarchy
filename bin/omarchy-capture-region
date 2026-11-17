@@ -37,15 +37,15 @@ JQ_MONITOR_GEO='
     end;
 '
 
-active_workspace() {
-  hyprctl monitors -j | jq -r '.[] | select(.focused == true) | .activeWorkspace.id'
-}
+# slurp spans every output, so the rectangles cover every monitor's visible
+# workspace, not only the focused one. A mirroring monitor shows another
+# monitor's content and has no place of its own in the layout.
+JQ_LAID_OUT='select((.mirrorOf // "none") == "none")'
 
-# The focused monitor's workspace, plus the special workspace shown over it.
 # A shown special workspace only appears under specialWorkspace, and Hyprland
 # reports its windows as not hidden even while it is closed.
 visible_workspaces() {
-  hyprctl monitors -j | jq -c '[.[] | select(.focused == true) | .activeWorkspace.id, (select((.specialWorkspace.name // "") != "") | .specialWorkspace.id)]'
+  hyprctl monitors -j | jq -c "[.[] | ${JQ_LAID_OUT} | .activeWorkspace.id, (select((.specialWorkspace.name // \"\") != \"\") | .specialWorkspace.id)]"
 }
 
 # Hidden group members and windows stacked at identical geometry collapse to
@@ -53,11 +53,11 @@ visible_workspaces() {
 # Tab cycle on the first copy.
 window_rects() {
   hyprctl clients -j | jq -r --argjson ws "$(visible_workspaces)" \
-    '[.[] | select(.workspace.id as $id | ($ws | index($id)) and .hidden != true) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"] | unique[]'
+    '[.[] | select(.workspace.id as $id | ($ws | index($id)) != null and .hidden != true) | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"] | unique[]'
 }
 
 monitor_rects() {
-  hyprctl monitors -j | jq -r --arg ws "$(active_workspace)" "${JQ_MONITOR_GEO} .[] | select(.activeWorkspace.id == (\$ws | tonumber)) | format_geo"
+  hyprctl monitors -j | jq -r "${JQ_MONITOR_GEO} .[] | ${JQ_LAID_OUT} | format_geo"
 }
 
 get_rectangles() {
