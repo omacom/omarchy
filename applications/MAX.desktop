@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=MAX
+Exec=omarchy-launch-webapp https://web.max.ru/
+StartupWMClass=chrome-web.max.ru__-Default
+Terminal=false
+Type=Application
+Icon=max
+StartupNotify=true
