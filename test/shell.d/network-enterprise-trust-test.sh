@@ -35,16 +35,19 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
 `, {mode: 0o755})
 
   const password = 'literal $() \\" secret'
-  function connect(caCert, serverName, failAction, hangAction, ignoreTerm, locale) {
+  function connect(caCert, serverName, failAction, locale) {
+    return runCommand(['bash', '-c', network.enterpriseConnectScript, 'nmcli-eap',
+      'Enterprise WiFi', 'person@example.org', caCert, serverName], {failAction, locale})
+  }
+
+  function runCommand(argv, {failAction, hangAction, ignoreTerm, locale}) {
     const log = path.join(scratch, 'nmcli-log')
     for (const name of fs.readdirSync(scratch)) {
       if (name.startsWith('nmcli-log')) fs.unlinkSync(path.join(scratch, name))
     }
-    const script = hangAction ? network.enterpriseConnectScript.replace('--kill-after=1s 150s', '--kill-after=0.1s 0.1s') : network.enterpriseConnectScript
-    const command = ['bash', '-c', script,
-      'nmcli-eap', 'Enterprise WiFi', 'person@example.org', caCert, serverName]
-    // Accelerate the production timeout for the fixture, preserving its
-    // process-group behavior and escalation while executing the real helper.
+    // Shorten the deadline while preserving the panel's command and the real supervisor.
+    const command = argv.map(arg => hangAction && arg === network.enterpriseConnectScript
+      ? arg.replace('--kill-after=1s 150s', '--kill-after=0.1s 0.1s') : arg)
     const result = childProcess.spawnSync(command.shift(), command, {
       input: password + '\n', encoding: 'utf8', timeout: 2000,
       env: {...process.env, ...(locale ? {LC_ALL: locale} : {}), PATH: scratch + ':' + process.env.PATH,
@@ -83,12 +86,12 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   for (const locale of locales) {
     for (const serverName of ['râdius.example.org', 'RÁDIUS.example.org', 'radius.exämple.org']) {
       assert(!network.enterpriseTrustValid(cert, serverName), 'enterprise UI rejects non-ASCII server ' + serverName)
-      const attempt = connect(cert, serverName, '', '', false, locale)
+      const attempt = connect(cert, serverName, '', locale)
       assert(!attempt.result.error && attempt.result.status === 65 && attempt.calls.length === 0,
         'enterprise boundary rejects non-ASCII server before NetworkManager in ' + locale + ': ' + serverName)
     }
     for (const serverName of ['RADIUS.example.org', 'xn--radius-9za.example.org']) {
-      const attempt = connect(unicodeCert, serverName, '', '', false, locale)
+      const attempt = connect(unicodeCert, serverName, '', locale)
       assert(!attempt.result.error && attempt.result.status === 0,
         'enterprise accepts ASCII server and Unicode CA path in ' + locale + ': ' + serverName)
       const add = attempt.calls[0]
@@ -116,22 +119,6 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
     const failed = connect(cert, 'radius.example.org', action)
     assert(failed.result.status !== 0 && failed.calls.at(-1)[1] === 'delete', 'enterprise cleans up a failed ' + action)
     if (action !== 'up') assert(!failed.calls.some(call => call[1] === 'up'), 'enterprise never activates after failed ' + action)
-  }
-
-  for (const [action, ignoreTerm] of [['add', false], ['edit', false], ['up', false], ['up', true]]) {
-    const stalled = connect(cert, 'radius.example.org', '', action, ignoreTerm)
-    assert(!stalled.result.error && (stalled.result.status === 124 || stalled.result.status === 137),
-      'enterprise deadline ends a stalled ' + action + (ignoreTerm ? ' even when TERM is ignored' : '')
-        + ' ' + JSON.stringify({status: stalled.result.status, signal: stalled.result.signal, error: stalled.result.error && stalled.result.error.code}))
-    assertEqual(stalled.pids.length, 2, 'stalled enterprise fixture started nmcli and its child')
-    assert(stalled.calls.at(-1)[1] === 'delete' && stalled.calls.at(-1)[3] === 'fixture-uuid',
-      'enterprise supervisor cleans its own profile after stalled ' + action + (ignoreTerm ? ' and forced KILL' : ''))
-    for (const pid of stalled.pids) {
-      const stat = '/proc/' + pid + '/stat'
-      assert(!fs.existsSync(stat) || fs.readFileSync(stat, 'utf8').split(') ')[1].startsWith('Z'),
-        'enterprise deadline leaves no running nmcli descendant ' + pid)
-    }
-    assertEqual(connect(cert, 'radius.example.org').result.status, 0, 'enterprise can retry after stalled ' + action)
   }
 
   for (const serverName of ['radius.example.org', 'RADIUS.example.org', 'radius', 'xn--radius-9za.example.org']) {
@@ -163,7 +150,20 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(actionCount, 1, 'enterprise caller starts with valid trust settings')
   assertDeepEqual(enterpriseConnect.command.slice(-4), ['Enterprise WiFi', 'person@example.org', cert, 'radius.example.org'], 'enterprise caller passes explicit trust settings to the process')
   assert(!enterpriseConnect.command.includes(password), 'enterprise caller keeps the password out of argv')
-  assertDeepEqual(enterpriseConnect.command.slice(0, 2), ['bash', '-c'], 'enterprise caller keeps the cleanup supervisor outside the worker timeout')
+  for (const [action, ignoreTerm] of [['add', false], ['edit', false], ['up', false], ['up', true]]) {
+    const stalled = runCommand(enterpriseConnect.command, {hangAction: action, ignoreTerm})
+    assert(!stalled.result.error && (stalled.result.status === 124 || stalled.result.status === 137),
+      'enterprise deadline ends a stalled ' + action + (ignoreTerm ? ' even when TERM is ignored' : '')
+        + ' ' + JSON.stringify({status: stalled.result.status, signal: stalled.result.signal, error: stalled.result.error && stalled.result.error.code}))
+    assertEqual(stalled.pids.length, 2, 'stalled enterprise fixture started nmcli and its child')
+    assert(stalled.calls.at(-1)[1] === 'delete' && stalled.calls.at(-1)[3] === 'fixture-uuid',
+      'enterprise supervisor cleans its own profile after stalled ' + action + (ignoreTerm ? ' and forced KILL' : ''))
+    for (const pid of stalled.pids) {
+      const stat = '/proc/' + pid + '/stat'
+      assert(!fs.existsSync(stat) || fs.readFileSync(stat, 'utf8').split(') ')[1].startsWith('Z'),
+        'enterprise deadline leaves no running nmcli descendant ' + pid)
+    }
+  }
 
   const firstCommand = enterpriseConnect.command.slice()
   const firstRevision = enterpriseConnect.actionRevision
@@ -204,13 +204,17 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(retry.failureReason, 'Timed out connecting', 'enterprise deadline reports a timeout instead of invalid credentials')
   assertEqual(retry.actionKind, '', 'enterprise timeout clears its own busy state for retry')
 
-  const lateSuccess = {actionRevision: firstRevision, actionKind: '', actionSsid: '', failureSsid: 'Enterprise WiFi',
+  const clearHelper = panel.match(/function clearNetworkAction\([^)]*\) \{[\s\S]*?\n {2}\}/)
+  assert(clearHelper, 'network has a production completion helper')
+  let refreshCount = 0
+  const lateSuccess = vm.createContext({actionRevision: firstRevision, actionKind: '', actionSsid: '', failureSsid: 'Enterprise WiFi',
     failureReason: 'Timed out connecting', passwordSsid: 'Enterprise WiFi', enterpriseRetry: null,
-    clearNetworkAction: function() { this.failureSsid = ''; this.failureReason = ''; this.refreshed = true }}
+    actionTimeout: timer, refresh() { refreshCount++ }})
+  vm.runInContext(clearHelper[0], lateSuccess)
   onExited(0, 0, lateSuccess, firstRevision, 'Enterprise WiFi', timer, '')
   assertEqual(lateSuccess.failureReason, '', 'late enterprise success removes its informational timeout error')
   assertEqual(lateSuccess.passwordSsid, '', 'late enterprise success closes its password prompt')
-  assert(lateSuccess.refreshed, 'late enterprise success refreshes connection details')
+  assertEqual(refreshCount, 1, 'late enterprise success refreshes connection details')
   lateSuccess.failureSsid = 'Enterprise WiFi'
   lateSuccess.failureReason = 'Timed out connecting'
   lateSuccess.passwordSsid = 'Other WiFi'
@@ -267,8 +271,6 @@ if [[ $2 == "edit" ]]; then cat >"$TEST_NM_LOG.stdin"; fi
   assertEqual(actionContext.actionRevision, 2, 'production action helper advances a later same-SSID retry')
   assertEqual(actionContext.enterpriseRetry, null, 'a later accepted action retires the old enterprise retry')
 
-  const clearHelper = panel.match(/function clearNetworkAction\([^)]*\) \{[\s\S]*?\n {2}\}/)
-  assert(clearHelper, 'network has a production completion helper')
   const clearContext = vm.createContext({actionKind: 'connect', actionSsid: 'Enterprise WiFi', passwordSsid: 'Other WiFi',
     failureSsid: '', failureReason: '', actionTimeout: {stop: function() {}}, refresh: function() {}})
   vm.runInContext(clearHelper[0], clearContext)
