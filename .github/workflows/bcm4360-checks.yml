@@ -1,0 +1,12 @@
+name: BCM4360 contribution checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, workstation]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: bash test/shell.d/hardware-quirks-test.sh
+      - run: shellcheck -s bash install/hardware/fix-bcm43xx.sh && git diff --check && gitleaks dir --redact --no-banner install/hardware

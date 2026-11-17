@@ -39,6 +39,14 @@ The installer detects Mac hardware and applies the needed fixes automatically: B
 
 ### Known Limitations
 
+#### BCM4360 WPA3 and protected management frames
+
+The stock `broadcom-wl-dkms` driver lacks WPA3-SAE. An experimental [BCM4360 WPA3/PMF driver](https://github.com/gafgpt-cmd/bcm4360-wpa3-pmf) adds userspace SAE transport and software management-frame protection for PCI ID `14e4:43a0`.
+
+Fresh x86 setup uses `broadcom-wl-wpa3-dkms` when the configured package repository carries it; otherwise it installs stock. Existing stock installations stay unchanged. BCM4331 and machines with both chips keep the stock package. The new package needs publication before this path can activate.
+
+For an existing BCM4360 installation, follow the project's [reversible trial and recovery guide](https://github.com/gafgpt-cmd/bcm4360-wpa3-pmf/blob/main/LOCAL.md). A trial restores stock automatically. Persistent installation and DKMS packaging are separate paths; rebuild compatibility must be checked for the running kernel. Negotiated PMF has been tested on one board; the full security and stress matrix remains incomplete.
+
 Members of the community are constantly working on solutions to these challenges so if these are problematic for you, join #omarchy-on-other in our [Discord](https://discord.gg/tXFUdasqhY) and see if there's any up-to-date methods for resolving these.
 
 #### Devices with T1 Chip
