@@ -85,15 +85,19 @@ install_launcher() {
   update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 }
 
-# A first sign-in announces the agent as ready, and clicking it starts one;
-# any other says which account it was.
+# A first sign-in announces the agent as ready, and an added account that it's
+# ready for more; clicking either starts one. Any other says which account it was.
 finish() {
   install_launcher
   if [[ $events == "true" ]]; then
     printf '@@omarchy done %s\n' "$1"
     if [[ ${2:-} == "ready" ]]; then
-      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+      omarchy-notification-send -t 30000 -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
         "$(omarchy-i18n agents.readyToCode "$app")" "$(omarchy-i18n agents.readyToCodeBody)" \
+        --exec omarchy-agent --agent "$provider" --app-id="org.omarchy.$provider"
+    elif [[ ${2:-} == "more" ]]; then
+      omarchy-notification-send -t 30000 -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+        "$(omarchy-i18n agents.readyForMore "$app")" "$(omarchy-i18n agents.readyForMoreBody "$3")" \
         --exec omarchy-agent --agent "$provider" --app-id="org.omarchy.$provider"
     else
       omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" "$1"
@@ -308,13 +312,12 @@ EOF
   if account=$(omarchy-agent-account-state register "$provider" "$label" "$home" 2>&1); then
     home=""
     added=$(jq -r '.label + (if .email != "" then " (" + .email + ")" else "" end)' <<<"$account")
+    # A subscription just added is the one you want tokens from next, so new
+    # sessions switch to it. Running sessions stay where they are.
+    omarchy-agent-account-state use "$provider" "$(jq -r .id <<<"$account")" >/dev/null
     omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
-    if [[ $events == "true" ]]; then
-      finish "$(omarchy-i18n agents.added "$added")"
-    else
-      finish "$(omarchy-i18n agents.added "$added")"
-      echo "Switch to it with: omarchy agent account use $provider $(jq -r .id <<<"$account")"
-    fi
+    finish "$(omarchy-i18n agents.added "$added")" more "$(jq -r .label <<<"$account")"
+    [[ $events == "true" ]] || echo "New $name sessions now use $(jq -r .label <<<"$account")."
   else
     registration_status=$?
     # Keep the home for cleanup when registration was explicitly interrupted.

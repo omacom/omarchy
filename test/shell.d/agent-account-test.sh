@@ -217,6 +217,9 @@ OMARCHY_TEST_LOGIN_UUID=acct-2 OMARCHY_TEST_LOGIN_EMAIL=side@example.com \
 [[ $(readlink "$accounts/codex/side/sessions") == "$HOME/.codex/sessions" ]] || fail "a Codex account shares sessions with the primary"
 grep -qx -- "--private https://auth.openai.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" ||
   fail "a Codex login opens in a private window" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
+[[ $(omarchy-agent-account-exec codex) == "codex home=$accounts/codex/side args=" ]] ||
+  fail "an added account becomes the one new sessions use" "$(omarchy-agent-account-exec codex)"
+omarchy-agent-account-use codex main >/dev/null
 pass "Codex accounts are added the same way"
 
 OMARCHY_TEST_DEFAULT_AGENT="" omarchy-agent-account-add grok </dev/null >/dev/null
@@ -392,7 +395,8 @@ grep -qx "@@omarchy status Sign in as the account you're adding in the private w
   fail "--events reports progress as tagged lines" "$(cat "$test_tmp/events-output")"
 grep -qx "@@omarchy done Added Events (events@example.com)." "$test_tmp/events-output" ||
   fail "--events reports the result as a tagged line" "$(cat "$test_tmp/events-output")"
-grep -q "Added Events (events@example.com)." "$notifications" || fail "--events also notifies, in case the panel closed"
+grep -q "Claude Code is ready for more Tokens now flowing from Events account" "$notifications" ||
+  fail "--events also notifies, in case the panel closed" "$(cat "$notifications")"
 if OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \
   omarchy-agent-account-add --events claude Again </dev/null >"$test_tmp/events-dup" 2>&1; then
   fail "--events fails a duplicate"
