@@ -14,12 +14,34 @@ if [[ -e $done_marker ]]; then
   exit 0
 fi
 
+# Only an AMD APU has a carveout, and fwupd can only offer it through amdgpu's
+# uma/carveout or a vendor's firmware-attributes, so a machine with neither is
+# done without asking for a password. Past that, a failed read (a cancelled
+# password prompt, a fwupdtool error) must leave this pending for a retry,
+# apart from a read that finds no video-memory setting.
+shopt -s nullglob
+apu=false
+for device in /sys/bus/pci/devices/*; do
+  if [[ $(< "$device/vendor") == "0x1002" && $(< "$device/class") == 0x03* && -f $device/mem_info_vram_total && ! -e $device/mem_info_vram_vendor ]]; then
+    apu=true
+  fi
+done
+backends=(/sys/bus/pci/devices/*/uma/carveout /sys/class/firmware-attributes/*/attributes)
+if [[ $apu == "false" ]] || (( ${#backends[@]} == 0 )); then
+  exit 0
+fi
+
 carveouts() {
-  sudo fwupdtool get-bios-settings --json 2>/dev/null |
-    jq -r '.BiosSettings[]? | select(.AppstreamId == "org.fwupd.bios.video-memory") | .BiosSettingCurrentValue' || true
+  local settings
+
+  settings=$(sudo fwupdtool get-bios-settings --json 2>/dev/null) || return 1
+  jq -r '.BiosSettings[]? | select(.AppstreamId == "org.fwupd.bios.video-memory") | .BiosSettingCurrentValue' <<< "$settings"
 }
 
-before=$(carveouts)
+if ! before=$(carveouts); then
+  echo "Could not read the firmware's settings. Run omarchy-migrate again to retry." >&2
+  exit 1
+fi
 if [[ -z $before ]]; then
   exit 0
 fi
@@ -32,7 +54,12 @@ fi
 sudo install -Dm644 /dev/null "$pending_marker"
 sudo env PATH="$PATH" omarchy-apply-amd-gpu-memory || exit 1
 
-if [[ $(carveouts) == "$before" && $retrying == "false" ]]; then
+if ! after=$(carveouts); then
+  echo "Could not read the firmware's settings. Run omarchy-migrate again to retry." >&2
+  exit 1
+fi
+
+if [[ $after == "$before" && $retrying == "false" ]]; then
   sudo rm -f "$pending_marker"
   exit 0
 fi
