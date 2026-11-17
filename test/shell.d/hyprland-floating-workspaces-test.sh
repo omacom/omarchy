@@ -1086,6 +1086,33 @@ assert(not find("place"), "let go beside the laptop before the pause, the window
 fi
 pass "sliding along an edge into the part another monitor shares still pauses"
 
+# Two arrows pressed quickly on a maximized window build on each other: the
+# first waits for the window to get its own size back, and the second starts
+# from the tile the first asked for.
+if ! run_lua "$snap_setup"'
+local queued = {}
+hl.timer = function(callback) table.insert(queued, callback) end
+local function settle() while #queued > 0 do table.remove(queued, 1)() end end
+local G = o.snap.geometry
+local area = { x = 0, y = 30, w = 2560, h = 1410 }
+local gaps = { outer = { left = 10, top = 10, right = 10, bottom = 10 }, inner = 5 }
+local function tile_of(w) return G.tile_of(G.outer_box({ x = w.at.x, y = w.at.y, w = w.size.x, h = w.size.y }, { left = 2, top = 32, right = 2, bottom = 2 }), area, gaps) end
+local maximized = snap_window("0x1", 1)
+maximized.size, maximized.fullscreen = { x = 900, y = 600 }, 1
+focused = maximized
+o.snap.key("left")
+o.snap.key("top")
+settle()
+assert(maximized.fullscreen == 0 and tile_of(maximized) == "top-left", "Left then Up on a maximized window did not end top-left: " .. tostring(tile_of(maximized)))
+-- Once settled, a press starts from what the window is again.
+o.snap.key("right")
+settle()
+assert(tile_of(maximized) == "top", "a later press did not start from the window as it is: " .. tostring(tile_of(maximized)))
+'; then
+  fail "quick arrows on a maximized window build on each other"
+fi
+pass "quick arrows on a maximized window build on each other"
+
 # A tile a window can't fill leaves it alone: no move, no flicker.
 if ! run_lua "$snap_setup"'
 focused = snap_window("0x1", 1)

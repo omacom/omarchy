@@ -163,7 +163,10 @@ function M.place(window, tile, monitor)
   if not takes(window, tile, monitor) then
     return
   end
-  local token = {}
+  -- The tile it is on its way to, while that waits (a maximized window first
+  -- gets its own size back): the next arrow builds on it. Maximizing waits for
+  -- nothing, so it leaves none to outlive a restore made some other way.
+  local token = { tile = tile ~= "max" and tile or nil }
   placing[address] = token
   -- A drop on another monitor: Hyprland gives a dropped window the workspace
   -- under its centre, which can be the monitor it came from.
@@ -237,7 +240,9 @@ function M.key(direction)
     return
   end
   local monitor = window.monitor
-  local tile = (window.fullscreen or 0) == 1 and "max" or G.tile_of(G.outer_box(client_of(window), extents(window)), area(monitor), gaps())
+  local pending = placing[window.address]
+  local tile = pending and pending.tile
+    or ((window.fullscreen or 0) == 1 and "max" or G.tile_of(G.outer_box(client_of(window), extents(window)), area(monitor), gaps()))
   local new = G.press(tile, direction)
   if new ~= tile then
     M.place(window, new, monitor)
