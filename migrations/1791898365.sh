@@ -43,11 +43,12 @@ fi
 
 # With ENABLE_ENROLL_LIMINE_CONFIG=yes the Limine binary carries a checksum
 # of this file, and any edit makes the next boot stop on CHECKSUM MISMATCH.
-# limine-update enrolls the edited menu again. It runs whenever the menu is
-# here, not only when this run changed it, so a retry after a failed refresh
-# still repairs the checksum; a failure leaves this migration pending.
-if omarchy-cmd-present limine-update; then
-  sudo limine-update
+# limine-enroll-config enrolls the edited menu again. It runs whenever the
+# menu is here, not only when this run changed it, so a retry after a failed
+# enrollment still repairs the checksum; a failure leaves this migration
+# pending. The tool reads the setting from /etc/default/limine alone.
+if omarchy-cmd-present limine-enroll-config && grep -Eqs '^[[:space:]]*ENABLE_ENROLL_LIMINE_CONFIG[[:space:]]*=[[:space:]]*"?yes"?$' /etc/default/limine; then
+  sudo limine-enroll-config
 fi
 
 if [[ -n $set_timeout && -n $added_quiet ]]; then
