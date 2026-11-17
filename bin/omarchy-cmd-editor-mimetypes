@@ -47,12 +47,46 @@ older="${XDG_DATA_HOME:-$HOME/.local/share}/applications/mimeapps.list"
 aliases=/usr/share/mime/aliases
 [[ -f $aliases ]] || aliases=/dev/null
 
+# Decodes a desktop-entry string (\s \n \t \r \\) into the named variable.
+# Returns 1 for an escape this doesn't know, so the caller keeps the app
+# rather than judging a path it couldn't read.
+desktop_unescape() {
+  local -n _decoded=$1
+  local raw=$2 char next result=
+  local -i i=0 len=${#raw}
+  while ((i < len)); do
+    char=${raw:i:1}
+    if [[ $char != '\' ]]; then
+      result+=$char
+      i=$((i + 1))
+      continue
+    fi
+    i=$((i + 1))
+    if ((i >= len)); then
+      return 1
+    fi
+    next=${raw:i:1}
+    case $next in
+    s) result+=' ' ;;
+    n) result+=$'\n' ;;
+    t) result+=$'\t' ;;
+    r) result+=$'\r' ;;
+    \\) result+='\' ;;
+    *) return 1 ;;
+    esac
+    i=$((i + 1))
+  done
+  _decoded=$result
+}
+
 # A desktop file counts unless its TryExec isn't there, the way GLib then
 # opens the type in whatever it finds next. Hidden is not read: a mime
 # default still opens a Hidden=true entry, so treating it as gone would
 # replace a choice GLib honors. An unreadable file counts, so a choice is
 # kept when it can't be checked. A copy that doesn't count doesn't hide one
 # in a later data dir. Path= is searched too, since GLib runs TryExec from it.
+# TryExec and Path are read with desktop-file escapes decoded; an escape
+# this doesn't understand leaves the app counted.
 desktop_file_counts() {
   local file=$1 line section= key value try_exec= desktop_path=
   [[ -r $file && -f $file ]] || return 0
@@ -86,6 +120,12 @@ desktop_file_counts() {
     Path) desktop_path=$value ;;
     esac
   done <"$file" || return 0
+  if [[ -n $try_exec ]] && ! desktop_unescape try_exec "$try_exec"; then
+    return 0
+  fi
+  if [[ -n $desktop_path ]] && ! desktop_unescape desktop_path "$desktop_path"; then
+    return 0
+  fi
   [[ -n $try_exec ]] || return 0
   if [[ $try_exec == */* ]]; then
     [[ -x $try_exec ]] && return 0

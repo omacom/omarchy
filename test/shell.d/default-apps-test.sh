@@ -482,11 +482,30 @@ printf '[Desktop Entry]\nExec=/bin/true %%F\nTryExec=omarchy-tryexec-only-here\n
 printf '[Default Applications]\ntext/plain=path-try.desktop\n' >"$mimeapps"
 omarchy-cmd-editor-mimetypes --unless-chosen
 grep -qxF "text/plain=path-try.desktop" "$mimeapps" || fail "the migration keeps a choice whose TryExec is in the desktop file's Path"
+# \s is a space, as GLib reads a desktop-file string. The literal backslash path is not the editor.
+escaped_editor="$test_tmp/My Editor/bin"
+mkdir -p "$escaped_editor"
+printf '#!/bin/bash\nexit 0\n' >"$escaped_editor/editor"
+chmod +x "$escaped_editor/editor"
+printf '[Desktop Entry]\nExec=/bin/true %%F\nTryExec=%s\n' "${escaped_editor// /\\s}/editor" >"$test_home/.local/share/applications/escaped-try.desktop"
+printf '[Default Applications]\ntext/plain=escaped-try.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=escaped-try.desktop" "$mimeapps" || fail "the migration keeps a choice whose TryExec uses a desktop-file escape"
+escaped_path="$test_tmp/Editor Path"
+mkdir -p "$escaped_path"
+printf '#!/bin/bash\nexit 0\n' >"$escaped_path/omarchy-tryexec-escaped-path"
+chmod +x "$escaped_path/omarchy-tryexec-escaped-path"
+printf '[Desktop Entry]\nExec=/bin/true %%F\nTryExec=omarchy-tryexec-escaped-path\nPath=%s\n' "${escaped_path// /\\s}" >"$test_home/.local/share/applications/escaped-path.desktop"
+printf '[Default Applications]\ntext/plain=escaped-path.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=escaped-path.desktop" "$mimeapps" || fail "the migration keeps a choice whose Path uses a desktop-file escape"
 rm -f "$test_home/.local/share/applications/missing-try.desktop" \
   "$test_home/.local/share/applications/later-try.desktop" \
   "$test_home/.local/share/applications/action-try.desktop" \
   "$test_home/.local/share/applications/unreadable.desktop" \
-  "$test_home/.local/share/applications/path-try.desktop"
+  "$test_home/.local/share/applications/path-try.desktop" \
+  "$test_home/.local/share/applications/escaped-try.desktop" \
+  "$test_home/.local/share/applications/escaped-path.desktop"
 rm -rf "$test_tmp/data/applications"
 pass "the migration follows TryExec the way GLib does"
 
