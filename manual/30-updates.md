@@ -26,7 +26,7 @@ Omarchy boots its own `linux-omarchy` kernel, but you can keep others installed 
 
 ### Firmware updates
 
-Your packages aren't the only thing that goes stale. Many laptops and peripherals ship BIOS, SSD, and dock firmware through the Linux Vendor Firmware Service, and _Update > Firmware_ in the Omarchy menu will fetch and install whatever your hardware has waiting. It installs `fwupd` the first time you run it. Plenty of firmware can only be written during a reboot, so don't be surprised to be asked for one.
+Your packages aren't the only thing that goes stale. Many laptops and peripherals ship BIOS, SSD, and dock firmware through the Linux Vendor Firmware Service, and _Update > Firmware_ in the Omarchy menu will fetch and install whatever your hardware has waiting. Plenty of firmware can only be written during a reboot, so don't be surprised to be asked for one.
 
 When you need to change a setting in the BIOS itself, hold `Alt` in the system menu (`Super + Escape`) and _Reboot_ turns into _Reboot to BIOS_, which restarts straight into the firmware setup without having to catch the right key at boot. From the terminal, it's `omarchy system firmware`.
 
