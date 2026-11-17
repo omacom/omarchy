@@ -117,8 +117,6 @@ Item {
     finalPath = String(finalPath || path).trim()
     fromPath = String(fromPath || "").trim()
     if (!path || (!force && finalPath === currentBackground)) return
-    pendingInstantBackground = ""
-    pendingInstantReload = false
     if (path !== preparedBackground) preparedBackground = ""
     preparedBackgroundTimer.stop()
     lastTransitionPath = path
@@ -135,7 +133,11 @@ Item {
     // still stays on screen until OWE has the first frame and suspends this
     // layer, so the desktop does not show an empty background meanwhile. A
     // running reveal finishes on its incoming still, which OWE fades from.
-    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) return
+    if (!instant && !root.suspended && displayedBackground && isVideo(path) && !isVideo(displayedBackground)) {
+      pendingInstantBackground = ""
+      pendingInstantReload = false
+      return
+    }
 
     revealAnimation.stop()
     revealGraceTimer.stop()
@@ -147,6 +149,8 @@ Item {
       oldBackground = ""
       incomingBackground = ""
       preparedBackground = ""
+      // Replaced, never cleared first: an empty pending path would report the
+      // old frame ready for a moment and lift a waiting cover onto it.
       pendingInstantBackground = finalPath
       pendingInstantReload = instant
       applyPendingInstantBackground()
@@ -154,6 +158,8 @@ Item {
       return
     }
 
+    pendingInstantBackground = ""
+    pendingInstantReload = false
     oldBackground = fromPath || displayedBackground
     incomingBackground = path
     revealProgress = 0

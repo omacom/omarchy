@@ -119,6 +119,14 @@ assertEqual(s.displayedBackground, 'c.png', 'rapid switching displays only the l
 
 s = state()
 s.setBackground('b.png', true)
+let pending = s.pendingInstantBackground
+const readyWhilePending = []
+Object.defineProperty(s, 'pendingInstantBackground', { get: () => pending, set(value) { pending = value; readyWhilePending.push(s.ready) } })
+s.setBackground('c.png', true)
+assertEqual(readyWhilePending.includes(true), false, 'replacing a pending instant switch never reports the old frame ready')
+
+s = state()
+s.setBackground('b.png', true)
 s.setBackground('a.png', true)
 s.completeProbe()
 assertEqual(s.displayedBackground, 'a.png', 'returning to A cancels a pending B even after B finishes probing')
