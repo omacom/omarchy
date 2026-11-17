@@ -23,8 +23,9 @@ set -euo pipefail
 # carveout to the smallest size, as the "Tuning" tab in AMD Adrenalin would, or
 # set the size given, like "4 GB" (omarchy-device-gpu-vram passes the one the
 # user picked). --options prints this boot's VRAM, the next boot's, then every
-# size the firmware offers. fwupdtool runs fwupd's plugins without its daemon,
-# so this works from the installer's chroot too.
+# size the firmware offers. fwupdmgr goes through fwupd's daemon, which keeps
+# its view of the settings and of a pending reboot; the installer's chroot has
+# no daemon to reach, so there fwupdtool runs fwupd's plugins itself.
 #
 # The cap is then sized for the RAM the next boot will see, which is MemTotal
 # plus the VRAM carved out now, less the new carveout. A carveout large enough
@@ -35,6 +36,7 @@ set -euo pipefail
 # setting and builds nothing; the caller rebuilds the boot image, and the new
 # cap and carveout apply from the next boot.
 
+systemd_run="${OMARCHY_SYSTEMD_RUN:-/run/systemd/system}"
 drop_in="${OMARCHY_AMD_GPU_MEMORY_CONF:-/etc/limine-entry-tool.d/amd-gpu-memory.conf}"
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
 meminfo="${OMARCHY_MEMINFO:-/proc/meminfo}"
@@ -44,6 +46,14 @@ wanted=${1:-}
 cannot_change() {
   echo "This machine's firmware doesn't let Linux change the AMD GPU's dedicated VRAM" >&2
   exit 1
+}
+
+fwupd() {
+  if [[ -d $systemd_run ]]; then
+    fwupdmgr "$@" < /dev/null
+  else
+    fwupdtool "$@" < /dev/null
+  fi
 }
 
 # The size in KiB of a value like "512 MB", or amdgpu's "(512 MB)".
@@ -74,7 +84,7 @@ done
 # id, its value from the next boot, then each value it accepts.
 setting=()
 if [[ -n $apu ]]; then
-  mapfile -t setting < <(fwupdtool get-bios-settings --json 2>/dev/null | jq -r '
+  mapfile -t setting < <(fwupd get-bios-settings --json 2>/dev/null | jq -r '
     [.BiosSettings[]? | select(.AppstreamId == "org.fwupd.bios.video-memory" and (.BiosSettingReadOnly | not))]
     | sort_by(.BiosSettingId | startswith("com.amd-gpu.")) | first // empty
     | .BiosSettingId, .BiosSettingCurrentValue, .BiosSettingPossibleValues[]
@@ -129,8 +139,8 @@ if (( ${#setting[@]} >= 3 )); then
     total_kib=$(( total_kib + vram_kib - new_kib ))
 
     if [[ $current != "$new_value" ]]; then
-      if ! output=$(fwupdtool --no-reboot-check set-bios-setting "$setting_id" "$new_value" < /dev/null 2>&1); then
-        grep -v '^Loading\|^Idle' <<< "$output" >&2
+      if ! output=$(fwupd --no-reboot-check set-bios-setting "$setting_id" "$new_value" 2>&1); then
+        grep -v '^Loading\|^Idle\|^Waiting' <<< "$output" >&2
         exit 1
       fi
       echo "Setting the AMD GPU's dedicated VRAM to ${new_value//[()]/} from the next boot"

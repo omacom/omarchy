@@ -17,7 +17,7 @@ fi
 # Only an AMD APU has a carveout, and fwupd can only offer it through amdgpu's
 # uma/carveout or a vendor's firmware-attributes, so a machine with neither is
 # done without asking for a password. Past that, a failed read (a cancelled
-# password prompt, a fwupdtool error) must leave this pending for a retry,
+# password prompt, a fwupd error) must leave this pending for a retry,
 # apart from a read that finds no video-memory setting.
 shopt -s nullglob
 apu=false
@@ -34,7 +34,7 @@ fi
 carveouts() {
   local settings
 
-  settings=$(sudo fwupdtool get-bios-settings --json 2>/dev/null) || return 1
+  settings=$(sudo fwupdmgr get-bios-settings --json < /dev/null 2>/dev/null) || return 1
   jq -r '.BiosSettings[]? | select(.AppstreamId == "org.fwupd.bios.video-memory") | .BiosSettingCurrentValue' <<< "$settings"
 }
 

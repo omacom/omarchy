@@ -9,11 +9,12 @@ export OMARCHY_PCI_DEVICES_PATH="$tmp_dir/pci" OMARCHY_MEMINFO="$tmp_dir/meminfo
 export OMARCHY_AMD_GPU_MEMORY_CONF="$tmp_dir/limine-entry-tool.d/amd-gpu-memory.conf"
 page_kib=$(( $(getconf PAGESIZE) / 1024 ))
 
-# fwupdtool, keeping the BIOS settings in a JSON file and refusing a value
-# the firmware doesn't list, as fwupd does.
+# fwupdmgr, keeping the BIOS settings in a JSON file and refusing a value
+# the firmware doesn't list, as fwupd does. fwupdtool, used where systemd
+# isn't running (the installer's chroot), records each call.
 export FWUPD_SETTINGS="$tmp_dir/bios-settings.json"
 mkdir -p "$tmp_dir/bin"
-cat > "$tmp_dir/bin/fwupdtool" <<'STUB'
+cat > "$tmp_dir/bin/fwupdmgr" <<'STUB'
 #!/bin/bash
 [[ $1 == "--no-reboot-check" ]] && shift
 if [[ $1 == "get-bios-settings" ]]; then
@@ -24,7 +25,10 @@ elif [[ $1 == "set-bios-setting" ]]; then
   mv "$FWUPD_SETTINGS.new" "$FWUPD_SETTINGS"
 fi
 STUB
-chmod +x "$tmp_dir/bin/fwupdtool"
+printf '#!/bin/bash\necho "$*" >> "$FWUPD_SETTINGS.tool"\nexec fwupdmgr "$@"\n' > "$tmp_dir/bin/fwupdtool"
+chmod +x "$tmp_dir/bin/fwupdmgr" "$tmp_dir/bin/fwupdtool"
+export OMARCHY_SYSTEMD_RUN="$tmp_dir/run-systemd"
+mkdir -p "$OMARCHY_SYSTEMD_RUN"
 echo '{"BiosSettings": []}' > "$FWUPD_SETTINGS"
 export PATH="$tmp_dir/bin:$PATH"
 
@@ -114,3 +118,10 @@ if "$ROOT/bin/omarchy-apply-amd-gpu-memory" "6 GB" >/dev/null 2>&1; then
 fi
 [[ $(setting com.amd-gpu.uma_carveout) == "(16 GB)" ]] || fail "a refused size leaves the carveout alone"
 pass "a size the firmware doesn't offer is refused"
+
+# The installer's chroot runs no systemd, so fwupd's plugins run in fwupdtool.
+rmdir "$OMARCHY_SYSTEMD_RUN"
+"$ROOT/bin/omarchy-apply-amd-gpu-memory" "1 GB" >/dev/null
+[[ $(setting com.amd-gpu.uma_carveout) == "(1 GB)" && -s $FWUPD_SETTINGS.tool ]] ||
+  fail "without systemd, the carveout is set through fwupdtool" "$(cat "$FWUPD_SETTINGS")"
+pass "without systemd, the carveout is set through fwupdtool"
