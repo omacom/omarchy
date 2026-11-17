@@ -484,7 +484,7 @@ run_relight() {
   : >"$reload_log"
   : >"$eval_log"
 
-  PATH="$fake_bin:$PATH" OMARCHY_DRM_PATH="$drm_path" OMARCHY_TEST_EVAL_LOG="$eval_log" \
+  PATH="$fake_bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test OMARCHY_DRM_PATH="$drm_path" OMARCHY_TEST_EVAL_LOG="$eval_log" \
   OMARCHY_TEST_MONITORS_FILE="$monitors_file" OMARCHY_TEST_RELOAD_LOG="$reload_log" \
   OMARCHY_TEST_RECOVERED_MONITORS="$recovered" OMARCHY_TEST_HYPRCTL_FAIL_FLAG="$hyprctl_fail" \
     "$ROOT/bin/omarchy-hyprland-monitor-relight" >"$test_tmp/relight.out" 2>&1
@@ -523,9 +523,6 @@ run_relight
 pass "the wake mode is one both the kernel and Hyprland have, at the rate nearest 60 Hz"
 unset OMARCHY_TEST_WAKES_CONNECTOR
 
-# One monitor that will not wake must not keep a second from being tried. The
-# relight stays running for the first, and the watcher starts no other while it
-# does, so the second has only this one to rely on.
 two_monitors='[{"name":"DP-1","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1920x1080@60.00Hz"]},
 {"name":"DP-2","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1920x1080@60.00Hz"]}]'
 lit_monitor=$two_monitors
@@ -534,6 +531,9 @@ grep -q 'output = "DP-1"' "$eval_log" && ! grep -q 'output = "DP-2"' "$eval_log"
   fail "a monitor blanked while another recovers is left alone" "$(<"$eval_log")"
 pass "a monitor blanked while another recovers is left alone"
 
+# One monitor that will not wake must not keep a second from being tried. The
+# relight stays running for the first, and the watcher starts no other while it
+# does, so the second has only this one to rely on.
 run_relight &
 relight_pid=$!
 
