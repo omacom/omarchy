@@ -7,7 +7,7 @@ require_command pacman-conf
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
-migration="$ROOT/migrations/1794890158.sh"
+migration="$ROOT/migrations/1794947255.sh"
 key=12CE6799A94A3F1B5DDFFE88F576553597FB8FEB
 
 # pacman, pacman-key and the Omarchy helpers act on files in the case's

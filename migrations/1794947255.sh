@@ -7,7 +7,7 @@ echo "Take the Apple Silicon packages from Omarchy instead of the Asahi ALARM re
 # machine; other users find the marker.
 omarchy-hw-aarch64-apple || exit 0
 
-marker="${OMARCHY_ASAHI_ALARM_MARKER:-/var/lib/omarchy/migrations/1794890158}"
+marker="${OMARCHY_ASAHI_ALARM_MARKER:-/var/lib/omarchy/migrations/1794947255}"
 [[ ! -e $marker ]] || exit 0
 
 pacman_conf="${OMARCHY_ASAHI_ALARM_PACMAN_CONF:-/etc/pacman.conf}"
