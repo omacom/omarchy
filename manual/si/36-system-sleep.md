@@ -1,21 +1,21 @@
-# පද්ධති නිද්‍රාව
+# පද්ධතියේ නින්ද
 
-Omarchy පෙරනිමියෙන් suspend සහ hibernation සක්‍රිය කරයි, නමුත් ඔබේ යන්ත්‍රයේ ඒ දෙකෙන් ඕනෑම එකක් සමඟ ඔබට ගැටලු ඇත්නම්, ඔබට ඒවා අක්‍රිය කළ හැකිය.
+Omarchy පෙරනිමියෙන් suspend සහ hibernation සක්‍රිය කරයි, නමුත් ඔබේ යන්ත්‍රයේ ඒ දෙකෙන් එකක් සමඟ ගැටලු ඇති නම්, ඔබට ඒවා අක්‍රිය කළ හැකිය.
 
-DGX Spark සහ ASUS Ascent GX10 වැනි NVIDIA GB10 යන්ත්‍රවල, NVIDIA හි DGX OS එකේ මෙන්ම suspend සහ hibernation අක්‍රිය කර ඇත, මන්ද එම hardware එක මත sleep ක්‍රියා කරන බව තවමත් පෙන්වා දී නැති බැවිනි. Suspend ටොගලය සහ hibernation සැකසීම එහි අදාළ නොවේ. Sleep නැවත සක්‍රිය කිරීමට, `sudo rm` සමඟ `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` ඉවත් කරන්න; එවිට Suspend මෙනුවට නැවත පැමිණෙන අතර, hibernation වෙනත් යන්ත්‍රවල මෙන්ම සකසා ගත හැකිය. `sudo omarchy apply hardware --install-user "$USER"` ධාවනය කිරීමෙන් ගොනුව නැවත තබනු ලැබේ.
+DGX Spark සහ ASUS Ascent GX10 වැනි NVIDIA GB10 යන්ත්‍රවල, NVIDIA හි DGX OS හි මෙන්ම suspend සහ hibernation අක්‍රිය කර ඇත, මන්ද එම දෘඪාංගය මත sleep තවම ක්‍රියා කරන බව පෙන්වීමට නොහැකි වී ඇති බැවිනි. ASUS Zenbook A16 (UX3607OA) සඳහා ද එය එසේමය, එහිදී suspend මගින් chip එක සම්පූර්ණයෙන්ම නින්දට නොදමන අතර රාත්‍රී පුරාම සිරවිය හැකිය. suspend toggle එක සහ hibernation සැකසීම එහි අදාළ නොවේ. sleep නැවත සක්‍රිය කිරීමට, `sudo rm` භාවිතයෙන් `/etc/systemd/sleep.conf.d/omarchy-sleep-disabled.conf` ඉවත් කරන්න; එවිට Suspend නැවත menu එකට එකතු වේ, තවද අනෙකුත් යන්ත්‍රවල මෙන් hibernation සැකසිය හැකිය. `sudo omarchy apply hardware --install-user "$USER"` ධාවනය කිරීමෙන් එම ගොනුව නැවත දමා ගත හැකිය.
 
-### බල පැතිකඩවල්
+### බල පැතිකඩ
 
-Laptop එකක, Omarchy ඔබේ බල පැතිකඩය සම්බන්ධ කර ඇති අවස්ථාවට සහ battery එකෙන් ක්‍රියාත්මක වන අවස්ථාවට වෙන වෙනම මතක තබා ගන්නා අතර, ඔබ සම්බන්ධ කරන සහ විසන්ධි කරන විට ඒ දෙක අතර මාරු වේ. මුල සිටම එයින් අදහස් වන්නේ AC මත performance සහ battery එක මත balanced යන්නයි.
+Laptop එකක, Omarchy ඔබේ power profile එක plugged in අවස්ථාවට සහ battery එකෙන් ධාවනය වන අවස්ථාවට වෙන වෙනම මතක තබා ගනී, තවද ඔබ plug කරන සහ unplug කරන විට ඒ දෙක අතර මාරු වේ. මුලින්ම ලැබෙන පරිදි එයින් අදහස් වන්නේ AC මත performance සහ battery මත balanced යන්නයි.
 
-`omarchy powerprofiles list` සමඟ ඔබේ යන්ත්‍රය ලබා දෙන දේ ඔබට දැක ගත හැකි අතර, `omarchy powerprofiles set autodetect power-saver` සමඟ ඔබ දැනට සිටින තත්ත්වය සඳහා ඔබට අවශ්‍ය එක සැකසිය හැකිය. කිසිවක් විසන්ධි නොකර අනෙක් තත්ත්වය සැකසීමට, එය සෘජුවම නම් කරන්න: `omarchy powerprofiles set battery power-saver`. ඔබ තෝරන ඕනෑම දෙයක්, ඊළඟ වතාවේ ඔබ එම තත්ත්වයේ සිටින විට ඔබට නැවත ලැබෙනු ඇත.
+`omarchy powerprofiles list` මගින් ඔබේ යන්ත්‍රය ලබා දෙන්නේ මොනවාදැයි ඔබට බැලිය හැකිය, තවද `omarchy powerprofiles set autodetect power-saver` මගින් ඔබ දැනට සිටින තත්ත්වය සඳහා ඔබට අවශ්‍ය එක සැකසිය හැකිය. කිසිවක් unplug නොකර අනෙක් තත්ත්වය සැකසීමට, එය කෙලින්ම නම් කරන්න: `omarchy powerprofiles set battery power-saver`. ඔබ තෝරන ඕනෑම එකක්, ඊළඟ වතාවේ ඔබ එම තත්ත්වයට පැමිණි විට ඔබට නැවත ලැබෙනු ඇත.
 
-### Suspend ටොගල් කිරීම
+### suspend toggle කිරීම
 
-Terminal එකෙන් `omarchy toggle suspend` ධාවනය කිරීමෙන් ඔබ suspend ටොගල් කරයි. එය _System_ යටතේ ඇති (හෝ `Super + Esc`) විකල්පය හුදෙක් පෙන්වයි/සඟවයි, එවිට එය ඔබේ පද්ධතියේ අනුකූලව ක්‍රියා කරන්නේ දැයි ඔබට දැක ගත හැකිය. එසේ නොවේ නම්, එම විධානයම සමඟ ඔබට එය නැවත සැඟවිය හැකිය.
+terminal එකෙන් `omarchy toggle suspend` ධාවනය කිරීමෙන් ඔබ suspend toggle කරයි. එමගින් _System_ (හෝ `Super + Esc`) යටතේ ඇති විකල්පය හුදෙක් පෙන්වනු/සඟවනු ලැබේ, තවද ඔබේ පද්ධතියේ එය ස්ථාවරව ක්‍රියා කරයිදැයි ඔබට පරීක්ෂා කළ හැකිය. එසේ නොවේ නම්, එම විධානයම භාවිතයෙන් ඔබට එය නැවත සැඟවිය හැකිය.
 
-### Hibernation ටොගල් කිරීම
+### hibernation toggle කිරීම
 
-Terminal එකෙන් `omarchy hibernation setup` ධාවනය කිරීමෙන් ඔබ hibernation සකසයි. Hibernation ඔබේ භෞතික RAM වෙන් කිරීමේ ප්‍රමාණයට ඔබේ boot drive එක මත /swap උපවොලියුමයක් සාදන බැවින්, ඔබට ඉතිරි කර ගැනීමට ඕනෑ තරම් ඉඩ ඇති බවට වග බලා ගන්න. 32GB යන්ත්‍රයක, මෙම වොලියුමය සඳහා ඔබට සැමවිටම 32GB+ නිදහස් ඉඩක් අවශ්‍ය වේ. Hibernation සඳහා පෙරනිමි Limine bootloader එකද අවශ්‍ය වේ.
+terminal එකෙන් `omarchy hibernation setup` ධාවනය කිරීමෙන් ඔබ hibernation සකසයි. Hibernation මගින් ඔබේ physical RAM ධාරිතාවේ ප්‍රමාණයටම ඔබේ boot drive එකේ /swap subvolume එකක් නිර්මාණය කරයි, එබැවින් ඔබට ප්‍රමාණවත් ඉඩක් ඉතිරිව ඇති බවට වග බලා ගන්න. 32GB යන්ත්‍රයක, මෙම volume එක සඳහා ඔබට සැමවිටම 32GB+ නිදහස් ඉඩක් අවශ්‍ය වනු ඇත. Hibernation සඳහා default Limine bootloader එක ද අවශ්‍ය වේ.
 
-සැකසූ විට, ඔබ _System_ යටතේ (හෝ `Super + Esc`) hibernate විකල්පය දකිනු ඇති අතර, එවිට එය ඔබේ පද්ධතියේ අනුකූලව ක්‍රියා කරන්නේ දැයි ඔබට දැක ගත හැකිය. එසේ නොවේ නම්, `omarchy hibernation remove` ධාවනය කිරීමෙන් ඔබට එය නැවත ඉවත් කළ හැකිය.
+සැකසූ පසු, ඔබට _System_ (හෝ `Super + Esc`) යටතේ hibernate විකල්පය පෙනෙනු ඇත, තවද ඔබේ පද්ධතියේ එය ස්ථාවරව ක්‍රියා කරයිදැයි ඔබට පරීක්ෂා කළ හැකිය. එසේ නොවේ නම්, `omarchy hibernation remove` ධාවනය කිරීමෙන් ඔබට එය නැවත ඉවත් කළ හැකිය.
