@@ -136,6 +136,12 @@ Panel {
   // cursor follows it when a state change re-sorts the list.
   // null rather than "", which is a hidden network's SSID.
   property var cursorSsid: null
+  // The list's scroll offset just before a rebuild reassigns `wifiNetworks`,
+  // so the view can be put back there once the rebuild's delegates exist to
+  // anchor against. -1 when the upcoming rebuild shouldn't restore one (the
+  // panel wasn't open to have a scroll position worth keeping, or the
+  // rebuild is the `fresh` one on open, which starts clean on purpose).
+  property real pendingScrollY: -1
   property bool wifiActionFocused: false
   property bool cursorActive: false
 
@@ -409,6 +415,23 @@ Panel {
 
     if (selectedIndex < 0 || selectedIndex >= wifiNetworks.length || !canForgetNetwork(wifiNetworks[selectedIndex])) {
       wifiActionFocused = false
+    }
+
+    // Reassigning `wifiNetworks` resets the ListView's own scroll position,
+    // snapping the list back to the top under whatever the person was
+    // looking at -- scrolled with a trackpad, not just navigated with the
+    // keyboard, so the fix can't key off selectedIndex/currentIndex. Restore
+    // the offset `rebuildWifiRows` captured, once the rebuild's new
+    // delegates exist to hold it, clamped to the (possibly now larger or
+    // smaller) scrollable range.
+    if (pendingScrollY >= 0) {
+      var restoreY = pendingScrollY
+      Qt.callLater(function() {
+        if (!panel.loadedContent) return
+        var listView = panel.loadedContent.networkList
+        var maxY = Math.max(0, listView.contentHeight - listView.height)
+        listView.contentY = Math.min(restoreY, maxY)
+      })
     }
   }
 
@@ -764,6 +787,11 @@ Panel {
     if (JSON.stringify(nets) === JSON.stringify(wifiNetworks)) return
     var selected = wifiNetworks[selectedIndex]
     cursorSsid = selected ? selected.ssid : null
+    // Capture the scroll offset now, before reassigning resets it: held rows
+    // keep their order (see above), so the view belongs back at this exact
+    // offset once the rebuild's new delegates exist to hold it there. Skip
+    // it for the `fresh` open-transition rebuild, which starts at the top.
+    pendingScrollY = (!fresh && opened && panel.loadedContent) ? panel.loadedContent.networkList.contentY : -1
     wifiNetworks = nets
   }
 
@@ -1194,6 +1222,7 @@ Panel {
     content: PanelKeyCatcher {
       id: keyCatcher
       property alias heroMeta: heroMeta
+      property alias networkList: networkList
       implicitHeight: column.implicitHeight
       anchors.fill: parent
       // Freeze the cursor model while the inline password prompt is open;
