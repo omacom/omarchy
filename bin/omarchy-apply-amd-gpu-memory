@@ -13,14 +13,22 @@ set -euo pipefail
 # a limit, not a reservation: the RAM stays the desktop's while the GPU doesn't
 # hold it. On 16 GB or less the default is already as high, so nothing is set.
 #
+# The firmware also carves dedicated VRAM out of RAM before the kernel sees it,
+# often 16 or 32 GB to suit Windows, and that RAM is lost to GTT. Where the
+# BIOS lets amdgpu change it (uma/carveout), shrink it to the smallest option,
+# as the "Tuning" tab in AMD Adrenalin would. The cap is then sized for the RAM
+# the next boot will see, which is MemTotal plus the VRAM carved out now, less
+# the smallest carveout.
+#
 # amdgpu sizes its GTT from the cap when it loads, so this writes a boot
 # setting and builds nothing; the caller rebuilds the boot image, and the new
-# cap applies from the next boot.
+# cap and carveout apply from the next boot.
 
 drop_in="${OMARCHY_AMD_GPU_MEMORY_CONF:-/etc/limine-entry-tool.d/amd-gpu-memory.conf}"
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
 meminfo="${OMARCHY_MEMINFO:-/proc/meminfo}"
 reserve_kib=$(( 8 * 1024 * 1024 ))
+gpu_device=""
 
 amd_gpu() {
   local device
@@ -28,15 +36,50 @@ amd_gpu() {
   shopt -s nullglob
   for device in "$pci_devices_path"/*; do
     [[ $(< "$device/vendor") == "0x1002" ]] || continue
-    [[ $(< "$device/class") == 0x03* ]] && return 0
+    if [[ $(< "$device/class") == 0x03* ]]; then
+      gpu_device=$device
+      return 0
+    fi
   done
   return 1
+}
+
+# Prints "<index> <KiB>" for the smallest option in uma/carveout_options, whose
+# lines read like "0: Minimum (512 MB)" or "6: High (32 GB)".
+smallest_carveout() {
+  awk '
+    match($0, /\(([0-9]+) (MB|GB)\)/) {
+      split(substr($0, RSTART + 1, RLENGTH - 2), size, " ")
+      kib = size[1] * 1024 * (size[2] == "GB" ? 1024 : 1)
+      if (best == "" || kib < best) { best = kib; index_ = $1 + 0 }
+    }
+    END { if (best != "") print index_, best }
+  ' "$1"
 }
 
 amd_gpu || exit 0
 
 total_kib=$(awk '$1 == "MemTotal:" { print $2 }' "$meminfo")
 page_kib=$(( $(getconf PAGESIZE) / 1024 ))
+
+uma="$gpu_device/uma"
+if [[ -f $uma/carveout && -f $uma/carveout_options ]]; then
+  read -r smallest_index smallest_kib < <(smallest_carveout "$uma/carveout_options") || true
+
+  if [[ -n ${smallest_index:-} ]]; then
+    # The VRAM carved out this boot; uma/carveout already reads back an index
+    # written earlier this boot, so it can't say what the RAM is now.
+    vram_kib=$(( $(< "$gpu_device/mem_info_vram_total") / 1024 ))
+    if (( vram_kib > smallest_kib )); then
+      total_kib=$(( total_kib + vram_kib - smallest_kib ))
+    fi
+
+    if [[ $(< "$uma/carveout") != "$smallest_index" ]]; then
+      echo "$smallest_index" > "$uma/carveout"
+      echo "Shrinking the AMD GPU's dedicated VRAM to $(( smallest_kib / 1024 )) MB from the next boot"
+    fi
+  fi
+fi
 pages=$(( (total_kib - reserve_kib) / page_kib ))
 
 if (( pages <= total_kib / 2 / page_kib )); then

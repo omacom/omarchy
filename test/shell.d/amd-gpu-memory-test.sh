@@ -31,3 +31,24 @@ apply
 grep -Fxq "KERNEL_CMDLINE[default]+=\" ttm.pages_limit=$(( 56 * 1024 * 1024 / page_kib ))\"" "$OMARCHY_AMD_GPU_MEMORY_CONF" ||
   fail "a 64 GB AMD machine lets the GPU map 56 GiB" "$(cat "$OMARCHY_AMD_GPU_MEMORY_CONF")"
 pass "a 64 GB AMD machine lets the GPU map 56 GiB"
+
+# A 64 GB APU whose firmware carves out 32 GB of VRAM boots with 32 GB.
+uma="$OMARCHY_PCI_DEVICES_PATH/0000:c3:00.0/uma"
+mkdir -p "$uma"
+printf '0: Minimum (512 MB)\n1:  (1 GB)\n5: Medium (16 GB)\n6: High (32 GB)\n' > "$uma/carveout_options"
+echo 6 > "$uma/carveout"
+echo $(( 32 * 1024 * 1024 * 1024 )) > "$OMARCHY_PCI_DEVICES_PATH/0000:c3:00.0/mem_info_vram_total"
+ram_gib 32
+apply
+[[ $(< "$uma/carveout") == "0" ]] || fail "a 32 GB carveout shrinks to the smallest option" "$(< "$uma/carveout")"
+pass "a 32 GB carveout shrinks to the smallest option"
+grep -Fxq "KERNEL_CMDLINE[default]+=\" ttm.pages_limit=$(( (63 * 1024 + 512) * 1024 / page_kib - 8 * 1024 * 1024 / page_kib ))\"" "$OMARCHY_AMD_GPU_MEMORY_CONF" ||
+  fail "the cap is sized for the 63.5 GiB the next boot sees" "$(cat "$OMARCHY_AMD_GPU_MEMORY_CONF")"
+pass "the cap is sized for the 63.5 GiB the next boot sees"
+
+# Run again before the reboot: the carveout reads back as the smallest, but
+# this boot's VRAM still says 32 GB, so the cap stays the same.
+apply
+grep -Fxq "KERNEL_CMDLINE[default]+=\" ttm.pages_limit=$(( (63 * 1024 + 512) * 1024 / page_kib - 8 * 1024 * 1024 / page_kib ))\"" "$OMARCHY_AMD_GPU_MEMORY_CONF" ||
+  fail "a second run before the reboot keeps the cap" "$(cat "$OMARCHY_AMD_GPU_MEMORY_CONF")"
+pass "a second run before the reboot keeps the cap"
