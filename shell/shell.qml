@@ -1552,6 +1552,7 @@ ShellRoot {
       shell.pluginRescanPending = true
       return
     }
+    console.log("Rescanning plugins")
     shell.pluginRegistry.rescan()
   }
 
@@ -1585,7 +1586,7 @@ ShellRoot {
       // plugin that just appeared only needs adding.
       if (shell.localPluginLoaded(pluginId))
         shell.localPluginNeedsReload = true
-      // Quiet per event: the timer coalesces a burst, and reloadPlugins() logs the reload that runs.
+      // Quiet per event: the timer coalesces a burst, and the reload or rescan it runs logs itself.
       localPluginReloadTimer.restart()
     }
     function onScanFinished() {
