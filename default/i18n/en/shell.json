@@ -1,7 +1,11 @@
 {
+  "agents.accountLimitReset": "%1 (%2) limit reset",
   "agents.active": "ACTIVE",
   "agents.addAnother": "Add another",
+  "agents.configuredHome": "Configured home",
+  "agents.genericLimit": "Limit",
   "agents.letTheTokensFlow": "Let the tokens flow",
+  "agents.limitWindowReset": "%1 rate-limit window has reset.",
   "agents.localAi": "Local AI",
   "agents.localAllInstalled": "All eligible models are installed",
   "agents.localShowLogsTip": "Open this model's logs in a terminal",
@@ -64,6 +68,7 @@
     "one": "%1 prompt today",
     "other": "%1 prompts today"
   },
+  "agents.providerLimitReset": "%1 limit reset",
   "agents.providerLimitsUnavailable": "%1 limits unavailable",
   "agents.providerUnavailable": "%1 unavailable",
   "agents.reopenSignIn": "Open the sign-in page again",

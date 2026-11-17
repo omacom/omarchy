@@ -203,8 +203,12 @@ def identity(provider: str, home: Path) -> dict[str, str]:
 # Grok keeps one login per issuer in auth.json, and the plan only in the
 # settings it caches from xAI, as a JSON string inside that file.
 def grok_identity(home: Path) -> dict[str, str]:
-  auth = read_json(home / "auth.json") or {}
-  login = next((v for v in auth.values() if isinstance(v, dict)), {}) if isinstance(auth, dict) else {}
+  auth = identity_json(home / "auth.json")
+  if auth is None:
+    return {}
+  login = next((v for v in auth.values() if isinstance(v, dict)), {})
+  if auth and not any(isinstance(v, dict) for v in auth.values()):
+    return {}
   try:
     settings = json.loads((read_json(home / "settings_cache.json") or {}).get("payload") or "{}").get("settings") or {}
   except Exception:

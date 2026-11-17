@@ -127,6 +127,8 @@ function schedule(pending, records, now, notificationsEnabled, providerEnabled) 
           identityId: source.identityId,
           providerName: String(currentRecord.name || providerId),
           accountName: source.accountName,
+          configuredHome: registryStatus === "unreadable" && source.accountName === "Configured home",
+          genericLabel: !limit.title && !limit.label,
           label: label,
           deadline: resetMs
         }
@@ -137,7 +139,8 @@ function schedule(pending, records, now, notificationsEnabled, providerEnabled) 
   return next
 }
 
-function announce(pending, now, notificationsEnabled, providerEnabled) {
+function announce(pending, now, notificationsEnabled, providerEnabled, tr) {
+  var t = tr || function(key, english) { return english }
   if (!notificationsEnabled) return { pending: {}, notifications: [] }
 
   var next = Object.assign({}, pending || {})
@@ -149,9 +152,12 @@ function announce(pending, now, notificationsEnabled, providerEnabled) {
       continue
     }
     if (!reset || reset.deadline > now) continue
+    var account = reset.configuredHome ? t("agents.configuredHome", "Configured home") : reset.accountName
+    var title = account ? t("agents.accountLimitReset", "%1 (%2) limit reset") : t("agents.providerLimitReset", "%1 limit reset")
+    var label = reset.genericLabel ? t("agents.genericLimit", "Limit") : reset.label
     notifications.push({
-      title: reset.providerName + (reset.accountName ? " (" + reset.accountName + ")" : "") + " limit reset",
-      body: reset.label + " rate-limit window has reset."
+      title: title.replace(/%([12])/g, function(match, index) { return index === "1" ? reset.providerName : account }),
+      body: t("agents.limitWindowReset", "%1 rate-limit window has reset.").replace(/%1/g, function() { return label })
     })
     delete next[key]
   }

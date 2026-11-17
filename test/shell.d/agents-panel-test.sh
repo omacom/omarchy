@@ -70,6 +70,12 @@ const unreadableFallback = limitReset.schedule({}, [{
 assertEqual(Object.keys(unreadableFallback).length, 1, 'unreadable registries still schedule top-level limits when no account deadline is known')
 assertDeepEqual(limitReset.announce(unreadableFallback, Date.parse('2026-09-18T12:31:00Z'), true, enabled).notifications.map(n => n.title),
   ['Codex (Configured home) limit reset'], 'unreadable fallback resets identify the configured home without guessing an account')
+const translated = limitReset.announce(accountDeadlines, Date.parse('2026-09-18T12:21:00Z'), true, enabled,
+  (key, english) => key === 'agents.accountLimitReset' ? '%2 / %1' : key === 'agents.limitWindowReset' ? 'Reset: %1' : english)
+assertDeepEqual(translated.notifications.map(n => n.title).sort(), ['Personal / Codex', 'Work / Codex'],
+  'reset notifications follow the display language placeholder order')
+assert(translated.notifications.every(n => n.body.startsWith('Reset: ')), 'reset bodies use the display language')
+
 const recoveredRegistry = limitReset.schedule(unreadableFallback, [multiAccount], now, true, enabled)
 assertEqual(Object.keys(recoveredRegistry).length, 2, 'a readable account inventory replaces the unidentified fallback deadline')
 assertDeepEqual(limitReset.announce(recoveredRegistry, Date.parse('2026-09-18T12:21:00Z'), true, enabled).notifications.map(n => n.title).sort(),

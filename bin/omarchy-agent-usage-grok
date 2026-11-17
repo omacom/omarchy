@@ -38,7 +38,7 @@ from collectors import (  # noqa: E402
   obj,
   open_json,
   read_json,
-  registered_accounts,
+  account_registry,
   scan_max_age,
   token_count,
 )
@@ -174,11 +174,16 @@ def cached_local_stats(home, max_age):
 
 
 # One login per issuer in auth.json; the first is the CLI's own.
-def login(home):
-  auth = read_json(Path(home) / "auth.json")
-  if not isinstance(auth, dict):
+def login(home, unreadable=None):
+  try:
+    auth = json.loads((Path(home) / "auth.json").read_text(encoding="utf-8"))
+  except FileNotFoundError:
     return {}
-  return next((v for v in auth.values() if isinstance(v, dict)), {})
+  except (OSError, ValueError):
+    return unreadable or {}
+  if not isinstance(auth, dict):
+    return unreadable or {}
+  return next((v for v in auth.values() if isinstance(v, dict)), (unreadable or {}) if auth else {})
 
 
 def plan(home):
@@ -348,7 +353,8 @@ def cache_key(home, fallback):
 def account_limits(account, force):
   home = home_of(account)
   limits = collect_limits(home, cache_key(home, account["id"]), force)
-  return account_entry(account, limits, plan(home))
+  identity = login(home, unreadable={"user_id": account.get("accountId")})
+  return account_entry(account, limits, plan(home), accountId=str(identity.get("user_id") or ""))
 
 
 def main():
@@ -357,7 +363,9 @@ def main():
   parser.add_argument("--limits-only", action="store_true")
   args = parser.parse_args()
 
-  registered = registered_accounts(AGENT_ID)
+  registry_status, registered = account_registry(AGENT_ID)
+  if registry_status == "unreadable":
+    registered = []
   accounts = [account_limits(account, args.force) for account in registered]
   current = next((a for a in accounts if a["active"]), None)
   if current:
@@ -385,6 +393,7 @@ def main():
     AGENT_ID,
     AGENT_NAME,
     ready=in_use,
+    accountRegistryStatus=registry_status,
     tierLabel=tier,
     usageStatusText=limits["usageStatusText"],
     authHelpText=limits["authHelpText"],
@@ -394,6 +403,8 @@ def main():
   )
   if limits.get("retryAdvised"):
     record["retryAdvised"] = True
+  if registry_status == "unreadable":
+    record["fallbackAccountLabel"] = "Configured home"
   record.update(stats)
   if accounts:
     record["accountSwitch"] = registered[0]["switch"]

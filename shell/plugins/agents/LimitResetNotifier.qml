@@ -2,6 +2,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
+import qs.Commons as Commons
 import "LimitResetModel.js" as LimitResetModel
 
 Item {
@@ -47,7 +48,8 @@ Item {
     if (!owner) return
     var result = LimitResetModel.announce(
       pendingLimitResets, Date.now(), owner.limitResetNotificationsEnabled(),
-      function(id) { return owner.providerEnabled(id) }
+      function(id) { return owner.providerEnabled(id) },
+      function(key) { return Commons.I18n.t(key) }
     )
     pendingLimitResets = result.pending
     for (var i = 0; i < result.notifications.length; i++) {
