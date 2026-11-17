@@ -840,7 +840,7 @@ assert_launch kiro-cli kiro-cli chat --trust-all-tools -- "Review this project"
 assert_launch freebuff freebuff
 assert_launch kilo kilo --auto "--prompt=Review this project"
 assert_launch devin devin --permission-mode dangerous --respect-workspace-trust false -- "Review this project"
-assert_launch amp bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "Review this project"
+assert_launch amp bash omarchy-agent-amp amp "Review this project"
 assert_launch commandcode commandcode --yolo -- "Review this project"
 [[ $(<"$clipboard_log") == "Review this project" ]] || fail "Freebuff launcher puts the prompt on the clipboard"
 mapfile -d '' -t notification_args <"$notification_history"

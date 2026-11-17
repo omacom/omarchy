@@ -266,7 +266,7 @@ amp)
   # message is for --execute, which exits after one turn. The binary rides in
   # as $0 so a user install below can replace it.
   if [[ -n ${prompt:-} ]]; then
-    command=(bash -c 'printf "%s\n" "$1" | exec "$0" --dangerously-allow-all' amp "$prompt")
+    command=(bash omarchy-agent-amp amp "$prompt")
   else
     command=(amp --dangerously-allow-all)
   fi
