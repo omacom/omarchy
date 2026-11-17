@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Print the current working directory of the active terminal window
+# omarchy:summary=Print the current working directory of the active terminal or Files window
 # omarchy:args=[terminal-pid]
 # omarchy:hidden=true
 
@@ -194,7 +194,13 @@ terminal_tree_cwd() {
 cwd=""
 
 if [[ -n $terminal_pid ]]; then
-  cwd=$(kitty_cwd "$terminal_pid")
+  # Files keeps its working directory on the folder it shows, so a terminal
+  # opened over it starts there.
+  if [[ $(exe_path "$terminal_pid") == */folio ]]; then
+    cwd=$(process_cwd "$terminal_pid")
+  else
+    cwd=$(kitty_cwd "$terminal_pid")
+  fi
 
   if [[ ! -d $cwd ]]; then
     cwd=$(terminal_tree_cwd "$terminal_pid")

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# omarchy:summary=Add a feature to Chromium's --enable-features in the user's flags file
+# omarchy:summary=Add a feature to --enable-features in the user's Chrome and Chromium flags files
 # omarchy:args=<feature>
 # omarchy:hidden=true
 
@@ -12,26 +12,37 @@ if [[ ! $feature =~ ^[A-Za-z0-9]+$ ]]; then
   exit 1
 fi
 
-conf=~/.config/chromium-flags.conf
-[[ -f $conf ]] || exit 0
+add_feature() {
+  local conf=$1 args
+  [[ -f $conf ]] || return 0
 
-# Chromium's launcher splits each line into arguments, so a switch can share a
-# line with others or end in a comment. Look for switches with comments removed.
-args=$(sed -E 's/(^|[[:space:]])#.*$//' "$conf")
+  # Chromium's launcher splits each line into arguments, so a switch can share a
+  # line with others or end in a comment. Look for switches with comments removed.
+  args=$(sed -E 's/(^|[[:space:]])#.*$//' "$conf")
 
-if grep -E -- "(^|[[:space:]])--enable-features=([^[:space:]]*,)?$feature([,:<[:space:]]|\$)" <<<"$args" >/dev/null; then
-  exit 0
-fi
-
-if grep -E -- '(^|[[:space:]])--enable-features=' <<<"$args" >/dev/null; then
-  # Extend the feature list itself, ahead of any neighbouring switch or comment.
-  sed -i --follow-symlinks -E \
-    -e "s/^(([^#]*[[:space:]])?--enable-features=[^[:space:]#]*)/\1,$feature/" \
-    -e "s/--enable-features=,$feature/--enable-features=$feature/" "$conf"
-else
-  # Start a new line first if the file doesn't end in a newline.
-  if [[ -n $(tail -c1 "$conf") ]]; then
-    echo >>"$conf"
+  if grep -E -- "(^|[[:space:]])--enable-features=([^[:space:]]*,)?$feature([,:<[:space:]]|\$)" <<<"$args" >/dev/null; then
+    return 0
   fi
-  printf '%s\n' "--enable-features=$feature" >>"$conf"
-fi
+
+  if grep -E -- '(^|[[:space:]])--enable-features=' <<<"$args" >/dev/null; then
+    # Extend the feature list itself, ahead of any neighbouring switch or comment.
+    sed -i --follow-symlinks -E \
+      -e "s/^(([^#]*[[:space:]])?--enable-features=[^[:space:]#]*)/\1,$feature/" \
+      -e "s/--enable-features=,$feature/--enable-features=$feature/" "$conf"
+  else
+    # Start a new line first if the file doesn't end in a newline.
+    if [[ -n $(tail -c1 "$conf") ]]; then
+      echo >>"$conf" || return
+    fi
+    printf '%s\n' "--enable-features=$feature" >>"$conf"
+  fi
+}
+
+# Chrome and Chromium each read their own flags file, and one that can't be
+# written doesn't hold back the other. Under ||, set -e is off inside, so each
+# write returns its own failure.
+status=0
+for conf in ~/.config/chromium-flags.conf ~/.config/chrome-flags.conf; do
+  add_feature "$conf" || status=$?
+done
+exit "$status"

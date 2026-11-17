@@ -276,6 +276,17 @@ resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$(<"$browser_pidfile")")
 actual:   $resolved"
 pass "an app started from a terminal, sharing its pty, still opens a new terminal in HOME"
 
+# Files keeps its working directory on the folder it shows, and has no terminal.
+mkdir -p "$test_tmp/Pictures"
+cp "$(command -v sleep)" "$fake_bin/folio"
+start_headless_window bash -c "cd '$test_tmp/Pictures' && exec '$fake_bin/folio' 300"
+sleep 1
+resolved=$(resolve OMARCHY_TEST_WINDOW_PID="$window")
+[[ $resolved == "$test_tmp/Pictures" ]] ||
+  fail "a terminal opened over Files starts in the folder it shows" "expected: $test_tmp/Pictures
+actual:   $resolved"
+pass "a terminal opened over Files starts in the folder it shows"
+
 # kitty answers over its own socket, before the process tree is walked.
 mkdir -p "$test_tmp/kitty-pane"
 cat >"$mock_bin/kitten" <<'SH'
