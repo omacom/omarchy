@@ -33,6 +33,38 @@ EXIT_NOTHING_PICKED = 1
 EXIT_CHOOSER_FAILED = 2
 
 
+# Files' portal chooser does not answer Cancel, so the portal must be asked
+# through the GTK chooser. A portal config the folio switch left behind (a
+# fresh install seeded from /etc/skel, an install whose migration has not
+# run) still names folio: name gtk instead, and restart the portal so the
+# change is picked up before the request below.
+def use_gtk_chooser():
+    config_dir = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+    config = os.path.join(config_dir, "xdg-desktop-portal", "hyprland-portals.conf")
+    try:
+        with open(config) as config_file:
+            lines = config_file.readlines()
+    except OSError:
+        return
+    if not any("FileChooser=folio" in line for line in lines):
+        return
+    lines = [
+        "org.freedesktop.impl.portal.FileChooser=gtk\n"
+        if "org.freedesktop.impl.portal.FileChooser=folio;gtk" in line
+        else line
+        for line in lines
+    ]
+    try:
+        with open(config, "w") as config_file:
+            config_file.writelines(lines)
+    except OSError:
+        return
+    subprocess.run(
+        ["systemctl", "--user", "restart", "xdg-desktop-portal.service"],
+        capture_output=True,
+    )
+
+
 # The dialog's own title when the caller names none, in the Omarchy language.
 def default_title():
     try:
@@ -58,6 +90,8 @@ def main():
 
     if args.title is None:
         args.title = default_title()
+
+    use_gtk_chooser()
 
     bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
     loop = GLib.MainLoop()
