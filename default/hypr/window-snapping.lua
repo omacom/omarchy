@@ -494,11 +494,23 @@ function M.closed(window)
     end
   end
   -- A closing window has lost its titlebar already, so its tile is measured
-  -- with a snapped neighbour's: they share the same decorations.
+  -- with a snapped neighbour's decorations, and failing that with a titlebar
+  -- more or less than the neighbour's: a browser draws its own frame and gets
+  -- none. The two differ by far less than any two tiles, so at most one fits.
   if not decorations then
     return
   end
-  local closed = G.tile_of(G.outer_box(client_of(window), decorations), area(monitor), gaps())
+  local bar = plugin() and tonumber(hl.get_config("plugin.hyprbars.bar_height")) or 0
+  local closed
+  for _, shift in ipairs({ 0, bar, -bar }) do
+    local measured = { left = decorations.left, top = decorations.top + shift, right = decorations.right, bottom = decorations.bottom }
+    if measured.top >= 0 then
+      closed = G.tile_of(G.outer_box(client_of(window), measured), area(monitor), gaps())
+    end
+    if closed or bar == 0 then
+      break
+    end
+  end
   if not closed then
     return
   end
