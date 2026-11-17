@@ -30,15 +30,19 @@ case "$1" in
   eval)
     printf '%s\n' "$2" >>"$EVAL_LOG"
     [[ ${APPLY_EVALS:-true} == true ]] || exit 0
-    # Apply the position rules to the fake live state, as the compositor
-    # would.
-    echo "$2" | grep -oE 'output = "[^"]+", (mode = "[^"]+", )?position = "-?[0-9]+x-?[0-9]+"' |
+    # Apply the rules to the fake live state, as the compositor would.
+    echo "$2" | grep -oE 'output = "[^"]+", (mode = "[^"]+", )?position = "-?[0-9]+x-?[0-9]+"(, scale = [0-9.]+(, transform = [0-7]))?' |
       while IFS= read -r line; do
         name=$(echo "$line" | sed -E 's/output = "([^"]+)".*/\1/')
         pos=$(echo "$line" | sed -E 's/.*position = "(-?[0-9]+x-?[0-9]+)".*/\1/')
+        mode=$(echo "$line" | sed -nE 's/.*mode = "([^"]+)".*/\1/p')
+        transform=$(echo "$line" | sed -nE 's/.*, transform = ([0-7]).*/\1/p')
+        update='(.[] | select(.name == $n) | .x) = $x | (.[] | select(.name == $n) | .y) = $y'
+        [[ -n $mode ]] && update+=" | (.[] | select(.name == \$n) | .width) = (\$mode | split(\"x\")[0] | tonumber) | (.[] | select(.name == \$n) | .height) = (\$mode | split(\"x\")[1] | split(\"@\")[0] | tonumber)"
+        [[ -n $transform ]] && update+=" | (.[] | select(.name == \$n) | .transform) = \$t"
         jq --arg n "$name" --argjson x "${pos%x*}" --argjson y "${pos#*x}" \
-          '(.[] | select(.name == $n) | .x) = $x | (.[] | select(.name == $n) | .y) = $y' \
-          "$MONITORS_JSON" >"$MONITORS_JSON.tmp"
+          --arg mode "${mode:-}" --argjson t "${transform:-0}" \
+          "$update" "$MONITORS_JSON" >"$MONITORS_JSON.tmp"
         mv "$MONITORS_JSON.tmp" "$MONITORS_JSON"
       done
     ;;
@@ -110,11 +114,19 @@ jq -e '[.[] | select(.name == "HDMI-A-1")] | .[0] | .x == 1800 and .y == 0' "$mo
 pass "the pre-move is confirmed against the live state"
 
 # The same turn from the other side shrinks the monitor: the neighbour closes
-# in, nothing is covered, and the historic single eval stands.
+# in on the freed space, so it must wait for the new size and move in a final
+# eval of its own, keeping the single-eval middle eval free of it.
 setup_shrinking_rotation
 run_layout --resized eDP-1 2880x1800 1.6 1800x2880 1.6 "2880x1800@90" 1
-(( $(wc -l <"$eval_log") == 1 )) || fail "a shrinking rotation stays a single eval" "$(cat "$eval_log")"
-pass "a shrinking rotation stays a single eval"
+(( $(wc -l <"$eval_log") == 2 )) || fail "a shrinking rotation defers the closing-in neighbour" "$(cat "$eval_log")"
+head -1 "$eval_log" | grep -Fq 'eDP-1' ||
+  fail "the middle eval carries the resized monitor" "$(head -1 "$eval_log")"
+head -1 "$eval_log" | grep -Fvq 'HDMI-A-1' ||
+  fail "the middle eval waits out the closing-in neighbour" "$(head -1 "$eval_log")"
+tail -1 "$eval_log" | grep -Fq 'HDMI-A-1' &&
+  tail -1 "$eval_log" | grep -Fvq 'eDP-1' ||
+  fail "the final eval moves only the closing-in neighbour" "$(tail -1 "$eval_log")"
+pass "a shrinking rotation lets the neighbour in only after the new size"
 
 # A flip within the same standing changes no size at all.
 setup_shrinking_rotation
@@ -136,6 +148,6 @@ pass "a resolution growth moves the covered neighbour out first"
 # When the compositor never lands the pre-move, the layout still goes ahead
 # after the bounded wait instead of hanging.
 setup_growing_rotation
-APPLY_EVALS=false run_layout --resized eDP-1 2880x1800 1.6 1800x2880 1.6 "2880x1800@90" 2
+APPLY_EVALS=false OMARCHY_LAYOUT_WAIT_TRIES=3 run_layout --resized eDP-1 2880x1800 1.6 1800x2880 1.6 "2880x1800@90" 2
 (( $(wc -l <"$eval_log") == 2 )) || fail "an unconfirmed pre-move still falls through to the layout eval"
 pass "an unconfirmed pre-move falls through after the bounded wait"
