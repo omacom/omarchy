@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import qs.Commons as Commons
 import "BorderGeometry.js" as Geometry
 
 // Central border-spec factory for shell surfaces and controls. A spec carries
@@ -22,7 +23,7 @@ QtObject {
   }
 
   function value(section, key) {
-    var v = Color.shellValues[section + "." + key]
+    var v = Commons.Color.shellValues[section + "." + key]
     return (v === undefined || v === null) ? "" : v
   }
 
@@ -39,7 +40,7 @@ QtObject {
     var seen = {}
     while (s.match(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/) && !seen[s]) {
       seen[s] = true
-      var next = Color.shellValues[s]
+      var next = Commons.Color.shellValues[s]
       if (next === undefined || next === null || String(next).length === 0) break
       s = String(next).replace(/^\s+|\s+$/g, "")
     }
@@ -68,10 +69,10 @@ QtObject {
 
     var s = String(color || "").replace(/^\s+|\s+$/g, "")
     var role = s.toLowerCase()
-    if (role === "foreground" || role === "text") return cssColor(Color.foreground, a)
-    if (role === "accent") return cssColor(Color.accent, a)
-    if (role === "urgent") return cssColor(Color.urgent, a)
-    if (role === "background") return cssColor(Color.background, a)
+    if (role === "foreground" || role === "text") return cssColor(Commons.Color.foreground, a)
+    if (role === "accent") return cssColor(Commons.Color.accent, a)
+    if (role === "urgent") return cssColor(Commons.Color.urgent, a)
+    if (role === "background") return cssColor(Commons.Color.background, a)
     if (role === "transparent") return "transparent"
     return Geometry.canonicalColor(s, a)
   }

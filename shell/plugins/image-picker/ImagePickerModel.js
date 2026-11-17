@@ -6,6 +6,41 @@ function labelForPath(path) {
   return nameForPath(path).replace(/[-_]+/g, " ").replace(/\b\w/g, function(match) { return match.toUpperCase() })
 }
 
+// Extra (user-installed) theme names, one per line, as listed from the user
+// themes directory: the set omarchy-theme-remove can delete.
+function parseThemeNames(text) {
+  var names = []
+  var lines = String(text || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var name = lines[i].trim()
+    if (name) names.push(name)
+  }
+  return names
+}
+
+// A user directory shadowing a stock theme holds customizations, not an
+// extra theme: removing it from here would silently revert to stock (and a
+// shadow can even list twice, once per preview extension), so only themes
+// with no stock twin can be deleted from the picker.
+function canDeleteTheme(name, extraNames, stockNames) {
+  if (!name || !Array.isArray(extraNames) || extraNames.indexOf(name) === -1) return false
+  return !Array.isArray(stockNames) || stockNames.indexOf(name) === -1
+}
+
+// Where selection lands when the selected image goes away: the previous
+// match in list order, or the next one when the first match is deleted.
+function replacementSelectionPath(images, selectedIndex, filterText) {
+  var values = Array.isArray(images) ? images : []
+  if (selectedIndex < 0 || selectedIndex >= values.length) return ""
+  for (var i = selectedIndex - 1; i >= 0; i--) {
+    if (itemMatches(values, i, filterText)) return values[i].filePath
+  }
+  for (var i = selectedIndex + 1; i < values.length; i++) {
+    if (itemMatches(values, i, filterText)) return values[i].filePath
+  }
+  return ""
+}
+
 function loadRows(rows) {
   var images = []
   var seen = {}
@@ -125,6 +160,9 @@ if (typeof module !== "undefined") {
   module.exports = {
     nameForPath: nameForPath,
     labelForPath: labelForPath,
+    parseThemeNames: parseThemeNames,
+    canDeleteTheme: canDeleteTheme,
+    replacementSelectionPath: replacementSelectionPath,
     loadRows: loadRows,
     itemMatches: itemMatches,
     firstMatchingIndex: firstMatchingIndex,

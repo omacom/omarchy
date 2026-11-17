@@ -1,18 +1,25 @@
 echo "Take ownership of the FIDO2 authfile so it cannot be rewritten without root"
 
 authfile="/etc/fido2/fido2"
+authdir=${authfile%/*}
 
-# omarchy-migrate records this migration as complete whenever it exits zero, so
-# a line printed here scrolls past once in the update terminal and is never
-# shown again. The states below cannot be repaired without deciding what to do
-# with a file we do not own, and they are exactly the ones where the authfile
-# may already be under someone else's control, so say so where it outlives the
-# scrollback as well.
+# An unresolved path must remain pending. Preserve it for inspection rather
+# than following it or removing a credential the user may depend on.
 report_unrepairable() {
   echo "  $1"
-  echo "  $2"
-  omarchy-notification-send -u critical -g  "FIDO2 authfile needs attention" "$1 $2" || true
+  local recovery="Review this path with an administrator. Before using Remove > Security > Fido2 and Setup > Security > Fido2, verify that your password can authenticate sudo with the token unplugged and cached authorization cleared. If the token is your only credential, an administrator must retain root access throughout recovery instead."
+  local retry="After recovery, retry omarchy update if it was interrupted; otherwise re-run omarchy-migrate. This migration remains pending."
+  echo "  $recovery"
+  echo "  $retry"
+  omarchy-notification-send -u critical -g  "FIDO2 authfile needs attention" "$1 $recovery $retry" || true
+  exit 1
 }
+
+# A symlinked parent redirects all checks and staging too, even when its
+# target is absent or already contains a root-owned registration.
+if [[ -L $authdir || ( -e $authdir && ! -d $authdir ) ]]; then
+  report_unrepairable "$authdir is not a regular configuration directory."
+fi
 
 # Nothing to repair on any machine that never set FIDO2 up, which is almost all
 # of them. Checked before any sudo so those machines never see a password
@@ -25,9 +32,7 @@ if [[ ! -L $authfile && ! -e $authfile ]]; then
   # that case alone -- a machine that never set FIDO2 up has no directory here
   # and still reaches exit 0 without a password prompt. Not through a symlink:
   # chmod would act on whatever it points at.
-  authdir=${authfile%/*}
-
-  if [[ -L $authdir || ! -d $authdir || -x $authdir ]]; then
+  if [[ ! -d $authdir || -x $authdir ]]; then
     exit 0
   fi
 
@@ -35,7 +40,15 @@ if [[ ! -L $authfile && ! -e $authfile ]]; then
   # itself. An aborted setup that left an empty 0700 directory, or one an
   # administrator deliberately keeps private, must not have its mode widened
   # and its group and special bits discarded for a repair it does not need.
-  if ! sudo test -e "$authfile" && ! sudo test -L "$authfile"; then
+  # A successful, empty listing proves absence. Testing through sudo conflates
+  # a missing path with failed authorization, which must leave this pending.
+  if ! registration=$(sudo find "$authdir" -mindepth 1 -maxdepth 1 -name "${authfile##*/}" -print); then
+    echo "  Could not inspect $authdir; this migration remains pending." >&2
+    echo "  Retry omarchy update if it was interrupted; otherwise re-run omarchy-migrate." >&2
+    exit 1
+  fi
+
+  if [[ -z $registration ]]; then
     exit 0
   fi
 
@@ -43,21 +56,16 @@ if [[ ! -L $authfile && ! -e $authfile ]]; then
 fi
 
 # The old privileged move could install a symlink here if its fixed staging path
-# was redirected. Reported, not repaired: chown follows symlinks and would take
-# ownership of the target instead, and removing it would strip sudo and polkit
-# from anyone whose only credential is the token.
+# was redirected. Following it would trust its target; removing it could break
+# authentication for anyone whose only credential is the token.
 if [[ -L $authfile ]]; then
-  report_unrepairable "$authfile is a symlink, not a regular file." \
-    "Leaving it alone. If you did not create it, remove it and re-run Setup > Security > Fido2."
-  exit 0
+  report_unrepairable "$authfile is a symlink, not a regular file."
 fi
 
 # A directory or a device here is no more ours to rewrite than a symlink is,
 # and changing a directory's mode would alter an object we do not own.
 if [[ ! -f $authfile ]]; then
-  report_unrepairable "$authfile is not a regular file." \
-    "Leaving it alone. Remove it and re-run Setup > Security > Fido2."
-  exit 0
+  report_unrepairable "$authfile is not a regular file."
 fi
 
 # Migration state is per-user, so every account re-runs this. The file's own

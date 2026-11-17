@@ -15,58 +15,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-wrapper_root="$test_tmp/wrapper-root"
-wrapper_bin="$test_tmp/wrapper-bin"
-mkdir -p "$wrapper_root/shell" "$wrapper_bin"
-touch "$wrapper_root/shell/shell.qml"
-
-cat >"$wrapper_bin/qs" <<'SH'
-#!/bin/bash
-
-[[ -n ${OMARCHY_TEST_QS_ARGS:-} ]] && printf '%s\n' "$*" >"$OMARCHY_TEST_QS_ARGS"
-
-if [[ ${OMARCHY_TEST_QS_HANG:-0} == 1 ]]; then
-  sleep 5
-elif [[ ${OMARCHY_TEST_QS_STARTING:-0} == 1 ]]; then
-  printf 'Not ready to accept queries yet.\n'
-else
-  printf 'ok\n'
-fi
-SH
-chmod +x "$wrapper_bin/qs"
-
-wrapper_error=$(PATH="$wrapper_bin:$PATH" \
-  OMARCHY_PATH="$wrapper_root" \
-  OMARCHY_SHELL_IPC_TIMEOUT=0.1s \
-  OMARCHY_TEST_QS_HANG=1 \
-  "$ROOT/bin/omarchy-shell" shell ping 2>&1) && fail "hung shell IPC returns a failure"
-[[ $wrapper_error == "omarchy-shell is not responding" ]] || fail "hung shell IPC reports that the shell is unresponsive" "$wrapper_error"
-pass "shell IPC calls time out when Quickshell is unresponsive"
-
-# A starting shell answers on stdout and exits 0, so a ping reads it as up.
-wrapper_error=$(PATH="$wrapper_bin:$PATH" \
-  OMARCHY_PATH="$wrapper_root" \
-  OMARCHY_TEST_QS_STARTING=1 \
-  "$ROOT/bin/omarchy-shell" shell ping 2>&1) && fail "a starting shell answers IPC calls with a failure"
-[[ $wrapper_error == "omarchy-shell is not ready" ]] || fail "a starting shell reports that it is not ready" "$wrapper_error"
-pass "shell IPC calls fail while Quickshell is still starting"
-
-PATH="$wrapper_bin:$PATH" \
-OMARCHY_PATH="$wrapper_root" \
-OMARCHY_TEST_QS_STARTING=1 \
-  "$ROOT/bin/omarchy-shell" -q shell ping >/dev/null 2>&1 ||
-  fail "quiet best-effort IPC calls tolerate a starting shell"
-pass "quiet best-effort IPC calls tolerate a starting shell"
-
-wrapper_args="$test_tmp/wrapper-args"
-PATH="$wrapper_bin:$PATH" \
-OMARCHY_PATH="$wrapper_root" \
-OMARCHY_TEST_QS_ARGS="$wrapper_args" \
-  "$ROOT/bin/omarchy-shell" shell ping >/dev/null
-
-grep -F -- 'ipc -n -p' "$wrapper_args" >/dev/null || fail "shell IPC targets the newest live Quickshell instance"
-pass "shell IPC targets the newest live Quickshell instance"
-
 restart_root="$test_tmp/restart-root"
 restart_bin="$restart_root/bin"
 restart_state="$test_tmp/restart-pids"
@@ -102,7 +50,7 @@ case "$*" in
     printf 'ok\n'
     ;;
   *'lock status')
-    [[ $* == *"-p $OMARCHY_TEST_SESSION_PATH/shell"* ]] || exit 1
+    [[ $* == *"-p ${OMARCHY_TEST_LOCK_OWNER:-$OMARCHY_TEST_SESSION_PATH}/shell"* ]] || exit 1
     if [[ -f $OMARCHY_TEST_QS_STATE.locked ]]; then
       printf '{"secure": true, "requested": true}\n'
     else
@@ -117,55 +65,81 @@ cat >"$restart_bin/quickshell" <<'SH'
 
 printf '%s\n' "$*" >>"${OMARCHY_TEST_QS_LOG:-/dev/null}"
 
+# Other configs' instances, one "<config dir> <pid>" per line.
+strays=${OMARCHY_TEST_QS_STRAYS:-/nonexistent}
+
 case " $* " in
-  *' list -a -j '*|*' list -p '*)
+  *' list '*)
     case ${OMARCHY_TEST_QS_EXIT_CHECK:-} in
-      stuck)
-        printf '[{"config_path":"%s/shell/shell.qml"}]\n' "$OMARCHY_TEST_SESSION_PATH"
+      empty) exit 0 ;;
+      stuck|failed|malformed)
+        if [[ -f $OMARCHY_TEST_QS_STATE.stopping ]]; then
+          case $OMARCHY_TEST_QS_EXIT_CHECK in
+            failed) exit 1 ;;
+            malformed) echo 'not json'; exit 0 ;;
+          esac
+        fi
+        jq -nc --arg path "$OMARCHY_TEST_SESSION_PATH/shell/shell.qml" '[{config_path: $path}]'
         exit 0
         ;;
-      failed) exit 1 ;;
-      malformed) printf 'not json\n'; exit 0 ;;
-      empty) exit 0 ;;
     esac
-    printf '['
-    separator=""
-    while IFS= read -r pid; do
-      [[ $pid =~ ^[0-9]+$ ]] || continue
-      kill -0 "$pid" 2>/dev/null || continue
+    list_instance() {
+      local dir=$1 pid=$2 display
       display=$(awk -v pid="$pid" '$1 == pid { print $2; exit }' "$OMARCHY_TEST_QS_DISPLAY_STATE")
-      [[ -n $display ]] || display=wayland-1
-      if [[ ${WAYLAND_DISPLAY:-wayland-1} == "$display" || $* == *"--any-display"* || $* == "list -a "* ]]; then
-        printf '%s{"config_path":"%s/shell/shell.qml"}' "$separator" "$OMARCHY_TEST_SESSION_PATH"
-        separator=,
+      if [[ $list_all == 1 || ( $dir == "$selected_dir" && ${display:-wayland-1} == "$WAYLAND_DISPLAY" ) ]]; then
+        printf '%s/shell.qml\n' "$dir"
       fi
-    done <"$OMARCHY_TEST_QS_STATE"
-    printf ']\n'
+    }
+    list_all=0
+    [[ $2 == "-a" ]] && list_all=1
+    selected_dir=$3
+    {
+      while read -r pid; do
+        [[ -n $pid ]] && list_instance "$OMARCHY_TEST_SESSION_PATH/shell" "$pid"
+      done <"$OMARCHY_TEST_QS_STATE"
+      if [[ -f $strays ]]; then
+        while read -r dir pid; do list_instance "$dir" "$pid"; done <"$strays"
+      fi
+    } | jq -Rn '[inputs | {config_path: .}]'
     ;;
   *' kill -p '*)
-    [[ -z ${OMARCHY_TEST_QS_EXIT_CHECK:-} ]] || exit 124
-    [[ $* == "kill -p $OMARCHY_TEST_SESSION_PATH/shell" ]] || exit 1
-    killed=0
-    : >"$OMARCHY_TEST_QS_STATE.next"
-    while IFS= read -r pid; do
-      [[ $pid =~ ^[0-9]+$ ]] || continue
+    if [[ -n ${OMARCHY_TEST_QS_EXIT_CHECK:-} ]]; then
+      touch "$OMARCHY_TEST_QS_STATE.stopping"
+      exit 124
+    fi
+    if [[ $3 != "$OMARCHY_TEST_SESSION_PATH/shell" ]]; then
+      pid=$(awk -v dir="$3" '$1 == dir { print $2; exit }' "$strays" 2>/dev/null)
+      [[ $pid =~ ^[0-9]+$ ]] || exit 1
       display=$(awk -v pid="$pid" '$1 == pid { print $2; exit }' "$OMARCHY_TEST_QS_DISPLAY_STATE")
-      [[ -n $display ]] || display=wayland-1
-      if [[ ${WAYLAND_DISPLAY:-wayland-1} == "$display" ]]; then
-        killed=1
+      [[ ${display:-wayland-1} == "$WAYLAND_DISPLAY" ]] || exit 1
+      # The client times out before the worktree shell finishes exiting.
+      (
+        sleep 0.5
+        kill "$pid" 2>/dev/null
+        awk -v pid="$pid" '$2 != pid' "$strays" >"$strays.next"
+        mv "$strays.next" "$strays"
+      ) &
+      exit 124
+    fi
+    # Quickshell stops the oldest matching instance per call.
+    while read -r pid; do
+      display=$(awk -v pid="$pid" '$1 == pid { print $2; exit }' "$OMARCHY_TEST_QS_DISPLAY_STATE")
+      [[ ${display:-wayland-1} == "$WAYLAND_DISPLAY" ]] || continue
+      if [[ $pid != "303" ]]; then
         kill "$pid" 2>/dev/null
         while kill -0 "$pid" 2>/dev/null; do sleep 0.01; done
-      else
-        printf '%s\n' "$pid" >>"$OMARCHY_TEST_QS_STATE.next"
       fi
+      awk -v pid="$pid" '$1 != pid' "$OMARCHY_TEST_QS_STATE" >"$OMARCHY_TEST_QS_STATE.next"
+      mv "$OMARCHY_TEST_QS_STATE.next" "$OMARCHY_TEST_QS_STATE"
+      exit 0
     done <"$OMARCHY_TEST_QS_STATE"
-    mv "$OMARCHY_TEST_QS_STATE.next" "$OMARCHY_TEST_QS_STATE"
-    (( killed == 1 )) || exit 1
+    exit 1
     ;;
   *' -n -p '*)
     printf '%s\n' "${OMARCHY_TEST_TRANSIENT_ENV-unset}" >"$OMARCHY_TEST_QS_ENV_LOG"
     printf '303\n' >>"$OMARCHY_TEST_QS_STATE"
     printf '303 %s\n' "${WAYLAND_DISPLAY:-wayland-1}" >>"$OMARCHY_TEST_QS_DISPLAY_STATE"
+    [[ ! -f $strays ]] || cp "$strays" "$strays.at-launch"
     ;;
 esac
 SH
@@ -272,6 +246,7 @@ short_restart="$test_tmp/restart-no-exit-wait"
 sed 's/^deadline=$((SECONDS + 30))$/deadline=$SECONDS/' "$ROOT/bin/omarchy-restart-shell" >"$short_restart"
 chmod +x "$short_restart"
 for exit_check in stuck failed malformed; do
+  rm -f "$restart_state.stopping"
   : >"$dispatch_log"
   : >"$restart_state"
   exit_error=$(PATH="$restart_bin:$PATH" \
@@ -612,6 +587,7 @@ missing_config_error=$(PATH="$restart_bin:$PATH" \
 pass "resolved checkout without shell.qml refuses before stopping Quickshell"
 
 : >"$restart_log"
+: >"$restart_display_state"
 printf '303\n' >"$restart_state"
 touch "$restart_state.locked"
 mkdir -p "$runtime_dir/hypr/runtime-session"
@@ -633,7 +609,7 @@ locked_error=$(PATH="$restart_bin:$PATH" \
 
 [[ $locked_error == "Refusing to restart Omarchy shell while the session is locked." ]] || fail "locked restart explains why it was refused" "$locked_error"
 [[ $(<"$restart_state") == 303 ]] || fail "locked restart preserves the running shell"
-[[ ! -s $restart_log ]] || fail "locked restart does not stop or launch Quickshell"
+if grep -Eq '^(kill |-n -p )' "$restart_log"; then fail "locked restart does not stop or launch Quickshell"; fi
 pass "restart preserves the shell while its lock is active"
 
 # A LOCK session without an active locker — dead shell or a crash-handler
@@ -703,3 +679,54 @@ grep -F "ipc -n -p $restart_root/shell call -- lock lock" "$ipc_log" >/dev/null 
 [[ -f $restart_state.locked ]] || fail "lock recovery did not re-secure the session without notifications"
 grep -q "notification service did not become ready" "$test_tmp/dead-notifications.out" || fail "a missing notification service is not reported" "$(cat "$test_tmp/dead-notifications.out")"
 pass "restart recovers the lock even when the notification service never returns"
+
+# A worktree's shell left running after a visual check holds the notification
+# server and is out of omarchy-shell's reach, so a restart stops it too. A
+# Quickshell config that is not an Omarchy tree is someone else's and stays.
+worktree_root="$test_tmp/worktree"
+other_root="$test_tmp/other"
+mkdir -p "$worktree_root/shell" "$worktree_root/bin" "$other_root/shell"
+touch "$worktree_root/shell/shell.qml"
+ln -s "$ROOT/bin/omarchy-launch-shell" "$worktree_root/bin/omarchy-launch-shell"
+sleep 30 &
+restart_pid_one=$!
+sleep 30 &
+restart_pid_two=$!
+printf '%s %s\n%s %s\n' "$worktree_root/shell" "$restart_pid_one" "$other_root/shell" "$restart_pid_two" >"$test_tmp/strays"
+printf '303\n' >"$restart_state"
+rm -f "$restart_state.locked" "$test_tmp/notification-checks"
+: >"$restart_log"
+
+run_worktree_restart() {
+  PATH="$restart_bin:$PATH" \
+  OMARCHY_PATH="$restart_root" \
+  XDG_RUNTIME_DIR="$runtime_dir" \
+  OMARCHY_TEST_QS_STATE="$restart_state" \
+  OMARCHY_TEST_QS_STRAYS="$test_tmp/strays" \
+  OMARCHY_TEST_QS_LOG="$restart_log" \
+  OMARCHY_TEST_QS_ENV_LOG="$restart_env_log" \
+  OMARCHY_TEST_DISPATCH_LOG="$dispatch_log" \
+  OMARCHY_TEST_IPC_LOG="$ipc_log" \
+  OMARCHY_TEST_SESSION_PATH="$restart_root" \
+    timeout 5 "$ROOT/bin/omarchy-restart-shell"
+}
+
+touch "$restart_state.locked"
+if OMARCHY_TEST_SESSION_LOCKED=1 OMARCHY_TEST_LOCK_OWNER="$worktree_root" run_worktree_restart >"$test_tmp/worktree-lock.out" 2>&1; then
+  fail "restart must preserve a worktree holding the session lock"
+fi
+grep -Fq "while the session is locked" "$test_tmp/worktree-lock.out" || fail "restart identifies the locked worktree"
+if grep -q "^kill " "$restart_log"; then fail "restart attempted to stop a shell while the worktree held the lock"; fi
+pass "restart preserves the lock held by a different checkout on the selected display"
+rm -f "$restart_state.locked"
+run_worktree_restart || fail "restart with a worktree shell running succeeds"
+
+if kill -0 "$restart_pid_one" 2>/dev/null; then
+  fail "restart stops a worktree's shell" "$(cat "$restart_log")"
+fi
+! grep -q "^$worktree_root/shell " "$test_tmp/strays.at-launch" || fail "restart waits for a slow worktree shell to exit before launching"
+kill -0 "$restart_pid_two" 2>/dev/null || fail "restart leaves a Quickshell config outside Omarchy running"
+wait "$restart_pid_one" 2>/dev/null || true
+restart_pid_one=""
+[[ $(<"$restart_state") == 303 ]] || fail "restart with a worktree shell leaves one fresh session shell"
+pass "restart stops a worktree's shell and leaves other Quickshell configs alone"

@@ -82,6 +82,37 @@ if [[ $session_omarchy_path != /* || ! -f $CONFIG_DIR/shell.qml ]]; then
   exit 1
 fi
 
+# Quickshell's all-config listing also spans displays and has no display
+# field. Discover checkout paths there, then ask Quickshell which ones have
+# an instance on the selected display. Only native display-scoped kills follow.
+list_config_paths() {
+  local instances
+  instances=$(timeout --kill-after=1s 2s quickshell list "$@" -j --log-rules '*.info=false' 2>/dev/null) || return 1
+  [[ -n $instances ]] || return 0
+  jq -rs 'if length == 1 and (.[0] | type == "array" and all(.[]; .config_path | type == "string" and startswith("/") and (contains("\n") | not)))
+    then .[0] | map(.config_path) | unique[] else error("invalid instance listing") end' <<<"$instances" 2>/dev/null
+}
+
+display_shell_dirs() {
+  local paths path dir local_paths
+  paths=$(list_config_paths -a) || return 1
+  while IFS= read -r path; do
+    [[ $path == */shell/shell.qml ]] || continue
+    dir=${path%/shell.qml}
+    [[ $dir == "$CONFIG_DIR" || -x ${dir%/shell}/bin/omarchy-launch-shell ]] || continue
+    local_paths=$(list_config_paths -p "$dir") || return 1
+    if [[ -n $local_paths ]]; then
+      printf '%s\n' "$dir"
+    fi
+  done <<<"$paths"
+  return 0
+}
+
+if ! running_dirs=$(display_shell_dirs); then
+  echo "Could not list running Omarchy shells; refusing to restart." >&2
+  exit 1
+fi
+
 # Restarting a live lock client would kill the lock screen and strand the
 # session behind Hyprland's failsafe. But a LOCK session without an active
 # locker — the shell died, or its crash handler re-execed a fresh instance
@@ -91,12 +122,15 @@ fi
 # that reports the lock secure or in progress is worth preserving.
 relock=0
 if omarchy-hyprland-session-locked; then
-  locking=$(OMARCHY_PATH="$session_omarchy_path" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell lock status 2>/dev/null |
-    jq -r '.secure or .requested' 2>/dev/null)
-  if [[ $locking == "true" ]]; then
-    echo "Refusing to restart Omarchy shell while the session is locked." >&2
-    exit 1
-  fi
+  while IFS= read -r dir; do
+    [[ -n $dir ]] || continue
+    locking=$(OMARCHY_PATH="${dir%/shell}" OMARCHY_SHELL_IPC_TIMEOUT=0.5s omarchy-shell lock status 2>/dev/null |
+      jq -r '.secure or .requested' 2>/dev/null)
+    if [[ $locking == "true" ]]; then
+      echo "Refusing to restart Omarchy shell while the session is locked." >&2
+      exit 1
+    fi
+  done < <(printf '%s\n' "$CONFIG_DIR" "$running_dirs" | sort -u)
   relock=1
 fi
 
@@ -145,27 +179,21 @@ fi
 # so the client gets time to see that through, and the wait below covers a
 # client that timed out anyway: the fresh shell refuses to start next to a
 # still-dying instance (-n), which is how a restart used to end with no bar.
-while timeout 30 quickshell kill -p "$CONFIG_DIR" >/dev/null 2>&1; do :; done
-
-shell_instances_stopped() {
-  local instances
-  # --all ignores the display filter. Scope the query like the kill above,
-  # and suppress zero-instance info text without suppressing JSON output.
-  instances=$(timeout --kill-after=1s 1s quickshell list -p "$CONFIG_DIR" -j --log-rules '*.info=false' 2>/dev/null) || return 1
-  [[ -z $instances ]] && return 0
-  jq -e --arg dir "$CONFIG_DIR/" \
-    'type == "array" and all(.[]; (.config_path | type) == "string") and all(.[]; .config_path | startswith($dir) | not)' \
-    <<<"$instances" >/dev/null 2>&1
-}
+while IFS= read -r dir; do
+  [[ -n $dir ]] || continue
+  while timeout 30 quickshell kill -p "$dir" >/dev/null 2>&1; do :; done
+done <<<"$running_dirs"
 
 deadline=$((SECONDS + 30))
-while (( SECONDS < deadline )) && ! shell_instances_stopped; do
+while true; do
+  if remaining_dirs=$(display_shell_dirs) && [[ -z $remaining_dirs ]]; then
+    break
+  elif (( SECONDS >= deadline )); then
+    echo "Could not confirm the old Omarchy shell exited; refusing to launch a replacement." >&2
+    exit 1
+  fi
   sleep 0.1
 done
-if ! shell_instances_stopped; then
-  echo "Could not confirm the old Omarchy shell exited; refusing to launch a replacement." >&2
-  exit 1
-fi
 
 # Spawn from Hyprland so the shell inherits the canonical session environment,
 # not transient variables from a terminal, SSH connection, or development tool.

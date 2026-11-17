@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Kilo
+Comment=Start Kilo in a terminal
+Exec=omarchy-agent --agent kilo --app-id=org.omarchy.kilo
+Icon=omarchy-agent-kilo
+StartupWMClass=org.omarchy.kilo
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new
