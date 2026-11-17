@@ -46,8 +46,10 @@ fi
 # limine-enroll-config enrolls the edited menu again. It runs whenever the
 # menu is here, not only when this run changed it, so a retry after a failed
 # enrollment still repairs the checksum; a failure leaves this migration
-# pending. The tool reads the setting from /etc/default/limine alone.
-if omarchy-cmd-present limine-enroll-config && grep -Eqs '^[[:space:]]*ENABLE_ENROLL_LIMINE_CONFIG[[:space:]]*=[[:space:]]*"?yes"?$' /etc/default/limine; then
+# pending. The tool reads the setting from /etc/default/limine alone, and its
+# last assignment wins.
+enroll=$(sed -nE 's/^[[:space:]]*ENABLE_ENROLL_LIMINE_CONFIG[[:space:]]*=[[:space:]]*//p' /etc/default/limine 2>/dev/null | tail -n 1) || true
+if omarchy-cmd-present limine-enroll-config && [[ $enroll =~ ^\"?yes\"?$ ]]; then
   sudo limine-enroll-config
 fi
 
