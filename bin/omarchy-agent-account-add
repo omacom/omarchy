@@ -79,10 +79,7 @@ say() {
 # A signed-in agent gets a launcher of its own beside Agent, drawn by the
 # icon set: Claude Code, Codex, or Grok Build, whatever the default agent is.
 install_launcher() {
-  local entry="omarchy-agent-$provider.desktop"
-  mkdir -p "$HOME/.local/share/applications"
-  install -m 644 "$OMARCHY_PATH/default/applications/$entry" "$HOME/.local/share/applications/$entry"
-  update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+  omarchy-agent-launcher "$provider"
 }
 
 # A first sign-in announces the agent as ready, and clicking it starts one;
