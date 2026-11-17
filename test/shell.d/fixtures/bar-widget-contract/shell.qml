@@ -130,13 +130,16 @@ ShellRoot {
           tick.interval = calendarTick.interval = 3600000
           tick.restart()
           calendarTick.restart()
-          calendar.viewMonth = (calendar.today.getMonth() + 6) % 12
+          calendar.viewYear = new Date().getFullYear() + 1
+          calendar.viewMonth = (new Date().getMonth() + 6) % 12
           var browsed = calendar.viewMonth
+          var browsedYear = calendar.viewYear
           item.catchUp()
           root.assertTrue(Math.abs(item.displayDate.getTime() - Date.now()) < 1000, entry.id + " catches up the bar on wake")
           root.assertTrue(Math.abs(calendar.today.getTime() - Date.now()) < 1000, entry.id + " catches up the calendar on wake")
           root.assertTrue(tick.interval <= tick.step && calendarTick.interval <= calendarTick.step, entry.id + " re-arms both clocks on wake")
           root.assertEqual(calendar.viewMonth, browsed, entry.id + " keeps the month being browsed on wake")
+          root.assertEqual(calendar.viewYear, browsedYear, entry.id + " keeps the year being browsed on wake")
         }
       }
     }
