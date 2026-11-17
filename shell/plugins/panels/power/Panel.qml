@@ -76,11 +76,6 @@ Panel {
   // time to report a charge rate measured with it. Some batteries refresh
   // the rate only every half minute, and until then it reads 0 W.
   property bool chargeRateFresh: true
-  onDischargingChanged: {
-    chargeRateFresh = discharging
-    if (discharging) chargeRateSettle.stop()
-    else chargeRateSettle.restart()
-  }
   Timer {
     id: chargeRateSettle
     interval: 90000
@@ -267,6 +262,9 @@ Panel {
     function onOnBatteryChanged() {
       root.plugSettling = true
       plugSettleTimer.restart()
+      root.chargeRateFresh = UPower.onBattery
+      if (UPower.onBattery) chargeRateSettle.stop()
+      else chargeRateSettle.restart()
     }
   }
 
