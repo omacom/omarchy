@@ -1,14 +1,14 @@
-echo "Restore WPA3 support on Broadcom BCM4364 and Apple Silicon Macs"
+echo "Restore WPA3 support on Broadcom Wi-Fi in T2, BCM4364 and Apple Silicon Macs"
 
 # Broadcom BCM4364 and Apple Silicon (BCM4378/4387) carry modern firmware and
-# must not have SAE disabled by Omarchy's 0x82000 transition-mode quirk. The
-# T2 Macs that never carried BCM4364 -- MacBook Air 13" Late 2018 / True Tone
-# 2019 (BCM4355, 14e4:43dc) and MacBook Pro 13" Touch 2019 / 2020 and MacBook
-# Air 13" Scissor 2020 (BCM4377, 14e4:4488) -- are excluded as a group, since
-# the quirk is a wpa_supplicant workaround rather than a firmware one. Remove
-# only the exact blocks written by the old T2 installer and the Broadcom
-# supplicant setup, wherever they sit in the file. Administrator-authored
-# variants remain untouched.
+# must not have SAE disabled by Omarchy's 0x82000 transition-mode quirk. Every
+# T2 Mac is cleaned up too, including those that never carried BCM4364 --
+# MacBook Air 13" Late 2018 / True Tone 2019 (BCM4355, 14e4:43dc) and MacBook
+# Pro 13" Touch 2019 / 2020 and MacBook Air 13" Scissor 2020 (BCM4377,
+# 14e4:4488) -- since the quirk is a wpa_supplicant workaround rather than a
+# firmware one. Remove only the exact blocks written by the old T2 installer
+# and the Broadcom supplicant setup, wherever they sit in the file.
+# Administrator-authored variants remain untouched.
 conf="${OMARCHY_BRCMFMAC_CONF:-/etc/modprobe.d/brcmfmac.conf}"
 
 # Only run cleanup on Macs that carried the unneeded quirk:
