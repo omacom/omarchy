@@ -88,3 +88,40 @@ if [[ $command == "$expected" ]]; then
 else
   fail "a web app without a launcher keeps its browser and profile" "saved command: $command"
 fi
+
+# omarchy-agent runs Claude as the terminal's own command, with no shell above
+# it. A pty child named claude stands in for that; its saved session must
+# come back as a resume in its project folder, not a fresh agent.
+project="$test_tmp/project"
+mkdir -p "$project" "$HOME/.claude/sessions"
+cp "$(command -v sleep)" "$mock_bin/claude"
+python3 -I -c '
+import os, pty, sys, time
+pid, _ = pty.fork()
+if pid == 0:
+    os.chdir(sys.argv[2])
+    os.execv(sys.argv[1], ["claude", "60"])
+time.sleep(60)
+' "$mock_bin/claude" "$project" >/dev/null 2>&1 &
+terminal_pid=$!
+trap 'kill "$window_pid" "$terminal_pid" 2>/dev/null || true; pkill -P "$terminal_pid" 2>/dev/null || true; rm -rf "$test_tmp"' EXIT
+
+agent_pid=""
+for _ in {1..50}; do
+  agent_pid=$(cat /proc/"$terminal_pid"/task/*/children 2>/dev/null | tr ' ' '\n' | grep -m1 . || true)
+  [[ -n $agent_pid && $(cat "/proc/$agent_pid/comm" 2>/dev/null) == claude ]] && break
+  sleep 0.1
+done
+[[ $(cat "/proc/$agent_pid/comm" 2>/dev/null) == claude ]] || fail "the stand-in agent starts under its terminal"
+echo '{"sessionId":"0b8c5d3e-1f2a-4c6d-9e7f-123456789abc"}' >"$HOME/.claude/sessions/$agent_pid.json"
+
+window_pid=$terminal_pid write_hyprctl "org.omarchy.agent"
+bash "$ROOT/bin/omarchy-session-save" --always
+
+command=$(jq -r '.launches[] | select(.class == null) | .command' "$HOME/.local/state/omarchy/session/windows.json")
+eval "argv=($command)"
+if [[ ${#argv[@]} -gt 2 && ${argv[1]} == "--dir=$project" && ${argv[-1]} == "claude --resume 0b8c5d3e-1f2a-4c6d-9e7f-123456789abc; exec $SHELL" ]]; then
+  pass "an agent run as the terminal's command resumes its session in its folder"
+else
+  fail "an agent run as the terminal's command resumes its session in its folder" "saved command: $command"
+fi

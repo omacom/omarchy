@@ -119,8 +119,10 @@ webapp_launch() {
   fi
 }
 
-# Interactive shells a terminal runs: session leaders on a tty, as in
-# omarchy-cmd-terminal-cwd. One per terminal window, tab or split.
+# What a terminal runs: session leaders on a tty, as in
+# omarchy-cmd-terminal-cwd. One per terminal window, tab or split. Most are
+# interactive shells; omarchy-agent starts an agent as the terminal's
+# command, with no shell above it.
 terminal_shells() {
   local pid=$1 children_file child stat session tty_nr
 
@@ -130,7 +132,8 @@ terminal_shells() {
     for child in "${children[@]}"; do
       read -r stat 2>/dev/null <"/proc/$child/stat" || continue
       read -r _ _ _ session tty_nr _ <<<"${stat##*) }"
-      if (( session == child && tty_nr != 0 )) && grep -Fqsx "$(readlink -f "/proc/$child/exe")" /etc/shells; then
+      (( session == child && tty_nr != 0 )) || continue
+      if grep -Fqsx "$(readlink -f "/proc/$child/exe")" /etc/shells || [[ -n $(agent_resume "$child") ]]; then
         echo "$child"
       fi
     done
@@ -186,11 +189,12 @@ agent_resume() {
   esac
 }
 
-# The agent resume command for the first agent running under a shell.
+# The agent resume command for the first agent a terminal runs, either as
+# its command or under its shell.
 shell_agent_resume() {
   local pid resume
 
-  for pid in $(descendants "$1"); do
+  for pid in "$1" $(descendants "$1"); do
     resume=$(agent_resume "$pid")
     if [[ -n $resume ]]; then
       echo "$resume"
