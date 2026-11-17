@@ -104,6 +104,7 @@ ShellRoot {
     }
     applyOverrides()
     plainButton.hasCursor = false
+    plainButton.selected = false
     after(function() {
       if (!overridesHeld()) return runChecks(attempt + 1)
 
@@ -127,7 +128,17 @@ ShellRoot {
           if (!overridesHeld()) return runChecks(attempt + 1)
           if (!sameRgb(plainButton.color, hover) || plainButton.color.a !== 0)
             return root.fail("rest after hover " + plainButton.color + " vs " + hover)
-          runGeometry()
+          // Selecting from rest leaves the fill unchanged, so it must still be remembered.
+          plainButton.selected = true
+          after(function() {
+            plainButton.selected = false
+            after(function() {
+              if (!overridesHeld()) return runChecks(attempt + 1)
+              if (!sameRgb(plainButton.color, selectedChip.color) || plainButton.color.a !== 0)
+                return root.fail("rest after selected " + plainButton.color + " vs " + selectedChip.color)
+              runGeometry()
+            })
+          })
         })
       })
     })

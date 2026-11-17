@@ -137,7 +137,10 @@ BorderSurface {
   property color _fadeRgb: _selectedColor
   readonly property color _restingFill: background.a > 0 ? background
     : Qt.rgba(_fadeRgb.r, _fadeRgb.g, _fadeRgb.b, 0)
-  on_StateFillChanged: if (_fillState !== "") _fadeRgb = _stateFill
+  function _rememberTint() { if (_fillState !== "") _fadeRgb = _stateFill }
+  // Selecting from rest keeps _stateFill's value, so entering a state must record it too.
+  on_StateFillChanged: _rememberTint()
+  on_FillStateChanged: _rememberTint()
 
   color: _fillState !== "" ? _stateFill : _restingFill
 
