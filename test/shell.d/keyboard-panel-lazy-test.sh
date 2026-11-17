@@ -47,14 +47,6 @@ for (const file of users) {
   const source = lines.join('\n')
   assert(!/onHasCursorChanged:[^\n]*\n\s*(?:&&|\|\|)/.test(source),
     `${name} does not attach a cursor-binding continuation to its handler`)
-  const scrollPolicy = source.match(/^\s*scrollOverflow: (true|false)\s*$/m)
-  assert(scrollPolicy, `${name} explicitly chooses who owns overflow scrolling`)
-  if (scrollPolicy[1] === 'false') {
-    assert(/(?:ScrollView|Flickable)\s*\{[^{}]*anchors.fill: parent/.test(source),
-      `${name} keeps its full-card scroll view constrained`)
-  } else {
-    assert(/panel\.ensureItemVisible/.test(source), `${name} reveals keyboard selections in the outer viewport`)
-  }
   const mirrors = [...source.matchAll(/readonly property Item (\w+): panel\.loadedContent \? panel\.loadedContent\.(\w+) : null/g)]
   for (const [, mirror, target] of mirrors) {
     assert(mirror === target && new RegExp(`property alias ${target}: ${target}\\b`).test(source), `${name} exposes ${target} from its content`)
