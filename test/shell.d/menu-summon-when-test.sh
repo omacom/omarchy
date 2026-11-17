@@ -102,7 +102,7 @@ function extract(signature) {
 const guardStart = menuQml.indexOf('    id: guardProc')
 const guardExitedMatch = menuQml.slice(guardStart).match(/onExited: function\(exitCode, exitStatus\) \{([\s\S]*?)\n    \}/)
 assert(guardExitedMatch, 'found guardProc.onExited in Menu.qml')
-const harnessSource = `${extract('function setFilter(')}\n${extract('function applySelected(')}\n${extract('function openRoute(')}\n${extract('function evaluateGuards(')}\nfunction onGuardExited(exitCode, exitStatus) {${guardExitedMatch[1]}\n}`
+const harnessSource = `${extract('function setFilter(')}\n${extract('function applySelected(')}\n${extract('function confirmDelete(')}\n${extract('function openRoute(')}\n${extract('function evaluateGuards(')}\nfunction onGuardExited(exitCode, exitStatus) {${guardExitedMatch[1]}\n}`
 
 function createHarness(initialWhen) {
   const actions = []
@@ -149,12 +149,15 @@ function createHarness(initialWhen) {
     filterText: '',
     cancel: () => host.cancel(),
     Qt: { callLater: fn => deferred.push(fn) },
-    panel: { freezeCardTop() {} }
+    panel: { freezeCardTop() {} },
+    deleteConfirm: { selectedIndex: 0 },
+    filterInput: { forceActiveFocus() {} }
   }
   vm.createContext(scope)
   vm.runInContext(harnessSource, scope)
   host.setFilter = scope.setFilter
   host.applySelected = scope.applySelected
+  host.confirmDelete = scope.confirmDelete
   host.openRoute = scope.openRoute
   host.evaluateGuards = scope.evaluateGuards
   const finishGuards = (lines, exitCode = 0, exitStatus = 0) => {
@@ -245,6 +248,16 @@ function createHarness(initialWhen) {
   assertEqual(h.host.pendingRoute, '', 'typing a search clears the waiting summon route')
   h.finishGuards(['record.stop:w:1'])
   assertDeepEqual(h.actions, [], 'pending summon does not run after the user starts a search')
+}
+
+{
+  const h = createHarness({ 'record.stop': false })
+  assertEqual(h.host.openRoute('screenrecord-stop'), 'pending', 'summon waits for guard refresh while an app delete is confirmed')
+  h.host.deleteTarget = { appId: 'example.desktop', label: 'Example' }
+  h.host.confirmDelete()
+  assertEqual(h.host.pendingRoute, '', 'confirming an app delete clears the waiting summon route')
+  h.finishGuards(['record.stop:w:1'])
+  assertDeepEqual(h.actions, [], 'pending summon does not run after the user deletes an app')
 }
 
 const unguarded = {}
