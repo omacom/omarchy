@@ -253,19 +253,24 @@ login() {
   interruptible env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "OMARCHY_AGENT_${provider^^}_HOME=" "${login_command[@]}"
 }
 
-# Signing an account that's already here in again, where its login is now:
-# ~/.claude for the Claude account sessions use, its own home otherwise. The
-# primary signs in through the normal browser, an added one through a private
-# window. Its home is never recreated or removed.
+# Signing an account that's already here in again: the primary through the
+# normal browser, an added one through a private window. Its home is never
+# recreated or removed.
 if [[ -n $reauth ]]; then
   found=$(omarchy-agent-account-state homes "$provider" | awk -F'\t' -v id="$reauth" '$1 == id || (id == ":primary" && $4 == "1")' | head -1)
   account_home=$(cut -f2 <<<"$found")
   [[ -n $account_home ]] || fail "$(omarchy-i18n agents.noAccountNamed "$name" "$reauth")"
 
-  # The CLI's own home takes no variable: pointed at it explicitly, Claude
-  # would keep its profile in ~/.claude/.claude.json rather than ~/.claude.json.
+  # A Claude login can move while the browser is open, so it signs in to a
+  # scratch home and is installed wherever the account's login is by then.
+  if [[ $provider == "claude" ]]; then
+    home=$(omarchy-agent-account-state begin "$provider" "" "$$") || fail "$(omarchy-i18n agents.homeFailed)"
+    target="$home"
+  else
+    target="$account_home"
+  fi
   where=(env -u CLAUDE_CONFIG_DIR -u CODEX_HOME -u GROK_HOME "OMARCHY_AGENT_${provider^^}_HOME=")
-  [[ $account_home != "$HOME/.$provider" ]] && where+=("$home_env=$account_home")
+  [[ $target != "$HOME/.$provider" ]] && where+=("$home_env=$target")
 
   if [[ $(cut -f4 <<<"$found") == "1" ]]; then
     say "$(omarchy-i18n agents.signInAgainBrowser "$name")"
@@ -274,6 +279,9 @@ if [[ -n $reauth ]]; then
     say "$(omarchy-i18n agents.signInAgainPrivate)"
     private_browser
     interruptible "${where[@]}" BROWSER="$browser" "${login_command[@]}" || fail "$(omarchy-i18n agents.signInFailed "$name")"
+  fi
+  if [[ $provider == "claude" ]]; then
+    installed=$(omarchy-agent-account-state relogin "$provider" "$(cut -f1 <<<"$found")" "$home" 2>&1) || fail "$installed"
   fi
 
   omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &

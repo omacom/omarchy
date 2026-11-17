@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # omarchy:summary=Read and change the registry of Claude, Codex, and Grok subscription accounts
-# omarchy:args=<registry|home|homes|list|refresh|begin|register|recover|use|rename|remove|mode|link|autoswitch> [provider] [args...]
+# omarchy:args=<registry|home|homes|list|refresh|begin|register|relogin|recover|use|rename|remove|mode|link|autoswitch> [provider] [args...]
 # omarchy:hidden=true
 """The account registry behind `omarchy agent account`.
 
@@ -412,6 +412,7 @@ def register(provider: str, label: str, pending: Path) -> dict[str, Any]:
     raise AccountError(tr("omarchy-i18n agents.loginUnfinished", "The login didn't finish, so no account was added."))
 
   with Locked(provider, save_on_exit=False) as registry:
+    settle(provider, registry)
     # Each home is asked who it is now, not trusted from when it was added: a
     # `claude auth login` run by hand in ~/.claude changes the primary.
     for account in registry["accounts"]:
@@ -623,8 +624,17 @@ def home_in_use(provider: str, home: Path) -> bool:
 # ----------------------------------------------------------------- seating
 
 
+def label_of(account: dict[str, Any]) -> str:
+  return str(account.get("label") or account["id"])
+
+
+def oauth(home: Path) -> dict[str, Any]:
+  login = (read_json(home / ".credentials.json") or {}).get("claudeAiOauth")
+  return login if isinstance(login, dict) else {}
+
+
 def has_login(home: Path) -> bool:
-  return bool((read_json(home / ".credentials.json") or {}).get("claudeAiOauth"))
+  return bool(oauth(home))
 
 
 # An account's own home, ready to hold its login or start a session in. The
@@ -689,6 +699,8 @@ class LockDirs:
 
 
 def write_private(path: Path, text: str) -> None:
+  # A dotfiles symlink stays a symlink; its target is what's replaced.
+  path = path.resolve()
   fd, tmp = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
   try:
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
@@ -735,6 +747,10 @@ def seat(provider: str, registry: dict[str, Any], target: dict[str, Any]) -> lis
   current = find(registry, registry["seated"])
   park = prepare_store(provider, current)
   with LockDirs(claude_locks([primary, source, park])):
+    # A session may have started there while the locks were awaited.
+    users = home_users(provider, source)
+    if users:
+      return users
     seated_credentials = (primary / ".credentials.json").read_text(encoding="utf-8") if has_login(primary) else ""
     seated_profile = account_config(claude_account_file(primary)).get("oauthAccount")
     credentials = (source / ".credentials.json").read_text(encoding="utf-8")
@@ -749,6 +765,11 @@ def seat(provider: str, registry: dict[str, Any], target: dict[str, Any]) -> lis
       if seated_credentials:
         put_login(primary, seated_credentials, seated_profile)
       raise
+    users = home_users(provider, source)
+    if users:
+      if seated_credentials:
+        put_login(primary, seated_credentials, seated_profile)
+      return users
     registry["seated"] = target["id"]
     save(provider, registry)
     # Only now that ~/.claude has it: a login is kept in one place, since a
@@ -757,22 +778,56 @@ def seat(provider: str, registry: dict[str, Any], target: dict[str, Any]) -> lis
   return []
 
 
-# After an interrupted move or a login run by hand, whoever ~/.claude is signed
-# in as is seated, and a copy of that login left in its own home goes.
+# A move cut short leaves ~/.claude's very token in some home as well: that
+# account is seated, the copy goes, and ~/.claude takes its profile again.
 def settle(provider: str, registry: dict[str, Any]) -> None:
   if provider not in SEATED:
     return
   primary = primary_home(provider)
-  found = identity(provider, primary)["accountId"]
-  if not found or not has_login(primary):
+  login = oauth(primary)
+  holder = next((a for a in registry["accounts"] if login and oauth(store_home(provider, a)) == login), None)
+  if holder is None:
     return
-  for account in registry["accounts"]:
-    if account["id"] != registry["seated"] and identity(provider, store_home(provider, account))["accountId"] == found:
-      registry["seated"] = account["id"]
-      break
-  store = store_home(provider, find(registry, registry["seated"]))
-  if has_login(store) and identity(provider, store)["accountId"] == found and not home_in_use(provider, store):
+  registry["seated"] = holder["id"]
+  store = store_home(provider, holder)
+  if not home_in_use(provider, store):
     (store / ".credentials.json").unlink(missing_ok=True)
+  profile = account_config(claude_account_file(store)).get("oauthAccount")
+  path = claude_account_file(primary)
+  config = account_config(path)
+  if isinstance(profile, dict) and (config.get("oauthAccount") or {}).get("accountUuid") != profile.get("accountUuid"):
+    with LockDirs(claude_locks([])):
+      config = account_config(path)
+      config["oauthAccount"] = profile
+      write_private(path, json.dumps(config, indent=2))
+
+
+# A Claude account signed in again in a scratch home, installed where its login
+# lives under the same locks as a move, and only if it's the same account.
+def relogin(provider: str, target: str, pending: Path) -> dict[str, Any]:
+  pending = pending.resolve()
+  if provider not in SEATED or pending.parent != (accounts_root() / provider / ".pending").resolve():
+    raise AccountError(f"{pending} is not a pending {PROVIDERS[provider]['name']} login")
+  try:
+    found = identity(provider, pending)
+    if not found["accountId"] or not has_login(pending):
+      raise AccountError(tr("omarchy-i18n agents.signInFailed", "The %1 sign-in didn't finish.", PROVIDERS[provider]["name"]))
+    with Locked(provider) as registry:
+      settle(provider, registry)
+      account = find(registry, target)
+      if not account:
+        raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
+      if account.get("accountId") and account["accountId"] != found["accountId"]:
+        raise AccountError(tr("omarchy-i18n agents.wrongAccount", "That's %1, not %2. Try again, and sign in as %2.", found["email"] or found["accountId"], label_of(account)))
+      home = login_home(provider, registry, account)
+      if home != primary_home(provider):
+        prepare_store(provider, account)
+      with LockDirs(claude_locks([home])):
+        put_login(home, (pending / ".credentials.json").read_text(encoding="utf-8"), account_config(claude_account_file(pending)).get("oauthAccount"))
+      account.update(identity(provider, home))
+      return dict(account)
+  finally:
+    shutil.rmtree(pending, ignore_errors=True)
 
 
 def follow(provider: str, registry: dict[str, Any], account: dict[str, Any]) -> dict[str, Any]:
@@ -780,11 +835,13 @@ def follow(provider: str, registry: dict[str, Any], account: dict[str, Any]) -> 
     return {"seated": False, "moved": False, "holders": []}
   before = registry["seated"]
   holders = seat(provider, registry, account)
-  return {"seated": registry["seated"] == account["id"], "moved": registry["seated"] != before, "holders": holders}
+  running = label_of(find(registry, registry["seated"]))
+  return {"seated": registry["seated"] == account["id"], "moved": registry["seated"] != before, "holders": holders, "running": running}
 
 
 def remove(provider: str, target: str) -> dict[str, Any]:
   with Locked(provider) as registry:
+    settle(provider, registry)
     account = find(registry, target)
     if not account:
       raise AccountError(f"No {PROVIDERS[provider]['name']} account named {target}")
@@ -1013,8 +1070,8 @@ def catch_up(provider: str, registry: dict[str, Any]) -> None:
     return
   if moved:
     notify(
-      tr("omarchy-i18n agents.sessionsUse", "%1 sessions now use %2", PROVIDERS[provider]["name"], target["label"]),
-      tr("omarchy-i18n agents.runningCaughtUp", "Running sessions on %1 moved over too.", previous["label"]),
+      tr("omarchy-i18n agents.sessionsUse", "%1 sessions now use %2", PROVIDERS[provider]["name"], label_of(target)),
+      tr("omarchy-i18n agents.runningCaughtUp", "Running sessions on %1 moved over too.", label_of(previous)),
     )
 
 
@@ -1065,7 +1122,8 @@ def autoswitch(provider: str, now: dt.datetime | None = None) -> bool:
       if followed["seated"]:
         notify(headline, tr("omarchy-i18n agents.switchedAllBody", "%1 sessions now use %2 (%3%), running ones included.", name, target["label"], round(decision["toPeak"])))
       else:
-        notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), source["label"]))
+        running = label_of(find(registry, registry["seated"])) if provider in SEATED else source["label"]
+        notify(headline, tr("omarchy-i18n agents.switchedBody", "New %1 sessions now use %2 (%3%).\nRunning sessions stay on %4.", name, target["label"], round(decision["toPeak"]), running))
       return True
     notify(
       headline,
@@ -1156,6 +1214,11 @@ def main(argv: list[str]) -> int:
       provider = provider_arg(args)
       previous, account, followed = use(provider, args[1] if len(args) > 1 else "next")
       print(json.dumps({"previous": previous, "active": account} | followed))
+    elif command == "relogin":
+      provider = provider_arg(args)
+      if len(args) < 3:
+        raise AccountError("relogin <provider> <account> <pending-home>")
+      print(json.dumps(relogin(provider, args[1], Path(args[2]))))
     elif command == "remove":
       provider = provider_arg(args)
       if len(args) < 2:

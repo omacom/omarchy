@@ -258,6 +258,7 @@ def import_provider(provider: str, incoming: dict[str, Any], replace: bool) -> l
   copied = []
   try:
     with accounts.Locked(provider) as registry:
+      accounts.settle(provider, registry)
       for a in registry["accounts"]:
         for name in FILES[provider]:
           cleanup_transfers(file_path(provider, accounts.login_home(provider, registry, a), name).parent)

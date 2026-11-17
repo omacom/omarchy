@@ -35,7 +35,7 @@ if [[ ${1:-} == "auth" && ${2:-} == "login" ]]; then
   [[ -z ${CLAUDE_CONFIG_DIR:-} ]] && account_file="$HOME/.claude.json"
   printf '{"oauthAccount":{"accountUuid":"%s","emailAddress":"%s","organizationName":"Work"}}\n' \
     "$OMARCHY_TEST_LOGIN_UUID" "$OMARCHY_TEST_LOGIN_EMAIL" >"$account_file"
-  echo '{"claudeAiOauth":{"rateLimitTier":"default_claude_max_5x","subscriptionType":"max"}}' >"$home/.credentials.json"
+  printf '{"claudeAiOauth":{"refreshToken":"%s","rateLimitTier":"default_claude_max_5x","subscriptionType":"max"}}\n' "$OMARCHY_TEST_LOGIN_UUID-$$-$RANDOM" >"$home/.credentials.json"
   exit 0
 fi
 if [[ -n ${OMARCHY_TEST_SHOW_PATH:-} ]]; then
@@ -381,6 +381,20 @@ omarchy-agent-account-state refresh claude
   fail "refresh seats whoever ~/.claude is signed in as and drops the copy" "$(cat "$accounts/claude.json")"
 pass "an interrupted move is put right"
 
+# Killed between writing Work's token into ~/.claude and its profile, the
+# move leaves Main's profile beside Work's token. Only the token says who it
+# is, so Main's parked login is kept and ~/.claude takes Work's profile.
+omarchy-agent-account-use claude main >/dev/null
+echo '{"claudeAiOauth":{"refreshToken":"main-token"}}' >"$HOME/.claude/.credentials.json"
+echo '{"claudeAiOauth":{"refreshToken":"work-token"}}' >"$work/.credentials.json"
+cp "$HOME/.claude/.credentials.json" "$parked/.credentials.json"
+cp "$work/.credentials.json" "$HOME/.claude/.credentials.json"
+omarchy-agent-account-state refresh claude
+[[ $(jq -r .claudeAiOauth.refreshToken "$parked/.credentials.json") == main-token && $(jq -r .seated "$accounts/claude.json") == work ]] ||
+  fail "a half-made move never costs the parked login" "$(cat "$accounts/claude.json")"
+[[ ! -e $work/.credentials.json && $(claude_account) == u-work ]] || fail "a half-made move is finished from the token's side"
+pass "a move killed halfway keeps every login"
+
 # ------------------------------------------------------------ mode and remove
 
 OMARCHY_TEST_DEFAULT_AGENT=claude omarchy-agent-account-mode auto 90 >/dev/null
@@ -607,9 +621,19 @@ omarchy-agent-account-use claude events >/dev/null
 rm -f "$HOME/.claude/.credentials.json"
 OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \
   omarchy-agent-account-add --reauth events claude </dev/null >/dev/null
-[[ -s $HOME/.claude/.credentials.json && $(claude_account) == u-events && ! -e $HOME/.claude/.claude.json && ! -e $accounts/claude/events/.credentials.json ]] ||
+[[ -s $HOME/.claude/.credentials.json && $(claude_account) == u-events && $(jq -c .mcpServers "$HOME/.claude.json") != null && ! -e $HOME/.claude/.claude.json && ! -e $accounts/claude/events/.credentials.json ]] ||
   fail "--reauth of the seated account signs in to ~/.claude itself"
 grep -qx -- "--private https://claude.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" || fail "--reauth of a seated added account still uses a private window"
+[[ -z $(ls -A "$accounts/claude/.pending") ]] || fail "--reauth leaves no scratch home behind"
+
+# Whoever signs in in the private window would become every running session's
+# account, so it has to be the account being signed in again.
+if OMARCHY_TEST_LOGIN_UUID=u-stranger OMARCHY_TEST_LOGIN_EMAIL=stranger@example.com \
+  omarchy-agent-account-add --reauth events claude </dev/null >"$test_tmp/wrong-reauth" 2>&1; then
+  fail "--reauth as another account is refused"
+fi
+grep -q "That's stranger@example.com, not Events" "$test_tmp/wrong-reauth" && [[ $(claude_account) == u-events ]] ||
+  fail "--reauth as another account says so and leaves ~/.claude alone" "$(cat "$test_tmp/wrong-reauth")"
 
 # --reauth without an account is a mistake, not a request to add one.
 : >"$OMARCHY_TEST_BROWSER_LOG"
