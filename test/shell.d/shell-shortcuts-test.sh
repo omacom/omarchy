@@ -136,6 +136,7 @@ HOME="$test_dir" TEST_CLIPBOARD_KEYMAP="$test_dir/custom keymap.xkb" OMARCHY_PAT
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 local binds, events, pending = {}, {}, nil
 local window
+local devices
 local config = {
   ["input.kb_layout"] = "us,il",
   ["input.kb_variant"] = ",",
@@ -143,6 +144,14 @@ local config = {
 }
 hl = {
   get_config = function(key) return config[key] end,
+  get_devices = function()
+    if devices then return devices end
+    local keyboard = { type = "keyboard", main = true }
+    for _, option in ipairs({ "layout", "variant", "model", "options", "rules" }) do
+      keyboard[option] = config["input.kb_" .. option] or ""
+    end
+    return { keyboard }
+  end,
   get_active_window = function() return window end,
   dsp = { send_key_state = function(spec) return spec end },
   dispatch = function(spec) events[#events + 1] = spec end,
@@ -193,5 +202,32 @@ check(binds["SUPER + A"], "CTRL", 41)
 -- A custom Dvorak keymap wins over conflicting global layout/variant/options.
 config["input.kb_file"] = os.getenv("TEST_CLIPBOARD_KEYMAP")
 check(binds["SUPER + X"], "CTRL", 56)
+config["input.kb_file"], config["input.kb_layout"], config["input.kb_variant"] = "", "us", ""
+-- A French seat keyboard must not receive US A (Ctrl+Q on AZERTY).
+local french = { type = "keyboard", main = true, layout = "fr,il" }
+local us = { type = "keyboard", main = false, layout = "us,il" }
+devices = { { type = "pointer", main = true }, us, french }
+check(binds["SUPER + A"], "CTRL", 24)
+check(o.universal_paste, "CTRL", 55)
+french.main, us.main = false, true
+check(binds["SUPER + A"], "CTRL", 38)
+us.main, french.main = false, true
+check(binds["SUPER + A"], "CTRL", 24)
+devices = {}
+events = {}
+binds["SUPER + A"]()
+assert(events[1].key == "A", "no seat keyboard must retain native resolution")
+pending()
+assert(events[2].key == "A")
+devices = { { type = "keyboard", main = true, layout = "" } }
+events = {}
+binds["SUPER + A"]()
+assert(events[1].key == "A", "unknown rules must not guess global US positions")
+pending()
+hl.get_devices = nil
+events = {}
+binds["SUPER + A"]()
+assert(events[1].key == "A", "older Hyprland must retain native resolution")
+pending()
 LUA
 pass "clipboard injection uses primary-layout keys with paired releases"

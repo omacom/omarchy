@@ -12,6 +12,20 @@ local keycodes = {}
 -- unmodified letter instead of assuming QWERTY positions: A/C/V/X also move
 -- on AZERTY, Dvorak, and Colemak-DH layouts.
 local function shortcut_keymap_options()
+  -- main is the seat keyboard used by send_key_state, including for IPC paste.
+  -- Read its effective rules on every invocation: another keyboard may have
+  -- become active without any global input setting changing.
+  local keyboard
+  for _, device in ipairs(hl.get_devices and hl.get_devices() or {}) do
+    if device.type == "keyboard" and device.main then
+      keyboard = device
+      break
+    end
+  end
+  if not keyboard or not keyboard.layout or keyboard.layout == "" then
+    return nil
+  end
+
   local keymap = hl.get_config("input.kb_file") or ""
   if keymap ~= "" then
     -- A keymap replaces RMLVO; xkbcli rejects combining the two. Its optional
@@ -21,7 +35,7 @@ local function shortcut_keymap_options()
 
   local options = {}
   for _, option in ipairs({ "layout", "variant", "model", "options", "rules" }) do
-    local value = hl.get_config("input.kb_" .. option) or ""
+    local value = keyboard[option] or ""
     if value ~= "" then
       table.insert(options, "--" .. option .. " " .. o.shell_quote(value))
     end
@@ -30,8 +44,14 @@ local function shortcut_keymap_options()
 end
 
 local function shortcut_keycode(key)
+  local options = shortcut_keymap_options()
+  -- Unknown keyboards (or older Hyprland without device queries) retain native
+  -- named-key resolution rather than guessing positions from global settings.
+  if not options then
+    return key
+  end
   local lookup = "xkbcli how-to-type --disable-compose --keysym "
-    .. shortcut_keymap_options() .. " " .. o.shell_quote(key:lower())
+    .. options .. " " .. o.shell_quote(key:lower())
   if keycodes[lookup] then
     return keycodes[lookup]
   end
