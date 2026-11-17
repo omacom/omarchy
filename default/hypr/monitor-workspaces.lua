@@ -307,9 +307,10 @@ function M.workspace_id(monitor, slot)
 end
 
 -- The workspace a monitor falls back to when what it shows isn't its own: the
--- lowest of its own already on it, or its first. `avoid` is an id that is about
--- to leave, so the first free one stands in for it, or none if all are taken.
-local function home(monitor, block, avoid)
+-- lowest of its own already on it, or its first. While a workspace is `moving`
+-- between monitors, only a free number of the block will do, or none if all are
+-- taken, so the move never pulls another workspace over.
+local function home(monitor, block, moving)
   local best = nil
 
   for _, workspace in ipairs(hl.get_workspaces()) do
@@ -319,9 +320,9 @@ local function home(monitor, block, avoid)
     end
   end
 
-  if not best and avoid then
+  if not best and moving then
     for id = block * SLOTS + 1, block * SLOTS + SLOTS do
-      if id ~= avoid and not hl.get_workspace(id) then
+      if not hl.get_workspace(id) then
         return id
       end
     end
@@ -353,12 +354,12 @@ end
 -- Moving a monitor's visible workspace away leaves Hyprland to fill the gap
 -- with any workspace it finds, or a fresh one with the lowest free number, so
 -- put the monitor back on one of its own.
-local function settle(monitor, monitors, by_connector, avoid)
+local function settle(monitor, monitors, by_connector, moving)
   local block = by_connector[monitor.name]
   local active = monitor.active_workspace
 
   if block and regular(active) and block_of_id(active.id) ~= block and owner(active.id, monitors, by_connector) then
-    local id = home(monitor, block, avoid)
+    local id = home(monitor, block, moving)
     if id then
       show(monitor, id)
     end
@@ -520,17 +521,15 @@ function M.move_to_monitor(direction)
     -- it goes away once that monitor shows one of its own. With every number
     -- of its block taken, it settles after the adoption frees one instead.
     if from then
-      settle(from, monitors, by_connector, id)
+      settle(from, monitors, by_connector, true)
     end
 
-    -- Once renumbered, its old number is free again for the monitor it left.
     local block = by_connector[moved.monitor.name]
-    local avoid = id
-    if block and block_of_id(id) ~= block and adopt(moved, block) then
-      avoid = nil
+    if block and block_of_id(id) ~= block then
+      adopt(moved, block)
     end
     if from then
-      settle(from, monitors, by_connector, avoid)
+      settle(from, monitors, by_connector, true)
     end
 
     -- Settling the monitor it left can take focus; it belongs with the
