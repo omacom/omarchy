@@ -15,9 +15,11 @@ case "${1:-}" in
 esac
 (( $# <= 1 )) || exit 1
 
-source_path="$HOME/.local/state/omarchy/current/theme/herdr-app.json"
+theme_dir="$HOME/.local/state/omarchy/current/theme"
+source_path="$theme_dir/herdr-app.json"
 app_home="${HERDR_APP_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/herdr-app}"
-theme_path="$app_home/themes/omarchy.json"
+# Modes Omarchy was activated for in Herdr but has had no palette to select yet.
+pending_path="$HOME/.local/state/omarchy/herdr-app-pending"
 
 # Do not create state for an app the person has never opened.
 if [[ ! -d $app_home ]]; then
@@ -53,6 +55,14 @@ if [[ ! -f $source_path ]]; then
 fi
 palette=$(cat "$source_path")
 
+# Herdr keeps one theme choice for light and one for dark, and files a theme
+# under one of them by its colors. A single file would move between the two as
+# light and dark themes replace each other, so each mode gets its own.
+mode=$(omarchy-theme-color --file "$theme_dir/colors.toml" mode dark)
+[[ $mode == "light" ]] || mode=dark
+name="omarchy-$mode"
+theme_path="$app_home/themes/$name.json"
+
 if ! jq -e '
   def rgb: type == "string" and test("^#[0-9a-fA-F]{6}$");
   def color: type == "string" and test("^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$");
@@ -79,9 +89,29 @@ fi
 # The app command can wait for a busy window. Do not hold up desktop theme
 # staging while it does; it selects whichever palette is current at that time.
 flock -u "$theme_lock"
+
+select_theme() {
+  HERDR_APP_HOME="$app_home" herdr-app do app.theme --name "$1" >/dev/null 2>&1
+}
+
 if (( activate == 1 )); then
-  if ! HERDR_APP_HOME="$app_home" herdr-app do app.theme --name omarchy; then
+  if ! select_theme "$name"; then
     echo "Omarchy was published. Open Herdr and rerun with --activate to select it." >&2
     exit 1
+  fi
+
+  # Activating picks Omarchy for both appearances. The other one gets its file
+  # from the first theme of that mode, so its selection waits until then.
+  mkdir -p "${pending_path%/*}"
+  if [[ $mode == "light" ]]; then
+    echo dark >"$pending_path"
+  else
+    echo light >"$pending_path"
+  fi
+elif [[ -f $pending_path && $(<"$pending_path") == "$mode" ]] && omarchy-cmd-present herdr-app; then
+  # Otherwise a theme switch never reselects, so a theme picked in Herdr stays picked.
+  # A closed window keeps the selection pending for the next switch of this mode.
+  if select_theme "$name"; then
+    rm -f "$pending_path"
   fi
 fi
