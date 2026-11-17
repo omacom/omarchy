@@ -219,6 +219,22 @@ id = o.clipboard_request_id
 device.active_keymap = "English (US)"
 o.clipboard_keycode_ready(id, 24)
 assert(#events == 0, "changed seat keymap must not receive a stale code")
+
+-- A fresh Lua state must reject a worker started before the config reloaded.
+events, timers = {}, {}
+o = { bind = function(keys, _, callback) binds[keys] = callback end }
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/clipboard.lua")
+binds["SUPER + C"]()
+local old_id = o.clipboard_request_id
+o = { bind = function(keys, _, callback) binds[keys] = callback end }
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bindings/clipboard.lua")
+binds["SUPER + V"]()
+local new_id = o.clipboard_request_id
+o.clipboard_keycode_ready(old_id, 54)
+assert(#events == 0, "a worker from before reload must not satisfy a new request")
+o.clipboard_keycode_ready(new_id, 55)
+assert(#events == 1 and events[1].key == "code:55")
+timers[#timers].callback()
 LUA
 pass "clipboard requests preserve targeting, order and paired releases"
 
@@ -241,13 +257,14 @@ printf '%s\n' "$*" >"$TEST_HYPRCTL_LOG"
 SH
 chmod +x "$test_dir/bin/xkbcli" "$test_dir/bin/hyprctl"
 export TEST_SEAT_KEYMAP="$test_dir/seat keymap.xkb" TEST_HYPRCTL_LOG="$test_dir/ipc"
+request_id='01234567-89ab-4def-8123-456789abcdef:7'
 for spec in 'us,il::a:38' 'fr,il::a:24' 'us,il:dvorak,:c:31' 'us,il:dvorak,:x:56' 'us:3l:a:41'; do
   IFS=: read -r layout variant key code <<<"$spec"
   HOME="$test_dir" "$REAL_XKBCLI" compile-keymap --layout "$layout" --variant "$variant" >"$TEST_SEAT_KEYMAP"
-  HOME="$test_dir" PATH="$test_dir/bin:$PATH" "$ROOT/bin/omarchy-clipboard-keycode" 7 "$key"
-  [[ $(<"$TEST_HYPRCTL_LOG") == "eval o.clipboard_keycode_ready(7,$code)" ]] || fail "clipboard worker resolves $layout/$variant $key from the seat keymap"
+  HOME="$test_dir" PATH="$test_dir/bin:$PATH" "$ROOT/bin/omarchy-clipboard-keycode" "$request_id" "$key"
+  [[ $(<"$TEST_HYPRCTL_LOG") == "eval o.clipboard_keycode_ready(\"$request_id\",$code)" ]] || fail "clipboard worker resolves $layout/$variant $key from the seat keymap"
 done
 : >"$TEST_SEAT_KEYMAP"
-PATH="$test_dir/bin:$PATH" "$ROOT/bin/omarchy-clipboard-keycode" 8 a
-[[ $(<"$TEST_HYPRCTL_LOG") == "eval o.clipboard_keycode_ready(8,0)" ]] || fail "unreadable keymaps retain named resolution"
+PATH="$test_dir/bin:$PATH" "$ROOT/bin/omarchy-clipboard-keycode" "$request_id" a
+[[ $(<"$TEST_HYPRCTL_LOG") == "eval o.clipboard_keycode_ready(\"$request_id\",0)" ]] || fail "unreadable keymaps retain named resolution"
 pass "clipboard worker resolves actual seat keymaps and reports failures"

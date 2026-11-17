@@ -9,6 +9,10 @@
 -- without updating its reported layout. Resolve asynchronously from the actual
 -- Wayland keymap, since querying this compositor from a Lua callback would block.
 local requests = {}
+local nonce_file = assert(io.open("/proc/sys/kernel/random/uuid"))
+local request_prefix = nonce_file:read("*l")
+nonce_file:close()
+local request_sequence = 0
 
 local function focused_window()
   local window = hl.get_active_window()
@@ -71,8 +75,9 @@ end
 
 local function send_shortcut_once(mods, key)
   return function()
-    -- o survives config reloads, so an old worker cannot match a new request.
-    o.clipboard_request_id = (o.clipboard_request_id or 0) + 1
+    -- Reloads replace Lua state while old workers can still reply.
+    request_sequence = request_sequence + 1
+    o.clipboard_request_id = request_prefix .. ":" .. request_sequence
     table.insert(requests, { id = o.clipboard_request_id, mods = mods, key = key, window = focused_window(), seat = seat_state() })
     if #requests == 1 then resolve_next() end
   end
