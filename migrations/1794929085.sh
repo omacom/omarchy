@@ -1,7 +1,7 @@
 echo "Wake from sleep without an 80 second freeze on the HP ZBook Ultra G3a 16"
 
 # See install/hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh.
-rebuild_marker="${OMARCHY_LIMINE_REBUILD_MARKER:-/var/lib/omarchy/migrations/1794503281}"
+rebuild_marker="${OMARCHY_LIMINE_REBUILD_MARKER:-/var/lib/omarchy/migrations/1794929085}"
 
 if ! omarchy-hw-x86 || ! omarchy-hw-match "ZBook Ultra G3a 16"; then
   exit 0
