@@ -217,6 +217,9 @@ OMARCHY_TEST_LOGIN_UUID=acct-2 OMARCHY_TEST_LOGIN_EMAIL=side@example.com \
 [[ $(readlink "$accounts/codex/side/sessions") == "$HOME/.codex/sessions" ]] || fail "a Codex account shares sessions with the primary"
 grep -qx -- "--private https://auth.openai.com/oauth/authorize" "$OMARCHY_TEST_BROWSER_LOG" ||
   fail "a Codex login opens in a private window" "$(cat "$OMARCHY_TEST_BROWSER_LOG")"
+[[ $(omarchy-agent-account-exec codex) == "codex home=$accounts/codex/side args=" ]] ||
+  fail "an added account becomes the one new sessions use" "$(omarchy-agent-account-exec codex)"
+omarchy-agent-account-use codex main >/dev/null
 pass "Codex accounts are added the same way"
 
 OMARCHY_TEST_DEFAULT_AGENT="" omarchy-agent-account-add grok </dev/null >/dev/null
@@ -392,13 +395,31 @@ grep -qx "@@omarchy status Sign in as the account you're adding in the private w
   fail "--events reports progress as tagged lines" "$(cat "$test_tmp/events-output")"
 grep -qx "@@omarchy done Added Events (events@example.com)." "$test_tmp/events-output" ||
   fail "--events reports the result as a tagged line" "$(cat "$test_tmp/events-output")"
-grep -q "Added Events (events@example.com)." "$notifications" || fail "--events also notifies, in case the panel closed"
+grep -q "Claude Code is ready for more Tokens now flowing from Events account" "$notifications" ||
+  fail "--events also notifies, in case the panel closed" "$(cat "$notifications")"
 if OMARCHY_TEST_LOGIN_UUID=u-events OMARCHY_TEST_LOGIN_EMAIL=events@example.com \
   omarchy-agent-account-add --events claude Again </dev/null >"$test_tmp/events-dup" 2>&1; then
   fail "--events fails a duplicate"
 fi
 grep -q "^@@omarchy error That's Events" "$test_tmp/events-dup" || fail "--events reports a failure as a tagged line" "$(cat "$test_tmp/events-dup")"
 pass "--events reports progress and results for the panel"
+
+# An account that's added but can't be made active says so, rather than
+# claiming tokens now flow from it.
+: >"$notifications"
+cat >"$mock_bin/omarchy-agent-account-state" <<SH
+#!/bin/bash
+[[ \$1 == use ]] && exit 1
+exec "$ROOT/bin/omarchy-agent-account-state" "\$@"
+SH
+chmod +x "$mock_bin/omarchy-agent-account-state"
+OMARCHY_TEST_LOGIN_UUID=u-stuck OMARCHY_TEST_LOGIN_EMAIL=stuck@example.com \
+  omarchy-agent-account-add --events claude Stuck </dev/null >"$test_tmp/stuck-output"
+rm "$mock_bin/omarchy-agent-account-state"
+grep -qx "@@omarchy done Added Stuck (stuck@example.com), but couldn't switch new sessions to it." "$test_tmp/stuck-output" ||
+  fail "an added account that can't be selected says so" "$(cat "$test_tmp/stuck-output")"
+! grep -q "ready for more" "$notifications" || fail "an added account that can't be selected isn't announced as ready" "$(cat "$notifications")"
+pass "an added account that can't be selected says so"
 
 # A lazy mise tool's command is on PATH before its CLI is: mise's account
 # wrapper and its shim. The download happens before the login, with its
