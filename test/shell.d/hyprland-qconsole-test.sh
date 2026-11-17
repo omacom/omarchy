@@ -10,7 +10,7 @@ require_command lua
 # on a scaled display, so it is worth pinning down.
 # base-test.sh does not set -e, so the assertions have to fail the file
 # themselves rather than leaving the pass below to run regardless.
-OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "the console is a centered panel until a second app joins it"
+OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR= HYPRLAND_INSTANCE_SIGNATURE= lua - <<'LUA' || fail "the console is a centered panel until a second app joins it"
 local rules, handlers, spawned = {}, {}, {}
 local refreshes = 0
 local monitor = nil
@@ -302,7 +302,7 @@ pass "the console is a centered panel until a second app joins it"
 # A guard first installed by hyprctl reload in a running session cannot wait
 # for hyprland.start: that event already fired. An active monitor is the signal
 # startup is done, so refreshes must run immediately with no start handler.
-OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "the refresh guard handles a reload into a running session"
+OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR= HYPRLAND_INSTANCE_SIGNATURE= lua - <<'LUA' || fail "the refresh guard handles a reload into a running session"
 local start_handler = false
 local refreshes = 0
 hl = {
@@ -321,3 +321,60 @@ hl.exec_scheduled_prop_refresh_immediately()
 assert(refreshes == 1, "a refresh in a running session runs immediately")
 LUA
 pass "the refresh guard handles a reload into a running session"
+
+# A reload with no active monitor (headless, or every monitor unplugged) must
+# also pass refreshes straight through. The marker left at hyprland.start lives
+# in Hyprland's per-instance runtime dir, which survives the fresh Lua state a
+# reload creates, so it is the signal that startup already finished.
+(
+  test_runtime=$(mktemp -d)
+  trap 'rm -rf "$test_runtime"' EXIT
+  mkdir -p "$test_runtime/hypr/test-signature"
+  : > "$test_runtime/hypr/test-signature/omarchy-prop-refresh-started"
+
+  OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR="$test_runtime" HYPRLAND_INSTANCE_SIGNATURE=test-signature lua - <<'LUA' || fail "the refresh guard handles a reload with no active monitor"
+local start_handler = false
+local refreshes = 0
+hl = {
+  on = function(event)
+    if event == "hyprland.start" then start_handler = true end
+  end,
+  get_active_monitor = function() return nil end,
+  exec_scheduled_prop_refresh_immediately = function() refreshes = refreshes + 1 end,
+}
+
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+
+assert(not start_handler, "no start handler is needed once Hyprland is already up")
+hl.exec_scheduled_prop_refresh_immediately()
+assert(refreshes == 1, "a refresh without an active monitor still runs immediately")
+LUA
+  pass "the refresh guard handles a reload with no active monitor"
+
+  # Cold start leaves that marker behind, so a later reload can tell the
+  # session is already up even when no monitor is active.
+  mkdir -p "$test_runtime/hypr/cold-signature"
+  OMARCHY_PATH="$ROOT" XDG_RUNTIME_DIR="$test_runtime" HYPRLAND_INSTANCE_SIGNATURE=cold-signature lua - <<'LUA' || fail "the refresh guard leaves a marker at startup"
+local on_start = nil
+hl = {
+  on = function(event, callback)
+    if event == "hyprland.start" then on_start = callback end
+  end,
+  get_active_monitor = function() return nil end,
+  exec_scheduled_prop_refresh_immediately = function() end,
+}
+
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+
+assert(on_start ~= nil, "cold start registers a start handler")
+on_start()
+local marker = io.open(os.getenv("XDG_RUNTIME_DIR") .. "/hypr/cold-signature/omarchy-prop-refresh-started", "r")
+assert(marker ~= nil, "the start handler leaves a marker for future reloads")
+if marker then
+  marker:close()
+end
+LUA
+  pass "the refresh guard leaves a marker at startup"
+)

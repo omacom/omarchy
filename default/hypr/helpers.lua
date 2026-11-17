@@ -4,39 +4,6 @@ local paths = require("default.hypr.paths")
 
 o = o or {}
 
--- Property refreshes can dereference managers before startup completes.
--- A reload has a fresh Lua state and no start event; an active monitor distinguishes it.
-local refresh_guard = _G.omarchy_prop_refresh_guard
-if not refresh_guard and hl and type(hl.on) == "function"
-  and type(hl.exec_scheduled_prop_refresh_immediately) == "function" then
-  local running = type(hl.get_active_monitor) == "function" and hl.get_active_monitor() ~= nil
-  refresh_guard = {
-    original = hl.exec_scheduled_prop_refresh_immediately,
-    started = running,
-    pending = false,
-  }
-  _G.omarchy_prop_refresh_guard = refresh_guard
-
-  hl.exec_scheduled_prop_refresh_immediately = function()
-    if refresh_guard.started then
-      refresh_guard.original()
-      return
-    end
-
-    refresh_guard.pending = true
-  end
-
-  if not running then
-    hl.on("hyprland.start", function()
-      refresh_guard.started = true
-      if refresh_guard.pending then
-        refresh_guard.pending = false
-        refresh_guard.original()
-      end
-    end)
-  end
-end
-
 local function shell_quote(value)
   return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
 end
@@ -65,6 +32,62 @@ local function file_exists(path)
   end
 
   return false
+end
+
+-- Hyprland keeps a per-instance runtime dir that outlives config reloads, even
+-- though the Lua state is rebuilt. A marker there records that startup finished.
+local function hypr_instance_file(name)
+  local runtime = os.getenv("XDG_RUNTIME_DIR")
+  local signature = os.getenv("HYPRLAND_INSTANCE_SIGNATURE")
+  if not runtime or runtime == "" or not signature or signature == "" then
+    return nil
+  end
+
+  return runtime .. "/hypr/" .. signature .. "/" .. name
+end
+
+-- Property refreshes can dereference managers before startup completes. A reload
+-- gets a fresh Lua state and no start event, so an active monitor or the marker
+-- written at hyprland.start says startup already finished. The marker also
+-- covers a reload with no active monitor (headless, or every monitor unplugged),
+-- where the monitor check alone would defer refreshes for the rest of the session.
+local refresh_guard = _G.omarchy_prop_refresh_guard
+if not refresh_guard and hl and type(hl.on) == "function"
+  and type(hl.exec_scheduled_prop_refresh_immediately) == "function" then
+  local started_path = hypr_instance_file("omarchy-prop-refresh-started")
+  local running = (started_path and file_exists(started_path))
+    or (type(hl.get_active_monitor) == "function" and hl.get_active_monitor() ~= nil)
+  refresh_guard = {
+    original = hl.exec_scheduled_prop_refresh_immediately,
+    started = running,
+    pending = false,
+  }
+  _G.omarchy_prop_refresh_guard = refresh_guard
+
+  hl.exec_scheduled_prop_refresh_immediately = function()
+    if refresh_guard.started then
+      refresh_guard.original()
+      return
+    end
+
+    refresh_guard.pending = true
+  end
+
+  if not running then
+    hl.on("hyprland.start", function()
+      if started_path then
+        local marker = io.open(started_path, "w")
+        if marker then
+          marker:close()
+        end
+      end
+      refresh_guard.started = true
+      if refresh_guard.pending then
+        refresh_guard.pending = false
+        refresh_guard.original()
+      end
+    end)
+  end
 end
 
 -- Hyprland reaps its own children, so os.execute() can't retrieve an exit status
