@@ -47,15 +47,15 @@ assert_url "zoom handler refuses a meeting number with encoded separators" \
   'zoommtg://zoom.us/join?confno=123%26injected=1' \
   'https://app.zoom.us/wc/home'
 
-# The password was appended to the query string verbatim. A value carrying a
-# separator or an encoded one must not become another parameter.
 assert_url "zoom handler keeps only the password before an extra separator" \
   'zoommtg://zoom.us/join?confno=123456789&pwd=abc&action=join' \
   'https://app.zoom.us/wc/join/123456789?pwd=abc'
 
-assert_url "zoom handler drops a password with encoded separators" \
-  'zoommtg://zoom.us/join?confno=123456789&pwd=abc%26injected=1' \
-  'https://app.zoom.us/wc/join/123456789'
+# Zoom passcodes may contain *, and ones with ? or # arrive percent-encoded;
+# encoded, a separator is part of the value, never a new parameter.
+assert_url "zoom handler keeps a passcode with * and encoded characters" \
+  'zoommtg://zoom.us/join?confno=123456789&pwd=ab*%3F9%2312' \
+  'https://app.zoom.us/wc/join/123456789?pwd=ab*%3F9%2312'
 
 assert_url "zoom handler ignores a non-Zoom protocol" \
   'https://example.test/join?confno=123456789' \
