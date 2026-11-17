@@ -618,7 +618,7 @@ def translate_manual(source, code, name, model, current=None):
     previous = ""
     if current:
         previous = f"""
-Below is the current translation of an earlier version of this chapter. The English source above is authoritative, and the current translation may predate it or lag behind it. Keep its wording, terminology, table headers and menu paths wherever it still faithfully translates the English source above, and retranslate only passages that are new, changed or missing. Return the whole chapter.
+Below is the current translation of an earlier version of this chapter. The English source above is authoritative, and the current translation may predate it or lag behind it. Keep its wording, terminology, table headers and menu paths wherever it still faithfully translates the English source above, and retranslate only passages that are new, changed or missing. Drop anything the English source no longer says, and wherever the two disagree in meaning, follow the English. Return the whole chapter.
 <current_translation>
 {json.dumps({"markdown": current}, ensure_ascii=False)}
 </current_translation>
