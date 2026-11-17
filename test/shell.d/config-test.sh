@@ -428,8 +428,13 @@ cat >"$power_clone_dir/manifest.json" <<'JSON'
 JSON
 touch "$power_clone_dir/BarWidget.qml"
 
+metadata_dir="$TMPDIR/home/.config/omarchy/plugins/local.invalid-metadata"
+mkdir -p "$metadata_dir"
+jq '.id = "local.invalid-metadata" | .omarchy = "invalid"' "$power_clone_dir/manifest.json" >"$metadata_dir/manifest.json"
+touch "$metadata_dir/BarWidget.qml"
+
 jq '
-  .bar.layout.center = [{ "id": "local.clock-clone", "format": "H:mm", "customFlag": false }]
+  .bar.layout.center = [{ "id": "local.clock-clone", "format": "H:mm", "customFlag": false, "optional": null }]
   | .bar.layout.right = [
       { "id": "omarchy.power", "showPercentage": false },
       { "id": "local.power-clone", "showPercentage": true }
@@ -444,6 +449,11 @@ pass "bar get follows the enabled clone standing in for the built-in"
 [[ $(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar get omarchy.clock customFlag) == "false" ]] ||
   fail "bar get does not follow clone value when set to false"
 pass "bar get follows a clone setting a boolean false"
+
+if HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar get omarchy.clock optional >/dev/null; then
+  fail "bar get answered for a null option"
+fi
+pass "bar get treats a null option as unset"
 
 power_val=$(HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" omarchy-bar get omarchy.power showPercentage) ||
   fail "bar get failed on exact entry setting false"
@@ -461,7 +471,7 @@ SH
 chmod +x "$mock_catalog_dir/omarchy-plugin-catalog"
 
 rm -f "$TMPDIR/catalog-called"
-PATH="$mock_catalog_dir:$PATH" HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" \
+TMPDIR="$TMPDIR" PATH="$mock_catalog_dir:$PATH" HOME="$TMPDIR/home" OMARCHY_PATH="$ROOT" \
   omarchy-bar get omarchy.power showPercentage >/dev/null || fail "bar get exact failed"
 [[ ! -f $TMPDIR/catalog-called ]] || fail "bar get exact queried the plugin catalog"
 pass "bar get with exact id match does not query the plugin catalog"

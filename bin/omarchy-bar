@@ -456,7 +456,7 @@ cmd_set() {
 }
 
 # Prints the option from the first instance of the widget on the bar, raw for a
-# string and as JSON otherwise, and fails when no instance sets it.
+# string and as JSON otherwise, and fails when that instance does not set it.
 cmd_get() {
   local id="${1:-}"
   local key="${2:-}"
@@ -484,7 +484,7 @@ cmd_get() {
   if [[ -z $entry ]]; then
     local clones="[]"
     clones=$(omarchy-plugin-catalog 2>/dev/null | jq -c --arg id "$id" '
-      [ .[] | select((.omarchy.clonedFrom // "") == $id) | .id ]
+      [ .[] | select((.omarchy | type) == "object" and .omarchy.clonedFrom == $id) | .id ]
     ') || clones="[]"
     [[ -n $clones ]] || clones="[]"
 
@@ -500,7 +500,7 @@ cmd_get() {
   fi
 
   jq -e -r --arg key "$key" '
-    select(has($key)) | .[$key]
+    .[$key] | select(. != null)
     | if type == "string" then . else tojson end
   ' <<<"$entry" 2>/dev/null || exit 1
 }
