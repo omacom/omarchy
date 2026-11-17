@@ -942,6 +942,15 @@ Panel {
     return helpDisplayText(item.authHelpText) || statusDisplayText(status)
   }
 
+  // The status itself, for the cases where the numbers on show are not
+  // current and nothing else on the page says so. A mark that only explains
+  // itself on hover goes unseen for days while the meters read as live. A
+  // failed refresh that kept its limits has no status, so it keeps the mark.
+  function usageNoteLabel(item) {
+    if (!item || needsSignIn(item)) return ""
+    return statusDisplayText(String(item.usageStatusText || ""))
+  }
+
   // Sign an account that's already here in again, following along in the
   // add view just like adding one.
   function signInAgain(p, account) {
@@ -3172,16 +3181,18 @@ Panel {
     }
   }
 
-  // A mark beside the name when the numbers aren't current, with why and
-  // what to do on hover.
+  // Beside the name when the numbers aren't current: the status in the urgent
+  // color, or a mark where the collector gave none, with why and what to do
+  // on hover.
   component UsageNote: Text {
     id: noteMark
     property var record: null
     readonly property string message: root.usageNote(record)
+    readonly property string label: root.usageNoteLabel(record)
     visible: message !== ""
-    text: "󰋽"
+    text: label !== "" ? label : "󰋽"
     textFormat: Text.PlainText
-    color: root.dim
+    color: label !== "" ? root.urgent : root.dim
     font.family: root.fontFamily
     font.pixelSize: Style.font.caption
 

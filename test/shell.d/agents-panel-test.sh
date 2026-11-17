@@ -8,11 +8,11 @@ run_node_test <<'JS'
 const fs = require('fs')
 const panelSource = fs.readFileSync(root + '/shell/plugins/agents/Panel.qml', 'utf8')
 
-const signInFunctions = ['supportsSignIn', 'signedOut', 'needsSignIn', 'usageNote'].map(name => {
+const signInFunctions = ['supportsSignIn', 'signedOut', 'needsSignIn', 'usageNote', 'usageNoteLabel'].map(name => {
   const match = panelSource.match(new RegExp('function ' + name + '\\([^]*?\\n  \\}'))
   return match ? match[0] : ''
 }).join('\n')
-const signIn = new Function('addProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, signedOut, usageNote}')(
+const signIn = new Function('addProviders', 'helpDisplayText', 'statusDisplayText', signInFunctions + '\nreturn {needsSignIn, signedOut, usageNote, usageNoteLabel}')(
   [{providerId: 'claude'}, {providerId: 'codex'}, {providerId: 'grok'}], text => text, status => status
 )
 for (const id of ['claude', 'codex', 'grok']) {
@@ -32,6 +32,13 @@ assertEqual(signIn.usageNote({providerId: 'grok', usageStatusText: '', limitsSta
   "Couldn't reach Grok's usage endpoint.", 'a failed refresh that kept its limits still says why')
 assertEqual(signIn.usageNote({usageStatusText: '', stale: true, authHelpText: 'Endpoint returned 500.'}),
   'Endpoint returned 500.', 'an account whose refresh failed still says why')
+// A paused status reads on the page, not only on hover; a failed refresh with no status keeps the hover mark.
+assertEqual(signIn.usageNoteLabel({providerId: 'claude', usageStatusText: 'Limits paused', authHelpText: 'Start Claude Code to refresh it.'}),
+  'Limits paused', 'paused limits are said beside the name')
+assertEqual(signIn.usageNoteLabel({providerId: 'claude', usageStatusText: ''}), '', 'current limits say nothing')
+assertEqual(signIn.usageNoteLabel({providerId: 'claude', usageStatusText: '', limitsStale: true, authHelpText: 'Endpoint returned 500.'}), '',
+  'a failed refresh with no status keeps the hover mark')
+assertEqual(signIn.usageNoteLabel({providerId: 'claude', usageStatusText: 'Sign-in expired'}), '', 'a sign-in link replaces the label')
 
 // Local history alone feeds the summary; a section needs a subscription to show.
 const mainSource = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
