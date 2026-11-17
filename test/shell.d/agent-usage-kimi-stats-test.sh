@@ -336,15 +336,16 @@ with contextlib.redirect_stderr(io.StringIO()):
 expect("an unreadable wire leaves the rest counted", record["todayTotalTokens"], 12, record)
 check("a scan that couldn't read every wire isn't cached", not scan_cache_files("kimi"))
 
-# Claude Code pointed at Kimi's or Moonshot's API is Kimi's; with no endpoint,
-# only a Kimi model's reply is. That usage alone puts Kimi in use here, with
-# no sign-in to ask for its limits.
+# Claude Code pointed at Kimi's API is Kimi's; with no endpoint, only a Kimi
+# model's reply is. A Moonshot model's reply is the moonshot collector's.
+# That usage alone puts Kimi in use here, with no sign-in to ask for its
+# limits.
 sandbox()
 claude_code_session("k", [("kimi-k2-0905", 300), ("moonshot-v1-8k", 20), ("claude-sonnet-4-5", 40)])
 record = kimi()
-expect("Kimi counts Claude Code's Kimi and Moonshot replies, and waits for a sign-in on them alone",
+expect("Kimi counts Claude Code's Kimi replies only, and waits for a sign-in on them alone",
        [record["todayTokensByModel"], record["todayPrompts"], record["ready"], record["usageStatusText"]],
-       [{"kimi-k2-0905": 300, "moonshot-v1-8k": 20}, 2, True, "Waiting for auth"], record)
+       [{"kimi-k2-0905": 300}, 1, True, "Waiting for auth"], record)
 claude_code_session("k", [("kimi-for-coding", 300), ("claude-sonnet-4-5", 40)], base_url="https://api.kimi.com/coding/")
 record = kimi()
 expect("Kimi counts every Claude Code reply while Claude Code is pointed at Kimi Code",
@@ -352,8 +353,8 @@ expect("Kimi counts every Claude Code reply while Claude Code is pointed at Kimi
 
 # pi, omp and opencode on the Kimi Code plan count here: pi's own
 # `kimi-coding` provider and models.dev's `kimi-code-plan-global` and
-# `kimi-code-plan-cn`, and so does Moonshot's pay-as-you-go API. A gateway
-# named like one of them doesn't.
+# `kimi-code-plan-cn`. Moonshot's pay-as-you-go API has its own collector, and
+# a gateway named like one of these counts nowhere.
 sandbox()
 write_pi_session(home() / ".pi" / "agent" / "sessions" / "project" / "pi.jsonl", [
   {"type": "message", "id": "u1", "timestamp": today_stamp(), "message": {"role": "user", "content": "hi"}},
@@ -367,9 +368,9 @@ opencode_db(message=[
   ("msg_3", "ses_1", oc_v1("moonshotai-cn", 999, model="kimi-k2.6")),
 ])
 record = kimi()
-expect("Kimi counts pi and opencode on the Kimi Code plan ids and Moonshot's pay-as-you-go API",
+expect("Kimi counts pi and opencode on the Kimi Code plan ids only",
        [record["todayTokensByModel"], record["ready"], record["usageStatusText"]],
-       [{"k3": 300, "kimi-k2.6": 1998, "kimi-for-coding": 200, "kimi-for-coding-highspeed": 20}, True, "Waiting for auth"], record)
+       [{"k3": 300, "kimi-for-coding": 200, "kimi-for-coding-highspeed": 20}, True, "Waiting for auth"], record)
 
 # A route change reaches the cached scan at once, even on the panel's
 # --limits-only refresh that otherwise reuses a scan for minutes: the request

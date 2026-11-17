@@ -1484,9 +1484,9 @@ def scan_opencode(providers: Iterable[str], accept: Accept) -> tuple[list[UsageR
 # Some harnesses send to whatever base URL they are given and record only the
 # model that answered, or a route's name: Claude Code fronts any endpoint
 # ANTHROPIC_BASE_URL names, and a MiniMax Code custom provider any baseURL.
-# Z.ai, Ollama, MiniMax, DeepSeek, Kimi, Alibaba's Model Studio, OpenRouter,
-# Synthetic and Kimchi each document pointing them at their own APIs, so the
-# host says whose tokens those turns are.
+# Z.ai, Ollama, MiniMax, DeepSeek, Kimi, Moonshot, Alibaba's Model Studio,
+# OpenRouter, Synthetic and Kimchi each document pointing them at their own
+# APIs, so the host says whose tokens those turns are.
 
 # The hosts a harness is pointed at in place of its own service, by the
 # collector that bills them. A subdomain of one is the same service.
@@ -1497,8 +1497,8 @@ PROVIDER_HOSTS = {
   "api.minimax.io": "minimax",
   "api.minimaxi.com": "minimax",
   "api.deepseek.com": "deepseek",
-  "api.moonshot.ai": "kimi",
-  "api.moonshot.cn": "kimi",
+  "api.moonshot.ai": "moonshot",
+  "api.moonshot.cn": "moonshot",
   "api.kimi.com": "kimi",
   "api.kimi.ai": "kimi",
   # Model Studio (DashScope, the Coding and Token Plans) and Qwen's own
@@ -1576,13 +1576,15 @@ def cloud_model(model: Any) -> bool:
 # every reply lands in exactly one record.
 
 # What a model's name says about who served it, when Claude Code is pointed
-# at no other host: these are those providers' own models.
+# at no other host: these are those providers' own models. Kimi's model ids
+# name the service, Moonshot's the lab: a kimi-* reply is Kimi Code's, a
+# moonshot* one Moonshot's, though both may be served from either host.
 CLAUDE_CODE_MODEL_OWNERS = (
   ("glm-", "zai"),
   ("minimax-", "minimax"),
   ("deepseek-", "deepseek"),
   ("kimi-", "kimi"),
-  ("moonshot", "kimi"),
+  ("moonshot", "moonshot"),
   # Synthetic's own naming: Hugging Face ids (hf:org/model) and its aliases
   # (syn:large:text).
   ("hf:", "synthetic"),

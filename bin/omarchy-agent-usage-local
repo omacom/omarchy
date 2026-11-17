@@ -92,7 +92,7 @@ CLAIMED_PROVIDERS = {
   "devin",  # devin
   "fireworks", "fireworks-ai",  # fireworks, which counts the whole account
   "kimi-coding", "kimi-code", "kimi-code-plan-global", "kimi-code-plan-cn",  # kimi
-  "moonshotai", "moonshotai-cn", "moonshot",  # kimi
+  "moonshotai", "moonshotai-cn", "moonshot",  # moonshot
   "google-antigravity",  # agy, pi's Antigravity sign-in
   "kimchi", "kimchi-dev", "kimchi-experimental",  # kimchi
   "meta", "muse-code",  # muse
