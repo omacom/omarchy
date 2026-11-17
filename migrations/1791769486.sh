@@ -163,7 +163,7 @@ usb_boot_cleared() {
 if [[ -e $usb_boot_drop_in || -e $usb_boot_pending ]] || grep -Fqx '# Omarchy USB authorization begin' /etc/default/limine 2>/dev/null; then
   sudo touch "$usb_boot_pending"
   sudo rm -f "$usb_boot_drop_in"
-  sudo sed -i '/^# Omarchy USB authorization begin$/,/^# Omarchy USB authorization end$/d' /etc/default/limine
+  sudo sed -i --follow-symlinks '/^# Omarchy USB authorization begin$/,/^# Omarchy USB authorization end$/d' /etc/default/limine
   sudo limine-mkinitcpio
   if ! usb_boot_cleared; then
     echo "A boot entry still has $usb_boot_parameter, so USBGuard stays until it is rebuilt. Run omarchy-migrate to retry."

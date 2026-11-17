@@ -7,6 +7,6 @@ echo "Point rc-channel installs at the rc package repository"
 # shipped pairing: an administrator who chose another combination keeps it.
 if grep -q "https://rc-mirror.omarchy.org/" /etc/pacman.d/mirrorlist &&
   grep -q "^Server = https://pkgs.omarchy.org/edge/" /etc/pacman.conf; then
-  sudo sed -i "s|^Server = https://pkgs.omarchy.org/edge/|Server = https://pkgs.omarchy.org/rc/|" /etc/pacman.conf
+  sudo sed -i --follow-symlinks "s|^Server = https://pkgs.omarchy.org/edge/|Server = https://pkgs.omarchy.org/rc/|" /etc/pacman.conf
   echo "Switched the [omarchy] repository to the rc channel to match this machine's rc mirror."
 fi
