@@ -26,11 +26,11 @@
   "update": {
     "label": "Actualizar"
   },
-  "about": {
-    "label": "Acerca de"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Acerca de"
   },
   "system.screensaver": {
     "label": "Protector de pantalla"

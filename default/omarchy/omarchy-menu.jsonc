@@ -30,7 +30,6 @@
   "remove": {"icon":"󰭌","label":"Remove","aliases":["uninstall"]},
   "update": {"icon":"","label":"Update","aliases":["restart","refresh"]},
   "learn": {"icon":"󰧑","label":"Learn"},
-  "about": {"icon":"","label":"About","action":"omarchy-launch-about"},
   "system": {"icon":"","label":"System","aliases":["power-menu"]},
 
   // Agent
@@ -66,6 +65,7 @@
   "agent.instructions": {"icon":"󰈙","label":"Instructions","action":"omarchy-agent-instructions --edit"},
 
   // System
+  "system.about": {"icon":"","label":"About","aliases":["about"],"action":"omarchy-launch-about"},
   "system.screensaver": {"icon":"󱄄","label":"Screensaver","action":"omarchy-launch-screensaver force"},
   "system.lock": {"icon":"","label":"Lock","action":"omarchy-system-lock"},
   "system.suspend": {"icon":"󰒲","label":"Suspend","when":"! omarchy-toggle-enabled suspend-off && ! omarchy-sleep-disabled","action":"systemctl suspend"},
