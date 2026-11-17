@@ -102,6 +102,19 @@ ShellRoot {
       check(panel.selectedIndex === 0, "the cursor still never moved")
       var afterY = panel.testNetworkListContentY()
       check(afterY === test.scrolledY, "the list returns to where it was scrolled instead of snapping back to the top (contentY=" + afterY + ", was " + test.scrolledY + ")")
+      panel.selectedIndex = panel.wifiIndexForSsid("Net 8")
+    },
+    function() {
+      net8.known = true
+      net8.connected = true
+      NetworkMock.wifi.connected = true
+    },
+    function() {
+      var list = panel.testContent.networkList
+      var row = list.itemAtIndex(panel.selectedIndex)
+      check(panel.selectedIndex === 0, "the cursor follows the connected network to the top")
+      check(row && row.y >= list.contentY && row.y + row.height <= list.contentY + list.height,
+        "connecting leaves the selected row in view instead of restoring the old scroll offset")
       if (!test.failed) console.log("RESULT pass")
       Qt.quit()
     }

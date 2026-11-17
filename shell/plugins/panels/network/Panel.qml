@@ -395,6 +395,7 @@ Panel {
   // If the list empties (station gone, e.g. wifi off), bounce the cursor
   // back to the DNS row so the panel doesn't end up with no cursor at all.
   onWifiNetworksChanged: {
+    var previousIndex = selectedIndex
     if (wifiNetworks.length === 0) {
       selectedIndex = -1
       wifiActionFocused = false
@@ -424,7 +425,8 @@ Panel {
     // the offset `rebuildWifiRows` captured, once the rebuild's new
     // delegates exist to hold it, clamped to the (possibly now larger or
     // smaller) scrollable range.
-    if (pendingScrollY >= 0) {
+    // A connection can move the selected row; let keyboard navigation reveal it.
+    if (pendingScrollY >= 0 && selectedIndex === previousIndex) {
       var restoreY = pendingScrollY
       Qt.callLater(function() {
         if (!panel.loadedContent) return
