@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# omarchy:summary=Detect a Dell keyboard backlight whose firmware turns it off after a timeout.
+
+[[ -e /sys/class/leds/dell::kbd_backlight/stop_timeout ]]

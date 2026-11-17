@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# omarchy:summary=Show or set how long a Dell keyboard backlight stays on after the last input.
+# omarchy:args=[get|set <10s|1m|5m|15m>]
+
+timeout=/sys/class/leds/dell::kbd_backlight/stop_timeout
+
+if [[ ! -e $timeout ]]; then
+  echo "This keyboard backlight has no firmware timeout" >&2
+  exit 1
+fi
+
+case ${1:-get} in
+get)
+  cat "$timeout"
+  ;;
+set)
+  case ${2:-} in
+  [1-9]*[smh]) value=$2 ;;
+  *)
+    echo "Usage: omarchy-brightness-keyboard-timeout set <10s|1m|5m|15m>" >&2
+    exit 1
+    ;;
+  esac
+  if ! echo "$value" 2>/dev/null >"$timeout"; then
+    echo "Could not set the keyboard backlight timeout to $2" >&2
+    exit 1
+  fi
+  ;;
+*)
+  echo "Usage: omarchy-brightness-keyboard-timeout [get|set <10s|1m|5m|15m>]" >&2
+  exit 1
+  ;;
+esac
