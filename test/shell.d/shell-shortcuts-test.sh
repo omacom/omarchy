@@ -128,106 +128,126 @@ for (const line of lines) {
 JS
 pass "every shortcut menu route resolves in the menu"
 
-# Exercise real XKB resolution: a non-Latin group must not turn clipboard
-# injection into an active-group keysym lookup, nor pin other layouts to US.
-require_command xkbcli
-HOME="$test_dir" xkbcli compile-keymap --layout us,il --variant dvorak, >"$test_dir/custom keymap.xkb"
-HOME="$test_dir" TEST_CLIPBOARD_KEYMAP="$test_dir/custom keymap.xkb" OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "clipboard injection uses primary-layout keys with paired releases"
+# The compositor waits for a worker response, preserves request order and paired
+# releases, and drops late responses or requests whose target lost focus.
+OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "clipboard requests preserve targeting, order and paired releases"
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
-local binds, events, pending = {}, {}, nil
-local window
-local devices
-local config = {
-  ["input.kb_layout"] = "us,il",
-  ["input.kb_variant"] = ",",
-  ["input.kb_options"] = "omarchy:shift_caps_compose,grp:alts_toggle",
-}
+local binds, events, commands, timers = {}, {}, {}, {}
+local window = { address = "editor", tags = {} }
 hl = {
-  get_config = function(key) return config[key] end,
-  get_devices = function()
-    if devices then return devices end
-    local keyboard = { type = "keyboard", main = true }
-    for _, option in ipairs({ "layout", "variant", "model", "options", "rules" }) do
-      keyboard[option] = config["input.kb_" .. option] or ""
-    end
-    return { keyboard }
-  end,
   get_active_window = function() return window end,
   dsp = { send_key_state = function(spec) return spec end },
   dispatch = function(spec) events[#events + 1] = spec end,
+  exec_cmd = function(command) commands[#commands + 1] = command end,
   timer = function(callback, options)
-    assert(options.timeout == 50 and options.type == "oneshot")
-    pending = callback
+    local timer = { callback = callback, options = options, enabled = true }
+    function timer:set_enabled(enabled) self.enabled = enabled end
+    timers[#timers + 1] = timer
+    return timer
   end,
 }
 require("default.hypr.helpers")
 o.bind = function(keys, _, callback) binds[keys] = callback end
 require("default.hypr.bindings.clipboard")
 local function check(callback, mods, code)
-  events, pending = {}, nil
+  events, timers = {}, {}
   callback()
-  assert(#events == 1 and pending, "release must be deferred")
-  -- A layout change while the key is down must still release the same key.
-  local layout = config["input.kb_layout"]
-  config["input.kb_layout"] = "fr,il"
-  pending()
-  config["input.kb_layout"] = layout
-  assert(#events == 2)
+  local id = o.clipboard_request_id
+  assert(#events == 0 and #timers == 1, "resolution must be asynchronous")
+  o.clipboard_keycode_ready(id, code)
+  assert(#events == 1 and not timers[1].enabled)
+  o.clipboard_keycode_ready(id, code + 1)
+  assert(#events == 1, "duplicate response must not press again")
+  assert(timers[2].options.timeout == 50 and timers[2].options.type == "oneshot")
+  timers[2].callback()
   for i, state in ipairs({ "down", "up" }) do
     local event = events[i]
-    assert(event.mods == mods and event.key == "code:" .. code and event.state == state,
-      ("expected %s code:%s %s, got %s %s %s"):format(mods, code, state, event.mods, event.key, event.state))
+    assert(event.mods == mods and event.key == "code:" .. code and event.state == state)
     assert(event.window == nil, "injection must reach the focused surface")
   end
 end
 for _, tags in ipairs({ {}, { "terminal" }, { "terminal*" } }) do
-  window = { tags = tags }
-  local clipboard_mods = #tags > 0 and "CTRL SHIFT" or "CTRL"
-  check(binds["SUPER + A"], "CTRL", 38)
-  check(binds["SUPER + C"], clipboard_mods, 54)
-  check(binds["SUPER + V"], clipboard_mods, 55)
-  check(binds["SUPER + X"], "CTRL", 53)
-  check(o.universal_paste, clipboard_mods, 55)
+  window.tags = tags
+  local mods = #tags > 0 and "CTRL SHIFT" or "CTRL"
+  check(binds["SUPER + A"], "CTRL", 24)
+  check(binds["SUPER + C"], mods, 31)
+  check(binds["SUPER + V"], mods, 60)
+  check(binds["SUPER + X"], "CTRL", 56)
+  check(o.universal_paste, mods, 60)
 end
 window = nil
 check(o.universal_paste, "CTRL", 55)
-config["input.kb_layout"] = "us,il"
-config["input.kb_variant"] = "dvorak,"
-check(binds["SUPER + C"], "CTRL", 31)
-check(binds["SUPER + V"], "CTRL", 60)
-config["input.kb_layout"], config["input.kb_variant"] = "fr,il", ""
-check(binds["SUPER + A"], "CTRL", 24)
-config["input.kb_layout"], config["input.kb_variant"] = "us", "3l"
-check(binds["SUPER + A"], "CTRL", 41)
--- A custom Dvorak keymap wins over conflicting global layout/variant/options.
-config["input.kb_file"] = os.getenv("TEST_CLIPBOARD_KEYMAP")
-check(binds["SUPER + X"], "CTRL", 56)
-config["input.kb_file"], config["input.kb_layout"], config["input.kb_variant"] = "", "us", ""
--- A French seat keyboard must not receive US A (Ctrl+Q on AZERTY).
-local french = { type = "keyboard", main = true, layout = "fr,il" }
-local us = { type = "keyboard", main = false, layout = "us,il" }
-devices = { { type = "pointer", main = true }, us, french }
-check(binds["SUPER + A"], "CTRL", 24)
-check(o.universal_paste, "CTRL", 55)
-french.main, us.main = false, true
-check(binds["SUPER + A"], "CTRL", 38)
-us.main, french.main = false, true
-check(binds["SUPER + A"], "CTRL", 24)
-devices = {}
-events = {}
+window = { address = "editor", tags = {} }
+events, commands, timers = {}, {}, {}
+binds["SUPER + C"]()
+local copy_id = o.clipboard_request_id
+binds["SUPER + V"]()
+local paste_id = o.clipboard_request_id
+assert(#commands == 1, "workers must start in order")
+o.clipboard_keycode_ready(paste_id, 55)
+assert(#events == 0, "out-of-order responses must be ignored")
+o.clipboard_keycode_ready(copy_id, 54)
+timers[1].callback()
+assert(#commands == 1, "late deadline must not advance a request already sending keys")
+timers[2].callback()
+assert(#commands == 2)
+o.clipboard_keycode_ready(paste_id, 55)
+timers[4].callback()
+assert(events[1].key == "code:54" and events[2].state == "up" and events[3].key == "code:55")
+events, timers = {}, {}
 binds["SUPER + A"]()
-assert(events[1].key == "A", "no seat keyboard must retain native resolution")
-pending()
+local id = o.clipboard_request_id
+window.address = "other-editor"
+o.clipboard_keycode_ready(id, 24)
+assert(#events == 0, "focus change must not send to another window")
+binds["SUPER + A"]()
+id = o.clipboard_request_id
+o.clipboard_keycode_ready(id, 0)
+assert(events[1].key == "A", "failed resolution must retain native named dispatch")
+timers[#timers].callback()
 assert(events[2].key == "A")
-devices = { { type = "keyboard", main = true, layout = "" } }
-events = {}
+events, timers = {}, {}
 binds["SUPER + A"]()
-assert(events[1].key == "A", "unknown rules must not guess global US positions")
-pending()
-hl.get_devices = nil
-events = {}
+id = o.clipboard_request_id
+timers[1].callback()
+o.clipboard_keycode_ready(id, 24)
+assert(#events == 0, "expired response must not inject")
+local device = { type = "keyboard", main = true, address = "kbd", active_keymap = "French" }
+hl.get_devices = function() return { device } end
 binds["SUPER + A"]()
-assert(events[1].key == "A", "older Hyprland must retain native resolution")
-pending()
+id = o.clipboard_request_id
+device.active_keymap = "English (US)"
+o.clipboard_keycode_ready(id, 24)
+assert(#events == 0, "changed seat keymap must not receive a stale code")
 LUA
-pass "clipboard injection uses primary-layout keys with paired releases"
+pass "clipboard requests preserve targeting, order and paired releases"
+
+# Stub only the Wayland transport and outgoing IPC. Resolution uses real XKB
+# keymaps, so the actual client keymap wins over any configured-layout guess.
+require_command xkbcli
+export REAL_XKBCLI=$(command -v xkbcli)
+mkdir -p "$test_dir/bin"
+cat >"$test_dir/bin/xkbcli" <<'SH'
+#!/bin/bash
+if [[ $1 == "dump-keymap-wayland" ]]; then
+  cat "$TEST_SEAT_KEYMAP"
+else
+  exec "$REAL_XKBCLI" "$@"
+fi
+SH
+cat >"$test_dir/bin/hyprctl" <<'SH'
+#!/bin/bash
+printf '%s\n' "$*" >"$TEST_HYPRCTL_LOG"
+SH
+chmod +x "$test_dir/bin/xkbcli" "$test_dir/bin/hyprctl"
+export TEST_SEAT_KEYMAP="$test_dir/seat keymap.xkb" TEST_HYPRCTL_LOG="$test_dir/ipc"
+for spec in 'us,il::a:38' 'fr,il::a:24' 'us,il:dvorak,:c:31' 'us,il:dvorak,:x:56' 'us:3l:a:41'; do
+  IFS=: read -r layout variant key code <<<"$spec"
+  HOME="$test_dir" "$REAL_XKBCLI" compile-keymap --layout "$layout" --variant "$variant" >"$TEST_SEAT_KEYMAP"
+  HOME="$test_dir" PATH="$test_dir/bin:$PATH" "$ROOT/bin/omarchy-clipboard-keycode" 7 "$key"
+  [[ $(<"$TEST_HYPRCTL_LOG") == "eval o.clipboard_keycode_ready(7,$code)" ]] || fail "clipboard worker resolves $layout/$variant $key from the seat keymap"
+done
+: >"$TEST_SEAT_KEYMAP"
+PATH="$test_dir/bin:$PATH" "$ROOT/bin/omarchy-clipboard-keycode" 8 a
+[[ $(<"$TEST_HYPRCTL_LOG") == "eval o.clipboard_keycode_ready(8,0)" ]] || fail "unreadable keymaps retain named resolution"
+pass "clipboard worker resolves actual seat keymaps and reports failures"
