@@ -65,6 +65,7 @@ cat >"$tmp/bin/flock" <<'SH'
 if [[ ${1:-} == "-w" && ${2:-} == "1" ]]; then
   if [[ -n ${TEST_FINISH_PROCESSING:-} ]]; then
     echo release >"$TEST_STATE/release"
+    while [[ -e $XDG_RUNTIME_DIR/omarchy-screenrecord-processing ]]; do sleep 0.01; done
   fi
   shift 2
   set -- -w 0.2 "$@"
@@ -100,7 +101,7 @@ echo Virtual-1
 SH
 cat >"$tmp/bin/ffmpeg" <<'SH'
 #!/bin/bash
-if [[ ${TEST_ROLE:-} == "old-stop" && ! -e $TEST_STATE/checked ]]; then
+if [[ ${TEST_ROLE:-} == "old-stop" && ${@: -3:1} == *-processed.mp4 ]]; then
   touch "$TEST_STATE/checked"
   read -r _ <"$TEST_STATE/release"
 fi
@@ -182,8 +183,6 @@ wait_for "$tmp/checked"
 grep -q 'Processing screen recording' "$tmp/notifications" || fail "stopping announces processing before ffmpeg finishes"
 rm "$tmp/notifications"
 rm "$tmp/recorder-pid"
-stop_locked=0
-if ! /usr/bin/flock -n "$XDG_RUNTIME_DIR/omarchy-screenrecord.lock" true; then stop_locked=1; fi
 TEST_ROLE=new-start "$record" --fullscreen --resolution=1280x800 --with-desktop-audio --with-microphone-audio >/dev/null 2>&1 & new=$!
 wait_for "$tmp/lock-attempted" "$tmp/recorder-pid"
 timeout 5 tail --pid="$new" -f /dev/null || fail "a toggle during processing returns without queueing"
@@ -205,7 +204,7 @@ pass "processing rejects queued toggles and repeated stops without losing saved 
 
 "$record" --stop-recording >/dev/null 2>&1 || fail "the earlier recording stops"
 
-# Finish processing inside the timed lock wait, or hold the recorder's
+# Finish processing before the timed lock acquisition, or hold the recorder's
 # shutdown itself: requests in either window must not become later actions.
 for phase in processing draining; do
   for second in toggle stop; do
