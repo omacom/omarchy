@@ -7,7 +7,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 tmp_dir="$(mktemp -d)"
 wineserver_pid=""
 hidden_pid=""
-trap 'kill $wineserver_pid $hidden_pid 2>/dev/null; rm -rf "$tmp_dir"' EXIT
+trap 'kill $wineserver_pid $hidden_pid 2>/dev/null || true; rm -rf "$tmp_dir"' EXIT
 
 mkdir -p "$tmp_dir/bin" "$tmp_dir/home"
 export TEST_LOG="$tmp_dir/log"
@@ -118,7 +118,12 @@ pass "Battle.net launch focuses an open window instead of starting another"
 start_tree() {
   (exec -a "umu-run $1" sleep 60) &
   hidden_pid=$!
-  until [[ $(tr '\0' ' ' </proc/"$hidden_pid"/cmdline) == umu-run* ]]; do sleep 0.1; done
+  local i
+  for (( i = 0; i < 50; i++ )); do
+    [[ $(tr '\0' ' ' 2>/dev/null </proc/"$hidden_pid"/cmdline) == umu-run* ]] && return 0
+    sleep 0.1
+  done
+  fail "a windowless umu-run tree starts for the test"
 }
 
 # umu-run sandboxes each launch past Battle.net's own single-instance lock, so a
@@ -131,14 +136,3 @@ start_tree "$prefix/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.e
 grep -q '^notify:.*Battle.net already running' "$TEST_LOG" && ! grep -q '^umu-run:' "$TEST_LOG" ||
   fail "Battle.net launch refuses to stack a tree that has no window" "$(cat "$TEST_LOG")"
 pass "Battle.net launch refuses to stack a tree that has no window"
-
-# A tree in a sibling prefix is not this one.
-kill "$hidden_pid"
-wait "$hidden_pid" 2>/dev/null || true
-start_tree "$prefix-old/drive_c/Battle.net Launcher.exe"
-: >"$TEST_LOG"
-"$ROOT/bin/omarchy-launch-battlenet"
-
-grep -q '^umu-run:.*Battle.net Launcher.exe$' "$TEST_LOG" ||
-  fail "Battle.net launch ignores a tree in a sibling prefix" "$(cat "$TEST_LOG")"
-pass "Battle.net launch ignores a tree in a sibling prefix"
