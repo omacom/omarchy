@@ -194,6 +194,29 @@ def scoped_slot(root):
          [home() / ".kimi" / "credentials" / "kimi-code.json", "https://api.kimi.com/coding/v1/usages", "https://auth.kimi.com/api/oauth/token"])
 
 
+def scoped_selection(root):
+  code = root / "code home"
+  slot = "kimi-code-env-aaa111"
+  for name in ("kimi-code", slot, "kimi-code-env-bbb222"):
+    write_json(code / "credentials" / (name + ".json"), {"access_token": name, "expires_at": 0})
+  config = code / "config.toml"
+  config.write_text('[providers."managed:kimi-code".oauth]\nkey = "oauth/' + slot + '"\n')
+  data = run_main(load_collector("kimi"), "--force", "--limits-only")
+  expect("the configured slot wins over a leftover default and another scoped sign-in",
+         [auth_header(), bool(data["limits"])], ["Bearer " + slot, True], data)
+  (code / "credentials" / "kimi-code.json").unlink()
+  (code / "credentials" / (slot + ".json")).unlink()
+  for case in ("missing configured slot", "lone unconfigured slot", "ambiguous unconfigured slots"):
+    if case != "missing configured slot":
+      config.unlink(missing_ok=True)
+    if case == "ambiguous unconfigured slots":
+      write_json(code / "credentials" / (slot + ".json"), {"access_token": slot, "expires_at": 0})
+    reqs.clear()
+    data = run_main(load_collector("kimi"), "--force", "--limits-only")
+    expect(case + " never borrows a sign-in", [data["usageStatusText"], data["limits"], len(reqs)],
+           ["Waiting for auth", [], 0], data)
+
+
 def home_isolation(root):
   default = home() / ".kimi-code" / "credentials"
   default.mkdir(parents=True)
@@ -505,7 +528,7 @@ def switched_cache(root):
   expect("an answer is never kept under a token it wasn't asked with", record()["limits"], [])
 
 
-cases = {"contract": contract, "env_key": env_key, "stores": stores, "share_dir": share_dir, "scoped_slot": scoped_slot, "home": home_isolation, "static": static_token,
+cases = {"contract": contract, "env_key": env_key, "stores": stores, "share_dir": share_dir, "scoped_slot": scoped_slot, "scoped_selection": scoped_selection, "home": home_isolation, "static": static_token,
          "refresh": refresh, "cli_lock": cli_lock, "stale_lock": stale_lock,"lock_failure": lock_failure, "heartbeat": heartbeat,
          "private_write": private_write, "concurrent_signin": concurrent_signin, "concurrent_logout": concurrent_logout,
          "invalid_grant": invalid_grant, "refused_refresh": refused_refresh, "key_help": key_help, "refused": refused,
