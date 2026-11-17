@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Qwen Code
+Comment=Start Qwen Code in a terminal
+Exec=omarchy-agent --agent qwen --app-id=org.omarchy.qwen
+Icon=omarchy-agent-qwen
+StartupWMClass=org.omarchy.qwen
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

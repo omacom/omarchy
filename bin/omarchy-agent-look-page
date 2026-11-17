@@ -1,0 +1,125 @@
+#!/bin/bash
+
+# omarchy:summary=Screenshot a web page an agent built and report its console errors
+# omarchy:args=<file.html|url> [--keys "Space ArrowLeft"] [--after ms] [--size WxH] [--out file.png]
+# omarchy:examples=omarchy agent look page index.html | omarchy agent look page game.html --keys "Space ArrowLeft" --after 5000
+
+# Renders the page in a throwaway headless Chrome, so an agent can see what it
+# built and read the errors a browser console would show, without opening a
+# window on the user's desktop or leaving a browser running. --keys presses
+# each key in turn after a local file loads, for games and anything else that
+# waits for input. Prints the screenshot's path and exits 1 when the page
+# logged errors.
+
+set -uo pipefail
+
+target=${1:-}
+if [[ -z $target || $target == -* ]]; then
+  echo "Usage: omarchy agent look page <file.html|url> [--keys \"Space ArrowLeft\"] [--after ms] [--size WxH] [--out file.png]" >&2
+  exit 2
+fi
+shift
+
+keys="" after=3000 size=1280,720 out=""
+while (( $# )); do
+  case $1 in
+    --keys) keys=$2; shift 2 ;;
+    --after) after=$2; shift 2 ;;
+    --size) size=${2/x/,}; shift 2 ;;
+    --out) out=$2; shift 2 ;;
+    *) echo "Unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+[[ -n $out ]] || out=$(mktemp --suffix=.png -p "${TMPDIR:-/tmp}" look-XXXXXX)
+# An image left from an earlier look must never pass for this one.
+rm -f "$out"
+
+if [[ -n $keys && ! -f $target ]]; then
+  echo "--keys only works on a local file, where the presses can be added to a copy of the page: pass the page's .html file instead of $target." >&2
+  exit 2
+fi
+
+url=$target
+injected=""
+if [[ -f $target ]]; then
+  target=$(realpath "$target")
+  url="file://$target"
+  if [[ -n $keys ]]; then
+    # The key presses go in a copy beside the original, so the page's
+    # relative paths still resolve.
+    injected="$(dirname "$target")/.look-$$.html"
+    python3 -I - "$target" "$injected" "$keys" <<'PY'
+import json, sys
+source, copy, keys = sys.argv[1:]
+script = """<script>(() => {
+  const keys = %s;
+  const code = k => k === " " || k === "Space" ? ["Space", " "] : k.length === 1 ? ["Key" + k.toUpperCase(), k] : [k, k];
+  keys.forEach((k, i) => setTimeout(() => {
+    const [c, key] = code(k);
+    // Sent once, where a real press lands, and bubbling from there to the
+    // document and window. Released after the next frame, so a loop reads it
+    // held, or before the next key when no frame comes, to whatever has the
+    // focus by then.
+    const send = type => (document.activeElement || document.body || document)
+      .dispatchEvent(new KeyboardEvent(type, { key, code: c, bubbles: true }));
+    let down = true;
+    const release = () => down && (down = false, send("keyup"));
+    send("keydown");
+    requestAnimationFrame(release);
+    setTimeout(release, 240);
+  }, 800 + i * 250));
+})();</script>""" % json.dumps(keys.split())
+html = open(source, encoding="utf-8", errors="replace").read()
+end = html.lower().rfind("</body>")
+open(copy, "w", encoding="utf-8").write(html[:end] + script + html[end:] if end >= 0 else html + script)
+PY
+    url="file://$injected"
+  fi
+fi
+
+profile=$(mktemp -d)
+log=$(mktemp)
+# Screenshots a URL to a file; anything further goes to Chrome.
+render() {
+  local url=$1 shot=$2
+  shift 2
+  timeout 60 google-chrome-stable --headless=new "$@" --no-first-run --user-data-dir="$profile" \
+    --enable-unsafe-swiftshader --use-angle=swiftshader --window-size="$size" \
+    --enable-logging=stderr --v=0 --virtual-time-budget="$after" --screenshot="$shot" "$url" >/dev/null 2>"$log"
+}
+render "$url" "$out" 2>/dev/null
+status=$?
+# Chrome won't start where it can't set up its sandbox, as inside an agent's
+# own sandbox or as root. A blank page in a profile of its own not drawing
+# either shows it is that, and nothing the page did, and only then does the
+# page run without one.
+if [[ ! -s $out ]]; then
+  blank=$(mktemp -d)
+  log=/dev/null profile=$blank render about:blank "$blank/blank.png" 2>/dev/null
+  if [[ ! -s $blank/blank.png ]]; then
+    render "$url" "$out" --no-sandbox
+    status=$?
+  fi
+  rm -rf "$blank"
+fi
+[[ -n $injected ]] && rm -f "$injected"
+rm -rf "$profile"
+
+# Extensions the browser policy installs log errors of their own; only the
+# page's count.
+errors=$(grep -E 'CONSOLE|Uncaught' "$log" | grep -iE 'error|uncaught|failed|not defined|is not a' \
+  | grep -v -e 'chrome-extension://' -e 'lastError' | sed -E 's/^.*CONSOLE[^]]*\] //' | head -20)
+rm -f "$log"
+
+if [[ ! -s $out ]]; then
+  echo "Chrome produced no screenshot (exit $status)" >&2
+  exit 1
+fi
+magick "$out" -resize '1280x>' "$out"
+echo "screenshot: $out"
+if [[ -n $errors ]]; then
+  echo "console errors:"
+  echo "$errors"
+  exit 1
+fi
+echo "console errors: none"
