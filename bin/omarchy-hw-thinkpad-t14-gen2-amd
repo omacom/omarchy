@@ -9,5 +9,5 @@ serio_devices="${OMARCHY_SERIO_DEVICES:-/sys/bus/serio/devices}"
 # port the driver takes its ASF resources from; LEN2073 is the touchpad the
 # patches are written for. All three, or the package has nothing to do.
 { omarchy-hw-match "T14 Gen 2a" || omarchy-hw-match "P14s Gen 2a"; } &&
-  [[ -e "$acpi_devices/SMB0001:00" ]] &&
+  [[ -e $acpi_devices/SMB0001:00 ]] &&
   grep -qs "LEN2073" "$serio_devices"/serio*/firmware_id
