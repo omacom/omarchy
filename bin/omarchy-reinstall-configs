@@ -27,6 +27,8 @@ elif omarchy-cmd-present omarchy-nvim-setup; then
   omarchy-nvim-setup --force
 fi
 
-# /etc/skel holds the shared defaults, so put the Snapdragon video decoding
-# settings back.
+# /etc/skel holds the shared defaults, so put the video decoding settings back:
+# the YouTube H.264 extension on Intel GPUs without AV1 decoding, and
+# Snapdragon's.
+omarchy-install-chromium-h264ify
 omarchy-install-video-decode

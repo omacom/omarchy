@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <title data-l10n-id="optionsTitle"></title>
+      <style>
+        @media (prefers-color-scheme: light) {
+          body {
+            color: black;
+            background: white;
+          }
+          p {
+            background: #efefef;
+          }
+        }
+        @media (prefers-color-scheme: dark) {
+          body {
+            color: white;
+            background-color: #202020;
+          }
+          p {
+            background: #3a3a3a;
+          }
+        }
+        body {
+          white-space: nowrap;
+          margin: 0px;
+        }
+        ul {
+          list-style: none;
+          margin-top: 5px;
+          margin-bottom: 5px;
+          padding-left: 5px;
+          padding-right: 8px;
+        }
+        li {
+          padding-top: 2px;
+          padding-bottom: 2px;
+        }
+        input.checkbox {
+          margin-right: 5px;
+          vertical-align: middle;
+        }
+        label {
+          vertical-align: middle;
+        }
+        p {
+          text-align: center;
+          font-weight: bold;
+          font-size: 1.3em;
+          padding: 0px;
+          margin: 0px;
+        }
+      </style>
+   </head>
+   <body>
+      <p data-l10n-id="optionsTitleVideo"></p>
+      <ul>
+         <li><input type="checkbox" id="block_60fps" class="checkbox"><label for="block_60fps" data-l10n-id="optionsBlock60fps"></label></li>
+         <li><input type="checkbox" id="block_h264" class="checkbox"><label for="block_h264" data-l10n-id="optionsBlockH264"></label></li>
+         <li><input type="checkbox" id="block_vp8" class="checkbox"><label for="block_vp8" data-l10n-id="optionsBlockVP8"></label></li>
+         <li><input type="checkbox" id="block_vp9" class="checkbox"><label for="block_vp9" data-l10n-id="optionsBlockVP9"></label></li>
+         <li><input type="checkbox" id="block_av1" class="checkbox"><label for="block_av1" data-l10n-id="optionsBlockAV1"></label></li>
+      </ul>
+      <p data-l10n-id="optionsTitleAudio"></p>
+      <ul>
+         <li><input type="checkbox" id="block_opus" class="checkbox"><label for="block_opus" data-l10n-id="optionsBlockOpus"></label></li>
+         <li><input type="checkbox" id="block_mp4a" class="checkbox"><label for="block_mp4a" data-l10n-id="optionsBlockMP4A"></label></li>
+         <li><input type="checkbox" id="disable_LN" class="checkbox"><label for="disable_LN" data-l10n-id="optionsDisableLN"></label></li>
+      </ul>
+      <script src="options.js"></script>
+   </body>
+</html>

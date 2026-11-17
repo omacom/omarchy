@@ -1,0 +1,51 @@
+{
+  "extensionDescription": {
+    "message": "Вибирайте самі відео та аудіо кодеки, які YouTube буде вам показувати",
+    "description": "Extension description"
+  },
+
+  "optionsTitle": {
+    "message": "enhanced-h264ify"
+  },
+
+  "optionsBlock60fps": {
+    "message": "Блокувати 60к/с відео"
+  },
+
+  "optionsBlockH264": {
+    "message": "Блокувати h264 (AVC)"
+  },
+
+  "optionsBlockVP8": {
+    "message": "Блокувати VP8"
+  },
+
+  "optionsBlockVP9": {
+    "message": "Блокувати VP9"
+  },
+
+  "optionsBlockAV1": {
+    "message": "Блокувати AV1"
+  },
+
+  "optionsBlockOpus": {
+    "message": "Блокувати Opus"
+  },
+
+  "optionsBlockMP4A": {
+    "message": "Блокувати AAC (MP4A)"
+  },
+
+  "optionsDisableLN": {
+    "message": "Вимкнути нормалізацію гучності"
+  },
+
+  "optionsTitleVideo": {
+    "message": "Відео"
+  },
+
+  "optionsTitleAudio": {
+    "message": "Аудіо"
+  }
+
+}
