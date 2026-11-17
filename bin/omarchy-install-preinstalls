@@ -35,10 +35,21 @@ if gum confirm --affirmative "$(omarchy-i18n common.yes)" --negative "$(omarchy-
   fi
 
   # An explicit restore opts back into the full shipped set, not just the
-  # region's initial subset. Keep the exclusion record if package setup fails.
-  skipped="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-skipped"
-  if [[ -f $skipped ]]; then
-    rm -f "$skipped"
+  # region's initial subset, and takes out the region's replacements. Keep the
+  # regional records if package setup fails.
+  state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy"
+  skipped="$state_dir/preinstalls-skipped"
+  regional="$state_dir/preinstalls-region"
+  if [[ -f $skipped || -f $regional ]]; then
+    if [[ -r $regional ]]; then
+      region=$(<"$regional")
+      if [[ $region =~ ^[a-z]{2}$ ]]; then
+        for launcher in "$OMARCHY_PATH/default/regions/$region"/applications/*.desktop; do
+          [[ -e $launcher ]] && rm -f "$HOME/.local/share/applications/${launcher##*/}"
+        done
+      fi
+    fi
+    rm -f "$skipped" "$regional"
     omarchy-refresh-applications || exit 1
   fi
 

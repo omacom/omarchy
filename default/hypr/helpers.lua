@@ -170,6 +170,24 @@ function o.bind_preinstalled(keys, description, dispatcher, options)
   end
 end
 
+-- Bind the replacements of the region whose preinstalls this user's setup
+-- applied. Like the exclusions, this follows the install, not the current region.
+function o.bind_regional_preinstalls()
+  local file = io.open(paths.state_home .. "/omarchy/preinstalls-region", "r")
+  if not file then
+    return
+  end
+  local region = file:read("l")
+  file:close()
+
+  if region and region:match("^%l%l$") then
+    local bindings = paths.omarchy_path .. "/default/regions/" .. region .. "/bindings.lua"
+    if file_exists(bindings) then
+      dofile(bindings)
+    end
+  end
+end
+
 function o.bind(keys, description, dispatcher, options)
   local opts = options or {}
 

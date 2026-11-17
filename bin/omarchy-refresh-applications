@@ -13,6 +13,15 @@ for launcher in "$OMARCHY_PATH"/applications/*.desktop; do
   fi
 done
 
+# The replacements of the region whose preinstalls this install applied.
+region_file="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-region"
+if [[ -r $region_file ]]; then
+  region=$(<"$region_file")
+  if [[ $region =~ ^[a-z]{2}$ ]] && compgen -G "$OMARCHY_PATH/default/regions/$region/applications/*.desktop" >/dev/null; then
+    cp "$OMARCHY_PATH/default/regions/$region"/applications/*.desktop ~/.local/share/applications/
+  fi
+fi
+
 if omarchy-cmd-present alacritty; then
   cp "$OMARCHY_PATH/default/alacritty/Alacritty.desktop" ~/.local/share/applications/
 fi

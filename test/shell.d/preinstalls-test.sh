@@ -212,7 +212,9 @@ LUA
   mkdir -p "$HOME/.local/share/applications"
   "$ROOT/bin/omarchy-refresh-applications"
   "$ROOT/bin/omarchy-region-preinstalls" us
-  [[ ! -e $HOME/.local/state/omarchy/preinstalls-skipped ]] || fail "a region without exclusions leaves no record"
+  [[ ! -e $HOME/.local/state/omarchy/preinstalls-skipped && ! -e $HOME/.local/state/omarchy/preinstalls-region ]] ||
+    fail "a region without exclusions leaves no record"
+  [[ ! -e $HOME/.local/share/applications/Bilibili.desktop ]] || fail "a region without replacements adds no launchers"
   [[ -f $HOME/.local/share/applications/YouTube.desktop ]] || fail "global launchers stay installed"
   grep -qxF $'SUPER + SHIFT + X\tX' <<<"$(regional_bindings)" || fail "global preinstalled bindings stay enabled"
   pass "a region without exclusions keeps launchers and bindings"
@@ -240,6 +242,10 @@ LUA
       grep -q $'\t'"$name"'$' <<<"$bindings" || fail "regional setup keeps the $name binding"
     done
     grep -qxF $'USER\tX' <<<"$bindings" || fail "a personal binding can restore a skipped app"
+    [[ -f $HOME/.local/share/applications/Bilibili.desktop ]] || fail "regional setup adds the replacement launchers"
+    for binding in $'SUPER + SHIFT + Y\tBilibili' $'SUPER + SHIFT + G\tWeChat' $'SUPER + SHIFT + M\tNetEase Cloud Music'; do
+      grep -qxF "$binding" <<<"$bindings" || fail "regional setup binds a replacement on the skipped app's key" "$binding"
+    done
 
     # A region with no list and a later refresh must not undo the install.
     printf 'user-installed launcher\n' >"$HOME/.local/share/applications/ChatGPT.desktop"
@@ -256,11 +262,15 @@ LUA
 
     bash -c "$restore_disabled" && fail "the menu offers Restore Preinstalls after regional exclusions"
     OMARCHY_TEST_PKG_ADD_STATUS=1 "$ROOT/bin/omarchy-install-preinstalls" >/dev/null && fail "failed restore reports success"
-    [[ -f ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-skipped ]] || fail "failed restore preserves regional exclusions"
+    [[ -f ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-skipped && -f ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-region ]] ||
+      fail "failed restore preserves regional exclusions and replacements"
     "$ROOT/bin/omarchy-install-preinstalls" >/dev/null
     [[ ! -e ${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/preinstalls-skipped ]] || fail "explicit restore clears regional exclusions"
     cmp "$ROOT/applications/YouTube.desktop" "$HOME/.local/share/applications/YouTube.desktop" || fail "explicit restore brings back skipped default launchers"
-    grep -qxF $'SUPER + SHIFT + X\tX' <<<"$(regional_bindings)" || fail "explicit restore brings back skipped bindings"
+    bindings=$(regional_bindings)
+    grep -qxF $'SUPER + SHIFT + X\tX' <<<"$bindings" || fail "explicit restore brings back skipped bindings"
+    ! grep -q $'\tBilibili$' <<<"$bindings" || fail "explicit restore takes back the replacement bindings"
+    [[ ! -e $HOME/.local/share/applications/Bilibili.desktop ]] || fail "explicit restore removes the replacement launchers"
     bash -c "$restore_disabled" || fail "the menu disables Restore once nothing is excluded"
 
     "$ROOT/bin/omarchy-done" mark finalize-user

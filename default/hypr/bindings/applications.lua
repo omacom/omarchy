@@ -35,4 +35,6 @@ if o.preinstalled_bindings_enabled() then
   o.bind_preinstalled("SUPER + SHIFT + S", "Google Maps", { webapp = "https://maps.google.com/", focus = true })
   o.bind_preinstalled("SUPER + SHIFT + X", "X", { webapp = "https://x.com/" })
   o.bind_preinstalled("SUPER + SHIFT + ALT + X", "X Post", { webapp = "https://x.com/compose/post" })
+
+  o.bind_regional_preinstalls()
 end
