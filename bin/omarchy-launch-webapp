@@ -6,7 +6,7 @@
 browser=$(omarchy-cmd-default-browser)
 
 case $browser in
-chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium*) browsers=("$browser") ;;
+chromium* | google-chrome* | brave* | microsoft-edge* | opera* | vivaldi* | helium* | yandex-browser*) browsers=("$browser") ;;
 # New installs have Chrome; older ones may only have the Chromium they shipped with.
 *) browsers=(google-chrome.desktop chromium.desktop) ;;
 esac

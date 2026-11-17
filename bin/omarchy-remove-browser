@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Remove a supported browser and clean up Omarchy browser defaults
-# omarchy:args=<chrome|chromium|brave|brave-origin|edge|firefox|zen>
+# omarchy:args=<chrome|chromium|brave|brave-origin|edge|firefox|zen|yandex>
 # omarchy:examples=omarchy remove browser firefox | omarchy remove browser brave
 # omarchy:requires-sudo=true
 
@@ -73,8 +73,15 @@ zen)
   set_fallback_default_browser zen.desktop
   omarchy-pkg-drop zen-browser-bin
   ;;
+yandex)
+  echo "Removing Yandex Browser..."
+  set_fallback_default_browser yandex-browser.desktop
+  omarchy-pkg-drop yandex-browser
+  rm -f ~/.config/yandex-browser-flags.conf
+  sudo rm -f /opt/yandex/browser/libffmpeg.so
+  ;;
 *)
-  echo "Usage: omarchy-remove-browser <chrome|chromium|brave|brave-origin|edge|firefox|zen>"
+  echo "Usage: omarchy-remove-browser <chrome|chromium|brave|brave-origin|edge|firefox|zen|yandex>"
   exit 1
   ;;
 esac
