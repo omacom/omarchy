@@ -94,5 +94,5 @@ fi
 # titlebar plugin itself is only loaded while the config loads, so the first
 # floating workspace of a session still needs a reload to bring it in.
 if (( APPLIED )) && [[ $NEW_MODE == "floating" ]] && ! hyprctl plugin list -j 2>/dev/null | jq -e 'any(.[]?; .name == "hyprbars")' >/dev/null 2>&1; then
-  hyprctl reload >/dev/null
+  omarchy-restart-hyprctl
 fi

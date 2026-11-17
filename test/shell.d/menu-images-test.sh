@@ -195,6 +195,26 @@ grep -Fxq "$images/one.png"$'\t'"$cache_dir/$hash.jpg" <<<"$rows" ||
   fail "image menu regenerates the thumbnail of an image overwritten in place"
 pass "image menu notices an image overwritten in place"
 
+bg_home="$tmp/bg-home"
+bg_bin="$tmp/bg-bin"
+mkdir -p "$bg_home/.local/state/omarchy/current/theme/backgrounds" "$bg_bin"
+printf 'plain\n' >"$bg_home/.local/state/omarchy/current/theme.name"
+for command in omarchy-shell omarchy-notification-send; do
+  cat >"$bg_bin/$command" <<'EOF'
+#!/bin/bash
+printf '%s %s\n' "${0##*/}" "$*" >>"$BG_CALLS"
+EOF
+done
+chmod +x "$bg_bin/"*
+status=0
+HOME="$bg_home" OMARCHY_PATH="$ROOT" PATH="$bg_bin:$ROOT/bin:$PATH" XDG_CACHE_HOME="$cache_home" BG_CALLS="$tmp/bg-calls" \
+  "$ROOT/bin/omarchy-theme-bg-switcher" >/dev/null 2>&1 || status=$?
+if (( status == 3 )) && grep -q 'No background was found for theme' "$tmp/bg-calls" && ! grep -q 'image-selector open' "$tmp/bg-calls"; then
+  pass "background switcher with no backgrounds says so instead of opening an empty picker"
+else
+  fail "background switcher with no backgrounds says so instead of opening an empty picker" "exit $status: $(cat "$tmp/bg-calls" 2>/dev/null)"
+fi
+
 # Block converters behind a gate: printing lazy rows must neither await them
 # nor start one process per image. Repeated refreshes share one worker pool.
 lazy_images="$tmp/lazy-images"
@@ -279,18 +299,27 @@ for cores in 1 2 8; do
       fail "contended refresh does not start another converter pool"
   done
 
+  changed_thumbnails=()
+  for changed in new 0; do
+    signature=$(stat -Lc '%s:%Y' "$lazy_images/$changed.png")
+    hash=$(printf '%s\t%s' "$lazy_images/$changed.png" "$signature" | md5sum | cut -d ' ' -f 1)
+    changed_thumbnails+=("$tmp/lazy-cache-$cores/omarchy/image-selector/$hash.jpg")
+  done
+
+  # The stub logs a conversion before generate_thumbnail moves its output into
+  # place, so wait for the thumbnails themselves, not only the count.
   touch "$lazy_state/gate"
   for attempt in {1..500}; do
-    if [[ -f $lazy_state/completed ]] && (( $(wc -l <"$lazy_state/completed") == 42 )); then break; fi
+    if [[ -f $lazy_state/completed ]] && (( $(wc -l <"$lazy_state/completed") == 42 )) &&
+      [[ -f ${changed_thumbnails[0]} && -f ${changed_thumbnails[1]} ]]; then
+      break
+    fi
     sleep 0.02
   done
   (( $(wc -l <"$lazy_state/completed") == 42 && $(<"$lazy_state/peak") == expected_workers )) ||
     fail "lazy image menu completes the queue after its parent and queue path are gone"
-  for changed in new 0; do
-    signature=$(stat -Lc '%s:%Y' "$lazy_images/$changed.png")
-    hash=$(printf '%s\t%s' "$lazy_images/$changed.png" "$signature" | md5sum | cut -d ' ' -f 1)
-    [[ -f $tmp/lazy-cache-$cores/omarchy/image-selector/$hash.jpg ]] ||
-      fail "lazy image menu retains new and changed jobs while its pool is busy"
+  for thumbnail in "${changed_thumbnails[@]}"; do
+    [[ -f $thumbnail ]] || fail "lazy image menu retains new and changed jobs while its pool is busy"
   done
   pass "lazy image menu workers finish every queued thumbnail after the caller exits"
 done
