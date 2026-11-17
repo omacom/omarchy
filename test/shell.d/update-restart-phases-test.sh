@@ -6,7 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/fixtures/sudo-boundary-test.sh"
 rm "$SUDO_TEST_ROOT/bin/omarchy-update-restart"
 copy_boundary_file bin/omarchy-update-restart
-for step in omarchy-state omarchy-restart-sshd omarchy-restart-shell omarchy-system; do
+for step in omarchy-state omarchy-restart-sshd omarchy-system; do
   ln -s test-step "$SUDO_TEST_ROOT/bin/$step"
 done
 cat >"$SUDO_TEST_ROOT/bin/gum" <<'STUB'
