@@ -609,9 +609,43 @@ hl.on("window.open", function(window)
   end, { type = "oneshot", timeout = 1 })
 end)
 
+-- A window snapping placed (its snap-restore tag holds the size it has now)
+-- whose decorations turned out other than its tile allowed for goes back into
+-- its tile. That happens on the first switch to floating in a session: windows
+-- are kept in place before the plugin is in and before the rule that marks apps
+-- drawing their own frame applies, so a browser was left room for a titlebar it
+-- never gets. Only a box that would be the tile with the titlebar the other way
+-- round counts; a window in its tile, or resized by hand, stays as it is.
+function M.resettle()
+  local bar = workspace_modes.titlebar_height and workspace_modes.titlebar_height() or 0
+  if bar == 0 or not plugin() then
+    return
+  end
+  for _, window in ipairs(hl.get_windows() or {}) do
+    local restore = restore_of(window)
+    if restore and snappable(window) and window.monitor and (window.fullscreen or 0) == 0
+        and math.abs(window.size.x - restore.snapped_w) <= 1 and math.abs(window.size.y - restore.snapped_h) <= 1 then
+      local real, client = extents(window), client_of(window)
+      local usable, around = area(window.monitor), gaps()
+      if not G.tile_of(G.outer_box(client, real), usable, around) then
+        for _, shift in ipairs({ bar, -bar }) do
+          local assumed = { left = real.left, top = real.top + shift, right = real.right, bottom = real.bottom }
+          local tile = assumed.top >= 0 and G.tile_of(G.outer_box(client, assumed), usable, around)
+          if tile then
+            M.place(window, tile, window.monitor)
+            break
+          end
+        end
+      end
+    end
+  end
+end
+
 -- Once the titlebars plugin is in. Hyprland loads it after the config pass that
 -- asks for it and reloads, and this module runs again on that reload.
 if plugin() then
+  -- After Hyprland has given the windows their decorations for this pass.
+  hl.timer(function() M.resettle() end, { type = "oneshot", timeout = 200 })
   hl.on("hyprbars.drag_start", function(window) begin(window) end)
   hl.on("hyprbars.drag_move", function(window, x, y) moved(window, x, y) end)
   hl.on("hyprbars.drag_end", function(window) dropped(window) end)
