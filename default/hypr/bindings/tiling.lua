@@ -13,6 +13,7 @@ o.bind("SUPER + ALT + Home", "Save window width", "omarchy-hyprland-window-width
 o.bind("SUPER + Home", "Restore window width", "omarchy-hyprland-window-width restore")
 o.bind("SUPER + L", "Cycle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
 o.bind("SUPER + ALT + L", "Cycle workspace layout back", "omarchy-hyprland-workspace-layout-toggle back")
+o.bind("XF86Display", "Cycle workspace layout", "omarchy-hyprland-workspace-layout-toggle")
 
 o.bind("SUPER + LEFT", "Focus on left window", hl.dsp.focus({ direction = "l" }))
 o.bind("SUPER + RIGHT", "Focus on right window", hl.dsp.focus({ direction = "r" }))

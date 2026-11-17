@@ -9,6 +9,18 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 mkdir -p "$tmp_dir/bin" "$tmp_dir/state"
 
+# omarchy-powerprofiles-floor reads the profile with powerprofilesctl get;
+# each call reports the next profile in the queue
+cat >"$tmp_dir/bin/powerprofilesctl" <<'EOF'
+#!/bin/bash
+
+if [[ $1 == "get" ]]; then
+  head -n 1 "$POWERPROFILES_QUEUE"
+  sed -i 1d "$POWERPROFILES_QUEUE"
+fi
+EOF
+chmod +x "$tmp_dir/bin/powerprofilesctl"
+
 cat >"$tmp_dir/bin/busctl" <<'EOF'
 #!/bin/bash
 
@@ -83,3 +95,42 @@ pass "power profile init restores the autodetected preference"
 out="$("$ROOT/bin/omarchy-powerprofiles-list" --active-state)"
 [[ $out == $'power-saver\t0\nbalanced\t1\nperformance\t0' ]] || fail "power profiles list reads D-Bus Profiles and marks the active one" "$out"
 pass "power profiles list reads D-Bus Profiles and marks the active one"
+
+cat >"$tmp_dir/bin/loginctl" <<'EOF'
+#!/bin/bash
+
+echo "1000 dhh no active"
+EOF
+cat >"$tmp_dir/bin/pgrep" <<'EOF'
+#!/bin/bash
+
+[[ $* == "-U 1000" ]] && echo 4242
+EOF
+cat >"$tmp_dir/bin/uclampset" <<'EOF'
+#!/bin/bash
+
+echo "$*" >>"$UCLAMP_LOG"
+EOF
+# The first line, the monitor's own name, and an argument line must not
+# re-apply; the profile change and the login must
+cat >"$tmp_dir/bin/dbus-monitor" <<'EOF'
+#!/bin/bash
+
+echo "signal time=1 sender=org.freedesktop.DBus -> destination=:1.9 path=/org/freedesktop/DBus; interface=org.freedesktop.DBus; member=NameAcquired"
+echo '   string ":1.9"'
+echo "signal time=2 sender=:1.5 -> destination=(null destination) path=/org/freedesktop/UPower/PowerProfiles; interface=org.freedesktop.DBus.Properties; member=PropertiesChanged"
+echo '      string "ActiveProfile"'
+echo "signal time=3 sender=:1.6 -> destination=(null destination) path=/org/freedesktop/login1; interface=org.freedesktop.login1.Manager; member=SessionNew"
+EOF
+chmod +x "$tmp_dir/bin/loginctl" "$tmp_dir/bin/pgrep" "$tmp_dir/bin/uclampset" "$tmp_dir/bin/dbus-monitor"
+
+export POWERPROFILES_QUEUE="$tmp_dir/profiles" UCLAMP_LOG="$tmp_dir/uclamp"
+printf '%s\n' balanced performance power-saver >"$POWERPROFILES_QUEUE"
+# The mock monitor's stream ends, which must fail so the service restarts it
+if "$ROOT/bin/omarchy-powerprofiles-floor" monitor 2>/dev/null; then
+  fail "power profile floor fails when its D-Bus monitor stops"
+fi
+expected=$'-m 768 -a -p 4242\n-m 1024 -a -p 4242\n-m 0 -a -p 4242'
+[[ $(<"$UCLAMP_LOG") == "$expected" ]] ||
+  fail "power profile floor follows the profile once listening, on profile changes and logins" "$(<"$UCLAMP_LOG")"
+pass "power profile floor follows the profile once listening, on profile changes and logins"
