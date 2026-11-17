@@ -88,11 +88,11 @@ case ${1:-} in
 
     log=$(mktemp)
     trap 'rm -f "$log"' EXIT
-    sudo limine-mkinitcpio 2>&1 | tee "$log"
-    status=("${PIPESTATUS[@]}")
+    rebuilt=true
+    sudo limine-mkinitcpio 2>&1 | tee "$log" || rebuilt=false
 
     # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
-    if (( status[0] != 0 || status[1] != 0 )) || grep -q 'mkinitcpio failed for kernel' "$log"; then
+    if [[ $rebuilt == "false" ]] || grep -q 'mkinitcpio failed for kernel' "$log"; then
       echo "Could not rebuild the boot image; run omarchy-device-gpu-vram set again once that is fixed." >&2
       exit 1
     fi
