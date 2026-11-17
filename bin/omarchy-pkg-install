@@ -15,7 +15,7 @@ fzf_args=(
   --color 'pointer:green,marker:green'
 )
 
-omarchy-pkg-db-sync
+omarchy-pkg-require-dbs || exit 1
 
 pkg_names=$(pacman -Slq | fzf "${fzf_args[@]}")
 

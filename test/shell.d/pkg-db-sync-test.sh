@@ -1,94 +1,93 @@
 #!/bin/bash
 
 set -euo pipefail
-
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
-
-# The ISO installs offline and post-install/pacman.sh then repoints pacman at
-# the Omarchy mirrors, so a freshly installed machine has no database for the
-# repositories it is configured to install from. Every package helper has to
-# close that gap before it reaches for a package that only exists in one of
-# them.
-grep -q 'omarchy-pkg-db-sync' "$ROOT/bin/omarchy-pkg-add" ||
-  fail "installing an Arch package syncs repositories that have never been synced"
-grep -q 'omarchy-pkg-db-sync' "$ROOT/bin/omarchy-pkg-aur-add" ||
-  fail "installing an AUR package syncs repositories that have never been synced"
-
-grep -q 'omarchy-pkg-db-sync' "$ROOT/bin/omarchy-pkg-install" ||
-  fail "the package picker syncs repositories that have never been synced before listing them"
-grep -q 'omarchy-pkg-db-sync' "$ROOT/bin/omarchy-pkg-aur-install" ||
-  fail "the AUR picker syncs the repositories its packages depend on"
-
-pass "the package helpers sync unsynced repositories before installing"
-
-grep -q 'omarchy-pkg-db-sync' "$ROOT/install/post-install/pacman.sh" ||
-  fail "the installer syncs the mirrors it just configured"
-
-pass "a fresh install leaves the configured repositories synced"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
+mkdir -p "$test_tmp/bin" "$test_tmp/db/sync"
+export OMARCHY_DB_TEST_DBPATH="$test_tmp/db"
+export OMARCHY_DB_TEST_LOG="$test_tmp/actions.log"
+export PATH="$test_tmp/bin:$ROOT/bin:$PATH"
 
-mock_bin="$test_tmp/bin"
-sync_dir="$test_tmp/db/sync"
-mkdir -p "$mock_bin" "$sync_dir"
-
-cat >"$mock_bin/pacman-conf" <<'SH'
+cat >"$test_tmp/bin/pacman-conf" <<'SH'
 #!/bin/bash
+[[ ${DB_CONFIG_FAIL:-} != "$1" ]] || exit 1
+printf 'config %s\n' "$1" >>"$OMARCHY_DB_TEST_LOG"
 case "$1" in
-  DBPath) printf '%s/\n' "$OMARCHY_DB_TEST_DBPATH" ;;
-  --repo-list) printf '%s\n' core extra multilib omarchy ;;
+  DBPath) echo "$OMARCHY_DB_TEST_DBPATH" ;;
+  --repo-list) printf '%s\n' ${DB_REPOS:-core extra} ;;
   *) exit 2 ;;
 esac
 SH
-cat >"$mock_bin/pacman" <<'SH'
+cat >"$test_tmp/bin/pacman" <<'SH'
 #!/bin/bash
-printf 'pacman\t%s\n' "$*" >>"$OMARCHY_DB_TEST_LOG"
-exit "${OMARCHY_DB_TEST_SYNC_STATUS:-0}"
+printf 'pacman %s\n' "$*" >>"$OMARCHY_DB_TEST_LOG"
+if [[ $1 == "-Slq" ]]; then
+  echo example
+fi
 SH
-cat >"$mock_bin/sudo" <<'SH'
+cat >"$test_tmp/bin/yay" <<'SH'
 #!/bin/bash
-printf 'sudo\t%s\n' "$*" >>"$OMARCHY_DB_TEST_LOG"
+printf 'yay %s\n' "$*" >>"$OMARCHY_DB_TEST_LOG"
+if [[ $1 == "-Slqa" ]]; then
+  echo example
+fi
+SH
+cat >"$test_tmp/bin/sudo" <<'SH'
+#!/bin/bash
 exec "$@"
 SH
-chmod +x "$mock_bin"/*
+# Exercise the missing-package path; package presence has its own tests.
+printf '#!/bin/bash\nexit 0\n' >"$test_tmp/bin/omarchy-pkg-missing"
+printf '#!/bin/bash\ncat\n' >"$test_tmp/bin/fzf"
+printf '#!/bin/bash\n:\n' >"$test_tmp/bin/omarchy-sudo-keepalive"
+printf '#!/bin/bash\nexit "$1"\n' >"$test_tmp/bin/omarchy-show-done"
+printf '#!/bin/bash\n:\n' >"$test_tmp/bin/updatedb"
+chmod +x "$test_tmp/bin"/*
 
-log="$test_tmp/actions.log"
-export OMARCHY_DB_TEST_LOG="$log"
-export OMARCHY_DB_TEST_DBPATH="$test_tmp/db"
-
-run_db_sync() {
-  PATH="$mock_bin:$PATH" bash "$ROOT/bin/omarchy-pkg-db-sync"
-}
-
-# A machine straight off the ISO: the offline repository it installed from is
-# gone from pacman.conf and nothing has replaced it.
-: >"$log"
-printf 'offline\n' >"$sync_dir/offline.db"
-run_db_sync || fail "the sync runs on a machine that has never synced"
-grep -qxF $'pacman\t-Sy --noconfirm' "$log" ||
-  fail "a repository without a database is downloaded"
-
-pass "a machine installed from the offline repository syncs on first use"
-
-# Once every configured repository has one, syncing again is somebody else's
-# job -- omarchy update owns the -Syu that keeps them current.
-: >"$log"
-for repo in core extra multilib omarchy; do
-  printf '%s\n' "$repo" >"$sync_dir/$repo.db"
+# Run the real callers and the real guard. Missing databases must stop even
+# listing packages, and no standalone sync may precede an install.
+for caller in add aur-add install aur-install; do
+  : >"$OMARCHY_DB_TEST_LOG"
+  if bash "$ROOT/bin/omarchy-pkg-$caller" example >"$test_tmp/output" 2>&1; then
+    fail "$caller rejects missing databases"
+  fi
+  grep -q 'omarchy update' "$test_tmp/output" || fail "$caller explains recovery"
+  if grep -Eq '^(pacman|yay) ' "$OMARCHY_DB_TEST_LOG"; then
+    fail "$caller stops before package operations when databases are missing"
+  fi
+  pass "$caller requires a system update before listing or installing"
 done
-run_db_sync || fail "the sync succeeds when every repository has a database"
-[[ ! -s $log ]] || fail "a fully synced machine downloads nothing"
 
-pass "an already synced machine is left alone"
+# Fully synced machines retain all four installation paths. Check the order
+# from executed commands rather than searching their source.
+touch "$test_tmp/db/sync/core.db" "$test_tmp/db/sync/extra.db"
+for caller in add aur-add install aur-install; do
+  : >"$OMARCHY_DB_TEST_LOG"
+  bash "$ROOT/bin/omarchy-pkg-$caller" example >"$test_tmp/output" 2>&1 || fail "$caller installs with databases present"
+  [[ $(head -2 "$OMARCHY_DB_TEST_LOG") == $'config DBPath\nconfig --repo-list' ]] || fail "$caller checks before package operations"
+  grep -Eq '^(pacman|yay) -S ' "$OMARCHY_DB_TEST_LOG" || fail "$caller reaches installation"
+  if grep -Eq '^(pacman|yay) -Sy' "$OMARCHY_DB_TEST_LOG"; then
+    fail "$caller must not refresh databases independently"
+  fi
+  pass "$caller checks databases before listing or installing"
+done
 
-# Offline, the sync cannot succeed. The install behind it still has to run so
-# the user hears about the package they asked for, not the database.
-: >"$log"
-rm -f "$sync_dir/extra.db"
-OMARCHY_DB_TEST_SYNC_STATUS=1 run_db_sync ||
-  fail "a failed sync does not abort the install that follows it"
-grep -qxF $'pacman\t-Sy --noconfirm' "$log" ||
-  fail "the sync was attempted before giving up on it"
+rm "$test_tmp/db/sync/extra.db"
+if omarchy-pkg-require-dbs >"$test_tmp/output" 2>&1; then
+  fail "a newly configured repository requires an update too"
+fi
+pass "one missing repository blocks installation"
 
-pass "a sync that cannot reach the mirrors does not swallow the install"
+# The installer's offline repository remains usable without a network.
+touch "$test_tmp/db/sync/offline.db"
+DB_REPOS=offline omarchy-pkg-require-dbs || fail "the ISO's existing offline database is sufficient"
+pass "offline installation can use its bundled repository"
+
+for query in DBPath --repo-list; do
+  if DB_CONFIG_FAIL="$query" omarchy-pkg-require-dbs; then
+    fail "a failed $query lookup must not permit installation"
+  fi
+done
+pass "configuration lookup errors stop installation"
