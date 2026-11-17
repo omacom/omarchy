@@ -1105,6 +1105,33 @@ assert(browser.floating and browser.at.y == 42 and browser.size.y == 1386, "a se
 fi
 pass "an app with its own frame keeps its whole tile"
 
+# A snapped window whose titlebar turned out other than its tile allowed for
+# (a browser kept on the first switch, before the rule that marks it applied)
+# goes back into its tile once the plugin is in; nothing else moves.
+if ! run_lua "$snap_setup"'
+hl.plugin.hyprbars.extents = function(w)
+  if w.class == "chromium" then return { left = 2, top = 2, right = 2, bottom = 2 } end
+  return { left = 2, top = 32, right = 2, bottom = 2 }
+end
+local browser = snap_window("0x1", 1)
+browser.class, browser.tags = "chromium", { "omarchy-self-framed*", "snap-restore:819x489/1261x1356" }
+browser.at, browser.size = { x = 12, y = 72 }, { x = 1261, y = 1356 }
+local terminal = snap_window("0x2", 1)
+terminal.tags = { "snap-restore:819x489/1261x1356" }
+terminal.at, terminal.size = { x = 1287, y = 72 }, { x = 1261, y = 1356 }
+local moved_by_hand = snap_window("0x3", 1)
+moved_by_hand.tags = { "snap-restore:819x489/1261x1356" }
+moved_by_hand.at, moved_by_hand.size = { x = 12, y = 72 }, { x = 1200, y = 1300 }
+dispatched = {}
+o.snap.resettle()
+assert(browser.at.y == 42 and browser.size.y == 1386 and browser.size.x == 1261, "the browser did not take its whole tile: " .. browser.at.y .. " " .. browser.size.y)
+assert(terminal.at.y == 72 and terminal.size.y == 1356, "a window already in its tile moved")
+assert(moved_by_hand.size.x == 1200 and moved_by_hand.size.y == 1300, "a window resized by hand was snapped back")
+' TITLEBARS_INSTALLED=1; then
+  fail "a snapped window whose titlebar turned out otherwise goes back into its tile"
+fi
+pass "a snapped window whose titlebar turned out otherwise goes back into its tile"
+
 # A drag that enters an edge where nothing is beside it, then slides along it to
 # where another monitor is, still pauses there: a laptop (1280x720) to the left
 # shares only the top of this monitor's left edge.
