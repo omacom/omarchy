@@ -669,6 +669,7 @@ hl.dispatch(hl.dsp.focus({ workspace = "1" }))
 
 hl.dispatch(m.move_to_monitor("DP-1"))
 check(on(world.windows["0xa"].workspace) == "DP-1", "the workspace stays on the monitor it was moved to: " .. tostring(on(world.windows["0xa"].workspace)))
+check(shows("eDP-1") == 1, "the monitor it left takes the number the move freed: " .. shows("eDP-1"))
 ' || fail "a workspace moved off a monitor whose block is taken does not come back"
 pass "a workspace moved off a monitor whose block is taken does not come back"
 

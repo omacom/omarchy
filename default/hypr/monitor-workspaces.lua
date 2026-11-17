@@ -523,12 +523,14 @@ function M.move_to_monitor(direction)
       settle(from, monitors, by_connector, id)
     end
 
+    -- Once renumbered, its old number is free again for the monitor it left.
     local block = by_connector[moved.monitor.name]
-    if block and block_of_id(id) ~= block then
-      adopt(moved, block)
+    local avoid = id
+    if block and block_of_id(id) ~= block and adopt(moved, block) then
+      avoid = nil
     end
     if from then
-      settle(from, monitors, by_connector, id)
+      settle(from, monitors, by_connector, avoid)
     end
 
     -- Settling the monitor it left can take focus; it belongs with the
