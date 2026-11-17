@@ -1,6 +1,7 @@
 {
   "Activity": "Virkni",
   "Agent": "Agent",
+  "Agents": "Agentar",
   "Apps": "Forrit",
   "Audio": "Hljóð",
   "Background switcher": "Bakgrunnsskiptir",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Sýna virka gluggann efst",
   "Save window width": "Vista breidd glugga",
   "Screenrecording": "Skjáupptaka",
+  "Screenrecording with no audio": "Skjáupptaka án hljóðs",
   "Screenshot": "Skjámynd",
   "Scroll active workspace backward": "Skruna virkt vinnusvæði til baka",
   "Scroll active workspace forward": "Skruna virkt vinnusvæði áfram",
