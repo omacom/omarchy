@@ -115,7 +115,7 @@ retry_without_retired_packages() {
     found=""
     while IFS= read -r dir; do
       for candidate in "${dir%/}/$package-$version"-*.pkg.tar.*; do
-        if [[ -f $candidate && $candidate != *.sig ]]; then
+        if [[ -f $candidate && $candidate != *.sig && $candidate != *.part ]]; then
           found=$candidate
         fi
       done
@@ -147,7 +147,8 @@ put_back_retired() {
 
   for path in "${contested[@]}"; do
     if [[ ! -e $path && ! -L $path ]]; then
-      echo -e "\e[33m\nThe refresh didn't finish. Putting back what it removed:\e[0m" >&2
+      # A closed terminal fails this write, and set -e must not skip the reinstall for it.
+      echo -e "\e[33m\nThe refresh didn't finish. Putting back what it removed:\e[0m" >&2 || true
       omarchy-update-pacman -U --noconfirm "${cached[@]}"
       return
     fi
