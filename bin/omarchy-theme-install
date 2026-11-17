@@ -62,7 +62,11 @@ fi
 
 mkdir -p "$THEMES_DIR"
 rm -rf "$THEME_PATH"
-mv "$STAGED_PATH" "$THEME_PATH"
+# -T so a theme rm could not fully remove fails here rather than nesting the clone inside it.
+if ! mv -T "$STAGED_PATH" "$THEME_PATH"; then
+  echo "Error: Failed to replace the installed theme at $THEME_PATH."
+  exit 1
+fi
 
 # Apply the new theme with omarchy-theme-set, which stages only the files an
 # extra theme is allowed to contribute and names anything it dropped.
