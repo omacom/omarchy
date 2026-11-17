@@ -195,7 +195,7 @@ console.log(menu.parseMenuJsonc(fs.readFileSync(process.env.ROOT + "/default/oma
 ')
 
 regional_bindings() {
-  lua <<'LUA'
+  lua - <<'LUA'
 package.path = os.getenv("OMARCHY_PATH") .. "/?.lua;" .. package.path
 hl = {
   dsp = { exec_cmd = function(command) return command end },
@@ -222,13 +222,15 @@ LUA
     export HOME="$test_tmp/regional-home-${state_home:+custom}"
     mkdir -p "$HOME/.local/share/applications"
     "$ROOT/bin/omarchy-refresh-applications"
+    "$ROOT/bin/omarchy-dock" pinned folio YouTube X >/dev/null
     bash -eE "$region_leaf"
-    [[ ! -e $HOME/.local/share/applications/YouTube.desktop && ! -e $HOME/.local/share/applications/X.desktop ]] ||
+    [[ ! -e $HOME/.local/share/applications/YouTube.desktop && ! -e $HOME/.local/share/applications/X.desktop &&
+      ! -e $HOME/.local/share/applications/Spotify.desktop && ! -e $HOME/.local/share/applications/Netflix.desktop ]] ||
       fail "regional setup removes skipped launchers"
     [[ -f $HOME/.local/share/applications/Basecamp.desktop ]] || fail "regional setup keeps unrelated launchers"
     pins=$("$ROOT/bin/omarchy-dock" pinned)
     ! grep -qxF YouTube <<<"$pins" && ! grep -qxF X <<<"$pins" || fail "regional setup unpins skipped apps"
-    grep -qxF org.gnome.Nautilus <<<"$pins" || fail "regional setup preserves unrelated pins"
+    grep -qxF folio <<<"$pins" || fail "regional setup preserves unrelated pins"
 
     bindings=$(regional_bindings)
     for name in YouTube X ChatGPT Signal Music; do
