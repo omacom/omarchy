@@ -376,7 +376,6 @@ sed "s|^  $target_etc\$|  etc=\"\${2:-\$OMARCHY_IMAGE_ROOT}/etc\"|" "$ROOT/bin/o
 chmod +x "$fixture/bin/omarchy-apply-pacman"
 mkdir -p "$fixture/default"
 cp -r "$ROOT/default/pacman" "$ROOT/default/regions" "$fixture/default/"
-: >"$fixture/install/hardware/pacman.sh"
 # pacman-key makes the keyring directory it's given, as the real one does.
 for command in pacman-key omarchy-pkg-add gpgconf; do
   cat >"$keyring_bin/$command" <<'SH'

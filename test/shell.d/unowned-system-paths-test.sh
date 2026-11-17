@@ -135,7 +135,7 @@ else
   skip "no Omarchy script writes a path under /usr that no package owns: needs the omarchy-pkgs checkout; set OMARCHY_PKGS_PATH to it"
 fi
 
-for script in bin/omarchy-hibernation-setup bin/omarchy-toggle-hybrid-gpu; do
+for script in bin/omarchy-hibernation-setup bin/omarchy-device-gpu-hybrid; do
   grep -F '"${destination%/*}/.${destination##*/}.omarchy.XXXXXX"' "$ROOT/$script" >/dev/null ||
     fail "$script reserves a hidden sibling for the privileged replacement"
   grep -F 'sudo /usr/bin/install -m "$mode" -o root -g root -T "$source" "$stage"' "$ROOT/$script" >/dev/null ||
@@ -157,14 +157,14 @@ resume_marker_line=$(rg -n '^echo "HOOKS\+=\(resume\)"' "$ROOT/bin/omarchy-hiber
 (( hook_install_line < resume_marker_line )) ||
   fail "hibernation setup marks completion before a failed hook install can be retried"
 
-grep -F '  /usr/lib/systemd/system-sleep/force-igpu 0755' "$ROOT/bin/omarchy-toggle-hybrid-gpu" >/dev/null ||
+grep -F '  /usr/lib/systemd/system-sleep/force-igpu 0755' "$ROOT/bin/omarchy-device-gpu-hybrid" >/dev/null ||
   fail "hybrid GPU setup installs force-igpu as a root-owned executable"
-grep -F '  /etc/systemd/system/supergfxd.service.d/delay-start.conf 0644' "$ROOT/bin/omarchy-toggle-hybrid-gpu" >/dev/null ||
+grep -F '  /etc/systemd/system/supergfxd.service.d/delay-start.conf 0644' "$ROOT/bin/omarchy-device-gpu-hybrid" >/dev/null ||
   fail "hybrid GPU setup installs its root service drop-in as root-owned configuration"
 
-delay_install_line=$(rg -n '^    if ! install_root_file .*delay-start\.conf' "$ROOT/bin/omarchy-toggle-hybrid-gpu" | cut -d: -f1)
-force_install_line=$(rg -n '^    if ! install_root_file .*force-igpu' "$ROOT/bin/omarchy-toggle-hybrid-gpu" | cut -d: -f1)
-config_switch_line=$(rg -n '^    sudo sed -i \\' "$ROOT/bin/omarchy-toggle-hybrid-gpu" | tail -1 | cut -d: -f1)
+delay_install_line=$(rg -n '^    if ! install_root_file .*delay-start\.conf' "$ROOT/bin/omarchy-device-gpu-hybrid" | cut -d: -f1)
+force_install_line=$(rg -n '^    if ! install_root_file .*force-igpu' "$ROOT/bin/omarchy-device-gpu-hybrid" | cut -d: -f1)
+config_switch_line=$(rg -n '^    sudo sed -i \\' "$ROOT/bin/omarchy-device-gpu-hybrid" | tail -1 | cut -d: -f1)
 [[ -n $delay_install_line && -n $force_install_line && -n $config_switch_line ]] ||
   fail "hybrid GPU setup keeps recognizable support-file and config-switch steps"
 (( delay_install_line < config_switch_line && force_install_line < config_switch_line )) ||
@@ -173,7 +173,7 @@ config_switch_line=$(rg -n '^    sudo sed -i \\' "$ROOT/bin/omarchy-toggle-hybri
 grep -Fq '/usr/bin/grep -Eq' "$ROOT/default/systemd/system-sleep/force-igpu" ||
   fail "force-igpu does not guard execution with the configured GPU mode"
 
-if rg -n 'cp -p.*(system-sleep|supergfxd\.service\.d)' "$ROOT/bin/omarchy-hibernation-setup" "$ROOT/bin/omarchy-toggle-hybrid-gpu"; then
+if rg -n 'cp -p.*(system-sleep|supergfxd\.service\.d)' "$ROOT/bin/omarchy-hibernation-setup" "$ROOT/bin/omarchy-device-gpu-hybrid"; then
   fail "privileged sleep and hybrid GPU files are never copied with source ownership"
 fi
 

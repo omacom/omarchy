@@ -26,11 +26,11 @@
   "update": {
     "label": "புதுப்பி"
   },
-  "about": {
-    "label": "பற்றி"
-  },
   "system": {
     "label": "கணினி"
+  },
+  "system.about": {
+    "label": "பற்றி"
   },
   "system.screensaver": {
     "label": "திரைசேமிப்பு"

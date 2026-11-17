@@ -26,11 +26,11 @@
   "update": {
     "label": "อัปเดต"
   },
-  "about": {
-    "label": "เกี่ยวกับ"
-  },
   "system": {
     "label": "ระบบ"
+  },
+  "system.about": {
+    "label": "เกี่ยวกับ"
   },
   "system.screensaver": {
     "label": "พักหน้าจอ"

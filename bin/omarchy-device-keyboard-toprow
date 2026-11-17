@@ -2,7 +2,7 @@
 
 # omarchy:summary=Choose whether the keyboard's top row sends F1-F12 or media keys by default
 # omarchy:args=[mediakeys|fnkeys]
-# omarchy:examples=omarchy keyboard toprow | omarchy keyboard toprow mediakeys | omarchy keyboard toprow fnkeys
+# omarchy:examples=omarchy device keyboard toprow | omarchy device keyboard toprow mediakeys | omarchy device keyboard toprow fnkeys
 # omarchy:requires-sudo=true
 
 set -euo pipefail
@@ -23,7 +23,7 @@ conf="$modprobe_dir/omarchy-toprow.conf"
 rebuild_pending=${OMARCHY_TOPROW_REBUILD_PENDING:-/var/lib/omarchy/toprow-rebuild-pending}
 
 usage() {
-  echo "Usage: omarchy-keyboard-toprow [mediakeys|fnkeys] [--no-rebuild]" >&2
+  echo "Usage: omarchy-device-keyboard-toprow [mediakeys|fnkeys] [--no-rebuild]" >&2
   exit 1
 }
 
@@ -77,11 +77,12 @@ else
   fnmode=1 fnlock=0 first="the media keys" second="F1-F12"
 fi
 
-content="# Written by omarchy-keyboard-toprow: the top row sends $first by default,
-# and Fn (Fn+Esc to lock it) gives $second.
-options hid_apple fnmode=$fnmode
+options="options hid_apple fnmode=$fnmode
 options hid_asus fnlock_default=$fnlock
 options asus_wmi fnlock_default=$fnlock"
+content="# Written by omarchy-device-keyboard-toprow: the top row sends $first by default,
+# and Fn (Fn+Esc to lock it) gives $second.
+$options"
 
 # Omarchy wrote these before this command existed. An administrator's own
 # versions stay, and this file overrides them.
@@ -103,8 +104,9 @@ if [[ -e $sys_module/hid_apple/parameters/fnmode && $(param hid_apple fnmode) !=
 fi
 
 # A rebuild that failed or was interrupted last time is still owed, even with
-# the file in place.
-if [[ ! -e $rebuild_pending && -f $conf && $(<"$conf") == "$content" ]] && (( ${#legacy[@]} == 0 )); then
+# the file in place. Only the options count: a file whose comment was written
+# by an earlier version, like the migration's, needs no rebuild.
+if [[ ! -e $rebuild_pending && -f $conf && $(grep -v '^#' "$conf") == "$options" ]] && (( ${#legacy[@]} == 0 )); then
   echo "The top row already sends $first by default."
   exit 0
 fi
@@ -136,7 +138,7 @@ if (( needs_rebuild )); then
 
   # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
   if (( status[0] != 0 || status[1] != 0 )) || grep -q 'mkinitcpio failed for kernel' "$log"; then
-    echo "Could not rebuild the boot image; run omarchy-keyboard-toprow $state again once that is fixed." >&2
+    echo "Could not rebuild the boot image; run omarchy-device-keyboard-toprow $state again once that is fixed." >&2
     exit 1
   fi
   sudo rm -f "$rebuild_pending"

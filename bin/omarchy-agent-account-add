@@ -79,14 +79,11 @@ say() {
 # A signed-in agent gets a launcher of its own beside Agent, drawn by the
 # icon set: Claude Code, Codex, or Grok Build, whatever the default agent is.
 install_launcher() {
-  local entry="omarchy-agent-$provider.desktop"
-  mkdir -p "$HOME/.local/share/applications"
-  install -m 644 "$OMARCHY_PATH/default/applications/$entry" "$HOME/.local/share/applications/$entry"
-  update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+  omarchy-agent-launcher "$provider"
 }
 
-# A first sign-in announces the agent as ready, and clicking it starts one;
-# any other says which account it was.
+# A first sign-in announces the agent as ready, and an added account that it's
+# ready for more; clicking either starts one. Any other says which account it was.
 finish() {
   install_launcher
   if [[ $events == "true" ]]; then
@@ -95,12 +92,33 @@ finish() {
       omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
         "$(omarchy-i18n agents.readyToCode "$app")" "$(omarchy-i18n agents.readyToCodeBody)" \
         --exec omarchy-agent --agent "$provider" --app-id="org.omarchy.$provider"
+    elif [[ ${2:-} == "more" ]]; then
+      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+        "$(omarchy-i18n agents.readyForMore "$app")" "$(omarchy-i18n agents.readyForMoreBody "$3")" \
+        --exec omarchy-agent --agent "$provider" --app-id="org.omarchy.$provider"
     else
       omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" "$1"
     fi
   else
     echo
     echo "$1"
+  fi
+}
+
+# Accounts just added, fresh or recovered, are the ones you want tokens from
+# next, so new sessions switch to the newest. Running sessions stay where they
+# are. If the choice can't be saved, the accounts are still added and say so.
+announce_added() {
+  local added newest
+  added=$(jq -r 'map(.label + (if .email != "" then " (" + .email + ")" else "" end)) | join(", ")' <<<"$1")
+  newest=$(jq -c 'last' <<<"$1")
+  if omarchy-agent-account-state use "$provider" "$(jq -r .id <<<"$newest")" >/dev/null; then
+    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+    finish "$(omarchy-i18n agents.added "$added")" more "$(jq -r .label <<<"$newest")"
+    [[ $events == "true" ]] || echo "New $name sessions now use $(jq -r .label <<<"$newest")."
+  else
+    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+    finish "$(omarchy-i18n agents.addedNotSelected "$added")"
   fi
 }
 
@@ -274,9 +292,7 @@ else
   # asking for another browser login. Live sign-ins are never recovered.
   if recovered=$(omarchy-agent-account-state recover "$provider"); then
     if [[ $(jq 'length' <<<"$recovered") != "0" ]]; then
-      added=$(jq -r 'map(.label + (if .email != "" then " (" + .email + ")" else "" end)) | join(", ")' <<<"$recovered")
-      omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
-      finish "$(omarchy-i18n agents.added "$added")"
+      announce_added "$recovered"
       exit 0
     fi
   else
@@ -307,14 +323,7 @@ EOF
 
   if account=$(omarchy-agent-account-state register "$provider" "$label" "$home" 2>&1); then
     home=""
-    added=$(jq -r '.label + (if .email != "" then " (" + .email + ")" else "" end)' <<<"$account")
-    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
-    if [[ $events == "true" ]]; then
-      finish "$(omarchy-i18n agents.added "$added")"
-    else
-      finish "$(omarchy-i18n agents.added "$added")"
-      echo "Switch to it with: omarchy agent account use $provider $(jq -r .id <<<"$account")"
-    fi
+    announce_added "[$account]"
   else
     registration_status=$?
     # Keep the home for cleanup when registration was explicitly interrupted.
