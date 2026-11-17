@@ -143,13 +143,17 @@ scala)
 bend)
   echo -e "Installing Bend...\n"
   # Bend and its HVM runtime are Rust crates, which mise builds with cargo.
-  if [[ ! -x $HOME/.cargo/bin/cargo ]]; then
-    omarchy-install-dev-env rust
+  if [[ ! -x $HOME/.cargo/bin/cargo ]] && ! omarchy-install-dev-env rust; then
+    echo "Failed to install Rust, which Bend needs." >&2
+    exit 1
   fi
   # rustup puts cargo on PATH for new shells only.
   export PATH="$HOME/.cargo/bin:$PATH"
-  mise use --global cargo:hvm@latest
-  mise use --global cargo:bend-lang@latest
-  echo -e "\nYou can now run: bend run-c main.bend"
+  if mise use --global cargo:hvm@latest && mise use --global cargo:bend-lang@latest; then
+    echo -e "\nYou can now run: bend run-c main.bend"
+  else
+    echo "Failed to install Bend." >&2
+    exit 1
+  fi
   ;;
 esac
