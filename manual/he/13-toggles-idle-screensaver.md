@@ -17,8 +17,8 @@
 | שומר מסך | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) סנכרון ערכת נושא | — | `omarchy toggle theme sync` |
 | שורת התפריט | `Super + Shift + Space` | `omarchy toggle bar` |
-| משטח מגע | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| מסך מגע | — | `omarchy toggle touchscreen` |
+| משטח מגע | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| מסך מגע | — | `omarchy device touchscreen` |
 | השהיה | — | `omarchy toggle suspend` |
 | GPU היברידי | — | `omarchy toggle hybrid gpu` |
 

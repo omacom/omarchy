@@ -49,7 +49,7 @@ hl.config({
 
 ### Eochracha feidhme
 
-Seolann sraith uachtarach mhéarchlár ríomhaire glúine na heochracha meán (toirt, gile agus mar sin de) de réir réamhshocraithe, agus tugann `Fn` a choinneáil síos F1-F12 duit; glasálann `Fn + Esc` é sa treo eile go dtí go mbrúnn tú arís é. Cuimhníonn formhór na méarchlár ar an nglas sin iad féin. Fágann ríomhairí glúine ASUS agus méarchláir ar stíl Apple faoi Linux é, a thosaíonn ar na heochracha meán iad ag gach tosú. Chun go dtosóidh siad ar F1-F12 ina ionad sin, rith `omarchy keyboard toprow fnkeys` (agus `omarchy keyboard toprow mediakeys` chun dul ar ais); ar roinnt ríomhairí glúine, tagann sé i bhfeidhm tar éis atosaigh. Coinníonn Apple Silicon Macs a socrú féin.
+Seolann sraith uachtarach mhéarchlár ríomhaire glúine na heochracha meán (toirt, gile agus mar sin de) de réir réamhshocraithe, agus tugann `Fn` a choinneáil síos F1-F12 duit; glasálann `Fn + Esc` é sa treo eile go dtí go mbrúnn tú arís é. Cuimhníonn formhór na méarchlár ar an nglas sin iad féin. Fágann ríomhairí glúine ASUS agus méarchláir ar stíl Apple faoi Linux é, a thosaíonn ar na heochracha meán iad ag gach tosú. Chun go dtosóidh siad ar F1-F12 ina ionad sin, rith `omarchy device keyboard toprow fnkeys` (agus `omarchy device keyboard toprow mediakeys` chun dul ar ais); ar roinnt ríomhairí glúine, tagann sé i bhfeidhm tar éis atosaigh. Coinníonn Apple Silicon Macs a socrú féin.
 
 ### Gothaí an cheap tadhaill
 

@@ -17,8 +17,8 @@
 | திரைக்காவல் | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) தீம் ஒத்திசைவு | — | `omarchy toggle theme sync` |
 | மெனு பட்டை | `Super + Shift + Space` | `omarchy toggle bar` |
-| தொடுதிட்டு | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| தொடுதிரை | — | `omarchy toggle touchscreen` |
+| தொடுதிட்டு | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| தொடுதிரை | — | `omarchy device touchscreen` |
 | இடைநிறுத்து | — | `omarchy toggle suspend` |
 | கலப்பு GPU | — | `omarchy toggle hybrid gpu` |
 

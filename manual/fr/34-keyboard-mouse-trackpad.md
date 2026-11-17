@@ -49,7 +49,7 @@ hl.config({
 
 ### Touches de fonction
 
-La rangée supérieure d'un clavier d'ordinateur portable envoie les touches multimédias (volume, luminosité, etc.) par défaut, et maintenir `Fn` donne accès à F1-F12 ; `Fn + Esc` verrouille le comportement inverse jusqu'à ce que vous appuyiez à nouveau dessus. La plupart des claviers mémorisent eux-mêmes ce verrouillage. Les ordinateurs portables ASUS et les claviers de style Apple le laissent à Linux, qui les démarre sur les touches multimédias à chaque démarrage. Pour qu'ils démarrent sur F1-F12 à la place, exécutez `omarchy keyboard toprow fnkeys` (et `omarchy keyboard toprow mediakeys` pour revenir en arrière) ; sur certains ordinateurs portables, le changement prend effet après un redémarrage. Les Mac Apple Silicon conservent leur propre réglage.
+La rangée supérieure d'un clavier d'ordinateur portable envoie les touches multimédias (volume, luminosité, etc.) par défaut, et maintenir `Fn` donne accès à F1-F12 ; `Fn + Esc` verrouille le comportement inverse jusqu'à ce que vous appuyiez à nouveau dessus. La plupart des claviers mémorisent eux-mêmes ce verrouillage. Les ordinateurs portables ASUS et les claviers de style Apple le laissent à Linux, qui les démarre sur les touches multimédias à chaque démarrage. Pour qu'ils démarrent sur F1-F12 à la place, exécutez `omarchy device keyboard toprow fnkeys` (et `omarchy device keyboard toprow mediakeys` pour revenir en arrière) ; sur certains ordinateurs portables, le changement prend effet après un redémarrage. Les Mac Apple Silicon conservent leur propre réglage.
 
 ### Gestes du trackpad
 

@@ -17,8 +17,8 @@ No termināļa tie paši slēdži ir `omarchy toggle <thing>`. Palaid `omarchy t
 | Ekrānsaudzētājs | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) motīva sinhronizācija | — | `omarchy toggle theme sync` |
 | Izvēlnes josla | `Super + Shift + Space` | `omarchy toggle bar` |
-| Skārienpaliktnis | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Skārienekrāns | — | `omarchy toggle touchscreen` |
+| Skārienpaliktnis | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Skārienekrāns | — | `omarchy device touchscreen` |
 | Apturēšana | — | `omarchy toggle suspend` |
 | Hibrīdais GPU | — | `omarchy toggle hybrid gpu` |
 

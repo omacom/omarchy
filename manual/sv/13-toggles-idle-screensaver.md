@@ -17,8 +17,8 @@ Från terminalen är samma omkopplare `omarchy toggle <thing>`. Kör `omarchy to
 | Skärmsläckare | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev)-temasynk | — | `omarchy toggle theme sync` |
 | Menyrad | `Super + Shift + Space` | `omarchy toggle bar` |
-| Styrplatta | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Pekskärm | — | `omarchy toggle touchscreen` |
+| Styrplatta | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Pekskärm | — | `omarchy device touchscreen` |
 | Viloläge | — | `omarchy toggle suspend` |
 | Hybrid-GPU | — | `omarchy toggle hybrid gpu` |
 

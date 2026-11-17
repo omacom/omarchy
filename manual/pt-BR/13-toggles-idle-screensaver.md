@@ -17,8 +17,8 @@ Pelo terminal, os mesmos interruptores são `omarchy toggle <thing>`. Execute `o
 | Protetor de tela | — | `omarchy toggle screensaver` |
 | Sincronização de tema do [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Barra de menu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Tela sensível ao toque | — | `omarchy toggle touchscreen` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Tela sensível ao toque | — | `omarchy device touchscreen` |
 | Suspender | — | `omarchy toggle suspend` |
 | GPU híbrida | — | `omarchy toggle hybrid gpu` |
 

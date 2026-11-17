@@ -17,8 +17,8 @@ Kutoka kwenye terminali, swichi hizo hizo ni `omarchy toggle <thing>`. Endesha `
 | Kihifadhi skrini | — | `omarchy toggle screensaver` |
 | Usawazishaji wa mandhari wa [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Upau wa menyu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Padi ya mguso | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Skrini ya mguso | — | `omarchy toggle touchscreen` |
+| Padi ya mguso | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Skrini ya mguso | — | `omarchy device touchscreen` |
 | Kusimamisha | — | `omarchy toggle suspend` |
 | GPU mseto | — | `omarchy toggle hybrid gpu` |
 

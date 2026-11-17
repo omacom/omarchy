@@ -17,8 +17,8 @@ Terminalist on samad lülitid `omarchy toggle <thing>`. Käivita `omarchy toggle
 | Ekraanisäästja | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) teema sünkroonimine | — | `omarchy toggle theme sync` |
 | Menüüriba | `Super + Shift + Space` | `omarchy toggle bar` |
-| Puuteplaat | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Puuteekraan | — | `omarchy toggle touchscreen` |
+| Puuteplaat | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Puuteekraan | — | `omarchy device touchscreen` |
 | Peatamine | — | `omarchy toggle suspend` |
 | Hübriid-GPU | — | `omarchy toggle hybrid gpu` |
 

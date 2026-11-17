@@ -36,7 +36,7 @@ chmod +x "$stub_bin"/*
 toprow() {
   OMARCHY_MODPROBE_DIR="$modprobe_dir" OMARCHY_SYS_MODULE="$sys_module" \
     OMARCHY_TOPROW_REBUILD_PENDING="$test_tmp/rebuild-pending" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
-    bash "$ROOT/bin/omarchy-keyboard-toprow" "$@"
+    bash "$ROOT/bin/omarchy-device-keyboard-toprow" "$@"
 }
 
 # Before anything is chosen, the top row reports what the loaded driver booted

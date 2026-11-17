@@ -17,8 +17,8 @@ Depuis le terminal, les mêmes interrupteurs sont `omarchy toggle <thing>`. Lanc
 | Économiseur d’écran | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) synchronisation du thème | — | `omarchy toggle theme sync` |
 | Barre de menu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Pavé tactile | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Écran tactile | — | `omarchy toggle touchscreen` |
+| Pavé tactile | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Écran tactile | — | `omarchy device touchscreen` |
 | Suspension | — | `omarchy toggle suspend` |
 | GPU hybride | — | `omarchy toggle hybrid gpu` |
 

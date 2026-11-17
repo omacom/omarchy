@@ -49,7 +49,7 @@ hl.config({
 
 ### Funktionstangenter
 
-Den översta raden på ett tangentbord för bärbara datorer skickar medietangenterna (volym, ljusstyrka och så vidare) som standard, och om du håller ned `Fn` får du F1-F12; `Fn + Esc` låser det tvärtom tills du trycker på den igen. De flesta tangentbord kommer ihåg det låset själva. Bärbara datorer från ASUS och tangentbord i Apple-stil överlåter det åt Linux, som startar dem på medietangenterna vid varje uppstart. För att de i stället ska starta på F1-F12 kör du `omarchy keyboard toprow fnkeys` (och `omarchy keyboard toprow mediakeys` för att gå tillbaka); på vissa bärbara datorer börjar det gälla efter en omstart. Apple Silicon-Macar behåller sin egen inställning.
+Den översta raden på ett tangentbord för bärbara datorer skickar medietangenterna (volym, ljusstyrka och så vidare) som standard, och om du håller ned `Fn` får du F1-F12; `Fn + Esc` låser det tvärtom tills du trycker på den igen. De flesta tangentbord kommer ihåg det låset själva. Bärbara datorer från ASUS och tangentbord i Apple-stil överlåter det åt Linux, som startar dem på medietangenterna vid varje uppstart. För att de i stället ska starta på F1-F12 kör du `omarchy device keyboard toprow fnkeys` (och `omarchy device keyboard toprow mediakeys` för att gå tillbaka); på vissa bärbara datorer börjar det gälla efter en omstart. Apple Silicon-Macar behåller sin egen inställning.
 
 ### Styrplattagester
 

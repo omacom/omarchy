@@ -49,7 +49,7 @@ hl.config({
 
 ### Mga function key
 
-Nagpapadala ang pinakamataas na hilera ng keyboard ng laptop ng mga media key (volume, brightness, at iba pa) bilang default, at ang pagpindot nang matagal sa `Fn` ay nagbibigay ng F1-F12; ni-lock ito ng `Fn + Esc` sa kabilang paraan hanggang pindutin mo itong muli. Karamihan sa mga keyboard ay sila mismo ang nakakaalala sa lock na iyon. Hinahayaan ng mga ASUS laptop at mga Apple-style na keyboard ang Linux ang bahala rito, na sinisimulan sila sa mga media key sa bawat boot. Para simulan sila sa F1-F12 sa halip, patakbuhin ang `omarchy keyboard toprow fnkeys` (at `omarchy keyboard toprow mediakeys` para bumalik); sa ilang laptop, magkakabisa ito pagkatapos mag-reboot. Pinapanatili ng mga Apple Silicon Mac ang sarili nilang setting.
+Nagpapadala ang pinakamataas na hilera ng keyboard ng laptop ng mga media key (volume, brightness, at iba pa) bilang default, at ang pagpindot nang matagal sa `Fn` ay nagbibigay ng F1-F12; ni-lock ito ng `Fn + Esc` sa kabilang paraan hanggang pindutin mo itong muli. Karamihan sa mga keyboard ay sila mismo ang nakakaalala sa lock na iyon. Hinahayaan ng mga ASUS laptop at mga Apple-style na keyboard ang Linux ang bahala rito, na sinisimulan sila sa mga media key sa bawat boot. Para simulan sila sa F1-F12 sa halip, patakbuhin ang `omarchy device keyboard toprow fnkeys` (at `omarchy device keyboard toprow mediakeys` para bumalik); sa ilang laptop, magkakabisa ito pagkatapos mag-reboot. Pinapanatili ng mga Apple Silicon Mac ang sarili nilang setting.
 
 ### Mga galaw sa trackpad
 

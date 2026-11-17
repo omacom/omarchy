@@ -49,7 +49,7 @@ hl.config({
 
 ### Functietoetsen
 
-De bovenste rij van een laptoptoetsenbord stuurt standaard de mediatoetsen (volume, helderheid enzovoort), en met `Fn` ingedrukt krijg je F1-F12; `Fn + Esc` vergrendelt het andersom totdat je er opnieuw op drukt. De meeste toetsenborden onthouden die vergrendeling zelf. ASUS-laptops en toetsenborden in Apple-stijl laten het aan Linux over, waardoor ze bij elke start op de mediatoetsen beginnen. Om ze in plaats daarvan op F1-F12 te laten beginnen, voer je `omarchy keyboard toprow fnkeys` uit (en `omarchy keyboard toprow mediakeys` om terug te gaan); op sommige laptops wordt het pas na een herstart van kracht. Apple Silicon Macs behouden hun eigen instelling.
+De bovenste rij van een laptoptoetsenbord stuurt standaard de mediatoetsen (volume, helderheid enzovoort), en met `Fn` ingedrukt krijg je F1-F12; `Fn + Esc` vergrendelt het andersom totdat je er opnieuw op drukt. De meeste toetsenborden onthouden die vergrendeling zelf. ASUS-laptops en toetsenborden in Apple-stijl laten het aan Linux over, waardoor ze bij elke start op de mediatoetsen beginnen. Om ze in plaats daarvan op F1-F12 te laten beginnen, voer je `omarchy device keyboard toprow fnkeys` uit (en `omarchy device keyboard toprow mediakeys` om terug te gaan); op sommige laptops wordt het pas na een herstart van kracht. Apple Silicon Macs behouden hun eigen instelling.
 
 ### Trackpadgebaren
 

@@ -17,8 +17,8 @@ Fra terminalen er de samme bryterne `omarchy toggle <thing>`. Kjør `omarchy tog
 | Skjermsparer | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) temasynkronisering | — | `omarchy toggle theme sync` |
 | Menylinje | `Super + Shift + Space` | `omarchy toggle bar` |
-| Styreplate | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Berøringsskjerm | — | `omarchy toggle touchscreen` |
+| Styreplate | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Berøringsskjerm | — | `omarchy device touchscreen` |
 | Hvilemodus | — | `omarchy toggle suspend` |
 | Hybrid GPU | — | `omarchy toggle hybrid gpu` |
 

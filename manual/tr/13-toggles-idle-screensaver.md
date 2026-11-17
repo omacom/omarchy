@@ -17,8 +17,8 @@ Terminalden aynı anahtarlar `omarchy toggle <thing>` şeklindedir. Grubun tamam
 | Ekran koruyucu | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) tema senkronizasyonu | — | `omarchy toggle theme sync` |
 | Menü çubuğu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Dokunmatik yüzey | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Dokunmatik ekran | — | `omarchy toggle touchscreen` |
+| Dokunmatik yüzey | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Dokunmatik ekran | — | `omarchy device touchscreen` |
 | Askıya al | — | `omarchy toggle suspend` |
 | Hibrit GPU | — | `omarchy toggle hybrid gpu` |
 

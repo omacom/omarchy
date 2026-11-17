@@ -17,8 +17,8 @@ Iš terminalo tie patys jungikliai pasiekiami kaip `omarchy toggle <thing>`. Pal
 | Ekrano užsklanda | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) temos sinchronizavimas | — | `omarchy toggle theme sync` |
 | Meniu juosta | `Super + Shift + Space` | `omarchy toggle bar` |
-| Jutiklinis kilimėlis | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Jutiklinis ekranas | — | `omarchy toggle touchscreen` |
+| Jutiklinis kilimėlis | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Jutiklinis ekranas | — | `omarchy device touchscreen` |
 | Pristabdymas | — | `omarchy toggle suspend` |
 | Hibridinis GPU | — | `omarchy toggle hybrid gpu` |
 

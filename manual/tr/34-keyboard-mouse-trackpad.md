@@ -49,7 +49,7 @@ hl.config({
 
 ### İşlev tuşları
 
-Bir dizüstü bilgisayar klavyesinin üst sırası varsayılan olarak medya tuşlarını (ses seviyesi, parlaklık ve benzerlerini) gönderir ve `Fn` tuşunu basılı tutmak F1-F12 tuşlarını verir; `Fn + Esc` bunu tekrar basana kadar tersi yönde kilitler. Çoğu klavye bu kilidi kendisi hatırlar. ASUS dizüstü bilgisayarlar ve Apple tarzı klavyeler bunu Linux'a bırakır; Linux da bunları her açılışta medya tuşlarıyla başlatır. Bunun yerine F1-F12 ile başlamalarını sağlamak için `omarchy keyboard toprow fnkeys` komutunu çalıştırın (geri dönmek için `omarchy keyboard toprow mediakeys`); bazı dizüstü bilgisayarlarda bu, yeniden başlatmanın ardından etkili olur. Apple Silicon Mac'ler kendi ayarlarını korur.
+Bir dizüstü bilgisayar klavyesinin üst sırası varsayılan olarak medya tuşlarını (ses seviyesi, parlaklık ve benzerlerini) gönderir ve `Fn` tuşunu basılı tutmak F1-F12 tuşlarını verir; `Fn + Esc` bunu tekrar basana kadar tersi yönde kilitler. Çoğu klavye bu kilidi kendisi hatırlar. ASUS dizüstü bilgisayarlar ve Apple tarzı klavyeler bunu Linux'a bırakır; Linux da bunları her açılışta medya tuşlarıyla başlatır. Bunun yerine F1-F12 ile başlamalarını sağlamak için `omarchy device keyboard toprow fnkeys` komutunu çalıştırın (geri dönmek için `omarchy device keyboard toprow mediakeys`); bazı dizüstü bilgisayarlarda bu, yeniden başlatmanın ardından etkili olur. Apple Silicon Mac'ler kendi ayarlarını korur.
 
 ### Dokunmatik yüzey hareketleri
 

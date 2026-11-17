@@ -17,8 +17,8 @@
 | 螢幕保護程式 | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) 主題同步 | — | `omarchy toggle theme sync` |
 | 選單列 | `Super + Shift + Space` | `omarchy toggle bar` |
-| 觸控板 | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| 觸控螢幕 | — | `omarchy toggle touchscreen` |
+| 觸控板 | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| 觸控螢幕 | — | `omarchy device touchscreen` |
 | 暫停 | — | `omarchy toggle suspend` |
 | 混合 GPU | — | `omarchy toggle hybrid gpu` |
 

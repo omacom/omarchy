@@ -17,8 +17,8 @@
 | شاشة التوقف | — | `omarchy toggle screensaver` |
 | مزامنة سمة [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | شريط القائمة | `Super + Shift + Space` | `omarchy toggle bar` |
-| لوحة اللمس | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| شاشة اللمس | — | `omarchy toggle touchscreen` |
+| لوحة اللمس | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| شاشة اللمس | — | `omarchy device touchscreen` |
 | التعليق | — | `omarchy toggle suspend` |
 | Hybrid GPU | — | `omarchy toggle hybrid gpu` |
 

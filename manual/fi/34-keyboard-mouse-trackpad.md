@@ -49,7 +49,7 @@ hl.config({
 
 ### Toimintonäppäimet
 
-Kannettavan näppäimistön ylärivi lähettää oletuksena medianäppäimet (äänenvoimakkuus, kirkkaus ja niin edelleen), ja `Fn`-näppäimen pohjassa pitäminen antaa F1-F12; `Fn + Esc` lukitsee sen toisin päin, kunnes painat sitä uudelleen. Useimmat näppäimistöt muistavat lukituksen itse. ASUS-kannettavat ja Apple-tyyliset näppäimistöt jättävät sen Linuxille, joka käynnistää ne medianäppäimillä joka käynnistyksellä. Jos haluat niiden käynnistyvän sen sijaan F1-F12-näppäimillä, aja `omarchy keyboard toprow fnkeys` (ja `omarchy keyboard toprow mediakeys` palataksesi takaisin); joissakin kannettavissa muutos tulee voimaan uudelleenkäynnistyksen jälkeen. Apple Silicon -Macit säilyttävät oman asetuksensa.
+Kannettavan näppäimistön ylärivi lähettää oletuksena medianäppäimet (äänenvoimakkuus, kirkkaus ja niin edelleen), ja `Fn`-näppäimen pohjassa pitäminen antaa F1-F12; `Fn + Esc` lukitsee sen toisin päin, kunnes painat sitä uudelleen. Useimmat näppäimistöt muistavat lukituksen itse. ASUS-kannettavat ja Apple-tyyliset näppäimistöt jättävät sen Linuxille, joka käynnistää ne medianäppäimillä joka käynnistyksellä. Jos haluat niiden käynnistyvän sen sijaan F1-F12-näppäimillä, aja `omarchy device keyboard toprow fnkeys` (ja `omarchy device keyboard toprow mediakeys` palataksesi takaisin); joissakin kannettavissa muutos tulee voimaan uudelleenkäynnistyksen jälkeen. Apple Silicon -Macit säilyttävät oman asetuksensa.
 
 ### Kosketuslevyn eleet
 

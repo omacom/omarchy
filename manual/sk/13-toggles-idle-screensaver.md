@@ -17,8 +17,8 @@ Z terminálu sú tie isté prepínače `omarchy toggle <thing>`. Spustite `omarc
 | Šetrič obrazovky | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) synchronizácia témy | — | `omarchy toggle theme sync` |
 | Lišta menu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Dotyková obrazovka | — | `omarchy toggle touchscreen` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Dotyková obrazovka | — | `omarchy device touchscreen` |
 | Uspávanie | — | `omarchy toggle suspend` |
 | Hybridná GPU | — | `omarchy toggle hybrid gpu` |
 

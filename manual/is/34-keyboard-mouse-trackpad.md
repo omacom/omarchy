@@ -49,7 +49,7 @@ hl.config({
 
 ### Virknilyklar
 
-Efsta röðin á fartölvulyklaborði sendir sjálfgefið margmiðlunarlyklana (hljóðstyrk, birtu og svo framvegis) og með því að halda inni `Fn` færðu F1-F12; `Fn + Esc` læsir þessu í hina áttina þar til þú ýtir aftur á það. Flest lyklaborð muna þá læsingu sjálf. Fartölvur frá ASUS og lyklaborð í Apple-stíl skilja þetta eftir Linux, sem ræsir þau með margmiðlunarlyklunum við hverja ræsingu. Til að láta þau byrja á F1-F12 í staðinn skaltu keyra `omarchy keyboard toprow fnkeys` (og `omarchy keyboard toprow mediakeys` til að fara til baka); á sumum fartölvum tekur þetta gildi eftir endurræsingu. Apple Silicon Mac vélar halda sinni eigin stillingu.
+Efsta röðin á fartölvulyklaborði sendir sjálfgefið margmiðlunarlyklana (hljóðstyrk, birtu og svo framvegis) og með því að halda inni `Fn` færðu F1-F12; `Fn + Esc` læsir þessu í hina áttina þar til þú ýtir aftur á það. Flest lyklaborð muna þá læsingu sjálf. Fartölvur frá ASUS og lyklaborð í Apple-stíl skilja þetta eftir Linux, sem ræsir þau með margmiðlunarlyklunum við hverja ræsingu. Til að láta þau byrja á F1-F12 í staðinn skaltu keyra `omarchy device keyboard toprow fnkeys` (og `omarchy device keyboard toprow mediakeys` til að fara til baka); á sumum fartölvum tekur þetta gildi eftir endurræsingu. Apple Silicon Mac vélar halda sinni eigin stillingu.
 
 ### Bendingar á snertifleti
 

@@ -17,8 +17,8 @@ Din terminal, aceleași comutatoare sunt `omarchy toggle <thing>`. Rulează `oma
 | Screensaver | — | `omarchy toggle screensaver` |
 | Sincronizare temă [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Bară de meniu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Ecran tactil | — | `omarchy toggle touchscreen` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Ecran tactil | — | `omarchy device touchscreen` |
 | Suspendare | — | `omarchy toggle suspend` |
 | GPU hibrid | — | `omarchy toggle hybrid gpu` |
 

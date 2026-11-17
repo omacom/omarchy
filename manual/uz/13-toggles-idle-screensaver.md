@@ -17,8 +17,8 @@ Terminaldan xuddi shu kalitlar `omarchy toggle <thing>` ko'rinishida bo'ladi. Bu
 | Ekran saqlagichi | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) mavzusini sinxronlash | — | `omarchy toggle theme sync` |
 | Menyu paneli | `Super + Shift + Space` | `omarchy toggle bar` |
-| Sensor panel | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Sensor ekran | — | `omarchy toggle touchscreen` |
+| Sensor panel | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Sensor ekran | — | `omarchy device touchscreen` |
 | To'xtatib turish | — | `omarchy toggle suspend` |
 | Gibrid GPU | — | `omarchy toggle hybrid gpu` |
 

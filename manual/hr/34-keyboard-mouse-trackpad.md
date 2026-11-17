@@ -49,7 +49,7 @@ hl.config({
 
 ### Funkcijske tipke
 
-Gornji red tipkovnice prijenosnog računala prema zadanim postavkama šalje medijske tipke (glasnoća, svjetlina i tako dalje), a držanjem tipke `Fn` dobivate F1-F12; `Fn + Esc` zaključava to u obrnutom načinu dok je ponovno ne pritisnete. Većina tipkovnica sama pamti to zaključavanje. Prijenosna računala ASUS i tipkovnice u Appleovu stilu to prepuštaju Linuxu, koji ih pri svakom pokretanju postavlja na medijske tipke. Da bi umjesto toga kretale od F1-F12, pokrenite `omarchy keyboard toprow fnkeys` (a `omarchy keyboard toprow mediakeys` za povratak); na nekim prijenosnim računalima to stupa na snagu nakon ponovnog pokretanja. Računala Mac s Apple Siliconom zadržavaju vlastitu postavku.
+Gornji red tipkovnice prijenosnog računala prema zadanim postavkama šalje medijske tipke (glasnoća, svjetlina i tako dalje), a držanjem tipke `Fn` dobivate F1-F12; `Fn + Esc` zaključava to u obrnutom načinu dok je ponovno ne pritisnete. Većina tipkovnica sama pamti to zaključavanje. Prijenosna računala ASUS i tipkovnice u Appleovu stilu to prepuštaju Linuxu, koji ih pri svakom pokretanju postavlja na medijske tipke. Da bi umjesto toga kretale od F1-F12, pokrenite `omarchy device keyboard toprow fnkeys` (a `omarchy device keyboard toprow mediakeys` za povratak); na nekim prijenosnim računalima to stupa na snagu nakon ponovnog pokretanja. Računala Mac s Apple Siliconom zadržavaju vlastitu postavku.
 
 ### Geste dodirne pločice
 

@@ -17,8 +17,8 @@ A terminálból ugyanezek a kapcsolók az `omarchy toggle <thing>` formában ér
 | Képernyővédő | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) témaszinkronizálása | — | `omarchy toggle theme sync` |
 | Menüsor | `Super + Shift + Space` | `omarchy toggle bar` |
-| Érintőpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Érintőképernyő | — | `omarchy toggle touchscreen` |
+| Érintőpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Érintőképernyő | — | `omarchy device touchscreen` |
 | Felfüggesztés | — | `omarchy toggle suspend` |
 | Hibrid GPU | — | `omarchy toggle hybrid gpu` |
 

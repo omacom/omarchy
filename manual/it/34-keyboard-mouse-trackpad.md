@@ -49,7 +49,7 @@ hl.config({
 
 ### Tasti funzione
 
-La riga superiore della tastiera di un portatile invia per impostazione predefinita i tasti multimediali (volume, luminosità e così via), e tenere premuto `Fn` dà F1-F12; `Fn + Esc` lo blocca nel modo opposto finché non lo premi di nuovo. La maggior parte delle tastiere ricorda quel blocco da sola. I portatili ASUS e le tastiere in stile Apple lo lasciano a Linux, che a ogni avvio li imposta sui tasti multimediali. Per farli partire invece su F1-F12, esegui `omarchy keyboard toprow fnkeys` (e `omarchy keyboard toprow mediakeys` per tornare indietro); su alcuni portatili la modifica ha effetto dopo un riavvio. I Mac Apple Silicon mantengono la propria impostazione.
+La riga superiore della tastiera di un portatile invia per impostazione predefinita i tasti multimediali (volume, luminosità e così via), e tenere premuto `Fn` dà F1-F12; `Fn + Esc` lo blocca nel modo opposto finché non lo premi di nuovo. La maggior parte delle tastiere ricorda quel blocco da sola. I portatili ASUS e le tastiere in stile Apple lo lasciano a Linux, che a ogni avvio li imposta sui tasti multimediali. Per farli partire invece su F1-F12, esegui `omarchy device keyboard toprow fnkeys` (e `omarchy device keyboard toprow mediakeys` per tornare indietro); su alcuni portatili la modifica ha effetto dopo un riavvio. I Mac Apple Silicon mantengono la propria impostazione.
 
 ### Gesti del trackpad
 

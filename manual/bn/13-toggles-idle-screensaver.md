@@ -17,8 +17,8 @@
 | স্ক্রিনসেভার | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) থিম সিঙ্ক | — | `omarchy toggle theme sync` |
 | মেনু বার | `Super + Shift + Space` | `omarchy toggle bar` |
-| টাচপ্যাড | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| টাচস্ক্রিন | — | `omarchy toggle touchscreen` |
+| টাচপ্যাড | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| টাচস্ক্রিন | — | `omarchy device touchscreen` |
 | সাসপেন্ড | — | `omarchy toggle suspend` |
 | হাইব্রিড GPU | — | `omarchy toggle hybrid gpu` |
 

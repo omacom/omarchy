@@ -17,8 +17,8 @@ Päätteestä samat kytkimet ovat `omarchy toggle <thing>`. Suorita pelkkä `oma
 | Näytönsäästäjä | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) -teeman synkronointi | — | `omarchy toggle theme sync` |
 | Valikkopalkki | `Super + Shift + Space` | `omarchy toggle bar` |
-| Kosketuslevy | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Kosketusnäyttö | — | `omarchy toggle touchscreen` |
+| Kosketuslevy | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Kosketusnäyttö | — | `omarchy device touchscreen` |
 | Valmiustila | — | `omarchy toggle suspend` |
 | Hybridi-GPU | — | `omarchy toggle hybrid gpu` |
 

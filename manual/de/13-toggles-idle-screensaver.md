@@ -17,8 +17,8 @@ Vom Terminal aus sind dieselben Schalter `omarchy toggle <thing>`. Führe `omarc
 | Bildschirmschoner | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) Theme-Synchronisierung | — | `omarchy toggle theme sync` |
 | Menüleiste | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Touchscreen | — | `omarchy toggle touchscreen` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Touchscreen | — | `omarchy device touchscreen` |
 | Suspend | — | `omarchy toggle suspend` |
 | Hybrid GPU | — | `omarchy toggle hybrid gpu` |
 

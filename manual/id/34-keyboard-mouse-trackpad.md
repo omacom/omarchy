@@ -49,7 +49,7 @@ hl.config({
 
 ### Tombol fungsi
 
-Baris teratas keyboard laptop mengirim tombol media (volume, kecerahan, dan sebagainya) secara default, dan menahan `Fn` memberikan F1-F12; `Fn + Esc` menguncinya sebaliknya hingga Anda menekannya lagi. Sebagian besar keyboard mengingat kunci tersebut sendiri. Laptop ASUS dan keyboard bergaya Apple menyerahkannya kepada Linux, yang memulainya pada tombol media setiap kali boot. Agar mereka mulai pada F1-F12 sebagai gantinya, jalankan `omarchy keyboard toprow fnkeys` (dan `omarchy keyboard toprow mediakeys` untuk kembali); pada beberapa laptop ini berlaku setelah reboot. Mac Apple Silicon mempertahankan pengaturannya sendiri.
+Baris teratas keyboard laptop mengirim tombol media (volume, kecerahan, dan sebagainya) secara default, dan menahan `Fn` memberikan F1-F12; `Fn + Esc` menguncinya sebaliknya hingga Anda menekannya lagi. Sebagian besar keyboard mengingat kunci tersebut sendiri. Laptop ASUS dan keyboard bergaya Apple menyerahkannya kepada Linux, yang memulainya pada tombol media setiap kali boot. Agar mereka mulai pada F1-F12 sebagai gantinya, jalankan `omarchy device keyboard toprow fnkeys` (dan `omarchy device keyboard toprow mediakeys` untuk kembali); pada beberapa laptop ini berlaku setelah reboot. Mac Apple Silicon mempertahankan pengaturannya sendiri.
 
 ### Gestur trackpad
 

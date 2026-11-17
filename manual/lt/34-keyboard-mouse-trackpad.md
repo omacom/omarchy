@@ -49,7 +49,7 @@ hl.config({
 
 ### Funkciniai klavišai
 
-Viršutinė nešiojamojo kompiuterio klaviatūros eilė pagal numatytuosius nustatymus siunčia medijos klavišus (garsumą, ryškumą ir pan.), o laikant `Fn` gaunami F1-F12; `Fn + Esc` užfiksuoja tai atvirkščiai, kol jo nepaspausite dar kartą. Dauguma klaviatūrų šį užraktą prisimena pačios. ASUS nešiojamieji kompiuteriai ir Apple stiliaus klaviatūros palieka tai Linux, kuri kiekvieną kartą paleidžiant sistemą juos įjungia medijos klavišų režimu. Kad vietoj to jie būtų įjungiami F1-F12 režimu, paleiskite `omarchy keyboard toprow fnkeys` (o norėdami grįžti – `omarchy keyboard toprow mediakeys`); kai kuriuose nešiojamuosiuose kompiuteriuose tai įsigalioja po perkrovimo. Apple Silicon Mac kompiuteriai išlaiko savo nustatymą.
+Viršutinė nešiojamojo kompiuterio klaviatūros eilė pagal numatytuosius nustatymus siunčia medijos klavišus (garsumą, ryškumą ir pan.), o laikant `Fn` gaunami F1-F12; `Fn + Esc` užfiksuoja tai atvirkščiai, kol jo nepaspausite dar kartą. Dauguma klaviatūrų šį užraktą prisimena pačios. ASUS nešiojamieji kompiuteriai ir Apple stiliaus klaviatūros palieka tai Linux, kuri kiekvieną kartą paleidžiant sistemą juos įjungia medijos klavišų režimu. Kad vietoj to jie būtų įjungiami F1-F12 režimu, paleiskite `omarchy device keyboard toprow fnkeys` (o norėdami grįžti – `omarchy device keyboard toprow mediakeys`); kai kuriuose nešiojamuosiuose kompiuteriuose tai įsigalioja po perkrovimo. Apple Silicon Mac kompiuteriai išlaiko savo nustatymą.
 
 ### Jutiklinio kilimėlimo gestai
 

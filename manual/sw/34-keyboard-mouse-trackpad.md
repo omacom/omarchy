@@ -49,7 +49,7 @@ hl.config({
 
 ### Vitufe vya kazi
 
-Safu ya juu ya kibodi ya laptop hutuma vitufe vya midia (sauti, mwangaza na kadhalika) kwa chaguo-msingi, na kushikilia `Fn` hukupa F1-F12; `Fn + Esc` huifunga kwa mpangilio wa kinyume hadi utakapokibonyeza tena. Kibodi nyingi hukumbuka ufungaji huo zenyewe. Laptop za ASUS na kibodi za mtindo wa Apple huiachia Linux, ambayo huziwasha kwenye vitufe vya midia kila inapowashwa. Ili ziianze kwenye F1-F12 badala yake, endesha `omarchy keyboard toprow fnkeys` (na `omarchy keyboard toprow mediakeys` ili kurudi nyuma); kwenye laptop nyingine hufanya kazi baada ya kuwasha upya. Mac za Apple Silicon huhifadhi mpangilio wao wenyewe.
+Safu ya juu ya kibodi ya laptop hutuma vitufe vya midia (sauti, mwangaza na kadhalika) kwa chaguo-msingi, na kushikilia `Fn` hukupa F1-F12; `Fn + Esc` huifunga kwa mpangilio wa kinyume hadi utakapokibonyeza tena. Kibodi nyingi hukumbuka ufungaji huo zenyewe. Laptop za ASUS na kibodi za mtindo wa Apple huiachia Linux, ambayo huziwasha kwenye vitufe vya midia kila inapowashwa. Ili ziianze kwenye F1-F12 badala yake, endesha `omarchy device keyboard toprow fnkeys` (na `omarchy device keyboard toprow mediakeys` ili kurudi nyuma); kwenye laptop nyingine hufanya kazi baada ya kuwasha upya. Mac za Apple Silicon huhifadhi mpangilio wao wenyewe.
 
 ### Ishara za padi ya mguso
 

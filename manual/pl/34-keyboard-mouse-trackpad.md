@@ -49,7 +49,7 @@ hl.config({
 
 ### Klawisze funkcyjne
 
-Górny rząd klawiatury laptopa domyślnie wysyła klawisze multimedialne (głośność, jasność itd.), a przytrzymanie `Fn` daje F1-F12; `Fn + Esc` blokuje to w drugą stronę, dopóki nie naciśniesz tego ponownie. Większość klawiatur sama pamięta tę blokadę. Laptopy ASUS i klawiatury w stylu Apple zostawiają to Linuksowi, który przy każdym uruchomieniu zaczyna od klawiszy multimedialnych. Aby zamiast tego zaczynać od F1-F12, uruchom `omarchy keyboard toprow fnkeys` (oraz `omarchy keyboard toprow mediakeys`, aby wrócić); na niektórych laptopach zmiana zaczyna obowiązywać po ponownym uruchomieniu. Komputery Mac z Apple Silicon zachowują własne ustawienie.
+Górny rząd klawiatury laptopa domyślnie wysyła klawisze multimedialne (głośność, jasność itd.), a przytrzymanie `Fn` daje F1-F12; `Fn + Esc` blokuje to w drugą stronę, dopóki nie naciśniesz tego ponownie. Większość klawiatur sama pamięta tę blokadę. Laptopy ASUS i klawiatury w stylu Apple zostawiają to Linuksowi, który przy każdym uruchomieniu zaczyna od klawiszy multimedialnych. Aby zamiast tego zaczynać od F1-F12, uruchom `omarchy device keyboard toprow fnkeys` (oraz `omarchy device keyboard toprow mediakeys`, aby wrócić); na niektórych laptopach zmiana zaczyna obowiązywać po ponownym uruchomieniu. Komputery Mac z Apple Silicon zachowują własne ustawienie.
 
 ### Gesty trackpada
 

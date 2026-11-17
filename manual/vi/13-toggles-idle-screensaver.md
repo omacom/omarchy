@@ -17,8 +17,8 @@ Từ terminal, các công tắc tương tự là `omarchy toggle <thing>`. Chạ
 | Trình bảo vệ màn hình | — | `omarchy toggle screensaver` |
 | Đồng bộ theme của [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Thanh menu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Bàn di chuột | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Màn hình cảm ứng | — | `omarchy toggle touchscreen` |
+| Bàn di chuột | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Màn hình cảm ứng | — | `omarchy device touchscreen` |
 | Tạm dừng | — | `omarchy toggle suspend` |
 | GPU lai | — | `omarchy toggle hybrid gpu` |
 

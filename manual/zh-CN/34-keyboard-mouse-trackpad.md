@@ -49,7 +49,7 @@ hl.config({
 
 ### 功能键
 
-笔记本电脑键盘的顶排默认发送媒体键（音量、亮度等），按住 `Fn` 则可使用 F1-F12；`Fn + Esc` 会将其锁定为相反的状态，直到你再次按下它。大多数键盘会自行记住该锁定状态。ASUS 笔记本电脑和 Apple 风格键盘则将其交给 Linux 处理，因此每次启动时都从媒体键开始。要改为从 F1-F12 开始，请运行 `omarchy keyboard toprow fnkeys`（运行 `omarchy keyboard toprow mediakeys` 可改回去）；在某些笔记本电脑上，重启后才会生效。Apple Silicon Mac 保留其自身的设置。
+笔记本电脑键盘的顶排默认发送媒体键（音量、亮度等），按住 `Fn` 则可使用 F1-F12；`Fn + Esc` 会将其锁定为相反的状态，直到你再次按下它。大多数键盘会自行记住该锁定状态。ASUS 笔记本电脑和 Apple 风格键盘则将其交给 Linux 处理，因此每次启动时都从媒体键开始。要改为从 F1-F12 开始，请运行 `omarchy device keyboard toprow fnkeys`（运行 `omarchy device keyboard toprow mediakeys` 可改回去）；在某些笔记本电脑上，重启后才会生效。Apple Silicon Mac 保留其自身的设置。
 
 ### 触控板手势
 

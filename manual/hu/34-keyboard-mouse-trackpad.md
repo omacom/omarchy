@@ -49,7 +49,7 @@ hl.config({
 
 ### Funkcióbillentyűk
 
-A laptop billentyűzetének felső sora alapértelmezetten a médiabillentyűket (hangerő, fényerő és így tovább) küldi, az `Fn` nyomva tartásával pedig az F1-F12 billentyűket érheted el; az `Fn + Esc` az ellenkező irányba rögzíti ezt, amíg újra meg nem nyomod. A legtöbb billentyűzet maga megjegyzi ezt a zárolást. Az ASUS laptopok és az Apple-stílusú billentyűzetek ezt a Linuxra hagyják, amely minden rendszerindításkor a médiabillentyűkkel indítja őket. Ha azt szeretnéd, hogy ehelyett az F1-F12 billentyűkkel induljanak, futtasd az `omarchy keyboard toprow fnkeys` parancsot (a visszaállításhoz pedig az `omarchy keyboard toprow mediakeys` parancsot); egyes laptopokon ez újraindítás után lép érvénybe. Az Apple Silicon Mac gépek megtartják a saját beállításukat.
+A laptop billentyűzetének felső sora alapértelmezetten a médiabillentyűket (hangerő, fényerő és így tovább) küldi, az `Fn` nyomva tartásával pedig az F1-F12 billentyűket érheted el; az `Fn + Esc` az ellenkező irányba rögzíti ezt, amíg újra meg nem nyomod. A legtöbb billentyűzet maga megjegyzi ezt a zárolást. Az ASUS laptopok és az Apple-stílusú billentyűzetek ezt a Linuxra hagyják, amely minden rendszerindításkor a médiabillentyűkkel indítja őket. Ha azt szeretnéd, hogy ehelyett az F1-F12 billentyűkkel induljanak, futtasd az `omarchy device keyboard toprow fnkeys` parancsot (a visszaállításhoz pedig az `omarchy device keyboard toprow mediakeys` parancsot); egyes laptopokon ez újraindítás után lép érvénybe. Az Apple Silicon Mac gépek megtartják a saját beállításukat.
 
 ### Érintőpados gesztusok
 
