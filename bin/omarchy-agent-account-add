@@ -92,11 +92,11 @@ finish() {
   if [[ $events == "true" ]]; then
     printf '@@omarchy done %s\n' "$1"
     if [[ ${2:-} == "ready" ]]; then
-      omarchy-notification-send -t 30000 -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
         "$(omarchy-i18n agents.readyToCode "$app")" "$(omarchy-i18n agents.readyToCodeBody)" \
         --exec omarchy-agent --agent "$provider" --app-id="org.omarchy.$provider"
     elif [[ ${2:-} == "more" ]]; then
-      omarchy-notification-send -t 30000 -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
         "$(omarchy-i18n agents.readyForMore "$app")" "$(omarchy-i18n agents.readyForMoreBody "$3")" \
         --exec omarchy-agent --agent "$provider" --app-id="org.omarchy.$provider"
     else
