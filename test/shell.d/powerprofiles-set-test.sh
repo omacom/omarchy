@@ -134,8 +134,7 @@ exit 0
 EOF
 chmod +x "$tmp_dir/bin/omarchy-hw-aarch64-apple"
 
-export OMARCHY_POWERPROFILES_APPLE_LOCK="$tmp_dir/apple-global.lock"
-touch "$OMARCHY_POWERPROFILES_APPLE_LOCK"
+export OMARCHY_APPLE_CPUFREQ_STATE_DIR="$tmp_dir/apple-run"
 
 cat >"$tmp_dir/bin/omarchy-powerprofiles-apple-cpufreq-apply" <<'EOF'
 #!/bin/bash
@@ -150,21 +149,26 @@ export APPLE_APPLY_LOG="$tmp_dir/apple-apply"
 POWERPROFILES_SET_FAIL=0 "$ROOT/bin/omarchy-powerprofiles-set" ac balanced
 [[ $(tail -n 1 "$tmp_dir/calls") == "balanced" ]] || fail "apple path still calls powerprofilesctl"
 [[ $(tail -n 1 "$APPLE_APPLY_LOG") == "balanced" ]] || fail "apple path applies caps even when PPD succeeds"
-[[ $(<"$tmp_dir/state/apple-cpufreq-active") == "balanced" ]] ||
-  fail "apple path records the applied profile in user state"
-pass "apple path always applies cpufreq caps and records applied profile"
+[[ ! -e $tmp_dir/state/apple-cpufreq-active ]] ||
+  fail "apple path leaves the machine-wide applied profile to the root helper, not user state"
+pass "apple path always applies cpufreq caps through the root helper"
 
+# The applied profile is a root-written record every session reads, wherever its
+# own state directory is
+mkdir -p "$OMARCHY_APPLE_CPUFREQ_STATE_DIR"
 printf 'power-saver\n' >"$tmp_dir/state/ac"
-printf 'performance\n' >"$tmp_dir/state/apple-cpufreq-active"
-active=""
-while IFS=$'\t' read -r name is_active; do
-  [[ $is_active == 1 ]] || continue
-  active=$name
-  break
-done < <("$ROOT/bin/omarchy-powerprofiles-list" --active-state)
-[[ $active == "performance" ]] ||
-  fail "apple list marks the applied profile, not the saved preference" "active=$active"
-pass "apple list reads apple-cpufreq-active for --active-state"
+printf 'performance\n' >"$OMARCHY_APPLE_CPUFREQ_STATE_DIR/powerprofiles-apple-cpufreq-active"
+for state in "$tmp_dir/state" "$tmp_dir/another-user-state"; do
+  active=""
+  while IFS=$'\t' read -r name is_active; do
+    [[ $is_active == 1 ]] || continue
+    active=$name
+    break
+  done < <(OMARCHY_POWERPROFILES_STATE_DIR="$state" "$ROOT/bin/omarchy-powerprofiles-list" --active-state)
+  [[ $active == "performance" ]] ||
+    fail "apple list marks the applied profile for every session, not the saved preference" "state=$state active=$active"
+done
+pass "apple list reads the shared applied-profile record for --active-state"
 
 cpufreq_fixture="$tmp_dir/cpufreq"
 mkdir -p "$cpufreq_fixture/policy0"
@@ -175,14 +179,40 @@ printf '%s\n' 696000 >"$cpufreq_fixture/policy0/scaling_min_freq"
 printf '%s\n' 4056000 >"$cpufreq_fixture/policy0/scaling_max_freq"
 printf '%s\n' 'apple-cpufreq' >"$tmp_dir/scaling_driver"
 if unshare --user --map-root-user true 2>/dev/null; then
-  unshare -Ur env \
-    OMARCHY_APPLE_CPUFREQ_SYSFS_ROOT="$cpufreq_fixture" \
-    OMARCHY_APPLE_CPUFREQ_DRIVER_FILE="$tmp_dir/scaling_driver" \
-    "$ROOT/bin/omarchy-powerprofiles-apple-cpufreq-apply" balanced ||
+  helper_state="$tmp_dir/helper-run"
+  run_apple_apply() {
+    unshare -Ur env \
+      OMARCHY_APPLE_CPUFREQ_SYSFS_ROOT="$cpufreq_fixture" \
+      OMARCHY_APPLE_CPUFREQ_DRIVER_FILE="$tmp_dir/scaling_driver" \
+      OMARCHY_APPLE_CPUFREQ_STATE_DIR="$helper_state" \
+      "$ROOT/bin/omarchy-powerprofiles-apple-cpufreq-apply" "$1"
+  }
+
+  run_apple_apply balanced ||
     fail "apple apply could not cap frequencies in a root namespace"
   [[ $(<"$cpufreq_fixture/policy0/scaling_max_freq") == "3420000" ]] ||
     fail "apple apply caps scaling_max_freq to the profile step"
   pass "apple apply caps scaling_max_freq per profile"
+
+  [[ $(<"$helper_state/powerprofiles-apple-cpufreq-active") == "balanced" ]] ||
+    fail "apple apply records the applied profile"
+  run_apple_apply power-saver || fail "apple apply could not switch profiles again"
+  [[ $(<"$helper_state/powerprofiles-apple-cpufreq-active") == "power-saver" ]] ||
+    fail "apple apply replaces the applied-profile record on each change"
+  [[ $(stat -c %a "$helper_state/powerprofiles-apple-cpufreq-active") == "644" ]] ||
+    fail "applied-profile record is readable by every session and writable only by root"
+  [[ $(find "$helper_state" -name '.apple-cpufreq-active.*' | wc -l) == 0 ]] ||
+    fail "apple apply leaves no temporary record behind"
+  pass "apple apply records the applied profile where every session can read it"
+
+  # Any local account being able to hold this lock would stall every profile change
+  [[ $(stat -c %a "$helper_state/powerprofiles-apple-cpufreq.lock") == "600" ]] ||
+    fail "apple apply lock is not restricted to root"
+  chmod 0666 "$helper_state/powerprofiles-apple-cpufreq.lock"
+  run_apple_apply balanced || fail "apple apply could not reuse an existing lock"
+  [[ $(stat -c %a "$helper_state/powerprofiles-apple-cpufreq.lock") == "600" ]] ||
+    fail "apple apply does not re-restrict a lock that was left open"
+  pass "apple apply holds a root-only lock"
 else
   pass "apple apply caps scaling_max_freq per profile (skipped: user namespaces unavailable)"
 fi

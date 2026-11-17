@@ -87,6 +87,24 @@ fi
 
 pct=$(cap_pct_for_profile "$profile") || exit 1
 
+# The caps are machine-wide, so the lock and the record of what was applied are
+# too, and both belong to root. A lock any account could open would let one of
+# them stall every profile change, and a record in one user's state directory
+# would leave every other session showing the wrong profile. /run is a tmpfs,
+# so the record resets at boot together with the caps it describes.
+state_dir=${OMARCHY_APPLE_CPUFREQ_STATE_DIR:-/run/omarchy}
+lock_file=$state_dir/powerprofiles-apple-cpufreq.lock
+active_file=$state_dir/powerprofiles-apple-cpufreq-active
+
+install -d -m 0755 "$state_dir"
+(umask 077; : >>"$lock_file")
+chmod 0600 "$lock_file"
+exec 9>>"$lock_file"
+flock -w 30 9 || {
+  echo "omarchy-powerprofiles-apple-cpufreq-apply: another profile change is in progress" >&2
+  exit 1
+}
+
 for policy in "$cpufreq_root"/policy*; do
   [[ -r $policy/cpuinfo_max_freq ]] || continue
   max_hz=$(<"$policy/cpuinfo_max_freq")
@@ -95,3 +113,8 @@ for policy in "$cpufreq_root"/policy*; do
   printf '%s\n' "$min_hz" >"$policy/scaling_min_freq"
   printf '%s\n' "$cap_hz" >"$policy/scaling_max_freq"
 done
+
+tmp=$(mktemp -p "$state_dir" .apple-cpufreq-active.XXXXXX)
+printf '%s\n' "$profile" >"$tmp"
+chmod 0644 "$tmp"
+mv -f "$tmp" "$active_file"

@@ -9,11 +9,14 @@ if [[ ${1:-} != "" && ${1:-} != "--active-state" ]]; then
 fi
 
 with_state=${1:+1}
-state_dir=${OMARCHY_POWERPROFILES_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/powerprofiles}
+
+# apple-cpufreq caps are machine-wide, so the applied profile is a root-written
+# record every session reads, not a per-user preference.
+apple_active_file=${OMARCHY_APPLE_CPUFREQ_STATE_DIR:-/run/omarchy}/powerprofiles-apple-cpufreq-active
 
 resolved_active=""
-if omarchy-hw-aarch64-apple 2>/dev/null && [[ -r $state_dir/apple-cpufreq-active ]]; then
-  resolved_active=$(<"$state_dir/apple-cpufreq-active")
+if omarchy-hw-aarch64-apple 2>/dev/null && [[ -r $apple_active_file ]]; then
+  resolved_active=$(<"$apple_active_file")
 fi
 
 mapfile -t lines < <(powerprofilesctl list 2>/dev/null |
