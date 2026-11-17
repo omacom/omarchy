@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Kuvakkeet"
+  },
+  "install.style.icons": {
+    "label": "Kuvakkeet"
+  },
+  "remove.icons": {
+    "label": "Kuvakkeet"
+  },
+  "update.icons": {
+    "label": "Lisäkuvakkeet"
+  },
+  "system.firmware": {
+    "label": "Käynnistä BIOSiin",
+    "description": "Käynnistä uudelleen UEFI-laiteohjelmiston asetuksiin"
   }
 }

@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "ஐகான்கள்"
+  },
+  "install.style.icons": {
+    "label": "ஐகான்கள்"
+  },
+  "remove.icons": {
+    "label": "ஐகான்கள்"
+  },
+  "update.icons": {
+    "label": "கூடுதல் ஐகான்கள்"
+  },
+  "system.firmware": {
+    "label": "BIOS-க்கு மறுதொடக்கம்",
+    "description": "UEFI ஃபார்ம்வேர் அமைப்பில் மறுதொடக்கம் செய்யவும்"
   }
 }
