@@ -672,6 +672,26 @@ check(on(world.windows["0xa"].workspace) == "DP-1", "the workspace stays on the 
 ' || fail "a workspace moved off a monitor whose block is taken does not come back"
 pass "a workspace moved off a monitor whose block is taken does not come back"
 
+run_lua move_both_blocks_full '
+plug("eDP-1", 0, "Panel", 1)
+plug("DP-1", 1, "LG", 11)
+plug("HDMI-A-1", 2, "Dell", 22)
+world.focused = "eDP-1"
+local m = load_module()
+world.handlers["hyprland.start"]()
+window("0xa", 1)
+world.focused = "HDMI-A-1"
+for id = 2, 10 do window("0x" .. id, id) end
+world.focused = "DP-1"
+for id = 11, 20 do window("0x" .. id, id) end
+world.focused = "eDP-1"
+hl.dispatch(hl.dsp.focus({ workspace = "1" }))
+
+hl.dispatch(m.move_to_monitor("DP-1"))
+check(on(world.windows["0xa"].workspace) == "DP-1", "the workspace stays on the monitor it was moved to: " .. tostring(on(world.windows["0xa"].workspace)))
+' || fail "a workspace that cannot be renumbered stays on the monitor it was moved to"
+pass "a workspace that cannot be renumbered stays on the monitor it was moved to"
+
 run_lua window_to_monitor '
 plug("eDP-1", 0, "Panel", 1)
 plug("DP-1", 1, "LG", 11)

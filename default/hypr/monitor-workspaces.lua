@@ -528,7 +528,7 @@ function M.move_to_monitor(direction)
       adopt(moved, block)
     end
     if from then
-      settle(from, monitors, by_connector)
+      settle(from, monitors, by_connector, id)
     end
 
     -- Settling the monitor it left can take focus; it belongs with the
