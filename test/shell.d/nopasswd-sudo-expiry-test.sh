@@ -305,11 +305,11 @@ done
 assert_status 1 env TEST_POLICY_FAILURE=1 /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --active
 pass "menu probe reads policy tags without executing a privileged action"
 
-for status in 0 3; do
+for status in 0 2 3; do
   : >"$test_tmp/commands"
   TEST_STATUS=$status /usr/bin/bash -p "$test_tmp/omarchy-sudo-passwordless" --disable >"$test_tmp/public.log" 2>&1
   ! grep -q '^gum\|__enable ' "$test_tmp/commands" || fail "explicit disable offered enablement"
-  if (( status == 0 )); then
+  if (( status == 0 || status == 2 )); then
     grep -q '__disable ' "$test_tmp/commands"
   fi
 done

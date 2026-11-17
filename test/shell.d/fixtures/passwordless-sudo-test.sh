@@ -113,9 +113,12 @@ for name in ('omarchy-sudo-passwordless', 'omarchy-security-functions'):
     text = text.replace('((EUID == 0))', '((${TEST_EUID:-1} == 0))')
     for command in ('stat', 'chown', 'install', 'rm', 'mv', 'systemd-run', 'systemctl', 'date', 'getent', 'sudo', 'gum', 'omarchy-shell'):
         text = text.replace('/usr/bin/' + command, str(temp/'bin'/command))
+    text = text.replace('readonly INSTALLED_SELF=/usr/bin/omarchy-sudo-passwordless',
+                        'readonly INSTALLED_SELF=' + str(temp/'installed-helper'))
     (temp/name).write_text(text)
     (temp/name).chmod(0o755)
 PY
+cp "$test_tmp/omarchy-sudo-passwordless" "$test_tmp/installed-helper"
 library="$test_tmp/functions.sh"
 {
   printf 'source %q\n' "$test_tmp/omarchy-security-functions"

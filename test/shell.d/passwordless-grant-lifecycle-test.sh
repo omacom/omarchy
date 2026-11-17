@@ -93,6 +93,31 @@ pass "repair quarantines reformatted broad grants and preserves custom permanent
 )
 pass "repair preserves UID-only, limited and deny-only policy and leaves incomplete policy pending"
 
+(
+  source "$library"
+  for suffix in 1003.pacnew '1003~'; do
+    printf 'invalid sudoers policy :::: \n' >"$(rule_file 1003 permanent)${suffix#1003}"
+  done
+  migrate_locked
+  [[ -f $MIGRATION_MARKER ]]
+  for suffix in 1003.pacnew '1003~'; do
+    file="$(rule_file 1003 permanent)${suffix#1003}"
+    [[ -f $file ]] || fail "repair removed a sudo-ignored backup"
+    rm "$file"
+  done
+  rm "$MIGRATION_MARKER"
+)
+pass "sudo-ignored permanent policy backups do not block the repair"
+
+(
+  source "$library"
+  sed -i '/^readonly MIGRATION_ID=/d' "$test_tmp/installed-helper"
+  assert_status 1 migrate_locked
+  [[ ! -e $MIGRATION_MARKER ]] || fail "a stale installed writer completed the UID repair"
+  cp "$test_tmp/omarchy-sudo-passwordless" "$test_tmp/installed-helper"
+)
+pass "repair waits for the installed grant writer to support UID authorization"
+
 reset_grant
 (
   source "$library"
