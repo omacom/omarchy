@@ -67,11 +67,13 @@ ShellRoot {
     }
   }
 
-  // Whether `item` lies within the scrolled panel's visible window.
+  // Whether `item` shows in the scrolled panel's window: its top edge, and
+  // most of it, since a cursor row can still be growing into its highlight.
   function onScreen(item) {
     var flick = panel.testContent.panelFlick
     var top = item.mapToItem(flick.contentItem, 0, 0).y
-    return top >= flick.contentY - 1 && top + item.height <= flick.contentY + flick.height + 1
+    var shown = Math.min(top + item.height, flick.contentY + flick.height) - Math.max(top, flick.contentY)
+    return top >= flick.contentY - 1 && shown >= item.height * 0.75
   }
 
   function profile(n) {
@@ -116,6 +118,11 @@ ShellRoot {
       check(vpnList.currentItem && onScreen(vpnList.currentItem), "the keyboard's last VPN row is on screen")
       for (var k = 0; k < 7; k++) panel.testKeys.moveRequested(0, -1)
       check(panel.focusSection === "wifi" && panel.selectedIndex === panel.wifiNetworks.length - 1, "k off the first VPN climbs back to the last network")
+      for (var i = 0; i < 4 && panel.focusSection !== "dns"; i++) panel.testKeys.moveRequested(0, -1)
+      check(panel.focusSection === "dns", "k climbs from the networks back to DNS")
+    },
+    function() {
+      check(onScreen(panel.testContent.testDns), "DNS, back above the scrolled lists, is on screen again")
 
       home.connected = true
       NetworkMock.wifi.connected = true

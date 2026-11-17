@@ -28,12 +28,10 @@ Scope {
   readonly property bool busy: pendingId !== "" || detailsProc.running
 
   // The profile the panel is asking credentials for, the user name to start
-  // from, whether the plugin keeps a user name at all, and whether the last
-  // attempt with entered credentials failed.
+  // from, and whether the plugin keeps a user name at all.
   property string credentialsId: ""
   property string credentialsUser: ""
   property bool credentialsNeedUser: false
-  property bool credentialsFailed: false
   property var credentialsPlan: null
 
   // Each read of NetworkManager's connections, for providers whose daemon
@@ -129,11 +127,10 @@ Scope {
     actionProc.running = true
   }
 
-  function askCredentials(id, plan, failed) {
+  function askCredentials(id, plan) {
     credentialsPlan = plan
     credentialsUser = plan ? plan.username : ""
     credentialsNeedUser = !!(plan && plan.userKey)
-    credentialsFailed = failed === true
     credentialsId = id
   }
 
@@ -141,7 +138,6 @@ Scope {
     credentialsId = ""
     credentialsUser = ""
     credentialsNeedUser = false
-    credentialsFailed = false
     credentialsPlan = null
   }
 
@@ -152,7 +148,6 @@ Scope {
     if (busy || id === "" || !plan || String(password || "") === "") return
     if (plan.userKey && user === "") return
     var item = plan.userKey && user !== plan.username ? Model.vpnDataItem(plan.userKey, user) : ""
-    credentialsFailed = false
     failedId = ""
     pendingId = id
     pendingAction = "up"
@@ -207,10 +202,10 @@ Scope {
       targetId = ""
       var plan = Model.credentialPlan(Model.parseVpnDetails(detailsStdout.text))
       if (afterFailure) {
-        if (plan) root.askCredentials(id, plan, false)
+        if (plan) root.askCredentials(id, plan)
         else root.connectInTerminal(id)
       } else if (plan && plan.askFirst) {
-        root.askCredentials(id, plan, false)
+        root.askCredentials(id, plan)
       } else {
         root.run("up", id)
       }
@@ -242,7 +237,6 @@ Scope {
       } else if (exitCode === 0) {
         if (withCredentials) root.cancelCredentials()
       } else if (action === "up") {
-        var plan = root.credentialsId === id ? root.credentialsPlan : null
         if (Model.needsSecrets(actionStderr.text)) {
           // No agent answered for this profile's password: ask for it here
           // when the plugin is one whose sign-in is a name and a password,
@@ -250,9 +244,11 @@ Scope {
           // name and password didn't cover.
           if (withCredentials) root.connectInTerminal(id)
           else root.readDetails(id, true)
-        } else if (withCredentials) {
-          root.askCredentials(id, plan, true)
         } else {
+          // Anything else (a server that doesn't answer, a refused login,
+          // a profile edit that failed) reads as any failed connect: the row
+          // says so, and the next click asks again if it still needs to.
+          if (withCredentials) root.cancelCredentials()
           root.failedId = id
         }
       }

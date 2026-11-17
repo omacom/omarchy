@@ -14,7 +14,6 @@ QtObject {
   property string credentialsId: ""
   property string credentialsUser: ""
   property bool credentialsNeedUser: false
-  property bool credentialsFailed: false
   signal handedToTerminal(string id)
   function toggle(connection) {}
   function submitCredentials(username, password) {}

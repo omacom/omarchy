@@ -40,6 +40,7 @@ source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
       property alias testVpnTop: vpnTopSection
       property alias testVpnBottom: vpnBottomSection
       property alias testNetworkList: networkList
+      property alias testDns: dnsSection
 `)
 source = source.replace('  id: root', `  id: root
   function testEnsureContent() { return panel.ensureContent() }

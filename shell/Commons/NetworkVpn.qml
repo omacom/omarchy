@@ -57,7 +57,6 @@ Singleton {
   readonly property string credentialsId: networkManager.credentialsId
   readonly property string credentialsUser: networkManager.credentialsUser
   readonly property bool credentialsNeedUser: networkManager.credentialsNeedUser
-  readonly property bool credentialsFailed: networkManager.credentialsFailed
 
   // A connect moved to a terminal; whatever holds keyboard focus over it (the
   // network panel) should let go.

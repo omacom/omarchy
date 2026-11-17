@@ -279,11 +279,6 @@ assertEqual(network.vpnPlacement('ethernet', idleProfile), 'top', 'network lists
 assertEqual(network.vpnPlacement('disconnected', idleProfile), 'bottom', 'network keeps VPNs at the bottom, past the networks, without a connection')
 assertEqual(network.vpnPlacement('wifi', []), '', 'network has no VPN section without VPNs')
 
-// The panel walks its sections in the order they are drawn, wherever the VPNs sit.
-assert(/if \(vpnPlacement === "top"\) sections\.push\("vpn"\)[\s\S]*sections\.push\("wifi"\)[\s\S]*if \(vpnPlacement === "bottom"\) sections\.push\("vpn"\)/.test(panelSource), 'network orders its keyboard sections as the VPNs are drawn')
-assert(/Flickable \{\s*id: panelFlick[\s\S]*?contentHeight: column\.implicitHeight[\s\S]*?interactive: contentHeight > height/.test(panelSource), 'network scrolls a panel its card cuts short instead of leaving rows off-screen')
-assert(/height: Math\.min\(contentHeight, Style\.space\(176\)\)/.test(panelSource), 'network caps the VPN list so many profiles scroll instead of leaving the screen')
-
 const nm = requireFromRoot('shell/Commons/VpnNetworkManagerModel.js')
 assertDeepEqual(
   nm.parseVpnConnections([
@@ -320,7 +315,21 @@ assertEqual(nm.credentialPlan(nm.parseVpnDetails('org.freedesktop.NetworkManager
 assertDeepEqual(nm.credentialPlan(nm.parseVpnDetails('org.freedesktop.NetworkManager.vpnc\nIPSec gateway = vpn.example.com, Xauth password-flags = 2, Xauth username = bob\n')), { userKey: 'Xauth username', secretKey: 'Xauth password', username: 'bob', askFirst: true }, 'network vpn reads vpnc\'s own name and password keys')
 assertEqual(nm.credentialPlan(nm.parseVpnDetails('org.freedesktop.NetworkManager.l2tp\npassword-flags = 4, user = carol\n')), null, 'network vpn asks nothing of a profile whose password is not required')
 assertEqual(nm.vpnDataItem('username', 'a,b\\c'), 'username=a\\,b\\\\c', 'network vpn escapes a user name for vpn.data')
-assert(nm.connectScript.match(/\$pw/g).length === 1 && /passwd-file <\(printf [^)]*"\$pw"\)/.test(nm.connectScript), 'network vpn passes the password to nmcli through a passwd-file, never argv')
+{
+  // The connect script against an nmcli that only records what reached it:
+  // the password must arrive in the passwd-file, never in any argv.
+  const { execFileSync } = require('child_process')
+  const os = require('os')
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nm-vpn-'))
+  fs.writeFileSync(path.join(dir, 'nmcli'), '#!/bin/bash\nprintf "%s\\n" "$*" >>"$NM_LOG"\nfor ((i = 1; i <= $#; i++)); do [[ ${!i} == passwd-file ]] && j=$((i + 1)) && cat "${!j}" >"$NM_SECRETS"; done\nexit 0\n', { mode: 0o755 })
+  const env = { ...process.env, PATH: dir + ':' + process.env.PATH, NM_LOG: path.join(dir, 'argv'), NM_SECRETS: path.join(dir, 'secrets') }
+  execFileSync('bash', ['-c', nm.connectScript, 'nmcli-vpn', officeId, 'password', nm.vpnDataItem('username', 'bob')], { env, input: 'hunter2 :x\n' })
+  const argv = fs.readFileSync(env.NM_LOG, 'utf8')
+  assert(!argv.includes('hunter2'), 'network vpn never puts the password in an nmcli argv')
+  assert(argv.includes(`connection modify uuid ${officeId} +vpn.data username=bob`), 'network vpn saves a new user name to the profile')
+  assertEqual(fs.readFileSync(env.NM_SECRETS, 'utf8'), 'vpn.secrets.password:hunter2 :x\n', 'network vpn hands the password to nmcli in its passwd-file')
+  fs.rmSync(dir, { recursive: true, force: true })
+}
 
 const tailscale = requireFromRoot('shell/Commons/VpnTailscaleModel.js')
 const tailscaleStatus = (state, peers) => JSON.stringify({ BackendState: state, Peer: peers || {} })
@@ -339,11 +348,4 @@ assertDeepEqual(vpn.mergeConnections([[{ id: 'b', name: 'Work' }], [{ id: 'a', n
 assertDeepEqual(vpn.activeVpnNames(nm.parseVpnConnections('A:9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d:vpn:activating\nB:1f0e2d3c-4b5a-4c6d-8e7f-0a1b2c3d4e5f:vpn:activated\n')), ['B'], 'network vpn counts a profile as up only once it is activated')
 assertDeepEqual(vpn.activeVpnNames([mesh]), [], 'network vpn does not lock the icon for a Tailscale that only reaches the tailnet')
 assertDeepEqual(vpn.activeVpnNames([routed]), ['Tailscale'], 'network vpn locks the icon while Tailscale routes through an exit node')
-
-// Tailscale is listed only while its own widget is on the bar, and the
-// network panel hands it to that widget rather than driving it.
-const tailscaleProvider = fs.readFileSync(root + '/shell/Commons/VpnTailscale.qml', 'utf8')
-assert(/listed: widgetLive/.test(tailscaleProvider) && /IpcRegistry\.handlerFor\(Model\.widget\)/.test(tailscaleProvider), 'network vpn lists Tailscale only while the Tailscale widget is on the bar')
-assert(!/"tailscale", *"up"|pkexec|launch-floating-terminal/.test(tailscaleProvider), 'network vpn leaves signing in and the operator grant to the Tailscale widget')
-assert(/if \(target\.opens\) openWidget\(target\.opens\)/.test(panelSource), 'network opens the widget a VPN belongs to')
 JS

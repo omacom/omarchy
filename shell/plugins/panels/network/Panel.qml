@@ -240,8 +240,6 @@ Panel {
   Connections {
     target: Commons.NetworkVpn
     function onHandedToTerminal(id) { if (root.opened) root.close() }
-    // A failed sign-in asks again with the name kept and the password cleared.
-    function onCredentialsFailedChanged() { if (Commons.NetworkVpn.credentialsFailed) root.vpnPasswordText = "" }
   }
 
   function vpnIndexFor(id) {
@@ -295,8 +293,7 @@ Panel {
   function revealWifi() {
     var list = panel.loadedContent ? panel.loadedContent.networkList : null
     if (!list || selectedIndex < 0) return
-    list.positionViewAtIndex(selectedIndex, ListView.Contain)
-    scrollIntoView(list.currentItem)
+    scrollIntoView(list, selectedIndex)
   }
 
   // Scrolls the keyboard's VPN row into view: the VPN list to the row, then
@@ -305,19 +302,34 @@ Panel {
   function revealVpn() { vpnRevealRequested() }
 
   // Scrolls the panel so `item` is on screen, for a card the screen's
-  // height cuts short.
-  function scrollIntoView(item) {
-    var flick = panel.loadedContent ? panel.loadedContent.panelFlick : null
+  // height cuts short; with `index`, `item` is a ListView and the row at
+  // that index is what must show. Deferred until the cursor has settled:
+  // callLater keeps one pending call per function, with the latest
+  // arguments, so the last row asked for wins.
+  function scrollIntoView(item, index) {
+    if (item) Qt.callLater(scrollIntoViewNow, item, index === undefined ? -1 : index)
+  }
+
+  function scrollIntoViewNow(item, index) {
+    var content = panel.loadedContent
+    var flick = content ? content.panelFlick : null
     if (!flick || !item) return
-    Qt.callLater(function() {
-      if (!item || !flick.interactive) return
-      var margin = Style.space(6)
-      var top = item.mapToItem(flick.contentItem, 0, 0).y
-      var bottom = top + item.height
-      var maxY = Math.max(0, flick.contentHeight - flick.height)
-      if (top < flick.contentY + margin) flick.contentY = Math.max(0, top - margin)
-      else if (bottom > flick.contentY + flick.height - margin) flick.contentY = Math.min(maxY, bottom + margin - flick.height)
-    })
+    // A move between sections changes which lists build rows, and lists
+    // and the column otherwise settle only at the next frame: measure what
+    // will be drawn, not the layout from before the move. A list's row is
+    // looked up only then, once it exists.
+    content.settleLayout()
+    if (index >= 0) {
+      item.positionViewAtIndex(index, ListView.Contain)
+      item = item.itemAtIndex(index)
+    }
+    if (!item || !flick.interactive) return
+    var margin = Style.space(6)
+    var top = item.mapToItem(flick.contentItem, 0, 0).y
+    var bottom = top + item.height
+    var maxY = Math.max(0, flick.contentHeight - flick.height)
+    if (top < flick.contentY + margin) flick.contentY = Math.max(0, top - margin)
+    else if (bottom > flick.contentY + flick.height - margin) flick.contentY = Math.min(maxY, bottom + margin - flick.height)
   }
 
   // A VPN that belongs to its own bar widget (Tailscale) opens that widget,
@@ -1446,6 +1458,26 @@ Panel {
         else if (t === "w" || t === "W") root.toggleNetwork()
       }
 
+    function settleLayout() {
+      vpnTopSection.list.forceLayout()
+      networkList.forceLayout()
+      vpnBottomSection.list.forceLayout()
+      column.forceLayout()
+    }
+
+    // The cursor moving to a control above the lists scrolls it back into
+    // view; the lists reveal their own rows.
+    Connections {
+      target: root
+      function onFocusSectionChanged() {
+        var section = root.focusSection
+        root.scrollIntoView(section === "header" ? heroSection
+          : section === "portal" ? portalAction
+          : section === "band" ? bandSection
+          : section === "dns" ? dnsSection : null)
+      }
+    }
+
     // The card is capped at the screen's height, so whatever doesn't fit
     // scrolls, and the keyboard's row is scrolled into view (scrollIntoView).
     Flickable {
@@ -1466,6 +1498,7 @@ Panel {
 
       // ---------- Hero: network icon · SSID + state · actions ----------
       Item {
+        id: heroSection
         width: parent.width
         implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroActions.implicitHeight)
 
@@ -1687,6 +1720,7 @@ Panel {
       }
 
       Column {
+        id: bandSection
         visible: root.canSelectBand
         width: parent.width
         spacing: Style.space(10)
@@ -1816,6 +1850,7 @@ Panel {
       }
 
       Column {
+        id: dnsSection
         width: parent.width
         spacing: Style.space(10)
 
@@ -1906,11 +1941,7 @@ Panel {
 
         model: root.wifiStationAvailable ? root.wifiNetworks : []
         currentIndex: root.selectedIndex
-        onCurrentIndexChanged: {
-          if (currentIndex < 0) return
-          positionViewAtIndex(currentIndex, ListView.Contain)
-          root.scrollIntoView(currentItem)
-        }
+        onCurrentIndexChanged: if (currentIndex >= 0) root.scrollIntoView(networkList, currentIndex)
 
         // Wrapper takes the required props from ListView's delegate context
         // (which doesn't bind into nested `component` declarations like
@@ -2066,9 +2097,7 @@ Panel {
       onCurrentIndexChanged: reveal()
 
       function reveal() {
-        if (!visible || currentIndex < 0) return
-        positionViewAtIndex(currentIndex, ListView.Contain)
-        root.scrollIntoView(currentItem)
+        if (visible && currentIndex >= 0) root.scrollIntoView(vpnList, currentIndex)
       }
 
       Connections {
@@ -2108,7 +2137,6 @@ Panel {
     readonly property bool isFailed: connectionId !== "" && Commons.NetworkVpn.failedId === connectionId
     readonly property bool needsLogin: vpnState === "login"
     readonly property bool isPromptOpen: connectionId !== "" && root.vpnCredentialsId === connectionId
-    readonly property bool promptFailed: isPromptOpen && Commons.NetworkVpn.credentialsFailed && !isPending
     readonly property string exitNode: connection && connection.exitNode ? connection.exitNode : ""
 
     readonly property string statusText: {
@@ -2264,17 +2292,6 @@ Panel {
         anchors.top: parent.top
         spacing: Style.space(4)
 
-        Text {
-          textFormat: Text.PlainText
-          visible: vpnRow.promptFailed
-          text: Commons.I18n.t("network.vpnSignInFailed")
-          color: root.bar.urgent
-          font.family: root.bar.fontFamily
-          font.pixelSize: Style.font.caption
-          elide: Text.ElideRight
-          width: parent.width
-        }
-
         TextField {
           id: vpnUserField
           visible: credentialsPanel.needUser
@@ -2346,17 +2363,13 @@ Panel {
       }
 
       // The name first when there is none yet, otherwise straight to the
-      // password; again after a failed attempt, once the fields are back.
+      // password.
       function focusFirstField() {
         if (!open || vpnRow.isPending) return
         if (needUser && root.vpnUserText === "") vpnUserField.forceActiveFocus()
         else vpnPasswordField.forceActiveFocus()
       }
       Component.onCompleted: if (open) Qt.callLater(focusFirstField)
-      Connections {
-        target: vpnRow
-        function onIsPendingChanged() { if (!vpnRow.isPending) Qt.callLater(credentialsPanel.focusFirstField) }
-      }
     }
   }
 

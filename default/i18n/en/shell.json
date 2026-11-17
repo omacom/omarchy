@@ -476,7 +476,6 @@
   "network.vpn": "VPN",
   "network.vpnExitNode": "Connected via %1",
   "network.vpnPassword": "Password",
-  "network.vpnSignInFailed": "Couldn't connect with that user name and password",
   "network.vpnTooltip": "VPN: %1",
   "network.vpnUsername": "User name",
   "network.wifiBand": "WI-FI BAND",
