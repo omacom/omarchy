@@ -404,6 +404,23 @@ fi
 grep -q "^@@omarchy error That's Events" "$test_tmp/events-dup" || fail "--events reports a failure as a tagged line" "$(cat "$test_tmp/events-dup")"
 pass "--events reports progress and results for the panel"
 
+# An account that's added but can't be made active says so, rather than
+# claiming tokens now flow from it.
+: >"$notifications"
+cat >"$mock_bin/omarchy-agent-account-state" <<SH
+#!/bin/bash
+[[ \$1 == use ]] && exit 1
+exec "$ROOT/bin/omarchy-agent-account-state" "\$@"
+SH
+chmod +x "$mock_bin/omarchy-agent-account-state"
+OMARCHY_TEST_LOGIN_UUID=u-stuck OMARCHY_TEST_LOGIN_EMAIL=stuck@example.com \
+  omarchy-agent-account-add --events claude Stuck </dev/null >"$test_tmp/stuck-output"
+rm "$mock_bin/omarchy-agent-account-state"
+grep -qx "@@omarchy done Added Stuck (stuck@example.com), but couldn't switch new sessions to it." "$test_tmp/stuck-output" ||
+  fail "an added account that can't be selected says so" "$(cat "$test_tmp/stuck-output")"
+! grep -q "ready for more" "$notifications" || fail "an added account that can't be selected isn't announced as ready" "$(cat "$notifications")"
+pass "an added account that can't be selected says so"
+
 # A lazy mise tool's command is on PATH before its CLI is: mise's account
 # wrapper and its shim. The download happens before the login, with its
 # progress reported, rather than silently inside it. Only the mocks the add

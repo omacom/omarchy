@@ -108,6 +108,23 @@ finish() {
   fi
 }
 
+# Accounts just added, fresh or recovered, are the ones you want tokens from
+# next, so new sessions switch to the newest. Running sessions stay where they
+# are. If the choice can't be saved, the accounts are still added and say so.
+announce_added() {
+  local added newest
+  added=$(jq -r 'map(.label + (if .email != "" then " (" + .email + ")" else "" end)) | join(", ")' <<<"$1")
+  newest=$(jq -c 'last' <<<"$1")
+  if omarchy-agent-account-state use "$provider" "$(jq -r .id <<<"$newest")" >/dev/null; then
+    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+    finish "$(omarchy-i18n agents.added "$added")" more "$(jq -r .label <<<"$newest")"
+    [[ $events == "true" ]] || echo "New $name sessions now use $(jq -r .label <<<"$newest")."
+  else
+    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
+    finish "$(omarchy-i18n agents.addedNotSelected "$added")"
+  fi
+}
+
 fail() {
   if [[ $events == "true" ]]; then
     printf '@@omarchy error %s\n' "$1"
@@ -278,9 +295,7 @@ else
   # asking for another browser login. Live sign-ins are never recovered.
   if recovered=$(omarchy-agent-account-state recover "$provider"); then
     if [[ $(jq 'length' <<<"$recovered") != "0" ]]; then
-      added=$(jq -r 'map(.label + (if .email != "" then " (" + .email + ")" else "" end)) | join(", ")' <<<"$recovered")
-      omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
-      finish "$(omarchy-i18n agents.added "$added")"
+      announce_added "$recovered"
       exit 0
     fi
   else
@@ -311,13 +326,7 @@ EOF
 
   if account=$(omarchy-agent-account-state register "$provider" "$label" "$home" 2>&1); then
     home=""
-    added=$(jq -r '.label + (if .email != "" then " (" + .email + ")" else "" end)' <<<"$account")
-    # A subscription just added is the one you want tokens from next, so new
-    # sessions switch to it. Running sessions stay where they are.
-    omarchy-agent-account-state use "$provider" "$(jq -r .id <<<"$account")" >/dev/null
-    omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
-    finish "$(omarchy-i18n agents.added "$added")" more "$(jq -r .label <<<"$account")"
-    [[ $events == "true" ]] || echo "New $name sessions now use $(jq -r .label <<<"$account")."
+    announce_added "[$account]"
   else
     registration_status=$?
     # Keep the home for cleanup when registration was explicitly interrupted.

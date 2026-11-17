@@ -12,6 +12,7 @@
   "about.uptime": "Uptime",
   "agents.addFailed": "Couldn't add the %1 account",
   "agents.added": "Added %1.",
+  "agents.addedNotSelected": "Added %1, but couldn't switch new sessions to it.",
   "agents.allOver": "All %1 accounts are over %2%",
   "agents.atLimit": "%1 is at %2% of a %3 limit",
   "agents.durationDaysHours": "%1d %2h",
