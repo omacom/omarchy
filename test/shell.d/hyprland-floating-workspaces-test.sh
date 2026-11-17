@@ -1178,6 +1178,76 @@ assert(tile_of(maximized) == "top", "a later press did not start from the window
 fi
 pass "quick arrows on a maximized window build on each other"
 
+# Moving to another monitor, by key and by drag, through the real handlers: a
+# laptop (1280x720) with a 2560x1440 monitor to its right.
+monitors_setup='
+laptop = { name = "eDP-1", x = 0, y = 0, width = 1280, height = 720, scale = 1, transform = 0,
+  reserved = { left = 0, top = 30, right = 0, bottom = 0 }, active_workspace = { id = 1 } }
+big = hl.get_monitors()[1]
+big.x = 1280
+hl.get_monitors = function() return { laptop, big } end
+hl.get_monitor_at = function(x) if x < 1280 then return laptop end return big end
+hl.get_monitor = function(name) if name == laptop.name then return laptop end return big end
+G = o.snap.geometry
+gaps = { outer = { left = 10, top = 10, right = 10, bottom = 10 }, inner = 5 }
+function on_screen(w, m)
+  return w.at.x - 2 >= m.x and w.at.y - 32 >= m.y + 30 and w.at.x + w.size.x + 2 <= m.x + m.width and w.at.y + w.size.y + 2 <= m.y + m.height
+end
+function tile_on(w, m)
+  local area = { x = m.x, y = m.y + 30, w = m.width, h = m.height - 30 }
+  return G.tile_of(G.outer_box({ x = w.at.x, y = w.at.y, w = w.size.x, h = w.size.y }, { left = 2, top = 32, right = 2, bottom = 2 }), area, gaps)
+end
+'
+if ! run_lua "$snap_setup$monitors_setup"'
+-- A laptop half moved by key is a half of the big monitor.
+local half = snap_window("0x1", 1)
+half.monitor, half.at, half.size = laptop, { x = 12, y = 72 }, { x = 621, y = 636 }
+local before = { x = 12, y = 72, w = 621, h = 636 }
+half.monitor = big
+o.snap.carried(half.address, laptop, before)
+assert(tile_on(half, big) == "left", "a laptop half moved by key is not the big monitor half")
+
+-- A window whose minimum size stops the scaling stays wholly on the laptop.
+local wide = snap_window("0x2", 1)
+wide.monitor, wide.at, wide.size = big, { x = 3500, y = 100 }, { x = 300, y = 200 }
+minimum = { x = 300, y = 200 }
+before = { x = 3500, y = 100, w = 300, h = 200 }
+wide.monitor = laptop
+o.snap.carried(wide.address, big, before)
+minimum = nil
+assert(wide.size.x == 300 and wide.size.y == 200, "a window was made smaller than it allows: " .. wide.size.x .. "x" .. wide.size.y .. " at " .. wide.at.x .. "," .. wide.at.y)
+assert(on_screen(wide, laptop), "a window held at its minimum size went partly off the laptop: " .. wide.at.x .. "," .. wide.at.y)
+'; then
+  fail "moved to another monitor by key, a window fits it, within its own limits"
+fi
+pass "moved to another monitor by key, a window fits it, within its own limits"
+
+if ! run_lua "$snap_setup$monitors_setup"'
+local s = state()
+local function emit(event, ...) for _, callback in ipairs(s.subscriptions[event]) do callback(...) end end
+-- Too big for the laptop, dropped on it away from an edge: it fits.
+local big_window = snap_window("0x1", 1)
+big_window.monitor, big_window.at, big_window.size = big, { x = 1500, y = 200 }, { x = 1500, y = 1100 }
+emit("hyprbars.drag_start", big_window, 2000, 210)
+big_window.monitor, big_window.at = laptop, { x = 100, y = 100 }
+emit("hyprbars.drag_move", big_window, 600, 110)
+emit("hyprbars.drag_end", big_window, 600, 110)
+assert(on_screen(big_window, laptop), "a window too big for the laptop hangs off it after the drop")
+
+-- A dialog dropped onto a tiled workspace is left as it is: fitting is for floating workspaces.
+local dialog = window("0x2", 1, { floating = true })
+dialog.monitor, dialog.at, dialog.size = big, { x = 1500, y = 200 }, { x = 1500, y = 1100 }
+emit("hyprbars.drag_start", dialog, 2000, 210)
+dialog.monitor, dialog.workspace, dialog.at = laptop, { id = 2 }, { x = 100, y = 100 }
+emit("hyprbars.drag_move", dialog, 600, 110)
+dispatched = {}
+emit("hyprbars.drag_end", dialog, 600, 110)
+assert(not find("place"), "a window dropped onto a tiled workspace was resized")
+'; then
+  fail "dropped on another monitor, a window fits it, and only on a floating workspace"
+fi
+pass "dropped on another monitor, a window fits it, and only on a floating workspace"
+
 # A tile a window can't fill leaves it alone: no move, no flicker.
 if ! run_lua "$snap_setup"'
 focused = snap_window("0x1", 1)

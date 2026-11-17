@@ -94,6 +94,22 @@ local function fits(window, client)
     or (max.x and client.w > max.x + 1) or (max.y and client.h > max.y + 1))
 end
 
+-- A client size held within the window's own limits, where the titlebars
+-- plugin can tell them; Hyprland would clamp it there anyway.
+local function within_limits(window, w, h)
+  local titlebars = plugin()
+  local ok, limits = pcall(function() return titlebars and titlebars.limits(window) end)
+  if not ok or type(limits) ~= "table" then
+    return w, h
+  end
+  local min, max = limits.min or {}, limits.max or {}
+  if min.x then w = math.max(w, min.x) end
+  if min.y then h = math.max(h, min.y) end
+  if max.x then w = math.min(w, max.x) end
+  if max.y then h = math.min(h, max.y) end
+  return w, h
+end
+
 local function area(monitor)
   return G.usable({
     x = monitor.x, y = monitor.y, width = monitor.width, height = monitor.height,
@@ -352,7 +368,9 @@ local function dropped(window)
     hl.timer(function()
       local target = by_address(current.address)
       local monitor = target and target.monitor
-      if not monitor or monitor.name == current.from or (target.fullscreen or 0) ~= 0 then
+      -- Only on a floating workspace: a dialog dropped onto a tiled one floats
+      -- there on its own account.
+      if not monitor or monitor.name == current.from or not snappable(target) or (target.fullscreen or 0) ~= 0 then
         return
       end
       local around = extents(target)
@@ -567,10 +585,11 @@ function M.carried(address, from, before)
     M.place(window, tile, to)
     return
   end
+  -- Its own limits win over the screen's; then all of it goes on the screen at
+  -- the size it really takes.
   local client = G.client_box(outer, around)
-  if fits(window, client) == false then
-    client.w, client.h = before.w, before.h -- its own limits win over the screen's
-  end
+  client.w, client.h = within_limits(window, client.w, client.h)
+  client = G.client_box(G.fit(G.outer_box(client, around), area(to)), around)
   hl.dispatch(hl.dsp.window.resize({ x = client.w, y = client.h, relative = false, window = window }))
   hl.dispatch(hl.dsp.window.move({ x = client.x, y = client.y, relative = false, window = window }))
 end
