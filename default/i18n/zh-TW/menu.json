@@ -664,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -687,9 +684,6 @@
   },
   "install.service.microsoft": {
     "label": "Microsoft"
-  },
-  "install.service.chromium-account": {
-    "label": "Chromium 帳號"
   },
   "install.editor.vscode": {
     "label": "VSCode"
@@ -1327,5 +1321,27 @@
   },
   "agent.make.app": {
     "label": "製作應用程式"
+  },
+  "install.browser.chromium": {
+    "label": "Chromium"
+  },
+  "remove.browser.chromium": {
+    "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "圖示"
+  },
+  "install.style.icons": {
+    "label": "圖示"
+  },
+  "remove.icons": {
+    "label": "圖示"
+  },
+  "update.icons": {
+    "label": "額外圖示"
+  },
+  "system.firmware": {
+    "label": "重新啟動至 BIOS",
+    "description": "重新啟動並進入 UEFI 韌體設定"
   }
 }

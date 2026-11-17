@@ -14,8 +14,11 @@ bluez-utils
 bolt
 brightnessctl
 btop
-chromium
+cards
+checkmate
 cliamp
+cmake
+crun
 cups
 cups-filters
 cups-pk-helper
@@ -50,6 +53,7 @@ git
 gliff
 gnome-keyring
 gnome-themes-extra
+google-chrome
 grim
 gpu-screen-recorder
 gum
@@ -64,7 +68,6 @@ hyprland-preview-share-picker
 hyprpicker
 hyprsunset
 imagemagick
-imv
 inetutils
 inotify-tools
 inxi
@@ -84,8 +87,6 @@ man-db
 mariadb-libs
 mise-bin
 monologue
-mpv
-mpv-mpris
 gnome-disk-utility
 noto-fonts
 noto-fonts-cjk
@@ -95,10 +96,11 @@ nvim
 obsidian
 omacalc
 omacut
+omaview
 omawrite
 omarchy-nvim
 omarchy-hyprland-titlebars
-# Local model recipes and their engine; Podman comes when a model is set up.
+# Local model recipes and their engine.
 omarchy-local-ai
 # Stock power-profiles-daemon has no cppc_cpufreq driver, so profiles do nothing
 # on ARM laptops. Back to stock once upstream merges MR !236 and !239.
@@ -114,6 +116,7 @@ pinta
 plain
 plocate
 plymouth
+podman
 postgresql-libs
 python-gobject
 python-poetry-core
@@ -138,6 +141,7 @@ socat
 starship
 superwhisper-bin
 system-config-printer
+terminus-font
 tesseract
 tesseract-data-eng
 tldr
@@ -164,7 +168,7 @@ xdg-desktop-portal-gtk
 xdg-desktop-portal-hyprland
 xdg-terminal-exec
 xdg-user-dirs
-yaru-icon-theme
+xorg-xrandr
 yay
 yt-dlp
 zbar
