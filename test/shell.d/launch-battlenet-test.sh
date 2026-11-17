@@ -4,92 +4,141 @@ set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-require_command jq
+tmp_dir="$(mktemp -d)"
+wineserver_pid=""
+hidden_pid=""
+trap 'kill $wineserver_pid $hidden_pid 2>/dev/null; rm -rf "$tmp_dir"' EXIT
 
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
+mkdir -p "$tmp_dir/bin" "$tmp_dir/home"
+export TEST_LOG="$tmp_dir/log"
+export PATH="$tmp_dir/bin:$ROOT/bin:$PATH"
+export HOME="$tmp_dir/home"
 
-mock_bin="$test_tmp/bin"
-prefix="$test_tmp/Games/battlenet"
-launcher="$prefix/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe"
-mkdir -p "$(dirname "$launcher")" "$mock_bin"
-: >"$launcher"
+prefix="$HOME/Games/battlenet"
+mkdir -p "$prefix/drive_c/Program Files (x86)/Battle.net"
+touch "$prefix/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe"
+# umu points WINEPREFIX at pfx/, a link back to the prefix itself.
+ln -s . "$prefix/pfx"
 
-cat >"$mock_bin/hyprctl" <<'SH'
-#!/bin/bash
-if [[ ${1:-} == clients ]]; then
-  printf '%s\n' "${OMARCHY_TEST_CLIENTS_JSON:-[]}"
-  exit 0
-fi
-if [[ ${1:-} == dispatch ]]; then
-  printf 'focus:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
-  exit 0
-fi
-exit 0
-SH
+# Wine's default 96 DPI, under both keys a prefix carries it in.
+write_registry() {
+  cat >"$prefix/user.reg" <<'REG'
+[Control Panel\\Desktop] 1793676771
+#time=1dd5ff435e0edbe
+"LogPixels"=dword:00000060
+"MenuShowDelay"="400"
 
-# Real jq is used (require_command jq). pgrep stub returns canned process lines.
-cat >"$mock_bin/pgrep" <<'SH'
-#!/bin/bash
-[[ $* == "-af umu-run" ]] || exit 2
-if [[ -n ${OMARCHY_TEST_PGREP_LINES:-} ]]; then
-  printf '%s\n' "$OMARCHY_TEST_PGREP_LINES"
-  exit 0
-fi
-exit 1
-SH
-
-cat >"$mock_bin/umu-run" <<'SH'
-#!/bin/bash
-printf 'launch:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
-SH
-
-cat >"$mock_bin/omarchy-notification-send" <<'SH'
-#!/bin/bash
-printf 'notify:%s\n' "$*" >>"$OMARCHY_TEST_LOG"
-SH
-
-chmod +x "$mock_bin"/*
-
-launch_log="$test_tmp/launch-log"
-run_launch() {
-  : >"$launch_log"
-  HOME="$test_tmp" PATH="$mock_bin:$ROOT/bin:$PATH" OMARCHY_TEST_LOG="$launch_log" \
-    bash "$ROOT/bin/omarchy-launch-battlenet" "$@"
+[Software\\Wine\\Fonts] 1793677064
+"LogPixels"=dword:00000060
+REG
 }
 
-export OMARCHY_TEST_CLIENTS_JSON='[]'
-unset OMARCHY_TEST_PGREP_LINES
-run_launch
-grep -Fq 'launch:' "$launch_log" || fail "launcher starts umu-run when no Battle.net tree exists"
-pass "launcher starts umu-run when no Battle.net tree exists"
+# A fresh prefix only has the Fonts copy, which Wine writes but never reads.
+write_fresh_registry() {
+  cat >"$prefix/user.reg" <<'REG'
+[Control Panel\\Desktop] 1793676771
+#time=1dd5ff435e0edbe
+"MenuShowDelay"="400"
 
-export OMARCHY_TEST_CLIENTS_JSON='[{"class":"battle.net.exe","title":"Battle.net","address":"0xabc"}]'
-unset OMARCHY_TEST_PGREP_LINES
-run_launch
-grep -Fq 'focus:' "$launch_log" || fail "launcher focuses an existing Battle.net window"
-grep -Fq 'address:0xabc' "$launch_log" || fail "launcher focuses the Battle.net window address"
-grep -Fq 'launch:' "$launch_log" && fail "launcher must not stack umu-run when a window exists"
-pass "launcher focuses an existing Battle.net window"
+[Software\\Wine\\Fonts] 1793677064
+"LogPixels"=dword:00000060
+REG
+}
 
-# Title-only match must NOT steal focus (browser tab / Ghostty cwd).
-export OMARCHY_TEST_CLIENTS_JSON='[{"class":"chromium","title":"Battle.net - Chromium","address":"0xbad"}]'
-unset OMARCHY_TEST_PGREP_LINES
-run_launch
-grep -Fq 'focus:' "$launch_log" && fail "launcher must not focus title-only Battle.net matches"
-grep -Fq 'launch:' "$launch_log" || fail "launcher starts when only a title match exists"
-pass "launcher ignores title-only Battle.net window matches"
+echo '[]' >"$tmp_dir/clients"
+cat >"$tmp_dir/bin/hyprctl" <<SCRIPT
+#!/bin/bash
+case \$1 in
+  clients) cat "$tmp_dir/clients" ;;
+  dispatch) printf 'dispatch:%s\n' "\$*" >>"\$TEST_LOG" ;;
+  *) printf '[{"name":"DP-1","focused":false,"scale":1},{"name":"HDMI-A-1","focused":true,"scale":%s}]\n' "\$(cat "$tmp_dir/scale")" ;;
+esac
+SCRIPT
+cat >"$tmp_dir/bin/umu-run" <<'SCRIPT'
+#!/bin/bash
+printf 'umu-run:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+cat >"$tmp_dir/bin/omarchy-notification-send" <<'SCRIPT'
+#!/bin/bash
+printf 'notify:%s\n' "$*" >>"$TEST_LOG"
+SCRIPT
+chmod +x "$tmp_dir/bin/hyprctl" "$tmp_dir/bin/umu-run" "$tmp_dir/bin/omarchy-notification-send"
 
-export OMARCHY_TEST_CLIENTS_JSON='[]'
-export OMARCHY_TEST_PGREP_LINES="12345 python3 /usr/bin/umu-run $prefix/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe"
-run_launch
-grep -Fq 'launch:' "$launch_log" && fail "launcher must not stack umu-run when a headless tree exists"
-grep -Fq 'notify:' "$launch_log" || fail "launcher notifies when refusing a headless relaunch"
-pass "launcher refuses to stack a headless Battle.net tree"
+# A fractional scale rounds to the nearest DPI: 1.6 x 96 = 153.6, so 154.
+write_registry
+echo 1.6 >"$tmp_dir/scale"
+"$ROOT/bin/omarchy-launch-battlenet"
 
-# Sibling prefix must not count as running.
-export OMARCHY_TEST_CLIENTS_JSON='[]'
-export OMARCHY_TEST_PGREP_LINES="99999 python3 /usr/bin/umu-run ${prefix}-old/drive_c/x"
-run_launch
-grep -Fq 'launch:' "$launch_log" || fail "launcher starts when only a battlenet-old sibling tree exists"
-pass "launcher ignores battlenet-old sibling umu-run trees"
+[[ $(grep -c '^"LogPixels"=dword:0000009a$' "$prefix/user.reg") == "2" ]] ||
+  fail "Battle.net launch matches the DPI to the focused monitor's scale" "$(cat "$prefix/user.reg")"
+grep -q '^"MenuShowDelay"="400"$' "$prefix/user.reg" ||
+  fail "Battle.net launch matches the DPI to the focused monitor's scale" "other registry values changed"
+grep -q '^umu-run:.*Battle.net Launcher.exe$' "$TEST_LOG" ||
+  fail "Battle.net launch matches the DPI to the focused monitor's scale" "launcher never started"
+pass "Battle.net launch matches the DPI to the focused monitor's scale"
+
+# A fresh prefix has no DPI under [Control Panel\\Desktop] yet, so the launch
+# adds one after the key's #time line.
+write_fresh_registry
+echo 2 >"$tmp_dir/scale"
+"$ROOT/bin/omarchy-launch-battlenet"
+
+[[ $(sed -n '2,4p' "$prefix/user.reg") == $'#time=1dd5ff435e0edbe\n"LogPixels"=dword:000000c0\n"MenuShowDelay"="400"' ]] ||
+  fail "Battle.net launch adds the DPI to a fresh prefix" "$(cat "$prefix/user.reg")"
+[[ $(grep -c '^"LogPixels"=dword:000000c0$' "$prefix/user.reg") == "2" ]] ||
+  fail "Battle.net launch adds the DPI to a fresh prefix" "$(cat "$prefix/user.reg")"
+pass "Battle.net launch adds the DPI to a fresh prefix"
+
+# While the prefix's wineserver runs, the registry is its to write back on
+# exit, so the launch leaves it alone and still hands off to the launcher.
+ln -s "$(command -v sleep)" "$tmp_dir/wineserver"
+WINEPREFIX="$prefix/pfx/" "$tmp_dir/wineserver" 60 >/dev/null 2>&1 &
+wineserver_pid=$!
+write_registry
+echo 2 >"$tmp_dir/scale"
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-battlenet"
+
+[[ $(grep -c '^"LogPixels"=dword:00000060$' "$prefix/user.reg") == "2" ]] ||
+  fail "Battle.net launch leaves a running prefix's DPI alone" "$(cat "$prefix/user.reg")"
+grep -q '^umu-run:.*Battle.net Launcher.exe$' "$TEST_LOG" ||
+  fail "Battle.net launch leaves a running prefix's DPI alone" "launcher never started"
+pass "Battle.net launch leaves a running prefix's DPI alone"
+
+# A Battle.net window already open is focused rather than launched again.
+echo '[{"class":"battle.net.exe","title":"Battle.net","address":"0xabc"}]' >"$tmp_dir/clients"
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-battlenet"
+
+grep -q '^dispatch:.*address:0xabc' "$TEST_LOG" && ! grep -q '^umu-run:' "$TEST_LOG" ||
+  fail "Battle.net launch focuses an open window instead of starting another" "$(cat "$TEST_LOG")"
+pass "Battle.net launch focuses an open window instead of starting another"
+
+# A windowless process whose command line reads like umu-run's, as pgrep sees it.
+start_tree() {
+  (exec -a "umu-run $1" sleep 60) &
+  hidden_pid=$!
+  until [[ $(tr '\0' ' ' </proc/"$hidden_pid"/cmdline) == umu-run* ]]; do sleep 0.1; done
+}
+
+# umu-run sandboxes each launch past Battle.net's own single-instance lock, so a
+# tree with no window yet (or hidden in a missing tray) is refused, not stacked.
+echo '[]' >"$tmp_dir/clients"
+start_tree "$prefix/drive_c/Program Files (x86)/Battle.net/Battle.net Launcher.exe"
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-battlenet" 2>/dev/null
+
+grep -q '^notify:.*Battle.net already running' "$TEST_LOG" && ! grep -q '^umu-run:' "$TEST_LOG" ||
+  fail "Battle.net launch refuses to stack a tree that has no window" "$(cat "$TEST_LOG")"
+pass "Battle.net launch refuses to stack a tree that has no window"
+
+# A tree in a sibling prefix is not this one.
+kill "$hidden_pid"
+wait "$hidden_pid" 2>/dev/null || true
+start_tree "$prefix-old/drive_c/Battle.net Launcher.exe"
+: >"$TEST_LOG"
+"$ROOT/bin/omarchy-launch-battlenet"
+
+grep -q '^umu-run:.*Battle.net Launcher.exe$' "$TEST_LOG" ||
+  fail "Battle.net launch ignores a tree in a sibling prefix" "$(cat "$TEST_LOG")"
+pass "Battle.net launch ignores a tree in a sibling prefix"

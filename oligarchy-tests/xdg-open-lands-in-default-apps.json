@@ -1,0 +1,14 @@
+{
+  "name": "xdg-open-lands-in-default-apps",
+  "kind": "resume",
+  "context": "From the desktop, verify that `open` launches Neovim for a text file, `xdg-open` launches Files for a directory, and a missing file returns rc=2.\n\nIMPORTANT EXECUTION RULES:\n- Launch each application exactly once. After pressing Enter, the command is submitted. Never retype or repeat it because its window has not appeared.\n- Applications may take several seconds to appear. If the expected window is not visible, use wait and inspect the next screenshot. Do not issue diagnostic commands while waiting.\n- Never type into the terminal while Neovim or Files is open.\n- After closing either application, assume focus returns to the original terminal. Click the terminal only if the screenshot proves it is not focused.\n- If the expected application fails to appear after a reasonable wait, report failure rather than trying alternate launch commands.",
+  "steps": [
+    "Press Super+Enter. A terminal opens.",
+    "Run `printf 'hello\\n' > /tmp/o.txt && open /tmp/o.txt` and press Enter. Neovim opens showing `hello`.",
+    "Type `:q` and press Enter. Neovim closes, revealing the original terminal.",
+    "Run `xdg-open /tmp` and press Enter. Files opens at /tmp.",
+    "Press Super+W. Files closes, revealing the original terminal.",
+    "Run `xdg-open /tmp/does-not-exist.txt; echo rc=$?` and press Enter. The terminal shows `rc=2` and no application opens."
+  ],
+  "proof": "* On success\n** The final screenshot shows the original terminal with `rc=2`, with no application opened for the missing file\n** Earlier screenshots show Neovim displaying `hello` and Files at /tmp\n* If unsuccessful\n** The final screenshot shows an rc other than 2 or an application opened for the missing file; or earlier screenshots show the wrong application, an Open with chooser, or a no-application error"
+}

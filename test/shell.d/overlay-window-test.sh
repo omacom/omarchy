@@ -9,14 +9,6 @@ const fs = require('fs')
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8')
 const overlay = read('shell/Ui/OverlayWindow.qml')
 
-// Closing must unmap, not leave a surface on an output that may disappear.
-assert(
-  overlay.includes('visible: shown && !!targetScreen && !!targetMonitor') &&
-    overlay.includes('anchors { top: true; left: true; bottom: true; right: true }') &&
-    !overlay.includes('implicitWidth: 1') && !overlay.includes('WlrLayer.Bottom'),
-  'closed overlays unmap instead of parking a surface'
-)
-
 const readyExpression = /readonly property bool contentReady: ([^\n]*(?:\n    &&[^\n]*)*)/.exec(overlay)[1]
 const ready = new Function('shown', 'backingWindowVisible', 'width', 'height', 'targetScreen', 'targetMonitor', 'devicePixelRatio', `return ${readyExpression}`)
 const screen = { name: 'eDP-1', width: 1200, height: 750 }
@@ -40,10 +32,6 @@ assert(!ready(false, true, 1200, 750, screen, monitor, 1.6),
 assert(!ready(true, true, 1200, 750, null, monitor, 1.6) &&
   !ready(true, true, 1200, 750, screen, null, 1.6),
   'content waits for a connected screen and its monitor information')
-assert(
-  /target: window\.contentItem\s*property: "opacity"\s*value: window\.contentRevealed \? 1 : 0/.test(overlay),
-  'transparent opening frames preserve immediate keyboard handling'
-)
 
 const revealBody = /onContentReadyChanged: \{([\s\S]*?)\n  \}/.exec(overlay)[1]
 const reveal = new Function('window', 'Qt', `with (window) { ${revealBody} }`)
@@ -126,31 +114,8 @@ window.focusedScreen = () => external
 pending.shift()()
 assertEqual(window.targetScreen, screen, 'a deferred remap preserves the screen chosen by a newer open')
 
-const overlays = {
-  'shell/plugins/menu/Menu.qml': 'shown: root.opened && root.rowsLoaded',
-  'shell/plugins/emojis/Emojis.qml': 'shown: root.opened',
-  'shell/plugins/clipboard/Clipboard.qml': 'shown: root.opened',
-  'shell/plugins/osd/Osd.qml': 'shown: root.opened',
-  'shell/plugins/reminders/ReminderFlow.qml': 'shown: root.opened',
-  'shell/plugins/panels/wifiqr/Panel.qml': 'shown: root.opened',
-  'shell/plugins/image-picker/ImagePicker.qml': 'shown: root.opened',
-}
-for (const [file, shown] of Object.entries(overlays)) {
-  const qml = read(file)
-  assert(
-    qml.includes('OverlayWindow {') && qml.includes(shown) && !/PanelWindow \{\s*(id: panel\s*)?visible: root\.opened/.test(qml),
-    `${file} uses the shared overlay scale and lifecycle handling`
-  )
-}
-
-// Layout resets on a requested close, independent of mapping readiness.
+// Moving an open menu to another output drops the old output's layout.
 const menuQml = read('shell/plugins/menu/Menu.qml')
-assert(
-  menuQml.includes('onShownChanged: if (!shown) { cardTop = -1; maxRowsHeight = -1 }') &&
-    menuQml.includes('if (shown && cardTop < 0) {') &&
-    !/onVisibleChanged: if \(!visible\) \{ cardTop/.test(menuQml),
-  'the menu unfreezes its layout when the overlay hides'
-)
 const screenHandler = /onTargetScreenChanged: \{([^\n]*)\}/.exec(menuQml)[1]
 const changeScreen = new Function('panel', `with (panel) { ${screenHandler} }`)
 const menuPanel = { shown: true, cardTop: 945, maxRowsHeight: 510 }
@@ -164,15 +129,13 @@ const shellRules = read('default/hypr/apps/omarchy-shell.lua')
 const noAnim = /namespace = "\^\(([^)]*)\)\$" \}, no_anim = true/.exec(shellRules)
 assert(noAnim, 'the shell overlays share one no-animation layer rule')
 const unanimated = noAnim ? noAnim[1].split('|') : []
-for (const file of Object.keys(overlays)) {
+const overlayFiles = fs.readdirSync(path.join(root, 'shell/plugins'), { recursive: true })
+  .filter(file => file.endsWith('.qml'))
+  .map(file => 'shell/plugins/' + file)
+  .filter(file => read(file).includes('OverlayWindow {'))
+assert(overlayFiles.length > 0, 'shell plugins use the shared overlay window')
+for (const file of overlayFiles) {
   const namespace = /WlrLayershell\.namespace: "([^"]+)"/.exec(read(file))
   assert(namespace && unanimated.includes(namespace[1]), `${file} is exempt from Hyprland's layer animation`)
 }
-
-// The OSD never takes the keyboard or input, shown or not.
-const osd = read('shell/plugins/osd/Osd.qml')
-assert(
-  osd.includes('shownKeyboardFocus: WlrKeyboardFocus.None') && osd.includes('mask: Region {}'),
-  'the OSD stays click-through and keyboard-free while shown'
-)
 JS

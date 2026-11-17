@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" shape-rendering="crispEdges">
+  <title>Media Viewer</title>
+  <desc>A photo print in pixels, as Image Viewer's: a pale border around a sky in the main color, two mountains and a sun in the highlight, with a dark round play button on its corner, its triangle in the main color.</desc>
+  <!-- A 16 by 16 grid of 28 unit pixels. Each color is one path of rectangles,
+       with a hairline stroke of its own so no seam shows between neighbors. -->
+  <path fill="{{ icon_shadow }}" stroke="{{ icon_shadow }}" d="M32 60h336v28h-336zM32 88h28v28h-28zM340 88h28v28h-28zM32 116h28v28h-28zM340 116h28v28h-28zM32 144h28v28h-28zM340 144h28v28h-28zM32 172h28v28h-28zM340 172h28v28h-28zM32 200h28v28h-28zM340 200h28v28h-28zM32 228h28v28h-28zM312 228h56v28h-56zM32 256h28v28h-28zM284 256h28v28h-28zM32 284h28v28h-28zM256 284h28v28h-28zM32 312h28v28h-28zM228 312h28v28h-28zM32 340h28v28h-28zM228 340h28v28h-28zM32 368h224v28h-224z"/>
+  <path fill="{{ icon_main }}" stroke="{{ icon_main }}" d="M88 116h224v28h-224zM88 144h28v28h-28zM172 144h140v28h-140zM88 172h28v28h-28zM172 172h140v28h-140zM88 200h168v28h-168zM284 200h28v28h-28zM88 228h56v28h-56zM172 228h56v28h-56zM88 256h28v28h-28zM340 312h28v28h-28zM340 340h56v28h-56zM340 368h84v28h-84zM340 396h56v28h-56zM340 424h28v28h-28z"/>
+  <path fill="{{ icon_paper }}" stroke="{{ icon_paper }}" d="M60 88h280v28h-280zM60 116h28v28h-28zM312 116h28v28h-28zM60 144h28v28h-28zM312 144h28v28h-28zM60 172h28v28h-28zM312 172h28v28h-28zM60 200h28v28h-28zM312 200h28v28h-28zM60 228h28v28h-28zM60 256h28v28h-28zM60 284h28v28h-28zM60 312h28v28h-28zM60 340h168v28h-168z"/>
+  <path fill="{{ icon_mark }}" stroke="{{ icon_mark }}" d="M116 144h56v28h-56zM116 172h56v28h-56z"/>
+  <path fill="{{ icon_ink }}" stroke="{{ icon_ink }}" d="M256 200h28v28h-28zM228 228h84v28h-84zM200 256h84v28h-84zM228 284h28v28h-28z"/>
+  <path fill="{{ icon_body }}" stroke="{{ icon_body }}" d="M144 228h28v28h-28zM116 256h84v28h-84zM88 284h140v28h-140zM312 284h112v28h-112zM88 312h140v28h-140zM284 312h56v28h-56zM368 312h84v28h-84zM284 340h56v28h-56zM396 340h56v28h-56zM284 368h56v28h-56zM424 368h28v28h-28zM284 396h56v28h-56zM396 396h56v28h-56zM312 424h28v28h-28zM368 424h56v28h-56z"/>
+  <path fill="{{ icon_edge }}" stroke="{{ icon_edge }}" d="M312 256h112v28h-112zM284 284h28v28h-28zM424 284h28v28h-28zM256 312h28v28h-28zM452 312h28v28h-28zM256 340h28v28h-28zM452 340h28v28h-28zM256 368h28v28h-28zM452 368h28v28h-28zM256 396h28v28h-28zM452 396h28v28h-28zM284 424h28v28h-28zM424 424h28v28h-28zM312 452h112v28h-112z"/>
+</svg>

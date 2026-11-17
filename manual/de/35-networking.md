@@ -1,45 +1,45 @@
 # Netzwerk
 
-Netzwerke in Omarchy werden von NetworkManager verwaltet, und du steuerst sie über das Netzwerksymbol in der [oberen Leiste](05-the-top-bar.md) oder mit `Super + Ctrl + N`.
+Netzwerk in Omarchy wird von NetworkManager verwaltet, und du bedienst es über das Netzwerksymbol in der [oberen Leiste](05-the-top-bar.md) oder mit `Super + Ctrl + N`.
 
-Dieses Panel sucht nach Wi-Fi-Netzwerken, zeigt die Signalstärke an und verbindet dich. Ethernet braucht überhaupt nichts — einstecken, und es funktioniert. Wenn du lieber im Terminal bleibst, bietet dir `nmtui` dieselben Steuerelemente, und es gibt auch eine Befehlsgruppe `omarchy network`.
+Dieses Panel sucht nach Wi-Fi-Netzwerken, zeigt die Signalstärke an und stellt die Verbindung her. Ethernet braucht überhaupt nichts — einstecken, und es funktioniert. Wenn du lieber im Terminal bleibst, bietet dir `nmtui` dieselben Steuerelemente, und es gibt auch eine Befehlsgruppe `omarchy network`.
 
 ## Dein Wi-Fi teilen
 
-Anstatt ein langes Passwort laut vorzulesen, führe _Setup > Network > QR Code_ aus, während du mit einem Wi-Fi verbunden bist. Dadurch erscheint ein QR Code auf dem Bildschirm, den jede Handykamera scannen kann, um sich zu verbinden. Das ist eines dieser Dinge, die du öfter nutzen wirst, als du erwartest, sobald du weißt, dass es da ist.
+Anstatt ein langes Passwort laut vorzulesen, führe _Setup > Network > QR Code_ aus, während du mit Wi-Fi verbunden bist. Damit erscheint ein QR-Code auf dem Bildschirm, den jede Handykamera scannen kann, um sich zu verbinden. Es ist eines dieser Dinge, die du öfter nutzen wirst, als du erwartest, sobald du weißt, dass es da ist.
 
-Wenn du das Passwort selbst brauchst, gibt `omarchy network password <interface>` es aus.
+Wenn du tatsächlich das Passwort selbst brauchst, gibt `omarchy network password <interface>` es aus.
 
 ## DNS
 
-Omarchy verwendet den DNS, den dein Netzwerk per DHCP bereitstellt. Du kannst das für den gesamten Rechner unter _Setup > Network > DNS_ überschreiben, wo Cloudflare und Google nur einen Klick entfernt sind. Wähle _Custom_, um deine eigenen Server einzugeben.
+Omarchy verwendet den DNS, den dein Netzwerk über DHCP ausgibt. Du kannst das für die ganze Maschine unter _Setup > Network > DNS_ überschreiben, wo Cloudflare und Google nur einen Klick entfernt sind. Wähle _Custom_, um deine eigenen Server einzugeben.
 
-Vom Terminal aus gibt `omarchy dns` den aktuellen Anbieter aus und `omarchy dns Cloudflare` legt einen fest.
+Vom Terminal aus gibt `omarchy dns` den aktuellen Anbieter aus, und `omarchy dns Cloudflare` legt einen fest.
 
-## Das Wi-Fi-Band festlegen
+## Das Wi-Fi-Band fixieren
 
-Wenn dein Router 2.4GHz, 5GHz und 6GHz unter demselben Netzwerknamen zusammenfasst, klammert sich dein Laptop manchmal an das langsame Band. `omarchy network band` zeigt, auf welchem Band du bist, und `omarchy network band 5` fixiert es. Verwende `auto`, damit es wieder selbst wählen kann.
+Wenn dein Router 2.4GHz, 5GHz und 6GHz unter demselben Netzwerknamen zusammenfasst, klammert sich dein Laptop manchmal an das langsame Band. `omarchy network band` zeigt, auf welchem Band du bist, und `omarchy network band 5` fixiert es. Verwende `auto`, um es wieder selbst wählen zu lassen.
 
-Dadurch wird das Band fixiert, nicht ein bestimmter Access Point, sodass du weiterhin normal zwischen APs wechselst.
+Damit wird das Band fixiert statt eines bestimmten Zugangspunkts, sodass du weiterhin normal zwischen APs roamst.
 
 ## Wie schnell ist es?
 
-_Trigger > Speed Test > Network Speed Test_ misst deine tatsächliche Upload- und Download-Geschwindigkeit mit zwei Rundanzeigen. Vom Terminal aus geht das mit `omarchy network speedtest down` oder `up`. (Direkt daneben in diesem Menü sitzt ein Festplatten-Geschwindigkeitstest, falls du den anderen Engpass benchmarken willst.)
+_Trigger > Speed Test > Network Speed Test_ misst deine tatsächliche Geschwindigkeit beim Hoch- und Herunterladen mit einem Paar Rundinstrumenten. Vom Terminal aus ist es `omarchy network speedtest down` oder `up`. Es misst gegen den eigenen Dienst von Omarchy und zählt nur dessen Testübertragungen. Andere Downloads können um Bandbreite konkurrieren, werden aber nicht zum Ergebnis des Geschwindigkeitstests hinzugerechnet. (Direkt daneben sitzt in diesem Menü ein Festplatten-Geschwindigkeitstest, falls du den anderen Engpass benchmarken willst.)
 
 ## Die Firewall
 
-Die Firewall ist standardmäßig aktiviert und blockiert den gesamten eingehenden Datenverkehr, mit einer Ausnahme: Port 53317, damit [LocalSend](22-guis.md) sofort funktioniert.
+Die Firewall ist standardmäßig eingeschaltet und blockiert den gesamten eingehenden Datenverkehr, mit einer Ausnahme: Port 53317, damit [LocalSend](22-guis.md) sofort einsatzbereit funktioniert.
 
-SSH ist deaktiviert, bis du es mit _Setup > Security > SSHD_ aktivierst, was den Daemon startet, Port 22 ratenbegrenzt gegen Brute Force öffnet und einen Schlüssel autorisiert. Auch Docker ist abgeriegelt, damit Container sich nicht versehentlich der Welt aussetzen. Siehe [Sicherheit](48-security.md) für die ganze Geschichte.
+SSH ist ausgeschaltet, bis du es mit _Setup > Security > SSHD_ einschaltest, was den Daemon startet, Port 22 ratenbegrenzt gegen Brute Force öffnet und einen Schlüssel autorisiert. Docker ist ebenfalls abgeriegelt, sodass Container sich nicht versehentlich der Welt aussetzen können. Siehe [Sicherheit](48-security.md) für die ganze Geschichte.
 
 ## Tailscale
 
 [Tailscale](https://tailscale.com/) ist ein Mesh-VPN, das es einfach und sicher macht, all deine Computer und Server über das Internet zu erreichen. Installiere es mit _Install > Service > Tailscale_.
 
-Dadurch bekommst du ein Tailscale-Panel in der Leiste, das das Tailnet verbindet und trennt, Konten wechselt und einen Exit Node auswählt — deine eigenen Rechner und Mullvad-Regionen tauchen beide in der Liste auf. Es durchsucht auch deine Rechner, und dort lebt Taildrop: Wähle einen Rechner aus und drücke `s`, um ihm Dateien zu senden, oder `c`, `n` und `d`, um seine IP, seinen Namen oder seinen vollständigen DNS-Namen zu kopieren. Das Terminal-Äquivalent ist `omarchy tailscale send <machine> [file...]`, und an dich gesendete Dateien landen automatisch in `~/Downloads`. Die Benachrichtigung, die eine Ankunft ankündigt, wartet, bis du sie anklickst, um sie zu öffnen, oder sie verwirfst, sodass eine Datei, die eintrifft, während du nicht am Rechner bist, noch da ist, um beantwortet zu werden, wenn du zurückkommst.
+Damit bekommst du ein Tailscale-Panel in der Leiste, das das Tailnet verbindet und trennt, Konten wechselt und einen Exit-Knoten auswählt — deine eigenen Maschinen und Mullvad-Regionen tauchen beide in der Liste auf. Es durchsucht auch deine Maschinen, und dort lebt Taildrop: Wähle eine Maschine aus und drücke `s`, um ihr Dateien zu senden, oder `c`, `n` und `d`, um ihre IP, ihren Namen oder ihren vollständigen DNS-Namen zu kopieren. Das Terminal-Äquivalent ist `omarchy tailscale send <machine> [file...]`, und an dich gesendete Dateien landen automatisch in `~/Downloads`. Die Benachrichtigung, die eine Ankunft ankündigt, wartet, bis du sie per Klick öffnest oder sie verwirfst, sodass eine Datei, die eintrifft, während du nicht an der Maschine bist, immer noch da ist, um beantwortet zu werden, wenn du zurückkommst.
 
-Bei der Installation wird außerdem eine Web-App für die Tailscale-Admin-Konsole hinzugefügt.
+Durch die Installation wird auch eine Web-App für die Tailscale-Admin-Konsole hinzugefügt.
 
 ## Wenn es nicht mehr funktioniert
 
-Bevor du neu startest, versuche, das betroffene Teil für sich allein neu zu starten. _Update > Hardware_ bietet Wi-Fi, Bluetooth, Audio und Trackpad, und eines davon neu zu laden räumt die meisten „vor fünf Minuten ging es noch“-Situationen aus. Siehe [Fehlerbehebung](45-troubleshooting.md).
+Bevor du neu startest, versuche, das betroffene Teil für sich neu zu starten. _Update > Hardware_ hat Wi-Fi, Bluetooth, Audio und Trackpad, und eines davon neu zu laden räumt die meisten „es hat vor fünf Minuten noch funktioniert“-Situationen aus. Siehe [Fehlerbehebung](45-troubleshooting.md).
