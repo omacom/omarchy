@@ -668,6 +668,23 @@ var OVERRIDES = {
   "Pacific/Honolulu": "haw"
 }
 
+// Places whose zone speaks for a country but not for them, keyed by the
+// first part of a geocoded region and its country code: Sri Lanka's Tamil
+// north and east share Asia/Colombo with the Sinhala south.
+var REGION_OVERRIDES = {
+  "northern province|LK": "ta",
+  "eastern province|LK": "ta"
+}
+
+function regionLanguage(place) {
+  if (!place || !place.region) return ""
+  var parts = String(place.region).split(",")
+  var first = parts[0].trim().toLowerCase()
+  var country = parts[parts.length - 1].trim().toUpperCase()
+  var key = REGION_OVERRIDES[first + "|" + country]
+  return (key && LANGUAGES[key]) ? key : ""
+}
+
 // Legacy aliases that matching compiled zoneinfo put in the wrong country.
 // Europe/Simferopol stays UA in ZONE_COUNTRY by choice.
 var ALIAS_COUNTRY = {
@@ -925,9 +942,10 @@ function languageFor(zoneId) {
   return (key && LANGUAGES[key]) ? key : FALLBACK
 }
 
-// { text, roman, language, key } for a zone at a local hour.
-function greeting(zoneId, hour) {
-  var key = languageFor(zoneId)
+// { text, roman, language, key } for a zone at a local hour. `place`, when
+// given, may carry a region that overrides the zone's language.
+function greeting(zoneId, hour, place) {
+  var key = regionLanguage(place) || languageFor(zoneId)
   var bands = LANGUAGES[key].bands
   var h = Math.max(0, Math.min(23, Math.floor(Number(hour))))
   if (!isFinite(h)) h = 0

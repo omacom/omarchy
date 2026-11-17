@@ -26,7 +26,7 @@ Rectangle {
   readonly property var rowData: panel.clockRows[index]
     || ({ ready: false, label: modelData.label, id: modelData.id })
   readonly property bool ready: rowData.ready
-  readonly property var greeting: Greet.greeting(rowData.id, ready ? rowData.hour : 0)
+  readonly property var greeting: Greet.greeting(rowData.id, ready ? rowData.hour : 0, modelData)
   readonly property bool removable: panel.clockRows.length > 1
   readonly property bool dragged: panel.dragIndex === index
   readonly property var people: modelData.people || []

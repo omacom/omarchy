@@ -178,7 +178,7 @@ The panel's own monospace family carries none of these scripts. Fontconfig subst
 
 **Every zone the picker offers is covered.** The picker offers every zone `timedatectl list-timezones` returns - 598 of them, not just the 74 in `cities.json` - so the table is built from the system's own `zone.tab`. English is checked at the source rather than in the result: a zone may only be greeted in English because some country asked for English, and a zone missing from the table is a failure rather than a silent fall-through to English.
 
-The overrides earn their place by being few. Honolulu is Hawaiian though the United States is English, Montreal is French though Canada is not, and that is nearly the whole list - the country is the right answer almost everywhere.
+The overrides earn their place by being few. Honolulu is Hawaiian though the United States is English, Montreal is French though Canada is not, and that is nearly the whole list - the country is the right answer almost everywhere. A zone can also be too coarse: Sri Lanka keeps one zone, Asia/Colombo, for the Sinhala south and the Tamil north and east, so a city whose region is the Northern or Eastern Province is greeted in Tamil. That override reads the region a place search gives the city, since the zone alone cannot tell Jaffna from Colombo.
 
 `test/shell.d/elsewhen-greetings-test.sh` checks everything around the words - that every zone the picker can offer maps to a language, that no hour of any day falls into a gap, that adjacent bands actually differ, and that every non-Latin greeting carries a pronunciation while no Latin one does. The words themselves are the one thing here with no independent reference on this machine, and they want a speaker's eye rather than a test.
 
