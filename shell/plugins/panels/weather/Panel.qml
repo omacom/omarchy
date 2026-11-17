@@ -101,10 +101,11 @@ Panel {
         }
       }
     }
+    var previousFingerprint = networkFingerprint
     networkFingerprint = connections.length ? JSON.stringify(connections) : ""
-  }
-  onNetworkFingerprintChanged: {
-    if (!autoLocation) return
+    // Joining from no connection (startup, reconnect, wake) is onOnlineChanged's
+    // to refresh; reacting here too would discard the lookup it starts.
+    if (!autoLocation || previousFingerprint === "" || networkFingerprint === previousFingerprint) return
     // Let an old request finish, but never apply its answer to a new network.
     if (detectingLocation) locationRefreshPending = true
     networkRefreshTimer.restart()
