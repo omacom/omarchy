@@ -1,6 +1,7 @@
 {
   "Activity": "アクティビティ",
   "Agent": "エージェント",
+  "Agents": "エージェント",
   "Apps": "アプリ",
   "Audio": "オーディオ",
   "Background switcher": "背景切り替え",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "アクティブウィンドウを最前面に表示",
   "Save window width": "ウィンドウ幅を保存",
   "Screenrecording": "画面録画",
+  "Screenrecording with no audio": "音声なし画面録画",
   "Screenshot": "スクリーンショット",
   "Scroll active workspace backward": "現在のワークスペースを後方にスクロール",
   "Scroll active workspace forward": "現在のワークスペースを前方にスクロール",
