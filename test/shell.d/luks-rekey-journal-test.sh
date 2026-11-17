@@ -101,6 +101,12 @@ cat >"$tmp/attempt.sh" <<'SH'
 set -euo pipefail
 
 source "$ROOT/install/provisioning/luks-rekey.sh"
+OMARCHY_FORM_DEFAULTS=$TMP/no-defaults
+source "$ROOT/install/provisioning/setup-form.sh"
+initial_language() { language=en; }
+language_form() { :; }
+fit_console_font() { :; }
+load_tips() { :; }
 source "$TMP/unlock.sh"
 source <(sed -n '/^luks_boot_layout() {/,/^}/p' "$ROOT/bin/omarchy-provision-owner" | sed "s|/etc/|$TMP/etc/|g")
 declare -F luks_boot_layout >/dev/null
@@ -236,8 +242,10 @@ setup_functions() {
   FINALIZE_WARNING_FLAG=$TMP/finalize-warning
   username=owner hostname="" timezone=""
   create_user() { :; }
+  record_eula() { :; }
   install_authorized_keys() { :; }
   configure_login() { :; }
+  configure_language() { :; }
   configure_hostname() { :; }
   configure_timezone() { :; }
   finalize_user() { :; }
@@ -265,6 +273,7 @@ attempt() {
   keyboard_form() { :; }
   user_form() { :; }
   confirm_form() { :; }
+  eula_form() { :; }
   notice() {
     printf 'refused: %s\n' "$1" >>"$TMP/screen"
     exit 3
