@@ -12,6 +12,14 @@ pkill -x claude-desktop || true
 
 omarchy-pkg-drop claude-desktop
 
+# The one thing the app's install put in ~/.claude: the link to its theme mod.
+# A link the user pointed somewhere else under that name is theirs. First, so
+# it goes even when the state below cannot be deleted.
+mod_link="$HOME/.claude/skills/omarchy-theme"
+if [[ $(readlink "$mod_link" 2>/dev/null) == */default/claude-desktop/omarchy-theme ]]; then
+  rm "$mod_link"
+fi
+
 # Not ~/.claude, ~/.claude.json, or ~/.cache/claude-cli-nodejs: those belong
 # to the Claude Code CLI, which ships in a different package that survives
 # this one. The desktop app keeps its state in its own Electron directories.
