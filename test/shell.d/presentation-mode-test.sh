@@ -11,13 +11,12 @@ home="$tmpdir/home"
 stub="$tmpdir/bin"
 mkdir -p "$home" "$stub"
 
-cat >"$stub/omarchy-shell" <<'SH'
+cat >"$stub/qs" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$SHELL_LOG"
 [[ ${SHELL_DOWN:-0} == "1" ]] && exit 1
-if [[ $1 == "-q" ]]; then
-  shift
-fi
+[[ $1 == "ipc" && $5 == "call" && $6 == "--" ]] || exit 1
+shift 6
 if [[ $1 == "notifications" && $2 == "isDnd" ]]; then
   printf '%s\n' "${DND_STATE:-off}"
   exit 0
@@ -35,10 +34,10 @@ cat >"$stub/omarchy-notification-send" <<'SH'
 #!/bin/bash
 printf '%s\n' "$*" >>"$NOTIFY_LOG"
 SH
-chmod +x "$stub/omarchy-shell" "$stub/omarchy-notification-send"
+chmod +x "$stub/qs" "$stub/omarchy-notification-send"
 
 run() {
-  HOME="$home" OMARCHY_PATH="$ROOT" PATH="$stub:$ROOT/bin:$PATH" \
+  XDG_RUNTIME_DIR="$tmpdir" HOME="$home" OMARCHY_PATH="$ROOT" PATH="$stub:$ROOT/bin:$PATH" \
     SHELL_LOG="$tmpdir/shell.log" DND_SET_LOG="$tmpdir/dnd" NOTIFY_LOG="$tmpdir/notify" \
     DND_STATE="${DND_STATE:-off}" \
     "$ROOT/bin/omarchy-toggle-presentation" "$@"
@@ -193,10 +192,10 @@ run off >/dev/null
 pass "activation retry preserves the updater's idle handover in the original snapshot"
 
 # Stop the first activation immediately after hiding the bar.
-cat >"$stub/omarchy-toggle-bar" <<'SCRIPT'
+cat >"$stub/omarchy-toggle" <<'SCRIPT'
 #!/bin/bash
-omarchy-toggle bar-off "$1"
-if [[ $1 == "on" ]]; then
+"$OMARCHY_PATH/bin/omarchy-toggle" "$@" || exit $?
+if [[ $1 == "bar-off" && $2 == "on" ]]; then
   printf '%s\n' "$PPID" >"$TEST_BARRIER"
   for _ in {1..250}; do
     [[ -f $TEST_RELEASE ]] && break
@@ -204,7 +203,7 @@ if [[ $1 == "on" ]]; then
   done
 fi
 SCRIPT
-chmod +x "$stub/omarchy-toggle-bar"
+chmod +x "$stub/omarchy-toggle"
 export TEST_BARRIER="$tmpdir/barrier" TEST_RELEASE="$tmpdir/release"
 run on >"$tmpdir/first" &
 first_pid=$!
@@ -254,4 +253,4 @@ run on >/dev/null
 run off >/dev/null
 [[ ! -f $home/.local/state/omarchy/toggles/bar-off ]] || fail "killed activation retry retains original visible bar"
 pass "on after process termination resumes activation with the original snapshot"
-rm -f "$stub/omarchy-toggle-bar"
+rm -f "$stub/omarchy-toggle"

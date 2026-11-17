@@ -73,8 +73,8 @@ enable_presentation() {
     # An interrupted activation must remain recoverable through `off`.
     touch "$STATE_FILE"
   fi
-  omarchy-toggle-bar on
-  omarchy-shell -q omarchy.bar syncHidden
+  omarchy-toggle bar-off on
+  omarchy-shell omarchy.bar syncHidden >/dev/null
   if [[ $(omarchy-shell notifications setDnd on) != "on" ]]; then
     echo "Could not silence notifications; run presentation off to restore settings." >&2
     return 1
@@ -115,7 +115,7 @@ disable_presentation() {
     omarchy-toggle bar-off off
     mark_done bar_restored
   fi
-  omarchy-shell -q omarchy.bar syncHidden
+  omarchy-shell omarchy.bar syncHidden >/dev/null
   if [[ $stay != "1" ]] && ! step_done idle_restored; then
     omarchy-toggle-idle allow-idle >/dev/null
     mark_done idle_restored
