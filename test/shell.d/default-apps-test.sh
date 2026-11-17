@@ -363,7 +363,9 @@ pass "picking a Chromium-based browser repairs its bundled extensions when they 
 
 # code.desktop stands for an app the user picked: one that's installed. The
 # system's own apps are left out, so what's installed here can't decide a case.
+# The system Flatpak export is pointed off this machine for the same reason.
 export XDG_DATA_DIRS="$test_tmp/data"
+export OMARCHY_FLATPAK_EXPORTS="$test_tmp/no-system-flatpak"
 mkdir -p "$test_tmp/data" "$test_home/.local/share/applications"
 printf '[Desktop Entry]\nExec=true %%F\n' >"$test_home/.local/share/applications/code.desktop"
 
@@ -420,6 +422,73 @@ omarchy-cmd-editor-mimetypes --unless-chosen
 ! grep -qxF "text/x-java=omarchy-launch-editor.desktop" "$mimeapps" || fail "a line for an app that's gone doesn't hide a choice in the older list"
 rm -f "$test_home/.local/share/applications/mimeapps.list"
 pass "the migration keeps the user's own choices, while their apps are installed"
+
+# A data dir whose name is a glob must be scanned as that path. Unquoted, it
+# expands to the other directory the pattern matches and the app looks gone.
+glob_root="$test_tmp/glob"
+mkdir -p "$glob_root/app[s]/applications" "$glob_root/apps"
+printf '[Desktop Entry]\nExec=true %%F\n' >"$glob_root/app[s]/applications/chosen.desktop"
+saved_data_dirs=$XDG_DATA_DIRS
+XDG_DATA_DIRS="$glob_root/app[s]"
+printf '[Default Applications]\ntext/plain=chosen.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=chosen.desktop" "$mimeapps" || fail "the migration keeps a choice installed under a data dir whose name is a glob"
+XDG_DATA_DIRS=$saved_data_dirs
+pass "the migration keeps a choice installed under a data dir whose name is a glob"
+
+# Flatpak exports an editor into its own share dir, which a TTY, SSH, or a
+# session started before Flatpak was installed does not put on XDG_DATA_DIRS.
+mkdir -p "$test_home/.local/share/flatpak/exports/share/applications"
+printf '[Desktop Entry]\nExec=true %%F\n' >"$test_home/.local/share/flatpak/exports/share/applications/flatpak-editor.desktop"
+printf '[Default Applications]\ntext/plain=flatpak-editor.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=flatpak-editor.desktop" "$mimeapps" || fail "the migration keeps a choice installed through Flatpak"
+system_flatpak="$test_tmp/flatpak-system"
+mkdir -p "$system_flatpak/applications"
+printf '[Desktop Entry]\nExec=true %%F\n' >"$system_flatpak/applications/system-flatpak.desktop"
+printf '[Default Applications]\ntext/plain=system-flatpak.desktop\n' >"$mimeapps"
+OMARCHY_FLATPAK_EXPORTS="$system_flatpak" omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=system-flatpak.desktop" "$mimeapps" || fail "the migration keeps a choice installed through system Flatpak"
+pass "the migration keeps a Flatpak editor that isn't on XDG_DATA_DIRS"
+
+# GLib skips a desktop file whose TryExec isn't there, and a later data dir
+# can still supply that id. An unreadable file is kept: it can't be checked.
+# TryExec under another group is not the app's, and Path= is where GLib looks.
+printf '[Desktop Entry]\nExec=true %%F\nTryExec=omarchy-editor-not-installed\n' >"$test_home/.local/share/applications/missing-try.desktop"
+printf '[Default Applications]\ntext/plain=missing-try.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces a choice whose TryExec isn't installed"
+! grep -q "^text/plain=missing-try" "$mimeapps" || fail "the migration drops a line whose TryExec isn't installed"
+printf '[Desktop Entry]\nExec=true %%F\nTryExec=omarchy-editor-not-installed\n' >"$test_home/.local/share/applications/later-try.desktop"
+mkdir -p "$test_tmp/data/applications"
+printf '[Desktop Entry]\nExec=true %%F\nTryExec=/bin/true\n' >"$test_tmp/data/applications/later-try.desktop"
+printf '[Default Applications]\ntext/plain=later-try.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=later-try.desktop" "$mimeapps" || fail "the migration keeps a choice whose TryExec is installed in a later data dir"
+printf '[Desktop Entry]\nType=Application\nExec=true %%F\n[Desktop Action Missing]\nTryExec=omarchy-editor-not-installed\n' >"$test_home/.local/share/applications/action-try.desktop"
+printf '[Default Applications]\ntext/plain=action-try.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=action-try.desktop" "$mimeapps" || fail "the migration keeps a choice whose TryExec is outside the desktop entry"
+printf '[Desktop Entry]\nExec=true %%F\nTryExec=omarchy-editor-not-installed\n' >"$test_home/.local/share/applications/unreadable.desktop"
+chmod a-r "$test_home/.local/share/applications/unreadable.desktop"
+printf '[Default Applications]\ntext/plain=unreadable.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=unreadable.desktop" "$mimeapps" || fail "the migration keeps a choice whose desktop file can't be read"
+tryexec_bin="$test_tmp/tryexec-bin"
+mkdir -p "$tryexec_bin"
+printf '#!/bin/bash\nexit 0\n' >"$tryexec_bin/omarchy-tryexec-only-here"
+chmod +x "$tryexec_bin/omarchy-tryexec-only-here"
+printf '[Desktop Entry]\nExec=/bin/true %%F\nTryExec=omarchy-tryexec-only-here\nPath=%s\n' "$tryexec_bin" >"$test_home/.local/share/applications/path-try.desktop"
+printf '[Default Applications]\ntext/plain=path-try.desktop\n' >"$mimeapps"
+omarchy-cmd-editor-mimetypes --unless-chosen
+grep -qxF "text/plain=path-try.desktop" "$mimeapps" || fail "the migration keeps a choice whose TryExec is in the desktop file's Path"
+rm -f "$test_home/.local/share/applications/missing-try.desktop" \
+  "$test_home/.local/share/applications/later-try.desktop" \
+  "$test_home/.local/share/applications/action-try.desktop" \
+  "$test_home/.local/share/applications/unreadable.desktop" \
+  "$test_home/.local/share/applications/path-try.desktop"
+rm -rf "$test_tmp/data/applications"
+pass "the migration follows TryExec the way GLib does"
 
 # Values are ;-separated lists and keys may have spaces around "=", as GLib
 # writes and reads them; a choice in ~/.config outranks the older list's.
