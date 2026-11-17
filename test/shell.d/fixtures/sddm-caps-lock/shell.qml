@@ -96,7 +96,20 @@ ShellRoot {
 
           theme.trackCapsLock(Qt.Key_A, "A", none, false)
           root.assertTrue(icon.visible, "a capital typed without Shift shows the icon")
-          root.assertTrue(icon.x + icon.width <= icon.parent.width, "icon sits inside the password field")
+
+          // A password longer than the field holds dots: the icon stays inside
+          // the field and the dots stop short of it.
+          var input = findByObjectName(theme, "passwordInput")
+          var dots = findByObjectName(theme, "passwordDots")
+          root.assertTrue(input !== null && dots !== null, "password field and dots exist")
+          if (input && dots) {
+            input.text = "a".repeat(40)
+            dots.forceLayout()
+            root.assertTrue(icon.parent.width > 100, "password field takes the entry image's width, got " + icon.parent.width)
+            root.assertTrue(icon.x >= 0 && icon.x + icon.width <= icon.parent.width, "icon sits inside the password field")
+            root.assertTrue(dots.width > 0 && dots.x + dots.width < icon.x, "password dots stop short of the icon, dots end " + (dots.x + dots.width) + ", icon at " + icon.x)
+            input.text = ""
+          }
 
           theme.trackCapsLock(Qt.Key_A, "a", none, false)
           root.assertTrue(!icon.visible, "a lowercase letter clears the icon")

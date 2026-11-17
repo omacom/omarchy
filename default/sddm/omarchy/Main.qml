@@ -94,6 +94,7 @@ Rectangle {
         }
 
         Row {
+          objectName: "passwordDots"
           anchors.left: parent.left
           anchors.leftMargin: 20
           anchors.verticalCenter: parent.verticalCenter
@@ -128,6 +129,7 @@ Rectangle {
 
         TextInput {
           id: password
+          objectName: "passwordInput"
           anchors.fill: parent
           anchors.leftMargin: 20
           anchors.rightMargin: 20
