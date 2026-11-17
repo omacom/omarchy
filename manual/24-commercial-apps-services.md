@@ -14,9 +14,11 @@ You start 1Password with `Super + Shift + /`. If it isn't installed yet, that ho
 
 ## Spotify
 
-[Spotify](https://spotify.com/) is the world's most popular streaming music service. And the Linux application provides everything you'd expect, including offline playing.
+[Spotify](https://spotify.com/) is the world's most popular streaming music service. Omarchy ships it as a web app, which gives you the full player, media keys, and Spotify Connect, but not offline downloads. Start it with `Super + Shift + M`.
 
-You start Spotify using `Super + Shift + M`. Like 1Password, the hotkey kicks off the installation first if Spotify isn't installed yet (or use _Install > Service > Spotify_ from the Omarchy menu).
+## Slack
+
+[Slack](https://slack.com/) is where a lot of teams do their chatting, both inside the company and with outside collaborators. Install it with _Install > Service > Slack_ from the Omarchy menu, and it'll open as soon as it's ready.
 
 ## Dropbox
 
