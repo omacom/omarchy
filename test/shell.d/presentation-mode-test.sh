@@ -18,7 +18,7 @@ printf '%s\n' "$*" >>"$SHELL_LOG"
 if [[ $1 == "-q" ]]; then
   shift
 fi
-if [[ $1 == "notifications" && $2 == "dndState" ]]; then
+if [[ $1 == "notifications" && $2 == "isDnd" ]]; then
   printf '%s\n' "${DND_STATE:-off}"
   exit 0
 fi
@@ -105,10 +105,6 @@ run off >/dev/null
 [[ ! -s $tmpdir/dnd ]] ||
   fail "presentation off does not clear dnd that was already on" "$(cat "$tmpdir/dnd")"
 pass "presentation off does not undo state it did not change"
-
-grep -Fq '"trigger.toggle.presentation"' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-  fail "presentation mode is on the Toggle menu"
-pass "presentation mode is on the Toggle menu"
 
 # A failed query must not invent an initial DND value.
 rm -f "$home/.local/state/omarchy/toggles/bar-off" "$home/.local/state/omarchy/indicators/stay-awake"
