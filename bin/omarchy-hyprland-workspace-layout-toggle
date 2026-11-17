@@ -37,7 +37,7 @@ COUNT=${#ENABLED[@]}
 # last going back.
 INDEX=-1
 for i in "${!ENABLED[@]}"; do
-  [[ ${ENABLED[i]} == "$CURRENT_MODE" ]] && INDEX=$i
+  [[ ${ENABLED[i]} == $CURRENT_MODE ]] && INDEX=$i
 done
 
 if [[ $DIRECTION == "back" ]]; then
