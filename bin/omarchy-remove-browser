@@ -79,7 +79,7 @@ zen)
   omarchy-pkg-drop zen-browser-bin
   ;;
 *)
-  echo "Usage: omarchy-remove-browser <chrome|brave|brave-origin|edge|firefox|librewolf|zen>"
+  echo "Usage: omarchy-remove-browser <chrome|chromium|brave|brave-origin|edge|firefox|librewolf|zen>"
   exit 1
   ;;
 esac
