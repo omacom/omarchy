@@ -106,7 +106,11 @@ case ${1:-} in
     fi
 
     omarchy-state set reboot-required
-    echo "The GPU gets $(option_size "$index") of dedicated VRAM from the next boot. Reboot to apply it."
+    echo "The GPU gets $(option_size "$index") of dedicated VRAM from the next boot."
+
+    if gum confirm "Reboot to apply new VRAM limit?"; then
+      omarchy-system reboot
+    fi
     ;;
   *) usage ;;
 esac
