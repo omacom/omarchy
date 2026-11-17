@@ -56,7 +56,7 @@ PROVIDERS = {
     "name": "Grok",
     "home_env": "GROK_HOME",
     "shared_dirs": ["sessions", "skills", "agents", "plugins", "installed-plugins", "marketplace-cache", "hooks", "memory", "memory-v2", "rules", "commands", "workflows", "personas", "worktrees"],
-    "shared_files": ["config.toml", "settings.json", "lsp.json", "pager.toml", "sandbox.toml", "trusted_folders.toml", "statusline.sh", "worktrees.db"],
+    "shared_files": ["config.toml", "AGENTS.md", "settings.json", "lsp.json", "pager.toml", "sandbox.toml", "trusted_folders.toml", "statusline.sh", "worktrees.db"],
     "carried_keys": [],
   },
 }
