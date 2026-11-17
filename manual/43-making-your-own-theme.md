@@ -24,6 +24,10 @@ If you're making a light mode theme, set `mode = "light"` at the top of your `co
 
 Themes supplied with `unlock.png` and `preview-unlock.png` images will be listed under _Appearance > Unlock_. Your `unlock.png` should preferably be a transparent png. And you can create the preview image using `omarchy plymouth preview`.
 
+### Screensaver art
+
+A theme can ship a `screensaver.txt` file. The screensaver shows it when the user has no art of their own. Keep the art to 81 columns wide and 26 rows tall, so it fits on the displays where the Omarchy logo fits. Make the file with `omarchy transcode ascii` or `omarchy ascii`. This file also works in a theme that you install with `omarchy theme install`.
+
 ### Theming apps Omarchy doesn't cover
 
 If you use an app that isn't in that list, you can teach Omarchy to theme it yourself with a template. Drop a file in `~/.config/omarchy/themed/` named after the config it generates plus a `.tpl` extension, and write the config with `{{ background }}`, `{{ foreground }}`, `{{ accent }}`, `{{ red }}`, `{{ color0 }}` through `{{ color15 }}`, and the rest of the palette as placeholders. Every time you switch themes, the file is regenerated with that theme's colors.

@@ -3,4 +3,24 @@
 # omarchy:summary=Launch the Omarchy screensaver on every display.
 # omarchy:args=[force] [options]
 
-exec /usr/lib/omarchy-screensaver/omarchy-screensaver "$@"
+# Art order: the caller's -i option, the customized user branding file, the theme art, the bundled art.
+# A user branding file that is byte-identical to logo.txt is the default copy, so it does not count as customized.
+USER_ART="$HOME/.config/omarchy/branding/screensaver.txt"
+THEME_ART="$HOME/.local/state/omarchy/current/theme/screensaver.txt"
+
+caller_gave_input=false
+for arg in "$@"; do
+  case $arg in
+  -i* | --input | --input-file | --input=* | --input-file=*) caller_gave_input=true ;;
+  esac
+done
+
+if [[ $caller_gave_input == "true" ]]; then
+  exec /usr/lib/omarchy-screensaver/omarchy-screensaver "$@"
+elif [[ -f $USER_ART ]] && ! cmp -s "$USER_ART" "$OMARCHY_PATH/logo.txt"; then
+  exec /usr/lib/omarchy-screensaver/omarchy-screensaver "$@"
+elif [[ -s $THEME_ART ]]; then
+  exec /usr/lib/omarchy-screensaver/omarchy-screensaver -i "$THEME_ART" "$@"
+else
+  exec /usr/lib/omarchy-screensaver/omarchy-screensaver "$@"
+fi
