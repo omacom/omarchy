@@ -79,13 +79,8 @@ def cursor_in_use(auth_path: Path) -> bool:
   return any(path.is_dir() for path in (auth_path.parent, config_home() / "Cursor", Path.home() / ".cursor"))
 
 
-# Enterprise/team accounts only answer GetCurrentPeriodUsage when asked about
-# their team (and pooled usage). The team id travels with the CLI's own
-# config, written beside the default CLI auth.json, so it belongs to that one
-# account alone: an exported bearer, a moved auth path, or the editor's
-# sign-in may be a different account, whose team the CLI config says nothing
-# about. Only when the selected token is that same default CLI account's is
-# its team the right one to ask about.
+# Match the default CLI account before reusing its configured team; another
+# sign-in must not inherit a different account's team.
 def team_context(token: str) -> dict[str, Any]:
   if not token:
     return {}
@@ -334,18 +329,7 @@ def weekly_reset(value: Any) -> str:
 
 
 def summarize_limits(period: dict[str, Any], plan_info: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-  """Cursor's own percentages, never a percentage derived from spend.
-
-  The dollar figures do not divide into the allowance: bonus usage the
-  providers hand out is spend without an allowance behind it, so
-  totalSpend/limit reads well past 100% while Cursor's own meters do not.
-
-  Every meter runs on the billing cycle, unless the plan says its included
-  allowance is weekly. The included total is the Monthly (or Weekly) row;
-  the model meters and the on-demand budget are titled after it, so the
-  panel attaches them to that row rather than showing four rows that each
-  read "Monthly". The on-demand budget always runs on the billing cycle.
-  """
+  """Keep individual bonus spend out of allowance ratios; only explicit spend caps are divided here."""
   plan = usage_section(period, "planUsage")
   spend = usage_section(period, "spendLimitUsage")
   resets_at = iso(period.get("billingCycleEnd"))
@@ -354,9 +338,7 @@ def summarize_limits(period: dict[str, Any], plan_info: dict[str, Any] | None = 
     window, included_resets_at = "Weekly", weekly_reset((plan_info or {}).get("includedUsageResetsAt"))
   limits = []
 
-  # Enterprise/team accounts report the team's spend caps instead of the
-  # individual planUsage percentages: the included allowance and the team's
-  # pooled credit balance.
+  # Spend caps take precedence over the individual plan's percentage breakdown.
   overall_limit = number(spend.get("overallLimit"))
   if overall_limit > 0:
     overall_used = number(spend.get("overallUsed", spend.get("totalSpend")))
