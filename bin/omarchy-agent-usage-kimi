@@ -88,13 +88,54 @@ def credentials_dir() -> Path:
     return Path(home).expanduser() / "credentials"
   candidates = [Path.home() / ".kimi-code" / "credentials", legacy_home() / "credentials"]
   for candidate in candidates:
-    if (candidate / "kimi-code.json").is_file():
+    if (candidate / "kimi-code.json").is_file() or any(candidate.glob("kimi-code-env-*.json")):
       return candidate
   return candidates[0]
 
 
+# The Kimi Code home config.toml lives in, as credentials_dir's candidates
+# resolve it.
+def code_config_home() -> Path:
+  if home := os.environ.get("KIMI_CODE_HOME"):
+    return Path(home).expanduser()
+  return Path.home() / ".kimi-code"
+
+
+def credentials_path() -> Path:
+  """The file Kimi Code keeps its sign-in in. The default slot when it has
+  one; else the scoped oauth key Kimi Code 2.x records in config.toml for a
+  global-region (or other custom-environment) login, which lands as
+  credentials/kimi-code-env-<hash>.json because the default slot is only
+  written for a mainland-China login; else, with no key recorded, a lone
+  scoped file."""
+  default = CREDENTIALS_DIR / "kimi-code.json"
+  if default.is_file():
+    return default
+  try:
+    with (code_config_home() / "config.toml").open("rb") as handle:
+      config = tomllib.load(handle)
+  except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+    config = {}
+  scoped = []
+  for name, provider in obj(config.get("providers")).items():
+    oauth = obj(obj(provider).get("oauth"))
+    key = str(oauth.get("key") or "").strip()
+    rest = key[len("oauth/") :] if key.startswith("oauth/") else ""
+    if rest and "/" not in rest and not rest.startswith("."):
+      # A provider the managed Kimi Code one is checked first.
+      scoped.append((not str(name).endswith("kimi-code"), rest))
+  for _, rest in sorted(scoped):
+    candidate = CREDENTIALS_DIR / (rest + ".json")
+    if candidate.is_file():
+      return candidate
+  env_files = sorted(CREDENTIALS_DIR.glob("kimi-code-env-*.json"))
+  if len(env_files) == 1:
+    return env_files[0]
+  return default
+
+
 CREDENTIALS_DIR = credentials_dir()
-CREDENTIALS_PATH = CREDENTIALS_DIR / "kimi-code.json"
+CREDENTIALS_PATH = credentials_path()
 
 
 class KimiError(Exception):
