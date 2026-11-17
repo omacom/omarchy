@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Cursor CLI
+Comment=Start Cursor CLI in a terminal
+Exec=omarchy-agent --agent cursor-agent --app-id=org.omarchy.cursor-agent
+Icon=omarchy-agent-cursor-agent
+StartupWMClass=org.omarchy.cursor-agent
+Terminal=false
+Type=Application
+Categories=Development;
+X-Omarchy-Dock-Click=new

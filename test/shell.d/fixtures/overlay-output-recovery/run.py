@@ -37,6 +37,7 @@ def main():
     fixture = directory / "fixture"
     (fixture / "Ui").mkdir(parents=True)
     shutil.copyfile(Path(__file__).with_name("shell.qml"), fixture / "shell.qml")
+    (fixture / "Commons").symlink_to(args.root.resolve() / "shell/Commons", target_is_directory=True)
     shutil.copyfile(source, fixture / "Ui/OverlayWindow.qml")
     (fixture / "Ui/qmldir").write_text("module qs.Ui\nOverlayWindow 1.0 OverlayWindow.qml\n")
 
