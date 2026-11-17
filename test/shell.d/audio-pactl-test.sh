@@ -193,7 +193,7 @@ for action in raise mute-toggle; do
   if SINK=none XDG_RUNTIME_DIR=$work omarchy-audio-output-volume "$action" 2>/dev/null; then
     fail "the $action key with no default output fails" "$(calls)"
   fi
-  grep -qx 'omarchy-osd -m No audio output selected' "$CALLS" ||
+  grep -qx 'omarchy-osd -m No output selected' "$CALLS" ||
     fail "the $action key with no default output says so" "$(calls)"
   ! grep -q 'pactl set-sink' "$CALLS" || fail "the $action key with no default output changes nothing" "$(calls)"
 done
