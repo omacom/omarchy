@@ -771,12 +771,16 @@ refresh_keybindings_cache() {
   local started newest
   started=$(date +%s.%N)
   tmp_file=$(mktemp "$cache_dir/keybindings.XXXXXX") || return 1
+  # The scan writes the list of Lua files it loaded only once it finishes.
+  rm -f "$keybindings_lua_files"
 
   if output_binding_records_uncached >"$tmp_file"; then
     # A Lua file edited while the scan ran may be newer than what the records
-    # say about it, so those records are shown once but not kept.
+    # say about it, and a scan the timeout stopped left no list for the key to
+    # track, so either way those records are shown once but not kept.
     newest=$(lua_files_newest)
-    if awk -v newest="$newest" -v started="$started" 'BEGIN { exit !(newest != "" && newest + 0 >= started + 0) }'; then
+    if { omarchy-cmd-present lua && [[ ! -e $keybindings_lua_files ]]; } ||
+      awk -v newest="$newest" -v started="$started" 'BEGIN { exit !(newest != "" && newest + 0 >= started + 0) }'; then
       cat "$tmp_file"
       rm -f "$tmp_file"
       return 0

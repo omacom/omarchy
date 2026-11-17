@@ -574,3 +574,16 @@ if compgen -G "$tmpdir/cache-race/omarchy/keybindings-*.records" >/dev/null; the
   fail "a scan raced by an edit is not cached" "$(ls "$tmpdir/cache-race/omarchy")"
 fi
 pass "a scan raced by an edit shows the menu without caching it"
+
+# A scan the timeout stops never lists the Lua files it loaded, so its records
+# are shown but not cached under a key that ignores those files.
+printf '#!/bin/bash\nexit 124\n' >"$stub_bin/lua"
+chmod +x "$stub_bin/lua"
+rm -rf "$tmpdir/cache-timeout"
+output=$(keybindings "$menu" "$tmpdir/cache-timeout")
+rm -f "$stub_bin/lua"
+grep -q 'SUPER + X  *→ My own thing' <<<"$output" || fail "a scan stopped by its timeout still shows the menu" "$output"
+if compgen -G "$tmpdir/cache-timeout/omarchy/keybindings-*.records" >/dev/null; then
+  fail "a scan stopped by its timeout is not cached" "$(ls "$tmpdir/cache-timeout/omarchy")"
+fi
+pass "a scan stopped by its timeout shows the menu without caching it"
