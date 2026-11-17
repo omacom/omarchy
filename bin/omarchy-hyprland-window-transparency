@@ -7,9 +7,9 @@
 TOGGLES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr"
 
 # Opaque and glassy are toggle files loaded after every theme: opaque makes the
-# windows Omarchy makes transparent solid, and glassy blurs what is behind any
-# see-through window and gives terminals a see-through background. Transparent,
-# the default, removes both.
+# windows Omarchy makes transparent solid, and glassy makes every window
+# see-through and blurs what is behind it. Transparent, the default, removes
+# both.
 current_mode() {
   if [[ -f $TOGGLES_DIR/window-opaque.lua ]]; then
     echo "opaque"
