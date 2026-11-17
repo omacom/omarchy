@@ -1,9 +1,10 @@
 [Desktop Entry]
 Version=1.0
 Name=Browser
-Comment=Open links in the running default browser and focus it
+Comment=Open the default browser
 Exec=omarchy-launch-browser %U
+Icon=omarchy-browser
 Terminal=false
 Type=Application
-NoDisplay=true
+Categories=Network;WebBrowser;
 MimeType=x-scheme-handler/http;x-scheme-handler/https;
