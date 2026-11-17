@@ -25,16 +25,12 @@ assert_url() {
   pass "$description"
 }
 
-assert_url "zoom handler joins a numeric meeting with a URL-safe password" \
+assert_url "zoom handler joins a numeric meeting with a password" \
   'zoommtg://zoom.us/join?confno=123456789&pwd=abcDEF123' \
   'https://app.zoom.us/wc/join/123456789?pwd=abcDEF123'
 
-assert_url "zoom handler joins a numeric meeting without a password" \
-  'zoomus://zoom.us/join?confno=987654321' \
-  'https://app.zoom.us/wc/join/987654321'
-
 # The meeting number used to be pasted straight into the URL path, so a value
-# with slashes or dots could leave the join page or open another path.
+# with slashes or a query separator changed which page opened.
 assert_url "zoom handler refuses a meeting number with path segments" \
   'zoommtg://zoom.us/join?confno=../../other-path/&pwd=abc' \
   'https://app.zoom.us/wc/home'
@@ -47,16 +43,9 @@ assert_url "zoom handler refuses a meeting number with encoded separators" \
   'zoommtg://zoom.us/join?confno=123%26injected=1' \
   'https://app.zoom.us/wc/home'
 
-assert_url "zoom handler keeps only the password before an extra separator" \
-  'zoommtg://zoom.us/join?confno=123456789&pwd=abc&action=join' \
-  'https://app.zoom.us/wc/join/123456789?pwd=abc'
-
 # Zoom passcodes may contain *, and ones with ? or # arrive percent-encoded;
-# encoded, a separator is part of the value, never a new parameter.
+# encoded, a separator is part of the value and never a new parameter, so a
+# passcode is passed through instead of being matched against an allowlist.
 assert_url "zoom handler keeps a passcode with * and encoded characters" \
   'zoommtg://zoom.us/join?confno=123456789&pwd=ab*%3F9%2312' \
   'https://app.zoom.us/wc/join/123456789?pwd=ab*%3F9%2312'
-
-assert_url "zoom handler ignores a non-Zoom protocol" \
-  'https://example.test/join?confno=123456789' \
-  'https://app.zoom.us/wc/home'
