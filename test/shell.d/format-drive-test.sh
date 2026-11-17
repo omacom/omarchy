@@ -18,13 +18,14 @@ printf '%s\n' "$*" >>"$SUDO_LOG"
 if [[ -n ${SUDO_FAIL_CMD:-} && $* == *"$SUDO_FAIL_CMD"* ]]; then
   printf 'stubbed failure: %s\n' "$*" >&2
   exit 1
+else
+  exit 0
 fi
-exit 0
 SH
 chmod +x "$work/bin/sudo"
 
-# PATH holds only the stub, so a step that ever bypasses sudo finds no real
-# command to run against the device below.
+# PATH holds only the stub, so a step that ever drops sudo finds no real command
+# by name to run against the device below.
 run_format() {
   rc=0
   printf 'y\n' | PATH="$work/bin" format-drive "$@" >"$work/out" 2>"$work/err" || rc=$?
@@ -73,7 +74,7 @@ else
   if (( rc == 0 )); then fail "format-drive fails when mkfs.exfat fails"; fi
   pass "format-drive fails when mkfs.exfat fails"
 
-  grep -q "^mkfs.exfat " "$SUDO_LOG" || fail "format-drive reaches mkfs.exfat before failing" "$(cat "$SUDO_LOG")"
+  grep -q "^mkfs.exfat -n POC " "$SUDO_LOG" || fail "format-drive reaches mkfs.exfat before failing" "$(cat "$SUDO_LOG")"
   pass "format-drive reaches mkfs.exfat before failing"
 
   grep -q "formatted" "$work/out" && fail "format-drive reports no success when mkfs.exfat failed" "$(cat "$work/out")"
