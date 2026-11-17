@@ -1,8 +1,4 @@
-#!/bin/bash
-
-set -euo pipefail
-
-source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+source "$ROOT/test/shell.d/base-test.sh"
 
 run_checks() {
   test_tmp=$(mktemp -d)
@@ -137,17 +133,4 @@ SCRIPT
   pass "fallback locking preserves blocking blank and nonblocking adjustment semantics"
 }
 
-if [[ ${1:-} == "--isolated" ]]; then
-  run_checks
-else
-  if ! command -v bwrap >/dev/null || ! bwrap --ro-bind / / true 2>/dev/null; then
-    pass "Bubblewrap unavailable; skipping isolated hostile-path brightness checks"
-    exit 0
-  fi
-  sandbox=$(mktemp -d)
-  trap 'rm -rf "$sandbox"' EXIT
-  bwrap --ro-bind / / --dev /dev --tmpfs /tmp --ro-bind "$ROOT" "$ROOT" \
-    --bind "$sandbox" /tmp/brightness-lock-test --unshare-pid --proc /proc \
-    --die-with-parent --setenv TMPDIR /tmp/brightness-lock-test \
-    bash "$ROOT/test/shell.d/brightness-display-lock-test.sh" --isolated
-fi
+run_checks
