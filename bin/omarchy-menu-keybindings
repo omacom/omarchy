@@ -131,7 +131,7 @@ build_lua_bind_cache() {
 -- or Mod5 is cached under the modmask Hyprland reports for it.
 local modifiers = {
   SHIFT = 1, CAPS = 2, CTRL = 4, CONTROL = 4, ALT = 8, MOD1 = 8, MOD2 = 16, MOD3 = 32,
-  SUPER = 64, MOD4 = 64, LOGO = 64, META = 64, MOD5 = 128,
+  SUPER = 64, WIN = 64, MOD4 = 64, LOGO = 64, META = 64, MOD5 = 128,
 }
 
 local function split_keys(keys)
