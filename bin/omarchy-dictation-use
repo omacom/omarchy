@@ -30,6 +30,9 @@ if [[ -n $previous && $previous != "$1" ]]; then
 
   # Adapters stop recordings, not services. Only manage the built-in units;
   # add-on backends own their service lifecycle.
+  case "$1" in
+    voxtype|superwhisper|hex) systemctl --user enable --now "$1.service" 9>&- >/dev/null ;;
+  esac
   case "$previous" in
     voxtype|superwhisper|hex)
       systemctl --user show-environment 9>&- >/dev/null
