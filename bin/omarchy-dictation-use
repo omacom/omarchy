@@ -20,11 +20,19 @@ if ! flock -w 5 9; then
 fi
 
 previous=$(omarchy-default-dictation 2>/dev/null) || previous=""
-if [[ -n $previous && $previous != "$1" ]] && omarchy-cmd-present "omarchy-dictation-$previous"; then
-  if ! "omarchy-dictation-$previous" stop 9>&-; then
-    echo "Could not stop $previous; keeping the existing dictation backend." >&2
-    exit 1
+if [[ -n $previous && $previous != "$1" ]]; then
+  if omarchy-cmd-present "omarchy-dictation-$previous"; then
+    if ! "omarchy-dictation-$previous" stop 9>&-; then
+      echo "Could not stop $previous; keeping the existing dictation backend." >&2
+      exit 1
+    fi
   fi
+
+  # Only one backend should hold the microphone and memory. The adapters above
+  # stop recordings, not services, so disable the old unit and enable the new
+  # one here. Unknown backends have no unit; that is fine.
+  systemctl --user disable --now "$previous.service" 9>&- >/dev/null 2>&1 || true
+  systemctl --user enable --now "$1.service" 9>&- >/dev/null 2>&1 || true
 fi
 
 temporary=$(mktemp "$config.XXXXXX")

@@ -242,19 +242,26 @@ pass "Voxtype retries incomplete model and service setup without replacing confi
 if DICTATION_EXIT=7 omarchy-dictation-use superwhisper > "$test_tmp/output" 2>&1; then fail "failed stop must prevent switching"; fi
 [[ $(cat "$config") == "voxtype" ]] || fail "failed stop preserves selection"
 omarchy-dictation-use superwhisper
-[[ $(cat "$DICTATION_LOG") == $'voxtype status\nvoxtype record stop\nvoxtype status\nvoxtype record stop' ]] || fail "switch stops the previous backend"
+[[ $(cat "$DICTATION_LOG") == $'voxtype status\nvoxtype record stop\nvoxtype status\nvoxtype record stop\nsystemctl --user disable --now voxtype.service\nsystemctl --user enable --now superwhisper.service' ]] || fail "switch stops the previous backend and swaps services"
 [[ $(cat "$config") == "superwhisper" ]] || fail "successful stop permits switching"
 : > "$DICTATION_LOG"
 omarchy-dictation-use superwhisper
 [[ ! -s $DICTATION_LOG ]] || fail "reselecting does not interrupt recording"
 printf '%s\n' voxtype > "$config"
+: > "$DICTATION_LOG"
 VOXTYPE_STATUS=stopped omarchy-dictation-use superwhisper
+grep -qx "systemctl --user disable --now voxtype.service" "$DICTATION_LOG" || fail "switch disables the previous service even when its daemon is stopped"
+grep -qx "systemctl --user enable --now superwhisper.service" "$DICTATION_LOG" || fail "switch enables the new service"
 [[ $(cat "$config") == "superwhisper" ]] || fail "a stopped Voxtype daemon permits switching"
 printf '%s\n' superwhisper > "$config"
+: > "$DICTATION_LOG"
 DICTATION_SERVICE_ACTIVE=0 omarchy-dictation-use voxtype
+grep -qx "systemctl --user disable --now superwhisper.service" "$DICTATION_LOG" || fail "switch disables the previous service even when its unit is inactive"
 [[ $(cat "$config") == "voxtype" ]] || fail "a stopped Superwhisper service permits switching"
 printf '%s\n' removed-backend > "$config"
+: > "$DICTATION_LOG"
 omarchy-dictation-use voxtype
+grep -qx "systemctl --user disable --now removed-backend.service" "$DICTATION_LOG" || fail "a removed adapter still disables its service"
 [[ $(cat "$config") == "voxtype" ]] || fail "a removed adapter permits recovery"
 pass "switching stops recordings, preserves failed stops, and recovers unavailable providers"
 
