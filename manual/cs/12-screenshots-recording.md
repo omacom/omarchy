@@ -1,82 +1,83 @@
 # Snímky obrazovky a nahrávání
 
-Všechno, co můžete z obrazovky získat, visí na klávese Print Screen. Jedna klávesa sama o sobě pořídí obrázek a modifikátory pořídí nahrávání, barvu nebo text uvnitř oblasti. Pokud vaše klávesnice vůbec nemá klávesu Print Screen, `Super + Ctrl + C` otevře stejnou sadu jako nabídku.
+Vše, co můžete sejmout z obrazovky, visí na klávese Print Screen. Samotná klávesa pořídí snímek a modifikátory se postarají o nahrávku, barvu nebo text uvnitř oblasti. Pokud vaše klávesnice klávesu Print Screen vůbec nemá, `Super + Ctrl + Alt + C` pořídí stejný snímek obrazovky a `Super + Ctrl + C` otevře celou sadu jako nabídku.
 
 | Klávesová zkratka | Funkce |
 | ------ | -------- |
 | `Print Screen` | Snímek obrazovky |
-| `Alt + Print Screen` | Nahrávání obrazovky (nebo zastavit to spuštěné) |
+| `Super + Ctrl + Alt + C` | Snímek obrazovky |
+| `Alt + Print Screen` | Nahrávání obrazovky (nebo zastavení právě běžícího) |
 | `Super + Print Screen` | Výběr barvy |
 | `Super + Ctrl + Print Screen` | Extrahovat text z oblasti |
-| `Super + Ctrl + C` | Nabídka Zachytit |
+| `Super + Ctrl + C` | Nabídka snímání |
 | `Super + Ctrl + .` | Překódovat obrázek nebo video |
 
 ## Snímky obrazovky
 
-Stiskněte `Print Screen` a Omasnap zachytí zaměřený monitor dříve, než se objeví jeho překryv, takže se pod vámi nic nepohne, zatímco míříte. Přetáhněte volnou oblast, klikněte na okno a zachyťte ho, nebo klikněte na prázdné místo a zachyťte celý monitor. Před kreslením stiskněte `S` pro zachycení posouvací oblasti. Změnili jste názor? Stiskněte znovu `Print Screen` a Omasnap zavřete.
+Stiskněte `Print Screen` (nebo `Super + Ctrl + Alt + C`) a Omasnap zachytí monitor ve fokusu ještě předtím, než se objeví jeho překryvná vrstva, takže se vám při míření nic neposune. Přetažením vyberte libovolnou oblast, kliknutím na okno zachyťte okno, nebo kliknutím na volné místo zachyťte celý monitor. Před kreslením stiskněte `S`, chcete-li zachytit posouvající se oblast. Rozmysleli jste si to? Stiskněte stejnou klávesu znovu a Omasnap zavřete.
 
-Po výběru oblasti Omasnap uloží snímek, zkopíruje ho do schránky a ukáže náhled po dobu 10 sekund. Pomocí tlačítka připnutí v náhledu nebo `Ctrl + P` ho ponecháte na obrazovce, nebo vyberte Upravit a opatřete ho poznámkami.
+Po výběru oblasti Omasnap snímek uloží, zkopíruje do schránky a zobrazí oznámení s jeho miniaturu, podobně jako to dělá uložená nahrávka obrazovky. Zvolte Open, chcete-li uložený snímek zobrazit v prohlížeči obrázků, nebo Edit, chcete-li jej anotovat.
 
-Editační editor umí kreslit šipky, čáry, tvary, zvýraznění, číslované značky, text a bezpečné redakce; oříznout nebo vyříznout část obrázku; provést OCR jeho textu; a přidat pozadí. V editoru stiskněte `Enter` pro kopírování a uložení hotového PNG, `Ctrl + C` pro kopírování bez uložení, nebo `Ctrl + S` pro uložení bez kopírování.
+Editor anotací umí kreslit šipky, čáry, tvary, zvýraznění, číslované značky, text a bezpečná začernění; oříznout nebo vyříznout část obrázku; provést OCR jeho textu; a přidat pozadí. V editoru stiskněte `Enter` pro zkopírování a uložení hotového PNG, `Ctrl + C` pro zkopírování bez uložení, nebo `Ctrl + S` pro uložení bez kopírování.
 
-Uložené snímky obrazovky ve výchozím nastavení končí v `~/Pictures/Screenshots` s názvem jako `screenshot-2026-08-13_14-22-05-firefox.png`. Nastavte `OMASNAP_SCREENSHOT_DIR` pro použití jiného adresáře — kde umístit proměnné prostředí relace, viz [FAQ](46-faq.md). Omasnap adresář vytvoří, když ukládá první snímek. Nastavte `[output] autosave = false` v `~/.config/omasnap/omasnap.conf` pro zakázání automatického ukládání.
+Uložené snímky obrazovky končí ve výchozím nastavení v `~/Pictures/Screenshots` se jménem jako `screenshot-2026-08-13_14-22-05-firefox.png`. Nastavte `OMASNAP_SCREENSHOT_DIR`, chcete-li použít jiný adresář — viz [FAQ](46-faq.md), kam umístit proměnné prostředí relace. Omasnap adresář vytvoří při uložení prvního snímku. Nastavením `[output] autosave = false` v `~/.config/omasnap/omasnap.conf` vypnete automatické ukládání; snímky se pak pouze kopírují a zobrazují v náhledu po dobu 10 sekund, který můžete nechat na obrazovce jeho tlačítkem připnutí nebo pomocí `Ctrl + P`.
 
-Z terminálu `omarchy screenshot` otevře tentýž překryv a můžete si vybrat jeho počáteční režim: `omarchy capture screenshot region`, `windows`, `fullscreen`, nebo `scroll`. Druhý argument `copy` nebo `save` přeskočí náhled a pošle snímek přímo do tohoto cíle. Chcete-li před výstupem upravovat, použijte `omarchy screenshot --editor=overlay` pro editor na celou obrazovku nebo `omarchy screenshot --editor=window` pro samostatné okno.
+Z terminálu otevře `omarchy screenshot` stejnou překryvnou vrstvu a můžete si zvolit její výchozí režim: `omarchy capture screenshot region`, `windows`, `fullscreen`, nebo `scroll`. Druhý argument `copy` nebo `save` pošle snímek rovnou do daného cíle. Chcete-li před výstupem upravovat, použijte `omarchy screenshot --editor=overlay` pro editor na celou obrazovku nebo `omarchy screenshot --editor=window` pro samostatné okno.
 
 ### Ovládání výběru z klávesnice
 
-Zatímco je výběr nahoře, vůbec nemusíte používat myš:
+Když je výběr zobrazený, myš vůbec používat nemusíte:
 
 | Klávesa | Funkce |
 | --- | -------- |
-| `S` | Přepnout režim posouvací oblasti |
-| `Super + Arrow keys` | Pohybovat se mezi okny v režimu oken |
+| `S` | Přepnout režim posouvající se oblasti |
+| `Super + Arrow keys` | Přesouvat se mezi okny v režimu oken |
 | `Return` | Zachytit zvýrazněné okno |
-| `Ctrl + A` | Zachytit celý zaměřený monitor |
+| `Ctrl + A` | Zachytit celý monitor ve fokusu |
 | `R` | Obnovit poslední oblast nakreslenou v této relaci |
 | `Esc` | Zavřít Omasnap |
 
-Tyto zkratky existují, jen dokud je Omasnap otevřený, takže nemohou kolidovat s ničím ve vaší vlastní konfiguraci.
+Tyto vazby existují pouze po dobu, kdy je Omasnap otevřený, takže nemohou kolidovat s ničím ve vaší vlastní konfiguraci.
 
 ## Nahrávání obrazovky
 
-`Alt + Print Screen` otevře _Akce > Zachytit > Nahrávání obrazovky_, které se zeptá, co chcete mít na zvukové stopě: žádný zvuk, zvuk plochy, plochu plus mikrofon, nebo plochu plus mikrofon plus webovou kameru. Poslední možnost se ukáže, jen pokud máte skutečně připojenou kameru. Vyberte jednu a nahrávací výběr Omarchy vám umožní přetáhnout oblast nebo kliknout na okno či monitor.
+`Alt + Print Screen` otevře _Trigger > Capture > Screenrecord_, které se zeptá, co chcete mít ve zvukové stopě: žádný zvuk, zvuk plochy, plochu plus mikrofon, nebo plochu plus mikrofon plus webkameru. Ta poslední možnost se zobrazí pouze tehdy, máte-li skutečně připojenou kameru. Vyberte jednu a výběr nahrávání v Omarchy vám umožní přetažením vybrat oblast nebo kliknout na okno či monitor.
 
-Nahrávání běží na gpu-screen-recorder, který kóduje na GPU při 60 fps a v případě potřeby se vrátí k CPU. Výsledkem je MP4 v `~/Videos` s názvem `screenrecording-2026-08-13_14-22-05.mp4`. Nastavte `OMARCHY_SCREENRECORD_DIR` a změňte to — ale všimněte si, že na rozdíl od adresáře snímků obrazovky tento už musí existovat, jinak se nahrávání odmítne spustit.
+Nahrávání běží na gpu-screen-recorder, který kóduje na GPU při 60fps a v případě potřeby se vrátí k CPU. Výsledkem je MP4 v `~/Videos` s názvem `screenrecording-2026-08-13_14-22-05.mp4`. To změníte nastavením `OMARCHY_SCREENRECORD_DIR` — ale všimněte si, že na rozdíl od adresáře pro snímky obrazovky musí tento již existovat, jinak se nahrávání odmítne spustit.
 
-Během nahrávání se na panelu objeví malý ukazatel. Klikněte na něj pro zastavení. Zastavit můžete také opětovným stisknutím `Alt + Print Screen` nebo položkou _Zastavit nahrávání_ v _Akce > Zachytit > Nahrávání obrazovky_, která se objeví, jen když se něco skutečně nahrává.
+Během nahrávání se v liště objeví malý indikátor. Kliknutím na něj nahrávání zastavíte. Zastavit můžete také opětovným stisknutím `Alt + Print Screen` nebo položkou _Stop Screenrecording_ pod _Trigger > Capture > Screenrecord_, která se zobrazuje pouze tehdy, když se skutečně něco nahrává.
 
-Zastavení provede trochu úklidu, než vám předá soubor: první snímek se ořízne, a pokud je přítomný zvuk, normalizuje se na -14 LUFS přičemž pop zachycení PipeWire na úplném začátku je ztlumen. Poté se objeví oznámení s miniaturu z nahrávání. Klikněte na něj a soubor přehrajte v mpv.
+Zastavení před předáním souboru provede trochu úklidu: první snímek se ořízne a je-li přítomen zvuk, normalizuje se na -14 LUFS, přičemž lupnutí záznamu PipeWire na samém začátku se ztlumí. Poté se objeví oznámení s miniaturu z nahrávky. Kliknutím na něj soubor přehrajete v Omaview.
 
-### Překryv webové kamery
+### Překryvná vrstva webkamery
 
-Když nahráváte s webovou kamerou, kamera se objeví jako připnuté, oříznuté okno na výšku v pravém dolním rohu toho, co nahráváte. Pokud sedí na něčem, co potřebujete, změňte jeho velikost za běhu:
+Když nahráváte s webkamerou, kamera se objeví jako připnuté, oříznuté okno na výšku v pravém dolním rohu čehokoli, co nahráváte. Pokud sedí na něčem, co potřebujete, změňte jeho velikost za běhu:
 
 | Klávesová zkratka | Funkce |
 | ------ | -------- |
-| `Super + Alt + [` | Zmenšit překryv webové kamery |
-| `Super + Alt + ]` | Zvětšit překryv webové kamery |
+| `Super + Alt + [` | Zmenšit překryvnou vrstvu webkamery |
+| `Super + Alt + ]` | Zvětšit překryvnou vrstvu webkamery |
 
-Existují tři velikosti — malá, střední a velká — a klávesové zkratky mezi nimi krokují. Výchozí je střední. Jsou úměrné nahrávání, takže kamera zabírá stejný podíl snímku, ať už nahráváte monitor 1080p nebo 6K. A pokud jste nahrávali oblast místo celého displeje, překryv se ukotví do rohu této oblasti místo rohu monitoru, takže zůstane uvnitř záběru.
+Existují tři velikosti — malá, střední a velká — a klávesové zkratky mezi nimi přecházejí. Střední je výchozí. Jsou úměrné nahrávce, takže kamera zabírá stejnou část snímku, ať nahráváte 1080p monitor, nebo 6K monitor. A pokud jste nahrávali oblast, a ne celou obrazovku, překryvná vrstva se ukotví k rohu dané oblasti, a ne monitoru, takže zůstane uvnitř záběru.
 
-Můžete ho také volat přímo pomocí `omarchy-capture-webcam-resize small`, nebo `reset` pro návrat ke střední.
+Můžete ji také volat přímo pomocí `omarchy-capture-webcam-resize small`, nebo pomocí `reset` vrátit se ke střední.
 
 ## Text, QR kódy a barvy
 
 `Super + Ctrl + Print Screen` vybere oblast a provede její OCR do schránky. To je řádně popsáno v [Extrakce textu a diktování](11-text-extraction-dictation.md).
 
-_Akce > Zachytit > QR kód_ dělá stejný trik pro QR kódy. Vyberte oblast s kódem a dekódovaná hodnota půjde do schránky. Hledá pouze QR kódy — hustý obsah obrazovky má jinak ve zvyku falešně pozitivně vyhodnocovat jako čárový kód. Důležité vědět: dekódovaná hodnota jde do schránky a nikam jinam. Není vytištěna, není v oznámení a je označena jako citlivá, takže nezůstává v [historii schránky](08-unified-clipboard-history.md). QR kódy běžně nesou tajemství — například URI `otpauth://` za kódem pro nastavení 2FA — a to v logu nechcete. Vkládání přesto funguje dobře.
+_Trigger > Capture > QR Code_ dělá stejný trik pro QR kódy. Vyberte oblast s kódem a dekódovaná hodnota se dostane do schránky. Hledá pouze QR kódy — hustý obsah obrazovky má jinak tendenci být falešně pozitivně detekován jako čárový kód. Stojí za to vědět: dekódovaná hodnota jde do schránky a nikam jinam. Nevypisuje se, není v oznámení a je označena jako citlivá, takže nezůstane v [historii schránky](08-unified-clipboard-history.md). QR kódy běžně nesou tajemství — například URI `otpauth://` za nastavovacím kódem 2FA — a to v logu nechcete. Vkládání stále funguje bez problémů.
 
-`Super + Print Screen` (nebo _Akce > Zachytit > Barva_) promění kurzor v kapátko. Klikněte na cokoli na obrazovce a barva přistane ve schránce. Stiskněte klávesovou zkratku znovu a vycouvejte bez výběru.
+`Super + Print Screen` (nebo _Trigger > Capture > Color_) promění kurzor v kapátko. Klikněte na cokoli na obrazovce a barva skončí ve schránce. Stiskněte klávesovou zkratku znovu, chcete-li odejít bez výběru.
 
 ## Překódování před sdílením
 
-Nahrávání obrazovky ve 4K nebo surový HEIC z telefonu je často příliš velký na pouhé odeslání. `Super + Ctrl + .` (nebo _Akce > Překódovat_) to napraví. Nabídne vám fuzzy výběr souboru přes `~/Pictures` a `~/Videos` a poté se zeptá na formát a velikost.
+Nahrávka obrazovky ve 4K nebo surové HEIC z telefonu je často příliš velká na pouhé odeslání. `Super + Ctrl + .` (nebo _Trigger > Transcode_) to vyřeší. Nabídne vám fuzzy výběr souboru nad `~/Pictures` a `~/Videos` a poté se zeptá na formát a velikost.
 
-Obrázky jdou do jpg nebo png ve vysoké, střední nebo nízké kvalitě, které omezují šířku na 3160, 2160 a 1080 pixelů. Videa jdou do mp4 nebo animovaného gifu ve 4k, 1080p nebo 720p. Převedený soubor se zapíše vedle originálu s rozlišením v názvu — `demo-1080p.mp4` — a cesta se zkopíruje do schránky jako URI souboru, takže ho můžete vložit přímo do aplikace, která přijímá upouštění souborů.
+Obrázky se převádějí do jpg nebo png ve vysoké, střední nebo nízké kvalitě, které omezují šířku na 3160, 2160 a 1080 pixelů. Videa se převádějí do mp4 nebo animovaného gif v rozlišení 4k, 1080p nebo 720p. Převedený soubor se zapíše vedle originálu s rozlišením v názvu — `demo-1080p.mp4` — a cesta se zkopíruje do schránky jako URI souboru, takže ji můžete vložit přímo do aplikace, která přijímá přetažené soubory.
 
-Funguje to i z terminálu, pokud už víte, co chcete: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Existuje také `omarchy transcode ascii`, který promění obrázek v ASCII art — ten je hlavně pro [branding](41-branding.md).
+Funguje to i z terminálu, pokud už víte, co chcete: `omarchy transcode ~/Videos/demo.mov mp4 1080p`. Existuje také `omarchy transcode ascii`, které promění obrázek v ASCII art — to je hlavně pro [branding](41-branding.md).
 
-## Odeslání někam jinam
+## Odeslání někam
 
-Jakmile máte soubor, `Super + Ctrl + S` otevře nabídku Sdílet a pošle ho na jiné zařízení ve vaší síti přes LocalSend. Viz [GUI](22-guis.md).
+Jakmile máte soubor, `Super + Ctrl + S` otevře nabídku Share a odešle jej na jiné zařízení ve vaší síti přes LocalSend. Viz [GUIs](22-guis.md) pro podrobnosti.

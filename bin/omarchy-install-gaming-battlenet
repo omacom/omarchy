@@ -11,8 +11,10 @@ INSTALLER_URL="https://downloader.battle.net/download/getInstallerForGame?os=win
 
 echo "Installing Battle.net..."
 
-omarchy-pkg-add umu-launcher
+# Satisfy umu-launcher's lib32-vulkan-driver dependency before --noconfirm
+# can select an NVIDIA provider on an AMD or Intel system.
 omarchy-install-gaming-gpu-lib32
+omarchy-pkg-add umu-launcher
 
 # Detect a half-finished prefix from a closed/crashed previous run and offer
 # to wipe it before trying again. Battle.net's installer isn't idempotent.

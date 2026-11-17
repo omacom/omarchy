@@ -1,10 +1,10 @@
 # Omarchy CLI
 
-Omarchy සාමාන්‍යයෙන් පාලනය වන්නේ උණුසුම් යතුරු සහ Omarchy මෙනුව (`Super + Space`) හරහායි. නමුත් ඔබට එය `omarchy` CLI හරහා ද පාලනය කළ හැකිය. ඔබ අභිරුචිකරණය හෝ වින්‍යාසය පිළිබඳව AI නියෝජිතයෙකු ඔබ සමඟ වැඩ කරන විට මෙය විශේෂයෙන් ප්‍රයෝජනවත් වේ.
+Omarchy සාමාන්‍යයෙන් පාලනය කරනු ලබන්නේ hotkeys සහ Omarchy මෙනුව (`Super + Space`) හරහාය. නමුත් ඔබට එය `omarchy` CLI එක හරහාද පාලනය කළ හැකිය. ඔබ අභිරුචිකරණය හෝ වින්‍යාසය සම්බන්ධයෙන් AI නියෝජිතයෙකු ඔබ සමඟ වැඩ කරවන විට මෙය විශේෂයෙන් ප්‍රයෝජනවත් වේ.
 
-CLI එකට මෙනුව හරහා සහ වෙනත් ආකාරයකින් භාවිතා කරන සියලුම අභ්‍යන්තර මෙවලම් වෙත ප්‍රවේශය ඇත. ටර්මිනලයේ `omarchy` ධාවනය කිරීමෙන් ලබා ගත හැකි සියල්ල ඔබට දැකිය හැකිය.
+මෙනුව හරහා සහ වෙනත් ආකාරවලින් භාවිතා කරන සියලුම අභ්‍යන්තර මෙවලම් වෙත CLI එකට ප්‍රවේශය ඇත. terminal එකේ `omarchy` ධාවනය කිරීමෙන් ලබා ගත හැකි සියල්ල ඔබට දැක ගත හැකිය.
 
-එය මේ වගේ දෙයක් පෙනේ:
+එය මේ වගේ දෙයක් ලෙස පෙනේ:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-ඔබට සෑම කණ්ඩායමක් පිළිබඳවම ගැඹුරට කිමිදිය හැකිය:
+රෝග විනිශ්චය සඳහා, `omarchy-debug --no-sudo --print` කෙලින්ම ධාවනය කරන්න. එය රෝග විනිශ්චය තොරතුරු මුද්‍රණය කරන අතර sudo සඳහා විමසීමකින් තොරව `/tmp/omarchy-debug.log` වෙත ලියයි, `omarchy debug` එක "Unknown Omarchy command" සමඟ අසාර්ථක විය හැකි package ස්ථාපනයන්හිදීද ඇතුළුව.
+
+ඔබට සෑම කණ්ඩායමක් ගැනම තවදුරටත් ගැඹුරින් සොයා බැලිය හැකිය:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-ඔබ මුළු කණ්ඩායමක් (`omarchy capture --help`) හෝ තනි විධානයක් (`omarchy capture screenshot --help`) ඇසුවත් සෑම විධානයක්ම `--help` ද ගනී.
+සෑම විධානයක්ම `--help` ද ලබා ගනී, ඔබ සම්පූර්ණ කණ්ඩායමක් (`omarchy capture --help`) හෝ තනි විධානයක් (`omarchy capture screenshot --help`) ඇසුවත්.
 
-### ටර්මිනලයෙන් මෙනුව විවෘත කිරීම
+### terminal එකෙන් මෙනුව විවෘත කිරීම
 
-Omarchy මෙනුව ස්ක්‍රිප්ට් කළ හැකි අතර, එය ඔබේම යතුරු බන්ධන සඳහා ප්‍රයෝජනවත් වේ. `omarchy menu` එය මූලයේ විවෘත කරන අතර, ඔබට එය නම් කිරීමෙන් ගසේ ඕනෑම ස්ථානයකට කෙලින්ම පැනිය හැකිය: `omarchy menu summon style.theme` කෙලින්ම තේමා තේරීමට යයි, `omarchy menu toggle system` පද්ධති මෙනුව විවෘත කරන අතර එය දැනටමත් ඉහළට පැමිණ ඇත්නම් එය නැවත වසයි, සහ `omarchy menu close` එය ඉවත් කරයි.
+Omarchy මෙනුව script කළ හැකි අතර, එය ඔබේම keybindings සඳහා පහසු වේ. `omarchy menu` එය මූලයේදී විවෘත කරයි, ඔබට එය නම් කිරීමෙන් ගසේ ඕනෑම ස්ථානයකට කෙලින්ම යා හැකිය: `omarchy menu summon appearance.theme` තේමා තෝරනය වෙත කෙලින්ම යයි, `omarchy menu toggle system` පද්ධති මෙනුව විවෘත කරන අතර එය දැනටමත් විවෘතව තිබේ නම් එය නැවත වසා දමයි, සහ `omarchy menu close` එය ඉවත් කරයි.

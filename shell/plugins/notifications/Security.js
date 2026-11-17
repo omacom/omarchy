@@ -3,7 +3,7 @@
 .pragma library
 var MAX_APP_NAME=256, MAX_SUMMARY=2048, MAX_BODY=32768
 var MAX_ACTIONS=16, MAX_ACTION_LABEL=256, MAX_ACTION_ID=256, MAX_SOURCE=253
-var MAX_URL=4096, MAX_CODES=8, MAX_PHONE=64
+var MAX_URL=4096, MAX_CODES=8
 function bounded(value, max) { return typeof value === 'string' ? value.slice(0,max) : '' }
 function containsControlChars(s) { return /[\x00-\x20\x7f-\x9f\\]/.test(s) }
 function canonicalHostname(raw) {
@@ -67,6 +67,27 @@ function parseExecArgv(value) {
   }
   if (!parsed[0] || parsed[0].charAt(0) === "-") return null
   return parsed
+}
+
+// The omarchy-actions hint (omarchy-notification-send --action): up to three
+// buttons, each a label and an argv held to the same rules as the click.
+var MAX_EXEC_ACTIONS = 3
+function parseExecActions(value) {
+  var text = String(value || "")
+  if (!text || text.length > MAX_BODY) return null
+  var parsed
+  try { parsed = JSON.parse(text) } catch (e) { return null }
+  if (!Array.isArray(parsed) || parsed.length === 0 || parsed.length > MAX_EXEC_ACTIONS) return null
+  var out = []
+  for (var i = 0; i < parsed.length; i++) {
+    var entry = parsed[i]
+    if (!entry || typeof entry !== "object" || typeof entry.label !== "string") return null
+    var label = entry.label.slice(0, MAX_ACTION_LABEL)
+    var argv = parseExecArgv(entry.argv)
+    if (!label.trim() || !argv) return null
+    out.push({ label: label, argv: argv })
+  }
+  return out
 }
 
 // The omarchy-glyph hint: a few code points for the icon slot.
