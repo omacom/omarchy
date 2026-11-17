@@ -38,14 +38,14 @@ trap 'rm -f "$rebuild_log"' EXIT
 # mkinitcpio's presets where it does not.
 rebuild_status=0
 if omarchy-cmd-present limine-mkinitcpio; then
+  source "$OMARCHY_PATH/install/helpers/image-target.sh"
   as_root limine-mkinitcpio </dev/null 2>&1 | tee "$rebuild_log" || rebuild_status=$?
+  omarchy_image_limine_rebuild_confirmed "$(<"$rebuild_log")" || rebuild_status=1
 else
   as_root mkinitcpio -P </dev/null 2>&1 | tee "$rebuild_log" || rebuild_status=$?
 fi
 
-# limine-mkinitcpio reports a kernel it could not rebuild and still exits 0,
-# so its output decides whether the rebuild landed.
-if (( rebuild_status != 0 )) || grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
+if (( rebuild_status != 0 )); then
   echo "A boot image was not rebuilt. Fix the error above, then run omarchy-migrate again before rebooting." >&2
   exit 1
 fi

@@ -170,3 +170,18 @@ omarchy_image_defer_hardware() {
 
   echo "Image build for $omarchy_image_platform: deferred ${#steps[@]} hardware steps to first boot"
 }
+
+# Limine can exit successfully after an image failed to build or install.
+# Every image it started must finish, with no error from its entry tool.
+omarchy_image_limine_rebuild_confirmed() {
+  local output uki initcpio built_uki built_initcpio
+
+  output=$(sed 's/\x1b\[[0-9;]*m//g' <<<"$1")
+  ! grep -Eq '^((==> )?(ERROR|Error|error)\b|Failed to |Command failed:|The file: |Invalid '"'"'initrd=|Repeated hash mismatches|Kernel name: |FAT32 boot partition not found|Exception in thread |[^ ]+: line [0-9]+: +[0-9]+ )' <<<"$output" ||
+    return 1
+  uki=$(grep -Ec '^Building UKI (fallback )?for ' <<<"$output") || true
+  initcpio=$(grep -Ec '^Building (fallback )?initramfs for ' <<<"$output") || true
+  built_uki=$(grep -Ec '^==> Unified kernel image generation successful' <<<"$output") || true
+  built_initcpio=$(grep -Ec '^==> Initcpio image generation successful' <<<"$output") || true
+  (( uki + initcpio > 0 && built_uki >= uki && built_initcpio >= initcpio + uki ))
+}

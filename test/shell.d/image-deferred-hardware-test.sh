@@ -40,6 +40,10 @@ stub_rebuild() {
   cat >"$stub_bin/$1" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >>"$REBUILDS"
+if [[ ${0##*/} == "limine-mkinitcpio" ]]; then
+  printf '%s\n' 'Building UKI for linux (7.2.15)' '==> Initcpio image generation successful' \
+    '==> Unified kernel image generation successful'
+fi
 SH
   chmod +x "$stub_bin/$1"
 }
@@ -606,7 +610,7 @@ stub_failed_rebuild() {
   cat >"$stub_bin/$1" <<'SH'
 #!/bin/bash
 printf '%s %s\n' "${0##*/}" "$*" >>"$REBUILDS"
-echo "==> ERROR: mkinitcpio failed for kernel 7.2.15-1-omarchy, skipping." >&2
+printf '%s\n' "${REBUILD_FAILURE-==> ERROR: mkinitcpio failed for kernel 7.2.15-1-omarchy, skipping.}" >&2
 SH
   chmod +x "$stub_bin/$1"
 }
@@ -626,6 +630,31 @@ first_boot "$root" >/dev/null 2>&1 || status=$?
 [[ -e $root/var/lib/omarchy/image/deferred-steps ]] || fail "a rebuild that failed keeps the queue"
 rm -f "$stub_bin/limine-mkinitcpio"
 pass "a rebuild that failed leaves the boot image owed"
+
+build_output=$'Building UKI for linux (7.2.15)\n==> Initcpio image generation successful\n==> Unified kernel image generation successful'
+for failure in \
+  "$build_output"$'\n\e[31mFailed to copy: linux.efi -> /boot/EFI/Linux/linux.efi (No space left on device)\e[0m' \
+  "$build_output"$'\nThe file: /tmp/linux.efi not found' \
+  "$build_output"$'\nException in thread "main" java.nio.charset.MalformedInputException' \
+  "$build_output"$'\n/usr/bin/limine-entry-tool: line 116: 123 Killed java' \
+  "$build_output"$'\nBuilding UKI for linux-lts (6.12.0)' \
+  ''; do
+  reset_logs
+  export REBUILD_FAILURE=$failure
+  stub_failed_rebuild limine-mkinitcpio
+  root=$(new_root unconfirmed)
+  write_manifest "$root"
+  build "$root" >/dev/null || fail "the fixture image builds"
+  status=0
+  first_boot "$root" >/dev/null 2>&1 || status=$?
+  (( status == 1 )) && [[ ! -e $root/var/lib/omarchy/image/boot-image-rebuilt &&
+    -e $root/var/lib/omarchy/image/boot-rebuild && -e $root/var/lib/omarchy/image/deferred-steps &&
+    -L $root/etc/systemd/system/multi-user.target.wants/$unit_name ]] ||
+    fail "an unconfirmed Limine rebuild stays owed" "status $status: $failure"
+done
+unset REBUILD_FAILURE
+rm -f "$stub_bin/limine-mkinitcpio"
+pass "entry-tool failures, incomplete builds and empty Limine runs never record completion"
 
 # A step that would build the boot image itself asks for the rebuild after the
 # last step instead: one rebuild covers it and the machine's own hardware, and

@@ -179,15 +179,14 @@ if image_boot_owed || [[ -e $omarchy_image_boot_rebuild || $(initramfs_inputs) !
   rebuild_status=0
   if omarchy-cmd-present limine-mkinitcpio; then
     limine-mkinitcpio </dev/null >"$rebuild_log" 2>&1 || rebuild_status=$?
+    omarchy_image_limine_rebuild_confirmed "$(<"$rebuild_log")" || rebuild_status=1
   else
     mkinitcpio -P </dev/null >"$rebuild_log" 2>&1 || rebuild_status=$?
   fi
   cat "$rebuild_log" >>"$OMARCHY_INSTALL_LOG_FILE"
 
-  # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0,
-  # so its output decides whether the rebuild landed. A rebuild that failed
-  # leaves the machine with the boot image it had, and the rebuild owed.
-  if (( rebuild_status != 0 )) || grep -q 'mkinitcpio failed for kernel' "$rebuild_log"; then
+  # An incomplete rebuild leaves the machine's previous boot image in place.
+  if (( rebuild_status != 0 )); then
     fail "Boot image rebuild failed (see $OMARCHY_INSTALL_LOG_FILE); the next run retries it"
   fi
 
