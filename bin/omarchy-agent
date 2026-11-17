@@ -281,7 +281,7 @@ commandcode)
   command=(commandcode --yolo)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;
-zycode)
+zypi)
   command=(zypi --always-approve)
   [[ -n ${prompt:-} ]] && command+=(-- "$prompt")
   ;;

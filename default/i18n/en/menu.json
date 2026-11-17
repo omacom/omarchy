@@ -585,7 +585,7 @@
   "agent.harness.qwen": {
     "label": "Qwen Code"
   },
-  "agent.harness.zycode": {
+  "agent.harness.zypi": {
     "label": "zycode"
   },
   "setup.default.browser": {

@@ -72,10 +72,15 @@ devin | devin-cli)
 amp | ampcode) agent="amp"; name="Amp" ;;
 commandcode | command-code | cmdc) agent="commandcode"; name="Command Code"; agent_package="npm:command-code" ;;
 zycode | zypi)
-  agent="zycode"; name="zycode"
+  # The agent is named zycode, and its command is zypi. The saved name is the
+  # command, because omarchy-agent checks it and runs it as one.
+  agent="zypi"; name="zycode"
   # zycode publishes per-platform archives containing zypi and zycode-agent.
+  # GitHub lists releases newest first, and mise takes the last entry of a list
+  # as the newest, so the versions are ordered by semver to make "latest" the
+  # newest release rather than the oldest.
   agent_tool="http:zycode"
-  agent_package="$agent_tool[platforms_linux_x64_url=https://github.com/zy1233/pi-python/releases/download/v{{version}}/zycode-linux-x86_64-{{version}}.tar.gz,platforms_linux_arm64_url=https://github.com/zy1233/pi-python/releases/download/v{{version}}/zycode-linux-aarch64-{{version}}.tar.gz,version_list_url=https://api.github.com/repos/zy1233/pi-python/releases,version_json_path=.[].tag_name]"
+  agent_package="$agent_tool[platforms_linux_x64_url=https://github.com/zy1233/pi-python/releases/download/v{{ version }}/zycode-linux-x86_64-{{ version }}.tar.gz,platforms_linux_arm64_url=https://github.com/zy1233/pi-python/releases/download/v{{ version }}/zycode-linux-aarch64-{{ version }}.tar.gz,version_list_url=https://api.github.com/repos/zy1233/pi-python/releases,version_json_path=.[].tag_name,version_order=semver]"
   ;;
 *)
   echo "Usage: omarchy-default-agent <pi|omp|opencode|ori|claude|codex|grok|openclaw|agy|hermes|copilot|crush|cursor-agent|muse|kimi|qwen|dsh|mcode|kiro-cli|freebuff|kilo|devin|amp|commandcode|zycode>"
