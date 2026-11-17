@@ -47,9 +47,6 @@ with tempfile.TemporaryDirectory(prefix="omarchy-locate-") as scratch:
     path.chmod(0o755)
   calls = scratch / "updatedb-arguments"
   env = dict(os.environ, PATH=str(fake_bin) + ":" + os.environ["PATH"], TEST_CALLS=str(calls))
-  for relative in ("bin/omarchy-pkg-aur-install",):
-    subprocess.run(["bash", "-euo", "pipefail", str(root / relative)], env=env, check=True)
-    check(calls.read_text().splitlines() == options,
-          relative + " passes the scheduled service options directly")
-    calls.unlink()
+  subprocess.run(["bash", "-euo", "pipefail", str(root / "bin/omarchy-pkg-aur-install")], env=env, check=True)
+  check(not calls.exists(), "AUR install leaves indexing to the scheduled service")
 PY
