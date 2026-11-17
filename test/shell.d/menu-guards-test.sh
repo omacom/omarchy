@@ -16,25 +16,25 @@ const items = {
 const script = menu.guardScript(items)
 const browserSlot = `\${__omarchy_read_${menu.guardReaders.indexOf('omarchy-default-browser')}}`
 
-assert(
-  script.includes('if { omarchy-pkg-present brave-bin; } >/dev/null 2>&1; then echo setup.default.browser.brave:w:1; else echo setup.default.browser.brave:w:0; fi'),
-  'guard script reports a when: as <id>:w:<0|1>'
+// Each guard answers as <id>:<w|c|d>:<0|1>, and an item with nothing to
+// evaluate gives no row at all.
+const answers = require('child_process').execFileSync('bash', ['-c', menu.guardScript({
+  shown: { id: 'shown', when: 'true' },
+  unchecked: { id: 'unchecked', checked: 'false' },
+  disabled: { id: 'disabled', disabled: 'true' },
+  plain: items.plain
+})], { encoding: 'utf8', env: { ...process.env, XDG_RUNTIME_DIR: '' } }).trim().split('\n').sort()
+assertDeepEqual(
+  answers,
+  ['disabled:d:1', 'shown:w:1', 'unchecked:c:0'],
+  'guard script reports when:, checked: and disabled: per item and skips items with nothing to evaluate'
 )
-assert(
-  script.includes('then echo setup.default.browser.zen:c:1; else echo setup.default.browser.zen:c:0; fi'),
-  'guard script reports a checked: as <id>:c:<0|1>'
-)
-assert(
-  script.includes('if { omarchy-pkg-present zen-browser-bin; } >/dev/null 2>&1; then echo install.browser.zen:d:1; else echo install.browser.zen:d:0; fi'),
-  'guard script reports a disabled: as <id>:d:<0|1>'
-)
-assert(!/\bplain:[wcd]:/.test(script), 'guard script skips items with nothing to evaluate')
 assertEqual(menu.guardScript({ plain: items.plain }), '', 'guard script is empty when no item carries a guard')
 
 // The cost the menu is paying is per fork, not per expression, so what makes
 // the batch fast is asking each command once however many rows want it.
 assertEqual(
-  (script.match(/^__omarchy_read_\d+=\$\(omarchy-default-browser /gm) || []).length,
+  (script.match(/^exec \{__omarchy_read_fd_\d+\}< <\(omarchy-default-browser /gm) || []).length,
   1,
   'guard script reads a value command once for the whole batch'
 )
@@ -80,19 +80,29 @@ assertDeepEqual(
 )
 JS
 
-prelude() {
+# Runs a JS function body with the menu model in scope and prints what it
+# returns.
+menu_js() {
   node -e '
+    const fs = require("fs")
     const path = require("path")
     const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
-    process.stdout.write(menu.guardScript({ probe: { id: "probe", when: "true" } }))
-  ' | command grep -v '^if {'
+    process.stdout.write(String(new Function("menu", "fs", "path", process.argv[1])(menu, fs, path)))
+  ' "$1"
+}
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+
+prelude() {
+  menu_js 'return menu.guardScript({ probe: { id: "probe", when: "true" } })' | command sed '/^__omarchy_groups=()$/,$d'
 }
 
 # The prelude shadows the real commands for the length of the batch, so it has
 # to answer exactly as they do -- including for arguments no shipped guard
 # passes today, which an extension is free to write tomorrow.
-stub_dir=$(mktemp -d)
-trap 'rm -rf "$stub_dir"' EXIT
+stub_dir="$test_tmp/stubs"
+mkdir -p "$stub_dir"
 
 # `pacman -Q` resolves a name through what installed packages provide, so gvim
 # answers for vim and bash answers for sh. A set built from `pacman -Qq` alone
@@ -145,7 +155,9 @@ assert_helper_agrees() {
 
   local real=0 shadowed=0
   PATH="$stub_dir:$PATH" "$ROOT/bin/$helper" "$@" >/dev/null 2>&1 || real=$?
-  PATH="$stub_dir:$PATH" bash -c "$guard_prelude"$'\n'"$helper \"\$@\"" "$helper" "$@" >/dev/null 2>&1 || shadowed=$?
+  # No runtime dir, so the stub's set is built fresh rather than read from the
+  # machine's stored one (or stored in its place).
+  XDG_RUNTIME_DIR="" PATH="$stub_dir:$PATH" bash -c "$guard_prelude"$'\n'"$helper \"\$@\"" "$helper" "$@" >/dev/null 2>&1 || shadowed=$?
   ((real == shadowed)) || fail "$description" "$helper $*: real=$real shadowed=$shadowed"
 }
 
@@ -172,32 +184,103 @@ pass "guard prelude resolves commands as omarchy-cmd-present and omarchy-cmd-mis
 
 # A reader is replaced by what it printed, which has to compare identically to
 # the substitution it stood in for -- including the trailing newline $() drops.
-reader_script=$(node -e '
-  const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
-  process.stdout.write(menu.guardScript({
+reader_script=$(menu_js '
+  return menu.guardScript({
     hit: { id: "hit", checked: "[[ \"$(omarchy-dns)\" == \"Cloudflare\" ]]" },
     miss: { id: "miss", checked: "[[ \"$(omarchy-dns)\" == \"Google\" ]]" }
-  }))
+  })
 ')
-reader_result=$(bash -c '
+reader_result=$(XDG_RUNTIME_DIR="" bash -c '
 omarchy-dns() { printf "Cloudflare\n"; }
 export -f omarchy-dns
-'"$reader_script")
+'"$reader_script" | sort)
 [[ $reader_result == $'hit:c:1\nmiss:c:0' ]] ||
   fail "guard prelude compares a captured reader as the substitution did" "got: $reader_result"
 pass "guard prelude compares a captured reader exactly as the substitution it replaced"
 
 # The batch inherits whatever a login shell left set. A reader that exits
 # nonzero must not take the rest of the menu's rows down with it.
-errexit_result=$(bash -e -c '
+errexit_result=$(XDG_RUNTIME_DIR="" bash -e -c '
 omarchy-dns() { printf "Cloudflare\n"; return 3; }
 export -f omarchy-dns
 '"$reader_script"'
 printf "survived\n"' 2>/dev/null)
-[[ $errexit_result == $'hit:c:1\nmiss:c:0\nsurvived' ]] ||
+# Rows arrive in any order, but only once every group is done.
+[[ $(head -n 2 <<<"$errexit_result" | sort) == $'hit:c:1\nmiss:c:0' && $(tail -n 1 <<<"$errexit_result") == "survived" ]] ||
   fail "guard batch survives a failing reader under errexit" "got: $errexit_result"
 pass "guard batch survives a reader that exits nonzero under errexit"
+
+# Guards and readers run side by side. Each pair below only finishes if both
+# halves run at once: one leaves its mark and waits for the other's, so a
+# batch that ran them one after another would time out instead of answering.
+rendezvous_script=$(menu_js '
+  const meet = (mine, theirs) => `touch "$MEET/${mine}"; for _ in {1..40}; do [[ -e "$MEET/${theirs}" ]] && exit 0; sleep 0.05; done; exit 1`
+  return menu.guardScript({
+    a: { id: "a", when: `(${meet("a", "b")})` },
+    b: { id: "b", when: `(${meet("b", "a")})` },
+    dns: { id: "dns", checked: "[[ \"$(omarchy-dns)\" == \"Cloudflare\" ]]" },
+    google: { id: "google", checked: "[[ \"$(omarchy-dns)\" == \"Google\" ]]" },
+    corners: { id: "corners", checked: "[[ \"$(omarchy-hyprland-corners)\" == \"round\" ]]" }
+  })
+')
+
+# The DNS reader also prints extra trailing newlines, which `$(...)` drops and
+# the captured answer has to drop too.
+mkdir -p "$test_tmp/meet"
+rendezvous_result=$(MEET="$test_tmp/meet" bash -e -c '
+omarchy-dns() { touch "$MEET/dns"; for _ in {1..40}; do [[ -e $MEET/corners ]] && break; sleep 0.05; done; [[ -e $MEET/corners ]] && printf "Cloudflare\n\n"; }
+omarchy-hyprland-corners() { touch "$MEET/corners"; for _ in {1..40}; do [[ -e $MEET/dns ]] && break; sleep 0.05; done; [[ -e $MEET/dns ]] && printf "round\n"; }
+export -f omarchy-dns omarchy-hyprland-corners
+'"$rendezvous_script" | sort | tr '\n' ' ')
+[[ $rendezvous_result == "a:w:1 b:w:1 corners:c:1 dns:c:1 google:c:0 " ]] ||
+  fail "guard batch runs guards and readers side by side and reports every row once" "got: $rendezvous_result"
+pass "guard batch runs guards and readers side by side and reports every row once"
+
+# A reader's output arrives exactly as `$(...)` would have left it: leading
+# and inner whitespace kept, every trailing newline dropped, and nothing at all
+# when it prints only newlines or nothing.
+shape_script=$(menu_js '
+  return menu.guardScript({
+    shape: { id: "shape", checked: "[[ \"$(omarchy-dns)\" == \"  two  words\"$'"'"'\\n'"'"'\"line\" ]]" },
+    blank: { id: "blank", checked: "[[ -z \"$(omarchy-hyprland-corners)\" ]]" }
+  })
+')
+shape_result=$(bash -c '
+omarchy-dns() { printf "  two  words\nline\n\n\n"; }
+omarchy-hyprland-corners() { printf "\n\n"; }
+export -f omarchy-dns omarchy-hyprland-corners
+'"$shape_script" | sort | tr '\n' ' ')
+[[ $shape_result == "blank:c:1 shape:c:1 " ]] ||
+  fail "a captured reader keeps exactly what \$(...) keeps" "got: $shape_result"
+pass "a captured reader keeps exactly what \$(...) keeps"
+
+# The batch is done only when every group is: a slow guard's line still
+# arrives before it exits.
+slow_script=$(menu_js '
+  const items = {}
+  for (let i = 0; i < 20; i++) items[`row${i}`] = { id: `row${i}`, when: i === 7 ? "sleep 0.3" : "true" }
+  return menu.guardScript(items)
+')
+slow_output=$(bash -c "$slow_script")
+(($(sort -u <<<"$slow_output" | wc -l) == 20)) || fail "guard batch waits for its slowest group" "got: $slow_output"
+grep -qx 'row7:w:1' <<<"$slow_output" || fail "guard batch waits for its slowest group" "row7 missing"
+pass "guard batch exits only after its slowest group has answered"
+
+# A group that dies part way leaves its remaining rows unanswered, and the
+# menu keeps its last complete answers only when the batch fails. Under a
+# login shell's `set -u` an unset variable kills the group mid-guard.
+nounset_script=$(menu_js '
+  const items = {}
+  for (let i = 0; i < 20; i++) items[`row${i}`] = { id: `row${i}`, when: i === 3 ? "[[ -n $OMARCHY_TEST_UNSET ]]" : "true" }
+  return menu.guardScript(items)
+')
+nounset_status=0
+env -u OMARCHY_TEST_UNSET bash -u -c "$nounset_script" >/dev/null 2>&1 || nounset_status=$?
+((nounset_status != 0)) || fail "a guard group that dies part way fails the batch"
+bash -c "$nounset_script" >/dev/null 2>&1 || fail "a batch whose groups all finish succeeds"
+OMARCHY_TEST_UNSET=set bash -u -c "$nounset_script" >/dev/null 2>&1 ||
+  fail "the batch itself runs under set -u when no guard trips it"
+pass "a guard group that dies part way fails the whole batch, so the menu keeps its last answers"
 
 # Update > Extra Themes runs omarchy-theme-update, which pulls the themes that
 # came from a git clone and skips everything else, so the guard has to answer
@@ -205,12 +288,9 @@ pass "guard batch survives a reader that exits nonzero under errexit"
 # `.git` file opens a terminal that prints nothing and closes. Both sides ask
 # omarchy-theme-extras today; the shapes below are what would tell us if one
 # of them stopped.
-themes_guard=$(node -e '
-  const fs = require("fs")
-  const path = require("path")
-  const menu = require(path.join(process.env.ROOT, "shell/plugins/menu/MenuModel.js"))
+themes_guard=$(menu_js '
   const items = menu.parseMenuJsonc(fs.readFileSync(path.join(process.env.ROOT, "default/omarchy/omarchy-menu.jsonc"), "utf8"))
-  process.stdout.write(items.find(item => item.id === "update.themes").when)
+  return items.find(item => item.id === "update.themes").when
 ')
 
 cat >"$stub_dir/git" <<'STUB'
@@ -235,8 +315,7 @@ assert_themes_guard_agrees() {
   ((updated == expected)) || fail "$description" "$home: update=$updated expected=$expected"
 }
 
-themes_home=$(mktemp -d)
-trap 'rm -rf "$stub_dir" "$themes_home"' EXIT
+themes_home="$test_tmp/themes"
 
 # A theme copied by hand has nothing to pull, a symlinked one is someone's
 # working copy, and a `.git` file is a worktree living elsewhere.
@@ -269,11 +348,155 @@ listed=$(HOME="$themes_home/many" LC_ALL=C "$ROOT/bin/omarchy-theme-extras")
   fail "omarchy-theme-extras lists every clone and nothing else" "got: $listed"
 pass "omarchy-theme-extras lists every clone and nothing else"
 
-git_calls=$(mktemp)
-trap 'rm -rf "$stub_dir" "$themes_home" "$git_calls"' EXIT
+git_calls="$test_tmp/git-calls"
+: >"$git_calls"
 HOME="$themes_home/many" LC_ALL=C GIT_CALLS="$git_calls" PATH="$ROOT/bin:$stub_dir:$PATH" \
   "$ROOT/bin/omarchy-theme-update" >/dev/null 2>&1
 pulled=$(<"$git_calls")
 [[ $pulled == "<-C><$many/tokyo night><pull>"$'\n'"<-C><$many/zen><pull>" ]] ||
   fail "omarchy-theme-update pulls each clone by its whole path" "got: $pulled"
 pass "omarchy-theme-update pulls each clone by its whole path"
+
+# The package set is cached across batches, keyed on the local database
+# directory. Each case gets its own runtime dir and database, and a pacman
+# that logs every query, so what is checked is when the set gets rebuilt and
+# whether a stale one could ever answer.
+cache_root="$test_tmp/cache"
+
+cache_bin="$cache_root/bin"
+mkdir -p "$cache_bin"
+cat >"$cache_bin/pacman" <<'STUB'
+#!/bin/bash
+echo "$1" >>"$PACMAN_LOG"
+case "$1" in
+-Qq)
+  ls "$FIXTURE_DB/local" | sed 's/-[^-]*-[^-]*$//'
+  ;;
+-Qi)
+  [[ -z ${PACMAN_QI_FAILS:-} ]] || exit 1
+  # A transaction landing while the set is being read.
+  case "${PACMAN_DURING_QI:-}" in
+  install) mkdir -p "$FIXTURE_DB/local/zen-browser-bin-1.0-1" ;;
+  lock) touch "$FIXTURE_DB/db.lck" ;;
+  esac
+  if [[ -d $FIXTURE_DB/local/gvim-9.2-1 ]]; then
+    printf 'Name            : gvim\nProvides        : vim=9.2-1\n'
+  fi
+  ;;
+*)
+  exit 1
+  ;;
+esac
+STUB
+# pacman.conf's DBPath, which pacman-conf prints with a trailing slash.
+cat >"$cache_bin/pacman-conf" <<'STUB'
+#!/bin/bash
+[[ $1 == "DBPath" ]] || exit 1
+echo "$FIXTURE_DB/"
+STUB
+chmod +x "$cache_bin/pacman" "$cache_bin/pacman-conf"
+
+cache_script=$(menu_js '
+  return menu.guardScript({
+    bash: { id: "bash", when: "omarchy-pkg-present bash" },
+    vim: { id: "vim", when: "omarchy-pkg-present vim" },
+    zen: { id: "zen", when: "omarchy-pkg-present zen-browser-bin" }
+  })
+')
+
+cache_case() {
+  local dir="$cache_root/$1"
+  mkdir -p "$dir/runtime" "$dir/db/local/bash-5.3-1" "$dir/db/local/gvim-9.2-1"
+  echo "$dir"
+}
+
+# Runs the batch for a case, printing its answers on one line and leaving the
+# pacman queries it made in $dir/pacman.log.
+batch() {
+  local dir=$1
+  shift
+  : >"$dir/pacman.log"
+  env PATH="$cache_bin:$PATH" PACMAN_LOG="$dir/pacman.log" FIXTURE_DB="$dir/db" OMARCHY_PACMAN_DB_PATH="$dir/db" \
+    XDG_RUNTIME_DIR="$dir/runtime" "$@" bash -e -c "$cache_script" | sort | tr '\n' ' '
+}
+
+queried() {
+  [[ -s $1/pacman.log ]]
+}
+
+dir=$(cache_case reuse)
+[[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "a first batch answers from pacman" "$(batch "$dir")"
+queried "$dir" || fail "a first batch asks pacman"
+[[ -f $dir/runtime/omarchy-menu-packages ]] || fail "a first batch stores the package set"
+[[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "a cached batch answers as pacman did, provides included"
+! queried "$dir" || fail "a batch over an unchanged database does not ask pacman" "$(<"$dir/pacman.log")"
+pass "a batch over an unchanged package database answers from the stored set without asking pacman"
+
+# Upgrades rename an entry, installs add one and removals drop one; each has
+# to be seen by the very next batch.
+mkdir "$dir/db/local/zen-browser-bin-1.0-1"
+[[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:1 " ]] || fail "an install shows on the next batch" "$(batch "$dir")"
+queried "$dir" || fail "an install makes the next batch ask pacman"
+rmdir "$dir/db/local/gvim-9.2-1"
+[[ $(batch "$dir") == "bash:w:1 vim:w:0 zen:w:1 " ]] || fail "a removal shows on the next batch, provides included" "$(batch "$dir")"
+mv "$dir/db/local/bash-5.3-1" "$dir/db/local/bash-5.3-2"
+batch "$dir" >/dev/null
+queried "$dir" || fail "an upgrade makes the next batch ask pacman"
+pass "installs, removals and upgrades reach the very next batch"
+
+# Without the test seam the database is wherever pacman.conf puts it, so a
+# DBPath away from /var/lib/pacman still moves the stamp the batch reads.
+dir=$(cache_case dbpath)
+batch "$dir" OMARCHY_PACMAN_DB_PATH= >/dev/null
+[[ -f $dir/runtime/omarchy-menu-packages ]] || fail "the database pacman-conf names is cached"
+mkdir "$dir/db/local/zen-browser-bin-1.0-1"
+[[ $(batch "$dir" OMARCHY_PACMAN_DB_PATH=) == "bash:w:1 vim:w:1 zen:w:1 " ]] ||
+  fail "an install in the database pacman-conf names reaches the next batch" "$(batch "$dir" OMARCHY_PACMAN_DB_PATH=)"
+queried "$dir" || fail "an install in the database pacman-conf names makes the next batch ask pacman"
+pass "the stamp follows the database pacman.conf's DBPath names"
+
+# A database pacman is still writing must not be remembered: the entry can
+# exist before its desc does, and nothing would move the stamp afterwards.
+dir=$(cache_case locked)
+touch "$dir/db/db.lck"
+[[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "a batch during a transaction still answers" "$(batch "$dir")"
+[[ ! -e $dir/runtime/omarchy-menu-packages ]] || fail "a batch during a transaction stores nothing"
+rm "$dir/db/db.lck"
+batch "$dir" >/dev/null
+queried "$dir" || fail "the batch after a transaction asks pacman"
+[[ -f $dir/runtime/omarchy-menu-packages ]] || fail "the batch after a transaction stores the set"
+pass "a set read while pacman holds its lock is used once and never stored"
+
+# A transaction that starts or finishes while the set is read leaves a set
+# that may be missing its packages; the checks after the queries catch both.
+for during in install lock; do
+  dir=$(cache_case "during-$during")
+  batch "$dir" PACMAN_DURING_QI="$during" >/dev/null
+  queried "$dir" || fail "a batch asks pacman before a transaction lands mid-read ($during)"
+  [[ ! -e $dir/runtime/omarchy-menu-packages ]] || fail "a set read across a transaction is never stored ($during)"
+  rm -f "$dir/db/db.lck"
+  [[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:$([[ $during == "install" ]] && echo 1 || echo 0) " ]] ||
+    fail "the batch after a mid-read transaction answers from a fresh set ($during)" "$(batch "$dir")"
+  queried "$dir" || fail "the batch after a mid-read transaction asks pacman again ($during)"
+done
+pass "a set read across a transaction that lands mid-read is used once and never stored"
+
+# A failed query answers for its own batch, as before, but an empty or
+# provide-less set stored now would hide rows until the next transaction.
+dir=$(cache_case failed)
+[[ $(batch "$dir" PACMAN_QI_FAILS=1) == "bash:w:1 vim:w:0 zen:w:0 " ]] || fail "a failed query answers for its own batch" "$(batch "$dir" PACMAN_QI_FAILS=1)"
+[[ ! -e $dir/runtime/omarchy-menu-packages ]] || fail "a failed query is never stored"
+[[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "the batch after a failed query asks again" "$(batch "$dir")"
+pass "a set from a failed pacman query is never stored"
+
+# A set stored under another stamp is never believed.
+dir=$(cache_case stale)
+printf '%s\n' "0:0:0:0" bash gvim vim zen-browser-bin >"$dir/runtime/omarchy-menu-packages"
+[[ $(batch "$dir") == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "a set stored under another stamp is ignored" "$(batch "$dir")"
+queried "$dir" || fail "a set stored under another stamp makes the batch ask pacman"
+pass "a set stored under another database stamp is ignored and replaced"
+
+dir=$(cache_case no-runtime)
+[[ $(batch "$dir" XDG_RUNTIME_DIR=) == "bash:w:1 vim:w:1 zen:w:0 " ]] || fail "a batch without a runtime dir still answers"
+[[ -z $(ls -A "$dir/runtime") ]] || fail "a batch without a runtime dir stores nothing"
+pass "a batch without a runtime dir asks pacman and stores nothing"

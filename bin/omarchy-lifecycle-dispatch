@@ -33,6 +33,7 @@ operations=(
   luks-slots
   setup-boot setup-system setup-user
   post-install pre-remove
+  enable-fingerprint disable-fingerprint
 )
 
 # Run as the user, never as root, with that user's session.
@@ -86,9 +87,8 @@ if ! platform=$("${detect[@]}"); then
   exit 1
 fi
 
-# x86 and plain aarch64 machines (Snapdragon laptops among them) have no
-# registered package: every operation is a no-op there and callers keep their
-# generic path.
+# x86, plain aarch64, Snapdragon, N1x and GB10 machines have no registered
+# package: every operation is a no-op there and callers keep their generic path.
 # Apple Silicon's boot operations belong to omarchy-mac-boot, and its system and
 # user setup and app-install hooks to omarchy-mac (both omacom/omarchy-mac-pkgs).
 # Provisioning and factory reset have no other path on a Mac, only update-verify
@@ -98,11 +98,14 @@ fi
 # update-takeover: the Mac boot chain and its image own files no package does,
 # and a Mac whose boot package can't vouch for a takeover keeps them. Setup and
 # the app-install hooks are optional: a Mac without omarchy-mac keeps Omarchy's
-# generic setup and installs. Moving an operation to required also changes
-# apple_optional in test/shell.d/lifecycle-dispatch-test.sh and the Apple column
-# and registration table in docs/lifecycle-dispatch.md.
+# generic setup and installs. So are the fingerprint hooks, which turn on a
+# reader the platform keeps off until the owner agrees (a Mac's Touch ID).
+# Moving an operation to required also changes apple_optional in
+# test/shell.d/lifecycle-dispatch-test.sh and the Apple column and registration
+# table in docs/lifecycle-dispatch.md.
 case $platform:$operation in
-  aarch64-apple:setup-system | aarch64-apple:setup-user | aarch64-apple:post-install | aarch64-apple:pre-remove)
+  aarch64-apple:setup-system | aarch64-apple:setup-user | aarch64-apple:post-install | aarch64-apple:pre-remove | \
+    aarch64-apple:enable-fingerprint | aarch64-apple:disable-fingerprint)
     implementation=/usr/lib/omarchy/mac
     package=omarchy-mac
     required=()

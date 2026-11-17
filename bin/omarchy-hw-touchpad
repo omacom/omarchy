@@ -18,13 +18,20 @@ if [[ -z $device ]]; then
     name=$(<"$event/device/name")
     name=${name,,}
     name=${name//[ ,$'\n']/-}
-    udevadm info --query=property "$event" 2>/dev/null | grep -Fxq 'ID_INPUT_TOUCHPAD=1' || continue
+    # Match the name first: udevadm is a fork per device, and a desktop with no
+    # touchpad would otherwise pay it for every keyboard, button and switch on
+    # each menu open.
+    match=""
     while IFS= read -r mouse; do
       if [[ $mouse == "$name" || ( $mouse == "$name"-* && ${mouse#"$name"-} =~ ^[0-9]+$ ) ]]; then
-        device=$mouse
-        break 2
+        match=$mouse
+        break
       fi
     done <<<"$mice"
+    [[ -n $match ]] || continue
+    udevadm info --query=property "$event" 2>/dev/null | grep -Fxq 'ID_INPUT_TOUCHPAD=1' || continue
+    device=$match
+    break
   done
 fi
 

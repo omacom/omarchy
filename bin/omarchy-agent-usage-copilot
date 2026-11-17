@@ -1,0 +1,945 @@
+#!/usr/bin/python3
+# omarchy:summary=Print the GitHub Copilot usage record as JSON
+# omarchy:args=[--force] [--limits-only]
+# omarchy:hidden=true
+"""Collect GitHub Copilot usage into one display-ready JSON record.
+
+GitHub exposes no supported personal-account usage API — the Copilot REST
+endpoints are organization- or enterprise-scoped — but the Copilot CLI keeps
+two local sources this collector reads. The primary one is the session store
+(~/.copilot/session-store.db): its assistant_usage_events table records every
+billed request with day, model, session, token split, and cost in nano AI
+units (1e9 nano units = 1 AI credit at 1 cent). The fallback, for CLI versions
+whose store predates that table, is the session transcript directory
+(~/.copilot/session-state/<id>/events.jsonl), whose shutdown events carry the
+same per-model token split and cost. The record prefers whichever source
+produced numbers, never both.
+
+The monthly meter is an allowance of AI credits: GitHub's own account-wide
+figure from the internal quota endpoint (the same one the editor plugins
+use), asked with a token from COPILOT_QUOTA_TOKEN, GH_TOKEN, GITHUB_TOKEN, or
+`gh auth token`. It names the plan, the allowance, and when it resets, and a
+failed check keeps the last answer, marked stale. An answer under 15 seconds
+old is reused rather than asked again (--force always asks), and `gh` is only
+run when GitHub is actually asked. Only when it can't be asked at all does a
+monthlyCredits budget from ~/.config/omarchy/agents/copilot.json give a local
+estimate, labeled as one, of this machine's CLI spend:
+
+  {
+    "monthlyCredits": 1500,
+    "remote": true
+  }
+
+remote turns the quota probe off when false, and on even without a Copilot
+CLI home when true; by default it runs only where the CLI has been used.
+
+The agents panel only ever reads the JSON this prints.
+"""
+
+from __future__ import annotations
+
+import argparse
+import calendar
+import datetime as dt
+import hashlib
+import json
+import math
+import os
+import sqlite3
+import subprocess
+import sys
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+# The shared collector plumbing ships with the agents panel.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(os.environ["OMARCHY_PATH"], "shell", "plugins", "agents"))
+from collectors import (  # noqa: E402
+  NUMBER_CEILING,
+  HttpError,
+  LimitsCache,
+  Stats,
+  base_record,
+  cache_root,
+  cached_scan,
+  config_home,
+  emit,
+  empty_bucket,
+  empty_stats,
+  find_command,
+  local_day,
+  number,
+  open_json,
+  read_json,
+  scan_max_age,
+  stamp,
+  token_count,
+  write_json,
+)
+
+AGENT_ID = "copilot"
+AGENT_NAME = "GitHub Copilot"
+AUTH_HELP = (
+  "Run `gh auth login`, or set COPILOT_QUOTA_TOKEN, to show Copilot's monthly allowance."
+)
+
+ULTRA_SECONDS = 1_000_000_000
+QUOTA_URL = "https://api.github.com/copilot_internal/user"
+REMOTE_TIMEOUT = 6.0
+
+# Plan names as the quota endpoint spells them.
+API_PLAN_LABELS = {
+  "individual": "Pro",
+  "individual_pro": "Pro+",
+  "business": "Business",
+  "enterprise": "Enterprise",
+  "free": "Free",
+  "max": "Max",
+}
+
+def expand_path(value: str) -> Path:
+  return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
+
+
+def read_config() -> dict[str, Any]:
+  return read_json(config_home() / "omarchy" / "agents" / "copilot.json")
+
+
+TOKEN_KEYS = tuple(empty_bucket())
+
+
+def month_start(now: dt.datetime) -> dt.datetime:
+  return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def next_month_start(now: dt.datetime) -> dt.datetime:
+  days = calendar.monthrange(now.year, now.month)[1]
+  return month_start(now) + dt.timedelta(days=days)
+
+
+def positive_float(value: Any) -> float:
+  """A cost from disk, 0.0 when it can't be trusted: like number(), an
+  infinite or huge figure is a damaged field, not spend that fills the
+  allowance on its own."""
+  try:
+    n = float(value or 0)
+  except (TypeError, ValueError, OverflowError):
+    return 0.0
+  return n if math.isfinite(n) and 0 < n < NUMBER_CEILING else 0.0
+
+
+def credits_from_nano(nano: Any) -> float:
+  return positive_float(nano) / ULTRA_SECONDS
+
+
+def token_split(
+  prompt_tokens: Any, output_tokens: Any, cache_read: Any, cache_write: Any
+) -> dict[str, int]:
+  """Map Copilot's token counts onto the panel's four disjoint buckets.
+
+  Copilot's input count is the whole prompt, cache reads and writes included,
+  and its output count already includes reasoning tokens. The buckets are
+  disjoint, like the other collectors', so the cached part comes off input
+  and reasoning is never added a second time.
+  """
+  read = token_count(cache_read)
+  write = token_count(cache_write)
+  return {
+    "inputTokens": max(0, token_count(prompt_tokens) - read - write),
+    "outputTokens": token_count(output_tokens),
+    "cacheReadInputTokens": read,
+    "cacheCreationInputTokens": write,
+  }
+
+
+def clean_name(value: Any) -> str:
+  return str(value or "").strip()
+
+
+def parse_event_time(value: Any) -> dt.datetime | None:
+  """Parse a store or transcript timestamp into timezone-aware local time.
+
+  Accepts ISO-8601 (with or without Z) and epoch seconds or milliseconds.
+  As in local_day(), zero, a huge or negative number, NaN, a boolean, a date
+  outside 2000-2100, and anything else collapse to None; the caller falls
+  back to the file's time or the local date.
+  """
+  if isinstance(value, str):
+    value = value.strip()
+    if value.isdigit():
+      # ASCII digits only, and few enough to be a time: isdigit() also passes
+      # other scripts' digits and int() refuses strings past 4300 digits.
+      value = int(value) if value.isascii() and len(value) <= 20 else None
+  if value is None or value == "" or isinstance(value, bool):
+    return None
+  if isinstance(value, (int, float)):
+    if number(value) <= 0:
+      return None
+    seconds = value / 1000 if value > 10_000_000_000 else value
+    try:
+      parsed = dt.datetime.fromtimestamp(seconds, dt.timezone.utc)
+    except (OverflowError, OSError, ValueError):
+      return None
+  else:
+    try:
+      parsed = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+      return None
+    if parsed.tzinfo is None:
+      parsed = parsed.replace(tzinfo=dt.timezone.utc)
+  if not 2000 <= parsed.year <= 2100:
+    return None
+  return parsed.astimezone()
+
+
+def utc_month_key(value: Any) -> str:
+  parsed = parse_event_time(value)
+  if parsed is None:
+    return ""
+  return parsed.astimezone(dt.timezone.utc).strftime("%Y-%m")
+
+
+# ------------------------------------------------------------------ database
+
+
+def open_store(path: Path) -> sqlite3.Connection | None:
+  """Open the session store read-only, or None when it can't be read.
+
+  The CLI writes to this database continuously in WAL mode. A read-only
+  connection reads it in place: each query sees one consistent state of the
+  store, without blocking the writer and without copying a store that grows
+  without bound. Every scan aggregates as it streams, so the record's size
+  depends on days and models, never on the number of rows.
+  """
+  if not path.is_file():
+    return None
+  try:
+    conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=5.0)
+  except sqlite3.Error:
+    return None
+  try:
+    conn.execute("PRAGMA query_only = ON")
+    # A file that isn't a database only says so when it is first read.
+    conn.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchall()
+  except sqlite3.Error:
+    conn.close()
+    return None
+  conn.row_factory = sqlite3.Row
+  return conn
+
+
+def has_table(conn: sqlite3.Connection, name: str) -> bool:
+  try:
+    row = conn.execute(
+      "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1", (name,)
+    ).fetchone()
+    return row is not None
+  except sqlite3.Error:
+    return False
+
+
+def blank_stats() -> dict[str, Any]:
+  return {**empty_stats(), "monthCredits": 0.0}
+
+
+# --------------------------------------------------------------- aggregate
+
+
+class UsageTally(Stats):
+  """Running aggregate shared by both scans, on the shared stats fields.
+
+  Unlike a pi or opencode reply, a Copilot prompt and the tokens it spent
+  arrive apart (a transcript books a segment's tokens at its shutdown), so
+  each is counted on its own, along with the month's spend. It grows with
+  days, sessions, and models, never with raw events, so a scan can stream an
+  entire store or transcript directory through it.
+  """
+
+  def __init__(self) -> None:
+    super().__init__()
+    self.current_utc_month = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m")
+    self.month_credits = 0.0
+
+  def usage(self, model: str, day: str, tokens: dict[str, int]) -> None:
+    # Tokens no prompt and no one session is known for: a segment's spend.
+    self.add(day, None, model, *(tokens[key] for key in TOKEN_KEYS), prompts=0)
+
+  def spend(self, month_key: str, credits: float) -> None:
+    # The allowance window is the current UTC month, matching the reset
+    # boundary; older spend belongs to windows that are already over.
+    if month_key == self.current_utc_month:
+      self.month_credits += credits
+
+  def stats(self) -> dict[str, Any]:
+    return {**self.snapshot(), "monthCredits": round(self.month_credits, 6)}
+
+
+# ---------------------------------------------------------- store scan
+#
+# The session store's assistant_usage_events table records one row per billed
+# assistant request with day, model, session, the token split, and the cost in
+# total_nano_aiu. Rows stream through the tally rather than being fetched, so
+# lifetime totals cover the whole store at constant memory. A row with no time
+# is today's, and one whose time can't be trusted counts nowhere.
+#
+# Current CLIs also say who started each request: initiator "user" is a
+# prompt typed into the session, and "agent" the follow-up calls the agent
+# made on its own (a tool loop's next step, a subagent). And a request GitHub
+# served carries GitHub's usage report, its copilot_usage_model and cost; one
+# sent to a custom provider (BYOK, COPILOT_PROVIDER_BASE_URL) has neither, so
+# that provider billed it, not Copilot, and it stays out of this record. The
+# store doesn't keep where such a request went. A store from before these
+# columns counts every row as Copilot's, and its prompts can't be told apart.
+
+
+def table_columns(conn: sqlite3.Connection, name: str) -> set[str]:
+  try:
+    return {str(row[1]) for row in conn.execute(f"PRAGMA table_info({name})")}
+  except sqlite3.Error:
+    return set()
+
+
+# The stats, and how many dated rows the store held: a store with none falls
+# back on the transcripts.
+def scan_store(conn: sqlite3.Connection) -> tuple[dict[str, Any], int]:
+  tally = UsageTally()
+  rows_seen = 0
+  columns = table_columns(conn, "assistant_usage_events")
+  knows_initiator = "initiator" in columns
+  knows_billing = "copilot_usage_model" in columns
+  optional = [name for name in ("initiator", "agent_id", "copilot_usage_model") if name in columns]
+  extra = "".join(", " + name for name in optional)
+  try:
+    rows = conn.execute(
+      "SELECT session_id, model, created_at, total_nano_aiu, input_tokens,"
+      " output_tokens, cache_read_tokens, cache_write_tokens" + extra +
+      " FROM assistant_usage_events"
+    )
+    for row in rows:
+      session_id = clean_name(row["session_id"])
+      day = local_day(row["created_at"])
+      if day is None:
+        continue
+      rows_seen += 1
+      if knows_billing and row["copilot_usage_model"] is None and row["total_nano_aiu"] is None:
+        continue
+      if knows_initiator:
+        typed = clean_name(row["initiator"]) == "user" and not ("agent_id" in optional and clean_name(row["agent_id"]))
+        tally.add_prompts(day, session_id or "unknown", 1 if typed else 0)
+      else:
+        tally.add_prompts(day, session_id or "unknown")
+      tally.spend(
+        utc_month_key(row["created_at"]),
+        credits_from_nano(row["total_nano_aiu"]),
+      )
+      tally.usage(
+        clean_name(row["model"]) or "copilot",
+        day,
+        token_split(
+          row["input_tokens"],
+          row["output_tokens"],
+          row["cache_read_tokens"],
+          row["cache_write_tokens"],
+        ),
+      )
+  except sqlite3.Error:
+    return blank_stats(), 0
+  # Without an initiator a row is a billed model request, and one prompt can
+  # make many, so its count stays out of the panel's prompt totals.
+  return dict(tally.stats(), hasPromptStats=knows_initiator), rows_seen
+
+
+# ------------------------------------------------------ transcript fallback
+#
+# A CLI whose store predates the assistant_usage_events table still writes one
+# events.jsonl per session, one {"type", "timestamp", "data"} event per line:
+#
+# - user.message is a prompt. data.source marks messages a skill, a subagent,
+#   or the CLI itself injected; those are not the user's prompts.
+# - session.shutdown carries data.modelMetrics: per-model token usage and cost
+#   (totalNanoAiu), cumulative for the session across resumes. The growth since
+#   the previous shutdown is the usage of the segment that just ended, spread
+#   over the days that segment's replies landed on.
+# - assistant.message carries data.outputTokens per reply. It dates a segment's
+#   usage, and stands in for a segment still running with no shutdown yet.
+
+
+def is_prompt(event_type: Any, data: dict[str, Any]) -> bool:
+  return event_type == "user.message" and clean_name(data.get("source")) in (
+    "",
+    "user",
+  )
+
+
+def shutdown_metrics(data: dict[str, Any]) -> dict[str, dict[str, float]]:
+  metrics = data.get("modelMetrics")
+  if not isinstance(metrics, dict):
+    return {}
+  totals: dict[str, dict[str, float]] = {}
+  for model, entry in metrics.items():
+    if not isinstance(entry, dict):
+      continue
+    usage = entry.get("usage")
+    if not isinstance(usage, dict):
+      usage = {}
+    totals[clean_name(model) or "copilot"] = {
+      **token_split(
+        usage.get("inputTokens"),
+        usage.get("outputTokens"),
+        usage.get("cacheReadTokens"),
+        usage.get("cacheWriteTokens"),
+      ),
+      "credits": credits_from_nano(entry.get("totalNanoAiu")),
+    }
+  return totals
+
+
+def apportion(total: int, weights: list[int]) -> list[int]:
+  """Split a whole total in proportion to positive weights, summing exactly."""
+  whole = sum(weights)
+  shares: list[int] = []
+  given = 0
+  running = 0
+  for weight in weights:
+    running += weight
+    share = total * running // whole - given
+    shares.append(share)
+    given += share
+  return shares
+
+
+Reply = tuple[str, str, str, int]  # model, local day, UTC month, output tokens
+
+
+def spread_segment(
+  tally: UsageTally,
+  model: str,
+  delta: dict[str, int],
+  credits: float,
+  replies: list[Reply],
+  shutdown_slot: tuple[str, str],
+) -> None:
+  """Book one model's usage for a finished segment on the days it happened.
+
+  A segment can span midnight, and its shutdown only reports totals. Output
+  splits by each day's reply output, which the transcript records exactly.
+  Input, cache, and cost split by reply count: every reply is one model call
+  that resends the context, so calls, not output, track what was read.
+  """
+  slots: dict[tuple[str, str], list[int]] = {}
+  for reply_model, day, month_key, output in replies:
+    if reply_model == model:
+      slot = slots.setdefault((day, month_key), [0, 0])
+      slot[0] += 1
+      slot[1] += output
+  if not slots:
+    slots[shutdown_slot] = [1, 0]
+
+  calls = [counts[0] for counts in slots.values()]
+  outputs = [counts[1] for counts in slots.values()]
+  if sum(outputs) <= 0:
+    outputs = calls
+  split = {
+    key: apportion(delta[key], outputs if key == "outputTokens" else calls)
+    for key in TOKEN_KEYS
+  }
+  all_calls = sum(calls)
+  for index, (day, month_key) in enumerate(slots):
+    tally.usage(model, day, {key: split[key][index] for key in TOKEN_KEYS})
+    tally.spend(month_key, credits * calls[index] / all_calls)
+
+
+def scan_transcript(event_file: Path, session_key: str, tally: UsageTally) -> None:
+  try:
+    session_mtime = event_file.stat().st_mtime
+  except OSError:
+    session_mtime = 0.0
+
+  # Session totals as of the last shutdown, and the replies since then.
+  reported: dict[str, dict[str, float]] = {}
+  replies: list[Reply] = []
+
+  with event_file.open("r", encoding="utf-8", errors="replace") as handle:
+    for raw in handle:
+      try:
+        entry = json.loads(raw)
+      except ValueError:
+        continue
+      if not isinstance(entry, dict):
+        continue
+      event_type = entry.get("type")
+      data = entry.get("data")
+      if not isinstance(data, dict):
+        continue
+
+      # A line with no time is the file's; one whose time can't be trusted
+      # counts nowhere, as in every other collector.
+      stamped = entry.get("timestamp")
+      parsed = parse_event_time(stamped)
+      if parsed is None and stamped is not None:
+        continue
+      if parsed is None and session_mtime > 0:
+        parsed = dt.datetime.fromtimestamp(
+          session_mtime, dt.timezone.utc
+        ).astimezone()
+      day = parsed.date().isoformat() if parsed else tally.today
+      month_key = (
+        parsed.astimezone(dt.timezone.utc).strftime("%Y-%m") if parsed else ""
+      )
+
+      if is_prompt(event_type, data):
+        tally.add_prompts(day, session_key)
+      elif event_type == "assistant.message":
+        model = clean_name(data.get("model")) or "copilot"
+        replies.append(
+          (model, day, month_key, token_count(data.get("outputTokens")))
+        )
+      elif event_type == "session.shutdown":
+        for model, totals in shutdown_metrics(data).items():
+          before = reported.get(model, {})
+          spread_segment(
+            tally,
+            model,
+            {
+              key: max(0, int(totals[key] - before.get(key, 0)))
+              for key in TOKEN_KEYS
+            },
+            max(0.0, totals["credits"] - before.get("credits", 0.0)),
+            replies,
+            (day, month_key),
+          )
+          reported[model] = totals
+        # The shutdown totals already count these replies.
+        replies.clear()
+
+  for model, day, _month_key, output in replies:
+    tally.usage(model, day, {**empty_bucket(), "outputTokens": output})
+
+
+# The stats, and whether every transcript was read: one that couldn't be
+# leaves the totals short, so they must not be cached.
+def scan_transcripts(session_root: Path) -> tuple[dict[str, Any], bool]:
+  if not session_root.is_dir():
+    return blank_stats(), True
+  tally = UsageTally()
+  complete = True
+  try:
+    session_dirs = sorted(p for p in session_root.iterdir() if p.is_dir())
+  except OSError:
+    return blank_stats(), False
+  for session_dir in session_dirs:
+    event_file = session_dir / "events.jsonl"
+    if not event_file.is_file():
+      continue
+    try:
+      scan_transcript(event_file, session_dir.name, tally)
+    except OSError:
+      complete = False
+  return tally.stats(), complete
+
+
+# ------------------------------------------------------------------- scan
+
+
+# The stats, and whether they are complete: a store that is there but could
+# not be read leaves only the transcripts, which newer CLIs may not write.
+def direct_scan(home_dir: Path) -> tuple[dict[str, Any], bool]:
+  store = home_dir / "session-store.db"
+  conn = open_store(store)
+  if conn is None:
+    stats, complete = scan_transcripts(home_dir / "session-state")
+    return stats, complete and not store.exists()
+  try:
+    if has_table(conn, "assistant_usage_events"):
+      stats, rows_seen = scan_store(conn)
+      if rows_seen:
+        return stats, True
+    # A store without the usage table, or one that is still empty, falls back
+    # to the transcripts exactly like a store-less machine.
+    return scan_transcripts(home_dir / "session-state")
+  finally:
+    conn.close()
+
+
+# ------------------------------------------------------------ remote quota
+
+
+def env_token() -> str:
+  for var in ("COPILOT_QUOTA_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"):
+    value = os.environ.get(var)
+    if value and value.strip():
+      return value.strip()
+  return ""
+
+
+def gh_token() -> str:
+  exe = find_command("gh")
+  if not exe:
+    return ""
+  try:
+    result = subprocess.run(
+      # gh follows GH_HOST without --hostname, and an Enterprise token must
+      # never go to api.github.com.
+      [exe, "auth", "token", "--hostname", "github.com"],
+      capture_output=True,
+      text=True,
+      timeout=REMOTE_TIMEOUT,
+      check=False,
+    )
+  except (OSError, subprocess.SubprocessError):
+    return ""
+  return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def gh_user() -> str:
+  """Who `gh` is signed in to github.com as, from its hosts.yml.
+
+  Read as plain lines rather than YAML: only the host's own `user:` key
+  matters, and reading it costs no process, so a reused answer never has to
+  run `gh` to know whose it is.
+  """
+  config = os.environ.get("GH_CONFIG_DIR") or str(Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "gh")
+  try:
+    lines = (Path(config) / "hosts.yml").read_text(encoding="utf-8").splitlines()
+  except (OSError, UnicodeDecodeError):
+    return ""
+  in_host, child_indent = False, None
+  for line in lines:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+      continue
+    indent = len(line) - len(line.lstrip(" "))
+    if indent == 0:
+      in_host, child_indent = stripped == "github.com:", None
+      continue
+    if not in_host:
+      continue
+    child_indent = indent if child_indent is None else child_indent
+    if indent == child_indent and stripped.startswith("user:"):
+      return stripped.split(":", 1)[1].strip().strip("'\"")
+  return ""
+
+
+def github_credential() -> tuple[str, str]:
+  """Who the quota is asked as, and the token when it is already in hand.
+
+  Environment first, so a user can scope exactly what this sees, then the
+  `gh` CLI's own credential store, which is where a machine that has signed
+  in already keeps it. An exported token keys by itself (the limits cache
+  hashes whatever it is keyed by). gh keys by the account its hosts.yml
+  names, and its token is only fetched when GitHub is asked; a hosts.yml
+  without a user falls back to fetching it now. Nothing here is ever stored
+  or logged.
+  """
+  token = env_token()
+  if token:
+    return token, token
+  user = gh_user() if find_command("gh") else ""
+  if user:
+    return f"gh:github.com:{user}", ""
+  token = gh_token()
+  return (token, token) if token else ("", "")
+
+
+# A quota amount as GitHub sends it, or None when it isn't a readable one.
+def quota_amount(value: Any) -> float | None:
+  if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+    return None
+  try:
+    amount = float(value)
+  except ValueError:
+    return None
+  return amount if math.isfinite(amount) and amount >= 0 else None
+
+
+def ask_quota(token: str) -> dict[str, Any]:
+  """Ask GitHub for the account-wide credit balance."""
+  request = urllib.request.Request(
+    QUOTA_URL,
+    headers={
+      "Authorization": f"Bearer {token}",
+      "Accept": "application/json",
+      "User-Agent": "omarchy-agent-usage",
+    },
+  )
+  try:
+    payload = open_json(request, timeout=REMOTE_TIMEOUT, limit=2_000_000)
+  except HttpError as error:
+    if error.status:
+      return {"available": False, "reason": f"http-{error.status}"}
+    # No route, no DNS, refused, reset or timed out: nothing answered.
+    if error.transport:
+      return {"available": False, "reason": "unreachable"}
+    # A reply that came back cut short or unreadable is still an answer from
+    # GitHub.
+    return {"available": False, "reason": "bad-payload"}
+
+  if not isinstance(payload, dict):
+    return {"available": False, "reason": "bad-payload"}
+
+  snapshots = payload.get("quota_snapshots")
+  snapshot = snapshots.get("premium_interactions") if isinstance(snapshots, dict) else None
+  if not isinstance(snapshot, dict):
+    return {"available": False, "reason": "no-quota"}
+
+  # Under token-based billing the snapshot counts AI credits directly; only
+  # the local store and transcripts count in nano units. GitHub's snapshot
+  # (the CLI's CopilotUserResponseQuotaSnapshotsPremiumInteractions) says
+  # what is left, as remaining, quota_remaining or percent_remaining, so the
+  # amount used is the entitlement less that; a credits_used amount is still
+  # read first where one is sent. A limited allowance needs both amounts: one
+  # missing or unreadable would pass for no meter or an untouched allowance
+  # and replace the last good answer, so it is a failed check instead.
+  unlimited = snapshot.get("unlimited") is True
+  entitlement = quota_amount(snapshot.get("entitlement"))
+  used = quota_amount(snapshot.get("credits_used"))
+  if used is None and entitlement is not None:
+    remaining = quota_amount(snapshot.get("remaining"))
+    if remaining is None:
+      remaining = quota_amount(snapshot.get("quota_remaining"))
+    percent_remaining = quota_amount(snapshot.get("percent_remaining"))
+    if remaining is not None:
+      used = max(0.0, entitlement - remaining)
+    elif percent_remaining is not None:
+      used = entitlement * max(0.0, 100.0 - percent_remaining) / 100.0
+  if not unlimited and (entitlement is None or used is None):
+    return {"available": False, "reason": "bad-payload"}
+  return {
+    "available": True,
+    "unlimited": unlimited,
+    "entitlement": entitlement or 0.0,
+    "used": used or 0.0,
+    "resetsAt": str(payload.get("quota_reset_date_utc") or ""),
+    "planLabel": API_PLAN_LABELS.get(str(payload.get("copilot_plan") or "").strip().lower(), ""),
+  }
+
+
+# Before the limits caches were named copilot-limits-*, each token kept its
+# answer as copilot-quota-<token hash>. Read once, when this account has no
+# answer under the new name, so the last allowance survives the rename.
+def adopt_legacy_cache(cache: Path, token: str) -> dict[str, Any]:
+  legacy = cache_root() / f"copilot-quota-{hashlib.sha256(token.encode('utf-8')).hexdigest()[:16]}.json"
+  cached = read_json(legacy)
+  if not cached.get("available"):
+    return {}
+  try:
+    write_json(cache, cached)
+    legacy.unlink(missing_ok=True)
+  except OSError:
+    pass
+  return cached
+
+
+def fetch_remote_quota(force: bool = False) -> dict[str, Any]:
+  """The live quota, or the last good one marked stale.
+
+  Every failure is soft: a missing token, an offline machine, or a changed
+  payload keeps the last answer this account got, marked stale, or leaves
+  the record on its local stats rather than failing the whole collection.
+  Each account keeps its own cache, so a machine signed in to another
+  account never shows the last one's allowance. The cache is read whatever
+  its file time, so a clock that went back doesn't lose it.
+  """
+  identity, token = github_credential()
+  if not identity:
+    return {"available": False, "reason": "no-token"}
+
+  # The cache keeps GitHub's answer itself rather than meter rows: the meter
+  # is drawn from it at print time, budget and reset date included.
+  cache = LimitsCache(AGENT_ID, identity)
+  cached = cache.data
+  # A panel opened and shut repeatedly must not turn into a request (and a
+  # gh process) per flick, so an answer this recent is the answer.
+  if cached.get("available") and cache.fresh(force, allow_empty=True):
+    return open_quota(dict(cached, stale=False))
+
+  # hosts.yml still naming the account while `gh auth token` fails is gh or
+  # its credential store having a bad moment, not a sign-out (signing out
+  # drops the account from hosts.yml), so that account's last allowance
+  # stands, stale, like any other failed check.
+  token = token or gh_token()
+  if not token:
+    quota = {"available": False, "reason": "no-token"}
+  else:
+    if not cached:
+      cached = adopt_legacy_cache(cache.path, token)
+    quota = ask_quota(token)
+  if quota.get("available"):
+    quota["stale"] = False
+    quota["fetchedAtMs"] = cache.save([], **quota)
+    return quota
+
+  if cached.get("available"):
+    return open_quota(dict(cached, stale=True, failure=quota.get("reason", "")))
+  return quota
+
+
+# A kept answer describes its own allowance window and nothing after it:
+# once GitHub's reset date passes, its usage is back at zero and the next
+# reset is unknown until GitHub is asked again. One without a reset date is
+# kept as it is.
+def open_quota(cached: dict[str, Any]) -> dict[str, Any]:
+  resets_at = parse_event_time(str(cached.get("resetsAt") or ""))
+  if resets_at is not None and resets_at <= dt.datetime.now(dt.timezone.utc):
+    cached.update(used=0.0, resetsAt="")
+  return cached
+
+
+# What went wrong asking GitHub, and what to do about it.
+def quota_trouble(reason: str) -> str:
+  if reason == "unreachable":
+    return "Couldn't reach GitHub's Copilot quota endpoint. Retrying shortly."
+  if reason == "no-token":
+    return "The gh CLI didn't hand over its GitHub token; check `gh auth status`."
+  if reason in ("http-401", "http-403"):
+    return "GitHub refused the token for Copilot's quota. " + AUTH_HELP
+  if reason.startswith("http-"):
+    return f"GitHub's Copilot quota endpoint returned status {reason[5:]}."
+  return "GitHub's Copilot quota endpoint sent no allowance."
+
+
+# ---------------------------------------------------------------- allowance
+
+
+def allowance_limits(
+  month_credits: float,
+  config: dict[str, Any],
+  remote: dict[str, Any] | None,
+  now: dt.datetime,
+  has_stats: bool,
+) -> dict[str, Any]:
+  """The monthly allowance meter.
+
+  The live figure from the quota endpoint counts every machine, editor, and
+  agent on the entitlement, plan included. When it can't be asked, a
+  monthlyCredits budget from the configuration gives a local estimate of this
+  machine's CLI spend, labeled as such; without one there is no meter.
+  """
+  result = {
+    "limits": [],
+    "tierLabel": "",
+    "usageStatusText": "",
+    "authHelpText": "",
+    "limitsStale": False,
+    "limitsFetchedAt": 0,
+    "retryAdvised": False,
+  }
+  remote = remote if isinstance(remote, dict) else {}
+  reason = str(remote.get("failure") or remote.get("reason") or "")
+  result["retryAdvised"] = reason == "unreachable"
+
+  if remote.get("available"):
+    result["tierLabel"] = str(remote.get("planLabel") or "")
+    if remote.get("stale"):
+      result["authHelpText"] = quota_trouble(reason) + " Showing the last known allowance."
+      # A refused token is a sign-in to redo, kept allowance or not.
+      if reason in ("http-401", "http-403"):
+        result["usageStatusText"] = "Sign-in expired"
+    if remote.get("unlimited") or float(remote.get("entitlement") or 0) <= 0:
+      return result
+    # GitHub's own reset date, or none: a kept window that has reset has no
+    # known next one.
+    parsed = parse_event_time(str(remote.get("resetsAt") or ""))
+    result["limits"] = [{
+      "label": "Monthly allowance",
+      "percent": min(1.0, float(remote.get("used") or 0.0) / float(remote["entitlement"])),
+      "resetsAt": parsed.isoformat() if parsed is not None and parsed > now else "",
+    }]
+    result["limitsStale"] = bool(remote.get("stale"))
+    result["limitsFetchedAt"] = stamp(remote.get("fetchedAtMs"))
+    return result
+
+  if reason == "no-token":
+    result["usageStatusText"] = "Waiting for auth"
+    result["authHelpText"] = AUTH_HELP
+  elif reason in ("http-401", "http-403"):
+    result["usageStatusText"] = "Sign-in expired"
+    result["authHelpText"] = quota_trouble(reason)
+  elif reason and reason != "disabled":
+    result["usageStatusText"] = "Copilot limits unavailable"
+    result["authHelpText"] = quota_trouble(reason)
+
+  # A budget must not advertise a meter on a machine the CLI has never
+  # touched: the estimate needs local numbers to mean anything. Its window is
+  # the calendar month in UTC, the boundary GitHub documents for Copilot's
+  # allowance.
+  budget = config.get("monthlyCredits")
+  if isinstance(budget, (int, float)) and budget > 0 and has_stats:
+    result["limits"] = [{
+      "label": "Monthly allowance (est.)",
+      "percent": min(1.0, month_credits / float(budget)),
+      "resetsAt": next_month_start(now).isoformat(),
+    }]
+  return result
+
+
+# ------------------------------------------------------------------ record
+
+
+def main() -> int:
+  parser = argparse.ArgumentParser()
+  # --force rescans everything and rewrites the cache. --limits-only is kept
+  # for CLI compatibility with the panel's refreshLimits() call: only the
+  # limits probe must be fresh, so it may reuse a scan for far longer than a
+  # normal run, whose short window exists purely to dedup concurrent
+  # collector runs.
+  parser.add_argument("--force", action="store_true")
+  parser.add_argument("--limits-only", action="store_true")
+  parser.add_argument("--copilot-home", default=os.environ.get("COPILOT_HOME") or "~/.copilot")
+  args = parser.parse_args()
+
+  home_dir = expand_path(args.copilot_home)
+  # The digest covers the one data path the scan reads, the CLI's home.
+  stats = cached_scan(AGENT_ID, [home_dir], scan_max_age(args.force, args.limits_only), lambda: direct_scan(home_dir))
+
+  config = read_config()
+  now = dt.datetime.now(dt.timezone.utc)
+
+  # The quota probe hands a GitHub token to GitHub, so it only runs where the
+  # Copilot CLI has been used, or where the configuration asks for it. A
+  # machine with gh signed in but no Copilot stays an empty record.
+  remote = {"available": False, "reason": "disabled"}
+  if config.get("remote") is True or (config.get("remote", True) is not False and home_dir.is_dir()):
+    remote = fetch_remote_quota(args.force)
+
+  has_stats = number(stats.get("totalPrompts")) > 0 or float(stats.get("monthCredits") or 0.0) > 0
+  allowance = allowance_limits(float(stats.get("monthCredits") or 0.0), config, remote, now, has_stats)
+  ready = number(stats.get("totalPrompts")) > 0 or len(allowance["limits"]) > 0
+
+  record = base_record(
+    AGENT_ID,
+    AGENT_NAME,
+    ready=ready,
+    # A store of custom-provider requests alone leaves nothing of Copilot's.
+    hasLocalStats=number(stats.get("totalSessions")) > 0 or bool(stats.get("modelUsage")),
+    hasPromptStats=stats.get("hasPromptStats") is not False,
+    tierLabel=allowance["tierLabel"],
+    usageStatusText=allowance["usageStatusText"],
+    authHelpText=allowance["authHelpText"],
+    limits=allowance["limits"],
+    limitsStale=allowance["limitsStale"],
+    limitsFetchedAt=allowance["limitsFetchedAt"],
+  )
+  # The first probe after login often fires before the network is up.
+  if allowance["retryAdvised"]:
+    record["retryAdvised"] = True
+  for key in (
+    "todayPrompts",
+    "todaySessions",
+    "todayTotalTokens",
+    "totalPrompts",
+    "totalSessions",
+    "activeDays",
+  ):
+    record[key] = number(stats.get(key))
+  record["todayTokensByModel"] = stats.get("todayTokensByModel") or {}
+  record["recentDays"] = stats.get("recentDays") or []
+  record["modelUsage"] = stats.get("modelUsage") or {}
+  record["activeDates"] = stats.get("activeDates") or []
+  emit(record)
+  return 0
+
+
+if __name__ == "__main__":
+  raise SystemExit(main())

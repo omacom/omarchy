@@ -31,6 +31,12 @@ Item {
   property var revealHost: bar
   property string tooltipText: ""
   property var registeredBar: null
+  // Set by the bar while its own press handler, laid over the widget for
+  // dragging, holds this button down; mouseArea never sees that press.
+  property int heldButtons: Qt.NoButton
+  // The mouse buttons the mark gives under; none for a label that is read
+  // rather than pressed, like the clock.
+  property int pressFeedbackButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
 
   signal pressed(int button)
   signal wheelMoved(int delta)
@@ -65,20 +71,53 @@ Item {
   // Width of the painted label, for bar chrome that wants to line up with the
   // text rather than with the slot it sits in. Zero on icon-only buttons.
   readonly property real labelWidth: label.visible ? label.implicitWidth : 0
+  readonly property bool iconLabel: labelVisible && isIconGlyph(text)
+  readonly property real iconPaintedWidth: iconLabel && iconLoader.item ? iconLoader.item.paintedWidth : 0
+  readonly property real iconPaintedHeight: iconLabel && iconLoader.item ? iconLoader.item.paintedHeight : 0
+  readonly property real iconCenterErrorX: iconLabel && iconLoader.item
+    ? iconLoader.x + iconLoader.item.paintedCenterX - width / 2 : 0
+  readonly property real iconCenterErrorY: iconLabel && iconLoader.item
+    ? iconLoader.y + iconLoader.item.paintedCenterY - height / 2 : 0
+
+  function isIconGlyph(value) {
+    var text = String(value || "")
+    if (!text) return false
+    var code = text.codePointAt(0)
+    if (text.length !== (code > 0xffff ? 2 : 1)) return false
+    return (code >= 0xe000 && code <= 0xf8ff)
+      || (code >= 0xf0000 && code <= 0xffffd)
+      || (code >= 0x100000 && code <= 0x10fffd)
+      || (code >= 0x2190 && code <= 0x2bff)
+  }
 
   visible: hasVisualContent || keepSpace
   opacity: !hasVisualContent || concealed ? 0 : (dimmed ? 0.45 : 1)
-  implicitWidth: fixedWidth > 0 ? fixedWidth : (vertical ? barSize : Math.max(12, label.implicitWidth + scaledHorizontalMargin * 2))
-  implicitHeight: fixedHeight > 0 ? fixedHeight : (vertical ? Math.max(12, label.implicitHeight + scaledVerticalPadding * 2) : barSize)
+  implicitWidth: fixedWidth > 0 ? fixedWidth
+    : (vertical ? barSize : (iconLabel ? Style.bar.iconSlot : Math.max(12, label.implicitWidth + scaledHorizontalMargin * 2)))
+  implicitHeight: fixedHeight > 0 ? fixedHeight
+    : (vertical ? (iconLabel ? Style.bar.iconSlot : Math.max(12, label.implicitHeight + scaledVerticalPadding * 2)) : barSize)
 
   Behavior on opacity {
     NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }
   }
 
+  // Held down, the mark gives a little, so a click is felt as well as seen.
+  // Only the label and glyph shrink, never the button, so the hit area and
+  // the bar's layout hold still. A bar glyph is small, so it gives more than
+  // a panel button's 0.97, or nothing would show.
+  property real pressScale: root.pressable && ((mouseArea.pressedButtons | root.heldButtons) & root.pressFeedbackButtons) ? 0.9 : 1
+  Behavior on pressScale {
+    NumberAnimation {
+      duration: Style.duration(160)
+      easing.type: Easing.Bezier
+      easing.bezierCurve: Style.easeOut
+    }
+  }
+
   Text {
     id: label
     textFormat: Text.PlainText
-    visible: root.labelVisible
+    visible: root.labelVisible && !root.iconLabel
     anchors.centerIn: parent
     // Centering the line box puts the figures above the bar's middle, since
     // the box keeps room for descenders. Center the figure height instead, so
@@ -92,6 +131,7 @@ Item {
     font.pixelSize: root.fontSize
     renderType: Text.NativeRendering
     rotation: root.textRotation
+    scale: root.pressScale
     horizontalAlignment: Text.AlignHCenter
     verticalAlignment: Text.AlignVCenter
 
@@ -104,6 +144,26 @@ Item {
   FontMetrics {
     id: labelMetrics
     font: label.font
+  }
+
+  Loader {
+    id: iconLoader
+    active: root.iconLabel
+    width: Style.bar.iconCanvas
+    height: Style.bar.iconCanvas
+    x: (root.width - width) / 2
+    y: (root.height - height) / 2
+    scale: root.pressScale
+    sourceComponent: Component {
+      OpticalGlyph {
+        text: root.text
+        fontFamily: root.fontFamily
+        fontSize: root.fontSize
+        paintedSize: Style.bar.iconSize
+        color: root.active && root.useActiveColor ? root.activeColor : root.foreground
+        rotation: root.textRotation
+      }
+    }
   }
 
   MouseArea {

@@ -61,7 +61,7 @@ Item {
       icon: "brightness",
       message: "",
       value: String(percent),
-      progressText: percent + "%",
+      progressText: I18n.formatNumber(percent) + "%",
       max: "100",
       duration: ""
     }))

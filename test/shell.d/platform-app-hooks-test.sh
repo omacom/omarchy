@@ -122,6 +122,7 @@ pass "x86: Steam installs and is removed as before, running no hook"
 gpu_bin=$tmp/gpu-bin
 mkdir -p "$gpu_bin"
 printf '#!/bin/bash\necho "00:02.0 VGA compatible controller: %s"\n' '${GPU:-Apple Inc. AGX}' >"$gpu_bin/lspci"
+printf '#!/bin/bash\nexit "${ARCH_X86:-0}"\n' >"$gpu_bin/omarchy-hw-x86"
 printf '#!/bin/bash\nexit 1\n' >"$gpu_bin/omarchy-hw-nvidia-gsp"
 printf '#!/bin/bash\nexit 1\n' >"$gpu_bin/omarchy-hw-nvidia-without-gsp"
 printf '#!/bin/bash\necho "omarchy-pkg-add $*" >>"%s"\n' "$tmp/calls" >"$gpu_bin/omarchy-pkg-add"
@@ -134,3 +135,10 @@ GPU="Advanced Micro Devices, Inc. [AMD/ATI] Navi 31" PATH="$gpu_bin:$PATH" bash 
   fail "an AMD GPU installs its 32-bit driver"
 [[ $(cat "$tmp/calls") == "omarchy-pkg-add lib32-vulkan-radeon" ]] || fail "an AMD GPU gets lib32-vulkan-radeon" "$(cat "$tmp/calls")"
 pass "32-bit drivers: a machine with no supported GPU adds nothing without failing"
+
+# Multilib only exists on x86_64; an ARM machine runs the native arm64 Steam.
+rm -f "$tmp/calls"
+ARCH_X86=1 GPU="Advanced Micro Devices, Inc. [AMD/ATI] Navi 31" PATH="$gpu_bin:$PATH" bash "$ROOT/bin/omarchy-install-gaming-gpu-lib32" >/dev/null 2>&1 ||
+  fail "aarch64 skips the 32-bit drivers without failing"
+[[ ! -e $tmp/calls ]] || fail "aarch64 installs no 32-bit driver" "$(cat "$tmp/calls")"
+pass "32-bit drivers: aarch64 adds none, even with a supported GPU"
