@@ -69,6 +69,11 @@ Item {
   property string _exitNodeError: ""
   property string _operatorOutput: ""
   property string _operatorError: ""
+  // The up or down tailscale refused for want of an operator, run again once
+  // the grant it prompted goes through; and whether the run in flight is
+  // that retry, which is never retried again.
+  property string _retryAfterOperator: ""
+  property bool _operatorRetry: false
   // Change signatures for the big arrays. A 4k-machine tailnet makes every
   // status poll rebuild thousands of delegate rows if the arrays are
   // reassigned unconditionally, so only publish an array whose content
@@ -379,6 +384,8 @@ Item {
     _desired = -1
     var plan = Model.loginPlan(needsLogin, authUrl)
     if (plan.authUrl !== "") {
+      // Only the browser is needed; no command runs to carry a retry.
+      _operatorRetry = false
       _loginUrlOpened = false
       openAuthUrlFrom(plan.authUrl, true)
       return
@@ -442,6 +449,15 @@ Item {
     settingExitNodeId = String(peer.id || "")
     exitNodeProcess.command = ["tailscale", "set", "--exit-node=" + target]
     exitNodeProcess.running = true
+  }
+
+  // A refused up or down asks for the operator grant and then runs again,
+  // rather than leaving the refusal as the last word. Returns whether it did.
+  function retryAfterOperatorGrant(action, output, retried) {
+    if (retried || !Model.refusedOperator(output) || userName === "" || operatorProcess.running) return false
+    _retryAfterOperator = action
+    authorizeTailscaleOperator()
+    return true
   }
 
   function authorizeTailscaleOperator() {
@@ -633,7 +649,12 @@ Item {
     onExited: function(exitCode) {
       var stdout = String(actionStdout.text || root._actionOutput || "")
       var stderr = String(actionStderr.text || root._actionError || "")
-      if (exitCode !== 0) {
+      var retried = root._operatorRetry
+      root._operatorRetry = false
+      var down = command.length === 2 && command[0] === "tailscale" && command[1] === "down"
+      if (exitCode !== 0 && down && root.retryAfterOperatorGrant("down", stderr + "\n" + stdout, retried)) {
+        delayedRefresh.restart()
+      } else if (exitCode !== 0) {
         root._desired = -1
         root.lastError = elideStatus(stderr || stdout || I18n.t("tailscale.commandFailed"))
         root.actionStatus = root.lastError
@@ -654,6 +675,17 @@ Item {
     stderr: SplitParser { onRead: function(data) { root.handleLoginOutput(data, true) } }
     onExited: function(exitCode) {
       var combined = String(root._loginOutput || "") + "\n" + String(root._loginError || "")
+      var retried = root._operatorRetry
+      root._operatorRetry = false
+      // Refused before it got anywhere: no sign-in page to open, so a link in
+      // the refusal (tailscale's own docs) must not be taken for one.
+      if (exitCode !== 0 && root.retryAfterOperatorGrant("up", combined, retried)) {
+        root._desired = -1
+        root._loginInProgress = false
+        loginTimeoutTimer.stop()
+        delayedRefresh.restart()
+        return
+      }
       var opened = root.openAuthUrlFrom(combined, true)
       if (exitCode !== 0 && !opened) {
         root._desired = -1
@@ -749,7 +781,10 @@ Item {
     onExited: function(exitCode) {
       var stdout = String(operatorStdout.text || root._operatorOutput || "")
       var stderr = String(operatorStderr.text || root._operatorError || "")
+      var retry = root._retryAfterOperator
+      root._retryAfterOperator = ""
       if (exitCode !== 0) {
+        root._desired = -1
         root.lastError = elideStatus(stderr || stdout || I18n.t("tailscale.authorizationFailed"))
         root.actionStatus = root.lastError
         actionStatusTimer.restart()
@@ -759,6 +794,11 @@ Item {
         root.actionStatus = I18n.t("tailscale.operatorAuthorized")
         actionStatusTimer.restart()
         root._lastAccountsRefreshMs = 0
+        // The command that was refused, now that it is allowed.
+        root._operatorRetry = retry !== ""
+        if (retry === "up") root.loginOrUp()
+        else if (retry === "down") root.down()
+        else root._operatorRetry = false
       }
       delayedRefresh.restart()
     }

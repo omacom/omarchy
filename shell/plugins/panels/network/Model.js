@@ -90,18 +90,14 @@ function connectionTooltip(hasCaptivePortal, restricted, vpnNames, tr) {
   return t("network.vpnTooltip", "VPN: %1").replace("%1", names.join(", "))
 }
 
-// A VPN rides on a connection, so its profiles are offered once there is one
-// to ride on. One already up or on its way stays listed, so it can always be
-// turned off.
-function vpnSectionVisible(kind, connections) {
+// Where the panel lists the VPNs. A VPN rides on a connection, so once there
+// is one they sit up front, under the connection they would ride on. Without
+// one they wait at the bottom, past the networks that would make one, reached
+// by scrolling. "" when there are none to list.
+function vpnPlacement(kind, connections) {
   var list = Array.isArray(connections) ? connections : []
-  if (list.length === 0) return false
-  if (kind !== "disconnected") return true
-  for (var i = 0; i < list.length; i++) {
-    var state = list[i] && list[i].state
-    if (state === "activating" || state === "activated" || state === "deactivating") return true
-  }
-  return false
+  if (list.length === 0) return ""
+  return kind === "disconnected" ? "bottom" : "top"
 }
 
 function formatHeaderSpeed(mbps, fmt) {
@@ -494,7 +490,7 @@ if (typeof module !== "undefined") {
     wifiIconFor: wifiIconFor,
     connectionIcon: connectionIcon,
     connectionTooltip: connectionTooltip,
-    vpnSectionVisible: vpnSectionVisible,
+    vpnPlacement: vpnPlacement,
     connectedSignalStrength: connectedSignalStrength,
     parseActiveApSignal: parseActiveApSignal,
     connectivityState: connectivityState,

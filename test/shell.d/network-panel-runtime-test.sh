@@ -37,10 +37,15 @@ source = source.replace(/\bCommons\.NetworkVpn\b/g, 'NetworkVpnMock')
 source = source.replace('      id: keyCatcher\n', `      id: keyCatcher
       property alias testButton: portalAction
       property alias testTitle: heroSsid
+      property alias testVpnTop: vpnTopSection
+      property alias testVpnBottom: vpnBottomSection
+      property alias testNetworkList: networkList
 `)
 source = source.replace('  id: root', `  id: root
   function testEnsureContent() { return panel.ensureContent() }
   readonly property Item testContent: panel.loadedContent
+  readonly property var testCard: panel
+  readonly property Item testVpnList: panel.loadedContent ? (vpnPlacement === "top" ? panel.loadedContent.testVpnTop.list : panel.loadedContent.testVpnBottom.list) : null
   readonly property Item testButton: panel.loadedContent ? panel.loadedContent.testButton : null
   readonly property Item testKeys: panel.loadedContent
   readonly property Item testMeta: panel.loadedContent ? panel.loadedContent.heroMeta : null
@@ -105,3 +110,7 @@ pass "network keeps Wi-Fi through OWE transition scan churn, reads the in-use ac
 stage_panel live-rows
 run_panel "network live rows"
 pass "network rows follow connects, drops, saves and forgets made outside the panel, with the cursor on its network"
+
+stage_panel vpn
+run_panel "network VPN"
+pass "network lists VPNs up front once connected and last without, scrolls a short card to the keyboard's VPN or Wi-Fi row, hands VPNs to the credentials prompt, and opens Tailscale's own widget"

@@ -2,15 +2,21 @@ pragma Singleton
 import QtQuick
 
 // Stands in for Commons.NetworkVpn so the staged panel never reads the host's
-// NetworkManager profiles or listens on its system bus.
+// VPNs, listens on its system bus or watches tailscaled.
 QtObject {
   property var connections: []
   property var activeNames: []
   property bool active: false
-  property string pendingUuid: ""
+  property string pendingId: ""
   property string pendingAction: ""
-  property string failedUuid: ""
+  property string failedId: ""
   property bool busy: false
-  signal secretsRequested(string uuid)
-  function toggle(uuid) {}
+  property string credentialsId: ""
+  property string credentialsUser: ""
+  property bool credentialsNeedUser: false
+  property bool credentialsFailed: false
+  signal handedToTerminal(string id)
+  function toggle(connection) {}
+  function submitCredentials(username, password) {}
+  function cancelCredentials() { credentialsId = "" }
 }
