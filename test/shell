@@ -56,6 +56,9 @@ done
 # Every file's output is kept after the run, so a failure can be read from
 # its log rather than found by running the suite again.
 workdir=$(mktemp -d -t omarchy-test-shell.XXXXXX)
+# Named up front, so test/ci-vm can find this run's logs while it runs, and
+# after a hang, among the directories of the test/shell runs some tests start.
+printf 'Logging every file to %s\n' "$workdir"
 
 run_one() {
   local test="$1"
