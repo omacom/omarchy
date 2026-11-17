@@ -13,7 +13,8 @@ BarWidget {
   property var activeIndicatorIds: []
   property var indicatorActiveStates: ({})
   property bool indicatorAreaHovered: false
-  property bool indicatorItemHovered: false
+  property var hoveredIndicatorItems: []
+  readonly property bool indicatorItemHovered: hoveredIndicatorItems.length > 0
   // Held a moment after the pointer leaves, so crossing between icons, or a
   // frame where the widget moves under a still pointer, doesn't flicker them.
   property bool hoverRevealHeld: false
@@ -83,8 +84,10 @@ BarWidget {
     syncHoverReveal()
   }
 
-  function setIndicatorItemHovered(hovered) {
-    indicatorItemHovered = hovered
+  function setIndicatorItemHovered(hovered, item) {
+    var items = hoveredIndicatorItems.filter(function(hoveredItem) { return hoveredItem !== item })
+    if (hovered) items.push(item)
+    hoveredIndicatorItems = items
     syncHoverReveal()
   }
 
@@ -241,9 +244,8 @@ BarWidget {
   // half that reach: in the centered box the widget slides half its growth
   // back the other way as the box re-centers, and a zone that stopped at the
   // widget's edge would lose the pointer that opened it, closing and
-  // reopening in a loop. Under the icons: its hover handler still sees the
-  // pointer there, and on top it kept hover from the icons, so their tooltips
-  // never showed.
+  // reopening in a loop. Below the icons so their mouse areas receive hover;
+  // the icons themselves keep the inactive block revealed while hovered.
   Item {
     objectName: "hiddenBlockZone"
     z: -1

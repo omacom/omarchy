@@ -44,7 +44,7 @@ BarIconButton {
   concealed: !effectiveActive && !inactiveRevealed
   interactive: belongsInBlock && (effectiveActive || indicatorBlock === "inactive" || inactiveRevealed)
   useActiveColor: false
-  maintainIndicatorReveal: indicatorBlock === "inactive"
+  maintainIndicatorReveal: indicatorBlock !== "single"
   revealHost: indicatorHost
   horizontalMargin: 5
   verticalPadding: 5
