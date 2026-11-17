@@ -84,8 +84,9 @@ local function matches(monitor, saved)
   return true
 end
 
--- Only what was chosen: hl.monitor updates the connector's existing rule, so
--- anything never set in the panel keeps what hypr/monitors.lua gives it.
+-- Only what was chosen: hl.monitor updates the connector's existing rule, and
+-- monitor-rules.lua starts a connector's first rule from the one the monitor
+-- had, so anything never set in the panel keeps what hypr/monitors.lua gives it.
 local function rule(name, saved)
   return { output = name, mode = saved.mode, position = saved.position, scale = saved.scale, transform = saved.transform }
 end
@@ -144,6 +145,10 @@ function M.update_gdk_scale()
     set_gdk_scale(settings, o.workspaces.identities())
   end
 end
+
+-- hypr/monitors.lua has loaded. The rules from here on name a port: the saved
+-- choices now, the panel's commands later.
+require("default.hypr.monitor-rules").carry_over()
 
 M.apply(true)
 
