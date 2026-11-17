@@ -7,5 +7,5 @@
 # have it.
 
 if omarchy-hw-match "H7407BA"; then
-  omarchy-pkg-add asus-proart-p14-speaker-firmware
+  omarchy-pkg-add asus-proart-p14-audio
 fi
