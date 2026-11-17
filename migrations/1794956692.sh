@@ -8,5 +8,5 @@ systemctl --user daemon-reload >/dev/null 2>&1 || true
 
 if systemctl --user is-active --quiet graphical-session.target \
   && systemctl --user show-environment | grep -q '^WAYLAND_DISPLAY='; then
-  systemctl --user try-restart xdg-desktop-portal.service >/dev/null 2>&1 || true
+  systemctl --user try-restart xdg-desktop-portal.service
 fi
