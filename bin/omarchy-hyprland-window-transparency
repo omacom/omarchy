@@ -7,9 +7,9 @@
 TOGGLES_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr"
 
 # Opaque and glassy are toggle files loaded after every theme: opaque makes the
-# windows Omarchy makes transparent solid, and glassy blurs what is behind any
-# see-through window and gives terminals a see-through background. Transparent,
-# the default, removes both.
+# windows Omarchy makes transparent solid, and glassy makes every window
+# see-through and blurs what is behind it. Transparent, the default, removes
+# both.
 current_mode() {
   if [[ -f $TOGGLES_DIR/window-opaque.lua ]]; then
     echo "opaque"
@@ -36,15 +36,10 @@ if (( $# == 0 )); then
   exit 0
 fi
 
-case $1 in
-  opaque) LABEL="Opaque windows" ;;
-  transparent) LABEL="Transparent windows" ;;
-  glassy) LABEL="Glassy windows" ;;
-  *)
-    echo "Usage: omarchy-hyprland-window-transparency [opaque|transparent|glassy]" >&2
-    exit 1
-    ;;
-esac
+if [[ ! $1 =~ ^(opaque|transparent|glassy)$ ]]; then
+  echo "Usage: omarchy-hyprland-window-transparency [opaque|transparent|glassy]" >&2
+  exit 1
+fi
 
 # A theme switch renders the next theme's terminal files from the saved choice
 # and then replaces the current theme, so the choice and the glass written into
@@ -63,8 +58,7 @@ if ! omarchy-theme-set-glass; then
 fi
 flock -u 9
 
-hyprctl reload >/dev/null || exit 1
+omarchy-restart-hyprctl
 omarchy-restart-terminal
 omarchy-theme-set-foot
 omarchy-restart-btop
-omarchy-notification-send -g 󰂵 "$LABEL"

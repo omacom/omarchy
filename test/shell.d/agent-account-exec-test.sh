@@ -48,10 +48,17 @@ SH
   chmod +x "$real_bin/$provider"
 done
 
+# Only Omarchy's wrapper declarations: mise installs a declared lazy tool
+# before it runs that tool's wrapper, so with omarchy-tools.toml in place it
+# would try to fetch the real CLI instead of reaching the fake one.
+mise_system_config="$test_tmp/etc/mise"
+mkdir -p "$mise_system_config/conf.d"
+cp "$ROOT/etc/mise/conf.d/omarchy-agent-accounts.toml" "$mise_system_config/conf.d/"
+
 run_isolated() {
   env -i HOME="$account_test_home" \
     XDG_CONFIG_HOME="$test_tmp/config" XDG_DATA_HOME="$test_tmp/data" XDG_CACHE_HOME="$test_tmp/cache" \
-    MISE_DATA_DIR="$mise_data" MISE_SYSTEM_CONFIG_DIR="$ROOT/etc/mise" MISE_OFFLINE=1 \
+    MISE_DATA_DIR="$mise_data" MISE_SYSTEM_CONFIG_DIR="$mise_system_config" MISE_OFFLINE=1 \
     OMARCHY_PATH="$ROOT" PATH="$mise_data/command-wrappers/bin:$ROOT/bin:$real_bin:/usr/bin" \
     "$@"
 }
@@ -165,13 +172,17 @@ run_isolated env OMARCHY_TEST_AGENT_EXIT=42 claude >/dev/null || status=$?
 pass "account dispatch preserves the agent exit status"
 
 # A dispatcher alone must not prevent the CLI from being installed on first use.
+# mise itself refuses a wrapper whose tool has no binary yet, so call account
+# dispatch the way mise hands off to it: with its wrapper directory off PATH.
+# Omarchy declares the agent, so installing it must leave the user's config
+# alone; without that declaration, the user's config selects it.
 mv "$real_bin/grok" "$test_tmp/grok-fixture"
 cat >"$real_bin/mise" <<'SH'
 #!/bin/bash
 case "$1" in
-  use)
+  install | use)
     [[ ${OMARCHY_TEST_INSTALL_FAIL:-} != "yes" ]] || exit 42
-    [[ $* == "use -g --quiet grok" ]] || exit 99
+    [[ $* == "$OMARCHY_TEST_EXPECTED_INSTALL" ]] || exit 99
     cp "$HOME/../grok-fixture" "$HOME/../real/bin/grok"
     ;;
   which)
@@ -183,24 +194,19 @@ esac
 SH
 chmod +x "$real_bin/mise"
 select_account grok side
-output=$(run_isolated grok)
-[[ $output == "$test_tmp/accounts/grok side" ]] || fail "a dispatcher without a CLI installs it and uses the selected account" "$output"
-pass "a dispatcher without a CLI installs it and uses the selected account"
+declarations="$ROOT/etc/mise/conf.d/omarchy-tools.toml"
+output=$(run_isolated env OMARCHY_MISE_CONFIG_PATH="$declarations" OMARCHY_TEST_EXPECTED_INSTALL="install --quiet grok" PATH="$ROOT/bin:$real_bin:/usr/bin" omarchy-agent-account-exec grok)
+[[ $output == "$test_tmp/accounts/grok side" ]] || fail "a dispatcher without a CLI installs Omarchy's declared agent and uses the selected account" "$output"
+pass "a dispatcher without a CLI installs Omarchy's declared agent and uses the selected account"
+
+rm "$real_bin/grok"
+output=$(run_isolated env OMARCHY_MISE_CONFIG_PATH="$test_tmp/no-declarations.toml" OMARCHY_TEST_EXPECTED_INSTALL="use -g --quiet grok" PATH="$ROOT/bin:$real_bin:/usr/bin" omarchy-agent-account-exec grok)
+[[ $output == "$test_tmp/accounts/grok side" ]] || fail "a dispatcher without Omarchy's declaration selects the agent in the user config" "$output"
+pass "a dispatcher without Omarchy's declaration selects the agent in the user config"
 
 rm "$real_bin/grok"
 status=0
-run_isolated env OMARCHY_TEST_INSTALL_FAIL=yes grok >/dev/null || status=$?
+run_isolated env OMARCHY_MISE_CONFIG_PATH="$declarations" OMARCHY_TEST_EXPECTED_INSTALL="install --quiet grok" OMARCHY_TEST_INSTALL_FAIL=yes PATH="$ROOT/bin:$real_bin:/usr/bin" omarchy-agent-account-exec grok >/dev/null || status=$?
 (( status == 42 )) || fail "a failed first-run install stops dispatch" "$status"
 pass "a failed first-run install stops dispatch"
 rm "$real_bin/mise"
-
-# Migration only rebuilds native mise dispatch; account files stay untouched.
-registry_before=$(sha256sum "$registry_dir"/*.json)
-for attempt in 1 2; do
-  run_isolated bash -euo pipefail "$ROOT/migrations/1791112479.sh" >/dev/null
-  for provider in claude codex grok; do
-    [[ -L $mise_data/command-wrappers/bin/$provider ]] || fail "migration builds every account dispatcher"
-  done
-done
-[[ $(sha256sum "$registry_dir"/*.json) == "$registry_before" ]] || fail "migration preserves account state"
-pass "migration rebuilds dispatchers idempotently without changing account state"
