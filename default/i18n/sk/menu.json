@@ -26,11 +26,11 @@
   "update": {
     "label": "Aktualizovať"
   },
-  "about": {
-    "label": "Informácie"
-  },
   "system": {
     "label": "Systém"
+  },
+  "system.about": {
+    "label": "Informácie"
   },
   "system.screensaver": {
     "label": "Šetrič obrazovky"

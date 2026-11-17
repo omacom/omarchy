@@ -26,11 +26,11 @@
   "update": {
     "label": "Bijwerken"
   },
-  "about": {
-    "label": "Over"
-  },
   "system": {
     "label": "Systeem"
+  },
+  "system.about": {
+    "label": "Over"
   },
   "system.screensaver": {
     "label": "Schermbeveiliging"

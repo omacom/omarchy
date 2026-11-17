@@ -26,11 +26,11 @@
   "update": {
     "label": "Uuenda"
   },
-  "about": {
-    "label": "Teave"
-  },
   "system": {
     "label": "Süsteem"
+  },
+  "system.about": {
+    "label": "Teave"
   },
   "system.screensaver": {
     "label": "Ekraanisäästja"
