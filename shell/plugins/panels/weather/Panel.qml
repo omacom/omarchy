@@ -369,7 +369,7 @@ Panel {
         try {
           var parsed = JSON.parse(raw)
           root.report = parsed
-          if (!root.hasConfiguredCoordinates)
+          if (Model.shouldAcceptProvisionalIcon(root.hasConfiguredCoordinates, root.label))
             root.label = Model.provisionalCurrentIcon(parsed.current_condition && parsed.current_condition[0], root.label)
           root.forecastRetries = 0
           if (Model.weatherResponseCompletesSave(root.hasConfiguredCoordinates, "wttr"))
