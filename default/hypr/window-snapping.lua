@@ -306,11 +306,15 @@ local function moved(window, x, y)
   -- go from an outer part to a shared one without leaving the zone.
   local shared = false
   if zone then
-    local list, boxes = monitors()
+    -- The monitors stay put during a drag: read them once, not on every motion.
+    if not drag.layout then
+      local list, boxes = monitors()
+      drag.layout = { list = list, boxes = boxes }
+    end
     local others = {}
-    for i, other in ipairs(list) do
+    for i, other in ipairs(drag.layout.list) do
       if other.name ~= monitor.name then
-        table.insert(others, boxes[i])
+        table.insert(others, drag.layout.boxes[i])
       end
     end
     shared = G.shared_side(zone, monitor_box(monitor), others, { x = x, y = y })
