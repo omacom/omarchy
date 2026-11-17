@@ -1,6 +1,6 @@
 # Omarchy CLI
 
-Omarchy styrs vanligtvis via snabbtangenterna och Omarchy-menyn (`Super + Space`). Men du kan också styra det via `omarchy` CLI. Det är särskilt hjälpsamt när du låter en AI-agent arbeta tillsammans med dig med anpassning eller konfiguration.
+Omarchy styrs vanligtvis via snabbtangenterna och Omarchy-menyn (`Super + Space`). Men du kan också styra det via `omarchy` CLI:t. Det är särskilt användbart när du låter en AI-agent arbeta tillsammans med dig med anpassning eller konfiguration.
 
 CLI:t har tillgång till alla interna verktyg som används både via menyn och på andra sätt. Du kan se allt som finns tillgängligt genom att köra `omarchy` i terminalen.
 
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-Och du kan gå djupare i varje grupp:
+För diagnostik kör du `omarchy-debug --no-sudo --print` direkt. Det skriver ut diagnostik och skriver `/tmp/omarchy-debug.log` utan att be om sudo, även vid paketinstallationer där `omarchy debug` kan misslyckas med "Unknown Omarchy command".
+
+Och du kan gräva djupare i varje grupp:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-Varje kommando tar också `--help`, vare sig du frågar om en hel grupp (`omarchy capture --help`) eller ett enda kommando (`omarchy capture screenshot --help`).
+Varje kommando accepterar också `--help`, oavsett om du frågar om en hel grupp (`omarchy capture --help`) eller ett enskilt kommando (`omarchy capture screenshot --help`).
 
 ### Öppna menyn från terminalen
 
-Omarchy-menyn går också att skripta, vilket är praktiskt för dina egna tangentbindningar. `omarchy menu` öppnar den vid roten, och du kan hoppa direkt till vilken punkt som helst i trädet genom att namnge den: `omarchy menu summon appearance.theme` går rakt till temaväljaren, `omarchy menu toggle system` öppnar systemmenyn och stänger den igen om den redan är uppe, och `omarchy menu close` stänger den.
+Omarchy-menyn går också att skripta, vilket är praktiskt för dina egna tangentbindningar. `omarchy menu` öppnar den vid roten, och du kan hoppa direkt till vilken punkt som helst i trädet genom att ange dess namn: `omarchy menu summon appearance.theme` går rakt till temaväljaren, `omarchy menu toggle system` öppnar systemmenyn och stänger den igen om den redan är uppe, och `omarchy menu close` stänger undan den.

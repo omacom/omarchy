@@ -1,6 +1,7 @@
 {
   "Activity": "Activity",
   "Agent": "Agent",
+  "Agents": "Agents",
   "Apps": "Apps",
   "Audio": "Audio",
   "Background switcher": "Background switcher",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Reveal active window on top",
   "Save window width": "Save window width",
   "Screenrecording": "Screenrecording",
+  "Screenrecording with no audio": "Screenrecording with no audio",
   "Screenshot": "Screenshot",
   "Scroll active workspace backward": "Scroll active workspace backward",
   "Scroll active workspace forward": "Scroll active workspace forward",
