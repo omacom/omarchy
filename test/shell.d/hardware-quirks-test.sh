@@ -227,6 +227,9 @@ machine() {
   case $name in
     plain) dmi sys_vendor LENOVO; dmi product_name 21HM0000US; dmi product_family "ThinkPad X1 Carbon Gen 11" ;;
     no-dmi) rm -rf "$hw/dmi" ;;
+    framework16-ai300) dmi sys_vendor Framework; dmi product_name "Laptop 16 (AMD Ryzen AI 300 Series)" ;;
+    framework16-7040) dmi sys_vendor Framework; dmi product_name "Laptop 16 (AMD Ryzen 7040 Series)" ;;
+    framework16-other-vendor) dmi sys_vendor Other; dmi product_name "Laptop 16 (AMD Ryzen AI 300 Series)" ;;
     macbookpro13) dmi product_name "MacBookPro13,2" ;;
     macbook8) dmi product_name "MacBook8,1" ;;
     macbookpro15) dmi product_name "MacBookPro15,1" ;;
@@ -391,6 +394,7 @@ leaves=(
   hardware/dell-xps13-ptl-speaker-firmware.sh
   hardware/fix-ath12k-board-data.sh
   hardware/dell-xps13-sidecar-amps.sh
+  user/hardware/framework/fix-f16-ai300-speaker-volume.sh
   user/hardware/fix-nouveau-cursor.sh
 )
 
@@ -527,6 +531,10 @@ hardware/dell-xps13-sidecar-amps.sh|xps13-ptl+unreadable|0
 # has to surface rather than be swallowed by a successful install.
 hardware/dell-xps13-sidecar-amps.sh|xps13-apply-fails|1|pkg-add dell-xps13-sidecar-amps|sudo dell-xps13-sidecar-amps-apply
 hardware/dell-xps13-sidecar-amps.sh|xps13-pkg-add-fails|1|pkg-add dell-xps13-sidecar-amps
+user/hardware/framework/fix-f16-ai300-speaker-volume.sh|framework16-ai300|0|wrote home/.config/wireplumber/wireplumber.conf.d/framework16-ai300-soft-mixer.conf
+user/hardware/framework/fix-f16-ai300-speaker-volume.sh|framework16-ai300+unreadable|0
+user/hardware/framework/fix-f16-ai300-speaker-volume.sh|framework16-7040|0
+user/hardware/framework/fix-f16-ai300-speaker-volume.sh|framework16-other-vendor|0
 # The package itself decides whether the card needs board data.
 hardware/fix-ath12k-board-data.sh|wcn7850-card|0|pkg-add ath12k-board-fallback
 hardware/fix-ath12k-board-data.sh|qcc2072-card|0|pkg-add ath12k-board-fallback
@@ -588,3 +596,166 @@ filtered=$(bash -c '
 [[ $filtered == "status 0 nvidia/615/gsp_ga10x.bin nvidia/615/ucodes_ga10x.bin status 0 renesas_missing.mem status 1" ]] ||
   fail "N1x initramfs leaves out only Turing's NVIDIA firmware" "$filtered"
 pass "N1x initramfs leaves out only Turing's NVIDIA firmware"
+
+# Framework gain initialization must leave UCM's headphone routes alone and
+# must not raise hardware gain before software volume and all controls exist.
+(
+  export PATH="$stub_bin:$ROOT/bin:$PATH" FAKE_HW="$hw" CALLS="$calls"
+  export XDG_CONFIG_HOME="$root/home/.config"
+  export FRAMEWORK_AUDIO="$test_tmp/framework-audio.json" FRAMEWORK_MIXER="$test_tmp/framework-mixer"
+  machine framework16-ai300
+  setup_framework() {
+    bash -euo pipefail "$ROOT/install/user/hardware/framework/fix-f16-ai300-speaker-volume.sh" >/dev/null
+  }
+  mixer="$XDG_CONFIG_HOME/wireplumber/wireplumber.conf.d/framework16-ai300-soft-mixer.conf"
+  unit="$XDG_CONFIG_HOME/systemd/user/omarchy-framework16-speaker-levels.service"
+  link="$XDG_CONFIG_HOME/systemd/user/wireplumber.service.wants/${unit##*/}"
+  source_mixer="$ROOT/default/wireplumber/wireplumber.conf.d/framework16-ai300-soft-mixer.conf"
+  for command in cp ln; do
+    cat >"$stub_bin/$command" <<'SH'
+#!/bin/bash
+if [[ ${FRAMEWORK_INTERRUPT:-} == "${0##*/}" ]]; then
+  [[ ${0##*/} != "cp" ]] || printf '# partial copy\n' >"${@: -1}"
+  exit 99
+else
+  "/usr/bin/${0##*/}" "$@"
+fi
+SH
+    chmod +x "$stub_bin/$command"
+  done
+  for interrupted in cp ln; do
+    rm -f "$mixer" "$link"
+    if FRAMEWORK_INTERRUPT=$interrupted setup_framework; then
+      fail "interrupted Framework setup reports failure"
+    fi
+    setup_framework
+    cmp -s "$source_mixer" "$mixer" || fail "Framework setup recovers the complete mixer rule"
+    [[ ! -e $unit && ! -L $unit && $(readlink "$link") == "/usr/lib/systemd/user/${unit##*/}" ]] ||
+      fail "Framework setup recovers offline enablement without shadowing the packaged unit"
+  done
+  pass "Framework setup recovers interrupted copying and enablement"
+
+  for override in mask custom; do
+    rm -f "$unit"
+    if [[ $override == "mask" ]]; then
+      ln -s /dev/null "$unit"
+    else
+      printf '# custom unit\n' >"$unit"
+    fi
+    setup_framework
+    if [[ $override == "mask" ]]; then
+      [[ $(readlink "$unit") == "/dev/null" ]] || fail "Framework setup preserves a service mask"
+    else
+      [[ $(<"$unit") == "# custom unit" ]] || fail "Framework setup preserves a service override"
+    fi
+  done
+  rm -f "$mixer" "$link"
+  cp "$source_mixer" "$test_tmp/external-mixer"
+  ln -s "$test_tmp/external-mixer" "$mixer"
+  setup_framework
+  [[ $(readlink "$mixer") == "$test_tmp/external-mixer" && -L $link ]] ||
+    fail "Framework setup uses a compatible mixer symlink without replacing it"
+  for custom in regular symlink dangling; do
+    rm -f "$mixer" "$link"
+    if [[ $custom == "regular" ]]; then
+      printf '# custom mixer\n' >"$mixer"
+    else
+      printf '# custom mixer\n' >"$test_tmp/external-mixer"
+      ln -s "$test_tmp/external-mixer" "$mixer"
+      [[ $custom != "dangling" ]] || rm "$test_tmp/external-mixer"
+    fi
+    setup_framework
+    [[ ! -L $link ]] || fail "Framework setup does not enable initialization for a custom mixer"
+    if [[ $custom == "dangling" ]]; then
+      [[ ! -e $mixer ]] || fail "Framework setup preserves a dangling mixer symlink"
+    else
+      [[ $(<"$mixer") == "# custom mixer" ]] || fail "Framework setup preserves custom mixer contents"
+    fi
+    [[ $custom == "regular" || $(readlink "$mixer") == "$test_tmp/external-mixer" ]] ||
+      fail "Framework setup preserves mixer symlinks"
+  done
+  pass "Framework setup preserves custom mixer configuration, overrides and masks"
+
+  cat >"$stub_bin/pw-dump" <<'SH'
+#!/bin/bash
+if [[ ${FRAMEWORK_DELAY:-0} == "1" && ! -e $FRAMEWORK_AUDIO.ready ]]; then
+  touch "$FRAMEWORK_AUDIO.ready"
+  printf '[]\n'
+else
+  cat "$FRAMEWORK_AUDIO"
+fi
+SH
+  cat >"$stub_bin/amixer" <<'SH'
+#!/bin/bash
+set -euo pipefail
+control="$FRAMEWORK_MIXER/$2/$4"
+if [[ $3 == "sget" ]]; then
+  [[ -f $control ]]
+else
+  [[ $3 == "sset" ]]
+  read -r gain switch <"$control"
+  for value in "${@:5}"; do
+    case $value in
+      *dB) gain=$value ;;
+      unmute|on) switch=on ;;
+      mute|off) switch=off ;;
+      *) exit 1 ;;
+    esac
+  done
+  printf '%s %s\n' "$gain" "$switch" >"$control"
+  printf '%s\n' "$*" >>"$CALLS"
+fi
+SH
+  printf '#!/bin/bash\ntrue\n' >"$stub_bin/sleep"
+  chmod +x "$stub_bin/pw-dump" "$stub_bin/amixer" "$stub_bin/sleep"
+  framework_audio() {
+    printf '[{"type":"PipeWire:Interface:Device","info":{"props":{"alsa.components":"HDA:1002aa01,00aa0100,00100900","api.alsa.card":2,"api.alsa.soft-mixer":true}}},
+      {"type":"PipeWire:Interface:Device","info":{"props":{"alsa.components":"%s","api.alsa.card":9,"api.alsa.soft-mixer":%s}}}]\n' "$1" "$2" >"$FRAMEWORK_AUDIO"
+  }
+  initialize_framework() {
+    : >"$calls"
+    bash "$ROOT/bin/omarchy-apply-framework16-speaker-levels"
+  }
+  framework_audio 'HDA:10ec0285,f111000d,00100002' true
+  mkdir -p "$FRAMEWORK_MIXER/2" "$FRAMEWORK_MIXER/9"
+  for route in off on; do
+    for card in 2 9; do
+      for control in Master Speaker 'Bass Speaker'; do
+        printf -- '-20dB %s\n' "$route" >"$FRAMEWORK_MIXER/$card/$control"
+      done
+    done
+    rm -f "$FRAMEWORK_AUDIO.ready"
+    FRAMEWORK_DELAY=1 initialize_framework
+    [[ $(<"$FRAMEWORK_MIXER/9/Master") == "0dB on" ]] || fail "Framework initialization sets and unmutes Master"
+    for control in Speaker 'Bass Speaker'; do
+      [[ $(<"$FRAMEWORK_MIXER/9/$control") == "0dB $route" ]] || fail "Framework initialization preserves $route speaker routes"
+    done
+    for control in Master Speaker 'Bass Speaker'; do
+      [[ $(<"$FRAMEWORK_MIXER/2/$control") == "-20dB $route" ]] || fail "Framework initialization leaves other cards alone"
+    done
+  done
+  pass "Framework initialization waits for discovery, sets gains and preserves speaker routes"
+  for machine_name in plain framework16-7040 framework16-other-vendor; do
+    machine "$machine_name"
+    initialize_framework
+    [[ ! -s $calls ]] || fail "Framework initialization leaves unsupported hardware alone"
+  done
+  machine framework16-ai300
+  for gate in software-volume codec controls; do
+    framework_audio 'HDA:10ec0285,f111000d,00100002' true
+    case $gate in
+      software-volume) framework_audio 'HDA:10ec0285,f111000d,00100002' false ;;
+      codec) framework_audio 'HDA:10ec0285,12345678,00100002' true ;;
+      controls) rm "$FRAMEWORK_MIXER/9/Bass Speaker" ;;
+    esac
+    status=0
+    initialize_framework 2>/dev/null || status=$?
+    if [[ $gate == "controls" ]]; then
+      (( status != 0 && status != 75 )) || fail "missing Framework controls fail without discovery retry"
+    else
+      (( status == 75 )) || fail "undiscovered Framework software mixer requests a retry"
+    fi
+    [[ ! -s $calls ]] || fail "Framework $gate gate prevents partial mixer changes"
+  done
+  pass "Framework initialization requires matching hardware, software volume and every control"
+)
