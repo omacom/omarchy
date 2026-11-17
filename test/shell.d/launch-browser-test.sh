@@ -63,7 +63,8 @@ SH
 cp "$mock_bin/systemd-run" "$mock_bin/uwsm-app"
 cat >"$mock_bin/omarchy-hyprland-focus-app" <<'SH'
 #!/bin/bash
-printf '%s\n' "$1" >"$OMARCHY_TEST_BROWSER_FOCUS"
+printf '%s\n' "$1" >>"$OMARCHY_TEST_BROWSER_FOCUS"
+[[ $1 != "${OMARCHY_TEST_BROWSER_FOCUS_MISS:-}" ]]
 SH
 chmod +x "$mock_bin"/*
 
@@ -125,6 +126,20 @@ HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=t
 
 grep -Fx '^org\.example\.Browser$' "$focus_log" >/dev/null ||
   fail "browser launcher escapes regex characters in the declared window class"
+! grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
+  fail "browser launcher stops at the declared window class when it finds the window"
+
+rm -f "$focus_log"
+
+# A declared class can be stale or overridden (a --class flag), so a miss
+# falls back to the binary name guess rather than focusing nothing.
+HOME="$test_home" PATH="$mock_bin:$ROOT/bin:$PATH" HYPRLAND_INSTANCE_SIGNATURE=test \
+  OMARCHY_TEST_DEFAULT_BROWSER=dotted.desktop OMARCHY_TEST_BROWSER_FOCUS_MISS='^org\.example\.Browser$' \
+  OMARCHY_TEST_BROWSER_LAUNCH="$launch_log" OMARCHY_TEST_BROWSER_FOCUS="$focus_log" \
+  bash "$ROOT/bin/omarchy-launch-browser" "https://example.test/dotted"
+
+grep -Fx '^chromium.*$' "$focus_log" >/dev/null ||
+  fail "browser launcher falls back to the binary name when the declared class finds no window"
 
 pass "browser launcher follows opened links to the browser workspace"
 
