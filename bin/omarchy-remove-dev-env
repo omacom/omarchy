@@ -80,13 +80,18 @@ zig)
   ;;
 rust)
   echo -e "Removing Rust...\n"
-  # Call rustup by path: ~/.cargo/bin may be off PATH, and mise links the
-  # rustup toolchain as its own rust install with shims that shadow rustup.
-  if ! "$HOME/.cargo/bin/rustup" self uninstall -y; then
+  mise uninstall rust --all
+  mise rm -g rust
+
+  # Rust installed by the old rustup script, or the rustup that mise
+  # bootstrapped. Call it by path: mise's shims for rustup shadow it on PATH.
+  rustup="${CARGO_HOME:-$HOME/.cargo}/bin/rustup"
+  if [[ -x $rustup ]] && ! "$rustup" self uninstall -y; then
     echo "Failed to remove Rust." >&2
     exit 1
   fi
 
+  # mise links a rustup toolchain it did not install as its own rust install
   rm -rf "$HOME/.local/share/mise/installs/rust"
   mise reshim
   ;;
