@@ -1,41 +1,39 @@
 # Ticari uygulamalar/hizmetler
 
-Omarchy çoğunlukla ücretsiz, açık kaynaklı yazılım sağlamaya odaklanır, ancak bu konuda dindar değildir. Bazen en iyi çözüm ticari bir tekliftir ve bu gayet iyidir. İşte kolay kurulum sağladığımız seçeneklerden bazıları.
+Omarchy çoğunlukla ücretsiz, açık kaynaklı yazılım sağlamaya odaklanır, ama bu konuda dogmatik değildir. Bazen en iyi çözüm ticari bir üründür ve bunda hiçbir sakınca yoktur. İşte kolay kurulumunu sağladığımız seçeneklerden bazıları.
 
 ## 1Password
 
-Parolalarınızı bir parola yöneticisinde tutmak en iyi uygulamadır. Bir ekiple çalışıyorsanız iki katı öyledir. Ve [1password](https://1password.com/) harika bir çözümdür; ayrıca betiklerde anahtar aramalarını entegre etmek için bir komut satırı aracıyla birlikte gelir.
+Şifrelerinizi bir şifre yöneticisinde saklamak en iyi uygulamadır. Ekiple çalışıyorsanız iki kat öyledir. Ve [1password](https://1password.com/) harika bir çözümdür, ayrıca script'lerde anahtar aramalarını entegre etmek için bir komut satırı aracıyla birlikte gelir.
 
-1Password'ü `Super + Shift + /` ile başlatırsınız. Henüz kurulu değilse, bu kısayol önce kurulumu başlatır (Omarchy menüsünden _Kur > Service > 1Password_ seçeneğini de kullanabilirsiniz). Kurulum programı, Chromium için 1Password uzantısını da kurar.
+1Password'ü `Super + Shift + /` ile başlatırsınız. Henüz kurulu değilse, bu kısayol önce kurulumu başlatır (Omarchy menüsünden _Install > Service > 1Password_ yolunu da kullanabilirsiniz). Kurulum programı Chromium için 1Password uzantısını da kurar.
 
 ## Bitwarden
 
-[Bitwarden](https://bitwarden.com/), parola yöneticisi alanındaki açık kaynaklı alternatiftir ve çoğu kişisel kullanımı kapsayan ücretsiz bir katmanı vardır. Onu Omarchy menüsünden _Kur > Service > Bitwarden_ ile kurun; bu, Bitwarden komut satırı aracını da beraberinde getirir.
+[Bitwarden](https://bitwarden.com/) şifre yöneticisi alanında açık kaynaklı alternatiftir, çoğu kişisel kullanımı kapsayan ücretsiz bir katmanı vardır. Omarchy menüsünden _Install > Service > Bitwarden_ ile kurun, bu Bitwarden komut satırı aracını da beraberinde getirir.
 
 ## Spotify
 
-[Spotify](https://spotify.com/), dünyanın en popüler müzik akış hizmetidir. Ve Linux uygulaması, çevrimdışı çalma dahil beklediğiniz her şeyi sağlar.
-
-Spotify'ı `Super + Shift + M` kullanarak başlatırsınız. 1Password gibi, Spotify henüz kurulu değilse kısayol önce kurulumu başlatır (veya Omarchy menüsünden _Kur > Service > Spotify_ seçeneğini kullanın).
+[Spotify](https://spotify.com/) dünyanın en popüler streaming müzik servisidir. Omarchy bunu bir web uygulaması olarak sunar, bu size tam oynatıcıyı, medya tuşlarını ve Spotify Connect'i verir, ama çevrimdışı indirmeleri vermez. `Super + Shift + M` ile başlatın.
 
 ## Slack
 
-[Slack](https://slack.com/), birçok ekibin hem şirket içinde hem de dış işbirlikçilerle sohbet ettiği yerdir. Onu Omarchy menüsünden _Kur > Service > Slack_ ile kurun; hazır olur olmaz açılacaktır.
+[Slack](https://slack.com/) birçok ekibin sohbet ettiği yerdir, hem şirket içinde hem de dış işbirlikçilerle. Omarchy menüsünden _Install > Service > Slack_ ile kurun, hazır olur olmaz açılır.
 
 ## Dropbox
 
-[Dropbox](https://www.dropbox.com/), bulutta bir yedek tutarken makineler arasında dosya eşitlemenin harika bir yoludur. Onu kurmak için Omarchy menüsünden _Kur > Service > Dropbox_ seçeneğini seçin. Çalışmaya başladıktan sonra, çubuğun sağ üstündeki tepsinin üzerine gelin ve kurulumu tamamlamak için Dropbox simgesine sağ tıklayın.
+[Dropbox](https://www.dropbox.com/) dosyaları makineler arasında senkronize ederken bulutta yedek tutmanın harika bir yoludur. Kurmak için Omarchy menüsünden _Install > Service > Dropbox_ seçeneğini seçin. Çalışmaya başladıktan sonra, çubuğun sağ üst köşesindeki tepsinin üzerine gelin ve kurulumu tamamlamak için Dropbox simgesine sağ tıklayın.
 
 ## Tailscale
 
-[Tailscale](https://tailscale.com/), tüm bilgisayarlarınıza ve sunucularınıza internet üzerinden güvenli bir şekilde erişmeyi son derece basit hale getiren bir örgü VPN'dir. Onu kurmak için Omarchy menüsünden _Kur > Service > Tailscale_ seçeneğini seçin.
+[Tailscale](https://tailscale.com/) tüm bilgisayarlarınıza ve sunucularınıza internet üzerinden güvenli şekilde erişmeyi son derece kolaylaştıran bir mesh VPN'dir. Kurmak için Omarchy menüsünden _Install > Service > Tailscale_ seçeneğini seçin.
 
-Çubukta bir panel, yönetim konsolu için bir web uygulaması ve makineleriniz arasında dosya göndermek için Taildrop alır — [ağ](35-networking.md) bölümüne bakın.
+Çubukta bir panel, admin konsolu için bir web uygulaması ve makineleriniz arasında dosya göndermek için Taildrop alır — bkz. [ağ](35-networking.md).
 
 ## ONCE
 
-[ONCE](https://once.com/), 37signals'ın bir kez satın alıp kendi sunucunuzda çalıştırdığınız, Campfire sohbet sistemi gibi yazılım serisidir. Onu kurmak için Omarchy menüsünden _Kur > Service > ONCE_ seçeneğini seçin; bu, arka plan hizmetini etkinleştirir ve oradan devam etmeniz için sizi ONCE terminal arayüzüne bırakır.
+[ONCE](https://once.com/) 37signals'ın bir kez satın alıp kendi sunucunuzda çalıştırdığınız yazılım serisidir, Campfire sohbet sistemi gibi. Kurmak için Omarchy menüsünden _Install > Service > ONCE_ seçeneğini seçin, bu arka plan hizmetini etkinleştirir ve sizi oradan devam etmeniz için ONCE terminal arayüzüne bırakır.
 
 ## NordVPN
 
-[NordVPN](https://nordvpn.com/), trafiğinizi dünyanın çoğu bölgesinden çıkarmanızı sağlayan standart bir VPN hizmetidir. Onu kurmak için Omarchy menüsünden _Kur > Service > NordVPN_ seçeneğini seçin. İstediği yeniden başlatmanın ardından, kimlik doğrulaması için `nordvpn login` komutunu çalıştırın.
+[NordVPN](https://nordvpn.com/) trafiğinizi dünyanın çoğu bölgesinden çıkarmanızı sağlayan standart bir VPN servisidir. Kurmak için Omarchy menüsünden _Install > Service > NordVPN_ seçeneğini seçin. İstediği yeniden başlatmadan sonra, kimlik doğrulaması için `nordvpn login` komutunu çalıştırın.

@@ -1,20 +1,20 @@
-# GUI
+# GUIs
 
 ## Faili
 
-Faili (Nautilus) ni meneja wa faili wa kielelezo. `Super + Shift + F` inaifungua, na `Super + Shift + Alt + F` inaifungua katika saraka ambayo terminali yako imeketi, ambayo huokoa ubofyaji mwingi. `Ctrl + L` inakuwezesha kuandika njia, na kubofya `Space` kwenye faili yoyote inakupa hakikisho la haraka bila kufungua kitu.
+Faili (Nautilus) ndio kidhibiti faili cha picha. `Super + Shift + F` huifungua, na `Super + Shift + Alt + F` huifungua katika saraka ambayo terminali yako iko kwa sasa, jambo linalokuokoa kubofya mara nyingi. `Ctrl + L` hukuwezesha kuandika njia, na kubonyeza `Space` kwenye faili yoyote hukupa hakikisho la haraka bila kufungua chochote.
 
-Chomeka kijiti cha USB au kadi ya SD na itapakiwa kiotomatiki, hivyo inaonekana tu kwenye upau wa pembeni. Kwa kitu chochote kinachohusika zaidi — kuumbiza hifadhi, kuangalia afya ya SMART, kuunda vizigeu — zindua _Diski_ kutoka kizinduzi cha programu (`Super + Space`).
+Chomeka kifaa cha USB au kadi ya SD na hupachikwa kiotomatiki, hivyo huonekana tu kwenye utepe. Kwa jambo lolote gumu zaidi — kuumbiza diski, kuangalia afya ya SMART, kuunda partitions — anzisha _Disks_ kutoka kwenye kianzisha programu (`Super + Space`).
 
-Kubofya mara mbili hufuata chaguomsingi zenye maana: picha hufunguka katika imv, video katika mpv, PDF katika Kitazama Hati, na maandishi wazi katika Neovim.
+Kubofya mara mbili hufuata chaguo-msingi zinazoeleweka: picha, video, na muziki hufunguka katika Omaview, PDF katika Document Viewer, Markdown katika Omawrite, na maandishi ya kawaida katika kihariri kilichochaguliwa chini ya _Setup > Default > Editor_.
 
 ## Disktree
 
-Wakati hifadhi inapojaa na huna wazo ni nini kinachoila, zindua [Disktree](https://github.com/tobi/disktree) kutoka kizinduzi cha programu (`Super + Space`). Inaonyesha ramani ya mti ya kielelezo ya saraka yako ya nyumbani. Vitalu vikubwa vinachukua nafasi zaidi; tembea ndani ya saraka kwa kibodi au kipanya, weka alama kile kinachopaswa kuondolewa, na ukague chaguo zako kabla ya kuondoa kitu chochote. Endesha `disktree --disk` kuchanganua diski nzima.
+Diski inapokuwa imejaa na huna wazo lolote kuhusu kinachoila, anzisha [Disktree](https://github.com/tobi/disktree) kutoka kwenye kianzisha programu (`Super + Space`). Huonyesha ramani ya picha ya umbo la mti ya saraka yako ya nyumbani. Vitalu vikubwa huchukua nafasi zaidi; tembea ndani ya saraka kwa kutumia kibodi au kipanya, weka alama kwenye vinavyopaswa kwenda, na pitia chaguo zako kabla ya kuondoa chochote. Tekeleza `disktree --disk` kuchanganua diski nzima.
 
 ## Obsidian
 
-[Obsidian](https://obsidian.md/) ni programu ya kuchukua madokezo isiyolipishwa na inayopanuka sana inayotumia faili rahisi za Markdown kwa hifadhi.
+[Obsidian](https://obsidian.md/) ni programu ya kuandika madokezo isiyolipishwa na inayoweza kupanuliwa sana inayotumia faili rahisi za Markdown kwa kuhifadhi.
 
 Obsidian ni bure kwa madhumuni yote, ikiwa ni pamoja na matumizi ya kibinafsi, ya kibiashara, na yasiyo ya faida.
 
@@ -24,85 +24,99 @@ Unaanzisha Obsidian kwa `Super + Shift + O`. Ili kutumia usawazishaji wa mandhar
 
 ## Omawrite
 
-[Omawrite](https://github.com/omacom-io/omawrite) ni programu ya uandishi rahisi sana ya Markdown ya Omarchy yenyewe. Hakuna kuba, hakuna programu-jalizi, ni wewe tu na maneno.
+[Omawrite](https://github.com/omacom-io/omawrite) ni programu ya Omarchy yenyewe rahisi kabisa ya kuandika Markdown. Hakuna vaults, hakuna plugins, ni wewe tu na maneno.
 
 Unaanzisha Omawrite kwa `Super + Shift + W`.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) ni zana ya msingi ya kuhariri picha nzuri kwa kupunguza, kubadilisha ukubwa, na udanganyifu mwingine wa msingi. Usitarajie tu mbadala wa Photoshop. Lakini bado ina Wand ya Uchawi na tabaka!
+[Pinta](https://www.pinta-project.com/) ni zana ya msingi ya kuhariri picha ambayo ni nzuri kwa kukata, kubadilisha ukubwa, na ujanja mwingine wa msingi. Usitarajie tu mbadala wa Photoshop. Lakini bado ina Magic Wand na layers!
 
-Unaanzisha Pinta kupitia kizinduzi cha programu (`Super + Space`).
+Unaanzisha Pinta kupitia kianzisha programu (`Super + Space`).
 
 ## Aether
 
-[Aether](https://github.com/bjarneo/aether) ni programu ya mandhari inayoweza kutoa rangi kutoka picha ya mandhari ya nyuma na kuzigeuza kuwa mandhari kamili, yenye mshikamano. Ni njia rahisi zaidi ya [kutengeneza mandhari yako mwenyewe](43-making-your-own-theme.md).
+[Aether](https://github.com/bjarneo/aether) ni programu ya mandhari inayoweza kutoa rangi kutoka kwenye picha ya mandharinyuma na kuzigeuza kuwa mandhari kamili na yenye uwiano. Ndio njia rahisi zaidi ya [kutengeneza mandhari yako mwenyewe](43-making-your-own-theme.md).
 
-Unaanzisha Aether kupitia kizinduzi cha programu (`Super + Space`).
+Unaanzisha Aether kupitia kianzisha programu (`Super + Space`).
 
 ## LocalSend
 
-[LocalSend](https://localsend.org/) inakuwezesha kutuma faili kwa vifaa vingine kwenye mtandao ule ule vinavyoendesha programu, kama AirDrop ya Apple. Ni ya majukwaa mengi, hata hivyo, hivyo unaweza kutuma faili kwenda na kutoka Windows, macOS, Android, iOS, na bila shaka Linux.
+[LocalSend](https://localsend.org/) hukuwezesha kutuma faili kwa vifaa vingine vilivyo kwenye mtandao huohuo vinavyoendesha programu hiyo, kama AirDrop ya Apple. Ni ya majukwaa mengi, hata hivyo, hivyo unaweza kutuma faili kwenda na kutoka Windows, macOS, Android, iOS, na bila shaka Linux.
 
-Unaweza kufungua menyu ya Shiriki kwa `Super + Ctrl + S` au chini ya _Anzisha > Shiriki_ katika menyu ya Omarchy. Inakupa chaguo nne:
+Unaweza kufungua menyu ya Share kwenye `Super + Ctrl + S` au chini ya _Trigger > Share_ katika menyu ya Omarchy. Hukupa chaguo nne:
 
-- **Ubao wa kunakili** hutuma chochote ulichonakili kama faili ya maandishi. Nzuri sana kwa kupeleka kiungo au kijisehemu kwenye simu yako bila kujitumia barua pepe.
-- **Faili** hufungua kiteuzi cha faili ambapo unaweza kuchagua kadhaa mara moja.
-- **Folda** hutuma saraka nzima.
-- **Pokea** hufungua LocalSend yenyewe ili kifaa kingine kiweze kukutumia kitu.
+- **Clipboard** hutuma chochote ulichonakili kama faili ya maandishi. Ni nzuri kwa kupeleka kiungo au kipande cha maandishi kwenye simu yako bila kujitumIa barua pepe.
+- **File** hufungua kichagua faili ambapo unaweza kuchagua kadhaa mara moja.
+- **Folder** hutuma saraka nzima.
+- **Receive** hufungua LocalSend yenyewe ili kifaa kingine kiweze kukutumia kitu.
 
-Jambo lile lile hufanya kazi kutoka terminali kwa `omarchy share clipboard`, `omarchy share file [path]`, na `omarchy share folder [path]`. Acha njia na unapata kiteuzi.
+Jambo hilohilo hufanya kazi kutoka kwenye terminali kwa `omarchy share clipboard`, `omarchy share file [path]`, na `omarchy share folder [path]`. Acha njia na utapata kichaguzi.
 
-Unaweza pia kutuma moja kwa moja kutoka meneja wa faili: bofya kulia uteuzi wowote katika Nautilus na uchague _Tuma kupitia LocalSend_.
+Unaweza pia kutuma moja kwa moja kutoka kwenye kidhibiti faili: bofya kulia chaguo lolote katika Nautilus na uchague _Send via LocalSend_.
 
-Ukuta wa moto wa Omarchy umefungwa kwa chaguomsingi isipokuwa mlango wa LocalSend, hivyo hii hufanya kazi mara moja kwenye usakinishaji mpya. Tazama [usalama](48-security.md).
+Firewall ya Omarchy imefungwa kwa chaguo-msingi isipokuwa kwa port ya LocalSend, hivyo hii hufanya kazi mara moja kwenye usakinishaji mpya. Tazama [usalama](48-security.md).
 
 ## LibreOffice
 
-[LibreOffice](https://www.libreoffice.org/) ni kifurushi kamili cha ofisi chenye kichakataji cha maneno, lahajedwali, mawasilisho, programu ya kuchora, na zaidi. Inaoana na faili kutoka Microsoft Office, hivyo hii ni njia nzuri ya kuweza kufungua hati hizo za Word.
+[LibreOffice](https://www.libreoffice.org/) ni kifurushi kamili cha ofisi chenye kichakataji maneno, lahajedwali, mawasilisho, programu ya kuchora, na zaidi. Inaoana na faili kutoka Microsoft Office, hivyo hii ni njia nzuri ya kuweza kufungua nyaraka hizo za Word.
 
-Unaanzisha LibreOffice kupitia kizinduzi cha programu (`Super + Space`).
+Unaanzisha LibreOffice kupitia kianzisha programu (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) ni programu ya mawasilisho rahisi sana ya Omarchy yenyewe. Deki yako ni faili moja ya Markdown yenye picha na video zake karibu nayo: andika kila slaidi chini ya hakikisho hai, Buruta slaidi kwa mpangilio, kisha wasilisha skrini nzima au hamisha hadi PDF na PowerPoint. Hata huchukua mandhari yako ya Omarchy.
+[Hype](https://github.com/omacom/hype) ni programu ya Omarchy yenyewe rahisi kabisa ya mawasilisho. Wasilisho lako ni faili moja ya Markdown yenye picha na video zake kando yake: andika kila slaidi chini ya hakikisho la moja kwa moja, buruta slaidi katika mpangilio, kisha wasilisha kwa skrini nzima au hamisha hadi PDF na PowerPoint. Hata huchukua mandhari yako ya Omarchy.
 
-Unaanzisha Hype kupitia kizinduzi cha programu (`Super + Space`). Bonyeza `?` ndani yake kuona kila mkato.
+Unaanzisha Hype kupitia kianzisha programu (`Super + Space`). Bonyeza `?` ndani yake kuona kila njia ya mkato.
 
 ## Signed
 
-[Signed](https://github.com/omacom/signed) ni njia rahisi sana ya Omarchy yenyewe ya kusaini PDF na kuzijaza. Weka sahihi yako iliyohifadhiwa, maandishi, na tarehe ya leo popote kwenye ukurasa, kisha uhifadhi nakala iliyosainiwa karibu na ya asili. Tazama [Kujaza PDF](27-filling-out-pdfs.md) kwa jinsi gani.
+[Signed](https://github.com/omacom/signed) ni njia ya Omarchy yenyewe rahisi kabisa ya kusaini PDF na kuzijaza. Weka sahihi yako iliyohifadhiwa, maandishi, na tarehe ya leo popote kwenye ukurasa, kisha hifadhi nakala iliyosainiwa kando ya ile asilia. Tazama [Kujaza PDF](27-filling-out-pdfs.md) kwa jinsi ya kufanya.
 
-Unaanzisha Signed kupitia kizinduzi cha programu (`Super + Space`), au fungua PDF nayo kutoka meneja wa faili.
+Unaanzisha Signed kupitia kianzisha programu (`Super + Space`), au unafungua PDF nayo kutoka kwenye kidhibiti faili.
+
+## Checkmate
+
+[Checkmate](https://github.com/omacom/checkmate) ni mchezo wa Omarchy wenyewe wa sataranji wa 3D. Cheza na rafiki kwenye kompyuta hiyohiyo au mpinzani aliyejengwa ndani katika viwango vitatu, kwenye seti nne zilizochongwa ambazo kila moja husogea kwa namna yake: vyombo vya angani, mbao na pembe za ndovu zilizochongwa, viumbe wa msituni, na pipi. Michezo haina saa na huhifadhiwa baada ya kila sogezo.
+
+Unaanzisha Checkmate kupitia kianzisha programu (`Super + Space`), ambapo imeorodheshwa kama Chess. Bonyeza `?` ndani yake kuona kila njia ya mkato.
+
+## Cards
+
+[Cards](https://github.com/omacom/cards) ni Klondike solitaire ya Omarchy yenyewe. Chora tatu, bila kikomo cha kupita, katika mfululizo minne ya kadi: mmoja umechorwa kwa rangi za mandhari yako, na mitatu yenye mwonekano wake yenyewe. Bofya kadi kisha pale inapoenda, iburute, au ubofye mara mbili kuituma mahali bora zaidi. Michezo huhifadhiwa baada ya kila sogezo.
+
+Unaanzisha Cards kupitia kianzisha programu (`Super + Space`). Bofya jina lake, au bonyeza `?`, kuona kila njia ya mkato.
 
 ## Omacalc
 
-[Omacalc](https://github.com/omacom-io/omacalc) ni kikokotoo rahisi sana cha Omarchy chenyewe, ambacho hufunguka katika dirisha linaloelea.
+[Omacalc](https://github.com/omacom-io/omacalc) ni kikokotoo cha Omarchy chenyewe rahisi kabisa, ambacho hufunguka katika dirisha linaloelea.
 
-Unaanzisha Omacalc kwa `Super + Ctrl + Q` (au kitufe cha kikokotoo, kama kibodi yako ina kimoja).
+Unaanzisha Omacalc kwa `Super + Shift + Q` (au kitufe cha kikokotoo, ikiwa kibodi yako inacho).
 
 ## Signal
 
-[Signal](https://signal.org/) ni kinara wa ujumbe uliosimbwa kwa njia ya E2E, na chaguo bora la mawasiliano kwa yeyote ambaye angestahili kutopitia moja ya mashirika makubwa ya teknolojia.
+[Signal](https://signal.org/) ni mwanzilishi wa ujumbe uliosimbwa kwa E2E, na chaguo zuri la mawasiliano kwa yeyote ambaye angependelea kutopitia mojawapo ya makampuni makubwa ya teknolojia.
 
-Unaanzisha Signal kwa `Super + Shift + G`. Si sehemu ya usakinishaji wa msingi, hivyo mara ya kwanza unapogonga hiyo, Omarchy itakupa kuisakinisha kwa ajili yako (pia iko chini ya _Sakinisha > Huduma_ katika menyu ya Omarchy).
+Unaanzisha Signal kwa `Super + Shift + G`. Sio sehemu ya usakinishaji wa msingi, hivyo mara ya kwanza unapobonyeza hiyo, Omarchy itakupa kuisakinisha kwa ajili yako (pia iko chini ya _Install > Service_ katika menyu ya Omarchy).
 
-## mpv
+## Omaview
 
-[mpv](https://mpv.io/) ni kicheza media rahisi, cha haraka kitakachocheza karibu kitu chochote kutoka chanzo chochote. Nzuri sana kwa kutazama video.
+[Omaview](https://github.com/omacom/omaview) ni kitazama picha na kicheza media cha Omarchy chenyewe rahisi kabisa: dirisha moja kwa picha, video, na muziki wako. Fungua picha na vitufe vya mishale hupita kupitia zilizobaki katika folda yake, `N` na `P` hufanya hivyo kwa chochote, na `Ctrl + M` huonyesha folda nzima kama gridi. Huonyesha picha za HEIC, AVIF, na JPEG XL pia, na huendelea pale ulipoachia katika chochote kirefu.
 
-Unaanzisha mpv kupitia kizinduzi cha programu (`Super + Space`) au ubofye mara mbili tu kwenye video katika meneja wa faili.
+Bonyeza `F` kwa skrini nzima, `E` kuhariri picha katika Omasnap au kupunguza video katika Omacut, `Ctrl + P` kuchapisha picha, na `Delete` kuhamisha faili hadi kwenye Trash (`Ctrl + Z` huirudisha). Bonyeza `?` ndani yake kuona kila njia ya mkato.
+
+Unaanzisha Omaview kama _Media Viewer_ kupitia kianzisha programu (`Super + Space`), au bofya tu mara mbili picha, video, au wimbo katika kidhibiti faili.
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) ni kipunguza video rahisi sana cha Omarchy chenyewe. Wakati unachohitaji tu ni kukata mwanzo na mwisho wa klipu, kinashinda kuwasha kihariri kamili cha video.
+[Omacut](https://github.com/omacom-io/omacut) ni kipunguza video cha Omarchy chenyewe rahisi kabisa. Unapohitaji tu kukata mwanzo na mwisho wa klipu, hushinda kuwasha kihariri kamili cha video.
 
-Unaanzisha Omacut kupitia kizinduzi cha programu (`Super + Space`).
+Unaanzisha Omacut kupitia kianzisha programu (`Super + Space`).
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) ni kirekodi cha kamera ya wavuti rahisi sana cha Omarchy chenyewe. Chagua kamera yako na maikrofoni mara moja, kisha bonyeza `Space` kurekodi, na tena kusitisha na kuendelea na nusu ile ile. Daima hurekodi kwa ubora wa juu zaidi wa kamera yako, na mita hai ya maikrofoni ili uweze kuangalia viwango vyako kabla ya kuanza.
+[Monologue](https://github.com/omacom/monologue) ni kinasa cha kamera ya wavuti cha Omarchy chenyewe rahisi kabisa. Chagua kamera na kipaza sauti chako mara moja, kisha bonyeza `Space` kurekodi, na tena kusitisha na kuendelea na rekodi hiyohiyo. Daima hurekodi kwa ubora wa juu zaidi wa kamera yako, kukiwa na kipima kipaza sauti cha moja kwa moja ili uweze kuangalia viwango vyako kabla ya kuanza.
 
-Simamisha nusu na inafunguka mara moja katika kihariri kilichojengewa ndani. Bofya mara mbili klipu kuigawanya, buruta vipini kupunguza kila kipande, na uondoe sehemu ambazo hutaki. Kisha uihifadhi kama MP4. Rekodi yako ya asili huhifadhiwa hadi utakapoitupe, hivyo unaweza kurudi kila wakati na kuikata tofauti.
+Simamisha rekodi na hufunguka mara moja katika kihariri kilichojengwa ndani. Bofya mara mbili klipu kuigawa, buruta vishikio kupunguza kila kipande, na uondoe sehemu usizozitaka. Kisha uihifadhi kama MP4. Rekodi yako asilia huhifadhiwa hadi utakapoiondoa, hivyo unaweza kurudi kila wakati na kuikata kwa namna tofauti.
 
-Unaanzisha Monologue kupitia kizinduzi cha programu (`Super + Space`).
+Unaanzisha Monologue kupitia kianzisha programu (`Super + Space`).

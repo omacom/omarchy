@@ -1,57 +1,57 @@
 # Mac veya Windows'tan Geliyorsanız
 
-macOS veya Windows'ta yıllar geçirdiyseniz, parmaklarınız beyninizin hiç öğrendiğini unuttuğu yüzlerce şeyi bilir. Bu bölüm çeviri katmanıdır: o içgüdülerin Omarchy'de nereye gittiği. Özelliklerin kendileri başka yerlerde derinlemesine ele alınıyor — bu sadece harita.
+Yıllarınızı macOS veya Windows'ta geçirdiyseniz, parmaklarınız beyninizin bir zamanlar öğrendiğini bile unuttuğu yüzlerce şeyi biliyor. Bu bölüm çeviri katmanıdır: o içgüdülerin Omarchy'de nereye gittiği. Özelliklerin kendileri başka yerlerde derinlemesine ele alınıyor — bu yalnızca harita.
 
 ### Super her şeyin merkezinde
 
-Cmd veya Windows tuşu etrafında geliştirdiğiniz tüm kas hafızası tek bir tuşa aktarılır: Super. Bu, bir PC klavyesindeki Windows tuşudur ve Omarchy'deki neredeyse her kısayolun dayanağıdır.
+Cmd veya Windows tuşu etrafında edindiğiniz tüm kas hafızası tek bir tuşa aktarılıyor: Super. Bu, PC klavyesindeki Windows tuşudur ve Omarchy'deki neredeyse her kısayol tuşunun çıpasıdır.
 
-Spotlight, Raycast veya Başlat menüsü refleksiniz `Super + Space` olur. Bu, uygulamaları başlatan, ayarları değiştiren, yazılım kuran, ekranı yakalayan — hemen hemen her şeyi yapan Omarchy menüsünü açar. Filtrelemek için yazmaya başlayın. `Super + Alt + Space`, Launchpad'in yaptığı gibi tüm uygulamaları tek bir ızgarada gösterir. Bkz. [gezinme](04-navigation.md).
+Spotlight veya Raycast veya Başlat menüsü refleksiniz `Super + Space` olur. Bu, Omarchy menüsünü açar; bu menü uygulamaları başlatır, ayarları değiştirir, yazılım kurar, ekranı yakalar — hemen hemen her şeyi yapar. Filtrelemek için yazmaya başlayın. `Super + Alt + Space`, Launchpad'in yaptığı gibi her uygulamayı tek bir ızgarada gösterir. Bkz. [gezinti](04-navigation.md).
 
-### Dock ve masaüstü simgeleri yok
+### Dock yok ve masaüstü simgeleri yok
 
-Bir şeyleri başlatmak için tıklanacak bir şey yok, masaüstünde düzenlenecek simgeler de yok. Uygulamalar bir kısayoldan (terminal için `Super + Return`, tarayıcı için `Super + Shift + Return` ve eşlenen her şeyin listesi için `Super + K`) veya menüden başlar. Kalıcı tek arayüz parçası, menü çubuğu, sistem tepsisi ve Bildirim Merkezi'nin daha önce sizin için yaptığını karşılayan [üst çubuk](05-the-top-bar.md)tur — ve üzerindeki hemen hemen her widget sol, sağ ve orta tıklamada bir şey yapar.
+Tıklayıp bir şeyler başlatacak hiçbir şey yok, masaüstünde düzenlenecek simgeler yok. Uygulamalar bir kısayol tuşuyla (`Super + Return` terminal için, `Super + Shift + Return` tarayıcı için ve `Super + K` eşlenmiş her şeyin listesi için) veya menüden başlar. Tek kalıcı arayüz parçası [üst çubuktur](05-the-top-bar.md); bu çubuk menü çubuğunun, sistem tepsisinin ve Notification Center'ın daha önce sizin için yaptıklarını kapsar — ve üzerindeki neredeyse her widget sol, sağ ve orta tıklamada bir şey yapar.
 
-### Pencereler kendi kendine yerleşir
+### Pencereler kendiliğinden yerleşir
 
-En büyük zihniyet değişimi: pencereleri sürüklemiyor veya ekranın yarılarına oturtmuyorsunuz. Bir pencere açın, tüm ekranı kaplar. İkinci bir pencere açın, ekranı bölüşürler. Bir pencereyi asla bir başkasının altından çıkarmak zorunda kalmazsınız, çünkü pencereler çakışmaz.
+En büyük zihniyet değişimi: pencereleri oraya buraya sürüklemez veya ekran yarılarına yaslamazsınız. Bir pencere açarsınız ve tüm ekranı kaplar. İkincisini açarsınız ve ekranı bölüşürler. Bir pencereyi asla bir başkasının altından çıkarmaya çalışmazsınız, çünkü pencereler üst üste binmez.
 
-Gerçekten yüzen bir pencereye ihtiyacınız olduğunda, `Super + T` aktif pencereyi döşemenin dışına çıkarır (ve geri alır). Ama önce döşemeye gerçek bir şans verin — her şeyin kalbi odur. [Gezinme](04-navigation.md) sizi adım adım götürür.
+Gerçekten yüzen bir pencereye ihtiyacınız olduğunda, `Super + T` etkin olanı döşemeden çıkarır (ve geri sokar). Ama önce döşemeye gerçek bir şans verin — her şeyin kalbi odur. [Gezinti](04-navigation.md) size yol gösterir.
 
-Çalışma alanları tanıdık gelecektir: macOS Spaces veya Windows sanal masaüstleri gibidirler, ancak bu sefer gerçekten kullanacaksınız, çünkü `Super + 1/2/3/4` doğrudan birine atlar ve `Super + Shift + 1/2/3/4` aktif pencereyi oraya gönderir. Animasyon gecikmesi yok, sadece anında atlamalar. Bu, daha önce alışkınsanız çoklu monitöre bile ihtiyacınız olmayabileceği anlamına gelir.
+Çalışma alanları tanıdık gelecektir: macOS Spaces veya Windows sanal masaüstleri gibidirler, tek farkı onları gerçekten kullanacak olmanızdır, çünkü `Super + 1/2/3/4` doğrudan birine atlar ve `Super + Shift + 1/2/3/4` etkin pencereyi oraya gönderir. Animasyon gecikmesi yok, sadece anında geçişler. Bu, daha önce alışmış olsanız bile birden fazla monitöre bile ihtiyacınız olmayabileceği anlamına geliyor.
 
-### Kopyala yapıştır öylece çalışır
+### Kopyala ve yapıştır sorunsuz çalışır
 
-Mac'te her yerde Cmd + C vardı. Windows'ta her yerde Ctrl + C vardı — terminal hariç, orada programınızı öldürür. Omarchy size `Super + C`, `Super + X` ve `Super + V` verir ve bunlar terminal dahil her yerde çalışır. Kabuk için öğrenilecek ayrı bir refleks yok.
+Mac'te her yerde Cmd + C vardı. Windows'ta her yerde Ctrl + C vardı — terminal hariç; orada programınızı öldürür. Omarchy size `Super + C`, `Super + X` ve `Super + V` verir ve bunlar terminal dahil her yerde çalışır. Kabuk için ayrı bir refleks öğrenmenize gerek yok.
 
-Windows kullanıcıları: Win + V pano geçmişiniz `Super + Ctrl + V` üzerinde yaşar ve metnin yanı sıra görselleri de tutar. Bkz. [birleşik pano ve geçmiş](08-unified-clipboard-history.md).
+Windows'çular: Win + V pano geçmişiniz `Super + Ctrl + V` üzerinde yaşar ve metnin yanı sıra görüntüleri de tutar. Bkz. [birleşik pano ve geçmiş](08-unified-clipboard-history.md).
 
 ### Çeviri tablosu
 
-| Ulaştığınız şey | Omarchy'de |
+| Elinizin gittiği şey | Omarchy'de |
 | ------------- | ---------- |
 | Spotlight / Raycast / Başlat menüsü | `Super + Space` — Omarchy menüsü |
-| AirDrop | LocalSend, `Super + Ctrl + S` ile — bkz. [GUI'ler](22-guis.md) |
-| Cmd + Shift + 4 / Win + Shift + S | `Print Screen` — bkz. [ekran görüntüleri ve kayıt](12-screenshots-recording.md) |
-| Bildirim Merkezi | `Super + Shift + Alt + ,` üzerindeki bildirim geçmişi |
+| AirDrop | LocalSend, `Super + Ctrl + S` üzerinden — bkz. [GUIs](22-guis.md) |
+| Cmd + Shift + 4 / Win + Shift + S | `Super + Ctrl + Alt + C` veya `Print Screen` — bkz. [ekran görüntüleri ve kayıt](12-screenshots-recording.md) |
+| Notification Center | `Super + Shift + Alt + ,` üzerinde bildirim geçmişi |
 | Time Machine (sistem için) | Her güncellemede otomatik [sistem anlık görüntüleri](47-system-snapshots.md) |
-| App Store / kurulumcu indirme | Menüde _Kur_, veya `omarchy pkg add` — bkz. [diğer paketler](29-other-packages.md) |
-| Sistem Ayarları / Denetim Masası | Menüde _Ayarlar_, düz yapılandırma dosyalarını düzenler — bkz. [dotfiles](31-dotfiles.md) |
+| App Store / bir kurulum dosyası indirmek | Menüdeki _Yükle_ veya `omarchy pkg add` — bkz. [diğer paketler](29-other-packages.md) |
+| System Settings / Control Panel | Düz yapılandırma dosyalarını düzenleyen menüdeki _Kurulum_ — bkz. [dotfiles](31-dotfiles.md) |
 
 ### Bazı şeyler gerçekten farklı
 
-Birçok ayar, panellerde tıklayarak değil, düzenlediğiniz metin dosyalarında yaşar. Bu, her ince ayarın görülebilmesi, bir sonraki makinenize kopyalanabilmesi ve sürüm denetimine konulabilmesi anlamına geldiğini fark edene kadar ilkel geliyor. _Ayarlar_ menüsü sizi doğrudan doğru dosyaya bırakır ve işiniz bittiğinde yeniden başlatılması gereken her şeyi yeniden başlatır.
+Birçok ayar, tıklayarak gezdiğiniz panellerde değil, düzenlediğiniz metin dosyalarında yaşar. Bu, her ince ayarın görülebildiğini, bir sonraki makinenize kopyalanabildiğini ve sürüm kontrolüne konabildiğini fark edene kadar ilkel geliyor. _Kurulum_ menüsü sizi doğrudan doğru dosyaya bırakır ve işiniz bittiğinde yeniden başlatılması gereken her şeyi yeniden başlatır.
 
-Güncellemeler tek bir komuttan gelir — _Güncelle > Omarchy_ — bu komut, önce bir anlık görüntü alarak Omarchy'nin kendisini ve sistemdeki her paketi günceller. Rastgele zamanlarda sizi rahatsız eden uygulama başına güncelleyiciler yok. Bkz. [güncellemeler](30-updates.md).
+Güncellemeler tek bir komutla gelir — _Güncelle > Omarchy_ — bu, önce bir anlık görüntü alarak Omarchy'nin kendisini ve sistemdeki her paketi günceller. Rastgele zamanlarda sizi rahatsız eden uygulama başına güncelleyiciler yok. Bkz. [güncellemeler](30-updates.md).
 
-Yazılım, indirilen kurulumculardan değil, bir paket yöneticisinden gelir.
+Yazılım, indirilen kurulum dosyalarından değil, bir paket yöneticisinden gelir.
 
-Ve bir pencereyi kapattığınızda, uygulama gerçekten kapanır. Programın penceresiz çalışmaya devam ettiği bir macOS arafı yoktur. `Super + W` — veya geldiğiniz parmak hafızası buysa `Super + Q` — gitti anlamına gelir.
+Ve bir pencereyi kapattığınızda, uygulama gerçekten çıkar. Programın penceresiz çalışmaya devam ettiği bir macOS arafı yok. `Super + W` — veya geldiğiniz parmak hafızası buysa `Super + Q` — gitti demektir.
 
 ### Mac donanımında
 
-Omarchy Intel Mac'lerde iyi çalışır — bkz. [Mac desteği](44-mac-support.md). Ve klavye size naziktir: Omarchy hiçbir şeyi yeniden eşlemez ve Linux Command tuşunu Super olarak ele alır, böylece Super tam Cmd'nin her zaman olduğu yerde oturur. Başparmağınız geçişi fark etmez bile.
+Omarchy Intel Mac'lerde iyi çalışır — bkz. [Mac desteği](44-mac-support.md). Ve klavye size nazik davranır: Omarchy hiçbir şeyi yeniden eşlemez ve Linux, Command tuşunu Super olarak kabul eder, bu yüzden Super tam Cmd'nin her zaman olduğu yerde oturur. Başparmağınız taşınmayı fark etmez bile.
 
 ### İki hafta verin
 
-İçgüdüler düşündüğünüzden daha hızlı aktarılır. [Kısayollar](07-hotkeys.md) bölümünü bir kez gözden geçirin ve bir bağlamayı hatırlayamadığınızda `Super + K` tuşuna basın — size hepsini gösterir. Gerçekten ezberlemeniz gereken tek kısayol budur.
+İçgüdüler düşündüğünüzden daha hızlı aktarılır. [kısayol tuşları](07-hotkeys.md) bölümüne bir kez göz gezdirin ve bir tuş atamasında takıldığınızda `Super + K` tuşuna basın — size hepsini gösterir. Gerçekten ezberlemeniz gereken tek kısayol tuşu budur.

@@ -1,36 +1,36 @@
-# Bez uzraudzības instalēšanas
+# Instalēšana bez uzraudzības
 
-Omarchy ISO var instalēties pats, nevienam neesot pie tastatūras. Ja instalētājs atrod otru disku ar etiķeti `cidata`, kas nes tā konfigurācijas failus, tas tos nokopē, pilnībā izlaiž iestatīšanas vedni un pats pārstartējas gatavajā sistēmā. Nekāda īpaša ISO būvējuma, nekāda papildu sāknēšanas izvēlnes ieraksta — bez šāda pievienota diska nekas nemainās, un jūs iegūstat parasto vedni.
+Omarchy ISO var instalēties pats, nevienam nesēžot pie tastatūras. Ja instalētājs atrod otru disku ar nosaukumu `cidata`, kurā ir tā konfigurācijas faili, tas tos nokopē, pilnībā izlaiž iestatīšanas vedni un pats pārstartējas gatavajā sistēmā. Nav vajadzīga īpaša ISO versija, nav vajadzīgs papildu ieraksts palaišanas izvēlnē — ja šāda diska nav, nekas nemainās un jūs saņemat parasto vedni.
 
-Tas Omarchy padara lielisku kā bāzes attēlu vienreizējām izstrādes vidēm: izveidojiet VM Proxmox vai ar Packer, sāknējiet to, aizejiet, pieslēdzieties ar SSH. `cidata` ir cloud-init `NoCloud` etiķete, tāpēc visi parastie virtualizācijas rīki jau zina, kā šādu disku pievienot.
+Tas padara Omarchy par lielisku bāzes attēlu vienreizlietojamām izstrādes vidēm: izveidojiet VM Proxmox vai ar Packer, palaidiet to, ejiet prom un pieslēdzieties caur SSH. `cidata` ir cloud-init `NoCloud` nosaukums, tāpēc visi izplatītie virtualizācijas rīki jau zina, kā šādu disku pievienot.
 
 ## Konfigurācijas faili
 
-Faili ir tieši tie, ko raksta paša instalētāja vednis, tāpēc vieglākais veids, kā iegūt sākuma komplektu, ir veikt vienu interaktīvu instalēšanu (teiksim, VM) un nokopēt, ko tas ierakstīja mapē `/root`:
+Šie faili ir tieši tie paši, ko raksta instalētāja vednis, tāpēc vienkāršākais veids, kā iegūt sākuma kopu, ir veikt vienu interaktīvu instalēšanu (piemēram, VM) un nokopēt to, ko tā ierakstīja `/root`:
 
 | Fails | Obligāts | Nolūks |
 |------|----------|---------|
-| `user_configuration.json` | Jā | Disks, saimniekdatora nosaukums, laika josla, tastatūra |
-| `user_credentials.json` | Jā | Lietotājvārds un paroles jaucējkods |
-| `user_full_name.txt` | Nē | Git pilns vārds |
-| `user_email_address.txt` | Nē | Git e-pasts |
-| `user_encrypt_installation.txt` | Nē | `true`, kad konfigurācija satur `disk_encryption` bloku |
-| `authorized_keys` | Nē | SSH publiskās atslēgas, pa vienai rindā |
-| `tailscale_authkey` | Nē | Tailscale autorizācijas atslēga, lai pirmajā sāknēšanā pievienotos jūsu tailnet |
+| `user_configuration.json` | Jā | Disks, resursdatora nosaukums, laika josla, tastatūra |
+| `user_credentials.json` | Jā | Lietotājvārds un paroles jaucējvērtība |
+| `user_encrypt_installation.txt` | Nē | `true`, ja konfigurācijā ir `disk_encryption` bloks |
+| `authorized_keys` | Nē | SSH publiskās atslēgas, pa vienai katrā rindā |
+| `tailscale_authkey` | Nē | Tailscale autentifikācijas atslēga, lai pirmajā palaišanā pievienotos jūsu tailnet |
 
-Paroles jaucējkodu failam `user_credentials.json` ģenerējiet ar `openssl passwd -6 "yourpassword"`.
+Ģenerējiet paroles jaucējvērtību failam `user_credentials.json` ar `openssl passwd -6 "yourpassword"`.
 
-Faila `user_credentials.json` vietā varat ielikt arī tukšu failu ar nosaukumu `defer-provisioning`. Tas palaiž to pašu [instalēšanu citam īpašniekam](02-getting-started.md), ko varat izsaukt interaktīvi: iekārta instalējas bez personiskām detaļām, un tas, kurš to sāknē pirmo, izvēlas tastatūru un izveido savu lietotāju. Tas ir režīms attēlošanas iekārtām, kur diskam vispār nevajadzētu nest neviena akreditācijas datus.
+Vārds un e-pasts git komitiem nav instalēšanas daļa. Iestatiet tos, kad ierīce ir darbspējīga, piemēram, caur SSH, ar `omarchy setup git --name "Jane Doe" --email jane@example.com`.
+
+Varat arī `user_credentials.json` vietā ievietot tukšu failu ar nosaukumu `defer-provisioning`. Tas palaiž to pašu [instalēšanu, kas sagatavo ierīci citam īpašniekam](02-getting-started.md), ko varat palaist interaktīvi: ierīce instalējas bez personas datiem, un tas, kurš to palaiž pirmais, izvēlas savu tastatūru un izveido savu lietotāju. Tas ir režīms attēlu veidošanas iekārtām, kur diskā nevajadzētu būt neviena akreditācijas datiem.
 
 ## SSH piekļuve
 
-Kad ir `authorized_keys`, instalēšana iestata atslēgas kā lietotāja `~/.ssh/authorized_keys`, iespējo `sshd` un atver tam ugunsmūri. (Standarta Omarchy instalācija piegādā openssh ar atspējotu pakalpojumu un aizvērtu portu, tāpēc bez uzraudzības iekārta citādi būtu nesasniedzama.) Instalēšana tikai pievieno jūsu atslēgas — tā neattaisina nevienu citu SSH dēmona autentifikācijas iestatījumu.
+Ja ir `authorized_keys`, instalēšana iestata atslēgas kā lietotāja `~/.ssh/authorized_keys`, iespējo `sshd` un atver tam ugunsmūri. (Standarta Omarchy instalācijā ir openssh ar atspējotu pakalpojumu un aizvērtu portu, tāpēc ierīce bez uzraudzības citādi būtu nesasniedzama.) Instalēšana tikai pievieno jūsu atslēgas — tā nemazina nevienu citu SSH dēmona autentifikācijas iestatījumu.
 
-Kad ir `tailscale_authkey`, iekārta tā vietā pirmajā sāknēšanā pievienojas jūsu tailnet: Tailscale tiek instalēta no ISO komplektētajām pakotnēm, ugunsmūris atļauj tailnet saskarni, un fona darbs palaiž pievienošanos, tiklīdz iekārtai patiešām ir tīkls, mēģinot, līdz izdodas. Izmantojiet atkārtoti lietojamu, iepriekš autorizētu atslēgu, lai viens diska attēls varētu kalpot daudzām iekārtām.
+Ja ir `tailscale_authkey`, ierīce pirmajā palaišanā tā vietā pievienojas jūsu tailnet: Tailscale tiek instalēts no ISO komplektā iekļautajām pakotnēm, ugunsmūris atļauj tailnet saskarni, un fona darbs veic pievienošanos, tiklīdz ierīcei faktiski ir tīkls, mēģinot atkārtoti, līdz tas izdodas. Izmantojiet atkārtoti lietojamu, iepriekš autorizētu atslēgu, lai viens diska attēls varētu apkalpot daudzas ierīces.
 
-## Cidata diska būvēšana
+## cidata diska izveide
 
-Der jebkura failu sistēma ar pareizo etiķeti. Mazs ISO ir vieglais ceļš:
+Der jebkura failu sistēma ar pareizo nosaukumu. Neliels ISO ir vienkāršākais veids:
 
 ```bash
 mkdir cidata
@@ -38,7 +38,7 @@ cp user_configuration.json user_credentials.json authorized_keys cidata/
 genisoimage -output cidata.iso -volid cidata -joliet -rock cidata/
 ```
 
-Pēc tam pievienojiet to VM līdzās Omarchy ISO. Lūk, pilns Proxmox piemērs:
+Pēc tam pievienojiet to VM līdzās Omarchy ISO. Šeit ir pilns Proxmox piemērs:
 
 ```bash
 qm create 101 --name my-omarchy \
@@ -54,8 +54,8 @@ qm create 101 --name my-omarchy \
 qm start 101
 ```
 
-Sāknēšanas secība disku apzināti uzskaita pirmo: tukšais disks pirmajā sāknēšanā izkrīt cauri uz ISO, un instalētā sistēma pēc tam vienmēr sāknējas no diska.
+Palaišanas secībā disks apzināti ir pirmais: tukšais disks pirmajā palaišanā pāriet uz ISO, un pēc tam instalētā sistēma vienmēr palaižas no diska.
 
 ## Divi brīdinājumi
 
-Šifrētas bezuzraudzības instalēšanas nav pilnībā bez uzraudzības — kādam pirmajā sāknēšanā joprojām ir jāieraksta LUKS ieejas frāze. Un bloks `disk_encryption` failā `user_configuration.json` šo ieejas frāzi nes atklātā tekstā, tāpēc pret cidata disku, kas būvēts no šifrētas instalēšanas, izturieties kā pret noslēpumu, kāds tas ir.
+Šifrēta instalēšana bez uzraudzības nav pilnībā bez uzraudzības — kādam pirmajā palaišanā joprojām jāievada LUKS parole. Un `disk_encryption` bloks failā `user_configuration.json` satur šo paroli atklātā tekstā, tāpēc izturieties pret cidata disku, kas izveidots no šifrētas instalēšanas, kā pret noslēpumu, kas tas arī ir.
