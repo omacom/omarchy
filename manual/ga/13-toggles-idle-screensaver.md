@@ -17,8 +17,8 @@ Osclaíonn `Super + Ctrl + O` _Spreagadh > Scorán_ go díreach, nó is féidir 
 | Spárálaí scáileáin | — | `omarchy toggle screensaver` |
 | Sioncrónú téama [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Barra roghchláir | `Super + Shift + Space` | `omarchy toggle bar` |
-| Ceap tadhaill | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Scáileán tadhaill | — | `omarchy device touchscreen` |
+| Ceap tadhaill | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Scáileán tadhaill | — | `omarchy toggle touchscreen` |
 | Fionraí | — | `omarchy toggle suspend` |
 | GPU hibrideach | — | `omarchy toggle hybrid gpu` |
 

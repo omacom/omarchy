@@ -17,8 +17,8 @@ Dari terminal, suis yang sama ialah `omarchy toggle <thing>`. Jalankan `omarchy 
 | Penyelamat skrin | — | `omarchy toggle screensaver` |
 | Penyegerakan tema [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Bar menu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Pad sentuh | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Skrin sentuh | — | `omarchy device touchscreen` |
+| Pad sentuh | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Skrin sentuh | — | `omarchy toggle touchscreen` |
 | Tangguh | — | `omarchy toggle suspend` |
 | GPU hibrid | — | `omarchy toggle hybrid gpu` |
 

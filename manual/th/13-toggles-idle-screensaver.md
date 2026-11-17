@@ -17,8 +17,8 @@
 | โปรแกรมพักหน้าจอ | — | `omarchy toggle screensaver` |
 | การซิงค์ธีม [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | แถบเมนู | `Super + Shift + Space` | `omarchy toggle bar` |
-| ทัชแพด | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| หน้าจอสัมผัส | — | `omarchy device touchscreen` |
+| ทัชแพด | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| หน้าจอสัมผัส | — | `omarchy toggle touchscreen` |
 | Suspend | — | `omarchy toggle suspend` |
 | Hybrid GPU | — | `omarchy toggle hybrid gpu` |
 

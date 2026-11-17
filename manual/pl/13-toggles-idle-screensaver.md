@@ -17,8 +17,8 @@ Z terminala te same przełączniki to `omarchy toggle <thing>`. Uruchom samo `om
 | Wygaszacz ekranu | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) synchronizacja motywu | — | `omarchy toggle theme sync` |
 | Pasek menu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Panel dotykowy | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Ekran dotykowy | — | `omarchy device touchscreen` |
+| Panel dotykowy | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Ekran dotykowy | — | `omarchy toggle touchscreen` |
 | Wstrzymanie | — | `omarchy toggle suspend` |
 | Hybrydowy GPU | — | `omarchy toggle hybrid gpu` |
 

@@ -17,8 +17,8 @@
 | محافظ صفحه | — | `omarchy toggle screensaver` |
 | همگام‌سازی تم [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | نوار منو | `Super + Shift + Space` | `omarchy toggle bar` |
-| تاچ‌پد | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| صفحه لمسی | — | `omarchy device touchscreen` |
+| تاچ‌پد | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| صفحه لمسی | — | `omarchy toggle touchscreen` |
 | تعلیق | — | `omarchy toggle suspend` |
 | GPU ترکیبی | — | `omarchy toggle hybrid gpu` |
 

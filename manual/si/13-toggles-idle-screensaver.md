@@ -17,8 +17,8 @@
 | තිර සුරකින්නා | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) තේමා සමමුහුර්තය | — | `omarchy toggle theme sync` |
 | මෙනු තීරුව | `Super + Shift + Space` | `omarchy toggle bar` |
-| ටච්පෑඩය | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| ස්පර්ශ තිරය | — | `omarchy device touchscreen` |
+| ටච්පෑඩය | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| ස්පර්ශ තිරය | — | `omarchy toggle touchscreen` |
 | අත්හිටුවීම | — | `omarchy toggle suspend` |
 | දෙමුහුන් GPU | — | `omarchy toggle hybrid gpu` |
 

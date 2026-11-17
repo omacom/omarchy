@@ -49,7 +49,7 @@ hl.config({
 
 ### Funktsiooniklahvid
 
-Sülearvuti klaviatuuri ülemine rida saadab vaikimisi meediumiklahve (helitugevus, heledus jne) ja `Fn` all hoidmine annab F1-F12; `Fn + Esc` lukustab selle teistpidi, kuni vajutad seda uuesti. Enamik klaviatuure jätab selle luku ise meelde. ASUS-e sülearvutid ja Apple'i stiilis klaviatuurid jätavad selle Linuxi hooleks, mis käivitab need igal alglaadimisel meediumiklahvidel. Et need käivituksid hoopis F1-F12 klahvidel, käivita `omarchy device keyboard toprow fnkeys` (ja tagasi minekuks `omarchy device keyboard toprow mediakeys`); mõnel sülearvutil jõustub see pärast taaskäivitust. Apple Silicon Macid säilitavad oma seade.
+Sülearvuti klaviatuuri ülemine rida saadab vaikimisi meediumiklahve (helitugevus, heledus jne) ja `Fn` all hoidmine annab F1-F12; `Fn + Esc` lukustab selle teistpidi, kuni vajutad seda uuesti. Enamik klaviatuure jätab selle luku ise meelde. ASUS-e sülearvutid ja Apple'i stiilis klaviatuurid jätavad selle Linuxi hooleks, mis käivitab need igal alglaadimisel meediumiklahvidel. Et need käivituksid hoopis F1-F12 klahvidel, käivita `omarchy keyboard toprow fnkeys` (ja tagasi minekuks `omarchy keyboard toprow mediakeys`); mõnel sülearvutil jõustub see pärast taaskäivitust. Apple Silicon Macid säilitavad oma seade.
 
 ### Puuteplaadi žestid
 

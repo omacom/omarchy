@@ -49,7 +49,7 @@ hl.config({
 
 ### Teclas de função
 
-A fileira superior de um teclado de laptop envia as teclas de mídia (volume, brilho e assim por diante) por padrão, e segurar `Fn` oferece F1-F12; `Fn + Esc` trava isso do outro modo até você pressioná-lo novamente. A maioria dos teclados lembra essa trava por conta própria. Laptops ASUS e teclados estilo Apple deixam isso para o Linux, que os inicia nas teclas de mídia a cada inicialização. Para que eles iniciem em F1-F12, execute `omarchy device keyboard toprow fnkeys` (e `omarchy device keyboard toprow mediakeys` para voltar); em alguns laptops, isso entra em vigor após uma reinicialização. Macs com Apple Silicon mantêm sua própria configuração.
+A fileira superior de um teclado de laptop envia as teclas de mídia (volume, brilho e assim por diante) por padrão, e segurar `Fn` oferece F1-F12; `Fn + Esc` trava isso do outro modo até você pressioná-lo novamente. A maioria dos teclados lembra essa trava por conta própria. Laptops ASUS e teclados estilo Apple deixam isso para o Linux, que os inicia nas teclas de mídia a cada inicialização. Para que eles iniciem em F1-F12, execute `omarchy keyboard toprow fnkeys` (e `omarchy keyboard toprow mediakeys` para voltar); em alguns laptops, isso entra em vigor após uma reinicialização. Macs com Apple Silicon mantêm sua própria configuração.
 
 ### Gestos do trackpad
 

@@ -17,8 +17,8 @@ Frá skipanalínunni eru sömu rofarnir `omarchy toggle <thing>`. Keyrðu `omarc
 | Skjávarí | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) samstilling þema | — | `omarchy toggle theme sync` |
 | Valmyndastika | `Super + Shift + Space` | `omarchy toggle bar` |
-| Snertipúði | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Snertiskjár | — | `omarchy device touchscreen` |
+| Snertipúði | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Snertiskjár | — | `omarchy toggle touchscreen` |
 | Biðstaða | — | `omarchy toggle suspend` |
 | Blönduð GPU | — | `omarchy toggle hybrid gpu` |
 

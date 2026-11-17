@@ -49,7 +49,7 @@ hl.config({
 
 ### 기능 키
 
-노트북 키보드의 맨 윗줄은 기본적으로 미디어 키(볼륨, 밝기 등)를 보내고, `Fn`을 누른 채로 있으면 F1-F12가 되며, `Fn + Esc`를 누르면 다시 누를 때까지 반대 방식으로 고정됩니다. 대부분의 키보드는 그 고정 상태를 자체적으로 기억합니다. ASUS 노트북과 Apple 스타일 키보드는 이를 Linux에 맡기는데, Linux는 부팅할 때마다 미디어 키로 시작합니다. 대신 F1-F12로 시작하게 하려면 `omarchy device keyboard toprow fnkeys`를 실행하고(되돌리려면 `omarchy device keyboard toprow mediakeys`), 일부 노트북에서는 재부팅 후에 적용됩니다. Apple Silicon Mac은 자체 설정을 유지합니다.
+노트북 키보드의 맨 윗줄은 기본적으로 미디어 키(볼륨, 밝기 등)를 보내고, `Fn`을 누른 채로 있으면 F1-F12가 되며, `Fn + Esc`를 누르면 다시 누를 때까지 반대 방식으로 고정됩니다. 대부분의 키보드는 그 고정 상태를 자체적으로 기억합니다. ASUS 노트북과 Apple 스타일 키보드는 이를 Linux에 맡기는데, Linux는 부팅할 때마다 미디어 키로 시작합니다. 대신 F1-F12로 시작하게 하려면 `omarchy keyboard toprow fnkeys`를 실행하고(되돌리려면 `omarchy keyboard toprow mediakeys`), 일부 노트북에서는 재부팅 후에 적용됩니다. Apple Silicon Mac은 자체 설정을 유지합니다.
 
 ### 트랙패드 제스처
 

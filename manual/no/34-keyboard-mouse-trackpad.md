@@ -49,7 +49,7 @@ hl.config({
 
 ### Funksjonstaster
 
-Den øverste raden på et laptoptastatur sender medietastene (volum, lysstyrke og så videre) som standard, og å holde `Fn` gir F1-F12; `Fn + Esc` låser den motsatt vei til du trykker den igjen. De fleste tastaturer husker den låsen selv. ASUS-laptoper og tastaturer i Apple-stil overlater det til Linux, som starter dem på medietastene ved hver oppstart. For å få dem til å starte på F1-F12 i stedet kjører du `omarchy device keyboard toprow fnkeys` (og `omarchy device keyboard toprow mediakeys` for å gå tilbake); på noen laptoper trer det i kraft etter en omstart. Apple Silicon-Mac-er beholder sin egen innstilling.
+Den øverste raden på et laptoptastatur sender medietastene (volum, lysstyrke og så videre) som standard, og å holde `Fn` gir F1-F12; `Fn + Esc` låser den motsatt vei til du trykker den igjen. De fleste tastaturer husker den låsen selv. ASUS-laptoper og tastaturer i Apple-stil overlater det til Linux, som starter dem på medietastene ved hver oppstart. For å få dem til å starte på F1-F12 i stedet kjører du `omarchy keyboard toprow fnkeys` (og `omarchy keyboard toprow mediakeys` for å gå tilbake); på noen laptoper trer det i kraft etter en omstart. Apple Silicon-Mac-er beholder sin egen innstilling.
 
 ### Styreflategester
 

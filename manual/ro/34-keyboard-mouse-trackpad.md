@@ -49,7 +49,7 @@ hl.config({
 
 ### Taste funcționale
 
-Rândul de sus al tastaturii unui laptop trimite implicit tastele media (volum, luminozitate și așa mai departe), iar ținerea apăsată a tastei `Fn` dă F1-F12; `Fn + Esc` blochează invers până când o apeși din nou. Majoritatea tastaturilor rețin singure această blocare. Laptopurile ASUS și tastaturile în stil Apple lasă asta în seama Linux, care le pornește cu tastele media la fiecare pornire. Pentru ca în schimb să pornească pe F1-F12, rulează `omarchy device keyboard toprow fnkeys` (și `omarchy device keyboard toprow mediakeys` pentru a reveni); pe unele laptopuri, modificarea intră în vigoare după o repornire. Mac-urile Apple Silicon își păstrează propria setare.
+Rândul de sus al tastaturii unui laptop trimite implicit tastele media (volum, luminozitate și așa mai departe), iar ținerea apăsată a tastei `Fn` dă F1-F12; `Fn + Esc` blochează invers până când o apeși din nou. Majoritatea tastaturilor rețin singure această blocare. Laptopurile ASUS și tastaturile în stil Apple lasă asta în seama Linux, care le pornește cu tastele media la fiecare pornire. Pentru ca în schimb să pornească pe F1-F12, rulează `omarchy keyboard toprow fnkeys` (și `omarchy keyboard toprow mediakeys` pentru a reveni); pe unele laptopuri, modificarea intră în vigoare după o repornire. Mac-urile Apple Silicon își păstrează propria setare.
 
 ### Gesturi pe trackpad
 

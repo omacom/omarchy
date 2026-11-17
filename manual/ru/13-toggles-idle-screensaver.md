@@ -17,8 +17,8 @@
 | Заставка | — | `omarchy toggle screensaver` |
 | Синхронизация темы [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Панель меню | `Super + Shift + Space` | `omarchy toggle bar` |
-| Тачпад | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Сенсорный экран | — | `omarchy device touchscreen` |
+| Тачпад | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Сенсорный экран | — | `omarchy toggle touchscreen` |
 | Приостановка | — | `omarchy toggle suspend` |
 | Гибридный GPU | — | `omarchy toggle hybrid gpu` |
 

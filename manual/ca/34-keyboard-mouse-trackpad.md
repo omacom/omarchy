@@ -49,7 +49,7 @@ hl.config({
 
 ### Tecles de funció
 
-La fila superior d'un teclat de portàtil envia per defecte les tecles multimèdia (volum, brillantor, etc.), i mantenir premuda `Fn` dona F1-F12; `Fn + Esc` ho bloqueja a l'inrevés fins que ho tornes a prémer. La majoria de teclats recorden aquest bloqueig per si mateixos. Els portàtils ASUS i els teclats d'estil Apple ho deixen en mans de Linux, que els inicia amb les tecles multimèdia a cada arrencada. Perquè comencin amb F1-F12, en comptes d'això, executa `omarchy device keyboard toprow fnkeys` (i `omarchy device keyboard toprow mediakeys` per tornar enrere); en alguns portàtils té efecte després de reiniciar. Els Mac amb Apple Silicon mantenen la seva pròpia configuració.
+La fila superior d'un teclat de portàtil envia per defecte les tecles multimèdia (volum, brillantor, etc.), i mantenir premuda `Fn` dona F1-F12; `Fn + Esc` ho bloqueja a l'inrevés fins que ho tornes a prémer. La majoria de teclats recorden aquest bloqueig per si mateixos. Els portàtils ASUS i els teclats d'estil Apple ho deixen en mans de Linux, que els inicia amb les tecles multimèdia a cada arrencada. Perquè comencin amb F1-F12, en comptes d'això, executa `omarchy keyboard toprow fnkeys` (i `omarchy keyboard toprow mediakeys` per tornar enrere); en alguns portàtils té efecte després de reiniciar. Els Mac amb Apple Silicon mantenen la seva pròpia configuració.
 
 ### Gestos del panell tàctil
 

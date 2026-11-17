@@ -17,8 +17,8 @@ Iz terminala, isti prekidači su `omarchy toggle <thing>`. Pokreni samo `omarchy
 | Čuvar zaslona | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) sinkronizacija teme | — | `omarchy toggle theme sync` |
 | Traka izbornika | `Super + Shift + Space` | `omarchy toggle bar` |
-| Dodirna pločica | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Dodirni zaslon | — | `omarchy device touchscreen` |
+| Dodirna pločica | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Dodirni zaslon | — | `omarchy toggle touchscreen` |
 | Obustava | — | `omarchy toggle suspend` |
 | Hibridni GPU | — | `omarchy toggle hybrid gpu` |
 

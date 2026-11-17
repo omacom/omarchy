@@ -17,8 +17,8 @@ Vanuit de terminal zijn dezelfde schakelaars `omarchy toggle <thing>`. Voer `oma
 | Schermbeveiliging | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev)-themasynchronisatie | — | `omarchy toggle theme sync` |
 | Menubalk | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Touchscreen | — | `omarchy device touchscreen` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Touchscreen | — | `omarchy toggle touchscreen` |
 | Slaapstand | — | `omarchy toggle suspend` |
 | Hybride GPU | — | `omarchy toggle hybrid gpu` |
 

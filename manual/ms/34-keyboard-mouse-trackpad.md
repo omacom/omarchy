@@ -49,7 +49,7 @@ hl.config({
 
 ### Kekunci fungsi
 
-Baris atas papan kekunci komputer riba menghantar kekunci media (kelantangan, kecerahan dan sebagainya) secara lalai, dan menahan `Fn` memberikan F1-F12; `Fn + Esc` menguncinya ke arah sebaliknya sehingga anda menekannya semula. Kebanyakan papan kekunci mengingati kunci itu sendiri. Komputer riba ASUS dan papan kekunci gaya Apple menyerahkannya kepada Linux, yang menghidupkannya pada kekunci media pada setiap but. Untuk membuatnya bermula pada F1-F12 sebaliknya, jalankan `omarchy device keyboard toprow fnkeys` (dan `omarchy device keyboard toprow mediakeys` untuk kembali); pada sesetengah komputer riba ia berkuat kuasa selepas but semula. Mac Apple Silicon mengekalkan tetapannya sendiri.
+Baris atas papan kekunci komputer riba menghantar kekunci media (kelantangan, kecerahan dan sebagainya) secara lalai, dan menahan `Fn` memberikan F1-F12; `Fn + Esc` menguncinya ke arah sebaliknya sehingga anda menekannya semula. Kebanyakan papan kekunci mengingati kunci itu sendiri. Komputer riba ASUS dan papan kekunci gaya Apple menyerahkannya kepada Linux, yang menghidupkannya pada kekunci media pada setiap but. Untuk membuatnya bermula pada F1-F12 sebaliknya, jalankan `omarchy keyboard toprow fnkeys` (dan `omarchy keyboard toprow mediakeys` untuk kembali); pada sesetengah komputer riba ia berkuat kuasa selepas but semula. Mac Apple Silicon mengekalkan tetapannya sendiri.
 
 ### Gerak isyarat pad sentuh
 

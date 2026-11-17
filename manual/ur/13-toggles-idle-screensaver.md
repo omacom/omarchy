@@ -17,8 +17,8 @@
 | اسکرین سیور | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) تھیم مطابقت پذیری | — | `omarchy toggle theme sync` |
 | مینو بار | `Super + Shift + Space` | `omarchy toggle bar` |
-| ٹچ پیڈ | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| ٹچ اسکرین | — | `omarchy device touchscreen` |
+| ٹچ پیڈ | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| ٹچ اسکرین | — | `omarchy toggle touchscreen` |
 | سسپینڈ | — | `omarchy toggle suspend` |
 | ہائبرڈ GPU | — | `omarchy toggle hybrid gpu` |
 

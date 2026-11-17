@@ -49,7 +49,7 @@ hl.config({
 
 ### 功能鍵
 
-筆電鍵盤的最上排預設傳送的是媒體鍵（音量、亮度等等），按住 `Fn` 則會得到 F1-F12；`Fn + Esc` 會將它鎖定為相反模式，直到你再次按下為止。大多數鍵盤會自行記住該鎖定狀態。ASUS 筆電和 Apple 風格的鍵盤則交由 Linux 處理，每次開機時都會以媒體鍵模式啟動。若要讓它們改以 F1-F12 模式啟動，請執行 `omarchy device keyboard toprow fnkeys`（執行 `omarchy device keyboard toprow mediakeys` 則可切換回去）；在某些筆電上，變更會在重新開機後才生效。Apple Silicon Mac 會保留自己的設定。
+筆電鍵盤的最上排預設傳送的是媒體鍵（音量、亮度等等），按住 `Fn` 則會得到 F1-F12；`Fn + Esc` 會將它鎖定為相反模式，直到你再次按下為止。大多數鍵盤會自行記住該鎖定狀態。ASUS 筆電和 Apple 風格的鍵盤則交由 Linux 處理，每次開機時都會以媒體鍵模式啟動。若要讓它們改以 F1-F12 模式啟動，請執行 `omarchy keyboard toprow fnkeys`（執行 `omarchy keyboard toprow mediakeys` 則可切換回去）；在某些筆電上，變更會在重新開機後才生效。Apple Silicon Mac 會保留自己的設定。
 
 ### 觸控板手勢
 

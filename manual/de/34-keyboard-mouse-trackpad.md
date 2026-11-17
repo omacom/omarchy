@@ -49,7 +49,7 @@ hl.config({
 
 ### Funktionstasten
 
-Die oberste Reihe einer Laptop-Tastatur sendet standardmäßig die Medientasten (Lautstärke, Helligkeit und so weiter), und wenn du `Fn` gedrückt hältst, erhältst du F1-F12; `Fn + Esc` sperrt das umgekehrt, bis du es erneut drückst. Die meisten Tastaturen merken sich diese Sperre selbst. ASUS-Laptops und Tastaturen im Apple-Stil überlassen das Linux, das sie bei jedem Start mit den Medientasten startet. Damit sie stattdessen mit F1-F12 starten, führe `omarchy device keyboard toprow fnkeys` aus (und `omarchy device keyboard toprow mediakeys`, um zurückzugehen); bei manchen Laptops wird das erst nach einem Neustart wirksam. Apple Silicon Macs behalten ihre eigene Einstellung.
+Die oberste Reihe einer Laptop-Tastatur sendet standardmäßig die Medientasten (Lautstärke, Helligkeit und so weiter), und wenn du `Fn` gedrückt hältst, erhältst du F1-F12; `Fn + Esc` sperrt das umgekehrt, bis du es erneut drückst. Die meisten Tastaturen merken sich diese Sperre selbst. ASUS-Laptops und Tastaturen im Apple-Stil überlassen das Linux, das sie bei jedem Start mit den Medientasten startet. Damit sie stattdessen mit F1-F12 starten, führe `omarchy keyboard toprow fnkeys` aus (und `omarchy keyboard toprow mediakeys`, um zurückzugehen); bei manchen Laptops wird das erst nach einem Neustart wirksam. Apple Silicon Macs behalten ihre eigene Einstellung.
 
 ### Trackpad-Gesten
 

@@ -49,7 +49,7 @@ hl.config({
 
 ### Phím chức năng
 
-Hàng phím trên cùng của bàn phím laptop gửi các phím media (âm lượng, độ sáng và vân vân) theo mặc định, và giữ `Fn` sẽ cho F1-F12; `Fn + Esc` khóa nó theo chiều ngược lại cho đến khi bạn nhấn lại. Hầu hết các bàn phím tự ghi nhớ khóa đó. Laptop ASUS và bàn phím kiểu Apple để việc đó cho Linux, hệ điều hành khởi động chúng ở các phím media mỗi lần khởi động. Để chúng khởi động ở F1-F12 thay vào đó, hãy chạy `omarchy device keyboard toprow fnkeys` (và `omarchy device keyboard toprow mediakeys` để quay lại); trên một số laptop, nó có hiệu lực sau khi khởi động lại. Các máy Mac Apple Silicon giữ cài đặt riêng của chúng.
+Hàng phím trên cùng của bàn phím laptop gửi các phím media (âm lượng, độ sáng và vân vân) theo mặc định, và giữ `Fn` sẽ cho F1-F12; `Fn + Esc` khóa nó theo chiều ngược lại cho đến khi bạn nhấn lại. Hầu hết các bàn phím tự ghi nhớ khóa đó. Laptop ASUS và bàn phím kiểu Apple để việc đó cho Linux, hệ điều hành khởi động chúng ở các phím media mỗi lần khởi động. Để chúng khởi động ở F1-F12 thay vào đó, hãy chạy `omarchy keyboard toprow fnkeys` (và `omarchy keyboard toprow mediakeys` để quay lại); trên một số laptop, nó có hiệu lực sau khi khởi động lại. Các máy Mac Apple Silicon giữ cài đặt riêng của chúng.
 
 ### Cử chỉ trackpad
 

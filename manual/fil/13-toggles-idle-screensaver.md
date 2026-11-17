@@ -17,8 +17,8 @@ Mula sa terminal, ang parehong mga switch ay `omarchy toggle <thing>`. Patakbuhi
 | Screensaver | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) pag-sync ng tema | — | `omarchy toggle theme sync` |
 | Menu bar | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Touchscreen | — | `omarchy device touchscreen` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Touchscreen | — | `omarchy toggle touchscreen` |
 | Suspend | — | `omarchy toggle suspend` |
 | Hybrid GPU | — | `omarchy toggle hybrid gpu` |
 

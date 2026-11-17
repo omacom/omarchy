@@ -17,8 +17,8 @@ Dal terminale, gli stessi interruttori sono `omarchy toggle <thing>`. Esegui `om
 | Screensaver | — | `omarchy toggle screensaver` |
 | Sincronizzazione tema [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Barra dei menu | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Touchscreen | — | `omarchy device touchscreen` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Touchscreen | — | `omarchy toggle touchscreen` |
 | Sospensione | — | `omarchy toggle suspend` |
 | GPU ibrida | — | `omarchy toggle hybrid gpu` |
 

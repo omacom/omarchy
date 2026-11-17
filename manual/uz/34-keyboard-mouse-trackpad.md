@@ -49,7 +49,7 @@ hl.config({
 
 ### Funksiya tugmalari
 
-Noutbuk klaviaturasining yuqori qatori sukut bo'yicha media tugmalarini (ovoz, yorqinlik va boshqalar) yuboradi, `Fn` ni ushlab turish F1-F12 ni beradi; `Fn + Esc` uni yana bosguningizcha teskari holatda qulflaydi. Ko'pchilik klaviaturalar o'sha qulfni o'zlari eslab qoladi. ASUS noutbuklari va Apple uslubidagi klaviaturalar buni Linux ga qoldiradi, u esa har bir yuklanishda ularni media tugmalaridan boshlaydi. Ular o'rniga F1-F12 dan boshlanishi uchun `omarchy device keyboard toprow fnkeys` buyrug'ini ishga tushiring (orqaga qaytish uchun `omarchy device keyboard toprow mediakeys`); ba'zi noutbuklarda bu qayta yuklashdan keyin kuchga kiradi. Apple Silicon Mac lar o'z sozlamasini saqlaydi.
+Noutbuk klaviaturasining yuqori qatori sukut bo'yicha media tugmalarini (ovoz, yorqinlik va boshqalar) yuboradi, `Fn` ni ushlab turish F1-F12 ni beradi; `Fn + Esc` uni yana bosguningizcha teskari holatda qulflaydi. Ko'pchilik klaviaturalar o'sha qulfni o'zlari eslab qoladi. ASUS noutbuklari va Apple uslubidagi klaviaturalar buni Linux ga qoldiradi, u esa har bir yuklanishda ularni media tugmalaridan boshlaydi. Ular o'rniga F1-F12 dan boshlanishi uchun `omarchy keyboard toprow fnkeys` buyrug'ini ishga tushiring (orqaga qaytish uchun `omarchy keyboard toprow mediakeys`); ba'zi noutbuklarda bu qayta yuklashdan keyin kuchga kiradi. Apple Silicon Mac lar o'z sozlamasini saqlaydi.
 
 ### Trekpad imo-ishoralari
 

@@ -17,8 +17,8 @@
 | Προφύλαξη οθόνης | — | `omarchy toggle screensaver` |
 | Συγχρονισμός θέματος [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Γραμμή μενού | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Οθόνη αφής | — | `omarchy device touchscreen` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Οθόνη αφής | — | `omarchy toggle touchscreen` |
 | Αναστολή | — | `omarchy toggle suspend` |
 | Υβριδική GPU | — | `omarchy toggle hybrid gpu` |
 

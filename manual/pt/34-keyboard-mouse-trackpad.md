@@ -49,7 +49,7 @@ hl.config({
 
 ### Teclas de função
 
-A fila superior de um teclado de portátil envia as teclas multimédia (volume, brilho e assim por diante) por predefinição, e manter `Fn` premido dá F1-F12; `Fn + Esc` bloqueia-o no sentido inverso até o premir novamente. A maioria dos teclados lembra-se desse bloqueio por si só. Os portáteis ASUS e os teclados de estilo Apple deixam isso para o Linux, que os inicia nas teclas multimédia a cada arranque. Para que iniciem antes em F1-F12, execute `omarchy device keyboard toprow fnkeys` (e `omarchy device keyboard toprow mediakeys` para voltar); em alguns portáteis, só produz efeito após um reinício. Os Macs com Apple Silicon mantêm a sua própria definição.
+A fila superior de um teclado de portátil envia as teclas multimédia (volume, brilho e assim por diante) por predefinição, e manter `Fn` premido dá F1-F12; `Fn + Esc` bloqueia-o no sentido inverso até o premir novamente. A maioria dos teclados lembra-se desse bloqueio por si só. Os portáteis ASUS e os teclados de estilo Apple deixam isso para o Linux, que os inicia nas teclas multimédia a cada arranque. Para que iniciem antes em F1-F12, execute `omarchy keyboard toprow fnkeys` (e `omarchy keyboard toprow mediakeys` para voltar); em alguns portáteis, só produz efeito após um reinício. Os Macs com Apple Silicon mantêm a sua própria definição.
 
 ### Gestos do trackpad
 

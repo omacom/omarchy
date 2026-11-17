@@ -49,7 +49,7 @@ hl.config({
 
 ### Funkcijske tipke
 
-Zgornja vrstica tipkovnice prenosnika privzeto pošilja večpredstavnostne tipke (glasnost, svetlost in tako naprej), držanje tipke `Fn` pa da F1-F12; `Fn + Esc` to zaklene v obratni smeri, dokler je ne pritisnete znova. Večina tipkovnic si ta zaklep zapomni sama. Prenosniki ASUS in tipkovnice v slogu Apple to prepustijo Linuxu, ki jih ob vsakem zagonu zažene na večpredstavnostnih tipkah. Da se namesto tega zaženejo na F1-F12, zaženite `omarchy device keyboard toprow fnkeys` (in `omarchy device keyboard toprow mediakeys`, da se vrnete nazaj); pri nekaterih prenosnikih to začne veljati po ponovnem zagonu. Računalniki Mac z Apple Silicon ohranijo svojo nastavitev.
+Zgornja vrstica tipkovnice prenosnika privzeto pošilja večpredstavnostne tipke (glasnost, svetlost in tako naprej), držanje tipke `Fn` pa da F1-F12; `Fn + Esc` to zaklene v obratni smeri, dokler je ne pritisnete znova. Večina tipkovnic si ta zaklep zapomni sama. Prenosniki ASUS in tipkovnice v slogu Apple to prepustijo Linuxu, ki jih ob vsakem zagonu zažene na večpredstavnostnih tipkah. Da se namesto tega zaženejo na F1-F12, zaženite `omarchy keyboard toprow fnkeys` (in `omarchy keyboard toprow mediakeys`, da se vrnete nazaj); pri nekaterih prenosnikih to začne veljati po ponovnem zagonu. Računalniki Mac z Apple Silicon ohranijo svojo nastavitev.
 
 ### Poteze na sledilni ploščici
 

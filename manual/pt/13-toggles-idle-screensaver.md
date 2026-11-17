@@ -17,8 +17,8 @@ A partir do terminal, os mesmos interruptores são `omarchy toggle <thing>`. Exe
 | Proteção de ecrã | — | `omarchy toggle screensaver` |
 | Sincronização de tema do [Herdr](https://herdr.dev) | — | `omarchy toggle theme sync` |
 | Barra de menus | `Super + Shift + Space` | `omarchy toggle bar` |
-| Painel tátil | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Ecrã tátil | — | `omarchy device touchscreen` |
+| Painel tátil | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Ecrã tátil | — | `omarchy toggle touchscreen` |
 | Suspender | — | `omarchy toggle suspend` |
 | GPU híbrida | — | `omarchy toggle hybrid gpu` |
 

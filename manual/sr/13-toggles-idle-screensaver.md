@@ -17,8 +17,8 @@
 | Чувар екрана | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) синхронизација теме | — | `omarchy toggle theme sync` |
 | Трака менија | `Super + Shift + Space` | `omarchy toggle bar` |
-| Тачпед | `XF86TouchpadToggle` | `omarchy device touchpad` |
-| Екран осетљив на додир | — | `omarchy device touchscreen` |
+| Тачпед | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
+| Екран осетљив на додир | — | `omarchy toggle touchscreen` |
 | Суспендовање | — | `omarchy toggle suspend` |
 | Хибридни GPU | — | `omarchy toggle hybrid gpu` |
 

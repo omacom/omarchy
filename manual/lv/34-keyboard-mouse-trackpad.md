@@ -49,7 +49,7 @@ hl.config({
 
 ### Funkciju taustiņi
 
-Klēpjdatora tastatūras augšējā rinda pēc noklusējuma sūta multivides taustiņus (skaļumu, spilgtumu un tā tālāk), un, turot nospiestu `Fn`, iegūsti F1-F12; `Fn + Esc` to bloķē pretējā režīmā, līdz to nospied vēlreiz. Lielākā daļa tastatūru šo bloķēšanu atceras pašas. ASUS klēpjdatoriem un Apple stila tastatūrām tas ir atstāts Linux ziņā, kas katrā sāknēšanās reizē tos palaiž multivides taustiņu režīmā. Lai tā vietā tie sāktos F1-F12 režīmā, palaid `omarchy device keyboard toprow fnkeys` (un `omarchy device keyboard toprow mediakeys`, lai atgrieztos atpakaļ); dažos klēpjdatoros tas stājas spēkā pēc pārstartēšanas. Apple Silicon Mac datoriem ir savs iestatījums.
+Klēpjdatora tastatūras augšējā rinda pēc noklusējuma sūta multivides taustiņus (skaļumu, spilgtumu un tā tālāk), un, turot nospiestu `Fn`, iegūsti F1-F12; `Fn + Esc` to bloķē pretējā režīmā, līdz to nospied vēlreiz. Lielākā daļa tastatūru šo bloķēšanu atceras pašas. ASUS klēpjdatoriem un Apple stila tastatūrām tas ir atstāts Linux ziņā, kas katrā sāknēšanās reizē tos palaiž multivides taustiņu režīmā. Lai tā vietā tie sāktos F1-F12 režīmā, palaid `omarchy keyboard toprow fnkeys` (un `omarchy keyboard toprow mediakeys`, lai atgrieztos atpakaļ); dažos klēpjdatoros tas stājas spēkā pēc pārstartēšanas. Apple Silicon Mac datoriem ir savs iestatījums.
 
 ### Skārienpaliktņa žesti
 
