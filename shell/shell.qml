@@ -11,7 +11,6 @@ import qs.Commons as Commons
 import "plugins/bar"
 import "services"
 import "services/AuthServiceStore.js" as AuthServiceStore
-import "Commons/BarSizes.js" as BarSizes
 
 ShellRoot {
   id: shell
