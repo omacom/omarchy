@@ -26,11 +26,11 @@
   "update": {
     "label": "I-update"
   },
-  "about": {
-    "label": "Tungkol"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Tungkol"
   },
   "system.screensaver": {
     "label": "Screensaver"

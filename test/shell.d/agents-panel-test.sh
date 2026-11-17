@@ -110,7 +110,7 @@ JS
 run_node_test <<'JS'
 const fs = require('fs')
 const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
-const state = { localModel: {}, noteReadyModels: () => {} }
+const state = { localModel: {}, noteReadyModels: () => {}, noteLaunchableModels: () => {} }
 const parse = new Function('root', source.match(/function parseLocalModel\([^]*?\n  \}/)[0] + '\nreturn parseLocalModel')(state)
 const running = { models: { 'model-a': { recipe: 'model-a', unit: 'active', endpoint: 'http://127.0.0.1:11435/v1' }, 'model-b': { recipe: 'model-b', unit: 'activating' } }, ram_total_gib: 125.1 }
 parse(JSON.stringify(running))
@@ -223,7 +223,7 @@ JS
 # installs them through polkit first, and otherwise starts at once.
 wrapper_dir=$(mktemp -d)
 trap 'rm -rf "$wrapper_dir"' EXIT
-for stub in omarchy-hw-nvidia omarchy-pkg-add omarchy-local-ai omarchy-launch-floating-terminal-with-presentation; do
+for stub in omarchy-hw-nvidia omarchy-pkg-add omarchy-local-ai omarchy-agent-local-launchers omarchy-launch-floating-terminal-with-presentation; do
   printf '#!/bin/bash\nprintf "%%s\\n" "%s $*" >>"%s/calls"\n' "$stub" "$wrapper_dir" >"$wrapper_dir/$stub"
 done
 printf '#!/bin/bash\nexit 1\n' >"$wrapper_dir/omarchy-hw-nvidia"
@@ -240,18 +240,30 @@ run_wrapper() {
 }
 echo 0 >"$wrapper_dir/pkexec-status"
 calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nomarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold' ]] || fail "a detached setup missing its packages installs them through polkit first" "$calls"
+[[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nomarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a detached setup missing its packages installs them through polkit first" "$calls"
 pass "a detached setup missing its packages installs them through polkit first"
 echo 126 >"$wrapper_dir/pkexec-status"
 calls=$(run_wrapper 0 use --detach nemotron-3.5-bolt-tensorfold)
 [[ $calls == $'pkexec /usr/bin/pacman -S --noconfirm --needed -- podman crun\nexit 126' ]] || fail "a dismissed password dialog stops the setup as cancelled" "$calls"
 pass "a dismissed password dialog stops the setup as cancelled"
 calls=$(run_wrapper 1 use --detach nemotron-3.5-bolt-tensorfold)
-[[ $calls == "omarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold" ]] || fail "a detached setup with its packages starts without a terminal" "$calls"
+[[ $calls == $'omarchy-local-ai use --detach nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a detached setup with its packages starts without a terminal" "$calls"
 pass "a detached setup with its packages starts without a terminal"
 calls=$(run_wrapper 1 use nemotron-3.5-bolt-tensorfold)
-[[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold' ]] || fail "a setup in a terminal installs its packages there" "$calls"
+[[ $calls == $'omarchy-pkg-add podman crun\nomarchy-local-ai use nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "a setup in a terminal installs its packages there" "$calls"
 pass "a setup in a terminal installs its packages there"
+
+# A model set up gets a launcher of its own and one removed loses it, so the
+# launchers are brought up to date after either; the other commands leave them.
+calls=$(run_wrapper 1 remove nemotron-3.5-bolt-tensorfold)
+[[ $calls == $'omarchy-local-ai remove nemotron-3.5-bolt-tensorfold\nomarchy-agent-local-launchers ' ]] || fail "removing a model brings the launchers up to date" "$calls"
+calls=$(run_wrapper 1 stop nemotron-3.5-bolt-tensorfold)
+[[ $calls == "omarchy-local-ai stop nemotron-3.5-bolt-tensorfold" ]] || fail "stopping a model leaves the launchers alone" "$calls"
+printf '#!/bin/bash\nexit 7\n' >"$wrapper_dir/omarchy-local-ai"
+calls=$(run_wrapper 1 remove nemotron-3.5-bolt-tensorfold)
+[[ $calls == $'omarchy-agent-local-launchers \nexit 7' ]] || fail "a removal that fails still reports its own exit status" "$calls"
+printf '#!/bin/bash\nprintf "%%s\\n" "omarchy-local-ai $*" >>"%s/calls"\n' "$wrapper_dir" >"$wrapper_dir/omarchy-local-ai"
+pass "setting up or removing a model brings its launcher up to date"
 
 # Sharing needs the SSH server other machines pair over: the panel's Share
 # sets it up in a terminal first, until it runs.
@@ -338,6 +350,37 @@ scope.noteReadyModels(model('n', 'installing'))
 scope.noteReadyModels(model('n', 'inactive', 'dead'))
 scope.noteReadyModels(model('n', 'active', 'running'))
 assertDeepEqual(ready, ['m'], 'one installed but left stopped is not announced when started by hand')
+JS
+
+# A setup the panel started finishes in the background, so the panel has the
+# launchers redrawn when the models that can be opened change: one done
+# installing, or one gone. A setup that finished while the shell wasn't
+# watching is caught by the first reading; no models at startup syncs nothing.
+run_node_test <<'JS'
+const fs = require('fs')
+const source = fs.readFileSync(root + '/shell/plugins/agents/Main.qml', 'utf8')
+let syncs = 0
+const fresh = () => {
+  const scope = { launchableModels: '', syncLaunchers: () => syncs++ }
+  scope.noteLaunchableModels = new Function('scope', 'with (scope) { return ' + source.match(/function noteLaunchableModels\([^]*?\n  \}/)[0] + ' }')(scope)
+  return scope
+}
+const models = units => Object.fromEntries(Object.entries(units).map(([recipe, unit]) => [recipe, { recipe, unit }]))
+fresh().noteLaunchableModels(models({}))
+assertEqual(syncs, 0, 'a shell starting with no models has no launchers to sync')
+const scope = fresh()
+scope.noteLaunchableModels(models({ m: 'inactive' }))
+assertEqual(syncs, 1, 'a model set up while the shell was away gets its launcher at startup')
+syncs = 0
+scope.noteLaunchableModels(models({ m: 'active' }))
+scope.noteLaunchableModels(models({ m: 'active', n: 'installing' }))
+assertEqual(syncs, 0, 'starting a model, or one still installing, changes no launcher')
+scope.noteLaunchableModels(models({ m: 'active', n: 'activating' }))
+assertEqual(syncs, 1, 'a model done installing gets its launcher')
+scope.noteLaunchableModels(models({ m: 'removing', n: 'active' }))
+assertEqual(syncs, 2, 'a model being removed loses its launcher')
+scope.noteLaunchableModels(models({ n: 'active' }))
+assertEqual(syncs, 2, 'and nothing more once it is gone')
 JS
 
 # Hosted and local rows share ordering, including positions saved while hidden.

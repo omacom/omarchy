@@ -81,6 +81,12 @@ You start Signed via the application launcher (`Super + Space`), or open a PDF w
 
 You start Checkmate via the application launcher (`Super + Space`), where it is listed as Chess. Press `?` inside it to see every shortcut.
 
+## Cards
+
+[Cards](https://github.com/omacom/cards) is Omarchy's own Klondike solitaire. Draw three, with no limit on passes, in four card series: one drawn in your theme's colors, and three with a look of their own. Click a card and then where it goes, drag it, or double-click to send it to the best place. Games save after every move.
+
+You start Cards via the application launcher (`Super + Space`). Click its name, or press `?`, to see every shortcut.
+
 ## Omacalc
 
 [Omacalc](https://github.com/omacom-io/omacalc) is Omarchy's own dead-simple calculator, which opens in a floating window.

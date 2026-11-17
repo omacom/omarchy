@@ -26,11 +26,11 @@
   "update": {
     "label": "Atnaujinti"
   },
-  "about": {
-    "label": "Apie"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Apie"
   },
   "system.screensaver": {
     "label": "Ekrano užsklanda"

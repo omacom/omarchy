@@ -2,21 +2,21 @@
 
 ## Files
 
-Files (Nautilus) è il file manager grafico. `Super + Shift + F` lo apre, e `Super + Shift + Alt + F` lo apre nella directory in cui si trova il tuo terminale, il che ti fa risparmiare un sacco di clic. `Ctrl + L` ti permette di digitare un percorso, e premere `Space` su qualsiasi file ti mostra un'anteprima rapida senza aprire nulla.
+Files (Nautilus) è il file manager grafico. `Super + Shift + F` lo apre, e `Super + Shift + Alt + F` lo apre nella directory in cui si trova il tuo terminale, il che ti risparmia un sacco di clic. `Ctrl + L` ti permette di digitare un percorso, e premendo `Space` su qualsiasi file ottieni un'anteprima rapida senza aprire nulla.
 
-Collega una chiavetta USB o una scheda SD e viene montata automaticamente, così appare semplicemente nella barra laterale. Per operazioni più complesse — formattare un'unità, controllare lo stato SMART, creare partizioni — avvia _Disks_ dal launcher delle applicazioni (`Super + Space`).
+Collega una chiavetta USB o una scheda SD e viene montata automaticamente, quindi appare semplicemente nella barra laterale. Per qualcosa di più impegnativo — formattare un'unità, controllare lo stato SMART, creare partizioni — avvia _Disks_ dal launcher delle applicazioni (`Super + Space`).
 
 Il doppio clic segue impostazioni predefinite sensate: immagini, video e musica si aprono in Omaview, i PDF in Document Viewer, il Markdown in Omawrite e il testo semplice nell'editor scelto in _Setup > Default > Editor_.
 
 ## Disktree
 
-Quando l'unità si riempie e non hai idea di cosa la stia divorando, avvia [Disktree](https://github.com/tobi/disktree) dal launcher delle applicazioni (`Super + Space`). Mostra una treemap grafica della tua directory home. I blocchi più grandi occupano più spazio; entra nelle directory con la tastiera o il mouse, contrassegna ciò che deve sparire e rivedi le tue selezioni prima di rimuovere qualsiasi cosa. Esegui `disktree --disk` per scansionare l'intero disco.
+Quando l'unità si riempie e non hai idea di cosa la stia divorando, avvia [Disktree](https://github.com/tobi/disktree) dal launcher delle applicazioni (`Super + Space`). Mostra una treemap grafica della tua directory home. I blocchi più grandi occupano più spazio; naviga nelle directory con la tastiera o il mouse, marca ciò che deve sparire e rivedi le tue selezioni prima di rimuovere qualsiasi cosa. Esegui `disktree --disk` per scansionare l'intero disco.
 
 ## Obsidian
 
-[Obsidian](https://obsidian.md/) è un'applicazione gratuita e altamente estensibile per prendere appunti che usa semplici file Markdown per l'archiviazione.
+[Obsidian](https://obsidian.md/) è un'applicazione per prendere appunti gratuita e altamente estensibile che usa semplici file Markdown per l'archiviazione.
 
-Obsidian è gratuito per tutti gli scopi, incluso l'uso personale, commerciale e non-profit.
+Obsidian è gratuita per tutti gli scopi, inclusi uso personale, commerciale e non-profit.
 
 Obsidian offre anche un [componente aggiuntivo commerciale per la sincronizzazione](https://obsidian.md/sync) con le app mobili su iOS e Android. (https://obsidian.md/pricing).
 
@@ -30,7 +30,7 @@ Avvii Omawrite con `Super + Shift + W`.
 
 ## Pinta
 
-[Pinta](https://www.pinta-project.com/) è uno strumento di modifica delle immagini di base, ottimo per ritagliare, ridimensionare e altre manipolazioni di base. Non aspettarti però un'alternativa a Photoshop. Ma ha comunque la Bacchetta magica e i livelli!
+[Pinta](https://www.pinta-project.com/) è uno strumento di editing di immagini di base, ottimo per ritagliare, ridimensionare e altre manipolazioni di base. Non aspettarti però un'alternativa a Photoshop. Ma ha comunque la Bacchetta magica e i livelli!
 
 Avvii Pinta tramite il launcher delle applicazioni (`Super + Space`).
 
@@ -46,12 +46,12 @@ Avvii Aether tramite il launcher delle applicazioni (`Super + Space`).
 
 Puoi aprire il menu Share con `Super + Ctrl + S` o in _Trigger > Share_ nel menu di Omarchy. Ti offre quattro opzioni:
 
-- **Clipboard** invia ciò che hai copiato come file di testo. Ottimo per trasferire un link o uno snippet sul telefono senza doverti inviare un'email.
+- **Clipboard** invia tutto ciò che hai copiato come file di testo. Ottimo per portare un link o uno snippet sul tuo telefono senza doverti inviare un'email.
 - **File** apre un selettore di file in cui puoi selezionarne diversi alla volta.
 - **Folder** invia un'intera directory.
 - **Receive** apre LocalSend vero e proprio, così un altro dispositivo può inviarti qualcosa.
 
-La stessa cosa funziona dal terminale con `omarchy share clipboard`, `omarchy share file [path]` e `omarchy share folder [path]`. Ometti il percorso e otterrai il selettore.
+La stessa cosa funziona dal terminale con `omarchy share clipboard`, `omarchy share file [path]` e `omarchy share folder [path]`. Ometti il percorso e ottieni il selettore.
 
 Puoi anche inviare direttamente dal file manager: fai clic con il pulsante destro del mouse su una selezione in Nautilus e scegli _Send via LocalSend_.
 
@@ -65,21 +65,27 @@ Avvii LibreOffice tramite il launcher delle applicazioni (`Super + Space`).
 
 ## Hype
 
-[Hype](https://github.com/omacom/hype) è l'app per presentazioni semplicissima di Omarchy. La tua presentazione è un singolo file Markdown con le sue immagini e i suoi video accanto: scrivi ogni diapositiva sotto un'anteprima dal vivo, trascina le diapositive nell'ordine desiderato, poi presenta a schermo intero o esporta in PDF e PowerPoint. Riprende persino il tuo tema Omarchy.
+[Hype](https://github.com/omacom/hype) è l'app per presentazioni semplicissima di Omarchy. La tua presentazione è un singolo file Markdown con le sue immagini e i suoi video accanto: scrivi ogni diapositiva sotto un'anteprima dal vivo, trascina le diapositive nell'ordine desiderato, poi presenta a schermo intero o esporta in PDF e PowerPoint. Rileva persino il tuo tema Omarchy.
 
-Avvii Hype tramite il launcher delle applicazioni (`Super + Space`). Premi `?` al suo interno per vedere ogni scorciatoia.
+Avvii Hype tramite il launcher delle applicazioni (`Super + Space`). Premi `?` al suo interno per vedere tutte le scorciatoie.
 
 ## Signed
 
 [Signed](https://github.com/omacom/signed) è il modo semplicissimo di Omarchy per firmare i PDF e compilarli. Posiziona la tua firma salvata, del testo e la data di oggi ovunque su una pagina, poi salva una copia firmata accanto all'originale. Vedi [Compilare i PDF](27-filling-out-pdfs.md) per scoprire come.
 
-Avvii Signed tramite il launcher delle applicazioni (`Super + Space`), o apri un PDF con Signed dal file manager.
+Avvii Signed tramite il launcher delle applicazioni (`Super + Space`), oppure apri un PDF con esso dal file manager.
 
 ## Checkmate
 
-[Checkmate](https://github.com/omacom/checkmate) è il gioco di scacchi 3D di Omarchy. Gioca contro un amico sullo stesso computer o contro l'avversario integrato a tre livelli, su quattro set scolpiti che si muovono ciascuno a modo proprio: mezzi orbitali, legno e avorio intagliati, creature dei boschi e caramelle. Le partite non hanno orologio e vengono salvate dopo ogni mossa.
+[Checkmate](https://github.com/omacom/checkmate) è il gioco di scacchi 3D di Omarchy. Gioca contro un amico sullo stesso computer o contro l'avversario integrato a tre livelli, con quattro set scolpiti che si muovono ciascuno a modo proprio: veicoli orbitali, legno intagliato e avorio, creature dei boschi e caramelle. Le partite non hanno orologio e vengono salvate dopo ogni mossa.
 
-Avvii Checkmate tramite il launcher delle applicazioni (`Super + Space`), dove è elencato come Chess. Premi `?` al suo interno per vedere ogni scorciatoia.
+Avvii Checkmate tramite il launcher delle applicazioni (`Super + Space`), dove è elencato come Chess. Premi `?` al suo interno per vedere tutte le scorciatoie.
+
+## Cards
+
+[Cards](https://github.com/omacom/cards) è il solitario Klondike di Omarchy. Pesca tre carte, senza limite di passaggi, in quattro serie di carte: una disegnata con i colori del tuo tema e tre con un aspetto proprio. Fai clic su una carta e poi nel punto in cui deve andare, trascinala oppure fai doppio clic per inviarla nel posto migliore. Le partite vengono salvate dopo ogni mossa.
+
+Avvii Cards tramite il launcher delle applicazioni (`Super + Space`). Fai clic sul suo nome, oppure premi `?`, per vedere tutte le scorciatoie.
 
 ## Omacalc
 
@@ -89,28 +95,28 @@ Avvii Omacalc con `Super + Shift + Q` (o con il tasto della calcolatrice, se la 
 
 ## Signal
 
-[Signal](https://signal.org/) è il pioniere della messaggistica con crittografia E2E, ed è un'ottima opzione di comunicazione per chiunque preferisca non passare attraverso uno dei grandi conglomerati tecnologici.
+[Signal](https://signal.org/) è il pioniere della messaggistica con crittografia E2E ed è un'ottima opzione di comunicazione per chiunque preferisca non passare attraverso uno dei grandi conglomerati tecnologici.
 
 Avvii Signal con `Super + Shift + G`. Non fa parte dell'installazione di base, quindi la prima volta che premi quella combinazione, Omarchy ti offrirà di installarlo per te (si trova anche in _Install > Service_ nel menu di Omarchy).
 
 ## Omaview
 
-[Omaview](https://github.com/omacom/omaview) è il visualizzatore di immagini e lettore multimediale semplicissimo di Omarchy: una finestra per le tue foto, i tuoi video e la tua musica. Apri una foto e i tasti freccia scorrono il resto della sua cartella, `N` e `P` lo fanno per qualsiasi cosa e `Ctrl + M` mostra l'intera cartella come una griglia. Mostra anche foto HEIC, AVIF e JPEG XL e riprende da dove eri rimasto in qualsiasi contenuto lungo.
+[Omaview](https://github.com/omacom/omaview) è il visualizzatore di immagini e lettore multimediale semplicissimo di Omarchy: una sola finestra per le tue foto, i tuoi video e la tua musica. Apri una foto e i tasti freccia scorrono il resto della sua cartella, `N` e `P` lo fanno per qualsiasi cosa e `Ctrl + M` mostra l'intera cartella come griglia. Mostra anche foto HEIC, AVIF e JPEG XL e riprende dal punto in cui avevi interrotto qualsiasi contenuto lungo.
 
-Premi `F` per lo schermo intero, `E` per modificare un'immagine in Omasnap o tagliare un video in Omacut, `Ctrl + P` per stampare un'immagine e `Delete` per spostare un file nel Cestino (`Ctrl + Z` lo riporta indietro). Premi `?` al suo interno per vedere ogni scorciatoia.
+Premi `F` per lo schermo intero, `E` per modificare un'immagine in Omasnap o tagliare un video in Omacut, `Ctrl + P` per stampare un'immagine e `Delete` per spostare un file nel Cestino (`Ctrl + Z` lo riporta indietro). Premi `?` al suo interno per vedere tutte le scorciatoie.
 
 Avvii Omaview come _Media Viewer_ tramite il launcher delle applicazioni (`Super + Space`), oppure fai semplicemente doppio clic su un'immagine, un video o un brano nel file manager.
 
 ## Omacut
 
-[Omacut](https://github.com/omacom-io/omacut) è l'app semplicissima di Omarchy per tagliare i video. Quando ti serve solo tagliare l'inizio e la fine di una clip, batte l'avvio di un editor video completo.
+[Omacut](https://github.com/omacom-io/omacut) è lo strumento semplicissimo di Omarchy per tagliare i video. Quando tutto ciò che ti serve è tagliare l'inizio e la fine di una clip, batte l'avvio di un editor video completo.
 
 Avvii Omacut tramite il launcher delle applicazioni (`Super + Space`).
 
 ## Monologue
 
-[Monologue](https://github.com/omacom/monologue) è il registratore webcam semplicissimo di Omarchy. Scegli la videocamera e il microfono una volta sola, poi premi `Space` per registrare, e di nuovo per mettere in pausa e riprendere la stessa ripresa. Registra sempre alla massima risoluzione della tua videocamera, con un indicatore del microfono in tempo reale così puoi controllare i livelli prima di iniziare.
+[Monologue](https://github.com/omacom/monologue) è il registratore da webcam semplicissimo di Omarchy. Scegli una volta la tua fotocamera e il tuo microfono, poi premi `Space` per registrare e di nuovo per mettere in pausa e riprendere la stessa registrazione. Registra sempre alla risoluzione più alta della tua fotocamera, con un indicatore del microfono dal vivo così puoi controllare i livelli prima di iniziare.
 
-Ferma la ripresa e si apre subito in un editor integrato. Fai doppio clic su una clip per dividerla, trascina le maniglie per tagliare ogni pezzo e rimuovi le parti che non vuoi. Poi salvala come MP4. La registrazione originale viene conservata finché non la scarti, così puoi sempre tornare indietro e tagliarla in modo diverso.
+Interrompi la registrazione e si apre subito in un editor integrato. Fai doppio clic su una clip per dividerla, trascina le maniglie per tagliare ogni pezzo e rimuovi le parti che non vuoi. Poi salvala come MP4. La registrazione originale viene conservata finché non la scarti, così puoi sempre tornare indietro e tagliarla in modo diverso.
 
 Avvii Monologue tramite il launcher delle applicazioni (`Super + Space`).

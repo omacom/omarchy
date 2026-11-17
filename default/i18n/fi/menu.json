@@ -26,11 +26,11 @@
   "update": {
     "label": "Päivitä"
   },
-  "about": {
-    "label": "Tietoja"
-  },
   "system": {
     "label": "Järjestelmä"
+  },
+  "system.about": {
+    "label": "Tietoja"
   },
   "system.screensaver": {
     "label": "Näytönsäästäjä"

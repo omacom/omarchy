@@ -26,11 +26,11 @@
   "update": {
     "label": "به‌روزرسانی"
   },
-  "about": {
-    "label": "درباره"
-  },
   "system": {
     "label": "سیستم"
+  },
+  "system.about": {
+    "label": "درباره"
   },
   "system.screensaver": {
     "label": "محافظ صفحه"
