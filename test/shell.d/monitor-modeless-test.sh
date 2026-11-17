@@ -15,20 +15,17 @@ events_fd=""
 # Closing the event stream first would let the watcher exit on its own and
 # reparent the recovery loop, which then outlives the test and keeps reloading.
 stop_watcher() {
-  local child descendants
-
   if [[ -n $watch_pid ]]; then
-    # Note them down before the watcher dies, then kill it first so it never
-    # gets to announce the loss of its jobs.
-    descendants=$(pgrep -P "$watch_pid" 2>/dev/null || true)
-    for child in $descendants; do
-      descendants+=" $(pgrep -P "$child" 2>/dev/null || true)"
-    done
-
-    kill -KILL "$watch_pid" 2>/dev/null || true
+    # The watcher leads its own process group, and everything it forks stays
+    # in it however deep or late, so one kill reaches all of it at once. A
+    # snapshot of its children would miss one forked after it was taken.
+    kill -KILL -- "-$watch_pid" 2>/dev/null || true
     wait "$watch_pid" 2>/dev/null || true
-    for child in $descendants; do
-      kill -KILL "$child" 2>/dev/null || true
+    # A killed process can still finish the write it was in, into a log the
+    # next scenario reuses; let the whole group go before moving on.
+    for _ in {1..100}; do
+      pgrep -g "$watch_pid" -r R,S,D,T,t >/dev/null || break
+      sleep 0.02
     done
     watch_pid=""
   fi
@@ -49,6 +46,15 @@ trap cleanup EXIT
 
 fake_bin="$test_tmp/bin"
 mkdir -p "$fake_bin"
+
+# The recovery loop backs off from 3s, doubling; run its sleeps at a
+# fifteenth of their length so the scenarios do not wait them out. The
+# doubling ratios survive, which the echoed-event bound below relies on.
+cat >"$fake_bin/sleep" <<'SH'
+#!/bin/bash
+exec /usr/bin/sleep "$(awk -v d="${1:-0}" 'BEGIN { printf "%g", d / 15 }')"
+SH
+chmod +x "$fake_bin/sleep"
 
 monitors_file="$test_tmp/monitors.json"
 reload_log="$test_tmp/reload.log"
@@ -96,6 +102,8 @@ cat >"$fake_bin/omarchy-hyprland-monitor-clamshell" <<'SH'
 
 exit 0
 SH
+
+cp "$fake_bin/omarchy-hyprland-monitor-clamshell" "$fake_bin/omarchy-system-lid-inhibit"
 
 chmod +x "$fake_bin"/*
 ln -s "$ROOT/bin/omarchy-hyprland-monitor-modeless" "$fake_bin/omarchy-hyprland-monitor-modeless"
@@ -172,7 +180,7 @@ start_watcher() {
   OMARCHY_TEST_RECOVERED_MONITORS="$recovered" \
   OMARCHY_TEST_GUARD_PAUSED="${1:-0}" \
   OMARCHY_TEST_HYPRCTL_FAIL_FLAG="$hyprctl_fail" \
-    "$ROOT/bin/omarchy-hyprland-monitor-watch" &
+    setsid "$ROOT/bin/omarchy-hyprland-monitor-watch" &
   watch_pid=$!
 
   exec {events_fd}>"$events"
@@ -196,7 +204,7 @@ printf '%s' '[{"name":"DP-1","width":2560,"height":1440,"disabled":false}]' >"$r
 start_watcher
 
 await_reloads 1 || fail "a monitor with no mode is reloaded at startup"
-sleep 1
+sleep 0.6
 (( $(reloads) == 1 )) || fail "recovery stops once the monitor reports a mode" "$(<"$reload_log")"
 pass "recovery reloads until the monitor comes back, then stops on its own"
 
@@ -213,7 +221,9 @@ pass "a monitor left at 0x0 by a reload is recovered"
 before=$(reloads)
 printf 'configreloaded>>\n' >&"$events_fd"
 printf 'configreloaded>>\n' >&"$events_fd"
-sleep 2
+# One loop at the stub-compressed delays reloads at most twice in
+# this window; a stacked second loop would add its own faster cadence.
+sleep 1
 (( $(reloads) - before <= 2 )) ||
   fail "an echoed configreloaded does not stack a second recovery loop" "$before -> $(reloads)"
 pass "an echoed configreloaded does not stack a second recovery loop"
@@ -225,7 +235,7 @@ stop_watcher
 printf '%s' '[{"name":"DP-1","width":0,"height":0,"disabled":false}]' >"$monitors_file"
 start_watcher 1
 
-sleep 1
+sleep 0.6
 [[ ! -s $reload_log ]] || fail "recovery holds off while the reload guard is paused" "$(<"$reload_log")"
 pass "recovery holds off while the reload guard is paused"
 
@@ -238,7 +248,7 @@ rm -f "$recovered"
 touch "$hyprctl_fail"
 start_watcher
 
-sleep 1
+sleep 0.6
 [[ ! -s $reload_log ]] || fail "an unanswerable query does not trigger a reload" "$(<"$reload_log")"
 rm -f "$hyprctl_fail"
 
@@ -274,7 +284,7 @@ stop_watcher
 printf '%s' '[{"name":"DP-1","width":2560,"height":1440,"disabled":false}]' >"$monitors_file"
 start_watcher
 
-sleep 1
+sleep 0.6
 [[ ! -s $reload_log ]] || fail "a healthy machine is left alone" "$(<"$reload_log")"
 pass "a healthy machine is never reloaded"
 

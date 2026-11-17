@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 import "Sun.js" as Sun
@@ -21,13 +22,20 @@ Item {
   property double nowMs: 0
   property bool hovered: false
   property bool hour24: false
+  property var words: null
   property real moonPhase: 0
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property color fainter: Qt.darker(foreground, 2.1)
   property color daylightMarker: "#E5C736"
   property string fontFamily: Style.font.family
 
   readonly property int trackHeight: Math.max(2, Style.space(3))
+
+  // The day runs the way the language reads, like a slider: midnight at the
+  // right and the evening at the left in a right-to-left layout. Everything
+  // on the strip is placed by x, so it flips here; fractions stay in day order.
+  readonly property bool mirrored: LayoutMirroring.enabled
+  function stripFraction(fraction) { return mirrored ? 1 - fraction : fraction }
 
   // Which arrow's time is showing: its index, or Model.NO_CHIP.
   property int shownChip: Model.NO_CHIP
@@ -65,8 +73,8 @@ Item {
     var out = []
     var up = Sun.eventMark(sun.riseMinutes)
     var down = Sun.eventMark(sun.setMinutes)
-    if (up !== null) out.push({ x: up, minutes: sun.riseMinutes, rising: true, name: "Sunrise" })
-    if (down !== null) out.push({ x: down, minutes: sun.setMinutes, rising: false, name: "Sunset" })
+    if (up !== null) out.push({ x: up, minutes: sun.riseMinutes, rising: true, label: Commons.I18n.t("elsewhen.sunriseAt") })
+    if (down !== null) out.push({ x: down, minutes: sun.setMinutes, rising: false, label: Commons.I18n.t("elsewhen.sunsetAt") })
     return out
   }
 
@@ -91,7 +99,7 @@ Item {
 
       Rectangle {
         required property var modelData
-        x: parent.width * modelData.x0
+        x: parent.width * (strip.mirrored ? 1 - modelData.x1 : modelData.x0)
         width: Math.max(1, parent.width * (modelData.x1 - modelData.x0))
         height: parent.height
         radius: parent.radius
@@ -104,7 +112,7 @@ Item {
       width: Math.max(8, Style.space(10))
       height: width
       radius: width / 2
-      x: Math.round(parent.width * (strip.ready ? strip.progress : 0) - width / 2)
+      x: Math.round(parent.width * strip.stripFraction(strip.ready ? strip.progress : 0) - width / 2)
       y: (parent.height - height) / 2
       color: strip.litNow ? strip.daylightMarker : "transparent"
 
@@ -145,10 +153,10 @@ Item {
       showing = (mouse.modifiers & Qt.ShiftModifier) !== 0 && onMoon(mouse)
       chipAtPress = strip.shownChip
       if (showing) strip.moonShowRequested()
-      else strip.scrubStarted(mouse.x / width)
+      else strip.scrubStarted(strip.stripFraction(mouse.x / width))
     }
     onPositionChanged: function(mouse) {
-      if (!showing) strip.scrubMoved(mouse.x / width)
+      if (!showing) strip.scrubMoved(strip.stripFraction(mouse.x / width))
     }
     onReleased: finish()
     onCanceled: finish()
@@ -168,7 +176,10 @@ Item {
       width: Style.space(14)
       height: Style.space(16)
       anchors.verticalCenter: parent.verticalCenter
-      x: Model.arrowBox(arrow.modelData.x, strip.width, arrow.width, Style.space(3), arrow.rising)
+      // Each arrow sits on the dark side of its mark, which swaps sides
+      // when the day runs right to left.
+      x: Model.arrowBox(strip.stripFraction(arrow.modelData.x), strip.width, arrow.width, Style.space(3),
+                        strip.mirrored ? !arrow.rising : arrow.rising)
 
       // Hidden while the now marker stands on it. nowMarker.x, not progress,
       // so it reappears exactly as the eased marker clears.
@@ -215,7 +226,8 @@ Item {
         visible: strip.shownChip === arrow.index
         delay: 0
         closePolicy: Popup.NoAutoClose
-        text: arrow.modelData.name + " " + Model.formatMinuteOfDay(arrow.modelData.minutes, strip.hour24)
+        text: arrow.modelData.label
+          .arg(Model.formatMinuteOfDay(arrow.modelData.minutes, strip.hour24, strip.words))
         fontFamily: strip.fontFamily
       }
     }
