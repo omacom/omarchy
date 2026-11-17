@@ -58,9 +58,9 @@ if [[ ${1:-} != "claude" && ${1:-} != "codex" && ${1:-} != "grok" ]]; then
 fi
 
 case "${1:-}" in
-claude) provider="claude"; name="Claude"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
-codex) provider="codex"; name="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
-grok) provider="grok"; name="Grok"; site="x.ai"; package="grok"; home_env="GROK_HOME" ;;
+claude) provider="claude"; name="Claude"; app="Claude Code"; site="claude.ai"; package="claude"; home_env="CLAUDE_CONFIG_DIR" ;;
+codex) provider="codex"; name="Codex"; app="Codex"; site="chatgpt.com"; package="codex"; home_env="CODEX_HOME" ;;
+grok) provider="grok"; name="Grok"; app="Grok Build"; site="x.ai"; package="grok"; home_env="GROK_HOME" ;;
 *)
   echo "Usage: omarchy-agent-account-add [--check] [--events] [--reauth <account>] [claude|codex|grok] [label]" >&2
   exit 1
@@ -76,10 +76,28 @@ say() {
   fi
 }
 
+# A signed-in agent gets a launcher of its own beside Agent, drawn by the
+# icon set: Claude Code, Codex, or Grok Build, whatever the default agent is.
+install_launcher() {
+  local entry="omarchy-agent-$provider.desktop"
+  mkdir -p "$HOME/.local/share/applications"
+  install -m 644 "$OMARCHY_PATH/default/applications/$entry" "$HOME/.local/share/applications/$entry"
+  update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
+}
+
+# A first sign-in announces the agent as ready, and clicking it starts one;
+# any other says which account it was.
 finish() {
+  install_launcher
   if [[ $events == "true" ]]; then
     printf '@@omarchy done %s\n' "$1"
-    omarchy-notification-send -g 󰚩 "$1"
+    if [[ ${2:-} == "ready" ]]; then
+      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" \
+        "$(omarchy-i18n agents.readyToCode "$app")" "$(omarchy-i18n agents.readyToCodeBody)" \
+        --exec omarchy-agent --agent "$provider" --app-id="org.omarchy.$provider"
+    else
+      omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" "$1"
+    fi
   else
     echo
     echo "$1"
@@ -89,7 +107,7 @@ finish() {
 fail() {
   if [[ $events == "true" ]]; then
     printf '@@omarchy error %s\n' "$1"
-    omarchy-notification-send -g 󰚩 -u critical "$(omarchy-i18n agents.addFailed "$name")" "$1"
+    omarchy-notification-send -g 󰚩 --image "$(omarchy-agent-logo "$provider")" -u critical "$(omarchy-i18n agents.addFailed "$name")" "$1"
   else
     echo "$1" >&2
   fi
@@ -116,13 +134,77 @@ interruptible() {
   wait $!
 }
 
-if omarchy-cmd-missing "$provider"; then
-  say "$(omarchy-i18n agents.installingCli "$name")"
-  if [[ $events == "true" ]]; then
-    mise use -g "$package" >/dev/null 2>&1 || fail "$(omarchy-i18n agents.installCliFailed "$name")"
-  else
-    mise use -g "$package" || exit 1
+# The panel follows a CLI's download as `@@omarchy progress <done> <total>
+# <rate>` lines, in bytes and bytes a second, read off mise's own progress,
+# which it keeps printing every few seconds without a terminal too, as
+# `… 12.3/166.8 MB · 6.1 MB/s`.
+# Nothing between mise and awk may buffer, or the lines all arrive at the end.
+# The install runs in the background behind a `wait`, like a login, so Cancel
+# stops it at once; the parser is waited for so its last line lands before
+# the next status does.
+install_cli() {
+  if [[ $events != "true" ]]; then
+    "$@"
+    return
   fi
+
+  local progress progress_pid status
+  printf '@@omarchy progress 0 0 0\n'
+  exec {progress}> >(awk -v RS='[\r\n]+' '
+    function bytes(n, unit) {
+      return n * (unit == "GB" ? 1e9 : unit == "MB" ? 1e6 : unit ~ /^[kK]B$/ ? 1e3 : 1)
+    }
+    match($0, /[0-9.]+( [kKMG]?B)?\/[0-9.]+ [kKMG]?B/) {
+      n = split(substr($0, RSTART, RLENGTH), part, /[\/ ]/)
+      unit = part[n]
+      done = n == 4 ? bytes(part[1], part[2]) : bytes(part[1], unit)
+      total = bytes(part[n - 1], unit)
+      rate = 0
+      if (match($0, /[0-9.]+ [kKMG]?B\/s/)) {
+        split(substr($0, RSTART, RLENGTH), speed, /[ \/]/)
+        rate = bytes(speed[1], speed[2])
+      }
+      printf "@@omarchy progress %d %d %d\n", done, total, rate
+      fflush()
+    }')
+  progress_pid=$!
+  "$@" >&"$progress" 2>&1 </dev/null &
+  wait $!
+  status=$?
+  exec {progress}>&-
+  wait "$progress_pid"
+  return "$status"
+}
+
+# Omarchy declares the agent CLIs as lazy mise tools, and wraps their commands
+# to run the selected account, so a command on PATH says nothing about whether
+# the CLI is there: the first run of a lazy tool downloads it, silently. Left
+# to the login, that download looks like the sign-in hanging, so it happens
+# here, where the panel can show it. A CLI counts as there when mise has it,
+# or when one is on PATH outside mise's wrappers and shims (installed some
+# other way). Installing a declared tool leaves the user's config alone; a
+# user who opted out of the defaults selects it instead.
+cli_missing() {
+  mise where "$package" &>/dev/null && return 1
+
+  local mise_data=${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}
+  local dir path=""
+  local IFS=:
+  for dir in $PATH; do
+    if [[ $dir != "$mise_data/command-wrappers/bin" && $dir != "$mise_data/shims" ]]; then
+      path+="${path:+:}$dir"
+    fi
+  done
+  ! PATH=$path type -P "$provider" >/dev/null
+}
+
+if cli_missing; then
+  say "$(omarchy-i18n agents.installingCli "$name")"
+  if omarchy-mise-default-tools declares "$package"; then
+    install_cli env MISE_MINIMUM_RELEASE_AGE=0 mise install "$package"
+  else
+    install_cli env MISE_MINIMUM_RELEASE_AGE=0 mise use -g "$package"
+  fi || fail "$(omarchy-i18n agents.installCliFailed "$name")"
 fi
 
 # Your main browser is almost certainly signed in to the account you already
@@ -183,7 +265,7 @@ if ! primary_signed_in "$provider"; then
       printf '%s\n' "$provider" >"$HOME/.config/omarchy/defaults/agent"
     fi
     omarchy-agent-usage-update --force "$provider" >/dev/null 2>&1 &
-    finish "$(omarchy-i18n agents.signedIn "$name")"
+    finish "$(omarchy-i18n agents.signedIn "$name")" ready
   else
     fail "$(omarchy-i18n agents.signInFailed "$name")"
   fi
