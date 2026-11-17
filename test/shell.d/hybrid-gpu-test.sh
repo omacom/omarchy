@@ -58,7 +58,7 @@ STUB
 chmod +x "$fake_bin"/*
 
 TEST_TMP="$test_tmp" SUCCEED_ON_ATTEMPT=3 \
-  PATH="$fake_bin:$PATH" bash "$ROOT/bin/omarchy-toggle-hybrid-gpu" >/dev/null
+  PATH="$fake_bin:$PATH" bash "$ROOT/bin/omarchy-device-gpu-hybrid" >/dev/null
 
 [[ $(<"$test_tmp/attempts") == "3" ]] || fail "hybrid GPU mode query retries transient failures"
 pass "hybrid GPU mode query recovers from a transient supergfxd failure"
@@ -68,7 +68,7 @@ rm -f "$test_tmp/attempts"
 set +e
 error=$(
   TEST_TMP="$test_tmp" \
-    PATH="$fake_bin:$PATH" bash "$ROOT/bin/omarchy-toggle-hybrid-gpu" 2>&1 >/dev/null
+    PATH="$fake_bin:$PATH" bash "$ROOT/bin/omarchy-device-gpu-hybrid" 2>&1 >/dev/null
 )
 status=$?
 set -e
@@ -87,7 +87,7 @@ STUB
 chmod +x "$fake_bin/supergfxctl"
 
 set +e
-output=$(TEST_TMP="$test_tmp" PATH="$fake_bin:$PATH" timeout 25s bash "$ROOT/bin/omarchy-toggle-hybrid-gpu" 2>&1)
+output=$(TEST_TMP="$test_tmp" PATH="$fake_bin:$PATH" timeout 25s bash "$ROOT/bin/omarchy-device-gpu-hybrid" 2>&1)
 status=$?
 set -e
 

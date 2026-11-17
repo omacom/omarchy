@@ -26,11 +26,11 @@
   "update": {
     "label": "Frissítés"
   },
-  "about": {
-    "label": "Névjegy"
-  },
   "system": {
     "label": "Rendszer"
+  },
+  "system.about": {
+    "label": "Névjegy"
   },
   "system.screensaver": {
     "label": "Képernyővédő"

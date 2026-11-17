@@ -83,16 +83,20 @@ write_boot_order() {
 # The first installed kernel in the boot menu, read from the tree lines that
 # sit directly under an OS entry ("├─ linux-omarchy").
 first_menu_kernel() {
-  local entry
+  local entry kernel
   local -a kernels entries
 
   mapfile -t kernels < <(installed_kernels)
   mapfile -t entries < <(limine-entry-tool --tree | sed -nE 's/^(├|└)─ (.*)$/\2/p')
+  # Compared in Bash: piped to grep -q, a match before the last kernel can
+  # SIGPIPE printf, and pipefail then reads the match as a miss.
   for entry in "${entries[@]}"; do
-    if printf '%s\n' "${kernels[@]}" | grep -Fxq -- "$entry"; then
-      echo "$entry"
-      return
-    fi
+    for kernel in "${kernels[@]}"; do
+      if [[ $entry == "$kernel" ]]; then
+        echo "$entry"
+        return
+      fi
+    done
   done
 }
 

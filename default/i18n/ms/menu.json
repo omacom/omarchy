@@ -26,11 +26,11 @@
   "update": {
     "label": "Kemas Kini"
   },
-  "about": {
-    "label": "Perihal"
-  },
   "system": {
     "label": "Sistem"
+  },
+  "system.about": {
+    "label": "Perihal"
   },
   "system.screensaver": {
     "label": "Tabir Skrin"

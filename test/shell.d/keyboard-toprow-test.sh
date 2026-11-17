@@ -36,7 +36,7 @@ chmod +x "$stub_bin"/*
 toprow() {
   OMARCHY_MODPROBE_DIR="$modprobe_dir" OMARCHY_SYS_MODULE="$sys_module" \
     OMARCHY_TOPROW_REBUILD_PENDING="$test_tmp/rebuild-pending" PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
-    bash "$ROOT/bin/omarchy-keyboard-toprow" "$@"
+    bash "$ROOT/bin/omarchy-device-keyboard-toprow" "$@"
 }
 
 # Before anything is chosen, the top row reports what the loaded driver booted
@@ -71,6 +71,9 @@ toprow mediakeys >/dev/null
 printf '2\n' >"$sys_module/hid_apple/parameters/fnmode"
 toprow mediakeys >/dev/null
 [[ ! -s $calls && $(<"$sys_module/hid_apple/parameters/fnmode") == "1" ]] || fail "toprow restores a drifted hid_apple mode without a rebuild"
+sed -i '1s/.*/# Written by an earlier version/' "$conf"
+toprow mediakeys >/dev/null
+[[ ! -s $calls ]] || fail "toprow rebuilds nothing when only the file's comment differs"
 pass "toprow rebuilds nothing when nothing changed"
 
 REBUILD_FAILS=1 toprow fnkeys >/dev/null 2>&1 && fail "toprow fails when the boot image is not rebuilt"
@@ -115,7 +118,7 @@ if unshare --user --map-root-user --mount true 2>/dev/null; then
       bash "$3"
       grep -qx "options hid_apple fnmode=1" "$OMARCHY_MODPROBE_DIR/omarchy-toprow.conf"
       bash "$2" mediakeys --no-rebuild
-    ' -- "$apple_only" "$ROOT/bin/omarchy-keyboard-toprow" "$ROOT/install/hardware/fix-fkeys.sh" >"$test_tmp/readonly-output" ||
+    ' -- "$apple_only" "$ROOT/bin/omarchy-device-keyboard-toprow" "$ROOT/install/hardware/fix-fkeys.sh" >"$test_tmp/readonly-output" ||
     fail "toprow saves the boot mode when sysfs is read-only"
   grep -qx 'options hid_apple fnmode=1' "$conf" || fail "toprow persists the Apple boot mode with read-only sysfs"
   [[ $(<"$apple_only/hid_apple/parameters/fnmode") == "2" && ! -s $calls ]] ||
