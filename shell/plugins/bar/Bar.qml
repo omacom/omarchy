@@ -10,7 +10,6 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "BarModel.js" as BarModel
-import "../../Commons/BarSizes.js" as BarSizes
 
 Item {
   id: root

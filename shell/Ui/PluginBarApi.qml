@@ -1,5 +1,5 @@
 import QtQuick
-import "../Commons/BarSizes.js" as BarSizes
+import qs.Commons
 
 // Bar surface exposed to an installed third-party widget. Scalar presentation
 // state is mirrored by Bar.qml and operations are delegated through scoped
