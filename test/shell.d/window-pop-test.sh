@@ -28,9 +28,10 @@ pop() {
 
 for state in 1 2; do
   pop "$state"
-  first=$(grep -n 'fullscreen(' "$test_tmp/dispatch" | head -1 | cut -d: -f1)
-  plain=$(grep -n 'fullscreen(' "$test_tmp/dispatch" | grep -v 'mode = "maximized"' | head -1 | cut -d: -f1 || true)
-  float=$(grep -n 'float(' "$test_tmp/dispatch" | head -1 | cut -d: -f1)
+  first=$(grep -n 'fullscreen(' "$test_tmp/dispatch" | head -1 | cut -d: -f1 || true)
+  plain=$(grep -n 'fullscreen(.*action = "unset"' "$test_tmp/dispatch" | grep -v 'mode = "maximized"' | head -1 | cut -d: -f1 || true)
+  float=$(grep -n 'float(' "$test_tmp/dispatch" | head -1 | cut -d: -f1 || true)
+  [[ -n $float ]] || fail "pop-out floats a fullscreen state $state window"
   { [[ -n $first ]] && (( first < float )); } || fail "pop-out leaves fullscreen state $state before floating"
   { [[ -n $plain ]] && (( plain < float )); } || fail "pop-out clears fullscreen state $state before floating"
   grep -q 'mode = "maximized", action = "unset"' "$test_tmp/dispatch" || fail "pop-out keeps a maximized window maximized"
