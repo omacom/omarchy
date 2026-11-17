@@ -1,4 +1,6 @@
 #!/bin/bash
+# omarchy:exclusive
+# A full shell on llvmpipe beside a busy pool can miss its IPC deadline or be the OOM killer's pick.
 
 set -euo pipefail
 
