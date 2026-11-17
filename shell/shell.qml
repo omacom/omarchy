@@ -999,8 +999,12 @@ ShellRoot {
       if ("manifest" in inst) inst.manifest = shell.publicPluginManifest(manifest)
       if ("barWidgetRegistry" in inst) inst.barWidgetRegistry = shell.pluginBarWidgetRegistryFor(manifest)
       if ("pluginRegistry" in inst) inst.pluginRegistry = shell.pluginRegistryFor(manifest)
+      // A lock clone made before unlockSettled existed re-syncs on unlock
+      // instead, which can cut short the wake of one disabled while locked.
       if ("unlockSettled" in inst)
         inst.unlockSettled.connect(function() { shell.syncServicesAfterUnlock(key, authenticationService) })
+      else if (authenticationService && "locked" in inst)
+        inst.lockedChanged.connect(function() { if (!inst.locked) shell.syncServicesAfterUnlock(key, authenticationService) })
       if (authenticationService) {
         // Never publish lock/polkit through ShellRoot._services. The private JS
         // import retains their lifetime without adding a traversable property

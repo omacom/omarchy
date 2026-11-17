@@ -104,6 +104,12 @@ store.put('omarchy.polkit', { sessionLockOwned: false, destroy() {} })
 assert(store.ownsSessionLock('omarchy.lock'), 'the store reports a service holding the session lock')
 assert(!store.ownsSessionLock('omarchy.polkit'), 'the store does not report a service without the lock')
 assert(!store.ownsSessionLock('missing'), 'the store does not report a service it does not hold')
+store.put('legacy.locked', { locked: true, destroy() {} })
+store.put('legacy.unlocked', { locked: false, destroy() {} })
+store.put('current.released', { sessionLockOwned: false, locked: true, destroy() {} })
+assert(store.ownsSessionLock('legacy.locked'), 'a lock clone without sessionLockOwned holds the lock while it reports locked')
+assert(!store.ownsSessionLock('legacy.unlocked'), 'a lock clone without sessionLockOwned is released once it reports unlocked')
+assert(!store.ownsSessionLock('current.released'), 'sessionLockOwned outranks locked where the service has it')
 
 // ------------------------------------------------------- unloadPluginServices()
 // keepLoaded is read from the current registry, which has already dropped a
