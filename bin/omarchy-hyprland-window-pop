@@ -29,8 +29,8 @@ elif [[ -n $addr ]]; then
   # A maximized or fullscreen window keeps its screen size when floated, so
   # leave both states first. Unset without a mode doesn't clear maximized.
   if [[ $fullscreen != "0" ]]; then
-    hypr_dispatch "hl.dsp.window.fullscreen({ window = \"$window\", mode = \"maximized\", action = \"unset\" })" fullscreenstate 0 0 "$window"
-    hypr_dispatch "hl.dsp.window.fullscreen({ window = \"$window\", action = \"unset\" })" fullscreenstate 0 0 "$window"
+    hypr_dispatch "hl.dsp.window.fullscreen({ window = \"$window\", mode = \"maximized\", action = \"unset\" })" fullscreenstate 0 0 set
+    hypr_dispatch "hl.dsp.window.fullscreen({ window = \"$window\", action = \"unset\" })" fullscreenstate 0 0 set
   fi
 
   # A floating workspace can float this window itself while fullscreen clears.
