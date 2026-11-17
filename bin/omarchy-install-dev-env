@@ -2,12 +2,12 @@
 
 # omarchy:summary=Install a supported development environment
 # omarchy:name=dev-env
-# omarchy:args=<ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala>
+# omarchy:args=<ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala|bend>
 # omarchy:examples=omarchy install dev-env ruby | omarchy install dev-env node
 # omarchy:requires-sudo=true
 
 if [[ -z $1 ]]; then
-  echo "Usage: omarchy-install-dev-env <ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala>" >&2
+  echo "Usage: omarchy-install-dev-env <ruby|node|bun|deno|go|laravel|symfony|php|python|elixir|phoenix|rust|java|zig|ocaml|dotnet|clojure|scala|bend>" >&2
   exit 1
 fi
 
@@ -139,5 +139,19 @@ scala)
   mise use --global java@latest
   mise use --global scala@latest
   mise use --global scala-cli@latest
+  ;;
+bend)
+  echo -e "Installing Bend...\n"
+  # Bend builds native binaries with clang.
+  omarchy-pkg-add clang
+  if installer=$(curl -fsSL https://bend-lang.com/install.sh) && sh -c "$installer"; then
+    # The installer puts bend in ~/.bend/bin and leaves PATH alone.
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$HOME/.bend/bin/bend" "$HOME/.local/bin/bend"
+    echo -e "\nYou can now run: bend guide"
+  else
+    echo "Failed to install Bend." >&2
+    exit 1
+  fi
   ;;
 esac
