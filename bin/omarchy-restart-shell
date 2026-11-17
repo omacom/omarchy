@@ -81,15 +81,27 @@ fi
 # so the client gets time to see that through, and the wait below covers a
 # client that timed out anyway: the fresh shell refuses to start next to a
 # still-dying instance (-n), which is how a restart used to end with no bar.
-while timeout 30 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
+#
+# Another checkout's shell goes too: a worktree's, left after a visual check.
+# omarchy-shell cannot reach it, and until it is gone it keeps the
+# notification server and polkit agent from the fresh shell. Only a config
+# inside an Omarchy tree counts, so someone's own Quickshell config stays.
+omarchy_shell_dirs() {
+  local dir
 
-shell_instance_running() {
-  quickshell list -a -j 2>/dev/null |
-    jq -e --arg dir "$CONFIG_DIR/" 'any(.[]; .config_path | startswith($dir))' >/dev/null 2>&1
+  while IFS= read -r dir; do
+    [[ -x ${dir%/shell}/bin/omarchy-launch-shell ]] && printf '%s\n' "$dir"
+  done < <(quickshell list -a -j 2>/dev/null |
+    jq -r '.[].config_path | select(endswith("/shell/shell.qml")) | rtrimstr("/shell.qml")' 2>/dev/null)
 }
 
+while timeout 30 quickshell kill -p "$CONFIG_DIR" --any-display >/dev/null 2>&1; do :; done
+while IFS= read -r dir; do
+  timeout 30 quickshell kill -p "$dir" --any-display >/dev/null 2>&1
+done < <(omarchy_shell_dirs)
+
 deadline=$((SECONDS + 30))
-while (( SECONDS < deadline )) && shell_instance_running; do
+while (( SECONDS < deadline )) && [[ -n $(omarchy_shell_dirs) ]]; do
   sleep 0.1
 done
 
