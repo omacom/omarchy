@@ -205,8 +205,9 @@ def main():
         ipc("show" if shown else "park")
         surface(initial, shown)
         run(["hyprctl", "eval", f"hl.monitor({{ output = {json.dumps(initial)}, disabled = true }})"])
-        wait_for("all outputs disappeared", monitors,
-                 lambda entries: all(m["width"] == 0 or m["height"] == 0 for m in entries))
+        # Hyprland 0.57 assigns real dimensions to its synthetic FALLBACK.
+        wait_for("no real output remains", monitors,
+                 lambda entries: all(m["name"] == "FALLBACK" or m["width"] == 0 or m["height"] == 0 for m in entries))
         # Hyprland may retain an unusable 0x0 surface on its FALLBACK monitor.
         # That is not a real output and must not count as recovered.
         wait_for("no usable surface while all outputs are gone", layers,
