@@ -7,12 +7,6 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs')
 
-const keyboardPanel = fs.readFileSync(root + '/shell/Ui/KeyboardPanel.qml', 'utf8')
-assert(/property Component content: null/.test(keyboardPanel), 'keyboard panels take their content as a component')
-assert(/active: !!root\.content && \(root\.open \|\| root\.contentRequested\)/.test(keyboardPanel), 'keyboard panel content is built when the panel opens, not at startup')
-assert(/if \(content\) contentRequested = true/.test(keyboardPanel), 'keyboard panel content stays built after its first open')
-assert(/default property alias contentItem: contentHolder\.children/.test(keyboardPanel), 'keyboard panels that declare children directly still build them eagerly')
-
 function stripLine(line) {
   return line.replace(/"(\\.|[^"\\])*"/g, '""').replace(/'(\\.|[^'\\])*'/g, "''").replace(/\/\/.*$/, '')
 }

@@ -1,10 +1,10 @@
-# CLI של Omarchy
+# Omarchy CLI
 
-Omarchy נשלטת בדרך כלל דרך קיצורי המקלדת ותפריט Omarchy (`Super + Space`). אבל אפשר גם לשלוט בה דרך ה-CLI של `omarchy`. זה שימושי במיוחד כאשר סוכן AI עובד איתכם על התאמה אישית או הגדרה.
+בדרך כלל שולטים ב-Omarchy דרך מקשי הקיצור ודרך תפריט Omarchy (`Super + Space`). אבל אפשר לשלוט בו גם דרך ה-CLI של `omarchy`. זה שימושי במיוחד כשאתה עובד עם סוכן AI על התאמה אישית או על הגדרות.
 
-ל-CLI יש גישה לכל הכלים הפנימיים שנמצאים בשימוש הן דרך התפריט והן בדרכים אחרות. אפשר לראות את כל מה שזמין על ידי הרצת `omarchy` בטרמינל.
+ל-CLI יש גישה לכל הכלים הפנימיים שמשמשים גם דרך התפריט וגם בדרכים אחרות. אפשר לראות את כל מה שזמין על ידי הרצת `omarchy` בטרמינל.
 
-זה נראה בערך כך:
+זה נראה בערך ככה:
 
 ```
 ~ ❯ omarchy
@@ -22,7 +22,7 @@ Common commands:
   omarchy theme set <name>    Apply a theme
   omarchy font list           List available fonts
   omarchy screenshot          Take a screenshot
-  omarchy debug               Print debugging information
+  omarchy-debug               Print debugging information
 
 Groups:
   agent          AI coding agents, their usage, and subscription accounts
@@ -38,11 +38,12 @@ Groups:
   clipboard      Clipboard helpers
   cmd            Command and shortcut helpers
   config         System configuration helpers
-  debug          Diagnostics and support logs
   ...
 ```
 
-ואפשר לצלול עמוק יותר בכל קבוצה:
+לאבחון, הרץ ישירות את `omarchy-debug --no-sudo --print`. הוא מדפיס אבחון וכותב את `/tmp/omarchy-debug.log` בלי לבקש sudo, גם בהתקנות של חבילות שבהן `omarchy debug` עלול להיכשל עם "Unknown Omarchy command".
+
+ואפשר לצלול עמוק יותר לתוך כל קבוצה:
 
 ```
 ~ ❯ omarchy capture
@@ -55,8 +56,8 @@ Capture commands — Screenshots and screen recording:
   omarchy capture webcam resize <smaller|larger|reset|small|medium|large>                                                                                                                                                  Resize the active webcam recording overlay
 ```
 
-כל פקודה מקבלת גם את `--help`, בין אם שואלים קבוצה שלמה (`omarchy capture --help`) או פקודה בודדת (`omarchy capture screenshot --help`).
+כל פקודה מקבלת גם `--help`, בין אם שואלים קבוצה שלמה (`omarchy capture --help`) או פקודה בודדת (`omarchy capture screenshot --help`).
 
 ### פתיחת התפריט מהטרמינל
 
-תפריט Omarchy ניתן גם לתסריט, מה שנחמד לשיוכי המקשים שלכם. הפקודה `omarchy menu` פותחת אותו בשורש, ואפשר לקפוץ ישירות לכל נקודה בעץ על ידי ציון שמה: `omarchy menu summon style.theme` עובר ישר לבורר ערכות הנושא, `omarchy menu toggle system` פותח את תפריט המערכת וסוגר אותו שוב אם הוא כבר פתוח, ו-`omarchy menu close` מסלק אותו.
+גם תפריט Omarchy ניתן לתסריט, וזה נוח לקיצורי המקלדת שלך. `omarchy menu` פותח אותו מהשורש, ואפשר לקפוץ ישר לכל נקודה בעץ על ידי ציון השם שלה: `omarchy menu summon appearance.theme` עובר ישר לבוחר ערכות הנושא, `omarchy menu toggle system` פותח את תפריט המערכת וסוגר אותו שוב אם הוא כבר פתוח, ו-`omarchy menu close` מסתיר אותו.

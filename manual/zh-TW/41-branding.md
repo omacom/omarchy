@@ -1,55 +1,55 @@
 # 品牌標誌
 
-Omarchy 讓你可以為開機解鎖畫面、螢幕保護程式和「關於」畫面設定你的公司標誌或個人圖片。
+Omarchy 讓你可以為開機解鎖、螢幕保護程式和關於畫面，設定你的公司標誌或個人圖片。
 
 ### 開機解鎖
 
-你可以用 `omarchy plymouth preview` 預覽你的自訂標誌和色彩會是什麼樣子。它接受一個背景色、一個文字色、一個標誌 png，以及預覽圖片的路徑：
+你可以用 `omarchy plymouth preview` 來預覽自訂標誌和顏色會長什麼樣子。它需要一個背景色、一個文字色、一個 logo png，以及一條預覽圖片的路徑：
 
 ```
 omarchy plymouth preview '#1d2021' '#ebdbb2' logo.png preview.png
 ```
 
-然後用 `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png` 套用設定，這也會讓 SDDM 登入畫面使用相同的色彩和標誌。如果你想還原，可以使用 `omarchy plymouth reset`。
+然後用 `omarchy plymouth set '#1d2021' '#ebdbb2' logo.png` 套用設定，這也會讓 SDDM 登入畫面使用同樣的顏色和標誌。如果你想還原，可以用 `omarchy plymouth reset`。
 
  ![branding-plymouth-shopify](images/branding-plymouth-shopify.webp)
 
 ### 螢幕保護程式
 
-你可以在 _風格 > 螢幕保護程式_ 之下變更螢幕保護程式使用的標誌。它是一個 ASCII 標誌，所以你可以直接編輯文字，但你也可以給它一張 png 或 svg 圖片，我們會把它轉換成 ASCII。效果看起來挺酷的。
+你可以在 _外觀 > 品牌標誌 > 螢幕保護程式_ 底下更改螢幕保護程式使用的標誌。它是 ASCII 標誌，所以你可以直接編輯文字，但你也可以給它一張 png 或 svg 圖片，我們會把那轉成 ASCII。看起來蠻酷的。
 
  ![branding-screensaver](images/branding-screensaver.webp)
 
-該選單中有三個項目：
+那個選單裡有三個項目：
 
-- **編輯文字** 會在你的編輯器中開啟 `~/.config/omarchy/branding/screensaver.txt`。輸入或貼上任何你想要的東西——ASCII 藝術、你的名字、一句粗話。存檔並離開後，螢幕保護程式會立刻啟動讓你看看效果。
-- **以圖片設定** 會開啟檔案選擇器讓你挑一張 png 或 svg，把它轉換成 ASCII，並顯示結果給你看。輪廓清晰的標誌效果遠勝過照片。
-- **還原預設** 會把 Omarchy 標誌放回來。
+- **編輯文字** 會在你的編輯器裡開啟 `~/.config/omarchy/branding/screensaver.txt`。隨你喜歡輸入或貼上任何東西 — ASCII 藝術、你的名字、一個粗俗的字也行。儲存並離開，螢幕保護程式就會立刻啟動，讓你看看效果。
+- **從圖片設定** 會開啟一個檔案選擇器讓你選 png 或 svg，把它轉成 ASCII，並把結果顯示給你看。輪廓清楚的標誌效果會比照片好得多。
+- **還原預設值** 會把 Omarchy 標誌放回去。
 
 ### 關於畫面
 
-在 _風格 > 關於_ 之下有同樣的三個選項，用於你在 Omarchy 選單中開啟的 _關於_ 畫面，運作方式完全相同——檔案是 `~/.config/omarchy/branding/about.txt`，「關於」視窗會在每次變更後彈出。「關於」畫面的圖案轉換尺寸比螢幕保護程式的小，因為它必須塞進一個視窗裡，而不是填滿你的顯示器。
+在 _外觀 > 品牌標誌 > 關於_ 底下有同樣的三個選項，對應的是你從 Omarchy 選單叫出的 _關於_ 畫面，而且運作方式完全相同 — 檔案是 `~/.config/omarchy/branding/about.txt`，每次更改後關於視窗都會彈出來。關於畫面的圖案轉換尺寸會比螢幕保護程式的更小，畢竟它必須塞進一個視窗裡，而不是填滿整個螢幕。
 
-當視窗開著的時候，一道綠色的微光每隔幾秒會斜掠過圖案，然後又讓它靜止下來。你自己的圖案也會有這個效果，只要其中每個字元的寬度都是一欄——凡是 _以圖片設定_ 產出的東西都是如此。由表情符號或雙寬字元組成的圖案則會保持靜止；如果你保留了自己的 fastfetch 設定，畫面也會保持靜止：在這些情況下，靜止的標誌是動畫在讓路而不是失敗，因為讓微光滑過它們會讓同一行的其餘內容落在錯誤的位置。
+視窗打開時，每隔幾秒就會有一道綠光斜斜地掠過圖案，然後又回復靜止。你的自訂圖案也會有這個效果，只要裡面的每個字元寬度都是一欄 — _從圖片設定_ 產生的圖案全部都是。用 emoji 或雙寬字元拼成的圖案則會保持靜止，如果你保留自己的一份 fastfetch 設定，畫面也一樣會靜止：在這些情況下，靜止的標誌是動畫懂得避開，而不是失敗，因為硬要把一道光滑過它們，會讓該行其餘部分跑到錯誤的位置。
 
  ![branding-about](images/branding-about.webp)
 
 ### 自己轉換圖片
 
-兩個 _以圖片設定_ 選項其實都只是呼叫 `omarchy transcode ascii`，如果你想掌控轉換過程，可以直接執行它：
+兩個 _從圖片設定_ 選項都只是在呼叫 `omarchy transcode ascii`，如果你想掌控轉換過程，也可以直接執行它：
 
 ```
 omarchy transcode ascii ~/logo.svg ~/.config/omarchy/branding/screensaver.txt --width 100
 ```
 
-它接受以終端機欄和列為單位的 `--width` 和 `--height`、`braille`（預設值，且精細得多）或 `block` 的 `--mode`、決定哪些像素算是標誌一部分的 `--threshold` 百分比，以及當你的標誌是深色背景上的淺色圖案時使用的 `--invert`。如果轉換結果變成一坨，通常要調整的就是 threshold 這個旋鈕。
+它接受以終端欄與列為單位的 `--width` 和 `--height`、值為 `braille`（預設，而且精細得多）或 `block` 的 `--mode`、用來決定哪些像素算是標誌一部分的 `--threshold` 百分比，以及在你的標誌是深色背景配淺色圖案時使用的 `--invert`。如果轉出來是一團糊，門檻值通常就是該轉的那個旋鈕。
 
-### 用文字代替標誌
+### 用文字取代標誌
 
-`omarchy ascii` 會用 Delta Corps Priest 1 來繪製文字，這正是 Omarchy 文字標誌本身所用的 FIGlet 字型，所以螢幕保護程式可以說點什麼，而不只是顯示一張圖片：
+`omarchy ascii` 會用 Delta Corps Priest 1 來繪製文字，那正是繪製 Omarchy 字標本身的 FIGlet 字型，所以螢幕保護程式可以說一句话，而不是顯示一張圖：
 
 ```
 omarchy ascii "Back in five" > ~/.config/omarchy/branding/screensaver.txt
 ```
 
-它接受以引數傳入的文字，或在沒有引數時從管道讀取。這個字型只包含字母和空格——它在繪製時就沒有數字或標點符號——所以其他任何字元都會被丟棄並在 stderr 上指名，而不是被悄悄吞掉。
+它把文字作為引數接收，或在沒有提供文字時從管線讀取。這個字型只有字母和空格 — 當初繪製時就沒有數字或標點符號 — 所以其他任何東西都會被丟棄，並在 stderr 上點名指出，而不是悄悄吞掉。

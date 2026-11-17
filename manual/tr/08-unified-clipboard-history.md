@@ -1,24 +1,27 @@
 # Birleşik Pano ve Geçmiş
 
-Genellikle Linux'ta, terminalde kopyalayapıştır için `Ctrl + Shift + C/V` ve her yerde bunu yapmak için `Ctrl + C/V` gerekir. Linux'ta doğup büyümemiş herhangi biri için buna alışmak zordur! Mac'ten geliyorsanız, super'dan ctrl'e geçiş de öyle.
+Linux'ta genelde terminalde kopyala-yapıştır için `Ctrl + Shift + C/V`, diğer her yerde yapmak için `Ctrl + C/V` kullanmanız gerekir. Linux'ta doğup büyümemiş hiç kimse için buna alışmak zor! Mac'ten geliyorsanız super'dan ctrl'e geçiş de öyle.
 
-Omarchy, her iki sorunu da (neredeyse) her yerde çalışan birleşik pano kısayollarıyla ele alır. Bunlar:
+Omarchy, (neredeyse) her yerde çalışan birleşik pano kısayollarıyla her iki sorunu da çözer. Bunlar:
 
-| Kısayol | Komut |
+| Hotkey | Command |
 | ------- | ----------- |
+| Super + A | Tümünü seç |
 | Super + C | Kopyala |
 | Super + X | Kes |
 | Super + V | Yapıştır |
-| Super + Ctrl + V | Pano Geçmişi |
+| Super + Ctrl + V | Pano geçmişi |
 
-_Çoğu ajan çerçevesinin görselleri yapıştırmak için `Ctrl + V`, ancak metni yapıştırmak için `Super + V` kullanacağını unutmayın._
+_Çoğu agent harness'ının görsel yapıştırmak için `Ctrl + V`, ancak metin yapıştırmak için `Super + V` kullanacağını unutmayın._
 
-### Pano Geçmişi
+Odaklanılmış bir metin alanındaki veya `Ctrl + A` destekleyen başka bir uygulamadaki her şeyi kopyalamak için `Super + A`, ardından `Super + C` kullanın. Terminalde `Ctrl + A`, metni seçmek yerine komut satırının başına gider.
 
-Pano geçmişi Omarchy kabuğu tarafından sağlanır ve hem metin hem de görseller için çalışır. Onu `Super + Ctrl + V` ile tetiklersiniz, girdinizi return ile seçersiniz ve ardından bu `Super + V` ile yapıştırmaya hazır şekilde panoya yerleştirilir.
+### Pano geçmişi
+
+Pano geçmişi Omarchy kabuğu tarafından sağlanır ve hem metin hem de görseller için çalışır. `Super + Ctrl + V` ile tetiklersiniz, girişinizi return ile seçersiniz ve ardından bu, `Super + V` ile yapıştırmaya hazır şekilde panoya yerleştirilir.
 
  ![clipboard-history](images/clipboard-history.webp)
 
-Geçmişte sadece yazmaya başlayarak da arama yapabilirsiniz:
+Yazmaya başlayarak geçmişte arama da yapabilirsiniz:
 
  ![clipboard-history-search](images/clipboard-history-search.webp)

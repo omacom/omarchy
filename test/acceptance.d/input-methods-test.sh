@@ -100,7 +100,23 @@ cat > "$work/omarchy-ime-entry.html" <<'HTML'
 <input autofocus style="font-size:32px;width:90%" aria-label="Input test">
 HTML
 
+# wtype sends each symbol through a keymap it makes up, so its keys have no
+# real position. An engine kept on QWERTY positions under another Latin layout
+# (Hangul under UK) has Fcitx read each key's position through the US keymap,
+# which turns wtype's "gksrmf" into Escape and digits; a physical keyboard is
+# unaffected. Have the engine read wtype's symbols; cleanup restores the saved
+# profile.
+read_symbols() {
+  local group info args
+  group=$(fcitx5-remote -q)
+  info=$(busctl --user --json=short call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 InputMethodGroupInfo s "$group")
+  jq -e --arg method "$method" '.data[1] | any(.[0] == $method and .[1] != "")' <<< "$info" >/dev/null || return 0
+  mapfile -t args < <(jq -r --arg method "$method" '.data[0], (.data[1] | length), (.data[1][] | .[0], if .[0] == $method then "" else .[1] end)' <<< "$info")
+  busctl --user call org.fcitx.Fcitx5 /controller org.fcitx.Fcitx.Controller1 SetInputMethodGroupInfo 'ssa(ss)' "$group" "${args[@]}"
+}
+
 compose() {
+  read_symbols
   fcitx5-remote -s "$method"
   fcitx5-remote -c
   # Use the controller for composition; wtype cannot prove global shortcuts.
