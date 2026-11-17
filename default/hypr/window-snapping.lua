@@ -483,9 +483,10 @@ function M.adopt(window, tiled, restore_w, restore_h)
   if tile then
     outer = G.tile_box(usable, tile, gaps())
   end
-  -- The titlebar arrives with the floating: it takes the top of the box.
+  -- The titlebar arrives with the floating, or after it when the plugin is
+  -- still loading: it takes the top of the box.
   local decorations = extents(window)
-  local bar = plugin() and tonumber(hl.get_config("plugin.hyprbars.bar_height")) or 0
+  local bar = workspace_modes.titlebar_height and workspace_modes.titlebar_height(window) or 0
   if decorations.top <= decorations.left and bar > 0 then
     decorations = { left = decorations.left, top = decorations.top + bar, right = decorations.right, bottom = decorations.bottom }
   end

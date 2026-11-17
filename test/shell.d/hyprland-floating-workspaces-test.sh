@@ -1076,6 +1076,35 @@ assert(right.size.y == away.size.y and right.at.y < away.at.y, "the right half d
 fi
 pass "switching a tiled workspace to floating keeps its windows in place"
 
+# The first switch to floating in a session asks for the titlebars plugin, which
+# Hyprland loads only on the next config pass: the kept windows make room for
+# the titlebar it will add all the same.
+if ! run_lua "$snap_setup"'
+hl.plugin.hyprbars = nil
+local half = window("0x1", 2)
+half.monitor, half.at, half.size = hl.get_monitors()[1], { x = 12, y = 42 }, { x = 1261, y = 1386 }
+o.workspace_mode({ workspace = "2", mode = "floating" })
+assert(half.floating and half.at.y == 72 and half.size.y == 1356 and half.at.x == 12 and half.size.x == 1261,
+  "with the titlebars still loading, the kept half left no room for its titlebar: " .. half.at.y .. " " .. half.size.y)
+' TITLEBARS_INSTALLED=1; then
+  fail "the first switch to floating leaves room for titlebars still loading"
+fi
+pass "the first switch to floating leaves room for titlebars still loading"
+
+# An app that draws its own frame gets no titlebar (Chromium, Omarchy's
+# browser), so it keeps its whole tile.
+if ! run_lua "$snap_setup"'
+hl.plugin.hyprbars.extents = function() return { left = 2, top = 2, right = 2, bottom = 2 } end
+local browser = window("0x1", 2)
+browser.class, browser.tags = "chromium", { "omarchy-self-framed*" }
+browser.monitor, browser.at, browser.size = hl.get_monitors()[1], { x = 12, y = 42 }, { x = 1261, y = 1386 }
+o.workspace_mode({ workspace = "2", mode = "floating" })
+assert(browser.floating and browser.at.y == 42 and browser.size.y == 1386, "a self-framed app was left room for a titlebar it never gets: " .. browser.at.y .. " " .. browser.size.y)
+' TITLEBARS_INSTALLED=1; then
+  fail "an app with its own frame keeps its whole tile"
+fi
+pass "an app with its own frame keeps its whole tile"
+
 # A drag that enters an edge where nothing is beside it, then slides along it to
 # where another monitor is, still pauses there: a laptop (1280x720) to the left
 # shares only the top of this monitor's left edge.

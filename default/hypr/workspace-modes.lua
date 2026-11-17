@@ -24,6 +24,11 @@ local OPENED_TAG = "omarchy-mode-opened"
 local OPEN_RULE = "omarchy-floating-open-"
 local LAST_WORKSPACE = 2147483647
 local TITLEBARS = "/usr/lib/omarchy-hyprland-titlebars/titlebars.so"
+-- The titlebars' height, set below and read by window snapping (window-snapping.lua).
+local TITLEBAR_HEIGHT = 30
+-- Apps that draw their own frame get no titlebar (the hyprbars:no_bar rule in
+-- titlebars()); this tag on them lets Lua see that, which window rules don't.
+local SELF_FRAMED_TAG = "omarchy-self-framed"
 
 local M = {}
 
@@ -487,6 +492,10 @@ local function titlebars()
 
   hl.plugin.load(TITLEBARS)
 
+  -- Before the plugin is in, so a window snapping places on this pass already
+  -- has it when the rule applies.
+  hl.window_rule({ match = { class = o.self_framed_apps }, tag = "+" .. SELF_FRAMED_TAG })
+
   if not hl.plugin.hyprbars then
     return
   end
@@ -499,7 +508,7 @@ local function titlebars()
       hyprbars = {
         enabled = true,
         workspace_tag = WORKSPACE_TAG,
-        bar_height = 30,
+        bar_height = TITLEBAR_HEIGHT,
         bar_color = colors.titlebar,
         col = { text = colors.foreground },
         bar_text_font = "monospace",
@@ -606,5 +615,21 @@ end
 
 -- Whether a workspace floats, for window snapping (window-snapping.lua).
 M.floating = floating_workspace
+
+-- The height of the titlebar a window on a floating workspace has, or will have
+-- once the plugin is in: on the first switch to floating it loads only on the
+-- next config pass, after the windows were placed. None for an app that draws
+-- its own frame.
+function M.titlebar_height(window)
+  if not titlebars_installed() then
+    return 0
+  end
+  for _, tag in ipairs(window and window.tags or {}) do
+    if tag:gsub("%*$", "") == SELF_FRAMED_TAG then
+      return 0
+    end
+  end
+  return TITLEBAR_HEIGHT
+end
 
 return M
