@@ -18,4 +18,9 @@ if omarchy-hw-match-device-tree raspberrypi,4-model-b; then
 # Room for vc4's scanout buffers in the first GiB, next to a randomly placed kernel.
 KERNEL_CMDLINE[default]+=" cma=256M"
 CONF
+
+  # Raspberry Pi's patch for the CYW43455's Bluetooth, which linux-firmware
+  # lacks. Without it the controller runs its ROM firmware and reports the
+  # placeholder address AA:AA:AA:AA:AA:AA.
+  omarchy-pkg-add raspberry-pi-4-bluetooth-firmware
 fi
