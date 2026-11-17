@@ -619,6 +619,18 @@ grep -F "Usage: omarchy-default-agent" "$test_tmp/invalid-output" >/dev/null ||
 [[ ! -s $agent_open_log ]] || fail "invalid selection does not open an agent"
 pass "default agent rejects unsupported providers without changing the selection"
 
+# --installed answers for one harness, as the launcher migration asks it,
+# without selecting, installing or opening anything.
+: >"$agent_open_log"
+: >"$terminal_log"
+OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent --installed kilo || fail "--installed reports an installed harness"
+if OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --installed kilo; then
+  fail "--installed reports a missing harness"
+fi
+[[ $(omarchy-default-agent) == "copilot" && ! -s $agent_open_log && ! -s $terminal_log ]] ||
+  fail "--installed selects, installs and opens nothing"
+pass "--installed tells whether a harness is installed and changes nothing"
+
 : >"$notification_history"
 : >"$agent_open_log"
 if OMARCHY_TEST_MISE_FAIL=true omarchy-default-agent --install codex >"$test_tmp/install-failure-output" 2>&1; then

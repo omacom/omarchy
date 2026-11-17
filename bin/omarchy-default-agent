@@ -5,9 +5,16 @@
 # omarchy:examples=omarchy default agent | omarchy default agent codex | omarchy default agent claude
 
 installing=false
+checking=false
 if [[ ${1:-} == "--install" ]]; then
   installing=true
   shift
+elif [[ ${1:-} == "--installed" ]]; then
+  # --installed <agent> only answers whether that harness is installed, with
+  # its exit status, and selects nothing.
+  checking=true
+  shift
+  (($# == 1)) || exit 1
 fi
 
 agent_file="$HOME/.config/omarchy/defaults/agent"
@@ -130,6 +137,11 @@ else
       fi
     fi
   }
+fi
+
+if [[ $checking == "true" ]]; then
+  agent_present
+  exit
 fi
 
 if [[ $installing == "false" ]] && ! agent_present; then
