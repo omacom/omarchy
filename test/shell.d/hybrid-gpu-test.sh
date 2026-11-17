@@ -207,3 +207,33 @@ pass "resume hook restores Integrated even when the Vfio switch is not confirmed
 # the next resume to retry.
 [[ -f $marker ]] || fail "resume hook keeps its marker when the restore fails"
 pass "resume hook keeps its marker for the next attempt"
+
+# A confirmed restore clears the marker even when Vfio did not confirm,
+# so the next resume does not retry an already completed restore.
+cat >"$fake_bin/supergfxctl" <<'STUB'
+#!/bin/bash
+case "$1" in
+  -m)
+    printf '%s\n' "$2" >>"$TEST_TMP/requested"
+    ;;
+  -g)
+    [[ $(tail -n1 "$TEST_TMP/requested") == Integrated ]] && echo Integrated || echo Hybrid
+    ;;
+esac
+STUB
+
+chmod +x "$fake_bin/supergfxctl"
+
+: >"$marker"
+rm -f "$test_tmp/requested"
+
+set +e
+output=$(TEST_TMP="$test_tmp" PATH="$fake_bin:$PATH" "$hook" post suspend 2>&1)
+status=$?
+set -e
+
+((status == 0)) || fail "resume hook succeeds once Integrated confirms after a failed Vfio switch" "$output"
+grep -qF 'Could not confirm the GPU transition to Vfio mode' <<<"$output" ||
+  fail "resume hook still reports the unconfirmed Vfio switch" "$output"
+[[ ! -e $marker ]] || fail "resume hook removes its marker after a confirmed restore"
+pass "resume hook recovers to Integrated and clears its marker when only Vfio fails"
