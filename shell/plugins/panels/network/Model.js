@@ -53,12 +53,14 @@ function parseActiveApSignal(raw) {
 // login page. Never execute or automatically open an untrusted Location header.
 var captivePortalUrl = "http://ping.omacom.io/nm-check.txt"
 
-function connectivityState(kind, connectivity, states, checksEnabled) {
+function connectivityState(kind, connectivity, states, checksEnabled, limitedSettled) {
   if (kind === "disconnected") return "none"
   // Ignore stale cached results when the operator has disabled probing.
   if (!checksEnabled) return "unknown"
   if (connectivity === states.Portal) return "portal"
-  if (connectivity === states.Limited) return "limited"
+  // NetworkManager reports Limited for every fresh link until its first probe
+  // answers, so it is only an outage once it has held.
+  if (connectivity === states.Limited) return limitedSettled ? "limited" : "unknown"
   if (connectivity === states.Full) return "full"
   if (connectivity === states.None) return "none"
   return "unknown"
@@ -349,11 +351,45 @@ function wifiRow(network) {
   }
 }
 
-function sortWifiRows(rows) {
+// Every listed network's state as one comparable value. A network can connect,
+// drop, be saved or be forgotten without the list itself changing.
+function wifiStateKey(networks) {
+  var list = networks || []
+  var keys = []
+  for (var i = 0; i < list.length; i++) {
+    var n = list[i]
+    if (n) keys.push([n.name || "", !!n.connected, !!n.known, !!n.stateChanging, n.security].join("\u001f"))
+  }
+  return keys.sort().join("\u001e")
+}
+
+// `held` is the list on screen, passed while a passphrase is being typed: its
+// rows keep their place and their last signal reading, so a scan doesn't
+// reshuffle the list (or rebuild it over a signal wobble) under the prompt.
+// New networks slot in by signal after them; connected and known still lead,
+// so the section headers stay right.
+function sortWifiRows(rows, held) {
   var nets = Array.isArray(rows) ? rows.slice() : []
+  // No prototype, so an SSID like "hasOwnProperty" is just a key.
+  var place = Object.create(null)
+  var heldList = Array.isArray(held) ? held : []
+  for (var i = 0; i < heldList.length; i++) {
+    if (heldList[i]) place[heldList[i].ssid] = i
+  }
+  nets = nets.map(function(row) {
+    if (!(row.ssid in place)) return row
+    var copy = {}
+    for (var key in row) copy[key] = row[key]
+    copy.signal = heldList[place[row.ssid]].signal
+    return copy
+  })
   nets.sort(function(a, b) {
     if (a.connected !== b.connected) return a.connected ? -1 : 1
     if (a.known !== b.known) return a.known ? -1 : 1
+    var aHeld = a.ssid in place
+    var bHeld = b.ssid in place
+    if (aHeld !== bHeld) return aHeld ? -1 : 1
+    if (aHeld) return place[a.ssid] - place[b.ssid]
     return b.signal - a.signal
   })
   return nets
@@ -448,6 +484,7 @@ if (typeof module !== "undefined") {
     formatRate: formatRate,
     formatPingLatency: formatPingLatency,
     wifiRow: wifiRow,
+    wifiStateKey: wifiStateKey,
     sortWifiRows: sortWifiRows,
     wifiSectionTitle: wifiSectionTitle,
     requiresCredentials: requiresCredentials,
