@@ -32,7 +32,9 @@ grep -Fxq "KERNEL_CMDLINE[default]+=\" ttm.pages_limit=$(( 56 * 1024 * 1024 / pa
   fail "a 64 GB AMD machine lets the GPU map 56 GiB" "$(cat "$OMARCHY_AMD_GPU_MEMORY_CONF")"
 pass "a 64 GB AMD machine lets the GPU map 56 GiB"
 
-# A 64 GB APU whose firmware carves out 32 GB of VRAM boots with 32 GB.
+# A 64 GB APU whose firmware carves out 32 GB of VRAM boots with 32 GB. A
+# discrete AMD GPU sorts before it and has no carveout.
+gpu 0000:03:00.0 0x1002 0x030000
 uma="$OMARCHY_PCI_DEVICES_PATH/0000:c3:00.0/uma"
 mkdir -p "$uma"
 printf '0: Minimum (512 MB)\n1:  (1 GB)\n5: Medium (16 GB)\n6: High (32 GB)\n' > "$uma/carveout_options"

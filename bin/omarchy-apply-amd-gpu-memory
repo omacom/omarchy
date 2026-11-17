@@ -28,21 +28,12 @@ drop_in="${OMARCHY_AMD_GPU_MEMORY_CONF:-/etc/limine-entry-tool.d/amd-gpu-memory.
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
 meminfo="${OMARCHY_MEMINFO:-/proc/meminfo}"
 reserve_kib=$(( 8 * 1024 * 1024 ))
-gpu_device=""
 
-amd_gpu() {
-  local device
-
-  shopt -s nullglob
-  for device in "$pci_devices_path"/*; do
-    [[ $(< "$device/vendor") == "0x1002" ]] || continue
-    if [[ $(< "$device/class") == 0x03* ]]; then
-      gpu_device=$device
-      return 0
-    fi
-  done
-  return 1
-}
+shopt -s nullglob
+amd_gpus=()
+for device in "$pci_devices_path"/*; do
+  [[ $(< "$device/vendor") == "0x1002" && $(< "$device/class") == 0x03* ]] && amd_gpus+=("$device")
+done
 
 # Prints "<index> <KiB>" for the smallest option in uma/carveout_options, whose
 # lines read like "0: Minimum (512 MB)" or "6: High (32 GB)".
@@ -57,13 +48,16 @@ smallest_carveout() {
   ' "$1"
 }
 
-amd_gpu || exit 0
+(( ${#amd_gpus[@]} )) || exit 0
 
 total_kib=$(awk '$1 == "MemTotal:" { print $2 }' "$meminfo")
 page_kib=$(( $(getconf PAGESIZE) / 1024 ))
 
-uma="$gpu_device/uma"
-if [[ -f $uma/carveout && -f $uma/carveout_options ]]; then
+# Only the APU has a carveout, and a discrete AMD GPU may sort before it.
+for gpu_device in "${amd_gpus[@]}"; do
+  uma="$gpu_device/uma"
+  [[ -f $uma/carveout && -f $uma/carveout_options ]] || continue
+
   read -r smallest_index smallest_kib < <(smallest_carveout "$uma/carveout_options") || true
 
   if [[ -n ${smallest_index:-} ]]; then
@@ -79,7 +73,8 @@ if [[ -f $uma/carveout && -f $uma/carveout_options ]]; then
       echo "Shrinking the AMD GPU's dedicated VRAM to $(( smallest_kib / 1024 )) MB from the next boot"
     fi
   fi
-fi
+done
+
 pages=$(( (total_kib - reserve_kib) / page_kib ))
 
 if (( pages <= total_kib / 2 / page_kib )); then
