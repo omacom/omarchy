@@ -1195,6 +1195,42 @@ assert(tile_of(maximized) == "top", "a later press did not start from the window
 fi
 pass "quick arrows on a maximized window build on each other"
 
+# Closing a window whose titlebar differs from its neighbour's (a browser draws
+# its own frame) still gives its quarter back: its tile is found with either.
+if ! run_lua "$snap_setup"'
+settings["plugin.hyprbars.bar_height"] = 30
+hl.plugin.hyprbars.extents = function(w)
+  if w.closing then return { left = 0, top = 0, right = 0, bottom = 0 } end
+  if w.class == "chromium" then return { left = 2, top = 2, right = 2, bottom = 2 } end
+  return { left = 2, top = 32, right = 2, bottom = 2 }
+end
+local left, top, browser = snap_window("0x1", 1), snap_window("0x2", 1), snap_window("0x3", 1)
+browser.class = "chromium"
+focused = left; o.snap.key("left")
+focused = top; o.snap.key("right"); o.snap.key("top")
+focused = browser; o.snap.key("right"); o.snap.key("bottom")
+assert(browser.at.y == 742 and browser.size.y == 686, "setup: the browser was not the bottom-right quarter: " .. browser.at.y .. " " .. browser.size.y)
+browser.closing = true
+o.snap.closed(browser)
+assert(top.at.y == 72 and top.size.y == 1356, "closing the browser did not give its quarter back: " .. top.at.y .. " " .. top.size.y)
+
+-- And the other way round: a terminal closing under a browser.
+-- (On a fresh row: the first neighbour, whose measures are borrowed, is a browser.)
+left.workspace, top.workspace, browser.workspace = { id = 9 }, { id = 9 }, { id = 9 }
+local docs, web, term = snap_window("0x6", 1), snap_window("0x4", 1), snap_window("0x5", 1)
+docs.class, web.class = "chromium", "chromium"
+focused = docs; o.snap.key("left")
+focused = web; o.snap.key("right"); o.snap.key("top")
+focused = term; o.snap.key("right"); o.snap.key("bottom")
+assert(web.size.y == 686 and term.at.y == 772, "setup: not a browser over a terminal on the right: " .. web.size.y .. " " .. term.at.y)
+term.closing = true
+o.snap.closed(term)
+assert(web.at.y == 42 and web.size.y == 1386, "closing the terminal did not give its quarter back to the browser: " .. web.at.y .. " " .. web.size.y)
+'; then
+  fail "closing a quarter gives it back even when the neighbours titlebars differ"
+fi
+pass "closing a quarter gives it back even when the neighbours titlebars differ"
+
 # A tile a window can't fill leaves it alone: no move, no flicker.
 if ! run_lua "$snap_setup"'
 focused = snap_window("0x1", 1)
