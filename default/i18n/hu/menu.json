@@ -26,11 +26,11 @@
   "update": {
     "label": "Frissítés"
   },
-  "about": {
-    "label": "Névjegy"
-  },
   "system": {
     "label": "Rendszer"
+  },
+  "system.about": {
+    "label": "Névjegy"
   },
   "system.screensaver": {
     "label": "Képernyővédő"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Extra ikonok"
+  },
+  "system.firmware": {
+    "label": "Újraindítás BIOS-ba",
+    "description": "Újraindítás az UEFI firmware-beállításba"
   }
 }

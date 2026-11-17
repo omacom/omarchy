@@ -26,11 +26,11 @@
   "update": {
     "label": "Päivitä"
   },
-  "about": {
-    "label": "Tietoja"
-  },
   "system": {
     "label": "Järjestelmä"
+  },
+  "system.about": {
+    "label": "Tietoja"
   },
   "system.screensaver": {
     "label": "Näytönsäästäjä"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Lisäkuvakkeet"
+  },
+  "system.firmware": {
+    "label": "Käynnistä BIOSiin",
+    "description": "Käynnistä uudelleen UEFI-laiteohjelmiston asetuksiin"
   }
 }

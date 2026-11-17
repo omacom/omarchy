@@ -26,11 +26,11 @@
   "update": {
     "label": "Aktualizovat"
   },
-  "about": {
-    "label": "O aplikaci"
-  },
   "system": {
     "label": "Systém"
+  },
+  "system.about": {
+    "label": "O aplikaci"
   },
   "system.screensaver": {
     "label": "Spořič obrazovky"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Ikony navíc"
+  },
+  "system.firmware": {
+    "label": "Restart do BIOSu",
+    "description": "Restartovat do nastavení firmwaru UEFI"
   }
 }

@@ -26,11 +26,11 @@
   "update": {
     "label": "Aktualisieren"
   },
-  "about": {
-    "label": "Über"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "Über"
   },
   "system.screensaver": {
     "label": "Bildschirmschoner"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Extra-Icons"
+  },
+  "system.firmware": {
+    "label": "Neustart ins BIOS",
+    "description": "Ins UEFI-Firmware-Setup neu starten"
   }
 }

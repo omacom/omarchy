@@ -26,11 +26,11 @@
   "update": {
     "label": "Uppdatera"
   },
-  "about": {
-    "label": "Om"
-  },
   "system": {
     "label": "System"
+  },
+  "system.about": {
+    "label": "Om"
   },
   "system.screensaver": {
     "label": "Skärmsläckare"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Extra ikoner"
+  },
+  "system.firmware": {
+    "label": "Starta om till BIOS",
+    "description": "Starta om till UEFI-firmwareinställningarna"
   }
 }

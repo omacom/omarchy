@@ -46,4 +46,8 @@ create)
 restore)
   sudo limine-snapper-restore
   ;;
+*)
+  echo "Usage: omarchy-snapshot <create|restore>" >&2
+  exit 1
+  ;;
 esac

@@ -26,11 +26,11 @@
   "update": {
     "label": "עדכון"
   },
-  "about": {
-    "label": "אודות"
-  },
   "system": {
     "label": "מערכת"
+  },
+  "system.about": {
+    "label": "אודות"
   },
   "system.screensaver": {
     "label": "שומר מסך"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "אייקונים נוספים"
+  },
+  "system.firmware": {
+    "label": "הפעלה מחדש ל-BIOS",
+    "description": "הפעלה מחדש להגדרות קושחת UEFI"
   }
 }

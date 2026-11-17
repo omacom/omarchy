@@ -77,7 +77,7 @@ List monitors and supported modes: `hyprctl monitors all`
 ## Window Rules
 
 Hyprland's window rule syntax changes between versions, so fetch the current documentation before writing window rules:
-- https://wiki.hypr.land/Configuring/Basics/Window-Rules/
+- https://wiki.hypr.land/configuring/core/rules/window-rules/
 
 Syntax remembered from earlier versions causes errors or unexpected behavior.
 

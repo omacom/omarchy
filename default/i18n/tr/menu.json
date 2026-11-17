@@ -26,11 +26,11 @@
   "update": {
     "label": "Güncelle"
   },
-  "about": {
-    "label": "Hakkında"
-  },
   "system": {
     "label": "Sistem"
+  },
+  "system.about": {
+    "label": "Hakkında"
   },
   "system.screensaver": {
     "label": "Ekran Koruyucu"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Ek Simgeler"
+  },
+  "system.firmware": {
+    "label": "BIOS'a Yeniden Başlat",
+    "description": "UEFI aygıt yazılımı ayarlarına yeniden başlat"
   }
 }

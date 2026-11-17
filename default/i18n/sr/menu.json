@@ -26,11 +26,11 @@
   "update": {
     "label": "Ажурирај"
   },
-  "about": {
-    "label": "О програму"
-  },
   "system": {
     "label": "Систем"
+  },
+  "system.about": {
+    "label": "О програму"
   },
   "system.screensaver": {
     "label": "Чувар екрана"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Додатне иконе"
+  },
+  "system.firmware": {
+    "label": "Поновно покретање у BIOS",
+    "description": "Поново покрени у подешавања UEFI фирмвера"
   }
 }

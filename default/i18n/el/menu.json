@@ -26,11 +26,11 @@
   "update": {
     "label": "Ενημέρωση"
   },
-  "about": {
-    "label": "Σχετικά"
-  },
   "system": {
     "label": "Σύστημα"
+  },
+  "system.about": {
+    "label": "Σχετικά"
   },
   "system.screensaver": {
     "label": "Προφύλαξη οθόνης"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Πρόσθετα εικονίδια"
+  },
+  "system.firmware": {
+    "label": "Επανεκκίνηση στο BIOS",
+    "description": "Επανεκκίνηση στις ρυθμίσεις υλικολογισμικού UEFI"
   }
 }

@@ -26,11 +26,11 @@
   "update": {
     "label": "Posodobi"
   },
-  "about": {
-    "label": "Vizitka"
-  },
   "system": {
     "label": "Sistem"
+  },
+  "system.about": {
+    "label": "Vizitka"
   },
   "system.screensaver": {
     "label": "Ohranjevalnik"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Dodatne ikone"
+  },
+  "system.firmware": {
+    "label": "Ponovni zagon v BIOS",
+    "description": "Ponovni zagon v nastavitve vdelane programske opreme UEFI"
   }
 }

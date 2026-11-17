@@ -26,11 +26,11 @@
   "update": {
     "label": "Atualizar"
   },
-  "about": {
-    "label": "Sobre"
-  },
   "system": {
     "label": "Sistema"
+  },
+  "system.about": {
+    "label": "Sobre"
   },
   "system.screensaver": {
     "label": "Proteção de tela"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Ícones Extras"
+  },
+  "system.firmware": {
+    "label": "Reiniciar para o BIOS",
+    "description": "Reiniciar para a configuração de firmware UEFI"
   }
 }

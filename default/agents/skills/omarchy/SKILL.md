@@ -90,7 +90,7 @@ Omarchy is built on:
 
 ## Command Discovery
 
-Omarchy ships a single `omarchy` CLI that dispatches to all `omarchy-*` binaries via `omarchy <group> <action>`. Always prefer this form — it is self-documenting and stable. The underlying `omarchy-*` binaries still exist on `PATH` and remain safe to read for source.
+Omarchy ships a single `omarchy` CLI that dispatches to all `omarchy-*` binaries via `omarchy <group> <action>`. Always prefer this form — it is self-documenting and stable. The underlying `omarchy-*` binaries still exist on `PATH` and remain safe to read for source. The one exception is diagnostics: run `omarchy-debug --no-sudo --print` directly. On a package install it lives outside the directory the `omarchy` router searches, so `omarchy debug` can fail there with "Unknown Omarchy command".
 
 ```bash
 # List every documented command and its summary (--all includes hidden commands)
@@ -201,19 +201,19 @@ omarchy refresh hyprland
 ```bash
 omarchy update                  # Full system update
 omarchy version                 # Show Omarchy version
-omarchy debug --no-sudo --print # Debug info
+omarchy-debug --no-sudo --print # Debug info
 omarchy system lock             # Lock screen
 omarchy system shutdown         # Shutdown
 omarchy system reboot           # Reboot
 ```
 
-Run `omarchy debug` with `--no-sudo --print`; without them it prompts for sudo interactively and hangs the terminal.
+Run `omarchy-debug --no-sudo --print` for diagnostics: `--no-sudo` skips privileged kernel-log collection, and `--print` writes the report to the terminal instead of opening an interactive menu.
 
 ## Troubleshooting
 
 ```bash
 # Get debug information
-omarchy debug --no-sudo --print
+omarchy-debug --no-sudo --print
 
 # Reset specific config to defaults
 omarchy refresh <app>

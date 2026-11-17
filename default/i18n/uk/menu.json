@@ -26,11 +26,11 @@
   "update": {
     "label": "Оновити"
   },
-  "about": {
-    "label": "Про програму"
-  },
   "system": {
     "label": "Система"
+  },
+  "system.about": {
+    "label": "Про програму"
   },
   "system.screensaver": {
     "label": "Заставка"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Додаткові іконки"
+  },
+  "system.firmware": {
+    "label": "Перезавантажити в BIOS",
+    "description": "Перезапуск у налаштування прошивки UEFI"
   }
 }

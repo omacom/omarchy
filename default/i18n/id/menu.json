@@ -26,11 +26,11 @@
   "update": {
     "label": "Perbarui"
   },
-  "about": {
-    "label": "Tentang"
-  },
   "system": {
     "label": "Sistem"
+  },
+  "system.about": {
+    "label": "Tentang"
   },
   "system.screensaver": {
     "label": "Penghemat Layar"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "Ikon Tambahan"
+  },
+  "system.firmware": {
+    "label": "Mulai ulang ke BIOS",
+    "description": "Mulai ulang ke pengaturan firmware UEFI"
   }
 }

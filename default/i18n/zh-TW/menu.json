@@ -26,11 +26,11 @@
   "update": {
     "label": "更新"
   },
-  "about": {
-    "label": "關於"
-  },
   "system": {
     "label": "系統"
+  },
+  "system.about": {
+    "label": "關於"
   },
   "system.screensaver": {
     "label": "螢幕保護程式"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "額外圖示"
+  },
+  "system.firmware": {
+    "label": "重新啟動至 BIOS",
+    "description": "重新啟動並進入 UEFI 韌體設定"
   }
 }

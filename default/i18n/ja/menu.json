@@ -26,11 +26,11 @@
   "update": {
     "label": "更新"
   },
-  "about": {
-    "label": "情報"
-  },
   "system": {
     "label": "システム"
+  },
+  "system.about": {
+    "label": "情報"
   },
   "system.screensaver": {
     "label": "スクリーンセーバー"
@@ -1339,5 +1339,9 @@
   },
   "update.icons": {
     "label": "追加アイコン"
+  },
+  "system.firmware": {
+    "label": "BIOSへ再起動",
+    "description": "UEFIファームウェア設定で再起動"
   }
 }
