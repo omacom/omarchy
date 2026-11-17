@@ -99,6 +99,9 @@ relight() {
     return 1
   fi
 
+  # Another monitor's recovery may have outlasted a DPMS blank or config change.
+  omarchy-hyprland-monitor-unlit | grep -qxF -- "$connector" || return 0
+
   asleep_modes=$(<$connector/modes)
   echo "$name stayed black after wake, waking its link at $mode"
   hyprctl eval "hl.monitor({ output = \"$name\", mode = \"$mode\", position = \"auto\", scale = 1 })" >/dev/null 2>&1

@@ -107,6 +107,12 @@ elif [[ ${1:-} == "eval" ]]; then
     printf 'enabled\n' >"$OMARCHY_TEST_WAKES_CONNECTOR/enabled"
     printf '5120x1440\n1920x1080\n' >"$OMARCHY_TEST_WAKES_CONNECTOR/modes"
   fi
+  if [[ -n ${OMARCHY_TEST_BLANKS_MONITOR:-} ]]; then
+    jq --arg name "$OMARCHY_TEST_BLANKS_MONITOR" \
+      'map(if .name == $name then .dpmsStatus = false else . end)' \
+      "$OMARCHY_TEST_MONITORS_FILE" >"$OMARCHY_TEST_MONITORS_FILE.next"
+    mv "$OMARCHY_TEST_MONITORS_FILE.next" "$OMARCHY_TEST_MONITORS_FILE"
+  fi
   # A waking monitor usually leaves the bus a moment after it is first driven.
   # Most come back within seconds. One was seen never to.
   if [[ -n ${OMARCHY_TEST_DROPS_CONNECTOR:-} ]]; then
@@ -471,6 +477,9 @@ stop_watcher
 run_relight() {
   rm -rf "$drm_path"
   write_connector DP-1 connected disabled
+  if [[ -n ${1:-} ]]; then
+    write_connector "$1" connected disabled
+  fi
   printf '%s' "$lit_monitor" >"$monitors_file"
   : >"$reload_log"
   : >"$eval_log"
@@ -520,6 +529,11 @@ unset OMARCHY_TEST_WAKES_CONNECTOR
 two_monitors='[{"name":"DP-1","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1920x1080@60.00Hz"]},
 {"name":"DP-2","width":5120,"height":1440,"disabled":false,"dpmsStatus":true,"availableModes":["5120x1440@59.98Hz","1920x1080@60.00Hz"]}]'
 lit_monitor=$two_monitors
+OMARCHY_TEST_WAKES_CONNECTOR="$drm_path/card1-DP-1" OMARCHY_TEST_BLANKS_MONITOR=DP-2 run_relight DP-2
+grep -q 'output = "DP-1"' "$eval_log" && ! grep -q 'output = "DP-2"' "$eval_log" ||
+  fail "a monitor blanked while another recovers is left alone" "$(<"$eval_log")"
+pass "a monitor blanked while another recovers is left alone"
+
 run_relight &
 relight_pid=$!
 
