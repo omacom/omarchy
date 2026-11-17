@@ -269,6 +269,9 @@ machine() {
     vivobook-s16-not-qualcomm) vivobook_s16; FAKE_PLATFORM=aarch64 ;;
     omnibook-x14) dmi sys_vendor HP; dmi product_name "HP OmniBook X Laptop 14-fe0xxx"; FAKE_PLATFORM=aarch64-qualcomm ;;
     omnibook-x14-not-qualcomm) dmi sys_vendor HP; dmi product_name "HP OmniBook X Laptop 14-fe0xxx"; FAKE_PLATFORM=aarch64 ;;
+    zbook-ultra-g3a) dmi sys_vendor HP; dmi product_name "HP ZBook Ultra G3a 16 inch Mobile Workstation PC"; dmi product_family "103C_5336AN HP ZBook" ;;
+    # The Strix Halo ZBook before it shares the product family and is untested.
+    zbook-ultra-g1a) dmi sys_vendor HP; dmi product_name "HP ZBook Ultra G1a 14 inch Mobile Workstation PC"; dmi product_family "103C_5336AN HP ZBook" ;;
     ideacentre-mini) dmi sys_vendor LENOVO; dmi product_name 91B6001CUK; dmi product_family "IdeaCentre Mini 01Q8X10"; FAKE_PLATFORM=aarch64-qualcomm ;;
     ideacentre-mini-not-qualcomm) dmi sys_vendor LENOVO; dmi product_name 91B6001CUK; dmi product_family "IdeaCentre Mini 01Q8X10"; FAKE_PLATFORM=aarch64 ;;
     proart-pz13) dmi sys_vendor "ASUSTeK COMPUTER INC."; dmi product_name "ProArt PZ13 HT5306QA_HT5306QA"; dmi product_family "ProArt PZ13"; FAKE_PLATFORM=aarch64-qualcomm ;;
@@ -351,6 +354,7 @@ run_leaf() {
     OMARCHY_VIVOBOOK_S15_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_VIVOBOOK_S16_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_OMNIBOOK_X14_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
+    OMARCHY_ZBOOK_ULTRA_G3A_LIMINE_CONFIG_DIR="$root/etc/limine-entry-tool.d" \
     OMARCHY_IDEACENTRE_MINI_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_QUALCOMM_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
     OMARCHY_ZENBOOK_UX3480QA_MKINITCPIO_DIR="$root/etc/mkinitcpio.conf.d" \
@@ -385,6 +389,7 @@ leaves=(
   hardware/asus/fix-asus-vivobook-s15-boot.sh
   hardware/asus/fix-asus-vivobook-s16-boot.sh
   hardware/hp/fix-hp-omnibook-x14-boot.sh
+  hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh
   hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh
   hardware/samsung/galaxy-book4-edge-14.sh
   hardware/raspberrypi/raspberry-pi-4.sh
@@ -494,6 +499,9 @@ hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14|0|wrote etc/mkinitcpio.conf
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14+unreadable|0
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-x14-not-qualcomm|0
 hardware/hp/fix-hp-omnibook-x14-boot.sh|omnibook-ultra-14|0
+hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g3a|0|wrote etc/limine-entry-tool.d/hp-zbook-ultra-g3a.conf
+hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g3a+unreadable|0
+hardware/hp/fix-hp-zbook-ultra-g3a-sleep.sh|zbook-ultra-g1a|0
 hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini|0|wrote etc/mkinitcpio.conf.d/ideacentre-mini-initramfs.conf
 hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini+unreadable|0
 hardware/lenovo/fix-lenovo-ideacentre-mini-boot.sh|ideacentre-mini-not-qualcomm|0
