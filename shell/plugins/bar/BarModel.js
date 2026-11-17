@@ -516,7 +516,8 @@ function moveEntry(config, move, normalizeEntry) {
 // { region, index, id }, as moveEntry's. Just the layout entry goes, the way
 // a move only moves it: a clone dragged off vanishes rather than bringing
 // back the widget it shadows, as disabling it in settings would. Returns
-// whether the layout changed.
+// whether the layout changed. Retain the entry outside the active layout so
+// putting the widget back can recover its inline settings.
 function removeEntry(config, from, normalizeEntry) {
   var normalize = entryNormalizer(normalizeEntry)
   if (!isPlainObject(config) || !from || sections.indexOf(from.region) === -1) return false
@@ -526,7 +527,8 @@ function removeEntry(config, from, normalizeEntry) {
 
   var index = rawEntryIndex(entries, Number(from.index), normalize)
   if (index < 0 || index >= entries.length || entryId(normalize(entries[index])) !== String(from.id)) return false
-  entries.splice(index, 1)
+  if (!Array.isArray(config.bar.removedWidgets)) config.bar.removedWidgets = []
+  config.bar.removedWidgets.push(entries.splice(index, 1)[0])
   return true
 }
 
