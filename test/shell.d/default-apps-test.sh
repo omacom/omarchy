@@ -451,64 +451,6 @@ OMARCHY_FLATPAK_EXPORTS="$system_flatpak" omarchy-cmd-editor-mimetypes --unless-
 grep -qxF "text/plain=system-flatpak.desktop" "$mimeapps" || fail "the migration keeps a choice installed through system Flatpak"
 pass "the migration keeps a Flatpak editor that isn't on XDG_DATA_DIRS"
 
-# GLib skips a desktop file whose TryExec isn't there, and a later data dir
-# can still supply that id. An unreadable file is kept: it can't be checked.
-# TryExec under another group is not the app's, and Path= is where GLib looks.
-printf '[Desktop Entry]\nExec=true %%F\nTryExec=omarchy-editor-not-installed\n' >"$test_home/.local/share/applications/missing-try.desktop"
-printf '[Default Applications]\ntext/plain=missing-try.desktop\n' >"$mimeapps"
-omarchy-cmd-editor-mimetypes --unless-chosen
-grep -qxF "text/plain=omarchy-launch-editor.desktop" "$mimeapps" || fail "the migration replaces a choice whose TryExec isn't installed"
-! grep -q "^text/plain=missing-try" "$mimeapps" || fail "the migration drops a line whose TryExec isn't installed"
-printf '[Desktop Entry]\nExec=true %%F\nTryExec=omarchy-editor-not-installed\n' >"$test_home/.local/share/applications/later-try.desktop"
-mkdir -p "$test_tmp/data/applications"
-printf '[Desktop Entry]\nExec=true %%F\nTryExec=/bin/true\n' >"$test_tmp/data/applications/later-try.desktop"
-printf '[Default Applications]\ntext/plain=later-try.desktop\n' >"$mimeapps"
-omarchy-cmd-editor-mimetypes --unless-chosen
-grep -qxF "text/plain=later-try.desktop" "$mimeapps" || fail "the migration keeps a choice whose TryExec is installed in a later data dir"
-printf '[Desktop Entry]\nType=Application\nExec=true %%F\n[Desktop Action Missing]\nTryExec=omarchy-editor-not-installed\n' >"$test_home/.local/share/applications/action-try.desktop"
-printf '[Default Applications]\ntext/plain=action-try.desktop\n' >"$mimeapps"
-omarchy-cmd-editor-mimetypes --unless-chosen
-grep -qxF "text/plain=action-try.desktop" "$mimeapps" || fail "the migration keeps a choice whose TryExec is outside the desktop entry"
-printf '[Desktop Entry]\nExec=true %%F\nTryExec=omarchy-editor-not-installed\n' >"$test_home/.local/share/applications/unreadable.desktop"
-chmod a-r "$test_home/.local/share/applications/unreadable.desktop"
-printf '[Default Applications]\ntext/plain=unreadable.desktop\n' >"$mimeapps"
-omarchy-cmd-editor-mimetypes --unless-chosen
-grep -qxF "text/plain=unreadable.desktop" "$mimeapps" || fail "the migration keeps a choice whose desktop file can't be read"
-tryexec_bin="$test_tmp/tryexec-bin"
-mkdir -p "$tryexec_bin"
-printf '#!/bin/bash\nexit 0\n' >"$tryexec_bin/omarchy-tryexec-only-here"
-chmod +x "$tryexec_bin/omarchy-tryexec-only-here"
-printf '[Desktop Entry]\nExec=/bin/true %%F\nTryExec=omarchy-tryexec-only-here\nPath=%s\n' "$tryexec_bin" >"$test_home/.local/share/applications/path-try.desktop"
-printf '[Default Applications]\ntext/plain=path-try.desktop\n' >"$mimeapps"
-omarchy-cmd-editor-mimetypes --unless-chosen
-grep -qxF "text/plain=path-try.desktop" "$mimeapps" || fail "the migration keeps a choice whose TryExec is in the desktop file's Path"
-# \s is a space, as GLib reads a desktop-file string. The literal backslash path is not the editor.
-escaped_editor="$test_tmp/My Editor/bin"
-mkdir -p "$escaped_editor"
-printf '#!/bin/bash\nexit 0\n' >"$escaped_editor/editor"
-chmod +x "$escaped_editor/editor"
-printf '[Desktop Entry]\nExec=/bin/true %%F\nTryExec=%s\n' "${escaped_editor// /\\s}/editor" >"$test_home/.local/share/applications/escaped-try.desktop"
-printf '[Default Applications]\ntext/plain=escaped-try.desktop\n' >"$mimeapps"
-omarchy-cmd-editor-mimetypes --unless-chosen
-grep -qxF "text/plain=escaped-try.desktop" "$mimeapps" || fail "the migration keeps a choice whose TryExec uses a desktop-file escape"
-escaped_path="$test_tmp/Editor Path"
-mkdir -p "$escaped_path"
-printf '#!/bin/bash\nexit 0\n' >"$escaped_path/omarchy-tryexec-escaped-path"
-chmod +x "$escaped_path/omarchy-tryexec-escaped-path"
-printf '[Desktop Entry]\nExec=/bin/true %%F\nTryExec=omarchy-tryexec-escaped-path\nPath=%s\n' "${escaped_path// /\\s}" >"$test_home/.local/share/applications/escaped-path.desktop"
-printf '[Default Applications]\ntext/plain=escaped-path.desktop\n' >"$mimeapps"
-omarchy-cmd-editor-mimetypes --unless-chosen
-grep -qxF "text/plain=escaped-path.desktop" "$mimeapps" || fail "the migration keeps a choice whose Path uses a desktop-file escape"
-rm -f "$test_home/.local/share/applications/missing-try.desktop" \
-  "$test_home/.local/share/applications/later-try.desktop" \
-  "$test_home/.local/share/applications/action-try.desktop" \
-  "$test_home/.local/share/applications/unreadable.desktop" \
-  "$test_home/.local/share/applications/path-try.desktop" \
-  "$test_home/.local/share/applications/escaped-try.desktop" \
-  "$test_home/.local/share/applications/escaped-path.desktop"
-rm -rf "$test_tmp/data/applications"
-pass "the migration follows TryExec the way GLib does"
-
 # Values are ;-separated lists and keys may have spaces around "=", as GLib
 # writes and reads them; a choice in ~/.config outranks the older list's.
 printf '[Default Applications]\ntext/x-java=code.desktop\n' >"$test_home/.local/share/applications/mimeapps.list"

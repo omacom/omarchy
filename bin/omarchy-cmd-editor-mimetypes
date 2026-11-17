@@ -47,132 +47,32 @@ older="${XDG_DATA_HOME:-$HOME/.local/share}/applications/mimeapps.list"
 aliases=/usr/share/mime/aliases
 [[ -f $aliases ]] || aliases=/dev/null
 
-# Decodes a desktop-entry string (\s \n \t \r \\) into the named variable.
-# Returns 1 for an escape this doesn't know, so the caller keeps the app
-# rather than judging a path it couldn't read.
-desktop_unescape() {
-  local -n _decoded=$1
-  local raw=$2 char next result=
-  local -i i=0 len=${#raw}
-  while ((i < len)); do
-    char=${raw:i:1}
-    if [[ $char != '\' ]]; then
-      result+=$char
-      i=$((i + 1))
-      continue
-    fi
-    i=$((i + 1))
-    if ((i >= len)); then
-      return 1
-    fi
-    next=${raw:i:1}
-    case $next in
-    s) result+=' ' ;;
-    n) result+=$'\n' ;;
-    t) result+=$'\t' ;;
-    r) result+=$'\r' ;;
-    \\) result+='\' ;;
-    *) return 1 ;;
-    esac
-    i=$((i + 1))
-  done
-  _decoded=$result
-}
-
-# A desktop file counts unless its TryExec isn't there, the way GLib then
-# opens the type in whatever it finds next. Hidden is not read: a mime
-# default still opens a Hidden=true entry, so treating it as gone would
-# replace a choice GLib honors. An unreadable file counts, so a choice is
-# kept when it can't be checked. A copy that doesn't count doesn't hide one
-# in a later data dir. Path= is searched too, since GLib runs TryExec from it.
-# TryExec and Path are read with desktop-file escapes decoded; an escape
-# this doesn't understand leaves the app counted.
-desktop_file_counts() {
-  local file=$1 line section= key value try_exec= desktop_path=
-  [[ -r $file && -f $file ]] || return 0
-  while IFS= read -r line || [[ -n $line ]]; do
-    line=${line%$'\r'}
-    [[ $line == *[![:space:]]* ]] || continue
-    line=${line#"${line%%[![:space:]]*}"}
-    line=${line%"${line##*[![:space:]]}"}
-    [[ $line == \#* ]] && continue
-    if [[ $line == \[* ]]; then
-      section=${line#\[}
-      section=${section%%\]*}
-      [[ $section == *[![:space:]]* ]] || { section=; continue; }
-      section=${section#"${section%%[![:space:]]*}"}
-      section=${section%"${section##*[![:space:]]}"}
-      continue
-    fi
-    [[ $section == "Desktop Entry" && $line == *=* ]] || continue
-    key=${line%%=*}
-    value=${line#*=}
-    key=${key#"${key%%[![:space:]]*}"}
-    key=${key%"${key##*[![:space:]]}"}
-    if [[ $value == *[![:space:]]* ]]; then
-      value=${value#"${value%%[![:space:]]*}"}
-      value=${value%"${value##*[![:space:]]}"}
-    else
-      value=
-    fi
-    case $key in
-    TryExec) try_exec=$value ;;
-    Path) desktop_path=$value ;;
-    esac
-  done <"$file" || return 0
-  if [[ -n $try_exec ]] && ! desktop_unescape try_exec "$try_exec"; then
-    return 0
-  fi
-  if [[ -n $desktop_path ]] && ! desktop_unescape desktop_path "$desktop_path"; then
-    return 0
-  fi
-  [[ -n $try_exec ]] || return 0
-  if [[ $try_exec == */* ]]; then
-    [[ -x $try_exec ]] && return 0
-  elif command -v "$try_exec" >/dev/null 2>&1; then
-    return 0
-  fi
-  [[ -n $desktop_path && -x $desktop_path/$try_exec ]]
-}
-
 # The apps that are installed, by desktop ID (a subfolder's / read as -, as
-# GLib names them), following linked folders. Data dirs are taken literally,
-# so a name that is a glob is not expanded into whatever else it matches.
-# Flatpak's export dirs are scanned too, even when this process's
-# XDG_DATA_DIRS doesn't list them (a TTY, SSH, or a session started before
-# Flatpak was installed). The migration runs once, so an editor missed here
-# would be replaced for good. OMARCHY_FLATPAK_EXPORTS overrides the system
-# export dir. Only --unless-chosen consults the list.
+# GLib names them), following linked folders. A desktop file that exists
+# counts. Data dirs are taken literally, so a name that is a glob is not
+# expanded into whatever else it matches. Flatpak's export dirs are scanned
+# too, even when this process's XDG_DATA_DIRS doesn't list them (a TTY, SSH,
+# or a session started before Flatpak was installed). The migration runs
+# once, so an editor missed here would be replaced for good.
+# OMARCHY_FLATPAK_EXPORTS overrides the system export dir.
 # A type's line opens the first installed app it lists; one that lists none
 # was a choice once, but GLib skips it and opens the type in whatever it
 # finds next, so it's replaced like Omarchy's own past defaults.
-installed=
-if [[ $unless_chosen == true ]]; then
-  installed=$(
-    data_dirs=()
-    IFS=: read -r -a data_dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-    declare -A seen_dir=()
-    declare -A decided=()
-    for dir in "${XDG_DATA_HOME:-$HOME/.local/share}" "${data_dirs[@]}" \
-      "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share" \
-      "${OMARCHY_FLATPAK_EXPORTS:-/var/lib/flatpak/exports/share}"; do
-      [[ -n $dir ]] || continue
-      [[ -z ${seen_dir["$dir"]+x} ]] || continue
-      seen_dir["$dir"]=1
-      [[ -d $dir/applications ]] || continue
-      rel=
-      while IFS= read -r rel || [[ -n $rel ]]; do
-        [[ -n $rel ]] || continue
-        id=${rel//\//-}
-        [[ -z ${decided["$id"]+x} ]] || continue
-        if desktop_file_counts "$dir/applications/$rel"; then
-          decided["$id"]=1
-          printf '%s\n' "$id"
-        fi
-      done < <(find -L "$dir/applications" -name '*.desktop' -type f -printf '%P\n' 2>/dev/null || true)
-    done
-  )
-fi
+installed=$(
+  data_dirs=()
+  IFS=: read -r -a data_dirs <<< "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+  declare -A seen_dir=()
+  for dir in "${XDG_DATA_HOME:-$HOME/.local/share}" "${data_dirs[@]}" \
+    "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share" \
+    "${OMARCHY_FLATPAK_EXPORTS:-/var/lib/flatpak/exports/share}"; do
+    [[ -n $dir ]] || continue
+    [[ -z ${seen_dir["$dir"]+x} ]] || continue
+    seen_dir["$dir"]=1
+    if [[ -d $dir/applications ]]; then
+      find -L "$dir/applications" -name '*.desktop' -printf '%P\n' 2>/dev/null | tr / - || true
+    fi
+  done
+)
 
 updated=$(awk -v types="$types" -v handler="$handler" -v unless_chosen="$unless_chosen" -v older="$older" -v aliases="$aliases" -v installed="$installed" '
   function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
