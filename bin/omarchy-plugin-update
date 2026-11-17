@@ -41,6 +41,7 @@ update_one() {
   local dir="$PLUGINS_DIR/$id"
   local target_ref="FETCH_HEAD"
   local previous
+  local previous_branch
 
   if [[ -n $commit ]]; then
     if ! git -C "$dir" cat-file -e "$commit^{commit}" 2>/dev/null; then
@@ -59,7 +60,15 @@ update_one() {
   fi
 
   if [[ $(git -C "$dir" rev-parse HEAD) == $(git -C "$dir" rev-parse "$target_ref") ]]; then
-    echo "$id is up to date."
+    if [[ -n $commit ]] && git -C "$dir" symbolic-ref -q HEAD >/dev/null; then
+      if ! git -C "$dir" -c advice.detachedHead=false checkout --quiet --detach "$commit"; then
+        echo "omarchy-plugin-update: cannot pin '$id'; you have local changes in $dir" >&2
+        return 1
+      fi
+      echo "$id is now pinned at $commit."
+    else
+      echo "$id is up to date."
+    fi
     return 0
   fi
 
@@ -78,6 +87,7 @@ update_one() {
   fi
 
   previous=$(git -C "$dir" rev-parse HEAD)
+  previous_branch=$(git -C "$dir" symbolic-ref -q --short HEAD || true)
   if [[ -n $commit ]]; then
     if ! git -C "$dir" -c advice.detachedHead=false checkout --quiet --detach "$commit"; then
       echo "omarchy-plugin-update: cannot check out $commit for '$id'; you have local changes in $dir" >&2
@@ -90,7 +100,11 @@ update_one() {
 
   if ! omarchy-plugin-validate "$dir"; then
     if [[ -n $commit ]]; then
-      git -C "$dir" -c advice.detachedHead=false checkout --quiet --detach "$previous" >/dev/null
+      if [[ -n $previous_branch ]]; then
+        git -C "$dir" checkout --quiet "$previous_branch" >/dev/null
+      else
+        git -C "$dir" -c advice.detachedHead=false checkout --quiet --detach "$previous" >/dev/null
+      fi
     else
       git -C "$dir" reset --hard ORIG_HEAD >/dev/null
     fi
@@ -116,7 +130,8 @@ while (( $# > 0 )); do
     shift
     ;;
   --commit)
-    [[ $# -ge 2 ]] || fail "--commit requires a full 40-character commit SHA"
+    [[ $# -ge 2 && $2 =~ ^[0-9a-f]{40}$ ]] ||
+      fail "--commit requires a full 40-character commit SHA"
     commit="$2"
     shift 2
     ;;
@@ -135,8 +150,6 @@ while (( $# > 0 )); do
   esac
 done
 
-[[ -z $commit || $commit =~ ^[0-9a-f]{40}$ ]] ||
-  fail "--commit requires a full 40-character commit SHA"
 if [[ -n $commit && -z $id ]]; then
   fail "--commit requires a plugin id"
 fi

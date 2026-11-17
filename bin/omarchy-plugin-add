@@ -74,7 +74,8 @@ while (( $# > 0 )); do
     shift
     ;;
   --commit)
-    [[ $# -ge 2 ]] || fail "--commit requires a full 40-character commit SHA"
+    [[ $# -ge 2 && $2 =~ ^[0-9a-f]{40}$ ]] ||
+      fail "--commit requires a full 40-character commit SHA"
     commit="$2"
     shift 2
     ;;
@@ -92,9 +93,6 @@ while (( $# > 0 )); do
     ;;
   esac
 done
-
-[[ -z $commit || $commit =~ ^[0-9a-f]{40}$ ]] ||
-  fail "--commit requires a full 40-character commit SHA"
 
 if [[ -z $url ]]; then
   interactive ||
