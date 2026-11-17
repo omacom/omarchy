@@ -32,7 +32,7 @@ nvidia_modules="nvidia nvidia_modeset nvidia_uvm nvidia_drm"
 # asked for is missing.
 cat >"$test_tmp/modinfo" <<'SH'
 #!/bin/bash
-[[ $1 == -k && $2 == "$KERNELVERSION" && $3 == -F && $4 == filename && $# -gt 4 ]] || exit 1
+[[ $1 == -k && $2 == "$KERNELVERSION" && $3 == -F && $4 == filename ]] && (( $# > 4 )) || exit 1
 for module in "${@:5}"; do
   if [[ " ${KERNEL_MODULES-thunderbolt} " == *" $module "* ]]; then
     printf '/usr/lib/modules/%s/kernel/%s.ko.zst\n' "$KERNELVERSION" "$module"
