@@ -16,7 +16,7 @@ There's nothing to click to launch things out of the box and no icons to arrange
 
 The biggest mindset shift: you don't drag windows around or snap them to screen halves. Open a window and it takes the whole screen. Open a second and they split it. You never fish a window out from under another one, because windows don't overlap.
 
-When you genuinely need a floating window, `Super + T` toggles the active one out of the tiling (and back). But give the tiling a real chance first — it's the heart of the whole thing. [Navigation](04-navigation.md) walks you through it. If you'd rather ease into tiling, press `Super + L` twice to turn the workspace layout to floating. Windows get a traditional titlebar and a dock appears, much like macOS or Windows. Press `Super + L` a third time to go back to tiling.
+When you genuinely need a floating window, `Super + T` toggles the active one out of the tiling (and back). But give the tiling a real chance first — it's the heart of the whole thing. [Navigation](04-navigation.md) walks you through it. If you'd rather ease into tiling, press `Super + L` twice to turn the workspace layout to floating. Most windows get a traditional titlebar and a dock appears, much like macOS or Windows. Press `Super + L` a third time to go back to tiling.
 
 Workspaces will feel familiar: they're macOS Spaces or Windows virtual desktops, except you'll actually use them, because `Super + 1/2/3/4` jumps straight to one and `Super + Shift + 1/2/3/4` sends the active window there. No animation delay, just instant jumps. This means that you might not even need multiple monitors, if you were used to that before.
 
