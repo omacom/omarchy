@@ -10,8 +10,8 @@ trap 'rm -rf "$tmp_dir"' EXIT
 export OMARCHY_PCI_DEVICES_PATH="$tmp_dir/devices" OMARCHY_DRM_PATH="$tmp_dir/drm" OMARCHY_PATH="$ROOT" PATH="$ROOT/bin:$PATH"
 
 # Exit statuses, expected NVD_BACKEND/LIBVA/GLX/GSK_RENDERER values, then vendor:device:class[:boot_vga].
-# Optional final field: card:connector:status:vendor DRM fixtures.
-while IFS='|' read -r description nvidia gsp without_gsp display expected_env devices connectors; do
+# Optional fields: card:connector:status:vendor DRM fixtures, then the cards AQ_DRM_DEVICES names, colon-separated.
+while IFS='|' read -r description nvidia gsp without_gsp display expected_env devices connectors aq_cards; do
   rm -rf "$tmp_dir/devices"
   mkdir -p "$tmp_dir/devices"
   slot=0
@@ -36,6 +36,22 @@ while IFS='|' read -r description nvidia gsp without_gsp display expected_env de
     printf '%s\n' "$status" >"$tmp_dir/drm/$card-$connector/status"
     printf '%s\n' "$vendor" >"$tmp_dir/drm/$card/device/vendor"
   done
+
+  # Device nodes exist only for cards with DRM fixtures, so other names are missing entries.
+  rm -rf "$tmp_dir/dev"
+  mkdir -p "$tmp_dir/dev"
+  unset AQ_DRM_DEVICES
+  if [[ -n $aq_cards ]]; then
+    aq_devices=()
+    IFS=: read -ra cards <<<"$aq_cards"
+    for card in "${cards[@]}"; do
+      if [[ -d $tmp_dir/drm/$card ]]; then
+        touch "$tmp_dir/dev/$card"
+      fi
+      aq_devices+=("$tmp_dir/dev/$card")
+    done
+    export AQ_DRM_DEVICES=$(IFS=:; printf '%s' "${aq_devices[*]}")
+  fi
 
   for check in "nvidia:$nvidia" "nvidia-gsp:$gsp" "nvidia-without-gsp:$without_gsp" "nvidia-display:$display"; do
     status=0
@@ -81,5 +97,7 @@ More NVIDIA panels than Intel panels with Intel boot GPU|0|0|1|0|direct nvidia n
 Intel panel with Maxwell offload|0|1|0|1|egl - - gl|0x8086:0x46a6:0x030000:0 0x10de:0x1340:0x030000:1|card0:eDP-1:connected:0x8086
 Disconnected connectors retain Intel boot fallback|0|0|1|1|direct - - gl|0x8086:0x46a6:0x030000:1 0x10de:0x25ac:0x030000:0|card0:eDP-1:disconnected:0x8086 card1:DP-1:disconnected:0x10de
 Disconnected connectors retain NVIDIA boot fallback|0|0|1|0|direct nvidia nvidia gl|0x8086:0x46a6:0x030000:0 0x10de:0x25ac:0x030000:1|card0:eDP-1:disconnected:0x8086 card1:DP-1:disconnected:0x10de
+AQ_DRM_DEVICES picks Intel over an NVIDIA panel|0|0|1|1|direct - - gl|0x8086:0x46a6:0x030000:1 0x10de:0x25ac:0x030000:0|card1:eDP-1:connected:0x10de card0:DP-1:disconnected:0x8086|card7:card0
+AQ_DRM_DEVICES picks NVIDIA over an Intel panel|0|0|1|0|direct nvidia nvidia gl|0x8086:0x46a6:0x030000:1 0x10de:0x25ac:0x030000:0|card0:eDP-1:connected:0x8086 card1:DP-1:connected:0x10de|card1
 Disconnected connectors without boot_vga retain permissive fallback|0|0|1|0|direct nvidia nvidia gl|0x8086:0x46a6:0x030000 0x10de:0x25ac:0x030000|card0:eDP-1:disconnected:0x8086 card1:DP-1:disconnected:0x10de
 CASES
