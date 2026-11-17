@@ -230,3 +230,53 @@ STUB
 minimize
 [[ ! -s $TMPDIR/hyprctl.log ]] || fail "minimize leaves windows on a tiled workspace alone" "$(cat "$TMPDIR/hyprctl.log")"
 pass "minimize leaves windows on a tiled workspace alone"
+
+(
+  cd "$ROOT"
+  lua - <<'LUA'
+require("default.hypr.helpers")
+
+local workspace = { id = 3 }
+local window = { workspace = workspace }
+local pointer, focused, no_warps, fail_focus
+
+hl = {
+  dsp = {
+    focus = function() return "focus" end,
+    window = { alter_zorder = function() return "raise" end },
+  },
+  get_window = function() return window end,
+  get_active_workspace = function() return workspace end,
+  get_config = function() return no_warps end,
+  config = function(spec) no_warps = spec.cursor.no_warps end,
+  dispatch = function(action)
+    if action == "raise" then
+      focused = pointer
+      return
+    end
+    assert(not fail_focus, "window closed before focus")
+    focused = "selected"
+    if not no_warps then
+      pointer = focused
+    end
+  end,
+}
+
+for _, setting in ipairs({ false, true }) do
+  pointer, no_warps = "other", setting
+  o.focus_dock_window("address:0xabc")
+  assert(pointer == "other" and focused == "selected", "dock moved the pointer or lost focus")
+  assert(no_warps == setting, "dock changed the cursor setting")
+end
+
+no_warps, fail_focus = false, true
+assert(not pcall(o.focus_dock_window, "address:0xabc"), "dispatch error was hidden")
+assert(not no_warps, "failed focus left cursor warps disabled")
+
+window.workspace = { id = 4 }
+pointer, fail_focus = "other", false
+o.focus_dock_window("address:0xabc")
+assert(pointer == "selected" and focused == "selected", "dock changed cross-workspace focus behavior")
+LUA
+) || fail "dock keeps the pointer and focuses the selected window on the active workspace"
+pass "dock keeps the pointer and focuses the selected window on the active workspace"
