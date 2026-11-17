@@ -8,13 +8,14 @@
 # audio still playing), so the Hyprland NVIDIA env only applies when NVIDIA is
 # the display GPU.
 #
-# Follow the GPU Hyprland renders on. Aquamarine makes the GPU with a connected
-# built-in panel (eDP, LVDS, DSI) the primary renderer, ahead of boot_vga, as on
-# a hybrid laptop docked to ports wired to NVIDIA. With no connected panel it
-# takes boot_vga, wherever external monitors are plugged in; panels on both GPUs
-# fall back to boot_vga here too. When no device claims it (attribute missing or
-# unreadable, as on iGPUs with a non-VGA PCI class), assume NVIDIA is the display
-# GPU to preserve the current behavior on machines we cannot tell.
+# Follow the GPU Hyprland renders on. Aquamarine makes the GPU with the most
+# connected built-in panels (eDP, LVDS, DSI) the primary renderer, ahead of
+# boot_vga, as on a hybrid laptop docked to ports wired to NVIDIA. With no
+# connected panel it takes boot_vga, wherever external monitors are plugged in;
+# an equal count of panels falls back to boot_vga here too. When no device
+# claims it (attribute missing or unreadable, as on iGPUs with a non-VGA PCI
+# class), assume NVIDIA is the display GPU to preserve the current behavior on
+# machines we cannot tell.
 #
 # Read the cached sysfs IDs rather than lspci, which reads PCI config space and
 # resumes runtime-suspended GPUs.
@@ -23,8 +24,8 @@ drm_path="${OMARCHY_DRM_PATH:-/sys/class/drm}"
 
 shopt -s nullglob
 
-nvidia_panel=0
-other_panel=0
+nvidia_panels=0
+other_panels=0
 
 for connector in "$drm_path"/card*-{eDP,LVDS,DSI}-*; do
   [[ -f $connector/status ]] || continue
@@ -34,9 +35,9 @@ for connector in "$drm_path"/card*-{eDP,LVDS,DSI}-*; do
   vendor_file="$drm_path/$card/device/vendor"
   [[ -f $vendor_file ]] || continue
   if [[ $(< "$vendor_file") == "0x10de" ]]; then
-    nvidia_panel=1
+    (( ++nvidia_panels ))
   else
-    other_panel=1
+    (( ++other_panels ))
   fi
 done
 
@@ -60,9 +61,9 @@ for device in "$pci_devices_path"/*; do
   fi
 done
 
-if (( nvidia_panel && !other_panel )); then
+if (( nvidia_panels > other_panels )); then
   exit 0
-elif (( other_panel && !nvidia_panel )); then
+elif (( other_panels > nvidia_panels )); then
   exit 1
 elif (( other_boot == 1 && nvidia_boot == 0 )); then
   exit 1

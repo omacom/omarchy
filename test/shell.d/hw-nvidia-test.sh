@@ -76,6 +76,8 @@ Strix Point panel without boot_vga|0|0|1|1|direct - - gl|0x1002:0x150e:0x038000 
 Strix Point panel beside a monitor on an NVIDIA port|0|0|1|1|direct - - gl|0x1002:0x150e:0x038000 0x10de:0x25ac:0x030000:0|card1:HDMI-A-1:connected:0x10de card2:DP-3:connected:0x1002 card2:eDP-1:connected:0x1002
 NVIDIA panel beside a monitor on an Intel boot GPU|0|0|1|0|direct nvidia nvidia gl|0x8086:0x46a6:0x030000:1 0x10de:0x25ac:0x030000:0|card1:eDP-1:connected:0x10de card0:DP-1:connected:0x8086
 Intel panel beside a monitor on an NVIDIA boot GPU|0|0|1|1|direct - - gl|0x8086:0x46a6:0x030000:0 0x10de:0x25ac:0x030000:1|card0:eDP-1:connected:0x8086 card1:DP-1:connected:0x10de
+More Intel panels than NVIDIA panels with NVIDIA boot GPU|0|0|1|1|direct - - gl|0x8086:0x46a6:0x030000:0 0x10de:0x25ac:0x030000:1|card0:eDP-1:connected:0x8086 card0:eDP-2:connected:0x8086 card1:eDP-1:connected:0x10de
+More NVIDIA panels than Intel panels with Intel boot GPU|0|0|1|0|direct nvidia nvidia gl|0x8086:0x46a6:0x030000:1 0x10de:0x25ac:0x030000:0|card0:eDP-1:connected:0x8086 card11:eDP-1:connected:0x10de card11:DSI-1:connected:0x10de
 Intel panel with Maxwell offload|0|1|0|1|egl - - gl|0x8086:0x46a6:0x030000:0 0x10de:0x1340:0x030000:1|card0:eDP-1:connected:0x8086
 Disconnected connectors retain Intel boot fallback|0|0|1|1|direct - - gl|0x8086:0x46a6:0x030000:1 0x10de:0x25ac:0x030000:0|card0:eDP-1:disconnected:0x8086 card1:DP-1:disconnected:0x10de
 Disconnected connectors retain NVIDIA boot fallback|0|0|1|0|direct nvidia nvidia gl|0x8086:0x46a6:0x030000:0 0x10de:0x25ac:0x030000:1|card0:eDP-1:disconnected:0x8086 card1:DP-1:disconnected:0x10de
