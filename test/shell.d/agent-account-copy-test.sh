@@ -355,6 +355,23 @@ transfer.validate(legacy)
 transfer.import_provider("codex", legacy["providers"]["codex"], False)
 assert len(state.load("codex")["accounts"]) == 3
 
+# A destination backend from before member identities still takes a
+# workspace-only Codex login when its receiver cannot report capabilities.
+machine("codex-older-backend")
+older_root = root / "older-omarchy"
+(older_root / "bin").mkdir(parents=True)
+older_source = (Path(os.environ["OMARCHY_PATH"]) / "bin/omarchy-agent-account-state").read_text().replace("codex_identity", "older_codex_identity")
+(older_root / "bin/omarchy-agent-account-state").write_text(older_source)
+command.write_text("#!/bin/bash\nexit 1\n")
+workspace_only = copy.deepcopy(legacy)
+workspace_only["providers"]["codex"]["accounts"] = workspace_only["providers"]["codex"]["accounts"][:1]
+workspace_only["providers"]["codex"]["accounts"][0]["files"]["auth.json"]["tokens"]["id_token"] = ""
+workspace_only["providers"]["codex"]["accounts"][0]["accountId"] = "business"
+bundle = {"version": 1, "backend": "raise RuntimeError('sender backend must not run')", "receiver": Path(transfer.__file__).read_text(), "accounts": workspace_only}
+result = subprocess.run(["/usr/bin/python3", "-I", "-c", transfer.RECEIVER_BOOTSTRAP], input=json.dumps(bundle), text=True, capture_output=True, env=dict(child_env, OMARCHY_PATH=str(older_root), HOME=str(Path.home()), XDG_STATE_HOME=os.environ["XDG_STATE_HOME"]))
+assert result.returncode == 0, result.stderr
+assert len(state.load("codex")["accounts"]) == 1
+
 # An old receiver with source-name support still cannot distinguish members.
 machine("codex-old-receiver")
 command.write_text('#!/bin/bash\nif [[ $1 == "capabilities" ]]; then echo \'{"sourceNames":true}\'; else exit 91; fi\n')

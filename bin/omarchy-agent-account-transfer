@@ -133,7 +133,9 @@ def validate(payload: Any) -> None:
         raise accounts.AccountError("Invalid account transfer files")
       if provider == "claude" and (set(files) != FILES[provider] or set(files[".claude.json"]) != {"oauthAccount"} or set(files[".credentials.json"]) != {"claudeAiOauth"} or not isinstance(files[".claude.json"].get("oauthAccount"), dict) or not isinstance(files[".credentials.json"].get("claudeAiOauth"), dict)):
         raise accounts.AccountError("Invalid Claude account transfer fields")
-      if provider == "codex":
+      # An older destination backend predates member identities. The bootstrap
+      # only pairs it with this receiver for workspace-only streams.
+      if provider == "codex" and hasattr(accounts, "codex_identity"):
         auth = files.get("auth.json") or {}
         found = accounts.codex_identity(auth)["accountId"]
         # Older senders exported the workspace alone. Derive the member from
