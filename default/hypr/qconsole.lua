@@ -52,10 +52,13 @@ local function cover(side, bottom, bordered)
   -- Read on every refit rather than once: the console loads before the user's
   -- own appearance settings, so the first read sees the default gap.
   local gap = bordered and hl.get_config("general.gaps_in") or 0
-  if beside == side and below == bottom and framed == bordered and spaced == gap then
+  -- get_config hands back a new { top, right, bottom, left } table on every read,
+  -- so the cache compares its numbers rather than the table.
+  local spacing = type(gap) == "table" and table.concat({ gap.top, gap.right, gap.bottom, gap.left }, " ") or gap
+  if beside == side and below == bottom and framed == bordered and spaced == spacing then
     return false
   end
-  beside, below, framed, spaced = side, bottom, bordered, gap
+  beside, below, framed, spaced = side, bottom, bordered, spacing
 
   hl.workspace_rule({
     workspace = CONSOLE,

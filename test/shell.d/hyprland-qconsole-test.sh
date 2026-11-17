@@ -32,8 +32,9 @@ hl = {
     return list
   end,
   exec_scheduled_prop_refresh_immediately = function() end,
+  -- Hyprland hands back a new table on every read, so two reads never compare equal.
   get_config = function(key)
-    if key == "general.gaps_in" then return gaps_in end
+    if key == "general.gaps_in" then return { top = gaps_in, right = gaps_in, bottom = gaps_in, left = gaps_in } end
   end,
   exec_cmd = function(cmd, rules) table.insert(spawned, { cmd = cmd, rules = rules }) end,
 }
@@ -211,7 +212,7 @@ top, right, bottom, left = gaps()
 assert(left == 0 and right == 0, "a second app on the console restores the full width")
 assert(bottom == 525, "and the console keeps its half-height drop")
 assert(current().no_border == false, "split windows get borders to show which one has focus")
-assert(current().gaps_in == 5, "and the usual gap between them")
+assert(current().gaps_in.top == 5, "and the usual gap between them")
 
 workspace.windows = 3
 written = #rules
@@ -308,7 +309,7 @@ workspace.windows = 2
 handlers["window.open"]()
 gaps_in = 12
 handlers["config.reloaded"]()
-assert(current().gaps_in == 12, "a reload brings a split console's gap up to date")
+assert(current().gaps_in.top == 12, "a reload brings a split console's gap up to date")
 
 -- window.close still counts the window on its way out, and window.destroy
 -- follows it with the settled count, so only destroy is hooked.
