@@ -15,20 +15,17 @@ events_fd=""
 # Closing the event stream first would let the watcher exit on its own and
 # reparent the recovery loop, which then outlives the test and keeps reloading.
 stop_watcher() {
-  local child descendants
-
   if [[ -n $watch_pid ]]; then
-    # Note them down before the watcher dies, then kill it first so it never
-    # gets to announce the loss of its jobs.
-    descendants=$(pgrep -P "$watch_pid" 2>/dev/null || true)
-    for child in $descendants; do
-      descendants+=" $(pgrep -P "$child" 2>/dev/null || true)"
-    done
-
-    kill -KILL "$watch_pid" 2>/dev/null || true
+    # The watcher leads its own process group, and everything it forks stays
+    # in it however deep or late, so one kill reaches all of it at once. A
+    # snapshot of its children would miss one forked after it was taken.
+    kill -KILL -- "-$watch_pid" 2>/dev/null || true
     wait "$watch_pid" 2>/dev/null || true
-    for child in $descendants; do
-      kill -KILL "$child" 2>/dev/null || true
+    # A killed process can still finish the write it was in, into a log the
+    # next scenario reuses; let the whole group go before moving on.
+    for _ in {1..100}; do
+      pgrep -g "$watch_pid" -r R,S,D,T,t >/dev/null || break
+      sleep 0.02
     done
     watch_pid=""
   fi
@@ -183,7 +180,7 @@ start_watcher() {
   OMARCHY_TEST_RECOVERED_MONITORS="$recovered" \
   OMARCHY_TEST_GUARD_PAUSED="${1:-0}" \
   OMARCHY_TEST_HYPRCTL_FAIL_FLAG="$hyprctl_fail" \
-    "$ROOT/bin/omarchy-hyprland-monitor-watch" &
+    setsid "$ROOT/bin/omarchy-hyprland-monitor-watch" &
   watch_pid=$!
 
   exec {events_fd}>"$events"

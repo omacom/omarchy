@@ -6,7 +6,7 @@ if omarchy-hw-aarch64-n1x; then
 elif lspci | grep -qi 'nvidia'; then
   # The 32-bit libraries come from multilib, which only x86_64 has.
   if omarchy-hw-nvidia-gsp; then
-    PACKAGES=(nvidia-open-dkms nvidia-utils)
+    PACKAGES=(linux-omarchy-nvidia-open nvidia-utils)
     if omarchy-hw-x86; then
       PACKAGES+=(lib32-nvidia-utils)
     fi
@@ -23,6 +23,10 @@ elif lspci | grep -qi 'nvidia'; then
     echo "No compatible driver for your NVIDIA GPU. See: https://wiki.archlinux.org/title/NVIDIA"
     exit 0
   fi
+
+  # Local models run in Podman, which reaches the GPU through the CDI spec the
+  # container toolkit writes.
+  PACKAGES+=(nvidia-container-toolkit)
 
   omarchy-pkg-add "${PACKAGES[@]}"
 
