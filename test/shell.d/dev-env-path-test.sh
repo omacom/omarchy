@@ -49,6 +49,9 @@ mkdir -p "$tmpdir/active/bin" "$tmpdir/unrelated/bin"
 # Test against a copy so the test controls /etc/omarchy.conf without mutating the host.
 bootstrap="$tmpdir/env-bootstrap"
 sed "s#/etc/omarchy.conf#$tmpdir/omarchy.conf#g" "$ROOT/default/bash/env-bootstrap" >"$bootstrap"
+# Production code always opens /etc/passwd. Root runs with no real foreign
+# account home point a private copy of env-bootstrap at a fixture file.
+active_bootstrap=$bootstrap
 
 printf 'export OMARCHY_PATH="/usr/share/omarchy"\n' >"$tmpdir/omarchy.conf"
 mapfile -t default_result < <(run_bootstrap bash "$bootstrap" "$home" "$tmpdir/unrelated/bin:/usr/bin")
@@ -128,7 +131,41 @@ source_bootstrap_env() {
       "${__MISE_DIFF-UNSET}" \
       "${__MISE_SESSION-UNSET}" \
       "$PATH"
-  ' sh "$bootstrap"
+  ' sh "$active_bootstrap"
+}
+
+# Rewrite /etc/passwd in a dedicated copy. env-bootstrap has no test hook.
+use_synthetic_passwd() {
+  local passwd_file="$1"
+
+  sed "s#/etc/passwd#${passwd_file}#g" "$bootstrap" >"$tmpdir/env-bootstrap-synthetic"
+  active_bootstrap=$tmpdir/env-bootstrap-synthetic
+}
+
+reset_bootstrap() {
+  active_bootstrap=$bootstrap
+}
+
+# Homes of accounts this process does not own. The directory's owner uid must
+# be the passwd entry whose home is that directory. "/" is not a home root.
+foreign_account_homes() {
+  local passwd_file="${1:-/etc/passwd}"
+  local uid home owner seen
+
+  seen=":"
+  [[ -r $passwd_file ]] || return 0
+  while IFS=: read -r _ _ uid _ _ home _; do
+    [[ $uid =~ ^[0-9]+$ ]] || continue
+    home=${home%/}
+    [[ -n $home && $home != / && -d $home && ! -O $home ]] || continue
+    owner=$(stat -c '%u' "$home" 2>/dev/null || stat -f '%u' "$home" 2>/dev/null) || continue
+    [[ $owner == "$uid" ]] || continue
+    case $seen in
+      *":$home:"*) continue ;;
+    esac
+    seen="$seen$home:"
+    printf '%s\n' "$home"
+  done <"$passwd_file"
 }
 
 printf 'export OMARCHY_PATH="/usr/share/omarchy"\n' >"$tmpdir/omarchy.conf"
@@ -232,17 +269,22 @@ mapfile -t owned_result < <(source_bootstrap_env bash \
   fail "an owned XDG default is kept when no previous account was recorded" "actual: ${owned_result[4]}"
 pass "an owned XDG default is kept when no previous account was recorded"
 
-foreign="$tmpdir/foreign"
+foreign=
 foreign_ready=0
-if (( EUID == 0 )); then
+# Another account's real home. A symlink to an unowned non-home such as
+# /usr is an override: the prefix is not that owner's passwd home.
+mapfile -t discovered_homes < <(foreign_account_homes)
+if (( ${#discovered_homes[@]} > 0 )); then
+  foreign=${discovered_homes[0]}
+  foreign_ready=1
+elif (( EUID == 0 )); then
+  foreign=$tmpdir/foreign
   mkdir -p "$foreign/.local/state"
   if chown 65534:65534 "$foreign" "$foreign/.local" "$foreign/.local/state" 2>/dev/null; then
+    printf 'omarchy-foreign:x:65534:65534::%s:/bin/sh\n' "$foreign" >"$tmpdir/foreign.passwd"
+    use_synthetic_passwd "$tmpdir/foreign.passwd"
     foreign_ready=1
   fi
-else
-  mkdir -p "$foreign/.local"
-  ln -s /usr "$foreign/.local/state"
-  [[ -d $foreign/.local/state && ! -O $foreign/.local/state ]] && foreign_ready=1
 fi
 if (( foreign_ready )); then
   mapfile -t foreign_result < <(source_bootstrap_env bash \
@@ -274,6 +316,20 @@ if (( foreign_ready )); then
   [[ ${shared_owned_result[4]} == "$shared_root/.local/state" ]] ||
     fail "an owned XDG directory under another parent is kept" "actual: ${shared_owned_result[4]}"
   pass "an owned XDG directory under another parent is kept"
+
+  mapfile -t bare_state_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="/usr/bin" \
+    XDG_STATE_HOME="$foreign/.local/state")
+  [[ ${bare_state_result[4]} == "UNSET" ]] ||
+    fail "a bare foreign state home is dropped with PATH=/usr/bin and no mise variables" \
+      "state=${bare_state_result[4]}"
+  [[ ${bare_state_result[8]} == "UNSET" && ${bare_state_result[11]} == "UNSET" ]] ||
+    fail "a bare foreign state home does not invent a mise session" \
+      "shell=${bare_state_result[8]} session=${bare_state_result[11]}"
+  pass "a bare foreign state home is dropped with PATH=/usr/bin and no mise variables"
+  reset_bootstrap
 else
   skip "no unowned directory fixture available for foreign XDG fallback test"
 fi
@@ -283,20 +339,24 @@ fi
 # EACCES; ownership must fall back to the enclosing foreign home directory.
 private_foreign="$tmpdir/private-foreign"
 private_ready=0
-if (( EUID == 0 )); then
+for candidate in /root /var/root /etc/ssl/private /var/db/sudo; do
+  [[ -d $candidate && ! -O $candidate && ! -x $candidate ]] || continue
+  while IFS= read -r home; do
+    [[ $home == "$candidate" ]] || continue
+    ln -s "$candidate" "$private_foreign"
+    private_ready=1
+    break
+  done < <(foreign_account_homes)
+  (( private_ready )) && break
+done
+if (( ! private_ready && EUID == 0 )); then
   mkdir -p "$private_foreign"
   chmod 700 "$private_foreign"
   if chown 65534:65534 "$private_foreign" 2>/dev/null; then
+    printf 'omarchy-private:x:65534:65534::%s:/bin/sh\n' "$private_foreign" >"$tmpdir/private.passwd"
+    use_synthetic_passwd "$tmpdir/private.passwd"
     private_ready=1
   fi
-else
-  for candidate in /root /var/root /etc/ssl/private /var/db/sudo; do
-    if [[ -d $candidate && ! -O $candidate && ! -x $candidate ]]; then
-      ln -s "$candidate" "$private_foreign"
-      private_ready=1
-      break
-    fi
-  done
 fi
 if (( private_ready )); then
   mapfile -t private_result < <(source_bootstrap_env bash \
@@ -311,9 +371,307 @@ if (( private_ready )); then
   [[ ${private_result[12]} == "$target/.local/share/mise/command-wrappers/bin:/usr/bin:$target/.local/share/mise/shims:$target/.local/bin" ]] ||
     fail "a private (0700) unowned home is removed from PATH" "actual PATH: ${private_result[12]}"
   pass "a private (0700) unowned home is dropped when XDG leaf directories cannot be traversed"
+  reset_bootstrap
 else
   skip "no non-searchable unowned directory available for private-home XDG fallback test"
 fi
+
+# Fresh session, no recorded owner. The cache lives under a writable directory
+# this account does not own, and that directory is not the owner's passwd home.
+shared_cache_root=
+if (( EUID == 0 )); then
+  shared_cache_root=$tmpdir/pr-18952-shared
+  mkdir -p "$shared_cache_root"
+  chown 65534:65534 "$shared_cache_root" 2>/dev/null || shared_cache_root=
+else
+  for candidate in /tmp /private/tmp /var/tmp /private/var/tmp; do
+    [[ -d $candidate && ! -O $candidate && -w $candidate ]] || continue
+    [[ -d $candidate/.cache && -O $candidate/.cache ]] && continue
+    shared_is_home=0
+    while IFS= read -r home; do
+      [[ $home == "$candidate" ]] && shared_is_home=1
+    done < <(foreign_account_homes)
+    (( shared_is_home )) && continue
+    shared_cache_root=$candidate
+    break
+  done
+fi
+if [[ -n $shared_cache_root ]]; then
+  fresh_path="/usr/bin:$shared_cache_root/bin"
+  mapfile -t fresh_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="$fresh_path" \
+    XDG_CACHE_HOME="$shared_cache_root/.cache" \
+    MISE_SHELL=bash \
+    __MISE_SESSION=keep-session)
+  [[ ${fresh_result[2]} == "$shared_cache_root/.cache" ]] ||
+    fail "a fresh session keeps a cache override whose parent is not an account home" \
+      "cache=${fresh_result[2]}"
+  [[ ${fresh_result[8]} == "bash" && ${fresh_result[11]} == "keep-session" ]] ||
+    fail "a fresh session keeps its mise session when the cache parent is not an account home" \
+      "shell=${fresh_result[8]} session=${fresh_result[11]}"
+  [[ ${fresh_result[12]} == "$target/.local/share/mise/command-wrappers/bin:$fresh_path:$target/.local/share/mise/shims:$target/.local/bin" ]] ||
+    fail "a fresh session keeps PATH entries under a non-home cache parent" \
+      "actual PATH: ${fresh_result[12]}"
+  pass "a fresh session keeps a cache override whose parent is not an account home"
+else
+  skip "no writable foreign non-home directory available for shared cache override test"
+fi
+
+mapfile -t account_homes < <(foreign_account_homes)
+inherited_home=${account_homes[0]:-}
+if [[ -z $inherited_home ]] && (( EUID == 0 )); then
+  inherited_home=$tmpdir/inherited-home
+  mkdir -p "$inherited_home"
+  if chown 65534:65534 "$inherited_home" 2>/dev/null; then
+    printf 'omarchy-inherited:x:65534:65534::%s:/bin/sh\n' "$inherited_home" >"$tmpdir/inherited.passwd"
+    use_synthetic_passwd "$tmpdir/inherited.passwd"
+  else
+    inherited_home=
+  fi
+fi
+
+if [[ -n $shared_cache_root && -n $inherited_home ]]; then
+  mapfile -t mixed_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="/usr/bin:$inherited_home/.local/share/mise/shims:$inherited_home/.local/bin" \
+    XDG_CONFIG_HOME="$shared_cache_root/.config" \
+    XDG_STATE_HOME="$inherited_home/.local/state" \
+    MISE_SHELL=bash \
+    __MISE_ORIG_PATH="$inherited_home/.local/share/mise/shims" \
+    __MISE_DIFF=inherited \
+    __MISE_SESSION=inherited \
+    __MISE_EXE="$inherited_home/.local/bin/mise")
+  [[ ${mixed_result[1]} == "$shared_cache_root/.config" ]] ||
+    fail "a shared config override stays when inherited state is cleaned" \
+      "config=${mixed_result[1]}"
+  [[ ${mixed_result[4]} == "UNSET" ]] ||
+    fail "inherited state is cleaned when a shared config override is also set" \
+      "state=${mixed_result[4]}"
+  [[ ${mixed_result[8]} == "UNSET" && ${mixed_result[9]} == "UNSET" && ${mixed_result[10]} == "UNSET" && ${mixed_result[11]} == "UNSET" ]] ||
+    fail "inherited mise session is cleaned when a shared config override is also set" \
+      "shell=${mixed_result[8]} orig=${mixed_result[9]} diff=${mixed_result[10]} session=${mixed_result[11]}"
+  [[ ${mixed_result[12]} == "$target/.local/share/mise/command-wrappers/bin:/usr/bin:$target/.local/share/mise/shims:$target/.local/bin" ]] ||
+    fail "inherited home is removed from PATH when a shared config override is also set" \
+      "actual PATH: ${mixed_result[12]}"
+  pass "a shared config override stays while the previous account's state, PATH, and mise session are cleaned"
+
+  mapfile -t bare_mixed_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="/usr/bin" \
+    XDG_CONFIG_HOME="$shared_cache_root/.config" \
+    XDG_STATE_HOME="$inherited_home/.local/state")
+  [[ ${bare_mixed_result[1]} == "$shared_cache_root/.config" ]] ||
+    fail "a shared config override stays when foreign state is dropped with no PATH or mise corroboration" \
+      "config=${bare_mixed_result[1]}"
+  [[ ${bare_mixed_result[4]} == "UNSET" ]] ||
+    fail "foreign state is dropped when a shared config override is set and PATH is only /usr/bin" \
+      "state=${bare_mixed_result[4]}"
+  [[ ${bare_mixed_result[12]} == "$target/.local/share/mise/command-wrappers/bin:/usr/bin:$target/.local/share/mise/shims:$target/.local/bin" ]] ||
+    fail "PATH stays free of the foreign home when state is dropped without mise corroboration" \
+      "actual PATH: ${bare_mixed_result[12]}"
+  pass "a shared config override stays while foreign state is dropped with PATH=/usr/bin and no mise variables"
+  reset_bootstrap
+else
+  skip "no shared directory and foreign account home available for mixed XDG fallback test"
+fi
+
+override_home=${account_homes[1]:-}
+if [[ -z $override_home ]] && (( EUID == 0 )); then
+  two_inherited=$tmpdir/alice-home
+  override_home=$tmpdir/carol-home
+  mkdir -p "$two_inherited" "$override_home"
+  if chown 65534:65534 "$two_inherited" 2>/dev/null && chown 65533:65533 "$override_home" 2>/dev/null; then
+    printf '%s\n' \
+      "alice:x:65534:65534::${two_inherited}:/bin/sh" \
+      "carol:x:65533:65533::${override_home}:/bin/sh" \
+      >"$tmpdir/two-homes.passwd"
+    use_synthetic_passwd "$tmpdir/two-homes.passwd"
+    inherited_home=$two_inherited
+  else
+    override_home=
+  fi
+fi
+if [[ -n $inherited_home && -n $override_home && $inherited_home != "$override_home" ]]; then
+  mapfile -t conflict_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="/usr/bin:$inherited_home/.local/bin" \
+    XDG_CONFIG_HOME="$override_home/.config" \
+    XDG_STATE_HOME="$inherited_home/.local/state" \
+    MISE_SHELL=bash \
+    __MISE_ORIG_PATH="$inherited_home/.local/share/mise/shims" \
+    __MISE_DIFF=inherited \
+    __MISE_SESSION=inherited \
+    __MISE_EXE="$inherited_home/.local/bin/mise")
+  [[ ${conflict_result[1]} == "$override_home/.config" ]] ||
+    fail "a config override in another account home stays while inherited state is cleaned" \
+      "config=${conflict_result[1]}"
+  [[ ${conflict_result[4]} == "UNSET" ]] ||
+    fail "inherited state is cleaned when another account home is only a config override" \
+      "state=${conflict_result[4]}"
+  [[ ${conflict_result[8]} == "UNSET" && ${conflict_result[9]} == "UNSET" && ${conflict_result[10]} == "UNSET" && ${conflict_result[11]} == "UNSET" ]] ||
+    fail "inherited mise session is cleaned when another account home is only a config override" \
+      "shell=${conflict_result[8]} orig=${conflict_result[9]} diff=${conflict_result[10]} session=${conflict_result[11]}"
+  [[ ${conflict_result[12]} == "$target/.local/share/mise/command-wrappers/bin:/usr/bin:$target/.local/share/mise/shims:$target/.local/bin" ]] ||
+    fail "the previous account is removed from PATH when another account home is only a config override" \
+      "actual PATH: ${conflict_result[12]}"
+  pass "another account's config override stays while the previous account's state, PATH, and mise session are cleaned"
+
+  mapfile -t two_account_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="/usr/bin" \
+    XDG_CONFIG_HOME="$override_home/.config" \
+    XDG_STATE_HOME="$inherited_home/.local/state")
+  [[ ${two_account_result[1]} == "$override_home/.config" ]] ||
+    fail "another account's lone config override stays when foreign state is dropped with no PATH or mise corroboration" \
+      "config=${two_account_result[1]}"
+  [[ ${two_account_result[4]} == "UNSET" ]] ||
+    fail "foreign state is dropped when another account home is only a config override and PATH is /usr/bin" \
+      "state=${two_account_result[4]}"
+  [[ ${two_account_result[12]} == "$target/.local/share/mise/command-wrappers/bin:/usr/bin:$target/.local/share/mise/shims:$target/.local/bin" ]] ||
+    fail "neither account home is added to PATH when only foreign state is inherited" \
+      "actual PATH: ${two_account_result[12]}"
+  pass "another account's lone config override stays while foreign state is dropped with PATH=/usr/bin and no mise variables"
+
+  two_qualified_path="/usr/bin:$inherited_home/.local/bin:$override_home/.local/bin"
+  mapfile -t two_qualified_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="$two_qualified_path" \
+    XDG_CONFIG_HOME="$override_home/.config" \
+    XDG_CACHE_HOME="$override_home/.cache" \
+    XDG_STATE_HOME="$inherited_home/.local/state" \
+    MISE_SHELL=bash \
+    __MISE_SESSION=inherited)
+  [[ ${two_qualified_result[1]} == "UNSET" && ${two_qualified_result[2]} == "UNSET" && ${two_qualified_result[4]} == "UNSET" ]] ||
+    fail "two qualified foreign account homes both drop their XDG defaults" \
+      "config=${two_qualified_result[1]} cache=${two_qualified_result[2]} state=${two_qualified_result[4]}"
+  [[ ${two_qualified_result[8]} == "UNSET" && ${two_qualified_result[11]} == "UNSET" ]] ||
+    fail "two qualified foreign account homes clear the mise session" \
+      "shell=${two_qualified_result[8]} session=${two_qualified_result[11]}"
+  [[ ${two_qualified_result[12]} == "$target/.local/share/mise/command-wrappers/bin:/usr/bin:$target/.local/share/mise/shims:$target/.local/bin" ]] ||
+    fail "two qualified foreign account homes are both removed from PATH" \
+      "actual PATH: ${two_qualified_result[12]}"
+  pass "two qualified foreign account homes are both cleaned, including PATH entries and the mise session"
+else
+  skip "two foreign account homes are not available for the conflicting-root fallback test"
+fi
+reset_bootstrap
+
+lone_home=${account_homes[0]:-}
+if [[ -z $lone_home && -n $inherited_home && -f $tmpdir/inherited.passwd ]]; then
+  use_synthetic_passwd "$tmpdir/inherited.passwd"
+  lone_home=$inherited_home
+fi
+if [[ -n $lone_home ]]; then
+  mapfile -t lone_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="/usr/bin" \
+    XDG_CONFIG_HOME="$lone_home/.config" \
+    MISE_SHELL=bash \
+    __MISE_SESSION=keep-session)
+  [[ ${lone_result[1]} == "$lone_home/.config" ]] ||
+    fail "a single foreign account config override is kept when the session did not come from that home" \
+      "config=${lone_result[1]}"
+  [[ ${lone_result[8]} == "bash" && ${lone_result[11]} == "keep-session" ]] ||
+    fail "a single foreign account config override keeps the current mise session" \
+      "shell=${lone_result[8]} session=${lone_result[11]}"
+  pass "a single foreign account config override is kept when the session did not come from that home"
+
+  mapfile -t quad_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="/usr/bin" \
+    XDG_CONFIG_HOME="$lone_home/.config" \
+    XDG_CACHE_HOME="$lone_home/.cache" \
+    XDG_DATA_HOME="$lone_home/.local/share" \
+    XDG_STATE_HOME="$lone_home/.local/state" \
+    MISE_SHELL=bash \
+    __MISE_SESSION=inherited)
+  [[ ${quad_result[1]} == "UNSET" && ${quad_result[2]} == "UNSET" && ${quad_result[3]} == "UNSET" && ${quad_result[4]} == "UNSET" ]] ||
+    fail "four XDG defaults under one foreign home are dropped even without a PATH entry" \
+      "config=${quad_result[1]} cache=${quad_result[2]} data=${quad_result[3]} state=${quad_result[4]}"
+  [[ ${quad_result[11]} == "UNSET" ]] ||
+    fail "four inherited XDG defaults clear the previous mise session" \
+      "session=${quad_result[11]}"
+  pass "four XDG defaults under one foreign home are dropped even without a PATH entry"
+
+  hostile_home=$lone_home
+  hostile_bin=$tmpdir/hostile-bin
+  hostile_log=$tmpdir/hostile-shim.log
+  mkdir -p "$hostile_bin"
+  cat >"$hostile_bin/stat" <<'EOF'
+#!/bin/sh
+printf '%s\n' stat >>"$OMARCHY_SHIM_LOG"
+printf '%s\n' '59999 0:1'
+EOF
+  cat >"$hostile_bin/getent" <<'EOF'
+#!/bin/sh
+printf '%s\n' getent >>"$OMARCHY_SHIM_LOG"
+printf '%s\n' 'fake:x:59999:59999::/tmp/not-a-home:/bin/sh'
+EOF
+  chmod +x "$hostile_bin/stat" "$hostile_bin/getent"
+  hostile_shell=$(command -v bash)
+  hostile_import=$(env 'BASH_FUNC_command%%=() { echo imported-command; }' "$hostile_shell" -c 'type command')
+  [[ $hostile_import == *function* ]] ||
+    fail "bash imports BASH_FUNC_command so the hostile-function check is real" "$hostile_import"
+  mapfile -t hostile_result < <(source_bootstrap_env bash \
+    -u OMARCHY_XDG_HOME \
+    HOME="$target" \
+    PATH="$hostile_bin:/usr/bin" \
+    OMARCHY_SHIM_LOG="$hostile_log" \
+    XDG_STATE_HOME="$hostile_home/.local/state" \
+    'BASH_FUNC_command%%=() { printf "%s\n" command-func >>"$OMARCHY_SHIM_LOG"; builtin command "$@"; }' \
+    'BASH_FUNC_builtin%%=() { printf "%s\n" builtin-func >>"$OMARCHY_SHIM_LOG"; }' \
+    'BASH_FUNC_unset%%=() { printf "%s\n" unset-func >>"$OMARCHY_SHIM_LOG"; }' \
+    'BASH_FUNC_stat%%=() { printf "%s\n" stat-func >>"$OMARCHY_SHIM_LOG"; printf "%s\n" "59999 0:1"; }' \
+    'BASH_FUNC_getent%%=() { printf "%s\n" getent-func >>"$OMARCHY_SHIM_LOG"; printf "%s\n" "fake:x:59999:59999::/tmp/not-a-home:/bin/sh"; }')
+  [[ ${hostile_result[4]} == "UNSET" ]] ||
+    fail "command -p stat and getent ignore a PATH shim and imported functions" \
+      "state=${hostile_result[4]}"
+  [[ ! -e $hostile_log ]] ||
+    fail "a PATH shim or imported command/builtin/unset/stat/getent function ran during env-bootstrap" \
+      "$(<"$hostile_log")"
+  hostile_shellopts=$(env -i \
+    HOME="$target" \
+    PATH="$hostile_bin:/usr/bin" \
+    XDG_STATE_HOME="$hostile_home/.local/state" \
+    'BASH_FUNC_shopt%%=() { printf "%s\n" shopt-func >>"$OMARCHY_SHIM_LOG"; }' \
+    OMARCHY_SHIM_LOG="$hostile_log" \
+    "$hostile_shell" -c '. "$1"; set -e; result=$(false; printf recovered); printf "%s|%s|%s\n" "${SHELLOPTS:-}" "${BASHOPTS:-}" "$result"' sh "$active_bootstrap" || true)
+  [[ ! -e $hostile_log ]] ||
+    fail "imported shopt function ran during env-bootstrap" "$(<"$hostile_log")"
+  [[ $hostile_shellopts == *\|recovered ]] ||
+    fail "env-bootstrap broke set -e command substitution recovery" "$hostile_shellopts"
+  [[ :${hostile_shellopts%%|*}: != *:posix:* ]] ||
+    fail "env-bootstrap restores non-posix mode after scrubbing imported functions" "$hostile_shellopts"
+  hostile_bashopts=${hostile_shellopts#*|}
+  hostile_bashopts=${hostile_bashopts%|*}
+  [[ :$hostile_bashopts: != *:inherit_errexit:* ]] ||
+    fail "env-bootstrap left inherit_errexit enabled after scrubbing imported functions" "$hostile_shellopts"
+  pre_inherit_bashopts=$(env -i \
+    HOME="$target" \
+    PATH="$hostile_bin:/usr/bin" \
+    XDG_STATE_HOME="$hostile_home/.local/state" \
+    "$hostile_shell" -O inherit_errexit -c '. "$1"; printf "%s\n" "${BASHOPTS:-}"' sh "$active_bootstrap")
+  [[ :$pre_inherit_bashopts: == *:inherit_errexit:* ]] ||
+    fail "env-bootstrap preserves inherit_errexit when already enabled" "$pre_inherit_bashopts"
+  posix_shellopts=$(env -i \
+    HOME="$target" \
+    PATH="$hostile_bin:/usr/bin" \
+    XDG_STATE_HOME="$hostile_home/.local/state" \
+    "$hostile_shell" --posix -c '. "$1"; printf "%s\n" "${SHELLOPTS:-}"' sh "$active_bootstrap")
+  [[ :$posix_shellopts: == *:posix:* ]] ||
+    fail "env-bootstrap preserves posix mode when bash started in posix mode" "$posix_shellopts"
+  pass "a hostile PATH shim and imported command/builtin/unset/shopt/stat/getent functions do not run or alter shell options"
+fi
+reset_bootstrap
 
 if command -v zsh >/dev/null 2>&1; then
   mapfile -t zsh_switch_result < <(source_bootstrap_env zsh \
