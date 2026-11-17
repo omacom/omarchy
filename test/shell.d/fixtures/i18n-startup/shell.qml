@@ -63,7 +63,8 @@ ShellRoot {
   FileView {
     id: pluginDirectory
     path: Quickshell.env("OMARCHY_TEST_PLUGIN_DIRECTORY")
-    blockLoading: true
+    preload: false
+    blockAllReads: true
     watchChanges: true
     onFileChanged: reload()
   }

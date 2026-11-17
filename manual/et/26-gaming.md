@@ -1,85 +1,85 @@
 # Mängimine
 
-Omarchy pole ainult _pRoDUcTiVItY_ jaoks, see on ka lõbutsemiseks, ja mis on lõbusam kui mängimine? Omarchy tuleb terve mängimisvalikute komplektiga — Steam ja RetroArch natiivseks ja retromänguks, Battle.net, Lutris ja Heroic Steamivälistele poodidele, Moonlight arvuti voogedastuseks, Xbox Cloud Gaming + NVIDIA GeForce NOW pilve jaoks, pluss igihaljas Minecraft.
+Omarchy pole mõeldud ainult _tOoTLiKKuSe_ jaoks, see on mõeldud ka lõbutsemiseks, ja mis oleks lõbusam kui mängimine? Omarchyga tuleb kaasa terve hulk mänguvõimalusi — Steam ja RetroArch kohalikuks ja retromängimiseks, Battle.net, Lutris ja Heroic mitte-Steami poodide jaoks, Moonlight arvutist striimimiseks, Xbox Cloud Gaming + NVIDIA GeForce NOW pilvemängimiseks ning lisaks igihaljas Minecraft.
 
-Tänu Valve'i uskumatusle tööle [proton ühilduvuskihiga](https://en.wikipedia.org/wiki/Proton_(software)) on Linuxis nüüd kümneid tuhandeid mängitavaid kaasaegseid mänge. Ah, ja kas teadsid, et [Steam Deck](https://store.steampowered.com/steamdeck/) töötab tegelikult Archil!
+Tänu Valve'i uskumatule tööle [Protoni ühilduvuskihi](https://en.wikipedia.org/wiki/Proton_(software)) kallal on Linuxis nüüd mängitavaid kaasaegseid mänge kümneid tuhandeid. Ah jaa, kas teadsid, et [Steam Deck](https://store.steampowered.com/steamdeck/) töötab tegelikult Archi peal!
 
-Kõik mängude paigaldajad elavad Omarchy menüüs (`Super + Space`) jaotises _Paigalda > Gaming_. Kui soovid kunagi ühe tagasi võtta, kasuta _Eemalda > Gaming_.
+Kõik mängude installerid asuvad Omarchy menüüs (`Super + Space`) jaotuses _Install > Gaming_. Kui tahad mõne neist kunagi tagasi võtta, kasuta jaotust _Remove > Gaming_.
 
 ## Steam
 
-Paigalda [Steam](https://store.steampowered.com/), valides Omarchy menüüst (`Super + Space`) _Paigalda > Gaming > Steam_.
+Installi [Steam](https://store.steampowered.com/), valides Omarchy menüüst (`Super + Space`) _Install > Gaming > Steam_.
 
-Pärast selle paigaldamist saad Steami käivitada kombinatsiooniga `Super + Space`.
+Pärast installimist saad Steami käivitada klahvikombinatsiooniga `Super + Space`.
 
-Pane tähele, et Steami käivitamine võib võtta 10-20 sekundit ja see ei anna visuaalset tagasisidet, et see laeb.
+Pea meeles, et Steami käivitumine võib võtta 10-20 sekundit ja see ei anna mingit visuaalset märki, et see laeb.
 
  ![gaming-steam](images/gaming-steam.webp)
 
 ## RetroArch
 
-Paigalda [RetroArch](https://www.retroarch.com/), valides Omarchy menüüst (`Super + Space`) _Paigalda > Gaming > RetroArch_. See tuleb libretro tuumade täiskomplektiga, nii et kõik klassikalised süsteemid on kaetud.
+Installi [RetroArch](https://www.retroarch.com/), valides Omarchy menüüst (`Super + Space`) _Install > Gaming > RetroArch_. Sellega tuleb kaasa libretro tuumade täiskomplekt, nii et kõik klassikalised süsteemid on kaetud.
 
-RetroArch on täielikult eelkonfigureeritud kauni CRT Royale varjutajaga täiusliku retro välimuse jaoks.
+RetroArch on täielikult eelkonfigureeritud kauni CRT Royale shaderiga, et saavutada see täiuslik retrovälimus.
 
 Alustamiseks:
 
 1. Pane oma BIOS-failid kausta `~/Games/bios` ja ROM-id kausta `~/Games/roms`.
-2. Käivita RetroArch kombinatsiooniga `Super + Space` ja sisesta `retro`.
-3. Skanni kaust `~/Games/roms` ja oled mängimiseks valmis.
+2. Käivita RetroArch klahvikombinatsiooniga `Super + Space` ja kirjuta `retro`.
+3. Skanni kausta `~/Games/roms` ja oledki mängimiseks valmis.
 
-Saad anda lemmikmängule ka oma kirje rakenduste käivitajas jaotisega _Paigalda > Gaming > RetroArch Game Launcher_, mis võimaldab valida tuuma ja ROM-i ning hüpata otse mängu kombinatsioonist `Super + Space`.
+Lemmikmängule saad rakenduste käivitajas anda ka oma kirje valikuga _Install > Gaming > RetroArch Game Launcher_, mis laseb sul valida tuuma ja ROM-i ning hüpata mängu otse klahvikombinatsiooniga `Super + Space`.
 
  ![gaming-retroarch](images/gaming-retroarch.webp)
 
 ## Xbox Cloud Gaming
 
-Paigalda Xbox Cloud Gaming veebirakendus, valides Omarchy menüüst (`Super + Space`) _Paigalda > Gaming > Xbox Cloud Gaming_. See on "lihtsalt" teenuse veebirakendus, kuid seda on kiire käivitada ja see töötab 1080p juures suurepäraselt.
+Installi Xbox Cloud Gamingu veebirakendus, valides Omarchy menüüst (`Super + Space`) _Install > Gaming > Xbox Cloud Gaming_. See on „lihtsalt“ teenuse veebirakendus, kuid see käivitub kiiresti ja töötab 1080p juures suurepäraselt.
 
-Kui sul on juba Xbox Game Pass, on see kindel viis mängida Fortnite'i ja teisi pealkirju, mida sa Linuxis natiivselt käitada ei saa.
+Kui sul on juba Xbox Game Pass, on see kindel viis mängida Fortnite'it ja muid mänge, mida sa Linuxis kohalikult käitada ei saa.
 
  ![gaming-xbox-cloud](images/gaming-xbox-cloud.webp)
 
 ## NVIDIA GeForce Now
 
-Paigalda pilvemänguteenuse [NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/), valides Omarchy menüüst (`Super + Space`) _Paigalda > Gaming > NVIDIA GeForce NOW_. Veel üks suurepärane viis mängida pealkirju, mis pole Linuxis natiivselt saadaval.
+Installi pilvemänguteenus [NVIDIA GeForce NOW](https://www.nvidia.com/en-us/geforce-now/), valides Omarchy menüüst (`Super + Space`) _Install > Gaming > NVIDIA GeForce NOW_. Veel üks suurepärane viis mängida mänge, mis pole Linuxis kohalikult saadaval.
 
  ![gaming-geforce-now](images/gaming-geforce-now.webp)
 
 ## Minecraft
 
-Paigalda Minecraft, valides Omarchy menüüst (`Super + Space`) _Paigalda > Gaming > Minecraft_.
+Installi Minecraft, valides Omarchy menüüst (`Super + Space`) _Install > Gaming > Minecraft_.
 
-Nagu Steam, pane tähele, et pärast sisselogimist või käivitamist võib järgmise ekraani ilmumine veidi aega võtta ja sa ei saa oodates mingit tagasisidet.
+Nagu Steami puhul, pea meeles, et pärast sisselogimist või käivitamist võib järgmise ekraani ilmumine aega võtta ja sa ei saa oodates mingit tagasisidet.
 
  ![gaming-minecraft](images/gaming-minecraft.webp)
 
-## Xbox kontrollerid
+## Xbox Controllers
 
-Paigalda Bluetooth Xbox kontrollerite tugi, valides Omarchy menüüst (`Super + Space`) _Paigalda > Gaming > Xbox Controllers_. Seo kontrollerid Bluetoothi kaudu (`Super + Ctrl + B`) ja need töötavad kõigis sinu mängudes. Seda pole vaja, kui ühendad kontrolleri lihtsalt USB-C kaabliga.
+Installi Bluetooth Xboxi kontrollerite tugi, valides Omarchy menüüst (`Super + Space`) _Install > Gaming > Xbox Controllers_. Seo kontrollerid Bluetoothi kaudu (`Super + Ctrl + B`) ja need töötavad kõigis su mängudes. Seda pole vaja, kui ühendad kontrolleri lihtsalt USB-C kaabliga.
 
-## Moonlight (mängu voogedastus arvutist)
+## Moonlight (mängude striimimine arvutist)
 
-[Moonlight klient](https://github.com/moonlight-stream/moonlight-qt) on Omarchysse eelpaigaldatud, nii et saad kohe voogedastada mänge Windowsi arvutist, kus töötab [Sunshine](https://app.lizardbyte.dev/Sunshine/). Käivita Moonlight kombinatsiooniga `Super + Space`.
+Installi [Moonlighti klient](https://github.com/moonlight-stream/moonlight-qt), valides Omarchy menüüst (`Super + Space`) _Install > Gaming > Moonlight_, ja saad striimida mänge Windowsi arvutist, kus töötab [Sunshine](https://app.lizardbyte.dev/Sunshine/).
 
-Kui nii sinu Omarchy masin kui ka kauge mänguarvuti on juhtmega ühendatud, on kogemus kohalikult mängimisest eristamatu. Keera eraldusvõime natiivsele, määra värskendus 120Hz-le ja maksimeeri bitikiirus — see on parim viis mängida Linuxis võistluslikke tulistamismänge nagu Fortnite.
+Kui nii sinu Omarchy masin kui ka kaugmänguarvuti on juhtmega ühendatud, ei erine kogemus kohalikult mängimisest. Keera eraldusvõime kohaliku tasemeni, sea värskendussageduseks 120Hz ja pane bitikiirus maksimumi — see on parim viis mängida Linuxis võistluslikke tulistamismänge nagu Fortnite.
 
-Saad Omarchy masina muuta ka hostiks, käivitades `omarchy install service sunshine`, mis paigaldab Sunshine'i ja avab Moonlighti voogedastuspordid sinu LAN-i ja Tailscale'i jaoks.
+Omarchy masina saad muuta ka hostiks, käivitades käsu `omarchy install service sunshine`, mis installib Sunshine'i ja avab Moonlighti striimimispordid sinu LAN-i ja Tailscale'i jaoks.
 
 ## Battle.net
 
-Paigalda [Battle.net](https://eu.shop.battle.net/en-us), valides Omarchy menüüst (`Super + Space`) _Paigalda > Gaming > Battle.net_. See annab sulle pealkirjad nagu Diablo, Starcraft ja World of Warcraft iseseisva paigaldusena, mis töötab GE-Protoni all — Steami, Lutrisit ega Heroicut pole vaja.
+Installi [Battle.net](https://eu.shop.battle.net/en-us), valides Omarchy menüüst (`Super + Space`) _Install > Gaming > Battle.net_. See annab sulle mängud nagu Diablo, Starcraft ja World of Warcraft eraldi installina, mis töötab GE-Protoni all — Steami, Lutrist ega Heroicut pole vaja.
 
  ![gaming-starcraft](images/gaming-starcraft.webp)
 
 ## Lutris (Windowsi mängud)
 
-Paigalda [Lutris](https://lutris.net/), valides Omarchy menüüst (`Super + Space`) _Paigalda > Gaming > Lutris_. Lutris on viis mängida Windowsi mänge poodidest nagu EA ja Ubisoft Connect, millel pole ülal oma paigaldajat.
+Installi [Lutris](https://lutris.net/), valides Omarchy menüüst (`Super + Space`) _Install > Gaming > Lutris_. Lutris on viis mängida Windowsi mänge poodidest nagu EA ja Ubisoft Connect, millel pole ülal oma installerit.
 
-Paigaldamine on veidi kohmakas ja tundub kohati, et midagi ei toimu — ole lihtsalt kannatlik, see töötab taustal.
+Installimine on natuke kohmakas ja kohati tundub, et midagi ei toimu — ole lihtsalt kannatlik, see töötab taustal.
 
 ## Heroic Launcher (Epic Games)
 
-Paigalda [Heroic Launcher](https://heroicgameslauncher.com/), valides Omarchy menüüst (`Super + Space`) _Paigalda > Gaming > Heroic (Epic Games)_. Heroic võimaldab sul käitada Epic Gamesi pealkirju, nagu OddSparks, mis ei tugine petmisvastasele — pluss mänge GOG-ist ja Amazon Prime Gamingust. Kahjuks tähendab see, et pole Fortnite'i ega Rocket League'i — kuni Tim Sweeney Linuxile tuleb, on see nii lähedal kui võimalik.
+Installi [Heroic Launcher](https://heroicgameslauncher.com/), valides Omarchy menüüst (`Super + Space`) _Install > Gaming > Heroic (Epic Games)_. Heroic laseb sul käitada Epic Gamesi mänge, nagu OddSparks, mis ei tugine petmisvastasele kaitsele — lisaks mänge GOG-ist ja Amazon Prime Gamingust. Kahjuks tähendab see, et ei mingit Fortnite'it ega Rocket League'i — kuni Tim Sweeney Linuxisse tuleb, on see parim, mis võimalik.
 
-Nagu Lutris, võib see mängude paigaldamise ajal tunduda aeglane ja kohmakas. Anna sellele aega.
+Nagu Lutrise puhul, võib see mängude installimisel tunduda aeglane ja kohmakas. Anna sellele aega.
