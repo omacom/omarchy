@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikony"
+  },
+  "install.style.icons": {
+    "label": "Ikony"
+  },
+  "remove.icons": {
+    "label": "Ikony"
+  },
+  "update.icons": {
+    "label": "Ikony navíc"
+  },
+  "system.firmware": {
+    "label": "Restart do BIOSu",
+    "description": "Restartovat do nastavení firmwaru UEFI"
   }
 }

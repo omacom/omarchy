@@ -1327,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Icones"
+  },
+  "install.style.icons": {
+    "label": "Icones"
+  },
+  "remove.icons": {
+    "label": "Icones"
+  },
+  "update.icons": {
+    "label": "Icones extra"
+  },
+  "system.firmware": {
+    "label": "Reiniciar a la BIOS",
+    "description": "Reiniciar a la configuració del microprogramari UEFI"
   }
 }

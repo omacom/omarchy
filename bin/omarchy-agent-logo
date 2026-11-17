@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# omarchy:summary=Print the path of an agent's or model vendor's logo, as the agents panel draws it
+# omarchy:args=<claude|codex|grok|vendor>
+# omarchy:hidden=true
+
+# The agents panel's own marks: the white logo, or its dark version under a
+# light theme where there is one. A vendor without a mark of its own gets the
+# local model's.
+id=${1:?Usage: omarchy-agent-logo <claude|codex|grok|vendor>}
+assets="$OMARCHY_PATH/shell/plugins/agents/assets"
+
+if [[ ! $id =~ ^[a-z0-9-]+$ || ! -f $assets/$id.svg ]]; then
+  id="local"
+fi
+
+if [[ $(omarchy-theme-color mode 2>/dev/null) == "light" && -f $assets/$id-light.svg ]]; then
+  printf '%s\n' "$assets/$id-light.svg"
+else
+  printf '%s\n' "$assets/$id.svg"
+fi
