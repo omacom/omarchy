@@ -1583,7 +1583,10 @@ Item {
 
             // The cards cannot see hover under this region, so they are told.
             function hoverAt(x, y) {
-              service.hoverX = x
+              // The region reaches past the deck; placements are the deck's.
+              var pt = hoverArea.mapToItem(deck, x, y)
+              y = pt.y
+              service.hoverX = pt.x
               service.hoverY = y
               var places = service.placements
               var found = ""
@@ -1639,7 +1642,7 @@ Item {
                 if (!place) continue
                 var top = place.y
                 var bottom = top + (service.heights[first.key] || Style.space(58))
-                if (mouse.y >= top - Style.space(6) && mouse.y <= bottom + Style.space(6)) {
+                if (service.hoverY >= top - Style.space(6) && service.hoverY <= bottom + Style.space(6)) {
                   // Opening another deck would hide the keyboard's card.
                   if (service.keyboardMode && decks[i].key !== service.openDeck) service.stopKeyboard()
                   service.pointerEntered(decks[i].key)
