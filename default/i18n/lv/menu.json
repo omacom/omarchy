@@ -664,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -1330,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Ikonas"
+  },
+  "install.style.icons": {
+    "label": "Ikonas"
+  },
+  "remove.icons": {
+    "label": "Ikonas"
+  },
+  "update.icons": {
+    "label": "Papildu ikonas"
+  },
+  "system.firmware": {
+    "label": "Restartēt uz BIOS",
+    "description": "Restartēt UEFI aparātprogrammatūras iestatījumos"
   }
 }

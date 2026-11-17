@@ -1,12 +1,12 @@
 # Motywy
 
-Omarchy zawiera dwadzieścia dwa piękne motywy. Możesz wybierać spośród nich przez _Wygląd > Motyw_ w Menu Omarchy (`Super + Space`) albo przejść bezpośrednio do wyboru motywu za pomocą `Super + Ctrl + T`.
+Omarchy zawiera dwadzieścia dwa piękne motywy. Możesz wybierać między nimi w sekcji _Wygląd > Motyw_ w menu Omarchy (`Super + Space`) albo przejść bezpośrednio do wyboru motywu za pomocą `Super + Ctrl + T`.
 
-Każdy motyw stylizuje pulpit, terminal, Neovim, ekran aktywności (btop), Chromium oraz całą powłokę Omarchy: górny pasek, menu, powiadomienia, OSD i ekran blokady. (W przypadku Obsidian musisz ręcznie wybrać motyw Omarchy przez _Wygląd > Motywy_ wewnątrz aplikacji).
+Każdy motyw nadaje styl pulpitowi, terminalowi, neovim, ekranowi aktywności (btop), Chromium oraz całej powłoce Omarchy: górnemu paskowi, menu, powiadomieniom, OSD i ekranowi blokady. (W przypadku Obsidian musisz ręcznie wybrać motyw Omarchy w sekcji _Wygląd > Motywy_ wewnątrz aplikacji).
 
 Motywy mają zestaw obrazów tła, spośród których możesz wybierać za pomocą `Super + Ctrl + W`.
 
-Jeszcze więcej motywów znajdziesz na [stronie z dodatkowymi motywami](https://omarchy.org/themes/), a możesz nawet [stworzyć własny motyw](43-making-your-own-theme.md).
+Jeszcze więcej motywów znajdziesz na [stronie z dodatkowymi motywami](https://omarchy.org/themes/), a nawet możesz [stworzyć własny motyw](43-making-your-own-theme.md).
 
  ![tokyo-night](../themes/tokyo-night/preview.png)
 _Tokyo Night_
@@ -65,9 +65,21 @@ _Catppuccin Latte_
  ![white](../themes/white/preview.png)
 _White_
 
-### Ekrany odblokowania
+### Ikony aplikacji
 
-Motywy mogą też mieć własny projekt ekranu odblokowania, który jest używany podczas procesu odszyfrowywania przy rozruchu. Możesz wybrać jeden z nich w _Wygląd > Odblokowanie_. Wyglądają tak:
+Ikony w programie uruchamiającym aplikacje i w docku są rysowane w kolorach Twojego motywu, więc zmieniają się wraz z nim. Pochodzą z zestawu ikon, który wybierasz niezależnie od motywu w sekcji _Wygląd > Ikony_, na podstawie podglądów każdego zestawu, w ten sam sposób, w jaki wybierasz motyw:
+
+- _Papercraft_ to zestaw domyślny: wszystko, co jest zainstalowane, narysowane w jednym stylu. Aplikacje znane z logo, takie jak Chrome, HEY czy YouTube, zachowują jego kształt i przybierają kolory motywu.
+- _Arcade_ rysuje te same aplikacje jako 8-bitową grafikę pikselową, jak na starej konsoli do gier.
+- _Original_ pokazuje każdą aplikację z ikoną nadaną jej przez twórcę.
+
+Możesz zainstalować zestaw ikon stworzony przez kogoś innego w sekcji _Instalacja > Styl > Ikony_ (lub za pomocą `omarchy icons install <git url>`), a usunąć go ponownie w sekcji _Usuwanie > Ikony_. _Aktualizacja > Dodatkowe ikony_ pobiera najnowszą wersję zainstalowanych zestawów.
+
+Aby stworzyć własny zestaw, umieść ikony w `~/.config/omarchy/icons/<name>/`, po jednym pliku na aplikację, nazwanym zgodnie z wierszem `Icon=` w pliku `.desktop` aplikacji. Plik z końcówką `.svg` jest wyświetlany tak, jak jest. Plik z końcówką `.svg.tpl` jest rysowany w kolorach motywu: wpisz `{{ icon_main }}`, `{{ icon_mark }}`, `{{ icon_paper }}`, `{{ icon_body }}`, `{{ icon_edge }}`, `{{ icon_ink }}` lub `{{ icon_shadow }}` tam, gdzie ma się znaleźć kolor. Dobrym punktem wyjścia jest domyślny zestaw w `/usr/share/omarchy/icons/papercraft/`. Dodaj plik `preview.png`, aby pokazać swój zestaw w selektorze; bez niego Omarchy narysuje podgląd na podstawie Twoich ikon. Aby zmienić pojedynczą ikonę zestawu domyślnego, umieść swoją wersję w `~/.config/omarchy/icons/papercraft/`.
+
+### Odblokowywanie
+
+Motywy mogą mieć także własny projekt odblokowywania, używany podczas procesu odszyfrowywania przy rozruchu. Możesz wybrać jeden z nich w sekcji _Wygląd > Odblokowywanie_. Wyglądają tak:
 
  ![catppuccin](../themes/catppuccin/preview-unlock.png)
 _Catppuccin_

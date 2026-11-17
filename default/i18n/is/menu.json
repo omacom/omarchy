@@ -664,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -1330,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Tákn"
+  },
+  "install.style.icons": {
+    "label": "Tákn"
+  },
+  "remove.icons": {
+    "label": "Tákn"
+  },
+  "update.icons": {
+    "label": "Aukatákn"
+  },
+  "system.firmware": {
+    "label": "Endurræsa í BIOS",
+    "description": "Endurræsa í UEFI-vélbúnaðaruppsetningu"
   }
 }

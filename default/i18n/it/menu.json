@@ -664,9 +664,6 @@
   "install.service.dropbox": {
     "label": "Dropbox"
   },
-  "install.service.spotify": {
-    "label": "Spotify"
-  },
   "install.service.signal": {
     "label": "Signal"
   },
@@ -1330,5 +1327,21 @@
   },
   "remove.browser.chromium": {
     "label": "Chromium"
+  },
+  "appearance.icons": {
+    "label": "Icone"
+  },
+  "install.style.icons": {
+    "label": "Icone"
+  },
+  "remove.icons": {
+    "label": "Icone"
+  },
+  "update.icons": {
+    "label": "Icone aggiuntive"
+  },
+  "system.firmware": {
+    "label": "Riavvia nel BIOS",
+    "description": "Riavvia nelle impostazioni del firmware UEFI"
   }
 }

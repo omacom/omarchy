@@ -1106,6 +1106,10 @@ ShellRoot {
       for (var id in shell._pluginAppLibraryApis)
         shell._pluginAppLibraryApis[id].appsChanged()
     }
+    function onRemovalNeedsTerminal() {
+      for (var id in shell._pluginAppLibraryApis)
+        shell._pluginAppLibraryApis[id].removalNeedsTerminal()
+    }
   }
 
   // Writes inline settings to a bar layout entry or top-level plugin entry in
