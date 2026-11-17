@@ -84,7 +84,13 @@ pass "repair quarantines reformatted broad grants and preserves custom permanent
     cleanup_all_locked include-permanent
     [[ $(cat "$file") == "$policy" ]] || fail "repair altered safe custom policy: $policy"
   done
-  for policy in 'audituser ALL=(ALL) NOPASSWD: EXTERNAL' 'audituser ALL=(ALL) NOPASSWD:'; do
+  for policy in \
+    'audituser ALL=(ALL) NOPASSWD: EXTERNAL' \
+    'audituser ALL=(ALL) NOPASSWD:' \
+    $'Defaults:audituser !authenticate\naudituser ALL=(ALL) ALL' \
+    $'Defaults !authenticate\naudituser ALL=(ALL) ALL' \
+    $'Defaults>root !authenticate\naudituser ALL=(ALL) ALL' \
+    $'Defaults!/usr/bin/true !authenticate\naudituser ALL=(ALL) ALL'; do
     printf '%s\n' "$policy" >"$file"
     assert_status 1 migrate_locked
     [[ ! -e $MIGRATION_MARKER && -f $file ]] || fail "incomplete policy was certified or discarded"
