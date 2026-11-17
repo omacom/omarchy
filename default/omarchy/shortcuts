@@ -26,6 +26,7 @@ panel omarchy.clock
 panel omarchy.elsewhen
 panel omarchy.network
 panel omarchy.power
+panel omarchy.agents
 audio raise
 audio lower
 audio mute-toggle
@@ -34,6 +35,7 @@ brightness lower
 ipc media.playPause
 ipc media.next
 ipc media.previous
+ipc notifications.act
 ipc notifications.dismissOne
 ipc notifications.dismissAll
 ipc notifications.invokeLast

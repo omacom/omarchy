@@ -19,6 +19,7 @@ const files = [
   [home, '.icons/theme/apps/shared.png'],
   [home, '.icons/theme/apps/local.svg'],
   [home, '.local/share/icons/theme/devices/printer.svg'],
+  ...['32x32', '256x256', '24x24', '128x128', '48x48'].map(size => [home, `.local/share/icons/hicolor/${size}/apps/steam_icon_1.png`]),
   [local, 'icons/theme/apps/shared.svg'],
   [local, 'icons/theme/apps/pngonly.png'],
   [system, 'icons/theme/apps/shared.svg'],
@@ -63,6 +64,7 @@ assert(lines.slice(firstPng).every(value => value.endsWith('.png')), 'no SVG ico
 const shared = lines.filter(value => path.basename(value).startsWith('shared.'))
 assertDeepEqual(shared, [path.join(local, 'icons/theme/apps/shared.svg'), path.join(system, 'icons/theme/apps/shared.svg'), path.join(home, '.icons/theme/apps/shared.png')], 'scan preserves format preference and XDG directory precedence')
 assertDeepEqual(lines.filter(value => path.basename(value) === 'pngonly.png'), [path.join(local, 'icons/theme/apps/pngonly.png'), path.join(system, 'icons/theme/apps/pngonly.png')], 'scan preserves directory precedence for PNG-only icons')
+assertDeepEqual(lines.filter(value => path.basename(value) === 'steam_icon_1.png').map(value => value.split('/').at(-3)), ['256x256', '128x128', '48x48', '32x32', '24x24'], 'PNG-only icons list their largest size first')
 assert(lines.includes(path.join(system, 'icons/theme/apps/name with spaces.png')), 'scan preserves spaces in filenames')
 const roots = fs.readFileSync(calls, 'utf8').trim().split('\n')
 assertEqual(new Set(roots).size, 5, 'scan visits all icon roots and pixmaps')
