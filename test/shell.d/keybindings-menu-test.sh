@@ -256,6 +256,40 @@ grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' "$tmpdir"/cache/omarchy/
   fail "picking the terminal bind from the menu launches a terminal" "$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)"
 pass "picking the terminal bind from the menu launches a terminal"
 
+# Hyprland 0.57 names a Lua bind by what it was bound to, HL.Dispatcher(<name>)
+# or function: 0x..., with a display-only number as its arg, so picking a row
+# has to run what the Lua source says, never that name and number.
+reported_bind() {
+  printf 'bind\n\tmodmask: %s\n\tsubmap: \n\tkey: %s\n\tkeycode: 0\n\tcatchall: false\n\tdescription: %s\n\tdispatcher: %s\n\targ: %s\n' "$@"
+}
+
+stub_hyprctl <<BINDS
+$(reported_bind 64 "SPACE" "Omarchy menu" "HL.Dispatcher(global)" 371)
+$(reported_bind 64 "W" "Close window" "HL.Dispatcher(close)" 101)
+$(reported_bind 64 "Q" "Close window" "HL.Dispatcher(close)" 102)
+$(reported_bind 64 "RETURN" "Terminal" "function: 0x55c70da57d20" 18)
+$(reported_bind 68 "Z" "Zoom in" "function: 0x55c70a0f8e10" 175)
+$(reported_bind 0 "switch:on:Lid Switch" "" "HL.Dispatcher(exec_cmd)" 77)
+$(reported_bind 0 "" "Only Hyprland knows" "HL.Dispatcher(close)" 103)
+BINDS
+
+rm -rf "$tmpdir/cache"
+rendered=$(keybindings)
+records=$(cat "$tmpdir"/cache/omarchy/keybindings-*.records)
+grep -qP '→ Omarchy menu\tlua\thl\.dsp\.global\("omarchy:menu\.root"\)$' <<<"$records" ||
+  fail "picking an hl.dsp bind Hyprland names HL.Dispatcher runs it" "$records"
+grep -qP '→ Terminal\texec\tomarchy-launch-terminal$' <<<"$records" ||
+  fail "picking a Lua function Hyprland names by address runs its command" "$records"
+grep -qP '→ Zoom in\t\t$' <<<"$records" && grep -qP '→ Only Hyprland knows\t\t$' <<<"$records" ||
+  fail "a Lua bind the config does not explain runs nothing" "$records"
+! grep -qE 'HL\.Dispatcher|function: 0x' <<<"$records" ||
+  fail "no row runs the name and number Hyprland reports for a Lua bind" "$records"
+! grep -q 'Lid Switch' <<<"$rendered" ||
+  fail "a Lua bind without a description stays hidden" "$rendered"
+grep -q '^SUPER + W / SUPER + Q  *→ Close window$' <<<"$rendered" ||
+  fail "the two Close window chords still share a row" "$rendered"
+pass "picking a row runs its bind when Hyprland names Lua binds HL.Dispatcher or by address"
+
 # A plugin that walks the window list while it loads must not wedge the scan,
 # and the binds after it must still be recovered from the Lua source.
 {
