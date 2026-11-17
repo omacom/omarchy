@@ -10,6 +10,7 @@ import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
 import "BarModel.js" as BarModel
+import "../../Commons/BarSizes.js" as BarSizes
 
 Item {
   id: root
@@ -227,10 +228,7 @@ Item {
     api.position = Qt.binding(function() { return root.position })
     api.vertical = Qt.binding(function() { return root.vertical })
     api.barSize = Qt.binding(function() { return root.barSize })
-    api.barSizes = Qt.binding(function() {
-      return root.shell && typeof root.shell.detachedBarSizes === "function"
-        ? root.shell.detachedBarSizes(root.screenBarSizes) : ({})
-    })
+    api.barSizes = Qt.binding(function() { return BarSizes.detached(root.screenBarSizes) })
     api.transparent = Qt.binding(function() { return root.transparent })
     api.foregroundAnimationEnabled = Qt.binding(function() { return root.foregroundAnimationEnabled })
     api.traySectionDragActive = Qt.binding(function() { return root.traySectionDragActive })
@@ -765,7 +763,7 @@ Item {
   }
 
   function barSizeFor(screenName) {
-    return BarModel.barSizeFor(root.screenBarSizes, screenName, root.barSize)
+    return BarSizes.sizeFor(root.screenBarSizes, screenName, root.barSize)
   }
 
   function normalizePosition(value) {

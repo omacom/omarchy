@@ -644,15 +644,6 @@ function cutoutPending(cutouts, position, screenName, logicalWidth, logicalHeigh
   return described && !(cutoutTop(cutouts, screenName, logicalWidth, logicalHeight, devicePixelRatio, mode) > 0)
 }
 
-// The bar's thickness on the screen with this name, from the sizes a bar
-// publishes by screen name, or `fallback` (its configured size) for a screen
-// it has none for.
-function barSizeFor(sizes, screenName, fallback) {
-  var name = String(screenName || "")
-  var size = sizes && Object.prototype.hasOwnProperty.call(sizes, name) ? Number(sizes[name]) : 0
-  return size > 0 ? size : fallback
-}
-
 // Whether a workspace holds a real fullscreen window, which fades the bar out
 // and has to take the clicks along its edge. Hyprland reports a maximized
 // window as fullscreen 1 and a real one with bit 2 set; only the latter hides
@@ -670,7 +661,6 @@ function fullscreenOn(toplevels, workspaceId) {
 
 if (typeof module !== "undefined") {
   module.exports = {
-    barSizeFor: barSizeFor,
     fullscreenOn: fullscreenOn,
     centerBesideRight: centerBesideRight,
     cutoutPending: cutoutPending,

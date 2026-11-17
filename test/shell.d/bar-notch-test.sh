@@ -7,6 +7,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const fs = require('fs')
 const bar = requireFromRoot('shell/plugins/bar/BarModel.js')
+const barSizes = requireFromRoot('shell/Commons/BarSizes.js')
 
 // A platform package's cutout description, as it would ship it.
 const cutouts = bar.parseCutouts(JSON.stringify({ panels: [
@@ -111,40 +112,31 @@ for (const position of ['bottom', 'left', 'right'])
 // publishes each screen's thickness by name from the same calculation its
 // surfaces use; barSize stays the configured size the widgets are drawn at.
 const sizes = { 'eDP-1': 40, 'DP-1': 26 }
-assertEqual(bar.barSizeFor(sizes, 'eDP-1', 26), 40, 'a notch screen reports its floored thickness')
-assertEqual(bar.barSizeFor(sizes, 'DP-1', 26), 26, 'another screen reports its own')
-assertEqual(bar.barSizeFor(sizes, 'HDMI-A-1', 26), 26, 'a screen without a surface falls back to the configured size')
-assertEqual(bar.barSizeFor({}, 'eDP-1', 26), 26, 'no published sizes fall back to the configured size')
-assertEqual(bar.barSizeFor(sizes, 'constructor', 26), 26, 'inherited object keys are no screen')
+assertEqual(barSizes.sizeFor(sizes, 'eDP-1', 26), 40, 'a notch screen reports its floored thickness')
+assertEqual(barSizes.sizeFor(sizes, 'DP-1', 26), 26, 'another screen reports its own')
+assertEqual(barSizes.sizeFor(sizes, 'HDMI-A-1', 26), 26, 'a screen without a surface falls back to the configured size')
+assertEqual(barSizes.sizeFor({}, 'eDP-1', 26), 26, 'no published sizes fall back to the configured size')
+assertEqual(barSizes.sizeFor(sizes, 'constructor', 26), 26, 'inherited object keys are no screen')
 
-// The plugin facade copies the sizes, holding no reference into the bar.
-const shellSource = fs.readFileSync(root + '/shell/shell.qml', 'utf8')
-const stateApiSource = fs.readFileSync(root + '/shell/services/PluginBarStateApi.qml', 'utf8')
+// The facades copy the sizes, holding no reference into the bar.
+const live = { 'eDP-1': 40, 'DP-1': 26, broken: 'x', none: 0 }
+const copy = barSizes.detached(live)
+assertDeepEqual(copy, { 'eDP-1': 40, 'DP-1': 26 }, 'the plugin facade copies each screen\'s thickness')
+assert(copy !== live, 'the copy is detached from the bar\'s map')
+assertDeepEqual(barSizes.detached(undefined), {}, 'a bar without per-screen sizes gives an empty map')
+
+// Both facades answer from the same function.
 const extract = (source, name) => {
   const match = source.match(new RegExp(`function ${name}\\((\\w+)\\) \\{([\\s\\S]*?)\\n  \\}\\n`))
   assert(match, `${name} is defined`)
   return match
 }
-const detached = extract(shellSource, 'detachedBarSizes')
-const Util = { isPlainObject: value => value !== null && typeof value === 'object' && !Array.isArray(value) }
-const detachedBarSizes = new Function('Util', detached[1], detached[2])
-const live = { 'eDP-1': 40, 'DP-1': 26, broken: 'x', none: 0 }
-const copy = detachedBarSizes.call(null, Util, live)
-assertDeepEqual(copy, { 'eDP-1': 40, 'DP-1': 26 }, 'the plugin facade copies each screen\'s thickness')
-assert(copy !== live, 'the copy is detached from the bar\'s map')
-assertDeepEqual(detachedBarSizes.call(null, Util, undefined), {}, 'a bar without per-screen sizes gives an empty map')
-
-const apiFor = extract(stateApiSource, 'barSizeFor')
-const stateBarSizeFor = (sizes, size, name) => new Function('BarModel', 'barSizes', 'barSize', apiFor[1], apiFor[2])(bar, sizes, size, name)
-assertEqual(stateBarSizeFor(copy, 26, 'eDP-1'), 40, 'a plugin reads a notch screen\'s thickness')
-assertEqual(stateBarSizeFor(copy, 26, 'HDMI-A-1'), 26, 'a plugin falls back to barSize for a screen with none')
-assertEqual(stateBarSizeFor({}, 26, 'eDP-1'), 26, 'a plugin under a bar without per-screen sizes gets barSize')
-
-// A third-party bar widget's facade answers the same way, so its panels hang
-// below the notch floor like the built-in ones.
-const widgetApiSource = fs.readFileSync(root + '/shell/Ui/PluginBarApi.qml', 'utf8')
-const widgetApiFor = extract(widgetApiSource, 'barSizeFor')
-const widgetBarSizeFor = (sizes, size, name) => new Function('BarModel', 'barSizes', 'barSize', widgetApiFor[1], widgetApiFor[2])(bar, sizes, size, name)
-assertEqual(widgetBarSizeFor(copy, 26, 'eDP-1'), 40, 'a bar widget reads a notch screen\'s thickness')
-assertEqual(widgetBarSizeFor(copy, 26, 'HDMI-A-1'), 26, 'a bar widget falls back to barSize for a screen with none')
+for (const [file, who] of [['shell/services/PluginBarStateApi.qml', 'a plugin'], ['shell/Ui/PluginBarApi.qml', 'a bar widget']]) {
+  const source = fs.readFileSync(root + '/' + file, 'utf8')
+  const fn = extract(source, 'barSizeFor')
+  const facadeBarSizeFor = (sizes, size, name) => new Function('BarSizes', 'barSizes', 'barSize', fn[1], fn[2])(barSizes, sizes, size, name)
+  assertEqual(facadeBarSizeFor(copy, 26, 'eDP-1'), 40, `${who} reads a notch screen's thickness`)
+  assertEqual(facadeBarSizeFor(copy, 26, 'HDMI-A-1'), 26, `${who} falls back to barSize for a screen with none`)
+  assertEqual(facadeBarSizeFor({}, 26, 'eDP-1'), 26, `${who} under a bar without per-screen sizes gets barSize`)
+}
 JS

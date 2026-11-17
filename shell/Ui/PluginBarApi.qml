@@ -1,5 +1,5 @@
 import QtQuick
-import "../plugins/bar/BarModel.js" as BarModel
+import "../Commons/BarSizes.js" as BarSizes
 
 // Bar surface exposed to an installed third-party widget. Scalar presentation
 // state is mirrored by Bar.qml and operations are delegated through scoped
@@ -50,7 +50,7 @@ QtObject {
   // PopupCard hang their cards from this, so without it a third-party
   // widget's panel opens over the notch floor instead of below it.
   function barSizeFor(screenName) {
-    return BarModel.barSizeFor(barSizes, screenName, barSize)
+    return BarSizes.sizeFor(barSizes, screenName, barSize)
   }
 
   function showTooltip(target, text) {
