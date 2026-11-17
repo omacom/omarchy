@@ -297,13 +297,9 @@ local function moved(window, x, y)
   if zone and zone ~= drag.candidate and not takes(window, zone, monitor) then
     zone = nil -- no outline for a tile it can't fill
   end
-  if zone == drag.candidate and (not monitor or monitor.name == drag.candidate_monitor) then
-    return
-  end
-
-  drag.candidate, drag.candidate_monitor = zone, monitor and monitor.name
-  drag.generation = drag.generation + 1
-  drag.zone = nil
+  -- Monitors of different sizes share only part of an edge, so the pointer can
+  -- go from an outer part to a shared one without leaving the zone.
+  local shared = false
   if zone then
     local list, boxes = monitors()
     local others = {}
@@ -312,17 +308,25 @@ local function moved(window, x, y)
         table.insert(others, boxes[i])
       end
     end
-    if G.shared_side(zone, monitor_box(monitor), others, { x = x, y = y }) then
-      local current, generation = drag, drag.generation
-      hl.timer(function()
-        if drag == current and current.generation == generation then
-          current.zone, current.monitor = zone, monitor.name
-          show(current)
-        end
-      end, { type = "oneshot", timeout = SHARED_EDGE_PAUSE_MS })
-    else
-      drag.zone, drag.monitor = zone, monitor.name
-    end
+    shared = G.shared_side(zone, monitor_box(monitor), others, { x = x, y = y })
+  end
+  if zone == drag.candidate and (not monitor or monitor.name == drag.candidate_monitor) and shared == drag.candidate_shared then
+    return
+  end
+
+  drag.candidate, drag.candidate_monitor, drag.candidate_shared = zone, monitor and monitor.name, shared
+  drag.generation = drag.generation + 1
+  drag.zone = nil
+  if zone and shared then
+    local current, generation = drag, drag.generation
+    hl.timer(function()
+      if drag == current and current.generation == generation then
+        current.zone, current.monitor = zone, monitor.name
+        show(current)
+      end
+    end, { type = "oneshot", timeout = SHARED_EDGE_PAUSE_MS })
+  elseif zone then
+    drag.zone, drag.monitor = zone, monitor.name
   end
   show(drag)
 end

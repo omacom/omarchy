@@ -1050,6 +1050,42 @@ assert(left.size.x == 1261, "closing a half changed the other one")
 fi
 pass "closing a quarter gives its space back to the window sharing its half"
 
+# A drag that enters an edge where nothing is beside it, then slides along it to
+# where another monitor is, still pauses there: a laptop (1280x720) to the left
+# shares only the top of this monitor's left edge.
+if ! run_lua "$snap_setup"'
+local s = state()
+local laptop = { name = "eDP-1", x = -1280, y = 0, width = 1280, height = 720, scale = 1, transform = 0,
+  reserved = { left = 0, top = 30, right = 0, bottom = 0 }, active_workspace = { id = 1 } }
+local big = hl.get_monitors()[1]
+hl.get_monitors = function() return { big, laptop } end
+hl.get_monitor_at = function(x) if x < 0 then return laptop end return big end
+hl.get_monitor = function(name) if name == laptop.name then return laptop end return big end
+local queued = {}
+hl.timer = function(callback) table.insert(queued, callback) end
+local dragged = snap_window("0x1", 1)
+local function emit(event, ...) for _, callback in ipairs(s.subscriptions[event]) do callback(...) end end
+local function outlines()
+  local found = {}
+  for _, action in ipairs(dispatched) do if action.kind == "event" then table.insert(found, action.name) end end
+  return found
+end
+
+dispatched = {}
+emit("hyprbars.drag_start", dragged, 1280, 1000)
+emit("hyprbars.drag_move", dragged, 4, 1000)
+assert(outlines()[1] == "snap-preview DP-1 10 40 1265 1390", "below the laptop the edge snaps at once")
+emit("hyprbars.drag_move", dragged, 4, 500)
+local shown = outlines()
+assert(shown[#shown] == "snap-preview none", "beside the laptop the outline waits for the pause: " .. table.concat(shown, ", "))
+emit("hyprbars.drag_end", dragged, 4, 500)
+for _, callback in ipairs(queued) do callback() end
+assert(not find("place"), "let go beside the laptop before the pause, the window snapped anyway")
+'; then
+  fail "sliding along an edge into the part another monitor shares still pauses"
+fi
+pass "sliding along an edge into the part another monitor shares still pauses"
+
 # A tile a window can't fill leaves it alone: no move, no flicker.
 if ! run_lua "$snap_setup"'
 focused = snap_window("0x1", 1)
