@@ -4,6 +4,48 @@ local paths = require("default.hypr.paths")
 
 o = o or {}
 
+-- Hyprland's immediate property refresh can run before the input manager exists.
+-- A pending device property (a keyboard layout, say) then reaches
+-- CInputManager::setKeyboardLayout() on a null manager and takes the session
+-- down. Hold the refresh until Hyprland is up; afterwards it runs unchanged.
+--
+-- The guard lives here because every config loads helpers before the modules
+-- that call the API, including user modules that call it at load time. Its
+-- state is global rather than module-local: bootstrap.lua drops Omarchy modules
+-- from package.loaded on reload, but hyprland.start does not fire again. That
+-- also means a guard first installed by a reload into a running session cannot
+-- wait for the start event; an active monitor is the signal it is already up.
+local refresh_guard = _G.omarchy_prop_refresh_guard
+if not refresh_guard and hl and type(hl.on) == "function"
+  and type(hl.exec_scheduled_prop_refresh_immediately) == "function" then
+  local running = type(hl.get_active_monitor) == "function" and hl.get_active_monitor() ~= nil
+  refresh_guard = {
+    original = hl.exec_scheduled_prop_refresh_immediately,
+    started = running,
+    pending = false,
+  }
+  _G.omarchy_prop_refresh_guard = refresh_guard
+
+  hl.exec_scheduled_prop_refresh_immediately = function()
+    if refresh_guard.started then
+      refresh_guard.original()
+      return
+    end
+
+    refresh_guard.pending = true
+  end
+
+  if not running then
+    hl.on("hyprland.start", function()
+      refresh_guard.started = true
+      if refresh_guard.pending then
+        refresh_guard.pending = false
+        refresh_guard.original()
+      end
+    end)
+  end
+end
+
 local function shell_quote(value)
   return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
 end

@@ -12,6 +12,7 @@ require_command lua
 # themselves rather than leaving the pass below to run regardless.
 OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "the console is a centered panel until a second app joins it"
 local rules, handlers, spawned = {}, {}, {}
+local refreshes = 0
 local monitor = nil
 local workspace = nil
 
@@ -30,12 +31,25 @@ hl = {
     for _ = 1, workspace and workspace.floats or 0 do table.insert(list, { floating = true }) end
     return list
   end,
-  exec_scheduled_prop_refresh_immediately = function() end,
+  exec_scheduled_prop_refresh_immediately = function() refreshes = refreshes + 1 end,
   exec_cmd = function(cmd, rules) table.insert(spawned, { cmd = cmd, rules = rules }) end,
 }
 
 dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
 require("default.hypr.qconsole")
+
+-- The immediate refresh dereferences an input manager that does not exist until
+-- startup. The shared guard holds it back, flushes one pending call on
+-- hyprland.start, and lets later calls through untouched.
+assert(_G.omarchy_prop_refresh_guard ~= nil, "the refresh guard is installed")
+assert(refreshes == 0, "nothing refreshes while config is still loading")
+hl.exec_scheduled_prop_refresh_immediately()
+assert(refreshes == 0, "a load-time refresh is deferred")
+handlers["hyprland.start"]()
+assert(refreshes == 1, "the deferred refresh runs once on start")
+hl.exec_scheduled_prop_refresh_immediately()
+assert(refreshes == 2, "refreshes after start run immediately")
 
 local function current()
   return rules[#rules]
@@ -284,3 +298,26 @@ assert(left == 435 and right == 435, "moving it back off recenters the panel")
 assert(handlers["window.close"] == nil, "window.close counts the window on its way out")
 LUA
 pass "the console is a centered panel until a second app joins it"
+
+# A guard first installed by hyprctl reload in a running session cannot wait
+# for hyprland.start: that event already fired. An active monitor is the signal
+# startup is done, so refreshes must run immediately with no start handler.
+OMARCHY_PATH="$ROOT" lua - <<'LUA' || fail "the refresh guard handles a reload into a running session"
+local start_handler = false
+local refreshes = 0
+hl = {
+  on = function(event)
+    if event == "hyprland.start" then start_handler = true end
+  end,
+  get_active_monitor = function() return { name = "eDP-1" } end,
+  exec_scheduled_prop_refresh_immediately = function() refreshes = refreshes + 1 end,
+}
+
+dofile(os.getenv("OMARCHY_PATH") .. "/default/hypr/bootstrap.lua")
+require("default.hypr.helpers")
+
+assert(not start_handler, "no start handler is needed once Hyprland is already up")
+hl.exec_scheduled_prop_refresh_immediately()
+assert(refreshes == 1, "a refresh in a running session runs immediately")
+LUA
+pass "the refresh guard handles a reload into a running session"
