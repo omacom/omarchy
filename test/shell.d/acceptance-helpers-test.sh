@@ -107,3 +107,44 @@ touch "$test_tmp/fail-once"
 wait_until "transient capture failure is retried" 3 screen_contains "Visible text"
 [[ -z $(find "$ARTIFACTS" -name 'wait.*.log' -print -quit) ]] || fail "polling cleans its temporary log"
 pass "polling cleans its temporary log"
+
+# Exercise the real callers in the conditional context used by their runners.
+source <(sed -n '/^launch_and_verify() {$/,/^}$/p' "$ROOT/test/acceptance.d/apps-test.sh")
+source <(sed -n '/^open_and_capture_panel() {$/,/^}$/p' "$ROOT/test/acceptance.d/panels-test.sh")
+(
+  sleep() { :; }
+  launch_app() { touch "$test_tmp/window"; }
+  window_present() { [[ -e $test_tmp/window ]]; }
+  close_windows() { rm -f "$test_tmp/window"; }
+  layer_present() { [[ -e $test_tmp/panel ]]; }
+  layer_absent() { [[ ! -e $test_tmp/panel ]]; }
+  omarchy-shell() {
+    if [[ $2 == "summon" ]]; then
+      touch "$test_tmp/panel"
+    else
+      rm -f "$test_tmp/panel"
+    fi
+  }
+
+  for capture in failed successful; do
+    if [[ $capture == "failed" ]]; then
+      touch "$test_tmp/fail"
+    else
+      rm "$test_tmp/fail"
+    fi
+    for check in launch_and_verify open_and_capture_panel; do
+      status=0
+      if ! ("$check" fixture fixture fixture >"$test_tmp/caller.log" 2>&1); then
+        status=1
+      fi
+      [[ ! -e $test_tmp/window && ! -e $test_tmp/panel ]] ||
+        fail "$check cleans up after a $capture capture" "$(cat "$test_tmp/caller.log")"
+      if [[ $capture == "failed" ]]; then
+        (( status != 0 )) || fail "$check rejects a failed capture" "$(cat "$test_tmp/caller.log")"
+      else
+        (( status == 0 )) || fail "$check accepts a successful capture" "$(cat "$test_tmp/caller.log")"
+      fi
+      pass "$check preserves cleanup and the $capture capture result"
+    done
+  done
+) || exit 1

@@ -42,10 +42,12 @@ open_and_capture_panel() {
   omarchy-shell shell summon "$plugin" >/dev/null
   wait_until "$name panel opens" 15 layer_present "omarchy-keyboard-panel"
   sleep 1
-  screenshot "success-panel-$name"
+  local capture_status=0
+  screenshot "success-panel-$name" || capture_status=$?
 
   omarchy-shell shell hide "$plugin" >/dev/null
   wait_until "$name panel closes" 15 layer_absent "omarchy-keyboard-panel"
+  return "$capture_status"
 }
 
 # Give weather deterministic coordinates so this test exercises the real
