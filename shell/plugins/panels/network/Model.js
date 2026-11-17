@@ -434,6 +434,22 @@ var enterpriseConnectScript =
   " && nmcli connection up uuid \"$u\"" +
   " || { nmcli connection delete uuid \"$u\" >/dev/null 2>&1; false; }"
 
+// WifiNetwork.forget() only removes the one profile NetworkManager currently
+// associates with the live network object. A prior failed attempt (or a
+// stale interface binding) can leave a second saved profile for the same
+// SSID, which forget() never touches -- the network keeps showing as known
+// afterward (#16006). Delete every saved profile with this SSID by name,
+// not by the one object Quickshell knows about. The SSID never reaches nmcli
+// as an argument to a shell-interpreted string -- it is $1, read by argv --
+// and the profile's stored SSID is unescaped before comparing, since nmcli's
+// terse output backslash-escapes ":" and "\" in field values.
+var forgetWifiProfilesScript =
+  "nmcli -t -f UUID,TYPE connection show | while IFS=: read -r uuid type; do" +
+  " [ \"$type\" = 802-11-wireless ] || continue;" +
+  " saved=$(nmcli -g 802-11-wireless.ssid connection show uuid \"$uuid\" | sed 's/\\\\\\(.\\)/\\1/g');" +
+  " [ \"$saved\" = \"$1\" ] && nmcli connection delete uuid \"$uuid\";" +
+  " done; true"
+
 function networkFailureReason(reason, needsCredentials, reasons, tr) {
   var t = typeof tr === "function" ? tr : function(key, english) { return english }
   var r = reasons || {}
@@ -490,6 +506,7 @@ if (typeof module !== "undefined") {
     requiresCredentials: requiresCredentials,
     canForgetNetwork: canForgetNetwork,
     enterpriseConnectScript: enterpriseConnectScript,
+    forgetWifiProfilesScript: forgetWifiProfilesScript,
     networkFailureReason: networkFailureReason,
     shouldRepromptPassphrase: shouldRepromptPassphrase
   }

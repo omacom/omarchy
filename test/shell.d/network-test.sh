@@ -231,6 +231,44 @@ assertEqual(network.canForgetNetwork({ known: true, connected: false, security: 
 assertEqual(network.canForgetNetwork({ known: false, connected: false, security: security.Owe }), false, 'network cannot forget unknown networks')
 assertEqual(network.canForgetNetwork({ known: true, connected: true, security: security.Owe }), false, 'network cannot forget the connected network')
 
+// A prior failed attempt can leave a duplicate saved profile for the same
+// SSID, which WifiNetwork.forget() (one object, one profile) never reaches
+// (#16006). forgetWifiProfilesScript must delete every 802-11-wireless
+// profile with the given SSID, by name, and leave other profiles alone.
+{
+  const { execFileSync } = require('child_process')
+  const os = require('os')
+  const mockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nmcli-mock-'))
+  const log = path.join(mockDir, 'deleted.log')
+  fs.writeFileSync(path.join(mockDir, 'nmcli'), `#!/bin/bash
+if [[ "$1 $2 $3" == "-t -f UUID,TYPE" ]]; then
+  printf 'uuid-1:802-11-wireless\\nuuid-2:802-11-wireless\\nuuid-3:802-11-wireless\\nuuid-4:vpn\\n'
+  exit 0
+fi
+if [[ "$1 $2 $3 $4 $5" == "-g 802-11-wireless.ssid connection show uuid" ]]; then
+  case "$6" in
+    uuid-1) printf 'Port O\\\\:Call\\n';;
+    uuid-2) printf 'Port O\\\\:Call\\n';;
+    uuid-3) printf 'Other Network\\n';;
+  esac
+  exit 0
+fi
+if [[ "$1 $2 $3" == "connection delete uuid" ]]; then
+  echo "$4" >> "${log}"
+  exit 0
+fi
+echo "unhandled mock nmcli call: $*" >&2
+exit 1
+`, { mode: 0o755 })
+
+  execFileSync('bash', ['-c', network.forgetWifiProfilesScript, 'nmcli-forget', 'Port O:Call'], {
+    env: Object.assign({}, process.env, { PATH: mockDir + path.delimiter + process.env.PATH })
+  })
+  const deleted = fs.readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).sort()
+  assertDeepEqual(deleted, ['uuid-1', 'uuid-2'], 'forgetWifiProfilesScript deletes every saved profile for the SSID, not just one')
+  fs.rmSync(mockDir, { recursive: true, force: true })
+}
+
 assertEqual(network.shouldRepromptPassphrase(reasons.NoSecrets, true, reasons), true, 'network reprompts when required credentials are missing')
 assertEqual(network.shouldRepromptPassphrase(reasons.NoSecrets, false, reasons), false, 'network does not ask a passwordless network for missing secrets')
 assertEqual(network.shouldRepromptPassphrase(reasons.WifiAuthTimeout, true, reasons), true, 'network reprompts a credentialed network after a wrong password')
