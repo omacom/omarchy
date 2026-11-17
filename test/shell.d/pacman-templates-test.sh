@@ -55,7 +55,7 @@ for platform in $platforms; do
     case $platform in
       x86) expected="omarchy core extra multilib " ;;
       aarch64) expected="omarchy core extra alarm " ;;
-      aarch64-apple) expected="omarchy asahi-alarm core extra alarm " ;;
+      aarch64-apple) expected="omarchy core extra alarm " ;;
     esac
     [[ $list == "$expected" ]] || fail "$platform $channel: repositories in order" "$list"
     # $arch stays literal: pacman fills it in on the machine.
