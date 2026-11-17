@@ -4,17 +4,8 @@ local paths = require("default.hypr.paths")
 
 o = o or {}
 
--- Hyprland's immediate property refresh can run before the input manager exists.
--- A pending device property (a keyboard layout, say) then reaches
--- CInputManager::setKeyboardLayout() on a null manager and takes the session
--- down. Hold the refresh until Hyprland is up; afterwards it runs unchanged.
---
--- The guard lives here because every config loads helpers before the modules
--- that call the API, including user modules that call it at load time. Its
--- state is global rather than module-local: bootstrap.lua drops Omarchy modules
--- from package.loaded on reload, but hyprland.start does not fire again. That
--- also means a guard first installed by a reload into a running session cannot
--- wait for the start event; an active monitor is the signal it is already up.
+-- Property refreshes can dereference managers before startup completes.
+-- A reload has a fresh Lua state and no start event; an active monitor distinguishes it.
 local refresh_guard = _G.omarchy_prop_refresh_guard
 if not refresh_guard and hl and type(hl.on) == "function"
   and type(hl.exec_scheduled_prop_refresh_immediately) == "function" then
