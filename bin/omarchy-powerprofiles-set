@@ -61,7 +61,7 @@ fi
 # for omarchy-powerprofiles-list.
 if omarchy-hw-aarch64-apple 2>/dev/null; then
   apple_lock=${OMARCHY_POWERPROFILES_APPLE_LOCK:-/run/omarchy/powerprofiles-apple-cpufreq.lock}
-  mkdir -p "$state_dir"
+  mkdir -p "$state_dir" "$(dirname "$apple_lock")"
   (
     flock -w 30 9 || {
       echo "omarchy-powerprofiles-set: another profile change is in progress" >&2
