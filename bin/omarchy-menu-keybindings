@@ -390,7 +390,7 @@ modmask_to_text() {
 # - Fill missing Lua code:... keys and __lua dispatch metadata from the Lua source cache
 # - Remove standard Omarchy bin path prefix
 # - Map numeric modifier key mask to a textual rendition
-# - Output comma-separated values that the parser can understand
+# - Output unit-separated values that the parser can understand
 dynamic_bindings() {
   local modmask key keycode description dispatcher arg modifiers cache_key lua_bind
 
