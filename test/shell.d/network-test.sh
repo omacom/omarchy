@@ -896,6 +896,11 @@ assert(network.isMobileStatusEvent("/org/freedesktop/ModemManager1/Modem/0: org.
 assert(network.isMobileStatusEvent("/org/freedesktop/ModemManager1/Modem/0: org.freedesktop.DBus.Properties.PropertiesChanged ('org.freedesktop.ModemManager1.Modem.Modem3gpp', {'OperatorName': <'Carrier'>}, @as [])"), 'operator change re-probes')
 assert(!network.isMobileStatusEvent("/org/freedesktop/ModemManager1/Bearer/1: org.freedesktop.DBus.Properties.PropertiesChanged ('org.freedesktop.ModemManager1.Bearer', {'Stats': <{'duration': <uint32 5>}>}, @as [])"), 'bearer traffic counters do not re-probe')
 assert(!network.isMobileStatusEvent('Monitoring signals from all objects owned by org.freedesktop.ModemManager1'), 'gdbus banner does not re-probe')
+assert(network.isMobileStatusEvent("/org/freedesktop/ModemManager1: org.freedesktop.DBus.ObjectManager.InterfacesRemoved (objectpath '/org/freedesktop/ModemManager1/Modem/0', ['org.freedesktop.ModemManager1.Modem'])"), 'unplugged modem re-probes')
+assert(network.isMobileStatusEvent("/org/freedesktop/ModemManager1: org.freedesktop.DBus.ObjectManager.InterfacesAdded (objectpath '/org/freedesktop/ModemManager1/Modem/1', {})"), 'new modem re-probes')
+assert(network.isMobileStatusEvent('The name org.freedesktop.ModemManager1 does not have an owner'), 'ModemManager stopping re-probes')
+assert(!network.isMobileStatusEvent("/org/freedesktop/ModemManager1: org.freedesktop.DBus.ObjectManager.InterfacesAdded (objectpath '/org/freedesktop/ModemManager1/Bearer/2', {})"), 'new bearer does not re-probe')
+assertEqual(network.parseMobileStatus('device\tcdc-wdm0\nstate\t100 (connected)\ndevice\teth0\n').device, 'cdc-wdm0', 'a later device line cannot replace the modem')
 JS
 
 # The probe itself, against stub nmcli/mmcli: two modems, and saved profiles
@@ -907,13 +912,14 @@ cat > "$probe/nmcli" <<'SH'
 #!/bin/bash
 case $* in
   "-t -f DEVICE,TYPE dev") printf 'ttyUSB0:gsm\ncdc-wdm1:gsm\n' ;;
-  "-e no -t -f GENERAL.STATE,GENERAL.CONNECTION,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show ttyUSB0")
-    printf 'GENERAL.STATE:30 (disconnected)\nGENERAL.CONNECTION:\nGENERAL.CON-UUID:\nGENERAL.IP-IFACE:\nGENERAL.UDI:/org/freedesktop/ModemManager1/Modem/3\n' ;;
+  "-e no -t -f GENERAL.STATE,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show ttyUSB0")
+    printf 'GENERAL.STATE:30 (disconnected)\nGENERAL.CON-UUID:\nGENERAL.IP-IFACE:\nGENERAL.UDI:/org/freedesktop/ModemManager1/Modem/3\n' ;;
+  "-e no -g GENERAL.CONNECTION dev show ttyUSB0") printf 'Evil\nGENERAL.CON-UUID:other-uuid\n' ;;
   "-t radio wwan") [[ ${LC_ALL:-} == C ]] && printf 'disabled\n' || printf 'deaktiviert\n' ;;
   "-g UUID,TYPE con show") printf 'other-uuid:gsm\nwifi-uuid:802-11-wireless\nmine-uuid:gsm\n' ;;
   "-e no -g connection.interface-name con show uuid other-uuid") printf 'cdc-wdm1\n' ;;
   "-e no -g connection.interface-name con show uuid mine-uuid") printf 'cdc-wdm0\n' ;;
-  "-e no -g connection.id con show uuid mine-uuid") printf 'Work:LTE\n' ;;
+  "-e no -g connection.id con show uuid mine-uuid") printf 'Work:LTE\ndevice\teth0\n' ;;
   *) exit 1 ;;
 esac
 SH
@@ -930,6 +936,8 @@ chmod +x "$probe/nmcli" "$probe/mmcli"
 probed=$(LC_ALL=POSIX PATH="$probe:$PATH" bash "$probe/probe.sh")
 [[ $probed == *$'profile_uuid\tmine-uuid\n'* ]] || fail "probe skips a profile bound to the other modem and matches one bound to this modem's MBIM port" "$probed"
 [[ $probed == *$'profile\tWork:LTE'* ]] || fail "profile names are read without nmcli escapes" "$probed"
+[[ $probed == *$'profile\tWork:LTEdeviceeth0\n'* && $probed != *$'\ndevice\teth0'* ]] || fail "a newline in a profile name cannot add a field" "$probed"
+[[ $probed == *$'connection\tEvilGENERAL.CON-UUID:other-uuid\n'* && $probed != *other-uuid$'\n'profile* ]] || fail "a newline in the connection name cannot pick the profile" "$probed"
 [[ $probed == *$'radio\tdisabled'* ]] || fail "radio state is read in the C locale" "$probed"
 [[ $probed == *$'operator\tRight Carrier'* && $probed != *Wrong* ]] || fail "modem details come from this device's ModemManager object" "$probed"
 pass "mobile probe describes only the modem the row shows"

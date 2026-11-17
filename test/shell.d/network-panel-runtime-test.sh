@@ -140,13 +140,16 @@ case $* in
     printf 'test-wifi:wifi\n'
     [[ $state == "absent" ]] || printf 'cdc-wdm0:gsm\n'
     ;;
-  "-e no -t -f GENERAL.STATE,GENERAL.CONNECTION,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show cdc-wdm0")
+  "-e no -t -f GENERAL.STATE,GENERAL.CON-UUID,GENERAL.IP-IFACE,GENERAL.UDI dev show cdc-wdm0")
     if [[ $state == "connected" ]]; then
-      printf 'GENERAL.STATE:100 (connected)\nGENERAL.CONNECTION:Test Carrier\nGENERAL.CON-UUID:mobile-uuid\nGENERAL.IP-IFACE:wwan0\n'
+      printf 'GENERAL.STATE:100 (connected)\nGENERAL.CON-UUID:mobile-uuid\nGENERAL.IP-IFACE:wwan0\n'
     else
-      printf 'GENERAL.STATE:30 (disconnected)\nGENERAL.CONNECTION:\nGENERAL.CON-UUID:\nGENERAL.IP-IFACE:\n'
+      printf 'GENERAL.STATE:30 (disconnected)\nGENERAL.CON-UUID:\nGENERAL.IP-IFACE:\n'
     fi
     printf 'GENERAL.UDI:/org/freedesktop/ModemManager1/Modem/0\n'
+    ;;
+  "-e no -g GENERAL.CONNECTION dev show cdc-wdm0")
+    [[ $state == "connected" ]] && printf 'Test Carrier\n'
     ;;
   "-t radio wwan")
     printf 'enabled\n'

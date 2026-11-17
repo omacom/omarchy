@@ -1092,17 +1092,23 @@ Panel {
 
   Component.onCompleted: refresh()
 
+  // A refresh asked for while a probe runs is queued, and that probe's result
+  // is dropped: it may describe a modem that has since gone.
+  property bool mobileRefreshPending: false
   function refreshMobile() {
-    if (!mobileProc.running) mobileProc.running = true
+    if (mobileProc.running) mobileRefreshPending = true
+    else mobileProc.running = true
   }
 
   // ModemManager can take half a minute after boot to find a modem, long
   // after the startup probe, and nothing else looks again until the panel
   // opens. A modem that then connects changes NetworkManager's connectivity,
-  // so look for one whenever it changes while none is known. Nothing runs
-  // while the connection stays as it is.
+  // so look again whenever it changes. That also catches a known modem that
+  // was unplugged while it carried the connection; its removal from
+  // ModemManager is caught by the event monitor below. Nothing runs while the
+  // connection stays as it is.
   readonly property int networkConnectivity: Networking.connectivity
-  onNetworkConnectivityChanged: if (!mobile.available) refreshMobile()
+  onNetworkConnectivityChanged: refreshMobile()
 
   function updateMobile(raw) {
     mobile = Model.parseMobileStatus(raw)
@@ -1138,8 +1144,16 @@ Panel {
     id: mobileProc
     command: ["bash", "-c", Model.mobileStatusScript]
     stdout: StdioCollector {
+      id: mobileProcOut
       waitForEnd: true
-      onStreamFinished: root.updateMobile(text)
+    }
+    onExited: {
+      if (root.mobileRefreshPending) {
+        root.mobileRefreshPending = false
+        running = true
+      } else {
+        root.updateMobile(mobileProcOut.text)
+      }
     }
   }
 
