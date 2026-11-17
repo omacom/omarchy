@@ -142,6 +142,8 @@ Panel {
   // panel wasn't open to have a scroll position worth keeping, or the
   // rebuild is the `fresh` one on open, which starts clean on purpose).
   property real pendingScrollY: -1
+  property int pendingScrollIndex: -1
+  property bool pendingScrollSelectionVisible: false
   property bool wifiActionFocused: false
   property bool cursorActive: false
 
@@ -349,6 +351,7 @@ Panel {
   // KeyboardPanel primes layer-shell focus whenever the panel opens. That's
   // what makes the SUPER+CTRL+W keybind land here with navigation ready.
   onOpenedChanged: {
+    pendingScrollY = -1
     if (opened) {
       // The rows (and their held signal readings) may be a stale snapshot
       // from before the panel was last closed; this open starts clean.
@@ -391,11 +394,16 @@ Panel {
     }
   }
 
+  // Navigation owns scrolling; a cursor following its SSID still restores first.
+  onSelectedIndexChanged: {
+    var selected = wifiNetworks[selectedIndex]
+    if (!selected || selected.ssid !== cursorSsid) pendingScrollY = -1
+  }
+
   // Keep selectedIndex valid as scans refresh the network list.
   // If the list empties (station gone, e.g. wifi off), bounce the cursor
   // back to the DNS row so the panel doesn't end up with no cursor at all.
   onWifiNetworksChanged: {
-    var previousIndex = selectedIndex
     if (wifiNetworks.length === 0) {
       selectedIndex = -1
       wifiActionFocused = false
@@ -425,16 +433,7 @@ Panel {
     // the offset `rebuildWifiRows` captured, once the rebuild's new
     // delegates exist to hold it, clamped to the (possibly now larger or
     // smaller) scrollable range.
-    // A connection can move the selected row; let keyboard navigation reveal it.
-    if (pendingScrollY >= 0 && selectedIndex === previousIndex) {
-      var restoreY = pendingScrollY
-      Qt.callLater(function() {
-        if (!panel.loadedContent) return
-        var listView = panel.loadedContent.networkList
-        var maxY = Math.max(0, listView.contentHeight - listView.height)
-        listView.contentY = Math.min(restoreY, maxY)
-      })
-    }
+    if (pendingScrollY >= 0) Qt.callLater(restoreWifiScroll)
   }
 
   onWifiDeviceChanged: {
@@ -765,6 +764,16 @@ Panel {
     scanning = false
   }
 
+  function restoreWifiScroll() {
+    var restoreY = pendingScrollY
+    pendingScrollY = -1
+    if (restoreY < 0 || !opened || !panel.loadedContent) return
+    var listView = panel.loadedContent.networkList
+    var maxY = Math.max(0, listView.contentHeight - listView.height)
+    listView.contentY = Math.min(restoreY, maxY)
+    if (pendingScrollSelectionVisible && selectedIndex !== pendingScrollIndex && selectedIndex >= 0) listView.positionViewAtIndex(selectedIndex, ListView.Contain)
+  }
+
   // `fresh` skips the hold below, for the rebuild that opens the panel: a
   // snapshot held over from before the panel was last closed is stale, not
   // worth protecting from reshuffling.
@@ -793,7 +802,14 @@ Panel {
     // keep their order (see above), so the view belongs back at this exact
     // offset once the rebuild's new delegates exist to hold it there. Skip
     // it for the `fresh` open-transition rebuild, which starts at the top.
-    pendingScrollY = (!fresh && opened && panel.loadedContent) ? panel.loadedContent.networkList.contentY : -1
+    if (fresh || !opened || !panel.loadedContent) pendingScrollY = -1
+    else if (pendingScrollY < 0) {
+      var listView = panel.loadedContent.networkList
+      var selectedItem = listView.itemAtIndex(selectedIndex)
+      pendingScrollY = listView.contentY
+      pendingScrollIndex = selectedIndex
+      pendingScrollSelectionVisible = !!selectedItem && selectedItem.y + selectedItem.height > listView.contentY && selectedItem.y < listView.contentY + listView.height
+    }
     wifiNetworks = nets
   }
 

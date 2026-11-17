@@ -102,7 +102,42 @@ ShellRoot {
       check(panel.selectedIndex === 0, "the cursor still never moved")
       var afterY = panel.testNetworkListContentY()
       check(afterY === test.scrolledY, "the list returns to where it was scrolled instead of snapping back to the top (contentY=" + afterY + ", was " + test.scrolledY + ")")
+      extra.known = true
+    },
+    function() {
+      check(panel.selectedIndex === 1 && panel.testNetworkListContentY() === 150,
+        "a known access point above an offscreen cursor preserves the browsing viewport")
+      extra.known = false
+      NetworkMock.wifi.networks = { values: nets }
+    },
+    function() {
+      Qt.callLater(function() { panel.selectByDelta(1) })
+      NetworkMock.wifi.networks = { values: nets.concat([extra]) }
+    },
+    function() {
+      var list = panel.testContent.networkList
+      var row = list.itemAtIndex(panel.selectedIndex)
+      check(panel.selectedIndex === 1 && row && row.y >= list.contentY && row.y + row.height <= list.contentY + list.height,
+        "navigation queued before a scan restore leaves the selected row visible")
+      list.contentY = 150
+      NetworkMock.wifi.networks = { values: nets.concat([extra]) }
+      NetworkMock.wifi.networks = { values: nets }
+    },
+    function() {
+      check(panel.testNetworkListContentY() === 150, "a burst of scan updates preserves the original viewport")
       panel.selectedIndex = panel.wifiIndexForSsid("Net 8")
+    },
+    function() {
+      test.scrolledY = panel.testNetworkListContentY()
+      NetworkMock.wifi.networks = { values: nets.slice(1) }
+    },
+    function() {
+      var list = panel.testContent.networkList
+      var row = list.itemAtIndex(panel.selectedIndex)
+      check(panel.wifiNetworks[panel.selectedIndex].ssid === "Net 8" && row && row.y >= list.contentY && row.y + row.height <= list.contentY + list.height,
+        "removing an earlier access point keeps the selected network in view")
+      check(row && Math.abs(list.contentY - test.scrolledY) <= row.height + list.spacing,
+        "removing an earlier access point moves the viewport by at most one row")
     },
     function() {
       net8.known = true
