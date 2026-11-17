@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# omarchy:summary=Restart SDDM after sleep if no local seat session exists
+# omarchy:group=system
+# omarchy:hidden=true
+
+set -euo pipefail
+
+systemctl is-active --quiet sddm.service || exit 0
+
+# Fail closed when logind cannot be queried so a running session is never killed.
+sessions=$(loginctl list-sessions --no-legend 2>/dev/null) || exit 0
+
+# Any session bound to a local seat (desktop, TTY login, or healthy greeter)
+# means SDDM did not strand the display. Seatless background sessions
+# (manager, sshd) leave the seat empty and do not count.
+if awk '$4 ~ /^seat/ { found=1; exit } END { exit !found }' <<<"$sessions"; then
+  exit 0
+fi
+
+systemctl restart --no-block sddm.service
