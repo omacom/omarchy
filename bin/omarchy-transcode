@@ -105,13 +105,13 @@ transcode_video() {
   case "$format" in
   mp4)
     if [[ $resolution == "4k" ]]; then
-      ffmpeg -i "$input" -vf "$scale" -c:v libx265 -preset slow -crf 24 -c:a aac -b:a 192k -movflags +faststart "$output"
+      ffmpeg -y -i "$input" -vf "$scale" -c:v libx265 -preset slow -crf 24 -c:a aac -b:a 192k -movflags +faststart "$output"
     else
-      ffmpeg -i "$input" -vf "$scale" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -movflags +faststart "$output"
+      ffmpeg -y -i "$input" -vf "$scale" -c:v libx264 -preset fast -crf 23 -c:a aac -b:a 192k -movflags +faststart "$output"
     fi
     ;;
   gif)
-    ffmpeg -i "$input" -vf "fps=10,$scale:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" "$output"
+    ffmpeg -y -i "$input" -vf "fps=10,$scale:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" "$output"
     ;;
   *)
     echo "Invalid video format: $format" >&2
@@ -125,7 +125,7 @@ copy_to_clipboard() {
   local uri
 
   uri="file://$(realpath -- "$output")"
-  printf '%s\n' "$uri" | wl-copy --type text/uri-list
+  printf '%s\n' "$uri" | wl-copy --type text/uri-list >/dev/null 2>&1
 }
 
 main() {
