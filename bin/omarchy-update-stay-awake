@@ -428,9 +428,9 @@ stop_locked() {
         current_start=$(process_start_time "$inhibit_pid" 2>/dev/null || true)
         if process_matches "$inhibit_pid" "$recorded_start_time" 0 "" &&
           process_is_legacy_inhibitor "$inhibit_pid"; then
-          # The old helper ran it through sudo or pkexec, which leave it with
-          # root's real UID, so this account cannot signal it. That must not
-          # fail this update or block the next one.
+          # The old helper's unattended path ran it through pkexec, which
+          # leaves it with root's real UID, so this account cannot signal it.
+          # That must not fail this update or block the next one.
           echo "The previous update's sleep inhibitor runs as root and cannot be stopped here. Run 'sudo kill $inhibit_pid' or reboot to release it." >&2
           inhibit_pid=""
         elif [[ -z $current_start || $current_start == "$recorded_start_time" ]]; then
