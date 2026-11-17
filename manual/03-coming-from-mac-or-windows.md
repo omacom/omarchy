@@ -6,7 +6,7 @@ If you've spent years on macOS or Windows, your fingers know a hundred things yo
 
 All the muscle memory you've built around Cmd or the Windows key transfers to one key: Super. That's the Windows key on a PC keyboard, and it's the anchor for nearly every hotkey in Omarchy.
 
-Your Spotlight or Raycast or Start-menu reflex becomes `Super + Space`. That opens the Omarchy menu, which launches apps, changes settings, installs software, captures the screen — just about everything. Start typing to filter. There's also a dedicated apps-only menu on `Super + Alt + Space`. See [navigation](04-navigation.md).
+Your Spotlight or Raycast or Start-menu reflex becomes `Super + Space`. That opens the Omarchy menu, which launches apps, changes settings, installs software, captures the screen — just about everything. Start typing to filter. `Super + Alt + Space` shows every app on one grid, the way Launchpad does. See [navigation](04-navigation.md).
 
 ### There's no dock and no desktop icons
 
@@ -32,7 +32,7 @@ Windows folks: your Win + V clipboard history lives on `Super + Ctrl + V`, and i
 | ------------- | ---------- |
 | Spotlight / Raycast / Start menu | `Super + Space` — the Omarchy menu |
 | AirDrop | LocalSend, via `Super + Ctrl + S` — see [GUIs](22-guis.md) |
-| Cmd + Shift + 4 / Win + Shift + S | `Print Screen` — see [screenshots & recording](12-screenshots-recording.md) |
+| Cmd + Shift + 4 / Win + Shift + S | `Super + Ctrl + Alt + C` or `Print Screen` — see [screenshots & recording](12-screenshots-recording.md) |
 | Notification Center | Notification history on `Super + Shift + Alt + ,` |
 | Time Machine (for the system) | Automatic [system snapshots](47-system-snapshots.md) on every update |
 | App Store / downloading an installer | _Install_ in the menu, or `omarchy pkg add` — see [other packages](29-other-packages.md) |

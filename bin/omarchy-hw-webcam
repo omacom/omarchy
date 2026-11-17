@@ -2,4 +2,42 @@
 
 # omarchy:summary=Check whether a webcam is available
 
+# The menu asks this on every open. Read the capture capability udev already
+# recorded for each video node rather than opening the nodes with v4l2-ctl, which
+# powers up every camera on the bus just to answer a menu guard. Without a recorded
+# capture node (no udev database, as in a container) it falls back to asking them.
+v4l_class_path="${OMARCHY_V4L_CLASS_PATH:-/sys/class/video4linux}"
+udev_data_path="${OMARCHY_UDEV_DATA_PATH:-/run/udev/data}"
+dev_path="${OMARCHY_DEV_PATH:-/dev}"
+
+shopt -s nullglob
+nodes=("$v4l_class_path"/video*)
+shopt -u nullglob
+
+((${#nodes[@]})) || exit 1
+
+udev_capabilities() {
+  local line
+
+  while IFS= read -r line; do
+    if [[ $line == E:ID_V4L_CAPABILITIES=* ]]; then
+      printf '%s\n' "${line#E:ID_V4L_CAPABILITIES=}"
+      return
+    fi
+  done <"$1"
+}
+
+# udev records a node once, so a virtual camera (v4l2loopback, with no parent device),
+# whose capabilities follow its producer, is left to the live query below.
+for node in "${nodes[@]}"; do
+  [[ -e $node/device && -r $node/dev ]] || continue
+  # The picker lists only nodes it can open read-write, so a camera this user
+  # cannot open is no answer.
+  device="$dev_path/${node##*/}"
+  [[ -r $device && -w $device ]] || continue
+  data="$udev_data_path/c$(<"$node/dev")"
+  [[ -r $data && $(udev_capabilities "$data") == *:capture:* ]] && exit 0
+done
+
+# No capture node recorded: ask the devices.
 [[ -n $(omarchy-capture-webcam-list) ]]

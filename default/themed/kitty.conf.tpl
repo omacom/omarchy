@@ -6,6 +6,10 @@ selection_background {{ selection_background }}
 cursor {{ bright_foreground }}
 cursor_text_color {{ background }}
 
+# Lets a reload change the background opacity, as Glassy windows do, since
+# kitty only allows that when this is on from launch.
+dynamic_background_opacity yes
+
 active_border_color {{ accent }}
 active_tab_background {{ accent }}
 
