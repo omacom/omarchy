@@ -123,7 +123,7 @@ if [[ $1 == "show" ]]; then
   printf '\tPowered: %s\n' "$(cat "$state")"
 fi
 # The bond is what pair waits on and trust follows; MOCK_BONDED stands in for it.
-[[ $1 == "info" ]] && printf '\tBonded: %s\n' "${MOCK_BONDED:-no}"
+[[ $1 == "info" ]] && printf '\tName: %s\n\tBonded: %s\n' "${MOCK_NAME:-Mock}" "${MOCK_BONDED:-no}"
 exit 0
 SH
 
@@ -304,6 +304,12 @@ bonded_connect_log=$(MOCK_BONDED=yes bluetooth_device_log yes)
 grep -qx "trust AA:BB:CC:DD:EE:FF" "$bonded_connect_log" ||
   fail "bluetooth trusts a bonded device on connect" "$(cat "$bonded_connect_log")"
 pass "bluetooth trusts a bonded device on connect"
+
+# A device chooses its own name, so the bond has to come from the property line.
+spoofed_connect_log=$(MOCK_NAME="Bonded: yes" bluetooth_device_log yes)
+grep -q "^trust " "$spoofed_connect_log" &&
+  fail "bluetooth does not take a device name for a bond" "$(cat "$spoofed_connect_log")"
+pass "bluetooth does not take a device name for a bond"
 
 # Blocking hits every radio at once, so the read has to span them too. A bare
 # bluetoothctl show reports the default controller and misses a powered dongle.

@@ -34,8 +34,9 @@ trust_device() {
 # one is worse than unknown: BlueZ auto-connects it, the pairing fails the same
 # way every few seconds, and the journal fills until the user forgets it. So
 # trust follows a bond, never precedes it.
+# Match the property line itself: a device's Name or Alias can read "Bonded: yes".
 bonded() {
-  [[ $(timeout 5s bluetoothctl info "$address" 2>/dev/null) == *"Bonded: yes"* ]]
+  grep -qx $'\tBonded: yes' <<<"$(timeout 5s bluetoothctl info "$address" 2>/dev/null)"
 }
 
 # The bond is not necessarily there when `pair` or `connect` return. Some
