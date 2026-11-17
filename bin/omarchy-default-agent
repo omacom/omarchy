@@ -154,6 +154,10 @@ fi
 mkdir -p "$(dirname "$agent_file")"
 printf '%s\n' "$agent" >"$agent_file"
 
+# An installed harness gets a launcher of its own beside Agent, as signing in
+# to a subscription adds one.
+omarchy-agent-launcher "$agent" || true
+
 # The harness reads the shared ~/.agents/AGENTS.md from its first session.
 omarchy-agent-instructions "$agent" >/dev/null || true
 

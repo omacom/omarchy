@@ -475,8 +475,16 @@ for selection in "${!expected_agents[@]}"; do
   mapfile -d '' -t agent_open_args <"$agent_open_log"
   [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
     fail "default agent opens $selection after selecting it"
+
+  launcher="$test_home/.local/share/applications/omarchy-agent-$expected.desktop"
+  grep -qx "Exec=omarchy-agent --agent $expected --app-id=org.omarchy.$expected" "$launcher" 2>/dev/null ||
+    fail "installing $expected adds a launcher that starts it"
+  icon=$(sed -n 's/^Icon=//p' "$launcher")
+  [[ -f $ROOT/icons/papercraft/$icon.svg.tpl && -f $ROOT/icons/arcade/$icon.svg.tpl && -f $ROOT/applications/icons/$icon.png ]] ||
+    fail "the $expected launcher's icon is in the icon sets"
 done
 pass "default agent selects and opens every supported provider and alias"
+pass "each installed harness gets a launcher with its icon in the icon sets"
 [[ -f $agent_file && ! -e $test_home/.local/state/omarchy/defaults/agent ]] ||
   fail "default agent stores its selection in Omarchy user config"
 pass "default agent stores its selection in Omarchy user config"
