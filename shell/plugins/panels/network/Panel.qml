@@ -161,7 +161,8 @@ Panel {
   readonly property string toggleHint: Networking.wifiEnabled ? Commons.I18n.t("network.turnWifiOff") : Commons.I18n.t("network.turnWifiOn")
   readonly property var dnsProviders: ["DHCP", "Cloudflare", "Google", "Custom"]
   property int dnsIndex: 0
-  // NetworkManager's VPN and WireGuard profiles, shared across monitors.
+  // NetworkManager's VPN and WireGuard profiles and Tailscale, shared across
+  // monitors.
   readonly property var vpnConnections: Commons.NetworkVpn.connections
   readonly property bool vpnVisible: Model.vpnSectionVisible(kind, vpnConnections)
   property int vpnIndex: 0
@@ -205,7 +206,8 @@ Panel {
   }
   onVpnVisibleChanged: if (!vpnVisible && focusSection === "vpn") focusSection = wifiNetworks.length > 0 ? "wifi" : "dns"
 
-  // A connect that needs a password continues in a terminal, which can only
+  // A connect that needs a password or a sign-in continues in a terminal,
+  // which can only
   // take the keyboard once this panel lets go of it.
   Connections {
     target: Commons.NetworkVpn
@@ -1818,9 +1820,10 @@ Panel {
         }
       }
 
-      // VPN and WireGuard profiles from NetworkManager, offered once there is
-      // a connection for them to ride on, so below the networks that make one.
-      // Clicking one connects it, or disconnects it when it is up.
+      // VPN and WireGuard profiles from NetworkManager, and Tailscale, offered
+      // once there is a connection for them to ride on, so below the networks
+      // that make one. Clicking one connects it, or disconnects it when it is
+      // up.
       PanelSeparator {
         visible: root.vpnVisible
         foreground: root.bar.foreground
@@ -1916,8 +1919,9 @@ Panel {
     }
   }
 
-  // One VPN profile. The icon locks once it is up; the second line carries
-  // NetworkManager's progress, or the shell's own while its nmcli runs.
+  // One VPN. The icon locks once it is up; the second line carries its
+  // progress (the shell's own while its nmcli or tailscale runs), the exit
+  // node Tailscale is going through, or that Tailscale needs signing in.
   component VpnRow: CursorSurface {
     id: vpnRow
     required property var connection
@@ -1930,12 +1934,16 @@ Panel {
     readonly property bool isConnecting: nmState === "activating" || (isPending && Commons.NetworkVpn.pendingAction === "up")
     readonly property bool isDisconnecting: nmState === "deactivating" || (isPending && Commons.NetworkVpn.pendingAction === "down")
     readonly property bool isFailed: !!connection && Commons.NetworkVpn.failedUuid === connection.uuid
+    readonly property bool needsLogin: nmState === "login"
+    readonly property string exitNode: connection && connection.exitNode ? connection.exitNode : ""
 
     readonly property string statusText: {
       if (isDisconnecting) return Commons.I18n.t("network.disconnecting")
       if (isConnecting) return Commons.I18n.t("network.connecting")
+      if (isConnected && exitNode !== "") return Commons.I18n.t("network.vpnExitNode").replace("%1", exitNode)
       if (isConnected) return Commons.I18n.t("network.connected")
       if (isFailed) return Commons.I18n.t("network.failedToConnect")
+      if (needsLogin) return Commons.I18n.t("network.signInRequired")
       return ""
     }
     readonly property color statusColor: {

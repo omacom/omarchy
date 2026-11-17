@@ -302,4 +302,22 @@ assertDeepEqual(
 assert(!vpn.isUuid('x; rm -rf ~'), 'network vpn refuses a non-UUID before building the terminal command')
 assert(vpn.needsSecrets("Error: Connection activation failed: Secrets were required, but not provided"), 'network vpn recognizes a connect that needs a password')
 assert(!vpn.needsSecrets('Error: Connection activation failed: The VPN service stopped unexpectedly.'), 'network vpn reports other connect failures as failures')
+
+// Tailscale runs its own daemon: NetworkManager only sees its tun device, and
+// its state, exit node and sign-in come from tailscale itself.
+assert(vpn.hasTailscaleDevice('Home Wi-Fi:6a1c0c2e-5f0e-4d8a-9d55-3c1f7d1c1a01:802-11-wireless:activated\ntailscale0:ae57342c-b0a6-4b25-b6a3-514f9ec50438:tun:activated\n'), 'network vpn notices tailscaled through its tun device')
+assert(!vpn.hasTailscaleDevice('tun0:ae57342c-b0a6-4b25-b6a3-514f9ec50438:tun:activated\n'), 'network vpn leaves other tun devices alone')
+const tailscaleStatus = (state, peers) => JSON.stringify({ BackendState: state, Peer: peers || {} })
+const exitPeer = { 'nodekey:1': { HostName: 'nyc-exit', DNSName: 'nyc-exit.tail1234.ts.net.', ExitNode: true }, 'nodekey:2': { HostName: 'laptop', ExitNode: false } }
+assertDeepEqual(vpn.parseTailscaleStatus(tailscaleStatus('Running', exitPeer)), { name: 'Tailscale', uuid: 'tailscale', type: 'tailscale', state: 'activated', exitNode: 'nyc-exit' }, 'network vpn reads a running Tailscale and its exit node')
+assertEqual(vpn.parseTailscaleStatus(tailscaleStatus('Stopped', exitPeer)).state, '', 'network vpn reads a stopped Tailscale as off')
+assertEqual(vpn.parseTailscaleStatus(tailscaleStatus('NeedsLogin')).state, 'login', 'network vpn reads a Tailscale that needs signing in')
+assertEqual(vpn.parseTailscaleStatus('failed to connect to local tailscaled'), null, 'network vpn shows no Tailscale when tailscaled does not answer')
+assert(vpn.isTailscaleEvent('\t"State": 6,') && vpn.isTailscaleEvent('\t"Prefs": {'), 'network vpn rereads Tailscale on a state or preference change')
+assert(!vpn.isTailscaleEvent('\t"State": null,') && !vpn.isTailscaleEvent('\t\t"State": 6,'), 'network vpn ignores Tailscale notifications without a state change')
+const mesh = vpn.parseTailscaleStatus(tailscaleStatus('Running'))
+assertDeepEqual(vpn.activeVpnNames(vpn.withTailscale([], mesh)), [], 'network vpn does not lock the icon for a Tailscale that only reaches the tailnet')
+assertDeepEqual(vpn.activeVpnNames(vpn.withTailscale([], vpn.parseTailscaleStatus(tailscaleStatus('Running', exitPeer)))), ['Tailscale'], 'network vpn locks the icon while Tailscale routes through an exit node')
+assert(!network.vpnSectionVisible('disconnected', [vpn.parseTailscaleStatus(tailscaleStatus('NeedsLogin'))]), 'network keeps a signed-out Tailscale out of the panel without a connection')
+assert(vpn.needsOperator("Access denied: prefs write access denied\n\nUse 'sudo tailscale down' or 'tailscale set --operator=$USER' to allow this user."), 'network vpn recognizes tailscale refusing a non-operator')
 JS

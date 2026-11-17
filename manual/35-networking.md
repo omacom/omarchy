@@ -38,6 +38,8 @@ VPNs you set up in NetworkManager show up in the network panel under _VPN_. Clic
 
 WireGuard works out of the box: `nmcli connection import type wireguard file wg0.conf` brings in a config. For OpenVPN, install the plugin with `omarchy pkg add networkmanager-openvpn`, then `nmcli connection import type openvpn file work.ovpn`. If the profile doesn't keep its password, connecting opens a terminal that asks for it.
 
+[Tailscale](#tailscale) is listed there too while it's running, and connects and disconnects the same way; if it needs you to sign in, a terminal opens with the link. It only puts the lock on the icon while an exit node carries your traffic, since without one it reaches just your own machines.
+
 ## Tailscale
 
 [Tailscale](https://tailscale.com/) is a mesh VPN that makes reaching all your computers and servers over the internet simple and secure. Install it with _Install > Service > Tailscale_.

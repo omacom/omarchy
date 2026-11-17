@@ -474,6 +474,7 @@
   "network.turnWifiOn": "Turn Wi-Fi on",
   "network.uploaded": "Uploaded",
   "network.vpn": "VPN",
+  "network.vpnExitNode": "Connected via %1",
   "network.vpnTooltip": "VPN: %1",
   "network.wifiBand": "WI-FI BAND",
   "network.wifiBandCurrent": "WI-FI BAND: %1",

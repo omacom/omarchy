@@ -98,7 +98,8 @@ function vpnSectionVisible(kind, connections) {
   if (list.length === 0) return false
   if (kind !== "disconnected") return true
   for (var i = 0; i < list.length; i++) {
-    if (list[i] && list[i].state) return true
+    var state = list[i] && list[i].state
+    if (state === "activating" || state === "activated" || state === "deactivating") return true
   }
   return false
 }
