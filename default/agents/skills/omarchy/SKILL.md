@@ -207,7 +207,7 @@ omarchy system shutdown         # Shutdown
 omarchy system reboot           # Reboot
 ```
 
-Run `omarchy-debug --no-sudo --print` for diagnostics: `--no-sudo` skips privileged kernel-log collection, and `--print` writes the report to the terminal instead of opening an interactive menu.
+Run `omarchy-debug --no-sudo --print` for diagnostics: `--no-sudo` avoids an interactive sudo prompt by skipping privileged kernel-log collection, and `--print` writes the report to the terminal instead of opening an interactive menu.
 
 ## Troubleshooting
 
