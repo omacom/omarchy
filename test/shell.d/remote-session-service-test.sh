@@ -1,4 +1,5 @@
 #!/bin/bash
+# omarchy:exclusive
 
 set -euo pipefail
 
