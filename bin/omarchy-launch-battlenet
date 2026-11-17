@@ -103,8 +103,8 @@ else
   if battlenet_running; then
     msg="Battle.net is already running or still starting (no window to focus)."
     echo "$msg" >&2
-    # Do not tell the user to kill the tree: umu-run exists before any window
-    # while GE-Proton is downloading, and #13344 often has no tray icon.
+    # Offer waiting before stopping it: umu-run exists before any window while
+    # GE-Proton is downloading, and #13344 often has no tray icon.
     omarchy-notification-send -u normal -g "🎮" "$(omarchy-i18n battlenet.alreadyRunning)" \
       "$(omarchy-i18n battlenet.alreadyRunningBody "pkill -f 'umu-run $HOME/Games/battlenet/'")" \
       2>/dev/null || true
