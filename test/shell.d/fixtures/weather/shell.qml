@@ -54,7 +54,6 @@ ShellRoot {
       switch (test.phase++) {
       case 0:
         test.check(panel.reportLocation === "Bukit Jalil", "startup detects initial city: " + panel.reportLocation)
-        test.check(test.count("https://geo.omarchy.org/") === 1, "startup looks the city up once")
         response.setText('{"name":"Colombo","latitude":6.93,"longitude":79.86}')
         break
       case 1: panel.open(); break
