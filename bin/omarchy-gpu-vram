@@ -1,0 +1,112 @@
+#!/bin/bash
+
+# omarchy:summary=Show, list, or set how much RAM the firmware sets aside as AMD GPU VRAM
+# omarchy:args=[list|set [size|index]]
+# omarchy:examples=omarchy gpu vram | omarchy gpu vram list | omarchy gpu vram set 4GB | omarchy gpu vram set 0
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# An AMD APU's firmware carves dedicated VRAM out of RAM before Linux boots.
+# Omarchy shrinks it to the smallest option, so the GPU can map the rest of RAM
+# on demand for large local models; see omarchy-apply-amd-gpu-memory. If that
+# leaves a game or driver short of VRAM, set a larger carveout here. Only
+# firmware that lets amdgpu change it has uma/carveout, and a new size, along
+# with the GPU memory cap sized for it, applies from the next boot.
+
+pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
+
+usage() {
+  echo "Usage: omarchy-gpu-vram [list|set [size|index]]" >&2
+  exit 1
+}
+
+shopt -s nullglob
+gpu_device=""
+for device in "$pci_devices_path"/*; do
+  if [[ -f $device/uma/carveout && -f $device/uma/carveout_options ]]; then
+    gpu_device=$device
+    break
+  fi
+done
+
+if [[ -z $gpu_device ]]; then
+  echo "This machine's firmware doesn't let Linux change the GPU's dedicated VRAM." >&2
+  exit 1
+fi
+
+options="$gpu_device/uma/carveout_options"
+
+# "512 MB" for an option index, from lines like "0: Minimum (512 MB)".
+option_size() {
+  awk -v wanted="$1" '$1 + 0 == wanted + 0 && match($0, /\([0-9]+ (MB|GB)\)/) { print substr($0, RSTART + 1, RLENGTH - 2); exit }' "$options"
+}
+
+# The index of an option given by index or by size, like 4GB, "4 GB" or 512mb.
+option_index() {
+  local wanted=${1// /}
+
+  awk -v wanted="${wanted^^}" '
+    match($0, /\([0-9]+ (MB|GB)\)/) {
+      size = substr($0, RSTART + 1, RLENGTH - 2)
+      gsub(/ /, "", size)
+      if ($1 + 0 == wanted && wanted ~ /^[0-9]+$/ || size == wanted) { print $1 + 0; exit }
+    }
+  ' "$options"
+}
+
+vram_now() {
+  echo "$(( $(< "$gpu_device/mem_info_vram_total") / 1024 / 1024 )) MB"
+}
+
+case ${1:-} in
+  "")
+    (( $# == 0 )) || usage
+    next=$(option_size "$(< "$gpu_device/uma/carveout")")
+    echo "Dedicated VRAM this boot: $(vram_now)"
+    echo "Dedicated VRAM from the next boot: ${next:-unknown}"
+    ;;
+  list)
+    (( $# == 1 )) || usage
+    current=$(< "$gpu_device/uma/carveout")
+    while IFS= read -r line; do
+      if [[ ${line%%:*} == "$current" ]]; then
+        echo "* $line"
+      else
+        echo "  $line"
+      fi
+    done < "$options"
+    ;;
+  set)
+    (( $# <= 2 )) || usage
+    choice=${2:-}
+    if [[ -z $choice ]]; then
+      choice=$(gum choose --header "Dedicated VRAM from the next boot" < "$options") || exit 1
+      choice=${choice%%:*}
+    fi
+
+    index=$(option_index "$choice")
+    if [[ -z $index ]]; then
+      echo "No dedicated VRAM option matches $choice. Pick one of:" >&2
+      cat "$options" >&2
+      exit 1
+    fi
+
+    sudo env PATH="$PATH" omarchy-apply-amd-gpu-memory "$index"
+
+    log=$(mktemp)
+    trap 'rm -f "$log"' EXIT
+    sudo limine-mkinitcpio 2>&1 | tee "$log"
+    status=("${PIPESTATUS[@]}")
+
+    # limine-mkinitcpio reports a kernel it could not rebuild and still exits 0.
+    if (( status[0] != 0 || status[1] != 0 )) || grep -q 'mkinitcpio failed for kernel' "$log"; then
+      echo "Could not rebuild the boot image; run omarchy-gpu-vram set $choice again once that is fixed." >&2
+      exit 1
+    fi
+
+    omarchy-state set reboot-required
+    echo "The GPU gets $(option_size "$index") of dedicated VRAM from the next boot. Reboot to apply it."
+    ;;
+  *) usage ;;
+esac

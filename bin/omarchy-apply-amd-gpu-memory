@@ -1,6 +1,7 @@
 #!/bin/bash
 
 # omarchy:summary=Let an AMD GPU map all of RAM but 8 GiB from the next boot
+# omarchy:args=[carveout-index]
 # omarchy:requires-sudo=true
 # omarchy:hidden=true
 
@@ -16,9 +17,11 @@ set -euo pipefail
 # The firmware also carves dedicated VRAM out of RAM before the kernel sees it,
 # often 16 or 32 GB to suit Windows, and that RAM is lost to GTT. Where the
 # BIOS lets amdgpu change it (uma/carveout), shrink it to the smallest option,
-# as the "Tuning" tab in AMD Adrenalin would. The cap is then sized for the RAM
-# the next boot will see, which is MemTotal plus the VRAM carved out now, less
-# the smallest carveout.
+# as the "Tuning" tab in AMD Adrenalin would, or set the option given by index
+# (omarchy-gpu-vram passes the one the user picked). The cap is then sized for
+# the RAM the next boot will see, which is MemTotal plus the VRAM carved out
+# now, less the new carveout. A carveout large enough that the kernel's half is
+# as high drops the drop-in, so a stale cap can't outgrow RAM.
 #
 # amdgpu sizes its GTT from the cap when it loads, so this writes a boot
 # setting and builds nothing; the caller rebuilds the boot image, and the new
@@ -28,6 +31,12 @@ drop_in="${OMARCHY_AMD_GPU_MEMORY_CONF:-/etc/limine-entry-tool.d/amd-gpu-memory.
 pci_devices_path="${OMARCHY_PCI_DEVICES_PATH:-/sys/bus/pci/devices}"
 meminfo="${OMARCHY_MEMINFO:-/proc/meminfo}"
 reserve_kib=$(( 8 * 1024 * 1024 ))
+wanted_index=${1:-}
+
+if [[ -n $wanted_index && ! $wanted_index =~ ^[0-9]+$ ]]; then
+  echo "Usage: omarchy-apply-amd-gpu-memory [carveout-index]" >&2
+  exit 1
+fi
 
 shopt -s nullglob
 amd_gpus=()
@@ -35,14 +44,15 @@ for device in "$pci_devices_path"/*; do
   [[ $(< "$device/vendor") == "0x1002" && $(< "$device/class") == 0x03* ]] && amd_gpus+=("$device")
 done
 
-# Prints "<index> <KiB>" for the smallest option in uma/carveout_options, whose
-# lines read like "0: Minimum (512 MB)" or "6: High (32 GB)".
-smallest_carveout() {
-  awk '
+# Prints "<index> <KiB>" for the option in uma/carveout_options with the given
+# index, or for the smallest one without, from lines that read like
+# "0: Minimum (512 MB)" or "6: High (32 GB)".
+carveout_option() {
+  awk -v wanted="$2" '
     match($0, /\(([0-9]+) (MB|GB)\)/) {
       split(substr($0, RSTART + 1, RLENGTH - 2), size, " ")
       kib = size[1] * 1024 * (size[2] == "GB" ? 1024 : 1)
-      if (best == "" || kib < best) { best = kib; index_ = $1 + 0 }
+      if (wanted != "" ? $1 + 0 == wanted + 0 : best == "" || kib < best) { best = kib; index_ = $1 + 0 }
     }
     END { if (best != "") print index_, best }
   ' "$1"
@@ -54,30 +64,45 @@ total_kib=$(awk '$1 == "MemTotal:" { print $2 }' "$meminfo")
 page_kib=$(( $(getconf PAGESIZE) / 1024 ))
 
 # Only the APU has a carveout, and a discrete AMD GPU may sort before it.
+carveout_set=false
 for gpu_device in "${amd_gpus[@]}"; do
   uma="$gpu_device/uma"
   [[ -f $uma/carveout && -f $uma/carveout_options ]] || continue
 
-  read -r smallest_index smallest_kib < <(smallest_carveout "$uma/carveout_options") || true
-
-  if [[ -n ${smallest_index:-} ]]; then
-    # The VRAM carved out this boot; uma/carveout already reads back an index
-    # written earlier this boot, so it can't say what the RAM is now.
-    vram_kib=$(( $(< "$gpu_device/mem_info_vram_total") / 1024 ))
-    if (( vram_kib > smallest_kib )); then
-      total_kib=$(( total_kib + vram_kib - smallest_kib ))
+  new_index="" new_kib=""
+  read -r new_index new_kib < <(carveout_option "$uma/carveout_options" "$wanted_index") || true
+  if [[ -z $new_index ]]; then
+    if [[ -n $wanted_index ]]; then
+      echo "The AMD GPU has no dedicated VRAM option $wanted_index; see omarchy-gpu-vram list" >&2
+      exit 1
     fi
+    continue
+  fi
+  carveout_set=true
 
-    if [[ $(< "$uma/carveout") != "$smallest_index" ]]; then
-      echo "$smallest_index" > "$uma/carveout"
-      echo "Shrinking the AMD GPU's dedicated VRAM to $(( smallest_kib / 1024 )) MB from the next boot"
-    fi
+  # The VRAM carved out this boot; uma/carveout already reads back an index
+  # written earlier this boot, so it can't say what the RAM is now.
+  vram_kib=$(( $(< "$gpu_device/mem_info_vram_total") / 1024 ))
+  total_kib=$(( total_kib + vram_kib - new_kib ))
+
+  if [[ $(< "$uma/carveout") != "$new_index" ]]; then
+    echo "$new_index" > "$uma/carveout"
+    echo "Setting the AMD GPU's dedicated VRAM to $(( new_kib / 1024 )) MB from the next boot"
   fi
 done
+
+if [[ -n $wanted_index && $carveout_set == "false" ]]; then
+  echo "This machine's firmware doesn't let Linux change the AMD GPU's dedicated VRAM" >&2
+  exit 1
+fi
 
 pages=$(( (total_kib - reserve_kib) / page_kib ))
 
 if (( pages <= total_kib / 2 / page_kib )); then
+  if [[ -f $drop_in ]]; then
+    rm -f "$drop_in"
+    echo "Leaving the AMD GPU at the kernel's half of RAM from the next boot"
+  fi
   exit 0
 fi
 

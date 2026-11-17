@@ -54,3 +54,21 @@ apply
 grep -Fxq "KERNEL_CMDLINE[default]+=\" ttm.pages_limit=$(( (63 * 1024 + 512) * 1024 / page_kib - 8 * 1024 * 1024 / page_kib ))\"" "$OMARCHY_AMD_GPU_MEMORY_CONF" ||
   fail "a second run before the reboot keeps the cap" "$(cat "$OMARCHY_AMD_GPU_MEMORY_CONF")"
 pass "a second run before the reboot keeps the cap"
+
+# A user picks 16 GB of VRAM on a 32 GB APU booted at 512 MB: the next boot
+# sees 16 GB, where the kernel's half is as high, so the cap goes.
+echo 0 > "$uma/carveout"
+echo $(( 512 * 1024 * 1024 )) > "$OMARCHY_PCI_DEVICES_PATH/0000:c3:00.0/mem_info_vram_total"
+echo "MemTotal:       $(( (31 * 1024 + 512) * 1024 )) kB" > "$OMARCHY_MEMINFO"
+apply
+[[ -e $OMARCHY_AMD_GPU_MEMORY_CONF ]] || fail "a 32 GB APU at 512 MB of VRAM gets a cap"
+"$ROOT/bin/omarchy-apply-amd-gpu-memory" 5 >/dev/null
+[[ $(< "$uma/carveout") == "5" ]] || fail "a picked carveout is set" "$(< "$uma/carveout")"
+[[ ! -e $OMARCHY_AMD_GPU_MEMORY_CONF ]] || fail "a 16 GB carveout on 32 GB drops the cap" "$(cat "$OMARCHY_AMD_GPU_MEMORY_CONF")"
+pass "a picked 16 GB carveout on 32 GB is set and drops the cap"
+
+if "$ROOT/bin/omarchy-apply-amd-gpu-memory" 9 >/dev/null 2>&1; then
+  fail "an option the firmware doesn't offer is refused"
+fi
+[[ $(< "$uma/carveout") == "5" ]] || fail "a refused option leaves the carveout alone"
+pass "an option the firmware doesn't offer is refused"
