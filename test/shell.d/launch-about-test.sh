@@ -252,6 +252,18 @@ for pad in "2 2" "4 5" "0 0" "6 10"; do
 done
 pass "the logo is found wherever fastfetch drew it"
 
+# Backslashes and escaped quotes in the landmark must not be stripped by awk.
+printf '%s\n' '██' '██ \ \" ██' '██' >"$LOGO_FILE"
+for pad in "2 2" "4 5" "0 0" "6 10"; do
+  set -- $pad
+  eval "fastfetch() { render_with_padding $1 $2; }"
+  LAYOUT_ROWS=""
+  measure_layout || fail "a landmark containing backslashes is found wherever fastfetch drew it" "padding $1/$2"
+  [[ $LOGO_ROW == "$(( $1 + 1 ))" && $LOGO_COLUMN == "$(( $2 + 1 ))" ]] ||
+    fail "a landmark containing backslashes is found wherever fastfetch drew it" "padding $1/$2 measured $LOGO_ROW/$LOGO_COLUMN"
+done
+pass "a landmark containing backslashes is found wherever fastfetch drew it"
+
 # A render that does not contain the file's own text is not this logo, whatever
 # the reason — a config that restyled it, a placeholder fastfetch substituted.
 fastfetch() { printf 'something else entirely\n'; }
