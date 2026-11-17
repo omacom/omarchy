@@ -6,7 +6,25 @@
 // ("15% of 340", "200 + 10%"), and a leading "=" that forces a bare number.
 //
 // `decimal` is the language's decimal separator; the other of "." and ","
-// is read as digit grouping and dropped.
+// is read as digit grouping and dropped. Digits may be typed the way the menu
+// shows them (Persian ۱۲۳, Bengali ১২৩), and Persian's "٫" works as the
+// decimal separator.
+
+// The zero of each digit set a language in the registry may use, beyond ASCII.
+var nativeZeros = ["\u0660", "\u06F0", "\u0966", "\u09E6"]
+
+// Native digits become ASCII, "٫" becomes the decimal separator, and "٬"
+// (Arabic digit grouping) is dropped.
+function normalize(text, decimal) {
+  var s = String(text)
+  for (var z = 0; z < nativeZeros.length; z++) {
+    var zero = nativeZeros[z].charCodeAt(0)
+    s = s.replace(new RegExp("[" + nativeZeros[z] + "-" + String.fromCharCode(zero + 9) + "]", "g"), function(digit) {
+      return String(digit.charCodeAt(0) - zero)
+    })
+  }
+  return s.replace(/\u066B/g, decimal).replace(/\u066C/g, "")
+}
 
 function tokenize(text, decimal) {
   var group = decimal === "," ? "." : ","
@@ -107,7 +125,7 @@ function parse(tokens) {
     if (token.type === "(") {
       var inner = expr()
       if (!accept(")")) throw new Error("missing )")
-      return { value: inner.value }
+      return { value: inner.value, percent: inner.percent }
     }
     throw new Error("unexpected " + token.type)
   }
@@ -120,12 +138,13 @@ function parse(tokens) {
 // The answer as a number, or null when the text isn't arithmetic. A bare
 // number ("2024") stays a search unless it starts with "=".
 function evaluate(text, decimal) {
-  var s = String(text || "").trim()
+  decimal = decimal === "," ? "," : "."
+  var s = normalize(String(text || "").trim(), decimal)
   var forced = s.charAt(0) === "="
   if (forced) s = s.slice(1)
   if (!/\d/.test(s)) return null
 
-  var tokens = tokenize(s, decimal === "," ? "," : ".")
+  var tokens = tokenize(s, decimal)
   if (!tokens || tokens.length === 0) return null
   var hasOperator = tokens.some(function(token) {
     return token.type !== "num" && token.type !== "(" && token.type !== ")"
