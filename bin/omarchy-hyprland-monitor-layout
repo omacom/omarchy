@@ -7,7 +7,10 @@
 
 # Positions are in Hyprland's layout space: logical pixels, after each
 # monitor's scale. Every position is applied in one eval, so the monitors never
-# pass through a half-moved arrangement, and then saved for each monitor.
+# pass through a half-moved arrangement, and then saved for each monitor. A
+# growth whose neighbour would sit under the new size first moves that
+# neighbour out, in its own eval, because the growth is committed before a
+# same-eval position change on some Hyprland versions and warns in between.
 
 usage() {
   echo "Usage: omarchy-hyprland-monitor-layout NAME=XxY [NAME=XxY...]"
@@ -79,11 +82,59 @@ if [[ ${1:-} == "--resized" ]]; then
       | sort_by(if .name == $name then [1, 0]
           elif .x > .ox or .y > .oy then [0, -(.ox + .oy)]
           else [2, .ox + .oy] end)
-      | .[] | "\(.name)=\(.x)x\(.y)"
+      # A neighbour moving away out of the new size of the resized monitor
+      # sits under the growth until its own move commits, so it is marked
+      # "!" and leaves in a first eval before the rest of the layout goes in.
+      | .[] | (if .name != $name and ((.x > .ox or .y > .oy))
+               and overlaps({x: $m.x, y: $m.y, w: $new[0], h: $new[1]}; {x: .ox, y: .oy, w, h})
+              then "!" else "" end) + "\(.name)=\(.x)x\(.y)"
     end' <<<"$monitors_json")
   resized_name="$2"
   resized_scale="$6"
-  set -- "${positions[@]}"
+
+  # Move the marked neighbours out first and wait for the move to land, so the
+  # growth fills a gap instead of covering a neighbour; a move that can't be
+  # confirmed gets the old one-eval behaviour rather than a blocked layout.
+  stripped=()
+  prepark=()
+  for pos in "${positions[@]}"; do
+    if [[ $pos == \!* ]]; then
+      prepark+=("${pos:1}")
+      stripped+=("${pos:1}")
+    else
+      stripped+=("$pos")
+    fi
+  done
+
+  if (( ${#prepark[@]} > 0 )); then
+    prepark_expr=""
+    for pos in "${prepark[@]}"; do
+      name="${pos%%=*}"
+      position="${pos#*=}"
+      # Same guard as the one-eval path below: these names go into a Lua
+      # string eval'd as root of the compositor.
+      [[ $name =~ ^[A-Za-z0-9._-]+$ && $position =~ ^-?[0-9]+x-?[0-9]+$ ]] || continue
+      prepark_expr+="hl.monitor({ output = \"$name\", position = \"$position\" }) "
+    done
+    if [[ -n $prepark_expr ]] && hyprctl eval "$prepark_expr" >/dev/null 2>&1; then
+      want=$(printf '%s\n' "${prepark[@]}" | jq -Rn '
+        [inputs | select(length > 0) | split("=")
+         | {(.[0]): {x: (.[1] | split("x")[0] | tonumber), y: (.[1] | split("x")[1] | tonumber)}}]
+        | add // {}')
+      for (( i = 0; i < 20; i++ )); do
+        if hyprctl monitors -j 2>/dev/null | jq -e --argjson want "$want" '
+            . as $mon | [ $want | to_entries[]
+              | .key as $n | .value as $p
+              | ($mon | map(select(.name == $n)) | .[0]) as $m
+              | $m != null and $m.x == $p.x and $m.y == $p.y ] | all' >/dev/null; then
+          break
+        fi
+        sleep 0.1
+      done
+    fi
+  fi
+
+  set -- "${stripped[@]}"
 fi
 
 if (( $# == 0 )); then
