@@ -103,3 +103,12 @@ HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
   "$ROOT/bin/omarchy-agent-usage-update" --except missing missing good ||
   fail "update does not require an explicitly excluded collector"
 pass "update does not require an explicitly excluded collector"
+
+rm -rf "$usage_dir"
+if output=$(HOME="$TEST_HOME" OMARCHY_PATH="$FAKE_OMARCHY" XDG_STATE_HOME="" \
+  "$ROOT/bin/omarchy-agent-usage-update" --except '' 2>&1); then
+  fail "update refuses an empty --except"
+fi
+[[ $output == "--except needs an agent" && ! -e $usage_dir/good.json ]] ||
+  fail "update refuses an empty --except before collecting anything" "$output"
+pass "update refuses an empty --except before collecting anything"

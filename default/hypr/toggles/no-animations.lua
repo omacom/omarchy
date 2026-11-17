@@ -1,6 +1,6 @@
 -- Draw nothing just for show, for machines that render on the CPU, like a VM:
--- no animations, blur or shadows, and opaque windows, so nothing behind a
--- window has to be blended into it.
+-- no animations, blur or shadows. How see-through windows are is left to
+-- Appearance > Windows > Window Opacity.
 hl.config({
   animations = {
     enabled = false,
@@ -16,5 +16,3 @@ hl.config({
     },
   },
 })
-
-o.window(".*", { opacity = "1 1" })
