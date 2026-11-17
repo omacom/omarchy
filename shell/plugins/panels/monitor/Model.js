@@ -94,6 +94,22 @@ function brightnessName(percent, tr) {
   return t("monitor.level.nightOwl", "Night owl")
 }
 
+// A headless output cannot keep the local desktop visible. Still let a
+// headless-only session turn outputs off while another usable one remains.
+// Custom headless names are not distinguishable in the panel's display state.
+function canToggleDisplay(name, enabled, displays) {
+  if (!name) return false
+  if (!enabled) return true
+
+  var virtualOutput = /^(HEADLESS-|FALLBACK$)/
+  for (var i = 0; i < displays.length; i++) {
+    var other = displays[i]
+    if (!other || !other.name || other.name === name || !other.enabled || other.name === "FALLBACK") continue
+    if (virtualOutput.test(name) || !virtualOutput.test(other.name)) return true
+  }
+  return false
+}
+
 function parseDisplays(raw) {
   var displays = []
   try {
@@ -122,6 +138,7 @@ if (typeof module !== "undefined") {
     matchingScaleIndex: matchingScaleIndex,
     availableScales: availableScales,
     brightnessName: brightnessName,
+    canToggleDisplay: canToggleDisplay,
     parseDisplays: parseDisplays
   }
 }
