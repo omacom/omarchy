@@ -1,6 +1,7 @@
 {
   "Activity": "Faoliyat",
   "Agent": "Agent",
+  "Agents": "Agentlar",
   "Apps": "Ilovalar",
   "Audio": "Audio",
   "Background switcher": "Fon almashtirgich",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Faol oynani tepada ko‘rsatish",
   "Save window width": "Oyna kengligini saqlash",
   "Screenrecording": "Ekran yozuvi",
+  "Screenrecording with no audio": "Ovozsiz ekran yozuvi",
   "Screenshot": "Ekran tasviri",
   "Scroll active workspace backward": "Faol ish maydonini orqaga aylantirish",
   "Scroll active workspace forward": "Faol ish maydonini oldinga aylantirish",

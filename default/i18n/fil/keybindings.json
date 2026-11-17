@@ -1,6 +1,7 @@
 {
   "Activity": "Aktibidad",
   "Agent": "Ahente",
+  "Agents": "Mga Ahente",
   "Apps": "Mga App",
   "Audio": "Audio",
   "Background switcher": "Tagapalit ng Background",
@@ -124,6 +125,7 @@
   "Reveal active window on top": "Ipakita ang aktibong bintana sa itaas",
   "Save window width": "I-save ang lapad ng bintana",
   "Screenrecording": "Pag-record ng screen",
+  "Screenrecording with no audio": "I-record ang screen nang walang audio",
   "Screenshot": "Screenshot",
   "Scroll active workspace backward": "I-scroll pabalik ang aktibong workspace",
   "Scroll active workspace forward": "I-scroll pasulong ang aktibong workspace",
