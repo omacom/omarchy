@@ -153,5 +153,13 @@ for tool in Hyprland quickshell hyprctl wtype python; do
   fi
 done
 
-python "$SHELL_TEST_DIR/fixtures/overlay-output-recovery/run.py" "$ROOT"
+result=0
+python "$SHELL_TEST_DIR/fixtures/overlay-output-recovery/run.py" "$ROOT" || result=$?
+if (( result == 77 )); then
+  skip "nested compositor was denied KMS buffer allocation and could not allocate a headless output"
+  exit 0
+elif (( result != 0 )); then
+  exit "$result"
+fi
+# The first run established that this compositor can allocate outputs.
 python "$SHELL_TEST_DIR/fixtures/overlay-output-recovery/run.py" "$ROOT" --zero-output-open

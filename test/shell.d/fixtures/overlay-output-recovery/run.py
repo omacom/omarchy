@@ -105,10 +105,10 @@ def main():
       if not condition:
         raise AssertionError(description)
 
+    backend = "wayland"
+
     def create(name):
-      # Wayland outputs use the parent's supported buffer modifiers. Headless
-      # outputs can fail allocation on NVIDIA in a nested compositor.
-      run(["hyprctl", "output", "create", "wayland", name])
+      run(["hyprctl", "output", "create", backend, name])
       wait_for(f"output {name} is active", monitors,
                lambda entries: any(m["name"] == name and m["width"] > 0 and m["height"] > 0 for m in entries))
       wait_for(f"Qt lists output {name}", state,
@@ -154,16 +154,32 @@ def main():
       env["HYPRLAND_INSTANCE_SIGNATURE"] = instance[0].parent.name
       sockets = wait_for("nested Wayland socket", lambda: [p for p in directory.glob("wayland-*") if p.is_socket()], bool)
       env["WAYLAND_DISPLAY"] = sockets[0].name
-      initial = wait_for("initial nested output", monitors,
-                         lambda entries: any(m["width"] > 0 and m["height"] > 0 for m in entries))[0]["name"]
       check(not run(["hyprctl", "configerrors"]), "nested compositor config has errors")
-      # Replace the backend's generic first output before loading Qt, so every
-      # output used by the fixture belongs to the narrowly scoped parent rule.
-      generic = initial
+      generic = wait_for("initial Wayland output", monitors,
+                         lambda entries: any(m["name"].startswith("WAYLAND-") for m in entries))
+      generic = next(m["name"] for m in generic if m["name"].startswith("WAYLAND-"))
+      # Some VM render devices deny the nested Wayland allocator access to KMS.
+      # Try a headless output only for that startup failure, before loading Qt.
       initial = directory.name + "-initial"
-      run(["hyprctl", "output", "create", "wayland", initial])
-      wait_for("fixed-size initial output", monitors,
-               lambda entries: any(m["name"] == initial and m["width"] == 800 and m["height"] == 600 for m in entries))
+      def initial_ready(entries):
+        return any(m["name"] == initial and m["width"] == 800 and m["height"] == 600 for m in entries)
+
+      run(["hyprctl", "output", "create", backend, initial])
+      try:
+        wait_for("fixed-size initial Wayland output", monitors, initial_ready)
+      except AssertionError:
+        if ("DRM_IOCTL_MODE_CREATE_DUMB failed: Permission denied" not in (logs / "hyprland.log").read_text()
+            or any(m["width"] > 0 and m["height"] > 0 and m["name"] != "FALLBACK" for m in monitors())):
+          raise
+        backend = "headless"
+        run(["hyprctl", "output", "remove", initial])
+        run(["hyprctl", "output", "create", backend, initial], check=False)
+        try:
+          wait_for("fixed-size initial headless output", monitors, initial_ready)
+        except AssertionError:
+          if any(m["width"] > 0 and m["height"] > 0 and m["name"] != "FALLBACK" for m in monitors()):
+            raise
+          return 77
       run(["hyprctl", "output", "remove", generic])
       with (logs / "fixture.log").open("w") as log:
         shell = subprocess.Popen(["quickshell", "-p", str(fixture), "--no-color"], env=env,
