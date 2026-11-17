@@ -475,8 +475,16 @@ for selection in "${!expected_agents[@]}"; do
   mapfile -d '' -t agent_open_args <"$agent_open_log"
   [[ ${#agent_open_args[@]} == 1 && ${agent_open_args[0]} == "omarchy-agent" ]] ||
     fail "default agent opens $selection after selecting it"
+
+  launcher="$test_home/.local/share/applications/omarchy-agent-$expected.desktop"
+  grep -qx "Exec=omarchy-agent --agent $expected --app-id=org.omarchy.$expected" "$launcher" 2>/dev/null ||
+    fail "installing $expected adds a launcher that starts it"
+  icon=$(sed -n 's/^Icon=//p' "$launcher")
+  [[ -f $ROOT/icons/papercraft/$icon.svg.tpl && -f $ROOT/icons/arcade/$icon.svg.tpl && -f $ROOT/applications/icons/$icon.png ]] ||
+    fail "the $expected launcher's icon is in the icon sets"
 done
 pass "default agent selects and opens every supported provider and alias"
+pass "each installed harness gets a launcher with its icon in the icon sets"
 [[ -f $agent_file && ! -e $test_home/.local/state/omarchy/defaults/agent ]] ||
   fail "default agent stores its selection in Omarchy user config"
 pass "default agent stores its selection in Omarchy user config"
@@ -610,6 +618,18 @@ grep -F "Usage: omarchy-default-agent" "$test_tmp/invalid-output" >/dev/null ||
 [[ $(omarchy-default-agent) == "copilot" ]] || fail "invalid selection preserves the current default agent"
 [[ ! -s $agent_open_log ]] || fail "invalid selection does not open an agent"
 pass "default agent rejects unsupported providers without changing the selection"
+
+# --installed answers for one harness, as the launcher migration asks it,
+# without selecting, installing or opening anything.
+: >"$agent_open_log"
+: >"$terminal_log"
+OMARCHY_TEST_AGENT_INSTALLED=true omarchy-default-agent --installed kilo || fail "--installed reports an installed harness"
+if OMARCHY_TEST_AGENT_INSTALLED=false omarchy-default-agent --installed kilo; then
+  fail "--installed reports a missing harness"
+fi
+[[ $(omarchy-default-agent) == "copilot" && ! -s $agent_open_log && ! -s $terminal_log ]] ||
+  fail "--installed selects, installs and opens nothing"
+pass "--installed tells whether a harness is installed and changes nothing"
 
 : >"$notification_history"
 : >"$agent_open_log"

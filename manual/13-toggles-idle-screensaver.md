@@ -17,8 +17,8 @@ From the terminal, the same switches are `omarchy toggle <thing>`. Run `omarchy 
 | Screensaver | — | `omarchy toggle screensaver` |
 | [Herdr](https://herdr.dev) theme sync | — | `omarchy toggle theme sync` |
 | Menu bar | `Super + Shift + Space` | `omarchy toggle bar` |
-| Touchpad | `XF86TouchpadToggle` | `omarchy toggle touchpad` |
-| Touchscreen | — | `omarchy toggle touchscreen` |
+| Touchpad | `XF86TouchpadToggle` | `omarchy device touchpad` |
+| Touchscreen | — | `omarchy device touchscreen` |
 | Suspend | — | `omarchy toggle suspend` |
 | Hybrid GPU | — | `omarchy toggle hybrid gpu` |
 
