@@ -553,6 +553,7 @@ Item {
               property var activeRow: displayModel.count > 0 && root.selectedIndex >= 0 && root.selectedIndex < displayModel.count ? displayModel.get(root.selectedIndex) : null
 
               Rectangle {
+                visible: displayModel.count > 0
                 anchors.left: parent.left
                 anchors.top: parent.top
                 anchors.bottom: parent.bottom
@@ -594,6 +595,7 @@ Item {
 
           Column {
             anchors.centerIn: parent
+            width: parent.width - 2 * root.contentMargin
             spacing: Style.space(8)
             visible: displayModel.count === 0
 
@@ -604,7 +606,7 @@ Item {
               font.family: root.fontFamily
               font.pixelSize: Style.font.displayLarge
               horizontalAlignment: Text.AlignHCenter
-              width: parent.width
+              anchors.horizontalCenter: parent.horizontalCenter
             }
 
             Text {
@@ -616,6 +618,7 @@ Item {
               font.pixelSize: Style.font.title
               horizontalAlignment: Text.AlignHCenter
               width: parent.width
+              elide: Text.ElideRight
             }
           }
         }
