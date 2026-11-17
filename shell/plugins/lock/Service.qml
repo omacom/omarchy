@@ -251,10 +251,13 @@ Item {
     sessionLock.locked = false
     logEvent("unlocked")
     runWake()
-    if (restoreInputMethod) {
-      restoreInputMethod = false
-      inputMethodOnProcess.running = true
-    }
+    restoreSwitchedInputMethod()
+  }
+
+  function restoreSwitchedInputMethod() {
+    if (!restoreInputMethod) return
+    restoreInputMethod = false
+    inputMethodOnProcess.running = true
   }
 
   function armBlankTimer(delayMs) {
@@ -503,6 +506,7 @@ Item {
         pendingSessionLockTimer.stop()
         root.resetAuthenticationState()
         root.runWake()
+        root.restoreSwitchedInputMethod()
       }
     }
 
