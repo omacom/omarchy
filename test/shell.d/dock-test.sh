@@ -12,6 +12,24 @@ trap 'rm -rf "$TMPDIR"' EXIT
 ROOT="$ROOT" run_node_test <<'JS'
 const dock = requireFromRoot('shell/plugins/dock/DockModel.js')
 
+const dockSource = require('fs').readFileSync(path.join(root, 'shell/plugins/dock/Dock.qml'), 'utf8')
+const bringForward = new Function('window', 'Util', dockSource.split('  function bringForward(window) {')[1].split('\n  function quit(')[0].replace(/\n  }\s*$/, ''))
+let activation
+bringForward({ address: '0xabc' }, {
+  shellQuote: value => { activation = value; return "''" },
+  execDetached: () => {}
+})
+const fallback = require('child_process').spawnSync('lua', ['-'], {
+  input: `o = {}; hl = {
+    dsp = { focus = function() return "focus" end, window = { alter_zorder = function() return "raise" end } },
+    dispatch = print
+  }
+${activation}`,
+  encoding: 'utf8'
+})
+assertEqual(fallback.status, 0, 'dock activation works before Hyprland reloads its helpers: ' + fallback.stderr)
+assertEqual(fallback.stdout, 'focus\nraise\n', 'dock keeps the old activation path until its helper is loaded')
+
 assertEqual(dock.normalizePosition('left'), 'left', 'dock accepts a valid position')
 assertEqual(dock.normalizePosition(' Top '), 'top', 'dock reads a position loosely')
 assertEqual(dock.normalizePosition('diagonal'), 'bottom', 'dock falls back to the bottom')

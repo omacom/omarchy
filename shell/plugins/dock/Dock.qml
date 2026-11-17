@@ -207,8 +207,16 @@ Item {
       after.push("hl.dsp.window.set_prop({ prop = \"no_anim\", value = \"unset\", " + target + " })")
     }
     var dispatch = function(step) { return "hyprctl dispatch " + Util.shellQuote(step) }
-    var activate = "hyprctl eval " + Util.shellQuote("o.focus_dock_window(\"address:" + address + "\")")
-    var command = steps.map(dispatch).concat(activate).join(" && ")
+    // An update can restart the shell before Hyprland reloads its helpers.
+    var activate = [
+      "if o.focus_dock_window then",
+      "o.focus_dock_window(\"address:" + address + "\")",
+      "else",
+      "hl.dispatch(hl.dsp.focus({ " + target + " }))",
+      "hl.dispatch(hl.dsp.window.alter_zorder({ mode = \"top\", " + target + " }))",
+      "end"
+    ].join(" ")
+    var command = steps.map(dispatch).concat("hyprctl eval " + Util.shellQuote(activate)).join(" && ")
     if (after.length > 0) command += "; sleep 0.4; " + after.map(dispatch).join("; ")
     Util.execDetached(command)
   }
