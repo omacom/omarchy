@@ -11,6 +11,11 @@ set -euo pipefail
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 source "$SHELL_TEST_DIR/agent-usage-helpers.sh"
 
+# A mise shim cannot find the installed Node after the sandbox changes HOME.
+if command -v node >/dev/null; then
+  node_binary=$(node -p 'process.execPath')
+  PATH="${node_binary%/*}:$PATH"
+fi
 agent_sandbox
 
 # ------------------------------------------------------------------- claude
